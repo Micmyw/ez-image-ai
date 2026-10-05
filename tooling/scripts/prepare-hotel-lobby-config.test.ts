@@ -14,6 +14,7 @@ import {
 import {
 	DEFAULT_HOTEL_LOBBY_OUTPUT,
 	prepareHotelLobbyConfig,
+	prepareHotelLobbyBuildOverlay,
 	prepareHotelLobbyEnvironment,
 	serializePrivateEnvironment,
 } from "./prepare-hotel-lobby-config";
@@ -117,6 +118,36 @@ void test("adds exactly one selection without Cartesian expansion; repeated prep
 	);
 	const second = prepareHotelLobbyEnvironment(first.environment);
 	assert.deepEqual(second.environment, first.environment);
+});
+
+void test("prepares an authenticated build patch without copying secrets, base policy, funding or enablement", () => {
+	const input = fixture();
+	const result = prepareHotelLobbyBuildOverlay(input, "authenticated");
+	assert.equal(result.summary.credits, "69");
+	assert.equal(result.summary.includesBaseSnapshot, false);
+	assert.deepEqual(Object.keys(result.environment).sort(), [
+		"HOTEL_LOBBY_DUO_BUILD_ENABLED",
+		"HOTEL_LOBBY_DUO_RUNTIME_CONFIG",
+	]);
+	assert.equal(result.environment.HOTEL_LOBBY_DUO_BUILD_ENABLED, "false");
+	const patch = JSON.parse(result.environment.HOTEL_LOBBY_DUO_RUNTIME_CONFIG);
+	assert.equal(patch.HOTEL_LOBBY_DUO_ACCESS, "authenticated");
+	assert.equal(patch.HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION, undefined);
+	assert.equal(patch.HOTEL_LOBBY_DUO_INTERNAL_FUNDING, undefined);
+	for (const key of Object.keys(patch)) assert.ok(key.startsWith("HOTEL_LOBBY_DUO_"));
+	const serialized = serializePrivateEnvironment(result.environment);
+	for (const value of [
+		input.KIE_API_KEY,
+		input.DATABASE_URL,
+		input.VIDEO_INTERNAL_FUNDING,
+		input.HOTEL_LOBBY_DUO_INTERNAL_FUNDING,
+	])
+		assert.ok(!serialized.includes(value));
+	assert.equal(
+		JSON.parse(prepareHotelLobbyBuildOverlay(input).environment.HOTEL_LOBBY_DUO_RUNTIME_CONFIG)
+			.HOTEL_LOBBY_DUO_ACCESS,
+		"internal",
+	);
 });
 
 void test("retains broader existing valid selection without duplicating or reducing it", () => {

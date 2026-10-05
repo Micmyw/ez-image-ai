@@ -5,7 +5,8 @@ import {
 	videoEffectCreateSchema,
 	videoEffectRequestSchema,
 } from "@repo/config/video-effects";
-import { canAccessVideoV1, readVideoV1Config } from "@repo/config/video-v1";
+import { canAccessVideoEffect } from "@repo/config/video-effects-access.server";
+import { readVideoV1Config } from "@repo/config/video-v1";
 import { db } from "@repo/database/client";
 import { getVideoTemplateAdminRecord } from "@repo/database/video-template";
 import {
@@ -119,7 +120,7 @@ const access = protectedProcedure
 	.handler(async ({ context: { user } }) => {
 		const config = readVideoV1Config(process.env);
 		const entitlement = await loadUserPlanEntitlement(user.id);
-		const accessAllowed = canAccessVideoV1(config, user);
+		const accessAllowed = canAccessVideoEffect(process.env, user);
 		const base = {
 			effectId: "hotel-lobby-duo" as const,
 			accessAllowed,

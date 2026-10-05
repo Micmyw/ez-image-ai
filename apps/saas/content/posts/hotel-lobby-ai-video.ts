@@ -16,7 +16,7 @@ export const hotelLobbyVideoDocuments = [
 		authorId: "ezimageai-editorial",
 		relatedEffectIds: [],
 		published: false,
-		body: `This guide describes the intended Hotel Lobby duo workflow. The template is in draft while real product samples, quality checks and release conditions are still being verified. No generation results or success rate are claimed here.
+		body: `This guide describes the Hotel Lobby duo workflow. The template is available in beta to signed-in accounts. This tutorial remains a draft while authorized public samples and documented quality review are being prepared. No generation results or success rate are claimed here.
 
 ## Understand the style and output
 
@@ -40,9 +40,9 @@ The template prepares one continuous duo scene in the background before animatin
 
 ## Confirm one total quote
 
-When the template is available to your account, the page displays the complete credit quote before you choose Generate. The intermediate scene and final video are one order using your existing eligible credits. There is no separate retail charge for the scene image and no new wallet or subscription is required.
+The page displays the complete credit quote before you choose Generate. The intermediate scene and final video are one order using your existing eligible credits. There is no separate retail charge for the scene image and no new wallet or subscription is required.
 
-This is not free or unlimited generation. A formal public price is not advertised during the draft stage. If your eligible credits are insufficient, use the existing account payment flow and return to review a valid quote before starting. A changed or expired quote requires a fresh confirmation.
+This is not free or unlimited generation. Review the current quote after uploading your photos. If your eligible credits are insufficient, use the existing account payment flow and return to review a valid quote before starting. A changed or expired quote requires a fresh confirmation.
 
 ## Leave and return to the accepted task
 

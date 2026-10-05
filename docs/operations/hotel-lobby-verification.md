@@ -1,6 +1,9 @@
 # Hotel Lobby duo verification and rollout
 
 This receipt separates local implementation from real provider acceptance and public availability.
+For the later owner-authorized authenticated public beta, see the
+[follow-up rollout](hotel-lobby-public-rollout.md). The internal-only and missing
+production-authorization statuses below describe the original implementation batch.
 Baseline: `96f47c92d5d32bd20640e7029ab08f88a916c4f1`.
 Updated main incorporated before final publication:
 `1d9f3136e5230dbc9dab17803d002479d7eb463d`.

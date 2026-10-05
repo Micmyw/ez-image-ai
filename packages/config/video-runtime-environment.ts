@@ -37,6 +37,7 @@ export const VIDEO_RUNTIME_ENVIRONMENT_KEYS = [
 	"VIDEO_COST_PAYMENT_FIXED_MICROS",
 	"VIDEO_COST_PAYMENT_FEE_BPS",
 	"VIDEO_COST_NONBILLABLE_FAILURE_BPS",
+	"HOTEL_LOBBY_DUO_ACCESS",
 	"HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION",
 	"HOTEL_LOBBY_DUO_INTERNAL_FUNDING",
 	"HOTEL_LOBBY_DUO_PRICE_VERSION",
@@ -63,6 +64,12 @@ export type VideoRuntimeEnvironmentValues = Partial<Record<VideoRuntimeEnvironme
 };
 const keys = new Set<string>(VIDEO_RUNTIME_ENVIRONMENT_KEYS);
 const maximumBytes = 5000;
+
+/** Build-only template patch: funding and all ordinary-video policy remain authoritative. */
+export const HOTEL_LOBBY_RUNTIME_OVERRIDE_KEYS = VIDEO_RUNTIME_ENVIRONMENT_KEYS.filter(
+	(key) => key.startsWith("HOTEL_LOBBY_DUO_") && key !== "HOTEL_LOBBY_DUO_INTERNAL_FUNDING",
+);
+const hotelLobbyOverrideKeys = new Set<string>(HOTEL_LOBBY_RUNTIME_OVERRIDE_KEYS);
 
 function validValue(value: unknown): value is string {
 	return (
@@ -93,6 +100,22 @@ export function parseVideoRuntimeConfig(
 	const entries = Object.entries(parsed);
 	if (entries.some(([key, entry]) => !keys.has(key) || !validValue(entry))) throw invalid();
 	return Object.fromEntries(entries);
+}
+
+export function parseHotelLobbyRuntimeOverride(value: unknown) {
+	try {
+		const parsed = parseVideoRuntimeConfig(value);
+		if (
+			!Object.keys(parsed).length ||
+			Object.keys(parsed).some((key) => !hotelLobbyOverrideKeys.has(key)) ||
+			(parsed.HOTEL_LOBBY_DUO_ACCESS !== undefined &&
+				!["internal", "authenticated"].includes(parsed.HOTEL_LOBBY_DUO_ACCESS))
+		)
+			throw invalid();
+		return parsed;
+	} catch {
+		throw new Error("HOTEL_LOBBY_RUNTIME_OVERRIDE_INVALID");
+	}
 }
 
 /** Read packed and legacy flat input without ever replacing a conflicting flat value. */

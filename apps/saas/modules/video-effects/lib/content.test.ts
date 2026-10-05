@@ -19,6 +19,7 @@ import {
 	isPublicVideoEffectSamplePath,
 	validateVideoEffectPublication,
 } from "./content";
+import { videoEffectMayIndex } from "./indexing";
 
 const evidenceMarker = "PRIVATE_TEST_EVIDENCE_NEVER_SERIALIZE";
 const hash = (value: number) => value.toString(16).padStart(64, "0");
@@ -107,9 +108,13 @@ function publishableFixture(): VideoEffectRecord {
 }
 
 describe("Hotel Lobby publication governance", () => {
-	it("keeps the real untested record and tutorial draft with no invented sample", () => {
-		expect(hotelLobbyContent.status).toBe("draft");
+	it("keeps the public beta outside search publication with no invented quality run or sample", () => {
+		expect(hotelLobbyContent.status).toBe("beta");
 		expect(hotelLobbyContent.samples).toEqual([]);
+		expect(hotelLobbyRecord.qualityRuns).toEqual([]);
+		expect(hotelLobbyRecord.publicationApproval).toBeUndefined();
+		expect(hotelLobbyRecord.publishedAt).toBeUndefined();
+		expect(videoEffectMayIndex(hotelLobbyContent.status === "published", {})).toBe(false);
 		expect(getPublishedVideoEffects()).toEqual([]);
 		expect(validateVideoEffectPublication(hotelLobbyRecord)).not.toEqual([]);
 		expect(hotelLobbyVideoDocuments[0].published).toBe(false);

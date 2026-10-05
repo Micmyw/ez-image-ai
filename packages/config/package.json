@@ -11,6 +11,7 @@
 		"./video-v1": "./video-v1.ts",
 		"./video-effects": "./video-effects.ts",
 		"./video-effects.server": "./video-effects.server.ts",
+		"./video-effects-access.server": "./video-effects-access.server.ts",
 		"./video-models": "./video-models.ts",
 		"./video-model-access": "./video-model-access.ts",
 		"./video-internal-funding": "./video-internal-funding.ts",

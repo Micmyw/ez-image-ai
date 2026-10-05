@@ -1,6 +1,6 @@
 import { call } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
@@ -83,8 +83,45 @@ beforeEach(() => {
 	vi.mocked(createVideoTemplateJob).mockResolvedValue(state as never);
 	vi.mocked(getVideoTemplatePublicState).mockResolvedValue(state as never);
 });
+afterEach(() => vi.unstubAllEnvs());
 
 describe("template API authorization and strict public contracts", () => {
+	it("reports template access for an ordinary registered customer when explicitly enabled", async () => {
+		vi.stubEnv("VIDEO_V1_ENABLED", "true");
+		vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "true");
+		vi.stubEnv("HOTEL_LOBBY_DUO_ACCESS", "authenticated");
+		vi.stubEnv("VIDEO_V1_ALLOWED_USER_IDS", "another-internal-owner");
+		vi.mocked(requireVideoTemplateAdmission).mockReturnValue({
+			maximumInputBytes: 7_000_000,
+			price: { credits: 69n },
+			template: {},
+		} as never);
+		expect(await call(videoEffectsRouter.access, undefined, ctx)).toMatchObject({
+			accessAllowed: true,
+			available: true,
+			credits: "69",
+		});
+		expect(requireVideoTemplateAdmission).toHaveBeenCalledWith(
+			{ userId: "owner", role: "user" },
+			expect.anything(),
+			expect.anything(),
+			expect.anything(),
+		);
+	});
+	it("keeps accessAllowed false when the ordinary customer is outside internal template scope", async () => {
+		vi.stubEnv("VIDEO_V1_ENABLED", "true");
+		vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "true");
+		vi.stubEnv("HOTEL_LOBBY_DUO_ACCESS", "internal");
+		vi.stubEnv("VIDEO_V1_ALLOWED_USER_IDS", "another-internal-owner");
+		vi.mocked(requireVideoTemplateAdmission).mockImplementationOnce(() => {
+			throw new Error("VIDEO_ACCESS_DENIED");
+		});
+		expect(await call(videoEffectsRouter.access, undefined, ctx)).toMatchObject({
+			accessAllowed: false,
+			available: false,
+			reasons: ["ACCESS_DENIED"],
+		});
+	});
 	it("marks authenticated state and unauthenticated errors private/no-store before session lookup", async () => {
 		const handler = new RPCHandler({ videoEffects: videoEffectsRouter });
 		for (const session of [{ user, session: { id: "session" } }, null]) {

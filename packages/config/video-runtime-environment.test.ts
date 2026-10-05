@@ -4,6 +4,7 @@ import {
 	expandVideoRuntimeEnvironment,
 	hydrateVideoRuntimeEnvironment,
 	packVideoRuntimeEnvironment,
+	parseHotelLobbyRuntimeOverride,
 	parseVideoRuntimeConfig,
 	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
 } from "./video-runtime-environment";
@@ -16,6 +17,7 @@ const policy = {
 	VIDEO_V1_UPLOAD_CORS_READY: "true",
 	VIDEO_COST_STORAGE_MICROS: "100",
 	HOTEL_LOBBY_DUO_PRICE_VERSION: "fixture-price-only",
+	HOTEL_LOBBY_DUO_ACCESS: "authenticated",
 	HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS: "20000",
 	HOTEL_LOBBY_DUO_PAYMENT_FEE_BPS: "750",
 	HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS: "fixture-only-payment-approval",
@@ -29,6 +31,34 @@ const policy = {
 };
 
 describe("private video runtime environment transport", () => {
+	it("limits build-only template patches to template policy, never funding or ordinary access", () => {
+		expect(parseHotelLobbyRuntimeOverride('{"HOTEL_LOBBY_DUO_ACCESS":"authenticated"}')).toEqual({
+			HOTEL_LOBBY_DUO_ACCESS: "authenticated",
+		});
+		for (const key of [
+			"VIDEO_V1_ACCESS",
+			"VIDEO_MODEL_ALLOWED_OPTIONS",
+			"VIDEO_INTERNAL_FUNDING",
+			"HOTEL_LOBBY_DUO_INTERNAL_FUNDING",
+			"HOTEL_LOBBY_DUO_ENABLED",
+			"HOTEL_LOBBY_DUO_BUILD_ENABLED",
+			"KIE_API_KEY",
+			"HOTEL_LOBBY_DUO_RUNTIME_CONFIG",
+		])
+			expect(() =>
+				parseHotelLobbyRuntimeOverride(JSON.stringify({ [key]: "secret-not-echoed" })),
+			).toThrow(/^HOTEL_LOBBY_RUNTIME_OVERRIDE_INVALID$/);
+		for (const value of [
+			"{}",
+			"invalid",
+			'{"HOTEL_LOBBY_DUO_ACCESS":"public"}',
+			'{"HOTEL_LOBBY_DUO_ACCESS":" authenticated"}',
+			JSON.stringify({ HOTEL_LOBBY_DUO_PRICE_BASIS: "界".repeat(1800) }),
+		])
+			expect(() => parseHotelLobbyRuntimeOverride(value)).toThrow(
+				/^HOTEL_LOBBY_RUNTIME_OVERRIDE_INVALID$/,
+			);
+	});
 	it("round trips policy and leaves kill switch, image flags and credentials separate", () => {
 		const input = {
 			...policy,

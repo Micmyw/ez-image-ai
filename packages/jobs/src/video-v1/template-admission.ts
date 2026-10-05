@@ -5,6 +5,7 @@ import {
 	type VideoEffectRequest,
 	type VideoEffectCreateInput,
 } from "@repo/config/video-effects";
+import { canAccessVideoEffect } from "@repo/config/video-effects-access.server";
 import {
 	resolveVideoEffectTemplate,
 	resolveVideoEffectPrice,
@@ -23,7 +24,7 @@ import {
 import type { VideoAdmissionLimits, VideoPrice } from "@repo/database/video-v1";
 import { authorizeVideoPlayback } from "@repo/database/video-v1-fulfillment";
 
-import { ensureVideoWorkflowStarted, requireVideoAdmission } from "./admission";
+import { ensureVideoWorkflowStarted, requireVideoModelReadiness } from "./admission";
 import type { VideoOwnerContext, VideoWorkflowBinding } from "./contracts";
 import {
 	requireVideoTemplateRuntimeEnabled,
@@ -45,9 +46,11 @@ export function requireVideoTemplateAdmission(
 	bindings: VideoV1Bindings,
 	request: VideoEffectRequest,
 ) {
+	if (!canAccessVideoEffect(environment, { id: context.userId, role: context.role }))
+		throw new Error("VIDEO_ACCESS_DENIED");
 	const template = resolveVideoEffectTemplate(request, environment);
 	requireVideoTemplateSceneEnvironment(template, environment);
-	const admitted = requireVideoAdmission(context, environment, bindings, template.video);
+	const admitted = requireVideoModelReadiness(environment, bindings, template.video);
 	// An ordinary video administrator budget never authorizes this separate two-stage product.
 	const price = applyVideoInternalFunding(resolveVideoEffectPrice(request, environment), context, {
 		...environment,

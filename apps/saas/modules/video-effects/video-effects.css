@@ -427,6 +427,47 @@
 	border-radius: 12px;
 	background: #09070b;
 }
+.ve-history {
+	max-width: 1050px;
+	margin: 40px auto 0;
+	padding: 24px;
+	border: 1px solid var(--ve-border);
+	border-radius: 18px;
+	scroll-margin-top: 90px;
+}
+.ve-history-heading {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 16px;
+	margin-bottom: 20px;
+}
+.ve-history h2 {
+	font-size: 22px;
+	font-weight: 600;
+}
+.ve-history p,
+.ve-history time {
+	color: var(--ve-muted);
+	font-size: 13px;
+	line-height: 1.7;
+}
+.ve-history-list {
+	display: grid;
+	gap: 12px;
+	margin-block: 16px;
+}
+.ve-history-item {
+	display: grid;
+	gap: 5px;
+	padding: 16px;
+	border: 1px solid var(--ve-border);
+	border-radius: 12px;
+}
+.ve-history-item:hover {
+	background: #b89fe90a;
+}
 .ve-page :is(a, button, summary):focus-visible {
 	outline: 2px solid #c5a3fb;
 	outline-offset: 4px;

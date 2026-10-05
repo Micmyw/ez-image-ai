@@ -12,7 +12,7 @@ vi.mock("@repo/database/video-template", () => ({
 }));
 vi.mock("./admission", () => ({
 	ensureVideoWorkflowStarted: vi.fn(),
-	requireVideoAdmission: vi.fn(() => ({
+	requireVideoModelReadiness: vi.fn(() => ({
 		config: {
 			maxInputBytes: 10_000_000,
 			ownerConcurrency: 1,
@@ -72,6 +72,9 @@ const request = {
 };
 const bindings = { workflow: true, r2: true, hyperdrive: true, uploadCors: true };
 const environment = {
+	VIDEO_V1_ENABLED: "true",
+	VIDEO_V1_ALLOWED_USER_IDS: "owner",
+	HOTEL_LOBBY_DUO_ENABLED: "true",
 	MEDIA_GENERATION_ENABLED: "true",
 	MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
 	MEDIA_ENABLED_PROVIDERS: "kie",

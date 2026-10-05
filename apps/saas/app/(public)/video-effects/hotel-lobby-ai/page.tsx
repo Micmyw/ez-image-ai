@@ -8,6 +8,7 @@ import { PublicFooterLinks } from "../../../../modules/public-content/components
 import { createPublicPageMetadata } from "../../../../modules/public-content/lib/metadata";
 import { VideoEffectArticle } from "../../../../modules/video-effects/components/VideoEffectArticle";
 import { VideoEffectGenerator } from "../../../../modules/video-effects/components/VideoEffectGenerator";
+import { VideoEffectHistory } from "../../../../modules/video-effects/components/VideoEffectHistory";
 import {
 	getVideoEffectStructuredData,
 	HOTEL_LOBBY_DESCRIPTION,
@@ -64,6 +65,7 @@ export default async function HotelLobbyVideoPage({
 				</header>
 				<NextIntlClientProvider messages={{ videoEffects: messages.videoEffects }}>
 					<VideoEffectGenerator initialJobId={jobId} samples={hotelLobbyContent.samples} />
+					<VideoEffectHistory />
 				</NextIntlClientProvider>
 				<VideoEffectArticle />
 			</main>

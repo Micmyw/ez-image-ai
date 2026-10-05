@@ -24,6 +24,7 @@ type Scenario = {
 	quotes: Array<Record<string, unknown>>;
 	creates: Array<Record<string, unknown>>;
 	playback: number;
+	ordinaryVideoJobRequests: number;
 };
 const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 	signedIn: true,
@@ -37,6 +38,7 @@ const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 	quotes: [],
 	creates: [],
 	playback: 0,
+	ordinaryVideoJobRequests: 0,
 	...patch,
 });
 
@@ -76,6 +78,7 @@ async function setup(page: Page, state: Scenario) {
 	await page.route("**/api/rpc/**", async (route) => {
 		const url = new URL(route.request().url());
 		const endpoint = url.pathname.split("/api/rpc/")[1];
+		if (endpoint?.startsWith("videoV1/jobs/")) state.ordinaryVideoJobRequests++;
 		const body = route.request().method() === "POST" ? route.request().postDataJSON()?.json : null;
 		const reply = (json: unknown) => route.fulfill({ json: { json } });
 		const failure = (message: string) =>
@@ -213,6 +216,8 @@ test("UI Mock: anonymous template is readable, honest, private and noindex", asy
 	await expect(page.locator(".ve-page video")).toHaveCount(0);
 	await expect(page.locator(".ve-page select, .ve-page textarea")).toHaveCount(0);
 	await expect(page.locator(".ve-page")).toContainText(t.samplesPending);
+	await expect(page.locator(".ve-beta")).toHaveText(t.beta);
+	await expect(page.locator("#hotel-lobby-history")).toHaveCount(0);
 	await expect(page.locator("#ve-upload-left")).toBeDisabled();
 	await expect(page.getByRole("link", { name: t.signIn })).toHaveAttribute(
 		"href",
@@ -220,6 +225,45 @@ test("UI Mock: anonymous template is readable, honest, private and noindex", asy
 	);
 	expect(state.uploads).toBe(0);
 	expect(state.creates).toHaveLength(0);
+});
+
+test("UI Mock: an ordinary signed-in account can generate and reopen its template order while ordinary video is unavailable", async ({
+	page,
+}) => {
+	const state = scenario();
+	await setup(page, state);
+	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+	await expect(page.locator("#hotel-lobby-history")).toContainText(t.emptyHistory);
+	await uploadBoth(page);
+	await quote(page);
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
+		.click();
+	const accepted = page.locator(`#hotel-lobby-history a[href="${path}?job=mock-template-job"]`);
+	await expect(accepted).toContainText(t.stages.CREATING_SCENE);
+	await accepted.click();
+	await expect(page).toHaveURL(`${test.info().project.use.baseURL}${path}?job=mock-template-job`);
+	await expect(page.getByRole("region", { name: t.yourVideo })).toContainText(
+		t.stages.CREATING_SCENE,
+	);
+	expect(state.creates).toHaveLength(1);
+	expect(state.ordinaryVideoJobRequests).toBe(0);
+});
+
+test("UI Mock: a temporary generation closure preserves access to existing template history", async ({
+	page,
+}) => {
+	const state = scenario({ available: false, creates: [{}] });
+	await setup(page, state);
+	await expect(page.locator("#ve-upload-left")).toBeDisabled();
+	await expect(page.locator(".ve-notice")).toContainText(t.unavailable);
+	await expect(page.locator(".ve-notice")).not.toContainText(t.betaHint);
+	await expect(page.locator("#hotel-lobby-history a")).toHaveAttribute(
+		"href",
+		`${path}?job=mock-template-job`,
+	);
+	expect(state.uploads).toBe(0);
+	expect(state.ordinaryVideoJobRequests).toBe(0);
 });
 
 for (const width of [1440, 390, 320])
