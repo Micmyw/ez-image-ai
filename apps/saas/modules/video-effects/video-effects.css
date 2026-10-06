@@ -290,6 +290,8 @@
 }
 .ve-price > div {
 	display: flex;
+	flex: 1;
+	min-width: 0;
 	flex-direction: column;
 	gap: 5px;
 }
@@ -323,6 +325,13 @@
 .ve-error {
 	color: #ffb9ba !important;
 	margin-top: 14px;
+}
+.ve-creator output,
+.ve-notice > span {
+	display: block;
+}
+.ve-notice > span + span {
+	margin-top: 6px;
 }
 .ve-actions {
 	display: flex;

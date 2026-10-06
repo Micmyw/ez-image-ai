@@ -3,7 +3,6 @@
 import { useSession } from "@auth/hooks/use-session";
 import { useUpgrade } from "@payments/components/upgrade-context";
 import { defaultUpgradeSelection, upgradeHref } from "@payments/lib/upgrade-selection";
-import { orpcClient } from "@shared/lib/orpc-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRightIcon, FilmIcon, LockKeyholeIcon, SparklesIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -122,11 +121,6 @@ function SignedInGenerator({
 		retry: false,
 		staleTime: 15_000,
 	});
-	const balance = useQuery({
-		queryKey: ["media-credit-account", ownerId],
-		queryFn: () => orpcClient.media.getCreditAccount(),
-		retry: false,
-	});
 	const maxBytes = Math.min(
 		access.data?.maxInputBytes ?? VIDEO_EFFECT_MAX_BYTES,
 		VIDEO_EFFECT_MAX_BYTES,
@@ -134,6 +128,12 @@ function SignedInGenerator({
 	const enabled = Boolean(restored && access.data?.available && access.data.accessAllowed);
 	const uploading = [slots.left.status, slots.right.status].some(
 		(status) => status === "uploading" || status === "sealing",
+	);
+	const inputsReady = Boolean(
+		draft.leftAssetId &&
+		draft.rightAssetId &&
+		slots.left.status === "sealed" &&
+		slots.right.status === "sealed",
 	);
 	function store(next: EffectDraft, required = false) {
 		try {
@@ -299,7 +299,8 @@ function SignedInGenerator({
 		}
 	}
 	async function getQuote() {
-		if (operation.current || !enabled || uploading || current.current.confirmation) return;
+		if (operation.current || !enabled || !inputsReady || uploading || current.current.confirmation)
+			return;
 		operation.current = true;
 		setBusy("quote");
 		setError(null);
@@ -318,7 +319,10 @@ function SignedInGenerator({
 		}
 	}
 	async function confirm() {
-		if (operation.current || (!current.current.confirmation && (!enabled || !quote || expired)))
+		if (
+			operation.current ||
+			(!current.current.confirmation && (!enabled || !quote || expired || insufficientBalance))
+		)
 			return;
 		operation.current = true;
 		setBusy("submit");
@@ -334,12 +338,14 @@ function SignedInGenerator({
 			setQuote(null);
 			void recordVideoEffectEvent("accepted", accepted.jobId);
 			void queryClient.invalidateQueries({ queryKey: ["media-credit-account"] });
+			void queryClient.invalidateQueries({ queryKey: ["video-effects", "access", ownerId] });
 			void queryClient.invalidateQueries({ queryKey: ["video-effects", "history", ownerId] });
 		} catch (failure) {
 			const key = effectError(failure);
 			if (key === "quoteExpired" || key === "insufficient") {
 				store({ ...current.current, confirmation: null });
 				setQuote(null);
+				void queryClient.invalidateQueries({ queryKey: ["video-effects", "access", ownerId] });
 			}
 			setError(
 				t(
@@ -363,6 +369,32 @@ function SignedInGenerator({
 			);
 	}
 	const pending = draft.confirmation;
+	const totalCredits =
+		pending?.quote.credits ?? (quote && !expired ? quote.credits : access.data?.credits);
+	const creditBalance = access.data?.creditBalance;
+	const shortfall =
+		totalCredits && creditBalance
+			? BigInt(totalCredits) - BigInt(creditBalance.eligibleCredits)
+			: 0n;
+	const insufficientBalance = !pending && shortfall > 0n;
+	const hasIneligibleCredits =
+		creditBalance && BigInt(creditBalance.totalCredits) > BigInt(creditBalance.eligibleCredits);
+	const quoteHint =
+		!restored || access.isPending
+			? "checkingAvailability"
+			: !enabled
+				? "unavailable"
+				: uploading
+					? "waitingForPhotos"
+					: !draft.leftAssetId && !draft.rightAssetId
+						? "uploadBothHint"
+						: !draft.leftAssetId
+							? "uploadLeftHint"
+							: !draft.rightAssetId
+								? "uploadRightHint"
+								: !inputsReady
+									? "waitingForPhotos"
+									: null;
 	return (
 		<div className="ve-workbench">
 			<section className="ve-creator" aria-busy={busy !== null}>
@@ -404,21 +436,32 @@ function SignedInGenerator({
 					<div>
 						<small>{t("totalCredits")}</small>
 						<strong>
-							{quote
-								? t("credits", { credits: quote.credits })
-								: pending
-									? t("credits", { credits: pending.quote.credits })
-									: "—"}
+							{totalCredits
+								? t("credits", { credits: totalCredits })
+								: t(access.isPending ? "loadingPrice" : "priceUnavailable")}
 						</strong>
 					</div>
 					<div>
-						<small>{t("balance")}</small>
+						<small>{t("eligibleBalance")}</small>
 						<span>
-							{balance.data ? t("credits", { credits: balance.data.spendableCredits }) : "—"}
+							{creditBalance
+								? t("credits", { credits: creditBalance.eligibleCredits })
+								: t(access.isPending ? "loadingPrice" : "balanceUnavailable")}
 						</span>
+						{creditBalance && (
+							<small>{t("accountBalance", { credits: creditBalance.totalCredits })}</small>
+						)}
 					</div>
 				</div>
 				<p className="ve-microcopy">{t("priceHint")}</p>
+				{!pending && (insufficientBalance || hasIneligibleCredits) && (
+					<div id="ve-funding-hint" className="ve-notice" aria-live="polite">
+						{insufficientBalance && (
+							<span>{t("creditShortfall", { credits: shortfall.toString() })}</span>
+						)}
+						{hasIneligibleCredits && <span>{t("eligibleBalanceHint")}</span>}
+					</div>
+				)}
 				{error && (
 					<p className="ve-error" role="alert">
 						{error}
@@ -440,7 +483,8 @@ function SignedInGenerator({
 					<button
 						type="button"
 						className="ve-primary"
-						disabled={!enabled || busy !== null || uploading}
+						disabled={!enabled || busy !== null || uploading || insufficientBalance}
+						aria-describedby={insufficientBalance ? "ve-funding-hint" : undefined}
 						onClick={() => void confirm()}
 					>
 						<SparklesIcon aria-hidden />
@@ -448,12 +492,16 @@ function SignedInGenerator({
 					</button>
 				) : (
 					<>
+						{quoteHint && (
+							<p id="ve-quote-hint" className="ve-microcopy" aria-live="polite">
+								{t(quoteHint)}
+							</p>
+						)}
 						<button
 							type="button"
 							className="ve-primary"
-							disabled={
-								!enabled || !draft.leftAssetId || !draft.rightAssetId || busy !== null || uploading
-							}
+							disabled={!enabled || !inputsReady || busy !== null || uploading}
+							aria-describedby={quoteHint ? "ve-quote-hint" : undefined}
 							onClick={() => void getQuote()}
 						>
 							{t(busy === "quote" ? "quoting" : "getQuote")}

@@ -38,6 +38,10 @@ export const videoEffectAccessSchema = z
 		accessAllowed: z.boolean(),
 		reasons: z.array(z.string()),
 		credits: z.string().nullable(),
+		creditBalance: z
+			.object({ totalCredits: z.string(), eligibleCredits: z.string() })
+			.strict()
+			.nullable(),
 		maxInputBytes: z.number().int().positive(),
 	})
 	.strict();

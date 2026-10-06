@@ -19,6 +19,7 @@ import {
 	settleCredits,
 } from "./credits";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
+import { getVideoTemplateCreditBalance } from "./video-template-credits";
 import {
 	createVideoJobRecord,
 	createVideoQuoteRecord,
@@ -394,6 +395,55 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		await createCreditGrant({ accountId, amount: 100n + bonusCredits, referenceKey }, client);
 		return referenceKey;
 	}
+	it("template credit snapshot separates free credits without creating an account or changing the ledger", async () => {
+		const unknown = crypto.randomUUID();
+		expect(await getVideoTemplateCreditBalance(unknown, paidFundingPolicy, client)).toEqual({
+			totalCredits: "0",
+			eligibleCredits: "0",
+		});
+		expect(await client.creditAccount.count({ where: { ownerId: unknown } })).toBe(0);
+		const f = await fixture(391n);
+		const before = await client.creditAccount.findUniqueOrThrow({ where: { id: f.account.id } });
+		const ledgerCount = await client.creditLedgerEntry.count({
+			where: { accountId: f.account.id },
+		});
+		expect(await getVideoTemplateCreditBalance(f.ownerId, paidFundingPolicy, client)).toEqual({
+			totalCredits: "391",
+			eligibleCredits: "0",
+		});
+		expect(await getVideoTemplateCreditBalance(f.ownerId, undefined, client)).toEqual({
+			totalCredits: "391",
+			eligibleCredits: "391",
+		});
+		expect(await client.creditAccount.findUniqueOrThrow({ where: { id: f.account.id } })).toEqual(
+			before,
+		);
+		expect(await client.creditLedgerEntry.count({ where: { accountId: f.account.id } })).toBe(
+			ledgerCount,
+		);
+	});
+	it("template credit snapshot excludes expired funding and blocks availability with credit debt", async () => {
+		const f = await fixture();
+		const ref = await paidSubscriptionGrant(f.ownerId, f.account.id, { paid: 3_000_000n });
+		expect(await getVideoTemplateCreditBalance(f.ownerId, paidFundingPolicy, client)).toEqual({
+			totalCredits: "200",
+			eligibleCredits: "100",
+		});
+		await client.creditLot.update({
+			where: { accountId_grantReferenceKey: { accountId: f.account.id, grantReferenceKey: ref } },
+			data: { expiresAt: new Date(Date.now() - 1000) },
+		});
+		expect(await getVideoTemplateCreditBalance(f.ownerId, paidFundingPolicy, client)).toEqual({
+			totalCredits: "100",
+			eligibleCredits: "0",
+		});
+		await client.creditAccount.update({ where: { id: f.account.id }, data: { creditDebt: 1n } });
+		expect(await getVideoTemplateCreditBalance(f.ownerId, undefined, client)).toEqual({
+			totalCredits: "100",
+			eligibleCredits: "0",
+		});
+		await client.creditAccount.update({ where: { id: f.account.id }, data: { creditDebt: 0n } });
+	});
 	it("explicit operator funding reserves genuine ordinary lots once and settles the actual debit", async () => {
 		const f = await operatorFixture();
 		const results = await Promise.all(
@@ -524,6 +574,10 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		const f = await fixture();
 		const paidRef = await paidSubscriptionGrant(f.ownerId, f.account.id, { paid: 3_000_000n });
 		const result = await createVideoJobRecord({ ...f.input, paidFundingPolicy }, client);
+		expect(await getVideoTemplateCreditBalance(f.ownerId, paidFundingPolicy, client)).toEqual({
+			totalCredits: "193",
+			eligibleCredits: "93",
+		});
 		const allocations = await client.creditReservationAllocation.findMany({
 			where: { reservation: { jobId: result.jobId } },
 			include: { lot: true },
@@ -555,6 +609,10 @@ describe("video V1 admission isolated PostgreSQL", () => {
 	])("rejects $label without a reservation", async (options) => {
 		const f = await fixture();
 		await paidSubscriptionGrant(f.ownerId, f.account.id, options);
+		expect(await getVideoTemplateCreditBalance(f.ownerId, paidFundingPolicy, client)).toEqual({
+			totalCredits: "200",
+			eligibleCredits: "0",
+		});
 		await expect(createVideoJobRecord({ ...f.input, paidFundingPolicy }, client)).rejects.toThrow(
 			"INSUFFICIENT_PAID_CREDITS",
 		);
@@ -563,6 +621,10 @@ describe("video V1 admission isolated PostgreSQL", () => {
 	it("legacy Stripe invoice minor units are converted once to micro-USD", async () => {
 		const f = await fixture();
 		await paidSubscriptionGrant(f.ownerId, f.account.id, { paid: 300n, stripeMinorUnits: true });
+		expect(await getVideoTemplateCreditBalance(f.ownerId, paidFundingPolicy, client)).toEqual({
+			totalCredits: "200",
+			eligibleCredits: "100",
+		});
 		await expect(
 			createVideoJobRecord({ ...f.input, paidFundingPolicy }, client),
 		).resolves.toMatchObject({ replayed: false });
@@ -570,11 +632,19 @@ describe("video V1 admission isolated PostgreSQL", () => {
 	it("credit pack bonus credits reduce the revenue per entire grant", async () => {
 		const low = await fixture();
 		await paidPackGrant(low.ownerId, low.account.id, 100n);
+		expect(await getVideoTemplateCreditBalance(low.ownerId, paidFundingPolicy, client)).toEqual({
+			totalCredits: "300",
+			eligibleCredits: "0",
+		});
 		await expect(createVideoJobRecord({ ...low.input, paidFundingPolicy }, client)).rejects.toThrow(
 			"INSUFFICIENT_PAID_CREDITS",
 		);
 		const valid = await fixture();
 		await paidPackGrant(valid.ownerId, valid.account.id, 20n);
+		expect(await getVideoTemplateCreditBalance(valid.ownerId, paidFundingPolicy, client)).toEqual({
+			totalCredits: "220",
+			eligibleCredits: "120",
+		});
 		await expect(
 			createVideoJobRecord({ ...valid.input, paidFundingPolicy }, client),
 		).resolves.toMatchObject({ replayed: false });

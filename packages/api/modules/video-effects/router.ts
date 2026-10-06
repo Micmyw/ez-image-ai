@@ -8,7 +8,10 @@ import {
 import { canAccessVideoEffect } from "@repo/config/video-effects-access.server";
 import { readVideoV1Config } from "@repo/config/video-v1";
 import { db } from "@repo/database/client";
-import { getVideoTemplateAdminRecord } from "@repo/database/video-template";
+import {
+	getVideoTemplateAdminRecord,
+	getVideoTemplateCreditBalance,
+} from "@repo/database/video-template";
 import {
 	createVideoTemplateJob,
 	createVideoTemplateQuote,
@@ -113,7 +116,7 @@ const access = protectedProcedure
 		route(
 			"GET",
 			"/video-effects/access",
-			"Check private template access and effective upload limits",
+			"Check template availability, price, eligible credit balance and upload limits",
 		),
 	)
 	.output(videoEffectAccessSchema)
@@ -144,6 +147,11 @@ const access = protectedProcedure
 				available: true,
 				reasons: [],
 				credits: admitted.price.credits.toString(),
+				creditBalance: await getVideoTemplateCreditBalance(
+					user.id,
+					admitted.price.paidFundingPolicy,
+					db,
+				),
 			};
 		} catch (error) {
 			return {
@@ -155,6 +163,7 @@ const access = protectedProcedure
 						: "ACCESS_DENIED",
 				],
 				credits: null,
+				creditBalance: null,
 			};
 		}
 	});
