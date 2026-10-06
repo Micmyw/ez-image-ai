@@ -1,7 +1,7 @@
 import type { Prisma } from "../../generated/client";
 import type { PaidCreditFundingPolicy } from "./types";
 
-/** Call only after the account and its ordered lots are locked by the ledger. */
+/** Ledger mutations must lock the account/lots first; advisory reads use a consistent snapshot. */
 export async function findPaidFundedCreditLotIds(
 	accountId: string,
 	policy: PaidCreditFundingPolicy,

@@ -1961,7 +1961,7 @@
 		"totalCredits": "Gesamtkosten",
 		"credits": "{credits} Credits",
 		"balance": "Verfügbares Guthaben",
-		"priceHint": "Ein Gesamtangebot umfasst Szene und Video. Einige Credits deines Guthabens sind möglicherweise nicht für Videos zugelassen.",
+		"priceHint": "Eine Abbuchung umfasst Szene und Video. Prüfe den endgültigen Preis vor der Bestätigung.",
 		"pendingHint": "Eine frühere Bestätigung muss geprüft werden. Rufe dieselbe Anfrage erneut ab, bevor du einen weiteren Auftrag startest.",
 		"recover": "Dieselbe Anfrage prüfen",
 		"submitting": "Auftrag wird bestätigt…",
@@ -2020,6 +2020,17 @@
 		},
 		"insufficient": "Für diesen Auftrag sind nicht genügend berechtigte Credits vorhanden. Prüfe dein Guthaben oder füge Credits hinzu.",
 		"unavailable": "Die Videoerstellung ist vorübergehend nicht verfügbar. Bitte versuche es später erneut.",
-		"requestFailed": "Die Antwort konnte nicht bestätigt werden. Falls eine Bestätigung aussteht, prüfe dieselbe Anfrage, um ihren Ausgang zu klären."
+		"requestFailed": "Die Antwort konnte nicht bestätigt werden. Falls eine Bestätigung aussteht, prüfe dieselbe Anfrage, um ihren Ausgang zu klären.",
+		"eligibleBalance": "Für dieses Video verfügbar",
+		"accountBalance": "Kontoguthaben: {credits} Credits",
+		"eligibleBalanceHint": "Für dieses Video zählen nur berechtigte, bezahlte Credits. Deine übrigen Credits bleiben auf deinem Konto.",
+		"creditShortfall": "Du benötigst noch {credits} berechtigte Credits, um dieses Video zu erstellen.",
+		"loadingPrice": "Wird geladen…",
+		"priceUnavailable": "Nicht verfügbar",
+		"balanceUnavailable": "Nicht verfügbar",
+		"uploadBothHint": "Lade beide Fotos hoch, um die Gesamtkosten zu prüfen.",
+		"uploadLeftHint": "Lade das linke Foto hoch, um fortzufahren.",
+		"uploadRightHint": "Lade das rechte Foto hoch, um fortzufahren.",
+		"waitingForPhotos": "Warte, bis beide Fotos hochgeladen und verarbeitet wurden…"
 	}
 }

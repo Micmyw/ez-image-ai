@@ -1961,7 +1961,7 @@
 		"totalCredits": "Coût total",
 		"credits": "{credits} crédits",
 		"balance": "Solde disponible",
-		"priceHint": "Un devis unique couvre la scène et la vidéo. Certains crédits de votre solde peuvent ne pas être éligibles à la vidéo.",
+		"priceHint": "Un seul débit couvre la scène et la vidéo. Vérifiez le prix final avant de confirmer.",
 		"pendingHint": "Une confirmation précédente doit être vérifiée. Récupérez la même demande avant de passer une autre commande.",
 		"recover": "Vérifier la même demande",
 		"submitting": "Confirmation de votre commande…",
@@ -2020,6 +2020,17 @@
 		},
 		"insufficient": "Les crédits éligibles sont insuffisants pour cette commande. Vérifiez votre solde ou ajoutez des crédits.",
 		"unavailable": "La génération de vidéos est temporairement indisponible. Veuillez réessayer plus tard.",
-		"requestFailed": "La réponse n’a pas pu être confirmée. Si une confirmation est en attente, vérifiez la même demande pour retrouver son résultat."
+		"requestFailed": "La réponse n’a pas pu être confirmée. Si une confirmation est en attente, vérifiez la même demande pour retrouver son résultat.",
+		"eligibleBalance": "Disponibles pour cette vidéo",
+		"accountBalance": "Total du compte : {credits} crédits",
+		"eligibleBalanceHint": "Seuls les crédits payants admissibles comptent pour cette vidéo. Vos autres crédits restent sur votre compte.",
+		"creditShortfall": "Il vous faut encore {credits} crédits admissibles pour générer cette vidéo.",
+		"loadingPrice": "Chargement…",
+		"priceUnavailable": "Indisponible",
+		"balanceUnavailable": "Indisponible",
+		"uploadBothHint": "Importez les deux photos pour consulter le coût total.",
+		"uploadLeftHint": "Importez la photo de gauche pour continuer.",
+		"uploadRightHint": "Importez la photo de droite pour continuer.",
+		"waitingForPhotos": "En attente de la fin de l’importation et du traitement des deux photos…"
 	}
 }

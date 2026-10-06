@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-06
+
+### Hotel Lobby price and credit clarity
+
+- Show the configured total before photo upload, and distinguish credits available for this video from the account's total balance.
+- Explain missing or processing photos and any eligible-credit shortfall before confirmation. Refresh credit availability after submission while preserving recovery of the same interrupted request.
+
 ## 2026-10-05
 
 ### Hotel Lobby duo public beta
