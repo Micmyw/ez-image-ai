@@ -7,7 +7,7 @@ import {
 	RAINDANCE_TEMPLATE_VERSION,
 	resolveVideoEffectPrice,
 } from "@repo/config/video-effects.server";
-import { readVideoModelAccess } from "@repo/config/video-model-access";
+import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
 import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
 import { expandVideoRuntimeEnvironment } from "@repo/config/video-runtime-environment";
 import { readVideoSeeapiCallbackConfig } from "@repo/config/video-seeapi-callback";
@@ -22,17 +22,149 @@ import { publicBuildVariables } from "./deployment";
 
 const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironment>) =>
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
-const allowedVideoOptions = JSON.stringify([
-	{
-		productKey: "video-kling-2-6-v1",
-		modes: ["text-to-video"],
-		durations: [5],
-		resolutions: ["default"],
-		sounds: [false],
-	},
-]);
-
 describe("Cloudflare build secret transport", () => {
+	it.each(["2026-10-12T00:00:00.000Z", "2000-01-01T00:00:00.000Z", "none"])(
+		"cancels only the explicitly selected ordinary price deadline from %s",
+		(validUntil) => {
+			const policy = {
+				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+				VIDEO_PRICE_BASIS: "original-cost-evidence",
+				VIDEO_PRICE_VALID_UNTIL: validUntil,
+				VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
+				VIDEO_V1_ACCESS: "authenticated",
+				VIDEO_COST_RUNTIME_MICROS: "100000",
+				VIDEO_COST_PAYMENT_FEE_BPS: "654",
+				VIDEO_INTERNAL_FUNDING: "original-ordinary-funding",
+				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
+				HOTEL_LOBBY_DUO_PRICE_BASIS: "original-template-budget",
+				HOTEL_LOBBY_DUO_INTERNAL_FUNDING: "original-template-funding",
+				RAINDANCE_ACCESS: "authenticated",
+			};
+			const input = {
+				CLOUDFLARE_PRODUCTION_ENV: `PRIVATE_KEY=unchanged-fixture\nVIDEO_V1_ENABLED=true\nVIDEO_PRICE_VALID_UNTIL=${validUntil}`,
+				VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
+				VIDEO_V1_BUILD_PRICE_EXPIRY: "none",
+			};
+			const snapshot = { ...input };
+			const observed: unknown[] = [];
+			const output = parseEnv(
+				readCloudflareBuildEnvironment(input, (evidence) => observed.push(evidence)),
+			);
+			expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual({
+				...policy,
+				VIDEO_PRICE_VALID_UNTIL: "none",
+			});
+			expect(expandVideoRuntimeEnvironment(output)).toMatchObject({
+				PRIVATE_KEY: "unchanged-fixture",
+				VIDEO_V1_ENABLED: "true",
+				VIDEO_PRICE_VALID_UNTIL: "none",
+			});
+			expect(observed).toEqual([
+				{
+					previousVersion: VIDEO_SUPPLIER_PRICE_VERSION,
+					nextVersion: VIDEO_SUPPLIER_PRICE_VERSION,
+					validUntil,
+				},
+			]);
+			expect(input).toEqual(snapshot);
+			expect(output).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_EXPIRY");
+			expect(withoutCloudflareBuildSecrets(input)).toEqual({});
+		},
+	);
+	it.each([undefined, "", "invalid-date", "None", "unlimited"])(
+		"never invents an inherited deadline for expiry cancellation (%s)",
+		(validUntil) => {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+					VIDEO_RUNTIME_CONFIG: JSON.stringify({
+						VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+						VIDEO_PRICE_BASIS: "original-cost-evidence",
+						VIDEO_PRICE_VALID_UNTIL: validUntil,
+					}),
+					VIDEO_V1_BUILD_PRICE_EXPIRY: "none",
+				}),
+			).toThrow(/^VIDEO_BUILD_PRICE_POLICY_REQUIRED$/);
+		},
+	);
+	it.each(["", "None", " none", "none ", "2100-01-01", "false", "none\nINJECTED=true"])(
+		"rejects a malformed build expiry control %j",
+		(value) => {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+					VIDEO_V1_BUILD_PRICE_EXPIRY: value,
+				}),
+			).toThrow(/^VIDEO_BUILD_PRICE_EXPIRY_OVERRIDE_INVALID$/);
+		},
+	);
+	it("does not cancel a legacy price snapshot unless its version approval migrates in the same build", () => {
+		const input = {
+			CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+			VIDEO_RUNTIME_CONFIG: JSON.stringify({
+				VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
+				VIDEO_PRICE_BASIS: "original-cost-evidence",
+				VIDEO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00.000Z",
+			}),
+			VIDEO_V1_BUILD_PRICE_EXPIRY: "none",
+		};
+		expect(() => readCloudflareBuildEnvironment(input)).toThrow(
+			/^VIDEO_BUILD_PRICE_POLICY_REQUIRED$/,
+		);
+		const output = parseEnv(
+			readCloudflareBuildEnvironment({
+				...input,
+				VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+				VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
+			}),
+		);
+		expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual({
+			VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+			VIDEO_PRICE_BASIS: "original-cost-evidence; new-public-supplier-source",
+			VIDEO_PRICE_VALID_UNTIL: "none",
+		});
+	});
+	it("accepts a persisted explicit none deadline during supplier evidence migration", () => {
+		const observed: unknown[] = [];
+		const output = parseEnv(
+			readCloudflareBuildEnvironment(
+				{
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+					VIDEO_RUNTIME_CONFIG: JSON.stringify({
+						VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+						VIDEO_PRICE_BASIS: "original-cost-evidence",
+						VIDEO_PRICE_VALID_UNTIL: "none",
+					}),
+					VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+					VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
+				},
+				(evidence) => observed.push(evidence),
+			),
+		);
+		expect(expandVideoRuntimeEnvironment(output).VIDEO_PRICE_VALID_UNTIL).toBe("none");
+		expect(observed).toEqual([
+			{
+				previousVersion: VIDEO_SUPPLIER_PRICE_VERSION,
+				nextVersion: VIDEO_SUPPLIER_PRICE_VERSION,
+				validUntil: "none",
+			},
+		]);
+	});
+	it("keeps an inherited finite deadline when only an ambient runtime expiry tries to cancel it", () => {
+		const policy = {
+			VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+			VIDEO_PRICE_BASIS: "original-cost-evidence",
+			VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
+		};
+		const output = parseEnv(
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
+				VIDEO_PRICE_VALID_UNTIL: "none",
+			}),
+		);
+		expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual(policy);
+	});
 	it.each(["kie-public-2026-10-04.3", VIDEO_SUPPLIER_PRICE_VERSION])(
 		"migrates only supplier approval from %s and appends evidence without changing the inherited expiry",
 		(previousVersion) => {
@@ -40,7 +172,7 @@ describe("Cloudflare build secret transport", () => {
 				VIDEO_PRICE_ACCEPTED_VERSION: previousVersion,
 				VIDEO_PRICE_BASIS: "original approved supplier, moderation and runtime costs",
 				VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
-				VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+				VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 				VIDEO_COST_RUNTIME_MICROS: "100000",
 				VIDEO_COST_PAYMENT_FEE_BPS: "654",
 				VIDEO_INTERNAL_FUNDING: "original-ordinary-funding",
@@ -201,8 +333,7 @@ describe("Cloudflare build secret transport", () => {
 		(access) => {
 			const base = {
 				VIDEO_V1_ACCESS: access === "internal" ? "authenticated" : "internal",
-				VIDEO_V1_ALLOWED_USER_IDS: "original-private-users",
-				VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+				VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 				VIDEO_INTERNAL_FUNDING: "original-ordinary-funding",
 				VIDEO_PRICE_BASIS: "original-cost-evidence",
 				HOTEL_LOBBY_DUO_ACCESS: "authenticated",
@@ -244,7 +375,7 @@ describe("Cloudflare build secret transport", () => {
 	it("preserves ordinary access without a dedicated override and ignores ambient access", () => {
 		const policy = {
 			VIDEO_V1_ACCESS: "internal",
-			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+			VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 		};
 		const output = parseEnv(
 			readCloudflareBuildEnvironment({
@@ -271,8 +402,8 @@ describe("Cloudflare build secret transport", () => {
 			}),
 		).toThrow(/^VIDEO_BUILD_ACCESS_OVERRIDE_INVALID$/);
 	});
-	it.each([undefined, "{}", '{"VIDEO_MODEL_ALLOWED_OPTIONS":"[]"}'])(
-		"requires the build runner's current model policy for ordinary access (%s)",
+	it.each([undefined, "{}", '{"VIDEO_MODEL_CONTRACT_VERSION":"obsolete"}'])(
+		"requires the build runner's current server model contract for ordinary access (%s)",
 		(base) => {
 			expect(() =>
 				readCloudflareBuildEnvironment({
@@ -289,7 +420,7 @@ describe("Cloudflare build secret transport", () => {
 				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true\nVIDEO_V1_ACCESS=authenticated",
 				VIDEO_RUNTIME_CONFIG: JSON.stringify({
 					VIDEO_V1_ACCESS: "internal",
-					VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+					VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 				}),
 				VIDEO_V1_BUILD_ACCESS: "authenticated",
 			}),
@@ -302,7 +433,7 @@ describe("Cloudflare build secret transport", () => {
 				...unpackValues(packCloudflareBuildEnvironment(source)),
 				VIDEO_RUNTIME_CONFIG: JSON.stringify({
 					VIDEO_V1_ACCESS: "internal",
-					VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+					VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 				}),
 				VIDEO_V1_BUILD_ACCESS: "authenticated",
 			}),
@@ -314,7 +445,7 @@ describe("Cloudflare build secret transport", () => {
 	it("refuses an access merge that exceeds the private policy size limit", () => {
 		const base = {
 			VIDEO_V1_ACCESS: "internal",
-			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+			VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 			VIDEO_PRICE_BASIS: "",
 		};
 		base.VIDEO_PRICE_BASIS = "x".repeat(5000 - Buffer.byteLength(JSON.stringify(base)));
@@ -327,13 +458,13 @@ describe("Cloudflare build secret transport", () => {
 			}),
 		).toThrow(/^VIDEO_RUNTIME_CONFIG_INVALID$/);
 	});
-	it("composes ordinary access with independent template overlays without widening existing options", () => {
+	it("composes ordinary access with independent template overlays without changing the model contract", () => {
 		const base = {
 			VIDEO_V1_ACCESS: "internal",
 			VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
 			VIDEO_PRICE_BASIS: "original-cost-evidence",
 			VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
-			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+			VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 			VIDEO_INTERNAL_FUNDING: "original-ordinary-funding",
 			HOTEL_LOBBY_DUO_ACCESS: "internal",
 			HOTEL_LOBBY_DUO_INTERNAL_FUNDING: "original-template-funding",
@@ -347,6 +478,7 @@ describe("Cloudflare build secret transport", () => {
 					VIDEO_V1_BUILD_ACCESS: "authenticated",
 					VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 					VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
+					VIDEO_V1_BUILD_PRICE_EXPIRY: "none",
 					HOTEL_LOBBY_DUO_RUNTIME_CONFIG: '{"HOTEL_LOBBY_DUO_ACCESS":"authenticated"}',
 					RAINDANCE_RUNTIME_CONFIG: '{"RAINDANCE_ACCESS":"authenticated"}',
 				}),
@@ -356,28 +488,18 @@ describe("Cloudflare build secret transport", () => {
 			VIDEO_V1_ACCESS: "authenticated",
 			VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 			VIDEO_PRICE_BASIS: "original-cost-evidence; new-public-supplier-source",
-			VIDEO_PRICE_VALID_UNTIL: base.VIDEO_PRICE_VALID_UNTIL,
+			VIDEO_PRICE_VALID_UNTIL: "none",
 			HOTEL_LOBBY_DUO_ACCESS: "authenticated",
 			RAINDANCE_ACCESS: "authenticated",
 			VIDEO_INTERNAL_FUNDING: base.VIDEO_INTERNAL_FUNDING,
 			HOTEL_LOBBY_DUO_INTERNAL_FUNDING: base.HOTEL_LOBBY_DUO_INTERNAL_FUNDING,
 		});
-		const groups = JSON.parse(output.VIDEO_MODEL_ALLOWED_OPTIONS!);
-		expect(groups).toHaveLength(2);
-		expect(groups[0]).toEqual(JSON.parse(allowedVideoOptions)[0]);
-		expect(groups[1]).toEqual({
-			productKey: "video-seedance-1-5-pro",
-			modes: ["image-to-video"],
-			durations: [5],
-			resolutions: ["720p"],
-			sounds: [false],
-		});
+		expect(output.VIDEO_MODEL_CONTRACT_VERSION).toBe(VIDEO_MODEL_CATALOG_VERSION);
 	});
-	it("merges a narrow private template patch over the build's current base and adds exactly one tuple", () => {
+	it("merges a narrow private template patch over the build's current base and preserves the ordinary model contract", () => {
 		const base = {
 			VIDEO_V1_ACCESS: "internal",
-			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
-			VIDEO_V1_ALLOWED_USER_IDS: "original-private-users",
+			VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 			VIDEO_INTERNAL_FUNDING: "original-ordinary-funding",
 			HOTEL_LOBBY_DUO_INTERNAL_FUNDING: "original-template-funding",
 			HOTEL_LOBBY_DUO_PRICE_BASIS: "old-template-price",
@@ -396,8 +518,7 @@ describe("Cloudflare build secret transport", () => {
 		const output = parseEnv(readCloudflareBuildEnvironment(environment));
 		const merged = expandVideoRuntimeEnvironment(output);
 		for (const [key, value] of Object.entries(base))
-			if (!["HOTEL_LOBBY_DUO_PRICE_BASIS", "VIDEO_MODEL_ALLOWED_OPTIONS"].includes(key))
-				expect(merged[key]).toBe(value);
+			if (key !== "HOTEL_LOBBY_DUO_PRICE_BASIS") expect(merged[key]).toBe(value);
 		expect(merged).toMatchObject({
 			...patch,
 			VIDEO_V1_ENABLED: "true",
@@ -405,12 +526,7 @@ describe("Cloudflare build secret transport", () => {
 			UNRELATED: "secret-fixture",
 		});
 		expect(output).not.toHaveProperty("HOTEL_LOBBY_DUO_RUNTIME_CONFIG");
-		expect(readVideoModelAccess(merged).allowed.size).toBe(
-			readVideoModelAccess(base).allowed.size + 1,
-		);
-		expect(JSON.parse(merged.VIDEO_MODEL_ALLOWED_OPTIONS!)[0]).toEqual(
-			JSON.parse(allowedVideoOptions)[0],
-		);
+		expect(merged.VIDEO_MODEL_CONTRACT_VERSION).toBe(VIDEO_MODEL_CATALOG_VERSION);
 		const repeated = expandVideoRuntimeEnvironment(
 			parseEnv(
 				readCloudflareBuildEnvironment({
@@ -420,11 +536,11 @@ describe("Cloudflare build secret transport", () => {
 				}),
 			),
 		);
-		expect(repeated.VIDEO_MODEL_ALLOWED_OPTIONS).toBe(merged.VIDEO_MODEL_ALLOWED_OPTIONS);
+		expect(repeated.VIDEO_MODEL_CONTRACT_VERSION).toBe(merged.VIDEO_MODEL_CONTRACT_VERSION);
 		expect(environment).toEqual(snapshot);
 		expect(withoutCloudflareBuildSecrets(environment)).toEqual({});
 	});
-	it.each([undefined, "", "{}", "invalid", '{"VIDEO_MODEL_ALLOWED_OPTIONS":"[]"}'])(
+	it.each([undefined, "", "{}", "invalid", '{"VIDEO_MODEL_CONTRACT_VERSION":"obsolete"}'])(
 		"requires an actual current base for a template patch (%s)",
 		(base) => {
 			expect(() =>
@@ -439,7 +555,7 @@ describe("Cloudflare build secret transport", () => {
 	it("refuses template patches that change ordinary policy, funding, switches or secrets", () => {
 		for (const key of [
 			"VIDEO_V1_ACCESS",
-			"VIDEO_MODEL_ALLOWED_OPTIONS",
+			"VIDEO_MODEL_CONTRACT_VERSION",
 			"VIDEO_INTERNAL_FUNDING",
 			"HOTEL_LOBBY_DUO_INTERNAL_FUNDING",
 			"HOTEL_LOBBY_DUO_ENABLED",
@@ -449,7 +565,7 @@ describe("Cloudflare build secret transport", () => {
 				readCloudflareBuildEnvironment({
 					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
 					VIDEO_RUNTIME_CONFIG: JSON.stringify({
-						VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+						VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 					}),
 					HOTEL_LOBBY_DUO_RUNTIME_CONFIG: JSON.stringify({ [key]: "do-not-print-this" }),
 				}),
@@ -461,7 +577,7 @@ describe("Cloudflare build secret transport", () => {
 			readCloudflareBuildEnvironment({
 				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
 				VIDEO_RUNTIME_CONFIG: JSON.stringify({
-					VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+					VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 					VIDEO_PRICE_BASIS: "x".repeat(2800),
 				}),
 				HOTEL_LOBBY_DUO_RUNTIME_CONFIG: JSON.stringify({
@@ -473,7 +589,7 @@ describe("Cloudflare build secret transport", () => {
 	it("validates the merged 69-credit quote before the separate template build switch can open", () => {
 		const base = {
 			VIDEO_V1_ACCESS: "internal",
-			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+			VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 			VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 			VIDEO_PRICE_BASIS: "isolated budget fixture",
 			VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00Z",
@@ -628,7 +744,9 @@ describe("Cloudflare build secret transport", () => {
 		expect(() =>
 			readCloudflareBuildEnvironment({
 				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true",
-				VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions }),
+				VIDEO_RUNTIME_CONFIG: JSON.stringify({
+					VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
+				}),
 				HOTEL_LOBBY_DUO_BUILD_ENABLED: "true",
 			}),
 		).toThrow("VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED");
@@ -643,7 +761,7 @@ describe("Cloudflare build secret transport", () => {
 		const source = "UNRELATED=fixture\nVIDEO_V1_ENABLED=false\nBILLING_ENABLED=false";
 		const policy = {
 			VIDEO_V1_ACCESS: "internal",
-			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+			VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 		};
 		const input = {
 			CLOUDFLARE_PRODUCTION_ENV: source,
@@ -664,7 +782,7 @@ describe("Cloudflare build secret transport", () => {
 		expect(input.CLOUDFLARE_PRODUCTION_ENV).toBe(source);
 		expect(withoutCloudflareBuildSecrets(input)).toEqual({});
 	});
-	it("allows a dedicated emergency close without a policy override or model list", () => {
+	it("allows a dedicated emergency close without a policy override or server model contract", () => {
 		const source = "VIDEO_V1_ENABLED=true\nUNCHANGED=fixture";
 		const values = parseEnv(
 			readCloudflareBuildEnvironment({
@@ -687,7 +805,7 @@ describe("Cloudflare build secret transport", () => {
 		},
 	);
 	it("does not enable from only an existing bundled model policy", () => {
-		const source = `VIDEO_V1_ENABLED=false\nVIDEO_RUNTIME_CONFIG='${JSON.stringify({ VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions })}'\n`;
+		const source = `VIDEO_V1_ENABLED=false\nVIDEO_RUNTIME_CONFIG='${JSON.stringify({ VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION })}'\n`;
 		expect(() =>
 			readCloudflareBuildEnvironment({
 				CLOUDFLARE_PRODUCTION_ENV: source,
@@ -695,31 +813,18 @@ describe("Cloudflare build secret transport", () => {
 			}),
 		).toThrow(/^VIDEO_BUILD_ENABLED_POLICY_REQUIRED$/);
 	});
-	it.each([
-		undefined,
-		"",
-		"[]",
-		"[{}]",
-		"not-json",
-		JSON.stringify([
-			{
-				productKey: "unknown",
-				modes: ["text-to-video"],
-				durations: [5],
-				resolutions: ["default"],
-				sounds: [false],
-			},
-		]),
-		allowedVideoOptions.replace("[5]", "[30]"),
-	])("does not enable with a missing, empty or invalid allowed model policy", (options) => {
-		expect(() =>
-			readCloudflareBuildEnvironment({
-				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
-				VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_MODEL_ALLOWED_OPTIONS: options }),
-				VIDEO_V1_BUILD_ENABLED: "true",
-			}),
-		).toThrow(/^VIDEO_BUILD_ENABLED_POLICY_REQUIRED$/);
-	});
+	it.each([undefined, "", "obsolete-model-contract"])(
+		"does not enable with a missing or outdated server model contract",
+		(version) => {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+					VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_MODEL_CONTRACT_VERSION: version }),
+					VIDEO_V1_BUILD_ENABLED: "true",
+				}),
+			).toThrow(/^VIDEO_BUILD_ENABLED_POLICY_REQUIRED$/);
+		},
+	);
 	it("rejects malformed policy and packed build controls before changing the enabled flag", () => {
 		for (const value of [
 			"bad-json",
@@ -770,7 +875,7 @@ describe("Cloudflare build secret transport", () => {
 		const policy = {
 			VIDEO_V1_ACCESS: "internal",
 			VIDEO_PRICE_BASIS: "fixture 'quotes' # 中文",
-			VIDEO_MODEL_ALLOWED_OPTIONS: '[{"sounds":[false]}]',
+			VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
 		};
 		const env = {
 			...unpackValues(
@@ -789,7 +894,6 @@ describe("Cloudflare build secret transport", () => {
 			withoutCloudflareBuildSecrets({
 				...env,
 				VIDEO_V1_ENABLED: "true",
-				VIDEO_V1_ALLOWED_USER_IDS: "private-user",
 			}),
 		).toEqual({});
 	});

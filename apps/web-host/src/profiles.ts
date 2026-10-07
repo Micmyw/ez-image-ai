@@ -188,12 +188,17 @@ export function createProfileArtifacts(options: {
 	delete jobVars.VIDEO_V1_BUILD_ACCESS;
 	delete jobVars.VIDEO_V1_BUILD_PRICE_VERSION;
 	delete jobVars.VIDEO_V1_BUILD_PRICE_BASIS;
+	delete jobVars.VIDEO_V1_BUILD_PRICE_EXPIRY;
 	delete jobVars.HOTEL_LOBBY_DUO_BUILD_ENABLED;
 	delete jobVars.HOTEL_LOBBY_DUO_RUNTIME_CONFIG;
 	delete jobVars.RAINDANCE_RUNTIME_CONFIG;
 	const effectiveVideo = expandVideoRuntimeEnvironment(flatEnvironment);
 	for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) {
-		if (jobVars[key] !== undefined && jobVars[key] !== effectiveVideo[key])
+		if (
+			!["VIDEO_V1_ALLOWED_USER_IDS", "VIDEO_MODEL_ALLOWED_OPTIONS"].includes(key) &&
+			jobVars[key] !== undefined &&
+			jobVars[key] !== effectiveVideo[key]
+		)
 			throw new Error("VIDEO_RUNTIME_TEMPLATE_CONFLICT");
 		delete jobVars[key];
 	}
@@ -237,6 +242,9 @@ export function createProfileArtifacts(options: {
 			key === "VIDEO_V1_BUILD_ACCESS" ||
 			key === "VIDEO_V1_BUILD_PRICE_VERSION" ||
 			key === "VIDEO_V1_BUILD_PRICE_BASIS" ||
+			key === "VIDEO_V1_BUILD_PRICE_EXPIRY" ||
+			key === "VIDEO_V1_ALLOWED_USER_IDS" ||
+			key === "VIDEO_MODEL_ALLOWED_OPTIONS" ||
 			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" ||
 			key === "RAINDANCE_RUNTIME_CONFIG" ||
@@ -292,6 +300,7 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 		"VIDEO_V1_BUILD_ACCESS",
 		"VIDEO_V1_BUILD_PRICE_VERSION",
 		"VIDEO_V1_BUILD_PRICE_BASIS",
+		"VIDEO_V1_BUILD_PRICE_EXPIRY",
 		"HOTEL_LOBBY_DUO_BUILD_ENABLED",
 		"HOTEL_LOBBY_DUO_RUNTIME_CONFIG",
 		"RAINDANCE_RUNTIME_CONFIG",

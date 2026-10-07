@@ -66,6 +66,8 @@ export type VideoRuntimeEnvironmentValues = Partial<Record<VideoRuntimeEnvironme
 	HOTEL_LOBBY_DUO_ENABLED?: string;
 };
 const keys = new Set<string>(VIDEO_RUNTIME_ENVIRONMENT_KEYS);
+// Legacy private packs remain readable; current admission does not consume these fields.
+const retiredAccessKeys = new Set(["VIDEO_V1_ALLOWED_USER_IDS", "VIDEO_MODEL_ALLOWED_OPTIONS"]);
 const maximumBytes = 5000;
 
 /** Build-only template patch: funding and all ordinary-video policy remain authoritative. */
@@ -153,7 +155,12 @@ export function expandVideoRuntimeEnvironment<T extends object>(
 			: parseVideoRuntimeConfig(source.VIDEO_RUNTIME_CONFIG);
 	for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) {
 		if (source[key] !== undefined && !validValue(source[key])) throw invalid();
-		if (packed[key] !== undefined && source[key] !== undefined && packed[key] !== source[key])
+		if (
+			!retiredAccessKeys.has(key) &&
+			packed[key] !== undefined &&
+			source[key] !== undefined &&
+			packed[key] !== source[key]
+		)
 			throw new Error("VIDEO_RUNTIME_CONFIG_CONFLICT");
 	}
 	return { ...input, ...packed };
@@ -163,10 +170,9 @@ export function expandVideoRuntimeEnvironment<T extends object>(
 export function packVideoRuntimeEnvironment(input: Record<string, string>): Record<string, string> {
 	const expanded = expandVideoRuntimeEnvironment(input);
 	const packed = Object.fromEntries(
-		VIDEO_RUNTIME_ENVIRONMENT_KEYS.filter((key) => expanded[key] !== undefined).map((key) => [
-			key,
-			expanded[key],
-		]),
+		VIDEO_RUNTIME_ENVIRONMENT_KEYS.filter(
+			(key) => !retiredAccessKeys.has(key) && expanded[key] !== undefined,
+		).map((key) => [key, expanded[key]]),
 	);
 	const result = { ...input };
 	for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) delete result[key];

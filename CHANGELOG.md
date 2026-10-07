@@ -2,6 +2,12 @@
 
 ## 2026-10-07
 
+### Kie-aligned video settings without test allowlists
+
+- Remove ordinary-video user-ID and model-option test allowlists. All signed-in, non-anonymous accounts can use implemented Kie model settings when pricing, funding and service checks pass; unsupported or unpriced provider options remain unavailable.
+- Support explicit `VIDEO_PRICE_VALID_UNTIL=none` for ordinary video without a fixed operator approval deadline. Keep the ten-minute quote lifetime, new confirmation after a price change, and immutable finite deadlines on previously accepted tasks.
+- Ignore legacy allowlist fields when reading older private policy and omit them from newly packed runtime configuration. Keep Hotel Lobby and Raindance access, complete-cost budgets and finite approvals independent; record deployment and live acceptance separately.
+
 ### Video beta for all signed-in accounts
 
 - Open the ordinary video workspace to all signed-in, non-anonymous accounts and link the Image/Video composer controls to it. Video requires qualifying paid credits; there is no guest video trial.

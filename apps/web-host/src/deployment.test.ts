@@ -11,6 +11,7 @@ describe("Cloudflare deployment environment", () => {
 				VIDEO_V1_BUILD_ACCESS: "authenticated",
 				VIDEO_V1_BUILD_PRICE_VERSION: "fixture-price-version",
 				VIDEO_V1_BUILD_PRICE_BASIS: "fixture-supplier-source",
+				VIDEO_V1_BUILD_PRICE_EXPIRY: "none",
 				VIDEO_V1_ENABLED: "false",
 				HOTEL_LOBBY_DUO_ENABLED: "false",
 				HOTEL_LOBBY_DUO_BUILD_ENABLED: "true",
@@ -21,6 +22,7 @@ describe("Cloudflare deployment environment", () => {
 		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
 		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_VERSION");
 		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_BASIS");
+		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_EXPIRY");
 		expect(result.VIDEO_V1_ENABLED).toBe("false");
 		expect(result.HOTEL_LOBBY_DUO_ENABLED).toBe("false");
 		expect(result).not.toHaveProperty("HOTEL_LOBBY_DUO_BUILD_ENABLED");

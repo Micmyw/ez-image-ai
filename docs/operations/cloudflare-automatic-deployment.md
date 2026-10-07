@@ -116,11 +116,13 @@ Worker `versions/latest` 的 JSON Merge Patch，将上述已停用绑定从最�
 从未部署的中间版本移除其明确覆盖的旧模型文本绑定。新代码兼容旧平铺格式；旧代码不识别 JSON，
 所以站点和 jobs 各自的代码与绑定必须配套部署、配套回滚。
 
-视频的非机密政策、模型组合限制、积分成本政策、用户白名单、并发、时限和输出主机列表统一打包为
+视频的非机密政策、模型合同版本、积分成本政策、登录账号范围、并发、时限和输出主机列表统一打包为
 一个私有 `VIDEO_RUNTIME_CONFIG` JSON 文本绑定。只接受
 `packages/config/video-runtime-environment.ts` 中的固定变量名和值为字符串的对象，UTF-8 总长度
-最多 5,000 字节；`VIDEO_MODEL_ALLOWED_OPTIONS` 自身的 JSON 也作为字符串保存，业务校验仍由
-模型准入模块执行。未知键、非字符串值、控制字符、超限载荷和打包/平铺同名不同值都会停止构建。
+最多 5,000 字节。普通视频参数依据已实现的 Kie 模型合同校验，没有用户 ID 或模型参数测试白名单。
+旧政策中的 `VIDEO_V1_ALLOWED_USER_IDS` 和 `VIDEO_MODEL_ALLOWED_OPTIONS` 仅作为兼容字段读取，
+不控制准入；标准打包会去掉它们。未知键、非字符串值、控制字符、超限载荷和有效政策字段的
+打包/平铺同名不同值都会停止构建。
 供应商、审核与回调密钥不参加打包，`VIDEO_WORKFLOW`、R2、Hyperdrive 等资源也不参加。
 
 原始 dotenv 环境包可继续使用平铺格式，准备命令会为网站和后台生成相同的私有政策绑定；也可以在
@@ -132,25 +134,35 @@ Worker `versions/latest` 的 JSON Merge Patch，将上述已停用绑定从最�
 构建默认采用权威 dotenv 环境包中的该开关，始终忽略外围构建环境偶然继承的同名值，设置政策或
 回调密钥不会自动开放视频。需要在不重写旧机密环境包的情况下持续启用验收时，在两个 Git 构建中
 显式设置专用普通构建变量 `VIDEO_V1_BUILD_ENABLED=true`，并在本次构建同时提供有效的私有
-`VIDEO_RUNTIME_CONFIG` 覆盖。该 JSON 必须包含通过当前模型契约校验的非空
-`VIDEO_MODEL_ALLOWED_OPTIONS`；仅在旧环境包中已有允许项不满足此开启条件。
+`VIDEO_RUNTIME_CONFIG` 覆盖。该 JSON 的 `VIDEO_MODEL_CONTRACT_VERSION` 必须精确匹配
+当前代码的 `VIDEO_MODEL_CATALOG_VERSION`；不再要求模型白名单字段。
 
 `VIDEO_V1_BUILD_ENABLED` 只接受精确字符串 `true` / `false`。`false` 可独立用于后续构建紧急
-关闭，无需提供新政策或模型允许项；立即关闭也可以将两个 Worker 的独立 `VIDEO_V1_ENABLED`
+关闭，无需提供新政策；立即关闭也可以将两个 Worker 的独立 `VIDEO_V1_ENABLED`
 变量设为 `false`，并同步构建控制，防止下一次发布恢复旧状态。构建在 dotenv 末尾仅追加目标
 `VIDEO_V1_ENABLED`，随后核对其他字段原值及字段数未变。专用构建变量不进入政策 JSON、运行时
-绑定或构建子进程环境。实际开放仍要求相应账号范围、允许模型组合、价格、审核与其他准入条件全部满足。
+绑定或构建子进程环境。实际开放仍要求登录账号、支持的模型参数、价格、审核与其他准入条件全部满足。
 
 `VIDEO_V1_BUILD_ACCESS=internal|authenticated` 只覆盖现有私有政策中的普通视频账号范围。
 `authenticated` 允许所有已登录的非匿名账号，仍要求合格付费积分。缺失时保持原政策，非法值
-拒绝构建；必须提供当前有效且有模型允许项的 `VIDEO_RUNTIME_CONFIG`。它不扩大 Hotel Lobby
+拒绝构建；必须提供模型合同版本匹配的有效 `VIDEO_RUNTIME_CONFIG`。`internal` 仅保留管理员
+回退范围，不恢复用户 ID 白名单。它不扩大 Hotel Lobby
 或 Raindance 的独立权限，也不继承管理员测试资助。先发布后台，再发布网站。
 
 价格依据更新时，同时设置 `VIDEO_V1_BUILD_PRICE_VERSION` 和 `VIDEO_V1_BUILD_PRICE_BASIS`。
 版本必须精确匹配当前代码的供应商价格版本；依据作为补充附加到现有完整费用依据，保持现有
-成本、积分算法、模型合同和允许项。构建先核对原批准版本、非空费用依据，以及仍有效的有限
-`VIDEO_PRICE_VALID_UNTIL`，只记录批准版本和期限，不打印私有政策。已到期时停止；不自动延期。
+成本、积分算法和模型合同。构建先核对原批准版本和非空费用依据，普通视频
+`VIDEO_PRICE_VALID_UNTIL` 可以是有限日期或精确字符串 `none`。有限日期必须有效且未到期，
+除非本次明确使用下面的取消期限控制；不自动延期。只记录批准版本和期限，不打印私有政策。
 两个构建目标须使用相同控制值；这些构建控制不进入浏览器、子进程或 Worker 运行时绑定。
+
+本次授权普通视频取消固定价格批准日期：两个构建目标同时设置
+`VIDEO_V1_BUILD_PRICE_EXPIRY=none`，仅将普通 `VIDEO_PRICE_VALID_UNTIL` 改为 `none`。
+该控制只接受精确字符串 `none`，可配合上述供应商价格依据迁移；必须有有效私有政策、
+已知批准版本和非空完整费用依据。未设置时保持原期限，旧有限期限已到期则继续拒绝；
+不打印私有政策，不改变费用项、积分算法或 Hotel Lobby/Raindance 的有限价格批准。
+十分钟报价有效期继续保留，已接受任务的有限期限不会改写；供应商价格版本、合同和费用校验仍须通过。
+参见[普通视频开放与回滚](video-authenticated-rollout-2026-10-07.md)。
 
 部署暂存只移除新 JSON 明确覆盖的旧视频平铺文本绑定；现存可打包字段既不保留为平铺、又未包含在
 新 JSON 时，在任何 PATCH 前拒绝发布，防止 Wrangler 继承旧配置造成冲突。不要部署此暂存版本。

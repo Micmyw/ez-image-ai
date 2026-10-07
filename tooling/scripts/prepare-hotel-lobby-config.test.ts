@@ -6,7 +6,6 @@ import path from "node:path";
 import { afterEach, beforeEach, mock, test } from "node:test";
 import { parseEnv } from "node:util";
 
-import { readVideoModelAccess } from "../../packages/config/video-model-access";
 import { VIDEO_SUPPLIER_PRICE_VERSION } from "../../packages/config/video-pricing.server";
 import {
 	expandVideoRuntimeEnvironment,
@@ -20,16 +19,8 @@ import {
 	serializePrivateEnvironment,
 } from "./prepare-hotel-lobby-config";
 
-const existingGroup = {
-	productKey: "video-seedance-1-5-pro",
-	modes: ["text-to-video"],
-	durations: [10],
-	resolutions: ["480p"],
-	sounds: [true],
-};
 function fixture(): Record<string, string> {
 	return {
-		VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([existingGroup]),
 		VIDEO_MODEL_CONTRACT_VERSION: "video-models-2026-10-04.2",
 		VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 		VIDEO_PRICE_BASIS: "Existing isolated fixture, not production approval",
@@ -115,11 +106,7 @@ void test("preserves packed policies, secrets, funding and ordinary prices; comp
 			(key.startsWith("HOTEL_LOBBY_DUO_") &&
 				!key.includes("FUNDING") &&
 				!key.includes("ACCEPTED")) ||
-				[
-					"VIDEO_MODEL_ALLOWED_OPTIONS",
-					"MEDIA_NANO_BANANA_2_LITE_ENABLED",
-					"MEDIA_ENABLED_PROVIDERS",
-				].includes(key),
+				["MEDIA_NANO_BANANA_2_LITE_ENABLED", "MEDIA_ENABLED_PROVIDERS"].includes(key),
 			`unexpected change to ${key}`,
 		);
 	}
@@ -132,19 +119,10 @@ void test("preserves packed policies, secrets, funding and ordinary prices; comp
 	assert.deepEqual(parseEnv(serializePrivateEnvironment(result.environment)), result.environment);
 });
 
-void test("adds exactly one selection without Cartesian expansion; repeated preparation adds no duplicate", () => {
+void test("repeated preparation preserves the existing model contract and is idempotent", () => {
 	const first = prepareHotelLobbyEnvironment(fixture());
 	const next = expandVideoRuntimeEnvironment(first.environment);
-	assert.deepEqual(JSON.parse(next.VIDEO_MODEL_ALLOWED_OPTIONS!)[0], existingGroup);
-	const oldAccess = readVideoModelAccess(fixture());
-	const newAccess = readVideoModelAccess(next);
-	assert.equal(newAccess.allowed.size, oldAccess.allowed.size + 1);
-	for (const option of oldAccess.allowed) assert.ok(newAccess.allowed.has(option));
-	assert.ok(
-		newAccess.allowed.has(
-			JSON.stringify(["video-seedance-1-5-pro", "image-to-video", 5, "720p", false]),
-		),
-	);
+	assert.equal(next.VIDEO_MODEL_CONTRACT_VERSION, fixture().VIDEO_MODEL_CONTRACT_VERSION);
 	const second = prepareHotelLobbyEnvironment(first.environment);
 	assert.deepEqual(second.environment, first.environment);
 });
@@ -179,19 +157,14 @@ void test("prepares an authenticated build patch without copying secrets, base p
 	);
 });
 
-void test("retains broader existing valid selection without duplicating or reducing it", () => {
+void test("a nonexpiring ordinary approval keeps the template's independent finite deadline", () => {
 	const input = fixture();
-	input.VIDEO_MODEL_ALLOWED_OPTIONS = JSON.stringify([
-		{
-			productKey: "video-seedance-1-5-pro",
-			modes: ["image-to-video"],
-			durations: [5, 10],
-			resolutions: ["720p"],
-			sounds: [false],
-		},
-	]);
-	const result = expandVideoRuntimeEnvironment(prepareHotelLobbyEnvironment(input).environment);
-	assert.equal(result.VIDEO_MODEL_ALLOWED_OPTIONS, input.VIDEO_MODEL_ALLOWED_OPTIONS);
+	input.VIDEO_PRICE_VALID_UNTIL = "none";
+	const prepared = prepareHotelLobbyEnvironment(input);
+	const result = expandVideoRuntimeEnvironment(prepared.environment);
+	assert.equal(result.VIDEO_PRICE_VALID_UNTIL, "none");
+	assert.equal(prepared.summary.validUntil, "2026-10-12T00:00:00.000Z");
+	assert.equal(result.HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL, "2026-10-12T00:00:00.000Z");
 });
 
 void test("keeps earlier expiries and prior acceptance; never creates funding or enables template", () => {
@@ -267,14 +240,6 @@ void test("rejects conflicting, oversized, invalid and expired policy instead of
 	assert.throws(
 		() => prepareHotelLobbyEnvironment({ ...input, VIDEO_PRICE_BASIS: "x".repeat(5000) }),
 		/VIDEO_RUNTIME_CONFIG_INVALID/,
-	);
-	assert.throws(
-		() =>
-			prepareHotelLobbyEnvironment({
-				...input,
-				VIDEO_MODEL_ALLOWED_OPTIONS: "private-invalid-value",
-			}),
-		/ALLOWLIST_INVALID/,
 	);
 	assert.throws(
 		() =>

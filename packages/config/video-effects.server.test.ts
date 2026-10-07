@@ -41,15 +41,6 @@ function fixtureEnvironment(): Record<string, string | undefined> {
 		HOTEL_LOBBY_DUO_SCENE_REVIEW_COST_MICROS: "1000",
 		HOTEL_LOBBY_DUO_ADDITIONAL_RUNTIME_COST_MICROS: "2000",
 		HOTEL_LOBBY_DUO_ADDITIONAL_STORAGE_COST_MICROS: "3000",
-		VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
-			{
-				productKey: "video-seedance-1-5-pro",
-				modes: ["image-to-video"],
-				durations: [5],
-				resolutions: ["720p"],
-				sounds: [false],
-			},
-		]),
 		VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 		VIDEO_PRICE_BASIS: "fictional local video cost fixture",
 		VIDEO_PRICE_VALID_UNTIL: "2026-10-20T00:00:00Z",
@@ -166,7 +157,7 @@ describe("frozen Hotel Lobby template", () => {
 				"VIDEO_EFFECT_TEMPLATE_SNAPSHOT_INVALID",
 			);
 	});
-	it("requires template approval and the existing video model option allowlist", () => {
+	it("requires template approval and uses the implemented model contract", () => {
 		const env = fixtureEnvironment();
 		expect(resolveVideoEffectTemplate(request, env).templateVersion).toBe(
 			HOTEL_LOBBY_TEMPLATE_VERSION,
@@ -177,19 +168,25 @@ describe("frozen Hotel Lobby template", () => {
 				HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION: undefined,
 			}),
 		).toThrow("VIDEO_EFFECT_TEMPLATE_NOT_CONFIRMED");
-		expect(() =>
-			resolveVideoEffectTemplate(request, { ...env, VIDEO_MODEL_ALLOWED_OPTIONS: undefined }),
-		).toThrow("VIDEO_MODEL_OPTIONS_NOT_CONFIGURED");
-		expect(() =>
-			resolveVideoEffectTemplate(request, {
-				...env,
-				VIDEO_MODEL_ALLOWED_OPTIONS: env.VIDEO_MODEL_ALLOWED_OPTIONS!.replace(
-					'"image-to-video"',
-					'"text-to-video"',
-				),
-			}),
-		).toThrow("VIDEO_MODEL_OPTION_NOT_ENABLED");
 	});
+	it.each([undefined, "[]", "not-json"])(
+		"ignores deprecated runtime model options %s for the confirmed template",
+		(VIDEO_MODEL_ALLOWED_OPTIONS) => {
+			expect(
+				resolveVideoEffectTemplate(request, {
+					...fixtureEnvironment(),
+					VIDEO_MODEL_ALLOWED_OPTIONS,
+				}).video,
+			).toMatchObject({
+				productKey: "video-seedance-1-5-pro",
+				mode: "image-to-video",
+				duration: 5,
+				resolution: "720p",
+				aspectRatio: "9:16",
+				sound: false,
+			});
+		},
+	);
 });
 
 describe("one complete duo quote", () => {
@@ -368,6 +365,47 @@ describe("one complete duo quote", () => {
 			resolveVideoEffectPrice(request, { ...env, VIDEO_PRICE_VALID_UNTIL: "2026-10-05T00:00:00Z" }),
 		).toThrow("VIDEO_PRICE_EXPIRED");
 	});
+	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
+		"keeps %s approval finite when ordinary video explicitly has no deadline",
+		(effectId) => {
+			const env = {
+				...fixtureEnvironment(),
+				VIDEO_PRICE_VALID_UNTIL: "none",
+				RAINDANCE_ENABLED: "true",
+				RAINDANCE_ACCEPTED_TEMPLATE_VERSION: RAINDANCE_TEMPLATE_VERSION,
+			};
+			const input = {
+				...request,
+				effectId,
+				inputs: {
+					leftAssetId: "left",
+					rightAssetId: effectId === "raindance-solo" ? "left" : "right",
+				},
+			};
+			vi.setSystemTime(new Date("2026-10-21T00:00:00.000Z"));
+			const price = resolveVideoEffectPrice(input, env);
+			expect(price.pricingDetails).toMatchObject({
+				priceApprovalExpiryMode: "until",
+				validUntil: "2026-11-01T00:00:00.000Z",
+			});
+			expect(price.pricingDetails.costPolicy.markupBps).toBe("20000");
+			expect(price.pricingDetails.costPolicy.paymentFeeBps).toBe("750");
+			vi.setSystemTime(new Date("2026-11-01T00:00:00.000Z"));
+			expect(() => resolveVideoEffectPrice(input, env)).toThrow("VIDEO_EFFECT_PRICE_EXPIRED");
+		},
+	);
+	it.each([undefined, "", "none", "invalid-date"])(
+		"does not extend template approval from an absent or malformed expiry %s",
+		(validUntil) => {
+			expect(() =>
+				resolveVideoEffectPrice(request, {
+					...fixtureEnvironment(),
+					VIDEO_PRICE_VALID_UNTIL: "none",
+					HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: validUntil,
+				}),
+			).toThrow("VIDEO_EFFECT_PRICE_EXPIRED");
+		},
+	);
 	it("never invents approval, provider cost, moderation, transfer or storage budget", () => {
 		const env = fixtureEnvironment();
 		for (const key of [

@@ -8,7 +8,7 @@ import {
 	videoEffectRequestSchema,
 	type VideoEffectRequest,
 } from "./video-effects";
-import { isVideoModelOptionAllowed, readVideoModelAccess } from "./video-model-access";
+import { validateVideoModelSelection } from "./video-models";
 import { createVideoAudioSafetyPolicy } from "./video-output";
 import {
 	calculateVideoRetailPrice,
@@ -194,9 +194,8 @@ export function resolveVideoEffectTemplate(
 	if (env[`${prefix}_ENABLED`] !== "true") throw new Error("VIDEO_EFFECT_DISABLED");
 	if (env[`${prefix}_ACCEPTED_TEMPLATE_VERSION`] !== template.templateVersion)
 		throw new Error("VIDEO_EFFECT_TEMPLATE_NOT_CONFIRMED");
-	const access = readVideoModelAccess(env);
-	if (!isVideoModelOptionAllowed(access, template.video))
-		throw new Error(access.reason ?? "VIDEO_MODEL_OPTION_NOT_ENABLED");
+	if (!validateVideoModelSelection(template.video))
+		throw new Error("VIDEO_MODEL_SELECTION_UNSUPPORTED");
 	return template;
 }
 
@@ -319,7 +318,12 @@ export function resolveVideoEffectPrice(
 			templatePaymentFeeBps: templatePaymentFeeBps.toString(),
 			minimumRevenueToCostBps: (10_000n + markupBps).toString(),
 			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
-			validUntil: new Date(Math.min(approvedValidUntil, basis.validUntil)).toISOString(),
+			priceApprovalExpiryMode: "until" as const,
+			validUntil: new Date(
+				basis.validUntil === null
+					? approvedValidUntil
+					: Math.min(approvedValidUntil, basis.validUntil),
+			).toISOString(),
 			costComponents: {
 				sceneProviderCostMicros: sceneProviderCostMicros.toString(),
 				videoProviderCostMicros: basis.providerCostMicros.toString(),

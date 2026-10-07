@@ -59,8 +59,7 @@ import { createVideoUpload } from "./uploads";
 const environment = {
 	VIDEO_V1_ENABLED: "true",
 	MEDIA_GENERATION_ENABLED: "true",
-	VIDEO_V1_ACCESS: "internal",
-	VIDEO_V1_ALLOWED_USER_IDS: "owner",
+	VIDEO_V1_ACCESS: "authenticated",
 	KIE_API_KEY: "fixture-only",
 	KIE_WEBHOOK_SECRET: "fixture-only",
 	NEXT_PUBLIC_SAAS_URL: "https://video.example.test",
@@ -82,7 +81,7 @@ const environment = {
 	VIDEO_V1_OUTPUT_ALLOWED_HOSTS: "cdn.example.test",
 	VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 	VIDEO_PRICE_BASIS: "HYPOTHETICAL_TEST_ONLY_COSTS",
-	VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
+	VIDEO_PRICE_VALID_UNTIL: "none",
 	VIDEO_COST_MODERATION_BASE_MICROS: "10000",
 	VIDEO_COST_MODERATION_PER_SECOND_MICROS: "5000",
 	VIDEO_COST_RUNTIME_MICROS: "5000",
@@ -91,34 +90,18 @@ const environment = {
 	VIDEO_COST_PAYMENT_FEE_BPS: "500",
 	VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
 };
-function allowOptions(
-	productKey = "video-kling-2-6-v1",
-	mode = "image-to-video",
-	resolution = "default",
-) {
-	vi.stubEnv(
-		"VIDEO_MODEL_ALLOWED_OPTIONS",
-		JSON.stringify([
-			{ productKey, modes: [mode], durations: [5], resolutions: [resolution], sounds: [false] },
-		]),
-	);
-}
 const input = { contentType: "image/png", byteSize: 100 };
 beforeEach(() => {
 	vi.clearAllMocks();
 	for (const [key, value] of Object.entries(environment)) vi.stubEnv(key, value);
-	allowOptions();
 });
 afterEach(() => vi.unstubAllEnvs());
 
 describe("video upload model admission", () => {
-	it.each([
-		["video-kling-2-6-v1", "default"],
-		["video-seedance-1-pro-fast", "720p"],
-	])(
-		"admits an image upload when only %s image-to-video is enabled",
-		async (productKey, resolution) => {
-			allowOptions(productKey, "image-to-video", resolution);
+	it.each([undefined, "", "[]", "not-json"])(
+		"admits a priced official image upload regardless of stale model scope %s",
+		async (scope) => {
+			vi.stubEnv("VIDEO_MODEL_ALLOWED_OPTIONS", scope);
 			await expect(createVideoUpload({ id: "owner" }, input)).resolves.toMatchObject({
 				method: "PUT",
 				uploadUrl: "https://upload.example.test/private",
@@ -136,38 +119,29 @@ describe("video upload model admission", () => {
 			expect(createVideoJobRecord).not.toHaveBeenCalled();
 		},
 	);
-	it("does not admit an image upload when only text-to-video is enabled", async () => {
-		allowOptions("video-kling-2-6-v1", "text-to-video");
-		await expect(createVideoUpload({ id: "owner" }, input)).rejects.toThrow(
-			"VIDEO_MODEL_OPTION_NOT_ENABLED",
-		);
-		expect(createMediaUploadSessionTransaction).not.toHaveBeenCalled();
-		expect(createSignedUpload).not.toHaveBeenCalled();
-	});
-	it.each([
-		[undefined, "VIDEO_MODEL_OPTIONS_NOT_CONFIGURED"],
-		["not-json", "VIDEO_MODEL_OPTIONS_INVALID"],
-	])("keeps missing or malformed model scope closed", async (scope, error) => {
-		vi.stubEnv("VIDEO_MODEL_ALLOWED_OPTIONS", scope);
-		await expect(createVideoUpload({ id: "owner" }, input)).rejects.toThrow(error);
-		expect(createMediaUploadSessionTransaction).not.toHaveBeenCalled();
-	});
+	it.each([undefined, "old-contract"])(
+		"rejects an unconfirmed model contract %s",
+		async (version) => {
+			vi.stubEnv("VIDEO_MODEL_CONTRACT_VERSION", version);
+			await expect(createVideoUpload({ id: "owner" }, input)).rejects.toThrow(
+				"VIDEO_MODEL_CONTRACT_NOT_CONFIRMED",
+			);
+			expect(createMediaUploadSessionTransaction).not.toHaveBeenCalled();
+			expect(createSignedUpload).not.toHaveBeenCalled();
+		},
+	);
 	it.each([
 		["VIDEO_V1_ENABLED", "false", "VIDEO_ACCESS_DENIED"],
 		["SEEAPI_WEBHOOK_SIGNING_KEYS", "", "VIDEO_SEEAPI_CALLBACK_NOT_CONFIGURED"],
 		["WAFFO_PRIVATE_KEY", "", "VIDEO_MODERATION_NOT_CONFIGURED"],
 		["VIDEO_PRICE_VALID_UNTIL", "2000-01-01T00:00:00.000Z", "VIDEO_PRICE_EXPIRED"],
+		["VIDEO_PRICE_ACCEPTED_VERSION", "old-price", "VIDEO_PRICE_NOT_APPROVED"],
 	])("retains the %s admission check before storage reservation", async (key, value, error) => {
 		vi.stubEnv(key, value);
 		await expect(createVideoUpload({ id: "owner" }, input)).rejects.toThrow(error);
 		expect(createMediaUploadSessionTransaction).not.toHaveBeenCalled();
 	});
-	it("rejects a user outside the beta allowlist", async () => {
-		await expect(createVideoUpload({ id: "other" }, input)).rejects.toThrow("VIDEO_ACCESS_DENIED");
-		expect(createSignedUpload).not.toHaveBeenCalled();
-	});
-	it("admits a registered user outside the allowlist in authenticated mode", async () => {
-		vi.stubEnv("VIDEO_V1_ACCESS", "authenticated");
+	it("admits a registered user in authenticated mode", async () => {
 		await expect(createVideoUpload({ id: "registered-user" }, input)).resolves.toMatchObject({
 			method: "PUT",
 		});
@@ -186,13 +160,15 @@ describe("video upload model admission", () => {
 		expect(createMediaUploadSessionTransaction).not.toHaveBeenCalled();
 		expect(createSignedUpload).not.toHaveBeenCalled();
 	});
-	it("retains pricing expiry checks for newly admitted registered users", async () => {
-		vi.stubEnv("VIDEO_V1_ACCESS", "authenticated");
-		vi.stubEnv("VIDEO_PRICE_VALID_UNTIL", "2000-01-01T00:00:00.000Z");
-		await expect(createVideoUpload({ id: "registered-user" }, input)).rejects.toThrow(
-			"VIDEO_PRICE_EXPIRED",
-		);
-		expect(createMediaUploadSessionTransaction).not.toHaveBeenCalled();
-		expect(createSignedUpload).not.toHaveBeenCalled();
+	it("admits an image upload with explicitly unbounded approved pricing", async () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-10-12T00:00:00.000Z"));
+		try {
+			await expect(createVideoUpload({ id: "registered-user" }, input)).resolves.toMatchObject({
+				method: "PUT",
+			});
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

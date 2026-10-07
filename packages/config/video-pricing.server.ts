@@ -220,13 +220,14 @@ export function resolveVideoModelCostBasis(
 		!env.VIDEO_PRICE_BASIS?.trim()
 	)
 		throw new Error("VIDEO_PRICE_NOT_APPROVED");
-	const now = Date.now();
-	const approvedValidUntil = Date.parse(env.VIDEO_PRICE_VALID_UNTIL ?? "");
-	if (!Number.isFinite(approvedValidUntil) || approvedValidUntil <= now)
+	const priceApprovalExpiryMode: "none" | "until" =
+		env.VIDEO_PRICE_VALID_UNTIL === "none" ? "none" : "until";
+	const validUntil =
+		priceApprovalExpiryMode === "none" ? null : Date.parse(env.VIDEO_PRICE_VALID_UNTIL ?? "");
+	if (validUntil !== null && (!Number.isFinite(validUntil) || validUntil <= Date.now()))
 		throw new Error("VIDEO_PRICE_EXPIRED");
-	// The refreshed Mini/Fast source has no announced successor cutoff. Quotes
-	// still freeze the finite operator deadline; public prices are not perpetual approval.
-	const validUntil = approvedValidUntil;
+	// Only the explicit operator setting "none" removes the approval deadline.
+	// Missing or malformed settings deny approval; existing finite deadlines remain enforced.
 	const visualSafetyProfile = configuredVideoVisualSafetyProfile(env, request.duration);
 	if (env.VIDEO_COST_VISUAL_POLICY_VERSION !== visualSafetyProfile.policyVersion)
 		throw new Error("VIDEO_VISUAL_COST_POLICY_NOT_CONFIRMED");
@@ -251,6 +252,7 @@ export function resolveVideoModelCostBasis(
 		providerCostMicros,
 		policy,
 		validUntil,
+		priceApprovalExpiryMode,
 		visualSafetyProfile,
 		textSafetyProfile,
 	};
@@ -264,6 +266,7 @@ export function resolveVideoModelPrice(
 		providerCostMicros,
 		policy,
 		validUntil,
+		priceApprovalExpiryMode,
 		visualSafetyProfile,
 		textSafetyProfile,
 		pricingVersion,
@@ -286,7 +289,8 @@ export function resolveVideoModelPrice(
 			visualPolicyVersion: visualSafetyProfile.policyVersion,
 			textRuleVersion: textSafetyProfile.ruleVersion,
 			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
-			validUntil: new Date(validUntil).toISOString(),
+			priceApprovalExpiryMode,
+			validUntil: validUntil === null ? null : new Date(validUntil).toISOString(),
 			costPolicy: Object.fromEntries(
 				Object.entries(policy).map(([key, value]) => [key, value.toString()]),
 			),

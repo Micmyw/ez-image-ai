@@ -1,6 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { isVideoModelOptionAllowed, readVideoModelAccess } from "@repo/config/video-model-access";
 import { getVideoModelOptions, VIDEO_MODEL_CATALOG } from "@repo/config/video-models";
 import { canAccessVideoV1, readVideoV1Config } from "@repo/config/video-v1";
 import { db } from "@repo/database/client";
@@ -47,10 +46,8 @@ function requireVideoUploadAdmission(user: User) {
 	const environment = process.env;
 	const config = readVideoV1Config(environment);
 	if (!canAccessVideoV1(config, user)) throw new Error("VIDEO_ACCESS_DENIED");
-	const access = readVideoModelAccess(environment);
-	if (!access.ready) throw new Error(access.reason ?? "VIDEO_MODEL_OPTIONS_NOT_CONFIGURED");
 	const bindings = getVideoWorkflowReadinessBindings();
-	let unavailable: unknown = new Error("VIDEO_MODEL_OPTION_NOT_ENABLED");
+	let unavailable: unknown = new Error("VIDEO_MODEL_OPTION_UNAVAILABLE");
 	const checked = new Set<string>();
 	for (const model of VIDEO_MODEL_CATALOG) {
 		for (const option of getVideoModelOptions(model.productKey, "image-to-video")) {
@@ -59,7 +56,6 @@ function requireVideoUploadAdmission(user: User) {
 				productKey: model.productKey,
 				mode: "image-to-video" as const,
 			};
-			if (!isVideoModelOptionAllowed(access, selection)) continue;
 			// Ratios share readiness and pricing, so inspect each priced tuple only once.
 			const key = JSON.stringify([
 				model.productKey,

@@ -11,7 +11,7 @@ import {
 
 const policy = {
 	VIDEO_V1_ACCESS: "internal",
-	VIDEO_V1_ALLOWED_USER_IDS: "user-a,user-b",
+	VIDEO_MODEL_CONTRACT_VERSION: "fixture-model-contract",
 	VIDEO_V1_PROVIDER_CONCURRENCY: "1",
 	VIDEO_V1_OUTPUT_ALLOWED_HOSTS: "cdn.example.test",
 	VIDEO_V1_UPLOAD_CORS_READY: "true",
@@ -22,7 +22,6 @@ const policy = {
 	HOTEL_LOBBY_DUO_PAYMENT_FEE_BPS: "750",
 	HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS: "fixture-only-payment-approval",
 	HOTEL_LOBBY_DUO_SCENE_PROVIDER_COST_MICROS: "20000",
-	VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([{ productKey: "fixture", sounds: [false] }]),
 	VIDEO_INTERNAL_FUNDING: JSON.stringify({
 		userIds: ["fixture-user"],
 		validUntil: "2100-01-01T00:00:00.000Z",
@@ -31,13 +30,33 @@ const policy = {
 };
 
 describe("private video runtime environment transport", () => {
+	it("reads obsolete access fields for compatibility and drops them from new runtime packs", () => {
+		const legacy = {
+			...policy,
+			VIDEO_V1_ALLOWED_USER_IDS: "historical-user-fixture",
+			VIDEO_MODEL_ALLOWED_OPTIONS: "obsolete-model-option-format",
+		};
+		const input = {
+			VIDEO_RUNTIME_CONFIG: JSON.stringify(legacy),
+			VIDEO_V1_ALLOWED_USER_IDS: "obsolete-flat-user-fixture",
+			VIDEO_MODEL_ALLOWED_OPTIONS: "obsolete-flat-options",
+			KIE_API_KEY: "unchanged-provider-fixture",
+		};
+		expect(parseVideoRuntimeConfig(input.VIDEO_RUNTIME_CONFIG)).toEqual(legacy);
+		expect(() => expandVideoRuntimeEnvironment(input)).not.toThrow();
+		const packed = packVideoRuntimeEnvironment(input);
+		expect(parseVideoRuntimeConfig(packed.VIDEO_RUNTIME_CONFIG)).toEqual(policy);
+		expect(packed.KIE_API_KEY).toBe("unchanged-provider-fixture");
+		for (const key of ["VIDEO_V1_ALLOWED_USER_IDS", "VIDEO_MODEL_ALLOWED_OPTIONS"])
+			expect(packed).not.toHaveProperty(key);
+	});
 	it("limits build-only template patches to template policy, never funding or ordinary access", () => {
 		expect(parseHotelLobbyRuntimeOverride('{"HOTEL_LOBBY_DUO_ACCESS":"authenticated"}')).toEqual({
 			HOTEL_LOBBY_DUO_ACCESS: "authenticated",
 		});
 		for (const key of [
 			"VIDEO_V1_ACCESS",
-			"VIDEO_MODEL_ALLOWED_OPTIONS",
+			"VIDEO_MODEL_CONTRACT_VERSION",
 			"VIDEO_INTERNAL_FUNDING",
 			"HOTEL_LOBBY_DUO_INTERNAL_FUNDING",
 			"HOTEL_LOBBY_DUO_ENABLED",
@@ -102,6 +121,7 @@ describe("private video runtime environment transport", () => {
 		"VIDEO_V1_BUILD_ACCESS",
 		"VIDEO_V1_BUILD_PRICE_VERSION",
 		"VIDEO_V1_BUILD_PRICE_BASIS",
+		"VIDEO_V1_BUILD_PRICE_EXPIRY",
 		"HOTEL_LOBBY_DUO_ENABLED",
 		"VIDEO_WORKFLOW",
 		"VIDEO_MEDIA_BUCKET",

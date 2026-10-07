@@ -11,15 +11,13 @@ import { canAccessVideoV1, readVideoV1Config } from "./video-v1";
 const environment = {
 	VIDEO_V1_ENABLED: "true",
 	HOTEL_LOBBY_DUO_ENABLED: "true",
-	VIDEO_V1_ALLOWED_USER_IDS: "internal-owner",
 };
 const customer = { id: "registered-customer", role: "user", isAnonymous: false };
 
 describe("Hotel Lobby template access scope", () => {
-	it("defaults to the existing internal audience without widening ordinary video", () => {
+	it("defaults to administrator-only access without widening ordinary video", () => {
 		expect(readVideoEffectAccessScope({})).toBe("internal");
 		expect(canAccessVideoEffect(environment, customer)).toBe(false);
-		expect(canAccessVideoEffect(environment, { id: "internal-owner" })).toBe(true);
 		expect(canAccessVideoEffect(environment, { id: "operator", role: "admin" })).toBe(true);
 	});
 	it("explicitly admits all registered customers only to the template", () => {
@@ -37,9 +35,6 @@ describe("Hotel Lobby template access scope", () => {
 			};
 			expect(canAccessVideoV1(readVideoV1Config(ordinaryVideoOpen), customer)).toBe(true);
 			expect(canAccessVideoEffect(ordinaryVideoOpen, customer, effectId)).toBe(false);
-			expect(canAccessVideoEffect(ordinaryVideoOpen, { id: "internal-owner" }, effectId)).toBe(
-				true,
-			);
 			expect(
 				canAccessVideoEffect(ordinaryVideoOpen, { id: "operator", role: "admin" }, effectId),
 			).toBe(true);

@@ -1,4 +1,4 @@
-import { VIDEO_MODEL_CATALOG, VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
+import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
@@ -54,24 +54,13 @@ import { createVideoJob, requireVideoAdmission } from "./admission";
 const environment = {
 	VIDEO_V1_ENABLED: "true",
 	MEDIA_GENERATION_ENABLED: "true",
-	VIDEO_V1_ALLOWED_USER_IDS: "owner",
+	VIDEO_V1_ACCESS: "authenticated",
 	KIE_API_KEY: "fixture",
 	KIE_WEBHOOK_SECRET: "fixture",
 	NEXT_PUBLIC_SAAS_URL: "https://video.example.test",
 	VIDEO_V1_MODERATION_CALLBACK_CONFIGURED: "true",
 	VIDEO_V1_MODERATION_WEBHOOK_SECRET: "casec_fixture",
 	VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
-	VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify(
-		VIDEO_MODEL_CATALOG.filter((model) => model.status === "implemented").flatMap((model) =>
-			model.groups.map((group) => ({
-				productKey: model.productKey,
-				modes: [group.mode],
-				durations: group.durations,
-				resolutions: group.resolutions,
-				sounds: group.sounds,
-			})),
-		),
-	),
 	VIDEO_V1_TEXT_SAFETY_ADAPTER: "waffo",
 	VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
 	VIDEO_COST_VISUAL_POLICY_VERSION: createVideoVisualSafetyProfile("seeapi", 5).policyVersion,
@@ -138,6 +127,7 @@ describe("video admission pricing and paid funding binding", () => {
 		const operator = { userId: "funding-test-operator", role: "admin" };
 		const internalEnvironment = {
 			...environment,
+			VIDEO_V1_ACCESS: "internal",
 			VIDEO_INTERNAL_FUNDING: JSON.stringify({
 				userIds: [operator.userId],
 				validUntil: new Date(Date.now() + 60_000).toISOString(),
@@ -166,6 +156,7 @@ describe("video admission pricing and paid funding binding", () => {
 			{ userId: "another-admin", role: "admin" },
 			{
 				...environment,
+				VIDEO_V1_ACCESS: "internal",
 				VIDEO_INTERNAL_FUNDING: JSON.stringify({
 					userIds: ["funding-test-operator"],
 					validUntil: new Date(Date.now() + 60_000).toISOString(),
@@ -188,27 +179,53 @@ describe("video admission pricing and paid funding binding", () => {
 		expect(resolveVideoModelPrice).not.toHaveBeenCalled();
 		expect(createVideoJobRecord).not.toHaveBeenCalled();
 	});
-	it("rejects an unselected option before pricing or creating any reservation", async () => {
-		await expect(
-			createVideoJob(
+	it.each([undefined, "[]", "not-json"])(
+		"prices and admits official Seedance 1.5 Pro options regardless of stale model scope %s",
+		async (scope) => {
+			const request = {
+				...legacyRequest,
+				productKey: "video-seedance-1-5-pro",
+				resolution: "720p",
+			};
+			const currentEnvironment = { ...environment, VIDEO_MODEL_ALLOWED_OPTIONS: scope };
+			expect(
+				requireVideoAdmission({ userId: "owner" }, currentEnvironment, bindings, request).price,
+			).toBe(fixtures.price);
+			await createVideoJob(
 				{ userId: "owner" },
-				{ quoteId: "quote", idempotencyKey: "request", request: legacyRequest },
-				{ ...options, environment: { ...environment, VIDEO_MODEL_ALLOWED_OPTIONS: "[]" } },
-			),
-		).rejects.toThrow("VIDEO_MODEL_OPTIONS_INVALID");
-		expect(resolveVideoModelPrice).not.toHaveBeenCalled();
-		expect(createVideoJobRecord).not.toHaveBeenCalled();
-	});
-	it("replays an already accepted request after its option is removed", async () => {
-		vi.mocked(findExistingVideoAdmission).mockResolvedValue({ id: "job-1" } as never);
-		await createVideoJob(
-			{ userId: "owner" },
-			{ quoteId: "quote", idempotencyKey: "request", request: legacyRequest },
-			{ ...options, environment: { ...environment, VIDEO_MODEL_ALLOWED_OPTIONS: "[]" } },
-		);
-		expect(resolveVideoModelPrice).not.toHaveBeenCalled();
-		expect(createVideoJobRecord).not.toHaveBeenCalled();
-	});
+				{ quoteId: "quote", idempotencyKey: "request", request },
+				{ ...options, environment: currentEnvironment },
+			);
+			expect(resolveVideoModelPrice).toHaveBeenCalledWith(request, currentEnvironment);
+			expect(createVideoJobRecord).toHaveBeenCalledWith(
+				expect.objectContaining({ request, paidFundingPolicy: fixtures.price.paidFundingPolicy }),
+				expect.anything(),
+			);
+		},
+	);
+	it.each([
+		{ productKey: "video-seedance-1-5-pro", duration: 13, resolution: "720p" },
+		{ productKey: "video-seedance-1-5-pro", duration: 5, resolution: "4k" },
+		{ productKey: "video-seedance-1-pro-fast", mode: "text-to-video", resolution: "720p" },
+		{ productKey: "video-unsupported", resolution: "720p" },
+	] as const)(
+		"rejects unsupported model parameters before pricing or reservation %j",
+		async (selection) => {
+			await expect(
+				createVideoJob(
+					{ userId: "owner" },
+					{
+						quoteId: "quote",
+						idempotencyKey: "unsupported",
+						request: { ...legacyRequest, ...selection },
+					},
+					options,
+				),
+			).rejects.toThrow("VIDEO_MODEL_OPTION_UNAVAILABLE");
+			expect(resolveVideoModelPrice).not.toHaveBeenCalled();
+			expect(createVideoJobRecord).not.toHaveBeenCalled();
+		},
+	);
 	it("applies current paid funding policy even to a new request using the legacy fixed input shape", async () => {
 		await createVideoJob(
 			{ userId: "owner" },

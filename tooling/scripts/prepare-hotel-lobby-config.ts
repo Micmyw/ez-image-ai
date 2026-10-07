@@ -15,10 +15,7 @@ import {
 	HOTEL_LOBBY_TEMPLATE_VERSION,
 	resolveVideoEffectPrice,
 } from "../../packages/config/video-effects.server";
-import {
-	isVideoModelOptionAllowed,
-	readVideoModelAccess,
-} from "../../packages/config/video-model-access";
+import { validateVideoModelSelection } from "../../packages/config/video-models";
 import {
 	expandVideoRuntimeEnvironment,
 	HOTEL_LOBBY_RUNTIME_OVERRIDE_KEYS,
@@ -37,20 +34,16 @@ const selection = {
 	mode: "image-to-video" as const,
 	duration: 5,
 	resolution: "720p",
+	aspectRatio: "16:9",
 	sound: false,
-};
-const minimumGroup = {
-	productKey: selection.productKey,
-	modes: [selection.mode],
-	durations: [selection.duration],
-	resolutions: [selection.resolution],
-	sounds: [selection.sound],
 };
 
 function expiry(environment: Record<string, string>): string {
 	const values = [
 		maximumApprovalExpiry,
-		environment.VIDEO_PRICE_VALID_UNTIL,
+		environment.VIDEO_PRICE_VALID_UNTIL === "none"
+			? undefined
+			: environment.VIDEO_PRICE_VALID_UNTIL,
 		environment.HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL?.trim() || undefined,
 	].filter((value) => value !== undefined);
 	const times = values.map((value) => Date.parse(value));
@@ -64,18 +57,8 @@ export function prepareHotelLobbyEnvironment(input: Record<string, string>) {
 	const previous = expandVideoRuntimeEnvironment(input);
 	const environment: Record<string, string> = { ...previous };
 	delete environment.VIDEO_RUNTIME_CONFIG;
-	const access = readVideoModelAccess(environment);
-	if (environment.VIDEO_MODEL_ALLOWED_OPTIONS !== undefined && !access.ready)
-		throw new Error("HOTEL_LOBBY_PREPARATION_ALLOWLIST_INVALID");
-	if (!isVideoModelOptionAllowed(access, selection)) {
-		// Add one independent group; merging dimensions would grant unintended combinations.
-		const groups: unknown[] = environment.VIDEO_MODEL_ALLOWED_OPTIONS
-			? JSON.parse(environment.VIDEO_MODEL_ALLOWED_OPTIONS)
-			: [];
-		environment.VIDEO_MODEL_ALLOWED_OPTIONS = JSON.stringify([...groups, minimumGroup]);
-	}
-	if (!readVideoModelAccess(environment).ready)
-		throw new Error("HOTEL_LOBBY_PREPARATION_ALLOWLIST_INVALID");
+	if (!validateVideoModelSelection(selection))
+		throw new Error("HOTEL_LOBBY_PREPARATION_MODEL_SELECTION_INVALID");
 
 	// Validate existing packed/flat image flags before updating only the selected product.
 	packEzPicImageModelFlags(environment);
@@ -188,7 +171,7 @@ export function prepareHotelLobbyBuildOverlay(
 			access,
 			existingBaseRequired: true,
 			includesBaseSnapshot: false,
-			addsOnlyDefaultVideoTuple: true,
+			defaultVideoTupleValidated: true,
 			sceneModelConfiguration: "UNCHANGED_BY_BUILD_OVERLAY" as const,
 		},
 	};

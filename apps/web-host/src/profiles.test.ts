@@ -259,21 +259,46 @@ function artifacts(
 
 describe("prepared deployment artifacts", () => {
 	it.each(["workers", "hybrid"] as const)(
+		"drops obsolete private access fields from every newly prepared %s runtime",
+		(profile) => {
+			const legacy = {
+				VIDEO_V1_ALLOWED_USER_IDS: "obsolete-user-fixture",
+				VIDEO_MODEL_ALLOWED_OPTIONS: "obsolete-option-format",
+			};
+			const result = artifacts(
+				profile,
+				{
+					...multiModelVideoEnvironment,
+					VIDEO_RUNTIME_CONFIG: JSON.stringify(legacy),
+				},
+				{
+					VIDEO_V1_ALLOWED_USER_IDS: "different-obsolete-template-user",
+					VIDEO_MODEL_ALLOWED_OPTIONS: "different-obsolete-template-options",
+				},
+			);
+			for (const name of ["website", "workflows"] as const) {
+				const policy = parseVideoRuntimeConfig(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG);
+				expect(policy.VIDEO_MODEL_CONTRACT_VERSION).toBe(VIDEO_MODEL_CATALOG_VERSION);
+				for (const key of Object.keys(legacy)) {
+					expect(policy).not.toHaveProperty(key);
+					expect(result[name].vars).not.toHaveProperty(key);
+					expect(result[`${name}.secrets`]).not.toHaveProperty(key);
+				}
+			}
+			if (profile === "hybrid") {
+				const container = JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV);
+				for (const key of Object.keys(legacy)) expect(container).not.toHaveProperty(key);
+			}
+		},
+	);
+	it.each(["workers", "hybrid"] as const)(
 		"mirrors only the approved ordinary access change to both %s Workers",
 		(profile) => {
 			const input = packVideoRuntimeEnvironment({
 				...multiModelVideoEnvironment,
 				VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
-				VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
-					{
-						productKey: "video-kling-2-6-v1",
-						modes: ["text-to-video"],
-						durations: [5],
-						resolutions: ["default"],
-						sounds: [false],
-					},
-				]),
 				HOTEL_LOBBY_DUO_ACCESS: "internal",
+				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
 				RAINDANCE_ACCESS: "internal",
 			});
 			const prepared = parseEnv(
@@ -283,6 +308,7 @@ describe("prepared deployment artifacts", () => {
 					VIDEO_V1_BUILD_ACCESS: "authenticated",
 					VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 					VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
+					VIDEO_V1_BUILD_PRICE_EXPIRY: "none",
 				}),
 			);
 			const result = artifacts(profile, {
@@ -291,12 +317,14 @@ describe("prepared deployment artifacts", () => {
 				VIDEO_V1_BUILD_ACCESS: "authenticated",
 				VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 				VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
+				VIDEO_V1_BUILD_PRICE_EXPIRY: "none",
 			});
 			const expectedPolicy = {
 				...parseVideoRuntimeConfig(input.VIDEO_RUNTIME_CONFIG),
 				VIDEO_V1_ACCESS: "authenticated",
 				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 				VIDEO_PRICE_BASIS: `${multiModelVideoEnvironment.VIDEO_PRICE_BASIS}; new-public-supplier-source`,
+				VIDEO_PRICE_VALID_UNTIL: "none",
 			};
 			for (const name of ["website", "workflows"] as const) {
 				expect(parseVideoRuntimeConfig(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG)).toEqual(
@@ -305,7 +333,11 @@ describe("prepared deployment artifacts", () => {
 				expect(result[name].vars).toMatchObject({ VIDEO_V1_ENABLED: "true" });
 				expect(result[name].vars).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
 				expect(result[`${name}.secrets`]).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
-				for (const key of ["VIDEO_V1_BUILD_PRICE_VERSION", "VIDEO_V1_BUILD_PRICE_BASIS"]) {
+				for (const key of [
+					"VIDEO_V1_BUILD_PRICE_VERSION",
+					"VIDEO_V1_BUILD_PRICE_BASIS",
+					"VIDEO_V1_BUILD_PRICE_EXPIRY",
+				]) {
 					expect(result[name].vars).not.toHaveProperty(key);
 					expect(result[`${name}.secrets`]).not.toHaveProperty(key);
 				}
@@ -316,6 +348,7 @@ describe("prepared deployment artifacts", () => {
 				expect(container).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
 				expect(container).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_VERSION");
 				expect(container).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_BASIS");
+				expect(container).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_EXPIRY");
 			}
 		},
 	);
@@ -358,15 +391,6 @@ describe("prepared deployment artifacts", () => {
 				HOTEL_LOBBY_DUO_SCENE_REVIEW_COST_MICROS: "1000",
 				HOTEL_LOBBY_DUO_ADDITIONAL_RUNTIME_COST_MICROS: "2000",
 				HOTEL_LOBBY_DUO_ADDITIONAL_STORAGE_COST_MICROS: "3000",
-				VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
-					{
-						productKey: "video-seedance-1-5-pro",
-						modes: ["image-to-video"],
-						durations: [5],
-						resolutions: ["720p"],
-						sounds: [false],
-					},
-				]),
 			};
 			const packedInput = packVideoRuntimeEnvironment(input);
 			const overridden = parseEnv(
@@ -473,7 +497,6 @@ describe("prepared deployment artifacts", () => {
 		(profile) => {
 			const input = {
 				...multiModelVideoEnvironment,
-				VIDEO_MODEL_ALLOWED_OPTIONS: '[{"productKey":"fixture-only"}]',
 			};
 			const flat = artifacts(profile, input);
 			const packed = artifacts(profile, packVideoRuntimeEnvironment(input));
@@ -493,7 +516,6 @@ describe("prepared deployment artifacts", () => {
 				expect(policy).toMatchObject({
 					VIDEO_V1_ACCESS: "internal",
 					VIDEO_V1_UPLOAD_CORS_READY: "true",
-					VIDEO_MODEL_ALLOWED_OPTIONS: input.VIDEO_MODEL_ALLOWED_OPTIONS,
 				});
 				for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) {
 					expect(secrets).not.toHaveProperty(key);

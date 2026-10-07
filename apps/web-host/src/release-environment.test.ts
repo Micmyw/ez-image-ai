@@ -16,7 +16,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const assertEnvironment = assertAutomaticReleaseEnvironment;
 
 describe("automatic production release preflight", () => {
-	it.each(["2100-01-01T00:00:00.000Z", "2000-01-01T00:00:00.000Z"])(
+	it.each(["2100-01-01T00:00:00.000Z", "2000-01-01T00:00:00.000Z", "none"])(
 		"logs only approved public price metadata before accepting an inherited expiry %s",
 		(validUntil) => {
 			const result = spawnSync(
@@ -41,7 +41,7 @@ describe("automatic production release preflight", () => {
 			);
 			expect(result.status).not.toBe(0);
 			expect(result.stdout + result.stderr).not.toContain("do-not-print-");
-			if (validUntil.startsWith("2100")) {
+			if (validUntil === "none" || validUntil.startsWith("2100")) {
 				expect(result.stdout).toContain(
 					`Video price base preflight: ${JSON.stringify({
 						previousVersion: "kie-public-2026-10-04.3",

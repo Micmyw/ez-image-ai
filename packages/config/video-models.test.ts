@@ -53,6 +53,59 @@ describe("official video model capabilities", () => {
 			),
 		).toBe(false);
 	});
+	it("supports the documented Seedance 1.5 Pro parameters in both modes", () => {
+		const model = getVideoModel("video-seedance-1-5-pro")!;
+		for (const mode of ["text-to-video", "image-to-video"] as const) {
+			const options = getVideoModelOptions(model.productKey, mode);
+			expect([...new Set(options.map((option) => option.duration))]).toEqual([
+				4, 5, 6, 7, 8, 9, 10, 11, 12,
+			]);
+			expect(new Set(options.map((option) => option.resolution))).toEqual(
+				new Set(["480p", "720p", "1080p"]),
+			);
+			expect(new Set(options.map((option) => option.aspectRatio))).toEqual(
+				new Set(["1:1", "4:3", "3:4", "16:9", "9:16", "21:9"]),
+			);
+			expect(new Set(options.map((option) => option.sound))).toEqual(new Set([false, true]));
+			for (const change of [
+				{ duration: 3 },
+				{ duration: 13 },
+				{ duration: 5.5 },
+				{ resolution: "4k" },
+				{ aspectRatio: "adaptive" },
+				{ aspectRatio: "source" },
+			]) {
+				expect(
+					validateVideoModelSelection({
+						productKey: model.productKey,
+						mode,
+						...model.defaults[mode]!,
+						...change,
+					}),
+				).toBe(false);
+			}
+		}
+	});
+	it("rejects unsupported keys and cross-mode parameter combinations", () => {
+		const selection = {
+			productKey: "video-seedance-1-pro-fast",
+			mode: "image-to-video" as const,
+			duration: 5,
+			resolution: "720p",
+			aspectRatio: "source",
+			sound: false,
+		};
+		expect(validateVideoModelSelection(selection)).toBe(true);
+		for (const change of [
+			{ mode: "text-to-video" as const },
+			{ aspectRatio: "16:9" },
+			{ sound: true },
+			{ productKey: "video-veo-3-1-pro" },
+			{ productKey: "bytedance/seedance-1.5-pro" },
+		]) {
+			expect(validateVideoModelSelection({ ...selection, ...change })).toBe(false);
+		}
+	});
 	it("rejects incompatible mode, audio, duration and resolution selections", () => {
 		const base = {
 			productKey: "video-minimax-h3",

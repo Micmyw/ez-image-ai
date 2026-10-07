@@ -6,10 +6,15 @@ import {
 	type VideoModelSelection,
 } from "@repo/config/video-models";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
+import {
+	resolveVideoModelPrice,
+	VIDEO_SUPPLIER_PRICE_VERSION,
+} from "@repo/config/video-pricing.server";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
-import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { runWithDatabaseClient } from "../../client";
 import { PrismaClient } from "../../generated/client";
 import { createMediaUploadSessionTransaction } from "./assets";
 import {
@@ -28,6 +33,8 @@ import {
 	fingerprintVideoRequest,
 	type VideoPrice,
 } from "./video-v1";
+import { claimVideoProviderSubmission, recordVideoInputReview } from "./video-v1-execution";
+import { assertVideoPriceApprovalValid } from "./video-v1-price-approval";
 
 const request = {
 	mode: "text-to-video" as const,
@@ -395,6 +402,103 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		await createCreditGrant({ accountId, amount: 100n + bonusCredits, referenceKey }, client);
 		return referenceKey;
 	}
+	it("freezes non-expiring approved pricing after October 12 through quote, paid admission and claim", async () => {
+		const f = await fixture(1n);
+		await paidSubscriptionGrant(f.ownerId, f.account.id, { paid: 3_000_000n });
+		const selection = { ...request, productKey: "video-kling-2-6-v1", resolution: "default" };
+		const afterPreviousDeadline = new Date("2026-10-13T00:00:00.000Z");
+		const clock = vi.spyOn(Date, "now").mockReturnValue(afterPreviousDeadline.getTime());
+		let approvedPrice: VideoPrice;
+		try {
+			approvedPrice = resolveVideoModelPrice(selection, {
+				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+				VIDEO_PRICE_BASIS: "isolated non-expiring approval fixture only",
+				VIDEO_PRICE_VALID_UNTIL: "none",
+				VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
+				VIDEO_COST_VISUAL_POLICY_VERSION: visualSafetyProfile.policyVersion,
+				VIDEO_COST_TEXT_RULE_VERSION: createVideoTextSafetyProfile().ruleVersion,
+				VIDEO_COST_MODERATION_BASE_MICROS: "10000",
+				VIDEO_COST_MODERATION_PER_SECOND_MICROS: "5000",
+				VIDEO_COST_RUNTIME_MICROS: "5000",
+				VIDEO_COST_STORAGE_MICROS: "5000",
+				VIDEO_COST_PAYMENT_FIXED_MICROS: "2000",
+				VIDEO_COST_PAYMENT_FEE_BPS: "500",
+				VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
+			});
+		} finally {
+			clock.mockRestore();
+		}
+		const quote = await createVideoQuoteRecord(
+			{
+				...f.input,
+				request: selection,
+				price: approvedPrice,
+				maximumInputBytes: limits.maximumInputBytes,
+			},
+			client,
+		);
+		const input = {
+			...f.input,
+			request: selection,
+			quoteId: quote.quoteId,
+			price: approvedPrice,
+			paidFundingPolicy: approvedPrice.paidFundingPolicy,
+		};
+		const expiredQuote = await quoteWithExpiry(quote.quoteId, new Date(0));
+		await expect(
+			createVideoJobRecord({ ...input, quoteId: expiredQuote.id }, client),
+		).rejects.toThrow("QUOTE_EXPIRED");
+		const accepted = await createVideoJobRecord(input, client);
+		const stored = await getVideoJobRecord(f.ownerId, accepted.jobId, client);
+		expect(stored.pricingSnapshot).toMatchObject({
+			pricingDetails: { priceApprovalExpiryMode: "none", validUntil: null },
+			paidFundingPolicy: { minimumUsdMicrosPerCredit: "21944" },
+		});
+		assertVideoPriceApprovalValid(approvedPrice.pricingDetails!, afterPreviousDeadline);
+		const textSafetyProfile = createVideoTextSafetyProfile();
+		const ruleVersion = "isolated-price-approval-test";
+		await runWithDatabaseClient(client, () =>
+			recordVideoInputReview(stored.id, {
+				status: "ALLOW",
+				ruleVersion,
+				textSafetyProfile,
+				textDecision: {
+					decision: "ALLOW",
+					reasonCode: "WAFFO_PROMPT_ALLOWED",
+					ruleVersion: textSafetyProfile.ruleVersion,
+					evidence: {
+						requestId: `price-approval-${stored.id}`,
+						models: ["waffo-prompt-sift"],
+						operations: 1,
+						scores: {},
+						waffo: {
+							requestId: `price-approval-${stored.id}`,
+							action: "allow",
+							semanticStatus: "scored",
+							matchedCategories: [],
+						},
+					},
+				},
+				requestFingerprint: fingerprintVideoRequest(f.ownerId, selection),
+				validUntil: new Date(Date.now() + 60_000).toISOString(),
+			}),
+		);
+		expect(
+			await runWithDatabaseClient(client, () =>
+				claimVideoProviderSubmission({
+					jobId: stored.id,
+					callbackTokenHash: crypto.randomUUID().replaceAll("-", "").repeat(2),
+					providerModelId: "kling-2.6/text-to-video",
+					ruleVersion,
+				}),
+			),
+		).toMatchObject({ claimed: true });
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: f.account.id } }),
+		).toMatchObject({
+			reservedCredits: approvedPrice.credits,
+		});
+	});
 	it("template credit snapshot separates free credits without creating an account or changing the ledger", async () => {
 		const unknown = crypto.randomUUID();
 		expect(await getVideoTemplateCreditBalance(unknown, paidFundingPolicy, client)).toEqual({

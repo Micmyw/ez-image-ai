@@ -159,7 +159,6 @@ describe("template API authorization and strict public contracts", () => {
 		vi.stubEnv("VIDEO_V1_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ACCESS", "authenticated");
-		vi.stubEnv("VIDEO_V1_ALLOWED_USER_IDS", "another-internal-owner");
 		vi.mocked(requireVideoTemplateAdmission).mockReturnValue({
 			maximumInputBytes: 7_000_000,
 			price: { credits: 69n, paidFundingPolicy: { minimumUsdMicrosPerCredit: 21_944n } },
@@ -187,7 +186,6 @@ describe("template API authorization and strict public contracts", () => {
 		vi.stubEnv("VIDEO_V1_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ACCESS", "internal");
-		vi.stubEnv("VIDEO_V1_ALLOWED_USER_IDS", "another-internal-owner");
 		vi.mocked(requireVideoTemplateAdmission).mockImplementationOnce(() => {
 			throw new Error("VIDEO_ACCESS_DENIED");
 		});

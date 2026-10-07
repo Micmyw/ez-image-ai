@@ -1,4 +1,4 @@
-import { VIDEO_MODEL_CATALOG, VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
+import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
 import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
@@ -17,17 +17,6 @@ const environment = {
 	VIDEO_V1_MODERATION_CALLBACK_CONFIGURED: "true",
 	VIDEO_V1_MODERATION_WEBHOOK_SECRET: "casec_fixture-only",
 	VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
-	VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify(
-		VIDEO_MODEL_CATALOG.filter((model) => model.status === "implemented").flatMap((model) =>
-			model.groups.map((group) => ({
-				productKey: model.productKey,
-				modes: [group.mode],
-				durations: group.durations,
-				resolutions: group.resolutions,
-				sounds: group.sounds,
-			})),
-		),
-	),
 	VIDEO_V1_TEXT_SAFETY_ADAPTER: "waffo",
 	VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
 	VIDEO_COST_VISUAL_POLICY_VERSION: createVideoVisualSafetyProfile("seeapi", 5).policyVersion,
@@ -44,7 +33,7 @@ const environment = {
 	VIDEO_V1_OUTPUT_ALLOWED_HOSTS: "cdn.example.test",
 	VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 	VIDEO_PRICE_BASIS: "HYPOTHETICAL_TEST_ONLY_COSTS",
-	VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
+	VIDEO_PRICE_VALID_UNTIL: "none",
 	VIDEO_COST_MODERATION_BASE_MICROS: "10000",
 	VIDEO_COST_MODERATION_PER_SECOND_MICROS: "5000",
 	VIDEO_COST_RUNTIME_MICROS: "5000",
@@ -62,7 +51,7 @@ beforeEach(() => {
 afterEach(() => vi.useRealTimers());
 
 describe("video public catalogue pricing and readiness", () => {
-	it("restores only approved Mini/Fast options after the old cutoff with unchanged reference credits", () => {
+	it("prices official Mini/Fast options after the old cutoff with unchanged reference credits", () => {
 		expect(VIDEO_MODEL_CATALOG_VERSION).toBe("video-models-2026-10-04.2");
 		const approved = {
 			...environment,
@@ -83,26 +72,6 @@ describe("video public catalogue pricing and readiness", () => {
 			expect(models.find((model) => model.productKey === productKey)).toEqual(
 				before.find((model) => model.productKey === productKey),
 			);
-		const restricted = buildVideoCatalogModels(
-			{
-				...approved,
-				VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
-					{
-						productKey: "video-seedance-2-mini",
-						modes: ["text-to-video"],
-						durations: [4],
-						resolutions: ["480p"],
-						sounds: [false],
-					},
-				]),
-			},
-			bindings,
-			true,
-			new Set(),
-		);
-		expect(
-			restricted.flatMap((model) => model.options.filter((option) => option.available)),
-		).toHaveLength(1);
 	});
 	it.each([undefined, "kie-public-2026-10-04.3"])(
 		"closes shared pricing without the new version approval %s",
@@ -127,7 +96,7 @@ describe("video public catalogue pricing and readiness", () => {
 			}
 		},
 	);
-	it("closes every shared price exactly at the operator deadline", () => {
+	it("closes every finite shared price exactly at the operator deadline", () => {
 		vi.setSystemTime(new Date("2026-10-12T00:00:00.000Z"));
 		const models = buildVideoCatalogModels(
 			{ ...environment, VIDEO_PRICE_VALID_UNTIL: "2026-10-12T00:00:00.000Z" },
@@ -143,44 +112,39 @@ describe("video public catalogue pricing and readiness", () => {
 			"VIDEO_PRICE_EXPIRED",
 		);
 	});
-	it("does not advertise legal but unselected paid options", () => {
-		const models = buildVideoCatalogModels(
-			{
-				...environment,
-				VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
-					{
-						productKey: "video-kling-2-6-v1",
-						modes: ["text-to-video"],
-						durations: [5],
-						resolutions: ["default"],
-						sounds: [false],
-					},
-				]),
-			},
-			bindings,
-			true,
-			new Set(),
-		);
-		const enabled = models.flatMap((model) =>
-			model.options
-				.filter((option) => option.available)
-				.map((option) => ({ productKey: model.productKey, ...option })),
-		);
-		expect(enabled).toHaveLength(1);
-		expect(enabled[0]).toMatchObject({
-			productKey: "video-kling-2-6-v1",
-			mode: "text-to-video",
-			duration: 5,
-			sound: false,
-		});
-		const absent = buildVideoCatalogModels(
-			{ ...environment, VIDEO_MODEL_ALLOWED_OPTIONS: "" },
-			bindings,
-			true,
-			new Set(),
-		);
-		expect(absent.every((model) => !model.available)).toBe(true);
+	it("keeps explicitly unbounded approved prices available after the former deadline", () => {
+		vi.setSystemTime(new Date("2026-10-12T00:00:00.000Z"));
+		const models = buildVideoCatalogModels(environment, bindings, true, new Set());
+		const mini = models.find((model) => model.productKey === "video-seedance-2-mini")!;
+		expect(mini.available).toBe(true);
+		expect(mini.options.every((option) => option.available && option.credits !== null)).toBe(true);
 	});
+	it.each([undefined, "", "[]", "not-json"])(
+		"quotes official Seedance 1.5 Pro options regardless of stale model scope %s",
+		(scope) => {
+			const models = buildVideoCatalogModels(
+				{
+					...environment,
+					VIDEO_MODEL_ALLOWED_OPTIONS: scope,
+				},
+				bindings,
+				true,
+				new Set(),
+			);
+			const seedance = models.find((model) => model.productKey === "video-seedance-1-5-pro")!;
+			expect(seedance.available).toBe(true);
+			expect(seedance.options).toContainEqual({
+				mode: "text-to-video",
+				duration: 5,
+				resolution: "720p",
+				sound: false,
+				available: true,
+				reasons: [],
+				credits: expect.stringMatching(/^\d+$/),
+			});
+			expect(seedance.options.every((option) => option.available)).toBe(true);
+		},
+	);
 	it("keeps closed access small and does not publish provider/cost configuration", () => {
 		const models = buildVideoCatalogModels(environment, bindings, false, new Set());
 		expect(models.every((model) => !model.available && model.options.length === 0)).toBe(true);

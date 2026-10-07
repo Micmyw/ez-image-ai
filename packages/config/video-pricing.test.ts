@@ -349,3 +349,61 @@ describe("October 7 supplier price refresh and finite operator approval", () => 
 		},
 	);
 });
+
+describe("explicit ordinary video approval without a deadline", () => {
+	it("keeps the approved basis quotable after October 12 without inventing a date", () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
+		const finite = resolveVideoModelPrice(request, approvedPriceEnvironment());
+		const env = { ...approvedPriceEnvironment(), VIDEO_PRICE_VALID_UNTIL: "none" };
+		for (const now of ["2026-10-12T00:00:00.000Z", "2030-01-01T00:00:00.000Z"]) {
+			vi.setSystemTime(new Date(now));
+			const price = resolveVideoModelPrice(request, env);
+			expect(price.pricingDetails).toMatchObject({
+				...finite.pricingDetails,
+				priceApprovalExpiryMode: "none",
+				validUntil: null,
+			});
+			expect(price.pricingVersion).toBe(finite.pricingVersion);
+			expect(price.pricingBasis).toBe(finite.pricingBasis);
+			expect(price.credits).toBe(finite.credits);
+			expect(price.paidFundingPolicy).toEqual(finite.paidFundingPolicy);
+		}
+	});
+	it("marks newly approved finite snapshots explicitly", () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
+		expect(
+			resolveVideoModelPrice(request, approvedPriceEnvironment()).pricingDetails,
+		).toMatchObject({
+			priceApprovalExpiryMode: "until",
+			validUntil: approvedPriceEnvironment().VIDEO_PRICE_VALID_UNTIL,
+		});
+	});
+	it.each([undefined, "", " ", "NONE", " none", "none ", "invalid-date"])(
+		"does not treat an absent or malformed deadline %s as no expiry",
+		(validUntil) => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
+			expect(() =>
+				resolveVideoModelPrice(request, {
+					...approvedPriceEnvironment(),
+					VIDEO_PRICE_VALID_UNTIL: validUntil,
+				}),
+			).toThrow("VIDEO_PRICE_EXPIRED");
+		},
+	);
+	it("still requires the accepted version, basis and complete cost policy", () => {
+		const env = { ...approvedPriceEnvironment(), VIDEO_PRICE_VALID_UNTIL: "none" };
+		for (const patch of [
+			{ VIDEO_PRICE_ACCEPTED_VERSION: "old-version" },
+			{ VIDEO_PRICE_BASIS: " " },
+		])
+			expect(() => resolveVideoModelPrice(request, { ...env, ...patch })).toThrow(
+				"VIDEO_PRICE_NOT_APPROVED",
+			);
+		expect(() =>
+			resolveVideoModelPrice(request, { ...env, VIDEO_COST_RUNTIME_MICROS: undefined }),
+		).toThrow("VIDEO_COST_POLICY_NOT_CONFIGURED");
+	});
+});
