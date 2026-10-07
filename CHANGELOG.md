@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-07
+
+### Reliable font builds
+
+- Bundle the existing Plus Jakarta Sans font with its source and license so production builds no longer depend on Google Fonts responses.
+
 ## 2026-10-06
 
 ### Hotel Lobby price and credit clarity
