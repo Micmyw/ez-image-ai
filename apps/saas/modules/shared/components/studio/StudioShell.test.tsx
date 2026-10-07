@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
 	user: null as { id: string; isAnonymous?: boolean } | null,
 	videoAvailable: false,
 	videoNavigationImported: vi.fn(),
+	rumpelstiltskinNavigationImported: vi.fn(),
 }));
 vi.mock("@auth/components/SessionProvider", () => ({
 	SessionProvider: ({ children }: { children: ReactNode }) => children,
@@ -32,6 +33,13 @@ vi.mock("../../../video-v1/VideoNavigationLink", async (importOriginal) => {
 	state.videoNavigationImported();
 	return importOriginal();
 });
+vi.mock(
+	"../../../video-effects/components/RumpelstiltskinNavigationLink",
+	async (importOriginal) => {
+		state.rumpelstiltskinNavigationImported();
+		return importOriginal();
+	},
+);
 vi.mock("../NotificationCenter", () => ({ NotificationCenter: () => null }));
 vi.mock("./HeaderPurchaseActions", () => ({
 	HeaderPurchaseActions: () => <div>Purchase actions</div>,
@@ -73,10 +81,12 @@ describe("homepage and signed-in tool navigation", () => {
 		async (user) => {
 			state.user = user;
 			expect(state.videoNavigationImported).not.toHaveBeenCalled();
+			expect(state.rumpelstiltskinNavigationImported).not.toHaveBeenCalled();
 			const markup = await renderShell();
 			expect(markup).not.toContain('href="/video"');
 			expect(markup).not.toContain('href="/video/effects/rumpelstiltskin"');
 			expect(state.videoNavigationImported).not.toHaveBeenCalled();
+			expect(state.rumpelstiltskinNavigationImported).not.toHaveBeenCalled();
 		},
 	);
 
@@ -95,6 +105,7 @@ describe("homepage and signed-in tool navigation", () => {
 		const markup = await renderShell();
 		expect(markup).not.toContain('href="/video"');
 		expect(markup).toContain('href="/video/effects/rumpelstiltskin"');
+		expect(state.rumpelstiltskinNavigationImported).toHaveBeenCalled();
 	});
 	it("marks the registered Rumpelstiltskin entry active on its account page", async () => {
 		state.pathname = "/video/effects/rumpelstiltskin";

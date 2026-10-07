@@ -12,7 +12,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
 	BookOpenIcon,
 	CoinsIcon,
-	FilmIcon,
 	HistoryIcon,
 	ImagesIcon,
 	SparklesIcon,
@@ -25,7 +24,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type MouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
-import { RUMPELSTILTSKIN_PATH } from "../../../video-effects/lib/paths";
 import { HeaderNavigationMenu } from "./HeaderNavigationMenu";
 import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
 import {
@@ -49,6 +47,11 @@ const NotificationCenter = dynamic(() =>
 const UserMenu = dynamic(() => import("../UserMenu").then((module) => module.UserMenu));
 const VideoNavigationLink = dynamic(() =>
 	import("../../../video-v1/VideoNavigationLink").then((module) => module.VideoNavigationLink),
+);
+const RumpelstiltskinNavigationLink = dynamic(() =>
+	import("../../../video-effects/components/RumpelstiltskinNavigationLink").then(
+		(module) => module.RumpelstiltskinNavigationLink,
+	),
 );
 
 export function StudioShell({
@@ -217,17 +220,7 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 					<>
 						<p className="studio-nav-label">{t("workspace")}</p>
 						<VideoNavigationLink onNavigate={() => setNavigationOpen(false)} />
-						<Link
-							className={
-								pathname === RUMPELSTILTSKIN_PATH ? "studio-nav-link is-active" : "studio-nav-link"
-							}
-							href={RUMPELSTILTSKIN_PATH}
-							prefetch={false}
-							onClick={() => setNavigationOpen(false)}
-						>
-							<FilmIcon />
-							{accountMenu("rumpelstiltskin")}
-						</Link>
+						<RumpelstiltskinNavigationLink onNavigate={() => setNavigationOpen(false)} />
 						<Link className="studio-nav-link" href="/history" prefetch={false}>
 							<HistoryIcon />
 							{t("history")}
