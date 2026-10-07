@@ -76,7 +76,7 @@ release receipt; do not infer live customer generation from the policy or copy c
 
 | Stage                                                                 | Evidence                          |
 | --------------------------------------------------------------------- | --------------------------------- |
-| Focused local access, funding, template and build-overlay regressions | PASS: 483 focused tests           |
+| Focused local access, funding, template and build-overlay regressions | PASS: 494 focused tests           |
 | Changed-file formatting, lint and affected workspace type checks      | PASS                              |
 | Authenticated/guest live browser acceptance                           | Pending production release        |
 | Git publication and exact-SHA CI                                      | NOT_RUN at document creation      |
@@ -88,6 +88,8 @@ The integrated focused checks comprise 103 config pricing/access/funding/templat
 tests, 39 runtime transport tests, 213 web-host deployment/build tests, 25 API
 catalog/upload tests, 35 jobs admission/template-access tests, and 68 shared
 image-composer/video model/render tests.
+The 11 Hotel Lobby configuration CLI tests also pass after the integrated
+Node environment dictionary is validated and narrowed to string values.
 The composer regression failed before the link change and passed afterward.
 Config, jobs, API, SaaS and web-host type checks pass. Local generation repaired a
 stale ignored Prisma client; one stale ignored Next route type for the removed
@@ -97,3 +99,9 @@ authorized Seedance implementation was incorporated as `b7739f3d` from
 `fb28f4a1`, preserving both release entries and authenticated-access documentation.
 Its earlier 46 isolated PostgreSQL tests and 8 Mock browser cases remain separate
 evidence; the integrated CI validates the final published source.
+
+The intermediate `2f7729d7` CI reported `TS2345` in the configuration example
+test because Node's parsed environment dictionary can contain undefined values.
+The same error was reproduced locally, fixed by validating each parsed value,
+and the 11 CLI tests plus root `pnpm type-check` pass (22 successful tasks).
+No workflow gate or product behavior was weakened.

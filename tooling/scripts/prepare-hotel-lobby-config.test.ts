@@ -71,7 +71,13 @@ void test("documented closed reference uses the current shared basis without cha
 		),
 	);
 	assert.equal(input.VIDEO_PRICE_ACCEPTED_VERSION, VIDEO_SUPPLIER_PRICE_VERSION);
-	const result = prepareHotelLobbyEnvironment(input);
+	const normalized = Object.fromEntries(
+		Object.entries(input).map(([key, value]) => {
+			assert.ok(typeof value === "string");
+			return [key, value] as const;
+		}),
+	);
+	const result = prepareHotelLobbyEnvironment(normalized);
 	assert.equal(result.summary.credits, "69");
 	assert.equal(result.summary.validUntil, "2026-10-12T00:00:00.000Z");
 	assert.equal(result.summary.templateEnabled, false);
