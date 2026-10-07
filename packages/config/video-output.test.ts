@@ -24,53 +24,64 @@ const expected = {
 	aspectRatio: "16:9",
 };
 describe("immutable video output contract", () => {
-	it("requires actual silent 720 by 1280 output for the frozen duo template", () => {
-		const template = createVideoEffectTemplateSnapshot({
-			effectId: "hotel-lobby-duo",
-			presetKey: "standard",
-			inputs: { leftAssetId: "left", rightAssetId: "right" },
-		});
-		const snapshot = {
-			...template.video,
-			requestKind: "template-video",
-			videoEffectTemplate: template,
-			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
-		};
-		const constraints = videoOutputConstraints(snapshot);
-		const silentPortrait = {
-			durationMillis: 5000,
-			width: 720,
-			height: 1280,
-			audioTracks: 0,
-			videoTracks: 1 as const,
-		};
-		expect(videoOutputSpecificationFailure(silentPortrait, constraints)).toBeNull();
-		// Correct aspect ratio alone must not certify the advertised resolution.
-		expect(
-			videoOutputSpecificationFailure({ ...silentPortrait, width: 360, height: 640 }, constraints),
-		).toBe("VIDEO_RESOLUTION_MISMATCH");
-		expect(
-			videoOutputSpecificationFailure(
-				{ ...silentPortrait, width: 1080, height: 1920 },
-				constraints,
-			),
-		).toBe("VIDEO_RESOLUTION_MISMATCH");
-		expect(
-			videoOutputSpecificationFailure(
-				{ ...silentPortrait, audioTracks: 1, audioTrackIds: [2] },
-				constraints,
-			),
-		).toBe("VIDEO_AUDIO_TRACK_NOT_ALLOWED");
-		for (const change of [
-			{ videoEffectTemplate: undefined },
-			{ duration: 10 },
-			{ sound: true },
-			{ videoEffectTemplate: { ...template, output: { ...template.output, width: 360 } } },
-		])
-			expect(() => videoOutputConstraints({ ...snapshot, ...change })).toThrow(
-				"VIDEO_TEMPLATE_OUTPUT_CONSTRAINTS_INVALID",
-			);
-	});
+	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
+		"requires actual silent 720 by 1280 output for the frozen %s template",
+		(effectId) => {
+			const template = createVideoEffectTemplateSnapshot({
+				effectId,
+				presetKey: "standard",
+				inputs: {
+					leftAssetId: "left",
+					rightAssetId: effectId === "raindance-solo" ? "left" : "right",
+				},
+			});
+			const snapshot = {
+				...template.video,
+				requestKind: "template-video",
+				videoEffectTemplate: template,
+				audioSafetyPolicy: createVideoAudioSafetyPolicy(),
+			};
+			const constraints = videoOutputConstraints(snapshot);
+			const silentPortrait = {
+				durationMillis: 5000,
+				width: 720,
+				height: 1280,
+				audioTracks: 0,
+				videoTracks: 1 as const,
+			};
+			expect(videoOutputSpecificationFailure(silentPortrait, constraints)).toBeNull();
+			// Correct aspect ratio alone must not certify the advertised resolution.
+			expect(
+				videoOutputSpecificationFailure(
+					{ ...silentPortrait, width: 360, height: 640 },
+					constraints,
+				),
+			).toBe("VIDEO_RESOLUTION_MISMATCH");
+			expect(
+				videoOutputSpecificationFailure(
+					{ ...silentPortrait, width: 1080, height: 1920 },
+					constraints,
+				),
+			).toBe("VIDEO_RESOLUTION_MISMATCH");
+			expect(
+				videoOutputSpecificationFailure(
+					{ ...silentPortrait, audioTracks: 1, audioTrackIds: [2] },
+					constraints,
+				),
+			).toBe("VIDEO_AUDIO_TRACK_NOT_ALLOWED");
+			for (const change of [
+				{ videoEffectTemplate: undefined },
+				{ videoEffectTemplate: { ...template, effectId: undefined } },
+				{ videoEffectTemplate: { ...template, effectId: "unapproved-template" } },
+				{ duration: 10 },
+				{ sound: true },
+				{ videoEffectTemplate: { ...template, output: { ...template.output, width: 360 } } },
+			])
+				expect(() => videoOutputConstraints({ ...snapshot, ...change })).toThrow(
+					"VIDEO_TEMPLATE_OUTPUT_CONSTRAINTS_INVALID",
+				);
+		},
+	);
 	it("keeps audio review scope explicit without downgrading historical snapshots", () => {
 		expect(createVideoAudioSafetyPolicy()).toEqual({ schemaVersion: 1, mode: "not_requested" });
 		expect(readVideoAudioSafetyPolicy({})).toEqual({ schemaVersion: 1, mode: "required" });
