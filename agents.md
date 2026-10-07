@@ -61,3 +61,5 @@ The legacy `media-deliver-output-review` entry remains accepted on control for e
 For jobs, database runtime imports, packaging, or deployment, use [Cloudflare runtime constraints](docs/agent-reference/cloudflare-runtime.md) and [profile cutover/drain/rollback operations](docs/operations/cloudflare-workers-profiles.md). Builds/preparation do not deploy or certify live cron, recovery, shutdown, or external integrations.
 
 Consumer-facing changes update `CHANGELOG.md`, relevant `apps/saas/modules/landing`, `apps/saas/content`, product docs, and translations. Use conventional commits and update this entry when app/runtime boundaries change.
+
+Raindance is an indexable Blog prompt guide with an embedded paid Solo/Duet beta. Its independent `RAINDANCE_ENABLED`, `RAINDANCE_ACCESS` and accepted template version use the existing two-stage video engine and approved Hotel Lobby complete-cost budget. Keep the ordinary-video and Hotel Lobby audience and funding policies independent. The generated pier illustration is editorial art, never product acceptance evidence. See `docs/operations/raindance-rollout.md`.

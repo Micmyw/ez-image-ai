@@ -2020,6 +2020,24 @@
 		},
 		"insufficient": "There are not enough eligible credits for this order. Review your balance or add credits.",
 		"unavailable": "Video generation is temporarily unavailable. Please try again later.",
-		"requestFailed": "The response could not be confirmed. If a confirmation is pending, check the same request to recover its outcome."
+		"requestFailed": "The response could not be confirmed. If a confirmation is pending, check the same request to recover its outcome.",
+		"raindanceName": "Raindance AI trend",
+		"raindanceNavigationDescription": "Make a sunset-pier video with one photo or two.",
+		"onePhoto": "One photo. Your pier moment.",
+		"makeYourSolo": "Make your solo video",
+		"soloSubject": "Your portrait",
+		"raindance": {
+			"modeLabel": "Raindance video mode",
+			"solo": "Solo · 1 photo",
+			"duo": "Duet · 2 photos",
+			"twoPhotos": "Two photos. One sunset.",
+			"makeYourDuo": "Make your duet video",
+			"history": "Your Raindance videos",
+			"emptyHistory": "Your Raindance video orders will appear here.",
+			"creatingScene": "Creating the pier scene",
+			"sceneAlt": "AI-created illustration of an empty wooden pier at sunset",
+			"sceneTitle": "Meet you at golden hour.",
+			"sceneCaption": "AI-created scene illustration, not a generated video sample. Your result will appear here after generation."
+		}
 	}
 }

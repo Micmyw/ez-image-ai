@@ -1,6 +1,6 @@
 import { getImageProductSelectionContract } from "@repo/config";
 import {
-	HOTEL_LOBBY_PUBLIC_EFFECT,
+	videoEffectName,
 	VIDEO_EFFECT_MAX_INPUT_BYTES,
 	type VideoEffectRequest,
 	type VideoEffectCreateInput,
@@ -46,7 +46,9 @@ export function requireVideoTemplateAdmission(
 	bindings: VideoV1Bindings,
 	request: VideoEffectRequest,
 ) {
-	if (!canAccessVideoEffect(environment, { id: context.userId, role: context.role }))
+	if (
+		!canAccessVideoEffect(environment, { id: context.userId, role: context.role }, request.effectId)
+	)
 		throw new Error("VIDEO_ACCESS_DENIED");
 	const template = resolveVideoEffectTemplate(request, environment);
 	requireVideoTemplateSceneEnvironment(template, environment);
@@ -54,7 +56,10 @@ export function requireVideoTemplateAdmission(
 	// An ordinary video administrator budget never authorizes this separate two-stage product.
 	const price = applyVideoInternalFunding(resolveVideoEffectPrice(request, environment), context, {
 		...environment,
-		VIDEO_INTERNAL_FUNDING: environment.HOTEL_LOBBY_DUO_INTERNAL_FUNDING,
+		VIDEO_INTERNAL_FUNDING:
+			request.effectId === "hotel-lobby-duo"
+				? environment.HOTEL_LOBBY_DUO_INTERNAL_FUNDING
+				: undefined,
 	}) satisfies VideoPrice;
 	return {
 		...admitted,
@@ -201,7 +206,7 @@ async function toVideoTemplatePublicState(
 	return {
 		jobId: job.id,
 		effectId: template.effectId,
-		name: HOTEL_LOBBY_PUBLIC_EFFECT.name,
+		name: videoEffectName(template.effectId),
 		presetKey: template.presetKey,
 		templateVersion: template.templateVersion,
 		stage,

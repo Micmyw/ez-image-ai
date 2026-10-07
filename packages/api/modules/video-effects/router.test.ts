@@ -86,6 +86,65 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("template API authorization and strict public contracts", () => {
+	it.each(["raindance-solo", "raindance-duo"] as const)(
+		"uses the %s admission gate for access, uploads and quotes",
+		async (effectId) => {
+			vi.stubEnv("VIDEO_V1_ENABLED", "true");
+			vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "false");
+			vi.stubEnv("RAINDANCE_ENABLED", "true");
+			vi.stubEnv("RAINDANCE_ACCESS", "authenticated");
+			vi.mocked(requireVideoTemplateAdmission).mockReturnValue({
+				maximumInputBytes: 7_000_000,
+				price: { credits: 69n },
+				template: {},
+			} as never);
+			expect(await call(videoEffectsRouter.access, { effectId }, ctx)).toMatchObject({
+				effectId,
+				accessAllowed: true,
+				available: true,
+			});
+			expect(requireVideoTemplateAdmission).toHaveBeenLastCalledWith(
+				{ userId: "owner", role: "user" },
+				expect.anything(),
+				expect.anything(),
+				expect.objectContaining({
+					effectId,
+					inputs: { leftAssetId: "capability", rightAssetId: "capability" },
+				}),
+			);
+			vi.mocked(createVideoEffectUpload).mockResolvedValue({
+				sessionId: "00000000-0000-4000-8000-000000000001",
+				assetId: "00000000-0000-4000-8000-000000000002",
+				uploadUrl: "https://upload.example.test",
+				method: "PUT",
+				expiresAt: new Date().toISOString(),
+			});
+			await call(
+				videoEffectsRouter.uploads.create,
+				{ effectId, contentType: "image/png", byteSize: 64 },
+				ctx,
+			);
+			expect(createVideoEffectUpload).toHaveBeenLastCalledWith(user, {
+				effectId,
+				contentType: "image/png",
+				byteSize: 64,
+			});
+			const input = {
+				...request,
+				effectId,
+				inputs: {
+					leftAssetId: "photo",
+					rightAssetId: effectId === "raindance-solo" ? "photo" : "other-photo",
+				},
+			};
+			await call(videoEffectsRouter.quote, input, ctx);
+			expect(createVideoTemplateQuote).toHaveBeenLastCalledWith(
+				{ userId: "owner", role: "user" },
+				input,
+				expect.anything(),
+			);
+		},
+	);
 	it("reports template access for an ordinary registered customer when explicitly enabled", async () => {
 		vi.stubEnv("VIDEO_V1_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "true");

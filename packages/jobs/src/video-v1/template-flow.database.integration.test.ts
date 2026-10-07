@@ -460,7 +460,7 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 		);
 	});
 
-	async function fixture() {
+	async function fixture(effectId: VideoEffectRequest["effectId"] = "hotel-lobby-duo") {
 		const ownerId = `hotel-flow-test-${crypto.randomUUID()}`;
 		ownerIds.push(ownerId);
 		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
@@ -514,8 +514,9 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 				}),
 			),
 		);
+		if (effectId === "raindance-solo") inputs[1] = inputs[0]!;
 		const request: VideoEffectRequest = {
-			effectId: "hotel-lobby-duo",
+			effectId,
 			presetKey: "standard",
 			inputs: { leftAssetId: inputs[0]!.id, rightAssetId: inputs[1]!.id },
 		};
@@ -715,6 +716,26 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 		expect(await authorizeVideoPlayback("different-owner", f.jobId)).toBeNull();
 		return job;
 	}
+	it.each(["raindance-solo", "raindance-duo"] as const)(
+		"settles %s once through the complete existing Workflow with private playback",
+		async (effectId) =>
+			runWithDatabaseClient(client, async () => {
+				const f = await fixture(effectId);
+				const before = { scene: external.sceneCalls, video: external.paidMockCalls };
+				const flow = await execute(f, `${effectId}-complete-and-replay`);
+				expect(flow.result).toEqual({ completed: true, stage: "READY" });
+				await assertReady(f);
+				expect(external.sceneRequests.at(-1)?.image_urls).toEqual(
+					f.inputs.map(
+						(asset) => `https://private.video.test/${encodeURIComponent(asset.objectKey)}`,
+					),
+				);
+				expect(await flow.repeat()).toEqual({ completed: true, stage: "READY" });
+				await assertReady(f);
+				expect(external.sceneCalls - before.scene).toBe(1);
+				expect(external.paidMockCalls - before.video).toBe(1);
+			}),
+	);
 
 	it("advances both ordered inputs through the existing Workflow, seals one scene, and settles only the final private MP4 once", async () =>
 		runWithDatabaseClient(client, async () => {

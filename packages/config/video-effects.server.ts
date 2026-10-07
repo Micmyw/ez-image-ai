@@ -3,6 +3,8 @@ import { z } from "zod";
 import { DEFAULT_PRODUCT_CONFIG } from "./product";
 import {
 	HOTEL_LOBBY_EFFECT_ID,
+	videoEffectIdSchema,
+	RAINDANCE_SOLO_EFFECT_ID,
 	videoEffectRequestSchema,
 	type VideoEffectRequest,
 } from "./video-effects";
@@ -15,6 +17,8 @@ import {
 } from "./video-pricing.server";
 
 export const HOTEL_LOBBY_TEMPLATE_VERSION = "hotel-lobby-duo-2026-10-05.1";
+export const RAINDANCE_TEMPLATE_VERSION = "raindance-2026-10-07.1";
+export const RAINDANCE_PRICE_VERSION = "raindance-cost-2026-10-07.1";
 export const HOTEL_LOBBY_PRICE_VERSION = "hotel-lobby-duo-cost-2026-10-05.2";
 export const HOTEL_LOBBY_SAFETY_POLICY_VERSION = "hotel-lobby-duo-safety-2026-10-05.1";
 /** Revenue must cover three times complete budgeted cost, including payment fees. */
@@ -36,14 +40,27 @@ then the right leads while the left reacts. Use restrained natural motion. Keep 
 No cuts, identity swaps, merging faces, extra people, mirrored synchronized gestures or large
 overlapping gestures. Preserve the orange studio and the single hanging microphone. Silent video.`;
 
+const raindanceScene = `Create an original cinematic portrait photograph on a weathered wooden pier
+over a calm blue-green sea at sunset. Use warm amber rim light, a visible horizon and soft natural
+shadows. Preserve the adult subjects' facial features, hair and clothing from the supplied
+references. Compose a waist-up or three-quarter portrait with faces large enough to recognize,
+hands clear of faces and safe space around the edges. One continuous scene, no collage, no extra
+people, text, logos or captions. Do not imitate any named artist or copy an existing music video.`;
+const raindanceMotion = `Animate this original sunset pier portrait for five seconds with a fixed
+camera. Preserve each subject's face, hair, clothing and position, the pier and the horizon.
+Use a gentle sea breeze, a small natural sway and a relaxed music-video-style performance toward
+the lens. Keep faces visible and motion restrained. No scene cuts, face blending, extra people,
+large hand gestures or camera moves. Silent video, no speech and no song. Do not reproduce
+specific lyrics, lip synchronization or any named artist's performance.`;
+
 const version = z.string().min(1).max(120);
 /** Add historical versions explicitly when introducing a new execution contract. Never re-resolve defaults. */
 export const videoEffectTemplateSnapshotSchema = z
 	.object({
 		schemaVersion: z.literal(1),
-		effectId: z.literal(HOTEL_LOBBY_EFFECT_ID),
+		effectId: videoEffectIdSchema,
 		presetKey: z.literal("standard"),
-		templateVersion: z.literal(HOTEL_LOBBY_TEMPLATE_VERSION),
+		templateVersion: z.enum([HOTEL_LOBBY_TEMPLATE_VERSION, RAINDANCE_TEMPLATE_VERSION]),
 		safetyPolicyVersion: z.literal(HOTEL_LOBBY_SAFETY_POLICY_VERSION),
 		preprocessingVersion: z.literal("sealed-upload-2026-10-05.1"),
 		scene: z
@@ -87,7 +104,15 @@ export const videoEffectTemplateSnapshotSchema = z
 			})
 			.strict(),
 	})
-	.strict();
+	.strict()
+	.refine(
+		(snapshot) =>
+			snapshot.templateVersion ===
+			(snapshot.effectId === HOTEL_LOBBY_EFFECT_ID
+				? HOTEL_LOBBY_TEMPLATE_VERSION
+				: RAINDANCE_TEMPLATE_VERSION),
+		{ message: "Template version does not match effect" },
+	);
 export type VideoEffectTemplateConfig = z.infer<typeof videoEffectTemplateSnapshotSchema>;
 
 /** Pure construction only. Admission must separately enforce current readiness and cost approvals. */
@@ -95,19 +120,28 @@ export function createVideoEffectTemplateSnapshot(
 	request: VideoEffectRequest,
 ): VideoEffectTemplateConfig {
 	videoEffectRequestSchema.parse(request);
+	const raindance = request.effectId !== HOTEL_LOBBY_EFFECT_ID;
+	const solo = request.effectId === RAINDANCE_SOLO_EFFECT_ID;
 	return videoEffectTemplateSnapshotSchema.parse({
 		schemaVersion: 1,
-		effectId: HOTEL_LOBBY_EFFECT_ID,
+		effectId: request.effectId,
 		presetKey: "standard",
-		templateVersion: HOTEL_LOBBY_TEMPLATE_VERSION,
+		templateVersion: raindance ? RAINDANCE_TEMPLATE_VERSION : HOTEL_LOBBY_TEMPLATE_VERSION,
 		safetyPolicyVersion: HOTEL_LOBBY_SAFETY_POLICY_VERSION,
 		preprocessingVersion: "sealed-upload-2026-10-05.1",
 		scene: {
 			productKey: "nano-banana-2-lite-1k",
 			aspectRatio: "9:16",
 			outputCount: 1,
-			prompt: scenePrompt,
-			promptVersion: "hotel-lobby-scene-2026-10-05.1",
+			prompt: raindance
+				? raindanceScene +
+					(solo
+						? " Both references show the SAME adult. Show exactly ONE person seated on the pier, looking toward the lens. Never duplicate the person."
+						: " Reference 1 is the LEFT performer. Reference 2 is the RIGHT performer. Show exactly TWO distinct adults side by side with space between them. Keep their identities separate.")
+				: scenePrompt,
+			promptVersion: raindance
+				? `raindance-${solo ? "solo" : "duo"}-scene-2026-10-07.1`
+				: "hotel-lobby-scene-2026-10-05.1",
 			maxOutputBytes: 10_000_000,
 		},
 		video: {
@@ -117,8 +151,15 @@ export function createVideoEffectTemplateSnapshot(
 			resolution: "720p",
 			aspectRatio: "9:16",
 			sound: false,
-			prompt: motionPrompt,
-			promptVersion: "hotel-lobby-motion-2026-10-05.1",
+			prompt: raindance
+				? raindanceMotion +
+					(solo
+						? " Keep exactly one adult in frame throughout."
+						: " Keep the left person on the left and the right person on the right. One makes a small gesture while the other reacts, then they exchange a brief glance.")
+				: motionPrompt,
+			promptVersion: raindance
+				? `raindance-${solo ? "solo" : "duo"}-motion-2026-10-07.1`
+				: "hotel-lobby-motion-2026-10-05.1",
 			fixedLens: true,
 		},
 		output: {
@@ -149,8 +190,9 @@ export function resolveVideoEffectTemplate(
 	env: Record<string, string | undefined>,
 ): VideoEffectTemplateConfig {
 	const template = createVideoEffectTemplateSnapshot(request);
-	if (env.HOTEL_LOBBY_DUO_ENABLED !== "true") throw new Error("VIDEO_EFFECT_DISABLED");
-	if (env.HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION !== template.templateVersion)
+	const prefix = request.effectId === HOTEL_LOBBY_EFFECT_ID ? "HOTEL_LOBBY_DUO" : "RAINDANCE";
+	if (env[`${prefix}_ENABLED`] !== "true") throw new Error("VIDEO_EFFECT_DISABLED");
+	if (env[`${prefix}_ACCEPTED_TEMPLATE_VERSION`] !== template.templateVersion)
 		throw new Error("VIDEO_EFFECT_TEMPLATE_NOT_CONFIRMED");
 	const access = readVideoModelAccess(env);
 	if (!isVideoModelOptionAllowed(access, template.video))
@@ -251,7 +293,12 @@ export function resolveVideoEffectPrice(
 	) as { [Key in keyof typeof result]: string };
 	return {
 		credits: result.credits,
-		pricingVersion: HOTEL_LOBBY_PRICE_VERSION,
+		// Same two-stage model tuple and conservative two-input review budget. Approval expiry,
+		// complete cost and minimum revenue checks stay authoritative for every template.
+		pricingVersion:
+			request.effectId === HOTEL_LOBBY_EFFECT_ID
+				? HOTEL_LOBBY_PRICE_VERSION
+				: RAINDANCE_PRICE_VERSION,
 		pricingBasis: env.HOTEL_LOBBY_DUO_PRICE_BASIS.trim(),
 		providerCostMicros,
 		moderationCostMicros: result.moderationCostMicros,

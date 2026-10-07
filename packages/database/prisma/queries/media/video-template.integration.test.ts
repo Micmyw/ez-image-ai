@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { PrismaPg } from "@prisma/adapter-pg";
+import type { VideoEffectId } from "@repo/config/video-effects";
 import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
@@ -81,7 +82,7 @@ afterAll(async () => {
 	}
 	await db.$disconnect();
 });
-async function fixture(credits = 100n) {
+async function fixture(credits = 100n, effectId: VideoEffectId = "hotel-lobby-duo") {
 	const ownerId = `template-db-test-${randomUUID()}`;
 	owners.push(ownerId);
 	const account = await db.creditAccount.create({ data: { ownerType: "USER", ownerId } });
@@ -112,9 +113,12 @@ async function fixture(credits = 100n) {
 		),
 	);
 	const request = {
-		effectId: "hotel-lobby-duo" as const,
+		effectId,
 		presetKey: "standard" as const,
-		inputs: { leftAssetId: assets[0]!.id, rightAssetId: assets[1]!.id },
+		inputs: {
+			leftAssetId: assets[0]!.id,
+			rightAssetId: assets[effectId === "raindance-solo" ? 0 : 1]!.id,
+		},
 	};
 	const template = createVideoEffectTemplateSnapshot(request);
 	const base = {
@@ -238,6 +242,27 @@ async function storedScene(jobId: string) {
 	return asset;
 }
 describe("template admission and durable scene PostgreSQL regressions", () => {
+	it.each(["raindance-solo", "raindance-duo"] as const)(
+		"persists %s identities with one idempotent reservation and no Outbox",
+		async (effectId) => {
+			const f = await fixture(100n, effectId);
+			const first = await createVideoTemplateJobRecord(f.input, db);
+			expect(await createVideoTemplateJobRecord(f.input, db)).toEqual({
+				jobId: first.jobId,
+				replayed: true,
+			});
+			const execution = await run(() => getVideoTemplateExecution(first.jobId));
+			expect(object(execution!.templateSnapshot).effectId).toBe(effectId);
+			const identities = execution!.orderedRoleIdentities as Prisma.JsonArray;
+			expect(identities.map((identity) => object(identity).assetId)).toEqual([
+				f.base.request.inputs.leftAssetId,
+				f.base.request.inputs.rightAssetId,
+			]);
+			expect(await db.creditReservation.count({ where: { jobId: first.jobId } })).toBe(1);
+			expect(await db.outboxEvent.count({ where: { aggregateId: first.jobId } })).toBe(0);
+			await storedScene(first.jobId);
+		},
+	);
 	it("20 concurrent retries create one commercial job, reservation, workflow and two capacity rows", async () => {
 		const f = await fixture();
 		const results = await Promise.all(

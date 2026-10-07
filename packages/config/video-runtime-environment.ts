@@ -1,5 +1,8 @@
 /** Server-only transport for video policy. Credentials and the kill switch stay separate. */
 export const VIDEO_RUNTIME_ENVIRONMENT_KEYS = [
+	"RAINDANCE_ENABLED",
+	"RAINDANCE_ACCESS",
+	"RAINDANCE_ACCEPTED_TEMPLATE_VERSION",
 	"VIDEO_V1_ACCESS",
 	"VIDEO_V1_ALLOWED_USER_IDS",
 	"VIDEO_V1_CALLBACK_BASE_URL",
@@ -116,6 +119,27 @@ export function parseHotelLobbyRuntimeOverride(value: unknown) {
 	} catch {
 		throw new Error("HOTEL_LOBBY_RUNTIME_OVERRIDE_INVALID");
 	}
+}
+
+/** A narrow additive build patch; it cannot alter existing video, price or funding policy. */
+export function parseRaindanceRuntimeOverride(value: unknown) {
+	const parsed = parseVideoRuntimeConfig(value);
+	if (
+		!Object.keys(parsed).length ||
+		Object.keys(parsed).some(
+			(key) =>
+				!["RAINDANCE_ENABLED", "RAINDANCE_ACCESS", "RAINDANCE_ACCEPTED_TEMPLATE_VERSION"].includes(
+					key,
+				),
+		) ||
+		(parsed.RAINDANCE_ENABLED !== undefined &&
+			!["true", "false"].includes(parsed.RAINDANCE_ENABLED)) ||
+		(parsed.RAINDANCE_ACCESS !== undefined &&
+			!["internal", "authenticated"].includes(parsed.RAINDANCE_ACCESS))
+	) {
+		throw new Error("RAINDANCE_RUNTIME_OVERRIDE_INVALID");
+	}
+	return parsed;
 }
 
 /** Read packed and legacy flat input without ever replacing a conflicting flat value. */

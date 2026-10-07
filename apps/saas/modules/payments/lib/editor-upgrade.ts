@@ -80,7 +80,11 @@ export function sanitizeEditorReturnPath(value: string | null | undefined): stri
 		return "/create";
 	}
 	if (url.origin !== "https://editor-return.invalid") return "/create";
-	if (url.pathname === "/video-effects/hotel-lobby-ai" && !url.search && !url.hash)
+	if (
+		["/video-effects/hotel-lobby-ai", "/blog/raindance-ai-trend"].includes(url.pathname) &&
+		!url.search &&
+		!url.hash
+	)
 		return url.pathname;
 	if (url.pathname === "/create") {
 		if (!url.search) return "/create";

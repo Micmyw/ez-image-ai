@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-07
+
+### Raindance sunset-pier video guide and beta
+
+- Add an indexable Raindance guide with an embedded Solo/Duet generator, original free prompts, method comparison, photo troubleshooting and music-posting instructions. Label the AI-created pier illustration separately from real product results.
+- Reuse the existing private video order, review, storage, credit confirmation and history flow. Solo binds one adult reference to the existing two-role preparation contract; Duet keeps two distinct roles. Both produce a five-second, 720p vertical silent video.
+- Isolate template drafts, access settings, payment return paths and versioned prompts. Keep the approved complete-cost budget, expiry and minimum three-times-cost revenue policy; video is not a free guest feature. Existing Hotel Lobby and ordinary-video access remain independent.
+
 ## 2026-10-05
 
 ### Hotel Lobby duo public beta

@@ -31,8 +31,9 @@ export function VideoEffectJob({ jobId }: { jobId: string }) {
 			void recordVideoEffectEvent(
 				stage === "READY" ? "ready" : stage === "FAILED" ? "failed" : "held",
 				jobId,
+				state.data?.effectId,
 			);
-	}, [state.data?.stage, jobId]);
+	}, [state.data?.stage, state.data?.effectId, jobId]);
 	return (
 		<section className="ve-result" aria-live="polite" aria-label={t("yourVideo")}>
 			<div className="ve-result-heading">
@@ -116,12 +117,12 @@ function PrivateEffectVideo({ state }: { state: VideoEffectState }) {
 			});
 			const anchor = document.createElement("a");
 			anchor.href = authorization.url;
-			anchor.download = "hotel-lobby-duo.mp4";
+			anchor.download = `${state.effectId}.mp4`;
 			anchor.rel = "noopener";
 			document.body.append(anchor);
 			anchor.click();
 			anchor.remove();
-			void recordVideoEffectEvent("download");
+			void recordVideoEffectEvent("download", undefined, state.effectId);
 		} catch {
 			setFailed(true);
 		} finally {

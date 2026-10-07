@@ -1,3 +1,4 @@
+import type { VideoEffectId } from "@repo/config/video-effects";
 import type { VideoEffectTemplateConfig } from "@repo/config/video-effects.server";
 import type { VideoModelInput } from "@repo/config/video-models";
 import type { VideoAudioSafetyPolicy } from "@repo/config/video-output";
@@ -31,7 +32,7 @@ export type VideoPublicState = {
 	canPlay: boolean;
 	failureCode: string | null;
 	updatedAt: string;
-	effect?: { effectId: "hotel-lobby-duo"; name: "Hotel Lobby AI"; templateVersion: string };
+	effect?: { effectId: VideoEffectId; name: string; templateVersion: string };
 };
 export interface VideoWorkflowInstance {
 	status(): Promise<{ status: string }>;

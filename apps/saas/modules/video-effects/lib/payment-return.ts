@@ -1,10 +1,10 @@
-import { VIDEO_EFFECT_PATH } from "./paths";
+import { VIDEO_EFFECT_PATH, isVideoEffectPath } from "./paths";
 
 const KEY = "ezpic.video-effect.payment-return.v1";
 const MAX_AGE = 60 * 60_000;
 type PaymentReturn = {
 	ownerId: string;
-	path: typeof VIDEO_EFFECT_PATH;
+	path: string;
 	createdAt: number;
 	stage: "armed" | "bound";
 	intentId?: string;
@@ -14,7 +14,7 @@ function readMarker(raw: string | null, ownerId: string, now: number): PaymentRe
 	try {
 		const value = JSON.parse(raw ?? "null");
 		return value?.ownerId === ownerId &&
-			value.path === VIDEO_EFFECT_PATH &&
+			isVideoEffectPath(value.path) &&
 			(value.stage === "armed" || value.stage === "bound") &&
 			Number.isFinite(value.createdAt) &&
 			value.createdAt <= now &&
@@ -30,11 +30,12 @@ function readMarker(raw: string | null, ownerId: string, now: number): PaymentRe
 }
 
 /** Opening pricing is only an arm. It cannot redirect any completed payment by itself. */
-export function saveVideoEffectPaymentReturn(ownerId: string) {
+export function saveVideoEffectPaymentReturn(ownerId: string, path = VIDEO_EFFECT_PATH) {
+	if (!isVideoEffectPath(path)) return;
 	try {
 		sessionStorage.setItem(
 			KEY,
-			JSON.stringify({ ownerId, path: VIDEO_EFFECT_PATH, stage: "armed", createdAt: Date.now() }),
+			JSON.stringify({ ownerId, path, stage: "armed", createdAt: Date.now() }),
 		);
 	} catch {
 		/* Optional return navigation; server payment state is authoritative. */
@@ -48,8 +49,8 @@ export function isVideoEffectPaymentOrigin(path: string): boolean {
 		const url = new URL(path, "https://video-effect-return.invalid");
 		return (
 			url.origin === "https://video-effect-return.invalid" &&
-			(url.pathname === VIDEO_EFFECT_PATH ||
-				(url.pathname === "/pricing" && url.searchParams.get("returnTo") === VIDEO_EFFECT_PATH))
+			(isVideoEffectPath(url.pathname) ||
+				(url.pathname === "/pricing" && isVideoEffectPath(url.searchParams.get("returnTo") ?? "")))
 		);
 	} catch {
 		return false;
@@ -73,6 +74,12 @@ export function bindVideoEffectPaymentReturn(
 	try {
 		const marker = readMarker(sessionStorage.getItem(KEY), ownerId, now);
 		if (!marker || (marker.stage === "bound" && marker.intentId !== intentId)) return false;
+		const origin = new URL(originatingPath, "https://video-effect-return.invalid");
+		if (
+			(origin.pathname === "/pricing" ? origin.searchParams.get("returnTo") : origin.pathname) !==
+			marker.path
+		)
+			return false;
 		sessionStorage.setItem(
 			KEY,
 			JSON.stringify({ ...marker, stage: "bound", intentId, createdAt: now }),
@@ -91,7 +98,7 @@ export function readVideoEffectPaymentReturn(
 ): string | null {
 	if (!intentId) return null;
 	const marker = readMarker(raw, ownerId, now);
-	return marker?.stage === "bound" && marker.intentId === intentId ? VIDEO_EFFECT_PATH : null;
+	return marker?.stage === "bound" && marker.intentId === intentId ? marker.path : null;
 }
 export function consumeVideoEffectPaymentReturn(
 	ownerId: string | undefined,

@@ -2020,6 +2020,24 @@
 		},
 		"insufficient": "No hay suficientes créditos válidos para este pedido. Revisa tu saldo o añade créditos.",
 		"unavailable": "La generación de vídeos no está disponible temporalmente. Inténtalo de nuevo más tarde.",
-		"requestFailed": "No se pudo confirmar la respuesta. Si hay una confirmación pendiente, comprueba la misma solicitud para recuperar su resultado."
+		"requestFailed": "No se pudo confirmar la respuesta. Si hay una confirmación pendiente, comprueba la misma solicitud para recuperar su resultado.",
+		"raindanceName": "Tendencia Raindance AI",
+		"raindanceNavigationDescription": "Crea un vídeo en el muelle con una o dos fotos.",
+		"onePhoto": "Una foto. Tu momento en el muelle.",
+		"makeYourSolo": "Crea tu vídeo individual",
+		"soloSubject": "Tu retrato",
+		"raindance": {
+			"modeLabel": "Modo de vídeo Raindance",
+			"solo": "Solo · 1 foto",
+			"duo": "Dúo · 2 fotos",
+			"twoPhotos": "Dos fotos. Un atardecer.",
+			"makeYourDuo": "Crea tu vídeo a dúo",
+			"history": "Tus vídeos Raindance",
+			"emptyHistory": "Tus pedidos de vídeo Raindance aparecerán aquí.",
+			"creatingScene": "Creando la escena del muelle",
+			"sceneAlt": "Ilustración con IA de un muelle vacío al atardecer",
+			"sceneTitle": "Nos vemos al atardecer.",
+			"sceneCaption": "Ilustración de escena con IA, no una muestra de vídeo generado. Tu resultado aparecerá aquí tras la generación."
+		}
 	}
 }

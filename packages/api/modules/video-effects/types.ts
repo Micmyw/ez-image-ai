@@ -1,3 +1,4 @@
+import { videoEffectIdSchema } from "@repo/config/video-effects";
 import { z } from "zod";
 
 export const videoEffectStageSchema = z.enum([
@@ -12,7 +13,7 @@ export const videoEffectStageSchema = z.enum([
 export const videoEffectStateSchema = z
 	.object({
 		jobId: z.string(),
-		effectId: z.literal("hotel-lobby-duo"),
+		effectId: videoEffectIdSchema,
 		name: z.string(),
 		presetKey: z.literal("standard"),
 		templateVersion: z.string(),
@@ -33,7 +34,7 @@ export const videoEffectQuoteSchema = z
 	.strict();
 export const videoEffectAccessSchema = z
 	.object({
-		effectId: z.literal("hotel-lobby-duo"),
+		effectId: videoEffectIdSchema,
 		available: z.boolean(),
 		accessAllowed: z.boolean(),
 		reasons: z.array(z.string()),

@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 import en from "../../../packages/i18n/translations/en/saas.json";
 
-const path = "/video-effects/hotel-lobby-ai";
+const path = "/blog/raindance-ai-trend";
 const t = en.videoEffects;
 const source = {
 	name: "authorized-ui-fixture.png",
@@ -13,6 +13,7 @@ const source = {
 	),
 };
 type Scenario = {
+	effectId: "raindance-solo" | "raindance-duo";
 	signedIn: boolean;
 	available: boolean;
 	expired: boolean;
@@ -27,6 +28,7 @@ type Scenario = {
 	ordinaryVideoJobRequests: number;
 };
 const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
+	effectId: "raindance-solo",
 	signedIn: true,
 	available: true,
 	expired: false,
@@ -103,7 +105,7 @@ async function setup(page: Page, state: Scenario) {
 			return reply({ available: false, accessAllowed: false, models: [], reasons: [] });
 		if (endpoint === "videoEffects/access")
 			return reply({
-				effectId: "hotel-lobby-duo",
+				effectId: state.effectId,
 				available: state.available,
 				accessAllowed: true,
 				reasons: [],
@@ -146,6 +148,7 @@ async function setup(page: Page, state: Scenario) {
 			});
 		if (endpoint === "videoEffects/quote") {
 			state.quotes.push(body);
+			state.effectId = body.effectId;
 			return reply({
 				quoteId: `quote-${state.quotes.length}`,
 				credits: "24",
@@ -154,8 +157,8 @@ async function setup(page: Page, state: Scenario) {
 		}
 		const job = {
 			jobId: "mock-template-job",
-			effectId: "hotel-lobby-duo",
-			name: "Hotel Lobby duo",
+			effectId: state.effectId,
+			name: state.effectId === "raindance-solo" ? "Raindance solo" : "Raindance duet",
 			presetKey: "standard",
 			templateVersion: "1",
 			stage: "CREATING_SCENE",
@@ -190,7 +193,9 @@ async function setup(page: Page, state: Scenario) {
 		}
 	});
 	await page.goto(path);
-	await expect(page.locator(".ve-page h1")).toHaveText("Hotel Lobby AI Video Generator");
+	await expect(page.locator(".ve-page h1")).toHaveText(
+		"Raindance AI Trend: Make Your Video + Free Prompts",
+	);
 }
 async function uploadBoth(page: Page) {
 	await expect(page.locator("#ve-upload-left")).toBeEnabled();
@@ -206,159 +211,110 @@ async function quote(page: Page) {
 	).toBeVisible();
 }
 
-test("UI Mock: anonymous template is readable, honest, private and noindex", async ({ page }) => {
+test("Raindance: indexable guide has a working solo/duet entry, copyable prompts and honest illustration", async ({
+	page,
+}) => {
 	const state = scenario({ signedIn: false });
 	await setup(page, state);
-	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+	await expect(page.locator("h1")).toHaveCount(1);
+	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index, follow");
 	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 		"href",
 		new RegExp(`${path}$`),
 	);
-	await expect(page.locator(".ve-page video")).toHaveCount(0);
-	await expect(page.locator(".ve-page select, .ve-page textarea")).toHaveCount(0);
-	await expect(page.locator(".ve-page")).toContainText(t.samplesPending);
-	await expect(page.locator(".ve-beta")).toHaveText(t.beta);
-	await expect(page.locator("#hotel-lobby-history")).toHaveCount(0);
 	await expect(page.locator("#ve-upload-left")).toBeDisabled();
-	await expect(page.getByRole("link", { name: t.signIn })).toHaveAttribute(
+	await expect(page.locator("#ve-upload-right")).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Copy prompt", exact: true })).toHaveCount(3);
+	await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+	const firstPrompt = await page.locator(".rd-prose pre").first().textContent();
+	await page.getByRole("button", { name: "Copy prompt", exact: true }).first().click();
+	await expect(page.getByRole("button", { name: "Copied", exact: true })).toBeVisible();
+	expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(firstPrompt);
+	await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
+	await expect(page.locator("#ve-upload-right")).toBeDisabled();
+	await expect(page.locator(".rd-scene figcaption")).toContainText("not a generated video sample");
+	await expect(page.getByRole("link", { name: t.signIn, exact: true })).toHaveAttribute(
 		"href",
-		`/login?redirectTo=${encodeURIComponent(path)}`,
+		`/login?redirectTo=${encodeURIComponent(`${path}?mode=duo`)}`,
 	);
-	expect(state.uploads).toBe(0);
+	for (const width of [1440, 390, 320]) {
+		await page.setViewportSize({ width, height: 1000 });
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+			true,
+		);
+		await page.screenshot({
+			path: test.info().outputPath(`raindance-${width}.png`),
+			fullPage: width === 1440,
+		});
+	}
 	expect(state.creates).toHaveLength(0);
 });
 
-test("UI Mock: an ordinary signed-in account can generate and reopen its template order while ordinary video is unavailable", async ({
+test("Raindance: solo binds one upload; duet and Hotel Lobby drafts remain separate", async ({
 	page,
 }) => {
 	const state = scenario();
 	await setup(page, state);
-	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
-	await expect(page.locator("#hotel-lobby-history")).toContainText(t.emptyHistory);
-	await uploadBoth(page);
-	await quote(page);
-	await page
-		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
-		.click();
-	const accepted = page.locator(`#hotel-lobby-history a[href="${path}?job=mock-template-job"]`);
-	await expect(accepted).toContainText(t.stages.CREATING_SCENE);
-	await accepted.click();
-	await expect(page).toHaveURL(`${test.info().project.use.baseURL}${path}?job=mock-template-job`);
-	await expect(page.getByRole("region", { name: t.yourVideo })).toContainText(
-		t.stages.CREATING_SCENE,
-	);
-	expect(state.creates).toHaveLength(1);
-	expect(state.ordinaryVideoJobRequests).toBe(0);
-});
-
-test("UI Mock: a temporary generation closure preserves access to existing template history", async ({
-	page,
-}) => {
-	const state = scenario({ available: false, creates: [{}] });
-	await setup(page, state);
-	await expect(page.locator("#ve-upload-left")).toBeDisabled();
-	await expect(page.locator(".ve-notice")).toContainText(t.unavailable);
-	await expect(page.locator(".ve-notice")).not.toContainText(t.betaHint);
-	await expect(page.locator("#hotel-lobby-history a")).toHaveAttribute(
-		"href",
-		`${path}?job=mock-template-job`,
-	);
-	expect(state.uploads).toBe(0);
-	expect(state.ordinaryVideoJobRequests).toBe(0);
-});
-
-for (const width of [1440, 390, 320])
-	test(`UI Mock: ${width}px template layout and keyboard access`, async ({ page }, testInfo) => {
-		await page.setViewportSize({ width, height: 900 });
-		await setup(page, scenario({ signedIn: false }));
-		await expect
-			.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
-			.toBe(true);
-		const signIn = page.getByRole("link", { name: t.signIn });
-		await signIn.focus();
-		await expect(signIn).toBeFocused();
-		await page.keyboard.press("Tab");
-		await page.screenshot({
-			path: testInfo.outputPath(`hotel-lobby-${width}.png`),
-			fullPage: true,
-		});
-	});
-
-test("UI Mock: sealed left/right roles, keyboard swap, quote invalidation, replacement and upload cancel", async ({
-	page,
-}) => {
-	const state = scenario();
-	await setup(page, state);
-	await uploadBoth(page);
-	await quote(page);
-	const swap = page.getByRole("button", { name: t.swap });
-	await swap.focus();
-	await page.keyboard.press("Enter");
-	await expect(page.getByRole("button", { name: t.getQuote, exact: true })).toBeVisible();
-	await quote(page);
-	expect(state.quotes.at(-1)?.inputs).toEqual({ leftAssetId: "asset-2", rightAssetId: "asset-1" });
+	await expect(page.locator("#ve-upload-left")).toBeEnabled();
 	await page.locator("#ve-upload-left").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
 	await quote(page);
-	expect(state.quotes.at(-1)?.inputs).toEqual({ leftAssetId: "asset-3", rightAssetId: "asset-1" });
-	state.slowUpload = true;
-	await page.locator("#ve-upload-right").setInputFiles(source);
-	await page.getByRole("button", { name: t.clearPhoto.replace("{role}", t.right) }).click();
-	await expect(page.getByRole("button", { name: t.getQuote, exact: true })).toBeDisabled();
+	expect(state.quotes[0]).toMatchObject({
+		effectId: "raindance-solo",
+		inputs: { leftAssetId: "asset-1", rightAssetId: "asset-1" },
+	});
 	expect(state.creates).toHaveLength(0);
-});
-
-test("UI Mock: double click and lost response restore one confirmation after refresh", async ({
-	page,
-}) => {
-	const state = scenario({ loseFirst: true });
-	await setup(page, state);
-	await uploadBoth(page);
-	await quote(page);
 	await page
 		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
-		.evaluate((node) => {
-			(node as HTMLButtonElement).click();
-			(node as HTMLButtonElement).click();
-		});
-	await expect(page.getByRole("button", { name: t.recover })).toBeVisible();
+		.click();
+	await expect(page.locator("#raindance-history a")).toHaveCount(1);
+	await page.locator("#raindance-history a").click();
+	await expect(page).toHaveURL(`${test.info().project.use.baseURL}${path}?job=mock-template-job`);
+	await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
+	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.empty);
+	await uploadBoth(page);
+	await quote(page);
+	expect(state.quotes[1]).toMatchObject({
+		effectId: "raindance-duo",
+		inputs: { leftAssetId: "asset-2", rightAssetId: "asset-3" },
+	});
+	await page.reload();
+	await expect(page.getByRole("button", { name: "Duet · 2 photos", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
 	expect(state.creates).toHaveLength(1);
-	await page.reload();
-	await page.getByRole("button", { name: t.recover }).click();
-	await expect(page.locator(".ve-result")).toContainText(t.stages.CREATING_SCENE);
-	expect(state.creates).toHaveLength(2);
-	expect(state.creates[1]).toEqual(state.creates[0]);
-	expect(state.playback).toBe(0);
-	const raw = await page.evaluate(() => sessionStorage.getItem("ezpic.video-effect.v1:mock-owner"));
-	expect(raw).not.toMatch(/base64|blob:|uploadUrl|signed|authorized-ui-fixture/);
-	expect(JSON.parse(raw!).jobId).toBe("mock-template-job");
-	await page.reload();
-	await expect(page.locator(".ve-result")).toContainText(t.stages.CREATING_SCENE);
-	expect(state.creates).toHaveLength(2);
+	expect(state.ordinaryVideoJobRequests).toBe(0);
 });
 
-test("UI Mock: expired quote requires another quote; insufficient eligible credits never becomes a job", async ({
-	page,
-}) => {
-	const state = scenario({ expired: true });
+test("Raindance: lost paid response recovers the same solo confirmation", async ({ page }) => {
+	const state = scenario({ loseFirst: true });
 	await setup(page, state);
-	await uploadBoth(page);
-	await page.getByRole("button", { name: t.getQuote, exact: true }).click();
-	await expect(page.locator(".ve-creator")).toContainText(t.quoteExpired);
-	expect(state.creates).toHaveLength(0);
-	state.expired = false;
-	state.insufficient = true;
+	await expect(page.locator("#ve-upload-left")).toBeEnabled();
+	await page.locator("#ve-upload-left").setInputFiles(source);
+	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
 	await quote(page);
 	await page
 		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
 		.click();
-	await expect(page.locator(".ve-creator .ve-error")).toContainText(t.insufficient);
-	await expect(page.locator(".ve-result")).toHaveCount(0);
-	await page.getByRole("button", { name: t.addCredits, exact: true }).click();
-	const saved = await page.evaluate(() =>
-		sessionStorage.getItem("ezpic.video-effect.payment-return.v1"),
-	);
-	expect(JSON.parse(saved!)).toMatchObject({ ownerId: "mock-owner", path });
+	await expect(page.getByRole("button", { name: t.recover, exact: true })).toBeVisible();
 	await page.reload();
-	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
+	await page.getByRole("button", { name: t.recover, exact: true }).click();
+	await expect(page.locator("#raindance-history a")).toHaveCount(1);
+	expect(state.creates).toHaveLength(2);
+	expect(state.creates[1]).toEqual(state.creates[0]);
+});
+
+test("Raindance: private order and localized views stay out of indexing", async ({ page }) => {
+	const state = scenario({ signedIn: false });
+	await setup(page, state);
+	for (const query of ["?job=private-job", "?lang=de", "?mode=duo"]) {
+		await page.goto(`${path}${query}`);
+		await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+			"href",
+			new RegExp(`${path}$`),
+		);
+	}
 });

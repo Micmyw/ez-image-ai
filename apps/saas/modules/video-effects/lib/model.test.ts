@@ -7,6 +7,7 @@ import {
 	createEffectConfirmation,
 	effectError,
 	effectRequest,
+	effectStorageKey,
 	emptyEffectDraft,
 	readEffectDraft,
 	swapEffectInputs,
@@ -33,6 +34,34 @@ describe("video effect indexing boundary", () => {
 });
 
 const quote = { quoteId: "quote-1", credits: "24", expiresAt: "2030-01-01T00:00:00.000Z" };
+describe("Raindance draft isolation", () => {
+	it("binds a solo upload once and cannot restore a confirmation into another template", () => {
+		const solo = { ...emptyEffectDraft("owner-1", "raindance-solo"), leftAssetId: "portrait" };
+		expect(effectRequest(solo).inputs).toEqual({
+			leftAssetId: "portrait",
+			rightAssetId: "portrait",
+		});
+		const accepted = { ...solo, confirmation: createEffectConfirmation(solo, quote) };
+		expect(readEffectDraft(JSON.stringify(accepted), "owner-1", "raindance-solo")).toEqual(
+			accepted,
+		);
+		expect(readEffectDraft(JSON.stringify(accepted), "owner-1", "raindance-duo")).toBeNull();
+		expect(readEffectDraft(JSON.stringify(accepted), "owner-1")).toBeNull();
+		expect(
+			new Set(
+				["hotel-lobby-duo", "raindance-solo", "raindance-duo"].map((id) =>
+					effectStorageKey("owner-1", id as "hotel-lobby-duo"),
+				),
+			).size,
+		).toBe(3);
+	});
+	it("allows only the clean canonical Raindance payment return", () => {
+		expect(sanitizeEditorReturnPath("/blog/raindance-ai-trend")).toBe("/blog/raindance-ai-trend");
+		expect(sanitizeEditorReturnPath("/blog/raindance-ai-trend?asset=private")).toBe("/create");
+		expect(sanitizeEditorReturnPath("//evil.example/blog/raindance-ai-trend")).toBe("/create");
+		expect(isVideoEffectPaymentOrigin("/pricing?returnTo=%2Fblog%2Fraindance-ai-trend")).toBe(true);
+	});
+});
 const ready = () => ({
 	...emptyEffectDraft("owner-1"),
 	leftAssetId: "asset-left",
