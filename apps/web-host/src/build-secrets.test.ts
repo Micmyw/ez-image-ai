@@ -33,6 +33,169 @@ const allowedVideoOptions = JSON.stringify([
 ]);
 
 describe("Cloudflare build secret transport", () => {
+	it.each(["kie-public-2026-10-04.3", VIDEO_SUPPLIER_PRICE_VERSION])(
+		"migrates only supplier approval from %s and appends evidence without changing the inherited expiry",
+		(previousVersion) => {
+			const base = {
+				VIDEO_PRICE_ACCEPTED_VERSION: previousVersion,
+				VIDEO_PRICE_BASIS: "original approved supplier, moderation and runtime costs",
+				VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
+				VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+				VIDEO_COST_RUNTIME_MICROS: "100000",
+				VIDEO_COST_PAYMENT_FEE_BPS: "654",
+				VIDEO_INTERNAL_FUNDING: "original-ordinary-funding",
+				HOTEL_LOBBY_DUO_ACCESS: "authenticated",
+				HOTEL_LOBBY_DUO_PRICE_BASIS: "original-template-budget",
+				HOTEL_LOBBY_DUO_INTERNAL_FUNDING: "original-template-funding",
+				RAINDANCE_ACCESS: "internal",
+			};
+			const appendix = "Kie public model source https://kie.ai/model-pricing updated 2026-10-07";
+			const source = `PRIVATE_KEY=unchanged-fixture\nVIDEO_V1_ENABLED=true\nVIDEO_PRICE_ACCEPTED_VERSION=${previousVersion}\nVIDEO_PRICE_BASIS='${base.VIDEO_PRICE_BASIS}'\nVIDEO_PRICE_VALID_UNTIL=${base.VIDEO_PRICE_VALID_UNTIL}`;
+			const input = {
+				CLOUDFLARE_PRODUCTION_ENV: source,
+				VIDEO_RUNTIME_CONFIG: JSON.stringify(base),
+				VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+				VIDEO_V1_BUILD_PRICE_BASIS: appendix,
+			};
+			const snapshot = { ...input };
+			const observed: unknown[] = [];
+			const output = parseEnv(
+				readCloudflareBuildEnvironment(input, (evidence) => observed.push(evidence)),
+			);
+			const expected = {
+				...base,
+				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+				VIDEO_PRICE_BASIS: `${base.VIDEO_PRICE_BASIS}; ${appendix}`,
+			};
+			expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual(expected);
+			expect(expandVideoRuntimeEnvironment(output)).toMatchObject({
+				...expected,
+				PRIVATE_KEY: "unchanged-fixture",
+				VIDEO_V1_ENABLED: "true",
+			});
+			expect(observed).toEqual([
+				{
+					previousVersion,
+					nextVersion: VIDEO_SUPPLIER_PRICE_VERSION,
+					validUntil: base.VIDEO_PRICE_VALID_UNTIL,
+				},
+			]);
+			expect(input).toEqual(snapshot);
+			expect(withoutCloudflareBuildSecrets(input)).toEqual({});
+			for (const key of ["VIDEO_V1_BUILD_PRICE_VERSION", "VIDEO_V1_BUILD_PRICE_BASIS"])
+				expect(output).not.toHaveProperty(key);
+			const repeated = parseEnv(
+				readCloudflareBuildEnvironment({
+					...input,
+					CLOUDFLARE_PRODUCTION_ENV: readCloudflareBuildEnvironment(input),
+					VIDEO_RUNTIME_CONFIG: output.VIDEO_RUNTIME_CONFIG,
+				}),
+			);
+			expect(JSON.parse(repeated.VIDEO_RUNTIME_CONFIG!)).toEqual(expected);
+		},
+	);
+	it("leaves price approval unchanged when both build controls are absent", () => {
+		const policy = {
+			VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
+			VIDEO_PRICE_BASIS: "existing-price-evidence",
+			VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
+		};
+		const output = parseEnv(
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
+			}),
+		);
+		expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual(policy);
+	});
+	it.each([
+		{ VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION },
+		{ VIDEO_V1_BUILD_PRICE_BASIS: "supplier-source" },
+		{
+			VIDEO_V1_BUILD_PRICE_VERSION: "arbitrary-price-version",
+			VIDEO_V1_BUILD_PRICE_BASIS: "source",
+		},
+		{
+			VIDEO_V1_BUILD_PRICE_VERSION: "kie-public-2026-10-04.3",
+			VIDEO_V1_BUILD_PRICE_BASIS: "source",
+		},
+		{ VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION, VIDEO_V1_BUILD_PRICE_BASIS: "" },
+		{
+			VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+			VIDEO_V1_BUILD_PRICE_BASIS: "  ",
+		},
+		{
+			VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+			VIDEO_V1_BUILD_PRICE_BASIS: "source\nINJECTED=true",
+		},
+	])("rejects partial or malformed supplier price build controls", (overrides) => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+				...overrides,
+			}),
+		).toThrow(/^VIDEO_BUILD_PRICE_OVERRIDE_INVALID$/);
+	});
+	it.each([
+		{},
+		{ VIDEO_PRICE_BASIS: "" },
+		{ VIDEO_PRICE_BASIS: "  " },
+		{ VIDEO_PRICE_ACCEPTED_VERSION: "arbitrary-unapproved-version" },
+		{ VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.2" },
+		{ VIDEO_PRICE_VALID_UNTIL: "invalid-date" },
+		{ VIDEO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00.000Z" },
+		{ VIDEO_PRICE_VALID_UNTIL: new Date(Date.now()).toISOString() },
+	])("refuses invalid or expired inherited approval before replacing it", (overrides) => {
+		const base = Object.keys(overrides).length
+			? {
+					VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
+					VIDEO_PRICE_BASIS: "original-price-evidence",
+					VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
+					...overrides,
+				}
+			: {};
+		const observed: unknown[] = [];
+		expect(() =>
+			readCloudflareBuildEnvironment(
+				{
+					CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged-fixture",
+					VIDEO_RUNTIME_CONFIG: JSON.stringify(base),
+					VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+					VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
+				},
+				(evidence) => observed.push(evidence),
+			),
+		).toThrow(/^VIDEO_BUILD_PRICE_POLICY_REQUIRED$/);
+		expect(observed).toEqual([]);
+	});
+	it("rejects existing price flat/packed conflicts without logging policy", () => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_PRICE_BASIS=conflicting-flat-evidence",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify({
+					VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
+					VIDEO_PRICE_BASIS: "original-price-evidence",
+					VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
+				}),
+				VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+				VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
+			}),
+		).toThrow(/^VIDEO_RUNTIME_CONFIG_CONFLICT$/);
+	});
+	it("refuses an oversized price appendix without dropping inherited cost evidence", () => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify({
+					VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
+					VIDEO_PRICE_BASIS: "x".repeat(2800),
+					VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
+				}),
+				VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+				VIDEO_V1_BUILD_PRICE_BASIS: "y".repeat(2800),
+			}),
+		).toThrow(/^VIDEO_RUNTIME_CONFIG_INVALID$/);
+	});
 	it.each(["authenticated", "internal"])(
 		"changes only ordinary video access through the dedicated %s build control",
 		(access) => {
@@ -167,6 +330,9 @@ describe("Cloudflare build secret transport", () => {
 	it("composes ordinary access with independent template overlays without widening existing options", () => {
 		const base = {
 			VIDEO_V1_ACCESS: "internal",
+			VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
+			VIDEO_PRICE_BASIS: "original-cost-evidence",
+			VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
 			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
 			VIDEO_INTERNAL_FUNDING: "original-ordinary-funding",
 			HOTEL_LOBBY_DUO_ACCESS: "internal",
@@ -179,6 +345,8 @@ describe("Cloudflare build secret transport", () => {
 					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true\nVIDEO_V1_ACCESS=internal",
 					VIDEO_RUNTIME_CONFIG: JSON.stringify(base),
 					VIDEO_V1_BUILD_ACCESS: "authenticated",
+					VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+					VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
 					HOTEL_LOBBY_DUO_RUNTIME_CONFIG: '{"HOTEL_LOBBY_DUO_ACCESS":"authenticated"}',
 					RAINDANCE_RUNTIME_CONFIG: '{"RAINDANCE_ACCESS":"authenticated"}',
 				}),
@@ -186,6 +354,9 @@ describe("Cloudflare build secret transport", () => {
 		);
 		expect(output).toMatchObject({
 			VIDEO_V1_ACCESS: "authenticated",
+			VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+			VIDEO_PRICE_BASIS: "original-cost-evidence; new-public-supplier-source",
+			VIDEO_PRICE_VALID_UNTIL: base.VIDEO_PRICE_VALID_UNTIL,
 			HOTEL_LOBBY_DUO_ACCESS: "authenticated",
 			RAINDANCE_ACCESS: "authenticated",
 			VIDEO_INTERNAL_FUNDING: base.VIDEO_INTERNAL_FUNDING,

@@ -3,6 +3,7 @@ import { parseEnv } from "node:util";
 
 import { resolveVideoEffectPrice } from "@repo/config/video-effects.server";
 import { isVideoModelOptionAllowed, readVideoModelAccess } from "@repo/config/video-model-access";
+import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
 import {
 	expandVideoRuntimeEnvironment,
 	parseHotelLobbyRuntimeOverride,
@@ -21,6 +22,12 @@ const videoCallbackSecrets = [
 	"VIDEO_SEEAPI_CALLBACK_SECRET",
 	"SEEAPI_WEBHOOK_SIGNING_KEYS",
 ] as const;
+
+export type VideoBuildPriceBaseEvidence = {
+	previousVersion: string;
+	nextVersion: string;
+	validUntil: string;
+};
 
 export function packCloudflareBuildEnvironment(source: string) {
 	if (!source.trim()) throw new Error("CLOUDFLARE_BUILD_SECRET_REQUIRED");
@@ -48,13 +55,20 @@ export function packCloudflareBuildEnvironment(source: string) {
 	return variables;
 }
 
-export function readCloudflareBuildEnvironment(environment: Record<string, string | undefined>) {
+export function readCloudflareBuildEnvironment(
+	environment: Record<string, string | undefined>,
+	onVideoPriceBase?: (evidence: VideoBuildPriceBaseEvidence) => void,
+) {
 	return withPublicBrandOverride(
 		withGuestBudgetOverride(
 			withGuestQuotaOverrides(
 				withModerationOverrides(
 					withVideoCallbackOverrides(
-						withVideoRuntimeOverrides(unpackCloudflareBuildEnvironment(environment), environment),
+						withVideoRuntimeOverrides(
+							unpackCloudflareBuildEnvironment(environment),
+							environment,
+							onVideoPriceBase,
+						),
 						environment,
 					),
 					environment,
@@ -70,11 +84,14 @@ export function readCloudflareBuildEnvironment(environment: Record<string, strin
 function withVideoRuntimeOverrides(
 	source: string,
 	environment: Record<string, string | undefined>,
+	onVideoPriceBase?: (evidence: VideoBuildPriceBaseEvidence) => void,
 ) {
 	const encoded = environment.VIDEO_RUNTIME_CONFIG;
 	const templateOverride = environment.HOTEL_LOBBY_DUO_RUNTIME_CONFIG;
 	const enabled = environment.VIDEO_V1_BUILD_ENABLED;
 	const access = environment.VIDEO_V1_BUILD_ACCESS;
+	const priceVersion = environment.VIDEO_V1_BUILD_PRICE_VERSION;
+	const priceBasis = environment.VIDEO_V1_BUILD_PRICE_BASIS;
 	const templateEnabled = environment.HOTEL_LOBBY_DUO_BUILD_ENABLED;
 	if (enabled !== undefined && enabled !== "true" && enabled !== "false")
 		throw new Error("VIDEO_BUILD_ENABLED_OVERRIDE_INVALID");
@@ -84,6 +101,49 @@ function withVideoRuntimeOverrides(
 		throw new Error("VIDEO_EFFECT_BUILD_ENABLED_OVERRIDE_INVALID");
 	let policy = encoded === undefined ? undefined : parseVideoRuntimeConfig(encoded);
 	const changedFlatKeys = new Set<string>();
+	if (priceVersion !== undefined || priceBasis !== undefined) {
+		if (priceVersion !== VIDEO_SUPPLIER_PRICE_VERSION || !priceBasis?.trim())
+			throw new Error("VIDEO_BUILD_PRICE_OVERRIDE_INVALID");
+		try {
+			parseVideoRuntimeConfig(JSON.stringify({ VIDEO_PRICE_BASIS: priceBasis }));
+		} catch {
+			throw new Error("VIDEO_BUILD_PRICE_OVERRIDE_INVALID");
+		}
+		const previousVersion = policy?.VIDEO_PRICE_ACCEPTED_VERSION;
+		const previousBasis = policy?.VIDEO_PRICE_BASIS;
+		const expiry = Date.parse(policy?.VIDEO_PRICE_VALID_UNTIL ?? "");
+		if (
+			!policy ||
+			!previousVersion ||
+			!["kie-public-2026-10-04.3", VIDEO_SUPPLIER_PRICE_VERSION].includes(previousVersion) ||
+			!previousBasis?.trim() ||
+			!Number.isFinite(expiry) ||
+			expiry <= Date.now()
+		)
+			throw new Error("VIDEO_BUILD_PRICE_POLICY_REQUIRED");
+		const previous = parseEnv(source);
+		expandVideoRuntimeEnvironment({ ...previous, VIDEO_RUNTIME_CONFIG: encoded });
+		// Expose only validated public version names and a normalized inherited expiry.
+		onVideoPriceBase?.({
+			previousVersion,
+			nextVersion: VIDEO_SUPPLIER_PRICE_VERSION,
+			validUntil: new Date(expiry).toISOString(),
+		});
+		const appendix = priceBasis.trim();
+		const basis =
+			previousBasis === appendix || previousBasis.endsWith(`; ${appendix}`)
+				? previousBasis
+				: `${previousBasis}; ${appendix}`;
+		policy = parseVideoRuntimeConfig(
+			JSON.stringify({
+				...policy,
+				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+				VIDEO_PRICE_BASIS: basis,
+			}),
+		);
+		for (const key of ["VIDEO_PRICE_ACCEPTED_VERSION", "VIDEO_PRICE_BASIS"])
+			if (previous[key] !== undefined) changedFlatKeys.add(key);
+	}
 	if (access !== undefined) {
 		const modelAccess = readVideoModelAccess(policy ?? {});
 		if (!policy || !modelAccess.ready || !modelAccess.allowed.size)
@@ -419,6 +479,8 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key === "VIDEO_V1_ENABLED" ||
 			key === "VIDEO_V1_BUILD_ENABLED" ||
 			key === "VIDEO_V1_BUILD_ACCESS" ||
+			key === "VIDEO_V1_BUILD_PRICE_VERSION" ||
+			key === "VIDEO_V1_BUILD_PRICE_BASIS" ||
 			key === "HOTEL_LOBBY_DUO_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
 			VIDEO_RUNTIME_ENVIRONMENT_KEYS.some((policy) => policy === key) ||

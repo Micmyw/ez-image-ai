@@ -186,6 +186,8 @@ export function createProfileArtifacts(options: {
 	const jobVars = jobs.vars as Record<string, unknown>;
 	delete jobVars.VIDEO_V1_BUILD_ENABLED;
 	delete jobVars.VIDEO_V1_BUILD_ACCESS;
+	delete jobVars.VIDEO_V1_BUILD_PRICE_VERSION;
+	delete jobVars.VIDEO_V1_BUILD_PRICE_BASIS;
 	delete jobVars.HOTEL_LOBBY_DUO_BUILD_ENABLED;
 	delete jobVars.HOTEL_LOBBY_DUO_RUNTIME_CONFIG;
 	delete jobVars.RAINDANCE_RUNTIME_CONFIG;
@@ -233,6 +235,8 @@ export function createProfileArtifacts(options: {
 			key.startsWith("CLOUDFLARE_") ||
 			key === "VIDEO_V1_BUILD_ENABLED" ||
 			key === "VIDEO_V1_BUILD_ACCESS" ||
+			key === "VIDEO_V1_BUILD_PRICE_VERSION" ||
+			key === "VIDEO_V1_BUILD_PRICE_BASIS" ||
 			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" ||
 			key === "RAINDANCE_RUNTIME_CONFIG" ||
@@ -286,6 +290,8 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 	const nonRuntimeVariables = new Set([
 		"VIDEO_V1_BUILD_ENABLED",
 		"VIDEO_V1_BUILD_ACCESS",
+		"VIDEO_V1_BUILD_PRICE_VERSION",
+		"VIDEO_V1_BUILD_PRICE_BASIS",
 		"HOTEL_LOBBY_DUO_BUILD_ENABLED",
 		"HOTEL_LOBBY_DUO_RUNTIME_CONFIG",
 		"RAINDANCE_RUNTIME_CONFIG",

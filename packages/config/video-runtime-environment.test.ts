@@ -100,6 +100,8 @@ describe("private video runtime environment transport", () => {
 		"WAFFO_PRIVATE_KEY",
 		"VIDEO_V1_ENABLED",
 		"VIDEO_V1_BUILD_ACCESS",
+		"VIDEO_V1_BUILD_PRICE_VERSION",
+		"VIDEO_V1_BUILD_PRICE_BASIS",
 		"HOTEL_LOBBY_DUO_ENABLED",
 		"VIDEO_WORKFLOW",
 		"VIDEO_MEDIA_BUCKET",

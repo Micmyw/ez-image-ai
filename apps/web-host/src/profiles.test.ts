@@ -263,6 +263,7 @@ describe("prepared deployment artifacts", () => {
 		(profile) => {
 			const input = packVideoRuntimeEnvironment({
 				...multiModelVideoEnvironment,
+				VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
 				VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
 					{
 						productKey: "video-kling-2-6-v1",
@@ -280,16 +281,22 @@ describe("prepared deployment artifacts", () => {
 					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true",
 					VIDEO_RUNTIME_CONFIG: input.VIDEO_RUNTIME_CONFIG,
 					VIDEO_V1_BUILD_ACCESS: "authenticated",
+					VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+					VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
 				}),
 			);
 			const result = artifacts(profile, {
 				...input,
 				VIDEO_RUNTIME_CONFIG: prepared.VIDEO_RUNTIME_CONFIG!,
 				VIDEO_V1_BUILD_ACCESS: "authenticated",
+				VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+				VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
 			});
 			const expectedPolicy = {
 				...parseVideoRuntimeConfig(input.VIDEO_RUNTIME_CONFIG),
 				VIDEO_V1_ACCESS: "authenticated",
+				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+				VIDEO_PRICE_BASIS: `${multiModelVideoEnvironment.VIDEO_PRICE_BASIS}; new-public-supplier-source`,
 			};
 			for (const name of ["website", "workflows"] as const) {
 				expect(parseVideoRuntimeConfig(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG)).toEqual(
@@ -298,11 +305,17 @@ describe("prepared deployment artifacts", () => {
 				expect(result[name].vars).toMatchObject({ VIDEO_V1_ENABLED: "true" });
 				expect(result[name].vars).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
 				expect(result[`${name}.secrets`]).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
+				for (const key of ["VIDEO_V1_BUILD_PRICE_VERSION", "VIDEO_V1_BUILD_PRICE_BASIS"]) {
+					expect(result[name].vars).not.toHaveProperty(key);
+					expect(result[`${name}.secrets`]).not.toHaveProperty(key);
+				}
 			}
 			if (profile === "hybrid") {
 				const container = JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV);
 				expect(container.VIDEO_V1_ACCESS).toBe("authenticated");
 				expect(container).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
+				expect(container).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_VERSION");
+				expect(container).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_BASIS");
 			}
 		},
 	);

@@ -41,7 +41,11 @@ Those documents retain their historical acceptance and deployment evidence.
    `VIDEO_V1_BUILD_ACCESS=authenticated` overlay on both build targets so the
    authoritative environment package cannot restore the old internal audience.
    Keep the existing admission build switch enabled only with the current valid
-   private policy and nonempty model allowlist.
+   private policy and nonempty model allowlist. The coordinated Seedance release
+   also sets `VIDEO_V1_BUILD_PRICE_VERSION=kie-public-2026-10-07.1` and
+   `VIDEO_V1_BUILD_PRICE_BASIS` to the new public supplier evidence appendix on
+   both targets. This narrow override preserves the inherited complete-cost
+   basis and future expiry; missing or expired approval stops the build.
 4. Deploy the website after the compatible receiver. Inspect the generated
    runtime policy and exact deployment version/SHA for both targets. Build or
    binding success alone does not establish live authenticated access.
@@ -72,7 +76,7 @@ release receipt; do not infer live customer generation from the policy or copy c
 
 | Stage                                                                 | Evidence                          |
 | --------------------------------------------------------------------- | --------------------------------- |
-| Focused local access, funding, template and build-overlay regressions | PASS: 368 focused tests           |
+| Focused local access, funding, template and build-overlay regressions | PASS: 483 focused tests           |
 | Changed-file formatting, lint and affected workspace type checks      | PASS                              |
 | Authenticated/guest live browser acceptance                           | Pending production release        |
 | Git publication and exact-SHA CI                                      | NOT_RUN at document creation      |
@@ -80,11 +84,16 @@ release receipt; do not infer live customer generation from the policy or copy c
 | Guest exclusion and non-allowlisted authenticated live catalog/quote  | NOT_RUN at document creation      |
 | New real paid provider generation and moderation acceptance           | NOT_RUN for this audience release |
 
-The focused checks comprise 55 config access/funding/template tests, 37 runtime
-transport tests, 191 web-host deployment/build tests, 21 API catalog/upload tests,
-35 jobs admission/template-access tests, and 29 shared image-composer render tests.
+The integrated focused checks comprise 103 config pricing/access/funding/template
+tests, 39 runtime transport tests, 213 web-host deployment/build tests, 25 API
+catalog/upload tests, 35 jobs admission/template-access tests, and 68 shared
+image-composer/video model/render tests.
 The composer regression failed before the link change and passed afterward.
 Config, jobs, API, SaaS and web-host type checks pass. Local generation repaired a
 stale ignored Prisma client; one stale ignored Next route type for the removed
 Effects route was removed before rerunning SaaS type validation. No schema change,
-production database write, upload or paid provider call was needed.
+production database write, upload or paid provider call was needed. The separate
+authorized Seedance implementation was incorporated as `b7739f3d` from
+`fb28f4a1`, preserving both release entries and authenticated-access documentation.
+Its earlier 46 isolated PostgreSQL tests and 8 Mock browser cases remain separate
+evidence; the integrated CI validates the final published source.
