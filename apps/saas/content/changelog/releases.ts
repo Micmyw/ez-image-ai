@@ -1,6 +1,15 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-10-07",
+		title: "Video settings follow supported Kie models",
+		changes: [
+			"Choose supported Kie model durations, resolutions, framing and sound options. Sign-in and eligible paid credits are required.",
+			"Create videos without a fixed cutoff date. Quotes last ten minutes; review a new quote if the price changes before confirmation.",
+			"Continue to follow accepted tasks in private Video history, with their original settings and credit records preserved.",
+		],
+	},
+	{
+		date: "2026-10-07",
 		title: "Video beta for signed-in accounts",
 		changes: [
 			"Open Video from the editor or account navigation and create a short video from text or one reference image.",

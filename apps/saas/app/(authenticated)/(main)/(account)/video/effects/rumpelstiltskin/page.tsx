@@ -1,6 +1,5 @@
 import { getSession } from "@auth/lib/server";
 import { RUMPELSTILTSKIN_SOLO_EFFECT_ID } from "@repo/config/video-effects";
-import { canAccessVideoEffect } from "@repo/config/video-effects-access.server";
 import { getVideoTemplatePublicState } from "@repo/jobs/video-v1/template-admission";
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
@@ -12,7 +11,7 @@ import { RumpelstiltskinWorkbench } from "../../../../../../../modules/video-eff
 import "../../../../../../../modules/video-effects/video-effects.css";
 
 export const metadata: Metadata = {
-	title: "Rumpelstiltskin internal test",
+	title: "Rumpelstiltskin dance video",
 	robots: { index: false, follow: false },
 };
 
@@ -25,14 +24,8 @@ export default async function RumpelstiltskinPage({
 	if (!session?.user.id || session.user.isAnonymous) notFound();
 	const { job } = await searchParams;
 	const initialJobId = typeof job === "string" && /^[a-zA-Z0-9_-]{1,120}$/.test(job) ? job : null;
-	const generationAllowed = canAccessVideoEffect(
-		process.env,
-		session.user,
-		RUMPELSTILTSKIN_SOLO_EFFECT_ID,
-	);
-	if (!generationAllowed) {
-		if (!initialJobId) notFound();
-		// History access survives admission closure, but the URL alone never grants it.
+	if (initialJobId) {
+		// Page discovery is authenticated; every historical task is separately owner-scoped.
 		const ownedJob = await getVideoTemplatePublicState(
 			{ userId: session.user.id },
 			initialJobId,
@@ -42,7 +35,7 @@ export default async function RumpelstiltskinPage({
 	const messages = await getMessages();
 	return (
 		<NextIntlClientProvider messages={{ videoEffects: messages.videoEffects }}>
-			<RumpelstiltskinWorkbench initialJobId={initialJobId} readOnly={!generationAllowed} />
+			<RumpelstiltskinWorkbench initialJobId={initialJobId} readOnly={Boolean(initialJobId)} />
 		</NextIntlClientProvider>
 	);
 }

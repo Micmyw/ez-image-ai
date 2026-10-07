@@ -1,51 +1,53 @@
-# Rumpelstiltskin development receipt — 2026-10-07
+# Rumpelstiltskin integration validation — 2026-10-07
 
-Development branch: `codex/rumpelstiltskin-seedance2`. HEAD: `bfda2815c02f845edc0220baf9fcaac3faca79a1`. Changes are uncommitted; no commit, remote push, merge or deployment was performed.
+Branch: `codex/rumpelstiltskin-seedance2`. Isolated checkout: `D:\梅一伟\Documents\codex\2026-10-07\task\ezimage-rumpelstiltskin`. Original base: `bfda2815c02f845edc0220baf9fcaac3faca79a1`; initial 61-file implementation saved as `db9eba69`. Integration uses the fetched main `d3bf24b704b7b2b54ae74188f03974ff7a8eb467`, preserving its ordinary-video settings, finite/none price distinction and build configuration handoff. The independent new UI worktree was not edited or merged.
 
-Isolated checkout: `D:\梅一伟\Documents\codex\2026-10-07\task\ezimage-rumpelstiltskin`, created from clean `bfda2815` after the independently developed ordinary-video audience change. The primary checkout `D:\AIProject\Gefei\SaaSTool\ez-image-ai` was not edited or reset. It independently advanced through `ff3431ef` to `d3bf24b704b7b2b54ae74188f03974ff7a8eb467` during this work. Read-only comparison found overlap in configuration, website bindings, video admission/execution, API tests and translations. This receipt does not certify integration onto that later main; its ordinary-video public pricing/access policy must not replace the new reference feature's independent closed approval and 200% contribution-profit requirement.
+The user's latest release decision authorizes authenticated paid-customer access, merging/pushing main and necessary safe migration/publishing, and excludes real video-generation testing. The earlier disabled test audience and trial-budget proposal are superseded. Missing physical/rights/review evidence still blocks generation; public pricing and conservative budgets do not fabricate that evidence.
 
-## Delivered
+## Delivered behavior
 
-- Private authenticated `/video/effects/rumpelstiltskin` entry, independent internal allowlist and default-closed switch. One portrait upload; no front-end motion URL/asset selector, public discovery link, real-result sample or credit-purchase promotion.
-- Seedance 2 image/video-reference adapter and immutable schema 2 template. Direct mode reviews one actual prompt and one subject, without scene-image generation. Existing schema 1 Hotel Lobby and Raindance behavior is retained.
-- Frozen admin-owned motion identity, complete database SeeAPI/rights approval binding and independent expiring full-cost approval. Absent approval closes quotation/submission. Private manifest/cost bindings are mirrored across website/background workers without enlarging the shared runtime pack.
-- Required dated revenue evidence uses the lowest purchasable receipt per all issued credits, including annual grants, subscriber bonuses and discounts. Payment fees are deducted separately. The quote records net revenue, risk-adjusted operating cost and contribution profit, and requires `(net revenue - cost) / cost >= 2`. Missing/expired evidence, below-target markup, or an approved unit-revenue floor above the catalog minimum blocks admission. No merchant receipt or trial budget is invented by the code.
-- Existing task/reservation/submission fence, uncertain acceptance hold, output review, settlement, owner-scoped playback/download and historical recovery. Reference expiry/deletion stops new paid submissions while preserving accepted-task settlement.
-- Additive SQL migration prepared; no migration applied. Four-language test copy and operation instructions added.
+- Visible authenticated `/video/effects/rumpelstiltskin` page and registered-account Studio link. Guests remain excluded. Explicit disable and independent internal audience are rollback options.
+- One uploaded portrait plus frozen admin-owned authorized motion reference, Standard Seedance 2 reference request, no scene-image generation or first-frame tariff. Subject and prompt are each reviewed once. Schema 1 Hotel Lobby/Raindance behavior and immutable history remain intact.
+- Dated Kie public reference pricing plus explicit conservative review/runtime/storage/payment/failure budgets. Default policy expires 2026-10-14 16:47:22 UTC. The quote uses the lowest catalog receipt per all issued credits, then deducts payment fees and requires net revenue at least three times risk-adjusted operating cost. Lower discounted receipts cannot qualify against a higher floor; a lower approved floor raises the price.
+- Real database approval/rights/physical-identity validation before quotation, job creation and first paid send; accepted-task recovery and settlement survive later approval expiry. Fixed material never enters customer asset lists. Uncertain acceptance does not retry or change providers.
+- Compatible template CHECK/trigger migration without new tables, grants or permissions. Separate private motion/cost bindings preserve the original runtime-pack size limit and main's retired ordinary allowlist handling.
 
-## Passed local verification
+## Passed verification after main integration
 
-Every verification subprocess scrubbed real credentials and preloaded `tests/video-v1/no-paid-network.mjs`. Unit database URL was an unused loopback port; provider behavior used injected mocks. Paid generation calls: **0**.
+Unit subprocesses clear real credentials, use an unused loopback database port and preload `tests/video-v1/no-paid-network.mjs`; provider contracts use injected mocks. These results are not real supplier generation evidence.
 
-| Scope                                                              | Test files | Passed cases |
-| ------------------------------------------------------------------ | ---------: | -----------: |
-| Configuration, approval, access, output, runtime transport         |          6 |          137 |
-| Provider request contracts and uncertainty                         |          3 |           84 |
-| Database reference binding and settlement mocks                    |          1 |           22 |
-| Video jobs, preparation, admission, submission and legacy recovery |         19 |          291 |
-| Template API                                                       |          1 |           29 |
-| SaaS effects, account page, history and locale parity              |          7 |          110 |
-| Website configuration preparation                                  |          3 |          198 |
-| Workflow runtime and orchestration                                 |          2 |           39 |
-| **Total**                                                          |     **42** |      **910** |
+| Scope                                                               |  Files |     Cases |
+| ------------------------------------------------------------------- | -----: | --------: |
+| Configuration, pricing, model contracts, access, output, runtime    |      9 |       253 |
+| Provider request contracts and uncertainty                          |      3 |        84 |
+| Reference binding/settlement mocks                                  |      1 |        22 |
+| Video jobs, admission/preparation/send/recovery                     |     19 |       296 |
+| Template and ordinary video API                                     |      7 |        76 |
+| SaaS page/workbench/history/navigation/ordinary video/locales       |     11 |       168 |
+| Website preparation, secret transport, release/deployment contracts |      6 |       310 |
+| Workflow runtime and orchestration                                  |      2 |        39 |
+| **Unit total**                                                      | **58** | **1,248** |
 
-- TypeScript checks passed for `@repo/config`, `@repo/ai`, `@repo/database`, `@repo/jobs`, `@repo/api`, `@repo/web-host`, `@repo/workflows`, and `saas`. Next/Fumadocs route types were generated before the SaaS check.
-- Focused Oxfmt, Oxlint and `git diff --check` passed for modified/new source files.
-- `@repo/workflows build:workers` passed with explicit Wrangler `--dry-run`. Final `dist-workers/workers.js` started in actual local workerd; unsigned requests, invalid signed tasks, executor routing and video Workflow/version guard checks passed. No live Cloudflare deployment or database query was performed by this smoke test.
-- Independent read-only review found a closed-generation historical-page regression and a scene-stage label mismatch. Both were fixed and rechecked. The new output-contract test also found and corrected the legacy Seedance 1.5-only restriction.
+- All eight affected TypeScript checks passed: config, AI, database, jobs, API, web-host, workflows and SaaS. Next/Fumadocs route generation preceded the SaaS type check.
+- Worker `build:workers` passed using Wrangler `--dry-run`. The final artifact started in real local workerd and passed unsigned/invalid task rejection, executor routing and Workflow/version guards. This smoke did not query production or deploy.
+- Disposable native PostgreSQL 17.10, loopback only: all **65 fresh migrations**, including the new reference migration, passed; Prisma drift reported no difference. **94 real integration tests in 3 files passed**: new reference 5, legacy templates 34, video execution 55. The fresh cluster was stopped in `finally`. Initial non-UTC fixture-environment failures were resolved by configuring the isolated server and child environment to UTC; no product guard or fixture evidence was weakened.
+- Harmless live Kie `GET /api/v1/chat/credit` using the existing configured production key returned HTTP 200 and response code 200 with a valid response shape. Key, raw response and balance were not printed. This proves network/account authentication only, not Seedance model permission, createTask acceptance or output quality.
+- The new reference mock suite is explicitly included in the database package's CI command. That eight-file package suite passed 143 cases without `DATABASE_URL`; the integration routing check passed 24 cases and the workflow infrastructure contract passed.
+- Release migration status now converts the verified-TLS input policy to the current Prisma Rust engine's supported `require + sslaccept=strict + sslcert` CLI parameters. It preserves certificate/hostname verification and refuses plaintext fallback, without rewriting application runtime configuration. The fixed engine treats an unknown `verify-full` value as `Prefer`, so the literal value alone was insufficient for this CLI gate.
+- Independent read-only review found no P1/P2 in the final business contracts: missing material stops reservation/submission, references stay private, net-profit math and finite evidence expiry remain independent, and uncertain/accepted recovery is preserved.
 
-The reproducible local runner is `../verify-rumpelstiltskin.mjs` in the delegated task directory. Individual raw logs are retained in ignored `.cache/rumpelstiltskin-verification/` in this checkout. Initial sandbox child-process `spawn EPERM` was resolved using approved escalation with the same credential scrubbing and network guard.
+Focused formatting, lint and diff checks are part of the final merge preflight. GitHub CI and both native Cloudflare builds must be checked against the exact pushed SHA; previous main successes are not evidence for this release. Website target: `ezimageai-site-production`; background target: `ezpic-workflows-workers-production`. No manual deployment or paid generation is performed by these checks.
 
-## Not run and remaining gates
+The reproducible runner is `../verify-rumpelstiltskin.mjs`; raw unit logs are ignored under `.cache/rumpelstiltskin-verification/`. Real PostgreSQL evidence is in the delegated task's `.cache/pg-validation/run-c8ea3839-9e30-4fce-8cb1-9dd4c03a649d/`. Docker/WSL remained unavailable, but native test PostgreSQL removed that validation blocker without changing system settings or adding a product dependency.
 
-- Real PostgreSQL migration/trigger integration: **not run**. Five additional real-PostgreSQL tests are prepared in `packages/database/prisma/queries/media/rumpelstiltskin-reference.integration.test.ts`; they cover idempotent admission, one-image review/finalization, SQL approval/immutability guards, owner/rights denial and zero reservations on refusal. They have not been executed. The 22 transaction tests above are mocks and do not substitute for this gate.
-- Docker readiness: the installed `C:\Program Files\Docker\Docker\Docker Desktop.exe` was started hidden through approved execution. Backend processes appeared, but Docker IPC/version requests did not complete; a bounded 20-second status probe timed out. Only those diagnostic sessions were canceled. Recent local engine status included `Virtualization:false` and `State:stopped`; this is an observed status, not a proven BIOS diagnosis. No security/WSL/virtualization settings were changed, no image was pulled, no database/container was created and no migration was run. No standalone PostgreSQL executable/service was found in the focused checks. The immediate blocker is an unready engine; image availability, a disposable port and SQL correctness are separate unverified gates, so Docker is not proven to be the only blocker.
-- Full SaaS/OpenNext packaging and authenticated browser session with a real database: **not run**. Component/page permission tests and route/type generation passed.
-- Actual Seedance 2 acceptance, likeness, toe-stepping fidelity, fixed second-character preservation and actual provider charges: **not run**. There is no original/licensed approved reference asset, persisted approval receipt, real cost approval or paid-trial budget in this change.
-- Production migration, deployment, merge, public launch and remote push: **not performed**.
+## Remaining limits
 
-Keep the test closed until the authorized material is prepared, SQL is tested on disposable PostgreSQL, and an explicit bounded paid-trial budget is presented and approved. The paid outputs must pass the quality checks in [internal-test instructions](./rumpelstiltskin-internal-test.md) before any public charging or sample publication.
+No same-meme reference has been authorized, ingested, sealed or actually reviewed. The account entry is publishable, but generation is unavailable until that fixed asset and its private bindings are complete. The original creator can be approached for authorization, or the user can supply their owned/authorized matching two-character motion clip for trusted ingestion. No generic dance, competitor asset, soundtrack or invented rights receipt is substituted.
 
-## Minimal local review
+Actual Seedance generation acceptance, likeness, toe-stepping fidelity, second-character preservation and charged generation receipts are **not tested**, by explicit user decision. No true video call or trial-budget request remains. Full browser coverage of a production account/asset and live recovery is also not certified by these local tests.
 
-From this isolated checkout, `node ..\verify-rumpelstiltskin.mjs config saas api jobs` reproduces safe mock checks with provider networking blocked. Dependencies and generated clients already exist. For a browser preview, first prepare a disposable local database, align its name with a local `.env.local`, and obtain a local verified account; then run `pnpm dev` and visit `http://localhost:3000/video/effects/rumpelstiltskin`. Default access is closed (404). An explicitly listed tester may view blocked admission with prerequisite access switches enabled and both approval fields left empty. No live secret file was copied. Normal Node/Next development lacks native `VIDEO_WORKFLOW` and cannot certify the complete paid execution path. Detailed prerequisites and the pending SQL test are in the internal-test instructions.
+The authorized production migration was applied successfully before pushing: exactly `20261007190000_rumpelstiltskin_reference_template`, with postflight confirming no pending migrations and matching history. A historical foundation rollback was audited against its later successful, same-checksum record; no history row was edited or repaired. The direct Node pre/postflight used verified TLS/UTC; Prisma deploy required TLS with strict certificate/hostname validation and supplied frozen CA. Redacted evidence is retained under the delegated task's `.cache/production-migration/run-NudBIP/`.
+
+Push and automatic build outcomes are recorded by the final user report, matched to the exact release SHA. Current traffic must be preserved if an automatic build fails.
+
+See [operation and material preparation](./rumpelstiltskin-internal-test.md) and [public pricing/budget assumptions](./rumpelstiltskin-cost-and-trial-2026-10-07.md).

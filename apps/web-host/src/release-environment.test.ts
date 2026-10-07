@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -15,6 +16,46 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const assertEnvironment = assertAutomaticReleaseEnvironment;
 
 describe("automatic production release preflight", () => {
+	it.each(["2100-01-01T00:00:00.000Z", "2000-01-01T00:00:00.000Z", "none"])(
+		"logs only approved public price metadata before accepting an inherited expiry %s",
+		(validUntil) => {
+			const result = spawnSync(
+				process.execPath,
+				["--import", "tsx", "apps/web-host/src/git-build.ts", "build", "website"],
+				{
+					cwd: root,
+					encoding: "utf8",
+					env: {
+						...process.env,
+						CLOUDFLARE_PRODUCTION_ENV:
+							"NEXT_PUBLIC_SAAS_URL=https://ezimageai.com\nPRIVATE_KEY=do-not-print-secret-fixture\n",
+						VIDEO_RUNTIME_CONFIG: JSON.stringify({
+							VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
+							VIDEO_PRICE_BASIS: "do-not-print-price-basis-fixture",
+							VIDEO_PRICE_VALID_UNTIL: validUntil,
+						}),
+						VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+						VIDEO_V1_BUILD_PRICE_BASIS: "do-not-print-price-appendix-fixture",
+					},
+				},
+			);
+			expect(result.status).not.toBe(0);
+			expect(result.stdout + result.stderr).not.toContain("do-not-print-");
+			if (validUntil === "none" || validUntil.startsWith("2100")) {
+				expect(result.stdout).toContain(
+					`Video price base preflight: ${JSON.stringify({
+						previousVersion: "kie-public-2026-10-04.3",
+						nextVersion: VIDEO_SUPPLIER_PRICE_VERSION,
+						validUntil,
+					})}`,
+				);
+				expect(result.stderr).toContain("MIGRATION_STATUS_DATABASE_URL_REQUIRED");
+			} else {
+				expect(result.stdout).not.toContain("Video price base preflight:");
+				expect(result.stderr).toContain("VIDEO_BUILD_PRICE_POLICY_REQUIRED");
+			}
+		},
+	);
 	it("accepts the exact Cloudflare main build and rejects preview branches or a different checkout", () => {
 		const sha = "a".repeat(40);
 		const input = { WORKERS_CI: "1", WORKERS_CI_BRANCH: "main", WORKERS_CI_COMMIT_SHA: sha };
@@ -76,12 +117,53 @@ describe("automatic production release preflight", () => {
 				"/runner/repo",
 			),
 		);
-		expect(url.searchParams.get("sslmode")).toBe("verify-full");
-		expect(url.searchParams.get("sslrootcert")?.replaceAll("\\", "/")).toBe(
+		expect(url.searchParams.get("sslmode")).toBe("require");
+		expect(url.searchParams.get("sslaccept")).toBe("strict");
+		expect(url.searchParams.get("sslcert")?.replaceAll("\\", "/")).toBe(
 			"/runner/repo/tooling/certificates/supabase-prod-ca-2021.crt",
 		);
+		expect(url.searchParams.has("sslrootcert")).toBe(false);
+		expect(url.hostname).toBe("db.example.com");
 		expect(url.password).toBe("private");
 	});
+	it("uses the repository CA only for the Prisma CLI without changing the runtime URL", () => {
+		const input = {
+			DATABASE_URL: "postgresql://app:private@db.example.com/db?sslmode=verify-full&schema=public",
+		};
+		const original = input.DATABASE_URL;
+		const url = new URL(migrationDatabaseUrl(input, "/runner/repo"));
+		expect(url.searchParams.get("sslmode")).toBe("require");
+		expect(url.searchParams.get("sslaccept")).toBe("strict");
+		expect(url.searchParams.get("sslcert")?.replaceAll("\\", "/")).toBe(
+			"/runner/repo/tooling/certificates/supabase-prod-ca-2021.crt",
+		);
+		expect(url.searchParams.get("schema")).toBe("public");
+		expect(input.DATABASE_URL).toBe(original);
+	});
+	it("translates an explicitly configured CA and overrides CLI certificate relaxation", () => {
+		const input = {
+			DATABASE_URL:
+				"postgresql://app:private@db.example.com/db?sslmode=verify-full&sslrootcert=/certificates/custom-ca.crt&sslcert=/stale-ca.crt&sslcert=/another-stale-ca.crt&sslaccept=accept_invalid_certs&sslaccept=accept_invalid_certs",
+		};
+		const url = new URL(migrationDatabaseUrl(input, "/runner/repo"));
+		expect(url.searchParams.get("sslmode")).toBe("require");
+		expect(url.searchParams.get("sslaccept")).toBe("strict");
+		expect(url.searchParams.get("sslcert")).toBe("/certificates/custom-ca.crt");
+		expect(url.searchParams.getAll("sslcert")).toHaveLength(1);
+		expect(url.searchParams.getAll("sslaccept")).toEqual(["strict"]);
+		expect(url.searchParams.has("sslrootcert")).toBe(false);
+	});
+	it.each(["disable", "prefer", "require", "verify-ca"])(
+		"rejects an incoming runtime URL without verify-full: %s",
+		(mode) => {
+			expect(() =>
+				migrationDatabaseUrl(
+					{ DATABASE_URL: `postgresql://app:private@db.example.com/db?sslmode=${mode}` },
+					"/repo",
+				),
+			).toThrow("MIGRATION_STATUS_REQUIRES_VERIFIED_TLS");
+		},
+	);
 	it("does not echo a malformed database secret", () => {
 		expect(() => migrationDatabaseUrl({ DATABASE_URL: "private-invalid-url" }, "/repo")).toThrow(
 			"MIGRATION_STATUS_DATABASE_URL_REQUIRED",

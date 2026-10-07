@@ -1,7 +1,6 @@
 import { videoEffectIdSchema, videoEffectName } from "@repo/config/video-effects";
 import type { resolveVideoEffectPrice } from "@repo/config/video-effects.server";
 import { applyVideoInternalFunding } from "@repo/config/video-internal-funding";
-import { isVideoModelOptionAllowed, readVideoModelAccess } from "@repo/config/video-model-access";
 import {
 	getVideoModel,
 	validateVideoModelSelection,
@@ -67,9 +66,6 @@ export function requireVideoModelReadiness(
 	const model = getVideoModel(selection.productKey);
 	if (!model || !validateVideoModelSelection(selection))
 		throw new Error("VIDEO_MODEL_OPTION_UNAVAILABLE");
-	const access = readVideoModelAccess(environment);
-	if (!isVideoModelOptionAllowed(access, selection))
-		throw new Error(access.reason ?? "VIDEO_MODEL_OPTION_NOT_ENABLED");
 	const readiness = videoV1Readiness(environment, bindings, {
 		multiModel: true,
 		sound: selection.sound,

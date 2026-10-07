@@ -14,7 +14,6 @@
 		"./video-effects-access.server": "./video-effects-access.server.ts",
 		"./rumpelstiltskin-reference.server": "./rumpelstiltskin-reference.server.ts",
 		"./video-models": "./video-models.ts",
-		"./video-model-access": "./video-model-access.ts",
 		"./video-internal-funding": "./video-internal-funding.ts",
 		"./video-output": "./video-output.ts",
 		"./video-safety": "./video-safety.ts",

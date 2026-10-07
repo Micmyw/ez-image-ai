@@ -24,35 +24,18 @@ export function deploymentProfile(environment: Record<string, string>): Deployme
 	return profile;
 }
 
-/** Validate only an explicitly enabled test. Empty approval placeholders keep it closed. */
-export function requireRumpelstiltskinTestPreparation(
-	environment: Record<string, string | undefined>,
-) {
+/** Publishing the customer entry does not approve a motion asset or a generation price. */
+export function requireRumpelstiltskinPreparation(environment: Record<string, string | undefined>) {
 	if (
 		environment.RUMPELSTILTSKIN_ENABLED !== undefined &&
 		!["true", "false"].includes(environment.RUMPELSTILTSKIN_ENABLED)
 	)
 		throw new Error("RUMPELSTILTSKIN_ENABLED_INVALID");
-	if (environment.RUMPELSTILTSKIN_ENABLED !== "true") return;
-	if (environment.VIDEO_V1_ENABLED !== "true") throw new Error("VIDEO_EFFECT_VIDEO_DISABLED");
-	if (
-		readVideoEffectAccessScope(environment, "rumpelstiltskin-solo") !== "internal" ||
-		!(environment.RUMPELSTILTSKIN_ALLOWED_USER_IDS ?? "").split(",").some((id) => id.trim())
-	)
-		throw new Error("RUMPELSTILTSKIN_INTERNAL_TEST_SCOPE_REQUIRED");
-	if (
-		environment.MEDIA_GENERATION_ENABLED !== "true" ||
-		!(environment.MEDIA_ENABLED_PROVIDERS ?? "").split(",").some((id) => id.trim() === "kie")
-	)
-		throw new Error("RUMPELSTILTSKIN_PROVIDER_NOT_READY");
-	resolveVideoEffectPrice(
-		{
-			effectId: "rumpelstiltskin-solo",
-			presetKey: "standard",
-			inputs: { leftAssetId: "readiness-subject", rightAssetId: "readiness-subject" },
-		},
-		environment,
-	);
+	if (environment.RUMPELSTILTSKIN_ENABLED === "false") return;
+	if (readVideoEffectAccessScope(environment, "rumpelstiltskin-solo") === null)
+		throw new Error("RUMPELSTILTSKIN_ACCESS_INVALID");
+	// Missing or unapproved reference/cost evidence blocks quote/job admission in the
+	// product, while preparation may publish the authenticated unavailable state.
 }
 
 export function createProfileArtifacts(options: {
@@ -66,7 +49,10 @@ export function createProfileArtifacts(options: {
 }) {
 	const { profile, root, target, canonicalOrigin } = options;
 	const environment = expandVideoRuntimeEnvironment(options.environment);
+	environment.RUMPELSTILTSKIN_ENABLED ??= "true";
+	environment.RUMPELSTILTSKIN_ACCESS ??= "authenticated";
 	const settings = profileSettings(profile, target);
+	requireRumpelstiltskinPreparation(environment);
 	for (const key of ["BETTER_AUTH_SECRET", "WORKFLOWS_DISPATCH_SECRET"])
 		if (!environment[key] || environment[key].length < 32)
 			throw new Error(`MISSING_OR_SHORT_SECRET: ${key}`);
@@ -153,7 +139,6 @@ export function createProfileArtifacts(options: {
 			);
 		}
 	}
-	requireRumpelstiltskinTestPreparation(environment);
 	const videoWorkflow = {
 		name: `ezpic-video-v1-${profile}-${target}`,
 		binding: "VIDEO_WORKFLOW",
@@ -221,6 +206,9 @@ export function createProfileArtifacts(options: {
 	const jobVars = jobs.vars as Record<string, unknown>;
 	delete jobVars.VIDEO_V1_BUILD_ENABLED;
 	delete jobVars.VIDEO_V1_BUILD_ACCESS;
+	delete jobVars.VIDEO_V1_BUILD_PRICE_VERSION;
+	delete jobVars.VIDEO_V1_BUILD_PRICE_BASIS;
+	delete jobVars.VIDEO_V1_BUILD_PRICE_EXPIRY;
 	delete jobVars.HOTEL_LOBBY_DUO_BUILD_ENABLED;
 	delete jobVars.HOTEL_LOBBY_DUO_RUNTIME_CONFIG;
 	delete jobVars.RAINDANCE_RUNTIME_CONFIG;
@@ -229,7 +217,11 @@ export function createProfileArtifacts(options: {
 		...VIDEO_RUNTIME_ENVIRONMENT_KEYS,
 		...VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
 	]) {
-		if (jobVars[key] !== undefined && jobVars[key] !== effectiveVideo[key])
+		if (
+			!["VIDEO_V1_ALLOWED_USER_IDS", "VIDEO_MODEL_ALLOWED_OPTIONS"].includes(key) &&
+			jobVars[key] !== undefined &&
+			jobVars[key] !== effectiveVideo[key]
+		)
 			throw new Error("VIDEO_RUNTIME_TEMPLATE_CONFLICT");
 		delete jobVars[key];
 	}
@@ -271,6 +263,11 @@ export function createProfileArtifacts(options: {
 			key.startsWith("CLOUDFLARE_") ||
 			key === "VIDEO_V1_BUILD_ENABLED" ||
 			key === "VIDEO_V1_BUILD_ACCESS" ||
+			key === "VIDEO_V1_BUILD_PRICE_VERSION" ||
+			key === "VIDEO_V1_BUILD_PRICE_BASIS" ||
+			key === "VIDEO_V1_BUILD_PRICE_EXPIRY" ||
+			key === "VIDEO_V1_ALLOWED_USER_IDS" ||
+			key === "VIDEO_MODEL_ALLOWED_OPTIONS" ||
 			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" ||
 			key === "RAINDANCE_RUNTIME_CONFIG" ||
@@ -324,6 +321,9 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 	const nonRuntimeVariables = new Set([
 		"VIDEO_V1_BUILD_ENABLED",
 		"VIDEO_V1_BUILD_ACCESS",
+		"VIDEO_V1_BUILD_PRICE_VERSION",
+		"VIDEO_V1_BUILD_PRICE_BASIS",
+		"VIDEO_V1_BUILD_PRICE_EXPIRY",
 		"HOTEL_LOBBY_DUO_BUILD_ENABLED",
 		"HOTEL_LOBBY_DUO_RUNTIME_CONFIG",
 		"RAINDANCE_RUNTIME_CONFIG",

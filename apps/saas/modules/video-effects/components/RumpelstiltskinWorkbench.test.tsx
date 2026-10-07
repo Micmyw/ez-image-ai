@@ -45,7 +45,7 @@ beforeEach(() => {
 	});
 });
 
-describe("Rumpelstiltskin internal workbench", () => {
+describe("Rumpelstiltskin account workbench", () => {
 	it("renders only existing task and history when generation admission has closed", () => {
 		const html = renderToStaticMarkup(
 			<NextIntlClientProvider locale="en" messages={en} timeZone="UTC">
@@ -79,10 +79,11 @@ describe("Rumpelstiltskin internal workbench", () => {
 			expect(html).not.toContain(messages.videoEffects.addCredits);
 			expect(html).not.toContain(messages.videoEffects.swap);
 			expect(html).not.toMatch(/<video|<img|type="url"|69 credits|seedance|kie|providerModel/i);
+			expect(html).not.toMatch(/internal test|solo test|Interner Test|Solotest/i);
 			expect(errors).not.toHaveBeenCalled();
 		},
 	);
-	it("queries the test effect independently from the existing paid templates", async () => {
+	it("queries the effect independently from the other paid templates", async () => {
 		renderToStaticMarkup(
 			<NextIntlClientProvider locale="en" messages={en} timeZone="UTC">
 				<RumpelstiltskinWorkbench initialJobId={null} />

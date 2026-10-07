@@ -30,6 +30,42 @@ const staged = {
 const response = (result: unknown) => Response.json({ success: true, result });
 
 describe("retired Worker bindings", () => {
+	it("retires obsolete video access text fields without requiring replacement restrictions", async () => {
+		const obsolete = [
+			{ name: "VIDEO_V1_ALLOWED_USER_IDS", type: "secret_text" },
+			{ name: "VIDEO_MODEL_ALLOWED_OPTIONS", type: "plain_text" },
+		];
+		const preserved = [
+			{ name: "VIDEO_V1_ENABLED", type: "plain_text" },
+			{ name: "KIE_API_KEY", type: "secret_text" },
+			{ name: "VIDEO_WORKFLOW", type: "workflow" },
+			{ name: "UNRELATED_PRIVATE_SETTING", type: "secret_text" },
+		];
+		const request = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(response({ id: "old-version", bindings: [...obsolete, ...preserved] }))
+			.mockResolvedValueOnce(response({ id: "staged-version", bindings: preserved }));
+		await expect(
+			stageRetiredWorkerBindings(
+				{
+					...options,
+					nextBindingNames: ["VIDEO_RUNTIME_CONFIG", ...preserved.map(({ name }) => name)],
+					nextVideoRuntimeConfig: JSON.stringify({
+						VIDEO_MODEL_CONTRACT_VERSION: "fixture-current-contract",
+						VIDEO_PRICE_VALID_UNTIL: "none",
+					}),
+				},
+				request,
+			),
+		).resolves.toEqual({
+			versionId: "staged-version",
+			retired: obsolete.map(({ name }) => name),
+		});
+		expect(JSON.parse(request.mock.calls[1]![1]!.body as string).env).toEqual({
+			VIDEO_V1_ALLOWED_USER_IDS: null,
+			VIDEO_MODEL_ALLOWED_OPTIONS: null,
+		});
+	});
 	it("stages covered video settings while preserving the flat kill switch, secrets, and resources", async () => {
 		const settings = {
 			VIDEO_V1_PROVIDER_CONCURRENCY: "5",

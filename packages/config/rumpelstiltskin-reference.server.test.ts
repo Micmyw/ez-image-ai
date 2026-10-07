@@ -2,11 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
 	approvedRumpelstiltskinMotionReferenceSchema,
+	createPublicRumpelstiltskinCostApproval,
 	readApprovedRumpelstiltskinMotionReference,
 	readRumpelstiltskinCostApproval,
 	RUMPELSTILTSKIN_TEMPLATE_VERSION,
 	RUMPELSTILTSKIN_PRICE_VERSION,
 	RUMPELSTILTSKIN_SAFETY_POLICY_VERSION,
+	RUMPELSTILTSKIN_PUBLIC_COST_POLICY,
 } from "./rumpelstiltskin-reference.server";
 import { RUMPELSTILTSKIN_PUBLIC_EFFECT, videoEffectRequestSchema } from "./video-effects";
 import { canAccessVideoEffect, readVideoEffectAccessScope } from "./video-effects-access.server";
@@ -111,15 +113,6 @@ function environment() {
 		RUMPELSTILTSKIN_COST_APPROVAL: JSON.stringify(approval),
 		VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
 		VIDEO_V1_TEXT_SAFETY_ADAPTER: "waffo",
-		VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
-			{
-				productKey: "video-seedance-2",
-				modes: ["image-to-video"],
-				durations: [5],
-				resolutions: ["720p"],
-				sounds: [false],
-			},
-		]),
 	};
 }
 beforeEach(() => {
@@ -130,7 +123,7 @@ afterEach(() => {
 	vi.useRealTimers();
 });
 
-describe("independent internal motion-reference contract", () => {
+describe("independent motion-reference contract", () => {
 	it("accepts one subject and refuses a second uploaded identity or client motion override", () => {
 		expect(videoEffectRequestSchema.parse(request)).toEqual(request);
 		expect(
@@ -170,15 +163,11 @@ describe("independent internal motion-reference contract", () => {
 			null,
 		])
 			expect(canAccessVideoEffect(env, user, request.effectId)).toBe(false);
-		for (const access of ["authenticated", "public", " internal", ""])
+		for (const access of ["public", " internal", ""])
 			expect(
 				readVideoEffectAccessScope({ ...env, RUMPELSTILTSKIN_ACCESS: access }, request.effectId),
 			).toBeNull();
-		for (const key of [
-			"VIDEO_V1_ENABLED",
-			"RUMPELSTILTSKIN_ENABLED",
-			"RUMPELSTILTSKIN_ALLOWED_USER_IDS",
-		])
+		for (const key of ["VIDEO_V1_ENABLED", "RUMPELSTILTSKIN_ALLOWED_USER_IDS"])
 			expect(
 				canAccessVideoEffect(
 					{ ...env, [key]: undefined },
@@ -243,8 +232,13 @@ describe("independent internal motion-reference contract", () => {
 			approvedRumpelstiltskinMotionReferenceSchema.safeParse({ ...reference, ...override }).success,
 		).toBe(false);
 	});
-	it("fails closed for missing material, disabled template, unaccepted version and model option", () => {
-		expect(() => resolveVideoEffectTemplate(request, {})).toThrow("VIDEO_EFFECT_DISABLED");
+	it("fails closed for missing material, explicit disable and unaccepted version", () => {
+		expect(() => resolveVideoEffectTemplate(request, {})).toThrow(
+			"RUMPELSTILTSKIN_REFERENCE_NOT_APPROVED",
+		);
+		expect(() =>
+			resolveVideoEffectTemplate(request, { ...environment(), RUMPELSTILTSKIN_ENABLED: "false" }),
+		).toThrow("VIDEO_EFFECT_DISABLED");
 		expect(() => createVideoEffectTemplateSnapshot(request)).toThrow(
 			"RUMPELSTILTSKIN_REFERENCE_NOT_APPROVED",
 		);
@@ -254,9 +248,11 @@ describe("independent internal motion-reference contract", () => {
 				RUMPELSTILTSKIN_ACCEPTED_TEMPLATE_VERSION: "old",
 			}),
 		).toThrow("VIDEO_EFFECT_TEMPLATE_NOT_CONFIRMED");
-		expect(() =>
-			resolveVideoEffectTemplate(request, { ...environment(), VIDEO_MODEL_ALLOWED_OPTIONS: "[]" }),
-		).toThrow();
+		for (const VIDEO_MODEL_ALLOWED_OPTIONS of [undefined, "[]", "not-json"])
+			expect(
+				resolveVideoEffectTemplate(request, { ...environment(), VIDEO_MODEL_ALLOWED_OPTIONS }).video
+					.productKey,
+			).toBe("video-seedance-2");
 		for (const part of ["review", "rights"] as const)
 			expect(() =>
 				readApprovedRumpelstiltskinMotionReference({
@@ -271,18 +267,123 @@ describe("independent internal motion-reference contract", () => {
 });
 
 describe("independent complete reference-video cost approval", () => {
-	it("cannot obtain a quote by inheriting legacy costs, public tariffs or funding", () => {
+	it.each([2, 3, 4, 5, 15, 2.25])(
+		"uses total input-plus-output billed seconds for public reference duration %s",
+		(durationSeconds) => {
+			vi.setSystemTime(new Date("2026-10-07T18:00:00Z"));
+			const motion = { ...reference, durationSeconds };
+			const price = referencePrice({
+				...environment(),
+				RUMPELSTILTSKIN_COST_APPROVAL: undefined,
+				RUMPELSTILTSKIN_ENABLED: undefined,
+				RUMPELSTILTSKIN_ACCEPTED_TEMPLATE_VERSION: undefined,
+				RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: JSON.stringify(motion),
+				VIDEO_PRICE_VALID_UNTIL: "none",
+			});
+			expect(price.providerCostMicros).toBe(BigInt(Math.ceil(durationSeconds) + 5) * 125000n);
+			expect(price.moderationCostMicros).toBe(115000n);
+			expect(price.pricingDetails.costApprovalEvidence).toMatchObject({
+				kind: "public-source-conservative-budget",
+				checkedAt: RUMPELSTILTSKIN_PUBLIC_COST_POLICY.checkedAt,
+			});
+			expect(price.pricingDetails.costApprovalEvidence?.sourceUrls).toContain(
+				"https://kie.ai/seedance-2-0?model=bytedance/seedance-2",
+			);
+			expect(price.pricingDetails).toMatchObject({
+				priceApprovalExpiryMode: "until",
+				validUntil: "2026-10-09T00:00:00.000Z",
+			});
+			expect(BigInt(price.pricingDetails.minimumNetRevenueMicros)).toBeGreaterThanOrEqual(
+				3n * BigInt(price.pricingDetails.riskAdjustedOperatingCostMicros),
+			);
+			expect(BigInt(price.pricingDetails.netProfitBps)).toBeGreaterThanOrEqual(20000n);
+			expect(price.paidFundingPolicy.minimumUsdMicrosPerCredit).toBe(21944n);
+		},
+	);
+	it("does not fabricate missing reference or rights approval to obtain a public quote", () => {
+		vi.setSystemTime(new Date("2026-10-07T18:00:00Z"));
+		expect(() => readRumpelstiltskinCostApproval({})).toThrow("RUMPELSTILTSKIN_COST_NOT_APPROVED");
+		for (const motion of [
+			{ ...reference, audioTrackCount: 1 },
+			{ ...reference, durationSeconds: 1 },
+			{ ...reference, rights: { ...reference.rights, approvalId: "" } },
+		])
+			expect(() =>
+				createPublicRumpelstiltskinCostApproval(
+					motion as unknown as Parameters<typeof createPublicRumpelstiltskinCostApproval>[0],
+				),
+			).toThrow("RUMPELSTILTSKIN_REFERENCE_INVALID");
+		expect(() =>
+			referencePrice({
+				...environment(),
+				RUMPELSTILTSKIN_COST_APPROVAL: undefined,
+				RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: undefined,
+			}),
+		).toThrow("RUMPELSTILTSKIN_REFERENCE_NOT_APPROVED");
+	});
+	it("expires the public budget after seven days even if ordinary pricing has no deadline", () => {
+		const motion = {
+			...reference,
+			review: { ...reference.review, validUntil: "2026-10-20T00:00:00Z" },
+			rights: { ...reference.rights, validUntil: "2026-10-20T00:00:00Z" },
+		};
+		vi.setSystemTime(new Date("2026-10-07T18:00:00Z"));
 		const env = {
 			...environment(),
 			RUMPELSTILTSKIN_COST_APPROVAL: undefined,
+			VIDEO_PRICE_VALID_UNTIL: "none",
+			RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: JSON.stringify(motion),
+		};
+		expect(referencePrice(env).pricingDetails.validUntil).toBe("2026-10-14T16:47:22.000Z");
+		vi.setSystemTime(new Date(RUMPELSTILTSKIN_PUBLIC_COST_POLICY.validUntil));
+		expect(() => referencePrice(env)).toThrow("RUMPELSTILTSKIN_COST_EXPIRED");
+	});
+	it.each(["none", "invalid-date", ""])(
+		"does not remove independent approval deadlines using %s",
+		(validUntil) => {
+			expect(() =>
+				referencePrice({
+					...environment(),
+					VIDEO_PRICE_VALID_UNTIL: "none",
+					RUMPELSTILTSKIN_COST_APPROVAL: JSON.stringify({ ...approval, validUntil }),
+				}),
+			).toThrow("RUMPELSTILTSKIN_COST_INVALID");
+			expect(() =>
+				referencePrice({
+					...environment(),
+					VIDEO_PRICE_VALID_UNTIL: "none",
+					RUMPELSTILTSKIN_COST_APPROVAL: JSON.stringify({
+						...approval,
+						revenue: { ...approval.revenue, validUntil },
+					}),
+				}),
+			).toThrow("RUMPELSTILTSKIN_COST_INVALID");
+		},
+	);
+	it.each([{ markupBps: 19999 }, { paymentFeeBps: -1 }, { nonBillableFailureBps: 0 }])(
+		"rejects an unsafe full-cost assumption %j",
+		(costs) => {
+			expect(() =>
+				referencePrice({
+					...environment(),
+					RUMPELSTILTSKIN_COST_APPROVAL: JSON.stringify({
+						...approval,
+						costs: { ...approval.costs, ...costs },
+					}),
+				}),
+			).toThrow("RUMPELSTILTSKIN_COST_INVALID");
+		},
+	);
+	it("cannot substitute a malformed independent approval with legacy costs or funding", () => {
+		const env = {
+			...environment(),
+			RUMPELSTILTSKIN_COST_APPROVAL: "{}",
 			HOTEL_LOBBY_DUO_PRICE_VERSION: "hotel-lobby-duo-cost-2026-10-05.2",
 			HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2026-11-01T00:00:00Z",
 			VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
 			VIDEO_PRICE_VALID_UNTIL: "2026-11-01T00:00:00Z",
 		};
-		expect(() => resolveVideoEffectPrice(request, env)).toThrow(
-			"RUMPELSTILTSKIN_COST_NOT_APPROVED",
-		);
+		expect(() => resolveVideoEffectPrice(request, env)).toThrow("RUMPELSTILTSKIN_COST_INVALID");
 	});
 	it("counts a subject image, reference video, output video and the one submitted prompt explicitly", () => {
 		const price = resolveVideoEffectPrice(request, environment());

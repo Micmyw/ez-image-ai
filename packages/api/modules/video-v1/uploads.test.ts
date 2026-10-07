@@ -62,19 +62,7 @@ const asset = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	vi.stubEnv("VIDEO_V1_ENABLED", "true");
-	vi.stubEnv("VIDEO_V1_ALLOWED_USER_IDS", "owner");
-	vi.stubEnv(
-		"VIDEO_MODEL_ALLOWED_OPTIONS",
-		JSON.stringify([
-			{
-				productKey: "video-kling-2-6-v1",
-				modes: ["image-to-video"],
-				durations: [5],
-				resolutions: ["default"],
-				sounds: [false],
-			},
-		]),
-	);
+	vi.stubEnv("VIDEO_V1_ACCESS", "authenticated");
 	vi.mocked(getVideoUploadSession).mockResolvedValue({ asset } as never);
 	vi.mocked(recordVideoInputIdentity).mockImplementation(
 		async (value) => ({ ...asset, ...value, byteSize: BigInt(value.bytes) }) as never,

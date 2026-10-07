@@ -81,27 +81,24 @@ describe("video V1 configuration", () => {
 			videoV1Readiness({ SEEAPI_API_KEY: "test", VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi" }).reasons,
 		).toContain("VIDEO_MODERATION_NOT_CONFIGURED");
 	});
-	it("authorizes only explicitly allowlisted members or administrators", () => {
-		const config = readVideoV1Config({
-			VIDEO_V1_ENABLED: "true",
-			VIDEO_V1_ALLOWED_USER_IDS: "user1",
-		});
-		expect(canAccessVideoV1(config, { id: "user1" })).toBe(true);
-		expect(canAccessVideoV1(config, { id: "user2" })).toBe(false);
+	it.each([undefined, "internal"])("keeps scope %j as an administrator-only rollback", (scope) => {
+		const config = readVideoV1Config({ VIDEO_V1_ENABLED: "true", VIDEO_V1_ACCESS: scope });
+		expect(canAccessVideoV1(config, { id: "registered-customer", role: "user" })).toBe(false);
 		expect(canAccessVideoV1(config, { id: "operator", role: "admin" })).toBe(true);
-		expect(canAccessVideoV1(config, null)).toBe(false);
+		expect(canAccessVideoV1({ ...config, enabled: false }, { id: "operator", role: "admin" })).toBe(
+			false,
+		);
 	});
 	it("explicitly admits registered customers without widening the internal audience", () => {
 		const config = readVideoV1Config({
 			VIDEO_V1_ENABLED: "true",
 			VIDEO_V1_ACCESS: "authenticated",
-			VIDEO_V1_ALLOWED_USER_IDS: "internal-owner",
 		});
 		const customer = { id: "registered-customer", role: "user", isAnonymous: false };
 		expect(config.access).toBe("authenticated");
 		expect(canAccessVideoV1(config, customer)).toBe(true);
 		expect(canAccessInternalVideoV1(config, customer)).toBe(false);
-		expect(canAccessInternalVideoV1(config, { id: "internal-owner" })).toBe(true);
+		expect(canAccessInternalVideoV1(config, { id: "operator", role: "admin" })).toBe(true);
 		expect(canAccessVideoV1({ ...config, enabled: false }, customer)).toBe(false);
 	});
 	it.each([undefined, "internal", "authenticated"])(
@@ -110,7 +107,6 @@ describe("video V1 configuration", () => {
 			const config = readVideoV1Config({
 				VIDEO_V1_ENABLED: "true",
 				VIDEO_V1_ACCESS: scope,
-				VIDEO_V1_ALLOWED_USER_IDS: "guest",
 			});
 			for (const user of [
 				null,

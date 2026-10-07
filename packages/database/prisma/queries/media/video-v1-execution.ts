@@ -4,7 +4,6 @@ import {
 	readVideoTextSafetyProfile,
 	videoTextSafetyProfilesMatch,
 } from "@repo/config/video-text-safety";
-import { z } from "zod";
 
 import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
@@ -20,6 +19,7 @@ import {
 	isVideoTemplateReference,
 } from "./video-template-reference";
 import { videoTemplateHasUnsettledScene } from "./video-template-storage";
+import { assertVideoPriceApprovalValid } from "./video-v1-price-approval";
 import {
 	lockVideoOwnerStorage,
 	releaseVideoPreOutputCapacity,
@@ -29,7 +29,6 @@ import {
 
 const ENGINE = "video-workflow-v1";
 const terminal = new Set(["READY", "FAILED", "REJECTED"]);
-const priceDeadlineSchema = z.iso.datetime({ offset: true });
 const object = (value: unknown): Record<string, unknown> =>
 	value && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)
@@ -242,10 +241,7 @@ export async function claimVideoProviderSubmission(input: {
 			clock.now,
 		);
 		const pricingDetails = object(object(job.pricingSnapshot).pricingDetails);
-		const priceDeadline = priceDeadlineSchema.safeParse(pricingDetails.validUntil);
-		if (!priceDeadline.success) throw new Error("VIDEO_PRICE_INVALID");
-		if (Date.parse(priceDeadline.data) <= clock.now.getTime())
-			throw new Error("VIDEO_PRICE_EXPIRED");
+		assertVideoPriceApprovalValid(pricingDetails, clock.now);
 		if (
 			pricingDetails.funding !== undefined &&
 			(!readVideoInternalFundingSnapshot(pricingDetails.funding, job.ownerId, clock.now) ||

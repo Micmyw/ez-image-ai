@@ -45,6 +45,9 @@ export function deploymentEnvironment(
 				value &&
 				key !== "VIDEO_V1_BUILD_ENABLED" &&
 				key !== "VIDEO_V1_BUILD_ACCESS" &&
+				key !== "VIDEO_V1_BUILD_PRICE_VERSION" &&
+				key !== "VIDEO_V1_BUILD_PRICE_BASIS" &&
+				key !== "VIDEO_V1_BUILD_PRICE_EXPIRY" &&
 				key !== "HOTEL_LOBBY_DUO_BUILD_ENABLED" &&
 				key !== "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" &&
 				!isRetiredModerationBinding(key) &&

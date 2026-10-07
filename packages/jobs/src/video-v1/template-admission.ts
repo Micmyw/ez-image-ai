@@ -46,7 +46,7 @@ export const VIDEO_EFFECT_CAPABILITY_REQUEST: VideoEffectRequest = {
 	inputs: { leftAssetId: "capability-left", rightAssetId: "capability-right" },
 };
 
-/** Client-safe diagnostics for the closed test entry. Private manifests and approval data stay here. */
+/** Client-safe readiness diagnostics. Private manifests and approval data stay here. */
 export function readVideoEffectTestReadiness(
 	effectId: VideoEffectId,
 	environment: Record<string, string | undefined>,
@@ -63,14 +63,18 @@ export function readVideoEffectTestReadiness(
 				: "MOTION_REFERENCE_REQUIRED",
 		);
 	}
-	try {
-		readRumpelstiltskinCostApproval(environment, reference);
-	} catch {
-		reasons.push(
-			environment.RUMPELSTILTSKIN_COST_APPROVAL
-				? "COST_APPROVAL_INVALID"
-				: "COST_APPROVAL_REQUIRED",
-		);
+	// The dated public budget is bound to the actual reference duration at quotation.
+	// Missing material alone does not imply missing public pricing approval.
+	if (reference || environment.RUMPELSTILTSKIN_COST_APPROVAL) {
+		try {
+			readRumpelstiltskinCostApproval(environment, reference);
+		} catch {
+			reasons.push(
+				environment.RUMPELSTILTSKIN_COST_APPROVAL
+					? "COST_APPROVAL_INVALID"
+					: "COST_APPROVAL_REQUIRED",
+			);
+		}
 	}
 	return reasons;
 }

@@ -42,10 +42,13 @@ type Scenario = {
 	available: boolean;
 	creates: Array<Record<string, unknown>>;
 	quotes: number;
+	catalogReads: number;
 	gets: number;
 	playback: number;
 	loseFirstResponse: boolean;
 	quoteError: string | null;
+	createError: string | null;
+	quoteCredits: string;
 	quoteExpired: boolean;
 	quoteRequests: Array<Record<string, unknown>>;
 	blockedSound: boolean;
@@ -56,10 +59,13 @@ function scenario(): Scenario {
 		available: true,
 		creates: [],
 		quotes: 0,
+		catalogReads: 0,
 		gets: 0,
 		playback: 0,
 		loseFirstResponse: false,
 		quoteError: null,
+		createError: null,
+		quoteCredits: "23",
 		quoteExpired: false,
 		quoteRequests: [],
 		blockedSound: false,
@@ -86,7 +92,15 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 			updatedAt: "2026-10-04T00:00:00Z",
 		};
 		const reply = (json: unknown) => route.fulfill({ json: { json } });
-		if (endpoint === "catalog")
+		const reject = (code: string) =>
+			route.fulfill({
+				status: 400,
+				json: {
+					json: { defined: false, code: "BAD_REQUEST", status: 400, message: code, data: { code } },
+				},
+			});
+		if (endpoint === "catalog") {
+			state.catalogReads++;
 			return reply({
 				available: state.available,
 				accessAllowed: true,
@@ -123,25 +137,14 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 					]),
 				})),
 			});
+		}
 		if (endpoint === "quote") {
 			state.quotes++;
 			state.quoteRequests.push(body);
-			if (state.quoteError)
-				return route.fulfill({
-					status: 400,
-					json: {
-						json: {
-							defined: false,
-							code: "BAD_REQUEST",
-							status: 400,
-							message: state.quoteError,
-							data: { code: state.quoteError },
-						},
-					},
-				});
+			if (state.quoteError) return reject(state.quoteError);
 			return reply({
-				quoteId: "ui-mock-quote-1",
-				credits: "23",
+				quoteId: `ui-mock-quote-${state.quotes}`,
+				credits: state.quoteCredits,
 				expiresAt: new Date(Date.now() + (state.quoteExpired ? -1000 : 60_000)).toISOString(),
 				requestFingerprint: "ui-mock-fingerprint",
 			});
@@ -150,6 +153,7 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 			state.creates.push(body);
 			if (state.loseFirstResponse && state.creates.length === 1)
 				return route.abort("connectionreset");
+			if (state.createError) return reject(state.createError);
 			return reply(job);
 		}
 		if (endpoint === "jobs/get") {
@@ -267,19 +271,151 @@ test("UI Mock: text confirmation, refresh, closed-page recovery and private play
 test("UI Mock: interrupted confirmation retains its exact key through reload", async ({
 	context,
 	page,
-}) => {
+}, testInfo) => {
 	const state = scenario();
 	state.loseFirstResponse = true;
 	await setup(context, page, state);
 	await quoteAndConfirm(page);
 	await expect(page.getByRole("button", { name: "Check the same request" })).toBeEnabled();
+	await expect.poll(() => pendingConfirmations(page)).toHaveLength(1);
+	await page.evaluate(() => {
+		for (const key of Object.keys(sessionStorage).filter((entry) =>
+			entry.startsWith("video-v1:confirmation:"),
+		)) {
+			const confirmation = JSON.parse(sessionStorage.getItem(key)!);
+			confirmation.quote.expiresAt = "2000-01-01T00:00:00.000Z";
+			sessionStorage.setItem(key, JSON.stringify(confirmation));
+		}
+	});
+	state.available = false;
 	await page.reload();
+	await expect(page.getByRole("button", { name: "Check the same request" })).toBeEnabled();
+	await page.screenshot({
+		path: testInfo.outputPath("uncertain-replay-after-catalog-and-quote-expiry.png"),
+		fullPage: true,
+		animations: "disabled",
+	});
 	await page.getByRole("button", { name: "Check the same request" }).click();
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
 	expect(state.creates).toHaveLength(2);
 	expect(state.creates[1]).toEqual(state.creates[0]);
 	expect(state.quotes).toBe(1);
 });
+
+async function pendingConfirmations(page: Page) {
+	return page.evaluate(() =>
+		Object.keys(sessionStorage)
+			.filter((key) => key.startsWith("video-v1:confirmation:"))
+			.map((key) => sessionStorage.getItem(key)),
+	);
+}
+
+test("UI Mock: changed pricing requires a fresh quote and explicit confirmation with a new key", async ({
+	context,
+	page,
+}, testInfo) => {
+	const state = scenario();
+	state.createError = "PRICE_CHANGED";
+	await setup(context, page, state);
+	await quoteAndConfirm(page);
+	await expect(page.locator('[data-test="video-workspace"]').getByRole("alert")).toContainText(
+		"Review the current cost again",
+	);
+	await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
+	await expect.poll(() => pendingConfirmations(page)).toEqual([]);
+	await expect.poll(() => state.catalogReads).toBe(2);
+	expect(state.creates).toHaveLength(1);
+	await page.screenshot({
+		path: testInfo.outputPath("changed-price-rejected-quote-cleared.png"),
+		fullPage: true,
+		animations: "disabled",
+	});
+	const original = state.creates[0]!;
+	state.createError = null;
+	state.quoteCredits = "29";
+	await page.locator('[data-test="video-quote"]').click();
+	await expect(page.locator('[data-test="video-confirm"]')).toContainText("29 credits");
+	expect(state.quotes).toBe(2);
+	expect(state.creates).toHaveLength(1);
+	await expect.poll(() => pendingConfirmations(page)).toEqual([]);
+	await page.screenshot({
+		path: testInfo.outputPath("changed-price-awaiting-new-confirmation.png"),
+		fullPage: true,
+		animations: "disabled",
+	});
+	await page.locator('[data-test="video-confirm"]').click();
+	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+	expect(state.creates).toHaveLength(2);
+	expect(state.creates[1]!.quoteId).not.toBe(original.quoteId);
+	expect(state.creates[1]!.idempotencyKey).not.toBe(original.idempotencyKey);
+	expect(state.creates[1]!.request).toEqual(original.request);
+});
+
+for (const code of ["VIDEO_MODEL_PRICE_EXPIRED", "VIDEO_PRICE_EXPIRED"]) {
+	test(`UI Mock: ${code} clears a rejected stored confirmation and refreshes availability`, async ({
+		context,
+		page,
+	}, testInfo) => {
+		const state = scenario();
+		state.loseFirstResponse = true;
+		await setup(context, page, state);
+		await quoteAndConfirm(page);
+		await expect(page.getByRole("button", { name: "Check the same request" })).toBeEnabled();
+		await expect.poll(() => pendingConfirmations(page)).toHaveLength(1);
+		state.createError = code;
+		state.available = false;
+		await page.getByRole("button", { name: "Check the same request" }).click();
+		await expect(page.locator('[data-test="video-workspace"]').getByRole("alert")).toHaveText(
+			"Video pricing is temporarily unavailable. Please check back later.",
+		);
+		await expect.poll(() => pendingConfirmations(page)).toEqual([]);
+		await expect.poll(() => state.catalogReads).toBe(2);
+		await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
+		await expect(page.locator('[data-test="video-quote"]')).toBeDisabled();
+		expect(state.creates).toHaveLength(2);
+		expect(state.creates[1]).toEqual(state.creates[0]);
+		expect(state.quotes).toBe(1);
+		await page.screenshot({
+			path: testInfo.outputPath(`${code.toLowerCase()}-confirmation-cleared.png`),
+			fullPage: true,
+			animations: "disabled",
+		});
+		await page.reload();
+		await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
+		await expect(page.locator('[data-test="video-quote"]')).toBeDisabled();
+		expect(state.creates).toHaveLength(2);
+	});
+
+	test(`UI Mock: ${code} during requote clears the old quote and refreshes availability`, async ({
+		context,
+		page,
+	}, testInfo) => {
+		const state = scenario();
+		state.quoteExpired = true;
+		await setup(context, page, state);
+		await page.getByLabel("Describe your video", { exact: true }).fill("UI mock: a slow camera.");
+		await page.locator('[data-test="video-quote"]').click();
+		await expect(page.getByText("23 credits for this video", { exact: true })).toBeVisible();
+		await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
+		state.quoteError = code;
+		state.available = false;
+		await page.getByRole("button", { name: "Review credit cost", exact: true }).click();
+		await expect(page.locator('[data-test="video-workspace"]').getByRole("alert")).toHaveText(
+			"Video pricing is temporarily unavailable. Please check back later.",
+		);
+		await expect(page.getByText("23 credits for this video", { exact: true })).toHaveCount(0);
+		await expect.poll(() => state.catalogReads).toBe(2);
+		await expect(page.locator('[data-test="video-quote"]')).toBeDisabled();
+		await expect.poll(() => pendingConfirmations(page)).toEqual([]);
+		expect(state.creates).toHaveLength(0);
+		expect(state.quotes).toBe(2);
+		await page.screenshot({
+			path: testInfo.outputPath(`${code.toLowerCase()}-requote-cleared.png`),
+			fullPage: true,
+			animations: "disabled",
+		});
+	});
+}
 
 test("UI Mock: all model settings invalidate the quote and restore the exact pending receipt", async ({
 	context,

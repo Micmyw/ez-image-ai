@@ -4,14 +4,12 @@ import { createVideoAudioSafetyPolicy } from "./video-output";
 import { configuredVideoVisualSafetyProfile } from "./video-safety";
 import { createVideoTextSafetyProfile } from "./video-text-safety";
 
-/** Public list prices read on 2026-10-04, not an account-specific billing receipt. */
-export const VIDEO_SUPPLIER_PRICE_VERSION = "kie-public-2026-10-04.3";
-// Official product pages limit these tariffs to October 7 at 06:00 UTC.
-// A later operator approval cannot extend the supplier's promotional price.
-const promotionalPriceExpiry: Readonly<Record<string, number | undefined>> = {
-	"video-seedance-2-mini": Date.parse("2026-10-07T06:00:00Z"),
-	"video-seedance-2-fast": Date.parse("2026-10-07T06:00:00Z"),
-};
+/**
+ * Public price basis: Mini/Fast rechecked on 2026-10-07; other tariffs retain
+ * their earlier source evidence. This is not an account-specific billing receipt.
+ * See docs/operations/video-v1-price-basis-2026-10-07.md.
+ */
+export const VIDEO_SUPPLIER_PRICE_VERSION = "kie-public-2026-10-07.1";
 export type VideoPricingSelection = {
 	productKey: string;
 	mode: "text-to-video" | "image-to-video";
@@ -222,15 +220,14 @@ export function resolveVideoModelCostBasis(
 		!env.VIDEO_PRICE_BASIS?.trim()
 	)
 		throw new Error("VIDEO_PRICE_NOT_APPROVED");
-	const now = Date.now();
-	const approvedValidUntil = Date.parse(env.VIDEO_PRICE_VALID_UNTIL ?? "");
-	if (!Number.isFinite(approvedValidUntil) || approvedValidUntil <= now)
+	const priceApprovalExpiryMode: "none" | "until" =
+		env.VIDEO_PRICE_VALID_UNTIL === "none" ? "none" : "until";
+	const validUntil =
+		priceApprovalExpiryMode === "none" ? null : Date.parse(env.VIDEO_PRICE_VALID_UNTIL ?? "");
+	if (validUntil !== null && (!Number.isFinite(validUntil) || validUntil <= Date.now()))
 		throw new Error("VIDEO_PRICE_EXPIRED");
-	const validUntil = Math.min(
-		approvedValidUntil,
-		promotionalPriceExpiry[request.productKey] ?? Number.POSITIVE_INFINITY,
-	);
-	if (validUntil <= now) throw new Error("VIDEO_MODEL_PRICE_EXPIRED");
+	// Only the explicit operator setting "none" removes the approval deadline.
+	// Missing or malformed settings deny approval; existing finite deadlines remain enforced.
 	const visualSafetyProfile = configuredVideoVisualSafetyProfile(env, request.duration);
 	if (env.VIDEO_COST_VISUAL_POLICY_VERSION !== visualSafetyProfile.policyVersion)
 		throw new Error("VIDEO_VISUAL_COST_POLICY_NOT_CONFIRMED");
@@ -255,6 +252,7 @@ export function resolveVideoModelCostBasis(
 		providerCostMicros,
 		policy,
 		validUntil,
+		priceApprovalExpiryMode,
 		visualSafetyProfile,
 		textSafetyProfile,
 	};
@@ -268,6 +266,7 @@ export function resolveVideoModelPrice(
 		providerCostMicros,
 		policy,
 		validUntil,
+		priceApprovalExpiryMode,
 		visualSafetyProfile,
 		textSafetyProfile,
 		pricingVersion,
@@ -290,7 +289,8 @@ export function resolveVideoModelPrice(
 			visualPolicyVersion: visualSafetyProfile.policyVersion,
 			textRuleVersion: textSafetyProfile.ruleVersion,
 			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
-			validUntil: new Date(validUntil).toISOString(),
+			priceApprovalExpiryMode,
+			validUntil: validUntil === null ? null : new Date(validUntil).toISOString(),
 			costPolicy: Object.fromEntries(
 				Object.entries(policy).map(([key, value]) => [key, value.toString()]),
 			),

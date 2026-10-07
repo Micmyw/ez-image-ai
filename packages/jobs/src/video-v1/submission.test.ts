@@ -646,7 +646,6 @@ describe("authoritative provider confirmation", () => {
 		Object.assign(f.deps.env, {
 			VIDEO_MODEL_CONTRACT_VERSION: "video-models-2026-10-04.2",
 			VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
-			VIDEO_MODEL_ALLOWED_OPTIONS: "[]",
 			VIDEO_V1_ENABLED: "false",
 		});
 		expect(await confirmVideoProviderResult("job-1", f.deps)).toMatchObject({ status: "PENDING" });

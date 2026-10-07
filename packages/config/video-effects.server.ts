@@ -16,7 +16,7 @@ import {
 	videoEffectRequestSchema,
 	type VideoEffectRequest,
 } from "./video-effects";
-import { isVideoModelOptionAllowed, readVideoModelAccess } from "./video-model-access";
+import { validateVideoModelSelection } from "./video-models";
 import { createVideoAudioSafetyPolicy } from "./video-output";
 import {
 	calculateVideoRetailPrice,
@@ -322,13 +322,20 @@ export function resolveVideoEffectTemplate(
 			: request.effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID
 				? "RUMPELSTILTSKIN"
 				: "RAINDANCE";
-	if (env[`${prefix}_ENABLED`] !== "true") throw new Error("VIDEO_EFFECT_DISABLED");
+	const enabled =
+		env[`${prefix}_ENABLED`] ??
+		(request.effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID ? "true" : undefined);
+	if (enabled !== "true") throw new Error("VIDEO_EFFECT_DISABLED");
 	const template = createVideoEffectTemplateSnapshot(request, env);
-	if (env[`${prefix}_ACCEPTED_TEMPLATE_VERSION`] !== template.templateVersion)
+	const acceptedVersion =
+		env[`${prefix}_ACCEPTED_TEMPLATE_VERSION`] ??
+		(request.effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID
+			? RUMPELSTILTSKIN_TEMPLATE_VERSION
+			: undefined);
+	if (acceptedVersion !== template.templateVersion)
 		throw new Error("VIDEO_EFFECT_TEMPLATE_NOT_CONFIRMED");
-	const access = readVideoModelAccess(env);
-	if (!isVideoModelOptionAllowed(access, template.video))
-		throw new Error(access.reason ?? "VIDEO_MODEL_OPTION_NOT_ENABLED");
+	if (!validateVideoModelSelection(template.video))
+		throw new Error("VIDEO_MODEL_SELECTION_UNSUPPORTED");
 	return template;
 }
 
@@ -414,6 +421,7 @@ function resolveRumpelstiltskinTemplatePrice(
 			safetyPolicyVersion: template.safetyPolicyVersion,
 			executionKind: template.executionKind,
 			approvalId: approval.approvalId,
+			costApprovalEvidence: approval.evidence ?? null,
 			creditRevenueBasis: approval.revenue.basis,
 			minimumNetRevenueMicros: minimumNetRevenueMicros.toString(),
 			riskAdjustedOperatingCostMicros: riskAdjustedOperatingCostMicros.toString(),
@@ -426,6 +434,7 @@ function resolveRumpelstiltskinTemplatePrice(
 			textCostBasis: approval.policies.promptCostBasis,
 			textReviewCount: 1,
 			paymentCostBasis: approval.policies.paymentCostBasis,
+			priceApprovalExpiryMode: "until" as const,
 			templatePaymentFeeBps: String(costs.paymentFeeBps),
 			minimumRevenueToCostBps: String(10_000 + costs.markupBps),
 			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
@@ -552,7 +561,12 @@ export function resolveVideoEffectPrice(
 			templatePaymentFeeBps: templatePaymentFeeBps.toString(),
 			minimumRevenueToCostBps: (10_000n + markupBps).toString(),
 			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
-			validUntil: new Date(Math.min(approvedValidUntil, basis.validUntil)).toISOString(),
+			priceApprovalExpiryMode: "until" as const,
+			validUntil: new Date(
+				basis.validUntil === null
+					? approvedValidUntil
+					: Math.min(approvedValidUntil, basis.validUntil),
+			).toISOString(),
 			costComponents: {
 				sceneProviderCostMicros: sceneProviderCostMicros.toString(),
 				videoProviderCostMicros: basis.providerCostMicros.toString(),

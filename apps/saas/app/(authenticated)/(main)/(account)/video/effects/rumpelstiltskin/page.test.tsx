@@ -24,17 +24,17 @@ import RumpelstiltskinPage, { metadata } from "./page";
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	vi.stubEnv("VIDEO_V1_ENABLED", "true");
-	vi.stubEnv("RUMPELSTILTSKIN_ENABLED", "true");
-	vi.stubEnv("RUMPELSTILTSKIN_ACCESS", "internal");
-	vi.stubEnv("RUMPELSTILTSKIN_ALLOWED_USER_IDS", "tester");
+	vi.stubEnv("VIDEO_V1_ENABLED", "false");
+	vi.stubEnv("RUMPELSTILTSKIN_ENABLED", "false");
+	vi.stubEnv("RUMPELSTILTSKIN_ACCESS", "authenticated");
+	vi.stubEnv("RUMPELSTILTSKIN_ALLOWED_USER_IDS", "");
 	mocks.getSession.mockResolvedValue({ user: { id: "tester", role: "user", isAnonymous: false } });
 	mocks.getMessages.mockResolvedValue(en);
 	mocks.getOwnedJob.mockResolvedValue({ jobId: "owned-test", effectId: "rumpelstiltskin-solo" });
 });
 afterEach(() => vi.unstubAllEnvs());
 
-describe("internal solo test page", () => {
+describe("authenticated Rumpelstiltskin page", () => {
 	it("stays noindex and provides feature translations inside the video account layout", async () => {
 		expect(metadata.robots).toEqual({ index: false, follow: false });
 		const page = await RumpelstiltskinPage({
@@ -42,10 +42,11 @@ describe("internal solo test page", () => {
 		});
 		expect(page.props.messages).toEqual({ videoEffects: en.videoEffects });
 		expect(page.props.children.props.initialJobId).toBe("owned-test");
-		expect(page.props.children.props.readOnly).toBe(false);
+		expect(page.props.children.props.readOnly).toBe(true);
+		expect(mocks.getOwnedJob).toHaveBeenCalledWith({ userId: "tester" }, "owned-test");
 	});
-	it.each([null, { id: "tester", isAnonymous: true }, { id: "outsider", role: "admin" }])(
-		"hides the test entry from unapproved or anonymous accounts",
+	it.each([null, { id: "tester", isAnonymous: true }])(
+		"hides the account entry from unauthenticated or anonymous visitors",
 		async (user) => {
 			mocks.getSession.mockResolvedValue(user ? { user } : null);
 			await expect(RumpelstiltskinPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
@@ -54,16 +55,23 @@ describe("internal solo test page", () => {
 			expect(mocks.getMessages).not.toHaveBeenCalled();
 		},
 	);
-	it("does not open the internal test when its feature flag is disabled", async () => {
-		vi.stubEnv("RUMPELSTILTSKIN_ENABLED", "false");
-		await expect(RumpelstiltskinPage({ searchParams: Promise.resolve({}) })).rejects.toThrow(
-			"NOT_FOUND",
-		);
-	});
-	it.each(["RUMPELSTILTSKIN_ENABLED", "RUMPELSTILTSKIN_ALLOWED_USER_IDS", "VIDEO_V1_ENABLED"])(
-		"keeps a verified owned test readable when %s closes new generation",
+	it.each([
+		{ id: "customer", role: "user" },
+		{ id: "another-account", role: "admin" },
+	])(
+		"keeps the default entry visible to a registered account with generation closed and no test allowlist",
+		async (user) => {
+			mocks.getSession.mockResolvedValue({ user });
+			const page = await RumpelstiltskinPage({ searchParams: Promise.resolve({}) });
+			expect(page.props.children.props.initialJobId).toBeNull();
+			expect(page.props.children.props.readOnly).toBe(false);
+			expect(mocks.getOwnedJob).not.toHaveBeenCalled();
+		},
+	);
+	it.each(["RUMPELSTILTSKIN_ENABLED", "VIDEO_V1_ENABLED"])(
+		"keeps a verified owned video readable when %s closes new generation",
 		async (setting) => {
-			vi.stubEnv(setting, setting.endsWith("USER_IDS") ? "another-user" : "false");
+			vi.stubEnv(setting, "false");
 			const page = await RumpelstiltskinPage({
 				searchParams: Promise.resolve({ job: "owned-test" }),
 			});
@@ -84,22 +92,23 @@ describe("internal solo test page", () => {
 			expect(mocks.getMessages).not.toHaveBeenCalled();
 		},
 	);
-	it("does not use another owned template to open the closed internal test entry", async () => {
+	it("does not render another owned template in this effect's history view", async () => {
 		vi.stubEnv("RUMPELSTILTSKIN_ENABLED", "false");
 		mocks.getOwnedJob.mockResolvedValueOnce({ jobId: "lobby-job", effectId: "hotel-lobby-duo" });
 		await expect(
 			RumpelstiltskinPage({ searchParams: Promise.resolve({ job: "lobby-job" }) }),
 		).rejects.toThrow("NOT_FOUND");
 	});
-	it("rejects anonymous history and malformed IDs before reading owned jobs", async () => {
+	it("rejects anonymous history and drops malformed IDs before reading owned jobs", async () => {
 		vi.stubEnv("RUMPELSTILTSKIN_ENABLED", "false");
 		mocks.getSession.mockResolvedValueOnce({ user: { id: "tester", isAnonymous: true } });
 		await expect(
 			RumpelstiltskinPage({ searchParams: Promise.resolve({ job: "owned-test" }) }),
 		).rejects.toThrow("NOT_FOUND");
-		await expect(
-			RumpelstiltskinPage({ searchParams: Promise.resolve({ job: "https://private.example" }) }),
-		).rejects.toThrow("NOT_FOUND");
+		const page = await RumpelstiltskinPage({
+			searchParams: Promise.resolve({ job: "https://private.example" }),
+		});
+		expect(page.props.children.props.initialJobId).toBeNull();
 		expect(mocks.getOwnedJob).not.toHaveBeenCalled();
 	});
 	it.each(["https://private.example?token=secret", ["task", "other"], ""])(

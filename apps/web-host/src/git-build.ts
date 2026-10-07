@@ -44,7 +44,9 @@ async function readEnvironment() {
 }
 
 if (command === "build") {
-	const source = readCloudflareBuildEnvironment(process.env);
+	const source = readCloudflareBuildEnvironment(process.env, (evidence) => {
+		process.stdout.write(`Video price base preflight: ${JSON.stringify(evidence)}\n`);
+	});
 	const input = parseEnvironment(source);
 	const environment = deploymentEnvironment(input, "https://ezimageai.com");
 	assertAutomaticReleaseEnvironment(environment);

@@ -15,6 +15,10 @@ const retirementCandidates = new Set([
 	"MODERATION_TEXT_WAFFO_ENABLED",
 	"MODERATION_IMAGE_SEEAPI_ENABLED",
 ]);
+const retiredVideoAccessBindings = new Set([
+	"VIDEO_V1_ALLOWED_USER_IDS",
+	"VIDEO_MODEL_ALLOWED_OPTIONS",
+]);
 
 interface WorkerVersion {
 	id: string;
@@ -44,6 +48,7 @@ export async function stageRetiredWorkerBindings(
 	if (options.nextBindingNames.includes("VIDEO_RUNTIME_CONFIG")) {
 		packedVideoKeys = new Set(Object.keys(parseVideoRuntimeConfig(options.nextVideoRuntimeConfig)));
 		for (const key of packedVideoKeys) candidates.add(key);
+		for (const key of retiredVideoAccessBindings) candidates.add(key);
 	}
 	const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(options.accountId)}/workers/workers/${encodeURIComponent(options.scriptName)}/versions/latest`;
 	async function version(method: "GET" | "PATCH", body?: unknown) {
@@ -81,6 +86,7 @@ export async function stageRetiredWorkerBindings(
 		for (const { name, type } of current.bindings) {
 			if (
 				videoNames.has(name) &&
+				!retiredVideoAccessBindings.has(name) &&
 				["secret_text", "plain_text"].includes(type) &&
 				!next.has(name) &&
 				!packedVideoKeys.has(name)

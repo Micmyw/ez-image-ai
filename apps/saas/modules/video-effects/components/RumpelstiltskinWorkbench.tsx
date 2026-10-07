@@ -18,7 +18,7 @@ export function RumpelstiltskinWorkbench({
 	return (
 		<main className="ve-page">
 			<header className="ve-intro">
-				<span className="ve-beta">{t("rumpelstiltskin.internalTest")}</span>
+				<span className="ve-eyebrow">{t("rumpelstiltskin.label")}</span>
 				<h1>{t("rumpelstiltskin.title")}</h1>
 				<p>{t(readOnly ? "historyHint" : "rumpelstiltskin.testHint")}</p>
 			</header>

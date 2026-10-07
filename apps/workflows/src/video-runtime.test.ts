@@ -108,7 +108,7 @@ describe("video Worker runtime environment", () => {
 		});
 		await withVideoRuntime(environment(bindings), async () => undefined);
 		await withVideoRuntime(environment(), async () => {
-			expect(process.env.RUMPELSTILTSKIN_ENABLED).toBe("false");
+			expect(process.env.RUMPELSTILTSKIN_ENABLED).toBe("true");
 			for (const key of [
 				...Object.keys(privatePolicy),
 				...VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,

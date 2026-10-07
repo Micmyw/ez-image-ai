@@ -2,17 +2,28 @@
 
 ## 2026-10-07
 
-### Rumpelstiltskin private reference-video test
+### Rumpelstiltskin reference-video workflow
 
-- Add a disabled-by-default, independently allowlisted account test entry using one uploaded portrait and a frozen private motion reference with Seedance 2. Review the portrait once; this path skips scene-image generation.
-- Bind motion identity, real visual-review evidence, rights receipt and expiry before quotation and paid submission. Require a separate complete-cost approval for video-reference billing; existing Hotel Lobby and ordinary-video prices do not authorize this test.
-- Preserve accepted-task recovery, private owner-scoped history and output review. Prepare an additive template migration without applying it. No licensed motion clip, real paid quality result or public launch is included.
+- Add an authenticated account entry using one uploaded portrait and a frozen private motion reference with Seedance 2. Review the portrait once; this path skips scene-image generation. Generation requires qualifying paid credits and an authorized, reviewed motion asset.
+- Price reference-video requests from dated Kie public rates and explicit conservative review, runtime, storage, payment and failure budgets. Require net revenue at least three times complete operating cost, using the lowest purchasable receipt per all issued credits.
+- Preserve accepted-task recovery, private owner-scoped history and output review. Keep missing motion material blocked without substituting a generic dance or claiming untested output quality. Real video generation testing is excluded by the user's release decision.
+
+### Kie-aligned video settings without test allowlists
+
+- Remove ordinary-video user-ID and model-option test allowlists. All signed-in, non-anonymous accounts can use implemented Kie model settings when pricing, funding and service checks pass; unsupported or unpriced provider options remain unavailable.
+- Support explicit `VIDEO_PRICE_VALID_UNTIL=none` for ordinary video without a fixed operator approval deadline. Keep the ten-minute quote lifetime, new confirmation after a price change, and immutable finite deadlines on previously accepted tasks.
+- Ignore legacy allowlist fields when reading older private policy and omit them from newly packed runtime configuration. Keep Hotel Lobby and Raindance access, complete-cost budgets and finite approvals independent; record deployment and live acceptance separately.
 
 ### Video beta for all signed-in accounts
 
 - Open the ordinary video workspace to all signed-in, non-anonymous accounts and link the Image/Video composer controls to it. Video requires qualifying paid credits; there is no guest video trial.
 - Retain the configured model and parameter allowlist, complete-cost quotes, content review, private results and recovery of the same accepted request. This audience change does not enable every listed model or certify additional paid provider combinations.
 - Keep Hotel Lobby and Raindance access and funding settings independent. Deploy compatible background code before enabling the website's authenticated audience; preserve the internal audience and admission switches for rollback.
+
+### Seedance price basis and quote renewal
+
+- Refresh the Seedance 2 Mini/Fast public price basis while retaining the existing supplier budgets and credit calculation. Replace the expired promotion restriction with the existing finite operator approval requirement; model capabilities and enabled settings remain unchanged.
+- Require a new quote and confirmation after a definite price change or expiry, while keeping interrupted confirmations tied to the same request. Document the conditional price reference and the coordinated website/Workflow configuration handoff; production release and paid acceptance are separate.
 
 ### Raindance sunset-pier video guide and beta
 

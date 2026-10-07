@@ -75,6 +75,7 @@ describe("homepage and signed-in tool navigation", () => {
 			expect(state.videoNavigationImported).not.toHaveBeenCalled();
 			const markup = await renderShell();
 			expect(markup).not.toContain('href="/video"');
+			expect(markup).not.toContain('href="/video/effects/rumpelstiltskin"');
 			expect(state.videoNavigationImported).not.toHaveBeenCalled();
 		},
 	);
@@ -93,6 +94,15 @@ describe("homepage and signed-in tool navigation", () => {
 		state.user = { id: "owner" };
 		const markup = await renderShell();
 		expect(markup).not.toContain('href="/video"');
+		expect(markup).toContain('href="/video/effects/rumpelstiltskin"');
+	});
+	it("marks the registered Rumpelstiltskin entry active on its account page", async () => {
+		state.pathname = "/video/effects/rumpelstiltskin";
+		state.user = { id: "customer" };
+		const markup = await renderShell();
+		expect(markup).toMatch(
+			/class="studio-nav-link is-active"[^>]*href="\/video\/effects\/rumpelstiltskin"/,
+		);
 	});
 
 	it("opens a model page from the create sidebar instead of only changing the form query", async () => {
@@ -188,6 +198,7 @@ describe("homepage and signed-in tool navigation", () => {
 			expect(markup).not.toContain("Account menu");
 			expect(markup).not.toContain('href="/history"');
 			expect(markup).not.toContain('href="/settings');
+			expect(markup).not.toContain('href="/video/effects/rumpelstiltskin"');
 		},
 	);
 });

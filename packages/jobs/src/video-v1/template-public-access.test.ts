@@ -52,7 +52,7 @@ import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { requireVideoAdmission } from "./admission";
 import { requireVideoTemplateAdmission } from "./template-admission";
 
-// Real authorization, model whitelist and safety/readiness; only prices/storage are local fixtures.
+// Real authorization, model contracts and safety/readiness; only prices/storage are local fixtures.
 const base = {
 	VIDEO_V1_ENABLED: "true",
 	HOTEL_LOBBY_DUO_ENABLED: "true",
@@ -61,21 +61,11 @@ const base = {
 	MEDIA_GENERATION_ENABLED: "true",
 	MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
 	MEDIA_ENABLED_PROVIDERS: "kie",
-	VIDEO_V1_ACCESS: "internal",
-	VIDEO_V1_ALLOWED_USER_IDS: "internal-owner",
+	VIDEO_V1_ACCESS: "authenticated",
 	KIE_API_KEY: "fixture",
 	KIE_WEBHOOK_SECRET: "fixture",
 	NEXT_PUBLIC_SAAS_URL: "https://video.example.test",
 	VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
-	VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
-		{
-			productKey: "video-seedance-1-5-pro",
-			modes: ["image-to-video"],
-			durations: [5],
-			resolutions: ["720p"],
-			sounds: [false],
-		},
-	]),
 	VIDEO_V1_TEXT_SAFETY_ADAPTER: "waffo",
 	VIDEO_V1_IMAGE_SAFETY_ADAPTER: "seeapi",
 	VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
@@ -136,14 +126,14 @@ describe("authenticated template admission remains scoped and funded", () => {
 					input,
 				),
 			).toThrow("VIDEO_ACCESS_DENIED");
-			expect(() =>
+			expect(
 				requireVideoAdmission(
 					customer,
 					environment,
 					bindings,
 					requireVideoTemplateAdmission(customer, environment, bindings, input).template.video,
-				),
-			).toThrow("VIDEO_ACCESS_DENIED");
+				).price.paidFundingPolicy,
+			).toEqual({ minimumUsdMicrosPerCredit: 21944n });
 		},
 	);
 	it("admits an ordinary registered customer with all existing safety and funding gates", () => {
@@ -151,17 +141,22 @@ describe("authenticated template admission remains scoped and funded", () => {
 		expect(admitted.price.credits).toBe(69n);
 		expect(admitted.price.paidFundingPolicy).toEqual({ minimumUsdMicrosPerCredit: 21944n });
 		expect(admitted.visualSafetyProfile.provider).toBe("seeapi");
-		expect(admitted.config.access).toBe("internal");
+		expect(admitted.config.access).toBe("authenticated");
 		expect(customer.role).toBe("user");
 	});
-	it("does not widen ordinary video access for the same customer and model", () => {
+	it("ordinary video remains available when its template is closed", () => {
 		const template = requireVideoTemplateAdmission(customer, base, bindings, request).template;
-		expect(() => requireVideoAdmission(customer, base, bindings, template.video)).toThrow(
-			"VIDEO_ACCESS_DENIED",
-		);
+		expect(
+			requireVideoAdmission(
+				customer,
+				{ ...base, HOTEL_LOBBY_DUO_ENABLED: "false" },
+				bindings,
+				template.video,
+			).price.paidFundingPolicy,
+		).toEqual({ minimumUsdMicrosPerCredit: 21944n });
 	});
 	it.each([undefined, "internal", "public"])(
-		"denies the unlisted customer when template scope is %j",
+		"denies the ordinary customer when template scope is %j",
 		(scope) => {
 			expect(() =>
 				requireVideoTemplateAdmission(
@@ -174,10 +169,10 @@ describe("authenticated template admission remains scoped and funded", () => {
 			expect(resolveVideoEffectPrice).not.toHaveBeenCalled();
 		},
 	);
-	it("retains internal allowlist behavior when no public setting is present", () => {
+	it("retains administrator-only template access when no public setting is present", () => {
 		expect(
 			requireVideoTemplateAdmission(
-				{ userId: "internal-owner" },
+				{ userId: "internal-owner", role: "admin" },
 				{ ...base, HOTEL_LOBBY_DUO_ACCESS: undefined },
 				bindings,
 				request,
@@ -189,7 +184,7 @@ describe("authenticated template admission remains scoped and funded", () => {
 		["VIDEO_V1_ENABLED", "false", "VIDEO_ACCESS_DENIED"],
 		["MEDIA_GENERATION_ENABLED", "false", "VIDEO_EFFECT_DISABLED"],
 		["MEDIA_NANO_BANANA_2_LITE_ENABLED", "false", "VIDEO_EFFECT_DISABLED"],
-		["VIDEO_MODEL_ALLOWED_OPTIONS", "[]", "VIDEO_MODEL_OPTIONS_INVALID"],
+		["VIDEO_MODEL_CONTRACT_VERSION", "stale-contract", "VIDEO_MODEL_CONTRACT_NOT_CONFIRMED"],
 		["SEEAPI_API_KEY", "", "VIDEO_VISUAL_MODERATION_NOT_CONFIGURED"],
 		["WAFFO_PRIVATE_KEY", "", "VIDEO_MODERATION_NOT_CONFIGURED"],
 	])("keeps the %s gate for public template customers", (key, value, error) => {

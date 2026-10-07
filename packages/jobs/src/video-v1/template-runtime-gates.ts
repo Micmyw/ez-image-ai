@@ -18,7 +18,7 @@ export function requireVideoTemplateSceneEnvironment(
 		if (
 			environment.MEDIA_GENERATION_ENABLED !== "true" ||
 			!parseMediaEnabledProviders(environment).includes("kie") ||
-			environment.RUMPELSTILTSKIN_ENABLED !== "true"
+			(environment.RUMPELSTILTSKIN_ENABLED ?? "true") !== "true"
 		)
 			throw new Error("VIDEO_EFFECT_DISABLED");
 		return;

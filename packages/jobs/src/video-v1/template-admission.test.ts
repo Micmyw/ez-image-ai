@@ -73,12 +73,12 @@ const request = {
 const bindings = { workflow: true, r2: true, hyperdrive: true, uploadCors: true };
 const environment = {
 	VIDEO_V1_ENABLED: "true",
-	VIDEO_V1_ALLOWED_USER_IDS: "owner",
 	HOTEL_LOBBY_DUO_ENABLED: "true",
+	HOTEL_LOBBY_DUO_ACCESS: "authenticated",
 	MEDIA_GENERATION_ENABLED: "true",
 	MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
 	MEDIA_ENABLED_PROVIDERS: "kie",
-	VIDEO_V1_ACCESS: "internal",
+	VIDEO_V1_ACCESS: "authenticated",
 };
 const template = createVideoEffectTemplateSnapshot(request);
 const job = {
@@ -201,14 +201,14 @@ describe("template admission and public recovery state", () => {
 		});
 		const ordinary = requireVideoTemplateAdmission(
 			{ userId: "owner", role: "admin" },
-			{ ...environment, VIDEO_INTERNAL_FUNDING: funding },
+			{ ...environment, VIDEO_V1_ACCESS: "internal", VIDEO_INTERNAL_FUNDING: funding },
 			bindings,
 			request,
 		);
 		expect(ordinary.price.paidFundingPolicy).toEqual({ minimumUsdMicrosPerCredit: 10n });
 		const explicit = requireVideoTemplateAdmission(
 			{ userId: "owner", role: "admin" },
-			{ ...environment, HOTEL_LOBBY_DUO_INTERNAL_FUNDING: funding },
+			{ ...environment, VIDEO_V1_ACCESS: "internal", HOTEL_LOBBY_DUO_INTERNAL_FUNDING: funding },
 			bindings,
 			request,
 		);

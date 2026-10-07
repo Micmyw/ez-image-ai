@@ -85,10 +85,6 @@ export function readVideoV1Config(env: VideoV1Environment) {
 	return {
 		enabled: env.VIDEO_V1_ENABLED === "true",
 		access: readVideoV1AccessScope(env),
-		allowedUserIds: (env.VIDEO_V1_ALLOWED_USER_IDS ?? "")
-			.split(",")
-			.map((id) => id.trim())
-			.filter(Boolean),
 		credits: positiveBigInt(env.VIDEO_V1_CREDITS),
 		pricingVersion: env.VIDEO_V1_PRICE_VERSION?.trim() || null,
 		pricingBasis: env.VIDEO_V1_PRICING_BASIS?.trim() || null,
@@ -113,17 +109,12 @@ export function readVideoV1Config(env: VideoV1Environment) {
 export type VideoV1Config = ReturnType<typeof readVideoV1Config>;
 type VideoV1User = { id: string; role?: string | null; isAnonymous?: boolean | null };
 
-/** Independent internal audience, also used by templates with their own access scope. */
+/** Administrator-only rollback audience; templates retain their independent access scope. */
 export function canAccessInternalVideoV1(
 	config: VideoV1Config,
 	user: VideoV1User | null | undefined,
 ): boolean {
-	return Boolean(
-		config.enabled &&
-		user?.id &&
-		!user.isAnonymous &&
-		(user.role === "admin" || config.allowedUserIds.includes(user.id)),
-	);
+	return Boolean(config.enabled && user?.id && !user.isAnonymous && user.role === "admin");
 }
 export function canAccessVideoV1(
 	config: VideoV1Config,

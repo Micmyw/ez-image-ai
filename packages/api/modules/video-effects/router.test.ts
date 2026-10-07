@@ -100,20 +100,16 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("template API authorization and strict public contracts", () => {
-	it("blocks the internal solo test before entitlement, admission or billing when approvals are missing", async () => {
+	it("shows material readiness to an authenticated customer before entitlement or billing", async () => {
 		vi.stubEnv("VIDEO_V1_ENABLED", "true");
 		vi.stubEnv("RUMPELSTILTSKIN_ENABLED", "true");
-		vi.stubEnv("RUMPELSTILTSKIN_ACCESS", "internal");
-		vi.stubEnv("RUMPELSTILTSKIN_ALLOWED_USER_IDS", "owner");
-		vi.mocked(readVideoEffectTestReadiness).mockReturnValue([
-			"MOTION_REFERENCE_REQUIRED",
-			"COST_APPROVAL_REQUIRED",
-		]);
+		vi.stubEnv("RUMPELSTILTSKIN_ACCESS", "authenticated");
+		vi.mocked(readVideoEffectTestReadiness).mockReturnValue(["MOTION_REFERENCE_REQUIRED"]);
 		const result = await call(videoEffectsRouter.access, { effectId: "rumpelstiltskin-solo" }, ctx);
 		expect(result).toMatchObject({
 			accessAllowed: true,
 			available: false,
-			reasons: ["MOTION_REFERENCE_REQUIRED", "COST_APPROVAL_REQUIRED"],
+			reasons: ["MOTION_REFERENCE_REQUIRED"],
 			credits: null,
 			creditBalance: null,
 		});
@@ -126,6 +122,7 @@ describe("template API authorization and strict public contracts", () => {
 	it("does not reveal internal test readiness to a non-whitelisted account", async () => {
 		vi.stubEnv("VIDEO_V1_ENABLED", "true");
 		vi.stubEnv("RUMPELSTILTSKIN_ENABLED", "true");
+		vi.stubEnv("RUMPELSTILTSKIN_ACCESS", "internal");
 		vi.stubEnv("RUMPELSTILTSKIN_ALLOWED_USER_IDS", "other-owner");
 		vi.mocked(readVideoEffectTestReadiness).mockReturnValue(["MOTION_REFERENCE_INVALID"]);
 		expect(
@@ -236,7 +233,6 @@ describe("template API authorization and strict public contracts", () => {
 		vi.stubEnv("VIDEO_V1_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ACCESS", "authenticated");
-		vi.stubEnv("VIDEO_V1_ALLOWED_USER_IDS", "another-internal-owner");
 		vi.mocked(requireVideoTemplateAdmission).mockReturnValue({
 			maximumInputBytes: 7_000_000,
 			price: { credits: 69n, paidFundingPolicy: { minimumUsdMicrosPerCredit: 21_944n } },
@@ -264,7 +260,6 @@ describe("template API authorization and strict public contracts", () => {
 		vi.stubEnv("VIDEO_V1_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ACCESS", "internal");
-		vi.stubEnv("VIDEO_V1_ALLOWED_USER_IDS", "another-internal-owner");
 		vi.mocked(requireVideoTemplateAdmission).mockImplementationOnce(() => {
 			throw new Error("VIDEO_ACCESS_DENIED");
 		});

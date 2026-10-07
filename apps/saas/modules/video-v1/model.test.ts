@@ -10,6 +10,7 @@ import {
 	changeVideoDraft,
 	initialVideoDraft,
 	getVideoErrorKey,
+	getVideoFailureRecovery,
 	parseVideoConfirmation,
 	restoreVideoDraft,
 	videoPollInterval,
@@ -160,4 +161,44 @@ describe("video form and observable state", () => {
 			getVideoErrorKey({ message: "secret provider error https://private.example/token" }),
 		).toBe("unavailable");
 	});
+	it.each(["code", "data", "message"] as const)(
+		"requires a new quote for PRICE_CHANGED reported through %s",
+		(field) => {
+			const error =
+				field === "data" ? { data: { code: "PRICE_CHANGED" } } : { [field]: "PRICE_CHANGED" };
+			expect(getVideoErrorKey(error)).toBe("quoteExpired");
+		},
+	);
+	it.each(["VIDEO_MODEL_PRICE_EXPIRED", "VIDEO_PRICE_EXPIRED"])(
+		"identifies %s as price unavailable rather than an uncertain request",
+		(code) => {
+			expect(getVideoErrorKey({ code })).toBe("priceUnavailable");
+			expect(getVideoErrorKey({ data: { code } })).toBe("priceUnavailable");
+			expect(getVideoErrorKey({ message: code })).toBe("priceUnavailable");
+		},
+	);
+	it.each(["PRICE_CHANGED", "VIDEO_MODEL_PRICE_EXPIRED", "VIDEO_PRICE_EXPIRED"])(
+		"clears a definitively rejected quote and refreshes prices after %s",
+		(code) => {
+			expect(getVideoFailureRecovery({ code })).toMatchObject({
+				clearQuote: true,
+				refreshCatalog: true,
+			});
+		},
+	);
+	it.each(["TIMEOUT", "NETWORK_ERROR", "Request failed"])(
+		"preserves the original confirmation for an uncertain %s response",
+		(message) => {
+			const confirmation = createVideoConfirmation(request, quote, () => "original-key");
+			expect(getVideoFailureRecovery({ message })).toMatchObject({
+				clearQuote: false,
+				refreshCatalog: false,
+			});
+			expect(parseVideoConfirmation(JSON.stringify(confirmation))?.input).toEqual({
+				quoteId: quote.quoteId,
+				idempotencyKey: "original-key",
+				request,
+			});
+		},
+	);
 });
