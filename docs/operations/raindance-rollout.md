@@ -16,8 +16,11 @@ its existing sample-quality publication gate.
   lyrics, licensed audio, an artist's voice or exact lip synchronization.
 - Private uploads, immutable quote/confirmation, eligible paid credit allocation,
   one reservation, two-stage moderation, uncertainty holds, Workflow recovery and
-  private final playback use the existing template pipeline. There is no schema
-  change, migration, parallel ledger or global Outbox dispatch.
+  private final playback use the existing template pipeline. The additive
+  `20261007030000_raindance_template_effects` migration expands the existing SQL
+  template-ID CHECK to Hotel Lobby, Raindance Solo and Raindance Duet. All other
+  shape/state checks, immutable identities and private boundaries remain intact.
+  It adds no tables, columns, parallel ledger or global Outbox dispatch.
 - The existing approved Hotel Lobby full-cost budgets, evidence expiry and minimum
   3x revenue policy apply to the identical model/options/stage envelope. The new
   price snapshot is `raindance-cost-2026-10-07.1`. The reference quote is 69 credits;
@@ -28,6 +31,14 @@ its existing sample-quality publication gate.
   Solo/Duet never submits a paid request.
 
 ## Private configuration and deployment order
+
+Before deploying either target, verify the intended production database and its
+Prisma migration history, then apply `20261007030000_raindance_template_effects`
+with `prisma migrate deploy` over verified TLS. Confirm that it is the only pending
+migration and inspect the validated live CHECK afterward. The transaction changes
+only the effect allowlist, uses a 3-second lock timeout and preserves existing rows.
+Cloudflare builds perform read-only migration status checks and refuse pending
+migrations. Keep this compatible expanded constraint during application rollback.
 
 `RAINDANCE_RUNTIME_CONFIG` is an additive build-only JSON overlay. Its allowlist is
 exactly `RAINDANCE_ENABLED`, `RAINDANCE_ACCESS` and

@@ -242,6 +242,36 @@ async function storedScene(jobId: string) {
 	return asset;
 }
 describe("template admission and durable scene PostgreSQL regressions", () => {
+	it.each([
+		{ name: "missing effect", snapshot: {} },
+		{ name: "null effect", snapshot: { effectId: null } },
+		{ name: "unknown effect", snapshot: { effectId: "unapproved-template" } },
+		{ name: "non-object snapshot", snapshot: [] },
+		{ name: "reversed roles", roles: [{ role: "right" }, { role: "left" }] },
+		{ name: "missing role", roles: [{ role: "left" }] },
+		{ name: "unknown state", state: "UNAPPROVED" },
+		{ name: "provider task without submission", providerTaskId: "unsubmitted-task" },
+		{ name: "resolved identity without stored scene", resolvedIdentity: { assetId: "missing" } },
+	])("installed template CHECK rejects $name", async (input) => {
+		// Copy the installed CHECK into a disposable table to test it independently
+		// of the parent-identity trigger without disabling any production guard.
+		await expect(
+			db.$transaction(async (tx) => {
+				await tx.$executeRaw`CREATE TEMP TABLE template_shape_regression
+					(LIKE video_template_execution INCLUDING DEFAULTS INCLUDING CONSTRAINTS)
+					ON COMMIT DROP`;
+				await tx.$executeRaw`INSERT INTO template_shape_regression
+					("jobId", "templateSnapshot", "orderedRoleIdentities", "sceneState",
+					 "sceneProviderTaskId", "resolvedInputIdentity", "updatedAt")
+					VALUES (${randomUUID()},
+					 ${JSON.stringify(input.snapshot ?? { effectId: "raindance-solo" })}::jsonb,
+					 ${JSON.stringify(input.roles ?? [{ role: "left" }, { role: "right" }])}::jsonb,
+					 ${input.state ?? "PENDING"}, ${input.providerTaskId ?? null},
+					 ${input.resolvedIdentity ? JSON.stringify(input.resolvedIdentity) : null}::jsonb,
+					 NOW())`;
+			}),
+		).rejects.toThrow(/video_template_shape_check/);
+	});
 	it.each(["raindance-solo", "raindance-duo"] as const)(
 		"persists %s identities with one idempotent reservation and no Outbox",
 		async (effectId) => {
