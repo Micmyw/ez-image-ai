@@ -6,6 +6,7 @@ import {
 	HOTEL_LOBBY_PRICE_VERSION,
 	HOTEL_LOBBY_SAFETY_POLICY_VERSION,
 	HOTEL_LOBBY_TEMPLATE_VERSION,
+	RAINDANCE_TEMPLATE_VERSION,
 	parseVideoEffectTemplateSnapshot,
 	resolveVideoEffectPrice,
 	resolveVideoEffectTemplate,
@@ -67,6 +68,60 @@ function fixtureEnvironment(): Record<string, string | undefined> {
 beforeEach(() => {
 	vi.useFakeTimers();
 	vi.setSystemTime(new Date("2026-10-05T00:00:00Z"));
+});
+
+describe("Raindance frozen contract and independent admission", () => {
+	it.each(["raindance-solo", "raindance-duo"] as const)(
+		"freezes %s and keeps Hotel Lobby recovery compatible",
+		(effectId) => {
+			const input = {
+				...request,
+				effectId,
+				inputs: { leftAssetId: "one", rightAssetId: effectId === "raindance-solo" ? "one" : "two" },
+			};
+			const snapshot = createVideoEffectTemplateSnapshot(input);
+			expect(snapshot.scene.prompt).toContain("wooden pier");
+			expect(snapshot.scene.prompt).toContain(
+				effectId === "raindance-solo" ? "exactly ONE" : "exactly TWO",
+			);
+			expect(snapshot.video).toMatchObject({
+				duration: 5,
+				resolution: "720p",
+				sound: false,
+				fixedLens: true,
+			});
+			expect(parseVideoEffectTemplateSnapshot(snapshot)).toEqual(snapshot);
+			expect(() =>
+				parseVideoEffectTemplateSnapshot({
+					...snapshot,
+					templateVersion: HOTEL_LOBBY_TEMPLATE_VERSION,
+				}),
+			).toThrow();
+			const env = {
+				...fixtureEnvironment(),
+				HOTEL_LOBBY_DUO_ENABLED: "false",
+				RAINDANCE_ENABLED: "true",
+				RAINDANCE_ACCEPTED_TEMPLATE_VERSION: RAINDANCE_TEMPLATE_VERSION,
+			};
+			expect(resolveVideoEffectTemplate(input, env).effectId).toBe(effectId);
+			const price = resolveVideoEffectPrice(input, env);
+			const hotelPrice = resolveVideoEffectPrice(request, fixtureEnvironment());
+			expect(price.credits).toBe(hotelPrice.credits);
+			expect(price.pricingDetails.effectId).toBe(effectId);
+			expect(price.pricingDetails.minimumRevenueToCostBps).toBe("30000");
+			expect(() =>
+				resolveVideoEffectTemplate(input, { ...env, RAINDANCE_ENABLED: "false" }),
+			).toThrow("VIDEO_EFFECT_DISABLED");
+			expect(() =>
+				resolveVideoEffectPrice(input, { ...env, HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2025-01-01" }),
+			).toThrow("VIDEO_EFFECT_PRICE_EXPIRED");
+		},
+	);
+	it("rejects two identities disguised as Solo", () => {
+		expect(() =>
+			createVideoEffectTemplateSnapshot({ ...request, effectId: "raindance-solo" }),
+		).toThrow();
+	});
 });
 afterEach(() => vi.useRealTimers());
 

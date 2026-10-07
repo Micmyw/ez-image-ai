@@ -25,11 +25,12 @@ import {
 const effectReferences = [{ id: "1980s-ai-photo", presets: [{ id: "studio-portrait" }] }];
 
 describe("Blog publication and editorial relationships", () => {
-	it("keeps both existing URLs, publication dates and English fallback", () => {
+	it("keeps published URLs, publication dates and English fallback", () => {
 		expect(getPublishedBlogPostPaths().sort()).toEqual([
 			"1980s-ai-photo",
 			"ai-image-editing-prompts",
 			"private-image-editing-workflow",
+			"raindance-ai-trend",
 		]);
 		expect(getBlogPostBySlug("ai-image-editing-prompts", "fr")?.publishedAt).toBe("2026-09-12");
 		expect(getBlogPostBySlug("private-image-editing-workflow", "en")?.publishedAt).toBe(

@@ -43,6 +43,8 @@ export type BlogPost = {
 	recipeId?: string;
 	recipePlacement?: { presetsAfterHeadingId: string; editorAfterHeadingId: string };
 	featuredOrder?: number;
+	/** A documented beta video tool embedded in its canonical editorial guide. */
+	videoEffect?: "raindance";
 	primaryEffectId?: string;
 	/** The single maintained source of article-to-effect relationships. */
 	relatedEffectIds: readonly string[];

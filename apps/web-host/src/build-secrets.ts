@@ -6,6 +6,7 @@ import { isVideoModelOptionAllowed, readVideoModelAccess } from "@repo/config/vi
 import {
 	expandVideoRuntimeEnvironment,
 	parseHotelLobbyRuntimeOverride,
+	parseRaindanceRuntimeOverride,
 	parseVideoRuntimeConfig,
 	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
 	type VideoRuntimeEnvironmentKey,
@@ -120,6 +121,13 @@ function withVideoRuntimeOverrides(
 		if (!policy || !access.ready || !access.allowed.size)
 			throw new Error("VIDEO_BUILD_ENABLED_POLICY_REQUIRED");
 	}
+	if (environment.RAINDANCE_RUNTIME_CONFIG !== undefined) {
+		if (!policy) throw new Error("RAINDANCE_RUNTIME_BASE_POLICY_REQUIRED");
+		const previous = parseEnv(source);
+		const patch = parseRaindanceRuntimeOverride(environment.RAINDANCE_RUNTIME_CONFIG);
+		policy = parseVideoRuntimeConfig(JSON.stringify({ ...policy, ...patch }));
+		for (const key of Object.keys(patch)) if (previous[key] !== undefined) changedFlatKeys.add(key);
+	}
 	if (encoded !== undefined) {
 		// A single private build variable carries policy; no interpolation or dotenv injection.
 		const value = JSON.stringify(policy).replaceAll("'", "\\u0027");
@@ -195,7 +203,20 @@ function withVideoRuntimeOverrides(
 		source = merged;
 	}
 	// Validate bundle-only configurations too; a bad pack must stop before build/deploy.
-	expandVideoRuntimeEnvironment(parseEnv(source));
+	const effective = expandVideoRuntimeEnvironment(parseEnv(source));
+	if (effective.RAINDANCE_ENABLED === "true") {
+		if (effective.VIDEO_V1_ENABLED !== "true") throw new Error("VIDEO_EFFECT_VIDEO_DISABLED");
+		for (const effectId of ["raindance-solo", "raindance-duo"] as const) {
+			resolveVideoEffectPrice(
+				{
+					effectId,
+					presetKey: "standard",
+					inputs: { leftAssetId: "readiness", rightAssetId: "readiness" },
+				},
+				effective,
+			);
+		}
+	}
 	return source;
 }
 
@@ -381,6 +402,7 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key === "SEEAPI_API_KEY" ||
 			key === "VIDEO_RUNTIME_CONFIG" ||
 			key === "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" ||
+			key === "RAINDANCE_RUNTIME_CONFIG" ||
 			key === "VIDEO_V1_ENABLED" ||
 			key === "VIDEO_V1_BUILD_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_ENABLED" ||

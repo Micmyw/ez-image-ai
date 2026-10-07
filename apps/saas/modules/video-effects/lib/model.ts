@@ -1,4 +1,11 @@
-import { HOTEL_LOBBY_EFFECT_ID, VIDEO_EFFECT_MAX_INPUT_BYTES } from "@repo/config/video-effects";
+import {
+	HOTEL_LOBBY_EFFECT_ID,
+	RAINDANCE_SOLO_EFFECT_ID,
+	VIDEO_EFFECT_MAX_INPUT_BYTES,
+	videoEffectRequestSchema,
+	videoEffectIdSchema,
+	type VideoEffectId,
+} from "@repo/config/video-effects";
 import { z } from "zod";
 
 export { VIDEO_EFFECT_PATH } from "./paths";
@@ -6,13 +13,11 @@ export const VIDEO_EFFECT_ID = HOTEL_LOBBY_EFFECT_ID;
 export const VIDEO_EFFECT_PRESET = "standard";
 export const VIDEO_EFFECT_MAX_BYTES = VIDEO_EFFECT_MAX_INPUT_BYTES;
 const id = z.string().regex(/^[a-zA-Z0-9_-]{1,128}$/);
-const requestSchema = z
-	.object({
-		effectId: z.literal(VIDEO_EFFECT_ID),
-		presetKey: z.literal(VIDEO_EFFECT_PRESET),
-		inputs: z.object({ leftAssetId: id, rightAssetId: id }).strict(),
-	})
-	.strict();
+const requestSchema = videoEffectRequestSchema.refine(
+	(request) =>
+		id.safeParse(request.inputs.leftAssetId).success &&
+		id.safeParse(request.inputs.rightAssetId).success,
+);
 const quoteSchema = z
 	.object({ quoteId: id, credits: z.string().regex(/^\d+$/), expiresAt: z.string().datetime() })
 	.strict();
@@ -29,6 +34,7 @@ const draftSchema = z
 	.object({
 		version: z.literal(1),
 		ownerId: id,
+		effectId: videoEffectIdSchema.default(HOTEL_LOBBY_EFFECT_ID),
 		revision: z.number().int().nonnegative(),
 		leftAssetId: id.nullable(),
 		rightAssetId: id.nullable(),
@@ -41,10 +47,14 @@ export type EffectConfirmation = z.infer<typeof confirmationSchema>;
 export type EffectQuote = z.infer<typeof quoteSchema>;
 export type EffectRole = "left" | "right";
 
-export function emptyEffectDraft(ownerId: string): EffectDraft {
+export function emptyEffectDraft(
+	ownerId: string,
+	effectId: VideoEffectId = HOTEL_LOBBY_EFFECT_ID,
+): EffectDraft {
 	return {
 		version: 1,
 		ownerId,
+		effectId,
 		revision: 0,
 		leftAssetId: null,
 		rightAssetId: null,
@@ -52,22 +62,36 @@ export function emptyEffectDraft(ownerId: string): EffectDraft {
 		jobId: null,
 	};
 }
-export function readEffectDraft(raw: string | null, ownerId: string): EffectDraft | null {
+export function readEffectDraft(
+	raw: string | null,
+	ownerId: string,
+	effectId: VideoEffectId = HOTEL_LOBBY_EFFECT_ID,
+): EffectDraft | null {
 	try {
 		const value = draftSchema.parse(JSON.parse(raw ?? "null"));
-		return value.ownerId === ownerId ? value : null;
+		return value.ownerId === ownerId &&
+			value.effectId === effectId &&
+			(!value.confirmation || value.confirmation.input.request.effectId === effectId)
+			? value
+			: null;
 	} catch {
 		return null;
 	}
 }
-export function effectStorageKey(ownerId: string) {
-	return `ezpic.video-effect.v1:${ownerId}`;
+export function effectStorageKey(ownerId: string, effectId: VideoEffectId = HOTEL_LOBBY_EFFECT_ID) {
+	return effectId === HOTEL_LOBBY_EFFECT_ID
+		? `ezpic.video-effect.v1:${ownerId}`
+		: `ezpic.video-effect.v1:${effectId}:${ownerId}`;
 }
 export function effectRequest(draft: EffectDraft) {
 	return requestSchema.parse({
-		effectId: VIDEO_EFFECT_ID,
+		effectId: draft.effectId,
 		presetKey: VIDEO_EFFECT_PRESET,
-		inputs: { leftAssetId: draft.leftAssetId, rightAssetId: draft.rightAssetId },
+		inputs: {
+			leftAssetId: draft.leftAssetId,
+			rightAssetId:
+				draft.effectId === RAINDANCE_SOLO_EFFECT_ID ? draft.leftAssetId : draft.rightAssetId,
+		},
 	});
 }
 export function changeEffectInputs(

@@ -4,6 +4,7 @@ import {
 	VIDEO_EFFECT_MAX_INPUT_BYTES,
 	videoEffectCreateSchema,
 	videoEffectRequestSchema,
+	videoEffectIdSchema,
 } from "@repo/config/video-effects";
 import { canAccessVideoEffect } from "@repo/config/video-effects-access.server";
 import { readVideoV1Config } from "@repo/config/video-v1";
@@ -119,13 +120,19 @@ const access = protectedProcedure
 			"Check template availability, price, eligible credit balance and upload limits",
 		),
 	)
+	.input(
+		z
+			.object({ effectId: videoEffectIdSchema.default("hotel-lobby-duo") })
+			.strict()
+			.prefault({}),
+	)
 	.output(videoEffectAccessSchema)
-	.handler(async ({ context: { user } }) => {
+	.handler(async ({ context: { user }, input }) => {
 		const config = readVideoV1Config(process.env);
 		const entitlement = await loadUserPlanEntitlement(user.id);
-		const accessAllowed = canAccessVideoEffect(process.env, user);
+		const accessAllowed = canAccessVideoEffect(process.env, user, input.effectId);
 		const base = {
-			effectId: "hotel-lobby-duo" as const,
+			effectId: input.effectId,
 			accessAllowed,
 			maxInputBytes: Math.min(
 				VIDEO_EFFECT_MAX_INPUT_BYTES,
@@ -138,7 +145,11 @@ const access = protectedProcedure
 				{ userId: user.id, role: user.role },
 				process.env,
 				getVideoWorkflowReadinessBindings(),
-				VIDEO_EFFECT_CAPABILITY_REQUEST,
+				{
+					...VIDEO_EFFECT_CAPABILITY_REQUEST,
+					effectId: input.effectId,
+					inputs: { leftAssetId: "capability", rightAssetId: "capability" },
+				},
 			);
 			await requireVideoTemplateRuntimeEnabled(admitted.template);
 			return {
@@ -169,7 +180,7 @@ const access = protectedProcedure
 	});
 
 const quote = protectedProcedure
-	.route(route("POST", "/video-effects/quotes", "Quote the complete two-photo video once"))
+	.route(route("POST", "/video-effects/quotes", "Quote the complete photo-to-video template once"))
 	.input(videoEffectRequestSchema)
 	.output(videoEffectQuoteSchema)
 	.handler(({ context: { user }, input }) =>
@@ -251,6 +262,7 @@ const uploadCreate = protectedProcedure
 	.input(
 		z
 			.object({
+				effectId: videoEffectIdSchema.optional(),
 				contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
 				byteSize: z.number().int().positive().max(VIDEO_EFFECT_MAX_INPUT_BYTES),
 			})

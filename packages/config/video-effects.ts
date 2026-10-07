@@ -2,6 +2,21 @@ import { z } from "zod";
 
 /** Browser-safe product contract. Execution mappings and prompts stay in the server module. */
 export const HOTEL_LOBBY_EFFECT_ID = "hotel-lobby-duo";
+export const RAINDANCE_SOLO_EFFECT_ID = "raindance-solo";
+export const RAINDANCE_DUO_EFFECT_ID = "raindance-duo";
+export const videoEffectIdSchema = z.enum([
+	HOTEL_LOBBY_EFFECT_ID,
+	RAINDANCE_SOLO_EFFECT_ID,
+	RAINDANCE_DUO_EFFECT_ID,
+]);
+export type VideoEffectId = z.infer<typeof videoEffectIdSchema>;
+export function videoEffectName(effectId: VideoEffectId): string {
+	return effectId === HOTEL_LOBBY_EFFECT_ID
+		? "Hotel Lobby duo"
+		: effectId === RAINDANCE_SOLO_EFFECT_ID
+			? "Raindance solo"
+			: "Raindance duet";
+}
 export const VIDEO_EFFECT_MAX_INPUT_BYTES = 10_000_000;
 export const HOTEL_LOBBY_PUBLIC_EFFECT = {
 	effectId: HOTEL_LOBBY_EFFECT_ID,
@@ -15,11 +30,17 @@ export const HOTEL_LOBBY_PUBLIC_EFFECT = {
 const assetId = z.string().min(1).max(160);
 export const videoEffectRequestSchema = z
 	.object({
-		effectId: z.literal(HOTEL_LOBBY_EFFECT_ID),
+		effectId: videoEffectIdSchema,
 		presetKey: z.literal("standard"),
 		inputs: z.object({ leftAssetId: assetId, rightAssetId: assetId }).strict(),
 	})
-	.strict();
+	.strict()
+	.refine(
+		(request) =>
+			request.effectId !== RAINDANCE_SOLO_EFFECT_ID ||
+			request.inputs.leftAssetId === request.inputs.rightAssetId,
+		{ message: "Solo requires one subject reference" },
+	);
 export const videoEffectInputSchema = videoEffectRequestSchema;
 export const videoEffectCreateSchema = z
 	.object({

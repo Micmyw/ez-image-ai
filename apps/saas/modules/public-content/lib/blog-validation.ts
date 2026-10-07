@@ -66,6 +66,11 @@ export function validateBlogPosts(
 				fail("a recipe must have one canonical article");
 		}
 		if (
+			post.videoEffect &&
+			(post.videoEffect !== "raindance" || post.slug !== "raindance-ai-trend" || post.recipeId)
+		)
+			fail("unregistered video guide");
+		if (
 			post.featuredOrder !== undefined &&
 			(!Number.isInteger(post.featuredOrder) || post.featuredOrder < 0)
 		)

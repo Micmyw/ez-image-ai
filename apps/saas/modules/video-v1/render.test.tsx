@@ -14,6 +14,27 @@ vi.mock("@auth/hooks/use-session", () => ({
 }));
 vi.mock("./use-video", () => ({ usePageVisible: () => true, useVideoJob: vi.fn() }));
 vi.mock("@tanstack/react-query", () => ({
+	useInfiniteQuery: () => ({
+		data: {
+			pages: [
+				{
+					items: ["hotel-lobby-duo", "raindance-solo", "raindance-duo", null].map((effectId) => ({
+						jobId: effectId ?? "ordinary",
+						stage: "READY",
+						creditState: "SETTLED",
+						credits: "69",
+						updatedAt: "2026-10-07T00:00:00Z",
+						...(effectId
+							? { effect: { effectId, name: effectId, templateVersion: "fixture" } }
+							: {}),
+					})),
+				},
+			],
+		},
+		isPending: false,
+		isError: false,
+		refetch: vi.fn(),
+	}),
 	useQuery: () => ({
 		data: { url: "/api/video-v1/mock-private?expires=1", expiresAt: "2030-01-01T00:00:00Z" },
 		isPending: false,
@@ -22,6 +43,7 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
+import { VideoHistory } from "./VideoHistory";
 import { VideoStateCard } from "./VideoJob";
 import { VideoSettings } from "./VideoSettings";
 
@@ -43,6 +65,17 @@ function render(stage: VideoState["stage"], canPlay = false) {
 }
 
 describe("truthful video delivery UI", () => {
+	it("opens each template history entry in its own workbench and preserves duet mode", () => {
+		const markup = renderToStaticMarkup(
+			<NextIntlClientProvider locale="en" messages={en}>
+				<VideoHistory />
+			</NextIntlClientProvider>,
+		);
+		expect(markup).toContain('href="/video-effects/hotel-lobby-ai?job=hotel-lobby-duo"');
+		expect(markup).toContain('href="/blog/raindance-ai-trend?job=raindance-solo"');
+		expect(markup).toContain('href="/blog/raindance-ai-trend?job=raindance-duo&amp;mode=duo"');
+		expect(markup).toContain('href="/video?job=ordinary"');
+	});
 	it.each([
 		{ locale: "en", messages: en },
 		{ locale: "de", messages: de },

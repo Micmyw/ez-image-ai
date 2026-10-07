@@ -4,6 +4,7 @@ import {
 	HOTEL_LOBBY_PRICE_VERSION,
 	HOTEL_LOBBY_SAFETY_POLICY_VERSION,
 	HOTEL_LOBBY_TEMPLATE_VERSION,
+	RAINDANCE_TEMPLATE_VERSION,
 	resolveVideoEffectPrice,
 } from "@repo/config/video-effects.server";
 import { readVideoModelAccess } from "@repo/config/video-model-access";
@@ -173,6 +174,44 @@ describe("Cloudflare build secret transport", () => {
 			HOTEL_LOBBY_DUO_BUILD_ENABLED: "true",
 		};
 		const merged = expandVideoRuntimeEnvironment(parseEnv(readCloudflareBuildEnvironment(input)));
+		const raindance = expandVideoRuntimeEnvironment(
+			parseEnv(
+				readCloudflareBuildEnvironment({
+					...input,
+					RAINDANCE_RUNTIME_CONFIG: JSON.stringify({
+						RAINDANCE_ENABLED: "true",
+						RAINDANCE_ACCESS: "authenticated",
+						RAINDANCE_ACCEPTED_TEMPLATE_VERSION: RAINDANCE_TEMPLATE_VERSION,
+					}),
+				}),
+			),
+		);
+		expect(raindance.RAINDANCE_ACCESS).toBe("authenticated");
+		for (const [key, value] of Object.entries(merged))
+			expect(raindance[key]).toBe(key === "VIDEO_RUNTIME_CONFIG" ? raindance[key] : value);
+		expect(
+			resolveVideoEffectPrice(
+				{
+					effectId: "raindance-solo",
+					presetKey: "standard",
+					inputs: { leftAssetId: "one", rightAssetId: "one" },
+				},
+				raindance,
+			).credits,
+		).toBe(69n);
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				...input,
+				RAINDANCE_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_ACCESS: "authenticated" }),
+			}),
+		).toThrow("RAINDANCE_RUNTIME_OVERRIDE_INVALID");
+		expect(
+			withoutCloudflareBuildSecrets({
+				RAINDANCE_RUNTIME_CONFIG: "private",
+				RAINDANCE_ACCESS: "authenticated",
+				RAINDANCE_ENABLED: "true",
+			}),
+		).toEqual({});
 		expect(merged.HOTEL_LOBBY_DUO_ENABLED).toBe("true");
 		expect(merged.VIDEO_V1_ACCESS).toBe("internal");
 		expect(

@@ -22,6 +22,13 @@ Read for job/runtime/database packaging or deployment changes. Operational cutov
 
 ## Website and database runtime
 
+- `RAINDANCE_RUNTIME_CONFIG` is a private build-only patch for the three independent
+  Raindance admission/access/version fields. It merges into the existing runtime
+  pack after the Hotel Lobby overlay, reuses the approved full-cost pipeline, and
+  cannot alter credentials, funding or ordinary video access. Deploy the compatible
+  jobs receiver before opening website admission. See
+  [Raindance rollout and rollback](../operations/raindance-rollout.md).
+
 - Both deployment profiles use `apps/saas/cloudflare-worker.ts` and OpenNext. Request contexts outlive response streams and registered background work, then disconnect Prisma. `workerd` adapter conditions exclude native Sharp/Node HTTPS.
 - Both Worker configs require `global_fetch_strictly_public`; media URLs must never use VPC fetch.
 - Workers fetch supports `redirect: "manual"`, not `redirect: "error"`. Signed Waffo merchant

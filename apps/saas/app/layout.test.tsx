@@ -151,6 +151,8 @@ describe("SaaS root layout", () => {
 			expect(clientMessages.videoEffects).toEqual({
 				name: fullMessages.videoEffects.name,
 				navigationDescription: fullMessages.videoEffects.navigationDescription,
+				raindanceName: fullMessages.videoEffects.raindanceName,
+				raindanceNavigationDescription: fullMessages.videoEffects.raindanceNavigationDescription,
 			});
 			for (const [namespace, messages] of Object.entries(fullMessages)) {
 				if (!["admin", "faq", "publicContent", "videoV1", "videoEffects"].includes(namespace)) {

@@ -48,16 +48,33 @@ export function generateStaticParams() {
 	return getPublishedBlogPostPaths().map((path) => ({ path: path.split("/") }));
 }
 
-export async function generateMetadata({ params }: { params: Promise<BlogPageParams> }) {
+export async function generateMetadata({
+	params,
+	searchParams = Promise.resolve({}),
+}: {
+	params: Promise<BlogPageParams>;
+	searchParams?: Promise<
+		PhotoIdeaSearchParams & {
+			job?: string | string[];
+			mode?: string | string[];
+			lang?: string | string[];
+		}
+	>;
+}) {
 	const { path } = await params;
 	const post = getBlogPostBySlug(normalizePath(path), await getLocale());
 	if (!post) notFound();
+	const search = await searchParams;
 	const cover = withBlogVisualCover(post).cover;
 	const metadata = createPublicPageMetadata({
 		path: blogPath(post),
 		title: post.title,
 		description: post.description,
-		index: true,
+		index:
+			!post.videoEffect ||
+			(search.job === undefined &&
+				search.mode === undefined &&
+				(search.lang === undefined || search.lang === "en")),
 	});
 	return {
 		...metadata,
@@ -91,13 +108,24 @@ export default async function BlogArticlePage({
 	searchParams = Promise.resolve({}),
 }: {
 	params: Promise<BlogPageParams>;
-	searchParams?: Promise<PhotoIdeaSearchParams>;
+	searchParams?: Promise<
+		PhotoIdeaSearchParams & {
+			job?: string | string[];
+			mode?: string | string[];
+			lang?: string | string[];
+		}
+	>;
 }) {
 	const { path } = await params;
 	const locale = await getLocale();
 	const t = await getTranslations();
 	const post = getBlogPostBySlug(normalizePath(path), locale);
 	if (!post) notFound();
+	if (post.videoEffect === "raindance") {
+		const { RaindanceArticle } =
+			await import("../../../../modules/video-effects/components/RaindanceArticle");
+		return <RaindanceArticle post={post} searchParams={searchParams} />;
+	}
 	if (post.recipeId) {
 		const recipe = getPublishedEffectById(post.recipeId);
 		if (!recipe) notFound();

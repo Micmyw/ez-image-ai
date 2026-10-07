@@ -34,6 +34,12 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 				descriptionKey: "videoEffects.navigationDescription",
 				icon: "examples",
 			},
+			{
+				href: "/blog/raindance-ai-trend",
+				labelKey: "videoEffects.raindanceName",
+				descriptionKey: "videoEffects.raindanceNavigationDescription",
+				icon: "examples",
+			},
 		],
 	},
 	{

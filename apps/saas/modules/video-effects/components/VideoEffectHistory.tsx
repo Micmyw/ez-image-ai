@@ -7,15 +7,25 @@ import Link from "next/link";
 
 import { usePageVisible } from "../../video-v1/use-video";
 import { videoEffectsApi } from "../lib/api";
-import { VIDEO_EFFECT_PATH } from "../lib/paths";
+import { videoEffectJobPath } from "../lib/paths";
 
-export function VideoEffectHistory() {
+export function VideoEffectHistory({
+	family = "hotel-lobby",
+}: {
+	family?: "hotel-lobby" | "raindance";
+}) {
 	const { user } = useSession();
 	if (!user || user.isAnonymous) return null;
-	return <OwnedVideoEffectHistory key={user.id} ownerId={user.id} />;
+	return <OwnedVideoEffectHistory key={user.id} ownerId={user.id} family={family} />;
 }
 
-function OwnedVideoEffectHistory({ ownerId }: { ownerId: string }) {
+function OwnedVideoEffectHistory({
+	ownerId,
+	family,
+}: {
+	ownerId: string;
+	family: "hotel-lobby" | "raindance";
+}) {
 	const t = useTranslations("videoEffects");
 	const format = useFormatter();
 	const visible = usePageVisible();
@@ -35,9 +45,12 @@ function OwnedVideoEffectHistory({ ownerId }: { ownerId: string }) {
 				: false,
 		refetchIntervalInBackground: false,
 	});
-	const items = history.data?.pages.flatMap((page) => page.items) ?? [];
+	const items =
+		history.data?.pages
+			.flatMap((page) => page.items)
+			.filter((item) => item.effectId.startsWith(family)) ?? [];
 	return (
-		<section id="hotel-lobby-history" className="ve-history" aria-labelledby="ve-history-title">
+		<section id={`${family}-history`} className="ve-history" aria-labelledby="ve-history-title">
 			<header className="ve-history-heading">
 				<div>
 					<h2 id="ve-history-title">{t("history")}</h2>
@@ -61,10 +74,12 @@ function OwnedVideoEffectHistory({ ownerId }: { ownerId: string }) {
 						<li key={state.jobId}>
 							<Link
 								className="ve-history-item"
-								href={`${VIDEO_EFFECT_PATH}?job=${encodeURIComponent(state.jobId)}`}
+								href={videoEffectJobPath(state.effectId, state.jobId)}
 								prefetch={false}
 							>
-								<strong>{t(`stages.${state.stage}`)}</strong>
+								<strong>
+									{state.name} · {t(`stages.${state.stage}`)}
+								</strong>
 								<p>{t(`creditStates.${state.creditState}`, { credits: state.credits })}</p>
 								<time dateTime={state.updatedAt}>
 									{format.dateTime(new Date(state.updatedAt), {

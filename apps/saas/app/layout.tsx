@@ -68,6 +68,8 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		videoEffects: {
 			name: videoEffects.name,
 			navigationDescription: videoEffects.navigationDescription,
+			raindanceName: videoEffects.raindanceName,
+			raindanceNavigationDescription: videoEffects.raindanceNavigationDescription,
 		},
 	};
 	const consentStatus = parseConsentStatus((await cookies()).get("consent")?.value);

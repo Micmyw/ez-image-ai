@@ -1,3 +1,4 @@
+import { videoEffectIdSchema, videoEffectName } from "@repo/config/video-effects";
 import { applyVideoInternalFunding } from "@repo/config/video-internal-funding";
 import { isVideoModelOptionAllowed, readVideoModelAccess } from "@repo/config/video-model-access";
 import {
@@ -254,11 +255,15 @@ export function toVideoPublicState(job: PublicRecord): VideoPublicState {
 			job.reservation.status === "SETTLED",
 		failureCode: job.failureCode,
 		updatedAt: job.updatedAt.toISOString(),
-		...(template?.effectId === "hotel-lobby-duo" && typeof template.templateVersion === "string"
+		...(videoEffectIdSchema.safeParse(template?.effectId).success &&
+		typeof template?.templateVersion === "string"
 			? {
 					effect: {
-						effectId: "hotel-lobby-duo" as const,
-						name: "Hotel Lobby AI" as const,
+						effectId: videoEffectIdSchema.parse(template.effectId),
+						name:
+							template.effectId === "hotel-lobby-duo"
+								? "Hotel Lobby AI"
+								: videoEffectName(videoEffectIdSchema.parse(template.effectId)),
 						templateVersion: template.templateVersion,
 					},
 				}

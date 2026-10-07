@@ -42,6 +42,7 @@ vi.mock("@repo/config/video-effects.server", async (importOriginal) => ({
 
 import {
 	HOTEL_LOBBY_TEMPLATE_VERSION,
+	RAINDANCE_TEMPLATE_VERSION,
 	resolveVideoEffectPrice,
 } from "@repo/config/video-effects.server";
 import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
@@ -100,6 +101,51 @@ const request = {
 beforeEach(() => vi.clearAllMocks());
 
 describe("authenticated template admission remains scoped and funded", () => {
+	it.each(["raindance-solo", "raindance-duo"] as const)(
+		"opens %s independently without borrowing administrator funding",
+		(effectId) => {
+			const environment = {
+				...base,
+				HOTEL_LOBBY_DUO_ENABLED: "false",
+				RAINDANCE_ENABLED: "true",
+				RAINDANCE_ACCESS: "authenticated",
+				RAINDANCE_ACCEPTED_TEMPLATE_VERSION: RAINDANCE_TEMPLATE_VERSION,
+			};
+			const input = {
+				...request,
+				effectId,
+				inputs: { leftAssetId: "one", rightAssetId: effectId === "raindance-solo" ? "one" : "two" },
+			};
+			expect(
+				requireVideoTemplateAdmission(customer, environment, bindings, input).price
+					.paidFundingPolicy,
+			).toEqual({ minimumUsdMicrosPerCredit: 21944n });
+			expect(() =>
+				requireVideoTemplateAdmission(
+					customer,
+					{ ...environment, RAINDANCE_ACCESS: "internal" },
+					bindings,
+					input,
+				),
+			).toThrow("VIDEO_ACCESS_DENIED");
+			expect(() =>
+				requireVideoTemplateAdmission(
+					customer,
+					{ ...environment, RAINDANCE_ENABLED: "false" },
+					bindings,
+					input,
+				),
+			).toThrow("VIDEO_ACCESS_DENIED");
+			expect(() =>
+				requireVideoAdmission(
+					customer,
+					environment,
+					bindings,
+					requireVideoTemplateAdmission(customer, environment, bindings, input).template.video,
+				),
+			).toThrow("VIDEO_ACCESS_DENIED");
+		},
+	);
 	it("admits an ordinary registered customer with all existing safety and funding gates", () => {
 		const admitted = requireVideoTemplateAdmission(customer, base, bindings, request);
 		expect(admitted.price.credits).toBe(69n);

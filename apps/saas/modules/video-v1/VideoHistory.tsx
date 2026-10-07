@@ -6,6 +6,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 
+import { videoEffectJobPath } from "../video-effects/lib/paths";
 import { videoApi } from "./api";
 import { videoPollInterval } from "./model";
 import { usePageVisible } from "./use-video";
@@ -60,7 +61,11 @@ export function VideoHistory() {
 					<li key={state.jobId}>
 						<Link
 							className="space-y-2 p-4 focus-visible:outline-violet-500 block rounded-xl border transition-colors hover:bg-secondary focus-visible:outline-2"
-							href={`${state.effect ? "/video-effects/hotel-lobby-ai" : "/video"}?job=${encodeURIComponent(state.jobId)}`}
+							href={
+								state.effect
+									? videoEffectJobPath(state.effect.effectId, state.jobId)
+									: `/video?job=${encodeURIComponent(state.jobId)}`
+							}
 						>
 							<p className="font-medium">{t(`stages.${state.stage}`)}</p>
 							{state.effect && <p className="text-sm">{state.effect.name}</p>}

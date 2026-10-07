@@ -22,7 +22,9 @@ export function DuoPhotoInputs({
 	onClear,
 	onSwap,
 	onPreviewError,
+	solo = false,
 }: {
+	solo?: boolean;
 	slots: Record<EffectRole, PhotoSlot>;
 	maxBytes: number;
 	disabled: boolean;
@@ -34,20 +36,20 @@ export function DuoPhotoInputs({
 	const t = useTranslations("videoEffects");
 	return (
 		<div className="ve-inputs">
-			<div className="ve-photo-grid">
-				{(["left", "right"] as const).map((role) => {
+			<div className="ve-photo-grid" data-solo={solo || undefined}>
+				{(solo ? (["left"] as const) : (["left", "right"] as const)).map((role) => {
 					const slot = slots[role];
 					return (
 						<fieldset key={role} className="ve-photo-slot" disabled={disabled}>
 							<legend>
 								<span>{role === "left" ? "01" : "02"}</span>
-								{t(role)}
+								{t(solo ? "soloSubject" : role)}
 							</legend>
 							<label className="ve-upload" htmlFor={`ve-upload-${role}`}>
 								{slot.preview ? (
 									<img
 										src={slot.preview}
-										alt={t("photoAlt", { role: t(role) })}
+										alt={t("photoAlt", { role: t(solo ? "soloSubject" : role) })}
 										onError={() => onPreviewError?.(role)}
 									/>
 								) : (
@@ -61,7 +63,7 @@ export function DuoPhotoInputs({
 									id={`ve-upload-${role}`}
 									type="file"
 									accept="image/jpeg,image/png,image/webp"
-									aria-label={t("uploadLabel", { role: t(role) })}
+									aria-label={t("uploadLabel", { role: t(solo ? "soloSubject" : role) })}
 									onChange={(event: ChangeEvent<HTMLInputElement>) => {
 										const file = event.target.files?.[0];
 										event.target.value = "";
@@ -79,7 +81,7 @@ export function DuoPhotoInputs({
 									<button
 										type="button"
 										onClick={() => onClear(role)}
-										aria-label={t("clearPhoto", { role: t(role) })}
+										aria-label={t("clearPhoto", { role: t(solo ? "soloSubject" : role) })}
 									>
 										<XIcon aria-hidden />
 									</button>
@@ -89,15 +91,17 @@ export function DuoPhotoInputs({
 					);
 				})}
 			</div>
-			<button
-				type="button"
-				className="ve-swap"
-				disabled={disabled || !slots.left.assetId || !slots.right.assetId}
-				onClick={onSwap}
-			>
-				<ArrowLeftRightIcon aria-hidden />
-				{t("swap")}
-			</button>
+			{!solo && (
+				<button
+					type="button"
+					className="ve-swap"
+					disabled={disabled || !slots.left.assetId || !slots.right.assetId}
+					onClick={onSwap}
+				>
+					<ArrowLeftRightIcon aria-hidden />
+					{t("swap")}
+				</button>
+			)}
 			<p className="ve-microcopy">{t("formats", { bytes: maxBytes.toLocaleString("en-US") })}</p>
 		</div>
 	);

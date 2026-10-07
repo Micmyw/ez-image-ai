@@ -1,5 +1,14 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-10-07",
+		title: "Raindance video ideas, prompts and a sunset-pier beta",
+		changes: [
+			"Make a solo sunset-pier video from one adult photo or a duet from two, with one total credit quote before generation.",
+			"Read the Raindance guide, copy free prompt ideas and learn how to add a permitted sound when posting. Video generation uses eligible paid credits.",
+			"Return to private orders through template history. The location illustration is separate from generated product examples.",
+		],
+	},
+	{
 		date: "2026-10-06",
 		title: "Clearer Hotel Lobby video pricing",
 		changes: [

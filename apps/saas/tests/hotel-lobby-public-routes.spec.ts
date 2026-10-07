@@ -46,6 +46,7 @@ const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 });
 
 async function setup(page: Page, state: Scenario) {
+	await page.route("**/api/auth/organization/list**", (route) => route.fulfill({ json: [] }));
 	await page
 		.context()
 		.addCookies([

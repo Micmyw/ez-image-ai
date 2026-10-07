@@ -1,3 +1,5 @@
+import { videoEffectIdSchema } from "@repo/config/video-effects";
+
 import type { Prisma } from "../../generated/client";
 /** Authoritative business transitions share their transaction and stable event identity. */
 export async function recordVideoTemplateBusinessEvent(
@@ -15,7 +17,11 @@ export async function recordVideoTemplateBusinessEvent(
 	)
 		return;
 	const template = input.templateSnapshot as Record<string, unknown>;
-	if (template.effectId !== "hotel-lobby-duo" || template.presetKey !== "standard") return;
+	if (
+		!videoEffectIdSchema.safeParse(template.effectId).success ||
+		template.presetKey !== "standard"
+	)
+		return;
 	await tx.auditLog.createMany({
 		data: [
 			{
@@ -23,7 +29,10 @@ export async function recordVideoTemplateBusinessEvent(
 				action: `video_effect_${input.event}`,
 				targetType: "GENERATION_JOB",
 				targetId: input.jobId,
-				metadata: { effectId: template.effectId, presetKey: template.presetKey },
+				metadata: {
+					effectId: videoEffectIdSchema.parse(template.effectId),
+					presetKey: template.presetKey,
+				},
 			},
 		],
 		skipDuplicates: true,

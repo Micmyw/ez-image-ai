@@ -5,6 +5,7 @@ import { eightiesPhotoDocuments } from "../../../content/posts/1980s-ai-photo";
 import { promptEditingDocuments } from "../../../content/posts/ai-image-editing-prompts";
 import { hotelLobbyVideoDocuments } from "../../../content/posts/hotel-lobby-ai-video";
 import { blogDocuments } from "../../../content/posts/private-image-editing-workflow";
+import { raindanceDocuments } from "../../../content/posts/raindance-ai-trend";
 import { getEffectRecordsForValidation, getPublishedEffectById } from "../../effects/lib/content";
 import type { BlogPost } from "./blog-types";
 import { validateBlogPosts } from "./blog-validation";
@@ -32,6 +33,7 @@ const posts: readonly BlogPost[] = [
 	...promptEditingDocuments,
 	...eightiesPhotoDocuments,
 	...hotelLobbyVideoDocuments,
+	...raindanceDocuments,
 ];
 
 export function getLegalPageByPath(path: string, options: { locale: string }): LegalPage | null {

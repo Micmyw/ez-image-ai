@@ -3,10 +3,17 @@
 import { useSession } from "@auth/hooks/use-session";
 import { useUpgrade } from "@payments/components/upgrade-context";
 import { defaultUpgradeSelection, upgradeHref } from "@payments/lib/upgrade-selection";
+import {
+	HOTEL_LOBBY_EFFECT_ID,
+	RAINDANCE_DUO_EFFECT_ID,
+	RAINDANCE_SOLO_EFFECT_ID,
+	type VideoEffectId,
+} from "@repo/config/video-effects";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUpRightIcon, FilmIcon, LockKeyholeIcon, SparklesIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { usePageVisible } from "../../video-v1/use-video";
@@ -24,11 +31,11 @@ import {
 	swapEffectInputs,
 	validEffectFile,
 	VIDEO_EFFECT_MAX_BYTES,
-	VIDEO_EFFECT_PATH,
 	type EffectDraft,
 	type EffectQuote,
 	type EffectRole,
 } from "../lib/model";
+import { videoEffectPath } from "../lib/paths";
 import { saveVideoEffectPaymentReturn } from "../lib/payment-return";
 import { DuoPhotoInputs, emptyPhotoSlot, type PhotoSlot } from "./DuoPhotoInputs";
 import { VideoEffectJob } from "./VideoEffectJob";
@@ -36,26 +43,37 @@ import { VideoEffectJob } from "./VideoEffectJob";
 export function VideoEffectGenerator({
 	initialJobId,
 	samples = [],
+	effectId = HOTEL_LOBBY_EFFECT_ID,
+	preview,
 }: {
 	initialJobId: string | null;
 	samples?: readonly PublicVideoEffectSample[];
+	effectId?: VideoEffectId;
+	preview?: ReactNode;
 }) {
 	const t = useTranslations("videoEffects");
 	const { user } = useSession();
+	const path = videoEffectPath(effectId);
+	const solo = effectId === RAINDANCE_SOLO_EFFECT_ID;
+	const returnQuery = new URLSearchParams();
+	if (initialJobId) returnQuery.set("job", initialJobId);
+	if (effectId === RAINDANCE_DUO_EFFECT_ID) returnQuery.set("mode", "duo");
+	const returnPath = `${path}${returnQuery.size ? `?${returnQuery}` : ""}`;
 	useEffect(() => {
-		void recordVideoEffectEvent("view");
-	}, []);
+		void recordVideoEffectEvent("view", undefined, effectId);
+	}, [effectId]);
 	if (!user || user.isAnonymous)
 		return (
 			<div className="ve-workbench">
 				<section className="ve-creator">
 					<div className="ve-card-heading">
-						<span className="ve-eyebrow">{t("twoPhotos")}</span>
+						<span className="ve-eyebrow">{t(solo ? "onePhoto" : "twoPhotos")}</span>
 						<LockKeyholeIcon aria-hidden />
 					</div>
-					<h2>{t("makeYourDuo")}</h2>
+					<h2>{t(solo ? "makeYourSolo" : "makeYourDuo")}</h2>
 					<p>{t("signInHint")}</p>
 					<DuoPhotoInputs
+						solo={solo}
 						slots={{ left: emptyPhotoSlot, right: emptyPhotoSlot }}
 						maxBytes={VIDEO_EFFECT_MAX_BYTES}
 						disabled
@@ -64,21 +82,20 @@ export function VideoEffectGenerator({
 						onSwap={() => undefined}
 					/>
 					<OutputSpec />
-					<Link
-						className="ve-primary"
-						href={`/login?redirectTo=${encodeURIComponent(initialJobId ? `${VIDEO_EFFECT_PATH}?job=${encodeURIComponent(initialJobId)}` : VIDEO_EFFECT_PATH)}`}
-					>
+					<Link className="ve-primary" href={`/login?redirectTo=${encodeURIComponent(returnPath)}`}>
 						{t("signIn")}
 						<ArrowUpRightIcon aria-hidden />
 					</Link>
 					<p className="ve-microcopy">{t("betaHint")}</p>
 				</section>
-				<VideoEffectSamples samples={samples} />
+				{preview ?? <VideoEffectSamples samples={samples} effectId={effectId} />}
 			</div>
 		);
 	return (
 		<SignedInGenerator
-			key={user.id}
+			key={`${user.id}:${effectId}`}
+			effectId={effectId}
+			preview={preview}
 			ownerId={user.id}
 			initialJobId={initialJobId}
 			samples={samples}
@@ -87,18 +104,24 @@ export function VideoEffectGenerator({
 }
 
 function SignedInGenerator({
+	effectId,
+	preview,
 	ownerId,
 	initialJobId,
 	samples,
 }: {
+	effectId: VideoEffectId;
+	preview?: ReactNode;
 	ownerId: string;
 	initialJobId: string | null;
 	samples: readonly PublicVideoEffectSample[];
 }) {
 	const t = useTranslations("videoEffects");
+	const path = videoEffectPath(effectId);
+	const solo = effectId === RAINDANCE_SOLO_EFFECT_ID;
 	const upgrade = useUpgrade();
 	const queryClient = useQueryClient();
-	const [draft, setDraft] = useState(() => emptyEffectDraft(ownerId));
+	const [draft, setDraft] = useState(() => emptyEffectDraft(ownerId, effectId));
 	const current = useRef(draft);
 	const [restored, setRestored] = useState(false);
 	const [slots, setSlots] = useState<Record<EffectRole, PhotoSlot>>({
@@ -116,8 +139,8 @@ function SignedInGenerator({
 		Record<EffectRole, { revision: number; controller?: AbortController; objectUrl?: string }>
 	>({ left: { revision: 0 }, right: { revision: 0 } });
 	const access = useQuery({
-		queryKey: ["video-effects", "access", ownerId],
-		queryFn: () => videoEffectsApi.access(),
+		queryKey: ["video-effects", "access", ownerId, effectId],
+		queryFn: () => videoEffectsApi.access({ effectId }),
 		retry: false,
 		staleTime: 15_000,
 	});
@@ -131,13 +154,12 @@ function SignedInGenerator({
 	);
 	const inputsReady = Boolean(
 		draft.leftAssetId &&
-		draft.rightAssetId &&
 		slots.left.status === "sealed" &&
-		slots.right.status === "sealed",
+		(solo || (draft.rightAssetId && slots.right.status === "sealed")),
 	);
 	function store(next: EffectDraft, required = false) {
 		try {
-			sessionStorage.setItem(effectStorageKey(ownerId), JSON.stringify(next));
+			sessionStorage.setItem(effectStorageKey(ownerId, effectId), JSON.stringify(next));
 		} catch {
 			if (required) throw new Error("RECOVERY_STORAGE_UNAVAILABLE");
 		}
@@ -146,9 +168,14 @@ function SignedInGenerator({
 	}
 	useEffect(() => {
 		let canceled = false;
-		let saved = emptyEffectDraft(ownerId);
+		let saved = emptyEffectDraft(ownerId, effectId);
 		try {
-			saved = readEffectDraft(sessionStorage.getItem(effectStorageKey(ownerId)), ownerId) ?? saved;
+			saved =
+				readEffectDraft(
+					sessionStorage.getItem(effectStorageKey(ownerId, effectId)),
+					ownerId,
+					effectId,
+				) ?? saved;
 		} catch {
 			/* Draft remains empty if storage is blocked. */
 		}
@@ -191,7 +218,7 @@ function SignedInGenerator({
 		};
 		// Owner remounts this component; restoring is intentionally a single read.
 		// oxlint-disable-next-line react-hooks/exhaustive-deps
-	}, [ownerId, initialJobId]);
+	}, [ownerId, initialJobId, effectId]);
 	async function refreshPreview(role: EffectRole) {
 		const assetId = current.current[`${role}AssetId`];
 		if (!assetId || slots[role].preview?.startsWith("blob:")) return;
@@ -269,6 +296,7 @@ function SignedInGenerator({
 		}));
 		try {
 			const upload = await videoEffectsApi.uploads.create({
+				effectId,
 				contentType: file.type as "image/jpeg" | "image/png" | "image/webp",
 				byteSize: file.size,
 			});
@@ -290,7 +318,8 @@ function SignedInGenerator({
 			}));
 			const next = changeEffectInputs(current.current, { [`${role}AssetId`]: sealed.assetId });
 			store(next);
-			if (next.leftAssetId && next.rightAssetId) void recordVideoEffectEvent("inputs_ready");
+			if (next.leftAssetId && (solo || next.rightAssetId))
+				void recordVideoEffectEvent("inputs_ready", undefined, effectId);
 		} catch {
 			if (active.revision === revision) {
 				setSlots((value) => ({ ...value, [role]: { ...value[role], status: "error" } }));
@@ -309,7 +338,7 @@ function SignedInGenerator({
 			const result = await videoEffectsApi.quote(effectRequest(current.current));
 			if (revision === current.current.revision) {
 				setQuote(result);
-				void recordVideoEffectEvent("quote_view", result.quoteId);
+				void recordVideoEffectEvent("quote_view", result.quoteId, effectId);
 			}
 		} catch (failure) {
 			setError(t(effectError(failure)));
@@ -332,11 +361,11 @@ function SignedInGenerator({
 				current.current.confirmation ?? createEffectConfirmation(current.current, quote!);
 			// Fail closed before the paid request if refresh recovery cannot be persisted.
 			store({ ...current.current, confirmation: intent }, true);
-			void recordVideoEffectEvent("submit", intent.input.idempotencyKey);
+			void recordVideoEffectEvent("submit", intent.input.idempotencyKey, effectId);
 			const accepted = await videoEffectsApi.jobs.create(intent.input);
 			store({ ...current.current, confirmation: null, jobId: accepted.jobId }, true);
 			setQuote(null);
-			void recordVideoEffectEvent("accepted", accepted.jobId);
+			void recordVideoEffectEvent("accepted", accepted.jobId, effectId);
 			void queryClient.invalidateQueries({ queryKey: ["media-credit-account"] });
 			void queryClient.invalidateQueries({ queryKey: ["video-effects", "access", ownerId] });
 			void queryClient.invalidateQueries({ queryKey: ["video-effects", "history", ownerId] });
@@ -360,13 +389,10 @@ function SignedInGenerator({
 		}
 	}
 	function buyCredits() {
-		saveVideoEffectPaymentReturn(ownerId);
+		saveVideoEffectPaymentReturn(ownerId, path);
 		const selection = { ...defaultUpgradeSelection, view: "credit-packs" as const };
 		if (upgrade) upgrade(selection);
-		else
-			window.location.assign(
-				`${upgradeHref(selection)}&returnTo=${encodeURIComponent(VIDEO_EFFECT_PATH)}`,
-			);
+		else window.location.assign(`${upgradeHref(selection)}&returnTo=${encodeURIComponent(path)}`);
 	}
 	const pending = draft.confirmation;
 	const totalCredits =
@@ -385,24 +411,32 @@ function SignedInGenerator({
 			: !enabled
 				? "unavailable"
 				: uploading
-					? "waitingForPhotos"
-					: !draft.leftAssetId && !draft.rightAssetId
-						? "uploadBothHint"
-						: !draft.leftAssetId
-							? "uploadLeftHint"
-							: !draft.rightAssetId
-								? "uploadRightHint"
-								: !inputsReady
-									? "waitingForPhotos"
-									: null;
+					? solo
+						? "raindance.waitingForPhoto"
+						: "waitingForPhotos"
+					: solo
+						? !draft.leftAssetId
+							? "raindance.uploadPhotoHint"
+							: !inputsReady
+								? "raindance.waitingForPhoto"
+								: null
+						: !draft.leftAssetId && !draft.rightAssetId
+							? "uploadBothHint"
+							: !draft.leftAssetId
+								? "uploadLeftHint"
+								: !draft.rightAssetId
+									? "uploadRightHint"
+									: !inputsReady
+										? "waitingForPhotos"
+										: null;
 	return (
 		<div className="ve-workbench">
 			<section className="ve-creator" aria-busy={busy !== null}>
 				<div className="ve-card-heading">
-					<span className="ve-eyebrow">{t("twoPhotos")}</span>
+					<span className="ve-eyebrow">{t(solo ? "onePhoto" : "twoPhotos")}</span>
 					<LockKeyholeIcon aria-hidden />
 				</div>
-				<h2>{t("makeYourDuo")}</h2>
+				<h2>{t(solo ? "makeYourSolo" : "makeYourDuo")}</h2>
 				<p>{t("photoHint")}</p>
 				{!enabled && (
 					<output className="ve-notice">
@@ -410,6 +444,7 @@ function SignedInGenerator({
 					</output>
 				)}
 				<DuoPhotoInputs
+					solo={solo}
 					slots={slots}
 					maxBytes={maxBytes}
 					disabled={!enabled || busy !== null}
@@ -513,13 +548,19 @@ function SignedInGenerator({
 					<button type="button" className="ve-text-button" onClick={buyCredits}>
 						{t("addCredits")}
 					</button>
-					<a href="#hotel-lobby-history">{t("history")}</a>
+					<a
+						href={
+							effectId === HOTEL_LOBBY_EFFECT_ID ? "#hotel-lobby-history" : "#raindance-history"
+						}
+					>
+						{t("history")}
+					</a>
 				</div>
 			</section>
 			{draft.jobId ? (
 				<VideoEffectJob key={draft.jobId} jobId={draft.jobId} />
 			) : (
-				<VideoEffectSamples samples={samples} />
+				(preview ?? <VideoEffectSamples samples={samples} effectId={effectId} />)
 			)}
 		</div>
 	);
@@ -539,7 +580,13 @@ function OutputSpec() {
 		</div>
 	);
 }
-function VideoEffectSamples({ samples }: { samples: readonly PublicVideoEffectSample[] }) {
+function VideoEffectSamples({
+	samples,
+	effectId,
+}: {
+	samples: readonly PublicVideoEffectSample[];
+	effectId: VideoEffectId;
+}) {
 	const t = useTranslations("videoEffects");
 	const [selected, setSelected] = useState(0);
 	const sample = samples[selected];
@@ -555,7 +602,7 @@ function VideoEffectSamples({ samples }: { samples: readonly PublicVideoEffectSa
 				poster={sample.thumbnail.src}
 				src={sample.video.src}
 				aria-label={sample.caption}
-				onPlay={() => void recordVideoEffectEvent("sample_play", sample.id)}
+				onPlay={() => void recordVideoEffectEvent("sample_play", sample.id, effectId)}
 			>
 				<track kind="captions" />
 			</video>

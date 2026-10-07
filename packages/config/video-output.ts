@@ -1,3 +1,5 @@
+import { videoEffectIdSchema } from "./video-effects";
+
 /** Immutable request-derived output requirements. Legacy snapshots remain five-second/silent. */
 export const VIDEO_AUDIO_POLICY_VERSION = "video-spoken-content-2026-10-04.1";
 export const VIDEO_OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
@@ -62,7 +64,7 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 		const output = rawOutput as Record<string, unknown>;
 		if (
 			config.schemaVersion !== 1 ||
-			config.effectId !== "hotel-lobby-duo" ||
+			!videoEffectIdSchema.safeParse(config.effectId).success ||
 			typeof config.templateVersion !== "string" ||
 			output.durationSeconds !== 5 ||
 			output.resolution !== "720p" ||

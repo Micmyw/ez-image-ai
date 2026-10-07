@@ -107,6 +107,19 @@ export function createProfileArtifacts(options: {
 			environment,
 		);
 	}
+	if (environment.RAINDANCE_ENABLED === "true") {
+		if (environment.VIDEO_V1_ENABLED !== "true") throw new Error("VIDEO_EFFECT_VIDEO_DISABLED");
+		for (const effectId of ["raindance-solo", "raindance-duo"] as const) {
+			resolveVideoEffectPrice(
+				{
+					effectId,
+					presetKey: "standard",
+					inputs: { leftAssetId: "readiness", rightAssetId: "readiness" },
+				},
+				environment,
+			);
+		}
+	}
 	const videoWorkflow = {
 		name: `ezpic-video-v1-${profile}-${target}`,
 		binding: "VIDEO_WORKFLOW",
@@ -174,6 +187,7 @@ export function createProfileArtifacts(options: {
 	delete jobVars.VIDEO_V1_BUILD_ENABLED;
 	delete jobVars.HOTEL_LOBBY_DUO_BUILD_ENABLED;
 	delete jobVars.HOTEL_LOBBY_DUO_RUNTIME_CONFIG;
+	delete jobVars.RAINDANCE_RUNTIME_CONFIG;
 	const effectiveVideo = expandVideoRuntimeEnvironment(flatEnvironment);
 	for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) {
 		if (jobVars[key] !== undefined && jobVars[key] !== effectiveVideo[key])
@@ -219,6 +233,7 @@ export function createProfileArtifacts(options: {
 			key === "VIDEO_V1_BUILD_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" ||
+			key === "RAINDANCE_RUNTIME_CONFIG" ||
 			isRetiredModerationBinding(key)
 		)
 			delete hybridEnvironment[key];
@@ -270,6 +285,7 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 		"VIDEO_V1_BUILD_ENABLED",
 		"HOTEL_LOBBY_DUO_BUILD_ENABLED",
 		"HOTEL_LOBBY_DUO_RUNTIME_CONFIG",
+		"RAINDANCE_RUNTIME_CONFIG",
 		...retiredModerationBindings,
 		"NEXT_PUBLIC_GOOGLE_ANALYTICS_ID",
 		"NEXT_PUBLIC_CLARITY_PROJECT_ID",

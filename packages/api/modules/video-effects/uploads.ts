@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { VIDEO_EFFECT_MAX_INPUT_BYTES } from "@repo/config/video-effects";
+import { VIDEO_EFFECT_MAX_INPUT_BYTES, type VideoEffectId } from "@repo/config/video-effects";
 import { db } from "@repo/database/client";
 import { createMediaUploadSessionTransaction } from "@repo/database/media-assets";
 import {
@@ -36,13 +36,17 @@ import { validateVideoUpload } from "../video-v1/uploads";
 
 export async function createVideoEffectUpload(
 	user: { id: string; role?: string | null },
-	input: { contentType: string; byteSize: number },
+	input: { contentType: string; byteSize: number; effectId?: VideoEffectId },
 ) {
 	const admission = requireVideoTemplateAdmission(
 		{ userId: user.id, role: user.role },
 		process.env,
 		getVideoWorkflowReadinessBindings(),
-		VIDEO_EFFECT_CAPABILITY_REQUEST,
+		{
+			...VIDEO_EFFECT_CAPABILITY_REQUEST,
+			effectId: input.effectId ?? "hotel-lobby-duo",
+			inputs: { leftAssetId: "capability", rightAssetId: "capability" },
+		},
 	);
 	await requireVideoTemplateRuntimeEnabled(admission.template);
 	const entitlement = await loadUserPlanEntitlement(user.id);
