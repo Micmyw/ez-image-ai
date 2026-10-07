@@ -259,6 +259,54 @@ function artifacts(
 
 describe("prepared deployment artifacts", () => {
 	it.each(["workers", "hybrid"] as const)(
+		"mirrors only the approved ordinary access change to both %s Workers",
+		(profile) => {
+			const input = packVideoRuntimeEnvironment({
+				...multiModelVideoEnvironment,
+				VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
+					{
+						productKey: "video-kling-2-6-v1",
+						modes: ["text-to-video"],
+						durations: [5],
+						resolutions: ["default"],
+						sounds: [false],
+					},
+				]),
+				HOTEL_LOBBY_DUO_ACCESS: "internal",
+				RAINDANCE_ACCESS: "internal",
+			});
+			const prepared = parseEnv(
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true",
+					VIDEO_RUNTIME_CONFIG: input.VIDEO_RUNTIME_CONFIG,
+					VIDEO_V1_BUILD_ACCESS: "authenticated",
+				}),
+			);
+			const result = artifacts(profile, {
+				...input,
+				VIDEO_RUNTIME_CONFIG: prepared.VIDEO_RUNTIME_CONFIG!,
+				VIDEO_V1_BUILD_ACCESS: "authenticated",
+			});
+			const expectedPolicy = {
+				...parseVideoRuntimeConfig(input.VIDEO_RUNTIME_CONFIG),
+				VIDEO_V1_ACCESS: "authenticated",
+			};
+			for (const name of ["website", "workflows"] as const) {
+				expect(parseVideoRuntimeConfig(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG)).toEqual(
+					expectedPolicy,
+				);
+				expect(result[name].vars).toMatchObject({ VIDEO_V1_ENABLED: "true" });
+				expect(result[name].vars).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
+				expect(result[`${name}.secrets`]).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
+			}
+			if (profile === "hybrid") {
+				const container = JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV);
+				expect(container.VIDEO_V1_ACCESS).toBe("authenticated");
+				expect(container).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
+			}
+		},
+	);
+	it.each(["workers", "hybrid"] as const)(
 		"keeps the template closed with ordinary video enabled in %s",
 		(profile) => {
 			const result = artifacts(profile, {
@@ -357,18 +405,25 @@ describe("prepared deployment artifacts", () => {
 		(profile) => {
 			const result = artifacts(profile, {
 				VIDEO_V1_BUILD_ENABLED: "true",
+				VIDEO_V1_BUILD_ACCESS: "authenticated",
 				HOTEL_LOBBY_DUO_RUNTIME_CONFIG: '{"HOTEL_LOBBY_DUO_ACCESS":"authenticated"}',
 			});
 			for (const name of ["website", "workflows"] as const) {
 				expect(result[name].vars).toMatchObject({ VIDEO_V1_ENABLED: "false" });
 				expect(result[name].vars).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
+				expect(result[name].vars).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
 				expect(result[`${name}.secrets`]).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
+				expect(result[`${name}.secrets`]).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
 				expect(result[name].vars).not.toHaveProperty("HOTEL_LOBBY_DUO_RUNTIME_CONFIG");
 				expect(result[`${name}.secrets`]).not.toHaveProperty("HOTEL_LOBBY_DUO_RUNTIME_CONFIG");
 			}
 			if (profile === "hybrid")
 				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).not.toHaveProperty(
 					"VIDEO_V1_BUILD_ENABLED",
+				);
+			if (profile === "hybrid")
+				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).not.toHaveProperty(
+					"VIDEO_V1_BUILD_ACCESS",
 				);
 			if (profile === "hybrid")
 				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).not.toHaveProperty(
@@ -386,10 +441,15 @@ describe("prepared deployment artifacts", () => {
 		const result = artifacts(
 			"workers",
 			{},
-			{ VIDEO_V1_ACCESS: "internal", VIDEO_V1_BUILD_ENABLED: "true" },
+			{
+				VIDEO_V1_ACCESS: "internal",
+				VIDEO_V1_BUILD_ENABLED: "true",
+				VIDEO_V1_BUILD_ACCESS: "authenticated",
+			},
 		);
 		expect(result.workflows.vars).not.toHaveProperty("VIDEO_V1_ACCESS");
 		expect(result.workflows.vars).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
+		expect(result.workflows.vars).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
 		expect(result.workflows.vars).toMatchObject({ VIDEO_V1_ENABLED: "false" });
 		expect(parseVideoRuntimeConfig(result["workflows.secrets"].VIDEO_RUNTIME_CONFIG)).toEqual({
 			VIDEO_V1_ACCESS: "internal",

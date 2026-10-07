@@ -1822,8 +1822,8 @@
 	},
 	"videoV1": {
 		"title": "Crea un vídeo corto",
-		"beta": "Beta privada",
-		"description": "Convierte una descripción o una imagen de referencia en un vídeo privado. El acceso está limitado a cuentas invitadas.",
+		"beta": "Beta",
+		"description": "Convierte una descripción o una imagen de referencia en un vídeo privado. Inicia sesión y usa créditos pagados aptos para generar.",
 		"history": "Historial de vídeos",
 		"newVideo": "Nuevo vídeo",
 		"mode": "Entrada",

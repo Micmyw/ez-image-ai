@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { VIDEO_MODEL_CATALOG_VERSION } from "./video-models";
 import {
+	canAccessInternalVideoV1,
 	canAccessVideoV1,
 	readVideoV1Config,
 	resolveVideoV1CallbackBaseUrl,
@@ -86,8 +88,98 @@ describe("video V1 configuration", () => {
 		});
 		expect(canAccessVideoV1(config, { id: "user1" })).toBe(true);
 		expect(canAccessVideoV1(config, { id: "user2" })).toBe(false);
+		expect(canAccessVideoV1(config, { id: "operator", role: "admin" })).toBe(true);
 		expect(canAccessVideoV1(config, null)).toBe(false);
 	});
+	it("explicitly admits registered customers without widening the internal audience", () => {
+		const config = readVideoV1Config({
+			VIDEO_V1_ENABLED: "true",
+			VIDEO_V1_ACCESS: "authenticated",
+			VIDEO_V1_ALLOWED_USER_IDS: "internal-owner",
+		});
+		const customer = { id: "registered-customer", role: "user", isAnonymous: false };
+		expect(config.access).toBe("authenticated");
+		expect(canAccessVideoV1(config, customer)).toBe(true);
+		expect(canAccessInternalVideoV1(config, customer)).toBe(false);
+		expect(canAccessInternalVideoV1(config, { id: "internal-owner" })).toBe(true);
+		expect(canAccessVideoV1({ ...config, enabled: false }, customer)).toBe(false);
+	});
+	it.each([undefined, "internal", "authenticated"])(
+		"rejects absent, empty and anonymous identities in scope %j",
+		(scope) => {
+			const config = readVideoV1Config({
+				VIDEO_V1_ENABLED: "true",
+				VIDEO_V1_ACCESS: scope,
+				VIDEO_V1_ALLOWED_USER_IDS: "guest",
+			});
+			for (const user of [
+				null,
+				undefined,
+				{ id: "", role: "admin" },
+				{ id: "guest", isAnonymous: true },
+				{ id: "guest", role: "admin", isAnonymous: true },
+			]) {
+				expect(canAccessVideoV1(config, user)).toBe(false);
+				expect(canAccessInternalVideoV1(config, user)).toBe(false);
+			}
+		},
+	);
+	it.each(["public", "true", " authenticated", ""])(
+		"fails closed for malformed ordinary scope %j even for administrators",
+		(scope) => {
+			const config = readVideoV1Config({ VIDEO_V1_ENABLED: "true", VIDEO_V1_ACCESS: scope });
+			expect(config.access).toBeNull();
+			expect(canAccessVideoV1(config, { id: "operator", role: "admin" })).toBe(false);
+			expect(videoV1Readiness({ VIDEO_V1_ACCESS: scope }).reasons).toContain(
+				"VIDEO_ACCESS_CONFIGURATION_INVALID",
+			);
+		},
+	);
+	it.each([undefined, "internal", "authenticated"])(
+		"allows ready ordinary scope %j while retaining provider, safety and binding gates",
+		(scope) => {
+			const environment = {
+				VIDEO_V1_ENABLED: "true",
+				VIDEO_V1_ACCESS: scope,
+				MEDIA_GENERATION_ENABLED: "true",
+				NEXT_PUBLIC_SAAS_URL: "https://example.test",
+				KIE_API_KEY: "test",
+				KIE_WEBHOOK_SECRET: "test",
+				VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
+				VIDEO_V1_TEXT_SAFETY_ADAPTER: "waffo",
+				WAFFO_MERCHANT_ID: "test",
+				WAFFO_PRIVATE_KEY: "test",
+				VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
+				VIDEO_V1_IMAGE_SAFETY_ADAPTER: "seeapi",
+				SEEAPI_API_KEY: "test",
+				VIDEO_SEEAPI_CALLBACK_SECRET: "isolated-callback-url-secret-20261004",
+				SEEAPI_WEBHOOK_SIGNING_KEYS: JSON.stringify({
+					whkey_current: "whsec_isolated-current-signing-secret",
+				}),
+				VIDEO_V1_PROVIDER_CONCURRENCY: "1",
+				VIDEO_V1_OUTPUT_ALLOWED_HOSTS: "output.example.test",
+			};
+			const bindings = { workflow: true, r2: true, hyperdrive: true, uploadCors: true };
+			expect(videoV1Readiness(environment, bindings, { multiModel: true })).toEqual({
+				ready: true,
+				reasons: [],
+			});
+			const unready = videoV1Readiness(
+				{ ...environment, KIE_API_KEY: "", SEEAPI_API_KEY: "" },
+				{ ...bindings, workflow: false },
+				{ multiModel: true },
+			);
+			expect(unready.ready).toBe(false);
+			expect(unready.reasons).toEqual(
+				expect.arrayContaining([
+					"VIDEO_PROVIDER_NOT_CONFIGURED",
+					"VIDEO_VISUAL_MODERATION_NOT_CONFIGURED",
+					"VIDEO_IMAGE_MODERATION_NOT_CONFIGURED",
+					"VIDEO_BINDING_WORKFLOW_NOT_READY",
+				]),
+			);
+		},
+	);
 	it("counts Unicode points and applies current stricter provider prompt limit", () => {
 		const base = { mode: "text-to-video", duration: 5, sound: false, aspectRatio: "16:9" };
 		expect(videoV1InputSchema.safeParse({ ...base, prompt: "🦋".repeat(1000) }).success).toBe(true);

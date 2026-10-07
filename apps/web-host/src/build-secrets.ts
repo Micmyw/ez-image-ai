@@ -74,13 +74,26 @@ function withVideoRuntimeOverrides(
 	const encoded = environment.VIDEO_RUNTIME_CONFIG;
 	const templateOverride = environment.HOTEL_LOBBY_DUO_RUNTIME_CONFIG;
 	const enabled = environment.VIDEO_V1_BUILD_ENABLED;
+	const access = environment.VIDEO_V1_BUILD_ACCESS;
 	const templateEnabled = environment.HOTEL_LOBBY_DUO_BUILD_ENABLED;
 	if (enabled !== undefined && enabled !== "true" && enabled !== "false")
 		throw new Error("VIDEO_BUILD_ENABLED_OVERRIDE_INVALID");
+	if (access !== undefined && access !== "internal" && access !== "authenticated")
+		throw new Error("VIDEO_BUILD_ACCESS_OVERRIDE_INVALID");
 	if (templateEnabled !== undefined && templateEnabled !== "true" && templateEnabled !== "false")
 		throw new Error("VIDEO_EFFECT_BUILD_ENABLED_OVERRIDE_INVALID");
 	let policy = encoded === undefined ? undefined : parseVideoRuntimeConfig(encoded);
 	const changedFlatKeys = new Set<string>();
+	if (access !== undefined) {
+		const modelAccess = readVideoModelAccess(policy ?? {});
+		if (!policy || !modelAccess.ready || !modelAccess.allowed.size)
+			throw new Error("VIDEO_BUILD_ACCESS_POLICY_REQUIRED");
+		const previous = parseEnv(source);
+		// Validate the current base before applying the one explicitly authorized access change.
+		expandVideoRuntimeEnvironment({ ...previous, VIDEO_RUNTIME_CONFIG: encoded });
+		policy = parseVideoRuntimeConfig(JSON.stringify({ ...policy, VIDEO_V1_ACCESS: access }));
+		if (previous.VIDEO_V1_ACCESS !== undefined) changedFlatKeys.add("VIDEO_V1_ACCESS");
+	}
 	if (templateOverride !== undefined) {
 		// The build runner reads its current private base. Never substitute a local snapshot.
 		if (!policy || !Object.keys(policy).length || !readVideoModelAccess(policy).ready)
@@ -405,6 +418,7 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key === "RAINDANCE_RUNTIME_CONFIG" ||
 			key === "VIDEO_V1_ENABLED" ||
 			key === "VIDEO_V1_BUILD_ENABLED" ||
+			key === "VIDEO_V1_BUILD_ACCESS" ||
 			key === "HOTEL_LOBBY_DUO_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
 			VIDEO_RUNTIME_ENVIRONMENT_KEYS.some((policy) => policy === key) ||

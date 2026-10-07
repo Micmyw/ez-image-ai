@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import {
+	HOTEL_LOBBY_EFFECT_ID,
+	RAINDANCE_DUO_EFFECT_ID,
+	RAINDANCE_SOLO_EFFECT_ID,
+} from "./video-effects";
 import { canAccessVideoEffect, readVideoEffectAccessScope } from "./video-effects-access.server";
 import { canAccessVideoV1, readVideoV1Config } from "./video-v1";
 
@@ -22,6 +27,35 @@ describe("Hotel Lobby template access scope", () => {
 		expect(canAccessVideoEffect(publicTemplate, customer)).toBe(true);
 		expect(canAccessVideoV1(readVideoV1Config(publicTemplate), customer)).toBe(false);
 	});
+	it.each([HOTEL_LOBBY_EFFECT_ID, RAINDANCE_SOLO_EFFECT_ID, RAINDANCE_DUO_EFFECT_ID] as const)(
+		"keeps internal template %s restricted after ordinary video opens",
+		(effectId) => {
+			const ordinaryVideoOpen = {
+				...environment,
+				VIDEO_V1_ACCESS: "authenticated",
+				RAINDANCE_ENABLED: "true",
+			};
+			expect(canAccessVideoV1(readVideoV1Config(ordinaryVideoOpen), customer)).toBe(true);
+			expect(canAccessVideoEffect(ordinaryVideoOpen, customer, effectId)).toBe(false);
+			expect(canAccessVideoEffect(ordinaryVideoOpen, { id: "internal-owner" }, effectId)).toBe(
+				true,
+			);
+			expect(
+				canAccessVideoEffect(ordinaryVideoOpen, { id: "operator", role: "admin" }, effectId),
+			).toBe(true);
+			expect(
+				canAccessVideoEffect(
+					{
+						...ordinaryVideoOpen,
+						HOTEL_LOBBY_DUO_ACCESS: "authenticated",
+						RAINDANCE_ACCESS: "authenticated",
+					},
+					customer,
+					effectId,
+				),
+			).toBe(true);
+		},
+	);
 	it.each([null, undefined, { id: "guest", isAnonymous: true }, { id: "", role: "admin" }])(
 		"rejects absent/anonymous identity %j even when enabled",
 		(user) => {

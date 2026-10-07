@@ -1822,8 +1822,8 @@
 	},
 	"videoV1": {
 		"title": "Create a short video",
-		"beta": "Private beta",
-		"description": "Turn a prompt or one reference image into a private video. Access is limited to invited accounts.",
+		"beta": "Beta",
+		"description": "Turn a prompt or one reference image into a private video. Sign in and use eligible paid credits to generate.",
 		"history": "Video history",
 		"newVideo": "New video",
 		"mode": "Input",

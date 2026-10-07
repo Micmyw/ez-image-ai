@@ -44,6 +44,7 @@ export function deploymentEnvironment(
 			([key, value]) =>
 				value &&
 				key !== "VIDEO_V1_BUILD_ENABLED" &&
+				key !== "VIDEO_V1_BUILD_ACCESS" &&
 				key !== "HOTEL_LOBBY_DUO_BUILD_ENABLED" &&
 				key !== "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" &&
 				!isRetiredModerationBinding(key) &&

@@ -8,6 +8,7 @@ describe("Cloudflare deployment environment", () => {
 			{
 				NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
 				VIDEO_V1_BUILD_ENABLED: "true",
+				VIDEO_V1_BUILD_ACCESS: "authenticated",
 				VIDEO_V1_ENABLED: "false",
 				HOTEL_LOBBY_DUO_ENABLED: "false",
 				HOTEL_LOBBY_DUO_BUILD_ENABLED: "true",
@@ -15,6 +16,7 @@ describe("Cloudflare deployment environment", () => {
 			"https://ezimageai.com",
 		);
 		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
+		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
 		expect(result.VIDEO_V1_ENABLED).toBe("false");
 		expect(result.HOTEL_LOBBY_DUO_ENABLED).toBe("false");
 		expect(result).not.toHaveProperty("HOTEL_LOBBY_DUO_BUILD_ENABLED");

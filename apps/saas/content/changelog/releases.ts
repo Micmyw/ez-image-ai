@@ -1,6 +1,15 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-10-07",
+		title: "Video beta for signed-in accounts",
+		changes: [
+			"Open Video from the editor or account navigation and create a short video from text or one reference image.",
+			"Use qualifying paid credits after reviewing the total quote. Available models and settings still follow the current service configuration; video does not include a guest trial.",
+			"Follow private orders in Video history and recover the same request after an interrupted confirmation.",
+		],
+	},
+	{
+		date: "2026-10-07",
 		title: "Raindance video ideas, prompts and a sunset-pier beta",
 		changes: [
 			"Make a solo sunset-pier video from one adult photo or a duet from two, with one total credit quote before generation.",

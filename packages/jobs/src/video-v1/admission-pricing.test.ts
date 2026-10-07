@@ -106,6 +106,34 @@ beforeEach(() => {
 	vi.mocked(findExistingVideoAdmission).mockResolvedValue(null);
 });
 describe("video admission pricing and paid funding binding", () => {
+	it.each([
+		{ userId: "registered-user", role: "user" },
+		{ userId: "funding-test-operator", role: "admin" },
+	])("retains qualified paid funding for $role in authenticated mode", async (owner) => {
+		const authenticatedEnvironment = {
+			...environment,
+			VIDEO_V1_ACCESS: "authenticated",
+			VIDEO_INTERNAL_FUNDING: JSON.stringify({
+				userIds: ["funding-test-operator"],
+				validUntil: new Date(Date.now() + 60_000).toISOString(),
+				reason: "Internal grant must not apply to the public audience",
+			}),
+		};
+		const quote = requireVideoAdmission(owner, authenticatedEnvironment, bindings, legacyRequest);
+		expect(quote.price.paidFundingPolicy).toBe(fixtures.price.paidFundingPolicy);
+		await createVideoJob(
+			owner,
+			{ quoteId: "quote", idempotencyKey: "authenticated-request", request: legacyRequest },
+			{ ...options, environment: authenticatedEnvironment },
+		);
+		expect(createVideoJobRecord).toHaveBeenCalledWith(
+			expect.objectContaining({
+				ownerId: owner.userId,
+				paidFundingPolicy: fixtures.price.paidFundingPolicy,
+			}),
+			expect.anything(),
+		);
+	});
 	it("uses the same explicit operator funding decision for quotation and job creation", async () => {
 		const operator = { userId: "funding-test-operator", role: "admin" };
 		const internalEnvironment = {

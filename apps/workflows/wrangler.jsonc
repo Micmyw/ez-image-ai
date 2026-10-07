@@ -12,7 +12,6 @@
 	"triggers": { "crons": ["* * * * *"] },
 	"vars": {
 		"VIDEO_V1_ENABLED": "false",
-		"VIDEO_V1_ACCESS": "internal",
 		"EZPIC_RUNTIME": "workers",
 		"EZPIC_DATABASE_BINDING": "hyperdrive"
 	},

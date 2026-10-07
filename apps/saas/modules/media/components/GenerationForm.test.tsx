@@ -685,8 +685,8 @@ describe("GenerationForm product copy", () => {
 		expect(markup).toContain('class="studio-composer-heading"');
 		expect(markup).toContain('aria-label="mediaType"');
 		expect(markup).toContain('aria-pressed="true"');
-		expect(markup).toContain('aria-pressed="false" disabled=""');
-		expect(markup).toContain("comingSoon");
+		expect(markup).toContain('href="/video"');
+		expect(markup).not.toContain("comingSoon");
 		expect(markup).not.toContain("generation.textMode");
 		expect(markup).toContain("Localized image prompt");
 		expect(markup).not.toContain('id="generation-prompt-hint"');
@@ -699,6 +699,18 @@ describe("GenerationForm product copy", () => {
 		expect(markup).toContain('class="composer-ideas-trigger"');
 		expect(markup).not.toMatch(/<details[^>]*class="image-edit-prompt-ideas/);
 		expect(markup).not.toMatch(/<details[^>]*open=/);
+	});
+
+	it.each(["/", "/create"])("offers video navigation in the composer at %s", (pathname) => {
+		navigation.pathname = pathname;
+		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
+		const videoLink = markup.match(/<a[^>]*href="\/video"[^>]*>[\s\S]*?<\/a>/)?.[0];
+		expect(videoLink).toBeDefined();
+		expect(videoLink).toContain('class="composer-category"');
+		expect(videoLink).toContain("video");
+		expect(videoLink).not.toContain("disabled");
+		expect(videoLink).not.toContain("comingSoon");
+		expect(videoLink).not.toContain("aria-pressed");
 	});
 
 	it.each([false, true])(

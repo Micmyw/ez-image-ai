@@ -120,16 +120,14 @@ describe("explicit operator funding for internal video acceptance", () => {
 		).toBe(price);
 	});
 
-	it("requires internal access even with a valid operator authorization", () => {
-		expect(
-			applyVideoInternalFunding(
-				price,
-				operator,
-				{ ...environment, VIDEO_V1_ACCESS: "public" },
-				now,
-			),
-		).toBe(price);
-	});
+	it.each(["authenticated", "public", "", " internal"])(
+		"retains qualified paid funding in scope %j even with valid operator authorization",
+		(scope) => {
+			expect(
+				applyVideoInternalFunding(price, operator, { ...environment, VIDEO_V1_ACCESS: scope }, now),
+			).toBe(price);
+		},
+	);
 	it("validates frozen owner and expiry again at the database boundary", () => {
 		const result = applyVideoInternalFunding(price, operator, environment, now);
 		const funding = result.pricingDetails?.funding;

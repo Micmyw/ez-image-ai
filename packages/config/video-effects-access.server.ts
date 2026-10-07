@@ -1,5 +1,5 @@
 import { HOTEL_LOBBY_EFFECT_ID, type VideoEffectId } from "./video-effects";
-import { canAccessVideoV1, readVideoV1Config, type VideoV1Environment } from "./video-v1";
+import { canAccessInternalVideoV1, readVideoV1Config, type VideoV1Environment } from "./video-v1";
 
 export type VideoEffectAccessScope = "internal" | "authenticated";
 
@@ -31,5 +31,7 @@ export function canAccessVideoEffect(
 	)
 		return false;
 	const scope = readVideoEffectAccessScope(environment, effectId);
-	return scope === "authenticated" || (scope === "internal" && canAccessVideoV1(config, user));
+	return (
+		scope === "authenticated" || (scope === "internal" && canAccessInternalVideoV1(config, user))
+	);
 }

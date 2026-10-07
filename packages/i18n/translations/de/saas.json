@@ -1822,8 +1822,8 @@
 	},
 	"videoV1": {
 		"title": "Ein kurzes Video erstellen",
-		"beta": "Private Beta",
-		"description": "Erstelle aus einem Prompt oder einem Referenzbild ein privates Video. Der Zugang ist auf eingeladene Konten begrenzt.",
+		"beta": "Beta",
+		"description": "Erstelle aus einem Prompt oder einem Referenzbild ein privates Video. Melde dich an und nutze geeignete bezahlte Credits für die Generierung.",
 		"history": "Videoverlauf",
 		"newVideo": "Neues Video",
 		"mode": "Eingabe",

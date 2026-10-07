@@ -166,4 +166,33 @@ describe("video upload model admission", () => {
 		await expect(createVideoUpload({ id: "other" }, input)).rejects.toThrow("VIDEO_ACCESS_DENIED");
 		expect(createSignedUpload).not.toHaveBeenCalled();
 	});
+	it("admits a registered user outside the allowlist in authenticated mode", async () => {
+		vi.stubEnv("VIDEO_V1_ACCESS", "authenticated");
+		await expect(createVideoUpload({ id: "registered-user" }, input)).resolves.toMatchObject({
+			method: "PUT",
+		});
+		expect(createMediaUploadSessionTransaction).toHaveBeenCalledWith(
+			expect.objectContaining({
+				ownerId: "registered-user",
+				verificationEngine: "video-workflow-v1",
+			}),
+			expect.anything(),
+		);
+	});
+	it("rejects an anonymous session before reserving upload storage in authenticated mode", async () => {
+		vi.stubEnv("VIDEO_V1_ACCESS", "authenticated");
+		const anonymous = { id: "guest-session", isAnonymous: true };
+		await expect(createVideoUpload(anonymous, input)).rejects.toThrow("VIDEO_ACCESS_DENIED");
+		expect(createMediaUploadSessionTransaction).not.toHaveBeenCalled();
+		expect(createSignedUpload).not.toHaveBeenCalled();
+	});
+	it("retains pricing expiry checks for newly admitted registered users", async () => {
+		vi.stubEnv("VIDEO_V1_ACCESS", "authenticated");
+		vi.stubEnv("VIDEO_PRICE_VALID_UNTIL", "2000-01-01T00:00:00.000Z");
+		await expect(createVideoUpload({ id: "registered-user" }, input)).rejects.toThrow(
+			"VIDEO_PRICE_EXPIRED",
+		);
+		expect(createMediaUploadSessionTransaction).not.toHaveBeenCalled();
+		expect(createSignedUpload).not.toHaveBeenCalled();
+	});
 });

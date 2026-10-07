@@ -99,6 +99,7 @@ describe("private video runtime environment transport", () => {
 		"VIDEO_SEEAPI_CALLBACK_SECRET",
 		"WAFFO_PRIVATE_KEY",
 		"VIDEO_V1_ENABLED",
+		"VIDEO_V1_BUILD_ACCESS",
 		"HOTEL_LOBBY_DUO_ENABLED",
 		"VIDEO_WORKFLOW",
 		"VIDEO_MEDIA_BUCKET",

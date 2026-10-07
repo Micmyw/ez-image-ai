@@ -14,8 +14,7 @@
 		"EZPIC_RUNTIME": "workers",
 		"EZPIC_DATABASE_BINDING": "hyperdrive",
 		"MEDIA_TRUSTED_PROXY_PROVIDER": "cloudflare",
-		"VIDEO_V1_ENABLED": "false",
-		"VIDEO_V1_ACCESS": "internal"
+		"VIDEO_V1_ENABLED": "false"
 	},
 	"images": { "binding": "IMAGES" },
 	"hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }],

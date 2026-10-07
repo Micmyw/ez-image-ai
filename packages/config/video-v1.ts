@@ -36,6 +36,13 @@ const legacyVideoV1InputSchema = z.discriminatedUnion("mode", [
 export const videoV1InputSchema = z.union([legacyVideoV1InputSchema, videoModelInputSchema]);
 export type VideoV1Input = z.infer<typeof videoV1InputSchema>;
 export type VideoV1Environment = Record<string, string | undefined>;
+export type VideoV1AccessScope = "internal" | "authenticated";
+
+/** Missing scope preserves internal admission; invalid values keep admission closed. */
+export function readVideoV1AccessScope(env: VideoV1Environment): VideoV1AccessScope | null {
+	const scope = env.VIDEO_V1_ACCESS ?? "internal";
+	return scope === "internal" || scope === "authenticated" ? scope : null;
+}
 
 /** One origin for callback construction and readiness; never take this value from a client. */
 export function resolveVideoV1CallbackBaseUrl(env: VideoV1Environment): string | null {
@@ -77,7 +84,7 @@ function positiveBigInt(value: string | undefined, allowZero = false): bigint | 
 export function readVideoV1Config(env: VideoV1Environment) {
 	return {
 		enabled: env.VIDEO_V1_ENABLED === "true",
-		access: "internal" as const,
+		access: readVideoV1AccessScope(env),
 		allowedUserIds: (env.VIDEO_V1_ALLOWED_USER_IDS ?? "")
 			.split(",")
 			.map((id) => id.trim())
@@ -104,12 +111,30 @@ export function readVideoV1Config(env: VideoV1Environment) {
 	};
 }
 export type VideoV1Config = ReturnType<typeof readVideoV1Config>;
-export function canAccessVideoV1(
+type VideoV1User = { id: string; role?: string | null; isAnonymous?: boolean | null };
+
+/** Independent internal audience, also used by templates with their own access scope. */
+export function canAccessInternalVideoV1(
 	config: VideoV1Config,
-	user: { id: string; role?: string | null } | null | undefined,
+	user: VideoV1User | null | undefined,
 ): boolean {
 	return Boolean(
-		config.enabled && user && (user.role === "admin" || config.allowedUserIds.includes(user.id)),
+		config.enabled &&
+		user?.id &&
+		!user.isAnonymous &&
+		(user.role === "admin" || config.allowedUserIds.includes(user.id)),
+	);
+}
+export function canAccessVideoV1(
+	config: VideoV1Config,
+	user: VideoV1User | null | undefined,
+): boolean {
+	return Boolean(
+		config.enabled &&
+		user?.id &&
+		!user.isAnonymous &&
+		(config.access === "authenticated" ||
+			(config.access === "internal" && canAccessInternalVideoV1(config, user))),
 	);
 }
 export type VideoV1Bindings = {
@@ -128,8 +153,7 @@ export function videoV1Readiness(
 	const reasons: string[] = [];
 	if (!config.enabled) reasons.push("VIDEO_DISABLED");
 	if (env.MEDIA_GENERATION_ENABLED !== "true") reasons.push("MEDIA_GENERATION_DISABLED");
-	if (env.VIDEO_V1_ACCESS && env.VIDEO_V1_ACCESS !== "internal")
-		reasons.push("VIDEO_ACCESS_CONFIGURATION_INVALID");
+	if (!config.access) reasons.push("VIDEO_ACCESS_CONFIGURATION_INVALID");
 	if (
 		!options.multiModel &&
 		(!config.credits ||

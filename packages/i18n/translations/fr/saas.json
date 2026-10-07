@@ -1822,8 +1822,8 @@
 	},
 	"videoV1": {
 		"title": "Créer une courte vidéo",
-		"beta": "Bêta privée",
-		"description": "Transformez une description ou une image de référence en vidéo privée. L’accès est réservé aux comptes invités.",
+		"beta": "Bêta",
+		"description": "Transformez une description ou une image de référence en vidéo privée. Connectez-vous et utilisez des crédits payés admissibles pour générer.",
 		"history": "Historique des vidéos",
 		"newVideo": "Nouvelle vidéo",
 		"mode": "Entrée",

@@ -185,6 +185,7 @@ export function createProfileArtifacts(options: {
 	// Policy must have one authoritative packed copy, never an inherited flat var.
 	const jobVars = jobs.vars as Record<string, unknown>;
 	delete jobVars.VIDEO_V1_BUILD_ENABLED;
+	delete jobVars.VIDEO_V1_BUILD_ACCESS;
 	delete jobVars.HOTEL_LOBBY_DUO_BUILD_ENABLED;
 	delete jobVars.HOTEL_LOBBY_DUO_RUNTIME_CONFIG;
 	delete jobVars.RAINDANCE_RUNTIME_CONFIG;
@@ -231,6 +232,7 @@ export function createProfileArtifacts(options: {
 		if (
 			key.startsWith("CLOUDFLARE_") ||
 			key === "VIDEO_V1_BUILD_ENABLED" ||
+			key === "VIDEO_V1_BUILD_ACCESS" ||
 			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" ||
 			key === "RAINDANCE_RUNTIME_CONFIG" ||
@@ -283,6 +285,7 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 	// Evidence paths are offline-only; production cannot enable local test endpoints.
 	const nonRuntimeVariables = new Set([
 		"VIDEO_V1_BUILD_ENABLED",
+		"VIDEO_V1_BUILD_ACCESS",
 		"HOTEL_LOBBY_DUO_BUILD_ENABLED",
 		"HOTEL_LOBBY_DUO_RUNTIME_CONFIG",
 		"RAINDANCE_RUNTIME_CONFIG",

@@ -2,6 +2,12 @@
 
 ## 2026-10-07
 
+### Video beta for all signed-in accounts
+
+- Open the ordinary video workspace to all signed-in, non-anonymous accounts and link the Image/Video composer controls to it. Video requires qualifying paid credits; there is no guest video trial.
+- Retain the configured model and parameter allowlist, complete-cost quotes, content review, private results and recovery of the same accepted request. This audience change does not enable every listed model or certify additional paid provider combinations.
+- Keep Hotel Lobby and Raindance access and funding settings independent. Deploy compatible background code before enabling the website's authenticated audience; preserve the internal audience and admission switches for rollback.
+
 ### Raindance sunset-pier video guide and beta
 
 - Add an indexable Raindance guide with an embedded Solo/Duet generator, original free prompts, method comparison, photo troubleshooting and music-posting instructions. Label the AI-created pier illustration separately from real product results.

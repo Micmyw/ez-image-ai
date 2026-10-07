@@ -2,6 +2,7 @@
 
 import { ClapperboardIcon, ImageIcon, LockKeyholeIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 
 export function ComposerHeader() {
 	const studio = useTranslations("studio");
@@ -14,11 +15,10 @@ export function ComposerHeader() {
 					<ImageIcon size={17} aria-hidden="true" />
 					{composer("image")}
 				</button>
-				<button type="button" className="composer-category" aria-pressed="false" disabled>
+				<Link href="/video" className="composer-category">
 					<ClapperboardIcon size={17} aria-hidden="true" />
 					{composer("video")}
-					<span className="composer-coming-soon">{composer("comingSoon")}</span>
-				</button>
+				</Link>
 			</fieldset>
 			<span className="composer-private" title={studio("private")}>
 				<LockKeyholeIcon size={15} aria-hidden="true" />

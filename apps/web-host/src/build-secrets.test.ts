@@ -33,6 +33,175 @@ const allowedVideoOptions = JSON.stringify([
 ]);
 
 describe("Cloudflare build secret transport", () => {
+	it.each(["authenticated", "internal"])(
+		"changes only ordinary video access through the dedicated %s build control",
+		(access) => {
+			const base = {
+				VIDEO_V1_ACCESS: access === "internal" ? "authenticated" : "internal",
+				VIDEO_V1_ALLOWED_USER_IDS: "original-private-users",
+				VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+				VIDEO_INTERNAL_FUNDING: "original-ordinary-funding",
+				VIDEO_PRICE_BASIS: "original-cost-evidence",
+				HOTEL_LOBBY_DUO_ACCESS: "authenticated",
+				HOTEL_LOBBY_DUO_INTERNAL_FUNDING: "original-template-funding",
+				RAINDANCE_ACCESS: "internal",
+			};
+			const source = `UNRELATED=secret-fixture\nVIDEO_V1_ENABLED=true\nHOTEL_LOBBY_DUO_ENABLED=false\nKIE_API_KEY=provider-fixture\nVIDEO_V1_ACCESS=${base.VIDEO_V1_ACCESS}`;
+			const input = {
+				CLOUDFLARE_PRODUCTION_ENV: source,
+				VIDEO_RUNTIME_CONFIG: JSON.stringify(base),
+				VIDEO_V1_BUILD_ACCESS: access,
+				VIDEO_V1_ACCESS: "public",
+			};
+			const snapshot = { ...input };
+			const output = parseEnv(readCloudflareBuildEnvironment(input));
+			expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual({
+				...base,
+				VIDEO_V1_ACCESS: access,
+			});
+			expect(expandVideoRuntimeEnvironment(output)).toMatchObject({
+				...parseEnv(source),
+				...base,
+				VIDEO_V1_ACCESS: access,
+			});
+			expect(output).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
+			expect(input).toEqual(snapshot);
+			expect(withoutCloudflareBuildSecrets(input)).toEqual({});
+			expect(
+				publicBuildVariables(
+					Object.fromEntries(
+						Object.entries(output).filter(
+							(entry): entry is [string, string] => entry[1] !== undefined,
+						),
+					),
+				),
+			).toEqual({});
+		},
+	);
+	it("preserves ordinary access without a dedicated override and ignores ambient access", () => {
+		const policy = {
+			VIDEO_V1_ACCESS: "internal",
+			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+		};
+		const output = parseEnv(
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
+				VIDEO_V1_ACCESS: "authenticated",
+			}),
+		);
+		expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual(policy);
+	});
+	it.each([
+		"",
+		"public",
+		"anonymous",
+		"TRUE",
+		" authenticated",
+		"authenticated ",
+		"internal\nINJECTED=true",
+	])("rejects invalid ordinary video build access %j without echoing its value", (access) => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+				VIDEO_V1_BUILD_ACCESS: access,
+			}),
+		).toThrow(/^VIDEO_BUILD_ACCESS_OVERRIDE_INVALID$/);
+	});
+	it.each([undefined, "{}", '{"VIDEO_MODEL_ALLOWED_OPTIONS":"[]"}'])(
+		"requires the build runner's current model policy for ordinary access (%s)",
+		(base) => {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+					VIDEO_RUNTIME_CONFIG: base,
+					VIDEO_V1_BUILD_ACCESS: "authenticated",
+				}),
+			).toThrow(/^VIDEO_BUILD_ACCESS_POLICY_REQUIRED$/);
+		},
+	);
+	it("rejects preexisting flat/packed conflicts before applying ordinary access", () => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true\nVIDEO_V1_ACCESS=authenticated",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify({
+					VIDEO_V1_ACCESS: "internal",
+					VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+				}),
+				VIDEO_V1_BUILD_ACCESS: "authenticated",
+			}),
+		).toThrow(/^VIDEO_RUNTIME_CONFIG_CONFLICT$/);
+	});
+	it("merges ordinary access into a split bundle while preserving opaque secrets", () => {
+		const source = `VIDEO_V1_ENABLED=false\nPRIVATE_KEY=${"secret-fixture".repeat(500)}\n`;
+		const output = parseEnv(
+			readCloudflareBuildEnvironment({
+				...unpackValues(packCloudflareBuildEnvironment(source)),
+				VIDEO_RUNTIME_CONFIG: JSON.stringify({
+					VIDEO_V1_ACCESS: "internal",
+					VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+				}),
+				VIDEO_V1_BUILD_ACCESS: "authenticated",
+			}),
+		);
+		expect(output.PRIVATE_KEY).toBe(parseEnv(source).PRIVATE_KEY);
+		expect(output.VIDEO_V1_ENABLED).toBe("false");
+		expect(expandVideoRuntimeEnvironment(output).VIDEO_V1_ACCESS).toBe("authenticated");
+	});
+	it("refuses an access merge that exceeds the private policy size limit", () => {
+		const base = {
+			VIDEO_V1_ACCESS: "internal",
+			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+			VIDEO_PRICE_BASIS: "",
+		};
+		base.VIDEO_PRICE_BASIS = "x".repeat(5000 - Buffer.byteLength(JSON.stringify(base)));
+		expect(Buffer.byteLength(JSON.stringify(base))).toBe(5000);
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify(base),
+				VIDEO_V1_BUILD_ACCESS: "authenticated",
+			}),
+		).toThrow(/^VIDEO_RUNTIME_CONFIG_INVALID$/);
+	});
+	it("composes ordinary access with independent template overlays without widening existing options", () => {
+		const base = {
+			VIDEO_V1_ACCESS: "internal",
+			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+			VIDEO_INTERNAL_FUNDING: "original-ordinary-funding",
+			HOTEL_LOBBY_DUO_ACCESS: "internal",
+			HOTEL_LOBBY_DUO_INTERNAL_FUNDING: "original-template-funding",
+			RAINDANCE_ACCESS: "internal",
+		};
+		const output = expandVideoRuntimeEnvironment(
+			parseEnv(
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true\nVIDEO_V1_ACCESS=internal",
+					VIDEO_RUNTIME_CONFIG: JSON.stringify(base),
+					VIDEO_V1_BUILD_ACCESS: "authenticated",
+					HOTEL_LOBBY_DUO_RUNTIME_CONFIG: '{"HOTEL_LOBBY_DUO_ACCESS":"authenticated"}',
+					RAINDANCE_RUNTIME_CONFIG: '{"RAINDANCE_ACCESS":"authenticated"}',
+				}),
+			),
+		);
+		expect(output).toMatchObject({
+			VIDEO_V1_ACCESS: "authenticated",
+			HOTEL_LOBBY_DUO_ACCESS: "authenticated",
+			RAINDANCE_ACCESS: "authenticated",
+			VIDEO_INTERNAL_FUNDING: base.VIDEO_INTERNAL_FUNDING,
+			HOTEL_LOBBY_DUO_INTERNAL_FUNDING: base.HOTEL_LOBBY_DUO_INTERNAL_FUNDING,
+		});
+		const groups = JSON.parse(output.VIDEO_MODEL_ALLOWED_OPTIONS!);
+		expect(groups).toHaveLength(2);
+		expect(groups[0]).toEqual(JSON.parse(allowedVideoOptions)[0]);
+		expect(groups[1]).toEqual({
+			productKey: "video-seedance-1-5-pro",
+			modes: ["image-to-video"],
+			durations: [5],
+			resolutions: ["720p"],
+			sounds: [false],
+		});
+	});
 	it("merges a narrow private template patch over the build's current base and adds exactly one tuple", () => {
 		const base = {
 			VIDEO_V1_ACCESS: "internal",
