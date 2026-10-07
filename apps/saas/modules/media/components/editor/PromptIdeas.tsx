@@ -2,8 +2,9 @@
 
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { SparklesIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { useGenerationMode } from "../../lib/generation-mode-context";
 import { SuggestedPrompts } from "./SuggestedPrompts";
 
 export function PromptIdeas({
@@ -20,9 +21,13 @@ export function PromptIdeas({
 	disabled?: boolean;
 }) {
 	const [open, setOpen] = useState(false);
+	const active = useGenerationMode()?.mode !== "video";
+	useEffect(() => {
+		if (!active) setOpen(false);
+	}, [active]);
 	return (
 		<div className="composer-prompt-ideas">
-			<Popover open={open} onOpenChange={setOpen}>
+			<Popover open={open && active} onOpenChange={setOpen}>
 				<PopoverTrigger
 					render={
 						<button type="button" disabled={disabled} className="composer-ideas-trigger">

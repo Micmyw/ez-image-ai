@@ -567,6 +567,26 @@ describe("GenerationForm product copy", () => {
 		else expect(submit).not.toContain("disabled");
 	});
 
+	it("requires reselecting a guest reference after sign-in instead of silently making a text image", () => {
+		const markup = renderToStaticMarkup(
+			<GenerationForm
+				onCreated={vi.fn()}
+				initialDraft={{
+					productKey: "image-nano-banana-2-lite",
+					input: {
+						kind: "image-to-image",
+						sourceAssetId: "",
+						prompt: "Keep this subject",
+						skuKey: "nano-banana-2-lite-1k",
+						aspectRatio: "1:1",
+					},
+				}}
+			/>,
+		);
+		expect(markup.match(/<button(?=[^>]*type="submit")[^>]*>/)?.[0]).toContain("disabled");
+		expect(markup).toContain("Keep this subject");
+	});
+
 	it("renders localized product and field copy instead of catalog English", () => {
 		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
 
@@ -704,7 +724,7 @@ describe("GenerationForm product copy", () => {
 	it.each(["/", "/create"])("offers video navigation in the composer at %s", (pathname) => {
 		navigation.pathname = pathname;
 		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
-		const videoLink = markup.match(/<a[^>]*href="\/video"[^>]*>[\s\S]*?<\/a>/)?.[0];
+		const videoLink = markup.match(/<a[^>]*href="\/create\?mode=video"[^>]*>[\s\S]*?<\/a>/)?.[0];
 		expect(videoLink).toBeDefined();
 		expect(videoLink).toContain('class="composer-category"');
 		expect(videoLink).toContain("video");

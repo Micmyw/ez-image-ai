@@ -213,13 +213,25 @@ async function selectSetting(page: Page, label: string, value: string) {
 		await page.getByRole("button", { name: label, exact: true }).click();
 		await page
 			.getByRole("button", {
+				name: VIDEO_MODEL_CATALOG.find((model) => model.productKey === value)!.family,
+				exact: true,
+			})
+			.click();
+		await page
+			.getByRole("button", {
 				name: VIDEO_MODEL_CATALOG.find((model) => model.productKey === value)!.label,
 				exact: true,
 			})
 			.click();
+	} else if (label === "Audio") {
+		const toggle = page.getByRole("switch", { name: label, exact: true });
+		if ((await toggle.getAttribute("aria-checked")) !== value) await toggle.click();
 	} else {
 		await page.getByRole("button", { name: "Video settings", exact: true }).click();
-		await page.getByLabel(label, { exact: true }).selectOption(value);
+		await page
+			.getByRole("group", { name: label, exact: true })
+			.locator(`input[value="${value}"]`)
+			.check();
 		await page.getByRole("button", { name: "Done", exact: true }).click();
 	}
 }
@@ -429,7 +441,8 @@ test("UI Mock: all model settings invalidate the quote and restore the exact pen
 		.getByLabel("Describe your video", { exact: true })
 		.fill("UI mock: a gentle camera over a quiet lake.");
 	await page.getByRole("button", { name: "Video model", exact: true }).click();
-	await expect(page.locator('[data-test="video-model-menu"] section')).toHaveCount(5);
+	await expect(page.locator(".video-model-families button")).toHaveCount(5);
+	await page.getByRole("button", { name: "MiniMax", exact: true }).click();
 	await expect(page.getByRole("button", { name: "MiniMax H3 Max", exact: true })).toBeDisabled();
 	await page.screenshot({
 		path: testInfo.outputPath("desktop-model-families-fixture.png"),
@@ -478,10 +491,11 @@ test("UI Mock: all model settings invalidate the quote and restore the exact pen
 		"data-product-key",
 		"video-seedance-2-5",
 	);
-	await page.getByRole("button", { name: "Video settings", exact: true }).click();
-	for (const [label, value] of changes.slice(1))
-		await expect(page.getByLabel(label, { exact: true })).toHaveValue(value);
-	await page.getByRole("button", { name: "Done", exact: true }).click();
+	await expect(page.getByRole("button", { name: "Video settings", exact: true })).toBeDisabled();
+	await expect(page.locator('[data-test="video-settings-trigger"]')).toContainText("9:16");
+	await expect(page.locator('[data-test="video-settings-trigger"]')).toContainText("6s");
+	await expect(page.locator('[data-test="video-settings-trigger"]')).toContainText("1080P");
+	await expect(page.getByRole("switch", { name: "Audio", exact: true })).toBeChecked();
 	await page.getByRole("button", { name: "Check the same request" }).click();
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
 	expect(state.creates).toHaveLength(2);
@@ -497,17 +511,13 @@ test("UI Mock: missing sound readiness disables only affected options and preven
 	const state = scenario();
 	state.blockedSound = true;
 	await setup(context, page, state);
-	await page.getByRole("button", { name: "Video settings", exact: true }).click();
-	await expect(page.locator('#video-sound option[value="true"]')).toBeDisabled();
-	await expect(page.locator('#video-sound option[value="false"]')).toBeEnabled();
-	await page.getByRole("button", { name: "Done", exact: true }).click();
+	await expect(page.getByRole("switch", { name: "Audio", exact: true })).toBeDisabled();
+	await expect(page.getByRole("switch", { name: "Audio", exact: true })).not.toBeChecked();
 	await selectSetting(page, "Video model", "video-minimax-h3");
-	await page.getByRole("button", { name: "Video settings", exact: true }).click();
-	await expect(page.getByLabel("Audio", { exact: true })).toHaveValue("true");
-	await page.getByRole("button", { name: "Done", exact: true }).click();
+	await expect(page.getByRole("switch", { name: "Audio", exact: true })).toHaveCount(0);
 	await expect(page.locator('[data-test="video-quote"]')).toBeDisabled();
 	await expect(
-		page.getByText("This model may include native audio and has no sound switch."),
+		page.getByTitle("This model may include native audio and has no sound switch."),
 	).toBeVisible();
 	expect(state.quotes).toBe(0);
 	expect(state.creates).toHaveLength(0);
@@ -535,7 +545,9 @@ test("UI Mock: image sealing remains pending review on a narrow screen", async (
 	expect(state.quotes).toBe(0);
 	expect(state.creates).toHaveLength(0);
 	await page.getByRole("button", { name: "Video settings", exact: true }).click();
-	await expect(page.getByLabel("Frame shape")).toHaveCount(0);
+	await expect(
+		page.getByRole("group", { name: "Frame shape", exact: true }).getByRole("radio"),
+	).toHaveCount(1);
 	await page.screenshot({
 		path: testInfo.outputPath("mobile-video-settings-fixture.png"),
 		fullPage: true,

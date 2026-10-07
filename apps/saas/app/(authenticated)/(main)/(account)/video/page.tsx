@@ -1,4 +1,4 @@
-import { VideoWorkspace } from "../../../../../modules/video-v1/VideoWorkspace";
+import { redirect } from "next/navigation";
 
 export default async function VideoPage({
 	searchParams,
@@ -7,5 +7,5 @@ export default async function VideoPage({
 }) {
 	const { job } = await searchParams;
 	const jobId = typeof job === "string" && /^[a-zA-Z0-9_-]{1,120}$/.test(job) ? job : null;
-	return <VideoWorkspace initialJobId={jobId} />;
+	redirect(`/create?mode=video${jobId ? `&videoJob=${encodeURIComponent(jobId)}` : ""}`);
 }

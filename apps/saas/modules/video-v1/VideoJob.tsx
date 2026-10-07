@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@auth/hooks/use-session";
+import { useGenerationMode } from "@media/lib/generation-mode-context";
 import { Button } from "@repo/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { DownloadIcon, RefreshCwIcon } from "lucide-react";
@@ -13,8 +14,13 @@ import { usePageVisible, useVideoJob } from "./use-video";
 function PrivateVideo({ jobId }: { jobId: string }) {
 	const t = useTranslations("videoV1");
 	const { user } = useSession();
-	const visible = usePageVisible();
+	const pageVisible = usePageVisible();
+	const active = useGenerationMode()?.mode !== "image";
+	const visible = pageVisible && active;
 	const video = useRef<HTMLVideoElement>(null);
+	useEffect(() => {
+		if (!active) video.current?.pause();
+	}, [active]);
 	const position = useRef(0);
 	const automaticRetries = useRef(0);
 	const [playbackFailed, setPlaybackFailed] = useState(false);

@@ -186,7 +186,16 @@ describe("video form and observable state", () => {
 			});
 		},
 	);
-	it.each(["TIMEOUT", "NETWORK_ERROR", "Request failed"])(
+	it.each([
+		"INSUFFICIENT_CREDITS",
+		"CREDIT_DEBT_OUTSTANDING",
+		"VIDEO_OWNER_BUSY",
+		"VIDEO_GLOBAL_BUSY",
+		"VIDEO_PROVIDER_BUSY",
+	])("unlocks editing after the known pre-enqueue rejection %s", (code) =>
+		expect(getVideoFailureRecovery({ message: code }).clearQuote).toBe(true),
+	);
+	it.each(["TIMEOUT", "NETWORK_ERROR", "Request failed", "TOO_MANY_REQUESTS", "CAPACITY"])(
 		"preserves the original confirmation for an uncertain %s response",
 		(message) => {
 			const confirmation = createVideoConfirmation(request, quote, () => "original-key");

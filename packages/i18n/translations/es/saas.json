@@ -1937,7 +1937,19 @@
 		"modelAvailabilityHint": "Las opciones dependen del modelo seleccionado. No se puede obtener un precio para opciones no disponibles.",
 		"selectionUnavailable": "Esta combinación de modelo y ajustes no está disponible para generar ahora.",
 		"settings": "Ajustes de vídeo",
-		"done": "Listo"
+		"done": "Listo",
+		"addReference": "Añadir referencia",
+		"referenceReady": "Referencia lista",
+		"referenceUnused": "No se usa en modo texto",
+		"signInToGenerate": "Inicia sesión para generar",
+		"signInHint": "Inicia sesión para subir una referencia y consultar el coste. Se conservará tu borrador de vídeo.",
+		"retryAccess": "Reintentar disponibilidad",
+		"draftStorageUnavailable": "El almacenamiento del navegador no está disponible. Mantén esta página abierta para conservar tu borrador y las confirmaciones pendientes.",
+		"modelFamilies": "Familias de modelos",
+		"durationRange": "{min}–{max} s",
+		"soundOptional": "Audio opcional",
+		"quantity": "Cantidad",
+		"oneVideo": "1 vídeo"
 	},
 	"videoEffects": {
 		"sample": "Ejemplo verificado",

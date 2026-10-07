@@ -1937,7 +1937,19 @@
 		"modelAvailabilityHint": "Optionen hängen vom ausgewählten Modell ab. Für nicht verfügbare Einstellungen gibt es kein Angebot.",
 		"selectionUnavailable": "Diese Kombination aus Modell und Einstellungen ist derzeit nicht zur Generierung verfügbar.",
 		"settings": "Videoeinstellungen",
-		"done": "Fertig"
+		"done": "Fertig",
+		"addReference": "Referenz hinzufügen",
+		"referenceReady": "Referenz bereit",
+		"referenceUnused": "Im Textmodus nicht verwendet",
+		"signInToGenerate": "Zum Erstellen anmelden",
+		"signInHint": "Melde dich an, um eine Referenz hochzuladen und die Kosten zu prüfen. Dein Videoentwurf bleibt erhalten.",
+		"retryAccess": "Videoverfügbarkeit erneut prüfen",
+		"draftStorageUnavailable": "Der Browserspeicher ist nicht verfügbar. Lass diese Seite geöffnet, um deinen Entwurf und ausstehende Bestätigungen zu behalten.",
+		"modelFamilies": "Modellfamilien",
+		"durationRange": "{min}–{max} s",
+		"soundOptional": "Optionaler Ton",
+		"quantity": "Anzahl",
+		"oneVideo": "1 Video"
 	},
 	"videoEffects": {
 		"sample": "Geprüftes Beispiel",

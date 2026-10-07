@@ -1937,7 +1937,19 @@
 		"modelAvailabilityHint": "Options depend on the selected model. Unavailable settings cannot be quoted.",
 		"selectionUnavailable": "This model and setting combination is not available for generation right now.",
 		"settings": "Video settings",
-		"done": "Done"
+		"done": "Done",
+		"addReference": "Add reference",
+		"referenceReady": "Reference ready",
+		"referenceUnused": "Not used in text mode",
+		"signInToGenerate": "Sign in to generate",
+		"signInHint": "Sign in to upload a reference and review the cost. Your video draft will be kept.",
+		"retryAccess": "Retry video availability",
+		"draftStorageUnavailable": "Browser storage is unavailable. Keep this page open to retain your draft and any pending confirmation.",
+		"modelFamilies": "Model families",
+		"durationRange": "{min}–{max}s",
+		"soundOptional": "Optional audio",
+		"quantity": "Quantity",
+		"oneVideo": "1 video"
 	},
 	"videoEffects": {
 		"sample": "Verified sample",

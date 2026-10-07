@@ -3,8 +3,9 @@
 import type { ImageAspectRatio } from "@repo/config/client";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { ChevronDownIcon, ScanIcon } from "lucide-react";
-import { useId } from "react";
+import { useEffect, useId, useState } from "react";
 
+import { useGenerationMode } from "../lib/generation-mode-context";
 import {
 	getImageSpecCell,
 	type ImageSpecControlKey,
@@ -64,6 +65,11 @@ export function ImageOutputSettings({
 	presentation?: "compact" | "composer";
 }) {
 	const generatedId = useId();
+	const [open, setOpen] = useState(false);
+	const active = useGenerationMode()?.mode !== "video";
+	useEffect(() => {
+		if (!active) setOpen(false);
+	}, [active]);
 	const selectedCell = getImageSpecCell(skuMatrix, skuKey);
 	const selectedOptions = (skuMatrix?.dimensions ?? []).flatMap((dimension) => {
 		const option = dimension.options.find(
@@ -84,7 +90,7 @@ export function ImageOutputSettings({
 			skuMatrix.dimensions.reduce((count, dimension) => count * dimension.options.length, 1);
 
 	return (
-		<Popover>
+		<Popover open={open && active} onOpenChange={setOpen}>
 			<PopoverTrigger
 				render={
 					<button

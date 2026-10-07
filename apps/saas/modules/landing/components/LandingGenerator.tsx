@@ -22,6 +22,7 @@ import {
 } from "@media/lib/image-sku-selection";
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
 import { useToolPrompt, useToolPromptBinding } from "@media/lib/tool-prompt-context";
+import { writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import { getImageProductSelectionContract, getPlanEntitlement } from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
@@ -62,6 +63,10 @@ import {
 	hasEffectPresetChanges,
 	isEffectSelectionAvailable,
 } from "../../effects/lib/editor-selection";
+import {
+	useGenerationMode,
+	useGeneratorSignInDraft,
+} from "../../media/lib/generation-mode-context";
 import {
 	getGuestCapability,
 	type GuestCapabilitySnapshot,
@@ -122,6 +127,27 @@ function LandingGeneratorWorkspace({
 	startEmpty?: boolean;
 }) {
 	const effectEditor = useEffectEditor();
+	const workspace = useGenerationMode();
+	useGeneratorSignInDraft((destination) => {
+		if (!selectedProduct || !selectedSku || (!prompt.trim() && !file)) return;
+		const saved = writeEditorUpgradeDraft(sessionStorage, {
+			draft: {
+				productKey: selectedProduct.key,
+				input: {
+					kind: file ? "image-to-image" : "text-to-image",
+					prompt,
+					...(file ? { sourceAssetId: "" } : {}),
+					skuKey: selectedSku.skuKey,
+					aspectRatio,
+					...controlValues,
+				},
+			},
+			parentJobId: null,
+			sourceReady: false,
+		});
+		if (!saved) throw new Error("IMAGE_DRAFT_STORAGE_UNAVAILABLE");
+		destination.searchParams.set("resume", "text");
+	});
 	const isEffectEditor = Boolean(effectEditor);
 	const effectPreset = effectEditor?.selectedPreset;
 	const requireReference = referenceRequired || effectPreset?.inputRequirement === "required";
@@ -636,7 +662,6 @@ function LandingGeneratorWorkspace({
 			setTextDraftError(false);
 			setStage("handoff");
 			try {
-				const { writeEditorUpgradeDraft } = await import("@payments/lib/editor-upgrade");
 				const saved = writeEditorUpgradeDraft(window.sessionStorage, {
 					draft: {
 						productKey: selectedProduct.key,
@@ -660,7 +685,9 @@ function LandingGeneratorWorkspace({
 				const redirectTo =
 					effectEditor?.getReturnPath("resume") ??
 					`/create?resume=text&model=${encodeURIComponent(selectedProduct.key)}`;
-				window.location.assign(`/login?${new URLSearchParams({ redirectTo })}`);
+				window.location.assign(
+					`/login?${new URLSearchParams({ redirectTo: workspace?.prepareSignIn(redirectTo) ?? redirectTo })}`,
+				);
 			} catch {
 				submissionInFlight.current = false;
 				setTextDraftError(true);

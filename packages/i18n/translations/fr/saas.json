@@ -1937,7 +1937,19 @@
 		"modelAvailabilityHint": "Les options dépendent du modèle sélectionné. Aucun devis ne peut être obtenu pour les réglages indisponibles.",
 		"selectionUnavailable": "Cette combinaison de modèle et de réglages n’est pas disponible pour la génération actuellement.",
 		"settings": "Réglages vidéo",
-		"done": "Terminé"
+		"done": "Terminé",
+		"addReference": "Ajouter une référence",
+		"referenceReady": "Référence prête",
+		"referenceUnused": "Non utilisée en mode texte",
+		"signInToGenerate": "Se connecter pour générer",
+		"signInHint": "Connectez-vous pour ajouter une référence et consulter le coût. Votre brouillon vidéo sera conservé.",
+		"retryAccess": "Réessayer la disponibilité",
+		"draftStorageUnavailable": "Le stockage du navigateur est indisponible. Gardez cette page ouverte pour conserver votre brouillon et toute confirmation en attente.",
+		"modelFamilies": "Familles de modèles",
+		"durationRange": "{min}–{max} s",
+		"soundOptional": "Audio facultatif",
+		"quantity": "Quantité",
+		"oneVideo": "1 vidéo"
 	},
 	"videoEffects": {
 		"sample": "Exemple vérifié",

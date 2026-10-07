@@ -1,9 +1,13 @@
+import {
+	GenerationWorkspace,
+	GenerationWorkspaceHeading,
+} from "@media/components/GenerationWorkspace";
 import { PublicPricingPlans } from "@payments/components/PublicPricingPlans";
 import { getPublicConfig } from "@repo/config/client";
 import { Logo } from "@repo/ui/components/logo";
 import { StudioShell } from "@shared/components/studio/StudioShell";
 import { ArrowRightIcon, ChevronDownIcon, LockKeyholeIcon } from "lucide-react";
-import { getLocale, getTranslations } from "next-intl/server";
+import { getLocale, getMessages, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -23,25 +27,30 @@ export async function LandingPage({
 	const locale = await getLocale();
 	const t = await getTranslations();
 	const publicConfig = getPublicConfig();
+	const { videoV1 } = await getMessages();
 	return (
 		<StudioShell>
 			<main className="studio-home relative bg-[radial-gradient(circle_at_50%_-8rem,rgba(169,139,255,0.17),transparent_34rem),radial-gradient(circle_at_94%_42%,rgba(255,183,124,0.08),transparent_32rem),radial-gradient(circle_at_4%_72%,rgba(108,77,255,0.08),transparent_34rem)]">
 				<section id="image-editor" className="studio-hero scroll-mt-16">
 					<div className="container">
-						<div className="max-w-4xl mx-auto text-center">
-							<h1 className="studio-title max-w-4xl font-semibold mx-auto text-balance text-[#f6f2fb]">
-								{workspace
+						<GenerationWorkspaceHeading
+							imageTitle={
+								workspace
 									? t("studio.tools.title")
 									: t.rich("home.imageEditorHero.title", {
 											accent: (children) => <span className="text-[#b79cff]">{children}</span>,
-										})}
-							</h1>
-							<p className="mt-3 max-w-2xl text-sm leading-6 mx-auto text-balance text-[#b7acbf]">
-								{editor || workspace ? t("studio.subtitle") : t("home.imageEditorHero.subtitle")}
-							</p>
-						</div>
+										})
+							}
+							imageDescription={
+								editor || workspace ? t("studio.subtitle") : t("home.imageEditorHero.subtitle")
+							}
+							videoTitle={t("videoV1.title")}
+							videoDescription={t("videoV1.description")}
+						/>
 
-						{editor ?? <LandingGenerator />}
+						<GenerationWorkspace videoMessages={videoV1}>
+							{editor ?? <LandingGenerator />}
+						</GenerationWorkspace>
 					</div>
 				</section>
 

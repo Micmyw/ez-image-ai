@@ -172,10 +172,25 @@ export function getVideoErrorKey(error: unknown): VideoErrorKey {
 
 export function getVideoFailureRecovery(error: unknown) {
 	const reason = getVideoErrorKey(error);
+	const value =
+		error && typeof error === "object"
+			? (error as { code?: unknown; message?: unknown; data?: { code?: unknown } })
+			: {};
+	const rejectedBeforeEnqueue = [value.code, value.data?.code, value.message].some(
+		(code) =>
+			typeof code === "string" &&
+			/^(INSUFFICIENT_CREDITS|CREDIT_DEBT_OUTSTANDING|VIDEO_OWNER_BUSY|VIDEO_GLOBAL_BUSY|VIDEO_PROVIDER_BUSY)$/.test(
+				code,
+			),
+	);
 	return {
 		reason,
 		// Only definitive rejection permits a new confirmation/key; lost responses keep the receipt.
-		clearQuote: reason === "conflict" || reason === "quoteExpired" || reason === "priceUnavailable",
+		clearQuote:
+			rejectedBeforeEnqueue ||
+			reason === "conflict" ||
+			reason === "quoteExpired" ||
+			reason === "priceUnavailable",
 		refreshCatalog: reason === "quoteExpired" || reason === "priceUnavailable",
 	};
 }

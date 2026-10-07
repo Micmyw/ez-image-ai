@@ -3,8 +3,9 @@
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { CheckIcon, ChevronDownIcon, CoinsIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { useGenerationMode } from "../lib/generation-mode-context";
 import type { PublicImageSpecMatrix } from "../lib/image-sku-selection";
 import { ImageModelIcon } from "./ImageModelIcon";
 
@@ -51,6 +52,10 @@ export function ImageModelSelector({
 }) {
 	const t = useTranslations("media.create.modelMenu");
 	const [open, setOpen] = useState(false);
+	const active = useGenerationMode()?.mode !== "video";
+	useEffect(() => {
+		if (!active) setOpen(false);
+	}, [active]);
 	const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
 	const groups = modelGroups.filter((group) =>
 		products.some((product) => product.key.startsWith(group.prefix)),
@@ -62,7 +67,7 @@ export function ImageModelSelector({
 
 	return (
 		<Popover
-			open={open}
+			open={open && active}
 			onOpenChange={(nextOpen) => {
 				setOpen(nextOpen);
 				if (nextOpen) setActiveGroupKey(selectedGroup?.key ?? null);

@@ -48,6 +48,7 @@ import {
 	type GenerationFormValues,
 	generationFormValuesSchema,
 } from "../lib/form-schema";
+import { useGenerationMode } from "../lib/generation-mode-context";
 import {
 	getDefaultImageSpecCell,
 	getImageSpecCell,
@@ -99,7 +100,11 @@ export function GenerationForm({
 }) {
 	const effectEditor = useEffectEditor();
 	const effectPreset = effectEditor?.selectedPreset;
-	const requireReference = referenceRequired || effectPreset?.inputRequirement === "required";
+	// A guest reference cannot cross sign-in as a browser File. Keep its intent until reselected.
+	const requireReference =
+		referenceRequired ||
+		effectPreset?.inputRequirement === "required" ||
+		(initialDraft?.input.kind === "image-to-image" && !initialDraft.input.sourceAssetId);
 	const effects = useTranslations("effects.editor");
 	const toolPrompt = useToolPrompt();
 	const t = useTranslations("media.create");
@@ -145,6 +150,10 @@ export function GenerationForm({
 	const sourcePendingRef = useRef(false);
 	const submittingRef = useRef(false);
 	const [upgradeOpen, setUpgradeOpen] = useState(false);
+	const active = useGenerationMode()?.mode !== "video";
+	useEffect(() => {
+		if (!active) setUpgradeOpen(false);
+	}, [active]);
 	const [upgradeStorageUnavailable, setUpgradeStorageUnavailable] = useState(false);
 	const requestedModel = useRequestedImageModel();
 	const examplePrompt = useShowcasePrompt();
@@ -726,7 +735,7 @@ export function GenerationForm({
 			<EditorUpgradeDialog
 				modelLabel={product?.label}
 				modelProductKey={values.productKey}
-				open={upgradeOpen}
+				open={upgradeOpen && active}
 				onOpenChange={(open) => {
 					setUpgradeOpen(open);
 					if (!open) setUpgradeStorageUnavailable(false);
