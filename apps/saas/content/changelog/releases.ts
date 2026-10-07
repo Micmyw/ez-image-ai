@@ -9,6 +9,14 @@ export const publicChangelogEntries = [
 		],
 	},
 	{
+		date: "2026-10-06",
+		title: "Clearer Hotel Lobby video pricing",
+		changes: [
+			"See the total video price before uploading photos, with video-eligible credits and your account total shown separately.",
+			"Know which photo is still needed and how many eligible credits are missing before confirming generation.",
+		],
+	},
+	{
 		date: "2026-10-04",
 		title: "Video beta workspace prepared",
 		changes: [

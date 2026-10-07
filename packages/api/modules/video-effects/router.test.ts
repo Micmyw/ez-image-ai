@@ -4,7 +4,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
-vi.mock("@repo/database/video-template", () => ({ getVideoTemplateAdminRecord: vi.fn() }));
+vi.mock("@repo/database/video-template", () => ({
+	getVideoTemplateAdminRecord: vi.fn(),
+	getVideoTemplateCreditBalance: vi.fn(),
+}));
 vi.mock("@repo/jobs/video-v1/template-admission", () => ({
 	createVideoTemplateJob: vi.fn(),
 	createVideoTemplateQuote: vi.fn(),
@@ -39,7 +42,10 @@ vi.mock("./uploads", () => ({
 }));
 
 import { auth } from "@repo/auth";
-import { getVideoTemplateAdminRecord } from "@repo/database/video-template";
+import {
+	getVideoTemplateAdminRecord,
+	getVideoTemplateCreditBalance,
+} from "@repo/database/video-template";
 import {
 	createVideoTemplateJob,
 	createVideoTemplateQuote,
@@ -74,6 +80,10 @@ const state = {
 };
 beforeEach(() => {
 	vi.clearAllMocks();
+	vi.mocked(getVideoTemplateCreditBalance).mockResolvedValue({
+		totalCredits: "391",
+		eligibleCredits: "0",
+	});
 	vi.mocked(auth.api.getSession).mockResolvedValue({ user, session: { id: "session" } } as never);
 	vi.mocked(createVideoTemplateQuote).mockResolvedValue({
 		quoteId: "quote",
@@ -152,14 +162,20 @@ describe("template API authorization and strict public contracts", () => {
 		vi.stubEnv("VIDEO_V1_ALLOWED_USER_IDS", "another-internal-owner");
 		vi.mocked(requireVideoTemplateAdmission).mockReturnValue({
 			maximumInputBytes: 7_000_000,
-			price: { credits: 69n },
+			price: { credits: 69n, paidFundingPolicy: { minimumUsdMicrosPerCredit: 21_944n } },
 			template: {},
 		} as never);
 		expect(await call(videoEffectsRouter.access, undefined, ctx)).toMatchObject({
 			accessAllowed: true,
 			available: true,
 			credits: "69",
+			creditBalance: { totalCredits: "391", eligibleCredits: "0" },
 		});
+		expect(getVideoTemplateCreditBalance).toHaveBeenCalledWith(
+			"owner",
+			{ minimumUsdMicrosPerCredit: 21_944n },
+			expect.anything(),
+		);
 		expect(requireVideoTemplateAdmission).toHaveBeenCalledWith(
 			{ userId: "owner", role: "user" },
 			expect.anything(),
@@ -211,6 +227,10 @@ describe("template API authorization and strict public contracts", () => {
 		"rejects unauthenticated/anonymous remote uploads and paid quote",
 		async (session) => {
 			vi.mocked(auth.api.getSession).mockResolvedValue(session as never);
+			await expect(call(videoEffectsRouter.access, undefined, ctx)).rejects.toMatchObject({
+				code: "UNAUTHORIZED",
+			});
+			expect(getVideoTemplateCreditBalance).not.toHaveBeenCalled();
 			await expect(call(videoEffectsRouter.quote, request, ctx)).rejects.toMatchObject({
 				code: "UNAUTHORIZED",
 			});

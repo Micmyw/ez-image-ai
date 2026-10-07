@@ -1961,7 +1961,7 @@
 		"totalCredits": "Coste total",
 		"credits": "{credits} créditos",
 		"balance": "Saldo disponible",
-		"priceHint": "Un único presupuesto incluye la escena y el vídeo. Algunos créditos de tu saldo pueden no ser válidos para vídeo.",
+		"priceHint": "Un solo cargo incluye la escena y el vídeo. Revisa el precio final antes de confirmar.",
 		"pendingHint": "Hay que comprobar una confirmación anterior. Recupera la misma solicitud antes de iniciar otro pedido.",
 		"recover": "Comprobar la misma solicitud",
 		"submitting": "Confirmando tu pedido…",
@@ -2037,7 +2037,20 @@
 			"creatingScene": "Creando la escena del muelle",
 			"sceneAlt": "Ilustración con IA de un muelle vacío al atardecer",
 			"sceneTitle": "Nos vemos al atardecer.",
-			"sceneCaption": "Ilustración de escena con IA, no una muestra de vídeo generado. Tu resultado aparecerá aquí tras la generación."
-		}
+			"sceneCaption": "Ilustración de escena con IA, no una muestra de vídeo generado. Tu resultado aparecerá aquí tras la generación.",
+			"uploadPhotoHint": "Sube tu foto para revisar el coste total.",
+			"waitingForPhoto": "Esperando a que termine la carga y el procesamiento de tu foto…"
+		},
+		"eligibleBalance": "Disponibles para este vídeo",
+		"accountBalance": "Total de la cuenta: {credits} créditos",
+		"eligibleBalanceHint": "Solo los créditos pagados aptos cuentan para este vídeo. Tus demás créditos permanecen en tu cuenta.",
+		"creditShortfall": "Necesitas {credits} créditos aptos más para generar este vídeo.",
+		"loadingPrice": "Cargando…",
+		"priceUnavailable": "No disponible",
+		"balanceUnavailable": "No disponible",
+		"uploadBothHint": "Sube ambas fotos para revisar el coste total.",
+		"uploadLeftHint": "Sube la foto izquierda para continuar.",
+		"uploadRightHint": "Sube la foto derecha para continuar.",
+		"waitingForPhotos": "Esperando a que ambas fotos terminen de subirse y procesarse…"
 	}
 }

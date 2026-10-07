@@ -12,16 +12,19 @@ import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { ThemeProvider } from "next-themes";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import localFont from "next/font/local";
 import { cookies } from "next/headers";
 
 import "./globals.css";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import type { PropsWithChildren } from "react";
 
-const sansFont = Plus_Jakarta_Sans({
-	weight: ["300", "400", "500", "600", "700"],
-	subsets: ["latin"],
+const sansFont = localFont({
+	src: "./fonts/PlusJakartaSans-Variable.ttf",
+	weight: "300 700",
+	style: "normal",
+	display: "swap",
+	adjustFontFallback: "Arial",
 	variable: "--font-sans",
 });
 

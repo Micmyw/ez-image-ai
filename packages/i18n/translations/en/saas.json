@@ -1961,7 +1961,7 @@
 		"totalCredits": "Total cost",
 		"credits": "{credits} credits",
 		"balance": "Available balance",
-		"priceHint": "One total quote covers the scene and video. Some credits in your balance may not be eligible for video.",
+		"priceHint": "One charge includes the scene and video. Review the final price before you confirm.",
 		"pendingHint": "A previous confirmation needs to be checked. Recover the same request before starting another order.",
 		"recover": "Check the same request",
 		"submitting": "Confirming your order…",
@@ -2037,7 +2037,20 @@
 			"creatingScene": "Creating the pier scene",
 			"sceneAlt": "AI-created illustration of an empty wooden pier at sunset",
 			"sceneTitle": "Meet you at golden hour.",
-			"sceneCaption": "AI-created scene illustration, not a generated video sample. Your result will appear here after generation."
-		}
+			"sceneCaption": "AI-created scene illustration, not a generated video sample. Your result will appear here after generation.",
+			"uploadPhotoHint": "Upload your photo to review the total cost.",
+			"waitingForPhoto": "Waiting for your photo to finish uploading and processing…"
+		},
+		"eligibleBalance": "Available for this video",
+		"accountBalance": "Account total: {credits} credits",
+		"eligibleBalanceHint": "Only eligible paid credits count toward this video. Your other credits stay in your account.",
+		"creditShortfall": "You need {credits} more eligible credits to generate this video.",
+		"loadingPrice": "Loading…",
+		"priceUnavailable": "Unavailable",
+		"balanceUnavailable": "Unavailable",
+		"uploadBothHint": "Upload both photos to review the total cost.",
+		"uploadLeftHint": "Upload the left photo to continue.",
+		"uploadRightHint": "Upload the right photo to continue.",
+		"waitingForPhotos": "Waiting for both photos to finish uploading and processing…"
 	}
 }

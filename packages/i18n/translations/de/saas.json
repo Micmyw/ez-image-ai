@@ -1961,7 +1961,7 @@
 		"totalCredits": "Gesamtkosten",
 		"credits": "{credits} Credits",
 		"balance": "Verfügbares Guthaben",
-		"priceHint": "Ein Gesamtangebot umfasst Szene und Video. Einige Credits deines Guthabens sind möglicherweise nicht für Videos zugelassen.",
+		"priceHint": "Eine Abbuchung umfasst Szene und Video. Prüfe den endgültigen Preis vor der Bestätigung.",
 		"pendingHint": "Eine frühere Bestätigung muss geprüft werden. Rufe dieselbe Anfrage erneut ab, bevor du einen weiteren Auftrag startest.",
 		"recover": "Dieselbe Anfrage prüfen",
 		"submitting": "Auftrag wird bestätigt…",
@@ -2037,7 +2037,20 @@
 			"creatingScene": "Szene am Steg wird erstellt",
 			"sceneAlt": "KI-Illustration eines leeren Holzstegs bei Sonnenuntergang",
 			"sceneTitle": "Wir sehen uns zur goldenen Stunde.",
-			"sceneCaption": "KI-Szenenillustration, kein erzeugtes Videobeispiel. Nach der Generierung erscheint hier dein Ergebnis."
-		}
+			"sceneCaption": "KI-Szenenillustration, kein erzeugtes Videobeispiel. Nach der Generierung erscheint hier dein Ergebnis.",
+			"uploadPhotoHint": "Lade dein Foto hoch, um die Gesamtkosten zu prüfen.",
+			"waitingForPhoto": "Dein Foto wird hochgeladen und verarbeitet…"
+		},
+		"eligibleBalance": "Für dieses Video verfügbar",
+		"accountBalance": "Kontoguthaben: {credits} Credits",
+		"eligibleBalanceHint": "Für dieses Video zählen nur berechtigte, bezahlte Credits. Deine übrigen Credits bleiben auf deinem Konto.",
+		"creditShortfall": "Du benötigst noch {credits} berechtigte Credits, um dieses Video zu erstellen.",
+		"loadingPrice": "Wird geladen…",
+		"priceUnavailable": "Nicht verfügbar",
+		"balanceUnavailable": "Nicht verfügbar",
+		"uploadBothHint": "Lade beide Fotos hoch, um die Gesamtkosten zu prüfen.",
+		"uploadLeftHint": "Lade das linke Foto hoch, um fortzufahren.",
+		"uploadRightHint": "Lade das rechte Foto hoch, um fortzufahren.",
+		"waitingForPhotos": "Warte, bis beide Fotos hochgeladen und verarbeitet wurden…"
 	}
 }

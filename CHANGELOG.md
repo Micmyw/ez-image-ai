@@ -8,6 +8,17 @@
 - Reuse the existing private video order, review, storage, credit confirmation and history flow. Solo binds one adult reference to the existing two-role preparation contract; Duet keeps two distinct roles. Both produce a five-second, 720p vertical silent video.
 - Isolate template drafts, access settings, payment return paths and versioned prompts. Keep the approved complete-cost budget, expiry and minimum three-times-cost revenue policy; video is not a free guest feature. Existing Hotel Lobby and ordinary-video access remain independent.
 
+### Reliable font builds
+
+- Bundle the existing Plus Jakarta Sans font with its source and license so production builds no longer depend on Google Fonts responses.
+
+## 2026-10-06
+
+### Hotel Lobby price and credit clarity
+
+- Show the configured total before photo upload, and distinguish credits available for this video from the account's total balance.
+- Explain missing or processing photos and any eligible-credit shortfall before confirmation. Refresh credit availability after submission while preserving recovery of the same interrupted request.
+
 ## 2026-10-05
 
 ### Hotel Lobby duo public beta

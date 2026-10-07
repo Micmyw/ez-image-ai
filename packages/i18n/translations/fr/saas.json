@@ -1961,7 +1961,7 @@
 		"totalCredits": "Coût total",
 		"credits": "{credits} crédits",
 		"balance": "Solde disponible",
-		"priceHint": "Un devis unique couvre la scène et la vidéo. Certains crédits de votre solde peuvent ne pas être éligibles à la vidéo.",
+		"priceHint": "Un seul débit couvre la scène et la vidéo. Vérifiez le prix final avant de confirmer.",
 		"pendingHint": "Une confirmation précédente doit être vérifiée. Récupérez la même demande avant de passer une autre commande.",
 		"recover": "Vérifier la même demande",
 		"submitting": "Confirmation de votre commande…",
@@ -2037,7 +2037,20 @@
 			"creatingScene": "Création de la scène du ponton",
 			"sceneAlt": "Illustration par IA d’un ponton vide au coucher du soleil",
 			"sceneTitle": "Rendez-vous à l’heure dorée.",
-			"sceneCaption": "Illustration de scène par IA, pas un exemple de vidéo générée. Votre résultat apparaîtra ici après la génération."
-		}
+			"sceneCaption": "Illustration de scène par IA, pas un exemple de vidéo générée. Votre résultat apparaîtra ici après la génération.",
+			"uploadPhotoHint": "Importez votre photo pour vérifier le coût total.",
+			"waitingForPhoto": "Importation et traitement de votre photo en cours…"
+		},
+		"eligibleBalance": "Disponibles pour cette vidéo",
+		"accountBalance": "Total du compte : {credits} crédits",
+		"eligibleBalanceHint": "Seuls les crédits payants admissibles comptent pour cette vidéo. Vos autres crédits restent sur votre compte.",
+		"creditShortfall": "Il vous faut encore {credits} crédits admissibles pour générer cette vidéo.",
+		"loadingPrice": "Chargement…",
+		"priceUnavailable": "Indisponible",
+		"balanceUnavailable": "Indisponible",
+		"uploadBothHint": "Importez les deux photos pour consulter le coût total.",
+		"uploadLeftHint": "Importez la photo de gauche pour continuer.",
+		"uploadRightHint": "Importez la photo de droite pour continuer.",
+		"waitingForPhotos": "En attente de la fin de l’importation et du traitement des deux photos…"
 	}
 }

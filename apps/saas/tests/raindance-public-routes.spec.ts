@@ -110,6 +110,7 @@ async function setup(page: Page, state: Scenario) {
 				accessAllowed: true,
 				reasons: [],
 				credits: state.available ? "24" : null,
+				creditBalance: state.available ? { totalCredits: "120", eligibleCredits: "120" } : null,
 				maxInputBytes: 10_000_000,
 			});
 		if (endpoint === "videoEffects/uploads/create") {
