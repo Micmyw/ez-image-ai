@@ -314,16 +314,14 @@ test("upload and in-flight creation survive switching, retaining the job after B
 	await page.goto("/create");
 	await page.locator("#landing-edit-prompt").fill("Image remains unchanged.");
 	await mode(page, "video");
-	await page
-		.locator("#video-image")
-		.setInputFiles({
-			name: "reference.png",
-			mimeType: "image/png",
-			buffer: Buffer.from(
-				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
-				"base64",
-			),
-		});
+	await page.locator("#video-image").setInputFiles({
+		name: "reference.png",
+		mimeType: "image/png",
+		buffer: Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
+			"base64",
+		),
+	});
 	await expect(page.locator("#video-upload-status")).toContainText("Verifying");
 	await mode(page, "image");
 	seal();

@@ -1,8 +1,17 @@
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import englishMessages from "../../../../../packages/i18n/translations/en/marketing.json";
+import saasMessages from "../../../../../packages/i18n/translations/en/saas.json";
+
+const navigation = vi.hoisted(() => ({ search: "" }));
+vi.mock("next/navigation", () => ({
+	useSearchParams: () => new URLSearchParams(navigation.search),
+}));
+vi.mock("@auth/hooks/use-session", () => ({ useSession: () => ({ user: null }) }));
+vi.mock("@auth/lib/api", () => ({ useSessionQuery: () => ({ isPending: true }) }));
+vi.mock("next-intl", () => ({ useMessages: () => ({}), useLocale: () => "en" }));
 
 vi.mock("@shared/components/studio/StudioShell", () => ({
 	StudioShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -52,6 +61,7 @@ vi.mock("@repo/config/client", () => ({
 
 vi.mock("next-intl/server", () => ({
 	getLocale: async () => "en",
+	getMessages: async () => ({ videoV1: {} }),
 	getTranslations: async () => createTranslator(),
 }));
 
@@ -85,6 +95,16 @@ vi.mock("../../public-content/components/PublicFooterLinks", () => ({
 import { LandingPage } from "./LandingPage";
 
 describe("LandingPage hero hierarchy", () => {
+	beforeEach(() => {
+		navigation.search = "";
+	});
+	it("uses video copy when the same generator is in video mode", async () => {
+		navigation.search = "mode=video";
+		const markup = renderToStaticMarkup(await LandingPage({ workspace: true }));
+		const heading = markup.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
+		expect(heading).toContain(saasMessages.videoV1.title);
+		expect(markup).toContain(saasMessages.videoV1.description);
+	});
 	it("keeps the keyword heading and concise intro while explaining the meaning in the FAQ", async () => {
 		const markup = renderToStaticMarkup(await LandingPage());
 		const heading = markup.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
@@ -122,6 +142,7 @@ function createTranslator() {
 				collect(child, path ? `${path}.${key}` : key);
 	}
 	collect(englishMessages);
+	collect(saasMessages);
 	const translate = (key: string) => messages[key] ?? key;
 	translate.raw = () => ({ first: "Feature" });
 	translate.rich = (key: string, values: { accent: (children: ReactNode) => ReactNode }) => {

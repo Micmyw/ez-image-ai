@@ -705,7 +705,7 @@ describe("GenerationForm product copy", () => {
 		expect(markup).toContain('class="studio-composer-heading"');
 		expect(markup).toContain('aria-label="mediaType"');
 		expect(markup).toContain('aria-pressed="true"');
-		expect(markup).toContain('href="/video"');
+		expect(markup).toContain('href="/create?mode=video"');
 		expect(markup).not.toContain("comingSoon");
 		expect(markup).not.toContain("generation.textMode");
 		expect(markup).toContain("Localized image prompt");

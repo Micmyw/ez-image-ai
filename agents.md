@@ -35,6 +35,8 @@ Root checks: `pnpm format`, `pnpm format:check`, `pnpm lint`, `pnpm type-check`,
 
 ## Public routing
 
+The homepage and `/create` share a mounted Image / Video composer through the `mode=video` query. Keep image `job` and video `videoJob`, account-scoped drafts and pending confirmations separate. `/video` retains its authenticated boundary before redirecting into the shared composer. Mode switches must preserve in-flight work and close hidden portals; model/property changes invalidate only unsubmitted quotes.
+
 The homepage owns `ai image editor no restrictions`, with `ai image editor with prompt no restrictions`
 as the secondary query and `ai image editor with prompt` as the broader topic. Preserve this keyword
 focus during feature work unless the user explicitly changes it. Explain "No Restrictions" as flexible

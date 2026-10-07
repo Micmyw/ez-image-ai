@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-08
+
+### Shared image and video composer
+
+- Switch Image / Video in the existing generator area, with a compact reference-and-prompt layout, family-based video model picker and capability-driven settings. Keep the current server quote and private video history flow.
+- Preserve independent drafts, uploads and background requests across mode changes and browser navigation. Hand off drafts on sign-in, require reselecting guest reference files, and retain the same confirmation identity after an uncertain response.
+- Close hidden popovers, restore keyboard focus, pause hidden video playback and support narrow mobile screens. Keep template access, billing and model contracts unchanged.
+
 ## 2026-10-07
 
 ### Rumpelstiltskin reference-video workflow
