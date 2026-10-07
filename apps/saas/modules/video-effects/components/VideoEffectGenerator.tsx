@@ -7,6 +7,7 @@ import {
 	HOTEL_LOBBY_EFFECT_ID,
 	RAINDANCE_DUO_EFFECT_ID,
 	RAINDANCE_SOLO_EFFECT_ID,
+	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
 	type VideoEffectId,
 } from "@repo/config/video-effects";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,6 +25,7 @@ import {
 	changeEffectInputs,
 	createEffectConfirmation,
 	effectError,
+	effectReadinessMessage,
 	effectRequest,
 	effectStorageKey,
 	emptyEffectDraft,
@@ -54,7 +56,8 @@ export function VideoEffectGenerator({
 	const t = useTranslations("videoEffects");
 	const { user } = useSession();
 	const path = videoEffectPath(effectId);
-	const solo = effectId === RAINDANCE_SOLO_EFFECT_ID;
+	const internalTest = effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID;
+	const solo = effectId === RAINDANCE_SOLO_EFFECT_ID || internalTest;
 	const returnQuery = new URLSearchParams();
 	if (initialJobId) returnQuery.set("job", initialJobId);
 	if (effectId === RAINDANCE_DUO_EFFECT_ID) returnQuery.set("mode", "duo");
@@ -67,7 +70,9 @@ export function VideoEffectGenerator({
 			<div className="ve-workbench">
 				<section className="ve-creator">
 					<div className="ve-card-heading">
-						<span className="ve-eyebrow">{t(solo ? "onePhoto" : "twoPhotos")}</span>
+						<span className="ve-eyebrow">
+							{t(internalTest ? "rumpelstiltskin.onePhoto" : solo ? "onePhoto" : "twoPhotos")}
+						</span>
 						<LockKeyholeIcon aria-hidden />
 					</div>
 					<h2>{t(solo ? "makeYourSolo" : "makeYourDuo")}</h2>
@@ -86,7 +91,9 @@ export function VideoEffectGenerator({
 						{t("signIn")}
 						<ArrowUpRightIcon aria-hidden />
 					</Link>
-					<p className="ve-microcopy">{t("betaHint")}</p>
+					<p className="ve-microcopy">
+						{t(internalTest ? "rumpelstiltskin.testHint" : "betaHint")}
+					</p>
 				</section>
 				{preview ?? <VideoEffectSamples samples={samples} effectId={effectId} />}
 			</div>
@@ -118,7 +125,8 @@ function SignedInGenerator({
 }) {
 	const t = useTranslations("videoEffects");
 	const path = videoEffectPath(effectId);
-	const solo = effectId === RAINDANCE_SOLO_EFFECT_ID;
+	const internalTest = effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID;
+	const solo = effectId === RAINDANCE_SOLO_EFFECT_ID || internalTest;
 	const upgrade = useUpgrade();
 	const queryClient = useQueryClient();
 	const [draft, setDraft] = useState(() => emptyEffectDraft(ownerId, effectId));
@@ -433,14 +441,22 @@ function SignedInGenerator({
 		<div className="ve-workbench">
 			<section className="ve-creator" aria-busy={busy !== null}>
 				<div className="ve-card-heading">
-					<span className="ve-eyebrow">{t(solo ? "onePhoto" : "twoPhotos")}</span>
+					<span className="ve-eyebrow">
+						{t(internalTest ? "rumpelstiltskin.onePhoto" : solo ? "onePhoto" : "twoPhotos")}
+					</span>
 					<LockKeyholeIcon aria-hidden />
 				</div>
 				<h2>{t(solo ? "makeYourSolo" : "makeYourDuo")}</h2>
 				<p>{t("photoHint")}</p>
 				{!enabled && (
-					<output className="ve-notice">
-						{t(access.isPending ? "checkingAvailability" : "unavailable")}
+					<output className="ve-notice" aria-live="polite">
+						{access.isPending
+							? t("checkingAvailability")
+							: internalTest && access.data?.reasons.length
+								? access.data.reasons.map((reason, index) => (
+										<p key={`${reason}:${index}`}>{t(effectReadinessMessage(reason))}</p>
+									))
+								: t("unavailable")}
 					</output>
 				)}
 				<DuoPhotoInputs
@@ -488,7 +504,9 @@ function SignedInGenerator({
 						)}
 					</div>
 				</div>
-				<p className="ve-microcopy">{t("priceHint")}</p>
+				<p className="ve-microcopy">
+					{t(internalTest ? "rumpelstiltskin.priceHint" : "priceHint")}
+				</p>
 				{!pending && (insufficientBalance || hasIneligibleCredits) && (
 					<div id="ve-funding-hint" className="ve-notice" aria-live="polite">
 						{insufficientBalance && (
@@ -545,15 +563,21 @@ function SignedInGenerator({
 					</>
 				)}
 				<div className="ve-actions">
-					<button type="button" className="ve-text-button" onClick={buyCredits}>
-						{t("addCredits")}
-					</button>
+					{!internalTest && (
+						<button type="button" className="ve-text-button" onClick={buyCredits}>
+							{t("addCredits")}
+						</button>
+					)}
 					<a
 						href={
-							effectId === HOTEL_LOBBY_EFFECT_ID ? "#hotel-lobby-history" : "#raindance-history"
+							internalTest
+								? "#rumpelstiltskin-history"
+								: effectId === HOTEL_LOBBY_EFFECT_ID
+									? "#hotel-lobby-history"
+									: "#raindance-history"
 						}
 					>
-						{t("history")}
+						{t(internalTest ? "rumpelstiltskin.history" : "history")}
 					</a>
 				</div>
 			</section>

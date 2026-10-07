@@ -1,6 +1,11 @@
 import type { MediaSafetyAdapter, ModerationDecision } from "@repo/ai/media/moderation/types";
 import { createConfiguredVideoSafetyAdapter } from "@repo/ai/media/moderation/video-configured";
 import {
+	buildKieSeedanceReferenceRequest,
+	KieSeedanceReferenceAdapter,
+	type KieSeedanceReferenceInput,
+} from "@repo/ai/media/providers/kie-seedance-reference";
+import {
 	buildKieVideoModelRequest,
 	KieVideoModelsAdapter,
 	resolveKieVideoModelId,
@@ -59,7 +64,9 @@ export interface VideoSubmissionDependencies {
 	safety: MediaSafetyAdapter;
 	moderateText: MediaSafetyAdapter["moderateText"];
 	provider: {
-		submit(input: KieVideoV1Input | KieVideoModelInput): Promise<KieVideoV1Submission>;
+		submit(
+			input: KieVideoV1Input | KieVideoModelInput | KieSeedanceReferenceInput,
+		): Promise<KieVideoV1Submission>;
 		retrieve(taskId: string, productKey?: string): Promise<KieVideoV1Result>;
 	};
 	signRead: (objectKey: string) => Promise<string>;
@@ -73,13 +80,18 @@ function dependencies(
 	const env = overrides?.env ?? process.env;
 	const legacyProvider = new KieVideoV1Adapter({ apiKey: env.KIE_API_KEY ?? "" });
 	const modelProvider = new KieVideoModelsAdapter({ apiKey: env.KIE_API_KEY ?? "" });
+	const referenceProvider = new KieSeedanceReferenceAdapter({ apiKey: env.KIE_API_KEY ?? "" });
 	return {
 		store: database,
 		safety: createConfiguredVideoSafetyAdapter(env),
 		moderateText: (input) => moderateVideoText(input, env),
 		provider: {
 			submit: (input) =>
-				"productKey" in input ? modelProvider.submit(input) : legacyProvider.submit(input),
+				"referenceVideoUrls" in input
+					? referenceProvider.submit(input)
+					: "productKey" in input
+						? modelProvider.submit(input)
+						: legacyProvider.submit(input),
 			retrieve: (taskId, productKey) =>
 				productKey ? modelProvider.retrieve(taskId, productKey) : legacyProvider.retrieve(taskId),
 		},
@@ -96,6 +108,7 @@ function prepareVideoProviderRequest(
 	snapshot: VideoInputSnapshot,
 	callbackUrl: string,
 	imageUrl?: string,
+	motionUrl?: string,
 ) {
 	if (snapshot.mode === "image-to-video" && !snapshot.inputIdentity)
 		throw new Error("VIDEO_INPUT_IDENTITY_MISSING");
@@ -105,6 +118,23 @@ function prepareVideoProviderRequest(
 		sound: snapshot.sound,
 		callbackUrl,
 	};
+	const template = snapshot.videoEffectTemplate;
+	if (template?.schemaVersion === 2 && template.executionKind === "seedance-reference") {
+		if (!imageUrl || !motionUrl || template.video.productKey !== "video-seedance-2")
+			throw new Error("VIDEO_REFERENCE_INPUT_IDENTITY_MISSING");
+		const input: KieSeedanceReferenceInput = {
+			...common,
+			productKey: "video-seedance-2",
+			duration: 5,
+			resolution: "720p",
+			aspectRatio: "9:16",
+			sound: false,
+			referenceImageUrls: [imageUrl],
+			referenceVideoUrls: [motionUrl],
+		};
+		const request = buildKieSeedanceReferenceRequest(input);
+		return { input, providerModelId: request.model, productKey: input.productKey };
+	}
 	if ("productKey" in snapshot) {
 		const input: KieVideoModelInput = {
 			...common,
@@ -327,7 +357,14 @@ export async function submitVideoAttempt(
 		snapshot.mode === "image-to-video" && snapshot.inputIdentity
 			? await deps.signRead(snapshot.inputIdentity.objectKey)
 			: undefined;
-	const prepared = prepareVideoProviderRequest(snapshot, callbackUrl, imageUrl);
+	const reference =
+		snapshot.videoEffectTemplate?.schemaVersion === 2 &&
+		snapshot.videoEffectTemplate.executionKind === "seedance-reference"
+			? snapshot.videoEffectTemplate.approvedMotionReference
+			: undefined;
+	// Only the immutable backend-approved private key is signed. No user or callback URL is accepted.
+	const motionUrl = reference ? await deps.signRead(reference.objectKey) : undefined;
+	const prepared = prepareVideoProviderRequest(snapshot, callbackUrl, imageUrl, motionUrl);
 	if (snapshot.videoEffectTemplate)
 		await requireVideoTemplateRuntimeEnabled(snapshot.videoEffectTemplate, deps.env);
 	let claim: Awaited<ReturnType<Store["claimVideoProviderSubmission"]>>;

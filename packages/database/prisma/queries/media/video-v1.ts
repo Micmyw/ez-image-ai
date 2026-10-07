@@ -340,6 +340,7 @@ export async function createVideoJobRecord(
 	const request = videoV1InputSchema.parse(input.request);
 	if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 128)
 		throw new Error("INVALID_IDEMPOTENCY_KEY");
+	const requiresScene = input.template?.template.schemaVersion === 1;
 	for (const value of [
 		input.limits.ownerConcurrency,
 		input.limits.globalConcurrency,
@@ -400,7 +401,7 @@ export async function createVideoJobRecord(
 				EXISTS(
 					SELECT 1 FROM "runtime_config_override"
 					WHERE "active" = true AND "value" = 'false'::jsonb
-						AND "configKey" IN ('media.generation.enabled', ${`media.model.${requestProduct(request)}.enabled`}, ${input.template ? `media.model.${input.template.template.scene.productKey}.enabled` : `media.model.${requestProduct(request)}.enabled`}, ${input.template ? "media.model.image-nano-banana-2-lite.enabled" : `media.model.${requestProduct(request)}.enabled`})
+						AND "configKey" IN ('media.generation.enabled', ${`media.model.${requestProduct(request)}.enabled`}, ${requiresScene ? `media.model.${input.template!.template.scene.productKey}.enabled` : `media.model.${requestProduct(request)}.enabled`}, ${requiresScene ? "media.model.image-nano-banana-2-lite.enabled" : `media.model.${requestProduct(request)}.enabled`})
 				) AS "blocked",
 				COUNT(*) FILTER (WHERE j."executionEngine" = 'video-workflow-v1'
 					AND j."ownerType" = 'USER' AND j."ownerId" = ${input.ownerId}) AS "ownerCount",
@@ -565,15 +566,16 @@ export async function createVideoJobRecord(
 			},
 		});
 		if (input.template) {
-			await tx.storageUsageReservation.create({
-				data: {
-					ownerType: "USER",
-					ownerId: input.ownerId,
-					referenceKey: videoTemplateSceneReservationKey(job.id),
-					bytes: sceneBytes,
-					expiresAt: new Date(now.getTime() + 86400000),
-				},
-			});
+			if (sceneBytes > 0n)
+				await tx.storageUsageReservation.create({
+					data: {
+						ownerType: "USER",
+						ownerId: input.ownerId,
+						referenceKey: videoTemplateSceneReservationKey(job.id),
+						bytes: sceneBytes,
+						expiresAt: new Date(now.getTime() + 86400000),
+					},
+				});
 			await tx.videoTemplateExecution.create({
 				data: {
 					jobId: job.id,

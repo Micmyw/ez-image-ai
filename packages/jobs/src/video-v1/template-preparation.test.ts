@@ -15,13 +15,49 @@ vi.mock("@repo/storage", () => ({
 	storeImmutableVideoTemplateScene: vi.fn(),
 }));
 
-function fixture() {
+function fixture(referenceMode = false) {
 	const now = new Date();
-	const template = createVideoEffectTemplateSnapshot({
-		effectId: "hotel-lobby-duo",
-		presetKey: "standard",
-		inputs: { leftAssetId: "left", rightAssetId: "right" },
-	});
+	const reference = {
+		assetId: "motion",
+		ownerId: "admin",
+		objectKey: "private/motion.mp4",
+		sha256: "a".repeat(64),
+		etag: "motion-etag",
+		storageVersionId: null,
+		bytes: 1024,
+		mimeType: "video/mp4",
+		durationSeconds: 5,
+		width: 720,
+		height: 1280,
+		fps: 30,
+		audioTrackCount: 0,
+		version: "fixture-reference-v1",
+		review: {
+			decision: "ALLOW",
+			policyVersion: "seeapi-video-policy-2026-10-04.1",
+			decisionHash: "b".repeat(64),
+			verificationGeneration: 1,
+			validUntil: new Date(now.getTime() + 3600_000).toISOString(),
+		},
+		rights: {
+			approvalId: "fixture-owned-rights",
+			validUntil: new Date(now.getTime() + 3600_000).toISOString(),
+		},
+	};
+	const template = referenceMode
+		? createVideoEffectTemplateSnapshot(
+				{
+					effectId: "rumpelstiltskin-solo",
+					presetKey: "standard",
+					inputs: { leftAssetId: "subject", rightAssetId: "subject" },
+				},
+				{ RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: JSON.stringify(reference) },
+			)
+		: createVideoEffectTemplateSnapshot({
+				effectId: "hotel-lobby-duo",
+				presetKey: "standard",
+				inputs: { leftAssetId: "left", rightAssetId: "right" },
+			});
 	const textAllow = {
 		decision: "ALLOW" as const,
 		reasonCode: "WAFFO_PROMPT_ALLOWED",
@@ -46,10 +82,10 @@ function fixture() {
 	};
 	const identity = (role: "left" | "right") => ({
 		role,
-		assetId: role,
-		objectKey: `users/owner/${role}.png`,
-		checksum: role.repeat(16),
-		storageEtag: role,
+		assetId: referenceMode ? "subject" : role,
+		objectKey: `users/owner/${referenceMode ? "subject" : role}.png`,
+		checksum: referenceMode ? "s".repeat(64) : role.repeat(16),
+		storageEtag: referenceMode ? "subject-etag" : role,
 		storageVersionId: null,
 		verificationGeneration: 1,
 	});
@@ -88,6 +124,14 @@ function fixture() {
 		resolvedInputIdentity: null as unknown,
 	};
 	const store = {
+		finalizeVideoTemplateReferenceInput: vi.fn(async () => {
+			state.resolvedInputIdentity = {
+				...state.orderedRoleIdentities[0],
+				source: "subject-reference",
+				parentRequestFingerprint: "parent-fingerprint",
+				sourceReviewEvidence: structuredClone(state.inputReview),
+			};
+		}),
 		getVideoTemplateExecution: vi.fn(async () => state),
 		recordVideoTemplateReview: vi.fn(async (_id, phase, patch) => {
 			Object.assign(phase === "inputs" ? state.inputReview : state.sceneReview, patch);
@@ -219,6 +263,46 @@ function fixture() {
 }
 
 describe("template scene preparation durable boundaries (local mocks)", () => {
+	it("direct reference reviews the actual prompt and one subject, then replays without scene generation", async () => {
+		const f = fixture(true);
+		expect(await f.run()).toEqual({ status: "ALLOW" });
+		expect(f.deps.moderateText).toHaveBeenCalledTimes(1);
+		expect(f.deps.moderateText).toHaveBeenCalledWith(
+			expect.objectContaining({ text: f.state.templateSnapshot.video.prompt }),
+		);
+		expect(f.safety.submitImage).toHaveBeenCalledTimes(1);
+		expect(f.state.inputReview.right).toEqual(f.state.inputReview.left);
+		expect(f.store.finalizeVideoTemplateReferenceInput).toHaveBeenCalledTimes(1);
+		expect(f.provider.submit).not.toHaveBeenCalled();
+		expect(f.provider.retrieve).not.toHaveBeenCalled();
+		expect(f.deps.storeScene).not.toHaveBeenCalled();
+		expect(f.state.sceneAsset).toBeNull();
+		expect(f.state.resolvedInputIdentity).toMatchObject({
+			source: "subject-reference",
+			assetId: "subject",
+		});
+		expect(await f.run()).toEqual({ status: "ALLOW" });
+		expect(f.safety.submitImage).toHaveBeenCalledTimes(1);
+		expect(f.deps.moderateText).toHaveBeenCalledTimes(1);
+	});
+	it("holds an uncertain reference subject review without generation or resubmission", async () => {
+		const f = fixture(true);
+		f.safety.submitImage.mockRejectedValueOnce(new Error("timeout"));
+		expect((await f.run()).status).toBe("ERROR");
+		expect((await f.run()).status).toBe("ERROR");
+		expect(f.safety.submitImage).toHaveBeenCalledTimes(1);
+		expect(f.store.finalizeVideoTemplateReferenceInput).not.toHaveBeenCalled();
+		expect(f.provider.submit).not.toHaveBeenCalled();
+	});
+	it("does not renew expired subject evidence on a reference replay", async () => {
+		const f = fixture(true);
+		expect((await f.run()).status).toBe("ALLOW");
+		const original = f.deps.now();
+		f.deps.now = () => new Date(original.getTime() + 3600_001);
+		expect((await f.run()).status).toBe("ERROR");
+		expect(f.safety.submitImage).toHaveBeenCalledTimes(1);
+		expect(f.recordInputReview).toHaveBeenCalledTimes(1);
+	});
 	it("reviews both real prompts and both ordered photos, seals private scene, then replays without any paid POST", async () => {
 		const f = fixture();
 		expect(await f.run()).toEqual({ status: "ALLOW" });

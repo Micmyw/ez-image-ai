@@ -22,6 +22,28 @@ Read for job/runtime/database packaging or deployment changes. Operational cutov
 
 ## Website and database runtime
 
+- Rumpelstiltskin uses the existing native video Workflow with an independent internal
+  test gate. `RUMPELSTILTSKIN_ENABLED` defaults to `false` and is mirrored as a separate
+  website/background admission binding. The authoritative private dotenv bundle is
+  the only build source; there is no Rumpelstiltskin build-enable override. When true,
+  preparation requires ordinary video readiness, Kie enabled, exact template/model
+  approval, `RUMPELSTILTSKIN_ACCESS=internal`, and a nonempty independent
+  `RUMPELSTILTSKIN_ALLOWED_USER_IDS` list. An administrator role or authenticated
+  ordinary-video audience never expands this test audience.
+- Its access/list/version fields share the existing private `VIDEO_RUNTIME_CONFIG`
+  allowlist. `RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE` and
+  `RUMPELSTILTSKIN_COST_APPROVAL` are two separate private string bindings, each
+  limited to 5,000 UTF-8 bytes of compact JSON. They remain outside the unchanged
+  5,000-byte policy-pack limit and outside public variables/Wrangler vars. Website,
+  resumed Workflow steps, recovery and hybrid startup receive the same effective
+  snapshot; hydration clears omitted reference/cost values between isolate versions.
+  Invalid transport closes video admission while preserving image work. Disabled
+  preparation accepts empty approval placeholders. Enabled preparation validates
+  current, independent reference and full-cost approvals; database admission and
+  each paid side-effect fence additionally verify the immutable private asset,
+  administrator ownership, rights and persisted moderation evidence. Synthetic
+  transport tests do not certify real assets, provider quality or pricing.
+
 - `RAINDANCE_RUNTIME_CONFIG` is a private build-only patch for the three independent
   Raindance admission/access/version fields. It merges into the existing runtime
   pack after the Hotel Lobby overlay, reuses the approved full-cost pipeline, and

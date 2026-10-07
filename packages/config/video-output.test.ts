@@ -24,6 +24,95 @@ const expected = {
 	aspectRatio: "16:9",
 };
 describe("immutable video output contract", () => {
+	it("supports only the frozen reference template with its matching Seedance 2 silent portrait output", () => {
+		// Synthetic identity only; this is not real motion, moderation or rights evidence.
+		const template = createVideoEffectTemplateSnapshot(
+			{
+				effectId: "rumpelstiltskin-solo",
+				presetKey: "standard",
+				inputs: { leftAssetId: "subject", rightAssetId: "subject" },
+			},
+			{
+				RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: JSON.stringify({
+					assetId: "fixture-motion",
+					ownerId: "fixture-owner",
+					objectKey: "private/fixture.mp4",
+					sha256: "a".repeat(64),
+					etag: "fixture-etag",
+					storageVersionId: null,
+					bytes: 1024,
+					mimeType: "video/mp4",
+					durationSeconds: 5,
+					width: 720,
+					height: 1280,
+					fps: 30,
+					audioTrackCount: 0,
+					version: "fixture-motion-v1",
+					review: {
+						decision: "ALLOW",
+						policyVersion: "seeapi-video-policy-2026-10-04.1",
+						decisionHash: "b".repeat(64),
+						verificationGeneration: 0,
+						validUntil: "2100-01-01T00:00:00Z",
+					},
+					rights: { approvalId: "fixture-rights", validUntil: "2100-01-01T00:00:00Z" },
+				}),
+			},
+		);
+		const snapshot = {
+			...template.video,
+			requestKind: "template-video",
+			videoEffectTemplate: template,
+			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
+		};
+		const constraints = videoOutputConstraints(snapshot);
+		const silentPortrait = {
+			durationMillis: 5000,
+			width: 720,
+			height: 1280,
+			audioTracks: 0,
+			videoTracks: 1 as const,
+		};
+		expect(constraints).toMatchObject({
+			productKey: "video-seedance-2",
+			durationSeconds: 5,
+			sound: false,
+			resolution: "720p",
+			aspectRatio: "9:16",
+			exactPixels: { width: 720, height: 1280 },
+		});
+		expect(videoOutputSpecificationFailure(silentPortrait, constraints)).toBeNull();
+		expect(
+			videoOutputSpecificationFailure(
+				{ ...silentPortrait, audioTracks: 1, audioTrackIds: [2] },
+				constraints,
+			),
+		).toBe("VIDEO_AUDIO_TRACK_NOT_ALLOWED");
+		expect(
+			videoOutputSpecificationFailure({ ...silentPortrait, width: 360, height: 640 }, constraints),
+		).toBe("VIDEO_RESOLUTION_MISMATCH");
+		for (const change of [
+			{ productKey: "video-seedance-1-5-pro" },
+			{ sound: true },
+			{ duration: 10 },
+			{ videoEffectTemplate: { ...template, schemaVersion: 1 } },
+			{ videoEffectTemplate: { ...template, schemaVersion: 3 } },
+			{ videoEffectTemplate: { ...template, effectId: "raindance-solo" } },
+			{ videoEffectTemplate: { ...template, executionKind: "scene-video" } },
+			{ videoEffectTemplate: { ...template, templateVersion: "unknown" } },
+			{
+				videoEffectTemplate: {
+					...template,
+					video: { ...template.video, productKey: "video-seedance-1-5-pro" },
+				},
+			},
+			{ videoEffectTemplate: { ...template, video: { ...template.video, sound: true } } },
+			{ videoEffectTemplate: { ...template, output: { ...template.output, sound: true } } },
+		])
+			expect(() => videoOutputConstraints({ ...snapshot, ...change })).toThrow(
+				"VIDEO_TEMPLATE_OUTPUT_CONSTRAINTS_INVALID",
+			);
+	});
 	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
 		"requires actual silent 720 by 1280 output for the frozen %s template",
 		(effectId) => {
@@ -75,6 +164,14 @@ describe("immutable video output contract", () => {
 				{ videoEffectTemplate: { ...template, effectId: "unapproved-template" } },
 				{ duration: 10 },
 				{ sound: true },
+				{ productKey: "video-seedance-2" },
+				{ videoEffectTemplate: { ...template, schemaVersion: 2 } },
+				{
+					videoEffectTemplate: {
+						...template,
+						video: { ...template.video, productKey: "video-seedance-2" },
+					},
+				},
 				{ videoEffectTemplate: { ...template, output: { ...template.output, width: 360 } } },
 			])
 				expect(() => videoOutputConstraints({ ...snapshot, ...change })).toThrow(

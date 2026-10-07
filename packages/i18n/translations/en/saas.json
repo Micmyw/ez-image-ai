@@ -2041,6 +2041,21 @@
 			"uploadPhotoHint": "Upload your photo to review the total cost.",
 			"waitingForPhoto": "Waiting for your photo to finish uploading and processing…"
 		},
+		"rumpelstiltskin": {
+			"internalTest": "Internal test",
+			"title": "Rumpelstiltskin solo test",
+			"onePhoto": "One photo. One test subject.",
+			"testHint": "Test one person with an approved motion reference. Identity and dance accuracy have not yet been verified. This test is not open for public purchase.",
+			"referenceTitle": "Approved motion reference",
+			"referenceHint": "The motion video is selected and approved by the team. You only upload a person’s photo. No verified result sample is available yet.",
+			"priceHint": "Testing requires a separate approved budget. Review the approved total before confirming; previous template prices do not apply.",
+			"motionRequired": "Generation is blocked: an authorized motion reference has not been approved yet.",
+			"motionInvalid": "Generation is blocked: the motion reference or its approval needs to be checked.",
+			"costRequired": "Generation is blocked: a separate test cost approval is required.",
+			"costInvalid": "Generation is blocked: the test cost approval has expired or needs to be checked.",
+			"history": "Your Rumpelstiltskin tests",
+			"emptyHistory": "Your Rumpelstiltskin test orders will appear here."
+		},
 		"eligibleBalance": "Available for this video",
 		"accountBalance": "Account total: {credits} credits",
 		"eligibleBalanceHint": "Only eligible paid credits count toward this video. Your other credits stay in your account.",

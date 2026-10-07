@@ -2,6 +2,12 @@
 
 ## 2026-10-07
 
+### Rumpelstiltskin private reference-video test
+
+- Add a disabled-by-default, independently allowlisted account test entry using one uploaded portrait and a frozen private motion reference with Seedance 2. Review the portrait once; this path skips scene-image generation.
+- Bind motion identity, real visual-review evidence, rights receipt and expiry before quotation and paid submission. Require a separate complete-cost approval for video-reference billing; existing Hotel Lobby and ordinary-video prices do not authorize this test.
+- Preserve accepted-task recovery, private owner-scoped history and output review. Prepare an additive template migration without applying it. No licensed motion clip, real paid quality result or public launch is included.
+
 ### Video beta for all signed-in accounts
 
 - Open the ordinary video workspace to all signed-in, non-anonymous accounts and link the Image/Video composer controls to it. Video requires qualifying paid credits; there is no guest video trial.

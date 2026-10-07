@@ -3,6 +3,7 @@ export const videoTemplateSceneReservationKey = (jobId: string) => `video-templa
 export function videoTemplateSceneReservationBytes(snapshot: Prisma.JsonValue): bigint {
 	const s = snapshot as Record<string, unknown>;
 	const t = s?.videoEffectTemplate as Record<string, unknown> | undefined;
+	if (t?.schemaVersion === 2 && t.executionKind === "seedance-reference") return 0n;
 	const storage = t?.storage as Record<string, unknown> | undefined;
 	const bytes = storage?.sceneMaximumBytes;
 	if (!Number.isSafeInteger(bytes) || Number(bytes) < 1 || Number(bytes) > 20000000)

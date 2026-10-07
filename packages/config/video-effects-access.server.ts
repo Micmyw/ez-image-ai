@@ -1,4 +1,8 @@
-import { HOTEL_LOBBY_EFFECT_ID, type VideoEffectId } from "./video-effects";
+import {
+	HOTEL_LOBBY_EFFECT_ID,
+	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
+	type VideoEffectId,
+} from "./video-effects";
 import { canAccessInternalVideoV1, readVideoV1Config, type VideoV1Environment } from "./video-v1";
 
 export type VideoEffectAccessScope = "internal" | "authenticated";
@@ -8,6 +12,8 @@ export function readVideoEffectAccessScope(
 	environment: VideoV1Environment,
 	effectId: VideoEffectId = HOTEL_LOBBY_EFFECT_ID,
 ): VideoEffectAccessScope | null {
+	if (effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID)
+		return (environment.RUMPELSTILTSKIN_ACCESS ?? "internal") === "internal" ? "internal" : null;
 	const scope =
 		environment[
 			effectId === HOTEL_LOBBY_EFFECT_ID ? "HOTEL_LOBBY_DUO_ACCESS" : "RAINDANCE_ACCESS"
@@ -26,11 +32,25 @@ export function canAccessVideoEffect(
 		user.isAnonymous ||
 		!config.enabled ||
 		environment[
-			effectId === HOTEL_LOBBY_EFFECT_ID ? "HOTEL_LOBBY_DUO_ENABLED" : "RAINDANCE_ENABLED"
+			effectId === HOTEL_LOBBY_EFFECT_ID
+				? "HOTEL_LOBBY_DUO_ENABLED"
+				: effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID
+					? "RUMPELSTILTSKIN_ENABLED"
+					: "RAINDANCE_ENABLED"
 		] !== "true"
 	)
 		return false;
 	const scope = readVideoEffectAccessScope(environment, effectId);
+	// An administrator role or another product's whitelist never grants this internal test access.
+	if (effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID)
+		return (
+			scope === "internal" &&
+			(environment.RUMPELSTILTSKIN_ALLOWED_USER_IDS ?? "")
+				.split(",")
+				.map((id) => id.trim())
+				.filter(Boolean)
+				.includes(user.id)
+		);
 	return (
 		scope === "authenticated" || (scope === "internal" && canAccessInternalVideoV1(config, user))
 	);

@@ -1,5 +1,6 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
+import { parseVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
 import { readVideoInternalFundingSnapshot } from "@repo/config/video-internal-funding";
 import {
 	isApprovedVideoTextDecision,
@@ -13,10 +14,15 @@ import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { runReadCommitted } from "./types";
 import { recordVideoTemplateBusinessEvent } from "./video-template-events";
 import {
+	findApprovedVideoTemplateMotionReference,
+	isVideoTemplateReference,
+} from "./video-template-reference";
+import {
 	videoTemplateSceneReservationBytes,
 	videoTemplateSceneReservationKey,
 } from "./video-template-storage";
 import { lockVideoOwnerStorage } from "./video-v1-storage";
+export { findApprovedVideoTemplateMotionReference } from "./video-template-reference";
 const text = (v: unknown): string => (typeof v === "string" ? v : "");
 const json = (v: unknown): Prisma.InputJsonObject =>
 	v && typeof v === "object" && !Array.isArray(v) ? (v as Prisma.InputJsonObject) : {};
@@ -105,8 +111,57 @@ export function getVideoEffectiveInputSnapshot(job: {
 	const identity = json(sidecar?.resolvedInputIdentity);
 	if (!sidecar || sidecar.sceneState !== "READY" || !identity.assetId)
 		throw new Error("VIDEO_TEMPLATE_SCENE_NOT_READY");
-	const review = json(json(identity.sceneReviewEvidence).scene);
 	const template = json(snapshot.videoEffectTemplate);
+	if (isVideoTemplateReference(template)) {
+		parseVideoEffectTemplateSnapshot(template);
+		const evidence = json(identity.sourceReviewEvidence);
+		const review = json(evidence.left);
+		const profile = readVideoTextSafetyProfile(snapshot);
+		const motionIdentity = json(evidence.motionTextDecisionIdentity);
+		if (
+			identity.source !== "subject-reference" ||
+			identity.parentRequestFingerprint !== snapshot.requestFingerprint ||
+			evidence.status !== "ALLOW" ||
+			evidence.requestFingerprint !== snapshot.requestFingerprint ||
+			!videoTextSafetyProfilesMatch(evidence.textSafetyProfile, profile) ||
+			!isApprovedVideoTextDecision(evidence.motionTextDecision, profile) ||
+			motionIdentity.requestFingerprint !== snapshot.requestFingerprint ||
+			motionIdentity.promptVersion !== json(template.video).promptVersion ||
+			motionIdentity.promptHash !==
+				createHash("sha256")
+					.update(text(json(template.video).prompt))
+					.digest("hex") ||
+			json(review.decision).decision !== "ALLOW" ||
+			review.assetId !== identity.assetId ||
+			review.checksum !== identity.checksum ||
+			review.objectKey !== identity.objectKey ||
+			review.storageEtag !== identity.storageEtag ||
+			review.storageVersionId !== identity.storageVersionId ||
+			review.verificationGeneration !== identity.verificationGeneration ||
+			review.safetyPolicyVersion !== template.safetyPolicyVersion ||
+			typeof review.validUntil !== "string" ||
+			!Number.isFinite(Date.parse(review.validUntil)) ||
+			Date.parse(review.validUntil) <= Date.now()
+		)
+			throw new Error("VIDEO_TEMPLATE_REFERENCE_INPUT_REVIEW_REQUIRED");
+		const second = json(evidence.right);
+		if (
+			json(second.decision).decision !== "ALLOW" ||
+			second.assetId !== identity.assetId ||
+			second.checksum !== identity.checksum ||
+			second.objectKey !== identity.objectKey ||
+			second.storageEtag !== identity.storageEtag ||
+			second.storageVersionId !== identity.storageVersionId ||
+			second.verificationGeneration !== identity.verificationGeneration ||
+			second.safetyPolicyVersion !== template.safetyPolicyVersion ||
+			typeof second.validUntil !== "string" ||
+			!Number.isFinite(Date.parse(second.validUntil)) ||
+			Date.parse(second.validUntil) <= Date.now()
+		)
+			throw new Error("VIDEO_TEMPLATE_REFERENCE_INPUT_REVIEW_REQUIRED");
+		return { ...snapshot, inputAssetId: identity.assetId, inputIdentity: identity };
+	}
+	const review = json(json(identity.sceneReviewEvidence).scene);
 	if (
 		identity.parentRequestFingerprint !== snapshot.requestFingerprint ||
 		json(identity.sceneReviewEvidence).status !== "ALLOW" ||
@@ -137,6 +192,8 @@ export async function recordVideoTemplateReview(
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
 		const e = await lock(tx, jobId);
 		active(e);
+		assertVideoTemplateRoleIdentities(e.job);
+		await findApprovedVideoTemplateMotionReference(e.templateSnapshot, tx, new Date());
 		const field = stage === "inputs" ? "inputReview" : "sceneReview";
 		await tx.videoTemplateExecution.update({
 			where: { jobId },
@@ -163,6 +220,7 @@ export async function claimVideoTemplateImageReview(
 		const e = await lock(tx, jobId);
 		active(e);
 		if (role !== "scene") assertVideoTemplateRoleIdentities(e.job);
+		await findApprovedVideoTemplateMotionReference(e.templateSnapshot, tx, new Date());
 		const field = role === "scene" ? "sceneReview" : "inputReview";
 		const reviews = json(e[field]);
 		const review = json(reviews[role]);
@@ -205,6 +263,8 @@ export async function claimVideoTemplateSceneSubmission(input: {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
 		await lockVideoOwnerStorage(tx, input.jobId);
 		const e = await lock(tx, input.jobId);
+		if (isVideoTemplateReference(e.templateSnapshot))
+			throw new Error("VIDEO_TEMPLATE_REFERENCE_HAS_NO_SCENE");
 		if (e.submittedAt) return { execution: e, claimed: false };
 		active(e);
 		assertVideoTemplateRoleIdentities(e.job);
@@ -427,6 +487,125 @@ export async function recordVideoTemplateSceneAsset(input: {
 		return updated;
 	});
 }
+/** Resolve a reviewed user subject without creating a synthetic scene or exposing the reference. */
+export async function finalizeVideoTemplateReferenceInput(jobId: string) {
+	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		const e = await lock(tx, jobId);
+		if (!isVideoTemplateReference(e.templateSnapshot))
+			throw new Error("VIDEO_TEMPLATE_REFERENCE_INVALID");
+		if (e.resolvedInputIdentity) return e.resolvedInputIdentity;
+		active(e);
+		assertVideoTemplateRoleIdentities(e.job);
+		const identities = e.orderedRoleIdentities as Prisma.JsonArray;
+		const left = json(identities[0]);
+		const right = json(identities[1]);
+		if (left.assetId !== right.assetId)
+			throw new Error("VIDEO_TEMPLATE_REFERENCE_SUBJECT_REQUIRED");
+		await lockMediaAssetGenerationBindings([text(left.assetId)], tx);
+		await findApprovedVideoTemplateMotionReference(e.templateSnapshot, tx, new Date());
+		const a = e.job.assets.find((binding) => binding.assetId === left.assetId)?.asset;
+		const review = json(e.inputReview);
+		const profile = readVideoTextSafetyProfile(e.job.inputSnapshot);
+		const motionIdentity = json(review.motionTextDecisionIdentity);
+		const template = json(e.templateSnapshot);
+		const fingerprint = json(e.job.inputSnapshot).requestFingerprint;
+		if (
+			!a ||
+			!["VERIFYING", "READY"].includes(a.status) ||
+			!a.checksum ||
+			e.sceneAssetId ||
+			e.submittedAt ||
+			review.status !== "ALLOW" ||
+			review.requestFingerprint !== fingerprint ||
+			!videoTextSafetyProfilesMatch(review.textSafetyProfile, profile) ||
+			!isApprovedVideoTextDecision(review.motionTextDecision, profile) ||
+			motionIdentity.requestFingerprint !== fingerprint ||
+			motionIdentity.promptVersion !== json(template.video).promptVersion ||
+			motionIdentity.promptHash !==
+				createHash("sha256")
+					.update(text(json(template.video).prompt))
+					.digest("hex")
+		)
+			throw new Error("VIDEO_TEMPLATE_REFERENCE_INPUT_REVIEW_REQUIRED");
+		for (const identityValue of identities) {
+			const identity = json(identityValue);
+			const r = json(review[text(identity.role)]);
+			if (
+				json(r.decision).decision !== "ALLOW" ||
+				r.assetId !== identity.assetId ||
+				r.checksum !== identity.checksum ||
+				r.objectKey !== identity.objectKey ||
+				r.storageEtag !== identity.storageEtag ||
+				r.storageVersionId !== identity.storageVersionId ||
+				r.verificationGeneration !== identity.verificationGeneration ||
+				r.safetyPolicyVersion !== template.safetyPolicyVersion ||
+				!text(r.ruleVersion) ||
+				typeof r.validUntil !== "string" ||
+				!Number.isFinite(Date.parse(r.validUntil)) ||
+				Date.parse(r.validUntil) <= Date.now()
+			)
+				throw new Error("VIDEO_TEMPLATE_REFERENCE_INPUT_REVIEW_REQUIRED");
+		}
+		const r = json(review.left);
+		const validUntil = new Date(
+			Math.min(Date.parse(text(r.validUntil)), Date.parse(text(json(review.right).validUntil))),
+		);
+		const providerTaskId = typeof r.taskId === "string" ? r.taskId : null;
+		const attemptNumber = a.verificationAttemptCount + 1;
+		await tx.assetModerationResult.create({
+			data: {
+				assetId: a.id,
+				assetChecksum: a.checksum,
+				verificationGeneration: a.verificationGeneration,
+				attemptNumber,
+				evidenceKind: "INPUT",
+				provider: "seeapi",
+				providerTaskId,
+				ruleVersion: text(r.ruleVersion),
+				policyVersion: text(template.safetyPolicyVersion),
+				status: "APPROVED",
+				reasonCode: "VIDEO_TEMPLATE_REFERENCE_SUBJECT_ALLOWED",
+				categories: {},
+				rawEnvelope: r,
+				validUntil,
+			},
+		});
+		await tx.mediaAsset.update({
+			where: { id: a.id },
+			data: {
+				status: "READY",
+				verificationProvider: "seeapi",
+				verificationProviderTaskId: providerTaskId,
+				verificationRuleVersion: text(r.ruleVersion),
+				verificationPolicyVersion: text(template.safetyPolicyVersion),
+				verificationAttemptCount: attemptNumber,
+				verificationValidUntil: validUntil,
+			},
+		});
+		const identity = {
+			source: "subject-reference",
+			parentRequestFingerprint: fingerprint,
+			sourceReviewEvidence: review,
+			assetId: a.id,
+			checksum: a.checksum,
+			objectKey: a.objectKey,
+			storageEtag: a.storageEtag,
+			storageVersionId: a.storageVersionId,
+			verificationGeneration: a.verificationGeneration,
+		};
+		await tx.videoTemplateExecution.update({
+			where: { jobId },
+			data: {
+				resolvedInputIdentity: identity,
+				sceneState: "READY",
+				resolvedAt: new Date(),
+				stageData: { ...json(e.stageData), resolvedVideoInputSealedAt: new Date().toISOString() },
+			},
+		});
+		return identity;
+	});
+}
+
 export async function sealVideoTemplateResolvedInput(jobId: string) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
 		const e = await lock(tx, jobId);

@@ -1,4 +1,10 @@
-import { videoEffectIdSchema } from "./video-effects";
+import { RUMPELSTILTSKIN_TEMPLATE_VERSION } from "./rumpelstiltskin-reference.server";
+import {
+	HOTEL_LOBBY_EFFECT_ID,
+	RAINDANCE_SOLO_EFFECT_ID,
+	RAINDANCE_DUO_EFFECT_ID,
+	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
+} from "./video-effects";
 
 /** Immutable request-derived output requirements. Legacy snapshots remain five-second/silent. */
 export const VIDEO_AUDIO_POLICY_VERSION = "video-spoken-content-2026-10-04.1";
@@ -62,9 +68,24 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 		if (!rawOutput || typeof rawOutput !== "object" || Array.isArray(rawOutput))
 			throw new Error("VIDEO_TEMPLATE_OUTPUT_CONSTRAINTS_INVALID");
 		const output = rawOutput as Record<string, unknown>;
+		const rawVideo = config.video;
+		if (!rawVideo || typeof rawVideo !== "object" || Array.isArray(rawVideo))
+			throw new Error("VIDEO_TEMPLATE_OUTPUT_CONSTRAINTS_INVALID");
+		const video = rawVideo as Record<string, unknown>;
+		const legacyTemplate =
+			config.schemaVersion === 1 &&
+			typeof config.effectId === "string" &&
+			[HOTEL_LOBBY_EFFECT_ID, RAINDANCE_SOLO_EFFECT_ID, RAINDANCE_DUO_EFFECT_ID].includes(
+				config.effectId,
+			);
+		const referenceTemplate =
+			config.schemaVersion === 2 &&
+			config.effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID &&
+			config.templateVersion === RUMPELSTILTSKIN_TEMPLATE_VERSION &&
+			config.executionKind === "seedance-reference";
+		const productKey = referenceTemplate ? "video-seedance-2" : "video-seedance-1-5-pro";
 		if (
-			config.schemaVersion !== 1 ||
-			!videoEffectIdSchema.safeParse(config.effectId).success ||
+			(!legacyTemplate && !referenceTemplate) ||
 			typeof config.templateVersion !== "string" ||
 			output.durationSeconds !== 5 ||
 			output.resolution !== "720p" ||
@@ -76,12 +97,18 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 			snapshot.resolution !== output.resolution ||
 			snapshot.aspectRatio !== output.aspectRatio ||
 			snapshot.sound !== output.sound ||
-			snapshot.productKey !== "video-seedance-1-5-pro"
+			snapshot.productKey !== productKey ||
+			video.productKey !== productKey ||
+			video.mode !== "image-to-video" ||
+			video.duration !== output.durationSeconds ||
+			video.resolution !== output.resolution ||
+			video.aspectRatio !== output.aspectRatio ||
+			video.sound !== output.sound
 		)
 			throw new Error("VIDEO_TEMPLATE_OUTPUT_CONSTRAINTS_INVALID");
 		return {
 			audioSafetyPolicy: readVideoAudioSafetyPolicy(snapshot),
-			productKey: snapshot.productKey,
+			productKey,
 			durationSeconds: output.durationSeconds,
 			sound: output.sound,
 			resolution: output.resolution,

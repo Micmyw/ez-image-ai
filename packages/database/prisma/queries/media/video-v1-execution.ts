@@ -15,6 +15,10 @@ import {
 	assertVideoTemplateRoleIdentities,
 	getVideoEffectiveInputSnapshot,
 } from "./video-template-execution";
+import {
+	findApprovedVideoTemplateMotionReference,
+	isVideoTemplateReference,
+} from "./video-template-reference";
 import { videoTemplateHasUnsettledScene } from "./video-template-storage";
 import {
 	lockVideoOwnerStorage,
@@ -73,7 +77,11 @@ export function assertVideoInputIdentity(
 		assertVideoTemplateRoleIdentities(job);
 		if (!job.videoTemplateExecution?.resolvedInputIdentity) return;
 		const identity = object(job.videoTemplateExecution.resolvedInputIdentity);
-		const asset = job.videoTemplateExecution.sceneAsset;
+		const asset = isVideoTemplateReference(original.videoEffectTemplate)
+			? job.assets.find(
+					(binding) => binding.role === "INPUT" && binding.assetId === identity.assetId,
+				)?.asset
+			: job.videoTemplateExecution.sceneAsset;
 		if (
 			!asset ||
 			asset.ownerId !== job.ownerId ||
@@ -127,6 +135,11 @@ export async function recordVideoInputReview(jobId: string, patch: Record<string
 		)
 			return;
 		assertVideoInputIdentity(job);
+		await findApprovedVideoTemplateMotionReference(
+			object(job.inputSnapshot).videoEffectTemplate,
+			tx,
+			new Date(),
+		);
 		const data = object(job.videoExecution!.stageData);
 		const review = { ...object(data.inputReview), ...patch };
 		await tx.videoExecution.update({
@@ -147,6 +160,11 @@ export async function claimVideoImageReview(jobId: string) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
 		const job = await lockedContext(tx, jobId);
 		assertVideoInputIdentity(job);
+		await findApprovedVideoTemplateMotionReference(
+			object(job.inputSnapshot).videoEffectTemplate,
+			tx,
+			new Date(),
+		);
 		const data = object(job.videoExecution!.stageData);
 		const review = object(data.inputReview);
 		if (
@@ -218,6 +236,11 @@ export async function claimVideoProviderSubmission(input: {
 			SELECT clock_timestamp() AS "now"`;
 		if (!clock || !Number.isFinite(clock.now.getTime()))
 			throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+		await findApprovedVideoTemplateMotionReference(
+			object(job.inputSnapshot).videoEffectTemplate,
+			tx,
+			clock.now,
+		);
 		const pricingDetails = object(object(job.pricingSnapshot).pricingDetails);
 		const priceDeadline = priceDeadlineSchema.safeParse(pricingDetails.validUntil);
 		if (!priceDeadline.success) throw new Error("VIDEO_PRICE_INVALID");

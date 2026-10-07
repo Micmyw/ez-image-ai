@@ -19,11 +19,13 @@ import {
 	packVideoRuntimeEnvironment,
 	parseVideoRuntimeConfig,
 	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+	VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
 } from "@repo/config/video-runtime-environment";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { describe, expect, it } from "vitest";
 
+import { rumpelstiltskinEnvironmentFixture } from "../test-support/rumpelstiltskin-fixture";
 import { readCloudflareBuildEnvironment } from "./build-secrets";
 import {
 	createProfileArtifacts,
@@ -258,6 +260,86 @@ function artifacts(
 }
 
 describe("prepared deployment artifacts", () => {
+	it.each(["workers", "hybrid"] as const)(
+		"keeps the reference test closed without approvals in %s",
+		(profile) => {
+			const result = artifacts(profile, {
+				RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: "",
+				RUMPELSTILTSKIN_COST_APPROVAL: "",
+			});
+			for (const name of ["website", "workflows"] as const)
+				expect(result[name].vars).toMatchObject({ RUMPELSTILTSKIN_ENABLED: "false" });
+		},
+	);
+	it.each(["workers", "hybrid"] as const)(
+		"mirrors private reference approvals and independent internal test scope in %s",
+		(profile) => {
+			const input: Record<string, string> = {
+				...multiModelVideoEnvironment,
+				...rumpelstiltskinEnvironmentFixture(),
+				VIDEO_V1_ACCESS: "authenticated",
+			};
+			const result = artifacts(profile, packVideoRuntimeEnvironment(input));
+			for (const name of ["website", "workflows"] as const) {
+				const secrets = result[`${name}.secrets`];
+				expect(result[name].vars).toMatchObject({ RUMPELSTILTSKIN_ENABLED: "true" });
+				expect(secrets).not.toHaveProperty("RUMPELSTILTSKIN_ENABLED");
+				for (const key of VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS) {
+					expect(secrets[key]).toBe(input[key]);
+					expect(result[name].vars).not.toHaveProperty(key);
+					expect(parseVideoRuntimeConfig(secrets.VIDEO_RUNTIME_CONFIG)).not.toHaveProperty(key);
+				}
+				expect(expandVideoRuntimeEnvironment(secrets)).toMatchObject({
+					RUMPELSTILTSKIN_ACCESS: "internal",
+					RUMPELSTILTSKIN_ALLOWED_USER_IDS: "synthetic-tester",
+					RUMPELSTILTSKIN_ACCEPTED_TEMPLATE_VERSION:
+						input.RUMPELSTILTSKIN_ACCEPTED_TEMPLATE_VERSION,
+				});
+			}
+			if (profile === "hybrid")
+				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).toMatchObject(input);
+		},
+	);
+	it.each<Record<string, string>>([
+		{ RUMPELSTILTSKIN_ACCESS: "authenticated" },
+		{ RUMPELSTILTSKIN_ACCESS: "public" },
+		{ RUMPELSTILTSKIN_ALLOWED_USER_IDS: " , " },
+	])("rejects widened or empty internal test scope before preparing artifacts", (patch) => {
+		expect(() =>
+			artifacts("workers", {
+				...multiModelVideoEnvironment,
+				...rumpelstiltskinEnvironmentFixture(),
+				...patch,
+			}),
+		).toThrow(/^RUMPELSTILTSKIN_INTERNAL_TEST_SCOPE_REQUIRED$/);
+	});
+	it.each<Record<string, string>>([
+		{ RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: "" },
+		{ RUMPELSTILTSKIN_COST_APPROVAL: "" },
+		{ RUMPELSTILTSKIN_ACCEPTED_TEMPLATE_VERSION: "unapproved" },
+		{ VIDEO_MODEL_ALLOWED_OPTIONS: "[]" },
+		{ MEDIA_ENABLED_PROVIDERS: "fal" },
+	])("requires independent reference, cost and provider readiness when enabled", (patch) => {
+		expect(() =>
+			artifacts("workers", {
+				...multiModelVideoEnvironment,
+				...rumpelstiltskinEnvironmentFixture(),
+				...patch,
+			}),
+		).toThrow();
+	});
+	it("does not inherit an old private reference from the jobs template", () => {
+		expect(() =>
+			artifacts("workers", {}, { RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: "stale-private" }),
+		).toThrow(/^VIDEO_RUNTIME_TEMPLATE_CONFLICT$/);
+		const result = artifacts(
+			"workers",
+			{ RUMPELSTILTSKIN_COST_APPROVAL: "" },
+			{ RUMPELSTILTSKIN_COST_APPROVAL: "" },
+		);
+		expect(result.workflows.vars).not.toHaveProperty("RUMPELSTILTSKIN_COST_APPROVAL");
+		expect(result["workflows.secrets"].RUMPELSTILTSKIN_COST_APPROVAL).toBe("");
+	});
 	it.each(["workers", "hybrid"] as const)(
 		"mirrors only the approved ordinary access change to both %s Workers",
 		(profile) => {

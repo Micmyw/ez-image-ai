@@ -1,4 +1,7 @@
-import { hydrateVideoRuntimeEnvironment } from "@repo/config/video-runtime-environment";
+import {
+	hydrateVideoRuntimeEnvironment,
+	type VideoRuntimeEnvironmentValues,
+} from "@repo/config/video-runtime-environment";
 import { readVideoV1Config } from "@repo/config/video-v1";
 import { createRuntimeDatabaseClient, runWithDatabaseClient } from "@repo/database/client";
 import {
@@ -32,7 +35,7 @@ import { runWithCloudflareRemoteMedia } from "@repo/storage/lib/cloudflare-remot
 
 import type { VideoWorkflowServices } from "./video-orchestrator";
 
-export interface VideoRuntimeEnvironment {
+export interface VideoRuntimeEnvironment extends VideoRuntimeEnvironmentValues {
 	VIDEO_RUNTIME_CONFIG?: string;
 	VIDEO_V1_ENABLED?: string;
 	HOTEL_LOBBY_DUO_ENABLED?: string;

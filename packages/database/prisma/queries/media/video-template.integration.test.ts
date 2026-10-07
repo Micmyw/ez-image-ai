@@ -121,6 +121,7 @@ async function fixture(credits = 100n, effectId: VideoEffectId = "hotel-lobby-du
 		},
 	};
 	const template = createVideoEffectTemplateSnapshot(request);
+	if (template.schemaVersion !== 1) throw new Error("SCENE_TEMPLATE_FIXTURE_REQUIRED");
 	const base = {
 		ownerId,
 		request,

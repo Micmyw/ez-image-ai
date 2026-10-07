@@ -15,6 +15,7 @@ vi.mock("@repo/jobs/video-v1/template-admission", () => ({
 	listVideoTemplatePublicStates: vi.fn(),
 	requireVideoTemplateAdmission: vi.fn(),
 	requireVideoTemplateRuntimeEnabled: vi.fn(),
+	readVideoEffectTestReadiness: vi.fn(),
 	VIDEO_EFFECT_CAPABILITY_REQUEST: {
 		effectId: "hotel-lobby-duo",
 		presetKey: "standard",
@@ -52,8 +53,10 @@ import {
 	getVideoTemplatePublicState,
 	requireVideoTemplateAdmission,
 	requireVideoTemplateRuntimeEnabled,
+	readVideoEffectTestReadiness,
 } from "@repo/jobs/video-v1/template-admission";
 
+import { loadUserPlanEntitlement } from "../media/lib/plan-entitlement";
 import { createVideoPlayback } from "../video-v1/playback";
 import { videoEffectsRouter } from "./router";
 import { createVideoEffectUpload } from "./uploads";
@@ -80,6 +83,7 @@ const state = {
 };
 beforeEach(() => {
 	vi.clearAllMocks();
+	vi.mocked(readVideoEffectTestReadiness).mockReturnValue([]);
 	vi.mocked(getVideoTemplateCreditBalance).mockResolvedValue({
 		totalCredits: "391",
 		eligibleCredits: "0",
@@ -96,6 +100,79 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("template API authorization and strict public contracts", () => {
+	it("blocks the internal solo test before entitlement, admission or billing when approvals are missing", async () => {
+		vi.stubEnv("VIDEO_V1_ENABLED", "true");
+		vi.stubEnv("RUMPELSTILTSKIN_ENABLED", "true");
+		vi.stubEnv("RUMPELSTILTSKIN_ACCESS", "internal");
+		vi.stubEnv("RUMPELSTILTSKIN_ALLOWED_USER_IDS", "owner");
+		vi.mocked(readVideoEffectTestReadiness).mockReturnValue([
+			"MOTION_REFERENCE_REQUIRED",
+			"COST_APPROVAL_REQUIRED",
+		]);
+		const result = await call(videoEffectsRouter.access, { effectId: "rumpelstiltskin-solo" }, ctx);
+		expect(result).toMatchObject({
+			accessAllowed: true,
+			available: false,
+			reasons: ["MOTION_REFERENCE_REQUIRED", "COST_APPROVAL_REQUIRED"],
+			credits: null,
+			creditBalance: null,
+		});
+		expect(loadUserPlanEntitlement).not.toHaveBeenCalled();
+		expect(requireVideoTemplateAdmission).not.toHaveBeenCalled();
+		expect(getVideoTemplateCreditBalance).not.toHaveBeenCalled();
+		expect(createVideoTemplateQuote).not.toHaveBeenCalled();
+		expect(JSON.stringify(result)).not.toMatch(/69|seedance|kie|assetId|https:/i);
+	});
+	it("does not reveal internal test readiness to a non-whitelisted account", async () => {
+		vi.stubEnv("VIDEO_V1_ENABLED", "true");
+		vi.stubEnv("RUMPELSTILTSKIN_ENABLED", "true");
+		vi.stubEnv("RUMPELSTILTSKIN_ALLOWED_USER_IDS", "other-owner");
+		vi.mocked(readVideoEffectTestReadiness).mockReturnValue(["MOTION_REFERENCE_INVALID"]);
+		expect(
+			await call(videoEffectsRouter.access, { effectId: "rumpelstiltskin-solo" }, ctx),
+		).toMatchObject({
+			accessAllowed: false,
+			available: false,
+			reasons: ["ACCESS_DENIED"],
+			credits: null,
+		});
+		expect(requireVideoTemplateAdmission).not.toHaveBeenCalled();
+	});
+	it("accepts exactly one solo identity and rejects motion URL or price overrides", async () => {
+		const input = {
+			...request,
+			effectId: "rumpelstiltskin-solo" as const,
+			inputs: { leftAssetId: "portrait", rightAssetId: "portrait" },
+		};
+		await call(videoEffectsRouter.quote, input, ctx);
+		expect(createVideoTemplateQuote).toHaveBeenLastCalledWith(
+			{ userId: "owner", role: "user" },
+			input,
+			expect.anything(),
+		);
+		for (const changed of [
+			{ ...input, inputs: { leftAssetId: "portrait", rightAssetId: "another-person" } },
+			{ ...input, referenceVideoUrl: "https://example.test/motion.mp4" },
+			{ ...input, credits: 69 },
+		]) {
+			await expect(call(videoEffectsRouter.quote, changed, ctx)).rejects.toMatchObject({
+				code: "BAD_REQUEST",
+			});
+		}
+		expect(createVideoTemplateQuote).toHaveBeenCalledTimes(1);
+	});
+	it.each([
+		"MOTION_REFERENCE_REQUIRED",
+		"MOTION_REFERENCE_INVALID",
+		"COST_APPROVAL_REQUIRED",
+		"COST_APPROVAL_INVALID",
+	])("exposes only the approved %s refusal reason through quote failures", async (reason) => {
+		vi.mocked(createVideoTemplateQuote).mockRejectedValueOnce(new Error(reason));
+		await expect(call(videoEffectsRouter.quote, request, ctx)).rejects.toMatchObject({
+			message: reason,
+			data: { code: reason },
+		});
+	});
 	it.each(["raindance-solo", "raindance-duo"] as const)(
 		"uses the %s admission gate for access, uploads and quotes",
 		async (effectId) => {

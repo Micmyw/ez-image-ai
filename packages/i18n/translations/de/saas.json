@@ -2041,6 +2041,21 @@
 			"uploadPhotoHint": "Lade dein Foto hoch, um die Gesamtkosten zu prüfen.",
 			"waitingForPhoto": "Dein Foto wird hochgeladen und verarbeitet…"
 		},
+		"rumpelstiltskin": {
+			"internalTest": "Interner Test",
+			"title": "Rumpelstiltskin-Solotest",
+			"onePhoto": "Ein Foto. Eine Testperson.",
+			"testHint": "Teste eine Person mit einer freigegebenen Bewegungsvorlage. Identität und Tanzgenauigkeit wurden noch nicht geprüft. Dieser Test ist nicht öffentlich käuflich.",
+			"referenceTitle": "Freigegebene Bewegungsvorlage",
+			"referenceHint": "Das Team wählt und genehmigt das Bewegungsvideo. Du lädst nur das Foto einer Person hoch. Es gibt noch kein geprüftes Ergebnisbeispiel.",
+			"priceHint": "Tests erfordern ein separat genehmigtes Budget. Prüfe vor der Bestätigung den genehmigten Gesamtpreis; bisherige Vorlagenpreise gelten nicht.",
+			"motionRequired": "Generierung gesperrt: Eine autorisierte Bewegungsvorlage wurde noch nicht genehmigt.",
+			"motionInvalid": "Generierung gesperrt: Die Bewegungsvorlage oder ihre Freigabe muss geprüft werden.",
+			"costRequired": "Generierung gesperrt: Eine separate Kostenfreigabe für den Test ist erforderlich.",
+			"costInvalid": "Generierung gesperrt: Die Kostenfreigabe ist abgelaufen oder muss geprüft werden.",
+			"history": "Deine Rumpelstiltskin-Tests",
+			"emptyHistory": "Deine Rumpelstiltskin-Testaufträge erscheinen hier."
+		},
 		"eligibleBalance": "Für dieses Video verfügbar",
 		"accountBalance": "Kontoguthaben: {credits} Credits",
 		"eligibleBalanceHint": "Für dieses Video zählen nur berechtigte, bezahlte Credits. Deine übrigen Credits bleiben auf deinem Konto.",

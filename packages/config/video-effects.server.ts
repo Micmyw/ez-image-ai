@@ -2,9 +2,17 @@ import { z } from "zod";
 
 import { DEFAULT_PRODUCT_CONFIG } from "./product";
 import {
+	approvedRumpelstiltskinMotionReferenceSchema,
+	readApprovedRumpelstiltskinMotionReference,
+	readRumpelstiltskinCostApproval,
+	RUMPELSTILTSKIN_TEMPLATE_VERSION,
+	RUMPELSTILTSKIN_SAFETY_POLICY_VERSION,
+} from "./rumpelstiltskin-reference.server";
+import {
 	HOTEL_LOBBY_EFFECT_ID,
-	videoEffectIdSchema,
+	RAINDANCE_DUO_EFFECT_ID,
 	RAINDANCE_SOLO_EFFECT_ID,
+	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
 	videoEffectRequestSchema,
 	type VideoEffectRequest,
 } from "./video-effects";
@@ -15,6 +23,13 @@ import {
 	resolveVideoModelCostBasis,
 	type VideoCostPolicy,
 } from "./video-pricing.server";
+import { configuredVideoVisualSafetyProfile } from "./video-safety";
+import { configuredVideoTextSafetyProfile } from "./video-text-safety";
+export {
+	RUMPELSTILTSKIN_TEMPLATE_VERSION,
+	RUMPELSTILTSKIN_PRICE_VERSION,
+	RUMPELSTILTSKIN_SAFETY_POLICY_VERSION,
+} from "./rumpelstiltskin-reference.server";
 
 export const HOTEL_LOBBY_TEMPLATE_VERSION = "hotel-lobby-duo-2026-10-05.1";
 export const RAINDANCE_TEMPLATE_VERSION = "raindance-2026-10-07.1";
@@ -55,10 +70,10 @@ specific lyrics, lip synchronization or any named artist's performance.`;
 
 const version = z.string().min(1).max(120);
 /** Add historical versions explicitly when introducing a new execution contract. Never re-resolve defaults. */
-export const videoEffectTemplateSnapshotSchema = z
+const legacyVideoEffectTemplateSnapshotSchema = z
 	.object({
 		schemaVersion: z.literal(1),
-		effectId: videoEffectIdSchema,
+		effectId: z.enum([HOTEL_LOBBY_EFFECT_ID, RAINDANCE_SOLO_EFFECT_ID, RAINDANCE_DUO_EFFECT_ID]),
 		presetKey: z.literal("standard"),
 		templateVersion: z.enum([HOTEL_LOBBY_TEMPLATE_VERSION, RAINDANCE_TEMPLATE_VERSION]),
 		safetyPolicyVersion: z.literal(HOTEL_LOBBY_SAFETY_POLICY_VERSION),
@@ -113,13 +128,125 @@ export const videoEffectTemplateSnapshotSchema = z
 				: RAINDANCE_TEMPLATE_VERSION),
 		{ message: "Template version does not match effect" },
 	);
+const rumpelstiltskinMotionPrompt = `Use the authorized silent reference video as the motion and scene reference.
+Replace only the LEFT dancing adult with the subject from the uploaded adult portrait.
+Preserve that subject's recognizable facial features, hair and clothing while transferring the
+reference's small raised-heel tiptoe steps and timing. Keep the feet and full body visible.
+Keep the SECOND character's identity, appearance and position from the authorized reference fixed.
+Preserve the reference framing and continuous scene. No extra people, face blending, identity swaps,
+scene cuts, captions, logos or audio. Do not imitate a named artist or introduce copyrighted music.`;
+/** A separate immutable execution contract; legacy snapshots cannot be reinterpreted as reference jobs. */
+export const rumpelstiltskinTemplateSnapshotSchema = z
+	.object({
+		schemaVersion: z.literal(2),
+		effectId: z.literal(RUMPELSTILTSKIN_SOLO_EFFECT_ID),
+		presetKey: z.literal("standard"),
+		executionKind: z.literal("seedance-reference"),
+		templateVersion: z.literal(RUMPELSTILTSKIN_TEMPLATE_VERSION),
+		safetyPolicyVersion: z.literal(RUMPELSTILTSKIN_SAFETY_POLICY_VERSION),
+		preprocessingVersion: z.literal("sealed-upload-2026-10-05.1"),
+		approvedMotionReference: approvedRumpelstiltskinMotionReferenceSchema,
+		// Shape retained for historical shared code; this placeholder is never submitted or separately reviewed.
+		scene: z
+			.object({
+				productKey: z.literal("nano-banana-2-lite-1k"),
+				aspectRatio: z.literal("9:16"),
+				outputCount: z.literal(1),
+				prompt: z.string().min(1).max(10000),
+				promptVersion: version,
+				maxOutputBytes: z.literal(10_000_000),
+			})
+			.strict(),
+		video: z
+			.object({
+				productKey: z.literal("video-seedance-2"),
+				mode: z.literal("image-to-video"),
+				duration: z.literal(5),
+				resolution: z.literal("720p"),
+				aspectRatio: z.literal("9:16"),
+				sound: z.literal(false),
+				prompt: z.string().min(1).max(10000),
+				promptVersion: version,
+				fixedLens: z.literal(false),
+			})
+			.strict(),
+		output: z
+			.object({
+				durationSeconds: z.literal(5),
+				resolution: z.literal("720p"),
+				width: z.literal(720),
+				height: z.literal(1280),
+				aspectRatio: z.literal("9:16"),
+				sound: z.literal(false),
+			})
+			.strict(),
+		storage: z
+			.object({
+				sceneMaximumBytes: z.literal(20_000_000),
+				sceneRetentionSeconds: z.literal(2_592_000),
+				videoMaximumBytes: z.literal(104_857_600),
+			})
+			.strict(),
+	})
+	.strict();
+export type RumpelstiltskinTemplateConfig = z.infer<typeof rumpelstiltskinTemplateSnapshotSchema>;
+export const videoEffectTemplateSnapshotSchema = z.union([
+	legacyVideoEffectTemplateSnapshotSchema,
+	rumpelstiltskinTemplateSnapshotSchema,
+]);
 export type VideoEffectTemplateConfig = z.infer<typeof videoEffectTemplateSnapshotSchema>;
 
 /** Pure construction only. Admission must separately enforce current readiness and cost approvals. */
 export function createVideoEffectTemplateSnapshot(
 	request: VideoEffectRequest,
+	environment: Record<string, string | undefined> = {},
 ): VideoEffectTemplateConfig {
 	videoEffectRequestSchema.parse(request);
+	if (request.effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID) {
+		return rumpelstiltskinTemplateSnapshotSchema.parse({
+			schemaVersion: 2,
+			effectId: RUMPELSTILTSKIN_SOLO_EFFECT_ID,
+			presetKey: "standard",
+			executionKind: "seedance-reference",
+			templateVersion: RUMPELSTILTSKIN_TEMPLATE_VERSION,
+			safetyPolicyVersion: RUMPELSTILTSKIN_SAFETY_POLICY_VERSION,
+			preprocessingVersion: "sealed-upload-2026-10-05.1",
+			approvedMotionReference: readApprovedRumpelstiltskinMotionReference(environment),
+			scene: {
+				productKey: "nano-banana-2-lite-1k",
+				aspectRatio: "9:16",
+				outputCount: 1,
+				prompt:
+					"Use the uploaded adult portrait solely as the authorized identity reference for the left performer. The approved motion reference fixes the second character. Do not generate or replace a scene image.",
+				promptVersion: "rumpelstiltskin-identity-2026-10-07.1",
+				maxOutputBytes: 10_000_000,
+			},
+			video: {
+				productKey: "video-seedance-2",
+				mode: "image-to-video",
+				duration: 5,
+				resolution: "720p",
+				aspectRatio: "9:16",
+				sound: false,
+				prompt: rumpelstiltskinMotionPrompt,
+				promptVersion: "rumpelstiltskin-motion-2026-10-07.1",
+				fixedLens: false,
+			},
+			output: {
+				durationSeconds: 5,
+				resolution: "720p",
+				width: 720,
+				height: 1280,
+				aspectRatio: "9:16",
+				sound: false,
+			},
+			storage: {
+				sceneMaximumBytes: 20_000_000,
+				sceneRetentionSeconds: DEFAULT_PRODUCT_CONFIG.retention.inputDays * 86_400,
+				videoMaximumBytes: 104_857_600,
+			},
+		});
+	}
 	const raindance = request.effectId !== HOTEL_LOBBY_EFFECT_ID;
 	const solo = request.effectId === RAINDANCE_SOLO_EFFECT_ID;
 	return videoEffectTemplateSnapshotSchema.parse({
@@ -189,9 +316,14 @@ export function resolveVideoEffectTemplate(
 	request: VideoEffectRequest,
 	env: Record<string, string | undefined>,
 ): VideoEffectTemplateConfig {
-	const template = createVideoEffectTemplateSnapshot(request);
-	const prefix = request.effectId === HOTEL_LOBBY_EFFECT_ID ? "HOTEL_LOBBY_DUO" : "RAINDANCE";
+	const prefix =
+		request.effectId === HOTEL_LOBBY_EFFECT_ID
+			? "HOTEL_LOBBY_DUO"
+			: request.effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID
+				? "RUMPELSTILTSKIN"
+				: "RAINDANCE";
 	if (env[`${prefix}_ENABLED`] !== "true") throw new Error("VIDEO_EFFECT_DISABLED");
+	const template = createVideoEffectTemplateSnapshot(request, env);
 	if (env[`${prefix}_ACCEPTED_TEMPLATE_VERSION`] !== template.templateVersion)
 		throw new Error("VIDEO_EFFECT_TEMPLATE_NOT_CONFIRMED");
 	const access = readVideoModelAccess(env);
@@ -211,12 +343,113 @@ function costSetting(
 	return BigInt(value);
 }
 
+function resolveRumpelstiltskinTemplatePrice(
+	template: RumpelstiltskinTemplateConfig,
+	environment: Record<string, string | undefined>,
+) {
+	const approval = readRumpelstiltskinCostApproval(environment, template.approvedMotionReference);
+	const visualSafetyProfile = configuredVideoVisualSafetyProfile(
+		environment,
+		template.video.duration,
+	);
+	const textSafetyProfile = configuredVideoTextSafetyProfile(environment);
+	if (
+		approval.policies.visualPolicyVersion !== visualSafetyProfile.policyVersion ||
+		approval.policies.textRuleVersion !== textSafetyProfile.ruleVersion
+	)
+		throw new Error("RUMPELSTILTSKIN_COST_POLICY_MISMATCH");
+	const costs = approval.costs;
+	const policy: VideoCostPolicy = {
+		moderationBaseMicros:
+			BigInt(costs.subjectImageReviewMicros) +
+			BigInt(costs.referenceVideoReviewMicros) +
+			BigInt(costs.outputVideoReviewBaseMicros) +
+			BigInt(costs.promptReviewEachMicros),
+		moderationPerSecondMicros: BigInt(costs.outputVideoReviewPerSecondMicros),
+		audioModerationPerSecondMicros: 0n,
+		runtimeMicros: BigInt(costs.runtimeMicros),
+		storageMicros: BigInt(costs.storageTransferMicros),
+		paymentFixedAllocationMicros: BigInt(costs.paymentFixedAllocationMicros),
+		paymentFeeBps: BigInt(costs.paymentFeeBps),
+		nonBillableFailureBps: BigInt(costs.nonBillableFailureBps),
+		markupBps: BigInt(costs.markupBps),
+	};
+	const providerCostMicros = BigInt(approval.provider.totalCostMicros);
+	const result = calculateVideoRetailPrice({
+		providerCostMicros,
+		duration: template.video.duration,
+		sound: false,
+		policy,
+		creditFloorMicros: BigInt(approval.revenue.minimumGrossUsdMicrosPerCredit),
+	});
+	// Payment fees are deducted once from gross revenue. Operating cost already includes expected
+	// nonbillable failures. This is a per-order contribution bound, not enterprise after-tax profit.
+	const minimumNetRevenueMicros = result.minimumGrossRevenueMicros - result.paymentFeeMicros;
+	const riskAdjustedOperatingCostMicros = result.riskAdjustedCostMicros;
+	const netContributionProfitMicros = minimumNetRevenueMicros - riskAdjustedOperatingCostMicros;
+	if (netContributionProfitMicros * 10_000n < riskAdjustedOperatingCostMicros * policy.markupBps)
+		throw new Error("RUMPELSTILTSKIN_NET_PROFIT_FLOOR_NOT_MET");
+	const netProfitBps = (netContributionProfitMicros * 10_000n) / riskAdjustedOperatingCostMicros;
+	const serializedResult = Object.fromEntries(
+		Object.entries(result).map(([key, value]) => [key, value.toString()]),
+	) as { [Key in keyof typeof result]: string };
+	const validUntil = Math.min(
+		Date.parse(approval.validUntil),
+		Date.parse(approval.revenue.validUntil),
+		Date.parse(template.approvedMotionReference.review.validUntil),
+		Date.parse(template.approvedMotionReference.rights.validUntil),
+	);
+	return {
+		credits: result.credits,
+		pricingVersion: approval.pricingVersion,
+		pricingBasis: approval.basis,
+		providerCostMicros,
+		moderationCostMicros: result.moderationCostMicros,
+		paidFundingPolicy: { minimumUsdMicrosPerCredit: result.creditFloorMicros },
+		pricingDetails: {
+			kind: "video-effect" as const,
+			effectId: template.effectId,
+			templateVersion: template.templateVersion,
+			presetKey: template.presetKey,
+			safetyPolicyVersion: template.safetyPolicyVersion,
+			executionKind: template.executionKind,
+			approvalId: approval.approvalId,
+			creditRevenueBasis: approval.revenue.basis,
+			minimumNetRevenueMicros: minimumNetRevenueMicros.toString(),
+			riskAdjustedOperatingCostMicros: riskAdjustedOperatingCostMicros.toString(),
+			netContributionProfitMicros: netContributionProfitMicros.toString(),
+			netProfitBps: netProfitBps.toString(),
+			videoPricingVersion: approval.pricingVersion,
+			videoPricingBasis: approval.provider.basis,
+			visualPolicyVersion: visualSafetyProfile.policyVersion,
+			textRuleVersion: textSafetyProfile.ruleVersion,
+			textCostBasis: approval.policies.promptCostBasis,
+			textReviewCount: 1,
+			paymentCostBasis: approval.policies.paymentCostBasis,
+			templatePaymentFeeBps: String(costs.paymentFeeBps),
+			minimumRevenueToCostBps: String(10_000 + costs.markupBps),
+			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
+			validUntil: new Date(validUntil).toISOString(),
+			costComponents: {
+				...costs,
+				videoProviderCostMicros: approval.provider.totalCostMicros,
+				textReviewCostMicros: costs.promptReviewEachMicros,
+			},
+			costPolicy: Object.fromEntries(
+				Object.entries(policy).map(([key, value]) => [key, value.toString()]),
+			),
+			...serializedResult,
+		},
+	};
+}
+
 /** One full-cost calculation, one payment allocation and one failure budget for both paid stages. */
 export function resolveVideoEffectPrice(
 	request: VideoEffectRequest,
 	env: Record<string, string | undefined>,
 ) {
 	const template = resolveVideoEffectTemplate(request, env);
+	if (template.schemaVersion === 2) return resolveRumpelstiltskinTemplatePrice(template, env);
 	if (
 		env.HOTEL_LOBBY_DUO_PRICE_VERSION !== HOTEL_LOBBY_PRICE_VERSION ||
 		!env.HOTEL_LOBBY_DUO_PRICE_BASIS?.trim()

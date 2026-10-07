@@ -1,6 +1,7 @@
 import {
 	HOTEL_LOBBY_EFFECT_ID,
 	RAINDANCE_SOLO_EFFECT_ID,
+	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
 	VIDEO_EFFECT_MAX_INPUT_BYTES,
 	videoEffectRequestSchema,
 	videoEffectIdSchema,
@@ -89,8 +90,11 @@ export function effectRequest(draft: EffectDraft) {
 		presetKey: VIDEO_EFFECT_PRESET,
 		inputs: {
 			leftAssetId: draft.leftAssetId,
-			rightAssetId:
-				draft.effectId === RAINDANCE_SOLO_EFFECT_ID ? draft.leftAssetId : draft.rightAssetId,
+			rightAssetId: [RAINDANCE_SOLO_EFFECT_ID, RUMPELSTILTSKIN_SOLO_EFFECT_ID].includes(
+				draft.effectId,
+			)
+				? draft.leftAssetId
+				: draft.rightAssetId,
 		},
 	});
 }
@@ -127,14 +131,39 @@ export function validEffectFile(file: { type: string; size: number }, maxBytes: 
 }
 export function effectError(
 	error: unknown,
-): "insufficient" | "quoteExpired" | "unavailable" | "requestFailed" {
+): "insufficient" | "quoteExpired" | "unavailable" | "requestFailed" | EffectReadinessMessage {
 	const value =
 		typeof error === "object" && error !== null
 			? (error as { code?: string; message?: string })
 			: {};
 	const code = `${value.code ?? ""} ${value.message ?? ""}`;
+	const readiness = effectReadinessMessage(value.message ?? "");
+	if (readiness !== "unavailable") return readiness;
 	if (value.message === "INSUFFICIENT_ELIGIBLE_CREDITS") return "insufficient";
 	if (value.message === "QUOTE_EXPIRED_OR_CHANGED") return "quoteExpired";
 	if (/DISABLED|UNAVAILABLE|ADMISSION|FORBIDDEN/.test(code)) return "unavailable";
 	return "requestFailed";
+}
+
+type EffectReadinessMessage =
+	| "rumpelstiltskin.motionRequired"
+	| "rumpelstiltskin.motionInvalid"
+	| "rumpelstiltskin.costRequired"
+	| "rumpelstiltskin.costInvalid"
+	| "unavailable";
+
+/** Unknown server errors are never interpolated into product copy. */
+export function effectReadinessMessage(reason: string): EffectReadinessMessage {
+	switch (reason) {
+		case "MOTION_REFERENCE_REQUIRED":
+			return "rumpelstiltskin.motionRequired";
+		case "MOTION_REFERENCE_INVALID":
+			return "rumpelstiltskin.motionInvalid";
+		case "COST_APPROVAL_REQUIRED":
+			return "rumpelstiltskin.costRequired";
+		case "COST_APPROVAL_INVALID":
+			return "rumpelstiltskin.costInvalid";
+		default:
+			return "unavailable";
+	}
 }

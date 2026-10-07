@@ -1,11 +1,13 @@
 import path from "node:path";
 
 import { packEzPicImageModelFlags } from "@repo/config/server";
+import { readVideoEffectAccessScope } from "@repo/config/video-effects-access.server";
 import { resolveVideoEffectPrice } from "@repo/config/video-effects.server";
 import {
 	expandVideoRuntimeEnvironment,
 	packVideoRuntimeEnvironment,
 	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+	VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
 } from "@repo/config/video-runtime-environment";
 import { videoV1Readiness } from "@repo/config/video-v1";
 
@@ -20,6 +22,37 @@ export function deploymentProfile(environment: Record<string, string>): Deployme
 	const profile = environment.EZPIC_DEPLOYMENT_PROFILE ?? "workers";
 	if (profile !== "workers" && profile !== "hybrid") throw new Error("INVALID_DEPLOYMENT_PROFILE");
 	return profile;
+}
+
+/** Validate only an explicitly enabled test. Empty approval placeholders keep it closed. */
+export function requireRumpelstiltskinTestPreparation(
+	environment: Record<string, string | undefined>,
+) {
+	if (
+		environment.RUMPELSTILTSKIN_ENABLED !== undefined &&
+		!["true", "false"].includes(environment.RUMPELSTILTSKIN_ENABLED)
+	)
+		throw new Error("RUMPELSTILTSKIN_ENABLED_INVALID");
+	if (environment.RUMPELSTILTSKIN_ENABLED !== "true") return;
+	if (environment.VIDEO_V1_ENABLED !== "true") throw new Error("VIDEO_EFFECT_VIDEO_DISABLED");
+	if (
+		readVideoEffectAccessScope(environment, "rumpelstiltskin-solo") !== "internal" ||
+		!(environment.RUMPELSTILTSKIN_ALLOWED_USER_IDS ?? "").split(",").some((id) => id.trim())
+	)
+		throw new Error("RUMPELSTILTSKIN_INTERNAL_TEST_SCOPE_REQUIRED");
+	if (
+		environment.MEDIA_GENERATION_ENABLED !== "true" ||
+		!(environment.MEDIA_ENABLED_PROVIDERS ?? "").split(",").some((id) => id.trim() === "kie")
+	)
+		throw new Error("RUMPELSTILTSKIN_PROVIDER_NOT_READY");
+	resolveVideoEffectPrice(
+		{
+			effectId: "rumpelstiltskin-solo",
+			presetKey: "standard",
+			inputs: { leftAssetId: "readiness-subject", rightAssetId: "readiness-subject" },
+		},
+		environment,
+	);
 }
 
 export function createProfileArtifacts(options: {
@@ -120,6 +153,7 @@ export function createProfileArtifacts(options: {
 			);
 		}
 	}
+	requireRumpelstiltskinTestPreparation(environment);
 	const videoWorkflow = {
 		name: `ezpic-video-v1-${profile}-${target}`,
 		binding: "VIDEO_WORKFLOW",
@@ -128,6 +162,7 @@ export function createProfileArtifacts(options: {
 	const videoVars = {
 		VIDEO_V1_ENABLED: environment.VIDEO_V1_ENABLED === "true" ? "true" : "false",
 		HOTEL_LOBBY_DUO_ENABLED: environment.HOTEL_LOBBY_DUO_ENABLED === "true" ? "true" : "false",
+		RUMPELSTILTSKIN_ENABLED: environment.RUMPELSTILTSKIN_ENABLED === "true" ? "true" : "false",
 	};
 	const hyperdrive = [{ binding: "HYPERDRIVE", id: environment.CLOUDFLARE_HYPERDRIVE_ID }];
 	const account = environment.CLOUDFLARE_ACCOUNT_ID ?? options.jobsTemplate.account_id;
@@ -190,7 +225,10 @@ export function createProfileArtifacts(options: {
 	delete jobVars.HOTEL_LOBBY_DUO_RUNTIME_CONFIG;
 	delete jobVars.RAINDANCE_RUNTIME_CONFIG;
 	const effectiveVideo = expandVideoRuntimeEnvironment(flatEnvironment);
-	for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) {
+	for (const key of [
+		...VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+		...VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
+	]) {
 		if (jobVars[key] !== undefined && jobVars[key] !== effectiveVideo[key])
 			throw new Error("VIDEO_RUNTIME_TEMPLATE_CONFLICT");
 		delete jobVars[key];

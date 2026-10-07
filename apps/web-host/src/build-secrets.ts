@@ -9,8 +9,11 @@ import {
 	parseRaindanceRuntimeOverride,
 	parseVideoRuntimeConfig,
 	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+	VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
 	type VideoRuntimeEnvironmentKey,
 } from "@repo/config/video-runtime-environment";
+
+import { requireRumpelstiltskinTestPreparation } from "./profiles";
 
 const variableName = "CLOUDFLARE_PRODUCTION_ENV";
 const partPrefix = `${variableName}_PART_`;
@@ -217,6 +220,9 @@ function withVideoRuntimeOverrides(
 	}
 	// Validate bundle-only configurations too; a bad pack must stop before build/deploy.
 	const effective = expandVideoRuntimeEnvironment(parseEnv(source));
+	// No build override can enable this test or supply its private reference/cost approvals.
+	// Only the authoritative dotenv bundle is considered after existing video policy merges.
+	requireRumpelstiltskinTestPreparation(effective);
 	if (effective.RAINDANCE_ENABLED === "true") {
 		if (effective.VIDEO_V1_ENABLED !== "true") throw new Error("VIDEO_EFFECT_VIDEO_DISABLED");
 		for (const effectId of ["raindance-solo", "raindance-duo"] as const) {
@@ -421,7 +427,9 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key === "VIDEO_V1_BUILD_ACCESS" ||
 			key === "HOTEL_LOBBY_DUO_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
+			key === "RUMPELSTILTSKIN_ENABLED" ||
 			VIDEO_RUNTIME_ENVIRONMENT_KEYS.some((policy) => policy === key) ||
+			VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS.some((policy) => policy === key) ||
 			videoCallbackSecrets.some((secret) => secret === key)
 		)
 			delete result[key];

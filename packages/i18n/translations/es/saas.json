@@ -2041,6 +2041,21 @@
 			"uploadPhotoHint": "Sube tu foto para revisar el coste total.",
 			"waitingForPhoto": "Esperando a que termine la carga y el procesamiento de tu foto…"
 		},
+		"rumpelstiltskin": {
+			"internalTest": "Prueba interna",
+			"title": "Prueba individual de Rumpelstiltskin",
+			"onePhoto": "Una foto. Una persona de prueba.",
+			"testHint": "Prueba una persona con una referencia de movimiento aprobada. La identidad y la precisión del baile aún no se han verificado. Esta prueba no está disponible para compra pública.",
+			"referenceTitle": "Referencia de movimiento aprobada",
+			"referenceHint": "El equipo selecciona y aprueba el vídeo de movimiento. Solo subes la foto de una persona. Aún no hay una muestra de resultado verificada.",
+			"priceHint": "Las pruebas requieren un presupuesto aprobado por separado. Revisa el total aprobado antes de confirmar; los precios de otras plantillas no se aplican.",
+			"motionRequired": "Generación bloqueada: aún no se ha aprobado una referencia de movimiento autorizada.",
+			"motionInvalid": "Generación bloqueada: la referencia de movimiento o su aprobación necesita revisión.",
+			"costRequired": "Generación bloqueada: se requiere una aprobación de costes independiente para la prueba.",
+			"costInvalid": "Generación bloqueada: la aprobación de costes ha caducado o necesita revisión.",
+			"history": "Tus pruebas de Rumpelstiltskin",
+			"emptyHistory": "Tus pedidos de prueba de Rumpelstiltskin aparecerán aquí."
+		},
 		"eligibleBalance": "Disponibles para este vídeo",
 		"accountBalance": "Total de la cuenta: {credits} créditos",
 		"eligibleBalanceHint": "Solo los créditos pagados aptos cuentan para este vídeo. Tus demás créditos permanecen en tu cuenta.",
