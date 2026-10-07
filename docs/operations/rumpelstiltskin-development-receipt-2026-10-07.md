@@ -50,4 +50,12 @@ The authorized production migration was applied successfully before pushing: exa
 
 Push and automatic build outcomes are recorded by the final user report, matched to the exact release SHA. Current traffic must be preserved if an automatic build fails.
 
+## Final CI homepage correction
+
+The first pushed integration `25bb45a3` passed the GitHub lint/type/contracts, fresh PostgreSQL, production builds and dependency/secret jobs. Its media E2E step passed 36 authenticated and 27 guest cases, but the production homepage resource test measured 532,489 gzip bytes against the unchanged strict 532,480-byte limit twice. The subsequent video UI step was therefore skipped. Both Cloudflare services independently built and served that integration successfully.
+
+The registered-only Rumpelstiltskin link now follows the existing deferred video-navigation pattern: its icon and rendering code load as a separate component only when the shell renders registered account controls. Detailed template translations were already isolated from the root message payload. A lightweight shared payment-return path string is not evidence that the account component loaded, so the strengthened browser assertion checks the actual component's stable navigation identifier.
+
+After the correction, all 168 focused SaaS unit cases passed. The original production homepage browser test, including its unchanged byte limits and account-tool checks, passed: 532,340 total gzip bytes (435,915 JavaScript, 63,697 HTML, 32,728 external CSS). The local production build and its TypeScript phase also passed, as did focused lint, formatting and diff checks. This loopback test cleared real credentials and blocked external provider traffic. Exact-SHA GitHub and automatic Cloudflare results for the correction are reported at handoff.
+
 See [operation and material preparation](./rumpelstiltskin-internal-test.md) and [public pricing/budget assumptions](./rumpelstiltskin-cost-and-trial-2026-10-07.md).

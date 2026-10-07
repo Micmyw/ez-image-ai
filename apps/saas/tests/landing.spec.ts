@@ -527,6 +527,8 @@ test("the production homepage excludes account tools, charts, and documentation 
 		"notifications.markAllRead",
 		// Stable product key from the authenticated video catalog.
 		"video-kling-2-6-v1",
+		// The path itself also belongs to the shared payment-return helpers.
+		"rumpelstiltskin-navigation",
 	]) {
 		expect
 			.soft(
