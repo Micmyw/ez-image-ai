@@ -2,8 +2,8 @@ import { config } from "@config";
 import { getBaseUrl } from "@shared/lib/base-url";
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("next/font/google", () => ({
-	Plus_Jakarta_Sans: () => ({ variable: "test-font" }),
+vi.mock("next/font/local", () => ({
+	default: () => ({ variable: "test-font" }),
 }));
 
 import { metadata } from "./layout";

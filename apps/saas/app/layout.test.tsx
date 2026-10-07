@@ -71,7 +71,7 @@ vi.mock("next-intl/server", () => ({
 		},
 }));
 vi.mock("next-themes", () => ({ ThemeProvider: passthrough }));
-vi.mock("next/font/google", () => ({ Plus_Jakarta_Sans: () => ({ variable: "font-sans" }) }));
+vi.mock("next/font/local", () => ({ default: () => ({ variable: "font-sans" }) }));
 vi.mock("nuqs/adapters/next/app", () => ({ NuqsAdapter: passthrough }));
 
 describe("SaaS root layout", () => {
