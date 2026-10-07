@@ -4,6 +4,18 @@ import { assertSafeDatabaseUrl } from "./assert-safe-target";
 
 const testDatabaseUrl = assertSafeDatabaseUrl(process.env.TEST_DATABASE_URL).toString();
 const commands: Array<{ args: string[]; database: boolean }> = [
+	{
+		args: [
+			"--filter",
+			"saas",
+			"exec",
+			"node",
+			"--test",
+			"cloudflare/cache-queue.test.mjs",
+			"cloudflare/cache-queue.workerd.test.mjs",
+		],
+		database: false,
+	},
 	{ args: ["hotel-lobby:test-config"], database: false },
 	{ args: ["--filter", "@repo/config", "test"], database: false },
 	{ args: ["--filter", "@repo/ai", "test"], database: false },

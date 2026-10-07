@@ -9,6 +9,10 @@
 - Isolate template drafts, access settings, payment return paths and versioned prompts. Keep the approved complete-cost budget, expiry and minimum three-times-cost revenue policy; video is not a free guest feature. Existing Hotel Lobby and ordinary-video access remain independent.
 - Expand the database template-ID constraint for both Raindance variants while preserving existing Hotel Lobby rows, role ordering, state checks and immutable private identities. Apply the compatible migration before deploying.
 
+### Cache retry cleanup
+
+- Persist completed and exhausted website cache retries before clearing them from memory, preventing Durable Object restarts from scheduling the same finished work again. Cancel the alarm when no failed cache refreshes remain.
+
 ### Reliable font builds
 
 - Bundle the existing Plus Jakarta Sans font with its source and license so production builds no longer depend on Google Fonts responses.

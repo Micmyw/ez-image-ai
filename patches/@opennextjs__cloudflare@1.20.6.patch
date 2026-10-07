@@ -1,0 +1,68 @@
+diff --git a/dist/api/durable-objects/queue.d.ts b/dist/api/durable-objects/queue.d.ts
+index 62e67912d97462c6355ee2c912b8ce3ca58f8b03..8df0aaae802eecd514341f6e69885d70f998b2bf 100644
+--- a/dist/api/durable-objects/queue.d.ts
++++ b/dist/api/durable-objects/queue.d.ts
+@@ -19,6 +19,7 @@ export declare class DOQueueHandler extends DurableObject<CloudflareEnv> {
+     revalidate(msg: QueueMessage): Promise<void>;
+     executeRevalidation(msg: QueueMessage): Promise<void>;
+     alarm(): Promise<void>;
++    removeFromFailedState(id: string): Promise<void>;
+     addToFailedState(msg: QueueMessage): Promise<void>;
+     addAlarm(): Promise<void>;
+     initState(): Promise<void>;
+diff --git a/dist/api/durable-objects/queue.js b/dist/api/durable-objects/queue.js
+index 9042330e64bd617058d75514315c08e11ef35d79..d205f1d0ed696867f942a9dcca5abebf77a445bb 100644
+--- a/dist/api/durable-objects/queue.js
++++ b/dist/api/durable-objects/queue.js
+@@ -95,13 +95,13 @@ export class DOQueueHandler extends DurableObject {
+             });
+             // Now we need to handle errors from the fetch
+             if (response.status === 200 && response.headers.get("x-nextjs-cache") !== "REVALIDATED") {
+-                this.routeInFailedState.delete(msg.MessageDeduplicationId);
++                await this.removeFromFailedState(msg.MessageDeduplicationId);
+                 throw new FatalError(`The revalidation for ${host}${url} cannot be done. This error should never happen.`);
+             }
+             else if (response.status === 404) {
+                 // The page is not found, we should not revalidate it
+                 // We remove the route from the failed state because it might be expected (i.e. a route that was deleted)
+-                this.routeInFailedState.delete(msg.MessageDeduplicationId);
++                await this.removeFromFailedState(msg.MessageDeduplicationId);
+                 throw new IgnorableError(`The revalidation for ${host}${url} cannot be done because the page is not found. It's either expected or an error in user code itself`);
+             }
+             else if (response.status === 500) {
+@@ -125,7 +125,7 @@ export class DOQueueHandler extends DurableObject {
+                 `${host}${url}`, process.env.__OPEN_NEXT_BUILD_ID);
+             }
+             // If everything went well, we can remove the route from the failed state
+-            this.routeInFailedState.delete(msg.MessageDeduplicationId);
++            await this.removeFromFailedState(msg.MessageDeduplicationId);
+         }
+         catch (e) {
+             // Do we want to propagate the error to the calling worker?
+@@ -159,6 +159,17 @@ export class DOQueueHandler extends DurableObject {
+             await this.executeRevalidation(event.msg);
+         }
+     }
++    async removeFromFailedState(id) {
++        // Persist terminal cleanup before changing the in-memory retry map.
++        // Otherwise initState restores completed/exhausted work after eviction.
++        if (!this.disableSQLite) {
++            this.sql.exec("DELETE FROM failed_state WHERE id = ?", id);
++        }
++        this.routeInFailedState.delete(id);
++        if (this.routeInFailedState.size === 0) {
++            await this.ctx.storage.deleteAlarm();
++        }
++    }
+     async addToFailedState(msg) {
+         debug(`Adding ${msg.MessageBody.host}${msg.MessageBody.url} to the failed state`);
+         const existingFailedState = this.routeInFailedState.get(msg.MessageDeduplicationId);
+@@ -166,7 +177,7 @@ export class DOQueueHandler extends DurableObject {
+         if (existingFailedState) {
+             if (existingFailedState.retryCount >= this.maxRetries) {
+                 error(`The revalidation for ${msg.MessageBody.host}${msg.MessageBody.url} has failed after ${this.maxRetries} retries. It will not be tried again, but subsequent ISR requests will retry.`);
+-                this.routeInFailedState.delete(msg.MessageDeduplicationId);
++                await this.removeFromFailedState(msg.MessageDeduplicationId);
+                 return;
+             }
+             const nextAlarmMs = Date.now() + Math.pow(2, existingFailedState.retryCount + 1) * this.revalidationRetryInterval;
