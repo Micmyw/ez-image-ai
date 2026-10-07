@@ -4,6 +4,7 @@ import {
 	HOTEL_LOBBY_EFFECT_ID,
 	RAINDANCE_DUO_EFFECT_ID,
 	RAINDANCE_SOLO_EFFECT_ID,
+	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
 } from "./video-effects";
 import { canAccessVideoEffect, readVideoEffectAccessScope } from "./video-effects-access.server";
 import { canAccessVideoV1, readVideoV1Config } from "./video-v1";
@@ -78,4 +79,62 @@ describe("Hotel Lobby template access scope", () => {
 			).toBe(false);
 		},
 	);
+});
+
+describe("Rumpelstiltskin authenticated customer access", () => {
+	const effectId = RUMPELSTILTSKIN_SOLO_EFFECT_ID;
+	it("defaults to registered customer access without requiring material or a private test list", () => {
+		expect(readVideoEffectAccessScope({}, effectId)).toBe("authenticated");
+		expect(canAccessVideoEffect(environment, customer, effectId)).toBe(true);
+		expect(
+			canAccessVideoEffect({ ...environment, VIDEO_V1_ACCESS: "internal" }, customer, effectId),
+		).toBe(true);
+	});
+	it.each([null, undefined, { id: "guest", isAnonymous: true }, { id: "" }])(
+		"rejects absent or anonymous identity %j",
+		(user) => {
+			expect(canAccessVideoEffect(environment, user, effectId)).toBe(false);
+		},
+	);
+	it.each(["public", " authenticated", "", "true"])("rejects malformed access %j", (access) => {
+		expect(
+			canAccessVideoEffect({ ...environment, RUMPELSTILTSKIN_ACCESS: access }, customer, effectId),
+		).toBe(false);
+	});
+	it.each(["false", "", "TRUE", "1"])(
+		"honors an explicit kill switch or invalid enabled value %j",
+		(enabled) => {
+			expect(
+				canAccessVideoEffect(
+					{ ...environment, RUMPELSTILTSKIN_ENABLED: enabled },
+					customer,
+					effectId,
+				),
+			).toBe(false);
+		},
+	);
+	it("retains the ordinary execution kill switch", () => {
+		expect(
+			canAccessVideoEffect({ ...environment, VIDEO_V1_ENABLED: "false" }, customer, effectId),
+		).toBe(false);
+	});
+	it("requires its independent whitelist only for an explicit internal rollback", () => {
+		const internal = {
+			...environment,
+			RUMPELSTILTSKIN_ACCESS: "internal",
+			RUMPELSTILTSKIN_ALLOWED_USER_IDS: customer.id,
+			VIDEO_V1_ALLOWED_USER_IDS: "administrator",
+		};
+		expect(canAccessVideoEffect(internal, customer, effectId)).toBe(true);
+		expect(canAccessVideoEffect(internal, { id: "administrator", role: "admin" }, effectId)).toBe(
+			false,
+		);
+		expect(
+			canAccessVideoEffect(
+				{ ...internal, RUMPELSTILTSKIN_ALLOWED_USER_IDS: undefined },
+				customer,
+				effectId,
+			),
+		).toBe(false);
+	});
 });

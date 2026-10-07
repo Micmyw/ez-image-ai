@@ -398,7 +398,8 @@
 			"openNavigation": "Open navigation",
 			"organizationSettings": "Organization settings",
 			"start": "Start",
-			"video": "Video beta"
+			"video": "Video beta",
+			"rumpelstiltskin": "Rumpelstiltskin"
 		},
 		"userMenu": {
 			"accountSettings": "Account settings",
@@ -2053,6 +2054,21 @@
 			"sceneCaption": "AI-created scene illustration, not a generated video sample. Your result will appear here after generation.",
 			"uploadPhotoHint": "Upload your photo to review the total cost.",
 			"waitingForPhoto": "Waiting for your photo to finish uploading and processing…"
+		},
+		"rumpelstiltskin": {
+			"label": "Portrait dance",
+			"title": "Rumpelstiltskin dance video",
+			"onePhoto": "One photo. Your dance.",
+			"testHint": "Upload a clear portrait of one adult to use the preset dance motion. Likeness and movement may vary; original music is not included.",
+			"referenceTitle": "Preset dance motion",
+			"referenceHint": "The dance uses a preset motion reference. You only upload a portrait. Your private result appears here after generation.",
+			"priceHint": "Review the total credits before confirming. The quote includes generation and safety checks.",
+			"motionRequired": "Motion footage is being prepared. Generation is currently unavailable.",
+			"motionInvalid": "Motion footage is temporarily unavailable. Please check again later.",
+			"costRequired": "Pricing is being prepared. Generation is currently unavailable.",
+			"costInvalid": "Pricing is temporarily unavailable. Please check again later.",
+			"history": "Your Rumpelstiltskin videos",
+			"emptyHistory": "Your Rumpelstiltskin video orders will appear here."
 		},
 		"eligibleBalance": "Available for this video",
 		"accountBalance": "Account total: {credits} credits",

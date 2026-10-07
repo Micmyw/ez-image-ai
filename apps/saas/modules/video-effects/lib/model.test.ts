@@ -6,6 +6,7 @@ import {
 	changeEffectInputs,
 	createEffectConfirmation,
 	effectError,
+	effectReadinessMessage,
 	effectRequest,
 	effectStorageKey,
 	emptyEffectDraft,
@@ -14,6 +15,7 @@ import {
 	validEffectFile,
 	VIDEO_EFFECT_MAX_BYTES,
 } from "./model";
+import { isVideoEffectPath, videoEffectJobPath } from "./paths";
 import {
 	bindVideoEffectPaymentReturn,
 	consumeVideoEffectPaymentReturn,
@@ -34,6 +36,45 @@ describe("video effect indexing boundary", () => {
 });
 
 const quote = { quoteId: "quote-1", credits: "24", expiresAt: "2030-01-01T00:00:00.000Z" };
+describe("Rumpelstiltskin internal solo draft", () => {
+	it("binds one upload twice, isolates its recovery intent and routes history to its test entry", () => {
+		const draft = {
+			...emptyEffectDraft("owner-1", "rumpelstiltskin-solo"),
+			leftAssetId: "portrait",
+		};
+		expect(effectRequest(draft).inputs).toEqual({
+			leftAssetId: "portrait",
+			rightAssetId: "portrait",
+		});
+		const pending = { ...draft, confirmation: createEffectConfirmation(draft, quote) };
+		expect(readEffectDraft(JSON.stringify(pending), "owner-1", "rumpelstiltskin-solo")).toEqual(
+			pending,
+		);
+		expect(readEffectDraft(JSON.stringify(pending), "owner-1", "raindance-solo")).toBeNull();
+		expect(effectStorageKey("owner-1", "rumpelstiltskin-solo")).not.toBe(
+			effectStorageKey("owner-1", "raindance-solo"),
+		);
+		expect(videoEffectJobPath("rumpelstiltskin-solo", "private-job")).toBe(
+			"/video/effects/rumpelstiltskin?job=private-job",
+		);
+		// Internal testing is never a public checkout return destination.
+		expect(isVideoEffectPath("/video/effects/rumpelstiltskin")).toBe(false);
+	});
+	it.each([
+		["MOTION_REFERENCE_REQUIRED", "rumpelstiltskin.motionRequired"],
+		["MOTION_REFERENCE_INVALID", "rumpelstiltskin.motionInvalid"],
+		["COST_APPROVAL_REQUIRED", "rumpelstiltskin.costRequired"],
+		["COST_APPROVAL_INVALID", "rumpelstiltskin.costInvalid"],
+	])("translates only the safe %s refusal reason", (reason, message) => {
+		expect(effectReadinessMessage(reason)).toBe(message);
+		expect(effectError(new Error(reason))).toBe(message);
+	});
+	it("does not expose unknown provider or private asset data as UI copy", () => {
+		expect(effectReadinessMessage("provider https://private.example?token=secret")).toBe(
+			"unavailable",
+		);
+	});
+});
 describe("Raindance draft isolation", () => {
 	it("binds a solo upload once and cannot restore a confirmation into another template", () => {
 		const solo = { ...emptyEffectDraft("owner-1", "raindance-solo"), leftAssetId: "portrait" };

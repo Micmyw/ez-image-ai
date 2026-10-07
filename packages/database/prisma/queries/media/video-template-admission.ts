@@ -7,6 +7,7 @@ import {
 } from "@repo/config/video-effects.server";
 
 import type { MediaDatabaseClient, MediaTransactionClient } from "./types";
+import { findApprovedVideoTemplateMotionReference } from "./video-template-reference";
 import {
 	createVideoQuoteRecord,
 	createVideoJobRecord,
@@ -98,6 +99,7 @@ export async function templateAdmissionData(
 	const request = videoEffectRequestSchema.parse(input.request);
 	const template = parseVideoEffectTemplateSnapshot(input.template);
 	const assets = await findTemplateRoleInputs(ownerId, request, maximumInputBytes, tx, now);
+	await findApprovedVideoTemplateMotionReference(template, tx, now);
 	return {
 		requestKind: "template-video",
 		videoEffectRequest: request,

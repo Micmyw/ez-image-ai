@@ -12,7 +12,7 @@ import { videoEffectJobPath } from "../lib/paths";
 export function VideoEffectHistory({
 	family = "hotel-lobby",
 }: {
-	family?: "hotel-lobby" | "raindance";
+	family?: "hotel-lobby" | "raindance" | "rumpelstiltskin";
 }) {
 	const { user } = useSession();
 	if (!user || user.isAnonymous) return null;
@@ -24,7 +24,7 @@ function OwnedVideoEffectHistory({
 	family,
 }: {
 	ownerId: string;
-	family: "hotel-lobby" | "raindance";
+	family: "hotel-lobby" | "raindance" | "rumpelstiltskin";
 }) {
 	const t = useTranslations("videoEffects");
 	const format = useFormatter();
@@ -53,7 +53,9 @@ function OwnedVideoEffectHistory({
 		<section id={`${family}-history`} className="ve-history" aria-labelledby="ve-history-title">
 			<header className="ve-history-heading">
 				<div>
-					<h2 id="ve-history-title">{t("history")}</h2>
+					<h2 id="ve-history-title">
+						{t(family === "rumpelstiltskin" ? "rumpelstiltskin.history" : "history")}
+					</h2>
 					<p>{t("historyHint")}</p>
 				</div>
 				<button
@@ -67,7 +69,9 @@ function OwnedVideoEffectHistory({
 			</header>
 			{history.isPending && <output>{t("loading")}</output>}
 			{history.isError && <p role="alert">{t("statusUnavailable")}</p>}
-			{!history.isPending && !history.isError && items.length === 0 && <p>{t("emptyHistory")}</p>}
+			{!history.isPending && !history.isError && items.length === 0 && (
+				<p>{t(family === "rumpelstiltskin" ? "rumpelstiltskin.emptyHistory" : "emptyHistory")}</p>
+			)}
 			{items.length > 0 && (
 				<ul className="ve-history-list">
 					{items.map((state) => (

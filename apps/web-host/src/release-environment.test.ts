@@ -117,12 +117,53 @@ describe("automatic production release preflight", () => {
 				"/runner/repo",
 			),
 		);
-		expect(url.searchParams.get("sslmode")).toBe("verify-full");
-		expect(url.searchParams.get("sslrootcert")?.replaceAll("\\", "/")).toBe(
+		expect(url.searchParams.get("sslmode")).toBe("require");
+		expect(url.searchParams.get("sslaccept")).toBe("strict");
+		expect(url.searchParams.get("sslcert")?.replaceAll("\\", "/")).toBe(
 			"/runner/repo/tooling/certificates/supabase-prod-ca-2021.crt",
 		);
+		expect(url.searchParams.has("sslrootcert")).toBe(false);
+		expect(url.hostname).toBe("db.example.com");
 		expect(url.password).toBe("private");
 	});
+	it("uses the repository CA only for the Prisma CLI without changing the runtime URL", () => {
+		const input = {
+			DATABASE_URL: "postgresql://app:private@db.example.com/db?sslmode=verify-full&schema=public",
+		};
+		const original = input.DATABASE_URL;
+		const url = new URL(migrationDatabaseUrl(input, "/runner/repo"));
+		expect(url.searchParams.get("sslmode")).toBe("require");
+		expect(url.searchParams.get("sslaccept")).toBe("strict");
+		expect(url.searchParams.get("sslcert")?.replaceAll("\\", "/")).toBe(
+			"/runner/repo/tooling/certificates/supabase-prod-ca-2021.crt",
+		);
+		expect(url.searchParams.get("schema")).toBe("public");
+		expect(input.DATABASE_URL).toBe(original);
+	});
+	it("translates an explicitly configured CA and overrides CLI certificate relaxation", () => {
+		const input = {
+			DATABASE_URL:
+				"postgresql://app:private@db.example.com/db?sslmode=verify-full&sslrootcert=/certificates/custom-ca.crt&sslcert=/stale-ca.crt&sslcert=/another-stale-ca.crt&sslaccept=accept_invalid_certs&sslaccept=accept_invalid_certs",
+		};
+		const url = new URL(migrationDatabaseUrl(input, "/runner/repo"));
+		expect(url.searchParams.get("sslmode")).toBe("require");
+		expect(url.searchParams.get("sslaccept")).toBe("strict");
+		expect(url.searchParams.get("sslcert")).toBe("/certificates/custom-ca.crt");
+		expect(url.searchParams.getAll("sslcert")).toHaveLength(1);
+		expect(url.searchParams.getAll("sslaccept")).toEqual(["strict"]);
+		expect(url.searchParams.has("sslrootcert")).toBe(false);
+	});
+	it.each(["disable", "prefer", "require", "verify-ca"])(
+		"rejects an incoming runtime URL without verify-full: %s",
+		(mode) => {
+			expect(() =>
+				migrationDatabaseUrl(
+					{ DATABASE_URL: `postgresql://app:private@db.example.com/db?sslmode=${mode}` },
+					"/repo",
+				),
+			).toThrow("MIGRATION_STATUS_REQUIRES_VERIFIED_TLS");
+		},
+	);
 	it("does not echo a malformed database secret", () => {
 		expect(() => migrationDatabaseUrl({ DATABASE_URL: "private-invalid-url" }, "/repo")).toThrow(
 			"MIGRATION_STATUS_DATABASE_URL_REQUIRED",

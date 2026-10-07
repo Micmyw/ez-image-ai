@@ -18,6 +18,7 @@ import {
 	createVideoTemplateQuote,
 	getVideoTemplatePublicState,
 	listVideoTemplatePublicStates,
+	readVideoEffectTestReadiness,
 	requireVideoTemplateAdmission,
 	requireVideoTemplateRuntimeEnabled,
 	VIDEO_EFFECT_CAPABILITY_REQUEST,
@@ -129,17 +130,23 @@ const access = protectedProcedure
 	.output(videoEffectAccessSchema)
 	.handler(async ({ context: { user }, input }) => {
 		const config = readVideoV1Config(process.env);
-		const entitlement = await loadUserPlanEntitlement(user.id);
 		const accessAllowed = canAccessVideoEffect(process.env, user, input.effectId);
 		const base = {
 			effectId: input.effectId,
 			accessAllowed,
-			maxInputBytes: Math.min(
-				VIDEO_EFFECT_MAX_INPUT_BYTES,
-				config.maxInputBytes,
-				entitlement.maximumInputBytes,
-			),
+			maxInputBytes: Math.min(VIDEO_EFFECT_MAX_INPUT_BYTES, config.maxInputBytes),
 		};
+		const readiness = readVideoEffectTestReadiness(input.effectId, process.env);
+		if (readiness.length > 0)
+			return {
+				...base,
+				available: false,
+				reasons: accessAllowed ? readiness : ["ACCESS_DENIED"],
+				credits: null,
+				creditBalance: null,
+			};
+		const entitlement = await loadUserPlanEntitlement(user.id);
+		base.maxInputBytes = Math.min(base.maxInputBytes, entitlement.maximumInputBytes);
 		try {
 			const admitted = requireVideoTemplateAdmission(
 				{ userId: user.id, role: user.role },

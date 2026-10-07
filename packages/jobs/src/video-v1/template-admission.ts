@@ -1,6 +1,12 @@
 import { getImageProductSelectionContract } from "@repo/config";
 import {
+	readApprovedRumpelstiltskinMotionReference,
+	readRumpelstiltskinCostApproval,
+} from "@repo/config/rumpelstiltskin-reference.server";
+import {
 	videoEffectName,
+	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
+	type VideoEffectId,
 	VIDEO_EFFECT_MAX_INPUT_BYTES,
 	type VideoEffectRequest,
 	type VideoEffectCreateInput,
@@ -40,6 +46,39 @@ export const VIDEO_EFFECT_CAPABILITY_REQUEST: VideoEffectRequest = {
 	inputs: { leftAssetId: "capability-left", rightAssetId: "capability-right" },
 };
 
+/** Client-safe readiness diagnostics. Private manifests and approval data stay here. */
+export function readVideoEffectTestReadiness(
+	effectId: VideoEffectId,
+	environment: Record<string, string | undefined>,
+): string[] {
+	if (effectId !== RUMPELSTILTSKIN_SOLO_EFFECT_ID) return [];
+	const reasons: string[] = [];
+	let reference;
+	try {
+		reference = readApprovedRumpelstiltskinMotionReference(environment);
+	} catch {
+		reasons.push(
+			environment.RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE
+				? "MOTION_REFERENCE_INVALID"
+				: "MOTION_REFERENCE_REQUIRED",
+		);
+	}
+	// The dated public budget is bound to the actual reference duration at quotation.
+	// Missing material alone does not imply missing public pricing approval.
+	if (reference || environment.RUMPELSTILTSKIN_COST_APPROVAL) {
+		try {
+			readRumpelstiltskinCostApproval(environment, reference);
+		} catch {
+			reasons.push(
+				environment.RUMPELSTILTSKIN_COST_APPROVAL
+					? "COST_APPROVAL_INVALID"
+					: "COST_APPROVAL_REQUIRED",
+			);
+		}
+	}
+	return reasons;
+}
+
 export function requireVideoTemplateAdmission(
 	context: VideoOwnerContext,
 	environment: Record<string, string | undefined>,
@@ -52,15 +91,27 @@ export function requireVideoTemplateAdmission(
 		throw new Error("VIDEO_ACCESS_DENIED");
 	const template = resolveVideoEffectTemplate(request, environment);
 	requireVideoTemplateSceneEnvironment(template, environment);
-	const admitted = requireVideoModelReadiness(environment, bindings, template.video);
+	const reference = template.schemaVersion === 2 && template.executionKind === "seedance-reference";
+	// Reference-video billing differs from first-frame billing. Never use its public list-price quote.
+	const referencePrice = reference ? resolveVideoEffectPrice(request, environment) : undefined;
+	const admitted = requireVideoModelReadiness(
+		environment,
+		bindings,
+		template.video,
+		referencePrice ? { priceOverride: referencePrice } : undefined,
+	);
 	// An ordinary video administrator budget never authorizes this separate two-stage product.
-	const price = applyVideoInternalFunding(resolveVideoEffectPrice(request, environment), context, {
-		...environment,
-		VIDEO_INTERNAL_FUNDING:
-			request.effectId === "hotel-lobby-duo"
-				? environment.HOTEL_LOBBY_DUO_INTERNAL_FUNDING
-				: undefined,
-	}) satisfies VideoPrice;
+	const price = applyVideoInternalFunding(
+		referencePrice ?? resolveVideoEffectPrice(request, environment),
+		context,
+		{
+			...environment,
+			VIDEO_INTERNAL_FUNDING:
+				request.effectId === "hotel-lobby-duo"
+					? environment.HOTEL_LOBBY_DUO_INTERNAL_FUNDING
+					: undefined,
+		},
+	) satisfies VideoPrice;
 	return {
 		...admitted,
 		template,
@@ -171,11 +222,13 @@ export function videoTemplatePublicStage(
 	stage: string,
 	sceneState: string,
 	uncertain: boolean,
+	referenceTemplate = false,
 ): VideoTemplatePublicStage {
 	if (stage === "READY") return "READY";
 	if (["REJECTED", "FAILED"].includes(stage)) return "FAILED";
 	if (uncertain || ["SUBMISSION_UNCERTAIN", "NEEDS_REVIEW"].includes(stage)) return "NEEDS_REVIEW";
 	if (["QUEUED", "INPUT_REVIEW"].includes(stage)) {
+		if (referenceTemplate) return "PREPARING_PHOTOS";
 		return sceneState === "PENDING" || sceneState === "INPUT_REVIEW"
 			? "PREPARING_PHOTOS"
 			: "CREATING_SCENE";
@@ -202,6 +255,7 @@ async function toVideoTemplatePublicState(
 		job.videoExecution.stage,
 		job.videoTemplateExecution.sceneState,
 		job.videoTemplateExecution.sceneSubmissionUncertain,
+		template.schemaVersion === 2 && template.executionKind === "seedance-reference",
 	);
 	return {
 		jobId: job.id,

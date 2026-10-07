@@ -7,6 +7,7 @@ import {
 	parseHotelLobbyRuntimeOverride,
 	parseVideoRuntimeConfig,
 	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+	VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
 } from "./video-runtime-environment";
 
 const policy = {
@@ -123,6 +124,8 @@ describe("private video runtime environment transport", () => {
 		"VIDEO_V1_BUILD_PRICE_BASIS",
 		"VIDEO_V1_BUILD_PRICE_EXPIRY",
 		"HOTEL_LOBBY_DUO_ENABLED",
+		"RUMPELSTILTSKIN_ENABLED",
+		...VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
 		"VIDEO_WORKFLOW",
 		"VIDEO_MEDIA_BUCKET",
 		"NEXT_PUBLIC_VIDEO_RUNTIME_CONFIG",
@@ -200,10 +203,15 @@ describe("private video runtime environment transport", () => {
 		expect(target).toEqual({
 			VIDEO_V1_ENABLED: "true",
 			HOTEL_LOBBY_DUO_ENABLED: "false",
+			RUMPELSTILTSKIN_ENABLED: "true",
 			VIDEO_V1_ACCESS: "internal",
 		});
 		hydrateVideoRuntimeEnvironment({}, target);
-		expect(target).toEqual({ VIDEO_V1_ENABLED: "false", HOTEL_LOBBY_DUO_ENABLED: "false" });
+		expect(target).toEqual({
+			VIDEO_V1_ENABLED: "false",
+			HOTEL_LOBBY_DUO_ENABLED: "false",
+			RUMPELSTILTSKIN_ENABLED: "true",
+		});
 	});
 	it.each([
 		JSON.stringify({ VIDEO_V1_ENABLED: "true" }),
@@ -222,6 +230,7 @@ describe("private video runtime environment transport", () => {
 		expect(target).toEqual({
 			VIDEO_V1_ENABLED: "false",
 			HOTEL_LOBBY_DUO_ENABLED: "false",
+			RUMPELSTILTSKIN_ENABLED: "false",
 			MEDIA_GENERATION_ENABLED: "true",
 		});
 		expect(result.VIDEO_V1_ENABLED).toBe("false");
@@ -237,7 +246,11 @@ describe("private video runtime environment transport", () => {
 			},
 			target,
 		);
-		expect(target).toEqual({ VIDEO_V1_ENABLED: "false", HOTEL_LOBBY_DUO_ENABLED: "false" });
+		expect(target).toEqual({
+			VIDEO_V1_ENABLED: "false",
+			HOTEL_LOBBY_DUO_ENABLED: "false",
+			RUMPELSTILTSKIN_ENABLED: "false",
+		});
 		hydrateVideoRuntimeEnvironment({ VIDEO_RUNTIME_CONFIG: JSON.stringify(policy) }, target);
 		expect(target.VIDEO_V1_ENABLED).toBe("false");
 	});
@@ -255,5 +268,90 @@ describe("private video runtime environment transport", () => {
 			target,
 		);
 		expect(target.HOTEL_LOBBY_DUO_ENABLED).toBe("false");
+	});
+});
+
+describe("private motion-reference test transport", () => {
+	it("defaults customer entry visibility on while preserving explicit closes and rejecting malformed switches", () => {
+		const target: Record<string, string | undefined> = {};
+		expect(hydrateVideoRuntimeEnvironment({}, target).RUMPELSTILTSKIN_ENABLED).toBe("true");
+		for (const enabled of ["false", "TRUE", " true", ""])
+			expect(
+				hydrateVideoRuntimeEnvironment({ RUMPELSTILTSKIN_ENABLED: enabled }, target)
+					.RUMPELSTILTSKIN_ENABLED,
+			).toBe("false");
+	});
+	it("bounds two private approvals separately without widening the shared pack", () => {
+		const input = {
+			RUMPELSTILTSKIN_ENABLED: "false",
+			RUMPELSTILTSKIN_ACCESS: "internal",
+			RUMPELSTILTSKIN_ALLOWED_USER_IDS: "synthetic-tester",
+			RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: "x".repeat(5000),
+			RUMPELSTILTSKIN_COST_APPROVAL: "y".repeat(5000),
+		};
+		const packed = packVideoRuntimeEnvironment(input);
+		const policy = parseVideoRuntimeConfig(packed.VIDEO_RUNTIME_CONFIG);
+		expect(policy).toEqual({
+			RUMPELSTILTSKIN_ACCESS: "internal",
+			RUMPELSTILTSKIN_ALLOWED_USER_IDS: "synthetic-tester",
+		});
+		for (const key of VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS) {
+			expect(packed[key]).toBe(input[key]);
+			expect(policy).not.toHaveProperty(key);
+		}
+		expect(expandVideoRuntimeEnvironment(packed)).toMatchObject(input);
+		expect(() =>
+			parseVideoRuntimeConfig(JSON.stringify({ VIDEO_PRICE_BASIS: "x".repeat(5000) })),
+		).toThrow(/^VIDEO_RUNTIME_CONFIG_INVALID$/);
+	});
+	it.each(VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS)(
+		"rejects invalid private binding %s without including its contents",
+		(key) => {
+			for (const value of [true, "x".repeat(5001), "界".repeat(1667), "opaque\nINJECTED=true"]) {
+				expect(() => expandVideoRuntimeEnvironment({ [key]: value })).toThrow(
+					/^VIDEO_PRIVATE_REFERENCE_CONFIG_INVALID$/,
+				);
+			}
+		},
+	);
+	it("hydrates private approvals and clears every stale test field on the next version", () => {
+		const target: Record<string, string | undefined> = {};
+		const source = {
+			RUMPELSTILTSKIN_ENABLED: "true",
+			RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: '{"synthetic":"motion"}',
+			RUMPELSTILTSKIN_COST_APPROVAL: '{"synthetic":"cost"}',
+			VIDEO_RUNTIME_CONFIG: JSON.stringify({
+				RUMPELSTILTSKIN_ACCESS: "internal",
+				RUMPELSTILTSKIN_ALLOWED_USER_IDS: "synthetic-tester",
+				RUMPELSTILTSKIN_ACCEPTED_TEMPLATE_VERSION: "synthetic-version",
+			}),
+		};
+		hydrateVideoRuntimeEnvironment(source, target);
+		expect(target).toMatchObject(expandVideoRuntimeEnvironment(source));
+		hydrateVideoRuntimeEnvironment({}, target);
+		expect(target).toEqual({
+			VIDEO_V1_ENABLED: "false",
+			HOTEL_LOBBY_DUO_ENABLED: "false",
+			RUMPELSTILTSKIN_ENABLED: "true",
+		});
+	});
+	it("closes an invalid private reference without disrupting image work", () => {
+		const target: Record<string, string | undefined> = { MEDIA_GENERATION_ENABLED: "true" };
+		const result = hydrateVideoRuntimeEnvironment(
+			{
+				VIDEO_V1_ENABLED: "true",
+				RUMPELSTILTSKIN_ENABLED: "true",
+				RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: "x".repeat(5001),
+			},
+			target,
+		);
+		expect(result.RUMPELSTILTSKIN_ENABLED).toBe("false");
+		expect(result).not.toHaveProperty("RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE");
+		expect(target).toEqual({
+			VIDEO_V1_ENABLED: "false",
+			HOTEL_LOBBY_DUO_ENABLED: "false",
+			RUMPELSTILTSKIN_ENABLED: "false",
+			MEDIA_GENERATION_ENABLED: "true",
+		});
 	});
 });

@@ -1,11 +1,13 @@
 import path from "node:path";
 
 import { packEzPicImageModelFlags } from "@repo/config/server";
+import { readVideoEffectAccessScope } from "@repo/config/video-effects-access.server";
 import { resolveVideoEffectPrice } from "@repo/config/video-effects.server";
 import {
 	expandVideoRuntimeEnvironment,
 	packVideoRuntimeEnvironment,
 	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+	VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
 } from "@repo/config/video-runtime-environment";
 import { videoV1Readiness } from "@repo/config/video-v1";
 
@@ -22,6 +24,20 @@ export function deploymentProfile(environment: Record<string, string>): Deployme
 	return profile;
 }
 
+/** Publishing the customer entry does not approve a motion asset or a generation price. */
+export function requireRumpelstiltskinPreparation(environment: Record<string, string | undefined>) {
+	if (
+		environment.RUMPELSTILTSKIN_ENABLED !== undefined &&
+		!["true", "false"].includes(environment.RUMPELSTILTSKIN_ENABLED)
+	)
+		throw new Error("RUMPELSTILTSKIN_ENABLED_INVALID");
+	if (environment.RUMPELSTILTSKIN_ENABLED === "false") return;
+	if (readVideoEffectAccessScope(environment, "rumpelstiltskin-solo") === null)
+		throw new Error("RUMPELSTILTSKIN_ACCESS_INVALID");
+	// Missing or unapproved reference/cost evidence blocks quote/job admission in the
+	// product, while preparation may publish the authenticated unavailable state.
+}
+
 export function createProfileArtifacts(options: {
 	root: string;
 	target: "staging" | "production";
@@ -33,7 +49,10 @@ export function createProfileArtifacts(options: {
 }) {
 	const { profile, root, target, canonicalOrigin } = options;
 	const environment = expandVideoRuntimeEnvironment(options.environment);
+	environment.RUMPELSTILTSKIN_ENABLED ??= "true";
+	environment.RUMPELSTILTSKIN_ACCESS ??= "authenticated";
 	const settings = profileSettings(profile, target);
+	requireRumpelstiltskinPreparation(environment);
 	for (const key of ["BETTER_AUTH_SECRET", "WORKFLOWS_DISPATCH_SECRET"])
 		if (!environment[key] || environment[key].length < 32)
 			throw new Error(`MISSING_OR_SHORT_SECRET: ${key}`);
@@ -128,6 +147,7 @@ export function createProfileArtifacts(options: {
 	const videoVars = {
 		VIDEO_V1_ENABLED: environment.VIDEO_V1_ENABLED === "true" ? "true" : "false",
 		HOTEL_LOBBY_DUO_ENABLED: environment.HOTEL_LOBBY_DUO_ENABLED === "true" ? "true" : "false",
+		RUMPELSTILTSKIN_ENABLED: environment.RUMPELSTILTSKIN_ENABLED === "true" ? "true" : "false",
 	};
 	const hyperdrive = [{ binding: "HYPERDRIVE", id: environment.CLOUDFLARE_HYPERDRIVE_ID }];
 	const account = environment.CLOUDFLARE_ACCOUNT_ID ?? options.jobsTemplate.account_id;
@@ -193,7 +213,10 @@ export function createProfileArtifacts(options: {
 	delete jobVars.HOTEL_LOBBY_DUO_RUNTIME_CONFIG;
 	delete jobVars.RAINDANCE_RUNTIME_CONFIG;
 	const effectiveVideo = expandVideoRuntimeEnvironment(flatEnvironment);
-	for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) {
+	for (const key of [
+		...VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+		...VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
+	]) {
 		if (
 			!["VIDEO_V1_ALLOWED_USER_IDS", "VIDEO_MODEL_ALLOWED_OPTIONS"].includes(key) &&
 			jobVars[key] !== undefined &&

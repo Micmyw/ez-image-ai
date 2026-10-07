@@ -54,10 +54,10 @@ function result(items: VideoEffectState[] = []) {
 		fetchNextPage: vi.fn(),
 	};
 }
-function render() {
+function render(family?: "hotel-lobby" | "raindance" | "rumpelstiltskin") {
 	return renderToStaticMarkup(
 		<NextIntlClientProvider locale="en" messages={en} timeZone="UTC">
-			<VideoEffectHistory />
+			<VideoEffectHistory family={family} />
 		</NextIntlClientProvider>,
 	);
 }
@@ -76,6 +76,22 @@ beforeEach(() => {
 });
 
 describe("Hotel Lobby owned task history", () => {
+	it("isolates the internal solo history and links back to its private test route", () => {
+		mocks.useInfiniteQuery.mockReturnValue(
+			result([
+				item({
+					jobId: "solo-test",
+					effectId: "rumpelstiltskin-solo",
+					name: "Rumpelstiltskin solo",
+				}),
+				item({ jobId: "unrelated-lobby" }),
+			]),
+		);
+		const html = render("rumpelstiltskin");
+		expect(html).toContain(en.videoEffects.rumpelstiltskin.history);
+		expect(html).toContain("/video/effects/rumpelstiltskin?job=solo-test");
+		expect(html).not.toContain("unrelated-lobby");
+	});
 	it.each([null, { id: "guest", isAnonymous: true }])(
 		"does not read or render private history for an anonymous visitor",
 		(user) => {

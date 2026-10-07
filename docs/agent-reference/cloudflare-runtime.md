@@ -22,6 +22,30 @@ Read for job/runtime/database packaging or deployment changes. Operational cutov
 
 ## Website and database runtime
 
+- Rumpelstiltskin uses the existing native video Workflow and defaults to a visible
+  authenticated customer entry. `RUMPELSTILTSKIN_ENABLED` defaults to `true` and is
+  mirrored as a separate website/background binding; explicit `false` closes it.
+  `RUMPELSTILTSKIN_ACCESS` defaults to `authenticated`; explicit `internal` uses only
+  its independent rollback user list, without restoring retired ordinary-video
+  allowlists. The authoritative private dotenv bundle is the only build source;
+  there is no Rumpelstiltskin build-enable override. Publishing the unavailable
+  customer entry does not require inventing reference or price approvals. Quote/job
+  admission still requires the current provider/model/template contract and the
+  independent private reference and complete-cost approvals.
+- Its access/list/version fields share the existing private `VIDEO_RUNTIME_CONFIG`
+  allowlist. `RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE` and
+  `RUMPELSTILTSKIN_COST_APPROVAL` are two separate private string bindings, each
+  limited to 5,000 UTF-8 bytes of compact JSON. They remain outside the unchanged
+  5,000-byte policy-pack limit and outside public variables/Wrangler vars. Website,
+  resumed Workflow steps, recovery and hybrid startup receive the same effective
+  snapshot; hydration clears omitted reference/cost values between isolate versions.
+  Invalid transport closes video admission while preserving image work. Preparation
+  accepts empty approval placeholders and preserves explicit kill switches. Missing,
+  invalid or expired reference/cost evidence blocks generation, including authenticated
+  customer requests; database admission and each paid side-effect fence verify the immutable private asset,
+  administrator ownership, rights and persisted moderation evidence. Synthetic
+  transport tests do not certify real assets, provider quality or pricing.
+
 - `RAINDANCE_RUNTIME_CONFIG` is a private build-only patch for the three independent
   Raindance admission/access/version fields. It merges into the existing runtime
   pack after the Hotel Lobby overlay, reuses the approved full-cost pipeline, and

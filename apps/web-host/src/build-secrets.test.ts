@@ -13,6 +13,7 @@ import { expandVideoRuntimeEnvironment } from "@repo/config/video-runtime-enviro
 import { readVideoSeeapiCallbackConfig } from "@repo/config/video-seeapi-callback";
 import { describe, expect, it } from "vitest";
 
+import { rumpelstiltskinEnvironmentFixture } from "../test-support/rumpelstiltskin-fixture";
 import {
 	packCloudflareBuildEnvironment,
 	readCloudflareBuildEnvironment,
@@ -22,6 +23,60 @@ import { publicBuildVariables } from "./deployment";
 
 const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironment>) =>
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
+
+describe("authenticated reference-template build transport", () => {
+	it("preserves an authoritative close and ignores ambient enable/approval values", () => {
+		const input = {
+			CLOUDFLARE_PRODUCTION_ENV:
+				"VIDEO_V1_ENABLED=false\nRUMPELSTILTSKIN_ENABLED=false\nUNRELATED=original-fixture",
+			...rumpelstiltskinEnvironmentFixture(),
+		};
+		expect(parseEnv(readCloudflareBuildEnvironment(input))).toEqual({
+			VIDEO_V1_ENABLED: "false",
+			RUMPELSTILTSKIN_ENABLED: "false",
+			UNRELATED: "original-fixture",
+		});
+		expect(publicBuildVariables(rumpelstiltskinEnvironmentFixture())).toEqual({});
+		const filtered = withoutCloudflareBuildSecrets(input);
+		for (const key of Object.keys(rumpelstiltskinEnvironmentFixture()).filter((key) =>
+			key.startsWith("RUMPELSTILTSKIN_"),
+		))
+			expect(filtered).not.toHaveProperty(key);
+	});
+	it("publishes the customer unavailable state without motion or cost approvals", () => {
+		const source =
+			"VIDEO_V1_ENABLED=true\nRUMPELSTILTSKIN_ENABLED=true\nRUMPELSTILTSKIN_ACCESS=authenticated";
+		expect(readCloudflareBuildEnvironment({ CLOUDFLARE_PRODUCTION_ENV: source })).toBe(source);
+	});
+	it("preserves authoritative private reference approvals in a split bundle", () => {
+		const fixture = rumpelstiltskinEnvironmentFixture();
+		const source = Object.entries({ ...fixture, UNRELATED: "x".repeat(6000) })
+			.map(([key, value]) => `${key}='${value}'`)
+			.join("\n");
+		const output = parseEnv(
+			readCloudflareBuildEnvironment({
+				...unpackValues(packCloudflareBuildEnvironment(source)),
+				RUMPELSTILTSKIN_ENABLED: "false",
+				RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: "ambient-stale",
+				RUMPELSTILTSKIN_COST_APPROVAL: "ambient-stale",
+			}),
+		);
+		expect(output).toEqual({ ...fixture, UNRELATED: "x".repeat(6000) });
+	});
+	it.each<Record<string, string>>([
+		{ RUMPELSTILTSKIN_ACCESS: "public" },
+		{ RUMPELSTILTSKIN_ACCESS: " authenticated" },
+		{ RUMPELSTILTSKIN_ENABLED: "TRUE" },
+	])("rejects malformed customer access transport without exposing values", (patch) => {
+		const source = Object.entries({ RUMPELSTILTSKIN_ENABLED: "true", ...patch })
+			.map(([key, value]) => `${key}='${value}'`)
+			.join("\n");
+		expect(() => readCloudflareBuildEnvironment({ CLOUDFLARE_PRODUCTION_ENV: source })).toThrow(
+			/^RUMPELSTILTSKIN_(?:ACCESS|ENABLED)_INVALID$/,
+		);
+	});
+});
+
 describe("Cloudflare build secret transport", () => {
 	it.each(["2026-10-12T00:00:00.000Z", "2000-01-01T00:00:00.000Z", "none"])(
 		"cancels only the explicitly selected ordinary price deadline from %s",

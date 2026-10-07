@@ -53,7 +53,7 @@ import {
 } from "@repo/database/video-template";
 import { authorizeVideoPlayback } from "@repo/database/video-v1-fulfillment";
 
-import { ensureVideoWorkflowStarted } from "./admission";
+import { ensureVideoWorkflowStarted, requireVideoModelReadiness } from "./admission";
 import {
 	createVideoTemplateJob,
 	getVideoTemplatePublicState,
@@ -103,6 +103,59 @@ beforeEach(() => {
 });
 
 describe("template admission and public recovery state", () => {
+	it("uses the independently approved reference price and does not require a scene-image gate", () => {
+		const request = {
+			effectId: "rumpelstiltskin-solo" as const,
+			presetKey: "standard" as const,
+			inputs: { leftAssetId: "subject", rightAssetId: "subject" },
+		};
+		const validUntil = new Date(Date.now() + 3600_000).toISOString();
+		const reference = {
+			assetId: "motion",
+			ownerId: "admin",
+			objectKey: "private/motion.mp4",
+			sha256: "a".repeat(64),
+			etag: "motion-etag",
+			storageVersionId: null,
+			bytes: 1024,
+			mimeType: "video/mp4",
+			durationSeconds: 5,
+			width: 720,
+			height: 1280,
+			fps: 30,
+			audioTrackCount: 0,
+			version: "fixture-reference-v1",
+			review: {
+				decision: "ALLOW",
+				policyVersion: "seeapi-video-policy-2026-10-04.1",
+				decisionHash: "b".repeat(64),
+				verificationGeneration: 1,
+				validUntil,
+			},
+			rights: { approvalId: "fixture-owned-rights", validUntil },
+		};
+		const env = {
+			...environment,
+			RUMPELSTILTSKIN_ENABLED: "true",
+			RUMPELSTILTSKIN_ALLOWED_USER_IDS: "owner",
+			MEDIA_NANO_BANANA_2_LITE_ENABLED: "false",
+			RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: JSON.stringify(reference),
+		};
+		const referenceTemplate = createVideoEffectTemplateSnapshot(request, env);
+		vi.mocked(resolveVideoEffectTemplate).mockReturnValueOnce(referenceTemplate);
+		const admitted = requireVideoTemplateAdmission({ userId: "owner" }, env, bindings, request);
+		expect(admitted.template).toMatchObject({
+			schemaVersion: 2,
+			executionKind: "seedance-reference",
+		});
+		expect(requireVideoModelReadiness).toHaveBeenLastCalledWith(
+			env,
+			bindings,
+			referenceTemplate.video,
+			{ priceOverride: expect.objectContaining({ credits: 12n, pricingVersion: "fixture" }) },
+		);
+		expect(admitted.price.paidFundingPolicy).toEqual({ minimumUsdMicrosPerCredit: 10n });
+	});
 	it("replays the original accepted confirmation before mutable availability and pricing", async () => {
 		vi.mocked(findExistingVideoTemplateAdmission).mockResolvedValue({ id: "job" } as never);
 		const result = await createVideoTemplateJob(
@@ -196,6 +249,8 @@ describe("template admission and public recovery state", () => {
 		expect(videoTemplatePublicStage("GENERATING", "READY", false)).toBe("GENERATING_VIDEO");
 		expect(videoTemplatePublicStage("OUTPUT_REVIEW", "READY", false)).toBe("CHECKING_VIDEO");
 		expect(videoTemplatePublicStage("FAILED", "READY", false)).toBe("FAILED");
+		expect(videoTemplatePublicStage("INPUT_REVIEW", "READY", false, true)).toBe("PREPARING_PHOTOS");
+		expect(videoTemplatePublicStage("SUBMITTING", "READY", false, true)).toBe("GENERATING_VIDEO");
 	});
 	it("rechecks delivery authorization before declaring the settled result playable", async () => {
 		vi.mocked(getVideoTemplateJobRecord).mockResolvedValue({

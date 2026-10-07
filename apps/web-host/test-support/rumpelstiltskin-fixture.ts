@@ -1,0 +1,102 @@
+import {
+	RUMPELSTILTSKIN_PRICE_VERSION,
+	RUMPELSTILTSKIN_SAFETY_POLICY_VERSION,
+	RUMPELSTILTSKIN_TEMPLATE_VERSION,
+} from "@repo/config/rumpelstiltskin-reference.server";
+import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
+
+/** Synthetic transport fixtures only. These assets, approvals and prices do not exist. */
+export function rumpelstiltskinEnvironmentFixture(): Record<string, string> {
+	const reference = {
+		assetId: "synthetic-reference",
+		ownerId: "synthetic-admin",
+		objectKey: "synthetic-private/references/motion.mp4",
+		sha256: "a".repeat(64),
+		etag: "synthetic-etag",
+		storageVersionId: null,
+		bytes: 1_000_000,
+		mimeType: "video/mp4",
+		durationSeconds: 5,
+		width: 720,
+		height: 1280,
+		fps: 30,
+		audioTrackCount: 0,
+		version: "synthetic-reference-v1",
+		review: {
+			decision: "ALLOW",
+			policyVersion: "seeapi-video-policy-2026-10-04.1",
+			decisionHash: "b".repeat(64),
+			verificationGeneration: 1,
+			validUntil: "2100-01-01T00:00:00.000Z",
+		},
+		rights: { approvalId: "synthetic-rights", validUntil: "2100-01-01T00:00:00.000Z" },
+	};
+	return {
+		VIDEO_V1_ENABLED: "true",
+		MEDIA_GENERATION_ENABLED: "true",
+		MEDIA_ENABLED_PROVIDERS: "kie",
+		RUMPELSTILTSKIN_ENABLED: "true",
+		RUMPELSTILTSKIN_ACCESS: "authenticated",
+		RUMPELSTILTSKIN_ALLOWED_USER_IDS: "synthetic-tester",
+		RUMPELSTILTSKIN_ACCEPTED_TEMPLATE_VERSION: RUMPELSTILTSKIN_TEMPLATE_VERSION,
+		VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
+		VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
+			{
+				productKey: "video-seedance-2",
+				modes: ["image-to-video"],
+				durations: [5],
+				resolutions: ["720p"],
+				sounds: [false],
+			},
+		]),
+		VIDEO_V1_TEXT_SAFETY_ADAPTER: "waffo",
+		VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
+		RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: JSON.stringify(reference),
+		RUMPELSTILTSKIN_COST_APPROVAL: JSON.stringify({
+			schemaVersion: 1,
+			approvalId: "synthetic-cost",
+			approvedAt: "2020-01-01T00:00:00.000Z",
+			templateVersion: RUMPELSTILTSKIN_TEMPLATE_VERSION,
+			pricingVersion: RUMPELSTILTSKIN_PRICE_VERSION,
+			safetyPolicyVersion: RUMPELSTILTSKIN_SAFETY_POLICY_VERSION,
+			basis: "SYNTHETIC_ONLY_NOT_APPROVED",
+			validUntil: "2100-01-01T00:00:00.000Z",
+			revenue: {
+				minimumGrossUsdMicrosPerCredit: "21944",
+				basis: "SYNTHETIC_ONLY_DISCOUNT_AND_BONUS_RECEIPTS",
+				validUntil: "2100-01-01T00:00:00.000Z",
+			},
+			provider: {
+				productKey: "video-seedance-2",
+				executionKind: "seedance-reference",
+				durationSeconds: 5,
+				resolution: "720p",
+				aspectRatio: "9:16",
+				sound: false,
+				referenceVersion: reference.version,
+				referenceDurationSeconds: reference.durationSeconds,
+				totalCostMicros: "100000",
+				basis: "SYNTHETIC_ONLY_REFERENCE_AND_OUTPUT_COST",
+			},
+			policies: {
+				visualPolicyVersion: reference.review.policyVersion,
+				textRuleVersion: "waffo-prompt-safety-2026-10-04.1",
+				promptCostBasis: "SYNTHETIC_ONLY_TEXT_COST",
+				paymentCostBasis: "SYNTHETIC_ONLY_PAYMENT_COST",
+			},
+			costs: {
+				subjectImageReviewMicros: "1000",
+				referenceVideoReviewMicros: "1000",
+				outputVideoReviewBaseMicros: "1000",
+				outputVideoReviewPerSecondMicros: "100",
+				promptReviewEachMicros: "100",
+				runtimeMicros: "1000",
+				storageTransferMicros: "1000",
+				paymentFixedAllocationMicros: "100",
+				paymentFeeBps: 500,
+				nonBillableFailureBps: 1000,
+				markupBps: 20000,
+			},
+		}),
+	};
+}

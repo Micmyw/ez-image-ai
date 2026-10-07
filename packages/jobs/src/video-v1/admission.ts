@@ -1,4 +1,5 @@
 import { videoEffectIdSchema, videoEffectName } from "@repo/config/video-effects";
+import type { resolveVideoEffectPrice } from "@repo/config/video-effects.server";
 import { applyVideoInternalFunding } from "@repo/config/video-internal-funding";
 import {
 	getVideoModel,
@@ -58,6 +59,7 @@ export function requireVideoModelReadiness(
 	environment: Record<string, string | undefined>,
 	bindings: VideoV1Bindings,
 	request?: VideoRequestInput | VideoModelSelection,
+	options?: { priceOverride: ReturnType<typeof resolveVideoEffectPrice> },
 ) {
 	const config = readVideoV1Config(environment);
 	const selection = videoRequestSelection(request);
@@ -80,7 +82,8 @@ export function requireVideoModelReadiness(
 		visualSafetyProfile,
 		textSafetyProfile,
 		audioSafetyPolicy: createVideoAudioSafetyPolicy(),
-		price: resolveVideoModelPrice(selection, environment) satisfies VideoPrice,
+		price: (options?.priceOverride ??
+			resolveVideoModelPrice(selection, environment)) satisfies VideoPrice,
 	};
 }
 

@@ -1,5 +1,8 @@
-/** Server-only transport for video policy. Credentials and the kill switch stay separate. */
+/** Server-only transport for video policy. Credentials and admission switches stay separate. */
 export const VIDEO_RUNTIME_ENVIRONMENT_KEYS = [
+	"RUMPELSTILTSKIN_ACCESS",
+	"RUMPELSTILTSKIN_ALLOWED_USER_IDS",
+	"RUMPELSTILTSKIN_ACCEPTED_TEMPLATE_VERSION",
 	"RAINDANCE_ENABLED",
 	"RAINDANCE_ACCESS",
 	"RAINDANCE_ACCEPTED_TEMPLATE_VERSION",
@@ -60,10 +63,20 @@ export const VIDEO_RUNTIME_ENVIRONMENT_KEYS = [
 	"HOTEL_LOBBY_DUO_ADDITIONAL_STORAGE_COST_MICROS",
 ] as const;
 export type VideoRuntimeEnvironmentKey = (typeof VIDEO_RUNTIME_ENVIRONMENT_KEYS)[number];
-export type VideoRuntimeEnvironmentValues = Partial<Record<VideoRuntimeEnvironmentKey, string>> & {
+/** Large private approvals use separate bounded bindings, never the shared policy pack. */
+export const VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS = [
+	"RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE",
+	"RUMPELSTILTSKIN_COST_APPROVAL",
+] as const;
+export type VideoPrivateReferenceEnvironmentKey =
+	(typeof VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS)[number];
+export type VideoRuntimeEnvironmentValues = Partial<
+	Record<VideoRuntimeEnvironmentKey | VideoPrivateReferenceEnvironmentKey, string>
+> & {
 	VIDEO_RUNTIME_CONFIG?: string;
 	VIDEO_V1_ENABLED?: string;
 	HOTEL_LOBBY_DUO_ENABLED?: string;
+	RUMPELSTILTSKIN_ENABLED?: string;
 };
 const keys = new Set<string>(VIDEO_RUNTIME_ENVIRONMENT_KEYS);
 // Legacy private packs remain readable; current admission does not consume these fields.
@@ -163,10 +176,17 @@ export function expandVideoRuntimeEnvironment<T extends object>(
 		)
 			throw new Error("VIDEO_RUNTIME_CONFIG_CONFLICT");
 	}
+	for (const key of VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS) {
+		if (
+			source[key] !== undefined &&
+			(!validValue(source[key]) || new TextEncoder().encode(source[key]).byteLength > maximumBytes)
+		)
+			throw new Error("VIDEO_PRIVATE_REFERENCE_CONFIG_INVALID");
+	}
 	return { ...input, ...packed };
 }
 
-/** One private Worker binding; keep credentials and both admission switches as separate bindings. */
+/** One private policy pack; credentials, reference approvals and admission switches stay separate. */
 export function packVideoRuntimeEnvironment(input: Record<string, string>): Record<string, string> {
 	const expanded = expandVideoRuntimeEnvironment(input);
 	const packed = Object.fromEntries(
@@ -200,15 +220,31 @@ export function hydrateVideoRuntimeEnvironment<T extends object>(
 		result.VIDEO_V1_ENABLED = result.VIDEO_V1_ENABLED === "true" ? "true" : "false";
 		result.HOTEL_LOBBY_DUO_ENABLED = result.HOTEL_LOBBY_DUO_ENABLED === "true" ? "true" : "false";
 	} catch {
-		result = { ...input, VIDEO_V1_ENABLED: "false", HOTEL_LOBBY_DUO_ENABLED: "false" };
-		for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) delete result[key];
+		result = {
+			...input,
+			VIDEO_V1_ENABLED: "false",
+			HOTEL_LOBBY_DUO_ENABLED: "false",
+			RUMPELSTILTSKIN_ENABLED: "false",
+		};
+		for (const key of [
+			...VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+			...VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
+		])
+			delete result[key];
 		delete result.VIDEO_RUNTIME_CONFIG;
 	}
-	for (const key of [...VIDEO_RUNTIME_ENVIRONMENT_KEYS, "VIDEO_RUNTIME_CONFIG"] as const) {
+	result.RUMPELSTILTSKIN_ENABLED =
+		(result.RUMPELSTILTSKIN_ENABLED ?? "true") === "true" ? "true" : "false";
+	for (const key of [
+		...VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+		...VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
+		"VIDEO_RUNTIME_CONFIG",
+	] as const) {
 		if (result[key] === undefined) delete target[key];
 		else target[key] = result[key];
 	}
 	target.VIDEO_V1_ENABLED = result.VIDEO_V1_ENABLED;
 	target.HOTEL_LOBBY_DUO_ENABLED = result.HOTEL_LOBBY_DUO_ENABLED;
+	target.RUMPELSTILTSKIN_ENABLED = result.RUMPELSTILTSKIN_ENABLED;
 	return result;
 }

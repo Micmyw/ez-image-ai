@@ -27,12 +27,18 @@ export function migrationDatabaseUrl(environment: Record<string, string>, root: 
 	if (database.searchParams.get("sslmode") !== "verify-full") {
 		throw new Error("MIGRATION_STATUS_REQUIRES_VERIFIED_TLS");
 	}
-	const ca = database.searchParams.get("sslrootcert");
-	if (ca?.replaceAll("\\", "/").endsWith("/supabase-prod-ca-2021.crt")) {
-		database.searchParams.set(
-			"sslrootcert",
-			path.join(root, "tooling/certificates/supabase-prod-ca-2021.crt"),
-		);
-	}
+	const repositoryCa = path.join(root, "tooling/certificates/supabase-prod-ca-2021.crt");
+	const configuredCa = database.searchParams.get("sslrootcert");
+	const ca =
+		!configuredCa?.trim() ||
+		configuredCa.replaceAll("\\", "/").split("/").at(-1) === "supabase-prod-ca-2021.crt"
+			? repositoryCa
+			: configuredCa;
+	// Prisma's Rust connector does not recognize verify-full or sslrootcert.
+	// Its require mode enforces TLS, and strict retains certificate and hostname verification.
+	database.searchParams.set("sslmode", "require");
+	database.searchParams.set("sslaccept", "strict");
+	database.searchParams.set("sslcert", ca);
+	database.searchParams.delete("sslrootcert");
 	return database.toString();
 }

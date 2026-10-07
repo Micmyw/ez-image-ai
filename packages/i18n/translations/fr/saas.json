@@ -398,7 +398,8 @@
 			"openNavigation": "Ouvrir la navigation",
 			"organizationSettings": "Paramètres de l'organisation",
 			"start": "Démarrage",
-			"video": "Vidéo bêta"
+			"video": "Vidéo bêta",
+			"rumpelstiltskin": "Rumpelstiltskin"
 		},
 		"userMenu": {
 			"accountSettings": "Paramètres du compte",
@@ -2053,6 +2054,21 @@
 			"sceneCaption": "Illustration de scène par IA, pas un exemple de vidéo générée. Votre résultat apparaîtra ici après la génération.",
 			"uploadPhotoHint": "Importez votre photo pour vérifier le coût total.",
 			"waitingForPhoto": "Importation et traitement de votre photo en cours…"
+		},
+		"rumpelstiltskin": {
+			"label": "Danse avec un portrait",
+			"title": "Vidéo de danse Rumpelstiltskin",
+			"onePhoto": "Une photo. Votre danse.",
+			"testHint": "Importez un portrait net d’un adulte pour utiliser le mouvement de danse prédéfini. La ressemblance et les mouvements peuvent varier ; la musique originale n’est pas incluse.",
+			"referenceTitle": "Mouvement de danse prédéfini",
+			"referenceHint": "La danse utilise une référence de mouvement prédéfinie. Vous importez uniquement un portrait. Votre résultat privé apparaîtra ici après la génération.",
+			"priceHint": "Vérifiez le total des crédits avant de confirmer. Le devis comprend la génération et les contrôles de sécurité.",
+			"motionRequired": "La vidéo de mouvement est en préparation. La génération est actuellement indisponible.",
+			"motionInvalid": "La vidéo de mouvement est temporairement indisponible. Veuillez réessayer plus tard.",
+			"costRequired": "Le tarif est en préparation. La génération est actuellement indisponible.",
+			"costInvalid": "Le tarif est temporairement indisponible. Veuillez réessayer plus tard.",
+			"history": "Vos vidéos Rumpelstiltskin",
+			"emptyHistory": "Vos commandes de vidéo Rumpelstiltskin apparaîtront ici."
 		},
 		"eligibleBalance": "Disponibles pour cette vidéo",
 		"accountBalance": "Total du compte : {credits} crédits",

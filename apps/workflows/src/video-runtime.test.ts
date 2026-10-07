@@ -1,4 +1,7 @@
-import { VIDEO_RUNTIME_ENVIRONMENT_KEYS } from "@repo/config/video-runtime-environment";
+import {
+	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+	VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
+} from "@repo/config/video-runtime-environment";
 import {
 	getVideoWorkflowBinding,
 	getVideoWorkflowReadinessBindings,
@@ -73,9 +76,11 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	for (const key of [
 		...VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+		...VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
 		"VIDEO_RUNTIME_CONFIG",
 		"VIDEO_V1_ENABLED",
 		"HOTEL_LOBBY_DUO_ENABLED",
+		"RUMPELSTILTSKIN_ENABLED",
 	])
 		vi.stubEnv(key, undefined);
 	mocks.database.mockReturnValue({ $disconnect: mocks.disconnect });
@@ -84,6 +89,34 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("video Worker runtime environment", () => {
+	it("hydrates a resumed reference test with private bindings before database work and clears them", async () => {
+		const privatePolicy = {
+			RUMPELSTILTSKIN_ACCESS: "internal",
+			RUMPELSTILTSKIN_ALLOWED_USER_IDS: "synthetic-tester",
+			RUMPELSTILTSKIN_ACCEPTED_TEMPLATE_VERSION: "synthetic-version",
+		};
+		const bindings = {
+			RUMPELSTILTSKIN_ENABLED: "true",
+			RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: '{"synthetic":"motion"}',
+			RUMPELSTILTSKIN_COST_APPROVAL: '{"synthetic":"cost"}',
+			VIDEO_RUNTIME_CONFIG: JSON.stringify(privatePolicy),
+		};
+		mocks.database.mockImplementationOnce(() => {
+			for (const [key, value] of Object.entries({ ...bindings, ...privatePolicy }))
+				expect(process.env[key]).toBe(value);
+			return { $disconnect: mocks.disconnect };
+		});
+		await withVideoRuntime(environment(bindings), async () => undefined);
+		await withVideoRuntime(environment(), async () => {
+			expect(process.env.RUMPELSTILTSKIN_ENABLED).toBe("true");
+			for (const key of [
+				...Object.keys(privatePolicy),
+				...VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
+			])
+				expect(process.env[key]).toBeUndefined();
+		});
+		expect(mocks.disconnect).toHaveBeenCalledTimes(2);
+	});
 	it("reads packed timing before a native Workflow starts without an HTTP request", async () => {
 		const env = environment({
 			VIDEO_V1_ENABLED: "true",

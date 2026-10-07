@@ -2,6 +2,12 @@
 
 ## 2026-10-07
 
+### Rumpelstiltskin reference-video workflow
+
+- Add an authenticated account entry using one uploaded portrait and a frozen private motion reference with Seedance 2. Review the portrait once; this path skips scene-image generation. Generation requires qualifying paid credits and an authorized, reviewed motion asset.
+- Price reference-video requests from dated Kie public rates and explicit conservative review, runtime, storage, payment and failure budgets. Require net revenue at least three times complete operating cost, using the lowest purchasable receipt per all issued credits.
+- Preserve accepted-task recovery, private owner-scoped history and output review. Keep missing motion material blocked without substituting a generic dance or claiming untested output quality. Real video generation testing is excluded by the user's release decision.
+
 ### Kie-aligned video settings without test allowlists
 
 - Remove ordinary-video user-ID and model-option test allowlists. All signed-in, non-anonymous accounts can use implemented Kie model settings when pricing, funding and service checks pass; unsupported or unpriced provider options remain unavailable.

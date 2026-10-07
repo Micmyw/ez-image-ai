@@ -14,6 +14,15 @@ export function requireVideoTemplateSceneEnvironment(
 	template: VideoEffectTemplateConfig,
 	environment: Record<string, string | undefined>,
 ) {
+	if (template.schemaVersion === 2 && template.executionKind === "seedance-reference") {
+		if (
+			environment.MEDIA_GENERATION_ENABLED !== "true" ||
+			!parseMediaEnabledProviders(environment).includes("kie") ||
+			(environment.RUMPELSTILTSKIN_ENABLED ?? "true") !== "true"
+		)
+			throw new Error("VIDEO_EFFECT_DISABLED");
+		return;
+	}
 	const contract = getImageProductSelectionContract(VIDEO_TEMPLATE_SCENE_PRODUCT_KEY);
 	if (
 		environment.MEDIA_GENERATION_ENABLED !== "true" ||
@@ -33,10 +42,15 @@ export async function requireVideoTemplateRuntimeEnabled(
 	environment: Record<string, string | undefined> = process.env,
 ) {
 	requireVideoTemplateSceneEnvironment(template, environment);
+	const reference = template.schemaVersion === 2 && template.executionKind === "seedance-reference";
 	const keys = new Set([
 		"media.generation.enabled",
-		`media.model.${template.scene.productKey}.enabled`,
-		`media.model.${VIDEO_TEMPLATE_SCENE_PRODUCT_KEY}.enabled`,
+		...(!reference
+			? [
+					`media.model.${template.scene.productKey}.enabled`,
+					`media.model.${VIDEO_TEMPLATE_SCENE_PRODUCT_KEY}.enabled`,
+				]
+			: []),
 		`media.model.${template.video.productKey}.enabled`,
 	]);
 	const overrides = await getActiveRuntimeConfigOverrides(db);

@@ -398,7 +398,8 @@
 			"openNavigation": "Navigation öffnen",
 			"organizationSettings": "Organisationseinstellungen",
 			"start": "Start",
-			"video": "Video-Beta"
+			"video": "Video-Beta",
+			"rumpelstiltskin": "Rumpelstiltskin"
 		},
 		"userMenu": {
 			"accountSettings": "Kontoeinstellungen",
@@ -2053,6 +2054,21 @@
 			"sceneCaption": "KI-Szenenillustration, kein erzeugtes Videobeispiel. Nach der Generierung erscheint hier dein Ergebnis.",
 			"uploadPhotoHint": "Lade dein Foto hoch, um die Gesamtkosten zu prüfen.",
 			"waitingForPhoto": "Dein Foto wird hochgeladen und verarbeitet…"
+		},
+		"rumpelstiltskin": {
+			"label": "Porträttanz",
+			"title": "Rumpelstiltskin-Tanzvideo",
+			"onePhoto": "Ein Foto. Dein Tanz.",
+			"testHint": "Lade ein klares Porträt einer erwachsenen Person hoch, um die vorgegebene Tanzbewegung zu verwenden. Ähnlichkeit und Bewegung können variieren; die Originalmusik ist nicht enthalten.",
+			"referenceTitle": "Vorgegebene Tanzbewegung",
+			"referenceHint": "Der Tanz nutzt eine feste Bewegungsvorlage. Du lädst nur ein Porträt hoch. Dein privates Ergebnis erscheint hier nach der Generierung.",
+			"priceHint": "Prüfe vor der Bestätigung die Gesamtzahl der Credits. Der Preis umfasst Generierung und Sicherheitsprüfungen.",
+			"motionRequired": "Das Bewegungsvideo wird vorbereitet. Die Generierung ist derzeit nicht verfügbar.",
+			"motionInvalid": "Das Bewegungsvideo ist vorübergehend nicht verfügbar. Bitte prüfe später erneut.",
+			"costRequired": "Der Preis wird vorbereitet. Die Generierung ist derzeit nicht verfügbar.",
+			"costInvalid": "Der Preis ist vorübergehend nicht verfügbar. Bitte prüfe später erneut.",
+			"history": "Deine Rumpelstiltskin-Videos",
+			"emptyHistory": "Deine Rumpelstiltskin-Videoaufträge erscheinen hier."
 		},
 		"eligibleBalance": "Für dieses Video verfügbar",
 		"accountBalance": "Kontoguthaben: {credits} Credits",

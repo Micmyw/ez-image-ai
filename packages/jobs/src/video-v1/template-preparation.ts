@@ -83,6 +83,8 @@ export async function prepareVideoTemplate(
 	let execution = await deps.store.getVideoTemplateExecution(jobId);
 	if (!execution) return { status: "ALLOW" }; // Ordinary video keeps its original execution path.
 	const template = parseVideoEffectTemplateSnapshot(execution.templateSnapshot);
+	const referenceTemplate =
+		template.schemaVersion === 2 && template.executionKind === "seedance-reference";
 	const snapshot = object(execution.job.inputSnapshot);
 	const textProfile = readVideoTextSafetyProfile(snapshot);
 	const config = readVideoV1Config(env);
@@ -211,6 +213,7 @@ export async function prepareVideoTemplate(
 			["sceneTextDecision", template.scene.prompt],
 			["motionTextDecision", template.video.prompt],
 		] as const) {
+			if (referenceTemplate && key === "sceneTextDecision") continue;
 			let reviewed = key === "sceneTextDecision" ? sceneText : motionText;
 			const promptVersion =
 				key === "sceneTextDecision" ? template.scene.promptVersion : template.video.promptVersion;
@@ -244,6 +247,24 @@ export async function prepareVideoTemplate(
 			else motionText = reviewed;
 		}
 		for (const identity of roleIdentities) {
+			if (referenceTemplate && identity.role === "right") {
+				const left = roleIdentities[0]!;
+				if (
+					identity.assetId !== left.assetId ||
+					identity.checksum !== left.checksum ||
+					identity.objectKey !== left.objectKey ||
+					identity.storageEtag !== left.storageEtag ||
+					identity.storageVersionId !== left.storageVersionId ||
+					identity.verificationGeneration !== left.verificationGeneration
+				)
+					return hold("VIDEO_TEMPLATE_ROLE_IDENTITIES_INVALID");
+				const fresh = await deps.store.getVideoTemplateExecution(jobId);
+				// One subject photo has one review; retain both frozen role bindings for old storage shape.
+				await deps.store.recordVideoTemplateImageReview(jobId, "right", {
+					...object(object(fresh?.inputReview).left),
+				});
+				continue;
+			}
 			const reviewed = await reviewImage(identity.role, identity);
 			if (reviewed.status !== "ALLOW") return reviewed;
 		}
@@ -253,180 +274,195 @@ export async function prepareVideoTemplate(
 			requestFingerprint: snapshot.requestFingerprint,
 		});
 		execution = (await deps.store.getVideoTemplateExecution(jobId))!;
-		if (!execution.sceneProviderTaskId) {
-			if (execution.sceneSubmissionUncertain)
-				return hold("VIDEO_TEMPLATE_SCENE_SUBMISSION_UNCERTAIN");
-			const callbackBase = resolveVideoV1CallbackBaseUrl(env);
-			if (!callbackBase || !env.KIE_WEBHOOK_SECRET)
-				return hold("VIDEO_TEMPLATE_CALLBACK_NOT_CONFIGURED");
-			const token = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
-				byte.toString(16).padStart(2, "0"),
-			).join("");
-			const references = await Promise.all(
-				roleIdentities.map((identity) => deps.signRead(identity.objectKey)),
-			);
-			const request: KieTemplateSceneInput = {
-				...template.scene,
-				referenceUrls: [references[0]!, references[1]!],
-				callbackUrl: new URL(`/api/webhooks/video-template/kie/${token}`, callbackBase).href,
-			};
-			// Strip internal prompt/version/capacity metadata from the provider boundary.
-			const providerRequest: KieTemplateSceneInput = {
-				productKey: request.productKey,
-				prompt: request.prompt,
-				referenceUrls: request.referenceUrls,
-				aspectRatio: request.aspectRatio,
-				outputCount: request.outputCount,
-				callbackUrl: request.callbackUrl,
-			};
-			try {
-				await deps.requireRuntimeEnabled(template, env);
-			} catch {
-				return hold("VIDEO_TEMPLATE_RUNTIME_DISABLED");
-			}
-			let claim: Awaited<ReturnType<typeof deps.store.claimVideoTemplateSceneSubmission>>;
-			try {
-				claim = await deps.store.claimVideoTemplateSceneSubmission({
-					jobId,
-					callbackTokenHash: await hashVideoCallbackToken(token),
-				});
-			} catch (error) {
-				const reason = error instanceof Error ? error.message : "";
-				if (
-					!["VIDEO_PRICE_EXPIRED", "VIDEO_PRICE_INVALID", "VIDEO_FUNDING_POLICY_CHANGED"].includes(
-						reason,
-					)
-				)
-					throw error;
-				const latest = await deps.store.getVideoTemplateExecution(jobId);
-				if (latest?.submittedAt) return hold("VIDEO_TEMPLATE_SCENE_SUBMISSION_UNCERTAIN");
-				// The final fail transaction independently rechecks no uncertain scene/final attempt.
-				return { status: "REJECT", reasonCode: reason };
-			}
-			if (!claim.claimed) {
-				if (!claim.execution.sceneProviderTaskId)
+		if (referenceTemplate) {
+			// The source photo and approved private motion clip are inputs, not first/last frames.
+			// Keep the existing review fence; this path never sends a scene-generation request.
+			await deps.requireRuntimeEnabled(template, env);
+			await deps.store.finalizeVideoTemplateReferenceInput(jobId);
+		} else {
+			if (!execution.sceneProviderTaskId) {
+				if (execution.sceneSubmissionUncertain)
 					return hold("VIDEO_TEMPLATE_SCENE_SUBMISSION_UNCERTAIN");
-			} else {
+				const callbackBase = resolveVideoV1CallbackBaseUrl(env);
+				if (!callbackBase || !env.KIE_WEBHOOK_SECRET)
+					return hold("VIDEO_TEMPLATE_CALLBACK_NOT_CONFIGURED");
+				const token = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
+					byte.toString(16).padStart(2, "0"),
+				).join("");
+				const references = await Promise.all(
+					roleIdentities.map((identity) => deps.signRead(identity.objectKey)),
+				);
+				const request: KieTemplateSceneInput = {
+					...template.scene,
+					referenceUrls: [references[0]!, references[1]!],
+					callbackUrl: new URL(`/api/webhooks/video-template/kie/${token}`, callbackBase).href,
+				};
+				// Strip internal prompt/version/capacity metadata from the provider boundary.
+				const providerRequest: KieTemplateSceneInput = {
+					productKey: request.productKey,
+					prompt: request.prompt,
+					referenceUrls: request.referenceUrls,
+					aspectRatio: request.aspectRatio,
+					outputCount: request.outputCount,
+					callbackUrl: request.callbackUrl,
+				};
 				try {
-					const submitted = await measured("scene-submit", () =>
-						deps.provider.submit(providerRequest),
-					);
-					if (submitted.status === "ACCEPTED")
-						await deps.store.recordVideoTemplateSceneAccepted(jobId, submitted.providerTaskId);
-					else if (submitted.status === "DEFINITELY_REJECTED") {
-						await deps.store.markVideoTemplateSceneFailed(jobId, submitted.reasonCode, true);
-						return { status: "REJECT", reasonCode: submitted.reasonCode };
-					} else {
+					await deps.requireRuntimeEnabled(template, env);
+				} catch {
+					return hold("VIDEO_TEMPLATE_RUNTIME_DISABLED");
+				}
+				let claim: Awaited<ReturnType<typeof deps.store.claimVideoTemplateSceneSubmission>>;
+				try {
+					claim = await deps.store.claimVideoTemplateSceneSubmission({
+						jobId,
+						callbackTokenHash: await hashVideoCallbackToken(token),
+					});
+				} catch (error) {
+					const reason = error instanceof Error ? error.message : "";
+					if (
+						![
+							"VIDEO_PRICE_EXPIRED",
+							"VIDEO_PRICE_INVALID",
+							"VIDEO_FUNDING_POLICY_CHANGED",
+						].includes(reason)
+					)
+						throw error;
+					const latest = await deps.store.getVideoTemplateExecution(jobId);
+					if (latest?.submittedAt) return hold("VIDEO_TEMPLATE_SCENE_SUBMISSION_UNCERTAIN");
+					// The final fail transaction independently rechecks no uncertain scene/final attempt.
+					return { status: "REJECT", reasonCode: reason };
+				}
+				if (!claim.claimed) {
+					if (!claim.execution.sceneProviderTaskId)
+						return hold("VIDEO_TEMPLATE_SCENE_SUBMISSION_UNCERTAIN");
+				} else {
+					try {
+						const submitted = await measured("scene-submit", () =>
+							deps.provider.submit(providerRequest),
+						);
+						if (submitted.status === "ACCEPTED")
+							await deps.store.recordVideoTemplateSceneAccepted(jobId, submitted.providerTaskId);
+						else if (submitted.status === "DEFINITELY_REJECTED") {
+							await deps.store.markVideoTemplateSceneFailed(jobId, submitted.reasonCode, true);
+							return { status: "REJECT", reasonCode: submitted.reasonCode };
+						} else {
+							const known = await deps.store.getVideoTemplateExecution(jobId);
+							if (!known?.sceneProviderTaskId)
+								return hold("VIDEO_TEMPLATE_SCENE_SUBMISSION_UNCERTAIN");
+						}
+					} catch {
 						const known = await deps.store.getVideoTemplateExecution(jobId);
+						if (known) {
+							const terminal = failedScene(known);
+							if (terminal) return terminal;
+						}
 						if (!known?.sceneProviderTaskId)
 							return hold("VIDEO_TEMPLATE_SCENE_SUBMISSION_UNCERTAIN");
 					}
-				} catch {
-					const known = await deps.store.getVideoTemplateExecution(jobId);
-					if (known) {
-						const terminal = failedScene(known);
-						if (terminal) return terminal;
-					}
-					if (!known?.sceneProviderTaskId) return hold("VIDEO_TEMPLATE_SCENE_SUBMISSION_UNCERTAIN");
 				}
+				execution = (await deps.store.getVideoTemplateExecution(jobId))!;
+			}
+			if (!execution.sceneProviderTaskId) return hold("VIDEO_TEMPLATE_SCENE_SUBMISSION_UNCERTAIN");
+			let evidence = object(execution.sceneProviderEvidence);
+			if (evidence.status !== "SUCCEEDED") {
+				if (
+					deps.now().getTime() >=
+					(execution.submittedAt ?? execution.createdAt).getTime() +
+						config.providerDeadlineSeconds * 1000
+				)
+					return hold("VIDEO_TEMPLATE_SCENE_PROVIDER_DEADLINE");
+				const result = await measured("scene-query", () =>
+					deps.provider.retrieve(execution!.sceneProviderTaskId!),
+				);
+				if (result.status === "PENDING")
+					return pending(
+						execution.submittedAt ?? execution.createdAt,
+						config.providerDeadlineSeconds,
+						config.providerPollSeconds,
+					);
+				await deps.store.recordVideoTemplateSceneProviderResult({
+					jobId,
+					taskId: execution.sceneProviderTaskId,
+					evidence: result,
+				});
+				if (result.status === "FAILED") {
+					await deps.store.markVideoTemplateSceneFailed(jobId, result.reasonCode);
+					return { status: "REJECT", reasonCode: result.reasonCode };
+				}
+				evidence = result;
+			}
+			if (!execution.sceneAsset?.finalizedAt) {
+				let asset: Awaited<ReturnType<typeof deps.store.prepareVideoTemplateSceneAsset>>;
+				try {
+					asset = await deps.store.prepareVideoTemplateSceneAsset(jobId);
+				} catch (error) {
+					if (!(error instanceof Error) || error.message !== "VIDEO_TEMPLATE_SCENE_TRANSFER_BUSY")
+						throw error;
+					const latest = await deps.store.getVideoTemplateExecution(jobId);
+					const expiresAt = latest?.sceneAsset?.outputTransferLeaseExpiresAt;
+					if (!expiresAt) throw error;
+					return {
+						status: "PENDING",
+						retryAfterSeconds: 5,
+						deadlineAt: new Date(expiresAt.getTime() + 60_000).toISOString(),
+					};
+				}
+				if (typeof evidence.outputUrl !== "string")
+					throw new Error("VIDEO_TEMPLATE_SCENE_RESULT_MISSING");
+				const sourceUrl = evidence.outputUrl;
+				const stored = await measured("scene-store", () =>
+					deps.storeScene({
+						bucket: "media",
+						key: asset.objectKey,
+						sourceUrl,
+						maximumBytes: template.scene.maxOutputBytes,
+						allowedHosts: config.outputAllowedHosts,
+					}),
+				);
+				await deps.store.recordVideoTemplateSceneAsset({
+					jobId,
+					transferToken: asset.outputTransferToken!,
+					asset: {
+						id: asset.id,
+						objectKey: asset.objectKey,
+						mimeType: "image/png",
+						byteSize: BigInt(stored.bytes),
+						checksum: stored.sha256,
+						width: stored.width,
+						height: stored.height,
+						storageEtag: stored.etag,
+						storageVersionId: stored.versionId,
+					},
+				});
 			}
 			execution = (await deps.store.getVideoTemplateExecution(jobId))!;
+			const asset = execution.sceneAsset;
+			if (!asset?.checksum || !asset.storageEtag)
+				throw new Error("VIDEO_TEMPLATE_SCENE_IDENTITY_MISSING");
+			const sceneIdentity: VideoInputIdentity = {
+				assetId: asset.id,
+				objectKey: asset.objectKey,
+				checksum: asset.checksum,
+				storageEtag: asset.storageEtag,
+				storageVersionId: asset.storageVersionId,
+				verificationGeneration: asset.verificationGeneration,
+			};
+			const reviewed = await reviewImage("scene", sceneIdentity);
+			if (reviewed.status !== "ALLOW") return reviewed;
+			await deps.store.recordVideoTemplateReview(jobId, "scene", { status: "ALLOW" });
+			await deps.store.sealVideoTemplateResolvedInput(jobId);
 		}
-		if (!execution.sceneProviderTaskId) return hold("VIDEO_TEMPLATE_SCENE_SUBMISSION_UNCERTAIN");
-		let evidence = object(execution.sceneProviderEvidence);
-		if (evidence.status !== "SUCCEEDED") {
-			if (
-				deps.now().getTime() >=
-				(execution.submittedAt ?? execution.createdAt).getTime() +
-					config.providerDeadlineSeconds * 1000
-			)
-				return hold("VIDEO_TEMPLATE_SCENE_PROVIDER_DEADLINE");
-			const result = await measured("scene-query", () =>
-				deps.provider.retrieve(execution!.sceneProviderTaskId!),
-			);
-			if (result.status === "PENDING")
-				return pending(
-					execution.submittedAt ?? execution.createdAt,
-					config.providerDeadlineSeconds,
-					config.providerPollSeconds,
-				);
-			await deps.store.recordVideoTemplateSceneProviderResult({
-				jobId,
-				taskId: execution.sceneProviderTaskId,
-				evidence: result,
-			});
-			if (result.status === "FAILED") {
-				await deps.store.markVideoTemplateSceneFailed(jobId, result.reasonCode);
-				return { status: "REJECT", reasonCode: result.reasonCode };
-			}
-			evidence = result;
-		}
-		if (!execution.sceneAsset?.finalizedAt) {
-			let asset: Awaited<ReturnType<typeof deps.store.prepareVideoTemplateSceneAsset>>;
-			try {
-				asset = await deps.store.prepareVideoTemplateSceneAsset(jobId);
-			} catch (error) {
-				if (!(error instanceof Error) || error.message !== "VIDEO_TEMPLATE_SCENE_TRANSFER_BUSY")
-					throw error;
-				const latest = await deps.store.getVideoTemplateExecution(jobId);
-				const expiresAt = latest?.sceneAsset?.outputTransferLeaseExpiresAt;
-				if (!expiresAt) throw error;
-				return {
-					status: "PENDING",
-					retryAfterSeconds: 5,
-					deadlineAt: new Date(expiresAt.getTime() + 60_000).toISOString(),
-				};
-			}
-			if (typeof evidence.outputUrl !== "string")
-				throw new Error("VIDEO_TEMPLATE_SCENE_RESULT_MISSING");
-			const sourceUrl = evidence.outputUrl;
-			const stored = await measured("scene-store", () =>
-				deps.storeScene({
-					bucket: "media",
-					key: asset.objectKey,
-					sourceUrl,
-					maximumBytes: template.scene.maxOutputBytes,
-					allowedHosts: config.outputAllowedHosts,
-				}),
-			);
-			await deps.store.recordVideoTemplateSceneAsset({
-				jobId,
-				transferToken: asset.outputTransferToken!,
-				asset: {
-					id: asset.id,
-					objectKey: asset.objectKey,
-					mimeType: "image/png",
-					byteSize: BigInt(stored.bytes),
-					checksum: stored.sha256,
-					width: stored.width,
-					height: stored.height,
-					storageEtag: stored.etag,
-					storageVersionId: stored.versionId,
-				},
-			});
-		}
-		execution = (await deps.store.getVideoTemplateExecution(jobId))!;
-		const asset = execution.sceneAsset;
-		if (!asset?.checksum || !asset.storageEtag)
-			throw new Error("VIDEO_TEMPLATE_SCENE_IDENTITY_MISSING");
-		const sceneIdentity: VideoInputIdentity = {
-			assetId: asset.id,
-			objectKey: asset.objectKey,
-			checksum: asset.checksum,
-			storageEtag: asset.storageEtag,
-			storageVersionId: asset.storageVersionId,
-			verificationGeneration: asset.verificationGeneration,
-		};
-		const reviewed = await reviewImage("scene", sceneIdentity);
-		if (reviewed.status !== "ALLOW") return reviewed;
-		await deps.store.recordVideoTemplateReview(jobId, "scene", { status: "ALLOW" });
-		await deps.store.sealVideoTemplateResolvedInput(jobId);
 	}
 	// Ordinary provider fence still checks this exact original fingerprint and Waffo profile.
 	execution = (await deps.store.getVideoTemplateExecution(jobId))!;
 	const resolved = object(execution.resolvedInputIdentity);
-	const frozenSceneReview = object(object(resolved.sceneReviewEvidence).scene);
-	const sceneAsset = execution.sceneAsset;
+	const frozenSceneReview = referenceTemplate
+		? object(object(resolved.sourceReviewEvidence).left)
+		: object(object(resolved.sceneReviewEvidence).scene);
+	const sceneAsset =
+		referenceTemplate && roleIdentities[0]
+			? { ...roleIdentities[0], id: roleIdentities[0].assetId }
+			: execution.sceneAsset;
 	const frozenSceneDecision = decision(frozenSceneReview.decision);
 	if (
 		!sceneAsset ||

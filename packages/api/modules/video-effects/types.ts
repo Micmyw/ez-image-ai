@@ -73,6 +73,15 @@ export const videoEffectPlaybackSchema = z
 
 /** Explicit allowlist: opaque provider/task/model identifiers never become template UI text. */
 export function publicVideoEffectError(message: string): string {
+	if (
+		[
+			"MOTION_REFERENCE_REQUIRED",
+			"MOTION_REFERENCE_INVALID",
+			"COST_APPROVAL_REQUIRED",
+			"COST_APPROVAL_INVALID",
+		].includes(message)
+	)
+		return message;
 	if (["NOT_FOUND", "VIDEO_UPLOAD_NOT_FOUND", "VIDEO_INPUT_NOT_AVAILABLE"].includes(message))
 		return "INPUT_OR_JOB_NOT_FOUND";
 	if (["VIDEO_ACCESS_DENIED"].includes(message)) return "ACCESS_DENIED";

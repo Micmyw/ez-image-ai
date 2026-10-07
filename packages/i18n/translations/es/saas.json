@@ -398,7 +398,8 @@
 			"openNavigation": "Abrir navegación",
 			"organizationSettings": "Configuración de organización",
 			"start": "Inicio",
-			"video": "Vídeo beta"
+			"video": "Vídeo beta",
+			"rumpelstiltskin": "Rumpelstiltskin"
 		},
 		"userMenu": {
 			"accountSettings": "Configuración de cuenta",
@@ -2053,6 +2054,21 @@
 			"sceneCaption": "Ilustración de escena con IA, no una muestra de vídeo generado. Tu resultado aparecerá aquí tras la generación.",
 			"uploadPhotoHint": "Sube tu foto para revisar el coste total.",
 			"waitingForPhoto": "Esperando a que termine la carga y el procesamiento de tu foto…"
+		},
+		"rumpelstiltskin": {
+			"label": "Baile con retrato",
+			"title": "Vídeo de baile de Rumpelstiltskin",
+			"onePhoto": "Una foto. Tu baile.",
+			"testHint": "Sube un retrato claro de una persona adulta para usar el movimiento de baile predefinido. El parecido y el movimiento pueden variar; no se incluye la música original.",
+			"referenceTitle": "Movimiento de baile predefinido",
+			"referenceHint": "El baile usa una referencia de movimiento predefinida. Solo subes un retrato. Tu resultado privado aparecerá aquí después de la generación.",
+			"priceHint": "Revisa el total de créditos antes de confirmar. El presupuesto incluye la generación y los controles de seguridad.",
+			"motionRequired": "El vídeo de movimiento se está preparando. La generación aún no está disponible.",
+			"motionInvalid": "El vídeo de movimiento no está disponible temporalmente. Vuelve a comprobarlo más tarde.",
+			"costRequired": "El precio se está preparando. La generación aún no está disponible.",
+			"costInvalid": "El precio no está disponible temporalmente. Vuelve a comprobarlo más tarde.",
+			"history": "Tus vídeos de Rumpelstiltskin",
+			"emptyHistory": "Tus pedidos de vídeo de Rumpelstiltskin aparecerán aquí."
 		},
 		"eligibleBalance": "Disponibles para este vídeo",
 		"accountBalance": "Total de la cuenta: {credits} créditos",

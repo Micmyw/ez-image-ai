@@ -19,11 +19,13 @@ import {
 	packVideoRuntimeEnvironment,
 	parseVideoRuntimeConfig,
 	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+	VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
 } from "@repo/config/video-runtime-environment";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { describe, expect, it } from "vitest";
 
+import { rumpelstiltskinEnvironmentFixture } from "../test-support/rumpelstiltskin-fixture";
 import { readCloudflareBuildEnvironment } from "./build-secrets";
 import {
 	createProfileArtifacts,
@@ -259,6 +261,80 @@ function artifacts(
 
 describe("prepared deployment artifacts", () => {
 	it.each(["workers", "hybrid"] as const)(
+		"publishes the authenticated customer entry by default without inventing approvals in %s",
+		(profile) => {
+			const result = artifacts(profile);
+			for (const name of ["website", "workflows"] as const) {
+				expect(result[name].vars).toMatchObject({ RUMPELSTILTSKIN_ENABLED: "true" });
+				const policy = parseVideoRuntimeConfig(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG);
+				expect(policy.RUMPELSTILTSKIN_ACCESS).toBe("authenticated");
+				for (const key of VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS) {
+					expect(result[`${name}.secrets`]).not.toHaveProperty(key);
+					expect(result[name].vars).not.toHaveProperty(key);
+				}
+			}
+		},
+	);
+	it.each(["workers", "hybrid"] as const)(
+		"keeps an explicit customer kill switch closed in %s",
+		(profile) => {
+			const result = artifacts(profile, { RUMPELSTILTSKIN_ENABLED: "false" });
+			for (const name of ["website", "workflows"] as const)
+				expect(result[name].vars).toMatchObject({ RUMPELSTILTSKIN_ENABLED: "false" });
+		},
+	);
+	it.each(["workers", "hybrid"] as const)(
+		"mirrors private reference approvals without reviving ordinary retired access fields in %s",
+		(profile) => {
+			const input: Record<string, string> = {
+				...multiModelVideoEnvironment,
+				...rumpelstiltskinEnvironmentFixture(),
+				VIDEO_V1_ACCESS: "authenticated",
+				VIDEO_V1_ALLOWED_USER_IDS: "obsolete-ordinary-users",
+				VIDEO_MODEL_ALLOWED_OPTIONS: "obsolete-ordinary-options",
+			};
+			const result = artifacts(profile, packVideoRuntimeEnvironment(input));
+			for (const name of ["website", "workflows"] as const) {
+				const secrets = result[`${name}.secrets`];
+				expect(result[name].vars).toMatchObject({ RUMPELSTILTSKIN_ENABLED: "true" });
+				expect(secrets).not.toHaveProperty("RUMPELSTILTSKIN_ENABLED");
+				const policy = parseVideoRuntimeConfig(secrets.VIDEO_RUNTIME_CONFIG);
+				expect(policy.RUMPELSTILTSKIN_ACCESS).toBe("authenticated");
+				for (const key of VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS) {
+					expect(secrets[key]).toBe(input[key]);
+					expect(result[name].vars).not.toHaveProperty(key);
+					expect(policy).not.toHaveProperty(key);
+				}
+				for (const key of ["VIDEO_V1_ALLOWED_USER_IDS", "VIDEO_MODEL_ALLOWED_OPTIONS"])
+					expect(policy).not.toHaveProperty(key);
+			}
+			if (profile === "hybrid") {
+				const container = JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV);
+				for (const key of VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS)
+					expect(container[key]).toBe(input[key]);
+				for (const key of ["VIDEO_V1_ALLOWED_USER_IDS", "VIDEO_MODEL_ALLOWED_OPTIONS"])
+					expect(container).not.toHaveProperty(key);
+			}
+		},
+	);
+	it("preserves an explicit packed internal rollback scope instead of replacing it with defaults", () => {
+		const result = artifacts("workers", {
+			VIDEO_RUNTIME_CONFIG: JSON.stringify({
+				RUMPELSTILTSKIN_ACCESS: "internal",
+				RUMPELSTILTSKIN_ALLOWED_USER_IDS: "synthetic-rollback-user",
+			}),
+		});
+		expect(parseVideoRuntimeConfig(result["website.secrets"].VIDEO_RUNTIME_CONFIG)).toMatchObject({
+			RUMPELSTILTSKIN_ACCESS: "internal",
+			RUMPELSTILTSKIN_ALLOWED_USER_IDS: "synthetic-rollback-user",
+		});
+	});
+	it("does not inherit an old private reference from the jobs template", () => {
+		expect(() =>
+			artifacts("workers", {}, { RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: "stale-private" }),
+		).toThrow(/^VIDEO_RUNTIME_TEMPLATE_CONFLICT$/);
+	});
+	it.each(["workers", "hybrid"] as const)(
 		"drops obsolete private access fields from every newly prepared %s runtime",
 		(profile) => {
 			const legacy = {
@@ -321,6 +397,7 @@ describe("prepared deployment artifacts", () => {
 			});
 			const expectedPolicy = {
 				...parseVideoRuntimeConfig(input.VIDEO_RUNTIME_CONFIG),
+				RUMPELSTILTSKIN_ACCESS: "authenticated",
 				VIDEO_V1_ACCESS: "authenticated",
 				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 				VIDEO_PRICE_BASIS: `${multiModelVideoEnvironment.VIDEO_PRICE_BASIS}; new-public-supplier-source`,
@@ -489,6 +566,7 @@ describe("prepared deployment artifacts", () => {
 		expect(result.workflows.vars).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
 		expect(result.workflows.vars).toMatchObject({ VIDEO_V1_ENABLED: "false" });
 		expect(parseVideoRuntimeConfig(result["workflows.secrets"].VIDEO_RUNTIME_CONFIG)).toEqual({
+			RUMPELSTILTSKIN_ACCESS: "authenticated",
 			VIDEO_V1_ACCESS: "internal",
 		});
 	});
@@ -543,6 +621,7 @@ describe("prepared deployment artifacts", () => {
 			VIDEO_RUNTIME_ENVIRONMENT_KEYS.slice(0, 19).map((key) => [key, "fixture"]),
 		);
 		policy.VIDEO_V1_ACCESS = "internal";
+		policy.RUMPELSTILTSKIN_ACCESS = "authenticated";
 		const base = artifacts("workers");
 		const next = artifacts("workers", policy);
 		for (const name of ["website", "workflows"] as const) {
