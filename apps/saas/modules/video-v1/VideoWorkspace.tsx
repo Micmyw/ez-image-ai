@@ -240,12 +240,12 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			destination.searchParams.set("videoResume", "1");
 		}
 	});
-	function signIn() {
+	async function signIn() {
 		try {
 			const target = registered
 				? `/create?mode=video${jobId ? `&videoJob=${encodeURIComponent(jobId)}` : ""}`
 				: "/create?mode=video&videoResume=1";
-			const destination = workspace?.prepareSignIn(target) ?? target;
+			const destination = (await workspace?.prepareSignIn(target)) ?? target;
 			window.location.assign(`/login?redirectTo=${encodeURIComponent(destination)}`);
 		} catch {
 			setStorageUnavailable(true);
@@ -287,7 +287,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			onSelectFile={(file) => {
 				if (confirmation || busy || !selectedModel.modes.includes("image-to-video")) return;
 				if (!registered) {
-					signIn();
+					void signIn();
 					return;
 				}
 				change({ mode: "image-to-video", inputAssetId: null });

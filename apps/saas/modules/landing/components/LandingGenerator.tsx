@@ -22,7 +22,6 @@ import {
 } from "@media/lib/image-sku-selection";
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
 import { useToolPrompt, useToolPromptBinding } from "@media/lib/tool-prompt-context";
-import { writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import { getImageProductSelectionContract, getPlanEntitlement } from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
@@ -128,8 +127,9 @@ function LandingGeneratorWorkspace({
 }) {
 	const effectEditor = useEffectEditor();
 	const workspace = useGenerationMode();
-	useGeneratorSignInDraft((destination) => {
+	useGeneratorSignInDraft(async (destination) => {
 		if (!selectedProduct || !selectedSku || (!prompt.trim() && !file)) return;
+		const { writeEditorUpgradeDraft } = await import("@payments/lib/editor-upgrade");
 		const saved = writeEditorUpgradeDraft(sessionStorage, {
 			draft: {
 				productKey: selectedProduct.key,
@@ -662,6 +662,7 @@ function LandingGeneratorWorkspace({
 			setTextDraftError(false);
 			setStage("handoff");
 			try {
+				const { writeEditorUpgradeDraft } = await import("@payments/lib/editor-upgrade");
 				const saved = writeEditorUpgradeDraft(window.sessionStorage, {
 					draft: {
 						productKey: selectedProduct.key,
@@ -686,7 +687,7 @@ function LandingGeneratorWorkspace({
 					effectEditor?.getReturnPath("resume") ??
 					`/create?resume=text&model=${encodeURIComponent(selectedProduct.key)}`;
 				window.location.assign(
-					`/login?${new URLSearchParams({ redirectTo: workspace?.prepareSignIn(redirectTo) ?? redirectTo })}`,
+					`/login?${new URLSearchParams({ redirectTo: (await workspace?.prepareSignIn(redirectTo)) ?? redirectTo })}`,
 				);
 			} catch {
 				submissionInFlight.current = false;

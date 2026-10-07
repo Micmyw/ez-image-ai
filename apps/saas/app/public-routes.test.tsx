@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 
 const sessionMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@auth/lib/server", () => ({ getSession: sessionMock }));
+vi.mock("@auth/hooks/use-session", () => ({ useSession: () => ({ user: null }) }));
+vi.mock("@auth/lib/api", () => ({ useSessionQuery: () => ({ isPending: true }) }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 vi.mock("@shared/components/studio/PublicHeaderAccount", () => ({
 	PublicHeaderAccount: () => <div data-public-account-controls="" />,
 }));

@@ -2,21 +2,15 @@
 
 import { useSession } from "@auth/hooks/use-session";
 import { useSessionQuery } from "@auth/lib/api";
-import {
-	NextIntlClientProvider,
-	useLocale,
-	useMessages,
-	type AbstractIntlMessages,
-} from "next-intl";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
-import { GenerationModeContext } from "../lib/generation-mode-context";
+import { GenerationModeContext, type SignInDraftSaver } from "../lib/generation-mode-context";
 import { generatorMode, generatorModeUrl, validVideoJobId } from "../lib/generator-navigation";
 
 const VideoWorkspace = dynamic(() =>
-	import("../../video-v1/VideoWorkspace").then((module) => module.VideoWorkspace),
+	import("../../video-v1/LocalizedVideoWorkspace").then((module) => module.LocalizedVideoWorkspace),
 );
 
 export function GenerationWorkspaceHeading({
@@ -44,26 +38,20 @@ export function GenerationWorkspaceHeading({
 }
 
 /** A view switch only: each generator retains its own form, upload and request lifetime. */
-export function GenerationWorkspace({
-	children,
-	videoMessages,
-}: {
-	children: ReactNode;
-	videoMessages: AbstractIntlMessages;
-}) {
+export function GenerationWorkspace({ children }: { children: ReactNode }) {
 	const params = useSearchParams();
 	const mode = generatorMode(params);
 	const { user } = useSession();
 	const { isPending: sessionPending } = useSessionQuery();
 	const owner = user && !user.isAnonymous ? user.id : "guest";
-	const messages = useMessages();
-	const locale = useLocale();
 	const [visitedVideo, setVisitedVideo] = useState(mode === "video");
+	const [signInPending, setSignInPending] = useState(false);
+	const signInOperation = useRef<Promise<string> | null>(null);
 	const root = useRef<HTMLDivElement>(null);
 	const pendingFocus = useRef(false);
 	const previousMode = useRef(mode);
-	const signInDrafts = useRef(new Set<(destination: URL) => void>());
-	const registerSignInDraft = useCallback((save: (destination: URL) => void) => {
+	const signInDrafts = useRef(new Set<SignInDraftSaver>());
+	const registerSignInDraft = useCallback((save: SignInDraftSaver) => {
 		signInDrafts.current.add(save);
 		return () => {
 			signInDrafts.current.delete(save);
@@ -96,31 +84,37 @@ export function GenerationWorkspace({
 			value={{
 				mode,
 				registerSignInDraft,
-				prepareSignIn(destination) {
-					const url = new URL(destination, window.location.origin);
-					for (const save of signInDrafts.current) save(url);
-					return url.pathname + url.search + url.hash;
+				async prepareSignIn(destination) {
+					if (signInOperation.current) return signInOperation.current;
+					setSignInPending(true);
+					const operation = (async () => {
+						const url = new URL(destination, window.location.origin);
+						for (const save of [...signInDrafts.current]) await save(url);
+						return url.pathname + url.search + url.hash;
+					})();
+					signInOperation.current = operation;
+					try {
+						return await operation;
+					} finally {
+						signInOperation.current = null;
+						setSignInPending(false);
+					}
 				},
 				selectMode(next) {
-					if (next === mode) return;
+					if (next === mode || signInOperation.current) return;
 					pendingFocus.current = true;
 					if (next === "video") setVisitedVideo(true);
 					window.history.pushState(null, "", generatorModeUrl(window.location.href, next));
 				},
 			}}
 		>
-			<div ref={root} data-generation-mode={mode}>
+			<div ref={root} data-generation-mode={mode} inert={signInPending} aria-busy={signInPending}>
 				<div data-generator-panel="image" hidden={mode !== "image"} inert={mode !== "image"}>
 					{children}
 				</div>
 				{(visitedVideo || mode === "video") && !sessionPending && (
 					<div data-generator-panel="video" hidden={mode !== "video"} inert={mode !== "video"}>
-						<NextIntlClientProvider
-							locale={locale}
-							messages={{ ...messages, videoV1: videoMessages }}
-						>
-							<VideoWorkspace key={owner} initialJobId={validVideoJobId(params.get("videoJob"))} />
-						</NextIntlClientProvider>
+						<VideoWorkspace key={owner} initialJobId={validVideoJobId(params.get("videoJob"))} />
 					</div>
 				)}
 			</div>

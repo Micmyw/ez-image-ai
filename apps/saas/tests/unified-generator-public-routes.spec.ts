@@ -263,7 +263,29 @@ test("mode drafts, history navigation and portal focus stay isolated", async ({ 
 	);
 	await page.goForward();
 	await expect(page.locator("#video-prompt")).toHaveValue("A different video draft.");
-	await page.getByRole("button", { name: "Sign in to generate", exact: true }).click();
+	let releaseDraftModule!: () => void;
+	const draftModuleReady = new Promise<void>((resolve) => {
+		releaseDraftModule = resolve;
+	});
+	let draftModuleRequested = false;
+	await page.route("**/_next/static/**/*.js", async (route) => {
+		const response = await route.fetch();
+		const source = await response.text();
+		if (source.includes("ezpic.editor-upgrade.v1")) {
+			draftModuleRequested = true;
+			await draftModuleReady;
+		}
+		await route.fulfill({ response });
+	});
+	try {
+		await page.getByRole("button", { name: "Sign in to generate", exact: true }).click();
+		await expect.poll(() => draftModuleRequested).toBe(true);
+		await expect(page.locator("[data-generation-mode]")).toHaveAttribute("inert", "");
+		await expect(page.locator("[data-generation-mode]")).toHaveAttribute("aria-busy", "true");
+	} finally {
+		releaseDraftModule();
+	}
+	await page.unrouteAll({ behavior: "wait" });
 	await expect(page).toHaveURL(/\/login\?redirectTo=/);
 	const destination = new URL(new URL(page.url()).searchParams.get("redirectTo")!, "http://local");
 	expect(destination.searchParams.get("videoResume")).toBe("1");
@@ -273,6 +295,11 @@ test("mode drafts, history navigation and portal focus stay isolated", async ({ 
 			() => JSON.parse(sessionStorage.getItem("ezpic.editor-upgrade.v1")!).draft.input.prompt,
 		),
 	).toBe("An image draft kept through video mode.");
+	expect(
+		await page.evaluate(
+			() => JSON.parse(sessionStorage.getItem("video-v1:guest-handoff")!).draft.prompt,
+		),
+	).toBe("A different video draft.");
 });
 test("price invalidation, known rejection and immutable unknown-response retry", async ({
 	page,
