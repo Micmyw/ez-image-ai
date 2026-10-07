@@ -2,7 +2,7 @@ import { VIDEO_MODEL_CATALOG, VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/v
 import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { buildVideoCatalogModels } from "./catalog";
 
@@ -55,7 +55,94 @@ const environment = {
 };
 const bindings = { workflow: true, r2: true, hyperdrive: true, uploadCors: true };
 
+beforeEach(() => {
+	vi.useFakeTimers();
+	vi.setSystemTime(new Date("2026-10-07T13:50:00.000Z"));
+});
+afterEach(() => vi.useRealTimers());
+
 describe("video public catalogue pricing and readiness", () => {
+	it("restores only approved Mini/Fast options after the old cutoff with unchanged reference credits", () => {
+		expect(VIDEO_MODEL_CATALOG_VERSION).toBe("video-models-2026-10-04.2");
+		const approved = {
+			...environment,
+			VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-07.1",
+			VIDEO_PRICE_VALID_UNTIL: "2026-10-12T00:00:00.000Z",
+		};
+		const before = buildVideoCatalogModels(environment, bindings, true, new Set());
+		const models = buildVideoCatalogModels(approved, bindings, true, new Set());
+		for (const productKey of ["video-seedance-2-mini", "video-seedance-2-fast"]) {
+			const model = models.find((item) => item.productKey === productKey)!;
+			expect(model.available).toBe(true);
+			expect(model.options).toHaveLength(96);
+			expect(
+				model.options.every((option) => option.available && /^\d+$/.test(option.credits!)),
+			).toBe(true);
+		}
+		for (const productKey of ["video-kling-2-6-v1", "video-minimax-h3", "video-seedance-1-5-pro"])
+			expect(models.find((model) => model.productKey === productKey)).toEqual(
+				before.find((model) => model.productKey === productKey),
+			);
+		const restricted = buildVideoCatalogModels(
+			{
+				...approved,
+				VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
+					{
+						productKey: "video-seedance-2-mini",
+						modes: ["text-to-video"],
+						durations: [4],
+						resolutions: ["480p"],
+						sounds: [false],
+					},
+				]),
+			},
+			bindings,
+			true,
+			new Set(),
+		);
+		expect(
+			restricted.flatMap((model) => model.options.filter((option) => option.available)),
+		).toHaveLength(1);
+	});
+	it.each([undefined, "kie-public-2026-10-04.3"])(
+		"closes shared pricing without the new version approval %s",
+		(version) => {
+			const models = buildVideoCatalogModels(
+				{ ...environment, VIDEO_PRICE_ACCEPTED_VERSION: version },
+				bindings,
+				true,
+				new Set(),
+			);
+			expect(models.every((model) => !model.available)).toBe(true);
+			for (const productKey of [
+				"video-seedance-2-mini",
+				"video-seedance-2-fast",
+				"video-seedance-1-5-pro",
+			]) {
+				const model = models.find((item) => item.productKey === productKey)!;
+				expect(model.reasons).toContain("VIDEO_PRICE_NOT_APPROVED");
+				expect(model.options.every((option) => option.credits === null && !option.available)).toBe(
+					true,
+				);
+			}
+		},
+	);
+	it("closes every shared price exactly at the operator deadline", () => {
+		vi.setSystemTime(new Date("2026-10-12T00:00:00.000Z"));
+		const models = buildVideoCatalogModels(
+			{ ...environment, VIDEO_PRICE_VALID_UNTIL: "2026-10-12T00:00:00.000Z" },
+			bindings,
+			true,
+			new Set(),
+		);
+		expect(models.every((model) => !model.available)).toBe(true);
+		expect(
+			models.flatMap((model) => model.options).every((option) => option.credits === null),
+		).toBe(true);
+		expect(models.find((model) => model.productKey === "video-seedance-2-mini")!.reasons).toContain(
+			"VIDEO_PRICE_EXPIRED",
+		);
+	});
 	it("does not advertise legal but unselected paid options", () => {
 		const models = buildVideoCatalogModels(
 			{

@@ -245,18 +245,19 @@ describe("video full variable cost pricing", () => {
 	});
 });
 
-describe("model-specific promotional price expiry", () => {
+describe("October 7 supplier price refresh and finite operator approval", () => {
 	it.each(["video-seedance-2-mini", "video-seedance-2-fast"])(
-		"quotes %s immediately before the cutoff and freezes the supplier deadline",
+		"quotes %s after the superseded cutoff and freezes the operator deadline",
 		(productKey) => {
 			vi.useFakeTimers();
-			vi.setSystemTime(new Date("2026-10-07T05:59:59.999Z"));
-			const price = resolveVideoModelPrice(
-				{ ...request, productKey, resolution: "720p" },
-				approvedPriceEnvironment(),
-			);
-			expect(price.pricingVersion).toBe("kie-public-2026-10-04.3");
-			expect(price.pricingDetails.validUntil).toBe("2026-10-07T06:00:00.000Z");
+			vi.setSystemTime(new Date("2026-10-07T13:50:00.000Z"));
+			const env = {
+				...approvedPriceEnvironment(),
+				VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-07.1",
+			};
+			const price = resolveVideoModelPrice({ ...request, productKey, resolution: "720p" }, env);
+			expect(price.pricingVersion).toBe("kie-public-2026-10-07.1");
+			expect(price.pricingDetails.validUntil).toBe(env.VIDEO_PRICE_VALID_UNTIL);
 		},
 	);
 	it.each([
@@ -264,24 +265,24 @@ describe("model-specific promotional price expiry", () => {
 		["video-seedance-2-mini", "2026-10-07T06:00:00.001Z"],
 		["video-seedance-2-fast", "2026-10-07T06:00:00.000Z"],
 		["video-seedance-2-fast", "2026-10-08T00:00:00.000Z"],
-	])("refuses a new %s quote at %s despite a later global approval", (productKey, now) => {
+	])("keeps %s quotable at %s under the renewed approved basis", (productKey, now) => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date(now));
-		expect(() =>
+		expect(
 			resolveVideoModelPrice(
 				{ ...request, productKey, resolution: "720p" },
 				approvedPriceEnvironment(),
-			),
-		).toThrow("VIDEO_MODEL_PRICE_EXPIRED");
+			).pricingVersion,
+		).toBe("kie-public-2026-10-07.1");
 	});
 	it.each(["video-seedance-2-mini", "video-seedance-2-fast"])(
-		"does not extend an earlier approved expiry for %s",
+		"refuses %s exactly at the finite operator approval deadline",
 		(productKey) => {
 			vi.useFakeTimers();
-			vi.setSystemTime(new Date("2026-10-05T00:00:00.000Z"));
+			vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
 			const env = {
 				...approvedPriceEnvironment(),
-				VIDEO_PRICE_VALID_UNTIL: "2026-10-06T00:00:00.000Z",
+				VIDEO_PRICE_VALID_UNTIL: "2026-10-12T00:00:00.000Z",
 			};
 			const selection = { ...request, productKey, resolution: "720p" };
 			expect(resolveVideoModelPrice(selection, env).pricingDetails.validUntil).toBe(
@@ -297,7 +298,7 @@ describe("model-specific promotional price expiry", () => {
 		["video-seedance-2", "720p"],
 		["video-seedance-2-5", "720p"],
 	])(
-		"keeps %s available under its own approval after Mini/Fast expire",
+		"preserves %s pricing under its own approval after the basis refresh",
 		(productKey, resolution) => {
 			vi.useFakeTimers();
 			vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
@@ -310,12 +311,41 @@ describe("model-specific promotional price expiry", () => {
 	);
 	it("requires explicit approval of the revised tariff version", () => {
 		vi.useFakeTimers();
-		vi.setSystemTime(new Date("2026-10-05T00:00:00.000Z"));
+		vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
 		expect(() =>
 			resolveVideoModelPrice(request, {
 				...approvedPriceEnvironment(),
-				VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.2",
+				VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
 			}),
 		).toThrow("VIDEO_PRICE_NOT_APPROVED");
 	});
+	it.each([
+		["video-seedance-2-mini", "480p", 19_000n],
+		["video-seedance-2-mini", "720p", 41_000n],
+		["video-seedance-2-fast", "480p", 59_000n],
+		["video-seedance-2-fast", "720p", 124_000n],
+	] as const)(
+		"preserves %s %s budget for all modes, durations and sound options",
+		(productKey, resolution, rate) => {
+			for (const mode of ["text-to-video", "image-to-video"] as const)
+				for (let duration = 4; duration <= 15; duration++)
+					for (const sound of [false, true])
+						expect(videoSupplierCostMicros({ productKey, resolution, mode, duration, sound })).toBe(
+							rate * BigInt(duration),
+						);
+		},
+	);
+	it.each([undefined, "", "invalid-date"])(
+		"rejects absent or invalid finite approval %s",
+		(validUntil) => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
+			expect(() =>
+				resolveVideoModelPrice(request, {
+					...approvedPriceEnvironment(),
+					VIDEO_PRICE_VALID_UNTIL: validUntil,
+				}),
+			).toThrow("VIDEO_PRICE_EXPIRED");
+		},
+	);
 });

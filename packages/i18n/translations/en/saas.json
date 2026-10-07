@@ -1911,6 +1911,7 @@
 			"imageTooLarge": "This image exceeds the allowed size or is empty.",
 			"upload": "The image could not be uploaded or secured. Choose it again to retry the upload.",
 			"quoteExpired": "The quote expired or is no longer valid. Review the current cost again.",
+			"priceUnavailable": "Video pricing is temporarily unavailable. Please check back later.",
 			"conflict": "This confirmation does not match the original request. Review a new quote before confirming.",
 			"insufficientCredits": "There are not enough eligible paid credits. Open billing to review your balance.",
 			"busy": "Video capacity is busy. Wait for your active task to finish or try again later.",

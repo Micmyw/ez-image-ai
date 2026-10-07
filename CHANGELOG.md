@@ -8,6 +8,11 @@
 - Retain the configured model and parameter allowlist, complete-cost quotes, content review, private results and recovery of the same accepted request. This audience change does not enable every listed model or certify additional paid provider combinations.
 - Keep Hotel Lobby and Raindance access and funding settings independent. Deploy compatible background code before enabling the website's authenticated audience; preserve the internal audience and admission switches for rollback.
 
+### Seedance price basis and quote renewal
+
+- Refresh the Seedance 2 Mini/Fast public price basis while retaining the existing supplier budgets and credit calculation. Replace the expired promotion restriction with the existing finite operator approval requirement; model capabilities and enabled settings remain unchanged.
+- Require a new quote and confirmation after a definite price change or expiry, while keeping interrupted confirmations tied to the same request. Document the conditional price reference and the coordinated website/Workflow configuration handoff; production release and paid acceptance are separate.
+
 ### Raindance sunset-pier video guide and beta
 
 - Add an indexable Raindance guide with an embedded Solo/Duet generator, original free prompts, method comparison, photo troubleshooting and music-posting instructions. Label the AI-created pier illustration separately from real product results.

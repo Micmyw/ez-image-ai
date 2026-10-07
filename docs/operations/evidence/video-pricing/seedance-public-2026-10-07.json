@@ -1,0 +1,93 @@
+{
+	"schemaVersion": 1,
+	"classification": "PUBLIC_LIST_PRICES_NOT_ACCOUNT_BILLING",
+	"supplierVersion": "kie-public-2026-10-07.1",
+	"scope": "Text-to-video and one first-frame image; no reference-video input. No account credentials, balance, invoice or generation request was used.",
+	"suppliedReport": {
+		"reportedAtUtc": "2026-10-07T13:50:04Z",
+		"source": "User-supplied seedance-pricing-plan-2026-10-07.md",
+		"status": "SUPPLIED_REPORT_SEPARATE_FROM_FRESH_OBSERVATION"
+	},
+	"freshObservation": {
+		"retrievedAtUtc": "2026-10-07T15:27:35.5408901Z",
+		"method": "POST",
+		"url": "https://api.kie.ai/client/v1/model-pricing/page",
+		"request": {
+			"pageNum": 1,
+			"pageSize": 100,
+			"modelDescription": "Seedance",
+			"interfaceType": "Video"
+		},
+		"httpStatus": 200,
+		"cfCacheStatus": "DYNAMIC",
+		"totalRecords": 28,
+		"pages": 1,
+		"records": [
+			{
+				"modelDescription": "bytedance/seedance-2-mini, 480P no video",
+				"creditPrice": "3.8",
+				"creditUnit": "per second",
+				"usdPrice": "0.019",
+				"discountPrice": false,
+				"anchor": "https://kie.ai/seedance-2-0-mini"
+			},
+			{
+				"modelDescription": "bytedance/seedance-2-mini, 720P no video",
+				"creditPrice": "8.2",
+				"creditUnit": "per second",
+				"usdPrice": "0.041",
+				"discountPrice": false,
+				"anchor": "https://kie.ai/seedance-2-0-mini"
+			},
+			{
+				"modelDescription": "bytedance/seedance-2 fast, 480p no video input",
+				"creditPrice": "11.7",
+				"creditUnit": "per second",
+				"usdPrice": "0.059",
+				"discountPrice": false,
+				"anchor": "https://kie.ai/seedance-2-0?model=bytedance%2Fseedance-2-fast"
+			},
+			{
+				"modelDescription": "bytedance/seedance-2 fast, 720p no video input",
+				"creditPrice": "24.8",
+				"creditUnit": "per second",
+				"usdPrice": "0.124",
+				"discountPrice": false,
+				"anchor": "https://kie.ai/seedance-2-0?model=bytedance%2Fseedance-2-fast"
+			}
+		]
+	},
+	"productPages": [
+		{
+			"url": "https://kie.ai/seedance-2-0-mini",
+			"retrievedAtUtc": "2026-10-07T15:28:54.1345661Z",
+			"httpStatus": 200,
+			"englishPricingExcerpt": "480p: 3.8 credits/s ($0.019/s, no video); 720p: 8.2 credits/s ($0.041/s, no video). No video = Price × Output; With video = Price × (Input + Output).",
+			"oldOctober7At0600WordingFoundInExtractedEnglishText": false
+		},
+		{
+			"url": "https://kie.ai/seedance-2-0?model=bytedance%2Fseedance-2-fast",
+			"retrievedAtUtc": "2026-10-07T15:28:53.0612870Z",
+			"httpStatus": 200,
+			"englishPricingExcerpt": "480P: 11.7 credits/s ($0.059/s, no video); 720P: 24.8 credits/s ($0.124/s, no video). No video = Price × Output; With video = Price × (Input + Output).",
+			"oldOctober7At0600WordingFoundInExtractedEnglishText": false
+		},
+		{
+			"url": "https://kie.ai/pricing",
+			"retrievedAtUtc": "2026-10-07T15:28:53.3545288Z",
+			"httpStatus": 200,
+			"limitation": "The general pricing page did not expose the model rows in the static English text extraction; the public pricing query and model pages establish the four values."
+		}
+	],
+	"budgetMicrosPerSecond": {
+		"video-seedance-2-mini": { "480p": "19000", "720p": "41000" },
+		"video-seedance-2-fast": { "480p": "59000", "720p": "124000" }
+	},
+	"limitations": [
+		"No successor supplier deadline or permanent-price guarantee was found; absent old wording is only an observation at retrieval time.",
+		"discountPrice=false describes this response only and does not establish future prices or account terms.",
+		"No-video input includes this application's one-image mode; it does not mean sound off. These four public rows do not separate the generate_audio options.",
+		"Fast 480p retains the higher published USD 0.059 budget; 11.7 nominal Kie credits converts to USD 0.0585 and is not an exact invoice.",
+		"Account prices, actual bills, production policy, deployment and paid acceptance were not read or changed."
+	]
+}

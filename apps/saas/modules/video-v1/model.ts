@@ -20,6 +20,7 @@ export type VideoErrorKey =
 	| "imageTooLarge"
 	| "upload"
 	| "quoteExpired"
+	| "priceUnavailable"
 	| "conflict"
 	| "insufficientCredits"
 	| "busy"
@@ -157,7 +158,8 @@ export function getVideoErrorKey(error: unknown): VideoErrorKey {
 		.filter((item): item is string => typeof item === "string")
 		.join(" ");
 	if (/IDEMPOTENCY_CONFLICT/.test(code)) return "conflict";
-	if (/QUOTE_EXPIRED|QUOTE_INVALID|STALE_QUOTE/.test(code)) return "quoteExpired";
+	if (/QUOTE_EXPIRED|QUOTE_INVALID|STALE_QUOTE|PRICE_CHANGED/.test(code)) return "quoteExpired";
+	if (/VIDEO_MODEL_PRICE_EXPIRED|VIDEO_PRICE_EXPIRED/.test(code)) return "priceUnavailable";
 	if (/INSUFFICIENT_CREDITS|CREDIT_DEBT/.test(code)) return "insufficientCredits";
 	if (/CAPACITY|CONCURRENCY|BUSY|TOO_MANY_REQUESTS/.test(code)) return "busy";
 	if (/UNAUTHORIZED|FORBIDDEN/.test(code)) return "unauthorized";
@@ -166,4 +168,14 @@ export function getVideoErrorKey(error: unknown): VideoErrorKey {
 	if (/MODEL_SELECTION_UNSUPPORTED|MODEL_NOT_FOUND|MODEL_BLOCKED/.test(code))
 		return "unsupportedSelection";
 	return "unavailable";
+}
+
+export function getVideoFailureRecovery(error: unknown) {
+	const reason = getVideoErrorKey(error);
+	return {
+		reason,
+		// Only definitive rejection permits a new confirmation/key; lost responses keep the receipt.
+		clearQuote: reason === "conflict" || reason === "quoteExpired" || reason === "priceUnavailable",
+		refreshCatalog: reason === "quoteExpired" || reason === "priceUnavailable",
+	};
 }

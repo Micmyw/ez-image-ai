@@ -1911,6 +1911,7 @@
 			"imageTooLarge": "Cette image dépasse la taille autorisée ou est vide.",
 			"upload": "L’image n’a pas pu être envoyée ou sécurisée. Sélectionnez-la à nouveau pour réessayer.",
 			"quoteExpired": "Le devis a expiré ou n’est plus valide. Vérifiez à nouveau le coût.",
+			"priceUnavailable": "Les tarifs vidéo sont temporairement indisponibles. Veuillez revenir plus tard.",
 			"conflict": "Cette confirmation ne correspond pas à la demande d’origine. Vérifiez un nouveau devis avant de confirmer.",
 			"insufficientCredits": "Vous ne disposez pas d’assez de crédits payés admissibles. Consultez votre solde dans la facturation.",
 			"busy": "La capacité vidéo est occupée. Attendez la fin de votre tâche active ou réessayez plus tard.",

@@ -1911,6 +1911,7 @@
 			"imageTooLarge": "Das Bild ist leer oder überschreitet die zulässige Größe.",
 			"upload": "Das Bild konnte nicht hochgeladen oder gesichert werden. Wähle es erneut aus.",
 			"quoteExpired": "Das Angebot ist abgelaufen oder ungültig. Prüfe die aktuellen Kosten erneut.",
+			"priceUnavailable": "Videopreise sind vorübergehend nicht verfügbar. Bitte schau später wieder vorbei.",
 			"conflict": "Diese Bestätigung entspricht nicht der ursprünglichen Anfrage. Prüfe vor der Bestätigung ein neues Angebot.",
 			"insufficientCredits": "Es sind nicht genügend geeignete bezahlte Credits verfügbar. Prüfe dein Guthaben in der Abrechnung.",
 			"busy": "Die Videokapazität ist ausgelastet. Warte auf deinen aktiven Auftrag oder versuche es später.",

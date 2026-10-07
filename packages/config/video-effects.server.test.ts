@@ -193,6 +193,30 @@ describe("frozen Hotel Lobby template", () => {
 });
 
 describe("one complete duo quote", () => {
+	it("keeps Hotel Lobby's own costs and template unchanged after the shared price basis refresh", () => {
+		vi.setSystemTime(new Date("2026-10-07T13:50:00.000Z"));
+		const env = {
+			...fixtureEnvironment(),
+			VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-07.1",
+		};
+		const price = resolveVideoEffectPrice(request, env);
+		expect(price.pricingDetails.videoPricingVersion).toBe("kie-public-2026-10-07.1");
+		expect(price.providerCostMicros).toBe(107_500n);
+		expect(price.pricingDetails.directCostMicros).toBe("160500");
+		expect(price.pricingDetails.costPolicy.markupBps).toBe("20000");
+		expect(price.pricingDetails.costPolicy.paymentFeeBps).toBe("750");
+		expect(price.pricingDetails.validUntil).toBe("2026-10-20T00:00:00.000Z");
+		expect(createVideoEffectTemplateSnapshot(request).video).toMatchObject({
+			productKey: "video-seedance-1-5-pro",
+			duration: 5,
+			resolution: "720p",
+			sound: false,
+		});
+		for (const version of [undefined, "kie-public-2026-10-04.3"])
+			expect(() =>
+				resolveVideoEffectPrice(request, { ...env, VIDEO_PRICE_ACCEPTED_VERSION: version }),
+			).toThrow("VIDEO_PRICE_NOT_APPROVED");
+	});
 	it("requires revenue at least three times complete cost without changing ordinary video pricing", () => {
 		const env = fixtureEnvironment();
 		const ordinary = resolveVideoModelPrice(createVideoEffectTemplateSnapshot(request).video, env);

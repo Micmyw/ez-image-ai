@@ -16,7 +16,7 @@ import {
 	createVideoConfirmation,
 	changeVideoDraft,
 	initialVideoDraft,
-	getVideoErrorKey,
+	getVideoFailureRecovery,
 	parseVideoConfirmation,
 	restoreVideoDraft,
 	validateVideoDraft,
@@ -105,6 +105,16 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		saveConfirmation(null);
 		setError(null);
 	}
+	function handleFailure(failure: unknown) {
+		const recovery = getVideoFailureRecovery(failure);
+		setError(recovery.reason);
+		if (recovery.clearQuote) {
+			saveConfirmation(null);
+			setQuote(null);
+		}
+		if (recovery.refreshCatalog)
+			void queryClient.invalidateQueries({ queryKey: ["video-v1", "catalog"] });
+	}
 	async function requestQuote() {
 		if (operation.current || !enabled) return;
 		const invalid = validateVideoDraft(draft);
@@ -123,7 +133,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 				saveConfirmation(null);
 			}
 		} catch (failure) {
-			if (version === revision.current) setError(getVideoErrorKey(failure));
+			if (version === revision.current) handleFailure(failure);
 		} finally {
 			operation.current = false;
 			setBusy(null);
@@ -157,12 +167,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			void queryClient.invalidateQueries({ queryKey: ["media-credit-account"] });
 			router.replace(`/video?job=${encodeURIComponent(state.jobId)}`, { scroll: false });
 		} catch (failure) {
-			const reason = getVideoErrorKey(failure);
-			setError(reason);
-			if (reason === "conflict" || reason === "quoteExpired") {
-				saveConfirmation(null);
-				setQuote(null);
-			}
+			handleFailure(failure);
 		} finally {
 			operation.current = false;
 			setBusy(null);

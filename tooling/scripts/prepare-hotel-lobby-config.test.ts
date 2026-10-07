@@ -7,6 +7,7 @@ import { afterEach, beforeEach, mock, test } from "node:test";
 import { parseEnv } from "node:util";
 
 import { readVideoModelAccess } from "../../packages/config/video-model-access";
+import { VIDEO_SUPPLIER_PRICE_VERSION } from "../../packages/config/video-pricing.server";
 import {
 	expandVideoRuntimeEnvironment,
 	packVideoRuntimeEnvironment,
@@ -30,7 +31,7 @@ function fixture(): Record<string, string> {
 	return {
 		VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([existingGroup]),
 		VIDEO_MODEL_CONTRACT_VERSION: "video-models-2026-10-04.2",
-		VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
+		VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 		VIDEO_PRICE_BASIS: "Existing isolated fixture, not production approval",
 		VIDEO_PRICE_VALID_UNTIL: "2026-10-20T00:00:00Z",
 		VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
@@ -61,6 +62,28 @@ beforeEach(() => {
 	mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-05T00:00:00Z") });
 });
 afterEach(() => mock.timers.reset());
+
+void test("documented closed reference uses the current shared basis without changing the 69-credit budget", async () => {
+	const input = parseEnv(
+		await readFile(
+			new URL("../../docs/operations/hotel-lobby-configuration.example.env", import.meta.url),
+			"utf8",
+		),
+	);
+	assert.equal(input.VIDEO_PRICE_ACCEPTED_VERSION, VIDEO_SUPPLIER_PRICE_VERSION);
+	const result = prepareHotelLobbyEnvironment(input);
+	assert.equal(result.summary.credits, "69");
+	assert.equal(result.summary.validUntil, "2026-10-12T00:00:00.000Z");
+	assert.equal(result.summary.templateEnabled, false);
+	assert.equal(result.summary.buildEnabled, false);
+});
+
+void test("offline preparation rejects stale shared approval without upgrading it", () => {
+	const input = { ...fixture(), VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3" };
+	const snapshot = { ...input };
+	assert.throws(() => prepareHotelLobbyEnvironment(input), /VIDEO_PRICE_NOT_APPROVED/);
+	assert.deepEqual(input, snapshot);
+});
 
 void test("preserves packed policies, secrets, funding and ordinary prices; computes 69 closed credits", () => {
 	const input = packVideoRuntimeEnvironment(fixture());

@@ -1911,6 +1911,7 @@
 			"imageTooLarge": "La imagen supera el tamaño permitido o está vacía.",
 			"upload": "No se pudo subir o proteger la imagen. Vuelve a seleccionarla para repetir la subida.",
 			"quoteExpired": "El presupuesto caducó o ya no es válido. Consulta de nuevo el coste.",
+			"priceUnavailable": "Los precios de vídeo no están disponibles temporalmente. Vuelve a consultar más tarde.",
 			"conflict": "Esta confirmación no coincide con la solicitud original. Revisa un presupuesto nuevo antes de confirmar.",
 			"insufficientCredits": "No hay suficientes créditos pagados aptos. Abre facturación para revisar tu saldo.",
 			"busy": "La capacidad de vídeo está ocupada. Espera a que termine tu tarea activa o inténtalo más tarde.",

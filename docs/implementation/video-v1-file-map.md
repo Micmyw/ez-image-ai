@@ -1,5 +1,9 @@
 # Video generation V1: verified implementation map
 
+Current Mini/Fast supplier-source revision: [2026-10-07 price basis](../operations/video-v1-price-basis-2026-10-07.md).
+It preserves the recorded cost budgets and finite operator approval, and supersedes only the old
+Mini/Fast promotional cutoff described in the historical implementation batch below.
+
 The 2026-10-05 configuration/acceptance batch starts from deployed main commit
 `600194011888e228e8a11e17016a2541f9426adc`. Added responsibilities:
 
@@ -7,7 +11,7 @@ The 2026-10-05 configuration/acceptance batch starts from deployed main commit
 - `packages/config/video-model-access.ts`: server-owned model/parameter allowlist, shared by admission and catalog. `packages/api/modules/video-v1/uploads.ts` checks an allowed image option before upload.
 - `packages/config/video-internal-funding.ts`: named, expiring administrator acceptance from existing credits. Admission and the database freeze and verify the funding decision without creating paid receipts.
 - `packages/config/video-pricing.server.ts`: corrected H3 single-image fee and model-specific promotion expiry. `video-v1-execution.ts` checks frozen price/authorization deadlines before the first paid submission.
-- [Activation record](../operations/video-v1-activation-2026-10-05.md): current cost assumptions, full parameter price reference, release evidence and rollback.
+- [Activation record](../operations/video-v1-activation-2026-10-05.md): recorded cost assumptions, historical parameter price reference, release evidence and rollback.
 
 Review handoff: branch `codex/video-v1-release`, integrated onto
 `e4f6b81fd8fc8e769b975e6c59177a1afefa06a9`. The responsibilities below describe

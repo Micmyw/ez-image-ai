@@ -1,12 +1,14 @@
 import { getVideoModelOptions } from "@repo/config/video-models";
-import { NextIntlClientProvider } from "next-intl";
+import { NextIntlClientProvider, useTranslations } from "next-intl";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import de from "../../../../packages/i18n/translations/de/saas.json";
 import en from "../../../../packages/i18n/translations/en/saas.json";
+import es from "../../../../packages/i18n/translations/es/saas.json";
+import fr from "../../../../packages/i18n/translations/fr/saas.json";
 import type { VideoState } from "./api";
-import { initialVideoDraft } from "./model";
+import { getVideoErrorKey, initialVideoDraft } from "./model";
 
 vi.mock("./api", () => ({ videoApi: { jobs: { playback: vi.fn() } } }));
 vi.mock("@auth/hooks/use-session", () => ({
@@ -65,6 +67,41 @@ function render(stage: VideoState["stage"], canPlay = false) {
 }
 
 describe("truthful video delivery UI", () => {
+	it.each([
+		{
+			locale: "en",
+			messages: en,
+			text: "Video pricing is temporarily unavailable. Please check back later.",
+		},
+		{
+			locale: "de",
+			messages: de,
+			text: "Videopreise sind vorübergehend nicht verfügbar. Bitte schau später wieder vorbei.",
+		},
+		{
+			locale: "es",
+			messages: es,
+			text: "Los precios de vídeo no están disponibles temporalmente. Vuelve a consultar más tarde.",
+		},
+		{
+			locale: "fr",
+			messages: fr,
+			text: "Les tarifs vidéo sont temporairement indisponibles. Veuillez revenir plus tard.",
+		},
+	])("explains expired pricing clearly in $locale", ({ locale, messages, text }) => {
+		function PriceError() {
+			const t = useTranslations("videoV1");
+			return <p role="alert">{t(`errors.${getVideoErrorKey({ code: "VIDEO_PRICE_EXPIRED" })}`)}</p>;
+		}
+		const onError = vi.fn();
+		const markup = renderToStaticMarkup(
+			<NextIntlClientProvider locale={locale} messages={messages} timeZone="UTC" onError={onError}>
+				<PriceError />
+			</NextIntlClientProvider>,
+		);
+		expect(markup).toContain(text);
+		expect(onError).not.toHaveBeenCalled();
+	});
 	it("opens each template history entry in its own workbench and preserves duet mode", () => {
 		const markup = renderToStaticMarkup(
 			<NextIntlClientProvider locale="en" messages={en}>
