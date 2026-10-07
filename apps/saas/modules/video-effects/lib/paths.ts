@@ -9,3 +9,6 @@ export function videoEffectPath(effectId: string): string {
 export function isVideoEffectPath(path: string): boolean {
 	return path === VIDEO_EFFECT_PATH || path === RAINDANCE_PATH;
 }
+export function videoEffectJobPath(effectId: string, jobId: string): string {
+	return `${videoEffectPath(effectId)}?job=${encodeURIComponent(jobId)}${effectId === "raindance-duo" ? "&mode=duo" : ""}`;
+}

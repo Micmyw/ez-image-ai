@@ -7,7 +7,7 @@ import Link from "next/link";
 
 import { usePageVisible } from "../../video-v1/use-video";
 import { videoEffectsApi } from "../lib/api";
-import { videoEffectPath } from "../lib/paths";
+import { videoEffectJobPath } from "../lib/paths";
 
 export function VideoEffectHistory({
 	family = "hotel-lobby",
@@ -74,7 +74,7 @@ function OwnedVideoEffectHistory({
 						<li key={state.jobId}>
 							<Link
 								className="ve-history-item"
-								href={`${videoEffectPath(state.effectId)}?job=${encodeURIComponent(state.jobId)}${state.effectId === "raindance-duo" ? "&mode=duo" : ""}`}
+								href={videoEffectJobPath(state.effectId, state.jobId)}
 								prefetch={false}
 							>
 								<strong>
