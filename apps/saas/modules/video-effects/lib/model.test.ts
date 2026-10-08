@@ -294,4 +294,33 @@ describe("template payment return", () => {
 		expect(sanitizeEditorReturnPath("/video-effects/hotel-lobby-ai?asset=private")).toBe("/create");
 		expect(sanitizeEditorReturnPath("//evil.example/video-effects/hotel-lobby-ai")).toBe("/create");
 	});
+	it("retains the exact Raindance mode across a bound checkout without storing private query data", () => {
+		mockStorage();
+		const duo = "/blog/raindance-ai-trend?mode=duo";
+		expect(sanitizeEditorReturnPath(duo)).toBe(duo);
+		saveVideoEffectPaymentReturn("owner-1", duo);
+		expect(bindVideoEffectPaymentReturn("owner-1", "intent-1", "/blog/raindance-ai-trend")).toBe(
+			false,
+		);
+		expect(
+			bindVideoEffectPaymentReturn("owner-1", "intent-1", `${duo}&job=private-job&lang=de`),
+		).toBe(true);
+		expect(consumeVideoEffectPaymentReturn("owner-1", "intent-1")).toBe(duo);
+		saveVideoEffectPaymentReturn("owner-1", duo);
+		expect(
+			bindVideoEffectPaymentReturn(
+				"owner-1",
+				"intent-2",
+				`/pricing?returnTo=${encodeURIComponent(duo)}`,
+			),
+		).toBe(true);
+		expect(consumeVideoEffectPaymentReturn("owner-1", "intent-2")).toBe(duo);
+		for (const value of [
+			`${duo}&asset=private`,
+			`${duo}&mode=solo`,
+			`${duo}#private`,
+			"/blog/raindance-ai-trend?mode=unknown",
+		])
+			expect(sanitizeEditorReturnPath(value)).toBe("/create");
+	});
 });

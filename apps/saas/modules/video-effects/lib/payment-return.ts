@@ -1,4 +1,9 @@
-import { VIDEO_EFFECT_PATH, isVideoEffectPath } from "./paths";
+import {
+	VIDEO_EFFECT_PATH,
+	RAINDANCE_PATH,
+	isVideoEffectPath,
+	sanitizeVideoEffectReturnPath,
+} from "./paths";
 
 const KEY = "ezpic.video-effect.payment-return.v1";
 const MAX_AGE = 60 * 60_000;
@@ -14,7 +19,8 @@ function readMarker(raw: string | null, ownerId: string, now: number): PaymentRe
 	try {
 		const value = JSON.parse(raw ?? "null");
 		return value?.ownerId === ownerId &&
-			isVideoEffectPath(value.path) &&
+			sanitizeVideoEffectReturnPath(value.path) === value.path &&
+			typeof value.path === "string" &&
 			(value.stage === "armed" || value.stage === "bound") &&
 			Number.isFinite(value.createdAt) &&
 			value.createdAt <= now &&
@@ -31,7 +37,7 @@ function readMarker(raw: string | null, ownerId: string, now: number): PaymentRe
 
 /** Opening pricing is only an arm. It cannot redirect any completed payment by itself. */
 export function saveVideoEffectPaymentReturn(ownerId: string, path = VIDEO_EFFECT_PATH) {
-	if (!isVideoEffectPath(path)) return;
+	if (!sanitizeVideoEffectReturnPath(path)) return;
 	try {
 		sessionStorage.setItem(
 			KEY,
@@ -44,16 +50,26 @@ export function saveVideoEffectPaymentReturn(ownerId: string, path = VIDEO_EFFEC
 
 /** The actual checkout must also originate from this tool or its explicit pricing return path. */
 export function isVideoEffectPaymentOrigin(path: string): boolean {
+	return paymentOriginReturnPath(path) !== null;
+}
+function paymentOriginReturnPath(path: string): string | null {
 	try {
-		if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) return false;
+		if (!path.startsWith("/") || path.startsWith("//") || path.includes("\\")) return null;
 		const url = new URL(path, "https://video-effect-return.invalid");
-		return (
-			url.origin === "https://video-effect-return.invalid" &&
-			(isVideoEffectPath(url.pathname) ||
-				(url.pathname === "/pricing" && isVideoEffectPath(url.searchParams.get("returnTo") ?? "")))
-		);
+		if (url.origin !== "https://video-effect-return.invalid") return null;
+		if (url.pathname === "/pricing")
+			return url.searchParams.getAll("returnTo").length === 1
+				? sanitizeVideoEffectReturnPath(url.searchParams.get("returnTo"))
+				: null;
+		if (!isVideoEffectPath(url.pathname)) return null;
+		if (url.pathname !== RAINDANCE_PATH) return url.pathname;
+		const modes = url.searchParams.getAll("mode");
+		if (modes.length > 1) return null;
+		return modes.length
+			? sanitizeVideoEffectReturnPath(`${url.pathname}?mode=${encodeURIComponent(modes[0]!)}`)
+			: url.pathname;
 	} catch {
-		return false;
+		return null;
 	}
 }
 
@@ -74,10 +90,11 @@ export function bindVideoEffectPaymentReturn(
 	try {
 		const marker = readMarker(sessionStorage.getItem(KEY), ownerId, now);
 		if (!marker || (marker.stage === "bound" && marker.intentId !== intentId)) return false;
-		const origin = new URL(originatingPath, "https://video-effect-return.invalid");
+		const origin = paymentOriginReturnPath(originatingPath);
+		// The clean Raindance URL represents solo; an explicit mode survives saved preferences.
 		if (
-			(origin.pathname === "/pricing" ? origin.searchParams.get("returnTo") : origin.pathname) !==
-			marker.path
+			origin !== marker.path &&
+			!(origin === RAINDANCE_PATH && marker.path === `${RAINDANCE_PATH}?mode=solo`)
 		)
 			return false;
 		sessionStorage.setItem(

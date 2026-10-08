@@ -15,6 +15,7 @@ import {
 	temporaryReferenceReceiptSchema,
 	type TemporaryReferenceReceipt,
 } from "../../media/lib/temporary-reference-upload";
+import { sanitizeVideoEffectReturnPath } from "../../video-effects/lib/paths";
 import type { PlanId } from "../types";
 
 export const EDITOR_UPGRADE_STORAGE_KEY = "ezpic.editor-upgrade.v1";
@@ -72,6 +73,8 @@ interface BrowserStorage {
 export function sanitizeEditorReturnPath(value: string | null | undefined): string {
 	const effectPath = sanitizeEffectEditorReturnPath(value);
 	if (effectPath) return effectPath;
+	const videoEffectPath = sanitizeVideoEffectReturnPath(value);
+	if (videoEffectPath) return videoEffectPath;
 	if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/create";
 	let url: URL;
 	try {
@@ -80,12 +83,6 @@ export function sanitizeEditorReturnPath(value: string | null | undefined): stri
 		return "/create";
 	}
 	if (url.origin !== "https://editor-return.invalid") return "/create";
-	if (
-		["/video-effects/hotel-lobby-ai", "/blog/raindance-ai-trend"].includes(url.pathname) &&
-		!url.search &&
-		!url.hash
-	)
-		return url.pathname;
 	if (url.pathname === "/create") {
 		if (!url.search) return "/create";
 		return url.searchParams.size === 1 && url.searchParams.get("upgrade") === "complete"

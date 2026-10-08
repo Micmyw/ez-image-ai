@@ -1,6 +1,14 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-10-08",
+		title: "Hotel Lobby and Raindance generation in one step",
+		changes: [
+			"See the complete video price and eligible paid-credit balance before uploading. Generate checks the current price and asks again only if the total changes.",
+			"Add credits when your eligible balance is insufficient, then return to the same private photo draft and Raindance mode. Interrupted orders keep the same recovery request.",
+		],
+	},
+	{
+		date: "2026-10-08",
 		title: "Public tools and guides are easier to discover",
 		changes: [
 			"Public tool pages, examples, contact details, release notes and the video guide now allow search indexing. Actual translated pages have their own canonical language links.",

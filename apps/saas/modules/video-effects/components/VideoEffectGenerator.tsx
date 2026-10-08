@@ -34,10 +34,11 @@ import {
 	validEffectFile,
 	VIDEO_EFFECT_MAX_BYTES,
 	type EffectDraft,
+	type EffectConfirmation,
 	type EffectQuote,
 	type EffectRole,
 } from "../lib/model";
-import { videoEffectPath } from "../lib/paths";
+import { videoEffectPath, videoEffectReturnPath } from "../lib/paths";
 import { saveVideoEffectPaymentReturn } from "../lib/payment-return";
 import { DuoPhotoInputs, emptyPhotoSlot, type PhotoSlot } from "./DuoPhotoInputs";
 import { VideoEffectJob } from "./VideoEffectJob";
@@ -124,7 +125,6 @@ function SignedInGenerator({
 	samples: readonly PublicVideoEffectSample[];
 }) {
 	const t = useTranslations("videoEffects");
-	const path = videoEffectPath(effectId);
 	const internalTest = effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID;
 	const solo = effectId === RAINDANCE_SOLO_EFFECT_ID || internalTest;
 	const upgrade = useUpgrade();
@@ -138,9 +138,11 @@ function SignedInGenerator({
 	});
 	const [quote, setQuote] = useState<EffectQuote | null>(null);
 	const [expired, setExpired] = useState(false);
+	const [priceChanged, setPriceChanged] = useState(false);
 	const [busy, setBusy] = useState<"quote" | "submit" | null>(null);
 	const [error, setError] = useState<string | null>(null);
 	const operation = useRef(false);
+	const mounted = useRef(false);
 	const visible = usePageVisible();
 	const previewRetries = useRef<Record<EffectRole, string | null>>({ left: null, right: null });
 	const uploads = useRef<
@@ -172,9 +174,10 @@ function SignedInGenerator({
 			if (required) throw new Error("RECOVERY_STORAGE_UNAVAILABLE");
 		}
 		current.current = next;
-		setDraft(next);
+		if (mounted.current) setDraft(next);
 	}
 	useEffect(() => {
+		mounted.current = true;
 		let canceled = false;
 		let saved = emptyEffectDraft(ownerId, effectId);
 		try {
@@ -217,6 +220,7 @@ function SignedInGenerator({
 				});
 		}
 		return () => {
+			mounted.current = false;
 			canceled = true;
 			for (const item of Object.values(uploads.current)) {
 				item.revision++;
@@ -283,6 +287,7 @@ function SignedInGenerator({
 		if (active.objectUrl) URL.revokeObjectURL(active.objectUrl);
 		active.objectUrl = undefined;
 		setQuote(null);
+		setPriceChanged(false);
 		setError(null);
 		setSlots((value) => ({ ...value, [role]: emptyPhotoSlot }));
 		store(changeEffectInputs(current.current, { [`${role}AssetId`]: null }));
@@ -344,7 +349,7 @@ function SignedInGenerator({
 		const revision = current.current.revision;
 		try {
 			const result = await videoEffectsApi.quote(effectRequest(current.current));
-			if (revision === current.current.revision) {
+			if (mounted.current && revision === current.current.revision) {
 				setQuote(result);
 				void recordVideoEffectEvent("quote_view", result.quoteId, effectId);
 			}
@@ -353,6 +358,79 @@ function SignedInGenerator({
 		} finally {
 			operation.current = false;
 			setBusy(null);
+		}
+	}
+	async function submitIntent(intent: EffectConfirmation) {
+		setBusy("submit");
+		// Persist the immutable request before any paid acceptance, including same-price one-click orders.
+		store({ ...current.current, confirmation: intent }, true);
+		void recordVideoEffectEvent("submit", intent.input.idempotencyKey, effectId);
+		const accepted = await videoEffectsApi.jobs.create(intent.input);
+		// Keep recovery durable even when a mode change unmounts this view during acceptance.
+		store({ ...current.current, confirmation: null, jobId: accepted.jobId }, true);
+		if (mounted.current) {
+			setQuote(null);
+			setPriceChanged(false);
+		}
+		void recordVideoEffectEvent("accepted", accepted.jobId, effectId);
+		void queryClient.invalidateQueries({ queryKey: ["media-credit-account"] });
+		void queryClient.invalidateQueries({ queryKey: ["video-effects", "access", ownerId] });
+		void queryClient.invalidateQueries({ queryKey: ["video-effects", "history", ownerId] });
+	}
+	function failedSubmission(failure: unknown) {
+		const key = effectError(failure);
+		if (key === "quoteExpired" || key === "insufficient") {
+			store({ ...current.current, confirmation: null });
+			if (mounted.current) setQuote(null);
+			void queryClient.invalidateQueries({ queryKey: ["video-effects", "access", ownerId] });
+		}
+		if (mounted.current)
+			setError(
+				t(
+					failure instanceof Error && failure.message === "RECOVERY_STORAGE_UNAVAILABLE"
+						? "storageUnavailable"
+						: key,
+				),
+			);
+	}
+	async function generate() {
+		if (operation.current || !enabled || uploading || current.current.confirmation) return;
+		if (current.current.jobId) {
+			store({ ...current.current, jobId: null });
+			setQuote(null);
+			setPriceChanged(false);
+			setError(null);
+			return;
+		}
+		if (insufficientBalance) return buyCredits();
+		if (!inputsReady) {
+			const role = !draft.leftAssetId || slots.left.status !== "sealed" ? "left" : "right";
+			document.querySelector<HTMLInputElement>(`#ve-upload-${role}`)?.click();
+			return;
+		}
+		if (!totalCredits) return;
+		const shownCredits = totalCredits;
+		const revision = current.current.revision;
+		operation.current = true;
+		setBusy("quote");
+		setError(null);
+		try {
+			const result = await videoEffectsApi.quote(effectRequest(current.current));
+			// Switching mode or leaving before quotation must not start a paid order in a hidden view.
+			if (!mounted.current || revision !== current.current.revision) return;
+			if (Date.parse(result.expiresAt) <= Date.now()) throw new Error("QUOTE_EXPIRED_OR_CHANGED");
+			setQuote(result);
+			void recordVideoEffectEvent("quote_view", result.quoteId, effectId);
+			if (result.credits !== shownCredits) {
+				setPriceChanged(true);
+				return;
+			}
+			await submitIntent(createEffectConfirmation(current.current, result));
+		} catch (failure) {
+			failedSubmission(failure);
+		} finally {
+			operation.current = false;
+			if (mounted.current) setBusy(null);
 		}
 	}
 	async function confirm() {
@@ -367,44 +445,34 @@ function SignedInGenerator({
 		try {
 			const intent =
 				current.current.confirmation ?? createEffectConfirmation(current.current, quote!);
-			// Fail closed before the paid request if refresh recovery cannot be persisted.
-			store({ ...current.current, confirmation: intent }, true);
-			void recordVideoEffectEvent("submit", intent.input.idempotencyKey, effectId);
-			const accepted = await videoEffectsApi.jobs.create(intent.input);
-			store({ ...current.current, confirmation: null, jobId: accepted.jobId }, true);
-			setQuote(null);
-			void recordVideoEffectEvent("accepted", accepted.jobId, effectId);
-			void queryClient.invalidateQueries({ queryKey: ["media-credit-account"] });
-			void queryClient.invalidateQueries({ queryKey: ["video-effects", "access", ownerId] });
-			void queryClient.invalidateQueries({ queryKey: ["video-effects", "history", ownerId] });
+			await submitIntent(intent);
 		} catch (failure) {
-			const key = effectError(failure);
-			if (key === "quoteExpired" || key === "insufficient") {
-				store({ ...current.current, confirmation: null });
-				setQuote(null);
-				void queryClient.invalidateQueries({ queryKey: ["video-effects", "access", ownerId] });
-			}
-			setError(
-				t(
-					failure instanceof Error && failure.message === "RECOVERY_STORAGE_UNAVAILABLE"
-						? "storageUnavailable"
-						: key,
-				),
-			);
+			failedSubmission(failure);
 		} finally {
 			operation.current = false;
-			setBusy(null);
+			if (mounted.current) setBusy(null);
 		}
 	}
 	function buyCredits() {
-		saveVideoEffectPaymentReturn(ownerId, path);
+		try {
+			store(current.current, true);
+		} catch (failure) {
+			failedSubmission(failure);
+			return;
+		}
+		const returnPath = videoEffectReturnPath(effectId);
+		saveVideoEffectPaymentReturn(ownerId, returnPath);
 		const selection = { ...defaultUpgradeSelection, view: "credit-packs" as const };
 		if (upgrade) upgrade(selection);
-		else window.location.assign(`${upgradeHref(selection)}&returnTo=${encodeURIComponent(path)}`);
+		else
+			window.location.assign(
+				`${upgradeHref(selection)}&returnTo=${encodeURIComponent(returnPath)}`,
+			);
 	}
 	const pending = draft.confirmation;
 	const totalCredits =
-		pending?.quote.credits ?? (quote && !expired ? quote.credits : access.data?.credits);
+		pending?.quote.credits ??
+		(quote && (!internalTest || !expired) ? quote.credits : access.data?.credits);
 	const creditBalance = access.data?.creditBalance;
 	const shortfall =
 		totalCredits && creditBalance
@@ -479,6 +547,7 @@ function SignedInGenerator({
 						uploads.current = { left: uploads.current.right, right: uploads.current.left };
 						setSlots((value) => ({ left: value.right, right: value.left }));
 						setQuote(null);
+						setPriceChanged(false);
 						setError(null);
 					}}
 				/>
@@ -532,6 +601,47 @@ function SignedInGenerator({
 							{t("recover")}
 						</button>
 					</>
+				) : !internalTest ? (
+					<>
+						{quoteHint && !draft.jobId && (
+							<p id="ve-quote-hint" className="ve-microcopy" aria-live="polite">
+								{t(quoteHint)}
+							</p>
+						)}
+						{priceChanged && totalCredits && (
+							<output id="ve-price-change" className="ve-notice" aria-live="polite">
+								{t("priceChanged", { credits: totalCredits })}
+							</output>
+						)}
+						<button
+							type="button"
+							className="ve-primary"
+							disabled={!enabled || busy !== null || uploading || (!totalCredits && inputsReady)}
+							aria-describedby={
+								insufficientBalance
+									? "ve-funding-hint"
+									: priceChanged
+										? "ve-price-change"
+										: quoteHint
+											? "ve-quote-hint"
+											: undefined
+							}
+							onClick={() => void generate()}
+						>
+							<SparklesIcon aria-hidden />
+							{busy
+								? t(busy === "quote" ? "quoting" : "submitting")
+								: draft.jobId
+									? t("newVideo")
+									: insufficientBalance
+										? t("addCredits")
+										: !inputsReady
+											? t(solo ? "uploadPhoto" : !draft.leftAssetId ? "uploadLeft" : "uploadRight")
+											: t(priceChanged ? "confirmNewPrice" : "generate", {
+													credits: totalCredits ?? "",
+												})}
+						</button>
+					</>
 				) : quote && !expired ? (
 					<button
 						type="button"
@@ -563,7 +673,7 @@ function SignedInGenerator({
 					</>
 				)}
 				<div className="ve-actions">
-					{!internalTest && (
+					{!internalTest && !insufficientBalance && (
 						<button type="button" className="ve-text-button" onClick={buyCredits}>
 							{t("addCredits")}
 						</button>
@@ -577,7 +687,13 @@ function SignedInGenerator({
 									: "#raindance-history"
 						}
 					>
-						{t(internalTest ? "rumpelstiltskin.history" : "history")}
+						{t(
+							internalTest
+								? "rumpelstiltskin.history"
+								: effectId === HOTEL_LOBBY_EFFECT_ID
+									? "history"
+									: "raindance.history",
+						)}
 					</a>
 				</div>
 			</section>

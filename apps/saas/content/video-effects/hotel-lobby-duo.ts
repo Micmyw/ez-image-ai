@@ -35,8 +35,8 @@ export const hotelLobbyRecord: VideoEffectRecord = {
 			body: "The first photo defines the left performer and the second defines the right performer. Replace either photo or swap the positions before requesting the final quote. You do not need to choose a model or write a prompt.",
 		},
 		{
-			title: "Review the full credit cost",
-			body: "Review the current total quote and confirm once to start. The scene preparation and final video form one order. There is no separate retail charge for the intermediate scene image.",
+			title: "Generate at the displayed total",
+			body: "Check the full price, upload both photos and choose Generate. We check a fresh quote before starting and ask for confirmation if the price changes. Scene preparation and the final video form one order with one charge.",
 		},
 		{
 			title: "Return to your private result",
@@ -52,7 +52,7 @@ export const hotelLobbyRecord: VideoEffectRecord = {
 		{
 			question: "Is it free?",
 			answer:
-				"This is not a free or unlimited generation service. It uses your existing account and eligible credits. Sign in and upload your two photos to review the full current credit quote before you choose to start.",
+				"Generation uses your account and eligible paid credits. Sign in to see the complete current price before uploading. Choose Generate when both photos are ready; a changed price requires your confirmation.",
 		},
 		{
 			question: "Does the video include the original song?",

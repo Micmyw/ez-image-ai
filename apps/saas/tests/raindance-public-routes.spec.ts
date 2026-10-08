@@ -26,6 +26,9 @@ type Scenario = {
 	creates: Array<Record<string, unknown>>;
 	playback: number;
 	ordinaryVideoJobRequests: number;
+	eligibleCredits: string;
+	quoteCredits: string;
+	waitForQuote?: Promise<void>;
 };
 const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 	effectId: "raindance-solo",
@@ -41,6 +44,8 @@ const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 	creates: [],
 	playback: 0,
 	ordinaryVideoJobRequests: 0,
+	eligibleCredits: "120",
+	quoteCredits: "24",
 	...patch,
 });
 
@@ -110,7 +115,9 @@ async function setup(page: Page, state: Scenario) {
 				accessAllowed: true,
 				reasons: [],
 				credits: state.available ? "24" : null,
-				creditBalance: state.available ? { totalCredits: "120", eligibleCredits: "120" } : null,
+				creditBalance: state.available
+					? { totalCredits: "120", eligibleCredits: state.eligibleCredits }
+					: null,
 				maxInputBytes: 10_000_000,
 			});
 		if (endpoint === "videoEffects/uploads/create") {
@@ -149,10 +156,11 @@ async function setup(page: Page, state: Scenario) {
 			});
 		if (endpoint === "videoEffects/quote") {
 			state.quotes.push(body);
+			if (state.waitForQuote) await state.waitForQuote;
 			state.effectId = body.effectId;
 			return reply({
 				quoteId: `quote-${state.quotes.length}`,
-				credits: "24",
+				credits: state.quoteCredits,
 				expiresAt: new Date(Date.now() + (state.expired ? -1000 : 60_000)).toISOString(),
 			});
 		}
@@ -205,12 +213,6 @@ async function uploadBoth(page: Page) {
 	await page.locator("#ve-upload-right").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
 }
-async function quote(page: Page) {
-	await page.getByRole("button", { name: t.getQuote, exact: true }).click();
-	await expect(
-		page.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true }),
-	).toBeVisible();
-}
 
 test("Raindance: indexable guide has a working solo/duet entry, copyable prompts and honest illustration", async ({
 	page,
@@ -259,22 +261,25 @@ test("Raindance: solo binds one upload; duet and Hotel Lobby drafts remain separ
 	await expect(page.locator("#ve-upload-left")).toBeEnabled();
 	await page.locator("#ve-upload-left").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
-	await quote(page);
-	expect(state.quotes[0]).toMatchObject({
-		effectId: "raindance-solo",
-		inputs: { leftAssetId: "asset-1", rightAssetId: "asset-1" },
-	});
-	expect(state.creates).toHaveLength(0);
 	await page
 		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
 		.click();
 	await expect(page.locator("#raindance-history a")).toHaveCount(1);
+	expect(state.quotes[0]).toMatchObject({
+		effectId: "raindance-solo",
+		inputs: { leftAssetId: "asset-1", rightAssetId: "asset-1" },
+	});
+	expect(state.creates).toHaveLength(1);
 	await page.locator("#raindance-history a").click();
 	await expect(page).toHaveURL(`${test.info().project.use.baseURL}${path}?job=mock-template-job`);
 	await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.empty);
 	await uploadBoth(page);
-	await quote(page);
+	state.quoteCredits = "25";
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
+		.click();
+	await expect(page.locator("#ve-price-change")).toContainText("25 credits");
 	expect(state.quotes[1]).toMatchObject({
 		effectId: "raindance-duo",
 		inputs: { leftAssetId: "asset-2", rightAssetId: "asset-3" },
@@ -295,7 +300,6 @@ test("Raindance: lost paid response recovers the same solo confirmation", async 
 	await expect(page.locator("#ve-upload-left")).toBeEnabled();
 	await page.locator("#ve-upload-left").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
-	await quote(page);
 	await page
 		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
 		.click();
@@ -305,6 +309,68 @@ test("Raindance: lost paid response recovers the same solo confirmation", async 
 	await expect(page.locator("#raindance-history a")).toHaveCount(1);
 	expect(state.creates).toHaveLength(2);
 	expect(state.creates[1]).toEqual(state.creates[0]);
+});
+
+test("Raindance: leaving a mode during quotation cannot accept a hidden order", async ({
+	page,
+}) => {
+	let release!: () => void;
+	const state = scenario({
+		waitForQuote: new Promise<void>((resolve) => {
+			release = resolve;
+		}),
+	});
+	await setup(page, state);
+	await expect(page.locator("#ve-upload-left")).toBeEnabled();
+	await page.locator("#ve-upload-left").setInputFiles(source);
+	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
+		.click();
+	await expect.poll(() => state.quotes.length).toBe(1);
+	await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
+	const quoted = page.waitForResponse((response) => response.url().includes("videoEffects/quote"));
+	release();
+	await quoted;
+	await page.getByRole("button", { name: "Solo · 1 photo", exact: true }).click();
+	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
+	await expect(
+		page.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true }),
+	).toBeEnabled();
+	expect(state.creates).toHaveLength(0);
+});
+
+test("Raindance: insufficient balance opens credit packs and preserves duet photos and mode", async ({
+	page,
+}) => {
+	const state = scenario({ eligibleCredits: "0" });
+	await setup(page, state);
+	await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
+	await uploadBoth(page);
+	await page.locator(".ve-creator .ve-primary").click();
+	const stored = await page.evaluate(() => ({
+		marker: JSON.parse(sessionStorage.getItem("ezpic.video-effect.payment-return.v1")!),
+		draft: JSON.parse(sessionStorage.getItem("ezpic.video-effect.v1:raindance-duo:mock-owner")!),
+	}));
+	expect(stored.marker).toMatchObject({
+		ownerId: "mock-owner",
+		path: `${path}?mode=duo`,
+		stage: "armed",
+	});
+	expect(stored.draft).toMatchObject({
+		effectId: "raindance-duo",
+		leftAssetId: "asset-1",
+		rightAssetId: "asset-2",
+	});
+	expect(JSON.stringify(stored)).not.toMatch(/blob:|base64|uploadUrl|signed/);
+	expect(state.quotes).toHaveLength(0);
+	expect(state.creates).toHaveLength(0);
+	state.eligibleCredits = "120";
+	await page.goto(`${path}?mode=duo`);
+	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
+	await expect(
+		page.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true }),
+	).toBeEnabled();
 });
 
 test("Raindance: private order and localized views stay out of indexing", async ({ page }) => {

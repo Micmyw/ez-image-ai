@@ -27,6 +27,7 @@ type Scenario = {
 	playback: number;
 	ordinaryVideoJobRequests: number;
 	eligibleCredits: string;
+	quoteCredits: string;
 };
 const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 	signedIn: true,
@@ -42,6 +43,7 @@ const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 	playback: 0,
 	ordinaryVideoJobRequests: 0,
 	eligibleCredits: "120",
+	quoteCredits: "69",
 	...patch,
 });
 
@@ -154,7 +156,7 @@ async function setup(page: Page, state: Scenario) {
 			state.quotes.push(body);
 			return reply({
 				quoteId: `quote-${state.quotes.length}`,
-				credits: "69",
+				credits: state.quoteCredits,
 				expiresAt: new Date(Date.now() + (state.expired ? -1000 : 60_000)).toISOString(),
 			});
 		}
@@ -206,6 +208,56 @@ async function uploadBoth(page: Page) {
 	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
 }
 
+test("UI Mock: one click quotes and accepts the displayed complete order without a separate review step", async ({
+	page,
+}) => {
+	const state = scenario();
+	await setup(page, state);
+	await expect(page.locator(".ve-price strong")).toHaveText("69 credits");
+	await expect(page.getByRole("button", { name: t.getQuote, exact: true })).toHaveCount(0);
+	const chooser = page.waitForEvent("filechooser");
+	await page.locator(".ve-creator .ve-primary").click();
+	await (await chooser).setFiles(source);
+	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
+	await expect(page.locator(".ve-creator .ve-primary")).toHaveText(t.uploadRight);
+	await page.locator("#ve-upload-right").setInputFiles(source);
+	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "69"), exact: true })
+		.click();
+	await expect(page.locator(".ve-result")).toContainText(t.stages.CREATING_SCENE);
+	expect(state.quotes).toHaveLength(1);
+	expect(state.creates).toHaveLength(1);
+	// A following click after a fast accepted response starts a fresh draft only.
+	await page.locator(".ve-creator .ve-primary").click();
+	expect(state.creates).toHaveLength(1);
+	await expect(
+		page.getByRole("button", { name: t.generate.replace("{credits}", "69"), exact: true }),
+	).toBeEnabled();
+});
+
+for (const credits of ["70", "68"])
+	test(`UI Mock: a changed ${credits}-credit total requires a new explicit confirmation`, async ({
+		page,
+	}) => {
+		const state = scenario({ quoteCredits: credits });
+		await setup(page, state);
+		await uploadBoth(page);
+		await page
+			.getByRole("button", { name: t.generate.replace("{credits}", "69"), exact: true })
+			.click();
+		await expect(page.locator(".ve-price strong")).toHaveText(`${credits} credits`);
+		await expect(page.locator("#ve-price-change")).toContainText(`${credits} credits`);
+		expect(state.creates).toHaveLength(0);
+		await page
+			.getByRole("button", { name: `Confirm new total · ${credits} credits`, exact: true })
+			.click();
+		await expect(page.locator(".ve-result")).toContainText(t.stages.CREATING_SCENE);
+		expect(state.quotes).toHaveLength(2);
+		expect(state.creates).toHaveLength(1);
+		expect(state.creates[0]?.quoteId).toBe("quote-2");
+	});
+
 for (const width of [1440, 390, 320])
 	test(`UI Mock: ${width}px shows the price and actual video balance before uploads`, async ({
 		page,
@@ -222,9 +274,13 @@ for (const width of [1440, 390, 320])
 		await expect(page.locator("#ve-funding-hint")).toContainText(
 			t.creditShortfall.replace("{credits}", "69"),
 		);
-		const review = page.getByRole("button", { name: t.getQuote, exact: true });
-		await expect(review).toBeDisabled();
-		await expect(review).toHaveAccessibleDescription(t.uploadBothHint);
+		await expect(page.getByRole("button", { name: t.getQuote, exact: true })).toHaveCount(0);
+		const purchase = page.locator(".ve-creator .ve-primary");
+		await expect(purchase).toHaveText(t.addCredits);
+		await expect(purchase).toBeEnabled();
+		await expect(purchase).toHaveAccessibleDescription(
+			new RegExp(t.creditShortfall.replace("{credits}", "69")),
+		);
 		await expect
 			.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
 			.toBe(true);
@@ -248,20 +304,18 @@ test("UI Mock: upload guidance, eligible-credit shortfall and a refreshed balanc
 	await expect(page.locator("#ve-quote-hint")).toHaveText(t.uploadRightHint);
 	await page.locator("#ve-upload-right").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
-	await quote(page);
 	const generate = page.getByRole("button", {
 		name: t.generate.replace("{credits}", "69"),
 		exact: true,
 	});
-	await expect(generate).toBeDisabled();
-	await expect(generate).toHaveAccessibleDescription(
+	await expect(generate).toHaveCount(0);
+	await expect(page.locator(".ve-creator .ve-primary")).toHaveAccessibleDescription(
 		new RegExp(t.creditShortfall.replace("{credits}", "69")),
 	);
 	await expect(page.getByRole("button", { name: t.addCredits, exact: true })).toBeEnabled();
 	expect(state.creates).toHaveLength(0);
 	state.eligibleCredits = "120";
 	await page.reload();
-	await quote(page);
 	await expect(generate).toBeEnabled();
 	await expect(page.locator("#ve-funding-hint")).not.toContainText("You need");
 	expect(state.creates).toHaveLength(0);
@@ -281,10 +335,12 @@ test("UI Mock: price guidance renders in German with the same dynamic amounts", 
 	);
 	await expect(page.locator("#ve-quote-hint")).toHaveText(de.videoEffects.uploadBothHint);
 });
-async function quote(page: Page) {
-	await page.getByRole("button", { name: t.getQuote, exact: true }).click();
+async function reviewChangedPrice(page: Page) {
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "69"), exact: true })
+		.click();
 	await expect(
-		page.getByRole("button", { name: t.generate.replace("{credits}", "69"), exact: true }),
+		page.getByRole("button", { name: t.confirmNewPrice.replace("{credits}", "70"), exact: true }),
 	).toBeVisible();
 }
 
@@ -318,7 +374,6 @@ test("UI Mock: an ordinary signed-in account can generate and reopen its templat
 	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index, follow");
 	await expect(page.locator("#hotel-lobby-history")).toContainText(t.emptyHistory);
 	await uploadBoth(page);
-	await quote(page);
 	await page
 		.getByRole("button", { name: t.generate.replace("{credits}", "69"), exact: true })
 		.click();
@@ -370,24 +425,24 @@ for (const width of [1440, 390, 320])
 test("UI Mock: sealed left/right roles, keyboard swap, quote invalidation, replacement and upload cancel", async ({
 	page,
 }) => {
-	const state = scenario();
+	const state = scenario({ quoteCredits: "70" });
 	await setup(page, state);
 	await uploadBoth(page);
-	await quote(page);
+	await reviewChangedPrice(page);
 	const swap = page.getByRole("button", { name: t.swap });
 	await swap.focus();
 	await page.keyboard.press("Enter");
-	await expect(page.getByRole("button", { name: t.getQuote, exact: true })).toBeVisible();
-	await quote(page);
+	await expect(page.locator("#ve-price-change")).toHaveCount(0);
+	await reviewChangedPrice(page);
 	expect(state.quotes.at(-1)?.inputs).toEqual({ leftAssetId: "asset-2", rightAssetId: "asset-1" });
 	await page.locator("#ve-upload-left").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
-	await quote(page);
+	await reviewChangedPrice(page);
 	expect(state.quotes.at(-1)?.inputs).toEqual({ leftAssetId: "asset-3", rightAssetId: "asset-1" });
 	state.slowUpload = true;
 	await page.locator("#ve-upload-right").setInputFiles(source);
 	await page.getByRole("button", { name: t.clearPhoto.replace("{role}", t.right) }).click();
-	await expect(page.getByRole("button", { name: t.getQuote, exact: true })).toBeDisabled();
+	await expect(page.getByRole("button", { name: t.uploadRight, exact: true })).toBeEnabled();
 	expect(state.creates).toHaveLength(0);
 });
 
@@ -397,7 +452,6 @@ test("UI Mock: double click and lost response restore one confirmation after ref
 	const state = scenario({ loseFirst: true });
 	await setup(page, state);
 	await uploadBoth(page);
-	await quote(page);
 	await page
 		.getByRole("button", { name: t.generate.replace("{credits}", "69"), exact: true })
 		.evaluate((node) => {
@@ -421,18 +475,43 @@ test("UI Mock: double click and lost response restore one confirmation after ref
 	expect(state.creates).toHaveLength(2);
 });
 
+test("UI Mock: blocked recovery storage prevents a paid acceptance", async ({ page }) => {
+	const state = scenario();
+	await setup(page, state);
+	await uploadBoth(page);
+	await page.evaluate(() => {
+		const original = Object.getOwnPropertyDescriptor(Storage.prototype, "setItem")!.value as (
+			this: Storage,
+			key: string,
+			value: string,
+		) => void;
+		Storage.prototype.setItem = function (key: string, value: string) {
+			if (key.startsWith("ezpic.video-effect")) throw new Error("blocked test storage");
+			return original.call(this, key, value);
+		};
+	});
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "69"), exact: true })
+		.click();
+	await expect(page.locator(".ve-error")).toHaveText(t.storageUnavailable);
+	expect(state.quotes).toHaveLength(1);
+	expect(state.creates).toHaveLength(0);
+});
+
 test("UI Mock: expired quote requires another quote; insufficient eligible credits never becomes a job", async ({
 	page,
 }) => {
 	const state = scenario({ expired: true });
 	await setup(page, state);
 	await uploadBoth(page);
-	await page.getByRole("button", { name: t.getQuote, exact: true }).click();
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "69"), exact: true })
+		.click();
 	await expect(page.locator(".ve-creator")).toContainText(t.quoteExpired);
 	expect(state.creates).toHaveLength(0);
 	state.expired = false;
 	state.insufficient = true;
-	await quote(page);
+	state.eligibleCredits = "0";
 	await page
 		.getByRole("button", { name: t.generate.replace("{credits}", "69"), exact: true })
 		.click();

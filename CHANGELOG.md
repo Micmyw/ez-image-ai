@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Effect generation in one step
+
+- Show Hotel Lobby and Raindance complete order prices before photos are uploaded; Generate obtains a fresh quote internally and asks for confirmation only when the total changes.
+- Make missing-photo and insufficient-credit actions actionable. Preserve private photo drafts, Raindance mode, checkout intent binding and uncertain-order recovery.
+- Keep Rumpelstiltskin's current explicit review flow and all server charging, moderation and idempotency checks.
+
 ## 2026-10-08 — Public page indexing
 
 - Make Create, Examples, Contact, Changelog, Hotel Lobby beta and the video guide indexable.

@@ -42,7 +42,7 @@ The template prepares one continuous duo scene in the background before animatin
 
 The page displays the complete credit quote before you choose Generate. The intermediate scene and final video are one order using your existing eligible credits. There is no separate retail charge for the scene image and no new wallet or subscription is required.
 
-This is not free or unlimited generation. Review the current quote after uploading your photos. If your eligible credits are insufficient, use the existing account payment flow and return to review a valid quote before starting. A changed or expired quote requires a fresh confirmation.
+Generation uses eligible paid credits. Sign in to see the full current price before uploading, then choose Generate when both photos are ready. The service checks a fresh quote and asks for confirmation if the price changes. If your eligible balance is insufficient, Add credits opens the existing payment flow and preserves your photos for your return.
 
 ## Leave and return to the accepted task
 
