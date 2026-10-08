@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	loaded: vi.fn(),
@@ -27,26 +27,52 @@ function queryFunction() {
 }
 
 describe("deferred authentication queries", () => {
+	afterEach(() => vi.unstubAllGlobals());
 	it("leaves the authentication SDK out of module initialization", async () => {
 		expect(mocks.loaded).not.toHaveBeenCalled();
 		useSessionQuery();
 		expect(mocks.loaded).not.toHaveBeenCalled();
-		mocks.getSession.mockResolvedValueOnce({ data: null, error: null });
+		const fetch = vi.fn().mockResolvedValueOnce(new Response("null"));
+		vi.stubGlobal("fetch", fetch);
 		await expect(queryFunction()()).resolves.toBeNull();
-		expect(mocks.loaded).toHaveBeenCalledOnce();
-		expect(mocks.getSession).toHaveBeenCalledWith({ query: { disableCookieCache: true } });
+		expect(mocks.loaded).not.toHaveBeenCalled();
+		expect(fetch).toHaveBeenCalledWith("/api/auth/get-session?disableCookieCache=true", {
+			credentials: "include",
+			cache: "no-store",
+		});
 	});
 
 	it("returns the signed-in session and preserves authentication errors", async () => {
 		useSessionQuery();
-		const session = { user: { id: "member" }, session: { id: "session" } };
-		mocks.getSession.mockResolvedValueOnce({ data: session, error: null });
-		await expect(queryFunction()()).resolves.toBe(session);
-		mocks.getSession.mockResolvedValueOnce({
-			data: null,
-			error: { message: "Session unavailable" },
+		const expiresAt = "2026-11-01T00:00:00.000Z";
+		const session = {
+			user: { id: "member", isAnonymous: false },
+			session: { id: "session", expiresAt },
+		};
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockResolvedValueOnce(Response.json(session))
+				.mockResolvedValueOnce(Response.json({ message: "Session unavailable" }, { status: 503 })),
+		);
+		await expect(queryFunction()()).resolves.toEqual({
+			...session,
+			session: { ...session.session, expiresAt: new Date(expiresAt) },
 		});
 		await expect(queryFunction()()).rejects.toThrow("Session unavailable");
+	});
+	it("does not turn malformed or failed session reads into anonymous success", async () => {
+		useSessionQuery();
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockResolvedValueOnce(new Response("<html>unavailable</html>"))
+				.mockRejectedValueOnce(new Error("offline")),
+		);
+		await expect(queryFunction()()).rejects.toThrow("Failed to fetch session");
+		await expect(queryFunction()()).rejects.toThrow("offline");
 	});
 
 	it("preserves linked-account and passkey responses", async () => {

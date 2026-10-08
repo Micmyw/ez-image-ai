@@ -1,14 +1,10 @@
+import { readSession } from "@repo/auth/session-read";
 import { useQuery } from "@tanstack/react-query";
 
 export const sessionQueryKey = ["user", "session"] as const;
 
 export async function fetchSession() {
-	const { authClient } = await import("@repo/auth/client");
-	const { data, error } = await authClient.getSession({
-		query: { disableCookieCache: true },
-	});
-	if (error) throw new Error(error.message || "Failed to fetch session");
-	return data;
+	return readSession();
 }
 
 export const useSessionQuery = () => {
