@@ -512,6 +512,29 @@ test("Raindance: review-regression mounted recovery observes an already persiste
 	expect(state.creates[1]).toEqual(state.creates[0]);
 });
 
+test("Raindance: integrated stored Duet preference reaches the header login return", async ({
+	page,
+}, info) => {
+	await page.addInitScript(() => sessionStorage.setItem("ezpic.raindance.mode", "duo"));
+	await setup(page, scenario({ signedIn: false }));
+	await expect(page).toHaveURL(`${path}?mode=duo`);
+	await expect(page.getByRole("button", { name: "Duet · 2 photos", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	const header = page.locator(".studio-header-account a[href^='/login']");
+	const href = `/login?redirectTo=${encodeURIComponent(`${path}?mode=duo`)}`;
+	await expect(header).toHaveAttribute("href", href);
+	await page.screenshot({
+		path: info.outputPath("raindance-restored-duet-login.png"),
+		animations: "disabled",
+	});
+	await header.click();
+	await expect(page).toHaveURL(
+		new RegExp(`/login\\?redirectTo=${encodeURIComponent(`${path}?mode=duo`)}`),
+	);
+});
+
 test("Raindance: insufficient balance opens credit packs and preserves duet photos, mode and duration", async ({
 	page,
 }) => {

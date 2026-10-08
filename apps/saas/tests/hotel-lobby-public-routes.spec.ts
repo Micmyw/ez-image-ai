@@ -281,6 +281,33 @@ test("UI Mock: review-regression history navigation invalidates a pending quote"
 	expect(state.creates).toHaveLength(0);
 });
 
+test("UI Mock: integrated guest header and mobile menu retain only the safe Hotel task return", async ({
+	page,
+}, info) => {
+	await setup(page, scenario({ signedIn: false }));
+	await page.goto(
+		`${path}?job=owned-history-job&redirectTo=https%3A%2F%2Fevil.invalid&asset=private`,
+	);
+	const href = `/login?redirectTo=${encodeURIComponent(`${path}?job=owned-history-job`)}`;
+	await expect(page.locator(".studio-header-account a[href^='/login']")).toHaveAttribute(
+		"href",
+		href,
+	);
+	// Guest effect pages expose account links in the header and mobile drawer.
+	await expect(page.locator(".studio-sidebar")).toHaveCount(0);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.locator('[data-test="header-navigation-trigger"]').click();
+	await expect(page.locator(".studio-drawer-signin")).toHaveAttribute("href", href);
+	await page.screenshot({
+		path: info.outputPath("hotel-safe-login-mobile.png"),
+		animations: "disabled",
+	});
+	await page.locator(".studio-drawer-signin").click();
+	await expect(page).toHaveURL(
+		new RegExp(`/login\\?redirectTo=${encodeURIComponent(`${path}?job=owned-history-job`)}`),
+	);
+});
+
 for (const width of [1440, 390, 320])
 	test(`UI Mock: ${width}px duration options show real standard and annual totals without a five-second discount`, async ({
 		page,
