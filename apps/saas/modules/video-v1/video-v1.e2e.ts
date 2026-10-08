@@ -529,7 +529,9 @@ test("UI Mock: image sealing remains pending review on a narrow screen", async (
 	const state = scenario();
 	await page.setViewportSize({ width: 390, height: 844 });
 	await setup(context, page, state);
-	await page.locator("#video-image").setInputFiles({
+	const fileInput = page.locator("#video-image");
+	await expect(fileInput).toBeEnabled();
+	await fileInput.setInputFiles({
 		name: "reference.png",
 		mimeType: "image/png",
 		buffer: Buffer.from(
