@@ -2,8 +2,10 @@
 
 import { RAINDANCE_SOLO_EFFECT_ID, RAINDANCE_DUO_EFFECT_ID } from "@repo/config/video-effects";
 import { useTranslations } from "next-intl";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { restoredRaindanceDuetPath } from "../lib/raindance-mode";
 import { VideoEffectGenerator } from "./VideoEffectGenerator";
 import { VideoEffectHistory } from "./VideoEffectHistory";
 
@@ -15,6 +17,7 @@ export function RaindanceWorkbench({
 	initialMode?: string;
 }) {
 	const t = useTranslations("videoEffects");
+	const router = useRouter();
 	const [mode, setMode] = useState(initialMode === "duo" ? "duo" : "solo");
 	const [jobId, setJobId] = useState(initialJobId);
 	useEffect(() => {
@@ -24,11 +27,19 @@ export function RaindanceWorkbench({
 			return;
 		}
 		try {
-			if (sessionStorage.getItem("ezpic.raindance.mode") === "duo") setMode("duo");
+			const restoredPath = restoredRaindanceDuetPath(
+				window.location.href,
+				sessionStorage.getItem("ezpic.raindance.mode"),
+			);
+			if (restoredPath) {
+				// On hydration the native-history adapter may not be mounted yet.
+				router.replace(restoredPath, { scroll: false });
+				setMode("duo");
+			}
 		} catch {
 			/* Optional preference. */
 		}
-	}, [initialMode, initialJobId]);
+	}, [initialMode, initialJobId, router]);
 	const effectId = mode === "solo" ? RAINDANCE_SOLO_EFFECT_ID : RAINDANCE_DUO_EFFECT_ID;
 	return (
 		<div className="rd-workspace" id="raindance-generator">

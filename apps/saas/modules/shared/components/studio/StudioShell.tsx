@@ -33,6 +33,7 @@ import {
 	type StudioPanel,
 } from "./studio-context";
 import { StudioPanelBoundary } from "./StudioPanelBoundary";
+import { StudioSignInLink } from "./StudioSignInLink";
 import { StudioToolNavigation } from "./StudioToolNavigation";
 
 import "./studio.css";
@@ -261,10 +262,10 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 						<UserMenu showUserName studio />
 					</>
 				) : (
-					<a className="studio-signin" href="/login">
+					<StudioSignInLink className="studio-signin">
 						{common("login")}
 						<span aria-hidden>↗</span>
-					</a>
+					</StudioSignInLink>
 				)}
 			</div>
 		</>
@@ -321,10 +322,10 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 									</div>
 								</div>
 							) : (
-								<a className="text-sm text-violet-200" href="/login">
+								<StudioSignInLink className="text-sm text-violet-200">
 									{/* Reload the root locale provider when entering account routes. */}
 									{common("login")}
-								</a>
+								</StudioSignInLink>
 							)}
 							<HeaderNavigationMenu
 								registered={registered}

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
 	pathname: "/",
+	search: "",
 	user: null as { id: string; isAnonymous?: boolean } | null,
 	videoAvailable: false,
 	videoNavigationImported: vi.fn(),
@@ -15,7 +16,7 @@ vi.mock("@auth/components/SessionProvider", () => ({
 vi.mock("@auth/hooks/use-session", () => ({ useSession: () => ({ user: state.user }) }));
 vi.mock("next/navigation", () => ({
 	usePathname: () => state.pathname,
-	useSearchParams: () => new URLSearchParams(),
+	useSearchParams: () => new URLSearchParams(state.search),
 	useRouter: () => ({ prefetch: vi.fn() }),
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
@@ -77,9 +78,30 @@ const renderShell = async () => {
 describe("homepage and signed-in tool navigation", () => {
 	beforeEach(() => {
 		state.pathname = "/";
+		state.search = "";
 		state.user = null;
 		state.videoAvailable = false;
 	});
+
+	it.each([
+		["/video-effects/hotel-lobby-ai", "", "/video-effects/hotel-lobby-ai"],
+		["/blog/raindance-ai-trend", "mode=duo", "/blog/raindance-ai-trend?mode=duo"],
+		[
+			"/blog/raindance-ai-trend",
+			"job=private-job_1&mode=duo&asset=private-url&redirectTo=https://evil.example",
+			"/blog/raindance-ai-trend?job=private-job_1&mode=duo",
+		],
+	])(
+		"returns header sign-in to %s with safe template state",
+		async (pathname, search, expected) => {
+			state.pathname = pathname;
+			state.search = search;
+			const markup = await renderShell();
+			expect(markup).toContain(`href="/login?redirectTo=${encodeURIComponent(expected)}"`);
+			expect(markup).not.toContain("evil.example");
+			expect(markup).not.toContain("private-url");
+		},
+	);
 
 	it.each([null, { id: "guest", isAnonymous: true }])(
 		"does not import video navigation or its catalog for a homepage visitor (%j)",

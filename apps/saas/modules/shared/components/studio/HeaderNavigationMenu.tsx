@@ -20,6 +20,7 @@ import {
 
 import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
 import { resetStudioWorkspace } from "./studio-context";
+import { StudioSignInLink } from "./StudioSignInLink";
 import { StudioToolNavigation } from "./StudioToolNavigation";
 
 const VideoNavigationLink = dynamic(() =>
@@ -148,9 +149,9 @@ export function HeaderNavigationMenu({
 						{registered ? (
 							<div className="studio-drawer-user">{account}</div>
 						) : (
-							<a href="/login" className="studio-drawer-signin">
+							<StudioSignInLink className="studio-drawer-signin">
 								{common("login")} <ArrowUpRightIcon aria-hidden />
-							</a>
+							</StudioSignInLink>
 						)}
 					</div>
 				)}
