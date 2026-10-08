@@ -113,4 +113,38 @@ describe("effect price release preflight", () => {
 	});
 	it("does not invent a production policy when approval is absent", () =>
 		expect(verifyApprovedVideoEffectPrices({})).toEqual({ enabled: false, checked: 0 }));
+	it("compacts only retired allowlists before the overlay while retaining the 5,000-byte bound", () => {
+		const {
+			VIDEO_EFFECT_RETAIL_PRICE_ACCEPTED_VERSION: _retail,
+			HOTEL_LOBBY_DUO_ACCEPTED_LONG_TEMPLATE_VERSION: _hotel,
+			RAINDANCE_ACCEPTED_LONG_TEMPLATE_VERSION: _rain,
+			...base
+		} = policy;
+		const legacy = {
+			...base,
+			VIDEO_MODEL_ALLOWED_OPTIONS: "",
+			VIDEO_V1_ALLOWED_USER_IDS: "retired-user",
+		};
+		legacy.VIDEO_MODEL_ALLOWED_OPTIONS = "x".repeat(
+			4_990 - Buffer.byteLength(JSON.stringify(legacy)),
+		);
+		const input = {
+			CLOUDFLARE_PRODUCTION_ENV:
+				"VIDEO_V1_ENABLED=true\nHOTEL_LOBBY_DUO_ENABLED=false\nUNRELATED=kept",
+			VIDEO_RUNTIME_CONFIG: JSON.stringify(legacy),
+			VIDEO_EFFECT_BUILD_RETAIL_PRICE_VERSION: VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+		};
+		expect(Buffer.byteLength(input.VIDEO_RUNTIME_CONFIG)).toBe(4_990);
+		const result = parseEnv(readCloudflareBuildEnvironment(input));
+		expect(result.HOTEL_LOBBY_DUO_ENABLED).toBe("false");
+		expect(result.UNRELATED).toBe("kept");
+		expect(JSON.parse(result.VIDEO_RUNTIME_CONFIG!)).toEqual(policy);
+		const active = { ...base, HOTEL_LOBBY_DUO_PRICE_BASIS: "" };
+		active.HOTEL_LOBBY_DUO_PRICE_BASIS = "x".repeat(
+			4_990 - Buffer.byteLength(JSON.stringify(active)),
+		);
+		expect(() =>
+			readCloudflareBuildEnvironment({ ...input, VIDEO_RUNTIME_CONFIG: JSON.stringify(active) }),
+		).toThrow("VIDEO_RUNTIME_CONFIG_INVALID");
+	});
 });

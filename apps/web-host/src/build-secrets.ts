@@ -22,6 +22,7 @@ import {
 } from "@repo/config/video-pricing.server";
 import {
 	expandVideoRuntimeEnvironment,
+	packVideoRuntimeEnvironment,
 	parseHotelLobbyRuntimeOverride,
 	parseRaindanceRuntimeOverride,
 	parseVideoRuntimeConfig,
@@ -274,7 +275,14 @@ function withVideoRuntimeOverrides(
 			HOTEL_LOBBY_DUO_ACCEPTED_LONG_TEMPLATE_VERSION: HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
 			RAINDANCE_ACCEPTED_LONG_TEMPLATE_VERSION: RAINDANCE_LONG_TEMPLATE_VERSION,
 		};
-		policy = parseVideoRuntimeConfig(JSON.stringify({ ...policy, ...patch }));
+		// The canonical runtime pack already omits retired ordinary-video allowlists.
+		// Compact before this additive overlay so unused legacy fields cannot consume
+		// the unchanged 5,000-byte limit before the final preparation step runs.
+		const compacted = parseVideoRuntimeConfig(
+			packVideoRuntimeEnvironment({ VIDEO_RUNTIME_CONFIG: JSON.stringify(policy) })
+				.VIDEO_RUNTIME_CONFIG,
+		);
+		policy = parseVideoRuntimeConfig(JSON.stringify({ ...compacted, ...patch }));
 		for (const key of Object.keys(patch)) if (previous[key] !== undefined) changedFlatKeys.add(key);
 	}
 	if (encoded !== undefined) {

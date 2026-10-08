@@ -29,6 +29,8 @@ Set only the nonsecret build approval `VIDEO_EFFECT_BUILD_RETAIL_PRICE_VERSION=v
 
 The transform preserves audience, enabled flags, funding, cost budgets and expiry. Packed-policy size and flat-variable conflict guards still apply. The build logs safe computed costs and public totals; it must not expose the packed secret. The release sequence is exact-SHA CI and no-deploy Cloudflare builds, independent incremental review, jobs deployment first, then website deployment, then live version verification. No database migration is required.
 
+The existing canonical packer removes retired ordinary-video user/model allowlists before adding the three approvals. These fields were already ignored by admission and removed by final runtime preparation. Performing that same cleanup earlier avoids a transient oversized legacy pack; active policy fields and the 5,000-byte bound remain unchanged. A near-limit pack without retired fields still rejects an oversized overlay.
+
 For rollback, close only new admission using the independent effect gates while retaining owner-scoped history. Drain existing schema 3 jobs on a schema-3-capable jobs worker; do not roll the jobs worker back to code that cannot read accepted ten-second snapshots. Keep frozen output duration, full-video moderation, immutable reservation and idempotent settlement checks active during drain. Removing a build approval alone does not erase already packed runtime keys.
 
 ## Validation boundary
