@@ -239,6 +239,61 @@ describe("video V1 admission isolated PostgreSQL", () => {
 				${evidence.inputFingerprint ?? "a".repeat(64)}, "expiresAt"
 			FROM "generation_quote" WHERE "id" = ${quoteId}`;
 	}
+	it.each(["lite", "fast", "quality"] as const)(
+		"binds the %s Veo tier through quote signature, admission and same-key replay",
+		async (veoTier) => {
+			const f = await modelQuoteFixture({
+				productKey: "video-veo-3-1",
+				mode: "text-to-video",
+				duration: 8,
+				resolution: "1080p",
+				aspectRatio: "16:9",
+				sound: true,
+				veoTier,
+			});
+			const quote = await client.generationQuote.findUniqueOrThrow({
+				where: { id: f.quote.quoteId },
+			});
+			expect(quote.inputSnapshot).toMatchObject({ veoTier });
+			expect(
+				fingerprintGenerationQuoteSecurityPayload({
+					...quote,
+					inputSnapshot: {
+						...(quote.inputSnapshot as object),
+						veoTier: veoTier === "quality" ? "lite" : "quality",
+					},
+				}),
+			).not.toBe(quote.inputFingerprint);
+			await expect(
+				createVideoJobRecord(
+					{
+						...f.input,
+						request: { ...f.input.request, veoTier: veoTier === "quality" ? "lite" : "quality" },
+					},
+					client,
+				),
+			).rejects.toThrow("VIDEO_QUOTE_INPUT_MISMATCH");
+			const accepted = await createVideoJobRecord(f.input, client);
+			await expect(createVideoJobRecord(f.input, client)).resolves.toEqual({
+				...accepted,
+				replayed: true,
+			});
+			await expect(
+				createVideoJobRecord(
+					{
+						...f.input,
+						request: { ...f.input.request, veoTier: veoTier === "quality" ? "lite" : "quality" },
+					},
+					client,
+				),
+			).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+			expect(
+				(await client.generationJob.findUniqueOrThrow({ where: { id: accepted.jobId } }))
+					.inputSnapshot,
+			).toEqual(quote.inputSnapshot);
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(1);
+		},
+	);
 	const paidFundingPolicy = { minimumUsdMicrosPerCredit: 21_944n };
 	async function requote(f: Awaited<ReturnType<typeof fixture>>, quotedPrice: VideoPrice) {
 		const quote = await createVideoQuoteRecord(
@@ -969,7 +1024,7 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		expect(await createVideoJobRecord(acceptedInput, client)).toEqual({ ...first, replayed: true });
 	});
 	it.each(["lite", "fast", "quality"] as const)(
-		"consumer bridge replays an immutable future %s admission without enabling a new one",
+		"replays an immutable bridge-compatible %s admission after quote expiry",
 		async (veoTier) => {
 			const f = await modelQuoteFixture({
 				productKey: "video-veo-3-1",
@@ -978,17 +1033,10 @@ describe("video V1 admission isolated PostgreSQL", () => {
 				resolution: "1080p",
 				aspectRatio: "16:9",
 				sound: true,
+				veoTier,
 			});
-			const futureRequest = { ...f.input.request, veoTier };
-			await expect(
-				createVideoQuoteRecord(
-					{ ...f.input, request: futureRequest, maximumInputBytes: limits.maximumInputBytes },
-					client,
-				),
-			).rejects.toThrow();
-			await expect(
-				createVideoJobRecord({ ...f.input, request: futureRequest }, client),
-			).rejects.toThrow();
+			const futureRequest = f.input.request;
+			const { veoTier: _tier, ...missingTierRequest } = futureRequest;
 			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
 			// Insert a future-producer accepted fixture; never rewrite an existing immutable snapshot.
 			const quote = await client.generationQuote.findUniqueOrThrow({
@@ -1060,7 +1108,7 @@ describe("video V1 admission isolated PostgreSQL", () => {
 				replayed: true,
 			});
 			await expect(
-				createVideoJobRecord({ ...replay, request: f.input.request }, client),
+				createVideoJobRecord({ ...replay, request: missingTierRequest }, client),
 			).rejects.toThrow("IDEMPOTENCY_CONFLICT");
 			await expect(
 				createVideoJobRecord(

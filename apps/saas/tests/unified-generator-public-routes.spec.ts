@@ -134,23 +134,26 @@ async function setup(page: Page, signedIn = true) {
 					options: model.modes.flatMap((mode) => [
 						...new Map(
 							getVideoModelOptions(model.productKey, mode).map(
-								({ duration, resolution, sound }) => [
-									`${duration}:${resolution}:${sound}`,
+								({ duration, resolution, sound, veoTier }) => [
+									`${duration}:${resolution}:${sound}:${veoTier ?? ""}`,
 									{
 										mode,
 										duration,
 										resolution,
 										sound,
+										...(veoTier ? { veoTier } : {}),
 										available: state.catalogAvailable,
-										credits: sound
-											? "57"
-											: duration === 10
-												? "41"
-												: resolution === "1080p"
-													? "37"
-													: model.productKey === "video-seedance-2-5"
-														? "29"
-														: "23",
+										credits: veoTier
+											? { lite: "24", fast: "33", quality: "154" }[veoTier]
+											: sound
+												? "57"
+												: duration === 10
+													? "41"
+													: resolution === "1080p"
+														? "37"
+														: model.productKey === "video-seedance-2-5"
+															? "29"
+															: "23",
 										reasons: [],
 									},
 								],
@@ -520,6 +523,163 @@ test("replacing an in-flight reference ignores the first upload's late completio
 	expect(state.creates).toHaveLength(1);
 });
 
+async function chooseVideoGroup(page: Page, family: string, name: string) {
+	await page.locator("#video-model").click();
+	await page.getByRole("button", { name: family, exact: true }).click();
+	await page.getByRole("button", { name, exact: true }).click();
+}
+
+async function captureVideoVariant(page: Page, filename: string) {
+	await page
+		.locator('[data-test="video-workspace"]')
+		.evaluate((element) => element.scrollIntoView({ block: "start" }));
+	await page.screenshot({ animations: "disabled", path: path.join(evidence, filename) });
+}
+
+test("real video variants default without a base button, cancel mutually exclusive tiers and remember choices", async ({
+	page,
+}) => {
+	const state = await setup(page);
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await page.goto("/create?mode=video");
+	await expect(page.locator("#video-prompt")).toBeEnabled();
+	await chooseVideoGroup(page, "Veo", "Veo 3.1");
+	const variants = page.getByRole("group", { name: "Model variant", exact: true });
+	await expect(variants).toContainText("Current: Lite");
+	await expect(variants.getByRole("button", { name: "Lite", exact: true })).toHaveCount(0);
+	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 24 credits");
+	await captureVideoVariant(page, "ezimage-video-veo-lite.png");
+	await variants.getByRole("button", { name: "Fast", exact: true }).click();
+	await expect(variants.getByRole("button", { name: "Fast", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 33 credits");
+	await variants.getByRole("button", { name: "Quality", exact: true }).focus();
+	await page.keyboard.press("Space");
+	await expect(variants.getByRole("button", { name: "Fast", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"false",
+	);
+	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 154 credits");
+	await captureVideoVariant(page, "ezimage-video-veo-quality.png");
+	await chooseVideoGroup(page, "Seedance", "Seedance 2");
+	await expect(variants).toContainText("Current: Mini");
+	await variants.getByRole("button", { name: "Fast", exact: true }).click();
+	await expect(page.locator("#video-model")).toHaveAttribute(
+		"data-product-key",
+		"video-seedance-2-fast",
+	);
+	await captureVideoVariant(page, "ezimage-video-seedance-variants.png");
+	await chooseVideoGroup(page, "Veo", "Veo 3.1");
+	await expect(variants).toContainText("Current: Quality");
+	await mode(page, "image");
+	await mode(page, "video");
+	await expect(variants).toContainText("Current: Quality");
+	await page.reload();
+	await expect(variants).toContainText("Current: Quality");
+	await expect(page.locator("#video-image")).toBeEnabled();
+	await page.locator("#video-image").setInputFiles(referenceFile());
+	await expect(page.locator("#video-upload-status")).toContainText("Image secured");
+	await expect(variants).toContainText("Current: Quality");
+	await page.getByRole("button", { name: "Remove image", exact: true }).click();
+	await expect(variants).toContainText("Current: Quality");
+	await variants.getByRole("button", { name: "Quality", exact: true }).click();
+	await expect(variants).toContainText("Current: Lite");
+	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 24 credits");
+	await chooseVideoGroup(page, "Seedance", "Seedance 2");
+	await expect(variants).toContainText("Current: Fast");
+	await chooseVideoGroup(page, "Kling", "Kling 3");
+	await variants.getByRole("button", { name: "Pro", exact: true }).click();
+	await expect(page.locator('[data-test="video-settings-trigger"]')).toContainText("1080P");
+	await variants.getByRole("button", { name: "Turbo", exact: true }).click();
+	await expect(page.locator("#video-model")).toHaveAttribute(
+		"data-product-key",
+		"video-kling-3-turbo",
+	);
+	await page.locator('[data-test="video-settings-trigger"]').click();
+	await expect(page.getByRole("radio", { name: "4K", exact: true })).toHaveCount(0);
+	await page.keyboard.press("Escape");
+	await captureVideoVariant(page, "ezimage-video-kling-variants.png");
+	expect(state.quotes).toHaveLength(0);
+	expect(state.creates).toHaveLength(0);
+});
+
+for (const width of [390, 320])
+	test(`real video variants stay within ${width}px and freeze the selected tier into generation`, async ({
+		page,
+	}) => {
+		const state = await setup(page);
+		state.quoteCredits = "154";
+		await page.setViewportSize({ width, height: 1000 });
+		await page.goto("/create?mode=video");
+		await expect(page.locator("#video-prompt")).toBeEnabled();
+		await chooseVideoGroup(page, "Veo", "Veo 3.1");
+		const variants = page.getByRole("group", { name: "Model variant", exact: true });
+		await variants.getByRole("button", { name: "Quality", exact: true }).click();
+		await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 154 credits");
+		await captureVideoVariant(page, `ezimage-video-variants-${width}.png`);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+			width,
+		);
+		await page.locator("#video-prompt").fill("A slow camera above a calm lake.");
+		await page.locator('[data-test="video-generate"]').click();
+		await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+		expect(state.quotes[0]).toMatchObject({
+			productKey: "video-veo-3-1",
+			veoTier: "quality",
+			duration: 8,
+			resolution: "720p",
+		});
+		expect(state.creates[0].request).toEqual(state.quotes[0]);
+		expect(state.creates[0].request).not.toHaveProperty("variantSelections");
+	});
+
+for (const outcome of ["definite version rejection", "unknown accepted response"])
+	test(`Veo ${outcome} preserves the selected tier and the correct confirmation identity`, async ({
+		page,
+	}) => {
+		const state = await setup(page);
+		state.quoteCredits = "154";
+		state.createError = outcome === "definite version rejection" ? "INVALID_VIDEO_QUOTE" : null;
+		state.loseFirst = outcome === "unknown accepted response";
+		await page.goto("/create?mode=video");
+		await expect(page.locator("#video-prompt")).toBeEnabled();
+		await chooseVideoGroup(page, "Veo", "Veo 3.1");
+		const variants = page.getByRole("group", { name: "Model variant", exact: true });
+		await variants.getByRole("button", { name: "Quality", exact: true }).click();
+		await page.locator("#video-prompt").fill("Keep this quality and move the camera slowly.");
+		await page.locator('[data-test="video-generate"]').click();
+		await expect.poll(() => state.creates.length).toBe(1);
+		const original = state.creates[0];
+		if (state.createError) {
+			await expect(page.locator("#video-prompt")).toBeEnabled();
+			await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
+			await expect.poll(() => state.catalogReads).toBeGreaterThan(1);
+			expect(
+				await page.evaluate(() => sessionStorage.getItem("video-v1:confirmation:ui-owner")),
+			).toBeNull();
+			state.createError = null;
+			await page.reload();
+			await expect(variants).toContainText("Current: Quality");
+			await page.locator('[data-test="video-generate"]').click();
+			await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+			expect(state.creates[1].idempotencyKey).not.toBe(original.idempotencyKey);
+			expect(state.quotes).toHaveLength(2);
+		} else {
+			await expect(page.locator('[data-test="video-confirm"]')).toBeEnabled();
+			await expect(page.locator("#video-prompt")).toBeDisabled();
+			await page.reload();
+			await expect(variants).toContainText("Current: Quality");
+			await expect(variants.getByRole("button", { name: "Quality", exact: true })).toBeDisabled();
+			await page.locator('[data-test="video-confirm"]').click();
+			await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+			expect(state.creates[1]).toEqual(original);
+			expect(state.quotes).toHaveLength(1);
+		}
+		expect(state.creates[1].request.veoTier).toBe("quality");
+	});
+
 test("a quote resolved after leaving video is discarded and an expired quote never creates", async ({
 	page,
 }) => {
@@ -568,7 +728,7 @@ test("desktop and mobile compact composer, accessible model and settings menus",
 	await page.locator("#video-model").click();
 	await expect(page.locator('[data-test="video-model-menu"]')).toBeVisible();
 	await expect(page.locator(".video-model-families [data-model-icon]")).toHaveCount(5);
-	await expect(page.locator('.video-model-list [data-model-icon="kling"]')).toHaveCount(3);
+	await expect(page.locator('.video-model-list [data-model-icon="kling"]')).toHaveCount(2);
 	await expect(page.getByRole("button", { name: "Kling 2.6", exact: true })).toContainText(
 		"5 seconds / 10 seconds",
 	);

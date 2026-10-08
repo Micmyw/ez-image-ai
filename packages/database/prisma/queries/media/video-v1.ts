@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 
 import { readVideoInternalFundingSnapshot } from "@repo/config/video-internal-funding";
 import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
-import { readVideoAudioSafetyPolicy, type VideoAudioSafetyPolicy } from "@repo/config/video-output";
+import {
+	createVideoResolutionPolicy,
+	readVideoAudioSafetyPolicy,
+	videoOutputConstraints,
+	type VideoAudioSafetyPolicy,
+} from "@repo/config/video-output";
 import {
 	readVideoVisualSafetyProfile,
 	type VideoVisualSafetyProfile,
@@ -90,7 +95,7 @@ function snapshotRequest(value: Prisma.JsonValue): VideoRequest {
 			resolution: value.resolution,
 			aspectRatio: value.aspectRatio,
 			...(mode === "image-to-video" ? { inputAssetId: value.inputAssetId } : {}),
-			...(value.veoTier !== undefined ? { veoTier: value.veoTier } : {}),
+			...(value.veoTier === undefined ? {} : { veoTier: value.veoTier }),
 		});
 	return videoV1ReceiptInputSchema.parse(
 		mode === "image-to-video"
@@ -202,6 +207,8 @@ export async function createVideoQuoteRecord(
 	const visualSafetyProfile = requiredVisualSafetyProfile(input.visualSafetyProfile, request);
 	const textSafetyProfile = requiredTextSafetyProfile(input.textSafetyProfile);
 	const audioSafetyPolicy = requiredAudioSafetyPolicy(input.audioSafetyPolicy);
+	const resolutionPolicy =
+		"productKey" in request ? createVideoResolutionPolicy(request) : undefined;
 	if (
 		input.price.credits <= 0n ||
 		input.price.providerCostMicros <= 0n ||
@@ -254,6 +261,7 @@ export async function createVideoQuoteRecord(
 				textSafetyProfile,
 				audioSafetyPolicy,
 				outputStoragePolicy: videoOutputStoragePolicy,
+				...(resolutionPolicy ? { resolutionPolicy } : {}),
 				schemaVersion: 1,
 				modelContractVersion: requestContract(request),
 				requestFingerprint,
@@ -462,6 +470,7 @@ export async function createVideoJobRecord(
 		readVideoVisualSafetyProfile(snap);
 		readVideoTextSafetyProfile(snap);
 		readVideoAudioSafetyPolicy(snap);
+		videoOutputConstraints(snap);
 		if (
 			quote.inputFingerprint !==
 			fingerprintGenerationQuoteSecurityPayload({

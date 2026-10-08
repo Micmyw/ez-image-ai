@@ -1826,6 +1826,11 @@
 		}
 	},
 	"videoV1": {
+		"variant": "Modellvariante",
+		"currentVariant": "Aktuell: {variant}",
+		"baseVariant": "Basis: {variant}",
+		"variantHelp": "Variante auswählen; erneut auswählen, um zu {variant} zurückzukehren.",
+		"legacyVeoFast": "Veo 3.1 Fast (bisherige Version)",
 		"title": "Ein kurzes Video erstellen",
 		"beta": "Beta",
 		"description": "Erstelle aus einem Prompt oder einem Referenzbild ein privates Video. Melde dich an und nutze geeignete bezahlte Credits für die Generierung.",

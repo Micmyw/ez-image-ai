@@ -99,18 +99,39 @@ function withVideoRuntimeOverrides(
 	const priceVersion = environment.VIDEO_V1_BUILD_PRICE_VERSION;
 	const priceBasis = environment.VIDEO_V1_BUILD_PRICE_BASIS;
 	const priceExpiry = environment.VIDEO_V1_BUILD_PRICE_EXPIRY;
+	const modelVersion = environment.VIDEO_V1_BUILD_MODEL_VERSION;
 	const hasPriceApproval = priceVersion !== undefined || priceBasis !== undefined;
 	const templateEnabled = environment.HOTEL_LOBBY_DUO_BUILD_ENABLED;
 	if (enabled !== undefined && enabled !== "true" && enabled !== "false")
 		throw new Error("VIDEO_BUILD_ENABLED_OVERRIDE_INVALID");
 	if (access !== undefined && access !== "internal" && access !== "authenticated")
 		throw new Error("VIDEO_BUILD_ACCESS_OVERRIDE_INVALID");
+	if (modelVersion !== undefined && modelVersion !== VIDEO_MODEL_CATALOG_VERSION)
+		throw new Error("VIDEO_BUILD_MODEL_OVERRIDE_INVALID");
 	if (priceExpiry !== undefined && priceExpiry !== "none")
 		throw new Error("VIDEO_BUILD_PRICE_EXPIRY_OVERRIDE_INVALID");
 	if (templateEnabled !== undefined && templateEnabled !== "true" && templateEnabled !== "false")
 		throw new Error("VIDEO_EFFECT_BUILD_ENABLED_OVERRIDE_INVALID");
 	let policy = encoded === undefined ? undefined : parseVideoRuntimeConfig(encoded);
 	const changedFlatKeys = new Set<string>();
+	if (modelVersion !== undefined) {
+		if (
+			!policy ||
+			!["video-models-2026-10-04.2", VIDEO_MODEL_CATALOG_VERSION].includes(
+				policy.VIDEO_MODEL_CONTRACT_VERSION ?? "",
+			) ||
+			priceVersion !== VIDEO_SUPPLIER_PRICE_VERSION ||
+			!priceBasis?.trim()
+		)
+			throw new Error("VIDEO_BUILD_MODEL_POLICY_REQUIRED");
+		const previous = parseEnv(source);
+		expandVideoRuntimeEnvironment({ ...previous, VIDEO_RUNTIME_CONFIG: encoded });
+		policy = parseVideoRuntimeConfig(
+			JSON.stringify({ ...policy, VIDEO_MODEL_CONTRACT_VERSION: modelVersion }),
+		);
+		if (previous.VIDEO_MODEL_CONTRACT_VERSION !== undefined)
+			changedFlatKeys.add("VIDEO_MODEL_CONTRACT_VERSION");
+	}
 	if (hasPriceApproval || priceExpiry !== undefined) {
 		if (hasPriceApproval) {
 			if (priceVersion !== VIDEO_SUPPLIER_PRICE_VERSION || !priceBasis?.trim())
@@ -128,7 +149,11 @@ function withVideoRuntimeOverrides(
 		if (
 			!policy ||
 			!previousVersion ||
-			!["kie-public-2026-10-04.3", VIDEO_SUPPLIER_PRICE_VERSION].includes(previousVersion) ||
+			![
+				"kie-public-2026-10-04.3",
+				"kie-public-2026-10-07.1",
+				VIDEO_SUPPLIER_PRICE_VERSION,
+			].includes(previousVersion) ||
 			(!hasPriceApproval && previousVersion !== VIDEO_SUPPLIER_PRICE_VERSION) ||
 			!previousBasis?.trim() ||
 			(previousExpiry !== "none" && !Number.isFinite(expiry)) ||
@@ -487,6 +512,7 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key === "VIDEO_V1_BUILD_PRICE_VERSION" ||
 			key === "VIDEO_V1_BUILD_PRICE_BASIS" ||
 			key === "VIDEO_V1_BUILD_PRICE_EXPIRY" ||
+			key === "VIDEO_V1_BUILD_MODEL_VERSION" ||
 			key === "HOTEL_LOBBY_DUO_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
 			key === "RUMPELSTILTSKIN_ENABLED" ||

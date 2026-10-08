@@ -226,7 +226,7 @@ describe("Kie multi-model video boundary", () => {
 		["video-seedance-2-mini", "bytedance/seedance-2-mini", 5],
 		["video-seedance-2-fast", "bytedance/seedance-2-fast", 5],
 		["video-gemini-omni-flash", "google/gemini-omni-flash-1-1", "4"],
-		["video-veo-3-1", "veo-3-1", 4],
+		["video-veo-3-1", "veo-3-1", 8],
 		["video-veo-3-1-fast", "veo3_fast", 4],
 	])("uses the documented model and duration type for %s", (key, model, duration) => {
 		const request = buildKieVideoModelRequest(inputFor(key as string));

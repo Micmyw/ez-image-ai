@@ -1,4 +1,9 @@
-import { getVideoModel, validateVideoModelSelection } from "@repo/config/video-models";
+import {
+	getVideoModel,
+	validateVideoModelSelection,
+	videoVeoTierSchema,
+	VIDEO_MODEL_VARIANT_GROUPS,
+} from "@repo/config/video-models";
 import { z } from "zod";
 
 import { changeVideoDraft, type VideoDraft } from "./model";
@@ -18,6 +23,21 @@ const savedSchema = z
 				resolution: z.string(),
 				aspectRatio: z.string(),
 				sound: z.boolean(),
+				veoTier: videoVeoTierSchema.optional(),
+				variantSelections: z
+					.record(z.string(), z.object({ base: z.string(), selected: z.string() }).strict())
+					.refine((preferences) =>
+						Object.entries(preferences).every(([key, value]) => {
+							const group = VIDEO_MODEL_VARIANT_GROUPS.find((entry) => entry.id === key);
+							return (
+								group &&
+								[value.base, value.selected].every((id) =>
+									group.variants.some((variant) => variant.id === id),
+								)
+							);
+						}),
+					)
+					.optional(),
 			})
 			.strict(),
 	})

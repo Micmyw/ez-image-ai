@@ -1826,6 +1826,11 @@
 		}
 	},
 	"videoV1": {
+		"variant": "Variante du modèle",
+		"currentVariant": "Actuelle : {variant}",
+		"baseVariant": "Base : {variant}",
+		"variantHelp": "Sélectionnez une variante ; sélectionnez-la à nouveau pour revenir à {variant}.",
+		"legacyVeoFast": "Veo 3.1 Fast (ancienne version)",
 		"title": "Créer une courte vidéo",
 		"beta": "Bêta",
 		"description": "Transformez une description ou une image de référence en vidéo privée. Connectez-vous et utilisez des crédits payés admissibles pour générer.",

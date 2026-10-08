@@ -253,10 +253,10 @@ describe("October 7 supplier price refresh and finite operator approval", () => 
 			vi.setSystemTime(new Date("2026-10-07T13:50:00.000Z"));
 			const env = {
 				...approvedPriceEnvironment(),
-				VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-07.1",
+				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 			};
 			const price = resolveVideoModelPrice({ ...request, productKey, resolution: "720p" }, env);
-			expect(price.pricingVersion).toBe("kie-public-2026-10-07.1");
+			expect(price.pricingVersion).toBe(VIDEO_SUPPLIER_PRICE_VERSION);
 			expect(price.pricingDetails.validUntil).toBe(env.VIDEO_PRICE_VALID_UNTIL);
 		},
 	);
@@ -273,7 +273,7 @@ describe("October 7 supplier price refresh and finite operator approval", () => 
 				{ ...request, productKey, resolution: "720p" },
 				approvedPriceEnvironment(),
 			).pricingVersion,
-		).toBe("kie-public-2026-10-07.1");
+		).toBe(VIDEO_SUPPLIER_PRICE_VERSION);
 	});
 	it.each(["video-seedance-2-mini", "video-seedance-2-fast"])(
 		"refuses %s exactly at the finite operator approval deadline",

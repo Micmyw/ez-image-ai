@@ -120,12 +120,13 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 					options: model.modes.flatMap((mode) => [
 						...new Map(
 							getVideoModelOptions(model.productKey, mode).map(
-								({ duration, resolution, sound }) => [
-									`${duration}:${resolution}:${sound}`,
+								({ duration, resolution, sound, veoTier }) => [
+									`${duration}:${resolution}:${sound}:${veoTier ?? ""}`,
 									{
 										duration,
 										resolution,
 										sound,
+										...(veoTier ? { veoTier } : {}),
 										mode,
 										available: state.available && !(state.blockedSound && sound),
 										reasons: [],

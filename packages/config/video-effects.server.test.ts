@@ -194,10 +194,10 @@ describe("one complete duo quote", () => {
 		vi.setSystemTime(new Date("2026-10-07T13:50:00.000Z"));
 		const env = {
 			...fixtureEnvironment(),
-			VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-07.1",
+			VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 		};
 		const price = resolveVideoEffectPrice(request, env);
-		expect(price.pricingDetails.videoPricingVersion).toBe("kie-public-2026-10-07.1");
+		expect(price.pricingDetails.videoPricingVersion).toBe(VIDEO_SUPPLIER_PRICE_VERSION);
 		expect(price.providerCostMicros).toBe(107_500n);
 		expect(price.pricingDetails.directCostMicros).toBe("160500");
 		expect(price.pricingDetails.costPolicy.markupBps).toBe("20000");

@@ -1,8 +1,8 @@
 import { z } from "zod";
 
 /** Public capabilities only. Provider routes, costs and account readiness are server-owned. */
-export const VIDEO_MODEL_CATALOG_VERSION = "video-models-2026-10-04.2";
-/** Consumer compatibility only; this does not activate the future public catalog. */
+export const VIDEO_MODEL_CATALOG_VERSION = "video-models-2026-10-08.1";
+/** Frozen consumer contract: independent of future active catalog revisions. */
 export const VIDEO_VEO_TIER_CONTRACT_VERSION = "video-models-2026-10-08.1";
 export const videoVeoTierSchema = z.enum(["lite", "fast", "quality"]);
 export type VideoVeoTier = z.infer<typeof videoVeoTierSchema>;
@@ -15,12 +15,70 @@ export type VideoModelOption = {
 	veoTier?: VideoVeoTier;
 };
 export type VideoModelSelection = VideoModelOption & { productKey: string; mode: VideoMode };
+export type VideoModelVariant = {
+	id: string;
+	label: string;
+	selection: { productKey: string; resolution?: string; veoTier?: VideoVeoTier };
+};
+/** Named supplier variants only. Resolution-backed Kling modes stay coupled. */
+export const VIDEO_MODEL_VARIANT_GROUPS: readonly {
+	id: string;
+	productKey: string;
+	label: string;
+	variants: readonly VideoModelVariant[];
+}[] = [
+	{
+		id: "veo31",
+		productKey: "video-veo-3-1",
+		label: "Veo 3.1",
+		variants: [
+			{ id: "lite", label: "Lite", selection: { productKey: "video-veo-3-1", veoTier: "lite" } },
+			{ id: "fast", label: "Fast", selection: { productKey: "video-veo-3-1", veoTier: "fast" } },
+			{
+				id: "quality",
+				label: "Quality",
+				selection: { productKey: "video-veo-3-1", veoTier: "quality" },
+			},
+		],
+	},
+	{
+		id: "seedance2",
+		productKey: "video-seedance-2",
+		label: "Seedance 2",
+		variants: [
+			{ id: "mini", label: "Mini", selection: { productKey: "video-seedance-2-mini" } },
+			{ id: "fast", label: "Fast", selection: { productKey: "video-seedance-2-fast" } },
+			{ id: "standard", label: "Seedance 2", selection: { productKey: "video-seedance-2" } },
+		],
+	},
+	{
+		id: "kling3",
+		productKey: "video-kling-3",
+		label: "Kling 3",
+		variants: [
+			{
+				id: "standard",
+				label: "Standard",
+				selection: { productKey: "video-kling-3", resolution: "720p" },
+			},
+			{ id: "pro", label: "Pro", selection: { productKey: "video-kling-3", resolution: "1080p" } },
+			{ id: "4k", label: "4K", selection: { productKey: "video-kling-3", resolution: "4k" } },
+			{ id: "turbo", label: "Turbo", selection: { productKey: "video-kling-3-turbo" } },
+		],
+	},
+];
+export function getVideoVariantGroup(productKey: string) {
+	return VIDEO_MODEL_VARIANT_GROUPS.find((group) =>
+		group.variants.some((variant) => variant.selection.productKey === productKey),
+	);
+}
 export type VideoModelCapabilityGroup = {
 	mode: VideoMode;
 	durations: readonly number[];
 	resolutions: readonly string[];
 	aspectRatios: readonly string[];
 	sounds: readonly boolean[];
+	veoTiers?: readonly VideoVeoTier[];
 };
 export type VideoModelDefinition = {
 	productKey: string;
@@ -63,6 +121,7 @@ function model(
 		resolutions,
 		aspectRatios: mode === "text-to-video" ? textRatios : imageRatios,
 		sounds,
+		...(productKey === "video-veo-3-1" ? { veoTiers: videoVeoTierSchema.options } : {}),
 	}));
 	return {
 		productKey,
@@ -80,10 +139,11 @@ function model(
 			groups.map((group) => [
 				group.mode,
 				{
-					duration: durations.includes(5) ? 5 : durations[0]!,
+					duration: productKey === "video-veo-3-1" ? 8 : durations.includes(5) ? 5 : durations[0]!,
 					resolution: resolutions[0]!,
 					aspectRatio: group.aspectRatios[0]!,
 					sound: sounds[0]!,
+					...(productKey === "video-veo-3-1" ? { veoTier: "lite" as const } : {}),
 				},
 			]),
 		),
@@ -294,15 +354,21 @@ export function getVideoModelOptions(productKey: string, mode: VideoMode): Video
 			group.durations.flatMap((duration) =>
 				group.resolutions.flatMap((resolution) =>
 					group.aspectRatios.flatMap((aspectRatio) =>
-						group.sounds.map((sound) => ({ duration, resolution, aspectRatio, sound })),
+						group.sounds.flatMap((sound) =>
+							(group.veoTiers ?? [undefined]).map((veoTier) => ({
+								duration,
+								resolution,
+								aspectRatio,
+								sound,
+								...(veoTier === undefined ? {} : { veoTier }),
+							})),
+						),
 					),
 				),
 			),
 		);
 }
 export function validateVideoModelSelection(selection: VideoModelSelection): boolean {
-	// The bridge reads future receipts but never produces a new explicit-tier order.
-	if (selection.veoTier !== undefined) return false;
 	const entry = getVideoModel(selection.productKey);
 	return Boolean(
 		entry?.status === "implemented" &&
@@ -312,7 +378,10 @@ export function validateVideoModelSelection(selection: VideoModelSelection): boo
 				group.durations.includes(selection.duration) &&
 				group.resolutions.includes(selection.resolution) &&
 				group.aspectRatios.includes(selection.aspectRatio) &&
-				group.sounds.includes(selection.sound),
+				group.sounds.includes(selection.sound) &&
+				(group.veoTiers
+					? selection.veoTier !== undefined && group.veoTiers.includes(selection.veoTier)
+					: selection.veoTier === undefined),
 		),
 	);
 }
@@ -328,21 +397,21 @@ export const videoModelReceiptInputSchema = z
 		aspectRatio: z.string().min(1).max(20),
 		sound: z.boolean(),
 		inputAssetId: z.string().min(1).max(160).optional(),
-		// Append only: historical schema key order is part of immutable fingerprints.
+		// Append only: absent historical fields must not change serialized fingerprints.
 		veoTier: videoVeoTierSchema.optional(),
 	})
 	.strict()
 	.superRefine((input, ctx) => {
-		const frozenVeoTier =
-			input.productKey === "video-veo-3-1" &&
-			input.veoTier !== undefined &&
-			validateVideoModelSelection({ ...input, veoTier: undefined });
 		const historicalKlingImage =
 			input.productKey === "video-kling-3" &&
 			input.mode === "image-to-video" &&
 			standardRatios.includes(input.aspectRatio) &&
 			validateVideoModelSelection({ ...input, aspectRatio: "source" });
-		if (!validateVideoModelSelection(input) && !historicalKlingImage && !frozenVeoTier)
+		const historicalVeo =
+			input.productKey === "video-veo-3-1" &&
+			input.veoTier === undefined &&
+			validateVideoModelSelection({ ...input, veoTier: "fast" });
+		if (!validateVideoModelSelection(input) && !historicalKlingImage && !historicalVeo)
 			ctx.addIssue({ code: "custom", message: "VIDEO_MODEL_SELECTION_UNSUPPORTED" });
 		const entry = getVideoModel(input.productKey);
 		const length = Array.from(input.prompt).length;

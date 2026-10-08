@@ -1,21 +1,23 @@
 import { PUBLIC_CREDIT_PACKS } from "./credit-packs";
 import { PLAN_ENTITLEMENTS } from "./plans";
+import type { VideoVeoTier } from "./video-models";
 import { createVideoAudioSafetyPolicy } from "./video-output";
 import { configuredVideoVisualSafetyProfile } from "./video-safety";
 import { createVideoTextSafetyProfile } from "./video-text-safety";
 
 /**
- * Public price basis: Mini/Fast rechecked on 2026-10-07; other tariffs retain
- * their earlier source evidence. This is not an account-specific billing receipt.
- * See docs/operations/video-v1-price-basis-2026-10-07.md.
+ * Public price basis: explicit Veo tiers observed on 2026-10-08; Mini/Fast
+ * rechecked on 2026-10-07. Other tariffs retain their earlier source evidence.
+ * Not an account-specific bill. See docs/operations/video-v1-price-basis-2026-10-08.md.
  */
-export const VIDEO_SUPPLIER_PRICE_VERSION = "kie-public-2026-10-07.1";
+export const VIDEO_SUPPLIER_PRICE_VERSION = "kie-public-2026-10-08.1";
 export type VideoPricingSelection = {
 	productKey: string;
 	mode: "text-to-video" | "image-to-video";
 	duration: number;
 	resolution: string;
 	sound: boolean;
+	veoTier?: VideoVeoTier;
 };
 const BPS = 10_000n;
 const ceil = (numerator: bigint, denominator: bigint) => {
@@ -45,12 +47,27 @@ export function videoPaidCreditFloorMicros(): bigint {
 
 /** Only text/single-image input prices. Video-reference discounts do not apply. */
 export function videoSupplierCostMicros(input: VideoPricingSelection): bigint {
+	if (input.veoTier !== undefined && input.productKey !== "video-veo-3-1")
+		throw new Error("VIDEO_MODEL_PRICE_UNAVAILABLE");
 	if (!Number.isSafeInteger(input.duration) || input.duration < 2 || input.duration > 30)
 		throw new Error("VIDEO_MODEL_PRICE_UNAVAILABLE");
 	const seconds = BigInt(input.duration);
 	const resolution = input.resolution.toLowerCase();
 	let rate: number | undefined;
 	switch (input.productKey) {
+		case "video-veo-3-1": {
+			// Observed 2026-10-08 USD REGION PRICE, per video. High-resolution
+			// creation includes the upgrade once; no recharge bonus is assumed.
+			if (!input.veoTier || !input.sound || ![4, 6, 8].includes(input.duration)) break;
+			const tariffs: Record<VideoVeoTier, Record<string, bigint>> = {
+				lite: { "720p": 75_000n, "1080p": 112_500n, "4k": 375_000n },
+				fast: { "720p": 150_000n, "1080p": 187_500n, "4k": 450_000n },
+				quality: { "720p": 1_125_000n, "1080p": 1_162_500n, "4k": 1_425_000n },
+			};
+			const amount = tariffs[input.veoTier]?.[resolution];
+			if (amount) return amount;
+			break;
+		}
 		case "video-kling-2-6-v1":
 			if (![5, 10].includes(input.duration) || resolution !== "default") break;
 			return seconds * (input.sound ? 110_000n : 55_000n);
@@ -120,7 +137,7 @@ export function videoSupplierCostMicros(input: VideoPricingSelection): bigint {
 		}
 		case "video-veo-3-1-fast": {
 			// The old /veo/generate contract explicitly binds veo3_fast to Fast.
-			// Published rates are per video, not per second; generic veo-3-1 remains unpriced.
+			// Preserve this old endpoint's per-video budget and accepted order semantics.
 			if (!input.sound || ![4, 6, 8].includes(input.duration)) break;
 			const cost = ({ "720p": 300_000, "1080p": 325_000, "4k": 900_000 } as Record<string, number>)[
 				resolution

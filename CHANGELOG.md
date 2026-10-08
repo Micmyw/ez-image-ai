@@ -2,6 +2,13 @@
 
 ## 2026-10-08
 
+### Verified video variants and explicit Veo pricing
+
+- Offer real Veo Lite/Fast/Quality, Seedance 2 Mini/Fast/Seedance 2, and Kling 3 Standard/Pro/4K/Turbo choices. The base variant has no button; alternatives are mutually exclusive and can be cancelled. Preserve each group's selection, compatible settings and separate image drafts.
+- Quote explicit Veo tiers from dated Kie per-video regional prices, retaining the existing complete-cost profit rule. Carry the exact tier through signed quotes, immutable jobs and provider requests; historical generic Veo and the separate old Fast endpoint keep their original meaning.
+- Select high-resolution Veo results using the frozen contract and enforce frozen application delivery minimums without falling back to lower-resolution originals. Recover only definite rejected quotes with a fresh key; unknown responses retain the original receipt.
+- Require a consumer compatibility release before enabling new website quotes. No paid generation or supplier-quality acceptance is implied by local contract tests.
+
 ### Video price preview and input corrections
 
 - Show the selected model's backend credit total before a prompt is entered. Generate validates the real prompt, obtains the protected quote and submits once when the total matches; a changed total requires explicit confirmation. Interrupted requests keep their original receipt and idempotency key.

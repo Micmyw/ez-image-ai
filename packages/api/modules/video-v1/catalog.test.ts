@@ -52,10 +52,10 @@ afterEach(() => vi.useRealTimers());
 
 describe("video public catalogue pricing and readiness", () => {
 	it("prices official Mini/Fast options after the old cutoff with unchanged reference credits", () => {
-		expect(VIDEO_MODEL_CATALOG_VERSION).toBe("video-models-2026-10-04.2");
+		expect(VIDEO_MODEL_CATALOG_VERSION).toBe("video-models-2026-10-08.1");
 		const approved = {
 			...environment,
-			VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-07.1",
+			VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 			VIDEO_PRICE_VALID_UNTIL: "2026-10-12T00:00:00.000Z",
 		};
 		const before = buildVideoCatalogModels(environment, bindings, true, new Set());
@@ -73,7 +73,7 @@ describe("video public catalogue pricing and readiness", () => {
 				before.find((model) => model.productKey === productKey),
 			);
 	});
-	it.each([undefined, "kie-public-2026-10-04.3"])(
+	it.each([undefined, "kie-public-2026-10-04.3", "kie-public-2026-10-07.1"])(
 		"closes shared pricing without the new version approval %s",
 		(version) => {
 			const models = buildVideoCatalogModels(
@@ -152,7 +152,7 @@ describe("video public catalogue pricing and readiness", () => {
 		expect(Buffer.byteLength(json)).toBeLessThan(10 * 1024);
 		expect(json).not.toMatch(/fixture-only|providerCostMicros|pricingDetails|HYPOTHETICAL/);
 	});
-	it("quotes each price tuple once without advertising unmapped Veo tariffs", () => {
+	it("quotes each price tuple once including every explicit Veo tier", () => {
 		const models = buildVideoCatalogModels(environment, bindings, true, new Set());
 		const kling = models.find((model) => model.productKey === "video-kling-2-6-v1")!;
 		expect(kling.available).toBe(true);
@@ -160,11 +160,15 @@ describe("video public catalogue pricing and readiness", () => {
 			true,
 		);
 		const veo = models.find((model) => model.productKey === "video-veo-3-1")!;
-		expect(veo.available).toBe(false);
-		expect(veo.reasons).toContain("VIDEO_MODEL_PRICE_UNAVAILABLE");
+		expect(veo.available).toBe(true);
+		expect(veo.options).toHaveLength(54);
+		expect(new Set(veo.options.map((option) => option.veoTier))).toEqual(
+			new Set(["lite", "fast", "quality"]),
+		);
 		for (const model of models) {
 			const keys = model.options.map(
-				(option) => `${option.mode}:${option.duration}:${option.resolution}:${option.sound}`,
+				(option) =>
+					`${option.mode}:${option.duration}:${option.resolution}:${option.sound}:${option.veoTier ?? ""}`,
 			);
 			expect(new Set(keys).size).toBe(keys.length);
 		}

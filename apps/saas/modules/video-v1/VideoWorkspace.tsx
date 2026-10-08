@@ -86,7 +86,10 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 				sessionStorage.removeItem(videoDraftKey("guest"));
 			}
 			if (saved) {
-				setDraft(restoreVideoDraft(saved.input.request));
+				setDraft({
+					...restoreVideoDraft(saved.input.request),
+					...(restored?.variantSelections ? { variantSelections: restored.variantSelections } : {}),
+				});
 				setConfirmation(saved);
 				setQuote(saved.quote);
 			} else if (restored) setDraft(restored);
@@ -136,7 +139,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 	function change(patch: Partial<VideoDraft>) {
 		if (confirmation || busy === "create") return;
 		revision.current++;
-		setDraft((current) => changeVideoDraft(current, patch));
+		setDraft((current) => changeVideoDraft(current, patch, catalog.data));
 		setQuote(null);
 		quotedRequest.current = null;
 		setError(null);

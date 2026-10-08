@@ -4,6 +4,7 @@ import { useGenerationMode } from "@media/lib/generation-mode-context";
 import {
 	getVideoModel,
 	getVideoModelOptions,
+	getVideoVariantGroup,
 	VIDEO_MODEL_CATALOG,
 	type VideoModelOption,
 } from "@repo/config/video-models";
@@ -19,7 +20,7 @@ import {
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
-import { summarizeVideoDurations, type VideoDraft } from "./model";
+import { summarizeVideoDurations, videoVariantControls, type VideoDraft } from "./model";
 import { VideoModelIcon } from "./VideoModelIcon";
 
 type Availability = {
@@ -48,6 +49,10 @@ export function VideoSettings({
 }) {
 	const t = useTranslations("videoV1");
 	const model = getVideoModel(draft.productKey)!;
+	const variantControls = videoVariantControls(draft, { accessAllowed: !preview, models });
+	const modelLabel =
+		variantControls?.group.label ??
+		(draft.productKey === "video-veo-3-1-fast" ? t("legacyVeoFast") : model.label);
 	const [modelsOpen, setModelsOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	const active = useGenerationMode()?.mode !== "image";
@@ -67,6 +72,7 @@ export function VideoSettings({
 		availability?.options.some(
 			(option) =>
 				option.mode === draft.mode &&
+				option.veoTier === draft.veoTier &&
 				option.available &&
 				Object.entries(patch).every(
 					([key, value]) => key === "aspectRatio" || option[key as keyof typeof option] === value,
@@ -94,7 +100,7 @@ export function VideoSettings({
 							className="video-tool video-model-trigger"
 						>
 							<VideoModelIcon family={model.family} size={18} />
-							<span>{model.label}</span>
+							<span>{modelLabel}</span>
 							<ChevronDownIcon aria-hidden size={14} />
 						</button>
 					}
@@ -123,11 +129,25 @@ export function VideoSettings({
 						))}
 					</fieldset>
 					<fieldset className="video-model-list" aria-label={family}>
-						{VIDEO_MODEL_CATALOG.filter((entry) => entry.family === family).map((entry) => {
-							const available =
-								models.find((item) => item.productKey === entry.productKey)?.available === true;
+						{VIDEO_MODEL_CATALOG.filter(
+							(entry) =>
+								entry.family === family &&
+								(!getVideoVariantGroup(entry.productKey) ||
+									getVideoVariantGroup(entry.productKey)!.productKey === entry.productKey),
+						).map((entry) => {
+							const group = getVideoVariantGroup(entry.productKey);
+							const keys = group
+								? [...new Set(group.variants.map((variant) => variant.selection.productKey))]
+								: [entry.productKey];
+							const selected = keys.includes(draft.productKey);
+							const label =
+								group?.label ??
+								(entry.productKey === "video-veo-3-1-fast" ? t("legacyVeoFast") : entry.label);
+							const available = models.some(
+								(item) => keys.includes(item.productKey) && item.available,
+							);
 							const blocked = entry.status !== "implemented";
-							const groups = entry.groups;
+							const groups = keys.flatMap((key) => getVideoModel(key)!.groups);
 							const durations = groups.flatMap((group) => group.durations);
 							const durationSummary = summarizeVideoDurations(durations);
 							const resolutions = [...new Set(groups.flatMap((group) => group.resolutions))];
@@ -135,8 +155,8 @@ export function VideoSettings({
 								<button
 									key={entry.productKey}
 									type="button"
-									aria-label={entry.label}
-									aria-pressed={entry.productKey === draft.productKey}
+									aria-label={label}
+									aria-pressed={selected}
 									disabled={disabled || blocked || (!preview && !available)}
 									className="video-model-option"
 									onClick={() => {
@@ -146,8 +166,8 @@ export function VideoSettings({
 								>
 									<span className="video-model-name">
 										<VideoModelIcon family={entry.family} size={18} />
-										{entry.label}
-										{entry.productKey === draft.productKey && <CheckIcon aria-hidden size={16} />}
+										{label}
+										{selected && <CheckIcon aria-hidden size={16} />}
 									</span>
 									{blocked || (!preview && !available) ? (
 										<span className="video-model-capability">{t("unavailableShort")}</span>
@@ -313,6 +333,31 @@ export function VideoSettings({
 					<Volume2Icon aria-hidden size={14} />
 					{t(model.audio === "provider-native" ? "nativeSound" : "soundOff")}
 				</span>
+			)}
+			{variantControls && (
+				<fieldset className="video-variants" aria-label={t("variant")} disabled={disabled}>
+					<legend className="sr-only">{t("variant")}</legend>
+					<span
+						className="video-variant-summary"
+						title={t("variantHelp", { variant: variantControls.base.label })}
+					>
+						{t("currentVariant", { variant: variantControls.current?.label ?? modelLabel })}
+						<small>{t("baseVariant", { variant: variantControls.base.label })}</small>
+					</span>
+					{variantControls.alternatives.map((variant) => (
+						<button
+							key={variant.id}
+							type="button"
+							className="video-tool video-variant"
+							aria-label={variant.label}
+							aria-pressed={variant.pressed}
+							disabled={disabled || (!preview && variant.credits === null)}
+							onClick={() => onChange(variant.patch)}
+						>
+							{variant.label}
+						</button>
+					))}
+				</fieldset>
 			)}
 		</>
 	);

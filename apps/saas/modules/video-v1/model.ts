@@ -1,6 +1,7 @@
 import {
 	getVideoModel,
 	getVideoModelOptions,
+	getVideoVariantGroup,
 	validateVideoModelSelection,
 	videoModelInputSchema,
 	type VideoModelInput,
@@ -13,6 +14,8 @@ import type { VideoCreateInput, VideoQuote, VideoRequest, VideoState } from "./a
 export type VideoDraft = VideoModelSelection & {
 	prompt: string;
 	inputAssetId: string | null;
+	/** UI preference only; never included in a quote or receipt. */
+	variantSelections?: Record<string, { base: string; selected: string }>;
 };
 export type VideoErrorKey =
 	| "promptRequired"
@@ -50,7 +53,7 @@ export const initialVideoDraft: VideoDraft = {
 };
 
 /** Retain compatible choices and resolve coupled model capabilities as one legal tuple. */
-export function changeVideoDraft(current: VideoDraft, patch: Partial<VideoDraft>): VideoDraft {
+function normalizeVideoDraft(current: VideoDraft, patch: Partial<VideoDraft>): VideoDraft {
 	const next = { ...current, ...patch };
 	const model = getVideoModel(next.productKey);
 	if (!model || model.status !== "implemented") return current;
@@ -59,8 +62,16 @@ export function changeVideoDraft(current: VideoDraft, patch: Partial<VideoDraft>
 	if (next.inputAssetId) next.mode = "image-to-video";
 	else if ("inputAssetId" in patch && !("mode" in patch)) next.mode = "text-to-video";
 	if (!model.modes.includes(next.mode)) next.mode = model.modes[0]!;
+	if (next.productKey !== "video-veo-3-1") delete next.veoTier;
+	else if (next.veoTier === undefined)
+		next.veoTier = current.productKey === next.productKey ? "fast" : "lite";
 	let options = getVideoModelOptions(next.productKey, next.mode);
-	const keys = ["duration", "resolution", "aspectRatio", "sound"] as const;
+	if (
+		next.productKey !== current.productKey &&
+		!options.some((option) => option.duration === next.duration)
+	)
+		next.duration = model.defaults[next.mode]!.duration;
+	const keys = ["veoTier", "duration", "resolution", "aspectRatio", "sound"] as const;
 	const priority = [
 		...keys.filter((key) => key in patch),
 		...keys.filter((key) => !(key in patch)),
@@ -70,6 +81,97 @@ export function changeVideoDraft(current: VideoDraft, patch: Partial<VideoDraft>
 		if (compatible.length) options = compatible;
 	}
 	return options[0] ? { ...next, ...options[0] } : current;
+}
+
+function selectedVariant(draft: VideoDraft) {
+	return getVideoVariantGroup(draft.productKey)?.variants.find((variant) =>
+		Object.entries(variant.selection).every(
+			([key, value]) => draft[key as keyof VideoDraft] === value,
+		),
+	);
+}
+
+function baseVariant(draft: VideoDraft, catalog?: SelectionCatalog) {
+	const group = getVideoVariantGroup(draft.productKey);
+	if (!group) return undefined;
+	const candidates = group.variants
+		.map((variant) => ({ variant, draft: normalizeVideoDraft(draft, variant.selection) }))
+		.filter((entry) =>
+			["mode", "duration", "resolution", "aspectRatio", "sound"].every(
+				(key) => entry.draft[key as keyof VideoDraft] === draft[key as keyof VideoDraft],
+			),
+		);
+	const available = candidates.flatMap((entry) => {
+		const credits = videoSelectionCredits(entry.draft, catalog);
+		return credits ? [{ ...entry, credits: BigInt(credits) }] : [];
+	});
+	available.sort((a, b) => (a.credits < b.credits ? -1 : a.credits > b.credits ? 1 : 0));
+	return available[0]?.variant ?? candidates[0]?.variant ?? selectedVariant(draft);
+}
+
+export function changeVideoDraft(
+	current: VideoDraft,
+	patch: Partial<VideoDraft>,
+	catalog?: SelectionCatalog,
+): VideoDraft {
+	let next = normalizeVideoDraft(current, patch);
+	const group = getVideoVariantGroup(next.productKey);
+	if (!group) return next;
+	const preferences = { ...current.variantSelections, ...patch.variantSelections };
+	let preference = preferences[group.id];
+	if ("productKey" in patch && !("variantSelections" in patch)) {
+		const chosen =
+			group.variants.find((variant) => variant.id === preference?.selected) ??
+			baseVariant(next, catalog);
+		if (chosen) {
+			next = normalizeVideoDraft(next, chosen.selection);
+			preference ??= { base: chosen.id, selected: chosen.id };
+		}
+	}
+	const selected = selectedVariant(next);
+	if (selected)
+		preferences[group.id] = {
+			base: preference?.base ?? baseVariant(next, catalog)?.id ?? selected.id,
+			selected: selected.id,
+		};
+	return { ...next, variantSelections: preferences };
+}
+
+export function videoVariantControls(draft: VideoDraft, catalog?: SelectionCatalog) {
+	const group = getVideoVariantGroup(draft.productKey);
+	if (!group) return null;
+	const current =
+		selectedVariant(draft) ??
+		(draft.productKey === "video-veo-3-1"
+			? group.variants.find((variant) => variant.id === "fast")
+			: undefined);
+	const base =
+		group.variants.find((variant) => variant.id === draft.variantSelections?.[group.id]?.base) ??
+		baseVariant(draft, catalog) ??
+		group.variants[0]!;
+	return {
+		group,
+		current,
+		base,
+		alternatives: group.variants
+			.filter((variant) => variant.id !== base.id)
+			.map((variant) => {
+				const target = current?.id === variant.id ? base : variant;
+				const next = normalizeVideoDraft(draft, target.selection);
+				return {
+					...variant,
+					pressed: current?.id === variant.id,
+					credits: videoSelectionCredits(next, catalog),
+					patch: {
+						...next,
+						variantSelections: {
+							...draft.variantSelections,
+							[group.id]: { base: base.id, selected: target.id },
+						},
+					},
+				};
+			}),
+	};
 }
 
 export function validateVideoDraft(draft: VideoDraft): VideoErrorKey | null {
@@ -89,7 +191,7 @@ export function validateVideoDraft(draft: VideoDraft): VideoErrorKey | null {
 	return null;
 }
 
-type SelectionCatalog = {
+export type SelectionCatalog = {
 	accessAllowed: boolean;
 	models: readonly {
 		productKey: string;
@@ -99,6 +201,7 @@ type SelectionCatalog = {
 			duration: number;
 			resolution: string;
 			sound: boolean;
+			veoTier?: VideoDraft["veoTier"];
 			available: boolean;
 			credits: string | null;
 		}[];
@@ -118,7 +221,8 @@ export function videoSelectionCredits(
 			entry.mode === draft.mode &&
 			entry.duration === draft.duration &&
 			entry.resolution === draft.resolution &&
-			entry.sound === draft.sound,
+			entry.sound === draft.sound &&
+			entry.veoTier === draft.veoTier,
 	);
 	return option?.available && option.credits && /^[1-9]\d*$/.test(option.credits)
 		? option.credits
@@ -142,6 +246,7 @@ export function videoRequestFor(draft: VideoDraft): VideoModelInput {
 		aspectRatio: draft.aspectRatio,
 		sound: draft.sound,
 		...(draft.mode === "image-to-video" ? { inputAssetId: draft.inputAssetId! } : {}),
+		...(draft.veoTier === undefined ? {} : { veoTier: draft.veoTier }),
 	};
 }
 
@@ -213,6 +318,7 @@ export function getVideoErrorKey(error: unknown): VideoErrorKey {
 	);
 	const code = codes.join(" ");
 	if (codes.includes("VIDEO_MODEL_OPTION_UNAVAILABLE")) return "unsupportedSelection";
+	if (codes.includes("INVALID_VIDEO_QUOTE")) return "quoteExpired";
 	if (/IDEMPOTENCY_CONFLICT/.test(code)) return "conflict";
 	if (/QUOTE_EXPIRED|QUOTE_INVALID|STALE_QUOTE|PRICE_CHANGED/.test(code)) return "quoteExpired";
 	if (/VIDEO_MODEL_PRICE_EXPIRED|VIDEO_PRICE_EXPIRED/.test(code)) return "priceUnavailable";
@@ -233,7 +339,8 @@ export function getVideoFailureRecovery(error: unknown) {
 			? (error as { code?: unknown; message?: unknown; data?: { code?: unknown } })
 			: {};
 	const codes = [value.code, value.data?.code, value.message];
-	const normalizeDraft = codes.includes("VIDEO_MODEL_OPTION_UNAVAILABLE");
+	const normalizeDraft =
+		codes.includes("VIDEO_MODEL_OPTION_UNAVAILABLE") || codes.includes("INVALID_VIDEO_QUOTE");
 	const rejectedBeforeEnqueue = codes.some(
 		(code) =>
 			typeof code === "string" &&

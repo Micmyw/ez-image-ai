@@ -109,6 +109,31 @@
 	opacity: 0.45;
 	cursor: not-allowed;
 }
+.video-variants {
+	display: flex;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 6px;
+	min-width: 0;
+	max-width: 100%;
+	border: 0;
+	padding: 0;
+}
+.video-variant-summary {
+	color: #cfc1dc;
+	font-size: 11px;
+	line-height: 1.5;
+}
+.video-variant-summary small {
+	display: block;
+	color: #9f92ad;
+	font-size: 10px;
+}
+.video-variant[aria-pressed="true"] {
+	border-color: #ae8bff80;
+	background: #9272ee2e;
+	color: #eee5ff;
+}
 .video-model-trigger {
 	max-width: 230px;
 }

@@ -1826,6 +1826,11 @@
 		}
 	},
 	"videoV1": {
+		"variant": "Model variant",
+		"currentVariant": "Current: {variant}",
+		"baseVariant": "Base: {variant}",
+		"variantHelp": "Select a variant; select it again to return to {variant}.",
+		"legacyVeoFast": "Veo 3.1 Fast (legacy)",
 		"title": "Create a short video",
 		"beta": "Beta",
 		"description": "Turn a prompt or one reference image into a private video. Sign in and use eligible paid credits to generate.",

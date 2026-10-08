@@ -17,6 +17,19 @@ export type VideoResolutionPolicy = {
 	minimumShortEdge: number;
 };
 
+/** New quote policy; the consumer below validates its frozen version independently. */
+export function createVideoResolutionPolicy(request: {
+	productKey?: string;
+	veoTier?: string;
+	resolution?: string;
+}): VideoResolutionPolicy | undefined {
+	if (request.productKey !== "video-veo-3-1" || request.veoTier === undefined) return undefined;
+	const minimumShortEdge = { "720p": 720, "1080p": 1080, "4k": 2160 }[request.resolution ?? ""];
+	if (!videoVeoTierSchema.safeParse(request.veoTier).success || !minimumShortEdge)
+		throw new Error("VIDEO_RESOLUTION_POLICY_INVALID");
+	return { schemaVersion: 1, kind: "minimum-short-edge", minimumShortEdge };
+}
+
 function readMinimumShortEdge(snapshot: Record<string, unknown>): number | undefined {
 	if (snapshot.veoTier === undefined && snapshot.resolutionPolicy === undefined) return undefined;
 	const floor = { "720p": 720, "1080p": 1080, "4k": 2160 }[String(snapshot.resolution)];

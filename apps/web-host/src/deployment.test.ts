@@ -10,6 +10,7 @@ describe("Cloudflare deployment environment", () => {
 				VIDEO_V1_BUILD_ENABLED: "true",
 				VIDEO_V1_BUILD_ACCESS: "authenticated",
 				VIDEO_V1_BUILD_PRICE_VERSION: "fixture-price-version",
+				VIDEO_V1_BUILD_MODEL_VERSION: "fixture-model-version",
 				VIDEO_V1_BUILD_PRICE_BASIS: "fixture-supplier-source",
 				VIDEO_V1_BUILD_PRICE_EXPIRY: "none",
 				VIDEO_V1_ENABLED: "false",
@@ -21,6 +22,7 @@ describe("Cloudflare deployment environment", () => {
 		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
 		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_ACCESS");
 		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_VERSION");
+		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_MODEL_VERSION");
 		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_BASIS");
 		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_EXPIRY");
 		expect(result.VIDEO_V1_ENABLED).toBe("false");
