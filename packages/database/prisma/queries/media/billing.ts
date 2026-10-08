@@ -51,6 +51,7 @@ export async function findEffectivePaidSubscription(
 		},
 		select: {
 			id: true,
+			provider: true,
 			ownerType: true,
 			ownerId: true,
 			status: true,
@@ -61,20 +62,39 @@ export async function findEffectivePaidSubscription(
 				where: { startsAt: { lte: now }, paidAmount: { gt: 0n }, status: { not: "VOID" } },
 				orderBy: { startsAt: "desc" },
 				take: 1,
-				select: { paidAmount: true, refundedAmount: true },
+				select: { paidAmount: true, refundedAmount: true, providerInvoiceId: true },
 			},
 		},
 		orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
 	});
-	for (const { periods, ...subscription } of candidates) {
+	for (const { periods, provider, ...subscription } of candidates) {
 		// Grace follows the latest paid period, even when a subsequent renewal is
 		// unpaid. A full refund cannot fall back to an older unrefunded payment.
 		// Compare money, not REFUNDED credit status: a partial annual refund can
 		// revoke a whole month's credits while retaining the paid plan's access.
 		const latestPaidPeriod = periods[0];
+		// Stripe annual invoices create monthly credit-grant projections that each
+		// repeat paidAmount. The refund reducer records cumulative money only on
+		// the first period of that invoice, so later projections are not new payments.
+		const paidInvoice =
+			provider === "stripe" && latestPaidPeriod?.providerInvoiceId
+				? await client.billingPeriod.findFirst({
+						where: {
+							subscriptionId: subscription.id,
+							providerInvoiceId: latestPaidPeriod.providerInvoiceId,
+						},
+						orderBy: [{ startsAt: "asc" }, { id: "asc" }],
+						select: { paidAmount: true, refundedAmount: true },
+					})
+				: latestPaidPeriod;
+		if (
+			provider === "stripe" &&
+			(!paidInvoice || paidInvoice.refundedAmount >= paidInvoice.paidAmount)
+		)
+			continue;
 		if (
 			subscription.status !== "PAST_DUE" ||
-			(latestPaidPeriod && latestPaidPeriod.refundedAmount < latestPaidPeriod.paidAmount)
+			(paidInvoice && paidInvoice.refundedAmount < paidInvoice.paidAmount)
 		) {
 			return subscription;
 		}

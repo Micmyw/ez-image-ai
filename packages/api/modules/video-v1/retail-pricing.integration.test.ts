@@ -15,6 +15,7 @@ import { PrismaClient } from "@repo/database/generated-client";
 import { resolveVideoRetailEligibility } from "@repo/database/video-retail-eligibility";
 import { createVideoJobRecord } from "@repo/database/video-v1";
 import { requireVideoAdmission } from "@repo/jobs/video-v1/admission";
+import { applyStripeBillingFact } from "@repo/payments";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
@@ -287,6 +288,77 @@ describe("ordinary and annual video pricing through protected RPC and PostgreSQL
 		).toBe("annual");
 		expect((await resolveVideoRetailEligibility(ownerId, client, end)).audience).toBe("standard");
 	});
+	it.each([true, false])(
+		"prices later Stripe annual months from the original payment (full refund: %s)",
+		async (fullRefund) => {
+			const now = new Date();
+			const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+			const month = (offset: number) =>
+				new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + offset, 1));
+			const invoiceId = `stripe_annual_${crypto.randomUUID()}`;
+			const chargeId = `ch_${crypto.randomUUID()}`;
+			await client.billingPlan.update({ where: { id: planId }, data: { provider: "stripe" } });
+			await client.subscription.update({
+				where: { id: subscriptionId },
+				data: { provider: "stripe", currentPeriodStart: start, currentPeriodEnd: month(12) },
+			});
+			for (let index = 0; index < 12; index++) {
+				const data = {
+					subscriptionId,
+					startsAt: month(index),
+					endsAt: month(index + 1),
+					status:
+						index === 0
+							? ("CLOSED" as const)
+							: index === 1
+								? ("ACTIVE" as const)
+								: ("PENDING" as const),
+					creditAmount: 1000n,
+					grantReferenceKey: `stripe-invoice:${invoiceId}:period:${index}:grant`,
+					providerInvoiceId: invoiceId,
+					providerInvoicePaymentId: `ip_${invoiceId}`,
+					providerChargeId: chargeId,
+					paidAmount: 30_000n,
+				};
+				if (index === 0) await client.billingPeriod.update({ where: { id: periodId }, data });
+				else await client.billingPeriod.create({ data });
+			}
+			const quotedBeforeRefund = await quote();
+			expect(quotedBeforeRefund.credits).toBe("66");
+			await client.$transaction((tx) =>
+				applyStripeBillingFact(
+					{
+						kind: "REFUND",
+						providerRefundId: `re_${crypto.randomUUID()}`,
+						providerChargeId: chargeId,
+						providerPaymentIntentId: null,
+						amount: fullRefund ? 30_000n : 15_000n,
+						currency: "USD",
+						status: "SUCCEEDED",
+						providerCreatedAt: now,
+						context: { origin: "WEBHOOK", changeAt: now, changeId: `evt_${crypto.randomUUID()}` },
+					},
+					tx,
+					{ now },
+				),
+			);
+			const currentPeriod = await client.billingPeriod.findUniqueOrThrow({
+				where: { subscriptionId_startsAt: { subscriptionId, startsAt: month(1) } },
+			});
+			expect(currentPeriod).toMatchObject({
+				status: "REFUNDED",
+				refundedAmount: 0n,
+				paidAmount: 30_000n,
+			});
+			const repriced = await quote();
+			expect(repriced.credits).toBe(fullRefund ? "96" : "66");
+			expect(repriced.pricing?.audience).toBe(fullRefund ? "standard" : "annual");
+			if (fullRefund) {
+				await expect(create(quotedBeforeRefund.quoteId)).rejects.toThrow("PRICE_CHANGED");
+				expect(await client.creditReservation.count({ where: { accountId } })).toBe(0);
+			}
+		},
+	);
 	it("requotes an unaccepted price after qualification changes without reserving credits", async () => {
 		const quoted = await quote();
 		await client.subscription.update({

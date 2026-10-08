@@ -253,6 +253,79 @@ describe("effective paid subscription", () => {
 		).resolves.toBeNull();
 	});
 
+	it.each(
+		(["ACTIVE", "CANCELED", "PAST_DUE"] as const).flatMap((status) =>
+			[true, false].map((fullRefund) => ({ status, fullRefund })),
+		),
+	)("uses the original Stripe invoice for $status (full refund: $fullRefund)", async (scenario) => {
+		const invoiceId = `annual_${crypto.randomUUID()}`;
+		const subscription = await createGraceSubscription(
+			Array.from({ length: 12 }, (_, index) => ({
+				startsAt: new Date(Date.UTC(2026, index, 1)),
+				endsAt: new Date(Date.UTC(2026, index + 1, 1)),
+				providerInvoiceId: invoiceId,
+				paidAmount: 120_000_000n,
+				refundedAmount: index === 0 ? (scenario.fullRefund ? 120_000_000n : 60_000_000n) : 0n,
+				creditAmount: 1_000n,
+				refundedCredits: scenario.fullRefund || index < 6 ? 1_000n : 0n,
+				status: scenario.fullRefund || index < 6 ? ("REFUNDED" as const) : ("ACTIVE" as const),
+			})),
+		);
+		await client.subscription.update({
+			where: { id: subscription.id },
+			data: {
+				provider: "stripe",
+				status: scenario.status,
+				currentPeriodStart: new Date("2026-01-01T00:00:00Z"),
+				currentPeriodEnd: new Date("2027-01-01T00:00:00Z"),
+				graceEndsAt: new Date("2027-01-08T00:00:00Z"),
+			},
+		});
+		const result = await findEffectivePaidSubscription(
+			{
+				ownerType: "USER",
+				ownerId: subscription.ownerId,
+				now: new Date(
+					scenario.status === "PAST_DUE" ? "2027-01-02T00:00:00Z" : "2026-02-15T00:00:00Z",
+				),
+			},
+			client,
+		);
+		if (scenario.fullRefund) expect(result).toBeNull();
+		else expect(result).toMatchObject({ id: subscription.id });
+	});
+
+	it("uses a new Stripe payment after an older annual invoice was fully refunded", async () => {
+		const oldInvoiceId = `old_annual_${crypto.randomUUID()}`;
+		const newInvoiceId = `new_annual_${crypto.randomUUID()}`;
+		const subscription = await createGraceSubscription(
+			Array.from({ length: 24 }, (_, index) => ({
+				startsAt: new Date(Date.UTC(2025, index, 1)),
+				endsAt: new Date(Date.UTC(2025, index + 1, 1)),
+				providerInvoiceId: index < 12 ? oldInvoiceId : newInvoiceId,
+				paidAmount: 120_000_000n,
+				refundedAmount: index === 0 ? 120_000_000n : 0n,
+				creditAmount: 1_000n,
+				status: index < 12 ? ("REFUNDED" as const) : ("ACTIVE" as const),
+			})),
+		);
+		await client.subscription.update({
+			where: { id: subscription.id },
+			data: {
+				provider: "stripe",
+				status: "ACTIVE",
+				currentPeriodStart: new Date("2026-01-01T00:00:00Z"),
+				currentPeriodEnd: new Date("2027-01-01T00:00:00Z"),
+			},
+		});
+		await expect(
+			findEffectivePaidSubscription(
+				{ ownerType: "USER", ownerId: subscription.ownerId, now: NOW },
+				client,
+			),
+		).resolves.toMatchObject({ id: subscription.id });
+	});
+
 	it("keeps a valid replacement selected when an old refunded subscription gets a later update", async () => {
 		const old = await createGraceSubscription([
 			{

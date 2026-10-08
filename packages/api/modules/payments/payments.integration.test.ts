@@ -17,6 +17,7 @@ import {
 	settleCredits,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
+import { resolveVideoRetailEligibility } from "@repo/database/video-retail-eligibility";
 import { reconcileSubscriptionsWithClient } from "@repo/jobs";
 import {
 	applyStripeBillingFact,
@@ -2323,7 +2324,7 @@ describe("Stripe subscription credit lifecycle", () => {
 		).not.toBeNull();
 	});
 
-	it("voids all future annual periods after a full refund", async () => {
+	it("revokes annual qualification and all future periods after a full Stripe refund", async () => {
 		const suffix = crypto.randomUUID();
 		const ownerId = `annual-refund-${suffix}`;
 		const customerId = `cus_annual_refund_${suffix}`;
@@ -2440,6 +2441,21 @@ describe("Stripe subscription credit lifecycle", () => {
 		});
 		expect(periods).toHaveLength(12);
 		expect(periods.every((period) => period.status === "REFUNDED")).toBe(true);
+		// Stripe stores the cumulative money refund on the original invoice period.
+		// Months 2–12 retain paidAmount and a zero refundedAmount after their credits
+		// are revoked; those grant projections must never count as another payment.
+		expect(periods[0]!.refundedAmount).toBe(periods[0]!.paidAmount);
+		expect(periods.slice(1).every((period) => period.refundedAmount === 0n)).toBe(true);
+		for (const [index, period] of periods.entries()) {
+			const eligibility = await resolveVideoRetailEligibility(
+				ownerId,
+				client,
+				new Date(period.startsAt.getTime() + 1),
+			);
+			expect(eligibility.audience, `fully refunded Stripe annual month ${index + 1}`).toBe(
+				"standard",
+			);
+		}
 		const grantReferenceKeys = periods.flatMap((period) =>
 			period.grantReferenceKey ? [period.grantReferenceKey] : [],
 		);
