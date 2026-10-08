@@ -1,4 +1,7 @@
-import { ATTRIBUTION_COOKIE_NAME, type RegistrationAttribution } from "@repo/utils";
+import {
+	ATTRIBUTION_COOKIE_NAME,
+	type RegistrationAttribution,
+} from "@repo/utils/lib/acquisition-attribution";
 import type { BetterAuthOptions } from "better-auth";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 

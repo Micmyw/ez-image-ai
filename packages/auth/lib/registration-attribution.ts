@@ -2,7 +2,7 @@ import {
 	ATTRIBUTION_COOKIE_NAME,
 	sanitizeFirstTouchAttribution,
 	type RegistrationAttribution,
-} from "@repo/utils";
+} from "@repo/utils/lib/acquisition-attribution";
 import { parseCookie } from "cookie";
 
 import { isAnonymousUser, type BetterAuthUserBoundary } from "./anonymous-boundary";

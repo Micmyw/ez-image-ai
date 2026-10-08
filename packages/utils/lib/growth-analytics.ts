@@ -1,6 +1,21 @@
 import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 import { z } from "zod";
 
+import { registerBrowserGrowthAnalytics } from "./growth-analytics-browser";
+import {
+	EZPIC_ANALYTICS_SESSION_COOKIE,
+	EZPIC_CONTENT_ATTRIBUTION_STORAGE_KEY,
+	hasGrowthAnalyticsConsent,
+	readGrowthAnalyticsSessionHash,
+} from "./growth-analytics-cookie";
+
+export {
+	EZPIC_ANALYTICS_SESSION_COOKIE,
+	EZPIC_CONTENT_ATTRIBUTION_STORAGE_KEY,
+	hasGrowthAnalyticsConsent,
+	readGrowthAnalyticsSessionHash,
+} from "./growth-analytics-cookie";
+
 export const EZPIC_GROWTH_EVENT_NAMES = [
 	"video_effect_view",
 	"video_effect_sample_play",
@@ -156,8 +171,6 @@ export type GrowthAnalyticsEvent = z.infer<typeof growthAnalyticsEventSchema>;
 export type GrowthAnalyticsTrackResult = "blocked" | "duplicate" | "failed" | "rejected" | "sent";
 
 export const EZPIC_GROWTH_EVENT_FIXTURE = "ezpic:growth-event";
-export const EZPIC_ANALYTICS_SESSION_COOKIE = "ezpic_analytics_session";
-export const EZPIC_CONTENT_ATTRIBUTION_STORAGE_KEY = "ezpic:content-attribution:v1";
 export const EZPIC_CONTENT_ATTRIBUTION_MAX_AGE_MS = 30 * 60_000;
 
 const storedAttributionSchema = z
@@ -417,10 +430,6 @@ export function createGrowthAnalyticsDispatcher(options: {
 	};
 }
 
-export function hasGrowthAnalyticsConsent(cookie: string): boolean {
-	return cookie.split(";").some((part) => part.trim() === "consent=true");
-}
-
 export function createBrowserGrowthAnalyticsDispatcher(runtime: {
 	getCookie: () => string;
 	dispatch: (eventName: string, detail: GrowthAnalyticsEvent) => void;
@@ -575,6 +584,8 @@ export function trackBrowserGrowthEvent(
 	return browserGrowthAnalyticsDispatcher.track(event, options);
 }
 
+registerBrowserGrowthAnalytics({ trackBrowserGrowthEvent });
+
 function taskKeyForGrowthEvent(
 	name: GrowthAnalyticsEventName,
 	options?: GrowthTrackOptions,
@@ -612,21 +623,6 @@ export async function hashGrowthTaskIdentity(
 		),
 	);
 	return `sha256:${[...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-}
-
-export function readGrowthAnalyticsSessionHash(cookie: string): string | undefined {
-	for (const part of cookie.split(";")) {
-		const [name, ...valueParts] = part.trim().split("=");
-		if (name !== EZPIC_ANALYTICS_SESSION_COOKIE) continue;
-		let value: string;
-		try {
-			value = decodeURIComponent(valueParts.join("="));
-		} catch {
-			return undefined;
-		}
-		if (/^sha256:[a-f0-9]{64}$/.test(value)) return value;
-	}
-	return undefined;
 }
 
 export function createPostHogGrowthSender(options: {

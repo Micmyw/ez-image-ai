@@ -28,7 +28,7 @@ import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { Turnstile } from "@repo/ui/components/turnstile";
-import { trackBrowserGrowthEvent } from "@repo/utils";
+import { trackBrowserGrowthEvent } from "@repo/utils/lib/growth-analytics-browser";
 import {
 	STUDIO_WORKSPACE_RESET_EVENT,
 	type StudioWorkspaceResetDetail,

@@ -11,7 +11,7 @@ import { useEffect } from "react";
 export function PurchaseAttribution() {
 	const { userHasConsented } = useCookieConsent();
 	useEffect(() => {
-		captureRegistrationFirstTouch();
+		void captureRegistrationFirstTouch();
 		if (!userHasConsented) clearPurchaseAttribution();
 	}, [userHasConsented]);
 	useEffect(() => {

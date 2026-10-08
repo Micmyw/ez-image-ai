@@ -1,10 +1,10 @@
 import { db } from "@repo/database/client";
+import { getBaseUrl } from "@repo/utils";
 import {
-	getBaseUrl,
 	parseRegistrationAttribution,
 	sanitizeAttributionPath,
 	type CheckoutAttribution,
-} from "@repo/utils";
+} from "@repo/utils/lib/acquisition-attribution";
 import { z } from "zod";
 
 // Optional analytics data cannot select an owner, price, plan, or redirect destination.

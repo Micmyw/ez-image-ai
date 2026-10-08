@@ -1,5 +1,6 @@
 "use client";
 
+import { invalidatePendingBrowserGrowthAnalytics } from "@repo/utils/lib/growth-analytics-browser";
 import Cookies from "js-cookie";
 import { createContext, useState } from "react";
 
@@ -35,6 +36,7 @@ export function ConsentProvider({
 
 	const declineCookies = () => {
 		Cookies.set("consent", "false", { expires: 30 });
+		invalidatePendingBrowserGrowthAnalytics();
 		clearPurchaseAttribution();
 		setConsentStatus("declined");
 	};

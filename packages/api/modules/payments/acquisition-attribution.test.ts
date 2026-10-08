@@ -3,7 +3,7 @@ import {
 	parseCheckoutAttribution,
 	sanitizeAttributionPath,
 	sanitizeFirstTouchAttribution,
-} from "@repo/utils";
+} from "@repo/utils/lib/acquisition-attribution";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUser = vi.hoisted(() => vi.fn());

@@ -1,11 +1,11 @@
-import { ATTRIBUTION_COOKIE_NAME } from "@repo/utils";
+import { ATTRIBUTION_COOKIE_NAME } from "@repo/utils/lib/acquisition-attribution";
 import { describe, expect, it } from "vitest";
 
 import {
-	CHECKOUT_TRIGGER_STORAGE_KEY,
 	createPurchaseAttribution,
 	resolveCurrentCheckoutAttribution,
-} from "./purchase-attribution";
+} from "./purchase-attribution-controller";
+import { CHECKOUT_TRIGGER_STORAGE_KEY } from "./purchase-attribution-storage";
 
 function harness(
 	consent = "true",

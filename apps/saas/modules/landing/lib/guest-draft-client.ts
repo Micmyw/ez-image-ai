@@ -12,7 +12,10 @@ import {
 	type ImageOutputFormat,
 	type ImageSkuKey,
 } from "@repo/config/client";
-import { hasGrowthAnalyticsConsent, readGrowthAnalyticsSessionHash } from "@repo/utils";
+import {
+	hasGrowthAnalyticsConsent,
+	readGrowthAnalyticsSessionHash,
+} from "@repo/utils/lib/growth-analytics-cookie";
 
 import { sanitizeEffectEditorReturnPath } from "../../effects/lib/editor-selection";
 import type { PublicImageSpecControl } from "../../media/lib/image-sku-selection";

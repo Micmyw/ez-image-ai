@@ -1,4 +1,7 @@
-import { ATTRIBUTION_COOKIE_NAME, type FirstTouchAttribution } from "@repo/utils";
+import {
+	ATTRIBUTION_COOKIE_NAME,
+	type FirstTouchAttribution,
+} from "@repo/utils/lib/acquisition-attribution";
 import { describe, expect, it, vi } from "vitest";
 
 import {

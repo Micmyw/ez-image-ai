@@ -25,7 +25,7 @@ export function SocialSigninButton({
 		: getSafeRedirectPath(redirectTo, config.redirectAfterSignIn);
 
 	const onSignin = async () => {
-		captureRegistrationFirstTouch();
+		await captureRegistrationFirstTouch();
 		const callbackURL = new URL(redirectPath, window.location.origin);
 		await authClient.signIn.social({
 			provider,

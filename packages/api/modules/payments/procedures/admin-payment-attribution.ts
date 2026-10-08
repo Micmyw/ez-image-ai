@@ -1,5 +1,8 @@
 import { listAdminPaymentAttribution } from "@repo/database";
-import { checkoutAttributionSchema, parseCheckoutAttribution } from "@repo/utils";
+import {
+	checkoutAttributionSchema,
+	parseCheckoutAttribution,
+} from "@repo/utils/lib/acquisition-attribution";
 import { z } from "zod";
 
 import { adminProcedure } from "../../../orpc/procedures";

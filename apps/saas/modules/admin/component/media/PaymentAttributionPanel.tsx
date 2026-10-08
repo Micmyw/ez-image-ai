@@ -3,7 +3,7 @@
 import { Button } from "@repo/ui/components/button";
 import { Card } from "@repo/ui/components/card";
 import { Input } from "@repo/ui/components/input";
-import type { CheckoutAttribution } from "@repo/utils";
+import type { CheckoutAttribution } from "@repo/utils/lib/acquisition-attribution";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useQuery } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";

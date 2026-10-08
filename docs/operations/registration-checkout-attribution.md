@@ -16,11 +16,13 @@ The existing `consent=true` choice gates this optional collection. A separate fi
 
 The server validates all snapshots again. It keeps known same-site route shapes, collapses private resource IDs and organization settings paths, retains only the external referring origin and admits short source/medium/campaign tokens. Query strings, fragments, arbitrary URLs, credentials, email addresses and authentication callbacks are discarded. Only the existing administrator procedure exposes the order snapshots; the customer purchase response omits them. Consent text and the published English/German privacy documents describe the collection and retention.
 
+The homepage uses a dependency-free collector that freezes cleaned landing and click snapshots synchronously. The full controller loads when consent or an attribution action requires it. Consented storage survives pricing/login navigation before that import completes; a bounded optional import and identity revision checks prevent slow loads or stale sessions from blocking checkout or mixing accounts.
+
 ## Migration and release
 
 `20261008044431_registration_checkout_attribution` adds three nullable JSONB columns, with no backfill and no new tracking service. Apply the migration before releasing code that reads these columns. Review and deploy the site and payment workers from the same release. Existing records remain readable and display unknown sources. Rolling back code is additive-safe; keep the columns and recorded history.
 
-This task prepares the migration and code locally. It does not authorize a production migration, remote push, deployment or main merge.
+Production rollout is a separately authorized release step: validate the exact merged candidate, verify the production target and migration history, apply only this additive migration, then release both workers from the same commit. The original dated verification report records the local implementation phase; deployment acceptance requires the release's CI, migration and active-version evidence.
 
 ## Local acceptance
 

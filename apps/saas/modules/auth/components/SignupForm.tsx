@@ -77,7 +77,7 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 
 	const onSubmit = form.handleSubmit(async ({ email, password, name }) => {
 		try {
-			captureRegistrationFirstTouch();
+			await captureRegistrationFirstTouch();
 			const { error } = await (authConfig.enablePasswordLogin
 				? await authClient.signUp.email({
 						email,
