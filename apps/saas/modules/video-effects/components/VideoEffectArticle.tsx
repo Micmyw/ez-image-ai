@@ -16,7 +16,7 @@ export function VideoEffectArticle() {
 				</p>
 				<dl className="gap-4 p-5 sm:grid-cols-4 grid grid-cols-2 rounded-2xl border">
 					{[
-						["Duration", "5 seconds"],
+						["Duration", "5 seconds by default; 10 seconds optional"],
 						["Picture", "720 × 1280 · 9:16"],
 						["Format", "MP4"],
 						["Sound", "No audio track"],

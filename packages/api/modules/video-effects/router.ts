@@ -5,8 +5,13 @@ import {
 	videoEffectCreateSchema,
 	videoEffectRequestSchema,
 	videoEffectIdSchema,
+	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
 } from "@repo/config/video-effects";
 import { canAccessVideoEffect } from "@repo/config/video-effects-access.server";
+import {
+	isVideoEffectRetailPricingApproved,
+	readVideoEffectPricingDisplay,
+} from "@repo/config/video-effects.server";
 import { readVideoV1Config } from "@repo/config/video-v1";
 import { db } from "@repo/database/client";
 import {
@@ -22,6 +27,7 @@ import {
 	requireVideoTemplateAdmission,
 	requireVideoTemplateRuntimeEnabled,
 	VIDEO_EFFECT_CAPABILITY_REQUEST,
+	resolveVideoEffectPricingContext,
 } from "@repo/jobs/video-v1/template-admission";
 import { videoTemplateDiagnosticsTimings } from "@repo/jobs/video-v1/template-telemetry";
 import { getVideoWorkflowReadinessBindings } from "@repo/jobs/video-v1/workflow-binding";
@@ -148,6 +154,11 @@ const access = protectedProcedure
 		const entitlement = await loadUserPlanEntitlement(user.id);
 		base.maxInputBytes = Math.min(base.maxInputBytes, entitlement.maximumInputBytes);
 		try {
+			const pricingContext = await resolveVideoEffectPricingContext(
+				user.id,
+				input.effectId,
+				process.env,
+			);
 			const admitted = requireVideoTemplateAdmission(
 				{ userId: user.id, role: user.role },
 				process.env,
@@ -157,14 +168,58 @@ const access = protectedProcedure
 					effectId: input.effectId,
 					inputs: { leftAssetId: "capability", rightAssetId: "capability" },
 				},
+				pricingContext,
 			);
 			await requireVideoTemplateRuntimeEnabled(admitted.template);
+			const pricing = readVideoEffectPricingDisplay(admitted.price.pricingDetails);
+			const durationOptions: Array<{
+				duration: 5 | 10;
+				credits: string;
+				pricing?: NonNullable<typeof pricing>;
+			}> = [
+				{
+					duration: 5,
+					credits: admitted.price.credits.toString(),
+					...(pricing ? { pricing } : {}),
+				},
+			];
+			if (
+				input.effectId !== RUMPELSTILTSKIN_SOLO_EFFECT_ID &&
+				isVideoEffectRetailPricingApproved(process.env)
+			) {
+				try {
+					const longer = requireVideoTemplateAdmission(
+						{ userId: user.id, role: user.role },
+						process.env,
+						getVideoWorkflowReadinessBindings(),
+						{
+							...VIDEO_EFFECT_CAPABILITY_REQUEST,
+							effectId: input.effectId,
+							duration: 10,
+							inputs: { leftAssetId: "capability", rightAssetId: "capability" },
+						},
+						pricingContext,
+					);
+					await requireVideoTemplateRuntimeEnabled(longer.template);
+					const longPricing = readVideoEffectPricingDisplay(longer.price.pricingDetails);
+					durationOptions.push({
+						duration: 10,
+						credits: longer.price.credits.toString(),
+						...(longPricing ? { pricing: longPricing } : {}),
+					});
+				} catch {
+					/* A closed long option must not close approved five-second orders. */
+				}
+			}
 			return {
 				...base,
 				maxInputBytes: Math.min(base.maxInputBytes, admitted.maximumInputBytes),
 				available: true,
 				reasons: [],
 				credits: admitted.price.credits.toString(),
+				durationOptions,
+				pricingValidUntil: pricingContext.eligibility?.validUntil ?? null,
+				...(pricing ? { pricing } : {}),
 				creditBalance: await getVideoTemplateCreditBalance(
 					user.id,
 					admitted.price.paidFundingPolicy,

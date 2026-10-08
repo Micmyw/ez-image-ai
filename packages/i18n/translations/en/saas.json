@@ -2149,6 +2149,10 @@
 		"uploadPhoto": "Upload your photo",
 		"newVideo": "Make another video",
 		"priceChanged": "The total changed to {credits} credits. Confirm this new total to continue.",
-		"confirmNewPrice": "Confirm new total · {credits} credits"
+		"confirmNewPrice": "Confirm new total · {credits} credits",
+		"duration": "Duration",
+		"planPrices": "Standard: {standard} credits · Annual plan: {annual} credits",
+		"annualSavingApplied": "Annual price applied — you save {credits} credits.",
+		"annualSavingAvailable": "Eligible annual plans save {credits} credits on this option."
 	}
 }

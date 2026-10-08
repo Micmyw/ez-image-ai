@@ -112,6 +112,20 @@ const ready = () => ({
 	rightAssetId: "asset-right",
 });
 describe("Hotel Lobby private draft and paid confirmation", () => {
+	it("restores legacy drafts as five seconds and freezes a ten-second confirmation separately", () => {
+		const { duration: _duration, ...legacy } = ready();
+		expect(readEffectDraft(JSON.stringify(legacy), "owner-1")?.duration).toBe(5);
+		expect(effectRequest(ready())).not.toHaveProperty("duration");
+		const long = { ...ready(), duration: 10 as const };
+		const intent = createEffectConfirmation(long, quote);
+		const restored = readEffectDraft(
+			JSON.stringify({ ...long, duration: 5, confirmation: intent }),
+			"owner-1",
+		)!;
+		expect(restored.duration).toBe(5);
+		expect(restored.confirmation?.input.request.duration).toBe(10);
+		expect(readEffectDraft(JSON.stringify({ ...ready(), duration: 12 }), "owner-1")).toBeNull();
+	});
 	it("swaps actual bindings and increments revision so a pending quote cannot apply", () => {
 		const draft = ready();
 		const swapped = swapEffectInputs(draft);

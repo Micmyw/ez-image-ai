@@ -129,6 +129,56 @@
 	background: #251e2d;
 	transition: border-color 0.2s;
 }
+.ve-duration {
+	border: 0;
+	padding: 0;
+	margin: 16px 0;
+}
+.ve-duration legend {
+	color: var(--ve-muted);
+	font-size: 12px;
+	margin-bottom: 8px;
+}
+.ve-duration > div {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	gap: 8px;
+}
+.ve-duration button {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	padding: 10px 12px;
+	min-height: 52px;
+	border: 1px solid #b5a2cb55;
+	border-radius: 10px;
+	text-align: left;
+	background: #251e2d;
+}
+.ve-duration button[aria-pressed="true"] {
+	border-color: #c7acf7;
+	background: #342444;
+}
+.ve-duration button:focus-visible {
+	outline: 2px solid #c7acf7;
+	outline-offset: 3px;
+}
+.ve-duration button:disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+}
+.ve-duration button small,
+.ve-plan-prices {
+	color: var(--ve-muted);
+	font-size: 11px;
+}
+.ve-plan-prices {
+	line-height: 1.7;
+	margin: 8px 0;
+}
+.ve-plan-prices .ve-annual-saving {
+	color: #d4bef6;
+}
 .ve-upload:hover {
 	border-color: #c7acf7;
 }

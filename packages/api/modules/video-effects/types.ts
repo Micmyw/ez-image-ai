@@ -1,4 +1,8 @@
-import { videoEffectIdSchema } from "@repo/config/video-effects";
+import {
+	videoEffectIdSchema,
+	videoEffectDurationSchema,
+	videoEffectPricingDisplaySchema,
+} from "@repo/config/video-effects";
 import { z } from "zod";
 
 export const videoEffectStageSchema = z.enum([
@@ -20,6 +24,7 @@ export const videoEffectStateSchema = z
 		stage: videoEffectStageSchema,
 		creditState: z.enum(["RESERVED", "SETTLED", "RELEASED"]),
 		credits: z.string(),
+		duration: videoEffectDurationSchema.optional(),
 		canPlay: z.boolean(),
 		failureCode: z.string().nullable(),
 		updatedAt: z.string(),
@@ -30,6 +35,7 @@ export const videoEffectQuoteSchema = z
 		quoteId: z.string(),
 		credits: z.string(),
 		expiresAt: z.string(),
+		pricing: videoEffectPricingDisplaySchema.optional(),
 	})
 	.strict();
 export const videoEffectAccessSchema = z
@@ -39,6 +45,19 @@ export const videoEffectAccessSchema = z
 		accessAllowed: z.boolean(),
 		reasons: z.array(z.string()),
 		credits: z.string().nullable(),
+		pricing: videoEffectPricingDisplaySchema.optional(),
+		durationOptions: z
+			.array(
+				z
+					.object({
+						duration: videoEffectDurationSchema,
+						credits: z.string(),
+						pricing: videoEffectPricingDisplaySchema.optional(),
+					})
+					.strict(),
+			)
+			.optional(),
+		pricingValidUntil: z.string().nullable().optional(),
 		creditBalance: z
 			.object({ totalCredits: z.string(), eligibleCredits: z.string() })
 			.strict()

@@ -55,6 +55,8 @@ const external = vi.hoisted(() => ({
 	objects: new Map<string, { bytes: Uint8Array; etag: string }>(),
 	parts: new Map<string, Map<number, Uint8Array>>(),
 	videoBytes: new Uint8Array(),
+	expectedDuration: 5,
+	shortReview: false,
 	requestedOutputs: [] as string[],
 	outputReads: [] as string[],
 	nextUpload: 0,
@@ -246,7 +248,7 @@ const mockHttp: typeof fetch = async (input, init) => {
 			external.videoRequests.push(body.input);
 			expect(body.model).toBe("bytedance/seedance-1.5-pro");
 			expect(body.input).toMatchObject({
-				duration: 5,
+				duration: external.expectedDuration,
 				resolution: "720p",
 				aspect_ratio: "9:16",
 				generate_audio: false,
@@ -331,7 +333,7 @@ const mockHttp: typeof fetch = async (input, init) => {
 				}),
 				{ environment: env, binding },
 			);
-		return Response.json(seeapiEnvelope(taskId, false));
+		return Response.json(seeapiEnvelope(taskId, false, external.expectedDuration));
 	}
 	if (url.hostname === "api.seeapi.com" && url.pathname.startsWith("/v1/inferences/")) {
 		external.safetyCalls++;
@@ -351,7 +353,9 @@ const mockHttp: typeof fetch = async (input, init) => {
 				error: null,
 			});
 		expect(external.visualTasks.has(taskId)).toBe(true);
-		return Response.json(seeapiEnvelope(taskId, true));
+		return Response.json(
+			seeapiEnvelope(taskId, true, external.shortReview ? 5 : external.expectedDuration),
+		);
 	}
 	throw new Error(`UNEXPECTED_EXTERNAL_REQUEST:${url.hostname}${url.pathname}`);
 };
@@ -402,6 +406,11 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 		vi.stubGlobal("fetch", mockHttp);
 	});
 	afterEach(async () => {
+		external.expectedDuration = 5;
+		external.shortReview = false;
+		external.videoBytes = new Uint8Array(
+			mp4Fixture({ width: 720, height: 1280, mediaBytes: 32 * 1024, moovLast: true }),
+		);
 		external.loseSceneResponse = false;
 		external.loseSubmitResponse = false;
 		external.sceneRejected = false;
@@ -460,7 +469,11 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 		);
 	});
 
-	async function fixture(effectId: VideoEffectRequest["effectId"] = "hotel-lobby-duo") {
+	async function fixture(
+		effectId: VideoEffectRequest["effectId"] = "hotel-lobby-duo",
+		duration: 5 | 10 = 5,
+	) {
+		external.expectedDuration = duration;
 		const ownerId = `hotel-flow-test-${crypto.randomUUID()}`;
 		ownerIds.push(ownerId);
 		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
@@ -517,13 +530,15 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 		if (effectId === "raindance-solo") inputs[1] = inputs[0]!;
 		const request: VideoEffectRequest = {
 			effectId,
+			...(duration === 10 ? { duration: 10 as const } : {}),
 			presetKey: "standard",
 			inputs: { leftAssetId: inputs[0]!.id, rightAssetId: inputs[1]!.id },
 		};
 		const template = createVideoEffectTemplateSnapshot(request);
 		const profile = {
 			price,
-			visualSafetyProfile,
+			visualSafetyProfile:
+				duration === 5 ? visualSafetyProfile : createVideoVisualSafetyProfile("seeapi", duration),
 			textSafetyProfile: createVideoTextSafetyProfile(),
 			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
 		};
@@ -716,6 +731,59 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 		expect(await authorizeVideoPlayback("different-owner", f.jobId)).toBeNull();
 		return job;
 	}
+	it("holds a ten-second output whose moderation evidence covers only five seconds without settlement or playback", async () =>
+		runWithDatabaseClient(client, async () => {
+			external.shortReview = true;
+			external.videoBytes = new Uint8Array(
+				mp4Fixture({
+					width: 720,
+					height: 1280,
+					durationMillis: 10000,
+					mediaBytes: 32 * 1024,
+					moovLast: true,
+				}),
+			);
+			const f = await fixture("hotel-lobby-duo", 10);
+			const flow = await execute(f, "10s-incomplete-moderation");
+			expect(flow.result).toEqual({ completed: false, stage: "NEEDS_REVIEW" });
+			expect(await authorizeVideoPlayback(f.ownerId, f.jobId)).toBeNull();
+			expect(
+				await client.creditLedgerEntry.count({
+					where: { reservationId: f.reservationId, type: "SETTLE" },
+				}),
+			).toBe(0);
+		}));
+	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
+		"executes the frozen ten-second %s payload and settles exactly once",
+		async (effectId) =>
+			runWithDatabaseClient(client, async () => {
+				external.videoBytes = new Uint8Array(
+					mp4Fixture({
+						width: 720,
+						height: 1280,
+						durationMillis: 10000,
+						mediaBytes: 32 * 1024,
+						moovLast: true,
+					}),
+				);
+				const f = await fixture(effectId, 10);
+				const before = { scene: external.sceneCalls, video: external.paidMockCalls };
+				const flow = await execute(f, `${effectId}-10s-complete-and-replay`);
+				expect(flow.result).toEqual({ completed: true, stage: "READY" });
+				await assertReady(f);
+				expect(external.videoRequests.at(-1)).toMatchObject({
+					duration: 10,
+					resolution: "720p",
+					generate_audio: false,
+					fixed_lens: true,
+				});
+				expect(external.videoRequests.at(-1)?.prompt).toBe(f.template.video.prompt);
+				expect(await flow.repeat()).toEqual({ completed: true, stage: "READY" });
+				await assertReady(f);
+				expect(external.sceneCalls - before.scene).toBe(1);
+				expect(external.paidMockCalls - before.video).toBe(1);
+			}),
+	);
 	it.each(["raindance-solo", "raindance-duo"] as const)(
 		"settles %s once through the complete existing Workflow with private playback",
 		async (effectId) =>

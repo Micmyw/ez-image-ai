@@ -129,7 +129,10 @@ export function isVideoRetailPricingApproved(environment: Record<string, string 
 }
 
 /** Whitelisted customer projection. Costs, markup and membership evidence stay server-side. */
-export function readVideoRetailDisplay(details: unknown): VideoRetailDisplay | null {
+export function readVideoRetailDisplay(
+	details: unknown,
+	policyVersion = VIDEO_RETAIL_PRICE_VERSION,
+): VideoRetailDisplay | null {
 	if (!details || typeof details !== "object" || !("retail" in details)) return null;
 	const retail = details.retail;
 	if (!retail || typeof retail !== "object" || !("display" in retail)) return null;
@@ -137,7 +140,7 @@ export function readVideoRetailDisplay(details: unknown): VideoRetailDisplay | n
 	if (!value || typeof value !== "object") return null;
 	const display = value as Record<string, unknown>;
 	if (
-		display.policyVersion !== VIDEO_RETAIL_PRICE_VERSION ||
+		display.policyVersion !== policyVersion ||
 		!["standard", "annual"].includes(String(display.audience))
 	)
 		return null;
@@ -161,7 +164,7 @@ export function readVideoRetailDisplay(details: unknown): VideoRetailDisplay | n
 	)
 		return null;
 	return {
-		policyVersion: VIDEO_RETAIL_PRICE_VERSION,
+		policyVersion,
 		audience: display.audience as VideoRetailAudience,
 		credits: display.credits as string,
 		standardCredits: display.standardCredits as string,

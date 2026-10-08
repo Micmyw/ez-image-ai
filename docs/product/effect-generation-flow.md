@@ -8,4 +8,12 @@ Missing-photo actions open the relevant upload input. Insufficient eligible cred
 
 A confirmation is saved before acceptance. Unknown outcomes recover the immutable request and idempotency key, including after refresh or a balance change. Known expired/rejected quotes clear only unaccepted confirmation state. Leaving a mode before its quote returns cannot submit a hidden order; an already accepted task keeps running and can be recovered from private history. A completed acceptance exposes Make another video before a second order can start. Blocked recovery storage stops acceptance and the credit purchase handoff.
 
-The separate Rumpelstiltskin entry retains its existing explicit quote/review flow. This change does not change prices, duration, providers, audience, safety, ledger or payment contracts. Local browser verification uses synthetic authentication, authorized fixture pixels and mocked business APIs; it is not paid generation or supplier-quality evidence.
+The separate Rumpelstiltskin entry retains its existing explicit quote/review flow. Its pricing, duration, provider and reference contract stay separate. Local browser verification uses synthetic authentication, authorized fixture pixels and mocked business APIs; it is not paid generation or supplier-quality evidence.
+
+## Five- and ten-second orders
+
+Hotel Lobby, Raindance Solo and Raindance Duet keep five seconds as their default and offer ten seconds only when protected access reports the option ready. Both choices are 720p, 9:16 and silent. Photo and duration drafts remain owner/effect scoped. A duration change increments the draft revision and discards only an unsubmitted quote. Pending acceptance locks duration and retains its immutable request; accepted job/history duration comes from the frozen template, not current settings.
+
+The access API supplies each available option's complete price, standard price, annual price and integer-credit saving before upload. New Generate quotes remain authoritative. A changed total in either direction requires confirmation; an eligibility change that the server rejects requires a new quote even when the amount is unchanged. Five-second pricing has no annual saving badge. Existing 5-second drafts normalize to the identical old request fingerprint.
+
+The server uses the existing paid, effective annual-subscription qualification and rechecks the frozen proof under the same credit-account lock as refunds and paid-credit allocation. Browser flags and checkout cadence cannot grant eligibility. Accepted orders replay before mutable price/qualification checks and keep their price and template.

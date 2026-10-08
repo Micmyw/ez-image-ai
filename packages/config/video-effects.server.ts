@@ -14,6 +14,10 @@ import {
 	RAINDANCE_SOLO_EFFECT_ID,
 	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
 	videoEffectRequestSchema,
+	VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+	HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+	RAINDANCE_LONG_TEMPLATE_VERSION,
+	videoEffectPricingDisplaySchema,
 	type VideoEffectRequest,
 } from "./video-effects";
 import { validateVideoModelSelection } from "./video-models";
@@ -21,6 +25,8 @@ import { createVideoAudioSafetyPolicy } from "./video-output";
 import {
 	calculateVideoRetailPrice,
 	resolveVideoModelCostBasis,
+	readVideoRetailDisplay,
+	type VideoRetailPricingContext,
 	type VideoCostPolicy,
 } from "./video-pricing.server";
 import { configuredVideoVisualSafetyProfile } from "./video-safety";
@@ -33,6 +39,10 @@ export {
 
 export const HOTEL_LOBBY_TEMPLATE_VERSION = "hotel-lobby-duo-2026-10-05.1";
 export const RAINDANCE_TEMPLATE_VERSION = "raindance-2026-10-07.1";
+export {
+	HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+	RAINDANCE_LONG_TEMPLATE_VERSION,
+} from "./video-effects";
 export const RAINDANCE_PRICE_VERSION = "raindance-cost-2026-10-07.1";
 export const HOTEL_LOBBY_PRICE_VERSION = "hotel-lobby-duo-cost-2026-10-05.2";
 export const HOTEL_LOBBY_SAFETY_POLICY_VERSION = "hotel-lobby-duo-safety-2026-10-05.1";
@@ -69,6 +79,22 @@ large hand gestures or camera moves. Silent video, no speech and no song. Do not
 specific lyrics, lip synchronization or any named artist's performance.`;
 
 const version = z.string().min(1).max(120);
+const hotelLobbyLongMotion = `Animate this exact two-person orange studio scene for ten seconds with one fixed camera.
+Seconds 0–2: both adults settle into a relaxed pose, faces visible and one suspended microphone between them.
+Seconds 2–5: the LEFT performer leads with one small rhythmic shoulder and hand gesture while the RIGHT reacts.
+Seconds 5–8: the RIGHT performer takes the lead with a different restrained gesture while the LEFT reacts.
+Seconds 8–10: they exchange a brief glance and return to a calm finishing pose.
+Keep left and right identities, clothing, positions, framing and the original scene throughout.
+No cuts, identity swaps, face merging, extra people, mirrored choreography, overlapping gestures, text or logos.
+Silent video; no speech, lip synchronization, song or named artist's performance.`;
+const raindanceLongMotion = `Animate this original sunset pier portrait for ten seconds with a fixed camera.
+Seconds 0–2: establish a relaxed still pose with a gentle sea breeze.
+Seconds 2–5: begin a small natural shoulder sway while keeping the face visible.
+Seconds 5–8: add a restrained change in pose and gaze toward the lens.
+Seconds 8–10: settle into a relaxed finishing pose while the breeze continues.
+Preserve each adult's face, hair, clothing, position, the pier and the horizon throughout.
+No cuts, extra people, face blending, large gestures, camera moves, captions or logos.
+Silent video; no speech, song, lip synchronization or named artist's performance.`;
 /** Add historical versions explicitly when introducing a new execution contract. Never re-resolve defaults. */
 const legacyVideoEffectTemplateSnapshotSchema = z
 	.object({
@@ -126,6 +152,26 @@ const legacyVideoEffectTemplateSnapshotSchema = z
 			(snapshot.effectId === HOTEL_LOBBY_EFFECT_ID
 				? HOTEL_LOBBY_TEMPLATE_VERSION
 				: RAINDANCE_TEMPLATE_VERSION),
+		{ message: "Template version does not match effect" },
+	);
+/** Ten-second choreography is a separate frozen contract; never reinterpret schema 1 orders. */
+const longVideoEffectTemplateSnapshotSchema = z
+	.object({
+		...legacyVideoEffectTemplateSnapshotSchema.shape,
+		schemaVersion: z.literal(3),
+		templateVersion: z.enum([HOTEL_LOBBY_LONG_TEMPLATE_VERSION, RAINDANCE_LONG_TEMPLATE_VERSION]),
+		video: legacyVideoEffectTemplateSnapshotSchema.shape.video.extend({ duration: z.literal(10) }),
+		output: legacyVideoEffectTemplateSnapshotSchema.shape.output.extend({
+			durationSeconds: z.literal(10),
+		}),
+	})
+	.strict()
+	.refine(
+		(snapshot) =>
+			snapshot.templateVersion ===
+			(snapshot.effectId === HOTEL_LOBBY_EFFECT_ID
+				? HOTEL_LOBBY_LONG_TEMPLATE_VERSION
+				: RAINDANCE_LONG_TEMPLATE_VERSION),
 		{ message: "Template version does not match effect" },
 	);
 const rumpelstiltskinMotionPrompt = `Use the authorized silent reference video as the motion and scene reference.
@@ -193,6 +239,7 @@ export type RumpelstiltskinTemplateConfig = z.infer<typeof rumpelstiltskinTempla
 export const videoEffectTemplateSnapshotSchema = z.union([
 	legacyVideoEffectTemplateSnapshotSchema,
 	rumpelstiltskinTemplateSnapshotSchema,
+	longVideoEffectTemplateSnapshotSchema,
 ]);
 export type VideoEffectTemplateConfig = z.infer<typeof videoEffectTemplateSnapshotSchema>;
 
@@ -249,11 +296,18 @@ export function createVideoEffectTemplateSnapshot(
 	}
 	const raindance = request.effectId !== HOTEL_LOBBY_EFFECT_ID;
 	const solo = request.effectId === RAINDANCE_SOLO_EFFECT_ID;
+	const long = request.duration === 10;
 	return videoEffectTemplateSnapshotSchema.parse({
-		schemaVersion: 1,
+		schemaVersion: long ? 3 : 1,
 		effectId: request.effectId,
 		presetKey: "standard",
-		templateVersion: raindance ? RAINDANCE_TEMPLATE_VERSION : HOTEL_LOBBY_TEMPLATE_VERSION,
+		templateVersion: long
+			? raindance
+				? RAINDANCE_LONG_TEMPLATE_VERSION
+				: HOTEL_LOBBY_LONG_TEMPLATE_VERSION
+			: raindance
+				? RAINDANCE_TEMPLATE_VERSION
+				: HOTEL_LOBBY_TEMPLATE_VERSION,
 		safetyPolicyVersion: HOTEL_LOBBY_SAFETY_POLICY_VERSION,
 		preprocessingVersion: "sealed-upload-2026-10-05.1",
 		scene: {
@@ -274,23 +328,34 @@ export function createVideoEffectTemplateSnapshot(
 		video: {
 			productKey: "video-seedance-1-5-pro",
 			mode: "image-to-video",
-			duration: 5,
+			duration: long ? 10 : 5,
 			resolution: "720p",
 			aspectRatio: "9:16",
 			sound: false,
-			prompt: raindance
-				? raindanceMotion +
-					(solo
-						? " Keep exactly one adult in frame throughout."
-						: " Keep the left person on the left and the right person on the right. One makes a small gesture while the other reacts, then they exchange a brief glance.")
-				: motionPrompt,
-			promptVersion: raindance
-				? `raindance-${solo ? "solo" : "duo"}-motion-2026-10-07.1`
-				: "hotel-lobby-motion-2026-10-05.1",
+			prompt: long
+				? raindance
+					? raindanceLongMotion +
+						(solo
+							? " Keep exactly ONE adult seated in frame throughout, using subtle head and shoulder motion."
+							: " Keep the LEFT adult on the left and the RIGHT adult on the right. During seconds 2–5 the left adult leads and the right reacts; during seconds 5–8 the right adult leads and the left reacts. Finish with a brief mutual glance.")
+					: hotelLobbyLongMotion
+				: raindance
+					? raindanceMotion +
+						(solo
+							? " Keep exactly one adult in frame throughout."
+							: " Keep the left person on the left and the right person on the right. One makes a small gesture while the other reacts, then they exchange a brief glance.")
+					: motionPrompt,
+			promptVersion: long
+				? raindance
+					? `raindance-${solo ? "solo" : "duo"}-motion-10s-2026-10-08.1`
+					: "hotel-lobby-motion-10s-2026-10-08.1"
+				: raindance
+					? `raindance-${solo ? "solo" : "duo"}-motion-2026-10-07.1`
+					: "hotel-lobby-motion-2026-10-05.1",
 			fixedLens: true,
 		},
 		output: {
-			durationSeconds: 5,
+			durationSeconds: long ? 10 : 5,
 			resolution: "720p",
 			width: 720,
 			height: 1280,
@@ -328,12 +393,14 @@ export function resolveVideoEffectTemplate(
 	if (enabled !== "true") throw new Error("VIDEO_EFFECT_DISABLED");
 	const template = createVideoEffectTemplateSnapshot(request, env);
 	const acceptedVersion =
-		env[`${prefix}_ACCEPTED_TEMPLATE_VERSION`] ??
+		env[`${prefix}_ACCEPTED_${request.duration === 10 ? "LONG_" : ""}TEMPLATE_VERSION`] ??
 		(request.effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID
 			? RUMPELSTILTSKIN_TEMPLATE_VERSION
 			: undefined);
 	if (acceptedVersion !== template.templateVersion)
 		throw new Error("VIDEO_EFFECT_TEMPLATE_NOT_CONFIRMED");
+	if (request.duration === 10 && !isVideoEffectRetailPricingApproved(env))
+		throw new Error("VIDEO_EFFECT_PRICE_NOT_APPROVED");
 	if (!validateVideoModelSelection(template.video))
 		throw new Error("VIDEO_MODEL_SELECTION_UNSUPPORTED");
 	return template;
@@ -453,9 +520,25 @@ function resolveRumpelstiltskinTemplatePrice(
 }
 
 /** One full-cost calculation, one payment allocation and one failure budget for both paid stages. */
+export function isVideoEffectRetailPricingApproved(
+	env: Record<string, string | undefined>,
+): boolean {
+	const version = env.VIDEO_EFFECT_RETAIL_PRICE_ACCEPTED_VERSION;
+	if (version !== undefined && version !== VIDEO_EFFECT_RETAIL_PRICE_VERSION)
+		throw new Error("VIDEO_EFFECT_PRICE_NOT_APPROVED");
+	return version === VIDEO_EFFECT_RETAIL_PRICE_VERSION;
+}
+export function readVideoEffectPricingDisplay(details: unknown) {
+	const parsed = videoEffectPricingDisplaySchema.safeParse(
+		readVideoRetailDisplay(details, VIDEO_EFFECT_RETAIL_PRICE_VERSION),
+	);
+	return parsed.success ? parsed.data : null;
+}
+
 export function resolveVideoEffectPrice(
 	request: VideoEffectRequest,
 	env: Record<string, string | undefined>,
+	context: VideoRetailPricingContext = {},
 ) {
 	const template = resolveVideoEffectTemplate(request, env);
 	if (template.schemaVersion === 2) return resolveRumpelstiltskinTemplatePrice(template, env);
@@ -472,7 +555,7 @@ export function resolveVideoEffectPrice(
 	const basis = resolveVideoModelCostBasis(template.video, env);
 	const paymentCostBasis = env.HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS?.trim();
 	if (!paymentCostBasis) throw new Error("VIDEO_EFFECT_PAYMENT_COST_NOT_CONFIRMED");
-	const markupBps =
+	const baseMarkupBps =
 		env.HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS === undefined
 			? HOTEL_LOBBY_MINIMUM_MARKUP_BPS
 			: costSetting(env, "HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS");
@@ -481,12 +564,25 @@ export function resolveVideoEffectPrice(
 			? HOTEL_LOBBY_MINIMUM_PAYMENT_FEE_BPS
 			: costSetting(env, "HOTEL_LOBBY_DUO_PAYMENT_FEE_BPS");
 	if (
-		markupBps < HOTEL_LOBBY_MINIMUM_MARKUP_BPS ||
-		markupBps > 100_000n ||
+		baseMarkupBps < HOTEL_LOBBY_MINIMUM_MARKUP_BPS ||
+		baseMarkupBps > 100_000n ||
 		templatePaymentFeeBps < HOTEL_LOBBY_MINIMUM_PAYMENT_FEE_BPS ||
 		templatePaymentFeeBps >= 10_000n
 	)
 		throw new Error("VIDEO_EFFECT_PRICING_TARGET_INVALID");
+	const upgraded = isVideoEffectRetailPricingApproved(env);
+	const audience = context.audience ?? "standard";
+	if (
+		!["standard", "annual"].includes(audience) ||
+		(context.eligibility && context.eligibility.audience !== audience)
+	)
+		throw new Error("VIDEO_RETAIL_AUDIENCE_INVALID");
+	const extraMarkupBps = upgraded ? BigInt(Math.max(0, template.video.duration - 5)) * 1_500n : 0n;
+	const standardMarkupBps =
+		baseMarkupBps + extraMarkupBps > 100_000n ? 100_000n : baseMarkupBps + extraMarkupBps;
+	// Annual membership halves only the surcharge above the effect's own approved base.
+	const annualMarkupBps = baseMarkupBps + (standardMarkupBps - baseMarkupBps) / 2n;
+	const markupBps = upgraded && audience === "annual" ? annualMarkupBps : standardMarkupBps;
 	if (
 		env.HOTEL_LOBBY_DUO_TEXT_COST_RULE_VERSION !== basis.textSafetyProfile.ruleVersion ||
 		!env.HOTEL_LOBBY_DUO_TEXT_COST_BASIS?.trim()
@@ -530,6 +626,36 @@ export function resolveVideoEffectPrice(
 		sound: false,
 		policy,
 	});
+	const standard = calculateVideoRetailPrice({
+		providerCostMicros,
+		duration: template.video.duration,
+		sound: false,
+		policy: { ...policy, markupBps: standardMarkupBps },
+	});
+	const annual = calculateVideoRetailPrice({
+		providerCostMicros,
+		duration: template.video.duration,
+		sound: false,
+		policy: { ...policy, markupBps: annualMarkupBps },
+	});
+	const retail = upgraded
+		? {
+				version: VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+				baseMarkupBps: baseMarkupBps.toString(),
+				standardMarkupBps: standardMarkupBps.toString(),
+				annualMarkupBps: annualMarkupBps.toString(),
+				eligibility: context.eligibility ?? null,
+				display: {
+					policyVersion: VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+					audience,
+					credits: result.credits.toString(),
+					standardCredits: standard.credits.toString(),
+					annualCredits: annual.credits.toString(),
+					savedCredits: (standard.credits - result.credits).toString(),
+					annualSavingsCredits: (standard.credits - annual.credits).toString(),
+				},
+			}
+		: undefined;
 	const serializedResult = Object.fromEntries(
 		Object.entries(result).map(([key, value]) => [key, value.toString()]),
 	) as { [Key in keyof typeof result]: string };
@@ -537,8 +663,9 @@ export function resolveVideoEffectPrice(
 		credits: result.credits,
 		// Same two-stage model tuple and conservative two-input review budget. Approval expiry,
 		// complete cost and minimum revenue checks stay authoritative for every template.
-		pricingVersion:
-			request.effectId === HOTEL_LOBBY_EFFECT_ID
+		pricingVersion: upgraded
+			? `${VIDEO_EFFECT_RETAIL_PRICE_VERSION}/${audience}`
+			: request.effectId === HOTEL_LOBBY_EFFECT_ID
 				? HOTEL_LOBBY_PRICE_VERSION
 				: RAINDANCE_PRICE_VERSION,
 		pricingBasis: env.HOTEL_LOBBY_DUO_PRICE_BASIS.trim(),
@@ -547,6 +674,7 @@ export function resolveVideoEffectPrice(
 		paidFundingPolicy: { minimumUsdMicrosPerCredit: result.creditFloorMicros },
 		pricingDetails: {
 			kind: "video-effect" as const,
+			...(retail ? { retail } : {}),
 			effectId: template.effectId,
 			templateVersion: template.templateVersion,
 			presetKey: template.presetKey,

@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { VideoEffectRequest } from "./video-effects";
+import {
+	VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+	HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+	RAINDANCE_LONG_TEMPLATE_VERSION,
+	type VideoEffectRequest,
+} from "./video-effects";
 import {
 	createVideoEffectTemplateSnapshot,
 	HOTEL_LOBBY_PRICE_VERSION,
@@ -115,6 +120,84 @@ describe("Raindance frozen contract and independent admission", () => {
 	});
 });
 afterEach(() => vi.useRealTimers());
+
+describe("approved ten-second effects", () => {
+	const upgraded = () => ({
+		...fixtureEnvironment(),
+		VIDEO_EFFECT_RETAIL_PRICE_ACCEPTED_VERSION: VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+		HOTEL_LOBBY_DUO_ACCEPTED_LONG_TEMPLATE_VERSION: HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+		RAINDANCE_ACCEPTED_TEMPLATE_VERSION: RAINDANCE_TEMPLATE_VERSION,
+		RAINDANCE_ACCEPTED_LONG_TEMPLATE_VERSION: RAINDANCE_LONG_TEMPLATE_VERSION,
+		RAINDANCE_ENABLED: "true",
+		HOTEL_LOBBY_DUO_INPUT_REVIEW_COST_MICROS: "5100",
+		HOTEL_LOBBY_DUO_SCENE_REVIEW_COST_MICROS: "5100",
+		HOTEL_LOBBY_DUO_ADDITIONAL_RUNTIME_COST_MICROS: "100000",
+		HOTEL_LOBBY_DUO_ADDITIONAL_STORAGE_COST_MICROS: "10000",
+		VIDEO_COST_MODERATION_BASE_MICROS: "5100",
+		VIDEO_COST_MODERATION_PER_SECOND_MICROS: "200",
+		VIDEO_COST_RUNTIME_MICROS: "100000",
+		VIDEO_COST_STORAGE_MICROS: "10000",
+		VIDEO_COST_PAYMENT_FIXED_MICROS: "0",
+		VIDEO_COST_PAYMENT_FEE_BPS: "654",
+	});
+	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
+		"freezes %s choreography and computes approved full-order prices",
+		(effectId) => {
+			const base = { ...request, effectId, inputs: { leftAssetId: "one", rightAssetId: "one" } };
+			const long = createVideoEffectTemplateSnapshot({ ...base, duration: 10 });
+			const short = createVideoEffectTemplateSnapshot(base);
+			expect(long.schemaVersion).toBe(3);
+			expect(long.video.prompt).toContain("Seconds 8–10");
+			expect(long.video.prompt).not.toBe(short.video.prompt);
+			expect(long.video.duration).toBe(10);
+			expect(long.output.durationSeconds).toBe(10);
+			expect(parseVideoEffectTemplateSnapshot(long)).toEqual(long);
+			expect(parseVideoEffectTemplateSnapshot(short)).toEqual(short);
+			expect(() => parseVideoEffectTemplateSnapshot({ ...long, schemaVersion: 1 })).toThrow();
+			for (const duration of [5, 10] as const) {
+				const input = { ...base, ...(duration === 10 ? { duration: 10 as const } : {}) };
+				const standard = resolveVideoEffectPrice(input, upgraded());
+				const annual = resolveVideoEffectPrice(input, upgraded(), { audience: "annual" });
+				expect([standard.credits, annual.credits]).toEqual(
+					duration === 5 ? [69n, 69n] : [116n, 101n],
+				);
+				expect(standard.pricingDetails.costPolicy.paymentFeeBps).toBe("750");
+				expect(standard.pricingDetails.costPolicy.markupBps).toBe(
+					duration === 5 ? "20000" : "27500",
+				);
+				expect(annual.pricingDetails.costPolicy.markupBps).toBe(duration === 5 ? "20000" : "23750");
+				for (const price of [standard, annual]) {
+					const details = price.pricingDetails;
+					const gross = BigInt(details.minimumGrossRevenueMicros);
+					const cost = BigInt(details.completeCostMicros);
+					expect((gross - cost) * 10000n).toBeGreaterThanOrEqual(
+						cost * BigInt(details.costPolicy.markupBps),
+					);
+					const cheaperGross = gross - BigInt(details.creditFloorMicros);
+					const cheaperCost =
+						BigInt(details.riskAdjustedCostMicros) + (cheaperGross * 750n + 9999n) / 10000n;
+					expect((cheaperGross - cheaperCost) * 10000n).toBeLessThan(
+						cheaperCost * BigInt(details.costPolicy.markupBps),
+					);
+				}
+			}
+		},
+	);
+	it("requires separate long-template and retail approvals while keeping accepted snapshots readable", () => {
+		const input = { ...request, duration: 10 as const };
+		const snapshot = createVideoEffectTemplateSnapshot(input);
+		const env: Record<string, string | undefined> = upgraded();
+		delete env.HOTEL_LOBBY_DUO_ACCEPTED_LONG_TEMPLATE_VERSION;
+		expect(() => resolveVideoEffectPrice(input, env)).toThrow(
+			"VIDEO_EFFECT_TEMPLATE_NOT_CONFIRMED",
+		);
+		env.HOTEL_LOBBY_DUO_ACCEPTED_LONG_TEMPLATE_VERSION = HOTEL_LOBBY_LONG_TEMPLATE_VERSION;
+		delete env.VIDEO_EFFECT_RETAIL_PRICE_ACCEPTED_VERSION;
+		expect(() => resolveVideoEffectPrice(input, env)).toThrow("VIDEO_EFFECT_PRICE_NOT_APPROVED");
+		expect(parseVideoEffectTemplateSnapshot(snapshot)).toEqual(snapshot);
+		expect(resolveVideoEffectPrice(request, env).credits).toBe(69n);
+	});
+});
 
 describe("frozen Hotel Lobby template", () => {
 	it("maps two roles to a scene before fixed single-image video; recovery does not use mutable flags", () => {

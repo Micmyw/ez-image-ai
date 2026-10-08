@@ -16,6 +16,7 @@ vi.mock("@repo/jobs/video-v1/template-admission", () => ({
 	requireVideoTemplateAdmission: vi.fn(),
 	requireVideoTemplateRuntimeEnabled: vi.fn(),
 	readVideoEffectTestReadiness: vi.fn(),
+	resolveVideoEffectPricingContext: vi.fn(async () => ({})),
 	VIDEO_EFFECT_CAPABILITY_REQUEST: {
 		effectId: "hotel-lobby-duo",
 		presetKey: "standard",
@@ -195,6 +196,7 @@ describe("template API authorization and strict public contracts", () => {
 					effectId,
 					inputs: { leftAssetId: "capability", rightAssetId: "capability" },
 				}),
+				{},
 			);
 			vi.mocked(createVideoEffectUpload).mockResolvedValue({
 				sessionId: "00000000-0000-4000-8000-000000000001",
@@ -254,6 +256,7 @@ describe("template API authorization and strict public contracts", () => {
 			expect.anything(),
 			expect.anything(),
 			expect.anything(),
+			{},
 		);
 	});
 	it("keeps accessAllowed false when the ordinary customer is outside internal template scope", async () => {

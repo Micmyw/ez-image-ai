@@ -43,6 +43,7 @@ export function VideoEffectJob({ jobId }: { jobId: string }) {
 			{state.data ? (
 				<>
 					<h2>{t(`stages.${state.data.stage}`)}</h2>
+					<p>{t("seconds", { seconds: state.data.duration ?? 5 })} · 720p · 9:16 · MP4</p>
 					<p>{t(`creditStates.${state.data.creditState}`, { credits: state.data.credits })}</p>
 					{state.data.canPlay && state.data.stage === "READY" ? (
 						<PrivateEffectVideo state={state.data} />

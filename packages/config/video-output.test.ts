@@ -25,6 +25,48 @@ const expected = {
 	aspectRatio: "16:9",
 };
 describe("immutable video output contract", () => {
+	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
+		"validates ten-second %s against its frozen duration, pixels and silence",
+		(effectId) => {
+			const template = createVideoEffectTemplateSnapshot({
+				effectId,
+				presetKey: "standard",
+				duration: 10,
+				inputs: { leftAssetId: "one", rightAssetId: "one" },
+			});
+			const snapshot = {
+				...template.video,
+				requestKind: "template-video",
+				videoEffectTemplate: template,
+			};
+			const constraints = videoOutputConstraints(snapshot);
+			const output = {
+				durationMillis: 10000,
+				width: 720,
+				height: 1280,
+				audioTracks: 0,
+				videoTracks: 1 as const,
+			};
+			expect(videoOutputSpecificationFailure(output, constraints)).toBeNull();
+			expect(
+				videoOutputSpecificationFailure({ ...output, durationMillis: 5000 }, constraints),
+			).toBe("VIDEO_DURATION_MISMATCH");
+			expect(videoOutputSpecificationFailure({ ...output, audioTracks: 1 }, constraints)).toBe(
+				"VIDEO_AUDIO_TRACK_NOT_ALLOWED",
+			);
+			expect(
+				videoOutputSpecificationFailure({ ...output, width: 360, height: 640 }, constraints),
+			).toBe("VIDEO_RESOLUTION_MISMATCH");
+			for (const change of [
+				{ duration: 5 },
+				{ videoEffectTemplate: { ...template, schemaVersion: 1 } },
+				{ videoEffectTemplate: { ...template, templateVersion: "unknown" } },
+			])
+				expect(() => videoOutputConstraints({ ...snapshot, ...change })).toThrow(
+					"VIDEO_TEMPLATE_OUTPUT_CONSTRAINTS_INVALID",
+				);
+		},
+	);
 	it("retains strict Kling Pro square pixels while the official prose and schema remain contradictory", () => {
 		const square = { ...expected, aspectRatio: "1:1" };
 		// The prose table says 1440x1440; OpenAPI says 1080x1080. This freezes the

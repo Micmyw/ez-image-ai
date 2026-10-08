@@ -16,10 +16,14 @@ import {
 	resolveVideoEffectTemplate,
 	resolveVideoEffectPrice,
 	parseVideoEffectTemplateSnapshot,
+	isVideoEffectRetailPricingApproved,
+	readVideoEffectPricingDisplay,
 } from "@repo/config/video-effects.server";
 import { applyVideoInternalFunding } from "@repo/config/video-internal-funding";
+import type { VideoRetailPricingContext } from "@repo/config/video-pricing.server";
 import type { VideoV1Bindings } from "@repo/config/video-v1";
 import { db } from "@repo/database/client";
+import { resolveVideoRetailEligibility } from "@repo/database/video-retail-eligibility";
 import {
 	createVideoTemplateQuoteRecord,
 	createVideoTemplateJobRecord,
@@ -84,6 +88,7 @@ export function requireVideoTemplateAdmission(
 	environment: Record<string, string | undefined>,
 	bindings: VideoV1Bindings,
 	request: VideoEffectRequest,
+	pricingContext: VideoRetailPricingContext = {},
 ) {
 	if (
 		!canAccessVideoEffect(environment, { id: context.userId, role: context.role }, request.effectId)
@@ -91,27 +96,19 @@ export function requireVideoTemplateAdmission(
 		throw new Error("VIDEO_ACCESS_DENIED");
 	const template = resolveVideoEffectTemplate(request, environment);
 	requireVideoTemplateSceneEnvironment(template, environment);
-	const reference = template.schemaVersion === 2 && template.executionKind === "seedance-reference";
-	// Reference-video billing differs from first-frame billing. Never use its public list-price quote.
-	const referencePrice = reference ? resolveVideoEffectPrice(request, environment) : undefined;
-	const admitted = requireVideoModelReadiness(
-		environment,
-		bindings,
-		template.video,
-		referencePrice ? { priceOverride: referencePrice } : undefined,
-	);
+	// Effect prices include every paid stage and never inherit ordinary-video retail markups.
+	const effectPrice = resolveVideoEffectPrice(request, environment, pricingContext);
+	const admitted = requireVideoModelReadiness(environment, bindings, template.video, {
+		priceOverride: effectPrice,
+	});
 	// An ordinary video administrator budget never authorizes this separate two-stage product.
-	const price = applyVideoInternalFunding(
-		referencePrice ?? resolveVideoEffectPrice(request, environment),
-		context,
-		{
-			...environment,
-			VIDEO_INTERNAL_FUNDING:
-				request.effectId === "hotel-lobby-duo"
-					? environment.HOTEL_LOBBY_DUO_INTERNAL_FUNDING
-					: undefined,
-		},
-	) satisfies VideoPrice;
+	const price = applyVideoInternalFunding(effectPrice, context, {
+		...environment,
+		VIDEO_INTERNAL_FUNDING:
+			request.effectId === "hotel-lobby-duo"
+				? environment.HOTEL_LOBBY_DUO_INTERNAL_FUNDING
+				: undefined,
+	}) satisfies VideoPrice;
 	return {
 		...admitted,
 		template,
@@ -134,11 +131,18 @@ export async function createVideoTemplateQuote(
 		environment?: Record<string, string | undefined>;
 	},
 ) {
+	const environment = options.environment ?? process.env;
+	const pricingContext = await resolveVideoEffectPricingContext(
+		context.userId,
+		request.effectId,
+		environment,
+	);
 	const admitted = requireVideoTemplateAdmission(
 		context,
-		options.environment ?? process.env,
+		environment,
 		options.bindings,
 		request,
+		pricingContext,
 	);
 	await requireVideoTemplateRuntimeEnabled(admitted.template, options.environment ?? process.env);
 	const result = await createVideoTemplateQuoteRecord(
@@ -154,7 +158,28 @@ export async function createVideoTemplateQuote(
 		},
 		db,
 	);
-	return { quoteId: result.quoteId, credits: result.credits, expiresAt: result.expiresAt };
+	const pricing = readVideoEffectPricingDisplay(admitted.price.pricingDetails);
+	return {
+		quoteId: result.quoteId,
+		credits: result.credits,
+		expiresAt: result.expiresAt,
+		...(pricing ? { pricing } : {}),
+	};
+}
+
+/** Shared read model for access and quotation; admission rechecks the proof under the account lock. */
+export async function resolveVideoEffectPricingContext(
+	ownerId: string,
+	effectId: VideoEffectId,
+	environment: Record<string, string | undefined>,
+): Promise<VideoRetailPricingContext> {
+	if (
+		effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID ||
+		!isVideoEffectRetailPricingApproved(environment)
+	)
+		return {};
+	const eligibility = await resolveVideoRetailEligibility(ownerId, db);
+	return { audience: eligibility.audience, eligibility };
 }
 
 export async function createVideoTemplateJob(
@@ -178,11 +203,18 @@ export async function createVideoTemplateJob(
 		await ensureVideoWorkflowStarted(replay.id, binding);
 		return getVideoTemplatePublicState(context, replay.id);
 	}
+	const environment = options.environment ?? process.env;
+	const pricingContext = await resolveVideoEffectPricingContext(
+		context.userId,
+		input.request.effectId,
+		environment,
+	);
 	const admitted = requireVideoTemplateAdmission(
 		context,
-		options.environment ?? process.env,
+		environment,
 		options.bindings,
 		input.request,
+		pricingContext,
 	);
 	await requireVideoTemplateRuntimeEnabled(admitted.template, options.environment ?? process.env);
 	const result = await createVideoTemplateJobRecord(
@@ -267,6 +299,7 @@ async function toVideoTemplatePublicState(
 		creditState:
 			job.reservation.status === "ACTIVE" ? ("RESERVED" as const) : job.reservation.status,
 		credits: job.creditsReserved.toString(),
+		duration: template.output.durationSeconds,
 		canPlay:
 			stage === "READY" &&
 			job.status === "SUCCEEDED" &&

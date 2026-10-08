@@ -2149,6 +2149,10 @@
 		"uploadPhoto": "Ajouter votre photo",
 		"newVideo": "Créer une autre vidéo",
 		"priceChanged": "Le total est passé à {credits} crédits. Confirmez ce nouveau total pour continuer.",
-		"confirmNewPrice": "Confirmer le nouveau total · {credits} crédits"
+		"confirmNewPrice": "Confirmer le nouveau total · {credits} crédits",
+		"duration": "Durée",
+		"planPrices": "Standard : {standard} crédits · Abonnement annuel : {annual} crédits",
+		"annualSavingApplied": "Tarif annuel appliqué — vous économisez {credits} crédits.",
+		"annualSavingAvailable": "Les abonnements annuels éligibles économisent {credits} crédits sur cette option."
 	}
 }

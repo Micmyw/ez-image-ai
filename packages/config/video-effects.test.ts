@@ -12,6 +12,22 @@ const request = {
 	inputs: { leftAssetId: "left", rightAssetId: "right" },
 };
 describe("strict public duo template contract", () => {
+	it("normalizes explicit five seconds without changing legacy fingerprints and rejects unsupported durations", () => {
+		expect(videoEffectRequestSchema.parse({ ...request, duration: 5 })).toEqual(
+			videoEffectRequestSchema.parse(request),
+		);
+		expect(videoEffectRequestSchema.parse({ ...request, duration: 10 }).duration).toBe(10);
+		for (const duration of [0, 4, 6, 9, 12, "10", true, null])
+			expect(videoEffectRequestSchema.safeParse({ ...request, duration }).success).toBe(false);
+		expect(
+			videoEffectRequestSchema.safeParse({
+				...request,
+				effectId: "rumpelstiltskin-solo",
+				duration: 10,
+				inputs: { leftAssetId: "one", rightAssetId: "one" },
+			}).success,
+		).toBe(false);
+	});
 	it("retains both ordered roles and permits one asset in both positions", () => {
 		expect(videoEffectRequestSchema.parse(request).inputs).toEqual(request.inputs);
 		const swapped = videoEffectRequestSchema.parse({

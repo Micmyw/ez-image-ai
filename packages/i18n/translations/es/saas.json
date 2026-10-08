@@ -2149,6 +2149,10 @@
 		"uploadPhoto": "Subir tu foto",
 		"newVideo": "Crear otro vídeo",
 		"priceChanged": "El total ha cambiado a {credits} créditos. Confirma este nuevo total para continuar.",
-		"confirmNewPrice": "Confirmar nuevo total · {credits} créditos"
+		"confirmNewPrice": "Confirmar nuevo total · {credits} créditos",
+		"duration": "Duración",
+		"planPrices": "Estándar: {standard} créditos · Plan anual: {annual} créditos",
+		"annualSavingApplied": "Precio anual aplicado — ahorras {credits} créditos.",
+		"annualSavingAvailable": "Los planes anuales que cumplen los requisitos ahorran {credits} créditos en esta opción."
 	}
 }

@@ -7,7 +7,7 @@ export const hotelLobbyRecord: VideoEffectRecord = {
 	slug: "hotel-lobby-ai",
 	title: "Hotel Lobby AI Video Generator",
 	description:
-		"Turn two photos into an original orange-studio duo video: a 5-second, 720p vertical, silent MP4. Sign in, upload your photos and confirm one total credit quote.",
+		"Turn two photos into an original orange-studio duo video: a 5- or 10-second, 720p vertical, silent MP4. See the complete price before uploading and generate with one action.",
 	status: "beta",
 	templateVersion: "hotel-lobby-duo-2026-10-05.1",
 	scenePromptVersion: "hotel-lobby-scene-2026-10-05.1",

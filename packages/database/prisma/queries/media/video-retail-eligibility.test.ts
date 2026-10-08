@@ -92,30 +92,33 @@ describe("server annual video qualification", () => {
 		effective.mockResolvedValue({ ...subscription(), status: "PAST_DUE", graceEndsAt: now });
 		expect((await resolveVideoRetailEligibility("owner", client, now)).audience).toBe("standard");
 	});
-	it("rejects qualification changes and cross-owner proof; preserves legacy/template snapshots", async () => {
-		const eligibility = await resolveVideoRetailEligibility("owner", client, now);
-		const details = {
-			retail: {
-				version: "video-retail-2026-10-08.1",
-				eligibility,
-				display: { audience: "annual" },
-			},
-		};
-		await expect(
-			assertVideoRetailEligibility("owner", details, client, now),
-		).resolves.toBeUndefined();
-		await expect(assertVideoRetailEligibility("another", details, client, now)).rejects.toThrow(
-			"PRICE_CHANGED",
-		);
-		effective.mockResolvedValue(null);
-		await expect(assertVideoRetailEligibility("owner", details, client, now)).rejects.toThrow(
-			"PRICE_CHANGED",
-		);
-		await expect(
-			assertVideoRetailEligibility("owner", { retail: {} }, client, now),
-		).rejects.toThrow("PRICE_CHANGED");
-		await expect(
-			assertVideoRetailEligibility("owner", { template: {} }, client, now),
-		).resolves.toBeUndefined();
-	});
+	it.each(["video-retail-2026-10-08.1", "video-effect-retail-2026-10-08.1"])(
+		"%s rejects qualification changes and cross-owner proof; preserves legacy snapshots",
+		async (version) => {
+			const eligibility = await resolveVideoRetailEligibility("owner", client, now);
+			const details = {
+				retail: {
+					version,
+					eligibility,
+					display: { audience: "annual" },
+				},
+			};
+			await expect(
+				assertVideoRetailEligibility("owner", details, client, now),
+			).resolves.toBeUndefined();
+			await expect(assertVideoRetailEligibility("another", details, client, now)).rejects.toThrow(
+				"PRICE_CHANGED",
+			);
+			effective.mockResolvedValue(null);
+			await expect(assertVideoRetailEligibility("owner", details, client, now)).rejects.toThrow(
+				"PRICE_CHANGED",
+			);
+			await expect(
+				assertVideoRetailEligibility("owner", { retail: {} }, client, now),
+			).rejects.toThrow("PRICE_CHANGED");
+			await expect(
+				assertVideoRetailEligibility("owner", { template: {} }, client, now),
+			).resolves.toBeUndefined();
+		},
+	);
 });

@@ -5,6 +5,8 @@ import {
 	VIDEO_EFFECT_MAX_INPUT_BYTES,
 	videoEffectRequestSchema,
 	videoEffectIdSchema,
+	videoEffectDurationSchema,
+	videoEffectPricingDisplaySchema,
 	type VideoEffectId,
 } from "@repo/config/video-effects";
 import { z } from "zod";
@@ -20,7 +22,12 @@ const requestSchema = videoEffectRequestSchema.refine(
 		id.safeParse(request.inputs.rightAssetId).success,
 );
 const quoteSchema = z
-	.object({ quoteId: id, credits: z.string().regex(/^\d+$/), expiresAt: z.string().datetime() })
+	.object({
+		quoteId: id,
+		credits: z.string().regex(/^\d+$/),
+		expiresAt: z.string().datetime(),
+		pricing: videoEffectPricingDisplaySchema.optional(),
+	})
 	.strict();
 const confirmationSchema = z
 	.object({
@@ -37,6 +44,7 @@ const draftSchema = z
 		ownerId: id,
 		effectId: videoEffectIdSchema.default(HOTEL_LOBBY_EFFECT_ID),
 		revision: z.number().int().nonnegative(),
+		duration: videoEffectDurationSchema.default(5),
 		leftAssetId: id.nullable(),
 		rightAssetId: id.nullable(),
 		confirmation: confirmationSchema.nullable(),
@@ -57,6 +65,7 @@ export function emptyEffectDraft(
 		ownerId,
 		effectId,
 		revision: 0,
+		duration: 5,
 		leftAssetId: null,
 		rightAssetId: null,
 		confirmation: null,
@@ -88,6 +97,7 @@ export function effectRequest(draft: EffectDraft) {
 	return requestSchema.parse({
 		effectId: draft.effectId,
 		presetKey: VIDEO_EFFECT_PRESET,
+		...(draft.duration === 10 ? { duration: 10 } : {}),
 		inputs: {
 			leftAssetId: draft.leftAssetId,
 			rightAssetId: [RAINDANCE_SOLO_EFFECT_ID, RUMPELSTILTSKIN_SOLO_EFFECT_ID].includes(

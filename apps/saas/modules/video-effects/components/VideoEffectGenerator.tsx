@@ -153,12 +153,35 @@ function SignedInGenerator({
 		queryFn: () => videoEffectsApi.access({ effectId }),
 		retry: false,
 		staleTime: 15_000,
+		refetchInterval: visible ? 30_000 : false,
+		refetchIntervalInBackground: false,
 	});
+	const refreshAccess = access.refetch;
+	useEffect(() => {
+		if (!visible || !access.data?.pricingValidUntil) return;
+		const expiresAt = Date.parse(access.data.pricingValidUntil);
+		if (!Number.isFinite(expiresAt)) return;
+		const timer = setTimeout(
+			() => {
+				void refreshAccess();
+			},
+			Math.max(1000, Math.min(expiresAt - Date.now(), 2_147_483_647)),
+		);
+		return () => clearTimeout(timer);
+	}, [visible, access.data?.pricingValidUntil, refreshAccess]);
 	const maxBytes = Math.min(
 		access.data?.maxInputBytes ?? VIDEO_EFFECT_MAX_BYTES,
 		VIDEO_EFFECT_MAX_BYTES,
 	);
-	const enabled = Boolean(restored && access.data?.available && access.data.accessAllowed);
+	const durationOptions =
+		access.data?.durationOptions ??
+		(access.data?.credits
+			? [{ duration: 5 as const, credits: access.data.credits, pricing: access.data.pricing }]
+			: []);
+	const selectedOption = durationOptions.find((option) => option.duration === draft.duration);
+	const enabled = Boolean(
+		restored && access.data?.available && access.data.accessAllowed && selectedOption,
+	);
 	const uploading = [slots.left.status, slots.right.status].some(
 		(status) => status === "uploading" || status === "sealing",
 	);
@@ -472,7 +495,8 @@ function SignedInGenerator({
 	const pending = draft.confirmation;
 	const totalCredits =
 		pending?.quote.credits ??
-		(quote && (!internalTest || !expired) ? quote.credits : access.data?.credits);
+		(quote && (!internalTest || !expired) ? quote.credits : selectedOption?.credits);
+	const pricing = pending?.quote.pricing ?? quote?.pricing ?? selectedOption?.pricing;
 	const creditBalance = access.data?.creditBalance;
 	const shortfall =
 		totalCredits && creditBalance
@@ -551,7 +575,52 @@ function SignedInGenerator({
 						setError(null);
 					}}
 				/>
-				<OutputSpec />
+				{!internalTest && (
+					<fieldset
+						className="ve-duration"
+						disabled={!restored || busy !== null || !!pending || !!draft.jobId}
+					>
+						<legend>{t("duration")}</legend>
+						<div>
+							{([5, 10] as const).map((duration) => {
+								const option = durationOptions.find((item) => item.duration === duration);
+								return (
+									<button
+										key={duration}
+										type="button"
+										aria-pressed={draft.duration === duration}
+										disabled={!option || !access.data?.available}
+										onClick={() => {
+											if (
+												operation.current ||
+												current.current.confirmation ||
+												current.current.jobId ||
+												!option ||
+												duration === current.current.duration
+											)
+												return;
+											store({
+												...current.current,
+												duration,
+												revision: current.current.revision + 1,
+											});
+											setQuote(null);
+											setExpired(false);
+											setPriceChanged(false);
+											setError(null);
+										}}
+									>
+										<span>{t("seconds", { seconds: duration })}</span>
+										<small>
+											{option ? t("credits", { credits: option.credits }) : t("priceUnavailable")}
+										</small>
+									</button>
+								);
+							})}
+						</div>
+					</fieldset>
+				)}
+				<OutputSpec duration={pending ? (pending.input.request.duration ?? 5) : draft.duration} />
 				<div className="ve-price">
 					<div>
 						<small>{t("totalCredits")}</small>
@@ -573,6 +642,24 @@ function SignedInGenerator({
 						)}
 					</div>
 				</div>
+				{!internalTest && pricing && (
+					<div className="ve-plan-prices" aria-live="polite">
+						<p>
+							{t("planPrices", {
+								standard: pricing.standardCredits,
+								annual: pricing.annualCredits,
+							})}
+						</p>
+						{BigInt(pricing.annualSavingsCredits) > 0n && (
+							<p className="ve-annual-saving">
+								{t(
+									pricing.audience === "annual" ? "annualSavingApplied" : "annualSavingAvailable",
+									{ credits: pricing.annualSavingsCredits },
+								)}
+							</p>
+						)}
+					</div>
+				)}
 				<p className="ve-microcopy">
 					{t(internalTest ? "rumpelstiltskin.priceHint" : "priceHint")}
 				</p>
@@ -706,12 +793,12 @@ function SignedInGenerator({
 	);
 }
 
-function OutputSpec() {
+function OutputSpec({ duration = 5 }: { duration?: 5 | 10 }) {
 	const t = useTranslations("videoEffects");
 	return (
 		<div className="ve-spec">
 			<div>
-				<span>{t("seconds", { seconds: 5 })}</span>
+				<span>{t("seconds", { seconds: duration })}</span>
 				<span>720p</span>
 				<span>9:16</span>
 				<span>MP4</span>

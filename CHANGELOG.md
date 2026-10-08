@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Five- and ten-second effects
+
+- Keep 5 seconds as the Hotel Lobby/Raindance default and add 10 seconds with separate frozen choreography, provider duration and output checks.
+- Show complete standard/annual option prices and actual savings; use owner-scoped server eligibility, refund serialization, atomic paid-credit reservation and immutable accepted-order recovery.
+- Gate release against current production full costs and approved prices: 5 seconds 69/69 credits; 10 seconds 116/101 credits. No paid generation or visual-quality acceptance is claimed.
+
 ## 2026-10-08 — Effect generation in one step
 
 - Show Hotel Lobby and Raindance complete order prices before photos are uploaded; Generate obtains a fresh quote internally and asks for confirmation only when the total changes.

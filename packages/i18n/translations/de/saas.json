@@ -2149,6 +2149,10 @@
 		"uploadPhoto": "Dein Foto hochladen",
 		"newVideo": "Weiteres Video erstellen",
 		"priceChanged": "Der Gesamtpreis beträgt jetzt {credits} Credits. Bestätige diesen neuen Gesamtpreis, um fortzufahren.",
-		"confirmNewPrice": "Neuen Gesamtpreis bestätigen · {credits} Credits"
+		"confirmNewPrice": "Neuen Gesamtpreis bestätigen · {credits} Credits",
+		"duration": "Dauer",
+		"planPrices": "Standard: {standard} Credits · Jahresabo: {annual} Credits",
+		"annualSavingApplied": "Jahresabo-Preis angewendet — du sparst {credits} Credits.",
+		"annualSavingAvailable": "Berechtigte Jahresabos sparen bei dieser Option {credits} Credits."
 	}
 }

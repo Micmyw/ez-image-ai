@@ -1,7 +1,17 @@
 import { createHash } from "node:crypto";
 import { parseEnv } from "node:util";
 
-import { resolveVideoEffectPrice } from "@repo/config/video-effects.server";
+import {
+	VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+	HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+	RAINDANCE_LONG_TEMPLATE_VERSION,
+} from "@repo/config/video-effects";
+import {
+	resolveVideoEffectPrice,
+	HOTEL_LOBBY_TEMPLATE_VERSION,
+	RAINDANCE_TEMPLATE_VERSION,
+	HOTEL_LOBBY_PRICE_VERSION,
+} from "@repo/config/video-effects.server";
 import {
 	validateVideoModelSelection,
 	VIDEO_MODEL_CATALOG_VERSION,
@@ -245,6 +255,25 @@ function withVideoRuntimeOverrides(
 		if (!policy) throw new Error("RAINDANCE_RUNTIME_BASE_POLICY_REQUIRED");
 		const previous = parseEnv(source);
 		const patch = parseRaindanceRuntimeOverride(environment.RAINDANCE_RUNTIME_CONFIG);
+		policy = parseVideoRuntimeConfig(JSON.stringify({ ...policy, ...patch }));
+		for (const key of Object.keys(patch)) if (previous[key] !== undefined) changedFlatKeys.add(key);
+	}
+	if (environment.VIDEO_EFFECT_BUILD_RETAIL_PRICE_VERSION !== undefined) {
+		if (
+			environment.VIDEO_EFFECT_BUILD_RETAIL_PRICE_VERSION !== VIDEO_EFFECT_RETAIL_PRICE_VERSION ||
+			!policy ||
+			policy.HOTEL_LOBBY_DUO_PRICE_VERSION !== HOTEL_LOBBY_PRICE_VERSION ||
+			policy.HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION !== HOTEL_LOBBY_TEMPLATE_VERSION ||
+			policy.RAINDANCE_ACCEPTED_TEMPLATE_VERSION !== RAINDANCE_TEMPLATE_VERSION
+		)
+			throw new Error("VIDEO_EFFECT_BUILD_RETAIL_POLICY_REQUIRED");
+		const previous = parseEnv(source);
+		expandVideoRuntimeEnvironment({ ...previous, VIDEO_RUNTIME_CONFIG: encoded });
+		const patch = {
+			VIDEO_EFFECT_RETAIL_PRICE_ACCEPTED_VERSION: VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+			HOTEL_LOBBY_DUO_ACCEPTED_LONG_TEMPLATE_VERSION: HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+			RAINDANCE_ACCEPTED_LONG_TEMPLATE_VERSION: RAINDANCE_LONG_TEMPLATE_VERSION,
+		};
 		policy = parseVideoRuntimeConfig(JSON.stringify({ ...policy, ...patch }));
 		for (const key of Object.keys(patch)) if (previous[key] !== undefined) changedFlatKeys.add(key);
 	}
@@ -531,6 +560,7 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key === "VIDEO_V1_BUILD_ACCESS" ||
 			key === "VIDEO_V1_BUILD_PRICE_VERSION" ||
 			key === "VIDEO_V1_BUILD_RETAIL_PRICE_VERSION" ||
+			key === "VIDEO_EFFECT_BUILD_RETAIL_PRICE_VERSION" ||
 			key === "VIDEO_V1_BUILD_PRICE_BASIS" ||
 			key === "VIDEO_V1_BUILD_PRICE_EXPIRY" ||
 			key === "VIDEO_V1_BUILD_MODEL_VERSION" ||

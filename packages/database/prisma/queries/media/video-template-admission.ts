@@ -98,6 +98,12 @@ export async function templateAdmissionData(
 ) {
 	const request = videoEffectRequestSchema.parse(input.request);
 	const template = parseVideoEffectTemplateSnapshot(input.template);
+	if (
+		request.effectId !== template.effectId ||
+		(request.duration ?? 5) !== template.video.duration ||
+		request.presetKey !== template.presetKey
+	)
+		throw new Error("VIDEO_TEMPLATE_QUOTE_INPUT_MISMATCH");
 	const assets = await findTemplateRoleInputs(ownerId, request, maximumInputBytes, tx, now);
 	await findApprovedVideoTemplateMotionReference(template, tx, now);
 	return {

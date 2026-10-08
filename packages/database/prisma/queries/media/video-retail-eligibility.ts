@@ -1,3 +1,4 @@
+import { VIDEO_EFFECT_RETAIL_PRICE_VERSION } from "@repo/config/video-effects";
 import {
 	VIDEO_ANNUAL_ELIGIBILITY_VERSION,
 	VIDEO_RETAIL_PRICE_VERSION,
@@ -67,7 +68,8 @@ export async function assertVideoRetailEligibility(
 		!retail ||
 		typeof retail !== "object" ||
 		!("version" in retail) ||
-		retail.version !== VIDEO_RETAIL_PRICE_VERSION ||
+		(retail.version !== VIDEO_RETAIL_PRICE_VERSION &&
+			retail.version !== VIDEO_EFFECT_RETAIL_PRICE_VERSION) ||
 		!("eligibility" in retail)
 	)
 		throw new Error("PRICE_CHANGED");

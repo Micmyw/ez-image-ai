@@ -1,6 +1,14 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-10-08",
+		title: "Longer Hotel Lobby and Raindance videos",
+		changes: [
+			"Choose 5 or 10 seconds, with 5 seconds as the default. Each duration uses its own motion sequence and one complete order price.",
+			"Compare standard and annual-plan prices before uploading. Eligible annual plans save 15 credits on the approved 10-second option; the 5-second price is the same for both.",
+		],
+	},
+	{
+		date: "2026-10-08",
 		title: "Hotel Lobby and Raindance generation in one step",
 		changes: [
 			"See the complete video price and eligible paid-credit balance before uploading. Generate checks the current price and asks again only if the total changes.",

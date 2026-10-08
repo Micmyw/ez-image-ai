@@ -12,6 +12,7 @@ import {
 	assertCloudflareGitCommit,
 	migrationDatabaseUrl,
 } from "./release-environment";
+import { verifyApprovedVideoEffectPrices } from "./video-effect-retail-preflight";
 import { verifyApprovedVideoRetailPrices } from "./video-retail-preflight";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -53,6 +54,9 @@ if (command === "build") {
 	assertAutomaticReleaseEnvironment(environment);
 	process.stdout.write(
 		`Video retail approved-price preflight: ${JSON.stringify(verifyApprovedVideoRetailPrices(environment))}\n`,
+	);
+	process.stdout.write(
+		`Video effect approved-price preflight: ${JSON.stringify(verifyApprovedVideoEffectPrices(environment))}\n`,
 	);
 	migrationDatabaseUrl(input, root);
 	const sha = releaseSha();

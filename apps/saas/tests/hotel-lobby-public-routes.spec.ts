@@ -14,6 +14,8 @@ const source = {
 	),
 };
 type Scenario = {
+	durations?: boolean;
+	annual?: boolean;
 	signedIn: boolean;
 	available: boolean;
 	expired: boolean;
@@ -47,6 +49,19 @@ const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 	...patch,
 });
 
+function effectPricing(duration: 5 | 10, annual = false) {
+	const standardCredits = duration === 5 ? "69" : "116";
+	const annualCredits = duration === 5 ? "69" : "101";
+	return {
+		policyVersion: "video-effect-retail-2026-10-08.1",
+		audience: annual ? "annual" : "standard",
+		credits: annual ? annualCredits : standardCredits,
+		standardCredits,
+		annualCredits,
+		savedCredits: duration === 10 && annual ? "15" : "0",
+		annualSavingsCredits: duration === 10 ? "15" : "0",
+	};
+}
 async function setup(page: Page, state: Scenario) {
 	await page.route("**/api/auth/organization/list**", (route) => route.fulfill({ json: [] }));
 	await page
@@ -116,6 +131,16 @@ async function setup(page: Page, state: Scenario) {
 				creditBalance: state.available
 					? { totalCredits: "391", eligibleCredits: state.eligibleCredits }
 					: null,
+				...(state.durations
+					? {
+							pricing: effectPricing(5, state.annual),
+							durationOptions: ([5, 10] as const).map((duration) => ({
+								duration,
+								credits: effectPricing(duration, state.annual).credits,
+								pricing: effectPricing(duration, state.annual),
+							})),
+						}
+					: {}),
 				maxInputBytes: 10_000_000,
 			});
 		if (endpoint === "videoEffects/uploads/create") {
@@ -156,7 +181,12 @@ async function setup(page: Page, state: Scenario) {
 			state.quotes.push(body);
 			return reply({
 				quoteId: `quote-${state.quotes.length}`,
-				credits: state.quoteCredits,
+				credits: state.durations
+					? effectPricing(body.duration === 10 ? 10 : 5, state.annual).credits
+					: state.quoteCredits,
+				...(state.durations
+					? { pricing: effectPricing(body.duration === 10 ? 10 : 5, state.annual) }
+					: {}),
 				expiresAt: new Date(Date.now() + (state.expired ? -1000 : 60_000)).toISOString(),
 			});
 		}
@@ -208,11 +238,106 @@ async function uploadBoth(page: Page) {
 	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
 }
 
+for (const width of [1440, 390, 320])
+	test(`UI Mock: ${width}px duration options show real standard and annual totals without a five-second discount`, async ({
+		page,
+	}, info) => {
+		const state = scenario({ durations: true, annual: true });
+		await page.setViewportSize({ width, height: 900 });
+		await setup(page, state);
+		const options = page.locator(".ve-duration");
+		await expect(
+			options.getByRole("button", { name: "5 seconds 69 credits", exact: true }),
+		).toHaveAttribute("aria-pressed", "true");
+		await expect(page.locator(".ve-plan-prices")).toContainText("Standard: 69 credits");
+		await expect(page.locator(".ve-annual-saving")).toHaveCount(0);
+		await options.getByRole("button", { name: "10 seconds 101 credits", exact: true }).click();
+		await expect(page.locator(".ve-price strong")).toHaveText("101 credits");
+		await expect(page.locator(".ve-plan-prices")).toContainText("Standard: 116 credits");
+		await expect(page.locator(".ve-annual-saving")).toContainText("15 credits");
+		await expect(page.locator(".ve-spec")).toContainText("10 seconds");
+		expect(state.quotes).toHaveLength(0);
+		expect(state.creates).toHaveLength(0);
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+		).toBe(true);
+		await page
+			.locator(".ve-workbench")
+			.screenshot({ path: info.outputPath(`hotel-lobby-10s-${width}.png`) });
+	});
+
+test("UI Mock: changing duration invalidates a changed quote and retains sealed photos across refresh", async ({
+	page,
+}) => {
+	const state = scenario({ durations: true, annual: true });
+	await setup(page, state);
+	await uploadBoth(page);
+	await page
+		.locator(".ve-duration")
+		.getByRole("button", { name: "10 seconds 101 credits", exact: true })
+		.click();
+	state.annual = false;
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "101"), exact: true })
+		.click();
+	await expect(page.locator("#ve-price-change")).toBeVisible();
+	expect(state.creates).toHaveLength(0);
+	await page
+		.locator(".ve-duration")
+		.getByRole("button", { name: "5 seconds 69 credits", exact: true })
+		.click();
+	await expect(page.locator("#ve-price-change")).toHaveCount(0);
+	await page.reload();
+	await expect(
+		page.locator(".ve-duration").getByRole("button", { name: "5 seconds 69 credits", exact: true }),
+	).toHaveAttribute("aria-pressed", "true");
+	await page
+		.locator(".ve-duration")
+		.getByRole("button", { name: "10 seconds 116 credits", exact: true })
+		.click();
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "116"), exact: true })
+		.click();
+	await expect(page.locator(".ve-result h2")).toHaveText(t.stages.CREATING_SCENE);
+	expect(state.creates).toHaveLength(1);
+	expect(state.creates[0]!.request).toMatchObject({
+		duration: 10,
+		inputs: { leftAssetId: "asset-1", rightAssetId: "asset-2" },
+	});
+});
+
+test("UI Mock: keyboard duration selection locks during one lost-response confirmation", async ({
+	page,
+}) => {
+	const state = scenario({ durations: true, loseFirst: true });
+	await setup(page, state);
+	await uploadBoth(page);
+	const option = page
+		.locator(".ve-duration")
+		.getByRole("button", { name: "10 seconds 116 credits", exact: true });
+	await option.focus();
+	await page.keyboard.press("Enter");
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "116"), exact: true })
+		.click();
+	await expect(page.getByRole("button", { name: t.recover, exact: true })).toBeVisible();
+	await expect(option).toBeDisabled();
+	const first = state.creates[0];
+	await page.reload();
+	await page.getByRole("button", { name: t.recover, exact: true }).click();
+	await expect(page.locator(".ve-result h2")).toHaveText(t.stages.CREATING_SCENE);
+	expect(state.creates[1]).toEqual(first);
+	expect((first!.request as Record<string, unknown>).duration).toBe(10);
+});
+
 test("UI Mock: one click quotes and accepts the displayed complete order without a separate review step", async ({
 	page,
 }) => {
 	const state = scenario();
 	await setup(page, state);
+	await expect(
+		page.locator(".ve-duration").getByRole("button", { name: /10 seconds/ }),
+	).toBeDisabled();
 	await expect(page.locator(".ve-price strong")).toHaveText("69 credits");
 	await expect(page.getByRole("button", { name: t.getQuote, exact: true })).toHaveCount(0);
 	const chooser = page.waitForEvent("filechooser");

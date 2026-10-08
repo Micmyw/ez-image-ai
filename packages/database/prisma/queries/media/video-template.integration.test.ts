@@ -2,7 +2,10 @@ import { randomUUID } from "node:crypto";
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import type { VideoEffectId } from "@repo/config/video-effects";
-import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
+import {
+	createVideoEffectTemplateSnapshot,
+	videoEffectTemplateSnapshotSchema,
+} from "@repo/config/video-effects.server";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
@@ -82,7 +85,11 @@ afterAll(async () => {
 	}
 	await db.$disconnect();
 });
-async function fixture(credits = 100n, effectId: VideoEffectId = "hotel-lobby-duo") {
+async function fixture(
+	credits = 100n,
+	effectId: VideoEffectId = "hotel-lobby-duo",
+	duration: 5 | 10 = 5,
+) {
 	const ownerId = `template-db-test-${randomUUID()}`;
 	owners.push(ownerId);
 	const account = await db.creditAccount.create({ data: { ownerType: "USER", ownerId } });
@@ -114,6 +121,7 @@ async function fixture(credits = 100n, effectId: VideoEffectId = "hotel-lobby-du
 	);
 	const request = {
 		effectId,
+		...(duration === 10 ? { duration: 10 as const } : {}),
 		presetKey: "standard" as const,
 		inputs: {
 			leftAssetId: assets[0]!.id,
@@ -121,7 +129,7 @@ async function fixture(credits = 100n, effectId: VideoEffectId = "hotel-lobby-du
 		},
 	};
 	const template = createVideoEffectTemplateSnapshot(request);
-	if (template.schemaVersion !== 1) throw new Error("SCENE_TEMPLATE_FIXTURE_REQUIRED");
+	if (template.schemaVersion === 2) throw new Error("SCENE_TEMPLATE_FIXTURE_REQUIRED");
 	const base = {
 		ownerId,
 		request,
@@ -134,7 +142,7 @@ async function fixture(credits = 100n, effectId: VideoEffectId = "hotel-lobby-du
 			pricingVersion: "TEMPLATE_TEST_V1",
 			pricingDetails: { validUntil: new Date(Date.now() + 3600000).toISOString() },
 		},
-		visualSafetyProfile: createVideoVisualSafetyProfile("seeapi", 5),
+		visualSafetyProfile: createVideoVisualSafetyProfile("seeapi", duration),
 		textSafetyProfile: profile,
 		audioSafetyPolicy: createVideoAudioSafetyPolicy(),
 	};
@@ -243,6 +251,35 @@ async function storedScene(jobId: string) {
 	return asset;
 }
 describe("template admission and durable scene PostgreSQL regressions", () => {
+	it("binds duration to the quote and replays an accepted ten-second order without another reservation", async () => {
+		const f = await fixture(100n, "hotel-lobby-duo", 10);
+		await expect(
+			createVideoTemplateJobRecord(
+				{ ...f.input, request: { ...f.input.request, duration: undefined } },
+				db,
+			),
+		).rejects.toThrow("VIDEO_TEMPLATE_QUOTE_INPUT_MISMATCH");
+		const accepted = await createVideoTemplateJobRecord(f.input, db);
+		const replay = await findExistingVideoTemplateAdmission(
+			{ ownerId: f.ownerId, request: f.input.request, idempotencyKey: f.input.idempotencyKey },
+			db,
+		);
+		expect(replay?.id).toBe(accepted.jobId);
+		await expect(
+			findExistingVideoTemplateAdmission(
+				{
+					ownerId: f.ownerId,
+					request: { ...f.input.request, duration: undefined },
+					idempotencyKey: f.input.idempotencyKey,
+				},
+				db,
+			),
+		).rejects.toThrow();
+		const job = await db.generationJob.findUniqueOrThrow({ where: { id: accepted.jobId } });
+		expect(object(job.inputSnapshot).duration).toBe(10);
+		expect(object(object(job.inputSnapshot).videoEffectTemplate).schemaVersion).toBe(3);
+		expect(await db.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(1);
+	});
 	it.each([
 		{ name: "missing effect", snapshot: {} },
 		{ name: "null effect", snapshot: { effectId: null } },
@@ -305,10 +342,10 @@ describe("template admission and durable scene PostgreSQL regressions", () => {
 			await createVideoTemplateJobRecord(
 				{
 					...f.input,
-					template: {
+					template: videoEffectTemplateSnapshotSchema.parse({
 						...f.input.template,
 						video: { ...f.input.template.video, prompt: "A new server prompt for new orders" },
-					},
+					}),
 					price: { ...f.input.price, credits: 99n },
 				},
 				db,

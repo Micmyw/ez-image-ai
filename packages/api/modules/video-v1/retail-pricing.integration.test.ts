@@ -1,5 +1,16 @@
 import { call } from "@orpc/server";
 import { PrismaPg } from "@prisma/adapter-pg";
+import {
+	VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+	HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+	RAINDANCE_LONG_TEMPLATE_VERSION,
+} from "@repo/config/video-effects";
+import {
+	HOTEL_LOBBY_PRICE_VERSION,
+	HOTEL_LOBBY_TEMPLATE_VERSION,
+	RAINDANCE_TEMPLATE_VERSION,
+	HOTEL_LOBBY_SAFETY_POLICY_VERSION,
+} from "@repo/config/video-effects.server";
 import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
 import {
 	VIDEO_RETAIL_PRICE_VERSION,
@@ -13,8 +24,10 @@ import {
 import { runWithDatabaseClient } from "@repo/database/client";
 import { PrismaClient } from "@repo/database/generated-client";
 import { resolveVideoRetailEligibility } from "@repo/database/video-retail-eligibility";
+import { createVideoTemplateJobRecord } from "@repo/database/video-template";
 import { createVideoJobRecord } from "@repo/database/video-v1";
 import { requireVideoAdmission } from "@repo/jobs/video-v1/admission";
+import { requireVideoTemplateAdmission } from "@repo/jobs/video-v1/template-admission";
 import { applyStripeBillingFact } from "@repo/payments";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -32,6 +45,7 @@ vi.mock("@repo/jobs/video-v1/workflow-binding", () => ({
 }));
 import { auth } from "@repo/auth";
 
+import { videoEffectsRouter } from "../video-effects/router";
 import { videoV1Router } from "./router";
 
 // Entirely synthetic billing, provider and safety evidence; no external requests.
@@ -619,6 +633,206 @@ describe("ordinary and annual video pricing through protected RPC and PostgreSQL
 			client,
 		);
 		const outcome = admission.then(
+			() => "accepted",
+			(error) => error.message,
+		);
+		try {
+			let waiting = false;
+			for (let attempt = 0; attempt < 100 && !waiting; attempt++) {
+				const rows = await client.$queryRaw<
+					Array<{ waiting: boolean }>
+				>`SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%credit_account%FOR UPDATE%') AS "waiting"`;
+				waiting = rows[0]?.waiting === true;
+				if (!waiting) await new Promise((resolve) => setTimeout(resolve, 10));
+			}
+			expect(waiting).toBe(true);
+		} finally {
+			unlock();
+			await refund;
+		}
+		expect(await outcome).toBe("PRICE_CHANGED");
+		expect(await client.creditReservation.count({ where: { accountId } })).toBe(0);
+	});
+});
+
+const effectPolicy = {
+	...environment,
+	MEDIA_ENABLED_PROVIDERS: "kie",
+	MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
+	VIDEO_EFFECT_RETAIL_PRICE_ACCEPTED_VERSION: VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+	HOTEL_LOBBY_DUO_ENABLED: "true",
+	HOTEL_LOBBY_DUO_ACCESS: "authenticated",
+	HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION: HOTEL_LOBBY_TEMPLATE_VERSION,
+	HOTEL_LOBBY_DUO_ACCEPTED_LONG_TEMPLATE_VERSION: HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+	RAINDANCE_ENABLED: "true",
+	RAINDANCE_ACCESS: "authenticated",
+	RAINDANCE_ACCEPTED_TEMPLATE_VERSION: RAINDANCE_TEMPLATE_VERSION,
+	RAINDANCE_ACCEPTED_LONG_TEMPLATE_VERSION: RAINDANCE_LONG_TEMPLATE_VERSION,
+	HOTEL_LOBBY_DUO_PRICE_VERSION: HOTEL_LOBBY_PRICE_VERSION,
+	HOTEL_LOBBY_DUO_PRICE_BASIS: "SYNTHETIC_TEST_BUDGET_ONLY",
+	HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2099-01-01T00:00:00Z",
+	HOTEL_LOBBY_DUO_COST_POLICY_VERSION: HOTEL_LOBBY_SAFETY_POLICY_VERSION,
+	HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS: "SYNTHETIC_TEST_BUDGET_ONLY",
+	HOTEL_LOBBY_DUO_TEXT_COST_RULE_VERSION: "waffo-prompt-safety-2026-10-04.1",
+	HOTEL_LOBBY_DUO_TEXT_COST_BASIS: "SYNTHETIC_TEST_BUDGET_ONLY",
+	HOTEL_LOBBY_DUO_TEXT_REVIEW_COST_MICROS: "0",
+	HOTEL_LOBBY_DUO_SCENE_PROVIDER_COST_MICROS: "20000",
+	HOTEL_LOBBY_DUO_INPUT_REVIEW_COST_MICROS: "5100",
+	HOTEL_LOBBY_DUO_SCENE_REVIEW_COST_MICROS: "5100",
+	HOTEL_LOBBY_DUO_ADDITIONAL_RUNTIME_COST_MICROS: "100000",
+	HOTEL_LOBBY_DUO_ADDITIONAL_STORAGE_COST_MICROS: "10000",
+};
+async function effectFixture(
+	effectId: "hotel-lobby-duo" | "raindance-solo" | "raindance-duo" = "hotel-lobby-duo",
+) {
+	for (const [key, value] of Object.entries(effectPolicy)) vi.stubEnv(key, value);
+	const asset = await client.mediaAsset.create({
+		data: {
+			ownerType: "USER",
+			ownerId,
+			kind: "INPUT",
+			status: "VERIFYING",
+			verificationEngine: "video-workflow-v1",
+			objectKey: `users/${ownerId}/fixture.template-source.template-input.png`,
+			mimeType: "image/png",
+			byteSize: 1000n,
+			width: 720,
+			height: 1280,
+			checksum: "a".repeat(64),
+			storageEtag: "fixture",
+			finalizedAt: new Date(),
+		},
+	});
+	return {
+		effectId,
+		presetKey: "standard" as const,
+		duration: 10 as const,
+		inputs: { leftAssetId: asset.id, rightAssetId: asset.id },
+	};
+}
+describe("effect duration and annual qualification through protected RPC and PostgreSQL", () => {
+	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
+		"%s shows both prices before uploads and freezes one ten-second annual order",
+		async (effectId) => {
+			const input = await effectFixture(effectId);
+			const access = await scoped(() => call(videoEffectsRouter.access, { effectId }, ctx));
+			expect(access.available).toBe(true);
+			expect(
+				access.durationOptions?.map((item) => [
+					item.duration,
+					item.credits,
+					item.pricing?.standardCredits,
+					item.pricing?.annualCredits,
+				]),
+			).toEqual([
+				[5, "69", "69", "69"],
+				[10, "101", "116", "101"],
+			]);
+			expect(JSON.stringify(access)).not.toMatch(
+				/subscriptionId|providerCost|MarkupBps|costPolicy/,
+			);
+			const q = await scoped(() => call(videoEffectsRouter.quote, input, ctx));
+			expect(q.credits).toBe("101");
+			expect(q.pricing).toMatchObject({
+				audience: "annual",
+				savedCredits: "15",
+				standardCredits: "116",
+			});
+			const key = crypto.randomUUID();
+			const accept = () =>
+				scoped(() =>
+					call(
+						videoEffectsRouter.jobs.create,
+						{ request: input, quoteId: q.quoteId, idempotencyKey: key },
+						ctx,
+					),
+				);
+			const replies = await Promise.all(Array.from({ length: 4 }, accept));
+			expect(new Set(replies.map((item) => item.jobId)).size).toBe(1);
+			expect(replies[0]).toMatchObject({ duration: 10, credits: "101" });
+			await client.subscription.update({
+				where: { id: subscriptionId },
+				data: { status: "EXPIRED" },
+			});
+			vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "false");
+			vi.stubEnv("RAINDANCE_ENABLED", "false");
+			expect((await accept()).jobId).toBe(replies[0]!.jobId);
+			expect(await client.creditLedgerEntry.count({ where: { accountId, type: "RESERVE" } })).toBe(
+				1,
+			);
+		},
+	);
+	it("rejects a stale annual effect quote after refund even when a separate paid pack can fund it", async () => {
+		const input = await effectFixture();
+		await addPaidPackBalance();
+		const q = await scoped(() => call(videoEffectsRouter.quote, input, ctx));
+		await client.subscription.update({
+			where: { id: subscriptionId },
+			data: { refundTerminationRequestedAt: new Date() },
+		});
+		await expect(
+			scoped(() =>
+				call(
+					videoEffectsRouter.jobs.create,
+					{ request: input, quoteId: q.quoteId, idempotencyKey: crypto.randomUUID() },
+					ctx,
+				),
+			),
+		).rejects.toThrow("QUOTE_EXPIRED_OR_CHANGED");
+		expect(await client.creditReservation.count({ where: { accountId } })).toBe(0);
+		const refreshed = await scoped(() => call(videoEffectsRouter.quote, input, ctx));
+		expect(refreshed).toMatchObject({
+			credits: "116",
+			pricing: { audience: "standard", savedCredits: "0", annualCredits: "101" },
+		});
+	});
+	it("rechecks the effect annual proof inside the refund account lock", async () => {
+		const input = await effectFixture();
+		const q = await scoped(() => call(videoEffectsRouter.quote, input, ctx));
+		const eligibility = await resolveVideoRetailEligibility(ownerId, client);
+		const admitted = requireVideoTemplateAdmission(
+			{ userId: ownerId },
+			effectPolicy,
+			bindings,
+			input,
+			{ audience: eligibility.audience, eligibility },
+		);
+		let unlock!: () => void;
+		let locked!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			unlock = resolve;
+		});
+		const acquired = new Promise<void>((resolve) => {
+			locked = resolve;
+		});
+		const refund = client.$transaction(async (tx) => {
+			await tx.$queryRaw`SELECT "id" FROM "credit_account" WHERE "id" = ${accountId} FOR UPDATE`;
+			locked();
+			await gate;
+			await tx.subscription.update({
+				where: { id: subscriptionId },
+				data: { refundTerminationRequestedAt: new Date() },
+			});
+		});
+		await acquired;
+		const outcome = createVideoTemplateJobRecord(
+			{
+				ownerId,
+				request: input,
+				quoteId: q.quoteId,
+				idempotencyKey: crypto.randomUUID(),
+				...admitted,
+				paidFundingPolicy: admitted.price.paidFundingPolicy,
+				limits: {
+					ownerConcurrency: 1,
+					globalConcurrency: 5,
+					providerConcurrency: 5,
+					maximumStorageBytes: 1_000_000_000n,
+					maximumInputBytes: 10_000_000,
+				},
+			},
+			client,
+		).then(
 			() => "accepted",
 			(error) => error.message,
 		);

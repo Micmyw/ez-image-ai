@@ -82,7 +82,8 @@ function OwnedVideoEffectHistory({
 								prefetch={false}
 							>
 								<strong>
-									{state.name} · {t(`stages.${state.stage}`)}
+									{state.name} · {t("seconds", { seconds: state.duration ?? 5 })} ·{" "}
+									{t(`stages.${state.stage}`)}
 								</strong>
 								<p>{t(`creditStates.${state.creditState}`, { credits: state.credits })}</p>
 								<time dateTime={state.updatedAt}>

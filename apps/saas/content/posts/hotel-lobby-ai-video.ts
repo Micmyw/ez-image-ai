@@ -22,7 +22,7 @@ export const hotelLobbyVideoDocuments = [
 
 The [Hotel Lobby AI video template](/video-effects/hotel-lobby-ai) is designed for an original orange-studio scene with two performers and a suspended microphone. Here, Hotel Lobby refers to a duo performance style, not a hotel interior. Some people search for it as Migos AI video; EzImageAI is independent and is not affiliated with Migos AI, the artists or the original performance.
 
-The launch output is intended to be a 5-second, 720 × 1280 vertical MP4. It is silent, with no audio track. The original song, lyrics and voice imitation are not included. The template does not promise an exact recreation of the original movements or perfect facial similarity.
+Choose a 5- or 10-second, 720 × 1280 vertical MP4; 5 seconds is the default. It is silent, with no audio track. The original song, lyrics and voice imitation are not included. The template does not promise an exact recreation of the original movements or perfect facial similarity.
 
 ## Prepare your two photos
 
@@ -54,7 +54,7 @@ If a paid request has an uncertain result, the task may need review while its cr
 
 ## Review the clip before using it
 
-Compare both faces with the originals. Check for merged identities, switched positions, a missing performer, extra people, hands covering faces, abrupt cuts or a nearly static image. Look for a readable short alternation between the performers; the five-second format is not a complete song performance.
+Compare both faces with the originals. Check for merged identities, switched positions, a missing performer, extra people, hands covering faces, abrupt cuts or a nearly static image. Look for a readable short alternation between the performers; either short format is not a complete song performance.
 
 Clearer input photos may help, but they do not guarantee a good result. If you choose another generation, review and confirm a new quote. An unsatisfactory visual result is not evidence that the service never performed a paid generation.
 

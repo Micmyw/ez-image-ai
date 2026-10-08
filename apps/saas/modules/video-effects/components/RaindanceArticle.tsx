@@ -69,7 +69,7 @@ export async function RaindanceArticle({
 					<span className="ve-eyebrow">THE SUNSET PIER EDIT</span>
 					<h1>{post.title}</h1>
 					<p>{post.description}</p>
-					<p className="rd-facts">One photo or a duet · 5 seconds · 720p · Silent MP4</p>
+					<p className="rd-facts">One photo or a duet · 5 or 10 seconds · 720p · Silent MP4</p>
 					<p className="rd-byline">
 						EzImageAI Editorial Team · <time dateTime={post.publishedAt}>October 7, 2026</time>
 					</p>

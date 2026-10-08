@@ -41,7 +41,7 @@ export const raindanceDocuments = [
 		published: true,
 		body: `The **Raindance AI trend** turns a photo into a seaside music-video moment: a wooden pier, warm sunset light and a relaxed performance toward the camera. People pair the edit with “Raindance” by Dave featuring Tems. The AI-generated visual and the song are separate parts of the finished post.
 
-To make your version here, choose Solo for one adult photo or Duet for two, sign in to see the complete price, upload and choose Generate. A fresh quote is checked before starting; any price change requires your confirmation. EzImageAI creates an original **5-second, 720p, 9:16 silent MP4**. Add an available, appropriately licensed sound when posting. The prompts below are free to copy; generating a video uses eligible paid credits.
+To make your version here, choose Solo for one adult photo or Duet for two, sign in to see the complete price, upload and choose Generate. A fresh quote is checked before starting; any price change requires your confirmation. EzImageAI creates an original **5- or 10-second, 720p, 9:16 silent MP4** (5 seconds by default). Add an available, appropriately licensed sound when posting. The prompts below are free to copy; generating a video uses eligible paid credits.
 
 ## What is the Raindance AI trend?
 

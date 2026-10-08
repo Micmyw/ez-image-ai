@@ -4,6 +4,8 @@ import {
 	RAINDANCE_SOLO_EFFECT_ID,
 	RAINDANCE_DUO_EFFECT_ID,
 	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
+	HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+	RAINDANCE_LONG_TEMPLATE_VERSION,
 } from "./video-effects";
 import { VIDEO_VEO_TIER_CONTRACT_VERSION, videoVeoTierSchema } from "./video-models";
 
@@ -130,11 +132,17 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 			config.effectId === RUMPELSTILTSKIN_SOLO_EFFECT_ID &&
 			config.templateVersion === RUMPELSTILTSKIN_TEMPLATE_VERSION &&
 			config.executionKind === "seedance-reference";
+		const longTemplate =
+			config.schemaVersion === 3 &&
+			((config.effectId === HOTEL_LOBBY_EFFECT_ID &&
+				config.templateVersion === HOTEL_LOBBY_LONG_TEMPLATE_VERSION) ||
+				([RAINDANCE_SOLO_EFFECT_ID, RAINDANCE_DUO_EFFECT_ID].includes(String(config.effectId)) &&
+					config.templateVersion === RAINDANCE_LONG_TEMPLATE_VERSION));
 		const productKey = referenceTemplate ? "video-seedance-2" : "video-seedance-1-5-pro";
 		if (
-			(!legacyTemplate && !referenceTemplate) ||
+			(!legacyTemplate && !referenceTemplate && !longTemplate) ||
 			typeof config.templateVersion !== "string" ||
-			output.durationSeconds !== 5 ||
+			output.durationSeconds !== (longTemplate ? 10 : 5) ||
 			output.resolution !== "720p" ||
 			output.aspectRatio !== "9:16" ||
 			output.sound !== false ||
@@ -156,7 +164,7 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 		return {
 			audioSafetyPolicy: readVideoAudioSafetyPolicy(snapshot),
 			productKey,
-			durationSeconds: output.durationSeconds,
+			durationSeconds: longTemplate ? 10 : 5,
 			sound: output.sound,
 			resolution: output.resolution,
 			aspectRatio: output.aspectRatio,
