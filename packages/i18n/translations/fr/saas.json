@@ -1686,7 +1686,11 @@
 			"loading": "Chargement des modèles disponibles…",
 			"unavailable": "Les modèles sont momentanément indisponibles. Vous pouvez préparer votre retouche.",
 			"modelUnavailable": "Le modèle demandé est indisponible. Choisissez un modèle disponible pour continuer.",
-			"title": "Générateur et éditeur d’images IA"
+			"title": "Générateur et éditeur d’images IA",
+			"videos": "Vidéo IA",
+			"videoGenerator": "Générateur de vidéo IA",
+			"videoGeneratorDescription": "Animez un prompt ou une image de référence.",
+			"videoGuide": "Guide de création vidéo"
 		},
 		"generation": {
 			"referencePending": "Terminez l’envoi de la référence, réessayez ou retirez-la pour générer à partir du texte.",
@@ -1906,7 +1910,7 @@
 			"RELEASED": "{credits} crédits libérés"
 		},
 		"errors": {
-			"promptLength": "Respectez la longueur de texte autorisée pour le modèle sélectionné.",
+			"promptLength": "Respectez la limite de caractères du modèle et les 10 000 unités de texte ; certains caractères utilisent deux unités.",
 			"imageRequired": "Envoyez et sécurisez d’abord une image de référence.",
 			"invalidImage": "Choisissez une image JPEG, PNG ou WebP.",
 			"imageTooLarge": "Cette image dépasse la taille autorisée ou est vide.",
@@ -1920,7 +1924,8 @@
 			"unauthorized": "Cette action est indisponible pour ce compte. Reconnectez-vous si votre session a expiré.",
 			"network": "La réponse a été interrompue. Utilisez « Vérifier la même demande » pour retrouver la tâche d’origine.",
 			"unavailable": "La demande n’a pas pu être confirmée. Vérifiez toute confirmation en attente avant d’en lancer une autre.",
-			"unsupportedSelection": "Choisissez une combinaison de modèle et de réglages compatible."
+			"unsupportedSelection": "Choisissez une combinaison de modèle et de réglages compatible.",
+			"promptRequired": "Saisissez une description"
 		},
 		"model": "Modèle vidéo",
 		"duration": "Durée",
@@ -1943,14 +1948,20 @@
 		"referenceReady": "Référence prête",
 		"referenceUnused": "Non utilisée en mode texte",
 		"signInToGenerate": "Se connecter pour générer",
-		"signInHint": "Connectez-vous pour ajouter une référence et consulter le coût. Votre brouillon vidéo sera conservé.",
+		"signInHint": "Connectez-vous pour voir le coût en crédits et importer une référence. Votre brouillon vidéo sera conservé.",
 		"retryAccess": "Réessayer la disponibilité",
 		"draftStorageUnavailable": "Le stockage du navigateur est indisponible. Gardez cette page ouverte pour conserver votre brouillon et toute confirmation en attente.",
 		"modelFamilies": "Familles de modèles",
 		"durationRange": "{min}–{max} s",
 		"soundOptional": "Audio facultatif",
 		"quantity": "Quantité",
-		"oneVideo": "1 vidéo"
+		"oneVideo": "1 vidéo",
+		"generate": "Générer · {credits} crédits",
+		"priceLoading": "Chargement du prix…",
+		"priceUnavailable": "Prix indisponible",
+		"priceChanged": "Le devis actuel diffère du prix affiché. Confirmez le nouveau coût pour générer.",
+		"promptSafetyCount": "Taille du texte : {count} / 10 000 unités (certains caractères en utilisent deux).",
+		"referenceRequired": "Importez et sécurisez d’abord une image de référence."
 	},
 	"videoEffects": {
 		"sample": "Exemple vérifié",

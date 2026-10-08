@@ -12,7 +12,6 @@ import {
 	CheckIcon,
 	ChevronDownIcon,
 	Clock3Icon,
-	FilmIcon,
 	LayersIcon,
 	SlidersHorizontalIcon,
 	Volume2Icon,
@@ -20,7 +19,8 @@ import {
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
-import type { VideoDraft } from "./model";
+import { summarizeVideoDurations, type VideoDraft } from "./model";
+import { VideoModelIcon } from "./VideoModelIcon";
 
 type Availability = {
 	productKey: string;
@@ -93,7 +93,7 @@ export function VideoSettings({
 							disabled={disabled}
 							className="video-tool video-model-trigger"
 						>
-							<FilmIcon aria-hidden size={16} />
+							<VideoModelIcon family={model.family} size={18} />
 							<span>{model.label}</span>
 							<ChevronDownIcon aria-hidden size={14} />
 						</button>
@@ -117,9 +117,7 @@ export function VideoSettings({
 								className="video-family"
 								onClick={() => setFamily(name)}
 							>
-								<span className="video-family-mark" aria-hidden>
-									{name.slice(0, 1)}
-								</span>
+								<VideoModelIcon family={name} size={22} />
 								{name}
 							</button>
 						))}
@@ -131,6 +129,7 @@ export function VideoSettings({
 							const blocked = entry.status !== "implemented";
 							const groups = entry.groups;
 							const durations = groups.flatMap((group) => group.durations);
+							const durationSummary = summarizeVideoDurations(durations);
 							const resolutions = [...new Set(groups.flatMap((group) => group.resolutions))];
 							return (
 								<button
@@ -146,6 +145,7 @@ export function VideoSettings({
 									}}
 								>
 									<span className="video-model-name">
+										<VideoModelIcon family={entry.family} size={18} />
 										{entry.label}
 										{entry.productKey === draft.productKey && <CheckIcon aria-hidden size={16} />}
 									</span>
@@ -165,10 +165,14 @@ export function VideoSettings({
 													)
 													.join(" / ")}
 												<span aria-hidden> · </span>
-												{t("durationRange", {
-													min: Math.min(...durations),
-													max: Math.max(...durations),
-												})}
+												{durationSummary.kind === "range"
+													? t("durationRange", {
+															min: durationSummary.min,
+															max: durationSummary.max,
+														})
+													: durationSummary.values
+															.map((seconds) => t("seconds", { seconds }))
+															.join(" / ")}
 											</span>
 											<span className="video-model-capability">
 												{t(
@@ -280,27 +284,6 @@ export function VideoSettings({
 					</button>
 				</PopoverContent>
 			</Popover>
-			<select
-				id="video-mode"
-				aria-label={t("mode")}
-				className="video-tool video-mode"
-				value={draft.mode}
-				disabled={disabled}
-				onChange={(event) => onChange({ mode: event.target.value as VideoDraft["mode"] })}
-			>
-				{model.modes.map((mode) => (
-					<option
-						key={mode}
-						value={mode}
-						disabled={
-							!preview &&
-							!availability?.options.some((option) => option.mode === mode && option.available)
-						}
-					>
-						{t(mode === "text-to-video" ? "textMode" : "imageMode")}
-					</option>
-				))}
-			</select>
 			{model.audio === "toggle" ? (
 				<button
 					type="button"

@@ -10,12 +10,13 @@ import {
 	BookOpenIcon,
 	ChevronDownIcon,
 	ImagesIcon,
+	FilmIcon,
 	LayoutGridIcon,
 	SparklesIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { type MouseEvent, useState } from "react";
 
 import {
@@ -27,6 +28,7 @@ import { resetStudioWorkspace } from "./studio-context";
 
 const navigationIcons = {
 	image: ImagesIcon,
+	video: FilmIcon,
 	examples: LayoutGridIcon,
 	book: BookOpenIcon,
 	models: SparklesIcon,
@@ -44,6 +46,7 @@ export function StudioToolNavigation({
 	const t = useTranslations();
 	const vertical = sidebar || drawer;
 	const pathname = usePathname();
+	const videoMode = useSearchParams().get("mode") === "video";
 	const selected = useRequestedImageModel();
 	const [menu, setMenu] = useState<PublicNavigationGroup["id"] | null>(null);
 	const catalog = useQuery(publicCatalogQueryOptions);
@@ -77,9 +80,11 @@ export function StudioToolNavigation({
 	const navigationLink = (link: PublicNavigationLink) => {
 		const Icon = navigationIcons[link.icon];
 		const active =
-			link.href === "/create"
-				? pathname === link.href && !selected
-				: pathname === link.href || pathname.startsWith(`${link.href}/`);
+			link.href === "/create?mode=video"
+				? pathname === "/create" && videoMode
+				: link.href === "/create"
+					? pathname === link.href && !selected && !videoMode
+					: pathname === link.href || pathname.startsWith(`${link.href}/`);
 		return (
 			<Link
 				key={link.href}

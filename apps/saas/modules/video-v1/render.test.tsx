@@ -67,6 +67,22 @@ function render(stage: VideoState["stage"], canPlay = false) {
 }
 
 describe("truthful video delivery UI", () => {
+	it("renders a verified brand icon and no manual generation-mode selector", () => {
+		const markup = renderToStaticMarkup(
+			<NextIntlClientProvider locale="en" messages={en}>
+				<VideoSettings
+					draft={initialVideoDraft}
+					models={[]}
+					onChange={vi.fn()}
+					disabled={false}
+					preview
+				/>
+			</NextIntlClientProvider>,
+		);
+		expect(markup).not.toContain('id="video-mode"');
+		expect(markup).toContain('data-model-icon="kling"');
+		expect(markup).toContain("/images/model-logos/kling.svg");
+	});
 	it.each([
 		{
 			locale: "en",

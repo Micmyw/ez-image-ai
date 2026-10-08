@@ -9,6 +9,22 @@ import {
 } from "./video-models";
 
 describe("official video model capabilities", () => {
+	it("uses source framing for new Kling 3 image requests, as the first frame owns its ratio", () => {
+		const options = getVideoModelOptions("video-kling-3", "image-to-video");
+		expect(new Set(options.map((option) => option.aspectRatio))).toEqual(new Set(["source"]));
+		const input = {
+			productKey: "video-kling-3",
+			mode: "image-to-video",
+			prompt: "A moving camera",
+			duration: 5,
+			resolution: "720p",
+			sound: false,
+			inputAssetId: "sealed",
+			aspectRatio: "16:9",
+		};
+		expect(videoModelInputSchema.safeParse(input).success).toBe(false);
+		expect(videoModelInputSchema.safeParse({ ...input, aspectRatio: "source" }).success).toBe(true);
+	});
 	it("has unique public keys and valid defaults for every implemented mode", () => {
 		expect(new Set(VIDEO_MODEL_CATALOG.map((model) => model.productKey)).size).toBe(
 			VIDEO_MODEL_CATALOG.length,

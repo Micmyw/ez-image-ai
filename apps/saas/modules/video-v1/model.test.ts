@@ -5,6 +5,7 @@ import {
 } from "@repo/config/video-models";
 import { describe, expect, it } from "vitest";
 
+import * as videoModel from "./model";
 import {
 	createVideoConfirmation,
 	changeVideoDraft,
@@ -36,6 +37,18 @@ const quote = {
 };
 
 describe("video confirmation identity", () => {
+	it("retains a historical Kling 3 image receipt exactly after new framing choices close", () => {
+		const frozen = {
+			...request,
+			productKey: "video-kling-3",
+			mode: "image-to-video" as const,
+			resolution: "720p",
+			aspectRatio: "9:16",
+			inputAssetId: "sealed-private",
+		};
+		const receipt = createVideoConfirmation(frozen, quote, () => "frozen-old-key");
+		expect(parseVideoConfirmation(JSON.stringify(receipt))).toEqual(receipt);
+	});
 	it("keeps one identity across lost responses and reloads", () => {
 		const confirmed = createVideoConfirmation(request, quote, () => "same-key");
 		expect(parseVideoConfirmation(JSON.stringify(confirmed))).toEqual(confirmed);
@@ -98,6 +111,103 @@ describe("video confirmation identity", () => {
 });
 
 describe("video form and observable state", () => {
+	it("asks for a description before applying the model length bounds", () => {
+		for (const prompt of ["", "  \n\t"]) {
+			expect(validateVideoDraft({ ...initialVideoDraft, prompt })).toBe("promptRequired");
+		}
+	});
+	it("identifies the application UTF-16 safety limit as a prompt error", () => {
+		const draft = changeVideoDraft(initialVideoDraft, { productKey: "video-seedance-2-5" });
+		expect(validateVideoDraft({ ...draft, prompt: "🙂".repeat(5001) })).toBe("promptLength");
+	});
+	it("derives image mode from a sealed reference and text mode from explicit removal", () => {
+		const draft = changeVideoDraft(initialVideoDraft, { inputAssetId: "sealed-reference" });
+		expect(draft).toMatchObject({ mode: "image-to-video", aspectRatio: "source" });
+		expect(changeVideoDraft(draft, { inputAssetId: null })).toMatchObject({
+			mode: "text-to-video",
+			inputAssetId: null,
+			aspectRatio: "16:9",
+		});
+	});
+	it("retains intended image mode through missing, failed or replaced uploads", () => {
+		const intended = changeVideoDraft(initialVideoDraft, {
+			mode: "image-to-video",
+			inputAssetId: null,
+		});
+		const edited = changeVideoDraft(intended, { prompt: "Keep my reference intent" });
+		expect(edited.mode).toBe("image-to-video");
+		expect(validateVideoDraft(edited)).toBe("imageRequired");
+		const imageOnly = changeVideoDraft(edited, { productKey: "video-seedance-1-pro-fast" });
+		expect(changeVideoDraft(imageOnly, { inputAssetId: null })).toMatchObject({
+			productKey: "video-seedance-1-pro-fast",
+			mode: "image-to-video",
+			inputAssetId: null,
+		});
+	});
+	it("reads upfront credits only from the exact available server selection with no prompt", () => {
+		const catalog = {
+			accessAllowed: true,
+			models: [
+				{
+					productKey: initialVideoDraft.productKey,
+					available: true,
+					options: [
+						{
+							mode: "text-to-video" as const,
+							duration: 5,
+							resolution: "default",
+							sound: false,
+							available: true,
+							credits: "98765432101234567890",
+						},
+						{
+							mode: "text-to-video" as const,
+							duration: 10,
+							resolution: "default",
+							sound: false,
+							available: true,
+							credits: "41",
+						},
+					],
+				},
+			],
+		};
+		expect(videoModel.videoSelectionCredits?.(initialVideoDraft, catalog)).toBe(
+			"98765432101234567890",
+		);
+		expect(
+			videoModel.videoSelectionCredits?.({ ...initialVideoDraft, duration: 10 }, catalog),
+		).toBe("41");
+		expect(
+			videoModel.videoSelectionCredits?.({ ...initialVideoDraft, aspectRatio: "9:16" }, catalog),
+		).toBe("98765432101234567890");
+		for (const draft of [
+			{ ...initialVideoDraft, sound: true },
+			{ ...initialVideoDraft, aspectRatio: "invalid" },
+			{ ...initialVideoDraft, resolution: "4k" },
+		])
+			expect(videoModel.videoSelectionCredits?.(draft, catalog)).toBeNull();
+		expect(
+			videoModel.videoSelectionCredits?.(initialVideoDraft, { ...catalog, accessAllowed: false }),
+		).toBeNull();
+		catalog.models[0]!.options[0]!.available = false;
+		expect(videoModel.videoSelectionCredits?.(initialVideoDraft, catalog)).toBeNull();
+	});
+	it("summarizes continuous durations as a range and discrete durations without invented values", () => {
+		expect(videoModel.summarizeVideoDurations?.([5, 10, 5])).toEqual({
+			kind: "list",
+			values: [5, 10],
+		});
+		expect(videoModel.summarizeVideoDurations?.([4, 6, 8, 10])).toEqual({
+			kind: "list",
+			values: [4, 6, 8, 10],
+		});
+		expect(videoModel.summarizeVideoDurations?.([4, 5, 6])).toEqual({
+			kind: "range",
+			min: 4,
+			max: 6,
+		});
+	});
 	it("counts Unicode code points and requires one sealed image for image mode", () => {
 		expect(
 			validateVideoDraft({

@@ -15,6 +15,7 @@ import {
 	VIDEO_V1_MODEL_CONTRACT_VERSION,
 	VIDEO_V1_PRODUCT_KEY,
 	videoV1InputSchema,
+	videoV1ReceiptInputSchema,
 } from "@repo/config/video-v1";
 
 import type { Prisma } from "../../generated/client";
@@ -68,7 +69,7 @@ export type VideoAdmissionLimits = {
 };
 
 export function fingerprintVideoRequest(ownerId: string, request: VideoRequest): string {
-	const parsed = videoV1InputSchema.parse(request);
+	const parsed = videoV1ReceiptInputSchema.parse(request);
 	// Schema parsing determines key order; no client checksum or signed URL is accepted.
 	return createHash("sha256")
 		.update(JSON.stringify({ ownerId, request: parsed }))
@@ -80,7 +81,7 @@ function snapshotRequest(value: Prisma.JsonValue): VideoRequest {
 		throw new Error("INVALID_VIDEO_QUOTE");
 	const { mode, prompt, duration, sound } = value;
 	if (typeof value.productKey === "string")
-		return videoV1InputSchema.parse({
+		return videoV1ReceiptInputSchema.parse({
 			productKey: value.productKey,
 			mode,
 			prompt,
@@ -90,7 +91,7 @@ function snapshotRequest(value: Prisma.JsonValue): VideoRequest {
 			aspectRatio: value.aspectRatio,
 			...(mode === "image-to-video" ? { inputAssetId: value.inputAssetId } : {}),
 		});
-	return videoV1InputSchema.parse(
+	return videoV1ReceiptInputSchema.parse(
 		mode === "image-to-video"
 			? { mode, prompt, duration, sound, inputAssetId: value.inputAssetId }
 			: { mode, prompt, duration, sound, aspectRatio: value.aspectRatio },
@@ -337,7 +338,7 @@ export async function createVideoJobRecord(
 	},
 	client: MediaTransactionClient,
 ) {
-	const request = videoV1InputSchema.parse(input.request);
+	const request = videoV1ReceiptInputSchema.parse(input.request);
 	if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 128)
 		throw new Error("INVALID_IDEMPOTENCY_KEY");
 	const requiresScene = input.template?.template.schemaVersion === 1;
@@ -375,6 +376,9 @@ export async function createVideoJobRecord(
 		const providerCapacityLockAcquiredAt = new Date().toISOString();
 		const replay = await findExistingVideoAdmission({ ...input, request }, tx);
 		if (replay) return { jobId: replay.id, replayed: true };
+		// Accepted receipts retain their exact historical framing. Only new
+		// admissions must satisfy today's narrower model capabilities.
+		videoV1InputSchema.parse(request);
 		if (
 			!quote ||
 			quote.productKey !== requestProduct(request) ||

@@ -16,18 +16,37 @@ export function ImageModelIcon({
 				? "openai"
 				: null;
 	if (!family) return null;
+	return <ModelBrandIcon brand={family} size={size} />;
+}
+
+/** Shared original-color renderer; source provenance lives beside the SVG assets. */
+export function ModelBrandIcon({
+	brand,
+	size = 20,
+}: {
+	brand:
+		| "nano-banana"
+		| "seedream"
+		| "openai"
+		| "minimax"
+		| "bytedance"
+		| "gemini"
+		| "kling"
+		| "google";
+	size?: number;
+}) {
 	return (
 		<span
 			aria-hidden="true"
-			data-model-icon={family}
+			data-model-icon={brand}
 			className="inline-flex shrink-0 items-center justify-center leading-none"
 			style={{ width: size, height: size }}
 		>
-			{family === "nano-banana" ? (
+			{brand === "nano-banana" ? (
 				<span style={{ fontSize: size, lineHeight: 1 }}>🍌</span>
 			) : (
 				<Image
-					src={`/images/model-logos/${family}.svg`}
+					src={`/images/model-logos/${brand}.svg`}
 					alt=""
 					width={size}
 					height={size}

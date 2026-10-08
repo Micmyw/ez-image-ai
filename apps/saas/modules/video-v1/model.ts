@@ -1,11 +1,12 @@
 import {
 	getVideoModel,
 	getVideoModelOptions,
+	validateVideoModelSelection,
 	videoModelInputSchema,
 	type VideoModelInput,
 	type VideoModelSelection,
 } from "@repo/config/video-models";
-import { videoV1InputSchema } from "@repo/config/video-v1";
+import { videoV1ReceiptInputSchema } from "@repo/config/video-v1";
 
 import type { VideoCreateInput, VideoQuote, VideoRequest, VideoState } from "./api";
 
@@ -14,6 +15,7 @@ export type VideoDraft = VideoModelSelection & {
 	inputAssetId: string | null;
 };
 export type VideoErrorKey =
+	| "promptRequired"
 	| "promptLength"
 	| "imageRequired"
 	| "invalidImage"
@@ -52,6 +54,10 @@ export function changeVideoDraft(current: VideoDraft, patch: Partial<VideoDraft>
 	const next = { ...current, ...patch };
 	const model = getVideoModel(next.productKey);
 	if (!model || model.status !== "implemented") return current;
+	// Mode also records missing-reference intent while an upload is pending or failed.
+	// Only explicit removal clears that intent; unrelated edits must never fall back to text.
+	if (next.inputAssetId) next.mode = "image-to-video";
+	else if ("inputAssetId" in patch && !("mode" in patch)) next.mode = "text-to-video";
 	if (!model.modes.includes(next.mode)) next.mode = model.modes[0]!;
 	let options = getVideoModelOptions(next.productKey, next.mode);
 	const keys = ["duration", "resolution", "aspectRatio", "sound"] as const;
@@ -70,12 +76,60 @@ export function validateVideoDraft(draft: VideoDraft): VideoErrorKey | null {
 	const model = getVideoModel(draft.productKey);
 	if (!model || model.status !== "implemented") return "unsupportedSelection";
 	const length = Array.from(draft.prompt.trim()).length;
-	if (length < model.minPromptCodePoints || length > model.maxPromptCodePoints)
+	if (!length) return "promptRequired";
+	if (
+		length < model.minPromptCodePoints ||
+		length > model.maxPromptCodePoints ||
+		draft.prompt.trim().length > 10000
+	)
 		return "promptLength";
 	if (draft.mode === "image-to-video" && !draft.inputAssetId) return "imageRequired";
 	if (!videoModelInputSchema.safeParse(videoRequestFor(draft)).success)
 		return "unsupportedSelection";
 	return null;
+}
+
+type SelectionCatalog = {
+	accessAllowed: boolean;
+	models: readonly {
+		productKey: string;
+		available: boolean;
+		options: readonly {
+			mode: VideoDraft["mode"];
+			duration: number;
+			resolution: string;
+			sound: boolean;
+			available: boolean;
+			credits: string | null;
+		}[];
+	}[];
+};
+
+/** The protected catalog owns pricing. Prompt and ratio do not alter its retail tuple. */
+export function videoSelectionCredits(
+	draft: VideoDraft,
+	catalog?: SelectionCatalog,
+): string | null {
+	if (!catalog?.accessAllowed || !validateVideoModelSelection(draft)) return null;
+	const model = catalog.models.find((entry) => entry.productKey === draft.productKey);
+	if (!model?.available) return null;
+	const option = model.options.find(
+		(entry) =>
+			entry.mode === draft.mode &&
+			entry.duration === draft.duration &&
+			entry.resolution === draft.resolution &&
+			entry.sound === draft.sound,
+	);
+	return option?.available && option.credits && /^[1-9]\d*$/.test(option.credits)
+		? option.credits
+		: null;
+}
+
+export function summarizeVideoDurations(durations: readonly number[]) {
+	const values = [...new Set(durations)].sort((a, b) => a - b);
+	return values.length > 1 && values.every((value, index) => value === values[0]! + index)
+		? { kind: "range" as const, min: values[0]!, max: values[values.length - 1]! }
+		: { kind: "list" as const, values };
 }
 
 export function videoRequestFor(draft: VideoDraft): VideoModelInput {
@@ -134,7 +188,7 @@ export function parseVideoConfirmation(raw: string | null): VideoConfirmation | 
 			!Number.isFinite(Date.parse(saved.quote.expiresAt))
 		)
 			return null;
-		if (!videoV1InputSchema.safeParse(request).success) return null;
+		if (!videoV1ReceiptInputSchema.safeParse(request).success) return null;
 		if (saved.fingerprint !== JSON.stringify(request)) return null;
 		return saved;
 	} catch {

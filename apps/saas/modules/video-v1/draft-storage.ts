@@ -33,6 +33,7 @@ export function serializeVideoDraft(draft: VideoDraft, ownerId: string, now = Da
 		savedAt: now,
 		draft: {
 			...draft,
+			mode: draft.inputAssetId ? "image-to-video" : draft.mode,
 			inputAssetId: ownerId === "guest" ? null : draft.inputAssetId,
 		},
 	});
@@ -55,7 +56,12 @@ export function parseVideoDraft(
 			(ownerId === "guest" && saved.draft.inputAssetId)
 		)
 			return null;
-		const draft = changeVideoDraft(saved.draft, {});
+		// Unsubmitted references need explicit re-selection after a reload. Pending
+		// accepted submissions restore their immutable asset from the separate receipt.
+		const draft = changeVideoDraft(saved.draft, {
+			mode: saved.draft.inputAssetId ? "image-to-video" : saved.draft.mode,
+			inputAssetId: null,
+		});
 		return validateVideoModelSelection(draft) ? draft : null;
 	} catch {
 		return null;

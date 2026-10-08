@@ -1,6 +1,6 @@
 import {
 	getVideoModel,
-	videoModelInputSchema,
+	videoModelReceiptInputSchema,
 	type VideoModelInput,
 	type VideoMode,
 } from "@repo/config/video-models";
@@ -65,7 +65,9 @@ export function resolveKieVideoModelId(productKey: string, mode: VideoMode): str
 /** Server-only mapping. A competitor label never selects a provider route. */
 export function buildKieVideoModelRequest(value: KieVideoModelInput) {
 	const { callbackUrl, imageUrl, templateFixedLens, ...publicInput } = value;
-	const input = videoModelInputSchema.parse(publicInput);
+	// This server adapter receives frozen admitted jobs, including historical ratios.
+	// New requests are restricted by the quote and admission validators before payment.
+	const input = videoModelReceiptInputSchema.parse(publicInput);
 	if (
 		templateFixedLens !== undefined &&
 		(templateFixedLens !== true ||

@@ -4,6 +4,7 @@ import {
 	canAccessVideoV1,
 	readVideoV1Config,
 	videoV1InputSchema,
+	videoV1ReceiptInputSchema,
 	VIDEO_V1_PRODUCT_KEY,
 } from "@repo/config/video-v1";
 import { db } from "@repo/database/client";
@@ -132,7 +133,7 @@ const create = protectedProcedure
 			.object({
 				quoteId: z.string().min(1).max(160),
 				idempotencyKey: z.string().min(1).max(128),
-				request: videoV1InputSchema,
+				request: videoV1ReceiptInputSchema,
 			})
 			.strict(),
 	)

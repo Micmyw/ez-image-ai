@@ -1,0 +1,54 @@
+# 视频模型合同复核：2026-10-08
+
+本次只读取得 16 份 Kie 官方 Markdown 文档，均返回 HTTP 200；没有购买生成、调用付费模型或读取生产密钥。当前 OpenAPI 请求结构及原始 Markdown SHA-256 记录在 `packages/ai/media/catalog/fixtures/kie-video-model-contracts-2026-10-08.json`，旧 `2026-10-04` fixture 保留为历史证据。新 fixture 删除示例和文档工具元数据，保留类型、必需字段、枚举、边界及说明。当前文档不是供应商账单或付费端到端验收。
+
+## 范围与来源
+
+范围是应用已实现的文字生成及单首帧图片生成。秒数区间均为整数步长 1；`5 / 10` 等枚举不代表中间秒数可用。图例：横竖 = 16:9、9:16；常规 = 横竖、1:1；扩展 = 常规、4:3、3:4、21:9；首帧 = 由参考图确定。表中的 prompt 上限是官方说明；应用还执行下节的更保守限制。
+
+| 应用型号                          | 官方模型 ID 与来源                                                                                                                                                                                        | 输入 / 秒数 / 分辨率                                 | 画幅与声音                                                 | 官方 prompt                |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- | ---------------------------------------------------------- | -------------------------- |
+| MiniMax H3                        | `minimax-h3/text-to-video` / `minimax-h3/image-to-video`；[文字](https://docs.kie.ai/market/minimax-h3/text-to-video.md)、[图片](https://docs.kie.ai/market/minimax-h3/image-to-video.md)                 | 文字、单图；4–15；768P / 2K                          | 文字扩展，图片首帧；原生音频，无关闭参数                   | 1–7,000                    |
+| Seedance 2.5                      | `bytedance/seedance-2-5`；[官方文档](https://docs.kie.ai/market/bytedance/seedance-2-5.md)                                                                                                                | 文字、单图；4–30；480p / 720p / 1080p                | 扩展；图片另有 adaptive；可开关音频                        | 最大 20,480；未列最小值    |
+| Seedance 2 Mini                   | `bytedance/seedance-2-mini`；[官方文档](https://docs.kie.ai/market/bytedance/seedance-2-mini.md)                                                                                                          | 文字、单图；4–15；480p / 720p                        | 扩展；图片另有 adaptive；可开关音频                        | 3–20,000                   |
+| Seedance 1 Pro Fast               | `bytedance/v1-pro-fast-image-to-video`；[官方文档](https://docs.kie.ai/market/bytedance/v1-pro-fast-image-to-video.md)                                                                                    | 仅单图；5 / 10；720p / 1080p                         | 首帧；静音                                                 | 最大 10,000；未列最小值    |
+| Seedance 1.5 Pro                  | `bytedance/seedance-1.5-pro`；[官方文档](https://docs.kie.ai/market/bytedance/seedance-1-5-pro.md)                                                                                                        | 文字、单图；4–12；480p / 720p / 1080p                | 扩展；可开关音频                                           | 3–20,000                   |
+| Seedance 2                        | `bytedance/seedance-2`；[官方文档](https://docs.kie.ai/market/bytedance/seedance-2.md)                                                                                                                    | 文字、单图；4–15；480p / 720p / 1080p / 4K           | 扩展；图片另有 adaptive；可开关音频                        | 3–20,000                   |
+| Seedance 2 Fast                   | `bytedance/seedance-2-fast`；[官方文档](https://docs.kie.ai/market/bytedance/seedance-2-fast.md)                                                                                                          | 文字、单图；4–15；480p / 720p                        | 扩展；图片另有 adaptive；可开关音频                        | 3–20,000                   |
+| Gemini Omni 1.1 Flash             | `google/gemini-omni-flash-1-1`；[官方文档](https://docs.kie.ai/market/google/gemini-omni-flash-1-1.md)                                                                                                    | 文字、单图；4 / 6 / 8 / 10；360p / 720p / 1080p / 4K | 横竖；原生音频                                             | 最大 20,000；未列最小值    |
+| Kling 3                           | `kling-3.0/video`；[官方文档](https://docs.kie.ai/market/kling/kling-3-0.md)                                                                                                                              | 文字、单图；3–15；std=720p / pro=1080p / 4K          | 文字常规，图片首帧；可开关音频；应用固定 multi_shots=false | 单镜头必须提供；最大 2,500 |
+| Kling 3 Turbo                     | `kling/v3-turbo-text-to-video` / `kling/v3-turbo-image-to-video`；[文字](https://docs.kie.ai/market/kling/v3-turbo-text-to-video.md)、[图片](https://docs.kie.ai/market/kling/v3-turbo-image-to-video.md) | 文字、单图；3–15；720p / 1080p                       | 文字常规，图片首帧；原生音频                               | 最大 2,500                 |
+| Kling 2.6                         | `kling-2.6/text-to-video` / `kling-2.6/image-to-video`；[文字](https://docs.kie.ai/market/kling/text-to-video.md)、[图片](https://docs.kie.ai/market/kling/image-to-video.md)                             | 文字、单图；5 / 10；接口默认分辨率，无选择参数       | 文字常规，图片首帧；可开关音频                             | 最大 2,500                 |
+| Veo 3.1 Fast                      | `veo3_fast`，专用 `/api/v1/veo/generate`；[现存旧端点文档](https://docs.kie.ai/old-model/veo3-api/generate-veo-3-video.md)                                                                                | 文字、单图；4 / 6 / 8；720p / 1080p / 4K             | 横竖；图片可 Auto 中心裁切；原生音频                       | 必须提供；未列数字上限     |
+| Veo 3.1（无零售价，当前禁止准入） | `veo-3-1`，通用 createTask；[统一端点文档](https://docs.kie.ai/veo3-api/generate-veo-3-video.md)                                                                                                          | 文档为文字、单图；4 / 6 / 8；720p / 1080p / 4K       | 横竖；图片可 Auto；原生音频                                | 必须提供；未列数字上限     |
+
+MiniMax H3 Turbo、H3 Max Turbo、H3 Max 继续因缺少确认的官方模型合同而禁用；Veo 3.1 Pro 继续因变体映射未确认而禁用。没有根据竞品名称推断可调用 ID。
+
+## 确认差异与应用边界
+
+1. **Seedance 2.5 证据更正。** 旧 fixture 为 30,000 字符，当前官方为 20,480；更新来源 fixture 和模型声明。原 4–30 秒及三个分辨率正确，无需缩到旧代模型范围。Mini 4–15 秒和 480p / 720p 同样已确认。
+2. **Kling 3 首帧比例。** 官方明确图生输出跟随第一帧。新公共能力只提供 `source`，请求不传 `aspect_ratio` override。旧实现提供 16:9 / 9:16 / 1:1 会误导用户，并可能让后续输出比例检查要求错误裁切。
+3. **双重文字限制。** Kling 2.6 和 Kling 3 的应用上限仍为 1,000 code points，虽低于官方 2,500，也不在本轮放宽。模型官方上限超过 10,000 的，应用上限仍为 10,000 code points，且所有请求须满足现行审核系统的 **10,000 UTF-16 单元**硬上限。此前 UI 只按 code points 计数，6,000 个常见 emoji 显示 6,000 却实际占 12,000 单元；现在本地校验和反馈明确两个限制。Veo 的 1,000 是应用限制，不宣称为官方上限。没有明确官方下限的型号仍要求非空描述。
+4. **时长摘要。** Kling 2.6 / Seedance 1 Pro Fast 显示 5 / 10 秒，Gemini 为 4 / 6 / 8 / 10，Veo 为 4 / 6 / 8；只有完整连续整数集合显示区间。
+5. **未开放的能力。** Seedance 文档允许 `-1` 自动时长，应用继续仅接受已知秒数，以便精确计费与输出校验。自适应文字比例、参考视频、多图、尾帧、多镜头、搜索及编辑等未因本次审计扩大。数量保持一次一个结果，无新增批量输出控制。原生音频表示允许音轨，不保证每条结果一定含音频。
+6. **条件边界。** 在本次文字/单首帧范围内，未发现额外时长×分辨率限制。Gemini 使用视频输入时 duration 会被模型忽略；Veo REFERENCE_2_VIDEO 只支持 8 秒；二者均不属于当前输入范围。Seedance 2 的 4K 官方注明 HEVC，实际解码/私有输出检查仍属于原有交付门禁，不因文档复核被绕过。
+
+## 已接受任务、旧报价与未来激活
+
+新报价及新 admission 使用严格当前 schema。历史 Kling 3 图生回执仅在专用 receipt parser 中保留已知旧比例；owner、完整请求指纹、幂等键和数据库快照仍须匹配。RPC → admission → DB 先检查已接受任务，原请求可在报价过期或新生成关闭后恢复；换比例会发生幂等冲突，新幂等键不会绕过当前能力校验。provider builder 读取冻结请求，保留老订单原本的请求语义，不悄悄重写比例。没有迁移或修改已有订单。
+
+未接受的旧 Kling explicit-ratio quote 不再获得新 admission，用户需按首帧比例重新报价。保留当前 `video-models-2026-10-04.2` 生产合同绑定：本轮收窄选择且不改价格，改绑定会使现有确认的生产配置整体失效，超出此次 UI/合同修正授权。
+
+**通用 Veo 3.1 仍被定价准入阻止。** 当前 `video-pricing.server.ts` 没有该 productKey 的价格；不能因为 catalog 声明 implemented 就声称它能生成。新官方统一端点含 `input.model` tier，1080p / 4K 返回 `resultJson.data.result_urls`，现有通用映射/结果解析尚未逐项实现。这是未来激活阻塞：必须确认 tier、补请求和高分辨率解析、审批价格并做授权验收后才能开放。本轮没有修改这一路由。实际有价的 Fast 保持独立 `veo3_fast` adapter 与官方旧端点。
+
+## 价格与品牌来源
+
+价格预览直接使用受保护 catalog 的精确 `credits` 字符串，按型号、输入、秒数、分辨率和声音匹配；画幅无独立费率。不使用竞品积分、客户端公式或伪造提示词，也不为预览创建 quote。实际 Generate 使用当前后端 quote；与已显示总额不同须重新明确确认。生产价格、费用预算、资费开关和审核要求均未调整。
+
+品牌 SVG 来自 MIT 的 `@lobehub/icons-static-svg@1.95.1`，registry tarball SHA-512 已由控制线程校验；原 SVG 字节未修改，原色保留。许可证、下载 URL、哈希及映射见 `apps/saas/public/images/model-logos/VIDEO-SOURCES.md` 与 `LICENSE.lobe-icons`。Seedance 使用 ByteDance 厂牌，Veo 使用 Google 厂牌；不虚构模型专属标识。渲染复用 ImageModelIcon 的品牌组件，按钮仍有完整可访问名称。
+
+## 验证方式与限制
+
+单元合同测试将共享 catalog 的每种模式、时长、分辨率、画幅和声音组合送入实际 provider builder，对当前 fixture 的 ID、字段枚举和声明边界逐项检查；另验证默认/历史 Kling 比例、prompt 限制和离散时长。真实隔离 PostgreSQL 集成验证旧回执通过 protected RPC 重复恢复、不可变快照、单次预留及新请求拒绝。
+
+浏览器回归拦截所有外部域及非 fixture API，只使用合成账户和测试积分。截图中的 23 / 29 / 37 / 41 / 57 credits 不能作为线上售价证据。完整生产构建、首页原有性能预算及其余数据库验收由控制线程在最终提交上执行。没有真实付费视频或供应商输出质量验收。

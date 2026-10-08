@@ -29,6 +29,7 @@ export function VideoComposer(props: {
 	enabled: boolean;
 	busy: "quote" | "create" | null;
 	quote: VideoQuote | null;
+	previewCredits: string | null;
 	quoteExpired: boolean;
 	confirmation: boolean;
 	error: VideoErrorKey | null;
@@ -40,7 +41,7 @@ export function VideoComposer(props: {
 	catalogUnavailable: boolean;
 	selectionUnavailable: boolean;
 	onChange: (patch: Partial<VideoDraft>) => void;
-	onQuote: () => void;
+	onGenerate: () => void;
 	onConfirm: () => void;
 	onSignIn: () => void;
 	onRetryCatalog: () => void;
@@ -102,7 +103,9 @@ export function VideoComposer(props: {
 								</>
 							)}
 						</button>
-						{(upload.preview || draft.inputAssetId) && (
+						{(upload.status !== "idle" ||
+							draft.inputAssetId ||
+							draft.mode === "image-to-video") && (
 							<button
 								type="button"
 								className="video-remove"
@@ -116,9 +119,6 @@ export function VideoComposer(props: {
 						<p id="video-image-hint" className="sr-only">
 							{t("imageHint", { max: Math.floor((props.maximumBytes / 1024 / 1024) * 10) / 10 })}
 						</p>
-						{draft.inputAssetId && draft.mode === "text-to-video" && (
-							<p className="video-reference-note">{t("referenceUnused")}</p>
-						)}
 					</div>
 					<div className="video-prompt-field">
 						<label htmlFor="video-prompt" className="sr-only">
@@ -130,6 +130,7 @@ export function VideoComposer(props: {
 							value={draft.prompt}
 							disabled={locked}
 							aria-describedby="video-prompt-count"
+							aria-invalid={props.error === "promptRequired" || props.error === "promptLength"}
 							placeholder={t(
 								draft.mode === "image-to-video" ? "motionPlaceholder" : "promptPlaceholder",
 							)}
@@ -137,6 +138,11 @@ export function VideoComposer(props: {
 						/>
 						<span id="video-prompt-count" className="video-prompt-count">
 							{Array.from(draft.prompt.trim()).length} / {model.maxPromptCodePoints}
+							{draft.prompt.trim().length !== Array.from(draft.prompt.trim()).length && (
+								<span className="block">
+									{t("promptSafetyCount", { count: draft.prompt.trim().length })}
+								</span>
+							)}
 						</span>
 					</div>
 				</div>
@@ -149,6 +155,9 @@ export function VideoComposer(props: {
 					)}
 					{upload.status === "sealing" && <span>{t("sealing")}</span>}
 					{draft.inputAssetId && draft.mode === "image-to-video" && <span>{t("sealed")}</span>}
+					{draft.mode === "image-to-video" && !draft.inputAssetId && !props.uploading && (
+						<span>{t("referenceRequired")}</span>
+					)}
 					{upload.error && <p role="alert">{t(`errors.${upload.error}`)}</p>}
 				</div>
 				<div className="video-toolbar">
@@ -183,11 +192,15 @@ export function VideoComposer(props: {
 							</Button>
 						) : (
 							<Button
-								data-test="video-quote"
+								data-test="video-generate"
 								disabled={!props.ready || !props.enabled || Boolean(props.busy) || props.uploading}
-								onClick={props.onQuote}
+								onClick={props.onGenerate}
 							>
-								{t(props.busy === "quote" ? "quoting" : "reviewPrice")}
+								{props.busy === "quote"
+									? t("quoting")
+									: props.previewCredits
+										? t("generate", { credits: props.previewCredits })
+										: t(props.catalogPending ? "priceLoading" : "priceUnavailable")}
 							</Button>
 						)}
 					</div>
@@ -213,7 +226,8 @@ export function VideoComposer(props: {
 						<div data-test="video-price">
 							<strong>{t("quote", { credits: quote.credits })}</strong>
 							<p>{t("quoteHint")}</p>
-							{props.quoteExpired && !props.confirmation && (
+							{!props.quoteExpired && !props.confirmation && <p>{t("priceChanged")}</p>}
+							{props.quoteExpired && !props.confirmation && props.error !== "quoteExpired" && (
 								<output>{t("errors.quoteExpired")}</output>
 							)}
 						</div>

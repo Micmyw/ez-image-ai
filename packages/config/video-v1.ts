@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { videoModelInputSchema, VIDEO_MODEL_CATALOG_VERSION } from "./video-models";
+import {
+	videoModelInputSchema,
+	videoModelReceiptInputSchema,
+	VIDEO_MODEL_CATALOG_VERSION,
+} from "./video-models";
 import { readVideoSeeapiCallbackConfig } from "./video-seeapi-callback";
 
 export const VIDEO_V1_PRODUCT_KEY = "video-kling-2-6-v1";
@@ -34,6 +38,10 @@ const legacyVideoV1InputSchema = z.discriminatedUnion("mode", [
 ]);
 // Do not inject new defaults into already-persisted V1 input fingerprints.
 export const videoV1InputSchema = z.union([legacyVideoV1InputSchema, videoModelInputSchema]);
+export const videoV1ReceiptInputSchema = z.union([
+	legacyVideoV1InputSchema,
+	videoModelReceiptInputSchema,
+]);
 export type VideoV1Input = z.infer<typeof videoV1InputSchema>;
 export type VideoV1Environment = Record<string, string | undefined>;
 export type VideoV1AccessScope = "internal" | "authenticated";

@@ -1,0 +1,1280 @@
+{
+	"retrievedAt": "2026-10-08",
+	"sourceType": "official public API documentation; read-only; no live generation",
+	"contracts": [
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-1-5-pro.md",
+			"sha256": "0ccba3bf1f855b47d170cc619f046d21e81863d40924283f9ea7dce3f8f23e7a",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["bytedance/seedance-1.5-pro"],
+						"default": "bytedance/seedance-1.5-pro",
+						"description": "The model name to use for generation. Required field.\n\n- Must be `bytedance/seedance-1.5-pro` for this endpoint"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"input": {
+						"type": "object",
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "The text prompt used to generate the video. Required field. (Min length: 3, Max length: 20000 characters)",
+								"minLength": 3,
+								"maxLength": 20000
+							},
+							"input_urls": {
+								"description": "URLs of input images for image-to-video generation. Optional field.\n\n- Accepts 0-2 images\n- If not provided, the model will perform text-to-video generation\n- File URLs after upload, not file content\n- Accepted types: image/jpeg, image/png, image/webp\n- Max size per image: 10.0MB",
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 2
+							},
+							"aspect_ratio": {
+								"description": "Required. One of 1:1, 4:3, 3:4, 16:9, 9:16, 21:9.",
+								"type": "string",
+								"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9"]
+							},
+							"resolution": {
+								"description": "Video resolution - 480p for faster generation, 720p for balance, 1080p for higher quality",
+								"type": "string",
+								"enum": ["480p", "720p", "1080p"],
+								"default": "720p"
+							},
+							"duration": {
+								"type": "number",
+								"description": "Required. Output length in whole seconds, 4–12."
+							},
+							"fixed_lens": {
+								"description": "Seedance adds dynamic camera movement. Enable this feature to lock the camera for stable, static shots.\n\n- **true**: Lock camera for static shots\n- **false**: Allow dynamic camera movement",
+								"type": "boolean",
+								"default": false
+							},
+							"generate_audio": {
+								"description": "Whether to generate synchronized audio. Default: true. Pass false for a silent video. Audio doubles the per-second price.",
+								"type": "boolean",
+								"default": true
+							},
+							"nsfw_checker": {
+								"type": "boolean",
+								"description": "Defaults to false. When false, no additional content filtering is applied and results are returned directly by the model."
+							}
+						},
+						"required": ["prompt", "aspect_ratio", "duration"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-2-5.md",
+			"sha256": "9b0f87df334a825bb160a4d108c89cbf9d17098d1354d78c668bda397bb3d678",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"description": "The model name to use for generation. Required field.\n\n- Must be `bytedance/seedance-2-5` for this endpoint",
+						"enum": ["bytedance/seedance-2-5"],
+						"default": "bytedance/seedance-2-5"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"input": {
+						"type": "object",
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "The text prompt used to generate the video.. ( Max length: 20480 characters)",
+								"maxLength": 20480
+							},
+							"first_frame_url": {
+								"type": "string",
+								"description": "First frame image url or asset://{assetId} \n(for example: asset://asset-20260404242101-76djj)\nCannot be used simultaneously with reference_image_urls, reference_video_urls, or reference_audio_urls."
+							},
+							"last_frame_url": {
+								"type": "string",
+								"description": "End frame image url or asset://{assetId} \n(for example: asset://asset-20260404242101-76djj)\nlast_frame_url cannot be passed alone; first_frame_url must be provided together with it."
+							},
+							"reference_image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Enter a list of image URLs or asset://{assetId} (for example: asset://asset-20260404242101-76djj).\nSingle image requirements:\nFormat: jpeg, png, webp.\nAspect ratio (width/height): (0.4, 2.5)\nWidth and height (px): (300, 6000)\nSize: Single image less than 30 MB.\nUp to 30 images.\nMutually exclusive with the first/last-frame scenario;",
+								"maxItems": 30
+							},
+							"reference_video_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Enter a list of video URLs or asset://{assetId} (for example: asset://asset-20260404242101-76djj) .\nSingle video requirements:\nVideo format: mp4, mov.\nResolution: 480p, 720p\nDimensions:\nAspect ratio (width/height): [0.4, 2.5]\nWidth/height (px): [300, 6000]\nTotal pixels: [640×640=409600, 834×1112=927408], i.e., the product of width and height must meet the range requirement of [409600, 927408].\nSize: Single video not exceeding 200 MB.\nFrame rate (FPS): [24, 60]\nSingle video duration: [2, 30] seconds; \nMutually exclusive with the first/last-frame scenario; Total duration of reference videos must not exceed 30 seconds.",
+								"maxItems": 10
+							},
+							"reference_audio_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Enter a list of audio URLs or asset://{assetId} (for example: asset://asset-20260404242101-76djj) .\nSingle audio requirements:\nFormat: wav, mp3\nSize: Single audio file size not exceeding 15 MB.\nSingle audio duration: [2, 30] seconds; mutually exclusive with first/last frames; total duration of reference audio must not exceed 30 seconds.",
+								"maxItems": 10
+							},
+							"return_last_frame": {
+								"type": "boolean",
+								"description": "Whether to also return the last frame of the generated video as a JPEG (in resultJson.lastFrameUrl). Default false.",
+								"default": false
+							},
+							"generate_audio": {
+								"description": "Whether to generate audio synchronized with the video. Default: true.",
+								"type": "boolean",
+								"default": true
+							},
+							"resolution": {
+								"type": "string",
+								"description": "Video resolution - 480p for faster generation, 720p for balance.",
+								"enum": ["480p", "720p", "1080p"],
+								"default": "720p"
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"description": "Video aspect ratio configuration. ",
+								"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "adaptive"],
+								"default": "adaptive"
+							},
+							"duration": {
+								"type": "integer",
+								"description": "Video duration in 4-30 seconds.\nSpecial values -1:\n Pass -1 for automatic duration selection — the model picks a suitable duration itself (for video-editing tasks, it matches the input video's length; for other task types, it selects within the valid range), instead of you specifying an exact value.",
+								"default": 5
+							},
+							"output_format": {
+								"type": "string",
+								"description": "Video output format.",
+								"enum": ["mp4", "mov"],
+								"default": "mp4"
+							},
+							"web_search": {
+								"type": "boolean",
+								"description": "Enable online search."
+							},
+							"nsfw_checker": {
+								"type": "boolean",
+								"description": "Defaults to false. When false, no additional content filtering is applied and results are returned directly by the model."
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-2-fast.md",
+			"sha256": "f59e06621c5493720f86521d216f8b3ed8aabcf36ce30ef05583eb3cf7c6742f",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"description": "The model name to use for generation. Required field.\n\n- Must be `bytedance/seedance-2-fast` for this endpoint",
+						"enum": ["bytedance/seedance-2-fast"],
+						"default": "bytedance/seedance-2-fast"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"input": {
+						"type": "object",
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "The text prompt used to generate the video. Required field. (Min length: 3, Max length: 20000 characters)",
+								"minLength": 3,
+								"maxLength": 20000
+							},
+							"first_frame_url": {
+								"type": "string",
+								"description": "First frame image url or asset://{assetId} \n(for example: asset://asset-20260404242101-76djj)"
+							},
+							"last_frame_url": {
+								"type": "string",
+								"description": "End frame image url or asset://{assetId} \n(for example: asset://asset-20260404242101-76djj)"
+							},
+							"reference_image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Enter a list of image URLs or asset://{assetId} (for example: asset://asset-20260404242101-76djj).\nSingle image requirements:\nFormat: jpeg, png, webp, bmp, tiff, gif.\nAspect ratio (width/height): (0.4, 2.5)\nWidth and height (px): (300, 6000)\nSize: Single image less than 30 MB.\nUp to 9 images.",
+								"maxItems": 9
+							},
+							"reference_video_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Enter a list of video URLs or asset://{assetId} (for example: asset://asset-20260404242101-76djj).\nSingle video requirements:\nVideo format: mp4, mov.\nResolution: 480p, 720p\nDuration: Single video duration [2, 15] s, maximum 3 reference videos, total duration of all videos not exceeding 15 seconds.\nDimensions:\nAspect ratio (width/height): [0.4, 2.5]\nWidth/height (px): [300, 6000]\nTotal pixels: [640×640=409600, 834×1112=927408], i.e., the product of width and height must meet the range requirement of [409600, 927408].\nSize: Single video not exceeding 50 MB.\nFrame rate (FPS): [24, 60]",
+								"maxItems": 3
+							},
+							"reference_audio_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Enter a list of audio URLs or asset://{assetId} (for example: asset://asset-20260404242101-76djj).\nSingle audio requirements:\nFormat: wav, mp3\nDuration: Single audio duration [2, 15] s, maximum 3 reference audios, total duration of all audios not exceeding 15 s.\nSize: Single audio file size not exceeding 15 MB.",
+								"maxItems": 3
+							},
+							"return_last_frame": {
+								"type": "boolean",
+								"description": "Whether to return the last frame of the video as an image.",
+								"default": false,
+								"deprecated": true
+							},
+							"generate_audio": {
+								"description": "Whether to generate audio for the video.\n\n- **true**: Generate with audio \n- **false**: Generate without audio",
+								"type": "boolean",
+								"default": true
+							},
+							"resolution": {
+								"description": "Video resolution - 480p for faster generation, 720p for balance",
+								"type": "string",
+								"enum": ["480p", "720p"],
+								"default": "720p"
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"description": "Video aspect ratio configuration. Required field.",
+								"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "adaptive"],
+								"default": "16:9"
+							},
+							"duration": {
+								"type": "integer",
+								"description": "Video duration in 4-15 seconds or -1.",
+								"default": 5
+							},
+							"web_search": {
+								"type": "boolean",
+								"description": "Use online search. Text-to-video only."
+							},
+							"nsfw_checker": {
+								"type": "boolean",
+								"description": "Defaults to false. When false, no additional content filtering is applied and results are returned directly by the model."
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-2-mini.md",
+			"sha256": "6bdf63aff6a6688e8cb5adfeff3da3e7fbbfdb3fcbf0fc4f9d2c5acb5c15f204",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"description": "The model name to use for generation. Required field.\n\n- Must be `bytedance/seedance-2-mini` for this endpoint",
+						"enum": ["bytedance/seedance-2-mini"],
+						"default": "bytedance/seedance-2-mini"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"input": {
+						"type": "object",
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "The text prompt used to generate the video. Required field. (Min length: 3, Max length: 20000 characters)",
+								"minLength": 3,
+								"maxLength": 20000
+							},
+							"first_frame_url": {
+								"type": "string",
+								"description": "First frame image url or asset://{assetId} \n(for example: asset://asset-20260404242101-76djj)"
+							},
+							"last_frame_url": {
+								"type": "string",
+								"description": "End frame image url or asset://{assetId} \n(for example: asset://asset-20260404242101-76djj)"
+							},
+							"reference_image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Enter a list of image URLs or asset://{assetId} (for example: asset://asset-20260404242101-76djj).\nSingle image requirements:\nFormat: jpeg, png, webp, gif.\nAspect ratio (width/height): (0.4, 2.5)\nWidth and height (px): (300, 6000)\nSize: Single image less than 30 MB.\nUp to 9 images.",
+								"maxItems": 9
+							},
+							"reference_video_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Enter a list of video URLs or asset://{assetId} (for example: asset://asset-20260404242101-76djj).\nSingle video requirements:\nVideo format: mp4, mov.\nResolution: 480p, 720p\nDuration: Single video duration [2, 15] s, maximum 3 reference videos, total duration of all videos not exceeding 15 seconds.\nDimensions:\nAspect ratio (width/height): [0.4, 2.5]\nWidth/height (px): [300, 6000]\nTotal pixels: [640×640=409600, 834×1112=927408], i.e., the product of width and height must meet the range requirement of [409600, 927408].\nSize: Single video not exceeding 50 MB.\nFrame rate (FPS): [24, 60]",
+								"maxItems": 3
+							},
+							"reference_audio_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Enter a list of audio URLs or asset://{assetId} (for example: asset://asset-20260404242101-76djj).\nSingle audio requirements:\nFormat: wav, mp3\nDuration: Single audio duration [2, 15] s, maximum 3 reference audios, total duration of all audios not exceeding 15 s.\nSize: Single audio file size not exceeding 15 MB.",
+								"maxItems": 3
+							},
+							"generate_audio": {
+								"description": "Whether to generate audio for the video.\n\n- **true**: Generate with audio \n- **false**: Generate without audio",
+								"type": "boolean",
+								"default": true
+							},
+							"resolution": {
+								"description": "Video resolution - 480p for faster generation, 720p for balance",
+								"type": "string",
+								"enum": ["480p", "720p"],
+								"default": "720p"
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"description": "Video aspect ratio configuration. Required field.",
+								"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "adaptive"],
+								"default": "16:9"
+							},
+							"duration": {
+								"type": "integer",
+								"description": "Video duration in 4-15 seconds or -1.",
+								"default": 5
+							},
+							"web_search": {
+								"type": "boolean",
+								"description": "Use online search. Text-to-video only."
+							},
+							"nsfw_checker": {
+								"type": "boolean",
+								"description": "Defaults to false. When false, no additional content filtering is applied and results are returned directly by the model."
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-2.md",
+			"sha256": "d40c80d9acdf9dfddbbff4667e2d879bf84944fc602f73bc9329f6c56ee26fc6",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"description": "The model name to use for generation. Required field.\n\n- Must be `bytedance/seedance-2` for this endpoint",
+						"enum": ["bytedance/seedance-2"],
+						"default": "bytedance/seedance-2"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"input": {
+						"type": "object",
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "The text prompt used to generate the video. Required field. (Min length: 3, Max length: 20000 characters)",
+								"minLength": 3,
+								"maxLength": 20000
+							},
+							"first_frame_url": {
+								"type": "string",
+								"description": "First frame image url or asset://{assetId} \n(for example: asset://asset-20260404242101-76djj)"
+							},
+							"last_frame_url": {
+								"type": "string",
+								"description": "End frame image url or asset://{assetId} \n(for example: asset://asset-20260404242101-76djj)"
+							},
+							"reference_image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Enter a list of image URLs or asset://{assetId} (for example: asset://asset-20260404242101-76djj).\nSingle image requirements:\nFormat: jpeg, png, webp, bmp, tiff, gif.\nAspect ratio (width/height): (0.4, 2.5)\nWidth and height (px): (300, 6000)\nSize: Single image less than 30 MB.\nUp to 9 images.",
+								"maxItems": 9
+							},
+							"reference_video_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Enter a list of video URLs or asset://{assetId} (for example: asset://asset-20260404242101-76djj) .\nSingle video requirements:\nVideo format: mp4, mov.\nResolution: 480p, 720p\nDuration: Single video duration [2, 15] s, maximum 3 reference videos, total duration of all videos not exceeding 15 seconds.\nDimensions:\nAspect ratio (width/height): [0.4, 2.5]\nWidth/height (px): [300, 6000]\nTotal pixels: [640×640=409600, 834×1112=927408], i.e., the product of width and height must meet the range requirement of [409600, 927408].\nSize: Single video not exceeding 50 MB.\nFrame rate (FPS): [24, 60]",
+								"maxItems": 3
+							},
+							"reference_audio_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Enter a list of audio URLs or asset://{assetId} (for example: asset://asset-20260404242101-76djj) .\nSingle audio requirements:\nFormat: wav, mp3\nDuration: Single audio duration [2, 15] s, maximum 3 reference audios, total duration of all audios not exceeding 15 s.\nSize: Single audio file size not exceeding 15 MB.",
+								"maxItems": 3
+							},
+							"return_last_frame": {
+								"type": "boolean",
+								"description": "Whether to return the last frame of the video as an image.",
+								"default": false,
+								"deprecated": true
+							},
+							"generate_audio": {
+								"description": "Whether to generate audio for the video.\n\n- **true**: Generate with audio\n- **false**: Generate without audio",
+								"type": "boolean",
+								"default": true
+							},
+							"resolution": {
+								"type": "string",
+								"description": "Video resolution - 480p for faster generation, 720p for balance, 1080p for High-quality video, 4K Ultra-High Definition, delivering perfect visual details. 4k output is 3840×2160 encoded as H.265 (HEVC); other resolutions are H.264. Make sure your player or pipeline supports HEVC.",
+								"enum": ["480p", "720p", "1080p", "4k"],
+								"default": "720p"
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"description": "Video aspect ratio configuration. Required field.",
+								"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "adaptive"],
+								"default": "16:9"
+							},
+							"duration": {
+								"type": "integer",
+								"description": "Video duration in 4-15 seconds or -1.",
+								"default": 5
+							},
+							"web_search": {
+								"type": "boolean",
+								"description": "Use online search. Text-to-video only."
+							},
+							"nsfw_checker": {
+								"type": "boolean",
+								"description": "Defaults to false. When false, no additional content filtering is applied and results are returned directly by the model."
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/v1-pro-fast-image-to-video.md",
+			"sha256": "2dae1339c407de274fa7a730a805acbb49a4772e1af2d655a69142cc3e70781f",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["bytedance/v1-pro-fast-image-to-video"],
+						"default": "bytedance/v1-pro-fast-image-to-video",
+						"description": "The model name to use for generation. Required field.\n\n- Must be `bytedance/v1-pro-fast-image-to-video` for this endpoint"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"input": {
+						"type": "object",
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"description": "The text prompt used to generate the video (Max length: 10000 characters)",
+								"type": "string",
+								"maxLength": 10000
+							},
+							"image_url": {
+								"description": "The URL of the image used to generate video (File URL after upload, not file content; Accepted types: image/jpeg, image/png, image/webp; Max size: 10.0MB)",
+								"type": "string"
+							},
+							"resolution": {
+								"description": "Output resolution: 720p or 1080p.",
+								"type": "string",
+								"enum": ["720p", "1080p"],
+								"default": "720p"
+							},
+							"duration": {
+								"description": "Duration of the video in seconds",
+								"type": "string",
+								"enum": ["5", "10"],
+								"default": "5"
+							},
+							"nsfw_checker": {
+								"type": "boolean",
+								"description": "Defaults to false. When false, no additional content filtering is applied and results are returned directly by the model."
+							}
+						},
+						"required": ["prompt", "image_url"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/google/gemini-omni-flash-1-1.md",
+			"sha256": "08b655c1d057b417d3da3f0fcee4bec84cb05c4fabf8f2c60807247f4cc334a6",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["google/gemini-omni-flash-1-1"],
+						"default": "google/gemini-omni-flash-1-1",
+						"description": "The model name used to generate the task. This field is required. This interface must use the `google/gemini-omni-flash-1-1` model."
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "The callback URL for task completion notifications. This parameter is optional. If provided, the system will send a POST request to this URL when the task is completed, regardless of whether it succeeds or fails. If not provided, no callback notification will be sent."
+					},
+					"input": {
+						"type": "object",
+						"description": "Input parameters for the multimodal video generation task.",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "The video prompt, used to describe the visual content, style, cinematography, or character actions of the target video.",
+								"maxLength": 20000
+							},
+							"image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "An array of image URLs. Multiple reference images can be uploaded to provide references for characters, scenes, styles, or storyboards.\n\nImage limitations:\n- Each file must not exceed `20MB`\n- Use publicly accessible image URLs\n- Maximum of 7 images\n- Note: This field is mutually exclusive with the first-frame image (`first_frame_url`) and cannot be provided at the same time."
+							},
+							"first_frame_url": {
+								"type": "string",
+								"format": "uri",
+								"description": "The URL of the first-frame image. Used to specify the starting frame of the generated video. Note: This field is mutually exclusive with `image_urls`, `audio_ids`, `video_list`, and `character_ids` and cannot be provided at the same time."
+							},
+							"last_frame_url": {
+								"type": "string",
+								"format": "uri",
+								"description": "The URL of the last-frame image. Used to specify the ending frame of the generated video. Note: The last-frame image cannot be used alone and must be provided together with the first-frame image (`first_frame_url`)."
+							},
+							"audio_ids": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"description": "An array of audio IDs generated by the `gemini-omni-audio` interface. Used to provide narration, dialogue, background music, or sound references for the video. Up to 3 items. Note: This field is mutually exclusive with the first-frame image (`first_frame_url`) and cannot be provided at the same time."
+							},
+							"video_list": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"required": ["url", "start", "ends"],
+									"properties": {
+										"url": {
+											"type": "string",
+											"format": "uri",
+											"description": "The video URL. Each video file must not exceed `100MB`, and the video duration must not exceed `30s`."
+										},
+										"start": {
+											"type": "number",
+											"minimum": 0,
+											"description": "The start time, in seconds."
+										},
+										"ends": {
+											"type": "number",
+											"minimum": 0,
+											"description": "The end time, in seconds. It should be greater than `start`. The difference between the end and start times must not exceed 10 seconds."
+										}
+									}
+								},
+								"description": "An array of video clips. Each element describes a video asset that can be used for generation and its trimming time range.\n\nVideo limitations:\n- Each file must not exceed `100MB`\n- Video duration must not exceed `30s`\n- `ends` should be greater than `start`\n- The difference between the end and start times must not exceed `10s`\n- Maximum of 1 item, occupying two image slots\n- Note: This field is mutually exclusive with the first-frame image (`first_frame_url`) and cannot be provided at the same time."
+							},
+							"character_ids": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"description": "An array of character IDs generated by the `gemini-omni-character` interface. Used to provide character appearance, identity, or person references for the video. Up to 3 character IDs. Each uses 1 image slot (2 if created with portrait + body images). Total slots (images + videos × 2 + character slots) ≤ 7. Note: This field is mutually exclusive with the first-frame image (`first_frame_url`) and cannot be provided at the same time."
+							},
+							"duration": {
+								"type": "string",
+								"enum": ["4", "6", "8", "10"],
+								"description": "The duration of the generated video, in seconds. Valid values are 4, 6, 8, and 10.\nThis parameter only takes effect when there is no video input. If video input is used, the output duration is determined by the model, and the `duration` parameter will be ignored. Note: When video input is provided, the output duration is automatically determined by the model. In this case, the `duration` parameter will not take effect."
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": ["16:9", "9:16"],
+								"description": "The aspect ratio of the generated video. `16:9` is landscape, and `9:16` is portrait."
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["360p", "720p", "1080p", "4k"],
+								"description": "The resolution of the generated video. Valid values are 360p, 720p, 1080p, and 4k.",
+								"default": "720p"
+							},
+							"seed": {
+								"type": "integer",
+								"description": "The random seed. Valid range: [0, 2147483647]. If not specified, the system will automatically generate a seed. A fixed seed can improve result reproducibility, but because the model itself is stochastic, results may still vary."
+							}
+						},
+						"required": ["prompt", "duration"],
+						"dependencies": {
+							"last_frame_url": ["first_frame_url"]
+						}
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/image-to-video.md",
+			"sha256": "9bfe1ed76f68597d664ccedc820c2f232d304a5dd401e46ccd009d22b0e2d546",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["kling-2.6/image-to-video"],
+						"default": "kling-2.6/image-to-video",
+						"description": "Name of the model used for the generation task. Required field.\n\n- This endpoint must use the `kling-2.6/image-to-video` model"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "Callback URL to receive notifications when the generation task is completed. Optional configuration, recommended for production environments.\n\n- After the task is completed, the system will POST the task status and results to this URL\n- The callback content includes the generated resource URL and task-related information\n- Your callback endpoint needs to support receiving POST requests with JSON payloads\n- You can also choose to call the task details endpoint to actively poll the task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"input": {
+						"type": "object",
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"description": "Text prompt (max 2,500 characters).",
+								"type": "string",
+								"maxLength": 2500
+							},
+							"image_urls": {
+								"description": "Image URLs for video generation. (Uploaded file URLs, not file content; supported types: image/jpeg, image/png; maximum file size: 10.0MB)",
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 1
+							},
+							"sound": {
+								"description": "Required. This parameter specifies whether the generated video contains sound (boolean: true/false)",
+								"type": "boolean"
+							},
+							"duration": {
+								"description": "Required. Video duration (unit: seconds)",
+								"type": "string",
+								"enum": ["5", "10"]
+							}
+						},
+						"required": ["prompt", "image_urls", "sound", "duration"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/kling-3-0.md",
+			"sha256": "5c94e307ab992912d00dfc95bf254fb3d982cb31266833f82506df47e6683f10",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["kling-3.0/video"],
+						"default": "kling-3.0/video",
+						"description": "The model name. Must be kling-3.0/video."
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"input": {
+						"type": "object",
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "Required when multi_shots is false. Up to 2,500 characters."
+							},
+							"image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "First and last frame image URLs. Optional; not required when using kling_elements. When multi_shots is false: if length is 2, index 0 is the first frame and index 1 is the last frame; if length is 1, the array item serves as the first frame. When multi_shots is true: only the first frame is supported."
+							},
+							"sound": {
+								"type": "boolean",
+								"description": "Required. Whether to generate audio (speech, sound effects, ambience) with the video. Affects price."
+							},
+							"duration": {
+								"type": "string",
+								"description": "Required. Video duration in seconds, 3–15 (string, e.g. \"5\"). In multi-shot mode, output length and billing follow the sum of multi_prompt[].duration (3–15 s); set duration to the same total.",
+								"enum": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"]
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"description": "Optional when image_urls is provided (the output follows the first frame's aspect ratio). For text-to-video, set it explicitly: 16:9, 9:16 or 1:1.",
+								"enum": ["16:9", "9:16", "1:1"]
+							},
+							"mode": {
+								"type": "string",
+								"description": "Required. Generation mode. std has standard resolution, pro has higher resolution, 4K has 4K resolution.\n\nResolution mapping:\n- **std mode**: 16:9 (1280×720), 9:16 (720×1280), 1:1 (720×720)\n- **pro mode**: 16:9 (1920×1080), 9:16 (1080×1920), 1:1 (1080×1080)\n- **4K mode**: 16:9 (3840×2160), 9:16 (2160×3840), 1:1 (2160×2160)",
+								"enum": ["std", "pro", "4K"]
+							},
+							"multi_shots": {
+								"type": "boolean",
+								"description": "Required. Whether to use multi-shot mode. true enables multi-shot mode, false enables single-shot mode."
+							},
+							"multi_prompt": {
+								"type": "array",
+								"description": "Shot prompts. Takes effect when multi_shots is true. Used to describe the text and duration of each shot. Supports up to 5 shots. Each shot duration is 1-12 seconds. If you need to use elements, add them after the prompt.",
+								"items": {
+									"type": "object",
+									"properties": {
+										"prompt": {
+											"type": "string",
+											"description": "Prompt text for this shot, a maximum of 500 characters per shot. Each @element will occupy 37 characters.",
+											"maxLength": 500
+										},
+										"duration": {
+											"type": "integer",
+											"description": "Duration of this shot in seconds. Range: 1-12.",
+											"minimum": 1,
+											"maximum": 12
+										}
+									},
+									"required": ["prompt", "duration"]
+								}
+							},
+							"kling_elements": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"name": {
+											"type": "string",
+											"description": "Element name, used in prompt with @ prefix (e.g., @element_dog)"
+										},
+										"description": {
+											"type": "string",
+											"description": "Element description"
+										},
+										"element_input_urls": {
+											"type": "array",
+											"items": {
+												"type": "string",
+												"format": "uri"
+											},
+											"description": "Either 2–4 images (JPG/PNG, up to 10 MB each) or 1 video (MP4/MOV)."
+										},
+										"element_input_audio_urls": {
+											"type": "array",
+											"items": {
+												"type": "string",
+												"format": "uri"
+											},
+											"description": "Optional. List of audio material URLs for characters. The audio duration must be between 5 and 30 seconds."
+										},
+										"start_time": {
+											"type": "integer",
+											"description": "Start time for video character material capture (in milliseconds). Only effective when uploading videos through element_input_urls. If not uploaded, it defaults to 0."
+										},
+										"end_time": {
+											"type": "integer",
+											"description": "End time for video character material capture (in milliseconds). Only effective when uploading videos through element_input_urls. Must be greater than start_time, and the difference between end_time and start_time must be within 3000 to 8000 milliseconds."
+										}
+									},
+									"required": ["name", "description", "element_input_urls"]
+								},
+								"description": "Referenced elements. Detailed information about elements referenced in the prompt. A single task can reference a maximum of three elements.",
+								"maxItems": 3
+							}
+						},
+						"required": ["sound", "duration", "mode", "multi_shots"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/text-to-video.md",
+			"sha256": "d070b9a887538ce3827cb62bd3881b296925fa6bf24f8b126ab8dcd9227bce7b",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["kling-2.6/text-to-video"],
+						"default": "kling-2.6/text-to-video",
+						"description": "Name of the model used for the generation task. Required field.\n\n- This endpoint must use the `kling-2.6/text-to-video` model"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "Callback URL to receive notifications when the generation task is completed. Optional configuration, recommended for production environments.\n\n- After the task is completed, the system will POST the task status and results to this URL\n- The callback content includes the generated resource URL and task-related information\n- Your callback endpoint must support receiving POST requests with JSON payloads\n- You can also choose to call the task details endpoint to actively poll the task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"input": {
+						"type": "object",
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"description": "Text prompt (max 2,500 characters).",
+								"type": "string",
+								"maxLength": 2500
+							},
+							"sound": {
+								"description": "Required. This parameter specifies whether the generated video contains sound (boolean: true/false)",
+								"type": "boolean"
+							},
+							"aspect_ratio": {
+								"description": "Required. This parameter defines the video aspect ratio",
+								"type": "string",
+								"enum": ["1:1", "16:9", "9:16"]
+							},
+							"duration": {
+								"description": "Required. Video duration (unit: seconds)",
+								"type": "string",
+								"enum": ["5", "10"]
+							}
+						},
+						"required": ["prompt", "sound", "aspect_ratio", "duration"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/v3-turbo-image-to-video.md",
+			"sha256": "e5d92909bb59fd549007c75c015358e67767764964d743b74fb9bff8ce7dd6cc",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"description": "The model name to use for generation. Required field.\n\n- Must be `kling/v3-turbo-image-to-video` for this endpoint",
+						"enum": ["kling/v3-turbo-image-to-video"],
+						"default": "kling/v3-turbo-image-to-video"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"input": {
+						"type": "object",
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "The text prompt describing the video to generate (Max length: 2500 characters)",
+								"maxLength": 2500
+							},
+							"image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"description": "Required. URL of the image to be used for the video (File URL after upload, not file content; Accepted types: image/jpeg, image/png; Max size: 10.0MB)"
+							},
+							"duration": {
+								"type": "string",
+								"description": "Required. The duration of the generated video in seconds\nOptional duration: 3s - 15s"
+							},
+							"resolution": {
+								"type": "string",
+								"description": "Required. Resolution of the generated video (720p or 1080p)",
+								"enum": ["720p", "1080p"]
+							}
+						},
+						"required": ["prompt", "image_urls", "duration", "resolution"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/v3-turbo-text-to-video.md",
+			"sha256": "ff74212a665c2275bb9559a5b608004aefbb6981660b01a721f9179786d00764",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"description": "The model name to use for generation. Required field.\n\n- Must be `kling/v3-turbo-text-to-video` for this endpoint",
+						"enum": ["kling/v3-turbo-text-to-video"],
+						"default": "kling/v3-turbo-text-to-video"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri",
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"input": {
+						"type": "object",
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "The text description of the video you want to generate (Max length: 2500 characters)",
+								"maxLength": 2500
+							},
+							"duration": {
+								"type": "string",
+								"description": "Required. The duration of the generated video in seconds\nOptional duration: 3s - 15s"
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"description": "Required. The aspect ratio of the generated video frame",
+								"enum": ["1:1", "9:16", "16:9"]
+							},
+							"resolution": {
+								"type": "string",
+								"description": "Required. Resolution of the generated video (720p or 1080p)",
+								"enum": ["720p", "1080p"]
+							}
+						},
+						"required": ["prompt", "duration", "aspect_ratio", "resolution"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/minimax-h3/image-to-video.md",
+			"sha256": "89ee984348a58118703376dada11045b9b645adea3da69f22f3046fc1bb6f8b0",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"description": "The name of the model used for the generation task. Used for MiniMax H3 image-to-video.",
+						"enum": ["minimax-h3/image-to-video"],
+						"default": "minimax-h3/image-to-video"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"description": "The callback URL after the task is completed.",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"required": ["prompt", "duration"],
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "Video generation prompt, length is between 1 and 7000 characters.",
+								"minLength": 1,
+								"maxLength": 7000
+							},
+							"first_frame_url": {
+								"type": "string",
+								"description": "First frame image URL. Note: Either first_frame_url or last_frame_url must be provided. Publicly accessible HTTP(S) URL; supports JPG, JPEG, PNG, WEBP, HEIC, HEIF formats; single image size not exceeding 30 MB, image side length between 256 and 5760 pixels, aspect ratio between 0.4 and 2.5.",
+								"pattern": "^(https?|oss)://",
+								"format": "uri"
+							},
+							"last_frame_url": {
+								"type": "string",
+								"description": "Last frame image URL. Note: Either first_frame_url or last_frame_url must be provided. Image restrictions are the same as first_frame_url.",
+								"pattern": "^(https?|oss)://",
+								"format": "uri"
+							},
+							"duration": {
+								"type": "integer",
+								"description": "Generated video duration, supporting integer values from 4 to 15 seconds.",
+								"enum": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+								"default": 6,
+								"minimum": 4,
+								"maximum": 15
+							},
+							"resolution": {
+								"type": "string",
+								"description": "Video resolution.",
+								"enum": ["768P", "2K"],
+								"default": "2K"
+							}
+						},
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "string"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/minimax-h3/text-to-video.md",
+			"sha256": "87fd105517c845260a2fe8524cef3b1a8e9f41a7966938d6712fba0c18875163",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"description": "The name of the model used for the generation task. Used for MiniMax H3 text-to-video.",
+						"enum": ["minimax-h3/text-to-video"],
+						"default": "minimax-h3/text-to-video"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"description": "The callback URL after the task is completed.",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"required": ["prompt", "aspect_ratio", "duration"],
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "Video generation prompt, length is between 1 and 7000 characters.",
+								"minLength": 1,
+								"maxLength": 7000
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"description": "Video aspect ratio. Required for text-to-video, adaptive is not supported.",
+								"enum": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+							},
+							"duration": {
+								"type": "integer",
+								"description": "Generated video duration, supports integer values from 4 to 15 seconds.",
+								"enum": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+								"default": 6,
+								"minimum": 4,
+								"maximum": 15
+							},
+							"resolution": {
+								"type": "string",
+								"description": "Video resolution.",
+								"enum": ["768P", "2K"],
+								"default": "2K"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/veo3-api/generate-veo-3-video.md",
+			"sha256": "19baebf9b838fc81804729487dc2cb799c8cb8bcd88335e84779b0688531959f",
+			"endpoint": "/api/v1/jobs/createTask",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"properties": {
+					"model": {
+						"type": "string",
+						"description": "Must be \"veo-3-1\". Use input.model to choose the Fast / Lite / Quality tier.",
+						"default": "veo-3-1",
+						"enum": ["veo-3-1"]
+					},
+					"callBackUrl": {
+						"type": "string",
+						"description": "Completion callback URL for receiving video generation status updates.\n\n- Optional but recommended for production use\n- System will POST task completion status to this URL when the video generation is completed\n- Callback will include task results, video URLs, and status information\n- Your callback endpoint should accept POST requests with JSON payload\n- For detailed callback format and implementation guide, see [Callback Documentation](https://docs.kie.ai/veo3-api/generate-veo-3-video-callbacks)\n- Alternatively, poll Get Task Details (/market/common/get-task-detail).\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "Text prompt describing the desired video content. Required for all generation modes.\n\n- Should be detailed and specific in describing video content\n- Can include actions, scenes, style and other information\n- For image-to-video, describe how you want the image to come alive"
+							},
+							"model": {
+								"type": "string",
+								"enum": ["veo3_fast", "veo3_lite", "veo3"],
+								"default": "veo3_fast",
+								"description": "Veo 3.1 tier: \"veo3_fast\" (default), \"veo3_lite\" or \"veo3\" (Quality). The top-level model stays \"veo-3-1\". REFERENCE_2_VIDEO supports veo3_fast and veo3_lite."
+							},
+							"image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								},
+								"description": "Image URLs. FIRST_AND_LAST_FRAMES_2_VIDEO: 1 image (first frame) or 2 images (first + last frame). REFERENCE_2_VIDEO: 1–3 reference images, 8-second duration only."
+							},
+							"generation_type": {
+								"type": "string",
+								"description": "Video generation mode (optional). Specifies different video generation approaches:\n\n- **TEXT_2_VIDEO**: Text-to-video - Generate videos using only text prompts\n- **FIRST_AND_LAST_FRAMES_2_VIDEO**: First and last frames to video - Flexible image-to-video generation mode\n  - 1 image: Generate video based on the provided image\n  - 2 images: First image as first frame, second image as last frame, generating transition video\n- **REFERENCE_2_VIDEO**: Reference-to-video - Generate videos based on reference images, requires 1-3 images in imageUrls (minimum 1, maximum 3)\n\n**Important Notes**:\n- REFERENCE_2_VIDEO mode currently supports the veo3_fast and veo3_lite models.\n- If not specified, the system will automatically determine the generation mode based on whether imageUrls are provided",
+								"enum": ["TEXT_2_VIDEO", "FIRST_AND_LAST_FRAMES_2_VIDEO", "REFERENCE_2_VIDEO"]
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"description": "Video aspect ratio. Specifies the dimension ratio of the generated video. Available options:\n\n- 16:9: Landscape video format. \n- 9:16: Portrait video format, suitable for mobile short videos\n- Auto: In auto mode, the video will be automatically center-cropped based on whether your uploaded image is closer to 16:9 or 9:16.\n\nDefault value is 16:9.",
+								"enum": ["16:9", "9:16", "Auto"],
+								"default": "16:9"
+							},
+							"enable_fallback": {
+								"type": "boolean",
+								"description": "Deprecated. Remove it from requests.",
+								"default": false,
+								"deprecated": true
+							},
+							"enable_translation": {
+								"type": "boolean",
+								"description": "Optional. When true, the prompt is translated to English before generation."
+							},
+							"watermark": {
+								"type": "string",
+								"description": "Watermark text.\n\n- Optional parameter\n- If provided, a watermark will be added to the generated video"
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["720p", "1080p", "4k"],
+								"default": "720p",
+								"description": "Output resolution: 720p (default), 1080p or 4k. For 1080p and 4k, the video URL is in resultJson.data.result_urls (the 720p version is in data.origin_urls). Controls the pixel dimensions of the generated video. Higher resolution results in greater clarity and detail, while lower resolution allows for faster generation."
+							},
+							"duration": {
+								"type": "integer",
+								"description": "The duration of the generated video, in seconds. Optional values are 4, 6, 8.\n**Important Note**:\n- The REFERENCE_2_VIDEO mode currently only supports a duration of 8 seconds.",
+								"enum": [4, 6, 8],
+								"default": 8
+							}
+						},
+						"required": ["prompt"]
+					}
+				},
+				"required": ["model", "input"]
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/old-model/veo3-api/generate-veo-3-video.md",
+			"sha256": "b67250f9ad50897d87efec66b4c0a7d02fcf479d835a364683b1208d608b3d1d",
+			"endpoint": "/api/v1/veo/generate",
+			"method": "post",
+			"request": {
+				"type": "object",
+				"properties": {
+					"prompt": {
+						"type": "string",
+						"description": "Text prompt describing the desired video content. Required for all generation modes.\n\n- Should be detailed and specific in describing video content\n- Can include actions, scenes, style and other information\n- For image-to-video, describe how you want the image to come alive"
+					},
+					"imageUrls": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						},
+						"description": "Image URL list (used in image-to-video mode). Supports 1 or 2 images:\n\n- **1 image**: The generated video will unfold around this image, with the image content presented dynamically\n- **2 images**: The first image serves as the video's first frame, and the second image serves as the video's last frame, with the video transitioning between them\n- Must be valid image URLs\n- Images must be accessible to the API server."
+					},
+					"model": {
+						"type": "string",
+						"description": "Select the model type to use.\n\n- veo3: Veo 3.1 Quality, supports both text-to-video and image-to-video generation\n- veo3_fast: Veo3.1 Fast generation model, supports both text-to-video、image-to-video and materials-to-video generation\n- veo3_lite: Veo3.1 Lite generation model, supports both text-to-video、image-to-video and materials-to-video generation",
+						"enum": ["veo3", "veo3_fast", "veo3_lite"],
+						"default": "veo3_fast"
+					},
+					"generationType": {
+						"type": "string",
+						"description": "Video generation mode (optional). Specifies different video generation approaches:\n\n- **TEXT_2_VIDEO**: Text-to-video - Generate videos using only text prompts\n- **FIRST_AND_LAST_FRAMES_2_VIDEO**: First and last frames to video - Flexible image-to-video generation mode\n  - 1 image: Generate video based on the provided image\n  - 2 images: First image as first frame, second image as last frame, generating transition video\n- **REFERENCE_2_VIDEO**: Reference-to-video - Generate videos based on reference images, requires 1-3 images in imageUrls (minimum 1, maximum 3)\n\n**Important Notes**:\n- REFERENCE_2_VIDEO mode currently supports the veo3_fast and veo3_lite models.\n- If not specified, the system will automatically determine the generation mode based on whether imageUrls are provided",
+						"enum": ["TEXT_2_VIDEO", "FIRST_AND_LAST_FRAMES_2_VIDEO", "REFERENCE_2_VIDEO"]
+					},
+					"aspect_ratio": {
+						"type": "string",
+						"description": "Video aspect ratio. Specifies the dimension ratio of the generated video. Available options:\n\n- 16:9: Landscape video format. \n- 9:16: Portrait video format, suitable for mobile short videos\n- Auto: In auto mode, the video will be automatically center-cropped based on whether your uploaded image is closer to 16:9 or 9:16.\n\nDefault value is 16:9.",
+						"enum": ["16:9", "9:16", "Auto"],
+						"default": "16:9"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"description": "Completion callback URL for receiving video generation status updates.\n\n- Optional but recommended for production use\n- System will POST task completion status to this URL when the video generation is completed\n- Callback will include task results, video URLs, and status information\n- Your callback endpoint should accept POST requests with JSON payload\n- For detailed callback format and implementation guide, see [Callback Documentation](https://docs.kie.ai/veo3-api/generate-veo-3-video-callbacks)\n- Alternatively, use the Get Video Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation"
+					},
+					"enableFallback": {
+						"type": "boolean",
+						"description": "Deprecated Enable fallback functionality. When set to true, if the official Veo3.1 video generation service is unavailable or encounters exceptions, the system will automatically switch to a backup model for video generation to ensure task continuity and reliability. Default value is false.\n\n- When fallback is enabled, backup model will be used for the following errors:\n  - public error minor upload\n  - Your prompt was flagged by Website as violating content policies\n  - public error prominent people upload\n- Fallback mode requires 16:9 aspect ratio and uses 1080p resolution by default\n- **Note**: Videos generated through fallback mode cannot be accessed via the Get 1080P Video endpoint\n- **Credit Consumption**: Successful fallback has different credit consumption, please see https://kie.ai/pricing for pricing details\n\n**Note: This parameter is deprecated. Please remove this parameter from your requests. The system has automatically optimized the content review mechanism without requiring manual fallback configuration.**",
+						"default": false,
+						"deprecated": true
+					},
+					"enableTranslation": {
+						"type": "boolean",
+						"description": "Enable prompt translation to English. When set to true, the system will automatically translate prompts to English before video generation for better generation results. Default value is true.\n\n- true: Enable translation, prompts will be automatically translated to English\n- false: Disable translation, use original prompts directly for generation",
+						"default": false
+					},
+					"watermark": {
+						"type": "string",
+						"description": "Watermark text.\n\n- Optional parameter\n- If provided, a watermark will be added to the generated video"
+					},
+					"resolution": {
+						"type": "string",
+						"enum": ["720p", "1080p", "4k"],
+						"default": "720p",
+						"description": "Controls the pixel dimensions of the generated image. Higher resolution results in greater clarity and detail, while lower resolution allows for faster generation."
+					},
+					"duration": {
+						"type": "integer",
+						"description": "The duration of the generated video, in seconds. Optional values are 4, 6, 8.\n**Important Note**:\n- The REFERENCE_2_VIDEO mode currently only supports a duration of 8 seconds.",
+						"enum": [4, 6, 8],
+						"default": 8
+					}
+				},
+				"required": ["prompt"]
+			}
+		}
+	]
+}

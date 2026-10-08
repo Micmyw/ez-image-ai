@@ -1686,7 +1686,11 @@
 			"loading": "Cargando modelos disponibles…",
 			"unavailable": "Los modelos no están disponibles ahora. Puedes seguir preparando tu edición.",
 			"modelUnavailable": "El modelo solicitado no está disponible. Elige uno disponible para continuar.",
-			"title": "Generador y editor de imágenes con IA"
+			"title": "Generador y editor de imágenes con IA",
+			"videos": "Vídeo con IA",
+			"videoGenerator": "Generador de vídeo con IA",
+			"videoGeneratorDescription": "Anima un prompt o una imagen de referencia.",
+			"videoGuide": "Guía de generación de vídeo"
 		},
 		"generation": {
 			"referencePending": "Termina de subir la referencia, reinténtalo o elimínala para generar desde texto.",
@@ -1906,7 +1910,7 @@
 			"RELEASED": "{credits} créditos liberados"
 		},
 		"errors": {
-			"promptLength": "Usa la longitud de instrucción permitida para el modelo seleccionado.",
+			"promptLength": "Respeta el límite de caracteres del modelo y las 10.000 unidades de texto; algunos caracteres usan dos unidades.",
 			"imageRequired": "Primero sube y protege una imagen de referencia.",
 			"invalidImage": "Elige una imagen JPEG, PNG o WebP.",
 			"imageTooLarge": "La imagen supera el tamaño permitido o está vacía.",
@@ -1920,7 +1924,8 @@
 			"unauthorized": "Esta acción no está disponible para esta cuenta. Inicia sesión de nuevo si caducó.",
 			"network": "Se interrumpió la respuesta. Usa «Consultar la misma solicitud» para recuperar la tarea original.",
 			"unavailable": "No se pudo confirmar la solicitud. Si hay una confirmación pendiente, consúltala antes de iniciar otra.",
-			"unsupportedSelection": "Elige una combinación compatible de modelo y ajustes."
+			"unsupportedSelection": "Elige una combinación compatible de modelo y ajustes.",
+			"promptRequired": "Introduce una descripción"
 		},
 		"model": "Modelo de vídeo",
 		"duration": "Duración",
@@ -1943,14 +1948,20 @@
 		"referenceReady": "Referencia lista",
 		"referenceUnused": "No se usa en modo texto",
 		"signInToGenerate": "Inicia sesión para generar",
-		"signInHint": "Inicia sesión para subir una referencia y consultar el coste. Se conservará tu borrador de vídeo.",
+		"signInHint": "Inicia sesión para ver el coste en créditos y subir una referencia. Se conservará tu borrador de vídeo.",
 		"retryAccess": "Reintentar disponibilidad",
 		"draftStorageUnavailable": "El almacenamiento del navegador no está disponible. Mantén esta página abierta para conservar tu borrador y las confirmaciones pendientes.",
 		"modelFamilies": "Familias de modelos",
 		"durationRange": "{min}–{max} s",
 		"soundOptional": "Audio opcional",
 		"quantity": "Cantidad",
-		"oneVideo": "1 vídeo"
+		"oneVideo": "1 vídeo",
+		"generate": "Generar · {credits} créditos",
+		"priceLoading": "Cargando precio…",
+		"priceUnavailable": "Precio no disponible",
+		"priceChanged": "La cotización actual difiere del precio mostrado. Confirma el nuevo coste para generar.",
+		"promptSafetyCount": "Tamaño del texto: {count} / 10.000 unidades (algunos caracteres usan dos).",
+		"referenceRequired": "Primero sube y asegura una imagen de referencia."
 	},
 	"videoEffects": {
 		"sample": "Ejemplo verificado",

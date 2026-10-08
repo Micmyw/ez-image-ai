@@ -19,14 +19,14 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 		],
 	},
 	{
-		id: "tools",
-		labelKey: "studio.tools.imageTools",
+		id: "video",
+		labelKey: "studio.tools.videos",
 		links: [
 			{
-				href: "/photo-to-coloring-page",
-				labelKey: "coloring.name",
-				descriptionKey: "coloring.navigationDescription",
-				icon: "image",
+				href: "/create?mode=video",
+				labelKey: "studio.tools.videoGenerator",
+				descriptionKey: "studio.tools.videoGeneratorDescription",
+				icon: "video",
 			},
 			{
 				href: "/video-effects/hotel-lobby-ai",
@@ -39,6 +39,23 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 				labelKey: "videoEffects.raindanceName",
 				descriptionKey: "videoEffects.raindanceNavigationDescription",
 				icon: "examples",
+			},
+			{
+				href: "/docs/video-beta",
+				labelKey: "studio.tools.videoGuide",
+				icon: "book",
+			},
+		],
+	},
+	{
+		id: "tools",
+		labelKey: "studio.tools.imageTools",
+		links: [
+			{
+				href: "/photo-to-coloring-page",
+				labelKey: "coloring.name",
+				descriptionKey: "coloring.navigationDescription",
+				icon: "image",
 			},
 		],
 	},

@@ -95,6 +95,29 @@ beforeEach(() => {
 	vi.mocked(findExistingVideoAdmission).mockResolvedValue(null);
 });
 describe("video admission pricing and paid funding binding", () => {
+	it("rejects a new historical Kling image ratio but replays its accepted receipt before current admission", async () => {
+		const request = {
+			...legacyRequest,
+			productKey: "video-kling-3",
+			mode: "image-to-video" as const,
+			resolution: "720p",
+			aspectRatio: "9:16",
+			inputAssetId: "old-sealed-image",
+		};
+		const owner = { userId: "registered-user", role: "user" };
+		expect(() => requireVideoAdmission(owner, environment, bindings, request)).toThrow(
+			"VIDEO_MODEL_OPTION_UNAVAILABLE",
+		);
+		vi.mocked(findExistingVideoAdmission).mockResolvedValue({ id: "job-1" } as never);
+		const result = await createVideoJob(
+			owner,
+			{ quoteId: "old-quote", idempotencyKey: "old-key", request },
+			options,
+		);
+		expect(result.jobId).toBe("job-1");
+		expect(createVideoJobRecord).not.toHaveBeenCalled();
+		expect(resolveVideoModelPrice).not.toHaveBeenCalled();
+	});
 	it.each([
 		{ userId: "registered-user", role: "user" },
 		{ userId: "funding-test-operator", role: "admin" },

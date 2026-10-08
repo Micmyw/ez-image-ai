@@ -145,7 +145,7 @@ export const VIDEO_MODEL_CATALOG: readonly VideoModelDefinition[] = [
 		extendedRatios,
 		[...extendedRatios, "adaptive"],
 		"toggle",
-		30000,
+		20480,
 	),
 	model(
 		"video-seedance-2-mini",
@@ -226,7 +226,7 @@ export const VIDEO_MODEL_CATALOG: readonly VideoModelDefinition[] = [
 		range(3, 15),
 		["720p", "1080p", "4k"],
 		standardRatios,
-		[...standardRatios, "source"],
+		["source"],
 		"toggle",
 		1000,
 	),
@@ -310,7 +310,8 @@ export function validateVideoModelSelection(selection: VideoModelSelection): boo
 	);
 }
 
-export const videoModelInputSchema = z
+/** Narrow compatibility parser for immutable receipts and already admitted provider jobs. */
+export const videoModelReceiptInputSchema = z
 	.object({
 		productKey: z.string().min(1).max(100),
 		mode: z.enum(["text-to-video", "image-to-video"]),
@@ -323,7 +324,12 @@ export const videoModelInputSchema = z
 	})
 	.strict()
 	.superRefine((input, ctx) => {
-		if (!validateVideoModelSelection(input))
+		const historicalKlingImage =
+			input.productKey === "video-kling-3" &&
+			input.mode === "image-to-video" &&
+			standardRatios.includes(input.aspectRatio) &&
+			validateVideoModelSelection({ ...input, aspectRatio: "source" });
+		if (!validateVideoModelSelection(input) && !historicalKlingImage)
 			ctx.addIssue({ code: "custom", message: "VIDEO_MODEL_SELECTION_UNSUPPORTED" });
 		const entry = getVideoModel(input.productKey);
 		const length = Array.from(input.prompt).length;
@@ -336,4 +342,10 @@ export const videoModelInputSchema = z
 				message: "VIDEO_INPUT_ASSET_MODE_MISMATCH",
 			});
 	});
+
+/** New quotes and admissions use only today's documented capability intersection. */
+export const videoModelInputSchema = videoModelReceiptInputSchema.refine(
+	validateVideoModelSelection,
+	{ message: "VIDEO_MODEL_SELECTION_UNSUPPORTED" },
+);
 export type VideoModelInput = z.infer<typeof videoModelInputSchema>;

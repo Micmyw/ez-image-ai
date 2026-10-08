@@ -6,6 +6,13 @@ import { getVideoModelOptions, VIDEO_MODEL_CATALOG } from "@repo/config/video-mo
 const evidence = path.resolve(__dirname, "../../../output/playwright");
 type State = {
 	signedIn: boolean;
+	ownerId: string;
+	quoteCredits: string;
+	quoteExpired: boolean;
+	catalogAvailable: boolean;
+	quoteGate?: Promise<void>;
+	sealError: boolean;
+	uploads: number;
 	creates: any[];
 	quotes: any[];
 	loseFirst: boolean;
@@ -14,7 +21,19 @@ type State = {
 	sealGate?: Promise<void>;
 };
 async function setup(page: Page, signedIn = true) {
-	const state: State = { signedIn, creates: [], quotes: [], loseFirst: false, createError: null };
+	const state: State = {
+		signedIn,
+		ownerId: "ui-owner",
+		quoteCredits: "23",
+		quoteExpired: false,
+		catalogAvailable: true,
+		sealError: false,
+		uploads: 0,
+		creates: [],
+		quotes: [],
+		loseFirst: false,
+		createError: null,
+	};
 	const product = {
 		key: "image-nano-banana-2-lite",
 		label: "Nano Banana 2 Lite",
@@ -49,12 +68,12 @@ async function setup(page: Page, signedIn = true) {
 					? {
 							session: {
 								id: "ui-session",
-								userId: "ui-owner",
+								userId: state.ownerId,
 								token: "ui-only",
 								expiresAt: new Date(Date.now() + 3600000).toISOString(),
 							},
 							user: {
-								id: "ui-owner",
+								id: state.ownerId,
 								email: "ui@localhost",
 								name: "UI Reviewer",
 								emailVerified: true,
@@ -102,12 +121,12 @@ async function setup(page: Page, signedIn = true) {
 		};
 		if (endpoint === "catalog")
 			return reply({
-				available: true,
+				available: state.catalogAvailable,
 				accessAllowed: true,
 				maxInputBytes: 10485760,
 				models: VIDEO_MODEL_CATALOG.map((model) => ({
 					productKey: model.productKey,
-					available: model.status === "implemented",
+					available: state.catalogAvailable && model.status === "implemented",
 					reasons: [],
 					options: model.modes.flatMap((mode) => [
 						...new Map(
@@ -119,8 +138,16 @@ async function setup(page: Page, signedIn = true) {
 										duration,
 										resolution,
 										sound,
-										available: true,
-										credits: "23",
+										available: state.catalogAvailable,
+										credits: sound
+											? "57"
+											: duration === 10
+												? "41"
+												: resolution === "1080p"
+													? "37"
+													: model.productKey === "video-seedance-2-5"
+														? "29"
+														: "23",
 										reasons: [],
 									},
 								],
@@ -131,10 +158,11 @@ async function setup(page: Page, signedIn = true) {
 			});
 		if (endpoint === "quote") {
 			state.quotes.push(body);
+			await state.quoteGate;
 			return reply({
 				quoteId: `ui-quote-${state.quotes.length}`,
-				credits: "23",
-				expiresAt: new Date(Date.now() + 60000).toISOString(),
+				credits: state.quoteCredits,
+				expiresAt: new Date(Date.now() + (state.quoteExpired ? -1000 : 60000)).toISOString(),
 				requestFingerprint: "ui-only",
 			});
 		}
@@ -159,18 +187,35 @@ async function setup(page: Page, signedIn = true) {
 		}
 		if (endpoint === "jobs/get") return reply(job);
 		if (endpoint === "jobs/list") return reply({ items: [job], nextCursor: null });
-		if (endpoint === "uploads/create")
+		if (endpoint === "uploads/create") {
+			state.uploads++;
 			return reply({
-				sessionId: "ui-upload",
+				sessionId: `ui-upload-${state.uploads}`,
 				assetId: "ui-asset",
 				uploadUrl: url.origin + "/__video-ui-upload",
 				method: "PUT",
 				expiresAt: new Date(Date.now() + 60000).toISOString(),
 			});
+		}
 		if (endpoint === "uploads/complete") {
 			await state.sealGate;
+			if (state.sealError)
+				return route.fulfill({
+					status: 400,
+					json: {
+						json: {
+							defined: false,
+							code: "BAD_REQUEST",
+							status: 400,
+							message: "VIDEO_INPUT_REJECTED",
+						},
+					},
+				});
 			return reply({
-				assetId: "ui-asset",
+				assetId:
+					body.sessionId === "ui-upload-1"
+						? "ui-asset"
+						: `ui-asset-${body.sessionId.split("-").at(-1)}`,
 				status: "VERIFYING",
 				uploadStatus: "COMPLETED",
 				moderationStatus: "PENDING",
@@ -191,11 +236,166 @@ async function mode(page: Page, value: "image" | "video") {
 		.click();
 	await expect(page.locator(`[data-generator-panel="${value}"]`)).toBeVisible();
 }
-async function quote(page: Page) {
+async function reviewChangedPrice(page: Page, state: State) {
+	state.quoteCredits = "29";
 	await page.locator("#video-prompt").fill("A slow camera above a quiet lake at golden hour.");
-	await page.locator('[data-test="video-quote"]').click();
-	await expect(page.locator('[data-test="video-confirm"]')).toContainText("23 credits");
+	await page.locator('[data-test="video-generate"]').click();
+	await expect(page.locator('[data-test="video-confirm"]')).toContainText("29 credits");
 }
+
+test("upfront backend price needs no prompt or quote, blank prompt is explicit, same-price generation is single-click", async ({
+	page,
+}) => {
+	const state = await setup(page);
+	await page.goto("/create?mode=video");
+	const generate = page.locator('[data-test="video-generate"]');
+	await expect(generate).toHaveText("Generate · 23 credits");
+	await expect(page.locator("#video-prompt")).toHaveValue("");
+	expect(state.quotes).toHaveLength(0);
+	await generate.click();
+	await expect(page.locator('[data-test="video-workspace"]').getByRole("alert")).toHaveText(
+		"Enter a description",
+	);
+	expect(state.quotes).toHaveLength(0);
+	expect(state.creates).toHaveLength(0);
+	await page.locator('[data-test="video-settings-trigger"]').click();
+	await page.getByRole("radio", { name: "10 seconds", exact: true }).check();
+	await page.keyboard.press("Escape");
+	await expect(generate).toHaveText("Generate · 41 credits");
+	expect(state.quotes).toHaveLength(0);
+	state.quoteCredits = "41";
+	await page.locator("#video-prompt").fill("A slow camera above a quiet lake.");
+	await generate.evaluate((button) => {
+		(button as HTMLButtonElement).click();
+		(button as HTMLButtonElement).click();
+	});
+	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+	expect(state.quotes).toHaveLength(1);
+	expect(state.creates).toHaveLength(1);
+	expect(state.creates[0].request).toMatchObject({
+		duration: 10,
+		prompt: "A slow camera above a quiet lake.",
+	});
+});
+
+test("reference errors and reload retain image intent, explicit remove restores text and cancels a stale seal", async ({
+	page,
+}) => {
+	const state = await setup(page);
+	await page.goto("/create?mode=video");
+	await expect(page.locator("#video-mode")).toHaveCount(0);
+	await page.locator("#video-prompt").fill("Keep the reference and animate it.");
+	await page
+		.locator("#video-image")
+		.setInputFiles({ name: "bad.txt", mimeType: "text/plain", buffer: Buffer.from("bad") });
+	await expect(page.locator("#video-upload-status").getByRole("alert")).toContainText("JPEG");
+	await page.locator('[data-test="video-generate"]').click();
+	await expect(page.locator('[data-test="video-workspace"]')).toContainText(
+		"Upload and secure one reference image",
+	);
+	expect(state.creates).toHaveLength(0);
+	await page.reload();
+	await expect(
+		page.getByLabel("Describe movement and camera direction", { exact: true }),
+	).toHaveValue("Keep the reference and animate it.");
+	await expect(page.locator('[data-test="video-workspace"]')).toContainText(
+		"Upload and secure one reference image",
+	);
+	let release!: () => void;
+	state.sealGate = new Promise((resolve) => {
+		release = resolve;
+	});
+	await page.locator("#video-image").setInputFiles(referenceFile());
+	await expect(page.locator("#video-upload-status")).toContainText("Verifying");
+	await expect(page.locator('[data-test="video-generate"]')).toBeDisabled();
+	await page.getByRole("button", { name: "Remove image", exact: true }).click();
+	release();
+	await expect(page.getByLabel("Describe your video", { exact: true })).toBeVisible();
+	await page.locator('[data-test="video-generate"]').click();
+	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+	expect(state.creates[0].request).toMatchObject({ mode: "text-to-video" });
+	expect(state.creates[0].request).not.toHaveProperty("inputAssetId");
+});
+
+function referenceFile() {
+	return {
+		name: "reference.png",
+		mimeType: "image/png",
+		buffer: Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==",
+			"base64",
+		),
+	};
+}
+
+test("model, resolution and audio changes show the exact catalog price with an empty prompt", async ({
+	page,
+}) => {
+	const state = await setup(page);
+	await page.goto("/create?mode=video");
+	await page.locator("#video-model").click();
+	await page.getByRole("button", { name: "Seedance", exact: true }).click();
+	await page.getByRole("button", { name: "Seedance 2.5", exact: true }).click();
+	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 29 credits");
+	await page.locator('[data-test="video-settings-trigger"]').click();
+	await page.getByRole("radio", { name: "1080P", exact: true }).check();
+	await page.keyboard.press("Escape");
+	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 37 credits");
+	await page.getByRole("switch", { name: "Audio", exact: true }).click();
+	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 57 credits");
+	await expect(page.locator("#video-prompt")).toHaveValue("");
+	expect(state.quotes).toHaveLength(0);
+	expect(state.creates).toHaveLength(0);
+});
+
+test("replacing an in-flight reference ignores the first upload's late completion", async ({
+	page,
+}) => {
+	const state = await setup(page);
+	let release!: () => void;
+	state.sealGate = new Promise((resolve) => {
+		release = resolve;
+	});
+	await page.goto("/create?mode=video");
+	await page.locator("#video-prompt").fill("Animate the replacement reference.");
+	await page.locator("#video-image").setInputFiles(referenceFile());
+	await expect(page.locator("#video-upload-status")).toContainText("Verifying");
+	state.sealGate = undefined;
+	await page.locator("#video-image").setInputFiles({ ...referenceFile(), name: "replacement.png" });
+	await expect(page.locator("#video-upload-status")).toContainText("Image secured");
+	release();
+	await page.locator('[data-test="video-generate"]').click();
+	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+	expect(state.creates[0].request).toMatchObject({
+		mode: "image-to-video",
+		inputAssetId: "ui-asset-2",
+	});
+	expect(state.creates).toHaveLength(1);
+});
+
+test("a quote resolved after leaving video is discarded and an expired quote never creates", async ({
+	page,
+}) => {
+	const state = await setup(page);
+	let release!: () => void;
+	state.quoteGate = new Promise((resolve) => {
+		release = resolve;
+	});
+	await page.goto("/create?mode=video");
+	await page.locator("#video-prompt").fill("A quiet lake at golden hour.");
+	await page.locator('[data-test="video-generate"]').click();
+	await expect.poll(() => state.quotes.length).toBe(1);
+	await mode(page, "image");
+	release();
+	await mode(page, "video");
+	await expect(page.locator('[data-test="video-generate"]')).toBeEnabled();
+	expect(state.creates).toHaveLength(0);
+	await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
+	state.quoteExpired = true;
+	await page.locator('[data-test="video-generate"]').click();
+	await expect(page.locator('[data-test="video-workspace"]')).toContainText("The quote expired");
+	expect(state.creates).toHaveLength(0);
+});
 test("desktop and mobile compact composer, accessible model and settings menus", async ({
 	page,
 }) => {
@@ -205,6 +405,12 @@ test("desktop and mobile compact composer, accessible model and settings menus",
 	await page.goto("/create?mode=video");
 	await expect(page.locator("#video-prompt")).toBeEnabled();
 	await page.getByRole("button", { name: "Decline optional", exact: true }).click();
+	await expect(page.locator('[data-test="video-generate"]')).toContainText("23 credits");
+	await expect(page.locator("#video-prompt")).toHaveValue("");
+	await page.screenshot({
+		animations: "disabled",
+		path: path.join(evidence, "ezimage-video-upfront-price.png"),
+	});
 	await page
 		.locator("#video-prompt")
 		.fill("A slow aerial shot over a quiet lake, warm morning light, natural motion.");
@@ -214,6 +420,12 @@ test("desktop and mobile compact composer, accessible model and settings menus",
 	});
 	await page.locator("#video-model").click();
 	await expect(page.locator('[data-test="video-model-menu"]')).toBeVisible();
+	await expect(page.locator(".video-model-families [data-model-icon]")).toHaveCount(5);
+	await expect(page.locator('.video-model-list [data-model-icon="kling"]')).toHaveCount(3);
+	await expect(page.getByRole("button", { name: "Kling 2.6", exact: true })).toContainText(
+		"5 seconds / 10 seconds",
+	);
+	await expect(page.locator('#video-model [data-model-icon="kling"]')).toBeVisible();
 	await page.screenshot({
 		animations: "disabled",
 		path: path.join(evidence, "ezimage-video-models.png"),
@@ -244,6 +456,126 @@ test("desktop and mobile compact composer, accessible model and settings menus",
 		);
 		await page.keyboard.press("Escape");
 	}
+});
+
+test("desktop and mobile video navigation exposes real destinations and preserves keyboard access", async ({
+	page,
+}) => {
+	await setup(page, false);
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	await page.goto("/create");
+	const menu = page.locator('[data-test="studio-video-menu"]');
+	await menu.focus();
+	await page.keyboard.press("Enter");
+	await expect(
+		page.getByRole("link", { name: "AI Video Generator", exact: false }).first(),
+	).toBeVisible();
+	await page.screenshot({
+		animations: "disabled",
+		path: path.join(evidence, "ezimage-video-navigation-desktop.png"),
+	});
+	await page.keyboard.press("Escape");
+	await expect(menu).toBeFocused();
+	await page.setViewportSize({ width: 390, height: 900 });
+	await page.locator('[data-test="header-navigation-trigger"]').click();
+	const group = page.locator(
+		'[data-test="header-navigation-drawer"] [data-navigation-group="video"]',
+	);
+	await group.locator("summary").click();
+	for (const href of [
+		"/create?mode=video",
+		"/video-effects/hotel-lobby-ai",
+		"/blog/raindance-ai-trend",
+		"/docs/video-beta",
+	]) {
+		await expect(group.locator(`a[href="${href}"]`)).toBeVisible();
+	}
+	await expect(group.locator('a[href*="rumpelstiltskin"]')).toHaveCount(0);
+	await page.screenshot({
+		animations: "disabled",
+		path: path.join(evidence, "ezimage-video-navigation-mobile-390.png"),
+	});
+	await page.setViewportSize({ width: 320, height: 900 });
+	await page.screenshot({
+		animations: "disabled",
+		path: path.join(evidence, "ezimage-video-navigation-mobile-320.png"),
+	});
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+	await group.locator('a[href="/create?mode=video"]').click();
+	await expect(page.locator('[data-test="header-navigation-drawer"]')).toBeHidden();
+	await expect(page.locator('[data-generator-panel="video"]')).toBeVisible();
+});
+
+test("logout and account changes isolate drafts and immutable receipts, including closed-catalog recovery", async ({
+	page,
+}) => {
+	const state = await setup(page);
+	state.loseFirst = true;
+	await page.goto("/create?mode=video");
+	await page.locator("#video-prompt").fill("Only account A may restore this request.");
+	await page.locator('[data-test="video-generate"]').click();
+	await expect(page.locator('[data-test="video-confirm"]')).toContainText("same request");
+	state.signedIn = false;
+	await page.reload();
+	await expect(
+		page.getByRole("button", { name: "Sign in to generate", exact: true }),
+	).toBeVisible();
+	await expect(page.locator("#video-prompt")).toHaveValue("");
+	await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
+	state.signedIn = true;
+	state.ownerId = "ui-owner-b";
+	await page.reload();
+	await expect(page.locator("#video-prompt")).toHaveValue("");
+	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 23 credits");
+	await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
+	state.ownerId = "ui-owner";
+	state.catalogAvailable = false;
+	await page.reload();
+	await expect(page.locator("#video-prompt")).toHaveValue(
+		"Only account A may restore this request.",
+	);
+	await page.locator('[data-test="video-confirm"]').click();
+	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+	expect(state.creates).toHaveLength(2);
+	expect(state.creates[1]).toEqual(state.creates[0]);
+	expect(state.quotes).toHaveLength(1);
+});
+
+test("a rejected reference upload blocks generation until reselected, and image-only models require an upload", async ({
+	page,
+}) => {
+	const state = await setup(page);
+	state.sealError = true;
+	await page.goto("/create?mode=video");
+	await page.locator("#video-prompt").fill("Animate my reference.");
+	await page.locator("#video-image").setInputFiles(referenceFile());
+	await expect(page.locator("#video-upload-status")).toContainText("could not be uploaded");
+	await page.locator('[data-test="video-generate"]').click();
+	expect(state.quotes).toHaveLength(0);
+	expect(state.creates).toHaveLength(0);
+	await page.locator("#video-model").click();
+	await page.getByRole("button", { name: "Seedance", exact: true }).click();
+	await page.getByRole("button", { name: "Seedance 1 Pro Fast", exact: true }).click();
+	await page.getByRole("button", { name: "Remove image", exact: true }).click();
+	await page.locator('[data-test="video-generate"]').click();
+	await expect(page.locator("#video-model")).toHaveAttribute(
+		"data-product-key",
+		"video-seedance-1-pro-fast",
+	);
+	await expect(
+		page.getByLabel("Describe movement and camera direction", { exact: true }),
+	).toBeVisible();
+	expect(state.creates).toHaveLength(0);
+	state.sealError = false;
+	await page.locator("#video-image").setInputFiles(referenceFile());
+	await expect(page.locator("#video-upload-status")).toContainText("Image secured");
+	await page.locator('[data-test="video-generate"]').click();
+	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+	expect(state.creates[0].request).toMatchObject({
+		productKey: "video-seedance-1-pro-fast",
+		mode: "image-to-video",
+		inputAssetId: "ui-asset-2",
+	});
 });
 test("mode drafts, history navigation and portal focus stay isolated", async ({ page }) => {
 	await setup(page, false);
@@ -306,10 +638,10 @@ test("price invalidation, known rejection and immutable unknown-response retry",
 }) => {
 	const state = await setup(page);
 	await page.goto("/create?mode=video");
-	await quote(page);
+	await reviewChangedPrice(page, state);
 	await page.locator("#video-prompt").fill("Changed prompt invalidates the old quote.");
 	await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
-	await quote(page);
+	await reviewChangedPrice(page, state);
 	state.createError = "INSUFFICIENT_CREDITS";
 	await page.locator('[data-test="video-confirm"]').click();
 	await expect(page.locator("#video-prompt")).toBeEnabled();
@@ -317,7 +649,7 @@ test("price invalidation, known rejection and immutable unknown-response retry",
 	state.createError = null;
 	state.creates = [];
 	state.loseFirst = true;
-	await quote(page);
+	await reviewChangedPrice(page, state);
 	await page.locator('[data-test="video-confirm"]').click();
 	await expect(page.locator('[data-test="video-confirm"]')).toContainText("same request");
 	await page.reload();
@@ -354,7 +686,7 @@ test("upload and in-flight creation survive switching, retaining the job after B
 	seal();
 	await mode(page, "video");
 	await expect(page.locator("#video-upload-status")).toContainText("Image secured");
-	await quote(page);
+	await reviewChangedPrice(page, state);
 	let create!: () => void;
 	state.createGate = new Promise((resolve) => {
 		create = resolve;

@@ -1,7 +1,11 @@
-import { VIDEO_MODEL_CATALOG, type VideoMode } from "@repo/config/video-models";
+import {
+	VIDEO_MODEL_CATALOG,
+	getVideoModelOptions,
+	type VideoMode,
+} from "@repo/config/video-models";
 import { describe, expect, it, vi } from "vitest";
 
-import officialFixture from "../catalog/fixtures/kie-video-model-contracts-2026-10-04.json";
+import officialFixture from "../catalog/fixtures/kie-video-model-contracts-2026-10-08.json";
 import {
 	buildKieVideoModelRequest,
 	KieVideoModelsAdapter,
@@ -27,6 +31,57 @@ function requestParameters(
 	return "input" in request ? request.input : request;
 }
 describe("Kie multi-model video boundary", () => {
+	it("retains current source evidence and the deliberate application prompt caps", () => {
+		expect(officialFixture.retrievedAt).toBe("2026-10-08");
+		const contract = officialFixture.contracts.find((entry) =>
+			entry.source.endsWith("/seedance-2-5.md"),
+		)!;
+		expect((contract.request.properties as any).input.properties.prompt.maxLength).toBe(20480);
+		expect(
+			VIDEO_MODEL_CATALOG.find((entry) => entry.productKey === "video-seedance-2-5")!
+				.maxPromptCodePoints,
+		).toBe(10000);
+		for (const key of ["video-kling-3", "video-kling-2-6-v1"])
+			expect(
+				VIDEO_MODEL_CATALOG.find((entry) => entry.productKey === key)!.maxPromptCodePoints,
+			).toBe(1000);
+	});
+	it("validates every advertised tuple against current official parameter enums and bounds, including legacy Veo Fast", () => {
+		for (const model of VIDEO_MODEL_CATALOG.filter((entry) => entry.status === "implemented")) {
+			for (const mode of model.modes) {
+				for (const option of getVideoModelOptions(model.productKey, mode)) {
+					const request = buildKieVideoModelRequest({
+						...inputFor(model.productKey, mode),
+						...option,
+					});
+					const contract = officialFixture.contracts.find((entry) =>
+						entry.request.properties.model.enum?.includes(request.model as never),
+					)!;
+					expect(contract, request.model).toBeDefined();
+					const props = contract.request.properties as Record<string, any>;
+					const fields = props.input?.properties ?? props;
+					for (const [key, value] of Object.entries(requestParameters(request))) {
+						expect(fields[key], `${request.model}.${key}`).toBeDefined();
+						if (fields[key]?.enum)
+							expect(fields[key].enum, `${request.model}.${key}`).toContain(value);
+						if (typeof fields[key]?.minimum === "number")
+							expect(Number(value)).toBeGreaterThanOrEqual(fields[key].minimum);
+						if (typeof fields[key]?.maximum === "number")
+							expect(Number(value)).toBeLessThanOrEqual(fields[key].maximum);
+					}
+				}
+			}
+		}
+	});
+	it("omits a new Kling 3 first-frame aspect override while preserving historical frozen requests", () => {
+		const current = buildKieVideoModelRequest(inputFor("video-kling-3", "image-to-video"));
+		expect(requestParameters(current)).not.toHaveProperty("aspect_ratio");
+		const frozen = buildKieVideoModelRequest({
+			...inputFor("video-kling-3", "image-to-video"),
+			aspectRatio: "9:16",
+		});
+		expect(requestParameters(frozen).aspect_ratio).toBe("9:16");
+	});
 	it("matches saved official request properties and enums for every implemented mode", () => {
 		const contracts = officialFixture.contracts as unknown as Array<{
 			request: {

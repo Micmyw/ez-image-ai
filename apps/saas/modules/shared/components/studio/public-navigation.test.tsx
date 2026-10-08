@@ -67,18 +67,24 @@ describe("public navigation taxonomy", () => {
 		]);
 	});
 
-	it("gives mobile readers separate image, tool, model, and resource groups", async () => {
+	it("gives mobile readers a video group containing only existing generators and guides", async () => {
 		const markup = await renderNavigation(<StudioToolNavigation drawer />);
 		const groups = [...markup.matchAll(/data-navigation-group="([^"]+)"/g)].map(
 			(match) => match[1],
 		);
-		expect(groups).toEqual(["image", "tools", "models", "resources"]);
+		expect(groups).toEqual(["image", "video", "tools", "models", "resources"]);
 		const toolGroup = markup.match(
 			/<details[^>]*data-navigation-group="tools"[\s\S]*?<\/details>/,
 		)?.[0];
 		expect(toolGroup).toContain('href="/photo-to-coloring-page"');
-		expect(toolGroup).toContain('href="/video-effects/hotel-lobby-ai"');
-		expect(toolGroup).toContain('href="/blog/raindance-ai-trend"');
+		const videoGroup = markup.match(
+			/<details[^>]*data-navigation-group="video"[\s\S]*?<\/details>/,
+		)?.[0];
+		expect(videoGroup).toContain('href="/create?mode=video"');
+		expect(videoGroup).toContain('href="/video-effects/hotel-lobby-ai"');
+		expect(videoGroup).toContain('href="/blog/raindance-ai-trend"');
+		expect(videoGroup).toContain('href="/docs/video-beta"');
+		expect(videoGroup).not.toMatch(/rumpelstiltskin|lip-sync|upscal|text-to-video|image-to-video/);
 		expect(toolGroup).not.toContain('href="/blog"');
 		expect(toolGroup).not.toContain("/effects");
 		const resourceGroup = markup.match(
@@ -105,9 +111,9 @@ describe("public navigation taxonomy", () => {
 			</PublicPageShell>,
 		],
 		["Docs", <DocsHeader key="docs" />],
-	])("renders the same four menus on %s with the root query provider", async (_label, element) => {
+	])("renders the same five menus on %s with the root query provider", async (_label, element) => {
 		const markup = await renderNavigation(element);
-		for (const group of ["image", "tools", "models", "resources"])
+		for (const group of ["image", "video", "tools", "models", "resources"])
 			expect(markup).toContain(`data-test="studio-${group}-menu"`);
 		expect(markup).toContain('href="/pricing"');
 		expect(markup).not.toContain('href="/effects"');
@@ -119,7 +125,7 @@ describe("public navigation taxonomy", () => {
 		const tools = markup.match(/<nav[^>]*data-footer-group="tools"[\s\S]*?<\/nav>/)?.[0];
 		expect(resources).toContain('href="/blog/1980s-ai-photo"');
 		expect(tools).not.toContain("1980s");
-		expect(markup.match(/data-footer-group=/g)).toHaveLength(4);
+		expect(markup.match(/data-footer-group=/g)).toHaveLength(5);
 		expect(markup).toContain('class="public-footer-legal"');
 		expect(markup).toContain('href="/privacy"');
 		expect(markup).toContain('href="/terms"');
@@ -133,6 +139,6 @@ describe("public navigation taxonomy", () => {
 		expect(markup).not.toContain("/blog/1980s-ai-photo");
 		expect(markup).not.toContain("1980s AI Photo");
 		expect(markup).toContain('href="/blog"');
-		expect(markup.match(/data-footer-group=/g)).toHaveLength(4);
+		expect(markup.match(/data-footer-group=/g)).toHaveLength(5);
 	});
 });

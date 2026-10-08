@@ -1686,7 +1686,11 @@
 			"loading": "Verfügbare Modelle werden geladen…",
 			"unavailable": "Modelle sind derzeit nicht verfügbar. Du kannst deine Bearbeitung weiter vorbereiten.",
 			"modelUnavailable": "Das angeforderte Modell ist nicht verfügbar. Wähle ein verfügbares Modell aus.",
-			"title": "KI-Bildgenerator und Editor"
+			"title": "KI-Bildgenerator und Editor",
+			"videos": "KI-Video",
+			"videoGenerator": "KI-Videogenerator",
+			"videoGeneratorDescription": "Animiere einen Prompt oder ein Referenzbild.",
+			"videoGuide": "Anleitung zur Videoerstellung"
 		},
 		"generation": {
 			"referencePending": "Schließe den Referenz-Upload ab, versuche ihn erneut oder entferne ihn für ein Bild aus Text.",
@@ -1906,7 +1910,7 @@
 			"RELEASED": "{credits} Credits freigegeben"
 		},
 		"errors": {
-			"promptLength": "Beachte die zulässige Promptlänge des ausgewählten Modells.",
+			"promptLength": "Halte das Zeichenlimit des Modells und 10.000 Texteinheiten ein; manche Zeichen zählen als zwei Einheiten.",
 			"imageRequired": "Lade zuerst ein Referenzbild hoch und sichere es.",
 			"invalidImage": "Wähle ein JPEG-, PNG- oder WebP-Bild.",
 			"imageTooLarge": "Das Bild ist leer oder überschreitet die zulässige Größe.",
@@ -1920,7 +1924,8 @@
 			"unauthorized": "Diese Aktion ist für das Konto nicht verfügbar. Melde dich bei abgelaufener Sitzung erneut an.",
 			"network": "Die Antwort wurde unterbrochen. Mit „Dieselbe Anfrage prüfen“ stellst du den ursprünglichen Auftrag wieder her.",
 			"unavailable": "Die Anfrage konnte nicht bestätigt werden. Prüfe eine ausstehende Bestätigung, bevor du eine weitere Anfrage startest.",
-			"unsupportedSelection": "Wähle eine unterstützte Kombination aus Modell und Einstellungen."
+			"unsupportedSelection": "Wähle eine unterstützte Kombination aus Modell und Einstellungen.",
+			"promptRequired": "Gib eine Beschreibung ein"
 		},
 		"model": "Videomodell",
 		"duration": "Dauer",
@@ -1943,14 +1948,20 @@
 		"referenceReady": "Referenz bereit",
 		"referenceUnused": "Im Textmodus nicht verwendet",
 		"signInToGenerate": "Zum Erstellen anmelden",
-		"signInHint": "Melde dich an, um eine Referenz hochzuladen und die Kosten zu prüfen. Dein Videoentwurf bleibt erhalten.",
+		"signInHint": "Melde dich an, um die Credit-Kosten zu sehen und ein Referenzbild hochzuladen. Dein Videoentwurf bleibt erhalten.",
 		"retryAccess": "Videoverfügbarkeit erneut prüfen",
 		"draftStorageUnavailable": "Der Browserspeicher ist nicht verfügbar. Lass diese Seite geöffnet, um deinen Entwurf und ausstehende Bestätigungen zu behalten.",
 		"modelFamilies": "Modellfamilien",
 		"durationRange": "{min}–{max} s",
 		"soundOptional": "Optionaler Ton",
 		"quantity": "Anzahl",
-		"oneVideo": "1 Video"
+		"oneVideo": "1 Video",
+		"generate": "Generieren · {credits} Credits",
+		"priceLoading": "Preis wird geladen…",
+		"priceUnavailable": "Preis nicht verfügbar",
+		"priceChanged": "Das aktuelle Angebot weicht vom angezeigten Preis ab. Bestätige die neuen Kosten zum Generieren.",
+		"promptSafetyCount": "Textgröße: {count} / 10.000 Einheiten (manche Zeichen zählen doppelt).",
+		"referenceRequired": "Lade zuerst ein Referenzbild hoch und sichere es."
 	},
 	"videoEffects": {
 		"sample": "Geprüftes Beispiel",

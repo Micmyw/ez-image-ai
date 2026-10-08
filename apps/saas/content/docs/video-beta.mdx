@@ -1,5 +1,5 @@
 ---
-updatedAt: 2026-10-07
+updatedAt: 2026-10-08
 indexable: false
 title: Video beta
 description: How signed-in accounts confirm videos with eligible paid credits, follow server progress, and access private reviewed results.
@@ -27,12 +27,16 @@ even when its reservation has reduced your displayed balance.
 
 ## Create a video
 
-Open [Video](/video), choose an available model and **Text to video** or **Image to video**, and
-describe the scene or movement. Prompt limits, durations, resolutions, frame shapes, and audio
-options follow the selected model's supported Kie parameters. Image-only models offer only
-**Image to video**. Models that
+Open [Video](/create?mode=video), choose an available model, and describe the scene or movement.
+Adding a reference image selects image-to-video automatically. Removing it returns to text-to-video
+when the model supports text input. Image-only models stay selected and require a reference.
+Failed, unfinished, or restored missing uploads require reselecting the image before generation.
+Prompt limits, durations, resolutions, frame shapes, and audio options follow the selected model's
+supported Kie parameters. Models that
 follow the reference image's framing do not offer a separate crop.
 Prompt checks must complete before generation can start.
+The prompt counter shows characters. A separate safety limit also counts text units, so some
+characters, including many emoji, use two units. Prompts must satisfy both displayed limits.
 
 Image mode accepts one JPEG, PNG, or WebP within the displayed account limit. A local preview is
 not proof of upload or approval. Wait for the server to verify and secure the image. Content review
@@ -51,18 +55,20 @@ settings without a configured price or required checks remain unavailable.
 Models with a native-audio option can include audio; some models do not offer a sound switch.
 There is no video editing, audio upload, or post-generation resolution upgrade.
 
-Choose **Review credit cost** to get a quote. A quote does not reserve credits or start generation.
-Read the quoted credits, then confirm within ten minutes. Pricing is shown only when a valid
-service price is configured. There is no fixed cutoff date for creating ordinary videos.
-Confirmation reserves space for the output along with credits. Insufficient account storage prevents
+The **Generate** button shows the selected configuration's backend credit total before you enter a
+prompt. Changing settings updates that total without creating a quote or reserving credits.
+Choose **Generate** after entering your description and completing any reference upload. The server
+checks a fresh quote and starts the request when the total matches the displayed price. If the
+total changes, read and explicitly confirm the new amount within ten minutes. An unavailable
+price prevents submission. There is no fixed cutoff date for creating ordinary videos.
+Submitting reserves space for the output along with credits. Insufficient account storage prevents
 generation from starting. An unresolved provider request keeps its reservation while the original
 attempt is checked.
 Video can use only credits backed by a qualifying payment. Free credits, credits with an unknown
 payment source, and payment funding that does not cover the required video spend are not eligible.
 Changing the model, prompt, image, duration, resolution, shape, or audio invalidates the previous quote.
-If the price changes before confirmation, review a new quote and confirm the updated total.
-An expired quote also requires a new quote. Neither case automatically submits a replacement
-request. An interrupted response still uses **Check the same request**, as described below.
+An expired quote requires choosing Generate again. A changed quote requires confirmation of its new
+total. An interrupted response still uses **Check the same request**, as described below.
 
 ## Progress and interrupted connections
 

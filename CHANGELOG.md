@@ -2,6 +2,13 @@
 
 ## 2026-10-08
 
+### Video price preview and input corrections
+
+- Show the selected model's backend credit total before a prompt is entered. Generate validates the real prompt, obtains the protected quote and submits once when the total matches; a changed total requires explicit confirmation. Interrupted requests keep their original receipt and idempotency key.
+- Select image-to-video from the reference upload, return to text when it is removed, and require reselecting missing or failed references. Keep image-only models selected and clearly request their required image.
+- Use attributed original-color model marks and shared desktop/mobile AI Video navigation. Display discrete duration choices accurately and clarify prompt safety limits, including supplementary Unicode characters.
+- Recheck current Kie documentation, correct Seedance 2.5 source evidence, and restrict new Kling 3 image requests to first-frame framing. Preserve immutable historical orders and leave unpriced Veo routes unavailable.
+
 ### Shared image and video composer
 
 - Switch Image / Video in the existing generator area, with a compact reference-and-prompt layout, family-based video model picker and capability-driven settings. Keep the current server quote and private video history flow.

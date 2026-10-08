@@ -1686,7 +1686,11 @@
 			"loading": "Loading available models…",
 			"unavailable": "Models are currently unavailable. You can still prepare your edit.",
 			"modelUnavailable": "The requested model is unavailable. Choose an available model to continue.",
-			"title": "AI Image Generator & Editor"
+			"title": "AI Image Generator & Editor",
+			"videos": "AI Video",
+			"videoGenerator": "AI Video Generator",
+			"videoGeneratorDescription": "Animate a prompt or one reference image.",
+			"videoGuide": "Video generation guide"
 		},
 		"generation": {
 			"referencePending": "Finish uploading your reference, retry it, or remove it to generate from text.",
@@ -1906,7 +1910,7 @@
 			"RELEASED": "{credits} credits released"
 		},
 		"errors": {
-			"promptLength": "Use the prompt length allowed for the selected model.",
+			"promptLength": "Use the selected model’s character limit and stay within 10,000 text units; some characters use two units.",
 			"imageRequired": "Upload and secure one reference image first.",
 			"invalidImage": "Choose a JPEG, PNG or WebP image.",
 			"imageTooLarge": "This image exceeds the allowed size or is empty.",
@@ -1920,7 +1924,8 @@
 			"unauthorized": "This action is unavailable to this account. Sign in again if your session expired.",
 			"network": "The response was interrupted. Use “Check the same request” to recover the original task.",
 			"unavailable": "The request could not be confirmed. If a confirmation is pending, check that same request before starting another.",
-			"unsupportedSelection": "Choose a supported model and settings combination."
+			"unsupportedSelection": "Choose a supported model and settings combination.",
+			"promptRequired": "Enter a description"
 		},
 		"model": "Video model",
 		"duration": "Duration",
@@ -1943,14 +1948,20 @@
 		"referenceReady": "Reference ready",
 		"referenceUnused": "Not used in text mode",
 		"signInToGenerate": "Sign in to generate",
-		"signInHint": "Sign in to upload a reference and review the cost. Your video draft will be kept.",
+		"signInHint": "Sign in to see your credit cost and upload a reference. Your video draft will be kept.",
 		"retryAccess": "Retry video availability",
 		"draftStorageUnavailable": "Browser storage is unavailable. Keep this page open to retain your draft and any pending confirmation.",
 		"modelFamilies": "Model families",
 		"durationRange": "{min}–{max}s",
 		"soundOptional": "Optional audio",
 		"quantity": "Quantity",
-		"oneVideo": "1 video"
+		"oneVideo": "1 video",
+		"generate": "Generate · {credits} credits",
+		"priceLoading": "Loading price…",
+		"priceUnavailable": "Price unavailable",
+		"priceChanged": "The current quote differs from the displayed price. Confirm the new cost to generate.",
+		"promptSafetyCount": "Text size: {count} / 10,000 units (some characters use two).",
+		"referenceRequired": "Upload and secure one reference image first."
 	},
 	"videoEffects": {
 		"sample": "Verified sample",

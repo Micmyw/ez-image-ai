@@ -3,11 +3,11 @@
 import { useSession } from "@auth/hooks/use-session";
 import { useGenerationMode, useGeneratorSignInDraft } from "@media/lib/generation-mode-context";
 import { videoJobUrl, validVideoJobId } from "@media/lib/generator-navigation";
-import { getVideoModel, validateVideoModelSelection } from "@repo/config/video-models";
+import { getVideoModel } from "@repo/config/video-models";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
-import { videoApi, type VideoQuote } from "./api";
+import { videoApi, type VideoQuote, type VideoRequest } from "./api";
 import {
 	parseVideoDraft,
 	serializeVideoDraft,
@@ -23,6 +23,7 @@ import {
 	restoreVideoDraft,
 	validateVideoDraft,
 	videoRequestFor,
+	videoSelectionCredits,
 	type VideoConfirmation,
 	type VideoDraft,
 	type VideoErrorKey,
@@ -59,6 +60,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 	}, []);
 	const operation = useRef(false);
 	const revision = useRef(0);
+	const quotedRequest = useRef<{ request: VideoRequest; revision: number } | null>(null);
 	const restoredOwner = useRef<string | null>(null);
 	const storageKey = registered ? `video-v1:confirmation:${owner}` : null;
 	function saveConfirmation(value: VideoConfirmation | null) {
@@ -127,14 +129,16 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 	useEffect(() => {
 		if (!upload.assetId) return;
 		revision.current++;
-		setDraft((current) => ({ ...current, inputAssetId: upload.assetId }));
+		setDraft((current) => changeVideoDraft(current, { inputAssetId: upload.assetId }));
 		setQuote(null);
+		quotedRequest.current = null;
 	}, [upload.assetId]);
 	function change(patch: Partial<VideoDraft>) {
 		if (confirmation || busy === "create") return;
 		revision.current++;
 		setDraft((current) => changeVideoDraft(current, patch));
 		setQuote(null);
+		quotedRequest.current = null;
 		setError(null);
 	}
 	function handleFailure(failure: unknown) {
@@ -143,12 +147,13 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		if (recovery.clearQuote) {
 			saveConfirmation(null);
 			setQuote(null);
+			quotedRequest.current = null;
 		}
 		if (recovery.refreshCatalog)
 			void queryClient.invalidateQueries({ queryKey: ["video-v1", "catalog"] });
 	}
-	async function requestQuote() {
-		if (operation.current || !enabled || confirmation) return;
+	async function generate() {
+		if (operation.current || !enabled || confirmation || uploading || !ready) return;
 		const invalid = validateVideoDraft(draft);
 		if (invalid) {
 			setError(invalid);
@@ -157,12 +162,25 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		operation.current = true;
 		setBusy("quote");
 		setError(null);
+		setQuote(null);
+		quotedRequest.current = null;
 		const version = revision.current;
+		const request = videoRequestFor(draft);
+		const consentedCredits = previewCredits;
 		try {
-			const result = await videoApi.quote(videoRequestFor(draft));
+			const result = await videoApi.quote(request);
 			if (live.current && version === revision.current) {
 				setQuote(result);
-				saveConfirmation(null);
+				quotedRequest.current = { request, revision: version };
+				if (Date.parse(result.expiresAt) <= Date.now()) {
+					setError("quoteExpired");
+					return;
+				}
+				// The visible backend price is the user's consent. A changed quote needs
+				// a second explicit click; no preview request writes a quote record.
+				if (result.credits === consentedCredits) {
+					await submit(createVideoConfirmation(request, result));
+				}
 			}
 		} catch (failure) {
 			if (live.current && version === revision.current) handleFailure(failure);
@@ -180,7 +198,22 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		operation.current = true;
 		setBusy("create");
 		setError(null);
-		const intent = confirmation ?? createVideoConfirmation(videoRequestFor(draft), quote);
+		const snapshot = quotedRequest.current;
+		if (!confirmation && (!snapshot || snapshot.revision !== revision.current)) {
+			operation.current = false;
+			setBusy(null);
+			setQuote(null);
+			return;
+		}
+		try {
+			await submit(confirmation ?? createVideoConfirmation(snapshot!.request, quote));
+		} finally {
+			operation.current = false;
+			if (live.current) setBusy(null);
+		}
+	}
+	async function submit(intent: VideoConfirmation) {
+		setBusy("create");
 		// Persist before sending. Retrying a timeout or refreshing reuses this exact request/key.
 		saveConfirmation(intent);
 		try {
@@ -194,6 +227,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			}
 			saveConfirmation(null);
 			setQuote(null);
+			quotedRequest.current = null;
 			setJobId(state.jobId);
 			queryClient.setQueryData(["video-v1", "job", user?.id, state.jobId], state);
 			void queryClient.invalidateQueries({ queryKey: ["video-v1", "history"] });
@@ -201,29 +235,15 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			window.history.replaceState(null, "", videoJobUrl(window.location.href, state.jobId));
 		} catch (failure) {
 			if (live.current) handleFailure(failure);
-		} finally {
-			operation.current = false;
-			if (live.current) setBusy(null);
 		}
 	}
 	const uploading = upload.status === "uploading" || upload.status === "sealing";
 	const selectedModel = getVideoModel(draft.productKey)!;
-	const selectedAvailability = catalog.data?.models
-		.find((model) => model.productKey === draft.productKey)
-		?.options.find(
-			(option) =>
-				option.mode === draft.mode &&
-				option.duration === draft.duration &&
-				option.resolution === draft.resolution &&
-				option.sound === draft.sound,
-		);
-	const enabled =
-		registered &&
-		catalog.data?.accessAllowed === true &&
-		selectedAvailability?.available === true &&
-		validateVideoModelSelection(draft);
+	const previewCredits =
+		registered && !catalog.isError ? videoSelectionCredits(draft, catalog.data) : null;
+	const enabled = registered && previewCredits !== null;
 
-	const availability = JSON.stringify([catalog.data?.accessAllowed, selectedAvailability]);
+	const availability = JSON.stringify([enabled, previewCredits]);
 	const previousAvailability = useRef(availability);
 	useEffect(() => {
 		if (previousAvailability.current === availability) return;
@@ -232,8 +252,20 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		if (!confirmation) {
 			revision.current++;
 			setQuote(null);
+			quotedRequest.current = null;
 		}
 	}, [availability, confirmation]);
+	const previousMode = useRef(workspace?.mode);
+	useEffect(() => {
+		if (previousMode.current === workspace?.mode) return;
+		previousMode.current = workspace?.mode;
+		// An accepted or uncertain create continues. Unsubmitted hidden quotes do not.
+		if (!confirmation) {
+			revision.current++;
+			setQuote(null);
+			quotedRequest.current = null;
+		}
+	}, [workspace?.mode, confirmation]);
 	useGeneratorSignInDraft((destination) => {
 		if (!registered) {
 			sessionStorage.setItem(VIDEO_GUEST_HANDOFF_KEY, serializeVideoDraft(draft, "guest"));
@@ -263,6 +295,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			enabled={enabled}
 			busy={busy}
 			quote={quote}
+			previewCredits={previewCredits}
 			quoteExpired={quoteExpired}
 			confirmation={Boolean(confirmation)}
 			error={error}
@@ -278,7 +311,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 				registered && !catalog.isPending && catalog.data?.accessAllowed === true && !enabled
 			}
 			onChange={change}
-			onQuote={requestQuote}
+			onGenerate={generate}
 			onConfirm={confirm}
 			onSignIn={signIn}
 			onRetryCatalog={() => {

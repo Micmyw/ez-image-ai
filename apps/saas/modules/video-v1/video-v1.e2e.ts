@@ -198,14 +198,12 @@ async function quoteAndConfirm(page: Page, doubleClick = false) {
 	await page
 		.getByLabel("Describe your video", { exact: true })
 		.fill("UI mock only: a slow camera above a quiet lake.");
-	await page.locator('[data-test="video-quote"]').click();
-	await expect(page.locator('[data-test="video-confirm"]')).toContainText("23 credits");
 	if (doubleClick)
-		await page.locator('[data-test="video-confirm"]').evaluate((button) => {
+		await page.locator('[data-test="video-generate"]').evaluate((button) => {
 			(button as HTMLButtonElement).click();
 			(button as HTMLButtonElement).click();
 		});
-	else await page.locator('[data-test="video-confirm"]').click();
+	else await page.locator('[data-test="video-generate"]').click();
 }
 
 async function selectSetting(page: Page, label: string, value: string) {
@@ -345,7 +343,7 @@ test("UI Mock: changed pricing requires a fresh quote and explicit confirmation 
 	const original = state.creates[0]!;
 	state.createError = null;
 	state.quoteCredits = "29";
-	await page.locator('[data-test="video-quote"]').click();
+	await page.locator('[data-test="video-generate"]').click();
 	await expect(page.locator('[data-test="video-confirm"]')).toContainText("29 credits");
 	expect(state.quotes).toBe(2);
 	expect(state.creates).toHaveLength(1);
@@ -383,7 +381,7 @@ for (const code of ["VIDEO_MODEL_PRICE_EXPIRED", "VIDEO_PRICE_EXPIRED"]) {
 		await expect.poll(() => pendingConfirmations(page)).toEqual([]);
 		await expect.poll(() => state.catalogReads).toBe(2);
 		await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
-		await expect(page.locator('[data-test="video-quote"]')).toBeDisabled();
+		await expect(page.locator('[data-test="video-generate"]')).toBeDisabled();
 		expect(state.creates).toHaveLength(2);
 		expect(state.creates[1]).toEqual(state.creates[0]);
 		expect(state.quotes).toBe(1);
@@ -394,7 +392,7 @@ for (const code of ["VIDEO_MODEL_PRICE_EXPIRED", "VIDEO_PRICE_EXPIRED"]) {
 		});
 		await page.reload();
 		await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
-		await expect(page.locator('[data-test="video-quote"]')).toBeDisabled();
+		await expect(page.locator('[data-test="video-generate"]')).toBeDisabled();
 		expect(state.creates).toHaveLength(2);
 	});
 
@@ -406,18 +404,18 @@ for (const code of ["VIDEO_MODEL_PRICE_EXPIRED", "VIDEO_PRICE_EXPIRED"]) {
 		state.quoteExpired = true;
 		await setup(context, page, state);
 		await page.getByLabel("Describe your video", { exact: true }).fill("UI mock: a slow camera.");
-		await page.locator('[data-test="video-quote"]').click();
+		await page.locator('[data-test="video-generate"]').click();
 		await expect(page.getByText("23 credits for this video", { exact: true })).toBeVisible();
 		await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
 		state.quoteError = code;
 		state.available = false;
-		await page.getByRole("button", { name: "Review credit cost", exact: true }).click();
+		await page.getByRole("button", { name: "Generate · 23 credits", exact: true }).click();
 		await expect(page.locator('[data-test="video-workspace"]').getByRole("alert")).toHaveText(
 			"Video pricing is temporarily unavailable. Please check back later.",
 		);
 		await expect(page.getByText("23 credits for this video", { exact: true })).toHaveCount(0);
 		await expect.poll(() => state.catalogReads).toBe(2);
-		await expect(page.locator('[data-test="video-quote"]')).toBeDisabled();
+		await expect(page.locator('[data-test="video-generate"]')).toBeDisabled();
 		await expect.poll(() => pendingConfirmations(page)).toEqual([]);
 		expect(state.creates).toHaveLength(0);
 		expect(state.quotes).toBe(2);
@@ -435,6 +433,7 @@ test("UI Mock: all model settings invalidate the quote and restore the exact pen
 }, testInfo) => {
 	const state = scenario();
 	state.loseFirstResponse = true;
+	state.quoteCredits = "29"; // Explicitly stage changed-price quotes for invalidation coverage.
 	await page.setViewportSize({ width: 1440, height: 1100 });
 	await setup(context, page, state);
 	await page
@@ -450,7 +449,7 @@ test("UI Mock: all model settings invalidate the quote and restore the exact pen
 		animations: "disabled",
 	});
 	await page.keyboard.press("Escape");
-	await page.locator('[data-test="video-quote"]').click();
+	await page.locator('[data-test="video-generate"]').click();
 	await expect(page.locator('[data-test="video-confirm"]')).toBeVisible();
 	const changes = [
 		["Video model", "video-seedance-2-5"],
@@ -465,7 +464,7 @@ test("UI Mock: all model settings invalidate the quote and restore the exact pen
 		await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
 		expect(state.quotes).toBe(before);
 		expect(state.creates).toHaveLength(0);
-		await page.locator('[data-test="video-quote"]').click();
+		await page.locator('[data-test="video-generate"]').click();
 		await expect(page.locator('[data-test="video-confirm"]')).toBeVisible();
 	}
 	await page.getByRole("button", { name: "Video settings", exact: true }).click();
@@ -515,7 +514,7 @@ test("UI Mock: missing sound readiness disables only affected options and preven
 	await expect(page.getByRole("switch", { name: "Audio", exact: true })).not.toBeChecked();
 	await selectSetting(page, "Video model", "video-minimax-h3");
 	await expect(page.getByRole("switch", { name: "Audio", exact: true })).toHaveCount(0);
-	await expect(page.locator('[data-test="video-quote"]')).toBeDisabled();
+	await expect(page.locator('[data-test="video-generate"]')).toBeDisabled();
 	await expect(
 		page.getByTitle("This model may include native audio and has no sound switch."),
 	).toBeVisible();
@@ -530,7 +529,6 @@ test("UI Mock: image sealing remains pending review on a narrow screen", async (
 	const state = scenario();
 	await page.setViewportSize({ width: 390, height: 844 });
 	await setup(context, page, state);
-	await page.getByLabel("Input", { exact: true }).selectOption("image-to-video");
 	await page.locator("#video-image").setInputFiles({
 		name: "reference.png",
 		mimeType: "image/png",
@@ -557,8 +555,7 @@ test("UI Mock: image sealing remains pending review on a narrow screen", async (
 	await page
 		.getByLabel("Describe movement and camera direction")
 		.fill("UI mock only: move the camera slowly.");
-	await page.locator('[data-test="video-quote"]').click();
-	await page.locator('[data-test="video-confirm"]').click();
+	await page.locator('[data-test="video-generate"]').click();
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
 	expect(state.creates[0]!.request).toMatchObject({
 		mode: "image-to-video",
@@ -581,11 +578,11 @@ test("UI Mock: disabled intake keeps history and tasks readable", async ({ conte
 	state.creates.push({});
 	state.stage = "GENERATING";
 	await setup(context, page, state);
-	await expect(page.locator('[data-test="video-quote"]')).toBeDisabled();
+	await expect(page.locator('[data-test="video-generate"]')).toBeDisabled();
 	await page.goto("/video/history");
 	await page.getByText("Generating your video", { exact: true }).click();
 	await expect(page.locator('[data-test="video-job"]')).toHaveAttribute("data-stage", "GENERATING");
-	await expect(page.locator('[data-test="video-quote"]')).toBeDisabled();
+	await expect(page.locator('[data-test="video-generate"]')).toBeDisabled();
 });
 
 test("UI Mock: rejection reports released credits without a paid retry", async ({
@@ -609,13 +606,13 @@ test("UI Mock: insufficient credits and expired quotes never submit a task", asy
 	state.quoteError = "INSUFFICIENT_CREDITS";
 	await setup(context, page, state);
 	await page.getByLabel("Describe your video", { exact: true }).fill("UI mock: a slow camera.");
-	await page.locator('[data-test="video-quote"]').click();
+	await page.locator('[data-test="video-generate"]').click();
 	await expect(page.locator('[data-test="video-workspace"]').getByRole("alert")).toContainText(
 		"not enough eligible paid credits",
 	);
 	state.quoteError = null;
 	state.quoteExpired = true;
-	await page.locator('[data-test="video-quote"]').click();
+	await page.locator('[data-test="video-generate"]').click();
 	await expect(
 		page.getByText("The quote expired or is no longer valid. Review the current cost again."),
 	).toBeVisible();
