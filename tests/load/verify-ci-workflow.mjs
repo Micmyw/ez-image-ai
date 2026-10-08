@@ -67,7 +67,7 @@ for (const command of ["workflows:type-check", "workflows:build:ci"]) {
 	assertUnconditionalStep(quality, `pnpm ${command}`);
 }
 assertNotMatch(quality, /TRIGGER_|pnpm trigger:/);
-for (const workspace of ["@repo/workflows", "@repo/jobs-runtime"]) {
+for (const workspace of ["@repo/workflows", "@repo/jobs-runtime", "@repo/auth"]) {
 	assertIncludes(unitContracts, `"--filter", "${workspace}", "test"`);
 }
 assertNotMatch(builds, /^ {6}DATABASE_URL:\s*\$\{\{\s*env\./m);
