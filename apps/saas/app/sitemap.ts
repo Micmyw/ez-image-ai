@@ -7,16 +7,29 @@ import { MODEL_PAGES, modelPath } from "../modules/models/lib/model-pages";
 import {
 	getAllPublishedBlogPosts,
 	getLegalPageByPath,
+	getPublicChangelogEntries,
 } from "../modules/public-content/lib/content";
+import { PUBLIC_PAGE_LANGUAGES, publicPagePath } from "../modules/public-content/lib/indexing";
 import { CONTENT_PAGE_SIZE, contentPagePath } from "../modules/public-content/lib/pagination";
-import { getPublishedVideoEffects } from "../modules/video-effects/lib/content";
+import { getIndexableVideoEffects } from "../modules/video-effects/lib/content";
 
 export default function sitemap(): MetadataRoute.Sitemap {
 	const baseUrl = getBaseUrl();
 	const posts = getAllPublishedBlogPosts("en");
 	const pages = [
 		...publicPageUpdates,
-		...getPublishedVideoEffects().map((effect) => ({
+		// No invented dates for pages without a maintained editorial timestamp.
+		{ path: "/create", lastModified: undefined },
+		{ path: "/examples", lastModified: undefined },
+		{ path: "/contact", lastModified: undefined },
+		{
+			path: "/changelog",
+			lastModified: getPublicChangelogEntries()
+				.map((entry) => entry.date)
+				.sort()
+				.at(-1),
+		},
+		...getIndexableVideoEffects().map((effect) => ({
 			path: effect.path,
 			lastModified: effect.updatedAt ?? effect.publishedAt,
 		})),
@@ -58,8 +71,24 @@ export default function sitemap(): MetadataRoute.Sitemap {
 			.filter((page) => page.data.indexable)
 			.map((page) => ({ path: page.url, lastModified: page.data.updatedAt })),
 	];
-	return pages.map(({ path, lastModified }) => ({
-		url: new URL(path, baseUrl).href,
-		lastModified,
-	}));
+	return pages.flatMap(({ path, lastModified }) => {
+		const languages = PUBLIC_PAGE_LANGUAGES[path] ?? ["en"];
+		return languages.map((locale) => ({
+			url: new URL(publicPagePath(path, locale), baseUrl).href,
+			lastModified,
+			...(languages.length > 1
+				? {
+						alternates: {
+							languages: Object.fromEntries([
+								...languages.map((language) => [
+									language,
+									new URL(publicPagePath(path, language), baseUrl).href,
+								]),
+								["x-default", new URL(path, baseUrl).href],
+							]),
+						},
+					}
+				: {}),
+		}));
+	});
 }

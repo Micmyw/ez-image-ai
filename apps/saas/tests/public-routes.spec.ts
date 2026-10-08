@@ -1,7 +1,16 @@
 import { expect, test, type Locator } from "@playwright/test";
 
-const indexableRoutes = ["/", "/pricing", "/privacy", "/terms", "/blog"] as const;
-const noindexRoutes = ["/changelog", "/contact", "/create", "/examples"] as const;
+const indexableRoutes = [
+	"/",
+	"/pricing",
+	"/privacy",
+	"/terms",
+	"/blog",
+	"/changelog",
+	"/contact",
+	"/create",
+	"/examples",
+] as const;
 const requiredFooterRoutes = [
 	"/image-to-image",
 	"/privacy",
@@ -79,7 +88,7 @@ async function mockPublicImageAvailability(page: import("@playwright/test").Page
 
 test("editing examples open the create page with an editable prompt", async ({ page }) => {
 	await mockPublicImageAvailability(page);
-	await expectPublicPage(page, "/examples", "noindex");
+	await expectPublicPage(page, "/examples", "index");
 	await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
 	await expect(page.locator('#examples a[href^="/create?example="]')).toHaveCount(12);
 	await page.locator('#examples a[href="/create?example=mediterranean"]').click();
@@ -203,10 +212,10 @@ test.describe("image-to-image landing page", () => {
 	}
 
 	for (const locale of ["de", "es", "fr"]) {
-		test(`keeps the ${locale} interface noindex with an English canonical`, async ({ page }) => {
+		test(`indexes the translated ${locale} page with its own canonical`, async ({ page }) => {
 			const response = await page.goto(`/image-to-image?lang=${locale}`);
 			expect(response?.status()).toBe(200);
-			expect(response?.headers()["x-robots-tag"]).toBe("noindex, follow");
+			expect(response?.headers()["x-robots-tag"]).toBeUndefined();
 			await expect(page.locator("html")).toHaveAttribute("lang", locale);
 			await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
 			await expect(page.getByRole("heading", { level: 1 })).not.toHaveText(
@@ -214,7 +223,7 @@ test.describe("image-to-image landing page", () => {
 			);
 			await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 				"href",
-				new URL("/image-to-image", baseUrl).href,
+				new URL(`/image-to-image?lang=${locale}`, baseUrl).href,
 			);
 		});
 	}
@@ -262,12 +271,6 @@ test.describe("consolidated public routes", () => {
 					await page.screenshot({ path: test.info().outputPath(`seo-home-${width}.png`) });
 				}
 			}
-		});
-	}
-
-	for (const path of noindexRoutes) {
-		test(`${path} is public but excluded from indexing`, async ({ page }) => {
-			await expectPublicPage(page, path, "noindex");
 		});
 	}
 

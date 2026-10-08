@@ -32,6 +32,9 @@ describe("video effect indexing boundary", () => {
 		expect(videoEffectMayIndex(true, { job: "" })).toBe(false);
 		expect(videoEffectMayIndex(true, { lang: "de" })).toBe(false);
 		expect(videoEffectMayIndex(true, { lang: "en" })).toBe(true);
+		expect(videoEffectMayIndex(true, { lang: "invalid" })).toBe(true);
+		expect(videoEffectMayIndex(true, { lang: ["en", "de"] })).toBe(true);
+		expect(videoEffectMayIndex(true, { asset: "private" })).toBe(false);
 	});
 });
 

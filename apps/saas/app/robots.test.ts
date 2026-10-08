@@ -13,7 +13,6 @@ describe("SaaS robots", () => {
 					"/api/",
 					"/admin/",
 					"/assets",
-					"/create",
 					"/draft/",
 					"/edits",
 					"/history",

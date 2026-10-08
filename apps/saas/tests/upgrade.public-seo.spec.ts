@@ -366,7 +366,7 @@ test("active subscribers see management and an unavailable channel never enables
 	await expect(page.getByRole("dialog").getByRole("alert")).toBeVisible();
 });
 
-test("language selection updates public UI and preserves English canonical indexing", async ({
+test("language selection updates public UI and uses translated canonical indexing", async ({
 	page,
 }) => {
 	await mockBilling(page, { registered: false });
@@ -383,7 +383,10 @@ test("language selection updates public UI and preserves English canonical index
 	await expect(page.getByRole("dialog")).toContainText("Mehr Raum für deine Ideen");
 	await page.keyboard.press("Escape");
 	const localized = await page.request.get("/?lang=de");
-	expect(localized.headers()["x-robots-tag"]).toBe("noindex, follow");
+	expect(localized.headers()["x-robots-tag"]).toBeUndefined();
+	expect(await localized.text()).toContain(
+		`rel="canonical" href="${new URL("/?lang=de", test.info().project.use.baseURL).href}"`,
+	);
 	const english = await page.request.get("/");
 	expect(english.headers()["x-robots-tag"]).toBeUndefined();
 	expect(await english.text()).toContain('<html lang="en"');

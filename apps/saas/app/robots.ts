@@ -10,7 +10,6 @@ export default function robots(): MetadataRoute.Robots {
 				"/api/",
 				"/admin/",
 				"/assets", // Private asset library; public artwork lives under /images/ and /examples/.
-				"/create",
 				"/draft/",
 				"/edits",
 				"/history",

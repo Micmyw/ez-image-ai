@@ -1,9 +1,6 @@
-/** Publication is independent from temporary runtime availability; private views stay noindex. */
-export function videoEffectMayIndex(
-	published: boolean,
-	search: { job?: string | string[]; lang?: string | string[] },
-) {
-	return (
-		published && search.job === undefined && (search.lang === undefined || search.lang === "en")
-	);
+import { publicPageIndexing, type PublicSearchParams } from "../../public-content/lib/indexing";
+
+/** Public landing-page discovery does not certify reviewed video sample publication. */
+export function videoEffectMayIndex(publicPage: boolean, search: PublicSearchParams) {
+	return publicPage && publicPageIndexing("/video-effects/hotel-lobby-ai", search).index;
 }

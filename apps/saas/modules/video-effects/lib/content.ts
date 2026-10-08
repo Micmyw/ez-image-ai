@@ -281,6 +281,15 @@ export function getPublishedVideoEffects(
 		.map(publicContent);
 }
 
+/** Public beta landing pages may be discovered; sample evidence remains separately gated. */
+export function getIndexableVideoEffects(
+	records: readonly VideoEffectRecord[] = videoEffectRecords,
+): PublicVideoEffect[] {
+	return records
+		.map(publicContent)
+		.filter((record) => record.status === "beta" || record.status === "published");
+}
+
 export const hotelLobbyContent = publicContent(hotelLobbyRecord);
 
 export function getVideoEffectStructuredData(effect: PublicVideoEffect, baseUrl: string) {

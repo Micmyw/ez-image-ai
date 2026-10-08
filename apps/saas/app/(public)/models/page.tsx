@@ -4,17 +4,22 @@ import Link from "next/link";
 import { ModelArtwork } from "../../../modules/models/components/ModelArtwork";
 import { MODEL_PAGES, modelPath } from "../../../modules/models/lib/model-pages";
 import { PublicFooterLinks } from "../../../modules/public-content/components/PublicFooterLinks";
+import type { PublicMetadataProps } from "../../../modules/public-content/lib/indexing";
 import { createPublicPageMetadata } from "../../../modules/public-content/lib/metadata";
 
 import "../../../modules/models/models.css";
 
-export const metadata = createPublicPageMetadata({
-	path: "/models",
-	title: "AI Image Models — Find Your Creative Direction",
-	description:
-		"Explore GPT Image, Nano Banana, and Seedream in EzImageAI. Find creative directions, original inspiration, and a workspace for text to image and reference editing.",
-	index: true,
-});
+export async function generateMetadata(props: PublicMetadataProps) {
+	const { searchParams } = props ?? {};
+	return createPublicPageMetadata({
+		searchParams: await searchParams,
+		path: "/models",
+		title: "AI Image Models — Find Your Creative Direction",
+		description:
+			"Explore GPT Image, Nano Banana, and Seedream in EzImageAI. Find creative directions, original inspiration, and a workspace for text to image and reference editing.",
+		index: true,
+	});
+}
 
 export default function ModelsPage() {
 	return (

@@ -19,9 +19,20 @@ describe("consolidated SaaS sitemap", () => {
 		const entries = sitemap();
 		const urls = entries.map(({ url }) => new URL(url));
 
-		expect(urls.map(({ pathname }) => pathname).sort()).toEqual(
+		expect(
+			urls
+				.filter(({ search }) => !search)
+				.map(({ pathname }) => pathname)
+				.sort(),
+		).toEqual(
 			[
 				"/",
+				"/create",
+				"/examples",
+				"/contact",
+				"/changelog",
+				"/video-effects/hotel-lobby-ai",
+				"/docs/video-beta",
 				"/image-to-image",
 				"/photo-to-coloring-page",
 				"/pricing",
@@ -56,11 +67,16 @@ describe("consolidated SaaS sitemap", () => {
 		expect(new Set(urls.map(({ href }) => href)).size).toBe(urls.length);
 	});
 
-	it("publishes recorded content dates for every approved page", () => {
+	it("uses recorded content dates and omits unknown dates", () => {
 		const entries = sitemap();
 		for (const entry of entries) {
-			expect(entry.lastModified, entry.url).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+			if (entry.lastModified) expect(entry.lastModified, entry.url).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 		}
+		expect(
+			entries
+				.filter(({ lastModified }) => !lastModified)
+				.every(({ url }) => ["/create", "/examples", "/contact"].includes(new URL(url).pathname)),
+		).toBe(true);
 		const dates = Object.fromEntries(
 			entries.map((entry) => [new URL(entry.url).pathname, entry.lastModified]),
 		);

@@ -288,10 +288,10 @@ async function quote(page: Page) {
 	).toBeVisible();
 }
 
-test("UI Mock: anonymous template is readable, honest, private and noindex", async ({ page }) => {
+test("UI Mock: anonymous template is readable, honest and indexable", async ({ page }) => {
 	const state = scenario({ signedIn: false });
 	await setup(page, state);
-	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index, follow");
 	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 		"href",
 		new RegExp(`${path}$`),
@@ -315,7 +315,7 @@ test("UI Mock: an ordinary signed-in account can generate and reopen its templat
 }) => {
 	const state = scenario();
 	await setup(page, state);
-	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index, follow");
 	await expect(page.locator("#hotel-lobby-history")).toContainText(t.emptyHistory);
 	await uploadBoth(page);
 	await quote(page);
@@ -326,6 +326,7 @@ test("UI Mock: an ordinary signed-in account can generate and reopen its templat
 	await expect(accepted).toContainText(t.stages.CREATING_SCENE);
 	await accepted.click();
 	await expect(page).toHaveURL(`${test.info().project.use.baseURL}${path}?job=mock-template-job`);
+	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex, nofollow");
 	await expect(page.getByRole("region", { name: t.yourVideo })).toContainText(
 		t.stages.CREATING_SCENE,
 	);

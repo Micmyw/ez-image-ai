@@ -22,6 +22,7 @@ import { Suspense } from "react";
 
 import { PhotoIdeaRecommendations } from "../../public-content/components/PhotoIdeaRecommendations";
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
+import { publicPagePath } from "../../public-content/lib/indexing";
 import { ImageToImageExamples } from "./ImageToImageExamples";
 import { LandingGenerator } from "./LandingGenerator";
 
@@ -46,7 +47,7 @@ export async function ImageToImagePage({
 		getLocale(),
 	]);
 	const registered = Boolean(session && !isAnonymousUser(session.user));
-	const canonical = new URL("/image-to-image", getBaseUrl()).href;
+	const canonical = new URL(publicPagePath("/image-to-image", locale), getBaseUrl()).href;
 	const structuredData = {
 		"@context": "https://schema.org",
 		"@graph": [

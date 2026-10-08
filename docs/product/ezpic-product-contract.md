@@ -316,13 +316,16 @@ Contact, Docs, Sign In, and Start Editing on the unified SaaS origin. Authentica
 limited to Create, Edits, History, Assets, Billing, and Settings. Existing chatbot and video
 implementation code may remain, but those entries are hidden from EzImageAI navigation.
 
-The same-origin sitemap includes `/`, `/pricing`, `/privacy`, `/terms`, `/models`, twelve individual
-model pages, reviewed published Blog content, and Docs marked `indexable: true`.
-Changelog, Contact, and Docs artifacts remain noindex. Model pages have independent titles,
-descriptions, canonical URLs, and one H1; unknown model slugs return the root 404.
-Login, guest workspace, create, history, assets, edits, checkout, settings, and admin stay
-`noindex, nofollow`. Legacy locale-prefixed public URLs permanently redirect to their unprefixed
-paths. Public HTML stays English; account pages retain the locale cookie.
+The same-origin sitemap includes public content and tool landing pages under the
+[public page indexing policy](public-page-indexing.md), including Create, Examples,
+Contact, Changelog, Hotel Lobby beta, reviewed Blog and indexable Docs. Real
+translated main content uses `?lang=` self-canonical URLs and reciprocal hreflang;
+English-only fallback bodies remain noindex with an English canonical. Model
+pages retain independent metadata and unknown slugs return the root 404.
+Authentication/account, personal job/upload/payment state, drafts and non-HTML
+Docs artifacts retain their exclusions. Root private metadata and server-side
+access controls remain in place. Bare public URLs stay English; account pages
+retain their locale cookie. Legacy locale-prefixed paths retain their redirects.
 
 Sitemap `lastmod` values are editorial content dates, not build or request timestamps.
 Update `apps/saas/content/page-updates.ts` for meaningful homepage/pricing changes, the
@@ -387,7 +390,7 @@ The homepage owns `ai image editor no restrictions`, with prompt-editing variant
 same canonical URL. Its hero keeps one short introductory sentence. The description, example
 headings, instructions, and FAQ explain prompt control beyond fixed templates while preserving
 content-safety, legal, model, and usage limits. English is the indexable public version; translated
-interface views retain the existing `?lang=` and `noindex, follow` contract.
+interface views follow the main-content translation policy in `public-page-indexing.md`.
 
 Each of the six illustrative creator briefs appears once in the initial HTML and rendered DOM.
 Desktop uses three gently moving columns; mobile reuses those columns in a horizontal scroll area.

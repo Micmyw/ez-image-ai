@@ -2,15 +2,18 @@ import { getLocale, getTranslations } from "next-intl/server";
 
 import { PublicPageShell } from "../../../modules/public-content/components/PublicPageShell";
 import { getPublicChangelogEntries } from "../../../modules/public-content/lib/content";
+import type { PublicMetadataProps } from "../../../modules/public-content/lib/indexing";
 import { createPublicPageMetadata } from "../../../modules/public-content/lib/metadata";
 
-export async function generateMetadata() {
+export async function generateMetadata(props: PublicMetadataProps) {
+	const { searchParams } = props ?? {};
 	const t = await getTranslations();
 	return createPublicPageMetadata({
+		searchParams: await searchParams,
 		path: "/changelog",
 		title: t("changelog.title"),
 		description: t("changelog.description"),
-		index: false,
+		index: true,
 	});
 }
 

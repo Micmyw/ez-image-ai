@@ -57,6 +57,7 @@ export async function generateMetadata(props: PageProps<"/docs/[[...slug]]">): P
 	if (!page) notFound();
 
 	const metadata = createPublicPageMetadata({
+		searchParams: await props.searchParams,
 		path: page.url,
 		title: page.data.title,
 		description: page.data.description ?? "",

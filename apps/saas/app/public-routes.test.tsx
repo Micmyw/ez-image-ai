@@ -191,7 +191,7 @@ import { config as authConfig } from "../../../packages/auth/config";
 import { LandingPage } from "../modules/landing/components/LandingPage";
 import { HOME_FAQ_KEYS, PRICING_FAQ_KEYS } from "../modules/landing/lib/faq";
 import PricingPage from "./(public)/pricing/page";
-import CreatePage, { metadata as createMetadata } from "./create/page";
+import CreatePage, { generateMetadata as createMetadata } from "./create/page";
 import HomePage from "./page";
 
 type PublicPageModule = {
@@ -221,14 +221,14 @@ type PublicContentModule = {
 
 const publicRoutes = [
 	{ modulePath: "./page", path: "/", robots: "index" },
-	{ modulePath: "./(public)/examples/page", path: "/examples", robots: "noindex" },
+	{ modulePath: "./(public)/examples/page", path: "/examples", robots: "index" },
 	{ modulePath: "./(public)/image-to-image/page", path: "/image-to-image", robots: "index" },
 	{ modulePath: "./(public)/pricing/page", path: "/pricing", robots: "index" },
 	{ modulePath: "./(public)/privacy/page", path: "/privacy", robots: "index" },
 	{ modulePath: "./(public)/terms/page", path: "/terms", robots: "index" },
 	{ modulePath: "./(public)/blog/page", path: "/blog", robots: "index" },
-	{ modulePath: "./(public)/changelog/page", path: "/changelog", robots: "noindex" },
-	{ modulePath: "./(public)/contact/page", path: "/contact", robots: "noindex" },
+	{ modulePath: "./(public)/changelog/page", path: "/changelog", robots: "index" },
+	{ modulePath: "./(public)/contact/page", path: "/contact", robots: "index" },
 ] as const;
 
 const legalFallbackCases = [
@@ -522,7 +522,7 @@ describe("homepage workspace session selection", () => {
 	it.each([null, { user: { id: "trial", isAnonymous: true } }])(
 		"opens the creation page without authentication for %j",
 		async (session) => {
-			expectMetadata(createMetadata, "/create", "noindex");
+			expectMetadata(await createMetadata({}), "/create", "index");
 			sessionMock.mockResolvedValueOnce(session);
 			const stream = await renderToReadableStream(await CreatePage({}));
 			const html = await new Response(stream).text();

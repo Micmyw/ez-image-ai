@@ -7,16 +7,18 @@ import {
 	modelPageForSlug,
 	modelPath,
 } from "../../../../modules/models/lib/model-pages";
+import type { PublicMetadataProps } from "../../../../modules/public-content/lib/indexing";
 import { createPublicPageMetadata } from "../../../../modules/public-content/lib/metadata";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<CreatePageFilters> };
 export function generateStaticParams() {
 	return MODEL_PAGES.map((model) => ({ slug: model.key.slice(6) }));
 }
-export async function generateMetadata({ params }: Props) {
+export async function generateMetadata({ params, searchParams }: Props & PublicMetadataProps) {
 	const model = modelPageForSlug((await params).slug);
 	if (!model) notFound();
 	return createPublicPageMetadata({
+		searchParams: await searchParams,
 		path: modelPath(model.key),
 		title: `${model.name} AI Image Generator`,
 		description: model.description,

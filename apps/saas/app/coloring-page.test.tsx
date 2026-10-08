@@ -55,7 +55,7 @@ import {
 } from "../modules/coloring/components/PhotoToColoringPage";
 import { buildColoringPrompt } from "../modules/coloring/lib/coloring-prompt";
 import { config as proxyConfig, proxy } from "../proxy";
-import { metadata } from "./(public)/photo-to-coloring-page/page";
+import { generateMetadata } from "./(public)/photo-to-coloring-page/page";
 
 describe("photo to coloring page", () => {
 	it.each(["asset=private", "guestAsset=output&guestJob=guest", "job=private"])(
@@ -64,7 +64,7 @@ describe("photo to coloring page", () => {
 			const response = proxy(
 				new NextRequest(`https://example.com/photo-to-coloring-page?${query}`),
 			);
-			expect(response.headers.get("x-robots-tag")).toBe("noindex, follow");
+			expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
 		},
 	);
 	it.each([false, true])(
@@ -94,7 +94,8 @@ describe("photo to coloring page", () => {
 			"/login?redirectTo=%2Fphoto-to-coloring-page%3Fasset%3Dselected-output%23image-editor",
 		);
 	});
-	it("has a dedicated English canonical and crawlable social image", () => {
+	it("has a dedicated English canonical and crawlable social image", async () => {
+		const metadata = await generateMetadata({});
 		expect(metadata.alternates?.canonical).toBe("https://www.ezpic.test/photo-to-coloring-page");
 		expect(metadata.robots).toEqual({ index: true, follow: true });
 		expect(metadata.title).toEqual({ absolute: "Turn Photo into Coloring Page | EzImageAI" });

@@ -48,7 +48,8 @@ Free access is described with its eligibility, quota, watermark, and retention
 conditions. No unconditional free or unrestricted-generation promise is made.
 
 The bare URL serves English. Explicit German, Spanish, and French `?lang=` views
-retain the English canonical and receive `noindex, follow` through the public proxy.
+use self-canonical language URLs and reciprocal hreflang under the
+[2026-10-08 public indexing policy](public-page-indexing.md).
 The page owns one H1 and emits WebPage and BreadcrumbList data. It is included in
 the sitemap with its actual content date, and is reserved from organization slugs.
 

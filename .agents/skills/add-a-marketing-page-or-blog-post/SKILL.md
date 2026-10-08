@@ -22,10 +22,12 @@ the public route group or publish starter/demo content as EzPic facts.
 3. Add factual Blog records below `apps/saas/content/posts` and register them in
    `apps/saas/modules/public-content/lib/content.ts`. Use stable lowercase slugs, truthful dates and
    descriptions, and English fallback only where the content contract allows it.
-4. The reviewed Blog articles and five public Docs topics are approved for indexing as of
-   2026-09-12. New Docs require explicit `indexable: true` after content review; Changelog,
-   Contact, and Docs artifacts remain `noindex, follow`. The sitemap contains the four core
-   routes, Blog index and published articles, and indexable Docs. Do not manufacture `lastmod`.
+4. Public content and tool landing pages are indexable under the owner-approved 2026-10-08
+   policy in `docs/product/public-page-indexing.md`. Reviewed published Blog posts and Docs
+   marked `indexable: true` enter the sitemap. Actual translated main content uses self-canonical
+   `?lang=` URLs and reciprocal hreflang; English fallback bodies remain noindex. Private query
+   states and Docs API/Markdown/image artifacts remain noindex. Never publish draft articles or
+   unreviewed video samples through this policy. Do not manufacture `lastmod`.
 5. Update focused Vitest coverage in `apps/saas/app/public-routes.test.tsx` and Playwright coverage
    in `apps/saas/tests/public-routes.spec.ts` when browser-visible behavior changes. Run:
    ```bash

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Public page indexing
+
+- Make Create, Examples, Contact, Changelog, Hotel Lobby beta and the video guide indexable.
+- Align SSR robots, HTTP headers, canonical URLs and sitemap for real translations and private query states; preserve draft/sample publication gates and account access controls.
+- See `docs/product/public-page-indexing.md` for the complete policy and validation scope.
+
 ## 2026-10-08
 
 ### Ordinary video and verified annual prices

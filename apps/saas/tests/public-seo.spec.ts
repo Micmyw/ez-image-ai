@@ -9,8 +9,8 @@ test("all sitemap targets publish consistent indexable HTML without JavaScript",
 	const xml = await sitemapResponse.text();
 	const modifiedDates = [...xml.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)];
 	const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]!);
-	expect(urls).toHaveLength(26);
-	expect(modifiedDates).toHaveLength(urls.length);
+	expect(urls).toHaveLength(54);
+	expect(modifiedDates).toHaveLength(urls.length - 12);
 	for (const [, date] of modifiedDates) expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 	const evidence = [];
 	for (const url of urls) {
@@ -18,7 +18,8 @@ test("all sitemap targets publish consistent indexable HTML without JavaScript",
 		const html = await response.text();
 		expect(response.status(), url).toBe(200);
 		expect(response.headers()["x-robots-tag"], url).toBeUndefined();
-		expect(html, url).toContain('<html lang="en"');
+		const language = new URL(url).searchParams.get("lang") ?? "en";
+		expect(html, url).toContain(`<html lang="${language}"`);
 		const canonical = /rel="canonical" href="([^"]+)"/.exec(html)?.[1];
 		expect(canonical, url).toBeDefined();
 		expect(new URL(canonical!).href, url).toBe(new URL(url).href);
@@ -30,7 +31,7 @@ test("all sitemap targets publish consistent indexable HTML without JavaScript",
 			expect(html).not.toContain('"@type":"FAQPage"');
 			expect(html).toContain('href="/blog/ai-image-editing-prompts"');
 		}
-		evidence.push({ url, status: response.status(), language: "en", indexable: true });
+		evidence.push({ url, status: response.status(), language, indexable: true });
 	}
 	await test.info().attach("initial-html-inventory", {
 		body: JSON.stringify(evidence, null, 2),
@@ -59,7 +60,7 @@ test("image sitemap lists crawlable images present on their public pages", async
 		},
 		await response.text(),
 	);
-	expect(entries).toHaveLength(14);
+	expect(entries).toHaveLength(15);
 	const imageUrls = new Set<string>();
 	for (const entry of entries) {
 		const pageResponse = await request.get(entry.url);
@@ -67,7 +68,11 @@ test("image sitemap lists crawlable images present on their public pages", async
 		const html = await pageResponse.text();
 		const renderedImages = await page.evaluate((markup) => {
 			const doc = new DOMParser().parseFromString(markup, "text/html");
-			return Array.from(doc.querySelectorAll("img[src]")).map((image) => image.getAttribute("src"));
+			return Array.from(doc.querySelectorAll("img[src]")).map((image) => {
+				const src = image.getAttribute("src")!;
+				const url = new URL(src, "https://image.test");
+				return url.pathname === "/_next/image" ? url.searchParams.get("url") : src;
+			});
 		}, html);
 		for (const image of entry.images) {
 			expect(renderedImages, `${entry.url}: ${image}`).toContain(new URL(image).pathname);
@@ -214,7 +219,9 @@ test("an unavailable editor provides recovery without submitting an edit", async
 	);
 	await expect(page.locator('[data-test="landing-stage"]')).toBeVisible();
 	await expect(editor.getByRole("button", { name: /try .* free/i })).toHaveCount(0);
-	await editor.getByLabel(/describe your image/i).fill("Keep the mug and soften the background");
+	await editor
+		.getByRole("textbox", { name: "Image prompt", exact: true })
+		.fill("Keep the mug and soften the background");
 	await expect(editor.getByRole("link", { name: /prompt guide/i })).toHaveAttribute(
 		"href",
 		"/blog/ai-image-editing-prompts",
@@ -226,7 +233,7 @@ test("an unavailable editor provides recovery without submitting an edit", async
 	const beforeRetry = capabilityRequests;
 	await editor.getByRole("button", { name: /check availability/i }).click();
 	await expect.poll(() => capabilityRequests).toBe(beforeRetry + 1);
-	await expect(editor.getByLabel(/describe your image/i)).toHaveValue(
+	await expect(editor.getByRole("textbox", { name: "Image prompt", exact: true })).toHaveValue(
 		"Keep the mug and soften the background",
 	);
 	expect(draftRequests).toBe(0);

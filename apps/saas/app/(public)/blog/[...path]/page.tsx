@@ -67,14 +67,11 @@ export async function generateMetadata({
 	const search = await searchParams;
 	const cover = withBlogVisualCover(post).cover;
 	const metadata = createPublicPageMetadata({
+		searchParams: { ...search },
 		path: blogPath(post),
 		title: post.title,
 		description: post.description,
-		index:
-			!post.videoEffect ||
-			(search.job === undefined &&
-				search.mode === undefined &&
-				(search.lang === undefined || search.lang === "en")),
+		index: true,
 	});
 	return {
 		...metadata,

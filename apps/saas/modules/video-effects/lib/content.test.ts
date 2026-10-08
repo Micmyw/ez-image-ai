@@ -14,6 +14,7 @@ import { getBlogPostBySlug, getPublishedBlogPostPaths } from "../../public-conte
 import { VideoEffectArticle } from "../components/VideoEffectArticle";
 import {
 	getPublishedVideoEffects,
+	getIndexableVideoEffects,
 	getVideoEffectStructuredData,
 	hotelLobbyContent,
 	isPublicVideoEffectSamplePath,
@@ -408,4 +409,21 @@ describe("Hotel Lobby publication governance", () => {
 			expect(html).not.toContain(forbidden);
 		}
 	});
+});
+
+describe("public beta discovery is separate from reviewed sample publication", () => {
+	it("includes the existing beta landing page without publishing samples or the draft article", () => {
+		expect(getIndexableVideoEffects().map((effect) => effect.path)).toContain(
+			"/video-effects/hotel-lobby-ai",
+		);
+		expect(getPublishedVideoEffects()).toEqual([]);
+		expect(hotelLobbyContent.samples).toEqual([]);
+		expect(getBlogPostBySlug("how-to-make-hotel-lobby-ai-video", "en")).toBeNull();
+	});
+	it.each(["draft", "retired", "published"] as const)(
+		"rejects %s content without its publication evidence",
+		(status) => {
+			expect(getIndexableVideoEffects([{ ...hotelLobbyRecord, status }])).toEqual([]);
+		},
+	);
 });

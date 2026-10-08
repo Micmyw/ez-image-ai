@@ -1,6 +1,14 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-10-08",
+		title: "Public tools and guides are easier to discover",
+		changes: [
+			"Public tool pages, examples, contact details, release notes and the video guide now allow search indexing. Actual translated pages have their own canonical language links.",
+			"Personal uploads, saved jobs, account pages and payment flows remain excluded from search indexing. Hotel Lobby remains a beta, with public examples awaiting review.",
+		],
+	},
+	{
+		date: "2026-10-08",
 		title: "Video upgrade prices and annual plan savings",
 		changes: [
 			"Model savings badges reflect that model's available, priced settings. Unavailable models do not show an annual discount.",

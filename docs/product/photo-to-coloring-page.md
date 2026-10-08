@@ -16,7 +16,7 @@ The English route owns `turn photo into coloring page`, with natural coverage of
 
 Structured data describes the visible WebPage, WebApplication and breadcrumbs. No invented reviews, ratings, free prices or rich-result promises. GEO work consists of accessible factual answers and clear product limitations. No special AI markup or `llms.txt` requirement is claimed.
 
-Personal source/result query URLs use `X-Robots-Tag: noindex, follow` and retain the bare English canonical. The public FAQ explains how to open an existing result, the explicit generation step and guest expiry.
+Personal source/result query URLs use matching SSR and `X-Robots-Tag: noindex, nofollow` and retain the bare English canonical. The public FAQ explains how to open an existing result, the explicit generation step and guest expiry.
 
 Official guidance checked via HTTP 200 on 2026-10-03:
 

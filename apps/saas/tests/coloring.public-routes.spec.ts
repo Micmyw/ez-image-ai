@@ -134,7 +134,7 @@ for (const source of ["upload", "guest result"] as const) {
 				const response = await page.goto(
 					`${route}?guestAsset=selected-guest-output&guestJob=selected-guest-job#image-editor`,
 				);
-				expect(response?.headers()["x-robots-tag"]).toBe("noindex, follow");
+				expect(response?.headers()["x-robots-tag"]).toBe("noindex, nofollow");
 				await expect(page.locator('[data-test="landing-source-panel"] img')).toBeVisible();
 				await expect(page.locator('[data-test="coloring-source-print"]')).toBeVisible();
 				for (const width of [390, 320]) {

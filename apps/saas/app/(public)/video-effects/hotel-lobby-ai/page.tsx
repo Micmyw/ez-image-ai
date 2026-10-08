@@ -24,11 +24,12 @@ type Search = { job?: string | string[]; lang?: string | string[] };
 export async function generateMetadata({ searchParams }: { searchParams: Promise<Search> }) {
 	const search = await searchParams;
 	return createPublicPageMetadata({
+		searchParams: search,
 		path: HOTEL_LOBBY_PATH,
 		title: HOTEL_LOBBY_TITLE,
 		description: HOTEL_LOBBY_DESCRIPTION,
 		brandName: "EzImageAI",
-		index: videoEffectMayIndex(hotelLobbyContent.status === "published", search),
+		index: videoEffectMayIndex(["beta", "published"].includes(hotelLobbyContent.status), search),
 	});
 }
 

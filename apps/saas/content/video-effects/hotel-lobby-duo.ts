@@ -1,6 +1,6 @@
 import type { VideoEffectRecord } from "./types";
 
-/** Public beta. Search publication and public samples still require reviewed product evidence. */
+/** Public beta landing page. Public samples still require reviewed product evidence. */
 export const hotelLobbyRecord: VideoEffectRecord = {
 	id: "hotel-lobby-duo",
 	publicVersion: "1",

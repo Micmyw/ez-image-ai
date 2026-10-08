@@ -10,6 +10,7 @@ const requiredDocsPaths = [
 	"/docs/image-editing",
 	"/docs/credits",
 	"/docs/privacy",
+	"/docs/video-beta",
 ] as const;
 const reservedDocsSlugs = ["api", "og", "llms.txt", "llms-full.txt", "llms.mdx"] as const;
 
@@ -43,7 +44,7 @@ describe("same-origin Docs source", () => {
 		vi.unstubAllEnvs();
 	});
 
-	it("publishes the five required factual Docs topics at stable /docs paths", async () => {
+	it("publishes the required factual Docs topics at stable /docs paths", async () => {
 		const sourceModule = await loadOptionalModule<DocsSourceModule>("./source");
 		expect(sourceModule, "the SaaS Docs source module must exist").not.toBeNull();
 		if (!sourceModule) return;
@@ -97,6 +98,7 @@ describe("same-origin Docs source", () => {
 
 	it.each([
 		{ path: "/docs", slug: undefined },
+		{ path: "/docs/video-beta", slug: ["video-beta"] },
 		{ path: "/docs/quick-start", slug: ["quick-start"] },
 	] as const)(
 		"exports indexable metadata for reviewed documentation at $path",

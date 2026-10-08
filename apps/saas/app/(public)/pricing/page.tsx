@@ -4,11 +4,14 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { PRICING_FAQ_KEYS } from "../../../modules/landing/lib/faq";
 import { PublicPricingPlans } from "../../../modules/payments/components/PublicPricingPlans";
 import { PublicPageShell } from "../../../modules/public-content/components/PublicPageShell";
+import type { PublicMetadataProps } from "../../../modules/public-content/lib/indexing";
 import { createPublicPageMetadata } from "../../../modules/public-content/lib/metadata";
 
-export async function generateMetadata() {
+export async function generateMetadata(props: PublicMetadataProps) {
+	const { searchParams } = props ?? {};
 	const t = await getTranslations();
 	return createPublicPageMetadata({
+		searchParams: await searchParams,
 		path: "/pricing",
 		title: t("pricing.title"),
 		description: t("pricing.description"),

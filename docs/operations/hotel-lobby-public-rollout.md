@@ -19,7 +19,10 @@ moderation, immutable identities and private delivery remain required.
   costs can increase the quote. Never present the reference as a hardcoded bill.
 - History stays on the template page and uses the existing owner-scoped APIs,
   including after new generation is disabled. No new payment system is introduced.
-- Content is beta and noindex. The sample list and quality acceptance records stay
+- Content remains beta; its clean public landing page is indexable under the
+  [2026-10-08 public indexing policy](../product/public-page-indexing.md).
+  Personal job views and English fallback language views remain noindex.
+  The sample list and quality acceptance records stay
   empty until real evidence exists. Public beta access does not certify the PRD's
   twelve-group quality comparison or three rights-cleared public examples.
 

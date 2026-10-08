@@ -19,6 +19,7 @@ export async function generateMetadata(props: BlogIndexProps) {
 	const page = paginateContent(getAllPublishedBlogPosts(await getLocale()), query.page);
 	if (!page) notFound();
 	return createPublicPageMetadata({
+		searchParams: query,
 		path: contentPagePath("/blog", page.page),
 		title:
 			page.page > 1

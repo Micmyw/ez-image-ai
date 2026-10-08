@@ -3,15 +3,18 @@ import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 
 import { PublicPageShell } from "../../../modules/public-content/components/PublicPageShell";
+import type { PublicMetadataProps } from "../../../modules/public-content/lib/indexing";
 import { createPublicPageMetadata } from "../../../modules/public-content/lib/metadata";
 
-export async function generateMetadata() {
+export async function generateMetadata(props: PublicMetadataProps) {
+	const { searchParams } = props ?? {};
 	const t = await getTranslations();
 	return createPublicPageMetadata({
+		searchParams: await searchParams,
 		path: "/contact",
 		title: t("contact.title"),
 		description: t("publicContent.contact.description", { appName: config.appName }),
-		index: false,
+		index: true,
 	});
 }
 

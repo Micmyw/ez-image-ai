@@ -11,18 +11,11 @@ store.
 Reserved `.invalid` hosts, credentials in the URL, and insecure non-loopback origins fail closed.
 Local loopback HTTP remains supported for tests.
 
-Only the default-English versions of these paths are indexable:
-
-| Path       | Index policy    | Purpose               |
-| ---------- | --------------- | --------------------- |
-| `/`        | `index, follow` | Image editor homepage |
-| `/pricing` | `index, follow` | Public plan details   |
-| `/privacy` | `index, follow` | Privacy policy        |
-| `/terms`   | `index, follow` | Terms of service      |
-
-The sitemap contains exactly those four public URLs. Blog, Changelog, Contact, and Docs use
-`noindex, follow`; login, try, create, history, assets, edits, checkout, settings, and admin remain
-`noindex, nofollow`, and robots disallows crawling those product routes.
+Public content and tool pages follow the owner-approved 2026-10-08
+[public page indexing policy](public-page-indexing.md). The sitemap includes
+clean public routes and actual translated canonical variants. Account, personal
+job/upload/payment state, drafts and non-HTML Docs artifacts remain excluded.
+Robots directives do not replace authentication or ownership checks.
 
 Homepage structured data identifies EzPic as a Web `SoftwareApplication`. The visible pricing
 section derives public plan amounts and credits from `PLAN_ENTITLEMENTS`; it never exposes Provider
