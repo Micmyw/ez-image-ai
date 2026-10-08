@@ -69,7 +69,7 @@ describe("consolidated SaaS sitemap", () => {
 			"/image-to-image": "2026-09-21",
 			"/photo-to-coloring-page": "2026-10-04",
 			"/pricing": "2026-09-16",
-			"/privacy": "2026-10-04",
+			"/privacy": "2026-10-08",
 			"/terms": "2026-10-04",
 			"/blog": "2026-10-07",
 			"/blog/raindance-ai-trend": "2026-10-07",

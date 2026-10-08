@@ -78,7 +78,8 @@ vi.mock("next/link", () => ({
 	),
 }));
 
-vi.mock("@repo/config/client", () => ({
+vi.mock("@repo/config/client", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@repo/config/client")>()),
 	PLAN_ENTITLEMENTS: [
 		{
 			id: "free",
