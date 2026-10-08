@@ -39,4 +39,8 @@ For rollback, close only new admission using the independent effect gates while 
 
 ## Validation boundary
 
+History navigation starts a fresh generator operation lifetime, including when React retains the same component instance. An old quote cannot submit automatically or clear a newer operation's busy state. A completed or definitively rejected acceptance updates session recovery only when the latest stored idempotency key and quote ID match that response; it cannot erase another order's pending receipt. Already submitted orders retain their original key across mode changes and reloads.
+
+The final PostgreSQL admission transaction treats both schema 1 and schema 3 as scene-generating orders. It checks the scene SKU and base image-product emergency overrides again before order creation and credit reservation. Schema 2 motion-reference orders retain their separate path. The regression inserts each scene closure after creating a quote, then proves rejection with no job, no reservation and unchanged spendable credits for all three effects at both durations.
+
 Local tests use real isolated PostgreSQL for atomic acceptance, four concurrent identical requests, qualification expiry/refund, credit-lock contention, and provider/output contract handling. External provider and safety responses are synthetic. Browser tests mock authentication and business APIs. Neither set demonstrates generated choreography quality or a real paid provider integration. A ten-second output whose safety evidence covers only five seconds remains held for review and cannot settle or play.

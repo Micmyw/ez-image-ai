@@ -356,7 +356,8 @@ export async function createVideoJobRecord(
 	const request = videoV1ReceiptInputSchema.parse(input.request);
 	if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 128)
 		throw new Error("INVALID_IDEMPOTENCY_KEY");
-	const requiresScene = input.template?.template.schemaVersion === 1;
+	const requiresScene =
+		input.template?.template.schemaVersion === 1 || input.template?.template.schemaVersion === 3;
 	for (const value of [
 		input.limits.ownerConcurrency,
 		input.limits.globalConcurrency,

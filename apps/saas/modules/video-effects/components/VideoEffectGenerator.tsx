@@ -141,7 +141,8 @@ function SignedInGenerator({
 	const [priceChanged, setPriceChanged] = useState(false);
 	const [busy, setBusy] = useState<"quote" | "submit" | null>(null);
 	const [error, setError] = useState<string | null>(null);
-	const operation = useRef(false);
+	const lifecycle = useRef(0);
+	const operation = useRef<{ lifecycle: number } | null>(null);
 	const mounted = useRef(false);
 	const visible = usePageVisible();
 	const previewRetries = useRef<Record<EffectRole, string | null>>({ left: null, right: null });
@@ -199,8 +200,60 @@ function SignedInGenerator({
 		current.current = next;
 		if (mounted.current) setDraft(next);
 	}
+	function isCurrentOperation(active: { lifecycle: number }) {
+		return (
+			mounted.current && operation.current === active && lifecycle.current === active.lifecycle
+		);
+	}
+	function beginOperation(stage: "quote" | "submit") {
+		const active = { lifecycle: lifecycle.current };
+		operation.current = active;
+		setBusy(stage);
+		setError(null);
+		return active;
+	}
+	function finishOperation(active: { lifecycle: number }) {
+		if (!isCurrentOperation(active)) return;
+		operation.current = null;
+		setBusy(null);
+	}
+	function settleStoredIntent(
+		intent: EffectConfirmation,
+		active: { lifecycle: number },
+		jobId?: string,
+	) {
+		// A response can outlive its view. Compare the latest durable receipt before
+		// writing so an old instance cannot erase the next order's recovery key.
+		try {
+			const key = effectStorageKey(ownerId, effectId);
+			const saved = readEffectDraft(sessionStorage.getItem(key), ownerId, effectId);
+			if (
+				saved?.confirmation?.input.idempotencyKey !== intent.input.idempotencyKey ||
+				saved.confirmation.input.quoteId !== intent.input.quoteId
+			)
+				return;
+			const next = { ...saved, confirmation: null, ...(jobId ? { jobId } : {}) };
+			sessionStorage.setItem(key, JSON.stringify(next));
+			if (
+				isCurrentOperation(active) &&
+				current.current.confirmation?.input.idempotencyKey === intent.input.idempotencyKey
+			) {
+				current.current = next;
+				setDraft(next);
+			}
+		} catch {
+			throw new Error("RECOVERY_STORAGE_UNAVAILABLE");
+		}
+	}
 	useEffect(() => {
+		lifecycle.current++;
+		operation.current = null;
 		mounted.current = true;
+		setBusy(null);
+		setQuote(null);
+		setPriceChanged(false);
+		setError(null);
+		setSlots({ left: emptyPhotoSlot, right: emptyPhotoSlot });
 		let canceled = false;
 		let saved = emptyEffectDraft(ownerId, effectId);
 		try {
@@ -244,6 +297,7 @@ function SignedInGenerator({
 		}
 		return () => {
 			mounted.current = false;
+			operation.current = null;
 			canceled = true;
 			for (const item of Object.values(uploads.current)) {
 				item.revision++;
@@ -251,7 +305,7 @@ function SignedInGenerator({
 				if (item.objectUrl) URL.revokeObjectURL(item.objectUrl);
 			}
 		};
-		// Owner remounts this component; restoring is intentionally a single read.
+		// Each owner/effect/history restoration owns a fresh async-operation lifetime.
 		// oxlint-disable-next-line react-hooks/exhaustive-deps
 	}, [ownerId, initialJobId, effectId]);
 	async function refreshPreview(role: EffectRole) {
@@ -366,32 +420,30 @@ function SignedInGenerator({
 	async function getQuote() {
 		if (operation.current || !enabled || !inputsReady || uploading || current.current.confirmation)
 			return;
-		operation.current = true;
-		setBusy("quote");
-		setError(null);
+		const active = beginOperation("quote");
 		const revision = current.current.revision;
 		try {
 			const result = await videoEffectsApi.quote(effectRequest(current.current));
-			if (mounted.current && revision === current.current.revision) {
+			if (isCurrentOperation(active) && revision === current.current.revision) {
 				setQuote(result);
 				void recordVideoEffectEvent("quote_view", result.quoteId, effectId);
 			}
 		} catch (failure) {
-			setError(t(effectError(failure)));
+			if (isCurrentOperation(active)) setError(t(effectError(failure)));
 		} finally {
-			operation.current = false;
-			setBusy(null);
+			finishOperation(active);
 		}
 	}
-	async function submitIntent(intent: EffectConfirmation) {
+	async function submitIntent(intent: EffectConfirmation, active: { lifecycle: number }) {
+		if (!isCurrentOperation(active)) return;
 		setBusy("submit");
 		// Persist the immutable request before any paid acceptance, including same-price one-click orders.
 		store({ ...current.current, confirmation: intent }, true);
 		void recordVideoEffectEvent("submit", intent.input.idempotencyKey, effectId);
 		const accepted = await videoEffectsApi.jobs.create(intent.input);
 		// Keep recovery durable even when a mode change unmounts this view during acceptance.
-		store({ ...current.current, confirmation: null, jobId: accepted.jobId }, true);
-		if (mounted.current) {
+		settleStoredIntent(intent, active, accepted.jobId);
+		if (isCurrentOperation(active)) {
 			setQuote(null);
 			setPriceChanged(false);
 		}
@@ -400,14 +452,24 @@ function SignedInGenerator({
 		void queryClient.invalidateQueries({ queryKey: ["video-effects", "access", ownerId] });
 		void queryClient.invalidateQueries({ queryKey: ["video-effects", "history", ownerId] });
 	}
-	function failedSubmission(failure: unknown) {
+	function failedSubmission(
+		failure: unknown,
+		active?: { lifecycle: number },
+		intent?: EffectConfirmation,
+	) {
 		const key = effectError(failure);
 		if (key === "quoteExpired" || key === "insufficient") {
-			store({ ...current.current, confirmation: null });
-			if (mounted.current) setQuote(null);
+			if (intent && active) {
+				try {
+					settleStoredIntent(intent, active);
+				} catch (storageFailure) {
+					failure = storageFailure;
+				}
+			}
+			if (mounted.current && (!active || isCurrentOperation(active))) setQuote(null);
 			void queryClient.invalidateQueries({ queryKey: ["video-effects", "access", ownerId] });
 		}
-		if (mounted.current)
+		if (mounted.current && (!active || isCurrentOperation(active)))
 			setError(
 				t(
 					failure instanceof Error && failure.message === "RECOVERY_STORAGE_UNAVAILABLE"
@@ -433,14 +495,19 @@ function SignedInGenerator({
 		}
 		if (!totalCredits) return;
 		const shownCredits = totalCredits;
-		const revision = current.current.revision;
-		operation.current = true;
-		setBusy("quote");
-		setError(null);
+		const quotedDraft = current.current;
+		const active = beginOperation("quote");
+		let intent: EffectConfirmation | undefined;
 		try {
-			const result = await videoEffectsApi.quote(effectRequest(current.current));
+			const result = await videoEffectsApi.quote(effectRequest(quotedDraft));
 			// Switching mode or leaving before quotation must not start a paid order in a hidden view.
-			if (!mounted.current || revision !== current.current.revision) return;
+			if (
+				!isCurrentOperation(active) ||
+				quotedDraft.revision !== current.current.revision ||
+				current.current.jobId ||
+				current.current.confirmation
+			)
+				return;
 			if (Date.parse(result.expiresAt) <= Date.now()) throw new Error("QUOTE_EXPIRED_OR_CHANGED");
 			setQuote(result);
 			void recordVideoEffectEvent("quote_view", result.quoteId, effectId);
@@ -448,12 +515,12 @@ function SignedInGenerator({
 				setPriceChanged(true);
 				return;
 			}
-			await submitIntent(createEffectConfirmation(current.current, result));
+			intent = createEffectConfirmation(quotedDraft, result);
+			await submitIntent(intent, active);
 		} catch (failure) {
-			failedSubmission(failure);
+			failedSubmission(failure, active, intent);
 		} finally {
-			operation.current = false;
-			if (mounted.current) setBusy(null);
+			finishOperation(active);
 		}
 	}
 	async function confirm() {
@@ -462,18 +529,15 @@ function SignedInGenerator({
 			(!current.current.confirmation && (!enabled || !quote || expired || insufficientBalance))
 		)
 			return;
-		operation.current = true;
-		setBusy("submit");
-		setError(null);
+		const active = beginOperation("submit");
+		let intent: EffectConfirmation | undefined;
 		try {
-			const intent =
-				current.current.confirmation ?? createEffectConfirmation(current.current, quote!);
-			await submitIntent(intent);
+			intent = current.current.confirmation ?? createEffectConfirmation(current.current, quote!);
+			await submitIntent(intent, active);
 		} catch (failure) {
-			failedSubmission(failure);
+			failedSubmission(failure, active, intent);
 		} finally {
-			operation.current = false;
-			if (mounted.current) setBusy(null);
+			finishOperation(active);
 		}
 	}
 	function buyCredits() {

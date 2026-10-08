@@ -31,6 +31,9 @@ type Scenario = {
 	eligibleCredits: string;
 	quoteCredits: string;
 	waitForQuote?: Promise<void>;
+	waitForFirstCreate?: Promise<void>;
+	firstCreateFailure?: string;
+	loseCreateCalls?: number[];
 };
 const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 	effectId: "raindance-solo",
@@ -209,8 +212,12 @@ async function setup(page: Page, state: Scenario) {
 		};
 		if (endpoint === "videoEffects/jobs/create") {
 			state.creates.push(body);
+			const call = state.creates.length;
+			if (call === 1 && state.waitForFirstCreate) await state.waitForFirstCreate;
+			if (call === 1 && state.firstCreateFailure) return failure(state.firstCreateFailure);
 			if (state.insufficient) return failure("INSUFFICIENT_ELIGIBLE_CREDITS");
 			if (state.loseFirst && state.creates.length === 1) return route.abort("connectionreset");
+			if (state.loseCreateCalls?.includes(call)) return route.abort("connectionreset");
 			return reply(job);
 		}
 		if (endpoint === "videoEffects/jobs/get") return reply(job);
@@ -401,6 +408,108 @@ test("Raindance: leaving a mode during quotation cannot accept a hidden order", 
 		page.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true }),
 	).toBeEnabled();
 	expect(state.creates).toHaveLength(0);
+});
+
+for (const late of ["accepted", "INSUFFICIENT_ELIGIBLE_CREDITS", "QUOTE_EXPIRED_OR_CHANGED"])
+	test(`Raindance: review-regression late ${late} preserves the next order receipt across reload`, async ({
+		page,
+	}) => {
+		let release!: () => void;
+		const state = scenario({
+			waitForFirstCreate: new Promise<void>((resolve) => {
+				release = resolve;
+			}),
+			firstCreateFailure: late === "accepted" ? undefined : late,
+			loseCreateCalls: [3],
+		});
+		await setup(page, state);
+		await expect(page.locator("#ve-upload-left")).toBeEnabled();
+		await page.locator("#ve-upload-left").setInputFiles(source);
+		await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
+		const generate = () =>
+			page
+				.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
+				.click();
+		await generate();
+		await expect.poll(() => state.creates.length).toBe(1);
+		await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
+		await page.getByRole("button", { name: "Solo · 1 photo", exact: true }).click();
+		await page.getByRole("button", { name: t.recover, exact: true }).click();
+		await expect(page.getByRole("button", { name: t.newVideo, exact: true })).toBeEnabled();
+		expect(state.creates[1]).toEqual(state.creates[0]);
+		await page.getByRole("button", { name: t.newVideo, exact: true }).click();
+		await generate();
+		await expect(page.getByRole("button", { name: t.recover, exact: true })).toBeEnabled();
+		expect(state.creates).toHaveLength(3);
+		const pendingKey = state.creates[2]!.idempotencyKey;
+		expect(pendingKey).not.toBe(state.creates[0]!.idempotencyKey);
+		const storageKey = "ezpic.video-effect.v1:raindance-solo:mock-owner";
+		const storedKey = () =>
+			page.evaluate(
+				(key) => JSON.parse(sessionStorage.getItem(key)!).confirmation?.input.idempotencyKey,
+				storageKey,
+			);
+		expect(await storedKey()).toBe(pendingKey);
+		const oldResponse = page.waitForResponse((response) =>
+			response.url().includes("videoEffects/jobs/create"),
+		);
+		release();
+		await oldResponse;
+		// Flush the browser response callback before reading its durable storage.
+		await page.evaluate(
+			() =>
+				new Promise<void>((resolve) =>
+					requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+				),
+		);
+		expect(await storedKey()).toBe(pendingKey);
+		await page.reload();
+		await expect(page.getByRole("button", { name: t.recover, exact: true })).toBeEnabled();
+		await page.getByRole("button", { name: t.recover, exact: true }).click();
+		await expect(page.getByRole("button", { name: t.newVideo, exact: true })).toBeEnabled();
+		expect(state.creates).toHaveLength(4);
+		expect(state.creates[3]).toEqual(state.creates[2]);
+		expect(state.quotes).toHaveLength(2);
+	});
+
+test("Raindance: review-regression mounted recovery observes an already persisted acceptance", async ({
+	page,
+}) => {
+	let release!: () => void;
+	const state = scenario({
+		waitForFirstCreate: new Promise<void>((resolve) => {
+			release = resolve;
+		}),
+	});
+	await setup(page, state);
+	await expect(page.locator("#ve-upload-left")).toBeEnabled();
+	await page.locator("#ve-upload-left").setInputFiles(source);
+	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
+		.click();
+	await expect.poll(() => state.creates.length).toBe(1);
+	await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
+	await page.getByRole("button", { name: "Solo · 1 photo", exact: true }).click();
+	await expect(page.getByRole("button", { name: t.recover, exact: true })).toBeEnabled();
+	const oldResponse = page.waitForResponse((response) =>
+		response.url().includes("videoEffects/jobs/create"),
+	);
+	release();
+	await oldResponse;
+	await expect
+		.poll(() =>
+			page.evaluate(
+				() =>
+					JSON.parse(sessionStorage.getItem("ezpic.video-effect.v1:raindance-solo:mock-owner")!)
+						.jobId,
+			),
+		)
+		.toBe("mock-template-job");
+	await page.getByRole("button", { name: t.recover, exact: true }).click();
+	await expect(page.getByRole("button", { name: t.newVideo, exact: true })).toBeEnabled();
+	expect(state.creates).toHaveLength(2);
+	expect(state.creates[1]).toEqual(state.creates[0]);
 });
 
 test("Raindance: insufficient balance opens credit packs and preserves duet photos, mode and duration", async ({

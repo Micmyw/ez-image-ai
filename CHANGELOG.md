@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-08 — Effect order recovery safeguards
+
+- Cancel an unfinished quote when opening another history task; preserve the selected task and photo draft through back/forward navigation.
+- Preserve the newest order's recovery key when an older request finishes after a mode change. Success and definitive failure responses update only their matching saved confirmation.
+- Recheck both scene-image emergency switches inside 5- and 10-second admission transactions before creating an order or reserving credits.
+
 ## 2026-10-08 — Five- and ten-second effects
 
 - Keep 5 seconds as the Hotel Lobby/Raindance default and add 10 seconds with separate frozen choreography, provider duration and output checks.

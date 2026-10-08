@@ -30,6 +30,8 @@ type Scenario = {
 	ordinaryVideoJobRequests: number;
 	eligibleCredits: string;
 	quoteCredits: string;
+	waitForQuote?: Promise<void>;
+	history?: boolean;
 };
 const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 	signedIn: true,
@@ -179,6 +181,7 @@ async function setup(page: Page, state: Scenario) {
 			});
 		if (endpoint === "videoEffects/quote") {
 			state.quotes.push(body);
+			if (state.waitForQuote) await state.waitForQuote;
 			return reply({
 				quoteId: `quote-${state.quotes.length}`,
 				credits: state.durations
@@ -211,7 +214,14 @@ async function setup(page: Page, state: Scenario) {
 		}
 		if (endpoint === "videoEffects/jobs/get") return reply(job);
 		if (endpoint === "videoEffects/jobs/list")
-			return reply({ items: state.creates.length ? [job] : [], nextCursor: null });
+			return reply({
+				items: state.history
+					? [{ ...job, jobId: "history-job" }]
+					: state.creates.length
+						? [job]
+						: [],
+				nextCursor: null,
+			});
 		if (endpoint === "videoEffects/jobs/playback") {
 			state.playback++;
 			return route.abort();
@@ -237,6 +247,39 @@ async function uploadBoth(page: Page) {
 	await page.locator("#ve-upload-right").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
 }
+
+test("UI Mock: review-regression history navigation invalidates a pending quote", async ({
+	page,
+}) => {
+	let release!: () => void;
+	const state = scenario({
+		history: true,
+		waitForQuote: new Promise<void>((resolve) => {
+			release = resolve;
+		}),
+	});
+	await setup(page, state);
+	await uploadBoth(page);
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "69"), exact: true })
+		.click();
+	await expect.poll(() => state.quotes.length).toBe(1);
+	await page.locator(".ve-history-item").first().click();
+	await expect(page).toHaveURL(/\?job=history-job/);
+	await expect(page.locator(".ve-result")).toBeVisible();
+	const quoted = page.waitForResponse((response) => response.url().includes("videoEffects/quote"));
+	release();
+	await quoted;
+	await expect(page.getByRole("button", { name: t.newVideo, exact: true })).toBeEnabled();
+	expect(state.creates).toHaveLength(0);
+	await page.goBack();
+	await expect(page).toHaveURL(path);
+	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
+	await expect(
+		page.getByRole("button", { name: t.generate.replace("{credits}", "69"), exact: true }),
+	).toBeEnabled();
+	expect(state.creates).toHaveLength(0);
+});
 
 for (const width of [1440, 390, 320])
 	test(`UI Mock: ${width}px duration options show real standard and annual totals without a five-second discount`, async ({

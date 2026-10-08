@@ -251,6 +251,44 @@ async function storedScene(jobId: string) {
 	return asset;
 }
 describe("template admission and durable scene PostgreSQL regressions", () => {
+	it.each(
+		(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const).flatMap((effectId) =>
+			([5, 10] as const).flatMap((duration) =>
+				[
+					"media.model.nano-banana-2-lite-1k.enabled",
+					"media.model.image-nano-banana-2-lite.enabled",
+				].map((configKey) => ({ effectId, duration, configKey })),
+			),
+		),
+	)(
+		"scene-emergency closure blocks $effectId $duration seconds before reservation: $configKey",
+		async ({ effectId, duration, configKey }) => {
+			// The quote predates closure. Final admission must recheck both scene gates
+			// inside its transaction even after an earlier asynchronous readiness check.
+			const f = await fixture(100n, effectId, duration);
+			const versions = await db.runtimeConfigOverride.aggregate({ _max: { version: true } });
+			const flag = await db.runtimeConfigOverride.create({
+				data: {
+					configKey,
+					version: (versions._max.version ?? 0) + 1,
+					value: false,
+					reason: f.ownerId,
+					createdByUserId: f.ownerId,
+				},
+			});
+			try {
+				await expect(createVideoTemplateJobRecord(f.input, db)).rejects.toThrow("VIDEO_DISABLED");
+				expect(await db.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+				const account = await db.creditAccount.findUniqueOrThrow({
+					where: { ownerType_ownerId: { ownerType: "USER", ownerId: f.ownerId } },
+				});
+				expect(account).toMatchObject({ spendableCredits: 100n, reservedCredits: 0n });
+				expect(await db.creditReservation.count({ where: { accountId: account.id } })).toBe(0);
+			} finally {
+				await db.runtimeConfigOverride.delete({ where: { id: flag.id } });
+			}
+		},
+	);
 	it("binds duration to the quote and replays an accepted ten-second order without another reservation", async () => {
 		const f = await fixture(100n, "hotel-lobby-duo", 10);
 		await expect(
