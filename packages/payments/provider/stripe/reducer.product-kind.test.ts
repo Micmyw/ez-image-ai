@@ -370,5 +370,6 @@ describe("Stripe subscription product-kind isolation", () => {
 			type: "SUBSCRIPTION",
 			productKind: "PLAN",
 		});
+		expect(fixture.createdPurchase()).not.toHaveProperty("attribution");
 	});
 });

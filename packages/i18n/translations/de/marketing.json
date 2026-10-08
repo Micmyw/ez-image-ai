@@ -699,7 +699,7 @@
 	},
 	"common": {
 		"consent": {
-			"message": "Google Analytics und Microsoft Clarity laufen automatisch. Entscheide, ob du zusätzliche Produktanalysen zulässt. Notwendiger Speicher bleibt verfügbar.",
+			"message": "Google Analytics und Microsoft Clarity laufen automatisch. Entscheide, ob du optionale PostHog-Produktanalysen sowie Aufzeichnungen der Registrierungsquellen und der Seiten, die Käufe auslösen, zulässt. Notwendiger Speicher bleibt verfügbar.",
 			"decline": "Optionale ablehnen",
 			"allow": "Optionale erlauben"
 		},

@@ -21,7 +21,7 @@ vi.mock("@repo/database", async () => {
 	const { z } = await import("zod");
 
 	return {
-		PurchaseSchema: z.object({ provider: z.string() }),
+		PurchaseSchema: z.object({ provider: z.string(), attribution: z.unknown().optional() }),
 		findEffectivePaidSubscription: vi.fn(),
 		getOrganizationMembership: vi.fn(),
 		getPurchasesByOrganizationId: vi.fn(),
@@ -100,6 +100,21 @@ describe("listPurchases", () => {
 		vi.clearAllMocks();
 		vi.mocked(findEffectivePaidSubscription).mockResolvedValue(null);
 		vi.mocked(auth.api.getSession).mockResolvedValue(authenticatedSession);
+	});
+
+	it("does not disclose administrator attribution in customer purchase responses", async () => {
+		vi.mocked(getPurchasesByUserId).mockResolvedValue([
+			{
+				id: "purchase-1",
+				provider: "paypal",
+				productKind: "CREDIT_PACK",
+				type: "ONE_TIME",
+				mediaSubscription: null,
+				attribution: { triggerPath: "/create" },
+			},
+		] as never);
+		const purchases = await call(listPurchases, {}, { context: { headers: new Headers() } });
+		expect(purchases[0]).not.toHaveProperty("attribution");
 	});
 
 	it("marks the canonical effective subscription without hiding other payment methods", async () => {

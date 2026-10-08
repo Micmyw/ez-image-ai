@@ -6,6 +6,7 @@ import {
 	markPaymentCheckoutIntentProviderCreating,
 	reserveCredits,
 	settleCredits,
+	type Prisma,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { processProviderPaymentEvent } from "@repo/payments";
@@ -16,6 +17,12 @@ import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const RUN_ID = crypto.randomUUID();
 const PROCESS_NOW = new Date("2026-09-01T00:00:00.000Z");
+const PACK_ATTRIBUTION = {
+	version: 1,
+	registration: null,
+	triggerPath: "/create",
+	triggeredAt: "2026-08-31T10:00:00.000Z",
+};
 
 describe("credit-pack payment lifecycle", () => {
 	let client: PrismaClient;
@@ -40,6 +47,12 @@ describe("credit-pack payment lifecycle", () => {
 			orderId: `ORDER-${RUN_ID}`,
 			paidAt: new Date("2026-08-31T14:15:16.123Z"),
 			subscriberBonusEligible: true,
+			attribution: {
+				version: 1,
+				registration: null,
+				triggerPath: "/blog/portrait-ideas",
+				triggeredAt: "2026-08-31T14:14:16.123Z",
+			},
 		});
 		ownerIds.push(fixture.ownerId);
 		billingPlanIds.push(fixture.billingPlanId);
@@ -86,6 +99,12 @@ describe("credit-pack payment lifecycle", () => {
 				type: "ONE_TIME",
 				productKind: "CREDIT_PACK",
 				subscriptionId: null,
+				attribution: {
+					version: 1,
+					registration: null,
+					triggerPath: "/blog/portrait-ideas",
+					triggeredAt: "2026-08-31T14:14:16.123Z",
+				},
 			},
 		});
 		expect(fulfillment.expiresAt).toEqual(new Date("2027-02-28T14:15:16.123Z"));
@@ -146,7 +165,11 @@ describe("credit-pack payment lifecycle", () => {
 		});
 		await expect(
 			client.purchase.findUniqueOrThrow({ where: { id: fulfillment.purchaseId! } }),
-		).resolves.toMatchObject({ status: "refunded", productKind: "CREDIT_PACK" });
+		).resolves.toMatchObject({
+			status: "refunded",
+			productKind: "CREDIT_PACK",
+			attribution: fulfillment.purchase!.attribution,
+		});
 		await expect(
 			client.creditAccount.findUniqueOrThrow({
 				where: { ownerType_ownerId: { ownerType: "USER", ownerId: fixture.ownerId } },
@@ -622,6 +645,7 @@ describe("credit-pack payment lifecycle", () => {
 				productKind: "CREDIT_PACK",
 				provider: "waffo",
 				customerId: `USER:${fixture.ownerId}`,
+				attribution: PACK_ATTRIBUTION,
 				subscriptionId: null,
 				status: "completed",
 			},
@@ -672,7 +696,9 @@ describe("credit-pack payment lifecycle", () => {
 
 		const fulfillment = await client.creditPackFulfillment.findUniqueOrThrow({
 			where: { checkoutIntentId: fixture.checkoutIntentId },
+			include: { purchase: true },
 		});
+		expect(fulfillment.purchase?.attribution).toEqual(PACK_ATTRIBUTION);
 		expect(
 			await client.creditPackFulfillment.count({
 				where: { checkoutIntentId: fixture.checkoutIntentId },
@@ -874,8 +900,9 @@ describe("credit-pack payment lifecycle", () => {
 		expect(fulfillmentBefore.purchaseId).not.toBeNull();
 		const purchaseBefore = await client.purchase.findUniqueOrThrow({
 			where: { id: fulfillmentBefore.purchaseId! },
-			select: { status: true, productKind: true, type: true, customerId: true },
+			select: { status: true, productKind: true, type: true, customerId: true, attribution: true },
 		});
+		expect(purchaseBefore.attribution).toEqual(PACK_ATTRIBUTION);
 		const accountBefore = await client.creditAccount.findUniqueOrThrow({
 			where: { ownerType_ownerId: { ownerType: "USER", ownerId: fixture.ownerId } },
 			select: { spendableCredits: true, reservedCredits: true, creditDebt: true },
@@ -930,7 +957,13 @@ describe("credit-pack payment lifecycle", () => {
 		await expect(
 			client.purchase.findUniqueOrThrow({
 				where: { id: fulfillmentBefore.purchaseId! },
-				select: { status: true, productKind: true, type: true, customerId: true },
+				select: {
+					status: true,
+					productKind: true,
+					type: true,
+					customerId: true,
+					attribution: true,
+				},
 			}),
 		).resolves.toEqual({ ...purchaseBefore, status: "refunded" });
 		await expect(
@@ -1002,6 +1035,7 @@ async function createPackCheckout(
 		paidAt: Date;
 		subscriberBonusEligible: boolean;
 		bindProviderOrderId?: boolean;
+		attribution?: Prisma.InputJsonValue;
 	},
 ): Promise<PackCheckoutFixture> {
 	const provider = input.provider ?? "paypal";
@@ -1049,6 +1083,7 @@ async function createPackCheckout(
 			planKey: "credits-1500",
 			interval: "one-time",
 			idempotencyKey: `checkout-${input.label}-${RUN_ID}`,
+			attribution: input.attribution ?? PACK_ATTRIBUTION,
 			now: new Date(input.paidAt.getTime() - 60_000),
 			creditPackSnapshot: {
 				catalogVersion: "2026-09-06.1",

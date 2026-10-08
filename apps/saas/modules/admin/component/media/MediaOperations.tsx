@@ -21,6 +21,7 @@ import { useState } from "react";
 import { CheckoutReviewPanel } from "./CheckoutReviewPanel";
 import { GrowthOperationsPanel } from "./GrowthOperationsPanel";
 import { ModerationOperationsPanel } from "./ModerationOperationsPanel";
+import { PaymentAttributionPanel } from "./PaymentAttributionPanel";
 
 const AUDIT_PAGE_SIZE = 20;
 
@@ -115,6 +116,7 @@ export function MediaOperations() {
 
 	return (
 		<div className="space-y-6">
+			<PaymentAttributionPanel />
 			<CheckoutReviewPanel />
 			<ModerationOperationsPanel />
 			<GrowthOperationsPanel />

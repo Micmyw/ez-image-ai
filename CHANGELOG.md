@@ -2,6 +2,11 @@
 
 ## 2026-10-08
 
+### Registration and payment sources
+
+- With optional analytics consent, retain the first landing page, external source origin and limited campaign tags at registration; freeze the page that prompted a subscription or credit-pack checkout and carry it into the confirmed purchase.
+- Show both snapshots to administrators in Media operations. Historical or unavailable sources remain unknown; renewals, retries and refunds preserve the original checkout source. Query strings, fragments, private resource IDs and authentication data are excluded.
+
 ### Verified video variants and explicit Veo pricing
 
 - Offer real Veo Lite/Fast/Quality, Seedance 2 Mini/Fast/Seedance 2, and Kling 3 Standard/Pro/4K/Turbo choices. The base variant has no button; alternatives are mutually exclusive and can be cancelled. Preserve each group's selection, compatible settings and separate image drafts.

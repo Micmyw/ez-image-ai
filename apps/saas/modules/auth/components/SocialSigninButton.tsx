@@ -3,6 +3,8 @@
 import { config } from "@config";
 import { authClient } from "@repo/auth/client";
 import { Button } from "@repo/ui/components/button";
+import { captureRegistrationFirstTouch } from "@shared/lib/purchase-attribution";
+import { getSafeRedirectPath } from "@shared/lib/redirect";
 import { parseAsString, useQueryState } from "nuqs";
 
 import { oAuthProviders } from "../constants/oauth-providers";
@@ -15,13 +17,15 @@ export function SocialSigninButton({
 	className?: string;
 }) {
 	const [invitationId] = useQueryState("invitationId", parseAsString);
+	const [redirectTo] = useQueryState("redirectTo", parseAsString);
 	const providerData = oAuthProviders[provider];
 
 	const redirectPath = invitationId
 		? `/organization-invitation/${invitationId}`
-		: config.redirectAfterSignIn;
+		: getSafeRedirectPath(redirectTo, config.redirectAfterSignIn);
 
 	const onSignin = async () => {
+		captureRegistrationFirstTouch();
 		const callbackURL = new URL(redirectPath, window.location.origin);
 		await authClient.signIn.social({
 			provider,

@@ -39,6 +39,7 @@ model User {
   twoFactorEnabled         Boolean?
   lastActiveOrganizationId String?
   isAnonymous              Boolean                      @default(false)
+  registrationAttribution  Json?
   sessions                 Session[]
   accounts                 Account[]
   passkeys                 Passkey[]
@@ -221,6 +222,7 @@ model Purchase {
   subscriptionId        String?
   priceId               String
   status                String?
+  attribution           Json?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
   mediaSubscription     Subscription?
@@ -1304,6 +1306,7 @@ model PaymentCheckoutIntent {
   providerOrderId                        String?
   providerCheckoutUrl                    String?
   checkoutRecovery                       Json?
+  attribution                            Json?
   activeScopeKey                         String?                     @unique
   creditPackCatalogVersion               String?
   creditPackPricingVersion               String?

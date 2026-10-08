@@ -27,6 +27,7 @@ import { localeMiddleware } from "../../../orpc/middleware/locale-middleware";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { verifyOrganizationBillingManagement } from "../../organizations/lib/membership";
 import { assertNewBillingEnabled, assertBillingEnvironmentReady } from "../billing-gate";
+import { captureCheckoutAttribution, checkoutTriggerInputSchema } from "../checkout-attribution";
 import { isExactBillingPlanSnapshot } from "../provider-availability";
 import { recoverProviderCreatingCheckout } from "./checkout-recovery";
 import { resumableCheckoutLink, wakeCheckoutRecovery } from "./pending-subscription-checkout";
@@ -36,6 +37,7 @@ export const checkoutInputSchema = z
 		provider: z.enum(["paypal", "waffo"]),
 		planId: z.enum(["creator", "ultimate", "studio"]),
 		interval: z.enum(["month", "year"]),
+		attribution: checkoutTriggerInputSchema,
 		idempotencyKey: z
 			.string()
 			.trim()
@@ -54,7 +56,7 @@ export const createCheckoutLink = protectedProcedure
 	})
 	.input(checkoutInputSchema)
 	.output(z.object({ checkoutLink: z.url(), checkoutIntentId: z.string().min(1) }))
-	.handler(async ({ input, context: { session, user } }) => {
+	.handler(async ({ input, context: { session, user, headers } }) => {
 		assertNewBillingEnabled();
 		await assertBillingEnvironmentReady();
 		const { provider, planId, interval, idempotencyKey } = input;
@@ -124,6 +126,7 @@ export const createCheckoutLink = protectedProcedure
 						interval,
 						idempotencyKey,
 						checkoutRecovery: newSubscriptionCheckoutRecovery(provider),
+						attribution: await captureCheckoutAttribution(headers, input.attribution, user.id),
 					},
 					db,
 				);

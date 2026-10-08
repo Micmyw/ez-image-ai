@@ -1,5 +1,6 @@
 "use client";
 
+import { captureCheckoutTrigger, clearCheckoutTrigger } from "@shared/lib/purchase-attribution";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
@@ -22,9 +23,22 @@ export function UpgradeProvider({ children }: { children: ReactNode }) {
 		);
 	}, [pathname]);
 	return (
-		<UpgradeContext.Provider value={setSelection}>
+		<UpgradeContext.Provider
+			value={(next) => {
+				captureCheckoutTrigger();
+				setSelection(next);
+			}}
+		>
 			{children}
-			{selection && <UpgradeDialog selection={selection} onClose={() => setSelection(null)} />}
+			{selection && (
+				<UpgradeDialog
+					selection={selection}
+					onClose={() => {
+						clearCheckoutTrigger();
+						setSelection(null);
+					}}
+				/>
+			)}
 		</UpgradeContext.Provider>
 	);
 }

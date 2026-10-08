@@ -1,4 +1,4 @@
-import { eq, ilike, or, sql } from "drizzle-orm";
+import { and, eq, ilike, isNull, or, sql } from "drizzle-orm";
 import type { z } from "zod";
 
 import { db } from "../client";
@@ -35,6 +35,21 @@ export async function getUserById(id: string) {
 	return await db.query.user.findFirst({
 		where: (user, { eq }) => eq(user.id, id),
 	});
+}
+
+/** Persist only a server-sanitized registration snapshot; later visits cannot replace it. */
+export async function setUserRegistrationAttributionOnce(
+	userId: string,
+	snapshot: Record<string, unknown>,
+): Promise<boolean> {
+	const changed = await db
+		.update(user)
+		.set({ registrationAttribution: snapshot })
+		.where(
+			and(eq(user.id, userId), eq(user.isAnonymous, false), isNull(user.registrationAttribution)),
+		)
+		.returning({ id: user.id });
+	return changed.length === 1;
 }
 
 export async function getUserByEmail(email: string) {
@@ -113,5 +128,6 @@ export async function createUserAccount({
 }
 
 export async function updateUser(updatedUser: z.infer<typeof UserUpdateSchema>) {
-	return db.update(user).set(updatedUser).where(eq(user.id, updatedUser.id));
+	const { registrationAttribution: _registrationAttribution, ...mutableUser } = updatedUser;
+	return db.update(user).set(mutableUser).where(eq(user.id, updatedUser.id));
 }

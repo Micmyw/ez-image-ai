@@ -286,6 +286,40 @@
 				"newest": "Contrôles récents",
 				"older": "Contrôles précédents"
 			},
+			"paymentAttribution": {
+				"title": "Attribution des commandes",
+				"description": "Consultez la première arrivée des utilisateurs payants et la page ayant déclenché le paiement. Affiche les 20 commandes et tentatives de paiement les plus récentes de tous les prestataires.",
+				"reference": "Référence de commande ou de paiement (facultatif)",
+				"find": "Rechercher la référence",
+				"recent": "Derniers enregistrements",
+				"loading": "Chargement de l’attribution…",
+				"loadError": "Impossible de charger l’attribution de la commande. Réessayez.",
+				"unknownHint": "Inconnu signifie qu’aucune attribution consentie n’a été enregistrée ou que la commande précède la collecte. Les heures sont affichées en UTC.",
+				"purchases": "Commandes",
+				"checkouts": "Tentatives de paiement",
+				"empty": "Aucun enregistrement correspondant.",
+				"unknown": "Inconnu",
+				"owner": "Référence du compte",
+				"product": "Produit",
+				"creditPack": "Pack de crédits",
+				"plan": "Offre",
+				"createdAt": "Commande créée",
+				"registrationSource": "Source de l’inscription",
+				"referrer": "Site référent",
+				"landingPath": "Première page d’arrivée",
+				"campaign": "Source / support / nom de campagne",
+				"capturedAt": "Première visite enregistrée",
+				"registeredAt": "Inscription",
+				"triggerPath": "Page ayant déclenché le paiement",
+				"triggeredAt": "Paiement déclenché",
+				"renewalHint": "Les renouvellements de l’abonnement conservent l’attribution de ce paiement initial.",
+				"sources": {
+					"direct": "Visite directe",
+					"referral": "Site référent",
+					"campaign": "Campagne",
+					"unknown": "Inconnu"
+				}
+			},
 			"checkoutReview": {
 				"title": "Examen des souscriptions en attente",
 				"description": "Résoudre les anciennes commandes PayPal restées en examen après que le client a quitté la page sans autoriser le paiement.",
@@ -1584,7 +1618,7 @@
 	"common": {
 		"consent": {
 			"label": "Analyses produit facultatives",
-			"message": "Google Analytics et Microsoft Clarity fonctionnent automatiquement. Choisissez si vous autorisez des analyses supplémentaires de l'utilisation du produit. Le stockage essentiel reste disponible.",
+			"message": "Google Analytics et Microsoft Clarity fonctionnent automatiquement. Choisissez si vous autorisez les analyses facultatives de PostHog et l'enregistrement des sources d'inscription et des pages qui déclenchent les achats. Le stockage essentiel reste disponible.",
 			"decline": "Refuser les facultatifs",
 			"allow": "Autoriser les facultatifs"
 		},

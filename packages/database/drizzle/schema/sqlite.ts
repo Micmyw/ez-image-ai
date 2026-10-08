@@ -41,6 +41,7 @@ export const user = sqliteTable("user", {
 	locale: text("locale"),
 	lastActiveOrganizationId: text("lastActiveOrganizationId"),
 	isAnonymous: integer("isAnonymous", { mode: "boolean" }).default(false).notNull(),
+	registrationAttribution: text("registrationAttribution", { mode: "json" }),
 });
 
 export const session = sqliteTable(
@@ -213,6 +214,7 @@ export const purchase = sqliteTable(
 		subscriptionId: text("subscriptionId"),
 		priceId: text("priceId").notNull(),
 		status: text("status"),
+		attribution: text("attribution", { mode: "json" }),
 		createdAt: integer("createdAt", { mode: "timestamp" })
 			.notNull()
 			.default(sql`CURRENT_TIMESTAMP`),
@@ -379,6 +381,7 @@ export const paymentCheckoutIntent = sqliteTable(
 		providerOrderId: text("providerOrderId"),
 		providerCheckoutUrl: text("providerCheckoutUrl"),
 		checkoutRecovery: text("checkoutRecovery", { mode: "json" }),
+		attribution: text("attribution", { mode: "json" }),
 		activeScopeKey: text("activeScopeKey"),
 		creditPackCatalogVersion: text("creditPackCatalogVersion"),
 		creditPackPricingVersion: text("creditPackPricingVersion"),

@@ -103,6 +103,7 @@ export async function applyCreditPackPaymentFact(
 			subscriptionId: null,
 			priceId: checkoutIntent.billingPlan.providerPriceId,
 			status: "completed",
+			attribution: checkoutIntent.attribution ?? undefined,
 			organizationId: checkoutIntent.ownerType === "ORGANIZATION" ? checkoutIntent.ownerId : null,
 			userId: checkoutIntent.ownerType === "USER" ? checkoutIntent.ownerId : null,
 		},

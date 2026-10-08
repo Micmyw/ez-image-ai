@@ -59,13 +59,25 @@ describe("provider-aware payment persistence", () => {
 			planKey: "creator",
 			interval: "month" as const,
 			idempotencyKey: `attempt-${RUN_ID}`,
+			attribution: {
+				version: 1,
+				registration: null,
+				triggerPath: "/blog/first-page",
+				triggeredAt: now.toISOString(),
+			},
 			now,
 		};
 
 		const first = await createPaymentCheckoutIntent(input, client);
 		fixtureIds.intents.push(first.intent.id);
-		const replay = await createPaymentCheckoutIntent(input, client);
-		expect(replay).toMatchObject({ replayed: true, intent: { id: first.intent.id } });
+		const replay = await createPaymentCheckoutIntent(
+			{ ...input, attribution: { ...input.attribution, triggerPath: "/pricing" } },
+			client,
+		);
+		expect(replay).toMatchObject({
+			replayed: true,
+			intent: { id: first.intent.id, attribution: input.attribution },
+		});
 
 		const waffoPlan = await createPlan(client, "waffo", "PROD_0123456789AbCdEfGhIjKl");
 		await expect(
@@ -427,6 +439,12 @@ describe("provider-aware payment persistence", () => {
 				...base,
 				billingPlanId: originalPlan.id,
 				idempotencyKey: originalKey,
+				attribution: {
+					version: 1,
+					registration: null,
+					triggerPath: "/video/effects/rumpelstiltskin",
+					triggeredAt: "2026-10-08T12:00:00.000Z",
+				},
 			},
 			client,
 		);
@@ -450,13 +468,25 @@ describe("provider-aware payment persistence", () => {
 			...base,
 			billingPlanId: rotatedPlan.id,
 			idempotencyKey: aliasKey,
+			attribution: {
+				version: 1,
+				registration: null,
+				triggerPath: "/pricing",
+				triggeredAt: "2026-10-08T12:30:00.000Z",
+			},
 		};
 		const [retryA, retryB] = await Promise.all([
 			createPaymentCheckoutIntent(aliasCommand, client),
 			createPaymentCheckoutIntent(aliasCommand, client),
 		]);
-		expect(retryA).toMatchObject({ replayed: true, intent: { id: first.intent.id } });
-		expect(retryB).toMatchObject({ replayed: true, intent: { id: first.intent.id } });
+		expect(retryA).toMatchObject({
+			replayed: true,
+			intent: { id: first.intent.id, attribution: first.intent.attribution },
+		});
+		expect(retryB).toMatchObject({
+			replayed: true,
+			intent: { id: first.intent.id, attribution: first.intent.attribution },
+		});
 		await expect(
 			client.paymentCheckoutIntentIdempotencyAlias.count({
 				where: { ownerType: "USER", ownerId, idempotencyKey: aliasKey },

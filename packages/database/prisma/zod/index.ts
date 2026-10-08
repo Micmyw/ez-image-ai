@@ -12,7 +12,7 @@ export type TransactionIsolationLevel = z.infer<typeof TransactionIsolationLevel
 
 // File: UserScalarFieldEnum.schema.ts
 
-export const UserScalarFieldEnumSchema = z.enum(['id', 'name', 'email', 'emailVerified', 'image', 'createdAt', 'updatedAt', 'role', 'banned', 'banReason', 'banExpires', 'onboardingComplete', 'paymentsCustomerId', 'locale', 'twoFactorEnabled', 'lastActiveOrganizationId', 'isAnonymous'])
+export const UserScalarFieldEnumSchema = z.enum(['id', 'name', 'email', 'emailVerified', 'image', 'createdAt', 'updatedAt', 'role', 'banned', 'banReason', 'banExpires', 'onboardingComplete', 'paymentsCustomerId', 'locale', 'twoFactorEnabled', 'lastActiveOrganizationId', 'isAnonymous', 'registrationAttribution'])
 
 export type UserScalarFieldEnum = z.infer<typeof UserScalarFieldEnumSchema>;
 
@@ -66,7 +66,7 @@ export type InvitationScalarFieldEnum = z.infer<typeof InvitationScalarFieldEnum
 
 // File: PurchaseScalarFieldEnum.schema.ts
 
-export const PurchaseScalarFieldEnumSchema = z.enum(['id', 'organizationId', 'userId', 'type', 'productKind', 'provider', 'customerId', 'subscriptionId', 'priceId', 'status', 'createdAt', 'updatedAt'])
+export const PurchaseScalarFieldEnumSchema = z.enum(['id', 'organizationId', 'userId', 'type', 'productKind', 'provider', 'customerId', 'subscriptionId', 'priceId', 'status', 'attribution', 'createdAt', 'updatedAt'])
 
 export type PurchaseScalarFieldEnum = z.infer<typeof PurchaseScalarFieldEnumSchema>;
 
@@ -258,7 +258,7 @@ export type PaymentCustomerScalarFieldEnum = z.infer<typeof PaymentCustomerScala
 
 // File: PaymentCheckoutIntentScalarFieldEnum.schema.ts
 
-export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'productKind', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'providerOrderId', 'providerCheckoutUrl', 'checkoutRecovery', 'activeScopeKey', 'creditPackCatalogVersion', 'creditPackPricingVersion', 'creditPackSubscriberEligibilityVersion', 'creditPackBaseCredits', 'creditPackBonusCredits', 'creditPackTotalCredits', 'creditPackExpiryMonths', 'creditPackSubscriberBonusEligible', 'creditPackSubscriberSubscriptionId', 'creditPackSubscriberPlanKey', 'creditPackEligibilityEvaluatedAt', 'status', 'expiresAt', 'createdAt', 'updatedAt'])
+export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'productKind', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'providerOrderId', 'providerCheckoutUrl', 'checkoutRecovery', 'attribution', 'activeScopeKey', 'creditPackCatalogVersion', 'creditPackPricingVersion', 'creditPackSubscriberEligibilityVersion', 'creditPackBaseCredits', 'creditPackBonusCredits', 'creditPackTotalCredits', 'creditPackExpiryMonths', 'creditPackSubscriberBonusEligible', 'creditPackSubscriberSubscriptionId', 'creditPackSubscriberPlanKey', 'creditPackEligibilityEvaluatedAt', 'status', 'expiresAt', 'createdAt', 'updatedAt'])
 
 export type PaymentCheckoutIntentScalarFieldEnum = z.infer<typeof PaymentCheckoutIntentScalarFieldEnumSchema>;
 
@@ -388,17 +388,17 @@ export const SortOrderSchema = z.enum(['asc', 'desc'])
 
 export type SortOrder = z.infer<typeof SortOrderSchema>;
 
-// File: JsonNullValueInput.schema.ts
-
-export const JsonNullValueInputSchema = z.enum(['JsonNull'])
-
-export type JsonNullValueInput = z.infer<typeof JsonNullValueInputSchema>;
-
 // File: NullableJsonNullValueInput.schema.ts
 
 export const NullableJsonNullValueInputSchema = z.enum(['DbNull', 'JsonNull'])
 
 export type NullableJsonNullValueInput = z.infer<typeof NullableJsonNullValueInputSchema>;
+
+// File: JsonNullValueInput.schema.ts
+
+export const JsonNullValueInputSchema = z.enum(['JsonNull'])
+
+export type JsonNullValueInput = z.infer<typeof JsonNullValueInputSchema>;
 
 // File: QueryMode.schema.ts
 
@@ -406,17 +406,17 @@ export const QueryModeSchema = z.enum(['default', 'insensitive'])
 
 export type QueryMode = z.infer<typeof QueryModeSchema>;
 
-// File: NullsOrder.schema.ts
-
-export const NullsOrderSchema = z.enum(['first', 'last'])
-
-export type NullsOrder = z.infer<typeof NullsOrderSchema>;
-
 // File: JsonNullValueFilter.schema.ts
 
 export const JsonNullValueFilterSchema = z.enum(['DbNull', 'JsonNull', 'AnyNull'])
 
 export type JsonNullValueFilter = z.infer<typeof JsonNullValueFilterSchema>;
+
+// File: NullsOrder.schema.ts
+
+export const NullsOrderSchema = z.enum(['first', 'last'])
+
+export type NullsOrder = z.infer<typeof NullsOrderSchema>;
 
 // File: PurchaseType.schema.ts
 
@@ -654,6 +654,7 @@ export const UserSchema = z.object({
   twoFactorEnabled: z.boolean().nullish(),
   lastActiveOrganizationId: z.string().nullish(),
   isAnonymous: z.boolean(),
+  registrationAttribution: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
 });
 
 export type UserType = z.infer<typeof UserSchema>;
@@ -804,6 +805,7 @@ export const PurchaseSchema = z.object({
   subscriptionId: z.string().nullish(),
   priceId: z.string(),
   status: z.string().nullish(),
+  attribution: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -1557,6 +1559,7 @@ export const PaymentCheckoutIntentSchema = z.object({
   providerOrderId: z.string().nullish(),
   providerCheckoutUrl: z.string().nullish(),
   checkoutRecovery: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
+  attribution: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
   activeScopeKey: z.string().nullish(),
   creditPackCatalogVersion: z.string().nullish(),
   creditPackPricingVersion: z.string().nullish(),

@@ -4,6 +4,8 @@ import { ProgressProvider } from "@bprogress/next/app";
 import { UpgradeProvider } from "@payments/components/UpgradeProvider";
 import type { PropsWithChildren } from "react";
 
+import { PurchaseAttribution } from "./PurchaseAttribution";
+
 export function ClientProviders({ children }: PropsWithChildren) {
 	return (
 		<ProgressProvider
@@ -13,6 +15,7 @@ export function ClientProviders({ children }: PropsWithChildren) {
 			shallowRouting
 			delay={250}
 		>
+			<PurchaseAttribution />
 			<UpgradeProvider>{children}</UpgradeProvider>
 		</ProgressProvider>
 	);

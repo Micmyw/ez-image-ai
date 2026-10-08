@@ -7,6 +7,7 @@ const {
 	bindCheckoutIntentOrder,
 	createCheckoutIntent,
 	findBillingPlan,
+	findAttributionUser,
 	findEffectivePaidSubscription,
 	getPaymentCheckoutIntentForOwner,
 	getPaymentCheckoutIntentForOwnerByIdempotencyKey,
@@ -28,6 +29,7 @@ const {
 	bindCheckoutIntentOrder: vi.fn(),
 	createCheckoutIntent: vi.fn(),
 	findBillingPlan: vi.fn(),
+	findAttributionUser: vi.fn(),
 	findEffectivePaidSubscription: vi.fn(),
 	getPaymentCheckoutIntentForOwner: vi.fn(),
 	getPaymentCheckoutIntentForOwnerByIdempotencyKey: vi.fn(),
@@ -60,7 +62,7 @@ vi.mock("@repo/database", () => ({
 	transitionPaymentCheckoutIntentToReview: transitionCheckoutIntentToReview,
 }));
 vi.mock("@repo/database/client", () => ({
-	db: { billingPlan: { findUnique: findBillingPlan } },
+	db: { billingPlan: { findUnique: findBillingPlan }, user: { findUnique: findAttributionUser } },
 }));
 vi.mock("@repo/logs", () => ({ logger: { error: vi.fn() } }));
 vi.mock("@repo/payments", () => ({
@@ -217,6 +219,39 @@ describe("createCreditPackCheckout", () => {
 		vi.useRealTimers();
 		vi.unstubAllEnvs();
 	});
+	it.each([true, false])(
+		"freezes credit-pack trigger only with consent (%s)",
+		async (consented) => {
+			findAttributionUser.mockResolvedValue({ registrationAttribution: null });
+			await call(
+				createCreditPackCheckout,
+				{
+					provider: "paypal",
+					packKey: "credits-1500",
+					idempotencyKey: "credit-pack-attribution-0001",
+					attribution: { triggerPath: "/photo-to-coloring-page?token=secret#private" },
+				},
+				{ context: { headers: new Headers({ cookie: `consent=${consented}` }) } },
+			);
+			const data = createCheckoutIntent.mock.calls[0]?.[0];
+			if (consented) {
+				expect(data.attribution).toEqual({
+					version: 1,
+					registration: null,
+					triggerPath: "/photo-to-coloring-page",
+					triggeredAt: "2026-09-06T08:30:00.000Z",
+				});
+				expect(findAttributionUser).toHaveBeenCalledWith({
+					where: { id: "user-1" },
+					select: { registrationAttribution: true },
+				});
+			} else {
+				expect(data.attribution).toBeUndefined();
+				expect(findAttributionUser).not.toHaveBeenCalled();
+			}
+			expect(providerCheckout.mock.calls[0]?.[0]).not.toHaveProperty("attribution");
+		},
+	);
 	it.each(["paypal", "waffo"] as const)(
 		"blocks an unapproved %s merchant before creating a credit-pack intent",
 		async (provider) => {

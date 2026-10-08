@@ -699,7 +699,7 @@
 	},
 	"common": {
 		"consent": {
-			"message": "Google Analytics and Microsoft Clarity run automatically. Choose whether to allow additional product analytics. Essential storage remains available.",
+			"message": "Google Analytics and Microsoft Clarity run automatically. Choose whether to allow optional PostHog product analytics and records of registration sources and pages that trigger purchases. Essential storage remains available.",
 			"decline": "Decline optional",
 			"allow": "Allow optional"
 		},

@@ -286,6 +286,40 @@
 				"newest": "Newest reviews",
 				"older": "Older reviews"
 			},
+			"paymentAttribution": {
+				"title": "Order attribution",
+				"description": "See where each paying user first arrived and which page triggered checkout. Lists the 20 latest orders and checkout attempts across payment providers.",
+				"reference": "Order or checkout reference (optional)",
+				"find": "Find reference",
+				"recent": "Recent records",
+				"loading": "Loading attribution…",
+				"loadError": "Could not load order attribution. Try again.",
+				"unknownHint": "Unknown means no consented attribution was recorded, or the order predates collection. Times are shown in UTC.",
+				"purchases": "Orders",
+				"checkouts": "Checkout attempts",
+				"empty": "No matching records.",
+				"unknown": "Unknown",
+				"owner": "Account reference",
+				"product": "Product",
+				"creditPack": "Credit pack",
+				"plan": "Plan",
+				"createdAt": "Order created",
+				"registrationSource": "Registration source",
+				"referrer": "Referring website",
+				"landingPath": "First landing page",
+				"campaign": "Campaign source / medium / name",
+				"capturedAt": "First visit recorded",
+				"registeredAt": "Registered",
+				"triggerPath": "Page that triggered checkout",
+				"triggeredAt": "Checkout triggered",
+				"renewalHint": "Subscription renewals inherit this original checkout attribution.",
+				"sources": {
+					"direct": "Direct visit",
+					"referral": "Website referral",
+					"campaign": "Campaign",
+					"unknown": "Unknown"
+				}
+			},
 			"checkoutReview": {
 				"title": "Subscription checkout review",
 				"description": "Resolve older PayPal checkouts that remain under review after the customer left without approving payment.",
@@ -1584,7 +1618,7 @@
 	"common": {
 		"consent": {
 			"label": "Optional product analytics",
-			"message": "Google Analytics and Microsoft Clarity run automatically. Choose whether to allow additional product analytics. Essential storage remains available.",
+			"message": "Google Analytics and Microsoft Clarity run automatically. Choose whether to allow optional PostHog product analytics and records of registration sources and pages that trigger purchases. Essential storage remains available.",
 			"decline": "Decline optional",
 			"allow": "Allow optional"
 		},

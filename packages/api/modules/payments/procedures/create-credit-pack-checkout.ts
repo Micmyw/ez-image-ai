@@ -25,6 +25,7 @@ import { z } from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { verifyOrganizationBillingManagement } from "../../organizations/lib/membership";
 import { assertNewBillingEnabled, assertBillingEnvironmentReady } from "../billing-gate";
+import { captureCheckoutAttribution, checkoutTriggerInputSchema } from "../checkout-attribution";
 import { isExactCreditPackBillingPlanSnapshot } from "../provider-availability";
 import { recoverProviderCreatingCheckout } from "./checkout-recovery";
 
@@ -34,6 +35,7 @@ export const creditPackCheckoutInputSchema = z
 	.object({
 		provider: creditPackCheckoutProviderSchema,
 		packKey: creditPackKeySchema,
+		attribution: checkoutTriggerInputSchema,
 		idempotencyKey: z
 			.string()
 			.trim()
@@ -51,7 +53,7 @@ export const createCreditPackCheckout = protectedProcedure
 	})
 	.input(creditPackCheckoutInputSchema)
 	.output(z.object({ checkoutLink: z.url(), intentId: z.string().min(1) }))
-	.handler(async ({ input, context: { session, user } }) => {
+	.handler(async ({ input, context: { session, user, headers } }) => {
 		assertNewBillingEnabled();
 		await assertBillingEnvironmentReady();
 		const { provider, packKey, idempotencyKey } = input;
@@ -113,6 +115,7 @@ export const createCreditPackCheckout = protectedProcedure
 						interval: "one-time",
 						idempotencyKey,
 						now,
+						attribution: await captureCheckoutAttribution(headers, input.attribution, user.id, now),
 						creditPackSnapshot: {
 							catalogVersion: snapshot.catalogVersion,
 							pricingVersion: snapshot.pricingVersion,

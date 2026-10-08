@@ -7,13 +7,14 @@ import {
 	getPurchasesByUserId,
 	getUserByEmail,
 	getUserById,
+	setUserRegistrationAttributionOnce,
 } from "@repo/database";
 import { config as i18nConfig, type Locale } from "@repo/i18n";
 import { logger } from "@repo/logs";
 import { sendEmail } from "@repo/mail";
 import { createWelcomeNotification } from "@repo/notifications";
 import { cancelProviderSubscription } from "@repo/payments";
-import { getBaseUrl } from "@repo/utils";
+import { ATTRIBUTION_COOKIE_NAME, getBaseUrl } from "@repo/utils";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { createAuthMiddleware } from "better-auth/api";
@@ -28,6 +29,10 @@ import {
 import { updateSeatsInOrganizationSubscription } from "./lib/organization";
 import { cancelOrganizationSubscriptionsBeforeDeletion } from "./lib/organization-deletion";
 import { validateOrganizationSlugBeforeCreate } from "./lib/organization-slug";
+import {
+	persistNewUserRegistrationAttribution,
+	shouldClearRegistrationAttributionCookie,
+} from "./lib/registration-attribution";
 import { invitationOnlyPlugin } from "./plugins/invitation-only";
 
 const getLocaleFromRequest = (request?: Request) => {
@@ -68,9 +73,22 @@ export const auth = betterAuth({
 		},
 		user: {
 			create: {
-				after: async (createdUser) => {
+				after: async (createdUser, ctx) => {
 					if (!createdUser?.id) {
 						return;
+					}
+					try {
+						await persistNewUserRegistrationAttribution(createdUser, ctx, {
+							origin: appUrl,
+							save: setUserRegistrationAttributionOnce,
+						});
+					} catch (error) {
+						// Attribution is optional analytics and must not prevent account creation.
+						logger.error("Registration attribution could not be saved", {
+							ctx: "registrationAttribution",
+							userId: createdUser.id,
+							errorType: error instanceof Error ? error.name : "UnknownError",
+						});
 					}
 					await runRegisteredUserCreatedLifecycle(createdUser, async (userId) => {
 						try {
@@ -94,6 +112,14 @@ export const auth = betterAuth({
 	},
 	hooks: {
 		after: createAuthMiddleware(async (ctx) => {
+			if (shouldClearRegistrationAttributionCookie(ctx)) {
+				ctx.setCookie(ATTRIBUTION_COOKIE_NAME, "", {
+					path: "/",
+					maxAge: 0,
+					sameSite: "lax",
+					secure: new URL(appUrl).protocol === "https:",
+				});
+			}
 			if (ctx.path.startsWith("/organization/accept-invitation")) {
 				const { invitationId } = ctx.body;
 

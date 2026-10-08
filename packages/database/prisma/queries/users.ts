@@ -1,6 +1,9 @@
 import type { z } from "zod";
 
+import { Prisma as RuntimePrisma } from "#prisma-runtime-client";
+
 import { db } from "../client";
+import type { Prisma } from "../generated/client";
 import type { UserSchema } from "../zod";
 
 export async function getUsers({
@@ -65,6 +68,23 @@ export async function getUserById(id: string) {
 			id,
 		},
 	});
+}
+
+/** Persist only a server-sanitized registration snapshot; later visits cannot replace it. */
+export async function setUserRegistrationAttributionOnce(
+	userId: string,
+	snapshot: Prisma.InputJsonObject,
+	client: Prisma.TransactionClient = db,
+): Promise<boolean> {
+	const changed = await client.user.updateMany({
+		where: {
+			id: userId,
+			isAnonymous: false,
+			registrationAttribution: { equals: RuntimePrisma.DbNull },
+		},
+		data: { registrationAttribution: snapshot },
+	});
+	return changed.count === 1;
 }
 
 export async function getUserByEmail(email: string) {
@@ -133,10 +153,12 @@ export async function createUserAccount({
 }
 
 export async function updateUser(user: Partial<z.infer<typeof UserSchema>> & { id: string }) {
+	// Profile/admin updates cannot replace the write-once acquisition snapshot.
+	const { registrationAttribution: _registrationAttribution, ...mutableUser } = user;
 	return await db.user.update({
 		where: {
 			id: user.id,
 		},
-		data: user,
+		data: mutableUser,
 	});
 }

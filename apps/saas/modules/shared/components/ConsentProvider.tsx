@@ -3,6 +3,8 @@
 import Cookies from "js-cookie";
 import { createContext, useState } from "react";
 
+import { clearPurchaseAttribution } from "../lib/purchase-attribution";
+
 export type ConsentStatus = "accepted" | "declined" | "undecided";
 
 export const ConsentContext = createContext<{
@@ -33,6 +35,7 @@ export function ConsentProvider({
 
 	const declineCookies = () => {
 		Cookies.set("consent", "false", { expires: 30 });
+		clearPurchaseAttribution();
 		setConsentStatus("declined");
 	};
 

@@ -286,6 +286,40 @@
 				"newest": "Neueste Prüfungen",
 				"older": "Ältere Prüfungen"
 			},
+			"paymentAttribution": {
+				"title": "Bestellzuordnung",
+				"description": "Sehen Sie, wo zahlende Nutzer zuerst ankamen und welche Seite den Checkout auslöste. Zeigt die 20 neuesten Bestellungen und Checkout-Versuche aller Zahlungsanbieter.",
+				"reference": "Bestell- oder Checkout-Referenz (optional)",
+				"find": "Referenz suchen",
+				"recent": "Neueste Einträge",
+				"loading": "Zuordnung wird geladen…",
+				"loadError": "Die Bestellzuordnung konnte nicht geladen werden. Versuchen Sie es erneut.",
+				"unknownHint": "Unbekannt bedeutet, dass keine Zuordnung mit Einwilligung erfasst wurde oder die Bestellung vor Beginn der Erfassung liegt. Zeiten werden in UTC angezeigt.",
+				"purchases": "Bestellungen",
+				"checkouts": "Checkout-Versuche",
+				"empty": "Keine passenden Einträge.",
+				"unknown": "Unbekannt",
+				"owner": "Kontoreferenz",
+				"product": "Produkt",
+				"creditPack": "Credit-Paket",
+				"plan": "Tarif",
+				"createdAt": "Bestellung erstellt",
+				"registrationSource": "Registrierungsquelle",
+				"referrer": "Verweisende Website",
+				"landingPath": "Erste Einstiegsseite",
+				"campaign": "Kampagnenquelle / Medium / Name",
+				"capturedAt": "Erster Besuch erfasst",
+				"registeredAt": "Registriert",
+				"triggerPath": "Seite, die den Checkout auslöste",
+				"triggeredAt": "Checkout ausgelöst",
+				"renewalHint": "Aboverlängerungen übernehmen die Zuordnung dieses ursprünglichen Checkouts.",
+				"sources": {
+					"direct": "Direkter Besuch",
+					"referral": "Website-Verweis",
+					"campaign": "Kampagne",
+					"unknown": "Unbekannt"
+				}
+			},
 			"checkoutReview": {
 				"title": "Prüfung offener Abonnementbestellungen",
 				"description": "Ältere PayPal-Bestellungen prüfen, die offen bleiben, nachdem der Kunde ohne Zahlungsfreigabe abgebrochen hat.",
@@ -1584,7 +1618,7 @@
 	"common": {
 		"consent": {
 			"label": "Optionale Produktanalysen",
-			"message": "Google Analytics und Microsoft Clarity laufen automatisch. Entscheiden Sie, ob Sie zusätzliche Produktanalysen zulassen. Notwendiger Speicher bleibt verfügbar.",
+			"message": "Google Analytics und Microsoft Clarity laufen automatisch. Entscheiden Sie, ob Sie optionale PostHog-Produktanalysen sowie Aufzeichnungen der Registrierungsquellen und der Seiten, die Käufe auslösen, zulassen. Notwendiger Speicher bleibt verfügbar.",
 			"decline": "Optionale ablehnen",
 			"allow": "Optionale erlauben"
 		},

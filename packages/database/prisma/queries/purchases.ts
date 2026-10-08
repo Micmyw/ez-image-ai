@@ -1,6 +1,7 @@
 import type { z } from "zod";
 
 import { db } from "../client";
+import type { Prisma } from "../generated/client";
 import type { PurchaseSchema } from "../zod";
 
 const billingPlanForPurchase = {
@@ -67,10 +68,11 @@ export async function getPurchaseBySubscriptionId(subscriptionId: string, provid
 export async function createPurchase(
 	purchase: Omit<
 		z.infer<typeof PurchaseSchema>,
-		"id" | "createdAt" | "updatedAt" | "provider" | "productKind"
+		"id" | "createdAt" | "updatedAt" | "provider" | "productKind" | "attribution"
 	> & {
 		provider?: string;
 		productKind?: "PLAN" | "CREDIT_PACK";
+		attribution?: Prisma.InputJsonValue;
 	},
 ) {
 	const created = await db.purchase.create({
@@ -89,11 +91,13 @@ export async function updatePurchase(
 		id: string;
 	},
 ) {
+	// Only trusted fulfillment creates attribution; subsequent status edits retain it.
+	const { attribution: _attribution, ...mutablePurchase } = purchase;
 	const updated = await db.purchase.update({
 		where: {
 			id: purchase.id,
 		},
-		data: purchase,
+		data: mutablePurchase,
 	});
 
 	return getPurchaseById(updated.id);

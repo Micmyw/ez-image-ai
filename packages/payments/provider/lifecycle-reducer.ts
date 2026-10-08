@@ -305,6 +305,7 @@ async function createBoundPurchase(
 		ownerType: "USER" | "ORGANIZATION";
 		ownerId: string;
 		billingPlan: { providerPriceId: string };
+		attribution?: Prisma.JsonValue;
 	},
 	providerCustomerId: string,
 	client: TransactionClient,
@@ -327,6 +328,7 @@ async function createBoundPurchase(
 			subscriptionId: fact.providerSubscriptionId,
 			priceId: checkoutIntent.billingPlan.providerPriceId,
 			status: fact.status.toLowerCase(),
+			attribution: checkoutIntent.attribution ?? undefined,
 			organizationId: checkoutIntent.ownerType === "ORGANIZATION" ? checkoutIntent.ownerId : null,
 			userId: checkoutIntent.ownerType === "USER" ? checkoutIntent.ownerId : null,
 		},

@@ -2,11 +2,11 @@ export const privacyPolicyDocuments = [
 	{
 		path: "privacy-policy",
 		locale: "en",
-		updatedAt: "2026-10-04",
+		updatedAt: "2026-10-08",
 		title: "Privacy Policy",
 		description:
 			"How EzImageAI handles account data, private image-editing media, analytics consent, and retention.",
-		body: `_Last updated: October 4, 2026_
+		body: `_Last updated: October 8, 2026_
 
 This policy explains how EzImageAI handles information when you use the public image editor, prepare a short-lived draft, use an available Nano Banana 2 Lite 1K guest trial, create an account, or use the signed-in editor. EzImageAI is an independently operated service run by an individual. Its operator is responsible for the information handled by the service and can be reached through the [Contact page](/contact) for privacy questions and requests.
 
@@ -34,9 +34,11 @@ Before generation, EzImageAI screens text instructions using Waffo. A prompt sca
 
 Optional PostHog product analytics runs only after analytics consent. These funnel events use controlled values such as plan, public product key, status, credit bucket, and latency bucket. Their payloads reject prompts, file names, email addresses, raw job IDs, cookies, tokens, private asset or signed URLs, Provider or model details, cost details, and raw Provider responses.
 
+With the same optional consent, a first-party cookie retains your first landing page, external referring origin and limited source, medium and campaign tags for up to 30 days. When you register, the service saves that source once on your account. When you start a subscription or credit-pack checkout, it records the page that prompted the purchase and copies both source snapshots to the confirmed purchase for administrator review. It excludes URL query strings and fragments, private resource identifiers, email addresses and authentication tokens. Declining consent clears this optional browser storage and prevents new source collection; unavailable and historical sources remain unknown. Existing account and purchase snapshots follow account and billing-record retention, and subscription renewals keep the original purchase source.
+
 When configured, Google Analytics and Microsoft Clarity load automatically without waiting for the cookie banner choice. Google Analytics measures visits to public pages using page addresses without query parameters or fragments and an origin-only referrer; its advertising signals are disabled. Microsoft Clarity uses its standard website integration across public and signed-in pages, including the editing workspace. EzImageAI does not add page exclusions, full-page masking, or navigation-based recording stops. Clarity's own project settings and built-in protections govern what it records; visible page content and media previews may be included. These services may process page addresses, interactions, browser, device, and network information for their analytics features.
 
-The cookie banner choice controls optional PostHog product analytics. Declining it does not disable Google Analytics or Microsoft Clarity and does not prevent essential authentication, security, billing, draft, or editing storage from working.
+The cookie banner choice controls optional PostHog product analytics and registration and purchase source analytics. Declining it does not disable Google Analytics or Microsoft Clarity and does not prevent essential authentication, security, billing, draft, or editing storage from working.
 
 ## Why information is used
 
@@ -50,7 +52,7 @@ Billing, credit-ledger, security, audit, and legal records may require different
 
 ## Your choices
 
-You may accept or decline optional PostHog product analytics. Available account, subscription, and media controls can be used to review or delete eligible data. For an access, correction, deletion, portability, restriction, or privacy question, [contact the operator](/contact). The response depends on applicable law and on records EzImageAI must retain for security, billing, or legal reasons.
+You may accept or decline optional PostHog product analytics and source analytics. Available account, subscription, and media controls can be used to review or delete eligible data. For an access, correction, deletion, portability, restriction, or privacy question, [contact the operator](/contact). The response depends on applicable law and on records EzImageAI must retain for security, billing, or legal reasons.
 
 ## Security and changes
 
@@ -62,7 +64,7 @@ EzImageAI uses owner checks, private storage, short-lived access, moderation, id
 		title: "Datenschutzerklärung",
 		description:
 			"Wie EzImageAI Kontodaten, private Medien zur Bildbearbeitung, Analyse-Einwilligung und Aufbewahrung behandelt.",
-		body: `_Zuletzt aktualisiert: 4. Oktober 2026_
+		body: `_Zuletzt aktualisiert: 8. Oktober 2026_
 
 Diese Erklärung beschreibt, wie EzImageAI Informationen verarbeitet, wenn Sie den öffentlichen Bildeditor nutzen, einen kurzlebigen Entwurf vorbereiten, einen verfügbaren Nano-Banana-2-Lite-1K-Gasttest verwenden, ein Konto erstellen oder den angemeldeten Editor nutzen. EzImageAI wird unabhängig von einer Einzelperson betrieben. Der Betreiber ist für die vom Dienst verarbeiteten Informationen verantwortlich und über die [Kontaktseite](/contact) für Datenschutzfragen und Anfragen erreichbar.
 
@@ -90,9 +92,11 @@ Vor der Generierung prüft Waffo die Anweisungen und erhält Text und Prüfeinst
 
 Optionale Produktanalysen mit PostHog laufen nur nach Ihrer Einwilligung. Diese Ereignisse verwenden kontrollierte Kategorien wie Tarif, öffentlichen Produktschlüssel, Status, Credit-Bereich und Latenzbereich. Ihre Nutzdaten lehnen Anweisungen, Dateinamen, E-Mail-Adressen, rohe Auftragskennungen, Cookies, Tokens, private oder signierte URLs, Provider-, Modell- oder Kostendaten und rohe Antworten ab.
 
+Mit derselben optionalen Einwilligung speichert ein eigenes Cookie die erste Einstiegsseite, die externe Herkunft und begrenzte Quelle-, Medium- und Kampagnenangaben bis zu 30 Tage. Bei der Registrierung wird die Herkunft einmal im Konto gespeichert. Beim Start eines Abonnement- oder Credit-Paket-Kaufs wird die auslösende Seite erfasst; beide Herkunftsangaben werden für die Administratorprüfung in den bestätigten Kauf übernommen. URL-Abfragen, Fragmente, private Ressourcenkennungen, E-Mail-Adressen und Authentifizierungstokens werden ausgeschlossen. Eine Ablehnung löscht diesen optionalen Browserspeicher und verhindert neue Erfassung. Fehlende und historische Angaben bleiben unbekannt. Bestehende Angaben folgen der Aufbewahrung von Konto- und Abrechnungsdaten; Verlängerungen behalten die ursprüngliche Kaufherkunft.
+
 Wenn konfiguriert, werden Google Analytics und Microsoft Clarity automatisch geladen, ohne die Auswahl im Cookie-Banner abzuwarten. Google Analytics misst Besuche öffentlicher Seiten mit Adressen ohne Abfrageparameter oder Fragmente und ausschließlich der Herkunftsdomain als Referrer; seine Werbesignale sind deaktiviert. Microsoft Clarity verwendet die Standardintegration auf öffentlichen und angemeldeten Seiten einschließlich des Bildeditors. EzImageAI ergänzt keine Seitenausschlüsse, vollständige Seitenmaskierung oder navigationsbedingte Aufzeichnungsstopps. Die Projekteinstellungen und integrierten Schutzfunktionen von Clarity bestimmen die Aufzeichnung; sichtbare Inhalte und Medienvorschauen können enthalten sein. Diese Dienste können Seitenadressen, Interaktionen sowie Browser-, Geräte- und Netzwerkinformationen für ihre Analysefunktionen verarbeiten.
 
-Die Auswahl im Cookie-Banner steuert optionale PostHog-Produktanalysen. Eine Ablehnung deaktiviert weder Google Analytics noch Microsoft Clarity und beeinträchtigt notwendige Funktionen für Anmeldung, Sicherheit, Abrechnung, Entwürfe oder Bearbeitung nicht.
+Die Auswahl im Cookie-Banner steuert optionale PostHog-Produktanalysen sowie die Herkunftsanalyse bei Registrierung und Kauf. Eine Ablehnung deaktiviert weder Google Analytics noch Microsoft Clarity und beeinträchtigt notwendige Funktionen für Anmeldung, Sicherheit, Abrechnung, Entwürfe oder Bearbeitung nicht.
 
 ## Zwecke
 
@@ -106,7 +110,7 @@ Abrechnungs-, Credit-, Sicherheits-, Audit- und Rechtsdaten können wegen finanz
 
 ## Ihre Wahlmöglichkeiten
 
-Sie können optionale PostHog-Produktanalysen annehmen oder ablehnen. Verfügbare Konto-, Abonnement- und Medienfunktionen können zur Prüfung oder Löschung berechtigter Daten genutzt werden. Für Fragen zu Auskunft, Berichtigung, Löschung, Übertragbarkeit, Einschränkung oder Datenschutz [kontaktieren Sie den Betreiber](/contact).
+Sie können optionale PostHog-Produktanalysen und Herkunftsanalysen annehmen oder ablehnen. Verfügbare Konto-, Abonnement- und Medienfunktionen können zur Prüfung oder Löschung berechtigter Daten genutzt werden. Für Fragen zu Auskunft, Berichtigung, Löschung, Übertragbarkeit, Einschränkung oder Datenschutz [kontaktieren Sie den Betreiber](/contact).
 
 ## Sicherheit und Änderungen
 

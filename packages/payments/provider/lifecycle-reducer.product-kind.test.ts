@@ -30,6 +30,7 @@ function checkoutIntent(
 	input: {
 		productKind?: ProductKind;
 		billingPlanProductKind?: ProductKind;
+		attribution?: Record<string, unknown> | null;
 	} = {},
 ) {
 	return {
@@ -45,8 +46,9 @@ function checkoutIntent(
 		interval: "month",
 		idempotencyKey: "checkout-key-1",
 		providerSessionId: "subscription-1",
-		providerOrderId: null,
+		providerOrderId: null as string | null,
 		providerCheckoutUrl: "https://paypal.example.test/checkout",
+		attribution: input.attribution ?? null,
 		activeScopeKey: "USER:user-1:PLAN:creator:month",
 		creditPackCatalogVersion: null,
 		creditPackPricingVersion: null,
@@ -135,6 +137,7 @@ function reducerClient(input: {
 	existingSubscription?: ReturnType<typeof subscription> | null;
 }) {
 	let createdPurchaseData: Record<string, unknown> | null = null;
+	const updatedPurchaseData: Record<string, unknown>[] = [];
 	let currentSubscription = input.existingSubscription ?? null;
 	let currentPurchase = currentSubscription?.purchase ?? purchase();
 	const checkout = input.checkout ?? null;
@@ -168,10 +171,10 @@ function reducerClient(input: {
 				currentPurchase = { ...purchase(), ...data };
 				return currentPurchase;
 			},
-			update: async ({ data }: { data: Record<string, unknown> }) => ({
-				...currentPurchase,
-				...data,
-			}),
+			update: async ({ data }: { data: Record<string, unknown> }) => {
+				updatedPurchaseData.push(data);
+				return { ...currentPurchase, ...data };
+			},
 		},
 		paymentCustomer: {
 			findUnique: async () => null,
@@ -182,6 +185,7 @@ function reducerClient(input: {
 	return {
 		client: client as unknown as ReducerClient,
 		createdPurchase: () => createdPurchaseData,
+		updatedPurchases: () => updatedPurchaseData,
 	};
 }
 
@@ -236,5 +240,60 @@ describe("non-Stripe subscription product-kind isolation", () => {
 			type: "SUBSCRIPTION",
 			productKind: "PLAN",
 		});
+	});
+
+	it.each(["paypal", "waffo"] as const)(
+		"copies %s initial checkout attribution and preserves it through repeat and cancellation facts",
+		async (provider) => {
+			const attribution = {
+				version: 1,
+				registration: {
+					version: 1,
+					landingPath: "/blog/first-visit",
+					referrerOrigin: "https://www.google.com",
+					source: "referral",
+					utmSource: null,
+					utmMedium: null,
+					utmCampaign: null,
+					capturedAt: FACT_DATE.toISOString(),
+					registeredAt: FACT_DATE.toISOString(),
+				},
+				triggerPath: "/blog/portrait-ideas",
+				triggeredAt: FACT_DATE.toISOString(),
+			};
+			const checkout = checkoutIntent({ attribution });
+			checkout.provider = provider;
+			checkout.billingPlan.provider = provider;
+			if (provider === "waffo") checkout.providerOrderId = "subscription-1";
+			const fixture = reducerClient({ checkout });
+			const fact = {
+				...providerFact(checkout.id),
+				provider,
+				providerCustomerId: provider === "waffo" ? "USER:user-1" : "payer-1",
+			};
+			await applyProviderBillingFact(fact, fixture.client);
+			expect(fixture.createdPurchase()).toMatchObject({ attribution });
+			checkout.attribution = { ...attribution, triggerPath: "/pricing" };
+			await applyProviderBillingFact(fact, fixture.client);
+			await applyProviderBillingFact(
+				{
+					...fact,
+					providerEventId: "event-canceled",
+					status: "CANCELED",
+					occurredAt: new Date(FACT_DATE.getTime() + 1_000),
+				},
+				fixture.client,
+			);
+			expect(fixture.createdPurchase()).toMatchObject({ attribution });
+			expect(fixture.updatedPurchases()).not.toHaveLength(0);
+			for (const update of fixture.updatedPurchases())
+				expect(update).not.toHaveProperty("attribution");
+		},
+	);
+
+	it("keeps a historical checkout without attribution unknown when creating its Purchase", async () => {
+		const fixture = reducerClient({ checkout: checkoutIntent() });
+		await applyProviderBillingFact(providerFact("checkout-intent-1"), fixture.client);
+		expect(fixture.createdPurchase()?.attribution).toBeUndefined();
 	});
 });

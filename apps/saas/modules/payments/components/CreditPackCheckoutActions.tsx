@@ -4,6 +4,11 @@ import { useSessionQuery } from "@auth/lib/api";
 import { PUBLIC_CREDIT_PACKS } from "@repo/config/client";
 import { useRouter } from "@shared/hooks/router";
 import { orpc } from "@shared/lib/orpc-query-utils";
+import {
+	captureCheckoutTrigger,
+	clearCheckoutTrigger,
+	getCurrentCheckoutAttribution,
+} from "@shared/lib/purchase-attribution";
 import { useMutation, useQueries } from "@tanstack/react-query";
 import { ArrowUpRightIcon, Loader2Icon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -116,6 +121,7 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 	async function beginCheckout(provider: CreditPackCheckoutProvider) {
 		if (!canPay) return;
 		if (!payment.acquire(`pack:${packKey}:${provider}`)) return;
+		captureCheckoutTrigger();
 		const selection: CreditPackCheckoutSelection = { packKey, provider };
 		const idempotencyKey = checkoutAttempts.current.begin(selection);
 		setCheckoutUnavailable(false);
@@ -126,8 +132,10 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 				provider,
 				packKey,
 				idempotencyKey,
+				attribution: await getCurrentCheckoutAttribution(),
 			});
 			checkoutAttempts.current.succeeded(selection);
+			clearCheckoutTrigger();
 			bindVideoEffectPaymentReturn(session.data?.user?.id, intentId, originatingPath);
 			payment.redirecting();
 			window.location.href = checkoutLink;

@@ -127,6 +127,9 @@ describe("production payment business regressions", () => {
 			}),
 		).toBe(1);
 		expect(await effective(fixture.ownerId, fixture.endsAt)).toBeNull();
+		expect(await purchaseAttributionFor("paypal", fixture.fact.providerSubscriptionId)).toEqual(
+			fixture.checkout.intent.attribution,
+		);
 	});
 
 	it.each([
@@ -728,6 +731,9 @@ describe("production payment business regressions", () => {
 				},
 			};
 			await runSerializable(client, (tx) => applyProviderBillingFact(renewed.fact, tx));
+			expect(await purchaseAttributionFor(provider, first.fact.providerSubscriptionId)).toEqual(
+				first.checkout.intent.attribution,
+			);
 			await refund(first, "historical-full", "19.00");
 			await refund(renewed, "current-partial", "9.50");
 			const driver = await terminationDriver(first);
@@ -739,6 +745,9 @@ describe("production payment business regressions", () => {
 			).toBe(0);
 			await refund(renewed, "current-remainder", "9.50");
 			await driver.run();
+			expect(await purchaseAttributionFor(provider, first.fact.providerSubscriptionId)).toEqual(
+				first.checkout.intent.attribution,
+			);
 			expect(await effective(first.ownerId)).toBeNull();
 			expect(
 				await client.outboxEvent.count({ where: { aggregateId: driver.subscriptionId } }),
@@ -1405,6 +1414,14 @@ function periodsFor(providerSubscriptionId: string) {
 	});
 }
 
+async function purchaseAttributionFor(provider: string, subscriptionId: string) {
+	return (
+		await client.purchase.findUniqueOrThrow({
+			where: { provider_subscriptionId: { provider, subscriptionId } },
+		})
+	).attribution;
+}
+
 async function prepare(
 	provider: "paypal" | "waffo",
 	interval: "month" | "year",
@@ -1451,6 +1468,12 @@ async function prepare(
 			planKey: "creator",
 			interval,
 			idempotencyKey: `${prefix}-${label}`,
+			attribution: {
+				version: 1,
+				registration: null,
+				triggerPath: "/blog/portrait-ideas",
+				triggeredAt: (options.checkoutAt ?? now).toISOString(),
+			},
 			now: options.checkoutAt ?? now,
 		},
 		client,

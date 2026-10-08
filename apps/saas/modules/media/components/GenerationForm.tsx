@@ -11,6 +11,7 @@ import { Button } from "@repo/ui/components/button";
 import { STUDIO_ASSET_SELECTED_EVENT } from "@shared/components/studio/studio-context";
 import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
+import { captureCheckoutTrigger } from "@shared/lib/purchase-attribution";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -454,6 +455,7 @@ export function GenerationForm({
 			setUpgradeOpen(true);
 			return;
 		}
+		captureCheckoutTrigger();
 		router.push(
 			createChoosePlanPath(effectEditor?.getReturnPath("upgrade") ?? "/create?upgrade=complete"),
 		);

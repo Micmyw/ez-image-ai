@@ -18,6 +18,11 @@ import { useLocaleCurrency } from "@shared/hooks/locale-currency";
 import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpc } from "@shared/lib/orpc-query-utils";
+import {
+	captureCheckoutTrigger,
+	clearCheckoutTrigger,
+	getCurrentCheckoutAttribution,
+} from "@shared/lib/purchase-attribution";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRightIcon, BadgePercentIcon, CheckIcon, StarIcon } from "lucide-react";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
@@ -151,6 +156,7 @@ export function PricingTable({
 		provider: SubscriptionCheckoutProvider | null,
 	) => {
 		if (hasSubscription || checkoutBlocked) return;
+		captureCheckoutTrigger();
 		if (!(userId || organizationId)) {
 			if (planId === "creator" || planId === "ultimate" || planId === "studio") {
 				router.push(
@@ -178,10 +184,12 @@ export function PricingTable({
 				planId,
 				interval,
 				idempotencyKey: checkoutAttemptKey,
+				attribution: await getCurrentCheckoutAttribution(),
 			});
 
 			void saasGrowthFunnel.checkoutStarted(checkoutAttemptKey, planId).catch(() => undefined);
 			checkoutAttempts.current.succeeded(selection);
+			clearCheckoutTrigger();
 			bindVideoEffectPaymentReturn(userId, checkoutIntentId, originatingPath);
 			payment.redirecting();
 			window.location.href = checkoutLink;

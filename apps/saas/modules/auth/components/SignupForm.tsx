@@ -20,6 +20,10 @@ import {
 import { Input } from "@repo/ui/components/input";
 import { passwordSchema } from "@repo/utils";
 import { PasswordInput } from "@shared/components/PasswordInput";
+import {
+	captureRegistrationFirstTouch,
+	completeRegistrationAttribution,
+} from "@shared/lib/purchase-attribution";
 import { getSafeRedirectPath } from "@shared/lib/redirect";
 import { AlertTriangleIcon, ArrowRightIcon, MailboxIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -73,6 +77,7 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 
 	const onSubmit = form.handleSubmit(async ({ email, password, name }) => {
 		try {
+			captureRegistrationFirstTouch();
 			const { error } = await (authConfig.enablePasswordLogin
 				? await authClient.signUp.email({
 						email,
@@ -89,6 +94,7 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 			if (error) {
 				throw error;
 			}
+			if (authConfig.enablePasswordLogin) completeRegistrationAttribution();
 
 			if (invitationOnlyMode) {
 				const { error } = await authClient.organization.acceptInvitation({

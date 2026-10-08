@@ -28,6 +28,7 @@ interface CreatePaymentCheckoutIntentBase extends PaymentOwner {
 	planKey: string;
 	idempotencyKey: string;
 	checkoutRecovery?: Prisma.InputJsonValue;
+	attribution?: Prisma.InputJsonValue;
 	now?: Date;
 }
 
@@ -215,6 +216,7 @@ export async function createPaymentCheckoutIntent(
 				activeScopeKey,
 				expiresAt: null,
 				checkoutRecovery: input.checkoutRecovery,
+				attribution: input.attribution,
 				...creditPackSnapshot,
 			},
 		});

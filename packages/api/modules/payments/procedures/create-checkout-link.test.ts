@@ -10,6 +10,7 @@ const {
 	bindCheckoutIntentOrder,
 	createCheckoutIntent,
 	findBillingPlan,
+	findAttributionUser,
 	getPaymentCheckoutIntentForOwner,
 	getPaymentCheckoutIntentForOwnerByIdempotencyKey,
 	getPaymentCustomer,
@@ -25,6 +26,7 @@ const {
 	bindCheckoutIntentOrder: vi.fn(),
 	createCheckoutIntent: vi.fn(),
 	findBillingPlan: vi.fn(),
+	findAttributionUser: vi.fn(),
 	getPaymentCheckoutIntentForOwner: vi.fn(),
 	getPaymentCheckoutIntentForOwnerByIdempotencyKey: vi.fn(),
 	getPaymentCustomer: vi.fn(),
@@ -53,7 +55,7 @@ vi.mock("@repo/database", async () => ({
 	transitionPaymentCheckoutIntentToReview: transitionCheckoutIntentToReview,
 }));
 vi.mock("@repo/database/client", () => ({
-	db: { billingPlan: { findUnique: findBillingPlan } },
+	db: { billingPlan: { findUnique: findBillingPlan }, user: { findUnique: findAttributionUser } },
 }));
 vi.mock("@repo/logs", () => ({ logger: { error: vi.fn() } }));
 vi.mock("@repo/payments/config", () => ({ config: paymentsConfig }));
@@ -200,6 +202,40 @@ describe("createCheckoutLink", () => {
 			recoverCheckout: providerRecoverCheckout,
 		});
 	});
+
+	it.each([true, false])(
+		"freezes the actual product page only with consent (%s)",
+		async (consented) => {
+			findAttributionUser.mockResolvedValue({ registrationAttribution: null });
+			await call(
+				createCheckoutLink,
+				{
+					provider: "paypal",
+					planId: "creator",
+					interval: "month",
+					idempotencyKey: "checkout-attribution-0001",
+					attribution: { triggerPath: "/video?code=secret#private" },
+				},
+				{ context: { headers: new Headers({ cookie: `consent=${consented}` }) } },
+			);
+			const data = createCheckoutIntent.mock.calls[0]?.[0];
+			if (consented) {
+				expect(data.attribution).toMatchObject({
+					version: 1,
+					registration: null,
+					triggerPath: "/video",
+				});
+				expect(findAttributionUser).toHaveBeenCalledWith({
+					where: { id: "user-1" },
+					select: { registrationAttribution: true },
+				});
+			} else {
+				expect(data.attribution).toBeUndefined();
+				expect(findAttributionUser).not.toHaveBeenCalled();
+			}
+			expect(providerCheckout.mock.calls[0]?.[0]).not.toHaveProperty("attribution");
+		},
+	);
 
 	it("blocks an unapproved merchant before creating a subscription intent", async () => {
 		vi.mocked(isPaymentProviderCheckoutAvailable).mockResolvedValue(false);

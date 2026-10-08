@@ -84,6 +84,7 @@ export const user = pgTable("user", {
 	locale: text("locale"),
 	lastActiveOrganizationId: text("lastActiveOrganizationId"),
 	isAnonymous: boolean("isAnonymous").default(false).notNull(),
+	registrationAttribution: jsonb("registrationAttribution"),
 });
 
 export const session = pgTable(
@@ -279,6 +280,7 @@ export const purchase = pgTable(
 		subscriptionId: text("subscriptionId"),
 		priceId: text("priceId").notNull(),
 		status: text("status"),
+		attribution: jsonb("attribution"),
 		createdAt: timestamp("createdAt").defaultNow().notNull(),
 		updatedAt: timestamp("updatedAt"),
 	},
@@ -422,6 +424,7 @@ export const paymentCheckoutIntent = pgTable(
 		providerOrderId: text("providerOrderId"),
 		providerCheckoutUrl: text("providerCheckoutUrl"),
 		checkoutRecovery: jsonb("checkoutRecovery"),
+		attribution: jsonb("attribution"),
 		activeScopeKey: text("activeScopeKey"),
 		creditPackCatalogVersion: text("creditPackCatalogVersion"),
 		creditPackPricingVersion: text("creditPackPricingVersion"),

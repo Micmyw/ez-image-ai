@@ -48,6 +48,7 @@ export const user = mysqlTable("user", {
 	locale: text("locale"),
 	lastActiveOrganizationId: text("lastActiveOrganizationId"),
 	isAnonymous: boolean("isAnonymous").default(false).notNull(),
+	registrationAttribution: json("registrationAttribution"),
 });
 
 export const session = mysqlTable(
@@ -210,6 +211,7 @@ export const purchase = mysqlTable(
 		subscriptionId: text("subscriptionId"),
 		priceId: text("priceId").notNull(),
 		status: text("status"),
+		attribution: json("attribution"),
 		createdAt: timestamp("createdAt").defaultNow().notNull(),
 		updatedAt: timestamp("updatedAt"),
 	},
@@ -357,6 +359,7 @@ export const paymentCheckoutIntent = mysqlTable(
 		providerOrderId: varchar("providerOrderId", { length: 255 }),
 		providerCheckoutUrl: text("providerCheckoutUrl"),
 		checkoutRecovery: json("checkoutRecovery"),
+		attribution: json("attribution"),
 		activeScopeKey: varchar("activeScopeKey", { length: 768 }),
 		creditPackCatalogVersion: varchar("creditPackCatalogVersion", { length: 255 }),
 		creditPackPricingVersion: varchar("creditPackPricingVersion", { length: 255 }),

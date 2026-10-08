@@ -2,6 +2,7 @@ import {
 	getAdminCheckoutReview,
 	resolveAdminCheckoutReview,
 } from "./procedures/admin-checkout-review";
+import { listAdminPaymentAttributionProcedure } from "./procedures/admin-payment-attribution";
 import {
 	applyStripeRefundRepair,
 	approveStripeRefundRepair,
@@ -24,6 +25,7 @@ import {
 } from "./procedures/pending-subscription-checkout";
 
 export const paymentsRouter = {
+	listAdminPaymentAttribution: listAdminPaymentAttributionProcedure,
 	getAdminCheckoutReview,
 	resolveAdminCheckoutReview,
 	getPendingSubscriptionCheckout,

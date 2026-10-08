@@ -65,7 +65,8 @@ export async function createPurchase(insertedPurchase: z.infer<typeof PurchaseIn
 }
 
 export async function updatePurchase(updatedPurchase: z.infer<typeof PurchaseUpdateSchema>) {
-	const [{ id }] = await db.update(purchase).set(updatedPurchase).returning({ id: purchase.id });
+	const { attribution: _attribution, ...mutablePurchase } = updatedPurchase;
+	const [{ id }] = await db.update(purchase).set(mutablePurchase).returning({ id: purchase.id });
 
 	return getPurchaseById(id);
 }

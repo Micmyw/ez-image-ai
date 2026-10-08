@@ -9,6 +9,7 @@ import {
 	paymentCustomer as mySqlPaymentCustomer,
 	purchase as mySqlPurchase,
 	subscription as mySqlSubscription,
+	user as mySqlUser,
 } from "./schema/mysql";
 import {
 	paymentCheckoutIntent as postgresCheckoutIntent,
@@ -16,6 +17,7 @@ import {
 	paymentCustomer as postgresPaymentCustomer,
 	purchase as postgresPurchase,
 	subscription as postgresSubscription,
+	user as postgresUser,
 } from "./schema/postgres";
 import {
 	paymentCheckoutIntent as sqliteCheckoutIntent,
@@ -23,9 +25,34 @@ import {
 	paymentCustomer as sqlitePaymentCustomer,
 	purchase as sqlitePurchase,
 	subscription as sqliteSubscription,
+	user as sqliteUser,
 } from "./schema/sqlite";
 
 describe("provider-aware payment schema parity", () => {
+	it("keeps registration and payment attribution optional in every Drizzle variant", () => {
+		const configs = [
+			...[
+				getPostgresTableConfig(postgresUser),
+				getMySqlTableConfig(mySqlUser),
+				getSqliteTableConfig(sqliteUser),
+			].map((config) => ({ config, field: "registrationAttribution" })),
+			...[
+				getPostgresTableConfig(postgresCheckoutIntent),
+				getMySqlTableConfig(mySqlCheckoutIntent),
+				getSqliteTableConfig(sqliteCheckoutIntent),
+				getPostgresTableConfig(postgresPurchase),
+				getMySqlTableConfig(mySqlPurchase),
+				getSqliteTableConfig(sqlitePurchase),
+			].map((config) => ({ config, field: "attribution" })),
+		];
+		for (const { config, field } of configs) {
+			const column = config.columns.find((item) => item.name === field);
+			expect(column).toBeDefined();
+			expect(column!.notNull).toBe(false);
+			expect(column!.hasDefault).toBe(false);
+		}
+	});
+
 	it("scopes purchase and subscription identities by provider in every Drizzle variant", () => {
 		const configs = [
 			getPostgresTableConfig(postgresPurchase),

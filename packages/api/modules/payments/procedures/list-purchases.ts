@@ -31,7 +31,7 @@ export const listPurchases = protectedProcedure
 	)
 	.output(
 		z.array(
-			PurchaseSchema.extend({
+			PurchaseSchema.omit({ attribution: true }).extend({
 				planId: z.string().nullable(),
 				isEffectiveSubscription: z.boolean().optional(),
 				subscription: z
@@ -90,7 +90,11 @@ export const listPurchases = protectedProcedure
 		);
 
 		return purchases.map((purchase) => {
-			const { mediaSubscription: _mediaSubscription, ...publicPurchase } = purchase;
+			const {
+				mediaSubscription: _mediaSubscription,
+				attribution: _attribution,
+				...publicPurchase
+			} = purchase;
 			const isPlanPurchase = purchase.productKind === "PLAN";
 			const persistedPlan = isPlanPurchase ? resolvePersistedSubscriptionPlan(purchase) : null;
 

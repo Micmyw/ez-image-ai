@@ -286,6 +286,40 @@
 				"newest": "Revisiones recientes",
 				"older": "Revisiones anteriores"
 			},
+			"paymentAttribution": {
+				"title": "Atribución de pedidos",
+				"description": "Consulta dónde llegaron por primera vez los usuarios de pago y qué página inició el pago. Muestra los 20 pedidos e intentos de pago más recientes de todos los proveedores.",
+				"reference": "Referencia de pedido o pago (opcional)",
+				"find": "Buscar referencia",
+				"recent": "Registros recientes",
+				"loading": "Cargando atribución…",
+				"loadError": "No se pudo cargar la atribución del pedido. Inténtalo de nuevo.",
+				"unknownHint": "Desconocido significa que no se registró atribución con consentimiento o que el pedido es anterior a la recopilación. Las horas se muestran en UTC.",
+				"purchases": "Pedidos",
+				"checkouts": "Intentos de pago",
+				"empty": "No hay registros coincidentes.",
+				"unknown": "Desconocido",
+				"owner": "Referencia de cuenta",
+				"product": "Producto",
+				"creditPack": "Paquete de créditos",
+				"plan": "Plan",
+				"createdAt": "Pedido creado",
+				"registrationSource": "Origen del registro",
+				"referrer": "Sitio web de referencia",
+				"landingPath": "Primera página de llegada",
+				"campaign": "Origen / medio / nombre de campaña",
+				"capturedAt": "Primera visita registrada",
+				"registeredAt": "Registro",
+				"triggerPath": "Página que inició el pago",
+				"triggeredAt": "Pago iniciado",
+				"renewalHint": "Las renovaciones de la suscripción heredan la atribución de este pago inicial.",
+				"sources": {
+					"direct": "Visita directa",
+					"referral": "Referencia web",
+					"campaign": "Campaña",
+					"unknown": "Desconocido"
+				}
+			},
 			"checkoutReview": {
 				"title": "Revisión de suscripciones pendientes",
 				"description": "Resolver compras antiguas de PayPal que siguen en revisión después de que el cliente saliera sin autorizar el pago.",
@@ -1584,7 +1618,7 @@
 	"common": {
 		"consent": {
 			"label": "Analítica de producto opcional",
-			"message": "Google Analytics y Microsoft Clarity funcionan automáticamente. Elige si permites análisis adicionales del uso del producto. El almacenamiento esencial sigue disponible.",
+			"message": "Google Analytics y Microsoft Clarity funcionan automáticamente. Elige si permites la analítica opcional de PostHog y los registros de las fuentes de registro y de las páginas que generan compras. El almacenamiento esencial sigue disponible.",
 			"decline": "Rechazar opcionales",
 			"allow": "Permitir opcionales"
 		},

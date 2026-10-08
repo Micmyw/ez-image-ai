@@ -36,6 +36,7 @@ interface CreatePaymentCheckoutIntentBase extends PaymentOwner {
 	planKey: string;
 	idempotencyKey: string;
 	checkoutRecovery?: Record<string, unknown>;
+	attribution?: Record<string, unknown>;
 	now?: Date;
 }
 
@@ -229,6 +230,7 @@ export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIn
 					activeScopeKey,
 					expiresAt: null,
 					checkoutRecovery: input.checkoutRecovery,
+					attribution: input.attribution,
 					...creditPackSnapshot,
 				})
 				.returning();

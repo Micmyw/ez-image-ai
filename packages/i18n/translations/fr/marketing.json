@@ -699,7 +699,7 @@
 	},
 	"common": {
 		"consent": {
-			"message": "Google Analytics et Microsoft Clarity fonctionnent automatiquement. Choisissez si vous autorisez des analyses supplémentaires de l'utilisation du produit. Le stockage essentiel reste disponible.",
+			"message": "Google Analytics et Microsoft Clarity fonctionnent automatiquement. Choisissez si vous autorisez les analyses facultatives de PostHog et l'enregistrement des sources d'inscription et des pages qui déclenchent les achats. Le stockage essentiel reste disponible.",
 			"decline": "Refuser les facultatifs",
 			"allow": "Autoriser les facultatifs"
 		},

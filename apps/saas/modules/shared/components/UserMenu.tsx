@@ -15,6 +15,7 @@ import {
 	DropdownMenuTrigger,
 } from "@repo/ui";
 import { UserAvatar } from "@shared/components/UserAvatar";
+import { clearPurchaseAttributionOnLogout } from "@shared/lib/purchase-attribution";
 import { BookIcon, HomeIcon, LogOutIcon, MoreVerticalIcon, SettingsIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -69,6 +70,7 @@ export function UserMenu({
 		await authClient.signOut({
 			fetchOptions: {
 				onSuccess: async () => {
+					clearPurchaseAttributionOnLogout();
 					try {
 						window.sessionStorage.removeItem(WORKSPACE_DRAFT_KEY);
 					} catch {
