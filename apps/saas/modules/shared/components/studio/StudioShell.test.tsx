@@ -45,15 +45,20 @@ vi.mock("./HeaderPurchaseActions", () => ({
 	HeaderPurchaseActions: () => <div>Purchase actions</div>,
 }));
 vi.mock("../NavBar", () => ({ NavBar: () => <nav>Account navigation</nav> }));
-vi.mock("@tanstack/react-query", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@tanstack/react-query")>()),
-	useQuery: () => ({
-		data: {
-			available: state.videoAvailable,
-			products: [{ key: "image-gpt-image-2", skuMatrix: { cells: [{}] } }],
-		},
-	}),
-}));
+vi.mock("@tanstack/react-query", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@tanstack/react-query")>();
+	const queryClient = new actual.QueryClient();
+	return {
+		...actual,
+		useQueryClient: () => queryClient,
+		useQuery: () => ({
+			data: {
+				available: state.videoAvailable,
+				products: [{ key: "image-gpt-image-2", skuMatrix: { cells: [{}] } }],
+			},
+		}),
+	};
+});
 vi.mock("@shared/lib/orpc-client", () => ({ orpcClient: {} }));
 vi.mock("@repo/ui/components/logo", () => ({ Logo: () => <span>EzImageAI</span> }));
 
