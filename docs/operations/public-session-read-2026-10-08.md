@@ -1,0 +1,9 @@
+# Public session read and bundle regression
+
+The public header previously imported the full Better Auth client when it first read a session, including Passkey account-management code. Commit `0c7f3eeb` separates this one read from those actions. The endpoint remains `GET /api/auth/get-session?disableCookieCache=true`, with same-origin credentials and no HTTP cache. Better Auth's own secure JSON/date parser remains in use. Account operations still call the unchanged full client.
+
+The TanStack query key remains `['user', 'session']`, with infinite stale time, no focus refetch and no automatic retries. Password sign-in invalidates that query. `reloadSession` explicitly reads and replaces its data. Logout still uses Better Auth and a full document navigation. OAuth, magic-link and passkey action code is unchanged. Server session validation, protected procedures, owner checks and cookies are unchanged; browser session state is never authorization evidence.
+
+Each document already owned its separate TanStack cache. `SessionProvider` did not subscribe that cache to Better Auth's session atom or a cross-tab broadcast. This patch does not add automatic cross-tab refresh: another tab observes logout/account changes on its own reload or existing explicit refresh. Better Auth's broadcast manager mounts only with subscriptions to its session atom, which this read path never used. This existing limitation is not a new capability claim.
+
+Focused verification covers null/signed-in/date/error responses, malformed reads, linked-account/Passkey actions, actual query invalidation with two separate caches, and browser account controls/logout/reload/account switching in two tabs. Browser business responses are mocks; real external OAuth and Passkey ceremonies are outside this patch's verification. The production guest resource budget remains 520 KiB gzip and is not relaxed.

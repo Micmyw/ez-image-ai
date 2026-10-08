@@ -455,6 +455,83 @@ test("account controls load when the browser receives a signed-in session", asyn
 	await expect(userMenu).toBeFocused();
 });
 
+test("account controls preserve logout and account switching across document reloads in two tabs", async ({
+	page,
+	context,
+}) => {
+	let userId: string | null = "first-owner";
+	const peer = await context.newPage();
+	for (const tab of [page, peer]) {
+		await tab.setViewportSize({ width: 1440, height: 900 });
+		await tab.route("**/api/auth/get-session**", (route) =>
+			route.fulfill({
+				json: userId
+					? {
+							user: {
+								id: userId,
+								name: userId,
+								email: `${userId}@example.test`,
+								emailVerified: true,
+								isAnonymous: false,
+							},
+							session: { id: `session-${userId}`, userId },
+						}
+					: null,
+			}),
+		);
+		await tab.route("**/api/auth/organization/list**", (route) => route.fulfill({ json: [] }));
+		await tab.route("**/api/rpc/**", (route) =>
+			route.fulfill({
+				json: {
+					json: {
+						products: [],
+						items: [],
+						count: 0,
+						nextCursor: null,
+						available: false,
+						models: [],
+						spendableCredits: "0",
+						reservedCredits: "0",
+					},
+				},
+			}),
+		);
+		await tab.route("**/api/auth/sign-out**", (route) => {
+			userId = null;
+			return route.fulfill({ json: { success: true } });
+		});
+		await tab.goto("/");
+		await tab
+			.locator(".studio-header-user-controls")
+			.getByRole("button", { name: "User menu", exact: true })
+			.click();
+		await expect(tab.getByRole("menu")).toContainText("first-owner@example.test");
+		await tab.keyboard.press("Escape");
+	}
+	await page
+		.locator(".studio-header-user-controls")
+		.getByRole("button", { name: "User menu", exact: true })
+		.click();
+	await page.getByRole("menuitem", { name: "Logout", exact: true }).click();
+	await page.waitForURL(/\/login$/);
+	await expect(page.locator(".studio-header-user-controls")).toHaveCount(0);
+	await peer.reload();
+	await expect(peer.locator(".studio-header-user-controls")).toHaveCount(0);
+	userId = "second-owner";
+	for (const tab of [page, peer]) {
+		// Logout deliberately navigates the first document to /login; reopen the public header.
+		await tab.goto("/");
+		await tab
+			.locator(".studio-header-user-controls")
+			.getByRole("button", { name: "User menu", exact: true })
+			.click();
+		await expect(tab.getByRole("menu")).toContainText("second-owner@example.test");
+		await expect(tab.getByRole("menu")).not.toContainText("first-owner@example.test");
+		await tab.keyboard.press("Escape");
+	}
+	await peer.close();
+});
+
 test("the production homepage excludes account tools, charts, and documentation styles", async ({
 	page,
 	request,

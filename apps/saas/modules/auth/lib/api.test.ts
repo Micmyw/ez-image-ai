@@ -86,4 +86,43 @@ describe("deferred authentication queries", () => {
 		mocks.listUserPasskeys.mockResolvedValueOnce({ data: null, error });
 		await expect(listUserPasskeys()).rejects.toBe(error);
 	});
+	it("honors the existing session query cache and explicit invalidation through sign-in, account change and logout", async () => {
+		const { QueryClient } =
+			await vi.importActual<typeof import("@tanstack/react-query")>("@tanstack/react-query");
+		const firstTab = new QueryClient();
+		const secondTab = new QueryClient();
+		useSessionQuery();
+		const options = vi.mocked(useQuery).mock.lastCall![0];
+		let userId: string | null = null;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json(
+					userId ? { user: { id: userId }, session: { id: `session-${userId}` } } : null,
+				),
+			),
+		);
+		try {
+			expect(await firstTab.fetchQuery(options)).toBeNull();
+			userId = "owner-a";
+			await firstTab.invalidateQueries({ queryKey: options.queryKey });
+			expect(await firstTab.fetchQuery(options)).toMatchObject({ user: { id: "owner-a" } });
+			expect(await secondTab.fetchQuery(options)).toMatchObject({ user: { id: "owner-a" } });
+			userId = "owner-b";
+			await firstTab.invalidateQueries({ queryKey: options.queryKey });
+			expect(await firstTab.fetchQuery(options)).toMatchObject({ user: { id: "owner-b" } });
+			// Each document retains its existing cache until its own explicit reload/invalidation.
+			expect(await secondTab.fetchQuery(options)).toMatchObject({ user: { id: "owner-a" } });
+			await secondTab.invalidateQueries({ queryKey: options.queryKey });
+			expect(await secondTab.fetchQuery(options)).toMatchObject({ user: { id: "owner-b" } });
+			userId = null;
+			await firstTab.invalidateQueries({ queryKey: options.queryKey });
+			expect(await firstTab.fetchQuery(options)).toBeNull();
+			secondTab.clear();
+			expect(await secondTab.fetchQuery(options)).toBeNull();
+		} finally {
+			firstTab.clear();
+			secondTab.clear();
+		}
+	});
 });
