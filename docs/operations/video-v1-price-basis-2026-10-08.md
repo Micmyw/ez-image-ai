@@ -47,6 +47,22 @@ New explicit Veo snapshots freeze an **APP_MINIMUM** policy: delivered short edg
 
 The old submission consumer manually reconstructs requests without `veoTier`; deploying the new website first could submit paid Lite/Quality orders as the provider's implicit Fast. Release a consumer-only compatibility commit first, keeping old model/price versions, capabilities, website behavior and absence of generic Veo pricing. Verify the background deployment has fully adopted that commit before enabling new quotes/UI. Do not publish both stages as one unobserved deployment or roll the background consumer back while new-tier jobs remain.
 
+For this activation, the reviewed compatibility commit is `7c29ff8cb75e013a2c473ee6c7ac94082e6117d9`. Record the exact live background version and verify **100% traffic** uses that compatible consumer before the activation builds proceed. A successful build alone does not satisfy this gate.
+
+Before the next normal Git push that triggers activation, patch these three **non-secret build environment variables** on both the website and background Git build triggers:
+
+| Build variable                 | Activation value                                                                                                                                                                                                         |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `VIDEO_V1_BUILD_PRICE_VERSION` | `kie-public-2026-10-08.1`                                                                                                                                                                                                |
+| `VIDEO_V1_BUILD_MODEL_VERSION` | `video-models-2026-10-08.1`                                                                                                                                                                                              |
+| `VIDEO_V1_BUILD_PRICE_BASIS`   | `Seedance Mini/Fast public rates rechecked 2026-10-07; docs/operations/video-v1-price-basis-2026-10-07.md; Veo region tariff observed 2026-10-08; docs/operations/video-v1-price-basis-2026-10-08.md; no recharge bonus` |
+
+Use a per-key build-environment patch containing only those three entries. Preserve every other trigger entry without resubmitting it, including `VIDEO_V1_BUILD_PRICE_EXPIRY`, `VIDEO_V1_BUILD_ACCESS`, `VIDEO_V1_BUILD_ENABLED`, private `VIDEO_RUNTIME_CONFIG`, and every `CLOUDFLARE_PRODUCTION_ENV` part. Do not reconstruct, replace or log the private environment bundle. The basis retains the previous public Seedance evidence before adding the Veo evidence; the existing build function also preserves and appends to the private complete-cost basis.
+
+The price flag must exactly match the code's supplier price version. Leaving it at `kie-public-2026-10-07.1` intentionally fails with `VIDEO_BUILD_PRICE_OVERRIDE_INVALID`; updating only the price does not authorize the model-contract upgrade. The explicit model flag uses the existing known-version upgrade path. Keep the inherited finite or `none` expiry, access, admission, profit targets, cost budgets and independent template policies unchanged; do not add an expiry override to resolve a version mismatch.
+
+Read back only the three public controls to verify the two targets agree, then let the normal Git-triggered builds run on the activation source. Do not retry the old bridge source with the activation controls or substitute a manual deployment. Verify both final live commit/version identities and 100% traffic, then perform the existing read-only catalog/UI checks. Configuration updates, successful builds and catalog prices do not establish paid output quality.
+
 The activation stage upgrades only explicitly known approved model/price versions through existing build-secret handling. It preserves audience, admission switches, budgets, paid-credit requirements, finite/`none` expiry and template policies. Unknown/unapproved configuration remains closed. No database migration, new Workflow version or manual deployment is required. Deployment evidence belongs to the controller's release record; this source document does not claim either stage is live.
 
 ## Remaining independent contract risks
