@@ -1,8 +1,11 @@
 import {
 	getVideoModel,
 	videoModelReceiptInputSchema,
+	videoVeoTierSchema,
+	VIDEO_VEO_TIER_CONTRACT_VERSION,
 	type VideoModelInput,
 	type VideoMode,
+	type VideoVeoTier,
 } from "@repo/config/video-models";
 import { z } from "zod";
 
@@ -19,6 +22,12 @@ export type KieVideoModelInput = VideoModelInput & {
 	imageUrl?: string;
 	templateFixedLens?: true;
 };
+export type KieVideoResultContext = {
+	resolution: string;
+	veoTier?: VideoVeoTier;
+	modelContractVersion: string;
+};
+const veoModels = { lite: "veo3_lite", fast: "veo3_fast", quality: "veo3" } as const;
 const httpsUrl = z
 	.string()
 	.url()
@@ -167,6 +176,7 @@ export function buildKieVideoModelRequest(value: KieVideoModelInput) {
 		case "video-veo-3-1":
 			parameters = {
 				...parameters,
+				...(input.veoTier !== undefined ? { model: veoModels[input.veoTier] } : {}),
 				duration: input.duration,
 				resolution: input.resolution,
 				aspect_ratio: input.aspectRatio === "source" ? "Auto" : input.aspectRatio,
@@ -217,9 +227,27 @@ export class KieVideoModelsAdapter {
 		}
 	}
 	/** Caller binds the product to the frozen request/attempt; callback fields never select a route. */
-	async retrieve(providerTaskId: string, productKey?: string): Promise<KieVideoV1Result> {
+	async retrieve(
+		providerTaskId: string,
+		productKey?: string,
+		context?: KieVideoResultContext,
+	): Promise<KieVideoV1Result> {
 		if (productKey && getVideoModel(productKey)?.status !== "implemented")
 			throw new Error("VIDEO_MODEL_CONTRACT_UNAVAILABLE");
+		if (context?.veoTier !== undefined) {
+			// A frozen known contract remains readable when the live catalog changes.
+			if (
+				productKey !== "video-veo-3-1" ||
+				context.modelContractVersion !== VIDEO_VEO_TIER_CONTRACT_VERSION ||
+				!videoVeoTierSchema.safeParse(context.veoTier).success ||
+				!["720p", "1080p", "4k"].includes(context.resolution)
+			)
+				throw new Error("VIDEO_MODEL_CONTRACT_UNAVAILABLE");
+			return new KieVideoV1Adapter(this.options).retrieveVeo(providerTaskId, {
+				resolution: context.resolution,
+				model: veoModels[context.veoTier],
+			});
+		}
 		if (productKey === "video-veo-3-1-fast")
 			return new KieVeoFastAdapter(this.options).retrieve(providerTaskId);
 		return new KieVideoV1Adapter(this.options).retrieve(providerTaskId);

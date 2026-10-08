@@ -2,12 +2,17 @@ import { z } from "zod";
 
 /** Public capabilities only. Provider routes, costs and account readiness are server-owned. */
 export const VIDEO_MODEL_CATALOG_VERSION = "video-models-2026-10-04.2";
+/** Consumer compatibility only; this does not activate the future public catalog. */
+export const VIDEO_VEO_TIER_CONTRACT_VERSION = "video-models-2026-10-08.1";
+export const videoVeoTierSchema = z.enum(["lite", "fast", "quality"]);
+export type VideoVeoTier = z.infer<typeof videoVeoTierSchema>;
 export type VideoMode = "text-to-video" | "image-to-video";
 export type VideoModelOption = {
 	duration: number;
 	resolution: string;
 	aspectRatio: string;
 	sound: boolean;
+	veoTier?: VideoVeoTier;
 };
 export type VideoModelSelection = VideoModelOption & { productKey: string; mode: VideoMode };
 export type VideoModelCapabilityGroup = {
@@ -296,6 +301,8 @@ export function getVideoModelOptions(productKey: string, mode: VideoMode): Video
 		);
 }
 export function validateVideoModelSelection(selection: VideoModelSelection): boolean {
+	// The bridge reads future receipts but never produces a new explicit-tier order.
+	if (selection.veoTier !== undefined) return false;
 	const entry = getVideoModel(selection.productKey);
 	return Boolean(
 		entry?.status === "implemented" &&
@@ -321,15 +328,21 @@ export const videoModelReceiptInputSchema = z
 		aspectRatio: z.string().min(1).max(20),
 		sound: z.boolean(),
 		inputAssetId: z.string().min(1).max(160).optional(),
+		// Append only: historical schema key order is part of immutable fingerprints.
+		veoTier: videoVeoTierSchema.optional(),
 	})
 	.strict()
 	.superRefine((input, ctx) => {
+		const frozenVeoTier =
+			input.productKey === "video-veo-3-1" &&
+			input.veoTier !== undefined &&
+			validateVideoModelSelection({ ...input, veoTier: undefined });
 		const historicalKlingImage =
 			input.productKey === "video-kling-3" &&
 			input.mode === "image-to-video" &&
 			standardRatios.includes(input.aspectRatio) &&
 			validateVideoModelSelection({ ...input, aspectRatio: "source" });
-		if (!validateVideoModelSelection(input) && !historicalKlingImage)
+		if (!validateVideoModelSelection(input) && !historicalKlingImage && !frozenVeoTier)
 			ctx.addIssue({ code: "custom", message: "VIDEO_MODEL_SELECTION_UNSUPPORTED" });
 		const entry = getVideoModel(input.productKey);
 		const length = Array.from(input.prompt).length;

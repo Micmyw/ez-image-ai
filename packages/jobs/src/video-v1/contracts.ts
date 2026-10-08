@@ -1,7 +1,7 @@
 import type { VideoEffectId } from "@repo/config/video-effects";
 import type { VideoEffectTemplateConfig } from "@repo/config/video-effects.server";
 import type { VideoModelInput } from "@repo/config/video-models";
-import type { VideoAudioSafetyPolicy } from "@repo/config/video-output";
+import type { VideoAudioSafetyPolicy, VideoResolutionPolicy } from "@repo/config/video-output";
 import type { VideoVisualSafetyProfile } from "@repo/config/video-safety";
 import type { VideoTextSafetyProfile } from "@repo/config/video-text-safety";
 
@@ -100,6 +100,7 @@ export type VideoInputSnapshot = VideoRequestInput & {
 	visualSafetyProfile?: VideoVisualSafetyProfile;
 	textSafetyProfile?: VideoTextSafetyProfile;
 	audioSafetyPolicy?: VideoAudioSafetyPolicy;
+	resolutionPolicy?: VideoResolutionPolicy;
 	schemaVersion: 1;
 	modelContractVersion: string;
 	requestFingerprint: string;

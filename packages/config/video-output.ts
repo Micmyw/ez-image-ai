@@ -5,10 +5,42 @@ import {
 	RAINDANCE_DUO_EFFECT_ID,
 	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
 } from "./video-effects";
+import { VIDEO_VEO_TIER_CONTRACT_VERSION, videoVeoTierSchema } from "./video-models";
 
 /** Immutable request-derived output requirements. Legacy snapshots remain five-second/silent. */
 export const VIDEO_AUDIO_POLICY_VERSION = "video-spoken-content-2026-10-04.1";
 export const VIDEO_OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
+/** Frozen application minimum, not a supplier-confirmed exact pixel matrix. */
+export type VideoResolutionPolicy = {
+	schemaVersion: 1;
+	kind: "minimum-short-edge";
+	minimumShortEdge: number;
+};
+
+function readMinimumShortEdge(snapshot: Record<string, unknown>): number | undefined {
+	if (snapshot.veoTier === undefined && snapshot.resolutionPolicy === undefined) return undefined;
+	const floor = { "720p": 720, "1080p": 1080, "4k": 2160 }[String(snapshot.resolution)];
+	const policy = snapshot.resolutionPolicy;
+	if (
+		snapshot.productKey !== "video-veo-3-1" ||
+		snapshot.modelContractVersion !== VIDEO_VEO_TIER_CONTRACT_VERSION ||
+		!videoVeoTierSchema.safeParse(snapshot.veoTier).success ||
+		!floor ||
+		!policy ||
+		typeof policy !== "object" ||
+		Array.isArray(policy)
+	)
+		throw new Error("VIDEO_RESOLUTION_POLICY_INVALID");
+	const value = policy as Record<string, unknown>;
+	if (
+		value.schemaVersion !== 1 ||
+		value.kind !== "minimum-short-edge" ||
+		value.minimumShortEdge !== floor ||
+		Object.keys(value).some((key) => !["schemaVersion", "kind", "minimumShortEdge"].includes(key))
+	)
+		throw new Error("VIDEO_RESOLUTION_POLICY_INVALID");
+	return floor;
+}
 export type VideoAudioSafetyPolicy = {
 	schemaVersion: 1;
 	mode: "not_requested" | "required";
@@ -38,6 +70,7 @@ export function readVideoAudioSafetyPolicy(snapshot: unknown): VideoAudioSafetyP
 export type VideoOutputConstraints = {
 	/** Frozen template requirement, not a claim that the supplier was quality-tested. */
 	exactPixels?: { width: number; height: number };
+	minimumShortEdge?: number;
 	/** Missing historical constraints retain the spoken-review size limit. */
 	audioSafetyPolicy?: VideoAudioSafetyPolicy;
 	productKey?: string;
@@ -59,6 +92,7 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 		value && typeof value === "object" && !Array.isArray(value)
 			? (value as Record<string, unknown>)
 			: {};
+	const minimumShortEdge = readMinimumShortEdge(snapshot);
 	if (snapshot.requestKind === "template-video" || snapshot.videoEffectTemplate !== undefined) {
 		const template = snapshot.videoEffectTemplate;
 		if (!template || typeof template !== "object" || Array.isArray(template))
@@ -140,12 +174,14 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 		sound: snapshot.sound,
 		resolution: snapshot.resolution,
 		aspectRatio: snapshot.aspectRatio,
+		...(minimumShortEdge === undefined ? {} : { minimumShortEdge }),
 	};
 }
 
 export function videoResolutionPixelContract(
 	expected: VideoOutputConstraints,
-): "DOCUMENTED" | "NOT_VERIFIED" {
+): "DOCUMENTED" | "APP_MINIMUM" | "NOT_VERIFIED" {
+	if (expected.minimumShortEdge !== undefined) return "APP_MINIMUM";
 	return expected.productKey === "video-kling-3" &&
 		["720p", "1080p", "4k"].includes(expected.resolution) &&
 		["16:9", "9:16", "1:1"].includes(expected.aspectRatio)
@@ -185,6 +221,11 @@ export function videoOutputSpecificationFailure(
 		)
 	)
 		return "VIDEO_DIMENSIONS_INVALID";
+	if (
+		expected.minimumShortEdge !== undefined &&
+		Math.min(output.width, output.height) < expected.minimumShortEdge
+	)
+		return "VIDEO_RESOLUTION_MISMATCH";
 	if (videoResolutionPixelContract(expected) === "DOCUMENTED") {
 		const pixels = { "720p": 720, "1080p": 1080, "4k": 2160 }[expected.resolution]!;
 		const width = expected.aspectRatio === "16:9" ? (pixels * 16) / 9 : pixels;

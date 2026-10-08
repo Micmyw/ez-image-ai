@@ -93,6 +93,28 @@ export class KieVideoV1Adapter {
 		}
 	}
 	async retrieve(providerTaskId: string): Promise<KieVideoV1Result> {
+		return this.retrieveResult(providerTaskId);
+	}
+	/** Separate from retrieve so injected legacy adapter implementations stay compatible. */
+	async retrieveVeo(
+		providerTaskId: string,
+		veo: { resolution: string; model: string },
+	): Promise<KieVideoV1Result> {
+		if (
+			!z
+				.object({
+					resolution: z.enum(["720p", "1080p", "4k"]),
+					model: z.enum(["veo3_lite", "veo3_fast", "veo3"]),
+				})
+				.safeParse(veo).success
+		)
+			throw new Error("VIDEO_MODEL_CONTRACT_UNAVAILABLE");
+		return this.retrieveResult(providerTaskId, veo);
+	}
+	private async retrieveResult(
+		providerTaskId: string,
+		veo?: { resolution: string; model: string },
+	): Promise<KieVideoV1Result> {
 		taskIdSchema.parse(providerTaskId);
 		if (!this.options.apiKey.trim()) throw new Error("VIDEO_PROVIDER_CONFIGURATION_ERROR");
 		const response = await fetchJson(
@@ -105,6 +127,8 @@ export class KieVideoV1Adapter {
 				code: z.literal(200),
 				data: z.object({
 					taskId: taskIdSchema,
+					model: z.unknown().optional(),
+					param: z.unknown().optional(),
 					state: z.enum(["waiting", "queuing", "generating", "success", "fail"]),
 					resultJson: z
 						.string()
@@ -118,6 +142,26 @@ export class KieVideoV1Adapter {
 		if (!response.ok || !record.success || record.data.data.taskId !== providerTaskId)
 			throw new Error("VIDEO_PROVIDER_INVALID_RESPONSE");
 		const data = record.data.data;
+		if (veo) {
+			try {
+				if (data.model != null && data.model !== "veo-3-1") throw new Error();
+				if (data.param != null) {
+					const params = z.object({ model: z.literal("veo-3-1"), input: z.unknown() }).parse(
+						JSON.parse(
+							z
+								.string()
+								.max(32 * 1024)
+								.parse(data.param),
+						),
+					);
+					z.object({ model: z.literal(veo.model), resolution: z.literal(veo.resolution) }).parse(
+						typeof params.input === "string" ? JSON.parse(params.input) : params.input,
+					);
+				}
+			} catch {
+				throw new Error("VIDEO_PROVIDER_INVALID_RESPONSE");
+			}
+		}
 		if (data.state === "fail")
 			return {
 				status: "FAILED",
@@ -127,12 +171,18 @@ export class KieVideoV1Adapter {
 			};
 		if (data.state !== "success") return { status: "PENDING" };
 		try {
-			const result = z
-				.object({ resultUrls: z.array(httpsUrl).length(1) })
-				.parse(JSON.parse(data.resultJson ?? "null"));
+			const decoded = JSON.parse(data.resultJson ?? "null");
+			// Only frozen explicit-tier high resolution jobs select this response shape.
+			// origin_urls is the 720p source, never a fallback for a high resolution order.
+			const urls =
+				veo && veo.resolution !== "720p"
+					? z
+							.object({ data: z.object({ result_urls: z.array(httpsUrl).length(1) }) })
+							.parse(decoded).data.result_urls
+					: z.object({ resultUrls: z.array(httpsUrl).length(1) }).parse(decoded).resultUrls;
 			return {
 				status: "SUCCEEDED",
-				outputUrl: result.resultUrls[0]!,
+				outputUrl: urls[0]!,
 				providerCostMicros: null,
 				providerCreditsConsumed: data.creditsConsumed ?? null,
 				providerCompletedAt: data.completeTime ? new Date(data.completeTime).toISOString() : null,

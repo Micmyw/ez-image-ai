@@ -10,6 +10,7 @@ import {
 	KieVideoModelsAdapter,
 	resolveKieVideoModelId,
 	type KieVideoModelInput,
+	type KieVideoResultContext,
 } from "@repo/ai/media/providers/kie-video-models";
 import {
 	buildKieVideoV1Request,
@@ -18,6 +19,7 @@ import {
 	type KieVideoV1Result,
 	type KieVideoV1Submission,
 } from "@repo/ai/media/providers/kie-video-v1";
+import { VIDEO_VEO_TIER_CONTRACT_VERSION } from "@repo/config/video-models";
 import {
 	isApprovedVideoTextDecision,
 	readVideoTextSafetyProfile,
@@ -67,7 +69,11 @@ export interface VideoSubmissionDependencies {
 		submit(
 			input: KieVideoV1Input | KieVideoModelInput | KieSeedanceReferenceInput,
 		): Promise<KieVideoV1Submission>;
-		retrieve(taskId: string, productKey?: string): Promise<KieVideoV1Result>;
+		retrieve(
+			taskId: string,
+			productKey?: string,
+			context?: KieVideoResultContext,
+		): Promise<KieVideoV1Result>;
 	};
 	signRead: (objectKey: string) => Promise<string>;
 	env: Record<string, string | undefined>;
@@ -92,8 +98,10 @@ function dependencies(
 					: "productKey" in input
 						? modelProvider.submit(input)
 						: legacyProvider.submit(input),
-			retrieve: (taskId, productKey) =>
-				productKey ? modelProvider.retrieve(taskId, productKey) : legacyProvider.retrieve(taskId),
+			retrieve: (taskId, productKey, context) =>
+				productKey
+					? modelProvider.retrieve(taskId, productKey, context)
+					: legacyProvider.retrieve(taskId),
 		},
 		signRead: (objectKey) =>
 			createSignedReadUrl({ bucket: "media", key: objectKey, expiresIn: 3600 }),
@@ -110,6 +118,13 @@ function prepareVideoProviderRequest(
 	imageUrl?: string,
 	motionUrl?: string,
 ) {
+	if (
+		"veoTier" in snapshot &&
+		snapshot.veoTier !== undefined &&
+		(snapshot.productKey !== "video-veo-3-1" ||
+			snapshot.modelContractVersion !== VIDEO_VEO_TIER_CONTRACT_VERSION)
+	)
+		throw new Error("VIDEO_MODEL_CONTRACT_UNAVAILABLE");
 	if (snapshot.mode === "image-to-video" && !snapshot.inputIdentity)
 		throw new Error("VIDEO_INPUT_IDENTITY_MISSING");
 	const common = {
@@ -142,6 +157,7 @@ function prepareVideoProviderRequest(
 			mode: snapshot.mode,
 			resolution: snapshot.resolution,
 			aspectRatio: snapshot.aspectRatio,
+			...(snapshot.veoTier !== undefined ? { veoTier: snapshot.veoTier } : {}),
 			...(snapshot.inputAssetId !== undefined ? { inputAssetId: snapshot.inputAssetId } : {}),
 			...(snapshot.mode === "image-to-video" ? { imageUrl } : {}),
 			...(snapshot.videoEffectTemplate?.video.fixedLens
@@ -467,7 +483,13 @@ export async function confirmVideoProviderResult(
 		throw new Error("VIDEO_PROVIDER_MODEL_IDENTITY_MISMATCH");
 	const queriedAt = deps.now();
 	const result = productKey
-		? await deps.provider.retrieve(attempt.providerTaskId, productKey)
+		? "veoTier" in snapshot && snapshot.veoTier !== undefined
+			? await deps.provider.retrieve(attempt.providerTaskId, productKey, {
+					resolution: snapshot.resolution,
+					veoTier: snapshot.veoTier,
+					modelContractVersion: snapshot.modelContractVersion,
+				})
+			: await deps.provider.retrieve(attempt.providerTaskId, productKey)
 		: await deps.provider.retrieve(attempt.providerTaskId);
 	if (result.status === "PENDING") {
 		await deps.store.consumeVideoProviderEvents(jobId, attempt.id, queriedAt);

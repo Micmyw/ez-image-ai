@@ -137,6 +137,62 @@ function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video") {
 }
 
 describe("video V1 paid submission fence", () => {
+	it.each(["lite", "fast", "quality"] as const)(
+		"bridges frozen %s through one send and immutable result context",
+		async (veoTier) => {
+			const { job, deps, provider, store } = fixture();
+			Object.assign(job.inputSnapshot, {
+				productKey: "video-veo-3-1",
+				duration: 4,
+				sound: true,
+				resolution: "4k",
+				veoTier,
+				modelContractVersion: "video-models-2026-10-08.1",
+				resolutionPolicy: { schemaVersion: 1, kind: "minimum-short-edge", minimumShortEdge: 2160 },
+			});
+			await expect(submitVideoAttempt(job.id, deps)).resolves.toMatchObject({ status: "ACCEPTED" });
+			await expect(submitVideoAttempt(job.id, deps)).resolves.toMatchObject({ status: "ACCEPTED" });
+			expect(provider.submit).toHaveBeenCalledTimes(1);
+			expect(provider.submit).toHaveBeenCalledWith(
+				expect.objectContaining({ veoTier, resolution: "4k" }),
+			);
+			const body = buildKieVideoModelRequest(
+				provider.submit.mock.calls[0]![0] as KieVideoModelInput,
+			);
+			if (!("input" in body)) throw new Error("Expected the generic Market payload");
+			expect(body.input).toMatchObject({
+				model: { lite: "veo3_lite", fast: "veo3_fast", quality: "veo3" }[veoTier],
+			});
+			expect(store.claimVideoProviderSubmission).toHaveBeenCalledWith(
+				expect.objectContaining({ providerModelId: "veo-3-1" }),
+			);
+			await confirmVideoProviderResult(job.id, deps);
+			expect(provider.retrieve).toHaveBeenCalledWith("task-1", "video-veo-3-1", {
+				resolution: "4k",
+				veoTier,
+				modelContractVersion: "video-models-2026-10-08.1",
+			});
+		},
+	);
+	it.each(["video-models-2026-10-04.2", "video-models-2099-01-01.1"])(
+		"rejects unsupported explicit-tier submission version %s before the send fence",
+		async (modelContractVersion) => {
+			const { job, deps, provider, store } = fixture();
+			Object.assign(job.inputSnapshot, {
+				productKey: "video-veo-3-1",
+				duration: 4,
+				sound: true,
+				resolution: "1080p",
+				veoTier: "lite",
+				modelContractVersion,
+			});
+			await expect(submitVideoAttempt(job.id, deps)).rejects.toThrow(
+				"VIDEO_MODEL_CONTRACT_UNAVAILABLE",
+			);
+			expect(provider.submit).not.toHaveBeenCalled();
+			expect(store.claimVideoProviderSubmission).not.toHaveBeenCalled();
+		},
+	);
 	it("preserves the exact legacy no-productKey Kling 2.6 request", async () => {
 		const f = fixture();
 		await submitVideoAttempt("job-1", f.deps);

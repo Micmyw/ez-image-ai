@@ -968,6 +968,116 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		await new Promise((resolve) => setTimeout(resolve, 1100));
 		expect(await createVideoJobRecord(acceptedInput, client)).toEqual({ ...first, replayed: true });
 	});
+	it.each(["lite", "fast", "quality"] as const)(
+		"consumer bridge replays an immutable future %s admission without enabling a new one",
+		async (veoTier) => {
+			const f = await modelQuoteFixture({
+				productKey: "video-veo-3-1",
+				mode: "text-to-video",
+				duration: 4,
+				resolution: "1080p",
+				aspectRatio: "16:9",
+				sound: true,
+			});
+			const futureRequest = { ...f.input.request, veoTier };
+			await expect(
+				createVideoQuoteRecord(
+					{ ...f.input, request: futureRequest, maximumInputBytes: limits.maximumInputBytes },
+					client,
+				),
+			).rejects.toThrow();
+			await expect(
+				createVideoJobRecord({ ...f.input, request: futureRequest }, client),
+			).rejects.toThrow();
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+			// Insert a future-producer accepted fixture; never rewrite an existing immutable snapshot.
+			const quote = await client.generationQuote.findUniqueOrThrow({
+				where: { id: f.quote.quoteId },
+			});
+			const { id: _id, createdAt: _createdAt, ...fields } = quote;
+			const futureVersion = "video-models-2026-10-08.1";
+			const futureSnapshot = {
+				...(quote.inputSnapshot as Record<string, unknown>),
+				...futureRequest,
+				modelContractVersion: futureVersion,
+				requestFingerprint: fingerprintVideoRequest(f.ownerId, futureRequest),
+				resolutionPolicy: { schemaVersion: 1, kind: "minimum-short-edge", minimumShortEdge: 1080 },
+			};
+			const frozen = {
+				...fields,
+				catalogVersion: futureVersion,
+				inputSnapshot: futureSnapshot,
+				expiresAt: new Date(Date.now() - 60_000),
+			};
+			const futureQuote = await client.generationQuote.create({
+				data: {
+					...frozen,
+					inputSnapshot: futureSnapshot as never,
+					pricingSnapshot: fields.pricingSnapshot as never,
+					inputFingerprint: fingerprintGenerationQuoteSecurityPayload(frozen),
+				},
+			});
+			const accepted = await client.$transaction(async (tx) => {
+				const job = await tx.generationJob.create({
+					data: {
+						ownerType: "USER",
+						ownerId: f.ownerId,
+						submittedByUserId: f.ownerId,
+						quoteId: futureQuote.id,
+						idempotencyKey: f.input.idempotencyKey,
+						productKey: futureQuote.productKey,
+						catalogVersion: futureVersion,
+						pricingVersion: futureQuote.pricingVersion,
+						creditsReserved: futureQuote.credits,
+						executionEngine: "video-workflow-v1",
+						inputSnapshot: futureSnapshot as never,
+						pricingSnapshot: futureQuote.pricingSnapshot as never,
+					},
+				});
+				await reserveCreditsInTransaction(
+					{
+						accountId: f.account.id,
+						jobId: job.id,
+						amount: futureQuote.credits,
+						referenceKey: `job:${job.id}:reserve`,
+					},
+					tx,
+				);
+				await tx.videoExecution.create({
+					data: {
+						jobId: job.id,
+						workflowInstanceId: `video-v1-${job.id}`,
+						modelContractVersion: futureVersion,
+						stage: "QUEUED",
+						startState: "PENDING",
+					},
+				});
+				return job;
+			});
+			const replay = { ...f.input, quoteId: futureQuote.id, request: futureRequest };
+			await expect(createVideoJobRecord(replay, client)).resolves.toEqual({
+				jobId: accepted.id,
+				replayed: true,
+			});
+			await expect(
+				createVideoJobRecord({ ...replay, request: f.input.request }, client),
+			).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+			await expect(
+				createVideoJobRecord(
+					{
+						...replay,
+						request: { ...futureRequest, veoTier: veoTier === "lite" ? "quality" : "lite" },
+					},
+					client,
+				),
+			).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(1);
+			expect(
+				(await client.generationJob.findUniqueOrThrow({ where: { id: accepted.id } }))
+					.inputSnapshot,
+			).toEqual(futureSnapshot);
+		},
+	);
 	it("freezes the full visual profile in the quote and job while accepted replay ignores a new provider", async () => {
 		const { input, account } = await fixture();
 		const quote = await client.generationQuote.findUniqueOrThrow({ where: { id: input.quoteId } });

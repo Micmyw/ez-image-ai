@@ -90,6 +90,7 @@ function snapshotRequest(value: Prisma.JsonValue): VideoRequest {
 			resolution: value.resolution,
 			aspectRatio: value.aspectRatio,
 			...(mode === "image-to-video" ? { inputAssetId: value.inputAssetId } : {}),
+			...(value.veoTier !== undefined ? { veoTier: value.veoTier } : {}),
 		});
 	return videoV1ReceiptInputSchema.parse(
 		mode === "image-to-video"
