@@ -1,6 +1,6 @@
 # 视频模型合同复核：2026-10-08
 
-本次只读取得 16 份 Kie 官方 Markdown 文档，均返回 HTTP 200；没有购买生成、调用付费模型或读取生产密钥。当前 OpenAPI 请求结构及原始 Markdown SHA-256 记录在 `packages/ai/media/catalog/fixtures/kie-video-model-contracts-2026-10-08.json`，旧 `2026-10-04` fixture 保留为历史证据。新 fixture 删除示例和文档工具元数据，保留类型、必需字段、枚举、边界及说明。当前文档不是供应商账单或付费端到端验收。
+本次只读取得 16 份 Kie 官方 Markdown 文档，均返回 HTTP 200；没有购买生成、调用付费模型或读取生产密钥。当前 OpenAPI 请求结构及原始 Markdown SHA-256 记录在 `packages/ai/media/catalog/fixtures/kie-video-model-contracts-2026-10-08.json`，旧 `2026-10-04` fixture 保留为历史证据。新 fixture 删除示例和文档工具元数据，保留类型、必需字段、枚举、边界及说明；顶层 `durationEvidence` 独立记录 16 份来源的固定秒数集合/整数步长及保守应用子集，`conflicts` 记录正文与 schema 的未解矛盾。当前文档不是供应商账单或付费端到端验收。
 
 ## 范围与来源
 
@@ -35,6 +35,16 @@ MiniMax H3 Turbo、H3 Max Turbo、H3 Max 继续因缺少确认的官方模型合
 
 ## 已接受任务、旧报价与未来激活
 
+### 未确认：Kling 3 Pro 正方形实际输出像素
+
+[同一份官方文档](https://docs.kie.ai/market/kling/kling-3-0.md)的 Pro Mode 正文分辨率表，1:1 行写 **1440×1440**（本次原文第 95 行）；OpenAPI `input.mode.description` 的 pro/1:1 映射却写 **1080×1080**（第 498 行）。原文 SHA-256 为 `5c94e307ab992912d00dfc95bf254fb3d982cb31266833f82506df47e6683f10`。两处均支持相同 `mode=pro`（应用 1080p）+ `aspect_ratio=1:1` 参数组合，矛盾仅涉及实际生成像素。
+
+现有 `packages/config/video-output.ts` 将 Kling 3 1080p + 1:1 分类为 `DOCUMENTED` 并严格要求 1080×1080；该内部标签不代表此次已完成供应商消歧。若供应商遵循正文返回 1440×1440，既有检查会返回 `VIDEO_RESOLUTION_MISMATCH`，结果可能无法交付。此像素映射应明确标为**供应商实际未核实**，不能用本次请求参数测试通过来证明输出尺寸已确认。
+
+本轮保留既有可选参数、价格、冻结订单和严格输出校验；不猜测哪处文档正确、不接受额外像素尺寸、不降级验证，也不做付费消歧。fixture 保存两处位置、数值和现有风险，回归要求矛盾保持可见。后续需供应商澄清或另行授权的输出验证后，再独立决定输出合同调整。
+
+### 已接受任务与无定价路由
+
 新报价及新 admission 使用严格当前 schema。历史 Kling 3 图生回执仅在专用 receipt parser 中保留已知旧比例；owner、完整请求指纹、幂等键和数据库快照仍须匹配。RPC → admission → DB 先检查已接受任务，原请求可在报价过期或新生成关闭后恢复；换比例会发生幂等冲突，新幂等键不会绕过当前能力校验。provider builder 读取冻结请求，保留老订单原本的请求语义，不悄悄重写比例。没有迁移或修改已有订单。
 
 未接受的旧 Kling explicit-ratio quote 不再获得新 admission，用户需按首帧比例重新报价。保留当前 `video-models-2026-10-04.2` 生产合同绑定：本轮收窄选择且不改价格，改绑定会使现有确认的生产配置整体失效，超出此次 UI/合同修正授权。
@@ -49,6 +59,6 @@ MiniMax H3 Turbo、H3 Max Turbo、H3 Max 继续因缺少确认的官方模型合
 
 ## 验证方式与限制
 
-单元合同测试将共享 catalog 的每种模式、时长、分辨率、画幅和声音组合送入实际 provider builder，对当前 fixture 的 ID、字段枚举和声明边界逐项检查；另验证默认/历史 Kling 比例、prompt 限制和离散时长。真实隔离 PostgreSQL 集成验证旧回执通过 protected RPC 重复恢复、不可变快照、单次预留及新请求拒绝。
+单元合同测试将共享 catalog 的每种模式、时长、分辨率、画幅和声音组合送入实际 provider builder，对当前 fixture 的 ID、字段枚举和声明边界逐项检查。时长期望另从 16 份官方 enum/说明文字独立转录，未用应用 `getVideoModelOptions` 生成；测试逐型号/模式比较完整秒数集合，并拒绝范围外、离散缺口、非整数及未开放自动秒数。Kling Turbo 的 1 秒步长是对正文 3–15 秒范围的保守整数选择，不声称已证实供应商拒绝所有小数时长。另验证默认/历史 Kling 比例、prompt 限制及未解像素矛盾与现有严格校验。真实隔离 PostgreSQL 集成验证旧回执通过 protected RPC 重复恢复、不可变快照、单次预留及新请求拒绝。
 
 浏览器回归拦截所有外部域及非 fixture API，只使用合成账户和测试积分。截图中的 23 / 29 / 37 / 41 / 57 credits 不能作为线上售价证据。完整生产构建、首页原有性能预算及其余数据库验收由控制线程在最终提交上执行。没有真实付费视频或供应商输出质量验收。

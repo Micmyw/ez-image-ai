@@ -1,6 +1,199 @@
 {
 	"retrievedAt": "2026-10-08",
 	"sourceType": "official public API documentation; read-only; no live generation",
+	"conflicts": [
+		{
+			"id": "kling-3-pro-square-output-pixels",
+			"status": "UNRESOLVED",
+			"source": "https://docs.kie.ai/market/kling/kling-3-0.md",
+			"sourceSha256": "5c94e307ab992912d00dfc95bf254fb3d982cb31266833f82506df47e6683f10",
+			"selection": {
+				"productKey": "video-kling-3",
+				"providerMode": "pro",
+				"resolution": "1080p",
+				"aspectRatio": "1:1"
+			},
+			"parameterSupport": "Both locations support pro mode with 1:1. The conflict concerns actual output pixels, not whether the parameter combination is accepted.",
+			"proseEvidence": [
+				{
+					"location": "Pro Mode (pro) prose resolution table, 1:1 row",
+					"line": 95,
+					"width": 1440,
+					"height": 1440
+				},
+				{
+					"location": "OpenAPI input.mode.description, pro mode 1:1 mapping",
+					"line": 498,
+					"width": 1080,
+					"height": 1080
+				}
+			],
+			"applicationPolicy": {
+				"unchanged": true,
+				"source": "packages/config/video-output.ts:videoResolutionPixelContract and videoOutputSpecificationFailure",
+				"existingClassification": "DOCUMENTED",
+				"requiredWidth": 1080,
+				"requiredHeight": 1080,
+				"failureCode": "VIDEO_RESOLUTION_MISMATCH",
+				"risk": "A supplier result following the prose table at 1440x1440 is rejected by the existing strict 1080x1080 output check. The actual supplier output mapping has not been verified."
+			},
+			"resolution": "No choice between contradictory sources, output-check relaxation, parameter or price change, or paid disambiguation in this task. Requires supplier clarification or separately authorized output verification."
+		}
+	],
+	"durationEvidenceNotes": "Fixed-second application intersections manually transcribed from the cited official enum or prose, independently of application code. Each source's raw SHA-256 is in contracts. integerStep=1 describes consecutive whole-second choices; null means an explicit discrete set. Automatic duration, video-reference conditions and conservative subsets are noted separately.",
+	"durationEvidence": [
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-1-5-pro.md",
+			"providerModel": "bytedance/seedance-1.5-pro",
+			"modes": ["text-to-video", "image-to-video"],
+			"sourceLocation": "OpenAPI input.duration.description: whole seconds 4–12",
+			"fixedSeconds": [4, 5, 6, 7, 8, 9, 10, 11, 12],
+			"integerStep": 1,
+			"applicationSubset": "Text or one first-frame image; no additional reference media."
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-2-5.md",
+			"providerModel": "bytedance/seedance-2-5",
+			"modes": ["text-to-video", "image-to-video"],
+			"sourceLocation": "OpenAPI input.duration type integer and description: 4–30 seconds, or automatic -1",
+			"fixedSeconds": [
+				4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27,
+				28, 29, 30
+			],
+			"integerStep": 1,
+			"excludedAutomaticSeconds": [-1],
+			"applicationSubset": "Fixed duration only for precise pricing and output validation; no video-editing input."
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-2-fast.md",
+			"providerModel": "bytedance/seedance-2-fast",
+			"modes": ["text-to-video", "image-to-video"],
+			"sourceLocation": "OpenAPI input.duration type integer and description: 4–15 seconds or -1",
+			"fixedSeconds": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+			"integerStep": 1,
+			"excludedAutomaticSeconds": [-1],
+			"applicationSubset": "Fixed duration only; text or one first-frame image."
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-2-mini.md",
+			"providerModel": "bytedance/seedance-2-mini",
+			"modes": ["text-to-video", "image-to-video"],
+			"sourceLocation": "OpenAPI input.duration type integer and description: 4–15 seconds or -1",
+			"fixedSeconds": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+			"integerStep": 1,
+			"excludedAutomaticSeconds": [-1],
+			"applicationSubset": "Fixed duration only; text or one first-frame image."
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-2.md",
+			"providerModel": "bytedance/seedance-2",
+			"modes": ["text-to-video", "image-to-video"],
+			"sourceLocation": "OpenAPI input.duration type integer and description: 4–15 seconds or -1",
+			"fixedSeconds": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+			"integerStep": 1,
+			"excludedAutomaticSeconds": [-1],
+			"applicationSubset": "Fixed duration only; text or one first-frame image."
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/v1-pro-fast-image-to-video.md",
+			"providerModel": "bytedance/v1-pro-fast-image-to-video",
+			"modes": ["image-to-video"],
+			"sourceLocation": "OpenAPI input.duration.enum: string values 5 and 10",
+			"fixedSeconds": [5, 10],
+			"integerStep": null,
+			"applicationSubset": "One image input; text-only generation is unsupported."
+		},
+		{
+			"source": "https://docs.kie.ai/market/google/gemini-omni-flash-1-1.md",
+			"providerModel": "google/gemini-omni-flash-1-1",
+			"modes": ["text-to-video", "image-to-video"],
+			"sourceLocation": "OpenAPI input.duration.enum and description: 4, 6, 8, 10; only effective without video input",
+			"fixedSeconds": [4, 6, 8, 10],
+			"integerStep": null,
+			"applicationSubset": "No video input; the supplier's video-input automatic duration rule is outside scope."
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/image-to-video.md",
+			"providerModel": "kling-2.6/image-to-video",
+			"modes": ["image-to-video"],
+			"sourceLocation": "OpenAPI input.duration.enum: string values 5 and 10",
+			"fixedSeconds": [5, 10],
+			"integerStep": null,
+			"applicationSubset": "One first-frame image."
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/kling-3-0.md",
+			"providerModel": "kling-3.0/video",
+			"modes": ["text-to-video", "image-to-video"],
+			"sourceLocation": "OpenAPI input.duration.enum: string values 3 through 15 inclusive",
+			"fixedSeconds": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+			"integerStep": 1,
+			"applicationSubset": "Single shot only; multi_prompt duration-sum rules are outside scope."
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/text-to-video.md",
+			"providerModel": "kling-2.6/text-to-video",
+			"modes": ["text-to-video"],
+			"sourceLocation": "OpenAPI input.duration.enum: string values 5 and 10",
+			"fixedSeconds": [5, 10],
+			"integerStep": null,
+			"applicationSubset": "Text-only request on the documented text route."
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/v3-turbo-image-to-video.md",
+			"providerModel": "kling/v3-turbo-image-to-video",
+			"modes": ["image-to-video"],
+			"sourceLocation": "OpenAPI input.duration.description: 3s–15s",
+			"fixedSeconds": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+			"integerStep": 1,
+			"applicationSubset": "Whole-second choices within the prose range; fractional durations are not exposed or claimed verified. One first-frame image."
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/v3-turbo-text-to-video.md",
+			"providerModel": "kling/v3-turbo-text-to-video",
+			"modes": ["text-to-video"],
+			"sourceLocation": "OpenAPI input.duration.description: 3s–15s",
+			"fixedSeconds": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+			"integerStep": 1,
+			"applicationSubset": "Whole-second choices within the prose range; fractional durations are not exposed or claimed verified."
+		},
+		{
+			"source": "https://docs.kie.ai/market/minimax-h3/image-to-video.md",
+			"providerModel": "minimax-h3/image-to-video",
+			"modes": ["image-to-video"],
+			"sourceLocation": "OpenAPI input.duration: integer enum, minimum 4 and maximum 15",
+			"fixedSeconds": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+			"integerStep": 1,
+			"applicationSubset": "One first-frame image."
+		},
+		{
+			"source": "https://docs.kie.ai/market/minimax-h3/text-to-video.md",
+			"providerModel": "minimax-h3/text-to-video",
+			"modes": ["text-to-video"],
+			"sourceLocation": "OpenAPI input.duration: integer enum, minimum 4 and maximum 15",
+			"fixedSeconds": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+			"integerStep": 1,
+			"applicationSubset": "Text-only request on the documented text route."
+		},
+		{
+			"source": "https://docs.kie.ai/veo3-api/generate-veo-3-video.md",
+			"providerModel": "veo-3-1",
+			"modes": ["text-to-video", "image-to-video"],
+			"sourceLocation": "OpenAPI input.duration.enum: 4, 6, 8; REFERENCE_2_VIDEO only permits 8",
+			"fixedSeconds": [4, 6, 8],
+			"integerStep": null,
+			"applicationSubset": "Text or one first frame, no REFERENCE_2_VIDEO. Contract audit only: this product remains unpriced and admission-blocked."
+		},
+		{
+			"source": "https://docs.kie.ai/old-model/veo3-api/generate-veo-3-video.md",
+			"providerModel": "veo3_fast",
+			"modes": ["text-to-video", "image-to-video"],
+			"sourceLocation": "OpenAPI root duration.enum: 4, 6, 8; REFERENCE_2_VIDEO only permits 8",
+			"fixedSeconds": [4, 6, 8],
+			"integerStep": null,
+			"applicationSubset": "Existing Fast adapter, text or one first frame; no REFERENCE_2_VIDEO or other legacy Veo tier."
+		}
+	],
 	"contracts": [
 		{
 			"source": "https://docs.kie.ai/market/bytedance/seedance-1-5-pro.md",

@@ -6,6 +6,7 @@ import {
 	readVideoAudioSafetyPolicy,
 	videoOutputConstraints,
 	videoOutputSpecificationFailure,
+	videoResolutionPixelContract,
 } from "./video-output";
 
 const metadata = {
@@ -24,6 +25,18 @@ const expected = {
 	aspectRatio: "16:9",
 };
 describe("immutable video output contract", () => {
+	it("retains strict Kling Pro square pixels while the official prose and schema remain contradictory", () => {
+		const square = { ...expected, aspectRatio: "1:1" };
+		// The prose table says 1440x1440; OpenAPI says 1080x1080. This freezes the
+		// existing check without claiming supplier verification or choosing a source.
+		expect(videoResolutionPixelContract(square)).toBe("DOCUMENTED");
+		expect(
+			videoOutputSpecificationFailure({ ...metadata, width: 1080, height: 1080 }, square),
+		).toBeNull();
+		expect(
+			videoOutputSpecificationFailure({ ...metadata, width: 1440, height: 1440 }, square),
+		).toBe("VIDEO_RESOLUTION_MISMATCH");
+	});
 	it("supports only the frozen reference template with its matching Seedance 2 silent portrait output", () => {
 		// Synthetic identity only; this is not real motion, moderation or rights evidence.
 		const template = createVideoEffectTemplateSnapshot(

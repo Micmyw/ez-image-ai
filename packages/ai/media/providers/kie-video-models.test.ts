@@ -31,6 +31,90 @@ function requestParameters(
 	return "input" in request ? request.input : request;
 }
 describe("Kie multi-model video boundary", () => {
+	it("keeps the unresolved official Kling Pro square pixel conflict and existing rejection risk visible", () => {
+		expect(officialFixture).toHaveProperty(
+			"conflicts",
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "kling-3-pro-square-output-pixels",
+					status: "UNRESOLVED",
+					source: "https://docs.kie.ai/market/kling/kling-3-0.md",
+					proseEvidence: expect.arrayContaining([
+						expect.objectContaining({
+							location: "Pro Mode (pro) prose resolution table, 1:1 row",
+							line: 95,
+							width: 1440,
+							height: 1440,
+						}),
+						expect.objectContaining({
+							location: "OpenAPI input.mode.description, pro mode 1:1 mapping",
+							line: 498,
+							width: 1080,
+							height: 1080,
+						}),
+					]),
+					applicationPolicy: expect.objectContaining({
+						unchanged: true,
+						existingClassification: "DOCUMENTED",
+						requiredWidth: 1080,
+						requiredHeight: 1080,
+						failureCode: "VIDEO_RESOLUTION_MISMATCH",
+					}),
+				}),
+			]),
+		);
+	});
+	it("matches each model and input mode to independent official fixed-second evidence including prose-only bounds", () => {
+		expect(officialFixture).toHaveProperty("durationEvidence");
+		const evidence = Reflect.get(officialFixture, "durationEvidence") as Array<{
+			source: string;
+			providerModel: string;
+			modes: VideoMode[];
+			fixedSeconds: number[];
+			integerStep: number | null;
+		}>;
+		expect(evidence).toHaveLength(16);
+		expect(new Set(evidence.map((entry) => entry.source))).toEqual(
+			new Set(officialFixture.contracts.map((entry) => entry.source)),
+		);
+		for (const model of VIDEO_MODEL_CATALOG.filter((entry) => entry.status === "implemented")) {
+			for (const mode of model.modes) {
+				const input = inputFor(model.productKey, mode);
+				const providerModel = buildKieVideoModelRequest(input).model;
+				const documented = evidence.find(
+					(entry) => entry.providerModel === providerModel && entry.modes.includes(mode),
+				);
+				expect(documented, `${model.productKey}.${mode}`).toBeDefined();
+				const seconds = documented!.fixedSeconds;
+				expect(
+					[
+						...new Set(
+							getVideoModelOptions(model.productKey, mode).map((option) => option.duration),
+						),
+					].sort((a, b) => a - b),
+					`${model.productKey}.${mode}`,
+				).toEqual(seconds);
+				expect(seconds.every((value) => Number.isInteger(value) && value > 0)).toBe(true);
+				if (documented!.integerStep !== null)
+					expect(
+						seconds
+							.slice(1)
+							.every((value, index) => value - seconds[index]! === documented!.integerStep),
+					).toBe(true);
+				const minimum = seconds[0]!;
+				const maximum = seconds[seconds.length - 1]!;
+				const gaps = Array.from(
+					{ length: maximum - minimum + 1 },
+					(_, index) => minimum + index,
+				).filter((value) => !seconds.includes(value));
+				for (const duration of [-1, minimum - 1, maximum + 1, minimum + 0.5, ...gaps])
+					expect(
+						() => buildKieVideoModelRequest({ ...input, duration }),
+						`${model.productKey}.${mode}: ${duration}`,
+					).toThrow();
+			}
+		}
+	});
 	it("retains current source evidence and the deliberate application prompt caps", () => {
 		expect(officialFixture.retrievedAt).toBe("2026-10-08");
 		const contract = officialFixture.contracts.find((entry) =>
