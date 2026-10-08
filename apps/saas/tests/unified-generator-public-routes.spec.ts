@@ -10,6 +10,7 @@ type State = {
 	quoteCredits: string;
 	quoteExpired: boolean;
 	catalogAvailable: boolean;
+	catalogReads: number;
 	quoteGate?: Promise<void>;
 	sealError: boolean;
 	uploads: number;
@@ -27,6 +28,7 @@ async function setup(page: Page, signedIn = true) {
 		quoteCredits: "23",
 		quoteExpired: false,
 		catalogAvailable: true,
+		catalogReads: 0,
 		sealError: false,
 		uploads: 0,
 		creates: [],
@@ -119,7 +121,8 @@ async function setup(page: Page, signedIn = true) {
 			failureCode: null,
 			updatedAt: new Date().toISOString(),
 		};
-		if (endpoint === "catalog")
+		if (endpoint === "catalog") {
+			state.catalogReads++;
 			return reply({
 				available: state.catalogAvailable,
 				accessAllowed: true,
@@ -156,6 +159,7 @@ async function setup(page: Page, signedIn = true) {
 					]),
 				})),
 			});
+		}
 		if (endpoint === "quote") {
 			state.quotes.push(body);
 			await state.quoteGate;
@@ -243,6 +247,132 @@ async function reviewChangedPrice(page: Page, state: State) {
 	await expect(page.locator('[data-test="video-confirm"]')).toContainText("29 credits");
 }
 
+async function restoreHistoricalKlingConfirmation(page: Page, state: State) {
+	await page.goto("/create?mode=video");
+	await expect(page.locator("#video-prompt")).toBeEnabled();
+	const request = {
+		productKey: "video-kling-3",
+		mode: "image-to-video",
+		prompt: "Keep the original reference and animate the quiet lake.",
+		duration: 5,
+		resolution: "720p",
+		aspectRatio: "9:16",
+		sound: false,
+		inputAssetId: "historical-sealed-reference",
+	};
+	const input = {
+		quoteId: "historical-quote",
+		idempotencyKey: "historical-confirmation-key",
+		request,
+	};
+	await page.evaluate(
+		({ key, confirmation }) => sessionStorage.setItem(key, JSON.stringify(confirmation)),
+		{
+			key: `video-v1:confirmation:${state.ownerId}`,
+			confirmation: {
+				version: 1,
+				fingerprint: JSON.stringify(request),
+				quote: {
+					quoteId: input.quoteId,
+					credits: "23",
+					expiresAt: new Date(Date.now() + 3600000).toISOString(),
+					requestFingerprint: "historical-request",
+				},
+				input,
+			},
+		},
+	);
+	await page.reload();
+	await expect(page.locator('[data-test="video-confirm"]')).toContainText("same request");
+	await expect(page.locator("#video-prompt")).toBeDisabled();
+	await expect(page.locator('[data-test="video-settings-trigger"]')).toContainText("9:16");
+	return input;
+}
+
+test("historical Kling confirmation rejected before admission unlocks legal framing and a new request", async ({
+	page,
+}) => {
+	const state = await setup(page);
+	state.createError = "VIDEO_MODEL_OPTION_UNAVAILABLE";
+	const original = await restoreHistoricalKlingConfirmation(page, state);
+	const catalogReads = state.catalogReads;
+	await page.locator('[data-test="video-confirm"]').click();
+	await expect(page.locator("#video-prompt")).toBeEnabled();
+	expect(state.creates).toEqual([original]);
+	await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
+	await expect(page.locator('[data-test="video-settings-trigger"]')).toContainText(
+		"Automatic framing",
+	);
+	await expect.poll(() => state.catalogReads).toBeGreaterThan(catalogReads);
+	expect(
+		await page.evaluate(() => sessionStorage.getItem("video-v1:confirmation:ui-owner")),
+	).toBeNull();
+	await expect(page.locator("#video-model")).toHaveAttribute("data-product-key", "video-kling-3");
+	await expect(
+		page.getByLabel("Describe movement and camera direction", { exact: true }),
+	).toHaveValue(original.request.prompt);
+	await page.locator('[data-test="video-generate"]').click();
+	await expect(page.locator('[data-test="video-workspace"]').getByRole("alert")).toHaveText(
+		"Upload and secure one reference image first.",
+	);
+	expect(state.quotes).toHaveLength(0);
+	expect(state.creates).toHaveLength(1);
+	await page.reload();
+	await expect(page.locator("#video-prompt")).toBeEnabled();
+	await expect(page.locator("#video-prompt")).toHaveValue(original.request.prompt);
+	await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
+	await expect(page.locator('[data-test="video-settings-trigger"]')).toContainText(
+		"Automatic framing",
+	);
+	await expect(page.locator('[data-test="video-workspace"]')).toContainText(
+		"Upload and secure one reference image",
+	);
+	state.createError = null;
+	await page.locator("#video-image").setInputFiles(referenceFile());
+	await expect(page.locator("#video-upload-status")).toContainText("Image secured");
+	await page.locator('[data-test="video-generate"]').click();
+	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+	expect(state.quotes).toHaveLength(1);
+	expect(state.creates).toHaveLength(2);
+	expect(state.creates[1].request).toEqual({
+		...original.request,
+		aspectRatio: "source",
+		inputAssetId: "ui-asset",
+	});
+	expect(state.quotes[0]).toEqual(state.creates[1].request);
+	expect(state.creates[1].idempotencyKey).not.toBe(original.idempotencyKey);
+	expect(state.creates[1].quoteId).not.toBe(original.quoteId);
+});
+
+test("historical Kling confirmation with an unknown response replays the accepted request unchanged", async ({
+	page,
+}) => {
+	const state = await setup(page);
+	state.loseFirst = true;
+	const original = await restoreHistoricalKlingConfirmation(page, state);
+	await page.locator('[data-test="video-confirm"]').click();
+	await expect(page.locator('[data-test="video-confirm"]')).toBeEnabled();
+	await expect(page.locator("#video-prompt")).toBeDisabled();
+	await expect(page.locator('[data-test="video-settings-trigger"]')).toContainText("9:16");
+	expect(
+		await page.evaluate(
+			() => JSON.parse(sessionStorage.getItem("video-v1:confirmation:ui-owner")!).input,
+		),
+	).toEqual(original);
+	expect(state.creates).toEqual([original]);
+	state.catalogAvailable = false;
+	await page.reload();
+	await expect(page.locator("#video-prompt")).toBeDisabled();
+	await expect(page.locator('[data-test="video-settings-trigger"]')).toContainText("9:16");
+	await page.locator('[data-test="video-confirm"]').click();
+	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+	expect(state.creates).toEqual([original, original]);
+	expect(state.quotes).toHaveLength(0);
+	expect(
+		await page.evaluate(() => sessionStorage.getItem("video-v1:confirmation:ui-owner")),
+	).toBeNull();
+});
+
 test("upfront backend price needs no prompt or quote, blank prompt is explicit, same-price generation is single-click", async ({
 	page,
 }) => {
@@ -282,7 +412,9 @@ test("reference errors and reload retain image intent, explicit remove restores 
 	page,
 }) => {
 	const state = await setup(page);
+	await page.setViewportSize({ width: 1440, height: 1000 });
 	await page.goto("/create?mode=video");
+	await page.getByRole("button", { name: "Decline optional", exact: true }).click();
 	await expect(page.locator("#video-mode")).toHaveCount(0);
 	await page.locator("#video-prompt").fill("Keep the reference and animate it.");
 	await page
@@ -311,6 +443,21 @@ test("reference errors and reload retain image intent, explicit remove restores 
 	await page.getByRole("button", { name: "Remove image", exact: true }).click();
 	release();
 	await expect(page.getByLabel("Describe your video", { exact: true })).toBeVisible();
+	await page.locator("#video-image").setInputFiles(referenceFile());
+	await expect(page.locator("#video-upload-status")).toContainText("Image secured");
+	await expect(
+		page.getByLabel("Describe movement and camera direction", { exact: true }),
+	).toBeVisible();
+	await page.screenshot({
+		animations: "disabled",
+		path: path.join(evidence, "ezimage-video-reference-added.png"),
+	});
+	await page.getByRole("button", { name: "Remove image", exact: true }).click();
+	await expect(page.getByLabel("Describe your video", { exact: true })).toBeVisible();
+	await page.screenshot({
+		animations: "disabled",
+		path: path.join(evidence, "ezimage-video-reference-removed.png"),
+	});
 	await page.locator('[data-test="video-generate"]').click();
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
 	expect(state.creates[0].request).toMatchObject({ mode: "text-to-video" });

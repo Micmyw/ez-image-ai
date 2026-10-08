@@ -47,6 +47,8 @@ MiniMax H3 Turbo、H3 Max Turbo、H3 Max 继续因缺少确认的官方模型合
 
 新报价及新 admission 使用严格当前 schema。历史 Kling 3 图生回执仅在专用 receipt parser 中保留已知旧比例；owner、完整请求指纹、幂等键和数据库快照仍须匹配。RPC → admission → DB 先检查已接受任务，原请求可在报价过期或新生成关闭后恢复；换比例会发生幂等冲突，新幂等键不会绕过当前能力校验。provider builder 读取冻结请求，保留老订单原本的请求语义，不悄悄重写比例。没有迁移或修改已有订单。
 
+历史确认若从未被接受，当前准入明确返回 `VIDEO_MODEL_OPTION_UNAVAILABLE` 后，前端清除该确认及其持久化回执、刷新目录，并把可编辑草稿规范到当前合法参数（Kling 3 图生为 `source`）。描述和图生意图保留；刷新恢复而未在当前上传流程封存的参考图必须重选，随后由用户取得新报价和新幂等键。仅识别准确拒绝码，未知网络响应或已接受任务恢复不会提前清回执或重写原请求。
+
 未接受的旧 Kling explicit-ratio quote 不再获得新 admission，用户需按首帧比例重新报价。保留当前 `video-models-2026-10-04.2` 生产合同绑定：本轮收窄选择且不改价格，改绑定会使现有确认的生产配置整体失效，超出此次 UI/合同修正授权。
 
 **通用 Veo 3.1 仍被定价准入阻止。** 当前 `video-pricing.server.ts` 没有该 productKey 的价格；不能因为 catalog 声明 implemented 就声称它能生成。新官方统一端点含 `input.model` tier，1080p / 4K 返回 `resultJson.data.result_urls`，现有通用映射/结果解析尚未逐项实现。这是未来激活阻塞：必须确认 tier、补请求和高分辨率解析、审批价格并做授权验收后才能开放。本轮没有修改这一路由。实际有价的 Fast 保持独立 `veo3_fast` adapter 与官方旧端点。

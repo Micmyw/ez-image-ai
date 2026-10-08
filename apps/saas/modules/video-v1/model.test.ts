@@ -305,6 +305,28 @@ describe("video form and observable state", () => {
 	])("unlocks editing after the known pre-enqueue rejection %s", (code) =>
 		expect(getVideoFailureRecovery({ message: code }).clearQuote).toBe(true),
 	);
+	it.each(["code", "data", "message"] as const)(
+		"normalizes editable settings only after a definitive option rejection through %s",
+		(field) => {
+			const code = "VIDEO_MODEL_OPTION_UNAVAILABLE";
+			const error = field === "data" ? { code: "BAD_REQUEST", data: { code } } : { [field]: code };
+			expect(getVideoFailureRecovery(error)).toMatchObject({
+				reason: "unsupportedSelection",
+				clearQuote: true,
+				refreshCatalog: true,
+				normalizeDraft: true,
+			});
+		},
+	);
+	it.each([
+		"BAD_REQUEST",
+		"VIDEO_MODEL_UNAVAILABLE",
+		"Failed to read VIDEO_MODEL_OPTION_UNAVAILABLE",
+	])("does not treat an ambiguous %s message as a definitive option rejection", (message) => {
+		const recovery = getVideoFailureRecovery({ message });
+		expect(recovery).toMatchObject({ clearQuote: false, refreshCatalog: false });
+		expect(recovery).not.toMatchObject({ normalizeDraft: true });
+	});
 	it.each(["TIMEOUT", "NETWORK_ERROR", "Request failed", "TOO_MANY_REQUESTS", "CAPACITY"])(
 		"preserves the original confirmation for an uncertain %s response",
 		(message) => {

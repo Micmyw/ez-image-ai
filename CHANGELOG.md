@@ -8,6 +8,7 @@
 - Select image-to-video from the reference upload, return to text when it is removed, and require reselecting missing or failed references. Keep image-only models selected and clearly request their required image.
 - Use attributed original-color model marks and shared desktop/mobile AI Video navigation. Display discrete duration choices accurately and clarify prompt safety limits, including supplementary Unicode characters.
 - Recheck current Kie documentation, correct Seedance 2.5 source evidence, and restrict new Kling 3 image requests to first-frame framing. Preserve immutable historical orders and leave unpriced Veo routes unavailable.
+- Unlock an old confirmation only after a definite unsupported-option rejection, restore current settings and retain the prompt and reference intent for a new quote. Accepted tasks and unknown responses keep their original request and key.
 
 ### Shared image and video composer
 

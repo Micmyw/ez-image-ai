@@ -208,9 +208,11 @@ export function getVideoErrorKey(error: unknown): VideoErrorKey {
 		error && typeof error === "object"
 			? (error as { code?: unknown; message?: unknown; data?: { code?: unknown } })
 			: {};
-	const code = [value.code, value.data?.code, value.message]
-		.filter((item): item is string => typeof item === "string")
-		.join(" ");
+	const codes = [value.code, value.data?.code, value.message].filter(
+		(item): item is string => typeof item === "string",
+	);
+	const code = codes.join(" ");
+	if (codes.includes("VIDEO_MODEL_OPTION_UNAVAILABLE")) return "unsupportedSelection";
 	if (/IDEMPOTENCY_CONFLICT/.test(code)) return "conflict";
 	if (/QUOTE_EXPIRED|QUOTE_INVALID|STALE_QUOTE|PRICE_CHANGED/.test(code)) return "quoteExpired";
 	if (/VIDEO_MODEL_PRICE_EXPIRED|VIDEO_PRICE_EXPIRED/.test(code)) return "priceUnavailable";
@@ -230,7 +232,9 @@ export function getVideoFailureRecovery(error: unknown) {
 		error && typeof error === "object"
 			? (error as { code?: unknown; message?: unknown; data?: { code?: unknown } })
 			: {};
-	const rejectedBeforeEnqueue = [value.code, value.data?.code, value.message].some(
+	const codes = [value.code, value.data?.code, value.message];
+	const normalizeDraft = codes.includes("VIDEO_MODEL_OPTION_UNAVAILABLE");
+	const rejectedBeforeEnqueue = codes.some(
 		(code) =>
 			typeof code === "string" &&
 			/^(INSUFFICIENT_CREDITS|CREDIT_DEBT_OUTSTANDING|VIDEO_OWNER_BUSY|VIDEO_GLOBAL_BUSY|VIDEO_PROVIDER_BUSY)$/.test(
@@ -241,10 +245,12 @@ export function getVideoFailureRecovery(error: unknown) {
 		reason,
 		// Only definitive rejection permits a new confirmation/key; lost responses keep the receipt.
 		clearQuote:
+			normalizeDraft ||
 			rejectedBeforeEnqueue ||
 			reason === "conflict" ||
 			reason === "quoteExpired" ||
 			reason === "priceUnavailable",
-		refreshCatalog: reason === "quoteExpired" || reason === "priceUnavailable",
+		refreshCatalog: normalizeDraft || reason === "quoteExpired" || reason === "priceUnavailable",
+		normalizeDraft,
 	};
 }

@@ -149,6 +149,20 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			setQuote(null);
 			quotedRequest.current = null;
 		}
+		if (recovery.normalizeDraft) {
+			// Admission definitively rejected this request. Only now may its editable
+			// settings follow current capabilities; a restored reference needs re-selection.
+			revision.current++;
+			setDraft((current) =>
+				changeVideoDraft(current, {
+					mode: current.mode,
+					inputAssetId:
+						upload.status === "sealed" && upload.assetId === current.inputAssetId
+							? current.inputAssetId
+							: null,
+				}),
+			);
+		}
 		if (recovery.refreshCatalog)
 			void queryClient.invalidateQueries({ queryKey: ["video-v1", "catalog"] });
 	}
