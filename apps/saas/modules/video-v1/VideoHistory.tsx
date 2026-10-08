@@ -10,6 +10,7 @@ import { videoEffectJobPath } from "../video-effects/lib/paths";
 import { videoApi } from "./api";
 import { videoPollInterval } from "./model";
 import { usePageVisible } from "./use-video";
+import { VideoRetailPrice } from "./VideoRetailPrice";
 
 export function VideoHistory() {
 	const t = useTranslations("videoV1");
@@ -69,6 +70,9 @@ export function VideoHistory() {
 						>
 							<p className="font-medium">{t(`stages.${state.stage}`)}</p>
 							{state.effect && <p className="text-sm">{state.effect.name}</p>}
+							{state.creditState !== "RELEASED" && state.pricing?.audience === "annual" && (
+								<VideoRetailPrice pricing={state.pricing} />
+							)}
 							<p className="text-sm text-muted-foreground">
 								{t(`credits.${state.creditState}`, { credits: state.credits })}
 							</p>

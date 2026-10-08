@@ -23,7 +23,8 @@ const fixtures = vi.hoisted(() => ({
 		updatedAt: new Date(0),
 	},
 }));
-vi.mock("@repo/config/video-pricing.server", () => ({
+vi.mock("@repo/config/video-pricing.server", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@repo/config/video-pricing.server")>()),
 	resolveVideoModelPrice: vi.fn(() => fixtures.price),
 }));
 vi.mock("@repo/database/client", () => ({
@@ -219,7 +220,7 @@ describe("video admission pricing and paid funding binding", () => {
 				{ quoteId: "quote", idempotencyKey: "request", request },
 				{ ...options, environment: currentEnvironment },
 			);
-			expect(resolveVideoModelPrice).toHaveBeenCalledWith(request, currentEnvironment);
+			expect(resolveVideoModelPrice).toHaveBeenCalledWith(request, currentEnvironment, undefined);
 			expect(createVideoJobRecord).toHaveBeenCalledWith(
 				expect.objectContaining({ request, paidFundingPolicy: fixtures.price.paidFundingPolicy }),
 				expect.anything(),
@@ -265,6 +266,7 @@ describe("video admission pricing and paid funding binding", () => {
 				sound: false,
 			},
 			environment,
+			undefined,
 		);
 		expect(createVideoJobRecord).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -294,6 +296,7 @@ describe("video admission pricing and paid funding binding", () => {
 		expect(resolveVideoModelPrice).toHaveBeenCalledWith(
 			expect.objectContaining(request),
 			environment,
+			undefined,
 		);
 		expect(createVideoJobRecord).toHaveBeenCalledWith(
 			expect.objectContaining({

@@ -2000,7 +2000,20 @@
 		"priceUnavailable": "Price unavailable",
 		"priceChanged": "The current quote differs from the displayed price. Confirm the new cost to generate.",
 		"promptSafetyCount": "Text size: {count} / 10,000 units (some characters use two).",
-		"referenceRequired": "Upload and secure one reference image first."
+		"referenceRequired": "Upload and secure one reference image first.",
+		"retail": {
+			"title": "Lower video upgrade prices with annual plans",
+			"activeTitle": "Your annual video pricing is active",
+			"description": "Longer videos, higher resolutions and enhanced modes can use fewer credits. Base options keep the same price.",
+			"selectedPrices": "This selection: standard {standard} credits · annual {annual} credits.",
+			"viewPlans": "View annual plans",
+			"badge": "Annual −{percent}%",
+			"standard": "Standard",
+			"annual": "Annual",
+			"credits": "{credits} credits",
+			"saving": "Save {credits} credits ({percent}%)",
+			"samePrice": "Same price with an annual plan."
+		}
 	},
 	"videoEffects": {
 		"sample": "Verified sample",

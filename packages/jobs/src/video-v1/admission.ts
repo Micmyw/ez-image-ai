@@ -7,7 +7,12 @@ import {
 	type VideoModelSelection,
 } from "@repo/config/video-models";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
-import { resolveVideoModelPrice } from "@repo/config/video-pricing.server";
+import {
+	isVideoRetailPricingApproved,
+	readVideoRetailDisplay,
+	resolveVideoModelPrice,
+	type VideoRetailPricingContext,
+} from "@repo/config/video-pricing.server";
 import { configuredVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { configuredVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import {
@@ -18,6 +23,7 @@ import {
 	VIDEO_V1_PRODUCT_KEY,
 } from "@repo/config/video-v1";
 import { db } from "@repo/database/client";
+import { resolveVideoRetailEligibility } from "@repo/database/video-retail-eligibility";
 import {
 	createVideoJobRecord,
 	findExistingVideoAdmission,
@@ -43,11 +49,12 @@ export function requireVideoAdmission(
 	environment: Record<string, string | undefined>,
 	bindings: VideoV1Bindings,
 	request?: VideoRequestInput | VideoModelSelection,
+	pricingContext?: VideoRetailPricingContext,
 ) {
 	const config = readVideoV1Config(environment);
 	if (!canAccessVideoV1(config, { id: context.userId, role: context.role }))
 		throw new Error("VIDEO_ACCESS_DENIED");
-	const admitted = requireVideoModelReadiness(environment, bindings, request);
+	const admitted = requireVideoModelReadiness(environment, bindings, request, { pricingContext });
 	return {
 		...admitted,
 		price: applyVideoInternalFunding(admitted.price, context, environment) satisfies VideoPrice,
@@ -59,7 +66,10 @@ export function requireVideoModelReadiness(
 	environment: Record<string, string | undefined>,
 	bindings: VideoV1Bindings,
 	request?: VideoRequestInput | VideoModelSelection,
-	options?: { priceOverride: ReturnType<typeof resolveVideoEffectPrice> },
+	options?: {
+		priceOverride?: ReturnType<typeof resolveVideoEffectPrice>;
+		pricingContext?: VideoRetailPricingContext;
+	},
 ) {
 	const config = readVideoV1Config(environment);
 	const selection = videoRequestSelection(request);
@@ -83,7 +93,7 @@ export function requireVideoModelReadiness(
 		textSafetyProfile,
 		audioSafetyPolicy: createVideoAudioSafetyPolicy(),
 		price: (options?.priceOverride ??
-			resolveVideoModelPrice(selection, environment)) satisfies VideoPrice,
+			resolveVideoModelPrice(selection, environment, options?.pricingContext)) satisfies VideoPrice,
 	};
 }
 
@@ -120,12 +130,17 @@ export async function createVideoJob(
 		await ensureVideoWorkflowStarted(replay.id, binding);
 		return getVideoPublicState(context, replay.id);
 	}
+	const environment = options.environment ?? process.env;
+	const eligibility = isVideoRetailPricingApproved(environment)
+		? await resolveVideoRetailEligibility(context.userId, db)
+		: undefined;
 	const { config, price, visualSafetyProfile, textSafetyProfile, audioSafetyPolicy } =
 		requireVideoAdmission(
 			context,
-			options.environment ?? process.env,
+			environment,
 			options.bindings,
 			input.request,
+			eligibility ? { audience: eligibility.audience, eligibility } : undefined,
 		);
 	const created = await createVideoJobRecord(
 		{
@@ -243,11 +258,19 @@ export function toVideoPublicState(job: PublicRecord): VideoPublicState {
 		!Array.isArray(snapshot.videoEffectTemplate)
 			? snapshot.videoEffectTemplate
 			: null;
+	const pricingSnapshot =
+		job.pricingSnapshot &&
+		typeof job.pricingSnapshot === "object" &&
+		!Array.isArray(job.pricingSnapshot)
+			? job.pricingSnapshot
+			: null;
+	const pricing = readVideoRetailDisplay(pricingSnapshot?.pricingDetails);
 	return {
 		jobId: job.id,
 		stage: job.videoExecution.stage,
 		creditState: job.reservation.status === "ACTIVE" ? "RESERVED" : job.reservation.status,
 		credits: job.creditsReserved.toString(),
+		...(pricing && pricing.credits === job.creditsReserved.toString() ? { pricing } : {}),
 		canPlay:
 			job.videoExecution.stage === "READY" &&
 			job.status === "SUCCEEDED" &&

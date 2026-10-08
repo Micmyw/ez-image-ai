@@ -2,6 +2,7 @@
 
 import { ComposerHeader } from "@media/components/editor/ComposerHeader";
 import { getVideoModel } from "@repo/config/video-models";
+import type { VideoRetailDisplay } from "@repo/config/video-pricing.server";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { FilmIcon, HistoryIcon, ImagePlusIcon, XIcon } from "lucide-react";
@@ -13,6 +14,7 @@ import type { VideoCatalog, VideoQuote } from "./api";
 import type { VideoDraft, VideoErrorKey } from "./model";
 import type { VideoUpload } from "./use-video-upload";
 import { VideoJob } from "./VideoJob";
+import { VideoAnnualBanner, VideoRetailPrice } from "./VideoRetailPrice";
 import { VideoSettings } from "./VideoSettings";
 
 import "@media/components/editor/generation-composer.css";
@@ -30,6 +32,7 @@ export function VideoComposer(props: {
 	busy: "quote" | "create" | null;
 	quote: VideoQuote | null;
 	previewCredits: string | null;
+	previewPricing?: VideoRetailDisplay | null;
 	quoteExpired: boolean;
 	confirmation: boolean;
 	error: VideoErrorKey | null;
@@ -53,6 +56,8 @@ export function VideoComposer(props: {
 	const fileInput = useRef<HTMLInputElement>(null);
 	const model = getVideoModel(draft.productKey)!;
 	const canReference = model.modes.includes("image-to-video");
+	const pricing =
+		quote && (!props.quoteExpired || props.confirmation) ? quote.pricing : props.previewPricing;
 	return (
 		<div className="mt-6 min-w-0" data-test="video-workspace">
 			<section
@@ -63,6 +68,7 @@ export function VideoComposer(props: {
 				aria-label={t("newVideo")}
 			>
 				<ComposerHeader />
+				<VideoAnnualBanner pricing={pricing} disabled={locked || props.uploading} />
 				<div className="video-composer-inputs">
 					<div className="video-reference">
 						<input
@@ -205,6 +211,7 @@ export function VideoComposer(props: {
 						)}
 					</div>
 				</div>
+				<VideoRetailPrice pricing={pricing} />
 				<div className="video-feedback" aria-live="polite">
 					{props.catalogPending && <output>{t("loadingAccess")}</output>}
 					{props.catalogError && (

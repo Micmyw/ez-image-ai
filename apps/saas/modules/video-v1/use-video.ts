@@ -14,6 +14,8 @@ export function useVideoCatalog() {
 		queryFn: () => videoApi.catalog(),
 		enabled: Boolean(user && !user.isAnonymous),
 		staleTime: 30_000,
+		refetchOnMount: "always",
+		refetchOnWindowFocus: "always",
 		retry: false,
 	});
 }

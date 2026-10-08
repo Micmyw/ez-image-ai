@@ -146,7 +146,10 @@ export function buildIntegrationPlan(phase = "all"): IntegrationCommand[] {
 	] as const;
 	// Real video admission counts every live legacy job against the same provider.
 	// Foundation suites deliberately retain such jobs; never clear them or relax capacity.
-	const isolatedVideoApiTests = ["modules/video-v1/veo-tiers.integration.test.ts"] as const;
+	const isolatedVideoApiTests = [
+		"modules/video-v1/veo-tiers.integration.test.ts",
+		"modules/video-v1/retail-pricing.integration.test.ts",
+	] as const;
 	run(
 		[
 			"--filter",

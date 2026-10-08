@@ -47,6 +47,7 @@ vi.mock("@tanstack/react-query", () => ({
 
 import { VideoHistory } from "./VideoHistory";
 import { VideoStateCard } from "./VideoJob";
+import { VideoAnnualBadge, VideoAnnualBanner, VideoRetailPrice } from "./VideoRetailPrice";
 import { VideoSettings } from "./VideoSettings";
 
 function render(stage: VideoState["stage"], canPlay = false) {
@@ -67,6 +68,53 @@ function render(stage: VideoState["stage"], canPlay = false) {
 }
 
 describe("truthful video delivery UI", () => {
+	it.each(["standard", "annual"] as const)(
+		"renders the backend %s pair and rounded credit savings without a blanket half-price claim",
+		(audience) => {
+			const pricing = {
+				policyVersion: "video-retail-2026-10-08.1",
+				audience,
+				credits: audience === "annual" ? "66" : "96",
+				standardCredits: "96",
+				annualCredits: "66",
+				savedCredits: audience === "annual" ? "30" : "0",
+				annualSavingsCredits: "30",
+			};
+			const markup = renderToStaticMarkup(
+				<NextIntlClientProvider locale="en" messages={en}>
+					<VideoAnnualBanner pricing={pricing} />
+					<VideoAnnualBadge pricing={pricing} />
+					<VideoRetailPrice pricing={pricing} />
+				</NextIntlClientProvider>,
+			);
+			expect(markup).toContain("96 credits");
+			expect(markup).toContain("66 credits");
+			expect(markup).toContain("30 credits (31.2%)");
+			expect(markup).toContain("Annual −31.2%");
+			expect(markup.includes("<s>")).toBe(audience === "annual");
+			expect(markup).not.toMatch(/half.price|50%|5100|markup|subscriptionId/i);
+		},
+	);
+	it("hides fake discount badges and strike-throughs when rounded prices are equal", () => {
+		const pricing = {
+			policyVersion: "video-retail-2026-10-08.1",
+			audience: "annual" as const,
+			credits: "24",
+			standardCredits: "24",
+			annualCredits: "24",
+			savedCredits: "0",
+			annualSavingsCredits: "0",
+		};
+		const markup = renderToStaticMarkup(
+			<NextIntlClientProvider locale="en" messages={en}>
+				<VideoAnnualBadge pricing={pricing} />
+				<VideoRetailPrice pricing={pricing} />
+			</NextIntlClientProvider>,
+		);
+		expect(markup).toContain("24 credits");
+		expect(markup).toContain("Same price");
+		expect(markup).not.toMatch(/<s>|video-annual-badge|Save 0/);
+	});
 	it("renders a verified brand icon and no manual generation-mode selector", () => {
 		const markup = renderToStaticMarkup(
 			<NextIntlClientProvider locale="en" messages={en}>

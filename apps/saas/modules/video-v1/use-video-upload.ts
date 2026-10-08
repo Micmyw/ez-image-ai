@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { videoApi } from "./api";
 import type { VideoErrorKey } from "./model";
@@ -25,13 +25,13 @@ export function useVideoUpload(maxBytes: number) {
 	const active = useRef(0);
 	const xhr = useRef<XMLHttpRequest | null>(null);
 	const preview = useRef<string | null>(null);
-	function clear() {
+	const clear = useCallback(() => {
 		active.current++;
 		xhr.current?.abort();
 		if (preview.current) URL.revokeObjectURL(preview.current);
 		preview.current = null;
 		setUpload(empty);
-	}
+	}, []);
 	useEffect(
 		() => () => {
 			active.current++;

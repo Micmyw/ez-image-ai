@@ -55,7 +55,8 @@ export async function findEffectivePaidSubscription(
 			ownerId: true,
 			status: true,
 			graceEndsAt: true,
-			plan: { select: { metadata: true, name: true } },
+			currentPeriodEnd: true,
+			plan: { select: { metadata: true, name: true, productKind: true } },
 			periods: {
 				where: { startsAt: { lte: now }, paidAmount: { gt: 0n }, status: { not: "VOID" } },
 				orderBy: { startsAt: "desc" },

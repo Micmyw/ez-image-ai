@@ -1,6 +1,6 @@
 import { PUBLIC_CREDIT_PACKS } from "./credit-packs";
 import { PLAN_ENTITLEMENTS } from "./plans";
-import type { VideoVeoTier } from "./video-models";
+import { getVideoModel, type VideoVeoTier } from "./video-models";
 import { createVideoAudioSafetyPolicy } from "./video-output";
 import { configuredVideoVisualSafetyProfile } from "./video-safety";
 import { createVideoTextSafetyProfile } from "./video-text-safety";
@@ -11,6 +11,30 @@ import { createVideoTextSafetyProfile } from "./video-text-safety";
  * Not an account-specific bill. See docs/operations/video-v1-price-basis-2026-10-08.md.
  */
 export const VIDEO_SUPPLIER_PRICE_VERSION = "kie-public-2026-10-08.1";
+export const VIDEO_RETAIL_PRICE_VERSION = "video-retail-2026-10-08.1";
+export const VIDEO_ANNUAL_ELIGIBILITY_VERSION = "video-annual-eligibility-2026-10-08.1";
+export type VideoRetailAudience = "standard" | "annual";
+export type VideoRetailEligibility = {
+	version: typeof VIDEO_ANNUAL_ELIGIBILITY_VERSION;
+	ownerId: string;
+	audience: VideoRetailAudience;
+	subscriptionId: string | null;
+	planKey: "creator" | "ultimate" | "studio" | null;
+	validUntil: string | null;
+};
+export type VideoRetailDisplay = {
+	policyVersion: string;
+	audience: VideoRetailAudience;
+	credits: string;
+	standardCredits: string;
+	annualCredits: string;
+	savedCredits: string;
+	annualSavingsCredits: string;
+};
+export type VideoRetailPricingContext = {
+	audience?: VideoRetailAudience;
+	eligibility?: VideoRetailEligibility;
+};
 export type VideoPricingSelection = {
 	productKey: string;
 	mode: "text-to-video" | "image-to-video";
@@ -19,6 +43,133 @@ export type VideoPricingSelection = {
 	sound: boolean;
 	veoTier?: VideoVeoTier;
 };
+
+/** Fixed approved family anchors. UI defaults and click history never set retail policy. */
+const retailBaselines: Record<
+	string,
+	{ seconds: number; resolutions: readonly string[]; anchor?: string; nonBaseMode?: boolean }
+> = {
+	"video-minimax-h3": { seconds: 4, resolutions: ["768p", "2k"] },
+	"video-seedance-2-5": { seconds: 4, resolutions: ["480p", "720p", "1080p"] },
+	"video-seedance-2-mini": { seconds: 4, resolutions: ["480p", "720p"] },
+	"video-seedance-2-fast": {
+		seconds: 4,
+		resolutions: ["480p", "720p"],
+		anchor: "video-seedance-2-mini",
+		nonBaseMode: true,
+	},
+	"video-seedance-2": {
+		seconds: 4,
+		resolutions: ["480p", "720p", "1080p", "4k"],
+		anchor: "video-seedance-2-mini",
+		nonBaseMode: true,
+	},
+	"video-seedance-1-5-pro": { seconds: 4, resolutions: ["480p", "720p", "1080p"] },
+	"video-seedance-1-pro-fast": { seconds: 5, resolutions: ["720p", "1080p"] },
+	"video-gemini-omni-flash": { seconds: 4, resolutions: ["360p", "720p", "1080p", "4k"] },
+	"video-kling-3": { seconds: 3, resolutions: ["720p", "1080p", "4k"] },
+	"video-kling-3-turbo": {
+		seconds: 3,
+		resolutions: ["720p", "1080p"],
+		anchor: "video-kling-3",
+		nonBaseMode: true,
+	},
+	"video-kling-2-6-v1": { seconds: 5, resolutions: ["default"] },
+	"video-veo-3-1": { seconds: 4, resolutions: ["720p", "1080p", "4k"] },
+	"video-veo-3-1-fast": { seconds: 4, resolutions: ["720p", "1080p", "4k"] },
+};
+
+export function resolveVideoRetailTarget(request: VideoPricingSelection) {
+	const baseline = retailBaselines[request.productKey];
+	const model = getVideoModel(request.productKey);
+	if (
+		!baseline ||
+		model?.status !== "implemented" ||
+		!model.groups.some(
+			(group) =>
+				group.mode === request.mode &&
+				group.durations.includes(request.duration) &&
+				group.resolutions.includes(request.resolution) &&
+				group.sounds.includes(request.sound) &&
+				(group.veoTiers
+					? request.veoTier !== undefined && group.veoTiers.includes(request.veoTier)
+					: request.veoTier === undefined),
+		)
+	)
+		throw new Error("VIDEO_MODEL_PRICE_UNAVAILABLE");
+	const extraSeconds = request.duration - baseline.seconds;
+	const resolutionSteps = baseline.resolutions.indexOf(request.resolution);
+	if (extraSeconds < 0 || resolutionSteps < 0) throw new Error("VIDEO_MODEL_PRICE_UNAVAILABLE");
+	const nonBaseMode = Boolean(
+		baseline.nonBaseMode || (request.productKey === "video-veo-3-1" && request.veoTier !== "lite"),
+	);
+	const rawMarkupBps =
+		11000n +
+		BigInt(extraSeconds) * 1500n +
+		BigInt(resolutionSteps) * 20000n +
+		(nonBaseMode ? 30000n : 0n);
+	const standardMarkupBps = rawMarkupBps > 100000n ? 100000n : rawMarkupBps;
+	return {
+		baselineProductKey: baseline.anchor ?? request.productKey,
+		baselineSeconds: baseline.seconds,
+		extraSeconds,
+		resolutionSteps,
+		nonBaseMode,
+		rawMarkupBps,
+		standardMarkupBps,
+		annualMarkupBps: 11000n + (standardMarkupBps - 11000n) / 2n,
+	};
+}
+
+export function isVideoRetailPricingApproved(environment: Record<string, string | undefined>) {
+	const version = environment.VIDEO_RETAIL_PRICE_ACCEPTED_VERSION;
+	if (version !== undefined && version !== VIDEO_RETAIL_PRICE_VERSION)
+		throw new Error("VIDEO_RETAIL_PRICE_NOT_APPROVED");
+	return version === VIDEO_RETAIL_PRICE_VERSION;
+}
+
+/** Whitelisted customer projection. Costs, markup and membership evidence stay server-side. */
+export function readVideoRetailDisplay(details: unknown): VideoRetailDisplay | null {
+	if (!details || typeof details !== "object" || !("retail" in details)) return null;
+	const retail = details.retail;
+	if (!retail || typeof retail !== "object" || !("display" in retail)) return null;
+	const value = retail.display;
+	if (!value || typeof value !== "object") return null;
+	const display = value as Record<string, unknown>;
+	if (
+		display.policyVersion !== VIDEO_RETAIL_PRICE_VERSION ||
+		!["standard", "annual"].includes(String(display.audience))
+	)
+		return null;
+	for (const key of [
+		"credits",
+		"standardCredits",
+		"annualCredits",
+		"savedCredits",
+		"annualSavingsCredits",
+	])
+		if (typeof display[key] !== "string" || !/^\d{1,16}$/.test(display[key])) return null;
+	const standard = BigInt(display.standardCredits as string);
+	const annual = BigInt(display.annualCredits as string);
+	const charged = BigInt(display.credits as string);
+	if (
+		annual <= 0n ||
+		annual > standard ||
+		charged !== (display.audience === "annual" ? annual : standard) ||
+		BigInt(display.savedCredits as string) !== standard - charged ||
+		BigInt(display.annualSavingsCredits as string) !== standard - annual
+	)
+		return null;
+	return {
+		policyVersion: VIDEO_RETAIL_PRICE_VERSION,
+		audience: display.audience as VideoRetailAudience,
+		credits: display.credits as string,
+		standardCredits: display.standardCredits as string,
+		annualCredits: display.annualCredits as string,
+		savedCredits: display.savedCredits as string,
+		annualSavingsCredits: display.annualSavingsCredits as string,
+	};
+}
 const BPS = 10_000n;
 const ceil = (numerator: bigint, denominator: bigint) => {
 	if (numerator < 0n || denominator <= 0n) throw new Error("VIDEO_PRICE_INVALID");
@@ -278,6 +429,7 @@ export function resolveVideoModelCostBasis(
 export function resolveVideoModelPrice(
 	request: VideoPricingSelection,
 	env: Record<string, string | undefined>,
+	context: VideoRetailPricingContext = {},
 ) {
 	const {
 		providerCostMicros,
@@ -289,27 +441,74 @@ export function resolveVideoModelPrice(
 		pricingVersion,
 		pricingBasis,
 	} = resolveVideoModelCostBasis(request, env);
-	const result = calculateVideoRetailPrice({
+	const upgraded = isVideoRetailPricingApproved(env);
+	const target = upgraded ? resolveVideoRetailTarget(request) : undefined;
+	const audience = context.audience ?? "standard";
+	if (audience !== "standard" && audience !== "annual")
+		throw new Error("VIDEO_RETAIL_AUDIENCE_INVALID");
+	const standard = calculateVideoRetailPrice({
 		providerCostMicros,
 		duration: request.duration,
 		sound: request.sound,
-		policy,
+		policy: target ? { ...policy, markupBps: target.standardMarkupBps } : policy,
 	});
+	const annual = target
+		? calculateVideoRetailPrice({
+				providerCostMicros,
+				duration: request.duration,
+				sound: request.sound,
+				policy: { ...policy, markupBps: target.annualMarkupBps },
+			})
+		: standard;
+	const result = target && audience === "annual" ? annual : standard;
+	const effectivePolicy = target
+		? {
+				...policy,
+				markupBps: audience === "annual" ? target.annualMarkupBps : target.standardMarkupBps,
+			}
+		: policy;
+	const retail = target
+		? {
+				version: VIDEO_RETAIL_PRICE_VERSION,
+				baselineProductKey: target.baselineProductKey,
+				baselineSeconds: target.baselineSeconds,
+				extraSeconds: target.extraSeconds,
+				resolutionSteps: target.resolutionSteps,
+				nonBaseMode: target.nonBaseMode,
+				rawMarkupBps: target.rawMarkupBps.toString(),
+				standardMarkupBps: target.standardMarkupBps.toString(),
+				annualMarkupBps: target.annualMarkupBps.toString(),
+				capOrder: "standard_then_annual_extra_half",
+				...(context.eligibility ? { eligibility: context.eligibility } : {}),
+				display: {
+					policyVersion: VIDEO_RETAIL_PRICE_VERSION,
+					audience,
+					credits: result.credits.toString(),
+					standardCredits: standard.credits.toString(),
+					annualCredits: annual.credits.toString(),
+					savedCredits: (standard.credits - result.credits).toString(),
+					annualSavingsCredits: (standard.credits - annual.credits).toString(),
+				} satisfies VideoRetailDisplay,
+			}
+		: undefined;
 	return {
 		credits: result.credits,
-		pricingVersion,
+		pricingVersion: target
+			? `${pricingVersion}/${VIDEO_RETAIL_PRICE_VERSION}/${audience}`
+			: pricingVersion,
 		pricingBasis,
 		providerCostMicros,
 		moderationCostMicros: result.moderationCostMicros,
 		paidFundingPolicy: { minimumUsdMicrosPerCredit: result.creditFloorMicros },
 		pricingDetails: {
+			...(retail ? { retail } : {}),
 			visualPolicyVersion: visualSafetyProfile.policyVersion,
 			textRuleVersion: textSafetyProfile.ruleVersion,
 			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
 			priceApprovalExpiryMode,
 			validUntil: validUntil === null ? null : new Date(validUntil).toISOString(),
 			costPolicy: Object.fromEntries(
-				Object.entries(policy).map(([key, value]) => [key, value.toString()]),
+				Object.entries(effectivePolicy).map(([key, value]) => [key, value.toString()]),
 			),
 			...Object.fromEntries(Object.entries(result).map(([key, value]) => [key, value.toString()])),
 		},

@@ -2000,7 +2000,20 @@
 		"priceUnavailable": "Preis nicht verfügbar",
 		"priceChanged": "Das aktuelle Angebot weicht vom angezeigten Preis ab. Bestätige die neuen Kosten zum Generieren.",
 		"promptSafetyCount": "Textgröße: {count} / 10.000 Einheiten (manche Zeichen zählen doppelt).",
-		"referenceRequired": "Lade zuerst ein Referenzbild hoch und sichere es."
+		"referenceRequired": "Lade zuerst ein Referenzbild hoch und sichere es.",
+		"retail": {
+			"title": "Günstigere Video-Upgrades im Jahresabo",
+			"activeTitle": "Dein Jahrestarif für Videos ist aktiv",
+			"description": "Längere Videos, höhere Auflösungen und erweiterte Modi können weniger Credits kosten. Basisoptionen behalten ihren Preis.",
+			"selectedPrices": "Diese Auswahl: regulär {standard} Credits · jährlich {annual} Credits.",
+			"viewPlans": "Jahresabos ansehen",
+			"badge": "Jährlich −{percent}%",
+			"standard": "Regulär",
+			"annual": "Jahresabo",
+			"credits": "{credits} Credits",
+			"saving": "Spare {credits} Credits ({percent}%)",
+			"samePrice": "Gleicher Preis im Jahresabo."
+		}
 	},
 	"videoEffects": {
 		"sample": "Geprüftes Beispiel",

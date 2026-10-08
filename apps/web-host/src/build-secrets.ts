@@ -6,7 +6,10 @@ import {
 	validateVideoModelSelection,
 	VIDEO_MODEL_CATALOG_VERSION,
 } from "@repo/config/video-models";
-import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
+import {
+	VIDEO_RETAIL_PRICE_VERSION,
+	VIDEO_SUPPLIER_PRICE_VERSION,
+} from "@repo/config/video-pricing.server";
 import {
 	expandVideoRuntimeEnvironment,
 	parseHotelLobbyRuntimeOverride,
@@ -97,6 +100,7 @@ function withVideoRuntimeOverrides(
 	const enabled = environment.VIDEO_V1_BUILD_ENABLED;
 	const access = environment.VIDEO_V1_BUILD_ACCESS;
 	const priceVersion = environment.VIDEO_V1_BUILD_PRICE_VERSION;
+	const retailVersion = environment.VIDEO_V1_BUILD_RETAIL_PRICE_VERSION;
 	const priceBasis = environment.VIDEO_V1_BUILD_PRICE_BASIS;
 	const priceExpiry = environment.VIDEO_V1_BUILD_PRICE_EXPIRY;
 	const modelVersion = environment.VIDEO_V1_BUILD_MODEL_VERSION;
@@ -186,6 +190,22 @@ function withVideoRuntimeOverrides(
 			...(priceExpiry === undefined ? [] : ["VIDEO_PRICE_VALID_UNTIL"]),
 		])
 			if (previous[key] !== undefined) changedFlatKeys.add(key);
+	}
+	if (retailVersion !== undefined) {
+		if (
+			retailVersion !== VIDEO_RETAIL_PRICE_VERSION ||
+			!policy ||
+			policy.VIDEO_PRICE_ACCEPTED_VERSION !== VIDEO_SUPPLIER_PRICE_VERSION ||
+			policy.VIDEO_MODEL_CONTRACT_VERSION !== VIDEO_MODEL_CATALOG_VERSION
+		)
+			throw new Error("VIDEO_BUILD_RETAIL_POLICY_REQUIRED");
+		const previous = parseEnv(source);
+		expandVideoRuntimeEnvironment({ ...previous, VIDEO_RUNTIME_CONFIG: encoded });
+		policy = parseVideoRuntimeConfig(
+			JSON.stringify({ ...policy, VIDEO_RETAIL_PRICE_ACCEPTED_VERSION: retailVersion }),
+		);
+		if (previous.VIDEO_RETAIL_PRICE_ACCEPTED_VERSION !== undefined)
+			changedFlatKeys.add("VIDEO_RETAIL_PRICE_ACCEPTED_VERSION");
 	}
 	if (access !== undefined) {
 		if (policy?.VIDEO_MODEL_CONTRACT_VERSION !== VIDEO_MODEL_CATALOG_VERSION)
@@ -510,6 +530,7 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key === "VIDEO_V1_BUILD_ENABLED" ||
 			key === "VIDEO_V1_BUILD_ACCESS" ||
 			key === "VIDEO_V1_BUILD_PRICE_VERSION" ||
+			key === "VIDEO_V1_BUILD_RETAIL_PRICE_VERSION" ||
 			key === "VIDEO_V1_BUILD_PRICE_BASIS" ||
 			key === "VIDEO_V1_BUILD_PRICE_EXPIRY" ||
 			key === "VIDEO_V1_BUILD_MODEL_VERSION" ||

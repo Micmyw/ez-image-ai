@@ -1,6 +1,12 @@
 import { expect, test as base, type BrowserContext, type Page } from "@playwright/test";
-import { getVideoModelOptions, VIDEO_MODEL_CATALOG } from "@repo/config/video-models";
+import {
+	getVideoModelOptions,
+	getVideoVariantGroup,
+	VIDEO_MODEL_CATALOG,
+} from "@repo/config/video-models";
+import type { VideoRetailDisplay } from "@repo/config/video-pricing.server";
 
+import approvedRetail from "../../../../packages/config/fixtures/video-retail-approved-2026-10-08.json";
 import { E2E_PASSWORD, fundedEmail } from "../../../../tooling/e2e/src/fixtures";
 
 const test = base.extend<
@@ -38,6 +44,9 @@ type MockStage =
 	| "READY"
 	| "REJECTED";
 type Scenario = {
+	retailAudience: "standard" | "annual" | null;
+	quoteAudience: "standard" | "annual" | null;
+	acceptedPricing: VideoRetailDisplay | null;
 	stage: MockStage;
 	available: boolean;
 	creates: Array<Record<string, unknown>>;
@@ -55,6 +64,9 @@ type Scenario = {
 };
 function scenario(): Scenario {
 	return {
+		retailAudience: null,
+		quoteAudience: null,
+		acceptedPricing: null,
 		stage: "QUEUED",
 		available: true,
 		creates: [],
@@ -69,6 +81,34 @@ function scenario(): Scenario {
 		quoteExpired: false,
 		quoteRequests: [],
 		blockedSound: false,
+	};
+}
+
+const retailKey = (selection: Record<string, unknown>) =>
+	[
+		selection.productKey,
+		selection.mode,
+		selection.duration,
+		selection.resolution,
+		selection.sound,
+		selection.veoTier ?? "",
+	].join(":");
+const retailRows = new Map(approvedRetail.rows.map((row) => [retailKey(row.selection), row]));
+function retailPrice(selection: Record<string, unknown>, audience: "standard" | "annual" | null) {
+	const row = retailRows.get(retailKey(selection));
+	if (!row || !audience) return null;
+	const credits = audience === "annual" ? row.annualCredits : row.standardCredits;
+	return {
+		credits,
+		pricing: {
+			policyVersion: approvedRetail.version,
+			audience,
+			credits,
+			standardCredits: row.standardCredits,
+			annualCredits: row.annualCredits,
+			savedCredits: String(BigInt(row.standardCredits) - BigInt(credits)),
+			annualSavingsCredits: String(BigInt(row.standardCredits) - BigInt(row.annualCredits)),
+		} satisfies VideoRetailDisplay,
 	};
 }
 
@@ -90,6 +130,9 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 			canPlay: state.stage === "READY",
 			failureCode: null,
 			updatedAt: "2026-10-04T00:00:00Z",
+			...(state.acceptedPricing
+				? { credits: state.acceptedPricing.credits, pricing: state.acceptedPricing }
+				: {}),
 		};
 		const reply = (json: unknown) => route.fulfill({ json: { json } });
 		const reject = (code: string) =>
@@ -131,6 +174,10 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 										available: state.available && !(state.blockedSound && sound),
 										reasons: [],
 										credits: "23",
+										...retailPrice(
+											{ productKey: model.productKey, mode, duration, resolution, sound, veoTier },
+											state.retailAudience,
+										),
 									},
 								],
 							),
@@ -148,14 +195,22 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 				credits: state.quoteCredits,
 				expiresAt: new Date(Date.now() + (state.quoteExpired ? -1000 : 60_000)).toISOString(),
 				requestFingerprint: "ui-mock-fingerprint",
+				...retailPrice(body, state.quoteAudience ?? state.retailAudience),
 			});
 		}
 		if (endpoint === "jobs/create") {
+			state.acceptedPricing ??=
+				retailPrice(body.request, state.quoteAudience ?? state.retailAudience)?.pricing ?? null;
 			state.creates.push(body);
 			if (state.loseFirstResponse && state.creates.length === 1)
 				return route.abort("connectionreset");
 			if (state.createError) return reject(state.createError);
-			return reply(job);
+			return reply({
+				...job,
+				...(state.acceptedPricing
+					? { credits: state.acceptedPricing.credits, pricing: state.acceptedPricing }
+					: {}),
+			});
 		}
 		if (endpoint === "jobs/get") {
 			state.gets++;
@@ -207,6 +262,133 @@ async function quoteAndConfirm(page: Page, doubleClick = false) {
 	else await page.locator('[data-test="video-generate"]').click();
 }
 
+for (const viewport of [
+	{ width: 1440, height: 1050 },
+	{ width: 390, height: 844 },
+]) {
+	test(`UI Mock: annual video prices, model badge and draft return at ${viewport.width}px`, async ({
+		context,
+		page,
+	}, testInfo) => {
+		const state = scenario();
+		state.retailAudience = "annual";
+		await page.setViewportSize(viewport);
+		await setup(context, page, state);
+		await page
+			.getByLabel("Describe your video", { exact: true })
+			.fill("A sailboat crosses a calm lake at sunrise.");
+		await selectSetting(page, "Video model", "video-seedance-2-mini");
+		await selectSetting(page, "Resolution", "720p");
+		const price = page.locator('[data-test="video-retail-price"]').first();
+		await expect(price).toContainText("Annual 66 credits");
+		await expect(price.locator("s")).toHaveText("96 credits");
+		await expect(price).toContainText("Save 30 credits (31.2%)");
+		await expect(page.locator('[data-test="video-annual-banner"]')).toContainText(
+			"standard 96 credits · annual 66 credits",
+		);
+		await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 66 credits");
+		await page.locator('[data-test="video-composer"]').screenshot({
+			path: testInfo.outputPath(`annual-${viewport.width}-composer.png`),
+			animations: "disabled",
+		});
+		await page.getByRole("button", { name: "Video model", exact: true }).click();
+		await expect(
+			page
+				.locator('[data-test="video-model-menu"]')
+				.getByRole("button", { name: "Seedance 2", exact: true }),
+		).toContainText("Annual −31.2%");
+		await page.locator('[data-test="video-model-menu"]').screenshot({
+			path: testInfo.outputPath(`annual-${viewport.width}-model.png`),
+			animations: "disabled",
+		});
+		await page.keyboard.press("Escape");
+		await page.locator('[data-generator-mode="image"]').filter({ visible: true }).click();
+		await expect(page.locator('[data-generation-mode="image"]')).toBeVisible();
+		await page.goBack();
+		await expect(page.getByLabel("Describe your video", { exact: true })).toHaveValue(
+			"A sailboat crosses a calm lake at sunrise.",
+		);
+		await expect(price).toContainText("Annual 66 credits");
+		await selectSetting(page, "Duration", "4");
+		await selectSetting(page, "Resolution", "480p");
+		await expect(price).toContainText("24 credits");
+		await expect(price.locator("s")).toHaveCount(0);
+		await expect(page.getByRole("button", { name: "Lite", exact: true })).toHaveCount(0);
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+		).toBe(true);
+		expect(state.creates).toHaveLength(0);
+	});
+}
+
+test("UI Mock: changed annual qualification needs explicit reconfirmation and accepted savings survive reload", async ({
+	context,
+	page,
+}, testInfo) => {
+	const state = scenario();
+	state.retailAudience = "annual";
+	await setup(context, page, state);
+	await selectSetting(page, "Video model", "video-seedance-2-mini");
+	await selectSetting(page, "Resolution", "720p");
+	state.quoteAudience = "standard";
+	await quoteAndConfirm(page, true);
+	await expect(page.locator('[data-test="video-confirm"]')).toContainText("96");
+	expect(state.creates).toHaveLength(0);
+	expect(state.quotes).toBe(1);
+	await expect(page.locator('[data-test="video-retail-price"]').first().locator("s")).toHaveCount(
+		0,
+	);
+	// Editing discards only the unaccepted quote, then the renewed annual quote is frozen.
+	await page.getByLabel("Describe your video", { exact: true }).fill("A new sailboat scene.");
+	state.quoteAudience = null;
+	await page.locator('[data-test="video-generate"]').click();
+	await expect(page.locator('[data-test="video-job"]')).toContainText("66 credits reserved");
+	state.retailAudience = "standard";
+	await page.reload();
+	await expect(page.locator('[data-test="video-job"]')).toContainText("Save 30 credits (31.2%)");
+	await page.screenshot({
+		path: testInfo.outputPath("annual-frozen-receipt.png"),
+		fullPage: false,
+		animations: "disabled",
+	});
+	expect(state.creates).toHaveLength(1);
+});
+
+test("UI Mock: standard annual offer opens yearly plans and closing preserves the draft", async ({
+	context,
+	page,
+}, testInfo) => {
+	const state = scenario();
+	state.retailAudience = "standard";
+	await setup(context, page, state);
+	await selectSetting(page, "Video model", "video-seedance-2-mini");
+	await selectSetting(page, "Resolution", "720p");
+	await page.getByLabel("Describe your video", { exact: true }).fill("A lake at sunset.");
+	const price = page.locator('[data-test="video-retail-price"]').first();
+	await expect(price).toContainText("Standard 96 credits");
+	await expect(price).toContainText("Annual 66 credits");
+	await expect(price.locator("s")).toHaveCount(0);
+	await page.locator('[data-test="video-composer"]').screenshot({
+		path: testInfo.outputPath("standard-annual-offer.png"),
+		animations: "disabled",
+	});
+	await page.getByRole("button", { name: "View annual plans", exact: true }).click();
+	const dialog = page.getByRole("dialog");
+	await expect(dialog).toBeVisible();
+	await expect(dialog.getByRole("button", { name: "Yearly", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await page.keyboard.press("Escape");
+	await expect(dialog).toHaveCount(0);
+	await expect(page.getByLabel("Describe your video", { exact: true })).toHaveValue(
+		"A lake at sunset.",
+	);
+	await expect(price).toContainText("Standard 96 credits");
+	expect(state.quotes).toBe(0);
+	expect(state.creates).toHaveLength(0);
+});
+
 async function selectSetting(page: Page, label: string, value: string) {
 	if (label === "Video model") {
 		await page.getByRole("button", { name: label, exact: true }).click();
@@ -218,7 +400,9 @@ async function selectSetting(page: Page, label: string, value: string) {
 			.click();
 		await page
 			.getByRole("button", {
-				name: VIDEO_MODEL_CATALOG.find((model) => model.productKey === value)!.label,
+				name:
+					getVideoVariantGroup(value)?.label ??
+					VIDEO_MODEL_CATALOG.find((model) => model.productKey === value)!.label,
 				exact: true,
 			})
 			.click();
@@ -227,10 +411,11 @@ async function selectSetting(page: Page, label: string, value: string) {
 		if ((await toggle.getAttribute("aria-checked")) !== value) await toggle.click();
 	} else {
 		await page.getByRole("button", { name: "Video settings", exact: true }).click();
-		await page
+		const radio = page
 			.getByRole("group", { name: label, exact: true })
-			.locator(`input[value="${value}"]`)
-			.check();
+			.locator(`input[value="${value}"]`);
+		await radio.locator("..").click();
+		await expect(radio).toBeChecked();
 		await page.getByRole("button", { name: "Done", exact: true }).click();
 	}
 }

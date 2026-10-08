@@ -1,5 +1,10 @@
 import { VIDEO_MODEL_CATALOG, getVideoModelOptions } from "@repo/config/video-models";
-import { resolveVideoModelPrice } from "@repo/config/video-pricing.server";
+import {
+	readVideoRetailDisplay,
+	resolveVideoModelPrice,
+	type VideoRetailDisplay,
+	type VideoRetailPricingContext,
+} from "@repo/config/video-pricing.server";
 import { videoV1Readiness, type VideoV1Bindings } from "@repo/config/video-v1";
 
 // Aspect ratio has no separate retail rate/readiness. Keep legal ratio tuples in
@@ -25,6 +30,7 @@ export function buildVideoCatalogModels(
 	bindings: VideoV1Bindings,
 	accessAllowed: boolean,
 	disabledKeys: ReadonlySet<string>,
+	pricingContext?: VideoRetailPricingContext,
 ) {
 	const readiness = new Map<boolean, ReturnType<typeof videoV1Readiness>>();
 	const readReady = (sound: boolean) => {
@@ -51,11 +57,15 @@ export function buildVideoCatalogModels(
 						(reason) => !commonReasons.includes(reason),
 					);
 					let credits: string | null = null;
+					let pricing: VideoRetailDisplay | null = null;
 					try {
-						credits = resolveVideoModelPrice(
+						const price = resolveVideoModelPrice(
 							{ productKey: model.productKey, ...option },
 							environment,
-						).credits.toString();
+							pricingContext,
+						);
+						credits = price.credits.toString();
+						pricing = readVideoRetailDisplay(price.pricingDetails);
 					} catch (error) {
 						const reason = error instanceof Error ? error.message : "VIDEO_PRICE_NOT_CONFIGURED";
 						reasons.push(
@@ -67,6 +77,7 @@ export function buildVideoCatalogModels(
 						available: commonReasons.length === 0 && reasons.length === 0,
 						reasons: [...new Set(reasons)],
 						credits,
+						...(pricing ? { pricing } : {}),
 					};
 				});
 		return {

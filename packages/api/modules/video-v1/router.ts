@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { VIDEO_MODEL_CATALOG } from "@repo/config/video-models";
+import { isVideoRetailPricingApproved } from "@repo/config/video-pricing.server";
 import {
 	canAccessVideoV1,
 	readVideoV1Config,
@@ -8,6 +9,7 @@ import {
 	VIDEO_V1_PRODUCT_KEY,
 } from "@repo/config/video-v1";
 import { db } from "@repo/database/client";
+import { resolveVideoRetailEligibility } from "@repo/database/video-retail-eligibility";
 import { createVideoQuoteRecord } from "@repo/database/video-v1";
 import {
 	createVideoJob,
@@ -56,6 +58,9 @@ const catalog = protectedProcedure
 		const accessAllowed = canAccessVideoV1(config, user);
 		const bindings = getVideoWorkflowReadinessBindings();
 		const entitlement = await loadUserPlanEntitlement(user.id);
+		const eligibility = isVideoRetailPricingApproved(process.env)
+			? await resolveVideoRetailEligibility(user.id, db)
+			: undefined;
 		const blocked = accessAllowed
 			? await db.runtimeConfigOverride.findMany({
 					where: {
@@ -72,7 +77,13 @@ const catalog = protectedProcedure
 				})
 			: [];
 		const disabledKeys = new Set(blocked.map((row) => row.configKey));
-		const models = buildVideoCatalogModels(process.env, bindings, accessAllowed, disabledKeys);
+		const models = buildVideoCatalogModels(
+			process.env,
+			bindings,
+			accessAllowed,
+			disabledKeys,
+			eligibility ? { audience: eligibility.audience, eligibility } : undefined,
+		);
 		const defaultModel = models.find((model) => model.productKey === VIDEO_V1_PRODUCT_KEY);
 		const defaultOption = defaultModel?.options.find(
 			(option) =>
@@ -103,12 +114,16 @@ const quote = protectedProcedure
 	.input(videoV1InputSchema)
 	.handler(({ context: { user }, input }) =>
 		videoAction(async () => {
+			const eligibility = isVideoRetailPricingApproved(process.env)
+				? await resolveVideoRetailEligibility(user.id, db)
+				: undefined;
 			const { config, price, visualSafetyProfile, textSafetyProfile, audioSafetyPolicy } =
 				requireVideoAdmission(
 					{ userId: user.id, role: user.role },
 					process.env,
 					getVideoWorkflowReadinessBindings(),
 					input,
+					eligibility ? { audience: eligibility.audience, eligibility } : undefined,
 				);
 			await enforceMediaRateLimit(user.id, "video-v1:quote");
 			const entitlement = await loadUserPlanEntitlement(user.id);

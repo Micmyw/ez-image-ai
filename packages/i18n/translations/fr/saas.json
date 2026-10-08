@@ -2000,7 +2000,20 @@
 		"priceUnavailable": "Prix indisponible",
 		"priceChanged": "Le devis actuel diffère du prix affiché. Confirmez le nouveau coût pour générer.",
 		"promptSafetyCount": "Taille du texte : {count} / 10 000 unités (certains caractères en utilisent deux).",
-		"referenceRequired": "Importez et sécurisez d’abord une image de référence."
+		"referenceRequired": "Importez et sécurisez d’abord une image de référence.",
+		"retail": {
+			"title": "Des options vidéo moins chères avec un forfait annuel",
+			"activeTitle": "Votre tarif vidéo annuel est actif",
+			"description": "Les vidéos plus longues, les résolutions supérieures et les modes avancés peuvent coûter moins de crédits. Les options de base gardent le même prix.",
+			"selectedPrices": "Cette sélection : standard {standard} crédits · annuel {annual} crédits.",
+			"viewPlans": "Voir les forfaits annuels",
+			"badge": "Annuel −{percent} %",
+			"standard": "Standard",
+			"annual": "Annuel",
+			"credits": "{credits} crédits",
+			"saving": "Économisez {credits} crédits ({percent} %)",
+			"samePrice": "Même prix avec un forfait annuel."
+		}
 	},
 	"videoEffects": {
 		"sample": "Exemple vérifié",

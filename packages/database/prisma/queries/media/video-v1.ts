@@ -8,6 +8,7 @@ import {
 	videoOutputConstraints,
 	type VideoAudioSafetyPolicy,
 } from "@repo/config/video-output";
+import { readVideoRetailDisplay } from "@repo/config/video-pricing.server";
 import {
 	readVideoVisualSafetyProfile,
 	type VideoVisualSafetyProfile,
@@ -35,6 +36,7 @@ import {
 	type MediaTransactionClient,
 	type PaidCreditFundingPolicy,
 } from "./types";
+import { assertVideoRetailEligibility } from "./video-retail-eligibility";
 import {
 	canonicalVideoTemplateJson,
 	templateAdmissionData,
@@ -219,6 +221,7 @@ export async function createVideoQuoteRecord(
 		throw new Error("VIDEO_PRICE_NOT_CONFIGURED");
 	return runSerializable(client, async (tx) => {
 		const now = await databaseNow(tx);
+		await assertVideoRetailEligibility(input.ownerId, input.price.pricingDetails, tx, now);
 		if (request.mode === "image-to-video")
 			await lockMediaAssetGenerationBindings(
 				input.template
@@ -291,6 +294,9 @@ export async function createVideoQuoteRecord(
 		return {
 			quoteId: record.id,
 			credits: record.credits.toString(),
+			...(readVideoRetailDisplay(input.price.pricingDetails)
+				? { pricing: readVideoRetailDisplay(input.price.pricingDetails)! }
+				: {}),
 			expiresAt: record.expiresAt.toISOString(),
 			requestFingerprint,
 		};
@@ -551,6 +557,12 @@ export async function createVideoJobRecord(
 			where: { ownerType_ownerId: { ownerType: "USER", ownerId: input.ownerId } },
 		});
 		if (!account) throw new Error("INSUFFICIENT_CREDITS");
+		// Refunds and reservations share this account lock. Read qualification in a
+		// separate statement after waiting; never lock billing rows in reverse order.
+		await tx.$queryRaw`SELECT "id" FROM "credit_account" WHERE "id" = ${account.id} FOR UPDATE`;
+		const admissionNow = await databaseNow(tx);
+		if (quote.expiresAt <= admissionNow) throw new Error("QUOTE_EXPIRED");
+		await assertVideoRetailEligibility(input.ownerId, input.price.pricingDetails, tx, admissionNow);
 		const job = await tx.generationJob.create({
 			data: {
 				ownerType: "USER",
@@ -698,7 +710,7 @@ export async function listVideoJobRecords(
 }
 
 async function databaseNow(tx: MediaDatabaseClient): Promise<Date> {
-	const [row] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT CURRENT_TIMESTAMP AS "now"`;
+	const [row] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS "now"`;
 	if (!row) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
 	return row.now;
 }

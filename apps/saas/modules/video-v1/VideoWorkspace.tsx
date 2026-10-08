@@ -24,6 +24,7 @@ import {
 	validateVideoDraft,
 	videoRequestFor,
 	videoSelectionCredits,
+	videoSelectionPricing,
 	type VideoConfirmation,
 	type VideoDraft,
 	type VideoErrorKey,
@@ -49,6 +50,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 	const [error, setError] = useState<VideoErrorKey | null>(null);
 	const [jobId, setJobId] = useState(initialJobId);
 	const [ready, setReady] = useState(false);
+	const [draftOwner, setDraftOwner] = useState<string | null>(null);
 	const [storageUnavailable, setStorageUnavailable] = useState(false);
 	const previousRouteJob = useRef(initialJobId);
 	const live = useRef(true);
@@ -75,6 +77,19 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 	}
 	useEffect(() => {
 		if (restoredOwner.current === owner) return;
+		if (restoredOwner.current !== null) {
+			revision.current++;
+			operation.current = false;
+			clear();
+			setReady(false);
+			setDraft(initialVideoDraft);
+			setQuote(null);
+			setConfirmation(null);
+			setBusy(null);
+			setError(null);
+			setJobId(null);
+			quotedRequest.current = null;
+		}
 		restoredOwner.current = owner;
 		try {
 			const saved = storageKey ? parseVideoConfirmation(sessionStorage.getItem(storageKey)) : null;
@@ -103,16 +118,19 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		} catch {
 			setStorageUnavailable(true);
 		}
+		setDraftOwner(owner);
 		setReady(true);
-	}, [owner, registered, storageKey, initialJobId]);
+	}, [owner, registered, storageKey, initialJobId, clear]);
 	useEffect(() => {
-		if (!ready) return;
+		// The restore effect schedules state updates. Do not persist the previous
+		// owner's render under a new owner's storage key before those updates commit.
+		if (!ready || draftOwner !== owner) return;
 		try {
 			sessionStorage.setItem(videoDraftKey(owner), serializeVideoDraft(draft, owner));
 		} catch {
 			setStorageUnavailable(true);
 		}
-	}, [draft, owner, ready]);
+	}, [draft, draftOwner, owner, ready]);
 	useEffect(() => {
 		if (previousRouteJob.current === initialJobId) return;
 		previousRouteJob.current = initialJobId;
@@ -184,6 +202,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		const version = revision.current;
 		const request = videoRequestFor(draft);
 		const consentedCredits = previewCredits;
+		const consentedPricing = JSON.stringify(previewPricing);
 		try {
 			const result = await videoApi.quote(request);
 			if (live.current && version === revision.current) {
@@ -195,15 +214,20 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 				}
 				// The visible backend price is the user's consent. A changed quote needs
 				// a second explicit click; no preview request writes a quote record.
-				if (result.credits === consentedCredits) {
+				if (
+					result.credits === consentedCredits &&
+					JSON.stringify(result.pricing ?? null) === consentedPricing
+				) {
 					await submit(createVideoConfirmation(request, result));
 				}
 			}
 		} catch (failure) {
 			if (live.current && version === revision.current) handleFailure(failure);
 		} finally {
-			operation.current = false;
-			if (live.current) setBusy(null);
+			if (restoredOwner.current === owner) {
+				operation.current = false;
+				if (live.current) setBusy(null);
+			}
 		}
 	}
 	async function confirm() {
@@ -225,8 +249,10 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		try {
 			await submit(confirmation ?? createVideoConfirmation(snapshot!.request, quote));
 		} finally {
-			operation.current = false;
-			if (live.current) setBusy(null);
+			if (restoredOwner.current === owner) {
+				operation.current = false;
+				if (live.current) setBusy(null);
+			}
 		}
 	}
 	async function submit(intent: VideoConfirmation) {
@@ -235,7 +261,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		saveConfirmation(intent);
 		try {
 			const state = await videoApi.jobs.create(intent.input);
-			if (!live.current) return;
+			if (!live.current || restoredOwner.current !== owner) return;
 			// Save the receipt before displaying it; an immediate refresh may beat router.replace.
 			try {
 				if (user?.id) sessionStorage.setItem(`video-v1:last-job:${user.id}`, state.jobId);
@@ -251,7 +277,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			void queryClient.invalidateQueries({ queryKey: ["media-credit-account"] });
 			window.history.replaceState(null, "", videoJobUrl(window.location.href, state.jobId));
 		} catch (failure) {
-			if (live.current) handleFailure(failure);
+			if (live.current && restoredOwner.current === owner) handleFailure(failure);
 		}
 	}
 	const uploading = upload.status === "uploading" || upload.status === "sealing";
@@ -259,8 +285,10 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 	const previewCredits =
 		registered && !catalog.isError ? videoSelectionCredits(draft, catalog.data) : null;
 	const enabled = registered && previewCredits !== null;
+	const previewPricing =
+		registered && !catalog.isError ? videoSelectionPricing(draft, catalog.data) : null;
 
-	const availability = JSON.stringify([enabled, previewCredits]);
+	const availability = JSON.stringify([enabled, previewCredits, previewPricing]);
 	const previousAvailability = useRef(availability);
 	useEffect(() => {
 		if (previousAvailability.current === availability) return;
@@ -313,6 +341,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			busy={busy}
 			quote={quote}
 			previewCredits={previewCredits}
+			previewPricing={previewPricing}
 			quoteExpired={quoteExpired}
 			confirmation={Boolean(confirmation)}
 			error={error}

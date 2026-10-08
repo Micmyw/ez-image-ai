@@ -7,6 +7,7 @@ import {
 	type VideoModelInput,
 	type VideoModelSelection,
 } from "@repo/config/video-models";
+import type { VideoRetailDisplay } from "@repo/config/video-pricing.server";
 import { videoV1ReceiptInputSchema } from "@repo/config/video-v1";
 
 import type { VideoCreateInput, VideoQuote, VideoRequest, VideoState } from "./api";
@@ -204,6 +205,7 @@ export type SelectionCatalog = {
 			veoTier?: VideoDraft["veoTier"];
 			available: boolean;
 			credits: string | null;
+			pricing?: VideoRetailDisplay | null;
 		}[];
 	}[];
 };
@@ -213,6 +215,17 @@ export function videoSelectionCredits(
 	draft: VideoDraft,
 	catalog?: SelectionCatalog,
 ): string | null {
+	return videoSelectionOption(draft, catalog)?.credits ?? null;
+}
+
+export function videoSelectionPricing(
+	draft: VideoDraft,
+	catalog?: SelectionCatalog,
+): VideoRetailDisplay | null {
+	return videoSelectionOption(draft, catalog)?.pricing ?? null;
+}
+
+function videoSelectionOption(draft: VideoDraft, catalog?: SelectionCatalog) {
 	if (!catalog?.accessAllowed || !validateVideoModelSelection(draft)) return null;
 	const model = catalog.models.find((entry) => entry.productKey === draft.productKey);
 	if (!model?.available) return null;
@@ -224,9 +237,7 @@ export function videoSelectionCredits(
 			entry.sound === draft.sound &&
 			entry.veoTier === draft.veoTier,
 	);
-	return option?.available && option.credits && /^[1-9]\d*$/.test(option.credits)
-		? option.credits
-		: null;
+	return option?.available && option.credits && /^[1-9]\d*$/.test(option.credits) ? option : null;
 }
 
 export function summarizeVideoDurations(durations: readonly number[]) {

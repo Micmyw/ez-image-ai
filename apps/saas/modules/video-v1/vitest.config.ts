@@ -9,6 +9,7 @@ export default defineConfig({
 			"@media": path.resolve(import.meta.dirname, "../media"),
 			"@shared": path.resolve(import.meta.dirname, "../shared"),
 			"@auth": path.resolve(import.meta.dirname, "../auth"),
+			"@payments": path.resolve(import.meta.dirname, "../payments"),
 		},
 	},
 	esbuild: { jsx: "automatic" },

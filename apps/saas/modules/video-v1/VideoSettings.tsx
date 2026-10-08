@@ -8,6 +8,7 @@ import {
 	VIDEO_MODEL_CATALOG,
 	type VideoModelOption,
 } from "@repo/config/video-models";
+import type { VideoRetailDisplay } from "@repo/config/video-pricing.server";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import {
 	CheckIcon,
@@ -20,8 +21,15 @@ import {
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
-import { summarizeVideoDurations, videoVariantControls, type VideoDraft } from "./model";
+import {
+	changeVideoDraft,
+	summarizeVideoDurations,
+	videoSelectionPricing,
+	videoVariantControls,
+	type VideoDraft,
+} from "./model";
 import { VideoModelIcon } from "./VideoModelIcon";
+import { VideoAnnualBadge } from "./VideoRetailPrice";
 
 type Availability = {
 	productKey: string;
@@ -30,6 +38,7 @@ type Availability = {
 		mode: VideoDraft["mode"];
 		available: boolean;
 		credits: string | null;
+		pricing?: VideoRetailDisplay | null;
 	})[];
 };
 const families = [...new Set(VIDEO_MODEL_CATALOG.map((model) => model.family))];
@@ -151,6 +160,14 @@ export function VideoSettings({
 							const durations = groups.flatMap((group) => group.durations);
 							const durationSummary = summarizeVideoDurations(durations);
 							const resolutions = [...new Set(groups.flatMap((group) => group.resolutions))];
+							const candidate = selected
+								? draft
+								: changeVideoDraft(
+										draft,
+										{ productKey: entry.productKey },
+										{ accessAllowed: !preview, models },
+									);
+							const pricing = videoSelectionPricing(candidate, { accessAllowed: !preview, models });
 							return (
 								<button
 									key={entry.productKey}
@@ -167,6 +184,7 @@ export function VideoSettings({
 									<span className="video-model-name">
 										<VideoModelIcon family={entry.family} size={18} />
 										{label}
+										<VideoAnnualBadge pricing={pricing} />
 										{selected && <CheckIcon aria-hidden size={16} />}
 									</span>
 									{blocked || (!preview && !available) ? (

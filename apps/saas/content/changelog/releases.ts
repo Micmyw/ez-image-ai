@@ -1,5 +1,14 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-10-08",
+		title: "Video upgrade prices and annual plan savings",
+		changes: [
+			"Compare standard and annual credit prices for your selected video settings before generating. Longer durations, higher resolutions and enhanced modes have their own prices; base options retain their price.",
+			"Active paid annual Creator, Ultimate and Studio subscriptions receive annual pricing. Savings reflect the final credit quote, with no blanket half-price promise.",
+			"Accepted video orders retain their original price and savings in private history. If your plan or a quote changes before acceptance, confirm the current price again.",
+		],
+	},
+	{
 		date: "2026-10-07",
 		title: "Video settings follow supported Kie models",
 		changes: [

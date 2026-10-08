@@ -12,6 +12,7 @@ import {
 	assertCloudflareGitCommit,
 	migrationDatabaseUrl,
 } from "./release-environment";
+import { verifyApprovedVideoRetailPrices } from "./video-retail-preflight";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const inputFile = path.join(root, ".wrangler/ci/production.env");
@@ -50,6 +51,9 @@ if (command === "build") {
 	const input = parseEnvironment(source);
 	const environment = deploymentEnvironment(input, "https://ezimageai.com");
 	assertAutomaticReleaseEnvironment(environment);
+	process.stdout.write(
+		`Video retail approved-price preflight: ${JSON.stringify(verifyApprovedVideoRetailPrices(environment))}\n`,
+	);
 	migrationDatabaseUrl(input, root);
 	const sha = releaseSha();
 	await mkdir(path.dirname(inputFile), { recursive: true });

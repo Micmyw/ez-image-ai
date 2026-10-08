@@ -2000,7 +2000,20 @@
 		"priceUnavailable": "Precio no disponible",
 		"priceChanged": "La cotización actual difiere del precio mostrado. Confirma el nuevo coste para generar.",
 		"promptSafetyCount": "Tamaño del texto: {count} / 10.000 unidades (algunos caracteres usan dos).",
-		"referenceRequired": "Primero sube y asegura una imagen de referencia."
+		"referenceRequired": "Primero sube y asegura una imagen de referencia.",
+		"retail": {
+			"title": "Mejoras de vídeo a menor precio con un plan anual",
+			"activeTitle": "Tu tarifa anual de vídeo está activa",
+			"description": "Los vídeos más largos, las resoluciones superiores y los modos avanzados pueden costar menos créditos. Las opciones básicas mantienen su precio.",
+			"selectedPrices": "Esta selección: estándar {standard} créditos · anual {annual} créditos.",
+			"viewPlans": "Ver planes anuales",
+			"badge": "Anual −{percent}%",
+			"standard": "Estándar",
+			"annual": "Anual",
+			"credits": "{credits} créditos",
+			"saving": "Ahorra {credits} créditos ({percent}%)",
+			"samePrice": "Mismo precio con un plan anual."
+		}
 	},
 	"videoEffects": {
 		"sample": "Ejemplo verificado",

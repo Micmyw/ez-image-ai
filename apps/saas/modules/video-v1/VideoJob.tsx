@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { videoApi, type VideoState } from "./api";
 import { usePageVisible, useVideoJob } from "./use-video";
+import { VideoRetailPrice } from "./VideoRetailPrice";
 
 function PrivateVideo({ jobId }: { jobId: string }) {
 	const t = useTranslations("videoV1");
@@ -145,6 +146,9 @@ export function VideoStateCard({ state }: { state: VideoState }) {
 				</p>
 			</div>
 			<p className="text-xs break-all text-muted-foreground">{t("jobId", { id: state.jobId })}</p>
+			{state.creditState !== "RELEASED" && state.pricing?.audience === "annual" && (
+				<VideoRetailPrice pricing={state.pricing} />
+			)}
 			{state.canPlay && state.stage === "READY" && (
 				<PrivateVideo key={state.jobId} jobId={state.jobId} />
 			)}
