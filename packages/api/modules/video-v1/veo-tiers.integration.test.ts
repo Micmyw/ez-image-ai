@@ -22,6 +22,8 @@ import { recordVideoInputReview } from "@repo/database/video-v1-execution";
 import { submitVideoAttempt } from "@repo/jobs/video-v1/submission";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
+
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/jobs/video-v1/workflow-binding", () => ({
 	getVideoWorkflowBinding: () => undefined,
@@ -104,12 +106,8 @@ let accountId: string;
 beforeAll(async () => {
 	const connectionString = process.env.TEST_DATABASE_URL;
 	if (!connectionString) throw new Error("BLOCKED: explicit TEST_DATABASE_URL required");
-	const url = new URL(connectionString);
-	if (
-		!["127.0.0.1", "localhost", "::1"].includes(url.hostname) ||
-		!/(^|[_-])test([_-]|$)/.test(url.pathname.slice(1))
-	)
-		throw new Error("UNSAFE_TEST_DATABASE");
+	if (!isExplicitVideoVerificationTarget(new URL(connectionString)))
+		throw new Error("ISOLATED_VIDEO_TEST_DATABASE_REQUIRED");
 	client = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
 });
 beforeEach(async () => {
@@ -247,6 +245,68 @@ describe("protected Veo quote, receipt and dispatch", () => {
 			});
 		},
 	);
+	it("keeps the five-slot legacy capacity gate and admits the same receipt only after fixture slots settle", async () => {
+		const blockers: string[] = [];
+		for (let index = 0; index < 5; index++) {
+			const quote = await client.generationQuote.create({
+				data: {
+					ownerType: "USER",
+					ownerId,
+					submittedByUserId: ownerId,
+					productKey: "image-nano-banana-2-lite",
+					catalogVersion: "ISOLATED_CAPACITY_FIXTURE",
+					pricingVersion: "ISOLATED_CAPACITY_FIXTURE",
+					credits: 1n,
+					costMicros: 1n,
+					inputSnapshot: {},
+					pricingSnapshot: {},
+					expiresAt: new Date(Date.now() + 60_000),
+				},
+			});
+			const job = await client.generationJob.create({
+				data: {
+					ownerType: "USER",
+					ownerId,
+					submittedByUserId: ownerId,
+					quoteId: quote.id,
+					idempotencyKey: crypto.randomUUID(),
+					productKey: quote.productKey,
+					catalogVersion: quote.catalogVersion,
+					pricingVersion: quote.pricingVersion,
+					creditsReserved: 1n,
+					executionEngine: "legacy",
+					status: "RESERVED",
+					inputSnapshot: {},
+					pricingSnapshot: {},
+				},
+			});
+			blockers.push(job.id);
+		}
+		await runWithDatabaseClient(client, async () => {
+			const quote = await call(videoV1Router.quote, base, ctx);
+			const receipt = {
+				quoteId: quote.quoteId,
+				idempotencyKey: crypto.randomUUID(),
+				request: base,
+			};
+			await expect(call(videoV1Router.jobs.create, receipt, ctx)).rejects.toMatchObject({
+				message: "VIDEO_PROVIDER_BUSY",
+			});
+			expect(await client.creditReservation.count({ where: { accountId } })).toBe(0);
+			expect(await client.generationJob.count({ where: { quoteId: quote.quoteId } })).toBe(0);
+			// Only this case's synthetic slots settle; never rewrite other suites' jobs.
+			await client.generationJob.updateMany({
+				where: { id: { in: blockers }, ownerId },
+				data: { status: "FAILED", terminalAt: new Date() },
+			});
+			const created = await call(videoV1Router.jobs.create, receipt, ctx);
+			expect(await client.creditReservation.count({ where: { accountId } })).toBe(1);
+			await expect(call(videoV1Router.jobs.create, receipt, ctx)).resolves.toMatchObject({
+				jobId: created.jobId,
+			});
+			expect(await client.creditReservation.count({ where: { accountId } })).toBe(1);
+		});
+	});
 	it.each(
 		(["lite", "fast", "quality"] as const).flatMap((veoTier) =>
 			(["text-to-video", "image-to-video"] as const).map((mode) => ({ veoTier, mode })),
