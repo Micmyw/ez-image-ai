@@ -44,6 +44,7 @@ type MockStage =
 	| "READY"
 	| "REJECTED";
 type Scenario = {
+	pricingValidUntil: string | null;
 	retailAudience: "standard" | "annual" | null;
 	quoteAudience: "standard" | "annual" | null;
 	acceptedPricing: VideoRetailDisplay | null;
@@ -64,6 +65,7 @@ type Scenario = {
 };
 function scenario(): Scenario {
 	return {
+		pricingValidUntil: null,
 		retailAudience: null,
 		quoteAudience: null,
 		acceptedPricing: null,
@@ -147,6 +149,7 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 			return reply({
 				available: state.available,
 				accessAllowed: true,
+				pricingValidUntil: state.pricingValidUntil,
 				reasons: [],
 				productKey: "video-kling-2-6-v1",
 				modelName: "Kling 2.6",
@@ -321,7 +324,7 @@ for (const viewport of [
 	});
 }
 
-test("UI Mock: changed annual qualification needs explicit reconfirmation and accepted savings survive reload", async ({
+test("UI Mock: changed annual qualification refreshes the catalog and survives parameter editing", async ({
 	context,
 	page,
 }, testInfo) => {
@@ -330,6 +333,8 @@ test("UI Mock: changed annual qualification needs explicit reconfirmation and ac
 	await setup(context, page, state);
 	await selectSetting(page, "Video model", "video-seedance-2-mini");
 	await selectSetting(page, "Resolution", "720p");
+	const previousReads = state.catalogReads;
+	state.retailAudience = "standard";
 	state.quoteAudience = "standard";
 	await quoteAndConfirm(page, true);
 	await expect(page.locator('[data-test="video-confirm"]')).toContainText("96");
@@ -338,7 +343,52 @@ test("UI Mock: changed annual qualification needs explicit reconfirmation and ac
 	await expect(page.locator('[data-test="video-retail-price"]').first().locator("s")).toHaveCount(
 		0,
 	);
-	// Editing discards only the unaccepted quote, then the renewed annual quote is frozen.
+	await expect.poll(() => state.catalogReads).toBeGreaterThan(previousReads);
+	await expect(page.locator('[data-test="video-confirm"]')).toBeEnabled();
+	await page.getByLabel("Describe your video", { exact: true }).fill("A new sailboat scene.");
+	await selectSetting(page, "Aspect ratio", "9:16");
+	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 96 credits");
+	await expect(page.locator('[data-test="video-annual-banner"]')).not.toContainText(
+		"Your annual video pricing is active",
+	);
+	await page.locator('[data-test="video-composer"]').screenshot({
+		path: testInfo.outputPath("annual-qualification-refreshed.png"),
+		animations: "disabled",
+	});
+	expect(state.creates).toHaveLength(0);
+});
+
+test("UI Mock: annual qualification refreshes while continuously foregrounded", async ({
+	context,
+	page,
+}) => {
+	const state = scenario();
+	state.retailAudience = "annual";
+	await page.clock.install();
+	await setup(context, page, state);
+	await selectSetting(page, "Video model", "video-seedance-2-mini");
+	await selectSetting(page, "Resolution", "720p");
+	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 66 credits");
+	const previousReads = state.catalogReads;
+	state.retailAudience = "standard";
+	await page.clock.fastForward(31_000);
+	await expect.poll(() => state.catalogReads).toBeGreaterThan(previousReads);
+	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 96 credits");
+	await selectSetting(page, "Aspect ratio", "9:16");
+	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 96 credits");
+	expect(state.quotes).toBe(0);
+	expect(state.creates).toHaveLength(0);
+});
+
+test("UI Mock: accepted annual savings stay frozen after qualification changes and reload", async ({
+	context,
+	page,
+}, testInfo) => {
+	const state = scenario();
+	state.retailAudience = "annual";
+	await setup(context, page, state);
+	await selectSetting(page, "Video model", "video-seedance-2-mini");
+	await selectSetting(page, "Resolution", "720p");
 	await page.getByLabel("Describe your video", { exact: true }).fill("A new sailboat scene.");
 	state.quoteAudience = null;
 	await page.locator('[data-test="video-generate"]').click();

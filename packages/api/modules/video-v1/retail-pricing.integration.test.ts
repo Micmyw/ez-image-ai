@@ -183,6 +183,71 @@ async function create(quoteId: string, idempotencyKey = crypto.randomUUID()) {
 	return scoped(() => call(videoV1Router.jobs.create, { request, quoteId, idempotencyKey }, ctx));
 }
 
+async function addPaidPackBalance() {
+	const id = crypto.randomUUID();
+	const grantReferenceKey = `credit-pack:${id}:grant:v1`;
+	const plan = await client.billingPlan.create({
+		data: {
+			provider: "paypal",
+			providerPriceId: id,
+			name: "ISOLATED_PAID_PACK_FIXTURE",
+			productKind: "CREDIT_PACK",
+			creditsPerPeriod: 1000n,
+			priceMicros: 100_000_000n,
+			currency: "USD",
+			metadata: {},
+		},
+	});
+	const intent = await client.paymentCheckoutIntent.create({
+		data: {
+			provider: "paypal",
+			ownerType: "USER",
+			ownerId,
+			submittedByUserId: ownerId,
+			productKind: "CREDIT_PACK",
+			billingPlanId: plan.id,
+			planKey: id,
+			interval: "one-time",
+			idempotencyKey: id,
+			status: "COMPLETED",
+			creditPackCatalogVersion: "isolated-fixture",
+			creditPackPricingVersion: "isolated-fixture",
+			creditPackSubscriberEligibilityVersion: "isolated-fixture",
+			creditPackBaseCredits: 1000n,
+			creditPackBonusCredits: 0n,
+			creditPackTotalCredits: 1000n,
+			creditPackExpiryMonths: 6,
+			creditPackSubscriberBonusEligible: false,
+			creditPackEligibilityEvaluatedAt: new Date(),
+		},
+	});
+	await client.creditPackFulfillment.create({
+		data: {
+			id,
+			checkoutIntentId: intent.id,
+			billingPlanId: plan.id,
+			ownerType: "USER",
+			ownerId,
+			provider: "paypal",
+			providerOrderId: id,
+			providerPaymentId: id,
+			paidAmountMicros: 100_000_000n,
+			currency: "USD",
+			baseCredits: 1000n,
+			bonusCredits: 0n,
+			grantedCredits: 1000n,
+			grantReferenceKey,
+			paidAt: new Date(),
+			expiresAt: periodEnd(),
+		},
+	});
+	await createCreditGrant(
+		{ accountId, amount: 1000n, referenceKey: grantReferenceKey, expiresAt: periodEnd() },
+		client,
+	);
+	return grantReferenceKey;
+}
+
 describe("ordinary and annual video pricing through protected RPC and PostgreSQL", () => {
 	it("uses one owner-scoped qualification for catalog and quote; exposes only public prices", async () => {
 		const catalog = await scoped(() => call(videoV1Router.catalog, undefined, ctx));
@@ -199,6 +264,11 @@ describe("ordinary and annual video pricing through protected RPC and PostgreSQL
 		expect(option.credits).toBe("66");
 		expect(quoted.credits).toBe("66");
 		expect(quoted.pricing).toEqual(option.pricing);
+		expect(catalog.pricingValidUntil).toBe(
+			(
+				await client.subscription.findUniqueOrThrow({ where: { id: subscriptionId } })
+			).currentPeriodEnd!.toISOString(),
+		);
 		expect(quoted.pricing).toMatchObject({
 			audience: "annual",
 			standardCredits: "96",
@@ -288,43 +358,88 @@ describe("ordinary and annual video pricing through protected RPC and PostgreSQL
 		).toBe("annual");
 		expect((await resolveVideoRetailEligibility(ownerId, client, end)).audience).toBe("standard");
 	});
-	it.each([true, false])(
-		"prices later Stripe annual months from the original payment (full refund: %s)",
-		async (fullRefund) => {
+	it.each([
+		{ fullRefund: true, status: "ACTIVE" as const },
+		{ fullRefund: false, status: "ACTIVE" as const },
+		{ fullRefund: true, status: "PAST_DUE" as const },
+		{ fullRefund: false, status: "PAST_DUE" as const },
+	])(
+		"uses the real Stripe annual payment/refund in month two with paid-pack funding ($status, full: $fullRefund)",
+		async ({ fullRefund, status }) => {
 			const now = new Date();
 			const start = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
 			const month = (offset: number) =>
 				new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + offset, 1));
 			const invoiceId = `stripe_annual_${crypto.randomUUID()}`;
 			const chargeId = `ch_${crypto.randomUUID()}`;
-			await client.billingPlan.update({ where: { id: planId }, data: { provider: "stripe" } });
+			const customerId = `cus_${crypto.randomUUID()}`;
+			const providerSubscriptionId = `sub_${crypto.randomUUID()}`;
+			await client.user.create({
+				data: {
+					id: ownerId,
+					name: "Annual refund video fixture",
+					email: `${ownerId}@example.test`,
+					emailVerified: true,
+					paymentsCustomerId: customerId,
+					createdAt: now,
+					updatedAt: now,
+				},
+			});
+			const plan = await client.billingPlan.update({
+				where: { id: planId },
+				data: { provider: "stripe" },
+			});
+			const purchase = await client.purchase.create({
+				data: {
+					userId: ownerId,
+					type: "SUBSCRIPTION",
+					customerId,
+					subscriptionId: providerSubscriptionId,
+					priceId: plan.providerPriceId,
+					status: "active",
+				},
+			});
+			await client.billingPeriod.delete({ where: { id: periodId } });
 			await client.subscription.update({
 				where: { id: subscriptionId },
-				data: { provider: "stripe", currentPeriodStart: start, currentPeriodEnd: month(12) },
+				data: {
+					provider: "stripe",
+					providerSubscriptionId,
+					purchaseId: purchase.id,
+					currentPeriodStart: null,
+					currentPeriodEnd: null,
+				},
 			});
-			for (let index = 0; index < 12; index++) {
-				const data = {
-					subscriptionId,
-					startsAt: month(index),
-					endsAt: month(index + 1),
-					status:
-						index === 0
-							? ("CLOSED" as const)
-							: index === 1
-								? ("ACTIVE" as const)
-								: ("PENDING" as const),
-					creditAmount: 1000n,
-					grantReferenceKey: `stripe-invoice:${invoiceId}:period:${index}:grant`,
-					providerInvoiceId: invoiceId,
-					providerInvoicePaymentId: `ip_${invoiceId}`,
-					providerChargeId: chargeId,
-					paidAmount: 30_000n,
-				};
-				if (index === 0) await client.billingPeriod.update({ where: { id: periodId }, data });
-				else await client.billingPeriod.create({ data });
+			const paidInvoice = {
+				kind: "PAID_INVOICE",
+				billingReason: "SUBSCRIPTION_CYCLE",
+				providerInvoiceId: invoiceId,
+				providerSubscriptionId,
+				customerId,
+				providerInvoicePaymentId: `ip_${invoiceId}`,
+				providerChargeId: chargeId,
+				providerPaymentIntentId: null,
+				priceId: plan.providerPriceId,
+				amountPaid: 30_000n,
+				currency: "USD",
+				periodStart: start,
+				periodEnd: month(12),
+				context: { origin: "WEBHOOK", changeAt: start, changeId: `evt_${crypto.randomUUID()}` },
+			} as const;
+			// The actual reducer creates 12 projections and grants the relevant month.
+			// Replay in month two is the supported reconciliation path as time advances.
+			for (const operationNow of [new Date(start.getTime() + 1000), now]) {
+				await client.$transaction((tx) =>
+					applyStripeBillingFact(paidInvoice, tx, { now: operationNow }),
+				);
 			}
+			expect(await client.billingPeriod.count({ where: { subscriptionId } })).toBe(12);
+			const packReference = await addPaidPackBalance();
 			const quotedBeforeRefund = await quote();
 			expect(quotedBeforeRefund.credits).toBe("66");
+			const acceptedQuote = await quote();
+			const acceptedKey = crypto.randomUUID();
+			const accepted = await create(acceptedQuote.quoteId, acceptedKey);
 			await client.$transaction((tx) =>
 				applyStripeBillingFact(
 					{
@@ -350,13 +465,49 @@ describe("ordinary and annual video pricing through protected RPC and PostgreSQL
 				refundedAmount: 0n,
 				paidAmount: 30_000n,
 			});
+			if (status === "PAST_DUE")
+				await client.subscription.update({
+					where: { id: subscriptionId },
+					data: { status, graceEndsAt: periodEnd() },
+				});
+			const refreshedCatalog = await scoped(() => call(videoV1Router.catalog, undefined, ctx));
+			const option = refreshedCatalog.models
+				.find((model) => model.productKey === request.productKey)!
+				.options.find(
+					(option) =>
+						option.mode === request.mode &&
+						option.duration === request.duration &&
+						option.resolution === request.resolution &&
+						!option.sound,
+				)!;
 			const repriced = await quote();
 			expect(repriced.credits).toBe(fullRefund ? "96" : "66");
 			expect(repriced.pricing?.audience).toBe(fullRefund ? "standard" : "annual");
+			expect(option.pricing).toEqual(repriced.pricing);
 			if (fullRefund) {
 				await expect(create(quotedBeforeRefund.quoteId)).rejects.toThrow("PRICE_CHANGED");
-				expect(await client.creditReservation.count({ where: { accountId } })).toBe(0);
 			}
+			const replayed = await create(acceptedQuote.quoteId, acceptedKey);
+			expect(replayed.jobId).toBe(accepted.jobId);
+			expect(replayed.pricing).toEqual(acceptedQuote.pricing);
+			expect(await client.creditLedgerEntry.count({ where: { accountId, type: "RESERVE" } })).toBe(
+				1,
+			);
+			await client.generationJob.update({
+				where: { id: accepted.jobId },
+				data: { status: "FAILED", terminalAt: now },
+			});
+			await client.videoExecution.updateMany({
+				where: { jobId: accepted.jobId },
+				data: { stage: "FAILED" },
+			});
+			const next = await create(repriced.quoteId);
+			expect(next.credits).toBe(fullRefund ? "96" : "66");
+			const pack = await client.creditLot.findFirstOrThrow({
+				where: { accountId, grantReferenceKey: packReference },
+			});
+			expect(pack.remainingAmount).toBeLessThan(1000n);
+			expect(pack.remainingAmount).toBeGreaterThan(0n);
 		},
 	);
 	it("requotes an unaccepted price after qualification changes without reserving credits", async () => {

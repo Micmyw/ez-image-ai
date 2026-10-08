@@ -2,6 +2,12 @@
 
 ## 2026-10-08
 
+### Ordinary video and verified annual prices
+
+- Price supported video upgrades from their complete configured cost: start at a 110% target, add 15 percentage points per extra second, 200 per supported resolution step and 300 for one independent nonbase mode, capped at 1000%. Paid annual subscriptions halve only the target above 110%; accepted orders retain their frozen price.
+- Show both server prices and actual integer-credit savings. Refresh previews after subscription changes, qualification expiry and changed quotes; preserve the fresh quote for explicit confirmation and separate account request lifetimes.
+- Evaluate Stripe annual refunds across the original payment's monthly projections, retaining legitimate partial-refund access while excluding fully refunded payments. Keep paid-credit funding, template prices and content review independent.
+
 ### Registration and payment sources
 
 - With optional analytics consent, retain the first landing page, external source origin and limited campaign tags at registration; freeze the page that prompted a subscription or credit-pack checkout and carry it into the confirmed purchase.

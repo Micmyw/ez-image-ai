@@ -22,6 +22,8 @@ export default defineConfig({
 			"apps/saas/modules/media/lib/generator-navigation.test.ts",
 			"apps/saas/modules/video-v1/messages.test.ts",
 			"apps/saas/modules/video-v1/render.test.tsx",
+			"apps/saas/modules/video-v1/VideoWorkspace.test.tsx",
+			"apps/saas/modules/video-v1/use-video.test.ts",
 		],
 	},
 });

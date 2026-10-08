@@ -76,26 +76,23 @@ export async function findEffectivePaidSubscription(
 		// Stripe annual invoices create monthly credit-grant projections that each
 		// repeat paidAmount. The refund reducer records cumulative money only on
 		// the first period of that invoice, so later projections are not new payments.
-		const paidInvoice =
-			provider === "stripe" && latestPaidPeriod?.providerInvoiceId
-				? await client.billingPeriod.findFirst({
-						where: {
-							subscriptionId: subscription.id,
-							providerInvoiceId: latestPaidPeriod.providerInvoiceId,
-						},
-						orderBy: [{ startsAt: "asc" }, { id: "asc" }],
-						select: { paidAmount: true, refundedAmount: true },
-					})
-				: latestPaidPeriod;
-		if (
-			provider === "stripe" &&
-			(!paidInvoice || paidInvoice.refundedAmount >= paidInvoice.paidAmount)
-		)
-			continue;
-		if (
-			subscription.status !== "PAST_DUE" ||
-			(paidInvoice && paidInvoice.refundedAmount < paidInvoice.paidAmount)
-		) {
+		let netPaid = latestPaidPeriod
+			? latestPaidPeriod.paidAmount - latestPaidPeriod.refundedAmount
+			: 0n;
+		if (provider === "stripe" && latestPaidPeriod?.providerInvoiceId) {
+			const payment = await client.billingPeriod.aggregate({
+				where: {
+					subscriptionId: subscription.id,
+					providerInvoiceId: latestPaidPeriod.providerInvoiceId,
+				},
+				// Match paid-credit funding's conservative treatment of old projections.
+				_min: { paidAmount: true },
+				_max: { refundedAmount: true },
+			});
+			netPaid = (payment._min.paidAmount ?? 0n) - (payment._max.refundedAmount ?? 0n);
+		}
+		if (provider === "stripe" && netPaid <= 0n) continue;
+		if (subscription.status !== "PAST_DUE" || netPaid > 0n) {
 			return subscription;
 		}
 	}

@@ -33,6 +33,8 @@ import { useVideoCatalog } from "./use-video";
 import { useVideoUpload } from "./use-video-upload";
 import { VideoComposer } from "./VideoComposer";
 
+type VideoOperation = { epoch: number };
+
 export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }) {
 	const { user } = useSession();
 	const registered = Boolean(user && !user.isAnonymous);
@@ -54,13 +56,16 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 	const [storageUnavailable, setStorageUnavailable] = useState(false);
 	const previousRouteJob = useRef(initialJobId);
 	const live = useRef(true);
+	const ownerEpoch = useRef(0);
+	const operation = useRef<VideoOperation | null>(null);
 	useEffect(() => {
 		live.current = true;
+		ownerEpoch.current++;
 		return () => {
 			live.current = false;
+			operation.current = null;
 		};
 	}, []);
-	const operation = useRef(false);
 	const revision = useRef(0);
 	const quotedRequest = useRef<{ request: VideoRequest; revision: number } | null>(null);
 	const restoredOwner = useRef<string | null>(null);
@@ -77,9 +82,10 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 	}
 	useEffect(() => {
 		if (restoredOwner.current === owner) return;
+		ownerEpoch.current++;
+		operation.current = null;
 		if (restoredOwner.current !== null) {
 			revision.current++;
-			operation.current = false;
 			clear();
 			setReady(false);
 			setDraft(initialVideoDraft);
@@ -185,16 +191,34 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			);
 		}
 		if (recovery.refreshCatalog)
-			void queryClient.invalidateQueries({ queryKey: ["video-v1", "catalog"] });
+			void queryClient.invalidateQueries({ queryKey: ["video-v1", "catalog", owner], exact: true });
+	}
+	function isCurrentOperation(token: VideoOperation) {
+		return live.current && ownerEpoch.current === token.epoch && operation.current === token;
+	}
+	function finishOperation(token: VideoOperation) {
+		// An earlier A request cannot release a later A request after A → B → A.
+		if (!isCurrentOperation(token)) return;
+		operation.current = null;
+		setBusy(null);
 	}
 	async function generate() {
-		if (operation.current || !enabled || confirmation || uploading || !ready) return;
+		if (
+			operation.current ||
+			!enabled ||
+			confirmation ||
+			uploading ||
+			!ready ||
+			draftOwner !== owner
+		)
+			return;
 		const invalid = validateVideoDraft(draft);
 		if (invalid) {
 			setError(invalid);
 			return;
 		}
-		operation.current = true;
+		const token = { epoch: ownerEpoch.current };
+		operation.current = token;
 		setBusy("quote");
 		setError(null);
 		setQuote(null);
@@ -205,7 +229,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		const consentedPricing = JSON.stringify(previewPricing);
 		try {
 			const result = await videoApi.quote(request);
-			if (live.current && version === revision.current) {
+			if (isCurrentOperation(token) && version === revision.current) {
 				setQuote(result);
 				quotedRequest.current = { request, revision: version };
 				if (Date.parse(result.expiresAt) <= Date.now()) {
@@ -218,50 +242,55 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 					result.credits === consentedCredits &&
 					JSON.stringify(result.pricing ?? null) === consentedPricing
 				) {
-					await submit(createVideoConfirmation(request, result));
+					await submit(token, createVideoConfirmation(request, result));
+				} else {
+					// Keep this quote for explicit confirmation, while replacing stale
+					// owner-scoped previews before editing can reveal them again.
+					await catalog.refetch();
 				}
 			}
 		} catch (failure) {
-			if (live.current && version === revision.current) handleFailure(failure);
+			if (isCurrentOperation(token) && version === revision.current) handleFailure(failure);
 		} finally {
-			if (restoredOwner.current === owner) {
-				operation.current = false;
-				if (live.current) setBusy(null);
-			}
+			finishOperation(token);
 		}
 	}
 	async function confirm() {
-		if (operation.current || !quote || !registered || (!enabled && !confirmation)) return;
+		if (
+			operation.current ||
+			!quote ||
+			!registered ||
+			draftOwner !== owner ||
+			(!enabled && !confirmation)
+		)
+			return;
 		if ((quoteExpired || Date.parse(quote.expiresAt) <= Date.now()) && !confirmation) {
 			setError("quoteExpired");
 			return;
 		}
-		operation.current = true;
-		setBusy("create");
-		setError(null);
 		const snapshot = quotedRequest.current;
 		if (!confirmation && (!snapshot || snapshot.revision !== revision.current)) {
-			operation.current = false;
-			setBusy(null);
 			setQuote(null);
 			return;
 		}
+		const token = { epoch: ownerEpoch.current };
+		operation.current = token;
+		setBusy("create");
+		setError(null);
 		try {
-			await submit(confirmation ?? createVideoConfirmation(snapshot!.request, quote));
+			await submit(token, confirmation ?? createVideoConfirmation(snapshot!.request, quote));
 		} finally {
-			if (restoredOwner.current === owner) {
-				operation.current = false;
-				if (live.current) setBusy(null);
-			}
+			finishOperation(token);
 		}
 	}
-	async function submit(intent: VideoConfirmation) {
+	async function submit(token: VideoOperation, intent: VideoConfirmation) {
+		if (!isCurrentOperation(token)) return;
 		setBusy("create");
 		// Persist before sending. Retrying a timeout or refreshing reuses this exact request/key.
 		saveConfirmation(intent);
 		try {
 			const state = await videoApi.jobs.create(intent.input);
-			if (!live.current || restoredOwner.current !== owner) return;
+			if (!isCurrentOperation(token)) return;
 			// Save the receipt before displaying it; an immediate refresh may beat router.replace.
 			try {
 				if (user?.id) sessionStorage.setItem(`video-v1:last-job:${user.id}`, state.jobId);
@@ -277,7 +306,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			void queryClient.invalidateQueries({ queryKey: ["media-credit-account"] });
 			window.history.replaceState(null, "", videoJobUrl(window.location.href, state.jobId));
 		} catch (failure) {
-			if (live.current && restoredOwner.current === owner) handleFailure(failure);
+			if (isCurrentOperation(token)) handleFailure(failure);
 		}
 	}
 	const uploading = upload.status === "uploading" || upload.status === "sealing";
@@ -295,11 +324,21 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		previousAvailability.current = availability;
 		// Pending submissions replay their immutable receipt even when new generation closes.
 		if (!confirmation) {
+			// A fresh quote may have triggered this catalog refresh. Retain it when
+			// the refreshed selection agrees; only changed/unavailable prices invalidate it.
+			if (
+				quote &&
+				enabled &&
+				quotedRequest.current?.revision === revision.current &&
+				quote.credits === previewCredits &&
+				JSON.stringify(quote.pricing ?? null) === JSON.stringify(previewPricing)
+			)
+				return;
 			revision.current++;
 			setQuote(null);
 			quotedRequest.current = null;
 		}
-	}, [availability, confirmation]);
+	}, [availability, confirmation, enabled, previewCredits, previewPricing, quote]);
 	const previousMode = useRef(workspace?.mode);
 	useEffect(() => {
 		if (previousMode.current === workspace?.mode) return;
@@ -334,7 +373,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			upload={upload}
 			models={catalog.data?.models ?? []}
 			registered={registered}
-			locked={!ready || Boolean(busy) || Boolean(confirmation)}
+			locked={!ready || draftOwner !== owner || Boolean(busy) || Boolean(confirmation)}
 			uploading={uploading}
 			ready={ready}
 			enabled={enabled}

@@ -95,6 +95,7 @@ const catalog = protectedProcedure
 		return {
 			available: models.some((model) => model.available),
 			accessAllowed,
+			...(eligibility ? { pricingValidUntil: eligibility.validUntil } : {}),
 			reasons: defaultOption
 				? [...new Set([...(defaultModel?.commonReasons ?? []), ...defaultOption.reasons])]
 				: (defaultModel?.reasons ?? ["VIDEO_NOT_READY"]),
