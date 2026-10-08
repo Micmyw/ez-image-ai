@@ -33,11 +33,11 @@ existing job URLs take priority over a stored preference.
 
 Authenticated Cloudflare Workers Logs matched the reported Ray exactly:
 
-| UTC / route | Ray | Outcome | HTTP | CPU / wall ms |
-| --- | --- | --- | --- | --- |
-| 12:30:30.451 `/blog/raindance-ai-trend` | `a475282bdd5ffac2` | `exceededMemory` | 503 | 3321 / 3886 |
-| 12:30:31.066 `/api/rpc/videoV1/catalog` | `a475283ca89bfac2` | `exceededMemory` | 503 | 0 / 1189 |
-| 12:33:27.356 `/blog/raindance-ai-trend?mode=duo` | `a4752c8b0be6fac2` | `ok` | 200 | 1997 / 2096 |
+| UTC / route                                      | Ray                | Outcome          | HTTP | CPU / wall ms |
+| ------------------------------------------------ | ------------------ | ---------------- | ---- | ------------- |
+| 12:30:30.451 `/blog/raindance-ai-trend`          | `a475282bdd5ffac2` | `exceededMemory` | 503  | 3321 / 3886   |
+| 12:30:31.066 `/api/rpc/videoV1/catalog`          | `a475283ca89bfac2` | `exceededMemory` | 503  | 0 / 1189      |
+| 12:33:27.356 `/blog/raindance-ai-trend?mode=duo` | `a4752c8b0be6fac2` | `ok`             | 200  | 1997 / 2096   |
 
 All three used `ezimageai-site-production`, version
 `4aa80d15-c36b-45b4-bffa-c891b56c2b95`. Deployment annotations map it to
@@ -74,10 +74,10 @@ duration 5, aspect ratio `9:16`, `fixed_lens:true`, `generate_audio:false`.
 The scene model is `nano-banana-2-lite`, 1K, `9:16`, one scene per run, two
 ordered authorized adult inputs for Hotel and Raindance Duet.
 
-| Candidate | Two videos | Two scene images | Supplier subtotal | Approved moderation budget estimate | Estimated supplier + moderation |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| 480p5 silent, separate test variant | $0.0875 | $0.0400 | $0.1275 | $0.0428 | $0.1703 |
-| 720p5 silent, formal effect contract | $0.1750 | $0.0400 | $0.2150 | $0.0428 | $0.2578 |
+| Candidate                            | Two videos | Two scene images | Supplier subtotal | Approved moderation budget estimate | Estimated supplier + moderation |
+| ------------------------------------ | ---------: | ---------------: | ----------------: | ----------------------------------: | ------------------------------: |
+| 480p5 silent, separate test variant  |    $0.0875 |          $0.0400 |           $0.1275 |                             $0.0428 |                         $0.1703 |
+| 720p5 silent, formal effect contract |    $0.1750 |          $0.0400 |           $0.2150 |                             $0.0428 |                         $0.2578 |
 
 Video and image prices were checked on Kie's official pages on October 8:
 [Seedance](https://kie.ai/fr/seedance-1-5-pro),
@@ -126,17 +126,17 @@ quality evidence. No competitor result is represented as an EzImageAI sample.
 
 Both reserved runs must be scored independently on:
 
-| Dimension | Evidence required |
-| --- | --- |
-| Scene | Hotel orange studio + one suspended microphone; Raindance wooden pier, sea horizon and sunset |
-| Identity | Compare input, prepared scene and frames at 0/1/2/3/4/end seconds; score each adult separately |
-| Left/right | No swaps, blending, third person or role collapse throughout the clip |
-| Action | Hotel left gesture/right response then right lead; Raindance small gesture/reaction and brief glance |
-| Timing | Actual five-second duration; coherent start, exchange and finish without abrupt truncation |
-| Lips/rhythm | Do not award lyric/choreography reproduction from scene similarity; the current preset does not support exact lyric sync |
-| Transition | Current template starts in the prepared scene; no built-in source-photo-to-pier hard-cut pass may be claimed |
-| Audio | Latest test requires silence; inspect tracks and audible playback; audio capability remains untested |
-| Technical result | Probe dimensions/aspect/duration/codec/tracks, retain job/task IDs and settlement evidence, record defects |
+| Dimension        | Evidence required                                                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Scene            | Hotel orange studio + one suspended microphone; Raindance wooden pier, sea horizon and sunset                            |
+| Identity         | Compare input, prepared scene and frames at 0/1/2/3/4/end seconds; score each adult separately                           |
+| Left/right       | No swaps, blending, third person or role collapse throughout the clip                                                    |
+| Action           | Hotel left gesture/right response then right lead; Raindance small gesture/reaction and brief glance                     |
+| Timing           | Actual five-second duration; coherent start, exchange and finish without abrupt truncation                               |
+| Lips/rhythm      | Do not award lyric/choreography reproduction from scene similarity; the current preset does not support exact lyric sync |
+| Transition       | Current template starts in the prepared scene; no built-in source-photo-to-pier hard-cut pass may be claimed             |
+| Audio            | Latest test requires silence; inspect tracks and audible playback; audio capability remains untested                     |
+| Technical result | Probe dimensions/aspect/duration/codec/tracks, retain job/task IDs and settlement evidence, record defects               |
 
 All actual quality scores remain **NOT_RUN**. Silent five-second ambience can test
 scene/identity/light action; it cannot validate a full dance, exact duet or original
