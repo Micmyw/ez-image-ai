@@ -62,6 +62,8 @@ type Scenario = {
 	quoteExpired: boolean;
 	quoteRequests: Array<Record<string, unknown>>;
 	blockedSound: boolean;
+	disabledModelKey?: string;
+	omittedCatalogOptionKey?: string;
 };
 function scenario(): Scenario {
 	return {
@@ -161,31 +163,47 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 				aspectRatios: ["16:9", "9:16"],
 				models: VIDEO_MODEL_CATALOG.map((model) => ({
 					productKey: model.productKey,
-					available: state.available && model.status === "implemented",
+					available:
+						state.available &&
+						model.status === "implemented" &&
+						model.productKey !== state.disabledModelKey,
 					reasons: [],
-					options: model.modes.flatMap((mode) => [
-						...new Map(
-							getVideoModelOptions(model.productKey, mode).map(
-								({ duration, resolution, sound, veoTier }) => [
-									`${duration}:${resolution}:${sound}:${veoTier ?? ""}`,
-									{
-										duration,
-										resolution,
-										sound,
-										...(veoTier ? { veoTier } : {}),
-										mode,
-										available: state.available && !(state.blockedSound && sound),
-										reasons: [],
-										credits: "23",
-										...retailPrice(
-											{ productKey: model.productKey, mode, duration, resolution, sound, veoTier },
-											state.retailAudience,
-										),
-									},
-								],
-							),
-						).values(),
-					]),
+					options: model.modes
+						.flatMap((mode) => [
+							...new Map(
+								getVideoModelOptions(model.productKey, mode).map(
+									({ duration, resolution, sound, veoTier }) => [
+										`${duration}:${resolution}:${sound}:${veoTier ?? ""}`,
+										{
+											duration,
+											resolution,
+											sound,
+											...(veoTier ? { veoTier } : {}),
+											mode,
+											available: state.available && !(state.blockedSound && sound),
+											reasons: [],
+											credits: "23",
+											...retailPrice(
+												{
+													productKey: model.productKey,
+													mode,
+													duration,
+													resolution,
+													sound,
+													veoTier,
+												},
+												state.retailAudience,
+											),
+										},
+									],
+								),
+							).values(),
+						])
+						.filter(
+							(option) =>
+								retailKey({ productKey: model.productKey, ...option }) !==
+								state.omittedCatalogOptionKey,
+						),
 				})),
 			});
 		}
@@ -263,6 +281,52 @@ async function quoteAndConfirm(page: Page, doubleClick = false) {
 			(button as HTMLButtonElement).click();
 		});
 	else await page.locator('[data-test="video-generate"]').click();
+}
+
+for (const catalogCase of [
+	"available target",
+	"disabled target",
+	"missing target quote",
+] as const) {
+	test(`UI Mock: model-owned annual badges with ${catalogCase}`, async ({ context, page }) => {
+		const state = scenario();
+		state.retailAudience = "standard";
+		if (catalogCase === "disabled target") state.disabledModelKey = "video-minimax-h3";
+		if (catalogCase === "missing target quote")
+			state.omittedCatalogOptionKey = retailKey({
+				productKey: "video-minimax-h3",
+				mode: "text-to-video",
+				duration: 10,
+				resolution: "768p",
+				sound: true,
+			});
+		await setup(context, page, state);
+		await selectSetting(page, "Duration", "10");
+		await expect(page.locator('[data-test="video-retail-price"]').first()).toContainText(
+			"Standard 119 credits",
+		);
+		await page.getByRole("button", { name: "Video model", exact: true }).click();
+		const menu = page.locator('[data-test="video-model-menu"]');
+		await expect(menu.getByRole("button", { name: "Kling 2.6", exact: true })).toContainText(
+			"Annual −15.9%",
+		);
+		await menu.getByRole("button", { name: "MiniMax", exact: true }).click();
+		const supportedModel = menu.getByRole("button", { name: "MiniMax H3", exact: true });
+		if (catalogCase === "available target") {
+			await expect(supportedModel).toBeEnabled();
+			await expect(supportedModel.locator(".video-annual-badge")).toHaveText("Annual −17.3%");
+		} else {
+			await expect(supportedModel.locator(".video-annual-badge")).toHaveCount(0);
+			if (catalogCase === "disabled target") await expect(supportedModel).toBeDisabled();
+		}
+		for (const name of ["MiniMax H3 Turbo", "MiniMax H3 Max Turbo", "MiniMax H3 Max"]) {
+			const blocked = menu.getByRole("button", { name, exact: true });
+			await expect(blocked).toBeDisabled();
+			await expect(blocked.locator(".video-annual-badge")).toHaveCount(0);
+		}
+		expect(state.quotes).toBe(0);
+		expect(state.creates).toHaveLength(0);
+	});
 }
 
 for (const viewport of [

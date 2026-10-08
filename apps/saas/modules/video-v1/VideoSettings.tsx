@@ -167,7 +167,10 @@ export function VideoSettings({
 										{ productKey: entry.productKey },
 										{ accessAllowed: !preview, models },
 									);
-							const pricing = videoSelectionPricing(candidate, { accessAllowed: !preview, models });
+							const pricing =
+								!blocked && available && keys.includes(candidate.productKey)
+									? videoSelectionPricing(candidate, { accessAllowed: !preview, models })
+									: null;
 							return (
 								<button
 									key={entry.productKey}

@@ -6,6 +6,7 @@
 
 - Price supported video upgrades from their complete configured cost: start at a 110% target, add 15 percentage points per extra second, 200 per supported resolution step and 300 for one independent nonbase mode, capped at 1000%. Paid annual subscriptions halve only the target above 110%; accepted orders retain their frozen price.
 - Show both server prices and actual integer-credit savings. Refresh previews after subscription changes, qualification expiry and changed quotes; preserve the fresh quote for explicit confirmation and separate account request lifetimes.
+- Show a model card's annual savings only for its own available, priced configuration. Unavailable models and missing quotes do not inherit the selected model's discount.
 - Evaluate Stripe annual refunds across the original payment's monthly projections, retaining legitimate partial-refund access while excluding fully refunded payments. Keep paid-credit funding, template prices and content review independent.
 
 ### Registration and payment sources
