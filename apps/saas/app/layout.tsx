@@ -59,12 +59,21 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		admin: _admin,
 		faq: _faq,
 		publicContent: _publicContent,
+		home,
 		videoEffects,
 		...messages
 	} = await getMessages();
 	// Video workspaces supply their detailed copy locally; public navigation needs only its labels.
 	const clientMessages = {
 		...Object.fromEntries(Object.entries(messages).filter(([key]) => key !== "videoV1")),
+		// LandingPage renders the remaining home copy on the server; its interactive
+		// sections need only these four namespaces during hydration and navigation.
+		home: {
+			generator: home.generator,
+			creatorWorkflows: home.creatorWorkflows,
+			beforeAfter: home.beforeAfter,
+			showcase: home.showcase,
+		},
 		videoEffects: {
 			name: videoEffects.name,
 			navigationDescription: videoEffects.navigationDescription,

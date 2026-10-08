@@ -58,7 +58,7 @@ vi.mock("next-intl/server", () => ({
 	getMessages: async () =>
 		mocks.serverMessages ?? {
 			common: { menu: { login: "Sign In" } },
-			home: { title: "Image editor" },
+			home: { generator: { title: "Image editor" } },
 			admin: { title: "Administration" },
 			faq: { items: { question: "Frequently asked question" } },
 			publicContent: { contact: { description: "Contact support" } },
@@ -115,7 +115,7 @@ describe("SaaS root layout", () => {
 
 		expect(mocks.clientMessages).toHaveBeenCalledWith({
 			common: { menu: { login: "Sign In" } },
-			home: { title: "Image editor" },
+			home: { generator: { title: "Image editor" } },
 			videoEffects: {
 				name: "Hotel Lobby AI",
 				navigationDescription: "Create a video with two photos",
@@ -124,7 +124,7 @@ describe("SaaS root layout", () => {
 	});
 
 	it.each(["en", "de", "es", "fr"] as const)(
-		"retains %s server-rendered FAQ and contact copy while preserving interactive translations",
+		"retains %s server-rendered copy while sending only interactive home translations",
 		async (locale) => {
 			const fullMessages = await getUnifiedMessagesForLocale(locale);
 			mocks.locale = locale;
@@ -134,6 +134,9 @@ describe("SaaS root layout", () => {
 				<main>
 					<h2>{fullMessages.faq.items.restrictions.question}</h2>
 					<p>{fullMessages.faq.items.restrictions.answer}</p>
+					<h2>{fullMessages.home.howItWorks.title}</h2>
+					<p>{fullMessages.home.faq.items.guestAvailability.answer}</p>
+					<a href="#image-editor">{fullMessages.home.finalCta.button}</a>
 					<a href="/contact#report-content">
 						{fullMessages.publicContent.contact.reporting.footerLabel}
 					</a>
@@ -148,6 +151,12 @@ describe("SaaS root layout", () => {
 			expect(clientMessages).not.toHaveProperty("faq");
 			expect(clientMessages).not.toHaveProperty("publicContent");
 			expect(clientMessages).not.toHaveProperty("videoV1");
+			expect(clientMessages.home).toEqual({
+				generator: fullMessages.home.generator,
+				creatorWorkflows: fullMessages.home.creatorWorkflows,
+				beforeAfter: fullMessages.home.beforeAfter,
+				showcase: fullMessages.home.showcase,
+			});
 			expect(clientMessages.videoEffects).toEqual({
 				name: fullMessages.videoEffects.name,
 				navigationDescription: fullMessages.videoEffects.navigationDescription,
@@ -155,7 +164,9 @@ describe("SaaS root layout", () => {
 				raindanceNavigationDescription: fullMessages.videoEffects.raindanceNavigationDescription,
 			});
 			for (const [namespace, messages] of Object.entries(fullMessages)) {
-				if (!["admin", "faq", "publicContent", "videoV1", "videoEffects"].includes(namespace)) {
+				if (
+					!["admin", "faq", "publicContent", "home", "videoV1", "videoEffects"].includes(namespace)
+				) {
 					expect(clientMessages[namespace]).toEqual(messages);
 				}
 			}
