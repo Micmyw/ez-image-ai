@@ -346,7 +346,7 @@ test("UI Mock: changed annual qualification refreshes the catalog and survives p
 	await expect.poll(() => state.catalogReads).toBeGreaterThan(previousReads);
 	await expect(page.locator('[data-test="video-confirm"]')).toBeEnabled();
 	await page.getByLabel("Describe your video", { exact: true }).fill("A new sailboat scene.");
-	await selectSetting(page, "Aspect ratio", "9:16");
+	await selectSetting(page, "Frame shape", "9:16");
 	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 96 credits");
 	await expect(page.locator('[data-test="video-annual-banner"]')).not.toContainText(
 		"Your annual video pricing is active",
@@ -374,7 +374,7 @@ test("UI Mock: annual qualification refreshes while continuously foregrounded", 
 	await page.clock.fastForward(31_000);
 	await expect.poll(() => state.catalogReads).toBeGreaterThan(previousReads);
 	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 96 credits");
-	await selectSetting(page, "Aspect ratio", "9:16");
+	await selectSetting(page, "Frame shape", "9:16");
 	await expect(page.locator('[data-test="video-generate"]')).toHaveText("Generate · 96 credits");
 	expect(state.quotes).toBe(0);
 	expect(state.creates).toHaveLength(0);
