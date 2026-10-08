@@ -45,6 +45,7 @@ const destructiveApiFiles = [
 	"modules/media/procedures/get-guest-eligibility.database.integration.test.ts",
 	"modules/media/procedures/retry-generation.database.integration.test.ts",
 ];
+const videoAdmissionFile = "modules/video-v1/veo-tiers.integration.test.ts";
 
 void describe("integration suites use physically distinct disposable databases", () => {
 	void it("isolates all destructive DB, Jobs and API suites while preserving ordinary and video coverage", () => {
@@ -81,13 +82,17 @@ void describe("integration suites use physically distinct disposable databases",
 			assert.ok(mainJobs.args.includes(`src/video-v1/${file}.database.integration.test.ts`));
 
 		const api = forPackage("@repo/api");
-		assert.equal(api.length, 2);
+		assert.equal(api.length, 3);
 		const mainApi = api.find(({ environment }) => environment.TEST_DATABASE_URL === main)!;
 		const guestApi = api.find(({ environment }) => environment.TEST_DATABASE_URL === guest)!;
+		const videoApi = api.find(({ environment }) => environment.TEST_DATABASE_URL === video)!;
 		for (const file of destructiveApiFiles) {
 			assert.equal(mainApi.args[mainApi.args.indexOf(file) - 1], "--exclude", file);
 			assert.ok(guestApi.args.includes(file), file);
 		}
+		assert.equal(mainApi.args[mainApi.args.indexOf(videoAdmissionFile) - 1], "--exclude");
+		assert.ok(!guestApi.args.includes(videoAdmissionFile));
+		assert.ok(videoApi.args.includes(videoAdmissionFile));
 		for (const command of api) {
 			const runtime = new URL(command.environment.DATABASE_URL!);
 			assert.equal(runtime.searchParams.get("application_name"), "ezpic-integration-runtime");
@@ -98,13 +103,26 @@ void describe("integration suites use physically distinct disposable databases",
 
 	void it("keeps API-only integration runs isolated", () => {
 		const commands = buildIntegrationPlan("api");
-		assert.equal(commands.length, 2);
+		assert.equal(commands.length, 3);
 		assert.ok(commands.every(({ args }) => args[1] === "@repo/api"));
 		assert.deepEqual(
 			commands.map(({ environment }) => environment.TEST_DATABASE_URL),
-			[main, guest],
+			[main, guest, video],
 		);
+		assert.equal(commands[0]!.args[commands[0]!.args.indexOf(videoAdmissionFile) - 1], "--exclude");
+		assert.ok(commands[2]!.args.includes(videoAdmissionFile));
 	});
+
+	for (const phase of ["all", "api"]) {
+		void it(`requires an approved isolated video target before planning ${phase} admission tests`, () => {
+			delete process.env.VIDEO_VERIFICATION_DATABASE_URL;
+			assert.throws(() => buildIntegrationPlan(phase));
+		});
+		void it(`rejects a shared video/foundation target before planning ${phase} admission tests`, () => {
+			process.env.TEST_DATABASE_URL = video;
+			assert.throws(() => buildIntegrationPlan(phase), /DATABASE_TARGETS_MUST_BE_DISTINCT/);
+		});
+	}
 
 	void it("requires a separately approved guest target rather than falling back to the main database", () => {
 		delete process.env.GUEST_TEST_DATABASE_URL;

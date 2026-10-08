@@ -23,7 +23,12 @@ export function buildIntegrationPlan(phase = "all"): IntegrationCommand[] {
 	if (!isExplicitGuestVerificationTarget(new URL(guestTestDatabaseUrl)))
 		throw new Error("ISOLATED_GUEST_TEST_DATABASE_REQUIRED");
 	const databaseTargets = [new URL(testDatabaseUrl), new URL(guestTestDatabaseUrl)];
-	assertDistinctDatabaseTargets(databaseTargets);
+	const videoTestDatabaseUrl = assertSafeDatabaseUrl(
+		process.env.VIDEO_VERIFICATION_DATABASE_URL,
+	).toString();
+	if (!isExplicitVideoVerificationTarget(new URL(videoTestDatabaseUrl)))
+		throw new Error("ISOLATED_VIDEO_TEST_DATABASE_REQUIRED");
+	assertDistinctDatabaseTargets([...databaseTargets, new URL(videoTestDatabaseUrl)]);
 	const commands: IntegrationCommand[] = [];
 	const isolatedGuestDatabaseTests = [
 		"prisma/queries/media/anonymous-standard-schema.integration.test.ts",
@@ -41,12 +46,6 @@ export function buildIntegrationPlan(phase = "all"): IntegrationCommand[] {
 	] as const;
 
 	if (phase === "all") {
-		const videoTestDatabaseUrl = assertSafeDatabaseUrl(
-			process.env.VIDEO_VERIFICATION_DATABASE_URL,
-		).toString();
-		if (!isExplicitVideoVerificationTarget(new URL(videoTestDatabaseUrl)))
-			throw new Error("ISOLATED_VIDEO_TEST_DATABASE_REQUIRED");
-		assertDistinctDatabaseTargets([...databaseTargets, new URL(videoTestDatabaseUrl)]);
 		run(
 			[
 				"--filter",
@@ -145,6 +144,9 @@ export function buildIntegrationPlan(phase = "all"): IntegrationCommand[] {
 		"modules/media/procedures/get-guest-eligibility.database.integration.test.ts",
 		"modules/media/procedures/retry-generation.database.integration.test.ts",
 	] as const;
+	// Real video admission counts every live legacy job against the same provider.
+	// Foundation suites deliberately retain such jobs; never clear them or relax capacity.
+	const isolatedVideoApiTests = ["modules/video-v1/veo-tiers.integration.test.ts"] as const;
 	run(
 		[
 			"--filter",
@@ -154,6 +156,7 @@ export function buildIntegrationPlan(phase = "all"): IntegrationCommand[] {
 			"run",
 			...(phase === "api" ? [".integration.test.ts"] : []),
 			...isolatedApiDatabaseTests.flatMap((test) => ["--exclude", test]),
+			...isolatedVideoApiTests.flatMap((test) => ["--exclude", test]),
 		],
 		true,
 		testDatabaseUrl,
@@ -164,6 +167,12 @@ export function buildIntegrationPlan(phase = "all"): IntegrationCommand[] {
 		false,
 		guestTestDatabaseUrl,
 		runtimeDatabaseAlias(guestTestDatabaseUrl),
+	);
+	run(
+		["--filter", "@repo/api", "exec", "vitest", "run", ...isolatedVideoApiTests],
+		true,
+		videoTestDatabaseUrl,
+		runtimeDatabaseAlias(videoTestDatabaseUrl),
 	);
 	return commands;
 
