@@ -25,7 +25,7 @@ import { adminProcedure, protectedProcedure } from "../../orpc/procedures";
 import { loadUserPlanEntitlement } from "../media/lib/plan-entitlement";
 import { enforceMediaRateLimit } from "../media/lib/rate-limit";
 import { maximumMediaStorageBytes } from "../media/lib/storage-limits";
-import { buildVideoCatalogModels } from "./catalog";
+import { buildVideoCatalogModels, hasAvailableVideoModel } from "./catalog";
 import { createVideoPlayback } from "./playback";
 import { createVideoUpload, completeVideoUpload } from "./uploads";
 
@@ -51,32 +51,54 @@ async function videoAction<T>(action: () => Promise<T>): Promise<T> {
 	}
 }
 
+async function readCatalogPolicy(user: NonNullable<Parameters<typeof canAccessVideoV1>[1]>) {
+	const config = readVideoV1Config(process.env);
+	const accessAllowed = canAccessVideoV1(config, user);
+	const bindings = getVideoWorkflowReadinessBindings();
+	const eligibility = isVideoRetailPricingApproved(process.env)
+		? await resolveVideoRetailEligibility(user.id, db)
+		: undefined;
+	const blocked = accessAllowed
+		? await db.runtimeConfigOverride.findMany({
+				where: {
+					active: true,
+					configKey: {
+						in: [
+							"media.generation.enabled",
+							...VIDEO_MODEL_CATALOG.map((model) => `media.model.${model.productKey}.enabled`),
+						],
+					},
+					value: { equals: false },
+				},
+				select: { configKey: true },
+			})
+		: [];
+	const disabledKeys = new Set(blocked.map((row) => row.configKey));
+	return { config, accessAllowed, bindings, eligibility, disabledKeys };
+}
+
+const availability = protectedProcedure
+	.route({ method: "GET", path: "/video-v1/availability", tags: ["Video V1"] })
+	.handler(async ({ context: { user } }) => {
+		const { accessAllowed, bindings, eligibility, disabledKeys } = await readCatalogPolicy(user);
+		return {
+			available: hasAvailableVideoModel(
+				process.env,
+				bindings,
+				accessAllowed,
+				disabledKeys,
+				eligibility ? { audience: eligibility.audience, eligibility } : undefined,
+			),
+			...(eligibility ? { pricingValidUntil: eligibility.validUntil } : {}),
+		};
+	});
+
 const catalog = protectedProcedure
 	.route({ method: "GET", path: "/video-v1/catalog", tags: ["Video V1"] })
 	.handler(async ({ context: { user } }) => {
-		const config = readVideoV1Config(process.env);
-		const accessAllowed = canAccessVideoV1(config, user);
-		const bindings = getVideoWorkflowReadinessBindings();
+		const { config, accessAllowed, bindings, eligibility, disabledKeys } =
+			await readCatalogPolicy(user);
 		const entitlement = await loadUserPlanEntitlement(user.id);
-		const eligibility = isVideoRetailPricingApproved(process.env)
-			? await resolveVideoRetailEligibility(user.id, db)
-			: undefined;
-		const blocked = accessAllowed
-			? await db.runtimeConfigOverride.findMany({
-					where: {
-						active: true,
-						configKey: {
-							in: [
-								"media.generation.enabled",
-								...VIDEO_MODEL_CATALOG.map((model) => `media.model.${model.productKey}.enabled`),
-							],
-						},
-						value: { equals: false },
-					},
-					select: { configKey: true },
-				})
-			: [];
-		const disabledKeys = new Set(blocked.map((row) => row.configKey));
 		const models = buildVideoCatalogModels(
 			process.env,
 			bindings,
@@ -333,6 +355,7 @@ const diagnostics = adminProcedure
 
 export const videoV1Router = {
 	catalog,
+	availability,
 	quote,
 	uploads: { create: uploadCreate, complete: uploadComplete },
 	jobs: { create, get, list, playback },

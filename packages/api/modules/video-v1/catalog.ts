@@ -25,6 +25,47 @@ const publicOptions = new Map(
 	]),
 );
 
+/** Navigation needs one usable option, not the complete personalized price table. */
+export function hasAvailableVideoModel(
+	environment: Record<string, string | undefined>,
+	bindings: VideoV1Bindings,
+	accessAllowed: boolean,
+	disabledKeys: ReadonlySet<string>,
+	pricingContext?: VideoRetailPricingContext,
+): boolean {
+	if (!accessAllowed || disabledKeys.has("media.generation.enabled")) return false;
+	if (videoV1Readiness(environment, bindings, { multiModel: true, sound: false }).reasons.length)
+		return false;
+	let soundReady: boolean | undefined;
+	for (const model of VIDEO_MODEL_CATALOG) {
+		if (
+			model.status !== "implemented" ||
+			disabledKeys.has(`media.model.${model.productKey}.enabled`)
+		)
+			continue;
+		for (const option of publicOptions.get(model.productKey)!) {
+			if (option.sound) {
+				soundReady ??=
+					videoV1Readiness(environment, bindings, { multiModel: true, sound: true }).reasons
+						.length === 0;
+				if (!soundReady) continue;
+			}
+			try {
+				// Reuse every existing approval, expiry, audience and cost guard.
+				resolveVideoModelPrice(
+					{ productKey: model.productKey, ...option },
+					environment,
+					pricingContext,
+				);
+				return true;
+			} catch {
+				// Another model/option can remain usable when this price is unavailable.
+			}
+		}
+	}
+	return false;
+}
+
 export function buildVideoCatalogModels(
 	environment: Record<string, string | undefined>,
 	bindings: VideoV1Bindings,

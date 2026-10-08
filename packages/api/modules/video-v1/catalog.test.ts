@@ -4,7 +4,7 @@ import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { buildVideoCatalogModels } from "./catalog";
+import { buildVideoCatalogModels, hasAvailableVideoModel } from "./catalog";
 
 // Placeholder configuration tests gate behavior and arithmetic only. No provider is contacted.
 const environment = {
@@ -43,6 +43,73 @@ const environment = {
 	VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
 };
 const bindings = { workflow: true, r2: true, hyperdrive: true, uploadCors: true };
+
+describe("lightweight video navigation availability", () => {
+	it.each([
+		{ name: "approved", overrides: {}, access: true, disabled: [] },
+		{ name: "denied", overrides: {}, access: false, disabled: [] },
+		{
+			name: "disabled globally",
+			overrides: {},
+			access: true,
+			disabled: ["media.generation.enabled"],
+		},
+		{
+			name: "first model disabled",
+			overrides: {},
+			access: true,
+			disabled: ["media.model.video-kling-2-6-v1.enabled"],
+		},
+		{
+			name: "unapproved price",
+			overrides: { VIDEO_PRICE_ACCEPTED_VERSION: "unapproved" },
+			access: true,
+			disabled: [],
+		},
+		{
+			name: "expired price",
+			overrides: { VIDEO_PRICE_VALID_UNTIL: "2020-01-01T00:00:00Z" },
+			access: true,
+			disabled: [],
+		},
+		{ name: "missing provider", overrides: { KIE_API_KEY: undefined }, access: true, disabled: [] },
+		{
+			name: "unconfirmed review policy",
+			overrides: { VIDEO_COST_VISUAL_POLICY_VERSION: "unconfirmed" },
+			access: true,
+			disabled: [],
+		},
+	])("matches the full catalog for $name", ({ overrides, access, disabled }) => {
+		const env = { ...environment, ...overrides };
+		const disabledKeys = new Set(disabled);
+		const full = buildVideoCatalogModels(env, bindings, access, disabledKeys);
+		expect(hasAvailableVideoModel(env, bindings, access, disabledKeys)).toBe(
+			full.some((model) => model.available),
+		);
+	});
+	it("does not expose an available model when all implemented models are disabled", () => {
+		const disabled = new Set(
+			buildVideoCatalogModels(environment, bindings, true, new Set()).map(
+				(model) => `media.model.${model.productKey}.enabled`,
+			),
+		);
+		expect(hasAvailableVideoModel(environment, bindings, true, disabled)).toBe(false);
+	});
+	it("retains the annual audience and eligibility validation", () => {
+		const env = {
+			...environment,
+			VIDEO_RETAIL_PRICE_ACCEPTED_VERSION: "video-retail-2026-10-08.1",
+		};
+		for (const audience of ["standard", "annual"] as const) {
+			const context = { audience };
+			expect(hasAvailableVideoModel(env, bindings, true, new Set(), context)).toBe(
+				buildVideoCatalogModels(env, bindings, true, new Set(), context).some(
+					(model) => model.available,
+				),
+			);
+		}
+	});
+});
 
 beforeEach(() => {
 	vi.useFakeTimers();

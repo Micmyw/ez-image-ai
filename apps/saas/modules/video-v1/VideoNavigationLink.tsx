@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { useVideoCatalog } from "./use-video";
+import { useVideoAvailability } from "./use-video-availability";
 
 export function VideoNavigationLink({
 	className = "studio-nav-link",
@@ -16,8 +16,8 @@ export function VideoNavigationLink({
 }) {
 	const t = useTranslations("app.menu");
 	const pathname = usePathname();
-	const catalog = useVideoCatalog();
-	if (!catalog.data?.available) return null;
+	const availability = useVideoAvailability();
+	if (!availability.data?.available) return null;
 	return (
 		<Link
 			href="/video"
