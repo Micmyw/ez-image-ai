@@ -28,6 +28,9 @@ type Scenario = {
 	creates: Array<Record<string, unknown>>;
 	playback: number;
 	ordinaryVideoJobRequests: number;
+	navigationAvailable?: boolean;
+	navigationAvailabilityRequests: number;
+	ordinaryCatalogRequests: number;
 	eligibleCredits: string;
 	quoteCredits: string;
 	waitForQuote?: Promise<void>;
@@ -46,6 +49,8 @@ const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 	creates: [],
 	playback: 0,
 	ordinaryVideoJobRequests: 0,
+	navigationAvailabilityRequests: 0,
+	ordinaryCatalogRequests: 0,
 	eligibleCredits: "120",
 	quoteCredits: "69",
 	...patch,
@@ -121,8 +126,14 @@ async function setup(page: Page, state: Scenario) {
 			return reply({ spendableCredits: "120", reservedCredits: "0" });
 		if (endpoint === "media/getPublicCatalog") return reply({ products: [] });
 		if (endpoint === "payments/listPurchases") return reply([]);
-		if (endpoint === "videoV1/catalog")
+		if (endpoint === "videoV1/availability") {
+			state.navigationAvailabilityRequests++;
+			return reply({ available: Boolean(state.navigationAvailable) });
+		}
+		if (endpoint === "videoV1/catalog") {
+			state.ordinaryCatalogRequests++;
 			return reply({ available: false, accessAllowed: false, models: [], reasons: [] });
+		}
 		if (endpoint === "videoEffects/access")
 			return reply({
 				effectId: "hotel-lobby-duo",
@@ -247,6 +258,24 @@ async function uploadBoth(page: Page) {
 	await page.locator("#ve-upload-right").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
 }
+
+for (const signedIn of [true, false])
+	test(`UI Mock: effect navigation uses only lightweight availability (signed in: ${signedIn})`, async ({
+		page,
+	}) => {
+		const state = scenario({ signedIn, navigationAvailable: true });
+		await setup(page, state);
+		if (signedIn) {
+			await expect(page.locator('.studio-sidebar a[href="/video"]')).toBeVisible();
+			expect(state.navigationAvailabilityRequests).toBe(1);
+		} else {
+			await expect(page.locator(".studio-header-account a[href^='/login']")).toBeVisible();
+			expect(state.navigationAvailabilityRequests).toBe(0);
+		}
+		expect(state.ordinaryCatalogRequests).toBe(0);
+		expect(state.quotes).toHaveLength(0);
+		expect(state.creates).toHaveLength(0);
+	});
 
 test("UI Mock: review-regression history navigation invalidates a pending quote", async ({
 	page,

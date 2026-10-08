@@ -6,11 +6,11 @@ Follow-up to `420eb4df`, on the isolated `codex/hotel-raindance-remediation` bra
 
 Cloudflare read-only telemetry reconfirmed the exact reported Ray on Worker version `4aa80d15-c36b-45b4-bffa-c891b56c2b95` (Git build `1e09de497839c2c816313e72489c38660f4df200`):
 
-| UTC | Request | Result | CPU / wall |
-| --- | --- | --- | --- |
-| 12:30:27.177 | Raindance Ray `a475282bdd5ffac2` | Three retained `Worker exceeded memory limit.` exception records, no allocation stack | Not supplied on exception records |
-| 12:30:30.451 | `GET /blog/raindance-ai-trend`, same Ray | HTTP 503, `exceededMemory` | 3321 / 3886 ms |
-| 12:30:31.066 | `POST /api/rpc/videoV1/catalog`, Ray `a475283ca89bfac2` | HTTP 503, `exceededMemory` | 0 / 1189 ms |
+| UTC          | Request                                                 | Result                                                                                | CPU / wall                        |
+| ------------ | ------------------------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------- |
+| 12:30:27.177 | Raindance Ray `a475282bdd5ffac2`                        | Three retained `Worker exceeded memory limit.` exception records, no allocation stack | Not supplied on exception records |
+| 12:30:30.451 | `GET /blog/raindance-ai-trend`, same Ray                | HTTP 503, `exceededMemory`                                                            | 3321 / 3886 ms                    |
+| 12:30:31.066 | `POST /api/rpc/videoV1/catalog`, Ray `a475283ca89bfac2` | HTTP 503, `exceededMemory`                                                            | 0 / 1189 ms                       |
 
 The catalog invocation used POST at the RPC transport boundary; its documented OpenAPI route uses GET. A nearby account-credit read succeeded. No per-request heap, allocation stack or isolate identifier was returned. The shared website Worker runs both routes, but the records do not prove these requests used the same isolate or identify which allocation exhausted it. The zero-CPU catalog failure is not evidence that its pricing calculation itself caused this incident.
 
@@ -22,16 +22,16 @@ Cloudflare's [memory limit](https://developers.cloudflare.com/workers/platform/l
 
 The navigation now calls an authenticated `videoV1.availability` read. It shares the catalog's access, model-disable and owner-specific eligibility reads. It returns availability and qualification expiry, and stops pricing once one usable option is found. The exact existing price resolver still enforces approval, expiry, audience and cost policy. The generator retains its full catalog; no price/output contract changes.
 
-The client uses a separate owner-scoped cache, keeps the 30-second visible-page refresh and known-expiry refresh, responds to payment invalidation, disables visitor/anonymous queries and does not retry. No catalog data is shared between owners. A failure hides the navigation entry; there is no fallback to the full table.
+The client uses a separate owner-scoped cache, keeps the 30-second visible-page refresh and known-expiry refresh, responds to payment invalidation, disables visitor/anonymous queries and does not retry. No catalog data is shared between owners. A first failure without usable cached data hides the navigation entry. A background refresh failure keeps the previous cached availability; a successful unavailable response hides the entry. This preserves the existing navigation behavior, and there is no fallback to the full table.
 
 ## Local measurement
 
 The isolated Node helper benchmark used only explicit fixtures, no database or provider calls. Five serial samples of the full table produced 17 models, 1,188 priced options and 367,524 JSON bytes. The identical fixture's navigation result was `{ "available": true }` (18 bytes, excluding RPC framing and the endpoint's qualification-expiry field).
 
-| Helper | Five-sample elapsed range | Heap-used delta after first call |
-| --- | --- | --- |
-| Full catalog | 9.87–16.99 ms | 6,004,904 bytes |
-| Navigation availability | 0.13–0.31 ms | 48,432 bytes |
+| Helper                  | Five-sample elapsed range | Heap-used delta after first call |
+| ----------------------- | ------------------------- | -------------------------------- |
+| Full catalog            | 9.87–16.99 ms             | 6,004,904 bytes                  |
+| Navigation availability | 0.13–0.31 ms              | 48,432 bytes                     |
 
 The full-table function was not changed. Heap deltas depend on GC; these are not peak-memory figures, a capacity estimate, or the deployed Workers heap. Node module loading was also inspected, but Node/tsx import memory is not presented as production Worker memory. No Next/OpenNext build ran alongside the other developer's build; historical local Worker artifacts were stale and were not used as this release's evidence.
 
@@ -40,9 +40,9 @@ Task-local scripts and raw measurements are in `D:/梅一伟/Documents/codex/202
 The local **workerd** probe completed at 15:24:07 UTC with five serial requests in each of two fresh runtimes. All ten returned HTTP 200 and the same availability decision. External service requests were hard-blocked; there were no database/provider bindings. `Runtime.getHeapUsage` measured the actual task-local V8 isolate before and after each request:
 
 | workerd helper | Local dispatch + response read | First request JS heap delta | Response bytes |
-| --- | --- | --- | --- |
-| Full catalog | 15.56–23.36 ms | +1,057,372 | 367,524 |
-| Navigation | 1.65–3.68 ms | +69,504 | 18 |
+| -------------- | ------------------------------ | --------------------------- | -------------- |
+| Full catalog   | 15.56–23.36 ms                 | +1,057,372                  | 367,524        |
+| Navigation     | 1.65–3.68 ms                   | +69,504                     | 18             |
 
 This is a 600,773-byte helper bundle, not the deployed Next artifact. Timings include local dispatch/response reads, not just Worker CPU. No forced GC was used for these samples; later full-table deltas include automatic collection and can be negative. They do not measure peak memory or a leak. Both runtimes and their loopback inspectors were disposed. Evidence: `evidence/catalog-workerd-memory.json`. Earlier inspector harness attempts failed or were interrupted and are not counted as passing measurements.
 
@@ -54,10 +54,10 @@ The next memory investigation must profile the complete integrated release with 
 
 The earlier report's missing-material blocker is superseded by this targeted repository search. Both selected images were visually inspected; neither is a competitor output, a downloaded real-person photograph, or a new generation in this task.
 
-| Input order | File under `apps/saas/public` | Provenance | SHA-256 |
-| --- | --- | --- | --- |
-| Left, A | `images/effects/1980s-ai-photo/input-adult-v1.webp` (1000×1250, 131,048 bytes) | `docs/product/evidence/1980s-ai-photo-2026-09-29.json`: user-authorized built-in image generation, fictional early-thirties adult woman, no real-person reference. Original artifact `exec-70958d8b-9c84-4dcf-821d-85a4566923a3.png`. | `87591984e7ff7bc665408716dcbd1136368773fa4d39ad1bf88565cf0c51fab4` |
-| Right, B | `images/models/nano-portrait.webp` (1024×1536, 130,166 bytes) | `docs/product/model-artwork.json`: original Codex/OpenAI image tool artwork; exact prompt names a fictional adult woman. Original artifact `exec-9f46165d-c807-46ff-958c-2d86d6ab1f68.png`, preserved from `94fa11299c145d5cfde0587a5af80cd05a84be02`. | `56ec9321df79a6cc1811fb8812b6921bbbe51f1913f316cbe68fb913beaa73e6` |
+| Input order | File under `apps/saas/public`                                                  | Provenance                                                                                                                                                                                                                                             | SHA-256                                                            |
+| ----------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Left, A     | `images/effects/1980s-ai-photo/input-adult-v1.webp` (1000×1250, 131,048 bytes) | `docs/product/evidence/1980s-ai-photo-2026-09-29.json`: user-authorized built-in image generation, fictional early-thirties adult woman, no real-person reference. Original artifact `exec-70958d8b-9c84-4dcf-821d-85a4566923a3.png`.                  | `87591984e7ff7bc665408716dcbd1136368773fa4d39ad1bf88565cf0c51fab4` |
+| Right, B    | `images/models/nano-portrait.webp` (1024×1536, 130,166 bytes)                  | `docs/product/model-artwork.json`: original Codex/OpenAI image tool artwork; exact prompt names a fictional adult woman. Original artifact `exec-9f46165d-c807-46ff-958c-2d86d6ab1f68.png`, preserved from `94fa11299c145d5cfde0587a5af80cd05a84be02`. | `56ec9321df79a6cc1811fb8812b6921bbbe51f1913f316cbe68fb913beaa73e6` |
 
 A has a gray shirt and frontal portrait; B has a blue coat/orange scarf and an over-shoulder pose. This supplies different identities and clothes to evaluate left/right mapping. Both are torso portraits, so a generated scene must invent unseen body detail; full-body preservation cannot be claimed. The model-gallery label does not make B a verified output of that named product model. Use as owned synthetic input only, not as a product result. Internal testing is the authorized use; this task does not publish source or output samples.
 

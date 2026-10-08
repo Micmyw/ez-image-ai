@@ -124,6 +124,7 @@ async function setup(page: Page, state: Scenario) {
 			return reply({ spendableCredits: "120", reservedCredits: "0" });
 		if (endpoint === "media/getPublicCatalog") return reply({ products: [] });
 		if (endpoint === "payments/listPurchases") return reply([]);
+		if (endpoint === "videoV1/availability") return reply({ available: false });
 		if (endpoint === "videoV1/catalog")
 			return reply({ available: false, accessAllowed: false, models: [], reasons: [] });
 		if (endpoint === "videoEffects/access")
