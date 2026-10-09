@@ -150,6 +150,8 @@ beforeEach(() => {
 	mocks.outboxStore.defer.mockResolvedValue(undefined);
 	mocks.outboxStore.release.mockResolvedValue(undefined);
 	mocks.dispatchStore.claimDispatch.mockResolvedValue(null);
+	mocks.dispatchStore.recordSubmission.mockReset();
+	mocks.dispatchStore.recordSynchronousCompletion.mockReset();
 	mocks.findAsset.mockResolvedValue(null);
 	mocks.findJob.mockResolvedValue(null);
 	mocks.findAttempt.mockResolvedValue(null);
@@ -548,39 +550,71 @@ describe("Node task executor", () => {
 		);
 	});
 
-	it("returns the original accepted attempt for durable in-flow polling without another dispatch", async () => {
-		mocks.dispatchStore.claimDispatch.mockResolvedValue({
-			attemptId: "attempt-1",
-			attemptNumber: 1,
-			serviceClass: "STANDARD",
-			provider: "kie",
-			providerModelId: "nano-banana-2",
-			input: { kind: "text-to-image", prompt: "sample", aspectRatio: "1:1" },
-			mediaKind: "image",
-			queueKey: "kie:nano-banana-2",
-		});
-		mocks.adapter.submit.mockResolvedValue({
-			outcome: "accepted",
-			status: "RUNNING",
-			providerTaskId: "remote-1",
-			idempotency: { providerSupported: false, replayed: false },
-			reconciliation: { submissionToken: "token-1" },
-		});
-		mocks.continuation.mockResolvedValueOnce({ eventIds: [], pollAttemptId: "attempt-1" } as never);
-		expect(
-			await executeTask(
+	it.each([
+		{ continuation: { eventIds: [], pollAttemptId: "attempt-1" }, synchronous: false },
+		{ continuation: { eventIds: ["committed-finalize-1"] }, synchronous: true },
+		{ continuation: { eventIds: [] }, synchronous: true },
+		{ continuation: undefined, synchronous: false },
+	])(
+		"uses committed continuation and keeps legacy void fallback (%j)",
+		async ({ continuation, synchronous }) => {
+			mocks.dispatchStore.claimDispatch.mockResolvedValue({
+				attemptId: "attempt-1",
+				attemptNumber: 1,
+				serviceClass: "STANDARD",
+				provider: "kie",
+				providerModelId: "nano-banana-2",
+				input: { kind: "text-to-image", prompt: "sample", aspectRatio: "1:1" },
+				mediaKind: "image",
+				queueKey: "kie:nano-banana-2",
+			});
+			mocks.adapter.submit.mockResolvedValue({
+				outcome: "accepted",
+				status: synchronous ? "SUCCEEDED" : "RUNNING",
+				providerTaskId: "remote-1",
+				idempotency: { providerSupported: false, replayed: false },
+				reconciliation: { submissionToken: "token-1" },
+				...(synchronous
+					? { snapshot: { providerTaskId: "remote-1", status: "SUCCEEDED", raw: {} } }
+					: {}),
+			});
+			mocks.adapter.normalizeResult.mockResolvedValue({ outputs: [] });
+			const record = synchronous
+				? mocks.dispatchStore.recordSynchronousCompletion
+				: mocks.dispatchStore.recordSubmission;
+			record.mockResolvedValueOnce(continuation);
+			const expected = continuation ?? { eventIds: [], pollAttemptId: "attempt-1" };
+			mocks.continuation.mockResolvedValueOnce(expected);
+			expect(
+				await executeTask(
+					{
+						taskId: "media-dispatch-image-kie-nano-banana-2",
+						payload: { jobId: "job-1", version: 0 },
+					},
+					context,
+					{ now: () => new Date(1_200_000) },
+				),
+			).toEqual({ outcome: "SUBMITTED", continuation: expected });
+			expect(mocks.continuation).toHaveBeenCalledTimes(continuation === undefined ? 1 : 0);
+			expect(mocks.dispatch).not.toHaveBeenCalled();
+			expect(record).toHaveBeenCalledTimes(1);
+			expect(mocks.dispatchStore.recordUncertainSubmission).not.toHaveBeenCalled();
+			expect(mocks.adapter.submit).toHaveBeenCalledTimes(1);
+		},
+	);
+
+	it("keeps the compatibility continuation query for a skipped dispatch", async () => {
+		mocks.continuation.mockResolvedValueOnce({ eventIds: ["recovery-event"] });
+		await expect(
+			executeTask(
 				{
 					taskId: "media-dispatch-image-kie-nano-banana-2",
 					payload: { jobId: "job-1", version: 0 },
 				},
 				context,
-				{ now: () => new Date(1_200_000) },
 			),
-		).toEqual({ outcome: "SUBMITTED", continuation: { eventIds: [], pollAttemptId: "attempt-1" } });
-		expect(mocks.dispatch).not.toHaveBeenCalled();
-		expect(mocks.dispatchStore.recordSubmission).toHaveBeenCalledTimes(1);
-		expect(mocks.dispatchStore.recordUncertainSubmission).not.toHaveBeenCalled();
-		expect(mocks.adapter.submit).toHaveBeenCalledTimes(1);
+		).resolves.toEqual({ outcome: "SKIPPED", continuation: { eventIds: ["recovery-event"] } });
+		expect(mocks.continuation).toHaveBeenCalledExactlyOnceWith("job-1", expect.anything());
 	});
 
 	it("runs critical Outbox delivery inline and acknowledges only after completion", async () => {

@@ -872,7 +872,7 @@ export function createDatabaseDispatchStore(
 			});
 		},
 		async recordSubmission(attemptId, submission) {
-			await database.$transaction(async (tx) => {
+			return database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findUniqueOrThrow({
 					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 				});
@@ -914,7 +914,7 @@ export function createDatabaseDispatchStore(
 						nextReconcileAt: terminal ? null : new Date(Date.now() + 10_000),
 					},
 				});
-				await tx.generationJob.updateMany({
+				const changed = await tx.generationJob.updateMany({
 					where: { executionEngine: "legacy", id: attempt.jobId, status: "SUBMITTING" },
 					data: {
 						status: terminal ? "FINALIZING" : "PROVIDER_PENDING",
@@ -922,7 +922,7 @@ export function createDatabaseDispatchStore(
 					},
 				});
 				if (terminal) {
-					await tx.outboxEvent.upsert({
+					const event = await tx.outboxEvent.upsert({
 						where: { dedupeKey: `generation-finalize:${attempt.jobId}:${attempt.id}` },
 						create: {
 							eventType: "GENERATION_FINALIZE",
@@ -932,8 +932,12 @@ export function createDatabaseDispatchStore(
 							payload: { jobId: attempt.jobId },
 						},
 						update: {},
+						select: { id: true },
 					});
+					return changed.count === 1 ? { eventIds: [event.id] } : undefined;
 				}
+				// A concurrent state transition retains the historical compatibility read.
+				return changed.count === 1 ? { eventIds: [], pollAttemptId: attempt.id } : undefined;
 			});
 		},
 		async recordUncertainSubmission(attemptId, evidence) {
@@ -978,7 +982,7 @@ export function createDatabaseDispatchStore(
 			});
 		},
 		async recordSynchronousCompletion(attemptId, submission, result) {
-			await database.$transaction(async (tx) => {
+			return database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findUniqueOrThrow({
 					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 					include: { job: { select: { productKey: true } } },
@@ -1013,7 +1017,7 @@ export function createDatabaseDispatchStore(
 							submittedAt: new Date(),
 						},
 					});
-					return;
+					return { eventIds: [] };
 				}
 				await tx.generationAttemptTransferEnvelope.upsert({
 					where: { attemptId },
@@ -1042,7 +1046,7 @@ export function createDatabaseDispatchStore(
 					data: { status: "FINALIZING", version: { increment: 1 } },
 				});
 				if (changed.count !== 1) throw new Error("Synchronous completion job state changed");
-				await tx.outboxEvent.upsert({
+				const event = await tx.outboxEvent.upsert({
 					where: { dedupeKey: `generation-finalize:${attempt.jobId}:${attempt.id}` },
 					create: {
 						eventType: "GENERATION_FINALIZE",
@@ -1052,8 +1056,10 @@ export function createDatabaseDispatchStore(
 						payload: { jobId: attempt.jobId },
 					},
 					update: {},
+					select: { id: true },
 				});
 				await options.beforeSynchronousCommit?.();
+				return { eventIds: [event.id] };
 			});
 		},
 		async recordRejectedSubmission(attemptId, failure) {

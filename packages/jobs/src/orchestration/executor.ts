@@ -145,7 +145,10 @@ export async function executeTask(
 		});
 		return {
 			...result,
-			continuation: await getSubmittedGenerationContinuation(payload.jobId as string, db),
+			continuation:
+				result.continuation === undefined
+					? await getSubmittedGenerationContinuation(payload.jobId as string, db)
+					: result.continuation,
 		};
 	}
 

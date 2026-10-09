@@ -1,12 +1,13 @@
 import { MediaProviderError, type ProviderSubmission } from "@repo/ai";
 
-import type { DispatchDependencies, DispatchJobPayload } from "../contracts";
+import type { DispatchContinuation, DispatchDependencies, DispatchJobPayload } from "../contracts";
 
 export async function dispatchGeneration(
 	payload: DispatchJobPayload,
 	dependencies: DispatchDependencies,
 ): Promise<{
 	outcome: "SKIPPED" | "SUBMITTED" | "RECONCILE" | "REJECTED" | "RECOVERY_REQUIRED";
+	continuation?: DispatchContinuation;
 }> {
 	const generationEnabled =
 		dependencies.isGenerationEnabled?.() ?? process.env.MEDIA_GENERATION_ENABLED === "true";
@@ -46,11 +47,16 @@ export async function dispatchGeneration(
 			await dependencies.store.recordRejectedSubmission(claim.attemptId, submission.failure);
 			return { outcome: "REJECTED" };
 		}
+		let continuation: DispatchContinuation | void;
 		if (submission.status === "SUCCEEDED" && submission.snapshot) {
 			const result = await adapter.normalizeResult(submission.snapshot);
-			await dependencies.store.recordSynchronousCompletion(claim.attemptId, submission, result);
+			continuation = await dependencies.store.recordSynchronousCompletion(
+				claim.attemptId,
+				submission,
+				result,
+			);
 		} else {
-			await dependencies.store.recordSubmission(claim.attemptId, submission);
+			continuation = await dependencies.store.recordSubmission(claim.attemptId, submission);
 			// Acceptance is already durable. Scheduler failure must never turn it into
 			// submission uncertainty or trigger another Provider submission.
 			try {
@@ -59,7 +65,7 @@ export async function dispatchGeneration(
 				// Scheduled reconciliation can recover the same persisted attempt.
 			}
 		}
-		return { outcome: "SUBMITTED" };
+		return { outcome: "SUBMITTED", ...(continuation === undefined ? {} : { continuation }) };
 	} catch (error) {
 		if (
 			error instanceof MediaProviderError &&

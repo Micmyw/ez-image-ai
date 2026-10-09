@@ -87,15 +87,24 @@ export class DispatchAdmissionBlockedError extends Error {
 	}
 }
 
+export interface DispatchContinuation {
+	eventIds: string[];
+	pollAttemptId?: string;
+}
+
 export interface DispatchStore {
 	claimDispatch(payload: DispatchJobPayload): Promise<DispatchClaim | null>;
 	recordSubmissionStarted(attemptId: string): Promise<void>;
-	recordSubmission(attemptId: string, submission: ProviderSubmission): Promise<void>;
+	/** Older stores may omit continuation; durable stores return committed identities. */
+	recordSubmission(
+		attemptId: string,
+		submission: ProviderSubmission,
+	): Promise<DispatchContinuation | void>;
 	recordSynchronousCompletion(
 		attemptId: string,
 		submission: ProviderSubmission,
 		result: NormalizedResult,
-	): Promise<void>;
+	): Promise<DispatchContinuation | void>;
 	recordUncertainSubmission(
 		attemptId: string,
 		evidence: UncertainSubmissionEvidence,

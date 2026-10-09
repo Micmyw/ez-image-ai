@@ -6,7 +6,15 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 let database: PrismaClient;
 beforeAll(() => {
 	const url = new URL(process.env.TEST_DATABASE_URL ?? "");
-	if (url.hostname !== "127.0.0.1" || url.port !== "55432" || !url.pathname.includes("test"))
+	const explicitImageTarget =
+		process.env.MEDIA_IMAGE_TEST_DATABASE_URL === url.href &&
+		url.port !== "5432" &&
+		Boolean(url.port);
+	if (
+		url.hostname !== "127.0.0.1" ||
+		(url.port !== "55432" && !explicitImageTarget) ||
+		!url.pathname.includes("test")
+	)
 		throw new Error("USE_DISPOSABLE_DATABASE");
 	database = new PrismaClient({ adapter: new PrismaPg({ connectionString: url.href }) });
 });

@@ -28,6 +28,7 @@ import {
 	completeOutboxEvent,
 	releaseOutboxEvent,
 	deferOutboxEvent,
+	getSubmittedGenerationContinuation,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { MediaValidationError } from "@repo/storage";
@@ -63,6 +64,7 @@ const TEST_EXECUTABLE_PROVIDERS = new Set<ProviderKey>(["replicate", "fal", "kie
 const LEGACY_CATALOG_VERSION = "2026-08-13.1";
 const LEGACY_PRICING_VERSION = "2026-08-13.1";
 let client: PrismaClient;
+let observedQueries: string[] = [];
 
 function createTestDispatchStore(options: Omit<DispatchRuntimeOptions, "enabledProviders"> = {}) {
 	return createDatabaseDispatchStore(client, {
@@ -75,9 +77,12 @@ function createTestDispatchStore(options: Omit<DispatchRuntimeOptions, "enabledP
 describe("production media runtime stores", () => {
 	beforeAll(() => {
 		assertSafeTestDatabaseUrl(TEST_DATABASE_URL);
-		client = new PrismaClient({
+		const observed = new PrismaClient({
 			adapter: new PrismaPg({ connectionString: TEST_DATABASE_URL! }),
+			log: [{ level: "query", emit: "event" }],
 		});
+		observed.$on("query", ({ query }) => observedQueries.push(query));
+		client = observed;
 	});
 
 	afterAll(async () => client?.$disconnect());
@@ -1671,14 +1676,23 @@ describe("production media runtime stores", () => {
 			providerCharged: true,
 		};
 		const completing = store.recordSynchronousCompletion(claim!.attemptId, submission, result);
+		let returned = false;
+		void completing.then(() => {
+			returned = true;
+		});
 		await barrierReached;
+		expect(returned).toBe(false);
 		expect(
 			await client.outboxEvent.count({
 				where: { aggregateId: seeded.jobId, eventType: "GENERATION_FINALIZE" },
 			}),
 		).toBe(0);
 		releaseCommit();
-		await completing;
+		const continuation = await completing;
+		const persisted = await client.outboxEvent.findUniqueOrThrow({
+			where: { dedupeKey: `generation-finalize:${seeded.jobId}:${claim!.attemptId}` },
+		});
+		expect(continuation).toEqual({ eventIds: [persisted.id] });
 		const [attempt, transferEnvelope, outboxCount] = await Promise.all([
 			client.generationAttempt.findUniqueOrThrow({ where: { id: claim!.attemptId } }),
 			client.generationAttemptTransferEnvelope.findUniqueOrThrow({
@@ -1694,6 +1708,167 @@ describe("production media runtime stores", () => {
 			outputs: [{ kind: "inline-base64", mimeType: "image/png", data: "aGVsbG8=" }],
 		});
 		expect(outboxCount).toBe(1);
+	});
+
+	it.each([false, true])(
+		"returns persisted submission continuation and preserves post-commit recovery (terminal=%s)",
+		async (terminal) => {
+			const seeded = await seedReservedJob("image-nano-banana-2-lite");
+			const store = createTestDispatchStore();
+			const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+			const dedupeKey = `generation-finalize:${seeded.jobId}:${claim!.attemptId}`;
+			const existing = terminal
+				? await client.outboxEvent.create({
+						data: {
+							eventType: "GENERATION_FINALIZE",
+							aggregateType: "GENERATION_JOB",
+							aggregateId: seeded.jobId,
+							dedupeKey,
+							payload: { jobId: seeded.jobId },
+						},
+					})
+				: undefined;
+			const continuation = await store.recordSubmission(claim!.attemptId, {
+				outcome: "accepted",
+				status: terminal ? "SUCCEEDED" : "RUNNING",
+				providerTaskId: `c6-${claim!.attemptId}`,
+				idempotency: { providerSupported: false, replayed: false },
+				reconciliation: { submissionToken: claim!.attemptId },
+			});
+			expect(continuation).toEqual(
+				terminal ? { eventIds: [existing!.id] } : { eventIds: [], pollAttemptId: claim!.attemptId },
+			);
+			// Discarding the returned value simulates a crash after commit; recovery still finds it.
+			observedQueries = [];
+			const recovered = await getSubmittedGenerationContinuation(seeded.jobId, client);
+			const recoverySqlCount = observedQueries.length;
+			if (terminal) expect(recovered.eventIds).toContain(existing!.id);
+			else expect(recovered).toEqual(continuation);
+			console.info(
+				"C6_ISOLATED_DB_CONTINUATION_SQL",
+				JSON.stringify({ terminal, n: 1, before: recoverySqlCount, after: 0 }),
+			);
+			// A duplicate record keeps the original state-dependent fallback, never resubmits.
+			await expect(
+				store.recordSubmission(claim!.attemptId, {
+					outcome: "accepted",
+					status: terminal ? "SUCCEEDED" : "RUNNING",
+					providerTaskId: `c6-${claim!.attemptId}`,
+					idempotency: { providerSupported: false, replayed: true },
+					reconciliation: { submissionToken: claim!.attemptId },
+				}),
+			).resolves.toBeUndefined();
+			expect(await client.creditReservation.count({ where: { jobId: seeded.jobId } })).toBe(1);
+		},
+	);
+
+	it.each([false, true])(
+		"returns the winning synchronous event only after commit and rolls back on failure (%s)",
+		async (rollback) => {
+			const seeded = await seedReservedJob("image-quality");
+			const store = createTestDispatchStore({
+				beforeSynchronousCommit: async () => {
+					if (rollback) throw new Error("C6_TEST_ROLLBACK");
+				},
+			});
+			const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+			const dedupeKey = `generation-finalize:${seeded.jobId}:${claim!.attemptId}`;
+			const existing = rollback
+				? undefined
+				: await client.outboxEvent.create({
+						data: {
+							eventType: "GENERATION_FINALIZE",
+							aggregateType: "GENERATION_JOB",
+							aggregateId: seeded.jobId,
+							dedupeKey,
+							payload: { jobId: seeded.jobId },
+						},
+					});
+			const completing = store.recordSynchronousCompletion(
+				claim!.attemptId,
+				{
+					outcome: "accepted",
+					status: "SUCCEEDED",
+					providerTaskId: claim!.attemptId,
+					idempotency: { providerSupported: true, replayed: false },
+					reconciliation: { submissionToken: claim!.attemptId },
+				},
+				{
+					outputs: [
+						{
+							kind: "inline-base64",
+							mimeType: "image/png",
+							data: "aGVsbG8=",
+							trust: "untrusted-transfer-candidate",
+						},
+					],
+					progress: 100,
+					providerCostMicros: 8_000,
+					failure: null,
+					retryable: false,
+					providerCharged: true,
+				},
+			);
+			if (rollback) {
+				await expect(completing).rejects.toThrow("C6_TEST_ROLLBACK");
+				expect(await client.outboxEvent.count({ where: { dedupeKey } })).toBe(0);
+				expect(
+					await client.generationAttemptTransferEnvelope.count({
+						where: { attemptId: claim!.attemptId },
+					}),
+				).toBe(0);
+				expect(
+					(await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } })).status,
+				).toBe("SUBMITTING");
+			} else {
+				await expect(completing).resolves.toEqual({ eventIds: [existing!.id] });
+				expect(await client.outboxEvent.count({ where: { dedupeKey } })).toBe(1);
+			}
+			expect(
+				(await client.creditReservation.findUniqueOrThrow({ where: { jobId: seeded.jobId } }))
+					.status,
+			).toBe("ACTIVE");
+		},
+	);
+
+	it("returns explicit empty continuation for synchronous success without usable outputs while credits stay frozen", async () => {
+		const seeded = await seedReservedJob("image-quality");
+		const store = createTestDispatchStore();
+		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+		await expect(
+			store.recordSynchronousCompletion(
+				claim!.attemptId,
+				{
+					outcome: "accepted",
+					status: "SUCCEEDED",
+					providerTaskId: claim!.attemptId,
+					idempotency: { providerSupported: true, replayed: false },
+					reconciliation: { submissionToken: claim!.attemptId },
+				},
+				{
+					outputs: [],
+					progress: 100,
+					providerCostMicros: 8_000,
+					failure: null,
+					retryable: false,
+					providerCharged: true,
+				},
+			),
+		).resolves.toEqual({ eventIds: [] });
+		expect(
+			(await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } })).status,
+		).toBe("NEEDS_RECONCILIATION");
+		expect(
+			(await client.creditReservation.findUniqueOrThrow({ where: { jobId: seeded.jobId } })).status,
+		).toBe("ACTIVE");
+		expect(
+			await client.outboxEvent.count({
+				where: {
+					aggregateId: seeded.jobId,
+					eventType: { in: ["GENERATION_FINALIZE", "GENERATION_SETTLE"] },
+				},
+			}),
+		).toBe(0);
 	});
 
 	it("promotes a legacy output snapshot once and scrubs ordinary attempt diagnostics", async () => {
@@ -4301,9 +4476,15 @@ function assertSafeTestDatabaseUrl(value: string | undefined): void {
 	const safeDatabase =
 		parsed.pathname === "/ai_media_foundation_test" ||
 		/^\/ezpic_[a-z0-9_]+_test(?:ing)?$/.test(parsed.pathname);
+	const explicitImageTarget =
+		process.env.MEDIA_IMAGE_TEST_DATABASE_URL === value &&
+		parsed.port !== "5432" &&
+		Boolean(parsed.port);
 	if (
 		parsed.hostname !== "127.0.0.1" ||
-		(parsed.port !== "55432" && !isExplicitVideoVerificationTarget(parsed)) ||
+		(parsed.port !== "55432" &&
+			!isExplicitVideoVerificationTarget(parsed) &&
+			!explicitImageTarget) ||
 		!safeDatabase
 	) {
 		throw new Error(
