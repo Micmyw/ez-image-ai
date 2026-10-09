@@ -61,6 +61,7 @@ function fixture() {
 			workflowInstanceId: "video-v1-job-1",
 			replayed,
 			notified,
+			callbackPersistedAt: replayed ? undefined : now.toISOString(),
 		};
 	});
 	const markNotified = vi.fn(async () => {
@@ -178,6 +179,31 @@ describe("verified durable video callback inbox", () => {
 		await acceptVideoProviderWebhook(await callback(), f.options);
 		await acceptVideoProviderWebhook(await callback(), f.options);
 		expect(f.sendEvent).toHaveBeenCalledTimes(1);
+	});
+	it("wakes the committed inbox before recording its optional commit observation", async () => {
+		const f = fixture();
+		await acceptVideoProviderWebhook(await callback(), f.options);
+		expect(f.markNotified).toHaveBeenCalledWith("event-1", now.toISOString());
+		expect(f.sendEvent.mock.invocationCallOrder[0]).toBeGreaterThan(
+			f.persist.mock.invocationCallOrder[0]!,
+		);
+		expect(f.markNotified.mock.invocationCallOrder[0]).toBeGreaterThan(
+			f.sendEvent.mock.invocationCallOrder[0]!,
+		);
+	});
+	it("still wakes and ACKs a committed inbox when the notification/timing write fails", async () => {
+		const f = fixture();
+		f.markNotified.mockRejectedValueOnce(new Error("timing write failed"));
+		const response = await createVideoProviderWebhookHandler(f.options)(await callback());
+		expect(response.status).toBe(202);
+		expect(f.sendEvent).toHaveBeenCalledTimes(1);
+		expect(await acceptVideoProviderWebhook(await callback(), f.options)).toMatchObject({
+			accepted: true,
+			notified: true,
+			replayed: true,
+		});
+		expect(f.sendEvent).toHaveBeenCalledTimes(2);
+		expect(f.markNotified).toHaveBeenLastCalledWith("event-1", undefined);
 	});
 	it("does not acknowledge database failure", async () => {
 		const f = fixture();

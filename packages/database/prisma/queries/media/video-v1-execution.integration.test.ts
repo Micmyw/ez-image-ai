@@ -869,9 +869,10 @@ describe("video submission database correctness", () => {
 			where: { jobId: f.job.id },
 		});
 		const firstTimings = (firstExecution.stageData as { timings: Record<string, string> }).timings;
-		const persistedAt = firstTimings.providerCallbackPersistedAt!;
+		const persistedAt = event.callbackPersistedAt!;
 		expect(Date.parse(persistedAt)).toBeGreaterThanOrEqual(input.receivedAt.getTime());
 		expect(Date.parse(persistedAt)).toBeLessThanOrEqual(callbackReturnedAt);
+		expect(firstTimings.providerCallbackPersistedAt).toBeUndefined();
 		expect((await run(() => getVideoExecutionContext(f.job.id)))?.attempts[0]?.providerTaskId).toBe(
 			input.taskId,
 		);
@@ -887,13 +888,28 @@ describe("video submission database correctness", () => {
 		expect(
 			(replayExecution.stageData as { timings: Record<string, string> }).timings
 				.providerCallbackPersistedAt,
-		).toBe(persistedAt);
+		).toBeUndefined();
 		expect(
 			(await run(() => listPendingVideoWebhookEvents(100))).some(
 				(row) => row.eventId === event.eventId,
 			),
 		).toBe(true);
-		await run(() => markVideoWebhookNotified(event.eventId));
+		// A confirmation can commit between inbox persistence and notification.
+		const confirmedAt = new Date().toISOString();
+		await client.$executeRaw`UPDATE "video_execution"
+			SET "stageData" = "stageData" || '{"concurrentBusinessField":true}'::jsonb ||
+				jsonb_build_object('timings', "stageData"->'timings' ||
+					jsonb_build_object('providerResultConfirmedAt', ${confirmedAt}::text))
+			WHERE "jobId" = ${f.job.id}`;
+		await run(() => markVideoWebhookNotified(event.eventId, persistedAt));
+		await run(() => markVideoWebhookNotified(event.eventId, new Date().toISOString()));
+		const notifiedExecution = await client.videoExecution.findUniqueOrThrow({
+			where: { jobId: f.job.id },
+		});
+		expect(notifiedExecution.stageData).toMatchObject({
+			concurrentBusinessField: true,
+			timings: { providerCallbackPersistedAt: persistedAt, providerResultConfirmedAt: confirmedAt },
+		});
 		expect(await run(() => persistVideoProviderWebhook(input))).toMatchObject({ notified: true });
 		await run(() => consumeVideoProviderEvents(f.job.id, claimed.attempt.id, new Date()));
 		expect(
@@ -901,6 +917,104 @@ describe("video submission database correctness", () => {
 				.status,
 		).toBe("PROCESSED");
 		expect(await client.outboxEvent.count({ where: { aggregateId: event.eventId } })).toBe(0);
+		expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(1);
+	});
+	it("does not invent a first commit observation after its original delivery was lost", async () => {
+		const f = await fixture();
+		await run(() => claimVideoProviderSubmission(f.claim));
+		const input = {
+			callbackTokenHash: f.claim.callbackTokenHash,
+			taskId: `task-${f.job.id}`,
+			timestamp: "1791072000",
+			receivedAt: new Date(),
+		};
+		const original = await run(() => persistVideoProviderWebhook(input));
+		expect(original.callbackPersistedAt).toBeDefined();
+		const replay = await run(() => persistVideoProviderWebhook(input));
+		expect(replay.callbackPersistedAt).toBeUndefined();
+		await run(() => markVideoWebhookNotified(replay.eventId, replay.callbackPersistedAt));
+		const later = await run(() =>
+			persistVideoProviderWebhook({ ...input, timestamp: "1791072001" }),
+		);
+		expect(later.replayed).toBe(false);
+		expect(later.callbackPersistedAt).toBeUndefined();
+		await run(() => markVideoWebhookNotified(later.eventId, later.callbackPersistedAt));
+		const execution = await client.videoExecution.findUniqueOrThrow({ where: { jobId: f.job.id } });
+		expect(
+			(execution.stageData as { timings: Record<string, string> }).timings
+				.providerCallbackPersistedAt,
+		).toBeUndefined();
+		expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(1);
+	});
+	it("serializes notification timing with a business writer holding an older snapshot", async () => {
+		const f = await fixture();
+		await run(() => claimVideoProviderSubmission(f.claim));
+		const event = await run(() =>
+			persistVideoProviderWebhook({
+				callbackTokenHash: f.claim.callbackTokenHash,
+				taskId: `task-${f.job.id}`,
+				timestamp: "1791072000",
+				receivedAt: new Date(),
+			}),
+		);
+		const applicationName = `c3-notify-${crypto.randomUUID()}`;
+		const notifier = new PrismaClient({
+			adapter: new PrismaPg({
+				connectionString: process.env.TEST_DATABASE_URL!,
+				max: 1,
+				application_name: applicationName,
+			}),
+		});
+		let mark: Promise<void> | undefined;
+		const confirmedAt = new Date().toISOString();
+		try {
+			await client.$transaction(
+				async (tx) => {
+					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`video-v1:${f.job.id}`}, 0))`;
+					await tx.$queryRaw`SELECT "id" FROM "generation_job" WHERE "id" = ${f.job.id} FOR UPDATE`;
+					const before = await tx.videoExecution.findUniqueOrThrow({ where: { jobId: f.job.id } });
+					mark = runWithDatabaseClient(notifier, () =>
+						markVideoWebhookNotified(event.eventId, event.callbackPersistedAt),
+					);
+					// Observe actual lock contention; no fixed sleep is used as evidence.
+					let waiting = false;
+					for (let tries = 0; tries < 200 && !waiting; tries++) {
+						const rows = await client.$queryRaw<Array<{ waiting: boolean }>>`
+						SELECT EXISTS(SELECT 1 FROM pg_stat_activity
+							WHERE application_name = ${applicationName} AND wait_event = 'advisory') AS waiting`;
+						waiting = rows[0]?.waiting ?? false;
+					}
+					expect(waiting).toBe(true);
+					const data = before.stageData as Prisma.InputJsonObject;
+					await tx.videoExecution.update({
+						where: { jobId: f.job.id },
+						data: {
+							stageData: {
+								...data,
+								concurrentBusinessField: true,
+								timings: {
+									...(data.timings as Prisma.InputJsonObject),
+									providerResultConfirmedAt: confirmedAt,
+								},
+							},
+						},
+					});
+				},
+				{ timeout: 15_000 },
+			);
+			await mark;
+			const after = await client.videoExecution.findUniqueOrThrow({ where: { jobId: f.job.id } });
+			expect(after.stageData).toMatchObject({
+				concurrentBusinessField: true,
+				timings: {
+					providerCallbackPersistedAt: event.callbackPersistedAt,
+					providerResultConfirmedAt: confirmedAt,
+				},
+			});
+		} finally {
+			await mark?.catch(() => undefined);
+			await notifier.$disconnect();
+		}
 	});
 	it("signed callback correlation cannot bind another provider task to an existing attempt", async () => {
 		const f = await fixture();

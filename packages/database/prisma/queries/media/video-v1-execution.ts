@@ -584,45 +584,56 @@ export async function persistVideoProviderWebhook(input: {
 			workflowInstanceId: job.videoExecution!.workflowInstanceId,
 			replayed: Boolean(prior),
 			notified: typeof object(event.envelope).notifiedAt === "string",
+			firstCallback:
+				!prior && !object(object(job.videoExecution!.stageData).timings).providerCallbackReceivedAt,
 		};
 	});
-	// This clock reading follows the inbox transaction's COMMIT acknowledgement.
-	// Recording it separately must not invent a first-commit time on replay after
-	// a crash. Atomic JSON merge also preserves concurrent confirmation timings.
-	if (!persisted.replayed) {
-		const committedAt = new Date().toISOString();
-		await getDatabaseClient().$executeRaw`
-			UPDATE "video_execution"
-			SET "stageData" = jsonb_set(
-				COALESCE("stageData", '{}'::jsonb), '{timings}',
-				COALESCE("stageData"->'timings', '{}'::jsonb)
-					|| jsonb_build_object('providerCallbackPersistedAt', ${committedAt}::text), true
-			)
-			WHERE "jobId" = ${persisted.jobId}
-				AND (
-					"stageData" #>> '{timings,providerCallbackPersistedAt}' IS NULL
-					OR "stageData" #>> '{timings,providerCallbackPersistedAt}' > ${committedAt}
-				)`;
-	}
-	return persisted;
+	// Observe COMMIT without another database round trip before the wake. A lost
+	// observation stays missing on replay, including a later callback timestamp.
+	const { firstCallback, ...stored } = persisted;
+	return { ...stored, ...(firstCallback ? { callbackPersistedAt: new Date().toISOString() } : {}) };
 }
 
-export async function markVideoWebhookNotified(eventId: string) {
-	return runReadCommitted(getDatabaseClient(), async (tx) => {
-		const event = await tx.providerWebhookEvent.findFirst({
-			where: { id: eventId, provider: { in: ["kie-video-v1", "kie-video-template-scene"] } },
-		});
-		if (!event) throw new Error("VIDEO_CALLBACK_EVENT_MISSING");
-		await tx.providerWebhookEvent.update({
-			where: { id: eventId },
-			data: {
-				envelope: {
-					...object(event.envelope),
-					notifiedAt: new Date().toISOString(),
-				} as Prisma.InputJsonValue,
-			},
-		});
-	});
+export async function markVideoWebhookNotified(eventId: string, callbackPersistedAt?: string) {
+	const committedAt = callbackPersistedAt ?? null;
+	const notifiedAt = new Date().toISOString();
+	// Merge the optional timing into the existing notification write AFTER sendEvent.
+	// Lock execution before inbox, as other video transitions do. Both JSON merges
+	// use the current row, preserving concurrent confirmation/consumption fields.
+	const marked = await getDatabaseClient().$queryRaw<Array<{ id: string }>>`
+		WITH event_context AS (
+			SELECT "id", "provider", "envelope" FROM "provider_webhook_event"
+			WHERE "id" = ${eventId} AND "provider" IN ('kie-video-v1', 'kie-video-template-scene')
+		), execution_lock AS MATERIALIZED (
+			SELECT pg_advisory_xact_lock(hashtextextended('video-v1:' || (e."envelope"->>'jobId'), 0))
+			FROM event_context e
+			WHERE e."provider" = 'kie-video-v1' AND e."envelope"->>'executionEngine' = ${ENGINE}
+				AND ${committedAt}::text IS NOT NULL
+		), job_lock AS MATERIALIZED (
+			SELECT j."id" FROM "generation_job" j JOIN event_context e ON j."id" = e."envelope"->>'jobId'
+			WHERE j."executionEngine" = ${ENGINE} AND ${committedAt}::text IS NOT NULL
+				AND (SELECT count(*) FROM execution_lock) > 0
+			FOR UPDATE OF j
+		), timing AS (
+			UPDATE "video_execution" v
+			SET "stageData" = jsonb_set(
+				COALESCE(v."stageData", '{}'::jsonb), '{timings}',
+				COALESCE(v."stageData"->'timings', '{}'::jsonb)
+					|| jsonb_build_object('providerCallbackPersistedAt', ${committedAt}::text), true
+			)
+			FROM job_lock j
+			WHERE v."jobId" = j."id"
+				AND v."stageData" #>> '{timings,providerCallbackPersistedAt}' IS NULL
+			RETURNING v."jobId"
+		), notified AS (
+			UPDATE "provider_webhook_event" e
+			SET "envelope" = COALESCE(e."envelope", '{}'::jsonb)
+				|| jsonb_build_object('notifiedAt', COALESCE(e."envelope"->>'notifiedAt', ${notifiedAt}::text))
+			WHERE e."id" IN (SELECT "id" FROM event_context) AND (SELECT count(*) FROM timing) >= 0
+			RETURNING e."id"
+		)
+		SELECT "id" FROM notified`;
+	if (!marked.length) throw new Error("VIDEO_CALLBACK_EVENT_MISSING");
 }
 
 /** A failed delivery yields its place in the bounded recovery page. */

@@ -107,7 +107,10 @@ export async function acceptVideoProviderWebhook(
 				type: "provider-result",
 				payload: { eventId: stored.eventId, jobId: stored.jobId },
 			});
-			await (options.markNotified ?? markVideoWebhookNotified)(stored.eventId);
+			await (options.markNotified ?? markVideoWebhookNotified)(
+				stored.eventId,
+				stored.callbackPersistedAt,
+			);
 			notified = true;
 		} catch {
 			/* Durable inbox remains eligible for duplicate delivery and targeted recovery. */
