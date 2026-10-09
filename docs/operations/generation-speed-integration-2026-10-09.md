@@ -58,6 +58,12 @@ coordination before edits:
    notify parent of intended contract/documentation changes; consolidate conflicting
    documentation in integration. No new dependency or infrastructure subsystem is
    planned.
+6. The parent explicitly assigned the bounded credit-cache account isolation fix
+   to A/C1. Ownership includes the three readers in `use-generation.ts`,
+   `HeaderPurchaseActions.tsx` and `StudioShell.tsx`, one shared owner-key/helper,
+   and corresponding tests. Deliver this as a separate small commit. No global
+   QueryClient replacement, whole-site cache redesign or accepted-job cancellation
+   belongs to this extension.
 
 Before cherry-pick, inspect each SHA, its parent, file list and stated checks.
 Apply only commits supplied by the parent; never take another group's uncommitted
@@ -77,6 +83,42 @@ All optimization acceptance states below are **PENDING_IMPLEMENTATION_HANDOFF**.
 | C5   | Existing immutable free grant skips no-op grant transaction; undefined budget skips aggregate | Full immutable command identity matches; first/month/concurrent miss grants once; debt, amount conflict, anonymous/missing/paid/grace semantics preserved; undefined budget zero aggregate, zero budget still enforced; Waffo-time eligibility changes caught in final transaction                                                                                                                         | free-plan-credits unit+DB; authorization; admission-context/create-generation                         |
 | C6   | Successful submission returns committed continuation instead of rereading                     | Actual persisted pollAttemptId or deduplicated event row; repeat returns same ID; rolled-back work gives no continuation; explicit empty array suppresses lookup and global scan; undefined only uses compatibility query; crash after commit recovers without repeated paid submit                                                                                                                        | jobs dispatch/executor/runtime; continuation-delivery DB; first-image-continuation/orchestrator       |
 | C7   | Eligible finalize avoids one full stored-object GET after first full stored validation        | Prove server-origin/versioned proof and immutable identity; fresh HEAD plus conditional small Range has exact response semantics; locked transaction checks current proof/owner/engine/asset/object/size/hash/ETag/constraint binding; 30 s attestation retained; missing/old proof full-read fallback; conflicts/404/412 reject/recover; concurrent finalizers settle once; deleted content stays deleted | output-storage; fulfillment; DB fulfillment; storage identity audit                                   |
+
+### Additional mandatory C1 gate: account-scoped credit cache
+
+Status: **PENDING_IMPLEMENTATION_HANDOFF**. The fixed baseline already uses the
+same `media-credit-account` key for all three readers, with a browser QueryClient
+singleton and a default 60-second stale time. Updating the session does not clear
+that query. Normal logout navigates the whole page, which reduces exposure but
+does not establish isolation for an in-place identity transition.
+
+A read-only in-memory QueryObserver reproduction using the installed TanStack
+version observed both a fresh cached A balance and a delayed A response in B's
+observer, without starting B's query. Using separate owner keys in the comparison
+started B's query and delivered only B's balance. These are controlled client-cache
+observations, not a production exploit or evidence of server/ledger authorization
+failure; `getCreditAccount` still reads through the authenticated `user.id`.
+
+The C1 acceptance matrix includes all of the following:
+
+- All three readers use the same owner-scoped key/helper. Unknown or anonymous
+  identity must not start the protected credit query or display a prior owner's
+  cached balance.
+- Consume and forward query cancellation signals; a delayed prior-owner response
+  cannot populate the current owner's view. Do not use query cancellation to
+  cancel an accepted generation or discard its durable idempotency identity.
+- Capture the submission owner for background invalidation. A completed A
+  submission cannot refresh B's balance as though it belonged to that operation.
+- Test A → B with fresh cached data, A → B while a credit request is pending,
+  identity becoming unavailable, delayed auxiliary refresh rejection, and
+  accepted-job continuity through account change. Use the real QueryClient for
+  cache/deduplication behavior; mocked `useQuery` alone is insufficient evidence.
+- Inspect existing credit invalidators for compatibility with the owner-key
+  contract. Keep unrelated account, billing and global cache behavior outside
+  this bounded patch; notify the parent before any further shared-file expansion.
+
+The earlier 114-test baseline result is unchanged and does not claim these new
+regressions have passed. A/C1 must supply the dedicated fix SHA and its checks.
 
 C4's logical read count is not an SQL count. C7's target applies only to application
 reads after transfer: two full reads become one on a proven ordinary path, excluding
@@ -273,7 +315,9 @@ percentage or seconds saved is promised.
 ## Handoff requirements
 
 Each group provides commit SHA, base, worktree, files, shared contract changes, exact
-test commands/results and unrun items. C additionally freezes C4's reviewContext
+test commands/results and unrun items. A additionally supplies a separate small
+credit-cache account-isolation commit and its real QueryClient regressions.
+C additionally freezes C4's reviewContext
 contract before E implementation. E provides an explicit enable/no-enable decision.
 Integration records ordered SHAs and resolved conflicts, then the parent routes
 the complete candidate to independent Astra max review in a separate session, as
