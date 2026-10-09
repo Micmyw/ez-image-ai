@@ -8,14 +8,104 @@ type PreviewTiming = {
 	visible?: boolean;
 };
 const timings = new Map<string, PreviewTiming>();
+const acceptedJobs = new Map<string, { acceptedAt: number; visible: boolean }>();
 
 export function recordGenerationAccepted(jobId: string, startedAt: number) {
+	const acceptedAt = performance.now();
+	if (!acceptedJobs.has(jobId)) {
+		if (acceptedJobs.size >= 32) acceptedJobs.delete(acceptedJobs.keys().next().value!);
+		acceptedJobs.set(jobId, { acceptedAt, visible: false });
+	}
 	safeInfo("media.generation.timing", {
 		jobId,
 		stage: "accepted",
-		elapsedMs: performance.now() - startedAt,
+		elapsedMs: acceptedAt - startedAt,
 		startBoundary: "submit-generation-call",
 	});
+}
+
+export function observeGenerationJobVisibility(
+	jobId: string,
+	element: HTMLElement | null,
+	isCurrent?: () => boolean,
+) {
+	const timing = acceptedJobs.get(jobId);
+	if (!timing || timing.visible || !element || typeof requestAnimationFrame !== "function") return;
+	const taskRegion = element;
+	const acceptedTiming = timing;
+	let canceled = false;
+	let frame: number | null = null;
+	let intersection: IntersectionObserver | undefined;
+	const cleanup = () => {
+		canceled = true;
+		if (frame !== null && typeof cancelAnimationFrame === "function") cancelAnimationFrame(frame);
+		intersection?.disconnect();
+		document.removeEventListener?.("visibilitychange", schedule);
+		window.removeEventListener?.("scroll", schedule, true);
+		window.removeEventListener?.("resize", schedule);
+	};
+	function schedule() {
+		if (canceled || frame !== null) return;
+		frame = requestAnimationFrame(() => {
+			if (canceled) return;
+			frame = requestAnimationFrame(() => {
+				frame = null;
+				if (canceled) return;
+				if (acceptedTiming.visible || acceptedJobs.get(jobId) !== acceptedTiming) {
+					cleanup();
+					return;
+				}
+				try {
+					if (isCurrent && !isCurrent()) {
+						cleanup();
+						return;
+					}
+					if (
+						document.visibilityState !== "visible" ||
+						!taskRegion.isConnected ||
+						typeof taskRegion.checkVisibility !== "function" ||
+						!taskRegion.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+					)
+						return;
+					const rect = taskRegion.getBoundingClientRect();
+					if (
+						rect.width <= 0 ||
+						rect.height <= 0 ||
+						rect.bottom <= 0 ||
+						rect.right <= 0 ||
+						rect.top >= window.innerHeight ||
+						rect.left >= window.innerWidth
+					)
+						return;
+					acceptedTiming.visible = true;
+					safeInfo("media.generation.timing", {
+						jobId,
+						stage: "job-visible",
+						elapsedMs: performance.now() - acceptedTiming.acceptedAt,
+						startBoundary: "submit-generation-response",
+						visibilityMethod: "task-region-plus-two-animation-frames",
+					});
+					cleanup();
+				} catch {
+					// Optional visibility diagnostics must never change task display.
+				}
+			});
+		});
+	}
+	try {
+		if (typeof IntersectionObserver === "function") {
+			intersection = new IntersectionObserver(schedule);
+			intersection.observe(element);
+		} else {
+			window.addEventListener?.("scroll", schedule, true);
+		}
+		window.addEventListener?.("resize", schedule);
+		document.addEventListener?.("visibilitychange", schedule);
+		schedule();
+	} catch {
+		cleanup();
+	}
+	return cleanup;
 }
 
 export function recordOutputReceived(jobId: string, assetId: string, requestId?: string) {

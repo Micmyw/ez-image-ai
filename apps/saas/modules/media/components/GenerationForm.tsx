@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession } from "@auth/hooks/use-session";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary";
 import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
@@ -34,6 +35,7 @@ import {
 	useModelNavigation,
 	useRequestedImageModel,
 } from "../hooks/use-model-navigation";
+import { creditAccountOwnerId } from "../lib/credit-account-query";
 import {
 	getEditorErrorKey,
 	getModerationErrorReason,
@@ -58,6 +60,7 @@ import {
 	resolveImageSpecControlValues,
 	type PublicImageSpecCell,
 } from "../lib/image-sku-selection";
+import { observeGenerationJobVisibility } from "../lib/preview-timing";
 import type { TemporaryReferenceReceipt } from "../lib/temporary-reference-upload";
 import { useToolPrompt, useToolPromptBinding } from "../lib/tool-prompt-context";
 import { ContentSafetyNotice } from "./ContentSafetyNotice";
@@ -99,6 +102,28 @@ export function GenerationForm({
 	requireReference?: boolean;
 	layout?: "default" | "minimal";
 }) {
+	const session = useSession();
+	const ownerId = creditAccountOwnerId(session);
+	const currentOwner = useRef(ownerId);
+	const currentJobId = useRef(jobId);
+	currentJobId.current = jobId;
+	const actionVersion = useRef(0);
+	const mounted = useRef(true);
+	const submittingRef = useRef<object | null>(null);
+	const acceptedJob = useRef<{ id: string; ownerId: string } | null>(null);
+	if (currentOwner.current !== ownerId) {
+		currentOwner.current = ownerId;
+		actionVersion.current += 1;
+		submittingRef.current = null;
+		acceptedJob.current = null;
+	}
+	useEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+			actionVersion.current += 1;
+		};
+	}, []);
 	const effectEditor = useEffectEditor();
 	const effectPreset = effectEditor?.selectedPreset;
 	// A guest reference cannot cross sign-in as a browser File. Keep its intent until reselected.
@@ -123,6 +148,7 @@ export function GenerationForm({
 	);
 	const generation = useGeneration({
 		parentJobId: hasSource && !temporaryReference ? parentJobId : null,
+		ownerId,
 	});
 	// A sibling can populate the browser catalog before this streamed form hydrates.
 	// Keep its recovery markup identical until the workspace is ready for input.
@@ -149,9 +175,24 @@ export function GenerationForm({
 	const [sourceReady, setSourceReady] = useState(initialSourceReady);
 	const [sourcePending, setSourcePending] = useState(false);
 	const sourcePendingRef = useRef(false);
-	const submittingRef = useRef(false);
 	const [upgradeOpen, setUpgradeOpen] = useState(false);
 	const active = useGenerationMode()?.mode !== "video";
+	useEffect(() => {
+		if (
+			!jobId ||
+			!active ||
+			acceptedJob.current?.id !== jobId ||
+			acceptedJob.current.ownerId !== ownerId
+		)
+			return;
+		// This measures the committed task region (including its loading state),
+		// independently of getJob detail readiness and output preview delivery.
+		return observeGenerationJobVisibility(
+			jobId,
+			document.getElementById("current-editor-result"),
+			() => mounted.current && currentJobId.current === jobId && currentOwner.current === ownerId,
+		);
+	}, [jobId, active, ownerId]);
 	useEffect(() => {
 		if (!active) setUpgradeOpen(false);
 	}, [active]);
@@ -260,14 +301,18 @@ export function GenerationForm({
 		if (upgradeOpen) void saasGrowthFunnel.upgradePromptViewed(values.productKey);
 	}, [upgradeOpen, values.productKey]);
 
-	const beginNewAction = generation.beginNewAction;
+	const invalidateGenerationAction = generation.beginNewAction;
+	const beginNewAction = useCallback(() => {
+		actionVersion.current += 1;
+		invalidateGenerationAction();
+	}, [invalidateGenerationAction]);
 	useEffectEditorBinding({
 		prompt: values.prompt,
 		busy: generation.createGeneration.isPending || sourcePending,
 		hasCustomChanges: (preset) => hasEffectPresetChanges(form.getValues(), preset),
 		applyPreset: (preset) => {
 			form.reset(applyEffectPresetToValues(form.getValues(), preset));
-			generation.beginNewAction();
+			beginNewAction();
 		},
 	});
 	const updateSourcePending = useCallback(
@@ -372,7 +417,7 @@ export function GenerationForm({
 				shouldValidate: true,
 			});
 		}
-		generation.beginNewAction();
+		beginNewAction();
 	}
 	const modelNavigation = useModelNavigation({
 		products,
@@ -400,12 +445,12 @@ export function GenerationForm({
 				shouldValidate: true,
 			});
 		}
-		generation.beginNewAction();
+		beginNewAction();
 	}
 
 	function updateAspectRatio(aspectRatio: ImageAspectRatio) {
 		form.setValue("aspectRatio", aspectRatio, { shouldDirty: true, shouldValidate: true });
-		generation.beginNewAction();
+		beginNewAction();
 	}
 
 	function updateControl(key: ImageSpecControlKey, value: string) {
@@ -423,7 +468,7 @@ export function GenerationForm({
 		} else {
 			return;
 		}
-		generation.beginNewAction();
+		beginNewAction();
 	}
 
 	function continueToUpgrade() {
@@ -463,6 +508,7 @@ export function GenerationForm({
 
 	async function confirmGeneration() {
 		if (
+			!ownerId ||
 			!ready ||
 			!input ||
 			displayedCredits === undefined ||
@@ -470,7 +516,9 @@ export function GenerationForm({
 			submittingRef.current
 		)
 			return;
-		submittingRef.current = true;
+		const operation = {};
+		const version = actionVersion.current;
+		submittingRef.current = operation;
 		try {
 			const result = await generation.createGeneration.mutateAsync({
 				productKey: values.productKey,
@@ -478,13 +526,20 @@ export function GenerationForm({
 				expectedCredits: String(displayedCredits),
 				temporaryReferenceToken: temporaryReference?.token,
 			});
-			if (!result) return;
+			if (
+				!result ||
+				!mounted.current ||
+				currentOwner.current !== ownerId ||
+				actionVersion.current !== version
+			)
+				return;
+			acceptedJob.current = { id: result.job.id, ownerId };
 			onCreated(result.job.id);
-			generation.beginNewAction();
+			beginNewAction();
 		} catch {
 			// The mutation exposes only a stable, translated public error below.
 		} finally {
-			submittingRef.current = false;
+			if (submittingRef.current === operation) submittingRef.current = null;
 		}
 	}
 

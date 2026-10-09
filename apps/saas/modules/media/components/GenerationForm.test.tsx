@@ -8,6 +8,9 @@ import { ToolPromptProvider } from "../lib/tool-prompt-context";
 
 const mocks = vi.hoisted(() => ({ useGeneration: vi.fn(), modelOptions: vi.fn() }));
 const navigation = vi.hoisted(() => ({ pathname: "/create", search: "" }));
+vi.mock("@auth/hooks/use-session", () => ({
+	useSession: () => ({ loaded: true, user: { id: "form-owner" } }),
+}));
 vi.mock("./editor/RegisteredEditorDock", () => ({ RegisteredEditorDock: () => null }));
 vi.mock("./ImageModelSelector", async (importOriginal) => {
 	const { ImageModelSelector } = await importOriginal<typeof import("./ImageModelSelector")>();
@@ -661,7 +664,10 @@ describe("GenerationForm product copy", () => {
 			/>,
 		);
 
-		expect(mocks.useGeneration).toHaveBeenCalledWith({ parentJobId: "job-parent" });
+		expect(mocks.useGeneration).toHaveBeenCalledWith({
+			parentJobId: "job-parent",
+			ownerId: "form-owner",
+		});
 	});
 
 	it("does not offer adjustable count or resolution for a fixed-output model", () => {

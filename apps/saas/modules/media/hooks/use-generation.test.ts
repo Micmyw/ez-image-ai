@@ -14,12 +14,13 @@ describe("generation query refresh", () => {
 	it("refreshes running jobs and credit entitlement state after every confirmation outcome", async () => {
 		const invalidateQueries = vi.fn(async () => undefined);
 
-		await refreshGenerationQueries({ invalidateQueries });
+		await refreshGenerationQueries({ invalidateQueries }, "owner-a");
 
 		expect(invalidateQueries).toHaveBeenCalledTimes(2);
 		expect(invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ["media-jobs"] });
 		expect(invalidateQueries).toHaveBeenNthCalledWith(2, {
-			queryKey: ["media-credit-account"],
+			queryKey: ["media-credit-account", "owner-a"],
+			exact: true,
 		});
 	});
 });
