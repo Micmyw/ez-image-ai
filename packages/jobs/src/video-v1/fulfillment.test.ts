@@ -1,8 +1,11 @@
 /* oxlint-disable typescript/unbound-method -- Assertions inspect mock call history without invoking methods. */
 import type { MediaSafetyAdapter, ModerationDecision } from "@repo/ai";
-import { videoOutputConstraints } from "@repo/config/video-output";
-import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { readVideoAudioSafetyPolicy, videoOutputConstraints } from "@repo/config/video-output";
+import {
+	readVideoVisualSafetyProfile,
+	createVideoVisualSafetyProfile,
+} from "@repo/config/video-safety";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	claimReview: vi.fn(),
 	beginSubmission: vi.fn(),
@@ -24,7 +27,10 @@ const mocks = vi.hoisted(() => ({
 	callbackUrl: vi.fn(),
 }));
 vi.mock("@repo/database/video-v1-fulfillment", () => ({
-	claimVideoOutputReview: mocks.claimReview,
+	claimVideoOutputReview: async (jobId: string, deadlineSeconds: number) => {
+		const claim = await mocks.claimReview(jobId, deadlineSeconds);
+		return { ...claim, reviewContext: claim.reviewContext ?? currentReviewContext };
+	},
 	beginVideoReviewSubmission: mocks.beginSubmission,
 	recordVideoReviewTask: mocks.recordTask,
 	recordVideoOutputReview: mocks.recordReview,
@@ -70,6 +76,31 @@ const object = {
 	audioTracks: 0,
 	videoTracks: 1,
 };
+let currentReviewContext: {
+	visualSafetyProfile: ReturnType<typeof readVideoVisualSafetyProfile>;
+	audioSafetyPolicy: ReturnType<typeof readVideoAudioSafetyPolicy>;
+	constraints: ReturnType<typeof videoOutputConstraints>;
+	durationMillis: number;
+	outputSpec: { audioTracks?: number; audioTrackIds?: number[] };
+};
+function setReviewContext(fixture: {
+	inputSnapshot: unknown;
+	videoExecution: {
+		stageData: { outputSpec?: { audioTracks?: number; audioTrackIds?: number[] } };
+	};
+	assets: { asset: { durationMillis?: bigint; [key: string]: unknown } }[];
+}) {
+	const constraints = videoOutputConstraints(fixture.inputSnapshot);
+	currentReviewContext = {
+		visualSafetyProfile: readVideoVisualSafetyProfile(fixture.inputSnapshot),
+		audioSafetyPolicy: readVideoAudioSafetyPolicy(fixture.inputSnapshot),
+		constraints,
+		durationMillis: Number(
+			fixture.assets[0]?.asset.durationMillis ?? constraints.durationSeconds * 1000,
+		),
+		outputSpec: fixture.videoExecution.stageData.outputSpec ?? {},
+	};
+}
 function adapter(result: ModerationDecision): MediaSafetyAdapter {
 	return {
 		moderateText: vi.fn(),
@@ -84,6 +115,9 @@ function adapter(result: ModerationDecision): MediaSafetyAdapter {
 	};
 }
 describe("video fulfillment stage recovery", () => {
+	afterEach(() => {
+		expect(mocks.snapshot).not.toHaveBeenCalled();
+	});
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mocks.inspect.mockResolvedValue(object);
@@ -102,7 +136,7 @@ describe("video fulfillment stage recovery", () => {
 		mocks.callbackUrl.mockResolvedValue(
 			"https://example.com/api/webhooks/video-v1/seeapi/sealed-output?proof=server-proof",
 		);
-		mocks.snapshot.mockResolvedValue({
+		setReviewContext({
 			inputSnapshot: {
 				duration: 5,
 				visualSafetyProfile: createVideoVisualSafetyProfile("seeapi", 5),
@@ -112,6 +146,63 @@ describe("video fulfillment stage recovery", () => {
 			assets: [{ asset: { ...asset, durationMillis: 5000n } }],
 		});
 		mocks.claimReview.mockResolvedValue({ status: "QUERY", token: "token", asset });
+	});
+	it.each([
+		{ status: "APPROVED", expected: { status: "ALLOW" } },
+		{ status: "REJECTED", expected: { status: "REJECT", reasonCode: "SEXUAL_CONTENT" } },
+	])(
+		"preserves the persisted $status result ahead of historical policy holds",
+		async ({ status, expected }) => {
+			mocks.claimReview.mockResolvedValue({
+				status,
+				token: null,
+				asset,
+				reasonCode: "SEXUAL_CONTENT",
+				reviewContext: {
+					...currentReviewContext,
+					visualSafetyProfile: createVideoVisualSafetyProfile("sightengine", 5),
+					audioSafetyPolicy: { schemaVersion: 1, mode: "required" },
+					outputSpec: { audioTracks: 1 },
+				},
+			});
+			const safety = adapter({ decision: "ALLOW", reasonCode: "unused", ruleVersion: "test" });
+			expect(await reviewStoredVideo("job", {}, safety)).toEqual(expected);
+			expect(safety.submitVideo).not.toHaveBeenCalled();
+			expect(safety.retrieveVideo).not.toHaveBeenCalled();
+			expect(mocks.needsReview).not.toHaveBeenCalled();
+		},
+	);
+	it.each([true, false])(
+		"preserves a BUSY SeeAPI lease/callback wait (active lease: %s)",
+		async (leased) => {
+			const leasedUntil = new Date(Date.now() + 30_000);
+			mocks.claimReview.mockResolvedValue({
+				status: "BUSY",
+				token: null,
+				asset: { ...asset, verificationLeasedUntil: leased ? leasedUntil : null },
+			});
+			const safety = adapter({ decision: "ALLOW", reasonCode: "unused", ruleVersion: "test" });
+			expect(await reviewStoredVideo("job", {}, safety)).toMatchObject({
+				status: "PENDING",
+				waitFor: leased ? "confirmation-retry" : "callback",
+				deadlineAt: asset.verificationDeadlineAt.toISOString(),
+				...(leased ? { nextRetryAt: leasedUntil.toISOString() } : {}),
+			});
+			expect(safety.submitVideo).not.toHaveBeenCalled();
+			expect(safety.retrieveVideo).not.toHaveBeenCalled();
+		},
+	);
+	it("holds EXPIRED moderation without another paid submission", async () => {
+		mocks.claimReview.mockResolvedValue({ status: "EXPIRED", token: null, asset });
+		const safety = adapter({ decision: "ALLOW", reasonCode: "unused", ruleVersion: "test" });
+		expect(await reviewStoredVideo("job", {}, safety)).toEqual({
+			status: "ERROR",
+			reasonCode: "VIDEO_MODERATION_DEADLINE",
+			retryable: false,
+		});
+		expect(mocks.needsReview).toHaveBeenCalledWith("job", "VIDEO_MODERATION_DEADLINE");
+		expect(safety.submitVideo).not.toHaveBeenCalled();
+		expect(safety.retrieveVideo).not.toHaveBeenCalled();
 	});
 	it("a completed private object is adopted after a DB fault without another transfer", async () => {
 		mocks.claimStore.mockResolvedValue({
@@ -206,6 +297,7 @@ describe("video fulfillment stage recovery", () => {
 		);
 		expect(safety.submitVideo).toHaveBeenCalledTimes(1);
 		expect(safety.retrieveVideo).toHaveBeenCalledTimes(1);
+		expect(mocks.claimReview).toHaveBeenCalledTimes(2);
 		expect(mocks.beginSubmission.mock.invocationCallOrder[0]).toBeGreaterThan(
 			mocks.sign.mock.invocationCallOrder[0]!,
 		);
@@ -214,9 +306,14 @@ describe("video fulfillment stage recovery", () => {
 		);
 	});
 	it("sends actual output duration to NSFW review even when it differs from the requested length", async () => {
-		const snapshot = await mocks.snapshot();
-		mocks.snapshot.mockResolvedValue({
-			...snapshot,
+		const inputSnapshot = {
+			duration: 5,
+			visualSafetyProfile: createVideoVisualSafetyProfile("seeapi", 5),
+			audioSafetyPolicy: { schemaVersion: 1, mode: "not_requested" },
+		};
+		setReviewContext({
+			inputSnapshot,
+			videoExecution: { stageData: { outputSpec: { audioTracks: 1, audioTrackIds: [2] } } },
 			assets: [{ asset: { ...asset, durationMillis: 6000n } }],
 		});
 		mocks.inspect.mockResolvedValue({ ...object, durationMillis: 6000 });
@@ -226,7 +323,7 @@ describe("video fulfillment stage recovery", () => {
 				token: "submit",
 				asset: { ...asset, verificationProviderTaskId: null },
 			})
-			.mockResolvedValueOnce({ status: "BUSY", asset });
+			.mockResolvedValueOnce({ status: "QUERY", token: "query", asset });
 		const safety = adapter({
 			decision: "REVIEW",
 			reasonCode: "VIDEO_PROCESSING",
@@ -234,7 +331,10 @@ describe("video fulfillment stage recovery", () => {
 		});
 		await reviewStoredVideo("job", { SEEAPI_API_KEY: "fixture" }, safety);
 		expect(safety.submitVideo).toHaveBeenCalledWith(
-			expect.objectContaining({ video: expect.objectContaining({ durationMillis: 6000 }) }),
+			expect.objectContaining({ video: { durationMillis: 6000, audioTrackIds: [2] } }),
+		);
+		expect(safety.retrieveVideo).toHaveBeenCalledWith(
+			expect.objectContaining({ video: { durationMillis: 6000, audioTrackIds: [2] } }),
 		);
 	});
 	it("retries a local inspection failure before acquiring the paid moderation fence", async () => {
@@ -318,7 +418,7 @@ describe("video fulfillment stage recovery", () => {
 	});
 	it("parks a completed SeeAPI REVIEW without labeling it a definite rejection or releasing credits", async () => {
 		const visualSafetyProfile = createVideoVisualSafetyProfile("seeapi", 5);
-		mocks.snapshot.mockResolvedValue({
+		setReviewContext({
 			inputSnapshot: { duration: 5, visualSafetyProfile },
 			videoExecution: { stageData: { outputSpec: { audioTracks: 0 } } },
 			assets: [{ asset: { ...asset, durationMillis: 5000n } }],
@@ -342,7 +442,7 @@ describe("video fulfillment stage recovery", () => {
 		expect(mocks.fail).not.toHaveBeenCalled();
 	});
 	it("holds a historical Sightengine task without calling either provider or changing its snapshot", async () => {
-		mocks.snapshot.mockResolvedValue({
+		setReviewContext({
 			inputSnapshot: { duration: 5 },
 			videoExecution: { stageData: { outputSpec: { audioTracks: 0 } } },
 			assets: [{ asset: { ...asset, durationMillis: 5000n } }],
@@ -361,7 +461,7 @@ describe("video fulfillment stage recovery", () => {
 	});
 	it("sends one SeeAPI POST then waits for a persisted callback without a timed query", async () => {
 		const profile = createVideoVisualSafetyProfile("seeapi", 5);
-		mocks.snapshot.mockResolvedValue({
+		setReviewContext({
 			inputSnapshot: { duration: 5, visualSafetyProfile: profile },
 			videoExecution: { stageData: { outputSpec: { audioTracks: 0 } } },
 			assets: [{ asset: { ...asset, durationMillis: 5000n } }],
@@ -395,7 +495,7 @@ describe("video fulfillment stage recovery", () => {
 		"consumes at most one confirmation GET for %s and parks without polling",
 		async (outcome) => {
 			const profile = createVideoVisualSafetyProfile("seeapi", 5);
-			mocks.snapshot.mockResolvedValue({
+			setReviewContext({
 				inputSnapshot: { duration: 5, visualSafetyProfile: profile },
 				videoExecution: { stageData: { outputSpec: { audioTracks: 0 } } },
 				assets: [{ asset: { ...asset, durationMillis: 5000n } }],
@@ -427,7 +527,7 @@ describe("video fulfillment stage recovery", () => {
 	);
 	it("uses persisted 1s/3s confirmation retries and holds after three transient GET failures", async () => {
 		const profile = createVideoVisualSafetyProfile("seeapi", 5);
-		mocks.snapshot.mockResolvedValue({
+		setReviewContext({
 			inputSnapshot: { duration: 5, visualSafetyProfile: profile },
 			videoExecution: { stageData: { outputSpec: { audioTracks: 0 } } },
 			assets: [{ asset: { ...asset, durationMillis: 5000n } }],
@@ -471,7 +571,7 @@ describe("video fulfillment stage recovery", () => {
 	});
 	it("persists thrown timeout and waits through an active read lease without an extra GET", async () => {
 		const profile = createVideoVisualSafetyProfile("seeapi", 5);
-		mocks.snapshot.mockResolvedValue({
+		setReviewContext({
 			inputSnapshot: { duration: 5, visualSafetyProfile: profile },
 			videoExecution: { stageData: { outputSpec: { audioTracks: 0 } } },
 			assets: [{ asset: { ...asset, durationMillis: 5000n } }],
@@ -507,7 +607,7 @@ describe("video fulfillment stage recovery", () => {
 	});
 	it("preserves native audio under the explicit policy without calling audio review or inventing evidence", async () => {
 		const profile = createVideoVisualSafetyProfile("seeapi", 5);
-		mocks.snapshot.mockResolvedValue({
+		setReviewContext({
 			inputSnapshot: {
 				productKey: "video-kling-3",
 				duration: 5,
@@ -543,7 +643,7 @@ describe("video fulfillment stage recovery", () => {
 	});
 	it("holds a historical required-audio task without silently changing its frozen policy", async () => {
 		const profile = createVideoVisualSafetyProfile("seeapi", 5);
-		mocks.snapshot.mockResolvedValue({
+		setReviewContext({
 			inputSnapshot: {
 				productKey: "video-kling-3",
 				duration: 5,
@@ -576,7 +676,7 @@ describe("video fulfillment stage recovery", () => {
 		"fails SeeAPI byte/duration preflight before acquiring the paid-send fence",
 		async ({ durationMillis, byteSize }) => {
 			const visualSafetyProfile = createVideoVisualSafetyProfile("seeapi", 30);
-			mocks.snapshot.mockResolvedValue({
+			setReviewContext({
 				inputSnapshot: {
 					productKey: "video-minimax-h3",
 					duration: 30,

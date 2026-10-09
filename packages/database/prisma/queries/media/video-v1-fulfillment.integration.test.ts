@@ -369,6 +369,18 @@ describe("video V1 fulfillment isolated database", () => {
 				scoped(() => finalizeVideoDelivery(item.jobId, { ...output, checkedAt: new Date() })),
 			).rejects.toThrow("VIDEO_DELIVERY_PRECONDITION_FAILED");
 			const submit = await scoped(() => claimVideoOutputReview(item.jobId, 1800));
+			expect(submit.reviewContext).toMatchObject({
+				durationMillis: 6000,
+				constraints: { durationSeconds: 5, sound: false, aspectRatio: "9:16" },
+				outputSpec: { audioTracks: 1, audioTrackIds: [2], durationMillis: 6000 },
+			});
+			expect(submit.asset).toMatchObject({
+				ownerId: item.ownerId,
+				ownerType: "USER",
+				verificationEngine: "video-workflow-v1",
+				verificationLeaseToken: submit.token,
+			});
+			expect(submit.asset.verificationDeadlineAt).toBeInstanceOf(Date);
 			const taskId = `quality_${crypto.randomUUID()}`;
 			await scoped(() => beginVideoReviewSubmission(output.assetId, submit.token!));
 			await scoped(() => recordVideoReviewTask(output.assetId, submit.token!, taskId));
@@ -793,8 +805,18 @@ describe("video V1 fulfillment isolated database", () => {
 		await stored(item.jobId);
 		const claim = await scoped(() => claimVideoOutputReview(item.jobId, 1800));
 		expect(claim.status).toBe("SUBMIT");
+		expect(claim.reviewContext).toMatchObject({
+			durationMillis: 5000,
+			audioSafetyPolicy: { schemaVersion: 1, mode: "required" },
+			outputSpec: { audioTracks: 0 },
+		});
+		expect(claim.asset.verificationLeaseToken).toBe(claim.token);
+		expect(claim.asset.verificationDeadlineAt).toBeInstanceOf(Date);
 		expect(claim.asset.verificationSubmissionUncertain).toBe(false);
-		expect((await scoped(() => claimVideoOutputReview(item.jobId, 1800))).status).toBe("BUSY");
+		const busy = await scoped(() => claimVideoOutputReview(item.jobId, 1800));
+		expect(busy.status).toBe("BUSY");
+		expect(busy.reviewContext).toEqual(claim.reviewContext);
+		expect(busy.asset.verificationLeasedUntil).toEqual(claim.asset.verificationLeasedUntil);
 		await scoped(() => releaseVideoReviewLease(claim.asset.id, claim.token!));
 		const retry = await scoped(() => claimVideoOutputReview(item.jobId, 1800));
 		expect(retry.status).toBe("SUBMIT");
@@ -804,7 +826,9 @@ describe("video V1 fulfillment isolated database", () => {
 			scoped(() => beginVideoReviewSubmission(retry.asset.id, retry.token!)),
 		).rejects.toThrow("VIDEO_REVIEW_SUBMISSION_FENCE_UNAVAILABLE");
 		await scoped(() => releaseVideoReviewLease(retry.asset.id, retry.token!));
-		expect((await scoped(() => claimVideoOutputReview(item.jobId, 1800))).status).toBe("UNCERTAIN");
+		const uncertain = await scoped(() => claimVideoOutputReview(item.jobId, 1800));
+		expect(uncertain.status).toBe("UNCERTAIN");
+		expect(uncertain.reviewContext).toEqual(claim.reviewContext);
 	});
 	it("twenty finalizers settle once and a late failure cannot release or override READY", async () => {
 		const fixtureData = await fixture();

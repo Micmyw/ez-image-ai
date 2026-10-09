@@ -371,6 +371,18 @@ export async function claimVideoOutputReview(jobId: string, deadlineSeconds: num
 			!matchingVisualIdentity(asset, profile)
 		)
 			throw new Error("VIDEO_VISUAL_PROFILE_IDENTITY_CHANGED");
+		// This round's context comes from the same locked graph as the asset and
+		// lease checks. Keep asset/status/token on the claim; later steps revalidate.
+		const constraints = videoOutputConstraints(job.inputSnapshot);
+		const audioSafetyPolicy = readVideoAudioSafetyPolicy(job.inputSnapshot);
+		const outputSpec = json(json(job.videoExecution.stageData).outputSpec);
+		const reviewContext = {
+			visualSafetyProfile: profile,
+			audioSafetyPolicy,
+			constraints,
+			durationMillis: Number(asset.durationMillis ?? constraints.durationSeconds * 1000),
+			outputSpec,
+		};
 		if (
 			hasVideoApproval(
 				asset,
@@ -380,23 +392,24 @@ export async function claimVideoOutputReview(jobId: string, deadlineSeconds: num
 				readVideoAudioSafetyPolicy(job.inputSnapshot),
 			)
 		)
-			return { status: "APPROVED" as const, asset, token: null };
+			return { status: "APPROVED" as const, asset, token: null, reviewContext };
 		if (job.videoExecution.stage === "REJECTED")
 			return {
 				status: "REJECTED" as const,
 				asset,
 				token: null,
 				reasonCode: job.failureCode ?? "VIDEO_OUTPUT_REJECTED",
+				reviewContext,
 			};
 		if (["FAILED", "REJECTED", "READY", "NEEDS_REVIEW"].includes(job.videoExecution.stage))
 			throw new Error("VIDEO_REVIEW_TERMINAL");
 		const now = new Date();
 		if (asset.verificationLeasedUntil && asset.verificationLeasedUntil > now)
-			return { status: "BUSY" as const, asset, token: null };
+			return { status: "BUSY" as const, asset, token: null, reviewContext };
 		if (asset.verificationSubmissionUncertain && !asset.verificationProviderTaskId)
-			return { status: "UNCERTAIN" as const, asset, token: null };
+			return { status: "UNCERTAIN" as const, asset, token: null, reviewContext };
 		if (asset.verificationDeadlineAt && asset.verificationDeadlineAt <= now)
-			return { status: "EXPIRED" as const, asset, token: null };
+			return { status: "EXPIRED" as const, asset, token: null, reviewContext };
 		const token = randomUUID();
 		const result = await tx.mediaAsset.update({
 			where: { id: asset.id },
@@ -434,6 +447,7 @@ export async function claimVideoOutputReview(jobId: string, deadlineSeconds: num
 			status: asset.verificationProviderTaskId ? ("QUERY" as const) : ("SUBMIT" as const),
 			asset: result,
 			token,
+			reviewContext,
 		};
 	});
 }

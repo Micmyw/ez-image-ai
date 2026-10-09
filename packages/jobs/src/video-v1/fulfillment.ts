@@ -2,8 +2,7 @@ import type { MediaSafetyAdapter, ModerationDecision } from "@repo/ai/media/mode
 import { createConfiguredVideoSafetyAdapter } from "@repo/ai/media/moderation/video-configured";
 import { moderationServiceErrorCode } from "@repo/config";
 import { maximumMediaStorageBytes } from "@repo/config/server";
-import { readVideoAudioSafetyPolicy, videoOutputConstraints } from "@repo/config/video-output";
-import { readVideoVisualSafetyProfile } from "@repo/config/video-safety";
+import { videoOutputConstraints } from "@repo/config/video-output";
 import { readVideoV1Config } from "@repo/config/video-v1";
 import {
 	beginVideoReviewSubmission,
@@ -111,26 +110,20 @@ export async function reviewStoredVideo(
 	safety?: MediaSafetyAdapter,
 ): Promise<ReviewStepResult> {
 	const config = readVideoV1Config(env);
-	const snapshot = await getVideoFulfillmentSnapshot(jobId);
-	const visualSafetyProfile = readVideoVisualSafetyProfile(snapshot.inputSnapshot);
-	const constraints = videoOutputConstraints(snapshot.inputSnapshot);
-	const stageData = snapshot.videoExecution.stageData as {
-		outputSpec?: { audioTracks?: number; audioTrackIds?: number[] };
-	};
-	const video = {
-		durationMillis: Number(
-			snapshot.assets[0]?.asset.durationMillis ?? constraints.durationSeconds * 1000,
-		),
-		audioTrackIds: stageData.outputSpec?.audioTrackIds ?? [],
-	};
 	const claim = await claimVideoOutputReview(jobId, config.moderationDeadlineSeconds);
 	if (claim.status === "APPROVED") return { status: "ALLOW" };
 	if (claim.status === "REJECTED") return { status: "REJECT", reasonCode: claim.reasonCode };
+	const { visualSafetyProfile, constraints, audioSafetyPolicy, durationMillis } =
+		claim.reviewContext;
+	const outputSpec = claim.reviewContext.outputSpec as {
+		audioTracks?: number;
+		audioTrackIds?: number[];
+	};
+	const video = { durationMillis, audioTrackIds: outputSpec.audioTrackIds ?? [] };
 	const retiredReason =
 		visualSafetyProfile.provider === "sightengine"
 			? "MODERATION_PROVIDER_RETIRED"
-			: stageData.outputSpec?.audioTracks &&
-				  readVideoAudioSafetyPolicy(snapshot.inputSnapshot).mode === "required"
+			: outputSpec.audioTracks && audioSafetyPolicy.mode === "required"
 				? "VIDEO_AUDIO_REVIEW_NOT_ENABLED"
 				: null;
 	if (retiredReason) {
