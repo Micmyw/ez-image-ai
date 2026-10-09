@@ -1,0 +1,78 @@
+{
+	"schemaVersion": 1,
+	"status": "BASELINE_PREPARATION_COMPLETE_AWAITING_GROUP_SHAS",
+	"baseline": "af4c7a333f3820a5914aca9f8ad867a537700f10",
+	"branch": "codex/generation-speed-integration",
+	"environment": {
+		"os": "Windows",
+		"node": "24.14.1",
+		"pnpm": "11.3.0",
+		"databaseServerStarted": false,
+		"externalPaidCalls": 0,
+		"productionWrites": 0
+	},
+	"source": {
+		"libraryFileId": "libfile_8bc567030ca08191b078668aef012de3",
+		"fileId": "file_00000000234c8230a7386790edab467a",
+		"versionId": null,
+		"lines": 528,
+		"bytes": 46407,
+		"sha256": "0a587d14ea09dcb4cbc895640d03cea5195eea381ad8932e42ff13a9a50c93a9",
+		"readWindows": [
+			[1, 190],
+			[191, 360],
+			[361, 528]
+		],
+		"complete": true
+	},
+	"checks": [
+		{
+			"name": "frozen install",
+			"command": "pnpm install --frozen-lockfile --prefer-offline",
+			"status": "PASS"
+		},
+		{
+			"name": "generated clients",
+			"command": "pnpm --filter @repo/database generate",
+			"status": "PASS",
+			"databaseAccess": false
+		},
+		{
+			"name": "SaaS baseline",
+			"command": "pnpm --filter saas exec vitest run cloudflare/request-scope.test.ts modules/media/hooks/use-generation-submit.test.ts modules/media/hooks/use-generation.test.ts modules/media/components/GenerationForm.test.tsx modules/media/lib/preview-timing.test.ts",
+			"status": "PASS",
+			"files": 5,
+			"passed": 58,
+			"failed": 0,
+			"skipped": 0,
+			"rawReport": "baseline-saas.json"
+		},
+		{
+			"name": "Jobs baseline",
+			"command": "pnpm --filter @repo/jobs exec vitest run --config vitest.config.ts src/video-v1/webhooks.test.ts src/video-v1/fulfillment.test.ts src/video-v1/output-storage.test.ts",
+			"status": "PASS",
+			"files": 3,
+			"passed": 56,
+			"failed": 0,
+			"skipped": 0,
+			"rawReport": "baseline-jobs.json"
+		}
+	],
+	"totalNonOverlappingPassed": 114,
+	"unrun": [
+		"C1-C7 optimization acceptance",
+		"isolated database integration",
+		"1/3/5 mixed workload",
+		"candidate type checks and builds",
+		"local Worker artifact and browser acceptance",
+		"independent Astra max review",
+		"production performance"
+	],
+	"limitations": [
+		"Only integration documentation and evidence metadata are changed at this checkpoint.",
+		"All implementation commit SHAs are pending parent handoff.",
+		"Existing fixed-port test guards require exclusive execution or a separately reviewed guarded override.",
+		"C7 implementation remains gated by the safety audit and C4 contract."
+	],
+	"realPerformance": null
+}
