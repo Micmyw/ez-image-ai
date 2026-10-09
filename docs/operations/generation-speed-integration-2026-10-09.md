@@ -2,11 +2,11 @@
 
 ## Status and source
 
-This is the integration plan and baseline checkpoint, not implementation acceptance.
-The integration owner has not yet received any C1–C6 implementation commit SHA.
-The C7 read-only audit has been imported; C7 optimization is conditionally blocked.
-No optimization, production configuration change, paid request, migration against
-production, push, or deployment is included in this checkpoint.
+This plan records local integration status, not final implementation acceptance.
+C2 code has been imported and awaits combined C1+C2 verification; C1 and C3–C6
+implementation SHAs are still pending. The C7 read-only audit has been imported;
+C7 optimization is conditionally blocked. No production configuration change, paid
+request, migration against production, push, or deployment is included.
 
 - Fixed baseline: `af4c7a333f3820a5914aca9f8ad867a537700f10`.
 - Integration branch: `codex/generation-speed-integration`.
@@ -73,9 +73,9 @@ to produce performance comparisons.
 
 ## C1–C7 acceptance matrix
 
-C1–C6 acceptance states are **PENDING_IMPLEMENTATION_HANDOFF**. C7 is
-**CONDITIONALLY_BLOCKED**: the audit is delivered, but the optimization is neither
-implemented nor accepted.
+C2 is **INTEGRATED_PENDING_BATCH_VERIFICATION**. C1 and C3–C6 are
+**PENDING_IMPLEMENTATION_HANDOFF**. C7 is **CONDITIONALLY_BLOCKED**: the audit is
+delivered, but the optimization is neither implemented nor accepted.
 
 | Item | Removed dependency / structural target                                                        | Required positive and negative evidence                                                                                                                                                                                                                                                                                                                                                                    | Primary focused tests                                                                                 |
 | ---- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -160,6 +160,61 @@ specific operation/scope and remaining evidence gap to the parent for a decision
 and concrete authorization before proceeding. No such online operation is currently
 authorized. C7 currently removes **0 reads, 0 queries and 0 waits**, has no paired
 performance samples, and remains **CONDITIONALLY_BLOCKED**.
+
+### C2 implementation handoff
+
+Source commit `a037cfc78ddff62868eb93cb83283f3844a984c7`, based directly on the fixed
+baseline, was imported without conflicts as
+`c15f0736e31da1f1093bfc068ec2aa1c9e8aad7c`. All 12 changed files are within B's
+request-lifecycle, API dispatch and test ownership; database/business transaction,
+authorization, pricing, ledger, moderation and provider execution files are unchanged.
+
+Shared contract now present in the integration branch:
+
+- Server-only `@repo/utils/request-lifecycle` exposes
+  `RequestDefer = (promise: Promise<unknown>) => void`, `getRequestDefer` and
+  `runWithRequestDefer`. It is not exported from the client barrel; no dependency
+  or package configuration changed. Symbol-keyed AsyncLocalStorage shares only the
+  registrar storage across separate server bundles, not a mutable current request.
+- Worker registration uses the proxy context supplied to the
+  `runScopedWorkerRequest` handler. API/oRPC context has optional `defer`;
+  `submitGenerationForUser` accepts it as an optional fifth argument. Both normal
+  submit and old createGeneration call `startCreatedGenerationDispatch` after the
+  persisted admission result returns.
+- Dispatch starts immediately. Without a hook the same work is awaited; if
+  registration fails, the already-started Promise is awaited without redispatch.
+  Stable Workflow/event identity, explicit empty continuation, 3-second short-wake
+  timeout and durable recovery remain. The request scope retains pending/derived
+  work through response cancellation, then disposes once; closing rejects late
+  registrations.
+- Existing log-only timing separates `request.http`, `background.dispatch`,
+  commit-observation/replay-to-wake and no-hook `admission.dispatch`. No SQL was
+  added for timing. Structural change: one HTTP wait removed when defer is present;
+  query reduction 0, file-read reduction 0, dispatch-count change 0.
+
+Group-reported evidence, inspected but not rerun during this import: SaaS 15,
+API 41, Workflow 32 and dispatch-client 4 assertions passed; targeted type/lint/
+format checks passed. The manual source-workerd harness overlaps the SaaS wrapper
+and is not counted again. The group reports an independent Astra max review with
+no unresolved findings. These results are not added to the earlier 114 baseline
+assertions as a new integrated-candidate total.
+
+Evidence files supplied by the parent:
+`D:/梅一伟/Documents/codex/2026-10-09/task-4/c2-evidence/validation.md` and
+`paired-mock.json` in the same directory. The paired JSON has N=5, one warmup per
+version, concurrency 1, hot modules, 202-byte schema-only request, zero media bytes,
+and a synthetic 250 ms wake timer. Function-return times are 258.3520–262.4017 ms
+before and 0.1599–0.3137 ms after; each sample dispatches once. This is local mock
+function timing with no real DB/provider/storage or browser/network HTTP timing,
+not an estimate of production improvement.
+
+First-batch integration will run C1 and C2 together after C1 handoff. Add
+`cloudflare/request-scope.workerd.test.ts` and
+`modules/media/procedures/submit-generation.http.test.ts` to that batch. Final
+OpenNext website artifact lifetime/DB binding, isolated real-DB durable recovery
+and ledger invariants remain **NOT_RUN**. Source workerd tests use a dynamic local
+port and mocked DB scope; they do not establish those remaining gates. This import
+starts no DB/port service and repeats no full build.
 
 ## Cross-cutting invariants
 
