@@ -3,9 +3,10 @@
 ## Status and source
 
 This is the integration plan and baseline checkpoint, not implementation acceptance.
-The integration owner has not yet received any C1–C7 commit SHA. No optimization,
-production configuration change, paid request, migration against production, push,
-or deployment is included in this checkpoint.
+The integration owner has not yet received any C1–C6 implementation commit SHA.
+The C7 read-only audit has been imported; C7 optimization is conditionally blocked.
+No optimization, production configuration change, paid request, migration against
+production, push, or deployment is included in this checkpoint.
 
 - Fixed baseline: `af4c7a333f3820a5914aca9f8ad867a537700f10`.
 - Integration branch: `codex/generation-speed-integration`.
@@ -72,7 +73,9 @@ to produce performance comparisons.
 
 ## C1–C7 acceptance matrix
 
-All optimization acceptance states below are **PENDING_IMPLEMENTATION_HANDOFF**.
+C1–C6 acceptance states are **PENDING_IMPLEMENTATION_HANDOFF**. C7 is
+**CONDITIONALLY_BLOCKED**: the audit is delivered, but the optimization is neither
+implemented nor accepted.
 
 | Item | Removed dependency / structural target                                                        | Required positive and negative evidence                                                                                                                                                                                                                                                                                                                                                                    | Primary focused tests                                                                                 |
 | ---- | --------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -128,6 +131,35 @@ C7 is a conditional gate. The current task does not permit real R2 writes or onl
 conditional-semantics experiments. If local/source evidence cannot establish the
 required safety premise, keep the full-read behavior and deliver the audit as a
 bounded non-implementation outcome. Do not silently enable a weaker HEAD-only path.
+
+### C7 audit handoff and integration decision
+
+The parent supplied audit commit `332ee0d5c85e9c0aecb70d7011f0ca6275a71446`.
+It contains only [the C7 feasibility report](c7-storage-proof-audit-2026-10-09.md),
+imported without code changes as `4076c350ba1c606002ccc9fceabe90284c98fb4d`.
+The report's read-only independent Astra max review reported no P0/P1/P2 findings.
+That review does not establish implementation, unit, database or real-R2 acceptance.
+
+The audit leaves three enabling premises unproven:
+
+1. Every storage write entrance enforces non-overwrite for the video output identity.
+2. Real R2 conditional multipart completion and conditional Range response semantics
+   satisfy the proposed proof; local mocks or SDK field mapping cannot certify this.
+3. The current private GET wrapper returns enough response evidence: it presently
+   omits HTTP status and ContentRange needed for strict range validation.
+
+Parent decision: prioritize C1–C6 and preserve both existing full stored-object
+read/hash/MP4 checks. Do not add a large proof/state or infrastructure change merely
+to leave a disabled fast path with no measured benefit. The implementation proposals
+in the audit remain proposals; C4 completion alone does not authorize implementing
+or enabling them.
+
+After C4 integration, perform only a minimal source/contract feasibility recheck.
+If enabling C7 still requires real R2 writes or shared-scope expansion, send the
+specific operation/scope and remaining evidence gap to the parent for a decision
+and concrete authorization before proceeding. No such online operation is currently
+authorized. C7 currently removes **0 reads, 0 queries and 0 waits**, has no paired
+performance samples, and remains **CONDITIONALLY_BLOCKED**.
 
 ## Cross-cutting invariants
 
@@ -318,7 +350,9 @@ Each group provides commit SHA, base, worktree, files, shared contract changes, 
 test commands/results and unrun items. A additionally supplies a separate small
 credit-cache account-isolation commit and its real QueryClient regressions.
 C additionally freezes C4's reviewContext
-contract before E implementation. E provides an explicit enable/no-enable decision.
+contract before any approved E implementation. E's current audit decision is
+no-enable; the parent requires a minimal C4-dependent recheck before considering
+additional implementation or online evidence collection.
 Integration records ordered SHAs and resolved conflicts, then the parent routes
 the complete candidate to independent Astra max review in a separate session, as
 explicitly requested by the user. Only local commits are authorized.
