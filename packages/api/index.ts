@@ -25,6 +25,7 @@ import { getVideoWorkflowBinding } from "@repo/jobs/video-v1/workflow-binding";
 import { getLogContext, logger, withLogContext } from "@repo/logs";
 import { webhookHandler as paymentsWebhookHandler } from "@repo/payments";
 import { checkStorageMetadataAccess } from "@repo/storage";
+import { getRequestDefer } from "@repo/utils/request-lifecycle";
 import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
@@ -133,7 +134,7 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 						};
 						// Response-ready time includes authentication/serialization, not network delivery.
 						const measuredMediaRequest =
-							/^\/api\/(?:rpc\/media\/(?:getJob|submitGeneration|createQuote|createGeneration)|media\/(?:jobs\/[^/]+|generations\/submit))$/.test(
+							/^\/api\/(?:rpc\/media\/(?:getJob|submitGeneration|createQuote|createGeneration)|media\/(?:jobs\/[^/]+|generations(?:\/submit)?))$/.test(
 								c.req.path,
 							);
 						if (measuredMediaRequest)
@@ -284,6 +285,7 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 					responseHeaders: new Headers(),
 					requestId,
 					traceId,
+					defer: getRequestDefer(),
 				};
 
 				const isRpc = c.req.path.includes("/rpc/");

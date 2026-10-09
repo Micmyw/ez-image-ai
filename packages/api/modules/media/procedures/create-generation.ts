@@ -15,6 +15,7 @@ import { db } from "@repo/database/client";
 import { resolveDatabaseDispatchRoute } from "@repo/jobs";
 import { dispatchJob } from "@repo/jobs/orchestration/client";
 import { logger } from "@repo/logs";
+import type { RequestDefer } from "@repo/utils/request-lifecycle";
 
 import { protectedProcedure } from "../../../orpc/procedures";
 import { dispatchCreatedJobBestEffort } from "../lib/dispatch-created-job";
@@ -36,11 +37,11 @@ import { dispatchUploadVerification } from "./complete-upload-session";
 export const createGeneration = protectedProcedure
 	.route({ method: "POST", path: "/media/generations", tags: ["Media"] })
 	.input(createGenerationInputSchema)
-	.handler(async ({ context: { user, requestId }, input }) => {
+	.handler(async ({ context: { user, requestId, defer }, input }) => {
 		try {
 			const timing = createFlowTiming({ requestId });
 			const result = await createGenerationForUser(user.id, input, undefined, timing);
-			await timing.measure("admission.dispatch", () => dispatchCreatedGeneration(result));
+			await startCreatedGenerationDispatch(result, timing, defer);
 			return {
 				job: {
 					id: result.job.id,
@@ -54,6 +55,41 @@ export const createGeneration = protectedProcedure
 			throw toMediaOrpcError(error);
 		}
 	});
+
+/** Start only after durable admission. The optional hook owns short wake work, not generation. */
+export async function startCreatedGenerationDispatch(
+	result: CreatedGenerationJob,
+	timing: FlowTiming,
+	defer?: RequestDefer,
+	dispatch: typeof dispatchCreatedGeneration = dispatchCreatedGeneration,
+): Promise<void> {
+	// Observed transaction return, not a database clock. Replays have no new commit.
+	const observedAt = performance.now();
+	const boundary = result.replayed ? "admission.replay_to_wake" : "admission.commit_to_wake";
+	const task = timing.measure(defer ? "background.dispatch" : "admission.dispatch", async () => {
+		timing.mark(`${boundary}.start`, performance.now() - observedAt);
+		try {
+			await dispatch(result);
+		} finally {
+			timing.mark(`${boundary}.complete`, performance.now() - observedAt);
+		}
+	});
+	if (!defer) {
+		await task;
+		return;
+	}
+	// A replay lookup can also reject. A committed job remains recoverable and accepted.
+	const background = task.catch(() => {
+		logger.warn("Generation wake deferred to durable recovery", { jobId: result.job.id });
+	});
+	try {
+		defer(background);
+	} catch {
+		// Registration may fail after accepting the task. Await the same work, never redispatch.
+		timing.mark("admission.defer.fallback", 0);
+		await background;
+	}
+}
 
 export async function dispatchCreatedGeneration(result: CreatedGenerationJob): Promise<void> {
 	const eventIds =

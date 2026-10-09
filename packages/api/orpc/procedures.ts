@@ -1,6 +1,7 @@
 import { ORPCError, os } from "@orpc/server";
 import { auth } from "@repo/auth";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
+import type { RequestDefer } from "@repo/utils/request-lifecycle";
 
 import { createFlowTiming } from "../modules/media/lib/flow-timing";
 
@@ -9,6 +10,7 @@ export const publicProcedure = os.$context<{
 	responseHeaders?: Headers;
 	requestId?: string;
 	traceId?: string;
+	defer?: RequestDefer;
 }>();
 
 export const protectedProcedure = publicProcedure.use(async ({ context, next, path }) => {

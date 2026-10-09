@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { findGenerationSubmissionQuote } from "@repo/database";
 import { db } from "@repo/database/client";
+import type { RequestDefer } from "@repo/utils/request-lifecycle";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -12,6 +13,7 @@ import {
 	createGenerationForUser,
 	createGenerationFromApprovedQuote,
 	dispatchCreatedGeneration,
+	startCreatedGenerationDispatch,
 } from "./create-generation";
 import { createQuoteForUser } from "./create-quote";
 
@@ -40,6 +42,7 @@ export async function submitGenerationForUser(
 	input: Input,
 	dependencies: Dependencies = defaults,
 	timing: FlowTiming = createFlowTiming(),
+	defer?: RequestDefer,
 ) {
 	const quoteId = `submit_${hash([userId, input.idempotencyKey])}`;
 	const fingerprint = hash({
@@ -111,7 +114,7 @@ export async function submitGenerationForUser(
 		}
 	}
 	timing.bind({ jobId: result.job.id, assetId: result.verificationAssetId });
-	await timing.measure("admission.dispatch", () => dependencies.dispatch(result));
+	await startCreatedGenerationDispatch(result, timing, defer, dependencies.dispatch);
 	return {
 		job: {
 			id: result.job.id,
@@ -144,13 +147,14 @@ function hash(value: unknown): string {
 export const submitGeneration = protectedProcedure
 	.route({ method: "POST", path: "/media/generations/submit", tags: ["Media"] })
 	.input(submitGenerationInputSchema)
-	.handler(async ({ context: { user, requestId }, input }) => {
+	.handler(async ({ context: { user, requestId, defer }, input }) => {
 		try {
 			return await submitGenerationForUser(
 				user.id,
 				input,
 				undefined,
 				createFlowTiming({ requestId }),
+				defer,
 			);
 		} catch (error) {
 			throw toMediaOrpcError(error);

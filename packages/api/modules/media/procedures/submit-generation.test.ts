@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createFlowTiming } from "../lib/flow-timing";
 import { submitGenerationForUser, submitGenerationInputSchema } from "./submit-generation";
 
 type Dependencies = NonNullable<Parameters<typeof submitGenerationForUser>[2]>;
@@ -49,7 +50,109 @@ function fixture() {
 	const dispatch = vi.fn<Dependencies["dispatch"]>().mockResolvedValue(undefined);
 	return { quotes, dependencies: { findQuote, createQuote, createJob, dispatch } };
 }
+function deferred() {
+	let resolve!: () => void;
+	let reject!: (error: Error) => void;
+	const promise = new Promise<void>((onResolve, onReject) => {
+		resolve = onResolve;
+		reject = onReject;
+	});
+	return { promise, resolve, reject };
+}
 describe("combined generation admission", () => {
+	it("starts the committed wake immediately and returns while managed dispatch is pending", async () => {
+		const f = fixture();
+		const wake = deferred();
+		const pending: Promise<unknown>[] = [];
+		f.dependencies.dispatch.mockImplementation(() => {
+			expect([...f.quotes.values()][0].job).not.toBeNull();
+			return wake.promise;
+		});
+		const result = await submitGenerationForUser(
+			"owner",
+			input,
+			f.dependencies,
+			createFlowTiming(),
+			(task) => pending.push(task),
+		);
+		expect(result.job.id).toBe("job-1");
+		expect(f.dependencies.dispatch).toHaveBeenCalledTimes(1);
+		expect(pending).toHaveLength(1);
+		wake.resolve();
+		await Promise.all(pending);
+	});
+
+	it("retains the await path without a request hook", async () => {
+		const f = fixture();
+		const wake = deferred();
+		const started = deferred();
+		f.dependencies.dispatch.mockImplementation(() => {
+			started.resolve();
+			return wake.promise;
+		});
+		let returned = false;
+		const response = submitGenerationForUser("owner", input, f.dependencies).then(() => {
+			returned = true;
+		});
+		await started.promise;
+		expect(returned).toBe(false);
+		wake.resolve();
+		await response;
+		expect(returned).toBe(true);
+	});
+
+	it("awaits the same started wake if registration fails without dispatching twice", async () => {
+		const f = fixture();
+		const wake = deferred();
+		const registered = deferred();
+		f.dependencies.dispatch.mockReturnValue(wake.promise);
+		let returned = false;
+		const response = submitGenerationForUser(
+			"owner",
+			input,
+			f.dependencies,
+			createFlowTiming(),
+			() => {
+				registered.resolve();
+				throw new Error("WAIT_UNTIL_FAILED");
+			},
+		).then(() => {
+			returned = true;
+		});
+		await registered.promise;
+		expect(returned).toBe(false);
+		expect(f.dependencies.dispatch).toHaveBeenCalledTimes(1);
+		wake.resolve();
+		await response;
+		expect(returned).toBe(true);
+	});
+
+	it("keeps a committed admission accepted when background dispatch rejects and replay never reserves twice", async () => {
+		const f = fixture();
+		const wake = deferred();
+		const pending: Promise<unknown>[] = [];
+		f.dependencies.dispatch.mockReturnValueOnce(wake.promise);
+		const result = await submitGenerationForUser(
+			"owner",
+			input,
+			f.dependencies,
+			createFlowTiming(),
+			(task) => pending.push(task),
+		);
+		wake.reject(new Error("WAKE_FAILED"));
+		await Promise.all(pending);
+		const replay = await submitGenerationForUser(
+			"owner",
+			input,
+			f.dependencies,
+			createFlowTiming(),
+			(task) => pending.push(task),
+		);
+		await Promise.all(pending);
+		expect(replay).toMatchObject({ job: { id: result.job.id }, replayed: true });
+		expect(f.dependencies.createJob).toHaveBeenCalledTimes(1);
+		expect(f.dependencies.createQuote).toHaveBeenCalledTimes(1);
+	});
 	it("freezes one quote and creates one job with the displayed price", async () => {
 		const f = fixture();
 		const result = await submitGenerationForUser("owner", input, f.dependencies);

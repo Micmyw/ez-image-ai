@@ -20,6 +20,7 @@ export async function runScopedWorkerRequest<Environment>(
 	) => Promise<Response>,
 ): Promise<Response> {
 	const pending = new Set<Promise<unknown>>();
+	let closing = false;
 	let finishResponse!: () => void;
 	const responseFinished = new Promise<void>((resolve) => {
 		finishResponse = resolve;
@@ -27,14 +28,24 @@ export async function runScopedWorkerRequest<Environment>(
 	const lifetime = responseFinished.then(async () => {
 		// A registered task can register more work before it settles.
 		while (pending.size) await Promise.allSettled([...pending]);
+		closing = true;
 		await scope.run(() => scope.dispose());
 	});
-	executionContext.waitUntil(lifetime);
+	try {
+		executionContext.waitUntil(lifetime);
+	} catch (error) {
+		// No handler or background work has started; release even if registration fails.
+		finishResponse();
+		// Preserve the registration error even when cleanup itself rejects.
+		await lifetime.catch(() => {});
+		throw error;
+	}
 
 	const context = new Proxy(executionContext, {
 		get(target, property) {
 			if (property === "waitUntil") {
 				return (promise: Promise<unknown>) => {
+					if (closing) throw new Error("WORKER_REQUEST_SCOPE_CLOSED");
 					const task = Promise.resolve(promise);
 					pending.add(task);
 					void task.then(
@@ -56,7 +67,10 @@ export async function runScopedWorkerRequest<Environment>(
 			return response;
 		}
 		const reader = response.body.getReader();
+		let streamFinished = false;
 		const finishStream = () => {
+			if (streamFinished) return;
+			streamFinished = true;
 			reader.releaseLock();
 			finishResponse();
 		};

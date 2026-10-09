@@ -12,6 +12,7 @@ import {
 } from "@repo/storage/image-processing/cloudflare-images";
 import { runWithImageProcessor } from "@repo/storage/image-processing/context";
 import { runWithCloudflareRemoteMedia } from "@repo/storage/lib/cloudflare-remote-media";
+import { runWithRequestDefer } from "@repo/utils/request-lifecycle";
 
 import { forwardToWebsite } from "../web-host/src/forward";
 // @ts-ignore OpenNext generates this module after Next's application type check.
@@ -79,7 +80,12 @@ export default {
 							),
 						dispose: () => client.$disconnect(),
 					},
-					(request, environment, context) => openNextWorker.fetch(request, environment, context),
+					(request, environment, context) =>
+						// This is runScopedWorkerRequest's proxy, which keeps DB scope alive.
+						runWithRequestDefer(
+							(task) => context.waitUntil(task),
+							() => openNextWorker.fetch(request, environment, context),
+						),
 				);
 			},
 			runtimeEnvironment.PAYMENT_WEBHOOK_INGRESS_ORIGIN,
