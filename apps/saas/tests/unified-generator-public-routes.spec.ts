@@ -20,6 +20,7 @@ type State = {
 	createError: string | null;
 	createGate?: Promise<void>;
 	sealGate?: Promise<void>;
+	jobPatch?: Record<string, unknown>;
 };
 async function setup(page: Page, signedIn = true) {
 	const state: State = {
@@ -120,6 +121,7 @@ async function setup(page: Page, signedIn = true) {
 			canPlay: false,
 			failureCode: null,
 			updatedAt: new Date().toISOString(),
+			...state.jobPatch,
 		};
 		if (endpoint === "catalog") {
 			state.catalogReads++;
@@ -242,6 +244,46 @@ async function mode(page: Page, value: "image" | "video") {
 		.locator(`[data-generator-mode="${value}"]`)
 		.click();
 	await expect(page.locator(`[data-generator-panel="${value}"]`)).toBeVisible();
+}
+
+for (const locale of ["en", "de"] as const) {
+	test(`quality warnings show actual and requested video details without granting playback (${locale})`, async ({
+		page,
+	}) => {
+		const state = await setup(page);
+		state.jobPatch = {
+			stage: "OUTPUT_REVIEW",
+			output: {
+				schemaVersion: 1,
+				actual: { durationMillis: 5074, width: 496, height: 864, audioTracks: 1 },
+				requested: { durationSeconds: 5, resolution: "720p", aspectRatio: "9:16", sound: false },
+				warnings: ["UNEXPECTED_AUDIO", "RESOLUTION_MISMATCH"],
+			},
+		};
+		await page.goto(`/create?mode=video&videoJob=ui-video-1${locale === "de" ? "&lang=de" : ""}`);
+		const card = page.locator('[data-test="video-job"]').first();
+		await expect(card.getByTestId("video-output-details")).toContainText("496 × 864 px");
+		await expect(card.getByTestId("video-output-details")).toContainText("720p");
+		await expect(card.getByRole("note")).toContainText(
+			locale === "de"
+				? "Die Ausgabe weicht von Ihrer Anfrage ab"
+				: "Output differs from your request",
+		);
+		await expect(card.locator("video")).toHaveCount(0);
+		await card.screenshot({ path: path.join(evidence, `video-quality-${locale}-desktop.png`) });
+		await page.setViewportSize({ width: 390, height: 844 });
+		await card.scrollIntoViewIfNeeded();
+		await expect(card.getByRole("note")).toBeVisible();
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+			true,
+		);
+		await card.screenshot({ path: path.join(evidence, `video-quality-${locale}-mobile.png`) });
+		state.jobPatch = { ...state.jobPatch, stage: "READY", creditState: "SETTLED", canPlay: false };
+		await expect(card).toHaveAttribute("data-stage", "READY");
+		await expect(card.locator("video")).toHaveCount(0);
+		expect(state.creates).toHaveLength(0);
+		expect(state.quotes).toHaveLength(0);
+	});
 }
 async function reviewChangedPrice(page: Page, state: State) {
 	state.quoteCredits = "29";

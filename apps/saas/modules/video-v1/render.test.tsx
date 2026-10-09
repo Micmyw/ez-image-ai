@@ -47,6 +47,7 @@ vi.mock("@tanstack/react-query", () => ({
 
 import { VideoHistory } from "./VideoHistory";
 import { VideoStateCard } from "./VideoJob";
+import { VideoOutputDetails } from "./VideoOutputDetails";
 import { VideoAnnualBadge, VideoAnnualBanner, VideoRetailPrice } from "./VideoRetailPrice";
 import { VideoSettings } from "./VideoSettings";
 
@@ -68,6 +69,51 @@ function render(stage: VideoState["stage"], canPlay = false) {
 }
 
 describe("truthful video delivery UI", () => {
+	it.each([
+		{ locale: "en", messages: en },
+		{ locale: "de", messages: de },
+		{ locale: "es", messages: es },
+		{ locale: "fr", messages: fr },
+	])(
+		"renders measured output and advisory warnings in $locale without replacing READY or playback",
+		({ locale, messages }) => {
+			const output = {
+				schemaVersion: 1 as const,
+				actual: { durationMillis: 5050, width: 496, height: 864, audioTracks: 1 },
+				requested: { durationSeconds: 5, resolution: "720p", aspectRatio: "9:16", sound: false },
+				warnings: ["UNEXPECTED_AUDIO", "RESOLUTION_MISMATCH"] as const,
+			};
+			const state: VideoState = {
+				jobId: "quality-fixture",
+				stage: "READY",
+				canPlay: true,
+				creditState: "SETTLED",
+				credits: "23",
+				failureCode: null,
+				updatedAt: "2026-10-09T00:00:00Z",
+				output: { ...output, warnings: [...output.warnings] },
+			};
+			const markup = renderToStaticMarkup(
+				<NextIntlClientProvider locale={locale} messages={messages}>
+					<VideoStateCard state={state} />
+				</NextIntlClientProvider>,
+			);
+			expect(markup).toContain('data-stage="READY"');
+			expect(markup).toContain("496 × 864 px");
+			expect(markup).toContain("720p");
+			expect(markup).toContain(messages.videoV1.output.warnings.UNEXPECTED_AUDIO);
+			expect(markup).toContain(messages.videoV1.output.warnings.RESOLUTION_MISMATCH);
+			expect(markup).toContain(messages.videoV1.output.original);
+			expect(markup).toContain("<video");
+			expect(markup).toContain(messages.videoV1.download);
+			const clean = renderToStaticMarkup(
+				<NextIntlClientProvider locale={locale} messages={messages}>
+					<VideoOutputDetails output={{ ...output, warnings: [] }} />
+				</NextIntlClientProvider>,
+			);
+			expect(clean).not.toContain('role="note"');
+		},
+	);
 	it.each(["standard", "annual"] as const)(
 		"renders the backend %s pair and rounded credit savings without a blanket half-price claim",
 		(audience) => {

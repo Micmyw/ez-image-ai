@@ -20,9 +20,10 @@ describe("bounded video V1 MP4 specification", () => {
 			});
 		},
 	);
-	it("rejects an audio track even when video metadata is otherwise valid", () => {
+	it("records unexpected audio without rejecting usable video metadata", () => {
 		const probe = new VideoMp4Inspector();
-		expect(() => probe.write(mp4Fixture({ audio: true }))).toThrow("VIDEO_AUDIO_TRACK_NOT_ALLOWED");
+		probe.write(mp4Fixture({ audio: true }));
+		expect(probe.finish()).toMatchObject({ audioTracks: 1, audioTrackIds: [2] });
 	});
 	it.each([2, 5, 10, 15, 30])(
 		"validates a requested %i-second result with one native AAC track",
@@ -60,16 +61,36 @@ describe("bounded video V1 MP4 specification", () => {
 			new VideoMp4Inspector(undefined, { durationSeconds: 5, sound: true }).write(bytes),
 		).toThrow("VIDEO_TRACK_IDENTITY_INVALID");
 	});
-	it("rejects duration drift, truncation, and oversized streams", () => {
-		expect(() => new VideoMp4Inspector().write(mp4Fixture({ durationMillis: 10000 }))).toThrow(
-			"VIDEO_DURATION_MISMATCH",
-		);
+	it("records actual duration drift but still rejects zero duration, truncation, and oversized streams", () => {
+		const drift = new VideoMp4Inspector();
+		drift.write(mp4Fixture({ durationMillis: 10000 }));
+		expect(drift.finish().durationMillis).toBe(10000);
+		expect(() => new VideoMp4Inspector().write(mp4Fixture({ durationMillis: 0 }))).toThrow();
 		const probe = new VideoMp4Inspector();
 		const bytes = mp4Fixture();
 		probe.write(bytes.subarray(0, bytes.length - 1));
 		expect(() => probe.finish()).toThrow("VIDEO_MP4_INVALID");
 		expect(() => new VideoMp4Inspector(100).write(bytes)).toThrow("OUTPUT_MEDIA_SIZE_EXCEEDED");
 	});
+	it.each([
+		{ track: "video", durationMillis: 6000 },
+		{ track: "audio", durationMillis: 31000 },
+	])(
+		"covers the longer $track timeline instead of trusting a shorter movie header",
+		({ track, durationMillis }) => {
+			const bytes = mp4Fixture({ audio: true });
+			const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+			const videoHeader = buffer.indexOf("mdhd");
+			const header = track === "video" ? videoHeader : buffer.indexOf("mdhd", videoHeader + 4);
+			expect(header).toBeGreaterThan(0);
+			const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+			view.setUint32(header + 16, 1000);
+			view.setUint32(header + 20, durationMillis);
+			const probe = new VideoMp4Inspector();
+			probe.write(bytes);
+			expect(probe.finish().durationMillis).toBe(durationMillis);
+		},
+	);
 	it("fails before allocating an oversized moov metadata buffer", () => {
 		const bytes = mp4Fixture();
 		const ftyp = bytes.slice(0, 20);

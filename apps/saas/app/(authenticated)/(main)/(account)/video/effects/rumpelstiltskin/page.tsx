@@ -34,7 +34,12 @@ export default async function RumpelstiltskinPage({
 	}
 	const messages = await getMessages();
 	return (
-		<NextIntlClientProvider messages={{ videoEffects: messages.videoEffects }}>
+		<NextIntlClientProvider
+			messages={{
+				videoEffects: messages.videoEffects,
+				videoV1: { output: messages.videoV1.output },
+			}}
+		>
 			<RumpelstiltskinWorkbench initialJobId={initialJobId} readOnly={Boolean(initialJobId)} />
 		</NextIntlClientProvider>
 	);

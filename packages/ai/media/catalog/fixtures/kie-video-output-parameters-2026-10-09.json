@@ -1,0 +1,1061 @@
+{
+	"retrievedAt": "2026-10-09",
+	"sourceType": "Official public Kie OpenAPI request schemas; local $ref, allOf and x-apidog-refs expanded, metadata/descriptions omitted; read-only fetch, no generation.",
+	"contracts": [
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-1-5-pro.md",
+			"sha256": "602cee8759b301eaf6223f55a68f6e7f96095e5391c8a955492be27dc186f352",
+			"request": {
+				"type": "object",
+				"required": ["model"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["bytedance/seedance-1.5-pro"],
+						"default": "bytedance/seedance-1.5-pro"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"minLength": 3,
+								"maxLength": 20000
+							},
+							"input_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 2
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9"]
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["480p", "720p", "1080p"],
+								"default": "720p"
+							},
+							"duration": {
+								"type": "number"
+							},
+							"fixed_lens": {
+								"type": "boolean",
+								"default": false
+							},
+							"generate_audio": {
+								"type": "boolean",
+								"default": true
+							},
+							"nsfw_checker": {
+								"type": "boolean"
+							}
+						},
+						"required": ["prompt", "aspect_ratio", "duration"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-2-5.md",
+			"sha256": "9b0f87df334a825bb160a4d108c89cbf9d17098d1354d78c668bda397bb3d678",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["bytedance/seedance-2-5"],
+						"default": "bytedance/seedance-2-5"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"maxLength": 20480
+							},
+							"first_frame_url": {
+								"type": "string"
+							},
+							"last_frame_url": {
+								"type": "string"
+							},
+							"reference_image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 30
+							},
+							"reference_video_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 10
+							},
+							"reference_audio_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 10
+							},
+							"return_last_frame": {
+								"type": "boolean",
+								"default": false
+							},
+							"generate_audio": {
+								"type": "boolean",
+								"default": true
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["480p", "720p", "1080p"],
+								"default": "720p"
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "adaptive"],
+								"default": "adaptive"
+							},
+							"duration": {
+								"type": "integer",
+								"default": 5
+							},
+							"output_format": {
+								"type": "string",
+								"enum": ["mp4", "mov"],
+								"default": "mp4"
+							},
+							"web_search": {
+								"type": "boolean"
+							},
+							"nsfw_checker": {
+								"type": "boolean"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-2-fast.md",
+			"sha256": "f59e06621c5493720f86521d216f8b3ed8aabcf36ce30ef05583eb3cf7c6742f",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["bytedance/seedance-2-fast"],
+						"default": "bytedance/seedance-2-fast"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"minLength": 3,
+								"maxLength": 20000
+							},
+							"first_frame_url": {
+								"type": "string"
+							},
+							"last_frame_url": {
+								"type": "string"
+							},
+							"reference_image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 9
+							},
+							"reference_video_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 3
+							},
+							"reference_audio_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 3
+							},
+							"return_last_frame": {
+								"type": "boolean",
+								"default": false,
+								"deprecated": true
+							},
+							"generate_audio": {
+								"type": "boolean",
+								"default": true
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["480p", "720p"],
+								"default": "720p"
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "adaptive"],
+								"default": "16:9"
+							},
+							"duration": {
+								"type": "integer",
+								"default": 5
+							},
+							"web_search": {
+								"type": "boolean"
+							},
+							"nsfw_checker": {
+								"type": "boolean"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-2-mini.md",
+			"sha256": "6bdf63aff6a6688e8cb5adfeff3da3e7fbbfdb3fcbf0fc4f9d2c5acb5c15f204",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["bytedance/seedance-2-mini"],
+						"default": "bytedance/seedance-2-mini"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"minLength": 3,
+								"maxLength": 20000
+							},
+							"first_frame_url": {
+								"type": "string"
+							},
+							"last_frame_url": {
+								"type": "string"
+							},
+							"reference_image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 9
+							},
+							"reference_video_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 3
+							},
+							"reference_audio_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 3
+							},
+							"generate_audio": {
+								"type": "boolean",
+								"default": true
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["480p", "720p"],
+								"default": "720p"
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "adaptive"],
+								"default": "16:9"
+							},
+							"duration": {
+								"type": "integer",
+								"default": 5
+							},
+							"web_search": {
+								"type": "boolean"
+							},
+							"nsfw_checker": {
+								"type": "boolean"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/seedance-2.md",
+			"sha256": "d40c80d9acdf9dfddbbff4667e2d879bf84944fc602f73bc9329f6c56ee26fc6",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["bytedance/seedance-2"],
+						"default": "bytedance/seedance-2"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"minLength": 3,
+								"maxLength": 20000
+							},
+							"first_frame_url": {
+								"type": "string"
+							},
+							"last_frame_url": {
+								"type": "string"
+							},
+							"reference_image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 9
+							},
+							"reference_video_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 3
+							},
+							"reference_audio_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 3
+							},
+							"return_last_frame": {
+								"type": "boolean",
+								"default": false,
+								"deprecated": true
+							},
+							"generate_audio": {
+								"type": "boolean",
+								"default": true
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["480p", "720p", "1080p", "4k"],
+								"default": "720p"
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "21:9", "adaptive"],
+								"default": "16:9"
+							},
+							"duration": {
+								"type": "integer",
+								"default": 5
+							},
+							"web_search": {
+								"type": "boolean"
+							},
+							"nsfw_checker": {
+								"type": "boolean"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/bytedance/v1-pro-fast-image-to-video.md",
+			"sha256": "2dae1339c407de274fa7a730a805acbb49a4772e1af2d655a69142cc3e70781f",
+			"request": {
+				"type": "object",
+				"required": ["model"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["bytedance/v1-pro-fast-image-to-video"],
+						"default": "bytedance/v1-pro-fast-image-to-video"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"maxLength": 10000
+							},
+							"image_url": {
+								"type": "string"
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["720p", "1080p"],
+								"default": "720p"
+							},
+							"duration": {
+								"type": "string",
+								"enum": ["5", "10"],
+								"default": "5"
+							},
+							"nsfw_checker": {
+								"type": "boolean"
+							}
+						},
+						"required": ["prompt", "image_url"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/google/gemini-omni-flash-1-1.md",
+			"sha256": "08b655c1d057b417d3da3f0fcee4bec84cb05c4fabf8f2c60807247f4cc334a6",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["google/gemini-omni-flash-1-1"],
+						"default": "google/gemini-omni-flash-1-1"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"maxLength": 20000
+							},
+							"image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								}
+							},
+							"first_frame_url": {
+								"type": "string",
+								"format": "uri"
+							},
+							"last_frame_url": {
+								"type": "string",
+								"format": "uri"
+							},
+							"audio_ids": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"video_list": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"required": ["url", "start", "ends"],
+									"properties": {
+										"url": {
+											"type": "string",
+											"format": "uri"
+										},
+										"start": {
+											"type": "number",
+											"minimum": 0
+										},
+										"ends": {
+											"type": "number",
+											"minimum": 0
+										}
+									}
+								}
+							},
+							"character_ids": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"duration": {
+								"type": "string",
+								"enum": ["4", "6", "8", "10"]
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": ["16:9", "9:16"]
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["360p", "720p", "1080p", "4k"],
+								"default": "720p"
+							},
+							"seed": {
+								"type": "integer"
+							}
+						},
+						"required": ["prompt", "duration"],
+						"dependencies": {
+							"last_frame_url": ["first_frame_url"]
+						}
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/image-to-video.md",
+			"sha256": "9bfe1ed76f68597d664ccedc820c2f232d304a5dd401e46ccd009d22b0e2d546",
+			"request": {
+				"type": "object",
+				"required": ["model"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["kling-2.6/image-to-video"],
+						"default": "kling-2.6/image-to-video"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"maxLength": 2500
+							},
+							"image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"maxItems": 1
+							},
+							"sound": {
+								"type": "boolean"
+							},
+							"duration": {
+								"type": "string",
+								"enum": ["5", "10"]
+							}
+						},
+						"required": ["prompt", "image_urls", "sound", "duration"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/kling-3-0.md",
+			"sha256": "5c94e307ab992912d00dfc95bf254fb3d982cb31266833f82506df47e6683f10",
+			"request": {
+				"type": "object",
+				"required": ["model"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["kling-3.0/video"],
+						"default": "kling-3.0/video"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string"
+							},
+							"image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								}
+							},
+							"sound": {
+								"type": "boolean"
+							},
+							"duration": {
+								"type": "string",
+								"enum": ["3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15"]
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": ["16:9", "9:16", "1:1"]
+							},
+							"mode": {
+								"type": "string",
+								"enum": ["std", "pro", "4K"]
+							},
+							"multi_shots": {
+								"type": "boolean"
+							},
+							"multi_prompt": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"prompt": {
+											"type": "string",
+											"maxLength": 500
+										},
+										"duration": {
+											"type": "integer",
+											"minimum": 1,
+											"maximum": 12
+										}
+									},
+									"required": ["prompt", "duration"]
+								}
+							},
+							"kling_elements": {
+								"type": "array",
+								"items": {
+									"type": "object",
+									"properties": {
+										"name": {
+											"type": "string"
+										},
+										"element_input_urls": {
+											"type": "array",
+											"items": {
+												"type": "string",
+												"format": "uri"
+											}
+										},
+										"element_input_audio_urls": {
+											"type": "array",
+											"items": {
+												"type": "string",
+												"format": "uri"
+											}
+										},
+										"start_time": {
+											"type": "integer"
+										},
+										"end_time": {
+											"type": "integer"
+										}
+									},
+									"required": ["name", "description", "element_input_urls"]
+								},
+								"maxItems": 3
+							}
+						},
+						"required": ["sound", "duration", "mode", "multi_shots"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/text-to-video.md",
+			"sha256": "d070b9a887538ce3827cb62bd3881b296925fa6bf24f8b126ab8dcd9227bce7b",
+			"request": {
+				"type": "object",
+				"required": ["model"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["kling-2.6/text-to-video"],
+						"default": "kling-2.6/text-to-video"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"maxLength": 2500
+							},
+							"sound": {
+								"type": "boolean"
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": ["1:1", "16:9", "9:16"]
+							},
+							"duration": {
+								"type": "string",
+								"enum": ["5", "10"]
+							}
+						},
+						"required": ["prompt", "sound", "aspect_ratio", "duration"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/v3-turbo-image-to-video.md",
+			"sha256": "e5d92909bb59fd549007c75c015358e67767764964d743b74fb9bff8ce7dd6cc",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["kling/v3-turbo-image-to-video"],
+						"default": "kling/v3-turbo-image-to-video"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"maxLength": 2500
+							},
+							"image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string",
+									"format": "uri"
+								}
+							},
+							"duration": {
+								"type": "string"
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["720p", "1080p"]
+							}
+						},
+						"required": ["prompt", "image_urls", "duration", "resolution"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/kling/v3-turbo-text-to-video.md",
+			"sha256": "ff74212a665c2275bb9559a5b608004aefbb6981660b01a721f9179786d00764",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["kling/v3-turbo-text-to-video"],
+						"default": "kling/v3-turbo-text-to-video"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"maxLength": 2500
+							},
+							"duration": {
+								"type": "string"
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": ["1:1", "9:16", "16:9"]
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["720p", "1080p"]
+							}
+						},
+						"required": ["prompt", "duration", "aspect_ratio", "resolution"]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/minimax-h3/image-to-video.md",
+			"sha256": "89ee984348a58118703376dada11045b9b645adea3da69f22f3046fc1bb6f8b0",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["minimax-h3/image-to-video"],
+						"default": "minimax-h3/image-to-video"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"required": ["prompt", "duration"],
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 7000
+							},
+							"first_frame_url": {
+								"type": "string",
+								"pattern": "^(https?|oss)://",
+								"format": "uri"
+							},
+							"last_frame_url": {
+								"type": "string",
+								"pattern": "^(https?|oss)://",
+								"format": "uri"
+							},
+							"duration": {
+								"type": "integer",
+								"enum": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+								"default": 6,
+								"minimum": 4,
+								"maximum": 15
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["768P", "2K"],
+								"default": "2K"
+							}
+						},
+						"anyOf": [
+							{
+								"type": "string"
+							},
+							{
+								"type": "string"
+							}
+						]
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/market/minimax-h3/text-to-video.md",
+			"sha256": "87fd105517c845260a2fe8524cef3b1a8e9f41a7966938d6712fba0c18875163",
+			"request": {
+				"type": "object",
+				"required": ["model", "input"],
+				"properties": {
+					"model": {
+						"type": "string",
+						"enum": ["minimax-h3/text-to-video"],
+						"default": "minimax-h3/text-to-video"
+					},
+					"callBackUrl": {
+						"type": "string",
+						"format": "uri"
+					},
+					"input": {
+						"type": "object",
+						"required": ["prompt", "aspect_ratio", "duration"],
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 7000
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": ["21:9", "16:9", "4:3", "1:1", "3:4", "9:16"]
+							},
+							"duration": {
+								"type": "integer",
+								"enum": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+								"default": 6,
+								"minimum": 4,
+								"maximum": 15
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["768P", "2K"],
+								"default": "2K"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/veo3-api/generate-veo-3-video.md",
+			"sha256": "4eb1027b8825ab1221a420953ac46093fdd285a463caab970c5a0e046981cfec",
+			"request": {
+				"type": "object",
+				"properties": {
+					"model": {
+						"type": "string",
+						"default": "veo-3-1",
+						"enum": ["veo-3-1"]
+					},
+					"callBackUrl": {
+						"type": "string"
+					},
+					"input": {
+						"type": "object",
+						"properties": {
+							"prompt": {
+								"type": "string"
+							},
+							"model": {
+								"type": "string",
+								"enum": ["veo3_fast", "veo3_lite", "veo3"],
+								"default": "veo3_fast"
+							},
+							"image_urls": {
+								"type": "array",
+								"items": {
+									"type": "string"
+								}
+							},
+							"generation_type": {
+								"type": "string",
+								"enum": ["TEXT_2_VIDEO", "FIRST_AND_LAST_FRAMES_2_VIDEO", "REFERENCE_2_VIDEO"]
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": ["16:9", "9:16", "Auto"],
+								"default": "16:9"
+							},
+							"enable_fallback": {
+								"type": "boolean",
+								"default": false,
+								"deprecated": true
+							},
+							"enable_translation": {
+								"type": "boolean"
+							},
+							"watermark": {
+								"type": "string"
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["720p", "1080p", "4k"],
+								"default": "720p"
+							},
+							"duration": {
+								"type": "integer",
+								"enum": [4, 6, 8],
+								"default": 8
+							}
+						},
+						"required": ["prompt"]
+					}
+				},
+				"required": ["model", "input"]
+			}
+		},
+		{
+			"source": "https://docs.kie.ai/old-model/veo3-api/generate-veo-3-video.md",
+			"sha256": "b67250f9ad50897d87efec66b4c0a7d02fcf479d835a364683b1208d608b3d1d",
+			"request": {
+				"type": "object",
+				"properties": {
+					"prompt": {
+						"type": "string"
+					},
+					"imageUrls": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"model": {
+						"type": "string",
+						"enum": ["veo3", "veo3_fast", "veo3_lite"],
+						"default": "veo3_fast"
+					},
+					"generationType": {
+						"type": "string",
+						"enum": ["TEXT_2_VIDEO", "FIRST_AND_LAST_FRAMES_2_VIDEO", "REFERENCE_2_VIDEO"]
+					},
+					"aspect_ratio": {
+						"type": "string",
+						"enum": ["16:9", "9:16", "Auto"],
+						"default": "16:9"
+					},
+					"callBackUrl": {
+						"type": "string"
+					},
+					"enableFallback": {
+						"type": "boolean",
+						"default": false,
+						"deprecated": true
+					},
+					"enableTranslation": {
+						"type": "boolean",
+						"default": false
+					},
+					"watermark": {
+						"type": "string"
+					},
+					"resolution": {
+						"type": "string",
+						"enum": ["720p", "1080p", "4k"],
+						"default": "720p"
+					},
+					"duration": {
+						"type": "integer",
+						"enum": [4, 6, 8],
+						"default": 8
+					}
+				},
+				"required": ["prompt"]
+			}
+		}
+	]
+}

@@ -64,7 +64,12 @@ export default async function HotelLobbyVideoPage({
 					<h1>Hotel Lobby AI Video Generator</h1>
 					<p>{t("description")}</p>
 				</header>
-				<NextIntlClientProvider messages={{ videoEffects: messages.videoEffects }}>
+				<NextIntlClientProvider
+					messages={{
+						videoEffects: messages.videoEffects,
+						videoV1: { output: messages.videoV1.output },
+					}}
+				>
 					<VideoEffectGenerator initialJobId={jobId} samples={hotelLobbyContent.samples} />
 					<VideoEffectHistory />
 				</NextIntlClientProvider>

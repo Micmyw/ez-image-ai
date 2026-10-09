@@ -6,6 +6,7 @@ import {
 	readVideoAudioSafetyPolicy,
 	videoOutputConstraints,
 	videoOutputSpecificationFailure,
+	createVideoOutputReport,
 	videoResolutionPixelContract,
 	type VideoOutputMetadata,
 } from "@repo/config/video-output";
@@ -314,6 +315,7 @@ export async function completeVideoOutputStorage(
 				stageData: {
 					...json(job.videoExecution.stageData),
 					outputSpec: {
+						report: createVideoOutputReport(output, videoOutputConstraints(job.inputSnapshot)),
 						assetId,
 						checksum: output.checksum,
 						etag: output.etag,
@@ -776,7 +778,7 @@ export function hasVideoApproval(
 		asset.byteSize <= 0n ||
 		asset.byteSize > BigInt(MAX_BYTES) ||
 		!asset.durationMillis ||
-		asset.durationMillis < 1750n ||
+		asset.durationMillis <= 0n ||
 		asset.durationMillis > 30250n ||
 		(spec !== undefined &&
 			audioSafetyPolicy.mode === "required" &&

@@ -6,6 +6,7 @@ import {
 import { describe, expect, it, vi } from "vitest";
 
 import officialFixture from "../catalog/fixtures/kie-video-model-contracts-2026-10-08.json";
+import currentOutputParameters from "../catalog/fixtures/kie-video-output-parameters-2026-10-09.json";
 import {
 	buildKieVideoModelRequest,
 	KieVideoModelsAdapter,
@@ -31,7 +32,51 @@ function requestParameters(
 	return "input" in request ? request.input : request;
 }
 describe("Kie multi-model video boundary", () => {
-	it("keeps the unresolved official Kling Pro square pixel conflict and existing rejection risk visible", () => {
+	it.each(
+		VIDEO_MODEL_CATALOG.filter((model) => model.status === "implemented").flatMap((model) =>
+			model.modes.map((mode) => ({ productKey: model.productKey, mode })),
+		),
+	)(
+		"serializes the documented duration, resolution and audio fields for $productKey / $mode",
+		async ({ productKey, mode }) => {
+			const options = getVideoModelOptions(productKey, mode);
+			const selection = options.find((option) => !option.sound) ?? options[0]!;
+			const input = { ...inputFor(productKey, mode), ...selection };
+			const fetch = vi
+				.fn<typeof globalThis.fetch>()
+				.mockResolvedValue(Response.json({ code: 200, data: { taskId: "serialized_fixture" } }));
+			expect(
+				await new KieVideoModelsAdapter({ apiKey: "fixture", fetch }).submit(input),
+			).toMatchObject({ status: "ACCEPTED" });
+			expect(fetch).toHaveBeenCalledTimes(1);
+			const body = JSON.parse(fetch.mock.calls[0]![1]!.body as string);
+			const parameters = body.input ?? body;
+			const contract = currentOutputParameters.contracts.find((entry) =>
+				entry.request.properties.model.enum?.includes(body.model as never),
+			)!;
+			const schema = contract.request.properties as Record<string, any>;
+			const fields = schema.input?.properties ?? schema;
+			expect(Number(parameters.duration)).toBe(input.duration);
+			for (const [field, value] of Object.entries(parameters)) {
+				expect(fields[field], `${body.model}.${field}`).toBeDefined();
+				if (fields[field].type)
+					expect(typeof value === "object" && Array.isArray(value) ? "array" : typeof value).toBe(
+						fields[field].type === "integer" ? "number" : fields[field].type,
+					);
+				if (fields[field].enum) expect(fields[field].enum).toContain(value);
+			}
+			const audioField = fields.generate_audio ? "generate_audio" : fields.sound ? "sound" : null;
+			if (audioField) {
+				expect(Object.prototype.hasOwnProperty.call(parameters, audioField)).toBe(true);
+				expect(parameters[audioField]).toBe(input.sound);
+			} else {
+				expect(parameters).not.toHaveProperty("generate_audio");
+				expect(parameters).not.toHaveProperty("sound");
+			}
+			if (fields.nsfw_checker) expect(parameters.nsfw_checker).toBe(true);
+		},
+	);
+	it("keeps the unresolved official Kling Pro square pixel conflict and historical rejection risk visible", () => {
 		expect(officialFixture).toHaveProperty(
 			"conflicts",
 			expect.arrayContaining([
@@ -138,7 +183,7 @@ describe("Kie multi-model video boundary", () => {
 						...inputFor(model.productKey, mode),
 						...option,
 					});
-					const contract = officialFixture.contracts.find((entry) =>
+					const contract = currentOutputParameters.contracts.find((entry) =>
 						entry.request.properties.model.enum?.includes(request.model as never),
 					)!;
 					expect(contract, request.model).toBeDefined();

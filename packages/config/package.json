@@ -16,6 +16,7 @@
 		"./video-models": "./video-models.ts",
 		"./video-internal-funding": "./video-internal-funding.ts",
 		"./video-output": "./video-output.ts",
+		"./video-output-report": "./video-output-report.ts",
 		"./video-safety": "./video-safety.ts",
 		"./video-text-safety": "./video-text-safety.ts",
 		"./video-seeapi-callback": "./video-seeapi-callback.ts",

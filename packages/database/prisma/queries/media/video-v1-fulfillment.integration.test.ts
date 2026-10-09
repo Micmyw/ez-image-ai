@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { PrismaPg } from "@prisma/adapter-pg";
+import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { VIDEO_V1_POLICY_VERSION, VIDEO_V1_RULE_VERSION } from "@repo/config/video-v1";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -263,7 +264,12 @@ describe("video V1 fulfillment isolated database", () => {
 			},
 		};
 	}
-	async function confirmed(jobId: string, assetId: string, taskId: string) {
+	async function confirmed(
+		jobId: string,
+		assetId: string,
+		taskId: string,
+		evidence = seeapiEvidence(taskId),
+	) {
 		const asset = await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } });
 		const rawBody = '{"callback":"verified-fixture"}';
 		await scoped(() =>
@@ -287,11 +293,205 @@ describe("video V1 fulfillment isolated database", () => {
 					decision: "ALLOW",
 					reasonCode: "NO_POLICY_MATCH",
 					ruleVersion: createVideoVisualSafetyProfile("seeapi", 5).ruleVersion,
-					evidence: seeapiEvidence(taskId),
+					evidence,
 				},
 			}),
 		);
 	}
+	it.each(["ordinary", "hotel-lobby-duo", "raindance-solo"] as const)(
+		"records quality differences for %s but requires actual-duration NSFW evidence and settles once",
+		async (kind) => {
+			const template =
+				kind === "ordinary"
+					? null
+					: createVideoEffectTemplateSnapshot({
+							effectId: kind,
+							presetKey: "standard",
+							inputs: {
+								leftAssetId: "left",
+								rightAssetId: kind === "raindance-solo" ? "left" : "right",
+							},
+						});
+			const item = await fixture({
+				...(template
+					? {
+							...template.video,
+							requestKind: "template-video",
+							videoEffectTemplate: template,
+							roleInputIdentities: [{ role: "left" }, { role: "right" }],
+						}
+					: {
+							productKey: "video-kling-3",
+							duration: 5,
+							sound: false,
+							resolution: "1080p",
+							aspectRatio: "9:16",
+						}),
+				visualSafetyProfile: createVideoVisualSafetyProfile("seeapi", 5),
+				audioSafetyPolicy: { schemaVersion: 1, mode: "not_requested" },
+			});
+			if (template)
+				await client.videoTemplateExecution.create({
+					data: {
+						jobId: item.jobId,
+						templateSnapshot: template,
+						orderedRoleIdentities: [{ role: "left" }, { role: "right" }],
+						sceneState: "READY",
+					},
+				});
+			const output = await stored(item.jobId, {
+				durationMillis: 6000,
+				audioTracks: 1,
+				audioTrackIds: [2],
+			});
+			const execution = await client.videoExecution.findUniqueOrThrow({
+				where: { jobId: item.jobId },
+			});
+			expect(execution.stageData).toMatchObject({
+				outputSpec: {
+					assetId: output.assetId,
+					checksum: output.checksum,
+					etag: output.etag,
+					report: {
+						actual: { durationMillis: 6000, width: 1280, height: 720, audioTracks: 1 },
+						requested: { durationSeconds: 5, sound: false, aspectRatio: "9:16" },
+						warnings: [
+							"DURATION_MISMATCH",
+							"UNEXPECTED_AUDIO",
+							"RESOLUTION_MISMATCH",
+							"ASPECT_RATIO_MISMATCH",
+						],
+					},
+				},
+			});
+			expect(await scoped(() => authorizeVideoPlayback(item.ownerId, item.jobId))).toBeNull();
+			await expect(
+				scoped(() => finalizeVideoDelivery(item.jobId, { ...output, checkedAt: new Date() })),
+			).rejects.toThrow("VIDEO_DELIVERY_PRECONDITION_FAILED");
+			const submit = await scoped(() => claimVideoOutputReview(item.jobId, 1800));
+			const taskId = `quality_${crypto.randomUUID()}`;
+			await scoped(() => beginVideoReviewSubmission(output.assetId, submit.token!));
+			await scoped(() => recordVideoReviewTask(output.assetId, submit.token!, taskId));
+			const evidence = seeapiEvidence(taskId);
+			evidence.video.durationMillis = 6000;
+			evidence.video.lastFrameSeconds = 5.9;
+			evidence.seeapiVideo.maxFrameGapSeconds = 0.9;
+			await confirmed(item.jobId, output.assetId, taskId, evidence);
+			const query = await scoped(() => claimVideoOutputReview(item.jobId, 1800));
+			const review = {
+				jobId: item.jobId,
+				...output,
+				token: query.token!,
+				decision: "ALLOW" as const,
+				reasonCode: "NO_POLICY_MATCH",
+				complete: true,
+				evidence,
+			};
+			// A report covering only the requested five seconds does not clear this six-second file.
+			await expect(
+				scoped(() => recordVideoOutputReview({ ...review, evidence: seeapiEvidence(taskId) })),
+			).rejects.toThrow();
+			await expect(
+				scoped(() =>
+					recordVideoOutputReview({
+						...review,
+						evidence: { ...evidence, video: { ...evidence.video, lastFrameSeconds: 4.9 } },
+					}),
+				),
+			).rejects.toThrow();
+			await scoped(() => recordVideoOutputReview(review));
+			await Promise.all(
+				Array.from({ length: 5 }, () =>
+					scoped(() => finalizeVideoDelivery(item.jobId, { ...output, checkedAt: new Date() })),
+				),
+			);
+			const job = await client.generationJob.findUniqueOrThrow({
+				where: { id: item.jobId },
+				include: { reservation: true, videoExecution: true },
+			});
+			expect(job).toMatchObject({
+				status: "SUCCEEDED",
+				failureCode: null,
+				reservation: { status: "SETTLED" },
+				videoExecution: { stage: "READY" },
+			});
+			expect(
+				await client.creditLedgerEntry.count({
+					where: { accountId: item.accountId, type: "SETTLE" },
+				}),
+			).toBe(1);
+			expect(
+				await client.creditLedgerEntry.count({
+					where: { accountId: item.accountId, type: "RELEASE" },
+				}),
+			).toBe(0);
+			expect(await client.generationAttempt.count({ where: { jobId: item.jobId } })).toBe(1);
+			expect(await scoped(() => authorizeVideoPlayback(item.ownerId, item.jobId))).toMatchObject({
+				id: output.assetId,
+				checksum: output.checksum,
+				durationMillis: 6000n,
+			});
+			expect(await scoped(() => authorizeVideoPlayback("other-owner", item.jobId))).toBeNull();
+		},
+	);
+	it("allows a shorter usable output only after complete NSFW evidence covers its actual duration", async () => {
+		const item = await fixture({
+			productKey: "video-kling-3",
+			duration: 5,
+			sound: false,
+			resolution: "720p",
+			aspectRatio: "16:9",
+			visualSafetyProfile: createVideoVisualSafetyProfile("seeapi", 5),
+			audioSafetyPolicy: { schemaVersion: 1, mode: "not_requested" },
+		});
+		const output = await stored(item.jobId, { durationMillis: 1000 });
+		const submit = await scoped(() => claimVideoOutputReview(item.jobId, 1800));
+		const taskId = `short_${crypto.randomUUID()}`;
+		await scoped(() => beginVideoReviewSubmission(output.assetId, submit.token!));
+		await scoped(() => recordVideoReviewTask(output.assetId, submit.token!, taskId));
+		const evidence = seeapiEvidence(taskId);
+		evidence.video.durationMillis = 1000;
+		evidence.video.lastFrameSeconds = 0.9;
+		evidence.seeapiVideo.maxFrameGapSeconds = 0.13;
+		await confirmed(item.jobId, output.assetId, taskId, evidence);
+		const query = await scoped(() => claimVideoOutputReview(item.jobId, 1800));
+		await scoped(() =>
+			recordVideoOutputReview({
+				jobId: item.jobId,
+				...output,
+				token: query.token!,
+				decision: "ALLOW",
+				reasonCode: "NO_POLICY_MATCH",
+				complete: true,
+				evidence,
+			}),
+		);
+		expect(
+			await scoped(() => finalizeVideoDelivery(item.jobId, { ...output, checkedAt: new Date() })),
+		).toMatchObject({ stage: "READY" });
+		expect(await scoped(() => authorizeVideoPlayback(item.ownerId, item.jobId))).toMatchObject({
+			durationMillis: 1000n,
+		});
+	});
+	it("does not revive or charge a historical failed/released result", async () => {
+		const item = await fixture();
+		const output = await stored(item.jobId);
+		await scoped(() => failVideoDelivery(item.jobId, "VIDEO_RESOLUTION_MISMATCH"));
+		expect(
+			await scoped(() => finalizeVideoDelivery(item.jobId, { ...output, checkedAt: new Date() })),
+		).toMatchObject({ stage: "FAILED" });
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { accountId: item.accountId, type: "SETTLE" },
+			}),
+		).toBe(0);
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { accountId: item.accountId, type: "RELEASE" },
+			}),
+		).toBe(1);
+		expect(await scoped(() => authorizeVideoPlayback(item.ownerId, item.jobId))).toBeNull();
+	});
 	it("binds SeeAPI task/profile evidence and rejects legacy or incomplete samples before settlement", async () => {
 		const profile = createVideoVisualSafetyProfile("seeapi", 5);
 		const item = await fixture({ duration: 5, visualSafetyProfile: profile });

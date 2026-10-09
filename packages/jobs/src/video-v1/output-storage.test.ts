@@ -139,35 +139,39 @@ describe("video output bounded streaming", () => {
 		{ durationMillis: 5000, width: 1280, height: 720, code: "VIDEO_DURATION_MISMATCH" },
 		{ durationMillis: 10000, width: 1920, height: 1080, code: "VIDEO_RESOLUTION_MISMATCH" },
 	])(
-		"rejects actual output specification mismatch before completing the object: $code",
-		async ({ code, ...fixture }) => {
-			await expect(
-				transferVideoOutput({
-					key: "users/u/a.mp4",
-					url: "https://cdn.video.test/file",
-					maxBytes: 10000,
-					constraints: {
-						productKey: "video-kling-3",
-						durationSeconds: 10,
-						sound: true,
-						resolution: "720p",
-						aspectRatio: "16:9",
-					},
-					requestOptions: options(Readable.from([mp4Fixture(fixture)])),
-				}),
-			).rejects.toThrow(code);
-			expect(backend.completed).toBe(0);
-			expect(backend.aborted).toBe(1);
+		"preserves usable output and its actual metadata despite quality deviation: $code",
+		async ({ code: _code, ...fixture }) => {
+			const constraints = {
+				productKey: "video-kling-3",
+				durationSeconds: 10,
+				sound: true,
+				resolution: "720p",
+				aspectRatio: "16:9",
+			};
+			const bytes = mp4Fixture(fixture);
+			const stored = await transferVideoOutput({
+				key: "users/u/a.mp4",
+				url: "https://cdn.video.test/file",
+				maxBytes: 10000,
+				constraints,
+				requestOptions: options(Readable.from([bytes])),
+			});
+			expect(stored).toMatchObject(fixture);
+			expect(stored.checksum).toBe(createHash("sha256").update(bytes).digest("hex"));
+			expect(await inspectVideoObject("users/u/a.mp4", stored, constraints)).toEqual(stored);
+			expect(Buffer.from(backend.object!).equals(bytes)).toBe(true);
+			expect(backend.completed).toBe(1);
+			expect(backend.aborted).toBe(0);
 		},
 	);
-	it.each([{ audio: true }, { mediaBytes: 1000 }])(
-		"rejects audio or byte-limit violations before completing",
+	it.each([{ mediaBytes: 1000 }])(
+		"rejects byte-limit violations before completing",
 		async (fixture) => {
 			await expect(
 				transferVideoOutput({
 					key: "users/u/a.mp4",
 					url: "https://cdn.video.test/file",
-					maxBytes: fixture.audio ? 10000 : 100,
+					maxBytes: 100,
 					requestOptions: options(Readable.from([mp4Fixture(fixture)])),
 				}),
 			).rejects.toThrow();
@@ -295,7 +299,7 @@ describe("video output bounded streaming", () => {
 			).rejects.toThrow("VIDEO_AUDIO_MEDIA_TOO_LARGE");
 		},
 	);
-	it("still rejects native audio when the immutable sound option is false under not-requested policy", async () => {
+	it("preserves unexpected native audio under not-requested policy during transfer and recovery", async () => {
 		const constraints = {
 			productKey: "video-kling-3",
 			durationSeconds: 5,
@@ -304,19 +308,20 @@ describe("video output bounded streaming", () => {
 			aspectRatio: "16:9",
 			audioSafetyPolicy: { schemaVersion: 1 as const, mode: "not_requested" as const },
 		};
-		await expect(
-			transferVideoOutput({
-				key: "users/u/silent.mp4",
-				url: "https://cdn.video.test/file",
-				maxBytes: 100 * 1024 * 1024,
-				constraints,
-				requestOptions: options(
-					Readable.from([mp4Fixture({ audio: true, mediaBytes: 30_000_000 })]),
-				),
-			}),
-		).rejects.toThrow("VIDEO_AUDIO_TRACK_NOT_ALLOWED");
-		expect(backend.completed).toBe(0);
-		expect(backend.aborted).toBe(1);
+		const bytes = mp4Fixture({ audio: true, mediaBytes: 30_000_000 });
+		const stored = await transferVideoOutput({
+			key: "users/u/silent.mp4",
+			url: "https://cdn.video.test/file",
+			maxBytes: 100 * 1024 * 1024,
+			constraints,
+			requestOptions: options(Readable.from([bytes])),
+		});
+		expect(stored).toMatchObject({ audioTracks: 1, audioTrackIds: [2] });
+		expect(await inspectVideoObject("users/u/silent.mp4", stored, constraints)).toEqual(stored);
+		expect(stored.checksum).toBe(createHash("sha256").update(bytes).digest("hex"));
+		expect(Buffer.from(backend.object!).equals(bytes)).toBe(true);
+		expect(backend.completed).toBe(1);
+		expect(backend.aborted).toBe(0);
 	});
 	it("rejects mutable storage identity even when headers match", async () => {
 		backend.object = mp4Fixture();

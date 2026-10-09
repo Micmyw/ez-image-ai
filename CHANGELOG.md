@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-09 — Video output details
+
+- Deliver usable videos with clear, asset-bound warnings when audio, duration, pixel targets or framing differ from the accepted request. Show measured file details separately from requested settings in ordinary and template receipts.
+- Preserve original media, required content review, private playback, immutable storage identity and one-time settlement. Quality warnings do not request another generation or revive failed, refunded jobs.
+
 ## 2026-10-08 — Effect order recovery safeguards
 
 - Cancel an unfinished quote when opening another history task; preserve the selected task and photo draft through back/forward navigation.

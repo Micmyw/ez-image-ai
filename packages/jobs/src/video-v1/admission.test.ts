@@ -1,6 +1,7 @@
+import { createVideoOutputReport } from "@repo/config/video-output";
 import { describe, expect, it, vi } from "vitest";
 
-import { ensureVideoWorkflowStarted } from "./admission";
+import { ensureVideoWorkflowStarted, toVideoPublicState } from "./admission";
 import type { VideoWorkflowBinding } from "./contracts";
 
 function store() {
@@ -16,6 +17,67 @@ function store() {
 	};
 }
 describe("video V1 durable direct start", () => {
+	it("exposes asset-bound quality warnings without using failureCode or granting playback while review is pending", () => {
+		const actual = {
+			durationMillis: 6000,
+			width: 640,
+			height: 360,
+			audioTracks: 1,
+			audioTrackIds: [2],
+			videoTracks: 1 as const,
+		};
+		const report = createVideoOutputReport(actual, {
+			durationSeconds: 5,
+			sound: false,
+			resolution: "720p",
+			aspectRatio: "16:9",
+		});
+		const job = {
+			id: "job",
+			inputSnapshot: {},
+			pricingSnapshot: {},
+			status: "FINALIZING",
+			creditsReserved: 23n,
+			reservation: { status: "ACTIVE" },
+			failureCode: null,
+			updatedAt: new Date(0),
+			videoExecution: {
+				stage: "OUTPUT_REVIEW",
+				stageData: {
+					outputSpec: {
+						...actual,
+						report,
+						assetId: "asset",
+						checksum: "a".repeat(64),
+						etag: "etag",
+					},
+					providerUrl: "private",
+				},
+			},
+		};
+		const state = toVideoPublicState(job as never);
+		expect(state).toMatchObject({
+			stage: "OUTPUT_REVIEW",
+			canPlay: false,
+			failureCode: null,
+			creditState: "RESERVED",
+			output: report,
+		});
+		expect(JSON.stringify(state)).not.toMatch(/private|checksum|etag|providerUrl/);
+		const ready = toVideoPublicState({
+			...job,
+			status: "SUCCEEDED",
+			reservation: { status: "SETTLED" },
+			videoExecution: { ...job.videoExecution, stage: "READY" },
+		} as never);
+		expect(ready).toMatchObject({
+			stage: "READY",
+			canPlay: true,
+			creditState: "SETTLED",
+			output: report,
+			failureCode: null,
+		});
+	});
 	it("starts the stable Workflow instance immediately without global dispatch", async () => {
 		const dependencies = store();
 		const create = vi.fn(async () => ({

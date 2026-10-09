@@ -7,6 +7,7 @@ import {
 	type VideoModelSelection,
 } from "@repo/config/video-models";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
+import { readVideoOutputReport } from "@repo/config/video-output-report";
 import {
 	isVideoRetailPricingApproved,
 	readVideoRetailDisplay,
@@ -270,6 +271,7 @@ export function toVideoPublicState(job: PublicRecord): VideoPublicState {
 		stage: job.videoExecution.stage,
 		creditState: job.reservation.status === "ACTIVE" ? "RESERVED" : job.reservation.status,
 		credits: job.creditsReserved.toString(),
+		output: readVideoOutputReport(job.videoExecution.stageData),
 		...(pricing && pricing.credits === job.creditsReserved.toString() ? { pricing } : {}),
 		canPlay:
 			job.videoExecution.stage === "READY" &&

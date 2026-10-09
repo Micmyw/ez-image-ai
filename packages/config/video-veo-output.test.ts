@@ -23,7 +23,7 @@ describe("frozen Veo application delivery floor", () => {
 		["1080p", 1080],
 		["4k", 2160],
 	] as const)(
-		"rejects a downgraded %s result for explicit tiers including Auto",
+		"preserves the %s target without rejecting downgraded output including Auto",
 		(resolution, minimumShortEdge) => {
 			for (const veoTier of ["lite", "fast", "quality"])
 				for (const aspectRatio of ["16:9", "9:16", "source"]) {
@@ -50,7 +50,7 @@ describe("frozen Veo application delivery floor", () => {
 							{ ...output, width: output.width / 2, height: output.height / 2 },
 							constraints,
 						),
-					).toBe("VIDEO_RESOLUTION_MISMATCH");
+					).toBeNull();
 				}
 		},
 	);

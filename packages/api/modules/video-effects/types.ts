@@ -3,6 +3,7 @@ import {
 	videoEffectDurationSchema,
 	videoEffectPricingDisplaySchema,
 } from "@repo/config/video-effects";
+import { videoOutputReportSchema } from "@repo/config/video-output-report";
 import { z } from "zod";
 
 export const videoEffectStageSchema = z.enum([
@@ -26,6 +27,7 @@ export const videoEffectStateSchema = z
 		credits: z.string(),
 		duration: videoEffectDurationSchema.optional(),
 		canPlay: z.boolean(),
+		output: videoOutputReportSchema.optional(),
 		failureCode: z.string().nullable(),
 		updatedAt: z.string(),
 	})

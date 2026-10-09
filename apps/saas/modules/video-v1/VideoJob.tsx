@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { videoApi, type VideoState } from "./api";
 import { usePageVisible, useVideoJob } from "./use-video";
+import { VideoOutputDetails } from "./VideoOutputDetails";
 import { VideoRetailPrice } from "./VideoRetailPrice";
 
 function PrivateVideo({ jobId }: { jobId: string }) {
@@ -81,7 +82,7 @@ function PrivateVideo({ jobId }: { jobId: string }) {
 			{access.data &&
 				!playbackFailed &&
 				!access.isError && (
-					// oxlint-disable-next-line jsx-a11y/media-has-caption -- Native model audio is reviewed upstream; no transcript is supplied and fabricated captions would misrepresent it.
+					// oxlint-disable-next-line jsx-a11y/media-has-caption -- No transcript is supplied with the original model audio; fabricated captions would misrepresent it.
 					<video
 						key={`${access.data.url}:${access.data.expiresAt}`}
 						ref={video}
@@ -149,6 +150,7 @@ export function VideoStateCard({ state }: { state: VideoState }) {
 			{state.creditState !== "RELEASED" && state.pricing?.audience === "annual" && (
 				<VideoRetailPrice pricing={state.pricing} />
 			)}
+			{state.output && <VideoOutputDetails output={state.output} />}
 			{state.canPlay && state.stage === "READY" && (
 				<PrivateVideo key={state.jobId} jobId={state.jobId} />
 			)}

@@ -56,7 +56,7 @@ function one(boxes: ReturnType<typeof children>, kind: string): Uint8Array {
 	if (matches.length !== 1) invalid();
 	return matches[0]!.bytes;
 }
-function duration(bytes: Uint8Array, expectedSeconds: number): number {
+function duration(bytes: Uint8Array): number {
 	const version = bytes[0];
 	if (version !== 0 && version !== 1) invalid();
 	const at = version === 1 ? 20 : 12;
@@ -65,13 +65,14 @@ function duration(bytes: Uint8Array, expectedSeconds: number): number {
 		version === 1 ? u32(bytes, at + 4) * 2 ** 32 + u32(bytes, at + 8) : u32(bytes, at + 4);
 	if (!scale || !Number.isSafeInteger(ticks)) invalid();
 	const millis = (ticks / scale) * 1000;
-	if (Math.abs(millis - expectedSeconds * 1000) > 250) invalid("VIDEO_DURATION_MISMATCH");
+	if (!Number.isSafeInteger(Math.round(millis)) || Math.round(millis) <= 0)
+		invalid("VIDEO_DURATION_INVALID");
 	return Math.round(millis);
 }
 export type VideoMp4Expectation = { durationSeconds: number; sound: boolean };
-function inspectMoov(bytes: Uint8Array, expected: VideoMp4Expectation): VideoMp4Metadata {
+function inspectMoov(bytes: Uint8Array): VideoMp4Metadata {
 	const movie = children(bytes);
-	const durationMillis = duration(one(movie, "mvhd"), expected.durationSeconds);
+	let durationMillis = duration(one(movie, "mvhd"));
 	const tracks = movie.filter((box) => box.kind === "trak");
 	if (!tracks.length) invalid();
 	let width = 0;
@@ -87,13 +88,14 @@ function inspectMoov(bytes: Uint8Array, expected: VideoMp4Expectation): VideoMp4
 		if (!id || trackIds.has(id)) invalid("VIDEO_TRACK_IDENTITY_INVALID");
 		trackIds.add(id);
 		const media = children(one(boxes, "mdia"));
+		// Safety coverage must include every declared media timeline, even when the
+		// movie header is shorter. Request-duration differences are only advisory.
+		durationMillis = Math.max(durationMillis, duration(one(media, "mdhd")));
 		const handler = one(media, "hdlr");
 		if (handler.length < 12) invalid();
 		const handlerType = type(handler, 8);
 		if (handlerType === "soun") {
-			if (!expected.sound) invalid("VIDEO_AUDIO_TRACK_NOT_ALLOWED");
 			if (audioTrackIds.length >= 1) invalid("VIDEO_MULTIPLE_AUDIO_TRACKS_UNSUPPORTED");
-			duration(one(media, "mdhd"), expected.durationSeconds);
 			const table = children(one(children(one(media, "minf")), "stbl"));
 			const descriptions = one(table, "stsd");
 			if (descriptions.length < 8 || u32(descriptions, 4) !== 1) invalid();
@@ -105,7 +107,6 @@ function inspectMoov(bytes: Uint8Array, expected: VideoMp4Expectation): VideoMp4
 		}
 		if (handlerType !== "vide") invalid("VIDEO_TRACK_NOT_SUPPORTED");
 		videoTracks += 1;
-		duration(one(media, "mdhd"), expected.durationSeconds);
 		const sampleTable = children(one(children(one(media, "minf")), "stbl"));
 		const sampleDescriptions = one(sampleTable, "stsd");
 		if (sampleDescriptions.length < 8 || u32(sampleDescriptions, 4) !== 1) invalid();
@@ -155,7 +156,7 @@ export class VideoMp4Inspector {
 	private total = 0;
 	constructor(
 		private maxBytes = 100 * 1024 * 1024,
-		private expected: VideoMp4Expectation = { durationSeconds: 5, sound: false },
+		expected: VideoMp4Expectation = { durationSeconds: 5, sound: false },
 	) {
 		if (
 			!Number.isInteger(expected.durationSeconds) ||
@@ -217,7 +218,7 @@ export class VideoMp4Inspector {
 		}
 		if (this.boxKind === "moov") {
 			if (this.movie || !this.metadata) invalid();
-			this.movie = inspectMoov(this.metadata, this.expected);
+			this.movie = inspectMoov(this.metadata);
 		}
 		this.metadata = null;
 	}

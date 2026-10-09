@@ -3,6 +3,7 @@ import {
 	type KieVideoModelInput,
 } from "@repo/ai/media/providers/kie-video-models";
 import { buildKieVideoV1Request } from "@repo/ai/media/providers/kie-video-v1";
+import { getVideoModelOptions } from "@repo/config/video-models";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { VIDEO_V1_RULE_VERSION } from "@repo/config/video-v1";
 import { describe, expect, it, vi } from "vitest";
@@ -137,6 +138,65 @@ function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video") {
 }
 
 describe("video V1 paid submission fence", () => {
+	it.each([
+		"video-kling-2-6-v1",
+		"video-kling-3",
+		"video-seedance-1-5-pro",
+		"video-seedance-2",
+		"video-seedance-2-5",
+		"video-seedance-2-mini",
+		"video-seedance-2-fast",
+	])(
+		"preserves explicit audio=false from the frozen %s request through the real adapter and replay fence",
+		async (productKey) => {
+			for (const mode of ["text-to-video", "image-to-video"] as const) {
+				for (const response of ["ACCEPTED", "UNCERTAIN"] as const) {
+					const f = fixture(mode);
+					const selection = getVideoModelOptions(productKey, mode).find(
+						(option) => option.sound === false,
+					)!;
+					Object.assign(
+						f.job.inputSnapshot,
+						JSON.parse(
+							JSON.stringify({
+								productKey,
+								...selection,
+								...(mode === "image-to-video" ? { inputAssetId: "input-1" } : {}),
+							}),
+						),
+					);
+					const overrides: Partial<VideoSubmissionDependencies> = { ...f.deps };
+					delete overrides.provider;
+					const fetch = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+						if (response === "UNCERTAIN") throw new Error("fixture response lost");
+						return Response.json({ code: 200, data: { taskId: "fixture_audio_false" } });
+					});
+					try {
+						for (let replay = 0; replay < 3; replay++)
+							expect(await submitVideoAttempt(f.job.id, overrides)).toMatchObject({
+								status: response,
+							});
+						expect(fetch).toHaveBeenCalledTimes(1);
+						const body = JSON.parse(fetch.mock.calls[0]![1]!.body as string);
+						expect(body.input).toHaveProperty(
+							productKey.startsWith("video-kling") ? "sound" : "generate_audio",
+							false,
+						);
+						expect(Number(body.input.duration)).toBe(selection.duration);
+						if (productKey.startsWith("video-seedance"))
+							expect(body.input).toMatchObject({
+								resolution: selection.resolution,
+								nsfw_checker: true,
+							});
+						expect(f.attempt).toHaveLength(1);
+						expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+					} finally {
+						fetch.mockRestore();
+					}
+				}
+			}
+		},
+	);
 	it.each(["lite", "fast", "quality"] as const)(
 		"bridges frozen %s through one send and immutable result context",
 		async (veoTier) => {

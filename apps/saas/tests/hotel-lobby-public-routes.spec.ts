@@ -35,6 +35,7 @@ type Scenario = {
 	quoteCredits: string;
 	waitForQuote?: Promise<void>;
 	history?: boolean;
+	jobPatch?: Record<string, unknown>;
 };
 const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 	signedIn: true,
@@ -216,6 +217,7 @@ async function setup(page: Page, state: Scenario) {
 			canPlay: false,
 			failureCode: null,
 			updatedAt: "2026-10-05T00:00:00Z",
+			...state.jobPatch,
 		};
 		if (endpoint === "videoEffects/jobs/create") {
 			state.creates.push(body);
@@ -258,6 +260,43 @@ async function uploadBoth(page: Page) {
 	await page.locator("#ve-upload-right").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
 }
+
+test("UI Mock: quality warnings show actual template output without granting playback", async ({
+	page,
+}, info) => {
+	const state = scenario({
+		history: true,
+		jobPatch: {
+			stage: "CHECKING_VIDEO",
+			output: {
+				schemaVersion: 1,
+				actual: { durationMillis: 5074, width: 496, height: 864, audioTracks: 1 },
+				requested: { durationSeconds: 5, resolution: "720p", aspectRatio: "9:16", sound: false },
+				warnings: ["UNEXPECTED_AUDIO", "RESOLUTION_MISMATCH"],
+			},
+		},
+	});
+	await setup(page, state);
+	await page.goto(`${path}?job=mock-template-job`);
+	const card = page.locator(".ve-result");
+	await expect(card.getByTestId("video-output-details")).toContainText("496 × 864 px");
+	await expect(card.getByTestId("video-output-details")).toContainText("720p");
+	await expect(card.getByRole("note")).toContainText("Output differs from your request");
+	await expect(card.locator("video")).toHaveCount(0);
+	await card.screenshot({ path: info.outputPath("template-quality-desktop.png") });
+	await page.setViewportSize({ width: 390, height: 844 });
+	await card.scrollIntoViewIfNeeded();
+	await expect(card.getByRole("note")).toBeVisible();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+	await card.screenshot({ path: info.outputPath("template-quality-mobile.png") });
+	state.jobPatch = { ...state.jobPatch, stage: "READY", creditState: "SETTLED", canPlay: false };
+	await card.getByRole("button", { name: t.refreshStatus, exact: true }).click();
+	await expect(card.locator("h2")).toHaveText(t.stages.READY);
+	await expect(card.locator("video")).toHaveCount(0);
+	expect(state.creates).toHaveLength(0);
+	expect(state.quotes).toHaveLength(0);
+	expect(state.playback).toBe(0);
+});
 
 for (const signedIn of [true, false])
 	test(`UI Mock: effect navigation uses only lightweight availability (signed in: ${signedIn})`, async ({

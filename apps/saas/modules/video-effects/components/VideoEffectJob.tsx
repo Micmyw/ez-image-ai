@@ -7,11 +7,13 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 import { usePageVisible } from "../../video-v1/use-video";
+import { VideoOutputDetails } from "../../video-v1/VideoOutputDetails";
 import { recordVideoEffectEvent } from "../lib/analytics";
 import { videoEffectsApi, type VideoEffectState } from "../lib/api";
 
 export function VideoEffectJob({ jobId }: { jobId: string }) {
 	const t = useTranslations("videoEffects");
+	const outputText = useTranslations("videoV1.output");
 	const { user } = useSession();
 	const visible = usePageVisible();
 	const state = useQuery({
@@ -43,7 +45,18 @@ export function VideoEffectJob({ jobId }: { jobId: string }) {
 			{state.data ? (
 				<>
 					<h2>{t(`stages.${state.data.stage}`)}</h2>
-					<p>{t("seconds", { seconds: state.data.duration ?? 5 })} · 720p · 9:16 · MP4</p>
+					{state.data.output ? (
+						<VideoOutputDetails output={state.data.output} />
+					) : (
+						<p>
+							{outputText("requested", {
+								seconds: state.data.duration ?? 5,
+								resolution: "720p",
+								ratio: "9:16",
+								audio: outputText("withoutAudio"),
+							})}
+						</p>
+					)}
 					<p>{t(`creditStates.${state.data.creditState}`, { credits: state.data.credits })}</p>
 					{state.data.canPlay && state.data.stage === "READY" ? (
 						<PrivateEffectVideo state={state.data} />

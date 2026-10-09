@@ -50,13 +50,16 @@ describe("immutable video output contract", () => {
 			expect(videoOutputSpecificationFailure(output, constraints)).toBeNull();
 			expect(
 				videoOutputSpecificationFailure({ ...output, durationMillis: 5000 }, constraints),
-			).toBe("VIDEO_DURATION_MISMATCH");
-			expect(videoOutputSpecificationFailure({ ...output, audioTracks: 1 }, constraints)).toBe(
-				"VIDEO_AUDIO_TRACK_NOT_ALLOWED",
-			);
+			).toBeNull();
+			expect(
+				videoOutputSpecificationFailure(
+					{ ...output, audioTracks: 1, audioTrackIds: [2] },
+					constraints,
+				),
+			).toBeNull();
 			expect(
 				videoOutputSpecificationFailure({ ...output, width: 360, height: 640 }, constraints),
-			).toBe("VIDEO_RESOLUTION_MISMATCH");
+			).toBeNull();
 			for (const change of [
 				{ duration: 5 },
 				{ videoEffectTemplate: { ...template, schemaVersion: 1 } },
@@ -67,17 +70,17 @@ describe("immutable video output contract", () => {
 				);
 		},
 	);
-	it("retains strict Kling Pro square pixels while the official prose and schema remain contradictory", () => {
+	it("allows both Kling Pro square outputs while the official prose and schema remain contradictory", () => {
 		const square = { ...expected, aspectRatio: "1:1" };
 		// The prose table says 1440x1440; OpenAPI says 1080x1080. This freezes the
-		// existing check without claiming supplier verification or choosing a source.
+		// historic target is advisory without claiming supplier verification or choosing a source.
 		expect(videoResolutionPixelContract(square)).toBe("DOCUMENTED");
 		expect(
 			videoOutputSpecificationFailure({ ...metadata, width: 1080, height: 1080 }, square),
 		).toBeNull();
 		expect(
 			videoOutputSpecificationFailure({ ...metadata, width: 1440, height: 1440 }, square),
-		).toBe("VIDEO_RESOLUTION_MISMATCH");
+		).toBeNull();
 	});
 	it("supports only the frozen reference template with its matching Seedance 2 silent portrait output", () => {
 		// Synthetic identity only; this is not real motion, moderation or rights evidence.
@@ -142,10 +145,10 @@ describe("immutable video output contract", () => {
 				{ ...silentPortrait, audioTracks: 1, audioTrackIds: [2] },
 				constraints,
 			),
-		).toBe("VIDEO_AUDIO_TRACK_NOT_ALLOWED");
+		).toBeNull();
 		expect(
 			videoOutputSpecificationFailure({ ...silentPortrait, width: 360, height: 640 }, constraints),
-		).toBe("VIDEO_RESOLUTION_MISMATCH");
+		).toBeNull();
 		for (const change of [
 			{ productKey: "video-seedance-1-5-pro" },
 			{ sound: true },
@@ -169,7 +172,7 @@ describe("immutable video output contract", () => {
 			);
 	});
 	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
-		"requires actual silent 720 by 1280 output for the frozen %s template",
+		"preserves frozen %s targets while allowing usable output deviations",
 		(effectId) => {
 			const template = createVideoEffectTemplateSnapshot({
 				effectId,
@@ -200,19 +203,19 @@ describe("immutable video output contract", () => {
 					{ ...silentPortrait, width: 360, height: 640 },
 					constraints,
 				),
-			).toBe("VIDEO_RESOLUTION_MISMATCH");
+			).toBeNull();
 			expect(
 				videoOutputSpecificationFailure(
 					{ ...silentPortrait, width: 1080, height: 1920 },
 					constraints,
 				),
-			).toBe("VIDEO_RESOLUTION_MISMATCH");
+			).toBeNull();
 			expect(
 				videoOutputSpecificationFailure(
 					{ ...silentPortrait, audioTracks: 1, audioTrackIds: [2] },
 					constraints,
 				),
-			).toBe("VIDEO_AUDIO_TRACK_NOT_ALLOWED");
+			).toBeNull();
 			for (const change of [
 				{ videoEffectTemplate: undefined },
 				{ videoEffectTemplate: { ...template, effectId: undefined } },
@@ -296,21 +299,19 @@ describe("immutable video output contract", () => {
 	});
 	it("checks duration, resolution, aspect ratio and actual audio track identity independently", () => {
 		expect(videoOutputSpecificationFailure(metadata, expected)).toBeNull();
-		expect(videoOutputSpecificationFailure({ ...metadata, durationMillis: 5000 }, expected)).toBe(
-			"VIDEO_DURATION_MISMATCH",
-		);
+		expect(
+			videoOutputSpecificationFailure({ ...metadata, durationMillis: 5000 }, expected),
+		).toBeNull();
 		expect(
 			videoOutputSpecificationFailure({ ...metadata, width: 1280, height: 720 }, expected),
-		).toBe("VIDEO_RESOLUTION_MISMATCH");
+		).toBeNull();
 		expect(
 			videoOutputSpecificationFailure(
 				{ ...metadata, width: 1080, height: 1920 },
 				{ ...expected, productKey: "video-seedance-2" },
 			),
-		).toBe("VIDEO_ASPECT_RATIO_MISMATCH");
-		expect(videoOutputSpecificationFailure(metadata, { ...expected, sound: false })).toBe(
-			"VIDEO_AUDIO_TRACK_NOT_ALLOWED",
-		);
+		).toBeNull();
+		expect(videoOutputSpecificationFailure(metadata, { ...expected, sound: false })).toBeNull();
 		expect(
 			videoOutputSpecificationFailure({ ...metadata, audioTracks: 0, audioTrackIds: [] }, expected),
 		).toBeNull();

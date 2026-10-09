@@ -45,6 +45,7 @@ import {
 	createVideoEffectTemplateSnapshot,
 	resolveVideoEffectTemplate,
 } from "@repo/config/video-effects.server";
+import { createVideoOutputReport } from "@repo/config/video-output";
 import { getActiveRuntimeConfigOverrides } from "@repo/database";
 import {
 	createVideoTemplateJobRecord,
@@ -103,6 +104,49 @@ beforeEach(() => {
 });
 
 describe("template admission and public recovery state", () => {
+	it("returns safe asset-bound output differences while retaining authorized playback and success state", async () => {
+		const actual = {
+			durationMillis: 6000,
+			width: 640,
+			height: 360,
+			audioTracks: 1,
+			audioTrackIds: [2],
+			videoTracks: 1 as const,
+		};
+		const report = createVideoOutputReport(actual, {
+			durationSeconds: 5,
+			sound: false,
+			resolution: "720p",
+			aspectRatio: "9:16",
+		});
+		vi.mocked(getVideoTemplateJobRecord).mockResolvedValue({
+			...job,
+			status: "SUCCEEDED",
+			reservation: { status: "SETTLED" },
+			videoExecution: {
+				stage: "READY",
+				stageData: {
+					outputSpec: {
+						...actual,
+						report,
+						assetId: "asset",
+						checksum: "a".repeat(64),
+						etag: "etag",
+					},
+				},
+			},
+		} as never);
+		vi.mocked(authorizeVideoPlayback).mockResolvedValue({ id: "asset" } as never);
+		expect(await getVideoTemplatePublicState({ userId: "owner" }, "job")).toMatchObject({
+			stage: "READY",
+			canPlay: true,
+			creditState: "SETTLED",
+			output: report,
+			failureCode: null,
+		});
+		vi.mocked(authorizeVideoPlayback).mockResolvedValue(null);
+		expect((await getVideoTemplatePublicState({ userId: "owner" }, "job")).canPlay).toBe(false);
+	});
 	it("uses the independently approved reference price and does not require a scene-image gate", () => {
 		const request = {
 			effectId: "rumpelstiltskin-solo" as const,

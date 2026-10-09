@@ -213,6 +213,30 @@ describe("video fulfillment stage recovery", () => {
 			mocks.beginSubmission.mock.invocationCallOrder[0]!,
 		);
 	});
+	it("sends actual output duration to NSFW review even when it differs from the requested length", async () => {
+		const snapshot = await mocks.snapshot();
+		mocks.snapshot.mockResolvedValue({
+			...snapshot,
+			assets: [{ asset: { ...asset, durationMillis: 6000n } }],
+		});
+		mocks.inspect.mockResolvedValue({ ...object, durationMillis: 6000 });
+		mocks.claimReview
+			.mockResolvedValueOnce({
+				status: "SUBMIT",
+				token: "submit",
+				asset: { ...asset, verificationProviderTaskId: null },
+			})
+			.mockResolvedValueOnce({ status: "BUSY", asset });
+		const safety = adapter({
+			decision: "REVIEW",
+			reasonCode: "VIDEO_PROCESSING",
+			ruleVersion: "test",
+		});
+		await reviewStoredVideo("job", { SEEAPI_API_KEY: "fixture" }, safety);
+		expect(safety.submitVideo).toHaveBeenCalledWith(
+			expect.objectContaining({ video: expect.objectContaining({ durationMillis: 6000 }) }),
+		);
+	});
 	it("retries a local inspection failure before acquiring the paid moderation fence", async () => {
 		mocks.claimReview.mockResolvedValue({ status: "SUBMIT", token: "submit", asset });
 		mocks.inspect.mockRejectedValueOnce(new Error("R2_UNAVAILABLE"));

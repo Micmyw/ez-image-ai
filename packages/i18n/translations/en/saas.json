@@ -2013,6 +2013,21 @@
 			"credits": "{credits} credits",
 			"saving": "Save {credits} credits ({percent}%)",
 			"samePrice": "Same price with an annual plan."
+		},
+		"output": {
+			"actual": "File: {seconds} s · {width} × {height} px · {audio}",
+			"requested": "Requested: {seconds} s · {resolution} · {ratio} · {audio}",
+			"withAudio": "with audio",
+			"withoutAudio": "no audio",
+			"title": "Output differs from your request",
+			"original": "The original video is provided unchanged.",
+			"warnings": {
+				"DURATION_MISMATCH": "The duration differs from the requested length.",
+				"UNEXPECTED_AUDIO": "The video contains audio although audio was turned off.",
+				"MISSING_AUDIO": "The video has no audio track although audio was requested.",
+				"RESOLUTION_MISMATCH": "The pixels differ from the requested resolution target.",
+				"ASPECT_RATIO_MISMATCH": "The aspect ratio differs from the requested ratio."
+			}
 		}
 	},
 	"videoEffects": {

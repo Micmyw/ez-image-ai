@@ -40,7 +40,10 @@ describe("authenticated Rumpelstiltskin page", () => {
 		const page = await RumpelstiltskinPage({
 			searchParams: Promise.resolve({ job: "owned-test" }),
 		});
-		expect(page.props.messages).toEqual({ videoEffects: en.videoEffects });
+		expect(page.props.messages).toEqual({
+			videoEffects: en.videoEffects,
+			videoV1: { output: en.videoV1.output },
+		});
 		expect(page.props.children.props.initialJobId).toBe("owned-test");
 		expect(page.props.children.props.readOnly).toBe(true);
 		expect(mocks.getOwnedJob).toHaveBeenCalledWith({ userId: "tester" }, "owned-test");

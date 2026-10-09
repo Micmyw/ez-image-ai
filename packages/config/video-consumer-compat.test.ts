@@ -84,7 +84,7 @@ describe("Veo activation after consumer compatibility", () => {
 		expect(videoModelReceiptInputSchema.safeParse({ ...request, ...extra }).success).toBe(false);
 	});
 	it.each(tiers)(
-		"enforces the frozen %s output floor for landscape, portrait and Auto",
+		"retains the frozen %s advisory output floor for landscape, portrait and Auto",
 		(veoTier) => {
 			for (const [resolution, floor] of [
 				["720p", 720],
@@ -112,9 +112,7 @@ describe("Veo activation after consumer compatibility", () => {
 						width: aspectRatio === "9:16" ? edge : Math.round((edge * 16) / 9),
 						height: aspectRatio === "9:16" ? Math.round((edge * 16) / 9) : edge,
 					});
-					expect(videoOutputSpecificationFailure(pixels(floor - 1), constraints)).toBe(
-						"VIDEO_RESOLUTION_MISMATCH",
-					);
+					expect(videoOutputSpecificationFailure(pixels(floor - 1), constraints)).toBeNull();
 					expect(videoOutputSpecificationFailure(pixels(floor), constraints)).toBeNull();
 					expect(videoOutputSpecificationFailure(pixels(floor + 18), constraints)).toBeNull();
 				}

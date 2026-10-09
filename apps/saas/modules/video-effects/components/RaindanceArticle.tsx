@@ -74,7 +74,9 @@ export async function RaindanceArticle({
 						EzImageAI Editorial Team · <time dateTime={post.publishedAt}>October 7, 2026</time>
 					</p>
 				</header>
-				<NextIntlClientProvider messages={{ videoEffects: videoMessages }}>
+				<NextIntlClientProvider
+					messages={{ videoEffects: videoMessages, videoV1: { output: messages.videoV1.output } }}
+				>
 					<RaindanceWorkbench
 						initialJobId={jobId}
 						initialMode={typeof search.mode === "string" ? search.mode : undefined}

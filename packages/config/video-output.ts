@@ -8,6 +8,7 @@ import {
 	RAINDANCE_LONG_TEMPLATE_VERSION,
 } from "./video-effects";
 import { VIDEO_VEO_TIER_CONTRACT_VERSION, videoVeoTierSchema } from "./video-models";
+import { videoOutputReportSchema, type VideoOutputReport } from "./video-output-report";
 
 /** Immutable request-derived output requirements. Legacy snapshots remain five-second/silent. */
 export const VIDEO_AUDIO_POLICY_VERSION = "video-spoken-content-2026-10-04.1";
@@ -210,16 +211,13 @@ export function videoResolutionPixelContract(
 		: "NOT_VERIFIED";
 }
 
-/** Return a stable failure code without leaking the request or private metadata. */
+/** Integrity/format failures only. Requested quality differences are reported separately. */
 export function videoOutputSpecificationFailure(
 	output: VideoOutputMetadata,
 	expected: VideoOutputConstraints,
 ): string | null {
-	if (
-		!Number.isFinite(output.durationMillis) ||
-		Math.abs(output.durationMillis - expected.durationSeconds * 1000) > 250
-	)
-		return "VIDEO_DURATION_MISMATCH";
+	if (!Number.isSafeInteger(output.durationMillis) || output.durationMillis <= 0)
+		return "VIDEO_DURATION_INVALID";
 	if (
 		!Number.isInteger(output.audioTracks) ||
 		output.audioTracks < 0 ||
@@ -227,7 +225,6 @@ export function videoOutputSpecificationFailure(
 		output.videoTracks !== 1
 	)
 		return "VIDEO_TRACK_NOT_SUPPORTED";
-	if (!expected.sound && output.audioTracks !== 0) return "VIDEO_AUDIO_TRACK_NOT_ALLOWED";
 	if (
 		output.audioTracks &&
 		(!output.audioTrackIds ||
@@ -242,28 +239,63 @@ export function videoOutputSpecificationFailure(
 		)
 	)
 		return "VIDEO_DIMENSIONS_INVALID";
+	if (!["source", "adaptive"].includes(expected.aspectRatio)) {
+		const ratio = /^(\d+):(\d+)$/.exec(expected.aspectRatio);
+		if (!ratio || !Number(ratio[1]) || !Number(ratio[2])) return "VIDEO_ASPECT_RATIO_INVALID";
+	}
+	return null;
+}
+
+/** Compare with the accepted request without changing its price, state or original bytes. */
+export function createVideoOutputReport(
+	output: VideoOutputMetadata,
+	expected: VideoOutputConstraints,
+): VideoOutputReport {
+	const failure = videoOutputSpecificationFailure(output, expected);
+	if (failure) throw new Error(failure);
+	const warnings: VideoOutputReport["warnings"] = [];
+	if (Math.abs(output.durationMillis - expected.durationSeconds * 1000) > 250)
+		warnings.push("DURATION_MISMATCH");
+	if (!expected.sound && output.audioTracks > 0) warnings.push("UNEXPECTED_AUDIO");
+	if (expected.sound && output.audioTracks === 0) warnings.push("MISSING_AUDIO");
+	let resolutionMismatch = false;
 	if (
 		expected.minimumShortEdge !== undefined &&
 		Math.min(output.width, output.height) < expected.minimumShortEdge
 	)
-		return "VIDEO_RESOLUTION_MISMATCH";
+		resolutionMismatch = true;
 	if (videoResolutionPixelContract(expected) === "DOCUMENTED") {
 		const pixels = { "720p": 720, "1080p": 1080, "4k": 2160 }[expected.resolution]!;
 		const width = expected.aspectRatio === "16:9" ? (pixels * 16) / 9 : pixels;
 		const height = expected.aspectRatio === "9:16" ? (pixels * 16) / 9 : pixels;
-		if (output.width !== width || output.height !== height) return "VIDEO_RESOLUTION_MISMATCH";
+		if (output.width !== width || output.height !== height) resolutionMismatch = true;
 	}
 	if (
 		expected.exactPixels &&
 		(output.width !== expected.exactPixels.width || output.height !== expected.exactPixels.height)
 	)
-		return "VIDEO_RESOLUTION_MISMATCH";
+		resolutionMismatch = true;
+	if (resolutionMismatch) warnings.push("RESOLUTION_MISMATCH");
 	if (!["source", "adaptive"].includes(expected.aspectRatio)) {
-		const ratio = /^(\d+):(\d+)$/.exec(expected.aspectRatio);
-		if (!ratio || !Number(ratio[1]) || !Number(ratio[2])) return "VIDEO_ASPECT_RATIO_INVALID";
+		const ratio = /^(\d+):(\d+)$/.exec(expected.aspectRatio)!;
 		const target = Number(ratio[1]) / Number(ratio[2]);
 		if (Math.abs(output.width / output.height - target) / target > 0.025)
-			return "VIDEO_ASPECT_RATIO_MISMATCH";
+			warnings.push("ASPECT_RATIO_MISMATCH");
 	}
-	return null;
+	return videoOutputReportSchema.parse({
+		schemaVersion: 1,
+		actual: {
+			durationMillis: output.durationMillis,
+			width: output.width,
+			height: output.height,
+			audioTracks: output.audioTracks,
+		},
+		requested: {
+			durationSeconds: expected.durationSeconds,
+			resolution: expected.resolution,
+			aspectRatio: expected.aspectRatio,
+			sound: expected.sound,
+		},
+		warnings,
+	});
 }

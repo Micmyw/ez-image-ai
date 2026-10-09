@@ -20,6 +20,7 @@ import {
 	readVideoEffectPricingDisplay,
 } from "@repo/config/video-effects.server";
 import { applyVideoInternalFunding } from "@repo/config/video-internal-funding";
+import { readVideoOutputReport } from "@repo/config/video-output-report";
 import type { VideoRetailPricingContext } from "@repo/config/video-pricing.server";
 import type { VideoV1Bindings } from "@repo/config/video-v1";
 import { db } from "@repo/database/client";
@@ -291,6 +292,7 @@ async function toVideoTemplatePublicState(
 	);
 	return {
 		jobId: job.id,
+		output: readVideoOutputReport(job.videoExecution.stageData),
 		effectId: template.effectId,
 		name: videoEffectName(template.effectId),
 		presetKey: template.presetKey,
