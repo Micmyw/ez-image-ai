@@ -6,6 +6,9 @@ const state = vi.hoisted(() => ({
 	pathname: "/",
 	search: "",
 	user: null as { id: string; isAnonymous?: boolean } | null,
+	loaded: true,
+	creditBalance: "100",
+	creditQueries: vi.fn(),
 	videoAvailable: false,
 	videoNavigationImported: vi.fn(),
 	rumpelstiltskinNavigationImported: vi.fn(),
@@ -13,13 +16,18 @@ const state = vi.hoisted(() => ({
 vi.mock("@auth/components/SessionProvider", () => ({
 	SessionProvider: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock("@auth/hooks/use-session", () => ({ useSession: () => ({ user: state.user }) }));
+vi.mock("@auth/hooks/use-session", () => ({
+	useSession: () => ({ loaded: state.loaded, user: state.user }),
+}));
 vi.mock("next/navigation", () => ({
 	usePathname: () => state.pathname,
 	useSearchParams: () => new URLSearchParams(state.search),
 	useRouter: () => ({ prefetch: vi.fn() }),
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", () => ({
+	useTranslations: () => (key: string, values?: { credits?: string }) =>
+		key === "creditBalance" ? `creditBalance:${values?.credits}` : key,
+}));
 // Next's App Router aliases next/dynamic to this implementation during a build.
 vi.mock("next/dynamic", async () => ({
 	default: (await import("next/dist/shared/lib/app-dynamic")).default,
@@ -52,12 +60,18 @@ vi.mock("@tanstack/react-query", async (importOriginal) => {
 	return {
 		...actual,
 		useQueryClient: () => queryClient,
-		useQuery: () => ({
-			data: {
-				available: state.videoAvailable,
-				products: [{ key: "image-gpt-image-2", skuMatrix: { cells: [{}] } }],
-			},
-		}),
+		useQuery: (options: { queryKey: readonly unknown[] }) => {
+			if (options.queryKey[0] === "media-credit-account") {
+				state.creditQueries(options);
+				return { data: { spendableCredits: state.creditBalance } };
+			}
+			return {
+				data: {
+					available: state.videoAvailable,
+					products: [{ key: "image-gpt-image-2", skuMatrix: { cells: [{}] } }],
+				},
+			};
+		},
 	};
 });
 vi.mock("@shared/lib/orpc-client", () => ({ orpcClient: {} }));
@@ -80,6 +94,9 @@ describe("homepage and signed-in tool navigation", () => {
 		state.pathname = "/";
 		state.search = "";
 		state.user = null;
+		state.loaded = true;
+		state.creditBalance = "100";
+		state.creditQueries.mockClear();
 		state.videoAvailable = false;
 	});
 
@@ -125,6 +142,53 @@ describe("homepage and signed-in tool navigation", () => {
 		expect(state.videoNavigationImported).toHaveBeenCalled();
 		expect(markup).toContain('href="/video"');
 	});
+
+	it("switches sidebar balances to the current session owner's query", async () => {
+		state.pathname = "/create";
+		state.user = { id: "A" };
+		expect(await renderShell()).toContain("creditBalance:100");
+		expect(state.creditQueries).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				queryKey: ["media-credit-account", "A"],
+				enabled: true,
+			}),
+		);
+		state.user = { id: "B" };
+		state.creditBalance = "20";
+		const markup = await renderShell();
+		expect(markup).toContain("creditBalance:20");
+		expect(markup).not.toContain("creditBalance:100");
+		expect(state.creditQueries).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				queryKey: ["media-credit-account", "B"],
+				enabled: true,
+			}),
+		);
+	});
+
+	it("disables sidebar credits and hides old balance until the session is loaded", async () => {
+		state.pathname = "/create";
+		state.user = { id: "A" };
+		state.loaded = false;
+		const markup = await renderShell();
+		expect(markup).not.toContain("creditBalance:100");
+		expect(state.creditQueries).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				queryKey: ["media-credit-account", null],
+				enabled: false,
+			}),
+		);
+	});
+
+	it.each([null, { id: "guest", isAnonymous: true }])(
+		"never queries or shows account credits for an unauthenticated sidebar (%j)",
+		async (user) => {
+			state.pathname = "/create";
+			state.user = user;
+			expect(await renderShell()).not.toContain("creditBalance:100");
+			expect(state.creditQueries).not.toHaveBeenCalled();
+		},
+	);
 
 	it("keeps the deferred video link hidden when the registered user has no catalog access", async () => {
 		state.pathname = "/create";

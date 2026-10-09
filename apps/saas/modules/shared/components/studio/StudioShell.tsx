@@ -2,12 +2,12 @@
 
 import { SessionProvider } from "@auth/components/SessionProvider";
 import { useSession } from "@auth/hooks/use-session";
+import { creditAccountOwnerId, creditAccountQueryOptions } from "@media/lib/credit-account-query";
 import { DEFAULT_EDITOR_PRODUCT_KEY } from "@media/lib/editor-recovery";
 import { config as authConfig } from "@repo/auth/config";
 import { Button } from "@repo/ui/components/button";
 import { Logo } from "@repo/ui/components/logo";
 import { useIsMobile } from "@shared/hooks/use-media-query";
-import { orpcClient } from "@shared/lib/orpc-client";
 import { useQuery } from "@tanstack/react-query";
 import {
 	BookOpenIcon,
@@ -393,15 +393,13 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 
 function StudioCredits({ onClick }: { onClick: () => void }) {
 	const t = useTranslations("studio");
-	const account = useQuery({
-		queryKey: ["media-credit-account"],
-		queryFn: () => orpcClient.media.getCreditAccount(),
-	});
+	const ownerId = creditAccountOwnerId(useSession());
+	const account = useQuery(creditAccountQueryOptions(ownerId));
 	return (
 		<button className="studio-credit-link" onClick={onClick} aria-label={t("credits")}>
 			<CoinsIcon />
 			<span className="!ml-0">
-				{account.data
+				{ownerId && account.data
 					? t("creditBalance", { credits: account.data.spendableCredits })
 					: t("credits")}
 			</span>

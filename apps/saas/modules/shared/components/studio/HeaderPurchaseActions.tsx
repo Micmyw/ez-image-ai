@@ -1,12 +1,13 @@
 "use client";
 
+import { useSessionQuery } from "@auth/lib/api";
+import { creditAccountOwnerId, creditAccountQueryOptions } from "@media/lib/credit-account-query";
 import { useUpgrade } from "@payments/components/upgrade-context";
 import { usePaymentAction } from "@payments/hooks/use-payment-action";
 import { calculateAnnualPlanPricing } from "@payments/lib/annual-plan-pricing";
 import { defaultUpgradeSelection, upgradeHref } from "@payments/lib/upgrade-selection";
 import { PLAN_ENTITLEMENTS } from "@repo/config/client";
 import { LocaleSwitch } from "@shared/components/LocaleSwitch";
-import { orpcClient } from "@shared/lib/orpc-client";
 import { useQuery } from "@tanstack/react-query";
 import { CoinsIcon, CrownIcon, Loader2Icon, PlusIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
@@ -23,16 +24,17 @@ export function HeaderPurchaseActions({
 	const locale = useLocale();
 	const openUpgrade = useUpgrade();
 	const payment = usePaymentAction();
+	const { data: session, isSuccess } = useSessionQuery();
+	const ownerId = creditAccountOwnerId({ loaded: isSuccess, user: session?.user ?? null });
 	const account = useQuery({
-		queryKey: ["media-credit-account"],
-		queryFn: () => orpcClient.media.getCreditAccount(),
-		enabled: registered && showCredits,
+		...creditAccountQueryOptions(ownerId),
+		enabled: Boolean(ownerId) && registered && showCredits,
 		refetchInterval: 30_000,
 	});
 	const savings = calculateAnnualPlanPricing(
 		PLAN_ENTITLEMENTS.find((plan) => plan.id === "ultimate")?.prices ?? [],
 	);
-	const balance = account.data?.spendableCredits;
+	const balance = ownerId && registered && showCredits ? account.data?.spendableCredits : undefined;
 	return (
 		<div className="studio-purchase-actions">
 			<Link
@@ -78,7 +80,7 @@ export function HeaderPurchaseActions({
 					<span>
 						{balance !== undefined ? (
 							new Intl.NumberFormat(locale).format(BigInt(balance))
-						) : account.isPending ? (
+						) : ownerId && account.isPending ? (
 							<Loader2Icon className="animate-spin" aria-hidden />
 						) : (
 							"—"
