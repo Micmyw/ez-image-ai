@@ -59,6 +59,7 @@ vi.mock("../lib/rate-limit", () => ({
 }));
 vi.mock("../lib/free-plan-credits", () => ({
 	ensureFreePlanCreditsForUser: () => harness.active.operation("freeGrant"),
+	ensureFreePlanCreditsForGeneration: () => harness.active.operation("freeGrant"),
 }));
 vi.mock("../lib/plan-entitlement", () => ({
 	loadUserPlanEntitlement: async () => {
