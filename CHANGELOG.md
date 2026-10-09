@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-09 — Generation response and account isolation
+
+- Show an accepted image task before history and credit refreshes finish. Keep balances scoped to the signed-in account and ignore stale responses after account or editor changes.
+- Start committed image work within the managed request lifetime, wake video callbacks before optional timing writes, and reuse committed continuation IDs and locked review context. Keep durable recovery, moderation and one-time credit settlement.
+
 ## 2026-10-09 — Video output details
 
 - Deliver usable videos with clear, asset-bound warnings when audio, duration, pixel targets or framing differ from the accepted request. Show measured file details separately from requested settings in ordinary and template receipts.

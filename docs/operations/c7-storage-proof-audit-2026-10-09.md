@@ -25,16 +25,16 @@
 
 ## 可绑定的 proof 字段与来源
 
-| 字段 | 权威来源与要求 |
-|---|---|
-| proofVersion、validatorVersion | 新的内部服务端常量；明确版本并严格解析，parser/格式规则/安全与约束解释变化时升级。不能把旧 outputSpec/report 的 schemaVersion 当此版本。 |
-| validationOrigin、validatedAt | 仅首次完整落盘 GET 消费至 EOF、hash 与 MP4 校验成功后生成；origin 固定为完整落盘读取。时间不是 transfer 源流时间，也不是旧 finalizedAt。 |
-| jobId、ownerType、ownerId、executionEngine | 当前持锁读取的 GenerationJob。assertVideo 已要求 USER 与 video-workflow-v1；proof 再绑定两种 owner 字段与 engine。 |
-| assetId、verificationEngine、objectKey、mimeType、byteSize | 当前 OUTPUT binding 与 MediaAsset；输出 key 由 claimVideoOutputStorage:186 生成 users/{owner}/video-v1/{job}/{asset}.mp4，private media 逻辑桶固定。byteSize 用规范十进制字符串，严格安全整数转换/范围检查。 |
-| SHA-256、storageEtag | 首次完整落盘读取计算出的 hash、条件读取绑定的 ETag，必须与当前 asset 和 binding checksum 相符。ETag 原样保存且与 SHA-256 分开。 |
-| frozenFingerprint | 服务端规范化序列化并 hash 不可变 inputSnapshot（或完整相关冻结投影）及 normalized videoOutputConstraints；覆盖模型/模板/输出与音频安全策略版本等。普通 requestFingerprint 单独不足：普通任务该值由 request 生成，安全 profile 等另保存在 snapshot。 |
-| validatedMetadata | 建议同时封存实际 duration/width/height/videoTracks/audioTracks/audioTrackIds，并在最终锁内与 asset/outputSpec 对照，避免跳过解析后接受被改动的媒体参数。 |
-| moderation linkage | 保留现有 verification generation、attempt、provider task、rule/policy/profile、assetChecksum、raw.objectEtag、confirmation event 及完整覆盖/有效期要求；不能靠 proof 替代审核。 |
+| 字段                                                       | 权威来源与要求                                                                                                                                                                                                                                      |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| proofVersion、validatorVersion                             | 新的内部服务端常量；明确版本并严格解析，parser/格式规则/安全与约束解释变化时升级。不能把旧 outputSpec/report 的 schemaVersion 当此版本。                                                                                                            |
+| validationOrigin、validatedAt                              | 仅首次完整落盘 GET 消费至 EOF、hash 与 MP4 校验成功后生成；origin 固定为完整落盘读取。时间不是 transfer 源流时间，也不是旧 finalizedAt。                                                                                                            |
+| jobId、ownerType、ownerId、executionEngine                 | 当前持锁读取的 GenerationJob。assertVideo 已要求 USER 与 video-workflow-v1；proof 再绑定两种 owner 字段与 engine。                                                                                                                                  |
+| assetId、verificationEngine、objectKey、mimeType、byteSize | 当前 OUTPUT binding 与 MediaAsset；输出 key 由 claimVideoOutputStorage:186 生成 users/{owner}/video-v1/{job}/{asset}.mp4，private media 逻辑桶固定。byteSize 用规范十进制字符串，严格安全整数转换/范围检查。                                        |
+| SHA-256、storageEtag                                       | 首次完整落盘读取计算出的 hash、条件读取绑定的 ETag，必须与当前 asset 和 binding checksum 相符。ETag 原样保存且与 SHA-256 分开。                                                                                                                     |
+| frozenFingerprint                                          | 服务端规范化序列化并 hash 不可变 inputSnapshot（或完整相关冻结投影）及 normalized videoOutputConstraints；覆盖模型/模板/输出与音频安全策略版本等。普通 requestFingerprint 单独不足：普通任务该值由 request 生成，安全 profile 等另保存在 snapshot。 |
+| validatedMetadata                                          | 建议同时封存实际 duration/width/height/videoTracks/audioTracks/audioTrackIds，并在最终锁内与 asset/outputSpec 对照，避免跳过解析后接受被改动的媒体参数。                                                                                            |
+| moderation linkage                                         | 保留现有 verification generation、attempt、provider task、rule/policy/profile、assetChecksum、raw.objectEtag、confirmation event 及完整覆盖/有效期要求；不能靠 proof 替代审核。                                                                     |
 
 `MediaAsset.storageVersionId` 字段存在，但该视频转存路径不获取、不持久化、不按 VersionId 读取对象。proof 的版本化表示证明格式/验证器版本，不能据此声称 R2 对象版本可固定。
 
@@ -42,32 +42,32 @@
 
 ## 写入及覆盖约束
 
-视频自身分片完成传 IfNoneMatch("*")；这能证明请求意图，不能单靠代码或本地 mock 证明 R2 服务端执行条件。共享存储完成接口的条件可选，其余通用写接口可接收 users/* 路径，未有视频输出 namespace 强制门禁。
+视频自身分片完成传 IfNoneMatch("_")；这能证明请求意图，不能单靠代码或本地 mock 证明 R2 服务端执行条件。共享存储完成接口的条件可选，其余通用写接口可接收 users/_ 路径，未有视频输出 namespace 强制门禁。
 
 以下 S 表示 `packages/storage/provider/s3/index.ts`；行号固定到基准，不保证 C4 集成后相同。
 
-| 仓库写入口 | 源码/覆盖条件 | 当前业务 destination |
-|---|---|---|
-| presigned 私有 PUT | S:84，无 IfNoneMatch | media/guest/video/effects 的服务端 staging key |
-| CreateMultipartUpload、presigned/server UploadPart | S:96、110、130；part 绑定 key/uploadId/partNumber | staging 或服务端 transfer；尚不直接发布完整对象 |
-| CompleteMultipartUpload | S:151；ifNoneMatch 可选 | staging 无条件；视频输出调用明确传 "*" |
-| 视频输出 transfer | output-storage.ts:128、153、157 | 已找到的唯一视频输出写 callsite；条件 multipart+HEAD |
-| 通用 buffer PUT | S:668；无条件，users/* | draft assets、legacy staging、E2E assets |
-| 通用 remote multipart | S:1105；完成无条件 | legacy staging |
-| staging promotion | S:460、465、489、519；final PUT/complete "*" | input/legacy final asset |
-| 视频参考图规范化 | S:363、368；PUT "*" | assets 中派生 PNG |
-| 普通图片直接落盘 | S:695；PUT "*"、仅图片 | legacy final asset |
-| 视频模板 scene | S:798；复用图片条件写 | scene asset |
-| 临时参考图 | S:911；PUT/complete "*" | temporaryReferenceObjectKey |
-| guest watermark | S:1037、1055；complete "*" | guest image final asset |
-| avatar/logo 签名 PUT | S:1154；无条件 | avatars 桶、server user/org key |
-| CopyObject/UploadPartCopy | 未发现运行时导入或 callsite | 无当前业务入口；不据此推断外部运维无 copy |
-| native R2 binding | video-runtime.ts、cloudflare-worker.ts 做可用性检查，profiles.ts 配绑定 | 未发现对 VIDEO_MEDIA_BUCKET put/multipart 的源码 |
-| CLI/config 脚本写入 | 已恢复并补扫 json/jsonc/yaml/yml/ps1/sh/cmd/bat，无关键词匹配 | 未发现仓库内额外 aws/rclone/wrangler object 写入口 |
+| 仓库写入口                                         | 源码/覆盖条件                                                           | 当前业务 destination                                 |
+| -------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------- |
+| presigned 私有 PUT                                 | S:84，无 IfNoneMatch                                                    | media/guest/video/effects 的服务端 staging key       |
+| CreateMultipartUpload、presigned/server UploadPart | S:96、110、130；part 绑定 key/uploadId/partNumber                       | staging 或服务端 transfer；尚不直接发布完整对象      |
+| CompleteMultipartUpload                            | S:151；ifNoneMatch 可选                                                 | staging 无条件；视频输出调用明确传 "*"               |
+| 视频输出 transfer                                  | output-storage.ts:128、153、157                                         | 已找到的唯一视频输出写 callsite；条件 multipart+HEAD |
+| 通用 buffer PUT                                    | S:668；无条件，users/*                                                  | draft assets、legacy staging、E2E assets             |
+| 通用 remote multipart                              | S:1105；完成无条件                                                      | legacy staging                                       |
+| staging promotion                                  | S:460、465、489、519；final PUT/complete "*"                            | input/legacy final asset                             |
+| 视频参考图规范化                                   | S:363、368；PUT "*"                                                     | assets 中派生 PNG                                    |
+| 普通图片直接落盘                                   | S:695；PUT "*"、仅图片                                                  | legacy final asset                                   |
+| 视频模板 scene                                     | S:798；复用图片条件写                                                   | scene asset                                          |
+| 临时参考图                                         | S:911；PUT/complete "*"                                                 | temporaryReferenceObjectKey                          |
+| guest watermark                                    | S:1037、1055；complete "*"                                              | guest image final asset                              |
+| avatar/logo 签名 PUT                               | S:1154；无条件                                                          | avatars 桶、server user/org key                      |
+| CopyObject/UploadPartCopy                          | 未发现运行时导入或 callsite                                             | 无当前业务入口；不据此推断外部运维无 copy            |
+| native R2 binding                                  | video-runtime.ts、cloudflare-worker.ts 做可用性检查，profiles.ts 配绑定 | 未发现对 VIDEO_MEDIA_BUCKET put/multipart 的源码     |
+| CLI/config 脚本写入                                | 已恢复并补扫 json/jsonc/yaml/yml/ps1/sh/cmd/bat，无关键词匹配           | 未发现仓库内额外 aws/rclone/wrangler object 写入口   |
 
 删除也属于 proof 生命周期：`packages/jobs/src/video-v1/cleanup.ts` 先 claim 再物理 delete；`packages/database/prisma/queries/media/video-v1-cleanup.ts:114` 在 owner/binding 锁下重验期限、active job/uncertain attempt/lease，并先 tombstone（:237），不能取消这些门禁。外部删除未被这组锁覆盖。
 
-已核对的公开业务上传生成 staging keys；part 签名使用 session.stagingObjectKey，头像/组织 logo 使用 avatars 桶。legacy runtime 的输出路径以 legacy engine 查询且生成 users/*/assets/*，未发现当前公开业务 callsite 可写视频输出 key。这里没有据此认定用户可利用覆盖漏洞；结论是全入口不可覆盖约束尚未被强制证明。
+已核对的公开业务上传生成 staging keys；part 签名使用 session.stagingObjectKey，头像/组织 logo 使用 avatars 桶。legacy runtime 的输出路径以 legacy engine 查询且生成 users/_/assets/_，未发现当前公开业务 callsite 可写视频输出 key。这里没有据此认定用户可利用覆盖漏洞；结论是全入口不可覆盖约束尚未被强制证明。
 
 后续如拟补共享写层的 video-v1 namespace 门禁、签名写 URL 条件、multipart 类型约束，属于超出文档三个 C7 文件的共享契约改动，必须先报告根集成会话并协调其他组。不能为启用快路径自行更改 bucket lock、IAM、生产存储设置、清理策略或扩大基础设施。
 
@@ -105,12 +105,12 @@
 
 恢复规则：
 
-| 状况 | 行为 |
-|---|---|
-| 无 proof、历史任务、未知/旧 proof 或 validator 版本 | 明确完整 GET/hash/MP4 fallback；沿原审核与交付边界。不靠原 outputSpec 合成验证来源。 |
-| multipart 已完成而 DB commit 失败的 adoption，STORED/recovery | 继续完整读取、重算 SHA、MP4；复用原 job/asset/key，不重新生成或新增付费审核。 |
-| 完整 proof 的 owner/job/engine/key/hash/size/ETag/冻结约束发生冲突 | 拒绝/进入原恢复或 hold 路径；不能静默改 proof 接受新身份。 |
-| 删除、404、412、审核过期/不完整、30秒 attestation 过期 | 不交付、不结算；保持原恢复/拒绝规则。 |
+| 状况                                                               | 行为                                                                                 |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| 无 proof、历史任务、未知/旧 proof 或 validator 版本                | 明确完整 GET/hash/MP4 fallback；沿原审核与交付边界。不靠原 outputSpec 合成验证来源。 |
+| multipart 已完成而 DB commit 失败的 adoption，STORED/recovery      | 继续完整读取、重算 SHA、MP4；复用原 job/asset/key，不重新生成或新增付费审核。        |
+| 完整 proof 的 owner/job/engine/key/hash/size/ETag/冻结约束发生冲突 | 拒绝/进入原恢复或 hold 路径；不能静默改 proof 接受新身份。                           |
+| 删除、404、412、审核过期/不完整、30秒 attestation 过期             | 不交付、不结算；保持原恢复/拒绝规则。                                                |
 
 刚上线的质量差异报告必须保留。当前 `packages/config/video-output.ts:215` 只拒绝格式/完整性问题；`:250` 的 duration/audio/resolution/aspect 比较生成 warning。proof fingerprint 必须绑定原冻结要求，但不能让请求与实际质量不同变成新拦截；继续以实际时长和原安全策略审核。
 
@@ -137,13 +137,13 @@ pnpm --filter @repo/database exec vitest run --config vitest.integration.config.
 
 证据分类：
 
-| 类别 | 本次状态 |
-|---|---|
-| 文档/官方契约 | 已读取交接原文、R2 官方兼容和一致性说明、SDK 锁定版本 schema；不是项目端到端保证。 |
-| 源码推导 | 已核对上述 callsites、绑定和事务；普通 transfer 后两次完整读取。 |
-| 本地 mock | 未运行，N=0。 |
-| 隔离 DB | 未运行，N=0。 |
-| 真实 R2/trace/生成 | 未运行，N=0；不使用历史真实视频当当前版本样本。 |
+| 类别               | 本次状态                                                                           |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| 文档/官方契约      | 已读取交接原文、R2 官方兼容和一致性说明、SDK 锁定版本 schema；不是项目端到端保证。 |
+| 源码推导           | 已核对上述 callsites、绑定和事务；普通 transfer 后两次完整读取。                   |
+| 本地 mock          | 未运行，N=0。                                                                      |
+| 隔离 DB            | 未运行，N=0。                                                                      |
+| 真实 R2/trace/生成 | 未运行，N=0；不使用历史真实视频当当前版本样本。                                    |
 
 实际删除等待、SQL、文件读取均为 0。无同版本同条件前后耗时/字节实测；P50/P95 不适用；线上提速未测。以后计时沿用 videoStageDurations/现有安全日志，区分 transfer、首次完整落盘读、finalize 检查的实际读字节与CPU/墙时；N不足直接列原值，记录文件大小、并发度、冷/热状态与 SDK/代码/环境版本。不得为每个 timing 新加串行 SQL，不承诺固定节省秒数。
 

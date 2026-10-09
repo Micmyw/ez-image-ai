@@ -3,10 +3,12 @@
 ## Status and source
 
 This plan records local integration status, not final implementation acceptance.
-C2 code has been imported and awaits combined C1+C2 verification; C1 and C3–C6
-implementation SHAs are still pending. The C7 read-only audit has been imported;
-C7 optimization is conditionally blocked. No production configuration change, paid
-request, migration against production, push, or deployment is included.
+C1–C6 are integrated and undergoing combined verification. The C7 read-only audit
+has been imported; C7 optimization remains conditionally blocked. The user later
+authorized release after successful tests (2026-10-09 15:52 UTC). Before any merge,
+push or deployment, freeze the candidate SHA and obtain the parent's new independent
+Astra max review plus required revalidation. No new paid generation or real R2 write
+experiment is authorized. No production action has been performed in this checkpoint.
 
 - Fixed baseline: `af4c7a333f3820a5914aca9f8ad867a537700f10`.
 - Integration branch: `codex/generation-speed-integration`.
@@ -73,8 +75,7 @@ to produce performance comparisons.
 
 ## C1–C7 acceptance matrix
 
-C2 is **INTEGRATED_PENDING_BATCH_VERIFICATION**. C1 and C3–C6 are
-**PENDING_IMPLEMENTATION_HANDOFF**. C7 is **CONDITIONALLY_BLOCKED**: the audit is
+C1–C6 are **INTEGRATED_PENDING_FINAL_VERIFICATION**. C7 is **CONDITIONALLY_BLOCKED**: the audit is
 delivered, but the optimization is neither implemented nor accepted.
 
 | Item | Removed dependency / structural target                                                        | Required positive and negative evidence                                                                                                                                                                                                                                                                                                                                                                    | Primary focused tests                                                                                 |
@@ -89,7 +90,7 @@ delivered, but the optimization is neither implemented nor accepted.
 
 ### Additional mandatory C1 gate: account-scoped credit cache
 
-Status: **PENDING_IMPLEMENTATION_HANDOFF**. The fixed baseline already uses the
+Status: **INTEGRATED_PENDING_FINAL_VERIFICATION**. The fixed baseline already uses the
 same `media-credit-account` key for all three readers, with a browser QueryClient
 singleton and a default 60-second stale time. Updating the session does not clear
 that query. Normal logout navigates the whole page, which reduces exposure but
@@ -161,6 +162,15 @@ and concrete authorization before proceeding. No such online operation is curren
 authorized. C7 currently removes **0 reads, 0 queries and 0 waits**, has no paired
 performance samples, and remains **CONDITIONALLY_BLOCKED**.
 
+Minimal recheck after C4 integration (`455ab5d6afa3cd76de38eec4bfe7c52d6937d99c`):
+`reviewContext` contains the locked visual/audio policy, constraints, actual duration
+and existing output specification. It does not establish a full stored-read proof
+or immutable storage identity. `finalizeVideoJob` still performs full
+`inspectVideoObject` before its fresh attestation. `output-storage.ts` and the shared
+S3 wrapper are unchanged from the baseline; the wrapper still omits HTTP status and
+ContentRange. The three enabling premises above remain unmet. No C7 implementation
+or storage contract expansion follows from C4.
+
 ### C2 implementation handoff
 
 Source commit `a037cfc78ddff62868eb93cb83283f3844a984c7`, based directly on the fixed
@@ -208,13 +218,66 @@ before and 0.1599–0.3137 ms after; each sample dispatches once. This is local 
 function timing with no real DB/provider/storage or browser/network HTTP timing,
 not an estimate of production improvement.
 
-First-batch integration will run C1 and C2 together after C1 handoff. Add
+Combined verification includes C1 and C2 together. Include
 `cloudflare/request-scope.workerd.test.ts` and
 `modules/media/procedures/submit-generation.http.test.ts` to that batch. Final
 OpenNext website artifact lifetime/DB binding, isolated real-DB durable recovery
 and ledger invariants remain **NOT_RUN**. Source workerd tests use a dynamic local
 port and mocked DB scope; they do not establish those remaining gates. This import
-starts no DB/port service and repeats no full build.
+started no DB/port service and repeated no full build. Later combined verification
+is tracked below; these import-time limits are historical, not release acceptance.
+
+### C1/C3–C6 imports and resumed verification
+
+All imports were conflict-free and use `cherry-pick -x` provenance:
+
+| Item                  | Source SHA                                 | Integration SHA                            |
+| --------------------- | ------------------------------------------ | ------------------------------------------ |
+| C5                    | `fdb276f44982575a2f74d4d52fa5874788191b42` | `9d1213b21d319593f972a38bf15707a69830cd23` |
+| C6                    | `5a89b40d9dc758c981842db7ae2d70a3b71387da` | `9b2ebfe645ca908481c3d737d7f81568d00cab0f` |
+| C3                    | `1c3ee5887c38cc09c2a0ba0affaf1ad9d7462749` | `2917a33016a531aaa25626ef039f8a161f532382` |
+| C4                    | `73ca274444d4871e2c42a3492319507a3dbfaaa2` | `455ab5d6afa3cd76de38eec4bfe7c52d6937d99c` |
+| C1 account isolation  | `007d3facdcc924bb751ecb50a671429900767baa` | `6361c5ec77561b31ad62eb4fc9cf71cb70830db3` |
+| C1 acceptance/display | `835807cfe0e0985605d37ea420091a78399608fe` | `0112ae526a02ebf7811dedbaa77ced65f09bc310` |
+
+The integration-only mock repair is
+`4865d3f5381181c41ba4296c2cc1fb80c3d5f91c`: the admission simulator adds
+`ensureFreePlanCreditsForGeneration` while retaining the old public export used by
+the archived baseline. No production logic changes were needed for the imports.
+
+C1's former session stopped before final verification. The parent explicitly
+assigned takeover of its original worktree, with no confirmed concurrent writer.
+The existing draft was preserved, the eight-file suite passed **125/125**, the
+focused TypeScript gate and 14-file lint passed, and the eight owned files were
+formatted. The temporary `.c1-typecheck.json` was removed before committing the
+eight-file main change. The original C1 worktree is clean at `835807cf`.
+
+Completed integrated checks before the full combined run:
+
+- API admission/free-credit/create/HTTP/simulator: **55/55** across six files.
+- Jobs executor/polling/recovery/security: **56/56** across four files.
+- Video callback/fulfillment/storage plus lane routing: **68/68** across four files.
+- Workflow continuation/orchestrator: **25/25** across two files.
+- API, Jobs and Database workspace type checks: passed together after C2–C6.
+
+Raw JSON/logs reside under
+`D:/梅一伟/Documents/codex/2026-10-08/task/generation-speed-20261009/`, named
+`integration-c5-c6-api.json`, `integration-c5-c6-jobs.json`,
+`integration-c3-c4-jobs.json`, `integration-c6-workflows.json`,
+`integration-c2-c6-types.log`, and `c1-takeover-final-tests.json`.
+The host disconnected after the video/Workflow runs started; their complete saved
+JSON was read after reconnection and confirms success. No unreturned process status
+was counted as passing. These focused reruns overlap later suites and must not be
+added together as a unique final test total.
+
+Group evidence remains separately attributed: C5's local PG query-event comparison
+is 10 to 2 (N=3). C6's prior discovery counts are isolated-DB observations (2 async,
+5 terminal, N=3); the after=0 branch is executor mock evidence, not a measured paired
+end-to-end SQL trace. C4's N=1 local mock observations are logical snapshot calls:
+QUERY 1 to 0 with claim 1 to 1; immediate SUBMIT/QUERY 2 to 0 with claim 2 to 2.
+C3/C4's group reports 60 unit and 80 isolated DB tests, including a retained first
+environment failure fixed by setting only that disposable DB to UTC, and an Astra
+max review with no findings. None of these measurements proves production latency.
 
 ## Cross-cutting invariants
 
@@ -409,5 +472,8 @@ contract before any approved E implementation. E's current audit decision is
 no-enable; the parent requires a minimal C4-dependent recheck before considering
 additional implementation or online evidence collection.
 Integration records ordered SHAs and resolved conflicts, then the parent routes
-the complete candidate to independent Astra max review in a separate session, as
-explicitly requested by the user. Only local commits are authorized.
+the complete candidate to a new independent Astra max review in a separate session.
+The user's later release authorization permits merge, push and deployment only
+after the required tests/builds, that final review and related revalidation pass.
+Release checks must match the exact SHA across CI, background and website versions,
+and report public health separately from unrun login/real-generation checks.
