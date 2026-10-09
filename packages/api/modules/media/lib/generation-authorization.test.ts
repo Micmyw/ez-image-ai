@@ -1,6 +1,28 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@repo/database/client", () => ({ db: {} }));
+const production = vi.hoisted(() => ({
+	budget: vi.fn(),
+	freeCredits: vi.fn(),
+	entitlement: vi.fn(),
+	rateLimit: vi.fn(),
+	db: {
+		runtimeConfigOverride: { findFirst: vi.fn() },
+		creditAccount: { findUnique: vi.fn() },
+		creditLot: { aggregate: vi.fn() },
+		generationQuote: { aggregate: vi.fn() },
+		storageUsageReservation: { aggregate: vi.fn() },
+	},
+}));
+vi.mock("@repo/database/client", () => ({ db: production.db }));
+vi.mock("@repo/config/server", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@repo/config/server")>()),
+	mediaDailyProviderCostBudgetMicros: production.budget,
+}));
+vi.mock("./free-plan-credits", () => ({
+	ensureFreePlanCreditsForGeneration: production.freeCredits,
+}));
+vi.mock("./plan-entitlement", () => ({ loadUserPlanEntitlement: production.entitlement }));
+vi.mock("./rate-limit", () => ({ enforceMediaRateLimit: production.rateLimit }));
 
 import {
 	assertGenerationAllowed,
@@ -36,6 +58,41 @@ const BASE_SNAPSHOT: GenerationAccessSnapshot = {
 };
 
 describe("generation authorization", () => {
+	it.each([undefined, 0n, 100_000n])(
+		"only aggregates global costs for a configured budget (%s)",
+		async (budget) => {
+			vi.clearAllMocks();
+			production.budget.mockReturnValue(budget);
+			production.db.creditAccount.findUnique.mockResolvedValue({ creditDebt: 0n });
+			production.db.creditLot.aggregate.mockResolvedValue({ _sum: { remainingAmount: 100n } });
+			production.db.generationQuote.aggregate.mockResolvedValue({ _sum: { costMicros: 0n } });
+			production.db.storageUsageReservation.aggregate.mockResolvedValue({ _sum: { bytes: 0n } });
+			production.entitlement.mockResolvedValue({ id: "free" });
+			const check = assertGenerationAllowed({
+				userId: "user-1",
+				productKey: FREE_IMAGE_PRODUCT,
+				credits: 5n,
+				costMicros: 20_000n,
+				input: {
+					kind: "text-to-image",
+					prompt: "A vase",
+					skuKey: "nano-banana-2-lite-1k",
+					aspectRatio: "1:1",
+				},
+				routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+			});
+			if (budget === 0n) await expect(check).rejects.toThrow("BUDGET_EXCEEDED");
+			else await expect(check).resolves.toBeUndefined();
+			expect(production.freeCredits).toHaveBeenCalledWith("user-1");
+			expect(production.db.generationQuote.aggregate).toHaveBeenCalledTimes(
+				budget === undefined ? 1 : 2,
+			);
+			const globalCalls = production.db.generationQuote.aggregate.mock.calls.filter(
+				([input]) => input.where.ownerId === undefined,
+			);
+			expect(globalCalls).toHaveLength(budget === undefined ? 0 : 1);
+		},
+	);
 	it("requires the same account credit checks for a source-free request", async () => {
 		const input = {
 			kind: "text-to-image" as const,

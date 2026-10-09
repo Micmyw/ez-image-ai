@@ -17,7 +17,7 @@ import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import { unexpiredStorageReservations } from "@repo/database";
 import { db } from "@repo/database/client";
 
-import { ensureFreePlanCreditsForUser } from "./free-plan-credits";
+import { ensureFreePlanCreditsForGeneration } from "./free-plan-credits";
 import { loadUserPlanEntitlement } from "./plan-entitlement";
 import { enforceMediaRateLimit } from "./rate-limit";
 import { maximumMediaStorageBytes } from "./storage-limits";
@@ -60,7 +60,7 @@ interface GenerationAuthorizationDependencies {
 
 const productionDependencies: GenerationAuthorizationDependencies = {
 	enforceRateLimit: enforceMediaRateLimit,
-	ensureFreeCredits: ensureFreePlanCreditsForUser,
+	ensureFreeCredits: ensureFreePlanCreditsForGeneration,
 	async loadAccess(input) {
 		const startOfDay = new Date();
 		startOfDay.setUTCHours(0, 0, 0, 0);
@@ -124,13 +124,15 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 				},
 				_sum: { costMicros: true },
 			}),
-			db.generationQuote.aggregate({
-				where: {
-					job: { isNot: null },
-					createdAt: { gte: startOfDay },
-				},
-				_sum: { costMicros: true },
-			}),
+			maximumGlobalDailyCostMicros === undefined
+				? Promise.resolve(undefined)
+				: db.generationQuote.aggregate({
+						where: {
+							job: { isNot: null },
+							createdAt: { gte: startOfDay },
+						},
+						_sum: { costMicros: true },
+					}),
 			db.storageUsageReservation.aggregate({
 				where: {
 					ownerType: "USER",
@@ -166,7 +168,7 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 			spendableCredits: spendableLots._sum.remainingAmount ?? 0n,
 			creditDebt: account?.creditDebt ?? 0n,
 			dailyCostMicros: dailyCost._sum.costMicros ?? 0n,
-			globalDailyCostMicros: globalDailyCost._sum.costMicros ?? 0n,
+			globalDailyCostMicros: globalDailyCost?._sum.costMicros ?? 0n,
 			...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
 			storageUsageBytes: storageUsage._sum.bytes ?? 0n,
 			maximumStorageBytes: maximumMediaStorageBytes(),

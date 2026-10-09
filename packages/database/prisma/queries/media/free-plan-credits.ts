@@ -1,5 +1,5 @@
 import { findEffectivePaidSubscription } from "./billing";
-import { createCreditGrant } from "./credits";
+import { createCreditGrant, hasMatchingCreditGrant } from "./credits";
 import { runSerializable, type MediaTransactionClient } from "./types";
 
 export interface EnsureFreeMonthlyCreditGrantInput {
@@ -14,10 +14,7 @@ export type EnsureFreeMonthlyCreditGrantResult =
 	| { status: "PAID_SUBSCRIPTION"; referenceKey: string }
 	| { status: "GRANTED"; referenceKey: string; accountId: string };
 
-export async function ensureFreeMonthlyCreditGrant(
-	input: EnsureFreeMonthlyCreditGrantInput,
-	client: MediaTransactionClient,
-): Promise<EnsureFreeMonthlyCreditGrantResult> {
+function freeMonthlyGrant(input: EnsureFreeMonthlyCreditGrantInput) {
 	if (input.amount <= 0n) throw new Error("Free monthly credit amount must be positive");
 	if (Number.isNaN(input.now.getTime())) throw new Error("Free monthly credit date is invalid");
 
@@ -25,6 +22,35 @@ export async function ensureFreeMonthlyCreditGrant(
 	const periodEnd = new Date(Date.UTC(input.now.getUTCFullYear(), input.now.getUTCMonth() + 1, 1));
 	const periodKey = periodStart.toISOString().slice(0, 7);
 	const referenceKey = `free-plan:user:${input.ownerId}:${periodKey}`;
+	return {
+		amount: input.amount,
+		referenceKey,
+		expiresAt: periodEnd,
+		metadata: {
+			planId: "free",
+			periodStart: periodStart.toISOString(),
+			periodEnd: periodEnd.toISOString(),
+		},
+	};
+}
+
+/** Generation preflight only: callers must still check current access and balance. */
+export function hasMatchingFreeMonthlyCreditGrant(
+	input: EnsureFreeMonthlyCreditGrantInput,
+	client: MediaTransactionClient,
+): Promise<boolean> {
+	return hasMatchingCreditGrant(
+		{ ...freeMonthlyGrant(input), ownerType: "USER", ownerId: input.ownerId },
+		client,
+	);
+}
+
+export async function ensureFreeMonthlyCreditGrant(
+	input: EnsureFreeMonthlyCreditGrantInput,
+	client: MediaTransactionClient,
+): Promise<EnsureFreeMonthlyCreditGrantResult> {
+	const grant = freeMonthlyGrant(input);
+	const { referenceKey } = grant;
 
 	return runSerializable(client, async (tx) => {
 		await tx.$queryRaw<Array<{ locked: string }>>`
@@ -52,14 +78,7 @@ export async function ensureFreeMonthlyCreditGrant(
 		await createCreditGrant(
 			{
 				accountId: account.id,
-				amount: input.amount,
-				referenceKey,
-				expiresAt: periodEnd,
-				metadata: {
-					planId: "free",
-					periodStart: periodStart.toISOString(),
-					periodEnd: periodEnd.toISOString(),
-				},
+				...grant,
 			},
 			tx,
 		);

@@ -92,6 +92,38 @@ function createGrantCommand(input: CreditGrantInput): CreditCommand {
 	};
 }
 
+/** Read immutable command identity only; this does not establish spendable balance. */
+export async function hasMatchingCreditGrant(
+	input: Omit<CreditGrantInput, "accountId"> & { ownerType: "USER"; ownerId: string },
+	client: MediaTransactionClient,
+): Promise<boolean> {
+	const entry = await client.creditLedgerEntry.findUnique({
+		where: { referenceKey: input.referenceKey },
+		include: { account: { select: { ownerType: true, ownerId: true } } },
+	});
+	if (
+		!entry ||
+		entry.account.ownerType !== input.ownerType ||
+		entry.account.ownerId !== input.ownerId ||
+		!entry.metadata ||
+		typeof entry.metadata !== "object" ||
+		Array.isArray(entry.metadata)
+	)
+		return false;
+	try {
+		assertCreditLedgerReplay(entry, {
+			type: "GRANT",
+			accountId: entry.accountId,
+			referenceKey: input.referenceKey,
+			command: createGrantCommand({ ...input, accountId: entry.accountId }),
+		});
+		return true;
+	} catch (error) {
+		if (error instanceof IdempotencyConflictError) return false;
+		throw error;
+	}
+}
+
 function createRefundCommand(input: CreditRefundInput): CreditCommand {
 	return {
 		kind: "REFUND",

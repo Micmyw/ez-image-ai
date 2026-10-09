@@ -2,7 +2,10 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
-import { ensureFreeMonthlyCreditGrant } from "./free-plan-credits";
+import {
+	ensureFreeMonthlyCreditGrant,
+	hasMatchingFreeMonthlyCreditGrant,
+} from "./free-plan-credits";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -163,6 +166,73 @@ describe("Free monthly credit grants", () => {
 		expect(ledgerCount).toBe(1);
 	});
 
+	it("matches the immutable requested grant after debt repayment and rejects changed commands", async () => {
+		const ownerId = `${OWNER_PREFIX}-debt-replay`;
+		await createRegisteredUser(ownerId);
+		await client.creditAccount.create({ data: { ownerType: "USER", ownerId, creditDebt: 10n } });
+		const input = { ownerId, amount: 25n, now: new Date("2026-08-25T06:00:00Z") };
+		await ensureFreeMonthlyCreditGrant(input, client);
+		const ledger = await client.creditLedgerEntry.findUniqueOrThrow({
+			where: { referenceKey: `free-plan:user:${ownerId}:2026-08` },
+		});
+		expect(ledger.amount).toBe(15n);
+		await expect(hasMatchingFreeMonthlyCreditGrant(input, client)).resolves.toBe(true);
+		await expect(
+			hasMatchingFreeMonthlyCreditGrant({ ...input, amount: 15n }, client),
+		).resolves.toBe(false);
+		await expect(ensureFreeMonthlyCreditGrant({ ...input, amount: 15n }, client)).rejects.toThrow(
+			"IDEMPOTENCY_CONFLICT",
+		);
+		await expect(
+			hasMatchingFreeMonthlyCreditGrant(
+				{ ...input, now: new Date("2026-09-01T00:00:00Z") },
+				client,
+			),
+		).resolves.toBe(false);
+		await expect(
+			hasMatchingFreeMonthlyCreditGrant({ ...input, ownerId: `${ownerId}-other` }, client),
+		).resolves.toBe(false);
+		await ensureFreeMonthlyCreditGrant({ ...input, now: new Date("2026-09-01T00:00:00Z") }, client);
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { account: { ownerType: "USER", ownerId }, type: "GRANT" },
+			}),
+		).toBe(2);
+	});
+
+	it("reads a matching grant without advisory locks or account upserts", async () => {
+		const ownerId = `${OWNER_PREFIX}-query-count`;
+		await createRegisteredUser(ownerId);
+		const input = { ownerId, amount: 25n, now: new Date("2026-08-25T06:00:00Z") };
+		await ensureFreeMonthlyCreditGrant(input, client);
+		const observed = new PrismaClient({
+			adapter: new PrismaPg({ connectionString: safeTestDatabaseUrl() }),
+			log: [{ level: "query", emit: "event" }],
+		});
+		let queries: string[] = [];
+		observed.$on("query", ({ query }) => queries.push(query));
+		const samples: Array<{ before: number; after: number }> = [];
+		try {
+			await observed.$connect();
+			for (let i = 0; i < 3; i++) {
+				queries = [];
+				await ensureFreeMonthlyCreditGrant(input, observed);
+				const before = queries.length;
+				expect(queries.some((query) => query.includes("pg_advisory_xact_lock"))).toBe(true);
+				queries = [];
+				await expect(hasMatchingFreeMonthlyCreditGrant(input, observed)).resolves.toBe(true);
+				expect(
+					queries.some((query) => /pg_advisory_xact_lock|INSERT|UPDATE|BEGIN|COMMIT/i.test(query)),
+				).toBe(false);
+				expect(queries.length).toBeLessThan(before);
+				samples.push({ before, after: queries.length });
+			}
+			console.info("C5_ISOLATED_DB_SQL_COUNTS", JSON.stringify({ n: samples.length, samples }));
+		} finally {
+			await observed.$disconnect();
+		}
+	});
+
 	it.each([
 		{
 			label: "ACTIVE subscription",
@@ -238,6 +308,22 @@ describe("Free monthly credit grants", () => {
 				where: { account: { ownerType: "USER", ownerId }, type: "GRANT" },
 			}),
 		).toBe(scenario.blocked ? 0 : 1);
+		if (!scenario.blocked) {
+			await client.subscription.update({
+				where: { id: subscription.id },
+				data: { status: "ACTIVE", graceEndsAt: null },
+			});
+			const input = { ownerId, amount: 25n, now: new Date("2026-08-25T06:00:00Z") };
+			await expect(hasMatchingFreeMonthlyCreditGrant(input, client)).resolves.toBe(true);
+			await expect(ensureFreeMonthlyCreditGrant(input, client)).resolves.toMatchObject({
+				status: "PAID_SUBSCRIPTION",
+			});
+			expect(
+				await client.creditLedgerEntry.count({
+					where: { account: { ownerType: "USER", ownerId }, type: "GRANT" },
+				}),
+			).toBe(1);
+		}
 	});
 });
 

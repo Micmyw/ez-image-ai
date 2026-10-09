@@ -1,5 +1,5 @@
 import { getPlanEntitlement } from "@repo/config";
-import { ensureFreeMonthlyCreditGrant } from "@repo/database";
+import { ensureFreeMonthlyCreditGrant, hasMatchingFreeMonthlyCreditGrant } from "@repo/database";
 import { db } from "@repo/database/client";
 
 export function ensureFreePlanCreditsForUser(userId: string, now = new Date()) {
@@ -11,4 +11,11 @@ export function ensureFreePlanCreditsForUser(userId: string, now = new Date()) {
 		},
 		db,
 	);
+}
+
+/** This wrapper intentionally has no grant-status contract. */
+export async function ensureFreePlanCreditsForGeneration(userId: string, now = new Date()) {
+	const input = { ownerId: userId, amount: BigInt(getPlanEntitlement("free").monthlyCredits), now };
+	if (await hasMatchingFreeMonthlyCreditGrant(input, db)) return;
+	await ensureFreeMonthlyCreditGrant(input, db);
 }
