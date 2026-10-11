@@ -15,12 +15,15 @@ const origin = "https://ezimageai.com";
 const article = "/blog/tesco-ai-meal-planning-assistant";
 
 describe("article response policy routing", () => {
-	it("allows exactly published ordinary articles and one dedicated advertising origin", () => {
+	it("allows only reviewed published ordinary articles and one dedicated advertising origin", () => {
 		expect(BLOG_AD_ORIGIN).toBe("https://ads.ezimageai.com");
 		const ordinaryPaths = getAllPublishedBlogPosts("en")
 			.filter((post) => !post.recipeId && post.videoEffect !== "raindance")
 			.map(blogPath);
-		expect([...BLOG_AD_ARTICLE_PATHS].sort()).toEqual(ordinaryPaths.sort());
+		expect(BLOG_AD_ARTICLE_PATHS).toHaveLength(3);
+		for (const path of BLOG_AD_ARTICLE_PATHS) expect(ordinaryPaths).toContain(path);
+		expect(ordinaryPaths).toContain("/blog/vidu-q4-preview");
+		expect(isBlogAdArticlePath("/blog/vidu-q4-preview")).toBe(false);
 	});
 
 	it.each([
@@ -32,6 +35,7 @@ describe("article response policy routing", () => {
 		"/blog/1980s-ai-photo",
 		"/blog/raindance-ai-trend",
 		"/blog/how-to-make-hotel-lobby-ai-video",
+		"/blog/vidu-q4-preview",
 		"/blog/unpublished",
 		`${article}/extra`,
 		`${article}/`,

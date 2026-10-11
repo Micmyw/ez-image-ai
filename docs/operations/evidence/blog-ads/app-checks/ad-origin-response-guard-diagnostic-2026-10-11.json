@@ -1,0 +1,31 @@
+{
+	"scope": "Self-authored loopback HTTP documents/scripts in owned Chromium only. No supplier, production, user Chrome, account or payment requests.",
+	"architecture": "Historical late per-frame CDP Fetch Response installation: normalized parent fallback, framenavigated prewarm and awaiting enable inside the Playwright route callback before continue.",
+	"parentProtocol": {
+		"source": "output/playwright/blog-ads/response-guard-probe-mv3rkuij/probe.json",
+		"parent200PausedAndExecuted": true,
+		"parentScript302BlockedBeforeFollow": true,
+		"parentDocument302BlockedBeforeFollow": true,
+		"destinationHttpHits": 0,
+		"destinationRequestEvents": 0,
+		"note": "Overall probe was false because default headless did not create a separate child process; these specific parent observations passed."
+	},
+	"firstOopif200": {
+		"source": "output/playwright/blog-ads/response-guard-probe-mv3rsysc/probe.json",
+		"forcedSitePerProcessForCoverage": true,
+		"firstChild200Executed": true,
+		"firstChild200ResponsePauseObserved": false,
+		"subsequentChild302Blocked": true,
+		"note": "A successful later child response guard does not cover the missed initial request."
+	},
+	"firstOopif302": {
+		"source": "output/playwright/blog-ads/response-guard-probe-mv3rul9x/probe.json",
+		"separateChildSessionInstalled": true,
+		"guardEnableAwaitedBeforePlaywrightContinue": true,
+		"firstChild302FailedBeforeFollow": false,
+		"destinationHttpHits": 1,
+		"destinationRequestEvents": 1,
+		"note": "The destination was a second self-owned loopback HTTP server. This is a real safety-guard timing failure, not vendor behavior or a policy change."
+	},
+	"result": "The historical late guard cannot safely authorize the first cross-process response. Live supplier observation stays paused until a pre-request target guard is independently verified. Do not discard this evidence after a later fix."
+}

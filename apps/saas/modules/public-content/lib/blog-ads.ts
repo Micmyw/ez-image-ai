@@ -12,7 +12,7 @@ export type BlogAdSettings = {
 // A public, finite test window, not a credential or a permanent inventory activation.
 // Only the Tesco article accepts the explicit preview query. The production master
 // switches remain false while the independent static source is default-off.
-export const BLOG_AD_PREVIEW_EXPIRES_AT = "2026-10-11T13:00:00Z";
+export const BLOG_AD_PREVIEW_EXPIRES_AT = "2026-10-11T14:00:00Z";
 export const BLOG_AD_PREVIEW_PATH = "/blog/tesco-ai-meal-planning-assistant";
 
 export function getBlogAdSettings(

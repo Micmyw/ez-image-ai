@@ -1,8 +1,11 @@
 import { createHash } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { parseArgs } from "node:util";
+
+import { fulfillOfflineFixture } from "./blog-ad-live-observation.fixture.mjs";
+import { installBlogAdResponseGuard } from "./blog-ad-response-guard.mjs";
 
 // Explicit, bounded integration observation. Never run this from CI or the
 // ordinary isolation suite: those cases use harmless intercepted documents.
@@ -13,12 +16,13 @@ const { values } = parseArgs({
 		"app-origin": { type: "string" },
 		"dependency-root": { type: "string", default: process.cwd() },
 		"output-dir": { type: "string" },
+		"offline-fixture": { type: "boolean", default: false },
 		help: { type: "boolean", default: false },
 	},
 });
 if (values.help) {
 	console.log(
-		"node scripts/blog-ad-live-observation.mjs --app-origin https://ezimageai.com --output-dir output/playwright/blog-ads/live-UNIQUE [--dependency-root EXISTING_REPO]",
+		"node scripts/blog-ad-live-observation.mjs --app-origin https://ezimageai.com --output-dir output/playwright/blog-ads/live-UNIQUE [--dependency-root EXISTING_REPO] [--offline-fixture --app-origin http://127.0.0.1:3018]",
 	);
 	process.exit(0);
 }
@@ -33,7 +37,9 @@ if (
 	!(appUrl.origin === "https://ezimageai.com" || appUrl.origin === "http://127.0.0.1:3018")
 )
 	throw new Error("Use the approved production origin or the isolated local test origin");
-const expiresAt = Date.parse("2026-10-11T13:00:00Z");
+if (values["offline-fixture"] && appUrl.origin !== "http://127.0.0.1:3018")
+	throw new Error("Offline fixture mode is limited to the isolated local origin");
+const expiresAt = Date.parse("2026-10-11T14:00:00Z");
 if (Date.now() >= expiresAt - 30_000) throw new Error("The approved preview window has ended");
 const runDeadline = Math.min(Date.now() + 120_000, expiresAt);
 const activeDeadline = runDeadline - 5_000;
@@ -70,6 +76,7 @@ const optionalParentHosts = new Set([
 const adFrameSelector = "iframe[data-blog-ad-frame]";
 const readonlyApiMethods = new Map([
 	["/api/auth/get-session", new Set(["GET", "HEAD"])],
+	["/api/media/guest-capability", new Set(["GET", "HEAD"])],
 	["/api/rpc/media/getPublicCatalog", new Set(["GET", "POST"])],
 	["/api/media/catalog", new Set(["GET", "HEAD"])],
 ]);
@@ -82,11 +89,29 @@ const opaqueServiceWorkerHarnessError =
 	"Failed to read the 'serviceWorker' property from 'Navigator': Service worker is disabled because the context is sandboxed and lacks the 'allow-same-origin' flag.";
 const evidence = {
 	startedAt: new Date().toISOString(),
+	sourceSha256: Object.fromEntries(
+		await Promise.all(
+			[
+				"blog-ad-live-observation.mjs",
+				"blog-ad-live-observation.fixture.mjs",
+				"blog-ad-response-guard.mjs",
+			].map(async (file) => [
+				`script${"s"}/${file}`,
+				createHash("sha256")
+					.update(await readFile(new URL(`./${file}`, import.meta.url)))
+					.digest("hex"),
+			]),
+		),
+	),
 	appOrigin: appUrl.origin,
+	scope: values["offline-fixture"]
+		? "self-authored-intercepted-observer-fixture-only"
+		: "finite-live-observation",
 	adOrigin,
 	expiresAt: new Date(expiresAt).toISOString(),
 	limits: {
 		contexts: 2,
+		freshOwnedBrowsers: 2,
 		exactLoaderRequests: { banner: 1, native: 1 },
 		observationMs,
 		maxAdRequestsPerRun: MAX_AD_REQUESTS_PER_RUN,
@@ -100,6 +125,7 @@ const evidence = {
 	},
 	cases: [],
 	stopReasons: [],
+	ownedBrowserCleanup: [],
 	notes: [
 		"Only the exact invoke.js responses may be saved as bodies; cookie and authorization values are never recorded.",
 		"Unknown advertising hosts are blocked and terminate observation. A blocked, empty or inaccessible creative is not usable-advertising evidence.",
@@ -110,15 +136,23 @@ const evidence = {
 		"The known Cloudflare edge beacon remains disallowed. Enforced rejection on the direct static advertising document is classified separately from supplier-origin discovery.",
 	],
 };
+if (values["offline-fixture"])
+	evidence.notes.push(
+		"All requests are self-authored memory fulfill/abort. This validates observer integration only, not real Next behavior, inventory or native HTTP response interception.",
+	);
 let browser;
 let browserServer;
 let activeContext;
+let activeGuard;
+let ownedClosePromise;
 let stopped = false;
 const pending = new Set();
 const loaderCounts = { banner: 0, native: 0 };
 const allowedLoaderCounts = { banner: 0, native: 0 };
 const documentCounts = { banner: 0, native: 0 };
 let adRequestCount = 0;
+let observedLoaderBytes = 0;
+let savedLoaderBytes = 0;
 
 function safeUrl(value) {
 	try {
@@ -140,6 +174,47 @@ function safeLocation(value, base) {
 	} catch {
 		return "unparseable";
 	}
+}
+function errorMetadata(error) {
+	const message = error instanceof Error ? error.message : String(error);
+	const knownErrorNames = [
+		"Error",
+		"TypeError",
+		"RangeError",
+		"ReferenceError",
+		"SyntaxError",
+		"SecurityError",
+		"TimeoutError",
+	];
+	return {
+		name:
+			error instanceof Error && knownErrorNames.includes(error.name) ? error.name : "UnknownError",
+		length: message.length,
+		sha256: createHash("sha256").update(message).digest("hex"),
+		timeoutOrDeadline: /timeout|deadline|time budget/i.test(message),
+	};
+}
+function prohibitedBehavior(text) {
+	const labels = [
+		["notification-keyword", /notification/i],
+		["popup-or-socialbar-keyword", /blocked opening|popunder|social.?bar/i],
+		["permission-denial-keyword", /permission.*denied/i],
+		[
+			"sandbox-navigation-popup-download-keyword",
+			/unsafe attempt.*navigation|sandbox.*(?:navigation|popup|download)/i,
+		],
+	];
+	return labels.find(([, pattern]) => pattern.test(text))?.[0] ?? null;
+}
+function redactedStack(stack) {
+	return String(stack ?? "").replace(/https?:\/\/[^\s)]+/g, (value) => {
+		try {
+			const url = new URL(value);
+			return `${url.origin}${url.pathname}${url.search ? "?query-values-redacted" : ""}${url.hash ? "#redacted" : ""}`;
+		} catch {
+			return "[unparseable-url-redacted]";
+		}
+	});
 }
 function knownBlockedEdgeTracker(blockedUrl, documentUrl) {
 	try {
@@ -185,27 +260,70 @@ async function stop(reason, detail) {
 	await closeOwnedBrowser();
 }
 async function closeOwnedBrowser() {
-	let forceTimer;
-	const graceful = Promise.allSettled([
-		activeContext?.close(),
-		browser?.close(),
-		browserServer?.close(),
-	]);
-	const forced = new Promise((resolve) => {
-		forceTimer = setTimeout(
-			() => {
-				void Promise.race([
-					browserServer?.kill().catch(() => {}),
-					new Promise((finish) =>
-						setTimeout(finish, Math.max(0, Math.min(1_000, runDeadline - Date.now()))),
-					),
-				]).finally(resolve);
-			},
-			Math.max(0, Math.min(3_000, runDeadline - Date.now())),
+	if (ownedClosePromise) return ownedClosePromise;
+	if (!browserServer && !browser && !activeContext) return;
+	const ownedServer = browserServer;
+	const ownedProcess = ownedServer?.process();
+	ownedClosePromise = (async () => {
+		const cleanup = { startedAt: new Date().toISOString(), forcedKill: false };
+		const hasExited = () =>
+			!ownedProcess || ownedProcess.exitCode !== null || ownedProcess.signalCode !== null;
+		let exitListener;
+		const processExit = new Promise((resolve) => {
+			if (hasExited()) resolve();
+			else {
+				exitListener = resolve;
+				ownedProcess.once("exit", resolve);
+			}
+		});
+		async function withinBudget(operation, maximum) {
+			let timer;
+			try {
+				await Promise.race([
+					operation,
+					new Promise((resolve) => {
+						timer = setTimeout(resolve, Math.max(0, Math.min(maximum, runDeadline - Date.now())));
+					}),
+				]);
+			} finally {
+				clearTimeout(timer);
+			}
+		}
+		// A connected Browser.close only disconnects the client. The independently
+		// owned BrowserServer must close (or be killed) and its process must exit.
+		await withinBudget(
+			Promise.allSettled([
+				activeGuard?.close(),
+				activeContext?.close(),
+				browser?.close(),
+				ownedServer?.close(),
+			]),
+			3_000,
 		);
-	});
-	await Promise.race([graceful, forced]);
-	clearTimeout(forceTimer);
+		if (!hasExited()) {
+			cleanup.forcedKill = true;
+			await withinBudget(Promise.allSettled([ownedServer?.kill(), processExit]), 1_000);
+		}
+		cleanup.serverProcessExited = Boolean(ownedProcess) && hasExited();
+		cleanup.exitCode = ownedProcess?.exitCode ?? null;
+		cleanup.signalCode = ownedProcess?.signalCode ?? null;
+		cleanup.endedAt = new Date().toISOString();
+		if (exitListener) ownedProcess.removeListener("exit", exitListener);
+		evidence.ownedBrowserCleanup.push(cleanup);
+		if (!cleanup.serverProcessExited) {
+			stopped = true;
+			process.exitCode = 1;
+			evidence.stopReasons.push({
+				at: cleanup.endedAt,
+				reason: "owned-browser-process-exit-not-confirmed",
+			});
+		}
+		activeGuard = undefined;
+		activeContext = undefined;
+		browser = undefined;
+		browserServer = undefined;
+	})();
+	return ownedClosePromise;
 }
 function ensureRunning() {
 	if (stopped) throw new Error("Observation stopped by its safety guard");
@@ -272,115 +390,141 @@ async function capture(page, item, phase) {
 	return { ...snapshot, adChildFrames, openPopupCount };
 }
 
-async function attachNativeSession(context, target, item, owner) {
-	try {
-		const session = await context.newCDPSession(target);
-		const loaderRequestIds = new Set();
-		const transferredBytes = new Map();
-		session.on("Network.requestWillBeSent", ({ requestId, request }) => {
-			if (Object.values(loaders).includes(request.url)) loaderRequestIds.add(requestId);
-		});
-		session.on("Network.dataReceived", ({ requestId, dataLength }) => {
-			if (!loaderRequestIds.has(requestId)) return;
-			const bytes = (transferredBytes.get(requestId) ?? 0) + dataLength;
-			transferredBytes.set(requestId, bytes);
-			if (bytes > MAX_LOADER_BYTES)
-				track(stop("observed-loader-stream-byte-budget", { owner, bytes }));
-		});
-		session.on("Fetch.requestPaused", (event) => {
-			track(
-				(async () => {
-					if (Object.values(loaders).includes(event.request.url) && event.networkId)
-						loaderRequestIds.add(event.networkId);
-					const location = event.responseHeaders?.find(
-						(header) => header.name.toLowerCase() === "location",
-					)?.value;
-					if (
-						stopped ||
-						Date.now() >= activeDeadline ||
-						(event.responseStatusCode >= 300 && event.responseStatusCode < 400 && location)
-					) {
-						await session
-							.send("Fetch.failRequest", {
-								requestId: event.requestId,
-								errorReason: "BlockedByClient",
-							})
-							.catch(() => {});
-						await stop("supplier-response-redirect-or-deadline", {
-							owner,
-							status: event.responseStatusCode,
-							location: location ? safeLocation(location, event.request.url) : null,
-						});
-					} else {
-						try {
-							await session.send("Fetch.continueResponse", { requestId: event.requestId });
-						} catch (error) {
-							await stop("native-response-guard-unavailable", {
-								owner,
-								message: String(error).slice(0, 200),
-							});
-						}
-					}
-				})(),
-			);
-		});
-		session.on("Audits.issueAdded", ({ issue }) => {
-			const details = issue.details.contentSecurityPolicyIssueDetails;
-			if (!details) return;
-			const record = {
-				owner,
-				blockedUrl: safeUrl(details.blockedURL ?? ""),
-				directive: details.violatedDirective,
-				isReportOnly: details.isReportOnly,
-				violationType: details.contentSecurityPolicyViolationType,
-				frameAncestor: details.frameAncestor,
-				violatingNodeId: details.violatingNodeId,
-				source: safeUrl(details.sourceCodeLocation?.url ?? ""),
-			};
-			item.cspIssues.push(record);
-			if (knownBlockedEdgeTracker(details.blockedURL, target.url()) && !details.isReportOnly) {
-				record.classification = "known-static-source-edge-tracker-enforce-blocked";
-				return;
-			}
-			try {
-				const blocked = new URL(details.blockedURL);
-				if (
-					owner !== "parent" &&
-					!details.isReportOnly &&
-					["http:", "https:"].includes(blocked.protocol) &&
-					blocked.origin !== adOrigin &&
-					!approvedOrigins.has(blocked.origin)
-				)
-					track(stop("child-CSP-blocked-unapproved-host", record));
-			} catch {
-				// Redacted CSP URLs remain observations, never a success assertion.
-			}
-		});
-		session.on("Network.requestWillBeSentExtraInfo", (event) => {
-			item.requestCookieMetadata.push({
-				owner,
-				requestId: event.requestId,
-				cookies: (event.associatedCookies ?? []).map(({ cookie, blockedReasons }) => ({
-					...cookieMetadata(cookie),
-					blockedReasons,
-				})),
+async function installNativeResponseGuard(page, item, ownedServer) {
+	const loaderRequestIds = new Set();
+	const remaining = activeDeadline - Date.now();
+	if (remaining < 100) throw new Error("No time remains to install the response guard");
+	return installBlogAdResponseGuard({
+		browser,
+		page,
+		guardedOrigins: [adOrigin, ...approvedOrigins],
+		timeoutMs: Math.min(5_000, remaining),
+		// No call back into closeOwnedBrowser: that also closes this guard.
+		destroyOwnedBrowser: () => ownedServer.close(),
+		onTrace: (entry) => item.responseGuardTrace.push(entry),
+		onFailure: ({ reason }) => {
+			const detail = errorMetadata(new Error(reason));
+			item.responseGuardFailures.push(detail);
+			track(stop("browser-response-guard-failure", detail));
+		},
+		onResponse: ({ owner, targetId, sessionId, event }) => {
+			const requestKey = `${sessionId}:${event.networkId}`;
+			const isLoader = Object.values(loaders).includes(event.request.url);
+			if (isLoader && event.networkId) loaderRequestIds.add(requestKey);
+			const location = event.responseHeaders?.find(
+				(header) => header.name.toLowerCase() === "location",
+			)?.value;
+			const contentLength = event.responseHeaders?.find(
+				(header) => header.name.toLowerCase() === "content-length",
+			)?.value;
+			const rejection =
+				stopped ||
+				Date.now() >= activeDeadline ||
+				!Number.isInteger(event.responseStatusCode) ||
+				(event.responseStatusCode >= 300 && event.responseStatusCode < 400) ||
+				(isLoader && Number(contentLength) + observedLoaderBytes > MAX_LOADER_BYTES);
+			const decision = rejection ? "reject" : "continue";
+			item.responseGuardDecisions.push({
+				sessionOwner: owner,
+				targetId,
+				sessionId,
+				url: safeUrl(event.request.url),
+				status: event.responseStatusCode,
+				location: location ? safeLocation(location, event.request.url) : null,
+				decision,
 			});
-		});
-		await Promise.all([session.send("Audits.enable"), session.send("Network.enable")]);
-		await session.send("Fetch.enable", {
-			patterns: [adOrigin, ...approvedOrigins].map((origin) => ({
-				urlPattern: `${origin}/*`,
-				requestStage: "Response",
-			})),
-		});
-		return session;
-	} catch (error) {
-		item.nativeSessionLimits.push({ owner, message: String(error).slice(0, 250) });
-		return undefined;
-	}
+			// The helper acknowledges failRequest before its failure callback starts
+			// browser destruction. Do not close the browser inside this policy.
+			return decision;
+		},
+		onEvent: ({ owner, targetId, sessionId, method, params }) => {
+			const requestKey = `${sessionId}:${params.requestId}`;
+			if (method === "Network.requestWillBeSent") {
+				if (Object.values(loaders).includes(params.request.url)) loaderRequestIds.add(requestKey);
+			} else if (method === "Network.dataReceived" && loaderRequestIds.has(requestKey)) {
+				observedLoaderBytes += params.dataLength;
+				if (observedLoaderBytes > MAX_LOADER_BYTES)
+					track(
+						stop("observed-loader-stream-byte-budget", {
+							sessionOwner: owner,
+							targetId,
+							observedLoaderBytes,
+						}),
+					);
+			} else if (method === "Network.requestWillBeSentExtraInfo") {
+				item.requestCookieMetadata.push({
+					sessionOwner: owner,
+					targetId,
+					sessionId,
+					requestId: params.requestId,
+					cookies: (params.associatedCookies ?? []).map(({ cookie, blockedReasons }) => ({
+						...cookieMetadata(cookie),
+						blockedReasons,
+					})),
+				});
+			} else if (method === "Audits.issueAdded") {
+				const details = params.issue.details.contentSecurityPolicyIssueDetails;
+				if (!details) return;
+				// Related debugger targets include unrelated parent-page frames.
+				// Only explicit source URLs establish advertising CSP provenance.
+				const sourceDocument = details.sourceCodeLocation?.url;
+				const record = {
+					sessionOwner: owner,
+					targetId,
+					sessionId,
+					blockedUrl: safeUrl(details.blockedURL ?? ""),
+					directive: details.violatedDirective,
+					isReportOnly: details.isReportOnly,
+					violationType: details.contentSecurityPolicyViolationType,
+					frameAncestor: details.frameAncestor,
+					violatingNodeId: details.violatingNodeId,
+					source: safeUrl(sourceDocument ?? ""),
+				};
+				item.cspIssues.push(record);
+				if (knownBlockedEdgeTracker(details.blockedURL, sourceDocument) && !details.isReportOnly) {
+					record.classification = "known-static-source-edge-tracker-enforce-blocked";
+					return;
+				}
+				try {
+					const blocked = new URL(details.blockedURL);
+					const sourceOrigin = sourceDocument ? new URL(sourceDocument).origin : null;
+					const adDocument = sourceOrigin === adOrigin || approvedOrigins.has(sourceOrigin);
+					if (!sourceDocument)
+						record.classification = "source-provenance-unresolved-observation-only";
+					if (
+						adDocument &&
+						!details.isReportOnly &&
+						["http:", "https:"].includes(blocked.protocol) &&
+						blocked.origin !== adOrigin &&
+						!approvedOrigins.has(blocked.origin)
+					)
+						track(stop("child-CSP-blocked-unapproved-host", record));
+				} catch {
+					// Redacted CSP URLs remain observations, never a success assertion.
+				}
+			}
+		},
+	});
 }
 
 async function runCase(format) {
+	ensureRunning();
+	ownedClosePromise = undefined;
+	browserServer = await chromium.launchServer({
+		headless: true,
+		host: "127.0.0.1",
+		chromiumSandbox: true,
+		args: [
+			"--enable-automation",
+			"--remote-debugging-port=0",
+			"--remote-debugging-address=127.0.0.1",
+		],
+		timeout: Math.max(1, Math.min(30_000, activeDeadline - Date.now())),
+	});
+	ensureRunning();
+	browser = await chromium.connect(browserServer.wsEndpoint(), {
+		timeout: Math.max(1, Math.min(30_000, activeDeadline - Date.now())),
+	});
 	ensureRunning();
 	const isMobile = format === "native";
 	const item = {
@@ -403,6 +547,13 @@ async function runCase(format) {
 		dialogs: [],
 		navigations: [],
 		cookies: [],
+		scope: evidence.scope,
+		browserVersion: browser.version(),
+		fixtureIntercepts: [],
+		networkContinues: 0,
+		responseGuardTrace: [],
+		responseGuardDecisions: [],
+		responseGuardFailures: [],
 	};
 	evidence.cases.push(item);
 	const context = await browser.newContext({
@@ -410,9 +561,11 @@ async function runCase(format) {
 		viewport: isMobile ? { width: 390, height: 844 } : { width: 1600, height: 1000 },
 		storageState: { cookies: [], origins: [] },
 		serviceWorkers: "block",
+		offline: Boolean(values["offline-fixture"]),
 		acceptDownloads: false,
 	});
 	activeContext = context;
+	item.offlineNetworkEmulation = Boolean(values["offline-fixture"]);
 	ensureRunning();
 	await context.routeWebSocket("**/*", (socket) => {
 		socket.close();
@@ -490,7 +643,12 @@ async function runCase(format) {
 	});
 	page.on("download", (download) => {
 		track(download.cancel());
-		track(stop("unexpected-download", { format, suggestedFilename: download.suggestedFilename() }));
+		track(
+			stop("unexpected-download", {
+				format,
+				filenameMetadata: errorMetadata(download.suggestedFilename()),
+			}),
+		);
 	});
 	page.on("dialog", (dialog) => {
 		item.dialogs.push({ type: dialog.type() });
@@ -499,9 +657,7 @@ async function runCase(format) {
 	});
 	page.on("console", (message) => {
 		const text = message.text();
-		const trigger = text.match(
-			/blocked opening|notification|permission.*denied|popunder|social.?bar|unsafe attempt.*navigation|sandbox.*(?:navigation|popup|download)/i,
-		)?.[0];
+		const trigger = prohibitedBehavior(text);
 		item.console.push({
 			type: message.type(),
 			length: text.length,
@@ -515,15 +671,19 @@ async function runCase(format) {
 		const text = error.message;
 		if (text === opaqueServiceWorkerHarnessError) {
 			item.harnessWarnings.push({
-				classification: "playwright-1.62.1-serviceWorkers-block-opaque-getter",
+				classification: values["offline-fixture"]
+					? "offline-playwright-1.62.1-serviceWorkers-block-opaque-getter"
+					: "expected-exact-sandbox-message-source-unconfirmed",
 				exactMessage: text,
-				source: "Installed playwright-core/lib/coreBundle.js serviceWorkers:block initScript",
+				stack: redactedStack(error.stack),
+				stackMetadata: errorMetadata(error.stack ?? ""),
+				source: values["offline-fixture"]
+					? "Known offline fixture: installed Playwright serviceWorkers:block initScript"
+					: "Unconfirmed: supplier code could read the same sandboxed getter",
 			});
 			return;
 		}
-		const trigger = text.match(
-			/blocked opening|notification|permission.*denied|popunder|social.?bar|unsafe attempt.*navigation|sandbox.*(?:navigation|popup|download)/i,
-		)?.[0];
+		const trigger = prohibitedBehavior(text);
 		item.pageErrors.push({
 			length: text.length,
 			sha256: createHash("sha256").update(text).digest("hex"),
@@ -531,32 +691,7 @@ async function runCase(format) {
 		});
 		track(stop("unexpected-page-error", { format, trigger: trigger ?? null }));
 	});
-	const attachedFrames = new WeakMap();
 	const navigatedAdFrames = new WeakSet();
-	const nativeSessions = new WeakMap();
-	async function ensureNativeSession(target) {
-		if (target === page.mainFrame()) target = page;
-		if (!nativeSessions.has(target))
-			nativeSessions.set(
-				target,
-				attachNativeSession(
-					context,
-					target,
-					item,
-					target === page ? "parent" : JSON.stringify(safeUrl(target.url())),
-				),
-			);
-		const session = await nativeSessions.get(target);
-		if (!session) nativeSessions.delete(target);
-		return session;
-	}
-	async function ensureAdResponseGuard(frame) {
-		for (let cursor = frame; cursor; cursor = cursor.parentFrame()) {
-			const session = await ensureNativeSession(cursor);
-			if (session) return session;
-		}
-		return ensureNativeSession(page);
-	}
 	page.on("framenavigated", (frame) => {
 		item.navigations.push({ isMainFrame: frame === page.mainFrame(), url: safeUrl(frame.url()) });
 		if (frame === page.mainFrame()) {
@@ -567,13 +702,10 @@ async function runCase(format) {
 			} catch {
 				track(stop("unexpected-main-document", { format }));
 			}
-		} else if (belongsToAdTree(frame) && attachedFrames.get(frame) !== frame.url()) {
-			attachedFrames.set(frame, frame.url());
-			track(ensureNativeSession(frame));
 		}
 	});
-	if (!(await ensureNativeSession(page)))
-		throw new Error("Native response/CSP observer is unavailable");
+	activeGuard = await installNativeResponseGuard(page, item, browserServer);
+	ensureRunning();
 	context.on("request", (request) => {
 		item.requests.push({
 			at: new Date().toISOString(),
@@ -637,14 +769,23 @@ async function runCase(format) {
 				}
 				try {
 					const body = await response.body();
+					savedLoaderBytes += body.length;
 					record.bytes = body.length;
 					record.sha256 = createHash("sha256").update(body).digest("hex");
-					if (body.length > MAX_LOADER_BYTES) await stop("loader-byte-budget", { format });
-					else await writeFile(path.join(outputDir, `${format}-invoke.response.js`), body);
+					if (savedLoaderBytes > MAX_LOADER_BYTES)
+						await stop("loader-byte-budget", { format, savedLoaderBytes });
+					else
+						await writeFile(
+							path.join(
+								outputDir,
+								`${values["offline-fixture"] ? "fixture-" : ""}${format}-invoke.response.js`,
+							),
+							body,
+						);
 				} catch (error) {
-					record.bodyLimit = String(error).slice(0, 200);
+					record.bodyLimit = errorMetadata(error);
 				}
-			})().catch((error) => item.failures.push({ observationError: String(error).slice(0, 200) })),
+			})().catch((error) => item.failures.push({ observationError: errorMetadata(error) })),
 		),
 	);
 	await context.route("**/*", async (route) => {
@@ -660,6 +801,22 @@ async function runCase(format) {
 				await route.abort().catch(() => {});
 				await stop("request-after-stop-or-deadline", { url: safeUrl(url.href) });
 			} else {
+				if (values["offline-fixture"]) {
+					const fixture = await fulfillOfflineFixture(route, {
+						format,
+						appOrigin: appUrl.origin,
+						adOrigin,
+						loaders,
+					});
+					const fulfilled = !fixture.classification.endsWith("-aborted");
+					item.fixtureIntercepts.push({
+						...fixture,
+						url: safeUrl(fixture.url),
+						action: fulfilled ? "fulfilled" : "aborted",
+					});
+					return fulfilled;
+				}
+				item.networkContinues += 1;
 				await route.continue();
 				return true;
 			}
@@ -722,7 +879,7 @@ async function runCase(format) {
 				return;
 			}
 			if (frame) navigatedAdFrames.add(frame);
-			if (!(await ensureAdResponseGuard(frame))) {
+			if (!activeGuard || activeGuard.stopped) {
 				intercept("native-response-guard-unavailable");
 				await route.abort();
 				await stop("native-response-guard-unavailable", { format });
@@ -730,6 +887,22 @@ async function runCase(format) {
 			return;
 		}
 		if (approvedOrigins.has(url.origin) && child && shown && !ended) {
+			if (!["GET", "HEAD"].includes(request.method())) {
+				intercept("unapproved-supplier-method");
+				await route.abort();
+				await stop("unapproved-supplier-method", {
+					format,
+					method: request.method(),
+					url: safeUrl(url.href),
+				});
+				return;
+			}
+			if (/\/invoke\.js$/i.test(url.pathname) && !Object.values(loaders).includes(url.href)) {
+				intercept("unapproved-placement-loader");
+				await route.abort();
+				await stop("unapproved-placement-loader", { format, url: safeUrl(url.href) });
+				return;
+			}
 			const loaderFormat = Object.keys(loaders).find(
 				(key) => new URL(loaders[key]).pathname === url.pathname,
 			);
@@ -753,7 +926,7 @@ async function runCase(format) {
 				await stop("ad-document-refresh-or-redirect", { format });
 			} else {
 				if (request.isNavigationRequest() && frame) navigatedAdFrames.add(frame);
-				if (!(await ensureAdResponseGuard(frame))) {
+				if (!activeGuard || activeGuard.stopped) {
 					intercept("native-response-guard-unavailable");
 					await route.abort();
 					await stop("native-response-guard-unavailable", { format });
@@ -831,7 +1004,7 @@ async function runCase(format) {
 						notificationLikeLanguage: document.notificationLikeLanguage,
 					});
 			} catch (error) {
-				item.nativeSessionLimits.push({ documentSnapshot: String(error).slice(0, 200) });
+				item.nativeSessionLimits.push({ documentSnapshot: errorMetadata(error) });
 			}
 		}
 		await page.screenshot({ path: path.join(outputDir, `${format}-viewport.png`) });
@@ -915,18 +1088,24 @@ async function runCase(format) {
 				"/checkout-return",
 			]) {
 				expectedPaths = new Set([pathname, "/login"]);
-				const response = await page.goto(new URL(pathname, appUrl.origin).href, {
+				const protectedRoute = ["/dashboard", "/settings/billing", "/checkout-return"].includes(
+					pathname,
+				);
+				// A mocked HTTP redirect can bypass Playwright's next route handler.
+				// Simulate only the login document in offline mode, never an HTTP
+				// authentication outcome; live still navigates each actual route.
+				const navigationPath = values["offline-fixture"] && protectedRoute ? "/login" : pathname;
+				const response = await page.goto(new URL(navigationPath, appUrl.origin).href, {
 					waitUntil: "domcontentloaded",
 					timeout: 30_000,
 				});
 				const checkpoint = await capture(page, item, `anonymous-direct-${pathname}`);
 				const csp = response?.headers()["content-security-policy"];
-				const protectedRoute = ["/dashboard", "/settings/billing", "/checkout-return"].includes(
-					pathname,
-				);
 				item.checkpoints.at(-1).routeOutcome = {
 					status: response?.status(),
 					requestedPath: pathname,
+					navigationPath,
+					fixtureProtectedRouteSimulated: Boolean(values["offline-fixture"] && protectedRoute),
 					actualPath: new URL(page.url()).pathname,
 					protectedRoute,
 				};
@@ -954,23 +1133,28 @@ async function runCase(format) {
 		const loader = item.responses.find(
 			(response) => response.url.pathname === new URL(loaders[format]).pathname,
 		);
+		ensureRunning();
 		if (allowedLoaderCounts[format] !== 1)
-			throw new Error("The exact approved loader did not execute one permitted HTTP request");
-		item.status =
-			loader?.status === 200 && loader.bytes > 0
+			throw new Error("The exact approved loader did not receive one permitted request");
+		item.status = values["offline-fixture"]
+			? "offline-fixture-only"
+			: loader?.status === 200 && loader.bytes > 0
 				? "nonempty-loader-observed-creative-review-required"
 				: "inventory-not-established";
 		item.loaderRequestAttempts = loaderCounts[format];
 		item.permittedLoaderRequests = allowedLoaderCounts[format];
 		item.endedAt = new Date().toISOString();
 	} finally {
+		// Mark guard closing before destroying its root context. Closing the
+		// context first would correctly trip its unexpected-detach fail guard.
+		await closeOwnedBrowser();
 		await Promise.race([
-			context.close().catch(() => {}),
+			Promise.allSettled([...pending]),
 			new Promise((resolve) =>
 				setTimeout(resolve, Math.max(0, Math.min(2_000, runDeadline - Date.now()))),
 			),
 		]);
-		activeContext = undefined;
+		if (pending.size) await stop("observation-callbacks-not-settled", { format });
 	}
 }
 
@@ -984,21 +1168,10 @@ const watchdog = setTimeout(
 );
 try {
 	ensureRunning();
-	browserServer = await chromium.launchServer({
-		headless: true,
-		chromiumSandbox: true,
-		timeout: Math.max(1, Math.min(30_000, activeDeadline - Date.now())),
-	});
-	ensureRunning();
-	browser = await chromium.connect(browserServer.wsEndpoint(), {
-		timeout: Math.max(1, Math.min(30_000, activeDeadline - Date.now())),
-	});
-	ensureRunning();
-	evidence.browserVersion = browser.version();
 	await runCase("banner");
 	await runCase("native");
 } catch (error) {
-	evidence.error = String(error).slice(0, 700);
+	evidence.error = errorMetadata(error);
 	process.exitCode = 1;
 } finally {
 	await closeOwnedBrowser();
@@ -1015,6 +1188,8 @@ try {
 	evidence.permittedLoaderRequests = allowedLoaderCounts;
 	evidence.adDocumentRequestAttempts = documentCounts;
 	evidence.totalAdRequests = adRequestCount;
+	evidence.observedLoaderBytes = observedLoaderBytes;
+	evidence.savedLoaderBytes = savedLoaderBytes;
 	evidence.completedWithoutSafetyStop = !stopped && !evidence.error;
 	await writeFile(
 		path.join(outputDir, "observation.json"),

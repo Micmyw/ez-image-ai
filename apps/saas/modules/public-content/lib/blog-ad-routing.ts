@@ -1,5 +1,5 @@
 // Keep the article response-policy allowlist exact. Embedded tools and draft posts
-// are intentionally absent; its parity with the published reader is tested.
+// and unreviewed new articles are absent; every allowed path is a published reader.
 export const BLOG_AD_ORIGIN = "https://ads.ezimageai.com";
 export const BLOG_AD_ARTICLE_PATHS = [
 	"/blog/private-image-editing-workflow",

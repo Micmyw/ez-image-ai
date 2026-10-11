@@ -47,6 +47,14 @@ type CspAudit = {
 	violationType: string;
 };
 type DocumentAddress = { baseURI: string; url: string; referrer: string };
+type BlogAdLifecycleObservation = {
+	type: string;
+	time: number;
+	persisted: boolean | null;
+	readyState: string;
+	control: string | null;
+	frames: number;
+};
 type AdFrameObservation = {
 	format: string;
 	phase: string;
@@ -134,7 +142,35 @@ async function watchApp(page: Page, context: BrowserContext) {
 	});
 	await page.addInitScript(() => {
 		const violations: CspViolation[] = [];
+		const lifecycle: BlogAdLifecycleObservation[] = [];
 		Object.defineProperty(window, "__blogAdCspViolations", { value: violations });
+		Object.defineProperty(window, "__blogAdLifecycle", { value: lifecycle });
+		const record = (type: string, persisted: boolean | null = null) => {
+			lifecycle.push({
+				type,
+				time: performance.now(),
+				persisted,
+				readyState: document.readyState,
+				control: document.querySelector("[data-blog-ads] button")?.textContent ?? null,
+				frames: document.querySelectorAll("iframe[data-blog-ad-frame]").length,
+			});
+		};
+		for (const type of ["pagehide", "pageshow"])
+			window.addEventListener(type, (event) => {
+				record(type, (event as PageTransitionEvent).persisted);
+				queueMicrotask(() => record(`${type}-after-dispatch`));
+			});
+		document.addEventListener(
+			"click",
+			(event) => {
+				if (!(event.target instanceof Element)) return;
+				if (!event.target.closest("[data-blog-ads] button")) return;
+				record("display-control-click");
+				queueMicrotask(() => record("display-control-click-after-dispatch"));
+				requestAnimationFrame(() => record("display-control-click-next-frame"));
+			},
+			true,
+		);
 		document.addEventListener("securitypolicyviolation", (event) => {
 			violations.push({
 				blockedURI: event.blockedURI,
@@ -329,7 +365,28 @@ async function showAds(
 ) {
 	await page.getByRole("button", { name: "Show blog ads", exact: true }).click();
 	await page.locator(`[data-blog-ad="${format}"]:visible`).scrollIntoViewIfNeeded();
-	await expect(page.locator(`iframe[data-blog-ad-frame="${format}"]`)).toHaveCount(1);
+	try {
+		await expect(page.locator(`iframe[data-blog-ad-frame="${format}"]`)).toHaveCount(1);
+	} catch (error) {
+		await test.info().attach("display-opt-in-lifecycle-diagnostic.json", {
+			body: JSON.stringify(
+				await page.evaluate(() => ({
+					pathname: window.location.pathname,
+					readyState: document.readyState,
+					timeOrigin: performance.timeOrigin,
+					control: document.querySelector("[data-blog-ads] button")?.textContent ?? null,
+					frames: document.querySelectorAll("iframe[data-blog-ad-frame]").length,
+					lifecycle:
+						(window as Window & { __blogAdLifecycle?: BlogAdLifecycleObservation[] })
+							.__blogAdLifecycle ?? [],
+				})),
+				null,
+				2,
+			),
+			contentType: "application/json",
+		});
+		throw error;
+	}
 	await expect(page.locator(adFrames)).toHaveCount(1);
 	await observeAdFrames(page, evidence);
 	await expectNoHostAdCode(page);
@@ -361,6 +418,7 @@ test.describe("real app blog ad isolation (empty document fixtures, no inventory
 		"/blog",
 		"/blog/1980s-ai-photo",
 		"/blog/raindance-ai-trend",
+		"/blog/vidu-q4-preview",
 		"/blog/__blog_ad_unknown_article__",
 	]) {
 		test(`direct ${route} excludes the advertising origin and creates no ad contexts`, async ({

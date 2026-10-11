@@ -1,0 +1,1082 @@
+{
+	"recordedAt": "2026-10-11T13:00:31.325Z",
+	"scope": "self-authored-intercepted-observer-fixture-only",
+	"command": "node scripts/blog-ad-live-observation.mjs --app-origin http://127.0.0.1:3018 --offline-fixture --output-dir output/playwright/blog-ads/observer-offline-final-hashed-20261011",
+	"executionExitCode": 0,
+	"directory": "output/playwright/blog-ads/observer-offline-final-hashed-20261011",
+	"startedAt": "2026-10-11T12:57:02.141Z",
+	"endedAt": "2026-10-11T12:57:26.003Z",
+	"sourceSha256": {
+		"scripts/blog-ad-live-observation.mjs": "e27212a484298ada4935e759dae05a917c77928d366f2020ff0a0c8bb1305635",
+		"scripts/blog-ad-live-observation.fixture.mjs": "8c719434185f0aa2ca00739442ced03ea0de6dd5fe756f973a46879ce229900e",
+		"scripts/blog-ad-response-guard.mjs": "9c3b5699028675c8fb0525085e4c21ee1135e15a60a065725830fb38ea2e43f9"
+	},
+	"currentSourceMatches": true,
+	"completedWithoutSafetyStop": true,
+	"realSupplierExecutions": 0,
+	"productionRequests": 0,
+	"userChromeUsed": false,
+	"networkIsolation": "Browser context offline=true; every request memory fulfill/abort; networkContinues is a control counter, not independently a transport proof.",
+	"limits": {
+		"contexts": 2,
+		"freshOwnedBrowsers": 2,
+		"exactLoaderRequests": {
+			"banner": 1,
+			"native": 1
+		},
+		"observationMs": 10000,
+		"maxAdRequestsPerRun": 30,
+		"stopAfterObservedLoaderBytes": 2097152,
+		"activeDeadline": "2026-10-11T12:58:56.849Z",
+		"runDeadline": "2026-10-11T12:59:01.849Z",
+		"cleanupBudgetMs": 5000,
+		"clicks": 0,
+		"retries": 0,
+		"apiLoaderFetches": 0
+	},
+	"observedLoaderBytes": 850,
+	"savedLoaderBytes": 850,
+	"loaderRequestAttempts": {
+		"banner": 1,
+		"native": 1
+	},
+	"permittedLoaderRequests": {
+		"banner": 1,
+		"native": 1
+	},
+	"adDocumentRequestAttempts": {
+		"banner": 1,
+		"native": 1
+	},
+	"totalAdRequests": 4,
+	"ownedBrowserCleanup": [
+		{
+			"startedAt": "2026-10-11T12:57:13.334Z",
+			"forcedKill": false,
+			"serverProcessExited": true,
+			"exitCode": 1,
+			"signalCode": null,
+			"endedAt": "2026-10-11T12:57:13.953Z"
+		},
+		{
+			"startedAt": "2026-10-11T12:57:25.472Z",
+			"forcedKill": false,
+			"serverProcessExited": true,
+			"exitCode": 1,
+			"signalCode": null,
+			"endedAt": "2026-10-11T12:57:26.003Z"
+		}
+	],
+	"cases": [
+		{
+			"format": "banner",
+			"status": "offline-fixture-only",
+			"offlineNetworkEmulation": true,
+			"networkContinues": 0,
+			"browserRequestCount": 3,
+			"fixtureIntercepts": [
+				{
+					"classification": "offline-observer-fixture-preview-document",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/blog/tesco-ai-meal-planning-assistant",
+						"queryKeys": ["blogAdTest"],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-ad-document",
+					"url": {
+						"origin": "https://ads.ezimageai.com",
+						"pathname": "/banner.html",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-harmless-loader",
+					"url": {
+						"origin": "https://www.highrevenueformat.com",
+						"pathname": "/2266a6811e407f9b362831f885d09d1e/invoke.js",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				}
+			],
+			"failures": [],
+			"guardFailures": [],
+			"pageErrors": [],
+			"harnessWarnings": [
+				{
+					"classification": "offline-playwright-1.62.1-serviceWorkers-block-opaque-getter",
+					"exactMessage": "Failed to read the 'serviceWorker' property from 'Navigator': Service worker is disabled because the context is sandboxed and lacks the 'allow-same-origin' flag.",
+					"stack": "SecurityError: Failed to read the 'serviceWorker' property from 'Navigator': Service worker is disabled because the context is sandboxed and lacks the 'allow-same-origin' flag.\n    at <anonymous>:3:15\n    at <anonymous>:5:7",
+					"stackMetadata": {
+						"name": "UnknownError",
+						"length": 223,
+						"sha256": "ae2453321de812b74aadf0ddb732ecaccdc0b79e7fb9c7d41a3f4aa40257d67f",
+						"timeoutOrDeadline": false
+					},
+					"source": "Known offline fixture: installed Playwright serviceWorkers:block initScript"
+				}
+			],
+			"popups": [],
+			"cspIssues": [],
+			"responseGuardDecisions": [
+				{
+					"sessionOwner": "parent",
+					"targetId": "4D3BB1ACCBF65AE63F668F11AF81B33F",
+					"sessionId": "68592A6329B22BCE69F7F25F66A0CDB2",
+					"url": {
+						"origin": "https://ads.ezimageai.com",
+						"pathname": "/banner.html",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"status": 200,
+					"location": null,
+					"decision": "continue"
+				},
+				{
+					"sessionOwner": "parent",
+					"targetId": "4D3BB1ACCBF65AE63F668F11AF81B33F",
+					"sessionId": "68592A6329B22BCE69F7F25F66A0CDB2",
+					"url": {
+						"origin": "https://www.highrevenueformat.com",
+						"pathname": "/2266a6811e407f9b362831f885d09d1e/invoke.js",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"status": 200,
+					"location": null,
+					"decision": "continue"
+				}
+			],
+			"checkpoints": [
+				{
+					"phase": "fresh-consent-before-show",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/blog/tesco-ai-meal-planning-assistant",
+						"queryKeys": ["blogAdTest"],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723422552,
+					"viewport": {
+						"width": 1600,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1600,
+					"documentScrollWidth": 1600,
+					"frames": [],
+					"childFrameCount": 0,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [],
+					"openPopupCount": 0
+				},
+				{
+					"phase": "passive-inventory",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/blog/tesco-ai-meal-planning-assistant",
+						"queryKeys": ["blogAdTest"],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723422552,
+					"viewport": {
+						"width": 1600,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1600,
+					"documentScrollWidth": 1600,
+					"frames": [
+						{
+							"format": "banner",
+							"source": "https://ads.ezimageai.com/banner.html",
+							"sandbox": "allow-scripts",
+							"referrerPolicy": "no-referrer",
+							"credentialless": true,
+							"width": 728,
+							"height": 90
+						}
+					],
+					"childFrameCount": 1,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [
+						{
+							"origin": "https://ads.ezimageai.com",
+							"pathname": "/banner.html",
+							"queryKeys": [],
+							"hasHash": false
+						}
+					],
+					"openPopupCount": 0
+				},
+				{
+					"phase": "hide-removes-entire-context",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/blog/tesco-ai-meal-planning-assistant",
+						"queryKeys": ["blogAdTest"],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723422552,
+					"viewport": {
+						"width": 1600,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1600,
+					"documentScrollWidth": 1600,
+					"frames": [],
+					"childFrameCount": 0,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [],
+					"openPopupCount": 0
+				}
+			],
+			"frameDocuments": [
+				{
+					"url": {
+						"origin": "https://ads.ezimageai.com",
+						"pathname": "/banner.html",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"baseURI": {
+						"origin": "https://ads.ezimageai.com",
+						"pathname": "/banner.html",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"referrer": "",
+					"bodyScrollWidth": 728,
+					"bodyScrollHeight": 90,
+					"clientWidth": 728,
+					"clientHeight": 90,
+					"images": 0,
+					"frames": 0,
+					"textLength": 149,
+					"fixedElements": 0,
+					"notificationLikeLanguage": false
+				}
+			]
+		},
+		{
+			"format": "native",
+			"status": "offline-fixture-only",
+			"offlineNetworkEmulation": true,
+			"networkContinues": 0,
+			"browserRequestCount": 12,
+			"fixtureIntercepts": [
+				{
+					"classification": "offline-observer-fixture-preview-document",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/blog/tesco-ai-meal-planning-assistant",
+						"queryKeys": ["blogAdTest"],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-ad-document",
+					"url": {
+						"origin": "https://ads.ezimageai.com",
+						"pathname": "/native.html",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-harmless-loader",
+					"url": {
+						"origin": "https://pl31768149.profitableratecpmnetwork.com",
+						"pathname": "/0a9986f36ff843c117e0f20e732a1e08/invoke.js",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-product-document",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-preview-document",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/blog/tesco-ai-meal-planning-assistant",
+						"queryKeys": ["blogAdTest"],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-product-document",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-product-document",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/create",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-product-document",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/pricing",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-product-document",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/login",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-product-document",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/login",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-product-document",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/login",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				},
+				{
+					"classification": "offline-observer-fixture-product-document",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/login",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"action": "fulfilled"
+				}
+			],
+			"failures": [],
+			"guardFailures": [],
+			"pageErrors": [],
+			"harnessWarnings": [
+				{
+					"classification": "offline-playwright-1.62.1-serviceWorkers-block-opaque-getter",
+					"exactMessage": "Failed to read the 'serviceWorker' property from 'Navigator': Service worker is disabled because the context is sandboxed and lacks the 'allow-same-origin' flag.",
+					"stack": "SecurityError: Failed to read the 'serviceWorker' property from 'Navigator': Service worker is disabled because the context is sandboxed and lacks the 'allow-same-origin' flag.\n    at <anonymous>:3:15\n    at <anonymous>:5:7",
+					"stackMetadata": {
+						"name": "UnknownError",
+						"length": 223,
+						"sha256": "ae2453321de812b74aadf0ddb732ecaccdc0b79e7fb9c7d41a3f4aa40257d67f",
+						"timeoutOrDeadline": false
+					},
+					"source": "Known offline fixture: installed Playwright serviceWorkers:block initScript"
+				}
+			],
+			"popups": [],
+			"cspIssues": [],
+			"responseGuardDecisions": [
+				{
+					"sessionOwner": "parent",
+					"targetId": "AD20B95026E3C553882CB1C4E1F34D3D",
+					"sessionId": "05F73E10B6D68DBD4000E3D040A93324",
+					"url": {
+						"origin": "https://ads.ezimageai.com",
+						"pathname": "/native.html",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"status": 200,
+					"location": null,
+					"decision": "continue"
+				},
+				{
+					"sessionOwner": "parent",
+					"targetId": "AD20B95026E3C553882CB1C4E1F34D3D",
+					"sessionId": "05F73E10B6D68DBD4000E3D040A93324",
+					"url": {
+						"origin": "https://pl31768149.profitableratecpmnetwork.com",
+						"pathname": "/0a9986f36ff843c117e0f20e732a1e08/invoke.js",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"status": 200,
+					"location": null,
+					"decision": "continue"
+				}
+			],
+			"checkpoints": [
+				{
+					"phase": "fresh-consent-before-show",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/blog/tesco-ai-meal-planning-assistant",
+						"queryKeys": ["blogAdTest"],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723434347.8,
+					"viewport": {
+						"width": 390,
+						"height": 844
+					},
+					"bodyScrollWidth": 390,
+					"documentScrollWidth": 390,
+					"frames": [],
+					"childFrameCount": 0,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [],
+					"openPopupCount": 0
+				},
+				{
+					"phase": "passive-inventory",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/blog/tesco-ai-meal-planning-assistant",
+						"queryKeys": ["blogAdTest"],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723434347.8,
+					"viewport": {
+						"width": 390,
+						"height": 844
+					},
+					"bodyScrollWidth": 390,
+					"documentScrollWidth": 390,
+					"frames": [
+						{
+							"format": "native",
+							"source": "https://ads.ezimageai.com/native.html",
+							"sandbox": "allow-scripts",
+							"referrerPolicy": "no-referrer",
+							"credentialless": true,
+							"width": 342,
+							"height": 320
+						}
+					],
+					"childFrameCount": 1,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [
+						{
+							"origin": "https://ads.ezimageai.com",
+							"pathname": "/native.html",
+							"queryKeys": [],
+							"hasHash": false
+						}
+					],
+					"openPopupCount": 0
+				},
+				{
+					"phase": "same-native-context-at-320",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/blog/tesco-ai-meal-planning-assistant",
+						"queryKeys": ["blogAdTest"],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723434347.8,
+					"viewport": {
+						"width": 320,
+						"height": 844
+					},
+					"bodyScrollWidth": 320,
+					"documentScrollWidth": 320,
+					"frames": [
+						{
+							"format": "native",
+							"source": "https://ads.ezimageai.com/native.html",
+							"sandbox": "allow-scripts",
+							"referrerPolicy": "no-referrer",
+							"credentialless": true,
+							"width": 272,
+							"height": 320
+						}
+					],
+					"childFrameCount": 1,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [
+						{
+							"origin": "https://ads.ezimageai.com",
+							"pathname": "/native.html",
+							"queryKeys": [],
+							"hasHash": false
+						}
+					],
+					"openPopupCount": 0,
+					"nativeIdentity": {
+						"phase": "320",
+						"sameElement": true,
+						"sameFrame": true,
+						"sameTimeOrigin": true,
+						"sameRequests": true,
+						"originalTimeOrigin": 1791723434420.5
+					}
+				},
+				{
+					"phase": "same-native-context-at-1280",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/blog/tesco-ai-meal-planning-assistant",
+						"queryKeys": ["blogAdTest"],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723434347.8,
+					"viewport": {
+						"width": 1280,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1280,
+					"documentScrollWidth": 1280,
+					"frames": [
+						{
+							"format": "native",
+							"source": "https://ads.ezimageai.com/native.html",
+							"sandbox": "allow-scripts",
+							"referrerPolicy": "no-referrer",
+							"credentialless": true,
+							"width": 1040,
+							"height": 320
+						}
+					],
+					"childFrameCount": 1,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [
+						{
+							"origin": "https://ads.ezimageai.com",
+							"pathname": "/native.html",
+							"queryKeys": [],
+							"hasHash": false
+						}
+					],
+					"openPopupCount": 0,
+					"nativeIdentity": {
+						"phase": "1280",
+						"sameElement": true,
+						"sameFrame": true,
+						"sameTimeOrigin": true,
+						"sameRequests": true,
+						"originalTimeOrigin": 1791723434420.5
+					}
+				},
+				{
+					"phase": "article-ui-link-to-product",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723444835.4,
+					"viewport": {
+						"width": 1280,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1280,
+					"documentScrollWidth": 1280,
+					"frames": [],
+					"childFrameCount": 0,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [],
+					"openPopupCount": 0
+				},
+				{
+					"phase": "back-article-without-another-show",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/blog/tesco-ai-meal-planning-assistant",
+						"queryKeys": ["blogAdTest"],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723444855.7,
+					"viewport": {
+						"width": 1280,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1280,
+					"documentScrollWidth": 1280,
+					"frames": [],
+					"childFrameCount": 0,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [],
+					"openPopupCount": 0
+				},
+				{
+					"phase": "forward-product",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723444871.2,
+					"viewport": {
+						"width": 1280,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1280,
+					"documentScrollWidth": 1280,
+					"frames": [],
+					"childFrameCount": 0,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [],
+					"openPopupCount": 0
+				},
+				{
+					"phase": "anonymous-direct-/create",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/create",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723444885.6,
+					"viewport": {
+						"width": 1280,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1280,
+					"documentScrollWidth": 1280,
+					"frames": [],
+					"childFrameCount": 0,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [],
+					"openPopupCount": 0,
+					"routeOutcome": {
+						"status": 200,
+						"requestedPath": "/create",
+						"navigationPath": "/create",
+						"fixtureProtectedRouteSimulated": false,
+						"actualPath": "/create",
+						"protectedRoute": false
+					}
+				},
+				{
+					"phase": "anonymous-direct-/pricing",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/pricing",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723444899.7,
+					"viewport": {
+						"width": 1280,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1280,
+					"documentScrollWidth": 1280,
+					"frames": [],
+					"childFrameCount": 0,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [],
+					"openPopupCount": 0,
+					"routeOutcome": {
+						"status": 200,
+						"requestedPath": "/pricing",
+						"navigationPath": "/pricing",
+						"fixtureProtectedRouteSimulated": false,
+						"actualPath": "/pricing",
+						"protectedRoute": false
+					}
+				},
+				{
+					"phase": "anonymous-direct-/login",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/login",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723444913.6,
+					"viewport": {
+						"width": 1280,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1280,
+					"documentScrollWidth": 1280,
+					"frames": [],
+					"childFrameCount": 0,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [],
+					"openPopupCount": 0,
+					"routeOutcome": {
+						"status": 200,
+						"requestedPath": "/login",
+						"navigationPath": "/login",
+						"fixtureProtectedRouteSimulated": false,
+						"actualPath": "/login",
+						"protectedRoute": false
+					}
+				},
+				{
+					"phase": "anonymous-direct-/dashboard",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/login",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723444927.8,
+					"viewport": {
+						"width": 1280,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1280,
+					"documentScrollWidth": 1280,
+					"frames": [],
+					"childFrameCount": 0,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [],
+					"openPopupCount": 0,
+					"routeOutcome": {
+						"status": 200,
+						"requestedPath": "/dashboard",
+						"navigationPath": "/login",
+						"fixtureProtectedRouteSimulated": true,
+						"actualPath": "/login",
+						"protectedRoute": true
+					}
+				},
+				{
+					"phase": "anonymous-direct-/settings/billing",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/login",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723444946.3,
+					"viewport": {
+						"width": 1280,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1280,
+					"documentScrollWidth": 1280,
+					"frames": [],
+					"childFrameCount": 0,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [],
+					"openPopupCount": 0,
+					"routeOutcome": {
+						"status": 200,
+						"requestedPath": "/settings/billing",
+						"navigationPath": "/login",
+						"fixtureProtectedRouteSimulated": true,
+						"actualPath": "/login",
+						"protectedRoute": true
+					}
+				},
+				{
+					"phase": "anonymous-direct-/checkout-return",
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/login",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"timeOrigin": 1791723444960,
+					"viewport": {
+						"width": 1280,
+						"height": 1000
+					},
+					"bodyScrollWidth": 1280,
+					"documentScrollWidth": 1280,
+					"frames": [],
+					"childFrameCount": 0,
+					"parentSupplierScripts": 0,
+					"parentAtOptions": false,
+					"lifecycle": {
+						"events": [
+							{
+								"type": "pageshow",
+								"persisted": false,
+								"framesAfterDispatch": 0
+							}
+						]
+					},
+					"adChildFrames": [],
+					"openPopupCount": 0,
+					"routeOutcome": {
+						"status": 200,
+						"requestedPath": "/checkout-return",
+						"navigationPath": "/login",
+						"fixtureProtectedRouteSimulated": true,
+						"actualPath": "/login",
+						"protectedRoute": true
+					}
+				}
+			],
+			"frameDocuments": [
+				{
+					"url": {
+						"origin": "https://ads.ezimageai.com",
+						"pathname": "/native.html",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"baseURI": {
+						"origin": "https://ads.ezimageai.com",
+						"pathname": "/native.html",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"referrer": "",
+					"bodyScrollWidth": 342,
+					"bodyScrollHeight": 320,
+					"clientWidth": 342,
+					"clientHeight": 320,
+					"images": 0,
+					"frames": 0,
+					"textLength": 149,
+					"fixedElements": 0,
+					"notificationLikeLanguage": false
+				}
+			]
+		}
+	],
+	"preservedDiagnostics": [
+		{
+			"directory": "output/playwright/blog-ads/observer-offline-integrated-20261011",
+			"completed": false,
+			"diagnosis": "Normal teardown closed the context before marking the guard closing; the unexpected parent detach correctly failed closed. The onFailure path destroyed the owned process. Teardown now enters guard.close synchronously before context/server destruction.",
+			"ownedBrowserCleanup": [
+				{
+					"startedAt": "2026-10-11T12:49:33.646Z",
+					"forcedKill": false,
+					"serverProcessExited": true,
+					"exitCode": 1,
+					"signalCode": null,
+					"endedAt": "2026-10-11T12:49:34.280Z"
+				}
+			]
+		},
+		{
+			"directory": "output/playwright/blog-ads/observer-offline-integrated-final-20261011",
+			"completed": false,
+			"diagnosis": "A mocked HTTP307 bypassed the subsequent Playwright route handler and attempted the empty loopback login URL (ERR_CONNECTION_REFUSED). Zero route.continue did not prove every request was memory-fulfilled. Offline protected paths now explicitly select the login fixture and are marked simulated, and browser networking is disabled as a backstop. Actual live protected-path assertions remain unchanged.",
+			"failures": [
+				{
+					"id": 11,
+					"url": {
+						"origin": "http://127.0.0.1:3018",
+						"pathname": "/login",
+						"queryKeys": [],
+						"hasHash": false
+					},
+					"error": "net::ERR_CONNECTION_REFUSED"
+				}
+			],
+			"ownedBrowserCleanup": [
+				{
+					"startedAt": "2026-10-11T12:50:57.450Z",
+					"forcedKill": false,
+					"serverProcessExited": true,
+					"exitCode": 1,
+					"signalCode": null,
+					"endedAt": "2026-10-11T12:50:57.984Z"
+				},
+				{
+					"startedAt": "2026-10-11T12:51:11.003Z",
+					"forcedKill": false,
+					"serverProcessExited": true,
+					"exitCode": 1,
+					"signalCode": null,
+					"endedAt": "2026-10-11T12:51:11.536Z"
+				}
+			]
+		}
+	],
+	"boundaries": [
+		"The two memory flows prove observer integration, local placeholder geometry, owned context removal and owned process cleanup only. They do not certify Next source, real inventory, creative safety or native HTTP first-response coverage.",
+		"Protected-route results explicitly simulate a login document; they do not establish real authentication redirects, signed-in account behavior or checkout execution.",
+		"The exact sandbox serviceWorker message is attributable to the installed harness in these self-authored offline fixtures. A future identical live message remains source-unconfirmed, with redacted stack and original stack hash/length.",
+		"Native HTTP first-resource/OOPIF response coverage is separately proved by the matching-hash eight-case loopback test, not by fulfilled advertising URLs.",
+		"Windows owned BrowserServer child exitCode1 denotes their deliberate termination; the Node observation harness completed exit0.",
+		"No live supplier, production deployment, advertisement click, account login, image/prompt input, generation, upload, payment or registration occurred."
+	]
+}

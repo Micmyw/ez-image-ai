@@ -2,7 +2,7 @@
 
 import { useCookieConsent } from "@shared/hooks/cookie-consent";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import {
 	BLOG_AD_BANNER_WIDTH,
@@ -19,6 +19,7 @@ export function BlogAds({ settings }: { settings: BlogAdSettings }) {
 	const t = useTranslations("guides.ads");
 	const { userHasConsented } = useCookieConsent();
 	const [requested, setRequested] = useState(false);
+	const [clientReady, setClientReady] = useState(false);
 	const [expired, setExpired] = useState(false);
 	const root = useRef<HTMLElement>(null);
 
@@ -26,9 +27,9 @@ export function BlogAds({ settings }: { settings: BlogAdSettings }) {
 		if (!userHasConsented) setRequested(false);
 	}, [userHasConsented]);
 
-	useEffect(() => {
-		// Also reset when React reactivates a cached article after SPA history navigation.
-		setRequested(false);
+	useLayoutEffect(() => {
+		// Install lifecycle protection before enabling the server-rendered control.
+		// Initial state is already off; a passive mount reset can race a first click.
 		const pause = () => {
 			// Clear the browsing contexts synchronously before the page enters BFCache.
 			for (const frame of root.current?.querySelectorAll("iframe") ?? []) {
@@ -38,12 +39,16 @@ export function BlogAds({ settings }: { settings: BlogAdSettings }) {
 			}
 			setRequested(false);
 		};
+		const resume = (event: PageTransitionEvent) => {
+			if (event.persisted) pause();
+		};
 		window.addEventListener("pagehide", pause);
-		window.addEventListener("pageshow", pause);
+		window.addEventListener("pageshow", resume);
+		setClientReady(true);
 		return () => {
 			pause();
 			window.removeEventListener("pagehide", pause);
-			window.removeEventListener("pageshow", pause);
+			window.removeEventListener("pageshow", resume);
 		};
 	}, []);
 	useEffect(() => {
@@ -73,7 +78,7 @@ export function BlogAds({ settings }: { settings: BlogAdSettings }) {
 				<p>{t("notice")}</p>
 				<a href="/privacy">{t("privacy")}</a>
 				{userHasConsented && (
-					<button type="button" onClick={() => setRequested(!requested)}>
+					<button type="button" disabled={!clientReady} onClick={() => setRequested(!requested)}>
 						{t(active ? "hide" : "show")}
 					</button>
 				)}

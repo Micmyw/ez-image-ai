@@ -1,0 +1,150 @@
+{
+	"recordedAt": "2026-10-11T12:51:57.403Z",
+	"head": "2401424ee104e9b9be50e410d19b4675728d09f7",
+	"integratedMain": "630e96492504211c19ff02a929c7dcffd87e079d",
+	"previewExpiresAt": "2026-10-11T14:00:00Z",
+	"directory": "output/playwright/blog-ads/ad-origin-post-vidu-20261011",
+	"stats": {
+		"startTime": "2026-10-11T12:40:10.560Z",
+		"duration": 123002.395,
+		"expected": 21,
+		"skipped": 0,
+		"unexpected": 0,
+		"flaky": 0
+	},
+	"sourceHashes": {
+		"apps/saas/tests/blog-ads.public-routes.spec.ts": "44596338a3d0d6059416a0fe0c11e0d788012a9020df071bb39a638c21d84f76",
+		"apps/saas/modules/public-content/components/BlogAds.tsx": "8bae72941f12ea9367179f4fad84041b88896107054fd1a9e9d14b409bd4801e",
+		"apps/saas/modules/public-content/components/ArticleNavigationBoundary.tsx": "2a37e3772632f6077700d86954e577993a945d256db5504cf2c043f90a4ea581",
+		"apps/saas/modules/public-content/lib/blog-ads.ts": "3acd2eba8bc7f93ef312da3d6b5eb0b88256dc6d8ffb720e137b0a293ea34011",
+		"apps/saas/modules/public-content/lib/blog-ad-routing.ts": "666e511f1957cc854ec77eaf871d9cbb03f3fd1f6c7aa5a76fef67a3118f7e45",
+		"apps/saas/next.config.ts": "48fef45781a82cecaad870c9090b4fdeee8c89cf9d4f857f82098f47fa475933"
+	},
+	"environment": {
+		"appOrigin": "http://127.0.0.1:3018",
+		"project": "public",
+		"workers": 1,
+		"master": false,
+		"nativeMaster": false,
+		"chromiumSandbox": true,
+		"serviceWorkers": "block",
+		"outsideRequests": "intercepted/blocked",
+		"adDocuments": "self-authored empty fixtures, not supplier inventory",
+		"secrets": "repository CI placeholders only, loopback database unavailable; no user content/account data"
+	},
+	"command": "node node_modules/.pnpm/@playwright+test@1.62.1/node_modules/@playwright/test/cli.js test --config apps/saas/playwright.config.ts tests/blog-ads.public-routes.spec.ts --project=public --workers=1 --reporter=line,json,html --output=output/playwright/blog-ads/ad-origin-post-vidu-20261011/test-results",
+	"testOutcomes": [
+		{
+			"title": "direct / excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 11707
+		},
+		{
+			"title": "direct /create excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 4561
+		},
+		{
+			"title": "direct /login excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 1386
+		},
+		{
+			"title": "direct /pricing excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 13513
+		},
+		{
+			"title": "direct /blog excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 7139
+		},
+		{
+			"title": "direct /blog/1980s-ai-photo excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 11347
+		},
+		{
+			"title": "direct /blog/raindance-ai-trend excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 1549
+		},
+		{
+			"title": "direct /blog/vidu-q4-preview excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 1459
+		},
+		{
+			"title": "direct /blog/__blog_ad_unknown_article__ excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 1844
+		},
+		{
+			"title": "only the three reviewed ordinary article responses allow the exact ad origin",
+			"status": "passed",
+			"durationMs": 3939
+		},
+		{
+			"title": "master off and unrelated preview parameters leave articles without ad containers",
+			"status": "passed",
+			"durationMs": 5066
+		},
+		{
+			"title": "the finite preview requires consent and fresh opt-in, then loads only owned empty documents",
+			"status": "passed",
+			"durationMs": 1853
+		},
+		{
+			"title": "real article links change documents and history restores require a fresh display opt-in",
+			"status": "passed",
+			"durationMs": 11754
+		},
+		{
+			"title": "mobile hides the banner before loading and one empty native fixture fits 390px, 320px and 1280px",
+			"status": "passed",
+			"durationMs": 3122
+		},
+		{
+			"title": "native history changes across an article boundary reload its response policy",
+			"status": "passed",
+			"durationMs": 1791
+		},
+		{
+			"title": "a browser without credentialless support keeps preview contexts unloaded",
+			"status": "passed",
+			"durationMs": 1449
+		},
+		{
+			"title": "the client deadline removes an opted-in fixture and prevents another mount",
+			"status": "passed",
+			"durationMs": 1794
+		},
+		{
+			"title": "publishes one canonical article with metadata, factual boundaries and an official source",
+			"status": "passed",
+			"durationMs": 10501
+		},
+		{
+			"title": "AI News filters populated articles and its query URL follows the existing noindex rule",
+			"status": "passed",
+			"durationMs": 4688
+		},
+		{
+			"title": "both supplied script documents cannot read host addresses, DOM, cookies, storage or navigate",
+			"status": "passed",
+			"durationMs": 644
+		},
+		{
+			"title": "destroying a context stops its timer and repeated mounts keep one mobile native card",
+			"status": "passed",
+			"durationMs": 759
+		}
+	],
+	"boundaries": [
+		"21/21 actual Next route policy/consent/context/nav/mobile fixture/expiry/SEO assertions passed. New Vidu content retains the original CSP and no ad contexts.",
+		"Synthetic sandbox canaries and empty native cards do not establish real supplier behavior, inventory or responsive creative.",
+		"Anonymous public/login boundaries only; no account sign-in, checkout/payment, uploads or generation.",
+		"Loopback public catalog reads returned P1001/500 without a running database. Isolation assertions do not certify catalog availability.",
+		"Earlier 20-case success and the pre-readiness failure remain unchanged historical evidence."
+	]
+}

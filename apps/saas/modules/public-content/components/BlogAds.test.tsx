@@ -20,6 +20,7 @@ describe("optional editorial advertising", () => {
 			<BlogAds settings={{ enabled: true, nativeEnabled: true }} />,
 		);
 		expect(html).toContain(">show</button>");
+		expect(html).toContain('disabled=""');
 		expect(html).not.toContain("<iframe");
 		expect(html).not.toContain("invoke.js");
 	});

@@ -1,0 +1,233 @@
+{
+	"recordedAt": "2026-10-11T12:09:31.753Z",
+	"head": "eba28cc73c8c700eeeb3487dd99d1f313b34219f",
+	"sourceHashes": {
+		"apps/saas/tests/blog-ads.public-routes.spec.ts": "645f8eea8bee9bae1aa46eafb7c3071c24798d7700bb959c7fbc128737b17378",
+		"apps/saas/modules/public-content/components/BlogAds.tsx": "8bae72941f12ea9367179f4fad84041b88896107054fd1a9e9d14b409bd4801e",
+		"apps/saas/modules/public-content/components/ArticleNavigationBoundary.tsx": "2a37e3772632f6077700d86954e577993a945d256db5504cf2c043f90a4ea581",
+		"apps/saas/modules/public-content/lib/blog-ads.ts": "7381793b184c76efdf37e892ea4e75703e2564562d178817069f7ef8ee5eff53",
+		"apps/saas/modules/public-content/lib/blog-ad-routing.ts": "0c135646d4ec4f3de018eed27be98dad58c05d5ce69da54c4ce57483f97ae220",
+		"apps/saas/next.config.ts": "48fef45781a82cecaad870c9090b4fdeee8c89cf9d4f857f82098f47fa475933"
+	},
+	"environment": {
+		"appOrigin": "http://127.0.0.1:3018",
+		"project": "public",
+		"workers": 1,
+		"master": false,
+		"nativeMaster": false,
+		"chromiumSandbox": true,
+		"serviceWorkers": "block",
+		"externalRequests": "blocked",
+		"adDocuments": "self-authored empty HTML fulfilled at the two fixed HTTPS ad document URLs",
+		"credentials": "repository CI placeholders only; loopback database unavailable; no user photos/prompts/account data entered"
+	},
+	"command": "node node_modules/.pnpm/@playwright+test@1.62.1/node_modules/@playwright/test/cli.js test --config apps/saas/playwright.config.ts tests/blog-ads.public-routes.spec.ts --project=public --workers=1 --reporter=line,json,html --output=output/playwright/blog-ads/ad-origin-offline-final-20261011/test-results",
+	"launchNotes": [
+		"pnpm11 implicit dependency install hit SQLite store access failure before any browser launch; no package installation completed and lock diff remained only the expected two-line empty apps/blog-ads importer.",
+		"pnpm11 exec escaping produced unknown ^test^ before browser launch; direct installed Playwright CLI used with pnpm_config_verify_deps_before_run=false inherited by original webServer.",
+		"Default sandbox spawn EPERM required approved local fixture subprocess execution; original product CSP, Chromium sandbox and Playwright config remained in place."
+	],
+	"runs": {
+		"initial": {
+			"directory": "output/playwright/blog-ads/ad-origin-offline-20261011",
+			"stats": {
+				"startTime": "2026-10-11T11:49:00.399Z",
+				"duration": 193025.079,
+				"expected": 19,
+				"skipped": 0,
+				"unexpected": 1,
+				"flaky": 0
+			}
+		},
+		"diagnostic": {
+			"directory": "output/playwright/blog-ads/ad-origin-history-diagnostic-20261011",
+			"stats": {
+				"startTime": "2026-10-11T11:55:02.313Z",
+				"duration": 80770.056,
+				"expected": 0,
+				"skipped": 0,
+				"unexpected": 1,
+				"flaky": 0
+			},
+			"lifecycle": {
+				"pathname": "/blog/tesco-ai-meal-planning-assistant",
+				"readyState": "complete",
+				"timeOrigin": 1791719776433,
+				"control": "Show blog ads",
+				"frames": 0,
+				"lifecycle": [
+					{
+						"type": "display-control-click",
+						"time": 473.89999997615814,
+						"persisted": null,
+						"readyState": "interactive",
+						"control": "Show blog ads",
+						"frames": 0
+					},
+					{
+						"type": "display-control-click-after-dispatch",
+						"time": 474.09999999403954,
+						"persisted": null,
+						"readyState": "interactive",
+						"control": "Show blog ads",
+						"frames": 0
+					},
+					{
+						"type": "display-control-click-next-frame",
+						"time": 485.69999998807907,
+						"persisted": null,
+						"readyState": "interactive",
+						"control": "Show blog ads",
+						"frames": 0
+					},
+					{
+						"type": "pageshow",
+						"time": 1219.2999999821186,
+						"persisted": false,
+						"readyState": "complete",
+						"control": "Show blog ads",
+						"frames": 0
+					},
+					{
+						"type": "pageshow-after-dispatch",
+						"time": 1219.2999999821186,
+						"persisted": null,
+						"readyState": "complete",
+						"control": "Show blog ads",
+						"frames": 0
+					}
+				]
+			}
+		},
+		"targetedAfterFix": {
+			"directory": "output/playwright/blog-ads/ad-origin-history-fixed-20261011",
+			"stats": {
+				"startTime": "2026-10-11T12:02:21.998Z",
+				"duration": 111279.64700000001,
+				"expected": 1,
+				"skipped": 0,
+				"unexpected": 0,
+				"flaky": 0
+			}
+		},
+		"fullAfterFix": {
+			"directory": "output/playwright/blog-ads/ad-origin-offline-final-20261011",
+			"stats": {
+				"startTime": "2026-10-11T12:04:44.838Z",
+				"duration": 125318.44399999999,
+				"expected": 20,
+				"skipped": 0,
+				"unexpected": 0,
+				"flaky": 0
+			}
+		}
+	},
+	"fixedFailure": "Second history return exposed a Show button before hydration. Capture/microtask/next-frame all stayed Show at 473.9–485.7ms; initial pageshow occurred later at 1219.3ms with persisted=false. Product readiness now disables the SSR control until client layout setup, removes the unconditional initial passive reset, and only resets on persisted pageshow; pagehide/cleanup context destruction remains. Original navigation/frame assertions passed without sleeps or relaxed limits.",
+	"testOutcomes": [
+		{
+			"title": "direct / excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 12275
+		},
+		{
+			"title": "direct /create excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 4885
+		},
+		{
+			"title": "direct /login excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 1560
+		},
+		{
+			"title": "direct /pricing excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 13876
+		},
+		{
+			"title": "direct /blog excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 9155
+		},
+		{
+			"title": "direct /blog/1980s-ai-photo excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 8366
+		},
+		{
+			"title": "direct /blog/raindance-ai-trend excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 1657
+		},
+		{
+			"title": "direct /blog/__blog_ad_unknown_article__ excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"durationMs": 2811
+		},
+		{
+			"title": "only the three reviewed ordinary article responses allow the exact ad origin",
+			"status": "passed",
+			"durationMs": 4487
+		},
+		{
+			"title": "master off and unrelated preview parameters leave articles without ad containers",
+			"status": "passed",
+			"durationMs": 6895
+		},
+		{
+			"title": "the finite preview requires consent and fresh opt-in, then loads only owned empty documents",
+			"status": "passed",
+			"durationMs": 2457
+		},
+		{
+			"title": "real article links change documents and history restores require a fresh display opt-in",
+			"status": "passed",
+			"durationMs": 13326
+		},
+		{
+			"title": "mobile hides the banner before loading and one empty native fixture fits 390px, 320px and 1280px",
+			"status": "passed",
+			"durationMs": 3084
+		},
+		{
+			"title": "native history changes across an article boundary reload its response policy",
+			"status": "passed",
+			"durationMs": 2067
+		},
+		{
+			"title": "a browser without credentialless support keeps preview contexts unloaded",
+			"status": "passed",
+			"durationMs": 1565
+		},
+		{
+			"title": "the client deadline removes an opted-in fixture and prevents another mount",
+			"status": "passed",
+			"durationMs": 1604
+		},
+		{
+			"title": "publishes one canonical article with metadata, factual boundaries and an official source",
+			"status": "passed",
+			"durationMs": 11608
+		},
+		{
+			"title": "AI News filters populated articles and its query URL follows the existing noindex rule",
+			"status": "passed",
+			"durationMs": 4850
+		},
+		{
+			"title": "both supplied script documents cannot read host addresses, DOM, cookies, storage or navigate",
+			"status": "passed",
+			"durationMs": 558
+		},
+		{
+			"title": "destroying a context stops its timer and repeated mounts keep one mobile native card",
+			"status": "passed",
+			"durationMs": 778
+		}
+	],
+	"boundaries": [
+		"20/20 proves actual app policies, consent/opt-in, credentialless transport, ordinary route/full-document boundaries, empty-fixture mobile geometry, expiry and synthetic sandbox/context cleanup; not live inventory or real native creative responsiveness.",
+		"Anonymous public/login routes only; no authenticated account, payment, order, generation, upload or email actions.",
+		"Loopback public catalog reads returned P1001/500 because no database was started. Public route isolation assertions passed; this does not certify catalog availability."
+	]
+}

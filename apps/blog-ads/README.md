@@ -19,7 +19,7 @@ Nothing in the generator makes network requests or changes Cloudflare configurat
 A temporary test requires an explicit future UTC deadline, at most two hours from generation:
 
 ```sh
-pnpm --filter @repo/blog-ads build --test-until 2026-10-11T13:00:00Z
+pnpm --filter @repo/blog-ads build --test-until 2026-10-11T14:00:00Z
 ```
 
 The date is an example of an authorized finite window; an expired or too distant date fails.

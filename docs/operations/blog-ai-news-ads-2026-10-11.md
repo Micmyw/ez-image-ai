@@ -1,5 +1,7 @@
 # Tesco AI news and isolated Blog advertising
 
+This is the historical preparation checkpoint for the news/default-off release through `58d020b215f071ddb5e8464024bbe1372cc37a48`. Its blocked `data:` transport and unapproved dedicated-origin descriptions are historical evidence. For the later human-authorized independent-origin finite test, current implementation and validation boundaries, see [the independent-origin test runbook](blog-ad-origin-test-2026-10-11.md).
+
 ## Branch and release ownership
 
 - Worktree: `D:/梅一伟/Documents/codex/2026-10-11/task/ezimage-blog`.

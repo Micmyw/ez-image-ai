@@ -1,0 +1,505 @@
+{
+	"recordedAt": "2026-10-11T13:00:31.328Z",
+	"directory": "output/playwright/blog-ads/response-guard-runner-2026-10-11T12-38-35-815Z/evidence",
+	"scope": "Owned Chromium BrowserServer with real self-authored loopback HTTP only; no actual suppliers/production/user Chrome.",
+	"sourceSha256": {
+		"blog-ad-response-guard.mjs": "9c3b5699028675c8fb0525085e4c21ee1135e15a60a065725830fb38ea2e43f9",
+		"blog-ad-response-guard-probe.mjs": "16f095eca8dc29033aebc93d7c0e04601c09649f5ef82a98f14719aac2032e7a"
+	},
+	"currentHelperMatches": true,
+	"passed": true,
+	"casesPassed": 8,
+	"casesTotal": 8,
+	"assertionsPassed": 114,
+	"assertionsTotal": 114,
+	"transport": "Browser Target.attachToTarget(blank root,flatten) + recursive Target.setAutoAttach(wait=true,flatten) + pre-Fetch ACK before Runtime resume",
+	"browserOwnership": "fresh bundled Chromium BrowserServer temporary profile, sandbox enabled, public loopback Browser CDP; ownedServer.close destroys actual process",
+	"sandbox": "allow-scripts only; no same-origin/top-navigation/popups/forms",
+	"cases": [
+		{
+			"name": "child-200",
+			"mode": "normal",
+			"nested": false,
+			"redirect": false,
+			"passed": true,
+			"checks": {
+				"forcedSeparateTargets": true,
+				"allChildGuardsAcknowledgedBeforeResume": true,
+				"childScriptNotRequestedDuringPausedInstallation": true,
+				"firstResponseObservedByChildGuard": true,
+				"firstScriptHttpHitExactlyOnce": true,
+				"destinationHttpHitsZero": true,
+				"destinationNetworkRequestEventsZero": true,
+				"noUnexpectedPageErrors": true,
+				"noNonFixtureRequests": true,
+				"noDuplicateAttachments": true,
+				"first200PausedBeforeScriptExecution": true,
+				"first200ExecutedAfterContinue": true,
+				"noGuardFailure": true
+			},
+			"hits": {
+				"/root.html": 1,
+				"/child.html": 1,
+				"/first.js": 1
+			},
+			"destinationRequestEvents": 0,
+			"pausedInstallObservations": [
+				{
+					"targetId": "0497B8D67D91EBF6619AEFF8CA150F9C",
+					"waitingForDebugger": true,
+					"firstScriptHitsBeforeFetch": 0
+				}
+			],
+			"responseObservations": [
+				{
+					"order": 6,
+					"targetId": "0B6C26DEC87AB7AE0185125DCB0C72EF",
+					"owner": "parent",
+					"pathname": "/child.html",
+					"status": 200,
+					"resourceType": "Document"
+				},
+				{
+					"order": 13,
+					"targetId": "0497B8D67D91EBF6619AEFF8CA150F9C",
+					"owner": "child",
+					"pathname": "/first.js",
+					"status": 200,
+					"resourceType": "Script",
+					"markerBeforeContinue": "undefined"
+				}
+			]
+		},
+		{
+			"name": "child-302",
+			"mode": "normal",
+			"nested": false,
+			"redirect": true,
+			"passed": true,
+			"checks": {
+				"forcedSeparateTargets": true,
+				"allChildGuardsAcknowledgedBeforeResume": true,
+				"childScriptNotRequestedDuringPausedInstallation": true,
+				"firstResponseObservedByChildGuard": true,
+				"firstScriptHttpHitExactlyOnce": true,
+				"destinationHttpHitsZero": true,
+				"destinationNetworkRequestEventsZero": true,
+				"noUnexpectedPageErrors": true,
+				"noNonFixtureRequests": true,
+				"noDuplicateAttachments": true,
+				"ownedServerProcessExited": true,
+				"first302FailAcknowledged": true,
+				"guardStoppedAndBrowserClosed": true,
+				"onlyExpectedRejection": true
+			},
+			"hits": {
+				"/root.html": 1,
+				"/child.html": 1,
+				"/first.js": 1
+			},
+			"destinationRequestEvents": 0,
+			"pausedInstallObservations": [
+				{
+					"targetId": "B2C85AC99842E9E41CF363D6159EB9E3",
+					"waitingForDebugger": true,
+					"firstScriptHitsBeforeFetch": 0
+				}
+			],
+			"responseObservations": [
+				{
+					"order": 6,
+					"targetId": "8AD422794F957A3790127559F0B2E05C",
+					"owner": "parent",
+					"pathname": "/child.html",
+					"status": 200,
+					"resourceType": "Document"
+				},
+				{
+					"order": 13,
+					"targetId": "B2C85AC99842E9E41CF363D6159EB9E3",
+					"owner": "child",
+					"pathname": "/first.js",
+					"status": 302,
+					"resourceType": "Script"
+				}
+			]
+		},
+		{
+			"name": "nested-200",
+			"mode": "normal",
+			"nested": true,
+			"redirect": false,
+			"passed": true,
+			"checks": {
+				"forcedSeparateTargets": true,
+				"allChildGuardsAcknowledgedBeforeResume": true,
+				"childScriptNotRequestedDuringPausedInstallation": true,
+				"firstResponseObservedByChildGuard": true,
+				"firstScriptHttpHitExactlyOnce": true,
+				"destinationHttpHitsZero": true,
+				"destinationNetworkRequestEventsZero": true,
+				"noUnexpectedPageErrors": true,
+				"noNonFixtureRequests": true,
+				"noDuplicateAttachments": true,
+				"first200PausedBeforeScriptExecution": true,
+				"first200ExecutedAfterContinue": true,
+				"noGuardFailure": true
+			},
+			"hits": {
+				"/root.html": 1,
+				"/child.html": 1,
+				"/nested.html": 1,
+				"/first.js": 1
+			},
+			"destinationRequestEvents": 0,
+			"pausedInstallObservations": [
+				{
+					"targetId": "A9D9669DF6BC6BE6DCD2EAF9180D07FB",
+					"waitingForDebugger": true,
+					"firstScriptHitsBeforeFetch": 0
+				},
+				{
+					"targetId": "7FCA0BBBFC593BBECBB75558782884D9",
+					"waitingForDebugger": true,
+					"firstScriptHitsBeforeFetch": 0
+				}
+			],
+			"responseObservations": [
+				{
+					"order": 6,
+					"targetId": "C68989355E3D7BF06C575CC7D3DB5879",
+					"owner": "parent",
+					"pathname": "/child.html",
+					"status": 200,
+					"resourceType": "Document"
+				},
+				{
+					"order": 13,
+					"targetId": "A9D9669DF6BC6BE6DCD2EAF9180D07FB",
+					"owner": "child",
+					"pathname": "/nested.html",
+					"status": 200,
+					"resourceType": "Document"
+				},
+				{
+					"order": 20,
+					"targetId": "7FCA0BBBFC593BBECBB75558782884D9",
+					"owner": "child",
+					"pathname": "/first.js",
+					"status": 200,
+					"resourceType": "Script",
+					"markerBeforeContinue": "undefined"
+				}
+			]
+		},
+		{
+			"name": "nested-302",
+			"mode": "normal",
+			"nested": true,
+			"redirect": true,
+			"passed": true,
+			"checks": {
+				"forcedSeparateTargets": true,
+				"allChildGuardsAcknowledgedBeforeResume": true,
+				"childScriptNotRequestedDuringPausedInstallation": true,
+				"firstResponseObservedByChildGuard": true,
+				"firstScriptHttpHitExactlyOnce": true,
+				"destinationHttpHitsZero": true,
+				"destinationNetworkRequestEventsZero": true,
+				"noUnexpectedPageErrors": true,
+				"noNonFixtureRequests": true,
+				"noDuplicateAttachments": true,
+				"ownedServerProcessExited": true,
+				"first302FailAcknowledged": true,
+				"guardStoppedAndBrowserClosed": true,
+				"onlyExpectedRejection": true
+			},
+			"hits": {
+				"/root.html": 1,
+				"/child.html": 1,
+				"/nested.html": 1,
+				"/first.js": 1
+			},
+			"destinationRequestEvents": 0,
+			"pausedInstallObservations": [
+				{
+					"targetId": "AE4E7809C0BAF9617CCF225B1BFB9032",
+					"waitingForDebugger": true,
+					"firstScriptHitsBeforeFetch": 0
+				},
+				{
+					"targetId": "673212C01BD96983235AE9D785839F88",
+					"waitingForDebugger": true,
+					"firstScriptHitsBeforeFetch": 0
+				}
+			],
+			"responseObservations": [
+				{
+					"order": 6,
+					"targetId": "3D7CAC363E150BDD7A074C8CF7F8A155",
+					"owner": "parent",
+					"pathname": "/child.html",
+					"status": 200,
+					"resourceType": "Document"
+				},
+				{
+					"order": 13,
+					"targetId": "AE4E7809C0BAF9617CCF225B1BFB9032",
+					"owner": "child",
+					"pathname": "/nested.html",
+					"status": 200,
+					"resourceType": "Document"
+				},
+				{
+					"order": 20,
+					"targetId": "673212C01BD96983235AE9D785839F88",
+					"owner": "child",
+					"pathname": "/first.js",
+					"status": 302,
+					"resourceType": "Script"
+				}
+			]
+		},
+		{
+			"name": "unknown-policy",
+			"mode": "unknown-policy",
+			"nested": false,
+			"redirect": false,
+			"passed": true,
+			"checks": {
+				"forcedSeparateTargets": true,
+				"allChildGuardsAcknowledgedBeforeResume": true,
+				"childScriptNotRequestedDuringPausedInstallation": true,
+				"firstResponseObservedByChildGuard": true,
+				"firstScriptHttpHitExactlyOnce": true,
+				"destinationHttpHitsZero": true,
+				"destinationNetworkRequestEventsZero": true,
+				"noUnexpectedPageErrors": true,
+				"noNonFixtureRequests": true,
+				"noDuplicateAttachments": true,
+				"ownedServerProcessExited": true,
+				"first200PausedBeforeFailure": true,
+				"guardStoppedAndBrowserClosed": true,
+				"onlyExpectedFailure": true,
+				"noResponseContinuedForFailedScript": true
+			},
+			"hits": {
+				"/root.html": 1,
+				"/child.html": 1,
+				"/first.js": 1
+			},
+			"destinationRequestEvents": 0,
+			"pausedInstallObservations": [
+				{
+					"targetId": "CC2270AD916B1C98F9931B1E68244C81",
+					"waitingForDebugger": true,
+					"firstScriptHitsBeforeFetch": 0
+				}
+			],
+			"responseObservations": [
+				{
+					"order": 6,
+					"targetId": "F488E2049E0B5FA33A8FEE247D3603BD",
+					"owner": "parent",
+					"pathname": "/child.html",
+					"status": 200,
+					"resourceType": "Document"
+				},
+				{
+					"order": 13,
+					"targetId": "CC2270AD916B1C98F9931B1E68244C81",
+					"owner": "child",
+					"pathname": "/first.js",
+					"status": 200,
+					"resourceType": "Script",
+					"markerBeforeContinue": "undefined"
+				}
+			]
+		},
+		{
+			"name": "policy-timeout",
+			"mode": "policy-timeout",
+			"nested": false,
+			"redirect": false,
+			"passed": true,
+			"checks": {
+				"forcedSeparateTargets": true,
+				"allChildGuardsAcknowledgedBeforeResume": true,
+				"childScriptNotRequestedDuringPausedInstallation": true,
+				"firstResponseObservedByChildGuard": true,
+				"firstScriptHttpHitExactlyOnce": true,
+				"destinationHttpHitsZero": true,
+				"destinationNetworkRequestEventsZero": true,
+				"noUnexpectedPageErrors": true,
+				"noNonFixtureRequests": true,
+				"noDuplicateAttachments": true,
+				"ownedServerProcessExited": true,
+				"first200PausedBeforeFailure": true,
+				"guardStoppedAndBrowserClosed": true,
+				"onlyExpectedFailure": true,
+				"noResponseContinuedForFailedScript": true
+			},
+			"hits": {
+				"/root.html": 1,
+				"/child.html": 1,
+				"/first.js": 1
+			},
+			"destinationRequestEvents": 0,
+			"pausedInstallObservations": [
+				{
+					"targetId": "26D9D9612EFA914C4C92A508C995B26E",
+					"waitingForDebugger": true,
+					"firstScriptHitsBeforeFetch": 0
+				}
+			],
+			"responseObservations": [
+				{
+					"order": 6,
+					"targetId": "42806F8AC2E8BB95264CDD6D19A2561B",
+					"owner": "parent",
+					"pathname": "/child.html",
+					"status": 200,
+					"resourceType": "Document"
+				},
+				{
+					"order": 13,
+					"targetId": "26D9D9612EFA914C4C92A508C995B26E",
+					"owner": "child",
+					"pathname": "/first.js",
+					"status": 200,
+					"resourceType": "Script",
+					"markerBeforeContinue": "undefined"
+				}
+			]
+		},
+		{
+			"name": "overlapping-policy",
+			"mode": "overlapping-policy",
+			"nested": false,
+			"redirect": false,
+			"passed": true,
+			"checks": {
+				"forcedSeparateTargets": true,
+				"allChildGuardsAcknowledgedBeforeResume": true,
+				"childScriptNotRequestedDuringPausedInstallation": true,
+				"firstResponseObservedByChildGuard": true,
+				"firstScriptHttpHitExactlyOnce": true,
+				"destinationHttpHitsZero": true,
+				"destinationNetworkRequestEventsZero": true,
+				"noUnexpectedPageErrors": true,
+				"noNonFixtureRequests": true,
+				"noDuplicateAttachments": true,
+				"ownedServerProcessExited": true,
+				"latePolicyObservedButNotExecuted": true,
+				"first200PausedBeforeFailure": true,
+				"guardStoppedAndBrowserClosed": true,
+				"onlyExpectedFailure": true,
+				"noResponseContinuedForFailedScript": true
+			},
+			"hits": {
+				"/root.html": 1,
+				"/child.html": 1,
+				"/first.js": 1,
+				"/second.js": 1
+			},
+			"destinationRequestEvents": 0,
+			"pausedInstallObservations": [
+				{
+					"targetId": "54D7D3CD3B53911498BCAAE2924DDDD8",
+					"waitingForDebugger": true,
+					"firstScriptHitsBeforeFetch": 0
+				}
+			],
+			"responseObservations": [
+				{
+					"order": 6,
+					"targetId": "318366666A881461388857A2C46BB09F",
+					"owner": "parent",
+					"pathname": "/child.html",
+					"status": 200,
+					"resourceType": "Document"
+				},
+				{
+					"order": 13,
+					"targetId": "54D7D3CD3B53911498BCAAE2924DDDD8",
+					"owner": "child",
+					"pathname": "/first.js",
+					"status": 200,
+					"resourceType": "Script",
+					"markerBeforeContinue": "undefined"
+				},
+				{
+					"order": 15,
+					"targetId": "54D7D3CD3B53911498BCAAE2924DDDD8",
+					"owner": "child",
+					"pathname": "/second.js",
+					"status": 200,
+					"resourceType": "Script",
+					"markerBeforeContinue": "undefined"
+				}
+			]
+		},
+		{
+			"name": "parent-307",
+			"mode": "parent-307",
+			"nested": false,
+			"redirect": false,
+			"passed": true,
+			"checks": {
+				"forcedSeparateTargets": true,
+				"allChildGuardsAcknowledgedBeforeResume": true,
+				"childScriptNotRequestedDuringPausedInstallation": true,
+				"firstResponseObservedByChildGuard": true,
+				"firstScriptHttpHitExactlyOnce": true,
+				"destinationHttpHitsZero": true,
+				"destinationNetworkRequestEventsZero": true,
+				"noUnexpectedPageErrors": true,
+				"noNonFixtureRequests": true,
+				"noDuplicateAttachments": true,
+				"unguardedParent307Completed": true,
+				"first200PausedBeforeScriptExecution": true,
+				"first200ExecutedAfterContinue": true,
+				"noGuardFailure": true
+			},
+			"hits": {
+				"/root.html": 1,
+				"/root-final.html": 1,
+				"/child.html": 1,
+				"/first.js": 1
+			},
+			"destinationRequestEvents": 0,
+			"pausedInstallObservations": [
+				{
+					"targetId": "98DF4A3DE2E239617E065E5C6D9EF457",
+					"waitingForDebugger": true,
+					"firstScriptHitsBeforeFetch": 0
+				}
+			],
+			"responseObservations": [
+				{
+					"order": 6,
+					"targetId": "C632E978CE40F334F2E1319A6D774092",
+					"owner": "parent",
+					"pathname": "/child.html",
+					"status": 200,
+					"resourceType": "Document"
+				},
+				{
+					"order": 13,
+					"targetId": "98DF4A3DE2E239617E065E5C6D9EF457",
+					"owner": "child",
+					"pathname": "/first.js",
+					"status": 200,
+					"resourceType": "Script",
+					"markerBeforeContinue": "undefined"
+				}
+			]
+		}
+	],
+	"boundaries": [
+		"First child/nested200 response is paused before execution and executes after acknowledged continue. First302 fail is acknowledged before any destination HTTP/Network request; the owned server process exits.",
+		"Unknown decisions, bounded timeout and overlapping late policy fail closed. The unguarded parent307 control completes normally.",
+		"No duplicate attachment appeared in the normal tree. Duplicate/unknown-session/destructor-failure branches remain static fail-closed checks without a dedicated injected dynamic test.",
+		"Earlier historical late per-frame guard really followed a first OOPIF302 to a self-owned loopback destination (hit1); retain ad-origin-response-guard-diagnostic-2026-10-11.json rather than treating that version as successful."
+	]
+}

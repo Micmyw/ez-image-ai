@@ -1,0 +1,850 @@
+{
+	"recordedAt": "2026-10-11T12:51:57.403Z",
+	"head": "2401424ee104e9b9be50e410d19b4675728d09f7",
+	"appCases": [
+		{
+			"title": "direct / excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "direct /create excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/create",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "direct /login excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/login",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "direct /pricing excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/pricing",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "direct /blog excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/blog",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "direct /blog/1980s-ai-photo excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/blog/1980s-ai-photo",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "direct /blog/raindance-ai-trend excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/blog/raindance-ai-trend",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "direct /blog/vidu-q4-preview excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/blog/vidu-q4-preview",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "direct /blog/__blog_ad_unknown_article__ excludes the advertising origin and creates no ad contexts",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/blog/__blog_ad_unknown_article__",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "only the three reviewed ordinary article responses allow the exact ad origin",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/blog/private-image-editing-workflow",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/ai-image-editing-prompts",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "master off and unrelated preview parameters leave articles without ad containers",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/private-image-editing-workflow",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/ai-image-editing-prompts",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "the finite preview requires consent and fresh opt-in, then loads only owned empty documents",
+			"status": "passed",
+			"fixtureDocumentRequests": [
+				{
+					"url": "https://ads.ezimageai.com/native.html",
+					"referer": "",
+					"cookiePresent": false
+				}
+			],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [
+				{
+					"format": "native",
+					"phase": "after-empty-fixture-mount",
+					"geometry": {
+						"width": 736,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/native.html",
+						"url": "https://ads.ezimageai.com/native.html",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				}
+			],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "real article links change documents and history restores require a fresh display opt-in",
+			"status": "passed",
+			"fixtureDocumentRequests": [
+				{
+					"url": "https://ads.ezimageai.com/banner.html",
+					"referer": "",
+					"cookiePresent": false
+				},
+				{
+					"url": "https://ads.ezimageai.com/banner.html",
+					"referer": "",
+					"cookiePresent": false
+				},
+				{
+					"url": "https://ads.ezimageai.com/banner.html",
+					"referer": "",
+					"cookiePresent": false
+				},
+				{
+					"url": "https://ads.ezimageai.com/banner.html",
+					"referer": "",
+					"cookiePresent": false
+				},
+				{
+					"url": "https://ads.ezimageai.com/banner.html",
+					"referer": "",
+					"cookiePresent": false
+				}
+			],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [
+				{
+					"format": "banner",
+					"phase": "after-empty-fixture-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/banner.html",
+						"url": "https://ads.ezimageai.com/banner.html",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "banner",
+					"phase": "after-empty-fixture-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/banner.html",
+						"url": "https://ads.ezimageai.com/banner.html",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "banner",
+					"phase": "after-empty-fixture-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/banner.html",
+						"url": "https://ads.ezimageai.com/banner.html",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "banner",
+					"phase": "after-empty-fixture-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/banner.html",
+						"url": "https://ads.ezimageai.com/banner.html",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "banner",
+					"phase": "after-empty-fixture-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/banner.html",
+						"url": "https://ads.ezimageai.com/banner.html",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				}
+			],
+			"documentBoundaries": [
+				{
+					"from": "http://127.0.0.1:3018/blog",
+					"to": "http://127.0.0.1:3018/blog/tesco-ai-meal-planning-assistant",
+					"before": 1791722495942.5,
+					"after": 1791722498037.7
+				},
+				{
+					"from": "http://127.0.0.1:3018/blog/tesco-ai-meal-planning-assistant?blogAdTest=banner",
+					"to": "http://127.0.0.1:3018/",
+					"before": 1791722498406.4,
+					"after": 1791722499778.3
+				},
+				{
+					"from": "http://127.0.0.1:3018/blog/tesco-ai-meal-planning-assistant?blogAdTest=banner",
+					"to": "http://127.0.0.1:3018/blog",
+					"before": 1791722504593,
+					"after": 1791722506165.7
+				}
+			],
+			"clearanceChecks": [
+				{
+					"path": "/create",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "mobile hides the banner before loading and one empty native fixture fits 390px, 320px and 1280px",
+			"status": "passed",
+			"fixtureDocumentRequests": [
+				{
+					"url": "https://ads.ezimageai.com/native.html",
+					"referer": "",
+					"cookiePresent": false
+				}
+			],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [
+				{
+					"format": "native",
+					"phase": "empty-native-fixture-390px",
+					"geometry": {
+						"width": 342,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/native.html",
+						"url": "https://ads.ezimageai.com/native.html",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "native",
+					"phase": "empty-native-fixture-320px",
+					"geometry": {
+						"width": 272,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/native.html",
+						"url": "https://ads.ezimageai.com/native.html",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "native",
+					"phase": "empty-native-fixture-1280px",
+					"geometry": {
+						"width": 736,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/native.html",
+						"url": "https://ads.ezimageai.com/native.html",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				}
+			],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "native history changes across an article boundary reload its response policy",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "a browser without credentialless support keeps preview contexts unloaded",
+			"status": "passed",
+			"fixtureDocumentRequests": [],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		},
+		{
+			"title": "the client deadline removes an opted-in fixture and prevents another mount",
+			"status": "passed",
+			"fixtureDocumentRequests": [
+				{
+					"url": "https://ads.ezimageai.com/banner.html",
+					"referer": "",
+					"cookiePresent": false
+				}
+			],
+			"supplierRequestEvents": 0,
+			"supplierSafetyAbortAttempts": 0,
+			"unexpectedAdDocuments": [],
+			"businessActions": [],
+			"cspAudits": [],
+			"frameObservations": [
+				{
+					"format": "banner",
+					"phase": "after-empty-fixture-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/banner.html",
+						"url": "https://ads.ezimageai.com/banner.html",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				}
+			],
+			"documentBoundaries": [],
+			"clearanceChecks": [
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"adDocumentContextCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"remainingAdFrameCount": 0,
+			"bounds": "The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures."
+		}
+	],
+	"syntheticCases": [
+		{
+			"title": "both supplied script documents cannot read host addresses, DOM, cookies, storage or navigate",
+			"status": "passed",
+			"probes": [
+				{
+					"kind": "blog-ad-canary-probe",
+					"probe": {
+						"parentDomDenied": true,
+						"parentListenerDenied": true,
+						"cookieDenied": true,
+						"localStorageDenied": true,
+						"sessionStorageDenied": true,
+						"popupDenied": true,
+						"topNavigationDenied": true
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/banner.html",
+						"url": "https://ads.ezimageai.com/banner.html",
+						"referrer": ""
+					},
+					"id": "banner:1"
+				},
+				{
+					"kind": "blog-ad-canary-probe",
+					"probe": {
+						"parentDomDenied": true,
+						"parentListenerDenied": true,
+						"cookieDenied": true,
+						"localStorageDenied": true,
+						"sessionStorageDenied": true,
+						"popupDenied": true,
+						"topNavigationDenied": true
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/native.html",
+						"url": "https://ads.ezimageai.com/native.html",
+						"referrer": ""
+					},
+					"id": "native:1"
+				}
+			],
+			"ticks": {
+				"banner:1": 16,
+				"native:1": 12
+			},
+			"mountCount": {
+				"banner": 1,
+				"native": 1
+			},
+			"transport": {
+				"documentRequests": [
+					"https://ads.ezimageai.com/banner.html",
+					"https://ads.ezimageai.com/native.html"
+				],
+				"providerRequests": [],
+				"safetyAborts": []
+			},
+			"remainingAdFrameCount": 0,
+			"observationBoundary": "Harmless inline sandbox probes replacing supplier loaders in the shipped helper HTML; no actual inventory or deployed child response CSP is exercised."
+		},
+		{
+			"title": "destroying a context stops its timer and repeated mounts keep one mobile native card",
+			"status": "passed",
+			"probes": [
+				{
+					"kind": "blog-ad-canary-probe",
+					"probe": {
+						"parentDomDenied": true,
+						"parentListenerDenied": true,
+						"cookieDenied": true,
+						"localStorageDenied": true,
+						"sessionStorageDenied": true,
+						"popupDenied": true,
+						"topNavigationDenied": true
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/native.html",
+						"url": "https://ads.ezimageai.com/native.html",
+						"referrer": ""
+					},
+					"id": "native:1"
+				},
+				{
+					"kind": "blog-ad-canary-probe",
+					"probe": {
+						"parentDomDenied": true,
+						"parentListenerDenied": true,
+						"cookieDenied": true,
+						"localStorageDenied": true,
+						"sessionStorageDenied": true,
+						"popupDenied": true,
+						"topNavigationDenied": true
+					},
+					"document": {
+						"baseURI": "https://ads.ezimageai.com/native.html",
+						"url": "https://ads.ezimageai.com/native.html",
+						"referrer": ""
+					},
+					"id": "native:2"
+				}
+			],
+			"ticks": {
+				"native:1": 12,
+				"native:2": 13
+			},
+			"mountCount": {
+				"banner": 0,
+				"native": 2
+			},
+			"transport": {
+				"documentRequests": [
+					"https://ads.ezimageai.com/native.html",
+					"https://ads.ezimageai.com/native.html"
+				],
+				"providerRequests": [],
+				"safetyAborts": []
+			},
+			"remainingAdFrameCount": 0,
+			"observationBoundary": "Synthetic 10ms timer and local card fixture only; supplier cleanup and native card geometry require separate finite live observation."
+		}
+	]
+}
