@@ -30,3 +30,21 @@ bc30528a157976085b92c6cf322a9cc3009fb42f:packages/payments/provider/registry.tes
 4837b4637dbd915c146e82f66b7a18084ecfecd3:packages/api/modules/media/lib/guest-admission.test.ts:generic-api-key:233
 3f2afe8997748b2c59412e07534324260075573d:packages/api/modules/media/lib/guest-admission.test.ts:generic-api-key:203
 3f2afe8997748b2c59412e07534324260075573d:packages/api/modules/media/guest-capability.database.integration.test.ts:generic-api-key:35
+
+# Public browser Adsterra placement identifier supplied for the Blog snippets.
+# These exact historical matches also occur in the public invoke.js URL; no account credential.
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-fixture.html:generic-api-key:53
+db5ad9d42df21c023adf289a2d5083309b91401f:apps/saas/modules/public-content/lib/blog-ads.ts:generic-api-key:39
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/csp-390.json:generic-api-key:63
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/csp-390.json:generic-api-key:101
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/csp-390.json:generic-api-key:126
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-1280.json:generic-api-key:49
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-1280.json:generic-api-key:87
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-1280.json:generic-api-key:105
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/csp-1280.json:generic-api-key:67
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/csp-1280.json:generic-api-key:105
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/csp-1280.json:generic-api-key:130
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-390.json:generic-api-key:49
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-390.json:generic-api-key:87
+db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-390.json:generic-api-key:105
+db5ad9d42df21c023adf289a2d5083309b91401f:scripts/blog-ad-observation.mjs:generic-api-key:18
