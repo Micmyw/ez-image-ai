@@ -284,6 +284,7 @@ export default async function BlogArticlePage({
 					<ContentToc headings={headings} title={t("guides.onThisPage")} mobile />
 					<PublicMarkdown
 						body={post.body}
+						allowedExternalUrls={post.sources?.map((source) => source.url)}
 						afterSections={afterSections}
 						copyQuotedPrompts={post.articleType === "prompt-guides"}
 						renderPrompt={(prompt, key) => (

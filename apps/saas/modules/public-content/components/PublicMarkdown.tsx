@@ -8,13 +8,17 @@ export function PublicMarkdown({
 	afterSections = {},
 	renderPrompt,
 	copyQuotedPrompts = false,
+	allowedExternalUrls = [],
 }: {
 	body: string;
 	afterSections?: Readonly<Record<string, ReactNode>>;
 	renderPrompt?: (prompt: string, key: string) => ReactNode;
 	copyQuotedPrompts?: boolean;
+	/** Explicit editorial sources; other off-site Markdown links remain text. */
+	allowedExternalUrls?: readonly string[];
 }) {
 	const output: ReactNode[] = [];
+	const externalUrls = new Set(allowedExternalUrls);
 	const sections: { id: string; level: number }[] = [];
 	const closeSection = () => {
 		const section = sections.pop();
@@ -37,7 +41,7 @@ export function PublicMarkdown({
 							: "mt-8 mb-3 scroll-mt-28 text-xl font-semibold text-white"
 					}
 				>
-					{renderInline(block.text)}
+					{renderInline(block.text, externalUrls)}
 				</Heading>,
 			);
 		} else if (block.type === "unordered-list" || block.type === "ordered-list") {
@@ -48,7 +52,7 @@ export function PublicMarkdown({
 					className={`mb-5 space-y-2 pl-6 leading-7 ${block.type === "ordered-list" ? "list-decimal" : "list-disc"}`}
 				>
 					{block.items.map((item, itemIndex) => (
-						<li key={`${key}-${itemIndex}`}>{renderInline(item)}</li>
+						<li key={`${key}-${itemIndex}`}>{renderInline(item, externalUrls)}</li>
 					))}
 				</List>,
 			);
@@ -75,7 +79,7 @@ export function PublicMarkdown({
 					key={key}
 					className="my-6 border-violet-300 bg-violet-300/5 p-5 leading-7 rounded-r-xl border-l-2"
 				>
-					{renderInline(block.text)}
+					{renderInline(block.text, externalUrls)}
 				</aside>,
 			);
 		} else if (block.type === "table") {
@@ -93,7 +97,7 @@ export function PublicMarkdown({
 										scope="col"
 										className="bg-white/5 p-3 font-semibold text-white [overflow-wrap:anywhere] break-words"
 									>
-										{renderInline(cell)}
+										{renderInline(cell, externalUrls)}
 									</th>
 								))}
 							</tr>
@@ -106,7 +110,7 @@ export function PublicMarkdown({
 											key={cellIndex}
 											className="border-white/10 p-3 border-t align-top [overflow-wrap:anywhere] break-words"
 										>
-											{renderInline(row[cellIndex] ?? "")}
+											{renderInline(row[cellIndex] ?? "", externalUrls)}
 										</td>
 									))}
 								</tr>
@@ -129,7 +133,7 @@ export function PublicMarkdown({
 			}
 			output.push(
 				<p key={key} className="mb-5 leading-7">
-					{renderInline(block.text)}
+					{renderInline(block.text, externalUrls)}
 				</p>,
 			);
 		}
@@ -142,18 +146,23 @@ export function PublicMarkdown({
 	);
 }
 
-function renderInline(text: string): ReactNode[] {
+function renderInline(text: string, allowedExternalUrls: ReadonlySet<string>): ReactNode[] {
 	return text
 		.split(/(\[[^\]]+\]\([^\s)]+\)|`[^`]+`|\*\*[^*]+\*\*|_[^_]+_)/g)
 		.filter(Boolean)
 		.map((part, index) => {
-			const link = /^\[([^\]]+)\]\((\/[^\s)]*)\)$/.exec(part);
-			// Editorial Markdown retains its same-origin-only link contract; raw HTML is text.
-			if (link && !link[2]!.startsWith("//") && !link[2]!.includes("\\"))
+			const link = /^\[([^\]]+)\]\(([^\s)]+)\)$/.exec(part);
+			const target = link?.[2];
+			const internal =
+				target?.startsWith("/") && !target.startsWith("//") && !target.includes("\\");
+			const external = target && isAllowedExternalUrl(target, allowedExternalUrls);
+			// Off-site links require an exact registered HTTPS source; raw HTML remains text.
+			if (link && (internal || external))
 				return (
 					<a
 						key={index}
-						href={link[2]}
+						href={target}
+						rel={external ? "noreferrer" : undefined}
 						className="text-violet-200 hover:text-white underline underline-offset-4"
 					>
 						{link[1]}
@@ -167,4 +176,19 @@ function renderInline(text: string): ReactNode[] {
 				return <em key={index}>{part.slice(1, -1)}</em>;
 			return part;
 		});
+}
+
+function isAllowedExternalUrl(target: string, allowedExternalUrls: ReadonlySet<string>): boolean {
+	if (
+		!allowedExternalUrls.has(target) ||
+		!/^https:\/\/[^\s]+$/.test(target) ||
+		target.includes("\\")
+	)
+		return false;
+	try {
+		const url = new URL(target);
+		return url.protocol === "https:" && !url.username && !url.password;
+	} catch {
+		return false;
+	}
 }

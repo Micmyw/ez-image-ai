@@ -311,6 +311,35 @@ describe("consolidated public route contract", () => {
 		);
 	});
 
+	it("publishes the Q4 guide with official access and no substitute generator", async () => {
+		const pageModule = await loadOptionalModule<BlogPageModule>("./(public)/blog/[...path]/page");
+		expect(pageModule).not.toBeNull();
+		if (!pageModule) return;
+		const props = { params: Promise.resolve({ path: ["vidu-q4-preview"] }) };
+		const metadata = await resolveMetadata(pageModule, props);
+		expectMetadata(metadata!, "/blog/vidu-q4-preview", "index");
+		expect(metadata?.title).toEqual({
+			absolute: "Vidu Q4 Preview: Features, Pricing & API Guide | EzImageAI",
+		});
+		const markup = renderToStaticMarkup(await pageModule.default(props));
+		expect(markup.match(/<h1(?:\s|>)/g) ?? []).toHaveLength(1);
+		expect(markup).toContain("EzImageAI does not currently offer Vidu Q4 Preview");
+		expect(markup).toContain('href="https://www.vidu.com/vidu-q4"');
+		expect(markup).toContain('href="/create?mode=video"');
+		expect(markup).toContain("untested prompt ideas");
+		expect(markup).toContain('"@type":"BlogPosting"');
+		expect(markup).toContain('"@type":"BreadcrumbList"');
+		expect(markup).not.toMatch(
+			/data-test="(?:landing|registered)-generator"|"@type":"(?:Offer|Review|FAQPage)"/,
+		);
+		const fallbackMetadata = await resolveMetadata(pageModule, {
+			...props,
+			searchParams: Promise.resolve({ lang: "de" }),
+		});
+		expectMetadata(fallbackMetadata!, "/blog/vidu-q4-preview", "noindex");
+		expect(fallbackMetadata?.alternates?.languages).toBeUndefined();
+	});
+
 	it.each(legalFallbackCases)(
 		"uses English $documentPath when the $locale locale is $reason",
 		async ({ documentPath, locale }) => {
