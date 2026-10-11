@@ -29,7 +29,10 @@ export type VideoErrorKey =
 	| "priceUnavailable"
 	| "conflict"
 	| "insufficientCredits"
-	| "busy"
+	| "ownerBusy"
+	| "globalBusy"
+	| "providerBusy"
+	| "rateLimited"
 	| "disabled"
 	| "unauthorized"
 	| "network"
@@ -334,7 +337,10 @@ export function getVideoErrorKey(error: unknown): VideoErrorKey {
 	if (/QUOTE_EXPIRED|QUOTE_INVALID|STALE_QUOTE|PRICE_CHANGED/.test(code)) return "quoteExpired";
 	if (/VIDEO_MODEL_PRICE_EXPIRED|VIDEO_PRICE_EXPIRED/.test(code)) return "priceUnavailable";
 	if (/INSUFFICIENT_CREDITS|CREDIT_DEBT/.test(code)) return "insufficientCredits";
-	if (/CAPACITY|CONCURRENCY|BUSY|TOO_MANY_REQUESTS/.test(code)) return "busy";
+	if (codes.includes("VIDEO_OWNER_BUSY")) return "ownerBusy";
+	if (codes.includes("VIDEO_GLOBAL_BUSY")) return "globalBusy";
+	if (codes.includes("VIDEO_PROVIDER_BUSY")) return "providerBusy";
+	if (codes.includes("RATE_LIMITED") || codes.includes("TOO_MANY_REQUESTS")) return "rateLimited";
 	if (/UNAUTHORIZED|FORBIDDEN/.test(code)) return "unauthorized";
 	if (/DISABLED|NOT_ALLOWED|NOT_ENABLED/.test(code)) return "disabled";
 	if (/NETWORK|TIMEOUT|fetch|network/i.test(code)) return "network";

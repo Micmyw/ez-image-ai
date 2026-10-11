@@ -263,6 +263,50 @@ async function addPaidPackBalance() {
 }
 
 describe("ordinary and annual video pricing through protected RPC and PostgreSQL", () => {
+	it("quotes and creates ordinary video from the same valid gift balance used by images", async () => {
+		await client.subscription.update({
+			where: { id: subscriptionId },
+			data: { status: "EXPIRED" },
+		});
+		await client.creditLot.updateMany({
+			where: { accountId },
+			data: { expiresAt: new Date(0) },
+		});
+		const giftReference = `shared-media-gift:${crypto.randomUUID()}`;
+		const gift = await createCreditGrant(
+			{ accountId, amount: 200n, referenceKey: giftReference },
+			client,
+		);
+		const quoted = await quote();
+		expect(quoted.credits).toBe("96");
+		const key = crypto.randomUUID();
+		const created = await create(quoted.quoteId, key);
+		expect(created.credits).toBe("96");
+		const job = await client.generationJob.findUniqueOrThrow({
+			where: { id: created.jobId },
+			include: { reservation: { include: { allocations: true } } },
+		});
+		expect(job.pricingSnapshot).toMatchObject({
+			credits: "96",
+			pricingDetails: {
+				funding: { mode: "shared-media-credits-v1" },
+				paidRevenueQualified: false,
+				retailReference: { basis: "qualified-paid-retail-calculation-only" },
+			},
+		});
+		expect(job.pricingSnapshot).not.toHaveProperty("paidFundingPolicy");
+		expect(job.reservation?.allocations).toEqual([
+			expect.objectContaining({ lotId: gift.lotId, amount: 96n }),
+		]);
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: accountId } }),
+		).toMatchObject({
+			spendableCredits: 104n,
+			reservedCredits: 96n,
+		});
+		expect((await create(quoted.quoteId, key)).jobId).toBe(job.id);
+		expect(await client.creditLedgerEntry.count({ where: { accountId, type: "RESERVE" } })).toBe(1);
+	});
 	it("uses one owner-scoped qualification for catalog and quote; exposes only public prices", async () => {
 		const catalog = await scoped(() => call(videoV1Router.catalog, undefined, ctx));
 		const option = catalog.models

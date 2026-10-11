@@ -19,6 +19,8 @@ import { PrismaClient } from "../../generated/client";
 import { createMediaUploadSessionTransaction } from "./assets";
 import {
 	createCreditGrant,
+	getCreditInvariantReport,
+	refundCreditGrant,
 	releaseCredits,
 	reserveCreditsInTransaction,
 	settleCredits,
@@ -121,10 +123,11 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		const ownerId = `video-admission-test-${crypto.randomUUID()}`;
 		owners.push(ownerId);
 		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
-		await createCreditGrant(
-			{ accountId: account.id, amount: credits, referenceKey: `test:${ownerId}` },
-			client,
-		);
+		if (credits > 0n)
+			await createCreditGrant(
+				{ accountId: account.id, amount: credits, referenceKey: `test:${ownerId}` },
+				client,
+			);
 		const quote = await createVideoQuoteRecord(
 			{
 				ownerId,
@@ -295,6 +298,15 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		},
 	);
 	const paidFundingPolicy = { minimumUsdMicrosPerCredit: 21_944n };
+	const sharedPrice: VideoPrice = {
+		...price,
+		pricingDetails: {
+			creditFloorMicros: "21944",
+			costPolicy: { version: "isolated-shared-credit-cost-fixture" },
+			paidRevenueQualified: false,
+			funding: { mode: "shared-media-credits-v1" },
+		},
+	};
 	async function requote(f: Awaited<ReturnType<typeof fixture>>, quotedPrice: VideoPrice) {
 		const quote = await createVideoQuoteRecord(
 			{
@@ -603,6 +615,277 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		});
 		await client.creditAccount.update({ where: { id: f.account.id }, data: { creditDebt: 0n } });
 	});
+	it.each([
+		{ label: "gift only", gifted: 7n, paid: 0n },
+		{ label: "paid only below the former revenue floor", gifted: 0n, paid: 7n },
+		{ label: "mixed gift and paid", gifted: 3n, paid: 4n },
+	])(
+		"shared ordinary video reserves $label credits with its quoted cost snapshot",
+		async (funds) => {
+			const f = await requote(await fixture(funds.gifted), sharedPrice);
+			const expectedAllocations: Record<string, bigint> = {};
+			if (funds.gifted > 0n) expectedAllocations[`test:${f.ownerId}`] = funds.gifted;
+			if (funds.paid > 0n) {
+				const paidRef = await paidSubscriptionGrant(f.ownerId, f.account.id, {
+					paid: 1n,
+					credits: funds.paid,
+				});
+				expectedAllocations[paidRef] = funds.paid;
+			}
+			const accepted = await createVideoJobRecord(f.input, client);
+			const job = await client.generationJob.findUniqueOrThrow({
+				where: { id: accepted.jobId },
+				include: { reservation: { include: { allocations: { include: { lot: true } } } } },
+			});
+			expect(job.pricingSnapshot).toMatchObject({
+				credits: "7",
+				providerCostMicros: "2",
+				moderationCostMicros: "1",
+				pricingDetails: sharedPrice.pricingDetails,
+			});
+			expect(job.pricingSnapshot).not.toHaveProperty("paidFundingPolicy");
+			expect(
+				Object.fromEntries(
+					job.reservation!.allocations.map((allocation) => [
+						allocation.lot.grantReferenceKey,
+						allocation.amount,
+					]),
+				),
+			).toEqual(expectedAllocations);
+			expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({
+				valid: true,
+				account: { spendable: 0n, reserved: 7n, debt: 0n },
+			});
+		},
+	);
+	it("shared ordinary video excludes expired lots and admits only after valid credits are available", async () => {
+		const f = await requote(await fixture(7n), sharedPrice);
+		await client.creditLot.updateMany({
+			where: { accountId: f.account.id },
+			data: { expiresAt: new Date(Date.now() - 1000) },
+		});
+		await expect(createVideoJobRecord(f.input, client)).rejects.toThrow("INSUFFICIENT_CREDITS");
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+		const activeRef = `test:${f.ownerId}:active`;
+		await createCreditGrant(
+			{ accountId: f.account.id, amount: 7n, referenceKey: activeRef },
+			client,
+		);
+		const accepted = await createVideoJobRecord(f.input, client);
+		const allocations = await client.creditReservationAllocation.findMany({
+			where: { reservation: { jobId: accepted.jobId } },
+			include: { lot: true },
+		});
+		expect(allocations).toHaveLength(1);
+		expect(allocations[0]!.lot.grantReferenceKey).toBe(activeRef);
+		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({
+			valid: true,
+			account: { spendable: 0n, reserved: 7n, debt: 0n },
+			lots: { expiredUnrefunded: 7n },
+		});
+	});
+	it("shared ordinary video competing reservations cannot overspend the same mixed account", async () => {
+		const f = await requote(await fixture(3n), sharedPrice);
+		await paidSubscriptionGrant(f.ownerId, f.account.id, { paid: 1n, credits: 4n });
+		const second = await requote(f, sharedPrice);
+		const outcomes = await Promise.allSettled(
+			[f.input, { ...second.input, idempotencyKey: crypto.randomUUID() }].map((input) =>
+				createVideoJobRecord(
+					{ ...input, limits: { ...input.limits, ownerConcurrency: 2 } },
+					client,
+				),
+			),
+		);
+		expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(1);
+		expect(outcomes.find((outcome) => outcome.status === "rejected")).toMatchObject({
+			reason: new Error("INSUFFICIENT_CREDITS"),
+		});
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(1);
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(1);
+		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({
+			valid: true,
+			account: { spendable: 0n, reserved: 7n, debt: 0n },
+		});
+	});
+	it("shared ordinary video concurrent replays retain one reservation and one durable start intent", async () => {
+		const f = await requote(await fixture(7n), sharedPrice);
+		const results = await Promise.all(
+			Array.from({ length: 8 }, () => createVideoJobRecord(f.input, client)),
+		);
+		expect(new Set(results.map((result) => result.jobId)).size).toBe(1);
+		expect(results.filter((result) => !result.replayed)).toHaveLength(1);
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(1);
+		expect(
+			await client.creditLedgerEntry.count({ where: { accountId: f.account.id, type: "RESERVE" } }),
+		).toBe(1);
+		expect(
+			await client.videoExecution.count({
+				where: { jobId: results[0]!.jobId, stage: "QUEUED", startState: "PENDING" },
+			}),
+		).toBe(1);
+		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({ valid: true });
+	});
+	it.each(["paid-policy", "revenue-claim", "unknown-funding"] as const)(
+		"shared ordinary video rejects %s policy drift before reservation",
+		async (failure) => {
+			const rejectedPrice =
+				failure === "paid-policy"
+					? sharedPrice
+					: {
+							...sharedPrice,
+							pricingDetails: {
+								...sharedPrice.pricingDetails,
+								...(failure === "revenue-claim"
+									? { paidRevenueQualified: true }
+									: { funding: { mode: "shared-media-credits-v2" } }),
+							},
+						};
+			const f = await requote(await fixture(7n), rejectedPrice);
+			await expect(
+				createVideoJobRecord(
+					{ ...f.input, ...(failure === "paid-policy" ? { paidFundingPolicy } : {}) },
+					client,
+				),
+			).rejects.toThrow("VIDEO_FUNDING_POLICY_CHANGED");
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+		},
+	);
+	it.each(["settle", "release"] as const)(
+		"shared ordinary video %s preserves refund revocations and ledger replay guards",
+		async (mode) => {
+			const f = await requote(await fixture(3n), sharedPrice);
+			const paidRef = await paidSubscriptionGrant(f.ownerId, f.account.id, {
+				paid: 1n,
+				credits: 4n,
+			});
+			const accepted = await createVideoJobRecord(f.input, client);
+			const reservation = await client.creditReservation.findUniqueOrThrow({
+				where: { jobId: accepted.jobId },
+			});
+			await createCreditGrant(
+				{ accountId: f.account.id, amount: 7n, referenceKey: `test:${f.ownerId}:spare` },
+				client,
+			);
+			const refund = {
+				accountId: f.account.id,
+				grantReferenceKey: paidRef,
+				amount: 4n,
+				referenceKey: `test:${accepted.jobId}:refund`,
+			};
+			const refunded = await refundCreditGrant(refund, client);
+			await expect(refundCreditGrant(refund, client)).resolves.toEqual(refunded);
+			await expect(refundCreditGrant({ ...refund, amount: 3n }, client)).rejects.toThrow(
+				"IDEMPOTENCY_CONFLICT",
+			);
+			expect(
+				await client.creditReservationAllocation.findFirstOrThrow({
+					where: { reservationId: reservation.id, lot: { grantReferenceKey: paidRef } },
+				}),
+			).toMatchObject({ amount: 4n, revokedAmount: 4n });
+			await expect(
+				settleCredits(
+					{
+						reservationId: reservation.id,
+						amount: 8n,
+						referenceKey: `test:${accepted.jobId}:over`,
+					},
+					client,
+				),
+			).rejects.toThrow("Settlement exceeds reserved credits");
+			const mutation = {
+				reservationId: reservation.id,
+				amount: 7n,
+				referenceKey: `test:${accepted.jobId}:${mode}`,
+			};
+			const finalize = mode === "settle" ? settleCredits : releaseCredits;
+			const finalized = await finalize(mutation, client);
+			await expect(finalize(mutation, client)).resolves.toEqual(finalized);
+			await expect(finalize({ ...mutation, amount: 6n }, client)).rejects.toThrow(
+				"IDEMPOTENCY_CONFLICT",
+			);
+			const otherFinalize = mode === "settle" ? releaseCredits : settleCredits;
+			await expect(
+				otherFinalize({ ...mutation, referenceKey: `${mutation.referenceKey}:conflict` }, client),
+			).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+			expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({
+				valid: true,
+				account: {
+					spendable: mode === "settle" ? 7n : 10n,
+					reserved: 0n,
+					debt: mode === "settle" ? 4n : 0n,
+				},
+				ledger: { settled: mode === "settle" ? 7n : 0n, released: mode === "release" ? 7n : 0n },
+			});
+			expect(
+				await client.creditLedgerEntry.count({
+					where: { accountId: f.account.id, type: "REFUND" },
+				}),
+			).toBe(1);
+			if (mode === "settle") {
+				const next = await requote(f, sharedPrice);
+				await expect(
+					createVideoJobRecord(
+						{
+							...next.input,
+							idempotencyKey: crypto.randomUUID(),
+							limits: { ...limits, ownerConcurrency: 2 },
+						},
+						client,
+					),
+				).rejects.toThrow("CREDIT_DEBT_OUTSTANDING");
+				expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(
+					1,
+				);
+			}
+		},
+	);
+	it("shared ordinary video release never restores a lot that expired during execution", async () => {
+		const f = await requote(await fixture(7n), sharedPrice);
+		const accepted = await createVideoJobRecord(f.input, client);
+		const reservation = await client.creditReservation.findUniqueOrThrow({
+			where: { jobId: accepted.jobId },
+		});
+		await client.creditLot.updateMany({
+			where: { accountId: f.account.id },
+			data: { expiresAt: new Date(Date.now() - 1000) },
+		});
+		await releaseCredits(
+			{ reservationId: reservation.id, referenceKey: `test:${accepted.jobId}:expired-release` },
+			client,
+		);
+		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({
+			valid: true,
+			account: { spendable: 0n, reserved: 0n, debt: 0n },
+			lots: { expiredUnrefunded: 7n },
+			ledger: { released: 7n },
+		});
+	});
+	it("accepted paid video replay preserves its original funding snapshot after shared credit rollout", async () => {
+		const f = await requote(await fixture(0n), { ...price, paidFundingPolicy });
+		await paidSubscriptionGrant(f.ownerId, f.account.id, { paid: 3_000_000n });
+		const accepted = await createVideoJobRecord(f.input, client);
+		const before = await client.generationJob.findUniqueOrThrow({ where: { id: accepted.jobId } });
+		await expect(
+			createVideoJobRecord(
+				{ ...f.input, price: sharedPrice, paidFundingPolicy: undefined },
+				client,
+			),
+		).resolves.toEqual({ ...accepted, replayed: true });
+		const after = await client.generationJob.findUniqueOrThrow({ where: { id: accepted.jobId } });
+		expect(after.pricingSnapshot).toEqual(before.pricingSnapshot);
+		expect(after.pricingSnapshot).toMatchObject({
+			paidFundingPolicy: { minimumUsdMicrosPerCredit: "21944" },
+		});
+		const reserveLedger = await client.creditLedgerEntry.findMany({
+			where: { accountId: f.account.id, type: "RESERVE" },
+		});
+		expect(reserveLedger).toHaveLength(1);
+		expect(reserveLedger[0]!.metadata).toMatchObject({
+			command: { metadata: { paidFundingPolicy: { minimumUsdMicrosPerCredit: "21944" } } },
+		});
+		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({ valid: true });
+	});
 	it("explicit operator funding reserves genuine ordinary lots once and settles the actual debit", async () => {
 		const f = await operatorFixture();
 		const results = await Promise.all(
@@ -716,6 +999,12 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		await expect(createVideoJobRecord({ ...f.input, price }, client)).rejects.toThrow(
 			"PRICE_CHANGED",
 		);
+		await expect(
+			createVideoJobRecord(
+				{ ...f.input, price: sharedPrice, paidFundingPolicy: undefined },
+				client,
+			),
+		).rejects.toThrow("PRICE_CHANGED");
 		await expect(createVideoJobRecord(f.input, client)).rejects.toThrow(
 			"INSUFFICIENT_PAID_CREDITS",
 		);

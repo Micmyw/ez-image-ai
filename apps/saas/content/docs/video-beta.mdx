@@ -1,13 +1,14 @@
 ---
-updatedAt: 2026-10-09
+updatedAt: 2026-10-11
 indexable: true
 title: Video beta
-description: How signed-in accounts confirm videos with eligible paid credits, follow server progress, and access private reviewed results.
+description: How signed-in accounts use their credit balance for videos, follow server progress, and access private reviewed results.
 ---
 
 The video beta is available to signed-in, non-anonymous accounts when the service is enabled.
 Open **Video** in the editor or **Video beta** in the account navigation. Generation requires
-qualifying paid credits and an available model configuration. No invitation is required.
+enough available account credits and an available model configuration. Ordinary image and video
+generation use the same credit balance, including valid gifted credits. No invitation is required.
 There is no guest video trial.
 Your videos and results remain private to your account.
 
@@ -64,13 +65,20 @@ price prevents submission. There is no fixed cutoff date for creating ordinary v
 Submitting reserves space for the output along with credits. Insufficient account storage prevents
 generation from starting. An unresolved provider request keeps its reservation while the original
 attempt is checked.
-Video can use only credits backed by a qualifying payment. Free credits, credits with an unknown
-payment source, and payment funding that does not cover the required video spend are not eligible.
+New ordinary videos use the same available credits as image generation. Expired credits cannot be
+spent, and unresolved account debt prevents generation. Existing accepted tasks keep their original
+credit reservation and rules. Separate effect templates, including Hotel Lobby, keep their own
+funding requirements.
 Changing the model, prompt, image, duration, resolution, shape, or audio invalidates the previous quote.
 An expired quote requires choosing Generate again. A changed quote requires confirmation of its new
 total. An interrupted response still uses **Check the same request**, as described below.
 
 ## Progress and interrupted connections
+
+Capacity messages distinguish your own active-task limit from shared platform or model-provider
+capacity. A shared capacity message can appear even when you have no active tasks. A rejected
+request has not created a generation or reserved credits; wait and try again later. If the outcome
+is unknown, use **Check the same request** instead of creating a replacement request.
 
 Accepted tasks continue on the server even if you close the page. Open [Video history](/video/history)
 with the same account to restore their current status. Only your own tasks appear there.

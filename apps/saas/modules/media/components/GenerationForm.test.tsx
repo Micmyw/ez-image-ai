@@ -110,6 +110,7 @@ vi.mock("next-intl", () => ({
 					: "localized credits",
 			"errors.insufficientCredits": "Not enough credits",
 			"errors.concurrentLimit": "Concurrent edit limit reached",
+			"errors.providerBusy": "The image service is temporarily at capacity",
 			requiredCredits:
 				typeof values?.credits === "number" || typeof values?.credits === "string"
 					? `${values.credits} credits needed`
@@ -802,6 +803,19 @@ describe("GenerationForm product copy", () => {
 
 		expect(markup).toContain("3 running edits");
 		expect(markup).toContain('href="/history"');
+	});
+	it("shows service capacity without blaming an account with zero active jobs", () => {
+		const state = generationState();
+		state.createGeneration.error = new Error("PROVIDER_CONCURRENT_JOB_LIMIT_REACHED");
+		state.creditAccount.data.activeJobs = 0;
+		mocks.useGeneration.mockReturnValue(state);
+
+		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
+
+		expect(markup).toContain("The image service is temporarily at capacity");
+		expect(markup).not.toContain("Concurrent edit limit reached");
+		expect(markup).not.toContain("0 running edits");
+		expect(markup).not.toContain('href="/history"');
 	});
 
 	it("restores a paid-model draft with an inline upgrade notice instead of opening a dialog", () => {

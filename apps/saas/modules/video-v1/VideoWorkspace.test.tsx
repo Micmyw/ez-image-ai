@@ -207,6 +207,46 @@ afterEach(() => {
 });
 
 describe("video workspace request lifetimes", () => {
+	it.each([
+		["VIDEO_OWNER_BUSY", "ownerBusy"],
+		["VIDEO_GLOBAL_BUSY", "globalBusy"],
+		["VIDEO_PROVIDER_BUSY", "providerBusy"],
+	] as const)(
+		"reports %s and unlocks the unchanged draft without automatic resubmission",
+		async (code, expected) => {
+			fixture.quote.mockResolvedValue(quote("capacity-quote"));
+			fixture.create.mockRejectedValue({ code: "BAD_REQUEST", message: code, data: { code } });
+			await view.onGenerate();
+			render();
+			expect(view.error).toBe(expected);
+			expect(view.draft.prompt).toBe("A sailboat on a calm lake.");
+			expect(view.locked).toBe(false);
+			expect(view.confirmation).toBe(false);
+			expect(view.quote).toBeNull();
+			expect(sessionStorage.getItem("video-v1:confirmation:owner-a")).toBeNull();
+			expect(fixture.create).toHaveBeenCalledTimes(1);
+		},
+	);
+	it.each(["TOO_MANY_REQUESTS", "RATE_LIMITED", "UNKNOWN_VIDEO_PROVIDER_BUSY"])(
+		"retains and explicitly recovers the original receipt after %s",
+		async (code) => {
+			fixture.quote.mockResolvedValue(quote("uncertain-quote"));
+			fixture.create
+				.mockRejectedValueOnce(new Error(code))
+				.mockResolvedValueOnce(receipt("recovered-job"));
+			await view.onGenerate();
+			render();
+			expect(view.confirmation).toBe(true);
+			expect(view.locked).toBe(true);
+			expect(fixture.create).toHaveBeenCalledTimes(1);
+			const pending = sessionStorage.getItem("video-v1:confirmation:owner-a");
+			expect(pending).not.toBeNull();
+			await view.onConfirm();
+			render();
+			expect(fixture.create.mock.calls[1]).toEqual(fixture.create.mock.calls[0]);
+			expect(view.jobId).toBe("recovered-job");
+		},
+	);
 	it("does not let an old A quote unlock a new A operation after A → B → A", async () => {
 		const old = deferred<VideoQuote>();
 		const current = deferred<VideoQuote>();

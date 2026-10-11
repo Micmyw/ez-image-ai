@@ -910,7 +910,7 @@ test("UI Mock: insufficient credits and expired quotes never submit a task", asy
 	await page.getByLabel("Describe your video", { exact: true }).fill("UI mock: a slow camera.");
 	await page.locator('[data-test="video-generate"]').click();
 	await expect(page.locator('[data-test="video-workspace"]').getByRole("alert")).toContainText(
-		"not enough eligible paid credits",
+		"not enough available credits",
 	);
 	state.quoteError = null;
 	state.quoteExpired = true;

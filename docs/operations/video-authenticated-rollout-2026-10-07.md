@@ -9,16 +9,20 @@ The owner's subsequent instruction removes user/model-option test allowlists and
 the fixed ordinary-video price-approval cutoff. This document describes that
 current policy; earlier local results below are preserved as a separate checkpoint.
 
+The 2026-10-11 owner-approved [shared media credit update](shared-media-credits-2026-10-11.md)
+supersedes the original ordinary-video paid-lot restriction. Historical validation below retains
+the policy that was actually tested at that time.
+
 ## Release policy
 
 - `VIDEO_V1_ACCESS=authenticated` admits signed-in, non-anonymous accounts when
   `VIDEO_V1_ENABLED=true` and service readiness passes. Missing access settings
   retain administrator-only internal rollback access. Invalid settings deny new
   admission. Guests must sign in; there is no guest video trial.
-- Generation still requires qualifying paid-credit lots and the existing
-  complete-cost quote. The administrator acceptance funding exception applies
-  only to the internal ordinary-video audience and must not fund authenticated
-  customer requests.
+- New ordinary generation uses the same valid credit balance as images, including gifted credits,
+  with the existing complete-cost quote. Expired credits, debt, insufficient balance and all
+  reservation protections still apply. The shared policy does not prove payment revenue and does
+  not change independently funded template access or previously accepted funding snapshots.
 - Ordinary catalog, upload and admission follow the implemented Kie model
   contracts and supported mode/duration/resolution/framing/audio tuples. There is
   no user-ID or model-option test allowlist. Unsupported provider options,
@@ -44,7 +48,7 @@ current policy; earlier local results below are preserved as a separate checkpoi
 ## Receiver-first deployment
 
 1. Verify the implemented model catalog, anonymous-account exclusion, independent
-   template access, paid-credit funding, explicit no-deadline pricing and frozen
+   template access, shared ordinary credits, explicit no-deadline pricing and frozen
    accepted-price decisions locally. No schema migration is required for these
    policy changes.
 2. Build and deploy the compatible background Worker first, retaining
@@ -73,7 +77,7 @@ current policy; earlier local results below are preserved as a separate checkpoi
    binding success alone does not establish live authenticated access.
 5. Check that guest `/video` access requires sign-in, an ordinary signed-in
    account can read supported Kie model settings and obtain an eligible quote,
-   and missing paid funding is denied. Check multiple supported settings against
+   and insufficient balance or debt is denied. Check multiple supported settings against
    the implemented contract, including ones absent from the retired test list.
    Confirm the editor's Video link and private history. These read/quote checks
    do not start a paid provider request.

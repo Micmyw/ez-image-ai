@@ -1,6 +1,5 @@
 import { videoEffectIdSchema, videoEffectName } from "@repo/config/video-effects";
 import type { resolveVideoEffectPrice } from "@repo/config/video-effects.server";
-import { applyVideoInternalFunding } from "@repo/config/video-internal-funding";
 import {
 	getVideoModel,
 	validateVideoModelSelection,
@@ -15,6 +14,7 @@ import {
 	type VideoRetailPricingContext,
 } from "@repo/config/video-pricing.server";
 import { configuredVideoVisualSafetyProfile } from "@repo/config/video-safety";
+import { applyVideoSharedFunding } from "@repo/config/video-shared-funding";
 import { configuredVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import {
 	canAccessVideoV1,
@@ -58,7 +58,7 @@ export function requireVideoAdmission(
 	const admitted = requireVideoModelReadiness(environment, bindings, request, { pricingContext });
 	return {
 		...admitted,
-		price: applyVideoInternalFunding(admitted.price, context, environment) satisfies VideoPrice,
+		price: applyVideoSharedFunding(admitted.price) satisfies VideoPrice,
 	};
 }
 

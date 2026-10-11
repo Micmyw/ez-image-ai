@@ -133,7 +133,7 @@ describe("authenticated template admission remains scoped and funded", () => {
 					bindings,
 					requireVideoTemplateAdmission(customer, environment, bindings, input).template.video,
 				).price.paidFundingPolicy,
-			).toEqual({ minimumUsdMicrosPerCredit: 21944n });
+			).toBeUndefined();
 		},
 	);
 	it("admits an ordinary registered customer with all existing safety and funding gates", () => {
@@ -153,7 +153,7 @@ describe("authenticated template admission remains scoped and funded", () => {
 				bindings,
 				template.video,
 			).price.paidFundingPolicy,
-		).toEqual({ minimumUsdMicrosPerCredit: 21944n });
+		).toBeUndefined();
 	});
 	it.each([undefined, "internal", "public"])(
 		"denies the ordinary customer when template scope is %j",

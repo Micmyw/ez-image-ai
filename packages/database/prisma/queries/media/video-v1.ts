@@ -13,6 +13,7 @@ import {
 	readVideoVisualSafetyProfile,
 	type VideoVisualSafetyProfile,
 } from "@repo/config/video-safety";
+import { readVideoSharedFundingSnapshot } from "@repo/config/video-shared-funding";
 import {
 	readVideoTextSafetyProfile,
 	type VideoTextSafetyProfile,
@@ -448,9 +449,10 @@ export async function createVideoJobRecord(
 		)
 			throw new Error("PRICE_CHANGED");
 		const funding = input.price.pricingDetails?.funding;
+		const sharedFunding = !input.template && readVideoSharedFundingSnapshot(funding);
 		if (
 			(funding !== undefined &&
-				(!readVideoInternalFundingSnapshot(funding, input.ownerId, now) ||
+				((!sharedFunding && !readVideoInternalFundingSnapshot(funding, input.ownerId, now)) ||
 					input.price.pricingDetails?.paidRevenueQualified !== false ||
 					input.price.paidFundingPolicy !== undefined ||
 					input.paidFundingPolicy !== undefined)) ||

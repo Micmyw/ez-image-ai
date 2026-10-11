@@ -46,9 +46,13 @@ describe("RetryGenerationButton", () => {
 		await vi.waitFor(() => expect(mocks.push).toHaveBeenCalledWith("/create?job=retry-job"));
 		expect(mocks.retry).toHaveBeenLastCalledWith(firstRequest);
 	});
-	it("allows a new request after a definite rejection has been corrected", async () => {
+	it.each([
+		"INSUFFICIENT_CREDITS",
+		"CONCURRENT_JOB_LIMIT_REACHED",
+		"PROVIDER_CONCURRENT_JOB_LIMIT_REACHED",
+	])("allows a new request after the definite rejection %s has been corrected", async (code) => {
 		mocks.retry
-			.mockRejectedValueOnce(new Error("INSUFFICIENT_CREDITS"))
+			.mockRejectedValueOnce(new Error(code))
 			.mockResolvedValueOnce({ jobId: "retry-job" });
 		renderToStaticMarkup(<RetryGenerationButton jobId="failed-job" />);
 		mocks.click!();

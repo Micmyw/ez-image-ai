@@ -279,6 +279,34 @@ describe("video form and observable state", () => {
 			expect(getVideoErrorKey(error)).toBe("quoteExpired");
 		},
 	);
+	it.each([
+		["VIDEO_OWNER_BUSY", "ownerBusy"],
+		["VIDEO_GLOBAL_BUSY", "globalBusy"],
+		["VIDEO_PROVIDER_BUSY", "providerBusy"],
+		["RATE_LIMITED", "rateLimited"],
+		["TOO_MANY_REQUESTS", "rateLimited"],
+	] as const)(
+		"distinguishes the public rejection %s from other capacity scopes",
+		(code, expected) => {
+			for (const error of [{ code }, { code: "BAD_REQUEST", data: { code } }, new Error(code)]) {
+				expect(getVideoErrorKey(error)).toBe(expected);
+			}
+		},
+	);
+	it.each([
+		"CAPACITY",
+		"CONCURRENCY",
+		"BUSY",
+		"UNKNOWN_VIDEO_OWNER_BUSY",
+		"VIDEO_PROVIDER_BUSY_UNKNOWN",
+		"Could not confirm VIDEO_OWNER_BUSY",
+	])("keeps the pending confirmation for ambiguous capacity response %s", (message) => {
+		expect(getVideoFailureRecovery({ message })).toMatchObject({
+			reason: "unavailable",
+			clearQuote: false,
+			refreshCatalog: false,
+		});
+	});
 	it.each(["VIDEO_MODEL_PRICE_EXPIRED", "VIDEO_PRICE_EXPIRED"])(
 		"identifies %s as price unavailable rather than an uncertain request",
 		(code) => {

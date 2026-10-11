@@ -13,10 +13,31 @@ describe("getEditorErrorKey", () => {
 		["TEXT_LANGUAGE_UNSUPPORTED", "textLanguageUnsupported"],
 		["CONTENT_NOT_ALLOWED", "contentNotAllowed"],
 		["CONCURRENT_JOB_LIMIT_REACHED", "concurrentLimit"],
+		["PROVIDER_CONCURRENT_JOB_LIMIT_REACHED", "providerBusy"],
+		["RATE_LIMITED", "rateLimited"],
 		["INPUT_TOO_LARGE", "inputTooLarge"],
 	] as const)("maps %s to safe editor copy", (code, key) => {
 		expect(getEditorErrorKey(new Error(code))).toBe(key);
 	});
+	it.each([
+		["CONCURRENT_JOB_LIMIT_REACHED", "concurrentLimit"],
+		["PROVIDER_CONCURRENT_JOB_LIMIT_REACHED", "providerBusy"],
+		["RATE_LIMITED", "rateLimited"],
+	] as const)(
+		"reads the structured public code %s without relying on the transport message",
+		(code, key) => {
+			expect(
+				getEditorErrorKey({ code: "BAD_REQUEST", message: "Request rejected", data: { code } }),
+			).toBe(key);
+		},
+	);
+
+	it.each([
+		"UNKNOWN_CONCURRENT_JOB_LIMIT_REACHED",
+		"PROVIDER_CONCURRENT_JOB_LIMIT_REACHED_UNKNOWN",
+	])("does not attribute unknown capacity %s to the account", (code) =>
+		expect(getEditorErrorKey(new Error(code))).toBe("safeError"),
+	);
 
 	it("never renders an unknown provider error", () => {
 		expect(getEditorErrorKey(new Error("provider-secret raw response"))).toBe("safeError");

@@ -12,10 +12,20 @@ export type EditorErrorKey =
 	| "contentReviewRequired"
 	| "textLanguageUnsupported"
 	| "concurrentLimit"
+	| "providerBusy"
+	| "rateLimited"
 	| "inputTooLarge"
 	| "safeError";
 
 export function getEditorErrorKey(error: unknown): EditorErrorKey {
+	const value =
+		error && typeof error === "object"
+			? (error as { code?: unknown; message?: unknown; data?: { code?: unknown } })
+			: {};
+	const codes = [value.code, value.data?.code, value.message];
+	if (codes.includes("PROVIDER_CONCURRENT_JOB_LIMIT_REACHED")) return "providerBusy";
+	if (codes.includes("CONCURRENT_JOB_LIMIT_REACHED")) return "concurrentLimit";
+	if (codes.includes("RATE_LIMITED") || codes.includes("TOO_MANY_REQUESTS")) return "rateLimited";
 	const message = error instanceof Error ? error.message : "";
 	if (message.includes("INSUFFICIENT_CREDITS")) return "insufficientCredits";
 	if (message.includes("ENTITLEMENT_REQUIRED")) return "qualityUnavailable";
@@ -29,7 +39,6 @@ export function getEditorErrorKey(error: unknown): EditorErrorKey {
 	if (message.includes("CONTENT_REVIEW_REQUIRED")) return "contentReviewRequired";
 	if (message.includes("TEXT_LANGUAGE_UNSUPPORTED")) return "textLanguageUnsupported";
 	if (message.includes("SAFETY_CHECK_UNAVAILABLE")) return "safetyUnavailable";
-	if (message.includes("CONCURRENT_JOB_LIMIT_REACHED")) return "concurrentLimit";
 	if (message.includes("INPUT_TOO_LARGE")) return "inputTooLarge";
 	return "safeError";
 }

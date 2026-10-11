@@ -45,6 +45,7 @@ vi.mock("@tanstack/react-query", () => ({
 	}),
 }));
 
+import { VideoComposer } from "./VideoComposer";
 import { VideoHistory } from "./VideoHistory";
 import { VideoStateCard } from "./VideoJob";
 import { VideoOutputDetails } from "./VideoOutputDetails";
@@ -69,6 +70,68 @@ function render(stage: VideoState["stage"], canPlay = false) {
 }
 
 describe("truthful video delivery UI", () => {
+	it.each([
+		{ locale: "en", messages: en },
+		{ locale: "de", messages: de },
+		{ locale: "es", messages: es },
+		{ locale: "fr", messages: fr },
+	])("renders scoped capacity and rate-limit notices in $locale", ({ locale, messages }) => {
+		for (const [code, key] of [
+			["VIDEO_OWNER_BUSY", "ownerBusy"],
+			["VIDEO_GLOBAL_BUSY", "globalBusy"],
+			["VIDEO_PROVIDER_BUSY", "providerBusy"],
+			["RATE_LIMITED", "rateLimited"],
+		] as const) {
+			const onError = vi.fn();
+			const markup = renderToStaticMarkup(
+				<NextIntlClientProvider
+					locale={locale}
+					messages={messages}
+					timeZone="UTC"
+					onError={onError}
+				>
+					<VideoComposer
+						draft={initialVideoDraft}
+						upload={{ status: "idle", progress: 0, preview: null, assetId: null, error: null }}
+						models={[]}
+						registered
+						locked={false}
+						uploading={false}
+						ready
+						enabled
+						busy={null}
+						quote={null}
+						previewCredits="23"
+						quoteExpired={false}
+						confirmation={false}
+						error={getVideoErrorKey({ code: "BAD_REQUEST", data: { code } })}
+						jobId={null}
+						maximumBytes={10 * 1024 * 1024}
+						storageUnavailable={false}
+						catalogPending={false}
+						catalogError={false}
+						catalogUnavailable={false}
+						selectionUnavailable={false}
+						onChange={vi.fn()}
+						onGenerate={vi.fn()}
+						onConfirm={vi.fn()}
+						onSignIn={vi.fn()}
+						onRetryCatalog={vi.fn()}
+						onSelectFile={vi.fn()}
+						onRemoveFile={vi.fn()}
+					/>
+				</NextIntlClientProvider>,
+			);
+			const errors = messages.videoV1.errors;
+			expect(errors[key]).toBeTruthy();
+			expect(markup).toContain(renderToStaticMarkup(<>{errors[key]}</>));
+			if (key !== "ownerBusy") {
+				expect(markup).not.toContain(renderToStaticMarkup(<>{errors.ownerBusy}</>));
+			}
+			expect(markup).not.toContain(code);
+			expect(onError).not.toHaveBeenCalled();
+		}
+	});
 	it.each([
 		{ locale: "en", messages: en },
 		{ locale: "de", messages: de },

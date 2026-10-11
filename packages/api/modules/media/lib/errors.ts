@@ -16,6 +16,7 @@ export const MEDIA_ERROR_CODES = [
 	"ENTITLEMENT_REQUIRED",
 	"INPUT_TOO_LARGE",
 	"CONCURRENT_JOB_LIMIT_REACHED",
+	"PROVIDER_CONCURRENT_JOB_LIMIT_REACHED",
 	"CONTENT_NOT_ALLOWED",
 	"CONTENT_REVIEW_REQUIRED",
 	"TEXT_LANGUAGE_UNSUPPORTED",
@@ -67,7 +68,13 @@ export function stableMediaErrorCode(error: unknown): MediaErrorCode {
 	if (/TEXT_MODERATION_(ERROR|CONFIGURATION_ERROR)/.test(message))
 		return "SAFETY_CHECK_UNAVAILABLE";
 	for (const code of MEDIA_ERROR_CODES) {
-		if (message.includes(code)) return code;
+		// Capacity scopes overlap by suffix. Preserve legacy aliases for other errors,
+		// but only a complete admission code may attribute a limit to an owner/provider.
+		const exactAdmissionCode =
+			code === "CONCURRENT_JOB_LIMIT_REACHED" ||
+			code === "PROVIDER_CONCURRENT_JOB_LIMIT_REACHED" ||
+			code === "RATE_LIMITED";
+		if (exactAdmissionCode ? message === code : message.includes(code)) return code;
 	}
 	if (/credit/i.test(message)) return "INSUFFICIENT_CREDITS";
 	if (/asset/i.test(message)) return "ASSET_NOT_READY";

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-11 — Shared image and video credits
+
+- Use the same available account balance, including valid gifted credits, for new ordinary images and videos. Preserve expired-credit, debt, refund, safety and one-time reservation safeguards; separate effect templates retain their funding rules.
+- Distinguish personal task limits, shared platform capacity, provider capacity and request rate limits. Shared-capacity messages no longer suggest that an account with no active tasks must wait for its own task.
+- Preserve the original funding snapshot and reservation for accepted requests. Refresh older unaccepted ordinary-video quotes before using the shared balance.
+
 ## 2026-10-09 — Generation response and account isolation
 
 - Show an accepted image task before history and credit refreshes finish. Keep balances scoped to the signed-in account and ignore stale responses after account or editor changes.

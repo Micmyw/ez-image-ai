@@ -95,7 +95,7 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	vi.mocked(findExistingVideoAdmission).mockResolvedValue(null);
 });
-describe("video admission pricing and paid funding binding", () => {
+describe("video admission pricing and shared credit funding binding", () => {
 	it("rejects a new historical Kling image ratio but replays its accepted receipt before current admission", async () => {
 		const request = {
 			...legacyRequest,
@@ -122,7 +122,7 @@ describe("video admission pricing and paid funding binding", () => {
 	it.each([
 		{ userId: "registered-user", role: "user" },
 		{ userId: "funding-test-operator", role: "admin" },
-	])("retains qualified paid funding for $role in authenticated mode", async (owner) => {
+	])("freezes shared media credit funding for $role in authenticated mode", async (owner) => {
 		const authenticatedEnvironment = {
 			...environment,
 			VIDEO_V1_ACCESS: "authenticated",
@@ -133,7 +133,14 @@ describe("video admission pricing and paid funding binding", () => {
 			}),
 		};
 		const quote = requireVideoAdmission(owner, authenticatedEnvironment, bindings, legacyRequest);
-		expect(quote.price.paidFundingPolicy).toBe(fixtures.price.paidFundingPolicy);
+		expect(quote.price.paidFundingPolicy).toBeUndefined();
+		expect(quote.price.pricingDetails).toMatchObject({
+			funding: { mode: "shared-media-credits-v1" },
+			paidRevenueQualified: false,
+			retailReference: { creditFloorMicros: "21944" },
+		});
+		expect(quote.price.credits).toBe(fixtures.price.credits);
+		expect(fixtures.price.paidFundingPolicy).toEqual({ minimumUsdMicrosPerCredit: 21_944n });
 		await createVideoJob(
 			owner,
 			{ quoteId: "quote", idempotencyKey: "authenticated-request", request: legacyRequest },
@@ -142,12 +149,13 @@ describe("video admission pricing and paid funding binding", () => {
 		expect(createVideoJobRecord).toHaveBeenCalledWith(
 			expect.objectContaining({
 				ownerId: owner.userId,
-				paidFundingPolicy: fixtures.price.paidFundingPolicy,
+				price: quote.price,
+				paidFundingPolicy: undefined,
 			}),
 			expect.anything(),
 		);
 	});
-	it("uses the same explicit operator funding decision for quotation and job creation", async () => {
+	it("uses the same shared funding decision for new ordinary internal quotations and jobs", async () => {
 		const operator = { userId: "funding-test-operator", role: "admin" };
 		const internalEnvironment = {
 			...environment,
@@ -163,7 +171,7 @@ describe("video admission pricing and paid funding binding", () => {
 		expect(quoted.price.credits).toBe(fixtures.price.credits);
 		expect(quoted.price.pricingDetails).toMatchObject({
 			paidRevenueQualified: false,
-			funding: { mode: "operator-funded-internal-v1", authorizedOwnerId: operator.userId },
+			funding: { mode: "shared-media-credits-v1" },
 		});
 		await createVideoJob(
 			operator,
@@ -175,7 +183,7 @@ describe("video admission pricing and paid funding binding", () => {
 			expect.anything(),
 		);
 	});
-	it("does not extend configured ordinary-credit funding to another administrator", () => {
+	it("does not turn a new ordinary administrator quote into an internal funding authorization", () => {
 		const quoted = requireVideoAdmission(
 			{ userId: "another-admin", role: "admin" },
 			{
@@ -190,8 +198,8 @@ describe("video admission pricing and paid funding binding", () => {
 			bindings,
 			legacyRequest,
 		);
-		expect(quoted.price).toBe(fixtures.price);
-		expect(quoted.price.paidFundingPolicy).toBe(fixtures.price.paidFundingPolicy);
+		expect(quoted.price.paidFundingPolicy).toBeUndefined();
+		expect(quoted.price.pricingDetails?.funding).toEqual({ mode: "shared-media-credits-v1" });
 	});
 	it("replays an operator-funded accepted request after the exception has been disabled", async () => {
 		vi.mocked(findExistingVideoAdmission).mockResolvedValue({ id: "job-1" } as never);
@@ -214,7 +222,7 @@ describe("video admission pricing and paid funding binding", () => {
 			const currentEnvironment = { ...environment, VIDEO_MODEL_ALLOWED_OPTIONS: scope };
 			expect(
 				requireVideoAdmission({ userId: "owner" }, currentEnvironment, bindings, request).price,
-			).toBe(fixtures.price);
+			).toMatchObject({ credits: fixtures.price.credits, paidFundingPolicy: undefined });
 			await createVideoJob(
 				{ userId: "owner" },
 				{ quoteId: "quote", idempotencyKey: "request", request },
@@ -222,7 +230,7 @@ describe("video admission pricing and paid funding binding", () => {
 			);
 			expect(resolveVideoModelPrice).toHaveBeenCalledWith(request, currentEnvironment, undefined);
 			expect(createVideoJobRecord).toHaveBeenCalledWith(
-				expect.objectContaining({ request, paidFundingPolicy: fixtures.price.paidFundingPolicy }),
+				expect.objectContaining({ request, paidFundingPolicy: undefined }),
 				expect.anything(),
 			);
 		},
@@ -250,7 +258,7 @@ describe("video admission pricing and paid funding binding", () => {
 			expect(createVideoJobRecord).not.toHaveBeenCalled();
 		},
 	);
-	it("applies current paid funding policy even to a new request using the legacy fixed input shape", async () => {
+	it("applies shared funding to a new request using the legacy fixed input shape", async () => {
 		await createVideoJob(
 			{ userId: "owner" },
 			{ quoteId: "quote", idempotencyKey: "request", request: legacyRequest },
@@ -271,8 +279,11 @@ describe("video admission pricing and paid funding binding", () => {
 		expect(createVideoJobRecord).toHaveBeenCalledWith(
 			expect.objectContaining({
 				request: legacyRequest,
-				price: fixtures.price,
-				paidFundingPolicy: fixtures.price.paidFundingPolicy,
+				price: expect.objectContaining({
+					credits: fixtures.price.credits,
+					pricingDetails: expect.objectContaining({ funding: { mode: "shared-media-credits-v1" } }),
+				}),
+				paidFundingPolicy: undefined,
 				visualSafetyProfile: createVideoVisualSafetyProfile("seeapi", 5),
 				textSafetyProfile: createVideoTextSafetyProfile(),
 				audioSafetyPolicy: createVideoAudioSafetyPolicy(),
@@ -301,7 +312,7 @@ describe("video admission pricing and paid funding binding", () => {
 		expect(createVideoJobRecord).toHaveBeenCalledWith(
 			expect.objectContaining({
 				request,
-				paidFundingPolicy: fixtures.price.paidFundingPolicy,
+				paidFundingPolicy: undefined,
 				visualSafetyProfile: createVideoVisualSafetyProfile("seeapi", request.duration),
 				textSafetyProfile: createVideoTextSafetyProfile(),
 				audioSafetyPolicy: createVideoAudioSafetyPolicy(),
