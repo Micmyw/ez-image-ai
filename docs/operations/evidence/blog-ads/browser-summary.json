@@ -1,0 +1,304 @@
+{
+	"utc": "2026-10-11T03:41:04.969Z",
+	"playwrightVersion": "1.62.1",
+	"browserSandbox": true,
+	"hostData": "none",
+	"clicks": 0,
+	"observations": [
+		{
+			"name": "sandbox-1280",
+			"adRequests": [],
+			"adResponses": [],
+			"failures": [],
+			"console": [],
+			"errors": [],
+			"popups": [],
+			"cookies": [],
+			"layout": {
+				"documentWidth": 1280,
+				"viewportWidth": 1280,
+				"frames": [
+					{
+						"title": "Banner evidence",
+						"sandbox": "allow-scripts",
+						"referrerPolicy": "no-referrer",
+						"bounds": {
+							"width": 728,
+							"height": 90
+						},
+						"visible": true
+					},
+					{
+						"title": "Widget evidence",
+						"sandbox": "allow-scripts",
+						"referrerPolicy": "no-referrer",
+						"bounds": {
+							"width": 900,
+							"height": 500
+						},
+						"visible": true
+					}
+				]
+			},
+			"frameResources": [
+				{
+					"name": "http://127.0.0.1:60174/favicon.ico",
+					"initiatorType": "other",
+					"duration": 1.7000000178813934,
+					"transferSize": 2039,
+					"responseStatus": 200
+				},
+				{
+					"name": "https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js",
+					"initiatorType": "script",
+					"duration": 899.5,
+					"transferSize": 0,
+					"responseStatus": 0
+				},
+				{
+					"name": "https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js",
+					"initiatorType": "script",
+					"duration": 1200.7999999821186,
+					"transferSize": 0,
+					"responseStatus": 0
+				}
+			]
+		},
+		{
+			"name": "csp-1280",
+			"adRequests": [],
+			"adResponses": [],
+			"failures": [],
+			"console": [
+				{
+					"type": "error",
+					"text": "Loading the script 'https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked."
+				},
+				{
+					"type": "error",
+					"text": "Loading the script 'https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked."
+				},
+				{
+					"type": "error",
+					"text": "Loading the script 'https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked."
+				},
+				{
+					"type": "error",
+					"text": "Loading the script 'https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked."
+				}
+			],
+			"errors": [],
+			"popups": [],
+			"cookies": [],
+			"layout": {
+				"documentWidth": 1280,
+				"viewportWidth": 1280,
+				"frames": [
+					{
+						"title": "Banner evidence",
+						"sandbox": "allow-scripts",
+						"referrerPolicy": "no-referrer",
+						"bounds": {
+							"width": 728,
+							"height": 90
+						},
+						"visible": true
+					},
+					{
+						"title": "Widget evidence",
+						"sandbox": "allow-scripts",
+						"referrerPolicy": "no-referrer",
+						"bounds": {
+							"width": 900,
+							"height": 500
+						},
+						"visible": true
+					}
+				]
+			},
+			"frameResources": [
+				{
+					"name": "http://127.0.0.1:60174/favicon.ico",
+					"initiatorType": "other",
+					"duration": 1.7999999821186066,
+					"transferSize": 2039,
+					"responseStatus": 200
+				},
+				{
+					"name": "https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js",
+					"initiatorType": "script",
+					"duration": 0,
+					"transferSize": 0,
+					"responseStatus": 0
+				},
+				{
+					"name": "https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js",
+					"initiatorType": "script",
+					"duration": 0,
+					"transferSize": 0,
+					"responseStatus": 0
+				},
+				{
+					"name": "https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js",
+					"initiatorType": "script",
+					"duration": 0,
+					"transferSize": 0,
+					"responseStatus": 0
+				},
+				{
+					"name": "https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js",
+					"initiatorType": "script",
+					"duration": 0,
+					"transferSize": 0,
+					"responseStatus": 0
+				}
+			]
+		},
+		{
+			"name": "sandbox-390",
+			"adRequests": [],
+			"adResponses": [],
+			"failures": [],
+			"console": [],
+			"errors": [],
+			"popups": [],
+			"cookies": [],
+			"layout": {
+				"documentWidth": 390,
+				"viewportWidth": 390,
+				"frames": [
+					{
+						"title": "Banner evidence",
+						"sandbox": "allow-scripts",
+						"referrerPolicy": "no-referrer",
+						"bounds": {
+							"width": 0,
+							"height": 0
+						},
+						"visible": false
+					},
+					{
+						"title": "Widget evidence",
+						"sandbox": "allow-scripts",
+						"referrerPolicy": "no-referrer",
+						"bounds": {
+							"width": 350,
+							"height": 500
+						},
+						"visible": true
+					}
+				]
+			},
+			"frameResources": [
+				{
+					"name": "http://127.0.0.1:60174/favicon.ico",
+					"initiatorType": "other",
+					"duration": 2.300000011920929,
+					"transferSize": 2039,
+					"responseStatus": 200
+				},
+				{
+					"name": "https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js",
+					"initiatorType": "script",
+					"duration": 931.4000000059605,
+					"transferSize": 0,
+					"responseStatus": 0
+				},
+				{
+					"name": "https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js",
+					"initiatorType": "script",
+					"duration": 899.6000000238419,
+					"transferSize": 0,
+					"responseStatus": 0
+				}
+			]
+		},
+		{
+			"name": "csp-390",
+			"adRequests": [],
+			"adResponses": [],
+			"failures": [],
+			"console": [
+				{
+					"type": "error",
+					"text": "Loading the script 'https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked."
+				},
+				{
+					"type": "error",
+					"text": "Loading the script 'https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked."
+				},
+				{
+					"type": "error",
+					"text": "Loading the script 'https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked."
+				}
+			],
+			"errors": [],
+			"popups": [],
+			"cookies": [],
+			"layout": {
+				"documentWidth": 390,
+				"viewportWidth": 390,
+				"frames": [
+					{
+						"title": "Banner evidence",
+						"sandbox": "allow-scripts",
+						"referrerPolicy": "no-referrer",
+						"bounds": {
+							"width": 0,
+							"height": 0
+						},
+						"visible": false
+					},
+					{
+						"title": "Widget evidence",
+						"sandbox": "allow-scripts",
+						"referrerPolicy": "no-referrer",
+						"bounds": {
+							"width": 350,
+							"height": 500
+						},
+						"visible": true
+					}
+				]
+			},
+			"frameResources": [
+				{
+					"name": "http://127.0.0.1:60174/favicon.ico",
+					"initiatorType": "other",
+					"duration": 1.7999999821186066,
+					"transferSize": 2039,
+					"responseStatus": 200
+				},
+				{
+					"name": "https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js",
+					"initiatorType": "script",
+					"duration": 0,
+					"transferSize": 0,
+					"responseStatus": 0
+				},
+				{
+					"name": "https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js",
+					"initiatorType": "script",
+					"duration": 0,
+					"transferSize": 0,
+					"responseStatus": 0
+				},
+				{
+					"name": "https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js",
+					"initiatorType": "script",
+					"duration": 0,
+					"transferSize": 0,
+					"responseStatus": 0
+				},
+				{
+					"name": "https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js",
+					"initiatorType": "script",
+					"duration": 0,
+					"transferSize": 0,
+					"responseStatus": 0
+				}
+			]
+		}
+	],
+	"requestCaptureLimit": "Opaque srcdoc subresources did not appear in request/response event capture; per-frame performance resources retain URL evidence. Their cross-origin responseStatus=0 does not establish an HTTP status."
+}

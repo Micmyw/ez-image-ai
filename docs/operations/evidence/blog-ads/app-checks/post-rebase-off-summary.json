@@ -1,0 +1,207 @@
+{
+	"head": "7b52cd543b653ebbfa3f1c89cb89683d086215f1",
+	"integratedMain": "41c0855726012efbd4054a7e1fac95c4ea5caed9",
+	"sourceReport": "output/playwright/blog-ads/post-rebase-off/report.json",
+	"flags": {
+		"enabled": false,
+		"nativeEnabled": false
+	},
+	"chromiumSandbox": true,
+	"originalResponseCspPreserved": true,
+	"startTime": "2026-10-11T04:47:24.685Z",
+	"duration": 159751.154,
+	"expected": 13,
+	"skipped": 3,
+	"unexpected": 0,
+	"flaky": 0,
+	"tests": [
+		{
+			"title": "direct / never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 21522,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"dataDocumentsReachingSafetyInterceptor": 0,
+				"popups": 0,
+				"remainingAdFrameCount": 0,
+				"clearanceCheckpoints": 1,
+				"mainFrameNavigationEvents": 1,
+				"nativeEnforcedFramePolicyIssues": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"ownedErrorFramesWithMatchingSource": 0
+			}
+		},
+		{
+			"title": "direct /create never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 8458,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"dataDocumentsReachingSafetyInterceptor": 0,
+				"popups": 0,
+				"remainingAdFrameCount": 0,
+				"clearanceCheckpoints": 1,
+				"mainFrameNavigationEvents": 1,
+				"nativeEnforcedFramePolicyIssues": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"ownedErrorFramesWithMatchingSource": 0
+			}
+		},
+		{
+			"title": "direct /login never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 1870,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"dataDocumentsReachingSafetyInterceptor": 0,
+				"popups": 0,
+				"remainingAdFrameCount": 0,
+				"clearanceCheckpoints": 1,
+				"mainFrameNavigationEvents": 2,
+				"nativeEnforcedFramePolicyIssues": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"ownedErrorFramesWithMatchingSource": 0
+			}
+		},
+		{
+			"title": "direct /pricing never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 24989,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"dataDocumentsReachingSafetyInterceptor": 0,
+				"popups": 0,
+				"remainingAdFrameCount": 0,
+				"clearanceCheckpoints": 1,
+				"mainFrameNavigationEvents": 1,
+				"nativeEnforcedFramePolicyIssues": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"ownedErrorFramesWithMatchingSource": 0
+			}
+		},
+		{
+			"title": "direct /blog never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 13893,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"dataDocumentsReachingSafetyInterceptor": 0,
+				"popups": 0,
+				"remainingAdFrameCount": 0,
+				"clearanceCheckpoints": 1,
+				"mainFrameNavigationEvents": 2,
+				"nativeEnforcedFramePolicyIssues": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"ownedErrorFramesWithMatchingSource": 0
+			}
+		},
+		{
+			"title": "direct /blog/1980s-ai-photo never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 15843,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"dataDocumentsReachingSafetyInterceptor": 0,
+				"popups": 0,
+				"remainingAdFrameCount": 0,
+				"clearanceCheckpoints": 1,
+				"mainFrameNavigationEvents": 1,
+				"nativeEnforcedFramePolicyIssues": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"ownedErrorFramesWithMatchingSource": 0
+			}
+		},
+		{
+			"title": "direct /blog/raindance-ai-trend never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 1914,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"dataDocumentsReachingSafetyInterceptor": 0,
+				"popups": 0,
+				"remainingAdFrameCount": 0,
+				"clearanceCheckpoints": 1,
+				"mainFrameNavigationEvents": 2,
+				"nativeEnforcedFramePolicyIssues": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"ownedErrorFramesWithMatchingSource": 0
+			}
+		},
+		{
+			"title": "the server kill switch leaves the article free of ad containers",
+			"status": "passed",
+			"durationMs": 1684,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"dataDocumentsReachingSafetyInterceptor": 0,
+				"popups": 0,
+				"remainingAdFrameCount": 0,
+				"clearanceCheckpoints": 1,
+				"mainFrameNavigationEvents": 2,
+				"nativeEnforcedFramePolicyIssues": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"ownedErrorFramesWithMatchingSource": 0
+			}
+		},
+		{
+			"title": "consent alone does not load ads and explicit opt-in remains blocked by the app CSP",
+			"status": "skipped",
+			"durationMs": 202
+		},
+		{
+			"title": "article to product SPA navigation, back, forward and repeated opt-ins leave no ad contexts",
+			"status": "passed",
+			"durationMs": 15140,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"dataDocumentsReachingSafetyInterceptor": 0,
+				"popups": 0,
+				"remainingAdFrameCount": 0,
+				"clearanceCheckpoints": 14,
+				"mainFrameNavigationEvents": 24,
+				"nativeEnforcedFramePolicyIssues": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"ownedErrorFramesWithMatchingSource": 0
+			}
+		},
+		{
+			"title": "the 728px banner never mounts or overflows at 390px",
+			"status": "skipped",
+			"durationMs": 235
+		},
+		{
+			"title": "the 728px banner never mounts or overflows at 320px",
+			"status": "skipped",
+			"durationMs": 202
+		},
+		{
+			"title": "publishes one canonical article with metadata, factual boundaries and an official source",
+			"status": "passed",
+			"durationMs": 20129
+		},
+		{
+			"title": "AI News filters populated articles and its query URL follows the existing noindex rule",
+			"status": "passed",
+			"durationMs": 6539
+		},
+		{
+			"title": "both supplied script documents cannot read host addresses, DOM, cookies, storage or navigate",
+			"status": "passed",
+			"durationMs": 582
+		},
+		{
+			"title": "destroying a context stops its timer and repeated mounts keep one mobile native card",
+			"status": "passed",
+			"durationMs": 669
+		}
+	]
+}

@@ -1,5 +1,13 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-10-11",
+		title: "AI news in the Blog",
+		changes: [
+			"Find AI News alongside our image-editing guides. The Tesco meal-planner report separates confirmed rollout dates from unverified access details and personalised offers.",
+			"Reports include their original sources and the date those sources were checked.",
+		],
+	},
+	{
 		date: "2026-10-08",
 		title: "Longer Hotel Lobby and Raindance videos",
 		changes: [

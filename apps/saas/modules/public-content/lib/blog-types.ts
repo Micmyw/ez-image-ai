@@ -1,11 +1,17 @@
-export const BLOG_CATEGORIES = ["photo-ideas", "prompt-writing", "privacy-workflow"] as const;
+export const BLOG_CATEGORIES = [
+	"photo-ideas",
+	"prompt-writing",
+	"privacy-workflow",
+	"ai-news",
+] as const;
 export type BlogCategoryId = (typeof BLOG_CATEGORIES)[number];
 export type BlogArticleType =
 	| "photo-ideas"
 	| "guides"
 	| "prompt-guides"
 	| "troubleshooting"
-	| "comparisons";
+	| "comparisons"
+	| "news";
 
 export const BLOG_EDITORIAL_TEAM = {
 	id: "ezimageai-editorial",

@@ -31,6 +31,7 @@ describe("Blog publication and editorial relationships", () => {
 			"ai-image-editing-prompts",
 			"private-image-editing-workflow",
 			"raindance-ai-trend",
+			"tesco-ai-meal-planning-assistant",
 		]);
 		expect(getBlogPostBySlug("ai-image-editing-prompts", "fr")?.publishedAt).toBe("2026-09-12");
 		expect(getBlogPostBySlug("private-image-editing-workflow", "en")?.publishedAt).toBe(

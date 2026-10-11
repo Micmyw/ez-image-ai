@@ -1,0 +1,50 @@
+[
+	{
+		"name": "banner",
+		"url": "https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js",
+		"utc": "2026-10-11T03:41:02.895Z",
+		"status": 200,
+		"headers": {
+			"server": "nginx/1.28.2",
+			"date": "Sun, 11 Oct 2026 03:41:03 GMT",
+			"content-type": "application/javascript",
+			"content-length": "0",
+			"connection": "keep-alive",
+			"accept-ch": "User-Agent,Sec-Ch-Ua,Sec-Ch-Ua-Full-Version-List,Sec-Ch-Ua-Full-Version,Sec-Ch-Ua-Platform,Sec-Ch-Ua-Model,Sec-Ch-Ua-Mobile,Device-Stock-Ua,X-Device-User-Agent,X-Operamini-Phone-Ua,Sec-Ch-Ua-Platform-Version,Sec-Ch-Ua-Platformuser-Agent,X-Ucbrowser-Device-Ua",
+			"access-control-allow-origin": "*",
+			"vary": "Accept-Encoding",
+			"x-envoy-upstream-service-time": "5",
+			"host": "www.highrevenueformat.com",
+			"expires": "Thu, 01 Jan 1970 00:00:01 GMT",
+			"cache-control": "no-cache, max-age=0, private, no-cache",
+			"x-request-id": "86dee9165863754e7be663ee506b4890",
+			"pragma": "no-cache",
+			"strict-transport-security": "max-age=0; includeSubdomains"
+		},
+		"bytes": 0
+	},
+	{
+		"name": "widget",
+		"url": "https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js",
+		"utc": "2026-10-11T03:41:04.370Z",
+		"status": 200,
+		"headers": {
+			"server": "nginx/1.28.2",
+			"date": "Sun, 11 Oct 2026 03:41:05 GMT",
+			"content-type": "application/javascript",
+			"content-length": "0",
+			"connection": "keep-alive",
+			"accept-ch": "Sec-Ch-Ua-Model,Sec-Ch-Ua-Mobile,X-Device-User-Agent,X-Operamini-Phone-Ua,X-Ucbrowser-Device-Ua,User-Agent,Sec-Ch-Ua-Platform-Version,Sec-Ch-Ua-Full-Version-List,Sec-Ch-Ua-Platform,Device-Stock-Ua,Sec-Ch-Ua,Sec-Ch-Ua-Platformuser-Agent,Sec-Ch-Ua-Full-Version",
+			"access-control-allow-origin": "*",
+			"vary": "Accept-Encoding",
+			"x-envoy-upstream-service-time": "4",
+			"host": "pl31768149.profitableratecpmnetwork.com",
+			"expires": "Thu, 01 Jan 1970 00:00:01 GMT",
+			"cache-control": "no-cache, max-age=0, private, no-cache",
+			"x-request-id": "6959b5bdc8faa86452da3fc427f11ab6",
+			"pragma": "no-cache",
+			"strict-transport-security": "max-age=0; includeSubdomains"
+		},
+		"bytes": 0
+	}
+]

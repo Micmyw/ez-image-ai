@@ -1,0 +1,1515 @@
+{
+	"head": "7b52cd543b653ebbfa3f1c89cb89683d086215f1",
+	"integratedMain": "41c0855726012efbd4054a7e1fac95c4ea5caed9",
+	"boundary": "Real application with unchanged CSP. Parent frame-src only Cloudflare rejects the entire static data document. DOM/CSP audit URL fields are redacted; native frame unreachableUrl and exact owner/src association identify the rejected ad documents. Error documents are not supplier creative rendering. Request interception is a safety guard, not CSP proof. Main-frame path events can duplicate notifications and are not user action counts.",
+	"evidence": [
+		{
+			"round": "post-rebase-off",
+			"title": "direct / never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/"],
+			"clearanceChecks": [
+				{
+					"path": "/",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": false,
+			"nativeEnabled": false,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-off",
+			"title": "direct /create never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/create"],
+			"clearanceChecks": [
+				{
+					"path": "/create",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": false,
+			"nativeEnabled": false,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-off",
+			"title": "direct /login never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/login", "/login"],
+			"clearanceChecks": [
+				{
+					"path": "/login",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": false,
+			"nativeEnabled": false,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-off",
+			"title": "direct /pricing never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/pricing"],
+			"clearanceChecks": [
+				{
+					"path": "/pricing",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": false,
+			"nativeEnabled": false,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-off",
+			"title": "direct /blog never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/blog", "/blog"],
+			"clearanceChecks": [
+				{
+					"path": "/blog",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": false,
+			"nativeEnabled": false,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-off",
+			"title": "direct /blog/1980s-ai-photo never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/blog/1980s-ai-photo"],
+			"clearanceChecks": [
+				{
+					"path": "/blog/1980s-ai-photo",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": false,
+			"nativeEnabled": false,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-off",
+			"title": "direct /blog/raindance-ai-trend never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/blog/raindance-ai-trend", "/blog/raindance-ai-trend"],
+			"clearanceChecks": [
+				{
+					"path": "/blog/raindance-ai-trend",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": false,
+			"nativeEnabled": false,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-off",
+			"title": "the server kill switch leaves the article free of ad containers",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": [
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant"
+			],
+			"clearanceChecks": [
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": false,
+			"nativeEnabled": false,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-off",
+			"title": "article to product SPA navigation, back, forward and repeated opt-ins leave no ad contexts",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": [
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/",
+				"/",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog",
+				"/blog/private-image-editing-workflow",
+				"/blog",
+				"/blog",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog",
+				"/blog",
+				"/blog/private-image-editing-workflow",
+				"/blog/private-image-editing-workflow",
+				"/",
+				"/",
+				"/blog/private-image-editing-workflow"
+			],
+			"clearanceChecks": [
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/private-image-editing-workflow",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/private-image-editing-workflow",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/private-image-editing-workflow",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": false,
+			"nativeEnabled": false,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "direct / never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/"],
+			"clearanceChecks": [
+				{
+					"path": "/",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": true,
+			"nativeEnabled": true,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "direct /create never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/create"],
+			"clearanceChecks": [
+				{
+					"path": "/create",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": true,
+			"nativeEnabled": true,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "direct /login never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/login", "/login"],
+			"clearanceChecks": [
+				{
+					"path": "/login",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": true,
+			"nativeEnabled": true,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "direct /pricing never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/pricing"],
+			"clearanceChecks": [
+				{
+					"path": "/pricing",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": true,
+			"nativeEnabled": true,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "direct /blog never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/blog", "/blog"],
+			"clearanceChecks": [
+				{
+					"path": "/blog",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": true,
+			"nativeEnabled": true,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "direct /blog/1980s-ai-photo never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/blog/1980s-ai-photo"],
+			"clearanceChecks": [
+				{
+					"path": "/blog/1980s-ai-photo",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": true,
+			"nativeEnabled": true,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "direct /blog/raindance-ai-trend never creates ad contexts or requests",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [],
+			"failedDataFrames": [],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [],
+			"mainFrameNavigations": ["/blog/raindance-ai-trend", "/blog/raindance-ai-trend"],
+			"clearanceChecks": [
+				{
+					"path": "/blog/raindance-ai-trend",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": true,
+			"nativeEnabled": true,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "consent alone does not load ads and explicit opt-in remains blocked by the app CSP",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				}
+			],
+			"failedDataFrames": [
+				{
+					"frameId": "10B10C7BA45E071AACF1BA7EF8E54583",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "banner",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "657E47BA2A8FDC399069FC9702A750BA",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "native",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				}
+			],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [
+				{
+					"format": "banner",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "native",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 736,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "banner",
+					"phase": "after-parent-csp-confirmed",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "native",
+					"phase": "after-parent-csp-confirmed",
+					"geometry": {
+						"width": 736,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				}
+			],
+			"mainFrameNavigations": [
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant"
+			],
+			"clearanceChecks": [
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [
+				{
+					"blockedURI": "",
+					"directive": "frame-src",
+					"disposition": "enforce",
+					"originalPolicy": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com 'unsafe-eval'; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https: http://127.0.0.1:9000; media-src 'self' blob: https:; font-src 'self' data:; connect-src 'self' https: http://127.0.0.1:9000 ws:; worker-src 'self' blob:"
+				},
+				{
+					"blockedURI": "",
+					"directive": "frame-src",
+					"disposition": "enforce",
+					"originalPolicy": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com 'unsafe-eval'; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https: http://127.0.0.1:9000; media-src 'self' blob: https:; font-src 'self' data:; connect-src 'self' https: http://127.0.0.1:9000 ws:; worker-src 'self' blob:"
+				}
+			],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": true,
+			"nativeEnabled": true,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "article to product SPA navigation, back, forward and repeated opt-ins leave no ad contexts",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				},
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				}
+			],
+			"failedDataFrames": [
+				{
+					"frameId": "CD05F15498F0B061A219C54483153F06",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "banner",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "BD469151BD21F48EABCBBCBDC6CB5763",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "native",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "1FB84D0F5C8144104DBF467FD36FDB23",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "banner",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "92B2EFF2CEFC36E9D465F0D861EB822D",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "native",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "4BFCBC570311A01CFEA6BD57B167CF2F",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "banner",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "3EF909FA6CCBAD526C55D6566722EC8A",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "native",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "D7A7600EF7BE740DF339E99C59A2EAB0",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "banner",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "CD05AE0CE6753BADEBF235906473CF54",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "native",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "92E3C0EB60977717B0375B5DC1121011",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "banner",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "F557F31E47F6159EAE1B1906056F04F9",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "native",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "C7486CB7F00633A6525E1C064314A36F",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "banner",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "1C0B6628FE99A0CF7C787AA3CD1BD1BA",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "native",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "068973E5440A14F327711455008EABDB",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "banner",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1095,
+						"sha256": "b876080534145b2f2d6b00799a9aa266f3569f6123e2b02ee8e873b320b8ee37"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				},
+				{
+					"frameId": "2526B160B962704041D4616534CBEF75",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "native",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				}
+			],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [
+				{
+					"format": "banner",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "native",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 736,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "banner",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "native",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 736,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "banner",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "native",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 736,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "banner",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "native",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 736,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "banner",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "native",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 736,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "banner",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "native",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 736,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "banner",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 728,
+						"height": 90
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				},
+				{
+					"format": "native",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 736,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				}
+			],
+			"mainFrameNavigations": [
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/",
+				"/",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog",
+				"/blog/private-image-editing-workflow",
+				"/blog",
+				"/blog",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog",
+				"/blog",
+				"/blog/private-image-editing-workflow",
+				"/blog/private-image-editing-workflow",
+				"/",
+				"/",
+				"/blog/private-image-editing-workflow"
+			],
+			"clearanceChecks": [
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/private-image-editing-workflow",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/tesco-ai-meal-planning-assistant",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/private-image-editing-workflow",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				},
+				{
+					"path": "/blog/private-image-editing-workflow",
+					"adFrameCount": 0,
+					"observedPopupCount": 0
+				}
+			],
+			"popups": 0,
+			"violations": [],
+			"remainingAdFrameCount": 0,
+			"adsEnabled": true,
+			"nativeEnabled": true,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "the 728px banner never mounts or overflows at 390px",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				}
+			],
+			"failedDataFrames": [
+				{
+					"frameId": "67BCA98A2EF764B36DC30DAB0F473535",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "native",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				}
+			],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [
+				{
+					"format": "native",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 342,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				}
+			],
+			"mainFrameNavigations": [
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant"
+			],
+			"clearanceChecks": [],
+			"popups": 0,
+			"violations": [
+				{
+					"blockedURI": "",
+					"directive": "frame-src",
+					"disposition": "enforce",
+					"originalPolicy": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com 'unsafe-eval'; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https: http://127.0.0.1:9000; media-src 'self' blob: https:; font-src 'self' data:; connect-src 'self' https: http://127.0.0.1:9000 ws:; worker-src 'self' blob:"
+				}
+			],
+			"remainingAdFrameCount": 1,
+			"adsEnabled": true,
+			"nativeEnabled": true,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "the 728px banner never mounts or overflows at 320px",
+			"status": "passed",
+			"adRequests": [],
+			"adNetworkAttempts": [],
+			"adRequestFailures": [],
+			"cspConsole": [],
+			"cspAudits": [
+				{
+					"blockedURL": "",
+					"directive": "frame-src",
+					"isReportOnly": false,
+					"violationType": "kURLViolation"
+				}
+			],
+			"failedDataFrames": [
+				{
+					"frameId": "0A42EF0DDB0C3D17C3D9940F0D382973",
+					"url": "chrome-error://chromewebdata/",
+					"ownerNodeName": "IFRAME",
+					"ownerAdFormat": "native",
+					"unreachableDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceDocument": {
+						"scheme": "data",
+						"length": 1081,
+						"sha256": "0c95bdd134982ed92f2465c49f8ff63089b91834f50a7b34cf0f4d88bc61805e"
+					},
+					"ownerSourceEqualsUnreachableUrl": true
+				}
+			],
+			"dataDocumentsReachingSafetyInterceptor": [],
+			"frameObservations": [
+				{
+					"format": "native",
+					"phase": "after-mount",
+					"geometry": {
+						"width": 272,
+						"height": 320
+					},
+					"document": {
+						"baseURI": "chrome-error://chromewebdata/",
+						"url": "chrome-error://chromewebdata/",
+						"referrer": ""
+					},
+					"violations": [],
+					"resources": []
+				}
+			],
+			"mainFrameNavigations": [
+				"/blog/tesco-ai-meal-planning-assistant",
+				"/blog/tesco-ai-meal-planning-assistant"
+			],
+			"clearanceChecks": [],
+			"popups": 0,
+			"violations": [
+				{
+					"blockedURI": "",
+					"directive": "frame-src",
+					"disposition": "enforce",
+					"originalPolicy": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com 'unsafe-eval'; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https: http://127.0.0.1:9000; media-src 'self' blob: https:; font-src 'self' data:; connect-src 'self' https: http://127.0.0.1:9000 ws:; worker-src 'self' blob:"
+				}
+			],
+			"remainingAdFrameCount": 1,
+			"adsEnabled": true,
+			"nativeEnabled": true,
+			"observationBoundary": "Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+			"cspConsoleMessageCount": 0
+		}
+	]
+}

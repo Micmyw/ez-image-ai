@@ -1,0 +1,57 @@
+{
+	"sourceReport": "output/playwright/blog-ads/off-data-transport/report.json",
+	"flags": {
+		"enabled": false,
+		"nativeEnabled": false
+	},
+	"chromiumSandbox": true,
+	"originalApplicationCspPreserved": true,
+	"startTime": "2026-10-11T04:35:05.854Z",
+	"duration": 93677.112,
+	"expected": 4,
+	"skipped": 0,
+	"unexpected": 1,
+	"flaky": 0,
+	"boundary": "Targeted default-off, article SEO and static data sandbox canary regression after transport fix. The separate canaries use harmless inline code, no parent application CSP and no real advertising scripts.",
+	"tests": [
+		{
+			"title": "the server kill switch leaves the article free of ad containers",
+			"status": "passed",
+			"durationMs": 19364,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"providerRequestFailures": 0,
+				"observedPopups": 0,
+				"mainFrameNavigationEvents": 2,
+				"clearanceCheckpoints": 1,
+				"remainingAdFrameCount": 0,
+				"frameObservations": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"nativeEnforcedFramePolicyIssues": 0,
+				"dataDocumentsReachingSafetyInterceptor": 0,
+				"ownedErrorFramesWithMatchingSource": 0
+			}
+		},
+		{
+			"title": "publishes one canonical article with metadata, factual boundaries and an official source",
+			"status": "timedOut",
+			"durationMs": 30817
+		},
+		{
+			"title": "AI News filters populated articles and its query URL follows the existing noindex rule",
+			"status": "passed",
+			"durationMs": 18968
+		},
+		{
+			"title": "both supplied script documents cannot read host addresses, DOM, cookies, storage or navigate",
+			"status": "passed",
+			"durationMs": 569
+		},
+		{
+			"title": "destroying a context stops its timer and repeated mounts keep one mobile native card",
+			"status": "passed",
+			"durationMs": 663
+		}
+	]
+}

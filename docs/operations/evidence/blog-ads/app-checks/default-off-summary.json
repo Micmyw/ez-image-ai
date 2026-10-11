@@ -1,0 +1,224 @@
+{
+	"sourceReport": "output/playwright/blog-ads/off-final/report.json",
+	"flags": {
+		"enabled": false,
+		"nativeEnabled": false
+	},
+	"chromiumSandbox": true,
+	"originalApplicationCspPreserved": true,
+	"startTime": "2026-10-11T04:08:52.825Z",
+	"duration": 155504.087,
+	"expected": 13,
+	"skipped": 3,
+	"unexpected": 0,
+	"flaky": 0,
+	"boundary": "Complete default-off app verification before transport changed; no app advertisement frame mounted. The old standalone srcdoc fixtures in this report do not validate the fixed data document privacy boundary.",
+	"tests": [
+		{
+			"title": "direct / never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 25317,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"providerRequestFailures": 0,
+				"observedPopups": 0,
+				"mainFrameNavigationEvents": 1,
+				"clearanceCheckpoints": null,
+				"remainingAdFrameCount": null,
+				"frameObservations": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"nativeEnforcedFramePolicyIssues": null,
+				"dataDocumentsReachingSafetyInterceptor": null,
+				"ownedErrorFramesWithMatchingSource": null
+			}
+		},
+		{
+			"title": "direct /create never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 8648,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"providerRequestFailures": 0,
+				"observedPopups": 0,
+				"mainFrameNavigationEvents": 1,
+				"clearanceCheckpoints": null,
+				"remainingAdFrameCount": null,
+				"frameObservations": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"nativeEnforcedFramePolicyIssues": null,
+				"dataDocumentsReachingSafetyInterceptor": null,
+				"ownedErrorFramesWithMatchingSource": null
+			}
+		},
+		{
+			"title": "direct /login never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 1865,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"providerRequestFailures": 0,
+				"observedPopups": 0,
+				"mainFrameNavigationEvents": 2,
+				"clearanceCheckpoints": null,
+				"remainingAdFrameCount": null,
+				"frameObservations": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"nativeEnforcedFramePolicyIssues": null,
+				"dataDocumentsReachingSafetyInterceptor": null,
+				"ownedErrorFramesWithMatchingSource": null
+			}
+		},
+		{
+			"title": "direct /pricing never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 21947,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"providerRequestFailures": 0,
+				"observedPopups": 0,
+				"mainFrameNavigationEvents": 1,
+				"clearanceCheckpoints": null,
+				"remainingAdFrameCount": null,
+				"frameObservations": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"nativeEnforcedFramePolicyIssues": null,
+				"dataDocumentsReachingSafetyInterceptor": null,
+				"ownedErrorFramesWithMatchingSource": null
+			}
+		},
+		{
+			"title": "direct /blog never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 11121,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"providerRequestFailures": 0,
+				"observedPopups": 0,
+				"mainFrameNavigationEvents": 1,
+				"clearanceCheckpoints": null,
+				"remainingAdFrameCount": null,
+				"frameObservations": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"nativeEnforcedFramePolicyIssues": null,
+				"dataDocumentsReachingSafetyInterceptor": null,
+				"ownedErrorFramesWithMatchingSource": null
+			}
+		},
+		{
+			"title": "direct /blog/1980s-ai-photo never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 19230,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"providerRequestFailures": 0,
+				"observedPopups": 0,
+				"mainFrameNavigationEvents": 1,
+				"clearanceCheckpoints": null,
+				"remainingAdFrameCount": null,
+				"frameObservations": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"nativeEnforcedFramePolicyIssues": null,
+				"dataDocumentsReachingSafetyInterceptor": null,
+				"ownedErrorFramesWithMatchingSource": null
+			}
+		},
+		{
+			"title": "direct /blog/raindance-ai-trend never creates ad contexts or requests",
+			"status": "passed",
+			"durationMs": 1812,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"providerRequestFailures": 0,
+				"observedPopups": 0,
+				"mainFrameNavigationEvents": 2,
+				"clearanceCheckpoints": null,
+				"remainingAdFrameCount": null,
+				"frameObservations": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"nativeEnforcedFramePolicyIssues": null,
+				"dataDocumentsReachingSafetyInterceptor": null,
+				"ownedErrorFramesWithMatchingSource": null
+			}
+		},
+		{
+			"title": "the server kill switch leaves the article free of ad containers",
+			"status": "passed",
+			"durationMs": 2807,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"providerRequestFailures": 0,
+				"observedPopups": 0,
+				"mainFrameNavigationEvents": 2,
+				"clearanceCheckpoints": null,
+				"remainingAdFrameCount": null,
+				"frameObservations": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"nativeEnforcedFramePolicyIssues": null,
+				"dataDocumentsReachingSafetyInterceptor": null,
+				"ownedErrorFramesWithMatchingSource": null
+			}
+		},
+		{
+			"title": "consent alone does not load ads and explicit opt-in remains blocked by the app CSP",
+			"status": "skipped",
+			"durationMs": 192
+		},
+		{
+			"title": "article to product SPA navigation, back, forward and repeated opt-ins leave no ad contexts",
+			"status": "passed",
+			"durationMs": 9249,
+			"app": {
+				"providerRequestEvents": 0,
+				"providerAttemptsReachingSafetyInterceptor": 0,
+				"providerRequestFailures": 0,
+				"observedPopups": 0,
+				"mainFrameNavigationEvents": 24,
+				"clearanceCheckpoints": null,
+				"remainingAdFrameCount": null,
+				"frameObservations": 0,
+				"parentEnforcedFramePolicyViolations": 0,
+				"nativeEnforcedFramePolicyIssues": null,
+				"dataDocumentsReachingSafetyInterceptor": null,
+				"ownedErrorFramesWithMatchingSource": null
+			}
+		},
+		{
+			"title": "the 728px banner never mounts or overflows at 390px",
+			"status": "skipped",
+			"durationMs": 197
+		},
+		{
+			"title": "the 728px banner never mounts or overflows at 320px",
+			"status": "skipped",
+			"durationMs": 217
+		},
+		{
+			"title": "publishes one canonical article with metadata, factual boundaries and an official source",
+			"status": "passed",
+			"durationMs": 16993
+		},
+		{
+			"title": "AI News filters populated articles and its query URL follows the existing noindex rule",
+			"status": "passed",
+			"durationMs": 6215
+		},
+		{
+			"title": "both supplied script documents cannot reach host DOM, cookies, storage, popups or top navigation",
+			"status": "passed",
+			"durationMs": 544
+		},
+		{
+			"title": "destroying a context stops its timer and repeated mounts keep one mobile native card",
+			"status": "passed",
+			"durationMs": 694
+		}
+	]
+}

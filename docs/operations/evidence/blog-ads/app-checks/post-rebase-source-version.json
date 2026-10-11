@@ -1,0 +1,32 @@
+{
+	"head": "7b52cd543b653ebbfa3f1c89cb89683d086215f1",
+	"integratedMain": "41c0855726012efbd4054a7e1fac95c4ea5caed9",
+	"capturedAt": "2026-10-11T04:47:48.245Z",
+	"files": [
+		{
+			"path": "apps/saas/tests/blog-ads.public-routes.spec.ts",
+			"sha256": "f4c47e66a8883331bdb8d9e629e28f7f105d79cf20212975e325472339e8d01d"
+		},
+		{
+			"path": "apps/saas/modules/public-content/lib/blog-ads.ts",
+			"sha256": "b4ce628595d6a478ae488d6956cfdac2ea4ceb42498bf848d8563c9c8c4af770"
+		},
+		{
+			"path": "apps/saas/modules/public-content/components/BlogAds.tsx",
+			"sha256": "42ac443d43f39c12468d73a6fdae7ca697eef4e82c5cf296d2b0ae90666b79f4"
+		},
+		{
+			"path": "apps/saas/content/posts/tesco-ai-meal-planning-assistant.ts",
+			"sha256": "4dd910f2a22436a340bdabd04cd4604769efbaa160ee9cd55bedc063942cd4ed"
+		}
+	],
+	"sourceHashesUnchangedAfterBothRounds": true,
+	"parentVerifiedBeforeBrowserRuns": {
+		"focusedUnitFiles": 8,
+		"focusedUnitPassed": 67,
+		"cloudflareGuardsPassed": 9,
+		"saasTypeCheck": "passed",
+		"productionWebpackBuild": "passed",
+		"generatedPages": 63
+	}
+}

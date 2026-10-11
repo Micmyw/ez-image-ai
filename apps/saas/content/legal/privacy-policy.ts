@@ -2,11 +2,11 @@ export const privacyPolicyDocuments = [
 	{
 		path: "privacy-policy",
 		locale: "en",
-		updatedAt: "2026-10-08",
+		updatedAt: "2026-10-11",
 		title: "Privacy Policy",
 		description:
 			"How EzImageAI handles account data, private image-editing media, analytics consent, and retention.",
-		body: `_Last updated: October 8, 2026_
+		body: `_Last updated: October 11, 2026_
 
 This policy explains how EzImageAI handles information when you use the public image editor, prepare a short-lived draft, use an available Nano Banana 2 Lite 1K guest trial, create an account, or use the signed-in editor. EzImageAI is an independently operated service run by an individual. Its operator is responsible for the information handled by the service and can be reached through the [Contact page](/contact) for privacy questions and requests.
 
@@ -29,6 +29,16 @@ If you sign in or register from an active trial, EzImageAI can create an expiry-
 EzImageAI may send the minimum necessary edit input to configured hosting, storage, moderation, payment, and image-processing services so they can perform the requested function. Those services do not own EzImageAI job, credit, or subscription state.
 
 Before generation, EzImageAI screens text instructions using Waffo. A prompt scan receives the text instruction and scan settings, without your source image, account email, or payment details. SeeAPI receives a short-lived access URL to check private source and generated images. New temporary editor references are checked when you click Generate and must receive positive approval before the image model runs; a failed check stops generation and releases its credit hold. Temporary detector failures may receive bounded retries; exhausted or incomplete checks do not authorize generation or result access. Credit handling follows the persisted job and ledger state. Confirmed content blocks and content-review decisions remain blocked. Authorized administrators may inspect the original instruction or image to recheck, approve, or restrict it. Access and decisions are audited. EzImageAI retains limited safety decisions and request references without copying raw instructions or private image URLs into these moderation audit records. A billing-account record retains whether the one-time output-block credit waiver has been used, even after related media or job history is removed.
+
+## Blog display advertising
+
+Blog display advertising is currently disabled. The prepared integration is limited to ordinary editorial article pages; it excludes the Blog directory, articles with embedded generation tools, the homepage, editor, uploads, generation, sign-in, account, pricing and checkout pages.
+
+If display advertising is enabled after review, it requires optional-cookie acceptance and a separate **Show blog ads** choice on each article visit. Existing analytics consent alone does not load ads. **Hide blog ads**, declining optional consent or leaving the article removes the ad frames. Advertising does not add an EzImageAI advertising-consent cookie or retain that per-visit choice.
+
+The prepared Adsterra display placements request scripts from www.highrevenueformat.com and pl31768149.profitableratecpmnetwork.com. The network and any creative delivery services may receive your IP address, browser/device information and ad interactions, and may send third-party cookies subject to browser restrictions. The final delivery domains and cookies depend on live inventory, which has not yet been verified. EzImageAI does not supply account details, prompts, photos, private assets or signed media links to the placements. Their frames use an opaque sandbox without access to EzImageAI cookies, storage or page content, and suppress the article referrer.
+
+The existing website security policy currently blocks these placements. They will remain off until live display behavior, third-party requests and any required article-specific security changes have been reviewed. No popunder, notification, social-bar or automatic-navigation integration is enabled.
 
 ## Analytics consent
 

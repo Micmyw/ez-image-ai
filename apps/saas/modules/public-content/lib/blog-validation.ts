@@ -47,9 +47,14 @@ export function validateBlogPosts(
 			fail("invalid publication or modification date");
 		if (!BLOG_CATEGORIES.includes(post.categoryId)) fail("unknown category");
 		if (
-			!["photo-ideas", "guides", "prompt-guides", "troubleshooting", "comparisons"].includes(
-				post.articleType,
-			)
+			![
+				"photo-ideas",
+				"guides",
+				"prompt-guides",
+				"troubleshooting",
+				"comparisons",
+				"news",
+			].includes(post.articleType)
 		)
 			fail("unknown article type");
 		if (post.recipeId) {
@@ -134,5 +139,11 @@ export function validateBlogPosts(
 		}
 		if (post.published && post.articleType === "comparisons" && !post.tests?.length)
 			fail("comparisons need real test records");
+		if (
+			post.published &&
+			post.articleType === "news" &&
+			(!post.sources?.length || post.sources.some((source) => !source.accessedAt))
+		)
+			fail("news needs dated source records");
 	}
 }

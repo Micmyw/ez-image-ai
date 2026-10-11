@@ -1,0 +1,21 @@
+{
+	"bytes": 0,
+	"sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+	"status": 403,
+	"url": "https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js",
+	"headers": {
+		"Server": ["nginx/1.30.2"],
+		"Date": ["Sun, 11 Oct 2026 03:36:27 GMT"],
+		"Connection": ["keep-alive"],
+		"accept-ch": [
+			"X-Ucbrowser-Device-Ua,User-Agent,Sec-Ch-Ua-Platform,Sec-Ch-Ua-Platform-Version,Sec-Ch-Ua,Sec-Ch-Ua-Platformuser-Agent,Sec-Ch-Ua-Full-Version-List,Sec-Ch-Ua-Full-Version,Sec-Ch-Ua-Model,Sec-Ch-Ua-Mobile,Device-Stock-Ua,X-Device-User-Agent,X-Operamini-Phone-Ua"
+		],
+		"Access-Control-Allow-Origin": ["*"],
+		"Vary": ["Accept-Encoding"],
+		"x-envoy-upstream-service-time": ["5"],
+		"Host": ["www.highrevenueformat.com"],
+		"Content-Type": ["application/javascript"],
+		"Content-Length": ["0"]
+	},
+	"utc": "2026-10-11T03:36:27.1636871Z"
+}

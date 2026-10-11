@@ -1853,16 +1853,27 @@
 		"promptLabel": "Prompt",
 		"selectPrompt": "Prompt markieren",
 		"categories": {
+			"ai-news": "KI-News",
 			"prompt-writing": "Prompts schreiben",
 			"privacy-workflow": "Datenschutz & Arbeitsablauf",
 			"photo-ideas": "Fotoideen"
 		},
 		"types": {
+			"news": "Nachrichten",
 			"guides": "Anleitung",
 			"prompt-guides": "Prompt-Anleitung",
 			"troubleshooting": "Fehlerbehebung",
 			"comparisons": "Getesteter Vergleich",
 			"photo-ideas": "Fotoideen"
+		},
+		"ads": {
+			"label": "Werbung",
+			"privacy": "Datenschutzerklärung",
+			"show": "Blog-Werbung anzeigen",
+			"hide": "Blog-Werbung ausblenden",
+			"banner": "Bannerwerbung im Blog",
+			"native": "Native Werbung im Blog",
+			"notice": "Optionale Blog-Werbung verwendet Adsterra. Wenn du sie anzeigen lässt, erhält das Werbenetzwerk deine IP-Adresse und Browserinformationen und kann Cookies von Drittanbietern verwenden. EzImageAI übermittelt keine Kontodaten, Prompts oder Fotos an den Werbe-Frame."
 		},
 		"photoIdeas": {
 			"recommended": "Fotoideen entdecken",

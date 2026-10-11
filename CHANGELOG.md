@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-11 — AI news in the Blog
+
+- Add an AI News filter and an original report on Tesco's AI meal-planning assistant, with rollout dates, source checks and a clear distinction from Your Clubcard Prices.
+- Prepare optional display ads in isolated article frames. Advertising remains disabled pending inventory and security-policy review; the editor, account and payment pages keep their existing behavior.
+
 ## 2026-10-11 — Confirmed provider rejection recovery
 
 - Settle image reservations once when authenticated provider evidence confirms a recognized policy rejection, zero consumption and no output. Keep uncertain or contradictory billing/output evidence held for review.

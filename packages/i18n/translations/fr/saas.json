@@ -1853,16 +1853,27 @@
 		"promptLabel": "Prompt",
 		"selectPrompt": "Sélectionner le prompt",
 		"categories": {
+			"ai-news": "Actualités de l’IA",
 			"prompt-writing": "Rédaction de prompts",
 			"privacy-workflow": "Confidentialité et méthode de travail",
 			"photo-ideas": "Idées photo"
 		},
 		"types": {
+			"news": "Actualités",
 			"guides": "Guide",
 			"prompt-guides": "Guide de prompts",
 			"troubleshooting": "Résolution de problèmes",
 			"comparisons": "Comparaison testée",
 			"photo-ideas": "Idées photo"
+		},
+		"ads": {
+			"label": "Publicité",
+			"privacy": "Politique de confidentialité",
+			"show": "Afficher les publicités du blog",
+			"hide": "Masquer les publicités du blog",
+			"banner": "Bannière publicitaire du blog",
+			"native": "Publicité native du blog",
+			"notice": "Les publicités facultatives du blog utilisent Adsterra. Si vous choisissez de les afficher, le réseau publicitaire reçoit votre adresse IP et des informations sur votre navigateur et peut utiliser des cookies tiers. EzImageAI ne transmet pas les données de votre compte, vos prompts ni vos photos au cadre publicitaire."
 		},
 		"photoIdeas": {
 			"recommended": "Idées photo à découvrir",

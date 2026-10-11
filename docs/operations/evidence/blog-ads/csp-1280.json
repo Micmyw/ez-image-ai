@@ -1,0 +1,195 @@
+{
+	"name": "csp-1280",
+	"utc": "2026-10-11T03:40:35.330Z",
+	"viewport": {
+		"width": 1280,
+		"height": 900
+	},
+	"policy": "csp",
+	"requests": [
+		{
+			"url": "http://127.0.0.1:60174/csp",
+			"method": "GET",
+			"type": "document",
+			"frame": "about:blank"
+		}
+	],
+	"responses": [
+		{
+			"url": "http://127.0.0.1:60174/csp",
+			"status": 200,
+			"headers": {
+				"cache-control": "no-store",
+				"connection": "keep-alive",
+				"content-length": "1739",
+				"content-security-policy": "default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; object-src 'none'; script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https:; media-src 'self' blob: https:; font-src 'self' data:; connect-src 'self' https:; worker-src 'self' blob:",
+				"content-type": "text/html; charset=utf-8",
+				"date": "Sun, 11 Oct 2026 03:40:35 GMT",
+				"keep-alive": "timeout=5",
+				"permissions-policy": "camera=(), microphone=(), geolocation=(), payment=()",
+				"referrer-policy": "no-referrer"
+			}
+		}
+	],
+	"failures": [],
+	"console": [
+		{
+			"type": "error",
+			"text": "Loading the script 'https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked."
+		},
+		{
+			"type": "error",
+			"text": "Loading the script 'https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked."
+		},
+		{
+			"type": "error",
+			"text": "Loading the script 'https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked."
+		},
+		{
+			"type": "error",
+			"text": "Loading the script 'https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js' violates the following Content Security Policy directive: \"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com\". Note that 'script-src-elem' was not explicitly set, so 'script-src' is used as a fallback. The action has been blocked."
+		}
+	],
+	"errors": [],
+	"navigations": [
+		{
+			"url": "http://127.0.0.1:60174/csp",
+			"main": true
+		}
+	],
+	"popups": [],
+	"cookies": [],
+	"frames": [
+		{
+			"url": "http://127.0.0.1:60174/csp",
+			"origin": "http://127.0.0.1:60174",
+			"bodyText": "Passive Blog Ad Observation\n\nThis fixture contains no product account, upload, prompt, or resource URL.\n\nAdvertisement — supplied 728 × 90 banner\n\nAdvertisement — supplied widget, actual format unverified",
+			"dom": "<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Passive Blog Ad Observation</title><style>*{box-sizing:border-box}body{margin:0;font:16px system-ui;padding:20px}main{max-width:900px;margin:auto}section{margin:24px 0}iframe{display:block;border:0;max-width:100%}.banner{width:728px;height:90px}.native{width:100%;height:500px;background:#f5f5f5}@media(max-width:767px){.banner-section{display:none}}</style></head><body><main><h1>Passive Blog Ad Observation</h1><p>This fixture contains no product account, upload, prompt, or resource URL.</p><section class=\"banner-section\"><p>Advertisement — supplied 728 × 90 banner</p><iframe title=\"Banner evidence\" class=\"banner\" sandbox=\"allow-scripts\" referrerpolicy=\"no-referrer\" srcdoc=\"&lt;!doctype html&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;style&gt;html,body{margin:0;padding:0}&lt;/style&gt;&lt;script&gt;atOptions={key:'2266a6811e407f9b362831f885d09d1e',format:'iframe',height:90,width:728,params:{}};&lt;/script&gt;&lt;script src=&quot;https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js&quot;&gt;&lt;/script&gt;\"></iframe></section><section><p>Advertisement — supplied widget, actual format unverified</p><iframe title=\"Widget evidence\" class=\"native\" sandbox=\"allow-scripts\" referrerpolicy=\"no-referrer\" srcdoc=\"&lt;!doctype html&gt;&lt;meta charset=&quot;utf-8&quot;&gt;&lt;style&gt;html,body{margin:0;padding:0}&lt;/style&gt;&lt;script async=&quot;async&quot; data-cfasync=&quot;false&quot; src=&quot;https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js&quot;&gt;&lt;/script&gt;&lt;div id=&quot;container-0a9986f36ff843c117e0f20e732a1e08&quot;&gt;&lt;/div&gt;\"></iframe></section></main></body></html>",
+			"cookies": "",
+			"observations": {
+				"eventListeners": [],
+				"openCalls": [],
+				"notifications": [],
+				"timers": []
+			},
+			"resources": [
+				{
+					"name": "http://127.0.0.1:60174/favicon.ico",
+					"initiatorType": "other",
+					"duration": 1.7999999821186066,
+					"transferSize": 2039,
+					"responseStatus": 200
+				}
+			],
+			"elements": [
+				{
+					"tag": "IFRAME",
+					"src": null,
+					"href": null,
+					"width": 728,
+					"height": 90
+				},
+				{
+					"tag": "IFRAME",
+					"src": null,
+					"href": null,
+					"width": 900,
+					"height": 500
+				}
+			]
+		},
+		{
+			"url": "about:srcdoc",
+			"origin": "null",
+			"bodyText": "",
+			"dom": "<html><head><meta charset=\"utf-8\"><style>html,body{margin:0;padding:0}</style><script>atOptions={key:'2266a6811e407f9b362831f885d09d1e',format:'iframe',height:90,width:728,params:{}};</script><script src=\"https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js\"></script></head><body></body></html>",
+			"cookies": "SecurityError: Failed to read the 'cookie' property from 'Document': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+			"observations": {
+				"eventListeners": [],
+				"openCalls": [],
+				"notifications": [],
+				"timers": []
+			},
+			"resources": [
+				{
+					"name": "https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js",
+					"initiatorType": "script",
+					"duration": 0,
+					"transferSize": 0,
+					"responseStatus": 0
+				},
+				{
+					"name": "https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js",
+					"initiatorType": "script",
+					"duration": 0,
+					"transferSize": 0,
+					"responseStatus": 0
+				}
+			],
+			"bannerOptions": {
+				"key": "2266a6811e407f9b362831f885d09d1e",
+				"format": "iframe",
+				"height": 90,
+				"width": 728,
+				"params": {}
+			},
+			"elements": []
+		},
+		{
+			"url": "about:srcdoc",
+			"origin": "null",
+			"bodyText": "",
+			"dom": "<html><head><meta charset=\"utf-8\"><style>html,body{margin:0;padding:0}</style><script async=\"async\" data-cfasync=\"false\" src=\"https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js\"></script></head><body><div id=\"container-0a9986f36ff843c117e0f20e732a1e08\"></div></body></html>",
+			"cookies": "SecurityError: Failed to read the 'cookie' property from 'Document': The document is sandboxed and lacks the 'allow-same-origin' flag.",
+			"observations": {
+				"eventListeners": [],
+				"openCalls": [],
+				"notifications": [],
+				"timers": []
+			},
+			"resources": [
+				{
+					"name": "https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js",
+					"initiatorType": "script",
+					"duration": 0,
+					"transferSize": 0,
+					"responseStatus": 0
+				},
+				{
+					"name": "https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js",
+					"initiatorType": "script",
+					"duration": 0,
+					"transferSize": 0,
+					"responseStatus": 0
+				}
+			],
+			"elements": []
+		}
+	],
+	"layout": {
+		"documentWidth": 1280,
+		"viewportWidth": 1280,
+		"frames": [
+			{
+				"title": "Banner evidence",
+				"sandbox": "allow-scripts",
+				"referrerPolicy": "no-referrer",
+				"bounds": {
+					"width": 728,
+					"height": 90
+				},
+				"visible": true
+			},
+			{
+				"title": "Widget evidence",
+				"sandbox": "allow-scripts",
+				"referrerPolicy": "no-referrer",
+				"bounds": {
+					"width": 900,
+					"height": 500
+				},
+				"visible": true
+			}
+		]
+	}
+}

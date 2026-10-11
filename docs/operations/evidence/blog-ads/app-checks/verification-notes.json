@@ -1,0 +1,87 @@
+{
+	"initialDefaultOffAttempt": {
+		"sourceReport": "output/playwright/blog-ads/off/report.json",
+		"startTime": "2026-10-11T04:04:12.394Z",
+		"duration": 205306.054,
+		"expected": 12,
+		"skipped": 3,
+		"unexpected": 1,
+		"flaky": 0,
+		"failure": {
+			"title": "article to product SPA navigation, back, forward and repeated opt-ins leave no ad contexts",
+			"errors": [
+				"Error: \u001b[2mexpect(\u001b[22m\u001b[31mpage\u001b[39m\u001b[2m).\u001b[22mtoHaveURL\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\nExpected: \u001b[32m\"http://127.0.0.1:3018/\"\u001b[39m\nReceived: \u001b[31m\"http://127.0.0.1:3018/\u001b[7mblog/tesco-ai-meal-planning-assistant\u001b[27m\"\u001b[39m\nTimeout:  5000ms\n\nCall log:\n\u001b[2m  - Expect \"toHaveURL\" with timeout 5000ms\u001b[22m\n\u001b[2m    14 × locator resolved to <html lang=\"en\" class=\"__variable_f96943 light\">…</html>\u001b[22m\n\u001b[2m       - unexpected value \"http://127.0.0.1:3018/blog/tesco-ai-meal-planning-assistant\"\u001b[22m\n\n\n  319 | \t\tif (adsEnabled) await showAds(page, evidence);\n  320 | \t\tawait page.locator('.blog-breadcrumb a[href=\"/\"]:visible').click();\n> 321 | \t\tawait expect(page).toHaveURL(new URL(\"/\", baseUrl).href);\n      | \t\t                   ^\n  322 | \t\tawait expect(page.locator(\"[data-blog-ads]:visible\")).toHaveCount(0);\n  323 | \t\tawait expectNoAds(page, evidence);\n  324 | \t\texpect(\n    at D:\\梅一伟\\Documents\\codex\\2026-10-11\\task\\ezimage-blog\\apps\\saas\\tests\\blog-ads.public-routes.spec.ts:321:22"
+			]
+		},
+		"explanation": "The cold dev server returned the SPA Home navigation in approximately 5.5 seconds, exceeding the original 5 second URL expectation. Only URL expectations changed to the existing public-route 30 second tolerance; iframe cleanup, repeated-instance and sandbox assertions were not relaxed. The complete default-off rerun passed."
+	},
+	"initialEnabledAttempt": {
+		"sourceReport": "output/playwright/blog-ads/on-final/report.json",
+		"startTime": "2026-10-11T04:20:18.355Z",
+		"duration": 160954.878,
+		"expected": 14,
+		"skipped": 1,
+		"unexpected": 1,
+		"flaky": 0,
+		"failure": {
+			"title": "consent alone does not load ads and explicit opt-in remains blocked by the app CSP",
+			"errors": [
+				"Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeGreaterThan\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m\n\nExpected: > \u001b[32m0\u001b[39m\nReceived:   \u001b[31m0\u001b[39m\n\nCall Log:\n- Timeout 5000ms exceeded while waiting on the predicate\n\n  317 | \t\t\t\t\t.length;\n  318 | \t\t\t})\n> 319 | \t\t\t.toBeGreaterThan(0);\n      | \t\t\t ^\n  320 | \t\tawait observeAdFrames(page, evidence, \"after-parent-csp-confirmed\");\n  321 | \t\texpect(evidence.frameObservations.length).toBeGreaterThan(0);\n  322 | \t\tfor (const frame of evidence.frameObservations) {\n    at D:\\梅一伟\\Documents\\codex\\2026-10-11\\task\\ezimage-blog\\apps\\saas\\tests\\blog-ads.public-routes.spec.ts:319:5"
+			]
+		},
+		"explanation": "Chrome redacted static data URLs to empty blockedURI in DOM violation events and blockedURL in native CSP audits. An expectation for literal data therefore failed despite browser error documents. A diagnostic audit probe also failed that exact URL expectation. A subsequent frame-owner probe passed: native frameNavigated.unreachableUrl equals the static helper URL and DOM.getFrameOwner associates that frameId with the exact banner/native iframe src. The final complete rerun requires those exact owned failures together with fresh parent enforce/frame-src originalPolicy equal to the response header and matching native non-report-only frame-src issues. Network safety interception cannot satisfy these checks, and the data document never reached its safety interceptor. Unknown supplier behavior remains unverified.",
+		"probes": [
+			{
+				"report": "output/playwright/blog-ads/csp-audit-probe/report.json",
+				"passed": 0,
+				"failed": 1
+			},
+			{
+				"report": "output/playwright/blog-ads/csp-frame-owner-probe/report.json",
+				"passed": 1,
+				"failed": 0
+			}
+		]
+	},
+	"targetedOffColdSeoBudget": {
+		"sourceReport": "output/playwright/blog-ads/off-data-transport/report.json",
+		"startTime": "2026-10-11T04:35:05.854Z",
+		"duration": 93677.112,
+		"expected": 4,
+		"skipped": 0,
+		"unexpected": 1,
+		"flaky": 0,
+		"failure": {
+			"title": "publishes one canonical article with metadata, factual boundaries and an official source",
+			"status": "timedOut",
+			"errors": [
+				"\u001b[31mTest timeout of 30000ms exceeded.\u001b[39m",
+				"Error: apiRequestContext.get: Request context disposed.\nCall log:\n\u001b[2m  - → GET http://127.0.0.1:3018/sitemap.xml\u001b[22m\n\u001b[2m    - user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.7922.34 Safari/537.36\u001b[22m\n\u001b[2m    - accept: */*\u001b[22m\n\u001b[2m    - accept-encoding: gzip,deflate,br\u001b[22m\n\n\n  636 | \t\t).toHaveCount(1);\n  637 | \t\tawait expect(body).toContainText(\"11 October 2026\");\n> 638 | \t\tconst sitemap = await request.get(\"/sitemap.xml\");\n      | \t\t                              ^\n  639 | \t\texpect(sitemap.status()).toBe(200);\n  640 | \t\texpect(await sitemap.text()).toContain(`<loc>${canonical}</loc>`);\n  641 | \t\tawait expectNoAds(page, evidence);\n    at D:\\梅一伟\\Documents\\codex\\2026-10-11\\task\\ezimage-blog\\apps\\saas\\tests\\blog-ads.public-routes.spec.ts:638:33"
+			]
+		},
+		"explanation": "Four targeted default-off cases passed. The multi-resource SEO test exhausted its 30 second test budget during cold /sitemap.xml compilation, after its article metadata/fact/source assertions. Its whole-test budget is now 60 seconds; individual assertions are retained. The parent requested stopping old-base browser work for integration with main 41c0855726012efbd4054a7e1fac95c4ea5caed9, so this latest budget adjustment awaits its post-integration rerun. The same SEO test passed in complete default-off and final enabled runs.",
+		"postIntegrationRerunRequired": true
+	},
+	"finalTypeCheck": {
+		"command": "pnpm --filter saas type-check",
+		"exitCode": 0,
+		"log": "output/playwright/blog-ads/type-check-final.log"
+	},
+	"unitTests": {
+		"files": 8,
+		"passed": 67,
+		"log": "output/playwright/blog-ads/unit-final-data-transport.log"
+	},
+	"cloudflareGuards": {
+		"passed": 9,
+		"log": "output/playwright/blog-ads/cloudflare-guards-final.log"
+	},
+	"limitations": [
+		"Application response CSP was never replaced or relaxed. No advertising domain was added to script-src or frame-src.",
+		"External request interception is a safety guard and is not proof of CSP rejection. Fresh DOM enforce/frame-src events matching the response policy, native non-report-only frame-src issues and exact frameId/owner/src/unreachableUrl association establish the active static document rejection separately. Chrome redacts blockedURI/blockedURL, so those individual fields cannot identify the URL.",
+		"Resource timing entries cannot establish network transfer success or completeness. Request events from opaque frames can be incomplete.",
+		"Standalone canaries certify static data transport, browser sandbox restrictions and context destruction for harmless inline code. They do not certify real supplier creative behavior or actual native format responsiveness.",
+		"The publisher domain may be exposed as ancestorOrigins in Chromium. No claim of hiding the public site origin is made; private article path, query, referrer and account data are excluded from the static document transport.",
+		"A local database template has no running backend; public catalog reads can log connection errors. Tests perform no account, checkout, image generation, payment, email or advertising click action."
+	]
+}

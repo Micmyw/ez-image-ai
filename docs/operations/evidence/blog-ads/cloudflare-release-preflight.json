@@ -1,0 +1,120 @@
+{
+	"readAtUTC": "2026-10-11T04:38:22Z",
+	"accountId": "44c8c5cb3ce2004d398ff271836bdd2e",
+	"methodsUsed": ["GET"],
+	"expectedBaselineTag": "41c0855726012efbd4054a7e1fac95c4ea5caed9",
+	"advertisingBooleanMeaning": "Binding existence only; no other bindings or secret values were returned.",
+	"workers": [
+		{
+			"script": "ezimageai-site-production",
+			"activeDeployment": {
+				"id": "1ff1c28c-903f-4524-87b1-cec612ba3882",
+				"created_on": "2026-10-11T04:25:43.84889Z",
+				"source": "wrangler",
+				"strategy": "percentage",
+				"annotations": {
+					"workers/message": "Cloudflare Git build 41c0855726012efbd4054a7e1fac95c4ea5caed9",
+					"workers/triggered_by": "deployment"
+				},
+				"versions": [
+					{
+						"version_id": "2bda43a0-38e3-4af0-a20c-c6b7b37ddcbc",
+						"percentage": 100
+					}
+				]
+			},
+			"activeVersion": {
+				"success": true,
+				"status": 200,
+				"id": "2bda43a0-38e3-4af0-a20c-c6b7b37ddcbc",
+				"number": 145,
+				"created_on": "2026-10-11T04:25:35.594628Z",
+				"annotations": {
+					"workers/message": "Cloudflare Git build 41c0855726012efbd4054a7e1fac95c4ea5caed9",
+					"workers/tag": "41c0855726012efbd4054a7e1fac95c4ea5caed9",
+					"workers/triggered_by": "version_upload"
+				},
+				"errors": []
+			},
+			"settingsBindingCheck": {
+				"source": "GET /settings result.bindings array",
+				"exists": {
+					"BLOG_ADS_ENABLED": false,
+					"BLOG_NATIVE_ADS_ENABLED": false
+				}
+			},
+			"activeVersionBindingCheck": {
+				"source": "GET /versions/:id result.resources.bindings array",
+				"exists": {
+					"BLOG_ADS_ENABLED": false,
+					"BLOG_NATIVE_ADS_ENABLED": false
+				}
+			},
+			"expectedBaselineTagMatches": true,
+			"endpoints": {
+				"deployments": "/accounts/44c8c5cb3ce2004d398ff271836bdd2e/workers/scripts/ezimageai-site-production/deployments",
+				"versions": "/accounts/44c8c5cb3ce2004d398ff271836bdd2e/workers/scripts/ezimageai-site-production/versions",
+				"settings": "/accounts/44c8c5cb3ce2004d398ff271836bdd2e/workers/scripts/ezimageai-site-production/settings",
+				"activeVersion": "/accounts/44c8c5cb3ce2004d398ff271836bdd2e/workers/scripts/ezimageai-site-production/versions/2bda43a0-38e3-4af0-a20c-c6b7b37ddcbc"
+			}
+		},
+		{
+			"script": "ezpic-workflows-workers-production",
+			"activeDeployment": {
+				"id": "258fa600-1823-4cc6-b6f4-f8aa6f0f3298",
+				"created_on": "2026-10-11T04:19:44.77705Z",
+				"source": "wrangler",
+				"strategy": "percentage",
+				"annotations": {
+					"workers/message": "Cloudflare Git build 41c0855726012efbd4054a7e1fac95c4ea5caed9",
+					"workers/triggered_by": "deployment"
+				},
+				"versions": [
+					{
+						"version_id": "83fffd6d-017b-439e-8edc-439d9c9af9df",
+						"percentage": 100
+					}
+				]
+			},
+			"activeVersion": {
+				"success": true,
+				"status": 200,
+				"id": "83fffd6d-017b-439e-8edc-439d9c9af9df",
+				"number": 151,
+				"created_on": "2026-10-11T04:19:41.984002Z",
+				"annotations": {
+					"workers/message": "Cloudflare Git build 41c0855726012efbd4054a7e1fac95c4ea5caed9",
+					"workers/tag": "41c0855726012efbd4054a7e1fac95c4ea5caed9",
+					"workers/triggered_by": "version_upload"
+				},
+				"errors": []
+			},
+			"settingsBindingCheck": {
+				"source": "GET /settings result.bindings array",
+				"exists": {
+					"BLOG_ADS_ENABLED": false,
+					"BLOG_NATIVE_ADS_ENABLED": false
+				}
+			},
+			"activeVersionBindingCheck": {
+				"source": "GET /versions/:id result.resources.bindings array",
+				"exists": {
+					"BLOG_ADS_ENABLED": false,
+					"BLOG_NATIVE_ADS_ENABLED": false
+				}
+			},
+			"expectedBaselineTagMatches": true,
+			"endpoints": {
+				"deployments": "/accounts/44c8c5cb3ce2004d398ff271836bdd2e/workers/scripts/ezpic-workflows-workers-production/deployments",
+				"versions": "/accounts/44c8c5cb3ce2004d398ff271836bdd2e/workers/scripts/ezpic-workflows-workers-production/versions",
+				"settings": "/accounts/44c8c5cb3ce2004d398ff271836bdd2e/workers/scripts/ezpic-workflows-workers-production/settings",
+				"activeVersion": "/accounts/44c8c5cb3ce2004d398ff271836bdd2e/workers/scripts/ezpic-workflows-workers-production/versions/83fffd6d-017b-439e-8edc-439d9c9af9df"
+			}
+		}
+	],
+	"limitations": [
+		"This is a baseline API snapshot, not post-release verification or a traffic/application-behavior test.",
+		"A future release must reread latest active deployments and their exact assigned version annotations.",
+		"Absence of these runtime bindings alone does not certify a new build's default-off behavior."
+	]
+}

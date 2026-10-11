@@ -1,0 +1,218 @@
+{
+	"head": "7b52cd543b653ebbfa3f1c89cb89683d086215f1",
+	"boundary": "Static harmless inline canaries only, no parent app CSP or real external ad loaders. These validate transport privacy and browser sandbox/context destruction, not supplier behavior or real native ad responsiveness.",
+	"evidence": [
+		{
+			"round": "post-rebase-off",
+			"title": "both supplied script documents cannot read host addresses, DOM, cookies, storage or navigate",
+			"attachment": "standalone-sandbox-probes",
+			"ticks": {
+				"banner:1": 17,
+				"native:1": 11
+			},
+			"mountCount": {
+				"banner": 1,
+				"native": 1
+			},
+			"probes": [
+				{
+					"id": "banner:1",
+					"probe": {
+						"parentDomDenied": true,
+						"parentListenerDenied": true,
+						"cookieDenied": true,
+						"localStorageDenied": true,
+						"sessionStorageDenied": true,
+						"popupDenied": true,
+						"topNavigationDenied": true
+					},
+					"document": {
+						"urlScheme": "data",
+						"urlLength": 3129,
+						"baseUriEqualsDocumentUrl": true,
+						"referrerEmpty": true,
+						"privateHostAddressAbsent": true
+					}
+				},
+				{
+					"id": "native:1",
+					"probe": {
+						"parentDomDenied": true,
+						"parentListenerDenied": true,
+						"cookieDenied": true,
+						"localStorageDenied": true,
+						"sessionStorageDenied": true,
+						"popupDenied": true,
+						"topNavigationDenied": true
+					},
+					"document": {
+						"urlScheme": "data",
+						"urlLength": 3050,
+						"baseUriEqualsDocumentUrl": true,
+						"referrerEmpty": true,
+						"privateHostAddressAbsent": true
+					}
+				}
+			]
+		},
+		{
+			"round": "post-rebase-off",
+			"title": "destroying a context stops its timer and repeated mounts keep one mobile native card",
+			"attachment": "standalone-context-lifecycle",
+			"ticks": {
+				"native:1": 12,
+				"native:2": 11
+			},
+			"mountCount": {
+				"banner": 0,
+				"native": 2
+			},
+			"probes": [
+				{
+					"id": "native:1",
+					"probe": {
+						"parentDomDenied": true,
+						"parentListenerDenied": true,
+						"cookieDenied": true,
+						"localStorageDenied": true,
+						"sessionStorageDenied": true,
+						"popupDenied": true,
+						"topNavigationDenied": true
+					},
+					"document": {
+						"urlScheme": "data",
+						"urlLength": 3050,
+						"baseUriEqualsDocumentUrl": true,
+						"referrerEmpty": true,
+						"privateHostAddressAbsent": true
+					}
+				},
+				{
+					"id": "native:2",
+					"probe": {
+						"parentDomDenied": true,
+						"parentListenerDenied": true,
+						"cookieDenied": true,
+						"localStorageDenied": true,
+						"sessionStorageDenied": true,
+						"popupDenied": true,
+						"topNavigationDenied": true
+					},
+					"document": {
+						"urlScheme": "data",
+						"urlLength": 3050,
+						"baseUriEqualsDocumentUrl": true,
+						"referrerEmpty": true,
+						"privateHostAddressAbsent": true
+					}
+				}
+			]
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "both supplied script documents cannot read host addresses, DOM, cookies, storage or navigate",
+			"attachment": "standalone-sandbox-probes",
+			"ticks": {
+				"banner:1": 16,
+				"native:1": 11
+			},
+			"mountCount": {
+				"banner": 1,
+				"native": 1
+			},
+			"probes": [
+				{
+					"id": "banner:1",
+					"probe": {
+						"parentDomDenied": true,
+						"parentListenerDenied": true,
+						"cookieDenied": true,
+						"localStorageDenied": true,
+						"sessionStorageDenied": true,
+						"popupDenied": true,
+						"topNavigationDenied": true
+					},
+					"document": {
+						"urlScheme": "data",
+						"urlLength": 3129,
+						"baseUriEqualsDocumentUrl": true,
+						"referrerEmpty": true,
+						"privateHostAddressAbsent": true
+					}
+				},
+				{
+					"id": "native:1",
+					"probe": {
+						"parentDomDenied": true,
+						"parentListenerDenied": true,
+						"cookieDenied": true,
+						"localStorageDenied": true,
+						"sessionStorageDenied": true,
+						"popupDenied": true,
+						"topNavigationDenied": true
+					},
+					"document": {
+						"urlScheme": "data",
+						"urlLength": 3050,
+						"baseUriEqualsDocumentUrl": true,
+						"referrerEmpty": true,
+						"privateHostAddressAbsent": true
+					}
+				}
+			]
+		},
+		{
+			"round": "post-rebase-on",
+			"title": "destroying a context stops its timer and repeated mounts keep one mobile native card",
+			"attachment": "standalone-context-lifecycle",
+			"ticks": {
+				"native:1": 12,
+				"native:2": 12
+			},
+			"mountCount": {
+				"banner": 0,
+				"native": 2
+			},
+			"probes": [
+				{
+					"id": "native:1",
+					"probe": {
+						"parentDomDenied": true,
+						"parentListenerDenied": true,
+						"cookieDenied": true,
+						"localStorageDenied": true,
+						"sessionStorageDenied": true,
+						"popupDenied": true,
+						"topNavigationDenied": true
+					},
+					"document": {
+						"urlScheme": "data",
+						"urlLength": 3050,
+						"baseUriEqualsDocumentUrl": true,
+						"referrerEmpty": true,
+						"privateHostAddressAbsent": true
+					}
+				},
+				{
+					"id": "native:2",
+					"probe": {
+						"parentDomDenied": true,
+						"parentListenerDenied": true,
+						"cookieDenied": true,
+						"localStorageDenied": true,
+						"sessionStorageDenied": true,
+						"popupDenied": true,
+						"topNavigationDenied": true
+					},
+					"document": {
+						"urlScheme": "data",
+						"urlLength": 3050,
+						"baseUriEqualsDocumentUrl": true,
+						"referrerEmpty": true,
+						"privateHostAddressAbsent": true
+					}
+				}
+			]
+		}
+	]
+}

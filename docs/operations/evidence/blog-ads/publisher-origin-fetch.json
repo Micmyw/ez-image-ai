@@ -1,0 +1,58 @@
+[
+	{
+		"headers": {
+			"Server": ["nginx/1.30.2"],
+			"Date": ["Sun, 11 Oct 2026 03:53:27 GMT"],
+			"Connection": ["keep-alive"],
+			"accept-ch": [
+				"X-Operamini-Phone-Ua,Sec-Ch-Ua,Sec-Ch-Ua-Platformuser-Agent,Sec-Ch-Ua-Full-Version,Sec-Ch-Ua-Platform,Sec-Ch-Ua-Mobile,Device-Stock-Ua,X-Device-User-Agent,X-Ucbrowser-Device-Ua,User-Agent,Sec-Ch-Ua-Platform-Version,Sec-Ch-Ua-Full-Version-List,Sec-Ch-Ua-Model"
+			],
+			"Access-Control-Allow-Origin": ["*"],
+			"Vary": ["Accept-Encoding"],
+			"x-envoy-upstream-service-time": ["5"],
+			"Host": ["www.highrevenueformat.com"],
+			"Content-Type": ["application/javascript"],
+			"Content-Length": ["0"]
+		},
+		"url": "https://www.highrevenueformat.com/2266a6811e407f9b362831f885d09d1e/invoke.js",
+		"request": {
+			"userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+			"cookiesSent": false,
+			"referer": "https://ezimageai.com/"
+		},
+		"payloadExecuted": false,
+		"sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+		"status": 403,
+		"bytes": 0,
+		"name": "banner",
+		"utc": "2026-10-11T03:53:28.4721680Z"
+	},
+	{
+		"headers": {
+			"Server": ["nginx/1.28.2"],
+			"Date": ["Sun, 11 Oct 2026 03:53:32 GMT"],
+			"Connection": ["keep-alive"],
+			"accept-ch": [
+				"Sec-Ch-Ua-Full-Version,Sec-Ch-Ua-Platform,Sec-Ch-Ua-Model,X-Operamini-Phone-Ua,User-Agent,Sec-Ch-Ua-Platform-Version,Sec-Ch-Ua,Sec-Ch-Ua-Platformuser-Agent,Sec-Ch-Ua-Full-Version-List,Sec-Ch-Ua-Mobile,Device-Stock-Ua,X-Device-User-Agent,X-Ucbrowser-Device-Ua"
+			],
+			"Access-Control-Allow-Origin": ["*"],
+			"Vary": ["Accept-Encoding"],
+			"x-envoy-upstream-service-time": ["2"],
+			"Host": ["pl31768149.profitableratecpmnetwork.com"],
+			"Content-Type": ["application/javascript"],
+			"Content-Length": ["0"]
+		},
+		"url": "https://pl31768149.profitableratecpmnetwork.com/0a9986f36ff843c117e0f20e732a1e08/invoke.js",
+		"request": {
+			"userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+			"cookiesSent": false,
+			"referer": "https://ezimageai.com/"
+		},
+		"payloadExecuted": false,
+		"sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+		"status": 403,
+		"bytes": 0,
+		"name": "widget",
+		"utc": "2026-10-11T03:53:32.2022690Z"
+	}
+]
