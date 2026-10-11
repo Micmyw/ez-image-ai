@@ -1,4 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -404,16 +405,22 @@ async function fixture(
 	options: {
 		missingTextProfile?: boolean;
 		pricingDetails?: (ownerId: string) => Prisma.InputJsonObject;
+		paidFundingPolicy?: Prisma.InputJsonValue;
+		template?: boolean;
 	} = {},
 ) {
 	const suffix = crypto.randomUUID();
 	const ownerId = `video-submission-test-${suffix}`;
 	fixtureOwners.push(ownerId);
 	const pricingSnapshot = {
+		...(options.paidFundingPolicy === undefined
+			? {}
+			: { paidFundingPolicy: options.paidFundingPolicy }),
 		pricingDetails: options.pricingDetails?.(ownerId) ?? {
 			validUntil: new Date(Date.now() + 3600_000).toISOString(),
 		},
 	};
+	const templateInput = options.template ? await templateFixtureInput(ownerId, suffix) : null;
 	const inputSnapshot = {
 		...(options.missingTextProfile ? {} : { textSafetyProfile: createVideoTextSafetyProfile() }),
 		schemaVersion: 1,
@@ -425,6 +432,7 @@ async function fixture(
 		requestFingerprint: suffix,
 		inputIdentity: null,
 		modelContractVersion: "test-contract",
+		...templateInput?.snapshot,
 	};
 	const quote = await client.generationQuote.create({
 		data: {
@@ -468,6 +476,19 @@ async function fixture(
 			},
 		},
 	});
+	if (templateInput) {
+		await client.generationJobAsset.createMany({
+			data: templateInput.identities.map((identity) => ({
+				jobId: job.id,
+				assetId: identity.assetId,
+				assetChecksum: identity.checksum,
+				role: "INPUT" as const,
+			})),
+		});
+		await client.videoTemplateExecution.create({
+			data: { jobId: job.id, ...templateInput.execution },
+		});
+	}
 	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
 	await client.storageUsageReservation.create({
 		data: {
@@ -525,7 +546,218 @@ async function fixture(
 	};
 }
 
+async function templateFixtureInput(ownerId: string, requestFingerprint: string) {
+	const identities = [];
+	const validUntil = new Date(Date.now() + 3600_000);
+	for (const role of ["left", "right", "scene"]) {
+		const asset = await client.mediaAsset.create({
+			data: {
+				ownerType: "USER",
+				ownerId,
+				kind: "INPUT",
+				status: "VERIFYING",
+				verificationEngine: "video-workflow-v1",
+				objectKey: `users/${ownerId}/${role}.template-input.png`,
+				mimeType: "image/png",
+				byteSize: 1000n,
+				checksum: "a".repeat(64),
+				storageEtag: `${role}-etag`,
+				verificationGeneration: 1,
+				verificationAttemptCount: 1,
+				verificationProvider: "test",
+				verificationRuleVersion: "video-execution-test-rule",
+				verificationPolicyVersion: "video-execution-test-policy",
+				verificationValidUntil: validUntil,
+				finalizedAt: new Date(),
+			},
+		});
+		await client.assetModerationResult.create({
+			data: {
+				assetId: asset.id,
+				assetChecksum: asset.checksum!,
+				verificationGeneration: 1,
+				attemptNumber: 1,
+				evidenceKind: "INPUT",
+				provider: "test",
+				ruleVersion: "video-execution-test-rule",
+				policyVersion: "video-execution-test-policy",
+				status: "APPROVED",
+				reasonCode: "TEST_ALLOW",
+				categories: {},
+				rawEnvelope: { decision: "ALLOW" },
+				validUntil,
+			},
+		});
+		await client.mediaAsset.update({ where: { id: asset.id }, data: { status: "READY" } });
+		identities.push({
+			role,
+			assetId: asset.id,
+			checksum: asset.checksum!,
+			objectKey: asset.objectKey,
+			storageEtag: asset.storageEtag,
+			storageVersionId: asset.storageVersionId,
+			verificationGeneration: asset.verificationGeneration,
+		});
+	}
+	const [left, right, scene] = identities;
+	const template = createVideoEffectTemplateSnapshot({
+		effectId: "hotel-lobby-duo",
+		presetKey: "standard",
+		inputs: { leftAssetId: left!.assetId, rightAssetId: right!.assetId },
+	});
+	const sceneReview = {
+		status: "ALLOW",
+		scene: {
+			...scene!,
+			decision: { decision: "ALLOW" },
+			safetyPolicyVersion: template.safetyPolicyVersion,
+			validUntil: validUntil.toISOString(),
+		},
+	};
+	return {
+		identities: [left!, right!],
+		snapshot: {
+			requestKind: "template-video",
+			videoEffectTemplate: template,
+			roleInputIdentities: [left!, right!],
+		},
+		execution: {
+			templateSnapshot: template,
+			orderedRoleIdentities: [left!, right!],
+			sceneAssetId: scene!.assetId,
+			sceneState: "READY",
+			sceneReview,
+			resolvedInputIdentity: {
+				...scene!,
+				parentRequestFingerprint: requestFingerprint,
+				sceneReviewEvidence: sceneReview,
+			},
+			resolvedAt: new Date(),
+		},
+	};
+}
+
 describe("video submission database correctness", () => {
+	it.each(["none", "until"])(
+		"allows ordinary shared-credit submission with a %s frozen price approval",
+		async (priceApprovalExpiryMode) => {
+			const f = await fixture({
+				pricingDetails: () => ({
+					priceApprovalExpiryMode,
+					validUntil: priceApprovalExpiryMode === "none" ? null : "2099-01-01T00:00:00.000Z",
+					funding: { mode: "shared-media-credits-v1" },
+					paidRevenueQualified: false,
+				}),
+			});
+			expect(await run(() => claimVideoProviderSubmission(f.claim))).toMatchObject({
+				claimed: true,
+				attempt: { status: "SUBMISSION_UNCERTAIN", uncertainSubmission: true },
+			});
+			const job = await run(() => getVideoExecutionContext(f.job.id));
+			expect(job?.status).toBe("SUBMITTING");
+			expect(job?.attempts).toHaveLength(1);
+			expect(job?.reservation).toMatchObject({ id: f.reservation.id, status: "ACTIVE" });
+			expect(job?.pricingSnapshot).toEqual(f.job.pricingSnapshot);
+			expect(
+				await client.creditLedgerEntry.count({
+					where: { reservationId: f.reservation.id, type: "RELEASE" },
+				}),
+			).toBe(0);
+		},
+	);
+	it.each([
+		null,
+		[],
+		{ mode: "shared-media-credits-v2" },
+		{ mode: "shared-media-credits-v1", authorizedOwnerId: "another-owner" },
+	])("refuses malformed shared-credit funding %j before creating a send fence", async (funding) => {
+		const f = await fixture({
+			pricingDetails: () => ({
+				validUntil: "2099-01-01T00:00:00.000Z",
+				funding,
+				paidRevenueQualified: false,
+			}),
+		});
+		await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
+			"VIDEO_FUNDING_POLICY_CHANGED",
+		);
+		expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(0);
+		expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
+			"ACTIVE",
+		);
+	});
+	it.each([undefined, true, "false"])(
+		"refuses shared-credit funding with a %s paid-revenue marker",
+		async (paidRevenueQualified) => {
+			const f = await fixture({
+				pricingDetails: () => ({
+					validUntil: "2099-01-01T00:00:00.000Z",
+					funding: { mode: "shared-media-credits-v1" },
+					...(paidRevenueQualified === undefined ? {} : { paidRevenueQualified }),
+				}),
+			});
+			await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
+				"VIDEO_FUNDING_POLICY_CHANGED",
+			);
+			expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(0);
+			expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
+				"ACTIVE",
+			);
+		},
+	);
+	it.each(["retained-paid-policy", "template"])(
+		"refuses shared-credit funding for %s before creating a send fence",
+		async (mode) => {
+			const f = await fixture({
+				template: mode === "template",
+				...(mode === "retained-paid-policy"
+					? { paidFundingPolicy: { minimumUsdMicrosPerCredit: "10000" } }
+					: {}),
+				pricingDetails: () => ({
+					validUntil: "2099-01-01T00:00:00.000Z",
+					funding: { mode: "shared-media-credits-v1" },
+					paidRevenueQualified: false,
+				}),
+			});
+			await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
+				"VIDEO_FUNDING_POLICY_CHANGED",
+			);
+			expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(0);
+			expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
+				"ACTIVE",
+			);
+		},
+	);
+	it("replays an existing shared-credit send fence before rechecking funding", async () => {
+		const f = await fixture({
+			pricingDetails: () => ({
+				validUntil: "2099-01-01T00:00:00.000Z",
+				funding: { mode: "shared-media-credits-v1" },
+				// Historical may-have-sent evidence cannot be discarded for a missing marker.
+			}),
+		});
+		const attempt = await client.generationAttempt.create({
+			data: {
+				jobId: f.job.id,
+				attemptNumber: 1,
+				provider: "kie",
+				providerModelId: f.claim.providerModelId,
+				callbackTokenHash: f.claim.callbackTokenHash,
+				requestSnapshot: f.job.inputSnapshot as Prisma.InputJsonValue,
+				status: "SUBMISSION_UNCERTAIN",
+				uncertainSubmission: true,
+				submittedAt: new Date(),
+			},
+		});
+		expect(await run(() => claimVideoProviderSubmission(f.claim))).toMatchObject({
+			claimed: false,
+			attempt: { id: attempt.id, status: "SUBMISSION_UNCERTAIN", uncertainSubmission: true },
+		});
+		expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(1);
+		expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
+			"ACTIVE",
+		);
+	});
 	it("claims an explicitly non-expiring frozen price without releasing credits", async () => {
 		const f = await fixture({
 			pricingDetails: () => ({ priceApprovalExpiryMode: "none", validUntil: null }),

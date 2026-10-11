@@ -15,6 +15,7 @@
 		"./rumpelstiltskin-reference.server": "./rumpelstiltskin-reference.server.ts",
 		"./video-models": "./video-models.ts",
 		"./video-internal-funding": "./video-internal-funding.ts",
+		"./video-shared-funding": "./video-shared-funding.ts",
 		"./video-output": "./video-output.ts",
 		"./video-output-report": "./video-output-report.ts",
 		"./video-safety": "./video-safety.ts",

@@ -1,4 +1,5 @@
 import { readVideoInternalFundingSnapshot } from "@repo/config/video-internal-funding";
+import { readVideoSharedFundingSnapshot } from "@repo/config/video-shared-funding";
 import {
 	isApprovedVideoTextDecision,
 	readVideoTextSafetyProfile,
@@ -242,9 +243,17 @@ export async function claimVideoProviderSubmission(input: {
 		);
 		const pricingDetails = object(object(job.pricingSnapshot).pricingDetails);
 		assertVideoPriceApprovalValid(pricingDetails, clock.now);
+		// Only ordinary video may use the frozen shared balance policy. Historical
+		// paid/internal snapshots and every independent template keep their own rules.
+		const sharedFunding =
+			!job.videoTemplateExecution &&
+			object(job.inputSnapshot).videoEffectTemplate === undefined &&
+			object(job.pricingSnapshot).paidFundingPolicy === undefined &&
+			readVideoSharedFundingSnapshot(pricingDetails.funding);
 		if (
 			pricingDetails.funding !== undefined &&
-			(!readVideoInternalFundingSnapshot(pricingDetails.funding, job.ownerId, clock.now) ||
+			((!sharedFunding &&
+				!readVideoInternalFundingSnapshot(pricingDetails.funding, job.ownerId, clock.now)) ||
 				pricingDetails.paidRevenueQualified !== false)
 		)
 			throw new Error("VIDEO_FUNDING_POLICY_CHANGED");
