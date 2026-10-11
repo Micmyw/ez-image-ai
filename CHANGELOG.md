@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-11 — Confirmed provider rejection recovery
+
+- Settle image reservations once when authenticated provider evidence confirms a recognized policy rejection, zero consumption and no output. Keep uncertain or contradictory billing/output evidence held for review.
+- Add an audited administrator recovery action for held Kie image tasks. Preserve the original reservation, owner, immutable ledger and expiration rules; no generation is resubmitted.
+
 ## 2026-10-11 — Shared image and video credits
 
 - Use the same available account balance, including valid gifted credits, for new ordinary images and videos. Preserve expired-credit, debt, refund, safety and one-time reservation safeguards; separate effect templates retain their funding rules.

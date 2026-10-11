@@ -12,6 +12,7 @@ import {
 import { createGenerationAttempt, bindProviderTask } from "./attempts";
 import { transitionGenerationJob } from "./jobs";
 import { wakeKieGenerationAttempt } from "./kie-callback";
+import { resolveAdminKieZeroCostRejection } from "./kie-zero-cost-rejection";
 import { ingestProviderEvent } from "./webhooks";
 
 const prefix = `video-isolation-${randomUUID()}`;
@@ -237,6 +238,33 @@ describe("video V1 database engine ownership", () => {
 					actorUserId: prefix,
 					idempotencyKey: randomUUID(),
 					reason: "test",
+				},
+				db,
+			),
+		).rejects.toThrow("EXECUTION_ENGINE_NOT_OWNED");
+		await expect(
+			resolveAdminKieZeroCostRejection(
+				{
+					attemptId: attempt.id,
+					actorUserId: prefix,
+					idempotencyKey: randomUUID(),
+					reason: "Verify video engine remains isolated",
+					providerEvidenceReference: "synthetic dashboard evidence",
+					evidence: {
+						version: 1,
+						provider: "kie",
+						source: "dashboard-log",
+						taskId,
+						model: "nano-banana-2-lite",
+						state: "fail",
+						failCode: "400",
+						failMsg:
+							"The input or output was flagged as sensitive. Please try again with different inputs.",
+						consumptionField: "consumeCredits",
+						consumedCredits: 0,
+						outputCount: 0,
+						observedAt: new Date().toISOString(),
+					},
 				},
 				db,
 			),

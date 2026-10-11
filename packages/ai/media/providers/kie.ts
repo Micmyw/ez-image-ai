@@ -1,5 +1,7 @@
 import {
 	IMAGE_PRODUCT_SELECTION_CONTRACTS,
+	isKieRejectionWithoutOutput,
+	kieZeroCostRejectionEvidenceSchema,
 	parseImageSelection,
 	type ImageBackground,
 	type ImageOutputFormat,
@@ -166,6 +168,7 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 				providerTaskId: job.data.data.taskId,
 				status: jobStatus(job.data.data.state),
 				raw: job.data,
+				retrieval: { source: "kie-record-info", observedAt: new Date().toISOString() },
 			};
 		}
 		const veo = kieVeoRecordSchema.safeParse(data);
@@ -201,8 +204,31 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 				failureFrom(jobFailureMessage(job.data.data.failCode, job.data.data.failMsg)),
 				providerCostMicros,
 			);
+			const data = job.data.data;
+			const rejection =
+				snapshot.retrieval?.source === "kie-record-info" &&
+				isKieRejectionWithoutOutput(data.resultJson, snapshot.providerTaskId) &&
+				["resultUrls", "response", "outputs", "output", "url", "resultUrl"].every(
+					(key) => data[key] === undefined,
+				)
+					? kieZeroCostRejectionEvidenceSchema.safeParse({
+							version: 1,
+							provider: "kie",
+							source: "record-info",
+							taskId: snapshot.providerTaskId,
+							...(typeof data.model === "string" ? { model: data.model } : {}),
+							state: data.state,
+							failCode: String(data.failCode ?? ""),
+							failMsg: data.failMsg,
+							consumptionField: "creditsConsumed",
+							consumedCredits: data.creditsConsumed,
+							outputCount: result.outputs.length,
+							observedAt: snapshot.retrieval.observedAt,
+						})
+					: null;
 			return {
 				...result,
+				...(rejection?.success ? { confirmedZeroCostRejection: rejection.data } : {}),
 				...(snapshot.status === "FAILED" && result.outputs.length === 0
 					? { confirmedTechnicalFailure: confirmedJobTechnicalFailure(job.data.data) }
 					: {}),

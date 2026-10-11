@@ -347,6 +347,19 @@
 					"CHECKOUT_REVIEW_PROVIDER_UNCONFIRMED": "PayPal did not confirm the expected missing-resource response. Review the current payment status before trying again.",
 					"CHECKOUT_REVIEW_FAILED": "The review could not be completed. Load the checkout to check its status, then retry if it remains eligible."
 				}
+			},
+			"rejectionRecovery": {
+				"title": "Confirmed Kie rejection recovery",
+				"description": "For a held image task with a verified policy rejection, zero provider consumption and no output. Check the authenticated provider dashboard immediately before recovery. This records your evidence and queues settlement of the existing reservation.",
+				"attemptId": "Generation attempt ID",
+				"providerEvidenceReference": "Evidence reference",
+				"reason": "Recovery reason",
+				"evidence": "Sanitized dashboard evidence (JSON)",
+				"evidenceHelp": "Use the documented evidence schema, including task ID, model, consumeCredits = 0 and a UTC observedAt within 15 minutes. Exclude prompts, media URLs, callback tokens and credentials.",
+				"action": "Record evidence and queue settlement",
+				"invalidEvidence": "The evidence is incomplete or does not describe a confirmed zero-cost policy rejection.",
+				"error": "Recovery was not confirmed. Check the error and retry the same evidence if the network response was lost.",
+				"queued": "Recovery recorded for the task below. Settlement of its {credits} reserved credits is queued; verify the ledger before reporting a release."
 			}
 		},
 		"title": "Administration",

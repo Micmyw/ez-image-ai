@@ -36,6 +36,7 @@ import {
 } from "@repo/ai";
 import {
 	isTechnicalGenerationFailureCode,
+	KIE_ZERO_COST_REJECTION_CODE,
 	isTemporaryReferenceObjectKey,
 	isRetryableModerationError,
 	MODERATION_RETRYABLE_ERROR_CODES,
@@ -60,6 +61,7 @@ import {
 } from "@repo/database";
 import {
 	claimOutputModerationGraceInTransaction,
+	canSettleKieZeroCostRejection,
 	claimGenerationOutputTransferTransaction,
 	claimOutboxBatch,
 	completeGenerationOutputTransferTransaction,
@@ -141,6 +143,7 @@ import {
 	createOutputTransferEnvelope,
 	providerOutputsFromTransferEnvelope,
 	responseSnapshotForResult,
+	providerCostForResult,
 } from "./output-transfer-envelope";
 import type { OutputTransferEnvelope } from "./output-transfer-envelope";
 import { providerCdnAllowlist } from "./provider-output-policy";
@@ -1007,13 +1010,12 @@ export function createDatabaseDispatchStore(
 						attemptId,
 						jobId: attempt.jobId,
 						errorSnapshot: attempt.errorSnapshot,
-						responseSnapshot: responseSnapshotForResult(result),
+						responseSnapshot: responseSnapshotForResult(result, attempt),
 						attemptData: {
 							providerTaskId,
 							...reconciliationEndpoints,
 							...(submissionToken ? { submissionToken } : {}),
-							providerCostMicros:
-								result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
+							providerCostMicros: providerCostForResult(result, attempt),
 							submittedAt: new Date(),
 						},
 					});
@@ -1033,9 +1035,8 @@ export function createDatabaseDispatchStore(
 						status: "SUCCEEDED",
 						submittedAt: new Date(),
 						completedAt: new Date(),
-						responseSnapshot: responseSnapshotForResult(result) as Prisma.InputJsonValue,
-						providerCostMicros:
-							result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
+						responseSnapshot: responseSnapshotForResult(result, attempt) as Prisma.InputJsonValue,
+						providerCostMicros: providerCostForResult(result, attempt),
 						uncertainSubmission: false,
 						errorSnapshot: {},
 						nextReconcileAt: null,
@@ -2901,6 +2902,7 @@ function confirmedTechnicalFailureCode(snapshot: ProviderTaskSnapshot, result: N
 function settlementFailureCode(failureCode: string | null): string {
 	return isTechnicalGenerationFailureCode(failureCode) ||
 		failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
+		failureCode === KIE_ZERO_COST_REJECTION_CODE ||
 		failureCode === GUEST_OUTPUT_CARDINALITY_INVALID_CODE
 		? failureCode
 		: "NO_USABLE_OUTPUT";
@@ -4332,8 +4334,11 @@ export function createDatabaseProviderEventStore(
 						lastProviderReceivedAt: Date | null;
 						lastProviderSequence: bigint | null;
 						errorSnapshot: unknown;
+						provider: string;
+						providerCostMicros: bigint | null;
+						responseSnapshot: unknown;
 					}>
-				>`SELECT "id", "jobId", "status", "progress", "lastProviderEventAt",
+				>`SELECT "id", "jobId", "status", "progress", "lastProviderEventAt", "provider", "providerCostMicros", "responseSnapshot",
 						          "lastProviderOccurredAt", "lastProviderReceivedAt", "lastProviderSequence", "errorSnapshot"
 					   FROM "generation_attempt" WHERE "id" = ${claim.attemptId} FOR UPDATE`;
 				if (!attempt) throw new Error("Provider event attempt not found");
@@ -4403,19 +4408,27 @@ export function createDatabaseProviderEventStore(
 					await completeProviderWebhookEvent(tx, claim, "STALE_EVENT_IGNORED");
 					return;
 				}
+				if (claim.provider === "kie" && (incoming === "FAILED" || incoming === "CANCELED")) {
+					// A callback only wakes authenticated retrieval; it cannot prove zero consumption.
+					await tx.generationAttempt.update({
+						where: { id: attempt.id },
+						data: { nextReconcileAt: new Date() },
+					});
+					await completeProviderWebhookEvent(tx, claim, "KIE_TERMINAL_REQUIRES_RETRIEVAL");
+					return;
+				}
 				if (incoming === "SUCCEEDED" && !envelope) {
 					await transitionTerminalSuccessWithoutMedia(tx, {
 						attemptId: attempt.id,
 						jobId: attempt.jobId,
 						errorSnapshot: attempt.errorSnapshot,
-						responseSnapshot: responseSnapshotForResult(result),
+						responseSnapshot: responseSnapshotForResult(result, attempt),
 						attemptData: {
 							progress:
 								result.progress === null
 									? attempt.progress
 									: Math.max(attempt.progress ?? 0, Math.min(100, Math.round(result.progress))),
-							providerCostMicros:
-								result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
+							providerCostMicros: providerCostForResult(result, attempt),
 							lastProviderEventAt: canonicalTime,
 							lastProviderOccurredAt: claim.providerOccurredAt,
 							lastProviderReceivedAt: claim.receivedAt,
@@ -4456,9 +4469,8 @@ export function createDatabaseProviderEventStore(
 							result.progress === null
 								? attempt.progress
 								: Math.max(attempt.progress ?? 0, Math.min(100, Math.round(result.progress))),
-						providerCostMicros:
-							result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
-						responseSnapshot: responseSnapshotForResult(result) as Prisma.InputJsonValue,
+						providerCostMicros: providerCostForResult(result, attempt),
+						responseSnapshot: responseSnapshotForResult(result, attempt) as Prisma.InputJsonValue,
 						uncertainSubmission: incomingTerminal ? false : undefined,
 						errorSnapshot: technicalFailure
 							? { code: technicalFailure, retryable: true }
@@ -4654,6 +4666,16 @@ export function createDatabaseReconciliationStore(
 		},
 		async recordReconciled(lease, snapshot, result) {
 			return database.$transaction(async (tx) => {
+				if (options.afterAttemptRead) {
+					await tx.generationAttempt.findUnique({ where: { id: lease.attemptId } });
+					await options.afterAttemptRead();
+				}
+				// Serialize callbacks and repairs, and re-read after waiting. A stale read must
+				// neither erase earlier charge evidence nor write outputs after losing its lease.
+				const locked = await tx.$queryRaw<
+					Array<{ id: string }>
+				>`SELECT "id" FROM "generation_attempt" WHERE "id" = ${lease.attemptId} AND "reconcileLeaseToken" = ${lease.leaseToken} FOR UPDATE`;
+				if (locked.length !== 1) return { outboxCommitted: false };
 				const attempt = await tx.generationAttempt.findFirst({
 					where: {
 						AND: { job: { executionEngine: "legacy" } },
@@ -4662,7 +4684,6 @@ export function createDatabaseReconciliationStore(
 					},
 					include: { job: { select: { productKey: true, status: true } } },
 				});
-				await options.afterAttemptRead?.();
 				if (!attempt) return { outboxCommitted: false };
 				if (snapshot.providerTaskId !== attempt.providerTaskId || lease.jobId !== attempt.jobId)
 					throw new Error("RECONCILIATION_TASK_MISMATCH");
@@ -4680,6 +4701,84 @@ export function createDatabaseReconciliationStore(
 					});
 					return { outboxCommitted: false };
 				}
+				const rejection = result.confirmedZeroCostRejection;
+				if (
+					snapshot.status === "FAILED" &&
+					result.outputs.length === 0 &&
+					result.providerCostMicros === 0 &&
+					!result.providerCharged &&
+					rejection?.source === "record-info" &&
+					snapshot.retrieval?.source === "kie-record-info" &&
+					rejection.observedAt === snapshot.retrieval.observedAt
+				) {
+					await tx.$queryRaw`SELECT "id" FROM "generation_job" WHERE "id" = ${attempt.jobId} FOR UPDATE`;
+					if (await canSettleKieZeroCostRejection(attempt.id, rejection, tx)) {
+						await tx.generationAttempt.update({
+							where: { id: attempt.id },
+							data: {
+								status: "FAILED",
+								uncertainSubmission: false,
+								completedAt: new Date(),
+								providerCostMicros: 0n,
+								responseSnapshot: responseSnapshotForResult(
+									result,
+									attempt,
+								) as Prisma.InputJsonValue,
+								errorSnapshot: { code: KIE_ZERO_COST_REJECTION_CODE, retryable: false },
+								reconcileLeaseToken: null,
+								reconcileLeasedUntil: null,
+								nextReconcileAt: null,
+							},
+						});
+						const changed = await tx.generationJob.updateMany({
+							where: {
+								id: attempt.jobId,
+								executionEngine: "legacy",
+								status: { in: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] },
+							},
+							data: {
+								status: "FINALIZING",
+								failureCode: KIE_ZERO_COST_REJECTION_CODE,
+								version: { increment: 1 },
+							},
+						});
+						if (changed.count !== 1) throw new Error("KIE_REJECTION_JOB_STATE_CONFLICT");
+						const inserted = await tx.outboxEvent.createMany({
+							skipDuplicates: true,
+							data: {
+								eventType: "GENERATION_SETTLE",
+								aggregateType: "GENERATION_JOB",
+								aggregateId: attempt.jobId,
+								dedupeKey: `generation-settle:${attempt.jobId}`,
+								payload: { jobId: attempt.jobId },
+							},
+						});
+						await tx.auditLog.create({
+							data: {
+								action: "MEDIA_KIE_ZERO_COST_REJECTION_CONFIRMED",
+								targetType: "GENERATION_ATTEMPT",
+								targetId: attempt.id,
+								metadata: {
+									jobId: attempt.jobId,
+									evidence: rejection,
+									source: "AUTHENTICATED_RETRIEVAL",
+								},
+							},
+						});
+						return { outboxCommitted: inserted.count > 0 };
+					}
+					await moveAttemptToManualReconciliation(tx, {
+						attempt,
+						jobStatus: attempt.job.status,
+						code: "RECONCILIATION_TERMINAL_UNVERIFIED",
+						attemptStatuses: ["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"],
+						jobStatuses: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"],
+						action: "MEDIA_KIE_ZERO_COST_REJECTION_CONFLICT",
+						uncertainSubmission: true,
+						reconcileLeaseToken: lease.leaseToken,
+					});
+					return { outboxCommitted: false };
+				}
 				const terminalFailure = snapshot.status === "FAILED" || snapshot.status === "CANCELED";
 				const technicalFailure = confirmedTechnicalFailureCode(snapshot, result);
 				const envelope =
@@ -4691,22 +4790,14 @@ export function createDatabaseReconciliationStore(
 						attemptId: attempt.id,
 						jobId: attempt.jobId,
 						errorSnapshot: attempt.errorSnapshot,
-						responseSnapshot: responseSnapshotForResult(result),
+						responseSnapshot: responseSnapshotForResult(result, attempt),
 						reconcileLeaseToken: lease.leaseToken,
 						attemptData: {
 							progress: result.progress,
-							providerCostMicros:
-								result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
+							providerCostMicros: providerCostForResult(result, attempt),
 						},
 					});
 					return { outboxCommitted: false };
-				}
-				if (envelope) {
-					await tx.generationAttemptTransferEnvelope.upsert({
-						where: { attemptId: attempt.id },
-						create: { attemptId: attempt.id, payload: outputTransferEnvelopeInput(envelope) },
-						update: { payload: outputTransferEnvelopeInput(envelope) },
-					});
 				}
 				const changed = await tx.generationAttempt.updateMany({
 					where: {
@@ -4726,9 +4817,8 @@ export function createDatabaseReconciliationStore(
 										? "RUNNING"
 										: undefined,
 						progress: result.progress,
-						responseSnapshot: responseSnapshotForResult(result) as Prisma.InputJsonValue,
-						providerCostMicros:
-							result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
+						responseSnapshot: responseSnapshotForResult(result, attempt) as Prisma.InputJsonValue,
+						providerCostMicros: providerCostForResult(result, attempt),
 						uncertainSubmission: terminalFailure
 							? !technicalFailure
 							: snapshot.status === "SUCCEEDED"
@@ -4756,6 +4846,13 @@ export function createDatabaseReconciliationStore(
 					},
 				});
 				if (changed.count !== 1) return { outboxCommitted: false };
+				if (envelope) {
+					await tx.generationAttemptTransferEnvelope.upsert({
+						where: { attemptId: attempt.id },
+						create: { attemptId: attempt.id, payload: outputTransferEnvelopeInput(envelope) },
+						update: { payload: outputTransferEnvelopeInput(envelope) },
+					});
+				}
 				await options.afterAttemptUpdate?.();
 				let outboxCommitted = false;
 				if (snapshot.status === "SUCCEEDED") {
@@ -5497,7 +5594,15 @@ async function moveAttemptToManualReconciliation(
 async function recoverManualProviderSuccess(
 	tx: Prisma.TransactionClient,
 	input: {
-		attempt: { id: string; jobId: string; status: string; progress: number | null };
+		attempt: {
+			id: string;
+			jobId: string;
+			status: string;
+			progress: number | null;
+			provider: string;
+			providerCostMicros: bigint | null;
+			responseSnapshot: unknown;
+		};
 		job: { status: string };
 		result: {
 			progress: number | null;
@@ -5544,11 +5649,11 @@ async function recoverManualProviderSuccess(
 				input.result.progress === null
 					? input.attempt.progress
 					: Math.max(input.attempt.progress ?? 0, Math.min(100, Math.round(input.result.progress))),
-			providerCostMicros:
-				input.result.providerCostMicros === null
-					? undefined
-					: BigInt(input.result.providerCostMicros),
-			responseSnapshot: responseSnapshotForResult(input.result) as Prisma.InputJsonValue,
+			providerCostMicros: providerCostForResult(input.result, input.attempt),
+			responseSnapshot: responseSnapshotForResult(
+				input.result,
+				input.attempt,
+			) as Prisma.InputJsonValue,
 			uncertainSubmission: false,
 			errorSnapshot: {},
 			...(input.providerEvent

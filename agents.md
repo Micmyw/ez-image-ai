@@ -29,6 +29,7 @@ Root checks: `pnpm format`, `pnpm format:check`, `pnpm lint`, `pnpm type-check`,
 - Clients submit stable public product keys only. Provider routes/model IDs/credentials/prices/raw payloads and arbitrary remote URLs remain server-only.
 - Inputs and outputs remain private `MediaAsset` records. Enforce byte, multipart, session, and aggregate storage limits before writes; stream large transfers.
 - Uncertain provider acceptance keeps credits reserved and prevents cancellation or automatic failover until recovery or an audited administrator decision settles the same attempt.
+- Kie policy rejection may settle at zero only with explicit zero-consumption/no-output evidence and no conflicting prior attempt, charge or media. Authenticated retrieval and administrator-attested dashboard evidence retain their distinct provenance; callbacks only wake retrieval. See `docs/operations/kie-zero-cost-rejection-recovery.md`.
 - Enforce `MEDIA_GENERATION_ENABLED` during authorization; production rejects legacy unmetered streaming and mock/test adapters.
 - Verify and persist raw Stripe webhook events with Outbox first. Workers own subscriptions, periods, ledger, cancellations, refunds, and debt. Organization billing actions require owner authorization.
 - Local mocks, local services, dry runs, and local orchestration builds are not evidence of live external integration.

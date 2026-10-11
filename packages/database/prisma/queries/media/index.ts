@@ -21,6 +21,7 @@ export * from "./guest-retention";
 export * from "./jobs";
 export * from "./continuations";
 export * from "./kie-callback";
+export * from "./kie-zero-cost-rejection";
 export * from "./idempotency";
 export * from "./operations";
 export * from "./outbox";

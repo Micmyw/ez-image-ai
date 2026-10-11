@@ -4,10 +4,35 @@ import {
 	createOutputTransferEnvelope,
 	parseOutputTransferEnvelope,
 	providerOutputsFromTransferEnvelope,
+	providerCostForResult,
 	responseSnapshotForResult,
 } from "./output-transfer-envelope";
 
 describe("provider output transfer envelopes", () => {
+	it.each([
+		{ providerCharged: true, outputCount: 2 },
+		{ outputs: [{ url: "https://cdn.test/old.png?signature=secret" }] },
+		{ outputs: "unrecognized-output" },
+	])("preserves Kie charge/output conflicts through weaker snapshots: %j", (responseSnapshot) => {
+		const first = responseSnapshotForResult(
+			{ outputs: [], providerCharged: false },
+			{ provider: "kie", responseSnapshot },
+		);
+		const second = responseSnapshotForResult(
+			{ outputs: [], providerCharged: false },
+			{ provider: "kie", responseSnapshot: first },
+		);
+		expect(second.zeroCostRejectionConflict).toBe(true);
+		expect(second).toEqual(first);
+		expect(JSON.stringify(second)).not.toContain("signature");
+		expect(
+			providerCostForResult(
+				{ providerCostMicros: 0 },
+				{ provider: "kie", providerCostMicros: 5_000n },
+			),
+		).toBe(5_000n);
+	});
+
 	it("keeps signed transfer material out of the ordinary attempt snapshot", () => {
 		const signedUrl =
 			"https://replicate.delivery/output.png?X-Amz-Credential=temporary&X-Amz-Signature=secret";

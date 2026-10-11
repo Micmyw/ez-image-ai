@@ -20,6 +20,7 @@ import { useState } from "react";
 
 import { CheckoutReviewPanel } from "./CheckoutReviewPanel";
 import { GrowthOperationsPanel } from "./GrowthOperationsPanel";
+import { KieRejectionRecoveryPanel } from "./KieRejectionRecoveryPanel";
 import { ModerationOperationsPanel } from "./ModerationOperationsPanel";
 import { PaymentAttributionPanel } from "./PaymentAttributionPanel";
 
@@ -119,6 +120,7 @@ export function MediaOperations() {
 			<PaymentAttributionPanel />
 			<CheckoutReviewPanel />
 			<ModerationOperationsPanel />
+			<KieRejectionRecoveryPanel />
 			<GrowthOperationsPanel />
 			<GuestOperationsPanel data={data?.guest} />
 			<div className="gap-4 md:grid-cols-2 xl:grid-cols-4 grid">

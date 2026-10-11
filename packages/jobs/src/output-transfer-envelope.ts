@@ -1,4 +1,5 @@
 import type { NormalizedResult, ProviderOutput } from "@repo/ai";
+import { hasKieChargeOrOutputEvidence } from "@repo/config";
 
 const MAX_OUTPUTS = 4;
 const MAX_REMOTE_URL_LENGTH = 4_096;
@@ -58,13 +59,51 @@ export function providerOutputsFromTransferEnvelope(
 }
 
 export function responseSnapshotForResult(
-	result: Pick<NormalizedResult, "outputs" | "providerCharged" | "confirmedTechnicalFailure">,
+	result: Pick<
+		NormalizedResult,
+		"outputs" | "providerCharged" | "confirmedTechnicalFailure" | "confirmedZeroCostRejection"
+	>,
+	previous?: { provider: string; responseSnapshot: unknown },
 ) {
+	const prior =
+		previous?.provider === "kie" &&
+		previous.responseSnapshot &&
+		typeof previous.responseSnapshot === "object" &&
+		!Array.isArray(previous.responseSnapshot)
+			? (previous.responseSnapshot as Record<string, unknown>)
+			: null;
+	const priorOutputCount = Math.max(
+		typeof prior?.outputCount === "number" &&
+			Number.isSafeInteger(prior.outputCount) &&
+			prior.outputCount > 0
+			? prior.outputCount
+			: 0,
+		Array.isArray(prior?.outputs) ? prior.outputs.length : 0,
+	);
 	return {
-		providerCharged: result.providerCharged,
-		outputCount: result.outputs.length,
+		providerCharged: result.providerCharged || prior?.providerCharged === true,
+		outputCount: Math.max(result.outputs.length, priorOutputCount),
+		...(previous?.provider === "kie" && hasKieChargeOrOutputEvidence(previous.responseSnapshot)
+			? { zeroCostRejectionConflict: true }
+			: {}),
 		...(result.confirmedTechnicalFailure ? { failureCode: result.confirmedTechnicalFailure } : {}),
+		...(result.confirmedZeroCostRejection
+			? { confirmedZeroCostRejection: result.confirmedZeroCostRejection }
+			: {}),
 	};
+}
+
+export function providerCostForResult(
+	result: Pick<NormalizedResult, "providerCostMicros">,
+	previous: { provider: string; providerCostMicros: bigint | null },
+): bigint | undefined {
+	if (result.providerCostMicros === null) return undefined;
+	const incoming = BigInt(result.providerCostMicros);
+	return previous.provider === "kie" &&
+		previous.providerCostMicros !== null &&
+		previous.providerCostMicros > incoming
+		? previous.providerCostMicros
+		: incoming;
 }
 
 function projectOutput(mediaKind: "image" | "video", output: unknown): TransferOutput | null {

@@ -772,6 +772,98 @@ describe("Kie image jobs", () => {
 		expect((await adapter.normalizeResult(snapshot)).confirmedTechnicalFailure).toBeUndefined();
 	});
 
+	it("retains explicit zero-cost moderation rejection evidence from a retrieved task", async () => {
+		const adapter = new KieProviderAdapter({
+			apiKey: "key",
+			fetch: capturingFetch(
+				{
+					code: 200,
+					data: {
+						taskId: "kie-image-1",
+						state: "fail",
+						failCode: "400",
+						failMsg:
+							"The input or output was flagged as sensitive. Please try again with different inputs.",
+						creditsConsumed: 0,
+						resultJson: JSON.stringify({
+							code: 400,
+							task_id: "kie-image-1",
+							message:
+								"The input or output was flagged as sensitive. Please try again with different inputs.",
+						}),
+					},
+				},
+				[],
+			),
+		});
+		const snapshot = await adapter.retrieve({
+			providerTaskId: "kie-image-1",
+			statusUrl: "https://api.kie.ai/api/v1/jobs/recordInfo?taskId=kie-image-1",
+		});
+		expect(await adapter.normalizeResult(snapshot)).toMatchObject({
+			providerCostMicros: 0,
+			providerCharged: false,
+			outputs: [],
+			confirmedZeroCostRejection: {
+				provider: "kie",
+				source: "record-info",
+				taskId: "kie-image-1",
+				failCode: "400",
+				consumptionField: "creditsConsumed",
+				consumedCredits: 0,
+				outputCount: 0,
+				observedAt: expect.any(String),
+			},
+		});
+		// A callback with identical provider fields is not authenticated retrieval evidence.
+		expect(
+			await adapter.normalizeResult({
+				providerTaskId: snapshot.providerTaskId,
+				status: snapshot.status,
+				raw: snapshot.raw,
+			}),
+		).not.toHaveProperty("confirmedZeroCostRejection");
+	});
+
+	it.each([
+		{ creditsConsumed: undefined },
+		{ creditsConsumed: null },
+		{ creditsConsumed: 1 },
+		{ failCode: "500" },
+		{ failMsg: "Unknown failure" },
+		{ state: "generating" },
+		{ resultJson: '{"resultUrls":["https://cdn.test/result.png"]}' },
+		{ resultJson: '{"output":"https://cdn.test/result.png"}' },
+		{ resultJson: '{"task_id":"other-task","code":400}' },
+		{ resultUrls: ["https://cdn.test/result.png"] },
+	])("keeps unproven moderation consumption or outputs ambiguous: %j", async (overrides) => {
+		const adapter = new KieProviderAdapter({
+			apiKey: "key",
+			fetch: capturingFetch(
+				{
+					code: 200,
+					data: {
+						taskId: "kie-image-1",
+						state: "fail",
+						failCode: "400",
+						failMsg:
+							"The input or output was flagged as sensitive. Please try again with different inputs.",
+						creditsConsumed: 0,
+						...overrides,
+					},
+				},
+				[],
+			),
+		});
+		const snapshot = await adapter.retrieve({
+			providerTaskId: "kie-image-1",
+			statusUrl: "https://api.kie.ai/api/v1/jobs/recordInfo?taskId=kie-image-1",
+		});
+		expect(await adapter.normalizeResult(snapshot)).not.toHaveProperty(
+			"confirmedZeroCostRejection",
+		);
+	});
+
 	it("does not confuse an HTTP 524 with a confirmed task failure", async () => {
 		const adapter = new KieProviderAdapter({
 			apiKey: "key",

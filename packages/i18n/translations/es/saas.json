@@ -347,6 +347,19 @@
 					"CHECKOUT_REVIEW_PROVIDER_UNCONFIRMED": "PayPal no confirmó la respuesta esperada de recurso no encontrado. Revisa el estado de pago antes de reintentar.",
 					"CHECKOUT_REVIEW_FAILED": "No se pudo completar la revisión. Carga el pedido para comprobar su estado y reintenta si sigue cumpliendo los requisitos."
 				}
+			},
+			"rejectionRecovery": {
+				"title": "Resolver un rechazo confirmado de Kie",
+				"description": "Para una tarea de imagen retenida con rechazo de políticas verificado, consumo cero del proveedor y ninguna salida. Compruebe el panel autenticado del proveedor justo antes. Se registran las pruebas y se programa la liquidación de la reserva existente.",
+				"attemptId": "ID del intento de generación",
+				"providerEvidenceReference": "Referencia de las pruebas",
+				"reason": "Motivo de la resolución",
+				"evidence": "Pruebas depuradas del panel (JSON)",
+				"evidenceHelp": "Use el esquema documentado con ID de tarea, modelo, consumeCredits = 0 y observedAt en UTC de los últimos 15 minutos. Excluya instrucciones, URL de archivos, tokens y credenciales.",
+				"action": "Registrar pruebas y programar liquidación",
+				"invalidEvidence": "Las pruebas están incompletas o no confirman un rechazo de políticas sin coste.",
+				"error": "No se confirmó la resolución. Revise el error y vuelva a enviar las mismas pruebas si se perdió la respuesta de red.",
+				"queued": "Resolución registrada. La liquidación de sus {credits} créditos reservados está programada; compruebe el registro contable antes de confirmar la liberación."
 			}
 		},
 		"title": "Administración",

@@ -23,6 +23,7 @@ import {
 	createRuntimeConfigOverride,
 	revertRuntimeConfigOverride,
 	resolveAdminUncertainSubmission,
+	resolveAdminKieZeroCostRejection,
 	wakeKieGenerationAttempt,
 	claimOutboxBatch,
 	completeOutboxEvent,
@@ -3573,6 +3574,581 @@ describe("production media runtime stores", () => {
 		});
 	});
 
+	it("settles only a proven zero-cost Kie rejection once and preserves its evidence", async () => {
+		const seeded = await seedPendingProviderJob();
+		await client.generationAttempt.update({
+			where: { id: seeded.attemptId },
+			data: { provider: "kie", nextReconcileAt: new Date(0) },
+		});
+		const adapter = new KieProviderAdapter({
+			apiKey: "test",
+			fetch: responseFetch(200, {
+				code: 200,
+				data: {
+					taskId: seeded.providerTaskId,
+					state: "fail",
+					failCode: "400",
+					creditsConsumed: 0,
+					failMsg:
+						"The input or output was flagged as sensitive. Please try again with different inputs.",
+				},
+			}),
+		});
+		const snapshot = await adapter.retrieve({
+			providerTaskId: seeded.providerTaskId,
+			statusUrl: `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${seeded.providerTaskId}`,
+		});
+		const result = await adapter.normalizeResult(snapshot);
+		const store = createDatabaseReconciliationStore(client);
+		const [lease] = await store.claimStale({
+			attemptId: seeded.attemptId,
+			limit: 1,
+			leaseSeconds: 60,
+			now: new Date(),
+		});
+		expect(lease).toBeDefined();
+		await store.recordReconciled(lease!, snapshot, result);
+		await store.recordReconciled(lease!, snapshot, result);
+		expect(
+			await client.outboxEvent.count({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+			}),
+		).toBe(1);
+		const settlement = { store: createDatabaseSettlementStore(client) };
+		await Promise.all([
+			settleGeneration({ ...seeded, version: 0 }, settlement),
+			settleGeneration({ ...seeded, version: 0 }, settlement),
+		]);
+		expect(
+			await client.generationJob.findUniqueOrThrow({
+				where: { id: seeded.jobId },
+				include: { reservation: true },
+			}),
+		).toMatchObject({
+			status: "FAILED",
+			failureCode: "PROVIDER_POLICY_REJECTED_NO_CHARGE",
+			terminalAt: expect.any(Date),
+			reservation: { status: "SETTLED", settledAmount: 0n, releasedAmount: 4n },
+		});
+		expect(
+			await client.generationAttempt.findUniqueOrThrow({ where: { id: seeded.attemptId } }),
+		).toMatchObject({
+			status: "FAILED",
+			uncertainSubmission: false,
+			responseSnapshot: { confirmedZeroCostRejection: result.confirmedZeroCostRejection },
+		});
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { referenceKey: `settle:${seeded.jobId}:release` },
+			}),
+		).toBe(1);
+	});
+
+	it("audits duplicate zero-cost repairs once, settles each owner's five credits once, and clears capacity", async () => {
+		const fixtures = await Promise.all([seedHeldKieRejection(), seedHeldKieRejection()]);
+		for (const fixture of fixtures) {
+			const [first, second] = await Promise.all([
+				resolveAdminKieZeroCostRejection(fixture.repair, client),
+				resolveAdminKieZeroCostRejection(fixture.repair, client),
+			]);
+			expect([first.replayed, second.replayed].sort((a, b) => Number(a) - Number(b))).toEqual([
+				false,
+				true,
+			]);
+			expect(first.reservedCredits).toBe("5");
+			const settlement = { store: createDatabaseSettlementStore(client) };
+			await Promise.all([
+				settleGeneration({ ...fixture, version: 0 }, settlement),
+				settleGeneration({ ...fixture, version: 0 }, settlement),
+			]);
+			const job = await client.generationJob.findUniqueOrThrow({
+				where: { id: fixture.jobId },
+				include: { reservation: { include: { account: true } } },
+			});
+			expect(job).toMatchObject({
+				status: "FAILED",
+				failureCode: "PROVIDER_POLICY_REJECTED_NO_CHARGE",
+				reservation: {
+					status: "SETTLED",
+					settledAmount: 0n,
+					releasedAmount: 5n,
+					account: {
+						spendableCredits: 100n,
+						reservedCredits: 0n,
+						creditDebt: 0n,
+						outputModerationGraceJobId: null,
+					},
+				},
+			});
+			expect(
+				await client.creditLedgerEntry.findMany({
+					where: { reservationId: job.reservation!.id, type: "RELEASE" },
+				}),
+			).toMatchObject([{ amount: 5n, referenceKey: `settle:${job.id}:release` }]);
+			const audits = await client.auditLog.findMany({
+				where: {
+					targetType: "ADMIN_MEDIA_OPERATION",
+					targetId: `operation:${fixture.repair.idempotencyKey}`,
+				},
+			});
+			expect(audits).toHaveLength(1);
+			expect(audits[0]).toMatchObject({
+				actorUserId: fixture.repair.actorUserId,
+				before: { responseSnapshot: { providerCharged: false, outputCount: 0 } },
+				metadata: {
+					evidence: fixture.repair.evidence,
+					providerEvidenceReference: fixture.repair.providerEvidenceReference,
+				},
+			});
+			await expect(
+				resolveAdminKieZeroCostRejection(
+					{ ...fixture.repair, reason: "A different command under the same key" },
+					client,
+				),
+			).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+			await expect(
+				resolveAdminKieZeroCostRejection(
+					{ ...fixture.repair, idempotencyKey: crypto.randomUUID() },
+					client,
+				),
+			).rejects.toThrow("ATTEMPT_NOT_AWAITING_TERMINAL_RECONCILIATION");
+		}
+		expect(
+			await client.generationJob.count({
+				where: {
+					id: { in: fixtures.map((item) => item.jobId) },
+					status: { notIn: ["SUCCEEDED", "FAILED", "CANCELED"] },
+				},
+			}),
+		).toBe(0);
+	});
+
+	it.each([
+		"task",
+		"model",
+		"provider",
+		"cost",
+		"charged",
+		"output-count",
+		"legacy-output",
+		"malformed-output",
+		"transfer",
+		"output-asset",
+		"second-attempt",
+		"stale",
+	])("blocks zero-cost administrator recovery with conflicting %s evidence", async (conflict) => {
+		const fixture = await seedHeldKieRejection();
+		if (conflict === "task") fixture.repair.evidence.taskId = "different-task";
+		if (conflict === "model") fixture.repair.evidence.model = "different-model";
+		if (conflict === "provider")
+			await client.generationAttempt.update({
+				where: { id: fixture.attemptId },
+				data: { provider: "fal" },
+			});
+		if (conflict === "cost")
+			await client.generationAttempt.update({
+				where: { id: fixture.attemptId },
+				data: { providerCostMicros: 5_000n },
+			});
+		if (conflict === "charged")
+			await client.generationAttempt.update({
+				where: { id: fixture.attemptId },
+				data: { responseSnapshot: { providerCharged: true, outputCount: 0 } },
+			});
+		if (conflict === "output-count")
+			await client.generationAttempt.update({
+				where: { id: fixture.attemptId },
+				data: { responseSnapshot: { providerCharged: false, outputCount: 1 } },
+			});
+		if (conflict === "legacy-output" || conflict === "malformed-output")
+			await client.generationAttempt.update({
+				where: { id: fixture.attemptId },
+				data: {
+					responseSnapshot: {
+						outputs:
+							conflict === "legacy-output" ? [{ url: "https://cdn.test/old.png" }] : "unrecognized",
+					},
+				},
+			});
+		if (conflict === "transfer")
+			await client.generationAttemptTransferEnvelope.create({
+				data: {
+					attemptId: fixture.attemptId,
+					payload: {
+						version: 1,
+						outputs: [{ kind: "remote-url", url: "https://cdn.test/output.png" }],
+					},
+				},
+			});
+		if (conflict === "output-asset") await seedBoundOutputAsset(fixture.jobId, "VERIFYING");
+		if (conflict === "second-attempt")
+			await client.generationAttempt.create({
+				data: {
+					jobId: fixture.jobId,
+					attemptNumber: 2,
+					provider: "kie",
+					providerModelId: "nano-banana-2-lite",
+					requestSnapshot: {},
+					status: "FAILED",
+					providerCostMicros: 0n,
+				},
+			});
+		if (conflict === "stale")
+			fixture.repair.evidence.observedAt = new Date(Date.now() - 16 * 60_000).toISOString();
+		await expect(resolveAdminKieZeroCostRejection(fixture.repair, client)).rejects.toThrow();
+		expect(
+			await client.creditReservation.findUniqueOrThrow({ where: { jobId: fixture.jobId } }),
+		).toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
+		expect(
+			await client.outboxEvent.count({
+				where: { aggregateId: fixture.jobId, eventType: "GENERATION_SETTLE" },
+			}),
+		).toBe(0);
+	});
+
+	it("zero-cost repair does not restore expired lots to spendable credits", async () => {
+		const fixture = await seedHeldKieRejection();
+		const reservation = await client.creditReservation.findUniqueOrThrow({
+			where: { jobId: fixture.jobId },
+		});
+		await client.creditLot.updateMany({
+			where: { accountId: reservation.accountId },
+			data: { expiresAt: new Date(Date.now() - 60_000) },
+		});
+		await resolveAdminKieZeroCostRejection(fixture.repair, client);
+		await settleGeneration(
+			{ ...fixture, version: 0 },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: reservation.accountId } }),
+		).toMatchObject({ spendableCredits: 0n, reservedCredits: 0n, creditDebt: 0n });
+		expect(
+			await client.creditReservation.findUniqueOrThrow({ where: { id: reservation.id } }),
+		).toMatchObject({ releasedAmount: 5n, settledAmount: 0n });
+	});
+
+	it("zero-cost repair fences a previously claimed poll and callback", async () => {
+		const fixture = await seedHeldKieRejection();
+		const leaseToken = crypto.randomUUID();
+		await client.generationAttempt.update({
+			where: { id: fixture.attemptId },
+			data: {
+				reconcileLeaseToken: leaseToken,
+				reconcileLeasedUntil: new Date(Date.now() + 60_000),
+			},
+		});
+		const event = await createProviderEvent(
+			"kie",
+			fixture.providerTaskId,
+			"succeeded",
+			new Date(),
+			1n,
+		);
+		const eventStore = createDatabaseProviderEventStore(client);
+		const claim = await eventStore.claimProviderEvent(event.id);
+		expect(claim).not.toBeNull();
+		let unblock!: () => void;
+		let read!: () => void;
+		const readBarrier = new Promise<void>((resolve) => {
+			read = resolve;
+		});
+		const resume = new Promise<void>((resolve) => {
+			unblock = resolve;
+		});
+		const store = createDatabaseReconciliationStore(client, {
+			afterAttemptRead: async () => {
+				read();
+				await resume;
+			},
+		});
+		const poll = store.recordReconciled(
+			{ ...fixture, provider: "kie", leaseToken, repairCount: 1, staleAgeMinutes: 1, version: 0 },
+			{ providerTaskId: fixture.providerTaskId, status: "SUCCEEDED", raw: {} },
+			normalizedResult("late-poll"),
+		);
+		await readBarrier;
+		await resolveAdminKieZeroCostRejection(fixture.repair, client);
+		unblock();
+		await poll;
+		await eventStore.recordProviderProgress(claim!, normalizedResult("late-callback"));
+		await settleGeneration(
+			{ ...fixture, version: 0 },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		expect(
+			await client.generationJob.findUniqueOrThrow({ where: { id: fixture.jobId } }),
+		).toMatchObject({ status: "FAILED" });
+		expect(
+			await client.generationAttemptTransferEnvelope.count({
+				where: { attemptId: fixture.attemptId },
+			}),
+		).toBe(0);
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { referenceKey: `settle:${fixture.jobId}:release` },
+			}),
+		).toBe(1);
+	});
+
+	it("retains a success that reaches the held task before zero-cost repair", async () => {
+		const fixture = await seedHeldKieRejection();
+		const event = await createProviderEvent(
+			"kie",
+			fixture.providerTaskId,
+			"succeeded",
+			new Date(),
+			1n,
+		);
+		const store = createDatabaseProviderEventStore(client);
+		const claim = await store.claimProviderEvent(event.id);
+		expect(claim).not.toBeNull();
+		await store.recordProviderProgress(claim!, normalizedResult("success-before-repair"));
+		await expect(resolveAdminKieZeroCostRejection(fixture.repair, client)).rejects.toThrow(
+			"ATTEMPT_NOT_AWAITING_TERMINAL_RECONCILIATION",
+		);
+		expect(
+			await client.creditReservation.findUniqueOrThrow({ where: { jobId: fixture.jobId } }),
+		).toMatchObject({ status: "ACTIVE", releasedAmount: 0n });
+		expect(
+			await client.generationAttemptTransferEnvelope.count({
+				where: { attemptId: fixture.attemptId },
+			}),
+		).toBe(1);
+	});
+
+	it("zero-cost polling retains contradictory earlier billing evidence instead of overwriting it", async () => {
+		const seeded = await seedPendingProviderJob("image-nano-banana-2-lite");
+		await client.generationAttempt.update({
+			where: { id: seeded.attemptId },
+			data: {
+				providerCostMicros: 5_000n,
+				responseSnapshot: { providerCharged: true, outputCount: 0 },
+				nextReconcileAt: new Date(0),
+			},
+		});
+		const adapter = new KieProviderAdapter({
+			apiKey: "test",
+			fetch: responseFetch(200, {
+				code: 200,
+				data: {
+					taskId: seeded.providerTaskId,
+					state: "fail",
+					failCode: "400",
+					failMsg:
+						"The input or output was flagged as sensitive. Please try again with different inputs.",
+					creditsConsumed: 0,
+				},
+			}),
+		});
+		const snapshot = await adapter.retrieve({
+			providerTaskId: seeded.providerTaskId,
+			statusUrl: `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${seeded.providerTaskId}`,
+		});
+		const store = createDatabaseReconciliationStore(client);
+		const [lease] = await store.claimStale({
+			attemptId: seeded.attemptId,
+			limit: 1,
+			leaseSeconds: 60,
+			now: new Date(),
+		});
+		await store.recordReconciled(lease!, snapshot, await adapter.normalizeResult(snapshot));
+		expect(
+			await client.generationAttempt.findUniqueOrThrow({ where: { id: seeded.attemptId } }),
+		).toMatchObject({
+			status: "NEEDS_RECONCILIATION",
+			providerCostMicros: 5_000n,
+			responseSnapshot: { providerCharged: true, outputCount: 0 },
+		});
+		expect(
+			await client.creditReservation.findUniqueOrThrow({ where: { jobId: seeded.jobId } }),
+		).toMatchObject({ status: "ACTIVE", releasedAmount: 0n });
+	});
+
+	it.each(["unknown-terminal", "running-poll", "running-callback"] as const)(
+		"preserves earlier Kie conflicts through %s before a zero-cost repair",
+		async (intermediate) => {
+			for (const conflict of ["cost", "charged", "legacy-output", "malformed-output"] as const) {
+				const fixture = await seedHeldKieRejection(true);
+				await client.generationAttempt.update({
+					where: { id: fixture.attemptId },
+					data: {
+						providerCostMicros: conflict === "cost" ? 5_000n : 0n,
+						responseSnapshot:
+							conflict === "charged"
+								? { providerCharged: true }
+								: conflict === "legacy-output"
+									? { outputs: [{ url: "https://cdn.test/old.png" }] }
+									: conflict === "malformed-output"
+										? { outputs: "unrecognized" }
+										: {},
+						nextReconcileAt: new Date(0),
+					},
+				});
+				const store = createDatabaseReconciliationStore(client);
+				const weakerResult = {
+					outputs: [],
+					progress: null,
+					providerCostMicros: 0,
+					providerCharged: false,
+					retryable: false,
+					failure: null,
+				};
+				if (intermediate === "running-callback") {
+					const event = await createProviderEvent(
+						"kie",
+						fixture.providerTaskId,
+						"processing",
+						new Date(),
+						1n,
+					);
+					const eventStore = createDatabaseProviderEventStore(client);
+					const claim = await eventStore.claimProviderEvent(event.id);
+					await eventStore.recordProviderProgress(claim!, weakerResult);
+				} else {
+					const [lease] = await store.claimStale({
+						attemptId: fixture.attemptId,
+						limit: 1,
+						leaseSeconds: 60,
+						now: new Date(),
+					});
+					await store.recordReconciled(
+						lease!,
+						{
+							providerTaskId: fixture.providerTaskId,
+							status: intermediate === "unknown-terminal" ? "FAILED" : "RUNNING",
+							raw: {},
+						},
+						weakerResult,
+					);
+				}
+				if (intermediate !== "unknown-terminal") {
+					await client.generationAttempt.update({
+						where: { id: fixture.attemptId },
+						data: { nextReconcileAt: new Date(0) },
+					});
+					const [lease] = await store.claimStale({
+						attemptId: fixture.attemptId,
+						limit: 1,
+						leaseSeconds: 60,
+						now: new Date(),
+					});
+					const { snapshot, result } = await zeroCostRejectionResult(fixture.providerTaskId);
+					await store.recordReconciled(lease!, snapshot, result);
+				}
+				await expect(resolveAdminKieZeroCostRejection(fixture.repair, client)).rejects.toThrow(
+					"KIE_REJECTION_EVIDENCE_CONFLICT",
+				);
+				const attempt = await client.generationAttempt.findUniqueOrThrow({
+					where: { id: fixture.attemptId },
+				});
+				expect(attempt.status).toBe("NEEDS_RECONCILIATION");
+				if (conflict === "cost") expect(attempt.providerCostMicros).toBe(5_000n);
+				else expect(attempt.responseSnapshot).toMatchObject({ zeroCostRejectionConflict: true });
+				expect(
+					await client.creditReservation.findUniqueOrThrow({ where: { jobId: fixture.jobId } }),
+				).toMatchObject({ status: "ACTIVE", releasedAmount: 0n });
+			}
+		},
+	);
+
+	it("fences a stale successful poll after a new lease settles a running Kie rejection", async () => {
+		const fixture = await seedHeldKieRejection(true);
+		await client.generationAttempt.update({
+			where: { id: fixture.attemptId },
+			data: { status: "RUNNING", nextReconcileAt: new Date(0) },
+		});
+		const store = createDatabaseReconciliationStore(client);
+		const [oldLease] = await store.claimStale({
+			attemptId: fixture.attemptId,
+			limit: 1,
+			leaseSeconds: 60,
+			now: new Date(),
+		});
+		let unblock!: () => void;
+		let read!: () => void;
+		const readBarrier = new Promise<void>((resolve) => {
+			read = resolve;
+		});
+		const resume = new Promise<void>((resolve) => {
+			unblock = resolve;
+		});
+		const oldStore = createDatabaseReconciliationStore(client, {
+			afterAttemptRead: async () => {
+				read();
+				await resume;
+			},
+		});
+		const oldPoll = oldStore.recordReconciled(
+			oldLease!,
+			{ providerTaskId: fixture.providerTaskId, status: "SUCCEEDED", raw: {} },
+			normalizedResult("stale-success"),
+		);
+		await readBarrier;
+		try {
+			await client.generationAttempt.update({
+				where: { id: fixture.attemptId },
+				data: { reconcileLeasedUntil: new Date(0), nextReconcileAt: new Date(0) },
+			});
+			const [newLease] = await store.claimStale({
+				attemptId: fixture.attemptId,
+				limit: 1,
+				leaseSeconds: 60,
+				now: new Date(),
+			});
+			expect(newLease!.leaseToken).not.toBe(oldLease!.leaseToken);
+			const { snapshot, result } = await zeroCostRejectionResult(fixture.providerTaskId);
+			await store.recordReconciled(newLease!, snapshot, result);
+			await settleGeneration(
+				{ ...fixture, version: 0 },
+				{ store: createDatabaseSettlementStore(client) },
+			);
+		} finally {
+			unblock();
+		}
+		expect(await oldPoll).toEqual({ outboxCommitted: false });
+		expect(
+			await client.generationAttemptTransferEnvelope.count({
+				where: { attemptId: fixture.attemptId },
+			}),
+		).toBe(0);
+		expect(
+			await client.generationJob.findUniqueOrThrow({ where: { id: fixture.jobId } }),
+		).toMatchObject({ status: "FAILED", failureCode: "PROVIDER_POLICY_REJECTED_NO_CHARGE" });
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { referenceKey: `settle:${fixture.jobId}:release` },
+			}),
+		).toBe(1);
+	});
+
+	it("zero-cost callback assertions only wake retrieval and cannot settle a reservation", async () => {
+		const seeded = await seedPendingProviderJob("image-nano-banana-2-lite");
+		const event = await createProviderEvent("kie", seeded.providerTaskId, "failed", new Date(), 1n);
+		const store = createDatabaseProviderEventStore(client);
+		const claim = await store.claimProviderEvent(event.id);
+		expect(claim).not.toBeNull();
+		await store.recordProviderProgress(claim!, {
+			outputs: [],
+			progress: null,
+			providerCostMicros: 0,
+			providerCharged: false,
+			retryable: false,
+			failure: { code: "400", message: "rejected", retryable: false },
+		});
+		expect(
+			await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).toMatchObject({ status: "PROVIDER_PENDING" });
+		expect(
+			await client.generationAttempt.findUniqueOrThrow({ where: { id: seeded.attemptId } }),
+		).toMatchObject({ status: "SUBMITTED", nextReconcileAt: expect.any(Date) });
+		expect(
+			await client.outboxEvent.count({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+			}),
+		).toBe(0);
+	});
+
 	it("freezes an unverified terminal reconciliation without settling credits", async () => {
 		const seeded = await seedPendingProviderJob();
 		await client.generationAttempt.update({
@@ -4357,8 +4933,10 @@ function createOutputVerificationDependencies(
 	});
 }
 
-async function seedPendingProviderJob() {
-	const seeded = await seedReservedJob("image-fast");
+async function seedPendingProviderJob(
+	productKey: "image-fast" | "image-nano-banana-2-lite" = "image-fast",
+) {
+	const seeded = await seedReservedJob(productKey);
 	const store = createTestDispatchStore();
 	const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
 	if (!claim || claim.provider === "openrouter") {
@@ -4378,6 +4956,73 @@ async function seedPendingProviderJob() {
 		provider: claim.provider,
 		providerTaskId,
 	};
+}
+
+async function seedHeldKieRejection(active = false) {
+	const seeded = await seedPendingProviderJob("image-nano-banana-2-lite");
+	if (!active) {
+		await client.generationAttempt.update({
+			where: { id: seeded.attemptId },
+			data: {
+				status: "NEEDS_RECONCILIATION",
+				uncertainSubmission: true,
+				providerCostMicros: 0n,
+				nextReconcileAt: null,
+				responseSnapshot: { providerCharged: false, outputCount: 0 },
+			},
+		});
+		await client.generationJob.update({
+			where: { id: seeded.jobId },
+			data: { status: "NEEDS_RECONCILIATION", failureCode: "RECONCILIATION_TERMINAL_UNVERIFIED" },
+		});
+	}
+	return {
+		...seeded,
+		repair: {
+			attemptId: seeded.attemptId,
+			actorUserId: "rejection-repair-test-admin",
+			idempotencyKey: crypto.randomUUID(),
+			reason: "Verified zero consumption and no output in authenticated provider dashboard",
+			providerEvidenceReference: `Kie dashboard record ${seeded.providerTaskId}`,
+			evidence: {
+				version: 1 as const,
+				provider: "kie" as const,
+				source: "dashboard-log" as const,
+				taskId: seeded.providerTaskId,
+				model: "nano-banana-2-lite",
+				state: "fail" as const,
+				failCode: "400" as const,
+				failMsg:
+					"The input or output was flagged as sensitive. Please try again with different inputs." as const,
+				consumptionField: "consumeCredits" as const,
+				consumedCredits: 0 as const,
+				outputCount: 0 as const,
+				observedAt: new Date().toISOString(),
+			},
+		},
+	};
+}
+
+async function zeroCostRejectionResult(providerTaskId: string) {
+	const adapter = new KieProviderAdapter({
+		apiKey: "test",
+		fetch: responseFetch(200, {
+			code: 200,
+			data: {
+				taskId: providerTaskId,
+				state: "fail",
+				failCode: "400",
+				creditsConsumed: 0,
+				failMsg:
+					"The input or output was flagged as sensitive. Please try again with different inputs.",
+			},
+		}),
+	});
+	const snapshot = await adapter.retrieve({
+		providerTaskId,
+		statusUrl: `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${providerTaskId}`,
+	});
+	return { snapshot, result: await adapter.normalizeResult(snapshot) };
 }
 
 async function createProviderEvent(

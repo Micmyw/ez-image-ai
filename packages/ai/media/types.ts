@@ -1,4 +1,4 @@
-import type { TechnicalGenerationFailureCode } from "@repo/config";
+import type { KieZeroCostRejectionEvidence, TechnicalGenerationFailureCode } from "@repo/config";
 
 import type { MediaModelInput } from "./catalog/schemas";
 
@@ -92,6 +92,8 @@ export interface ProviderTaskSnapshot {
 	status: ProviderTaskStatus;
 	progress?: number;
 	raw: unknown;
+	/** Attached by authenticated retrieval, never derived from provider callback JSON. */
+	retrieval?: { source: "kie-record-info"; observedAt: string };
 }
 export type ProviderOutput =
 	| { kind: "remote-url"; url: string; trust: "untrusted-transfer-candidate" }
@@ -110,6 +112,7 @@ export interface NormalizedResult {
 	providerCharged: boolean;
 	/** Only set for a validated terminal task failure, never a transport timeout. */
 	confirmedTechnicalFailure?: TechnicalGenerationFailureCode;
+	confirmedZeroCostRejection?: KieZeroCostRejectionEvidence;
 }
 export interface VerifiedProviderEvent {
 	eventId: string;

@@ -40,6 +40,7 @@ import { listAssets } from "./procedures/list-assets";
 import { listEditSessions } from "./procedures/list-edit-sessions";
 import { listJobs } from "./procedures/list-jobs";
 import { renameEditSession } from "./procedures/rename-edit-session";
+import { resolveKieZeroCostRejection } from "./procedures/resolve-kie-zero-cost-rejection";
 import { retryGeneration } from "./procedures/retry-generation";
 import { submitGeneration } from "./procedures/submit-generation";
 import { submitGuestGeneration } from "./procedures/submit-guest-generation";
@@ -84,6 +85,7 @@ export const mediaRouter = {
 	replayMediaEvent,
 	requeueMediaVerification,
 	resolveUncertainSubmission,
+	resolveKieZeroCostRejection,
 	retryMediaJobStage,
 	setMediaRuntimeOverride,
 	rollbackMediaRuntimeOverride,

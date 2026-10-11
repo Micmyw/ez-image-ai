@@ -347,6 +347,19 @@
 					"CHECKOUT_REVIEW_PROVIDER_UNCONFIRMED": "PayPal hat die erwartete Antwort zur fehlenden Ressource nicht bestätigt. Prüfen Sie zuerst den aktuellen Zahlungsstatus.",
 					"CHECKOUT_REVIEW_FAILED": "Die Prüfung konnte nicht abgeschlossen werden. Laden Sie die Bestellung und versuchen Sie es erneut, wenn sie weiterhin geeignet ist."
 				}
+			},
+			"rejectionRecovery": {
+				"title": "Bestätigte Kie-Ablehnung bearbeiten",
+				"description": "Für einen zurückgehaltenen Bildauftrag mit bestätigter Richtlinienablehnung, ohne Anbieterverbrauch und ohne Ausgabe. Prüfen Sie unmittelbar zuvor das angemeldete Anbieter-Dashboard. Die Belege werden protokolliert und die bestehende Reservierung wird zur Abrechnung eingereiht.",
+				"attemptId": "ID des Generierungsversuchs",
+				"providerEvidenceReference": "Belegreferenz",
+				"reason": "Grund der Bearbeitung",
+				"evidence": "Bereinigter Dashboard-Beleg (JSON)",
+				"evidenceHelp": "Verwenden Sie das dokumentierte Schema mit Aufgaben-ID, Modell, consumeCredits = 0 und observedAt in UTC innerhalb von 15 Minuten. Keine Prompts, Medien-URLs, Callback-Tokens oder Zugangsdaten.",
+				"action": "Beleg speichern und Abrechnung einreihen",
+				"invalidEvidence": "Der Beleg ist unvollständig oder bestätigt keine kostenfreie Richtlinienablehnung.",
+				"error": "Die Bearbeitung wurde nicht bestätigt. Prüfen Sie den Fehler und wiederholen Sie bei verlorener Netzwerkantwort denselben Beleg.",
+				"queued": "Bearbeitung protokolliert. Die Abrechnung der {credits} reservierten Credits ist eingereiht; prüfen Sie das Kontobuch, bevor Sie eine Freigabe bestätigen."
 			}
 		},
 		"title": "Administration",

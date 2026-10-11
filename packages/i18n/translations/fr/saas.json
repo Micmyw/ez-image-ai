@@ -347,6 +347,19 @@
 					"CHECKOUT_REVIEW_PROVIDER_UNCONFIRMED": "PayPal n'a pas confirmé la réponse attendue de ressource introuvable. Vérifiez l'état du paiement avant de réessayer.",
 					"CHECKOUT_REVIEW_FAILED": "L'examen n'a pas pu aboutir. Rechargez la commande pour vérifier son état, puis réessayez si elle reste admissible."
 				}
+			},
+			"rejectionRecovery": {
+				"title": "Résoudre un refus Kie confirmé",
+				"description": "Pour une tâche image suspendue avec refus de sécurité vérifié, consommation nulle du fournisseur et aucun résultat. Vérifiez le tableau de bord authentifié juste avant. Les preuves sont journalisées et le règlement de la réservation existante est mis en attente.",
+				"attemptId": "Identifiant de la tentative",
+				"providerEvidenceReference": "Référence des preuves",
+				"reason": "Motif de la résolution",
+				"evidence": "Preuves expurgées du tableau de bord (JSON)",
+				"evidenceHelp": "Utilisez le schéma documenté avec identifiant, modèle, consumeCredits = 0 et observedAt en UTC datant de moins de 15 minutes. Excluez les prompts, URL de médias, jetons et identifiants secrets.",
+				"action": "Enregistrer les preuves et lancer le règlement",
+				"invalidEvidence": "Les preuves sont incomplètes ou ne confirment pas un refus de sécurité sans frais.",
+				"error": "La résolution n’est pas confirmée. Vérifiez l’erreur et renvoyez les mêmes preuves si la réponse réseau a été perdue.",
+				"queued": "Résolution enregistrée. Le règlement des {credits} crédits réservés est en attente ; vérifiez le registre avant de confirmer leur libération."
 			}
 		},
 		"title": "Administration",
