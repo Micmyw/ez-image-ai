@@ -33,6 +33,50 @@ const legacyRedirects: ReadonlyArray<{ from: string; to: string }> = [
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
+test("Vidu Q4 guide separates official access from other EzImageAI models", async ({
+	page,
+	request,
+}, testInfo) => {
+	test.setTimeout(120_000);
+	await mockPublicImageAvailability(page);
+	const path = "/blog/vidu-q4-preview";
+	const response = await request.get(path);
+	expect(response.ok()).toBe(true);
+	const html = await response.text();
+	expect(html).toContain("EzImageAI does not currently offer Vidu Q4 Preview");
+	expect(html).toContain("Documented inputs and output limits");
+	for (const width of [1440, 390]) {
+		await page.setViewportSize({ width, height: 900 });
+		await expectPublicPage(page, path, "index");
+		await expect(page).toHaveTitle("Vidu Q4 Preview: Features, Pricing & API Guide | EzImageAI");
+		await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+		const article = page.locator("article.blog-prose");
+		await expect(
+			article.getByRole("link", { name: "Try Q4 Preview on Vidu's official site", exact: true }),
+		).toHaveAttribute("href", "https://www.vidu.com/vidu-q4");
+		await expect(
+			article.getByRole("link", { name: "EzImageAI video editor — other models", exact: true }),
+		).toHaveAttribute("href", "/create?mode=video");
+		await expect(article.getByRole("button", { name: "Copy prompt", exact: true })).toHaveCount(3);
+		await expect(
+			page.locator('[data-test="landing-generator"], [data-test="registered-generator"]'),
+		).toHaveCount(0);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+			true,
+		);
+		await page.screenshot({ path: testInfo.outputPath(`vidu-q4-${width}.png`), fullPage: true });
+	}
+	await expectPublicPage(page, "/blog", "index");
+	await expect(page.locator(`a[href="${path}"]`).first()).toBeVisible();
+	await page.goto(`${path}?lang=de`);
+	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+		"href",
+		new URL(path, baseUrl).href,
+	);
+	await expect(page.locator('link[rel="alternate"][hreflang]')).toHaveCount(0);
+});
+
 async function mockPublicImageAvailability(page: import("@playwright/test").Page) {
 	const product = {
 		key: "image-nano-banana-2-lite",

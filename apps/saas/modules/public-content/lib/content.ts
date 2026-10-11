@@ -7,6 +7,7 @@ import { hotelLobbyVideoDocuments } from "../../../content/posts/hotel-lobby-ai-
 import { blogDocuments } from "../../../content/posts/private-image-editing-workflow";
 import { raindanceDocuments } from "../../../content/posts/raindance-ai-trend";
 import { tescoMealPlanningDocuments } from "../../../content/posts/tesco-ai-meal-planning-assistant";
+import { viduQ4PreviewDocuments } from "../../../content/posts/vidu-q4-preview";
 import { getEffectRecordsForValidation, getPublishedEffectById } from "../../effects/lib/content";
 import type { BlogPost } from "./blog-types";
 import { validateBlogPosts } from "./blog-validation";
@@ -36,6 +37,7 @@ const posts: readonly BlogPost[] = [
 	...hotelLobbyVideoDocuments,
 	...raindanceDocuments,
 	...tescoMealPlanningDocuments,
+	...viduQ4PreviewDocuments,
 ];
 
 export function getLegalPageByPath(path: string, options: { locale: string }): LegalPage | null {

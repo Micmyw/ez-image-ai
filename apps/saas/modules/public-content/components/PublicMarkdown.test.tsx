@@ -24,12 +24,51 @@ describe("public content links", () => {
 		const markup = renderToStaticMarkup(
 			<PublicMarkdown
 				body={
-					"[unsafe](javascript:alert) [external](//example.com) [backslash](/\\example.com) <script>alert(1)</script>"
+					"[unsafe](javascript:alert) [external](//example.com) [https](https://www.vidu.com/) [backslash](/\\example.com) <script>alert(1)</script>"
 				}
 			/>,
 		);
 		expect(markup).not.toContain("href=");
 		expect(markup).not.toContain("<script>");
+	});
+
+	it("renders registered official HTTPS sources in paragraphs, lists and tables", () => {
+		const officialUrl = "https://www.vidu.com/";
+		const docsUrl = "https://platform.vidu.com/docs?model=viduq4-preview&lang=en";
+		const markup = renderToStaticMarkup(
+			<PublicMarkdown
+				body={`Try [Vidu](${officialUrl}).\n\n- Read [official docs](${docsUrl}).\n\n| Service | Link |\n| --- | --- |\n| Official | [Vidu](${officialUrl}) |`}
+				allowedExternalUrls={[officialUrl, docsUrl]}
+			/>,
+		);
+		expect(markup.match(/href="https:\/\/www\.vidu\.com\/"/g)).toHaveLength(2);
+		expect(markup).toContain(`href="${docsUrl.replaceAll("&", "&amp;")}"`);
+		expect(markup.match(/rel="noreferrer"/g)).toHaveLength(3);
+		expect(markup).not.toContain("[official docs]");
+	});
+
+	it("rejects unregistered URLs and unsafe targets even when registered as sources", () => {
+		const rejectedUrls = [
+			"https://www.vidu.com/unregistered",
+			"https://www.vidu.com.evil.example/",
+			"//www.vidu.com/",
+			"http://www.vidu.com/",
+			"javascript:alert",
+			"https://user@www.vidu.com/",
+			"https://:password@www.vidu.com/",
+			"https://www.vidu.com\\@evil.example/",
+			"https://[broken.example/",
+		];
+		const markup = renderToStaticMarkup(
+			<PublicMarkdown
+				body={rejectedUrls.map((url, index) => `[rejected ${index}](${url})`).join(" ")}
+				allowedExternalUrls={["https://www.vidu.com/", ...rejectedUrls.slice(2)]}
+			/>,
+		);
+		expect(markup).not.toContain("href=");
+		for (const [index] of rejectedUrls.entries()) {
+			expect(markup).toContain(`[rejected ${index}]`);
+		}
 	});
 
 	it("renders headings with matching unique anchors and keeps prompts readable in server HTML", () => {

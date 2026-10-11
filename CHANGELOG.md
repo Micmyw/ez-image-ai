@@ -16,6 +16,11 @@
 - Distinguish personal task limits, shared platform capacity, provider capacity and request rate limits. Shared-capacity messages no longer suggest that an account with no active tasks must wait for its own task.
 - Preserve the original funding snapshot and reservation for accepted requests. Refresh older unaccepted ordinary-video quotes before using the shared balance.
 
+## 2026-10-11 — Vidu Q4 Preview guide
+
+- Add a sourced Blog guide covering Vidu Q4 Preview workflows, documented limits, API pricing and untested original prompts.
+- Link to official Vidu access and clearly identify EzImageAI's separate current video models; Q4 generation is not offered here.
+
 ## 2026-10-09 — Generation response and account isolation
 
 - Show an accepted image task before history and credit refreshes finish. Keep balances scoped to the signed-in account and ignore stale responses after account or editor changes.
