@@ -304,12 +304,40 @@ function assertPnpmSetupPrecedesNodeCache(workflowText) {
 }
 
 function assertNarrowGitleaksFixtureIgnores(value) {
+	// Public browser placement matches from one exact historical Blog commit.
+	const historicalPublicPlacements = new Set([
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-fixture.html:generic-api-key:53",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:apps/saas/modules/public-content/lib/blog-ads.ts:generic-api-key:39",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/csp-390.json:generic-api-key:63",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/csp-390.json:generic-api-key:101",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/csp-390.json:generic-api-key:126",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-1280.json:generic-api-key:49",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-1280.json:generic-api-key:87",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-1280.json:generic-api-key:105",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/csp-1280.json:generic-api-key:67",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/csp-1280.json:generic-api-key:105",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/csp-1280.json:generic-api-key:130",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-390.json:generic-api-key:49",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-390.json:generic-api-key:87",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:docs/operations/evidence/blog-ads/sandbox-390.json:generic-api-key:105",
+		"db5ad9d42df21c023adf289a2d5083309b91401f:scripts/blog-ad-observation.mjs:generic-api-key:18",
+	]);
 	const fingerprints = value
 		.split("\n")
 		.map((line) => line.trim())
 		.filter((line) => line && !line.startsWith("#"));
-	if (fingerprints.length !== 29 || new Set(fingerprints).size !== 29) {
-		throw new Error("Gitleaks fixture allowlist must contain exactly 29 unique known fingerprints");
+	const expectedCount = 29 + historicalPublicPlacements.size;
+	if (fingerprints.length !== expectedCount || new Set(fingerprints).size !== expectedCount) {
+		throw new Error(
+			`Gitleaks fixture allowlist must contain exactly ${expectedCount} unique known fingerprints`,
+		);
+	}
+	for (const fingerprint of historicalPublicPlacements) {
+		if (!fingerprints.includes(fingerprint)) {
+			throw new Error(
+				"Gitleaks public placement fingerprints must match the exact reviewed history",
+			);
+		}
 	}
 	const historicalPlaceholders = new Set([
 		"bc30528a157976085b92c6cf322a9cc3009fb42f:packages/payments/provider/registry.test.ts:private-key:77",
@@ -318,6 +346,7 @@ function assertNarrowGitleaksFixtureIgnores(value) {
 	for (const fingerprint of fingerprints) {
 		if (
 			!historicalPlaceholders.has(fingerprint) &&
+			!historicalPublicPlacements.has(fingerprint) &&
 			!/^[0-9a-f]{40}:[^:]+\.test\.ts:(?:generic-api-key|stripe-access-token):[0-9]+$/.test(
 				fingerprint,
 			)
