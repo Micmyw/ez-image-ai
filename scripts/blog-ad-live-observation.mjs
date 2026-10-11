@@ -39,7 +39,7 @@ if (
 	throw new Error("Use the approved production origin or the isolated local test origin");
 if (values["offline-fixture"] && appUrl.origin !== "http://127.0.0.1:3018")
 	throw new Error("Offline fixture mode is limited to the isolated local origin");
-const expiresAt = Date.parse("2026-10-11T14:00:00Z");
+const expiresAt = Date.parse("2026-10-11T16:00:00Z");
 if (Date.now() >= expiresAt - 30_000) throw new Error("The approved preview window has ended");
 const runDeadline = Math.min(Date.now() + 120_000, expiresAt);
 const activeDeadline = runDeadline - 5_000;

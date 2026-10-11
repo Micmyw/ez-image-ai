@@ -19,10 +19,12 @@ Nothing in the generator makes network requests or changes Cloudflare configurat
 A temporary test requires an explicit future UTC deadline, at most two hours from generation:
 
 ```sh
-pnpm --filter @repo/blog-ads build --test-until 2026-10-11T14:00:00Z
+pnpm --filter @repo/blog-ads build --test-until 2026-10-11T16:00:00Z
 ```
 
-The date is an example of an authorized finite window; an expired or too distant date fails.
+The date is the current parent-coordinated single test window; an expired or too distant date fails.
+The coordinated wrapper requires entry before 15:50 UTC and starts its independent OFF backstop
+at 15:56 UTC on 2026-10-11. Both production master switches remain false.
 The generator hashes the exact guarded inline scripts and style. The bootstrap checks the deadline
 before parser-inserting the original supplier tag. A direct top-level visit starts no supplier script.
 At expiry the embedded document navigates itself to `about:blank`, ending the loaded document;
