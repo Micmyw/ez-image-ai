@@ -19,6 +19,7 @@ export function BlogAds({ settings }: { settings: BlogAdSettings }) {
 	const t = useTranslations("guides.ads");
 	const { userHasConsented } = useCookieConsent();
 	const [requested, setRequested] = useState(false);
+	const [expired, setExpired] = useState(false);
 	const root = useRef<HTMLElement>(null);
 
 	useEffect(() => {
@@ -33,6 +34,7 @@ export function BlogAds({ settings }: { settings: BlogAdSettings }) {
 			for (const frame of root.current?.querySelectorAll("iframe") ?? []) {
 				frame.removeAttribute("srcdoc");
 				frame.src = "about:blank";
+				frame.remove();
 			}
 			setRequested(false);
 		};
@@ -44,8 +46,26 @@ export function BlogAds({ settings }: { settings: BlogAdSettings }) {
 			window.removeEventListener("pageshow", pause);
 		};
 	}, []);
+	useEffect(() => {
+		if (!settings.testExpiresAt) return;
+		const pauseAtDeadline = () => {
+			for (const frame of root.current?.querySelectorAll("iframe") ?? []) {
+				frame.src = "about:blank";
+				frame.remove();
+			}
+			setRequested(false);
+			setExpired(true);
+		};
+		const remaining = Date.parse(settings.testExpiresAt) - Date.now();
+		if (remaining <= 0) {
+			pauseAtDeadline();
+			return;
+		}
+		const timeout = window.setTimeout(pauseAtDeadline, remaining);
+		return () => window.clearTimeout(timeout);
+	}, [settings.testExpiresAt]);
 
-	if (!settings.enabled) return null;
+	if (!settings.enabled || expired) return null;
 	const active = userHasConsented && requested;
 	return (
 		<section ref={root} data-blog-ads="" aria-label={t("label")} className="blog-ads">
@@ -58,9 +78,23 @@ export function BlogAds({ settings }: { settings: BlogAdSettings }) {
 					</button>
 				)}
 			</div>
-			<AdFrame format="banner" active={active} title={t("banner")} label={t("label")} />
+			{settings.bannerEnabled !== false && (
+				<AdFrame
+					format="banner"
+					active={active}
+					title={t("banner")}
+					label={t("label")}
+					expiresAt={settings.testExpiresAt}
+				/>
+			)}
 			{settings.nativeEnabled && (
-				<AdFrame format="native" active={active} title={t("native")} label={t("label")} />
+				<AdFrame
+					format="native"
+					active={active}
+					title={t("native")}
+					label={t("label")}
+					expiresAt={settings.testExpiresAt}
+				/>
 			)}
 		</section>
 	);
@@ -71,11 +105,13 @@ function AdFrame({
 	active,
 	title,
 	label,
+	expiresAt,
 }: {
 	format: BlogAdFormat;
 	active: boolean;
 	title: string;
 	label: string;
+	expiresAt?: string;
 }) {
 	const slot = useRef<HTMLDivElement>(null);
 	const content = useRef<HTMLDivElement>(null);
@@ -105,9 +141,14 @@ function AdFrame({
 	}, [format]);
 	useEffect(() => {
 		if (!active || !fits || !nearby || !content.current) return;
+		if (expiresAt && Date.now() >= Date.parse(expiresAt)) return;
 		// React owns the container; this effect owns the complete isolated context.
 		// Cleanup also runs when an Activity/cache hides the article without removing its DOM.
 		const frame = document.createElement("iframe");
+		// Do not expose existing origin cookies or credentials to the ad document.
+		// Browsers without this additional isolation capability keep ads unloaded.
+		if (!("credentialless" in frame)) return;
+		frame.credentialless = true;
 		frame.dataset.blogAdFrame = format;
 		frame.title = title;
 		frame.setAttribute("sandbox", BLOG_AD_SANDBOX);
@@ -122,7 +163,7 @@ function AdFrame({
 			frame.src = "about:blank";
 			frame.remove();
 		};
-	}, [active, fits, nearby, format, title]);
+	}, [active, fits, nearby, format, title, expiresAt]);
 	return (
 		<div ref={slot} data-blog-ad={format} className={`blog-ad blog-ad-${format}`}>
 			<span className="blog-ad-label">{label}</span>

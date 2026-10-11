@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-11 — Limited isolated Blog ad testing
+
+- Permit an independent static advertising document on three reviewed editorial articles while keeping the original product security policy. Article boundaries use document navigation and clear ad contexts on history restoration.
+- Keep general advertising off. A finite Tesco article test preview still requires optional consent and a per-visit choice; mobile omits the 728-pixel banner, and supported browsers load frames without existing credentials.
+
 ## 2026-10-11 — AI news in the Blog
 
 - Add an AI News filter and an original report on Tesco's AI meal-planning assistant, with rollout dates, source checks and a clear distinction from Your Clubcard Prices.

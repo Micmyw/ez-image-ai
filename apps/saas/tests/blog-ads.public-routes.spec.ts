@@ -1,12 +1,18 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
-import { expect, test, type BrowserContext, type Page, type Request } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
+import {
+	BLOG_AD_ARTICLE_PATHS,
+	BLOG_AD_ORIGIN,
+} from "../modules/public-content/lib/blog-ad-routing";
 import {
 	BLOG_AD_BANNER_WIDTH,
 	BLOG_AD_NATIVE_HEIGHT,
+	BLOG_AD_PREVIEW_EXPIRES_AT,
 	BLOG_AD_SANDBOX,
+	getBlogAdDocument,
 	getBlogAdDocumentUrl,
 	type BlogAdFormat,
 } from "../modules/public-content/lib/blog-ads";
@@ -14,6 +20,10 @@ import {
 const articlePath = "/blog/tesco-ai-meal-planning-assistant";
 const adsEnabled = process.env.BLOG_ADS_ENABLED === "true";
 const nativeEnabled = adsEnabled && process.env.BLOG_NATIVE_ADS_ENABLED === "true";
+const previewDeadline = Date.parse(BLOG_AD_PREVIEW_EXPIRES_AT);
+const adDocumentUrls = (["banner", "native"] as const).map(getBlogAdDocumentUrl);
+const emptyAdFixture =
+	'<!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer"><style>html,body{margin:0;overflow:hidden}</style></head><body><main data-blog-ad-fixture="empty">Offline empty document fixture; no advertisement.</main></body></html>';
 const adHosts = ["highrevenueformat.com", "profitableratecpmnetwork.com"];
 const adFrames = "iframe[data-blog-ad-frame]";
 const baseUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
@@ -37,15 +47,6 @@ type CspAudit = {
 	violationType: string;
 };
 type DocumentAddress = { baseURI: string; url: string; referrer: string };
-type FailedDataFrame = {
-	frameId: string;
-	url: string;
-	unreachableUrl: string;
-	ownerNodeName?: string;
-	ownerAdFormat?: string;
-	ownerSource?: string;
-	ownerLookupError?: string;
-};
 type AdFrameObservation = {
 	format: string;
 	phase: string;
@@ -58,6 +59,7 @@ type AdFrameObservation = {
 test.use({
 	storageState: { cookies: [], origins: [] },
 	launchOptions: { chromiumSandbox: true },
+	serviceWorkers: "block",
 });
 
 function isAdUrl(value: string) {
@@ -71,78 +73,45 @@ function isAdUrl(value: string) {
 
 async function watchApp(page: Page, context: BrowserContext) {
 	const evidence = {
-		adRequests: [] as { id: number; url: string }[],
+		adRequests: [] as { url: string }[],
 		adNetworkAttempts: [] as string[],
-		adRequestFailures: [] as { requestId: number; url: string; error: string }[],
+		adRequestFailures: [] as { url: string; error: string }[],
+		fixtureDocumentRequests: [] as { url: string; referer: string; cookie: string }[],
+		unexpectedAdDocumentRequests: [] as string[],
+		crossOriginSafetyAborts: [] as string[],
+		businessActions: [] as string[],
 		cspConsole: [] as string[],
 		cspAudits: [] as CspAudit[],
-		failedDataFrames: [] as FailedDataFrame[],
-		dataDocumentsReachingSafetyInterceptor: [] as string[],
 		frameObservations: [] as AdFrameObservation[],
 		mainFrameNavigations: [] as string[],
-		clearanceChecks: [] as { path: string; adFrameCount: number; observedPopupCount: number }[],
+		documentBoundaries: [] as { from: string; to: string; before: number; after: number }[],
+		clearanceChecks: [] as {
+			path: string;
+			adFrameCount: number;
+			adDocumentContextCount: number;
+			observedPopupCount: number;
+		}[],
 		popups: 0,
 	};
-	// Chromium can redact data URLs to an empty blockedURI in page CSP events.
-	// Its native audit stream is a separate source from our network safety guard.
 	const devtools = await context.newCDPSession(page);
 	devtools.on("Audits.issueAdded", ({ issue }) => {
 		if (issue.code !== "ContentSecurityPolicyIssue") return;
 		const detail = issue.details.contentSecurityPolicyIssueDetails;
 		if (!detail) return;
-		const audit: CspAudit = {
+		evidence.cspAudits.push({
 			blockedURL: detail.blockedURL ?? null,
 			directive: detail.violatedDirective,
 			isReportOnly: detail.isReportOnly,
 			violationType: detail.contentSecurityPolicyViolationType,
-		};
-		evidence.cspAudits.push(audit);
+		});
 	});
 	await devtools.send("Audits.enable");
-	devtools.on("Page.frameNavigated", ({ frame }) => {
-		if (frame.url !== "chrome-error://chromewebdata/") return;
-		const failure: FailedDataFrame = {
-			frameId: frame.id,
-			url: frame.url,
-			unreachableUrl: frame.unreachableUrl ?? "",
-		};
-		evidence.failedDataFrames.push(failure);
-		void devtools
-			.send("DOM.getFrameOwner", { frameId: frame.id })
-			.then(({ backendNodeId }) => devtools.send("DOM.describeNode", { backendNodeId }))
-			.then(
-				({ node }) => {
-					failure.ownerNodeName = node.nodeName;
-					const attributes = new Map<string, string>();
-					const nodeAttributes = node.attributes ?? [];
-					for (let index = 0; index < nodeAttributes.length; index += 2)
-						attributes.set(nodeAttributes[index], nodeAttributes[index + 1]);
-					failure.ownerAdFormat = attributes.get("data-blog-ad-frame");
-					failure.ownerSource = attributes.get("src");
-				},
-				(error) => {
-					failure.ownerLookupError = String(error);
-				},
-			);
-	});
-	await devtools.send("Page.enable");
-	const requestIds = new WeakMap<Request, number>();
-	let nextRequestId = 0;
-	const requestId = (request: Request) => {
-		const existing = requestIds.get(request);
-		if (existing !== undefined) return existing;
-		const id = ++nextRequestId;
-		requestIds.set(request, id);
-		return id;
-	};
 	context.on("request", (request) => {
-		if (isAdUrl(request.url()))
-			evidence.adRequests.push({ id: requestId(request), url: request.url() });
+		if (isAdUrl(request.url())) evidence.adRequests.push({ url: request.url() });
 	});
 	context.on("requestfailed", (request) => {
-		if (isAdUrl(request.url()))
+		if (isAdUrl(request.url()) || request.url().startsWith(BLOG_AD_ORIGIN))
 			evidence.adRequestFailures.push({
-				requestId: requestId(request),
 				url: request.url(),
 				error: request.failure()?.errorText ?? "unknown",
 			});
@@ -151,11 +120,14 @@ async function watchApp(page: Page, context: BrowserContext) {
 		const value = message.text();
 		if (
 			/content security policy|violates.*directive/i.test(value) &&
-			/data:|highrevenueformat|profitableratecpmnetwork/.test(value)
+			/ads\.ezimageai|highrevenueformat|profitableratecpmnetwork/.test(value)
 		)
 			evidence.cspConsole.push(value);
 	});
-	context.on("page", () => evidence.popups++);
+	context.on("page", (popup) => {
+		evidence.popups++;
+		void popup.close().catch(() => {});
+	});
 	page.on("framenavigated", (frame) => {
 		if (frame === page.mainFrame() && frame.url().startsWith(new URL(baseUrl).origin))
 			evidence.mainFrameNavigations.push(new URL(frame.url()).pathname);
@@ -172,16 +144,37 @@ async function watchApp(page: Page, context: BrowserContext) {
 			});
 		});
 	});
-	// These public UI checks never send optional tracking or invoke a provider/business action.
-	// A CSP failure can emit a request event without reaching the network interceptor. Record
-	// both separately; our safety abort must never be mistaken for evidence of CSP blocking.
-	await page.route("**/*", (route) => {
-		const url = new URL(route.request().url());
-		if (url.protocol === "data:") evidence.dataDocumentsReachingSafetyInterceptor.push(url.href);
+	// Only these two child navigations are fulfilled locally. No provider script is
+	// present in the fixture; all other cross-origin traffic is blocked before send.
+	// Positive DOM/address checks below distinguish a loaded fixture from CSP refusal
+	// or a safety abort. Historical data: rejection reports remain historical evidence.
+	await context.route("**/*", async (route) => {
+		const request = route.request();
+		const url = new URL(request.url());
+		if (adDocumentUrls.includes(url.href) && request.isNavigationRequest()) {
+			// allHeaders includes Cookie; request.headers omits security-sensitive headers.
+			const headers = await request.allHeaders();
+			evidence.fixtureDocumentRequests.push({
+				url: url.href,
+				referer: headers.referer ?? "",
+				cookie: headers.cookie ?? "",
+			});
+			return route.fulfill({
+				contentType: "text/html",
+				headers: { "Referrer-Policy": "no-referrer", "Cache-Control": "no-store" },
+				body: emptyAdFixture,
+			});
+		}
+		if (url.origin === BLOG_AD_ORIGIN) evidence.unexpectedAdDocumentRequests.push(url.href);
 		if (isAdUrl(url.href)) evidence.adNetworkAttempts.push(url.href);
-		if (url.origin !== new URL(baseUrl).origin) return route.abort();
-		if (/createCheckout|createCreditPack|createGeneration/.test(url.pathname))
-			throw new Error("Blog ad isolation checks must not create business actions");
+		if (url.origin !== new URL(baseUrl).origin) {
+			evidence.crossOriginSafetyAborts.push(url.origin + url.pathname);
+			return route.abort();
+		}
+		if (/createCheckout|createCreditPack|createGeneration/.test(url.pathname)) {
+			evidence.businessActions.push(url.pathname);
+			return route.abort();
+		}
 		return route.continue();
 	});
 	return evidence;
@@ -203,30 +196,30 @@ async function expectNoHostAdCode(page: Page) {
 	await expect(page.locator('[id="container-0a9986f36ff843c117e0f20e732a1e08"]')).toHaveCount(0);
 }
 
+async function expectNoAdNetwork(evidence: Awaited<ReturnType<typeof watchApp>>) {
+	expect(evidence.adRequests).toEqual([]);
+	expect(evidence.adNetworkAttempts).toEqual([]);
+	expect(evidence.unexpectedAdDocumentRequests).toEqual([]);
+	expect(evidence.adRequestFailures).toEqual([]);
+	expect(evidence.businessActions).toEqual([]);
+}
+
 async function expectNoAds(page: Page, evidence: Awaited<ReturnType<typeof watchApp>>) {
+	// Count every retained DOM node, including Next Activity's hidden article DOM.
 	await expect(page.locator(adFrames)).toHaveCount(0);
+	await expect
+		.poll(() => page.frames().filter((frame) => adDocumentUrls.includes(frame.url())).length)
+		.toBe(0);
 	await expectNoHostAdCode(page);
 	await expectNoAdNetwork(evidence);
 	expect(evidence.popups).toBe(0);
 	evidence.clearanceChecks.push({
 		path: new URL(page.url()).pathname,
 		adFrameCount: await page.locator(adFrames).count(),
+		adDocumentContextCount: page.frames().filter((frame) => adDocumentUrls.includes(frame.url()))
+			.length,
 		observedPopupCount: evidence.popups,
 	});
-}
-
-async function expectNoAdNetwork(evidence: Awaited<ReturnType<typeof watchApp>>) {
-	expect(evidence.adNetworkAttempts).toEqual([]);
-	await expect
-		.poll(() =>
-			evidence.adRequests.filter(
-				(request) =>
-					!evidence.adRequestFailures.some(
-						(failure) => failure.requestId === request.id && /CSP/i.test(failure.error),
-					),
-			),
-		)
-		.toEqual([]);
 }
 
 async function attachAppEvidence(
@@ -245,8 +238,9 @@ async function attachAppEvidence(
 				remainingAdFrameCount: await page.locator(adFrames).count(),
 				adsEnabled,
 				nativeEnabled,
+				previewExpiresAt: BLOG_AD_PREVIEW_EXPIRES_AT,
 				observationBoundary:
-					"Request interception is a safety guard; opaque frame network events may be incomplete. Parent and child CSP rejection, document addresses and frame resource telemetry are recorded separately. The unchanged app CSP rejects the static data document before supplier execution. A blank browser error document is not a rendered advertisement. Resource entries establish observed URLs, not transfer success or absence. No live creative behavior is established.",
+					"The actual app response CSP and article navigation are exercised, but both fixed advertising URLs are fulfilled with self-authored empty HTML. Other cross-origin requests are safety-aborted. Loaded fixture DOM and exact document addresses establish transport, not live inventory, supplier behavior, native responsiveness, authenticated account behavior or checkout execution. Standalone sandbox/data-access/timer probes are separate synthetic fixtures.",
 			},
 			null,
 			2,
@@ -255,19 +249,45 @@ async function attachAppEvidence(
 	});
 }
 
+function previewPath(format: BlogAdFormat) {
+	return `${articlePath}?blogAdTest=${format}`;
+}
+
+function requirePreviewWindow() {
+	test.skip(
+		Date.now() >= previewDeadline,
+		`The finite article preview expired at ${BLOG_AD_PREVIEW_EXPIRES_AT}; no inventory is activated.`,
+	);
+}
+
+async function requireCredentialless(page: Page) {
+	const supported = await page.evaluate(() => "credentialless" in document.createElement("iframe"));
+	test.skip(
+		!supported,
+		"This browser intentionally keeps blog ads off without credentialless support.",
+	);
+}
+
+function frameSources(policy: string) {
+	return (policy.split(";").find((part) => part.trim().startsWith("frame-src ")) ?? "")
+		.trim()
+		.split(/\s+/)
+		.slice(1);
+}
+
 async function observeAdFrames(
 	page: Page,
 	evidence: Awaited<ReturnType<typeof watchApp>>,
-	phase = "after-mount",
+	phase = "after-empty-fixture-mount",
 ) {
 	for (const frame of page.frames()) {
 		if (frame === page.mainFrame()) continue;
 		const element = await frame.frameElement();
 		const format = await element.getAttribute("data-blog-ad-frame");
-		if (!format) continue;
+		if (format !== "banner" && format !== "native") continue;
+		await expect.poll(() => frame.url()).toBe(getBlogAdDocumentUrl(format));
+		await expect(frame.locator('[data-blog-ad-fixture="empty"]')).toHaveCount(1);
 		const box = await element.boundingBox();
-		const geometry = box ? { width: box.width, height: box.height } : null;
-		await frame.waitForLoadState("domcontentloaded");
 		const observation = await frame.evaluate(() => ({
 			document: { baseURI: document.baseURI, url: document.URL, referrer: document.referrer },
 			violations:
@@ -281,36 +301,58 @@ async function observeAdFrames(
 				}),
 			),
 		}));
-		evidence.frameObservations.push({ format, phase, geometry, ...observation });
+		expect(observation.document).toEqual({
+			url: getBlogAdDocumentUrl(format),
+			baseURI: getBlogAdDocumentUrl(format),
+			referrer: "",
+		});
+		expect(observation.resources).toEqual([]);
+		const owner = page.locator(`iframe[data-blog-ad-frame="${format}"]`);
+		await expect(owner).toHaveAttribute("sandbox", BLOG_AD_SANDBOX);
+		await expect(owner).toHaveAttribute("referrerpolicy", "no-referrer");
+		await expect(owner).toHaveAttribute("src", getBlogAdDocumentUrl(format));
+		await expect(owner).not.toHaveAttribute("srcdoc");
+		expect(await element.evaluate((node) => Reflect.get(node, "credentialless"))).toBe(true);
+		evidence.frameObservations.push({
+			format,
+			phase,
+			geometry: box ? { width: box.width, height: box.height } : null,
+			...observation,
+		});
 	}
 }
 
-function isKnownFailedAdFrame(frame: FailedDataFrame) {
-	return (
-		frame.url === "chrome-error://chromewebdata/" &&
-		frame.ownerNodeName === "IFRAME" &&
-		(["banner", "native"] as const).some(
-			(format) =>
-				frame.ownerAdFormat === format &&
-				frame.ownerSource === getBlogAdDocumentUrl(format) &&
-				frame.unreachableUrl === frame.ownerSource,
-		)
-	);
-}
-
-async function showAds(page: Page, evidence: Awaited<ReturnType<typeof watchApp>>) {
+async function showAds(
+	page: Page,
+	evidence: Awaited<ReturnType<typeof watchApp>>,
+	format: BlogAdFormat = "banner",
+) {
 	await page.getByRole("button", { name: "Show blog ads", exact: true }).click();
-	const banner = page.locator('[data-blog-ad="banner"]:visible');
-	await banner.scrollIntoViewIfNeeded();
-	await expect(page.locator('iframe[data-blog-ad-frame="banner"]')).toHaveCount(1);
-	if (nativeEnabled) {
-		await page.locator('[data-blog-ad="native"]:visible').scrollIntoViewIfNeeded();
-		await expect(page.locator('iframe[data-blog-ad-frame="native"]')).toHaveCount(1);
-	}
+	await page.locator(`[data-blog-ad="${format}"]:visible`).scrollIntoViewIfNeeded();
+	await expect(page.locator(`iframe[data-blog-ad-frame="${format}"]`)).toHaveCount(1);
+	await expect(page.locator(adFrames)).toHaveCount(1);
 	await observeAdFrames(page, evidence);
+	await expectNoHostAdCode(page);
+	await expectNoAdNetwork(evidence);
+	expect(evidence.popups).toBe(0);
 }
 
-test.describe("real app blog ad isolation (unchanged response CSP)", () => {
+async function clickArticleBoundary(
+	page: Page,
+	evidence: Awaited<ReturnType<typeof watchApp>>,
+	selector: string,
+	destination: string,
+) {
+	const from = page.url();
+	const before = await page.evaluate(() => performance.timeOrigin);
+	await page.locator(selector).click();
+	await expectAppUrl(page, destination);
+	const after = await page.evaluate(() => performance.timeOrigin);
+	expect(after).not.toBe(before);
+	evidence.documentBoundaries.push({ from, to: page.url(), before, after });
+}
+
+test.describe("real app blog ad isolation (empty document fixtures, no inventory)", () => {
 	for (const route of [
 		"/",
 		"/create",
@@ -319,255 +361,310 @@ test.describe("real app blog ad isolation (unchanged response CSP)", () => {
 		"/blog",
 		"/blog/1980s-ai-photo",
 		"/blog/raindance-ai-trend",
+		"/blog/__blog_ad_unknown_article__",
 	]) {
-		test(`direct ${route} never creates ad contexts or requests`, async ({ page, context }) => {
+		test(`direct ${route} excludes the advertising origin and creates no ad contexts`, async ({
+			page,
+			context,
+		}) => {
 			test.setTimeout(90_000);
 			await acceptExistingConsent(context);
 			const evidence = await watchApp(page, context);
 			const response = await page.goto(route);
-			expect(response?.status()).toBe(200);
-			await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+			expect(response?.status()).toBe(route.includes("__blog_ad_unknown_article__") ? 404 : 200);
+			expect(frameSources(response?.headers()["content-security-policy"] ?? "")).toEqual([
+				"https://challenges.cloudflare.com",
+			]);
 			await expect(page.locator("[data-blog-ads]")).toHaveCount(0);
 			await expectNoAds(page, evidence);
-			expect(evidence.adRequests).toEqual([]);
+			expect(evidence.fixtureDocumentRequests).toEqual([]);
 			await attachAppEvidence(page, evidence);
 		});
 	}
 
-	test("the server kill switch leaves the article free of ad containers", async ({
+	test("only the three reviewed ordinary article responses allow the exact ad origin", async ({
 		page,
 		context,
 	}) => {
-		test.skip(adsEnabled, "Run without BLOG_ADS_ENABLED to exercise the default-off switch.");
-		await acceptExistingConsent(context);
+		test.setTimeout(90_000);
 		const evidence = await watchApp(page, context);
-		const response = await page.goto(articlePath);
-		expect(response?.status()).toBe(200);
-		await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-		await expect(page.locator("[data-blog-ads]")).toHaveCount(0);
-		await expectNoAds(page, evidence);
-		expect(evidence.adRequests).toEqual([]);
+		for (const pathname of BLOG_AD_ARTICLE_PATHS) {
+			const response = await page.goto(pathname);
+			expect(response?.status()).toBe(200);
+			const policy = response?.headers()["content-security-policy"] ?? "";
+			expect(frameSources(policy)).toEqual(["https://challenges.cloudflare.com", BLOG_AD_ORIGIN]);
+			expect(policy).not.toMatch(/highrevenueformat|profitableratecpmnetwork|frame-src[^;]*data:/);
+			await expectNoAds(page, evidence);
+		}
+		expect(evidence.fixtureDocumentRequests).toEqual([]);
 		await attachAppEvidence(page, evidence);
 	});
 
-	test("consent alone does not load ads and explicit opt-in remains blocked by the app CSP", async ({
+	test("master off and unrelated preview parameters leave articles without ad containers", async ({
 		page,
 		context,
 	}) => {
-		test.skip(!adsEnabled, "Run with BLOG_ADS_ENABLED=true to exercise the opt-in path.");
+		test.skip(
+			adsEnabled,
+			"Run with the production master switch off to verify default-off rendering.",
+		);
+		test.setTimeout(90_000);
+		await acceptExistingConsent(context);
+		const evidence = await watchApp(page, context);
+		for (const pathname of [
+			articlePath,
+			`${articlePath}?blogAdTest=unrecognized`,
+			"/blog/private-image-editing-workflow?blogAdTest=banner",
+			"/blog/ai-image-editing-prompts?blogAdTest=native",
+		]) {
+			await page.goto(pathname);
+			await expect(page.locator("[data-blog-ads]")).toHaveCount(0);
+			await expectNoAds(page, evidence);
+		}
+		expect(evidence.fixtureDocumentRequests).toEqual([]);
+		await attachAppEvidence(page, evidence);
+	});
+
+	test("the finite preview requires consent and fresh opt-in, then loads only owned empty documents", async ({
+		page,
+		context,
+	}) => {
+		requirePreviewWindow();
 		test.setTimeout(90_000);
 		await page.setViewportSize({ width: 1600, height: 1000 });
 		const evidence = await watchApp(page, context);
-		const response = await page.goto(articlePath);
+		const response = await page.goto(previewPath("native"));
+		await requireCredentialless(page);
 		expect(response?.status()).toBe(200);
-		const csp = response?.headers()["content-security-policy"] ?? "";
-		expect(csp).toContain("frame-src https://challenges.cloudflare.com");
-		expect(csp).not.toMatch(/highrevenueformat|profitableratecpmnetwork/);
+		const policy = response?.headers()["content-security-policy"] ?? "";
+		expect(frameSources(policy)).toEqual(["https://challenges.cloudflare.com", BLOG_AD_ORIGIN]);
+		expect(response?.headers()["x-robots-tag"]).toMatch(/noindex/);
+		await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+			"href",
+			new URL(articlePath, baseUrl).href,
+		);
 		await expect(page.locator("[data-blog-ads]")).toHaveCount(1);
 		await expect(page.getByRole("button", { name: "Show blog ads", exact: true })).toHaveCount(0);
 		await expectNoAds(page, evidence);
+		expect(evidence.fixtureDocumentRequests).toEqual([]);
 		await page.getByRole("button", { name: "Allow optional", exact: true }).click();
 		await expect(page.getByRole("button", { name: "Show blog ads", exact: true })).toBeVisible();
 		await expectNoAds(page, evidence);
-		await expect(page.locator("iframe")).toHaveCount(0);
-		const expectedFormats: BlogAdFormat[] = nativeEnabled ? ["banner", "native"] : ["banner"];
-		const hostViolationBaseline = await page.evaluate(
+		expect(evidence.fixtureDocumentRequests).toEqual([]);
+		// A synthetic ad-origin cookie checks credentialless transport without user data.
+		await context.addCookies([
+			{ name: "blog-ad-cookie-canary", value: "synthetic-only", url: BLOG_AD_ORIGIN },
+		]);
+		await expect(page.locator('[data-blog-ad="banner"]')).toHaveCount(0);
+		await showAds(page, evidence, "native");
+		expect(evidence.fixtureDocumentRequests.map((entry) => entry.url).sort()).toEqual([
+			getBlogAdDocumentUrl("native"),
+		]);
+		for (const request of evidence.fixtureDocumentRequests) {
+			expect(request.referer).toBe("");
+			expect(request.cookie).toBe("");
+		}
+		const violations = await page.evaluate(
 			() =>
-				(window as Window & { __blogAdCspViolations?: CspViolation[] }).__blogAdCspViolations
-					?.length ?? 0,
+				(window as Window & { __blogAdCspViolations?: CspViolation[] }).__blogAdCspViolations ?? [],
 		);
-		const auditBaseline = evidence.cspAudits.length;
-		const failedFrameBaseline = evidence.failedDataFrames.length;
-		await showAds(page, evidence);
-		await expect(page.locator("iframe")).toHaveCount(expectedFormats.length);
-		for (const frame of await page.locator(adFrames).all()) {
-			await expect(frame).toHaveAttribute("sandbox", BLOG_AD_SANDBOX);
-			await expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
-			const format = await frame.getAttribute("data-blog-ad-frame");
-			expect(format === "banner" || format === "native").toBe(true);
-			await expect(frame).toHaveAttribute("src", getBlogAdDocumentUrl(format as BlogAdFormat));
-			await expect(frame).not.toHaveAttribute("srcdoc");
-		}
-		try {
-			await expect
-				.poll(async () => {
-					const violations = await page.evaluate(
-						() =>
-							(window as Window & { __blogAdCspViolations?: CspViolation[] })
-								.__blogAdCspViolations ?? [],
-					);
-					const policyViolations = violations
-						.slice(hostViolationBaseline)
-						.filter(
-							(violation) =>
-								violation.disposition === "enforce" &&
-								violation.directive === "frame-src" &&
-								violation.originalPolicy === csp,
-						);
-					const nativeIssues = evidence.cspAudits
-						.slice(auditBaseline)
-						.filter(
-							(audit) =>
-								!audit.isReportOnly &&
-								audit.violationType === "kURLViolation" &&
-								audit.directive === "frame-src",
-						);
-					const rejectedFormats = [
-						...new Set(
-							evidence.failedDataFrames
-								.slice(failedFrameBaseline)
-								.filter(isKnownFailedAdFrame)
-								.map((frame) => frame.ownerAdFormat),
-						),
-					].sort((left, right) => (left ?? "").localeCompare(right ?? ""));
-					return {
-						responsePolicyEnforced: policyViolations.length >= expectedFormats.length,
-						nativeFrameRejections: nativeIssues.length >= expectedFormats.length,
-						rejectedFormats,
-					};
-				})
-				.toEqual({
-					responsePolicyEnforced: true,
-					nativeFrameRejections: true,
-					rejectedFormats: expectedFormats,
-				});
-			expect(evidence.dataDocumentsReachingSafetyInterceptor).toEqual([]);
-			for (const failedFrame of evidence.failedDataFrames.slice(failedFrameBaseline)) {
-				expect(isKnownFailedAdFrame({ ...failedFrame, ownerAdFormat: "unrelated-frame" })).toBe(
-					false,
-				);
-				expect(
-					isKnownFailedAdFrame({ ...failedFrame, unreachableUrl: "data:text/html,unrelated" }),
-				).toBe(false);
-			}
-		} finally {
-			await attachAppEvidence(page, evidence, "app-csp-verification-diagnostic");
-		}
-		await observeAdFrames(page, evidence, "after-parent-csp-confirmed");
-		expect(evidence.frameObservations.length).toBeGreaterThan(0);
-		for (const frame of evidence.frameObservations) {
-			expect(frame.document.url).not.toMatch(/^data:/);
-			expect(frame.resources).toEqual([]);
-		}
-		await expectNoHostAdCode(page);
-		await expectNoAdNetwork(evidence);
-		expect(evidence.popups).toBe(0);
+		expect(
+			violations.filter(
+				(entry) => entry.directive === "frame-src" && entry.disposition === "enforce",
+			),
+		).toEqual([]);
+		expect(
+			evidence.cspAudits.filter((entry) => entry.directive === "frame-src" && !entry.isReportOnly),
+		).toEqual([]);
 		await page.getByRole("button", { name: "Hide blog ads", exact: true }).click();
 		await expectNoAds(page, evidence);
 		await attachAppEvidence(page, evidence);
 	});
 
-	test("article to product SPA navigation, back, forward and repeated opt-ins leave no ad contexts", async ({
+	test("real article links change documents and history restores require a fresh display opt-in", async ({
 		page,
 		context,
 	}) => {
+		requirePreviewWindow();
 		test.setTimeout(120_000);
 		await page.setViewportSize({ width: 1600, height: 1000 });
 		await acceptExistingConsent(context);
 		const evidence = await watchApp(page, context);
-		await page.goto(articlePath);
-		await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+		await page.goto("/create");
+		await requireCredentialless(page);
 		await expectNoAds(page, evidence);
-		const documentToken = await page.evaluate(() => {
-			const token = crypto.randomUUID();
-			Object.defineProperty(window, "__blogAdDocumentToken", { value: token });
-			return token;
-		});
-		if (adsEnabled) await showAds(page, evidence);
-		await page.locator('.blog-breadcrumb a[href="/"]:visible').click();
-		await expectAppUrl(page, "/");
-		await expect(page.locator("[data-blog-ads]:visible")).toHaveCount(0);
+		await page.locator('[data-footer-navigation] a[href="/blog"]:visible').click();
+		await expectAppUrl(page, "/blog");
 		await expectNoAds(page, evidence);
-		expect(
-			await page.evaluate(
-				() => (window as Window & { __blogAdDocumentToken?: string }).__blogAdDocumentToken,
-			),
-		).toBe(documentToken);
+		await clickArticleBoundary(
+			page,
+			evidence,
+			`.blog-grid h2 a[href="${articlePath}"]:visible`,
+			articlePath,
+		);
+		await expectNoAds(page, evidence);
+		await page.goto(previewPath("banner"));
+		await expectNoAds(page, evidence);
+		await showAds(page, evidence);
+		await clickArticleBoundary(page, evidence, '.blog-breadcrumb a[href="/"]:visible', "/");
+		await expectNoAds(page, evidence);
+		const requestsAfterExit = evidence.fixtureDocumentRequests.length;
 		await page.goBack();
-		await expectAppUrl(page, articlePath);
+		await expectAppUrl(page, previewPath("banner"));
+		await expect(page.getByRole("button", { name: "Show blog ads", exact: true })).toBeVisible();
 		await expectNoAds(page, evidence);
-		if (adsEnabled) {
-			await showAds(page, evidence);
-			await page.getByRole("button", { name: "Hide blog ads", exact: true }).click();
-			await expectNoAds(page, evidence);
-			await showAds(page, evidence);
-			await expect(page.locator('iframe[data-blog-ad-frame="banner"]')).toHaveCount(1);
-		}
+		expect(evidence.fixtureDocumentRequests).toHaveLength(requestsAfterExit);
+		await showAds(page, evidence);
+		await page.getByRole("button", { name: "Hide blog ads", exact: true }).click();
+		await expectNoAds(page, evidence);
+		await showAds(page, evidence);
 		await page.goForward();
 		await expectAppUrl(page, "/");
 		await expectNoAds(page, evidence);
+		const requestsBeforeRestore = evidence.fixtureDocumentRequests.length;
 		await page.goBack();
-		await expectAppUrl(page, articlePath);
+		await expectAppUrl(page, previewPath("banner"));
 		await expectNoAds(page, evidence);
-		if (adsEnabled) await showAds(page, evidence);
+		expect(evidence.fixtureDocumentRequests).toHaveLength(requestsBeforeRestore);
+		await showAds(page, evidence);
 		await page.reload();
-		await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-		if (adsEnabled)
-			await expect(page.getByRole("button", { name: "Show blog ads", exact: true })).toBeVisible();
+		await expect(page.getByRole("button", { name: "Show blog ads", exact: true })).toBeVisible();
 		await expectNoAds(page, evidence);
-
-		// Next's route cache can preserve article component state when returning through the
-		// directory or history. Every restored article must require a fresh display opt-in.
-		if (adsEnabled) await showAds(page, evidence);
-		await page.locator('.blog-breadcrumb a[href="/blog"]:visible').click();
-		await expectAppUrl(page, "/blog");
-		await expectNoAds(page, evidence);
-		await page.getByRole("searchbox").fill("Private AI Image Editing");
-		const secondArticlePath = "/blog/private-image-editing-workflow";
-		await page.locator(`.blog-grid h2 a[href="${secondArticlePath}"]`).click();
-		await expectAppUrl(page, secondArticlePath);
-		await expectNoAds(page, evidence);
-		if (adsEnabled) await showAds(page, evidence);
-		await page.goBack();
-		await expectAppUrl(page, "/blog");
+		const requestsBeforeDirectory = evidence.fixtureDocumentRequests.length;
+		await showAds(page, evidence);
+		await clickArticleBoundary(page, evidence, '.blog-breadcrumb a[href="/blog"]:visible', "/blog");
 		await expectNoAds(page, evidence);
 		await page.goBack();
-		await expectAppUrl(page, articlePath);
+		await expectAppUrl(page, previewPath("banner"));
 		await expectNoAds(page, evidence);
-		await page.goForward();
-		await expectAppUrl(page, "/blog");
-		await expectNoAds(page, evidence);
-		await page.goForward();
-		await expectAppUrl(page, secondArticlePath);
-		await expectNoAds(page, evidence);
-		if (adsEnabled) await showAds(page, evidence);
-		await page.goto("/");
-		await expectAppUrl(page, "/");
-		await expectNoAds(page, evidence);
-		await page.goBack();
-		await expectAppUrl(page, secondArticlePath);
-		await expectNoAds(page, evidence);
-		if (adsEnabled)
-			await expect(page.getByRole("button", { name: "Show blog ads", exact: true })).toBeVisible();
+		expect(evidence.fixtureDocumentRequests).toHaveLength(requestsBeforeDirectory + 1);
 		await attachAppEvidence(page, evidence);
 	});
 
-	for (const width of [390, 320]) {
-		test(`the 728px banner never mounts or overflows at ${width}px`, async ({ page, context }) => {
-			test.skip(!adsEnabled, "Run with BLOG_ADS_ENABLED=true to exercise mobile slot gating.");
+	test("mobile hides the banner before loading and one empty native fixture fits 390px, 320px and 1280px", async ({
+		page,
+		context,
+	}) => {
+		requirePreviewWindow();
+		await page.setViewportSize({ width: 390, height: 900 });
+		await acceptExistingConsent(context);
+		const evidence = await watchApp(page, context);
+		await page.goto(previewPath("banner"));
+		await requireCredentialless(page);
+		await page.getByRole("button", { name: "Show blog ads", exact: true }).click();
+		await expect(page.locator('[data-blog-ad="banner"]')).toBeHidden();
+		await expectNoAds(page, evidence);
+		expect(evidence.fixtureDocumentRequests).toEqual([]);
+		await page.goto(previewPath("native"));
+		await page.getByRole("button", { name: "Show blog ads", exact: true }).click();
+		await page.locator('[data-blog-ad="native"]:visible').scrollIntoViewIfNeeded();
+		await expect(page.locator('iframe[data-blog-ad-frame="native"]')).toHaveCount(1);
+		for (const width of [390, 320, 1280]) {
 			await page.setViewportSize({ width, height: 900 });
-			await acceptExistingConsent(context);
-			const evidence = await watchApp(page, context);
-			await page.goto(articlePath);
-			await page.getByRole("button", { name: "Show blog ads", exact: true }).click();
-			await expect(page.locator('[data-blog-ad="banner"]')).toBeHidden();
+			await expect(page.locator('[data-blog-ad="banner"]')).toHaveCount(0);
 			await expect(page.locator('iframe[data-blog-ad-frame="banner"]')).toHaveCount(0);
-			if (nativeEnabled) {
-				await page.locator('[data-blog-ad="native"]').scrollIntoViewIfNeeded();
-				const frame = page.locator('iframe[data-blog-ad-frame="native"]');
-				await expect(frame).toHaveCount(1);
-				const box = await frame.boundingBox();
-				expect(box?.width).toBeLessThanOrEqual(width);
-				expect(box?.height).toBe(BLOG_AD_NATIVE_HEIGHT);
-				await observeAdFrames(page, evidence);
-			}
+			await expect
+				.poll(async () => (await page.locator(adFrames).boundingBox())?.width ?? Infinity)
+				.toBeLessThanOrEqual(width);
+			const box = await page.locator(adFrames).boundingBox();
+			expect(box?.height).toBe(BLOG_AD_NATIVE_HEIGHT);
 			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
 				true,
 			);
-			await expectNoAdNetwork(evidence);
-			await attachAppEvidence(page, evidence);
+			await observeAdFrames(page, evidence, `empty-native-fixture-${width}px`);
+		}
+		expect(evidence.fixtureDocumentRequests.map((entry) => entry.url)).toEqual([
+			getBlogAdDocumentUrl("native"),
+		]);
+		await page.getByRole("button", { name: "Hide blog ads", exact: true }).click();
+		await expectNoAds(page, evidence);
+		await attachAppEvidence(page, evidence);
+	});
+
+	test("native history changes across an article boundary reload its response policy", async ({
+		page,
+		context,
+	}) => {
+		const evidence = await watchApp(page, context);
+		await page.goto("/blog");
+		// A working React control establishes hydration before calling native history.
+		const filter = page.getByRole("button", { name: "AI News", exact: true });
+		await filter.click();
+		await expect(filter).toHaveAttribute("aria-pressed", "true");
+		const before = await page.evaluate(() => performance.timeOrigin);
+		const [response] = await Promise.all([
+			page.waitForResponse(
+				(response) =>
+					response.url() === new URL(articlePath, baseUrl).href &&
+					response.request().isNavigationRequest(),
+			),
+			page.evaluate((destination) => window.history.pushState({}, "", destination), articlePath),
+		]);
+		await expectAppUrl(page, articlePath);
+		await expect
+			.poll(async () => {
+				try {
+					return await page.evaluate(() => performance.timeOrigin);
+				} catch {
+					return before;
+				}
+			})
+			.not.toBe(before);
+		expect(frameSources(response.headers()["content-security-policy"] ?? "")).toEqual([
+			"https://challenges.cloudflare.com",
+			BLOG_AD_ORIGIN,
+		]);
+		const articleTimeOrigin = await page.evaluate(() => performance.timeOrigin);
+		await page.evaluate(() => window.history.pushState({}, "", "#synthetic-history-canary"));
+		await expectAppUrl(page, `${articlePath}#synthetic-history-canary`);
+		expect(await page.evaluate(() => performance.timeOrigin)).toBe(articleTimeOrigin);
+		await expectNoAds(page, evidence);
+		expect(evidence.fixtureDocumentRequests).toEqual([]);
+		await attachAppEvidence(page, evidence, "programmatic-article-policy-boundary");
+	});
+
+	test("a browser without credentialless support keeps preview contexts unloaded", async ({
+		page,
+		context,
+	}) => {
+		requirePreviewWindow();
+		await page.addInitScript(() => {
+			Reflect.deleteProperty(HTMLIFrameElement.prototype, "credentialless");
 		});
-	}
+		await acceptExistingConsent(context);
+		const evidence = await watchApp(page, context);
+		await page.goto(previewPath("native"));
+		expect(await page.evaluate(() => "credentialless" in document.createElement("iframe"))).toBe(
+			false,
+		);
+		await page.getByRole("button", { name: "Show blog ads", exact: true }).click();
+		await page.locator('[data-blog-ad="native"]:visible').scrollIntoViewIfNeeded();
+		await settleBrowserFrames(page, 2);
+		await expectNoAds(page, evidence);
+		expect(evidence.fixtureDocumentRequests).toEqual([]);
+		await attachAppEvidence(page, evidence, "unsupported-credentialless-preview-fixture");
+	});
+
+	test("the client deadline removes an opted-in fixture and prevents another mount", async ({
+		page,
+		context,
+	}) => {
+		requirePreviewWindow();
+		await page.setViewportSize({ width: 1600, height: 1000 });
+		await page.clock.install({ time: new Date(previewDeadline - 60_000) });
+		await acceptExistingConsent(context);
+		const evidence = await watchApp(page, context);
+		await page.goto(previewPath("banner"));
+		await requireCredentialless(page);
+		await showAds(page, evidence);
+		const requestsBeforeExpiry = evidence.fixtureDocumentRequests.length;
+		await page.clock.fastForward(60_001);
+		await expect(page.locator("[data-blog-ads]")).toHaveCount(0);
+		await expectNoAds(page, evidence);
+		expect(evidence.fixtureDocumentRequests).toHaveLength(requestsBeforeExpiry);
+		await attachAppEvidence(page, evidence, "finite-preview-expiry-fixture");
+	});
 });
 
 test.describe("Tesco news article and AI News discovery", () => {
@@ -679,49 +776,47 @@ test.describe("Tesco news article and AI News discovery", () => {
 	});
 });
 
-// This intentionally separate fixture has no app CSP. It exercises the shipped data document
-// transport and sandbox using harmless inline replacement scripts. It is not evidence that production
-// inventory loads, that a supplier is safe, or that its native cards are responsive.
+// This separate synthetic host fulfills the real fixed document URLs with the shipped
+// helper HTML after replacing every supplier loader with a harmless inline probe.
+// It tests transport/sandbox primitives, not the static deployment's response headers,
+// supplier behavior, actual native cards or any advertisement impression.
 async function installCanaryFixture(page: Page) {
-	// Keep all host addresses out of the child's static code. The synthetic private route
-	// tests fallback-base leakage without placing private information in an ad parameter.
 	const canaryScript = `(() => {
-				const denied = (operation) => { try { operation(); return false; } catch { return true; } };
-				const probe = {
-					parentDomDenied: denied(() => { parent.document.body.dataset.canaryPollution = "true"; }),
-					parentListenerDenied: denied(() => { parent.addEventListener("canary", () => {}); }),
-					cookieDenied: denied(() => { document.cookie = "ad-canary=bad"; void document.cookie; }),
-					localStorageDenied: denied(() => { localStorage.setItem("ad-canary", "bad"); }),
-					sessionStorageDenied: denied(() => { sessionStorage.setItem("ad-canary", "bad"); }),
-					popupDenied: window.open("https://ad-canary.invalid/popup", "_blank") === null,
-					topNavigationDenied: denied(() => { top.location.href = "https://ad-canary.invalid/escape"; }),
-				};
-				const documentAddress = { baseURI: document.baseURI, url: document.URL, referrer: document.referrer };
-				parent.postMessage({ kind: "blog-ad-canary-probe", id: window.name, probe, document: documentAddress }, "*");
-				setInterval(() => parent.postMessage({ kind: "blog-ad-canary-tick", id: window.name }, "*"), 10);
-				const card = document.createElement("div");
-				card.style.cssText = "width:100%;display:grid;grid-template-columns:minmax(0,1fr);padding:12px;overflow-wrap:anywhere";
-				card.textContent = "Local display card fixture; no real advertisement or click target.";
-				document.body.appendChild(card);
-			})();`;
-	await page.route("https://ad-canary.invalid/**", (route) => route.abort());
-	const canaryDocumentUrl = (format: BlogAdFormat) => {
-		const shippedUrl = getBlogAdDocumentUrl(format);
-		const prefix = "data:text/html;charset=utf-8,";
-		expect(shippedUrl.startsWith(prefix)).toBe(true);
-		const document = decodeURIComponent(shippedUrl.slice(prefix.length)).replace(
+		const denied = (operation) => { try { operation(); return false; } catch { return true; } };
+		const probe = {
+			parentDomDenied: denied(() => { parent.document.body.dataset.canaryPollution = "true"; }),
+			parentListenerDenied: denied(() => { parent.addEventListener("canary", () => {}); }),
+			cookieDenied: denied(() => { document.cookie = "ad-canary=bad"; void document.cookie; }),
+			localStorageDenied: denied(() => { localStorage.setItem("ad-canary", "bad"); }),
+			sessionStorageDenied: denied(() => { sessionStorage.setItem("ad-canary", "bad"); }),
+			popupDenied: window.open("https://ad-canary.invalid/popup", "_blank") === null,
+			topNavigationDenied: denied(() => { top.location.href = "https://ad-canary.invalid/escape"; }),
+		};
+		const documentAddress = { baseURI: document.baseURI, url: document.URL, referrer: document.referrer };
+		parent.postMessage({ kind: "blog-ad-canary-probe", probe, document: documentAddress }, "*");
+		setInterval(() => parent.postMessage({ kind: "blog-ad-canary-tick" }, "*"), 10);
+		const card = document.createElement("div");
+		card.style.cssText = "width:100%;display:grid;grid-template-columns:minmax(0,1fr);padding:12px;overflow-wrap:anywhere";
+		card.textContent = "Local display card fixture; no real advertisement or click target.";
+		document.body.appendChild(card);
+	})();`;
+	const documents = new Map<string, string>();
+	for (const format of ["banner", "native"] as const) {
+		const url = getBlogAdDocumentUrl(format);
+		expect(url).toBe(`${BLOG_AD_ORIGIN}/${format}.html`);
+		const document = getBlogAdDocument(format).replace(
 			/<script\b[^>]*\bsrc="https:[^"]+\/invoke\.js"[^>]*><\/script>/,
 			`<script>${canaryScript}</script>`,
 		);
-		// Opaque-frame request interception is incomplete: remove every real script URL
-		// before creating a frame instead of relying on a route abort to prevent execution.
+		// Remove supplier executable code before mounting, independently of routing.
 		expect(document).not.toMatch(/<script\b[^>]*\bsrc=/i);
+		expect(document).not.toMatch(/highrevenueformat|profitableratecpmnetwork/);
 		expect(document).toContain(canaryScript);
-		return prefix + encodeURIComponent(document);
-	};
-	const documents = JSON.stringify({
-		banner: canaryDocumentUrl("banner"),
-		native: canaryDocumentUrl("native"),
+		documents.set(url, document);
+	}
+	const urls = JSON.stringify({
+		banner: getBlogAdDocumentUrl("banner"),
+		native: getBlogAdDocumentUrl("native"),
 	}).replace(/</g, "\\u003c");
 	const styles = readFileSync(
 		path.resolve(__dirname, "../modules/public-content/components/blog-ads.css"),
@@ -729,53 +824,86 @@ async function installCanaryFixture(page: Page) {
 	);
 	const fixtureRequestUrl = new URL(fixtureUrl);
 	fixtureRequestUrl.hash = "";
-	await page.route(fixtureRequestUrl.href, (route) =>
-		route.fulfill({
-			contentType: "text/html",
-			body: `<!doctype html><html><head><meta charset="utf-8"><style>
-				body { margin: 0; padding: 16px; } ${styles}
-			</style></head><body><h1>Isolated canary fixture</h1>
-			<button data-test="mount-banner">Mount banner</button>
-			<button data-test="mount-native">Mount native</button>
-			<button data-test="destroy-ad-frames">Destroy ad frames</button>
-			<section class="blog-ads" data-blog-ads>
-				<div class="blog-ad blog-ad-banner" data-blog-ad="banner"><div class="blog-ad-content"></div></div>
-				<div class="blog-ad blog-ad-native" data-blog-ad="native"><div class="blog-ad-content"></div></div>
-			</section><script>
-				const documents = ${documents};
-				window.canaryEvidence = { probes: [], ticks: {}, mountCount: { banner: 0, native: 0 } };
-				window.addEventListener("message", event => {
-					if (event.data?.kind === "blog-ad-canary-probe") window.canaryEvidence.probes.push(event.data);
-					if (event.data?.kind === "blog-ad-canary-tick") window.canaryEvidence.ticks[event.data.id] = (window.canaryEvidence.ticks[event.data.id] || 0) + 1;
-				});
-				for (const format of ["banner", "native"]) {
-					document.querySelector('[data-test="mount-' + format + '"]').addEventListener("click", () => {
-						const slot = document.querySelector('[data-blog-ad="' + format + '"] .blog-ad-content');
-						if (slot.querySelector("iframe")) return;
-						const frame = document.createElement("iframe");
-						frame.dataset.blogAdFrame = format;
-						frame.name = format + ":" + ++window.canaryEvidence.mountCount[format];
-						frame.title = format + " canary";
-						frame.setAttribute("sandbox", ${JSON.stringify(BLOG_AD_SANDBOX)});
-						frame.referrerPolicy = "no-referrer";
-						frame.width = format === "banner" ? "${BLOG_AD_BANNER_WIDTH}" : "100%";
-						frame.height = format === "banner" ? "90" : "${BLOG_AD_NATIVE_HEIGHT}";
-						frame.src = documents[format];
-						slot.appendChild(frame);
-					});
-				}
-				document.querySelector('[data-test="destroy-ad-frames"]').addEventListener("click", () => {
-					for (const frame of document.querySelectorAll("iframe")) frame.remove();
-				});
-			</script></body></html>`,
-		}),
-	);
+	const hostDocument = `<!doctype html><html><head><meta charset="utf-8"><style>
+		body { margin: 0; padding: 16px; } ${styles}
+	</style><link rel="icon" href="data:,"></head><body><h1>Isolated canary fixture</h1>
+	<button data-test="mount-banner">Mount banner</button>
+	<button data-test="mount-native">Mount native</button>
+	<button data-test="destroy-ad-frames">Destroy ad frames</button>
+	<section class="blog-ads" data-blog-ads>
+		<div class="blog-ad blog-ad-banner" data-blog-ad="banner"><div class="blog-ad-content"></div></div>
+		<div class="blog-ad blog-ad-native" data-blog-ad="native"><div class="blog-ad-content"></div></div>
+	</section><script>
+		const documents = ${urls};
+		const canaryOwners = new WeakMap();
+		window.canaryEvidence = { probes: [], ticks: {}, mountCount: { banner: 0, native: 0 } };
+		window.addEventListener("message", event => {
+			const id = canaryOwners.get(event.source);
+			if (!id || event.origin !== "null") return;
+			if (event.data?.kind === "blog-ad-canary-probe") window.canaryEvidence.probes.push({ ...event.data, id });
+			if (event.data?.kind === "blog-ad-canary-tick") window.canaryEvidence.ticks[id] = (window.canaryEvidence.ticks[id] || 0) + 1;
+		});
+		for (const format of ["banner", "native"]) {
+			document.querySelector('[data-test="mount-' + format + '"]').addEventListener("click", () => {
+				const slot = document.querySelector('[data-blog-ad="' + format + '"] .blog-ad-content');
+				if (slot.querySelector("iframe")) return;
+				const frame = document.createElement("iframe");
+				if (!("credentialless" in frame)) return;
+				frame.credentialless = true;
+				frame.dataset.blogAdFrame = format;
+				frame.name = format + ":" + ++window.canaryEvidence.mountCount[format];
+				frame.title = format + " canary";
+				frame.setAttribute("sandbox", ${JSON.stringify(BLOG_AD_SANDBOX)});
+				frame.referrerPolicy = "no-referrer";
+				frame.width = format === "banner" ? "${BLOG_AD_BANNER_WIDTH}" : "100%";
+				frame.height = format === "banner" ? "90" : "${BLOG_AD_NATIVE_HEIGHT}";
+				frame.src = documents[format];
+				slot.appendChild(frame);
+				// Retain this identity after removal so orphan timer messages cannot be hidden.
+				canaryOwners.set(frame.contentWindow, frame.name);
+			});
+		}
+		document.querySelector('[data-test="destroy-ad-frames"]').addEventListener("click", () => {
+			for (const frame of document.querySelectorAll("iframe")) {
+				frame.src = "about:blank";
+				frame.remove();
+			}
+		});
+	</script></body></html>`;
+	const networkEvidence = {
+		documentRequests: [] as string[],
+		providerRequests: [] as string[],
+		safetyAborts: [] as string[],
+	};
+	const context = page.context();
+	context.on("request", (request) => {
+		if (isAdUrl(request.url())) networkEvidence.providerRequests.push(request.url());
+	});
+	await context.route("**/*", (route) => {
+		const request = route.request();
+		const url = request.url();
+		if (url === fixtureRequestUrl.href && request.isNavigationRequest())
+			return route.fulfill({ contentType: "text/html", body: hostDocument });
+		const document = documents.get(url);
+		if (document && request.isNavigationRequest()) {
+			networkEvidence.documentRequests.push(url);
+			return route.fulfill({
+				contentType: "text/html",
+				headers: { "Referrer-Policy": "no-referrer", "Cache-Control": "no-store" },
+				body: document,
+			});
+		}
+		networkEvidence.safetyAborts.push(url);
+		return route.abort();
+	});
 	await page.goto(fixtureUrl);
+	await requireCredentialless(page);
 	await page.evaluate(() => {
 		document.cookie = "blog-ad-parent-secret=parent-only;path=/";
 		localStorage.setItem("blog-ad-parent-secret", "parent-only");
 		sessionStorage.setItem("blog-ad-parent-secret", "parent-only");
 	});
+	return networkEvidence;
 }
 
 type CanaryEvidence = {
@@ -803,18 +931,18 @@ async function settleBrowserFrames(page: Page, frames: number) {
 	);
 }
 
-test.describe("standalone data document sandbox canaries (not production inventory)", () => {
+test.describe("standalone fixed-origin sandbox canaries (not production inventory)", () => {
 	test("both supplied script documents cannot read host addresses, DOM, cookies, storage or navigate", async ({
 		page,
 		context,
 	}) => {
 		await page.setViewportSize({ width: 1280, height: 900 });
-		await installCanaryFixture(page);
+		const transport = await installCanaryFixture(page);
 		await page.locator('[data-test="mount-banner"]').click();
 		await page.locator('[data-test="mount-native"]').click();
 		await expect.poll(async () => (await canaryEvidence(page)).probes.length).toBe(2);
 		const evidence = await canaryEvidence(page);
-		for (const { probe, document } of evidence.probes) {
+		for (const { id, probe, document } of evidence.probes) {
 			expect(probe).toEqual({
 				parentDomDenied: true,
 				parentListenerDenied: true,
@@ -824,7 +952,9 @@ test.describe("standalone data document sandbox canaries (not production invento
 				popupDenied: true,
 				topNavigationDenied: true,
 			});
-			expect(document.url).toMatch(/^data:text\/html;charset=utf-8,/);
+			const format = id.split(":")[0] as BlogAdFormat;
+			expect(format === "banner" || format === "native").toBe(true);
+			expect(document.url).toBe(getBlogAdDocumentUrl(format));
 			expect(document.baseURI).toBe(document.url);
 			expect(document.referrer).toBe("");
 			for (const address of Object.values(document)) {
@@ -842,8 +972,23 @@ test.describe("standalone data document sandbox canaries (not production invento
 		expect(await page.evaluate(() => sessionStorage.getItem("ad-canary"))).toBeNull();
 		expect((await context.cookies()).some((cookie) => cookie.name === "ad-canary")).toBe(false);
 		await expectNoHostAdCode(page);
+		expect(transport.documentRequests.sort()).toEqual([...adDocumentUrls].sort());
+		expect(transport.providerRequests).toEqual([]);
+		expect(transport.safetyAborts).toEqual([]);
+		await page.locator('[data-test="destroy-ad-frames"]').click();
+		await expect(page.locator(adFrames)).toHaveCount(0);
 		await test.info().attach("standalone-sandbox-probes", {
-			body: JSON.stringify(evidence, null, 2),
+			body: JSON.stringify(
+				{
+					...evidence,
+					transport,
+					remainingAdFrameCount: 0,
+					observationBoundary:
+						"Harmless inline sandbox probes replacing supplier loaders in the shipped helper HTML; no actual inventory or deployed child response CSP is exercised.",
+				},
+				null,
+				2,
+			),
 			contentType: "application/json",
 		});
 	});
@@ -852,7 +997,7 @@ test.describe("standalone data document sandbox canaries (not production invento
 		page,
 	}) => {
 		await page.setViewportSize({ width: 390, height: 900 });
-		await installCanaryFixture(page);
+		const transport = await installCanaryFixture(page);
 		await page.locator('[data-test="mount-native"]').click();
 		await page.locator('[data-test="mount-native"]').click();
 		await expect(page.locator(adFrames)).toHaveCount(1);
@@ -880,8 +1025,26 @@ test.describe("standalone data document sandbox canaries (not production invento
 		await expect(page.locator(adFrames)).toHaveCount(1);
 		expect((await canaryEvidence(page)).mountCount.native).toBe(2);
 		expect((await canaryEvidence(page)).ticks["native:1"]).toBe(stoppedTicks);
+		expect(transport.documentRequests).toEqual([
+			getBlogAdDocumentUrl("native"),
+			getBlogAdDocumentUrl("native"),
+		]);
+		expect(transport.providerRequests).toEqual([]);
+		expect(transport.safetyAborts).toEqual([]);
+		await page.locator('[data-test="destroy-ad-frames"]').click();
+		await expect(page.locator(adFrames)).toHaveCount(0);
 		await test.info().attach("standalone-context-lifecycle", {
-			body: JSON.stringify(await canaryEvidence(page), null, 2),
+			body: JSON.stringify(
+				{
+					...(await canaryEvidence(page)),
+					transport,
+					remainingAdFrameCount: 0,
+					observationBoundary:
+						"Synthetic 10ms timer and local card fixture only; supplier cleanup and native card geometry require separate finite live observation.",
+				},
+				null,
+				2,
+			),
 			contentType: "application/json",
 		});
 	});

@@ -1,0 +1,10 @@
+{
+	"name": "@repo/blog-ads",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"build": "pnpm -w exec tsx apps/blog-ads/generate.ts",
+		"test": "pnpm -w exec tsx --test apps/blog-ads/generate.test.ts",
+		"type-check": "pnpm -w exec tsc -p apps/blog-ads/tsconfig.json --noEmit"
+	}
+}

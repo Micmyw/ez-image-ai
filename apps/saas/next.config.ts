@@ -6,6 +6,10 @@ import { createMDX } from "fumadocs-mdx/next";
 import type { NextConfig } from "next";
 import nextIntlPlugin from "next-intl/plugin";
 
+import {
+	BLOG_AD_ARTICLE_PATHS,
+	BLOG_AD_ORIGIN,
+} from "./modules/public-content/lib/blog-ad-routing";
 import { resolveMediaCspTransportPolicy } from "./storage-connect-origin";
 
 const withNextIntl = nextIntlPlugin("./modules/i18n/request.ts");
@@ -36,6 +40,13 @@ const contentSecurityPolicy = [
 	"worker-src 'self' blob:",
 	...(upgradeInsecureRequests ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
+
+// Only reviewed ordinary articles may embed the independent advertising document.
+// Keep every other directive, and every product response, exactly as before.
+const articleContentSecurityPolicy = contentSecurityPolicy.replace(
+	"frame-src https://challenges.cloudflare.com",
+	`frame-src https://challenges.cloudflare.com ${BLOG_AD_ORIGIN}`,
+);
 
 const securityHeaders = [
 	{ key: "Content-Security-Policy", value: contentSecurityPolicy },
@@ -76,6 +87,15 @@ const nextConfig: NextConfig = {
 	async headers() {
 		return [
 			{ source: "/(.*)", headers: securityHeaders },
+			...BLOG_AD_ARTICLE_PATHS.map((source) => ({
+				source,
+				headers: [{ key: "Content-Security-Policy", value: articleContentSecurityPolicy }],
+			})),
+			{
+				source: "/blog/tesco-ai-meal-planning-assistant",
+				has: [{ type: "query" as const, key: "blogAdTest" }],
+				headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
+			},
 			...[
 				"/docs/api/:path*",
 				"/docs/og/:path*",

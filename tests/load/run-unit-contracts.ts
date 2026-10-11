@@ -17,6 +17,7 @@ const commands: Array<{ args: string[]; database: boolean }> = [
 		database: false,
 	},
 	{ args: ["hotel-lobby:test-config"], database: false },
+	{ args: ["--filter", "@repo/blog-ads", "test"], database: false },
 	{ args: ["--filter", "@repo/config", "test"], database: false },
 	{ args: ["--filter", "@repo/ai", "test"], database: false },
 	{ args: ["--filter", "@repo/storage", "test"], database: false },

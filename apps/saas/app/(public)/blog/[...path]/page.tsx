@@ -60,6 +60,7 @@ export async function generateMetadata({
 			job?: string | string[];
 			mode?: string | string[];
 			lang?: string | string[];
+			blogAdTest?: string | string[];
 		}
 	>;
 }) {
@@ -73,7 +74,7 @@ export async function generateMetadata({
 		path: blogPath(post),
 		title: post.title,
 		description: post.description,
-		index: true,
+		index: search.blogAdTest === undefined,
 	});
 	return {
 		...metadata,
@@ -112,6 +113,7 @@ export default async function BlogArticlePage({
 			job?: string | string[];
 			mode?: string | string[];
 			lang?: string | string[];
+			blogAdTest?: string | string[];
 		}
 	>;
 }) {
@@ -132,6 +134,11 @@ export default async function BlogArticlePage({
 			await import("../../../../modules/public-content/components/PhotoIdeaArticle");
 		return <PhotoIdeaArticle post={post} recipe={recipe} searchParams={searchParams} />;
 	}
+	const adSearch = await searchParams;
+	const adSettings = getBlogAdSettings(process.env, {
+		pathname: blogPath(post),
+		format: adSearch.blogAdTest,
+	});
 	const visual = getBlogVisual(post);
 	const visualPost = withBlogVisualCover(post);
 	const headings = getContentHeadings(post.body);
@@ -314,7 +321,10 @@ export default async function BlogArticlePage({
 							</ul>
 						</section>
 					)}
-					<BlogAds key={post.id} settings={getBlogAdSettings(process.env)} />
+					<BlogAds
+						key={`${post.id}:${typeof adSearch.blogAdTest === "string" ? adSearch.blogAdTest : "off"}`}
+						settings={adSettings}
+					/>
 					<footer className="blog-author">
 						<p>{BLOG_EDITORIAL_TEAM.name}</p>
 						<p>{t("guides.authorAbout")}</p>

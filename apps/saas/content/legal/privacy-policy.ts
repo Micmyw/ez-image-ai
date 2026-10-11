@@ -32,13 +32,13 @@ Before generation, EzImageAI screens text instructions using Waffo. A prompt sca
 
 ## Blog display advertising
 
-Blog display advertising is currently disabled. The prepared integration is limited to ordinary editorial article pages; it excludes the Blog directory, articles with embedded generation tools, the homepage, editor, uploads, generation, sign-in, account, pricing and checkout pages.
+General Blog display advertising is currently disabled. A time-limited test preview is restricted to the Tesco news article. The integration is limited to ordinary editorial article pages; it excludes the Blog directory, articles with embedded generation tools, the homepage, editor, uploads, generation, sign-in, account, pricing and checkout pages.
 
 If display advertising is enabled after review, it requires optional-cookie acceptance and a separate **Show blog ads** choice on each article visit. Existing analytics consent alone does not load ads. **Hide blog ads**, declining optional consent or leaving the article removes the ad frames. Advertising does not add an EzImageAI advertising-consent cookie or retain that per-visit choice.
 
 The prepared Adsterra display placements request scripts from www.highrevenueformat.com and pl31768149.profitableratecpmnetwork.com. The network and any creative delivery services may receive your IP address, browser/device information and ad interactions, and may send third-party cookies subject to browser restrictions. The final delivery domains and cookies depend on live inventory, which has not yet been verified. EzImageAI does not supply account details, prompts, photos, private assets or signed media links to the placements. Their frames use an opaque sandbox without access to EzImageAI cookies, storage or page content, and suppress the article referrer.
 
-The existing website security policy currently blocks these placements. They will remain off until live display behavior, third-party requests and any required article-specific security changes have been reviewed. No popunder, notification, social-bar or automatic-navigation integration is enabled.
+The independent static advertising documents are hosted at ads.ezimageai.com. Only reviewed ordinary articles may embed that source. The document uses its own restricted security policy, an opaque sandbox, and credentialless loading on supported browsers; other browsers keep advertising unloaded. Article navigation destroys the advertising context. General advertising remains off while the limited test checks actual display behavior and third-party requests. No popunder, notification, social-bar or automatic-navigation integration is enabled.
 
 ## Analytics consent
 
@@ -117,6 +117,14 @@ Die Informationen werden verwendet, um den Dienst bereitzustellen und zu schütz
 Entwürfe der öffentlichen Seite laufen nach höchstens einer Stunde ab. Medien des Nano-Banana-2-Lite-1K-Gasttests werden spätestens 24 Stunden nach Erstellung des Auftrags unzugänglich und zur Löschung eingeplant. Neue Referenzbilder im angemeldeten Editor laufen nach 24 Stunden ab und werden über die Speicher-Lebenszyklusregel gelöscht. Die physische Löschung kann nach dem Zugriffsablauf erfolgen. Generierte Ergebnisse bleiben unabhängig vom Ablauf der Referenz verfügbar. Für Bibliotheksmedien und generierte Ergebnisse registrierter Konten gelten weiterhin 30 Tage und für fehlgeschlagene Aufträge 7 Tage Bereinigung.
 
 Abrechnungs-, Credit-, Sicherheits-, Audit- und Rechtsdaten können wegen finanzieller Integrität, Streitbehandlung, Betrugsprävention oder gesetzlicher Pflichten länger aufbewahrt werden. Nach Ablauf oder Löschung werden neue Zugriffslinks verhindert und das Objekt über den asynchronen Bereinigungsweg gelöscht. Sicherungs- und Infrastrukturkopien können zusätzliche Zeit zum Auslaufen benötigen.
+
+## Blog-Werbung
+
+Allgemeine Blog-Werbung ist deaktiviert. Eine zeitlich begrenzte Testvorschau ist auf den Tesco-Nachrichtenartikel beschränkt. Werbung ist nur für redaktionelle Artikel vorgesehen, nicht für das Blog-Verzeichnis, eingebettete Generatoren, Startseite, Editor, Uploads, Generierung, Anmeldung, Konto, Preise oder Zahlung.
+
+Auch die Testvorschau benötigt die Zustimmung zu optionalen Cookies und die gesonderte Wahl **Show blog ads** bei jedem Artikelbesuch. **Hide blog ads**, der Widerruf der optionalen Zustimmung oder das Verlassen des Artikels entfernt die Werbe-Frames. Diese Wahl wird nicht gespeichert und erzeugt kein zusätzliches EzImageAI-Werbe-Cookie.
+
+Statische Werbedokumente liegen auf ads.ezimageai.com. Die bereitgestellten Adsterra-Platzierungen laden Skripte von www.highrevenueformat.com und pl31768149.profitableratecpmnetwork.com. Das Werbenetzwerk kann IP-Adresse und Browserinformationen erhalten; Cookies unterliegen den Browserbeschränkungen. Tatsächliche Anzeigen, weitere Lieferdienste und Cookies werden noch geprüft. EzImageAI übermittelt keine Kontodaten, Prompts, Fotos oder privaten Medienlinks. Eine isolierte Sandbox verhindert Zugriff auf die Inhalte und den Speicher der Hauptseite; credentialless-Laden verhindert vorhandene Anmeldedaten und Cookies in unterstützten Browsern. Andere Browser laden keine Werbung. Der Artikel-Referrer wird unterdrückt. Popunder, Social-Bar, Benachrichtigungsanfragen und automatische Weiterleitungen sind nicht aktiviert.
 
 ## Ihre Wahlmöglichkeiten
 
