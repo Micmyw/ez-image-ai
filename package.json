@@ -62,9 +62,9 @@
 		"dotenv-cli": "catalog:",
 		"oxfmt": "catalog:",
 		"oxlint": "catalog:",
-		"oxlint-tsgolint": "^7.0.2001",
+		"oxlint-tsgolint": "^7.0.2003",
 		"tsx": "catalog:",
-		"turbo": "^2.10.8",
+		"turbo": "^2.11.7",
 		"typescript": "catalog:"
 	},
 	"engines": {
