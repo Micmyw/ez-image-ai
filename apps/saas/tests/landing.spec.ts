@@ -648,8 +648,28 @@ test("the production homepage excludes account tools, charts, and documentation 
 	const resourceDetails = resources.scripts.map((url, index) => ({
 		url,
 		gzipBytes: gzipSync(scripts[index]!).length,
+		initialHtmlScript: initialScriptUrls.has(url),
+		markers: {
+			feedbackEntry: scripts[index]!.includes("feedback-gift-wrap"),
+			feedbackForm: scripts[index]!.includes("feedback-email-action"),
+			sharedDialogPopup: scripts[index]!.includes("data-[closed]:zoom-out-95"),
+			nextDynamic: scripts[index]!.includes("LoadableComponent"),
+		},
 	}));
 	console.log("Homepage production resource details:", JSON.stringify(resourceDetails));
+	console.log(
+		"Homepage production stylesheet details:",
+		JSON.stringify(
+			resources.styles.map((url, index) => ({
+				url,
+				gzipBytes: gzipSync(externalStyles[index]!).length,
+				markers: {
+					feedbackEntry: externalStyles[index]!.includes(".feedback-trigger"),
+					feedbackForm: externalStyles[index]!.includes(".feedback-dialog"),
+				},
+			})),
+		),
+	);
 	await testInfo.attach("homepage-resources.json", {
 		body: JSON.stringify(summary, null, 2),
 		contentType: "application/json",
