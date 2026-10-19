@@ -66,7 +66,7 @@ function fixture() {
 			fundingSource: "CREDITS",
 			idempotencyKey: request.idempotencyKey,
 		};
-		return { job: quote.job!, replayed };
+		return { job: { ...quote.job!, fundingSource: "CREDITS" as const }, replayed };
 	});
 	const dispatch = vi.fn<Dependencies["dispatch"]>().mockResolvedValue(undefined);
 	return { quotes, dependencies: { findQuote, createQuote, createJob, dispatch } };
