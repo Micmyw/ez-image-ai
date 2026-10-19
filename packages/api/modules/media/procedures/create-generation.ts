@@ -23,6 +23,7 @@ import { getCurrentExecutableRouteGraphOptions } from "../lib/executable-route-g
 import { createFlowTiming, type FlowTiming } from "../lib/flow-timing";
 import {
 	assertGenerationAllowed,
+	createGenerationRateLimitReceipt,
 	type GenerationRateLimitReceipt,
 } from "../lib/generation-authorization";
 import { assertFrozenQuoteRouteGraphIsCurrent } from "../lib/quote";
@@ -40,7 +41,17 @@ export const createGeneration = protectedProcedure
 	.handler(async ({ context: { user, requestId, defer }, input }) => {
 		try {
 			const timing = createFlowTiming({ requestId });
-			const result = await createGenerationForUser(user.id, input, undefined, timing);
+			// A durable replay still belongs to this incoming HTTP request's flood bucket.
+			const rateLimitReceipt = await timing.measure("admission.rate-limit", () =>
+				createGenerationRateLimitReceipt(user.id),
+			);
+			const result = await createGenerationForUser(
+				user.id,
+				input,
+				undefined,
+				timing,
+				rateLimitReceipt,
+			);
 			await startCreatedGenerationDispatch(result, timing, defer);
 			return {
 				job: {

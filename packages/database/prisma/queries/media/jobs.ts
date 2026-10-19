@@ -25,7 +25,7 @@ import type {
 } from "./types";
 import { isDatabaseUniqueConflict, runReadCommitted, runSerializable } from "./types";
 
-class AssetAdmissionIsolationRequired extends Error {}
+class SerializableAdmissionRequired extends Error {}
 
 // Canonical text-to-image fields contain no stored-media references. Unknown
 // or future fields conservatively retain the asset writers' SSI protocol.
@@ -158,7 +158,7 @@ export async function createGenerationJobTransaction(
 		try {
 			return await runReadCommitted(client, operation);
 		} catch (error) {
-			if (!(error instanceof AssetAdmissionIsolationRequired)) throw error;
+			if (!(error instanceof SerializableAdmissionRequired)) throw error;
 			serializable = true;
 			return runSerializable(client, operation);
 		}
@@ -181,6 +181,11 @@ export async function createGenerationJobTransaction(
 			if (quote.expiresAt <= operationNow) throw new Error("Quote expired");
 			if (quote.credits <= 0n) throw new Error("Quote credits are invalid");
 			const fundingSource = generationFundingSource(quote.pricingSnapshot);
+			// Keep pass eligibility and its independent financial reservation under SSI,
+			// even when no asset binding or configured global budget requires it.
+			// No business writes precede this restart, and funding comes from the owned quote.
+			if (!serializable && fundingSource === "IMAGE_PASS")
+				throw new SerializableAdmissionRequired();
 			if (
 				quote.moderationDecision !== "ALLOW" ||
 				quote.moderationRuleVersion !== input.expectedModerationRuleVersion ||
@@ -198,7 +203,7 @@ export async function createGenerationJobTransaction(
 			) {
 				// No writes precede this restart. The authoritative quote also guards
 				// isolation when a caller omits the corresponding asset-ID array.
-				throw new AssetAdmissionIsolationRequired();
+				throw new SerializableAdmissionRequired();
 			}
 			await assertQuoteModerationPermitted(quote, tx);
 			const replay = await findExistingJob(input, tx);

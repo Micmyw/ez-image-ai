@@ -102,6 +102,10 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 								([key]) => !["assets", "edits", "history"].includes(key),
 							),
 						),
+						// Account input preparation is rendered only inside the registered editor.
+						create: Object.fromEntries(
+							Object.entries(media.create).filter(([key]) => key !== "preparation"),
+						),
 						// UserMenu's history link is also available on public pages.
 						history: { title: media.history.title },
 					},

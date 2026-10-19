@@ -27,11 +27,12 @@ function PaymentCopy({
 }) {
 	const t = useTranslations("imagePass");
 	const common = useTranslations("common");
+	const preparation = useTranslations("media.create.preparation");
 	expect(useMessages().imagePass).toEqual(expected);
 	expect(useMessages().media).toEqual(media);
 	return (
 		<p>
-			{t("title", { units: 3 })} {t("returnPending")} {common("menu.login")}
+			{t("title", { units: 3 })} {t("returnPending")} {common("menu.login")} {preparation("title")}
 		</p>
 	);
 }
@@ -50,7 +51,9 @@ describe("registered image pass translations", () => {
 						common: messages.common,
 						imagePass: { buy: messages.imagePass.buy },
 						media: {
-							create: messages.media.create,
+							create: Object.fromEntries(
+								Object.entries(messages.media.create).filter(([key]) => key !== "preparation"),
+							),
 							guest: messages.media.guest,
 							status: messages.media.status,
 							safety: messages.media.safety,
@@ -70,7 +73,7 @@ describe("registered image pass translations", () => {
 				renderToStaticMarkup(
 					<p>
 						{messages.imagePass.title.replace("{units}", "3")} {messages.imagePass.returnPending}{" "}
-						{messages.common.menu.login}
+						{messages.common.menu.login} {messages.media.create.preparation.title}
 					</p>,
 				),
 			);

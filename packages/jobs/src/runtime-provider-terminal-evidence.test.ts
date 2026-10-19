@@ -1,7 +1,19 @@
 import type { NormalizedResult, ProviderTaskSnapshot } from "@repo/ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@repo/database", () => ({}));
+vi.mock("@repo/database", () => ({
+	getGenerationFundingReservation: async (
+		jobId: string,
+		tx: {
+			creditReservation: {
+				findUnique(input: unknown): Promise<{ id: string; status: string; amount: bigint } | null>;
+			};
+		},
+	) => {
+		const reservation = await tx.creditReservation.findUnique({ where: { jobId } });
+		return reservation ? { ...reservation, fundingSource: "CREDITS" } : null;
+	},
+}));
 vi.mock("@repo/database/client", () => ({ db: {} }));
 
 import type { ReconciliationLease } from "./contracts";

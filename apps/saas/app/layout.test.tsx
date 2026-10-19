@@ -176,6 +176,14 @@ describe("SaaS root layout", () => {
 					expect(clientMessages.media.history).toEqual({ title: fullMessages.media.history.title });
 				} else if (["assets", "edits"].includes(key)) {
 					expect(clientMessages.media).not.toHaveProperty(key);
+				} else if (key === "create") {
+					expect(clientMessages.media.create).not.toHaveProperty("preparation");
+					expect(fullMessages.media.create.preparation.title).not.toBe("");
+					for (const [createKey, createValue] of Object.entries(fullMessages.media.create)) {
+						if (createKey !== "preparation") {
+							expect(clientMessages.media.create[createKey]).toEqual(createValue);
+						}
+					}
 				} else {
 					expect(clientMessages.media[key]).toEqual(value);
 				}

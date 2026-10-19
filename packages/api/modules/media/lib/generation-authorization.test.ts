@@ -519,6 +519,41 @@ describe("server generation flood receipt", () => {
 		expect(deps.enforceRateLimit).toHaveBeenCalledExactlyOnceWith("owner", "media:generation");
 		expect(deps.loadAccess).toHaveBeenCalledTimes(2);
 	});
+	it("keeps a pass independent of credits while rechecking its balance and debt after a valid flood receipt", async () => {
+		const snapshot = {
+			...BASE_SNAPSHOT,
+			planId: "free" as const,
+			spendableCredits: 0n,
+			imagePassAvailable: true,
+			storageUsageBytes: 100_000_000_000n,
+			maximumStorageBytes: null,
+		};
+		const deps = dependencies(snapshot);
+		const receipt = await createGenerationRateLimitReceipt("owner", deps.enforceRateLimit);
+		const request = {
+			...input,
+			productKey: "image-nano-banana-pro" as const,
+			credits: 25n,
+			fundingSource: "IMAGE_PASS" as const,
+			input: {
+				kind: "text-to-image" as const,
+				prompt: "A vase",
+				skuKey: "nano-banana-pro-4k" as const,
+			},
+			rateLimitReceipt: receipt,
+		};
+		await expect(assertGenerationAllowed(request, deps)).resolves.toBeUndefined();
+		deps.loadAccess.mockResolvedValueOnce({
+			...snapshot,
+			imagePassAvailable: false,
+			spendableCredits: 1000n,
+		});
+		await expect(assertGenerationAllowed(request, deps)).rejects.toThrow("IMAGE_PASS_INSUFFICIENT");
+		deps.loadAccess.mockResolvedValueOnce({ ...snapshot, creditDebt: 1n });
+		await expect(assertGenerationAllowed(request, deps)).rejects.toThrow("CREDIT_DEBT_OUTSTANDING");
+		expect(deps.enforceRateLimit).toHaveBeenCalledExactlyOnceWith("owner", "media:generation");
+		expect(deps.loadAccess).toHaveBeenCalledTimes(3);
+	});
 	it("never issues a receipt when the real flood guard denies the request", async () => {
 		const enforce = vi.fn(async () => {
 			throw new Error("RATE_LIMITED");

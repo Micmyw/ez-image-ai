@@ -36,7 +36,10 @@ if (url && !enabled) throw new Error("ISOLATED_IMAGE_PASS_DATABASE_REQUIRED");
 const pool = enabled ? new Pool({ connectionString: url, max: 8 }) : null;
 
 /** Only the Prisma transport is adapted; these tests execute the production SQL against PostgreSQL. */
-export async function sqlTransaction<T>(operation: (tx: any) => Promise<T>): Promise<T> {
+export async function sqlTransaction<T>(
+	operation: (tx: any) => Promise<T>,
+	options?: { isolationLevel?: string },
+): Promise<T> {
 	if (!pool) throw new Error("ISOLATED_IMAGE_PASS_DATABASE_REQUIRED");
 	const c = await pool.connect();
 	const query = async (parts: TemplateStringsArray, ...values: unknown[]) =>
@@ -102,13 +105,29 @@ export async function sqlTransaction<T>(operation: (tx: any) => Promise<T>): Pro
 				).rows,
 		},
 		subscription: {
-			findMany: async ({ where }: any) =>
-				(
-					await c.query(`SELECT * FROM subscription WHERE "ownerType"=$1 AND "ownerId"=$2`, [
-						where.ownerType,
-						where.ownerId,
-					])
-				).rows,
+			findMany: async ({ where }: any) => {
+				const now = where.OR?.[0]?.currentPeriodStart?.lte ?? new Date();
+				const rows = (
+					await c.query(
+						`SELECT s.*, jsonb_build_object('metadata',p.metadata,'name',p.name,'productKind',p."productKind") AS plan
+					FROM subscription s JOIN billing_plan p ON p.id=s."planId"
+					WHERE s."ownerType"=$1 AND s."ownerId"=$2 AND s."refundTerminationRequestedAt" IS NULL
+					AND ((s.status IN ('ACTIVE','CANCELED') AND s."currentPeriodStart"<=$3 AND s."currentPeriodEnd">$3
+					AND EXISTS (SELECT 1 FROM billing_period b WHERE b."subscriptionId"=s.id AND b."startsAt"<=$3 AND b."endsAt">$3 AND b."paidAmount">0 AND b."refundedAmount"<b."paidAmount" AND b.status<>'VOID'))
+					OR (s.status='PAST_DUE' AND s."graceEndsAt">$3 AND EXISTS (SELECT 1 FROM billing_period b WHERE b."subscriptionId"=s.id AND b."startsAt"<=$3 AND b."paidAmount">0 AND b.status<>'VOID')))
+					ORDER BY s."updatedAt" DESC,s.id DESC`,
+						[where.ownerType, where.ownerId, now],
+					)
+				).rows;
+				for (const row of rows)
+					row.periods = (
+						await c.query(
+							`SELECT "paidAmount","refundedAmount","providerInvoiceId" FROM billing_period WHERE "subscriptionId"=$1 AND "startsAt"<=$2 AND "paidAmount">0 AND status<>'VOID' ORDER BY "startsAt" DESC LIMIT 1`,
+							[row.id, now],
+						)
+					).rows;
+				return rows;
+			},
 		},
 		billingPeriod: { fields: { paidAmount: "paidAmount" } },
 		creditAccount: {
@@ -167,7 +186,16 @@ export async function sqlTransaction<T>(operation: (tx: any) => Promise<T>): Pro
 			},
 		},
 	};
-	await c.query("BEGIN");
+	if (
+		options?.isolationLevel &&
+		!["ReadCommitted", "Serializable"].includes(options.isolationLevel)
+	)
+		throw new Error("UNSUPPORTED_TEST_TRANSACTION_ISOLATION");
+	await c.query(
+		options?.isolationLevel === "Serializable"
+			? "BEGIN ISOLATION LEVEL SERIALIZABLE"
+			: "BEGIN ISOLATION LEVEL READ COMMITTED",
+	);
 	try {
 		const value = await operation(tx);
 		await c.query("COMMIT");
@@ -638,71 +666,149 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 			]),
 		).rejects.toThrow("IMAGE_PASS_LEDGER_IMMUTABLE");
 	});
-	it("admits an actual generation transaction for a free owner using a 4K pass with no ordinary credit account", async () => {
-		const f = await paymentFixture();
-		await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
-		const pricingSnapshot = {
-			fundingSource: "IMAGE_PASS",
-			skuKey: "nano-banana-pro-4k",
-			credits: 25,
-			settlementPolicy: { unitCredits: "25", requestedOutputCount: 1, maxCharge: "25" },
-		};
-		const quote = {
-			id: "admission-" + crypto.randomUUID(),
-			ownerType: "USER" as const,
-			ownerId: f.ownerId,
-			submittedByUserId: f.ownerId,
-			productKey: "image-nano-banana-pro",
-			catalogVersion: "2026-09-14.1",
-			pricingVersion: "2026-09-13.2",
-			credits: 25n,
-			costMicros: 120000n,
-			inputSnapshot: {
-				kind: "text-to-image",
-				prompt: "A vase",
+	it.each([
+		{ paid: false, usage: 0n, admitted: true },
+		{ paid: false, usage: 3n * 1024n * 1024n * 1024n, admitted: false },
+		{ paid: true, usage: 3n * 1024n * 1024n * 1024n, admitted: true },
+	])(
+		"retains current storage policy for a 4K pass: paid=$paid admitted=$admitted",
+		async ({ paid, usage, admitted }) => {
+			const f = await paymentFixture();
+			await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
+			if (paid) {
+				const planId = "paid-plan-" + crypto.randomUUID();
+				const subscriptionId = "paid-sub-" + crypto.randomUUID();
+				await pool!.query(
+					`INSERT INTO billing_plan (id,provider,"providerPriceId","productKind",name,"creditsPerPeriod","priceMicros",currency,metadata,"updatedAt") VALUES ($1,'paypal',$1,'PLAN','creator',1,1000000,'USD','{}',now())`,
+					[planId],
+				);
+				await pool!.query(
+					`INSERT INTO subscription (id,"ownerType","ownerId",provider,"providerSubscriptionId","planId",status,"currentPeriodStart","currentPeriodEnd","updatedAt") VALUES ($1,'USER',$2,'paypal',$1,$3,'ACTIVE',now()-interval '1 day',now()+interval '1 day',now())`,
+					[subscriptionId, f.ownerId, planId],
+				);
+				await pool!.query(
+					`INSERT INTO billing_period (id,"subscriptionId","startsAt","endsAt",status,"creditAmount","paidAmount","updatedAt") VALUES ($1,$2,now()-interval '1 day',now()+interval '1 day','ACTIVE',0,1000000,now())`,
+					["period-" + crypto.randomUUID(), subscriptionId],
+				);
+			}
+			if (usage)
+				await pool!.query(
+					`INSERT INTO storage_usage_reservation (id,"ownerType","ownerId",bytes,status,"referenceKey","expiresAt") VALUES ($1,'USER',$2,$3,'COMMITTED',$1,now()+interval '1 day')`,
+					["storage-" + crypto.randomUUID(), f.ownerId, usage],
+				);
+			const pricingSnapshot = {
+				fundingSource: "IMAGE_PASS",
 				skuKey: "nano-banana-pro-4k",
-				aspectRatio: "1:1",
-			},
-			pricingSnapshot,
-			expiresAt: new Date(Date.now() + 60_000),
-		};
-		await pool!.query(
-			`INSERT INTO generation_quote (id,"ownerType","ownerId","submittedByUserId","productKey","catalogVersion","pricingVersion",credits,"costMicros","inputSnapshot","pricingSnapshot","expiresAt","moderationDecision","moderationProvider","moderationRuleVersion","moderationReasonCode","inputFingerprint") VALUES ($1,'USER',$2,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ALLOW','waffo','test-rule','NO_POLICY_MATCH',$11)`,
-			[
-				quote.id,
-				quote.ownerId,
-				quote.productKey,
-				quote.catalogVersion,
-				quote.pricingVersion,
-				quote.credits,
-				quote.costMicros,
-				JSON.stringify(quote.inputSnapshot),
-				JSON.stringify(quote.pricingSnapshot),
-				quote.expiresAt,
-				fingerprintGenerationQuoteSecurityPayload(quote),
-			],
-		);
-		const result = await createGenerationJobTransaction(
-			{
-				ownerType: "USER",
+				credits: 25,
+				settlementPolicy: { unitCredits: "25", requestedOutputCount: 1, maxCharge: "25" },
+			};
+			const quote = {
+				id: "admission-" + crypto.randomUUID(),
+				ownerType: "USER" as const,
 				ownerId: f.ownerId,
 				submittedByUserId: f.ownerId,
-				quoteId: quote.id,
-				idempotencyKey: "request-" + crypto.randomUUID(),
-				inputAssetIds: [],
-				expectedModerationRuleVersion: "test-rule",
-				expectedModerationProvider: "waffo",
-				maximumStorageBytes: 2n * 1024n * 1024n * 1024n,
-				validateCurrentEligibility: true,
-			},
-			{ $transaction: sqlTransaction } as never,
-		);
-		expect(result.job.creditsReserved).toBe(0n);
-		expect(await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx))).toEqual({
-			available: 2,
-			reserved: 1,
-			consumed: 0,
-			revoked: 0,
-		});
-	});
+				productKey: "image-nano-banana-pro",
+				catalogVersion: "2026-09-14.1",
+				pricingVersion: "2026-09-13.2",
+				credits: 25n,
+				costMicros: 120000n,
+				inputSnapshot: {
+					kind: "text-to-image",
+					prompt: "A vase",
+					skuKey: "nano-banana-pro-4k",
+					aspectRatio: "1:1",
+				},
+				pricingSnapshot,
+				expiresAt: new Date(Date.now() + 60_000),
+			};
+			await pool!.query(
+				`INSERT INTO generation_quote (id,"ownerType","ownerId","submittedByUserId","productKey","catalogVersion","pricingVersion",credits,"costMicros","inputSnapshot","pricingSnapshot","expiresAt","moderationDecision","moderationProvider","moderationRuleVersion","moderationReasonCode","inputFingerprint") VALUES ($1,'USER',$2,$2,$3,$4,$5,$6,$7,$8,$9,$10,'ALLOW','waffo','test-rule','NO_POLICY_MATCH',$11)`,
+				[
+					quote.id,
+					quote.ownerId,
+					quote.productKey,
+					quote.catalogVersion,
+					quote.pricingVersion,
+					quote.credits,
+					quote.costMicros,
+					JSON.stringify(quote.inputSnapshot),
+					JSON.stringify(quote.pricingSnapshot),
+					quote.expiresAt,
+					fingerprintGenerationQuoteSecurityPayload(quote),
+				],
+			);
+			const isolation: string[] = [];
+			const result = createGenerationJobTransaction(
+				{
+					ownerType: "USER",
+					ownerId: f.ownerId,
+					submittedByUserId: f.ownerId,
+					quoteId: quote.id,
+					idempotencyKey: "request-" + crypto.randomUUID(),
+					inputAssetIds: [],
+					expectedModerationRuleVersion: "test-rule",
+					expectedModerationProvider: "waffo",
+					maximumStorageBytes: 2n * 1024n * 1024n * 1024n,
+					validateCurrentEligibility: true,
+				},
+				{
+					$transaction: (
+						operation: (tx: unknown) => Promise<unknown>,
+						options?: { isolationLevel?: string },
+					) =>
+						sqlTransaction(async (tx) => {
+							const [state] =
+								await tx.$queryRaw`SELECT current_setting('transaction_isolation') AS level`;
+							isolation.push(state.level);
+							return operation(tx);
+						}, options),
+				} as never,
+			);
+			if (!admitted) {
+				await expect(result).rejects.toThrow("STORAGE_QUOTA_EXCEEDED");
+				expect(
+					await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+				).toEqual({ available: 3, reserved: 0, consumed: 0, revoked: 0 });
+				return;
+			}
+			const created = await result;
+			expect(created.job.creditsReserved).toBe(0n);
+			expect(isolation).toEqual(["read committed", "serializable"]);
+			const stored = (
+				await pool!.query(`SELECT "pricingSnapshot" FROM generation_job WHERE id=$1`, [
+					created.job.id,
+				])
+			).rows[0];
+			expect(stored.pricingSnapshot).toEqual({
+				...pricingSnapshot,
+				aggregateStoragePolicy: {
+					schemaVersion: 1,
+					maximumBytes: paid ? null : (2n * 1024n * 1024n * 1024n).toString(),
+				},
+			});
+			expect(
+				(
+					await pool!.query(`SELECT "pricingSnapshot" FROM generation_quote WHERE id=$1`, [
+						quote.id,
+					])
+				).rows[0].pricingSnapshot,
+			).toEqual(pricingSnapshot);
+			expect(
+				(
+					await pool!.query(
+						`SELECT count(*)::int AS n FROM credit_account WHERE "ownerType"='USER' AND "ownerId"=$1`,
+						[f.ownerId],
+					)
+				).rows[0].n,
+			).toBe(0);
+			expect(await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx))).toEqual(
+				{
+					available: 2,
+					reserved: 1,
+					consumed: 0,
+					revoked: 0,
+				},
+			);
+		},
+	);
 });
