@@ -531,6 +531,7 @@ describe("reviewed reference input and paid send fence", () => {
 				ruleVersion: "video-rule",
 			};
 			const claimed = await claimVideoProviderSubmission(input);
+			if ("deferred" in claimed) throw new Error("Unexpected provider capacity wait");
 			expect(claimed.claimed).toBe(true);
 			const output = {
 				...f.referenceAsset,
