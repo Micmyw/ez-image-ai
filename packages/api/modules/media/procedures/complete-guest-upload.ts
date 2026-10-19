@@ -68,6 +68,16 @@ export const completeGuestDraftUpload = publicProcedure
 				.strict(),
 			z
 				.object({
+					status: z.literal("FAILED"),
+					code: z.enum([
+						"GUEST_UPLOAD_CONTENT_REJECTED",
+						"GUEST_UPLOAD_REVIEW_REQUIRED",
+						"GUEST_UPLOAD_SAFETY_UNAVAILABLE",
+					]),
+				})
+				.strict(),
+			z
+				.object({
 					status: z.literal("READY"),
 					claimToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 					continueUrl: z.literal("/draft/continue"),
@@ -165,6 +175,22 @@ export const completeGuestDraftUpload = publicProcedure
 				db,
 			);
 		} catch (error) {
+			if (
+				error instanceof Error &&
+				[
+					"GUEST_UPLOAD_CONTENT_REJECTED",
+					"GUEST_UPLOAD_REVIEW_REQUIRED",
+					"GUEST_UPLOAD_SAFETY_UNAVAILABLE",
+				].includes(error.message)
+			) {
+				return {
+					status: "FAILED" as const,
+					code: error.message as
+						| "GUEST_UPLOAD_CONTENT_REJECTED"
+						| "GUEST_UPLOAD_REVIEW_REQUIRED"
+						| "GUEST_UPLOAD_SAFETY_UNAVAILABLE",
+				};
+			}
 			if (error instanceof Error && error.message === "GUEST_UPLOAD_NOT_READY") {
 				return { status: "PENDING" as const, retryAfterMs: 500 };
 			}

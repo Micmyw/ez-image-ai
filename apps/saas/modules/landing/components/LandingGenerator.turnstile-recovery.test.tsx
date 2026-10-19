@@ -137,6 +137,60 @@ describe("LandingGenerator verification feedback", () => {
 		});
 	});
 
+	it.each([
+		["GUEST_UPLOAD_CONTENT_REJECTED", "contentRejected"],
+		["GUEST_UPLOAD_REVIEW_REQUIRED", "reviewRequired"],
+		["GUEST_UPLOAD_SAFETY_UNAVAILABLE", "safetyUnavailable"],
+		["GUEST_UPLOAD_COMPLETION_TIMEOUT", "reviewPending"],
+		["GUEST_UPLOAD_SESSION_EXPIRED", "referenceExpired"],
+	])("shows %s without calling it an upload or content failure", async (failure, key) => {
+		let tree = await readyWorkspace();
+		callback<(token: string) => void>(tree, Turnstile, "onToken")("token-one");
+		tree = renderWorkspace();
+		harness.upload.mockRejectedValueOnce(new Error(failure));
+		callback<(event: { preventDefault: () => void }) => void>(
+			tree,
+			"form",
+			"onSubmit",
+		)({ preventDefault: vi.fn() });
+		await vi.waitFor(() => expect(visibleText(renderWorkspace())).toContain(`errors.${key}`));
+		expect(visibleText(renderWorkspace())).not.toContain("errors.upload");
+	});
+	it("retains the acknowledged upload checkpoint for the next explicit retry", async () => {
+		let tree = await readyWorkspace();
+		callback<(token: string) => void>(tree, Turnstile, "onToken")("token-one");
+		tree = renderWorkspace();
+		const checkpoint = {
+			requestFingerprint: "opaque-fingerprint",
+			intent: { sessionId: "same-session", assetId: "same-asset" },
+			uploaded: true,
+		};
+		harness.upload.mockImplementationOnce(
+			async (input: { onCheckpoint: (value: unknown) => void }) => {
+				input.onCheckpoint(checkpoint);
+				throw new Error("GUEST_UPLOAD_COMPLETION_FAILED");
+			},
+		);
+		callback<(event: { preventDefault: () => void }) => void>(
+			tree,
+			"form",
+			"onSubmit",
+		)({ preventDefault: vi.fn() });
+		await vi.waitFor(() =>
+			expect(visibleText(renderWorkspace())).toContain("errors.reviewUnknown"),
+		);
+		callback<(token: string) => void>(renderWorkspace(), Turnstile, "onToken")("token-two");
+		tree = renderWorkspace();
+		harness.upload.mockRejectedValueOnce(new Error("GUEST_UPLOAD_COMPLETION_TIMEOUT"));
+		callback<(event: { preventDefault: () => void }) => void>(
+			tree,
+			"form",
+			"onSubmit",
+		)({ preventDefault: vi.fn() });
+		await vi.waitFor(() => expect(harness.upload).toHaveBeenCalledTimes(2));
+		expect(harness.upload.mock.calls[1]![0]).toMatchObject({ checkpoint });
+	});
+
 	it.each(["GUEST_UPLOAD_RATE_LIMITED", "GUEST_UPLOAD_INTENT_FAILED"])(
 		"keeps %s visible when verification supplies the next token",
 		async (failure) => {
