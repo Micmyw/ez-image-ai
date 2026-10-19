@@ -14,6 +14,7 @@ import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { captureCheckoutTrigger } from "@shared/lib/purchase-attribution";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 
