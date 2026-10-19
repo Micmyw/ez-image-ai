@@ -598,12 +598,15 @@ interface WaitingTrialGraph {
 async function createWaitingTrialGraph(now: Date): Promise<WaitingTrialGraph> {
 	const ownerId = await createAnonymousOwner("waiting-in-flight");
 	const expiresAt = new Date(now.getTime() + 24 * 60 * 60_000);
+	// READY evidence uses the database wall clock, independently of the cleanup fixture clock.
+	const verificationNow = new Date();
+	const verificationValidUntil = new Date(verificationNow.getTime() + 24 * 60 * 60_000);
 	const source = await client.mediaAsset.create({
 		data: {
 			ownerType: "USER",
 			ownerId,
 			kind: "INPUT",
-			status: "READY",
+			status: "VERIFYING",
 			retentionClass: "GUEST_TRIAL",
 			deleteAfter: expiresAt,
 			objectKey: `users/${ownerId}/waiting/source.png`,
@@ -611,9 +614,35 @@ async function createWaitingTrialGraph(now: Date): Promise<WaitingTrialGraph> {
 			byteSize: 128n,
 			checksum: "1".repeat(64),
 			finalizedAt: now,
-			verificationValidUntil: expiresAt,
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: "test",
+			verificationProviderTaskId: `moderation-${randomUUID()}`,
+			verificationRuleVersion: "media-safety-rule-v1",
+			verificationPolicyVersion: "media-safety-policy-v1",
+			verificationValidUntil,
 		},
 	});
+	await client.assetModerationResult.create({
+		data: {
+			assetId: source.id,
+			assetChecksum: source.checksum!,
+			verificationGeneration: source.verificationGeneration,
+			attemptNumber: source.verificationAttemptCount,
+			evidenceKind: source.kind,
+			provider: source.verificationProvider!,
+			providerTaskId: source.verificationProviderTaskId,
+			ruleVersion: source.verificationRuleVersion!,
+			policyVersion: source.verificationPolicyVersion!,
+			status: "APPROVED",
+			reasonCode: "ALLOW",
+			categories: {},
+			rawEnvelope: {},
+			validUntil: source.verificationValidUntil!,
+			createdAt: verificationNow,
+		},
+	});
+	await client.mediaAsset.update({ where: { id: source.id }, data: { status: "READY" } });
 	const trialId = await createTrialEvidenceRow({
 		ownerId,
 		promotionPeriod: "waiting-in-flight-period",
