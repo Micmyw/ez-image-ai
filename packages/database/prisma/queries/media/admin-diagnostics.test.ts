@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("../../client", () => ({
+	getDatabaseClient: () => {
+		throw new Error("Diagnostics unit tests must supply their own database dependencies");
+	},
+}));
+
 import {
 	evaluateGuestOperationalSafety,
 	listAdminUncertainGenerationAttempts,
@@ -66,7 +72,7 @@ describe("guest operational safety thresholds", () => {
 		).toMatchObject({ riskState: state, admissionAction: action });
 	});
 
-	it("warns after queue depth 20 or five minutes and closes at 25 or ten minutes", () => {
+	it("warns after queue depth 20 or five minutes", () => {
 		expect(evaluateGuestOperationalSafety({ ...safeMetrics, queueDepth: 20 })).toMatchObject({
 			admissionAction: "OPEN",
 		});
@@ -77,14 +83,88 @@ describe("guest operational safety thresholds", () => {
 		expect(
 			evaluateGuestOperationalSafety({ ...safeMetrics, oldestQueueAgeSeconds: 301 }),
 		).toMatchObject({ admissionAction: "WARN", warnings: ["QUEUE_AGE"] });
-		expect(evaluateGuestOperationalSafety({ ...safeMetrics, queueDepth: 25 })).toMatchObject({
-			admissionAction: "CLOSE",
-			closureReasons: ["QUEUE_DEPTH"],
-		});
-		expect(
-			evaluateGuestOperationalSafety({ ...safeMetrics, oldestQueueAgeSeconds: 600 }),
-		).toMatchObject({ admissionAction: "CLOSE", closureReasons: ["QUEUE_AGE"] });
 	});
+
+	it.each([25, 26, 25_000])(
+		"keeps queue depth %i observable without closing admission",
+		(queueDepth) => {
+			for (const riskBudgetMicros of [safeMetrics.riskBudgetMicros, null]) {
+				const result = evaluateGuestOperationalSafety({
+					...safeMetrics,
+					riskBudgetMicros,
+					queueDepth,
+				});
+				expect(result).toMatchObject({
+					admissionAction: "WARN",
+					warnings: ["QUEUE_DEPTH"],
+					closureReasons: [],
+				});
+				expect(result).not.toHaveProperty("automaticOverride");
+			}
+		},
+	);
+
+	it.each([600, 601, 86_400])(
+		"keeps queue age %i seconds observable without closing admission",
+		(oldestQueueAgeSeconds) => {
+			for (const riskBudgetMicros of [safeMetrics.riskBudgetMicros, null]) {
+				const result = evaluateGuestOperationalSafety({
+					...safeMetrics,
+					riskBudgetMicros,
+					oldestQueueAgeSeconds,
+				});
+				expect(result).toMatchObject({
+					admissionAction: "WARN",
+					warnings: ["QUEUE_AGE"],
+					closureReasons: [],
+				});
+				expect(result).not.toHaveProperty("automaticOverride");
+			}
+		},
+	);
+
+	it("keeps a large, old queue observable without an automatic override", () => {
+		const result = evaluateGuestOperationalSafety({
+			...safeMetrics,
+			queueDepth: 25_000,
+			oldestQueueAgeSeconds: 86_400,
+		});
+		expect(result).toMatchObject({
+			admissionAction: "WARN",
+			warnings: ["QUEUE_DEPTH", "QUEUE_AGE"],
+			closureReasons: [],
+		});
+		expect(result).not.toHaveProperty("automaticOverride");
+	});
+
+	it.each([
+		["RISK_BUDGET", { committedRiskMicros: 90_000n }, "CLOSE"],
+		["RISK_BUDGET", { committedRiskMicros: 100_000n }, "REJECT"],
+		["RISK_BUDGET_CONFIGURATION", { riskBudgetMicros: 0n }, "REJECT"],
+		["WATERMARK_FAILURE", { watermarkFailures: 1 }, "CLOSE"],
+		["BILLED_SPEND_MISMATCH", { billedSpendMismatch: 1 }, "CLOSE"],
+		["CLEANUP_OVERDUE", { overdueCleanupAssets: 1 }, "CLOSE"],
+	] as const)(
+		"preserves closure for %s while a large, old queue is present",
+		(reason, override, admissionAction) => {
+			expect(
+				evaluateGuestOperationalSafety({
+					...safeMetrics,
+					queueDepth: 25_000,
+					oldestQueueAgeSeconds: 86_400,
+					...override,
+				}),
+			).toMatchObject({
+				admissionAction,
+				warnings: ["QUEUE_DEPTH", "QUEUE_AGE"],
+				closureReasons: [reason],
+				automaticOverride: {
+					configKey: "media.guestGeneration.enabled",
+					value: false,
+				},
+			});
+		},
+	);
 
 	it.each([
 		["WATERMARK_FAILURE", { watermarkFailures: 1 }],
