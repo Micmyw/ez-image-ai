@@ -43,8 +43,12 @@ describe("image pass offer banner", () => {
 	it.each(Object.entries({ en, de, es, fr }))(
 		"renders the one-time USD offer in %s without changing it into credits",
 		(locale, messages) => {
+			const { bannerLabel, bannerTitle, bannerDetail, buy } = messages.imagePass;
 			const markup = renderToStaticMarkup(
-				<NextIntlClientProvider locale={locale} messages={messages}>
+				<NextIntlClientProvider
+					locale={locale}
+					messages={{ imagePass: { bannerLabel, bannerTitle, bannerDetail, buy } }}
+				>
 					<ImagePassBanner registered />
 				</NextIntlClientProvider>,
 			);

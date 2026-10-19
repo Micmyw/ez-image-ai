@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import { getImagePassOfferSnapshot, isImagePassOfferSnapshot } from "./image-pass";
+import { IMAGE_PASS_OFFER_SUMMARY } from "./image-pass-summary";
 import {
 	isImagePassBillingPlan,
 	IMAGE_PASS_AMOUNT_MICROS,
@@ -9,6 +10,12 @@ import {
 import { IMAGE_SKU_KEYS } from "./product";
 
 describe("one-dollar three-image offer", () => {
+	it("keeps display metadata separate from the unchanged authorization snapshot", () => {
+		const { allowedSkuKeys, ...summary } = getImagePassOfferSnapshot();
+		expect(IMAGE_PASS_OFFER_SUMMARY).toEqual(summary);
+		expect(IMAGE_PASS_OFFER_SUMMARY).not.toHaveProperty("allowedSkuKeys");
+		expect(allowedSkuKeys).toEqual(IMAGE_SKU_KEYS);
+	});
 	it("freezes all current image SKUs as three successful images, using JSON-safe public data", () => {
 		const offer = getImagePassOfferSnapshot();
 		expect(offer).toMatchObject({ provider: "paypal", amount: "1.00", currency: "USD", units: 3 });

@@ -1,14 +1,10 @@
+import { IMAGE_PASS_OFFER_SUMMARY } from "./image-pass-summary";
 import { IMAGE_SKU_KEYS } from "./product";
 
 /** This purchase grants successful images, never general-purpose credits. */
-export const IMAGE_PASS_PUBLIC_OFFER = Object.freeze({
-	offerKey: "image-pass-3",
-	offerVersion: "2026-10-19.1",
-	provider: "paypal",
-	amount: "1.00",
-	currency: "USD",
-	units: 3,
-	allowedSkuKeys: Object.freeze([...IMAGE_SKU_KEYS]),
+export const IMAGE_PASS_PUBLIC_OFFER = /* @__PURE__ */ Object.freeze({
+	...IMAGE_PASS_OFFER_SUMMARY,
+	allowedSkuKeys: /* @__PURE__ */ Object.freeze([...IMAGE_SKU_KEYS]),
 } as const);
 
 export type ImagePassOfferSnapshot = ReturnType<typeof getImagePassOfferSnapshot>;

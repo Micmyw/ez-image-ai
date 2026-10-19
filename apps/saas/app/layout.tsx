@@ -61,6 +61,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		publicContent: _publicContent,
 		home,
 		videoEffects,
+		imagePass,
 		...messages
 	} = await getMessages();
 	// Video workspaces supply their detailed copy locally; public navigation needs only its labels.
@@ -80,6 +81,17 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 			raindanceName: videoEffects.raindanceName,
 			raindanceNavigationDescription: videoEffects.raindanceNavigationDescription,
 		},
+		// RegisteredWorkspaceBoundary supplies the full purchase and editor copy.
+		...(imagePass
+			? {
+					imagePass: {
+						bannerLabel: imagePass.bannerLabel,
+						bannerTitle: imagePass.bannerTitle,
+						bannerDetail: imagePass.bannerDetail,
+						buy: imagePass.buy,
+					},
+				}
+			: {}),
 	};
 	const consentStatus = parseConsentStatus((await cookies()).get("consent")?.value);
 

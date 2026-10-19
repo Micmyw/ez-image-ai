@@ -163,9 +163,24 @@ describe("SaaS root layout", () => {
 				raindanceName: fullMessages.videoEffects.raindanceName,
 				raindanceNavigationDescription: fullMessages.videoEffects.raindanceNavigationDescription,
 			});
+			expect(clientMessages.imagePass).toEqual({
+				bannerLabel: fullMessages.imagePass.bannerLabel,
+				bannerTitle: fullMessages.imagePass.bannerTitle,
+				bannerDetail: fullMessages.imagePass.bannerDetail,
+				buy: fullMessages.imagePass.buy,
+			});
+			expect(fullMessages.imagePass.returnPending).not.toBe("");
 			for (const [namespace, messages] of Object.entries(fullMessages)) {
 				if (
-					!["admin", "faq", "publicContent", "home", "videoV1", "videoEffects"].includes(namespace)
+					![
+						"admin",
+						"faq",
+						"publicContent",
+						"home",
+						"videoV1",
+						"videoEffects",
+						"imagePass",
+					].includes(namespace)
 				) {
 					expect(clientMessages[namespace]).toEqual(messages);
 				}
