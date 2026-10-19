@@ -63,6 +63,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		videoEffects,
 		imagePass,
 		media,
+		feedback,
 		...messages
 	} = await getMessages();
 	// Video workspaces supply their detailed copy locally; public navigation needs only its labels.
@@ -110,6 +111,10 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 						history: { title: media.history.title },
 					},
 				}
+			: {}),
+		// The existing lazy feedback dialog restores its detailed copy when requested.
+		...(feedback
+			? { feedback: { entry: feedback.entry, footer: feedback.footer, report: feedback.report } }
 			: {}),
 	};
 	const consentStatus = parseConsentStatus((await cookies()).get("consent")?.value);

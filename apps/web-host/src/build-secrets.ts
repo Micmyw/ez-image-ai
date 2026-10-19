@@ -79,7 +79,7 @@ export function readCloudflareBuildEnvironment(
 	environment: Record<string, string | undefined>,
 	onVideoPriceBase?: (evidence: VideoBuildPriceBaseEvidence) => void,
 ) {
-	return withPublicBrandOverride(
+	const source = withPublicBrandOverride(
 		withGuestBudgetOverride(
 			withGuestQuotaOverrides(
 				withModerationOverrides(
@@ -99,6 +99,34 @@ export function readCloudflareBuildEnvironment(
 		),
 		environment,
 	);
+	return withAccountInputCopyBuildOverride(source, environment);
+}
+
+function withAccountInputCopyBuildOverride(
+	source: string,
+	environment: Record<string, string | undefined>,
+) {
+	const enabled = environment.ACCOUNT_INPUT_COPY_BUILD_ENABLED;
+	if (enabled === undefined) return source;
+	const invalid = () => new Error("CLOUDFLARE_ACCOUNT_INPUT_COPY_OVERRIDE_INVALID");
+	if (enabled !== "true" && enabled !== "false") throw invalid();
+	// Only the dedicated build input may change this private producer switch.
+	// Preserve the authoritative bundle verbatim and verify its other values.
+	const key = "ACCOUNT_INPUT_COPY_ENABLED";
+	const merged = `${source}\n${key}=${enabled}\n`;
+	try {
+		const previous = parseEnv(source);
+		const next = parseEnv(merged);
+		if (
+			next[key] !== enabled ||
+			Object.entries(previous).some(([name, value]) => name !== key && next[name] !== value) ||
+			Object.keys(next).length !== new Set([...Object.keys(previous), key]).size
+		)
+			throw invalid();
+	} catch {
+		throw invalid();
+	}
+	return merged;
 }
 
 function withVideoRuntimeOverrides(
@@ -516,6 +544,8 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key === variableName ||
 			key.startsWith(partPrefix) ||
 			key === "SEEAPI_API_KEY" ||
+			key === "ACCOUNT_INPUT_COPY_BUILD_ENABLED" ||
+			key === "ACCOUNT_INPUT_COPY_ENABLED" ||
 			key === "VIDEO_RUNTIME_CONFIG" ||
 			key === "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" ||
 			key === "RAINDANCE_RUNTIME_CONFIG" ||

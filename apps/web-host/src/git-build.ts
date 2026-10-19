@@ -7,6 +7,7 @@ import { parseEnv } from "node:util";
 import { readCloudflareBuildEnvironment, withoutCloudflareBuildSecrets } from "./build-secrets";
 import { deploymentEnvironment, publicBuildVariables } from "./deployment";
 import { stageRetiredWorkerBindings } from "./deployment-bindings";
+import { verifyProviderDispatchCapacity } from "./provider-capacity-preflight";
 import {
 	assertAutomaticReleaseEnvironment,
 	assertCloudflareGitCommit,
@@ -59,6 +60,9 @@ if (command === "build") {
 		`Optional video effect availability and approved-price preflight: ${JSON.stringify(verifyApprovedVideoEffectPrices(environment))}\n`,
 	);
 	migrationDatabaseUrl(input, root);
+	process.stdout.write(
+		`Provider dispatch capacity preflight: ${JSON.stringify(verifyProviderDispatchCapacity(environment))}\n`,
+	);
 	const sha = releaseSha();
 	await mkdir(path.dirname(inputFile), { recursive: true });
 	// This file deliberately lives outside Next.js dotenv discovery.
@@ -116,6 +120,9 @@ if (command === "build") {
 	const environment = await readEnvironment();
 	if (environment.DEPLOYMENT_VERSION !== sha) throw new Error("BUILD_COMMIT_MISMATCH");
 	assertAutomaticReleaseEnvironment(environment);
+	process.stdout.write(
+		`Provider dispatch capacity preflight: ${JSON.stringify(verifyProviderDispatchCapacity(deploymentEnvironment(environment, "https://ezimageai.com")))}\n`,
+	);
 	const configName = target === "website" ? "website" : "workflows";
 	const configPath = path.join(prepared, `${configName}.json`);
 	const config = JSON.parse(await readFile(configPath, "utf8"));

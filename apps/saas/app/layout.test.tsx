@@ -170,6 +170,11 @@ describe("SaaS root layout", () => {
 				buy: fullMessages.imagePass.buy,
 			});
 			expect(fullMessages.imagePass.returnPending).not.toBe("");
+			expect(clientMessages.feedback).toEqual({
+				entry: fullMessages.feedback.entry,
+				footer: fullMessages.feedback.footer,
+				report: fullMessages.feedback.report,
+			});
 			for (const [key, value] of Object.entries(fullMessages.media)) {
 				if (key === "history") {
 					// UserMenu also needs this navigation label on public pages.
@@ -199,6 +204,7 @@ describe("SaaS root layout", () => {
 						"videoEffects",
 						"imagePass",
 						"media",
+						"feedback",
 					].includes(namespace)
 				) {
 					expect(clientMessages[namespace]).toEqual(messages);

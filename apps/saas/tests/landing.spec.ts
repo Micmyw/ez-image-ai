@@ -1044,7 +1044,7 @@ test("the selected model and SKU cross each private-upload stage without leaking
 				assetId: "landing-asset",
 				uploadUrl: `${appOrigin}/__landing-upload/source`,
 				completionToken: "c".repeat(43),
-				expiresAt: "2026-09-01T00:00:00.000Z",
+				expiresAt: new Date(Date.now() + 60 * 60_000).toISOString(),
 			}),
 		});
 	});
