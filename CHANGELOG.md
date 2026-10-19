@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-19 — Guest access on shared networks
+
+- Allow independent guests on a shared internet connection to upload and submit edits without sharing an IP or subnet quota, including the legacy draft entry.
+- Keep verification, content review, session/device allowances, shared minute/hour capacity, queues and cost controls in place. Signed-in account generation keeps its existing account boundaries.
+
 ## 2026-10-19 — Guest availability throughout the day
 
 - Remove the shared daily request cap from guest uploads, temporary session preparation, and guest generation. Existing uploads and account media keep their original ownership and review rules.

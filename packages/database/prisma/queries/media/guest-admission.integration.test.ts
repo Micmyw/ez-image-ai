@@ -813,36 +813,6 @@ describe("guest generation admission", () => {
 		expect(scopes).toEqual(
 			expect.arrayContaining([
 				{
-					scope: "guest-generate:promotion-a:ip:ten-minute",
-					subjectHash: sharedIpHash,
-					requestCount: 1n,
-				},
-				{
-					scope: "guest-generate:promotion-b:ip:ten-minute",
-					subjectHash: sharedIpHash,
-					requestCount: 1n,
-				},
-				{
-					scope: "guest-generate:promotion-a:ip:day",
-					subjectHash: sharedIpHash,
-					requestCount: 1n,
-				},
-				{
-					scope: "guest-generate:promotion-b:ip:day",
-					subjectHash: sharedIpHash,
-					requestCount: 1n,
-				},
-				{
-					scope: "guest-generate:promotion-a:subnet:day",
-					subjectHash: sharedSubnetHash,
-					requestCount: 1n,
-				},
-				{
-					scope: "guest-generate:promotion-b:subnet:day",
-					subjectHash: sharedSubnetHash,
-					requestCount: 1n,
-				},
-				{
 					scope: "guest-generate:global:minute",
 					subjectHash: "global",
 					requestCount: 2n,
@@ -1032,36 +1002,27 @@ describe("guest generation admission", () => {
 		);
 	});
 
-	it("allows two active IP jobs and rejects the literal third without a partial graph", async () => {
+	it("allows independent active guests from the same network despite retired network limits", async () => {
 		const promotionPeriod = `ip-active-${randomUUID()}`;
 		const sharedIpHash = hashFixture("ip-active-shared");
-		const fixtures = await Promise.all(
-			["first", "second", "rejected"].map((label) =>
-				createGuestFixture(`ip-active-${label}`, undefined, promotionPeriod),
-			),
-		);
-		for (const [index, fixture] of fixtures.slice(0, 2).entries()) {
-			await createGuestAdmission(
-				guestAdmissionInput(fixture, {
-					idempotencyKey: `guest-ip-active-${index}`,
-					ipHash: sharedIpHash,
-					maximumActiveJobsPerIp: 2,
-				}),
-			);
+		const sharedSubnetHash = hashFixture("subnet-active-shared");
+		for (const index of [0, 1, 2]) {
+			const fixture = await createGuestFixture(`ip-active-${index}`, undefined, promotionPeriod);
+			await expect(
+				createGuestAdmission(
+					guestAdmissionInput(fixture, {
+						idempotencyKey: `guest-ip-active-${index}`,
+						ipHash: sharedIpHash,
+						subnetHash: sharedSubnetHash,
+						maximumActiveJobsPerIp: 1,
+						maximumRequestsPerIpPerTenMinutes: 1,
+						maximumRequestsPerIpPerDay: 1,
+						maximumRequestsPerSubnetPerDay: 1,
+					}),
+				),
+			).resolves.toMatchObject({ stage: "WAITING" });
 		}
-		const rejected = fixtures[2]!;
-		await expect(
-			createGuestAdmission(
-				guestAdmissionInput(rejected, {
-					idempotencyKey: "guest-ip-active-rejected",
-					ipHash: sharedIpHash,
-					maximumActiveJobsPerIp: 2,
-				}),
-			),
-		).rejects.toThrow("GUEST_IP_RATE_LIMIT");
-		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
-			emptyGuestBusinessGraph(),
-		);
+		await expect(client.guestMediaTrial.count({ where: { promotionPeriod } })).resolves.toBe(3);
 	});
 
 	it("lets queue age reach exactly 600 seconds and rejects the next minute before depth 25", async () => {
@@ -1133,9 +1094,6 @@ describe("guest generation admission", () => {
 	});
 
 	it.each([
-		["IP ten-minute", "maximumRequestsPerIpPerTenMinutes", 1, "GUEST_IP_RATE_LIMIT", "ipHash"],
-		["IP daily", "maximumRequestsPerIpPerDay", 3, "GUEST_IP_RATE_LIMIT", "ipHash"],
-		["subnet daily", "maximumRequestsPerSubnetPerDay", 20, "GUEST_SUBNET_RATE_LIMIT", "subnetHash"],
 		["global hourly", "maximumGlobalRequestsPerHour", 30, "GUEST_GLOBAL_RATE_LIMIT", null],
 	] as const)(
 		"enforces the literal %s limit at N plus one with no rejected business graph",

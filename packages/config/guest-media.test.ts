@@ -63,6 +63,30 @@ const productionRuntimeOverride = {
 };
 
 describe("guest media configuration", () => {
+	it.each([undefined, "0", "invalid", "999999"])(
+		"ignores retired IP and subnet settings %s without disabling production guests",
+		(value) => {
+			const config = getGuestMediaConfig(
+				{
+					...productionEnvironment,
+					GUEST_IP_MAX_ACTIVE_JOBS: value,
+					GUEST_IP_MAX_PER_10_MINUTES: value,
+					GUEST_IP_MAX_PER_24_HOURS: value,
+					GUEST_SUBNET_MAX_PER_24_HOURS: value,
+				},
+				productionRuntimeOverride,
+				productionNow,
+			);
+			expect(config.enabled).toBe(true);
+			expect(Object.keys(config.limits).some((key) => /PerIp|PerSubnet/.test(key))).toBe(false);
+			expect(config.limits).toMatchObject({
+				maximumActiveJobsPerGuest: 1,
+				maximumActiveJobsPerDevice: 1,
+				maximumGlobalRequestsPerMinute: 3,
+				maximumGlobalRequestsPerHour: 30,
+			});
+		},
+	);
 	it.each([undefined, "5", "0", "unlimited", "invalid"])(
 		"ignores the retired global daily request setting %s without changing remaining limits",
 		(value) => {
@@ -76,8 +100,6 @@ describe("guest media configuration", () => {
 			expect(config.limits).toMatchObject({
 				maximumGlobalRequestsPerMinute: 3,
 				maximumGlobalRequestsPerHour: 30,
-				maximumRequestsPerIpPerDay: 3,
-				maximumRequestsPerSubnetPerDay: 20,
 				maximumAcceptedTrialsPerSessionPerDay: 2,
 				maximumAcceptedTrialsPerDevicePerDay: 2,
 			});
@@ -128,7 +150,6 @@ describe("guest media configuration", () => {
 			limits: {
 				maximumAcceptedTrialsPerSessionPerDay: 2,
 				maximumAcceptedTrialsPerDevicePerDay: 2,
-				maximumRequestsPerIpPerTenMinutes: 2,
 				maximumActiveJobsPerGuest: 1,
 				maximumActiveJobsPerDevice: 1,
 			},
@@ -178,10 +199,6 @@ describe("guest media configuration", () => {
 				maximumActiveJobsPerGuest: 1,
 				maximumAcceptedTrialsPerSessionPerDay: 2,
 				maximumAcceptedTrialsPerDevicePerDay: 2,
-				maximumActiveJobsPerIp: 2,
-				maximumRequestsPerIpPerTenMinutes: 2,
-				maximumRequestsPerIpPerDay: 3,
-				maximumRequestsPerSubnetPerDay: 20,
 				maximumGlobalRequestsPerMinute: 3,
 				maximumGlobalRequestsPerHour: 30,
 				maximumGlobalQueueDepth: 25,
@@ -224,7 +241,6 @@ describe("guest media configuration", () => {
 			reason: null,
 			limits: {
 				maximumRequestsPerMinute: 3,
-				maximumRequestsPerIpPerHour: 3,
 			},
 		});
 	});
@@ -240,10 +256,6 @@ describe("guest media configuration", () => {
 		["GUEST_SESSION_MAX_ACCEPTED_PER_DAY", "3"],
 		["GUEST_DEVICE_MAX_ACTIVE_JOBS", "2"],
 		["GUEST_DEVICE_MAX_ACCEPTED_PER_DAY", "3"],
-		["GUEST_IP_MAX_ACTIVE_JOBS", "3"],
-		["GUEST_IP_MAX_PER_10_MINUTES", "3"],
-		["GUEST_IP_MAX_PER_24_HOURS", "4"],
-		["GUEST_SUBNET_MAX_PER_24_HOURS", "21"],
 		["GUEST_GLOBAL_MAX_PER_MINUTE", "4"],
 		["GUEST_GLOBAL_MAX_PER_HOUR", "31"],
 		["GUEST_BOOTSTRAP_MAX_OUTSTANDING", "26"],

@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("../../client", () => ({
+	getDatabaseClient: () => {
+		throw new Error("Unexpected implicit database connection");
+	},
+}));
+
 import {
 	claimGenerationDraftTransaction,
 	createGenerationDraftTransaction,
@@ -81,6 +87,40 @@ const currentDraftSelections = [
 ] as const;
 
 describe("createGenerationDraftTransaction", () => {
+	it("does not apply legacy subject count or byte quotas to independent public drafts", async () => {
+		const tx = {
+			$executeRaw: vi.fn().mockResolvedValue(1),
+			$queryRaw: vi.fn().mockResolvedValue([{ allowed: true }]),
+			generationDraft: {
+				findMany: vi
+					.fn()
+					.mockResolvedValue([{ assetId: "one" }, { assetId: "two" }, { assetId: "three" }]),
+				create: vi.fn(async ({ data }) => ({ id: "draft-new", expiresAt: data.expiresAt })),
+			},
+			mediaAsset: { aggregate: vi.fn().mockResolvedValue({ _sum: { byteSize: 100_000_000n } }) },
+		};
+		const result = createGenerationDraftTransaction(
+			{
+				claimTokenHash: "a".repeat(64),
+				productKey: "image-nano-banana-2-lite",
+				input: {
+					kind: "image-to-image",
+					prompt: "Change sky",
+					skuKey: "nano-banana-2-lite-1k",
+					aspectRatio: "auto",
+				},
+				expiresAt: new Date(Date.now() + 60_000),
+				abuseLimits: {
+					subjectHash: "same-former-ip",
+					maximumActiveDrafts: 3,
+					maximumActiveBytes: 25_000_000n,
+					maximumGlobalDraftsPerMinute: 100,
+				},
+			},
+			{ $transaction: async (operation) => operation(tx) } as never,
+		);
+		await expect(result).resolves.toMatchObject({ id: "draft-new" });
+	});
 	it.each(currentDraftSelections)(
 		"accepts the current $productKey / $skuKey selection without exposing a Provider field",
 		async ({ productKey, skuKey, aspectRatio, controls }) => {

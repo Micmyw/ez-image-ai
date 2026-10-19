@@ -240,8 +240,6 @@ describe("guest admission pre-transaction boundary", () => {
 				turnstile: expect.objectContaining({ tokenHash: "f".repeat(64) }),
 				sponsorCredits: 5n,
 				abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
-				maximumRequestsPerIpPerDay: 3,
-				maximumRequestsPerSubnetPerDay: 20,
 				maximumGlobalRequestsPerHour: 30,
 				quote: expect.objectContaining({
 					productKey: "image-nano-banana-2-lite",
@@ -332,8 +330,6 @@ function validDependencies(options?: {
 					maximumAcceptedTrialsPerDevicePerDay: 1,
 					maximumActiveJobsPerIp: 2,
 					maximumRequestsPerIpPerTenMinutes: 1,
-					maximumRequestsPerIpPerDay: 3,
-					maximumRequestsPerSubnetPerDay: 20,
 					maximumGlobalRequestsPerMinute: 3,
 					maximumGlobalRequestsPerHour: 30,
 					maximumRequestsPerMinute: 3,

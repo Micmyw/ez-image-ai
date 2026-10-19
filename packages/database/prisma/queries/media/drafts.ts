@@ -46,8 +46,9 @@ interface CreateGenerationDraftInput {
 	};
 	abuseLimits?: {
 		subjectHash: string;
-		maximumActiveDrafts: number;
-		maximumActiveBytes: bigint;
+		/** Retired network aggregation settings accepted from older callers, never enforced. */
+		maximumActiveDrafts?: number;
+		maximumActiveBytes?: bigint;
 		maximumGlobalDraftsPerMinute: number;
 	};
 }
@@ -61,7 +62,6 @@ export async function createGenerationDraftTransaction(
 	return client.$transaction(async (tx) => {
 		if (input.abuseLimits) {
 			await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('marketing-draft-global'))`;
-			await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`marketing-draft:${input.abuseLimits.subjectHash}`}))`;
 			const now = new Date();
 			const windowStart = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
 			const [globalRate] = await tx.$queryRaw<Array<{ allowed: boolean }>>`
@@ -71,31 +71,6 @@ export async function createGenerationDraftTransaction(
 				SET "count" = "rate_limit_bucket"."count" + 1, "updatedAt" = now()
 				RETURNING ("count" <= ${input.abuseLimits.maximumGlobalDraftsPerMinute}) AS "allowed"`;
 			if (!globalRate?.allowed) throw new Error("GLOBAL_DRAFT_LIMITED");
-			const active = await tx.generationDraft.findMany({
-				where: {
-					ownerId: `anonymous:${input.abuseLimits.subjectHash}`,
-					status: "ACTIVE",
-					expiresAt: { gt: now },
-				},
-				select: { assetId: true },
-			});
-			if (active.length >= input.abuseLimits.maximumActiveDrafts) {
-				throw new Error("ACTIVE_DRAFT_LIMIT_EXCEEDED");
-			}
-			const activeAssets = await tx.mediaAsset.aggregate({
-				where: {
-					id: { in: active.flatMap((draft) => (draft.assetId ? [draft.assetId] : [])) },
-					deletedAt: null,
-				},
-				_sum: { byteSize: true },
-			});
-			const activeBytes = activeAssets._sum.byteSize ?? 0n;
-			if (
-				activeBytes + BigInt(input.asset?.byteSize ?? 0n) >
-				input.abuseLimits.maximumActiveBytes
-			) {
-				throw new Error("ACTIVE_DRAFT_BYTES_EXCEEDED");
-			}
 		}
 		const draftId = crypto.randomUUID();
 		const ownerId = input.abuseLimits

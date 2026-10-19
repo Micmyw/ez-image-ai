@@ -116,7 +116,7 @@ interface GuestAdmissionConfig {
 		maximumGlobalRequestsPerMinute?: number;
 		maximumGlobalRequestsPerHour?: number;
 		maximumRequestsPerMinute: number;
-		maximumRequestsPerIpPerHour: number;
+		maximumRequestsPerIpPerHour?: number;
 		maximumGlobalQueueDepth: number;
 	};
 	riskBudgetMicros: bigint | null;
@@ -478,15 +478,10 @@ export async function submitGuestGenerationForGuest(
 		maximumGlobalQueueDepth: loaded.config.limits.maximumGlobalQueueDepth,
 		maximumActiveJobsPerGuest: loaded.config.limits.maximumActiveJobsPerGuest,
 		maximumRequestsPerMinute: loaded.config.limits.maximumRequestsPerMinute,
-		maximumRequestsPerIpPerHour: loaded.config.limits.maximumRequestsPerIpPerHour,
 		maximumAcceptedTrialsPerSessionPerDay:
 			loaded.config.limits.maximumAcceptedTrialsPerSessionPerDay,
 		maximumActiveJobsPerDevice: loaded.config.limits.maximumActiveJobsPerDevice,
 		maximumAcceptedTrialsPerDevicePerDay: loaded.config.limits.maximumAcceptedTrialsPerDevicePerDay,
-		maximumActiveJobsPerIp: loaded.config.limits.maximumActiveJobsPerIp,
-		maximumRequestsPerIpPerTenMinutes: loaded.config.limits.maximumRequestsPerIpPerTenMinutes,
-		maximumRequestsPerIpPerDay: loaded.config.limits.maximumRequestsPerIpPerDay,
-		maximumRequestsPerSubnetPerDay: loaded.config.limits.maximumRequestsPerSubnetPerDay,
 		maximumGlobalRequestsPerMinute: loaded.config.limits.maximumGlobalRequestsPerMinute,
 		maximumGlobalRequestsPerHour: loaded.config.limits.maximumGlobalRequestsPerHour,
 		abuseEvidenceTtlMs: loaded.config.abuseEvidenceTtlMs,

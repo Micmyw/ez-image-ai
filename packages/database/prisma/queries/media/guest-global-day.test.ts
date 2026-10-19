@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../client", () => ({
 	getDatabaseClient: () => {
@@ -30,9 +30,125 @@ const limits = {
 };
 const boundaries = ["upload", "bootstrap", "generate"] as const;
 
+const pgTestUrl = process.env.GUEST_BOUNDARY_PG_TEST_DATABASE_URL;
+describe.skipIf(!pgTestUrl)("PostgreSQL guest network boundary regression", () => {
+	let connection: import("pg").Client;
+	const schema = `guest_boundary_${crypto.randomUUID().replaceAll("-", "")}`;
+	beforeAll(async () => {
+		const url = new URL(pgTestUrl!);
+		if (
+			!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) ||
+			!/test/i.test(url.pathname)
+		) {
+			throw new Error("LOCAL_GUEST_TEST_DATABASE_REQUIRED");
+		}
+		const { Client } = await import("pg");
+		connection = new Client({ connectionString: pgTestUrl });
+		await connection.connect();
+		await connection.query(`CREATE SCHEMA "${schema}"`);
+		await connection.query(`SET search_path TO "${schema}"`);
+		await connection.query(`CREATE TABLE guest_abuse_bucket (
+      id text PRIMARY KEY, scope text NOT NULL, "subjectHash" text NOT NULL,
+      "windowStart" timestamptz NOT NULL, "windowEnd" timestamptz NOT NULL,
+      "requestCount" bigint NOT NULL, "rejectionCount" bigint NOT NULL,
+      "expiresAt" timestamptz NOT NULL, version integer NOT NULL, "updatedAt" timestamptz NOT NULL,
+      UNIQUE(scope, "subjectHash", "windowStart"))`);
+	});
+	afterAll(async () => {
+		if (!connection) return;
+		await connection.query(`DROP SCHEMA IF EXISTS "${schema}" CASCADE`);
+		await connection.end();
+	});
+	it.each(boundaries)(
+		"allows independent %s guests sharing one network using real PostgreSQL buckets",
+		async (boundary) => {
+			await connection.query("TRUNCATE guest_abuse_bucket");
+			const admissionTime = boundary === "upload" ? new Date() : now;
+			for (const [scope, windowMs] of [
+				["ip:ten-minute", 600_000],
+				["ip:day", 86_400_000],
+				["subnet:day", 86_400_000],
+			] as const) {
+				const start = new Date(Math.floor(admissionTime.getTime() / windowMs) * windowMs);
+				const end = new Date(start.getTime() + windowMs);
+				await connection.query(
+					"INSERT INTO guest_abuse_bucket VALUES ($1,$2,$3,$4,$5,100,0,$6,0,$4)",
+					[
+						crypto.randomUUID(),
+						`guest-${boundary}:launch:${scope}`,
+						hash,
+						start,
+						end,
+						new Date(end.getTime() + 86_400_000),
+					],
+				);
+			}
+			for (let index = 0; index < 3; index++) {
+				const fixture = boundaryFixture(boundary);
+				fixture.tx.$queryRaw.mockImplementation(async (sql, ...values) => {
+					const result = await connection.query(
+						sql.reduce((text, part, index) => text + (index ? `$${index}` : "") + part, ""),
+						values,
+					);
+					return result.rows;
+				});
+				if (boundary === "bootstrap")
+					await expect(fixture.run()).resolves.toMatchObject({ outcome: "ACQUIRED" });
+				else await expect(fixture.run()).rejects.toBe(fixture.passedRateChecks);
+			}
+			const { rows } = await connection.query(
+				'SELECT scope, "requestCount" FROM guest_abuse_bucket ORDER BY scope',
+			);
+			const globalRows = rows.filter(({ scope }) => scope.includes(":global:"));
+			expect(globalRows).toHaveLength(2);
+			expect(
+				globalRows.every(
+					({ scope, requestCount }) =>
+						/^guest-(upload|bootstrap|generate):global:(minute|hour)$/.test(scope) &&
+						requestCount === "3",
+				),
+			).toBe(true);
+			expect(
+				rows
+					.filter(({ scope }) => /:ip:|:subnet:/.test(scope))
+					.map(({ requestCount }) => requestCount),
+			).toEqual(["100", "100", "100"]);
+		},
+	);
+});
+
 describe("guest admission without a global daily request cap", () => {
 	beforeEach(() => vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", ""));
 	afterEach(() => vi.unstubAllEnvs());
+
+	it.each(boundaries)(
+		"does not share IP or subnet quotas during %s admission",
+		async (boundary) => {
+			for (const scope of ["launch:ip:ten-minute", "launch:ip:day", "launch:subnet:day"]) {
+				const fixture = boundaryFixture(boundary, scope);
+				if (boundary === "bootstrap") {
+					await expect(fixture.run()).resolves.toMatchObject({ outcome: "ACQUIRED" });
+				} else {
+					await expect(fixture.run()).rejects.toBe(fixture.passedRateChecks);
+				}
+				expect(fixture.counts.get(`${fixture.prefix}:${scope}`)).toBe(100n);
+				expect(fixture.scopes).toEqual([
+					`${fixture.prefix}:global:minute`,
+					`${fixture.prefix}:global:hour`,
+				]);
+			}
+		},
+	);
+
+	it("does not reject an independent guest because other active jobs share its IP", async () => {
+		const fixture = boundaryFixture("generate");
+		fixture.tx.generationJob.count.mockImplementation(async ({ where }) => {
+			if (where.guestTrial?.ipHash) return 100;
+			if (where.ownerId || where.guestTrial?.deviceHash) return 0;
+			throw fixture.passedRateChecks;
+		});
+		await expect(fixture.run()).rejects.toBe(fixture.passedRateChecks);
+	});
 
 	it.each(boundaries)(
 		"ignores a full legacy global-day bucket during %s admission",
@@ -50,12 +166,9 @@ describe("guest admission without a global daily request cap", () => {
 				expect.arrayContaining([
 					`${fixture.prefix}:global:minute`,
 					`${fixture.prefix}:global:hour`,
-					`${fixture.prefix}:launch:ip:ten-minute`,
-					`${fixture.prefix}:launch:ip:day`,
-					`${fixture.prefix}:launch:subnet:day`,
 				]),
 			);
-			expect(fixture.scopes).toHaveLength(5);
+			expect(fixture.scopes).toHaveLength(2);
 			expect(fixture.counts.get(`${fixture.prefix}:global:day`)).toBe(100n);
 		},
 	);
@@ -78,33 +191,6 @@ describe("guest admission without a global daily request cap", () => {
 						"global:hour",
 						boundary === "generate"
 							? "GUEST_GLOBAL_RATE_LIMIT"
-							: boundary === "upload"
-								? "GUEST_UPLOAD_RATE_LIMITED"
-								: "GUEST_TEMPORARY_USER_CAP_EXCEEDED",
-					],
-					[
-						boundary,
-						"launch:ip:ten-minute",
-						boundary === "generate"
-							? "GUEST_IP_RATE_LIMIT"
-							: boundary === "upload"
-								? "GUEST_UPLOAD_RATE_LIMITED"
-								: "GUEST_TEMPORARY_USER_CAP_EXCEEDED",
-					],
-					[
-						boundary,
-						"launch:ip:day",
-						boundary === "generate"
-							? "GUEST_IP_RATE_LIMIT"
-							: boundary === "upload"
-								? "GUEST_UPLOAD_RATE_LIMITED"
-								: "GUEST_TEMPORARY_USER_CAP_EXCEEDED",
-					],
-					[
-						boundary,
-						"launch:subnet:day",
-						boundary === "generate"
-							? "GUEST_SUBNET_RATE_LIMIT"
 							: boundary === "upload"
 								? "GUEST_UPLOAD_RATE_LIMITED"
 								: "GUEST_TEMPORARY_USER_CAP_EXCEEDED",
@@ -310,5 +396,5 @@ function boundaryFixture(boundary: (typeof boundaries)[number], blockedScope = "
 			vi.fn() as never,
 		);
 	};
-	return { run, prefix, scopes, counts, passedRateChecks };
+	return { run, prefix, scopes, counts, passedRateChecks, tx };
 }

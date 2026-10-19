@@ -80,7 +80,8 @@ export interface CreateGuestGenerationTransactionInput {
 	maximumGlobalQueueDepth: number;
 	maximumActiveJobsPerGuest: number;
 	maximumRequestsPerMinute: number;
-	maximumRequestsPerIpPerHour: number;
+	/** Retired transport field; ignored even when an older caller supplies it. */
+	maximumRequestsPerIpPerHour?: number;
 	maximumAcceptedTrialsPerSessionPerDay?: number;
 	maximumActiveJobsPerDevice?: number;
 	maximumAcceptedTrialsPerDevicePerDay?: number;
@@ -245,30 +246,18 @@ export async function createGuestGenerationTransaction(
 			if (activeGuestJobs >= input.maximumActiveJobsPerGuest) {
 				throw new Error("GUEST_OWNER_CAPACITY");
 			}
-			const [activeDeviceJobs, activeIpJobs] = await Promise.all([
-				tx.generationJob.count({
-					where: {
-						serviceClass: "GUEST_SLOW",
-						guestTrial: {
-							promotionPeriod: input.promotionPeriod,
-							deviceHash: input.deviceHash,
-						},
-						status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
+			const activeDeviceJobs = await tx.generationJob.count({
+				where: {
+					serviceClass: "GUEST_SLOW",
+					guestTrial: {
+						promotionPeriod: input.promotionPeriod,
+						deviceHash: input.deviceHash,
 					},
-				}),
-				tx.generationJob.count({
-					where: {
-						serviceClass: "GUEST_SLOW",
-						guestTrial: { promotionPeriod: input.promotionPeriod, ipHash: input.ipHash },
-						status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
-					},
-				}),
-			]);
+					status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
+				},
+			});
 			if (activeDeviceJobs >= (input.maximumActiveJobsPerDevice ?? 1)) {
 				throw new Error("GUEST_DEVICE_LIMIT");
-			}
-			if (activeIpJobs >= (input.maximumActiveJobsPerIp ?? 2)) {
-				throw new Error("GUEST_IP_RATE_LIMIT");
 			}
 
 			const queueDepth = await tx.generationJob.count({
@@ -767,8 +756,6 @@ async function acquireGuestAdmissionLocks(
 ): Promise<void> {
 	for (const key of [
 		`guest-promotion:${input.promotionPeriod}`,
-		`guest-ip:${input.ipHash}`,
-		`guest-subnet:${input.subnetHash}`,
 		`guest-device:${input.deviceHash}`,
 	]) {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
@@ -979,9 +966,7 @@ async function enforceAdmissionBuckets(
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
 	const minuteStart = new Date(Math.floor(input.now.getTime() / 60_000) * 60_000);
-	const tenMinuteStart = new Date(Math.floor(input.now.getTime() / 600_000) * 600_000);
 	const hourStart = new Date(Math.floor(input.now.getTime() / 3_600_000) * 3_600_000);
-	const dayStart = new Date(Math.floor(input.now.getTime() / 86_400_000) * 86_400_000);
 	const evidenceTtlMs = input.abuseEvidenceTtlMs;
 	if (
 		!(await incrementGuestBucket(
@@ -1003,50 +988,11 @@ async function enforceAdmissionBuckets(
 			"global",
 			hourStart,
 			3_600_000,
-			input.maximumGlobalRequestsPerHour ?? input.maximumRequestsPerIpPerHour,
+			input.maximumGlobalRequestsPerHour ?? 30,
 			evidenceTtlMs,
 		))
 	) {
 		throw new Error("GUEST_GLOBAL_RATE_LIMIT");
-	}
-	if (
-		!(await incrementGuestBucket(
-			tx,
-			`guest-generate:${input.promotionPeriod}:ip:ten-minute`,
-			input.ipHash,
-			tenMinuteStart,
-			600_000,
-			input.maximumRequestsPerIpPerTenMinutes ?? input.maximumRequestsPerIpPerHour,
-			evidenceTtlMs,
-		))
-	) {
-		throw new Error("GUEST_IP_RATE_LIMIT");
-	}
-	if (
-		!(await incrementGuestBucket(
-			tx,
-			`guest-generate:${input.promotionPeriod}:ip:day`,
-			input.ipHash,
-			dayStart,
-			86_400_000,
-			input.maximumRequestsPerIpPerDay ?? input.maximumRequestsPerIpPerHour,
-			evidenceTtlMs,
-		))
-	) {
-		throw new Error("GUEST_IP_RATE_LIMIT");
-	}
-	if (
-		!(await incrementGuestBucket(
-			tx,
-			`guest-generate:${input.promotionPeriod}:subnet:day`,
-			input.subnetHash,
-			dayStart,
-			86_400_000,
-			input.maximumRequestsPerSubnetPerDay ?? input.maximumRequestsPerIpPerHour,
-			evidenceTtlMs,
-		))
-	) {
-		throw new Error("GUEST_SUBNET_RATE_LIMIT");
 	}
 }
 
@@ -1187,16 +1133,11 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 		input.maximumGlobalQueueDepth,
 		input.maximumActiveJobsPerGuest,
 		input.maximumRequestsPerMinute,
-		input.maximumRequestsPerIpPerHour,
 		input.maximumAcceptedTrialsPerSessionPerDay ?? 1,
 		input.maximumActiveJobsPerDevice ?? 1,
 		input.maximumAcceptedTrialsPerDevicePerDay ?? 1,
-		input.maximumActiveJobsPerIp ?? 2,
-		input.maximumRequestsPerIpPerTenMinutes ?? input.maximumRequestsPerIpPerHour,
-		input.maximumRequestsPerIpPerDay ?? input.maximumRequestsPerIpPerHour,
-		input.maximumRequestsPerSubnetPerDay ?? input.maximumRequestsPerIpPerHour,
 		input.maximumGlobalRequestsPerMinute ?? input.maximumRequestsPerMinute,
-		input.maximumGlobalRequestsPerHour ?? input.maximumRequestsPerIpPerHour,
+		input.maximumGlobalRequestsPerHour ?? 30,
 		input.abuseEvidenceTtlMs,
 	]) {
 		if (!Number.isSafeInteger(value) || value <= 0) throw new Error("GUEST_CONFIGURATION_ERROR");

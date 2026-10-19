@@ -1264,28 +1264,42 @@ describe("Cloudflare build secret transport", () => {
 			}),
 		).toThrow("CLOUDFLARE_GUEST_BUDGET_OVERRIDE_INVALID");
 	});
-	it("overrides only the three daily guest limits without rewriting production secrets", () => {
+	it("overrides only session and device daily limits without rewriting the old network settings", () => {
 		const limits = {
 			GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2",
 			GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2",
-			GUEST_IP_MAX_PER_10_MINUTES: "2",
 		};
 		expect(
 			parseEnv(
 				readCloudflareBuildEnvironment({
 					CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged\nGUEST_IP_MAX_PER_10_MINUTES=1\n",
+					GUEST_IP_MAX_PER_10_MINUTES: "retired-invalid",
 					...limits,
 				}),
 			),
-		).toEqual({ PRIVATE_KEY: "unchanged", ...limits });
+		).toEqual({ PRIVATE_KEY: "unchanged", GUEST_IP_MAX_PER_10_MINUTES: "1", ...limits });
+	});
+	it.each([
+		"GUEST_IP_MAX_ACTIVE_JOBS",
+		"GUEST_IP_MAX_PER_10_MINUTES",
+		"GUEST_IP_MAX_PER_24_HOURS",
+		"GUEST_SUBNET_MAX_PER_24_HOURS",
+	])("ignores an ambient retired %s override", (key) => {
+		const source = "PRIVATE_KEY=unchanged\n";
+		expect(
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: source,
+				[key]: "retired-invalid",
+			}),
+		).toBe(source);
 	});
 	it("rejects partial or excessive daily guest overrides", () => {
 		for (const limits of [
 			{ GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2" },
+			{ GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2" },
 			{
 				GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "3",
 				GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2",
-				GUEST_IP_MAX_PER_10_MINUTES: "2",
 			},
 		]) {
 			expect(() =>

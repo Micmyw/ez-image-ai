@@ -139,13 +139,22 @@ describe("deployment profiles", () => {
 			imageSeeapi: true,
 		});
 	});
-	it("replaces obsolete lifetime guest limits with daily limits in Worker bindings", () => {
+	it("excludes retired guest network and lifetime limits while preserving daily account boundaries", () => {
 		const environment = workersRuntimeEnvironment({
 			GUEST_SESSION_MAX_ACCEPTED_TRIALS: "1",
 			GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION: "1",
 			GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2",
 			GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2",
 			GUEST_IP_MAX_PER_10_MINUTES: "2",
+			GUEST_IP_MAX_ACTIVE_JOBS: "2",
+			GUEST_IP_MAX_PER_24_HOURS: "3",
+			GUEST_SUBNET_MAX_PER_24_HOURS: "20",
+			MEDIA_MAX_ACTIVE_ANONYMOUS_DRAFTS: "3",
+			MEDIA_MAX_ANONYMOUS_DRAFT_BYTES: "20971520",
+			GUEST_GLOBAL_MAX_PER_24_HOURS: "5",
+			GUEST_GLOBAL_MAX_PER_MINUTE: "3",
+			GUEST_GLOBAL_MAX_PER_HOUR: "30",
+			GUEST_IP_MAX_ACTIVE_JOBS_OTHER: "unrelated-setting",
 		});
 		expect(environment).toEqual({
 			NODE_ENV: "production",
@@ -153,7 +162,9 @@ describe("deployment profiles", () => {
 			EZPIC_DATABASE_BINDING: "hyperdrive",
 			GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2",
 			GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2",
-			GUEST_IP_MAX_PER_10_MINUTES: "2",
+			GUEST_GLOBAL_MAX_PER_MINUTE: "3",
+			GUEST_GLOBAL_MAX_PER_HOUR: "30",
+			GUEST_IP_MAX_ACTIVE_JOBS_OTHER: "unrelated-setting",
 		});
 	});
 	it.each<Record<string, string>>([
