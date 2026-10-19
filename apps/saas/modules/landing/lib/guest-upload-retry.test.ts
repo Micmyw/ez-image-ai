@@ -24,13 +24,16 @@ const ready = {
 	skuKey: input.skuKey,
 	accessHint: "guest-trial",
 };
+function requestUrl(url: RequestInfo | URL): string {
+	return typeof url === "string" ? url : url instanceof URL ? url.href : url.url;
+}
 function fixture(
 	firstCompletion: () => Response = () => Response.json({ status: "PENDING", retryAfterMs: 500 }),
 ) {
 	let checkpoint: GuestDraftUploadCheckpoint | null = null;
 	let completionCalls = 0;
 	const fetcher = vi.fn(async (url: RequestInfo | URL) =>
-		String(url).endsWith("upload-intents")
+		requestUrl(url).endsWith("upload-intents")
 			? Response.json({
 					sessionId: "original-session",
 					assetId: "original-asset",
@@ -70,7 +73,7 @@ describe("guest upload retry keeps the immutable upload intent", () => {
 			uploadGuestDraft({ ...input, checkpoint: f.checkpoint }, f.options),
 		).rejects.toThrow("GUEST_UPLOAD_COMPLETION_FAILED");
 		expect(
-			f.fetcher.mock.calls.filter(([url]) => String(url).endsWith("upload-intents")),
+			f.fetcher.mock.calls.filter(([url]) => requestUrl(url).endsWith("upload-intents")),
 		).toHaveLength(1);
 		expect(f.uploadFile).toHaveBeenCalledOnce();
 		expect(f.checkpoint?.handoff).toBeUndefined();
@@ -93,11 +96,11 @@ describe("guest upload retry keeps the immutable upload intent", () => {
 			),
 		).resolves.toMatchObject({ claimToken: ready.claimToken });
 		expect(
-			f.fetcher.mock.calls.filter(([url]) => String(url).endsWith("upload-intents")),
+			f.fetcher.mock.calls.filter(([url]) => requestUrl(url).endsWith("upload-intents")),
 		).toHaveLength(1);
 		expect(f.uploadFile).toHaveBeenCalledTimes(1);
 		const requests = f.fetcher.mock.calls.filter(([url]) =>
-			String(url).endsWith("upload-completions"),
+			requestUrl(url).endsWith("upload-completions"),
 		);
 		expect(requests).toHaveLength(2);
 	});
@@ -124,7 +127,7 @@ describe("guest upload retry keeps the immutable upload intent", () => {
 			f.options,
 		);
 		expect(
-			f.fetcher.mock.calls.filter(([url]) => String(url).endsWith("upload-intents")),
+			f.fetcher.mock.calls.filter(([url]) => requestUrl(url).endsWith("upload-intents")),
 		).toHaveLength(1);
 		expect(f.uploadFile.mock.calls[0]![0]).toBe(f.uploadFile.mock.calls[1]![0]);
 		expect(f.uploadFile.mock.calls[1]![1]).toBe(file);
