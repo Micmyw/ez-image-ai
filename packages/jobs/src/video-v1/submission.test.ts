@@ -146,6 +146,36 @@ function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video", def
 }
 
 describe("video V1 paid submission fence", () => {
+	it("does not renew an expired visual approval with only a fresh text review", async () => {
+		const f = fixture("image-to-video");
+		expect(await reviewVideoInput("job-1", f.deps)).toEqual({ status: "ALLOW" });
+		const review = f.job.videoExecution.stageData.inputReview as Record<string, unknown>;
+		const originalDeadline = review.validUntil;
+		f.deps.now = () => new Date("2026-10-04T01:00:01Z");
+		f.moderateText.mockClear();
+		f.safety.moderateImage.mockClear();
+		f.store.recordVideoInputReview.mockClear();
+		expect(await reviewVideoInput("job-1", f.deps)).toEqual({
+			status: "ERROR",
+			reasonCode: "VIDEO_INPUT_REVIEW_REQUIRED",
+			retryable: false,
+		});
+		expect(f.moderateText).not.toHaveBeenCalled();
+		expect(f.safety.moderateImage).not.toHaveBeenCalled();
+		expect(f.store.recordVideoInputReview).not.toHaveBeenCalled();
+		expect(review.validUntil).toBe(originalDeadline);
+		expect(f.provider.submit).not.toHaveBeenCalled();
+	});
+	it("renews an expired text-only approval with a new text decision", async () => {
+		const f = fixture();
+		expect(await reviewVideoInput("job-1", f.deps)).toEqual({ status: "ALLOW" });
+		f.deps.now = () => new Date("2026-10-04T01:00:01Z");
+		f.moderateText.mockClear();
+		expect(await reviewVideoInput("job-1", f.deps)).toEqual({ status: "ALLOW" });
+		expect(f.moderateText).toHaveBeenCalledOnce();
+		expect(f.safety.moderateImage).not.toHaveBeenCalled();
+		expect(f.provider.submit).not.toHaveBeenCalled();
+	});
 	it("returns expired input approval for review without sending or treating it as provider uncertainty", async () => {
 		const f = fixture();
 		f.store.claimVideoProviderSubmission.mockRejectedValueOnce(

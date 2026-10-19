@@ -246,6 +246,10 @@ export async function reviewVideoInput(
 		reviewUnexpired
 	)
 		return { status: "ALLOW" };
+	// A new text decision cannot renew the frozen visual approval. Keep this
+	// unsent input held until a complete new visual review can be authorized.
+	if (snapshot.mode === "image-to-video" && review.status === "ALLOW")
+		return { status: "ERROR", reasonCode: "VIDEO_INPUT_REVIEW_REQUIRED", retryable: false };
 	const startedAt = job.videoExecution.inputReviewStartedAt ?? deps.now();
 	const config = readVideoV1Config(deps.env);
 	const deadlineAt = new Date(
