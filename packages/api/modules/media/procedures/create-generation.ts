@@ -22,10 +22,12 @@ import { dispatchCreatedJobBestEffort } from "../lib/dispatch-created-job";
 import { toMediaOrpcError } from "../lib/errors";
 import { getCurrentExecutableRouteGraphOptions } from "../lib/executable-route-graph";
 import { createFlowTiming, type FlowTiming } from "../lib/flow-timing";
-import { assertGenerationAllowed } from "../lib/generation-authorization";
+import {
+	assertGenerationAllowed,
+	type GenerationRateLimitReceipt,
+} from "../lib/generation-authorization";
 import { loadUserPlanEntitlement } from "../lib/plan-entitlement";
 import { assertFrozenQuoteRouteGraphIsCurrent } from "../lib/quote";
-import { enforceMediaRateLimit } from "../lib/rate-limit";
 import { maximumMediaStorageBytes } from "../lib/storage-limits";
 import {
 	TEXT_MODERATION_RULE_VERSION,
@@ -168,7 +170,6 @@ interface CreateGenerationDependencies {
 	getRouteGraphOptions(): Promise<ExecutableRouteGraphOptions>;
 	loadEntitlement(userId: string): Promise<Pick<PlanEntitlement, "maximumConcurrentJobs">>;
 	assertAllowed: typeof assertGenerationAllowed;
-	enforceRateLimit?: typeof enforceMediaRateLimit;
 	createGenerationJob(input: {
 		ownerType: "USER";
 		ownerId: string;
@@ -205,7 +206,6 @@ const defaultDependencies: CreateGenerationDependencies = {
 	getRouteGraphOptions: () => getCurrentExecutableRouteGraphOptions(),
 	loadEntitlement: (userId) => loadUserPlanEntitlement(userId),
 	assertAllowed: (input) => assertGenerationAllowed(input),
-	enforceRateLimit: enforceMediaRateLimit,
 	createGenerationJob: (input) => createGenerationJobTransaction(input, db),
 };
 
@@ -214,12 +214,21 @@ export async function createGenerationForUser(
 	input: { quoteId: string; idempotencyKey: string; parentJobId?: string },
 	dependencies: CreateGenerationDependencies = defaultDependencies,
 	timing: FlowTiming = createFlowTiming(),
+	rateLimitReceipt?: GenerationRateLimitReceipt,
 ): Promise<CreatedGenerationJob> {
 	const quote = await timing.measure("admission.quote.lookup", () =>
 		dependencies.findQuote(userId, input.quoteId),
 	);
 	if (!quote) throw new Error("NOT_FOUND");
-	return createGenerationFromQuote(userId, input, quote, dependencies, timing);
+	return createGenerationFromQuote(
+		userId,
+		input,
+		quote,
+		dependencies,
+		timing,
+		undefined,
+		rateLimitReceipt,
+	);
 }
 
 export async function createGenerationFromApprovedQuote(
@@ -232,10 +241,8 @@ export async function createGenerationFromApprovedQuote(
 	if (admission.ownerId !== userId || admission.quote.id !== input.quoteId)
 		throw new Error("NOT_FOUND");
 	if (process.env.MEDIA_GENERATION_ENABLED !== "true") throw new Error("MODEL_DISABLED");
-	// Keep the existing two admission charges; only duplicate data reads are removed.
-	await timing.measure("admission.rate-limit", async () =>
-		dependencies.enforceRateLimit?.(userId, "media:generation"),
-	);
+	// The same server request already passed its generation flood guard while preparing
+	// this text-approved quote. The job transaction still rechecks mutable eligibility.
 	return createGenerationFromQuote(userId, input, admission.quote, dependencies, timing, admission);
 }
 
@@ -246,6 +253,7 @@ async function createGenerationFromQuote(
 	dependencies: CreateGenerationDependencies,
 	timing: FlowTiming,
 	admission?: PreparedGenerationAdmission,
+	rateLimitReceipt?: GenerationRateLimitReceipt,
 ): Promise<CreatedGenerationJob> {
 	if (quote.expiresAt <= dependencies.now()) throw new Error("QUOTE_EXPIRED");
 	if (
@@ -279,6 +287,7 @@ async function createGenerationFromQuote(
 	if (!admission)
 		await timing.measure("admission.eligibility", () =>
 			dependencies.assertAllowed({
+				rateLimitReceipt,
 				userId,
 				productKey: quote.productKey as Parameters<typeof assertGenerationAllowed>[0]["productKey"],
 				credits: quote.credits,

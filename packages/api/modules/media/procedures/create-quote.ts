@@ -12,7 +12,10 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { toMediaOrpcError } from "../lib/errors";
 import { getCurrentExecutableRouteGraphOptions } from "../lib/executable-route-graph";
 import { createFlowTiming, type FlowTiming } from "../lib/flow-timing";
-import { assertGenerationAllowed } from "../lib/generation-authorization";
+import {
+	assertGenerationAllowed,
+	type GenerationRateLimitReceipt,
+} from "../lib/generation-authorization";
 import { buildMediaQuote } from "../lib/quote";
 import { verifyTemporaryReference } from "../lib/temporary-reference-token";
 import {
@@ -109,7 +112,12 @@ export async function createQuoteForUser(
 		temporaryReferenceToken?: string;
 	},
 	dependencies: CreateQuoteDependencies = defaultDependencies,
-	submission?: { quoteId: string; fingerprint: string; expectedCredits: string },
+	submission?: {
+		quoteId: string;
+		fingerprint: string;
+		expectedCredits: string;
+		rateLimitReceipt?: GenerationRateLimitReceipt;
+	},
 	timing: FlowTiming = createFlowTiming(),
 ): Promise<CreatedGenerationQuote> {
 	const temporaryReference = input.temporaryReferenceToken
@@ -132,6 +140,9 @@ export async function createQuoteForUser(
 		throw new Error("PRICE_CHANGED");
 	await timing.measure("admission.eligibility", () =>
 		dependencies.assertAllowed({
+			// A merged submission includes its quote; standalone previews have their own flood guard.
+			rateLimitAction: submission ? "media:generation" : "media:quote",
+			rateLimitReceipt: submission?.rateLimitReceipt,
 			userId,
 			productKey: input.productKey,
 			credits: quote.credits,
