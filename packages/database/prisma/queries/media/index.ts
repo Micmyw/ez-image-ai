@@ -38,3 +38,5 @@ export * from "./video-v1-recovery";
 
 export * from "./video-template-admission";
 export * from "./video-template-execution";
+
+export * from "./provider-dispatch-capacity";

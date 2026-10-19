@@ -35,6 +35,7 @@ import {
 	type VideoDurableSteps,
 	type VideoWorkflowServices,
 } from "../../../../apps/workflows/src/video-orchestrator";
+import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
 import { mp4Fixture } from "../../../storage/test-support/video-fixture";
 import { ensureVideoWorkflowStarted } from "./admission";
 import type { VideoWorkflowBinding } from "./contracts";
@@ -384,6 +385,8 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 		)
 			throw new Error("UNSAFE_TEST_DATABASE");
 		client = new PrismaClient({ adapter: new PrismaPg({ connectionString, max: 10 }) });
+		vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
+		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", await providerCapacityForTestRequests(client, 32));
 		activeBaseline = await client.generationJob.count({
 			where: { terminalAt: null, status: { notIn: ["SUCCEEDED", "FAILED", "CANCELED"] } },
 		});
@@ -442,6 +445,7 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 		}
 	});
 	afterAll(async () => {
+		vi.unstubAllEnvs();
 		vi.unstubAllGlobals();
 		await client?.$disconnect();
 		const output = fileURLToPath(

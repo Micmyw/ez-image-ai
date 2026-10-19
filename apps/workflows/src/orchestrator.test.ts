@@ -11,14 +11,209 @@ function fakeSteps() {
 			return outputs.get(name);
 		}),
 		sleep: vi.fn(async () => undefined),
+		sleepUntil: vi.fn(async () => undefined),
 	} as DurableSteps & {
 		outputs: Map<string, unknown>;
 		do: ReturnType<typeof vi.fn>;
 		sleep: ReturnType<typeof vi.fn>;
+		sleepUntil: ReturnType<typeof vi.fn>;
 	};
 }
 
 describe("durable job orchestration", () => {
+	it("waits until the committed continuation due time before delivering its exact events", async () => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(1_800_000_000_000);
+		try {
+			const step = fakeSteps();
+			const stages: string[] = [];
+			step.sleepUntil.mockImplementation(async () => {
+				stages.push("wait");
+			});
+			const invoke = vi.fn(async (request) => {
+				stages.push(request.taskId);
+				if (request.taskId === "media-dispatch-image-kie-nano-banana-2")
+					return {
+						status: "ok" as const,
+						continuation: { eventIds: ["queued-event"], notBefore: 1_800_000_002_500 },
+					};
+				return { status: "ok" as const };
+			});
+			const request = {
+				taskId: "media-dispatch-image-kie-nano-banana-2",
+				payload: { jobId: "job", version: 0 },
+			};
+			await runTask(request, "queued-run", step, invoke);
+			expect(stages).toEqual([request.taskId, "wait", "media-deliver-events"]);
+			expect(step.sleepUntil).toHaveBeenCalledExactlyOnceWith(
+				`${request.taskId}-continue-wait`,
+				1_800_000_002_500,
+			);
+			expect(step.sleep).not.toHaveBeenCalled();
+			expect(invoke.mock.calls.map(([task]) => task)).toEqual([
+				request,
+				{ taskId: "media-deliver-events", payload: { eventIds: ["queued-event"] } },
+			]);
+
+			// Replaying cached steps preserves the same sleep identity and deadline,
+			// and cannot invoke the already completed provider submission again.
+			clock.mockReturnValue(1_800_000_100_000);
+			await runTask(request, "queued-run", step, invoke);
+			expect(invoke).toHaveBeenCalledTimes(2);
+			expect(step.sleepUntil.mock.calls).toEqual([
+				[`${request.taskId}-continue-wait`, 1_800_000_002_500],
+				[`${request.taskId}-continue-wait`, 1_800_000_002_500],
+			]);
+		} finally {
+			clock.mockRestore();
+		}
+	});
+	it("delivers an overdue continuation immediately without a negative sleep", async () => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(1_800_000_003_000);
+		try {
+			const step = fakeSteps();
+			const invoke = vi
+				.fn()
+				.mockResolvedValue({ status: "ok" })
+				.mockResolvedValueOnce({
+					status: "ok",
+					continuation: { eventIds: ["queued-event"], notBefore: 1_800_000_002_500 },
+				});
+			await runTask(
+				{ taskId: "media-dispatch-image-kie-nano-banana-2", payload: { jobId: "job", version: 0 } },
+				"overdue-run",
+				step,
+				invoke,
+			);
+			expect(step.sleep).not.toHaveBeenCalled();
+			expect(step.sleepUntil).toHaveBeenCalledExactlyOnceWith(
+				"media-dispatch-image-kie-nano-banana-2-continue-wait",
+				1_800_000_002_500,
+			);
+			expect(invoke.mock.calls.map(([task]) => task.taskId)).toEqual([
+				"media-dispatch-image-kie-nano-banana-2",
+				"media-deliver-events",
+			]);
+		} finally {
+			clock.mockRestore();
+		}
+	});
+	it("retains successful submission and scheduled recovery if the durable continuation wait fails", async () => {
+		const clock = vi.spyOn(Date, "now").mockReturnValue(1_800_000_000_000);
+		try {
+			const step = fakeSteps();
+			step.sleepUntil.mockRejectedValue(new Error("WORKFLOW_SLEEP_UNAVAILABLE"));
+			const invoke = vi
+				.fn()
+				.mockResolvedValue({ status: "ok" })
+				.mockResolvedValueOnce({
+					status: "ok",
+					continuation: { eventIds: ["queued-event"], notBefore: 1_800_000_002_500 },
+				});
+			const result = await runTask(
+				{ taskId: "media-dispatch-image-kie-nano-banana-2", payload: { jobId: "job", version: 0 } },
+				"failed-wait",
+				step,
+				invoke,
+			);
+			expect(result.status).toBe("ok");
+			expect(invoke).toHaveBeenCalledOnce();
+		} finally {
+			clock.mockRestore();
+		}
+	});
+	it("does not wait or scan global events for an empty continuation", async () => {
+		const step = fakeSteps();
+		const invoke = vi.fn().mockResolvedValue({
+			status: "ok",
+			continuation: { eventIds: [], notBefore: 1_800_000_002_500 },
+		});
+		await runTask(
+			{ taskId: "media-dispatch-image-kie-nano-banana-2", payload: { jobId: "job", version: 0 } },
+			"empty-continuation",
+			step,
+			invoke,
+		);
+		expect(step.sleep).not.toHaveBeenCalled();
+		expect(step.sleepUntil).not.toHaveBeenCalled();
+		expect(invoke).toHaveBeenCalledOnce();
+	});
+	it("keeps the absolute due time after interruption between cached dispatch and starting its wait", async () => {
+		let currentTime = 1_800_000_000_000;
+		const clock = vi.spyOn(Date, "now").mockImplementation(() => currentTime);
+		try {
+			const step = fakeSteps();
+			step.sleepUntil
+				.mockRejectedValueOnce(new Error("INTERRUPTED_BEFORE_WAIT"))
+				.mockImplementation(async (_name, dueAt) => {
+					currentTime = Math.max(currentTime, Number(dueAt));
+				});
+			step.sleep.mockImplementation(async (_name, duration) => {
+				currentTime += Number.parseInt(duration, 10);
+			});
+			const invoke = vi
+				.fn()
+				.mockResolvedValue({ status: "ok" })
+				.mockResolvedValueOnce({
+					status: "ok",
+					continuation: { eventIds: ["queued-event"], notBefore: 1_800_000_002_500 },
+				});
+			const request = {
+				taskId: "media-dispatch-image-kie-nano-banana-2",
+				payload: { jobId: "job", version: 0 },
+			};
+			await runTask(request, "interrupted-wait", step, invoke);
+			expect(invoke).toHaveBeenCalledOnce();
+
+			currentTime = 1_800_000_100_000;
+			await runTask(request, "interrupted-wait", step, invoke);
+			expect(currentTime).toBe(1_800_000_100_000);
+			expect(step.sleepUntil.mock.calls).toEqual([
+				[`${request.taskId}-continue-wait`, 1_800_000_002_500],
+				[`${request.taskId}-continue-wait`, 1_800_000_002_500],
+			]);
+			expect(step.sleep).not.toHaveBeenCalled();
+			expect(invoke.mock.calls.map(([task]) => task.taskId)).toEqual([
+				request.taskId,
+				"media-deliver-events",
+			]);
+		} finally {
+			clock.mockRestore();
+		}
+	});
+	it("recomputes the remaining absolute delay on replay for legacy steps without sleepUntil", async () => {
+		let currentTime = 1_800_000_000_000;
+		const clock = vi.spyOn(Date, "now").mockImplementation(() => currentTime);
+		try {
+			const step = fakeSteps();
+			const legacyStep = { ...step, sleepUntil: undefined };
+			step.sleep.mockRejectedValueOnce(new Error("INTERRUPTED_BEFORE_WAIT"));
+			const invoke = vi
+				.fn()
+				.mockResolvedValue({ status: "ok" })
+				.mockResolvedValueOnce({
+					status: "ok",
+					continuation: { eventIds: ["queued-event"], notBefore: 1_800_000_002_500 },
+				});
+			const request = {
+				taskId: "media-dispatch-image-kie-nano-banana-2",
+				payload: { jobId: "job", version: 0 },
+			};
+			await runTask(request, "legacy-interrupted-wait", legacyStep, invoke);
+			expect(invoke).toHaveBeenCalledOnce();
+			currentTime = 1_800_000_100_000;
+			await runTask(request, "legacy-interrupted-wait", legacyStep, invoke);
+			expect(step.sleep).toHaveBeenCalledExactlyOnceWith(
+				`${request.taskId}-continue-wait`,
+				"2500 milliseconds",
+			);
+			expect(invoke.mock.calls.map(([task]) => task.taskId)).toEqual([
+				request.taskId,
+				"media-deliver-events",
+			]);
+		} finally {
+			clock.mockRestore();
+		}
+	});
 	it("retains scheduled recovery without replaying finalization when targeted wake fails", async () => {
 		const invoke = vi.fn(async (request) =>
 			request.taskId === "media-finalize-generation"

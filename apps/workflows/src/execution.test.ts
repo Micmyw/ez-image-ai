@@ -22,6 +22,27 @@ async function signed(
 }
 
 describe("Workers job admission", () => {
+	it("forwards the continuation due time without private handler output", async () => {
+		const notBefore = 1_800_000_001_250;
+		const execute = vi.fn().mockResolvedValue({
+			continuation: { eventIds: ["queued-event"], notBefore, privateUrl: "secret" },
+		});
+		const handler = createWorkerExecutionHandler({ secret, execute, poll: vi.fn() });
+		expect(await (await handler(await signed())).json()).toEqual({
+			status: "ok",
+			continuation: { eventIds: ["queued-event"], notBefore },
+		});
+	});
+	it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, Infinity, NaN, "1800000001250", null])(
+		"rejects an invalid continuation due time %s",
+		async (notBefore) => {
+			const execute = vi.fn().mockResolvedValue({
+				continuation: { eventIds: ["queued-event"], notBefore },
+			});
+			const handler = createWorkerExecutionHandler({ secret, execute, poll: vi.fn() });
+			expect((await handler(await signed())).status).toBe(502);
+		},
+	);
 	it("sanitizes generic continuation and rejects malformed identities without leaking private output", async () => {
 		const execute = vi.fn().mockResolvedValue({
 			continuation: { eventIds: ["event", "event"], privateUrl: "secret" },

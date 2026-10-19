@@ -9,7 +9,12 @@ import {
 import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { releaseCreditsInTransaction } from "./credits";
+import {
+	hasProviderDispatchCapacity,
+	lockProviderDispatchCapacity,
+} from "./provider-dispatch-capacity";
 import { runReadCommitted } from "./types";
+import { clearVideoProviderDispatch, deferVideoProviderDispatch } from "./video-provider-dispatch";
 import { recordVideoTemplateBusinessEvent } from "./video-template-events";
 import {
 	assertVideoTemplateRoleIdentities,
@@ -196,12 +201,21 @@ export async function claimVideoProviderSubmission(input: {
 	ruleVersion: string;
 }) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		await lockProviderDispatchCapacity(tx, "kie");
 		await lockVideoOwnerStorage(tx, input.jobId);
 		const job = await lockedContext(tx, input.jobId);
 		const existing = job.attempts[0];
 		if (existing) return { attempt: existing, claimed: false };
 		if (terminal.has(job.videoExecution!.stage) || job.videoExecution!.stage === "NEEDS_REVIEW")
 			throw new Error("VIDEO_JOB_TERMINAL");
+		if (!(await hasProviderDispatchCapacity(tx, "kie"))) {
+			return deferVideoProviderDispatch(
+				tx,
+				job.id,
+				object(job.videoExecution!.stageData),
+				"generation",
+			);
+		}
 		assertVideoInputIdentity(job);
 		const effectiveSnapshot = getVideoEffectiveInputSnapshot(job);
 		const textSafetyProfile = readVideoTextSafetyProfile(job.inputSnapshot);
@@ -275,6 +289,7 @@ export async function claimVideoProviderSubmission(input: {
 			where: { jobId: job.id },
 			data: {
 				stage: "SUBMITTING",
+				stageData: clearVideoProviderDispatch(object(job.videoExecution!.stageData)),
 				stateVersion: { increment: 1 },
 				providerSubmitStartedAt: new Date(),
 				lastProgressAt: new Date(),
