@@ -20,6 +20,7 @@ import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { releaseCreditsInTransaction, settleCreditsInTransaction } from "./credits";
+import { outputMediaStorageLimit } from "./storage-quota";
 import { runReadCommitted } from "./types";
 import { recordVideoTemplateBusinessEvent } from "./video-template-events";
 import { videoTemplateHasUnsettledScene } from "./video-template-storage";
@@ -169,7 +170,12 @@ export async function claimVideoOutputStorage(jobId: string, maximumStorageBytes
 		// already-paid jobs may adopt capacity only here, after authenticated success.
 		if (!reservation || reservation.status !== "ACTIVE" || reservation.bytes < requiredBytes) {
 			const usedBytes = await videoOwnerStorageUsage(tx, owner, [referenceKey, prepaidKey]);
-			if (usedBytes + requiredBytes > maximumStorageBytes)
+			const maximumBytes = await outputMediaStorageLimit(
+				{ ...owner, jobId: job.id },
+				maximumStorageBytes,
+				tx,
+			);
+			if (maximumBytes !== null && usedBytes + requiredBytes > maximumBytes)
 				throw new Error("VIDEO_STORAGE_QUOTA_EXCEEDED");
 		}
 		const maxBytes = Number(requiredBytes);

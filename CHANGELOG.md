@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-19 — Subscriber output storage compatibility
+
+- Prepare image and video output recovery to honor admitted subscriber storage policy after subscription expiry. Free-account caps, byte accounting and new-request admission remain unchanged.
+
 ## 2026-10-19 — Guest availability throughout the day
 
 - Remove the shared daily request cap from guest uploads, temporary session preparation, and guest generation. Existing uploads and account media keep their original ownership and review rules.
