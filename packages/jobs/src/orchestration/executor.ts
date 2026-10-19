@@ -15,6 +15,11 @@ import {
 import { db } from "@repo/database/client";
 import { deliverModerationIncidentNotification } from "@repo/notifications/moderation-incident";
 
+import {
+	copyAccountInput,
+	cleanupAccountInputCopyOrphan,
+	recoverAccountInputCopyTasks,
+} from "../handlers/account-input-copy";
 import { admitGuestGeneration } from "../handlers/admit-guest-generation";
 import { cancelProviderGeneration } from "../handlers/cancel-generation";
 import {
@@ -62,6 +67,9 @@ import {
 	databaseReconciliationStore,
 	databaseSettlementStore,
 	databaseStorageCleanupDependencies,
+	createDatabaseAccountInputCopyDependencies,
+	createDatabaseAccountInputCopyOrphanDependencies,
+	createDatabaseAccountInputCopyRecoveryDependencies,
 	databaseVerifyUploadDependencies,
 	getAnyRegisteredProvider,
 	getRegisteredProvider,
@@ -156,6 +164,23 @@ export async function executeTask(
 	}
 
 	switch (taskId) {
+		case "media-copy-account-input":
+			return copyAccountInput(
+				parseTaskPayload(taskId, payload),
+				createDatabaseAccountInputCopyDependencies(db),
+			);
+		case "media-cleanup-account-input-copy":
+			return cleanupAccountInputCopyOrphan(
+				parseTaskPayload(taskId, payload),
+				createDatabaseAccountInputCopyOrphanDependencies(db),
+			);
+		case "media-recover-account-input-copies": {
+			const { timestamp } = parseTaskPayload(taskId, payload);
+			return recoverAccountInputCopyTasks(
+				{ timestamp: timestamp ?? now().getTime() },
+				createDatabaseAccountInputCopyRecoveryDependencies(db, dispatch),
+			);
+		}
 		case "media-deliver-outbox":
 		case "media-deliver-output-review":
 		case "media-deliver-events":

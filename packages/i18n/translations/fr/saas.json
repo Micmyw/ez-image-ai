@@ -1260,6 +1260,21 @@
 				"recent": "Retouches enregistrées récentes",
 				"private": "Médias privés liés au propriétaire"
 			},
+			"preparation": {
+				"title": "Préparation de votre image privée",
+				"copying": "Enregistrement de l’image originale dans votre compte…",
+				"verifying": "Vérification de votre image enregistrée avant de continuer…",
+				"ready": "Votre image est prête. Ouverture de votre retouche enregistrée…",
+				"failed": "Cette image n’a pas pu être préparée. Importez-la à nouveau pour continuer.",
+				"expired": "L’image originale a expiré avant son enregistrement. Importez-la à nouveau.",
+				"unavailable": "Cette retouche enregistrée n’est pas disponible pour votre compte actuel.",
+				"connectionError": "Impossible de vérifier l’image pour le moment. Réessayez.",
+				"paused": "Votre image est encore en préparation. Vérifiez à nouveau quand vous le souhaitez.",
+				"saved": "Votre instruction et vos réglages sont enregistrés. La génération ne commencera qu’après l’envoi de la retouche prête.",
+				"recheck": "Vérifier à nouveau",
+				"chooseAnother": "Choisir une autre image",
+				"checking": "Vérification…"
+			},
 			"restore": {
 				"qualityUpgradeRequired": "L’image, l’instruction et le modèle d’image sélectionné ont été restaurés. Choisissez Pro, Ultimate ou Max pour continuer avec ce modèle.",
 				"upgradeComplete": "Votre forfait payant est actif. L’image, l’instruction, les réglages du modèle et la session de retouche ont été restaurés.",

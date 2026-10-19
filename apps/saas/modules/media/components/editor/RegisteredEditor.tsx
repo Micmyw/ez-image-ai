@@ -9,6 +9,7 @@ import {
 	resolveEditorRecovery,
 } from "@media/lib/editor-recovery.server";
 import { getPublicProductCatalog } from "@repo/ai";
+import { publicAccountInputCopyStatus } from "@repo/api/modules/media/lib/account-input-copy-status";
 import { getCurrentExecutableRouteGraphOptions } from "@repo/api/modules/media/lib/executable-route-graph";
 import {
 	findEffectivePaidSubscription,
@@ -20,6 +21,8 @@ import { getServerQueryClient } from "@shared/lib/server";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
+
+import { AccountInputPreparation } from "./AccountInputPreparation";
 
 export interface CreatePageFilters {
 	model?: string;
@@ -122,7 +125,20 @@ export async function RegisteredEditor({
 				}
 			}
 		} else if (draftId) {
-			candidate = await getClaimedGenerationDraft({ draftId, userId: session.user.id }, db);
+			const draft = await getClaimedGenerationDraft({ draftId, userId: session.user.id }, db);
+			// A pending input deliberately has no usable source asset. Keep it out of
+			// recovery parsing and the generator until the account copy is approved.
+			if (draft?.preparation && draft.preparation.status !== "READY") {
+				return (
+					<AccountInputPreparation
+						key={`${session.user.id}:${draftId}`}
+						draftId={draftId}
+						ownerId={session.user.id}
+						initialStatus={publicAccountInputCopyStatus(draft.preparation)}
+					/>
+				);
+			}
+			candidate = draft;
 			claimedDraft = Boolean(candidate);
 			const sourceAssetId = candidate?.input.sourceAssetId;
 			if (typeof sourceAssetId === "string") {

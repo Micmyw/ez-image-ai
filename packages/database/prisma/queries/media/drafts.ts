@@ -13,6 +13,11 @@ import {
 import { maximumMediaStorageBytes } from "@repo/config/server";
 
 import type { Prisma } from "../../generated/client";
+import {
+	createAccountInputCopyInTransaction,
+	getAccountInputCopyStatus,
+	type AccountInputCopyStatus,
+} from "./account-input-copy";
 import { accountInputRetentionPatch } from "./account-input-promotion";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
@@ -275,7 +280,7 @@ export async function claimGenerationDraftTransaction(
 		now?: Date;
 	},
 	client: MediaTransactionClient,
-): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> }> {
+): Promise<ClaimedGenerationDraft> {
 	return claimGenerationDraftWithPolicy(input, client, false);
 }
 
@@ -287,7 +292,7 @@ export async function claimGuestGenerationDraftTransaction(
 		now?: Date;
 	},
 	client: MediaTransactionClient,
-): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> }> {
+): Promise<ClaimedGenerationDraft> {
 	return claimGenerationDraftWithPolicy(input, client, true);
 }
 
@@ -300,7 +305,7 @@ async function claimGenerationDraftWithPolicy(
 	},
 	client: MediaTransactionClient,
 	requireGuestBootstrap: boolean,
-): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> }> {
+): Promise<ClaimedGenerationDraft> {
 	const allowedProductKeys = [...new Set(input.allowedProductKeys)];
 	if (allowedProductKeys.length === 0) throw new Error("DRAFT_UNAVAILABLE");
 	const storedProductKeys = expandStoredDraftProductKeys(allowedProductKeys);
@@ -336,7 +341,7 @@ async function claimGenerationDraftWithPolicy(
 			},
 		});
 		if (!draft) throw new Error("DRAFT_UNAVAILABLE");
-		if (draft.status === "SUBMITTED") return toClaimedGenerationDraft(draft);
+		if (draft.status === "SUBMITTED") return claimedDraftWithPreparation(draft, input.userId, tx);
 		if (draft.status !== "ACTIVE") throw new Error("DRAFT_UNAVAILABLE");
 		const normalized = normalizeStoredGenerationDraft(draft);
 		if (!normalized) throw new Error("DRAFT_UNAVAILABLE");
@@ -370,7 +375,7 @@ async function claimGenerationDraftWithPolicy(
 				},
 			});
 			if (!claimed) throw new Error("DRAFT_UNAVAILABLE");
-			return toClaimedGenerationDraft(claimed);
+			return claimedDraftWithPreparation(claimed, input.userId, tx);
 		}
 		await transferGenerationDraftAssetOwnership(
 			{
@@ -381,7 +386,7 @@ async function claimGenerationDraftWithPolicy(
 			},
 			tx,
 		);
-		return toClaimedNormalizedGenerationDraft(draft, normalized);
+		return claimedDraftWithPreparation(draft, input.userId, tx);
 	});
 }
 
@@ -393,7 +398,7 @@ export async function transferGuestGenerationDraftToRegisteredUserInTransaction(
 		now: Date;
 	},
 	tx: Prisma.TransactionClient,
-): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> }> {
+): Promise<ClaimedGenerationDraft> {
 	const registeredUser = await tx.user.findUnique({
 		where: { id: input.registeredUserId },
 		select: { isAnonymous: true },
@@ -438,7 +443,7 @@ export async function transferGuestGenerationDraftToRegisteredUserInTransaction(
 		},
 		tx,
 	);
-	return toClaimedNormalizedGenerationDraft(draft, normalized);
+	return claimedDraftWithPreparation(draft, input.registeredUserId, tx);
 }
 
 async function transferGenerationDraftAssetOwnership(
@@ -476,6 +481,19 @@ async function transferGenerationDraftAssetOwnership(
 		!["VERIFYING", "READY"].includes(asset.status)
 	)
 		throw new Error("DRAFT_UNAVAILABLE");
+	if (
+		input.accountPromotionDraftId &&
+		(await createAccountInputCopyInTransaction(
+			{
+				draftId: input.accountPromotionDraftId,
+				previousOwnerId: input.previousOwnerId,
+				nextOwnerId: input.nextOwnerId,
+				assetId: asset.id,
+			},
+			tx,
+		))
+	)
+		return;
 	const retentionPatch = input.accountPromotionDraftId
 		? await accountInputRetentionPatch(
 				{ draftId: input.accountPromotionDraftId, nextOwnerId: input.nextOwnerId, asset },
@@ -692,12 +710,30 @@ function isJsonRecord(value: unknown): value is Prisma.JsonObject {
 export async function getClaimedGenerationDraft(
 	input: { draftId: string; userId: string },
 	client: MediaTransactionClient,
-): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> } | null> {
+): Promise<ClaimedGenerationDraft | null> {
 	const draft = await client.generationDraft.findFirst({
 		where: { id: input.draftId, ownerType: "USER", ownerId: input.userId, status: "SUBMITTED" },
 	});
 	if (!draft) return null;
-	return toClaimedGenerationDraft(draft);
+	return claimedDraftWithPreparation(draft, input.userId, client);
+}
+
+export interface ClaimedGenerationDraft {
+	id: string;
+	productKey: string | null;
+	input: Record<string, unknown>;
+	preparation?: AccountInputCopyStatus;
+}
+async function claimedDraftWithPreparation(
+	draft: Parameters<typeof toClaimedGenerationDraft>[0],
+	ownerId: string,
+	client: Prisma.TransactionClient | MediaTransactionClient,
+): Promise<ClaimedGenerationDraft> {
+	const result = toClaimedGenerationDraft(draft);
+	const preparation = await getAccountInputCopyStatus({ ownerId, draftId: draft.id }, client);
+	if (!preparation || preparation.status === "READY") return result;
+	const { sourceAssetId: _sourceAssetId, ...input } = result.input;
+	return { ...result, input, preparation };
 }
 
 export async function expireGenerationDrafts(

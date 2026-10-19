@@ -1260,6 +1260,21 @@
 				"recent": "Ediciones registradas recientes",
 				"private": "Archivos privados vinculados al propietario"
 			},
+			"preparation": {
+				"title": "Preparando tu imagen privada",
+				"copying": "Guardando la imagen original en tu cuenta…",
+				"verifying": "Comprobando tu imagen guardada antes de continuar…",
+				"ready": "Tu imagen está lista. Abriendo tu edición guardada…",
+				"failed": "No pudimos preparar esta imagen. Vuelve a subirla para continuar.",
+				"expired": "La imagen original caducó antes de guardarse. Vuelve a subirla.",
+				"unavailable": "Esta edición guardada no está disponible para tu cuenta actual.",
+				"connectionError": "No pudimos comprobar la imagen ahora. Vuelve a intentarlo.",
+				"paused": "Tu imagen todavía se está preparando. Comprueba de nuevo cuando quieras.",
+				"saved": "Tu instrucción y tus ajustes están guardados. La generación solo empezará cuando envíes la edición lista.",
+				"recheck": "Comprobar de nuevo",
+				"chooseAnother": "Elegir otra imagen",
+				"checking": "Comprobando…"
+			},
 			"restore": {
 				"qualityUpgradeRequired": "Se restauraron la imagen, la instrucción y el modelo de imagen seleccionado. Elige Pro, Ultimate o Max para continuar con ese modelo.",
 				"upgradeComplete": "Tu plan de pago está activo y se restauraron la imagen, la instrucción, los ajustes del modelo y la sesión de edición.",

@@ -119,89 +119,36 @@ async function fixture() {
 	};
 }
 
-describe("account input retention and physical cleanup serialization", () => {
-	it("lets the account transaction win against an already-dispatched deletion waiting on the asset lock", async () => {
+describe("retired same-key account retention", () => {
+	it("cannot extend guest retention or suppress deadline cleanup with the historical flag", async () => {
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
+		vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "false");
 		const { asset, input } = await fixture();
-		let unlock!: () => void, adopted!: () => void;
-		const release = new Promise<void>((resolve) => {
-			unlock = resolve;
+		await db.$transaction(async (tx: Prisma.TransactionClient) => {
+			await lockGuestOwnerPromotion(tx, input.anonymousOwnerId, "retention-test");
+			await transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx);
 		});
-		const ready = new Promise<void>((resolve) => {
-			adopted = resolve;
-		});
-		const promotion = db.$transaction(
-			async (tx) => {
-				await lockGuestOwnerPromotion(tx, input.anonymousOwnerId, "retention-test");
-				await transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx);
-				adopted();
-				await release;
-			},
-			{ timeout: 10_000 },
-		);
-		// Surface an early promotion failure instead of leaving the barrier pending.
-		await Promise.race([
-			ready,
-			promotion.then(() => {
-				throw new Error("PROMOTION_DID_NOT_REACH_BARRIER");
-			}),
-		]);
-		let connected!: (pid: number) => void;
-		const connection = new Promise<number>((resolve) => {
-			connected = resolve;
-		});
-		const observed = {
-			$transaction: (
-				action: (tx: Prisma.TransactionClient) => Promise<unknown>,
-				options: {
-					isolationLevel?: Prisma.TransactionIsolationLevel;
-					maxWait?: number;
-					timeout?: number;
-				},
-			) =>
-				db.$transaction(async (tx) => {
-					const [row] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`;
-					connected(row!.pid);
-					return action(tx);
-				}, options),
-		};
-		const deletion = claimMediaStorageCleanupTransaction(
-			{ assetId: asset.id, objectKeys: ["old-stage", asset.objectKey], releasesReservation: true },
-			observed as never,
-		);
-		try {
-			const pid = await connection;
-			let waiting = false;
-			for (let attempt = 0; attempt < 100 && !waiting; attempt++) {
-				const [row] = await db.$queryRaw<
-					Array<{ waiting: boolean }>
-				>`SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = ${pid} AND locktype = 'advisory' AND NOT granted) AS waiting`;
-				waiting = row!.waiting;
-				if (!waiting) await new Promise((resolve) => setTimeout(resolve, 10));
-			}
-			expect(waiting).toBe(true);
-		} finally {
-			unlock();
-		}
-		await promotion;
-		await expect(deletion).resolves.toBe("SKIP");
 		await expect(
 			db.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } }),
 		).resolves.toMatchObject({
 			ownerId: input.registeredUserId,
-			retentionClass: "ACCOUNT",
-			deleteAfter: null,
-			status: "READY",
-			deletedAt: null,
+			retentionClass: "GUEST_TRIAL",
+			deleteAfter: asset.deleteAfter,
+			objectKey: asset.objectKey,
+		});
+		await db.mediaAsset.update({
+			where: { id: asset.id },
+			data: { deleteAfter: new Date(Date.now() - 1) },
 		});
 		await expect(
-			db.storageUsageReservation.findUniqueOrThrow({
-				where: { referenceKey: `media-draft:${asset.id}` },
-			}),
-		).resolves.toMatchObject({ ownerId: input.registeredUserId, status: "COMMITTED", bytes: 10n });
+			claimMediaStorageCleanupTransaction({ assetId: asset.id, objectKeys: [asset.objectKey] }, db),
+		).resolves.toBe("DELETE");
+		await expect(
+			db.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } }),
+		).resolves.toMatchObject({ status: "DELETED", deletedAt: expect.any(Date) });
 	});
 
-	it("rejects adoption after deletion authorization commits, even while physical deletion is still outstanding", async () => {
+	it("rejects ownership transfer after deletion authorization commits, while physical deletion is outstanding", async () => {
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
 		const { asset, input } = await fixture();
 		await db.mediaAsset.update({
@@ -212,7 +159,7 @@ describe("account input retention and physical cleanup serialization", () => {
 			claimMediaStorageCleanupTransaction({ assetId: asset.id, objectKeys: [asset.objectKey] }, db),
 		).resolves.toBe("DELETE");
 		await expect(
-			db.$transaction(async (tx) => {
+			db.$transaction(async (tx: Prisma.TransactionClient) => {
 				await lockGuestOwnerPromotion(tx, input.anonymousOwnerId, "retention-test");
 				return transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx);
 			}),
