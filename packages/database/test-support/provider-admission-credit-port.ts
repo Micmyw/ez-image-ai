@@ -25,6 +25,7 @@ const bigintColumns = new Set([
 	"revokedSettledAmount",
 	"revokedReleasedAmount",
 	"total",
+	"bytes",
 ]);
 
 /** SQL-only adapter for the bounded text-job/credit paths under test. This maps
@@ -108,6 +109,11 @@ export class CreditAdmissionPostgresFixture {
 				amount bigint NOT NULL, "referenceKey" text NOT NULL UNIQUE, metadata jsonb NOT NULL
 			);
 			CREATE TABLE ${this.table("generation_job_asset")} ("jobId" text, "assetId" text, role text);
+			CREATE TABLE ${this.table("subscription")} (id text PRIMARY KEY, "ownerType" text, "ownerId" text);
+			CREATE TABLE ${this.table("storage_usage_reservation")} (
+				id text PRIMARY KEY, "ownerType" text, "ownerId" text, bytes bigint,
+				status text, "referenceKey" text, "expiresAt" timestamptz
+			);
 			CREATE TABLE ${this.table("outbox_event")} (
 				id text PRIMARY KEY, "eventType" text NOT NULL, "aggregateType" text NOT NULL,
 				"aggregateId" text NOT NULL, "dedupeKey" text NOT NULL UNIQUE, payload jsonb NOT NULL,
@@ -118,7 +124,7 @@ export class CreditAdmissionPostgresFixture {
 
 	async reset() {
 		await this.pool.query(
-			`TRUNCATE ${this.table("credit_account")}, ${this.table("generation_quote")}, ${this.table("outbox_event")}, ${this.table("generation_job_asset")} CASCADE`,
+			`TRUNCATE ${this.table("credit_account")}, ${this.table("generation_quote")}, ${this.table("outbox_event")}, ${this.table("generation_job_asset")}, ${this.table("subscription")}, ${this.table("storage_usage_reservation")} CASCADE`,
 		);
 	}
 
@@ -252,6 +258,40 @@ export class CreditAdmissionPostgresFixture {
 			creditReservation: model("credit_reservation"),
 			creditReservationAllocation: model("credit_reservation_allocation"),
 			creditLedgerEntry: model("credit_ledger_entry"),
+			// These bounded admission suites exercise owners without subscriptions.
+			// Subscription eligibility and generated ORM relations have separate tests.
+			subscription: {
+				findMany: ({ where }: { where: { ownerType: string; ownerId: string } }) =>
+					query(
+						`SELECT * FROM ${this.table("subscription")} WHERE "ownerType"=$1 AND "ownerId"=$2`,
+						[where.ownerType, where.ownerId],
+					),
+			},
+			billingPeriod: { fields: { paidAmount: "paidAmount" } },
+			storageUsageReservation: {
+				aggregate: async ({
+					where,
+				}: {
+					where: {
+						ownerType: string;
+						ownerId: string;
+						status: { in: string[] };
+						OR: [{ NOT: { referenceKey: { startsWith: string } } }, { expiresAt: { gt: Date } }];
+					};
+				}) => {
+					const [row] = await query(
+						`SELECT COALESCE(SUM(bytes),0)::bigint AS bytes FROM ${this.table("storage_usage_reservation")} WHERE "ownerType"=$1 AND "ownerId"=$2 AND status=ANY($3::text[]) AND (left("referenceKey",length($4)) <> $4 OR "expiresAt">$5)`,
+						[
+							where.ownerType,
+							where.ownerId,
+							where.status.in,
+							where.OR[0].NOT.referenceKey.startsWith,
+							where.OR[1].expiresAt.gt,
+						],
+					);
+					return { _sum: { bytes: row?.bytes ?? 0n } };
+				},
+			},
 			generationQuote: model("generation_quote"),
 			generationJob: {
 				...jobs,

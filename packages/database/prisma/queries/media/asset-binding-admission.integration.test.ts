@@ -19,6 +19,7 @@ import {
 import { createCreditGrant } from "./credits";
 import { createGenerationJobTransaction } from "./jobs";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
+import { claimMediaStorageCleanupTransaction } from "./storage-cleanup";
 
 // Real production admission/deletion/binding functions and pg transactions.
 // This row port isolates the binding race; generated ORM and full migrations
@@ -32,7 +33,10 @@ beforeAll(async () => {
 		`ALTER TABLE ${fixture.table("generation_job_asset")} ADD COLUMN "assetChecksum" text, ADD COLUMN position integer`,
 	);
 	await fixture.rows(
-		`CREATE TABLE ${fixture.table("media_asset")} (id text PRIMARY KEY,"ownerType" text,"ownerId" text,kind text,status text,"deletedAt" timestamptz,checksum text,"objectKey" text,"mimeType" text,"byteSize" bigint,"sourceUrl" text)`,
+		`CREATE TABLE ${fixture.table("media_asset")} (id text PRIMARY KEY,"ownerType" text,"ownerId" text,kind text,status text,"deletedAt" timestamptz,checksum text,"objectKey" text,"mimeType" text,"byteSize" bigint,"sourceUrl" text,"retentionClass" text NOT NULL DEFAULT 'ACCOUNT',"deleteAfter" timestamptz)`,
+	);
+	await fixture.rows(
+		`ALTER TABLE ${fixture.table("generation_job_asset")} ADD FOREIGN KEY ("assetId") REFERENCES ${fixture.table("media_asset")}(id)`,
 	);
 });
 beforeEach(async () => {
@@ -60,6 +64,7 @@ type Hook = {
 	beforeDelete?: ReturnType<typeof gate>;
 	afterQuote?: ReturnType<typeof gate>;
 	pid?: (pid: number) => void;
+	serializationConflict?: () => void;
 };
 function client(hook: Hook = {}) {
 	return {
@@ -75,8 +80,10 @@ function client(hook: Hook = {}) {
 				}, options?.isolationLevel);
 			} catch (error) {
 				// Match the driver's originalCode transport without mocking SSI/retry.
-				if (error && typeof error === "object" && "code" in error && error.code === "40001")
+				if (error && typeof error === "object" && "code" in error && error.code === "40001") {
 					Object.assign(error, { cause: { originalCode: "40001" } });
+					hook.serializationConflict?.();
+				}
 				throw error;
 			}
 		},
@@ -100,8 +107,9 @@ function port(base: unknown, connection: PoolClient, hook: Hook) {
 					verificationRuleVersion: "asset-rule",
 					verificationPolicyVersion: "asset-policy",
 					verificationValidUntil: validUntil,
-					retentionClass: "ACCOUNT",
-					deleteAfter: null,
+					retentionClass: row.retentionClass,
+					deleteAfter: row.deleteAfter,
+					uploadSessions: [],
 				}
 			: null;
 	};
@@ -275,7 +283,7 @@ async function seed() {
 		} as never);
 	});
 	await fixture.rows(
-		`INSERT INTO ${fixture.table("media_asset")} VALUES ('asset','USER','owner','INPUT','READY',NULL,$1,'users/owner/input.png','image/png',10,NULL)`,
+		`INSERT INTO ${fixture.table("media_asset")} (id,"ownerType","ownerId",kind,status,"deletedAt",checksum,"objectKey","mimeType","byteSize","sourceUrl") VALUES ('asset','USER','owner','INPUT','READY',NULL,$1,'users/owner/input.png','image/png',10,NULL)`,
 		[checksum],
 	);
 	return {
@@ -304,6 +312,70 @@ async function waitForLock(pid: number) {
 }
 
 describe("input bindings and deletion preserve the original SSI protocol", () => {
+	it("rejects a stale input admission after guest cleanup wins the binding fence", async () => {
+		const input = await seed();
+		await fixture.rows(
+			`UPDATE ${fixture.table("media_asset")} SET "retentionClass"='GUEST_TRIAL',"deleteAfter"=clock_timestamp()+interval '200 milliseconds' WHERE id='asset'`,
+		);
+		const snapshot = gate();
+		const cleanup = gate();
+		let creatingPid = 0;
+		let serializationConflicts = 0;
+		const creating = createGenerationJobTransaction(
+			input,
+			client({
+				afterQuote: snapshot,
+				pid: (pid) => (creatingPid ||= pid),
+				serializationConflict: () => serializationConflicts++,
+			}) as never,
+		);
+		await snapshot.entered;
+		// Establish the admission's snapshot before the real deadline, then let the
+		// actual cleanup consumer own the advisory and row locks before resuming it.
+		for (let attempt = 0; ; attempt++) {
+			const [clock] = await fixture.rows(
+				`SELECT clock_timestamp() >= "deleteAfter" AS expired FROM ${fixture.table("media_asset")} WHERE id='asset'`,
+			);
+			if (clock?.expired) break;
+			if (attempt >= 400) throw new Error("ASSET_EXPIRY_NOT_OBSERVED");
+			await new Promise((resolve) => setTimeout(resolve, 5));
+		}
+		const deleting = claimMediaStorageCleanupTransaction(
+			{ assetId: "asset", objectKeys: ["users/owner/input.png"] },
+			client({ beforeDelete: cleanup }) as never,
+		);
+		await cleanup.entered;
+		snapshot.resume();
+		try {
+			await waitForLock(creatingPid);
+		} finally {
+			cleanup.resume();
+		}
+		const [deleted, created] = await Promise.allSettled([deleting, creating]);
+		expect(deleted).toMatchObject({ status: "fulfilled", value: "DELETE" });
+		expect(created).toMatchObject({
+			status: "rejected",
+			reason: { message: "Every input asset must be READY and owned by the user" },
+		});
+		// The production FK's check observes a changed asset tuple and forces a
+		// real 40001 retry. Without that FK, advisory locks alone permit stale reads.
+		expect(serializationConflicts).toBeGreaterThan(0);
+		expect(
+			await fixture.rows(`SELECT * FROM ${fixture.table("generation_job_asset")}`),
+		).toHaveLength(0);
+		expect(await fixture.rows(`SELECT id FROM ${fixture.table("generation_job")}`)).toHaveLength(0);
+		expect(
+			await fixture.rows(`SELECT id FROM ${fixture.table("credit_reservation")}`),
+		).toHaveLength(0);
+		expect(
+			(
+				await fixture.rows(
+					`SELECT "spendableCredits","reservedCredits" FROM ${fixture.table("credit_account")} WHERE id='owner'`,
+				)
+			)[0],
+		).toMatchObject({ spendableCredits: 20n, reservedCredits: 0n });
+	});
+
 	it("keeps a text winner and a queued asset admission within the same global cost budget", async () => {
 		const input = await seed();
 		const quoted = await fixture
