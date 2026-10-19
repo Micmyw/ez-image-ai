@@ -20,7 +20,6 @@ import {
 	isVideoTemplateReference,
 } from "./video-template-reference";
 import { videoTemplateHasUnsettledScene } from "./video-template-storage";
-import { assertVideoPriceApprovalValid } from "./video-v1-price-approval";
 import {
 	lockVideoOwnerStorage,
 	releaseVideoPreOutputCapacity,
@@ -229,9 +228,8 @@ export async function claimVideoProviderSubmission(input: {
 			},
 		});
 		if (!outputReservation) throw new Error("VIDEO_STORAGE_RESERVATION_REQUIRED");
-		// A job can wait in moderation beyond a frozen price/authorization deadline.
-		// Recheck under the submission lock using the database's current clock, but
-		// never apply this to an existing may-have-sent attempt returned above.
+		// Reference and funding authorizations retain their own lifetimes. Recheck
+		// under the submission lock, never for an existing may-have-sent attempt.
 		const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`
 			SELECT clock_timestamp() AS "now"`;
 		if (!clock || !Number.isFinite(clock.now.getTime()))
@@ -242,7 +240,6 @@ export async function claimVideoProviderSubmission(input: {
 			clock.now,
 		);
 		const pricingDetails = object(object(job.pricingSnapshot).pricingDetails);
-		assertVideoPriceApprovalValid(pricingDetails, clock.now);
 		// Only ordinary video may use the frozen shared balance policy. Historical
 		// paid/internal snapshots and every independent template keep their own rules.
 		const sharedFunding =
