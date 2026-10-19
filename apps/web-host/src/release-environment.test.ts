@@ -3,6 +3,12 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+	HOTEL_LOBBY_PRICE_VERSION,
+	HOTEL_LOBBY_TEMPLATE_VERSION,
+	HOTEL_LOBBY_SAFETY_POLICY_VERSION,
+	RAINDANCE_TEMPLATE_VERSION,
+} from "@repo/config/video-effects.server";
 import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
 import { describe, expect, it } from "vitest";
 
@@ -16,6 +22,40 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const assertEnvironment = assertAutomaticReleaseEnvironment;
 
 describe("automatic production release preflight", () => {
+	it.each(["website", "jobs"])(
+		"reports expired optional policy before retaining the mandatory database gate for %s",
+		(target) => {
+			const result = spawnSync(
+				process.execPath,
+				["--import", "tsx", "apps/web-host/src/git-build.ts", "build", target],
+				{
+					cwd: root,
+					encoding: "utf8",
+					env: {
+						...process.env,
+						CLOUDFLARE_PRODUCTION_ENV:
+							"NEXT_PUBLIC_SAAS_URL=https://ezimageai.com\nVIDEO_V1_ENABLED=true\nHOTEL_LOBBY_DUO_ENABLED=true\nPRIVATE_KEY=do-not-print-optional-fixture",
+						VIDEO_RUNTIME_CONFIG: JSON.stringify({
+							HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION: HOTEL_LOBBY_TEMPLATE_VERSION,
+							HOTEL_LOBBY_DUO_PRICE_VERSION: HOTEL_LOBBY_PRICE_VERSION,
+							HOTEL_LOBBY_DUO_PRICE_BASIS: "do-not-print-optional-price-basis",
+							HOTEL_LOBBY_DUO_COST_POLICY_VERSION: HOTEL_LOBBY_SAFETY_POLICY_VERSION,
+							HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00Z",
+							RAINDANCE_ENABLED: "true",
+							RAINDANCE_ACCEPTED_TEMPLATE_VERSION: RAINDANCE_TEMPLATE_VERSION,
+						}),
+					},
+				},
+			);
+			expect(result.status).not.toBe(0);
+			expect(result.stdout).toContain(
+				"Optional video effect availability and approved-price preflight:",
+			);
+			expect(result.stdout).toContain('"available":false,"reasons":["VIDEO_EFFECT_PRICE_EXPIRED"]');
+			expect(result.stderr).toContain("MIGRATION_STATUS_DATABASE_URL_REQUIRED");
+			expect(result.stdout + result.stderr).not.toContain("do-not-print-");
+		},
+	);
 	it.each(["2100-01-01T00:00:00.000Z", "2000-01-01T00:00:00.000Z", "none"])(
 		"logs only approved public price metadata before accepting an inherited expiry %s",
 		(validUntil) => {

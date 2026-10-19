@@ -56,7 +56,7 @@ if (command === "build") {
 		`Video retail approved-price preflight: ${JSON.stringify(verifyApprovedVideoRetailPrices(environment))}\n`,
 	);
 	process.stdout.write(
-		`Video effect approved-price preflight: ${JSON.stringify(verifyApprovedVideoEffectPrices(environment))}\n`,
+		`Optional video effect availability and approved-price preflight: ${JSON.stringify(verifyApprovedVideoEffectPrices(environment))}\n`,
 	);
 	migrationDatabaseUrl(input, root);
 	const sha = releaseSha();
