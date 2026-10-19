@@ -1366,7 +1366,8 @@
 			"dailyAllowance": "Today: {remaining, number} of {limit, number} free edits remaining",
 			"dailyReset": "Resets daily at 00:00 UTC. Unused edits do not roll over.",
 			"dailyLimitReached": "You have used today’s two free edits. Come back after 00:00 UTC for two more.",
-			"editAnother": "Edit another image"
+			"editAnother": "Edit another image",
+			"loginBonus": "Sign in to continue with account credits. Each account gets a one-time 5-credit bonus, separate from monthly free credits."
 		},
 		"upgradeDialog": {
 			"title": "Unlock more image models",

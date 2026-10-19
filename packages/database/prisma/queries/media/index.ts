@@ -13,6 +13,7 @@ export * from "./output-moderation-billing";
 export * from "./drafts";
 export * from "./edit-sessions";
 export * from "./free-plan-credits";
+export * from "./login-bonus";
 export * from "./guest-bootstrap";
 export * from "./guest-admission";
 export * from "./guest-quota";

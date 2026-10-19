@@ -33,6 +33,7 @@ vi.mock("next-intl", () => ({
 				download: "Download watermarked preview",
 				signIn: "Sign in",
 				createAccount: "Create account",
+				loginBonus: "One-time 5-credit bonus per account, separate from monthly free credits",
 				qualityCta: "More image models · paid plan",
 				retryPreview: "Retry private preview",
 				retryChallenge: "Retry verification",
@@ -101,6 +102,31 @@ describe("GuestTrialWorkspace", () => {
 		expect(visibleText.match(/Waiting in the free queue/g)).toHaveLength(1);
 		expect(visibleText).toContain("Your watermarked result will appear here.");
 		expect(markup).not.toMatch(/\d+%|queue position|history|edit again|cancel/i);
+	});
+
+	it("offers the one-time login gift when guest daily allowance is exhausted", () => {
+		mocks.useGuestTrial.mockReturnValue({
+			...mocks.useGuestTrial(),
+			dailyAllowance: { remaining: 0, limit: 2 },
+			errorKey: "eligibility",
+		});
+		const markup = renderToStaticMarkup(<GuestTrialWorkspace />);
+		expect(markup).toContain("One-time 5-credit bonus per account");
+		expect(markup).toContain("Sign in");
+		expect(markup).toContain("Create account");
+		expect(renderToStaticMarkup(<GuestTrialWorkspace registered />)).not.toContain(
+			"One-time 5-credit bonus",
+		);
+	});
+
+	it("does not advertise account credits as a way around a moderation rejection", () => {
+		mocks.useGuestTrial.mockReturnValue({
+			...mocks.useGuestTrial(),
+			dailyAllowance: { remaining: 0, limit: 2 },
+			errorKey: "submit",
+			moderationError: { outcome: "blocked", reason: "restrictedContent" },
+		});
+		expect(renderToStaticMarkup(<GuestTrialWorkspace />)).not.toContain("One-time 5-credit bonus");
 	});
 	it("explains a blocked sponsored result without advertising a charged waiver", () => {
 		const current = mocks.useGuestTrial();

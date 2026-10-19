@@ -271,7 +271,8 @@
 				"standard": "Try free",
 				"quality": "Continue",
 				"retry": "Retry",
-				"retryAvailability": "Check availability"
+				"retryAvailability": "Check availability",
+				"signInBonus": "Sign in · one-time 5-credit bonus per account"
 			},
 			"errors": {
 				"turnstile": "Complete the verification and try again.",

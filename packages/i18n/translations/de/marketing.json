@@ -271,7 +271,8 @@
 				"standard": "Gratis testen",
 				"quality": "Weiter",
 				"retry": "Erneut versuchen",
-				"retryAvailability": "Verfügbarkeit prüfen"
+				"retryAvailability": "Verfügbarkeit prüfen",
+				"signInBonus": "Anmelden · einmalig 5 Bonus-Credits pro Konto"
 			},
 			"errors": {
 				"turnstile": "Schließe die Überprüfung ab und versuche es erneut.",
