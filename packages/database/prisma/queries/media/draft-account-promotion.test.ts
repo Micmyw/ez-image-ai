@@ -80,8 +80,6 @@ function fixture(
 		},
 		guestMediaTrial: { findFirst: vi.fn(async () => null) },
 		generationJobAsset: { findFirst: vi.fn(async () => null) },
-		subscription: { findMany: vi.fn(async () => []) },
-		billingPeriod: { fields: { paidAmount: "paidAmount" } },
 		storageUsageReservation: {
 			findUnique: vi.fn(async () => ({
 				id: "reservation",

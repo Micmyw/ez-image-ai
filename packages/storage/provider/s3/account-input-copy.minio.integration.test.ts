@@ -82,8 +82,11 @@ describe("account input handler with real MinIO source-delete overlap", () => {
 				expect(result.value).toEqual({ outcome: "VERIFYING" });
 				expect(journal.phase).toBe("VERIFYING");
 				expect(journal.materializations).toBe(1);
-				expect(await read(target)).toEqual(bytes);
-				expect(sha256(await read(target))).toBe(journal.claim.source.checksum);
+				const copiedBytes = await read(target);
+				// Compare every byte without walking millions of Buffer properties and
+				// blocking the event loop while the storage connection stays idle.
+				expect(copiedBytes.equals(bytes)).toBe(true);
+				expect(sha256(copiedBytes)).toBe(journal.claim.source.checksum);
 				// ETag only shows actual MinIO part count, never SHA/content identity.
 				expect((await storage.headObject(target)).etag).toMatch(
 					size === "small" ? /-1"?$/ : /-2"?$/,
@@ -119,7 +122,9 @@ describe("account input handler with real MinIO source-delete overlap", () => {
 				).rejects.toThrow("DB_RESPONSE_LOST");
 				expect(journal.phase).toBe("PENDING");
 				expect(journal.materializations).toBe(0);
-				expect(await read(target)).toEqual(bytes);
+				const copiedBytes = await read(target);
+				expect(copiedBytes.equals(bytes)).toBe(true);
+				expect(sha256(copiedBytes)).toBe(journal.claim.source.checksum);
 				const before = await storage.headObject(target);
 				await storage.deleteObject(source);
 				expect(await responseStatus(source)).toBe(404);
@@ -143,11 +148,15 @@ describe("account input handler with real MinIO source-delete overlap", () => {
 				).toHaveLength(sourceReadsBeforeRecovery);
 				expect(journal.materializations).toBe(1);
 				expect(journal.phase).toBe("VERIFYING");
-				expect(sha256(await read(target))).toBe(journal.claim.source.checksum);
+				const recoveredBytes = await read(target);
+				expect(recoveredBytes.equals(bytes)).toBe(true);
+				expect(sha256(recoveredBytes)).toBe(journal.claim.source.checksum);
 				expect((await storage.headObject(target)).etag).toBe(before.etag);
 				expect(await storage.listMultipartUploads(target)).toEqual([]);
 				await storage.deleteObject(source);
-				expect(await read(target)).toEqual(bytes);
+				const retainedBytes = await read(target);
+				expect(retainedBytes.equals(bytes)).toBe(true);
+				expect(sha256(retainedBytes)).toBe(journal.claim.source.checksum);
 			} finally {
 				await cleanup(source, target);
 			}
