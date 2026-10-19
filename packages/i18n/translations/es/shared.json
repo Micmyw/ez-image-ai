@@ -149,5 +149,32 @@
 			"creditsUnavailable": "Créditos no disponibles. Ver paquetes de créditos"
 		},
 		"buyCredits": "Comprar créditos"
+	},
+	"feedback": {
+		"entry": "Comentarios · las ideas aceptadas reciben 100–1.000 créditos",
+		"footer": "Recompensas por comentarios",
+		"report": "Informar de este problema",
+		"title": "Ayúdanos a mejorar EzImageAI",
+		"rewardPolicy": "Las sugerencias y los informes de errores aceptados pueden recibir entre 100 y 1.000 créditos. Nuestro equipo revisa cada propuesta, decide la cantidad y asigna los créditos manualmente tras aceptarla.",
+		"noAutomaticReward": "Abrir este formulario o enviar un correo no concede créditos. Los informes duplicados o ya conocidos pueden no ser aptos.",
+		"kind": "Tipo de comentario",
+		"idea": "Sugerencia",
+		"bug": "Informe de error",
+		"accountEmail": "Correo de la cuenta de EzImageAI (opcional)",
+		"emailPlaceholder": "Indica la cuenta que recibirá créditos si se acepta",
+		"description": "Tus comentarios",
+		"descriptionPlaceholder": "¿Qué ocurrió, qué esperabas o qué mejorarías?",
+		"screenshots": "Si resulta útil, adjunta una captura con los datos privados ocultos desde tu aplicación de correo.",
+		"privacy": "Solo el texto que escribas aquí se incluye en el borrador. No se añaden automáticamente instrucciones, imágenes, datos de pago ni detalles de errores. Revisa el correo antes de enviarlo.",
+		"preview": "Ver el borrador del correo",
+		"recipient": "Para",
+		"openEmail": "Abrir borrador de correo",
+		"copy": "Copiar dirección de correo",
+		"copied": "Dirección de correo copiada.",
+		"copyFailed": "No se puede copiar. Selecciona la dirección de arriba y cópiala manualmente.",
+		"emailFallback": "¿Sin aplicación de correo? Copia esta dirección y envía tus comentarios desde tu servicio habitual.",
+		"subjectIdea": "EzImageAI: sugerencia",
+		"subjectBug": "EzImageAI: informe de error",
+		"close": "Cerrar comentarios"
 	}
 }

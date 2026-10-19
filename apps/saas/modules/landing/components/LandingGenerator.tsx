@@ -1,10 +1,11 @@
 "use client";
 
+import { config } from "@config";
 import { ComposerHeader } from "@media/components/editor/ComposerHeader";
 import { PromptIdeas } from "@media/components/editor/PromptIdeas";
+import { ImageModelSelector } from "@media/components/ImageModelSelector";
 
 import "@media/components/editor/generation-composer.css";
-import { ImageModelSelector } from "@media/components/ImageModelSelector";
 import {
 	ImageOutputSettings,
 	type ImageOutputSettingsLabels,
@@ -29,6 +30,7 @@ import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { Turnstile } from "@repo/ui/components/turnstile";
 import { trackBrowserGrowthEvent } from "@repo/utils/lib/growth-analytics-browser";
+import { FeedbackButton } from "@shared/components/FeedbackButton";
 import {
 	STUDIO_WORKSPACE_RESET_EVENT,
 	type StudioWorkspaceResetDetail,
@@ -1145,6 +1147,7 @@ function LandingGeneratorWorkspace({
 							role="alert"
 						>
 							<AlertDescription>{t(`errors.${submitError}`)}</AlertDescription>
+							<FeedbackButton supportEmail={config.supportEmail} variant="report" kind="bug" />
 						</Alert>
 					)}
 				</form>
@@ -1174,6 +1177,7 @@ function LandingGeneratorWorkspace({
 								: t("freeQueue")}
 					</span>
 				)}
+				<FeedbackButton supportEmail={config.supportEmail} />
 				{(file || requireReference) && (
 					<span className="gap-1.5 sm:ml-auto inline-flex items-center">
 						<LockKeyholeIcon className="size-3.5 text-emerald-300" aria-hidden="true" />
@@ -1375,6 +1379,11 @@ function LandingGeneratorWorkspace({
 										role="alert"
 									>
 										<AlertDescription>{t(`errors.${submitError}`)}</AlertDescription>
+										<FeedbackButton
+											supportEmail={config.supportEmail}
+											variant="report"
+											kind="bug"
+										/>
 									</Alert>
 								)}
 							</form>

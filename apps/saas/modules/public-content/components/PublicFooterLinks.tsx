@@ -1,5 +1,6 @@
 import "server-only";
 import { config } from "@config";
+import { FeedbackButton } from "@shared/components/FeedbackButton";
 import { PUBLIC_FOOTER_GROUPS } from "@shared/components/studio/public-navigation";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
@@ -58,6 +59,7 @@ export function PublicFooterLinks({ className }: { className?: string }) {
 						{t("common.footer.support")}: {config.supportEmail}
 					</a>
 				)}
+				<FeedbackButton supportEmail={config.supportEmail} variant="footer" />
 			</div>
 		</div>
 	);
