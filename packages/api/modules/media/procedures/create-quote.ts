@@ -3,6 +3,7 @@ import { EZPIC_PRODUCT_KEYS } from "@repo/config";
 import { recordTextModerationOutcome } from "@repo/database";
 import { findEligibleImageEditParentForOwner } from "@repo/database";
 import { db } from "@repo/database/client";
+import { type GenerationFundingSource } from "@repo/database/media-image-passes";
 import {
 	createModeratedGenerationQuoteTransaction,
 	type CreateModeratedGenerationQuoteInput,
@@ -27,6 +28,9 @@ import { createQuoteInputSchema, jsonBigInt } from "../types";
 import type { PreparedGenerationAdmission } from "./create-generation";
 
 interface CreatedGenerationQuote {
+	pricingSnapshot: unknown;
+	fundingSource: GenerationFundingSource;
+	imagePassUnits: 0 | 1;
 	id: string;
 	productKey: string;
 	catalogVersion: string;
@@ -107,6 +111,7 @@ export async function createQuoteForUser(
 	userId: string,
 	input: {
 		productKey: CurrentEzPicProductKey;
+		fundingSource?: GenerationFundingSource;
 		input: MediaModelInput;
 		parentJobId?: string;
 		temporaryReferenceToken?: string;
@@ -144,6 +149,7 @@ export async function createQuoteForUser(
 			rateLimitAction: submission ? "media:generation" : "media:quote",
 			rateLimitReceipt: submission?.rateLimitReceipt,
 			userId,
+			fundingSource: input.fundingSource,
 			productKey: input.productKey,
 			credits: quote.credits,
 			costMicros: quote.costMicros,
@@ -184,6 +190,9 @@ export async function createQuoteForUser(
 	});
 	return {
 		...created,
+		pricingSnapshot: quote.pricingSnapshot,
+		fundingSource: input.fundingSource ?? "CREDITS",
+		imagePassUnits: input.fundingSource === "IMAGE_PASS" ? 1 : 0,
 		...(submission && routeGraphOptions
 			? {
 					admission: {
@@ -244,6 +253,8 @@ export const createQuote = protectedProcedure
 				createFlowTiming({ requestId }),
 			);
 			return {
+				fundingSource: created.fundingSource,
+				imagePassUnits: created.imagePassUnits,
 				id: created.id,
 				productKey: created.productKey,
 				catalogVersion: created.catalogVersion,

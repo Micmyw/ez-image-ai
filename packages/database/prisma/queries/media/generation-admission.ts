@@ -6,11 +6,19 @@ import {
 } from "@repo/config";
 
 import { findEffectivePaidSubscription } from "./billing";
+import { assertImagePassAvailable, type GenerationFundingSource } from "./image-passes";
 import type { MediaDatabaseClient } from "./types";
 
 /** Transaction-current policy facts. Never accepts a cached plan from before a paid audit. */
 export async function loadCurrentGenerationAdmission(
-	input: { ownerId: string; productKey: string; costMicros: bigint; now: Date },
+	input: {
+		ownerId: string;
+		productKey: string;
+		costMicros: bigint;
+		now: Date;
+		fundingSource?: GenerationFundingSource;
+		skuKey?: unknown;
+	},
 	tx: MediaDatabaseClient,
 ) {
 	const productKey = EZPIC_PRODUCT_KEYS.find((key) => key === input.productKey);
@@ -29,7 +37,13 @@ export async function loadCurrentGenerationAdmission(
 		tx,
 	);
 	const entitlement = resolvePlanEntitlement(subscription?.plan.metadata, subscription?.plan.name);
-	if (!entitlement.allowedProducts.includes(productKey)) throw new Error("ENTITLEMENT_REQUIRED");
+	if (input.fundingSource === "IMAGE_PASS")
+		await assertImagePassAvailable(
+			{ ownerId: input.ownerId, productKey, skuKey: input.skuKey },
+			tx,
+		);
+	else if (!entitlement.allowedProducts.includes(productKey))
+		throw new Error("ENTITLEMENT_REQUIRED");
 	if (input.costMicros > BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumJobCostMicros))
 		throw new Error("BUDGET_EXCEEDED");
 	return {

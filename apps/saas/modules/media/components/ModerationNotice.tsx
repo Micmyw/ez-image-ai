@@ -8,6 +8,7 @@ export function ModerationNotice({
 	job: {
 		id?: string;
 		status: string;
+		fundingSource?: "CREDITS" | "IMAGE_PASS";
 		failureReason?: string | null;
 		moderationReason?: string | null;
 		moderationStage?: "input" | "output";
@@ -35,6 +36,7 @@ export function ModerationNotice({
 			outcome={blocked ? "blocked" : "unavailable"}
 			reason={job.moderationReason}
 			billing={billing}
+			fundingSource={job.fundingSource}
 			credits={job.creditsCharged}
 			jobId={job.id}
 		/>

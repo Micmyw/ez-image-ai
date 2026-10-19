@@ -34,6 +34,8 @@ const TOP_LEVEL_STATIC_ROUTE_SEGMENTS = [
 	"history",
 	"icon.png",
 	"image-proxy",
+	"image-pass",
+	"image-pass-checkout-return",
 	"llms-full.txt",
 	"llms.mdx",
 	"llms.txt",

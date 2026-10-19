@@ -1,3 +1,9 @@
+import {
+	getImagePassOfferSnapshot,
+	isImagePassOfferSnapshot,
+	type ImagePassOfferSnapshot,
+} from "@repo/config/image-pass";
+
 import { readCheckoutRecovery } from "../../shared/checkout-recovery";
 import type { Prisma } from "../generated/client";
 import { runSerializable, type MediaTransactionClient } from "./media/types";
@@ -6,7 +12,7 @@ export type PaymentProviderName = "stripe" | "paypal" | "waffo";
 export type CreditPackPaymentProviderName = Exclude<PaymentProviderName, "stripe">;
 export type PaymentOwner = { ownerType: "USER" | "ORGANIZATION"; ownerId: string };
 
-type PaymentProductKind = "PLAN" | "CREDIT_PACK";
+type PaymentProductKind = "PLAN" | "CREDIT_PACK" | "IMAGE_PASS";
 
 export interface CreditPackCheckoutIntentSnapshotInput {
 	catalogVersion: string;
@@ -45,6 +51,13 @@ export type CreatePaymentCheckoutIntentInput = CreatePaymentCheckoutIntentBase &
 				productKind: "CREDIT_PACK";
 				interval: "one-time";
 				creditPackSnapshot: CreditPackCheckoutIntentSnapshotInput;
+		  }
+		| {
+				provider: "paypal";
+				productKind: "IMAGE_PASS";
+				interval: "one-time";
+				imagePassOfferSnapshot: ImagePassOfferSnapshot;
+				creditPackSnapshot?: never;
 		  }
 	);
 
@@ -88,6 +101,17 @@ export async function createPaymentCheckoutIntent(
 	const now = input.now ?? new Date();
 	const productKind = input.productKind ?? "PLAN";
 	const creditPackSnapshot = creditPackSnapshotColumns(input);
+	if (
+		input.productKind === "IMAGE_PASS" &&
+		(input.provider !== "paypal" ||
+			input.ownerType !== "USER" ||
+			input.ownerId !== input.submittedByUserId ||
+			input.planKey !== "image-pass-3" ||
+			input.interval !== "one-time" ||
+			!isImagePassOfferSnapshot(input.imagePassOfferSnapshot))
+	) {
+		throw new Error("PAYMENT_CHECKOUT_INTENT_IMAGE_PASS_SNAPSHOT_INVALID");
+	}
 	const activeScopeKey = paymentCheckoutActiveScope(input);
 	const idempotencyScopeKey = paymentCheckoutIdempotencyScope(input);
 	const result = await runSerializable(client, async (tx) => {
@@ -218,6 +242,9 @@ export async function createPaymentCheckoutIntent(
 				checkoutRecovery: input.checkoutRecovery,
 				attribution: input.attribution,
 				...creditPackSnapshot,
+				...(input.productKind === "IMAGE_PASS"
+					? { imagePassOfferSnapshot: getImagePassOfferSnapshot() }
+					: {}),
 			},
 		});
 		return { intent, replayed: false };
@@ -625,6 +652,7 @@ function matchesTrustedCheckoutCommand(
 		creditPackSubscriberSubscriptionId: string | null;
 		creditPackSubscriberPlanKey: string | null;
 		creditPackEligibilityEvaluatedAt: Date | null;
+		imagePassOfferSnapshot?: unknown;
 	},
 	input: CreatePaymentCheckoutIntentInput,
 ): boolean {
@@ -638,6 +666,11 @@ function matchesTrustedCheckoutCommand(
 		intent.planKey === input.planKey &&
 		intent.interval === input.interval;
 	if (!stableCommandMatches) return false;
+	if (expectedProductKind === "IMAGE_PASS")
+		return (
+			intent.billingPlanId === input.billingPlanId &&
+			isImagePassOfferSnapshot(intent.imagePassOfferSnapshot)
+		);
 
 	// Subscriber eligibility and catalog pricing are evaluated only for the first
 	// command. A retry or matching active checkout must reuse that persisted decision

@@ -16,10 +16,14 @@ describe("generation query refresh", () => {
 
 		await refreshGenerationQueries({ invalidateQueries }, "owner-a");
 
-		expect(invalidateQueries).toHaveBeenCalledTimes(2);
+		expect(invalidateQueries).toHaveBeenCalledTimes(3);
 		expect(invalidateQueries).toHaveBeenNthCalledWith(1, { queryKey: ["media-jobs"] });
 		expect(invalidateQueries).toHaveBeenNthCalledWith(2, {
 			queryKey: ["media-credit-account", "owner-a"],
+			exact: true,
+		});
+		expect(invalidateQueries).toHaveBeenNthCalledWith(3, {
+			queryKey: ["media-image-pass-balance", "owner-a"],
 			exact: true,
 		});
 	});

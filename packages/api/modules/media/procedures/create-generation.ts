@@ -7,6 +7,10 @@ import { DEFAULT_PRODUCT_CONFIG, EZPIC_PRODUCT_KEYS, temporaryReferenceSchema } 
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import { createGenerationJobTransaction, getInitialGenerationEventIds } from "@repo/database";
 import { db } from "@repo/database/client";
+import {
+	generationFundingSource,
+	type GenerationFundingSource,
+} from "@repo/database/media-image-passes";
 import { resolveDatabaseDispatchRoute } from "@repo/jobs";
 import { dispatchJob } from "@repo/jobs/orchestration/client";
 import { logger } from "@repo/logs";
@@ -19,6 +23,7 @@ import { getCurrentExecutableRouteGraphOptions } from "../lib/executable-route-g
 import { createFlowTiming, type FlowTiming } from "../lib/flow-timing";
 import {
 	assertGenerationAllowed,
+	createGenerationRateLimitReceipt,
 	type GenerationRateLimitReceipt,
 } from "../lib/generation-authorization";
 import { assertFrozenQuoteRouteGraphIsCurrent } from "../lib/quote";
@@ -36,7 +41,17 @@ export const createGeneration = protectedProcedure
 	.handler(async ({ context: { user, requestId, defer }, input }) => {
 		try {
 			const timing = createFlowTiming({ requestId });
-			const result = await createGenerationForUser(user.id, input, undefined, timing);
+			// A durable replay still belongs to this incoming HTTP request's flood bucket.
+			const rateLimitReceipt = await timing.measure("admission.rate-limit", () =>
+				createGenerationRateLimitReceipt(user.id),
+			);
+			const result = await createGenerationForUser(
+				user.id,
+				input,
+				undefined,
+				timing,
+				rateLimitReceipt,
+			);
 			await startCreatedGenerationDispatch(result, timing, defer);
 			return {
 				job: {
@@ -44,6 +59,8 @@ export const createGeneration = protectedProcedure
 					status: result.job.status,
 					version: result.job.version,
 					creditsReserved: jsonBigInt(result.job.creditsReserved),
+					fundingSource: result.job.fundingSource ?? "CREDITS",
+					imagePassUnits: result.job.imagePassUnits ?? 0,
 				},
 				replayed: result.replayed,
 			};
@@ -154,12 +171,24 @@ interface CreatedGenerationJob {
 		status: string;
 		version: number;
 		creditsReserved: bigint;
+		fundingSource?: GenerationFundingSource;
+		imagePassUnits?: 0 | 1;
 	};
 	replayed: boolean;
 }
 
+type ExistingGeneration = Omit<CreatedGenerationJob["job"], "fundingSource"> & {
+	fundingSource?: string;
+	quoteId: string;
+	parentJobId: string | null;
+};
+
 interface CreateGenerationDependencies {
 	now(): Date;
+	findExistingGeneration?(
+		userId: string,
+		idempotencyKey: string,
+	): Promise<ExistingGeneration | null>;
 	findQuote(userId: string, quoteId: string): Promise<GenerationQuoteForCreation | null>;
 	getRouteGraphOptions(): Promise<ExecutableRouteGraphOptions>;
 	assertAllowed: typeof assertGenerationAllowed;
@@ -191,6 +220,21 @@ interface CreateGenerationDependencies {
 
 const defaultDependencies: CreateGenerationDependencies = {
 	now: () => new Date(),
+	findExistingGeneration: (userId, idempotencyKey) =>
+		db.generationJob.findUnique({
+			where: {
+				ownerType_ownerId_idempotencyKey: { ownerType: "USER", ownerId: userId, idempotencyKey },
+			},
+			select: {
+				id: true,
+				quoteId: true,
+				parentJobId: true,
+				status: true,
+				version: true,
+				creditsReserved: true,
+				fundingSource: true,
+			},
+		}),
 	findQuote: (userId, quoteId) =>
 		db.generationQuote.findFirst({
 			where: { id: quoteId, ownerType: "USER", ownerId: userId },
@@ -202,29 +246,68 @@ const defaultDependencies: CreateGenerationDependencies = {
 
 export async function createGenerationForUser(
 	userId: string,
-	input: { quoteId: string; idempotencyKey: string; parentJobId?: string },
+	input: {
+		quoteId: string;
+		idempotencyKey: string;
+		parentJobId?: string;
+		fundingSource?: GenerationFundingSource;
+	},
 	dependencies: CreateGenerationDependencies = defaultDependencies,
 	timing: FlowTiming = createFlowTiming(),
 	rateLimitReceipt?: GenerationRateLimitReceipt,
 ): Promise<CreatedGenerationJob> {
-	const quote = await timing.measure("admission.quote.lookup", () =>
-		dependencies.findQuote(userId, input.quoteId),
-	);
-	if (!quote) throw new Error("NOT_FOUND");
-	return createGenerationFromQuote(
-		userId,
-		input,
-		quote,
-		dependencies,
-		timing,
-		undefined,
-		rateLimitReceipt,
-	);
+	const replay = async () => {
+		const existing = await dependencies.findExistingGeneration?.(userId, input.idempotencyKey);
+		if (!existing) return null;
+		const fundingSource = generationFundingSource({
+			fundingSource: existing.fundingSource ?? "CREDITS",
+		});
+		if ((input.fundingSource ?? "CREDITS") !== fundingSource)
+			throw new Error("GENERATION_FUNDING_CONFLICT");
+		if (existing.quoteId !== input.quoteId || existing.parentJobId !== (input.parentJobId ?? null))
+			throw new Error("IDEMPOTENCY_CONFLICT");
+		timing.bind({ jobId: existing.id });
+		return {
+			job: {
+				...existing,
+				fundingSource,
+				imagePassUnits: fundingSource === "IMAGE_PASS" ? (1 as const) : (0 as const),
+			},
+			replayed: true,
+		};
+	};
+	const existing = await replay();
+	if (existing) return existing;
+	try {
+		const quote = await timing.measure("admission.quote.lookup", () =>
+			dependencies.findQuote(userId, input.quoteId),
+		);
+		if (!quote) throw new Error("NOT_FOUND");
+		return await createGenerationFromQuote(
+			userId,
+			input,
+			quote,
+			dependencies,
+			timing,
+			undefined,
+			rateLimitReceipt,
+		);
+	} catch (error) {
+		// Another request may have committed while this one checked the now-empty pass balance.
+		const committed = await replay();
+		if (committed) return committed;
+		throw error;
+	}
 }
 
 export async function createGenerationFromApprovedQuote(
 	userId: string,
-	input: { quoteId: string; idempotencyKey: string; parentJobId?: string },
+	input: {
+		quoteId: string;
+		idempotencyKey: string;
+		parentJobId?: string;
+		fundingSource?: GenerationFundingSource;
+	},
 	admission: PreparedGenerationAdmission,
 	dependencies: CreateGenerationDependencies = defaultDependencies,
 	timing: FlowTiming = createFlowTiming(),
@@ -239,13 +322,21 @@ export async function createGenerationFromApprovedQuote(
 
 async function createGenerationFromQuote(
 	userId: string,
-	input: { quoteId: string; idempotencyKey: string; parentJobId?: string },
+	input: {
+		quoteId: string;
+		idempotencyKey: string;
+		parentJobId?: string;
+		fundingSource?: GenerationFundingSource;
+	},
 	quote: GenerationQuoteForCreation,
 	dependencies: CreateGenerationDependencies,
 	timing: FlowTiming,
 	admission?: PreparedGenerationAdmission,
 	rateLimitReceipt?: GenerationRateLimitReceipt,
 ): Promise<CreatedGenerationJob> {
+	const fundingSource = generationFundingSource(quote.pricingSnapshot);
+	if ((input.fundingSource ?? "CREDITS") !== fundingSource)
+		throw new Error("GENERATION_FUNDING_CONFLICT");
 	if (quote.expiresAt <= dependencies.now()) throw new Error("QUOTE_EXPIRED");
 	if (
 		quote.catalogVersion !== DEFAULT_PRODUCT_CONFIG.catalogVersion ||
@@ -280,6 +371,7 @@ async function createGenerationFromQuote(
 			dependencies.assertAllowed({
 				rateLimitReceipt,
 				userId,
+				fundingSource,
 				productKey: quote.productKey as Parameters<typeof assertGenerationAllowed>[0]["productKey"],
 				credits: quote.credits,
 				costMicros: quote.costMicros,
@@ -313,7 +405,10 @@ async function createGenerationFromQuote(
 	);
 	timing.bind({ jobId: created.job.id, assetId: created.verificationAssetId });
 	timing.mark("admission.committed", 0);
-	return created;
+	return {
+		...created,
+		job: { ...created.job, fundingSource, imagePassUnits: fundingSource === "IMAGE_PASS" ? 1 : 0 },
+	};
 }
 
 function imageEditBinding(

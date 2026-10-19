@@ -6,9 +6,13 @@ import type { PlanPrice } from "../types";
 import type { PlanId } from "./plans";
 import { getPlanIdByProviderPriceId, getPlanPriceByProviderPriceId } from "./provider-price-ids";
 
-type PurchaseWithoutTimestamps = Omit<z.infer<typeof PurchaseSchema>, "createdAt" | "updatedAt">;
+type PurchaseWithoutTimestamps = Omit<
+	z.infer<typeof PurchaseSchema>,
+	"createdAt" | "updatedAt" | "productKind"
+>;
 
 export interface ResolvedPurchase extends PurchaseWithoutTimestamps {
+	productKind: "PLAN" | "CREDIT_PACK" | "IMAGE_PASS";
 	planId?: PlanId | null;
 	planPrice?: PlanPrice | null;
 	isEffectiveSubscription?: boolean;

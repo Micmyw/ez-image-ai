@@ -1,7 +1,15 @@
-import { fingerprintGenerationQuoteSecurityPayload } from "@repo/database";
+import { fingerprintGenerationQuoteSecurityPayload } from "@repo/database/media-quotes";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/database/client", () => ({ db: {} }));
+vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
+vi.mock("@repo/database", () => ({
+	recordTextModerationOutcome: vi.fn(),
+	findEligibleImageEditParentForOwner: vi.fn(),
+	createGenerationJobTransaction: vi.fn(),
+	getInitialGenerationEventIds: vi.fn(),
+	unexpiredStorageReservations: () => ({}),
+}));
 
 import { signTemporaryReference } from "../lib/temporary-reference-token";
 import { createQuoteInputSchema } from "../types";

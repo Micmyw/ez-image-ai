@@ -32,5 +32,10 @@ export {
 export { getPublicConfig, type PublicConfig } from "./public";
 export { getImageProductSelectionContract } from "./image-product-contract";
 export { WAFFO_PRODUCT_ID_PATTERN } from "./payment-identifiers";
+export {
+	IMAGE_PASS_PUBLIC_OFFER,
+	getImagePassOfferSnapshot,
+	type ImagePassOfferSnapshot,
+} from "./image-pass";
 export { isPublicModerationReason, type PublicModerationReason } from "./content-safety";
 export { isTechnicalGenerationFailureCode } from "./generation-failures";

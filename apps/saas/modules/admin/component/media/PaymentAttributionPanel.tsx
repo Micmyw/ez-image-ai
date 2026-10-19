@@ -14,7 +14,7 @@ interface PaymentAttributionRow {
 	ownerType: "USER" | "ORGANIZATION" | null;
 	ownerId: string | null;
 	provider: string;
-	productKind: "PLAN" | "CREDIT_PACK";
+	productKind: "PLAN" | "CREDIT_PACK" | "IMAGE_PASS";
 	status: string | null;
 	createdAt: string;
 	attribution: CheckoutAttribution | null;
@@ -154,7 +154,13 @@ function PaymentAttributionRecord({ row }: { row: PaymentAttributionRow }) {
 				<Field
 					label={t("product")}
 					value={[
-						t(row.productKind === "CREDIT_PACK" ? "creditPack" : "plan"),
+						t(
+							row.productKind === "IMAGE_PASS"
+								? "imagePass"
+								: row.productKind === "CREDIT_PACK"
+									? "creditPack"
+									: "plan",
+						),
 						row.planKey,
 						row.interval,
 					]

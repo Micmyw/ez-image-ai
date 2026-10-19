@@ -1,5 +1,6 @@
 export * from "./env";
 export * from "./credit-packs.server";
+export * from "./image-pass.server";
 export * from "./fingerprint";
 export {
 	getGuestMediaConfig,

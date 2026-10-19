@@ -22,12 +22,19 @@ const ActiveOrganizationProvider = dynamic(() =>
 
 export function RegisteredWorkspaceProviders({
 	children,
+	imagePassMessages,
 	mediaMessages,
-}: PropsWithChildren<{ mediaMessages: AbstractIntlMessages }>) {
+}: PropsWithChildren<{
+	imagePassMessages: Record<string, string>;
+	mediaMessages: AbstractIntlMessages;
+}>) {
 	const messages = useMessages();
 	const locale = useLocale();
 	return (
-		<NextIntlClientProvider locale={locale} messages={{ ...messages, media: mediaMessages }}>
+		<NextIntlClientProvider
+			locale={locale}
+			messages={{ ...messages, imagePass: imagePassMessages, media: mediaMessages }}
+		>
 			<SessionProvider>
 				<ActiveOrganizationProvider>
 					<ConfirmationAlertProvider>{children}</ConfirmationAlertProvider>

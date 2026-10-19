@@ -49,6 +49,7 @@ export function useJob(jobId: string | null) {
 		if (!settlement || refreshedSettlement.current === settlement) return;
 		refreshedSettlement.current = settlement;
 		void queryClient.invalidateQueries({ queryKey: ["media-credit-account"] });
+		void queryClient.invalidateQueries({ queryKey: ["media-image-pass-balance"] });
 	}, [settlement, queryClient]);
 	const accessDenied = ["UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND"].includes(
 		(query.error as { code?: string } | null)?.code ?? "",

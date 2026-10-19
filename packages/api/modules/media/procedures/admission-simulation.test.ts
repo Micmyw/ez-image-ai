@@ -221,6 +221,28 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 				return quotes.get(input.where.id) ?? null;
 			},
 		},
+		generationJob: {
+			findUnique: async (input: {
+				where: {
+					ownerType_ownerId_idempotencyKey: {
+						ownerType: string;
+						ownerId: string;
+						idempotencyKey: string;
+					};
+				};
+			}) => {
+				await operation("acceptedJobLookup");
+				const key = input.where.ownerType_ownerId_idempotencyKey;
+				return (
+					[...jobs.values()].find(
+						(job) =>
+							job.ownerType === key.ownerType &&
+							job.ownerId === key.ownerId &&
+							job.idempotencyKey === key.idempotencyKey,
+					) ?? null
+				);
+			},
+		},
 		storageUsageReservation: { aggregate: read("storageRead", { _sum: { bytes: 0n } }) },
 		subscription: { findMany: read("storageEntitlementRead", []) },
 		billingPeriod: { fields: { paidAmount: "paidAmount" } },
@@ -281,6 +303,11 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 				);
 			const job = {
 				id: `job-${jobs.size + 1}`,
+				ownerType: request.ownerType,
+				ownerId: request.ownerId,
+				quoteId: request.quoteId,
+				parentJobId: request.edit?.kind === "CHILD" ? request.edit.parentJobId : null,
+				fundingSource: "CREDITS" as const,
 				status: "RESERVED",
 				version: 0,
 				creditsReserved: 5n,

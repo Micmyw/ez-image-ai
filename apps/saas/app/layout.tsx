@@ -61,6 +61,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		publicContent: _publicContent,
 		home,
 		videoEffects,
+		imagePass,
 		media,
 		feedback,
 		...messages
@@ -82,7 +83,18 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 			raindanceName: videoEffects.raindanceName,
 			raindanceNavigationDescription: videoEffects.raindanceNavigationDescription,
 		},
-		// Private editor/library copy is restored by registered and lazy panel boundaries.
+		// RegisteredWorkspaceBoundary supplies the full purchase and editor copy.
+		...(imagePass
+			? {
+					imagePass: {
+						bannerLabel: imagePass.bannerLabel,
+						bannerTitle: imagePass.bannerTitle,
+						bannerDetail: imagePass.bannerDetail,
+						buy: imagePass.buy,
+					},
+				}
+			: {}),
+		// Signed-in library/history views restore this copy at their own boundaries.
 		...(media
 			? {
 					media: {
@@ -91,10 +103,11 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 								([key]) => !["assets", "edits", "history"].includes(key),
 							),
 						),
+						// Account input preparation is rendered only inside the registered editor.
 						create: Object.fromEntries(
 							Object.entries(media.create).filter(([key]) => key !== "preparation"),
 						),
-						// The public UserMenu still needs its history navigation label.
+						// UserMenu's history link is also available on public pages.
 						history: { title: media.history.title },
 					},
 				}

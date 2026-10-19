@@ -318,7 +318,8 @@
 					"referral": "Site référent",
 					"campaign": "Campagne",
 					"unknown": "Inconnu"
-				}
+				},
+				"imagePass": "Pack d’images"
 			},
 			"checkoutReview": {
 				"title": "Examen des souscriptions en attente",
@@ -1296,7 +1297,10 @@
 				"priceChanged": "Le prix en crédits a changé. Vérifiez le coût actualisé sur le bouton, puis réessayez.",
 				"contentReviewRequired": "Cette instruction n’a pas pu être approuvée. Modifiez-la et soumettez-la à nouveau. Aucun crédit n’a été facturé.",
 				"textLanguageUnsupported": "Cette langue n’est pas prise en charge par la vérification de sécurité. Aucun crédit n’a été facturé.",
-				"referenceExpired": "Votre référence temporaire est indisponible ou a expiré. Veuillez la téléverser à nouveau."
+				"referenceExpired": "Votre référence temporaire est indisponible ou a expiré. Veuillez la téléverser à nouveau.",
+				"insufficientImagePasses": "Aucun pass image disponible. Achetez un autre pack ou choisissez explicitement les crédits.",
+				"imagePassUnavailable": "Cette option de pass image est indisponible. Choisissez une image avec un modèle actuellement disponible et réessayez.",
+				"fundingChanged": "Votre choix de paiement a changé. Vérifiez-le et réessayez."
 			},
 			"modelMenu": {
 				"title": "Modèles d’image",
@@ -2214,5 +2218,46 @@
 		"planPrices": "Standard : {standard} crédits · Abonnement annuel : {annual} crédits",
 		"annualSavingApplied": "Tarif annuel appliqué — vous économisez {credits} crédits.",
 		"annualSavingAvailable": "Les abonnements annuels éligibles économisent {credits} crédits sur cette option."
+	},
+	"imagePass": {
+		"bannerLabel": "Pack d’images à paiement unique",
+		"bannerTitle": "{units} images pour {currency} {amount}",
+		"bannerDetail": "Modèles d’image actuels · jusqu’à 4K · sans abonnement",
+		"buy": "Acheter le pack",
+		"oneTime": "Achat à paiement unique",
+		"title": "{units} images réussies",
+		"pageTitle": "Pack d’images — 3 images pour 1 USD",
+		"description": "Choisissez un modèle d’image actuellement disponible, avec les options compatibles jusqu’à 4K. Chaque tâche produit une image.",
+		"models": "Modèles d’image actuels et résolutions compatibles, dont la 4K",
+		"singleOutput": "Chaque image réussie utilise un pass. Images uniquement, sans vidéo.",
+		"separate": "Les pass image sont distincts des crédits et des abonnements.",
+		"repeat": "Achetez un autre pack quand vous en avez besoin.",
+		"balance": "{count} pass image disponibles",
+		"pay": "Payer {currency} {amount} avec PayPal",
+		"processing": "Ouverture de PayPal…",
+		"signIn": "Créer un compte ou se connecter",
+		"checkoutError": "Le paiement n’a pas pu être ouvert. Réessayez pour reprendre le même achat.",
+		"fundingLabel": "Payer avec",
+		"fundingCredits": "Crédits",
+		"fundingPasses": "Pass image · {count} disponibles",
+		"fundingLoading": "Vérification des pass image…",
+		"buyMore": "Acheter 3 pass image",
+		"fundingEmpty": "Aucun pass image disponible. Achetez un pack ou choisissez explicitement les crédits pour continuer.",
+		"fundingPolicy": "Un pass est réservé pendant la tâche et utilisé pour une image réussie. Aucun crédit n’est utilisé. La modération et les limites de stockage restent applicables.",
+		"fundingSeparate": "Les crédits et les pass image sont des choix distincts. Votre sélection ne change pas automatiquement.",
+		"fundingPolicyTitle": "Conditions des pass image",
+		"onePass": "1 pass image",
+		"back": "Revenir à l’éditeur",
+		"returnTitle": "Votre pack d’images",
+		"returnCompleted": "Paiement confirmé. Vos pass image sont disponibles dans l’éditeur.",
+		"returnPending": "Confirmation du paiement et ajout de vos pass image. Gardez cette page ouverte.",
+		"returnReview": "Cet achat n’a pas encore pu être confirmé. Vérifiez à nouveau avant de lancer un autre paiement.",
+		"checkoutBack": "Voir le pack d’images",
+		"checkAgain": "Vérifier à nouveau le paiement",
+		"retryPass": "Réessayer · 1 pass image",
+		"balanceError": "Solde de pass indisponible",
+		"retryBalance": "Vérifier à nouveau le solde",
+		"availabilityLoading": "Vérification de la disponibilité…",
+		"unavailable": "Cette offre est actuellement indisponible. Réessayez plus tard."
 	}
 }

@@ -8,30 +8,46 @@ import { useRef, useState } from "react";
 
 import { getEditorErrorKey, type EditorErrorKey } from "../lib/editor-error";
 
-export function RetryGenerationButton({ jobId }: { jobId: string }) {
+export function RetryGenerationButton({
+	jobId,
+	fundingSource = "CREDITS",
+}: {
+	jobId: string;
+	fundingSource?: "CREDITS" | "IMAGE_PASS";
+}) {
+	const pass = useTranslations("imagePass");
 	const t = useTranslations("media.detail");
 	const errors = useTranslations("media.create.errors");
 	const router = useRouter();
-	const request = useRef<{ jobId: string; key: string; pending: boolean } | null>(null);
+	const request = useRef<{
+		jobId: string;
+		key: string;
+		fundingSource: "CREDITS" | "IMAGE_PASS";
+		pending: boolean;
+	} | null>(null);
 	const [pending, setPending] = useState(false);
 	const [error, setError] = useState<EditorErrorKey | null>(null);
 	async function retry() {
 		if (request.current?.pending) return;
-		if (request.current?.jobId !== jobId)
-			request.current = { jobId, key: crypto.randomUUID(), pending: false };
+		if (request.current?.jobId !== jobId || request.current.fundingSource !== fundingSource)
+			request.current = { jobId, key: crypto.randomUUID(), fundingSource, pending: false };
 		const current = request.current;
 		current.pending = true;
 		setPending(true);
 		setError(null);
 		try {
-			const result = await orpcClient.media.retryGeneration({ jobId, idempotencyKey: current.key });
+			const result = await orpcClient.media.retryGeneration({
+				jobId,
+				idempotencyKey: current.key,
+				fundingSource,
+			});
 			router.push(`/create?job=${encodeURIComponent(result.jobId)}`);
 		} catch (error) {
 			// Keep the same key after a lost response; a repeated click resumes the same retry.
 			setError(getEditorErrorKey(error));
 			if (
 				error instanceof Error &&
-				/^(INSUFFICIENT_CREDITS|CREDIT_DEBT_OUTSTANDING|ENTITLEMENT_REQUIRED|ASSET_NOT_READY|TEMPORARY_REFERENCE_EXPIRED|TEMPORARY_REFERENCE_INVALID|CONTENT_NOT_ALLOWED|CONTENT_REVIEW_REQUIRED|TEXT_LANGUAGE_UNSUPPORTED|SAFETY_CHECK_UNAVAILABLE|QUOTE_EXPIRED|PRICE_CHANGED|CONCURRENT_JOB_LIMIT_REACHED|PROVIDER_CONCURRENT_JOB_LIMIT_REACHED|INPUT_TOO_LARGE|MODEL_DISABLED|RATE_LIMITED|BUDGET_EXCEEDED|STORAGE_QUOTA_EXCEEDED|GENERATION_RETRY_FAILED)$/.test(
+				/^(INSUFFICIENT_CREDITS|IMAGE_PASS_INSUFFICIENT|IMAGE_PASS_SELECTION_INVALID|IMAGE_PASS_OUTPUT_COUNT_INVALID|IMAGE_PASS_UNAVAILABLE|GENERATION_FUNDING_CONFLICT|CREDIT_DEBT_OUTSTANDING|ENTITLEMENT_REQUIRED|ASSET_NOT_READY|TEMPORARY_REFERENCE_EXPIRED|TEMPORARY_REFERENCE_INVALID|CONTENT_NOT_ALLOWED|CONTENT_REVIEW_REQUIRED|TEXT_LANGUAGE_UNSUPPORTED|SAFETY_CHECK_UNAVAILABLE|QUOTE_EXPIRED|PRICE_CHANGED|CONCURRENT_JOB_LIMIT_REACHED|PROVIDER_CONCURRENT_JOB_LIMIT_REACHED|INPUT_TOO_LARGE|MODEL_DISABLED|RATE_LIMITED|BUDGET_EXCEEDED|STORAGE_QUOTA_EXCEEDED|GENERATION_RETRY_FAILED)$/.test(
 					error.message,
 				)
 			) {
@@ -45,7 +61,7 @@ export function RetryGenerationButton({ jobId }: { jobId: string }) {
 	return (
 		<div>
 			<Button variant="secondary" loading={pending} disabled={pending} onClick={() => void retry()}>
-				{t("retry")}
+				{fundingSource === "IMAGE_PASS" ? pass("retryPass") : t("retry")}
 			</Button>
 			{error && (
 				<p role="alert" className="mt-2 text-sm text-destructive">

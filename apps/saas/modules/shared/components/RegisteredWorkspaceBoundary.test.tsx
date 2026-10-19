@@ -46,9 +46,11 @@ function PrivateMediaProbe() {
 	const edits = useTranslations("media.edits");
 	const history = useTranslations("media.history");
 	const preparation = useTranslations("media.create.preparation");
+	const imagePass = useTranslations("imagePass");
 	return (
 		<p>
-			{assets("subtitle")} {edits("subtitle")} {history("subtitle")} {preparation("copying")}
+			{assets("subtitle")} {edits("subtitle")} {history("subtitle")} {preparation("copying")}{" "}
+			{imagePass("returnPending")}
 		</p>
 	);
 }
@@ -67,6 +69,7 @@ describe("registered workspace private media messages", () => {
 				common: full.common,
 				parentOnly: { label: "Inherited application copy" },
 				media: { history: { title: full.media.history.title } },
+				imagePass: { buy: full.imagePass.buy },
 			};
 			const onError = vi.fn();
 			const stream = await renderToReadableStream(
@@ -76,13 +79,20 @@ describe("registered workspace private media messages", () => {
 					timeZone="UTC"
 					onError={onError}
 				>
-					<RegisteredWorkspaceProviders mediaMessages={full.media}>
+					<RegisteredWorkspaceProviders
+						mediaMessages={full.media}
+						imagePassMessages={full.imagePass}
+					>
 						<PrivateMediaProbe />
 					</RegisteredWorkspaceProviders>
 				</NextIntlClientProvider>,
 			);
 			const markup = await new Response(stream).text();
-			expect(mocks.messages).toHaveBeenLastCalledWith({ ...publicMessages, media: full.media });
+			expect(mocks.messages).toHaveBeenLastCalledWith({
+				...publicMessages,
+				media: full.media,
+				imagePass: full.imagePass,
+			});
 			expect(markup).toContain(full.media.assets.subtitle);
 			expect(onError).not.toHaveBeenCalled();
 		},
@@ -97,6 +107,7 @@ describe("registered workspace private media messages", () => {
 		expect(result.props.children.type).toBe(RegisteredWorkspaceProviders);
 		expect(result.props.children.props).toEqual({
 			mediaMessages: full.media,
+			imagePassMessages: full.imagePass,
 			children: "Workspace content",
 		});
 	});

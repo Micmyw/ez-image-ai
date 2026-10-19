@@ -104,11 +104,14 @@ export const getJob = protectedProcedure
 		const publicInput = publicImageGenerationInput(job.productKey, job.inputSnapshot);
 		const creditsCharged = job.reservation?.settledAmount ?? job.archivedCreditsCharged ?? 0n;
 		const creditsReleased = job.reservation?.releasedAmount ?? job.archivedCreditsReleased ?? 0n;
+		const fundingSource =
+			job.fundingSource === "IMAGE_PASS" ? ("IMAGE_PASS" as const) : ("CREDITS" as const);
 		const canRetry =
 			job.status === "FAILED" &&
 			!moderationRejected &&
 			job._count.attempts === 0 &&
 			job.reservation?.status !== "ACTIVE" &&
+			(fundingSource === "CREDITS" || job.imagePassReservation?.status === "RELEASED") &&
 			creditsCharged + creditsReleased >= job.creditsReserved &&
 			Boolean(
 				publicInput && (publicInput.kind === "text-to-image" || inputReferenceState === "READY"),
@@ -170,6 +173,8 @@ export const getJob = protectedProcedure
 			status: job.status,
 			version: job.version,
 			creditsReserved: jsonBigInt(job.creditsReserved),
+			fundingSource,
+			imagePassUnits: fundingSource === "IMAGE_PASS" ? 1 : 0,
 			creditsCharged: jsonBigInt(creditsCharged),
 			creditsReleased: jsonBigInt(creditsReleased),
 			productKey: job.productKey,

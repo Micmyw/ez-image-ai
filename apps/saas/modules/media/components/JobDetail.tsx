@@ -22,6 +22,7 @@ export function JobDetail({ jobId }: { jobId: string }) {
 	const t = useTranslations("media.detail");
 	const create = useTranslations("media.create");
 	const stages = useTranslations("media.status.stages");
+	const pass = useTranslations("imagePass");
 	const products = useTranslations("media.create.products");
 	const skus = useTranslations("media.create.skus");
 	const outputSettings = useTranslations("media.create.outputSettings");
@@ -61,20 +62,26 @@ export function JobDetail({ jobId }: { jobId: string }) {
 					</div>
 					<Badge status="info">{stages(presentation.stage)}</Badge>
 				</div>
-				<dl className="mt-8 gap-4 py-5 sm:grid-cols-3 grid border-y">
-					<div>
-						<dt className="text-sm text-muted-foreground">{t("reserved")}</dt>
-						<dd className="font-medium">{job.data.creditsReserved}</dd>
-					</div>
-					<div>
-						<dt className="text-sm text-muted-foreground">{t("charged")}</dt>
-						<dd className="font-medium">{job.data.creditsCharged}</dd>
-					</div>
-					<div>
-						<dt className="text-sm text-muted-foreground">{t("released")}</dt>
-						<dd className="font-medium">{job.data.creditsReleased}</dd>
-					</div>
-				</dl>
+				{job.data.fundingSource === "IMAGE_PASS" ? (
+					<p className="mt-8 py-5 text-sm border-y">
+						{pass("onePass")} · {pass("singleOutput")}
+					</p>
+				) : (
+					<dl className="mt-8 gap-4 py-5 sm:grid-cols-3 grid border-y">
+						<div>
+							<dt className="text-sm text-muted-foreground">{t("reserved")}</dt>
+							<dd className="font-medium">{job.data.creditsReserved}</dd>
+						</div>
+						<div>
+							<dt className="text-sm text-muted-foreground">{t("charged")}</dt>
+							<dd className="font-medium">{job.data.creditsCharged}</dd>
+						</div>
+						<div>
+							<dt className="text-sm text-muted-foreground">{t("released")}</dt>
+							<dd className="font-medium">{job.data.creditsReleased}</dd>
+						</div>
+					</dl>
+				)}
 				<ModerationNotice job={job.data} />
 				<GenerationFailureNotice job={job.data} />
 				{canReuse &&
@@ -82,7 +89,9 @@ export function JobDetail({ jobId }: { jobId: string }) {
 					!isTechnicalGenerationFailureCode(job.data.failureReason) &&
 					job.data.failureReason !== "CONTENT_NOT_ALLOWED" && (
 						<p className="mt-4 text-sm text-muted-foreground">
-							{create("moderationBillingPolicy")}
+							{job.data.fundingSource === "IMAGE_PASS"
+								? pass("fundingPolicy")
+								: create("moderationBillingPolicy")}
 						</p>
 					)}
 				<div className="mt-6 gap-2 flex flex-wrap">
@@ -94,7 +103,13 @@ export function JobDetail({ jobId }: { jobId: string }) {
 							{t("reuse")}
 						</Button>
 					)}
-					{canReuse && job.data.canRetry && <RetryGenerationButton key={jobId} jobId={jobId} />}
+					{canReuse && job.data.canRetry && (
+						<RetryGenerationButton
+							key={jobId}
+							jobId={jobId}
+							fundingSource={job.data.fundingSource ?? "CREDITS"}
+						/>
+					)}
 				</div>
 			</div>
 		</div>

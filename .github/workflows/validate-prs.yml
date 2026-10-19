@@ -94,6 +94,7 @@ jobs:
       NODE_ENV: test
       GUEST_TEST_DATABASE_URL: postgresql://ai_media_test:ai_media_test_only@127.0.0.1:55440/ai_media_guest_test
       VIDEO_VERIFICATION_DATABASE_URL: postgresql://ai_media_test:ai_media_test_only@127.0.0.1:55439/ezpic_video_v1_final_test
+      IMAGE_PASS_TEST_DATABASE_URL: postgresql://ai_media_test:ai_media_test_only@127.0.0.1:55441/image_pass_test
     services:
       postgres:
         image: postgres:17-alpine
@@ -118,6 +119,19 @@ jobs:
           - 55440:5432
         options: >-
           --health-cmd "pg_isready -U ai_media_test -d ai_media_guest_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      image-pass-postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ai_media_test
+          POSTGRES_PASSWORD: ai_media_test_only
+          POSTGRES_DB: image_pass_test
+        ports:
+          - 55441:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_media_test -d image_pass_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
@@ -161,6 +175,10 @@ jobs:
       - name: Apply migrations to the isolated guest database
         env:
           DATABASE_URL: ${{ env.GUEST_TEST_DATABASE_URL }}
+        run: pnpm db:migrate:deploy
+      - name: Apply migrations to the isolated image-pass database
+        env:
+          DATABASE_URL: ${{ env.IMAGE_PASS_TEST_DATABASE_URL }}
         run: pnpm db:migrate:deploy
       - name: Run PostgreSQL integration tests
         run: pnpm test:integration

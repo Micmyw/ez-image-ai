@@ -78,6 +78,8 @@ import {
 	failGenerationOutputTransferTransaction,
 	GenerationOutputStorageError,
 	getCommittedGlobalDailyGenerationCost,
+	getGenerationFundingReservation,
+	finalizeImagePassReservationInTransaction,
 	recordGenerationOutputPromotionMultipartTransaction,
 	releaseOutboxEvent,
 	resolveGuestRuntimeConfigOverride,
@@ -3047,6 +3049,50 @@ const settlementOutputInclude = {
 	},
 };
 
+function assertImagePassSettlementCardinality(
+	reservation: { fundingSource: string; status: string },
+	outputCount: number,
+	readyOutputCount: number,
+): void {
+	if (reservation.fundingSource !== "IMAGE_PASS") return;
+	if (readyOutputCount > 0 && (outputCount !== 1 || readyOutputCount !== 1)) {
+		throw new Error("IMAGE_PASS_OUTPUT_CARDINALITY_INVALID");
+	}
+	if (reservation.status === "RELEASED" && readyOutputCount > 0) {
+		throw new Error("IMAGE_PASS_OUTCOME_CONFLICT");
+	}
+}
+
+function assertGenerationFundingBinding(
+	job: { fundingSource?: string; creditsReserved: bigint },
+	reservation: { fundingSource: string },
+): void {
+	if (
+		(job.fundingSource ?? "CREDITS") !== reservation.fundingSource ||
+		(reservation.fundingSource === "IMAGE_PASS" && job.creditsReserved !== 0n)
+	) {
+		throw new Error("GENERATION_FUNDING_CONFLICT");
+	}
+}
+
+function fundingReservationAuditMetadata(
+	reservation: { id: string; amount: bigint; fundingSource: string },
+	frozen = false,
+) {
+	return reservation.fundingSource === "IMAGE_PASS"
+		? {
+				reservationId: reservation.id,
+				fundingSource: "IMAGE_PASS",
+				imagePassUnitsReserved: reservation.amount.toString(),
+				...(frozen ? { imagePassFrozen: true } : {}),
+			}
+		: {
+				reservationId: reservation.id,
+				reservedCredits: reservation.amount.toString(),
+				...(frozen ? { creditsFrozen: true } : {}),
+			};
+}
+
 export function createDatabaseSettlementStore(database: PrismaClient): SettlementStore {
 	return {
 		async claimSettlement(payload) {
@@ -3062,14 +3108,26 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 					attempts: true,
 				},
 			});
-			if (!job?.reservation) return null;
+			if (!job) return null;
+			const reservation = await getGenerationFundingReservation(
+				job.id,
+				database,
+				job.reservation ?? null,
+			);
+			if (!reservation) return null;
+			assertGenerationFundingBinding(job, reservation);
 			const outputState = evaluateSettlementOutputs(
 				job.assets,
 				new Date(),
 				imageModerationProviderForEnvironment(process.env),
 			);
 			if (outputState.waitingForVerification) return null;
-			if (job.reservation.status !== "ACTIVE") {
+			assertImagePassSettlementCardinality(
+				reservation,
+				job.assets.length,
+				outputState.readyOutputCount,
+			);
+			if (reservation.status !== "ACTIVE") {
 				await database.generationJob.updateMany({
 					where: { executionEngine: "legacy", id: job.id, status: "FINALIZING" },
 					data: {
@@ -3083,15 +3141,19 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 			}
 			return {
 				jobId: job.id,
-				reservationId: job.reservation.id,
+				reservationId: reservation.id,
+				fundingSource: reservation.fundingSource,
 				reservedCredits: job.creditsReserved,
-				chargeCredits: calculateSettlementCharge({
-					status: job.status,
-					failureCode: job.failureCode,
-					readyOutputCount: outputState.readyOutputCount,
-					reservedCredits: job.creditsReserved,
-					pricingSnapshot: job.pricingSnapshot,
-				}),
+				chargeCredits:
+					reservation.fundingSource === "IMAGE_PASS"
+						? 0n
+						: calculateSettlementCharge({
+								status: job.status,
+								failureCode: job.failureCode,
+								readyOutputCount: outputState.readyOutputCount,
+								reservedCredits: job.creditsReserved,
+								pricingSnapshot: job.pricingSnapshot,
+							}),
 				readyOutputCount: outputState.readyOutputCount,
 				failureCode: job.failureCode,
 				providerCostMicros: job.attempts.reduce(
@@ -3110,7 +3172,14 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 					},
 					include: { reservation: true, assets: settlementOutputInclude },
 				});
-				if (!job?.reservation || job.reservation.status !== "ACTIVE") return;
+				if (!job) return;
+				let reservation = await getGenerationFundingReservation(
+					job.id,
+					tx,
+					job.reservation ?? null,
+				);
+				if (!reservation || reservation.status !== "ACTIVE") return;
+				assertGenerationFundingBinding(job, reservation);
 				for (const assetId of [...new Set(job.assets.map((binding) => binding.assetId))].sort()) {
 					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${assetId}`}, 0))`;
 				}
@@ -3122,13 +3191,43 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 					},
 					include: { reservation: true, assets: settlementOutputInclude },
 				});
-				if (!job?.reservation) return;
+				if (!job) return;
+				reservation = await getGenerationFundingReservation(job.id, tx, job.reservation ?? null);
+				if (!reservation || reservation.status !== "ACTIVE") return;
+				assertGenerationFundingBinding(job, reservation);
 				const outputState = evaluateSettlementOutputs(
 					job.assets,
 					new Date(),
 					imageModerationProviderForEnvironment(process.env),
 				);
 				if (outputState.waitingForVerification) return;
+				assertImagePassSettlementCardinality(
+					reservation,
+					job.assets.length,
+					outputState.readyOutputCount,
+				);
+				if (reservation.fundingSource === "IMAGE_PASS") {
+					await finalizeImagePassReservationInTransaction(
+						{
+							jobId: job.id,
+							ownerId: job.ownerId,
+							hasUsableOutput: outputState.readyOutputCount === 1,
+						},
+						tx,
+					);
+					await tx.generationJob.updateMany({
+						where: { executionEngine: "legacy", id: job.id, status: "FINALIZING" },
+						data: {
+							status: outputState.readyOutputCount === 1 ? "SUCCEEDED" : "FAILED",
+							failureCode:
+								outputState.readyOutputCount === 1 ? null : settlementFailureCode(job.failureCode),
+							terminalAt: new Date(),
+							version: { increment: 1 },
+						},
+					});
+					return;
+				}
+				if (!job.reservation) throw new Error("GENERATION_FUNDING_CONFLICT");
 				let chargeCredits = calculateSettlementCharge({
 					status: job.status,
 					failureCode: job.failureCode,
@@ -3193,6 +3292,7 @@ const OUTPUT_TRANSFER_EXHAUSTED_CODE = "STORAGE_TRANSFER_EXHAUSTED";
 const OUTPUT_TRANSFER_FENCE_LOST_CODE = "OUTPUT_TRANSFER_FENCE_LOST";
 const OUTPUT_TRANSFER_IN_PROGRESS_CODE = "OUTPUT_TRANSFER_IN_PROGRESS";
 const GUEST_OUTPUT_CARDINALITY_INVALID_CODE = "GUEST_OUTPUT_CARDINALITY_INVALID";
+const IMAGE_PASS_OUTPUT_CARDINALITY_INVALID_CODE = "IMAGE_PASS_OUTPUT_CARDINALITY_INVALID";
 
 function isOutputTransferExhaustedPlaceholder(asset: {
 	status: string;
@@ -3367,6 +3467,15 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 				const attempt = job?.attempts[0];
 				if (!job || !attempt) return null;
 				const mediaKind = mediaKindForJob(job.productKey);
+				const singleOutput =
+					job.serviceClass === "GUEST_SLOW" || job.fundingSource === "IMAGE_PASS";
+				const cardinalityFailureCode =
+					job.fundingSource === "IMAGE_PASS"
+						? IMAGE_PASS_OUTPUT_CARDINALITY_INVALID_CODE
+						: GUEST_OUTPUT_CARDINALITY_INVALID_CODE;
+				if (job.fundingSource === "IMAGE_PASS" && mediaKind !== "image") {
+					throw new Error("IMAGE_PASS_FINALIZATION_CONTEXT_INVALID");
+				}
 				if (job.serviceClass === "GUEST_SLOW" && (!job.guestTrial || mediaKind !== "image")) {
 					throw new Error("GUEST_FINALIZATION_CONTEXT_INVALID");
 				}
@@ -3375,12 +3484,13 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 					attempt.transferEnvelope?.payload,
 				);
 				if (attempt.transferEnvelope && outputs.length === 0) {
-					if (job.serviceClass === "GUEST_SLOW") {
-						await transitionGuestOutputCardinalityFailure(tx, {
+					if (singleOutput) {
+						await transitionSingleOutputCardinalityFailure(tx, {
 							attemptId: attempt.id,
 							jobId: job.id,
 							jobVersion: job.version,
 							previousFailureCode: job.failureCode,
+							code: cardinalityFailureCode,
 							outputCount: 0,
 						});
 						return null;
@@ -3400,12 +3510,13 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 						legacyOutputsFromResponseSnapshot(attempt.responseSnapshot),
 					);
 					if (!promoted) {
-						if (job.serviceClass === "GUEST_SLOW") {
-							await transitionGuestOutputCardinalityFailure(tx, {
+						if (singleOutput) {
+							await transitionSingleOutputCardinalityFailure(tx, {
 								attemptId: attempt.id,
 								jobId: job.id,
 								jobVersion: job.version,
 								previousFailureCode: job.failureCode,
+								code: cardinalityFailureCode,
 								outputCount: 0,
 							});
 							return null;
@@ -3434,12 +3545,13 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 					});
 					outputs = providerOutputsFromTransferEnvelope(mediaKind, promoted);
 				}
-				if (job.serviceClass === "GUEST_SLOW" && outputs.length !== 1) {
-					await transitionGuestOutputCardinalityFailure(tx, {
+				if (singleOutput && outputs.length !== 1) {
+					await transitionSingleOutputCardinalityFailure(tx, {
 						attemptId: attempt.id,
 						jobId: job.id,
 						jobVersion: job.version,
 						previousFailureCode: job.failureCode,
+						code: cardinalityFailureCode,
 						outputCount: outputs.length,
 					});
 					return null;
@@ -3711,7 +3823,7 @@ async function queueGenerationSettlement(
 	});
 }
 
-async function transitionGuestOutputCardinalityFailure(
+async function transitionSingleOutputCardinalityFailure(
 	tx: Prisma.TransactionClient,
 	input: {
 		attemptId: string;
@@ -3719,6 +3831,9 @@ async function transitionGuestOutputCardinalityFailure(
 		jobVersion: number;
 		previousFailureCode: string | null;
 		outputCount: number;
+		code:
+			| typeof GUEST_OUTPUT_CARDINALITY_INVALID_CODE
+			| typeof IMAGE_PASS_OUTPUT_CARDINALITY_INVALID_CODE;
 	},
 ): Promise<void> {
 	await tx.generationAttempt.updateMany({
@@ -3729,7 +3844,7 @@ async function transitionGuestOutputCardinalityFailure(
 		},
 		data: {
 			errorSnapshot: {
-				code: GUEST_OUTPUT_CARDINALITY_INVALID_CODE,
+				code: input.code,
 				outputCount: input.outputCount,
 			},
 		},
@@ -3742,7 +3857,7 @@ async function transitionGuestOutputCardinalityFailure(
 			failureCode: input.previousFailureCode,
 		},
 		data: {
-			failureCode: GUEST_OUTPUT_CARDINALITY_INVALID_CODE,
+			failureCode: input.code,
 			version: { increment: 1 },
 		},
 	});
@@ -3751,12 +3866,15 @@ async function transitionGuestOutputCardinalityFailure(
 	if (changed.count !== 1) return;
 	await tx.auditLog.create({
 		data: {
-			action: "MEDIA_GUEST_OUTPUT_CARDINALITY_REJECTED",
+			action:
+				input.code === IMAGE_PASS_OUTPUT_CARDINALITY_INVALID_CODE
+					? "MEDIA_IMAGE_PASS_OUTPUT_CARDINALITY_REJECTED"
+					: "MEDIA_GUEST_OUTPUT_CARDINALITY_REJECTED",
 			targetType: "GENERATION_ATTEMPT",
 			targetId: input.attemptId,
 			metadata: {
 				jobId: input.jobId,
-				code: GUEST_OUTPUT_CARDINALITY_INVALID_CODE,
+				code: input.code,
 				outputCount: input.outputCount,
 			},
 		},
@@ -4784,7 +4902,7 @@ export function createDatabaseReconciliationStore(
 						id: lease.attemptId,
 						reconcileLeaseToken: lease.leaseToken,
 					},
-					include: { job: { select: { productKey: true, status: true } } },
+					include: { job: { select: { productKey: true, status: true, fundingSource: true } } },
 				});
 				if (!attempt) return { outboxCommitted: false };
 				if (
@@ -4899,7 +5017,28 @@ export function createDatabaseReconciliationStore(
 					return { outboxCommitted: false };
 				}
 				const terminalFailure = snapshot.status === "FAILED" || snapshot.status === "CANCELED";
+				const observedAt = Date.parse(snapshot.retrieval?.observedAt ?? "");
+				// A pass promises a usable image, independently of supplier billing.
+				// Only authenticated retrieval of this exact task closes its unknown hold.
+				const passReservation =
+					terminalFailure &&
+					result.outputs.length === 0 &&
+					attempt.job.fundingSource === "IMAGE_PASS" &&
+					attempt.provider === "kie" &&
+					lease.provider === "kie" &&
+					Boolean(attempt.providerTaskId) &&
+					lease.providerTaskId === attempt.providerTaskId &&
+					snapshot.retrieval?.source === "kie-record-info" &&
+					Number.isFinite(observedAt) &&
+					observedAt <= Date.now()
+						? await getGenerationFundingReservation(attempt.jobId, tx)
+						: null;
+				const imagePassFailure =
+					passReservation?.fundingSource === "IMAGE_PASS" && passReservation.status === "ACTIVE"
+						? "IMAGE_PASS_PROVIDER_FAILED_CONFIRMED"
+						: undefined;
 				const technicalFailure = confirmedTechnicalFailureCode(snapshot, result);
+				const knownFailure = technicalFailure ?? imagePassFailure;
 				const envelope =
 					snapshot.status === "SUCCEEDED"
 						? createOutputTransferEnvelope(mediaKindForJob(attempt.job.productKey), result.outputs)
@@ -4929,7 +5068,7 @@ export function createDatabaseReconciliationStore(
 							snapshot.status === "SUCCEEDED"
 								? "SUCCEEDED"
 								: terminalFailure
-									? technicalFailure
+									? knownFailure
 										? "FAILED"
 										: "NEEDS_RECONCILIATION"
 									: snapshot.status === "RUNNING"
@@ -4939,12 +5078,12 @@ export function createDatabaseReconciliationStore(
 						responseSnapshot: responseSnapshotForResult(result, attempt) as Prisma.InputJsonValue,
 						providerCostMicros: providerCostForResult(result, attempt),
 						uncertainSubmission: terminalFailure
-							? !technicalFailure
+							? !knownFailure
 							: snapshot.status === "SUCCEEDED"
 								? false
 								: undefined,
-						errorSnapshot: technicalFailure
-							? { code: technicalFailure, retryable: true }
+						errorSnapshot: knownFailure
+							? { code: knownFailure, retryable: imagePassFailure === undefined }
 							: terminalFailure
 								? manualReconciliationErrorSnapshot(
 										attempt.errorSnapshot,
@@ -4953,8 +5092,7 @@ export function createDatabaseReconciliationStore(
 								: undefined,
 						reconcileLeaseToken: null,
 						reconcileLeasedUntil: null,
-						completedAt:
-							technicalFailure || snapshot.status === "SUCCEEDED" ? new Date() : undefined,
+						completedAt: knownFailure || snapshot.status === "SUCCEEDED" ? new Date() : undefined,
 						nextReconcileAt:
 							terminalFailure || snapshot.status === "SUCCEEDED"
 								? null
@@ -4994,7 +5132,7 @@ export function createDatabaseReconciliationStore(
 						},
 					});
 					outboxCommitted = inserted.count > 0;
-				} else if (technicalFailure) {
+				} else if (knownFailure) {
 					const jobChanged = await tx.generationJob.updateMany({
 						where: {
 							executionEngine: "legacy",
@@ -5003,7 +5141,7 @@ export function createDatabaseReconciliationStore(
 						},
 						data: {
 							status: "FINALIZING",
-							failureCode: technicalFailure,
+							failureCode: knownFailure,
 							version: { increment: 1 },
 						},
 					});
@@ -5020,10 +5158,7 @@ export function createDatabaseReconciliationStore(
 					});
 					outboxCommitted = inserted.count > 0;
 				} else if (terminalFailure) {
-					const reservation = await tx.creditReservation.findUnique({
-						where: { jobId: lease.jobId },
-						select: { id: true, amount: true, status: true },
-					});
+					const reservation = await getGenerationFundingReservation(lease.jobId, tx);
 					if (!reservation || reservation.status !== "ACTIVE") {
 						throw new Error("UNCERTAIN_RESERVATION_NOT_ACTIVE");
 					}
@@ -5050,9 +5185,7 @@ export function createDatabaseReconciliationStore(
 							metadata: {
 								jobId: lease.jobId,
 								providerStatus: snapshot.status,
-								reservationId: reservation.id,
-								reservedCredits: reservation.amount.toString(),
-								creditsFrozen: true,
+								...fundingReservationAuditMetadata(reservation, true),
 								pageAdmin: true,
 							},
 						},
@@ -5112,10 +5245,7 @@ export function createDatabaseReconciliationStore(
 					select: { errorSnapshot: true },
 				});
 				if (!attempt) return;
-				const reservation = await tx.creditReservation.findUnique({
-					where: { jobId: lease.jobId },
-					select: { id: true, amount: true, status: true },
-				});
+				const reservation = await getGenerationFundingReservation(lease.jobId, tx);
 				const changed = await tx.generationAttempt.updateMany({
 					where: {
 						AND: { job: { executionEngine: "legacy" } },
@@ -5160,9 +5290,7 @@ export function createDatabaseReconciliationStore(
 							jobId: lease.jobId,
 							repairCount: lease.repairCount,
 							code: safeRecoveryCode(code),
-							reservationId: reservation.id,
-							reservedCredits: reservation.amount.toString(),
-							creditsFrozen: true,
+							...fundingReservationAuditMetadata(reservation, true),
 							pageAdmin: true,
 						},
 					},
@@ -5326,7 +5454,12 @@ async function markQuotedRouteUnavailable(
 		},
 	});
 	if (!job || !["RESERVED", "DISPATCH_QUEUED"].includes(job.status)) return;
-	if (!job.reservation || job.reservation.status !== "ACTIVE") {
+	const reservation = await getGenerationFundingReservation(
+		job.id,
+		database,
+		job.reservation ?? null,
+	);
+	if (!reservation || reservation.status !== "ACTIVE") {
 		throw new Error("UNCERTAIN_RESERVATION_NOT_ACTIVE");
 	}
 	const jobChanged = await database.generationJob.updateMany({
@@ -5377,9 +5510,7 @@ async function markQuotedRouteUnavailable(
 			targetId: job.id,
 			metadata: {
 				code: input.code,
-				reservationId: job.reservation.id,
-				reservedCredits: job.reservation.amount.toString(),
-				creditsFrozen: true,
+				...fundingReservationAuditMetadata(reservation, true),
 				pageAdmin: true,
 			},
 		},
@@ -5641,10 +5772,7 @@ async function moveAttemptToManualReconciliation(
 ): Promise<boolean> {
 	if (!input.attemptStatuses.includes(input.attempt.status as AttemptState)) return false;
 	if (!input.jobStatuses.includes(input.jobStatus as JobState)) return false;
-	const reservation = await tx.creditReservation.findUnique({
-		where: { jobId: input.attempt.jobId },
-		select: { id: true, amount: true, status: true },
-	});
+	const reservation = await getGenerationFundingReservation(input.attempt.jobId, tx);
 	if (!reservation || reservation.status !== "ACTIVE") {
 		throw new Error("UNCERTAIN_RESERVATION_NOT_ACTIVE");
 	}
@@ -5688,9 +5816,7 @@ async function moveAttemptToManualReconciliation(
 			metadata: {
 				jobId: input.attempt.jobId,
 				code: safeRecoveryCode(input.code),
-				reservationId: reservation.id,
-				reservedCredits: reservation.amount.toString(),
-				creditsFrozen: true,
+				...fundingReservationAuditMetadata(reservation, true),
 				pageAdmin: true,
 			},
 		},
@@ -5733,10 +5859,7 @@ async function recoverManualProviderSuccess(
 	) {
 		throw new Error("MANUAL_RECOVERY_STATE_CONFLICT");
 	}
-	const reservation = await tx.creditReservation.findUnique({
-		where: { jobId: input.attempt.jobId },
-		select: { id: true, amount: true, status: true },
-	});
+	const reservation = await getGenerationFundingReservation(input.attempt.jobId, tx);
 	if (!reservation || reservation.status !== "ACTIVE") {
 		throw new Error("UNCERTAIN_RESERVATION_NOT_ACTIVE");
 	}
@@ -5809,8 +5932,7 @@ async function recoverManualProviderSuccess(
 			targetId: input.attempt.id,
 			metadata: {
 				jobId: input.attempt.jobId,
-				reservationId: reservation.id,
-				reservedCredits: reservation.amount.toString(),
+				...fundingReservationAuditMetadata(reservation),
 				outputCount: input.envelope.outputs.length,
 				pageAdmin: true,
 			},
@@ -5831,10 +5953,7 @@ async function transitionTerminalSuccessWithoutMedia(
 	},
 ): Promise<void> {
 	const reasonCode = safeRecoveryCode(input.reasonCode ?? "TERMINAL_SUCCESS_WITHOUT_MEDIA");
-	const reservation = await tx.creditReservation.findUnique({
-		where: { jobId: input.jobId },
-		select: { id: true, amount: true, status: true },
-	});
+	const reservation = await getGenerationFundingReservation(input.jobId, tx);
 	if (!reservation || reservation.status !== "ACTIVE") {
 		throw new Error("UNCERTAIN_RESERVATION_NOT_ACTIVE");
 	}
@@ -5878,10 +5997,8 @@ async function transitionTerminalSuccessWithoutMedia(
 			targetId: input.attemptId,
 			metadata: {
 				jobId: input.jobId,
-				reservationId: reservation.id,
-				reservedCredits: reservation.amount.toString(),
+				...fundingReservationAuditMetadata(reservation, true),
 				code: reasonCode,
-				creditsFrozen: true,
 				pageAdmin: true,
 			},
 		},

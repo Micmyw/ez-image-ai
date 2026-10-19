@@ -163,6 +163,13 @@ describe("SaaS root layout", () => {
 				raindanceName: fullMessages.videoEffects.raindanceName,
 				raindanceNavigationDescription: fullMessages.videoEffects.raindanceNavigationDescription,
 			});
+			expect(clientMessages.imagePass).toEqual({
+				bannerLabel: fullMessages.imagePass.bannerLabel,
+				bannerTitle: fullMessages.imagePass.bannerTitle,
+				bannerDetail: fullMessages.imagePass.bannerDetail,
+				buy: fullMessages.imagePass.buy,
+			});
+			expect(fullMessages.imagePass.returnPending).not.toBe("");
 			expect(clientMessages.feedback).toEqual({
 				entry: fullMessages.feedback.entry,
 				footer: fullMessages.feedback.footer,
@@ -170,14 +177,17 @@ describe("SaaS root layout", () => {
 			});
 			for (const [key, value] of Object.entries(fullMessages.media)) {
 				if (key === "history") {
+					// UserMenu also needs this navigation label on public pages.
 					expect(clientMessages.media.history).toEqual({ title: fullMessages.media.history.title });
 				} else if (["assets", "edits"].includes(key)) {
 					expect(clientMessages.media).not.toHaveProperty(key);
 				} else if (key === "create") {
 					expect(clientMessages.media.create).not.toHaveProperty("preparation");
+					expect(fullMessages.media.create.preparation.title).not.toBe("");
 					for (const [createKey, createValue] of Object.entries(fullMessages.media.create)) {
-						if (createKey !== "preparation")
+						if (createKey !== "preparation") {
 							expect(clientMessages.media.create[createKey]).toEqual(createValue);
+						}
 					}
 				} else {
 					expect(clientMessages.media[key]).toEqual(value);
@@ -192,6 +202,7 @@ describe("SaaS root layout", () => {
 						"home",
 						"videoV1",
 						"videoEffects",
+						"imagePass",
 						"media",
 						"feedback",
 					].includes(namespace)

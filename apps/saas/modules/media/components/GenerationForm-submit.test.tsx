@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
 	ownerId: "owner-a",
 	loaded: true,
+	passAvailable: 3,
 	cursor: 0,
 	slots: [] as {
 		current?: unknown;
@@ -92,6 +93,7 @@ vi.mock("../hooks/use-generation", () => ({
 			},
 		},
 		creditAccount: { data: { spendableCredits: "100" } },
+		imagePass: { data: { available: state.passAvailable } },
 		quote: null,
 		createQuote: { isPending: false, error: null },
 		createGeneration: { mutateAsync: state.mutateAsync, isPending: false, error: null },
@@ -101,12 +103,17 @@ vi.mock("../hooks/use-generation", () => ({
 
 import { PromptPanel } from "./editor/PromptPanel";
 import { GenerationForm } from "./GenerationForm";
+import { ImageFundingSelector, type ImageFundingSource } from "./ImageFundingSelector";
 import { ImageOutputSettings } from "./ImageOutputSettings";
 
 const accepted = { job: { id: "accepted-job" }, replayed: false };
-function render(onCreated = vi.fn(), jobId: string | null = null) {
+function render(
+	onCreated = vi.fn(),
+	jobId: string | null = null,
+	allowedProductKeys?: Parameters<typeof GenerationForm>[0]["allowedProductKeys"],
+) {
 	state.cursor = 0;
-	return GenerationForm({ onCreated, jobId });
+	return GenerationForm({ onCreated, jobId, allowedProductKeys });
 }
 function unmount() {
 	for (const slot of state.slots) slot.cleanup?.();
@@ -137,6 +144,7 @@ function submit(element: ReturnType<typeof render>) {
 beforeEach(() => {
 	state.ownerId = "owner-a";
 	state.loaded = true;
+	state.passAvailable = 3;
 	state.slots = [];
 	state.cursor = 0;
 	state.values = {
@@ -170,6 +178,43 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it("does not automatically spend image passes when credits are the selected source", async () => {
+		submit(render());
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledWith(
+			expect.objectContaining({ fundingSource: "CREDITS" }),
+		);
+	});
+	it("accepts an explicit image pass choice independently of plan product access", async () => {
+		const element = render(vi.fn(), null, []);
+		(find(element, ImageFundingSelector).props.onChange as (source: ImageFundingSource) => void)(
+			"IMAGE_PASS",
+		);
+		submit(render(vi.fn(), null, []));
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledWith(
+			expect.objectContaining({ fundingSource: "IMAGE_PASS", expectedCredits: "5" }),
+		);
+		expect(state.beginNewAction).toHaveBeenCalled();
+	});
+	it("keeps an exhausted pass choice and blocks submission rather than falling back to credits", async () => {
+		(find(render(), ImageFundingSelector).props.onChange as (source: ImageFundingSource) => void)(
+			"IMAGE_PASS",
+		);
+		state.passAvailable = 0;
+		const element = render();
+		expect(find(element, ImageFundingSelector).props.value).toBe("IMAGE_PASS");
+		submit(element);
+		await flush();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("resets the funding choice when the signed-in account changes", () => {
+		(find(render(), ImageFundingSelector).props.onChange as (source: ImageFundingSource) => void)(
+			"IMAGE_PASS",
+		);
+		state.ownerId = "owner-b";
+		expect(find(render(), ImageFundingSelector).props.value).toBe("CREDITS");
+	});
 	it("selects the accepted job and observes only that job's committed task region", async () => {
 		const onCreated = vi.fn();
 		submit(render(onCreated));

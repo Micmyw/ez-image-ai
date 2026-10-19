@@ -119,6 +119,18 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 describe("one-request generation", () => {
+	it("preserves explicit pass funding and the same request after an uncertain response", async () => {
+		api.submitGeneration.mockRejectedValueOnce(new Error("Network response lost"));
+		const generation = renderGeneration();
+		const passSubmission = { ...submission, fundingSource: "IMAGE_PASS" as const };
+		await expect(generation.createGeneration.mutateAsync(passSubmission)).rejects.toThrow(
+			"Network response lost",
+		);
+		await generation.createGeneration.mutateAsync(passSubmission);
+		expect(api.submitGeneration).toHaveBeenCalledTimes(2);
+		expect(api.submitGeneration.mock.calls[0]![0]).toMatchObject({ fundingSource: "IMAGE_PASS" });
+		expect(api.submitGeneration.mock.calls[1]![0]).toEqual(api.submitGeneration.mock.calls[0]![0]);
+	});
 	it.each(["parameters", "owner"])(
 		"does not send a submission invalidated before mutation execution by %s",
 		async (boundary) => {

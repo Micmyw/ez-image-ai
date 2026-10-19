@@ -3,6 +3,11 @@ import { ORPCError } from "@orpc/server";
 import { TextModerationError } from "./public-moderation-reason";
 
 export const MEDIA_ERROR_CODES = [
+	"IMAGE_PASS_INSUFFICIENT",
+	"IMAGE_PASS_SELECTION_INVALID",
+	"IMAGE_PASS_OUTPUT_COUNT_INVALID",
+	"IMAGE_PASS_UNAVAILABLE",
+	"GENERATION_FUNDING_CONFLICT",
 	"INSUFFICIENT_CREDITS",
 	"CREDIT_DEBT_OUTSTANDING",
 	"ASSET_NOT_READY",

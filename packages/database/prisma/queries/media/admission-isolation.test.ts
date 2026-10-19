@@ -12,6 +12,75 @@ import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 const reached = new Error("STORAGE_CHECK_REACHED");
 
 describe("admission isolation preserves existing asset binding protocol", () => {
+	it("retains Serializable eligibility for an image pass even without input assets or a global-budget flag", async () => {
+		const quote = {
+			id: "pass-quote",
+			ownerType: "USER",
+			ownerId: "owner",
+			submittedByUserId: "owner",
+			productKey: "image-nano-banana-pro",
+			catalogVersion: "test",
+			pricingVersion: "test",
+			credits: 25n,
+			costMicros: 120000n,
+			inputSnapshot: { kind: "text-to-image", prompt: "reviewed", skuKey: "nano-banana-pro-4k" },
+			pricingSnapshot: {
+				fundingSource: "IMAGE_PASS",
+				imagePassUnits: 1,
+				skuKey: "nano-banana-pro-4k",
+			},
+			expiresAt: new Date("2099-01-01"),
+			moderationDecision: "ALLOW",
+			moderationProvider: "test",
+			moderationRuleVersion: "rule",
+		};
+		const tx = {
+			$queryRaw: vi.fn(async () => [{ now: new Date() }]),
+			$executeRaw: vi.fn(),
+			generationQuote: {
+				findUnique: vi.fn(async () => ({
+					...quote,
+					inputFingerprint: fingerprintGenerationQuoteSecurityPayload(quote as never),
+				})),
+			},
+			generationJob: {
+				findUnique: vi.fn(async () => {
+					throw reached;
+				}),
+			},
+		};
+		const isolation: string[] = [];
+		const client = {
+			$transaction: async (
+				operation: (value: typeof tx) => Promise<unknown>,
+				options: { isolationLevel: string },
+			) => {
+				isolation.push(options.isolationLevel);
+				try {
+					return await operation(tx);
+				} finally {
+					if (options.isolationLevel === "ReadCommitted")
+						expect(tx.$executeRaw).not.toHaveBeenCalled();
+				}
+			},
+		};
+		await expect(
+			createGenerationJobTransaction(
+				{
+					ownerType: "USER",
+					ownerId: "owner",
+					submittedByUserId: "owner",
+					quoteId: "pass-quote",
+					idempotencyKey: "pass-request",
+					inputAssetIds: [],
+					expectedModerationRuleVersion: "rule",
+				},
+				client as never,
+			),
+		).rejects.toBe(reached);
+		expect(isolation).toEqual(["ReadCommitted", "Serializable"]);
+		expect(tx.generationJob.findUnique).toHaveBeenCalledOnce();
+	});
 	it.each([
 		[{ kind: "text-to-image", prompt: "reviewed" }, [], ["ReadCommitted"]],
 		[{ kind: "text-to-image", prompt: "reviewed" }, ["asset"], ["Serializable"]],

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-19 — $1 PayPal image purchase
+
+- Buy three successful single-image generations for USD 1 across all supported image models and sizes, with PayPal as the only payment option. Additional purchases are supported.
+- Highlight the available offer in a small banner above the shared homepage and Create workspace. Purchased image uses remain separate from ordinary credits and video.
+
 ## 2026-10-19 — Retire the unverified provider dispatch limit
 
 - Let independently funded image and video jobs reach their provider send claim without a project-configured concurrent-task ceiling. The former setting was not evidence of the provider account's quota.

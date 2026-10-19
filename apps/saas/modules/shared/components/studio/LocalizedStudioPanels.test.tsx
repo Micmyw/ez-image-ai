@@ -8,13 +8,15 @@ vi.mock("./StudioPanels", () => ({
 	StudioPanels: (props: unknown) => {
 		captured.messages(useMessages());
 		captured.props(props);
+		const t = useTranslations("imagePass");
 		const assets = useTranslations("media.assets");
 		const edits = useTranslations("media.edits");
 		const history = useTranslations("media.history");
 		const detail = useTranslations("media.detail");
 		return (
 			<p>
-				{assets("subtitle")} {edits("subtitle")} {history("subtitle")} {detail("back")}
+				{assets("subtitle")} {edits("subtitle")} {history("subtitle")} {detail("back")}{" "}
+				{t("returnPending")}
 			</p>
 		);
 	},
@@ -24,9 +26,8 @@ import { LocalizedStudioPanels } from "./LocalizedStudioPanels";
 
 describe("private panels on public editor routes", () => {
 	beforeEach(() => vi.clearAllMocks());
-
 	it.each(["en", "de", "es", "fr"] as const)(
-		"restores only private %s media namespaces while retaining the public provider",
+		"restores %s payment and library copy without a registered layout ancestor",
 		async (locale) => {
 			const full = await getUnifiedMessagesForLocale(locale);
 			const { assets: _assets, edits: _edits, history, create, ...otherMedia } = full.media;
@@ -38,8 +39,9 @@ describe("private panels on public editor routes", () => {
 			};
 			const publicMessages = {
 				common: full.common,
-				parentOnly: { label: "Inherited application copy" },
 				media: publicMedia,
+				imagePass: { buy: full.imagePass.buy },
+				parentOnly: { label: "Inherited application copy" },
 			};
 			const props = {
 				panel: { kind: "history" as const, jobId: "existing-job" },
@@ -59,6 +61,7 @@ describe("private panels on public editor routes", () => {
 			);
 			expect(captured.messages).toHaveBeenLastCalledWith({
 				...publicMessages,
+				imagePass: full.imagePass,
 				media: {
 					...publicMedia,
 					assets: full.media.assets,

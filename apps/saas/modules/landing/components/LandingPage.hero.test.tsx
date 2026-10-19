@@ -6,6 +6,9 @@ import englishMessages from "../../../../../packages/i18n/translations/en/market
 import saasMessages from "../../../../../packages/i18n/translations/en/saas.json";
 
 const navigation = vi.hoisted(() => ({ search: "" }));
+vi.mock("@payments/components/ImagePassBanner", () => ({
+	ImagePassBanner: () => <aside data-image-pass-banner="" />,
+}));
 vi.mock("next/navigation", () => ({
 	useSearchParams: () => new URLSearchParams(navigation.search),
 }));

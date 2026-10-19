@@ -59,6 +59,7 @@ export type NormalizedProviderPaymentEvent =
 	| { kind: "CREDIT_PACK_PAID"; fact: CreditPackPaymentFact }
 	| { kind: "CREDIT_PACK_REFUNDED"; fact: CreditPackRefundFact }
 	| { kind: "PAYMENT_REFUNDED"; fact: ProviderRefundFact }
+	| { kind: "PAYMENT_DISPUTED"; fact: CreditPackRefundFact }
 	| { kind: "NOOP"; fact: { occurredAt: Date } };
 
 export function normalizeProviderPaymentEvent(
@@ -103,6 +104,32 @@ export function normalizeProviderPaymentEvent(
 	}
 
 	const eventType = requiredString(envelope.event_type, "PAYPAL_EVENT_TYPE_MISSING");
+	if (eventType === "CUSTOMER.DISPUTE.CREATED") {
+		const resource = requiredRecord(envelope.resource, "PAYPAL_EVENT_RESOURCE_MISSING");
+		const transactions = resource.disputed_transactions;
+		if (!Array.isArray(transactions) || transactions.length !== 1)
+			throw new Error("PAYPAL_DISPUTE_BINDING_INVALID");
+		const transaction = requiredRecord(transactions[0], "PAYPAL_DISPUTE_BINDING_INVALID");
+		const amount = requiredRecord(resource.dispute_amount, "PAYPAL_DISPUTE_AMOUNT_INVALID");
+		return {
+			kind: "PAYMENT_DISPUTED",
+			fact: {
+				provider: "paypal",
+				providerEventId: requiredString(envelope.id, "PAYPAL_EVENT_ID_MISSING"),
+				providerRefundId: `dispute:${requiredString(resource.dispute_id, "PAYPAL_DISPUTE_ID_MISSING")}`,
+				providerPaymentId: requiredString(
+					transaction.seller_transaction_id,
+					"PAYPAL_DISPUTE_BINDING_INVALID",
+				),
+				amountMicros: decimalMicros(amount.value, "PAYPAL_DISPUTE_AMOUNT_INVALID"),
+				currency: currency(amount.currency_code, "PAYPAL_DISPUTE_CURRENCY_INVALID"),
+				occurredAt: requiredDate(
+					resource.create_time ?? envelope.create_time,
+					"PAYPAL_EVENT_TIME_INVALID",
+				),
+			},
+		};
+	}
 	if (eventType === "PAYMENT.CAPTURE.COMPLETED") {
 		return { kind: "CREDIT_PACK_PAID", fact: normalizePayPalCreditPackPayment(envelope) };
 	}

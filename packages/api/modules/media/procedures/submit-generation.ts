@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { findGenerationSubmissionQuote } from "@repo/database";
 import { db } from "@repo/database/client";
+import { generationFundingSource } from "@repo/database/media-image-passes";
 import type { RequestDefer } from "@repo/utils/request-lifecycle";
 import { z } from "zod";
 
@@ -56,6 +57,7 @@ export async function submitGenerationForUser(
 	const quoteId = `submit_${hash([userId, input.idempotencyKey])}`;
 	const fingerprint = hash({
 		productKey: input.productKey,
+		...(input.fundingSource === "IMAGE_PASS" ? { fundingSource: "IMAGE_PASS" } : {}),
 		input: input.input,
 		expectedCredits: input.expectedCredits,
 		parentJobId: input.parentJobId ?? null,
@@ -103,10 +105,11 @@ export async function submitGenerationForUser(
 	// or the quote expired. The frozen fingerprint prevents reuse with changed inputs.
 	let result: Awaited<ReturnType<Dependencies["createJob"]>>;
 	if (existing?.job) {
-		result = { job: existing.job, replayed: true };
+		result = { job: replayedSubmissionJob(existing), replayed: true };
 	} else {
 		try {
 			const request = {
+				fundingSource: input.fundingSource ?? "CREDITS",
 				quoteId: quote.id,
 				idempotencyKey: input.idempotencyKey,
 				...(input.parentJobId ? { parentJobId: input.parentJobId } : {}),
@@ -120,7 +123,7 @@ export async function submitGenerationForUser(
 			// this request was checking admission. Recover that job before returning an error.
 			const recovered = await dependencies.findQuote(userId, quoteId);
 			if (!recovered?.job || recovered.job.idempotencyKey !== input.idempotencyKey) throw error;
-			result = { job: recovered.job, replayed: true };
+			result = { job: replayedSubmissionJob(recovered), replayed: true };
 		}
 	}
 	timing.bind({ jobId: result.job.id, assetId: result.verificationAssetId });
@@ -131,15 +134,33 @@ export async function submitGenerationForUser(
 			status: result.job.status,
 			version: result.job.version,
 			creditsReserved: jsonBigInt(result.job.creditsReserved),
+			fundingSource: generationFundingSource(quote.pricingSnapshot),
+			imagePassUnits: generationFundingSource(quote.pricingSnapshot) === "IMAGE_PASS" ? 1 : 0,
 		},
 		replayed: result.replayed,
 		quote: {
 			id: quote.id,
 			productKey: quote.productKey,
 			credits: jsonBigInt(quote.credits),
+			fundingSource: generationFundingSource(quote.pricingSnapshot),
+			imagePassUnits: generationFundingSource(quote.pricingSnapshot) === "IMAGE_PASS" ? 1 : 0,
 			expiresAt: quote.expiresAt.toISOString(),
 		},
 	};
+}
+
+function replayedSubmissionJob(
+	quote: NonNullable<Awaited<ReturnType<Dependencies["findQuote"]>>>,
+): Awaited<ReturnType<Dependencies["createJob"]>>["job"] {
+	const job = quote.job;
+	if (!job) throw new Error("NOT_FOUND");
+	const fundingSource = generationFundingSource({ fundingSource: job.fundingSource });
+	if (
+		fundingSource !== generationFundingSource(quote.pricingSnapshot) ||
+		(fundingSource === "IMAGE_PASS" && job.creditsReserved !== 0n)
+	)
+		throw new Error("GENERATION_FUNDING_CONFLICT");
+	return { ...job, fundingSource, imagePassUnits: fundingSource === "IMAGE_PASS" ? 1 : 0 };
 }
 
 function hash(value: unknown): string {

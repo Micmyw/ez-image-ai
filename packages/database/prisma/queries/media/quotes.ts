@@ -163,6 +163,7 @@ export async function findGenerationSubmissionQuote(
 			id: true,
 			productKey: true,
 			credits: true,
+			pricingSnapshot: true,
 			expiresAt: true,
 			inputSnapshot: true,
 			job: {
@@ -171,6 +172,7 @@ export async function findGenerationSubmissionQuote(
 					status: true,
 					version: true,
 					creditsReserved: true,
+					fundingSource: true,
 					idempotencyKey: true,
 				},
 			},

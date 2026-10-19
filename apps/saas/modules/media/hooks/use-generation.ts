@@ -14,14 +14,19 @@ import { createEditorActionController, type EditorQuoteRequest } from "../lib/ed
 import { getEditorErrorKey } from "../lib/editor-error";
 import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
 import type { GenerationInput } from "../lib/form-schema";
+import { imagePassBalanceQueryKey, imagePassBalanceQueryOptions } from "../lib/image-pass-query";
 import { recordGenerationAccepted } from "../lib/preview-timing";
 
 type EditorQuote = { id: string; productKey: EditorProductKey; credits: string; expiresAt: string };
-type GenerationResult = Awaited<ReturnType<typeof orpcClient.media.createGeneration>>;
+type GenerationResult = Pick<
+	Awaited<ReturnType<typeof orpcClient.media.submitGeneration>>,
+	"job" | "replayed"
+>;
 type GenerationSubmission = {
 	productKey: EditorProductKey;
 	input: GenerationInput;
 	expectedCredits: string;
+	fundingSource?: "CREDITS" | "IMAGE_PASS";
 	temporaryReferenceToken?: string;
 };
 
@@ -64,10 +69,12 @@ export function useGeneration({
 		staleTime: 5 * 60_000,
 	});
 	const creditAccount = useQuery(creditAccountQueryOptions(ownerId));
+	const imagePass = useQuery(imagePassBalanceQueryOptions(ownerId));
 	const createQuote = useMutation({
 		mutationFn: async (input: {
 			productKey: EditorProductKey;
 			input: GenerationInput;
+			fundingSource?: "CREDITS" | "IMAGE_PASS";
 			temporaryReferenceToken?: string;
 		}) => {
 			const attribution = captureBrowserGrowthAnalyticsAttribution();
@@ -195,7 +202,15 @@ export function useGeneration({
 		createQuote.reset();
 		if (!pendingSubmission.current) createGeneration.reset();
 	}
-	return { catalog, creditAccount, quote, createQuote, createGeneration, beginNewAction };
+	return {
+		catalog,
+		creditAccount,
+		imagePass,
+		quote,
+		createQuote,
+		createGeneration,
+		beginNewAction,
+	};
 }
 
 export async function refreshGenerationQueries(
@@ -209,6 +224,11 @@ export async function refreshGenerationQueries(
 			? [
 					queryClient.invalidateQueries({
 						queryKey: creditAccountQueryKey(ownerId),
+						exact: true,
+						...(refreshHistory ? {} : { refetchType: "none" as const }),
+					}),
+					queryClient.invalidateQueries({
+						queryKey: imagePassBalanceQueryKey(ownerId),
 						exact: true,
 						...(refreshHistory ? {} : { refetchType: "none" as const }),
 					}),
