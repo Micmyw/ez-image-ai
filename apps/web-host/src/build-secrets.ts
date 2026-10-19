@@ -344,7 +344,8 @@ function withVideoRuntimeOverrides(
 			throw new Error("VIDEO_EFFECT_BUILD_ENABLED_OVERRIDE_INVALID");
 		if (templateEnabled === "true") {
 			try {
-				if (!policy || next.VIDEO_V1_ENABLED !== "true") throw new Error();
+				if (!policy) throw new Error("VIDEO_EFFECT_POLICY_MISSING");
+				if (next.VIDEO_V1_ENABLED !== "true") throw new Error("VIDEO_EFFECT_VIDEO_DISABLED");
 				resolveVideoEffectPrice(
 					{
 						effectId: "hotel-lobby-duo",
@@ -353,8 +354,24 @@ function withVideoRuntimeOverrides(
 					},
 					expandVideoRuntimeEnvironment(next),
 				);
-			} catch {
-				throw new Error("VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED");
+			} catch (error) {
+				// Only source-defined codes may enter logs; opaque policy values stay private.
+				const codes = new Set([
+					"VIDEO_EFFECT_POLICY_MISSING",
+					"VIDEO_EFFECT_VIDEO_DISABLED",
+					"VIDEO_EFFECT_PRICE_NOT_APPROVED",
+					"VIDEO_EFFECT_COST_POLICY_NOT_CONFIRMED",
+					"VIDEO_EFFECT_PRICE_EXPIRED",
+					"VIDEO_PRICE_EXPIRED",
+					"VIDEO_EFFECT_PAYMENT_COST_NOT_CONFIRMED",
+					"VIDEO_EFFECT_PRICING_TARGET_INVALID",
+				]);
+				throw new Error("VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED", {
+					cause:
+						error instanceof Error && codes.has(error.message)
+							? error.message
+							: "UNCLASSIFIED_VIDEO_EFFECT_POLICY_ERROR",
+				});
 			}
 		}
 		source = merged;

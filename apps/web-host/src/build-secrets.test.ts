@@ -735,21 +735,36 @@ describe("Cloudflare build secret transport", () => {
 				merged,
 			).credits,
 		).toBe(69n);
-		expect(() =>
-			readCloudflareBuildEnvironment({
-				...input,
-				HOTEL_LOBBY_DUO_RUNTIME_CONFIG: JSON.stringify({
-					...patch,
-					HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00Z",
-				}),
+		const expiredInput = {
+			...input,
+			HOTEL_LOBBY_DUO_RUNTIME_CONFIG: JSON.stringify({
+				...patch,
+				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00Z",
 			}),
-		).toThrow(/^VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED$/);
-		expect(() =>
+		};
+		let expiredError: unknown;
+		try {
+			readCloudflareBuildEnvironment(expiredInput);
+		} catch (error) {
+			expiredError = error;
+		}
+		expect(expiredError).toMatchObject({
+			message: "VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED",
+			cause: "VIDEO_EFFECT_PRICE_EXPIRED",
+		});
+		let unclassifiedError: unknown;
+		try {
 			readCloudflareBuildEnvironment({
 				...input,
 				HOTEL_LOBBY_DUO_RUNTIME_CONFIG: '{"HOTEL_LOBBY_DUO_ACCESS":"authenticated"}',
-			}),
-		).toThrow(/^VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED$/);
+			});
+		} catch (error) {
+			unclassifiedError = error;
+		}
+		expect(unclassifiedError).toMatchObject({
+			message: "VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED",
+			cause: "UNCLASSIFIED_VIDEO_EFFECT_POLICY_ERROR",
+		});
 	});
 	it("keeps ambient template flags inert and permits independent explicit emergency close", () => {
 		const source = "HOTEL_LOBBY_DUO_ENABLED=true\nVIDEO_V1_ENABLED=true\nUNCHANGED=fixture";
