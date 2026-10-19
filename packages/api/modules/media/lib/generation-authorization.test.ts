@@ -53,7 +53,7 @@ const KIE_IMAGE_ROUTE_GRAPH = {
 	generationEnabled: true,
 };
 
-const BASE_SNAPSHOT: GenerationAccessSnapshot = {
+const BASE_SNAPSHOT = {
 	generationEnabled: true,
 	modelDisabled: false,
 	spendableCredits: 100n,
@@ -64,7 +64,7 @@ const BASE_SNAPSHOT: GenerationAccessSnapshot = {
 	planId: "studio",
 	sourceAssetReady: true,
 	sourceAssetBytes: 1n,
-};
+} satisfies GenerationAccessSnapshot;
 
 describe("generation authorization", () => {
 	it("does not reject an authoritative unlimited aggregate quota at high usage", async () => {
