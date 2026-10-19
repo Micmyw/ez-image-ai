@@ -127,7 +127,7 @@ function LandingGeneratorWorkspace({
 }) {
 	const effectEditor = useEffectEditor();
 	const workspace = useGenerationMode();
-	useGeneratorSignInDraft(async (destination) => {
+	async function saveSignInDraft(destination: URL) {
 		if (!selectedProduct || !selectedSku || (!prompt.trim() && !file)) return;
 		const { writeEditorUpgradeDraft } = await import("@payments/lib/editor-upgrade");
 		const saved = writeEditorUpgradeDraft(sessionStorage, {
@@ -147,7 +147,8 @@ function LandingGeneratorWorkspace({
 		});
 		if (!saved) throw new Error("IMAGE_DRAFT_STORAGE_UNAVAILABLE");
 		destination.searchParams.set("resume", "text");
-	});
+	}
+	useGeneratorSignInDraft(saveSignInDraft);
 	const isEffectEditor = Boolean(effectEditor);
 	const effectPreset = effectEditor?.selectedPreset;
 	const requireReference = referenceRequired || effectPreset?.inputRequirement === "required";
@@ -649,6 +650,23 @@ function LandingGeneratorWorkspace({
 		setSubmitError(undefined);
 	}
 
+	async function continueWithAccount() {
+		setTextDraftError(false);
+		try {
+			const returnPath = effectEditor?.getReturnPath("resume") ?? "/create?resume=text";
+			let redirectTo: string;
+			if (workspace) redirectTo = await workspace.prepareSignIn(returnPath);
+			else {
+				const destination = new URL(returnPath, window.location.origin);
+				await saveSignInDraft(destination);
+				redirectTo = `${destination.pathname}${destination.search}`;
+			}
+			window.location.assign(`/login?${new URLSearchParams({ redirectTo })}`);
+		} catch {
+			setTextDraftError(true);
+		}
+	}
+
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (effectSelectionUnavailable || submissionInFlight.current) return;
@@ -1144,7 +1162,19 @@ function LandingGeneratorWorkspace({
 							variant="error"
 							role="alert"
 						>
-							<AlertDescription>{t(`errors.${submitError}`)}</AlertDescription>
+							<AlertDescription>
+								{t(`errors.${submitError}`)}
+								{submitError === "rateLimit" && (
+									<Button
+										type="button"
+										variant="link"
+										className="mt-1 min-h-11 block"
+										onClick={() => void continueWithAccount()}
+									>
+										{t("actions.signInBonus")}
+									</Button>
+								)}
+							</AlertDescription>
 						</Alert>
 					)}
 				</form>
@@ -1374,7 +1404,19 @@ function LandingGeneratorWorkspace({
 										variant="error"
 										role="alert"
 									>
-										<AlertDescription>{t(`errors.${submitError}`)}</AlertDescription>
+										<AlertDescription>
+											{t(`errors.${submitError}`)}
+											{submitError === "rateLimit" && (
+												<Button
+													type="button"
+													variant="link"
+													className="mt-1 min-h-11 block"
+													onClick={() => void continueWithAccount()}
+												>
+													{t("actions.signInBonus")}
+												</Button>
+											)}
+										</AlertDescription>
 									</Alert>
 								)}
 							</form>

@@ -1,5 +1,5 @@
 import React, { isValidElement, type ReactElement, type ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const harness = vi.hoisted(() => {
 	process.env.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY = "test-turnstile-site-key";
@@ -90,6 +90,7 @@ vi.mock("../lib/guest-draft-client", async (importOriginal) => ({
 	uploadGuestDraft: harness.upload,
 }));
 
+import { readEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import { Turnstile } from "@repo/ui/components/turnstile";
 
 import { LandingGenerator } from "./LandingGenerator";
@@ -119,6 +120,7 @@ const product = {
 };
 
 describe("LandingGenerator verification feedback", () => {
+	afterEach(() => vi.unstubAllGlobals());
 	beforeEach(() => {
 		vi.clearAllMocks();
 		harness.cursor = 0;
@@ -154,6 +156,9 @@ describe("LandingGenerator verification feedback", () => {
 			const errorKey =
 				failure === "GUEST_UPLOAD_RATE_LIMITED" ? "errors.rateLimit" : "errors.upload";
 			await vi.waitFor(() => expect(visibleText(renderWorkspace())).toContain(errorKey));
+			expect(visibleText(renderWorkspace()).includes("actions.signInBonus")).toBe(
+				failure === "GUEST_UPLOAD_RATE_LIMITED",
+			);
 
 			tree = renderWorkspace();
 			callback<(token: string) => void>(tree, Turnstile, "onToken")("token-two");
@@ -188,6 +193,48 @@ describe("LandingGenerator verification feedback", () => {
 		expect(visibleText(tree)).toContain("errors.rateLimit");
 		callback<(token: string) => void>(tree, Turnstile, "onToken")("token-two");
 		expect(visibleText(renderWorkspace())).toContain("errors.rateLimit");
+	});
+	it("saves the guest prompt and model before the upload-limit sign-in action redirects", async () => {
+		const values = new Map<string, string>();
+		const storage = {
+			getItem: (key: string) => values.get(key) ?? null,
+			setItem: (key: string, value: string) => values.set(key, value),
+			removeItem: (key: string) => values.delete(key),
+		};
+		const assign = vi.fn();
+		vi.stubGlobal("window", { location: { origin: "https://app.ezpic.test", assign } });
+		vi.stubGlobal("sessionStorage", storage);
+		let tree = await readyWorkspace();
+		callback<(token: string) => void>(tree, Turnstile, "onToken")("token-one");
+		tree = renderWorkspace();
+		harness.upload.mockRejectedValueOnce(new Error("GUEST_UPLOAD_RATE_LIMITED"));
+		callback<(event: { preventDefault: () => void }) => void>(
+			tree,
+			"form",
+			"onSubmit",
+		)({ preventDefault: vi.fn() });
+		await vi.waitFor(() => expect(visibleText(renderWorkspace())).toContain("actions.signInBonus"));
+		const action = findTextElement(renderWorkspace(), "actions.signInBonus");
+		if (!action) throw new Error("Sign-in action was not rendered");
+		expect(action.props.onClick).toBeTypeOf("function");
+		(action.props.onClick as () => void)();
+		await vi.waitFor(() => expect(assign).toHaveBeenCalledOnce());
+		const destination = new URL(assign.mock.calls[0]![0], "https://app.ezpic.test");
+		expect(destination.pathname).toBe("/login");
+		expect(destination.searchParams.get("redirectTo")).toBe("/create?resume=text");
+		expect(readEditorUpgradeDraft(storage)).toMatchObject({
+			draft: {
+				productKey: product.key,
+				input: {
+					kind: "image-to-image",
+					prompt: "Preserve this guest edit",
+					skuKey: "nano-banana-2-lite-1k",
+					aspectRatio: "auto",
+				},
+			},
+			sourceReady: false,
+		});
+		expect(harness.upload).toHaveBeenCalledOnce();
 	});
 
 	it("clears a verification error when a fresh token arrives", async () => {
@@ -247,4 +294,15 @@ function visibleText(node: ReactNode): string {
 	return React.Children.toArray(node.props.children as ReactNode)
 		.map(visibleText)
 		.join(" ");
+}
+
+function findTextElement(
+	node: ReactNode,
+	text: string,
+): ReactElement<Record<string, unknown>> | undefined {
+	if (!isValidElement<Record<string, unknown>>(node)) return undefined;
+	if (node.props.children === text) return node;
+	return React.Children.toArray(node.props.children as ReactNode)
+		.map((child) => findTextElement(child, text))
+		.find(Boolean);
 }

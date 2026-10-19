@@ -271,7 +271,8 @@
 				"standard": "Essayer gratuitement",
 				"quality": "Continuer",
 				"retry": "Réessayer",
-				"retryAvailability": "Vérifier la disponibilité"
+				"retryAvailability": "Vérifier la disponibilité",
+				"signInBonus": "Connexion · bonus unique de 5 crédits par compte"
 			},
 			"errors": {
 				"rateLimit": "La limite d’envoi pour les invités est atteinte. Réessayez plus tard. Votre image et votre instruction sont conservées.",

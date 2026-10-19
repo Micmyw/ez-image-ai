@@ -271,7 +271,8 @@
 				"standard": "Probar gratis",
 				"quality": "Continuar",
 				"retry": "Reintentar",
-				"retryAvailability": "Ver disponibilidad"
+				"retryAvailability": "Ver disponibilidad",
+				"signInBonus": "Inicia sesión · bono único de 5 créditos por cuenta"
 			},
 			"errors": {
 				"rateLimit": "Has alcanzado el límite de subidas para invitados. Inténtalo de nuevo más tarde. Tu imagen y tu instrucción siguen aquí.",
