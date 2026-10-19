@@ -22,6 +22,18 @@ const KIE_ROUTE_OPTIONS = {
 };
 
 describe("buildMediaQuote", () => {
+	it("freezes explicit image-pass funding without replacing the ordinary catalog price", () => {
+		const quote = buildMediaQuote(
+			{ ...NANO_QUOTE_INPUT, fundingSource: "IMAGE_PASS" },
+			KIE_ROUTE_OPTIONS,
+		);
+		expect(quote.credits).toBe(5n);
+		expect(quote.pricingSnapshot).toMatchObject({
+			fundingSource: "IMAGE_PASS",
+			imagePassUnits: 1,
+			settlementPolicy: { requestedOutputCount: 1 },
+		});
+	});
 	it("freezes the disclosed first-block-free output billing policy for new jobs", () => {
 		expect(buildMediaQuote(NANO_QUOTE_INPUT, KIE_ROUTE_OPTIONS).pricingSnapshot).toMatchObject({
 			outputModerationBillingPolicy: "first-block-free-v1",

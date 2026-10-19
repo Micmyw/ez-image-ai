@@ -157,6 +157,81 @@ function dependencies(
 }
 
 describe("retryGenerationForUser", () => {
+	it("keeps an explicitly selected pass through retry authorization and the frozen quote", async () => {
+		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
+		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
+		const deps = dependencies({
+			findSource: vi.fn(async () => ({
+				...source,
+				fundingSource: "IMAGE_PASS",
+				imagePassReservation: { status: "RELEASED" },
+			})),
+			claimRequest: vi.fn(async ({ operation }) => ({
+				outcome: "CLAIMED" as const,
+				requestId: "pass-retry",
+				leaseToken: "pass-lease",
+				operation,
+			})),
+		});
+		await retryGenerationForUser(
+			"user-1",
+			{ jobId: source.id, idempotencyKey: "pass-retry", fundingSource: "IMAGE_PASS" },
+			deps,
+		);
+		expect(deps.resumeRequest).toHaveBeenCalledWith(
+			expect.objectContaining({ expectedFundingSource: "IMAGE_PASS" }),
+		);
+		expect(deps.assertAllowed).toHaveBeenCalledWith(
+			expect.objectContaining({ fundingSource: "IMAGE_PASS" }),
+		);
+		expect(deps.persistApproved).toHaveBeenCalledWith(
+			expect.objectContaining({
+				quote: expect.objectContaining({
+					pricingSnapshot: expect.objectContaining({
+						fundingSource: "IMAGE_PASS",
+						imagePassUnits: 1,
+					}),
+				}),
+			}),
+		);
+	});
+	it("does not retry a pass job whose previous unit is still held", async () => {
+		const deps = dependencies({
+			findSource: vi.fn(async () => ({
+				...source,
+				fundingSource: "IMAGE_PASS",
+				imagePassReservation: { status: "ACTIVE" },
+			})),
+		});
+		await expect(
+			retryGenerationForUser(
+				"user-1",
+				{ jobId: source.id, idempotencyKey: "held-pass", fundingSource: "IMAGE_PASS" },
+				deps,
+			),
+		).rejects.toThrow("IMAGE_PASS_UNAVAILABLE");
+		expect(deps.claimRequest).not.toHaveBeenCalled();
+		expect(deps.createJob).not.toHaveBeenCalled();
+	});
+	it("refuses a resumed retry that changes the selected funding source", async () => {
+		const deps = dependencies({
+			resumeRequest: vi.fn(async () => ({
+				outcome: "CLAIMED" as const,
+				requestId: "retry",
+				leaseToken: "lease",
+				operation: retryOperation,
+			})),
+		});
+		await expect(
+			retryGenerationForUser(
+				"user-1",
+				{ jobId: source.id, idempotencyKey: "changed-funding", fundingSource: "IMAGE_PASS" },
+				deps,
+			),
+		).rejects.toThrow("GENERATION_FUNDING_CONFLICT");
+		expect(deps.assertAllowed).not.toHaveBeenCalled();
+		expect(deps.createJob).not.toHaveBeenCalled();
+	});
 	it.each([
 		{
 			legacyProductKey: "image-fast",

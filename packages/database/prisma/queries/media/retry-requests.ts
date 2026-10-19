@@ -4,6 +4,11 @@ import { EZPIC_PRODUCT_KEYS, LEGACY_EZPIC_PRODUCT_KEYS } from "@repo/config";
 
 import type { Prisma } from "../../generated/client";
 import {
+	generationFundingSource,
+	getGenerationFundingReservation,
+	type GenerationFundingSource,
+} from "./image-passes";
+import {
 	createModeratedGenerationQuote,
 	fingerprintGenerationQuoteSecurityPayload,
 	type GenerationQuoteSecurityPayload,
@@ -79,6 +84,7 @@ export async function resumeGenerationRetryRequest(
 		submittedByUserId: string;
 		sourceJobId: string;
 		idempotencyKey: string;
+		expectedFundingSource?: GenerationFundingSource;
 		now?: Date;
 	},
 	client: MediaTransactionClient,
@@ -96,6 +102,13 @@ export async function resumeGenerationRetryRequest(
 			},
 		});
 		if (!existing) return null;
+		if (
+			input.expectedFundingSource !== undefined &&
+			generationFundingSource(
+				(existing.operationSnapshot as Record<string, unknown>)?.pricingSnapshot,
+			) !== input.expectedFundingSource
+		)
+			throw new Error("GENERATION_FUNDING_CONFLICT");
 		if (
 			existing.submittedByUserId !== input.submittedByUserId ||
 			existing.sourceJobId !== input.sourceJobId
@@ -461,7 +474,7 @@ async function findGenerationJobForRetry(
 	input: ClaimGenerationRetryRequestInput,
 	client: Prisma.TransactionClient,
 ) {
-	return client.generationJob.findUnique({
+	const job = await client.generationJob.findUnique({
 		where: {
 			ownerType_ownerId_idempotencyKey: {
 				ownerType: input.ownerType,
@@ -476,6 +489,15 @@ async function findGenerationJobForRetry(
 			assets: { where: { role: "INPUT" }, orderBy: [{ position: "asc" }, { id: "asc" }] },
 		},
 	});
+	if (!job) return null;
+	return {
+		...job,
+		fundingReservation:
+			job.reservation ??
+			(job.fundingSource === "IMAGE_PASS"
+				? await getGenerationFundingReservation(job.id, client, null)
+				: null),
+	};
 }
 
 function isMatchingRecoveredJob(
@@ -496,8 +518,11 @@ function isMatchingRecoveredJob(
 		!operation ||
 		!request.quoteId ||
 		job.quoteId !== request.quoteId ||
-		!job.reservation ||
-		job.reservation.amount !== job.creditsReserved
+		!job.fundingReservation ||
+		job.fundingReservation.amount !==
+			(generationFundingSource(operation.pricingSnapshot) === "IMAGE_PASS"
+				? 1n
+				: job.creditsReserved)
 	) {
 		return false;
 	}
@@ -520,7 +545,12 @@ function isMatchingRecoveredJob(
 		job.productKey === operation.productKey &&
 		job.catalogVersion === operation.catalogVersion &&
 		job.pricingVersion === operation.pricingVersion &&
-		job.creditsReserved.toString() === operation.credits &&
+		job.creditsReserved.toString() ===
+			(generationFundingSource(operation.pricingSnapshot) === "IMAGE_PASS"
+				? "0"
+				: operation.credits) &&
+		generationFundingSource(job.pricingSnapshot) ===
+			generationFundingSource(operation.pricingSnapshot) &&
 		stableSerialize(job.inputSnapshot) === stableSerialize(operation.normalizedInput) &&
 		stableSerialize(job.pricingSnapshot) === stableSerialize(operation.pricingSnapshot) &&
 		job.quote.ownerType === request.ownerType &&

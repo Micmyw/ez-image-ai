@@ -6,6 +6,11 @@ import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { getInitialGenerationEventIds } from "./continuations";
 import { reserveCreditsInTransaction } from "./credits";
 import { loadCurrentGenerationAdmission } from "./generation-admission";
+import {
+	generationFundingSource,
+	getGenerationFundingReservation,
+	reserveImagePassForJobInTransaction,
+} from "./image-passes";
 import { assertQuoteModerationPermitted } from "./moderation-operations";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 import {
@@ -80,7 +85,13 @@ async function findExistingJob(
 		},
 		include: { reservation: true, editSession: true },
 	});
-	if (!existing?.reservation) return null;
+	if (!existing) return null;
+	const reservation =
+		existing.reservation ??
+		(existing.fundingSource === "IMAGE_PASS"
+			? await getGenerationFundingReservation(existing.id, client, null)
+			: null);
+	if (!reservation) return null;
 	if (
 		existing.quoteId !== input.quoteId ||
 		existing.submittedByUserId !== input.submittedByUserId ||
@@ -97,9 +108,9 @@ async function findExistingJob(
 			creditsReserved: existing.creditsReserved,
 		},
 		reservation: {
-			id: existing.reservation.id,
-			amount: existing.reservation.amount,
-			status: existing.reservation.status,
+			id: reservation.id,
+			amount: reservation.amount,
+			status: reservation.status,
 		},
 		replayed: true,
 	};
@@ -160,6 +171,7 @@ export async function createGenerationJobTransaction(
 			}
 			if (quote.expiresAt <= operationNow) throw new Error("Quote expired");
 			if (quote.credits <= 0n) throw new Error("Quote credits are invalid");
+			const fundingSource = generationFundingSource(quote.pricingSnapshot);
 			if (
 				quote.moderationDecision !== "ALLOW" ||
 				quote.moderationRuleVersion !== input.expectedModerationRuleVersion ||
@@ -174,17 +186,22 @@ export async function createGenerationJobTransaction(
 			if (replay) return replay;
 			// A shared account cap must serialize admission across both execution engines.
 			if (providerLimit !== null) await assertSharedKieCapacity(tx, providerLimit);
-			const admission = input.validateCurrentEligibility
-				? await loadCurrentGenerationAdmission(
-						{
-							ownerId: input.ownerId,
-							productKey: quote.productKey,
-							costMicros: quote.costMicros,
-							now: operationNow,
-						},
-						tx,
-					)
-				: undefined;
+			const admission =
+				input.validateCurrentEligibility || fundingSource === "IMAGE_PASS"
+					? await loadCurrentGenerationAdmission(
+							{
+								ownerId: input.ownerId,
+								fundingSource,
+								skuKey: isJsonObject(quote.pricingSnapshot)
+									? quote.pricingSnapshot.skuKey
+									: undefined,
+								productKey: quote.productKey,
+								costMicros: quote.costMicros,
+								now: operationNow,
+							},
+							tx,
+						)
+					: undefined;
 			const maximumConcurrentJobs = admission?.maximumConcurrentJobs ?? input.maximumConcurrentJobs;
 			if (maximumConcurrentJobs !== undefined) {
 				const activeJobs = await tx.generationJob.count({
@@ -369,7 +386,9 @@ export async function createGenerationJobTransaction(
 			const account = await tx.creditAccount.findUnique({
 				where: { ownerType_ownerId: { ownerType: input.ownerType, ownerId: input.ownerId } },
 			});
-			if (!account) throw new Error("Credit account not found");
+			if (!account && fundingSource === "CREDITS") throw new Error("Credit account not found");
+			if (fundingSource === "IMAGE_PASS" && (account?.creditDebt ?? 0n) > 0n)
+				throw new Error("CREDIT_DEBT_OUTSTANDING");
 			const editSession =
 				input.edit?.kind === "ROOT"
 					? await tx.imageEditSession.create({
@@ -390,22 +409,26 @@ export async function createGenerationJobTransaction(
 					productKey: quote.productKey,
 					catalogVersion: quote.catalogVersion,
 					pricingVersion: quote.pricingVersion,
-					creditsReserved: quote.credits,
+					creditsReserved: fundingSource === "IMAGE_PASS" ? 0n : quote.credits,
+					fundingSource,
 					inputSnapshot: generationJobInputSnapshot(quote.inputSnapshot),
 					pricingSnapshot: quote.pricingSnapshot as Prisma.InputJsonValue,
 					editSessionId: editSession?.id ?? editBinding?.editSessionId,
 					parentJobId: editBinding?.parentJobId,
 				},
 			});
-			const reservation = await reserveCreditsInTransaction(
-				{
-					accountId: account.id,
-					jobId: job.id,
-					amount: quote.credits,
-					referenceKey: `job:${job.id}:reserve`,
-				},
-				tx,
-			);
+			const reservation =
+				fundingSource === "IMAGE_PASS"
+					? await reserveImagePassForJobInTransaction({ ownerId: input.ownerId, jobId: job.id }, tx)
+					: await reserveCreditsInTransaction(
+							{
+								accountId: account!.id,
+								jobId: job.id,
+								amount: quote.credits,
+								referenceKey: `job:${job.id}:reserve`,
+							},
+							tx,
+						);
 			if (inputAssets.length) {
 				await tx.generationJobAsset.createMany({
 					data: input.inputAssetIds.map((assetId, position) => ({

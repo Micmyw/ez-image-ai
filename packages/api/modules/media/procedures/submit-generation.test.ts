@@ -1,4 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
+vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
+vi.mock("@repo/database/client", () => ({ db: {} }));
+vi.mock("@repo/database", () => ({
+	findGenerationSubmissionQuote: vi.fn(),
+	createGenerationJobTransaction: vi.fn(),
+	getInitialGenerationEventIds: vi.fn(),
+	recordTextModerationOutcome: vi.fn(),
+	findEligibleImageEditParentForOwner: vi.fn(),
+	unexpiredStorageReservations: () => ({}),
+}));
+vi.mock("@repo/jobs", () => ({ resolveDatabaseDispatchRoute: vi.fn() }));
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn() }));
+vi.mock("@repo/logs", () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
 
 import { createFlowTiming } from "../lib/flow-timing";
 import { submitGenerationForUser, submitGenerationInputSchema } from "./submit-generation";
@@ -29,10 +42,17 @@ function fixture() {
 				credits: 5n,
 				expiresAt: new Date("2099-01-01"),
 				inputSnapshot: { submissionFingerprint: submission.fingerprint },
+				pricingSnapshot: {},
 				job: null,
 			};
 			quotes.set(quote.id, quote);
-			return { ...quote, catalogVersion: "v1", pricingVersion: "v1" };
+			return {
+				...quote,
+				catalogVersion: "v1",
+				pricingVersion: "v1",
+				fundingSource: "CREDITS",
+				imagePassUnits: 0,
+			};
 		},
 	);
 	const createJob = vi.fn<Dependencies["createJob"]>(async (_owner, request) => {
@@ -60,6 +80,23 @@ function deferred() {
 	return { promise, resolve, reject };
 }
 describe("combined generation admission", () => {
+	it("retains the old credit idempotency identity when funding is explicitly CREDITS", async () => {
+		const f = fixture();
+		await submitGenerationForUser("user", input, f.dependencies);
+		const replay = await submitGenerationForUser(
+			"user",
+			{ ...input, fundingSource: "CREDITS" },
+			f.dependencies,
+		);
+		expect(replay.replayed).toBe(true);
+	});
+	it("cannot reuse a credit submission idempotency key to reserve an image pass", async () => {
+		const f = fixture();
+		await submitGenerationForUser("user", input, f.dependencies);
+		await expect(
+			submitGenerationForUser("user", { ...input, fundingSource: "IMAGE_PASS" }, f.dependencies),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+	});
 	it("starts the committed wake immediately and returns while managed dispatch is pending", async () => {
 		const f = fixture();
 		const wake = deferred();

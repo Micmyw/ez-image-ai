@@ -5,6 +5,11 @@ import { getEditorErrorKey, getModerationErrorReason } from "./editor-error";
 describe("getEditorErrorKey", () => {
 	it.each([
 		["INSUFFICIENT_CREDITS", "insufficientCredits"],
+		["IMAGE_PASS_INSUFFICIENT", "insufficientImagePasses"],
+		["IMAGE_PASS_SELECTION_INVALID", "imagePassUnavailable"],
+		["IMAGE_PASS_OUTPUT_COUNT_INVALID", "imagePassUnavailable"],
+		["IMAGE_PASS_UNAVAILABLE", "imagePassUnavailable"],
+		["GENERATION_FUNDING_CONFLICT", "fundingChanged"],
 		["ENTITLEMENT_REQUIRED", "qualityUnavailable"],
 		["ASSET_NOT_READY", "assetNotReady"],
 		["QUOTE_EXPIRED", "quoteExpired"],

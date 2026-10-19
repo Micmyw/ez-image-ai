@@ -5,10 +5,20 @@ import {
 	runSerializable,
 	type Prisma,
 } from "@repo/database";
+import { getImagePassPurchaseByProviderPayment } from "@repo/database";
 import { logger } from "@repo/logs";
 
 import { applyCreditPackPaymentFact, applyCreditPackRefundFact } from "./credit-pack-reducer";
-import { normalizeProviderPaymentEvent } from "./lifecycle-normalization";
+import {
+	applyImagePassPaymentFact,
+	tryApplyImagePassAdjustment,
+	lockImagePassPayment,
+} from "./image-pass-reducer";
+import { requeueImagePassAdjustments } from "./image-pass-reducer";
+import {
+	normalizeProviderPaymentEvent,
+	type NormalizedProviderPaymentEvent,
+} from "./lifecycle-normalization";
 import { applyProviderBillingFact } from "./lifecycle-reducer";
 import { applyProviderRefundFact } from "./refund-reducer";
 import type { PaymentEventAttempt } from "./stripe/processor";
@@ -22,6 +32,40 @@ type DatabaseClient = Parameters<typeof claimPaymentEvent>[1];
 type NonStripeProvider = "paypal" | "waffo";
 
 class PaymentEventFenceError extends Error {}
+
+/** Product routing happens inside the same verified-event transaction. */
+export async function applyVerifiedProviderFact(
+	normalized: NormalizedProviderPaymentEvent,
+	tx: Prisma.TransactionClient,
+	options: { paymentEventId: string; providerEnvironment?: string | null; now: Date },
+): Promise<{ grantsCreated: number }> {
+	if (normalized.kind === "NOOP") return { grantsCreated: 0 };
+	if (normalized.kind === "SUBSCRIPTION") return applyProviderBillingFact(normalized.fact, tx);
+	if (normalized.kind === "CREDIT_PACK_PAID") {
+		if (normalized.fact.provider === "paypal") {
+			await lockImagePassPayment(normalized.fact.providerPaymentId, tx);
+			const intent = normalized.fact.checkoutIntentId
+				? await tx.paymentCheckoutIntent.findUnique({
+						where: { id: normalized.fact.checkoutIntentId },
+						select: { productKind: true },
+					})
+				: null;
+			if (intent?.productKind === "IMAGE_PASS")
+				return applyImagePassPaymentFact(normalized.fact, tx, options);
+		}
+		return applyCreditPackPaymentFact(normalized.fact, tx, options);
+	}
+	const imagePass = await tryApplyImagePassAdjustment(
+		normalized.fact,
+		tx,
+		normalized.kind === "PAYMENT_DISPUTED" ? "DISPUTE" : undefined,
+	);
+	if (imagePass) return imagePass;
+	if (normalized.kind === "PAYMENT_DISPUTED") throw new Error(PAYMENT_PROVIDER_CORRELATION_MISSING);
+	return normalized.kind === "PAYMENT_REFUNDED"
+		? applyProviderRefundFact(normalized.fact, tx, options)
+		: applyCreditPackRefundFact(normalized.fact, tx, options);
+}
 
 class PaymentEventLeaseExpiredError extends Error {
 	constructor() {
@@ -122,7 +166,11 @@ export async function processClaimedProviderPaymentEvent(
 				providerCustomerId: normalized.fact.providerCustomerId,
 			};
 		}
-		if (normalized.kind === "CREDIT_PACK_REFUNDED" || normalized.kind === "PAYMENT_REFUNDED") {
+		if (
+			normalized.kind === "CREDIT_PACK_REFUNDED" ||
+			normalized.kind === "PAYMENT_REFUNDED" ||
+			normalized.kind === "PAYMENT_DISPUTED"
+		) {
 			creditPackRefundCorrelationCandidate = {
 				provider: normalized.fact.provider,
 				providerPaymentId: normalized.fact.providerPaymentId,
@@ -151,26 +199,11 @@ export async function processClaimedProviderPaymentEvent(
 				throw new PaymentEventFenceError();
 			}
 
-			const result =
-				normalized.kind === "NOOP"
-					? { grantsCreated: 0 }
-					: normalized.kind === "PAYMENT_REFUNDED"
-						? await applyProviderRefundFact(normalized.fact, tx, {
-								paymentEventId: input.paymentEventId,
-								providerEnvironment: event.providerEnvironment,
-								now: transactionFenceTime,
-							})
-						: normalized.kind === "SUBSCRIPTION"
-							? await applyProviderBillingFact(normalized.fact, tx)
-							: normalized.kind === "CREDIT_PACK_PAID"
-								? await applyCreditPackPaymentFact(normalized.fact, tx, {
-										paymentEventId: input.paymentEventId,
-										now: transactionFenceTime,
-									})
-								: await applyCreditPackRefundFact(normalized.fact, tx, {
-										paymentEventId: input.paymentEventId,
-										now: transactionFenceTime,
-									});
+			const result = await applyVerifiedProviderFact(normalized, tx, {
+				paymentEventId: input.paymentEventId,
+				providerEnvironment: event.providerEnvironment,
+				now: transactionFenceTime,
+			});
 			await finishPaymentEvent(input, transactionFenceTime, tx);
 			return { outcome: "PROCESSED" as const, grantsCreated: result.grantsCreated };
 		});
@@ -215,6 +248,22 @@ export async function processClaimedProviderPaymentEvent(
 			client,
 		);
 		if (!persisted) return { outcome: "SKIPPED", grantsCreated: 0 };
+		if (
+			reason === PAYMENT_PROVIDER_CORRELATION_MISSING &&
+			creditPackRefundCorrelationCandidate?.provider === "paypal"
+		) {
+			// Close the failure-persist race: fulfillment may commit after the first
+			// lookup but before this event is marked FAILED. Both sides use the same
+			// payment lock and requeue after their own durable state is visible.
+			const providerPaymentId = creditPackRefundCorrelationCandidate.providerPaymentId;
+			await runSerializable(client, async (tx) => {
+				await lockImagePassPayment(providerPaymentId, tx);
+				if (
+					await getImagePassPurchaseByProviderPayment({ provider: "paypal", providerPaymentId }, tx)
+				)
+					await requeueImagePassAdjustments(providerPaymentId, tx);
+			});
+		}
 		logger.error(
 			{ paymentEventId: input.paymentEventId, errorClass, reason },
 			"Payment provider event failed",
@@ -254,7 +303,7 @@ function nonStripeProvider(provider: string): NonStripeProvider {
 function classifyPaymentEventError(error: unknown): "TERMINAL" | "TRANSIENT" {
 	const message = error instanceof Error ? error.message : "";
 	if (message === PAYMENT_PROVIDER_CORRELATION_MISSING) return "TRANSIENT";
-	return /^(?:PAYMENT_PROVIDER|PAYPAL|WAFFO|CREDIT_PACK)_[A-Z0-9_]+$/.test(message)
+	return /^(?:PAYMENT_PROVIDER|PAYPAL|WAFFO|CREDIT_PACK|IMAGE_PASS)_[A-Z0-9_]+$/.test(message)
 		? "TERMINAL"
 		: "TRANSIENT";
 }

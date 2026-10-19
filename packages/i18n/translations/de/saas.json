@@ -318,7 +318,8 @@
 					"referral": "Website-Verweis",
 					"campaign": "Kampagne",
 					"unknown": "Unbekannt"
-				}
+				},
+				"imagePass": "Bildpaket"
 			},
 			"checkoutReview": {
 				"title": "Prüfung offener Abonnementbestellungen",
@@ -1281,7 +1282,10 @@
 				"priceChanged": "Der Credit-Preis hat sich geändert. Prüfe die aktualisierten Kosten auf der Schaltfläche und sende erneut.",
 				"contentReviewRequired": "Diese Anweisung konnte nicht freigegeben werden. Bitte überarbeiten Sie sie und senden Sie sie erneut. Es wurden keine Credits berechnet.",
 				"textLanguageUnsupported": "Diese Prompt-Sprache wird von der Sicherheitsprüfung nicht unterstützt. Es wurden keine Credits berechnet.",
-				"referenceExpired": "Deine temporäre Referenz ist nicht verfügbar oder abgelaufen. Bitte erneut hochladen."
+				"referenceExpired": "Deine temporäre Referenz ist nicht verfügbar oder abgelaufen. Bitte erneut hochladen.",
+				"insufficientImagePasses": "Keine Bildpässe verfügbar. Kaufe ein weiteres Paket oder wähle ausdrücklich Credits.",
+				"imagePassUnavailable": "Diese Bildpass-Auswahl ist nicht verfügbar. Wähle ein einzelnes Bild mit einem aktuell verfügbaren Modell und versuche es erneut.",
+				"fundingChanged": "Deine Zahlungsoption hat sich geändert. Prüfe sie und versuche es erneut."
 			},
 			"modelMenu": {
 				"title": "Bildmodelle",
@@ -2198,5 +2202,44 @@
 		"planPrices": "Standard: {standard} Credits · Jahresabo: {annual} Credits",
 		"annualSavingApplied": "Jahresabo-Preis angewendet — du sparst {credits} Credits.",
 		"annualSavingAvailable": "Berechtigte Jahresabos sparen bei dieser Option {credits} Credits."
+	},
+	"imagePass": {
+		"bannerLabel": "Einmaliges Bildpaket",
+		"bannerTitle": "{units} Bilder für {currency} {amount}",
+		"bannerDetail": "Aktuelle Bildmodelle · bis zu 4K · kein Abo",
+		"buy": "Bildpaket kaufen",
+		"oneTime": "Einmaliger Kauf",
+		"title": "{units} erfolgreiche Bilder",
+		"pageTitle": "Bildpaket — 3 Bilder für 1 USD",
+		"description": "Wähle ein aktuell verfügbares Bildmodell, einschließlich unterstützter Optionen bis zu 4K. Jeder Auftrag erzeugt ein Bild.",
+		"models": "Aktuelle Bildmodelle und unterstützte Auflösungen, einschließlich 4K",
+		"singleOutput": "Ein erfolgreiches Bild verbraucht einen Bildpass. Nur Bilder, keine Videos.",
+		"separate": "Bildpässe sind von Credits und Abonnements getrennt.",
+		"repeat": "Kaufe bei Bedarf jederzeit ein weiteres Paket.",
+		"balance": "{count} Bildpässe verfügbar",
+		"pay": "Mit PayPal {currency} {amount} bezahlen",
+		"processing": "PayPal wird geöffnet…",
+		"signIn": "Konto erstellen oder anmelden",
+		"checkoutError": "Die Zahlung konnte nicht geöffnet werden. Versuche es erneut, um denselben Kauf fortzusetzen.",
+		"fundingLabel": "Bezahlen mit",
+		"fundingCredits": "Credits",
+		"fundingPasses": "Bildpässe · {count} verfügbar",
+		"fundingLoading": "Bildpässe werden geprüft…",
+		"buyMore": "3 Bildpässe kaufen",
+		"fundingEmpty": "Keine Bildpässe verfügbar. Kaufe ein Paket oder wähle ausdrücklich Credits, um fortzufahren.",
+		"fundingPolicy": "Während des Auftrags wird ein Bildpass reserviert und für ein erfolgreiches Bild verbraucht. Es werden keine Credits verwendet. Inhaltsprüfung und Speicherlimits gelten weiterhin.",
+		"fundingSeparate": "Credits und Bildpässe sind getrennte Optionen. Deine Auswahl wechselt nicht automatisch.",
+		"fundingPolicyTitle": "Regeln für Bildpässe",
+		"onePass": "1 Bildpass",
+		"back": "Zurück zum Editor",
+		"returnTitle": "Dein Bildpaket",
+		"returnCompleted": "Zahlung bestätigt. Deine Bildpässe sind im Editor verfügbar.",
+		"returnPending": "Die Zahlung wird bestätigt und deine Bildpässe werden hinzugefügt. Lass diese Seite geöffnet.",
+		"returnReview": "Dieser Kauf konnte noch nicht bestätigt werden. Prüfe ihn erneut, bevor du eine weitere Zahlung startest.",
+		"checkoutBack": "Bildpaket ansehen",
+		"checkAgain": "Zahlung erneut prüfen",
+		"retryPass": "Erneut versuchen · 1 Bildpass",
+		"balanceError": "Bildpass-Guthaben nicht verfügbar",
+		"retryBalance": "Guthaben erneut prüfen"
 	}
 }

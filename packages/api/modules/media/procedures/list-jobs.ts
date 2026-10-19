@@ -54,6 +54,9 @@ export const listJobs = protectedProcedure
 					skuKey: publicInput?.skuKey ?? null,
 					aspectRatio: publicInput?.aspectRatio ?? null,
 					creditsReserved: jsonBigInt(job.creditsReserved),
+					fundingSource:
+						job.fundingSource === "IMAGE_PASS" ? ("IMAGE_PASS" as const) : ("CREDITS" as const),
+					imagePassUnits: job.fundingSource === "IMAGE_PASS" ? 1 : 0,
 					creditsCharged: jsonBigInt(
 						job.reservation?.settledAmount ?? job.archivedCreditsCharged ?? 0n,
 					),

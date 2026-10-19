@@ -4,6 +4,11 @@ import { buildMediaQuote } from "../lib/quote";
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
+vi.mock("@repo/database", () => ({
+	createGenerationJobTransaction: vi.fn(),
+	getInitialGenerationEventIds: vi.fn(),
+	unexpiredStorageReservations: () => ({}),
+}));
 vi.mock("@repo/jobs", () => ({ resolveDatabaseDispatchRoute: vi.fn() }));
 vi.mock("@repo/logs", () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
 vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn() }));
@@ -29,6 +34,167 @@ const NANO_INPUT = {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("createGenerationForUser", () => {
+	it("replays an accepted pass job even after the quote expires and the pass balance is empty", async () => {
+		const accepted = {
+			id: "accepted-pass-job",
+			quoteId: "accepted-quote",
+			fundingSource: "IMAGE_PASS" as const,
+			parentJobId: null,
+			status: "PROVIDER_PENDING",
+			version: 1,
+			creditsReserved: 0n,
+		};
+		const assertAllowed = vi.fn(async () => {
+			throw new Error("IMAGE_PASS_INSUFFICIENT");
+		});
+		await expect(
+			createGenerationForUser(
+				"user-1",
+				{
+					quoteId: "accepted-quote",
+					idempotencyKey: "same-pass-request",
+					fundingSource: "IMAGE_PASS",
+				},
+				{
+					now: () => new Date(),
+					findExistingGeneration: async () => accepted,
+					findQuote: async () => null,
+					getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
+					loadEntitlement: async () => ({ maximumConcurrentJobs: 1 }),
+					assertAllowed,
+					createGenerationJob: vi.fn(),
+				},
+			),
+		).resolves.toMatchObject({
+			replayed: true,
+			job: { id: accepted.id, creditsReserved: 0n, fundingSource: "IMAGE_PASS", imagePassUnits: 1 },
+		});
+		expect(assertAllowed).not.toHaveBeenCalled();
+	});
+	it.each([
+		{
+			quoteId: "another-quote",
+			fundingSource: "IMAGE_PASS" as const,
+			error: "IDEMPOTENCY_CONFLICT",
+		},
+		{
+			quoteId: "accepted-quote",
+			fundingSource: "CREDITS" as const,
+			error: "GENERATION_FUNDING_CONFLICT",
+		},
+	])(
+		"rejects a replay with changed quote or funding: $error",
+		async ({ quoteId, fundingSource, error }) => {
+			await expect(
+				createGenerationForUser(
+					"user-1",
+					{ quoteId, idempotencyKey: "same-key", fundingSource },
+					{
+						now: () => new Date(),
+						findExistingGeneration: async () => ({
+							id: "job",
+							quoteId: "accepted-quote",
+							parentJobId: null,
+							fundingSource: "IMAGE_PASS",
+							status: "RESERVED",
+							version: 0,
+							creditsReserved: 0n,
+						}),
+						findQuote: vi.fn(),
+						getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
+						loadEntitlement: vi.fn(),
+						assertAllowed: vi.fn(),
+						createGenerationJob: vi.fn(),
+					},
+				),
+			).rejects.toThrow(error);
+		},
+	);
+	it("recovers a concurrent admission committed after the initial replay lookup", async () => {
+		const findExistingGeneration = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({
+			id: "raced-job",
+			quoteId: "accepted-quote",
+			parentJobId: null,
+			fundingSource: "IMAGE_PASS",
+			status: "RESERVED",
+			version: 0,
+			creditsReserved: 0n,
+		});
+		await expect(
+			createGenerationForUser(
+				"user-1",
+				{ quoteId: "accepted-quote", idempotencyKey: "raced-key", fundingSource: "IMAGE_PASS" },
+				{
+					now: () => new Date(),
+					findExistingGeneration,
+					findQuote: async () => null,
+					getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
+					loadEntitlement: vi.fn(),
+					assertAllowed: vi.fn(),
+					createGenerationJob: vi.fn(),
+				},
+			),
+		).resolves.toMatchObject({ replayed: true, job: { id: "raced-job", imagePassUnits: 1 } });
+		expect(findExistingGeneration).toHaveBeenCalledTimes(2);
+	});
+	it("requires the same parent echo when replaying an accepted child edit", async () => {
+		await expect(
+			createGenerationForUser(
+				"user-1",
+				{ quoteId: "child-quote", idempotencyKey: "child-key", fundingSource: "IMAGE_PASS" },
+				{
+					now: () => new Date(),
+					findExistingGeneration: async () => ({
+						id: "child-job",
+						quoteId: "child-quote",
+						parentJobId: "parent-job",
+						fundingSource: "IMAGE_PASS",
+						status: "RESERVED",
+						version: 0,
+						creditsReserved: 0n,
+					}),
+					findQuote: vi.fn(),
+					getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
+					loadEntitlement: vi.fn(),
+					assertAllowed: vi.fn(),
+					createGenerationJob: vi.fn(),
+				},
+			),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+	});
+	it("rejects changing the funding source of a frozen pass quote before admission", async () => {
+		const quote = buildMediaQuote(
+			{
+				...NANO_INPUT,
+				productKey: "image-nano-banana-2-lite",
+				input: NANO_INPUT,
+				fundingSource: "IMAGE_PASS",
+			},
+			KIE_ROUTE_OPTIONS,
+		);
+		const createGenerationJob = vi.fn();
+		const assertAllowed = vi.fn();
+		await expect(
+			createGenerationForUser(
+				"user-1",
+				{ quoteId: "pass-quote", idempotencyKey: "funding-change", fundingSource: "CREDITS" },
+				{
+					now: () => new Date(),
+					findQuote: async () => ({
+						...quote,
+						id: "pass-quote",
+						inputSnapshot: NANO_INPUT,
+						expiresAt: new Date(Date.now() + 60_000),
+					}),
+					getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
+					loadEntitlement: async () => ({ maximumConcurrentJobs: 1 }),
+					assertAllowed,
+					createGenerationJob,
+				},
+			),
+		).rejects.toThrow("GENERATION_FUNDING_CONFLICT");
+		expect(createGenerationJob).not.toHaveBeenCalled();
+	});
 	it("wakes only committed admission events, reusing the same identity after response loss", async () => {
 		const wake = vi.mocked(dispatchJob).mockReset();
 		wake.mockRejectedValue(new Error("ACCEPTED_RESPONSE_LOST"));

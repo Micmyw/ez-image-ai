@@ -345,7 +345,7 @@ export async function capturePayPalCheckoutOrder(
 	options: CaptureCheckoutOptions,
 ): Promise<CapturedCheckoutEvent> {
 	if (!options.providerOrderId.trim()) throw new Error("PAYPAL_ORDER_ID_MISSING");
-	const response = await http.request({
+	let response = await http.request({
 		method: "POST",
 		url: `${configuration.baseUrl}/v2/checkout/orders/${encodeURIComponent(options.providerOrderId)}/capture`,
 		headers: {
@@ -356,6 +356,20 @@ export async function capturePayPalCheckoutOrder(
 		},
 		body: {},
 	});
+	// A return visit can outlive PayPal's request-id retention. Recover the
+	// authenticated representation of this same order; never submit a new order.
+	const failure = recordValue(response.body);
+	if (
+		response.status === 422 &&
+		Array.isArray(failure?.details) &&
+		failure.details.some((detail) => recordValue(detail)?.issue === "ORDER_ALREADY_CAPTURED")
+	) {
+		response = await http.request({
+			method: "GET",
+			url: `${configuration.baseUrl}/v2/checkout/orders/${encodeURIComponent(options.providerOrderId)}`,
+			headers: { Authorization: `Bearer ${configuration.accessToken}` },
+		});
+	}
 	if (response.status !== 200 && response.status !== 201) {
 		throw new Error("PAYPAL_CAPTURE_RESPONSE_INVALID");
 	}

@@ -13,7 +13,7 @@ import type {
 } from "@repo/payments/types";
 
 type CheckoutOwner = { ownerType: "USER" | "ORGANIZATION"; ownerId: string };
-type CheckoutProductKind = "PLAN" | "CREDIT_PACK";
+type CheckoutProductKind = "PLAN" | "CREDIT_PACK" | "IMAGE_PASS";
 type DatabaseClient = Parameters<typeof bindPaymentCheckoutIntentSession>[1];
 
 interface ProviderCreatingIntent {

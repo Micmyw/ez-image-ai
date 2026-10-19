@@ -225,6 +225,7 @@ export interface FinalizationDependencies {
 
 export interface SettlementClaim {
 	jobId: string;
+	fundingSource?: "CREDITS" | "IMAGE_PASS";
 	reservationId: string;
 	reservedCredits: bigint;
 	chargeCredits: bigint;

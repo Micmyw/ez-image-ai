@@ -2,6 +2,9 @@ import { isPublicModerationReason, type PublicModerationReason } from "@repo/con
 
 export type EditorErrorKey =
 	| "insufficientCredits"
+	| "insufficientImagePasses"
+	| "imagePassUnavailable"
+	| "fundingChanged"
 	| "qualityUnavailable"
 	| "assetNotReady"
 	| "referenceExpired"
@@ -23,6 +26,16 @@ export function getEditorErrorKey(error: unknown): EditorErrorKey {
 			? (error as { code?: unknown; message?: unknown; data?: { code?: unknown } })
 			: {};
 	const codes = [value.code, value.data?.code, value.message];
+	if (codes.includes("IMAGE_PASS_INSUFFICIENT")) return "insufficientImagePasses";
+	if (codes.includes("GENERATION_FUNDING_CONFLICT")) return "fundingChanged";
+	if (
+		[
+			"IMAGE_PASS_SELECTION_INVALID",
+			"IMAGE_PASS_OUTPUT_COUNT_INVALID",
+			"IMAGE_PASS_UNAVAILABLE",
+		].some((code) => codes.includes(code))
+	)
+		return "imagePassUnavailable";
 	if (codes.includes("PROVIDER_CONCURRENT_JOB_LIMIT_REACHED")) return "providerBusy";
 	if (codes.includes("CONCURRENT_JOB_LIMIT_REACHED")) return "concurrentLimit";
 	if (codes.includes("RATE_LIMITED") || codes.includes("TOO_MANY_REQUESTS")) return "rateLimited";

@@ -45,6 +45,7 @@ function versionDto(
 		productKey: string;
 		status: string;
 		creditsReserved: bigint;
+		fundingSource?: string;
 		inputSnapshot: unknown;
 		createdAt: Date;
 		assets: Array<{
@@ -75,6 +76,9 @@ function versionDto(
 		skuKey: input.skuKey,
 		aspectRatio: input.aspectRatio,
 		credits: jsonBigInt(job.creditsReserved),
+		fundingSource:
+			job.fundingSource === "IMAGE_PASS" ? ("IMAGE_PASS" as const) : ("CREDITS" as const),
+		imagePassUnits: job.fundingSource === "IMAGE_PASS" ? 1 : 0,
 		status: job.status,
 		createdAt: job.createdAt.toISOString(),
 		output,

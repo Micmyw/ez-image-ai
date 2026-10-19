@@ -5,6 +5,7 @@ export * from "./kie-zero-cost-rejection";
 export * from "./content-safety";
 export * from "./temporary-references";
 export * from "./credit-packs";
+export * from "./image-pass";
 export * from "./plans";
 export * from "./product";
 export * from "./image-product-contract";

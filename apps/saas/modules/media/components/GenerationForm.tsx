@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary";
 import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
 import { createChoosePlanPath, writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
-import { getImageProductSelectionContract } from "@repo/config/client";
+import { getImageProductSelectionContract, IMAGE_PASS_PUBLIC_OFFER } from "@repo/config/client";
 import { EZPIC_PRODUCT_KEYS, getPlanEntitlement, type ImageAspectRatio } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
@@ -68,6 +68,7 @@ import { ComposerHeader } from "./editor/ComposerHeader";
 import { ImageSourcePanel } from "./editor/ImageSourcePanel";
 import { PromptPanel } from "./editor/PromptPanel";
 import { RegisteredEditorDock } from "./editor/RegisteredEditorDock";
+import { ImageFundingSelector, type ImageFundingSource } from "./ImageFundingSelector";
 import { ImageModelSelector } from "./ImageModelSelector";
 import { ImageOutputSettings } from "./ImageOutputSettings";
 
@@ -134,6 +135,12 @@ export function GenerationForm({
 	const effects = useTranslations("effects.editor");
 	const toolPrompt = useToolPrompt();
 	const t = useTranslations("media.create");
+	const pass = useTranslations("imagePass");
+	const [ownedFunding, setOwnedFunding] = useState<{
+		ownerId: string | null;
+		source: ImageFundingSource;
+	} | null>(null);
+	const fundingSource = ownedFunding?.ownerId === ownerId ? ownedFunding.source : "CREDITS";
 	const studio = useTranslations("studio");
 	const composer = useTranslations("studio.composer");
 	const imageToImage = useTranslations("imageToImage");
@@ -229,7 +236,14 @@ export function GenerationForm({
 	});
 	const values = form.watch();
 	const product = products.find((candidate) => candidate.key === values.productKey);
-	const upgradeRequired = Boolean(product && !allowedProductKeys.includes(values.productKey));
+	const passSelected = fundingSource === "IMAGE_PASS";
+	const passAvailable = generation.imagePass?.data?.available;
+	const passSkuAllowed = IMAGE_PASS_PUBLIC_OFFER.allowedSkuKeys.includes(values.skuKey);
+	const passReady =
+		passSelected && passSkuAllowed && !generation.imagePass?.isError && (passAvailable ?? 0) >= 1;
+	const upgradeRequired = Boolean(
+		product && !passSelected && !allowedProductKeys.includes(values.productKey),
+	);
 	const selectedCell = getImageSpecCell(product?.skuMatrix, values.skuKey);
 	const effectSelectionUnavailable = Boolean(
 		ready &&
@@ -512,6 +526,7 @@ export function GenerationForm({
 			!ready ||
 			!input ||
 			displayedCredits === undefined ||
+			(passSelected && !passReady) ||
 			sourcePendingRef.current ||
 			submittingRef.current
 		)
@@ -524,6 +539,7 @@ export function GenerationForm({
 				productKey: values.productKey,
 				input,
 				expectedCredits: String(displayedCredits),
+				fundingSource,
 				temporaryReferenceToken: temporaryReference?.token,
 			});
 			if (
@@ -556,7 +572,7 @@ export function GenerationForm({
 			inert={!ready}
 			id="registered-generator"
 			onSubmit={form.handleSubmit((validated) => {
-				if (!allowedProductKeys.includes(validated.productKey)) {
+				if (!passSelected && !allowedProductKeys.includes(validated.productKey)) {
 					setUpgradeOpen(true);
 					return;
 				}
@@ -570,6 +586,19 @@ export function GenerationForm({
 				<output className="mb-3 text-sm text-amber-200 block">{effects("modelUnavailable")}</output>
 			)}
 			<ComposerHeader />
+			<ImageFundingSelector
+				value={fundingSource}
+				available={passAvailable}
+				failed={generation.imagePass?.isError}
+				onRefresh={() => {
+					void generation.imagePass?.refetch();
+				}}
+				disabled={generation.createGeneration.isPending}
+				onChange={(source) => {
+					setOwnedFunding({ ownerId, source });
+					beginNewAction();
+				}}
+			/>
 			{modelNavigation.unavailable && (
 				<output className="mb-3 text-sm text-amber-200 block">
 					{studio("tools.modelUnavailable")}
@@ -622,6 +651,7 @@ export function GenerationForm({
 					</span>
 					<ImageModelSelector
 						idPrefix="editor"
+						fundingCostLabel={passSelected ? pass("onePass") : undefined}
 						products={products.flatMap((candidate) =>
 							candidate.skuMatrix
 								? [
@@ -630,6 +660,7 @@ export function GenerationForm({
 											skuMatrix: candidate.skuMatrix,
 											requiresUpgrade:
 												isEditorProductKey(candidate.key) &&
+												!passSelected &&
 												!allowedProductKeys.includes(candidate.key),
 										},
 									]
@@ -649,6 +680,7 @@ export function GenerationForm({
 				<div className="image-edit-control-field composer-output-field">
 					<ImageOutputSettings
 						idPrefix="editor"
+						fundingCostLabel={passSelected ? pass("onePass") : undefined}
 						presentation="composer"
 						disabled={generation.createGeneration.isPending}
 						aspectRatios={supportedAspectRatios}
@@ -713,7 +745,10 @@ export function GenerationForm({
 						variant="primary"
 						className="studio-submit"
 						disabled={
-							!input || generation.createQuote.isPending || generation.createGeneration.isPending
+							!input ||
+							(passSelected && !passReady) ||
+							generation.createQuote.isPending ||
+							generation.createGeneration.isPending
 						}
 						loading={generation.createGeneration.isPending}
 					>
@@ -725,7 +760,9 @@ export function GenerationForm({
 							<>
 								<span>{composer(isImageEdit ? "edit" : "generate")}</span>
 								<span className="composer-submit-cost">
-									{composer("creditAmount", { credits: displayedCredits ?? "—" })}
+									{passSelected
+										? pass("onePass")
+										: composer("creditAmount", { credits: displayedCredits ?? "—" })}
 								</span>
 							</>
 						)}
@@ -747,8 +784,12 @@ export function GenerationForm({
 			)}
 			<div className="image-edit-composer-meta composer-meta">
 				<details className="mt-3 text-xs text-muted-foreground">
-					<summary className="py-2 cursor-pointer">{t("creditPolicy")}</summary>
-					<p className="mt-1 leading-relaxed">{t("moderationBillingPolicy")}</p>
+					<summary className="py-2 cursor-pointer">
+						{passSelected ? pass("fundingPolicyTitle") : t("creditPolicy")}
+					</summary>
+					<p className="mt-1 leading-relaxed">
+						{passSelected ? pass("fundingPolicy") : t("moderationBillingPolicy")}
+					</p>
 				</details>
 			</div>
 			{error && safetyOutcome ? (
@@ -757,12 +798,18 @@ export function GenerationForm({
 					outcome={safetyOutcome}
 					reason={getModerationErrorReason(error)}
 					billing="beforeGeneration"
+					fundingSource={fundingSource}
 					onRevise={() => document.getElementById("generation-prompt")?.focus()}
 				/>
 			) : error ? (
 				<Alert variant="error">
 					<AlertDescription>
 						{t(`errors.${errorKey}`)}
+						{errorKey === "insufficientImagePasses" && (
+							<Link href="/image-pass" className="mt-2 block underline underline-offset-4">
+								{pass("buyMore")}
+							</Link>
+						)}
 						{errorKey === "insufficientCredits" && product && (
 							<CreditBalanceSummary
 								requiredCredits={selectedCell?.credits ?? product.credits}

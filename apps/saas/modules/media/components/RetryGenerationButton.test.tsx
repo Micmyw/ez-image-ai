@@ -22,6 +22,16 @@ vi.mock("@repo/ui/components/button", () => ({
 import { RetryGenerationButton } from "./RetryGenerationButton";
 
 describe("RetryGenerationButton", () => {
+	it("sends explicit image pass funding on a pass-funded retry", async () => {
+		mocks.retry.mockResolvedValue({ jobId: "retry-job" });
+		renderToStaticMarkup(<RetryGenerationButton jobId="failed-job" fundingSource="IMAGE_PASS" />);
+		mocks.click!();
+		await vi.waitFor(() =>
+			expect(mocks.retry).toHaveBeenCalledWith(
+				expect.objectContaining({ jobId: "failed-job", fundingSource: "IMAGE_PASS" }),
+			),
+		);
+	});
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
@@ -48,6 +58,7 @@ describe("RetryGenerationButton", () => {
 	});
 	it.each([
 		"INSUFFICIENT_CREDITS",
+		"IMAGE_PASS_INSUFFICIENT",
 		"CONCURRENT_JOB_LIMIT_REACHED",
 		"PROVIDER_CONCURRENT_JOB_LIMIT_REACHED",
 	])("allows a new request after the definite rejection %s has been corrected", async (code) => {

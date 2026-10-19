@@ -10,6 +10,8 @@ export const MEDIA_JOB_STATUS_SELECT = {
 	productKey: true,
 	inputSnapshot: true,
 	creditsReserved: true,
+	fundingSource: true,
+	imagePassReservation: { select: { status: true } },
 	archivedCreditsCharged: true,
 	archivedCreditsReleased: true,
 	failureCode: true,

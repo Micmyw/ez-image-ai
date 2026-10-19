@@ -1,3 +1,4 @@
+import { getGenerationFundingReservation } from "@repo/database";
 import type { Prisma, PrismaClient } from "@repo/database/generated-client";
 
 import type { FinalizingGenerationRecoveryDependencies } from "./recover-finalizing-generations";
@@ -25,9 +26,13 @@ export function createDatabaseFinalizingGenerationRecoveryStore(
 				SELECT job."id" AS "jobId"
 				FROM "generation_job" job
 				LEFT JOIN "credit_reservation" reservation ON reservation."jobId" = job."id"
+				LEFT JOIN "image_pass_reservation" pass_reservation ON pass_reservation."jobId" = job."id"
 				WHERE job."executionEngine" = 'legacy' AND (
 					job."status" = 'FINALIZING'
-					OR (job."status" = 'CANCELED' AND reservation."status" = 'ACTIVE')
+					OR (job."status" = 'CANCELED' AND (
+						(job."fundingSource" = 'CREDITS' AND reservation."status" = 'ACTIVE')
+						OR (job."fundingSource" = 'IMAGE_PASS' AND pass_reservation."status" = 'ACTIVE')
+					))
 				)
 				AND (
 					job."nextFinalizeAt" <= ${now}
@@ -52,7 +57,7 @@ export function createDatabaseFinalizingGenerationRecoveryStore(
 				const job = await tx.generationJob.findUnique({
 					where: { id: candidate.jobId, executionEngine: "legacy" },
 					include: {
-						reservation: { select: { status: true } },
+						reservation: { select: { id: true, amount: true, status: true } },
 						attempts: {
 							where: { status: "SUCCEEDED" },
 							select: { id: true },
@@ -60,7 +65,12 @@ export function createDatabaseFinalizingGenerationRecoveryStore(
 						},
 					},
 				});
-				if (!job || !isApplicableStatus(job.status, job.reservation?.status)) return "SKIPPED";
+				if (!job) return "SKIPPED";
+				const reservation =
+					job.status === "CANCELED"
+						? await getGenerationFundingReservation(job.id, tx, job.reservation ?? null)
+						: null;
+				if (!isApplicableStatus(job.status, reservation?.status)) return "SKIPPED";
 				if (
 					job.finalizationRetryCount >= FINALIZATION_RECOVERY_MAX_ATTEMPTS &&
 					job.finalizationErrorCode === FINALIZATION_RECOVERY_EXHAUSTED_CODE

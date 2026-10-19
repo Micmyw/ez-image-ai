@@ -39,6 +39,7 @@ export function ImageOutputSettings({
 	value,
 	onChange,
 	modeLabel,
+	fundingCostLabel,
 	skuMatrix,
 	skuKey,
 	onSkuChange,
@@ -54,6 +55,7 @@ export function ImageOutputSettings({
 	value: ImageAspectRatio;
 	onChange: (value: ImageAspectRatio) => void;
 	modeLabel: string;
+	fundingCostLabel?: string;
 	skuMatrix?: PublicImageSpecMatrix;
 	skuKey?: string;
 	onSkuChange?: (skuKey: string) => void;
@@ -246,7 +248,7 @@ export function ImageOutputSettings({
 						data-test={`${idPrefix}-settings-credits`}
 					>
 						{selectedCell
-							? `${selectedCell.label} · ${selectedCell.credits} ${labels.credits ?? "Credits"}`
+							? `${selectedCell.label} · ${fundingCostLabel ?? `${selectedCell.credits} ${labels.credits ?? "Credits"}`}`
 							: modeLabel}
 					</output>
 				</div>

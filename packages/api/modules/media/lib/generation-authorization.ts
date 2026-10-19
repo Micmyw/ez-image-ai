@@ -16,6 +16,12 @@ import {
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import { unexpiredStorageReservations } from "@repo/database";
 import { db } from "@repo/database/client";
+import {
+	assertImagePassAvailable,
+	assertImagePassSelection,
+	generationFundingSource,
+	type GenerationFundingSource,
+} from "@repo/database/media-image-passes";
 
 import { ensureFreePlanCreditsForGeneration } from "./free-plan-credits";
 import { loadUserPlanEntitlement } from "./plan-entitlement";
@@ -23,6 +29,7 @@ import { enforceMediaRateLimit } from "./rate-limit";
 import { maximumMediaStorageBytes } from "./storage-limits";
 
 export interface GenerationAccessSnapshot {
+	imagePassAvailable?: boolean;
 	generationEnabled: boolean;
 	modelDisabled: boolean;
 	spendableCredits: bigint;
@@ -38,6 +45,7 @@ export interface GenerationAccessSnapshot {
 }
 
 export interface GenerationAuthorizationInput {
+	fundingSource?: GenerationFundingSource;
 	/** Server-verified receipt; never populated from unvalidated request metadata. */
 	temporaryReference?: TemporaryReference;
 	userId: string;
@@ -163,6 +171,19 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 					: Promise.resolve(null),
 		]);
 		return {
+			...(input.fundingSource === "IMAGE_PASS"
+				? {
+						imagePassAvailable: await assertImagePassAvailable(
+							{
+								ownerId: input.userId,
+								productKey: input.productKey,
+								skuKey: "skuKey" in input.input ? input.input.skuKey : undefined,
+								requestedOutputCount: 1,
+							},
+							db,
+						).then(() => true),
+					}
+				: {}),
 			generationEnabled: !blocked,
 			modelDisabled: Boolean(modelDisabled),
 			spendableCredits: spendableLots._sum.remainingAmount ?? 0n,
@@ -189,6 +210,13 @@ export async function assertGenerationAllowed(
 	if (!generationEnabled) {
 		throw new Error("MODEL_DISABLED");
 	}
+	const fundingSource = generationFundingSource({ fundingSource: input.fundingSource });
+	if (fundingSource === "IMAGE_PASS")
+		assertImagePassSelection({
+			productKey: input.productKey,
+			skuKey: "skuKey" in input.input ? input.input.skuKey : undefined,
+			requestedOutputCount: 1,
+		});
 	await dependencies.enforceRateLimit(input.userId, "media:generation");
 	if (
 		(input.catalogVersion && input.catalogVersion !== DEFAULT_PRODUCT_CONFIG.catalogVersion) ||
@@ -206,7 +234,12 @@ export async function assertGenerationAllowed(
 		throw new Error("MODEL_DISABLED");
 	}
 	const entitlement = PLAN_ENTITLEMENTS.find((plan) => plan.id === access.planId);
-	if (!entitlement?.allowedProducts.includes(input.productKey)) {
+	if (fundingSource === "IMAGE_PASS" && !access.imagePassAvailable)
+		throw new Error("IMAGE_PASS_INSUFFICIENT");
+	if (
+		!entitlement ||
+		(fundingSource === "CREDITS" && !entitlement.allowedProducts.includes(input.productKey))
+	) {
 		throw new Error("ENTITLEMENT_REQUIRED");
 	}
 	if (!access.sourceAssetReady) throw new Error("ASSET_NOT_READY");
@@ -222,7 +255,8 @@ export async function assertGenerationAllowed(
 		throw new Error("INPUT_TOO_LARGE");
 	}
 	if (access.creditDebt > 0n) throw new Error("CREDIT_DEBT_OUTSTANDING");
-	if (access.spendableCredits < input.credits) throw new Error("INSUFFICIENT_CREDITS");
+	if (fundingSource === "CREDITS" && access.spendableCredits < input.credits)
+		throw new Error("INSUFFICIENT_CREDITS");
 	if (access.storageUsageBytes >= access.maximumStorageBytes) {
 		throw new Error("STORAGE_QUOTA_EXCEEDED");
 	}

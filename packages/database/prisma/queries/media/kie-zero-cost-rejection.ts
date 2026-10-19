@@ -8,6 +8,7 @@ import {
 } from "@repo/config";
 
 import type { Prisma } from "../../generated/client";
+import { getGenerationFundingReservation } from "./image-passes";
 import { runSerializable, type MediaTransactionClient } from "./types";
 
 /** The caller holds the attempt row lock; no positive-cost or output evidence may be overwritten. */
@@ -31,6 +32,11 @@ export async function canSettleKieZeroCostRejection(
 		},
 	});
 	if (!attempt) return false;
+	const reservation = await getGenerationFundingReservation(
+		attempt.jobId,
+		tx,
+		attempt.job.reservation,
+	);
 	return (
 		attempt.provider === "kie" &&
 		attempt.providerTaskId === evidence.taskId &&
@@ -43,9 +49,10 @@ export async function canSettleKieZeroCostRejection(
 		attempt.providerResultUrl === null &&
 		(attempt.providerCostMicros === null || attempt.providerCostMicros === 0n) &&
 		!hasKieChargeOrOutputEvidence(attempt.responseSnapshot) &&
-		attempt.job.reservation?.status === "ACTIVE" &&
-		attempt.job.reservation.settledAmount === 0n &&
-		attempt.job.reservation.releasedAmount === 0n
+		reservation?.status === "ACTIVE" &&
+		(reservation.fundingSource === "IMAGE_PASS" ||
+			(attempt.job.reservation?.settledAmount === 0n &&
+				attempt.job.reservation.releasedAmount === 0n))
 	);
 }
 
@@ -131,7 +138,13 @@ export async function resolveAdminKieZeroCostRejection(
 			throw new Error("ATTEMPT_NOT_AWAITING_TERMINAL_RECONCILIATION");
 		if (!(await canSettleKieZeroCostRejection(attempt.id, evidence, tx)))
 			throw new Error("KIE_REJECTION_EVIDENCE_CONFLICT");
-		const reservation = attempt.job.reservation!;
+		const reservation = await getGenerationFundingReservation(
+			attempt.jobId,
+			tx,
+			attempt.job.reservation,
+		);
+		if (!reservation || reservation.status !== "ACTIVE")
+			throw new Error("KIE_REJECTION_EVIDENCE_CONFLICT");
 		await tx.generationAttempt.update({
 			where: { id: attempt.id },
 			data: {
@@ -177,7 +190,8 @@ export async function resolveAdminKieZeroCostRejection(
 		const result = {
 			jobId: job.id,
 			attemptId: attempt.id,
-			reservedCredits: reservation.amount.toString(),
+			reservedCredits:
+				reservation.fundingSource === "IMAGE_PASS" ? "0" : reservation.amount.toString(),
 			settlementEventId: settlement.id,
 		};
 		await tx.auditLog.create({
@@ -195,7 +209,10 @@ export async function resolveAdminKieZeroCostRejection(
 					errorSnapshot: attempt.errorSnapshot,
 					providerCostMicros: attempt.providerCostMicros?.toString() ?? null,
 					reservationId: reservation.id,
-					reservedCredits: reservation.amount.toString(),
+					reservedCredits:
+						reservation.fundingSource === "IMAGE_PASS" ? "0" : reservation.amount.toString(),
+					fundingSource: reservation.fundingSource,
+					imagePassUnits: reservation.fundingSource === "IMAGE_PASS" ? 1 : 0,
 				},
 				after: result,
 				metadata: {

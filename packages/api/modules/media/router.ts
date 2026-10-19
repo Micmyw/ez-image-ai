@@ -34,6 +34,7 @@ import { getGuestAssetAccessUrl } from "./procedures/get-guest-asset-access-url"
 import { getGuestCapability } from "./procedures/get-guest-capability";
 import { getGuestEligibility } from "./procedures/get-guest-eligibility";
 import { getGrantedGuestJob, getGuestJob } from "./procedures/get-guest-job";
+import { getImagePassBalance } from "./procedures/get-image-pass-balance";
 import { getJob } from "./procedures/get-job";
 import { getPublicCatalog } from "./procedures/get-public-catalog";
 import { listAssets } from "./procedures/list-assets";
@@ -72,6 +73,7 @@ export const mediaRouter = {
 	cancelGeneration,
 	retryGeneration,
 	getJob,
+	getImagePassBalance,
 	getEditSession,
 	listJobs,
 	listEditSessions,

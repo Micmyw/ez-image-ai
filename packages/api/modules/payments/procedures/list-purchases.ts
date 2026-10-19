@@ -32,6 +32,7 @@ export const listPurchases = protectedProcedure
 	.output(
 		z.array(
 			PurchaseSchema.omit({ attribution: true }).extend({
+				productKind: z.enum(["PLAN", "CREDIT_PACK", "IMAGE_PASS"]),
 				planId: z.string().nullable(),
 				isEffectiveSubscription: z.boolean().optional(),
 				subscription: z
@@ -123,7 +124,7 @@ export const listPurchases = protectedProcedure
 
 interface PurchaseWithSubscriptionPlan {
 	type: string;
-	productKind: "PLAN" | "CREDIT_PACK";
+	productKind: "PLAN" | "CREDIT_PACK" | "IMAGE_PASS";
 	provider: string;
 	userId: string | null;
 	organizationId: string | null;

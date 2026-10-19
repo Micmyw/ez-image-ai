@@ -789,7 +789,7 @@ async function assertInvoiceSubscriptionCompatibility(
 		purchase: {
 			id: string;
 			type: "SUBSCRIPTION" | "ONE_TIME";
-			productKind: "PLAN" | "CREDIT_PACK";
+			productKind: "PLAN" | "CREDIT_PACK" | "IMAGE_PASS";
 			subscriptionId: string | null;
 			customerId: string;
 			userId: string | null;

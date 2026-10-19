@@ -9,6 +9,7 @@ export function GenerationFailureNotice({
 }: {
 	job: {
 		status: string;
+		fundingSource?: "CREDITS" | "IMAGE_PASS";
 		failureReason?: string | null;
 		inputReferenceState?: string | null;
 		creditsReserved: string;
@@ -17,6 +18,7 @@ export function GenerationFailureNotice({
 	};
 }) {
 	const t = useTranslations("media.failure");
+	const pass = useTranslations("imagePass");
 	if (job.status === "NEEDS_RECONCILIATION")
 		return <p className="mt-4 text-sm text-muted-foreground">{t("confirming")}</p>;
 	if (
@@ -36,8 +38,11 @@ export function GenerationFailureNotice({
 	return (
 		<div className="mt-4 space-y-2 text-sm text-muted-foreground" aria-live="polite">
 			<p>{t(reason)}</p>
-			{pending && <p>{t("creditsPending")}</p>}
-			{refunded && <p>{t("creditsReturned", { credits: job.creditsReleased })}</p>}
+			{job.fundingSource === "IMAGE_PASS" && <p>{pass("fundingPolicy")}</p>}
+			{job.fundingSource !== "IMAGE_PASS" && pending && <p>{t("creditsPending")}</p>}
+			{job.fundingSource !== "IMAGE_PASS" && refunded && (
+				<p>{t("creditsReturned", { credits: job.creditsReleased })}</p>
+			)}
 			{refunded && (
 				<p>
 					{t(

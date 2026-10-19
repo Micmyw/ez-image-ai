@@ -40,6 +40,7 @@ export function ImageModelSelector({
 	products,
 	value,
 	valueLabel,
+	fundingCostLabel,
 	onChange,
 	disabled = false,
 }: {
@@ -47,6 +48,7 @@ export function ImageModelSelector({
 	products: readonly ImageModelOption[];
 	value: string | null;
 	valueLabel?: string;
+	fundingCostLabel?: string;
 	onChange: (key: string) => void;
 	disabled?: boolean;
 }) {
@@ -183,7 +185,8 @@ export function ImageModelSelector({
 											</span>
 											<span className="mt-1.5 gap-1.5 flex items-center text-[0.7rem] text-[#d0c3e0]">
 												<CoinsIcon className="size-3" aria-hidden="true" />
-												{t(variedPrice ? "fromCredits" : "credits", { credits })}
+												{fundingCostLabel ??
+													t(variedPrice ? "fromCredits" : "credits", { credits })}
 											</span>
 										</span>
 										{chosen && (

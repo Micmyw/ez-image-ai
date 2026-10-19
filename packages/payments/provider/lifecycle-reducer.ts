@@ -342,12 +342,12 @@ function assertExistingSubscription(
 		ownerType: "USER" | "ORGANIZATION";
 		ownerId: string;
 		planId: string;
-		plan: { productKind: "PLAN" | "CREDIT_PACK" };
+		plan: { productKind: "PLAN" | "CREDIT_PACK" | "IMAGE_PASS" };
 		purchase: {
 			provider: string;
 			subscriptionId: string | null;
 			customerId: string;
-			productKind: "PLAN" | "CREDIT_PACK";
+			productKind: "PLAN" | "CREDIT_PACK" | "IMAGE_PASS";
 		} | null;
 	},
 	checkoutIntent: {
@@ -383,8 +383,8 @@ function assertExistingSubscription(
 }
 
 function assertSubscriptionCheckoutProductKind(checkoutIntent: {
-	productKind: "PLAN" | "CREDIT_PACK";
-	billingPlan?: { productKind: "PLAN" | "CREDIT_PACK" };
+	productKind: "PLAN" | "CREDIT_PACK" | "IMAGE_PASS";
+	billingPlan?: { productKind: "PLAN" | "CREDIT_PACK" | "IMAGE_PASS" };
 }): void {
 	if (checkoutIntent.productKind !== "PLAN") {
 		throw new Error("PAYMENT_PROVIDER_CHECKOUT_PRODUCT_KIND_INVALID");
@@ -395,8 +395,8 @@ function assertSubscriptionCheckoutProductKind(checkoutIntent: {
 }
 
 function assertSubscriptionProductKind(subscription: {
-	plan: { productKind: "PLAN" | "CREDIT_PACK" };
-	purchase: { productKind: "PLAN" | "CREDIT_PACK" } | null;
+	plan: { productKind: "PLAN" | "CREDIT_PACK" | "IMAGE_PASS" };
+	purchase: { productKind: "PLAN" | "CREDIT_PACK" | "IMAGE_PASS" } | null;
 }): void {
 	if (subscription.plan.productKind !== "PLAN") {
 		throw new Error("PAYMENT_PROVIDER_SUBSCRIPTION_PLAN_PRODUCT_KIND_INVALID");

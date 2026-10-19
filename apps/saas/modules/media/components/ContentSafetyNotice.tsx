@@ -21,6 +21,7 @@ export function ContentSafetyNotice({
 	reason,
 	billing,
 	credits = "0",
+	fundingSource = "CREDITS",
 	jobId,
 	onRevise,
 	className,
@@ -30,11 +31,13 @@ export function ContentSafetyNotice({
 	reason?: string | null;
 	billing: SafetyBillingOutcome;
 	credits?: string;
+	fundingSource?: "CREDITS" | "IMAGE_PASS";
 	jobId?: string;
 	onRevise?: () => void;
 	className?: string;
 }) {
 	const t = useTranslations("media.safety");
+	const pass = useTranslations("imagePass");
 	const blocked = outcome === "blocked";
 	const safeReason = isPublicModerationReason(reason) ? reason : "restrictedContent";
 	const Icon = blocked ? ShieldAlertIcon : InfoIcon;
@@ -74,8 +77,14 @@ export function ContentSafetyNotice({
 						</dd>
 					</div>
 					<div className="p-3 rounded-lg border border-border/60 bg-background/70">
-						<dt className="font-medium">{t("creditsLabel")}</dt>
-						<dd className="mt-0.5">{t(`billing.${billing}`, { credits })}</dd>
+						<dt className="font-medium">
+							{fundingSource === "IMAGE_PASS" ? pass("fundingPolicyTitle") : t("creditsLabel")}
+						</dt>
+						<dd className="mt-0.5">
+							{fundingSource === "IMAGE_PASS"
+								? pass("fundingPolicy")
+								: t(`billing.${billing}`, { credits })}
+						</dd>
 					</div>
 					<div>
 						<dt className="font-medium">{t("nextLabel")}</dt>

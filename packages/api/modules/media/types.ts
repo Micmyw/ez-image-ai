@@ -7,6 +7,7 @@ import { isValidCurrentEzPicImageSelection } from "./lib/public-generation-input
 export const createQuoteInputSchema = z
 	.object({
 		productKey: z.enum(EZPIC_PRODUCT_KEYS),
+		fundingSource: z.enum(["CREDITS", "IMAGE_PASS"]).optional(),
 		input: mediaModelInputSchema,
 		parentJobId: z.string().min(1).max(128).optional(),
 		temporaryReferenceToken: z.string().min(1).max(2048).optional(),
@@ -21,6 +22,7 @@ export const createQuoteInputSchema = z
 	});
 
 export const createGenerationInputSchema = z.object({
+	fundingSource: z.enum(["CREDITS", "IMAGE_PASS"]).optional(),
 	quoteId: z.string().min(1).max(128),
 	idempotencyKey: z.string().trim().min(8).max(128),
 	parentJobId: z.string().min(1).max(128).optional(),

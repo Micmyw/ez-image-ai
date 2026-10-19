@@ -3,6 +3,25 @@ import { describe, expect, it } from "vitest";
 import { createPurchasesHelper, type ResolvedPurchase } from "./helper";
 
 describe("createPurchasesHelper", () => {
+	it("does not grant a plan or block subscriptions for an image-pass purchase", () => {
+		const purchase: ResolvedPurchase = {
+			id: "image-pass",
+			provider: "paypal",
+			productKind: "IMAGE_PASS",
+			type: "ONE_TIME",
+			userId: "owner",
+			organizationId: null,
+			priceId: "image-pass-3",
+			customerId: "customer",
+			status: "COMPLETED",
+			planId: "creator",
+		};
+		const helper = createPurchasesHelper([purchase]);
+		expect(helper.activePlan?.id).toBe("free");
+		expect(helper.activeSubscriptions).toEqual([]);
+		expect(helper.hasBlockingSubscription).toBe(false);
+		expect(helper.hasPurchase("creator")).toBe(false);
+	});
 	it.each(["paypal", "waffo"])(
 		"keeps an expired %s cancellation pending until the provider confirms closure",
 		(provider) => {

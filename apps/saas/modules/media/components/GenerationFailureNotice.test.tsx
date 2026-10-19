@@ -5,11 +5,13 @@ import { describe, expect, it, vi } from "vitest";
 import messages from "../../../../../packages/i18n/translations/en/saas.json";
 
 vi.mock("next-intl", () => ({
-	useTranslations: () => (key: string, values?: { credits?: string }) =>
-		(messages.media.failure as Record<string, string>)[key]?.replace(
-			"{credits}",
-			values?.credits ?? "",
-		) ?? key,
+	useTranslations: (namespace: string) => (key: string, values?: { credits?: string }) =>
+		(
+			(namespace === "imagePass" ? messages.imagePass : messages.media.failure) as Record<
+				string,
+				string
+			>
+		)[key]?.replace("{credits}", values?.credits ?? "") ?? key,
 }));
 
 import { GenerationFailureNotice } from "./GenerationFailureNotice";
@@ -23,6 +25,15 @@ const job = {
 };
 
 describe("GenerationFailureNotice", () => {
+	it("does not describe a pass-funded failure as a zero-credit refund", () => {
+		const text = renderToStaticMarkup(
+			<GenerationFailureNotice
+				job={{ ...job, fundingSource: "IMAGE_PASS", creditsReserved: "0", creditsReleased: "0" }}
+			/>,
+		);
+		expect(text).toContain("One pass is reserved");
+		expect(text).not.toContain("0 reserved credits have been returned");
+	});
 	it("explains a technical timeout and the actual returned amount without blaming the prompt", () => {
 		const text = renderToStaticMarkup(<GenerationFailureNotice job={job} />);
 		expect(text).toContain("generation service timed out");

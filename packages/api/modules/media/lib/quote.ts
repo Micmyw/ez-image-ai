@@ -15,13 +15,29 @@ import {
 	type ProductModelKey,
 } from "@repo/config";
 import type { Prisma } from "@repo/database";
+import {
+	assertImagePassSelection,
+	generationFundingSource,
+	type GenerationFundingSource,
+} from "@repo/database/media-image-passes";
 
 export function buildMediaQuote(
-	input: { productKey: ProductModelKey; input: MediaModelInput },
+	input: {
+		productKey: ProductModelKey;
+		input: MediaModelInput;
+		fundingSource?: GenerationFundingSource;
+	},
 	routeGraphOptions: ExecutableRouteGraphOptions = executableRouteGraphOptionsFromEnvironment(),
 ) {
 	if (!DEFAULT_PRODUCT_CONFIG.features.mediaGeneration) throw new Error("MODEL_DISABLED");
 	const quote = quoteCatalogInput(input);
+	const fundingSource = generationFundingSource({ fundingSource: input.fundingSource });
+	if (fundingSource === "IMAGE_PASS")
+		assertImagePassSelection({
+			productKey: input.productKey,
+			skuKey: quote.skuKey,
+			requestedOutputCount: 1,
+		});
 	const entry = createExecutableRouteGraph(routeGraphOptions).getEntry(input.productKey);
 	if (!entry) throw new Error("PROVIDER_UNAVAILABLE");
 	const selectedCell = getCatalogImageSpecCell(entry, quote.skuKey);
@@ -59,6 +75,7 @@ export function buildMediaQuote(
 		maximumRouteCostMicros: routeGraph.maximumRouteCostMicros,
 	};
 	const pricingSnapshot: Prisma.InputJsonObject = {
+		...(fundingSource === "IMAGE_PASS" ? { fundingSource, imagePassUnits: 1 } : {}),
 		outputModerationBillingPolicy: OUTPUT_MODERATION_BILLING_POLICY,
 		...(quote.skuKey ? { skuKey: quote.skuKey } : {}),
 		credits: quote.credits,

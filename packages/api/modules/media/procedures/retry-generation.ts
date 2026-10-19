@@ -33,6 +33,10 @@ import {
 	type GenerationRetryRequestClaim,
 } from "@repo/database";
 import { db } from "@repo/database/client";
+import {
+	generationFundingSource,
+	type GenerationFundingSource,
+} from "@repo/database/media-image-passes";
 import type { CreateModeratedGenerationQuoteInput } from "@repo/database/media-quotes";
 import { resolveDatabaseDispatchRoute } from "@repo/jobs";
 import { dispatchJob } from "@repo/jobs/orchestration/client";
@@ -55,6 +59,8 @@ import {
 } from "../lib/text-moderation";
 
 interface RetryGenerationSource {
+	fundingSource?: string;
+	imagePassReservation?: { status: string } | null;
 	id: string;
 	productKey: string;
 	serviceClass: "STANDARD" | "GUEST_SLOW";
@@ -77,6 +83,7 @@ export interface RetryGenerationDependencies {
 		submittedByUserId: string;
 		sourceJobId: string;
 		idempotencyKey: string;
+		expectedFundingSource?: GenerationFundingSource;
 		now?: Date;
 	}): Promise<GenerationRetryRequestClaim | null>;
 	findSource(input: { userId: string; jobId: string }): Promise<RetryGenerationSource | null>;
@@ -127,6 +134,7 @@ const defaultDependencies: RetryGenerationDependencies = {
 				serviceClass: "STANDARD",
 			},
 			include: {
+				imagePassReservation: { select: { status: true } },
 				assets: { where: { role: "INPUT" }, orderBy: [{ position: "asc" }, { id: "asc" }] },
 				quote: true,
 				editSession: true,
@@ -174,7 +182,7 @@ const defaultDependencies: RetryGenerationDependencies = {
 
 export async function retryGenerationForUser(
 	userId: string,
-	input: { jobId: string; idempotencyKey: string },
+	input: { jobId: string; idempotencyKey: string; fundingSource?: GenerationFundingSource },
 	dependencies: RetryGenerationDependencies = defaultDependencies,
 ): Promise<{ jobId: string; status: string; replayed: boolean }> {
 	let claim = await dependencies.resumeRequest({
@@ -183,12 +191,15 @@ export async function retryGenerationForUser(
 		submittedByUserId: userId,
 		sourceJobId: input.jobId,
 		idempotencyKey: input.idempotencyKey,
+		expectedFundingSource: input.fundingSource ?? "CREDITS",
 		now: dependencies.now(),
 	});
 	let selection: ReturnType<RetryGenerationDependencies["createAdapter"]> | undefined;
 	if (!claim) {
 		const source = await dependencies.findSource({ userId, jobId: input.jobId });
 		if (!source || source.serviceClass !== "STANDARD") throw new Error("NOT_FOUND");
+		if (source.fundingSource === "IMAGE_PASS" && source.imagePassReservation?.status !== "RELEASED")
+			throw new Error("IMAGE_PASS_UNAVAILABLE");
 		const sourceProductKey = productModelKeySchema.parse(source.productKey);
 		const sourceInput = mediaModelInputSchema.parse(
 			retrySourceInputSnapshot(source.quote.inputSnapshot),
@@ -198,7 +209,11 @@ export async function retryGenerationForUser(
 			sourceInput,
 		);
 		const editContext = retryEditContextForSource(userId, source, normalizedInput);
-		const currentQuote = buildMediaQuote({ productKey, input: normalizedInput });
+		const currentQuote = buildMediaQuote({
+			productKey,
+			input: normalizedInput,
+			fundingSource: input.fundingSource,
+		});
 		selection = dependencies.createAdapter();
 		const operation: GenerationRetryOperation = {
 			sourceJobId: source.id,
@@ -237,6 +252,9 @@ export async function retryGenerationForUser(
 	if (claim.outcome === "IN_PROGRESS") throw new Error("GENERATION_RETRY_IN_PROGRESS");
 	if (claim.outcome === "FAILED") throw new Error(claim.errorCode);
 	const operation = claim.operation;
+	const fundingSource = generationFundingSource(operation.pricingSnapshot);
+	if (fundingSource !== (input.fundingSource ?? "CREDITS"))
+		throw new Error("GENERATION_FUNDING_CONFLICT");
 	const productKey = productModelKeySchema.parse(operation.productKey);
 	const normalizedInput = mediaModelInputSchema.parse(operation.normalizedInput);
 
@@ -248,6 +266,7 @@ export async function retryGenerationForUser(
 		}
 		await dependencies.assertAllowed({
 			userId,
+			fundingSource,
 			productKey,
 			credits: BigInt(operation.credits),
 			costMicros: BigInt(operation.costMicros),
@@ -350,6 +369,7 @@ export async function retryGenerationForUser(
 					ownerId: userId,
 					submittedByUserId: userId,
 					sourceJobId: input.jobId,
+					expectedFundingSource: input.fundingSource ?? "CREDITS",
 					idempotencyKey: input.idempotencyKey,
 					now: dependencies.now(),
 				})
@@ -531,6 +551,7 @@ export const retryGeneration = protectedProcedure
 	.route({ method: "POST", path: "/media/jobs/{jobId}/retry", tags: ["Media"] })
 	.input(
 		z.object({
+			fundingSource: z.enum(["CREDITS", "IMAGE_PASS"]).optional(),
 			jobId: z.string().min(1).max(128),
 			idempotencyKey: z.string().trim().min(8).max(128),
 		}),

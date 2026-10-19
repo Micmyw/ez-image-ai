@@ -14,6 +14,7 @@ const production = vi.hoisted(() => ({
 	},
 }));
 vi.mock("@repo/database/client", () => ({ db: production.db }));
+vi.mock("@repo/database", () => ({ unexpiredStorageReservations: () => ({}) }));
 vi.mock("@repo/config/server", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@repo/config/server")>()),
 	mediaDailyProviderCostBudgetMicros: production.budget,
@@ -58,6 +59,66 @@ const BASE_SNAPSHOT: GenerationAccessSnapshot = {
 };
 
 describe("generation authorization", () => {
+	it("authorizes a free owner for one highest-resolution image using only an available pass", async () => {
+		await expect(
+			assertGenerationAllowed(
+				{
+					userId: "pass-owner",
+					productKey: "image-nano-banana-pro",
+					credits: 25n,
+					costMicros: 120000n,
+					fundingSource: "IMAGE_PASS",
+					input: {
+						kind: "text-to-image",
+						prompt: "A vase",
+						skuKey: "nano-banana-pro-4k",
+						aspectRatio: "1:1",
+					},
+					routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+				},
+				{
+					enforceRateLimit: async () => {},
+					isEnvironmentGenerationEnabled: () => true,
+					loadAccess: async () => ({
+						...BASE_SNAPSHOT,
+						planId: "free",
+						spendableCredits: 0n,
+						imagePassAvailable: true,
+					}),
+				},
+			),
+		).resolves.toBeUndefined();
+	});
+	it("does not switch to plentiful ordinary credits when the selected pass is empty", async () => {
+		await expect(
+			assertGenerationAllowed(
+				{
+					userId: "pass-owner",
+					productKey: "image-nano-banana-pro",
+					credits: 25n,
+					costMicros: 120000n,
+					fundingSource: "IMAGE_PASS",
+					input: {
+						kind: "text-to-image",
+						prompt: "A vase",
+						skuKey: "nano-banana-pro-4k",
+						aspectRatio: "1:1",
+					},
+					routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+				},
+				{
+					enforceRateLimit: async () => {},
+					isEnvironmentGenerationEnabled: () => true,
+					loadAccess: async () => ({
+						...BASE_SNAPSHOT,
+						planId: "free",
+						spendableCredits: 1000n,
+						imagePassAvailable: false,
+					}),
+				},
+			),
+		).rejects.toThrow("IMAGE_PASS_INSUFFICIENT");
+	});
 	it.each([undefined, 0n, 100_000n])(
 		"only aggregates global costs for a configured budget (%s)",
 		async (budget) => {

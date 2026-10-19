@@ -6,6 +6,8 @@
 	"exports": {
 		".": "./index.ts",
 		"./client": "./client.ts",
+		"./image-pass": "./image-pass.ts",
+		"./image-pass.server": "./image-pass.server.ts",
 		"./kie-zero-cost-rejection": "./kie-zero-cost-rejection.ts",
 		"./content-safety": "./content-safety.ts",
 		"./photo-ideas": "./photo-ideas.ts",

@@ -207,6 +207,7 @@ enum PurchaseType {
 enum PaymentProductKind {
   PLAN
   CREDIT_PACK
+  IMAGE_PASS
 }
 
 model Purchase {
@@ -227,6 +228,7 @@ model Purchase {
   updatedAt             DateTime               @updatedAt
   mediaSubscription     Subscription?
   creditPackFulfillment CreditPackFulfillment?
+  imagePassGrant        ImagePassGrant?
 
   @@unique([provider, subscriptionId])
   @@index([subscriptionId])
@@ -605,6 +607,7 @@ model GenerationJob {
   catalogVersion          String
   pricingVersion          String
   creditsReserved         BigInt
+  fundingSource           String                   @default("CREDITS")
   /// Display-only settlement retained when the original test billing dataset is archived.
   archivedCreditsCharged  BigInt?
   archivedCreditsReleased BigInt?
@@ -632,6 +635,7 @@ model GenerationJob {
   updatedAt               DateTime                 @updatedAt @db.Timestamptz(3)
   terminalAt              DateTime?                @db.Timestamptz(3)
   reservation             CreditReservation?
+  imagePassReservation    ImagePassReservation?
   attempts                GenerationAttempt[]
   assets                  GenerationJobAsset[]
   retrySourceRequests     GenerationRetryRequest[] @relation("GenerationRetrySourceJob")
@@ -1324,6 +1328,8 @@ model PaymentCheckoutIntent {
   createdAt                              DateTime                    @default(now()) @db.Timestamptz(3)
   updatedAt                              DateTime                    @updatedAt @db.Timestamptz(3)
   creditPackFulfillment                  CreditPackFulfillment?
+  imagePassOfferSnapshot                 Json?
+  imagePassGrant                         ImagePassGrant?
   idempotencyAliases                     PaymentCheckoutIntentIdempotencyAlias[]
 
   @@unique([ownerType, ownerId, idempotencyKey])
@@ -1346,6 +1352,95 @@ model PaymentCheckoutIntentIdempotencyAlias {
   @@unique([ownerType, ownerId, idempotencyKey])
   @@index([checkoutIntentId])
   @@map("payment_checkout_intent_idempotency_alias")
+}
+
+model ImagePassGrant {
+  id                String                 @id @default(cuid())
+  checkoutIntentId  String                 @unique
+  checkoutIntent    PaymentCheckoutIntent  @relation(fields: [checkoutIntentId], references: [id], onDelete: Restrict)
+  purchaseId        String?                @unique
+  purchase          Purchase?              @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  ownerId           String
+  provider          String
+  providerOrderId   String
+  providerPaymentId String
+  paidAmountMicros  BigInt
+  currency          String
+  offerSnapshot     Json
+  status            String                 @default("ACTIVE")
+  paidAt            DateTime               @db.Timestamptz(3)
+  createdAt         DateTime               @default(now()) @db.Timestamptz(3)
+  units             ImagePassUnit[]
+  ledger            ImagePassLedgerEntry[]
+  adjustments       ImagePassAdjustment[]
+
+  @@unique([provider, providerPaymentId])
+  @@unique([provider, providerOrderId])
+  @@index([ownerId, status, createdAt, id])
+  @@map("image_pass_grant")
+}
+
+model ImagePassUnit {
+  id           String                 @id @default(cuid())
+  grantId      String
+  grant        ImagePassGrant         @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  ordinal      Int
+  status       String                 @default("AVAILABLE")
+  reservations ImagePassReservation[]
+  ledger       ImagePassLedgerEntry[]
+
+  @@unique([grantId, ordinal])
+  @@index([grantId, status, ordinal])
+  @@map("image_pass_unit")
+}
+
+model ImagePassReservation {
+  id          String                 @id @default(cuid())
+  unitId      String
+  unit        ImagePassUnit          @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  jobId       String                 @unique
+  job         GenerationJob          @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  ownerId     String
+  status      String                 @default("ACTIVE")
+  createdAt   DateTime               @default(now()) @db.Timestamptz(3)
+  finalizedAt DateTime?              @db.Timestamptz(3)
+
+  @@index([unitId, status])
+  @@index([ownerId, status])
+  @@map("image_pass_reservation")
+}
+
+model ImagePassLedgerEntry {
+  id           String         @id @default(cuid())
+  grantId      String
+  grant        ImagePassGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  unitId       String?
+  unit         ImagePassUnit? @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  jobId        String?
+  operation    String
+  referenceKey String         @unique
+  metadata     Json
+  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
+
+  @@index([grantId, createdAt, id])
+  @@index([jobId, operation])
+  @@map("image_pass_ledger_entry")
+}
+
+model ImagePassAdjustment {
+  id                   String         @id @default(cuid())
+  grantId              String
+  grant                ImagePassGrant @relation(fields: [grantId], references: [id], onDelete: Restrict)
+  provider             String
+  providerAdjustmentId String
+  kind                 String
+  amountMicros         BigInt
+  currency             String
+  occurredAt           DateTime       @db.Timestamptz(3)
+  createdAt            DateTime       @default(now()) @db.Timestamptz(3)
+
+  @@unique([provider, providerAdjustmentId])
+  @@map("image_pass_adjustment")
 }
 
 model CreditPackFulfillment {

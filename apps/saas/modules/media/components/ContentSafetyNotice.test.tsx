@@ -7,6 +7,21 @@ import english from "../../../../../packages/i18n/translations/en/saas.json";
 import { ContentSafetyNotice } from "./ContentSafetyNotice";
 
 describe("prompt safety feedback", () => {
+	it("explains pass-funded review without presenting zero credits as the purchase", () => {
+		const html = renderToStaticMarkup(
+			<NextIntlClientProvider locale="en" timeZone="UTC" messages={english}>
+				<ContentSafetyNotice
+					stage="prompt"
+					outcome="review"
+					billing="beforeGeneration"
+					fundingSource="IMAGE_PASS"
+				/>
+			</NextIntlClientProvider>,
+		);
+		expect(html).toContain("Image pass policy");
+		expect(html).toContain("Credits are not used");
+		expect(html).not.toContain("0 credits");
+	});
 	it.each(["review", "unsupportedLanguage"] as const)(
 		"explains %s without calling it an outage or a confirmed violation",
 		(outcome) => {

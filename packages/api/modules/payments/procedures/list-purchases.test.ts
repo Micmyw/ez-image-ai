@@ -102,6 +102,30 @@ describe("listPurchases", () => {
 		vi.mocked(auth.api.getSession).mockResolvedValue(authenticatedSession);
 	});
 
+	it("returns an image-pass purchase without promoting it to subscription entitlements", async () => {
+		vi.mocked(getPurchasesByUserId).mockResolvedValue([
+			{
+				id: "pass-purchase",
+				provider: "paypal",
+				productKind: "IMAGE_PASS",
+				type: "ONE_TIME",
+				mediaSubscription: null,
+				attribution: null,
+			},
+		] as never);
+		resolvePaymentProvider.mockReturnValue({
+			capabilities: { portal: false, cancellation: true, seatUpdates: false },
+		});
+		const purchases = await call(listPurchases, {}, { context: { headers: new Headers() } });
+		expect(purchases[0]).toMatchObject({
+			productKind: "IMAGE_PASS",
+			planId: null,
+			planPrice: null,
+			subscription: null,
+		});
+		expect(getPlanIdByProviderPriceId).not.toHaveBeenCalled();
+	});
+
 	it("does not disclose administrator attribution in customer purchase responses", async () => {
 		vi.mocked(getPurchasesByUserId).mockResolvedValue([
 			{

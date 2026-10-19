@@ -33,7 +33,7 @@ interface BillingPlanSnapshot {
 	id: string;
 	provider: string;
 	providerPriceId: string;
-	productKind: "PLAN" | "CREDIT_PACK";
+	productKind: "PLAN" | "CREDIT_PACK" | "IMAGE_PASS";
 	active: boolean;
 	version: number;
 	name: string;

@@ -31,6 +31,7 @@ export function JobHistory({
 	const studio = useTranslations("studio");
 	const t = useTranslations("media.history");
 	const stages = useTranslations("media.status.stages");
+	const pass = useTranslations("imagePass");
 	const products = useTranslations("media.create.products");
 	const skus = useTranslations("media.create.skus");
 	const outputSettings = useTranslations("media.create.outputSettings");
@@ -136,8 +137,14 @@ export function JobHistory({
 								</p>
 							</div>
 							<div className="text-sm">
-								<span className="text-muted-foreground">{t("reserved")}</span>{" "}
-								<strong>{job.creditsReserved}</strong>
+								{job.fundingSource === "IMAGE_PASS" ? (
+									<strong>{pass("onePass")}</strong>
+								) : (
+									<>
+										<span className="text-muted-foreground">{t("reserved")}</span>{" "}
+										<strong>{job.creditsReserved}</strong>
+									</>
+								)}
 							</div>
 							<span aria-hidden>→</span>
 						</Link>
