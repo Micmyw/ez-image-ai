@@ -129,19 +129,34 @@ afterEach(() => {
 });
 
 describe("Workers executor routing", () => {
-	it("hydrates shared provider capacity before the first legacy executor task", async () => {
+	it("hydrates current video policy before the first legacy executor task", async () => {
 		mocks.execute.mockImplementation(async () => {
+			expect(process.env.VIDEO_V1_UPLOAD_CORS_READY).toBe("true");
+			return { done: true, waitSeconds: 0 };
+		});
+		const worker = runtime({
+			VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_UPLOAD_CORS_READY: "true" }),
+		});
+		expect((await worker.send("jobs-primary", heavy)).status).toBe(200);
+		expect(mocks.execute).toHaveBeenCalledTimes(1);
+	});
+
+	it("accepts conflicting retired dispatch limits without disabling active video policy", async () => {
+		mocks.execute.mockImplementation(async () => {
+			expect(process.env.VIDEO_V1_ENABLED).toBe("true");
 			expect(process.env.VIDEO_V1_PROVIDER_CONCURRENCY).toBe("3");
 			return { done: true, waitSeconds: 0 };
 		});
 		const worker = runtime({
+			VIDEO_V1_ENABLED: "true",
+			VIDEO_V1_PROVIDER_CONCURRENCY: "2",
 			VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_PROVIDER_CONCURRENCY: "3" }),
 		});
 		expect((await worker.send("jobs-primary", heavy)).status).toBe(200);
 		expect(mocks.execute).toHaveBeenCalledTimes(1);
 	});
 
-	it("keeps legacy tasks executable when packed video policy conflicts with a flat binding", async () => {
+	it("keeps legacy tasks executable when active packed video policy conflicts with a flat binding", async () => {
 		mocks.execute.mockImplementation(async () => {
 			expect(process.env.VIDEO_V1_ENABLED).toBe("false");
 			expect(process.env.VIDEO_V1_PROVIDER_CONCURRENCY).toBeUndefined();
@@ -150,7 +165,8 @@ describe("Workers executor routing", () => {
 		const worker = runtime({
 			VIDEO_V1_ENABLED: "true",
 			VIDEO_V1_PROVIDER_CONCURRENCY: "2",
-			VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_PROVIDER_CONCURRENCY: "3" }),
+			VIDEO_V1_UPLOAD_CORS_READY: "false",
+			VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_UPLOAD_CORS_READY: "true" }),
 		});
 		expect((await worker.send("jobs-primary", heavy)).status).toBe(200);
 		expect(mocks.execute).toHaveBeenCalledTimes(1);

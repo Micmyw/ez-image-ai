@@ -49,7 +49,7 @@ export class WorkerJobs extends DurableObject<WorkersEnvironment> {
 	private handler?: ReturnType<typeof createWorkerExecutionHandler>;
 
 	override async fetch(request: Request): Promise<Response> {
-		// Legacy handlers also read the shared provider capacity from video settings.
+		// Legacy handlers also consume private video policy from these settings.
 		hydrateVideoRuntimeEnvironment(this.env);
 		const lane = this.ctx.id.equals(
 			this.env.JOBS_EXECUTOR.idFromName(WORKER_EXECUTORS.control.name),
