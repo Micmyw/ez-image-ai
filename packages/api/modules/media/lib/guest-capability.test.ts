@@ -1,5 +1,6 @@
 import { createHash, createHmac } from "node:crypto";
 
+import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { call } from "@orpc/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -564,9 +565,103 @@ describe("guest private upload handoff", () => {
 					},
 				},
 			),
-		).rejects.toThrow("GUEST_UPLOAD_RATE_LIMITED");
+		).rejects.toMatchObject({
+			code: "TOO_MANY_REQUESTS",
+			status: 429,
+			message: "GUEST_UPLOAD_RATE_LIMITED",
+		});
 		expect(storageMocks.createSignedUpload).not.toHaveBeenCalled();
 	});
+
+	it("returns HTTP 429 with a public rate-limit code without signing an upload", async () => {
+		databaseMocks.createUpload.mockRejectedValueOnce(new Error("GUEST_UPLOAD_RATE_LIMITED"));
+
+		const response = await requestUploadIntent();
+
+		expect(response.status).toBe(429);
+		await expect(response.json()).resolves.toMatchObject({
+			code: "TOO_MANY_REQUESTS",
+			message: "GUEST_UPLOAD_RATE_LIMITED",
+		});
+		expect(storageMocks.createSignedUpload).not.toHaveBeenCalled();
+	});
+
+	it("preserves the successful HTTP upload intent response", async () => {
+		const response = await requestUploadIntent();
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			sessionId: expect.any(String),
+			assetId: expect.any(String),
+			uploadUrl: "https://storage.test/private-signed-put",
+			completionToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+			expiresAt: expect.any(String),
+		});
+		expect(storageMocks.createSignedUpload).toHaveBeenCalledOnce();
+	});
+
+	it.each(["database", "signing"] as const)(
+		"preserves HTTP 500 for an unexpected %s failure",
+		async (stage) => {
+			const failure = new Error(`${stage.toUpperCase()}_UNAVAILABLE`);
+			if (stage === "database") databaseMocks.createUpload.mockRejectedValueOnce(failure);
+			else storageMocks.createSignedUpload.mockRejectedValueOnce(failure);
+
+			const response = await requestUploadIntent();
+
+			expect(response.status).toBe(500);
+			await expect(response.json()).resolves.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+			if (stage === "database") expect(storageMocks.createSignedUpload).not.toHaveBeenCalled();
+		},
+	);
+
+	it("rethrows the original unexpected database failure", async () => {
+		const failure = new Error("DATABASE_UNAVAILABLE");
+		databaseMocks.createUpload.mockRejectedValueOnce(failure);
+
+		await expect(
+			call(createGuestDraftUploadIntent, uploadIntentInput(), {
+				context: {
+					headers: new Headers({
+						origin: "https://saas.test",
+						"cf-connecting-ip": "203.0.113.9",
+					}),
+				},
+			}),
+		).rejects.toBe(failure);
+		expect(storageMocks.createSignedUpload).not.toHaveBeenCalled();
+	});
+
+	function uploadIntentInput() {
+		return {
+			capabilityVersion,
+			productKey: "image-nano-banana-2-lite" as const,
+			contentType: "image/png" as const,
+			bytes: 8,
+			sha256: "a".repeat(64),
+			turnstileToken: "turnstile-proof",
+		};
+	}
+
+	async function requestUploadIntent(): Promise<Response> {
+		const handler = new OpenAPIHandler({ createGuestDraftUploadIntent });
+		const request = new Request("https://saas.test/api/media/guest-drafts/upload-intents", {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				origin: "https://saas.test",
+				"cf-connecting-ip": "203.0.113.9",
+			},
+			body: JSON.stringify(uploadIntentInput()),
+		});
+		const result = await handler.handle(request, {
+			prefix: "/api",
+			context: { headers: request.headers, responseHeaders: new Headers() },
+		});
+		expect(result.matched).toBe(true);
+		if (!result.matched) throw new Error("Upload intent route did not match");
+		return result.response;
+	}
 
 	it("rejects forged or currently unavailable product keys before allocating storage", async () => {
 		await expect(

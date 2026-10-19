@@ -274,6 +274,7 @@
 				"retryAvailability": "Ver disponibilidad"
 			},
 			"errors": {
+				"rateLimit": "Has alcanzado el límite de subidas para invitados. Inténtalo de nuevo más tarde. Tu imagen y tu instrucción siguen aquí.",
 				"turnstile": "Completa la verificación y vuelve a intentarlo.",
 				"upload": "No pudimos preparar esta edición privada de invitado. Vuelve a subir la imagen."
 			},

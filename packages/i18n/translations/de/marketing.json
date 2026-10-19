@@ -275,6 +275,7 @@
 			},
 			"errors": {
 				"turnstile": "Schließe die Überprüfung ab und versuche es erneut.",
+				"rateLimit": "Das Upload-Limit für Gäste ist erreicht. Bitte versuche es später erneut. Dein Bild und Prompt bleiben erhalten.",
 				"upload": "Diese private Gastbearbeitung konnte nicht vorbereitet werden. Versuche den Upload erneut."
 			},
 			"prompt": "Bearbeitung beschreiben",

@@ -203,7 +203,7 @@ function LandingGeneratorWorkspace({
 	const [effectDraftReady, setEffectDraftReady] = useState(false);
 	const [reselectReference, setReselectReference] = useState(false);
 	const effectDraftInitialized = useRef(false);
-	const [submitError, setSubmitError] = useState<"turnstile" | "upload">();
+	const [submitError, setSubmitError] = useState<"turnstile" | "upload" | "rateLimit">();
 	const [uploadPercentage, setUploadPercentage] = useState<number>();
 	const [stage, setStage] = useState<LandingGeneratorStage>("checking");
 	const [isDragging, setIsDragging] = useState(false);
@@ -762,6 +762,8 @@ function LandingGeneratorWorkspace({
 			submissionInFlight.current = false;
 			if (error instanceof Error && error.message.startsWith("SOURCE_IMAGE_")) {
 				setFileError(fileErrorMessage(error, t, maximumMegabytes));
+			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_RATE_LIMITED") {
+				setSubmitError("rateLimit");
 			} else {
 				setSubmitError("upload");
 			}
@@ -796,11 +798,13 @@ function LandingGeneratorWorkspace({
 			? t("states.uploading", { percentage: uploadPercentage ?? 0 })
 			: t(`states.${stage}`);
 	const statusLabel =
-		!file && canSubmit
-			? studio("generation.textHint")
-			: disabledReason && disabledReason !== "busy"
-				? t(`guidance.${disabledReason}`)
-				: stageLabel;
+		submitError === "rateLimit"
+			? stageLabel
+			: !file && canSubmit
+				? studio("generation.textHint")
+				: disabledReason && disabledReason !== "busy"
+					? t(`guidance.${disabledReason}`)
+					: stageLabel;
 	const promptContract = selectedContract;
 	const maximumPromptLength = promptContract?.maximumPromptLength ?? 10_000;
 	const showCharacterCount = prompt.length >= maximumPromptLength * 0.9;
@@ -1124,11 +1128,11 @@ function LandingGeneratorWorkspace({
 							className="mt-3"
 							resetKey={turnstileResetKey}
 							onToken={(token) => {
-								setSubmitError(undefined);
+								setSubmitError((current) => (current === "turnstile" ? undefined : current));
 								setTurnstileToken(token);
 							}}
 							onError={() => {
-								setSubmitError("turnstile");
+								setSubmitError((current) => current ?? "turnstile");
 								resetChallenge();
 							}}
 							onExpire={resetChallenge}
@@ -1349,11 +1353,11 @@ function LandingGeneratorWorkspace({
 										className="mt-3"
 										resetKey={turnstileResetKey}
 										onToken={(token) => {
-											setSubmitError(undefined);
+											setSubmitError((current) => (current === "turnstile" ? undefined : current));
 											setTurnstileToken(token);
 										}}
 										onError={() => {
-											setSubmitError("turnstile");
+											setSubmitError((current) => current ?? "turnstile");
 											resetChallenge();
 										}}
 										onExpire={resetChallenge}

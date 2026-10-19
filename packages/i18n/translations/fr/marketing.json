@@ -274,6 +274,7 @@
 				"retryAvailability": "Vérifier la disponibilité"
 			},
 			"errors": {
+				"rateLimit": "La limite d’envoi pour les invités est atteinte. Réessayez plus tard. Votre image et votre instruction sont conservées.",
 				"turnstile": "Terminez la vérification puis réessayez.",
 				"upload": "Impossible de préparer cette retouche invitée privée. Réessayez l’import."
 			},
