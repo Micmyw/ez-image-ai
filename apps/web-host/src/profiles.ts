@@ -2,7 +2,6 @@ import path from "node:path";
 
 import { packEzPicImageModelFlags } from "@repo/config/server";
 import { readVideoEffectAccessScope } from "@repo/config/video-effects-access.server";
-import { resolveVideoEffectPrice } from "@repo/config/video-effects.server";
 import {
 	expandVideoRuntimeEnvironment,
 	packVideoRuntimeEnvironment,
@@ -11,6 +10,7 @@ import {
 } from "@repo/config/video-runtime-environment";
 import { videoV1Readiness } from "@repo/config/video-v1";
 
+import { assessOptionalVideoEffectOptions } from "./optional-video-effect-readiness";
 import {
 	isRetiredModerationBinding,
 	retiredModerationBindings,
@@ -114,31 +114,7 @@ export function createProfileArtifacts(options: {
 		);
 		if (!readiness.ready) throw new Error(`VIDEO_V1_NOT_READY: ${readiness.reasons.join(",")}`);
 	}
-	if (environment.HOTEL_LOBBY_DUO_ENABLED === "true") {
-		if (environment.VIDEO_V1_ENABLED !== "true") throw new Error("VIDEO_EFFECT_VIDEO_DISABLED");
-		// Validate the same fixed option and complete confirmed cost basis as new admission.
-		resolveVideoEffectPrice(
-			{
-				effectId: "hotel-lobby-duo",
-				presetKey: "standard",
-				inputs: { leftAssetId: "readiness-left", rightAssetId: "readiness-right" },
-			},
-			environment,
-		);
-	}
-	if (environment.RAINDANCE_ENABLED === "true") {
-		if (environment.VIDEO_V1_ENABLED !== "true") throw new Error("VIDEO_EFFECT_VIDEO_DISABLED");
-		for (const effectId of ["raindance-solo", "raindance-duo"] as const) {
-			resolveVideoEffectPrice(
-				{
-					effectId,
-					presetKey: "standard",
-					inputs: { leftAssetId: "readiness", rightAssetId: "readiness" },
-				},
-				environment,
-			);
-		}
-	}
+	assessOptionalVideoEffectOptions(environment);
 	const videoWorkflow = {
 		name: `ezpic-video-v1-${profile}-${target}`,
 		binding: "VIDEO_WORKFLOW",
