@@ -2,7 +2,7 @@ import { expandVideoRuntimeEnvironment } from "@repo/config/video-runtime-enviro
 import { readVideoV1Config } from "@repo/config/video-v1";
 
 import { mediaProviderKeySchema, parseMediaEnabledProviders } from "../../../packages/config/env";
-import { configuredSharedKieCapacity } from "../../../packages/database/prisma/queries/media/shared-provider-capacity";
+import { configuredProviderDispatchKieCapacity } from "../../../packages/database/prisma/queries/media/provider-dispatch-capacity";
 
 type CapacityEvidence =
 	| { code: "PROVIDER_CAPACITY_PREFLIGHT_INACTIVE" }
@@ -30,7 +30,7 @@ export function verifyProviderDispatchCapacity(
 		});
 		if (!imageProviders.includes("kie") && !readVideoV1Config(expanded).enabled)
 			return { code: "PROVIDER_CAPACITY_PREFLIGHT_INACTIVE" };
-		capacity = configuredSharedKieCapacity(expanded);
+		capacity = configuredProviderDispatchKieCapacity(expanded);
 	} catch {
 		// The policy or provider-list parser must never echo private configuration.
 		throw new Error("KIE_PROVIDER_CAPACITY_CONFIGURATION_INVALID");

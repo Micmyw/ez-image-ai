@@ -1,5 +1,5 @@
 import type { Prisma } from "../../generated/client";
-import { PROVIDER_DISPATCH_RETRY_MS } from "./shared-provider-capacity";
+import { PROVIDER_DISPATCH_RETRY_MS } from "./provider-dispatch-capacity";
 
 export async function deferVideoProviderDispatch(
 	tx: Prisma.TransactionClient,

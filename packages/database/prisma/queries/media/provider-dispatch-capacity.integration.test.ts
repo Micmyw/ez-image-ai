@@ -7,7 +7,8 @@ import type { Prisma } from "../../generated/client";
 import {
 	hasProviderDispatchCapacity,
 	lockProviderDispatchCapacity,
-} from "./shared-provider-capacity";
+} from "./provider-dispatch-capacity";
+import { lockSharedKieCapacity } from "./shared-provider-capacity";
 
 // Exercise the production SQL and transaction lock without a generated Prisma
 // client. Each run owns a disposable schema; no shared application rows change.
@@ -23,8 +24,11 @@ beforeAll(async () => {
 		throw new Error("ISOLATED_TEST_DATABASE_REQUIRED");
 	pool = new Pool({ connectionString: raw, max: 12 });
 	await pool.query(`CREATE SCHEMA "${schema}"`);
+	await pool.query(`CREATE TABLE "${schema}".generation_job (
+  id text PRIMARY KEY, "executionEngine" text NOT NULL, status text NOT NULL, "terminalAt" timestamptz
+ )`);
 	await pool.query(`CREATE TABLE "${schema}".generation_attempt (
-		id text PRIMARY KEY, provider text NOT NULL, status text NOT NULL DEFAULT 'CREATED',
+		id text PRIMARY KEY, "jobId" text REFERENCES "${schema}".generation_job(id), provider text NOT NULL, status text NOT NULL DEFAULT 'CREATED',
 		"uncertainSubmission" boolean NOT NULL DEFAULT false, "submittedAt" timestamptz,
 		"providerTaskId" text, "completedAt" timestamptz, "errorSnapshot" jsonb, "responseSnapshot" jsonb
 	)`);
@@ -35,7 +39,9 @@ beforeAll(async () => {
 	)`);
 });
 beforeEach(async () => {
-	await pool.query(`TRUNCATE "${schema}".generation_attempt, "${schema}".video_template_execution`);
+	await pool.query(
+		`TRUNCATE "${schema}".generation_attempt, "${schema}".video_template_execution, "${schema}".generation_job`,
+	);
 });
 afterAll(async () => {
 	if (!pool) return;
@@ -65,6 +71,42 @@ describe("provider sends share an atomic in-flight gate", () => {
 	});
 
 	it.each(["SUCCEEDED", "FAILED", "CANCELED"])(
+		"keeps a historical %s send occupied when completedAt is absent",
+		async (status) => {
+			await attempt({
+				id: "historical-terminal",
+				provider: "kie",
+				status,
+				submittedAt: "2020-01-01",
+				providerTaskId: "task",
+			});
+			expect(await capacity()).toBe(false);
+		},
+	);
+
+	it("serializes the old admission lock and the new send lock on the same namespace", async () => {
+		const holder = await pool.connect();
+		try {
+			await holder.query("BEGIN");
+			const tagged = async (strings: TemplateStringsArray, ...values: unknown[]) => {
+				const sql = strings.reduce((text, part, i) => text + (i ? `$${i}` : "") + part, "");
+				return (await holder.query(sql, values)).rows;
+			};
+			await lockSharedKieCapacity({ $executeRaw: tagged } as unknown as Prisma.TransactionClient);
+			await expect(
+				withTransaction(async (tx, client) => {
+					await client.query("SET LOCAL lock_timeout TO '100ms'");
+					await lockProviderDispatchCapacity(tx, "kie");
+				}),
+			).rejects.toMatchObject({ code: "55P03" });
+		} finally {
+			await holder.query("ROLLBACK");
+			holder.release();
+		}
+		await withTransaction((tx) => lockProviderDispatchCapacity(tx, "kie"));
+	});
+
+	it.each(["SUCCEEDED", "FAILED", "CANCELED"])(
 		"releases a confirmed %s attempt before output processing finishes",
 		async (status) => {
 			await attempt({
@@ -78,6 +120,72 @@ describe("provider sends share an atomic in-flight gate", () => {
 			expect(await capacity()).toBe(true);
 		},
 	);
+
+	it.each([
+		{ jobStatus: "SUCCEEDED", outputCount: 1 },
+		{ jobStatus: "SUCCEEDED", outputCount: 4 },
+		{ jobStatus: "FAILED", outputCount: 1 },
+		{ jobStatus: "FAILED", outputCount: 4 },
+	])(
+		"reads the historical terminal legacy success without changing its billing or attempt: %j",
+		async ({ jobStatus, outputCount }) => {
+			await legacyTerminal({ jobStatus, outputCount });
+			const before = (
+				await pool.query(
+					`SELECT md5(to_jsonb(a)::text) hash, to_jsonb(a) row FROM "${schema}".generation_attempt a`,
+				)
+			).rows;
+			expect(await capacity()).toBe(true);
+			expect(
+				(
+					await pool.query(
+						`SELECT md5(to_jsonb(a)::text) hash, to_jsonb(a) row FROM "${schema}".generation_attempt a`,
+					)
+				).rows,
+			).toEqual(before);
+		},
+	);
+
+	it("does not release on an uncommitted legacy job terminal transition", async () => {
+		await legacyTerminal({ jobStatus: "FINALIZING", terminalAt: null });
+		const writer = await pool.connect();
+		try {
+			await writer.query("BEGIN");
+			await writer.query(
+				`UPDATE "${schema}".generation_job SET status='SUCCEEDED', "terminalAt"='2020-01-01' WHERE id='legacy-job'`,
+			);
+			expect(await capacity()).toBe(false);
+			await writer.query("COMMIT");
+			expect(await capacity()).toBe(true);
+		} finally {
+			await writer.query("ROLLBACK");
+			writer.release();
+		}
+	});
+
+	it.each([
+		{ executionEngine: "video-workflow-v1" },
+		{ uncertainSubmission: true },
+		{ attemptStatus: "NEEDS_RECONCILIATION" },
+		{ attemptStatus: "FAILED" },
+		{ attemptStatus: "CANCELED" },
+		{ jobStatus: "FINALIZING" },
+		{ jobStatus: "CANCELED" },
+		{ terminalAt: null },
+		{ providerTaskId: null },
+		{ providerTaskId: "" },
+		{ providerTaskId: " " },
+		{ outputCount: 0 },
+		{ outputCount: "1" },
+		{ outputCount: 4.1 },
+		{ outputCount: 5 },
+		{ outputCount: null },
+		{ providerCharged: false },
+		{ providerCharged: "true" },
+	])("keeps incomplete or unrelated historical evidence occupied: %j", async (mutation) => {
+		await legacyTerminal(mutation);
+		expect(await capacity()).toBe(false);
+	});
 
 	it("does not count an unavailable adapter without any send fence", async () => {
 		await attempt({
@@ -349,4 +457,32 @@ async function scene(fields: Record<string, unknown>) {
 		`INSERT INTO "${schema}".video_template_execution (${keys.map((key) => `"${key}"`).join(",")}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(",")})`,
 		Object.values(row),
 	);
+}
+
+async function legacyTerminal(mutation: Record<string, unknown>) {
+	const data = {
+		jobStatus: "SUCCEEDED",
+		executionEngine: "legacy",
+		terminalAt: "2020-01-01",
+		attemptStatus: "SUCCEEDED",
+		uncertainSubmission: false,
+		providerTaskId: "legacy-task",
+		outputCount: 1,
+		providerCharged: true,
+		...mutation,
+	};
+	await pool.query(
+		`INSERT INTO "${schema}".generation_job (id, "executionEngine", status, "terminalAt") VALUES ($1,$2,$3,$4)`,
+		["legacy-job", data.executionEngine, data.jobStatus, data.terminalAt],
+	);
+	await attempt({
+		id: "legacy-attempt",
+		jobId: "legacy-job",
+		provider: "kie",
+		status: data.attemptStatus,
+		uncertainSubmission: data.uncertainSubmission,
+		providerTaskId: data.providerTaskId,
+		submittedAt: "2020-01-01",
+		responseSnapshot: { providerCharged: data.providerCharged, outputCount: data.outputCount },
+	});
 }

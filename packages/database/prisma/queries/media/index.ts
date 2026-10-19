@@ -30,7 +30,6 @@ export * from "./outbox";
 export * from "./quotes";
 export * from "./retry-requests";
 export * from "./state-machine";
-export * from "./shared-provider-capacity";
 export * from "./storage-usage-locks";
 export * from "./storage-quota";
 export * from "./storage-cleanup";
@@ -43,3 +42,5 @@ export * from "./video-v1-recovery";
 
 export * from "./video-template-admission";
 export * from "./video-template-execution";
+
+export * from "./provider-dispatch-capacity";
