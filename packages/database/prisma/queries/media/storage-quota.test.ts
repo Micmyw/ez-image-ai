@@ -59,6 +59,12 @@ describe("subscriber aggregate storage policy", () => {
 			await outputMediaStorageLimit({ ...owner, assetId: "output-a" }, freeLimit, tx as never),
 		).toBeNull();
 	});
+	it("keeps the current free quota when an older admission recorded a larger finite cap", async () => {
+		const tx = boundOutput(freezeAggregateStoragePolicy({ credits: "5" }, freeLimit));
+		expect(
+			await outputMediaStorageLimit({ ...owner, assetId: "output-a" }, 100n, tx as never),
+		).toBe(100n);
+	});
 	it("does not adopt a frozen policy through another owner's output binding", async () => {
 		const tx = boundOutput(freezeAggregateStoragePolicy({}, null));
 		expect(

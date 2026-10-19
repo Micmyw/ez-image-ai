@@ -19,12 +19,12 @@ export async function effectiveMediaStorageLimit(
 export function freezeAggregateStoragePolicy(
 	pricingSnapshot: Prisma.JsonValue,
 	maximumBytes: bigint | null,
-): Prisma.InputJsonObject {
+): Prisma.JsonObject {
 	if (!pricingSnapshot || typeof pricingSnapshot !== "object" || Array.isArray(pricingSnapshot))
 		throw new Error("GENERATION_PRICING_SNAPSHOT_INVALID");
 	if (maximumBytes !== null && maximumBytes <= 0n) throw new Error("MEDIA_STORAGE_QUOTA_INVALID");
 	return {
-		...(pricingSnapshot as Prisma.InputJsonObject),
+		...pricingSnapshot,
 		aggregateStoragePolicy: { schemaVersion: 1, maximumBytes: maximumBytes?.toString() ?? null },
 	};
 }
@@ -74,14 +74,6 @@ export async function outputMediaStorageLimit(
 	if (job) {
 		const frozen = readAggregateStoragePolicy(job.pricingSnapshot);
 		if (frozen === null) return null;
-		if (frozen !== undefined) {
-			const current = await effectiveMediaStorageLimit(
-				{ ownerType: owner.ownerType, ownerId: owner.ownerId },
-				freeMaximumBytes,
-				client,
-			);
-			return current === null ? null : frozen;
-		}
 	}
 	return effectiveMediaStorageLimit(
 		{ ownerType: owner.ownerType, ownerId: owner.ownerId },
