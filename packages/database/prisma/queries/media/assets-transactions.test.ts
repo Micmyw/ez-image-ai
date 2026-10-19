@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("../../client", () => ({
+	getDatabaseClient: () => {
+		throw new Error("explicit client required");
+	},
+}));
+
 import {
 	abortMediaUploadSessionTransaction,
 	claimMediaUploadSessionFinalizationTransaction,
@@ -12,6 +18,8 @@ import {
 
 function transactionClient(overrides: Record<string, unknown> = {}) {
 	const tx = {
+		subscription: { findMany: vi.fn(async () => []) },
+		billingPeriod: { fields: { paidAmount: "paidAmount" } },
 		mediaAsset: {
 			create: vi.fn(async ({ data }) => ({ ...data, status: "UPLOADING" })),
 			findFirst: vi.fn(async () => ({

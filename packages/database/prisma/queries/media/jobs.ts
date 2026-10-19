@@ -1,5 +1,6 @@
 import { isPermittedModerationEvidence } from "@repo/config";
 import { EZPIC_PRODUCT_KEYS, LEGACY_EZPIC_PRODUCT_KEYS } from "@repo/config";
+import { maximumMediaStorageBytes } from "@repo/config/server";
 
 import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
@@ -18,6 +19,7 @@ import {
 	canTransition,
 	type GenerationJobStatusValue,
 } from "./state-machine";
+import { effectiveMediaStorageLimit, freezeAggregateStoragePolicy } from "./storage-quota";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import { adoptTemporaryReference, unexpiredStorageReservations } from "./temporary-references";
 import type {
@@ -198,23 +200,23 @@ export async function createGenerationJobTransaction(
 					throw new Error("CONCURRENT_JOB_LIMIT_REACHED");
 				}
 			}
-			if (input.maximumStorageBytes !== undefined) {
-				if (input.maximumStorageBytes <= 0n) {
-					throw new Error("Generation storage quota must be positive");
-				}
-				await lockOwnerStorageUsage(input, tx);
-				const usage = await tx.storageUsageReservation.aggregate({
-					where: {
-						ownerType: input.ownerType,
-						ownerId: input.ownerId,
-						status: { in: ["ACTIVE", "COMMITTED"] },
-						...unexpiredStorageReservations(operationNow),
-					},
-					_sum: { bytes: true },
-				});
-				if ((usage._sum.bytes ?? 0n) >= input.maximumStorageBytes) {
-					throw new Error("STORAGE_QUOTA_EXCEEDED");
-				}
+			await lockOwnerStorageUsage(input, tx);
+			const maximumStorageBytes = await effectiveMediaStorageLimit(
+				input,
+				input.maximumStorageBytes ?? maximumMediaStorageBytes(),
+				tx,
+			);
+			const usage = await tx.storageUsageReservation.aggregate({
+				where: {
+					ownerType: input.ownerType,
+					ownerId: input.ownerId,
+					status: { in: ["ACTIVE", "COMMITTED"] },
+					...unexpiredStorageReservations(operationNow),
+				},
+				_sum: { bytes: true },
+			});
+			if (maximumStorageBytes !== null && (usage._sum.bytes ?? 0n) >= maximumStorageBytes) {
+				throw new Error("STORAGE_QUOTA_EXCEEDED");
 			}
 			if (input.maximumDailyCostMicros !== undefined) {
 				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.ownerType}:${input.ownerId}:media-daily-budget`}, 0))`;
@@ -392,7 +394,7 @@ export async function createGenerationJobTransaction(
 					pricingVersion: quote.pricingVersion,
 					creditsReserved: quote.credits,
 					inputSnapshot: generationJobInputSnapshot(quote.inputSnapshot),
-					pricingSnapshot: quote.pricingSnapshot as Prisma.InputJsonValue,
+					pricingSnapshot: freezeAggregateStoragePolicy(quote.pricingSnapshot, maximumStorageBytes),
 					editSessionId: editSession?.id ?? editBinding?.editSessionId,
 					parentJobId: editBinding?.parentJobId,
 				},

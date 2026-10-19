@@ -7,6 +7,7 @@ import {
 	LIVE_GENERATION_JOB_STATUSES,
 	lockMediaAssetGenerationBindings,
 } from "./asset-binding-locks";
+import { effectiveMediaStorageLimit, outputMediaStorageLimit } from "./storage-quota";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import { unexpiredStorageReservations } from "./temporary-references";
 import type { CursorPageInput, MediaDatabaseClient, MediaTransactionClient } from "./types";
@@ -356,7 +357,12 @@ export async function createMediaUploadSessionTransaction(
 		if (activeSessions >= input.limits.maximumActiveSessions) {
 			throw new Error("ACTIVE_UPLOAD_SESSION_LIMIT_EXCEEDED");
 		}
-		if ((reserved._sum.bytes ?? 0n) + reservedBytes > input.limits.maximumReservedBytes) {
+		const maximumBytes = await effectiveMediaStorageLimit(
+			input,
+			input.limits.maximumReservedBytes,
+			tx,
+		);
+		if (maximumBytes !== null && (reserved._sum.bytes ?? 0n) + reservedBytes > maximumBytes) {
 			throw new Error("STORAGE_QUOTA_EXCEEDED");
 		}
 		const asset = await tx.mediaAsset.create({
@@ -1728,7 +1734,12 @@ export async function reserveGenerationOutputStorageTransaction(
 			},
 			_sum: { bytes: true },
 		});
-		if ((usage._sum.bytes ?? 0n) + bytes > input.maximumStorageBytes) {
+		const maximumBytes = await outputMediaStorageLimit(
+			{ ownerType: asset.ownerType, ownerId: asset.ownerId, assetId: asset.id },
+			input.maximumStorageBytes,
+			tx,
+		);
+		if (maximumBytes !== null && (usage._sum.bytes ?? 0n) + bytes > maximumBytes) {
 			throw new GenerationOutputStorageError();
 		}
 

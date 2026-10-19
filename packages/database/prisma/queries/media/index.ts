@@ -29,6 +29,7 @@ export * from "./quotes";
 export * from "./retry-requests";
 export * from "./state-machine";
 export * from "./storage-usage-locks";
+export * from "./storage-quota";
 export * from "./temporary-references";
 export * from "./stripe-refund-repairs";
 export * from "./types";

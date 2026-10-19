@@ -14,7 +14,7 @@ import {
 	type ProductModelKey,
 } from "@repo/config";
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
-import { unexpiredStorageReservations } from "@repo/database";
+import { effectiveMediaStorageLimit, unexpiredStorageReservations } from "@repo/database";
 import { db } from "@repo/database/client";
 
 import { ensureFreePlanCreditsForGeneration } from "./free-plan-credits";
@@ -31,7 +31,7 @@ export interface GenerationAccessSnapshot {
 	globalDailyCostMicros?: bigint;
 	maximumGlobalDailyCostMicros?: bigint;
 	storageUsageBytes: bigint;
-	maximumStorageBytes: bigint;
+	maximumStorageBytes: bigint | null;
 	planId: PlanId;
 	sourceAssetReady: boolean;
 	sourceAssetBytes: bigint | null;
@@ -171,7 +171,11 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 			globalDailyCostMicros: globalDailyCost?._sum.costMicros ?? 0n,
 			...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
 			storageUsageBytes: storageUsage._sum.bytes ?? 0n,
-			maximumStorageBytes: maximumMediaStorageBytes(),
+			maximumStorageBytes: await effectiveMediaStorageLimit(
+				{ ownerType: "USER", ownerId: input.userId },
+				maximumMediaStorageBytes(),
+				db,
+			),
 			planId: entitlement.id,
 			sourceAssetReady: isUsableGenerationSourceAsset(input.input, sourceAsset),
 			sourceAssetBytes: sourceAsset?.byteSize ?? null,
@@ -223,7 +227,10 @@ export async function assertGenerationAllowed(
 	}
 	if (access.creditDebt > 0n) throw new Error("CREDIT_DEBT_OUTSTANDING");
 	if (access.spendableCredits < input.credits) throw new Error("INSUFFICIENT_CREDITS");
-	if (access.storageUsageBytes >= access.maximumStorageBytes) {
+	if (
+		access.maximumStorageBytes !== null &&
+		access.storageUsageBytes >= access.maximumStorageBytes
+	) {
 		throw new Error("STORAGE_QUOTA_EXCEEDED");
 	}
 	if (

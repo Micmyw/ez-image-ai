@@ -14,6 +14,10 @@ const production = vi.hoisted(() => ({
 	},
 }));
 vi.mock("@repo/database/client", () => ({ db: production.db }));
+vi.mock("@repo/database", () => ({
+	unexpiredStorageReservations: () => ({}),
+	effectiveMediaStorageLimit: async (_owner: unknown, maximum: bigint) => maximum,
+}));
 vi.mock("@repo/config/server", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@repo/config/server")>()),
 	mediaDailyProviderCostBudgetMicros: production.budget,
@@ -58,6 +62,29 @@ const BASE_SNAPSHOT: GenerationAccessSnapshot = {
 };
 
 describe("generation authorization", () => {
+	it("does not reject an authoritative unlimited aggregate quota at high usage", async () => {
+		await expect(
+			assertGenerationAllowed(
+				{
+					userId: "user-1",
+					productKey: PAID_IMAGE_PRODUCT,
+					credits: 9n,
+					costMicros: 40_000n,
+					input: IMAGE_EDIT_INPUT,
+					routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+				},
+				{
+					enforceRateLimit: vi.fn(),
+					isEnvironmentGenerationEnabled: () => true,
+					loadAccess: async () => ({
+						...BASE_SNAPSHOT,
+						storageUsageBytes: 100_000_000_000n,
+						maximumStorageBytes: null,
+					}),
+				},
+			),
+		).resolves.toBeUndefined();
+	});
 	it.each([undefined, 0n, 100_000n])(
 		"only aggregates global costs for a configured budget (%s)",
 		async (budget) => {

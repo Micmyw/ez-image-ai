@@ -29,6 +29,7 @@ import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { reserveCreditsInTransaction } from "./credits";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
+import { effectiveMediaStorageLimit, freezeAggregateStoragePolicy } from "./storage-quota";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import {
 	runReadCommitted,
@@ -505,8 +506,6 @@ export async function createVideoJobRecord(
 			ownerType: "USER",
 			ownerId: input.ownerId,
 		});
-		if (usedBytes + outputBytes + sceneBytes > input.limits.maximumStorageBytes)
-			throw new Error("STORAGE_QUOTA_EXCEEDED");
 		if (request.mode === "image-to-video")
 			await lockMediaAssetGenerationBindings(
 				input.template
@@ -566,6 +565,14 @@ export async function createVideoJobRecord(
 		const admissionNow = await databaseNow(tx);
 		if (quote.expiresAt <= admissionNow) throw new Error("QUOTE_EXPIRED");
 		await assertVideoRetailEligibility(input.ownerId, input.price.pricingDetails, tx, admissionNow);
+		const maximumStorageBytes = await effectiveMediaStorageLimit(
+			{ ownerType: "USER", ownerId: input.ownerId },
+			input.limits.maximumStorageBytes,
+			tx,
+			admissionNow,
+		);
+		if (maximumStorageBytes !== null && usedBytes + outputBytes + sceneBytes > maximumStorageBytes)
+			throw new Error("STORAGE_QUOTA_EXCEEDED");
 		const job = await tx.generationJob.create({
 			data: {
 				ownerType: "USER",
@@ -579,7 +586,7 @@ export async function createVideoJobRecord(
 				creditsReserved: quote.credits,
 				executionEngine: ENGINE,
 				inputSnapshot: quote.inputSnapshot as Prisma.InputJsonValue,
-				pricingSnapshot: quote.pricingSnapshot as Prisma.InputJsonValue,
+				pricingSnapshot: freezeAggregateStoragePolicy(quote.pricingSnapshot, maximumStorageBytes),
 			},
 		});
 		const creditReservationStartedAt = new Date().toISOString();
