@@ -16,7 +16,7 @@ export function ImagePassBanner({ registered = false }: { registered?: boolean }
 	return (
 		<aside
 			aria-label={t("bannerLabel")}
-			className="border-violet-300/20 text-white border-b bg-[#271e39]"
+			className="border-violet-300/20 text-white border-b bg-[#21182f]"
 			data-test="image-pass-banner"
 		>
 			<div className="gap-x-4 gap-y-2 py-3 text-sm container flex flex-wrap items-center justify-center text-center">
@@ -28,7 +28,7 @@ export function ImagePassBanner({ registered = false }: { registered?: boolean }
 							currency: offer.currency,
 						})}
 					</strong>
-					<span className="ml-2 text-xs text-[#c9bdd9]">{t("bannerDetail")}</span>
+					<span className="ml-2 text-xs text-[#b7acbf]">{t("bannerDetail")}</span>
 				</p>
 				<Link
 					href={registered ? "/image-pass" : "/signup?redirectTo=%2Fimage-pass"}

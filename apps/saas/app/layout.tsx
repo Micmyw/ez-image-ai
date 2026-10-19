@@ -96,9 +96,15 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		// Signed-in library/history views restore this copy at their own boundaries.
 		...(media
 			? {
-					media: Object.fromEntries(
-						Object.entries(media).filter(([key]) => !["assets", "edits", "history"].includes(key)),
-					),
+					media: {
+						...Object.fromEntries(
+							Object.entries(media).filter(
+								([key]) => !["assets", "edits", "history"].includes(key),
+							),
+						),
+						// UserMenu's history link is also available on public pages.
+						history: { title: media.history.title },
+					},
 				}
 			: {}),
 	};

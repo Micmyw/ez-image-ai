@@ -171,7 +171,10 @@ describe("SaaS root layout", () => {
 			});
 			expect(fullMessages.imagePass.returnPending).not.toBe("");
 			for (const [key, value] of Object.entries(fullMessages.media)) {
-				if (["assets", "edits", "history"].includes(key)) {
+				if (key === "history") {
+					// UserMenu also needs this navigation label on public pages.
+					expect(clientMessages.media.history).toEqual({ title: fullMessages.media.history.title });
+				} else if (["assets", "edits"].includes(key)) {
 					expect(clientMessages.media).not.toHaveProperty(key);
 				} else {
 					expect(clientMessages.media[key]).toEqual(value);
