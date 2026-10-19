@@ -212,11 +212,11 @@ async function readyWorkspace() {
 	return renderWorkspace();
 }
 
-function renderWorkspace(): ReactNode {
+function renderWorkspace(): ReactElement {
 	harness.cursor = 0;
 	harness.refCursor = 0;
 	const wrapper = LandingGenerator({ initialFile: source });
-	const Workspace = wrapper.type as (props: typeof wrapper.props) => ReactNode;
+	const Workspace = wrapper.type as (props: typeof wrapper.props) => ReactElement;
 	return Workspace(wrapper.props);
 }
 
