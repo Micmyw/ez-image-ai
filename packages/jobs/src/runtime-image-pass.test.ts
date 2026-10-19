@@ -1,3 +1,4 @@
+import { readProviderTerminalEvidence } from "@repo/config/provider-terminal-evidence";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createOutputTransferEnvelope } from "./output-transfer-envelope";
@@ -353,6 +354,7 @@ describe("image pass job consumers", () => {
 		"queues pass release for a charged but authenticated terminal %s retrieval",
 		async (status) => {
 			const f = reconciliationFixture();
+			const observedAt = new Date().toISOString();
 			await expect(
 				f.store.recordReconciled(
 					f.lease,
@@ -360,7 +362,7 @@ describe("image pass job consumers", () => {
 						providerTaskId: "task",
 						status,
 						raw: {},
-						retrieval: { source: "kie-record-info", observedAt: new Date().toISOString() },
+						retrieval: { source: "kie-record-info", observedAt },
 					},
 					f.result,
 				),
@@ -378,6 +380,16 @@ describe("image pass job consumers", () => {
 					}),
 				}),
 			);
+			expectBoundTerminalEvidence(f, status, observedAt);
+			expect(f.attempt).toMatchObject({ status: "FAILED", uncertainSubmission: false });
+			expect(f.attempt.job.status).toBe("FINALIZING");
+			expect(f.tx.outboxEvent.createMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({ eventType: "GENERATION_SETTLE" }),
+				}),
+			);
+			// A provider terminal observation releases execution occupancy. The pass
+			// remains held until the separate no-output settlement checks complete.
 			expect(funding.finalize).not.toHaveBeenCalled();
 			expect(funding.creditSettle).not.toHaveBeenCalled();
 		},
@@ -396,6 +408,9 @@ describe("image pass job consumers", () => {
 			}),
 		);
 		expect(f.tx.outboxEvent.createMany).not.toHaveBeenCalled();
+		expect(f.tx.generationAttempt.update).not.toHaveBeenCalled();
+		expect(f.attempt.responseSnapshot).not.toHaveProperty("providerTerminalEvidence");
+		expect(f.attempt).toMatchObject({ status: "NEEDS_RECONCILIATION", uncertainSubmission: true });
 		expect(funding.finalize).not.toHaveBeenCalled();
 	});
 
@@ -419,18 +434,23 @@ describe("image pass job consumers", () => {
 				}),
 			);
 			expect(f.tx.outboxEvent.createMany).not.toHaveBeenCalled();
+			expect(f.tx.generationAttempt.update).not.toHaveBeenCalled();
+			expect(f.attempt.responseSnapshot).not.toHaveProperty("providerTerminalEvidence");
+			expect(f.attempt.uncertainSubmission).toBe(true);
+			expect(funding.finalize).not.toHaveBeenCalled();
 		},
 	);
 
 	it("keeps a successful but empty provider result held for manual output recovery", async () => {
 		const f = reconciliationFixture();
+		const observedAt = new Date().toISOString();
 		await f.store.recordReconciled(
 			f.lease,
 			{
 				providerTaskId: "task",
 				status: "SUCCEEDED",
 				raw: {},
-				retrieval: { source: "kie-record-info", observedAt: new Date().toISOString() },
+				retrieval: { source: "kie-record-info", observedAt },
 			},
 			{ ...f.result, failure: null },
 		);
@@ -439,12 +459,18 @@ describe("image pass job consumers", () => {
 				data: expect.objectContaining({ status: "NEEDS_RECONCILIATION" }),
 			}),
 		);
+		expectBoundTerminalEvidence(f, "SUCCEEDED", observedAt);
+		expect(f.attempt).toMatchObject({ status: "NEEDS_RECONCILIATION", uncertainSubmission: true });
+		// Supplier capacity is free even though no safe usable image exists and
+		// the independent pass reservation must remain held for manual recovery.
 		expect(funding.finalize).not.toHaveBeenCalled();
+		expect(funding.creditSettle).not.toHaveBeenCalled();
 		expect(f.tx.outboxEvent.createMany).not.toHaveBeenCalled();
 	});
 
 	it("retains the existing ordinary-credit manual hold for a charged terminal failure", async () => {
 		const f = reconciliationFixture();
+		const observedAt = new Date().toISOString();
 		funding.lookup.mockResolvedValue({
 			id: "credit",
 			amount: 5n,
@@ -457,10 +483,14 @@ describe("image pass job consumers", () => {
 				providerTaskId: "task",
 				status: "FAILED",
 				raw: {},
-				retrieval: { source: "kie-record-info", observedAt: new Date().toISOString() },
+				retrieval: { source: "kie-record-info", observedAt },
 			},
 			f.result,
 		);
+		expectBoundTerminalEvidence(f, "FAILED", observedAt);
+		expect(f.attempt).toMatchObject({ status: "NEEDS_RECONCILIATION", uncertainSubmission: true });
+		expect(funding.finalize).not.toHaveBeenCalled();
+		expect(funding.creditSettle).not.toHaveBeenCalled();
 		expect(f.tx.generationJob.updateMany).toHaveBeenCalledWith(
 			expect.objectContaining({
 				data: expect.objectContaining({ status: "NEEDS_RECONCILIATION" }),
@@ -483,6 +513,9 @@ describe("image pass job consumers", () => {
 				f.result,
 			),
 		).rejects.toThrow("RECONCILIATION_TASK_MISMATCH");
+		expect(f.tx.generationAttempt.update).not.toHaveBeenCalled();
+		expect(f.tx.generationAttempt.updateMany).not.toHaveBeenCalled();
+		expect(f.attempt.responseSnapshot).not.toHaveProperty("providerTerminalEvidence");
 		expect(f.tx.outboxEvent.createMany).not.toHaveBeenCalled();
 		expect(funding.finalize).not.toHaveBeenCalled();
 	});
@@ -579,10 +612,15 @@ function reconciliationFixture() {
 		provider: "kie",
 		providerTaskId: "task",
 		status: "RUNNING",
+		uncertainSubmission: true,
+		reconcileLeaseToken: "lease",
 		providerCostMicros: 20_000n,
-		responseSnapshot: {},
+		responseSnapshot: { providerCharged: true } as Record<string, unknown>,
 		errorSnapshot: {},
 		job: {
+			id: "job",
+			executionEngine: "legacy",
+			version: 1,
 			productKey: "image-nano-banana-2-lite",
 			status: "PROVIDER_RUNNING",
 			fundingSource: "IMAGE_PASS",
@@ -591,10 +629,52 @@ function reconciliationFixture() {
 	const tx = {
 		$queryRaw: vi.fn(async () => [{ id: "attempt" }]),
 		generationAttempt: {
-			findFirst: vi.fn(async () => attempt),
-			updateMany: vi.fn(async () => ({ count: 1 })),
+			findFirst: vi.fn(async () => structuredClone(attempt)),
+			update: vi.fn(
+				async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+					if (where.id !== attempt.id) throw new Error("GENERATION_ATTEMPT_NOT_FOUND");
+					applyData(attempt, data);
+					return structuredClone(attempt);
+				},
+			),
+			updateMany: vi.fn(
+				async ({
+					where,
+					data,
+				}: {
+					where: { id: string; reconcileLeaseToken?: string };
+					data: Record<string, unknown>;
+				}) => {
+					if (
+						where.id !== attempt.id ||
+						(where.reconcileLeaseToken !== undefined &&
+							where.reconcileLeaseToken !== attempt.reconcileLeaseToken)
+					)
+						return { count: 0 };
+					applyData(attempt, data);
+					return { count: 1 };
+				},
+			),
 		},
-		generationJob: { updateMany: vi.fn(async () => ({ count: 1 })) },
+		generationJob: {
+			updateMany: vi.fn(
+				async ({
+					where,
+					data,
+				}: {
+					where: { id: string; status?: { in: string[] } };
+					data: Record<string, unknown>;
+				}) => {
+					if (
+						where.id !== attempt.job.id ||
+						(where.status && !where.status.in.includes(attempt.job.status))
+					)
+						return { count: 0 };
+					applyData(attempt.job, data);
+					return { count: 1 };
+				},
+			),
+		},
 		outboxEvent: { createMany: vi.fn(async () => ({ count: 1 })) },
 		auditLog: { create: vi.fn() },
 	};
@@ -619,5 +699,47 @@ function reconciliationFixture() {
 		failure: { code: "CONTENT_REJECTED", message: "Rejected", retryable: false },
 		retryable: false,
 	};
-	return { tx, store: createDatabaseReconciliationStore(database as never), lease, result };
+	return {
+		attempt,
+		tx,
+		store: createDatabaseReconciliationStore(database as never),
+		lease,
+		result,
+	};
+}
+
+function expectBoundTerminalEvidence(
+	f: ReturnType<typeof reconciliationFixture>,
+	status: "SUCCEEDED" | "FAILED" | "CANCELED",
+	observedAt: string,
+) {
+	const evidence = {
+		version: 1,
+		provider: "kie",
+		source: "kie-record-info",
+		attemptId: f.attempt.id,
+		providerTaskId: f.attempt.providerTaskId,
+		status,
+		verifiedAt: observedAt,
+	};
+	// This is the production validator used to preserve terminal capacity
+	// evidence. It does not authorize a pass/credit release or provider resend.
+	expect(
+		readProviderTerminalEvidence(f.attempt.responseSnapshot.providerTerminalEvidence, f.attempt),
+	).toEqual(evidence);
+	expect(f.tx.generationAttempt.update).toHaveBeenCalledWith({
+		where: { id: f.attempt.id },
+		data: { responseSnapshot: expect.objectContaining({ providerTerminalEvidence: evidence }) },
+	});
+}
+
+/** Persist separate row state; mutating a returned read must not fake a write. */
+function applyData(row: Record<string, unknown>, data: Record<string, unknown>) {
+	for (const [key, value] of Object.entries(data)) {
+		if (value === undefined) continue;
+		row[key] =
+			value && typeof value === "object" && "increment" in value
+				? Number(row[key]) + Number(value.increment)
+				: structuredClone(value);
+	}
 }
