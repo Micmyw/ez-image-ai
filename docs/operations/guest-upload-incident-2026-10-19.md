@@ -1,5 +1,9 @@
 # Guest upload admission failures — 2026-10-19
 
+Subsequent user decision: remove the global daily request cap. The investigation below records
+the deployed behavior at the time of the incident. See the separate
+[removal patch and release boundaries](guest-global-daily-limit-removal-2026-10-19.md).
+
 ## Outcome and boundaries
 
 The observed production failures are guest upload admission denials, before an upload session,

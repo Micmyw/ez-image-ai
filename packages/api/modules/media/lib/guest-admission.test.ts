@@ -2,6 +2,22 @@ import { createHmac } from "node:crypto";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// These cases inject the transaction boundary; never initialize a real database client.
+vi.mock("@repo/database/client", () => ({ db: {} }));
+vi.mock("@repo/database", async () => {
+	const quotes = await vi.importActual<typeof import("@repo/database/media-quotes")>(
+		"@repo/database/media-quotes",
+	);
+	return {
+		createGuestGenerationTransaction: vi.fn(),
+		fingerprintGenerationQuoteSecurityPayload: quotes.fingerprintGenerationQuoteSecurityPayload,
+		recordGuestAdmissionDenial: vi.fn(),
+		recordTextModerationOutcome: vi.fn(),
+		resolveGuestRuntimeConfigOverride: vi.fn(),
+		consumeGuestTurnstileTokenHash: vi.fn(),
+	};
+});
+
 import { submitGuestGenerationForGuest, type guestAdmissionDependencies } from "./guest-admission";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -186,6 +202,9 @@ describe("guest admission pre-transaction boundary", () => {
 			submitGuestGenerationForGuest(validBoundary(), validInput(), dependencies),
 		).resolves.toMatchObject({ jobId: "job-1", stage: "WAITING" });
 		expect(dependencies.recordDenial).not.toHaveBeenCalled();
+		expect(dependencies.createTransaction.mock.calls[0]?.[0]).not.toHaveProperty(
+			"maximumGlobalRequestsPerDay",
+		);
 		expect(dependencies.verifyTurnstile).toHaveBeenCalledOnce();
 		expect(dependencies.createTransaction).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -224,7 +243,6 @@ describe("guest admission pre-transaction boundary", () => {
 				maximumRequestsPerIpPerDay: 3,
 				maximumRequestsPerSubnetPerDay: 20,
 				maximumGlobalRequestsPerHour: 30,
-				maximumGlobalRequestsPerDay: 100,
 				quote: expect.objectContaining({
 					productKey: "image-nano-banana-2-lite",
 					credits: 5n,
@@ -318,7 +336,6 @@ function validDependencies(options?: {
 					maximumRequestsPerSubnetPerDay: 20,
 					maximumGlobalRequestsPerMinute: 3,
 					maximumGlobalRequestsPerHour: 30,
-					maximumGlobalRequestsPerDay: 100,
 					maximumRequestsPerMinute: 3,
 					maximumRequestsPerIpPerHour: 3,
 					maximumGlobalQueueDepth: 25,

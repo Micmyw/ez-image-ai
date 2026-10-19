@@ -115,7 +115,6 @@ interface GuestAdmissionConfig {
 		maximumRequestsPerSubnetPerDay?: number;
 		maximumGlobalRequestsPerMinute?: number;
 		maximumGlobalRequestsPerHour?: number;
-		maximumGlobalRequestsPerDay?: number;
 		maximumRequestsPerMinute: number;
 		maximumRequestsPerIpPerHour: number;
 		maximumGlobalQueueDepth: number;
@@ -490,7 +489,6 @@ export async function submitGuestGenerationForGuest(
 		maximumRequestsPerSubnetPerDay: loaded.config.limits.maximumRequestsPerSubnetPerDay,
 		maximumGlobalRequestsPerMinute: loaded.config.limits.maximumGlobalRequestsPerMinute,
 		maximumGlobalRequestsPerHour: loaded.config.limits.maximumGlobalRequestsPerHour,
-		maximumGlobalRequestsPerDay: loaded.config.limits.maximumGlobalRequestsPerDay,
 		abuseEvidenceTtlMs: loaded.config.abuseEvidenceTtlMs,
 		riskBudgetMicros: loaded.config.riskBudgetMicros,
 		sponsorCredits: loaded.config.sponsorCredits,

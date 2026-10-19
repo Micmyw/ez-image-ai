@@ -1,5 +1,7 @@
 # 客户上传 → 审核 → 生成 → 下载限制审查
 
+后续决定：用户已明确取消全站单日次数限制，对应上传、身份引导、生成的独立补丁见[取消说明](guest-global-daily-limit-removal-2026-10-19.md)。本表保留事故时 main 与生产限制的审计口径；其他两项体验改进仅是[待审方案](customer-flow-proposals-2026-10-19.md)。生产尚未发布该取消补丁。
+
 审查日期：2026-10-19。只读代码审查；仓库 `/workspace/ez-image-ai-guest-fix`，分支 `codex/fix-guest-edit-prepare`，HEAD `174e29ee1576fb1eb907249ed0480e0e9f0f1734`。已读根 `agents.md`。本审查没有修改仓库、查询客户原始 IP、读取密钥、调用生成模型或写生产环境。父任务正在同一工作树准备游客上传补丁；下表区分 main 行为与补丁行为。
 
 ## 结论与证据边界

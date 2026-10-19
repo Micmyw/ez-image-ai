@@ -30,6 +30,54 @@ const staged = {
 const response = (result: unknown) => Response.json({ success: true, result });
 
 describe("retired Worker bindings", () => {
+	it.each(["secret_text", "plain_text"])(
+		"stages retirement of the guest global daily %s limit while preserving active guest limits",
+		async (type) => {
+			const preserved = [
+				"GUEST_SESSION_MAX_ACCEPTED_PER_DAY",
+				"GUEST_DEVICE_MAX_ACCEPTED_PER_DAY",
+				"GUEST_IP_MAX_PER_24_HOURS",
+				"GUEST_SUBNET_MAX_PER_24_HOURS",
+				"GUEST_GLOBAL_MAX_PER_MINUTE",
+				"GUEST_GLOBAL_MAX_PER_HOUR",
+				"GUEST_GLOBAL_MAX_PER_24_HOURS_OTHER",
+			].map((name) => ({ name, type: "secret_text" }));
+			const request = vi
+				.fn<typeof fetch>()
+				.mockResolvedValueOnce(
+					response({
+						id: "current-version",
+						bindings: [{ name: "GUEST_GLOBAL_MAX_PER_24_HOURS", type }, ...preserved],
+					}),
+				)
+				.mockResolvedValueOnce(
+					response({ id: "daily-limit-retired-version", bindings: preserved }),
+				);
+			await expect(
+				stageRetiredWorkerBindings(
+					{ ...options, nextBindingNames: preserved.map(({ name }) => name) },
+					request,
+				),
+			).resolves.toEqual({
+				versionId: "daily-limit-retired-version",
+				retired: ["GUEST_GLOBAL_MAX_PER_24_HOURS"],
+			});
+			expect(request).toHaveBeenCalledTimes(2);
+			const versionUrl =
+				"https://api.cloudflare.com/client/v4/accounts/account/workers/workers/website/versions/latest";
+			expect(request.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
+				[versionUrl, "GET"],
+				[versionUrl, "PATCH"],
+			]);
+			expect(JSON.parse(request.mock.calls[1]![1]!.body as string)).toEqual({
+				env: { GUEST_GLOBAL_MAX_PER_24_HOURS: null },
+				annotations: {
+					"workers/message":
+						"Prepare retired bindings for release-sha; do not deploy this intermediate version",
+				},
+			});
+		},
+	);
 	it("retires obsolete video access text fields without requiring replacement restrictions", async () => {
 		const obsolete = [
 			{ name: "VIDEO_V1_ALLOWED_USER_IDS", type: "secret_text" },

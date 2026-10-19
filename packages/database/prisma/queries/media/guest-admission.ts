@@ -90,7 +90,6 @@ export interface CreateGuestGenerationTransactionInput {
 	maximumRequestsPerSubnetPerDay?: number;
 	maximumGlobalRequestsPerMinute?: number;
 	maximumGlobalRequestsPerHour?: number;
-	maximumGlobalRequestsPerDay?: number;
 	abuseEvidenceTtlMs: number;
 	riskBudgetMicros: bigint | null;
 	sponsorCredits: bigint;
@@ -1013,19 +1012,6 @@ async function enforceAdmissionBuckets(
 	if (
 		!(await incrementGuestBucket(
 			tx,
-			"guest-generate:global:day",
-			"global",
-			dayStart,
-			86_400_000,
-			input.maximumGlobalRequestsPerDay ?? input.maximumRequestsPerIpPerHour,
-			evidenceTtlMs,
-		))
-	) {
-		throw new Error("GUEST_GLOBAL_RATE_LIMIT");
-	}
-	if (
-		!(await incrementGuestBucket(
-			tx,
 			`guest-generate:${input.promotionPeriod}:ip:ten-minute`,
 			input.ipHash,
 			tenMinuteStart,
@@ -1211,7 +1197,6 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 		input.maximumRequestsPerSubnetPerDay ?? input.maximumRequestsPerIpPerHour,
 		input.maximumGlobalRequestsPerMinute ?? input.maximumRequestsPerMinute,
 		input.maximumGlobalRequestsPerHour ?? input.maximumRequestsPerIpPerHour,
-		input.maximumGlobalRequestsPerDay ?? input.maximumRequestsPerIpPerHour,
 		input.abuseEvidenceTtlMs,
 	]) {
 		if (!Number.isSafeInteger(value) || value <= 0) throw new Error("GUEST_CONFIGURATION_ERROR");

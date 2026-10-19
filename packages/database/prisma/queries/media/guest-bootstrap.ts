@@ -108,7 +108,6 @@ interface GuestBoundaryAbuseLimits {
 	maximumRequestsPerSubnetPerDay: number;
 	maximumGlobalRequestsPerMinute: number;
 	maximumGlobalRequestsPerHour: number;
-	maximumGlobalRequestsPerDay: number;
 }
 
 export interface CreateGuestMediaUploadIntentTransactionInput extends Omit<
@@ -680,12 +679,6 @@ async function enforceGuestBoundaryRateLimits(
 			subjectHash: "global",
 			windowMs: 60 * 60_000,
 			maximum: input.limits.maximumGlobalRequestsPerHour,
-		},
-		{
-			scope: `${input.scopePrefix}:global:day`,
-			subjectHash: "global",
-			windowMs: 24 * 60 * 60_000,
-			maximum: input.limits.maximumGlobalRequestsPerDay,
 		},
 	] as const;
 	for (const window of windows) {

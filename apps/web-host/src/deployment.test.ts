@@ -3,6 +3,30 @@ import { describe, expect, it } from "vitest";
 import { deploymentEnvironment, publicBuildVariables } from "./deployment";
 
 describe("Cloudflare deployment environment", () => {
+	it.each(["5", "100", "retired-invalid"])(
+		"ignores the retired guest global daily limit %s while preserving active guest limits",
+		(value) => {
+			const active = {
+				GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2",
+				GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2",
+				GUEST_IP_MAX_PER_24_HOURS: "3",
+				GUEST_SUBNET_MAX_PER_24_HOURS: "20",
+				GUEST_GLOBAL_MAX_PER_MINUTE: "3",
+				GUEST_GLOBAL_MAX_PER_HOUR: "30",
+				GUEST_GLOBAL_MAX_PER_24_HOURS_OTHER: "unrelated-setting",
+			};
+			const environment = deploymentEnvironment(
+				{
+					NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
+					GUEST_GLOBAL_MAX_PER_24_HOURS: value,
+					...active,
+				},
+				"https://ezimageai.com",
+			);
+			expect(environment).not.toHaveProperty("GUEST_GLOBAL_MAX_PER_24_HOURS");
+			expect(environment).toMatchObject(active);
+		},
+	);
 	it("does not forward a build-only video flag into the prepared environment", () => {
 		const result = deploymentEnvironment(
 			{
