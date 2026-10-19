@@ -54,9 +54,10 @@ const policy = {
 	VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
 };
 describe("effect price release preflight", () => {
-	it("recomputes all six options with effect costs and refuses price drift without exposing secrets", () => {
+	it("recomputes all six options and reports expired or drifting policy without exposing secrets", () => {
 		const input = {
 			VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
+			VIDEO_V1_ENABLED: "true",
 			HOTEL_LOBBY_DUO_ENABLED: "true",
 			KIE_API_KEY: "secret-sentinel",
 		};
@@ -68,22 +69,63 @@ describe("effect price release preflight", () => {
 			costPolicy: { paymentFeeBps: "750", markupBps: "27500" },
 		});
 		expect(JSON.stringify(report)).not.toContain("secret-sentinel");
-		expect(() =>
-			verifyApprovedVideoEffectPrices({
+		for (const [patch, reason] of [
+			[{ VIDEO_COST_RUNTIME_MICROS: "120000" }, "VIDEO_EFFECT_APPROVED_PRICES_CHANGED"],
+			[{ HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS: "20001" }, "VIDEO_EFFECT_APPROVED_MARKUP_CHANGED"],
+		] as const) {
+			const drift = verifyApprovedVideoEffectPrices({
 				...input,
-				VIDEO_RUNTIME_CONFIG: JSON.stringify({ ...policy, VIDEO_COST_RUNTIME_MICROS: "120000" }),
+				VIDEO_RUNTIME_CONFIG: JSON.stringify({ ...policy, ...patch }),
+			});
+			expect(drift).toMatchObject({ checked: 0, rows: [] });
+			for (const option of drift.effects)
+				expect(option).toMatchObject({ available: false, reasons: [reason] });
+		}
+		const expired = verifyApprovedVideoEffectPrices({
+			...input,
+			VIDEO_RUNTIME_CONFIG: JSON.stringify({
+				...policy,
+				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2000-01-01",
 			}),
-		).toThrow("VIDEO_EFFECT_APPROVED_PRICES_CHANGED");
-		expect(() =>
-			verifyApprovedVideoEffectPrices({
-				...input,
-				VIDEO_RUNTIME_CONFIG: JSON.stringify({
-					...policy,
-					HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2000-01-01",
-				}),
-			}),
-		).toThrow("VIDEO_EFFECT_PRICE_EXPIRED");
+		});
+		expect(expired).toMatchObject({ checked: 0, rows: [] });
+		expect(expired.effects).toHaveLength(6);
+		for (const option of expired.effects)
+			expect(option).toMatchObject({ available: false, reasons: ["VIDEO_EFFECT_PRICE_EXPIRED"] });
 	});
+	it("isolates unavailable long options and independently disabled effects", () => {
+		const report = verifyApprovedVideoEffectPrices({
+			VIDEO_V1_ENABLED: "true",
+			HOTEL_LOBBY_DUO_ENABLED: "false",
+			VIDEO_RUNTIME_CONFIG: JSON.stringify({
+				...policy,
+				RAINDANCE_ACCEPTED_LONG_TEMPLATE_VERSION: "unapproved",
+			}),
+		});
+		expect(report).toMatchObject({ checked: 2, differences: 0 });
+		expect(report.effects).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					effectId: "hotel-lobby-duo",
+					available: false,
+					reasons: ["VIDEO_EFFECT_DISABLED"],
+				}),
+				expect.objectContaining({
+					effectId: "raindance-solo",
+					duration: 5,
+					available: true,
+					reasons: [],
+				}),
+				expect.objectContaining({
+					effectId: "raindance-duo",
+					duration: 10,
+					available: false,
+					reasons: ["VIDEO_EFFECT_TEMPLATE_NOT_CONFIRMED"],
+				}),
+			]),
+		);
+	});
+
 	it("adds only dedicated approvals and preserves access, ordinary pricing, funding and prior versions", () => {
 		const {
 			VIDEO_EFFECT_RETAIL_PRICE_ACCEPTED_VERSION: _retail,
@@ -112,7 +154,7 @@ describe("effect price release preflight", () => {
 		).toThrow("VIDEO_EFFECT_BUILD_RETAIL_POLICY_REQUIRED");
 	});
 	it("does not invent a production policy when approval is absent", () =>
-		expect(verifyApprovedVideoEffectPrices({})).toEqual({ enabled: false, checked: 0 }));
+		expect(verifyApprovedVideoEffectPrices({})).toMatchObject({ enabled: false, checked: 0 }));
 	it("compacts only retired allowlists before the overlay while retaining the 5,000-byte bound", () => {
 		const {
 			VIDEO_EFFECT_RETAIL_PRICE_ACCEPTED_VERSION: _retail,

@@ -436,6 +436,40 @@ describe("private approved motion reference binding", () => {
 });
 
 describe("reviewed reference input and paid send fence", () => {
+	it.each([
+		{ validUntil: "2000-01-01T00:00:00.000Z" },
+		{ priceApprovalExpiryMode: "until", validUntil: "2000-01-01T00:00:00.000Z" },
+		{ priceApprovalExpiryMode: "none", validUntil: null },
+	])(
+		"claims a valid licensed reference without enforcing retired price metadata %j",
+		async (pricingDetails) => {
+			const f = fixture();
+			Object.assign(f.job, { pricingSnapshot: { pricingDetails } });
+			const frozen = structuredClone(f.job.pricingSnapshot);
+			await finalizeVideoTemplateReferenceInput(f.job.id);
+			f.job.videoExecution.stageData = {
+				inputReview: {
+					status: "ALLOW",
+					ruleVersion: "video-rule",
+					requestFingerprint: "frozen-request",
+					validUntil: "2026-10-08T00:00:00Z",
+					textSafetyProfile: f.inputReview.textSafetyProfile,
+					textDecision: f.inputReview.motionTextDecision,
+				},
+			};
+			const input = {
+				jobId: f.job.id,
+				callbackTokenHash: "token-hash",
+				providerModelId: "seedance2",
+				ruleVersion: "video-rule",
+			};
+			await expect(claimVideoProviderSubmission(input)).resolves.toMatchObject({ claimed: true });
+			await expect(claimVideoProviderSubmission(input)).resolves.toMatchObject({ claimed: false });
+			expect(f.tx.generationAttempt.create).toHaveBeenCalledOnce();
+			expect(f.job.pricingSnapshot).toEqual(frozen);
+			expect(mocked.release).not.toHaveBeenCalled();
+		},
+	);
 	it("seals the single private subject with review evidence and creates no scene", async () => {
 		const f = fixture();
 		const identity = await finalizeVideoTemplateReferenceInput(f.job.id);
@@ -533,8 +567,9 @@ describe("reviewed reference input and paid send fence", () => {
 			expect(f.tx.mediaAsset.findFirst).not.toHaveBeenCalled();
 		},
 	);
-	it("does not create a paid attempt when approval expires while queued", async () => {
+	it("still rejects expired reference authorization with a future price date while queued", async () => {
 		const f = fixture();
+		f.job.pricingSnapshot.pricingDetails.validUntil = "2099-01-01T00:00:00.000Z";
 		f.inputReview.left.validUntil = "2026-10-08T00:00:00Z";
 		f.inputReview.right.validUntil = "2026-10-08T00:00:00Z";
 		await finalizeVideoTemplateReferenceInput(f.job.id);

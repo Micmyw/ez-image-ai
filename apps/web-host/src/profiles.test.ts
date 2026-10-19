@@ -11,6 +11,7 @@ import {
 	HOTEL_LOBBY_TEMPLATE_VERSION,
 	HOTEL_LOBBY_PRICE_VERSION,
 	HOTEL_LOBBY_SAFETY_POLICY_VERSION,
+	RAINDANCE_TEMPLATE_VERSION,
 } from "@repo/config/video-effects.server";
 import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
 import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
@@ -27,6 +28,7 @@ import { describe, expect, it } from "vitest";
 
 import { rumpelstiltskinEnvironmentFixture } from "../test-support/rumpelstiltskin-fixture";
 import { readCloudflareBuildEnvironment } from "./build-secrets";
+import { assessOptionalVideoEffectOptions } from "./optional-video-effect-readiness";
 import {
 	createProfileArtifacts,
 	deploymentProfile,
@@ -498,15 +500,40 @@ describe("prepared deployment artifacts", () => {
 			}
 			if (profile === "hybrid")
 				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).toMatchObject(input);
+			const expiredInput = {
+				...input,
+				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00Z",
+				RAINDANCE_ENABLED: "true",
+				RAINDANCE_ACCEPTED_TEMPLATE_VERSION: RAINDANCE_TEMPLATE_VERSION,
+			};
+			const expiredArtifacts = artifacts(profile, packVideoRuntimeEnvironment(expiredInput));
+			for (const name of ["website", "workflows"] as const) {
+				expect(expiredArtifacts[name].vars).toMatchObject({ HOTEL_LOBBY_DUO_ENABLED: "true" });
+				const runtime = expandVideoRuntimeEnvironment({
+					...expiredArtifacts[`${name}.secrets`],
+					...(expiredArtifacts[name].vars as Record<string, string>),
+				});
+				expect(runtime.HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL).toBe(
+					expiredInput.HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL,
+				);
+				const options = assessOptionalVideoEffectOptions(runtime);
+				for (const index of [0, 2, 4])
+					expect(options[index]).toMatchObject({
+						available: false,
+						reasons: ["VIDEO_EFFECT_PRICE_EXPIRED"],
+					});
+			}
 		},
 	);
-	it("rejects enabling the template without ordinary readiness or its own confirmed costs", () => {
-		expect(() => artifacts("workers", { HOTEL_LOBBY_DUO_ENABLED: "true" })).toThrow(
-			"VIDEO_EFFECT_VIDEO_DISABLED",
-		);
-		expect(() =>
-			artifacts("workers", { ...multiModelVideoEnvironment, HOTEL_LOBBY_DUO_ENABLED: "true" }),
-		).toThrow("VIDEO_EFFECT_TEMPLATE_NOT_CONFIRMED");
+	it("prepares unavailable templates without changing their flags and still rejects conflicting policy", () => {
+		for (const overrides of [
+			{ HOTEL_LOBBY_DUO_ENABLED: "true" },
+			{ ...multiModelVideoEnvironment, HOTEL_LOBBY_DUO_ENABLED: "true" },
+		]) {
+			const result = artifacts("workers", overrides);
+			for (const name of ["website", "workflows"] as const)
+				expect(result[name].vars).toMatchObject({ HOTEL_LOBBY_DUO_ENABLED: "true" });
+		}
 		expect(() =>
 			artifacts("workers", {
 				HOTEL_LOBBY_DUO_PRICE_BASIS: "flat",
