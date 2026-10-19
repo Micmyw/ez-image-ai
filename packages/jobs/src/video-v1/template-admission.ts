@@ -15,6 +15,7 @@ import { canAccessVideoEffect } from "@repo/config/video-effects-access.server";
 import {
 	resolveVideoEffectTemplate,
 	resolveVideoEffectPrice,
+	assertApprovedVideoEffectRetailPrice,
 	parseVideoEffectTemplateSnapshot,
 	isVideoEffectRetailPricingApproved,
 	readVideoEffectPricingDisplay,
@@ -99,6 +100,7 @@ export function requireVideoTemplateAdmission(
 	requireVideoTemplateSceneEnvironment(template, environment);
 	// Effect prices include every paid stage and never inherit ordinary-video retail markups.
 	const effectPrice = resolveVideoEffectPrice(request, environment, pricingContext);
+	assertApprovedVideoEffectRetailPrice(request, environment, effectPrice, pricingContext);
 	const admitted = requireVideoModelReadiness(environment, bindings, template.video, {
 		priceOverride: effectPrice,
 	});

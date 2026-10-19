@@ -15,6 +15,7 @@ import {
 	parseVideoEffectTemplateSnapshot,
 	resolveVideoEffectPrice,
 	resolveVideoEffectTemplate,
+	assertApprovedVideoEffectRetailPrice,
 } from "./video-effects.server";
 import {
 	calculateVideoRetailPrice,
@@ -158,6 +159,12 @@ describe("approved ten-second effects", () => {
 				const input = { ...base, ...(duration === 10 ? { duration: 10 as const } : {}) };
 				const standard = resolveVideoEffectPrice(input, upgraded());
 				const annual = resolveVideoEffectPrice(input, upgraded(), { audience: "annual" });
+				expect(() =>
+					assertApprovedVideoEffectRetailPrice(input, upgraded(), standard),
+				).not.toThrow();
+				expect(() =>
+					assertApprovedVideoEffectRetailPrice(input, upgraded(), annual, { audience: "annual" }),
+				).not.toThrow();
 				expect([standard.credits, annual.credits]).toEqual(
 					duration === 5 ? [69n, 69n] : [116n, 101n],
 				);
@@ -183,6 +190,42 @@ describe("approved ten-second effects", () => {
 			}
 		},
 	);
+
+	it("does not apply the current Hotel/Raindance retail tuple to legacy prices or Rumpelstiltskin", () => {
+		const legacyPrice = resolveVideoEffectPrice(request, fixtureEnvironment());
+		expect(() =>
+			assertApprovedVideoEffectRetailPrice(request, fixtureEnvironment(), legacyPrice),
+		).not.toThrow();
+		expect(() =>
+			assertApprovedVideoEffectRetailPrice(
+				{ ...request, effectId: "rumpelstiltskin-solo" },
+				upgraded(),
+				legacyPrice,
+			),
+		).not.toThrow();
+	});
+	it("checks the other audience's disclosed credits and markup before admitting a standard quote", () => {
+		const input = { ...request, duration: 10 as const };
+		const price = resolveVideoEffectPrice(input, upgraded());
+		const details = price.pricingDetails;
+		if (!("retail" in details) || !details.retail) throw new Error("RETAIL_TEST_FIXTURE_REQUIRED");
+		const retail = details.retail;
+		expect(() =>
+			assertApprovedVideoEffectRetailPrice(input, upgraded(), {
+				...price,
+				pricingDetails: {
+					...details,
+					retail: { ...retail, display: { ...retail.display, annualCredits: "102" } },
+				},
+			}),
+		).toThrow("VIDEO_EFFECT_APPROVED_PRICES_CHANGED");
+		expect(() =>
+			assertApprovedVideoEffectRetailPrice(input, upgraded(), {
+				...price,
+				pricingDetails: { ...details, retail: { ...retail, annualMarkupBps: "23751" } },
+			}),
+		).toThrow("VIDEO_EFFECT_APPROVED_MARKUP_CHANGED");
+	});
 	it("requires separate long-template and retail approvals while keeping accepted snapshots readable", () => {
 		const input = { ...request, duration: 10 as const };
 		const snapshot = createVideoEffectTemplateSnapshot(input);

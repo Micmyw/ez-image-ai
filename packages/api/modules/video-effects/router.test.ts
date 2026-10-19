@@ -101,6 +101,26 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("template API authorization and strict public contracts", () => {
+	it.each([
+		"VIDEO_EFFECT_PRICE_EXPIRED",
+		"VIDEO_EFFECT_APPROVED_PRICES_CHANGED",
+		"VIDEO_EFFECT_APPROVED_MARKUP_CHANGED",
+	])("reports %s as unavailable without exposing policy or accepting an order", async (reason) => {
+		vi.stubEnv("VIDEO_V1_ENABLED", "true");
+		vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "true");
+		vi.stubEnv("HOTEL_LOBBY_DUO_ACCESS", "authenticated");
+		vi.mocked(requireVideoTemplateAdmission).mockImplementationOnce(() => {
+			throw new Error(reason);
+		});
+		expect(await call(videoEffectsRouter.access, undefined, ctx)).toMatchObject({
+			accessAllowed: true,
+			available: false,
+			reasons: ["TEMPLATE_UNAVAILABLE"],
+			credits: null,
+			creditBalance: null,
+		});
+		expect(createVideoTemplateJob).not.toHaveBeenCalled();
+	});
 	it("shows material readiness to an authenticated customer before entitlement or billing", async () => {
 		vi.stubEnv("VIDEO_V1_ENABLED", "true");
 		vi.stubEnv("RUMPELSTILTSKIN_ENABLED", "true");

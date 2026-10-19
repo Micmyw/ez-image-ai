@@ -781,34 +781,35 @@ describe("video submission database correctness", () => {
 		{ priceApprovalExpiryMode: "until", validUntil: null },
 		{ priceApprovalExpiryMode: "invalid", validUntil: "2099-01-01T00:00:00.000Z" },
 		{ priceApprovalExpiryMode: null, validUntil: "2099-01-01T00:00:00.000Z" },
-	])(
-		"refuses a malformed frozen approval mode %j before creating a send fence",
-		async (details) => {
-			const f = await fixture({ pricingDetails: () => details });
-			await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
-				"VIDEO_PRICE_INVALID",
-			);
-			expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(0);
-			expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
-				"ACTIVE",
-			);
-		},
-	);
+	])("ignores retired frozen approval mode metadata %j without rewriting it", async (details) => {
+		const f = await fixture({ pricingDetails: () => details });
+		expect(await run(() => claimVideoProviderSubmission(f.claim))).toMatchObject({ claimed: true });
+		expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(1);
+		expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
+			"ACTIVE",
+		);
+		expect((await run(() => getVideoExecutionContext(f.job.id)))?.pricingSnapshot).toEqual(
+			f.job.pricingSnapshot,
+		);
+	});
 	it.each([undefined, null, 123, "invalid-date", "2026-02-31T00:00:00.000Z"])(
-		"refuses a new paid submission with invalid frozen price deadline %s",
+		"ignores the retired frozen price deadline %s without rewriting it",
 		async (validUntil) => {
 			const f = await fixture({ pricingDetails: () => ({ validUntil }) });
-			await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
-				"VIDEO_PRICE_INVALID",
-			);
-			expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(0);
+			expect(await run(() => claimVideoProviderSubmission(f.claim))).toMatchObject({
+				claimed: true,
+			});
+			expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(1);
 			expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
 				"ACTIVE",
+			);
+			expect((await run(() => getVideoExecutionContext(f.job.id)))?.pricingSnapshot).toEqual(
+				f.job.pricingSnapshot,
 			);
 		},
 	);
 	it.each([undefined, "until"])(
-		"refuses a new paid submission after its %s frozen price deadline",
+		"claims a paid submission after its retired %s frozen price deadline",
 		async (mode) => {
 			const f = await fixture({
 				pricingDetails: () => ({
@@ -816,48 +817,40 @@ describe("video submission database correctness", () => {
 					validUntil: "2000-01-01T00:00:00.000Z",
 				}),
 			});
-			await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
-				"VIDEO_PRICE_EXPIRED",
-			);
-			expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(0);
+			expect(await run(() => claimVideoProviderSubmission(f.claim))).toMatchObject({
+				claimed: true,
+			});
+			expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(1);
 			expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
 				"ACTIVE",
 			);
 		},
 	);
-	it("terminalizes an expired unsubmitted job and releases credits and capacity exactly once", async () => {
+	it("claims a past-price job exactly once without releasing its credits or capacity", async () => {
 		const f = await fixture({
 			pricingDetails: () => ({ validUntil: "2000-01-01T00:00:00.000Z" }),
 		});
-		await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
-			"VIDEO_PRICE_EXPIRED",
-		);
+		expect(await run(() => claimVideoProviderSubmission(f.claim))).toMatchObject({ claimed: true });
 		const results = await Promise.all(
-			Array.from({ length: 5 }, () =>
-				run(() =>
-					failVideoExecution(f.job.id, "VIDEO_PRICE_EXPIRED", false, false, {
-						onlyBeforeSubmission: true,
-					}),
-				),
-			),
+			Array.from({ length: 5 }, () => run(() => claimVideoProviderSubmission(f.claim))),
 		);
-		expect(results.filter(Boolean)).toHaveLength(1);
-		const failed = await run(() => getVideoExecutionContext(f.job.id));
-		expect(failed?.status).toBe("FAILED");
-		expect(failed?.failureCode).toBe("VIDEO_PRICE_EXPIRED");
-		expect(failed?.videoExecution?.stage).toBe("FAILED");
-		expect(failed?.attempts).toHaveLength(0);
-		expect(failed?.reservation?.status).toBe("RELEASED");
+		expect(results.every((result) => !result.claimed)).toBe(true);
+		const submitted = await run(() => getVideoExecutionContext(f.job.id));
+		expect(submitted?.status).toBe("SUBMITTING");
+		expect(submitted?.failureCode).toBeNull();
+		expect(submitted?.attempts).toHaveLength(1);
+		expect(submitted?.reservation?.status).toBe("ACTIVE");
+		expect(submitted?.pricingSnapshot).toEqual(f.job.pricingSnapshot);
 		expect(
 			await client.storageUsageReservation.findUnique({
 				where: { referenceKey: `video-output:${f.job.id}` },
 			}),
-		).toMatchObject({ status: "RELEASED" });
+		).toMatchObject({ status: "ACTIVE" });
 		expect(
 			await client.creditLedgerEntry.count({
 				where: { reservationId: f.reservation.id, type: "RELEASE" },
 			}),
-		).toBe(1);
+		).toBe(0);
 	});
 	it.each(["expired", "invalid", "other-owner", "unqualified-marker-missing"])(
 		"refuses a new paid submission with %s frozen internal funding authorization",
