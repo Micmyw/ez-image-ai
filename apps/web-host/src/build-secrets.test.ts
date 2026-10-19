@@ -25,6 +25,101 @@ import { assessOptionalVideoEffectOptions } from "./optional-video-effect-readin
 const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironment>) =>
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
 
+describe("private account input copy build control", () => {
+	it.each([false, true])(
+		"preserves the exact packed source without a dedicated control (split=%s)",
+		(split) => {
+			const source = `# unchanged bytes\r\nACCOUNT_INPUT_COPY_ENABLED=false\r\nPRIVATE_VALUE='fixture # 中文'\n${split ? `PADDING=${"x".repeat(6000)}` : ""}`;
+			const input = {
+				...unpackValues(packCloudflareBuildEnvironment(source)),
+				ACCOUNT_INPUT_COPY_ENABLED: "true",
+				ACCOUNT_INPUT_COPY_BUILD_ENABLED_EXTRA: "true",
+			};
+			expect(readCloudflareBuildEnvironment(input)).toBe(source);
+		},
+	);
+
+	it.each([
+		{ enabled: "true", previous: "false", split: false },
+		{ enabled: "false", previous: "true", split: false },
+		{ enabled: "true", previous: undefined, split: false },
+		{ enabled: "false", previous: undefined, split: false },
+		{ enabled: "true", previous: "false", split: true },
+		{ enabled: "false", previous: "true", split: true },
+	])("applies only the exact dedicated control %j", ({ enabled, previous, split }) => {
+		const source = [
+			"# preserve original formatting\r",
+			"PRIVATE_VALUE='fixture # 中文 \\\\ literal'\r",
+			"MULTILINE='first\nsecond'",
+			"MEDIA_SAFETY_ADAPTER=configured",
+			"MODERATION_TEXT_WAFFO_ENABLED=true",
+			"MODERATION_IMAGE_SEEAPI_ENABLED=true",
+			"IMAGE_RETAIL_PRICE_VERSION=unchanged-fixture",
+			"ACCOUNT_INPUT_PROMOTION_ENABLED=false",
+			...(previous === undefined ? [] : [`ACCOUNT_INPUT_COPY_ENABLED=${previous}`]),
+			...(split ? [`PADDING=${"x".repeat(6000)}`] : []),
+		].join("\n");
+		const input = {
+			...unpackValues(packCloudflareBuildEnvironment(source)),
+			ACCOUNT_INPUT_COPY_BUILD_ENABLED: enabled,
+			ACCOUNT_INPUT_COPY_ENABLED: enabled === "true" ? "false" : "true",
+			PATH: "unchanged-tools",
+			CLOUDFLARE_API_TOKEN: "dummy-deployment-token",
+		};
+		const snapshot = { ...input };
+		const output = readCloudflareBuildEnvironment(input);
+		const parsed = Object.fromEntries(
+			Object.entries(parseEnv(output)).filter(
+				(entry): entry is [string, string] => typeof entry[1] === "string",
+			),
+		);
+		expect(output).toBe(`${source}\nACCOUNT_INPUT_COPY_ENABLED=${enabled}\n`);
+		expect(parsed).toEqual({ ...parseEnv(source), ACCOUNT_INPUT_COPY_ENABLED: enabled });
+		expect(parsed).not.toHaveProperty("ACCOUNT_INPUT_COPY_BUILD_ENABLED");
+		expect(publicBuildVariables(parsed)).toEqual({});
+		expect(withoutCloudflareBuildSecrets(input)).toEqual({
+			PATH: "unchanged-tools",
+			CLOUDFLARE_API_TOKEN: "dummy-deployment-token",
+		});
+		expect(input).toEqual(snapshot);
+	});
+
+	it.each([
+		"",
+		"TRUE",
+		"False",
+		" true",
+		"true ",
+		"0",
+		"1",
+		"true\n",
+		"false\nINJECTED=true",
+		"true\rINJECTED=true",
+		"true\0",
+	])("rejects malformed dedicated input %j without exposing its value", (value) => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "ACCOUNT_INPUT_COPY_ENABLED=false\nPRIVATE_VALUE=unchanged",
+				ACCOUNT_INPUT_COPY_BUILD_ENABLED: value,
+			}),
+		).toThrow(new Error("CLOUDFLARE_ACCOUNT_INPUT_COPY_OVERRIDE_INVALID"));
+	});
+
+	it("strips only the two exact copy controls from subprocess environments", () => {
+		const input = {
+			ACCOUNT_INPUT_COPY_ENABLED: "true",
+			ACCOUNT_INPUT_COPY_BUILD_ENABLED: "false",
+			ACCOUNT_INPUT_COPY_BUILD_ENABLED_EXTRA: "unchanged",
+			ACCOUNT_INPUT_PROMOTION_ENABLED: "false",
+		};
+		expect(withoutCloudflareBuildSecrets(input)).toEqual({
+			ACCOUNT_INPUT_COPY_BUILD_ENABLED_EXTRA: "unchanged",
+			ACCOUNT_INPUT_PROMOTION_ENABLED: "false",
+		});
+		expect(input.ACCOUNT_INPUT_COPY_ENABLED).toBe("true");
+	});
+});
+
 describe("authenticated reference-template build transport", () => {
 	it("preserves an authoritative close and ignores ambient enable/approval values", () => {
 		const input = {
