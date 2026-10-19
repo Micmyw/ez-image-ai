@@ -62,6 +62,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		home,
 		videoEffects,
 		imagePass,
+		media,
 		...messages
 	} = await getMessages();
 	// Video workspaces supply their detailed copy locally; public navigation needs only its labels.
@@ -90,6 +91,14 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 						bannerDetail: imagePass.bannerDetail,
 						buy: imagePass.buy,
 					},
+				}
+			: {}),
+		// Signed-in library/history views restore this copy at their own boundaries.
+		...(media
+			? {
+					media: Object.fromEntries(
+						Object.entries(media).filter(([key]) => !["assets", "edits", "history"].includes(key)),
+					),
 				}
 			: {}),
 	};

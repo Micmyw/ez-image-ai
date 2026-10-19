@@ -170,6 +170,13 @@ describe("SaaS root layout", () => {
 				buy: fullMessages.imagePass.buy,
 			});
 			expect(fullMessages.imagePass.returnPending).not.toBe("");
+			for (const [key, value] of Object.entries(fullMessages.media)) {
+				if (["assets", "edits", "history"].includes(key)) {
+					expect(clientMessages.media).not.toHaveProperty(key);
+				} else {
+					expect(clientMessages.media[key]).toEqual(value);
+				}
+			}
 			for (const [namespace, messages] of Object.entries(fullMessages)) {
 				if (
 					![
@@ -180,6 +187,7 @@ describe("SaaS root layout", () => {
 						"videoV1",
 						"videoEffects",
 						"imagePass",
+						"media",
 					].includes(namespace)
 				) {
 					expect(clientMessages[namespace]).toEqual(messages);

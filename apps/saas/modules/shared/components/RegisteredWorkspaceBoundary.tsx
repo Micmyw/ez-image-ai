@@ -46,10 +46,11 @@ export async function RegisteredWorkspaceBoundary({ children }: PropsWithChildre
 		});
 	}
 
+	const { imagePass, media } = await getMessages();
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
-			{/* Full payment copy is serialized only after the registered-user boundary. */}
-			<RegisteredWorkspaceProviders imagePassMessages={(await getMessages()).imagePass}>
+			{/* Full payment/library copy is serialized only after the registered-user boundary. */}
+			<RegisteredWorkspaceProviders imagePassMessages={imagePass} mediaMessages={media}>
 				{children}
 			</RegisteredWorkspaceProviders>
 		</HydrationBoundary>

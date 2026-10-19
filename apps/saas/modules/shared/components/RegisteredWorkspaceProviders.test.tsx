@@ -1,5 +1,10 @@
 import { getUnifiedMessagesForLocale } from "@repo/i18n";
-import { NextIntlClientProvider, useMessages, useTranslations } from "next-intl";
+import {
+	type AbstractIntlMessages,
+	NextIntlClientProvider,
+	useMessages,
+	useTranslations,
+} from "next-intl";
 import type { PropsWithChildren } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -13,10 +18,17 @@ vi.mock("./ConfirmationAlertProvider", () => ({ ConfirmationAlertProvider: passt
 
 import { RegisteredWorkspaceProviders } from "./RegisteredWorkspaceProviders";
 
-function PaymentCopy({ expected }: { expected: Record<string, string> }) {
+function PaymentCopy({
+	expected,
+	media,
+}: {
+	expected: Record<string, string>;
+	media: AbstractIntlMessages;
+}) {
 	const t = useTranslations("imagePass");
 	const common = useTranslations("common");
 	expect(useMessages().imagePass).toEqual(expected);
+	expect(useMessages().media).toEqual(media);
 	return (
 		<p>
 			{t("title", { units: 3 })} {t("returnPending")} {common("menu.login")}
@@ -34,11 +46,23 @@ describe("registered image pass translations", () => {
 				<NextIntlClientProvider
 					locale={locale}
 					timeZone="UTC"
-					messages={{ common: messages.common, imagePass: { buy: messages.imagePass.buy } }}
+					messages={{
+						common: messages.common,
+						imagePass: { buy: messages.imagePass.buy },
+						media: {
+							create: messages.media.create,
+							guest: messages.media.guest,
+							status: messages.media.status,
+							safety: messages.media.safety,
+						},
+					}}
 					onError={onError}
 				>
-					<RegisteredWorkspaceProviders imagePassMessages={messages.imagePass}>
-						<PaymentCopy expected={messages.imagePass} />
+					<RegisteredWorkspaceProviders
+						imagePassMessages={messages.imagePass}
+						mediaMessages={messages.media}
+					>
+						<PaymentCopy expected={messages.imagePass} media={messages.media} />
 					</RegisteredWorkspaceProviders>
 				</NextIntlClientProvider>,
 			);
