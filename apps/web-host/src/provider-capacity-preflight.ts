@@ -1,7 +1,7 @@
 import { expandVideoRuntimeEnvironment } from "@repo/config/video-runtime-environment";
 import { readVideoV1Config } from "@repo/config/video-v1";
 
-import { parseMediaEnabledProviders } from "../../../packages/config/env";
+import { mediaProviderKeySchema, parseMediaEnabledProviders } from "../../../packages/config/env";
 import { configuredSharedKieCapacity } from "../../../packages/database/prisma/queries/media/shared-provider-capacity";
 
 type CapacityEvidence =
@@ -18,7 +18,16 @@ export function verifyProviderDispatchCapacity(
 	let capacity: number | null;
 	try {
 		const expanded = expandVideoRuntimeEnvironment(environment);
-		const imageProviders = parseMediaEnabledProviders(expanded);
+		const adapter = expanded.MEDIA_PROVIDER_ADAPTER;
+		const imageProviders = parseMediaEnabledProviders({
+			MEDIA_ENABLED_PROVIDERS: expanded.MEDIA_ENABLED_PROVIDERS,
+			MEDIA_PROVIDER_ADAPTER:
+				expanded.MEDIA_ENABLED_PROVIDERS !== undefined
+					? undefined
+					: adapter === undefined || adapter === "mock"
+						? adapter
+						: mediaProviderKeySchema.parse(adapter),
+		});
 		if (!imageProviders.includes("kie") && !readVideoV1Config(expanded).enabled)
 			return { code: "PROVIDER_CAPACITY_PREFLIGHT_INACTIVE" };
 		capacity = configuredSharedKieCapacity(expanded);
