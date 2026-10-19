@@ -384,7 +384,7 @@ describe("accepted contracts ignore current optional price policy", () => {
 			credits: "69",
 		});
 		expect(listVideoTemplateJobRecords).toHaveBeenCalledWith(context.userId, {}, expect.anything());
-		vi.mocked(getVideoTemplateJobRecord).mockResolvedValue(null);
+		vi.mocked(getVideoTemplateJobRecord).mockRejectedValueOnce(new Error("NOT_FOUND"));
 		await expect(
 			getVideoTemplatePublicState({ userId: "other-owner" }, "accepted-fixture"),
 		).rejects.toThrow("NOT_FOUND");
