@@ -209,6 +209,8 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 			},
 		},
 		storageUsageReservation: { aggregate: read("storageRead", { _sum: { bytes: 0n } }) },
+		subscription: { findMany: read("storageEntitlementRead", []) },
+		billingPeriod: { fields: { paidAmount: "paidAmount" } },
 	};
 	const createQuoteDependencies: NonNullable<Parameters<typeof createQuoteForUser>[2]> = {
 		now: () => new Date(),
