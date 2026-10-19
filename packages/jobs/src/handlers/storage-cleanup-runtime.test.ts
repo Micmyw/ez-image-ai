@@ -5,7 +5,61 @@ vi.mock("@repo/database/client", () => ({ db: {} }));
 import { createDatabaseStorageCleanupDependencies } from "../runtime";
 import { cleanupUploadPromotion, deleteStorageObject } from "./cleanup-storage-object";
 
+// These accounting cases use an orphan asset; the ownership fence has separate
+// retained-account coverage below and in the database claim unit/race suites.
+const orphanAssetFence = {
+	$executeRaw: vi.fn(async () => 1),
+	mediaAsset: { findUnique: vi.fn(async () => null) },
+};
+
 describe("production storage cleanup store", () => {
+	it("wires the ownership fence before receipts and leaves a retained account object and reservation alone", async () => {
+		const create = vi.fn();
+		const updateMany = vi.fn();
+		const findFirst = vi.fn(async () => null);
+		const tx = {
+			$executeRaw: vi.fn(async () => 1),
+			$queryRaw: vi.fn(async () => [{ now: new Date() }]),
+			mediaAsset: {
+				findUnique: vi.fn(async () => ({
+					id: "retained",
+					objectKey: "final",
+					status: "READY",
+					deletedAt: null,
+					retentionClass: "ACCOUNT",
+					deleteAfter: null,
+				})),
+			},
+			auditLog: { create },
+			storageUsageReservation: { updateMany },
+		};
+		const storage = {
+			deleteObject: vi.fn(async () => undefined),
+			abortMultipartUpload: vi.fn(async () => undefined),
+		};
+		const dependencies = createDatabaseStorageCleanupDependencies(
+			{
+				auditLog: { findFirst },
+				$transaction: vi.fn(async (run: (tx: unknown) => Promise<unknown>) => run(tx)),
+			} as never,
+			storage,
+		);
+		await deleteStorageObject(
+			{
+				assetId: "retained",
+				objectKey: "stage",
+				cleanupObjectKeys: ["final"],
+				storageReservationReferenceKey: "media-draft:retained",
+			},
+			dependencies,
+		);
+		expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+		expect(findFirst).not.toHaveBeenCalled();
+		expect(storage.deleteObject).not.toHaveBeenCalled();
+		expect(storage.abortMultipartUpload).not.toHaveBeenCalled();
+		expect(create).not.toHaveBeenCalled();
+		expect(updateMany).not.toHaveBeenCalled();
+	});
 	it("releases guest storage only after final, staging, and multipart cleanup survives a retry", async () => {
 		let cleanupRecorded = false;
 		let reservationStatus: "COMMITTED" | "RELEASED" = "COMMITTED";
@@ -26,7 +80,11 @@ describe("production storage cleanup store", () => {
 			return { count: 1 };
 		});
 		const $transaction = vi.fn(async (operation: (tx: unknown) => Promise<unknown>) =>
-			operation({ auditLog: { create }, storageUsageReservation: { updateMany } }),
+			operation({
+				...orphanAssetFence,
+				auditLog: { create },
+				storageUsageReservation: { updateMany },
+			}),
 		);
 		const deleteObject = vi.fn(async (objectKey: string) => {
 			if (objectKey.endsWith("watermarked.png") && finalDeleteFails) {
@@ -94,7 +152,11 @@ describe("production storage cleanup store", () => {
 			return { count: 1 };
 		});
 		const $transaction = vi.fn(async (operation: (tx: unknown) => Promise<unknown>) =>
-			operation({ auditLog: { create }, storageUsageReservation: { updateMany } }),
+			operation({
+				...orphanAssetFence,
+				auditLog: { create },
+				storageUsageReservation: { updateMany },
+			}),
 		);
 		const deleteObject = vi.fn(async () => {
 			if (deleteFails) throw new Error("object store unavailable");
@@ -124,7 +186,7 @@ describe("production storage cleanup store", () => {
 			data: expect.objectContaining({
 				action: "MEDIA_OBJECT_DELETE_COMPLETED",
 				targetType: "MEDIA_STORAGE_OPERATION",
-				targetId: expect.stringMatching(/^media-object-delete:asset-1:/),
+				targetId: expect.stringMatching(/^media-object-delete:v2:asset-1:/),
 			}),
 		});
 		expect(updateMany).toHaveBeenCalledWith({
@@ -158,7 +220,11 @@ describe("production storage cleanup store", () => {
 				return { count: 1 };
 			});
 			const $transaction = vi.fn(async (operation: (tx: unknown) => Promise<unknown>) =>
-				operation({ auditLog: { create }, storageUsageReservation: { updateMany } }),
+				operation({
+					...orphanAssetFence,
+					auditLog: { create },
+					storageUsageReservation: { updateMany },
+				}),
 			);
 			const deleteObject = vi.fn(async () => {
 				if (deleteFails) throw new Error("object store unavailable");

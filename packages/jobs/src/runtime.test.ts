@@ -66,6 +66,15 @@ describe("provider runtime registration", () => {
 				mediaAsset: { findFirst: assetAuthorizationLookup },
 				$transaction: async (operation: (tx: unknown) => Promise<unknown>) =>
 					operation({
+						$executeRaw: vi.fn(async () => 1),
+						mediaAsset: {
+							findUnique: vi.fn(async () => ({
+								id: "guest-output",
+								objectKey: "users/guest/assets/guest-output/watermarked.png",
+								status: "DELETED",
+								deletedAt: new Date(),
+							})),
+						},
 						auditLog: { create },
 						storageUsageReservation: { updateMany: vi.fn(async () => ({ count: 0 })) },
 					}),
