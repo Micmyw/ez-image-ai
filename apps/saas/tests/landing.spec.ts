@@ -1150,7 +1150,7 @@ test("a guest upload limit explains the wait and preserves the draft without aut
 	await page.getByRole("button", { name: /continue/i }).click();
 
 	await expect(stage(page, "failed")).toBeVisible();
-	await expect(page.getByRole("alert")).toContainText(
+	await expect(page.locator('[data-test="landing-generator"]').getByRole("alert")).toContainText(
 		"Guest upload limit reached. Please try again later.",
 	);
 	await expect(page.getByRole("img", { name: /preview of limited-source\.png/i })).toBeVisible();
