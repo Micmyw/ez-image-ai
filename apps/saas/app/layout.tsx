@@ -61,6 +61,8 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		publicContent: _publicContent,
 		home,
 		videoEffects,
+		media,
+		feedback,
 		...messages
 	} = await getMessages();
 	// Video workspaces supply their detailed copy locally; public navigation needs only its labels.
@@ -80,6 +82,27 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 			raindanceName: videoEffects.raindanceName,
 			raindanceNavigationDescription: videoEffects.raindanceNavigationDescription,
 		},
+		// Private editor/library copy is restored by registered and lazy panel boundaries.
+		...(media
+			? {
+					media: {
+						...Object.fromEntries(
+							Object.entries(media).filter(
+								([key]) => !["assets", "edits", "history"].includes(key),
+							),
+						),
+						create: Object.fromEntries(
+							Object.entries(media.create).filter(([key]) => key !== "preparation"),
+						),
+						// The public UserMenu still needs its history navigation label.
+						history: { title: media.history.title },
+					},
+				}
+			: {}),
+		// The existing lazy feedback dialog restores its detailed copy when requested.
+		...(feedback
+			? { feedback: { entry: feedback.entry, footer: feedback.footer, report: feedback.report } }
+			: {}),
 	};
 	const consentStatus = parseConsentStatus((await cookies()).get("consent")?.value);
 

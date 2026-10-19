@@ -11,7 +11,12 @@ import fr from "../../../../../packages/i18n/translations/fr/shared.json";
 vi.mock("@repo/ui/components/dialog", () => ({
 	Dialog: ({ children, open }: { children: ReactNode; open: boolean }) =>
 		open ? <div>{children}</div> : null,
-	DialogContent: ({ children }: { children: ReactNode }) => <dialog open>{children}</dialog>,
+	DialogContent: ({ children, closeLabel }: { children: ReactNode; closeLabel: string }) => (
+		<dialog open>
+			<button aria-label={closeLabel} />
+			{children}
+		</dialog>
+	),
 	DialogHeader: ({ children }: { children: ReactNode }) => <header>{children}</header>,
 	DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
 	DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
@@ -26,8 +31,20 @@ describe("customer feedback", () => {
 	it.each(Object.entries(locales))(
 		"renders a user-controlled email draft in %s",
 		(locale, messages) => {
+			const onError = vi.fn();
 			const markup = renderToStaticMarkup(
-				<NextIntlClientProvider locale={locale} messages={messages}>
+				<NextIntlClientProvider
+					locale={locale}
+					timeZone="UTC"
+					onError={onError}
+					messages={{
+						feedback: {
+							entry: messages.feedback.entry,
+							footer: messages.feedback.footer,
+							report: messages.feedback.report,
+						},
+					}}
+				>
 					<FeedbackDialog
 						open
 						onOpenChange={() => {}}
@@ -40,6 +57,21 @@ describe("customer feedback", () => {
 			expect(markup).toContain(messages.feedback.rewardPolicy);
 			expect(markup).toContain(messages.feedback.privacy);
 			expect(markup).toContain(messages.feedback.screenshots);
+			for (const key of [
+				"kind",
+				"idea",
+				"bug",
+				"accountEmail",
+				"description",
+				"preview",
+				"openEmail",
+				"copy",
+				"emailFallback",
+				"noAutomaticReward",
+			] as const)
+				expect(markup).toContain(messages.feedback[key]);
+			expect(markup).toContain(`aria-label="${messages.feedback.close}"`);
+			expect(onError).not.toHaveBeenCalled();
 			expect(markup).toContain("help@configured.test");
 			expect(markup).toContain('type="email"');
 			expect(markup).toContain("<textarea");
@@ -50,6 +82,32 @@ describe("customer feedback", () => {
 			expect(draft.pathname).toBe("help@configured.test");
 			expect(draft.searchParams.get("subject")).toBe(messages.feedback.subjectBug);
 			expect([...draft.searchParams.keys()]).toEqual(["subject", "body"]);
+		},
+	);
+	it.each(Object.entries(locales))(
+		"renders every public trigger from only three %s messages",
+		(locale, messages) => {
+			const onError = vi.fn();
+			const feedback = {
+				entry: messages.feedback.entry,
+				footer: messages.feedback.footer,
+				report: messages.feedback.report,
+			};
+			for (const variant of ["inline", "footer", "report"] as const) {
+				const markup = renderToStaticMarkup(
+					<NextIntlClientProvider
+						locale={locale}
+						timeZone="UTC"
+						onError={onError}
+						messages={{ feedback }}
+					>
+						<FeedbackButton supportEmail="help@configured.test" variant={variant} />
+					</NextIntlClientProvider>,
+				);
+				expect(markup).toContain(feedback[variant === "inline" ? "entry" : variant]);
+				expect(markup).not.toContain("<dialog");
+			}
+			expect(onError).not.toHaveBeenCalled();
 		},
 	);
 	it("keeps the gift entry accessible and static before interaction", () => {

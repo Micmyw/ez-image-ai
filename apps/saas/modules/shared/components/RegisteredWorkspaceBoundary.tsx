@@ -9,6 +9,7 @@ import { RegisteredWorkspaceProviders } from "@shared/components/RegisteredWorks
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { getServerQueryClient } from "@shared/lib/server";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
+import { getMessages } from "next-intl/server";
 import { redirect } from "next/navigation";
 import type { PropsWithChildren } from "react";
 
@@ -45,9 +46,10 @@ export async function RegisteredWorkspaceBoundary({ children }: PropsWithChildre
 		});
 	}
 
+	const { media } = await getMessages();
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
-			<RegisteredWorkspaceProviders>{children}</RegisteredWorkspaceProviders>
+			<RegisteredWorkspaceProviders mediaMessages={media}>{children}</RegisteredWorkspaceProviders>
 		</HydrationBoundary>
 	);
 }
