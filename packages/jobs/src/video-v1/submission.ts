@@ -393,6 +393,13 @@ export async function submitVideoAttempt(
 		});
 	} catch (error) {
 		const reasonCode = error instanceof Error ? error.message : "";
+		if (reasonCode === "VIDEO_INPUT_REVIEW_REQUIRED") {
+			// The rejected claim never crossed the send fence. A concurrent caller
+			// may have since submitted; that original attempt still takes priority.
+			const latest = await deps.store.getVideoExecutionContext(jobId);
+			if (latest?.attempts[0]) return replaySubmission(latest.attempts[0]);
+			return { status: "INPUT_REVIEW_REQUIRED" };
+		}
 		if (
 			!["VIDEO_PRICE_INVALID", "VIDEO_PRICE_EXPIRED", "VIDEO_FUNDING_POLICY_CHANGED"].includes(
 				reasonCode,

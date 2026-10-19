@@ -146,6 +146,37 @@ function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video", def
 }
 
 describe("video V1 paid submission fence", () => {
+	it("returns expired input approval for review without sending or treating it as provider uncertainty", async () => {
+		const f = fixture();
+		f.store.claimVideoProviderSubmission.mockRejectedValueOnce(
+			new Error("VIDEO_INPUT_REVIEW_REQUIRED"),
+		);
+		expect(await submitVideoAttempt("job-1", f.deps)).toEqual({
+			status: "INPUT_REVIEW_REQUIRED",
+		});
+		expect(f.attempt).toHaveLength(0);
+		expect(f.provider.submit).not.toHaveBeenCalled();
+		expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+		expect(f.store.markVideoSubmissionUncertain).not.toHaveBeenCalled();
+	});
+	it("replays a competing uncertain attempt when an input-review claim lost the race", async () => {
+		const f = fixture();
+		f.store.claimVideoProviderSubmission.mockImplementationOnce(async () => {
+			f.attempt.push({
+				id: "competing-attempt",
+				providerTaskId: null,
+				providerModelId: "kling-2.6/text-to-video",
+				status: "SUBMISSION_UNCERTAIN",
+			});
+			throw new Error("VIDEO_INPUT_REVIEW_REQUIRED");
+		});
+		expect(await submitVideoAttempt("job-1", f.deps)).toMatchObject({
+			status: "UNCERTAIN",
+			attemptId: "competing-attempt",
+		});
+		expect(f.provider.submit).not.toHaveBeenCalled();
+		expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+	});
 	it.each([
 		"video-kling-2-6-v1",
 		"video-kling-3",

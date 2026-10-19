@@ -58,6 +58,85 @@ function fixture(template?: boolean) {
 }
 
 describe("direct video V1 workflow", () => {
+	it("refreshes expired ordinary input approval after capacity waiting before sending", async () => {
+		const f = fixture();
+		let elapsed = 0;
+		let approvalExpires = 0;
+		let accepted = false;
+		vi.mocked(f.services.reviewInput).mockImplementation(async () => {
+			approvalExpires = elapsed + 3600_000;
+			return { status: "ALLOW" };
+		});
+		vi.mocked(f.steps.sleep).mockImplementation(async () => {
+			elapsed += 3600_001;
+		});
+		vi.mocked(f.services.submit)
+			.mockResolvedValueOnce({ status: "DEFERRED", retryAfterMs: 5000 })
+			.mockImplementation(async () => {
+				if (elapsed >= approvalExpires) return { status: "INPUT_REVIEW_REQUIRED" };
+				accepted = true;
+				return { status: "ACCEPTED", attemptId: "attempt", providerTaskId: "task" };
+			});
+		vi.mocked(f.services.confirm).mockImplementation(async () => {
+			if (!accepted) throw new Error("PROVIDER_CONFIRMATION_BEFORE_ACCEPTANCE");
+			return { status: "SUCCEEDED", attemptId: "attempt" };
+		});
+		expect(await f.run()).toEqual({ completed: true, stage: "READY" });
+		expect(f.services.reviewInput).toHaveBeenCalledTimes(2);
+		expect(f.services.submit).toHaveBeenCalledTimes(3);
+		expect(new Set(f.names).size).toBe(f.names.length);
+		expect(f.services.fail).not.toHaveBeenCalled();
+		expect(f.services.needsReview).not.toHaveBeenCalled();
+	});
+	it("does not submit again when renewed ordinary input review rejects", async () => {
+		const f = fixture();
+		vi.mocked(f.services.reviewInput)
+			.mockResolvedValueOnce({ status: "ALLOW" })
+			.mockResolvedValue({ status: "REJECT", reasonCode: "PROMPT_REJECTED" });
+		vi.mocked(f.services.submit).mockResolvedValue({ status: "INPUT_REVIEW_REQUIRED" });
+		expect(await f.run()).toEqual({ completed: true, stage: "REJECTED" });
+		expect(f.services.submit).toHaveBeenCalledTimes(1);
+		expect(f.services.confirm).not.toHaveBeenCalled();
+		expect(f.services.fail).toHaveBeenCalledWith("job", "PROMPT_REJECTED", true);
+	});
+	it("preserves the hold for an expired frozen template approval after capacity waiting", async () => {
+		const f = fixture(true);
+		f.services.prepareTemplate = vi.fn(async () => ({ status: "ALLOW" as const }));
+		vi.mocked(f.services.submit)
+			.mockResolvedValueOnce({ status: "DEFERRED", retryAfterMs: 5000 })
+			.mockResolvedValue({ status: "INPUT_REVIEW_REQUIRED" });
+		expect(await f.run()).toEqual({ completed: false, stage: "NEEDS_REVIEW" });
+		expect(f.services.reviewInput).toHaveBeenCalledTimes(1);
+		expect(f.services.submit).toHaveBeenCalledTimes(2);
+		expect(f.services.confirm).not.toHaveBeenCalled();
+		expect(f.services.needsReview).toHaveBeenCalledWith("job", "VIDEO_INPUT_REVIEW_REQUIRED");
+		expect(f.services.fail).not.toHaveBeenCalled();
+	});
+	it("replays refreshed approval after interruption and uses a fresh review when it expires again", async () => {
+		const f = fixture();
+		const completed = new Map<string, unknown>();
+		f.steps.do = async (name, _options, action) => {
+			if (completed.has(name)) return completed.get(name) as Awaited<ReturnType<typeof action>>;
+			const value = await action();
+			completed.set(name, value);
+			return value;
+		};
+		vi.mocked(f.services.submit)
+			.mockResolvedValueOnce({ status: "DEFERRED", retryAfterMs: 5000 })
+			.mockResolvedValueOnce({ status: "INPUT_REVIEW_REQUIRED" })
+			.mockResolvedValueOnce({ status: "DEFERRED", retryAfterMs: 5000 })
+			.mockResolvedValueOnce({ status: "INPUT_REVIEW_REQUIRED" });
+		vi.mocked(f.steps.sleep)
+			.mockResolvedValueOnce()
+			.mockRejectedValueOnce(new Error("SIMULATED_WORKFLOW_INTERRUPTION"));
+		await expect(f.run()).rejects.toThrow("SIMULATED_WORKFLOW_INTERRUPTION");
+		expect(await f.run()).toEqual({ completed: true, stage: "READY" });
+		expect(await f.run()).toEqual({ completed: true, stage: "READY" });
+		expect(f.services.reviewInput).toHaveBeenCalledTimes(3);
+		expect(f.services.submit).toHaveBeenCalledTimes(5);
+		expect(f.services.finalize).toHaveBeenCalledTimes(1);
+		expect(f.services.fail).not.toHaveBeenCalled();
+	});
 	it("waits with unique durable submission steps before starting the provider deadline", async () => {
 		const f = fixture();
 		vi.mocked(f.services.submit)

@@ -137,19 +137,24 @@ export async function prepareVideoTemplate(
 			role === "scene"
 				? object(object(fresh.sceneReview).scene)
 				: object(object(fresh.inputReview)[role]);
+		let result = decision(review.decision);
+		if (review.checksum !== identity.checksum || review.ruleVersion !== VIDEO_V1_RULE_VERSION)
+			result = null;
+		if (result?.decision === "ALLOW") {
+			if (
+				typeof review.validUntil !== "string" ||
+				!Number.isFinite(Date.parse(review.validUntil)) ||
+				Date.parse(review.validUntil) <= deps.now().getTime()
+			)
+				return hold("VIDEO_TEMPLATE_IMAGE_REVIEW_EXPIRED");
+			// Capacity waiting preserves the approval's lifetime. This deadline
+			// bounds unfinished moderation rather than an already approved input.
+			return { status: "ALLOW" };
+		}
 		const reviewStarted =
 			role === "scene" ? (fresh.sceneAsset?.finalizedAt ?? fresh.createdAt) : fresh.createdAt;
 		if (deps.now().getTime() >= reviewStarted.getTime() + config.moderationDeadlineSeconds * 1000)
 			return hold("VIDEO_TEMPLATE_IMAGE_REVIEW_DEADLINE");
-		let result = decision(review.decision);
-		if (review.checksum !== identity.checksum || review.ruleVersion !== VIDEO_V1_RULE_VERSION)
-			result = null;
-		if (
-			result?.decision === "ALLOW" &&
-			(typeof review.validUntil !== "string" ||
-				Date.parse(review.validUntil) <= deps.now().getTime())
-		)
-			return hold("VIDEO_TEMPLATE_IMAGE_REVIEW_EXPIRED");
 		if (
 			!result ||
 			result.decision === "ERROR" ||

@@ -152,7 +152,7 @@ function fixture(referenceMode = false, deferredClaims = 0) {
 		claimVideoTemplateSceneSubmission: vi.fn(async () => {
 			if (!state.submittedAt && deferredClaims-- > 0) return { deferred: true, retryAfterMs: 5000 };
 			const claimed = !state.submittedAt;
-			state.submittedAt ??= now;
+			state.submittedAt ??= deps.now();
 			state.sceneSubmissionUncertain = claimed;
 			return { execution: state, claimed };
 		}),
@@ -176,7 +176,7 @@ function fixture(referenceMode = false, deferredClaims = 0) {
 				}),
 		),
 		recordVideoTemplateSceneAsset: vi.fn(async ({ asset }) => {
-			state.sceneAsset = { ...asset, finalizedAt: now, verificationGeneration: 1 };
+			state.sceneAsset = { ...asset, finalizedAt: deps.now(), verificationGeneration: 1 };
 		}),
 		sealVideoTemplateResolvedInput: vi.fn(async () => {
 			const asset = state.sceneAsset!;
@@ -281,6 +281,83 @@ describe("template scene preparation durable boundaries (local mocks)", () => {
 		expect(f.provider.submit).toHaveBeenCalledTimes(1);
 		expect(f.deps.moderateText).toHaveBeenCalledTimes(2);
 		expect(f.safety.submitImage).toHaveBeenCalledTimes(3);
+	});
+	it("reuses valid input approvals after a scene capacity wait exceeds the pending review deadline", async () => {
+		const f = fixture(false, 1);
+		expect(await f.run()).toEqual({ status: "DEFERRED", retryAfterMs: 5000 });
+		const originalReviews = structuredClone(f.state.inputReview);
+		f.deps.now = () => new Date(f.state.createdAt.getTime() + 1800_001);
+
+		expect(await f.run()).toEqual({ status: "ALLOW" });
+		expect(f.state.inputReview).toEqual(originalReviews);
+		expect(f.provider.submit).toHaveBeenCalledTimes(1);
+		expect(f.safety.submitImage).toHaveBeenCalledTimes(3);
+		expect(f.store.markVideoTemplateNeedsReview).not.toHaveBeenCalled();
+	});
+	it.each(["expired", "malformed"] as const)(
+		"holds %s input approval after a scene capacity wait without renewing it",
+		async (validity) => {
+			const f = fixture(false, 1);
+			expect(await f.run()).toEqual({ status: "DEFERRED", retryAfterMs: 5000 });
+			if (validity === "malformed")
+				(f.state.inputReview.left as Record<string, unknown>).validUntil = "invalid-date";
+			const originalReviews = structuredClone(f.state.inputReview);
+			f.deps.now = () =>
+				new Date(f.state.createdAt.getTime() + (validity === "expired" ? 3600_001 : 1800_001));
+
+			expect(await f.run()).toMatchObject({
+				status: "ERROR",
+				reasonCode: "VIDEO_TEMPLATE_IMAGE_REVIEW_EXPIRED",
+			});
+			expect(f.state.job.videoExecution.stage).toBe("NEEDS_REVIEW");
+			expect(f.state.inputReview).toEqual(originalReviews);
+			expect(f.safety.submitImage).toHaveBeenCalledTimes(2);
+			expect(f.provider.submit).not.toHaveBeenCalled();
+		},
+	);
+	it.each(["decision", "checksum", "ruleVersion"])(
+		"keeps the original deadline when queued input approval has invalid %s evidence",
+		async (field) => {
+			const f = fixture(false, 1);
+			expect(await f.run()).toEqual({ status: "DEFERRED", retryAfterMs: 5000 });
+			(f.state.inputReview.left as Record<string, unknown>)[field] = null;
+			f.deps.now = () => new Date(f.state.createdAt.getTime() + 1800_001);
+
+			expect(await f.run()).toMatchObject({
+				status: "ERROR",
+				reasonCode: "VIDEO_TEMPLATE_IMAGE_REVIEW_DEADLINE",
+			});
+			expect(f.state.job.videoExecution.stage).toBe("NEEDS_REVIEW");
+			expect(f.safety.submitImage).toHaveBeenCalledTimes(2);
+			expect(f.provider.submit).not.toHaveBeenCalled();
+		},
+	);
+	it("keeps the original deadline for a genuinely pending input review", async () => {
+		const f = fixture();
+		f.safety.submitImage.mockImplementationOnce(
+			async (input) =>
+				({ moderationTaskId: input.idempotencyKey, completedDecision: undefined }) as never,
+		);
+		f.safety.retrieveImage.mockResolvedValueOnce({
+			decision: "REVIEW",
+			reasonCode: "IMAGE_PROCESSING",
+			ruleVersion: VIDEO_V1_RULE_VERSION,
+		} as never);
+		expect(await f.run()).toMatchObject({
+			status: "PENDING",
+			deadlineAt: new Date(f.state.createdAt.getTime() + 1800_000).toISOString(),
+		});
+		f.deps.now = () => new Date(f.state.createdAt.getTime() + 1800_001);
+
+		expect(await f.run()).toMatchObject({
+			status: "ERROR",
+			reasonCode: "VIDEO_TEMPLATE_IMAGE_REVIEW_DEADLINE",
+		});
+		expect(f.state.job.videoExecution.stage).toBe("NEEDS_REVIEW");
+		expect(f.safety.submitImage).toHaveBeenCalledTimes(1);
+		expect(f.safety.retrieveImage).toHaveBeenCalledTimes(1);
+		expect(f.provider.submit).not.toHaveBeenCalled();
+		expect(f.store.claimVideoTemplateSceneSubmission).not.toHaveBeenCalled();
 	});
 	it("direct reference reviews the actual prompt and one subject, then replays without scene generation", async () => {
 		const f = fixture(true);

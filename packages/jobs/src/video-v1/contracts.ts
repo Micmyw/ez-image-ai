@@ -64,6 +64,7 @@ export type ProviderCapacityDeferred = { status: "DEFERRED"; retryAfterMs: numbe
 export type TemplatePreparationStepResult = ReviewStepResult | ProviderCapacityDeferred;
 export type SubmissionStepResult =
 	| ProviderCapacityDeferred
+	| { status: "INPUT_REVIEW_REQUIRED" }
 	| { status: "ACCEPTED"; attemptId: string; providerTaskId: string }
 	| { status: "UNCERTAIN"; attemptId: string; reasonCode: string }
 	| { status: "DEFINITELY_REJECTED"; attemptId?: string; reasonCode: string };
