@@ -62,7 +62,7 @@ describe("controlled media load database path", () => {
 				expect(job.reservation).toMatchObject({ amount: 5n, status: "ACTIVE" });
 				expect(job.attempts).toEqual([
 					expect.objectContaining({
-						status: "RUNNING",
+						status: "SUBMITTED",
 						providerTaskId: expect.stringMatching(/^load-test-/),
 						uncertainSubmission: false,
 					}),
