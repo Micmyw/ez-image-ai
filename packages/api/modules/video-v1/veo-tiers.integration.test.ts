@@ -23,6 +23,7 @@ import { submitVideoAttempt } from "@repo/jobs/video-v1/submission";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
+import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/jobs/video-v1/workflow-binding", () => ({
@@ -103,12 +104,15 @@ const ctx = { context: { headers: new Headers() } };
 let client: PrismaClient;
 let ownerId: string;
 let accountId: string;
+let mockProviderConcurrency: string;
 beforeAll(async () => {
 	const connectionString = process.env.TEST_DATABASE_URL;
 	if (!connectionString) throw new Error("BLOCKED: explicit TEST_DATABASE_URL required");
 	if (!isExplicitVideoVerificationTarget(new URL(connectionString)))
 		throw new Error("ISOLATED_VIDEO_TEST_DATABASE_REQUIRED");
 	client = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+	// Six lifecycle cases submit once each; retain all older send evidence.
+	mockProviderConcurrency = await providerCapacityForTestRequests(client, 6);
 });
 beforeEach(async () => {
 	for (const [key, value] of Object.entries(environment)) vi.stubEnv(key, value);
@@ -372,8 +376,12 @@ describe("protected Veo quote, receipt and dispatch", () => {
 					Response.json({ code: 200, data: { taskId: `fake-${job.id}` } }),
 				);
 				const adapter = new KieVideoModelsAdapter({ apiKey: "fixture", fetch });
+				// Only mock sends use these finite slots. Quote/admission above and the
+				// separate five-slot admission regression retain their original limit.
+				vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
+				vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", mockProviderConcurrency);
 				const overrides = {
-					env: environment,
+					env: { ...environment, VIDEO_V1_PROVIDER_CONCURRENCY: mockProviderConcurrency },
 					provider: {
 						submit: adapter.submit.bind(adapter),
 						retrieve: adapter.retrieve.bind(adapter),
