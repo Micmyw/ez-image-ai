@@ -540,9 +540,12 @@ describe("prepared deployment artifacts", () => {
 				const {
 					VIDEO_PRICE_VALID_UNTIL: _videoExpiry,
 					HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: _effectExpiry,
+					VIDEO_V1_PROVIDER_CONCURRENCY: _providerCapacity,
 					...activeInput
 				} = input;
-				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).toMatchObject(activeInput);
+				const runtime = JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV);
+				expect(runtime).toMatchObject(activeInput);
+				expect(runtime).not.toHaveProperty("VIDEO_V1_PROVIDER_CONCURRENCY");
 			}
 			const expiredInput = {
 				...input,
@@ -647,16 +650,23 @@ describe("prepared deployment artifacts", () => {
 			};
 			const flat = artifacts(profile, input);
 			const packed = artifacts(profile, packVideoRuntimeEnvironment(input));
-			const normalize = (value: typeof packed) => ({
-				...value,
-				"workflows.secrets": {
-					...value["workflows.secrets"],
-					...(profile === "hybrid"
-						? { JOBS_RUNTIME_ENV: JSON.parse(value["workflows.secrets"].JOBS_RUNTIME_ENV) }
-						: {}),
-				},
-			});
+			const normalize = (value: typeof packed) => {
+				const runtime =
+					profile === "hybrid" ? JSON.parse(value["workflows.secrets"].JOBS_RUNTIME_ENV) : {};
+				delete runtime.VIDEO_V1_PROVIDER_CONCURRENCY;
+				return {
+					...value,
+					"workflows.secrets": {
+						...value["workflows.secrets"],
+						...(profile === "hybrid" ? { JOBS_RUNTIME_ENV: runtime } : {}),
+					},
+				};
+			};
 			expect(normalize(packed)).toEqual(normalize(flat));
+			if (profile === "hybrid")
+				expect(JSON.parse(packed["workflows.secrets"].JOBS_RUNTIME_ENV)).not.toHaveProperty(
+					"VIDEO_V1_PROVIDER_CONCURRENCY",
+				);
 			for (const name of ["website", "workflows"] as const) {
 				const secrets = packed[`${name}.secrets`];
 				const policy = parseVideoRuntimeConfig(secrets.VIDEO_RUNTIME_CONFIG);
@@ -674,7 +684,11 @@ describe("prepared deployment artifacts", () => {
 				expect(packed[name].vars).not.toHaveProperty("VIDEO_RUNTIME_CONFIG");
 			}
 			if (profile === "hybrid") {
-				const { VIDEO_PRICE_VALID_UNTIL: _expiry, ...activeInput } = input;
+				const {
+					VIDEO_PRICE_VALID_UNTIL: _expiry,
+					VIDEO_V1_PROVIDER_CONCURRENCY: _providerCapacity,
+					...activeInput
+				} = input;
 				expect(JSON.parse(packed["workflows.secrets"].JOBS_RUNTIME_ENV)).toMatchObject(activeInput);
 			}
 		},

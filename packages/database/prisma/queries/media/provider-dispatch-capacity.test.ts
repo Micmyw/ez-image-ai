@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { providerCapacityForTestRequests } from "../../../test-support/provider-dispatch-capacity";
 import type { Prisma } from "../../generated/client";
 import {
-	configuredProviderDispatchKieCapacity,
-	hasProviderDispatchCapacity,
+	readLegacyConfiguredKieDispatchLimit,
+	isBelowLegacyConfiguredKieDispatchLimit,
 } from "./provider-dispatch-capacity";
 import {
 	configuredSharedKieCapacity,
@@ -55,27 +55,27 @@ describe("consumer-first admission compatibility", () => {
 describe("provider capacity configuration", () => {
 	it("reads the existing private Worker policy pack without a flat binding", () => {
 		expect(
-			configuredProviderDispatchKieCapacity({
+			readLegacyConfiguredKieDispatchLimit({
 				VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_PROVIDER_CONCURRENCY: "8" }),
 			}),
 		).toBe(8);
 	});
 
-	it("preserves Node flat configuration and rejects a conflicting pack", () => {
-		expect(configuredProviderDispatchKieCapacity({ VIDEO_V1_PROVIDER_CONCURRENCY: "8" })).toBe(8);
-		expect(() =>
-			configuredProviderDispatchKieCapacity({
+	it("reads legacy diagnostics while ignoring a conflict for the retired field", () => {
+		expect(readLegacyConfiguredKieDispatchLimit({ VIDEO_V1_PROVIDER_CONCURRENCY: "8" })).toBe(8);
+		expect(
+			readLegacyConfiguredKieDispatchLimit({
 				VIDEO_V1_PROVIDER_CONCURRENCY: "8",
 				VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_PROVIDER_CONCURRENCY: "9" }),
 			}),
-		).toThrow("VIDEO_RUNTIME_CONFIG_CONFLICT");
+		).toBe(9);
 	});
 
 	it.each([undefined, "", "0", "-1", "1.5", "NaN", "9007199254740992"])(
 		"does not invent a capacity for %s",
 		(value) => {
 			expect(
-				configuredProviderDispatchKieCapacity({ VIDEO_V1_PROVIDER_CONCURRENCY: value }),
+				readLegacyConfiguredKieDispatchLimit({ VIDEO_V1_PROVIDER_CONCURRENCY: value }),
 			).toBeNull();
 		},
 	);
@@ -83,7 +83,7 @@ describe("provider capacity configuration", () => {
 	it("does not access Kie occupancy for an independent provider", async () => {
 		const query = vi.fn();
 		expect(
-			await hasProviderDispatchCapacity(
+			await isBelowLegacyConfiguredKieDispatchLimit(
 				{ $queryRaw: query } as unknown as Prisma.TransactionClient,
 				"replicate",
 				{},

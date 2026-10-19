@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-19 — Retire the unverified provider dispatch limit
+
+- Let independently funded image and video jobs reach their provider send claim without a project-configured concurrent-task ceiling. The former setting was not evidence of the provider account's quota.
+- Preserve atomic credit reservations, duplicate-request protection, content review and uncertain-submit recovery. Existing provider errors retain their original task and retry rules; an uncertain response never authorizes another paid submission.
+
 ## 2026-10-19 — Video pricing availability
 
 Valid video prices no longer stop working at a price approval deadline. Invalid optional effect settings no longer block unrelated fixes from being released; new orders still require valid prices, safety, funding and authorization. Quote, reviewed-content and material-rights expiry remain enforced, and accepted jobs retain their frozen prices and private access rules.

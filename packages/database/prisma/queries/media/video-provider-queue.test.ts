@@ -8,36 +8,32 @@ vi.mock("./credits", () => ({ releaseCreditsInTransaction: vi.fn() }));
 import { claimVideoTemplateSceneSubmission } from "./video-template-execution";
 import { claimVideoProviderSubmission } from "./video-v1-execution";
 
-beforeEach(() => vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1"));
+beforeEach(() => vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "2"));
 afterEach(() => vi.unstubAllEnvs());
 
 describe("video sends wait without crossing a paid request fence", () => {
 	it.each(["generation", "scene"] as const)(
-		"persists %s queue due time with no new send",
+		"rechecks %s safety instead of waiting on an unverified project quota",
 		async (phase) => {
 			const fixture = queueFixture();
-			const result = await (phase === "generation"
-				? claimVideoProviderSubmission({
-						jobId: "job",
-						callbackTokenHash: "callback",
-						providerModelId: "model",
-						ruleVersion: "rule",
-					})
-				: claimVideoTemplateSceneSubmission({ jobId: "job", callbackTokenHash: "callback" }));
+			const result =
+				phase === "generation"
+					? claimVideoProviderSubmission({
+							jobId: "job",
+							callbackTokenHash: "callback",
+							providerModelId: "model",
+							ruleVersion: "rule",
+						})
+					: claimVideoTemplateSceneSubmission({ jobId: "job", callbackTokenHash: "callback" });
 
-			expect(result).toMatchObject({ deferred: true, retryAfterMs: 5_000 });
+			await expect(result).rejects.toThrow(
+				phase === "generation"
+					? "VIDEO_INPUT_REVIEW_REQUIRED"
+					: "VIDEO_TEMPLATE_IDENTITIES_INVALID",
+			);
 			expect(fixture.tx.generationAttempt.create).not.toHaveBeenCalled();
 			expect(fixture.tx.videoTemplateExecution.update).not.toHaveBeenCalled();
-			expect(fixture.tx.videoExecution.update).toHaveBeenCalledWith({
-				where: { jobId: "job" },
-				data: {
-					lastProgressAt: expect.any(Date),
-					stageData: {
-						inputReview: { status: "ALLOW" },
-						providerDispatch: { phase, provider: "kie", retryAt: expect.any(String) },
-					},
-				},
-			});
+
 			expect(fixture.order[0]).toBe("media:provider-capacity:kie");
 			expect(fixture.transactionOptions).toEqual({
 				isolationLevel: "ReadCommitted",
@@ -86,7 +82,11 @@ describe("video sends wait without crossing a paid request fence", () => {
 							ruleVersion: "rule",
 						})
 					: claimVideoTemplateSceneSubmission({ jobId: "job", callbackTokenHash: "callback" });
-			await expect(claim()).resolves.toMatchObject({ deferred: true });
+			await expect(claim()).rejects.toThrow(
+				phase === "generation"
+					? "VIDEO_INPUT_REVIEW_REQUIRED"
+					: "VIDEO_TEMPLATE_IDENTITIES_INVALID",
+			);
 			fixture.makeAvailable();
 			await expect(claim()).rejects.toThrow(
 				phase === "generation"
@@ -101,7 +101,7 @@ describe("video sends wait without crossing a paid request fence", () => {
 
 function queueFixture(attempts: unknown[] = [], submittedAt: Date | null = null) {
 	const order: string[] = [];
-	let active = 1n;
+	let active = 2n;
 	const job = {
 		id: "job",
 		ownerType: "USER",

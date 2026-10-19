@@ -42,6 +42,33 @@ describe("template-only two-reference scene mapping", () => {
 			expect(fetch).toHaveBeenCalledTimes(1);
 		}
 	});
+	it.each([
+		{ status: 429, withTaskId: false },
+		{ status: 429, withTaskId: true },
+		{ status: 200, withTaskId: false },
+		{ status: 200, withTaskId: true },
+	])(
+		"keeps HTTP $status/code429 withTaskId=$withTaskId uncertain after one create POST",
+		async ({ status, withTaskId }) => {
+			const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+				Response.json(
+					{ code: 429, data: withTaskId ? { taskId: "scene-task" } : null },
+					{ status },
+				),
+			);
+			await expect(
+				new KieTemplateSceneAdapter({ apiKey: "fixture", fetch }).submit(input),
+			).resolves.toEqual({
+				status: "UNCERTAIN",
+				reasonCode: "TEMPLATE_SCENE_SUBMISSION_UNCERTAIN",
+			});
+			expect(fetch).toHaveBeenCalledTimes(1);
+			expect(fetch).toHaveBeenCalledWith(
+				"https://api.kie.ai/api/v1/jobs/createTask",
+				expect.objectContaining({ method: "POST" }),
+			);
+		},
+	);
 	it("requires the exact accepted task and one scene result", async () => {
 		const fetch = vi.fn().mockResolvedValue(
 			new Response(

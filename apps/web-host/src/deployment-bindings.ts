@@ -27,6 +27,7 @@ const retiredVideoPolicyBindings = new Set([
 	"VIDEO_MODEL_ALLOWED_OPTIONS",
 	"VIDEO_PRICE_VALID_UNTIL",
 	"HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL",
+	"VIDEO_V1_PROVIDER_CONCURRENCY",
 ]);
 
 interface WorkerVersion {

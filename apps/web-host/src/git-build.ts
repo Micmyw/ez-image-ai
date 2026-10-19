@@ -61,7 +61,7 @@ if (command === "build") {
 	);
 	migrationDatabaseUrl(input, root);
 	process.stdout.write(
-		`Provider dispatch capacity preflight: ${JSON.stringify(verifyProviderDispatchCapacity(environment))}\n`,
+		`Provider dispatch policy preflight: ${JSON.stringify(verifyProviderDispatchCapacity(environment))}\n`,
 	);
 	const sha = releaseSha();
 	await mkdir(path.dirname(inputFile), { recursive: true });
@@ -121,7 +121,7 @@ if (command === "build") {
 	if (environment.DEPLOYMENT_VERSION !== sha) throw new Error("BUILD_COMMIT_MISMATCH");
 	assertAutomaticReleaseEnvironment(environment);
 	process.stdout.write(
-		`Provider dispatch capacity preflight: ${JSON.stringify(verifyProviderDispatchCapacity(deploymentEnvironment(environment, "https://ezimageai.com")))}\n`,
+		`Provider dispatch policy preflight: ${JSON.stringify(verifyProviderDispatchCapacity(deploymentEnvironment(environment, "https://ezimageai.com")))}\n`,
 	);
 	const configName = target === "website" ? "website" : "workflows";
 	const configPath = path.join(prepared, `${configName}.json`);

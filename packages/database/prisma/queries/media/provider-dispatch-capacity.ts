@@ -4,8 +4,8 @@ import type { Prisma } from "../../generated/client";
 
 export const PROVIDER_DISPATCH_RETRY_MS = 5_000;
 
-/** All Kie generation adapters use the same configured account. Other provider
- * quotas must be configured explicitly before adding a limit for them here. */
+/** Serialize atomic send claims for adapters sharing a provider account.
+ * This transaction lock does not limit the number of accepted provider tasks. */
 export async function lockProviderDispatchCapacity(
 	tx: Prisma.TransactionClient,
 	provider: string,
@@ -13,19 +13,20 @@ export async function lockProviderDispatchCapacity(
 	await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media:provider-capacity:${provider}`}, 0))`;
 }
 
-/** Called after the provider lock and before any may-have-sent fence. The caller
+/** Read-only compatibility diagnostic; NEVER use this as dispatch authorization.
+ * The legacy project value is not a verified supplier quota. The caller
  * must use ReadCommitted: this separate statement sees the preceding winner.
  * A lease, job stage, or elapsed time is never proof that a provider finished.
  * The narrow legacy-success branch recognizes the old successful result writer
  * that omitted completedAt; it reads frozen output evidence and terminal job
  * identity without changing billing, attempts, or retained assets. */
-export async function hasProviderDispatchCapacity(
+export async function isBelowLegacyConfiguredKieDispatchLimit(
 	tx: Prisma.TransactionClient,
 	provider: string,
 	environment: Record<string, string | undefined> = process.env,
 ): Promise<boolean> {
 	if (provider !== "kie") return true;
-	const maximum = configuredProviderDispatchKieCapacity(environment);
+	const maximum = readLegacyConfiguredKieDispatchLimit(environment);
 	if (maximum === null) return false;
 	const [row] = await tx.$queryRaw<Array<{ active: bigint }>>`
 		SELECT (
@@ -84,8 +85,8 @@ export async function hasProviderDispatchCapacity(
 	return row.active < BigInt(maximum);
 }
 
-/** Preserve the existing packed/flat server configuration and conflict checks. */
-export function configuredProviderDispatchKieCapacity(
+/** Read an obsolete project value for legacy diagnostics, never for dispatch. */
+export function readLegacyConfiguredKieDispatchLimit(
 	environment: Record<string, string | undefined> = process.env,
 ): number | null {
 	const value = Number(expandVideoRuntimeEnvironment(environment).VIDEO_V1_PROVIDER_CONCURRENCY);
