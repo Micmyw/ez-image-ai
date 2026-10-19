@@ -158,16 +158,6 @@ const invalidCases = [
 		"VIDEO_EFFECT_PRICE_NOT_APPROVED",
 	],
 	[
-		"expired deadline",
-		{ HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00Z" },
-		"VIDEO_EFFECT_PRICE_EXPIRED",
-	],
-	[
-		"invalid deadline",
-		{ HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "invalid" },
-		"VIDEO_EFFECT_PRICE_EXPIRED",
-	],
-	[
 		"missing cost policy",
 		{ HOTEL_LOBBY_DUO_COST_POLICY_VERSION: undefined },
 		"VIDEO_EFFECT_COST_POLICY_NOT_CONFIRMED",
@@ -226,6 +216,47 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllEnvs());
 describe("optional build transport preserves mandatory runtime gates", () => {
+	it.each([undefined, "2000-01-01T00:00:00Z", "invalid-date"])(
+		"does not stop valid new quotes or jobs at retired price deadline %s",
+		async (deadline) => {
+			const runtime = buildTransport({
+				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: deadline,
+				VIDEO_PRICE_VALID_UNTIL: deadline,
+			});
+			expect(
+				requireVideoTemplateAdmission(context, runtime, bindings, request).price,
+			).toMatchObject({
+				credits: 69n,
+				pricingDetails: { priceApprovalExpiryMode: "none", validUntil: null },
+			});
+			const expiresAt = new Date(Date.now() + 600_000);
+			vi.mocked(createVideoTemplateQuoteRecord).mockResolvedValue({
+				quoteId: "new-quote",
+				credits: "69",
+				expiresAt: expiresAt.toISOString(),
+			} as never);
+			await expect(
+				createVideoTemplateQuote(context, request, {
+					bindings,
+					maximumInputBytes: 10_000_000,
+					environment: runtime,
+				}),
+			).resolves.toMatchObject({ quoteId: "new-quote", expiresAt: expiresAt.toISOString() });
+			vi.mocked(createVideoTemplateJobRecord).mockResolvedValue({
+				jobId: "accepted-fixture",
+			} as never);
+			await expect(
+				createVideoTemplateJob(
+					context,
+					{ quoteId: "new-quote", idempotencyKey: "new-confirmation", request },
+					{ bindings, limits, environment: runtime },
+				),
+			).resolves.toMatchObject({ credits: "69" });
+			expect(createVideoTemplateJobRecord).toHaveBeenCalledOnce();
+			expect(ensureVideoWorkflowStarted).toHaveBeenCalledOnce();
+		},
+	);
+
 	it.each(invalidCases.slice(0, 2))(
 		"refuses ten-second annual %s using the same actual eligibility audience",
 		(_label, patch, reason) => {

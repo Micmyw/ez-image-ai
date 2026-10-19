@@ -308,12 +308,6 @@ export async function claimVideoTemplateSceneSubmission(input: {
 		if (!clock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
 		const price = json(json(e.job.pricingSnapshot).pricingDetails);
 		if (
-			typeof price.validUntil !== "string" ||
-			Date.parse(price.validUntil) <= clock.now.getTime() ||
-			!Number.isFinite(Date.parse(price.validUntil))
-		)
-			throw new Error("VIDEO_PRICE_EXPIRED");
-		if (
 			price.funding !== undefined &&
 			(!readVideoInternalFundingSnapshot(price.funding, e.job.ownerId, clock.now) ||
 				price.paidRevenueQualified !== false)

@@ -36,7 +36,6 @@ import {
 	type VideoPrice,
 } from "./video-v1";
 import { claimVideoProviderSubmission, recordVideoInputReview } from "./video-v1-execution";
-import { assertVideoPriceApprovalValid } from "./video-v1-price-approval";
 
 const request = {
 	mode: "text-to-video" as const,
@@ -469,7 +468,7 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		await createCreditGrant({ accountId, amount: 100n + bonusCredits, referenceKey }, client);
 		return referenceKey;
 	}
-	it("freezes non-expiring approved pricing after October 12 through quote, paid admission and claim", async () => {
+	it("ignores a retired past price deadline through quote, paid admission and claim, keeping quote TTL", async () => {
 		const f = await fixture(1n);
 		await paidSubscriptionGrant(f.ownerId, f.account.id, { paid: 3_000_000n });
 		const selection = { ...request, productKey: "video-kling-2-6-v1", resolution: "default" };
@@ -480,7 +479,7 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			approvedPrice = resolveVideoModelPrice(selection, {
 				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 				VIDEO_PRICE_BASIS: "isolated non-expiring approval fixture only",
-				VIDEO_PRICE_VALID_UNTIL: "none",
+				VIDEO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00.000Z",
 				VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
 				VIDEO_COST_VISUAL_POLICY_VERSION: visualSafetyProfile.policyVersion,
 				VIDEO_COST_TEXT_RULE_VERSION: createVideoTextSafetyProfile().ruleVersion,
@@ -521,7 +520,6 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			pricingDetails: { priceApprovalExpiryMode: "none", validUntil: null },
 			paidFundingPolicy: { minimumUsdMicrosPerCredit: "21944" },
 		});
-		assertVideoPriceApprovalValid(approvedPrice.pricingDetails!, afterPreviousDeadline);
 		const textSafetyProfile = createVideoTextSafetyProfile();
 		const ruleVersion = "isolated-price-approval-test";
 		await runWithDatabaseClient(client, () =>

@@ -1,8 +1,8 @@
 # Changelog
 
-## 2026-10-19 — Independent availability for optional video effects
+## 2026-10-19 — Video pricing availability
 
-Invalid or expired Hotel Lobby and Raindance approvals no longer block unrelated image fixes from being released. These optional effects continue to refuse new orders until their own policy is valid; accepted jobs and private downloads keep their existing recovery and authorization rules.
+Valid video prices no longer stop working at a price approval deadline. Invalid optional effect settings no longer block unrelated fixes from being released; new orders still require valid prices, safety, funding and authorization. Quote, reviewed-content and material-rights expiry remain enforced, and accepted jobs retain their frozen prices and private access rules.
 
 ## 2026-10-19 — Guest availability throughout the day
 
