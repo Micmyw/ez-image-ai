@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { type FeedbackKind, scheduleFeedbackReveal } from "../lib/feedback";
 
-import "./feedback.css";
+import "./feedback-trigger.css";
 
 const FeedbackDialog = dynamic(
 	() => import("./FeedbackDialog").then((module) => module.FeedbackDialog),

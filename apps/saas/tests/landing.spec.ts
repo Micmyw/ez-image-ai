@@ -645,16 +645,17 @@ test("the production homepage excludes account tools, charts, and documentation 
 		summary.htmlGzipBytes +
 		externalStyles.reduce((total, source) => total + gzipSync(source).length, 0);
 	console.log("Homepage production resources:", JSON.stringify(summary));
+	const resourceDetails = resources.scripts.map((url, index) => ({
+		url,
+		gzipBytes: gzipSync(scripts[index]!).length,
+	}));
+	console.log("Homepage production resource details:", JSON.stringify(resourceDetails));
 	await testInfo.attach("homepage-resources.json", {
 		body: JSON.stringify(summary, null, 2),
 		contentType: "application/json",
 	});
 	await testInfo.attach("homepage-resource-details.json", {
-		body: JSON.stringify(
-			resources.scripts.map((url, index) => ({ url, gzipBytes: gzipSync(scripts[index]!).length })),
-			null,
-			2,
-		),
+		body: JSON.stringify(resourceDetails, null, 2),
 		contentType: "application/json",
 	});
 	expect(summary.htmlGzipBytes, "Keep the initial document below 64 KiB gzip").toBeLessThan(
