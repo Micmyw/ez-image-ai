@@ -329,6 +329,7 @@ function fixture() {
 }
 
 beforeEach(() => {
+	vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
 	vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1");
 	vi.useFakeTimers();
 	vi.setSystemTime(new Date("2026-10-07T14:00:00Z"));

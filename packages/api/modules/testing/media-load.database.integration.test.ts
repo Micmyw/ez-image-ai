@@ -1,5 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { configuredSharedKieCapacity, getCreditInvariantReport } from "@repo/database";
+import { configuredProviderDispatchKieCapacity, getCreditInvariantReport } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -42,7 +42,7 @@ describe("controlled media load database path", () => {
 
 	it("retains explicit mock dispatch capacity without external provider configuration", async () => {
 		await withoutExternalProviderConfiguration(async () => {
-			expect(configuredSharedKieCapacity()).toBe(Number(mockProviderConcurrency));
+			expect(configuredProviderDispatchKieCapacity()).toBe(Number(mockProviderConcurrency));
 		});
 	});
 

@@ -14,7 +14,7 @@ import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import {
 	hasProviderDispatchCapacity,
 	lockProviderDispatchCapacity,
-} from "./shared-provider-capacity";
+} from "./provider-dispatch-capacity";
 import { runReadCommitted } from "./types";
 import { clearVideoProviderDispatch, deferVideoProviderDispatch } from "./video-provider-dispatch";
 import { recordVideoTemplateBusinessEvent } from "./video-template-events";

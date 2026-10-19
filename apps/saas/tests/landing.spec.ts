@@ -586,7 +586,12 @@ test("the production homepage excludes account tools, charts, and documentation 
 			(match) => new URL(match[1]!, response!.url()).href,
 		),
 	);
-	for (const marker of ["/two-factor/verify-totp", "ezpic.editor-upgrade.v1"]) {
+	for (const marker of [
+		"/two-factor/verify-totp",
+		"ezpic.editor-upgrade.v1",
+		"/api/media/guest-drafts/upload-intents",
+		"/api/media/guest-drafts/upload-completions",
+	]) {
 		expect(
 			resources.scripts.some(
 				(url, index) => initialScriptUrls.has(url) && scripts[index]!.includes(marker),
@@ -606,6 +611,8 @@ test("the production homepage excludes account tools, charts, and documentation 
 		"video-kling-2-6-v1",
 		// The path itself also belongs to the shared payment-return helpers.
 		"rumpelstiltskin-navigation",
+		// The visible gift entry must not preload its detailed feedback form.
+		"feedback-email-action",
 	]) {
 		expect
 			.soft(
@@ -621,6 +628,10 @@ test("the production homepage excludes account tools, charts, and documentation 
 	expect(
 		styles.some((source) => source.includes("#nd-sidebar")),
 		"Documentation CSS belongs to /docs",
+	).toBe(false);
+	expect(
+		styles.some((source) => source.includes(".feedback-dialog")),
+		"Feedback form styles must wait for its first open",
 	).toBe(false);
 	expect(response?.headers()["content-security-policy"]).toContain(
 		"https://static.cloudflareinsights.com",
@@ -686,7 +697,7 @@ test("the production homepage excludes account tools, charts, and documentation 
 	expect(
 		initialTextGzipBytes,
 		"Initial HTML, scripts, and external CSS exceed the budget",
-	).toBeLessThan(520 * 1024);
+	).toBeLessThan(526 * 1024);
 	await page.evaluate(() => document.fonts.ready.then(() => undefined));
 	await page.screenshot({ path: testInfo.outputPath("homepage-desktop.png") });
 	await page.setViewportSize({ width: 390, height: 844 });

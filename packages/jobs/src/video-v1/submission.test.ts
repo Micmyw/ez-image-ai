@@ -670,6 +670,21 @@ describe("input moderation", () => {
 		expect(await reviewVideoInput("job-1", f.deps)).toEqual({ status: "ALLOW" });
 		expect(f.moderateText).toHaveBeenCalledTimes(1);
 	});
+
+	it("holds an expired visual approval instead of renewing it through text while waiting for capacity", async () => {
+		const f = fixture("image-to-video");
+		await reviewVideoInput("job-1", f.deps);
+		const review = f.job.videoExecution.stageData.inputReview as Record<string, unknown>;
+		review.validUntil = "2026-10-03T00:00:00Z";
+		f.moderateText.mockClear();
+		expect(await reviewVideoInput("job-1", f.deps)).toEqual({
+			status: "ERROR",
+			reasonCode: "VIDEO_INPUT_REVIEW_REQUIRED",
+			retryable: false,
+		});
+		expect(f.moderateText).not.toHaveBeenCalled();
+		expect(f.provider.submit).not.toHaveBeenCalled();
+	});
 	it.each(["missing", "wrong-rule", "wrong-fingerprint", "expired"])(
 		"does not reuse a %s cached approval",
 		async (mutation) => {

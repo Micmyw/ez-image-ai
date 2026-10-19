@@ -55,6 +55,7 @@ describe("production provider dispatch capacity preflight", () => {
 		{ MEDIA_ENABLED_PROVIDERS: "fal", VIDEO_V1_ENABLED: "false" },
 		{ MEDIA_ENABLED_PROVIDERS: "", MEDIA_PROVIDER_ADAPTER: "kie" },
 		{ MEDIA_ENABLED_PROVIDERS: "fal", MEDIA_RECOVERY_PROVIDERS: "kie" },
+		{ MEDIA_ENABLED_PROVIDERS: "fal", MEDIA_PROVIDER_ADAPTER: "private-invalid-fixture" },
 	])(
 		"does not require Kie capacity for inactive or independent-provider deployments",
 		(overrides) => {
@@ -70,6 +71,7 @@ describe("production provider dispatch capacity preflight", () => {
 			VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_PROVIDER_CONCURRENCY: "9" }),
 		},
 		{ MEDIA_ENABLED_PROVIDERS: "kie,private-invalid-provider" },
+		{ MEDIA_ENABLED_PROVIDERS: undefined, MEDIA_PROVIDER_ADAPTER: "private-invalid-fixture" },
 	])(
 		"redacts invalid or conflicting runtime policy without returning the private input",
 		(policy) => {
@@ -90,6 +92,7 @@ describe("automatic builder capacity gate ordering", () => {
 				encoding: "utf8",
 				env: {
 					PATH: process.env.PATH,
+					CANONICAL_ORIGIN: "https://ezimageai.com",
 					WORKERS_CI: "1",
 					WORKERS_CI_BRANCH: "feature-fixture",
 					CLOUDFLARE_PRODUCTION_ENV: Object.entries({

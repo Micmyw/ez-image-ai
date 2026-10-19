@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
+import { providerCapacityForTestRequests } from "../../packages/database/test-support/provider-dispatch-capacity";
 import { assertSafeDatabaseUrl } from "./assert-safe-target";
 
 const testDatabaseUrl = assertSafeDatabaseUrl(process.env.TEST_DATABASE_URL).toString();
@@ -11,6 +12,7 @@ process.env.DATABASE_URL = testDatabaseUrl;
 process.env.NODE_ENV = "test";
 process.env.MEDIA_GENERATION_ENABLED = "true";
 process.env.MEDIA_ENABLED_PROVIDERS = "kie";
+delete process.env.VIDEO_RUNTIME_CONFIG;
 process.env.LOAD_TESTING_ENABLED = "false";
 process.env.LOAD_TEST_DATABASE_URL = testDatabaseUrl;
 process.env.LOAD_AUTH_TOKEN = token;
@@ -25,6 +27,8 @@ async function run(): Promise<void> {
 		import("../../packages/api/index"),
 	]);
 	try {
+		// This isolated mock process sends once; preserve every historical occupied slot.
+		process.env.VIDEO_V1_PROVIDER_CONCURRENCY = await providerCapacityForTestRequests(db, 1);
 		const disabled = await request(app, token);
 		assert(disabled.status === 404, `disabled route returned ${disabled.status}`);
 

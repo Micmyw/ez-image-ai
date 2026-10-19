@@ -23,6 +23,7 @@ import { submitVideoAttempt } from "@repo/jobs/video-v1/submission";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
+import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/jobs/video-v1/workflow-binding", () => ({
@@ -109,8 +110,11 @@ beforeAll(async () => {
 	if (!isExplicitVideoVerificationTarget(new URL(connectionString)))
 		throw new Error("ISOLATED_VIDEO_TEST_DATABASE_REQUIRED");
 	client = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+	// All six tier/mode fixtures really submit once; preserve every historical occupied slot.
+	environment.VIDEO_V1_PROVIDER_CONCURRENCY = await providerCapacityForTestRequests(client, 6);
 });
 beforeEach(async () => {
+	vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
 	for (const [key, value] of Object.entries(environment)) vi.stubEnv(key, value);
 	ownerId = `veo-tier-test-${crypto.randomUUID()}`;
 	vi.mocked(auth.api.getSession).mockResolvedValue({
@@ -245,7 +249,7 @@ describe("protected Veo quote, receipt and dispatch", () => {
 			});
 		},
 	);
-	it("keeps the five-slot legacy capacity gate and admits the same receipt only after fixture slots settle", async () => {
+	it("queues one funded receipt despite five unfinished legacy jobs without sending to a provider", async () => {
 		const blockers: string[] = [];
 		for (let index = 0; index < 5; index++) {
 			const quote = await client.generationQuote.create({
@@ -282,30 +286,43 @@ describe("protected Veo quote, receipt and dispatch", () => {
 			});
 			blockers.push(job.id);
 		}
-		await runWithDatabaseClient(client, async () => {
-			const quote = await call(videoV1Router.quote, base, ctx);
-			const receipt = {
-				quoteId: quote.quoteId,
-				idempotencyKey: crypto.randomUUID(),
-				request: base,
-			};
-			await expect(call(videoV1Router.jobs.create, receipt, ctx)).rejects.toMatchObject({
-				message: "VIDEO_PROVIDER_BUSY",
+		const providerFetch = vi
+			.spyOn(globalThis, "fetch")
+			.mockRejectedValue(new Error("ADMISSION_MUST_NOT_SEND_TO_PROVIDER"));
+		try {
+			await runWithDatabaseClient(client, async () => {
+				const quote = await call(videoV1Router.quote, base, ctx);
+				const receipt = {
+					quoteId: quote.quoteId,
+					idempotencyKey: crypto.randomUUID(),
+					request: base,
+				};
+				const created = await call(videoV1Router.jobs.create, receipt, ctx);
+				expect(created).toMatchObject({ stage: "QUEUED", creditState: "RESERVED" });
+				expect(await client.generationJob.count({ where: { quoteId: quote.quoteId } })).toBe(1);
+				expect(await client.creditReservation.count({ where: { accountId } })).toBe(1);
+				expect(
+					await client.creditReservation.findFirstOrThrow({ where: { accountId } }),
+				).toMatchObject({
+					jobId: created.jobId,
+					amount: BigInt(created.credits),
+					status: "ACTIVE",
+				});
+				await expect(call(videoV1Router.jobs.create, receipt, ctx)).resolves.toMatchObject({
+					jobId: created.jobId,
+				});
+				expect(await client.creditReservation.count({ where: { accountId } })).toBe(1);
+				expect(await client.generationAttempt.count({ where: { jobId: created.jobId } })).toBe(0);
+				expect(
+					await client.generationJob.count({
+						where: { id: { in: blockers }, ownerId, status: "RESERVED" },
+					}),
+				).toBe(5);
+				expect(providerFetch).not.toHaveBeenCalled();
 			});
-			expect(await client.creditReservation.count({ where: { accountId } })).toBe(0);
-			expect(await client.generationJob.count({ where: { quoteId: quote.quoteId } })).toBe(0);
-			// Only this case's synthetic slots settle; never rewrite other suites' jobs.
-			await client.generationJob.updateMany({
-				where: { id: { in: blockers }, ownerId },
-				data: { status: "FAILED", terminalAt: new Date() },
-			});
-			const created = await call(videoV1Router.jobs.create, receipt, ctx);
-			expect(await client.creditReservation.count({ where: { accountId } })).toBe(1);
-			await expect(call(videoV1Router.jobs.create, receipt, ctx)).resolves.toMatchObject({
-				jobId: created.jobId,
-			});
-			expect(await client.creditReservation.count({ where: { accountId } })).toBe(1);
-		});
+		} finally {
+			providerFetch.mockRestore();
+		}
 	});
 	it.each(
 		(["lite", "fast", "quality"] as const).flatMap((veoTier) =>

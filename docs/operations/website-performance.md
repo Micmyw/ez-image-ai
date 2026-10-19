@@ -1,5 +1,42 @@
 # Homepage performance
 
+## October 19 generation feature budget
+
+The approved generation changes add the visible feedback gift entry, account
+continuation and safe upload retry. The first combined production Next build
+measured 539107 gzip bytes. Deferring private workspace/feedback messages and the
+unchanged upload protocol reduced this to 536726 bytes on PR39 `17f5c0d`, observed
+identically on both browser-test attempts. The authenticated 39 and guest 29 browser
+scenarios passed; the aggregate-size assertion was the remaining browser failure.
+This is transfer evidence, not an online PageSpeed or execution-time improvement.
+
+| Measured production build                     | JavaScript gzip | HTML gzip | CSS gzip | Aggregate |
+| --------------------------------------------- | --------------: | --------: | -------: | --------: |
+| PR34 baseline                                 |          437111 |     61887 |    32639 |    531637 |
+| First combined features                       |          442208 |     63428 |    33471 |    539107 |
+| Private messages and upload protocol deferred |          441133 |     62122 |    33471 |    536726 |
+| Financial combination PR36 `3141e90`          |          441843 |     62353 |    33574 |    537770 |
+
+The non-DDL candidate increases the measured baseline by 5089 bytes (0.96%). The
+existing 520 KiB cap had only 843 bytes of baseline headroom. Maintain a bounded
+**526 KiB** aggregate cap (538624 bytes), a 6 KiB/1.15% budget increase for these
+approved interfaces, with 1898 bytes of headroom against the measured candidate.
+The financial combined build independently measured 537770 bytes on both attempts,
+1044 bytes above the non-DDL candidate, leaving 854 bytes under the same cap. Its
+authenticated 39 and guest 29 browser scenarios also passed. Independent
+source/resource review found no evidenced, safely removable heavy initial
+dependency after these deferrals. Final exact-head CI must still pass; this budget
+change does not certify it.
+
+The independent HTML 64 KiB limit, cacheable external CSS, zero duplicated inline
+styles, CSP and account/chart/documentation exclusions remain. Add explicit guards
+that the feedback form and its CSS are absent from the initial visit and both
+guest-upload endpoints remain outside initial scripts. Do not substitute generic
+SHA or XMLHttpRequest markers, which other legitimate shared features can use.
+The budget revision does not bypass the separate strict-type, database, provider,
+security, artifact or browser-functional checks. It changes no generation policy,
+moderation, credits, pricing or production configuration.
+
 ## September 22 report follow-up
 
 The supplied [mobile report](https://pagespeed.web.dev/analysis/https-ezimageai-com/gpj6p9taem?form_factor=mobile)
