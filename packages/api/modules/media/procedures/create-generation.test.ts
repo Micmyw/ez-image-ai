@@ -3,6 +3,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildMediaQuote } from "../lib/quote";
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
+vi.mock("@repo/database", () => ({
+	createGenerationJobTransaction: vi.fn(),
+	getInitialGenerationEventIds: vi.fn(),
+	unexpiredStorageReservations: vi.fn(),
+	ensureFreeMonthlyCreditGrant: vi.fn(),
+	hasMatchingFreeMonthlyCreditGrant: vi.fn(),
+	findEffectivePaidSubscription: vi.fn(),
+}));
 vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/jobs", () => ({ resolveDatabaseDispatchRoute: vi.fn() }));
 vi.mock("@repo/logs", () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
@@ -72,7 +80,6 @@ describe("createGenerationForUser", () => {
 				inputSnapshot: input,
 			}),
 			getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
-			loadEntitlement: async () => ({ maximumConcurrentJobs: 3 }),
 			assertAllowed,
 			createGenerationJob,
 		};
@@ -93,11 +100,11 @@ describe("createGenerationForUser", () => {
 			expect.objectContaining({
 				quoteId: "text-quote",
 				inputAssetIds: [],
-				maximumConcurrentJobs: 3,
 				expectedModerationRuleVersion: expect.any(String),
 			}),
 		);
 		expect(createGenerationJob.mock.calls[0]?.[0]).not.toHaveProperty("edit");
+		expect(createGenerationJob.mock.calls[0]?.[0]).not.toHaveProperty("maximumConcurrentJobs");
 		createGenerationJob.mockClear();
 		await expect(
 			createGenerationForUser(
@@ -136,7 +143,6 @@ describe("createGenerationForUser", () => {
 				{ quoteId: "quote-legacy", idempotencyKey: "idempotency-legacy" },
 				{
 					now: () => new Date("2026-09-07T00:00:00.000Z"),
-					loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 					findQuote: async () => ({
 						id: "quote-legacy",
 						productKey: legacyQuote.productKey,
@@ -185,7 +191,6 @@ describe("createGenerationForUser", () => {
 			{ quoteId: "quote-1", idempotencyKey: "idempotency-key-1" },
 			{
 				now: () => new Date("2026-08-25T00:00:00.000Z"),
-				loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 				findQuote: async () => ({
 					id: "quote-1",
 					productKey: quote.productKey,
@@ -210,7 +215,6 @@ describe("createGenerationForUser", () => {
 			expect.objectContaining({
 				inputAssetIds: [SOURCE_ASSET_ID],
 				edit: { kind: "ROOT", rootAssetId: SOURCE_ASSET_ID },
-				maximumConcurrentJobs: 3,
 				maximumGlobalDailyCostMicros: 250_000_000n,
 			}),
 		);
@@ -237,7 +241,6 @@ describe("createGenerationForUser", () => {
 			{ quoteId: "quote-2", idempotencyKey: "idempotency-key-2" },
 			{
 				now: () => new Date("2026-08-25T00:00:00.000Z"),
-				loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 				findQuote: async () => ({
 					id: "quote-2",
 					productKey: quote.productKey,
@@ -300,7 +303,6 @@ describe("createGenerationForUser", () => {
 				},
 				{
 					now: () => new Date("2026-08-25T00:00:00.000Z"),
-					loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 					findQuote: async () => ({
 						id: "quote-2",
 						productKey: quote.productKey,
@@ -351,7 +353,6 @@ describe("createGenerationForUser", () => {
 				},
 				{
 					now: () => new Date("2026-08-25T00:00:00.000Z"),
-					loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 					findQuote: async () => ({
 						id: "quote-1",
 						productKey: quote.productKey,
@@ -392,7 +393,6 @@ describe("createGenerationForUser", () => {
 				{ quoteId: "quote-1", idempotencyKey: "idempotency-key-1" },
 				{
 					now: () => new Date("2026-08-23T00:00:00.000Z"),
-					loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 					findQuote: async () => ({
 						id: "quote-1",
 						productKey: quote.productKey,
@@ -441,7 +441,6 @@ describe("createGenerationForUser", () => {
 				{ quoteId: "quote-1", idempotencyKey: "idempotency-key-1" },
 				{
 					now: () => new Date("2026-08-24T00:00:00.000Z"),
-					loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 					findQuote: async () => ({
 						id: "quote-1",
 						productKey: quote.productKey,

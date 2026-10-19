@@ -11,7 +11,12 @@ import {
 import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
+import {
+	hasProviderDispatchCapacity,
+	lockProviderDispatchCapacity,
+} from "./shared-provider-capacity";
 import { runReadCommitted } from "./types";
+import { clearVideoProviderDispatch, deferVideoProviderDispatch } from "./video-provider-dispatch";
 import { recordVideoTemplateBusinessEvent } from "./video-template-events";
 import {
 	findApprovedVideoTemplateMotionReference,
@@ -261,12 +266,21 @@ export async function claimVideoTemplateSceneSubmission(input: {
 	callbackTokenHash: string;
 }) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		await lockProviderDispatchCapacity(tx, "kie");
 		await lockVideoOwnerStorage(tx, input.jobId);
 		const e = await lock(tx, input.jobId);
 		if (isVideoTemplateReference(e.templateSnapshot))
 			throw new Error("VIDEO_TEMPLATE_REFERENCE_HAS_NO_SCENE");
 		if (e.submittedAt) return { execution: e, claimed: false };
 		active(e);
+		if (!(await hasProviderDispatchCapacity(tx, "kie"))) {
+			return deferVideoProviderDispatch(
+				tx,
+				input.jobId,
+				json(e.job.videoExecution!.stageData),
+				"scene",
+			);
+		}
 		assertVideoTemplateRoleIdentities(e.job);
 		const review = json(e.inputReview);
 		const profile = readVideoTextSafetyProfile(e.job.inputSnapshot);
@@ -322,6 +336,13 @@ export async function claimVideoTemplateSceneSubmission(input: {
 				submittedAt: new Date(),
 			},
 			include,
+		});
+		await tx.videoExecution.update({
+			where: { jobId: input.jobId },
+			data: {
+				stageData: clearVideoProviderDispatch(json(e.job.videoExecution!.stageData)),
+				lastProgressAt: new Date(),
+			},
 		});
 		return { execution, claimed: true };
 	});

@@ -17,6 +17,7 @@ export interface DurableSteps {
 		callback: () => Promise<T>,
 	): Promise<T>;
 	sleep(name: string, duration: string): Promise<void>;
+	sleepUntil?(name: string, timestamp: Date | number): Promise<void>;
 }
 export type InvocationResult =
 	| {
@@ -79,6 +80,18 @@ export async function runTask(
 					}
 					if (continuation.eventIds.length) {
 						try {
+							const notBefore = continuation.notBefore;
+							if (notBefore !== undefined) {
+								// An absolute wait retains its deadline even if execution stops
+								// after dispatch is cached but before the wait is recorded.
+								if (step.sleepUntil) await step.sleepUntil(`${prefix}-continue-wait`, notBefore);
+								else {
+									// Older step adapters must recalculate remaining time on replay.
+									const delay = Math.max(0, notBefore - Date.now());
+									if (delay > 0)
+										await step.sleep(`${prefix}-continue-wait`, `${delay} milliseconds`);
+								}
+							}
 							await runTask(
 								{ taskId: "media-deliver-events", payload: { eventIds: continuation.eventIds } },
 								runId,

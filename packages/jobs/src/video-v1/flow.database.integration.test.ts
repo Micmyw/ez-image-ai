@@ -27,6 +27,7 @@ import {
 	type VideoDurableSteps,
 	type VideoWorkflowServices,
 } from "../../../../apps/workflows/src/video-orchestrator";
+import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
 import { mp4Fixture } from "../../../storage/test-support/video-fixture";
 import { ensureVideoWorkflowStarted } from "./admission";
 import type { VideoWorkflowBinding, VideoRequestInput } from "./contracts";
@@ -392,6 +393,8 @@ describe("video V1 actual-domain Mock end-to-end and measured concurrency", () =
 		)
 			throw new Error("UNSAFE_TEST_DATABASE");
 		client = new PrismaClient({ adapter: new PrismaPg({ connectionString, max: 40 }) });
+		vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
+		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", await providerCapacityForTestRequests(client, 16));
 		// Serial image integration suites retain active fixtures in this isolated
 		// database. Keep their real occupancy and add only this run's test slots.
 		legacyActiveBaseline = await client.generationJob.count({
@@ -444,6 +447,7 @@ describe("video V1 actual-domain Mock end-to-end and measured concurrency", () =
 		externalCounters.safetyMockCalls = external.safetyCalls;
 	});
 	afterAll(async () => {
+		vi.unstubAllEnvs();
 		if (process.env.VIDEO_V1_RUN_PERFORMANCE !== "1") {
 			await client?.$disconnect();
 			vi.unstubAllGlobals();

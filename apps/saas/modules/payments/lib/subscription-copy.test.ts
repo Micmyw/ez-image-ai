@@ -42,6 +42,8 @@ describe("subscription copy", () => {
 			expect(String(readKey(saas, key)).trim(), `${locale}/saas:${key}`).not.toBe("");
 		}
 		expect(readKey(saas, "media.uploader.limit")).toContain("{megabytes");
+		expect(readKey(saas, "media.upgradeDialog.planDetails")).toContain("{megabytes");
+		expect(readKey(saas, "media.upgradeDialog.planDetails")).not.toContain("{concurrency");
 		expect(readKey(shared, "pricing.checkoutUnavailable")).toEqual(expect.any(String));
 		for (const planId of ["free", "creator", "ultimate", "studio"] as const) {
 			expect(readKey(shared, `pricing.products.${planId}.features.privateAssets`)).toEqual(

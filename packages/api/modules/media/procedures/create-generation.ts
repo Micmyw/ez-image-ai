@@ -3,12 +3,7 @@ import {
 	MEDIA_VERIFICATION_RULE_VERSION,
 	type ExecutableRouteGraphOptions,
 } from "@repo/ai";
-import {
-	DEFAULT_PRODUCT_CONFIG,
-	EZPIC_PRODUCT_KEYS,
-	temporaryReferenceSchema,
-	type PlanEntitlement,
-} from "@repo/config";
+import { DEFAULT_PRODUCT_CONFIG, EZPIC_PRODUCT_KEYS, temporaryReferenceSchema } from "@repo/config";
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import { createGenerationJobTransaction, getInitialGenerationEventIds } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -23,7 +18,6 @@ import { toMediaOrpcError } from "../lib/errors";
 import { getCurrentExecutableRouteGraphOptions } from "../lib/executable-route-graph";
 import { createFlowTiming, type FlowTiming } from "../lib/flow-timing";
 import { assertGenerationAllowed } from "../lib/generation-authorization";
-import { loadUserPlanEntitlement } from "../lib/plan-entitlement";
 import { assertFrozenQuoteRouteGraphIsCurrent } from "../lib/quote";
 import { enforceMediaRateLimit } from "../lib/rate-limit";
 import { maximumMediaStorageBytes } from "../lib/storage-limits";
@@ -166,7 +160,6 @@ interface CreateGenerationDependencies {
 	now(): Date;
 	findQuote(userId: string, quoteId: string): Promise<GenerationQuoteForCreation | null>;
 	getRouteGraphOptions(): Promise<ExecutableRouteGraphOptions>;
-	loadEntitlement(userId: string): Promise<Pick<PlanEntitlement, "maximumConcurrentJobs">>;
 	assertAllowed: typeof assertGenerationAllowed;
 	enforceRateLimit?: typeof enforceMediaRateLimit;
 	createGenerationJob(input: {
@@ -183,7 +176,6 @@ interface CreateGenerationDependencies {
 		maximumDailyCostMicros: bigint;
 		maximumGlobalDailyCostMicros?: bigint;
 		maximumStorageBytes: bigint;
-		maximumConcurrentJobs?: number;
 		validateCurrentEligibility?: boolean;
 		edit?:
 			| { kind: "ROOT"; rootAssetId: string }
@@ -203,7 +195,6 @@ const defaultDependencies: CreateGenerationDependencies = {
 			where: { id: quoteId, ownerType: "USER", ownerId: userId },
 		}),
 	getRouteGraphOptions: () => getCurrentExecutableRouteGraphOptions(),
-	loadEntitlement: (userId) => loadUserPlanEntitlement(userId),
 	assertAllowed: (input) => assertGenerationAllowed(input),
 	enforceRateLimit: enforceMediaRateLimit,
 	createGenerationJob: (input) => createGenerationJobTransaction(input, db),
@@ -291,9 +282,6 @@ async function createGenerationFromQuote(
 				routeGraphOptions,
 			}),
 		);
-	const entitlement = admission
-		? undefined
-		: await timing.measure("admission.entitlement", () => dependencies.loadEntitlement(userId));
 	const maximumGlobalDailyCostMicros = mediaDailyProviderCostBudgetMicros(process.env);
 	const created = await timing.measure("admission.job.transaction", () =>
 		dependencies.createGenerationJob({
@@ -311,7 +299,6 @@ async function createGenerationFromQuote(
 			...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
 			maximumStorageBytes: maximumMediaStorageBytes(),
 			validateCurrentEligibility: true,
-			...(entitlement ? { maximumConcurrentJobs: entitlement.maximumConcurrentJobs } : {}),
 			...imageEditBinding(quote.productKey, inputSnapshot, input.parentJobId),
 		}),
 	);

@@ -1376,7 +1376,7 @@
 			"continue": "Choose a plan",
 			"modelDescription": "{model} is included in Pro, Ultimate, and Max. Choose the plan that fits your editing needs.",
 			"monthlyCredits": "{credits, number} credits/mo",
-			"planDetails": "{concurrency, number} edits at once · {megabytes, number} MB images",
+			"planDetails": "{megabytes, number} MB images",
 			"planNames": {
 				"creator": "Pro",
 				"ultimate": "Ultimate",

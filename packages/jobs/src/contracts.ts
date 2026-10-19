@@ -90,10 +90,17 @@ export class DispatchAdmissionBlockedError extends Error {
 export interface DispatchContinuation {
 	eventIds: string[];
 	pollAttemptId?: string;
+	notBefore?: number;
+}
+
+export interface DispatchDeferred {
+	deferred: true;
+	retryAfterMs: number;
+	continuation: DispatchContinuation;
 }
 
 export interface DispatchStore {
-	claimDispatch(payload: DispatchJobPayload): Promise<DispatchClaim | null>;
+	claimDispatch(payload: DispatchJobPayload): Promise<DispatchClaim | DispatchDeferred | null>;
 	recordSubmissionStarted(attemptId: string): Promise<void>;
 	/** Older stores may omit continuation; durable stores return committed identities. */
 	recordSubmission(

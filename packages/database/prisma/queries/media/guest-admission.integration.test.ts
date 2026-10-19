@@ -7,7 +7,6 @@ import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
-import type { Prisma } from "../../generated/client";
 import { getAdminMediaDiagnostics } from "./admin-diagnostics";
 import { createCreditGrant } from "./credits";
 import { claimGuestGenerationDraftTransaction } from "./drafts";
@@ -58,18 +57,19 @@ describe("guest generation admission", () => {
 	});
 	afterEach(() => vi.unstubAllEnvs());
 
-	it("shared Kie capacity rejects a guest image after video fills the final slot", async () => {
+	it("admits a guest image while another owner's video occupies provider execution capacity", async () => {
 		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1");
 		const video = await videoAdmissionFixture();
 		await createVideoJobRecord(video, client);
 		const guest = await createGuestFixture("video-cap-full");
 		await expect(
 			createGuestAdmission(guestAdmissionInput(guest, { idempotencyKey: "capacity-full" })),
-		).rejects.toThrow("PROVIDER_CONCURRENT_JOB_LIMIT_REACHED");
-		expect(await countGuestBusinessGraph(guest.ownerId)).toEqual(emptyGuestBusinessGraph());
+		).resolves.toMatchObject({ stage: "WAITING" });
+		expect(await client.generationJob.count()).toBe(2);
+		expect(await client.creditReservation.count({ where: { status: "ACTIVE" } })).toBe(2);
 	});
 
-	it("shared Kie capacity serializes a guest image and video racing the final slot", async () => {
+	it("admits both a guest image and another owner's video while provider execution is full", async () => {
 		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1");
 		const video = await videoAdmissionFixture();
 		const guest = await createGuestFixture("video-cap-race");
@@ -81,107 +81,64 @@ describe("guest generation admission", () => {
 				await createGuestAdmission(guestAdmissionInput(guest, { idempotencyKey: "capacity-race" }));
 			},
 		]);
-		expect(outcomes.filter((item) => item.status === "fulfilled")).toHaveLength(1);
-		expect(await client.generationJob.count()).toBe(1);
-		expect(await client.creditReservation.count({ where: { status: "ACTIVE" } })).toBe(1);
+		expect(outcomes.filter((item) => item.status === "fulfilled")).toHaveLength(2);
+		expect(await client.generationJob.count()).toBe(2);
+		expect(await client.creditReservation.count({ where: { status: "ACTIVE" } })).toBe(2);
 	});
 
-	it("shared Kie capacity observes video committed after an image transaction's first snapshot", async () => {
+	it("admits a registered image while another owner's video is waiting for provider execution", async () => {
 		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1");
-		const video = await videoAdmissionFixture();
-		const guest = await createGuestFixture("image-snapshot");
-		const input = guestAdmissionInput(guest, { idempotencyKey: "image-snapshot" });
+		await createVideoJobRecord(await videoAdmissionFixture(), client);
+		const imageOwner = await createGuestFixture("image-with-video");
+		await client.user.update({ where: { id: imageOwner.ownerId }, data: { isAnonymous: false } });
+		const input = guestAdmissionInput(imageOwner, { idempotencyKey: "image-with-video" });
 		const quote = await createModeratedGenerationQuote(input.quote, client);
 		const account = await client.creditAccount.create({
-			data: { ownerType: "USER", ownerId: guest.ownerId },
+			data: { ownerType: "USER", ownerId: imageOwner.ownerId },
 		});
 		await createCreditGrant(
-			{ accountId: account.id, amount: 5n, referenceKey: `snapshot:${account.id}` },
+			{ accountId: account.id, amount: 5n, referenceKey: `admission:${account.id}` },
 			client,
 		);
-		let reached!: () => void;
-		let resume!: () => void;
-		const blocked = new Promise<void>((resolve) => {
-			reached = resolve;
-		});
-		const resumed = new Promise<void>((resolve) => {
-			resume = resolve;
-		});
-		const observedClient = new Proxy(client, {
-			get(target, property) {
-				if (property !== "$transaction") return Reflect.get(target, property);
-				return (operation: (tx: Prisma.TransactionClient) => Promise<unknown>, options: object) =>
-					target.$transaction(
-						async (tx) =>
-							operation(
-								new Proxy(tx, {
-									get(transaction, key) {
-										if (key !== "$executeRaw") return Reflect.get(transaction, key);
-										return async (parts: TemplateStringsArray, ...values: unknown[]) => {
-											if (parts.join("").includes("media:provider-capacity:kie")) {
-												reached();
-												await resumed;
-											}
-											return transaction.$executeRaw(parts, ...values);
-										};
-									},
-								}),
-							),
-						options,
-					);
-			},
-		});
-		const imageResult = createGenerationJobTransaction(
-			{
-				ownerType: "USER",
-				ownerId: guest.ownerId,
-				submittedByUserId: guest.ownerId,
-				quoteId: quote.id,
-				idempotencyKey: "image-snapshot",
-				inputAssetIds: [],
-				expectedModerationRuleVersion: input.quote.moderation.ruleVersion,
-			},
-			observedClient,
-		).then(
-			(value) => ({ value }),
-			(error: Error) => ({ error }),
-		);
-		await blocked;
-		try {
-			await createVideoJobRecord(video, client);
-		} finally {
-			resume();
-		}
-		expect(await imageResult).toMatchObject({
-			error: { message: "PROVIDER_CONCURRENT_JOB_LIMIT_REACHED" },
-		});
-		expect(await client.creditReservation.count({ where: { accountId: account.id } })).toBe(0);
+		await expect(
+			createGenerationJobTransaction(
+				{
+					ownerType: "USER",
+					ownerId: imageOwner.ownerId,
+					submittedByUserId: imageOwner.ownerId,
+					quoteId: quote.id,
+					idempotencyKey: "image-with-video",
+					inputAssetIds: [],
+					expectedModerationRuleVersion: input.quote.moderation.ruleVersion,
+					maximumConcurrentJobs: 1,
+				},
+				client,
+			),
+		).resolves.toMatchObject({ replayed: false });
+		expect(await client.creditReservation.count({ where: { accountId: account.id } })).toBe(1);
 	});
 
-	it("shared Kie capacity transfers one guest replacement slot without admitting extra video", async () => {
+	it("keeps a guest replacement's reservation while admitting another owner's video", async () => {
 		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1");
 		const guest = await createGuestFixture("replacement-cap");
 		const admitted = await createGuestAdmission(
 			guestAdmissionInput(guest, { idempotencyKey: "replacement-cap" }),
 		);
 		const video = await videoAdmissionFixture();
-		const [replacement, rejectedVideo] = await Promise.all([
+		const [replacement, acceptedVideo] = await Promise.all([
 			client.$transaction((tx) =>
 				expireGuestJobBeforeProvider({ jobId: admitted.jobId, now: new Date() }, tx),
 			),
-			createVideoJobRecord(video, client).then(
-				() => null,
-				(error: Error) => error,
-			),
+			createVideoJobRecord(video, client),
 		]);
 		expect(replacement).toMatchObject({ outcome: "EXPIRED", replacementJobId: expect.any(String) });
-		expect(rejectedVideo?.message).toBe("VIDEO_PROVIDER_BUSY");
+		expect(acceptedVideo).toMatchObject({ replayed: false });
 		expect(
 			await client.generationJob.count({
 				where: { status: { notIn: ["FAILED", "SUCCEEDED", "CANCELED"] } },
 			}),
-		).toBe(1);
-		expect(await client.creditReservation.count({ where: { status: "ACTIVE" } })).toBe(1);
+		).toBe(2);
+		expect(await client.creditReservation.count({ where: { status: "ACTIVE" } })).toBe(2);
 	});
 
 	async function videoAdmissionFixture() {
@@ -274,11 +231,7 @@ describe("guest generation admission", () => {
 			...policy,
 			idempotencyKey: "same-owner-first",
 		});
-		const first = await createGuestAdmission(firstInput);
-		await client.generationJob.update({
-			where: { id: first.jobId },
-			data: { status: "SUCCEEDED", terminalAt: fixture.now },
-		});
+		await createGuestAdmission(firstInput);
 		const next = await createGuestFixture(
 			"same-owner-second",
 			fixture.now,
@@ -310,6 +263,9 @@ describe("guest generation admission", () => {
 			idempotencyKey: "same-owner-second",
 		});
 		const second = await createGuestAdmission(secondInput);
+		expect(
+			await client.generationJob.count({ where: { ownerId: fixture.ownerId, terminalAt: null } }),
+		).toBe(2);
 		await expect(createGuestAdmission(secondInput)).resolves.toMatchObject({ jobId: second.jobId });
 		await expect(client.creditAccount.count({ where: { ownerId: fixture.ownerId } })).resolves.toBe(
 			1,
@@ -376,7 +332,7 @@ describe("guest generation admission", () => {
 		).resolves.toBe(2);
 	});
 
-	it("does not reset the active-device limit at midnight", async () => {
+	it("admits a new daily request after midnight while the previous device job remains active", async () => {
 		const now = guestAdmissionTestTime(0);
 		const policy = {
 			deviceHash: hashFixture("midnight-active-device"),
@@ -394,7 +350,10 @@ describe("guest generation admission", () => {
 			createGuestAdmission(
 				guestAdmissionInput(next, { ...policy, idempotencyKey: "midnight-active-next" }),
 			),
-		).rejects.toThrow("GUEST_DEVICE_LIMIT");
+		).resolves.toMatchObject({ stage: "WAITING" });
+		expect(await client.guestMediaTrial.count({ where: { deviceHash: policy.deviceHash } })).toBe(
+			2,
+		);
 	});
 
 	it("commits exactly one sponsored graph under a deterministic 32-way replay", async () => {
@@ -470,7 +429,7 @@ describe("guest generation admission", () => {
 		]);
 	});
 
-	it("creates no business graph when the queue dimension is N plus one", async () => {
+	it("admits a complete second graph beyond the retired queue dimension", async () => {
 		const admitted = await createGuestFixture("capacity-a");
 		await createGuestAdmission(
 			guestAdmissionInput(admitted, {
@@ -487,10 +446,13 @@ describe("guest generation admission", () => {
 					maximumGlobalQueueDepth: 1,
 				}),
 			),
-		).rejects.toThrow("GUEST_QUEUE_CAPACITY");
-		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
-			emptyGuestBusinessGraph(),
-		);
+		).resolves.toMatchObject({ stage: "WAITING" });
+		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toMatchObject({
+			trials: 1,
+			jobs: 1,
+			reservations: 1,
+			outbox: 1,
+		});
 	});
 
 	it("keeps old promotion queue and failures out of current admission and diagnostics", async () => {
@@ -642,6 +604,9 @@ describe("guest generation admission", () => {
 			guestAdmissionInput(slowFixture, { idempotencyKey: "guest-risk-slow" }),
 		);
 		expect(slow.projectedDispatchAt).toEqual(new Date(slowFixture.now.getTime() + 120_000));
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: slow.jobId } }),
+		).resolves.toMatchObject({ dispatchEligibleAt: slowFixture.now });
 
 		const closedFixture = await createGuestFixture("risk-closed", fixtureNow, "promotion-closed");
 		await client.guestRiskBudgetBucket.create({
@@ -704,7 +669,7 @@ describe("guest generation admission", () => {
 		const now = new Date("2026-09-12T03:00:00.000Z");
 		const input = {
 			promotionPeriod: "denial-window-control",
-			reason: "QUEUE_CAPACITY" as const,
+			reason: "RISK_CAPACITY" as const,
 			subjectHash: hashFixture("stable-owner-a"),
 			now,
 			evidenceTtlMs: 30 * 24 * 60 * 60_000,
@@ -721,7 +686,7 @@ describe("guest generation admission", () => {
 		);
 		const row = await client.guestAbuseBucket.findFirstOrThrow({
 			where: {
-				scope: `guest-denial:${input.promotionPeriod}:QUEUE_CAPACITY`,
+				scope: `guest-denial:${input.promotionPeriod}:RISK_CAPACITY`,
 			},
 		});
 		expect(row).toMatchObject({
@@ -746,7 +711,7 @@ describe("guest generation admission", () => {
 		await createGuestAdmission(
 			guestAdmissionInput(accepted, {
 				idempotencyKey: "denial-capacity-control",
-				maximumGlobalQueueDepth: 1,
+				riskBudgetMicros: 30_000n,
 			}),
 		);
 		const fixture = await createGuestFixture("denial-cardinality");
@@ -755,13 +720,13 @@ describe("guest generation admission", () => {
 				createGuestAdmission(
 					guestAdmissionInput(fixture, {
 						idempotencyKey: `denied-${index}`,
-						maximumGlobalQueueDepth: 1,
+						riskBudgetMicros: 30_000n,
 					}),
 				),
-			).rejects.toThrow("GUEST_QUEUE_CAPACITY");
+			).rejects.toThrow("GUEST_RISK_CAPACITY");
 		}
 		const denials = await client.guestAbuseBucket.findMany({
-			where: { scope: `guest-denial:${fixture.promotionPeriod}:QUEUE_CAPACITY` },
+			where: { scope: `guest-denial:${fixture.promotionPeriod}:RISK_CAPACITY` },
 		});
 		expect(denials).toHaveLength(1);
 		expect(denials[0]?.rejectionCount).toBe(8n);
@@ -1002,7 +967,7 @@ describe("guest generation admission", () => {
 		);
 	});
 
-	it("keeps the active-device fence reachable under a targeted accepted-count override", async () => {
+	it("admits both daily device requests despite a retired active-device limit of one", async () => {
 		const promotionPeriod = `device-active-${randomUUID()}`;
 		const sharedDeviceHash = hashFixture("device-active-shared");
 		const first = await createGuestFixture("device-active-first", undefined, promotionPeriod);
@@ -1026,13 +991,21 @@ describe("guest generation admission", () => {
 					...targetedLimits,
 				}),
 			),
-		).rejects.toThrow("GUEST_DEVICE_LIMIT");
-		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
-			emptyGuestBusinessGraph(),
-		);
+		).resolves.toMatchObject({ stage: "WAITING" });
+		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toMatchObject({
+			trials: 1,
+			jobs: 1,
+			reservations: 1,
+			outbox: 1,
+		});
+		expect(
+			await client.guestMediaTrial.count({
+				where: { promotionPeriod, deviceHash: sharedDeviceHash },
+			}),
+		).toBe(2);
 	});
 
-	it("allows two active IP jobs and rejects the literal third without a partial graph", async () => {
+	it("admits a third active guest on a shared IP despite the retired active-IP cap", async () => {
 		const promotionPeriod = `ip-active-${randomUUID()}`;
 		const sharedIpHash = hashFixture("ip-active-shared");
 		const fixtures = await Promise.all(
@@ -1058,16 +1031,22 @@ describe("guest generation admission", () => {
 					maximumActiveJobsPerIp: 2,
 				}),
 			),
-		).rejects.toThrow("GUEST_IP_RATE_LIMIT");
-		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
-			emptyGuestBusinessGraph(),
-		);
+		).resolves.toMatchObject({ stage: "WAITING" });
+		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toMatchObject({
+			trials: 1,
+			jobs: 1,
+			reservations: 1,
+			outbox: 1,
+		});
+		expect(
+			await client.guestMediaTrial.count({ where: { promotionPeriod, ipHash: sharedIpHash } }),
+		).toBe(3);
 	});
 
-	it("lets queue age reach exactly 600 seconds and rejects the next minute before depth 25", async () => {
+	it("admits requests beyond the retired 600-second estimate and makes every request immediately eligible", async () => {
 		const now = guestAdmissionTestTime(60);
 		const promotionPeriod = `queue-age-${randomUUID()}`;
-		for (let index = 0; index < 11; index += 1) {
+		for (let index = 0; index < 12; index++) {
 			const fixture = await createGuestFixture(`queue-age-${index}`, now, promotionPeriod);
 			const admitted = await createGuestAdmission(
 				guestAdmissionInput(fixture, {
@@ -1077,60 +1056,68 @@ describe("guest generation admission", () => {
 					maximumGlobalQueueDepth: 25,
 				}),
 			);
-			if (index === 10) {
-				expect(admitted.projectedDispatchAt).toEqual(new Date(now.getTime() + 600_000));
-			}
-		}
-		const rejected = await createGuestFixture("queue-age-rejected", now, promotionPeriod);
-
-		await expect(
-			createGuestAdmission(
-				guestAdmissionInput(rejected, {
-					idempotencyKey: "guest-queue-age-rejected",
-					queueTtlMs: 600_000,
-					queueCapacity: 1,
-					maximumGlobalQueueDepth: 25,
+			if (index === 11)
+				expect(admitted.projectedDispatchAt).toEqual(new Date(now.getTime() + 660_000));
+			await expect(
+				client.generationJob.findUniqueOrThrow({ where: { id: admitted.jobId } }),
+			).resolves.toMatchObject({ dispatchEligibleAt: now });
+			await expect(
+				client.outboxEvent.findFirstOrThrow({
+					where: { aggregateId: admitted.jobId, eventType: "GUEST_GENERATION_ELIGIBLE" },
 				}),
-			),
-		).rejects.toThrow("GUEST_QUEUE_CAPACITY");
-		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
-			emptyGuestBusinessGraph(),
-		);
-	});
+			).resolves.toMatchObject({ availableAt: now });
+		}
+		expect(await client.guestMediaTrial.count({ where: { promotionPeriod } })).toBe(12);
+	}, 30_000);
 
-	it("admits exactly 25 queued jobs with controlled capacity and rejects depth N plus one", async () => {
+	it("admits 32 independent guests beyond retired depth 25 without executing provider work", async () => {
 		const now = guestAdmissionTestTime(80);
 		const promotionPeriod = `queue-depth-${randomUUID()}`;
-		for (let index = 0; index < 25; index += 1) {
-			const fixture = await createGuestFixture(`queue-depth-${index}`, now, promotionPeriod);
-			await expect(
-				createGuestAdmission(
-					guestAdmissionInput(fixture, {
-						idempotencyKey: `guest-queue-depth-${index}`,
-						queueTtlMs: 600_000,
-						queueCapacity: 25,
-						maximumGlobalQueueDepth: 25,
-					}),
-				),
-			).resolves.toMatchObject({ stage: "WAITING" });
-		}
-		const rejected = await createGuestFixture("queue-depth-rejected", now, promotionPeriod);
-
-		await expect(
-			createGuestAdmission(
-				guestAdmissionInput(rejected, {
-					idempotencyKey: "guest-queue-depth-rejected",
-					queueTtlMs: 600_000,
-					queueCapacity: 25,
-					maximumGlobalQueueDepth: 25,
-				}),
+		const fixtures = await Promise.all(
+			Array.from({ length: 32 }, (_, index) =>
+				createGuestFixture(`queue-depth-${index}`, now, promotionPeriod),
 			),
-		).rejects.toThrow("GUEST_QUEUE_CAPACITY");
-		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
-			emptyGuestBusinessGraph(),
 		);
-		await expect(client.guestMediaTrial.count({ where: { promotionPeriod } })).resolves.toBe(25);
-	});
+		const outcomes = await concurrentSettledBarrier(
+			fixtures.map(
+				(fixture, index) => () =>
+					createGuestAdmission(
+						guestAdmissionInput(fixture, {
+							idempotencyKey: `guest-queue-depth-${index}`,
+							queueTtlMs: 1,
+							queueCapacity: 1,
+							maximumGlobalQueueDepth: 25,
+							maximumGlobalRequestsPerMinute: 1000,
+							maximumGlobalRequestsPerHour: 1000,
+							riskBudgetMicros: null,
+						}),
+					),
+			),
+		);
+		expect(outcomes.filter((outcome) => outcome.status === "fulfilled")).toHaveLength(32);
+		expect(await client.guestMediaTrial.count({ where: { promotionPeriod } })).toBe(32);
+		expect(
+			await client.generationJob.count({
+				where: {
+					ownerId: { in: fixtures.map((fixture) => fixture.ownerId) },
+					dispatchEligibleAt: now,
+				},
+			}),
+		).toBe(32);
+		expect(
+			await client.creditReservation.count({
+				where: {
+					job: { ownerId: { in: fixtures.map((fixture) => fixture.ownerId) } },
+					status: "ACTIVE",
+				},
+			}),
+		).toBe(32);
+		expect(
+			await client.generationAttempt.count({
+				where: { job: { ownerId: { in: fixtures.map((fixture) => fixture.ownerId) } } },
+			}),
+		).toBe(0);
+	}, 30_000);
 
 	it.each([
 		["IP ten-minute", "maximumRequestsPerIpPerTenMinutes", 1, "GUEST_IP_RATE_LIMIT", "ipHash"],
@@ -1213,6 +1200,14 @@ describe("guest generation admission", () => {
 
 		expect(result.projectedDispatchAt).toEqual(new Date(fixture.now.getTime() + 2 * 60_000));
 		expect(result.estimateExpiresAt).toEqual(new Date(fixture.now.getTime() + 3 * 60_000));
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: result.jobId } }),
+		).resolves.toMatchObject({ dispatchEligibleAt: fixture.now });
+		await expect(
+			client.outboxEvent.findFirstOrThrow({
+				where: { aggregateId: result.jobId, eventType: "GUEST_GENERATION_ELIGIBLE" },
+			}),
+		).resolves.toMatchObject({ availableAt: fixture.now });
 	});
 
 	it("reprojects a pre-provider replacement from remaining queue capacity", async () => {
@@ -1247,11 +1242,11 @@ describe("guest generation admission", () => {
 			projectedDispatchAt,
 			estimateExpiresAt: new Date(replacementNow.getTime() + 2 * 60_000),
 		});
-		expect(replacement.dispatchEligibleAt).toEqual(projectedDispatchAt);
-		expect(event.availableAt).toEqual(projectedDispatchAt);
+		expect(replacement.dispatchEligibleAt).toEqual(replacementNow);
+		expect(event.availableAt).toEqual(replacementNow);
 	});
 
-	it("terminalizes a pre-provider job when replacement projection exceeds immutable expiry", async () => {
+	it("replaces a pre-provider job while its real expiry is still live despite an overlong display estimate", async () => {
 		const queued = await createGuestFixture("replacement-expiry-blocker");
 		await createGuestAdmission(
 			guestAdmissionInput(queued, { idempotencyKey: "guest-replacement-expiry-blocker" }),
@@ -1278,7 +1273,11 @@ describe("guest generation admission", () => {
 					tx,
 				),
 			),
-		).resolves.toEqual({ outcome: "EXPIRED", jobId: original.jobId });
+		).resolves.toMatchObject({
+			outcome: "EXPIRED",
+			jobId: original.jobId,
+			replacementJobId: expect.any(String),
+		});
 		const [trial, job, reservation, riskBudget, jobCount, attemptCount] = await Promise.all([
 			client.guestMediaTrial.findUniqueOrThrow({ where: { id: original.trialId } }),
 			client.generationJob.findUniqueOrThrow({ where: { id: original.jobId } }),
@@ -1295,14 +1294,14 @@ describe("guest generation admission", () => {
 			client.generationAttempt.count({ where: { job: { ownerId: fixture.ownerId } } }),
 		]);
 		expect(trial).toMatchObject({
-			currentJobId: null,
-			eligibility: "AVAILABLE",
-			replacementCount: 0,
-			riskState: "RELEASED",
+			currentJobId: expect.any(String),
+			eligibility: "IN_FLIGHT",
+			replacementCount: 1,
+			riskState: "HELD",
 			projectedDispatchAt: replacementNow,
 			estimateExpiresAt: nearExpiry,
 			expiresAt: nearExpiry,
-			terminalAt: replacementNow,
+			terminalAt: null,
 		});
 		expect(job).toMatchObject({
 			status: "FAILED",
@@ -1310,9 +1309,18 @@ describe("guest generation admission", () => {
 			terminalAt: replacementNow,
 		});
 		expect(reservation).toMatchObject({ status: "RELEASED", releasedAmount: 5n });
-		expect(riskBudget).toMatchObject({ reservedMicros: 20_000n });
-		expect(jobCount).toBe(1);
+		// The blocker and replacement each retain their trial's existing risk hold.
+		expect(riskBudget).toMatchObject({ reservedMicros: 40_000n });
+		expect(jobCount).toBe(2);
 		expect(attemptCount).toBe(0);
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: trial.currentJobId! } }),
+		).resolves.toMatchObject({ dispatchEligibleAt: replacementNow });
+		await expect(
+			client.creditReservation.count({
+				where: { job: { ownerId: fixture.ownerId }, status: "ACTIVE" },
+			}),
+		).resolves.toBe(1);
 	});
 
 	it.each([

@@ -36,7 +36,6 @@ export interface PublicConfig {
 	plans: Array<{
 		id: string;
 		monthlyCredits: number;
-		maximumConcurrentJobs: number;
 		maximumInputBytes: number;
 		allowedProducts: string[];
 	}>;
@@ -50,14 +49,11 @@ export function getPublicConfig(): PublicConfig {
 		features: { ...DEFAULT_PRODUCT_CONFIG.features },
 		uploadLimits: { ...DEFAULT_PRODUCT_CONFIG.uploadLimits },
 		enabledLocales: [...DEFAULT_PRODUCT_CONFIG.enabledLocales],
-		plans: PLAN_ENTITLEMENTS.map(
-			({ id, monthlyCredits, maximumConcurrentJobs, maximumInputBytes, allowedProducts }) => ({
-				id,
-				monthlyCredits,
-				maximumConcurrentJobs,
-				maximumInputBytes,
-				allowedProducts: [...allowedProducts],
-			}),
-		),
+		plans: PLAN_ENTITLEMENTS.map(({ id, monthlyCredits, maximumInputBytes, allowedProducts }) => ({
+			id,
+			monthlyCredits,
+			maximumInputBytes,
+			allowedProducts: [...allowedProducts],
+		})),
 	};
 }

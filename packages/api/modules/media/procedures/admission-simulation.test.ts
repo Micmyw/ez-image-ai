@@ -235,15 +235,18 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 		},
 		recordDenied: vi.fn(),
 	};
-	const createJobDependencies: NonNullable<Parameters<typeof createGenerationForUser>[2]> = {
+	// The immutable before fixture still loads its legacy admission quota.
+	const createJobDependencies: NonNullable<Parameters<typeof createGenerationForUser>[2]> & {
+		loadEntitlement: typeof loadUserPlanEntitlement;
+	} = {
 		now: () => new Date(),
 		findQuote: async (_owner, id) => {
 			await operation("quoteRead");
 			return quotes.get(id) ?? null;
 		},
 		getRouteGraphOptions: getCurrentExecutableRouteGraphOptions,
-		assertAllowed: domain.assertGenerationAllowed,
 		loadEntitlement: loadUserPlanEntitlement,
+		assertAllowed: domain.assertGenerationAllowed,
 		enforceRateLimit: enforceMediaRateLimit,
 		createGenerationJob: async (request) => {
 			await operation("jobTransaction", 24);

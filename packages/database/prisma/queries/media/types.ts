@@ -53,6 +53,7 @@ export interface CreateGenerationJobInput {
 	maximumDailyCostMicros?: bigint;
 	maximumGlobalDailyCostMicros?: bigint;
 	maximumStorageBytes?: bigint;
+	/** @deprecated Accepted for older callers; unfinished task counts do not limit funded admission. */
 	maximumConcurrentJobs?: number;
 	/** Combined admission repeats mutable eligibility in this transaction, not a second preflight. */
 	validateCurrentEligibility?: boolean;

@@ -60,7 +60,10 @@ export type ReviewStepResult =
 			waitFor?: "callback" | "confirmation-retry";
 	  }
 	| { status: "ERROR"; reasonCode: string; retryable?: boolean };
+export type ProviderCapacityDeferred = { status: "DEFERRED"; retryAfterMs: number };
+export type TemplatePreparationStepResult = ReviewStepResult | ProviderCapacityDeferred;
 export type SubmissionStepResult =
+	| ProviderCapacityDeferred
 	| { status: "ACCEPTED"; attemptId: string; providerTaskId: string }
 	| { status: "UNCERTAIN"; attemptId: string; reasonCode: string }
 	| { status: "DEFINITELY_REJECTED"; attemptId?: string; reasonCode: string };

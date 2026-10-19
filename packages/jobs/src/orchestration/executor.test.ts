@@ -534,9 +534,37 @@ describe("Node task executor", () => {
 				providerModelId: route.providerModelId,
 			});
 		}
-		expect(mocks.runtime.createDatabaseDispatchStore).toHaveBeenCalledWith(expect.anything(), {
-			enabledProviders: new Set(["kie"]),
+		const storeOptions = (mocks.runtime.createDatabaseDispatchStore.mock.calls as unknown[][]).at(
+			-1,
+		)?.[1] as { enabledProviders: Set<string>; environment: unknown } | undefined;
+		expect(storeOptions?.enabledProviders).toEqual(new Set(["kie"]));
+		expect(storeOptions?.environment === process.env).toBe(true);
+	});
+
+	it("passes injected capacity configuration to the store and preserves its durable queue continuation", async () => {
+		const environment = { MEDIA_GENERATION_ENABLED: "true", VIDEO_V1_PROVIDER_CONCURRENCY: "3" };
+		const continuation = { eventIds: ["queue-retry"], notBefore: 1_800_000_000_000 };
+		mocks.dispatchStore.claimDispatch.mockResolvedValueOnce({
+			deferred: true,
+			retryAfterMs: 5_000,
+			continuation,
 		});
+		expect(
+			await executeTask(
+				{
+					taskId: "media-dispatch-image-kie-nano-banana-2-lite",
+					payload: { jobId: "queued-job", version: 4 },
+				},
+				context,
+				{ environment },
+			),
+		).toEqual({ outcome: "DEFERRED", retryAfterMs: 5_000, continuation });
+		const storeOptions = (mocks.runtime.createDatabaseDispatchStore.mock.calls as unknown[][]).at(
+			-1,
+		)?.[1] as { environment: unknown } | undefined;
+		expect(storeOptions?.environment === environment).toBe(true);
+		expect(mocks.continuation).not.toHaveBeenCalled();
+		expect(mocks.adapter.submit).not.toHaveBeenCalled();
 	});
 
 	it("maps the Workflow retry identity to the historical payment attempt field", async () => {

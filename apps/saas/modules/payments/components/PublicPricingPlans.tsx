@@ -140,7 +140,6 @@ export function PublicPricingPlans({
 										minimumCredits: usage.minimumCreditsPerImage,
 										maximumCredits: usage.maximumCreditsPerImage,
 									}),
-							t("pricing.concurrentEdits", { count: entitlement.maximumConcurrentJobs }),
 							t("pricing.maximumInputSize", {
 								megabytes: Math.round(entitlement.maximumInputBytes / 1024 / 1024),
 							}),

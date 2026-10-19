@@ -59,7 +59,6 @@ vi.mock("@repo/config/client", async (importOriginal) => ({
 		{
 			id: "free",
 			monthlyCredits: 25,
-			maximumConcurrentJobs: 1,
 			maximumInputBytes: 10 * 1024 * 1024,
 			allowedProducts: ["image-fast"],
 			prices: [],
@@ -67,7 +66,6 @@ vi.mock("@repo/config/client", async (importOriginal) => ({
 		{
 			id: "creator",
 			monthlyCredits: 700,
-			maximumConcurrentJobs: 3,
 			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: ["image-fast", "image-quality"],
 			prices: [
@@ -78,7 +76,6 @@ vi.mock("@repo/config/client", async (importOriginal) => ({
 		{
 			id: "ultimate",
 			monthlyCredits: 1_800,
-			maximumConcurrentJobs: 6,
 			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: ["image-fast", "image-quality"],
 			prices: [
@@ -89,7 +86,6 @@ vi.mock("@repo/config/client", async (importOriginal) => ({
 		{
 			id: "studio",
 			monthlyCredits: 3_000,
-			maximumConcurrentJobs: 10,
 			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: ["image-fast", "image-quality"],
 			prices: [
@@ -429,7 +425,6 @@ describe("consolidated public route contract", () => {
 		const landingMarkup = renderToStaticMarkup(await LandingPage());
 
 		for (const messageKey of [
-			"pricing.concurrentEdits",
 			"pricing.maximumInputSize",
 			"pricing.nanoModel",
 			"pricing.allImageModels",
@@ -443,6 +438,7 @@ describe("consolidated public route contract", () => {
 			expect(markup).toContain(messageKey);
 		}
 		for (const pageMarkup of [markup, landingMarkup]) {
+			expect(pageMarkup).not.toContain("pricing.concurrentEdits");
 			expect(pageMarkup).toContain('data-test="public-pricing-plans"');
 			expect(pageMarkup).toContain('data-test="public-pricing-interval-month"');
 			expect(pageMarkup).toContain('data-test="public-pricing-interval-year"');

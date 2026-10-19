@@ -1,6 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
+vi.mock("@repo/database", () => ({
+	createGenerationJobTransaction: vi.fn(),
+	getInitialGenerationEventIds: vi.fn(),
+	unexpiredStorageReservations: vi.fn(),
+	ensureFreeMonthlyCreditGrant: vi.fn(),
+	hasMatchingFreeMonthlyCreditGrant: vi.fn(),
+	findEffectivePaidSubscription: vi.fn(),
+	recordTextModerationOutcome: vi.fn(),
+}));
 vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/jobs", () => ({ resolveDatabaseDispatchRoute: vi.fn() }));
 vi.mock("@repo/logs", () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
@@ -72,7 +81,6 @@ describe("admission timing", () => {
 				}),
 				getRouteGraphOptions: async () => routeGraph,
 				assertAllowed: async () => undefined,
-				loadEntitlement: async () => ({ maximumConcurrentJobs: 1 }),
 				createGenerationJob: reserve,
 			},
 			timing,

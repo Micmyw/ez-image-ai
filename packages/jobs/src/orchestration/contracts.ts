@@ -39,6 +39,8 @@ export interface PollingTickResult {
 export interface TaskContinuation {
 	eventIds: string[];
 	pollAttemptId?: string;
+	/** Absolute epoch milliseconds at which the committed events become due. */
+	notBefore?: number;
 }
 
 /** A present empty continuation deliberately suppresses legacy global scanning. */
@@ -51,12 +53,14 @@ export function parseTaskContinuation(value: unknown): TaskContinuation | undefi
 		!Array.isArray(next.eventIds) ||
 		next.eventIds.length > 100 ||
 		next.eventIds.some((id) => !validId(id)) ||
-		(next.pollAttemptId !== undefined && !validId(next.pollAttemptId))
+		(next.pollAttemptId !== undefined && !validId(next.pollAttemptId)) ||
+		(next.notBefore !== undefined && (!Number.isSafeInteger(next.notBefore) || next.notBefore <= 0))
 	)
 		throw new Error("INVALID_TASK_CONTINUATION");
 	return {
 		eventIds: [...new Set(next.eventIds)],
 		...(next.pollAttemptId ? { pollAttemptId: next.pollAttemptId } : {}),
+		...(next.notBefore !== undefined ? { notBefore: next.notBefore } : {}),
 	};
 }
 

@@ -234,9 +234,6 @@ export async function createVideoTemplateJob(
 			limits: {
 				...options.limits,
 				maximumInputBytes: Math.min(admitted.maximumInputBytes, options.limits.maximumInputBytes),
-				ownerConcurrency: admitted.config.ownerConcurrency,
-				globalConcurrency: admitted.config.globalConcurrency,
-				providerConcurrency: admitted.config.providerConcurrency,
 			},
 		},
 		db,

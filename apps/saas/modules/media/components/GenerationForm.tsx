@@ -14,7 +14,6 @@ import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { captureCheckoutTrigger } from "@shared/lib/purchase-attribution";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 
@@ -769,22 +768,6 @@ export function GenerationForm({
 								availableCredits={generation.creditAccount.data?.spendableCredits ?? "0"}
 								onUpgrade={continueToUpgrade}
 							/>
-						)}
-						{errorKey === "concurrentLimit" && (
-							<div className="mt-3 gap-3 flex flex-wrap items-center justify-between">
-								<p className="text-sm">
-									{t("concurrentJobs", {
-										count: generation.creditAccount.data?.activeJobs ?? 0,
-									})}
-								</p>
-								<Button
-									size="sm"
-									variant="secondary"
-									render={(props) => <Link {...props} href="/history" />}
-								>
-									{t("history")}
-								</Button>
-							</div>
 						)}
 					</AlertDescription>
 				</Alert>

@@ -205,6 +205,15 @@ describe("guest admission pre-transaction boundary", () => {
 		expect(dependencies.createTransaction.mock.calls[0]?.[0]).not.toHaveProperty(
 			"maximumGlobalRequestsPerDay",
 		);
+		for (const key of [
+			"maximumActiveJobsPerGuest",
+			"maximumActiveJobsPerDevice",
+			"maximumActiveJobsPerIp",
+			"maximumGlobalQueueDepth",
+			"queueTtlMs",
+		]) {
+			expect(dependencies.createTransaction.mock.calls[0]?.[0]).not.toHaveProperty(key);
+		}
 		expect(dependencies.verifyTurnstile).toHaveBeenCalledOnce();
 		expect(dependencies.createTransaction).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -323,14 +332,10 @@ function validDependencies(options?: {
 				maximumBytes: 10 * 1024 * 1024,
 				mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 				retentionMs: 24 * 60 * 60_000,
-				queueTtlMs: 15 * 60_000,
 				abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
 				limits: {
-					maximumActiveJobsPerGuest: 1,
 					maximumAcceptedTrialsPerSessionPerDay: 1,
-					maximumActiveJobsPerDevice: 1,
 					maximumAcceptedTrialsPerDevicePerDay: 1,
-					maximumActiveJobsPerIp: 2,
 					maximumRequestsPerIpPerTenMinutes: 1,
 					maximumRequestsPerIpPerDay: 3,
 					maximumRequestsPerSubnetPerDay: 20,
@@ -338,7 +343,6 @@ function validDependencies(options?: {
 					maximumGlobalRequestsPerHour: 30,
 					maximumRequestsPerMinute: 3,
 					maximumRequestsPerIpPerHour: 3,
-					maximumGlobalQueueDepth: 25,
 				},
 				riskBudgetMicros: 350_000n,
 				abuseHmac: {

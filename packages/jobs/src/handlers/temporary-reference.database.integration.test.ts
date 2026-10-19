@@ -22,6 +22,7 @@ import {
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
 import {
 	createDatabaseDispatchStore,
 	createDatabaseSettlementStore,
@@ -30,6 +31,7 @@ import {
 import { settleGeneration } from "./settle-generation";
 
 let client: PrismaClient;
+let mockProviderConcurrency: string;
 const environment = {
 	...process.env,
 	MEDIA_GENERATION_ENABLED: "true",
@@ -42,7 +44,11 @@ const signedRead = vi.fn(
 );
 function dispatchStore() {
 	return createDatabaseDispatchStore(client, {
-		environment,
+		environment: {
+			...environment,
+			VIDEO_RUNTIME_CONFIG: undefined,
+			VIDEO_V1_PROVIDER_CONCURRENCY: mockProviderConcurrency,
+		},
 		enabledProviders: new Set(["kie"]),
 		createSignedReadUrl: signedRead,
 	});
@@ -51,7 +57,7 @@ const noStorageRead = async () => {
 	throw new Error("Immutable references must not be inspected again");
 };
 
-beforeAll(() => {
+beforeAll(async () => {
 	const url = process.env.TEST_DATABASE_URL;
 	if (
 		!url ||
@@ -60,6 +66,8 @@ beforeAll(() => {
 	)
 		throw new Error("UNSAFE_TEST_DATABASE");
 	client = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });
+	// This suite creates fewer than 16 mocked Kie submissions, preserving old in-flight rows.
+	mockProviderConcurrency = await providerCapacityForTestRequests(client, 16);
 });
 afterAll(async () => client?.$disconnect());
 
@@ -285,6 +293,7 @@ describe("temporary reference generation boundary", () => {
 		expect(submitImage).toHaveBeenCalledOnce();
 		expect(retrieveImage).toHaveBeenCalledTimes(2);
 		const claim = await dispatchStore().claimDispatch({ jobId: job.id, version: 0 });
+		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 		expect(claim).not.toBeNull();
 		expect(claim!.input).toMatchObject({
 			sourceAsset: { assetId: f.assetId, transferUrl: submitImage.mock.calls[0]![0].assetUrl },

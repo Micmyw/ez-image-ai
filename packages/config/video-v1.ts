@@ -84,6 +84,10 @@ function boundedInteger(value: string | undefined, fallback: number, maximum: nu
 	const number = Number(value);
 	return Number.isSafeInteger(number) && number > 0 && number <= maximum ? number : 0;
 }
+function positiveInteger(value: string | undefined): number {
+	const number = Number(value);
+	return Number.isSafeInteger(number) && number > 0 ? number : 0;
+}
 function positiveBigInt(value: string | undefined, allowZero = false): bigint | null {
 	if (!value || !/^\d{1,18}$/.test(value)) return null;
 	const parsed = BigInt(value);
@@ -98,9 +102,8 @@ export function readVideoV1Config(env: VideoV1Environment) {
 		pricingBasis: env.VIDEO_V1_PRICING_BASIS?.trim() || null,
 		providerCostMicros: positiveBigInt(env.VIDEO_V1_PROVIDER_COST_MICROS),
 		moderationCostMicros: positiveBigInt(env.VIDEO_V1_MODERATION_COST_MICROS),
-		ownerConcurrency: boundedInteger(env.VIDEO_V1_OWNER_CONCURRENCY, 1, 1),
-		globalConcurrency: boundedInteger(env.VIDEO_V1_GLOBAL_CONCURRENCY, 5, 5),
-		providerConcurrency: boundedInteger(env.VIDEO_V1_PROVIDER_CONCURRENCY, 0, 5),
+		// Execution capacity belongs to the paid-send queue, never customer admission.
+		providerConcurrency: positiveInteger(env.VIDEO_V1_PROVIDER_CONCURRENCY),
 		providerPollSeconds: boundedInteger(env.VIDEO_V1_PROVIDER_POLL_SECONDS, 30, 300),
 		providerDeadlineSeconds: boundedInteger(env.VIDEO_V1_PROVIDER_DEADLINE_SECONDS, 1800, 7200),
 		moderationPollSeconds: boundedInteger(env.VIDEO_V1_MODERATION_POLL_SECONDS, 30, 300),
@@ -183,8 +186,6 @@ export function videoV1Readiness(
 		reasons.push("VIDEO_SEEAPI_CALLBACK_NOT_CONFIGURED");
 	if (env.VIDEO_V1_IMAGE_SAFETY_ADAPTER !== "seeapi" || !env.SEEAPI_API_KEY?.trim())
 		reasons.push("VIDEO_IMAGE_MODERATION_NOT_CONFIGURED");
-	if (!config.ownerConcurrency || !config.globalConcurrency || !config.providerConcurrency)
-		reasons.push("VIDEO_CONCURRENCY_NOT_CONFIGURED");
 	if (
 		config.providerPollSeconds < 15 ||
 		config.moderationPollSeconds < 15 ||

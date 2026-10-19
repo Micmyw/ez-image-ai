@@ -89,6 +89,8 @@ const retiredPolicyKeys = new Set([
 	"VIDEO_MODEL_ALLOWED_OPTIONS",
 	"VIDEO_PRICE_VALID_UNTIL",
 	"HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL",
+	"VIDEO_V1_GLOBAL_CONCURRENCY",
+	"VIDEO_V1_OWNER_CONCURRENCY",
 ]);
 export function isRetiredVideoRuntimePolicyKey(key: string): boolean {
 	return retiredPolicyKeys.has(key);

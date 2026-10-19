@@ -4,6 +4,26 @@ import { DispatchAdmissionBlockedError } from "../contracts";
 import { dispatchGeneration } from "./dispatch-generation";
 
 describe("dispatch generation recovery boundary", () => {
+	it("returns committed queue control without resolving an adapter or starting a submission", async () => {
+		const getProvider = vi.fn();
+		const recordSubmissionStarted = vi.fn();
+		const continuation = { eventIds: ["capacity-retry"], notBefore: 1_800_000_000_000 };
+		await expect(
+			dispatchGeneration(
+				{ jobId: "job-1", version: 3 },
+				{
+					store: {
+						claimDispatch: async () => ({ deferred: true, retryAfterMs: 5_000, continuation }),
+						recordSubmissionStarted,
+					} as never,
+					getProvider,
+					isGenerationEnabled: () => true,
+				},
+			),
+		).resolves.toEqual({ outcome: "DEFERRED", retryAfterMs: 5_000, continuation });
+		expect(getProvider).not.toHaveBeenCalled();
+		expect(recordSubmissionStarted).not.toHaveBeenCalled();
+	});
 	it("propagates a pre-claim transient failure without contacting a provider", async () => {
 		const claimDispatch = vi.fn(async () => {
 			throw new Error("temporary database failure");

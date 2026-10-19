@@ -31,6 +31,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
+import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
 
 const globalStorage = vi.hoisted(() => ({
 	// Existing cases exercise legacy streaming/promotion and guest recovery.
@@ -69,13 +70,16 @@ const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const PNG_BODY = Buffer.from("89504e470d0a1a0a0000000d4948445200000001", "hex");
 const PNG_CHECKSUM = "d".repeat(64);
 let client: PrismaClient;
+let mockProviderConcurrency: string;
 
 describe("generation output transfer runtime", () => {
-	beforeAll(() => {
+	beforeAll(async () => {
 		assertSafeTestDatabaseUrl(TEST_DATABASE_URL);
 		client = new PrismaClient({
 			adapter: new PrismaPg({ connectionString: TEST_DATABASE_URL! }),
 		});
+		// At most 64 simulated sends in this suite; never discard unknown historical attempts.
+		mockProviderConcurrency = await providerCapacityForTestRequests(client, 64);
 	});
 
 	afterAll(async () => client?.$disconnect());
@@ -999,9 +1003,15 @@ async function seedFinalizingJob(outputs: ProviderOutput[]) {
 		client,
 	);
 	const dispatchStore = createDatabaseDispatchStore(client, {
+		environment: {
+			...process.env,
+			VIDEO_RUNTIME_CONFIG: undefined,
+			VIDEO_V1_PROVIDER_CONCURRENCY: mockProviderConcurrency,
+		},
 		createSignedReadUrl: async () => "https://private.example/output-transfer-input.png",
 	});
 	const dispatch = await dispatchStore.claimDispatch({ jobId: created.job.id, version: 0 });
+	if (dispatch && "deferred" in dispatch) throw new Error("Expected available provider capacity");
 	if (!dispatch) throw new Error("Expected dispatch claim");
 	await dispatchStore.recordSynchronousCompletion(
 		dispatch.attemptId,

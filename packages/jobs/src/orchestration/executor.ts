@@ -139,7 +139,10 @@ export async function executeTask(
 	if (dispatchRouteForTask(taskId)) {
 		const registry = createProviderRegistry(environment);
 		const result = await dispatchGeneration(parseDispatchPayload(taskId, payload), {
-			store: createDatabaseDispatchStore(db, { enabledProviders: new Set(registry.keys()) }),
+			store: createDatabaseDispatchStore(db, {
+				environment,
+				enabledProviders: new Set(registry.keys()),
+			}),
 			getProvider: (provider) => getRegisteredProvider(registry, provider),
 			isGenerationEnabled: () => environment.MEDIA_GENERATION_ENABLED === "true",
 		});
