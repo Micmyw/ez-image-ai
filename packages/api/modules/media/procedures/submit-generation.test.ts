@@ -63,6 +63,7 @@ function fixture() {
 			status: "RESERVED",
 			version: 1,
 			creditsReserved: 5n,
+			fundingSource: "CREDITS",
 			idempotencyKey: request.idempotencyKey,
 		};
 		return { job: quote.job!, replayed };
@@ -80,6 +81,17 @@ function deferred() {
 	return { promise, resolve, reject };
 }
 describe("combined generation admission", () => {
+	it.each(["IMAGE_PASS", "unknown"])(
+		"refuses a replay whose durable funding %s conflicts with its quote",
+		async (fundingSource) => {
+			const f = fixture();
+			await submitGenerationForUser("user", input, f.dependencies);
+			[...f.quotes.values()][0]!.job!.fundingSource = fundingSource;
+			await expect(submitGenerationForUser("user", input, f.dependencies)).rejects.toThrow(
+				"GENERATION_FUNDING_CONFLICT",
+			);
+		},
+	);
 	it("retains the old credit idempotency identity when funding is explicitly CREDITS", async () => {
 		const f = fixture();
 		await submitGenerationForUser("user", input, f.dependencies);

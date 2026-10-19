@@ -105,6 +105,24 @@ describe("administrator order attribution", () => {
 		expect(JSON.stringify(result)).not.toMatch(/private|latest-user-page|session=|email=/);
 		expect(responseHeaders.get("Cache-Control")).toBe("private, no-store");
 	});
+	it("returns independent image-pass purchases and checkouts without treating them as subscriptions", async () => {
+		vi.mocked(listAdminPaymentAttribution).mockResolvedValue({
+			purchases: [{ ...purchase, type: "ONE_TIME", productKind: "IMAGE_PASS", provider: "paypal" }],
+			checkouts: [
+				{ ...checkout, productKind: "IMAGE_PASS", provider: "paypal", planKey: "image-pass-3" },
+			],
+		} as never);
+		const result = await call(procedure, {}, { context: { headers: new Headers() } });
+		expect(result.purchases[0]).toMatchObject({
+			type: "ONE_TIME",
+			productKind: "IMAGE_PASS",
+			provider: "paypal",
+		});
+		expect(result.checkouts[0]).toMatchObject({
+			productKind: "IMAGE_PASS",
+			planKey: "image-pass-3",
+		});
+	});
 	it("looks up an exact trimmed local reference without accepting another user's input", async () => {
 		await call(
 			procedure,

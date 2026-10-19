@@ -11,7 +11,7 @@ const rowSchema = z.object({
 	id: z.string(),
 	ownerType: z.enum(["USER", "ORGANIZATION"]).nullable(),
 	ownerId: z.string().nullable(),
-	productKind: z.enum(["PLAN", "CREDIT_PACK"]),
+	productKind: z.enum(["PLAN", "CREDIT_PACK", "IMAGE_PASS"]),
 	provider: z.string(),
 	status: z.string().nullable(),
 	createdAt: z.string(),
