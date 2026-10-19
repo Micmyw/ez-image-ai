@@ -43,6 +43,9 @@ const mocks = vi.hoisted(() => {
 		adapter,
 		dispatch: vi.fn(),
 		cleanup: vi.fn(),
+		copyAccountInput: vi.fn(),
+		cleanupAccountInputCopyOrphan: vi.fn(),
+		recoverAccountInputCopyTasks: vi.fn(),
 		cancel: vi.fn(),
 		admit: vi.fn(),
 		payment: vi.fn(),
@@ -62,6 +65,9 @@ const mocks = vi.hoisted(() => {
 		finalizationRecovery: vi.fn(() => finalizationStore),
 		recoverPayments: vi.fn(),
 		runtime: {
+			createDatabaseAccountInputCopyDependencies: vi.fn(() => ({ marker: "copy" })),
+			createDatabaseAccountInputCopyOrphanDependencies: vi.fn(() => ({ marker: "orphan" })),
+			createDatabaseAccountInputCopyRecoveryDependencies: vi.fn(() => ({ marker: "recovery" })),
 			createProviderRegistry: vi.fn(() => registry),
 			createDatabaseDispatchStore: vi.fn(() => dispatchStore),
 			getRegisteredProvider: vi.fn(() => adapter),
@@ -115,6 +121,11 @@ vi.mock("../handlers/cleanup-storage-object", () => ({
 	abortPromotionMultipart: mocks.cleanup,
 	cleanupUploadPromotion: mocks.cleanup,
 }));
+vi.mock("../handlers/account-input-copy", () => ({
+	copyAccountInput: mocks.copyAccountInput,
+	cleanupAccountInputCopyOrphan: mocks.cleanupAccountInputCopyOrphan,
+	recoverAccountInputCopyTasks: mocks.recoverAccountInputCopyTasks,
+}));
 vi.mock("../handlers/cancel-generation", () => ({ cancelProviderGeneration: mocks.cancel }));
 vi.mock("../handlers/admit-guest-generation", () => ({ admitGuestGeneration: mocks.admit }));
 vi.mock("../handlers/verify-upload", () => ({ verifyUpload: mocks.verify }));
@@ -128,6 +139,30 @@ import { executeTask } from "./executor";
 import { assertWorkerInlineTask } from "./worker-executors";
 
 const context = { attempt: 2, maxAttempts: 8, runId: "workflow-1" };
+
+it("executes registered account-copy, orphan and recovery tasks with their production stores", async () => {
+	await executeTask(
+		{ taskId: "media-copy-account-input", payload: { promotionId: "copy" } },
+		context,
+	);
+	expect(mocks.copyAccountInput).toHaveBeenCalledWith({ promotionId: "copy" }, { marker: "copy" });
+	await executeTask(
+		{ taskId: "media-cleanup-account-input-copy", payload: { promotionId: "copy" } },
+		context,
+	);
+	expect(mocks.cleanupAccountInputCopyOrphan).toHaveBeenCalledWith(
+		{ promotionId: "copy" },
+		{ marker: "orphan" },
+	);
+	await executeTask(
+		{ taskId: "media-recover-account-input-copies", payload: { timestamp: 1000 } },
+		context,
+	);
+	expect(mocks.recoverAccountInputCopyTasks).toHaveBeenCalledWith(
+		{ timestamp: 1000 },
+		{ marker: "recovery" },
+	);
+});
 const event = (overrides: Partial<OutboxLease> = {}): OutboxLease => ({
 	id: "outbox-1",
 	eventType: "MEDIA_OBJECT_DELETE",

@@ -58,7 +58,8 @@ export async function GET(request: Request) {
 				sameSite: "lax",
 				secure: process.env.NODE_ENV === "production",
 				path: effectReturn ? new URL(effectReturn, saasOrigin).pathname : "/create",
-				maxAge: 300,
+				// Only an owner-checked recovery pointer; this grants no guest asset access.
+				maxAge: 24 * 60 * 60,
 			});
 		}
 		expireHandoffCookies(response);

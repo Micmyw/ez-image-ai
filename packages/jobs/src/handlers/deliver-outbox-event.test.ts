@@ -5,6 +5,38 @@ import { deliverOutboxEvent } from "./deliver-outbox-event";
 import { dispatchOutbox } from "./dispatch-outbox";
 
 describe("outbox delivery routes", () => {
+	it("dispatches account-copy bytes across lanes and waits inline only for orphan cleanup", async () => {
+		const delivered: string[] = [];
+		const dependencies = {
+			trigger: async (task: string, payload: Record<string, unknown>) => {
+				delivered.push(
+					`${task}:${typeof payload.promotionId === "string" ? payload.promotionId : "INVALID"}`,
+				);
+			},
+			triggerAndWait: async (task: string, payload: Record<string, unknown>) => {
+				delivered.push(
+					`inline:${task}:${typeof payload.promotionId === "string" ? payload.promotionId : "INVALID"}`,
+				);
+			},
+			resolveDispatchRoute: async () => null,
+		};
+		for (const eventType of ["ACCOUNT_INPUT_COPY_REQUESTED", "ACCOUNT_INPUT_COPY_ORPHAN_CHECK"])
+			await deliverOutboxEvent(
+				{
+					id: "event",
+					eventType,
+					aggregateId: "copy-1",
+					payload: { promotionId: "copy-1" },
+					leaseToken: "lease",
+					attempts: 1,
+				},
+				dependencies,
+			);
+		expect(delivered).toEqual([
+			"media-copy-account-input:copy-1",
+			"inline:media-cleanup-account-input-copy:copy-1",
+		]);
+	});
 	it("delivers each checkout recovery sequence through the registered durable task", async () => {
 		const triggerAndWait = vi.fn();
 		await deliverOutboxEvent(

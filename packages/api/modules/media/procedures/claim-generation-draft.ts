@@ -2,6 +2,7 @@ import { claimGenerationDraftTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
 
 import { protectedProcedure } from "../../../orpc/procedures";
+import { publicAccountInputCopyStatus } from "../lib/account-input-copy-status";
 import {
 	DRAFT_CLAIM_COOKIE,
 	getExpiredDraftClaimCookie,
@@ -19,7 +20,7 @@ export const claimGenerationDraft = protectedProcedure
 				(product) => product.key,
 			);
 			if (allowedProductKeys.length === 0) throw new Error("DRAFT_UNAVAILABLE");
-			return await claimGenerationDraftTransaction(
+			const draft = await claimGenerationDraftTransaction(
 				{
 					claimTokenHash: hashDraftClaimToken(token),
 					userId: context.user.id,
@@ -27,6 +28,14 @@ export const claimGenerationDraft = protectedProcedure
 				},
 				db,
 			);
+			return {
+				id: draft.id,
+				productKey: draft.productKey,
+				input: draft.input,
+				...(draft.preparation
+					? { preparation: publicAccountInputCopyStatus(draft.preparation) }
+					: {}),
+			};
 		} finally {
 			context.responseHeaders?.append(
 				"Set-Cookie",

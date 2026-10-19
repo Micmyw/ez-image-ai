@@ -75,6 +75,11 @@ describe("draft continuation identity router", () => {
 		expect(response.headers.get("location")).toBe("https://app.test/create");
 		expect(mocks.claimRegistered).toHaveBeenCalledOnce();
 		expect(mocks.claimGuest).not.toHaveBeenCalled();
+		const recoveryCookie = response.headers
+			.getSetCookie()
+			.find((cookie) => cookie.startsWith("media_claimed_draft="));
+		expect(recoveryCookie).toContain("Max-Age=86400");
+		expect(recoveryCookie).toContain("HttpOnly");
 	});
 	it.each(["/blog/1980s-ai-photo", "/effects/1980s-ai-photo"])(
 		"keeps a registered draft and its cookie on the validated article route from %s",

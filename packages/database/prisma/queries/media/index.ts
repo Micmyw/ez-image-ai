@@ -1,3 +1,4 @@
+export * from "./account-input-copy";
 export * from "./assets";
 export * from "./asset-binding-locks";
 export * from "./admin-diagnostics";

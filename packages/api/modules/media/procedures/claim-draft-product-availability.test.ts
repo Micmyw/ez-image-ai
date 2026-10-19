@@ -81,4 +81,52 @@ describe("draft claim product availability", () => {
 			productKey: "image-seedream-5-pro",
 		});
 	});
+	it("returns preparation for a registered claim while expiring the sensitive claim cookie", async () => {
+		mocks.getSession.mockResolvedValue({
+			session: { id: "session_registered" },
+			user: { id: "user_registered", isAnonymous: false },
+		});
+		mocks.claimRegistered.mockResolvedValue({
+			id: "draft_pending",
+			productKey: "image-gpt-image-2",
+			input: { kind: "image-to-image", prompt: "Keep my instruction" },
+			preparation: { promotionId: "copy-1", status: "COPYING" },
+		});
+		const responseHeaders = new Headers();
+		const result = await call(claimGenerationDraft, undefined, {
+			context: { headers: context.context.headers, responseHeaders },
+		});
+		expect(result).toMatchObject({
+			id: "draft_pending",
+			input: { kind: "image-to-image", prompt: "Keep my instruction" },
+			preparation: { promotionId: "copy-1", status: "COPYING" },
+		});
+		expect(result.input).not.toHaveProperty("sourceAssetId");
+		expect(responseHeaders.get("set-cookie")).toContain("media_draft_claim=;");
+		expect(responseHeaders.get("set-cookie")).toContain("Max-Age=0");
+	});
+	it("limits registered claim preparation to its public fields and reason codes", async () => {
+		mocks.getSession.mockResolvedValue({
+			session: { id: "registered" },
+			user: { id: "account", isAnonymous: false },
+		});
+		mocks.claimRegistered.mockResolvedValue({
+			id: "draft",
+			productKey: "image-gpt-image-2",
+			input: {},
+			preparation: {
+				promotionId: "copy",
+				status: "FAILED",
+				reasonCode: "PRIVATE_STORAGE_DETAIL",
+				leaseToken: "private-token",
+				objectKey: "private-key",
+			},
+		});
+		const result = await call(claimGenerationDraft, undefined, context);
+		expect(result.preparation).toEqual({
+			promotionId: "copy",
+			status: "FAILED",
+			reasonCode: "ACCOUNT_INPUT_COPY_UNAVAILABLE",
+		});
+	});
 });

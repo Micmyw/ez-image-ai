@@ -6,6 +6,10 @@ import { db } from "@repo/database/client";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
+import {
+	accountInputCopyStatusSchema,
+	publicAccountInputCopyStatus,
+} from "../lib/account-input-copy-status";
 import { hashGuestSecret } from "../lib/guest-capability";
 import { GUEST_LINK_INTENT_COOKIE, guestLinkIntentCookie } from "./begin-guest-link-intent";
 
@@ -26,6 +30,7 @@ export const completeGuestLinkIntent = protectedProcedure
 					mode: z.literal("DRAFT"),
 					draftId: z.string().min(1),
 					returnPath: z.enum(["/try", "/create", "/pricing"]),
+					preparation: accountInputCopyStatusSchema.optional(),
 				})
 				.strict(),
 			z
@@ -58,7 +63,7 @@ export const completeGuestLinkIntent = protectedProcedure
 			guestLinkIntentCookie("", 0, process.env.NODE_ENV === "production"),
 		);
 		if (result.mode === "DRAFT") {
-			// Reuse the editor's short-lived, owner-checked draft recovery after the
+			// Reuse the editor's owner-checked draft recovery after the
 			// transfer commits. Preset-based article editors share this same private flow.
 			context.responseHeaders?.append(
 				"Set-Cookie",
@@ -68,14 +73,21 @@ export const completeGuestLinkIntent = protectedProcedure
 					"SameSite=Lax",
 					process.env.NODE_ENV === "production" ? "Secure" : "",
 					`Path=${claimedDraftCookiePath(context.headers.get("cookie"))}`,
-					"Max-Age=300",
+					"Max-Age=86400",
 				]
 					.filter(Boolean)
 					.join("; "),
 			);
 		}
 		return result.mode === "DRAFT"
-			? result
+			? {
+					mode: result.mode,
+					draftId: result.draftId,
+					returnPath: result.returnPath,
+					...(result.preparation
+						? { preparation: publicAccountInputCopyStatus(result.preparation) }
+						: {}),
+				}
 			: { ...result, returnPath: "/try" as const, expiresAt: result.expiresAt.toISOString() };
 	});
 
