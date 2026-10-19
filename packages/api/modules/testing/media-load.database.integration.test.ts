@@ -1,5 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { getCreditInvariantReport } from "@repo/database";
+import { createCreditGrant, getCreditInvariantReport } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -24,6 +24,19 @@ describe("controlled media load database path", () => {
 		client = new PrismaClient({
 			adapter: new PrismaPg({ connectionString: TEST_DATABASE_URL }),
 		});
+		// These requests exercise an already funded owner, not concurrent account provisioning.
+		const account = await client.creditAccount.create({
+			data: { ownerType: "USER", ownerId: OWNER_ID },
+		});
+		await createCreditGrant(
+			{
+				accountId: account.id,
+				amount: configuration.creditGrant,
+				referenceKey: `load-test:${RUN_ID}:grant`,
+				metadata: { source: "controlled-load-test", runId: RUN_ID },
+			},
+			client,
+		);
 		// The obsolete project setting must not limit real claims, even with prior pending work.
 		vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
 		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "2");
