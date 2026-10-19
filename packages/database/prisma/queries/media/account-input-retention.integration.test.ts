@@ -8,12 +8,14 @@ import {
 	claimAccountInputCopy,
 	commitAccountInputCopy,
 	parseAccountInputCopyIntent,
+	reconcileAccountInputCopyTargetInTransaction,
 } from "./account-input-copy";
 import {
 	getClaimedGenerationDraft,
 	transferGuestGenerationDraftToRegisteredUserInTransaction,
 } from "./drafts";
 import { lockGuestOwnerPromotion } from "./guest-admission";
+import { applyAdminModerationReview } from "./moderation-operations";
 import { claimMediaStorageCleanupTransaction } from "./storage-cleanup";
 
 let db: PrismaClient;
@@ -201,6 +203,110 @@ describe("registered input retention protocols", () => {
 		expect(restored?.preparation).toMatchObject({ status: "VERIFYING" });
 		expect(restored?.input).not.toHaveProperty("sourceAssetId");
 	});
+	it.each(["APPROVE", "RECHECK"] as const)(
+		"preserves the genuine admin %s path for a copied input under content REVIEW",
+		async (action) => {
+			vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "true");
+			const { input } = await fixture();
+			await db.$transaction(async (tx: Prisma.TransactionClient) => {
+				await lockGuestOwnerPromotion(tx, input.anonymousOwnerId, "retention-test");
+				await transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx);
+			});
+			const event = await db.outboxEvent.findUniqueOrThrow({
+				where: { dedupeKey: `account-input-copy:v1:${input.draftId}` },
+			});
+			const intent = parseAccountInputCopyIntent(event.payload);
+			const copy = await claimAccountInputCopy({ promotionId: event.id }, db);
+			if (!copy) throw new Error("COPY_LEASE_MISSING");
+			await commitAccountInputCopy(
+				{
+					promotionId: copy.promotionId,
+					leaseToken: copy.leaseToken,
+					checksum: copy.source.checksum,
+					bytes: copy.source.bytes,
+					mimeType: copy.source.mimeType,
+				},
+				db,
+			);
+			const verification = {
+				provider: "test",
+				ruleVersion: "retention-test-rule",
+				policyVersion: "retention-test-policy",
+			};
+			const review = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+				await tx.mediaAsset.update({
+					where: { id: intent.target.assetId },
+					data: {
+						status: "QUARANTINED",
+						verificationAttemptCount: 1,
+						verificationProvider: verification.provider,
+						verificationProviderTaskId: `copy-content-review-${event.id}`,
+						verificationRuleVersion: verification.ruleVersion,
+						verificationPolicyVersion: verification.policyVersion,
+						verificationLastErrorCode: "SEEAPI_CONTENT_REVIEW",
+					},
+				});
+				await tx.assetModerationResult.create({
+					data: {
+						assetId: intent.target.assetId,
+						assetChecksum: copy.source.checksum,
+						verificationGeneration: 1,
+						attemptNumber: 1,
+						evidenceKind: "INPUT",
+						...verification,
+						providerTaskId: `copy-content-review-${event.id}`,
+						status: "REVIEW",
+						reasonCode: "SEEAPI_CONTENT_REVIEW",
+						categories: {},
+						rawEnvelope: {},
+					},
+				});
+				const review = await tx.moderationReview.create({
+					data: {
+						targetType: "ASSET",
+						targetId: intent.target.assetId,
+						provider: verification.provider,
+						stage: "IMAGE",
+						status: "BLOCKED",
+						attemptEpoch: "1",
+						lastErrorCode: "SEEAPI_CONTENT_REVIEW",
+						firstFailureAt: new Date(),
+						lastFailureAt: new Date(),
+					},
+				});
+				expect(
+					await reconcileAccountInputCopyTargetInTransaction(
+						{ assetId: intent.target.assetId },
+						tx,
+					),
+				).toEqual({ terminal: false });
+				return review;
+			});
+			await expect(
+				applyAdminModerationReview(
+					{
+						reviewId: review.id,
+						version: review.version,
+						action,
+						reason: "Reviewed copied original",
+						idempotencyKey: randomUUID(),
+						actorUserId: input.registeredUserId,
+						verification,
+					},
+					db,
+				),
+			).resolves.toMatchObject({ status: action === "APPROVE" ? "APPROVED" : "RECHECKING" });
+			await db.$transaction((tx: Prisma.TransactionClient) =>
+				reconcileAccountInputCopyTargetInTransaction({ assetId: intent.target.assetId }, tx),
+			);
+			await expect(
+				db.mediaAsset.findUniqueOrThrow({ where: { id: intent.target.assetId } }),
+			).resolves.toMatchObject({
+				status: action === "APPROVE" ? "READY" : "VERIFYING",
+				deletedAt: null,
+			});
+		},
+	);
 	it("cannot extend guest retention or suppress deadline cleanup with the historical flag", async () => {
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
 		vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "false");

@@ -100,6 +100,122 @@ describe("account input verified copy through a disposable PostgreSQL SQL port",
 		await noCreditOrJobChanges();
 	});
 
+	it("keeps a current quarantined REVIEW available for normal manual review", async () => {
+		const { input, promotionId, p } = await prepared("target-content-review");
+		await commit((await claimAccountInputCopy({ promotionId }, fixture.client()))!);
+		await review(p.target.assetId);
+		expect(
+			await fixture.transaction((tx) =>
+				reconcileAccountInputCopyTargetInTransaction({ assetId: p.target.assetId }, tx),
+			),
+		).toEqual({ terminal: false });
+		expect(await target(p.target.assetId)).toMatchObject({
+			status: "QUARANTINED",
+			deletedAt: null,
+		});
+		expect((await intent(promotionId)).phase).toBe("VERIFYING");
+		expect(await status(input)).toMatchObject({ status: "VERIFYING" });
+		expect(await claimAccountInputCopyOrphan({ promotionId }, fixture.client())).toBeNull();
+		expect(await accountReservations()).toMatchObject([{ status: "COMMITTED" }]);
+		expect(
+			await fixture.rows(
+				`SELECT id FROM ${fixture.table("outbox_event")} WHERE "eventType"='ACCOUNT_INPUT_COPY_ORPHAN_CHECK'`,
+			),
+		).toEqual([]);
+		await noCreditOrJobChanges();
+	});
+
+	it.each(["APPROVE", "RECHECK"])(
+		"accepts the standard %s transitions after retaining a target content REVIEW",
+		async (action) => {
+			const { input, promotionId, p } = await prepared(`manual-${action}`);
+			await commit((await claimAccountInputCopy({ promotionId }, fixture.client()))!);
+			await review(p.target.assetId);
+			await fixture.transaction((tx) =>
+				reconcileAccountInputCopyTargetInTransaction({ assetId: p.target.assetId }, tx),
+			);
+			expect(await target(p.target.assetId)).toMatchObject({ deletedAt: null });
+			if (action === "RECHECK") {
+				// The existing admin RECHECK starts a fresh normal verification generation.
+				await fixture.rows(
+					`UPDATE ${fixture.table("media_asset")} SET status='VERIFYING',"verificationGeneration"=2,"verificationAttemptCount"=0 WHERE id=$1`,
+					[p.target.assetId],
+				);
+				expect(await status(input)).toMatchObject({ status: "VERIFYING" });
+			}
+			await approve(p.target.assetId, {
+				verificationGeneration: action === "RECHECK" ? 2 : 1,
+				evidenceGeneration: action === "RECHECK" ? 2 : 1,
+				attemptNumber: action === "RECHECK" ? 1 : 3,
+			});
+			await fixture.transaction((tx) =>
+				reconcileAccountInputCopyTargetInTransaction({ assetId: p.target.assetId }, tx),
+			);
+			expect(await status(input)).toMatchObject({ status: "READY" });
+			expect((await intent(promotionId)).phase).toBe("READY");
+		},
+	);
+
+	it.each([
+		["assetChecksum", "b".repeat(64)],
+		["verificationGeneration", "0"],
+		["attemptNumber", "1"],
+		["evidenceKind", "OUTPUT"],
+		["provider", "another-provider"],
+		["providerTaskId", "another-task"],
+		["ruleVersion", "another-rule"],
+		["policyVersion", "another-policy"],
+		["validUntil", "2000-01-01T00:00:00.000Z"],
+	])("fails closed for a quarantined target REVIEW with stale %s", async (field, value) => {
+		const { input, promotionId, p } = await prepared(`review-stale-${field}`);
+		await commit((await claimAccountInputCopy({ promotionId }, fixture.client()))!);
+		await review(p.target.assetId);
+		await fixture.rows(
+			`UPDATE ${fixture.table("asset_moderation_result")} SET "${field}"=$2 WHERE "assetId"=$1`,
+			[p.target.assetId, value],
+		);
+		expect(await status(input)).toMatchObject({ status: "FAILED" });
+		expect(
+			await fixture.transaction((tx) =>
+				reconcileAccountInputCopyTargetInTransaction({ assetId: p.target.assetId }, tx),
+			),
+		).toEqual({ terminal: true });
+		expect(await target(p.target.assetId)).toMatchObject({ status: "DELETED" });
+	});
+
+	it.each(["source", "target"])("keeps a genuine %s rejection terminal", async (location) => {
+		const { input, promotionId, p } = await prepared(`rejected-${location}`);
+		if (location === "target")
+			await commit((await claimAccountInputCopy({ promotionId }, fixture.client()))!);
+		await review(location === "target" ? p.target.assetId : p.source.assetId, "REJECTED");
+		if (location === "target")
+			expect(
+				await fixture.transaction((tx) =>
+					reconcileAccountInputCopyTargetInTransaction({ assetId: p.target.assetId }, tx),
+				),
+			).toEqual({ terminal: true });
+		else expect(await claimAccountInputCopy({ promotionId }, fixture.client())).toBeNull();
+		expect(await status(input)).toMatchObject({ status: "FAILED" });
+		expect(await claimAccountInputCopyOrphan({ promotionId }, fixture.client())).toMatchObject({
+			objectKey: p.target.objectKey,
+		});
+	});
+
+	it("waits for normal manual review of the source before granting a copy writer", async () => {
+		const { input, promotionId, p } = await prepared("source-content-review");
+		await review(input.assetId);
+		expect(await claimAccountInputCopy({ promotionId }, fixture.client())).toBeNull();
+		expect((await intent(promotionId)).phase).toBe("PENDING");
+		expect(await target(p.target.assetId)).toMatchObject({ status: "UPLOADING", deletedAt: null });
+		expect(await status(input)).toMatchObject({ status: "COPYING" });
+		expect(await accountReservations()).toMatchObject([{ status: "ACTIVE" }]);
+		await approve(input.assetId, { attemptNumber: 3 });
+		expect(await claimAccountInputCopy({ promotionId }, fixture.client())).toMatchObject({
+			promotionId,
+		});
+		await noCreditOrJobChanges();
+	});
+
 	it("denies another registered owner creation and status lookup", async () => {
 		const input = await seed("owner");
 		await create(input);
@@ -851,16 +967,38 @@ async function noCreditOrJobChanges() {
 		{ id: "untouched", spendableCredits: 19n, reservedCredits: 3n },
 	]);
 }
-async function approve(assetId: string, { evidenceGeneration = 1 } = {}) {
+async function approve(
+	assetId: string,
+	{ evidenceGeneration = 1, verificationGeneration = 1, attemptNumber = 1 } = {},
+) {
 	const validUntil = new Date(Date.now() + 3_600_000),
 		providerTaskId = `review-${assetId}`;
 	await fixture.rows(
-		`UPDATE ${fixture.table("media_asset")} SET status='READY',"verificationGeneration"=1,"verificationAttemptCount"=1,"verificationProvider"='seeapi',"verificationProviderTaskId"=$2,"verificationRuleVersion"='image-v1',"verificationPolicyVersion"='safe-v1',"verificationValidUntil"=$3 WHERE id=$1`,
-		[assetId, providerTaskId, validUntil],
+		`UPDATE ${fixture.table("media_asset")} SET status='READY',"verificationGeneration"=$4,"verificationAttemptCount"=$5,"verificationProvider"='seeapi',"verificationProviderTaskId"=$2,"verificationRuleVersion"='image-v1',"verificationPolicyVersion"='safe-v1',"verificationValidUntil"=$3 WHERE id=$1`,
+		[assetId, providerTaskId, validUntil, verificationGeneration, attemptNumber],
 	);
 	await fixture.rows(
-		`INSERT INTO ${fixture.table("asset_moderation_result")} (id,"assetId",status,"reasonCode","assetChecksum","verificationGeneration","attemptNumber","evidenceKind",provider,"providerTaskId","ruleVersion","policyVersion","validUntil") VALUES ($1,$2,'APPROVED','APPROVED',$3,$4,1,'INPUT','seeapi',$5,'image-v1','safe-v1',$6)`,
-		[randomUUID(), assetId, checksum, evidenceGeneration, providerTaskId, validUntil],
+		`INSERT INTO ${fixture.table("asset_moderation_result")} (id,"assetId",status,"reasonCode","assetChecksum","verificationGeneration","attemptNumber","evidenceKind",provider,"providerTaskId","ruleVersion","policyVersion","validUntil") VALUES ($1,$2,'APPROVED','APPROVED',$3,$4,$7,'INPUT','seeapi',$5,'image-v1','safe-v1',$6)`,
+		[
+			randomUUID(),
+			assetId,
+			checksum,
+			evidenceGeneration,
+			providerTaskId,
+			validUntil,
+			attemptNumber,
+		],
+	);
+}
+async function review(assetId: string, decision = "REVIEW") {
+	const providerTaskId = `content-review-${assetId}`;
+	await fixture.rows(
+		`UPDATE ${fixture.table("media_asset")} SET status='QUARANTINED',"verificationGeneration"=1,"verificationAttemptCount"=2,"verificationProvider"='seeapi',"verificationProviderTaskId"=$2,"verificationRuleVersion"='image-v1',"verificationPolicyVersion"='safe-v1',"verificationValidUntil"=NULL WHERE id=$1`,
+		[assetId, providerTaskId],
+	);
+	await fixture.rows(
+		`INSERT INTO ${fixture.table("asset_moderation_result")} (id,"assetId",status,"reasonCode","assetChecksum","verificationGeneration","attemptNumber","evidenceKind",provider,"providerTaskId","ruleVersion","policyVersion","validUntil") VALUES ($1,$2,$5,'SEEAPI_CONTENT_REVIEW',$3,1,2,'INPUT','seeapi',$4,'image-v1','safe-v1',NULL)`,
+		[randomUUID(), assetId, checksum, providerTaskId, decision],
 	);
 }
 async function commit(claim: NonNullable<Awaited<ReturnType<typeof claimAccountInputCopy>>>) {

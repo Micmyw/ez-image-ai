@@ -41,8 +41,9 @@ beforeEach(() => {
 
 function verificationFixture(
 	status: "VERIFYING" | "QUARANTINED" = "VERIFYING",
-	decision: "REJECT" | "ERROR" | "ALLOW" = "REJECT",
+	decision: "REJECT" | "ERROR" | "ALLOW" | "REVIEW" = "REJECT",
 ) {
+	const evidence: Record<string, unknown>[] = [];
 	const asset = {
 		id: "copy-target",
 		kind: "INPUT",
@@ -80,7 +81,10 @@ function verificationFixture(
 		auditLog: { findFirst: async () => null, create: async () => ({}) },
 		assetModerationResult: {
 			findFirst: async () => null,
-			create: async () => ({}),
+			create: async ({ data }: { data: Record<string, unknown> }) => {
+				evidence.push(data);
+				return data;
+			},
 			count: async () => (decision === "ERROR" ? 4 : 0),
 		},
 		moderationReview: { updateMany: async () => ({ count: 0 }), findUnique: async () => null },
@@ -111,7 +115,7 @@ function verificationFixture(
 			throw error;
 		},
 	});
-	return { asset, tx, deps };
+	return { asset, tx, deps, evidence };
 }
 
 describe("account-copy production runtime boundaries", () => {
@@ -149,6 +153,28 @@ describe("account-copy production runtime boundaries", () => {
 		});
 		await state.deps.verify(state.asset.id);
 		expect(observed).toContain("QUARANTINED");
+	});
+
+	it("passes the normal quarantined REVIEW evidence to copy reconciliation", async () => {
+		const state = verificationFixture("VERIFYING", "REVIEW");
+		const observed: string[] = [];
+		mocks.reconcile.mockImplementation(async () => {
+			observed.push(state.asset.status);
+			return { terminal: false };
+		});
+		await state.deps.verify(state.asset.id);
+		expect(observed).toContain("QUARANTINED");
+		expect(state.asset).toMatchObject({ status: "QUARANTINED", deletedAt: null });
+		expect(state.evidence).toContainEqual(
+			expect.objectContaining({
+				assetId: state.asset.id,
+				assetChecksum: state.asset.checksum,
+				verificationGeneration: 1,
+				attemptNumber: 1,
+				status: "REVIEW",
+				validUntil: null,
+			}),
+		);
 	});
 
 	it("reconciles exhausted verification before its transaction can finish", async () => {

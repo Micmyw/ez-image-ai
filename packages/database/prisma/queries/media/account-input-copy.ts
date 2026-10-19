@@ -123,6 +123,32 @@ function approved(value: Asset, now: Date) {
 		now,
 	});
 }
+function awaitingContentReview(value: Asset) {
+	const evidence = value.moderationResults[0];
+	return (
+		value.verificationEngine === "legacy" &&
+		value.status === "QUARANTINED" &&
+		value.deletedAt === null &&
+		value.kind === "INPUT" &&
+		Boolean(value.checksum && /^[a-f0-9]{64}$/i.test(value.checksum)) &&
+		value.verificationGeneration > 0 &&
+		value.verificationAttemptCount > 0 &&
+		Boolean(value.verificationProvider) &&
+		Boolean(value.verificationRuleVersion) &&
+		Boolean(value.verificationPolicyVersion) &&
+		value.verificationValidUntil === null &&
+		evidence?.status === "REVIEW" &&
+		evidence.assetChecksum === value.checksum &&
+		evidence.verificationGeneration === value.verificationGeneration &&
+		evidence.attemptNumber === value.verificationAttemptCount &&
+		evidence.evidenceKind === value.kind &&
+		evidence.provider === value.verificationProvider &&
+		evidence.providerTaskId === value.verificationProviderTaskId &&
+		evidence.ruleVersion === value.verificationRuleVersion &&
+		evidence.policyVersion === value.verificationPolicyVersion &&
+		evidence.validUntil === null
+	);
+}
 function targetMatches(value: Asset, p: Intent) {
 	return (
 		value.id === p.target.assetId &&
@@ -338,7 +364,8 @@ export async function claimAccountInputCopy(
 			!source ||
 			!sourceMatches(source, p) ||
 			source.deletedAt ||
-			["DELETED", "QUARANTINED", "VERIFICATION_FAILED"].includes(source.status)
+			["DELETED", "VERIFICATION_FAILED"].includes(source.status) ||
+			(source.status === "QUARANTINED" && !awaitingContentReview(source))
 		) {
 			await tombstone(row.id, p, "ACCOUNT_INPUT_COPY_UNAVAILABLE", tx);
 			return null;
@@ -526,7 +553,8 @@ export async function reconcileAccountInputCopyTargetInTransaction(
 		!target ||
 		!targetMatches(target, p) ||
 		target.deletedAt ||
-		["QUARANTINED", "VERIFICATION_FAILED", "DELETED"].includes(target.status)
+		["VERIFICATION_FAILED", "DELETED"].includes(target.status) ||
+		(target.status === "QUARANTINED" && (p.phase !== "VERIFYING" || !awaitingContentReview(target)))
 	) {
 		await tombstone(found.id, p, "ACCOUNT_INPUT_COPY_FAILED", tx);
 		return { terminal: true };
@@ -568,6 +596,8 @@ export async function getAccountInputCopyStatus(
 		return { promotionId: row.id, status: "FAILED", reasonCode: "ACCOUNT_INPUT_COPY_FAILED" };
 	if (target && p.phase !== "PENDING" && p.phase !== "COPYING" && approved(target, now))
 		return { promotionId: row.id, status: "READY" };
+	if (["VERIFYING", "READY"].includes(p.phase) && awaitingContentReview(target))
+		return { promotionId: row.id, status: "VERIFYING" };
 	if (
 		target?.deletedAt ||
 		(target && ["QUARANTINED", "VERIFICATION_FAILED", "DELETED"].includes(target.status))
