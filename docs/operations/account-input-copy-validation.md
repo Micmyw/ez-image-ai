@@ -147,6 +147,13 @@ is not a generated Prisma client and does not certify original migrations/trigge
 or the full claim/link orchestration. The package integration glob includes it;
 the new parser test is registered in the explicit default DB test list.
 
+The genuine `account-input-retention.integration.test.ts` also contains a new
+registered-claim -> fresh UPLOADING target -> fenced VERIFYING materialization
+case against the original schema/ORM, retaining the guest source and blocking
+editor recovery until moderation. That suite fails to import the absent official
+client locally (zero assertions executed); official CI must certify it. Its physical
+copy boundary is supplied by the test and is not a real object-store invocation.
+
 Full storage passes 163 tests. Full jobs executes 579 passing assertions but 13
 suites cannot import the missing official generated Prisma client; full package
 success is not claimed. Full DB currently has 305 passing, 18 failing and 3 skipped

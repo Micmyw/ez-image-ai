@@ -4,7 +4,15 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { PrismaClient, type Prisma } from "../../generated/client";
-import { transferGuestGenerationDraftToRegisteredUserInTransaction } from "./drafts";
+import {
+	claimAccountInputCopy,
+	commitAccountInputCopy,
+	parseAccountInputCopyIntent,
+} from "./account-input-copy";
+import {
+	getClaimedGenerationDraft,
+	transferGuestGenerationDraftToRegisteredUserInTransaction,
+} from "./drafts";
 import { lockGuestOwnerPromotion } from "./guest-admission";
 import { claimMediaStorageCleanupTransaction } from "./storage-cleanup";
 
@@ -119,7 +127,80 @@ async function fixture() {
 	};
 }
 
-describe("retired same-key account retention", () => {
+describe("registered input retention protocols", () => {
+	it("retains a registered draft through a distinct account target using the genuine ORM contract", async () => {
+		vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "true");
+		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
+		const { asset, input } = await fixture();
+		const claimed = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+			await lockGuestOwnerPromotion(tx, input.anonymousOwnerId, "retention-test");
+			return transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx);
+		});
+		expect(claimed.preparation).toMatchObject({ status: "COPYING" });
+		expect(claimed.input).not.toHaveProperty("sourceAssetId");
+		const event = await db.outboxEvent.findUniqueOrThrow({
+			where: { dedupeKey: `account-input-copy:v1:${input.draftId}` },
+		});
+		const intent = parseAccountInputCopyIntent(event.payload);
+		expect(intent.target.assetId).not.toBe(asset.id);
+		expect(intent.target.objectKey).not.toBe(asset.objectKey);
+		await expect(
+			db.mediaAsset.findUniqueOrThrow({ where: { id: intent.target.assetId } }),
+		).resolves.toMatchObject({
+			ownerId: input.registeredUserId,
+			status: "UPLOADING",
+			retentionClass: "ACCOUNT",
+			deleteAfter: null,
+		});
+		const copy = await claimAccountInputCopy({ promotionId: event.id }, db);
+		if (!copy) throw new Error("COPY_LEASE_MISSING");
+		// The physical-copy boundary is supplied here; storage is independently
+		// simulated/tested. This verifies real ORM mappings and migration triggers.
+		await commitAccountInputCopy(
+			{
+				promotionId: copy.promotionId,
+				leaseToken: copy.leaseToken,
+				checksum: copy.source.checksum,
+				bytes: copy.source.bytes,
+				mimeType: copy.source.mimeType,
+			},
+			db,
+		);
+		await expect(
+			db.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } }),
+		).resolves.toMatchObject({
+			ownerId: input.anonymousOwnerId,
+			retentionClass: "GUEST_TRIAL",
+			deleteAfter: asset.deleteAfter,
+			objectKey: asset.objectKey,
+		});
+		await expect(
+			db.mediaAsset.findUniqueOrThrow({ where: { id: intent.target.assetId } }),
+		).resolves.toMatchObject({
+			ownerId: input.registeredUserId,
+			status: "VERIFYING",
+			checksum: asset.checksum,
+			verificationGeneration: 1,
+		});
+		await expect(
+			db.generationDraft.findUniqueOrThrow({ where: { id: input.draftId } }),
+		).resolves.toMatchObject({ ownerId: input.registeredUserId, assetId: intent.target.assetId });
+		await expect(
+			db.storageUsageReservation.findUniqueOrThrow({
+				where: { referenceKey: `account-input-copy:${intent.target.assetId}` },
+			}),
+		).resolves.toMatchObject({
+			ownerId: input.registeredUserId,
+			bytes: asset.byteSize,
+			status: "COMMITTED",
+		});
+		const restored = await getClaimedGenerationDraft(
+			{ draftId: input.draftId, userId: input.registeredUserId },
+			db,
+		);
+		expect(restored?.preparation).toMatchObject({ status: "VERIFYING" });
+		expect(restored?.input).not.toHaveProperty("sourceAssetId");
+	});
 	it("cannot extend guest retention or suppress deadline cleanup with the historical flag", async () => {
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
 		vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "false");
