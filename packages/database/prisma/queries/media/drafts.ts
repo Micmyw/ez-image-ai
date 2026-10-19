@@ -228,6 +228,14 @@ function guestUploadVerificationError(
 	if (["UPLOADING", "VERIFYING"].includes(asset.status)) return "GUEST_UPLOAD_NOT_READY";
 	const evidence = asset.moderationResults[0];
 	if (!evidence) return "GUEST_UPLOAD_SAFETY_UNAVAILABLE";
+	// Terminal REJECT/REVIEW decisions are stored without approval lifetimes.
+	// Historical timed decisions may be displayed only while both deadlines match.
+	const matchingTerminalValidity =
+		(asset.verificationValidUntil === null && evidence.validUntil === null) ||
+		(asset.verificationValidUntil &&
+			evidence.validUntil &&
+			evidence.validUntil.getTime() === asset.verificationValidUntil.getTime() &&
+			evidence.validUntil > verification.now);
 	const matching =
 		(asset.verificationEngine ?? "legacy") === "legacy" &&
 		asset.kind === "INPUT" &&
@@ -244,10 +252,7 @@ function guestUploadVerificationError(
 		evidence.providerTaskId === asset.verificationProviderTaskId &&
 		evidence.ruleVersion === verification.ruleVersion &&
 		evidence.policyVersion === verification.policyVersion &&
-		asset.verificationValidUntil &&
-		evidence.validUntil &&
-		evidence.validUntil.getTime() === asset.verificationValidUntil.getTime() &&
-		evidence.validUntil > verification.now;
+		matchingTerminalValidity;
 	if (asset.status === "QUARANTINED" && matching) {
 		if (
 			evidence.status === "REJECTED" &&

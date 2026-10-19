@@ -46,7 +46,7 @@ function asset(
 		verificationProviderTaskId: "task-1",
 		verificationRuleVersion: "rule-v1",
 		verificationPolicyVersion: "policy-v1",
-		verificationValidUntil: validUntil,
+		verificationValidUntil: evidenceStatus === "APPROVED" ? validUntil : null,
 		moderationResults: [
 			{
 				status: evidenceStatus,
@@ -59,7 +59,7 @@ function asset(
 				providerTaskId: "task-1",
 				ruleVersion: "rule-v1",
 				policyVersion: "policy-v1",
-				validUntil,
+				validUntil: evidenceStatus === "APPROVED" ? validUntil : null,
 			},
 		],
 		jobBindings: [],
@@ -135,17 +135,54 @@ describe("guest upload terminal projection", () => {
 			finalizeGuestDraftFromReadyUploadTransaction(request, client as never),
 		).rejects.toThrow("GUEST_UPLOAD_NOT_READY");
 	});
-	it.each(["assetChecksum", "providerTaskId", "policyVersion", "verificationGeneration"])(
-		"does not call stale %s evidence a content violation",
-		async (field) => {
-			const value = asset("QUARANTINED");
-			Object.assign(value.moderationResults[0]!, {
-				[field]: field === "verificationGeneration" ? 0 : "stale",
-			});
-			const { client } = fixture(value);
+	it.each([
+		"assetChecksum",
+		"provider",
+		"providerTaskId",
+		"ruleVersion",
+		"policyVersion",
+		"verificationGeneration",
+		"attemptNumber",
+		"evidenceKind",
+	])("does not call stale %s evidence a content violation", async (field) => {
+		const value = asset("QUARANTINED");
+		Object.assign(value.moderationResults[0]!, {
+			[field]: ["verificationGeneration", "attemptNumber"].includes(field) ? 0 : "stale",
+		});
+		const { client } = fixture(value);
+		await expect(
+			finalizeGuestDraftFromReadyUploadTransaction(request, client as never),
+		).rejects.toThrow("GUEST_UPLOAD_SAFETY_UNAVAILABLE");
+	});
+	it.each(["REJECTED", "REVIEW"])(
+		"never authorizes a READY asset from untimed %s evidence",
+		async (status) => {
+			const { tx, client } = fixture(asset("READY", status));
 			await expect(
 				finalizeGuestDraftFromReadyUploadTransaction(request, client as never),
 			).rejects.toThrow("GUEST_UPLOAD_SAFETY_UNAVAILABLE");
+			expect(tx.mediaUploadSession.updateMany).not.toHaveBeenCalled();
+			expect(tx.generationDraft.create).not.toHaveBeenCalled();
+		},
+	);
+	it.each([
+		[validUntil, validUntil, "GUEST_UPLOAD_CONTENT_REJECTED"],
+		[now, now, "GUEST_UPLOAD_SAFETY_UNAVAILABLE"],
+		[validUntil, null, "GUEST_UPLOAD_SAFETY_UNAVAILABLE"],
+		[null, validUntil, "GUEST_UPLOAD_SAFETY_UNAVAILABLE"],
+		[validUntil, new Date(validUntil.getTime() + 1), "GUEST_UPLOAD_SAFETY_UNAVAILABLE"],
+	] as const)(
+		"requires historical terminal evidence deadlines to match and remain current: %s/%s",
+		async (assetExpiry, evidenceExpiry, code) => {
+			const value = asset("QUARANTINED");
+			value.verificationValidUntil = assetExpiry;
+			value.moderationResults[0]!.validUntil = evidenceExpiry;
+			const { tx, client } = fixture(value);
+			await expect(
+				finalizeGuestDraftFromReadyUploadTransaction(request, client as never),
+			).rejects.toThrow(code);
+			expect(tx.generationDraft.create).not.toHaveBeenCalled();
+			expect(tx.mediaUploadSession.updateMany).not.toHaveBeenCalled();
 		},
 	);
 	it("refuses an expired, consumed or unavailable session before creating a draft", async () => {
