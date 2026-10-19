@@ -1309,7 +1309,8 @@ describe("guest generation admission", () => {
 			terminalAt: replacementNow,
 		});
 		expect(reservation).toMatchObject({ status: "RELEASED", releasedAmount: 5n });
-		expect(riskBudget).toMatchObject({ reservedMicros: 20_000n });
+		// The blocker and replacement each retain their trial's existing risk hold.
+		expect(riskBudget).toMatchObject({ reservedMicros: 40_000n });
 		expect(jobCount).toBe(2);
 		expect(attemptCount).toBe(0);
 		await expect(

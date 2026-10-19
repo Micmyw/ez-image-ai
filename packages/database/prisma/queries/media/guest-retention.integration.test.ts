@@ -598,6 +598,22 @@ interface WaitingTrialGraph {
 async function createWaitingTrialGraph(now: Date): Promise<WaitingTrialGraph> {
 	const ownerId = await createAnonymousOwner("waiting-in-flight");
 	const expiresAt = new Date(now.getTime() + 24 * 60 * 60_000);
+	const source = await client.mediaAsset.create({
+		data: {
+			ownerType: "USER",
+			ownerId,
+			kind: "INPUT",
+			status: "READY",
+			retentionClass: "GUEST_TRIAL",
+			deleteAfter: expiresAt,
+			objectKey: `users/${ownerId}/waiting/source.png`,
+			mimeType: "image/png",
+			byteSize: 128n,
+			checksum: "1".repeat(64),
+			finalizedAt: now,
+			verificationValidUntil: expiresAt,
+		},
+	});
 	const trialId = await createTrialEvidenceRow({
 		ownerId,
 		promotionPeriod: "waiting-in-flight-period",
@@ -605,6 +621,7 @@ async function createWaitingTrialGraph(now: Date): Promise<WaitingTrialGraph> {
 		expiresAt,
 		eligibility: "IN_FLIGHT",
 		riskState: "HELD",
+		sourceAssetId: source.id,
 	});
 	const quote = await client.generationQuote.create({
 		data: {
