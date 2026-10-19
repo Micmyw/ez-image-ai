@@ -203,4 +203,38 @@ DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "assert_image_pass_t
 CREATE CONSTRAINT TRIGGER "image_pass_unit_three_units" AFTER INSERT ON "image_pass_unit"
 DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION "assert_image_pass_three_units"();
 
+-- Better Auth identities are server-owned, not Supabase auth.uid(). Match the
+-- existing private operational tables: direct application SQL only, no Data API.
+ALTER TABLE "image_pass_grant" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "image_pass_unit" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "image_pass_reservation" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "image_pass_ledger_entry" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "image_pass_adjustment" ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE "image_pass_grant", "image_pass_unit", "image_pass_reservation", "image_pass_ledger_entry", "image_pass_adjustment" FROM PUBLIC;
+DO $$
+DECLARE table_name TEXT; browser_role TEXT;
+BEGIN
+ FOREACH table_name IN ARRAY ARRAY['image_pass_grant','image_pass_unit','image_pass_reservation','image_pass_ledger_entry','image_pass_adjustment'] LOOP
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname='ezpic_app') THEN
+   EXECUTE format('GRANT SELECT,INSERT,UPDATE,DELETE ON TABLE %I TO ezpic_app',table_name);
+   EXECUTE format('CREATE POLICY %I ON %I TO ezpic_app USING (true) WITH CHECK (true)',table_name || '_app',table_name);
+  END IF;
+  FOREACH browser_role IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
+   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=browser_role) THEN
+    EXECUTE format('REVOKE ALL ON TABLE %I FROM %I',table_name,browser_role);
+   END IF;
+  END LOOP;
+ END LOOP;
+ FOREACH browser_role IN ARRAY ARRAY['anon','authenticated','service_role'] LOOP
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname=browser_role) THEN
+   EXECUTE format('REVOKE ALL ON FUNCTION public.prevent_image_pass_ledger_mutation(),public.assert_image_pass_funding_binding(),public.guard_image_pass_identity(),public.assert_image_pass_three_units() FROM %I',browser_role);
+  END IF;
+ END LOOP;
+END $$;
+ALTER FUNCTION "prevent_image_pass_ledger_mutation"() SET search_path=pg_catalog,public,pg_temp;
+ALTER FUNCTION "assert_image_pass_funding_binding"() SET search_path=pg_catalog,public,pg_temp;
+ALTER FUNCTION "guard_image_pass_identity"() SET search_path=pg_catalog,public,pg_temp;
+ALTER FUNCTION "assert_image_pass_three_units"() SET search_path=pg_catalog,public,pg_temp;
+REVOKE ALL ON FUNCTION "prevent_image_pass_ledger_mutation"(), "assert_image_pass_funding_binding"(), "guard_image_pass_identity"(), "assert_image_pass_three_units"() FROM PUBLIC;
+
 COMMIT;

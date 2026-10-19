@@ -8,7 +8,7 @@ The implementation grants three independent units for a verified USD 1 PayPal ca
 
 | Check                                   | Result and boundary                                                                                                                                                                                                            |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Core PostgreSQL and contract suites     | 33 tests in four suites passed: 13 pure contract checks, 15 real PostgreSQL ledger/admission checks, four payment reducer SQL checks, one recovery selector SQL check.                                                         |
+| Core PostgreSQL and contract suites     | 34 tests in four suites passed: 13 pure contract checks, 16 real PostgreSQL ledger/admission/privacy checks, four payment reducer SQL checks, one recovery selector SQL check.                                                 |
 | Media API focused regression            | 118 tests in six suites passed: quote, authorization, quote creation, direct creation, combined submission and retry.                                                                                                          |
 | Payment collaborator focused regression | 75 new checks passed across offer configuration, checkout intent, owner-bound create/capture/state, PayPal Orders, reducer/routing and PostgreSQL payment replay. The four SQL cases overlap the core row above.               |
 | Jobs collaborator focused regression    | 40 tests in five suites passed, including 25 independent-pass consumer checks and existing lifecycle regression cases. The consumer tests mock the ledger boundary; real SQL success/refund consumption is covered separately. |
@@ -27,6 +27,7 @@ Financial and authorization evidence includes:
 - A verified refund freezes the grant, revokes available units and retains an in-flight reservation. Late success consumes that held unit; known failure revokes it rather than returning spendable value.
 - Unknown provider acceptance retains the hold. Confirmed failures can release once. Canceled active pass holds remain recoverable by the durable settlement selector.
 - Deleted accounts can remove their ordinary purchase row while preserving immutable financial facts. The grant purchase link becomes null; ledger entries remain.
+- All five financial tables enforce RLS. A disposable unrelated role with explicit DML grants still reads zero rows and cannot insert. Existing application owner access remains functional.
 - Lost-response replays succeed despite a now-expired quote or depleted balance. Changed funding, quote or parent identity is rejected. Combined submission preserves existing ordinary-credit fingerprints and retry keeps the selected funding source.
 
 Several regressions were observed failing before their fixes: old admission rejected a free owner's paid 4K pass as `ENTITLEMENT_REQUIRED`; direct replay returned `NOT_FOUND`; the original purchase FK blocked account deletion; the finalizer could release a foreign READY binding when told it was unusable. Their focused tests passed after the corresponding fixes.

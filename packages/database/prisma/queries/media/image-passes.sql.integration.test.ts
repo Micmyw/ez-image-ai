@@ -279,6 +279,40 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 		);
 		expect(credits.rows[0].count).toBe(0n);
 	});
+	it("keeps all new financial tables private even if an unrelated role receives DML grants", async () => {
+		const tables = [
+			"image_pass_grant",
+			"image_pass_unit",
+			"image_pass_reservation",
+			"image_pass_ledger_entry",
+			"image_pass_adjustment",
+		];
+		const protection = await pool!.query(
+			`SELECT relname,relrowsecurity FROM pg_class WHERE relname=ANY($1::text[])`,
+			[tables],
+		);
+		expect(protection.rows).toHaveLength(5);
+		expect(protection.rows.every((row) => row.relrowsecurity)).toBe(true);
+		const c = await pool!.connect();
+		const role = `image_pass_rls_${crypto.randomUUID().replaceAll("-", "")}`;
+		try {
+			await c.query("BEGIN");
+			await c.query(`CREATE ROLE "${role}" NOLOGIN NOSUPERUSER NOBYPASSRLS`);
+			await c.query(`GRANT USAGE ON SCHEMA public TO "${role}"`);
+			await c.query(`GRANT SELECT,INSERT,UPDATE,DELETE ON ${tables.join(",")} TO "${role}"`);
+			await c.query(`SET LOCAL ROLE "${role}"`);
+			for (const table of tables)
+				expect((await c.query(`SELECT count(*) FROM ${table}`)).rows[0].count).toBe(0n);
+			await expect(
+				c.query(
+					`INSERT INTO image_pass_unit (id,"grantId",ordinal) VALUES ('blocked','blocked',1)`,
+				),
+			).rejects.toThrow(/row-level security/);
+		} finally {
+			await c.query("ROLLBACK");
+			c.release();
+		}
+	});
 	it("never grants twice across duplicate captures", async () => {
 		const f = await paymentFixture();
 		const results = await Promise.all([
