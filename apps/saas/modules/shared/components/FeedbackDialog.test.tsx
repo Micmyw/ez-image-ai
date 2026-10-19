@@ -17,7 +17,8 @@ vi.mock("@repo/ui/components/dialog", () => ({
 	DialogDescription: ({ children }: { children: ReactNode }) => <p>{children}</p>,
 }));
 
-import { FeedbackButton, FeedbackDialog } from "./FeedbackDialog";
+import { FeedbackButton } from "./FeedbackButton";
+import { FeedbackDialog } from "./FeedbackDialog";
 
 const locales = { en, de, es, fr };
 

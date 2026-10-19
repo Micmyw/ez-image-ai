@@ -2,7 +2,7 @@ import { config } from "@config";
 import { cn } from "@repo/ui";
 import { useTranslations } from "next-intl";
 
-import { FeedbackButton } from "./FeedbackDialog";
+import { FeedbackButton } from "./FeedbackButton";
 
 export function Footer() {
 	const t = useTranslations("common.footer");

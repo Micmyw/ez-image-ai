@@ -30,7 +30,7 @@ import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { Turnstile } from "@repo/ui/components/turnstile";
 import { trackBrowserGrowthEvent } from "@repo/utils/lib/growth-analytics-browser";
-import { FeedbackButton } from "@shared/components/FeedbackDialog";
+import { FeedbackButton } from "@shared/components/FeedbackButton";
 import {
 	STUDIO_WORKSPACE_RESET_EVENT,
 	type StudioWorkspaceResetDetail,
