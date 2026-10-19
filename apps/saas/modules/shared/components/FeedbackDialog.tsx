@@ -1,5 +1,9 @@
 "use client";
 
+import { feedback as de } from "@repo/i18n/translations/de/shared.json";
+import { feedback as en } from "@repo/i18n/translations/en/shared.json";
+import { feedback as es } from "@repo/i18n/translations/es/shared.json";
+import { feedback as fr } from "@repo/i18n/translations/fr/shared.json";
 import {
 	Dialog,
 	DialogContent,
@@ -7,24 +11,40 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@repo/ui/components/dialog";
-import { useTranslations } from "next-intl";
+import { NextIntlClientProvider, useLocale, useMessages, useTranslations } from "next-intl";
 import { useId, useState } from "react";
 
 import { buildFeedbackMailto, copyFeedbackEmail, type FeedbackKind } from "../lib/feedback";
 
 import "./feedback.css";
 
-export function FeedbackDialog({
-	open,
-	onOpenChange,
-	supportEmail,
-	initialKind = "idea",
-}: {
+type FeedbackDialogProps = {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	supportEmail: string;
 	initialKind?: FeedbackKind;
-}) {
+};
+const feedbackMessages = { de, en, es, fr };
+
+/** This namespace travels with the existing lazy dialog, not the initial root payload. */
+export function FeedbackDialog(props: FeedbackDialogProps) {
+	const locale = useLocale();
+	const messages = useMessages();
+	const feedback = feedbackMessages[locale as keyof typeof feedbackMessages] ?? en;
+	return (
+		<NextIntlClientProvider locale={locale} messages={{ ...messages, feedback }}>
+			<FeedbackDialogContent {...props} />
+		</NextIntlClientProvider>
+	);
+}
+
+// Keep the stateful form mounted when its open prop changes, as before.
+function FeedbackDialogContent({
+	open,
+	onOpenChange,
+	supportEmail,
+	initialKind = "idea",
+}: FeedbackDialogProps) {
 	const t = useTranslations("feedback");
 	const id = useId();
 	const [kind, setKind] = useState<FeedbackKind>(initialKind);
