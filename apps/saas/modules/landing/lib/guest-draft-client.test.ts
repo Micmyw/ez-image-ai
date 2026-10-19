@@ -241,6 +241,29 @@ describe("same-origin landing guest client", () => {
 		});
 	});
 
+	it.each([
+		[429, "GUEST_UPLOAD_RATE_LIMITED"],
+		[403, "GUEST_UPLOAD_INTENT_FAILED"],
+		[503, "GUEST_UPLOAD_INTENT_FAILED"],
+	])("distinguishes upload rate limiting from other HTTP %s failures", async (status, message) => {
+		const fetcher = vi.fn(async () => new Response("", { status }));
+
+		await expect(
+			createGuestDraftUploadIntent(
+				{
+					capabilityVersion: "capability-v1",
+					productKey: "image-nano-banana",
+					contentType: "image/png",
+					bytes: 128,
+					sha256: "a".repeat(64),
+					turnstileToken: "local-token",
+				},
+				fetcher as typeof fetch,
+			),
+		).rejects.toThrow(message);
+		expect(fetcher).toHaveBeenCalledOnce();
+	});
+
 	it("keeps the server-authorized paid product and SKU in the account handoff", async () => {
 		const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
 			Response.json({

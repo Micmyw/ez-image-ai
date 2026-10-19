@@ -26,7 +26,6 @@ export interface GuestAdmissionLimits {
 	maximumRequestsPerSubnetPerDay: number;
 	maximumGlobalRequestsPerMinute: number;
 	maximumGlobalRequestsPerHour: number;
-	maximumGlobalRequestsPerDay: number;
 	maximumOutstandingBootstraps: number;
 	maximumTemporaryPrincipals: number;
 	/** Compatibility aliases for the upload boundary while it migrates to the complete envelope. */
@@ -107,7 +106,6 @@ const FIXED_GUEST_MEDIA_CONFIG = {
 		maximumRequestsPerSubnetPerDay: 20,
 		maximumGlobalRequestsPerMinute: 3,
 		maximumGlobalRequestsPerHour: 30,
-		maximumGlobalRequestsPerDay: 100,
 		maximumOutstandingBootstraps: 25,
 		maximumTemporaryPrincipals: 100,
 		maximumRequestsPerMinute: 3,
@@ -302,7 +300,6 @@ function readProductionGuestEnvelope(environment: Record<string, unknown>): {
 		maximumRequestsPerSubnetPerDay: positiveInteger(environment.GUEST_SUBNET_MAX_PER_24_HOURS),
 		maximumGlobalRequestsPerMinute: positiveInteger(environment.GUEST_GLOBAL_MAX_PER_MINUTE),
 		maximumGlobalRequestsPerHour: positiveInteger(environment.GUEST_GLOBAL_MAX_PER_HOUR),
-		maximumGlobalRequestsPerDay: positiveInteger(environment.GUEST_GLOBAL_MAX_PER_24_HOURS),
 		maximumGlobalQueueDepth: positiveInteger(environment.GUEST_QUEUE_MAX_DEPTH),
 		maximumOutstandingBootstraps: positiveInteger(environment.GUEST_BOOTSTRAP_MAX_OUTSTANDING),
 		maximumTemporaryPrincipals: positiveInteger(environment.GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL),
@@ -328,7 +325,6 @@ function readProductionGuestEnvelope(environment: Record<string, unknown>): {
 		completeLimits.maximumRequestsPerSubnetPerDay > 20 ||
 		completeLimits.maximumGlobalRequestsPerMinute > 3 ||
 		completeLimits.maximumGlobalRequestsPerHour > 30 ||
-		completeLimits.maximumGlobalRequestsPerDay > 100 ||
 		completeLimits.maximumGlobalQueueDepth > 25 ||
 		completeLimits.maximumOutstandingBootstraps > 25 ||
 		completeLimits.maximumTemporaryPrincipals > 100

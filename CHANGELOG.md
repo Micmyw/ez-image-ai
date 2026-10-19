@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-19 — Guest availability throughout the day
+
+- Remove the shared daily request cap from guest uploads, temporary session preparation, and guest generation. Existing uploads and account media keep their original ownership and review rules.
+
+## 2026-10-19 — Guest upload limit feedback
+
+- Explain when a guest upload limit prevents an edit from being prepared, while preserving the image, prompt, and model selection for a later attempt.
+- Return HTTP 429 for this existing limit and keep the explanation visible when verification refreshes.
+
 ## 2026-10-11 — Limited isolated Blog ad testing
 
 - Permit an independent static advertising document on three reviewed editorial articles while keeping the original product security policy. Article boundaries use document navigation and clear ad contexts on history restoration.

@@ -418,6 +418,7 @@ describe("guest bootstrap consumption", () => {
 			where: { subjectHash: { in: [sharedIpHash, sharedSubnetHash, "global"] } },
 			select: { scope: true, subjectHash: true, requestCount: true },
 		});
+		expect(scopes.some(({ scope }) => scope === "guest-upload:global:day")).toBe(false);
 		expect(scopes).toEqual(
 			expect.arrayContaining([
 				{
@@ -442,11 +443,6 @@ describe("guest bootstrap consumption", () => {
 				},
 				{
 					scope: "guest-upload:global:hour",
-					subjectHash: "global",
-					requestCount: 2n,
-				},
-				{
-					scope: "guest-upload:global:day",
 					subjectHash: "global",
 					requestCount: 2n,
 				},
@@ -561,6 +557,7 @@ describe("guest bootstrap consumption", () => {
 			where: { subjectHash: { in: [sharedIpHash, sharedSubnetHash, "global"] } },
 			select: { scope: true, subjectHash: true, requestCount: true },
 		});
+		expect(scopes.some(({ scope }) => scope === "guest-bootstrap:global:day")).toBe(false);
 		expect(scopes).toEqual(
 			expect.arrayContaining([
 				{
@@ -585,11 +582,6 @@ describe("guest bootstrap consumption", () => {
 				},
 				{
 					scope: "guest-bootstrap:global:hour",
-					subjectHash: "global",
-					requestCount: 2n,
-				},
-				{
-					scope: "guest-bootstrap:global:day",
 					subjectHash: "global",
 					requestCount: 2n,
 				},
@@ -879,7 +871,6 @@ function guestBoundaryLimits(maximum = 100) {
 		maximumRequestsPerSubnetPerDay: maximum,
 		maximumGlobalRequestsPerMinute: maximum,
 		maximumGlobalRequestsPerHour: maximum,
-		maximumGlobalRequestsPerDay: maximum,
 	};
 }
 

@@ -1130,6 +1130,35 @@ test("a retryable failure preserves the image, prompt, and selected model", asyn
 	await expect(secondAttempt.promise).resolves.toMatchObject({ productKey: "image-gpt-image-2" });
 });
 
+test("a guest upload limit explains the wait and preserves the draft without automatic retries", async ({
+	page,
+}) => {
+	let attempts = 0;
+	await page.route("**/api/media/guest-drafts/upload-intents", async (route) => {
+		attempts += 1;
+		await route.fulfill({
+			status: 429,
+			contentType: "application/json",
+			body: JSON.stringify({ code: "TOO_MANY_REQUESTS", message: "GUEST_UPLOAD_RATE_LIMITED" }),
+		});
+	});
+	await page.goto("/");
+	await selectModel(page, "GPT Image", "image-gpt-image-2");
+	await page.locator("#landing-source-image").setInputFiles(pngFile("limited-source.png"));
+	const prompt = page.getByRole("textbox", { name: "Edit instruction", exact: true });
+	await prompt.fill("Keep this draft for later");
+	await page.getByRole("button", { name: /continue/i }).click();
+
+	await expect(stage(page, "failed")).toBeVisible();
+	await expect(page.locator('[data-test="landing-generator"]').getByRole("alert")).toContainText(
+		"Guest upload limit reached. Please try again later.",
+	);
+	await expect(page.getByRole("img", { name: /preview of limited-source\.png/i })).toBeVisible();
+	await expect(prompt).toHaveValue("Keep this draft for later");
+	await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText("GPT Image 2");
+	expect(attempts).toBe(1);
+});
+
 test("the landing page proves edits with an interactive comparison and visual examples", async ({
 	page,
 }) => {

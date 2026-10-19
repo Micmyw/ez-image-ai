@@ -275,6 +275,7 @@
 			},
 			"errors": {
 				"turnstile": "Complete the verification and try again.",
+				"rateLimit": "Guest upload limit reached. Please try again later. Your image and prompt are still here.",
 				"upload": "We could not prepare this private guest edit. Try the upload again."
 			},
 			"prompt": "Describe your image",

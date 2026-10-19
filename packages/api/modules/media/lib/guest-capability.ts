@@ -114,7 +114,6 @@ function createGuestCapabilityVersion(
 		config.limits.maximumRequestsPerSubnetPerDay,
 		config.limits.maximumGlobalRequestsPerMinute,
 		config.limits.maximumGlobalRequestsPerHour,
-		config.limits.maximumGlobalRequestsPerDay,
 		config.limits.maximumOutstandingBootstraps,
 		config.limits.maximumTemporaryPrincipals,
 		config.limits.maximumRequestsPerMinute,

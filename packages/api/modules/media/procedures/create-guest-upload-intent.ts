@@ -1,5 +1,6 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
+import { ORPCError } from "@orpc/server";
 import { createGuestMediaUploadIntentTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
 import {
@@ -155,7 +156,12 @@ export const createGuestDraftUploadIntent = publicProcedure
 				abuseEvidenceTtlMs: loaded.config.abuseEvidenceTtlMs,
 			},
 			db,
-		);
+		).catch((error: unknown) => {
+			if (error instanceof Error && error.message === "GUEST_UPLOAD_RATE_LIMITED") {
+				throw new ORPCError("TOO_MANY_REQUESTS", { message: "GUEST_UPLOAD_RATE_LIMITED" });
+			}
+			throw error;
+		});
 		const uploadUrl = await createSignedUpload({
 			bucket: "media",
 			key: stagingObjectKey,

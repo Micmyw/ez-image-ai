@@ -126,6 +126,7 @@ export async function createGuestDraftUploadIntent(
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(input),
 	});
+	if (response.status === 429) throw new Error("GUEST_UPLOAD_RATE_LIMITED");
 	if (!response.ok) throw new Error("GUEST_UPLOAD_INTENT_FAILED");
 	const result = (await response.json()) as GuestUploadIntent;
 	if (

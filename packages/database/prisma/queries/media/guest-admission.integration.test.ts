@@ -782,7 +782,6 @@ describe("guest generation admission", () => {
 			maximumRequestsPerSubnetPerDay: 1,
 			maximumGlobalRequestsPerMinute: 2,
 			maximumGlobalRequestsPerHour: 2,
-			maximumGlobalRequestsPerDay: 2,
 		};
 
 		await expect(
@@ -810,6 +809,7 @@ describe("guest generation admission", () => {
 			where: { subjectHash: { in: [sharedIpHash, sharedSubnetHash, "global"] } },
 			select: { scope: true, subjectHash: true, requestCount: true },
 		});
+		expect(scopes.some(({ scope }) => scope === "guest-generate:global:day")).toBe(false);
 		expect(scopes).toEqual(
 			expect.arrayContaining([
 				{
@@ -849,11 +849,6 @@ describe("guest generation admission", () => {
 				},
 				{
 					scope: "guest-generate:global:hour",
-					subjectHash: "global",
-					requestCount: 2n,
-				},
-				{
-					scope: "guest-generate:global:day",
 					subjectHash: "global",
 					requestCount: 2n,
 				},
@@ -1142,7 +1137,6 @@ describe("guest generation admission", () => {
 		["IP daily", "maximumRequestsPerIpPerDay", 3, "GUEST_IP_RATE_LIMIT", "ipHash"],
 		["subnet daily", "maximumRequestsPerSubnetPerDay", 20, "GUEST_SUBNET_RATE_LIMIT", "subnetHash"],
 		["global hourly", "maximumGlobalRequestsPerHour", 30, "GUEST_GLOBAL_RATE_LIMIT", null],
-		["global daily", "maximumGlobalRequestsPerDay", 100, "GUEST_GLOBAL_RATE_LIMIT", null],
 	] as const)(
 		"enforces the literal %s limit at N plus one with no rejected business graph",
 		async (_label, limitName, limit, expectedCode, sharedField) => {
@@ -1156,7 +1150,6 @@ describe("guest generation admission", () => {
 				maximumRequestsPerSubnetPerDay: limit + 1,
 				maximumGlobalRequestsPerMinute: limit + 1,
 				maximumGlobalRequestsPerHour: limit + 1,
-				maximumGlobalRequestsPerDay: limit + 1,
 				maximumGlobalQueueDepth: limit + 1,
 				queueCapacity: limit + 1,
 				riskBudgetMicros: BigInt(limit + 1) * 35_000n,
@@ -1765,7 +1758,6 @@ function guestAdmissionInput(
 		maximumRequestsPerIpPerDay?: number;
 		maximumRequestsPerSubnetPerDay?: number;
 		maximumGlobalRequestsPerHour?: number;
-		maximumGlobalRequestsPerDay?: number;
 	},
 ) {
 	const quoteBase = {
@@ -1826,7 +1818,6 @@ function guestAdmissionInput(
 		maximumGlobalRequestsPerMinute:
 			overrides.maximumGlobalRequestsPerMinute ?? overrides.maximumRequestsPerMinute ?? 100,
 		maximumGlobalRequestsPerHour: overrides.maximumGlobalRequestsPerHour ?? 100,
-		maximumGlobalRequestsPerDay: overrides.maximumGlobalRequestsPerDay ?? 100,
 		abuseEvidenceTtlMs: overrides.abuseEvidenceTtlMs ?? 30 * 24 * 60 * 60_000,
 		riskBudgetMicros:
 			overrides.riskBudgetMicros === undefined ? 2_300_000n : overrides.riskBudgetMicros,

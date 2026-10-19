@@ -48,7 +48,6 @@ const productionEnvironment = {
 	GUEST_SUBNET_MAX_PER_24_HOURS: "20",
 	GUEST_GLOBAL_MAX_PER_MINUTE: "3",
 	GUEST_GLOBAL_MAX_PER_HOUR: "30",
-	GUEST_GLOBAL_MAX_PER_24_HOURS: "100",
 	GUEST_ABUSE_EVIDENCE_TTL_DAYS: "30",
 	GUEST_ABUSE_HMAC_SECRET: "production-guest-abuse-secret-at-least-32-bytes",
 	GUEST_ABUSE_HMAC_VERSION: "launch-key-v1",
@@ -64,6 +63,26 @@ const productionRuntimeOverride = {
 };
 
 describe("guest media configuration", () => {
+	it.each([undefined, "5", "0", "unlimited", "invalid"])(
+		"ignores the retired global daily request setting %s without changing remaining limits",
+		(value) => {
+			const config = getGuestMediaConfig(
+				{ ...productionEnvironment, GUEST_GLOBAL_MAX_PER_24_HOURS: value },
+				productionRuntimeOverride,
+				productionNow,
+			);
+			expect(config.enabled).toBe(true);
+			expect(config.limits).not.toHaveProperty("maximumGlobalRequestsPerDay");
+			expect(config.limits).toMatchObject({
+				maximumGlobalRequestsPerMinute: 3,
+				maximumGlobalRequestsPerHour: 30,
+				maximumRequestsPerIpPerDay: 3,
+				maximumRequestsPerSubnetPerDay: 20,
+				maximumAcceptedTrialsPerSessionPerDay: 2,
+				maximumAcceptedTrialsPerDevicePerDay: 2,
+			});
+		},
+	);
 	it("supports explicitly unlimited guest budgets without removing daily quotas or security controls", () => {
 		const environment = {
 			...productionEnvironment,
@@ -165,7 +184,6 @@ describe("guest media configuration", () => {
 				maximumRequestsPerSubnetPerDay: 20,
 				maximumGlobalRequestsPerMinute: 3,
 				maximumGlobalRequestsPerHour: 30,
-				maximumGlobalRequestsPerDay: 100,
 				maximumGlobalQueueDepth: 25,
 				maximumOutstandingBootstraps: 25,
 				maximumTemporaryPrincipals: 100,
@@ -190,7 +208,6 @@ describe("guest media configuration", () => {
 			GUEST_SUBNET_MAX_PER_24_HOURS: undefined,
 			GUEST_GLOBAL_MAX_PER_MINUTE: undefined,
 			GUEST_GLOBAL_MAX_PER_HOUR: undefined,
-			GUEST_GLOBAL_MAX_PER_24_HOURS: undefined,
 			GUEST_ABUSE_EVIDENCE_TTL_DAYS: undefined,
 		};
 
@@ -229,7 +246,6 @@ describe("guest media configuration", () => {
 		["GUEST_SUBNET_MAX_PER_24_HOURS", "21"],
 		["GUEST_GLOBAL_MAX_PER_MINUTE", "4"],
 		["GUEST_GLOBAL_MAX_PER_HOUR", "31"],
-		["GUEST_GLOBAL_MAX_PER_24_HOURS", "101"],
 		["GUEST_BOOTSTRAP_MAX_OUTSTANDING", "26"],
 		["GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL", "101"],
 	] as const)("fails production closed when %s is outside the frozen envelope", (key, value) => {
@@ -259,7 +275,6 @@ describe("guest media configuration", () => {
 					GUEST_IP_MAX_PER_24_HOURS: "1",
 					GUEST_SUBNET_MAX_PER_24_HOURS: "1",
 					GUEST_GLOBAL_MAX_PER_HOUR: "1",
-					GUEST_GLOBAL_MAX_PER_24_HOURS: "1",
 				},
 				productionRuntimeOverride,
 				productionNow,
