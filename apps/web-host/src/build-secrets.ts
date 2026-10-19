@@ -7,7 +7,6 @@ import {
 	RAINDANCE_LONG_TEMPLATE_VERSION,
 } from "@repo/config/video-effects";
 import {
-	resolveVideoEffectPrice,
 	HOTEL_LOBBY_TEMPLATE_VERSION,
 	RAINDANCE_TEMPLATE_VERSION,
 	HOTEL_LOBBY_PRICE_VERSION,
@@ -31,6 +30,7 @@ import {
 	type VideoRuntimeEnvironmentKey,
 } from "@repo/config/video-runtime-environment";
 
+import { assessOptionalVideoEffectOptions } from "./optional-video-effect-readiness";
 import { requireRumpelstiltskinPreparation } from "./profiles";
 
 const variableName = "CLOUDFLARE_PRODUCTION_ENV";
@@ -342,58 +342,15 @@ function withVideoRuntimeOverrides(
 			Object.keys(next).length !== new Set([...Object.keys(previous), key]).size
 		)
 			throw new Error("VIDEO_EFFECT_BUILD_ENABLED_OVERRIDE_INVALID");
-		if (templateEnabled === "true") {
-			try {
-				if (!policy) throw new Error("VIDEO_EFFECT_POLICY_MISSING");
-				if (next.VIDEO_V1_ENABLED !== "true") throw new Error("VIDEO_EFFECT_VIDEO_DISABLED");
-				resolveVideoEffectPrice(
-					{
-						effectId: "hotel-lobby-duo",
-						presetKey: "standard",
-						inputs: { leftAssetId: "build-readiness-left", rightAssetId: "build-readiness-right" },
-					},
-					expandVideoRuntimeEnvironment(next),
-				);
-			} catch (error) {
-				// Only source-defined codes may enter logs; opaque policy values stay private.
-				const codes = new Set([
-					"VIDEO_EFFECT_POLICY_MISSING",
-					"VIDEO_EFFECT_VIDEO_DISABLED",
-					"VIDEO_EFFECT_PRICE_NOT_APPROVED",
-					"VIDEO_EFFECT_COST_POLICY_NOT_CONFIRMED",
-					"VIDEO_EFFECT_PRICE_EXPIRED",
-					"VIDEO_PRICE_EXPIRED",
-					"VIDEO_EFFECT_PAYMENT_COST_NOT_CONFIRMED",
-					"VIDEO_EFFECT_PRICING_TARGET_INVALID",
-				]);
-				throw new Error("VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED", {
-					cause:
-						error instanceof Error && codes.has(error.message)
-							? error.message
-							: "UNCLASSIFIED_VIDEO_EFFECT_POLICY_ERROR",
-				});
-			}
-		}
+
 		source = merged;
 	}
-	// Validate bundle-only configurations too; a bad pack must stop before build/deploy.
+	// Validate transport and optional admission state without changing authoritative policy.
 	const effective = expandVideoRuntimeEnvironment(parseEnv(source));
 	// Preserve explicit authoritative kill switches; ambient private approvals cannot
 	// supply generation evidence when publishing the authenticated unavailable state.
 	requireRumpelstiltskinPreparation(effective);
-	if (effective.RAINDANCE_ENABLED === "true") {
-		if (effective.VIDEO_V1_ENABLED !== "true") throw new Error("VIDEO_EFFECT_VIDEO_DISABLED");
-		for (const effectId of ["raindance-solo", "raindance-duo"] as const) {
-			resolveVideoEffectPrice(
-				{
-					effectId,
-					presetKey: "standard",
-					inputs: { leftAssetId: "readiness", rightAssetId: "readiness" },
-				},
-				effective,
-			);
-		}
-	}
+	assessOptionalVideoEffectOptions(effective);
 	return source;
 }
 

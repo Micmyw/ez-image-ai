@@ -270,7 +270,6 @@ describe("build policy compaction semantics", () => {
 		[{ VIDEO_PRICE_VALID_UNTIL: "2000-01-01" }, {}, "VIDEO_PRICE_EXPIRED"],
 		[{ VIDEO_COST_STORAGE_MICROS: undefined }, {}, "VIDEO_COST_POLICY_NOT_CONFIGURED"],
 		[{ RUMPELSTILTSKIN_ACCESS: "invalid" }, {}, "RUMPELSTILTSKIN_ACCESS_INVALID"],
-		[{}, { VIDEO_V1_ENABLED: "false" }, "VIDEO_EFFECT_VIDEO_DISABLED"],
 	] as const)(
 		"rejects invalid preparation before and after compaction: %j",
 		(patch, flatPatch, error) => {
@@ -284,4 +283,22 @@ describe("build policy compaction semantics", () => {
 				).toThrow(error);
 		},
 	);
+	it("preserves an ordinary-video close without letting optional effects block compaction", () => {
+		const { input } = scenario({}, { VIDEO_V1_ENABLED: "false" });
+		for (const approval of [undefined, VIDEO_EFFECT_RETAIL_PRICE_VERSION]) {
+			const result = parseEnv(
+				readCloudflareBuildEnvironment({
+					...input,
+					VIDEO_EFFECT_BUILD_RETAIL_PRICE_VERSION: approval,
+				}),
+			);
+			expect(result.VIDEO_V1_ENABLED).toBe("false");
+			expect(verifyApprovedVideoEffectPrices(result)).toMatchObject({
+				checked: 0,
+				effects: expect.arrayContaining([
+					expect.objectContaining({ available: false, reasons: ["VIDEO_EFFECT_VIDEO_DISABLED"] }),
+				]),
+			});
+		}
+	});
 });

@@ -36,7 +36,6 @@ import {
 	type VideoPrice,
 } from "./video-v1";
 import { claimVideoProviderSubmission, recordVideoInputReview } from "./video-v1-execution";
-import { assertVideoPriceApprovalValid } from "./video-v1-price-approval";
 
 const request = {
 	mode: "text-to-video" as const,
@@ -521,7 +520,6 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			pricingDetails: { priceApprovalExpiryMode: "none", validUntil: null },
 			paidFundingPolicy: { minimumUsdMicrosPerCredit: "21944" },
 		});
-		assertVideoPriceApprovalValid(approvedPrice.pricingDetails!, afterPreviousDeadline);
 		const textSafetyProfile = createVideoTextSafetyProfile();
 		const ruleVersion = "isolated-price-approval-test";
 		await runWithDatabaseClient(client, () =>

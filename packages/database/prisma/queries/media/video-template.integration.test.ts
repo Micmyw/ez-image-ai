@@ -89,6 +89,9 @@ async function fixture(
 	credits = 100n,
 	effectId: VideoEffectId = "hotel-lobby-duo",
 	duration: 5 | 10 = 5,
+	pricingDetails: Prisma.InputJsonObject = {
+		validUntil: new Date(Date.now() + 3600000).toISOString(),
+	},
 ) {
 	const ownerId = `template-db-test-${randomUUID()}`;
 	owners.push(ownerId);
@@ -140,7 +143,7 @@ async function fixture(
 			moderationCostMicros: 10000n,
 			pricingBasis: "ISOLATED_TEST_NOT_FORMAL",
 			pricingVersion: "TEMPLATE_TEST_V1",
-			pricingDetails: { validUntil: new Date(Date.now() + 3600000).toISOString() },
+			pricingDetails,
 		},
 		visualSafetyProfile: createVideoVisualSafetyProfile("seeapi", duration),
 		textSafetyProfile: profile,
@@ -251,6 +254,31 @@ async function storedScene(jobId: string) {
 	return asset;
 }
 describe("template admission and durable scene PostgreSQL regressions", () => {
+	it.each([
+		{ validUntil: "2000-01-01T00:00:00.000Z" },
+		{ priceApprovalExpiryMode: "until", validUntil: "2000-01-01T00:00:00.000Z" },
+		{ priceApprovalExpiryMode: "none", validUntil: null },
+	])("claims a scene once without enforcing retired price metadata %j", async (pricingDetails) => {
+		const f = await fixture(100n, "hotel-lobby-duo", 5, pricingDetails);
+		const { jobId } = await createVideoTemplateJobRecord(f.input, db);
+		await reviewInputs(jobId);
+		const frozen = (await db.generationJob.findUniqueOrThrow({ where: { id: jobId } }))
+			.pricingSnapshot;
+		const input = { jobId, callbackTokenHash: randomUUID() };
+		expect(await run(() => claimVideoTemplateSceneSubmission(input))).toMatchObject({
+			claimed: true,
+		});
+		expect(await run(() => claimVideoTemplateSceneSubmission(input))).toMatchObject({
+			claimed: false,
+		});
+		expect(
+			(await db.generationJob.findUniqueOrThrow({ where: { id: jobId } })).pricingSnapshot,
+		).toEqual(frozen);
+		expect((await db.creditReservation.findUniqueOrThrow({ where: { jobId } })).status).toBe(
+			"ACTIVE",
+		);
+		expect(await db.generationAttempt.count({ where: { jobId } })).toBe(0);
+	});
 	it.each(
 		(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const).flatMap((effectId) =>
 			([5, 10] as const).flatMap((duration) =>

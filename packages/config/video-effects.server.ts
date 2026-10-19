@@ -535,6 +535,43 @@ export function readVideoEffectPricingDisplay(details: unknown) {
 	return parsed.success ? parsed.data : null;
 }
 
+/** The existing approved effect totals apply to new admissions, never frozen orders. */
+export function assertApprovedVideoEffectRetailPrice(
+	request: VideoEffectRequest,
+	environment: Record<string, string | undefined>,
+	price: ReturnType<typeof resolveVideoEffectPrice>,
+	context: VideoRetailPricingContext = {},
+) {
+	if (
+		![HOTEL_LOBBY_EFFECT_ID, RAINDANCE_SOLO_EFFECT_ID, RAINDANCE_DUO_EFFECT_ID].some(
+			(id) => id === request.effectId,
+		)
+	)
+		return;
+	const duration = request.duration ?? 5;
+	if ((duration !== 5 && duration !== 10) || !isVideoEffectRetailPricingApproved(environment))
+		return;
+	const audience = context.audience ?? "standard";
+	const standardCredits = duration === 5 ? 69n : 116n;
+	const annualCredits = duration === 5 ? 69n : 101n;
+	const standardMarkup = duration === 5 ? "20000" : "27500";
+	const annualMarkup = duration === 5 ? "20000" : "23750";
+	const details = price.pricingDetails;
+	const retail = "retail" in details ? details.retail : undefined;
+	if (
+		price.credits !== (audience === "annual" ? annualCredits : standardCredits) ||
+		retail?.display.standardCredits !== standardCredits.toString() ||
+		retail?.display.annualCredits !== annualCredits.toString()
+	)
+		throw new Error("VIDEO_EFFECT_APPROVED_PRICES_CHANGED");
+	if (
+		details.costPolicy.markupBps !== (audience === "annual" ? annualMarkup : standardMarkup) ||
+		retail.standardMarkupBps !== standardMarkup ||
+		retail.annualMarkupBps !== annualMarkup
+	)
+		throw new Error("VIDEO_EFFECT_APPROVED_MARKUP_CHANGED");
+}
+
 export function resolveVideoEffectPrice(
 	request: VideoEffectRequest,
 	env: Record<string, string | undefined>,
