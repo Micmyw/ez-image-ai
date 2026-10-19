@@ -103,6 +103,17 @@ Profiles tests prove absent/default and explicit true/false transport for both
 Workers and hybrid. Actual deployed binding and Worker behavior remain a release
 check. Consumers, polling and recovery keep working when the producer is off.
 
+Cloudflare Git builds accept the dedicated private build control
+`ACCOUNT_INPUT_COPY_BUILD_ENABLED=true|false`. Its exact value overlays only
+`ACCOUNT_INPUT_COPY_ENABLED` in the authoritative private release input; an absent
+control preserves that source verbatim. Ambient `ACCOUNT_INPUT_COPY_ENABLED` does
+not enable it. Invalid values fail with a fixed code, both ambient controls are
+removed from subprocess environments, and public build variables exclude them.
+This allows an explicit post-consumer normal release without reading or rewriting
+the packed secret. Adding this transport does not enable the producer or modify
+any deployed variable. Its full web-host suite413 and type/lint checks passed;
+official exact-head CI and actual serving/config evidence remain required.
+
 The website/jobs pipelines can deploy simultaneously and finish in either order:
 
 1. Keep both old and new producers off while deploying the compatible website,
