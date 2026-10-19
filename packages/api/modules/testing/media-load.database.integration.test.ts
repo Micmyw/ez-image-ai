@@ -1,8 +1,9 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { getCreditInvariantReport } from "@repo/database";
+import { configuredProviderDispatchKieCapacity, getCreditInvariantReport } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
 import { executeMediaLoadRequest, type LoadTestConfiguration } from "./media-load";
 
 const TEST_DATABASE_URL = assertSafeTestDatabaseUrl(process.env.TEST_DATABASE_URL);
@@ -19,14 +20,31 @@ const configuration: LoadTestConfiguration = {
 
 describe("controlled media load database path", () => {
 	let client: PrismaClient;
+	let mockProviderConcurrency: string;
 
-	beforeAll(() => {
+	beforeAll(async () => {
 		client = new PrismaClient({
 			adapter: new PrismaPg({ connectionString: TEST_DATABASE_URL }),
 		});
+		// Keep historical occupancy intact and add only this suite's finite mock send budget.
+		mockProviderConcurrency = await providerCapacityForTestRequests(client, 8);
+		vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
+		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", mockProviderConcurrency);
 	});
 
-	afterAll(async () => client?.$disconnect());
+	afterAll(async () => {
+		try {
+			await client?.$disconnect();
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it("retains explicit mock dispatch capacity without external provider configuration", async () => {
+		await withoutExternalProviderConfiguration(async () => {
+			expect(configuredProviderDispatchKieCapacity()).toBe(Number(mockProviderConcurrency));
+		});
+	});
 
 	it("creates one quote, reserved job, ledger reservation, attempt and outbox path", async () => {
 		const idempotencyKey = `k6:${RUN_ID}:1:1`;

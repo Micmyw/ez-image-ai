@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { providerCapacityForTestRequests } from "../../../test-support/provider-dispatch-capacity";
 import type { Prisma } from "../../generated/client";
 import {
 	configuredProviderDispatchKieCapacity,
@@ -89,5 +90,40 @@ describe("provider capacity configuration", () => {
 			),
 		).toBe(true);
 		expect(query).not.toHaveBeenCalled();
+	});
+});
+
+describe("finite lifecycle fixture capacity", () => {
+	it.each([
+		{ jobs: 100, attempts: 2, scenes: 3, expected: "108" },
+		{ jobs: 1, attempts: 100, scenes: 3, expected: "111" },
+	])(
+		"preserves both old admission and new send occupancy: %j",
+		async ({ jobs, attempts, scenes, expected }) => {
+			expect(
+				await providerCapacityForTestRequests(
+					{
+						generationJob: { count: async () => jobs },
+						generationAttempt: { count: async () => attempts },
+						videoTemplateExecution: { count: async () => scenes },
+					},
+					8,
+				),
+			).toBe(expected);
+		},
+	);
+	it("rejects an unbounded or invalid mock budget before querying", async () => {
+		const count = vi.fn();
+		await expect(
+			providerCapacityForTestRequests(
+				{
+					generationJob: { count },
+					generationAttempt: { count },
+					videoTemplateExecution: { count },
+				},
+				0,
+			),
+		).rejects.toThrow("INVALID_TEST_PROVIDER_REQUEST_BUDGET");
+		expect(count).not.toHaveBeenCalled();
 	});
 });
