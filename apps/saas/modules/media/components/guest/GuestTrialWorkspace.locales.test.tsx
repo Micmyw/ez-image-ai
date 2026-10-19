@@ -16,24 +16,28 @@ const expectations = {
 		placeholder: "Your watermarked result will appear here.",
 		compact: "Watermarked · temporary",
 		count: "1,234 / 10,000",
+		bonus: "one-time 5-credit bonus",
 	},
 	de: {
 		source: "Privat für diese Bearbeitung übergeben",
 		placeholder: "Dein Ergebnis mit Wasserzeichen erscheint hier.",
 		compact: "Mit Wasserzeichen · temporär",
 		count: "1.234 / 10.000",
+		bonus: "einmalig 5 Bonus-Credits",
 	},
 	es: {
 		source: "Transferido de forma privada para esta edición",
 		placeholder: "Tu resultado con marca de agua aparecerá aquí.",
 		compact: "Con marca de agua · temporal",
 		count: "1234 / 10.000",
+		bonus: "bono único de 5 créditos",
 	},
 	fr: {
 		source: "Transférée en privé pour cette retouche",
 		placeholder: "Votre résultat filigrané apparaîtra ici.",
 		compact: "Filigrané · temporaire",
 		count: "1 234 / 10 000",
+		bonus: "bonus unique de 5 crédits",
 	},
 } as const;
 
@@ -49,6 +53,7 @@ describe("GuestTrialWorkspace locales", () => {
 				canSubmit: true,
 				isSubmitting: false,
 				resultUrl: null,
+				dailyAllowance: { remaining: 0, limit: 2 },
 				actions: {
 					submit: vi.fn(),
 					viewStatus: vi.fn(),
@@ -78,6 +83,7 @@ describe("GuestTrialWorkspace locales", () => {
 			expect(visibleText).toContain(expected.placeholder);
 			expect(visibleText).toContain(expected.compact);
 			expect(visibleText).toContain(expected.count);
+			expect(visibleText).toContain(expected.bonus);
 		},
 	);
 });

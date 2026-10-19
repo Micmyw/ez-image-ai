@@ -1370,7 +1370,8 @@
 			"dailyAllowance": "Hoy: quedan {remaining, number} de {limit, number} ediciones gratuitas",
 			"dailyReset": "Se restablecen cada día a las 00:00 UTC. Las ediciones no utilizadas no se acumulan.",
 			"dailyLimitReached": "Has usado las dos ediciones gratuitas de hoy. Vuelve después de las 00:00 UTC para disponer de dos más.",
-			"editAnother": "Editar otra imagen"
+			"editAnother": "Editar otra imagen",
+			"loginBonus": "Inicia sesión para continuar con los créditos de tu cuenta. Cada cuenta recibe un bono único de 5 créditos, aparte de los créditos gratuitos mensuales."
 		},
 		"upgradeDialog": {
 			"title": "Desbloquea más modelos de imagen",
@@ -1380,7 +1381,7 @@
 			"continue": "Elegir un plan",
 			"modelDescription": "{model} está incluido en Pro, Ultimate y Max. Elige el plan que se adapte a tus necesidades de edición.",
 			"monthlyCredits": "{credits, number} créditos/mes",
-			"planDetails": "{concurrency, number} ediciones a la vez · imágenes de hasta {megabytes, number} MB",
+			"planDetails": "Imágenes de hasta {megabytes, number} MB",
 			"planNames": {
 				"creator": "Pro",
 				"ultimate": "Ultimate",

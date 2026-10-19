@@ -1370,7 +1370,8 @@
 			"dailyAllowance": "Heute: {remaining, number} von {limit, number} kostenlosen Bearbeitungen übrig",
 			"dailyReset": "Täglich um 00:00 UTC zurückgesetzt. Ungenutzte Bearbeitungen werden nicht übertragen.",
 			"dailyLimitReached": "Deine zwei kostenlosen Bearbeitungen für heute sind aufgebraucht. Ab 00:00 UTC stehen dir zwei neue zur Verfügung.",
-			"editAnother": "Ein weiteres Bild bearbeiten"
+			"editAnother": "Ein weiteres Bild bearbeiten",
+			"loginBonus": "Melde dich an, um mit Konto-Credits fortzufahren. Jedes Konto erhält einmalig 5 Bonus-Credits, zusätzlich zu den monatlichen Gratis-Credits."
 		},
 		"upgradeDialog": {
 			"title": "Weitere Bildmodelle freischalten",
@@ -1380,7 +1381,7 @@
 			"continue": "Tarif auswählen",
 			"modelDescription": "{model} ist in Pro, Ultimate und Max enthalten. Wähle den passenden Tarif für deine Bildbearbeitung.",
 			"monthlyCredits": "{credits, number} Credits/Monat",
-			"planDetails": "{concurrency, number} Bearbeitungen gleichzeitig · Bilder bis {megabytes, number} MB",
+			"planDetails": "Bilder bis {megabytes, number} MB",
 			"planNames": {
 				"creator": "Pro",
 				"ultimate": "Ultimate",

@@ -1,10 +1,11 @@
 "use client";
 
+import { config } from "@config";
 import { ComposerHeader } from "@media/components/editor/ComposerHeader";
 import { PromptIdeas } from "@media/components/editor/PromptIdeas";
+import { ImageModelSelector } from "@media/components/ImageModelSelector";
 
 import "@media/components/editor/generation-composer.css";
-import { ImageModelSelector } from "@media/components/ImageModelSelector";
 import {
 	ImageOutputSettings,
 	type ImageOutputSettingsLabels,
@@ -29,6 +30,7 @@ import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { Turnstile } from "@repo/ui/components/turnstile";
 import { trackBrowserGrowthEvent } from "@repo/utils/lib/growth-analytics-browser";
+import { FeedbackButton } from "@shared/components/FeedbackButton";
 import {
 	STUDIO_WORKSPACE_RESET_EVENT,
 	type StudioWorkspaceResetDetail,
@@ -70,6 +72,7 @@ import {
 	getGuestCapability,
 	type GuestCapabilitySnapshot,
 	type GuestCapabilityProduct,
+	type GuestDraftUploadCheckpoint,
 	type GuestProductKey,
 	LANDING_IMAGE_CONTENT_TYPES,
 	submitGuestDraftHandoff,
@@ -127,7 +130,7 @@ function LandingGeneratorWorkspace({
 }) {
 	const effectEditor = useEffectEditor();
 	const workspace = useGenerationMode();
-	useGeneratorSignInDraft(async (destination) => {
+	async function saveSignInDraft(destination: URL) {
 		if (!selectedProduct || !selectedSku || (!prompt.trim() && !file)) return;
 		const { writeEditorUpgradeDraft } = await import("@payments/lib/editor-upgrade");
 		const saved = writeEditorUpgradeDraft(sessionStorage, {
@@ -147,7 +150,8 @@ function LandingGeneratorWorkspace({
 		});
 		if (!saved) throw new Error("IMAGE_DRAFT_STORAGE_UNAVAILABLE");
 		destination.searchParams.set("resume", "text");
-	});
+	}
+	useGeneratorSignInDraft(saveSignInDraft);
 	const isEffectEditor = Boolean(effectEditor);
 	const effectPreset = effectEditor?.selectedPreset;
 	const requireReference = referenceRequired || effectPreset?.inputRequirement === "required";
@@ -203,7 +207,17 @@ function LandingGeneratorWorkspace({
 	const [effectDraftReady, setEffectDraftReady] = useState(false);
 	const [reselectReference, setReselectReference] = useState(false);
 	const effectDraftInitialized = useRef(false);
-	const [submitError, setSubmitError] = useState<"turnstile" | "upload" | "rateLimit">();
+	const [submitError, setSubmitError] = useState<
+		| "turnstile"
+		| "upload"
+		| "rateLimit"
+		| "contentRejected"
+		| "reviewRequired"
+		| "safetyUnavailable"
+		| "reviewPending"
+		| "reviewUnknown"
+		| "referenceExpired"
+	>();
 	const [uploadPercentage, setUploadPercentage] = useState<number>();
 	const [stage, setStage] = useState<LandingGeneratorStage>("checking");
 	const [isDragging, setIsDragging] = useState(false);
@@ -215,6 +229,19 @@ function LandingGeneratorWorkspace({
 	const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 	const uploadAttemptKey = useRef<string | null>(null);
 	const submissionInFlight = useRef(false);
+	const guestUploadCheckpoint = useRef<GuestDraftUploadCheckpoint | null>(null);
+	useEffect(() => {
+		guestUploadCheckpoint.current = null;
+	}, [
+		file,
+		prompt,
+		selectedProductKey,
+		selectedSkuKey,
+		aspectRatio,
+		controlValues.outputFormat,
+		controlValues.background,
+		capability?.version,
+	]);
 
 	useEffect(() => {
 		let active = true;
@@ -623,6 +650,7 @@ function LandingGeneratorWorkspace({
 		setUploadPercentage(undefined);
 		setSubmitError(undefined);
 		uploadAttemptKey.current = null;
+		guestUploadCheckpoint.current = null;
 	}
 
 	function changeSku(nextSkuKey: string) {
@@ -647,6 +675,23 @@ function LandingGeneratorWorkspace({
 			return next[key] === value ? next : current;
 		});
 		setSubmitError(undefined);
+	}
+
+	async function continueWithAccount() {
+		setTextDraftError(false);
+		try {
+			const returnPath = effectEditor?.getReturnPath("resume") ?? "/create?resume=text";
+			let redirectTo: string;
+			if (workspace) redirectTo = await workspace.prepareSignIn(returnPath);
+			else {
+				const destination = new URL(returnPath, window.location.origin);
+				await saveSignInDraft(destination);
+				redirectTo = `${destination.pathname}${destination.search}`;
+			}
+			window.location.assign(`/login?${new URLSearchParams({ redirectTo })}`);
+		} catch {
+			setTextDraftError(true);
+		}
 	}
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
@@ -727,6 +772,10 @@ function LandingGeneratorWorkspace({
 				: `${LOCAL_TURNSTILE_EVIDENCE}-${crypto.randomUUID()}`;
 			if (GUEST_TURNSTILE_SITE_KEY) resetChallenge();
 			const handoff = await uploadGuestDraft({
+				checkpoint: guestUploadCheckpoint.current,
+				onCheckpoint: (checkpoint) => {
+					guestUploadCheckpoint.current = checkpoint;
+				},
 				capabilityVersion: capability.version,
 				productKey: selectedProduct.key,
 				skuKey: selectedSku.skuKey,
@@ -764,6 +813,21 @@ function LandingGeneratorWorkspace({
 				setFileError(fileErrorMessage(error, t, maximumMegabytes));
 			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_RATE_LIMITED") {
 				setSubmitError("rateLimit");
+			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_CONTENT_REJECTED") {
+				setSubmitError("contentRejected");
+			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_REVIEW_REQUIRED") {
+				setSubmitError("reviewRequired");
+			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_SAFETY_UNAVAILABLE") {
+				setSubmitError("safetyUnavailable");
+			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_COMPLETION_TIMEOUT") {
+				setSubmitError("reviewPending");
+			} else if (
+				error instanceof Error &&
+				["GUEST_UPLOAD_SESSION_EXPIRED", "GUEST_UPLOAD_RETRY_INPUT_CHANGED"].includes(error.message)
+			) {
+				setSubmitError("referenceExpired");
+			} else if (guestUploadCheckpoint.current?.uploaded) {
+				setSubmitError("reviewUnknown");
 			} else {
 				setSubmitError("upload");
 			}
@@ -1144,7 +1208,20 @@ function LandingGeneratorWorkspace({
 							variant="error"
 							role="alert"
 						>
-							<AlertDescription>{t(`errors.${submitError}`)}</AlertDescription>
+							<AlertDescription>
+								{t(`errors.${submitError}`)}
+								{submitError === "rateLimit" && (
+									<Button
+										type="button"
+										variant="link"
+										className="mt-1 min-h-11 block"
+										onClick={() => void continueWithAccount()}
+									>
+										{t("actions.signInBonus")}
+									</Button>
+								)}
+							</AlertDescription>
+							<FeedbackButton supportEmail={config.supportEmail} variant="report" kind="bug" />
 						</Alert>
 					)}
 				</form>
@@ -1174,6 +1251,7 @@ function LandingGeneratorWorkspace({
 								: t("freeQueue")}
 					</span>
 				)}
+				<FeedbackButton supportEmail={config.supportEmail} />
 				{(file || requireReference) && (
 					<span className="gap-1.5 sm:ml-auto inline-flex items-center">
 						<LockKeyholeIcon className="size-3.5 text-emerald-300" aria-hidden="true" />
@@ -1374,7 +1452,24 @@ function LandingGeneratorWorkspace({
 										variant="error"
 										role="alert"
 									>
-										<AlertDescription>{t(`errors.${submitError}`)}</AlertDescription>
+										<AlertDescription>
+											{t(`errors.${submitError}`)}
+											{submitError === "rateLimit" && (
+												<Button
+													type="button"
+													variant="link"
+													className="mt-1 min-h-11 block"
+													onClick={() => void continueWithAccount()}
+												>
+													{t("actions.signInBonus")}
+												</Button>
+											)}
+										</AlertDescription>
+										<FeedbackButton
+											supportEmail={config.supportEmail}
+											variant="report"
+											kind="bug"
+										/>
 									</Alert>
 								)}
 							</form>

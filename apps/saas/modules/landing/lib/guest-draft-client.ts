@@ -82,6 +82,14 @@ interface GuestUploadIntent {
 	expiresAt: string;
 }
 
+/** Kept in the mounted composer only; never persisted to browser storage. */
+export interface GuestDraftUploadCheckpoint {
+	requestFingerprint: string;
+	intent: GuestUploadIntent;
+	uploaded: boolean;
+	handoff?: GuestDraftHandoff;
+}
+
 export interface GuestDraftHandoff {
 	action: "/draft/continue";
 	claimToken: string;
@@ -102,6 +110,8 @@ export interface GuestDraftUploadInput {
 	turnstileToken: string;
 	onStage?: (stage: "uploading" | "verifying") => void;
 	onProgress?: (progress: { loaded: number; total: number; percentage: number }) => void;
+	checkpoint?: GuestDraftUploadCheckpoint | null;
+	onCheckpoint?: (checkpoint: GuestDraftUploadCheckpoint) => void;
 }
 
 export async function getGuestCapability(
@@ -141,33 +151,75 @@ export async function createGuestDraftUploadIntent(
 	return result;
 }
 
-export async function uploadGuestDraft(input: GuestDraftUploadInput): Promise<GuestDraftHandoff> {
+export async function uploadGuestDraft(
+	input: GuestDraftUploadInput,
+	options: {
+		fetcher?: typeof fetch;
+		uploadFile?: typeof uploadGuestFile;
+		completion?: Parameters<typeof completeGuestDraftUpload>[1];
+		now?: () => number;
+	} = {},
+): Promise<GuestDraftHandoff> {
 	const prompt = input.prompt.trim();
 	if (!prompt) throw new Error("PROMPT_REQUIRED");
 	const sha256 = await sha256File(input.file);
-	const intent = await createGuestDraftUploadIntent({
-		capabilityVersion: input.capabilityVersion,
-		productKey: input.productKey,
-		contentType: input.file.type as LandingImageContentType,
-		bytes: input.file.size,
+	const requestFingerprint = JSON.stringify([
+		input.capabilityVersion,
+		input.productKey,
+		input.skuKey,
 		sha256,
-		turnstileToken: input.turnstileToken,
-	});
-	input.onStage?.("uploading");
-	await uploadGuestFile(intent.uploadUrl, input.file, input.onProgress);
-	input.onStage?.("verifying");
-	return completeGuestDraftUpload({
-		sessionId: intent.sessionId,
-		completionToken: intent.completionToken,
-		capabilityVersion: input.capabilityVersion,
-		productKey: input.productKey,
-		skuKey: input.skuKey,
-		sha256,
+		input.file.type,
+		input.file.size,
 		prompt,
-		aspectRatio: input.aspectRatio,
-		...(input.outputFormat ? { outputFormat: input.outputFormat } : {}),
-		...(input.background ? { background: input.background } : {}),
-	});
+		input.aspectRatio,
+		input.outputFormat ?? null,
+		input.background ?? null,
+	]);
+	let checkpoint = input.checkpoint;
+	if (checkpoint && checkpoint.requestFingerprint !== requestFingerprint)
+		throw new Error("GUEST_UPLOAD_RETRY_INPUT_CHANGED");
+	const intent =
+		checkpoint?.intent ??
+		(await createGuestDraftUploadIntent(
+			{
+				capabilityVersion: input.capabilityVersion,
+				productKey: input.productKey,
+				contentType: input.file.type as LandingImageContentType,
+				bytes: input.file.size,
+				sha256,
+				turnstileToken: input.turnstileToken,
+			},
+			options.fetcher,
+		));
+	if (new Date(intent.expiresAt).getTime() <= (options.now ?? Date.now)())
+		throw new Error("GUEST_UPLOAD_SESSION_EXPIRED");
+	checkpoint ??= { requestFingerprint, intent, uploaded: false };
+	input.onCheckpoint?.(checkpoint);
+	if (checkpoint.handoff) return checkpoint.handoff;
+	if (!checkpoint.uploaded) {
+		input.onStage?.("uploading");
+		await (options.uploadFile ?? uploadGuestFile)(intent.uploadUrl, input.file, input.onProgress);
+		checkpoint = { ...checkpoint, uploaded: true };
+		input.onCheckpoint?.(checkpoint);
+	}
+	input.onStage?.("verifying");
+	const handoff = await completeGuestDraftUpload(
+		{
+			sessionId: intent.sessionId,
+			completionToken: intent.completionToken,
+			capabilityVersion: input.capabilityVersion,
+			productKey: input.productKey,
+			skuKey: input.skuKey,
+			sha256,
+			prompt,
+			aspectRatio: input.aspectRatio,
+			...(input.outputFormat ? { outputFormat: input.outputFormat } : {}),
+			...(input.background ? { background: input.background } : {}),
+		},
+		{ ...options.completion, fetcher: options.completion?.fetcher ?? options.fetcher },
+	);
+	input.onCheckpoint?.({ ...checkpoint, handoff });
+	return handoff;
 }
 
 export async function uploadGuestFile(
@@ -238,7 +290,20 @@ export async function completeGuestDraftUpload(
 			productKey?: unknown;
 			skuKey?: unknown;
 			accessHint?: unknown;
+			code?: unknown;
 		};
+		if (result.status === "FAILED") {
+			if (
+				typeof result.code !== "string" ||
+				![
+					"GUEST_UPLOAD_CONTENT_REJECTED",
+					"GUEST_UPLOAD_REVIEW_REQUIRED",
+					"GUEST_UPLOAD_SAFETY_UNAVAILABLE",
+				].includes(result.code)
+			)
+				throw new Error("GUEST_UPLOAD_COMPLETION_INVALID");
+			throw new Error(result.code);
+		}
 		if (result.status === "PENDING") {
 			if (
 				typeof result.retryAfterMs !== "number" ||

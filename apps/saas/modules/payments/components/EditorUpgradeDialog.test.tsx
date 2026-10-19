@@ -25,7 +25,7 @@ vi.mock("next-intl", () => ({
 			"planNames.ultimate": "Ultimate",
 			"planNames.studio": "Max",
 			monthlyCredits: `${values?.credits} credits/mo`,
-			planDetails: `${values?.concurrency} edits at once / ${values?.megabytes} MB`,
+			planDetails: `${values?.megabytes} MB images${values && "concurrency" in values ? ` / ${values.concurrency} edits at once` : ""}`,
 			cancel: "Keep editing",
 			continue: "Choose a plan",
 		})[key] ?? key,
@@ -54,8 +54,8 @@ describe("EditorUpgradeDialog", () => {
 		expect(visibleText).toContain("700 credits/mo");
 		expect(visibleText).toContain("1800 credits/mo");
 		expect(visibleText).toContain("3000 credits/mo");
-		for (const concurrency of [3, 6, 10])
-			expect(visibleText).toContain(`${concurrency} edits at once / 20 MB`);
+		expect(visibleText).toContain("20 MB images");
+		expect(visibleText).not.toContain("edits at once");
 		expect(visibleText).toContain("Choose a plan");
 		expect(visibleText).not.toMatch(/image-quality|provider|video|SKU/i);
 	});

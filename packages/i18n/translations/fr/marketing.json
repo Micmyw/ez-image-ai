@@ -271,12 +271,19 @@
 				"standard": "Essayer gratuitement",
 				"quality": "Continuer",
 				"retry": "Réessayer",
-				"retryAvailability": "Vérifier la disponibilité"
+				"retryAvailability": "Vérifier la disponibilité",
+				"signInBonus": "Connexion · bonus unique de 5 crédits par compte"
 			},
 			"errors": {
 				"rateLimit": "La limite d’envoi pour les invités est atteinte. Réessayez plus tard. Votre image et votre instruction sont conservées.",
 				"turnstile": "Terminez la vérification puis réessayez.",
-				"upload": "Impossible de préparer cette retouche invitée privée. Réessayez l’import."
+				"upload": "Impossible de préparer cette retouche invitée privée. Réessayez l’import.",
+				"contentRejected": "Cette image de référence n’a pas passé le contrôle de sécurité. Choisissez une autre image.",
+				"reviewRequired": "Cette image de référence nécessite un examen manuel. Aucune génération n’a commencé.",
+				"safetyUnavailable": "Le contrôle de sécurité est indisponible. Votre image et votre description sont conservées ; vérifiez cette demande plus tard.",
+				"reviewPending": "Votre image de référence est toujours en cours de vérification. Réessayez pour vérifier le même téléversement.",
+				"referenceExpired": "Ce téléversement ne peut plus être réutilisé. Choisissez à nouveau l’image pour en commencer un autre.",
+				"reviewUnknown": "Nous n’avons pas pu confirmer le contrôle de sécurité. Votre téléversement est conservé ; réessayez pour vérifier la même demande."
 			},
 			"prompt": "Décrivez votre retouche",
 			"reference": "Image source",

@@ -7,7 +7,7 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { RouterClient } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const harness = vi.hoisted(() => ({ active: undefined as any }));
 vi.mock("@repo/auth", () => ({
@@ -23,8 +23,17 @@ vi.mock("@repo/auth", () => ({
 vi.mock("@repo/database/client", () => ({
 	db: new Proxy({}, { get: (_target, key) => harness.active.database[key] }),
 }));
-vi.mock("@repo/database", async (original) => ({
-	...(await original<typeof import("@repo/database")>()),
+// This is a DB-port simulation. Import its real pure predicate directly instead of
+// initializing the unrelated generated Prisma client through the database barrel.
+vi.mock("@repo/database", async () => ({
+	unexpiredStorageReservations: (
+		await import("../../../../database/prisma/queries/media/temporary-references")
+	).unexpiredStorageReservations,
+	effectiveMediaStorageLimit: (
+		await import("../../../../database/prisma/queries/media/storage-quota")
+	).effectiveMediaStorageLimit,
+	recordTextModerationOutcome: vi.fn(),
+	findEligibleImageEditParentForOwner: vi.fn(),
 	findGenerationSubmissionQuote: (owner: string, quoteId: string) =>
 		harness.active.dependencies.findQuote(owner, quoteId),
 	createGenerationJobTransaction: (input: unknown) =>
@@ -55,7 +64,11 @@ vi.mock("@repo/jobs/orchestration/client", () => ({
 	dispatchJob: (task: string, payload: unknown) => harness.active.dispatchTask(task, payload),
 }));
 vi.mock("../lib/rate-limit", () => ({
-	enforceMediaRateLimit: () => harness.active.operation("rateLimit"),
+	enforceMediaRateLimit: async (_owner: string, action: string) => {
+		harness.active.rateLimitActions.push(action);
+		await harness.active.operation("rateLimit");
+		if (harness.active.rejectRateLimits) throw new Error("RATE_LIMITED");
+	},
 }));
 vi.mock("../lib/free-plan-credits", () => ({
 	ensureFreePlanCreditsForUser: () => harness.active.operation("freeGrant"),
@@ -76,7 +89,6 @@ import { getCurrentExecutableRouteGraphOptions } from "../lib/executable-route-g
 import { createFlowTiming } from "../lib/flow-timing";
 import { assertGenerationAllowed } from "../lib/generation-authorization";
 import { loadUserPlanEntitlement } from "../lib/plan-entitlement";
-import { enforceMediaRateLimit } from "../lib/rate-limit";
 import { createGenerationForUser, createGenerationFromApprovedQuote } from "./create-generation";
 import { createQuoteForUser } from "./create-quote";
 import {
@@ -178,6 +190,7 @@ async function loadTimingOnlyBaseline(): Promise<Domain> {
 /** Serial delayed DB boundaries model the current one-connection request client, not SQL execution. */
 function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 	const counts: Record<string, number> = {};
+	const rateLimitActions: string[] = [];
 	let queue = Promise.resolve();
 	const operation = (name: string, milliseconds = 8) => {
 		counts[name] = (counts[name] ?? 0) + 1;
@@ -209,6 +222,8 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 			},
 		},
 		storageUsageReservation: { aggregate: read("storageRead", { _sum: { bytes: 0n } }) },
+		subscription: { findMany: read("storageEntitlementRead", []) },
+		billingPeriod: { fields: { paidAmount: "paidAmount" } },
 	};
 	const createQuoteDependencies: NonNullable<Parameters<typeof createQuoteForUser>[2]> = {
 		now: () => new Date(),
@@ -226,23 +241,26 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 		}),
 		persistApproved: async (quote) => {
 			await operation("quoteTransaction", 16);
-			if (quotes.has(quote.quoteId!)) throw { code: "P2002" };
-			const saved = { ...quote, id: quote.quoteId!, costMicros: quote.costMicros ?? 0n, job: null };
+			const quoteId = quote.quoteId ?? `quote-${quotes.size + 1}`;
+			if (quotes.has(quoteId)) throw { code: "P2002" };
+			const saved = { ...quote, id: quoteId, costMicros: quote.costMicros ?? 0n, job: null };
 			quotes.set(saved.id, saved);
 			return saved;
 		},
 		recordDenied: vi.fn(),
 	};
-	const createJobDependencies: NonNullable<Parameters<typeof createGenerationForUser>[2]> = {
+	// The immutable before fixture still loads its legacy admission quota.
+	const createJobDependencies: NonNullable<Parameters<typeof createGenerationForUser>[2]> & {
+		loadEntitlement: typeof loadUserPlanEntitlement;
+	} = {
 		now: () => new Date(),
 		findQuote: async (_owner, id) => {
 			await operation("quoteRead");
 			return quotes.get(id) ?? null;
 		},
 		getRouteGraphOptions: getCurrentExecutableRouteGraphOptions,
-		assertAllowed: domain.assertGenerationAllowed,
 		loadEntitlement: loadUserPlanEntitlement,
-		enforceRateLimit: enforceMediaRateLimit,
+		assertAllowed: domain.assertGenerationAllowed,
 		createGenerationJob: async (request) => {
 			await operation("jobTransaction", 24);
 			const existing = jobs.get(request.quoteId);
@@ -283,8 +301,8 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 		},
 		createQuote: (owner, input, _dependencies, submission, timing) =>
 			domain.createQuoteForUser(owner, input, createQuoteDependencies, submission, timing),
-		createJob: (owner, input, _dependencies, timing) =>
-			domain.createGenerationForUser(owner, input, createJobDependencies, timing),
+		createJob: (owner, input, _dependencies, timing, receipt) =>
+			domain.createGenerationForUser(owner, input, createJobDependencies, timing, receipt),
 		createPreparedJob: (owner, input, admission, _dependencies, timing) =>
 			domain.createGenerationFromApprovedQuote(
 				owner,
@@ -342,6 +360,8 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 	};
 	return {
 		counts,
+		rateLimitActions,
+		rejectRateLimits: false,
 		operation,
 		database,
 		dependencies,
@@ -508,6 +528,110 @@ function writeVerifiedEvidence(variant: Sample["variant"], samples: Sample[]) {
 	);
 }
 
+describe("quote and generation request accounting", () => {
+	beforeEach(() => vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie"));
+	afterEach(() => vi.unstubAllEnvs());
+	it("guards a standalone quote without using the generation bucket or creating a job", async () => {
+		const f = fixture();
+		harness.active = f;
+		await createQuoteForUser("owner", INPUT, f.createQuoteDependencies);
+		expect(f.rateLimitActions).toEqual(["media:quote"]);
+		expect(f.counts.quoteTransaction).toBe(1);
+		expect(f.counts.jobTransaction ?? 0).toBe(0);
+		expect(f.counts.reservation ?? 0).toBe(0);
+	});
+	it("does not accept a client skip or receipt and never persists the server receipt", async () => {
+		const f = fixture();
+		harness.active = f;
+		const parsed = submitGenerationInputSchema.parse({
+			...INPUT,
+			skipRateLimit: true,
+			rateLimitReceipt: { ownerId: "owner" },
+		});
+		expect(parsed).not.toHaveProperty("skipRateLimit");
+		expect(parsed).not.toHaveProperty("rateLimitReceipt");
+		const result = await submitGenerationForUser("owner", parsed, f.dependencies);
+		const quote = await f.dependencies.findQuote("owner", result.quote.id);
+		expect(quote?.inputSnapshot).not.toHaveProperty("rateLimitReceipt");
+		expect(quote?.inputSnapshot).not.toHaveProperty("skipRateLimit");
+		expect(f.rateLimitActions).toEqual(["media:generation"]);
+		expect(f.counts.reservation).toBe(1);
+	});
+	it("guards quote plus submit separately and creates only one reservation", async () => {
+		const f = fixture();
+		harness.active = f;
+		const quote = await createQuoteForUser("owner", INPUT, f.createQuoteDependencies);
+		await createGenerationForUser(
+			"owner",
+			{ quoteId: quote.id, idempotencyKey: INPUT.idempotencyKey },
+			f.createJobDependencies,
+		);
+		expect(f.rateLimitActions).toEqual(["media:quote", "media:generation"]);
+		expect(f.counts.reservation).toBe(1);
+	});
+	it("charges a merged submission once and returns its accepted replay without another reservation", async () => {
+		const f = fixture();
+		harness.active = f;
+		const first = await submitGenerationForUser("owner", INPUT, f.dependencies);
+		const replay = await submitGenerationForUser("owner", INPUT, f.dependencies);
+		expect(replay).toMatchObject({ job: { id: first.job.id }, replayed: true });
+		// A replay is a new interface request, never another business reservation.
+		expect(f.rateLimitActions).toEqual(["media:generation", "media:generation"]);
+		expect(f.counts.reservation).toBe(1);
+	});
+	it("checks each concurrent HTTP request once while accepting the same job and reservation once", async () => {
+		const f = fixture();
+		harness.active = f;
+		const results = await Promise.all([
+			submitGenerationForUser("owner", INPUT, f.dependencies),
+			submitGenerationForUser("owner", INPUT, f.dependencies),
+		]);
+		expect(new Set(results.map((result) => result.job.id)).size).toBe(1);
+		expect(f.rateLimitActions).toEqual(["media:generation", "media:generation"]);
+		expect(f.counts.reservation).toBe(1);
+	});
+	it("counts two different accepted jobs as two reservations and two generation interface checks", async () => {
+		const f = fixture();
+		harness.active = f;
+		const first = await submitGenerationForUser("owner", INPUT, f.dependencies);
+		const second = await submitGenerationForUser(
+			"owner",
+			{ ...INPUT, idempotencyKey: "simulation-request-2" },
+			f.dependencies,
+		);
+		expect(first.job.id).not.toBe(second.job.id);
+		expect(f.rateLimitActions).toEqual(["media:generation", "media:generation"]);
+		expect(f.counts.reservation).toBe(2);
+	});
+	it.each(["quote", "merged", "generation"] as const)(
+		"retains the %s flood guard before moderation or job admission",
+		async (path) => {
+			const f = fixture();
+			harness.active = f;
+			const quote =
+				path === "generation"
+					? await createQuoteForUser("owner", INPUT, f.createQuoteDependencies)
+					: undefined;
+			f.rejectRateLimits = true;
+			const waffoBefore = f.counts.waffo ?? 0;
+			const call =
+				path === "quote"
+					? createQuoteForUser("owner", INPUT, f.createQuoteDependencies)
+					: path === "merged"
+						? submitGenerationForUser("owner", INPUT, f.dependencies)
+						: createGenerationForUser(
+								"owner",
+								{ quoteId: quote!.id, idempotencyKey: INPUT.idempotencyKey },
+								f.createJobDependencies,
+							);
+			await expect(call).rejects.toThrow("RATE_LIMITED");
+			expect(f.counts.waffo ?? 0).toBe(waffoBefore);
+			expect(f.counts.jobTransaction ?? 0).toBe(0);
+			expect(f.counts.reservation ?? 0).toBe(0);
+		},
+	);
+});
+
 describe("fixed-delay admission simulation", () => {
 	it("measures actual domain return and simulated Kie acceptance separately with replay", async () => {
 		const verified = process.env.GENERATION_ADMISSION_SNAPSHOT === "verified";
@@ -560,6 +684,7 @@ describe("fixed-delay admission simulation", () => {
 								},
 							];
 						});
+						const initialRateLimitCalls = f.counts.rateLimit;
 						const replay = await domain.submitGenerationForUser("owner", INPUT, f.dependencies);
 						expect(replay.replayed).toBe(true);
 						expect(new Set(results.map((result) => result.job.id)).size).toBe(1);
@@ -574,7 +699,7 @@ describe("fixed-delay admission simulation", () => {
 							expect(f.counts.entitlement).toBe(variant === "after" ? 1 : 3);
 							expect(f.counts.runtimeFlagRead ?? 0).toBe(variant === "after" ? 0 : 4);
 							expect(f.counts.quoteRead ?? 0).toBe(variant === "after" ? 0 : 1);
-							expect(f.counts.rateLimit).toBe(2);
+							expect(initialRateLimitCalls).toBe(variant === "after" ? 1 : 2);
 							expect(f.counts.transactionEntitlementRead ?? 0).toBe(variant === "after" ? 1 : 0);
 						}
 						samples.push({
@@ -688,6 +813,7 @@ describe("fixed-delay admission simulation", () => {
 							clickToAllHttpResponsesDecodedMs: Math.max(...httpReturns) - start,
 							clickToKieAcceptanceMs: f.acceptedAt! - start,
 						};
+						const initialRateLimitCalls = f.counts.rateLimit;
 						const replay = await call(`http-${variant}-${scenario}-${sample}-replay`);
 						expect(replay.replayed).toBe(true);
 						expect(new Set(results.map((result) => result.job.id)).size).toBe(1);
@@ -710,7 +836,7 @@ describe("fixed-delay admission simulation", () => {
 							expect(f.counts.entitlement).toBe(variant === "after" ? 1 : 3);
 							expect(f.counts.runtimeFlagRead ?? 0).toBe(variant === "after" ? 0 : 4);
 							expect(f.counts.quoteRead ?? 0).toBe(variant === "after" ? 0 : 1);
-							expect(f.counts.rateLimit).toBe(2);
+							expect(initialRateLimitCalls).toBe(variant === "after" ? 1 : 2);
 						}
 						samples.push({
 							variant,

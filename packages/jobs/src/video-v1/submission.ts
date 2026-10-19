@@ -246,6 +246,10 @@ export async function reviewVideoInput(
 		reviewUnexpired
 	)
 		return { status: "ALLOW" };
+	// A new text decision cannot renew the frozen visual approval. Keep this
+	// unsent input held until a complete new visual review can be authorized.
+	if (snapshot.mode === "image-to-video" && review.status === "ALLOW")
+		return { status: "ERROR", reasonCode: "VIDEO_INPUT_REVIEW_REQUIRED", retryable: false };
 	const startedAt = job.videoExecution.inputReviewStartedAt ?? deps.now();
 	const config = readVideoV1Config(deps.env);
 	const deadlineAt = new Date(
@@ -393,6 +397,13 @@ export async function submitVideoAttempt(
 		});
 	} catch (error) {
 		const reasonCode = error instanceof Error ? error.message : "";
+		if (reasonCode === "VIDEO_INPUT_REVIEW_REQUIRED") {
+			// The rejected claim never crossed the send fence. A concurrent caller
+			// may have since submitted; that original attempt still takes priority.
+			const latest = await deps.store.getVideoExecutionContext(jobId);
+			if (latest?.attempts[0]) return replaySubmission(latest.attempts[0]);
+			return { status: "INPUT_REVIEW_REQUIRED" };
+		}
 		if (
 			!["VIDEO_PRICE_INVALID", "VIDEO_PRICE_EXPIRED", "VIDEO_FUNDING_POLICY_CHANGED"].includes(
 				reasonCode,
@@ -412,6 +423,7 @@ export async function submitVideoAttempt(
 			return { status: "DEFINITELY_REJECTED", reasonCode: latest.failureCode ?? reasonCode };
 		throw error;
 	}
+	if ("deferred" in claim) return { status: "DEFERRED", retryAfterMs: claim.retryAfterMs };
 	if (!claim.claimed) return replaySubmission(claim.attempt);
 	const attemptId = claim.attempt.id;
 	try {

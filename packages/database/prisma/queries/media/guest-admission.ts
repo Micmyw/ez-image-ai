@@ -11,11 +11,6 @@ import {
 	createModeratedGenerationQuote,
 	fingerprintGenerationQuoteSecurityPayload,
 } from "./quotes";
-import {
-	assertSharedKieCapacity,
-	configuredSharedKieCapacity,
-	lockSharedKieCapacity,
-} from "./shared-provider-capacity";
 import { ACTIVE_GENERATION_JOB_STATUSES } from "./state-machine";
 import type { CreateModeratedGenerationQuoteInput, MediaTransactionClient } from "./types";
 import { isDatabaseUniqueConflict, runReadCommitted } from "./types";
@@ -73,14 +68,17 @@ export interface CreateGuestGenerationTransactionInput {
 	sourceAssetChecksum: string;
 	now: Date;
 	retentionMs: number;
-	queueTtlMs: number;
+	/** @deprecated Queue estimates never reject a valid guest entitlement. */
+	queueTtlMs?: number;
 	serviceTimeMs: number;
 	queueCapacity?: number;
 	maximumBytes: number;
-	maximumGlobalQueueDepth: number;
-	maximumActiveJobsPerGuest: number;
+	/** @deprecated Older callers may send these; task counts do not gate admission. */
+	maximumGlobalQueueDepth?: number;
+	maximumActiveJobsPerGuest?: number;
 	maximumRequestsPerMinute: number;
-	maximumRequestsPerIpPerHour: number;
+	/** Retired transport field; ignored even when an older caller supplies it. */
+	maximumRequestsPerIpPerHour?: number;
 	maximumAcceptedTrialsPerSessionPerDay?: number;
 	maximumActiveJobsPerDevice?: number;
 	maximumAcceptedTrialsPerDevicePerDay?: number;
@@ -196,14 +194,11 @@ export async function createGuestGenerationTransaction(
 	resolveCanonicalQuote: ResolveCanonicalGuestGenerationQuote,
 ): Promise<CreateGuestGenerationTransactionResult> {
 	validateAdmissionInput(input);
-	const providerLimit = configuredSharedKieCapacity();
 	try {
 		return await runReadCommitted(client, async (tx) => {
-			if (providerLimit !== null) await lockSharedKieCapacity(tx);
 			await acquireGuestAdmissionLocks(input, tx);
 			const replay = await findGuestAdmissionReplay(input, tx);
 			if (replay) return replay;
-			if (providerLimit !== null) await assertSharedKieCapacity(tx, providerLimit);
 			if (!(await consumeGuestTurnstileTokenHash(input.turnstile, tx))) {
 				throw new Error("TURNSTILE_REPLAYED");
 			}
@@ -234,43 +229,6 @@ export async function createGuestGenerationTransaction(
 			await assertAnonymousOwner(input.ownerId, tx);
 			const source = await loadAdmissionSource(input, tx);
 			await enforceAdmissionBuckets(input, tx);
-			const activeGuestJobs = await tx.generationJob.count({
-				where: {
-					ownerType: "USER",
-					ownerId: input.ownerId,
-					guestTrial: { promotionPeriod: input.promotionPeriod },
-					status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
-				},
-			});
-			if (activeGuestJobs >= input.maximumActiveJobsPerGuest) {
-				throw new Error("GUEST_OWNER_CAPACITY");
-			}
-			const [activeDeviceJobs, activeIpJobs] = await Promise.all([
-				tx.generationJob.count({
-					where: {
-						serviceClass: "GUEST_SLOW",
-						guestTrial: {
-							promotionPeriod: input.promotionPeriod,
-							deviceHash: input.deviceHash,
-						},
-						status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
-					},
-				}),
-				tx.generationJob.count({
-					where: {
-						serviceClass: "GUEST_SLOW",
-						guestTrial: { promotionPeriod: input.promotionPeriod, ipHash: input.ipHash },
-						status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
-					},
-				}),
-			]);
-			if (activeDeviceJobs >= (input.maximumActiveJobsPerDevice ?? 1)) {
-				throw new Error("GUEST_DEVICE_LIMIT");
-			}
-			if (activeIpJobs >= (input.maximumActiveJobsPerIp ?? 2)) {
-				throw new Error("GUEST_IP_RATE_LIMIT");
-			}
-
 			const queueDepth = await tx.generationJob.count({
 				where: {
 					serviceClass: "GUEST_SLOW",
@@ -278,30 +236,22 @@ export async function createGuestGenerationTransaction(
 					status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
 				},
 			});
-			if (queueDepth >= input.maximumGlobalQueueDepth) {
-				throw new Error("GUEST_QUEUE_CAPACITY");
-			}
 			const riskAdmission = await guestRiskAdmissionAction(input, tx);
 			if (riskAdmission === "REJECT") throw new Error("GUEST_RISK_CAPACITY");
 			const resultExpiresAt = new Date(
 				Math.min(input.now.getTime() + input.retentionMs, source.asset.deleteAfter!.getTime()),
 			);
 			const queueCapacity = input.queueCapacity ?? 1;
+			// A display estimate may exceed the asset lifetime. It is never an
+			// admission or scheduling constraint; actual expiry stays authoritative.
 			const estimate = deriveGuestQueueEstimate({
 				now: input.now,
 				queueDepth: riskAdmission === "SLOW" ? Math.max(queueDepth, queueCapacity) : queueDepth,
 				queueCapacity,
 				serviceTimeMs: riskAdmission === "SLOW" ? input.serviceTimeMs * 2 : input.serviceTimeMs,
 				immutableExpiry: resultExpiresAt,
-			});
-			if (!estimate) throw new Error("GUEST_QUEUE_CAPACITY");
+			}) ?? { projectedDispatchAt: input.now, estimateExpiresAt: resultExpiresAt };
 			const { projectedDispatchAt, estimateExpiresAt } = estimate;
-			if (projectedDispatchAt.getTime() - input.now.getTime() > input.queueTtlMs) {
-				throw new Error("GUEST_QUEUE_CAPACITY");
-			}
-			if (resultExpiresAt <= projectedDispatchAt) {
-				throw new Error("GUEST_QUEUE_CAPACITY");
-			}
 
 			await assertCanonicalGuestQuote(input, resolveCanonicalQuote);
 			await holdQuotedRisk(input, resultExpiresAt, tx);
@@ -360,7 +310,7 @@ export async function createGuestGenerationTransaction(
 					inputSnapshot: input.quote.inputSnapshot,
 					pricingSnapshot: input.quote.pricingSnapshot ?? {},
 					serviceClass: "GUEST_SLOW",
-					dispatchEligibleAt: projectedDispatchAt,
+					dispatchEligibleAt: input.now,
 					guestTrialId: trial.id,
 				},
 			});
@@ -393,7 +343,7 @@ export async function createGuestGenerationTransaction(
 					aggregateId: job.id,
 					dedupeKey: `guest-job:${job.id}:eligible`,
 					payload: { jobId: job.id, trialId: trial.id },
-					availableAt: projectedDispatchAt,
+					availableAt: input.now,
 				},
 			});
 			return {
@@ -767,8 +717,6 @@ async function acquireGuestAdmissionLocks(
 ): Promise<void> {
 	for (const key of [
 		`guest-promotion:${input.promotionPeriod}`,
-		`guest-ip:${input.ipHash}`,
-		`guest-subnet:${input.subnetHash}`,
 		`guest-device:${input.deviceHash}`,
 	]) {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
@@ -979,9 +927,7 @@ async function enforceAdmissionBuckets(
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
 	const minuteStart = new Date(Math.floor(input.now.getTime() / 60_000) * 60_000);
-	const tenMinuteStart = new Date(Math.floor(input.now.getTime() / 600_000) * 600_000);
 	const hourStart = new Date(Math.floor(input.now.getTime() / 3_600_000) * 3_600_000);
-	const dayStart = new Date(Math.floor(input.now.getTime() / 86_400_000) * 86_400_000);
 	const evidenceTtlMs = input.abuseEvidenceTtlMs;
 	if (
 		!(await incrementGuestBucket(
@@ -1003,50 +949,11 @@ async function enforceAdmissionBuckets(
 			"global",
 			hourStart,
 			3_600_000,
-			input.maximumGlobalRequestsPerHour ?? input.maximumRequestsPerIpPerHour,
+			input.maximumGlobalRequestsPerHour ?? 30,
 			evidenceTtlMs,
 		))
 	) {
 		throw new Error("GUEST_GLOBAL_RATE_LIMIT");
-	}
-	if (
-		!(await incrementGuestBucket(
-			tx,
-			`guest-generate:${input.promotionPeriod}:ip:ten-minute`,
-			input.ipHash,
-			tenMinuteStart,
-			600_000,
-			input.maximumRequestsPerIpPerTenMinutes ?? input.maximumRequestsPerIpPerHour,
-			evidenceTtlMs,
-		))
-	) {
-		throw new Error("GUEST_IP_RATE_LIMIT");
-	}
-	if (
-		!(await incrementGuestBucket(
-			tx,
-			`guest-generate:${input.promotionPeriod}:ip:day`,
-			input.ipHash,
-			dayStart,
-			86_400_000,
-			input.maximumRequestsPerIpPerDay ?? input.maximumRequestsPerIpPerHour,
-			evidenceTtlMs,
-		))
-	) {
-		throw new Error("GUEST_IP_RATE_LIMIT");
-	}
-	if (
-		!(await incrementGuestBucket(
-			tx,
-			`guest-generate:${input.promotionPeriod}:subnet:day`,
-			input.subnetHash,
-			dayStart,
-			86_400_000,
-			input.maximumRequestsPerSubnetPerDay ?? input.maximumRequestsPerIpPerHour,
-			evidenceTtlMs,
-		))
-	) {
-		throw new Error("GUEST_SUBNET_RATE_LIMIT");
 	}
 }
 
@@ -1180,23 +1087,14 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 	}
 	for (const value of [
 		input.retentionMs,
-		input.queueTtlMs,
 		input.serviceTimeMs,
 		input.queueCapacity ?? 1,
 		input.maximumBytes,
-		input.maximumGlobalQueueDepth,
-		input.maximumActiveJobsPerGuest,
 		input.maximumRequestsPerMinute,
-		input.maximumRequestsPerIpPerHour,
 		input.maximumAcceptedTrialsPerSessionPerDay ?? 1,
-		input.maximumActiveJobsPerDevice ?? 1,
 		input.maximumAcceptedTrialsPerDevicePerDay ?? 1,
-		input.maximumActiveJobsPerIp ?? 2,
-		input.maximumRequestsPerIpPerTenMinutes ?? input.maximumRequestsPerIpPerHour,
-		input.maximumRequestsPerIpPerDay ?? input.maximumRequestsPerIpPerHour,
-		input.maximumRequestsPerSubnetPerDay ?? input.maximumRequestsPerIpPerHour,
 		input.maximumGlobalRequestsPerMinute ?? input.maximumRequestsPerMinute,
-		input.maximumGlobalRequestsPerHour ?? input.maximumRequestsPerIpPerHour,
+		input.maximumGlobalRequestsPerHour ?? 30,
 		input.abuseEvidenceTtlMs,
 	]) {
 		if (!Number.isSafeInteger(value) || value <= 0) throw new Error("GUEST_CONFIGURATION_ERROR");

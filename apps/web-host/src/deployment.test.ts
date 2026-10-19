@@ -9,8 +9,6 @@ describe("Cloudflare deployment environment", () => {
 			const active = {
 				GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2",
 				GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2",
-				GUEST_IP_MAX_PER_24_HOURS: "3",
-				GUEST_SUBNET_MAX_PER_24_HOURS: "20",
 				GUEST_GLOBAL_MAX_PER_MINUTE: "3",
 				GUEST_GLOBAL_MAX_PER_HOUR: "30",
 				GUEST_GLOBAL_MAX_PER_24_HOURS_OTHER: "unrelated-setting",
@@ -27,6 +25,31 @@ describe("Cloudflare deployment environment", () => {
 			expect(environment).toMatchObject(active);
 		},
 	);
+	it("filters only the retired guest network limits from the prepared environment", () => {
+		const retired = {
+			GUEST_IP_MAX_ACTIVE_JOBS: "2",
+			GUEST_IP_MAX_PER_10_MINUTES: "2",
+			GUEST_IP_MAX_PER_24_HOURS: "3",
+			GUEST_SUBNET_MAX_PER_24_HOURS: "20",
+			MEDIA_MAX_ACTIVE_ANONYMOUS_DRAFTS: "3",
+			MEDIA_MAX_ANONYMOUS_DRAFT_BYTES: "20971520",
+		};
+		const active = {
+			GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2",
+			GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2",
+			GUEST_GLOBAL_MAX_PER_MINUTE: "3",
+			GUEST_GLOBAL_MAX_PER_HOUR: "30",
+			GUEST_IP_MAX_ACTIVE_JOBS_OTHER: "unrelated-setting",
+			GUEST_SUBNET_MAX_PER_24_HOURS_OTHER: "unrelated-setting",
+			MEDIA_MAX_ACTIVE_ANONYMOUS_DRAFTS_OTHER: "unrelated-setting",
+		};
+		const environment = deploymentEnvironment(
+			{ NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com", ...retired, ...active },
+			"https://ezimageai.com",
+		);
+		for (const key of Object.keys(retired)) expect(environment).not.toHaveProperty(key);
+		expect(environment).toMatchObject(active);
+	});
 	it("does not forward a build-only video flag into the prepared environment", () => {
 		const result = deploymentEnvironment(
 			{

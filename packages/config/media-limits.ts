@@ -1,8 +1,8 @@
 const DEFAULT_MAXIMUM_MEDIA_STORAGE_BYTES = 2n * 1024n * 1024n * 1024n;
 
 /**
- * One server-only deployment cap shared by upload admission, generation
- * admission, and generated-output finalization.
+ * The finite free-account aggregate cap. Server-side subscription eligibility
+ * resolves effective subscribers to null; single-file limits are independent.
  */
 export function maximumMediaStorageBytes(environment: NodeJS.ProcessEnv = process.env): bigint {
 	const value = environment.MEDIA_MAX_STORAGE_BYTES;

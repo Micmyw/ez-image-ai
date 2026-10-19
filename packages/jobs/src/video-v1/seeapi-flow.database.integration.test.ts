@@ -27,6 +27,7 @@ import {
 	type VideoDurableSteps,
 	type VideoWorkflowServices,
 } from "../../../../apps/workflows/src/video-orchestrator";
+import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
 import { mp4Fixture } from "../../../storage/test-support/video-fixture";
 import { ensureVideoWorkflowStarted } from "./admission";
 import type { AcceptedWebhookResult, VideoRequestInput, VideoWorkflowBinding } from "./contracts";
@@ -397,6 +398,8 @@ describe("SeeAPI visual actual-domain Mock flow", () => {
 		if (!["localhost", "127.0.0.1"].includes(url.hostname) || !url.pathname.includes("test"))
 			throw new Error("UNSAFE_TEST_DATABASE");
 		client = new PrismaClient({ adapter: new PrismaPg({ connectionString, max: 8 }) });
+		vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
+		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", await providerCapacityForTestRequests(client, 16));
 		paidPlanId = (
 			await client.billingPlan.create({
 				data: {
@@ -458,7 +461,10 @@ describe("SeeAPI visual actual-domain Mock flow", () => {
 		}
 		vi.unstubAllGlobals();
 	});
-	afterAll(async () => client?.$disconnect());
+	afterAll(async () => {
+		vi.unstubAllEnvs();
+		await client?.$disconnect();
+	});
 
 	async function fixture(
 		sound: boolean,

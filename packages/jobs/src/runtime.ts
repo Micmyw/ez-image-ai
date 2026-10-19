@@ -48,6 +48,11 @@ import {
 } from "@repo/config";
 import type { ProductModelKey } from "@repo/config";
 import {
+	createRetrievedProviderTerminalEvidence,
+	readProviderTerminalEvidence,
+	type ProviderAttemptIdentity,
+} from "@repo/config/provider-terminal-evidence";
+import {
 	getGuestMediaConfig,
 	isEzPicProductEnvironmentEnabled,
 	maximumMediaStorageBytes,
@@ -64,10 +69,10 @@ import {
 	canSettleKieZeroCostRejection,
 	claimGenerationOutputTransferTransaction,
 	claimOutboxBatch,
+	claimMediaStorageCleanupTransaction,
 	completeGenerationOutputTransferTransaction,
 	completeOutboxEvent,
 	deferOutboxEvent,
-	deriveGuestQueueEstimate,
 	expireGuestJobBeforeProvider,
 	expireGuestMediaTransaction,
 	failGenerationOutputTransferTransaction,
@@ -80,7 +85,11 @@ import {
 	resolveGuestRuntimeConfigOverride,
 	reserveGenerationOutputStorageTransaction,
 	runSerializable,
+	runReadCommitted,
 	settleCreditsInTransaction,
+	lockProviderDispatchCapacity,
+	hasProviderDispatchCapacity,
+	PROVIDER_DISPATCH_RETRY_MS,
 } from "@repo/database";
 import type { Prisma } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -119,6 +128,7 @@ import type { MediaObjectMetadata } from "@repo/storage";
 import {
 	DispatchAdmissionBlockedError,
 	type DispatchStore,
+	type DispatchDeferred,
 	type FinalizationDependencies,
 	type FinalizationClaim,
 	type FinalizationFailure,
@@ -361,14 +371,13 @@ export function createDatabaseGuestAdmissionDependencies(
 	options: GuestAdmissionRuntimeOptions = {},
 ): GuestAdmissionDependencies {
 	const environment = options.environment ?? process.env;
-	const retryDelayMs = options.retryDelayMs ?? 30_000;
 	const queueCapacity = options.queueCapacity ?? 1;
 	const serviceTimeMs = options.serviceTimeMs ?? 60_000;
 	return {
 		async admit(input) {
 			return database.$transaction(
 				async (tx) => {
-					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('guest-dispatch-global', 0))`;
+					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`guest-dispatch:${input.jobId}`}, 0))`;
 					const job = await tx.generationJob.findUnique({
 						where: { executionEngine: "legacy", id: input.jobId },
 						include: {
@@ -385,10 +394,7 @@ export function createDatabaseGuestAdmissionDependencies(
 					if (job.attempts.length !== 0 || job.status !== "RESERVED") {
 						return { outcome: "SKIPPED" as const, jobId: job.id };
 					}
-					if (
-						input.now.getTime() - job.createdAt.getTime() >= 10 * 60_000 ||
-						trial.expiresAt <= input.now
-					) {
+					if (trial.expiresAt <= input.now) {
 						const expired = await expireGuestJobBeforeProvider(
 							{ jobId: job.id, now: input.now, queueCapacity, serviceTimeMs },
 							tx,
@@ -432,85 +438,6 @@ export function createDatabaseGuestAdmissionDependencies(
 							? { outcome: "SKIPPED" as const, jobId: job.id }
 							: expired;
 					}
-					if (job.dispatchEligibleAt && job.dispatchEligibleAt > input.now) {
-						return { outcome: "BUSY" as const, retryAt: job.dispatchEligibleAt };
-					}
-					const active = await tx.generationJob.findFirst({
-						where: {
-							executionEngine: "legacy",
-							serviceClass: "GUEST_SLOW",
-							id: { not: job.id },
-							status: {
-								in: [
-									"DISPATCH_QUEUED",
-									"SUBMITTING",
-									"PROVIDER_PENDING",
-									"PROVIDER_RUNNING",
-									"NEEDS_RECONCILIATION",
-									"FINALIZING",
-								],
-							},
-						},
-						select: { id: true },
-					});
-					const [oldest] = await tx.$queryRaw<Array<{ id: string }>>`
-						SELECT "id"
-						FROM "generation_job"
-						WHERE "serviceClass" = 'GUEST_SLOW'::"GenerationServiceClass"
-						  AND "executionEngine" = 'legacy'
-						  AND "status" = 'RESERVED'::"GenerationJobStatus"
-						  AND ("dispatchEligibleAt" IS NULL OR "dispatchEligibleAt" <= ${input.now})
-						ORDER BY "createdAt" ASC, "id" ASC
-						FOR UPDATE SKIP LOCKED
-						LIMIT 1
-					`;
-					if (active || oldest?.id !== job.id) {
-						const retryAt = new Date(
-							Math.min(input.now.getTime() + retryDelayMs, trial.expiresAt.getTime() - 1),
-						);
-						const queueDepth = await tx.generationJob.count({
-							where: {
-								executionEngine: "legacy",
-								serviceClass: "GUEST_SLOW",
-								id: { not: job.id },
-								status: {
-									in: [
-										"RESERVED",
-										"DISPATCH_QUEUED",
-										"SUBMITTING",
-										"PROVIDER_PENDING",
-										"PROVIDER_RUNNING",
-										"NEEDS_RECONCILIATION",
-										"FINALIZING",
-									],
-								},
-							},
-						});
-						const estimate = deriveGuestQueueEstimate({
-							now: input.now,
-							queueDepth,
-							queueCapacity,
-							serviceTimeMs,
-							immutableExpiry: trial.expiresAt,
-						});
-						if (!estimate) {
-							const expired = await expireGuestJobBeforeProvider(
-								{
-									jobId: job.id,
-									now: input.now,
-									createReplacement: false,
-									queueCapacity,
-									serviceTimeMs,
-								},
-								tx,
-							);
-							return expired.outcome === "SKIPPED"
-								? { outcome: "SKIPPED" as const, jobId: job.id }
-								: expired;
-						}
-						await updateGuestQueueEstimate(tx, job.id, trial.id, retryAt, estimate);
-						return { outcome: "BUSY" as const, retryAt };
-					}
 					const changed = await tx.generationJob.updateMany({
 						where: {
 							executionEngine: "legacy",
@@ -519,7 +446,11 @@ export function createDatabaseGuestAdmissionDependencies(
 							status: "RESERVED",
 							serviceClass: "GUEST_SLOW",
 						},
-						data: { status: "DISPATCH_QUEUED", version: { increment: 1 } },
+						data: {
+							status: "DISPATCH_QUEUED",
+							dispatchEligibleAt: input.now,
+							version: { increment: 1 },
+						},
 					});
 					if (changed.count !== 1) {
 						return { outcome: "BUSY" as const, retryAt: new Date(input.now.getTime() + 1_000) };
@@ -554,23 +485,6 @@ export function createDatabaseGuestMediaExpiryDependencies(
 
 export const databaseGuestMediaExpiryDependencies = createDatabaseGuestMediaExpiryDependencies(db);
 
-async function updateGuestQueueEstimate(
-	tx: Prisma.TransactionClient,
-	jobId: string,
-	trialId: string,
-	retryAt: Date,
-	estimate: { projectedDispatchAt: Date; estimateExpiresAt: Date },
-): Promise<void> {
-	await tx.generationJob.update({
-		where: { executionEngine: "legacy", id: jobId },
-		data: { dispatchEligibleAt: retryAt },
-	});
-	await tx.guestMediaTrial.update({
-		where: { id: trialId },
-		data: estimate,
-	});
-}
-
 export function createDatabaseDispatchStore(
 	database: PrismaClient,
 	options: DispatchRuntimeOptions = {},
@@ -583,7 +497,39 @@ export function createDatabaseDispatchStore(
 			if (environment.MEDIA_GENERATION_ENABLED !== "true") {
 				throw new DispatchAdmissionBlockedError();
 			}
-			const claim = await database.$transaction(async (tx) => {
+			const claim = await runReadCommitted(database, async (tx) => {
+				// Old unpinned deliveries resolve only the lock identity from an unlocked
+				// snapshot. Re-read after the provider lock and job lock before mutation.
+				let lockedProvider = payload.provider;
+				if (lockedProvider === undefined) {
+					const candidate = await tx.generationJob.findFirst({
+						where: {
+							executionEngine: "legacy",
+							id: payload.jobId,
+							version: payload.version,
+							status: { in: ["RESERVED", "DISPATCH_QUEUED"] },
+						},
+						include: {
+							attempts: { orderBy: { attemptNumber: "desc" }, take: 1 },
+							quote: { select: { costMicros: true, moderationDecision: true } },
+						},
+					});
+					if (!candidate || candidate.quote.moderationDecision === "BYPASS") return null;
+					const resolution = quotedExecutableRoutes(candidate, enabledProviders, environment);
+					if (resolution.kind === "RESOLVED") {
+						const existing = candidate.attempts[0];
+						lockedProvider = (
+							existing
+								? resolution.routes.find(
+										(route) =>
+											route.provider === existing.provider &&
+											route.providerModelId === existing.providerModelId,
+									)
+								: chooseCatalogRoute(resolution.routes, deterministicFraction(candidate.id))
+						)?.provider;
+					}
+				}
+				if (lockedProvider !== undefined) await lockProviderDispatchCapacity(tx, lockedProvider);
 				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`generation-dispatch:${payload.jobId}`}, 0))`;
 				const job = await tx.generationJob.findFirst({
 					where: {
@@ -618,7 +564,18 @@ export function createDatabaseDispatchStore(
 				}
 				const existing = job.attempts[0];
 				if (isGuest && existing) return null;
-				if (existing && existing.status !== "CREATED") return null;
+				if (
+					existing &&
+					(existing.status !== "CREATED" ||
+						existing.uncertainSubmission ||
+						existing.submittedAt != null ||
+						existing.providerTaskId != null)
+				)
+					return null;
+				const dispatchNow = new Date();
+				if (job.dispatchEligibleAt && job.dispatchEligibleAt > dispatchNow) {
+					return deferProviderDispatch(tx, job, job.dispatchEligibleAt, dispatchNow);
+				}
 				if (isGuest) {
 					const trial = job.guestTrial;
 					if (!trial || trial.ownerId === null) return null;
@@ -675,6 +632,20 @@ export function createDatabaseDispatchStore(
 						diagnosticRoute: route,
 					});
 					return null;
+				}
+				if (lockedProvider !== route.provider) {
+					throw new Error("DISPATCH_ROUTE_CHANGED_DURING_CLAIM");
+				}
+				// This fresh Read Committed statement sees send fences committed while
+				// acquiring the shared provider lock. A queue wait creates no attempt.
+				if (!(await hasProviderDispatchCapacity(tx, route.provider, environment))) {
+					const now = new Date();
+					return deferProviderDispatch(
+						tx,
+						job,
+						new Date(now.getTime() + PROVIDER_DISPATCH_RETRY_MS),
+						now,
+					);
 				}
 				const rawInput = job.inputSnapshot as unknown as ProviderExecutionInput & {
 					sourceAssetId?: string;
@@ -878,6 +849,9 @@ export function createDatabaseDispatchStore(
 		},
 		async recordSubmission(attemptId, submission) {
 			return database.$transaction(async (tx) => {
+				// A query/callback can finish while the create request is returning.
+				// Read after the row lock so a late acknowledgement cannot erase it.
+				await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${attemptId} FOR UPDATE`;
 				const attempt = await tx.generationAttempt.findUniqueOrThrow({
 					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 				});
@@ -887,6 +861,16 @@ export function createDatabaseDispatchStore(
 				const providerTaskId = boundedString(submission.providerTaskId, 512);
 				if (!providerTaskId) {
 					throw new Error("Accepted provider submission omitted its task ID");
+				}
+				if (
+					readProviderTerminalEvidence(
+						objectRecord(attempt.responseSnapshot)?.providerTerminalEvidence,
+						attempt,
+					)
+				) {
+					if (providerTaskId !== attempt.providerTaskId)
+						throw new Error("PROVIDER_SUBMISSION_TASK_MISMATCH");
+					return;
 				}
 				const terminal = submission.status === "SUCCEEDED";
 				const submissionToken = boundedString(submission.reconciliation.submissionToken, 256);
@@ -988,10 +972,18 @@ export function createDatabaseDispatchStore(
 		},
 		async recordSynchronousCompletion(attemptId, submission, result) {
 			return database.$transaction(async (tx) => {
+				await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${attemptId} FOR UPDATE`;
 				const attempt = await tx.generationAttempt.findUniqueOrThrow({
 					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 					include: { job: { select: { productKey: true } } },
 				});
+				if (
+					readProviderTerminalEvidence(
+						objectRecord(attempt.responseSnapshot)?.providerTerminalEvidence,
+						attempt,
+					)
+				)
+					return;
 				if (submission.outcome !== "accepted") {
 					throw new Error("Only accepted provider submissions may complete synchronously");
 				}
@@ -1164,6 +1156,43 @@ export function createDatabaseDispatchStore(
 }
 export const databaseDispatchStore: DispatchStore = createDatabaseDispatchStore(db);
 
+async function deferProviderDispatch(
+	tx: Prisma.TransactionClient,
+	job: { id: string; version: number },
+	retryAt: Date,
+	now: Date,
+): Promise<DispatchDeferred | null> {
+	const changed = await tx.generationJob.updateMany({
+		where: {
+			executionEngine: "legacy",
+			id: job.id,
+			version: job.version,
+			status: { in: ["RESERVED", "DISPATCH_QUEUED"] },
+		},
+		data: { dispatchEligibleAt: retryAt },
+	});
+	if (changed.count !== 1) return null;
+	const dedupeKey = `generation-dispatch-provider-capacity:${job.id}:${job.version}:${retryAt.getTime()}`;
+	const event = await tx.outboxEvent.upsert({
+		where: { dedupeKey },
+		create: {
+			eventType: "GENERATION_DISPATCH",
+			aggregateType: "GENERATION_JOB",
+			aggregateId: job.id,
+			dedupeKey,
+			payload: { jobId: job.id, version: job.version },
+			availableAt: retryAt,
+		},
+		update: {},
+		select: { id: true },
+	});
+	return {
+		deferred: true,
+		retryAfterMs: Math.max(0, retryAt.getTime() - now.getTime()),
+		continuation: { eventIds: [event.id], notBefore: retryAt.getTime() },
+	};
+}
+
 export const databaseOutboxStore: OutboxStore = {
 	claimBatch: (input) => claimOutboxBatch(input, db),
 	async complete(id, workerId, leaseToken) {
@@ -1192,6 +1221,7 @@ export function createDatabaseStorageCleanupDependencies(
 ): StorageCleanupDependencies {
 	return {
 		...storage,
+		claimDeletion: (input) => claimMediaStorageCleanupTransaction(input, database),
 		async isComplete(operationKey) {
 			return Boolean(
 				await database.auditLog.findFirst({
@@ -1217,6 +1247,7 @@ export function createDatabaseStorageCleanupDependencies(
 						metadata: {
 							assetId: input.assetId,
 							objectKey: input.objectKey,
+							...(input.deletedObjectKeys ? { deletedObjectKeys: input.deletedObjectKeys } : {}),
 							...(input.multipartUploadId ? { multipartUploadId: input.multipartUploadId } : {}),
 							...(input.uploadSessionId ? { uploadSessionId: input.uploadSessionId } : {}),
 							...(input.reservationStatus ? { reservationStatus: input.reservationStatus } : {}),
@@ -3399,7 +3430,7 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 						attemptId: attempt.id,
 						jobId: job.id,
 						errorSnapshot: attempt.errorSnapshot,
-						responseSnapshot: safeResponseSnapshot(attempt.responseSnapshot),
+						responseSnapshot: safeResponseSnapshot(attempt.responseSnapshot, undefined, attempt),
 						reasonCode: "TRANSFER_ENVELOPE_INVALID",
 					});
 					return null;
@@ -3425,7 +3456,7 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 							attemptId: attempt.id,
 							jobId: job.id,
 							errorSnapshot: attempt.errorSnapshot,
-							responseSnapshot: safeResponseSnapshot(attempt.responseSnapshot),
+							responseSnapshot: safeResponseSnapshot(attempt.responseSnapshot, undefined, attempt),
 							reasonCode: "LEGACY_OUTPUT_PROMOTION_FAILED",
 						});
 						return null;
@@ -3439,6 +3470,7 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 							responseSnapshot: safeResponseSnapshot(
 								attempt.responseSnapshot,
 								promoted.outputs.length,
+								attempt,
 							),
 						},
 					});
@@ -4453,10 +4485,11 @@ export function createDatabaseProviderEventStore(
 						lastProviderSequence: bigint | null;
 						errorSnapshot: unknown;
 						provider: string;
+						providerTaskId: string | null;
 						providerCostMicros: bigint | null;
 						responseSnapshot: unknown;
 					}>
-				>`SELECT "id", "jobId", "status", "progress", "lastProviderEventAt", "provider", "providerCostMicros", "responseSnapshot",
+				>`SELECT "id", "jobId", "status", "progress", "lastProviderEventAt", "provider", "providerTaskId", "providerCostMicros", "responseSnapshot",
 						          "lastProviderOccurredAt", "lastProviderReceivedAt", "lastProviderSequence", "errorSnapshot"
 					   FROM "generation_attempt" WHERE "id" = ${claim.attemptId} FOR UPDATE`;
 				if (!attempt) throw new Error("Provider event attempt not found");
@@ -4803,8 +4836,25 @@ export function createDatabaseReconciliationStore(
 					include: { job: { select: { productKey: true, status: true, fundingSource: true } } },
 				});
 				if (!attempt) return { outboxCommitted: false };
-				if (snapshot.providerTaskId !== attempt.providerTaskId || lease.jobId !== attempt.jobId)
+				if (
+					snapshot.providerTaskId !== attempt.providerTaskId ||
+					lease.jobId !== attempt.jobId ||
+					lease.provider !== attempt.provider
+				)
 					throw new Error("RECONCILIATION_TASK_MISMATCH");
+				// Supplier occupancy can end while billing/output reconciliation
+				// still needs frozen credits. Only authenticated retrieval writes this.
+				const providerTerminalEvidence = createRetrievedProviderTerminalEvidence(attempt, snapshot);
+				if (providerTerminalEvidence) {
+					attempt.responseSnapshot = {
+						...objectRecord(attempt.responseSnapshot),
+						providerTerminalEvidence,
+					} as Prisma.JsonValue;
+					await tx.generationAttempt.update({
+						where: { id: attempt.id },
+						data: { responseSnapshot: attempt.responseSnapshot as Prisma.InputJsonValue },
+					});
+				}
 				if (
 					attempt.status === "NEEDS_RECONCILIATION" ||
 					attempt.job.status === "NEEDS_RECONCILIATION"
@@ -5506,7 +5556,6 @@ async function guestDispatchChecksPass(
 		trial.riskState !== "HELD" ||
 		trial.providerBoundaryAt !== null ||
 		trial.expiresAt <= now ||
-		now.getTime() - job.createdAt.getTime() >= 10 * 60_000 ||
 		(job.dispatchEligibleAt !== null && job.dispatchEligibleAt > now) ||
 		!(await guestRuntimeEnabled(tx, environment, trial.promotionPeriod))
 	) {
@@ -5531,25 +5580,6 @@ async function guestDispatchChecksPass(
 	) {
 		return false;
 	}
-	const active = await tx.generationJob.findFirst({
-		where: {
-			executionEngine: "legacy",
-			serviceClass: "GUEST_SLOW",
-			id: { not: job.id },
-			status: {
-				in: [
-					"DISPATCH_QUEUED",
-					"SUBMITTING",
-					"PROVIDER_PENDING",
-					"PROVIDER_RUNNING",
-					"NEEDS_RECONCILIATION",
-					"FINALIZING",
-				],
-			},
-		},
-		select: { id: true },
-	});
-	if (active) return false;
 	const globalBudget = mediaDailyProviderCostBudgetMicros(environment);
 	// An explicitly uncapped guest promotion has no aggregate spend gate. Registered
 	// generation retains its own daily budget; quotes and guest cost accounting remain intact.
@@ -5580,8 +5610,15 @@ function legacyOutputsFromResponseSnapshot(value: unknown): ProviderOutput[] {
 	return Array.isArray(record?.outputs) ? (record.outputs as ProviderOutput[]) : [];
 }
 
-function safeResponseSnapshot(value: unknown, outputCountOverride?: number): Prisma.InputJsonValue {
+function safeResponseSnapshot(
+	value: unknown,
+	outputCountOverride?: number,
+	identity?: ProviderAttemptIdentity,
+): Prisma.InputJsonValue {
 	const record = objectRecord(value);
+	const providerTerminalEvidence = identity
+		? readProviderTerminalEvidence(record?.providerTerminalEvidence, identity)
+		: null;
 	const outputCount =
 		outputCountOverride ??
 		(Array.isArray(record?.outputs)
@@ -5594,6 +5631,7 @@ function safeResponseSnapshot(value: unknown, outputCountOverride?: number): Pri
 	return {
 		providerCharged: record?.providerCharged === true,
 		outputCount,
+		...(providerTerminalEvidence ? { providerTerminalEvidence } : {}),
 	};
 }
 
@@ -5726,6 +5764,7 @@ async function recoverManualProviderSuccess(
 			status: string;
 			progress: number | null;
 			provider: string;
+			providerTaskId: string | null;
 			providerCostMicros: bigint | null;
 			responseSnapshot: unknown;
 		};

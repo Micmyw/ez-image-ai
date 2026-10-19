@@ -262,7 +262,9 @@ function fixture() {
 	};
 	const tx = {
 		$executeRaw: vi.fn(async () => 1),
-		$queryRaw: vi.fn(async () => [{ now: new Date() }]),
+		$queryRaw: vi.fn(async (sql: TemplateStringsArray) =>
+			sql.join("").includes('AS "active"') ? [{ active: 0n }] : [{ now: new Date() }],
+		),
 		user: { findFirst: vi.fn(async () => ({ id: reference.ownerId })) },
 		mediaAsset: {
 			findFirst: vi.fn(async ({ where }: { where: { id: string } }) =>
@@ -327,12 +329,16 @@ function fixture() {
 }
 
 beforeEach(() => {
+	vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1");
 	vi.useFakeTimers();
 	vi.setSystemTime(new Date("2026-10-07T14:00:00Z"));
 	mocked.settle.mockReset();
 	mocked.release.mockReset();
 });
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+	vi.useRealTimers();
+	vi.unstubAllEnvs();
+});
 
 describe("private approved motion reference binding", () => {
 	it("requires the actual admin asset and complete persisted approval; the user binds only their subject", async () => {
@@ -524,6 +530,7 @@ describe("reviewed reference input and paid send fence", () => {
 				ruleVersion: "video-rule",
 			};
 			const claimed = await claimVideoProviderSubmission(input);
+			if ("deferred" in claimed) throw new Error("Unexpected provider capacity wait");
 			expect(claimed.claimed).toBe(true);
 			const output = {
 				...f.referenceAsset,

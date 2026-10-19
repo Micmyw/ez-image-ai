@@ -52,6 +52,12 @@ export function deploymentEnvironment(
 				key !== "HOTEL_LOBBY_DUO_BUILD_ENABLED" &&
 				key !== "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" &&
 				key !== "GUEST_GLOBAL_MAX_PER_24_HOURS" &&
+				key !== "GUEST_IP_MAX_ACTIVE_JOBS" &&
+				key !== "GUEST_IP_MAX_PER_10_MINUTES" &&
+				key !== "GUEST_IP_MAX_PER_24_HOURS" &&
+				key !== "GUEST_SUBNET_MAX_PER_24_HOURS" &&
+				key !== "MEDIA_MAX_ACTIVE_ANONYMOUS_DRAFTS" &&
+				key !== "MEDIA_MAX_ANONYMOUS_DRAFT_BYTES" &&
 				!isRetiredModerationBinding(key) &&
 				!/^(?:LOAD_|TEST_|E2E_|INVARIANT_|REQUIRE_LOAD_|ALLOW_REMOTE_LOAD_TARGET$|DIRECT_URL$|JOBS_RUNTIME_ENV$)/.test(
 					key,

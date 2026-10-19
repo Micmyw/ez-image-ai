@@ -13,6 +13,7 @@ import {
 	fingerprintGenerationQuoteSecurityPayload,
 	type GenerationQuoteSecurityPayload,
 } from "./quotes";
+import { pricingWithoutAggregateStoragePolicy } from "./storage-quota";
 import type { CreateModeratedGenerationQuoteInput, MediaTransactionClient } from "./types";
 
 const GENERATION_RETRY_LEASE_MS = 5 * 60 * 1_000;
@@ -552,7 +553,8 @@ function isMatchingRecoveredJob(
 		generationFundingSource(job.pricingSnapshot) ===
 			generationFundingSource(operation.pricingSnapshot) &&
 		stableSerialize(job.inputSnapshot) === stableSerialize(operation.normalizedInput) &&
-		stableSerialize(job.pricingSnapshot) === stableSerialize(operation.pricingSnapshot) &&
+		stableSerialize(pricingWithoutAggregateStoragePolicy(job.pricingSnapshot)) ===
+			stableSerialize(operation.pricingSnapshot) &&
 		job.quote.ownerType === request.ownerType &&
 		job.quote.ownerId === request.ownerId &&
 		job.quote.submittedByUserId === request.submittedByUserId &&

@@ -156,9 +156,6 @@ export async function createVideoJob(
 			limits: {
 				...options.limits,
 				maximumInputBytes: Math.min(options.limits.maximumInputBytes, config.maxInputBytes),
-				ownerConcurrency: config.ownerConcurrency,
-				globalConcurrency: config.globalConcurrency,
-				providerConcurrency: config.providerConcurrency,
 			},
 		},
 		db,

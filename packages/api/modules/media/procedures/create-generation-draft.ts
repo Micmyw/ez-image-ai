@@ -16,7 +16,6 @@ import { createAssetObjectKey, deleteObject, putPrivateMediaObject } from "@repo
 import { z } from "zod";
 
 import { publicProcedure } from "../../../orpc/procedures";
-import { draftClientIdentity } from "../lib/draft-client-identity";
 import {
 	createDraftClaimToken,
 	hashDraftClaimToken,
@@ -70,8 +69,7 @@ export const createGenerationDraft = publicProcedure
 		resolveGuestPublicOrigin(context.headers.get("origin"), {
 			saasOrigin: process.env.NEXT_PUBLIC_SAAS_URL,
 		});
-		const subjectHash = clientIpHash(context.headers, process.env);
-		await enforceDraftRateLimit(subjectHash, "marketing-draft");
+		const subjectHash = createHash("sha256").update(randomUUID()).digest("hex");
 
 		const token = createDraftClaimToken();
 		const assetId = `asset_${randomUUID().replaceAll("-", "")}`;
@@ -102,16 +100,6 @@ export const createGenerationDraft = publicProcedure
 					expiresAt,
 					abuseLimits: {
 						subjectHash,
-						maximumActiveDrafts: configuredPositiveInteger(
-							process.env.MEDIA_MAX_ACTIVE_ANONYMOUS_DRAFTS,
-							3,
-						),
-						maximumActiveBytes: BigInt(
-							configuredPositiveInteger(
-								process.env.MEDIA_MAX_ANONYMOUS_DRAFT_BYTES,
-								25 * 1024 * 1024,
-							),
-						),
 						maximumGlobalDraftsPerMinute: configuredPositiveInteger(
 							process.env.MEDIA_MAX_GLOBAL_ANONYMOUS_DRAFTS_PER_MINUTE,
 							100,
@@ -142,26 +130,7 @@ export const createGenerationDraft = publicProcedure
 		};
 	});
 
-function clientIpHash(headers: Headers, environment: NodeJS.ProcessEnv): string {
-	const secret = process.env.BETTER_AUTH_SECRET;
-	if (!secret) throw new Error("DRAFT_CONFIGURATION_ERROR");
-	const ip = draftClientIdentity(headers, environment);
-	return createHash("sha256").update(`${secret}:marketing-draft:${ip}`).digest("hex");
-}
-
 function configuredPositiveInteger(value: string | undefined, fallback: number): number {
 	const parsed = Number(value);
 	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-async function enforceDraftRateLimit(subjectHash: string, action: string): Promise<void> {
-	const now = new Date();
-	const windowStart = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
-	const [result] = await db.$queryRaw<Array<{ allowed: boolean }>>`
-		INSERT INTO "rate_limit_bucket" ("id", "action", "subjectHash", "windowStart", "windowEnd", "count", "updatedAt")
-		VALUES (gen_random_uuid()::text, ${action}, ${subjectHash}, ${windowStart}, ${new Date(windowStart.getTime() + 60_000)}, 1, now())
-		ON CONFLICT ("action", "subjectHash", "windowStart") DO UPDATE
-		SET "count" = "rate_limit_bucket"."count" + 1, "updatedAt" = now()
-		RETURNING ("count" <= 5) AS "allowed"`;
-	if (!result?.allowed) throw new Error("RATE_LIMITED");
 }

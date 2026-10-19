@@ -18,6 +18,8 @@ import {
 
 function transactionClient(overrides: Record<string, unknown> = {}) {
 	const tx = {
+		subscription: { findMany: vi.fn(async () => []) },
+		billingPeriod: { fields: { paidAmount: "paidAmount" } },
 		mediaAsset: {
 			create: vi.fn(async ({ data }) => ({ ...data, status: "UPLOADING" })),
 			findFirst: vi.fn(async () => ({

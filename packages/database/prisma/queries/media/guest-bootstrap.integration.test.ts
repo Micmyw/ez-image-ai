@@ -321,7 +321,7 @@ describe("guest bootstrap consumption", () => {
 					subnetHash: "subnet-hash-capped",
 					limits: {
 						...guestBoundaryLimits(1),
-						maximumRequestsPerIpPerTenMinutes: 0,
+						maximumGlobalRequestsPerMinute: 0,
 					},
 				},
 				createPrincipal,
@@ -382,7 +382,7 @@ describe("guest bootstrap consumption", () => {
 		expect(createPrincipal).not.toHaveBeenCalled();
 	});
 
-	it("isolates upload subject evidence by promotion while retaining boundary-global capacity", async () => {
+	it("allows shared upload networks while retaining boundary-global capacity", async () => {
 		await client.guestAbuseBucket.deleteMany({ where: { scope: { startsWith: "guest-upload" } } });
 		const sharedIpHash = `upload-ip-${randomUUID()}`;
 		const sharedSubnetHash = `upload-subnet-${randomUUID()}`;
@@ -421,21 +421,6 @@ describe("guest bootstrap consumption", () => {
 		expect(scopes.some(({ scope }) => scope === "guest-upload:global:day")).toBe(false);
 		expect(scopes).toEqual(
 			expect.arrayContaining([
-				{
-					scope: "guest-upload:upload-promotion-a:ip:ten-minute",
-					subjectHash: sharedIpHash,
-					requestCount: 1n,
-				},
-				{
-					scope: "guest-upload:upload-promotion-b:ip:day",
-					subjectHash: sharedIpHash,
-					requestCount: 1n,
-				},
-				{
-					scope: "guest-upload:upload-promotion-a:subnet:day",
-					subjectHash: sharedSubnetHash,
-					requestCount: 1n,
-				},
 				{
 					scope: "guest-upload:global:minute",
 					subjectHash: "global",
@@ -515,7 +500,7 @@ describe("guest bootstrap consumption", () => {
 		).resolves.toEqual({ requestCount: 1n });
 	});
 
-	it("isolates bootstrap subject evidence by promotion while retaining boundary-global capacity", async () => {
+	it("allows shared bootstrap networks while retaining boundary-global capacity", async () => {
 		await client.guestAbuseBucket.deleteMany({
 			where: { scope: { startsWith: "guest-bootstrap" } },
 		});
@@ -560,21 +545,6 @@ describe("guest bootstrap consumption", () => {
 		expect(scopes.some(({ scope }) => scope === "guest-bootstrap:global:day")).toBe(false);
 		expect(scopes).toEqual(
 			expect.arrayContaining([
-				{
-					scope: "guest-bootstrap:bootstrap-promotion-a:ip:ten-minute",
-					subjectHash: sharedIpHash,
-					requestCount: 1n,
-				},
-				{
-					scope: "guest-bootstrap:bootstrap-promotion-b:ip:day",
-					subjectHash: sharedIpHash,
-					requestCount: 1n,
-				},
-				{
-					scope: "guest-bootstrap:bootstrap-promotion-a:subnet:day",
-					subjectHash: sharedSubnetHash,
-					requestCount: 1n,
-				},
 				{
 					scope: "guest-bootstrap:global:minute",
 					subjectHash: "global",

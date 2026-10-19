@@ -5,7 +5,7 @@ import {
 	VIDEO_MODEL_CATALOG_VERSION,
 	type VideoModelSelection,
 } from "@repo/config/video-models";
-import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
+import { createVideoAudioSafetyPolicy, VIDEO_OUTPUT_MAX_BYTES } from "@repo/config/video-output";
 import {
 	resolveVideoModelPrice,
 	VIDEO_SUPPLIER_PRICE_VERSION,
@@ -14,6 +14,7 @@ import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { providerCapacityForTestRequests } from "../../../test-support/provider-dispatch-capacity";
 import { runWithDatabaseClient } from "../../client";
 import { PrismaClient } from "../../generated/client";
 import { createMediaUploadSessionTransaction } from "./assets";
@@ -26,6 +27,7 @@ import {
 	settleCredits,
 } from "./credits";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
+import { withStorageSubscription } from "./testing/subscriber-storage-fixture";
 import { getVideoTemplateCreditBalance } from "./video-template-credits";
 import {
 	createVideoJobRecord,
@@ -82,16 +84,8 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		)
 			throw new Error("UNSAFE_TEST_DATABASE");
 		client = new PrismaClient({ adapter: new PrismaPg({ connectionString, max: 30 }) });
-		// Other serial integration suites retain active image fixtures. Preserve their
-		// shared Kie occupancy while giving this suite exactly five additional slots.
-		limits.providerConcurrency =
-			(await client.generationJob.count({
-				where: {
-					executionEngine: "legacy",
-					terminalAt: null,
-					status: { notIn: ["SUCCEEDED", "FAILED", "CANCELED"] },
-				},
-			})) + 5;
+		vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
+		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", await providerCapacityForTestRequests(client, 8));
 	});
 	afterEach(async () => {
 		for (const ownerId of owners.splice(0)) {
@@ -117,7 +111,10 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			}
 		}
 	});
-	afterAll(async () => client?.$disconnect());
+	afterAll(async () => {
+		vi.unstubAllEnvs();
+		await client?.$disconnect();
+	});
 	async function fixture(credits = 100n) {
 		const ownerId = `video-admission-test-${crypto.randomUUID()}`;
 		owners.push(ownerId);
@@ -548,16 +545,16 @@ describe("video V1 admission isolated PostgreSQL", () => {
 				validUntil: new Date(Date.now() + 60_000).toISOString(),
 			}),
 		);
-		expect(
-			await runWithDatabaseClient(client, () =>
-				claimVideoProviderSubmission({
-					jobId: stored.id,
-					callbackTokenHash: crypto.randomUUID().replaceAll("-", "").repeat(2),
-					providerModelId: "kling-2.6/text-to-video",
-					ruleVersion,
-				}),
-			),
-		).toMatchObject({ claimed: true });
+		const claim = await runWithDatabaseClient(client, () =>
+			claimVideoProviderSubmission({
+				jobId: stored.id,
+				callbackTokenHash: crypto.randomUUID().replaceAll("-", "").repeat(2),
+				providerModelId: "kling-2.6/text-to-video",
+				ruleVersion,
+			}),
+		);
+		if ("deferred" in claim) throw new Error("Unexpected provider capacity wait");
+		expect(claim).toMatchObject({ claimed: true });
 		expect(
 			await client.creditAccount.findUniqueOrThrow({ where: { id: f.account.id } }),
 		).toMatchObject({
@@ -1182,6 +1179,27 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			}),
 		).toMatchObject({ ownerId: f.ownerId, status: "ACTIVE", bytes: 104857600n });
 	});
+	it("subscribers exceed aggregate quota while retaining the full video output reservation", async () => {
+		const f = await fixture();
+		await withStorageSubscription(client, f.ownerId, async () => {
+			const accepted = await createVideoJobRecord(
+				{ ...f.input, limits: { ...limits, maximumStorageBytes: 1n } },
+				client,
+			);
+			const job = await client.generationJob.findUniqueOrThrow({ where: { id: accepted.jobId } });
+			expect(job.pricingSnapshot).toMatchObject({
+				aggregateStoragePolicy: { schemaVersion: 1, maximumBytes: null },
+			});
+			expect(job.creditsReserved).toBe(price.credits);
+			expect(
+				await client.storageUsageReservation.findUnique({
+					where: { referenceKey: `video-output:${job.id}` },
+				}),
+			).toMatchObject({ bytes: 104857600n, status: "ACTIVE" });
+			const quote = await client.generationQuote.findUniqueOrThrow({ where: { id: job.quoteId } });
+			expect(quote.inputFingerprint).toBe(fingerprintGenerationQuoteSecurityPayload(quote));
+		});
+	});
 	it("serializes video admissions racing for the final complete output budget", async () => {
 		const f = await fixture();
 		const second = await createVideoQuoteRecord(
@@ -1624,7 +1642,7 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		});
 		expect(await client.creditReservation.count({ where: { accountId: account.id } })).toBe(1);
 	});
-	it("two owners racing the final global slot leave one reservation", async () => {
+	it("admits both owners beyond the retired global slot and reserves each request once", async () => {
 		const first = await fixture();
 		const second = await fixture();
 		const outcomes = await Promise.allSettled(
@@ -1632,14 +1650,82 @@ describe("video V1 admission isolated PostgreSQL", () => {
 				createVideoJobRecord({ ...input, limits: { ...limits, globalConcurrency: 1 } }, client),
 			),
 		);
-		expect(outcomes.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		expect(outcomes.filter((result) => result.status === "fulfilled")).toHaveLength(2);
 		expect(
 			await client.creditReservation.count({
 				where: { accountId: { in: [first.account.id, second.account.id] } },
 			}),
-		).toBe(1);
+		).toBe(2);
 	});
-	it("same owner racing the final credits/slot cannot overspend or retain a losing reservation", async () => {
+	it("admits 32 different funded owners without executing provider work", async () => {
+		const fixtures: Awaited<ReturnType<typeof fixture>>[] = [];
+		// Seed each ledger independently; the admission race below remains concurrent.
+		for (let index = 0; index < 32; index += 1) fixtures.push(await fixture());
+		const outcomes = await Promise.all(
+			fixtures.map(({ input }) =>
+				createVideoJobRecord(
+					{
+						...input,
+						limits: {
+							...limits,
+							ownerConcurrency: 1,
+							globalConcurrency: 1,
+							providerConcurrency: 1,
+						},
+					},
+					client,
+				),
+			),
+		);
+		expect(outcomes.every((outcome) => !outcome.replayed)).toBe(true);
+		expect(
+			await client.creditReservation.count({
+				where: { accountId: { in: fixtures.map(({ account }) => account.id) }, status: "ACTIVE" },
+			}),
+		).toBe(32);
+	}, 30_000);
+	it("admits two funded videos for one owner despite legacy concurrency fields", async () => {
+		const { input, account } = await fixture();
+		const second = await createVideoQuoteRecord(
+			{
+				ownerId: input.ownerId,
+				request,
+				price,
+				visualSafetyProfile,
+				textSafetyProfile: createVideoTextSafetyProfile(),
+				audioSafetyPolicy: createVideoAudioSafetyPolicy(),
+				maximumInputBytes: limits.maximumInputBytes,
+			},
+			client,
+		);
+		const outcomes = await Promise.all(
+			[input, { ...input, quoteId: second.quoteId, idempotencyKey: crypto.randomUUID() }].map(
+				(entry) =>
+					createVideoJobRecord(
+						{
+							...entry,
+							limits: {
+								...limits,
+								ownerConcurrency: 1,
+								globalConcurrency: 1,
+								providerConcurrency: 1,
+								maximumStorageBytes: BigInt(VIDEO_OUTPUT_MAX_BYTES) * 3n,
+							},
+						},
+						client,
+					),
+			),
+		);
+		expect(outcomes.every((outcome) => !outcome.replayed)).toBe(true);
+		expect(
+			await client.creditReservation.count({ where: { accountId: account.id, status: "ACTIVE" } }),
+		).toBe(2);
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: account.id } }),
+		).toMatchObject({ reservedCredits: 14n, spendableCredits: 86n });
+	});
+
+	it("same owner racing the final credits cannot overspend or retain a losing reservation", async () => {
 		const { input, account } = await fixture(7n);
 		const second = await createVideoQuoteRecord(
 			{
@@ -1655,10 +1741,20 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		);
 		const outcomes = await Promise.allSettled(
 			[input, { ...input, quoteId: second.quoteId, idempotencyKey: crypto.randomUUID() }].map(
-				(entry) => createVideoJobRecord(entry, client),
+				(entry) =>
+					createVideoJobRecord(
+						{
+							...entry,
+							limits: { ...limits, maximumStorageBytes: BigInt(VIDEO_OUTPUT_MAX_BYTES) * 3n },
+						},
+						client,
+					),
 			),
 		);
 		expect(outcomes.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		expect(outcomes.find((result) => result.status === "rejected")).toMatchObject({
+			reason: { message: "INSUFFICIENT_CREDITS" },
+		});
 		expect(await client.creditAccount.findUnique({ where: { id: account.id } })).toMatchObject({
 			reservedCredits: 7n,
 			spendableCredits: 0n,

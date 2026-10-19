@@ -119,7 +119,6 @@ function dependencies(
 		resumeRequest: vi.fn(async () => null),
 		findSource: vi.fn(async () => source),
 		assertAllowed: vi.fn(async () => undefined),
-		loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 		claimRequest: vi.fn(async () => ({
 			outcome: "CLAIMED" as const,
 			requestId: "request-1",
@@ -516,10 +515,12 @@ describe("retryGenerationForUser", () => {
 		expect(deps.createJob).toHaveBeenCalledWith(
 			expect.objectContaining({
 				expectedInputAssets: [{ assetId: SOURCE_ASSET_ID, assetChecksum: "1".repeat(64) }],
-				maximumConcurrentJobs: 3,
 				maximumGlobalDailyCostMicros: 250_000_000n,
 				maximumStorageBytes: maximumMediaStorageBytes(),
 			}),
+		);
+		expect(vi.mocked(deps.createJob).mock.calls[0]?.[0]).not.toHaveProperty(
+			"maximumConcurrentJobs",
 		);
 		expect(deps.completeRequest).toHaveBeenCalledWith(
 			expect.objectContaining({

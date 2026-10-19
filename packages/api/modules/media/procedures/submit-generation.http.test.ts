@@ -48,9 +48,12 @@ vi.mock("@repo/logs", async (original) => ({
 	logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn() },
 }));
 vi.mock("./create-quote", () => ({ createQuoteForUser: fixture.createQuote }));
-vi.mock("../lib/generation-authorization", () => ({ assertGenerationAllowed: vi.fn() }));
+vi.mock("../lib/generation-authorization", async (original) => ({
+	...(await original<typeof import("../lib/generation-authorization")>()),
+	assertGenerationAllowed: vi.fn(),
+}));
 vi.mock("../lib/plan-entitlement", () => ({
-	loadUserPlanEntitlement: async () => ({ maximumConcurrentJobs: 3 }),
+	loadUserPlanEntitlement: async () => ({ id: "creator" }),
 }));
 vi.mock("../lib/rate-limit", () => ({ enforceMediaRateLimit: vi.fn() }));
 vi.mock("../lib/executable-route-graph", () => ({

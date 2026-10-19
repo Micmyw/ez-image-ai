@@ -72,6 +72,12 @@ export function GuestTrialWorkspace({
 	const error = trial.errorKey ? t(`errors.${trial.errorKey}`) : null;
 	const submissionError = trial.errorKey === "submit" || trial.errorKey === "turnstile";
 	const terminalFailure = ["rejected", "failed"].includes(trial.view.state);
+	const showAccountActions =
+		!registered &&
+		(trial.view.state === "ready" ||
+			(!trial.moderationError &&
+				!trial.view.safety &&
+				(trial.dailyAllowance?.remaining === 0 || trial.errorKey === "eligibility")));
 
 	return (
 		<div className="px-4 py-8 sm:px-6 sm:py-10 lg:px-8 mx-auto max-w-[90rem]">
@@ -261,9 +267,7 @@ export function GuestTrialWorkspace({
 						resultUrl={trial.resultUrl}
 						onDownload={() => void trial.actions.download()}
 					/>
-					{trial.view.state === "ready" && !registered && (
-						<GuestConversionActions onBeginLink={trial.actions.beginLink} />
-					)}
+					{showAccountActions && <GuestConversionActions onBeginLink={trial.actions.beginLink} />}
 					{!registered && ["ready", "rejected", "failed", "expired"].includes(trial.view.state) && (
 						<div className="text-sm text-center">
 							{trial.dailyAllowance?.remaining ? (

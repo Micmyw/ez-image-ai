@@ -10,11 +10,13 @@ const state = vi.hoisted(() => ({
 	snapshots: new Map<string, RegistrationAttribution>(),
 	save: vi.fn(),
 	sendEmail: vi.fn(),
+	loginBonus: vi.fn(),
 	logger: { error: vi.fn() },
 }));
 
 vi.mock("@repo/database", () => ({
 	db: {},
+	ensureOneTimeLoginCreditGrant: state.loginBonus,
 	getInvitationById: vi.fn(),
 	getOrganizationMembership: vi.fn(),
 	getPurchasesByOrganizationId: vi.fn(),
@@ -139,6 +141,7 @@ describe("Better Auth registration attribution hooks with an isolated memory ada
 			return true;
 		});
 		state.sendEmail.mockResolvedValue(undefined);
+		state.loginBonus.mockResolvedValue({ status: "GRANTED" });
 	});
 	afterAll(() => vi.unstubAllEnvs());
 	afterEach(() => vi.unstubAllGlobals());
@@ -198,6 +201,7 @@ describe("Better Auth registration attribution hooks with an isolated memory ada
 			sourceCookie("/create"),
 		);
 		expect(login.status).toBe(200);
+		expect(state.loginBonus).toHaveBeenCalledWith({ ownerId: body.user.id }, expect.anything());
 		expect(state.save).toHaveBeenCalledTimes(1);
 		expect(state.snapshots.get(body.user.id)).toEqual(initial);
 		expect(
@@ -208,6 +212,54 @@ describe("Better Auth registration attribution hooks with an isolated memory ada
 						cookie.startsWith(`${ATTRIBUTION_COOKIE_NAME}=`) && cookie.includes("Max-Age=0"),
 				),
 		).toBe(true);
+	});
+
+	it("keeps verified login available if the idempotent bonus temporarily fails", async () => {
+		const { body } = await signup("bonus-retry@example.test");
+		await auth.handler(new Request(latestMailUrl()));
+		state.loginBonus.mockRejectedValueOnce(new Error("temporary database error"));
+		const login = await post("/sign-in/email", { email: "bonus-retry@example.test", password });
+		expect(login.status).toBe(200);
+		expect(state.loginBonus).toHaveBeenLastCalledWith({ ownerId: body.user.id }, expect.anything());
+		expect(state.logger.error).toHaveBeenCalledWith("Login credit bonus could not be granted", {
+			ctx: "loginCreditBonus",
+			userId: body.user.id,
+			errorType: "Error",
+		});
+	});
+	it("retries the same account benefit on new verified sessions without writing on session reads", async () => {
+		const { body } = await signup("repeat-bonus@example.test");
+		await auth.handler(new Request(latestMailUrl()));
+		state.loginBonus.mockClear();
+		const login = await post("/sign-in/email", { email: "repeat-bonus@example.test", password });
+		expect(login.status).toBe(200);
+		const read = await auth.handler(
+			new Request(`${origin}/api/auth/get-session`, {
+				headers: { cookie: sessionCookie(login), origin },
+			}),
+		);
+		expect(read.status).toBe(200);
+		expect(state.loginBonus).toHaveBeenCalledOnce();
+		state.loginBonus.mockResolvedValueOnce({ status: "ALREADY_GRANTED" });
+		const repeated = await post("/sign-in/email", { email: "repeat-bonus@example.test", password });
+		expect(repeated.status).toBe(200);
+		expect(state.loginBonus.mock.calls.map(([input]) => input)).toEqual([
+			{ ownerId: body.user.id },
+			{ ownerId: body.user.id },
+		]);
+	});
+
+	it("delegates an actual anonymous session to the authoritative no-gift boundary", async () => {
+		state.loginBonus.mockResolvedValueOnce({ status: "ANONYMOUS_USER" });
+		const guest = await runAnonymousBootstrapIdentity("gift-guest@anonymous.invalid", () =>
+			post("/sign-in/anonymous", {}),
+		);
+		expect(guest.status).toBe(200);
+		const body = (await guest.json()) as { user: { id: string; isAnonymous: boolean } };
+		expect(body.user.isAnonymous).toBe(true);
+		expect(state.loginBonus).toHaveBeenCalledOnce();
+		expect(state.loginBonus).toHaveBeenCalledWith({ ownerId: body.user.id }, expect.anything());
+		expect(state.logger.error).not.toHaveBeenCalled();
 	});
 
 	it("retains source until magic-link verification creates the new user", async () => {
@@ -226,6 +278,9 @@ describe("Better Auth registration attribution hooks with an isolated memory ada
 		).toBe(false);
 		const verified = await auth.handler(new Request(latestMailUrl(), { headers: { cookie } }));
 		expect(verified.status).toBe(302);
+		const registered = state.memory.user.find((user) => user.email === "magic@example.test");
+		expect(registered?.isAnonymous).not.toBe(true);
+		expect(state.loginBonus).toHaveBeenCalledWith({ ownerId: registered?.id }, expect.anything());
 		expect([...state.snapshots.values()]).toHaveLength(1);
 		expect([...state.snapshots.values()][0]).toMatchObject({
 			landingPath: "/blog/magic-link-entry",

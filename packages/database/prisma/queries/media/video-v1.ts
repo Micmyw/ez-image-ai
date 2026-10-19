@@ -29,6 +29,7 @@ import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { reserveCreditsInTransaction } from "./credits";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
+import { effectiveMediaStorageLimit, freezeAggregateStoragePolicy } from "./storage-quota";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import {
 	runReadCommitted,
@@ -69,9 +70,12 @@ export interface VideoPrice {
 	pricingDetails?: Prisma.InputJsonObject;
 }
 export type VideoAdmissionLimits = {
-	ownerConcurrency: number;
-	globalConcurrency: number;
-	providerConcurrency: number;
+	/** @deprecated Older caller compatibility only; available credits govern admission. */
+	ownerConcurrency?: number;
+	/** @deprecated Legacy admission fields are accepted but ignored. Capacity is checked before sending. */
+	globalConcurrency?: number;
+	/** @deprecated Legacy admission fields are accepted but ignored. Capacity is checked before sending. */
+	providerConcurrency?: number;
 	maximumStorageBytes: bigint;
 	maximumInputBytes: number;
 };
@@ -359,19 +363,13 @@ export async function createVideoJobRecord(
 		throw new Error("INVALID_IDEMPOTENCY_KEY");
 	const requiresScene =
 		input.template?.template.schemaVersion === 1 || input.template?.template.schemaVersion === 3;
-	for (const value of [
-		input.limits.ownerConcurrency,
-		input.limits.globalConcurrency,
-		input.limits.providerConcurrency,
-	])
-		if (!Number.isSafeInteger(value) || value < 1) throw new Error("VIDEO_QUOTA_NOT_CONFIGURED");
 	// Every mutable admission predicate is protected by the ordered advisory/
 	// row locks below. READ COMMITTED observes the prior lock holder's commit;
 	// a SERIALIZABLE snapshot taken before waiting needlessly aborts busy bursts.
 	const accepted = await runReadCommitted(client, async (tx) => {
 		const admissionTransactionStartedAt = new Date().toISOString();
 		// Quote security fields are database-immutable. Read them before joining the
-		// shared Kie queue, but defer all errors until an accepted replay is checked.
+		// owner admission lock, but defer all errors until an accepted replay is checked.
 		const quote = await tx.generationQuote.findFirst({
 			where: {
 				id: input.quoteId,
@@ -380,17 +378,8 @@ export async function createVideoJobRecord(
 				submittedByUserId: input.ownerId,
 			},
 		});
-		const providerCapacityLockRequestedAt = new Date().toISOString();
-		// Provider first, then owner: the materialized dependency preserves the same
-		// lock order as legacy admission in one round trip. The provider lock already
-		// serializes every V1 admission, so a second global video lock is redundant.
 		await tx.$executeRaw`
-			WITH provider_lock AS MATERIALIZED (
-				SELECT pg_advisory_xact_lock(hashtextextended('media:provider-capacity:kie', 0))
-			)
-			SELECT pg_advisory_xact_lock(hashtextextended(${`USER:${input.ownerId}:generation-concurrency`}, 0))
-			FROM provider_lock`;
-		const providerCapacityLockAcquiredAt = new Date().toISOString();
+			SELECT pg_advisory_xact_lock(hashtextextended(${`USER:${input.ownerId}:generation-concurrency`}, 0))`;
 		const replay = await findExistingVideoAdmission({ ...input, request }, tx);
 		if (replay) return { jobId: replay.id, replayed: true };
 		// Accepted receipts retain their exact historical framing. Only new
@@ -412,9 +401,6 @@ export async function createVideoJobRecord(
 				now: Date;
 				quoteUsed: boolean;
 				blocked: boolean;
-				ownerCount: bigint;
-				globalCount: bigint;
-				legacyCount: bigint;
 			}>
 		>`
 			SELECT clock_timestamp() AS "now",
@@ -423,16 +409,7 @@ export async function createVideoJobRecord(
 					SELECT 1 FROM "runtime_config_override"
 					WHERE "active" = true AND "value" = 'false'::jsonb
 						AND "configKey" IN ('media.generation.enabled', ${`media.model.${requestProduct(request)}.enabled`}, ${requiresScene ? `media.model.${input.template!.template.scene.productKey}.enabled` : `media.model.${requestProduct(request)}.enabled`}, ${requiresScene ? "media.model.image-nano-banana-2-lite.enabled" : `media.model.${requestProduct(request)}.enabled`})
-				) AS "blocked",
-				COUNT(*) FILTER (WHERE j."executionEngine" = 'video-workflow-v1'
-					AND j."ownerType" = 'USER' AND j."ownerId" = ${input.ownerId}) AS "ownerCount",
-				COUNT(*) FILTER (WHERE j."executionEngine" = 'video-workflow-v1') AS "globalCount",
-				COUNT(*) FILTER (WHERE j."executionEngine" = 'legacy') AS "legacyCount"
-			FROM "generation_job" j
-			LEFT JOIN "video_execution" v ON v."jobId" = j."id"
-			WHERE (j."executionEngine" = 'video-workflow-v1' AND v."stage" NOT IN ('READY', 'REJECTED', 'FAILED'))
-				OR (j."executionEngine" = 'legacy' AND j."terminalAt" IS NULL
-					AND j."status" NOT IN ('SUCCEEDED', 'FAILED', 'CANCELED'))`;
+				) AS "blocked"`;
 		if (!capacity) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
 		const { now } = capacity;
 		if (capacity.quoteUsed) throw new Error("VIDEO_QUOTE_ALREADY_USED");
@@ -489,13 +466,6 @@ export async function createVideoJobRecord(
 		)
 			throw new Error("VIDEO_SAFETY_PROFILE_CHANGED");
 		if (capacity.blocked) throw new Error("VIDEO_DISABLED");
-		if (capacity.ownerCount >= BigInt(input.limits.ownerConcurrency))
-			throw new Error("VIDEO_OWNER_BUSY");
-		if (capacity.globalCount >= BigInt(input.limits.globalConcurrency))
-			throw new Error("VIDEO_GLOBAL_BUSY");
-		// Conservatively account for every live legacy job, including those not submitted yet.
-		if (capacity.globalCount + capacity.legacyCount >= BigInt(input.limits.providerConcurrency))
-			throw new Error("VIDEO_PROVIDER_BUSY");
 		await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
 		const outputBytes = videoOutputReservationBytes(quote.inputSnapshot);
 		const sceneBytes = input.template
@@ -505,8 +475,6 @@ export async function createVideoJobRecord(
 			ownerType: "USER",
 			ownerId: input.ownerId,
 		});
-		if (usedBytes + outputBytes + sceneBytes > input.limits.maximumStorageBytes)
-			throw new Error("STORAGE_QUOTA_EXCEEDED");
 		if (request.mode === "image-to-video")
 			await lockMediaAssetGenerationBindings(
 				input.template
@@ -566,6 +534,14 @@ export async function createVideoJobRecord(
 		const admissionNow = await databaseNow(tx);
 		if (quote.expiresAt <= admissionNow) throw new Error("QUOTE_EXPIRED");
 		await assertVideoRetailEligibility(input.ownerId, input.price.pricingDetails, tx, admissionNow);
+		const maximumStorageBytes = await effectiveMediaStorageLimit(
+			{ ownerType: "USER", ownerId: input.ownerId },
+			input.limits.maximumStorageBytes,
+			tx,
+			admissionNow,
+		);
+		if (maximumStorageBytes !== null && usedBytes + outputBytes + sceneBytes > maximumStorageBytes)
+			throw new Error("STORAGE_QUOTA_EXCEEDED");
 		const job = await tx.generationJob.create({
 			data: {
 				ownerType: "USER",
@@ -579,7 +555,7 @@ export async function createVideoJobRecord(
 				creditsReserved: quote.credits,
 				executionEngine: ENGINE,
 				inputSnapshot: quote.inputSnapshot as Prisma.InputJsonValue,
-				pricingSnapshot: quote.pricingSnapshot as Prisma.InputJsonValue,
+				pricingSnapshot: freezeAggregateStoragePolicy(quote.pricingSnapshot, maximumStorageBytes),
 			},
 		});
 		const creditReservationStartedAt = new Date().toISOString();
@@ -648,8 +624,6 @@ export async function createVideoJobRecord(
 				stageData: {
 					timings: {
 						admissionTransactionStartedAt,
-						providerCapacityLockRequestedAt,
-						providerCapacityLockAcquiredAt,
 						creditReservationStartedAt,
 						creditReservationCompletedAt,
 						...(input.requestReceivedAt

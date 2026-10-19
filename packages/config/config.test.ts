@@ -502,17 +502,9 @@ describe("product configuration", () => {
 	it("publishes the complete EzImageAI plan contract from one server-owned catalog", () => {
 		expect(
 			PLAN_ENTITLEMENTS.map(
-				({
+				({ id, monthlyCredits, maximumInputBytes, allowedProducts, prices }) => ({
 					id,
 					monthlyCredits,
-					maximumConcurrentJobs,
-					maximumInputBytes,
-					allowedProducts,
-					prices,
-				}) => ({
-					id,
-					monthlyCredits,
-					maximumConcurrentJobs,
 					maximumInputBytes,
 					allowedProducts,
 					prices,
@@ -522,7 +514,6 @@ describe("product configuration", () => {
 			{
 				id: "free",
 				monthlyCredits: 25,
-				maximumConcurrentJobs: 1,
 				maximumInputBytes: 10 * 1024 * 1024,
 				allowedProducts: ["image-nano-banana-2-lite"],
 				prices: [],
@@ -530,7 +521,6 @@ describe("product configuration", () => {
 			{
 				id: "creator",
 				monthlyCredits: 700,
-				maximumConcurrentJobs: 3,
 				maximumInputBytes: 20 * 1024 * 1024,
 				allowedProducts: [
 					"image-nano-banana-2-lite",
@@ -554,7 +544,6 @@ describe("product configuration", () => {
 			{
 				id: "ultimate",
 				monthlyCredits: 1_800,
-				maximumConcurrentJobs: 6,
 				maximumInputBytes: 20 * 1024 * 1024,
 				allowedProducts: [
 					"image-nano-banana-2-lite",
@@ -578,7 +567,6 @@ describe("product configuration", () => {
 			{
 				id: "studio",
 				monthlyCredits: 3_000,
-				maximumConcurrentJobs: 10,
 				maximumInputBytes: 20 * 1024 * 1024,
 				allowedProducts: [
 					"image-nano-banana-2-lite",

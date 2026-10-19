@@ -63,9 +63,9 @@ describe.each(["image", "video"] as const)("%s output storage consumer compatibi
 	});
 });
 
-describe("consumer-first preserves producer admission and transfer fences", () => {
-	it("keeps the existing upload cap even for a paid owner", async () => {
-		const f = fixture({}, true);
+describe("combined storage admission and transfer fences", () => {
+	it("keeps the upload cap for a free owner", async () => {
+		const f = fixture({}, false);
 		await expect(
 			createMediaUploadSessionTransaction(
 				{

@@ -10,14 +10,20 @@ import { enforceMediaRateLimit } from "./rate-limit";
 
 beforeEach(() => vi.clearAllMocks());
 describe("admission rate limit timing", () => {
-	it.each([true, false])(
-		"retains the limiter result and logs no user identity: %s",
-		async (allowed) => {
+	it.each([
+		["media:quote", true],
+		["media:quote", false],
+		["media:generation", true],
+		["media:generation", false],
+	] as const)(
+		"retains the %s limiter result and logs no user identity: %s",
+		async (action, allowed) => {
 			mocks.query.mockResolvedValue([{ allowed }]);
-			const result = enforceMediaRateLimit("private-test-user", "media:generation");
+			const result = enforceMediaRateLimit("private-test-user", action);
 			if (allowed) await expect(result).resolves.toBeUndefined();
 			else await expect(result).rejects.toThrow("RATE_LIMITED");
 			expect(mocks.query).toHaveBeenCalledOnce();
+			expect(mocks.query.mock.calls[0]).toContain(action);
 			expect(mocks.info).toHaveBeenCalledWith(
 				"media.flow.timing",
 				expect.objectContaining({

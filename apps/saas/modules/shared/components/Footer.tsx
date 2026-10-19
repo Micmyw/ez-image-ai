@@ -2,6 +2,8 @@ import { config } from "@config";
 import { cn } from "@repo/ui";
 import { useTranslations } from "next-intl";
 
+import { FeedbackButton } from "./FeedbackButton";
+
 export function Footer() {
 	const t = useTranslations("common.footer");
 
@@ -21,6 +23,7 @@ export function Footer() {
 					</a>
 				</>
 			)}
+			<FeedbackButton supportEmail={config.supportEmail} variant="footer" />
 		</footer>
 	);
 }

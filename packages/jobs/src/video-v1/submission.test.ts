@@ -16,9 +16,16 @@ import {
 } from "./submission";
 
 vi.mock("@repo/database/video-v1-execution", () => ({}));
+vi.mock("@repo/database/video-template-execution", () => ({
+	getVideoEffectiveInputSnapshot: vi.fn(() => {
+		throw new Error("UNEXPECTED_TEMPLATE_INPUT");
+	}),
+}));
+vi.mock("@repo/database", () => ({ getActiveRuntimeConfigOverrides: vi.fn(async () => []) }));
+vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/storage", () => ({ createSignedReadUrl: vi.fn() }));
 
-function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video") {
+function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video", deferredClaims = 0) {
 	const now = new Date("2026-10-04T00:00:00Z");
 	const attempt: {
 		id: string;
@@ -65,6 +72,7 @@ function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video") {
 		claimVideoImageReview: vi.fn(async () => true),
 		claimVideoProviderSubmission: vi.fn(async (input: { providerModelId: string }) => {
 			if (attempt[0]) return { claimed: false, attempt: attempt[0] };
+			if (deferredClaims-- > 0) return { deferred: true, retryAfterMs: 5000 };
 			attempt.push({
 				id: "attempt-1",
 				providerTaskId: null,
@@ -138,6 +146,67 @@ function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video") {
 }
 
 describe("video V1 paid submission fence", () => {
+	it("does not renew an expired visual approval with only a fresh text review", async () => {
+		const f = fixture("image-to-video");
+		expect(await reviewVideoInput("job-1", f.deps)).toEqual({ status: "ALLOW" });
+		const review = f.job.videoExecution.stageData.inputReview as Record<string, unknown>;
+		const originalDeadline = review.validUntil;
+		f.deps.now = () => new Date("2026-10-04T01:00:01Z");
+		f.moderateText.mockClear();
+		f.safety.moderateImage.mockClear();
+		f.store.recordVideoInputReview.mockClear();
+		expect(await reviewVideoInput("job-1", f.deps)).toEqual({
+			status: "ERROR",
+			reasonCode: "VIDEO_INPUT_REVIEW_REQUIRED",
+			retryable: false,
+		});
+		expect(f.moderateText).not.toHaveBeenCalled();
+		expect(f.safety.moderateImage).not.toHaveBeenCalled();
+		expect(f.store.recordVideoInputReview).not.toHaveBeenCalled();
+		expect(review.validUntil).toBe(originalDeadline);
+		expect(f.provider.submit).not.toHaveBeenCalled();
+	});
+	it("renews an expired text-only approval with a new text decision", async () => {
+		const f = fixture();
+		expect(await reviewVideoInput("job-1", f.deps)).toEqual({ status: "ALLOW" });
+		f.deps.now = () => new Date("2026-10-04T01:00:01Z");
+		f.moderateText.mockClear();
+		expect(await reviewVideoInput("job-1", f.deps)).toEqual({ status: "ALLOW" });
+		expect(f.moderateText).toHaveBeenCalledOnce();
+		expect(f.safety.moderateImage).not.toHaveBeenCalled();
+		expect(f.provider.submit).not.toHaveBeenCalled();
+	});
+	it("returns expired input approval for review without sending or treating it as provider uncertainty", async () => {
+		const f = fixture();
+		f.store.claimVideoProviderSubmission.mockRejectedValueOnce(
+			new Error("VIDEO_INPUT_REVIEW_REQUIRED"),
+		);
+		expect(await submitVideoAttempt("job-1", f.deps)).toEqual({
+			status: "INPUT_REVIEW_REQUIRED",
+		});
+		expect(f.attempt).toHaveLength(0);
+		expect(f.provider.submit).not.toHaveBeenCalled();
+		expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+		expect(f.store.markVideoSubmissionUncertain).not.toHaveBeenCalled();
+	});
+	it("replays a competing uncertain attempt when an input-review claim lost the race", async () => {
+		const f = fixture();
+		f.store.claimVideoProviderSubmission.mockImplementationOnce(async () => {
+			f.attempt.push({
+				id: "competing-attempt",
+				providerTaskId: null,
+				providerModelId: "kling-2.6/text-to-video",
+				status: "SUBMISSION_UNCERTAIN",
+			});
+			throw new Error("VIDEO_INPUT_REVIEW_REQUIRED");
+		});
+		expect(await submitVideoAttempt("job-1", f.deps)).toMatchObject({
+			status: "UNCERTAIN",
+			attemptId: "competing-attempt",
+		});
+		expect(f.provider.submit).not.toHaveBeenCalled();
+		expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+	});
 	it.each([
 		"video-kling-2-6-v1",
 		"video-kling-3",
@@ -346,6 +415,22 @@ describe("video V1 paid submission fence", () => {
 		} finally {
 			fetch.mockRestore();
 		}
+	});
+	it("waits for provider capacity without sending or creating an uncertain attempt, then submits once", async () => {
+		const f = fixture("text-to-video", 2);
+		for (let round = 0; round < 2; round++) {
+			expect(await submitVideoAttempt("job-1", f.deps)).toEqual({
+				status: "DEFERRED",
+				retryAfterMs: 5000,
+			});
+			expect(f.attempt).toEqual([]);
+			expect(f.provider.submit).not.toHaveBeenCalled();
+			expect(f.store.markVideoSubmissionUncertain).not.toHaveBeenCalled();
+			expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+		}
+		expect(await submitVideoAttempt("job-1", f.deps)).toMatchObject({ status: "ACCEPTED" });
+		expect(await submitVideoAttempt("job-1", f.deps)).toMatchObject({ status: "ACCEPTED" });
+		expect(f.provider.submit).toHaveBeenCalledTimes(1);
 	});
 	it("a replay after accepted taskId persistence fails never submits a second paid request", async () => {
 		const f = fixture();

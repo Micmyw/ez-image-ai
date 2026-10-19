@@ -47,7 +47,6 @@ export async function loadCurrentGenerationAdmission(
 	if (input.costMicros > BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumJobCostMicros))
 		throw new Error("BUDGET_EXCEEDED");
 	return {
-		maximumConcurrentJobs: entitlement.maximumConcurrentJobs,
 		maximumInputBytes: Math.min(
 			entitlement.maximumInputBytes,
 			getImageProductSelectionContract(productKey)?.maximumInputBytes ??

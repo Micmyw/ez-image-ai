@@ -13,12 +13,14 @@ import {
 import { maximumMediaStorageBytes } from "@repo/config/server";
 
 import type { Prisma } from "../../generated/client";
+import { accountInputRetentionPatch } from "./account-input-promotion";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
 import {
 	bindGuestBootstrapToExistingOwner,
 	createGuestSessionBootstrapWithClaimFence,
 } from "./guest-bootstrap";
+import { effectiveMediaStorageLimit } from "./storage-quota";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import { unexpiredStorageReservations } from "./temporary-references";
 import type { MediaTransactionClient } from "./types";
@@ -46,8 +48,9 @@ interface CreateGenerationDraftInput {
 	};
 	abuseLimits?: {
 		subjectHash: string;
-		maximumActiveDrafts: number;
-		maximumActiveBytes: bigint;
+		/** Retired network aggregation settings accepted from older callers, never enforced. */
+		maximumActiveDrafts?: number;
+		maximumActiveBytes?: bigint;
 		maximumGlobalDraftsPerMinute: number;
 	};
 }
@@ -61,7 +64,6 @@ export async function createGenerationDraftTransaction(
 	return client.$transaction(async (tx) => {
 		if (input.abuseLimits) {
 			await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('marketing-draft-global'))`;
-			await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`marketing-draft:${input.abuseLimits.subjectHash}`}))`;
 			const now = new Date();
 			const windowStart = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
 			const [globalRate] = await tx.$queryRaw<Array<{ allowed: boolean }>>`
@@ -71,31 +73,6 @@ export async function createGenerationDraftTransaction(
 				SET "count" = "rate_limit_bucket"."count" + 1, "updatedAt" = now()
 				RETURNING ("count" <= ${input.abuseLimits.maximumGlobalDraftsPerMinute}) AS "allowed"`;
 			if (!globalRate?.allowed) throw new Error("GLOBAL_DRAFT_LIMITED");
-			const active = await tx.generationDraft.findMany({
-				where: {
-					ownerId: `anonymous:${input.abuseLimits.subjectHash}`,
-					status: "ACTIVE",
-					expiresAt: { gt: now },
-				},
-				select: { assetId: true },
-			});
-			if (active.length >= input.abuseLimits.maximumActiveDrafts) {
-				throw new Error("ACTIVE_DRAFT_LIMIT_EXCEEDED");
-			}
-			const activeAssets = await tx.mediaAsset.aggregate({
-				where: {
-					id: { in: active.flatMap((draft) => (draft.assetId ? [draft.assetId] : [])) },
-					deletedAt: null,
-				},
-				_sum: { byteSize: true },
-			});
-			const activeBytes = activeAssets._sum.byteSize ?? 0n;
-			if (
-				activeBytes + BigInt(input.asset?.byteSize ?? 0n) >
-				input.abuseLimits.maximumActiveBytes
-			) {
-				throw new Error("ACTIVE_DRAFT_BYTES_EXCEEDED");
-			}
 		}
 		const draftId = crypto.randomUUID();
 		const ownerId = input.abuseLimits
@@ -194,8 +171,13 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 			},
 		});
 		if (!session) throw new Error("GUEST_UPLOAD_UNAVAILABLE");
+		if (
+			session.asset.deletedAt ||
+			(session.asset.deleteAfter && session.asset.deleteAfter <= input.verification.now)
+		)
+			throw new Error("GUEST_UPLOAD_UNAVAILABLE");
 		if (!hasCurrentApprovedMediaAssetEvidence(session.asset, input.verification)) {
-			throw new Error("GUEST_UPLOAD_NOT_READY");
+			throw new Error(guestUploadVerificationError(session.asset, input.verification));
 		}
 		const consumed = await tx.mediaUploadSession.updateMany({
 			where: {
@@ -236,6 +218,58 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 		);
 		return { id: draft.id, expiresAt: draft.expiresAt };
 	});
+}
+
+/** Presentation only: no failure path can create a draft or authorize an asset. */
+function guestUploadVerificationError(
+	asset: Parameters<typeof hasCurrentApprovedMediaAssetEvidence>[0],
+	verification: Parameters<typeof hasCurrentApprovedMediaAssetEvidence>[1],
+): string {
+	if (["UPLOADING", "VERIFYING"].includes(asset.status)) return "GUEST_UPLOAD_NOT_READY";
+	const evidence = asset.moderationResults[0];
+	if (!evidence) return "GUEST_UPLOAD_SAFETY_UNAVAILABLE";
+	// Terminal REJECT/REVIEW decisions are stored without approval lifetimes.
+	// Historical timed decisions may be displayed only while both deadlines match.
+	const matchingTerminalValidity =
+		(asset.verificationValidUntil === null && evidence.validUntil === null) ||
+		(asset.verificationValidUntil &&
+			evidence.validUntil &&
+			evidence.validUntil.getTime() === asset.verificationValidUntil.getTime() &&
+			evidence.validUntil > verification.now);
+	const matching =
+		(asset.verificationEngine ?? "legacy") === "legacy" &&
+		asset.kind === "INPUT" &&
+		Boolean(asset.checksum) &&
+		asset.verificationAttemptCount > 0 &&
+		asset.verificationProvider === verification.provider &&
+		asset.verificationRuleVersion === verification.ruleVersion &&
+		asset.verificationPolicyVersion === verification.policyVersion &&
+		evidence?.assetChecksum === asset.checksum &&
+		evidence.verificationGeneration === asset.verificationGeneration &&
+		evidence.attemptNumber === asset.verificationAttemptCount &&
+		evidence.evidenceKind === asset.kind &&
+		evidence.provider === asset.verificationProvider &&
+		evidence.providerTaskId === asset.verificationProviderTaskId &&
+		evidence.ruleVersion === verification.ruleVersion &&
+		evidence.policyVersion === verification.policyVersion &&
+		matchingTerminalValidity;
+	if (asset.status === "QUARANTINED" && matching) {
+		if (
+			evidence.status === "REJECTED" &&
+			[
+				"SEEAPI_CONTENT_NOT_ALLOWED",
+				"ADMIN_CONTENT_REJECTED",
+				"SEXUAL_CONTENT",
+				"GRAPHIC_CONTENT",
+				"VIOLENT_CONTENT",
+				"WEAPON_THREAT",
+				"SELF_HARM_CONTENT",
+			].includes(evidence.reasonCode)
+		)
+			return "GUEST_UPLOAD_CONTENT_REJECTED";
+		if (evidence.status === "REVIEW") return "GUEST_UPLOAD_REVIEW_REQUIRED";
+	}
+	return "GUEST_UPLOAD_SAFETY_UNAVAILABLE";
 }
 
 export async function claimGenerationDraftTransaction(
@@ -348,6 +382,7 @@ async function claimGenerationDraftWithPolicy(
 				assetId: draft.assetId,
 				previousOwnerId: draft.ownerId,
 				nextOwnerId: input.userId,
+				...(!requireGuestBootstrap ? { accountPromotionDraftId: draft.id } : {}),
 			},
 			tx,
 		);
@@ -404,6 +439,7 @@ export async function transferGuestGenerationDraftToRegisteredUserInTransaction(
 			assetId: draft.assetId,
 			previousOwnerId: input.anonymousOwnerId,
 			nextOwnerId: input.registeredUserId,
+			accountPromotionDraftId: draft.id,
 		},
 		tx,
 	);
@@ -411,7 +447,12 @@ export async function transferGuestGenerationDraftToRegisteredUserInTransaction(
 }
 
 async function transferGenerationDraftAssetOwnership(
-	input: { assetId: string | null; previousOwnerId: string; nextOwnerId: string },
+	input: {
+		assetId: string | null;
+		previousOwnerId: string;
+		nextOwnerId: string;
+		accountPromotionDraftId?: string;
+	},
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
 	if (!input.assetId) return;
@@ -421,6 +462,7 @@ async function transferGenerationDraftAssetOwnership(
 		await lockOwnerStorageUsage({ ownerType: "USER", ownerId }, tx);
 	}
 	await lockMediaAssetGenerationBindings([input.assetId], tx);
+	await tx.$executeRaw`SELECT "id" FROM "media_asset" WHERE "id" = ${input.assetId} FOR UPDATE`;
 	const asset = await tx.mediaAsset.findFirst({
 		where: {
 			id: input.assetId,
@@ -432,7 +474,19 @@ async function transferGenerationDraftAssetOwnership(
 		},
 		include: { uploadSessions: { select: { id: true }, orderBy: { createdAt: "asc" }, take: 1 } },
 	});
-	if (!asset || asset.byteSize <= 0n) throw new Error("DRAFT_UNAVAILABLE");
+	if (
+		!asset ||
+		asset.byteSize <= 0n ||
+		asset.deletedAt ||
+		!["VERIFYING", "READY"].includes(asset.status)
+	)
+		throw new Error("DRAFT_UNAVAILABLE");
+	const retentionPatch = input.accountPromotionDraftId
+		? await accountInputRetentionPatch(
+				{ draftId: input.accountPromotionDraftId, nextOwnerId: input.nextOwnerId, asset },
+				tx,
+			)
+		: {};
 	const uploadSession = asset.uploadSessions[0];
 	const referenceKey = uploadSession
 		? `media-upload:${uploadSession.id}`
@@ -457,7 +511,12 @@ async function transferGenerationDraftAssetOwnership(
 	});
 	const additionalBytes =
 		reservation?.ownerId === input.nextOwnerId ? 0n : (reservation?.bytes ?? asset.byteSize);
-	if ((reserved._sum.bytes ?? 0n) + additionalBytes > maximumMediaStorageBytes()) {
+	const maximumBytes = await effectiveMediaStorageLimit(
+		{ ownerType: "USER", ownerId: input.nextOwnerId },
+		maximumMediaStorageBytes(),
+		tx,
+	);
+	if (maximumBytes !== null && (reserved._sum.bytes ?? 0n) + additionalBytes > maximumBytes) {
 		throw new Error("STORAGE_QUOTA_EXCEEDED");
 	}
 	if (reservation) {
@@ -479,8 +538,13 @@ async function transferGenerationDraftAssetOwnership(
 		});
 	}
 	const transferredVerifying = await tx.mediaAsset.updateMany({
-		where: { id: input.assetId, ownerId: input.previousOwnerId, status: "VERIFYING" },
-		data: { ownerType: "USER", ownerId: input.nextOwnerId },
+		where: {
+			id: input.assetId,
+			ownerId: input.previousOwnerId,
+			status: "VERIFYING",
+			deletedAt: null,
+		},
+		data: { ownerType: "USER", ownerId: input.nextOwnerId, ...retentionPatch },
 	});
 	if (transferredVerifying.count === 1) {
 		await tx.outboxEvent.create({
@@ -501,7 +565,7 @@ async function transferGenerationDraftAssetOwnership(
 	if (startedReadyTransfer.count !== 1) throw new Error("DRAFT_UNAVAILABLE");
 	const transferredReady = await tx.mediaAsset.updateMany({
 		where: { id: input.assetId, ownerId: input.previousOwnerId, status: "VERIFYING" },
-		data: { ownerType: "USER", ownerId: input.nextOwnerId, status: "READY" },
+		data: { ownerType: "USER", ownerId: input.nextOwnerId, status: "READY", ...retentionPatch },
 	});
 	if (transferredReady.count !== 1) throw new Error("DRAFT_UNAVAILABLE");
 }

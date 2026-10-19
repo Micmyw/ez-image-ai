@@ -6,7 +6,8 @@ export async function dispatchGeneration(
 	payload: DispatchJobPayload,
 	dependencies: DispatchDependencies,
 ): Promise<{
-	outcome: "SKIPPED" | "SUBMITTED" | "RECONCILE" | "REJECTED" | "RECOVERY_REQUIRED";
+	outcome: "SKIPPED" | "DEFERRED" | "SUBMITTED" | "RECONCILE" | "REJECTED" | "RECOVERY_REQUIRED";
+	retryAfterMs?: number;
 	continuation?: DispatchContinuation;
 }> {
 	const generationEnabled =
@@ -16,6 +17,13 @@ export async function dispatchGeneration(
 	}
 	const claim = await dependencies.store.claimDispatch(payload);
 	if (!claim) return { outcome: "SKIPPED" };
+	if ("deferred" in claim) {
+		return {
+			outcome: "DEFERRED",
+			retryAfterMs: claim.retryAfterMs,
+			continuation: claim.continuation,
+		};
+	}
 	if (claim.serviceClass === "GUEST_SLOW" && claim.attemptNumber !== 1) {
 		throw new Error("GUEST_ATTEMPT_LIMIT_EXCEEDED");
 	}
