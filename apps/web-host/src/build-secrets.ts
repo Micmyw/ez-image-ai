@@ -46,7 +46,7 @@ const videoCallbackSecrets = [
 export type VideoBuildPriceBaseEvidence = {
 	previousVersion: string;
 	nextVersion: string;
-	validUntil: string;
+	expiryEnforced: false;
 };
 
 export function packCloudflareBuildEnvironment(source: string) {
@@ -113,7 +113,6 @@ function withVideoRuntimeOverrides(
 	const priceVersion = environment.VIDEO_V1_BUILD_PRICE_VERSION;
 	const retailVersion = environment.VIDEO_V1_BUILD_RETAIL_PRICE_VERSION;
 	const priceBasis = environment.VIDEO_V1_BUILD_PRICE_BASIS;
-	const priceExpiry = environment.VIDEO_V1_BUILD_PRICE_EXPIRY;
 	const modelVersion = environment.VIDEO_V1_BUILD_MODEL_VERSION;
 	const hasPriceApproval = priceVersion !== undefined || priceBasis !== undefined;
 	const templateEnabled = environment.HOTEL_LOBBY_DUO_BUILD_ENABLED;
@@ -123,8 +122,6 @@ function withVideoRuntimeOverrides(
 		throw new Error("VIDEO_BUILD_ACCESS_OVERRIDE_INVALID");
 	if (modelVersion !== undefined && modelVersion !== VIDEO_MODEL_CATALOG_VERSION)
 		throw new Error("VIDEO_BUILD_MODEL_OVERRIDE_INVALID");
-	if (priceExpiry !== undefined && priceExpiry !== "none")
-		throw new Error("VIDEO_BUILD_PRICE_EXPIRY_OVERRIDE_INVALID");
 	if (templateEnabled !== undefined && templateEnabled !== "true" && templateEnabled !== "false")
 		throw new Error("VIDEO_EFFECT_BUILD_ENABLED_OVERRIDE_INVALID");
 	let policy = encoded === undefined ? undefined : parseVideoRuntimeConfig(encoded);
@@ -147,20 +144,16 @@ function withVideoRuntimeOverrides(
 		if (previous.VIDEO_MODEL_CONTRACT_VERSION !== undefined)
 			changedFlatKeys.add("VIDEO_MODEL_CONTRACT_VERSION");
 	}
-	if (hasPriceApproval || priceExpiry !== undefined) {
-		if (hasPriceApproval) {
-			if (priceVersion !== VIDEO_SUPPLIER_PRICE_VERSION || !priceBasis?.trim())
-				throw new Error("VIDEO_BUILD_PRICE_OVERRIDE_INVALID");
-			try {
-				parseVideoRuntimeConfig(JSON.stringify({ VIDEO_PRICE_BASIS: priceBasis }));
-			} catch {
-				throw new Error("VIDEO_BUILD_PRICE_OVERRIDE_INVALID");
-			}
+	if (hasPriceApproval) {
+		if (priceVersion !== VIDEO_SUPPLIER_PRICE_VERSION || !priceBasis?.trim())
+			throw new Error("VIDEO_BUILD_PRICE_OVERRIDE_INVALID");
+		try {
+			parseVideoRuntimeConfig(JSON.stringify({ VIDEO_PRICE_BASIS: priceBasis }));
+		} catch {
+			throw new Error("VIDEO_BUILD_PRICE_OVERRIDE_INVALID");
 		}
 		const previousVersion = policy?.VIDEO_PRICE_ACCEPTED_VERSION;
 		const previousBasis = policy?.VIDEO_PRICE_BASIS;
-		const previousExpiry = policy?.VIDEO_PRICE_VALID_UNTIL;
-		const expiry = Date.parse(previousExpiry ?? "");
 		if (
 			!policy ||
 			!previousVersion ||
@@ -169,19 +162,16 @@ function withVideoRuntimeOverrides(
 				"kie-public-2026-10-07.1",
 				VIDEO_SUPPLIER_PRICE_VERSION,
 			].includes(previousVersion) ||
-			(!hasPriceApproval && previousVersion !== VIDEO_SUPPLIER_PRICE_VERSION) ||
-			!previousBasis?.trim() ||
-			(previousExpiry !== "none" && !Number.isFinite(expiry)) ||
-			(priceExpiry === undefined && previousExpiry !== "none" && expiry <= Date.now())
+			!previousBasis?.trim()
 		)
 			throw new Error("VIDEO_BUILD_PRICE_POLICY_REQUIRED");
 		const previous = parseEnv(source);
 		expandVideoRuntimeEnvironment({ ...previous, VIDEO_RUNTIME_CONFIG: encoded });
-		// Expose only validated public version names and a normalized inherited expiry.
+		// Expose validated public version names; retired expiry values stay private and inert.
 		onVideoPriceBase?.({
 			previousVersion,
 			nextVersion: VIDEO_SUPPLIER_PRICE_VERSION,
-			validUntil: previousExpiry === "none" ? "none" : new Date(expiry).toISOString(),
+			expiryEnforced: false,
 		});
 		const appendix = priceBasis?.trim();
 		const basis =
@@ -193,13 +183,9 @@ function withVideoRuntimeOverrides(
 				...policy,
 				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 				VIDEO_PRICE_BASIS: basis,
-				...(priceExpiry === undefined ? {} : { VIDEO_PRICE_VALID_UNTIL: priceExpiry }),
 			}),
 		);
-		for (const key of [
-			...(hasPriceApproval ? ["VIDEO_PRICE_ACCEPTED_VERSION", "VIDEO_PRICE_BASIS"] : []),
-			...(priceExpiry === undefined ? [] : ["VIDEO_PRICE_VALID_UNTIL"]),
-		])
+		for (const key of ["VIDEO_PRICE_ACCEPTED_VERSION", "VIDEO_PRICE_BASIS"])
 			if (previous[key] !== undefined) changedFlatKeys.add(key);
 	}
 	if (retailVersion !== undefined) {

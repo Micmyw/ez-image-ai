@@ -239,15 +239,15 @@ describe("video full variable cost pricing", () => {
 		expect(() =>
 			resolveVideoModelPrice(request, { ...env, VIDEO_COST_MODERATION_BASE_MICROS: "" }),
 		).toThrow("VIDEO_COST_POLICY_NOT_CONFIGURED");
-		expect(() =>
+		expect(
 			resolveVideoModelPrice(request, { ...env, VIDEO_PRICE_VALID_UNTIL: "2000-01-01" }),
-		).toThrow("VIDEO_PRICE_EXPIRED");
+		).toEqual(resolveVideoModelPrice(request, env));
 	});
 });
 
-describe("October 7 supplier price refresh and finite operator approval", () => {
+describe("October 7 supplier price refresh without price expiry", () => {
 	it.each(["video-seedance-2-mini", "video-seedance-2-fast"])(
-		"quotes %s after the superseded cutoff and freezes the operator deadline",
+		"quotes %s after the superseded cutoff without freezing a price deadline",
 		(productKey) => {
 			vi.useFakeTimers();
 			vi.setSystemTime(new Date("2026-10-07T13:50:00.000Z"));
@@ -257,7 +257,7 @@ describe("October 7 supplier price refresh and finite operator approval", () => 
 			};
 			const price = resolveVideoModelPrice({ ...request, productKey, resolution: "720p" }, env);
 			expect(price.pricingVersion).toBe(VIDEO_SUPPLIER_PRICE_VERSION);
-			expect(price.pricingDetails.validUntil).toBe(env.VIDEO_PRICE_VALID_UNTIL);
+			expect(price.pricingDetails.validUntil).toBeNull();
 		},
 	);
 	it.each([
@@ -276,7 +276,7 @@ describe("October 7 supplier price refresh and finite operator approval", () => 
 		).toBe(VIDEO_SUPPLIER_PRICE_VERSION);
 	});
 	it.each(["video-seedance-2-mini", "video-seedance-2-fast"])(
-		"refuses %s exactly at the finite operator approval deadline",
+		"preserves %s pricing at and after the retired price deadline",
 		(productKey) => {
 			vi.useFakeTimers();
 			vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
@@ -285,11 +285,11 @@ describe("October 7 supplier price refresh and finite operator approval", () => 
 				VIDEO_PRICE_VALID_UNTIL: "2026-10-12T00:00:00.000Z",
 			};
 			const selection = { ...request, productKey, resolution: "720p" };
-			expect(resolveVideoModelPrice(selection, env).pricingDetails.validUntil).toBe(
-				env.VIDEO_PRICE_VALID_UNTIL,
-			);
-			vi.setSystemTime(new Date(env.VIDEO_PRICE_VALID_UNTIL));
-			expect(() => resolveVideoModelPrice(selection, env)).toThrow("VIDEO_PRICE_EXPIRED");
+			const before = resolveVideoModelPrice(selection, env);
+			for (const now of [env.VIDEO_PRICE_VALID_UNTIL, "2030-01-01T00:00:00.000Z"]) {
+				vi.setSystemTime(new Date(now));
+				expect(resolveVideoModelPrice(selection, env)).toEqual(before);
+			}
 		},
 	);
 	it.each([
@@ -306,7 +306,7 @@ describe("October 7 supplier price refresh and finite operator approval", () => 
 			expect(
 				resolveVideoModelPrice({ ...request, productKey, resolution }, env).pricingDetails
 					.validUntil,
-			).toBe(env.VIDEO_PRICE_VALID_UNTIL);
+			).toBeNull();
 		},
 	);
 	it("requires explicit approval of the revised tariff version", () => {
@@ -336,21 +336,21 @@ describe("October 7 supplier price refresh and finite operator approval", () => 
 		},
 	);
 	it.each([undefined, "", "invalid-date"])(
-		"rejects absent or invalid finite approval %s",
+		"ignores the retired finite approval field %s",
 		(validUntil) => {
 			vi.useFakeTimers();
 			vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
-			expect(() =>
+			expect(
 				resolveVideoModelPrice(request, {
 					...approvedPriceEnvironment(),
 					VIDEO_PRICE_VALID_UNTIL: validUntil,
 				}),
-			).toThrow("VIDEO_PRICE_EXPIRED");
+			).toEqual(resolveVideoModelPrice(request, approvedPriceEnvironment()));
 		},
 	);
 });
 
-describe("explicit ordinary video approval without a deadline", () => {
+describe("ordinary video pricing after retiring approval expiry", () => {
 	it("keeps the approved basis quotable after October 12 without inventing a date", () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
@@ -370,31 +370,31 @@ describe("explicit ordinary video approval without a deadline", () => {
 			expect(price.paidFundingPolicy).toEqual(finite.paidFundingPolicy);
 		}
 	});
-	it("marks newly approved finite snapshots explicitly", () => {
+	it("writes new snapshots without a price deadline even with a legacy date configured", () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
 		expect(
 			resolveVideoModelPrice(request, approvedPriceEnvironment()).pricingDetails,
 		).toMatchObject({
-			priceApprovalExpiryMode: "until",
-			validUntil: approvedPriceEnvironment().VIDEO_PRICE_VALID_UNTIL,
+			priceApprovalExpiryMode: "none",
+			validUntil: null,
 		});
 	});
 	it.each([undefined, "", " ", "NONE", " none", "none ", "invalid-date"])(
-		"does not treat an absent or malformed deadline %s as no expiry",
+		"does not use the retired deadline setting %s to alter approved pricing",
 		(validUntil) => {
 			vi.useFakeTimers();
 			vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
-			expect(() =>
+			expect(
 				resolveVideoModelPrice(request, {
 					...approvedPriceEnvironment(),
 					VIDEO_PRICE_VALID_UNTIL: validUntil,
 				}),
-			).toThrow("VIDEO_PRICE_EXPIRED");
+			).toEqual(resolveVideoModelPrice(request, approvedPriceEnvironment()));
 		},
 	);
 	it("still requires the accepted version, basis and complete cost policy", () => {
-		const env = { ...approvedPriceEnvironment(), VIDEO_PRICE_VALID_UNTIL: "none" };
+		const env = { ...approvedPriceEnvironment(), VIDEO_PRICE_VALID_UNTIL: "2000-01-01" };
 		for (const patch of [
 			{ VIDEO_PRICE_ACCEPTED_VERSION: "old-version" },
 			{ VIDEO_PRICE_BASIS: " " },
@@ -402,8 +402,12 @@ describe("explicit ordinary video approval without a deadline", () => {
 			expect(() => resolveVideoModelPrice(request, { ...env, ...patch })).toThrow(
 				"VIDEO_PRICE_NOT_APPROVED",
 			);
+		for (const amount of [undefined, "", "invalid", "-1", "1.5", "0"])
+			expect(() =>
+				resolveVideoModelPrice(request, { ...env, VIDEO_COST_RUNTIME_MICROS: amount }),
+			).toThrow("VIDEO_COST_POLICY_NOT_CONFIGURED");
 		expect(() =>
-			resolveVideoModelPrice(request, { ...env, VIDEO_COST_RUNTIME_MICROS: undefined }),
-		).toThrow("VIDEO_COST_POLICY_NOT_CONFIGURED");
+			resolveVideoModelPrice(request, { ...env, VIDEO_COST_PAYMENT_FEE_BPS: "10000" }),
+		).toThrow("VIDEO_PRICE_INVALID");
 	});
 });

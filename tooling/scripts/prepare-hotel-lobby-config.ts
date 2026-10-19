@@ -28,7 +28,6 @@ export const HOTEL_LOBBY_PRICE_SOURCE = "docs/operations/hotel-lobby-pricing-202
 export const DEFAULT_HOTEL_LOBBY_OUTPUT = ".wrangler/hotel-lobby/prepared/.env.local";
 export const DEFAULT_HOTEL_LOBBY_OVERLAY_OUTPUT =
 	".wrangler/hotel-lobby/prepared/build-overlay.env";
-const maximumApprovalExpiry = "2026-10-12T00:00:00.000Z";
 const selection = {
 	productKey: "video-seedance-1-5-pro",
 	mode: "image-to-video" as const,
@@ -37,20 +36,6 @@ const selection = {
 	aspectRatio: "16:9",
 	sound: false,
 };
-
-function expiry(environment: Record<string, string>): string {
-	const values = [
-		maximumApprovalExpiry,
-		environment.VIDEO_PRICE_VALID_UNTIL === "none"
-			? undefined
-			: environment.VIDEO_PRICE_VALID_UNTIL,
-		environment.HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL?.trim() || undefined,
-	].filter((value) => value !== undefined);
-	const times = values.map((value) => Date.parse(value));
-	if (times.some((value) => !Number.isFinite(value)))
-		throw new Error("HOTEL_LOBBY_PREPARATION_EXPIRY_INVALID");
-	return new Date(Math.min(...times)).toISOString();
-}
 
 /** Offline budget preparation only: no account, provider, database or deployment access. */
 export function prepareHotelLobbyEnvironment(input: Record<string, string>) {
@@ -84,7 +69,6 @@ export function prepareHotelLobbyEnvironment(input: Record<string, string>) {
 		HOTEL_LOBBY_DUO_BUILD_ENABLED: "false",
 		HOTEL_LOBBY_DUO_PRICE_VERSION: HOTEL_LOBBY_PRICE_VERSION,
 		HOTEL_LOBBY_DUO_PRICE_BASIS: `Conservative budget, not invoice; ${HOTEL_LOBBY_PRICE_SOURCE}`,
-		HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: expiry(environment),
 		HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS: "20000",
 		HOTEL_LOBBY_DUO_PAYMENT_FEE_BPS: "750",
 		HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS: `7.5% revenue allowance; budget, not invoice; ${HOTEL_LOBBY_PRICE_SOURCE}`,
@@ -122,7 +106,6 @@ export function prepareHotelLobbyEnvironment(input: Record<string, string>) {
 			credits: quote.credits.toString(),
 			referenceCredits: "69",
 			matchesReferenceBudget: quote.credits === 69n,
-			validUntil: quote.pricingDetails.validUntil,
 			providerCostMicros: quote.providerCostMicros.toString(),
 			completeCostMicros: quote.pricingDetails.completeCostMicros,
 			minimumGrossRevenueMicros: quote.pricingDetails.minimumGrossRevenueMicros,

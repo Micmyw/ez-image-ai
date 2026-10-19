@@ -67,7 +67,7 @@ describe("lightweight video navigation availability", () => {
 			disabled: [],
 		},
 		{
-			name: "expired price",
+			name: "retired price deadline",
 			overrides: { VIDEO_PRICE_VALID_UNTIL: "2020-01-01T00:00:00Z" },
 			access: true,
 			disabled: [],
@@ -163,22 +163,23 @@ describe("video public catalogue pricing and readiness", () => {
 			}
 		},
 	);
-	it("closes every finite shared price exactly at the operator deadline", () => {
-		vi.setSystemTime(new Date("2026-10-12T00:00:00.000Z"));
-		const models = buildVideoCatalogModels(
-			{ ...environment, VIDEO_PRICE_VALID_UNTIL: "2026-10-12T00:00:00.000Z" },
-			bindings,
-			true,
-			new Set(),
-		);
-		expect(models.every((model) => !model.available)).toBe(true);
-		expect(
-			models.flatMap((model) => model.options).every((option) => option.credits === null),
-		).toBe(true);
-		expect(models.find((model) => model.productKey === "video-seedance-2-mini")!.reasons).toContain(
-			"VIDEO_PRICE_EXPIRED",
-		);
-	});
+	it.each([undefined, "invalid-date", "2026-10-12T00:00:00.000Z"])(
+		"keeps current prices and capabilities unchanged at retired deadline %s",
+		(deadline) => {
+			vi.setSystemTime(new Date("2026-10-12T00:00:00.000Z"));
+			const baseline = buildVideoCatalogModels(environment, bindings, true, new Set());
+			const models = buildVideoCatalogModels(
+				{ ...environment, VIDEO_PRICE_VALID_UNTIL: deadline },
+				bindings,
+				true,
+				new Set(),
+			);
+			expect(models).toEqual(baseline);
+			expect(models.find((model) => model.productKey === "video-seedance-2-mini")!.available).toBe(
+				true,
+			);
+		},
+	);
 	it("keeps explicitly unbounded approved prices available after the former deadline", () => {
 		vi.setSystemTime(new Date("2026-10-12T00:00:00.000Z"));
 		const models = buildVideoCatalogModels(environment, bindings, true, new Set());
