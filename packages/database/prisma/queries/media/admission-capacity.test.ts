@@ -58,6 +58,8 @@ describe("funded generation admission without account concurrency caps", () => {
 						where.ownerId === "owner" ? ownerActive : 6,
 					),
 				},
+				subscription: { findMany: vi.fn(async () => []) },
+				billingPeriod: { fields: { paidAmount: "paidAmount" } },
 				storageUsageReservation: { aggregate: vi.fn().mockRejectedValue(nextBoundary) },
 			};
 			const client = { $transaction: vi.fn(async (operation) => operation(tx)) };

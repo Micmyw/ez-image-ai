@@ -64,6 +64,8 @@ describe("admission isolation preserves existing asset binding protocol", () => 
 					})),
 				},
 				generationJob: { findUnique: vi.fn(async () => null) },
+				subscription: { findMany: vi.fn(async () => []) },
+				billingPeriod: { fields: { paidAmount: "paidAmount" } },
 				storageUsageReservation: {
 					aggregate: vi.fn(async () => {
 						throw reached;

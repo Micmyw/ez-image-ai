@@ -29,6 +29,9 @@ vi.mock("@repo/database", async () => ({
 	unexpiredStorageReservations: (
 		await import("../../../../database/prisma/queries/media/temporary-references")
 	).unexpiredStorageReservations,
+	effectiveMediaStorageLimit: (
+		await import("../../../../database/prisma/queries/media/storage-quota")
+	).effectiveMediaStorageLimit,
 	recordTextModerationOutcome: vi.fn(),
 	findEligibleImageEditParentForOwner: vi.fn(),
 	findGenerationSubmissionQuote: (owner: string, quoteId: string) =>
