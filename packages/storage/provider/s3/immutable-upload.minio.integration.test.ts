@@ -233,15 +233,15 @@ describe("immutable staging upload promotion (MinIO)", () => {
 			expect(secondRecovery.sha256).toBe(sha256(body));
 			expect(firstRecovery.bytes).toBe(body.byteLength);
 			expect(secondRecovery.bytes).toBe(body.byteLength);
-			await expect(readObject(final)).resolves.toEqual(body);
+			expect((await readObject(final)).equals(body)).toBe(true);
 
 			// The database integration test proves this delete is scheduled at the upload
 			// URL's expiry. Here, perform that physical cleanup and show it cannot remove
 			// or overwrite the immutable final object.
-			await expect(readObject(firstStaging)).resolves.toEqual(body);
+			expect((await readObject(firstStaging)).equals(body)).toBe(true);
 			await storage.deleteObject(firstStaging);
 			await expect(readObject(firstStaging)).rejects.toThrow(/404/);
-			await expect(readObject(final)).resolves.toEqual(body);
+			expect((await readObject(final)).equals(body)).toBe(true);
 		} finally {
 			await Promise.all([
 				firstStagingUploadId
