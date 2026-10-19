@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const fixture = vi.hoisted(() => ({
 	findQuote: vi.fn(),
 	findLegacyQuote: vi.fn(),
+	findExistingJob: vi.fn(),
 	createQuote: vi.fn(),
 	createJob: vi.fn(),
 	wake: vi.fn(),
@@ -23,7 +24,10 @@ vi.mock("@repo/auth", () => ({
 	},
 }));
 vi.mock("@repo/database/client", () => ({
-	db: { generationQuote: { findFirst: fixture.findLegacyQuote } },
+	db: {
+		generationQuote: { findFirst: fixture.findLegacyQuote },
+		generationJob: { findUnique: fixture.findExistingJob },
+	},
 }));
 vi.mock("@repo/database", async (original) => ({
 	...(await original<typeof import("@repo/database")>()),
@@ -97,6 +101,7 @@ function deferred() {
 beforeEach(() => {
 	vi.clearAllMocks();
 	fixture.findQuote.mockResolvedValue(null);
+	fixture.findExistingJob.mockResolvedValue(null);
 	fixture.findLegacyQuote.mockResolvedValue({
 		...buildMediaQuote(input, { enabledProviders: new Set(["kie"]), generationEnabled: true }),
 		id: "quote-legacy",
@@ -151,6 +156,17 @@ describe("managed generation HTTP admission", () => {
 			expect(result).toMatchObject({ job: { id: "job-http" } });
 			expect(pending).toHaveLength(1);
 			expect(fixture.findLegacyQuote).toHaveBeenCalledTimes(1);
+			expect(fixture.findExistingJob).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: {
+						ownerType_ownerId_idempotencyKey: {
+							ownerType: "USER",
+							ownerId: "owner",
+							idempotencyKey: request.idempotencyKey,
+						},
+					},
+				}),
+			);
 			expect(fixture.createJob).toHaveBeenCalledTimes(1);
 			expect(
 				vi.mocked(logger.info).mock.calls.some(([, fields]) => fields?.stage === "request.http"),
