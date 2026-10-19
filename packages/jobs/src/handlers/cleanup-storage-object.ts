@@ -26,6 +26,13 @@ interface AbortPromotionMultipartPayload {
 }
 
 export interface StorageCleanupDependencies {
+	/** Production consumers must authorize the complete key set before any storage operation. */
+	claimDeletion(input: {
+		assetId: string;
+		objectKeys: string[];
+		uploadSessionId?: string;
+		releasesReservation: boolean;
+	}): Promise<"DELETE" | "SKIP">;
 	isComplete(operationKey: string): Promise<boolean>;
 	deleteObject(objectKey: string): Promise<void>;
 	abortMultipartUpload(objectKey: string, uploadId: string): Promise<void>;
@@ -40,6 +47,7 @@ export interface StorageCleanupDependencies {
 		assetId: string;
 		objectKey: string;
 		cleanupObjectKeys?: string[];
+		deletedObjectKeys?: string[];
 		multipartUploadId?: string;
 		uploadSessionId?: string;
 		reservationStatus?: CleanupReservationStatus;
@@ -51,12 +59,14 @@ export async function deleteStorageObject(
 	payload: DeleteStorageObjectPayload,
 	dependencies: StorageCleanupDependencies,
 ): Promise<void> {
-	const operationKey = `media-object-delete:${payload.assetId}:${objectKeyFingerprint(payload.objectKey)}`;
+	if (!(await claimDeletion(payload, dependencies))) return;
+	const operationKey = cleanupOperationKey("media-object-delete", payload);
 	if (await dependencies.isComplete(operationKey)) return;
 	await deleteCleanupObjects(payload, dependencies);
 	await dependencies.complete({
 		operationKey,
 		action: "MEDIA_OBJECT_DELETE_COMPLETED",
+		deletedObjectKeys: uniqueObjectKeys(payload),
 		assetId: payload.assetId,
 		objectKey: payload.objectKey,
 		...(payload.cleanupObjectKeys?.length ? { cleanupObjectKeys: payload.cleanupObjectKeys } : {}),
@@ -76,13 +86,15 @@ export async function abortMultipartObject(
 	payload: AbortMultipartObjectPayload,
 	dependencies: StorageCleanupDependencies,
 ): Promise<void> {
-	const operationKey = `media-multipart-abort:${payload.multipartUploadId}`;
+	if (!(await claimDeletion(payload, dependencies))) return;
+	const operationKey = cleanupOperationKey("media-multipart-abort", payload);
 	if (await dependencies.isComplete(operationKey)) return;
 	await abortMultipartUpload(payload.objectKey, payload.multipartUploadId, dependencies);
 	await deleteCleanupObjects(payload, dependencies);
 	await dependencies.complete({
 		operationKey,
 		action: "MEDIA_MULTIPART_ABORT_COMPLETED",
+		deletedObjectKeys: uniqueObjectKeys(payload),
 		assetId: payload.assetId,
 		objectKey: payload.objectKey,
 		...(payload.cleanupObjectKeys?.length ? { cleanupObjectKeys: payload.cleanupObjectKeys } : {}),
@@ -105,12 +117,12 @@ export async function cleanupUploadPromotion(
 	payload: CleanupUploadPromotionPayload,
 	dependencies: StorageCleanupDependencies,
 ): Promise<void> {
-	const operationKey = [
+	if (!(await claimDeletion(payload, dependencies, payload.promotionObjectKey))) return;
+	const operationKey = cleanupOperationKey(
 		"media-upload-promotion-cleanup",
-		payload.assetId,
-		objectKeyFingerprint(payload.objectKey),
-		objectKeyFingerprint(payload.promotionObjectKey),
-	].join(":");
+		payload,
+		payload.promotionObjectKey,
+	);
 	if (await dependencies.isComplete(operationKey)) return;
 
 	if (payload.multipartUploadId) {
@@ -128,6 +140,7 @@ export async function cleanupUploadPromotion(
 	await dependencies.complete({
 		operationKey,
 		action: "MEDIA_UPLOAD_PROMOTION_CLEANUP_COMPLETED",
+		deletedObjectKeys: uniqueObjectKeys(payload, payload.promotionObjectKey),
 		assetId: payload.assetId,
 		objectKey: payload.objectKey,
 		...(payload.cleanupObjectKeys?.length ? { cleanupObjectKeys: payload.cleanupObjectKeys } : {}),
@@ -179,6 +192,49 @@ function uniqueObjectKeys(payload: DeleteStorageObjectPayload, extraObjectKey?: 
 			...(extraObjectKey ? [extraObjectKey] : []),
 		]),
 	];
+}
+
+/** Old receipts remain immutable. A v2 receipt proves the whole deletion group
+ * and its explicit capacity-release semantics, rather than only the primary key.
+ */
+function cleanupOperationKey(
+	action: string,
+	payload: DeleteStorageObjectPayload & {
+		multipartUploadId?: string;
+		promotionMultipartUploadId?: string;
+	},
+	extraObjectKey?: string,
+): string {
+	return `${action}:v2:${payload.assetId}:${objectKeyFingerprint(
+		JSON.stringify({
+			objectKey: payload.objectKey,
+			promotionObjectKey: extraObjectKey,
+			objectKeys: uniqueObjectKeys(payload, extraObjectKey).sort(),
+			multipartUploadId: payload.multipartUploadId,
+			promotionMultipartUploadId: payload.promotionMultipartUploadId,
+			uploadSessionId: payload.uploadSessionId,
+			reservationStatus: payload.reservationStatus,
+			storageReservationReferenceKey: payload.storageReservationReferenceKey,
+		}),
+	)}`;
+}
+
+async function claimDeletion(
+	payload: DeleteStorageObjectPayload,
+	dependencies: StorageCleanupDependencies,
+	extraObjectKey?: string,
+): Promise<boolean> {
+	return (
+		(await dependencies.claimDeletion({
+			assetId: payload.assetId,
+			objectKeys: uniqueObjectKeys(payload, extraObjectKey),
+			...(payload.uploadSessionId ? { uploadSessionId: payload.uploadSessionId } : {}),
+			releasesReservation: Boolean(
+				(payload.uploadSessionId && payload.reservationStatus) ||
+				payload.storageReservationReferenceKey,
+			),
+		})) !== "SKIP"
+	);
 }
 
 async function abortIncompletePromotionMultipartUploads(

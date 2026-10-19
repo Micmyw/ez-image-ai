@@ -69,7 +69,10 @@ describe("guest media configuration", () => {
 		"GUEST_IP_MAX_ACTIVE_JOBS",
 		"GUEST_QUEUE_MAX_DEPTH",
 		"GUEST_QUEUE_TTL_SECONDS",
-	])("ignores retired task-count policy %s and keeps the daily free allowance", (key) => {
+		"GUEST_IP_MAX_PER_10_MINUTES",
+		"GUEST_IP_MAX_PER_24_HOURS",
+		"GUEST_SUBNET_MAX_PER_24_HOURS",
+	])("ignores retired task and network policy %s and keeps the daily free allowance", (key) => {
 		for (const value of [undefined, "0", "invalid", "100"]) {
 			const config = getGuestMediaConfig(
 				{ ...productionEnvironment, [key]: value },
@@ -79,11 +82,15 @@ describe("guest media configuration", () => {
 			expect(config.enabled).toBe(true);
 			expect(config.limits).not.toHaveProperty("maximumActiveJobsPerGuest");
 			expect(config.limits).not.toHaveProperty("maximumActiveJobsPerDevice");
-			expect(config.limits).not.toHaveProperty("maximumActiveJobsPerIp");
 			expect(config.limits).not.toHaveProperty("maximumGlobalQueueDepth");
 			expect(config).not.toHaveProperty("queueTtlMs");
-			expect(config.limits.maximumAcceptedTrialsPerSessionPerDay).toBe(2);
-			expect(config.limits.maximumAcceptedTrialsPerDevicePerDay).toBe(2);
+			expect(Object.keys(config.limits).some((name) => /PerIp|PerSubnet/.test(name))).toBe(false);
+			expect(config.limits).toMatchObject({
+				maximumAcceptedTrialsPerSessionPerDay: 2,
+				maximumAcceptedTrialsPerDevicePerDay: 2,
+				maximumGlobalRequestsPerMinute: 3,
+				maximumGlobalRequestsPerHour: 30,
+			});
 		}
 	});
 	it.each([undefined, "5", "0", "unlimited", "invalid"])(
@@ -99,8 +106,6 @@ describe("guest media configuration", () => {
 			expect(config.limits).toMatchObject({
 				maximumGlobalRequestsPerMinute: 3,
 				maximumGlobalRequestsPerHour: 30,
-				maximumRequestsPerIpPerDay: 3,
-				maximumRequestsPerSubnetPerDay: 20,
 				maximumAcceptedTrialsPerSessionPerDay: 2,
 				maximumAcceptedTrialsPerDevicePerDay: 2,
 			});
@@ -151,7 +156,6 @@ describe("guest media configuration", () => {
 			limits: {
 				maximumAcceptedTrialsPerSessionPerDay: 2,
 				maximumAcceptedTrialsPerDevicePerDay: 2,
-				maximumRequestsPerIpPerTenMinutes: 2,
 			},
 		});
 	});
@@ -197,9 +201,6 @@ describe("guest media configuration", () => {
 			limits: {
 				maximumAcceptedTrialsPerSessionPerDay: 2,
 				maximumAcceptedTrialsPerDevicePerDay: 2,
-				maximumRequestsPerIpPerTenMinutes: 2,
-				maximumRequestsPerIpPerDay: 3,
-				maximumRequestsPerSubnetPerDay: 20,
 				maximumGlobalRequestsPerMinute: 3,
 				maximumGlobalRequestsPerHour: 30,
 				maximumOutstandingBootstraps: 25,
@@ -241,7 +242,6 @@ describe("guest media configuration", () => {
 			reason: null,
 			limits: {
 				maximumRequestsPerMinute: 3,
-				maximumRequestsPerIpPerHour: 3,
 			},
 		});
 	});
@@ -253,9 +253,6 @@ describe("guest media configuration", () => {
 		["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "31"],
 		["GUEST_SESSION_MAX_ACCEPTED_PER_DAY", "3"],
 		["GUEST_DEVICE_MAX_ACCEPTED_PER_DAY", "3"],
-		["GUEST_IP_MAX_PER_10_MINUTES", "3"],
-		["GUEST_IP_MAX_PER_24_HOURS", "4"],
-		["GUEST_SUBNET_MAX_PER_24_HOURS", "21"],
 		["GUEST_GLOBAL_MAX_PER_MINUTE", "4"],
 		["GUEST_GLOBAL_MAX_PER_HOUR", "31"],
 		["GUEST_BOOTSTRAP_MAX_OUTSTANDING", "26"],

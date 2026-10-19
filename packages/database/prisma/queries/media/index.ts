@@ -31,6 +31,7 @@ export * from "./state-machine";
 export * from "./shared-provider-capacity";
 export * from "./storage-usage-locks";
 export * from "./storage-quota";
+export * from "./storage-cleanup";
 export * from "./temporary-references";
 export * from "./stripe-refund-repairs";
 export * from "./types";

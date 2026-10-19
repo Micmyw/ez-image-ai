@@ -8,6 +8,89 @@ import {
 } from "./cleanup-storage-object";
 
 describe("storage cleanup handlers", () => {
+	it("fails closed before storage I/O when the mandatory ownership fence is missing", async () => {
+		const dependencies = {
+			isComplete: vi.fn(async () => false),
+			deleteObject: vi.fn(async () => undefined),
+			complete: vi.fn(async () => undefined),
+		};
+		await expect(
+			deleteStorageObject({ assetId: "asset", objectKey: "final" }, dependencies as never),
+		).rejects.toThrow();
+		expect(dependencies.isComplete).not.toHaveBeenCalled();
+		expect(dependencies.deleteObject).not.toHaveBeenCalled();
+		expect(dependencies.complete).not.toHaveBeenCalled();
+	});
+	it("does not reuse primary-key-only or different cleanup-group receipts", async () => {
+		const receipts = new Set<string>();
+		const dependencies = {
+			claimDeletion: vi.fn(async () => "DELETE" as const),
+			isComplete: vi.fn(
+				async (key: string) => receipts.has(key) || /^media-object-delete:asset:/.test(key),
+			),
+			deleteObject: vi.fn(async () => undefined),
+			abortMultipartUpload: vi.fn(async () => undefined),
+			complete: vi.fn(async ({ operationKey }: { operationKey: string }) => {
+				receipts.add(operationKey);
+			}),
+		};
+		await deleteStorageObject({ assetId: "asset", objectKey: "final" }, dependencies);
+		await deleteStorageObject(
+			{ assetId: "asset", objectKey: "final", cleanupObjectKeys: ["stage"] },
+			dependencies,
+		);
+		const releasingPayload = {
+			assetId: "asset",
+			objectKey: "final",
+			cleanupObjectKeys: ["stage"],
+			uploadSessionId: "session",
+			reservationStatus: "RELEASED" as const,
+		};
+		await deleteStorageObject(releasingPayload, dependencies);
+		await deleteStorageObject(releasingPayload, dependencies);
+		expect(dependencies.complete).toHaveBeenCalledTimes(3);
+		expect(dependencies.deleteObject).toHaveBeenCalledTimes(5);
+		expect(receipts.size).toBe(3);
+	});
+	it.each(["delete", "multipart", "promotion"] as const)(
+		"does not delete, abort, acknowledge, or release a skipped %s cleanup",
+		async (kind) => {
+			const dependencies = {
+				claimDeletion: vi.fn(async () => "SKIP" as const),
+				isComplete: vi.fn(async () => false),
+				deleteObject: vi.fn(async () => undefined),
+				abortMultipartUpload: vi.fn(async () => undefined),
+				listMultipartUploads: vi.fn(async () => []),
+				complete: vi.fn(async () => undefined),
+			};
+			const payload = {
+				assetId: "promoted-input",
+				objectKey: "staging-key",
+				cleanupObjectKeys: ["account-final-key"],
+				uploadSessionId: "session",
+				reservationStatus: "RELEASED" as const,
+			};
+			if (kind === "delete") await deleteStorageObject(payload, dependencies);
+			else if (kind === "multipart")
+				await abortMultipartObject({ ...payload, multipartUploadId: "upload" }, dependencies);
+			else
+				await cleanupUploadPromotion(
+					{ ...payload, promotionObjectKey: "account-final-key" },
+					dependencies,
+				);
+			expect(dependencies.claimDeletion).toHaveBeenCalledWith({
+				assetId: "promoted-input",
+				objectKeys: ["staging-key", "account-final-key"],
+				uploadSessionId: "session",
+				releasesReservation: true,
+			});
+			expect(dependencies.deleteObject).not.toHaveBeenCalled();
+			expect(dependencies.abortMultipartUpload).not.toHaveBeenCalled();
+			expect(dependencies.isComplete).not.toHaveBeenCalled();
+			expect(dependencies.complete).not.toHaveBeenCalled();
+		},
+	);
+
 	it("retries guest final and clean-staging deletion and completes duplicate delivery only once", async () => {
 		let completed = false;
 		let failCleanStaging = true;
@@ -20,6 +103,7 @@ describe("storage cleanup handlers", () => {
 			completed = true;
 		});
 		const dependencies = {
+			claimDeletion: vi.fn(async () => "DELETE" as const),
 			isComplete: vi.fn(async () => completed),
 			deleteObject,
 			abortMultipartUpload: vi.fn(async () => undefined),
@@ -53,6 +137,7 @@ describe("storage cleanup handlers", () => {
 		const isComplete = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 		const complete = vi.fn(async () => undefined);
 		const dependencies = {
+			claimDeletion: vi.fn(async () => "DELETE" as const),
 			isComplete,
 			deleteObject,
 			abortMultipartUpload: vi.fn(),
@@ -73,6 +158,7 @@ describe("storage cleanup handlers", () => {
 		const isComplete = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
 		const complete = vi.fn(async () => undefined);
 		const dependencies = {
+			claimDeletion: vi.fn(async () => "DELETE" as const),
 			isComplete,
 			deleteObject: vi.fn(async () => undefined),
 			abortMultipartUpload,
@@ -107,6 +193,7 @@ describe("storage cleanup handlers", () => {
 	it("does not release its reservation if deleting a completed multipart staging object fails", async () => {
 		const complete = vi.fn(async () => undefined);
 		const dependencies = {
+			claimDeletion: vi.fn(async () => "DELETE" as const),
 			isComplete: vi.fn(async () => false),
 			abortMultipartUpload: vi.fn(async () => {
 				throw Object.assign(new Error("gone"), { name: "NoSuchUpload" });
@@ -135,6 +222,7 @@ describe("storage cleanup handlers", () => {
 	it("aborts known and zero-part final multipart uploads before deleting a terminal upload", async () => {
 		const sequence: string[] = [];
 		const dependencies = {
+			claimDeletion: vi.fn(async () => "DELETE" as const),
 			isComplete: vi.fn(async () => false),
 			abortMultipartUpload: vi.fn(async (objectKey: string, uploadId: string) => {
 				sequence.push(`abort:${objectKey}:${uploadId}`);
@@ -185,6 +273,7 @@ describe("storage cleanup handlers", () => {
 
 	it("aborts an expired lease's final multipart upload without deleting its final object", async () => {
 		const dependencies = {
+			claimDeletion: vi.fn(async () => "DELETE" as const),
 			isComplete: vi.fn(async () => false),
 			abortMultipartUpload: vi.fn(async () => undefined),
 			listMultipartUploads: vi.fn(async () => []),

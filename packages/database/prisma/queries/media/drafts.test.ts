@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../client", () => ({
 	getDatabaseClient: () => {
-		throw new Error("explicit client required");
+		throw new Error("Unexpected implicit database connection");
 	},
 }));
 
@@ -87,6 +87,43 @@ const currentDraftSelections = [
 ] as const;
 
 describe("createGenerationDraftTransaction", () => {
+	it("does not apply legacy subject count or byte quotas to independent public drafts", async () => {
+		const tx = {
+			$executeRaw: vi.fn().mockResolvedValue(1),
+			$queryRaw: vi.fn().mockResolvedValue([{ allowed: true }]),
+			generationDraft: {
+				findMany: vi
+					.fn()
+					.mockResolvedValue([{ assetId: "one" }, { assetId: "two" }, { assetId: "three" }]),
+				create: vi.fn(async ({ data }) => ({ id: "draft-new", expiresAt: data.expiresAt })),
+			},
+			mediaAsset: { aggregate: vi.fn().mockResolvedValue({ _sum: { byteSize: 100_000_000n } }) },
+		};
+		const result = createGenerationDraftTransaction(
+			{
+				claimTokenHash: "a".repeat(64),
+				productKey: "image-nano-banana-2-lite",
+				input: {
+					kind: "image-to-image",
+					prompt: "Change sky",
+					skuKey: "nano-banana-2-lite-1k",
+					aspectRatio: "auto",
+				},
+				expiresAt: new Date(Date.now() + 60_000),
+				abuseLimits: {
+					subjectHash: "same-former-ip",
+					maximumActiveDrafts: 3,
+					maximumActiveBytes: 25_000_000n,
+					maximumGlobalDraftsPerMinute: 100,
+				},
+			},
+			{
+				$transaction: async (operation: (transaction: typeof tx) => Promise<unknown>) =>
+					operation(tx),
+			} as never,
+		);
+		await expect(result).resolves.toMatchObject({ id: "draft-new" });
+	});
 	it.each(currentDraftSelections)(
 		"accepts the current $productKey / $skuKey selection without exposing a Provider field",
 		async ({ productKey, skuKey, aspectRatio, controls }) => {
@@ -359,7 +396,13 @@ describe("claimGenerationDraftTransaction", () => {
 			},
 			$executeRaw: vi.fn(),
 			mediaAsset: {
-				findFirst: vi.fn().mockResolvedValue({ id: "asset_1", byteSize: 128n, uploadSessions: [] }),
+				findFirst: vi.fn().mockResolvedValue({
+					id: "asset_1",
+					byteSize: 128n,
+					status: "VERIFYING",
+					deletedAt: null,
+					uploadSessions: [],
+				}),
 				updateMany: vi.fn().mockResolvedValue({ count: 1 }),
 			},
 			storageUsageReservation: {
@@ -409,7 +452,7 @@ describe("claimGenerationDraftTransaction", () => {
 		);
 		expect(tx.mediaAsset.updateMany).toHaveBeenCalledWith(
 			expect.objectContaining({
-				where: { id: "asset_1", ownerId: "draft:draft_1", status: "VERIFYING" },
+				where: { id: "asset_1", ownerId: "draft:draft_1", status: "VERIFYING", deletedAt: null },
 				data: { ownerType: "USER", ownerId: "user_1" },
 			}),
 		);

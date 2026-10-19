@@ -69,6 +69,7 @@ import {
 	canSettleKieZeroCostRejection,
 	claimGenerationOutputTransferTransaction,
 	claimOutboxBatch,
+	claimMediaStorageCleanupTransaction,
 	completeGenerationOutputTransferTransaction,
 	completeOutboxEvent,
 	deferOutboxEvent,
@@ -1218,6 +1219,7 @@ export function createDatabaseStorageCleanupDependencies(
 ): StorageCleanupDependencies {
 	return {
 		...storage,
+		claimDeletion: (input) => claimMediaStorageCleanupTransaction(input, database),
 		async isComplete(operationKey) {
 			return Boolean(
 				await database.auditLog.findFirst({
@@ -1243,6 +1245,7 @@ export function createDatabaseStorageCleanupDependencies(
 						metadata: {
 							assetId: input.assetId,
 							objectKey: input.objectKey,
+							...(input.deletedObjectKeys ? { deletedObjectKeys: input.deletedObjectKeys } : {}),
 							...(input.multipartUploadId ? { multipartUploadId: input.multipartUploadId } : {}),
 							...(input.uploadSessionId ? { uploadSessionId: input.uploadSessionId } : {}),
 							...(input.reservationStatus ? { reservationStatus: input.reservationStatus } : {}),

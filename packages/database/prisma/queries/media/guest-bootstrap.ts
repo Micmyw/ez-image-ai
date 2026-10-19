@@ -103,9 +103,9 @@ export async function consumeGuestTurnstileTokenHash(
 }
 
 interface GuestBoundaryAbuseLimits {
-	maximumRequestsPerIpPerTenMinutes: number;
-	maximumRequestsPerIpPerDay: number;
-	maximumRequestsPerSubnetPerDay: number;
+	maximumRequestsPerIpPerTenMinutes?: number;
+	maximumRequestsPerIpPerDay?: number;
+	maximumRequestsPerSubnetPerDay?: number;
 	maximumGlobalRequestsPerMinute: number;
 	maximumGlobalRequestsPerHour: number;
 }
@@ -123,7 +123,7 @@ export interface CreateGuestMediaUploadIntentTransactionInput extends Omit<
 	subnetHash: string;
 	abuseLimits: GuestBoundaryAbuseLimits & {
 		maximumRequestsPerMinute: number;
-		maximumRequestsPerIpPerHour: number;
+		maximumRequestsPerIpPerHour?: number;
 		/** @deprecated Queue depth does not reject guest work. */
 		maximumGlobalQueueDepth?: number;
 	};
@@ -341,7 +341,7 @@ export interface ConsumeGuestBootstrapInput {
 	subnetHash: string;
 	limits: GuestBoundaryAbuseLimits & {
 		maximumRequestsPerMinute: number;
-		maximumRequestsPerIpPerHour: number;
+		maximumRequestsPerIpPerHour?: number;
 		/** @deprecated Queue depth does not reject guest work. */
 		maximumGlobalQueueDepth?: number;
 		maximumOutstandingBootstraps?: number;
@@ -652,24 +652,6 @@ async function enforceGuestBoundaryRateLimits(
 	tx: Prisma.TransactionClient,
 ): Promise<boolean> {
 	const windows = [
-		{
-			scope: `${input.scopePrefix}:${input.promotionPeriod}:ip:ten-minute`,
-			subjectHash: input.ipHash,
-			windowMs: 10 * 60_000,
-			maximum: input.limits.maximumRequestsPerIpPerTenMinutes,
-		},
-		{
-			scope: `${input.scopePrefix}:${input.promotionPeriod}:ip:day`,
-			subjectHash: input.ipHash,
-			windowMs: 24 * 60 * 60_000,
-			maximum: input.limits.maximumRequestsPerIpPerDay,
-		},
-		{
-			scope: `${input.scopePrefix}:${input.promotionPeriod}:subnet:day`,
-			subjectHash: input.subnetHash,
-			windowMs: 24 * 60 * 60_000,
-			maximum: input.limits.maximumRequestsPerSubnetPerDay,
-		},
 		{
 			scope: `${input.scopePrefix}:global:minute`,
 			subjectHash: "global",

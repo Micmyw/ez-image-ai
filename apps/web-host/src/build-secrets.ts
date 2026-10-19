@@ -448,11 +448,7 @@ function withGuestBudgetOverride(source: string, environment: Record<string, str
 }
 
 function withGuestQuotaOverrides(source: string, environment: Record<string, string | undefined>) {
-	const keys = [
-		"GUEST_SESSION_MAX_ACCEPTED_PER_DAY",
-		"GUEST_DEVICE_MAX_ACCEPTED_PER_DAY",
-		"GUEST_IP_MAX_PER_10_MINUTES",
-	];
+	const keys = ["GUEST_SESSION_MAX_ACCEPTED_PER_DAY", "GUEST_DEVICE_MAX_ACCEPTED_PER_DAY"];
 	if (!keys.some((key) => environment[key] !== undefined)) return source;
 	if (keys.some((key) => !["1", "2"].includes(environment[key] ?? "")))
 		throw new Error("CLOUDFLARE_GUEST_QUOTA_OVERRIDES_INVALID");

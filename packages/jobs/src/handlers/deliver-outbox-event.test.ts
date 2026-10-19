@@ -373,6 +373,7 @@ describe("outbox delivery routes", () => {
 				triggerAndWait: async (taskId, payload) => {
 					if (taskId !== "media-delete-object") throw new Error("Unexpected cleanup task");
 					await deleteStorageObject(payload as { assetId: string; objectKey: string }, {
+						claimDeletion: async () => "DELETE",
 						isComplete: async () => cleanupComplete,
 						deleteObject,
 						abortMultipartUpload: vi.fn(),

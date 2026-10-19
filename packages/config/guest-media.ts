@@ -18,16 +18,12 @@ export type GuestMediaDisabledReason =
 export interface GuestAdmissionLimits {
 	maximumAcceptedTrialsPerSessionPerDay: number;
 	maximumAcceptedTrialsPerDevicePerDay: number;
-	maximumRequestsPerIpPerTenMinutes: number;
-	maximumRequestsPerIpPerDay: number;
-	maximumRequestsPerSubnetPerDay: number;
 	maximumGlobalRequestsPerMinute: number;
 	maximumGlobalRequestsPerHour: number;
 	maximumOutstandingBootstraps: number;
 	maximumTemporaryPrincipals: number;
 	/** Compatibility aliases for the upload boundary while it migrates to the complete envelope. */
 	maximumRequestsPerMinute: number;
-	maximumRequestsPerIpPerHour: number;
 }
 
 export interface GuestMediaRuntimeOverrideRecord {
@@ -92,15 +88,11 @@ const FIXED_GUEST_MEDIA_CONFIG = {
 	limits: Object.freeze({
 		maximumAcceptedTrialsPerSessionPerDay: 2,
 		maximumAcceptedTrialsPerDevicePerDay: 2,
-		maximumRequestsPerIpPerTenMinutes: 2,
-		maximumRequestsPerIpPerDay: 3,
-		maximumRequestsPerSubnetPerDay: 20,
 		maximumGlobalRequestsPerMinute: 3,
 		maximumGlobalRequestsPerHour: 30,
 		maximumOutstandingBootstraps: 25,
 		maximumTemporaryPrincipals: 100,
 		maximumRequestsPerMinute: 3,
-		maximumRequestsPerIpPerHour: 3,
 	}),
 } as const;
 
@@ -278,9 +270,6 @@ function readProductionGuestEnvelope(environment: Record<string, unknown>): {
 		maximumAcceptedTrialsPerDevicePerDay: positiveInteger(
 			environment.GUEST_DEVICE_MAX_ACCEPTED_PER_DAY,
 		),
-		maximumRequestsPerIpPerTenMinutes: positiveInteger(environment.GUEST_IP_MAX_PER_10_MINUTES),
-		maximumRequestsPerIpPerDay: positiveInteger(environment.GUEST_IP_MAX_PER_24_HOURS),
-		maximumRequestsPerSubnetPerDay: positiveInteger(environment.GUEST_SUBNET_MAX_PER_24_HOURS),
 		maximumGlobalRequestsPerMinute: positiveInteger(environment.GUEST_GLOBAL_MAX_PER_MINUTE),
 		maximumGlobalRequestsPerHour: positiveInteger(environment.GUEST_GLOBAL_MAX_PER_HOUR),
 		maximumOutstandingBootstraps: positiveInteger(environment.GUEST_BOOTSTRAP_MAX_OUTSTANDING),
@@ -294,9 +283,6 @@ function readProductionGuestEnvelope(environment: Record<string, unknown>): {
 		abuseEvidenceTtlDays !== 30 ||
 		completeLimits.maximumAcceptedTrialsPerSessionPerDay > 2 ||
 		completeLimits.maximumAcceptedTrialsPerDevicePerDay > 2 ||
-		completeLimits.maximumRequestsPerIpPerTenMinutes > 2 ||
-		completeLimits.maximumRequestsPerIpPerDay > 3 ||
-		completeLimits.maximumRequestsPerSubnetPerDay > 20 ||
 		completeLimits.maximumGlobalRequestsPerMinute > 3 ||
 		completeLimits.maximumGlobalRequestsPerHour > 30 ||
 		completeLimits.maximumOutstandingBootstraps > 25 ||
@@ -309,10 +295,6 @@ function readProductionGuestEnvelope(environment: Record<string, unknown>): {
 		limits: {
 			...completeLimits,
 			maximumRequestsPerMinute: completeLimits.maximumGlobalRequestsPerMinute,
-			maximumRequestsPerIpPerHour: Math.min(
-				completeLimits.maximumRequestsPerIpPerDay,
-				completeLimits.maximumRequestsPerSubnetPerDay,
-			),
 		} as GuestAdmissionLimits,
 	};
 }
