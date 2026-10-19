@@ -3645,7 +3645,9 @@ describe("production media runtime stores", () => {
 	});
 
 	it("audits duplicate zero-cost repairs once, settles each owner's five credits once, and clears capacity", async () => {
-		const fixtures = await Promise.all([seedHeldKieRejection(), seedHeldKieRejection()]);
+		// Admission is fixture setup here. Keep its serializable reservations apart;
+		// the duplicate repair and settlement operations below remain concurrent.
+		const fixtures = [await seedHeldKieRejection(), await seedHeldKieRejection()];
 		for (const fixture of fixtures) {
 			const [first, second] = await Promise.all([
 				resolveAdminKieZeroCostRejection(fixture.repair, client),
