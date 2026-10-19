@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-19 — Subscriber output storage compatibility
+
+- Prepare image and video output recovery to honor admitted subscriber storage policy after subscription expiry. Free-account caps, byte accounting and new-request admission remain unchanged.
+
 ## 2026-10-19 — Video pricing availability
 
 Valid video prices no longer stop working at a price approval deadline. Invalid optional effect settings no longer block unrelated fixes from being released; new orders still require valid prices, safety, funding and authorization. Quote, reviewed-content and material-rights expiry remain enforced, and accepted jobs retain their frozen prices and private access rules.
