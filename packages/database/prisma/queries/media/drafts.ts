@@ -19,6 +19,7 @@ import {
 	bindGuestBootstrapToExistingOwner,
 	createGuestSessionBootstrapWithClaimFence,
 } from "./guest-bootstrap";
+import { effectiveMediaStorageLimit } from "./storage-quota";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import { unexpiredStorageReservations } from "./temporary-references";
 import type { MediaTransactionClient } from "./types";
@@ -457,7 +458,12 @@ async function transferGenerationDraftAssetOwnership(
 	});
 	const additionalBytes =
 		reservation?.ownerId === input.nextOwnerId ? 0n : (reservation?.bytes ?? asset.byteSize);
-	if ((reserved._sum.bytes ?? 0n) + additionalBytes > maximumMediaStorageBytes()) {
+	const maximumBytes = await effectiveMediaStorageLimit(
+		{ ownerType: "USER", ownerId: input.nextOwnerId },
+		maximumMediaStorageBytes(),
+		tx,
+	);
+	if (maximumBytes !== null && (reserved._sum.bytes ?? 0n) + additionalBytes > maximumBytes) {
 		throw new Error("STORAGE_QUOTA_EXCEEDED");
 	}
 	if (reservation) {

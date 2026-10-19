@@ -26,6 +26,7 @@ import {
 	settleCredits,
 } from "./credits";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
+import { withStorageSubscription } from "./testing/subscriber-storage-fixture";
 import { getVideoTemplateCreditBalance } from "./video-template-credits";
 import {
 	createVideoJobRecord,
@@ -1181,6 +1182,27 @@ describe("video V1 admission isolated PostgreSQL", () => {
 				where: { referenceKey: `video-output:${result.jobId}` },
 			}),
 		).toMatchObject({ ownerId: f.ownerId, status: "ACTIVE", bytes: 104857600n });
+	});
+	it("subscribers exceed aggregate quota while retaining the full video output reservation", async () => {
+		const f = await fixture();
+		await withStorageSubscription(client, f.ownerId, async () => {
+			const accepted = await createVideoJobRecord(
+				{ ...f.input, limits: { ...limits, maximumStorageBytes: 1n } },
+				client,
+			);
+			const job = await client.generationJob.findUniqueOrThrow({ where: { id: accepted.jobId } });
+			expect(job.pricingSnapshot).toMatchObject({
+				aggregateStoragePolicy: { schemaVersion: 1, maximumBytes: null },
+			});
+			expect(job.creditsReserved).toBe(price.credits);
+			expect(
+				await client.storageUsageReservation.findUnique({
+					where: { referenceKey: `video-output:${job.id}` },
+				}),
+			).toMatchObject({ bytes: 104857600n, status: "ACTIVE" });
+			const quote = await client.generationQuote.findUniqueOrThrow({ where: { id: job.quoteId } });
+			expect(quote.inputFingerprint).toBe(fingerprintGenerationQuoteSecurityPayload(quote));
+		});
 	});
 	it("serializes video admissions racing for the final complete output budget", async () => {
 		const f = await fixture();

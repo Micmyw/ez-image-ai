@@ -15,6 +15,7 @@ import { runWithDatabaseClient } from "../../client";
 import { PrismaClient, type Prisma } from "../../generated/client";
 import { createMediaUploadSessionTransaction } from "./assets";
 import { createCreditGrant, releaseCredits } from "./credits";
+import { withStorageSubscription } from "./testing/subscriber-storage-fixture";
 import {
 	createVideoTemplateQuoteRecord,
 	createVideoTemplateJobRecord,
@@ -165,6 +166,26 @@ async function accepted() {
 	const { jobId } = await createVideoTemplateJobRecord(f.input, db);
 	return { ...f, jobId };
 }
+
+it("subscribers retain both template scene and video output byte reservations above the free quota", async () => {
+	const f = await fixture();
+	await withStorageSubscription(db, f.ownerId, async () => {
+		const accepted = await createVideoTemplateJobRecord(
+			{ ...f.input, limits: { ...f.input.limits, maximumStorageBytes: 1n } },
+			db,
+		);
+		const job = await db.generationJob.findUniqueOrThrow({ where: { id: accepted.jobId } });
+		expect(job.pricingSnapshot).toMatchObject({
+			aggregateStoragePolicy: { schemaVersion: 1, maximumBytes: null },
+		});
+		expect(job.creditsReserved).toBe(f.input.price.credits);
+		const reservations = await db.storageUsageReservation.findMany({
+			where: { ownerId: f.ownerId, status: "ACTIVE" },
+		});
+		expect(reservations).toHaveLength(2);
+		expect(reservations.reduce((sum, row) => sum + row.bytes, 0n)).toBe(124857600n);
+	});
+});
 const decision = {
 	decision: "ALLOW",
 	reasonCode: "WAFFO_PROMPT_ALLOWED",

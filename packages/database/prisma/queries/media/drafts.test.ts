@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("../../client", () => ({
+	getDatabaseClient: () => {
+		throw new Error("explicit client required");
+	},
+}));
+
 import {
 	claimGenerationDraftTransaction,
 	createGenerationDraftTransaction,
@@ -334,6 +340,8 @@ describe("finalizeGuestDraftFromReadyUploadTransaction", () => {
 describe("claimGenerationDraftTransaction", () => {
 	it("atomically consumes one active token and transfers its temporary asset to the user", async () => {
 		const tx = {
+			subscription: { findMany: vi.fn(async () => []) },
+			billingPeriod: { fields: { paidAmount: "paidAmount" } },
 			generationDraft: {
 				findFirst: vi.fn().mockResolvedValue({
 					id: "draft_1",
