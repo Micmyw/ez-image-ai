@@ -3,6 +3,7 @@ import type {
 	ReviewStepResult,
 	StoredOutputRef,
 	SubmissionStepResult,
+	TemplatePreparationStepResult,
 	VideoPublicState,
 	VideoStage,
 	VideoWorkflowParams,
@@ -35,7 +36,7 @@ export interface VideoWorkflowServices {
 	): Promise<{ round: number; remainingSeconds: number; deadlineAt?: string }>;
 	reviewInput(this: void, jobId: string): Promise<ReviewStepResult>;
 	/** Added branch only. Existing jobs retain all original durable step names. */
-	prepareTemplate?(this: void, jobId: string): Promise<ReviewStepResult>;
+	prepareTemplate?(this: void, jobId: string): Promise<TemplatePreparationStepResult>;
 	submit(this: void, jobId: string): Promise<SubmissionStepResult>;
 	confirm(this: void, jobId: string): Promise<ProviderResult>;
 	store(this: void, jobId: string): Promise<StoredOutputRef>;
@@ -251,6 +252,13 @@ export async function runVideoGenerationV1(
 			const prepared = await step(`template-prepare-${round}`, () =>
 				services.prepareTemplate!(jobId),
 			);
+			if (prepared.status === "DEFERRED") {
+				await steps.sleep(
+					`video-v1-template-capacity-wait-${round}`,
+					`${Math.max(1, Math.ceil(prepared.retryAfterMs / 1000))} seconds`,
+				);
+				continue;
+			}
 			if (prepared.status === "ALLOW") break;
 			if (prepared.status === "REJECT") return fail("template", prepared.reasonCode, true);
 			if (prepared.status === "ERROR") return reviewRequired(prepared.reasonCode);
@@ -279,12 +287,26 @@ export async function runVideoGenerationV1(
 		if (result.status === "ERROR") return reviewRequired(result.reasonCode);
 	}
 	if (["QUEUED", "INPUT_REVIEW", "SUBMITTING"].includes(checkpoint.stage)) {
-		const result = await steps.do("video-v1-submit-provider", SINGLE_ATTEMPT, () =>
-			services.submit(jobId),
-		);
-		if (result.status === "DEFINITELY_REJECTED") return fail("submission", result.reasonCode);
-		// An uncertain response proceeds only to reconciliation of the original
-		// attempt. An early authenticated callback may already have bound its ID.
+		for (let round = 0; ; round++) {
+			// Keep the original first step for existing workflow histories. Each
+			// deferred result and sleep is durable; the next claim needs a new key.
+			const result = await steps.do(
+				round === 0 ? "video-v1-submit-provider" : `video-v1-submit-provider-${round}`,
+				SINGLE_ATTEMPT,
+				() => services.submit(jobId),
+			);
+			if (result.status === "DEFERRED") {
+				await steps.sleep(
+					`video-v1-provider-capacity-wait-${round}`,
+					`${Math.max(1, Math.ceil(result.retryAfterMs / 1000))} seconds`,
+				);
+				continue;
+			}
+			if (result.status === "DEFINITELY_REJECTED") return fail("submission", result.reasonCode);
+			// An uncertain response proceeds only to reconciliation of the original
+			// attempt. An early authenticated callback may already have bound its ID.
+			break;
+		}
 	}
 	if (!["STORING", "OUTPUT_REVIEW", "FINALIZING"].includes(checkpoint.stage)) {
 		const initial = await step("provider-window", () => services.window(jobId, "provider"));

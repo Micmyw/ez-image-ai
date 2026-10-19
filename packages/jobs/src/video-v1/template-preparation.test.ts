@@ -10,12 +10,14 @@ import {
 
 vi.mock("@repo/database/video-template-execution", () => ({}));
 vi.mock("@repo/database/video-v1-execution", () => ({ recordVideoInputReview: vi.fn() }));
+vi.mock("@repo/database", () => ({ getActiveRuntimeConfigOverrides: vi.fn(async () => []) }));
+vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/storage", () => ({
 	createSignedReadUrl: vi.fn(),
 	storeImmutableVideoTemplateScene: vi.fn(),
 }));
 
-function fixture(referenceMode = false) {
+function fixture(referenceMode = false, deferredClaims = 0) {
 	const now = new Date();
 	const reference = {
 		assetId: "motion",
@@ -148,6 +150,7 @@ function fixture(referenceMode = false) {
 			collection[role] = { ...((collection[role] as Record<string, unknown>) ?? {}), ...patch };
 		}),
 		claimVideoTemplateSceneSubmission: vi.fn(async () => {
+			if (!state.submittedAt && deferredClaims-- > 0) return { deferred: true, retryAfterMs: 5000 };
 			const claimed = !state.submittedAt;
 			state.submittedAt ??= now;
 			state.sceneSubmissionUncertain = claimed;
@@ -263,6 +266,22 @@ function fixture(referenceMode = false) {
 }
 
 describe("template scene preparation durable boundaries (local mocks)", () => {
+	it("defers a scene before its paid send fence and resumes once capacity is available", async () => {
+		const f = fixture(false, 2);
+		for (let round = 0; round < 2; round++) {
+			expect(await f.run()).toEqual({ status: "DEFERRED", retryAfterMs: 5000 });
+			expect(f.state.submittedAt).toBeNull();
+			expect(f.state.sceneSubmissionUncertain).toBe(false);
+			expect(f.provider.submit).not.toHaveBeenCalled();
+			expect(f.store.markVideoTemplateNeedsReview).not.toHaveBeenCalled();
+			expect(f.store.markVideoTemplateSceneFailed).not.toHaveBeenCalled();
+		}
+		expect(await f.run()).toEqual({ status: "ALLOW" });
+		expect(await f.run()).toEqual({ status: "ALLOW" });
+		expect(f.provider.submit).toHaveBeenCalledTimes(1);
+		expect(f.deps.moderateText).toHaveBeenCalledTimes(2);
+		expect(f.safety.submitImage).toHaveBeenCalledTimes(3);
+	});
 	it("direct reference reviews the actual prompt and one subject, then replays without scene generation", async () => {
 		const f = fixture(true);
 		expect(await f.run()).toEqual({ status: "ALLOW" });

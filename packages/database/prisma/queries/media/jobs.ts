@@ -8,16 +8,7 @@ import { reserveCreditsInTransaction } from "./credits";
 import { loadCurrentGenerationAdmission } from "./generation-admission";
 import { assertQuoteModerationPermitted } from "./moderation-operations";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
-import {
-	assertSharedKieCapacity,
-	configuredSharedKieCapacity,
-	lockSharedKieCapacity,
-} from "./shared-provider-capacity";
-import {
-	ACTIVE_GENERATION_JOB_STATUSES,
-	canTransition,
-	type GenerationJobStatusValue,
-} from "./state-machine";
+import { canTransition, type GenerationJobStatusValue } from "./state-machine";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import { adoptTemporaryReference, unexpiredStorageReservations } from "./temporary-references";
 import type {
@@ -25,7 +16,7 @@ import type {
 	CreateGenerationJobResult,
 	MediaTransactionClient,
 } from "./types";
-import { isDatabaseUniqueConflict, runReadCommitted, runSerializable } from "./types";
+import { isDatabaseUniqueConflict, runReadCommitted } from "./types";
 
 async function getDatabaseNow(
 	client: MediaTransactionClient | Prisma.TransactionClient,
@@ -125,28 +116,12 @@ export async function createGenerationJobTransaction(
 		throw new Error("ASSET_CONTENT_CHANGED");
 	}
 
-	const providerLimit = configuredSharedKieCapacity();
-	// Video/guest admissions use READ COMMITTED. A SERIALIZABLE snapshot taken
-	// before waiting for their advisory lock would not see their committed jobs.
-	// With the shared cap enabled all admission predicates use the existing
-	// provider/owner/storage/budget/asset/account locks and fresh statement reads.
-	const runAdmission = providerLimit === null ? runSerializable : runReadCommitted;
+	// Owner/storage/budget/account locks protect mutable admission predicates.
+	// Fresh reads observe any prior lock holder without reserving supplier capacity.
 	try {
-		return await runAdmission(client, async (tx) => {
+		return await runReadCommitted(client, async (tx) => {
 			const operationNow = await getDatabaseNow(tx);
-			// Same lock order as video admission; retain capacity protection while video intake is disabled.
-			if (providerLimit !== null) await lockSharedKieCapacity(tx);
-			if (
-				providerLimit !== null ||
-				input.maximumConcurrentJobs !== undefined ||
-				input.validateCurrentEligibility
-			) {
-				if (
-					input.maximumConcurrentJobs !== undefined &&
-					(!Number.isSafeInteger(input.maximumConcurrentJobs) || input.maximumConcurrentJobs <= 0)
-				) {
-					throw new Error("Generation concurrency limit must be a positive safe integer");
-				}
+			if (input.validateCurrentEligibility) {
 				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.ownerType}:${input.ownerId}:generation-concurrency`}, 0))`;
 			}
 			const quote = await tx.generationQuote.findUnique({ where: { id: input.quoteId } });
@@ -172,8 +147,6 @@ export async function createGenerationJobTransaction(
 			await assertQuoteModerationPermitted(quote, tx);
 			const replay = await findExistingJob(input, tx);
 			if (replay) return replay;
-			// A shared account cap must serialize admission across both execution engines.
-			if (providerLimit !== null) await assertSharedKieCapacity(tx, providerLimit);
 			const admission = input.validateCurrentEligibility
 				? await loadCurrentGenerationAdmission(
 						{
@@ -185,19 +158,6 @@ export async function createGenerationJobTransaction(
 						tx,
 					)
 				: undefined;
-			const maximumConcurrentJobs = admission?.maximumConcurrentJobs ?? input.maximumConcurrentJobs;
-			if (maximumConcurrentJobs !== undefined) {
-				const activeJobs = await tx.generationJob.count({
-					where: {
-						ownerType: input.ownerType,
-						ownerId: input.ownerId,
-						status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
-					},
-				});
-				if (activeJobs >= maximumConcurrentJobs) {
-					throw new Error("CONCURRENT_JOB_LIMIT_REACHED");
-				}
-			}
 			if (input.maximumStorageBytes !== undefined) {
 				if (input.maximumStorageBytes <= 0n) {
 					throw new Error("Generation storage quota must be positive");

@@ -5,8 +5,6 @@ import { releaseCreditsInTransaction, reserveCreditsInTransaction } from "./cred
 import { ACTIVE_GENERATION_JOB_STATUSES } from "./state-machine";
 import type { MediaTransactionClient } from "./types";
 
-const GUEST_UNDISPATCHED_TTL_MS = 10 * 60_000;
-
 export interface GuestQueueEstimateInput {
 	now: Date;
 	queueDepth: number;
@@ -234,13 +232,16 @@ async function expireUndispatchedGuestJobs(
 	input: ExpireGuestMediaInput,
 	tx: Prisma.TransactionClient,
 ): Promise<number> {
-	const cutoff = new Date(input.now.getTime() - GUEST_UNDISPATCHED_TTL_MS);
 	const due = await tx.$queryRaw<Array<{ id: string }>>`
 		SELECT job."id"
 		FROM "generation_job" job
+		JOIN "guest_media_trial" trial ON trial."id" = job."guestTrialId"
+		LEFT JOIN "media_asset" asset ON asset."id" = trial."sourceAssetId"
 		WHERE job."serviceClass" = 'GUEST_SLOW'::"GenerationServiceClass"
 		  AND job."status" IN ('RESERVED'::"GenerationJobStatus", 'DISPATCH_QUEUED'::"GenerationJobStatus")
-		  AND job."createdAt" <= ${cutoff}
+		  AND (trial."expiresAt" <= ${input.now} OR asset."id" IS NULL
+		       OR asset."deleteAfter" <= ${input.now} OR asset."deletedAt" IS NOT NULL
+		       OR asset."status" IN ('DELETED'::"MediaAssetStatus", 'QUARANTINED'::"MediaAssetStatus", 'VERIFICATION_FAILED'::"MediaAssetStatus"))
 		  AND NOT EXISTS (
 			SELECT 1 FROM "generation_attempt" attempt WHERE attempt."jobId" = job."id"
 		  )
@@ -250,7 +251,10 @@ async function expireUndispatchedGuestJobs(
 	`;
 	let expired = 0;
 	for (const { id } of due) {
-		const result = await expireGuestJobBeforeProvider({ jobId: id, now: input.now }, tx);
+		const result = await expireGuestJobBeforeProvider(
+			{ jobId: id, now: input.now, createReplacement: false },
+			tx,
+		);
 		if (result.outcome !== "SKIPPED") expired += 1;
 	}
 	return expired;
@@ -318,9 +322,8 @@ export async function expireGuestJobBeforeProvider(
 		trial.linkedAt === null &&
 		trial.linkIntents.every((intent) => intent.state === "NONE");
 	if (replacementAllowed) {
-		// The active original and its single replacement change in this transaction:
-		// shared provider occupancy transfers 1 -> 1 without exposing a free slot.
-		// Do not acquire the provider admission lock after the account lock above.
+		// Replacement keeps this trial's existing risk hold. Its first provider
+		// request still requires the normal atomic dispatch gate.
 		const replacement = await createGuestReplacement(job, trial, input, tx);
 		if (replacement) {
 			return { outcome: "EXPIRED", jobId: job.id, replacementJobId: replacement.id };
@@ -375,8 +378,7 @@ async function createGuestReplacement(
 		queueCapacity: input.queueCapacity ?? 1,
 		serviceTimeMs: input.serviceTimeMs ?? persistedServiceTimeMs,
 		immutableExpiry: trial.expiresAt,
-	});
-	if (!estimate) return null;
+	}) ?? { projectedDispatchAt: input.now, estimateExpiresAt: trial.expiresAt };
 	const quote = await tx.generationQuote.create({
 		data: {
 			ownerType: job.quote.ownerType,
@@ -411,7 +413,7 @@ async function createGuestReplacement(
 			inputSnapshot: job.inputSnapshot as Prisma.InputJsonValue,
 			pricingSnapshot: job.pricingSnapshot as Prisma.InputJsonValue,
 			serviceClass: "GUEST_SLOW",
-			dispatchEligibleAt: estimate.projectedDispatchAt,
+			dispatchEligibleAt: input.now,
 			guestTrialId: trial.id,
 		},
 	});
@@ -457,7 +459,7 @@ async function createGuestReplacement(
 			aggregateId: replacement.id,
 			dedupeKey: `guest-job:${replacement.id}:eligible`,
 			payload: { jobId: replacement.id, trialId: trial.id },
-			availableAt: estimate.projectedDispatchAt,
+			availableAt: input.now,
 		},
 	});
 	return replacement;

@@ -1376,7 +1376,7 @@
 			"continue": "Choisir un forfait",
 			"modelDescription": "{model} est inclus dans Pro, Ultimate et Max. Choisissez le forfait adapté à vos besoins de retouche.",
 			"monthlyCredits": "{credits, number} crédits/mois",
-			"planDetails": "{concurrency, number} retouches simultanées · images jusqu’à {megabytes, number} Mo",
+			"planDetails": "Images jusqu’à {megabytes, number} Mo",
 			"planNames": {
 				"creator": "Pro",
 				"ultimate": "Ultimate",

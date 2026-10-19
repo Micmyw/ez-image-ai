@@ -412,6 +412,7 @@ export async function submitVideoAttempt(
 			return { status: "DEFINITELY_REJECTED", reasonCode: latest.failureCode ?? reasonCode };
 		throw error;
 	}
+	if ("deferred" in claim) return { status: "DEFERRED", retryAfterMs: claim.retryAfterMs };
 	if (!claim.claimed) return replaySubmission(claim.attempt);
 	const attemptId = claim.attempt.id;
 	try {

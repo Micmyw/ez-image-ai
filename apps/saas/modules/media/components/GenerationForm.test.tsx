@@ -314,7 +314,6 @@ function generationState() {
 				creditDebt: "0",
 				version: 0,
 				activeJobs: 3,
-				maximumConcurrentJobs: 3,
 			},
 		},
 		quote: null,
@@ -794,15 +793,15 @@ describe("GenerationForm product copy", () => {
 		expect(markup).toMatch(/<button[^>]*>Upgrade<\/button>/);
 	});
 
-	it("shows running work and a History action when concurrency is full", () => {
+	it("keeps a legacy concurrency error readable without presenting an account task quota", () => {
 		const state = generationState();
 		state.createGeneration.error = new Error("CONCURRENT_JOB_LIMIT_REACHED");
 		mocks.useGeneration.mockReturnValue(state);
 
 		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
 
-		expect(markup).toContain("3 running edits");
-		expect(markup).toContain('href="/history"');
+		expect(markup).not.toContain("3 running edits");
+		expect(markup).not.toContain('href="/history"');
 	});
 	it("shows service capacity without blaming an account with zero active jobs", () => {
 		const state = generationState();

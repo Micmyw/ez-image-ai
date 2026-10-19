@@ -1,13 +1,14 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { providerCapacityForTestRequests } from "../../../test-support/provider-dispatch-capacity";
 import { runWithDatabaseClient } from "../../client";
 import { type Prisma, PrismaClient } from "../../generated/client";
 import { createCreditGrant, releaseCredits, reserveCredits } from "./credits";
 import {
-	claimVideoProviderSubmission,
+	claimVideoProviderSubmission as claimVideoProviderSubmissionResult,
 	consumeVideoProviderEvents,
 	failVideoExecution,
 	getVideoExecutionContext,
@@ -25,13 +26,15 @@ let client: PrismaClient;
 const fixtureOwners: string[] = [];
 const identityFixtureEvents: string[] = [];
 const ruleVersion = "video-test-rule";
-beforeAll(() => {
+beforeAll(async () => {
 	const raw = process.env.TEST_DATABASE_URL;
 	if (!raw) throw new Error("TEST_DATABASE_URL_REQUIRED");
 	const url = new URL(raw);
 	if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname) || !url.pathname.includes("test"))
 		throw new Error("ISOLATED_TEST_DATABASE_REQUIRED");
 	client = new PrismaClient({ adapter: new PrismaPg({ connectionString: raw, max: 8 }) });
+	vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
+	vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", await providerCapacityForTestRequests(client, 64));
 });
 afterAll(async () => {
 	if (!client) return;
@@ -98,9 +101,20 @@ afterAll(async () => {
 		).toBe(0);
 	} finally {
 		await client.$disconnect();
+		vi.unstubAllEnvs();
 	}
 });
 const run = <T>(callback: () => T) => runWithDatabaseClient(client, callback);
+
+// These lifecycle fixtures require an immediate claim. Capacity waiting is
+// exercised separately by provider-dispatch-capacity.integration.test.ts.
+async function claimVideoProviderSubmission(
+	input: Parameters<typeof claimVideoProviderSubmissionResult>[0],
+) {
+	const result = await claimVideoProviderSubmissionResult(input);
+	if ("deferred" in result) throw new Error("Unexpected provider capacity wait");
+	return result;
+}
 
 it("retires a notified callback that arrives after the final provider query without changing settlement", async () => {
 	const f = await fixture();

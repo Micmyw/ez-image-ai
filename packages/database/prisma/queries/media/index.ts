@@ -28,6 +28,7 @@ export * from "./outbox";
 export * from "./quotes";
 export * from "./retry-requests";
 export * from "./state-machine";
+export * from "./shared-provider-capacity";
 export * from "./storage-usage-locks";
 export * from "./temporary-references";
 export * from "./stripe-refund-repairs";

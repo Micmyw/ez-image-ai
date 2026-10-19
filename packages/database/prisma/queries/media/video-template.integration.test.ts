@@ -11,6 +11,7 @@ import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
 
+import { providerCapacityForTestRequests } from "../../../test-support/provider-dispatch-capacity";
 import { runWithDatabaseClient } from "../../client";
 import { PrismaClient, type Prisma } from "../../generated/client";
 import { createMediaUploadSessionTransaction } from "./assets";
@@ -55,15 +56,18 @@ const object = (v: unknown) => v as Record<string, unknown>;
 let db: PrismaClient;
 const owners: string[] = [];
 const run = <T>(f: () => T) => runWithDatabaseClient(db, f);
-beforeAll(() => {
+beforeAll(async () => {
 	const raw = process.env.TEST_DATABASE_URL;
 	if (!raw) throw new Error("TEST_DATABASE_URL_REQUIRED");
 	const u = new URL(raw);
 	if (!["127.0.0.1", "localhost", "[::1]"].includes(u.hostname) || !u.pathname.includes("test"))
 		throw new Error("ISOLATED_TEST_DATABASE_REQUIRED");
 	db = new PrismaClient({ adapter: new PrismaPg({ connectionString: raw, max: 30 }) });
+	vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
+	vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", await providerCapacityForTestRequests(db, 32));
 });
 afterAll(async () => {
+	vi.unstubAllEnvs();
 	if (!db) return;
 	for (const ownerId of owners) {
 		const jobs = await db.generationJob.findMany({
@@ -489,7 +493,12 @@ describe("template admission and durable scene PostgreSQL regressions", () => {
 				),
 			),
 		);
-		expect(claims.filter((c) => c.claimed)).toHaveLength(1);
+		expect(
+			claims.filter((claim) => {
+				if ("deferred" in claim) throw new Error("Unexpected provider capacity wait");
+				return claim.claimed;
+			}),
+		).toHaveLength(1);
 		expect(await db.generationAttempt.count({ where: { jobId: f.jobId } })).toBe(0);
 		expect(await run(() => failVideoExecution(f.jobId, "TEST_TIMEOUT"))).toBe(false);
 		expect(await run(() => failVideoExecution(f.jobId, "TEST_TIMEOUT", false, true))).toBe(false);

@@ -2,8 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import { getPlanEntitlement, PLAN_ENTITLEMENTS, resolvePlanEntitlement } from "./plans";
 import { DEFAULT_PRODUCT_CONFIG } from "./product";
+import { getPublicConfig } from "./public";
 
 describe("subscription plan catalog", () => {
+	it("does not advertise an unfinished-job quota in account or public plans", () => {
+		for (const plan of [...PLAN_ENTITLEMENTS, ...getPublicConfig().plans]) {
+			expect(plan).not.toHaveProperty("maximumConcurrentJobs");
+		}
+	});
 	it("publishes the approved paid tiers under stable internal plan IDs", () => {
 		expect(DEFAULT_PRODUCT_CONFIG.planIds).toEqual(["free", "creator", "ultimate", "studio"]);
 		expect(

@@ -209,28 +209,62 @@ describe("combined generation final atomic qualification", () => {
 		);
 		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
 	});
-	it("uses the current free concurrency limit and keeps the winning replay", async () => {
+	it("admits multiple funded requests for one account and keeps each replay stable", async () => {
 		const f = await fixture();
-		const inputs = [f.input, await f.makeInput()];
-		const results = await Promise.allSettled(
+		const inputs = [f.input, await f.makeInput()].map((input) => ({
+			...input,
+			maximumConcurrentJobs: 1,
+		}));
+		const results = await Promise.all(
 			inputs.map((input) => createGenerationJobTransaction(input, client)),
 		);
-		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
-		const rejected = results.find((result) => result.status === "rejected");
-		expect(rejected).toMatchObject({ reason: { message: "CONCURRENT_JOB_LIMIT_REACHED" } });
-		const winner = results.findIndex((result) => result.status === "fulfilled");
+		expect(results).toHaveLength(2);
+		expect(results.every((result) => !result.replayed)).toBe(true);
 		const flag = await disable("media.generation.enabled");
 		try {
-			await expect(createGenerationJobTransaction(inputs[winner]!, client)).resolves.toMatchObject({
-				replayed: true,
-			});
+			for (const input of inputs) {
+				await expect(createGenerationJobTransaction(input, client)).resolves.toMatchObject({
+					replayed: true,
+				});
+			}
 		} finally {
 			await client.runtimeConfigOverride.delete({ where: { id: flag.id } });
 		}
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(2);
+		expect(
+			await client.creditReservation.count({
+				where: { accountId: f.account.id, status: "ACTIVE" },
+			}),
+		).toBe(2);
 		expect(
 			await client.creditLedgerEntry.count({ where: { accountId: f.account.id, type: "RESERVE" } }),
-		).toBe(1);
+		).toBe(2);
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: f.account.id } }),
+		).toMatchObject({ reservedCredits: 10n, spendableCredits: 90n });
 	});
+	it("admits 32 independently funded accounts without executing provider work", async () => {
+		const fixtures = await Promise.all(Array.from({ length: 32 }, () => fixture()));
+		const results = await Promise.all(
+			fixtures.map((f) =>
+				createGenerationJobTransaction({ ...f.input, maximumConcurrentJobs: 1 }, client),
+			),
+		);
+		expect(results.every((result) => !result.replayed)).toBe(true);
+		const ownerIds = fixtures.map((f) => f.ownerId),
+			accountIds = fixtures.map((f) => f.account.id);
+		expect(await client.generationJob.count({ where: { ownerId: { in: ownerIds } } })).toBe(32);
+		expect(
+			await client.creditReservation.count({
+				where: { accountId: { in: accountIds }, status: "ACTIVE" },
+			}),
+		).toBe(32);
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { accountId: { in: accountIds }, type: "RESERVE" },
+			}),
+		).toBe(32);
+	}, 30_000);
 	it.each([
 		["balance", 4n, "INSUFFICIENT_CREDITS"],
 		["debt", 100n, "CREDIT_DEBT_OUTSTANDING"],

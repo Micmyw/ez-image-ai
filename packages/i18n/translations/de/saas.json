@@ -1376,7 +1376,7 @@
 			"continue": "Tarif auswählen",
 			"modelDescription": "{model} ist in Pro, Ultimate und Max enthalten. Wähle den passenden Tarif für deine Bildbearbeitung.",
 			"monthlyCredits": "{credits, number} Credits/Monat",
-			"planDetails": "{concurrency, number} Bearbeitungen gleichzeitig · Bilder bis {megabytes, number} MB",
+			"planDetails": "Bilder bis {megabytes, number} MB",
 			"planNames": {
 				"creator": "Pro",
 				"ultimate": "Ultimate",

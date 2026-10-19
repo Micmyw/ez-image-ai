@@ -102,14 +102,10 @@ interface GuestAdmissionConfig {
 	maximumBytes: number;
 	mimeTypes: readonly string[];
 	retentionMs: number;
-	queueTtlMs: number;
 	abuseEvidenceTtlMs: number;
 	limits: {
-		maximumActiveJobsPerGuest: number;
 		maximumAcceptedTrialsPerSessionPerDay?: number;
-		maximumActiveJobsPerDevice?: number;
 		maximumAcceptedTrialsPerDevicePerDay?: number;
-		maximumActiveJobsPerIp?: number;
 		maximumRequestsPerIpPerTenMinutes?: number;
 		maximumRequestsPerIpPerDay?: number;
 		maximumRequestsPerSubnetPerDay?: number;
@@ -117,7 +113,6 @@ interface GuestAdmissionConfig {
 		maximumGlobalRequestsPerHour?: number;
 		maximumRequestsPerMinute: number;
 		maximumRequestsPerIpPerHour: number;
-		maximumGlobalQueueDepth: number;
 	};
 	riskBudgetMicros: bigint | null;
 	abuseHmac: {
@@ -471,19 +466,14 @@ export async function submitGuestGenerationForGuest(
 		sourceAssetChecksum: source.checksum,
 		now,
 		retentionMs: loaded.config.retentionMs,
-		queueTtlMs: loaded.config.queueTtlMs,
 		serviceTimeMs: GUEST_ESTIMATED_SERVICE_TIME_MS,
 		queueCapacity: GUEST_QUEUE_CAPACITY,
 		maximumBytes: loaded.config.maximumBytes,
-		maximumGlobalQueueDepth: loaded.config.limits.maximumGlobalQueueDepth,
-		maximumActiveJobsPerGuest: loaded.config.limits.maximumActiveJobsPerGuest,
 		maximumRequestsPerMinute: loaded.config.limits.maximumRequestsPerMinute,
 		maximumRequestsPerIpPerHour: loaded.config.limits.maximumRequestsPerIpPerHour,
 		maximumAcceptedTrialsPerSessionPerDay:
 			loaded.config.limits.maximumAcceptedTrialsPerSessionPerDay,
-		maximumActiveJobsPerDevice: loaded.config.limits.maximumActiveJobsPerDevice,
 		maximumAcceptedTrialsPerDevicePerDay: loaded.config.limits.maximumAcceptedTrialsPerDevicePerDay,
-		maximumActiveJobsPerIp: loaded.config.limits.maximumActiveJobsPerIp,
 		maximumRequestsPerIpPerTenMinutes: loaded.config.limits.maximumRequestsPerIpPerTenMinutes,
 		maximumRequestsPerIpPerDay: loaded.config.limits.maximumRequestsPerIpPerDay,
 		maximumRequestsPerSubnetPerDay: loaded.config.limits.maximumRequestsPerSubnetPerDay,

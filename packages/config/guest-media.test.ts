@@ -63,6 +63,29 @@ const productionRuntimeOverride = {
 };
 
 describe("guest media configuration", () => {
+	it.each([
+		"GUEST_SESSION_MAX_ACTIVE_JOBS",
+		"GUEST_DEVICE_MAX_ACTIVE_JOBS",
+		"GUEST_IP_MAX_ACTIVE_JOBS",
+		"GUEST_QUEUE_MAX_DEPTH",
+		"GUEST_QUEUE_TTL_SECONDS",
+	])("ignores retired task-count policy %s and keeps the daily free allowance", (key) => {
+		for (const value of [undefined, "0", "invalid", "100"]) {
+			const config = getGuestMediaConfig(
+				{ ...productionEnvironment, [key]: value },
+				productionRuntimeOverride,
+				productionNow,
+			);
+			expect(config.enabled).toBe(true);
+			expect(config.limits).not.toHaveProperty("maximumActiveJobsPerGuest");
+			expect(config.limits).not.toHaveProperty("maximumActiveJobsPerDevice");
+			expect(config.limits).not.toHaveProperty("maximumActiveJobsPerIp");
+			expect(config.limits).not.toHaveProperty("maximumGlobalQueueDepth");
+			expect(config).not.toHaveProperty("queueTtlMs");
+			expect(config.limits.maximumAcceptedTrialsPerSessionPerDay).toBe(2);
+			expect(config.limits.maximumAcceptedTrialsPerDevicePerDay).toBe(2);
+		}
+	});
 	it.each([undefined, "5", "0", "unlimited", "invalid"])(
 		"ignores the retired global daily request setting %s without changing remaining limits",
 		(value) => {
@@ -95,7 +118,7 @@ describe("guest media configuration", () => {
 			enabled: true,
 			riskBudgetMicros: null,
 			productionEvidence: { hardBudgetMicros: null },
-			limits: { maximumAcceptedTrialsPerSessionPerDay: 2, maximumActiveJobsPerGuest: 1 },
+			limits: { maximumAcceptedTrialsPerSessionPerDay: 2 },
 			turnstile: { required: true },
 		});
 		expect(
@@ -122,15 +145,13 @@ describe("guest media configuration", () => {
 		).toMatchObject({ enabled: false, reason: "GUEST_CONFIGURATION_INVALID" });
 	});
 
-	it("gives guests two daily edits while keeping one active job and five credits per edit", () => {
+	it("gives guests two daily edits with five credits per edit", () => {
 		expect(getGuestMediaConfig(developmentEnvironment, true)).toMatchObject({
 			sponsorCredits: 5n,
 			limits: {
 				maximumAcceptedTrialsPerSessionPerDay: 2,
 				maximumAcceptedTrialsPerDevicePerDay: 2,
 				maximumRequestsPerIpPerTenMinutes: 2,
-				maximumActiveJobsPerGuest: 1,
-				maximumActiveJobsPerDevice: 1,
 			},
 		});
 	});
@@ -172,19 +193,15 @@ describe("guest media configuration", () => {
 			maximumBytes: 10 * 1024 * 1024,
 			mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 			retentionMs: 24 * 60 * 60 * 1_000,
-			queueTtlMs: 10 * 60 * 1_000,
 			riskBudgetMicros: 350_000n,
 			limits: {
-				maximumActiveJobsPerGuest: 1,
 				maximumAcceptedTrialsPerSessionPerDay: 2,
 				maximumAcceptedTrialsPerDevicePerDay: 2,
-				maximumActiveJobsPerIp: 2,
 				maximumRequestsPerIpPerTenMinutes: 2,
 				maximumRequestsPerIpPerDay: 3,
 				maximumRequestsPerSubnetPerDay: 20,
 				maximumGlobalRequestsPerMinute: 3,
 				maximumGlobalRequestsPerHour: 30,
-				maximumGlobalQueueDepth: 25,
 				maximumOutstandingBootstraps: 25,
 				maximumTemporaryPrincipals: 100,
 			},
@@ -232,15 +249,10 @@ describe("guest media configuration", () => {
 	it.each([
 		["GUEST_RISK_BUDGET_MICROS", undefined],
 		["GUEST_RISK_BUDGET_MICROS", "350001"],
-		["GUEST_QUEUE_TTL_SECONDS", "601"],
-		["GUEST_QUEUE_MAX_DEPTH", "26"],
 		["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "29"],
 		["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "31"],
-		["GUEST_SESSION_MAX_ACTIVE_JOBS", "2"],
 		["GUEST_SESSION_MAX_ACCEPTED_PER_DAY", "3"],
-		["GUEST_DEVICE_MAX_ACTIVE_JOBS", "2"],
 		["GUEST_DEVICE_MAX_ACCEPTED_PER_DAY", "3"],
-		["GUEST_IP_MAX_ACTIVE_JOBS", "3"],
 		["GUEST_IP_MAX_PER_10_MINUTES", "3"],
 		["GUEST_IP_MAX_PER_24_HOURS", "4"],
 		["GUEST_SUBNET_MAX_PER_24_HOURS", "21"],

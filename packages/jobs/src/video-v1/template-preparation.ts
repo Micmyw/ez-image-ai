@@ -18,7 +18,11 @@ import * as templateDatabase from "@repo/database/video-template-execution";
 import { recordVideoInputReview } from "@repo/database/video-v1-execution";
 import { createSignedReadUrl, storeImmutableVideoTemplateScene } from "@repo/storage";
 
-import type { ReviewStepResult, VideoInputIdentity } from "./contracts";
+import type {
+	ReviewStepResult,
+	TemplatePreparationStepResult,
+	VideoInputIdentity,
+} from "./contracts";
 import { hashVideoCallbackToken } from "./submission";
 import { recordVideoStageMetric } from "./telemetry";
 import { requireVideoTemplateRuntimeEnabled } from "./template-runtime-gates";
@@ -55,7 +59,7 @@ export interface VideoTemplatePreparationDependencies {
 export async function prepareVideoTemplate(
 	jobId: string,
 	overrides: Partial<VideoTemplatePreparationDependencies> = {},
-): Promise<ReviewStepResult> {
+): Promise<TemplatePreparationStepResult> {
 	const env = overrides.env ?? process.env;
 	const deps: VideoTemplatePreparationDependencies = {
 		store: templateDatabase,
@@ -332,6 +336,7 @@ export async function prepareVideoTemplate(
 					// The final fail transaction independently rechecks no uncertain scene/final attempt.
 					return { status: "REJECT", reasonCode: reason };
 				}
+				if ("deferred" in claim) return { status: "DEFERRED", retryAfterMs: claim.retryAfterMs };
 				if (!claim.claimed) {
 					if (!claim.execution.sceneProviderTaskId)
 						return hold("VIDEO_TEMPLATE_SCENE_SUBMISSION_UNCERTAIN");

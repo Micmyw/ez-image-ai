@@ -33,6 +33,32 @@ const boundaries = ["upload", "bootstrap", "generate"] as const;
 describe("guest admission without a global daily request cap", () => {
 	beforeEach(() => vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", ""));
 	afterEach(() => vi.unstubAllEnvs());
+	it("does not reject a guest's second daily edit when 80 tasks are unfinished", async () => {
+		const fixture = boundaryFixture("generate");
+		fixture.tx.generationJob.count.mockResolvedValue(80);
+		fixture.tx.guestMediaTrial.count.mockResolvedValue(1);
+		await expect(fixture.run()).rejects.toBe(fixture.passedRateChecks);
+	});
+	it("keeps the daily free allowance independent from task-count admission", async () => {
+		const fixture = boundaryFixture("generate");
+		fixture.tx.generationJob.count.mockResolvedValue(80);
+		fixture.tx.guestMediaTrial.count.mockResolvedValue(2);
+		await expect(fixture.run()).rejects.toThrow("GUEST_TRIAL_UNAVAILABLE");
+		expect(fixture.tx.generationJob.count).not.toHaveBeenCalled();
+	});
+	it("does not reject by estimated queue depth or queue time before the actual file expires", async () => {
+		const fixture = boundaryFixture("generate");
+		fixture.tx.generationJob.count.mockResolvedValue(80);
+		fixture.tx.guestRiskBudgetBucket.findUnique.mockResolvedValue(null);
+		await expect(fixture.run()).rejects.toThrow("GUEST_PRICE_CHANGED");
+		expect(fixture.resolveCanonicalQuote).toHaveBeenCalledOnce();
+	});
+	it("does not reject guest admission when other owners occupy provider execution capacity", async () => {
+		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1");
+		const fixture = boundaryFixture("generate");
+		await expect(fixture.run()).rejects.toBe(fixture.passedRateChecks);
+		expect(fixture.scopes).toHaveLength(5);
+	});
 
 	it.each(boundaries)(
 		"ignores a full legacy global-day bucket during %s admission",
@@ -153,6 +179,7 @@ function boundaryFixture(boundary: (typeof boundaries)[number], blockedScope = "
 		guestAbuseBucket: { create: vi.fn().mockResolvedValue({}), upsert: vi.fn() },
 		guestLinkIntent: { findUnique: vi.fn().mockResolvedValue(null) },
 		guestMediaTrial: { count: vi.fn().mockResolvedValue(0) },
+		guestRiskBudgetBucket: { findUnique: vi.fn().mockRejectedValue(passedRateChecks) },
 		generationJob: {
 			findUnique: vi.fn().mockResolvedValue(null),
 			count: vi.fn().mockRejectedValue(passedRateChecks),
@@ -214,6 +241,7 @@ function boundaryFixture(boundary: (typeof boundaries)[number], blockedScope = "
 			},
 		),
 	};
+	const resolveCanonicalQuote = vi.fn().mockRejectedValue(passedRateChecks);
 	const run = () => {
 		if (boundary === "upload")
 			return createGuestMediaUploadIntentTransaction(
@@ -307,8 +335,8 @@ function boundaryFixture(boundary: (typeof boundaries)[number], blockedScope = "
 				},
 			},
 			client as never,
-			vi.fn() as never,
+			resolveCanonicalQuote as never,
 		);
 	};
-	return { run, prefix, scopes, counts, passedRateChecks };
+	return { run, prefix, scopes, counts, passedRateChecks, tx, resolveCanonicalQuote };
 }

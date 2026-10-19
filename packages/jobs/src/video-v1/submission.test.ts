@@ -16,9 +16,16 @@ import {
 } from "./submission";
 
 vi.mock("@repo/database/video-v1-execution", () => ({}));
+vi.mock("@repo/database/video-template-execution", () => ({
+	getVideoEffectiveInputSnapshot: vi.fn(() => {
+		throw new Error("UNEXPECTED_TEMPLATE_INPUT");
+	}),
+}));
+vi.mock("@repo/database", () => ({ getActiveRuntimeConfigOverrides: vi.fn(async () => []) }));
+vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/storage", () => ({ createSignedReadUrl: vi.fn() }));
 
-function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video") {
+function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video", deferredClaims = 0) {
 	const now = new Date("2026-10-04T00:00:00Z");
 	const attempt: {
 		id: string;
@@ -65,6 +72,7 @@ function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video") {
 		claimVideoImageReview: vi.fn(async () => true),
 		claimVideoProviderSubmission: vi.fn(async (input: { providerModelId: string }) => {
 			if (attempt[0]) return { claimed: false, attempt: attempt[0] };
+			if (deferredClaims-- > 0) return { deferred: true, retryAfterMs: 5000 };
 			attempt.push({
 				id: "attempt-1",
 				providerTaskId: null,
@@ -346,6 +354,22 @@ describe("video V1 paid submission fence", () => {
 		} finally {
 			fetch.mockRestore();
 		}
+	});
+	it("waits for provider capacity without sending or creating an uncertain attempt, then submits once", async () => {
+		const f = fixture("text-to-video", 2);
+		for (let round = 0; round < 2; round++) {
+			expect(await submitVideoAttempt("job-1", f.deps)).toEqual({
+				status: "DEFERRED",
+				retryAfterMs: 5000,
+			});
+			expect(f.attempt).toEqual([]);
+			expect(f.provider.submit).not.toHaveBeenCalled();
+			expect(f.store.markVideoSubmissionUncertain).not.toHaveBeenCalled();
+			expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+		}
+		expect(await submitVideoAttempt("job-1", f.deps)).toMatchObject({ status: "ACCEPTED" });
+		expect(await submitVideoAttempt("job-1", f.deps)).toMatchObject({ status: "ACCEPTED" });
+		expect(f.provider.submit).toHaveBeenCalledTimes(1);
 	});
 	it("a replay after accepted taskId persistence fails never submits a second paid request", async () => {
 		const f = fixture();

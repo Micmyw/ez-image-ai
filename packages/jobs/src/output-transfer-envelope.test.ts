@@ -9,6 +9,37 @@ import {
 } from "./output-transfer-envelope";
 
 describe("provider output transfer envelopes", () => {
+	it("preserves bound terminal capacity evidence through weaker result snapshots", () => {
+		const providerTerminalEvidence = {
+			version: 1,
+			provider: "kie",
+			source: "kie-record-info",
+			attemptId: "attempt-1",
+			providerTaskId: "task-1",
+			status: "FAILED",
+			verifiedAt: "2026-10-19T12:00:00.000Z",
+		};
+		const previous = {
+			id: "attempt-1",
+			provider: "kie",
+			providerTaskId: "task-1",
+			responseSnapshot: { providerCharged: true, outputCount: 0, providerTerminalEvidence },
+		};
+		const first = responseSnapshotForResult({ outputs: [], providerCharged: false }, previous);
+		const second = responseSnapshotForResult(
+			{ outputs: [], providerCharged: false },
+			{ ...previous, responseSnapshot: first },
+		);
+		expect(second).toMatchObject({ providerTerminalEvidence, providerCharged: true });
+		expect(second).toEqual(first);
+		expect(
+			responseSnapshotForResult(
+				{ outputs: [], providerCharged: false },
+				{ ...previous, id: "other-attempt" },
+			),
+		).not.toHaveProperty("providerTerminalEvidence");
+	});
+
 	it.each([
 		{ providerCharged: true, outputCount: 2 },
 		{ outputs: [{ url: "https://cdn.test/old.png?signature=secret" }] },

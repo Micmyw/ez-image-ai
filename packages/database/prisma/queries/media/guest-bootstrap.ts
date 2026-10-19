@@ -124,7 +124,8 @@ export interface CreateGuestMediaUploadIntentTransactionInput extends Omit<
 	abuseLimits: GuestBoundaryAbuseLimits & {
 		maximumRequestsPerMinute: number;
 		maximumRequestsPerIpPerHour: number;
-		maximumGlobalQueueDepth: number;
+		/** @deprecated Queue depth does not reject guest work. */
+		maximumGlobalQueueDepth?: number;
 	};
 	abuseEvidenceTtlMs?: number;
 	completionTokenHash: string;
@@ -341,7 +342,8 @@ export interface ConsumeGuestBootstrapInput {
 	limits: GuestBoundaryAbuseLimits & {
 		maximumRequestsPerMinute: number;
 		maximumRequestsPerIpPerHour: number;
-		maximumGlobalQueueDepth: number;
+		/** @deprecated Queue depth does not reject guest work. */
+		maximumGlobalQueueDepth?: number;
 		maximumOutstandingBootstraps?: number;
 		maximumTemporaryPrincipals?: number;
 	};

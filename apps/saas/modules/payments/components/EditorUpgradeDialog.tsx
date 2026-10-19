@@ -97,7 +97,6 @@ function planValues(planId: "creator" | "ultimate" | "studio") {
 	const entitlement = getPlanEntitlement(planId);
 	return {
 		credits: entitlement.monthlyCredits,
-		concurrency: entitlement.maximumConcurrentJobs,
 		megabytes: Math.round(entitlement.maximumInputBytes / 1024 / 1024),
 	};
 }

@@ -715,13 +715,23 @@ describe("prepared deployment artifacts", () => {
 	it.each([
 		[{ VIDEO_MODEL_CONTRACT_VERSION: "" }, "VIDEO_MODEL_CONTRACT_NOT_CONFIRMED"],
 		[{ VIDEO_SEEAPI_CALLBACK_SECRET: "" }, "VIDEO_SEEAPI_CALLBACK_NOT_CONFIGURED"],
-		[{ VIDEO_V1_PROVIDER_CONCURRENCY: "" }, "VIDEO_CONCURRENCY_NOT_CONFIGURED"],
 		[{ VIDEO_V1_UPLOAD_CORS_READY: "false" }, "VIDEO_BINDING_UPLOADCORS_NOT_READY"],
 	] as const)("keeps current video safety gates closed for %j", (overrides, reason) => {
 		expect(() => artifacts("workers", { ...multiModelVideoEnvironment, ...overrides })).toThrow(
 			reason,
 		);
 	});
+	it.each(["workers", "hybrid"] as const)(
+		"keeps %s intake ready while provider execution capacity awaits configuration",
+		(profile) => {
+			const result = artifacts(profile, {
+				...multiModelVideoEnvironment,
+				VIDEO_V1_PROVIDER_CONCURRENCY: "",
+			});
+			for (const config of [result.website, result.workflows])
+				expect(config.vars).toMatchObject({ VIDEO_V1_ENABLED: "true" });
+		},
+	);
 	it.each(["workers", "hybrid"] as const)(
 		"excludes retired moderation from every %s runtime while preserving active provider secrets",
 		(profile) => {

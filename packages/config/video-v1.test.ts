@@ -10,6 +10,41 @@ import {
 	videoV1Readiness,
 } from "./video-v1";
 describe("video V1 configuration", () => {
+	it.each(["6", "50", String(Number.MAX_SAFE_INTEGER)])(
+		"accepts provider execution capacity %s without a closed-beta ceiling",
+		(value) => {
+			expect(readVideoV1Config({ VIDEO_V1_PROVIDER_CONCURRENCY: value }).providerConcurrency).toBe(
+				Number(value),
+			);
+		},
+	);
+	it.each([undefined, "", "0", "invalid", "6"])(
+		"keeps execution capacity %j separate from admission readiness",
+		(value) => {
+			const environment = {
+				VIDEO_V1_GLOBAL_CONCURRENCY: "retired-invalid",
+				VIDEO_V1_PROVIDER_CONCURRENCY: value,
+			};
+			expect(readVideoV1Config(environment)).not.toHaveProperty("globalConcurrency");
+			expect(videoV1Readiness(environment).reasons).not.toContain(
+				"VIDEO_CONCURRENCY_NOT_CONFIGURED",
+			);
+			expect(
+				videoV1Readiness({ ...environment, VIDEO_V1_OWNER_CONCURRENCY: "2" }).reasons,
+			).not.toContain("VIDEO_CONCURRENCY_NOT_CONFIGURED");
+			expect(readVideoV1Config({ VIDEO_V1_OWNER_CONCURRENCY: value })).not.toHaveProperty(
+				"ownerConcurrency",
+			);
+		},
+	);
+	it.each([undefined, "", "0", "-1", "1.5", "invalid", "9007199254740992"])(
+		"keeps missing or invalid provider execution capacity %j fail closed",
+		(value) => {
+			expect(readVideoV1Config({ VIDEO_V1_PROVIDER_CONCURRENCY: value }).providerConcurrency).toBe(
+				0,
+			);
+		},
+	);
 	it("uses canonical SaaS origin and rejects credential/path/origin changes", () => {
 		expect(resolveVideoV1CallbackBaseUrl({ NEXT_PUBLIC_SAAS_URL: "https://example.test" })).toBe(
 			"https://example.test",
