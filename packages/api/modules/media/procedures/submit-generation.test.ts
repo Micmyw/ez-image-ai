@@ -48,7 +48,16 @@ function fixture() {
 		return { job: quote.job!, replayed };
 	});
 	const dispatch = vi.fn<Dependencies["dispatch"]>().mockResolvedValue(undefined);
-	return { quotes, dependencies: { findQuote, createQuote, createJob, dispatch } };
+	return {
+		quotes,
+		dependencies: {
+			findQuote,
+			createQuote,
+			createJob,
+			dispatch,
+			enforceRateLimit: vi.fn(async () => undefined),
+		},
+	};
 }
 function deferred() {
 	let resolve!: () => void;

@@ -14,8 +14,12 @@ const production = vi.hoisted(() => ({
 	},
 }));
 vi.mock("@repo/database/client", () => ({ db: production.db }));
-vi.mock("@repo/database", () => ({
-	unexpiredStorageReservations: () => ({}),
+// All DB calls below already use production.db; retain the real pure storage filter
+// without loading the generated-client barrel in this unit test.
+vi.mock("@repo/database", async () => ({
+	unexpiredStorageReservations: (
+		await import("../../../../database/prisma/queries/media/temporary-references")
+	).unexpiredStorageReservations,
 	effectiveMediaStorageLimit: async (_owner: unknown, maximum: bigint) => maximum,
 }));
 vi.mock("@repo/config/server", async (importOriginal) => ({
@@ -30,6 +34,7 @@ vi.mock("./rate-limit", () => ({ enforceMediaRateLimit: production.rateLimit }))
 
 import {
 	assertGenerationAllowed,
+	createGenerationRateLimitReceipt,
 	isCatalogModelEnabled,
 	isUsableGenerationSourceAsset,
 	type GenerationAccessSnapshot,
@@ -426,5 +431,88 @@ describe("generation authorization", () => {
 		await expect(
 			assertGenerationAllowed({ ...input, enforceProspectiveDailyBudget: false }, dependencies),
 		).resolves.toBeUndefined();
+	});
+});
+
+describe("server generation flood receipt", () => {
+	const input = {
+		userId: "owner",
+		productKey: FREE_IMAGE_PRODUCT,
+		credits: 5n,
+		costMicros: 20_000n,
+		input: IMAGE_EDIT_INPUT,
+		routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+	};
+	function dependencies(snapshot: Partial<GenerationAccessSnapshot> = {}) {
+		return {
+			enforceRateLimit: vi.fn(async () => undefined),
+			isEnvironmentGenerationEnabled: () => true,
+			loadAccess: vi.fn(async () => ({ ...BASE_SNAPSHOT, ...snapshot })),
+		};
+	}
+	it("issues only after the guard succeeds and rechecks mutable eligibility on every use", async () => {
+		const deps = dependencies();
+		const receipt = await createGenerationRateLimitReceipt("owner", deps.enforceRateLimit);
+		expect(Object.isFrozen(receipt)).toBe(true);
+		await assertGenerationAllowed({ ...input, rateLimitReceipt: receipt }, deps);
+		await assertGenerationAllowed({ ...input, rateLimitReceipt: receipt }, deps);
+		expect(deps.enforceRateLimit).toHaveBeenCalledExactlyOnceWith("owner", "media:generation");
+		expect(deps.loadAccess).toHaveBeenCalledTimes(2);
+	});
+	it("never issues a receipt when the real flood guard denies the request", async () => {
+		const enforce = vi.fn(async () => {
+			throw new Error("RATE_LIMITED");
+		});
+		await expect(createGenerationRateLimitReceipt("owner", enforce)).rejects.toThrow(
+			"RATE_LIMITED",
+		);
+		expect(enforce).toHaveBeenCalledExactlyOnceWith("owner", "media:generation");
+	});
+	it("rejects JSON copies, symbol copies and another owner's receipt before loading eligibility", async () => {
+		const deps = dependencies();
+		const receipt = await createGenerationRateLimitReceipt("other-owner", deps.enforceRateLimit);
+		const ownerReceipt = await createGenerationRateLimitReceipt("owner", deps.enforceRateLimit);
+		for (const invalid of [
+			receipt,
+			JSON.parse(JSON.stringify(ownerReceipt)),
+			{ ...ownerReceipt },
+		]) {
+			await expect(
+				assertGenerationAllowed({ ...input, rateLimitReceipt: invalid }, deps),
+			).rejects.toThrow("NOT_FOUND");
+		}
+		expect(deps.loadAccess).not.toHaveBeenCalled();
+		expect(deps.enforceRateLimit).toHaveBeenCalledTimes(2);
+	});
+	it("does not reuse a generation receipt to bypass the independent quote flood guard", async () => {
+		const deps = dependencies();
+		const receipt = await createGenerationRateLimitReceipt("owner", deps.enforceRateLimit);
+		await expect(
+			assertGenerationAllowed(
+				{ ...input, rateLimitAction: "media:quote", rateLimitReceipt: receipt },
+				deps,
+			),
+		).rejects.toThrow("NOT_FOUND");
+		expect(deps.loadAccess).not.toHaveBeenCalled();
+	});
+	it.each([
+		[{ creditDebt: 1n }, "CREDIT_DEBT_OUTSTANDING"],
+		[{ spendableCredits: 4n }, "INSUFFICIENT_CREDITS"],
+		[{ sourceAssetReady: false }, "ASSET_NOT_READY"],
+		[{ modelDisabled: true }, "MODEL_DISABLED"],
+		[{ storageUsageBytes: BASE_SNAPSHOT.maximumStorageBytes }, "STORAGE_QUOTA_EXCEEDED"],
+	] as const)("keeps the %s eligibility check after a valid receipt", async (snapshot, code) => {
+		const deps = dependencies(snapshot);
+		const receipt = await createGenerationRateLimitReceipt("owner", deps.enforceRateLimit);
+		await expect(
+			assertGenerationAllowed({ ...input, rateLimitReceipt: receipt }, deps),
+		).rejects.toThrow(code);
+		expect(deps.loadAccess).toHaveBeenCalledOnce();
+		expect(deps.enforceRateLimit).toHaveBeenCalledOnce();
+	});
+	it("keeps the normal generation and retry guard when no server receipt is present", async () => {
+		const deps = dependencies();
+		await assertGenerationAllowed(input, deps);
+		expect(deps.enforceRateLimit).toHaveBeenCalledExactlyOnceWith("owner", "media:generation");
 	});
 });

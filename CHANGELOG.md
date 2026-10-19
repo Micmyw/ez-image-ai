@@ -28,6 +28,11 @@ Valid video prices no longer stop working at a price approval deadline. Invalid 
 - Give each new or existing registered account one non-expiring 5-credit sign-in bonus, separate from monthly Free credits. Existing credit debt is repaid first.
 - Offer account continuation when guest uploads or daily trials reach their limit, while preserving the existing model access, generation prices, and content review.
 
+## 2026-10-19 — Image submission request counting
+
+- Count each combined image submission once in the generation request guard, including concurrent recovery paths, while keeping independent quote throttling and ordinary creation/retry protection.
+- Keep accepted-request replays and concurrent duplicates on the same job and credit reservation; quote previews do not use the generation request bucket.
+
 ## 2026-10-19 — Guest availability throughout the day
 
 - Remove the shared daily request cap from guest uploads, temporary session preparation, and guest generation. Existing uploads and account media keep their original ownership and review rules.

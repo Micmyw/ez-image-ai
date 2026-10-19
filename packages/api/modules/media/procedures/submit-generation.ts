@@ -8,6 +8,8 @@ import { z } from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { toMediaOrpcError } from "../lib/errors";
 import { createFlowTiming, type FlowTiming } from "../lib/flow-timing";
+import { createGenerationRateLimitReceipt } from "../lib/generation-authorization";
+import { enforceMediaRateLimit } from "../lib/rate-limit";
 import { createGenerationInputSchema, createQuoteInputSchema, jsonBigInt } from "../types";
 import {
 	createGenerationForUser,
@@ -23,6 +25,7 @@ export const submitGenerationInputSchema = createQuoteInputSchema.safeExtend({
 });
 type Input = z.infer<typeof submitGenerationInputSchema>;
 interface Dependencies {
+	enforceRateLimit?: typeof enforceMediaRateLimit;
 	findQuote(ownerId: string, quoteId: string): ReturnType<typeof findGenerationSubmissionQuote>;
 	createQuote: typeof createQuoteForUser;
 	createJob: typeof createGenerationForUser;
@@ -30,6 +33,7 @@ interface Dependencies {
 	dispatch: typeof dispatchCreatedGeneration;
 }
 const defaults: Dependencies = {
+	enforceRateLimit: enforceMediaRateLimit,
 	findQuote: (owner, id) => findGenerationSubmissionQuote(owner, id, db),
 	createQuote: createQuoteForUser,
 	createJob: createGenerationForUser,
@@ -44,6 +48,11 @@ export async function submitGenerationForUser(
 	timing: FlowTiming = createFlowTiming(),
 	defer?: RequestDefer,
 ) {
+	// One flood token per incoming HTTP request, including accepted-response replays.
+	// The opaque receipt stays only in server memory and never enters quote snapshots.
+	const rateLimitReceipt = await timing.measure("admission.rate-limit", () =>
+		createGenerationRateLimitReceipt(userId, dependencies.enforceRateLimit),
+	);
 	const quoteId = `submit_${hash([userId, input.idempotencyKey])}`;
 	const fingerprint = hash({
 		productKey: input.productKey,
@@ -64,6 +73,7 @@ export async function submitGenerationForUser(
 				input,
 				undefined,
 				{
+					rateLimitReceipt,
 					quoteId,
 					fingerprint,
 					expectedCredits: input.expectedCredits,
@@ -104,7 +114,7 @@ export async function submitGenerationForUser(
 			result =
 				admission && dependencies.createPreparedJob
 					? await dependencies.createPreparedJob(userId, request, admission, undefined, timing)
-					: await dependencies.createJob(userId, request, undefined, timing);
+					: await dependencies.createJob(userId, request, undefined, timing, rateLimitReceipt);
 		} catch (error) {
 			// A concurrent request may have reserved the balance or committed while
 			// this request was checking admission. Recover that job before returning an error.

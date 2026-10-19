@@ -22,6 +22,23 @@ import { loadUserPlanEntitlement } from "./plan-entitlement";
 import { enforceMediaRateLimit } from "./rate-limit";
 import { maximumMediaStorageBytes } from "./storage-limits";
 
+const rateLimitReceiptBrand: unique symbol = Symbol("generation-rate-limit-receipt");
+export interface GenerationRateLimitReceipt {
+	readonly [rateLimitReceiptBrand]: true;
+}
+const rateLimitReceiptOwners = new WeakMap<GenerationRateLimitReceipt, string>();
+
+/** Issued only after this incoming request passes the real flood guard. Never serialized. */
+export async function createGenerationRateLimitReceipt(
+	userId: string,
+	enforceRateLimit: typeof enforceMediaRateLimit = enforceMediaRateLimit,
+): Promise<GenerationRateLimitReceipt> {
+	await enforceRateLimit(userId, "media:generation");
+	const receipt = Object.freeze({ [rateLimitReceiptBrand]: true as const });
+	rateLimitReceiptOwners.set(receipt, userId);
+	return receipt;
+}
+
 export interface GenerationAccessSnapshot {
 	generationEnabled: boolean;
 	modelDisabled: boolean;
@@ -38,6 +55,10 @@ export interface GenerationAccessSnapshot {
 }
 
 export interface GenerationAuthorizationInput {
+	/** Server-selected HTTP flood bucket; never a customer credit or trial counter. */
+	rateLimitAction?: "media:quote" | "media:generation";
+	/** Request-local capability; a client object or another owner cannot satisfy it. */
+	rateLimitReceipt?: GenerationRateLimitReceipt;
 	/** Server-verified receipt; never populated from unvalidated request metadata. */
 	temporaryReference?: TemporaryReference;
 	userId: string;
@@ -193,7 +214,15 @@ export async function assertGenerationAllowed(
 	if (!generationEnabled) {
 		throw new Error("MODEL_DISABLED");
 	}
-	await dependencies.enforceRateLimit(input.userId, "media:generation");
+	if (input.rateLimitReceipt !== undefined) {
+		if (
+			rateLimitReceiptOwners.get(input.rateLimitReceipt) !== input.userId ||
+			(input.rateLimitAction !== undefined && input.rateLimitAction !== "media:generation")
+		)
+			throw new Error("NOT_FOUND");
+	} else {
+		await dependencies.enforceRateLimit(input.userId, input.rateLimitAction ?? "media:generation");
+	}
 	if (
 		(input.catalogVersion && input.catalogVersion !== DEFAULT_PRODUCT_CONFIG.catalogVersion) ||
 		(input.pricingVersion && input.pricingVersion !== DEFAULT_PRODUCT_CONFIG.pricingVersion)
