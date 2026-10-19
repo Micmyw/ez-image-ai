@@ -1,18 +1,14 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
 import { type FeedbackKind, scheduleFeedbackReveal } from "../lib/feedback";
 
 import "./feedback-trigger.css";
 
-const FeedbackDialog = dynamic(
-	() => import("./FeedbackDialog").then((module) => module.FeedbackDialog),
-	{
-		ssr: false,
-	},
+const FeedbackDialog = lazy(() =>
+	import("./FeedbackDialog").then((module) => ({ default: module.FeedbackDialog })),
 );
 
 function GiftIcon() {
@@ -102,12 +98,14 @@ export function FeedbackButton({
 				</span>
 			</button>
 			{requested && (
-				<FeedbackDialog
-					open={open}
-					onOpenChange={setOpen}
-					supportEmail={supportEmail}
-					initialKind={kind}
-				/>
+				<Suspense fallback={null}>
+					<FeedbackDialog
+						open={open}
+						onOpenChange={setOpen}
+						supportEmail={supportEmail}
+						initialKind={kind}
+					/>
+				</Suspense>
 			)}
 		</>
 	);

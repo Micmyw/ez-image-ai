@@ -6,10 +6,6 @@ import en from "../../../../../packages/i18n/translations/en/shared.json";
 
 const state = vi.hoisted(() => ({ dialogImported: vi.fn() }));
 
-// Use the same dynamic component implementation as the App Router build.
-vi.mock("next/dynamic", async () => ({
-	default: (await import("next/dist/shared/lib/app-dynamic")).default,
-}));
 vi.mock("./FeedbackDialog", async (importOriginal) => {
 	state.dialogImported();
 	return importOriginal();
