@@ -134,7 +134,12 @@ export async function createGenerationJobTransaction(
 	// Asset binding/deletion writers retain their existing Serializable protocol.
 	// Only a verified asset-free text quote can use fresh-read admission; supplier
 	// occupancy remains a separate ReadCommitted claim immediately before send.
-	let serializable = input.inputAssetIds.length > 0 || Boolean(input.edit);
+	// Global budget readers/writers must also share SSI predicate protection;
+	// their advisory lock alone cannot refresh a waiting Serializable snapshot.
+	let serializable =
+		input.inputAssetIds.length > 0 ||
+		Boolean(input.edit) ||
+		input.maximumGlobalDailyCostMicros !== undefined;
 	const runAdmission = async <T>(operation: (tx: Prisma.TransactionClient) => Promise<T>) => {
 		if (serializable) return runSerializable(client, operation);
 		try {

@@ -58,6 +58,7 @@ function gate() {
 type Hook = {
 	beforeBinding?: ReturnType<typeof gate>;
 	beforeDelete?: ReturnType<typeof gate>;
+	afterQuote?: ReturnType<typeof gate>;
 	pid?: (pid: number) => void;
 };
 function client(hook: Hook = {}) {
@@ -106,6 +107,19 @@ function port(base: unknown, connection: PoolClient, hook: Hook) {
 	};
 	return {
 		...tx,
+		generationQuote: {
+			...(tx.generationQuote as object),
+			findUnique: async (args: unknown) => {
+				const quote = await (
+					tx.generationQuote as {
+						findUnique: (args: unknown) => Promise<unknown>;
+					}
+				).findUnique(args);
+				hook.afterQuote?.enter();
+				if (hook.afterQuote) await hook.afterQuote.waiting;
+				return quote;
+			},
+		},
 		mediaAsset: {
 			findUnique: ({ where }: { where: { id: string } }) => asset(where.id),
 			findUniqueOrThrow: async ({ where }: { where: { id: string } }) => {
@@ -290,6 +304,107 @@ async function waitForLock(pid: number) {
 }
 
 describe("input bindings and deletion preserve the original SSI protocol", () => {
+	it("keeps a text winner and a queued asset admission within the same global cost budget", async () => {
+		const input = await seed();
+		const quoted = await fixture
+			.client()
+			.generationQuote.findUniqueOrThrow({ where: { id: "quote" } });
+		const assetQuote = { ...quoted, costMicros: 60n };
+		await fixture.rows(
+			`UPDATE ${fixture.table("generation_quote")} SET "costMicros"=$1,"inputFingerprint"=$2 WHERE id='quote'`,
+			[assetQuote.costMicros, fingerprintGenerationQuoteSecurityPayload(assetQuote)],
+		);
+		await fixture.transaction(async (tx) => {
+			await tx.creditAccount.create({
+				data: { id: "text-owner", ownerType: "USER", ownerId: "text-owner" },
+			} as never);
+			await createCreditGrant(
+				{ accountId: "text-owner", amount: 20n, referenceKey: "text-fund" },
+				tx,
+			);
+			const textQuote = {
+				...assetQuote,
+				id: "text-quote",
+				ownerId: "text-owner",
+				submittedByUserId: "text-owner",
+				inputSnapshot: { kind: "text-to-image", prompt: "reviewed" },
+			};
+			await tx.generationQuote.create({
+				data: {
+					...textQuote,
+					inputFingerprint: fingerprintGenerationQuoteSecurityPayload(textQuote),
+				},
+			} as never);
+		});
+		const barrier = gate();
+		const assetAdmission = createGenerationJobTransaction(
+			{ ...input, maximumGlobalDailyCostMicros: 100n },
+			client({ afterQuote: barrier }) as never,
+		);
+		// The asset transaction has a snapshot before the other owner's text job
+		// commits. The actual selector must keep both budget writers on SSI so its
+		// first stale attempt aborts, then its retry sees the winning cost.
+		await barrier.entered;
+		try {
+			const text = await createGenerationJobTransaction(
+				{
+					...input,
+					ownerId: "text-owner",
+					submittedByUserId: "text-owner",
+					quoteId: "text-quote",
+					inputAssetIds: [],
+					maximumGlobalDailyCostMicros: 100n,
+				},
+				client() as never,
+			);
+			expect(text.replayed).toBe(false);
+		} finally {
+			barrier.resume();
+		}
+		await expect(assetAdmission).rejects.toThrow("GLOBAL_DAILY_BUDGET_EXCEEDED");
+		expect(
+			(
+				await fixture.rows(
+					`SELECT COALESCE(SUM(q."costMicros"),0)::text AS total FROM ${fixture.table("generation_job")} j JOIN ${fixture.table("generation_quote")} q ON q.id=j."quoteId"`,
+				)
+			)[0]?.total,
+		).toBe(60n);
+		expect(await fixture.rows(`SELECT id FROM ${fixture.table("generation_job")}`)).toHaveLength(1);
+		expect(
+			await fixture.rows(`SELECT id FROM ${fixture.table("credit_reservation")}`),
+		).toHaveLength(1);
+		expect(await fixture.rows(`SELECT id FROM ${fixture.table("outbox_event")}`)).toHaveLength(1);
+		expect(
+			await fixture.rows(`SELECT * FROM ${fixture.table("generation_job_asset")}`),
+		).toHaveLength(0);
+		expect(
+			(
+				await fixture.rows(
+					`SELECT "spendableCredits","reservedCredits" FROM ${fixture.table("credit_account")} WHERE id='owner'`,
+				)
+			)[0],
+		).toMatchObject({ spendableCredits: 20n, reservedCredits: 0n });
+	});
+
+	it.each([0n, -1n])(
+		"rejects the invalid global budget %s without job or reservation writes",
+		async (maximumGlobalDailyCostMicros) => {
+			const input = await seed();
+			await expect(
+				createGenerationJobTransaction(
+					{ ...input, inputAssetIds: [], maximumGlobalDailyCostMicros },
+					client() as never,
+				),
+			).rejects.toThrow("Global daily Provider budget must be positive");
+			expect(await fixture.rows(`SELECT id FROM ${fixture.table("generation_job")}`)).toHaveLength(
+				0,
+			);
+			expect(
+				await fixture.rows(`SELECT id FROM ${fixture.table("credit_reservation")}`),
+			).toHaveLength(0);
+		},
+	);
+
 	it("rejects deletion when input admission wins the binding fence", async () => {
 		const input = await seed();
 		const barrier = gate();
