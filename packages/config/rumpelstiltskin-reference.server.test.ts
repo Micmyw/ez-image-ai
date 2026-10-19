@@ -290,8 +290,9 @@ describe("independent complete reference-video cost approval", () => {
 				"https://kie.ai/seedance-2-0?model=bytedance/seedance-2",
 			);
 			expect(price.pricingDetails).toMatchObject({
-				priceApprovalExpiryMode: "until",
-				validUntil: "2026-10-09T00:00:00.000Z",
+				priceApprovalExpiryMode: "none",
+				validUntil: null,
+				referenceValidUntil: "2026-10-09T00:00:00.000Z",
 			});
 			expect(BigInt(price.pricingDetails.minimumNetRevenueMicros)).toBeGreaterThanOrEqual(
 				3n * BigInt(price.pricingDetails.riskAdjustedOperatingCostMicros),
@@ -321,7 +322,7 @@ describe("independent complete reference-video cost approval", () => {
 			}),
 		).toThrow("RUMPELSTILTSKIN_REFERENCE_NOT_APPROVED");
 	});
-	it("expires the public budget after seven days even if ordinary pricing has no deadline", () => {
+	it("does not expire the public budget while retaining actual reference review and rights deadlines", () => {
 		const motion = {
 			...reference,
 			review: { ...reference.review, validUntil: "2026-10-20T00:00:00Z" },
@@ -334,30 +335,32 @@ describe("independent complete reference-video cost approval", () => {
 			VIDEO_PRICE_VALID_UNTIL: "none",
 			RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: JSON.stringify(motion),
 		};
-		expect(referencePrice(env).pricingDetails.validUntil).toBe("2026-10-14T16:47:22.000Z");
-		vi.setSystemTime(new Date(RUMPELSTILTSKIN_PUBLIC_COST_POLICY.validUntil));
-		expect(() => referencePrice(env)).toThrow("RUMPELSTILTSKIN_COST_EXPIRED");
+		const before = referencePrice(env);
+		vi.setSystemTime(new Date("2026-10-15T00:00:00Z"));
+		expect(referencePrice(env).credits).toBe(before.credits);
+		expect(referencePrice(env).pricingDetails).toMatchObject({
+			priceApprovalExpiryMode: "none",
+			validUntil: null,
+			referenceValidUntil: "2026-10-20T00:00:00.000Z",
+		});
+		vi.setSystemTime(new Date("2026-10-20T00:00:00Z"));
+		expect(() => referencePrice(env)).toThrow("RUMPELSTILTSKIN_REFERENCE_EXPIRED");
 	});
-	it.each(["none", "invalid-date", ""])(
-		"does not remove independent approval deadlines using %s",
+	it.each([undefined, "none", "invalid-date", "", "2000-01-01T00:00:00Z"])(
+		"ignores retired cost and revenue approval deadline %s without weakening price validation",
 		(validUntil) => {
-			expect(() =>
-				referencePrice({
+			const baseline = referencePrice(environment());
+			for (const cost of [
+				{ ...approval, validUntil },
+				{ ...approval, revenue: { ...approval.revenue, validUntil } },
+			]) {
+				const price = referencePrice({
 					...environment(),
-					VIDEO_PRICE_VALID_UNTIL: "none",
-					RUMPELSTILTSKIN_COST_APPROVAL: JSON.stringify({ ...approval, validUntil }),
-				}),
-			).toThrow("RUMPELSTILTSKIN_COST_INVALID");
-			expect(() =>
-				referencePrice({
-					...environment(),
-					VIDEO_PRICE_VALID_UNTIL: "none",
-					RUMPELSTILTSKIN_COST_APPROVAL: JSON.stringify({
-						...approval,
-						revenue: { ...approval.revenue, validUntil },
-					}),
-				}),
-			).toThrow("RUMPELSTILTSKIN_COST_INVALID");
+					RUMPELSTILTSKIN_COST_APPROVAL: JSON.stringify(cost),
+				});
+				expect(price.credits).toBe(baseline.credits);
+				expect(price.pricingDetails.validUntil).toBeNull();
+			}
 		},
 	);
 	it.each([{ markupBps: 19999 }, { paymentFeeBps: -1 }, { nonBillableFailureBps: 0 }])(
@@ -391,7 +394,8 @@ describe("independent complete reference-video cost approval", () => {
 		expect(price.moderationCostMicros).toBe(6510n);
 		expect(price.pricingDetails.textReviewCount).toBe(1);
 		expect(price.pricingVersion).toBe(RUMPELSTILTSKIN_PRICE_VERSION);
-		expect(price.pricingDetails.validUntil).toBe("2026-10-09T00:00:00.000Z");
+		expect(price.pricingDetails.validUntil).toBeNull();
+		expect(price.pricingDetails).toMatchObject({ referenceValidUntil: "2026-10-09T00:00:00.000Z" });
 		expect(price.pricingDetails.minimumRevenueToCostBps).toBe("30000");
 		expect(price.paidFundingPolicy.minimumUsdMicrosPerCredit).toBeGreaterThan(0n);
 		const expensive = resolveVideoEffectPrice(request, {
@@ -475,7 +479,7 @@ describe("independent complete reference-video cost approval", () => {
 		});
 		expect(costly.credits).toBeGreaterThan(regular.credits);
 	});
-	it("refuses an unreviewed, expired or above-cheapest-catalog revenue assumption", () => {
+	it("refuses an unreviewed or above-cheapest-catalog revenue assumption", () => {
 		const missingRevenue: Record<string, unknown> = { ...approval };
 		delete missingRevenue.revenue;
 		expect(() =>
@@ -484,7 +488,7 @@ describe("independent complete reference-video cost approval", () => {
 				RUMPELSTILTSKIN_COST_APPROVAL: JSON.stringify(missingRevenue),
 			}),
 		).toThrow("RUMPELSTILTSKIN_COST_INVALID");
-		for (const key of ["minimumGrossUsdMicrosPerCredit", "basis", "validUntil"]) {
+		for (const key of ["minimumGrossUsdMicrosPerCredit", "basis"]) {
 			const revenue: Record<string, unknown> = { ...approval.revenue };
 			delete revenue[key];
 			expect(() =>
@@ -494,10 +498,7 @@ describe("independent complete reference-video cost approval", () => {
 				}),
 			).toThrow("RUMPELSTILTSKIN_COST_INVALID");
 		}
-		for (const revenue of [
-			{ ...approval.revenue, minimumGrossUsdMicrosPerCredit: "21945" },
-			{ ...approval.revenue, validUntil: "2026-10-07T00:00:00Z" },
-		])
+		for (const revenue of [{ ...approval.revenue, minimumGrossUsdMicrosPerCredit: "21945" }])
 			expect(() =>
 				resolveVideoEffectPrice(request, {
 					...environment(),
@@ -511,7 +512,8 @@ describe("independent complete reference-video cost approval", () => {
 				revenue: { ...approval.revenue, validUntil: "2026-10-08T00:00:00Z" },
 			}),
 		});
-		expect(price.pricingDetails.validUntil).toBe("2026-10-08T00:00:00.000Z");
+		expect(price.pricingDetails.validUntil).toBeNull();
+		expect(price.pricingDetails).toMatchObject({ referenceValidUntil: "2026-10-09T00:00:00.000Z" });
 	});
 	it.each(Object.keys(approval.costs))(
 		"never substitutes a missing complete-cost component %s",
@@ -526,17 +528,14 @@ describe("independent complete reference-video cost approval", () => {
 			).toThrow("RUMPELSTILTSKIN_COST_INVALID");
 		},
 	);
-	it("rejects expired, future, unmatched material and conflicting safety approvals", () => {
-		for (const override of [
-			{ validUntil: "2026-10-07T00:00:00Z" },
-			{ approvedAt: "2026-10-08T00:00:00Z" },
-		])
+	it("rejects future approvals, unmatched material and conflicting safety policies", () => {
+		for (const override of [{ approvedAt: "2026-10-08T00:00:00Z" }])
 			expect(() =>
 				readRumpelstiltskinCostApproval({
 					...environment(),
 					RUMPELSTILTSKIN_COST_APPROVAL: JSON.stringify({ ...approval, ...override }),
 				}),
-			).toThrow("RUMPELSTILTSKIN_COST_EXPIRED");
+			).toThrow("RUMPELSTILTSKIN_COST_NOT_YET_APPROVED");
 		for (const provider of [
 			{ ...approval.provider, referenceVersion: "different" },
 			{ ...approval.provider, referenceDurationSeconds: 10 },

@@ -11,7 +11,6 @@ export const RUMPELSTILTSKIN_SAFETY_POLICY_VERSION = "rumpelstiltskin-safety-202
  * These allowances are not supplier invoices, measured failure rates, or a live trial budget. */
 export const RUMPELSTILTSKIN_PUBLIC_COST_POLICY = {
 	checkedAt: "2026-10-07T17:15:24Z",
-	validUntil: "2026-10-14T16:47:22Z",
 	providerUsdMicrosPerBilledSecond: "125000",
 	sourceUrls: [
 		"https://kie.ai/seedance-2-0?model=bytedance/seedance-2",
@@ -130,7 +129,8 @@ export const rumpelstiltskinCostApprovalSchema = z
 		pricingVersion: z.literal(RUMPELSTILTSKIN_PRICE_VERSION),
 		safetyPolicyVersion: z.literal(RUMPELSTILTSKIN_SAFETY_POLICY_VERSION),
 		basis: z.string().trim().min(1).max(2000),
-		validUntil: date,
+		// Legacy approval timestamps are accepted as inert evidence.
+		validUntil: z.unknown().optional(),
 		evidence: z
 			.object({
 				kind: z.literal("public-source-conservative-budget"),
@@ -146,7 +146,7 @@ export const rumpelstiltskinCostApprovalSchema = z
 			.object({
 				minimumGrossUsdMicrosPerCredit: positiveMicros,
 				basis: z.string().trim().min(1).max(2000),
-				validUntil: date,
+				validUntil: z.unknown().optional(),
 			})
 			.strict(),
 		provider: z
@@ -202,8 +202,7 @@ export function createPublicRumpelstiltskinCostApproval(
 	)
 		throw new Error("RUMPELSTILTSKIN_REFERENCE_EXPIRED");
 	const policy = RUMPELSTILTSKIN_PUBLIC_COST_POLICY;
-	if (Date.parse(policy.checkedAt) > now || Date.parse(policy.validUntil) <= now)
-		throw new Error("RUMPELSTILTSKIN_COST_EXPIRED");
+	if (Date.parse(policy.checkedAt) > now) throw new Error("RUMPELSTILTSKIN_COST_NOT_YET_APPROVED");
 	// Round fractional reference seconds up; both the input clip and fixed output are billed.
 	const providerCost =
 		BigInt(Math.ceil(approved.data.durationSeconds) + 5) *
@@ -217,7 +216,6 @@ export function createPublicRumpelstiltskinCostApproval(
 		safetyPolicyVersion: RUMPELSTILTSKIN_SAFETY_POLICY_VERSION,
 		basis:
 			"Kie Standard reference-video public tariff plus independently authorized conservative operating budgets; no account-specific receipt or live output is claimed.",
-		validUntil: policy.validUntil,
 		evidence: {
 			kind: "public-source-conservative-budget",
 			checkedAt: policy.checkedAt,
@@ -228,7 +226,6 @@ export function createPublicRumpelstiltskinCostApproval(
 			minimumGrossUsdMicrosPerCredit: catalogCreditFloorMicros().toString(),
 			basis:
 				"Current USD catalog's lowest gross price per ALL issued paid credits, including annual and subscriber pack bonuses; lower discounted receipts require a lower explicit approval.",
-			validUntil: policy.validUntil,
 		},
 		provider: {
 			productKey: "video-seedance-2",
@@ -286,12 +283,9 @@ export function readRumpelstiltskinCostApproval(
 	const parsed = rumpelstiltskinCostApprovalSchema.safeParse(input);
 	if (!parsed.success) throw new Error("RUMPELSTILTSKIN_COST_INVALID");
 	const approval = parsed.data;
-	if (Date.parse(approval.validUntil) <= now || Date.parse(approval.approvedAt) > now)
-		throw new Error("RUMPELSTILTSKIN_COST_EXPIRED");
-	if (
-		Date.parse(approval.revenue.validUntil) <= now ||
-		BigInt(approval.revenue.minimumGrossUsdMicrosPerCredit) > catalogCreditFloorMicros()
-	)
+	if (Date.parse(approval.approvedAt) > now)
+		throw new Error("RUMPELSTILTSKIN_COST_NOT_YET_APPROVED");
+	if (BigInt(approval.revenue.minimumGrossUsdMicrosPerCredit) > catalogCreditFloorMicros())
 		throw new Error("RUMPELSTILTSKIN_REVENUE_NOT_APPROVED");
 	if (
 		reference &&

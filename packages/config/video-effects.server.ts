@@ -467,9 +467,7 @@ function resolveRumpelstiltskinTemplatePrice(
 	const serializedResult = Object.fromEntries(
 		Object.entries(result).map(([key, value]) => [key, value.toString()]),
 	) as { [Key in keyof typeof result]: string };
-	const validUntil = Math.min(
-		Date.parse(approval.validUntil),
-		Date.parse(approval.revenue.validUntil),
+	const referenceValidUntil = Math.min(
 		Date.parse(template.approvedMotionReference.review.validUntil),
 		Date.parse(template.approvedMotionReference.rights.validUntil),
 	);
@@ -501,11 +499,12 @@ function resolveRumpelstiltskinTemplatePrice(
 			textCostBasis: approval.policies.promptCostBasis,
 			textReviewCount: 1,
 			paymentCostBasis: approval.policies.paymentCostBasis,
-			priceApprovalExpiryMode: "until" as const,
+			priceApprovalExpiryMode: "none" as const,
 			templatePaymentFeeBps: String(costs.paymentFeeBps),
 			minimumRevenueToCostBps: String(10_000 + costs.markupBps),
 			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
-			validUntil: new Date(validUntil).toISOString(),
+			validUntil: null,
+			referenceValidUntil: new Date(referenceValidUntil).toISOString(),
 			costComponents: {
 				...costs,
 				videoProviderCostMicros: approval.provider.totalCostMicros,
@@ -586,9 +585,6 @@ export function resolveVideoEffectPrice(
 		throw new Error("VIDEO_EFFECT_PRICE_NOT_APPROVED");
 	if (env.HOTEL_LOBBY_DUO_COST_POLICY_VERSION !== template.safetyPolicyVersion)
 		throw new Error("VIDEO_EFFECT_COST_POLICY_NOT_CONFIRMED");
-	const approvedValidUntil = Date.parse(env.HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL ?? "");
-	if (!Number.isFinite(approvedValidUntil) || approvedValidUntil <= Date.now())
-		throw new Error("VIDEO_EFFECT_PRICE_EXPIRED");
 	const basis = resolveVideoModelCostBasis(template.video, env);
 	const paymentCostBasis = env.HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS?.trim();
 	if (!paymentCostBasis) throw new Error("VIDEO_EFFECT_PAYMENT_COST_NOT_CONFIRMED");
@@ -698,7 +694,7 @@ export function resolveVideoEffectPrice(
 	) as { [Key in keyof typeof result]: string };
 	return {
 		credits: result.credits,
-		// Same two-stage model tuple and conservative two-input review budget. Approval expiry,
+		// Same two-stage model tuple and conservative two-input review budget. Versions,
 		// complete cost and minimum revenue checks stay authoritative for every template.
 		pricingVersion: upgraded
 			? `${VIDEO_EFFECT_RETAIL_PRICE_VERSION}/${audience}`
@@ -726,12 +722,8 @@ export function resolveVideoEffectPrice(
 			templatePaymentFeeBps: templatePaymentFeeBps.toString(),
 			minimumRevenueToCostBps: (10_000n + markupBps).toString(),
 			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
-			priceApprovalExpiryMode: "until" as const,
-			validUntil: new Date(
-				basis.validUntil === null
-					? approvedValidUntil
-					: Math.min(approvedValidUntil, basis.validUntil),
-			).toISOString(),
+			priceApprovalExpiryMode: "none" as const,
+			validUntil: null,
 			costComponents: {
 				sceneProviderCostMicros: sceneProviderCostMicros.toString(),
 				videoProviderCostMicros: basis.providerCostMicros.toString(),

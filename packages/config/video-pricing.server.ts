@@ -391,14 +391,10 @@ export function resolveVideoModelCostBasis(
 		!env.VIDEO_PRICE_BASIS?.trim()
 	)
 		throw new Error("VIDEO_PRICE_NOT_APPROVED");
-	const priceApprovalExpiryMode: "none" | "until" =
-		env.VIDEO_PRICE_VALID_UNTIL === "none" ? "none" : "until";
-	const validUntil =
-		priceApprovalExpiryMode === "none" ? null : Date.parse(env.VIDEO_PRICE_VALID_UNTIL ?? "");
-	if (validUntil !== null && (!Number.isFinite(validUntil) || validUntil <= Date.now()))
-		throw new Error("VIDEO_PRICE_EXPIRED");
-	// Only the explicit operator setting "none" removes the approval deadline.
-	// Missing or malformed settings deny approval; existing finite deadlines remain enforced.
+	// Price approval no longer has a deadline. Keep the snapshot shape compatible
+	// while ignoring the retired VIDEO_PRICE_VALID_UNTIL setting entirely.
+	const priceApprovalExpiryMode = "none" as const;
+	const validUntil = null;
 	const visualSafetyProfile = configuredVideoVisualSafetyProfile(env, request.duration);
 	if (env.VIDEO_COST_VISUAL_POLICY_VERSION !== visualSafetyProfile.policyVersion)
 		throw new Error("VIDEO_VISUAL_COST_POLICY_NOT_CONFIRMED");
@@ -509,7 +505,7 @@ export function resolveVideoModelPrice(
 			textRuleVersion: textSafetyProfile.ruleVersion,
 			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
 			priceApprovalExpiryMode,
-			validUntil: validUntil === null ? null : new Date(validUntil).toISOString(),
+			validUntil,
 			costPolicy: Object.fromEntries(
 				Object.entries(effectivePolicy).map(([key, value]) => [key, value.toString()]),
 			),

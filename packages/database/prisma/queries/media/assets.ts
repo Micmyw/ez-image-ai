@@ -7,6 +7,7 @@ import {
 	LIVE_GENERATION_JOB_STATUSES,
 	lockMediaAssetGenerationBindings,
 } from "./asset-binding-locks";
+import { outputMediaStorageLimit } from "./storage-quota";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import { unexpiredStorageReservations } from "./temporary-references";
 import type { CursorPageInput, MediaDatabaseClient, MediaTransactionClient } from "./types";
@@ -1728,7 +1729,12 @@ export async function reserveGenerationOutputStorageTransaction(
 			},
 			_sum: { bytes: true },
 		});
-		if ((usage._sum.bytes ?? 0n) + bytes > input.maximumStorageBytes) {
+		const maximumBytes = await outputMediaStorageLimit(
+			{ ownerType: asset.ownerType, ownerId: asset.ownerId, assetId: asset.id },
+			input.maximumStorageBytes,
+			tx,
+		);
+		if (maximumBytes !== null && (usage._sum.bytes ?? 0n) + bytes > maximumBytes) {
 			throw new GenerationOutputStorageError();
 		}
 

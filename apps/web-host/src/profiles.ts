@@ -7,6 +7,7 @@ import {
 	packVideoRuntimeEnvironment,
 	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
 	VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
+	isRetiredVideoRuntimePolicyKey,
 } from "@repo/config/video-runtime-environment";
 import { videoV1Readiness } from "@repo/config/video-v1";
 
@@ -194,7 +195,7 @@ export function createProfileArtifacts(options: {
 		...VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
 	]) {
 		if (
-			!["VIDEO_V1_ALLOWED_USER_IDS", "VIDEO_MODEL_ALLOWED_OPTIONS"].includes(key) &&
+			!isRetiredVideoRuntimePolicyKey(key) &&
 			jobVars[key] !== undefined &&
 			jobVars[key] !== effectiveVideo[key]
 		)
@@ -244,6 +245,8 @@ export function createProfileArtifacts(options: {
 			key === "VIDEO_V1_BUILD_PRICE_EXPIRY" ||
 			key === "VIDEO_V1_ALLOWED_USER_IDS" ||
 			key === "VIDEO_MODEL_ALLOWED_OPTIONS" ||
+			key === "VIDEO_PRICE_VALID_UNTIL" ||
+			key === "HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL" ||
 			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" ||
 			key === "RAINDANCE_RUNTIME_CONFIG" ||

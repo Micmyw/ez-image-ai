@@ -23,7 +23,7 @@ const assertEnvironment = assertAutomaticReleaseEnvironment;
 
 describe("automatic production release preflight", () => {
 	it.each(["website", "jobs"])(
-		"reports expired optional policy before retaining the mandatory database gate for %s",
+		"accepts retired optional price deadlines before retaining the mandatory database gate for %s",
 		(target) => {
 			const result = spawnSync(
 				process.execPath,
@@ -36,11 +36,33 @@ describe("automatic production release preflight", () => {
 						CLOUDFLARE_PRODUCTION_ENV:
 							"NEXT_PUBLIC_SAAS_URL=https://ezimageai.com\nVIDEO_V1_ENABLED=true\nHOTEL_LOBBY_DUO_ENABLED=true\nPRIVATE_KEY=do-not-print-optional-fixture",
 						VIDEO_RUNTIME_CONFIG: JSON.stringify({
+							VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+							VIDEO_PRICE_BASIS: "do-not-print-ordinary-price-basis",
+							VIDEO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00Z",
+							VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
+							VIDEO_COST_VISUAL_POLICY_VERSION: "seeapi-video-policy-2026-10-04.1",
+							VIDEO_COST_TEXT_RULE_VERSION: "waffo-prompt-safety-2026-10-04.1",
+							VIDEO_COST_MODERATION_BASE_MICROS: "5100",
+							VIDEO_COST_MODERATION_PER_SECOND_MICROS: "200",
+							VIDEO_COST_RUNTIME_MICROS: "100000",
+							VIDEO_COST_STORAGE_MICROS: "10000",
+							VIDEO_COST_PAYMENT_FIXED_MICROS: "0",
+							VIDEO_COST_PAYMENT_FEE_BPS: "654",
+							VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
 							HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION: HOTEL_LOBBY_TEMPLATE_VERSION,
 							HOTEL_LOBBY_DUO_PRICE_VERSION: HOTEL_LOBBY_PRICE_VERSION,
 							HOTEL_LOBBY_DUO_PRICE_BASIS: "do-not-print-optional-price-basis",
 							HOTEL_LOBBY_DUO_COST_POLICY_VERSION: HOTEL_LOBBY_SAFETY_POLICY_VERSION,
 							HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00Z",
+							HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS: "do-not-print-payment-basis",
+							HOTEL_LOBBY_DUO_TEXT_COST_RULE_VERSION: "waffo-prompt-safety-2026-10-04.1",
+							HOTEL_LOBBY_DUO_TEXT_COST_BASIS: "do-not-print-text-basis",
+							HOTEL_LOBBY_DUO_TEXT_REVIEW_COST_MICROS: "0",
+							HOTEL_LOBBY_DUO_SCENE_PROVIDER_COST_MICROS: "20000",
+							HOTEL_LOBBY_DUO_INPUT_REVIEW_COST_MICROS: "5100",
+							HOTEL_LOBBY_DUO_SCENE_REVIEW_COST_MICROS: "5100",
+							HOTEL_LOBBY_DUO_ADDITIONAL_RUNTIME_COST_MICROS: "100000",
+							HOTEL_LOBBY_DUO_ADDITIONAL_STORAGE_COST_MICROS: "10000",
 							RAINDANCE_ENABLED: "true",
 							RAINDANCE_ACCEPTED_TEMPLATE_VERSION: RAINDANCE_TEMPLATE_VERSION,
 						}),
@@ -51,13 +73,14 @@ describe("automatic production release preflight", () => {
 			expect(result.stdout).toContain(
 				"Optional video effect availability and approved-price preflight:",
 			);
-			expect(result.stdout).toContain('"available":false,"reasons":["VIDEO_EFFECT_PRICE_EXPIRED"]');
+			expect(result.stdout).toContain('"duration":5,"available":true,"reasons":[]');
+			expect(result.stdout + result.stderr).not.toContain("VIDEO_EFFECT_PRICE_EXPIRED");
 			expect(result.stderr).toContain("MIGRATION_STATUS_DATABASE_URL_REQUIRED");
 			expect(result.stdout + result.stderr).not.toContain("do-not-print-");
 		},
 	);
 	it.each(["2100-01-01T00:00:00.000Z", "2000-01-01T00:00:00.000Z", "none"])(
-		"logs only approved public price metadata before accepting an inherited expiry %s",
+		"logs only public versions and disabled price-expiry enforcement for legacy metadata %s",
 		(validUntil) => {
 			const result = spawnSync(
 				process.execPath,
@@ -81,19 +104,15 @@ describe("automatic production release preflight", () => {
 			);
 			expect(result.status).not.toBe(0);
 			expect(result.stdout + result.stderr).not.toContain("do-not-print-");
-			if (validUntil === "none" || validUntil.startsWith("2100")) {
-				expect(result.stdout).toContain(
-					`Video price base preflight: ${JSON.stringify({
-						previousVersion: "kie-public-2026-10-04.3",
-						nextVersion: VIDEO_SUPPLIER_PRICE_VERSION,
-						validUntil,
-					})}`,
-				);
-				expect(result.stderr).toContain("MIGRATION_STATUS_DATABASE_URL_REQUIRED");
-			} else {
-				expect(result.stdout).not.toContain("Video price base preflight:");
-				expect(result.stderr).toContain("VIDEO_BUILD_PRICE_POLICY_REQUIRED");
-			}
+			expect(result.stdout).toContain(
+				`Video price base preflight: ${JSON.stringify({
+					previousVersion: "kie-public-2026-10-04.3",
+					nextVersion: VIDEO_SUPPLIER_PRICE_VERSION,
+					expiryEnforced: false,
+				})}`,
+			);
+			expect(result.stdout).not.toContain('"validUntil"');
+			expect(result.stderr).toContain("MIGRATION_STATUS_DATABASE_URL_REQUIRED");
 		},
 	);
 	it("accepts the exact Cloudflare main build and rejects preview branches or a different checkout", () => {

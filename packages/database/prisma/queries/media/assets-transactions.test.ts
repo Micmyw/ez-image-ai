@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("../../client", () => ({
+	getDatabaseClient: () => {
+		throw new Error("explicit client required");
+	},
+}));
+
 import {
 	abortMediaUploadSessionTransaction,
 	claimMediaUploadSessionFinalizationTransaction,

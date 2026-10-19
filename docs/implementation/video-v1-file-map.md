@@ -12,7 +12,7 @@ Current ordinary-video responsibilities:
 - `packages/config/video-v1.ts`: all signed-in, non-anonymous accounts under authenticated access, with administrator-only internal rollback access and no user-ID allowlist.
 - `packages/config/video-models.ts`: implemented Kie model contracts and legal mode/duration/resolution/ratio/audio tuples, used by catalog, upload and admission without a model-option test allowlist.
 - `packages/config/video-runtime-environment.ts`: ignore retired allowlist fields during legacy reads and strip them from newly packed policy. `apps/web-host/src/build-secrets.ts` verifies the catalog contract version and applies explicit build access/price-expiry overlays.
-- `packages/config/video-pricing.server.ts` and `packages/database/prisma/queries/media/video-v1-execution.ts`: current pricing calculation, finite quote lifetime and immutable accepted snapshots; consumers retain independent reference and funding authorizations while accepting historical and future pricing deadline modes.
+- `packages/config/video-pricing.server.ts` and `packages/database/prisma/queries/media/video-v1-execution.ts`: pricing without approval expiry, preserved quote lifetime and immutable accepted-price snapshots; material review/rights and funding authorizations retain their independent checks.
 - `tooling/scripts/prepare-hotel-lobby-config.ts`: validate its fixed default video tuple through the model contract, report `defaultVideoTupleValidated`, and preserve ordinary settings and independent template approval.
 
 The historical 2026-10-05 configuration/acceptance batch starts from deployed main commit
