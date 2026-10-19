@@ -37,6 +37,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { isExplicitGuestVerificationTarget } from "../../../../tests/load/guest-verification-target";
 import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
+import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
 import { DispatchAdmissionBlockedError } from "../contracts";
 import {
 	createDatabaseDispatchStore,
@@ -66,17 +67,26 @@ const LEGACY_CATALOG_VERSION = "2026-08-13.1";
 const LEGACY_PRICING_VERSION = "2026-08-13.1";
 let client: PrismaClient;
 let observedQueries: string[] = [];
+let mockProviderConcurrency: string;
 
 function createTestDispatchStore(options: Omit<DispatchRuntimeOptions, "enabledProviders"> = {}) {
 	return createDatabaseDispatchStore(client, {
 		createSignedReadUrl: async () => "https://private.example/runtime-input.png",
 		...options,
+		// A bounded simulated-provider budget above the existing test rows; historical
+		// uncertain attempts stay intact. This is never a production quota default.
+		environment: {
+			...process.env,
+			...options.environment,
+			VIDEO_RUNTIME_CONFIG: undefined,
+			VIDEO_V1_PROVIDER_CONCURRENCY: mockProviderConcurrency,
+		},
 		enabledProviders: TEST_EXECUTABLE_PROVIDERS,
 	});
 }
 
 describe("production media runtime stores", () => {
-	beforeAll(() => {
+	beforeAll(async () => {
 		assertSafeTestDatabaseUrl(TEST_DATABASE_URL);
 		const observed = new PrismaClient({
 			adapter: new PrismaPg({ connectionString: TEST_DATABASE_URL! }),
@@ -84,6 +94,8 @@ describe("production media runtime stores", () => {
 		});
 		observed.$on("query", ({ query }) => observedQueries.push(query));
 		client = observed;
+		// Fewer than 64 Kie sends are created by this suite's mocked-provider cases.
+		mockProviderConcurrency = await providerCapacityForTestRequests(client, 64);
 	});
 
 	afterAll(async () => client?.$disconnect());
@@ -550,6 +562,7 @@ describe("production media runtime stores", () => {
 		const seeded = await seedReservedJob("image-fast");
 		const store = createTestDispatchStore();
 		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 		expect(claim).not.toBeNull();
 
 		await store.recordRejectedSubmission(claim!.attemptId, {
@@ -630,6 +643,7 @@ describe("production media runtime stores", () => {
 			"https://private.example/input.png?X-Amz-Credential=temporary&X-Amz-Signature=secret";
 		const store = createTestDispatchStore({ createSignedReadUrl: async () => signedUrl });
 		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 		if (!claim) throw new Error("Expected a dispatch claim");
 		const before = await client.generationAttempt.findUniqueOrThrow({
 			where: { id: claim.attemptId },
@@ -1228,6 +1242,7 @@ describe("production media runtime stores", () => {
 		const seeded = await seedReservedJob("image-fast");
 		const dispatchStore = createTestDispatchStore();
 		const claim = await dispatchStore.claimDispatch({ jobId: seeded.jobId, version: 0 });
+		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 
 		await dispatchStore.recordRejectedSubmission(claim!.attemptId, {
 			code: "PROVIDER_REJECTED",
@@ -1511,6 +1526,7 @@ describe("production media runtime stores", () => {
 		const providerTaskId = `fal-real-task-${crypto.randomUUID()}`;
 		const store = createTestDispatchStore();
 		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 
 		await store.recordSubmission(claim!.attemptId, {
 			providerTaskId,
@@ -1654,6 +1670,7 @@ describe("production media runtime stores", () => {
 			},
 		});
 		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 		const submission = {
 			providerTaskId: claim!.attemptId,
 			status: "SUCCEEDED" as const,
@@ -1717,6 +1734,7 @@ describe("production media runtime stores", () => {
 			const seeded = await seedReservedJob("image-nano-banana-2-lite");
 			const store = createTestDispatchStore();
 			const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+			if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 			const dedupeKey = `generation-finalize:${seeded.jobId}:${claim!.attemptId}`;
 			const existing = terminal
 				? await client.outboxEvent.create({
@@ -1773,6 +1791,7 @@ describe("production media runtime stores", () => {
 				},
 			});
 			const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+			if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 			const dedupeKey = `generation-finalize:${seeded.jobId}:${claim!.attemptId}`;
 			const existing = rollback
 				? undefined
@@ -1836,6 +1855,7 @@ describe("production media runtime stores", () => {
 		const seeded = await seedReservedJob("image-quality");
 		const store = createTestDispatchStore();
 		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 		await expect(
 			store.recordSynchronousCompletion(
 				claim!.attemptId,
@@ -4341,10 +4361,12 @@ async function runGuestLinkDispatchOrdering(
 	if (ordering === "link-then-dispatch") {
 		const linked = await fixture.completeLink();
 		const claim = await fixture.claimDispatch();
+		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 		return { claim, linked };
 	}
 	if (ordering === "dispatch-then-link") {
 		const claim = await fixture.claimDispatch();
+		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 		const linked = await fixture.completeLink();
 		return { claim, linked };
 	}
@@ -4363,6 +4385,7 @@ async function runGuestLinkDispatchOrdering(
 	})();
 	release();
 	const [claim, linked] = await Promise.all([dispatching, linking]);
+	if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 	return { claim, linked };
 }
 
@@ -4698,6 +4721,7 @@ async function seedFinalizingJob(
 	const seeded = await seedReservedJob(productKey, options);
 	const store = createTestDispatchStore();
 	const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+	if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 	await store.recordSynchronousCompletion(
 		claim!.attemptId,
 		{
@@ -4939,6 +4963,7 @@ async function seedPendingProviderJob(
 	const seeded = await seedReservedJob(productKey);
 	const store = createTestDispatchStore();
 	const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+	if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
 	if (!claim || claim.provider === "openrouter") {
 		throw new Error("EXPECTED_WEBHOOK_PROVIDER_CLAIM");
 	}

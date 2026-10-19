@@ -14,6 +14,7 @@ import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { providerCapacityForTestRequests } from "../../../test-support/provider-dispatch-capacity";
 import { runWithDatabaseClient } from "../../client";
 import { PrismaClient } from "../../generated/client";
 import { createMediaUploadSessionTransaction } from "./assets";
@@ -548,16 +549,24 @@ describe("video V1 admission isolated PostgreSQL", () => {
 				validUntil: new Date(Date.now() + 60_000).toISOString(),
 			}),
 		);
-		expect(
-			await runWithDatabaseClient(client, () =>
-				claimVideoProviderSubmission({
-					jobId: stored.id,
-					callbackTokenHash: crypto.randomUUID().replaceAll("-", "").repeat(2),
-					providerModelId: "kling-2.6/text-to-video",
-					ruleVersion,
-				}),
-			),
-		).toMatchObject({ claimed: true });
+		// Only this lifecycle claim needs a mock send slot; old admission limits and
+		// their owner/global/provider race assertions above remain unchanged.
+		vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
+		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", await providerCapacityForTestRequests(client, 1));
+		try {
+			expect(
+				await runWithDatabaseClient(client, () =>
+					claimVideoProviderSubmission({
+						jobId: stored.id,
+						callbackTokenHash: crypto.randomUUID().replaceAll("-", "").repeat(2),
+						providerModelId: "kling-2.6/text-to-video",
+						ruleVersion,
+					}),
+				),
+			).toMatchObject({ claimed: true });
+		} finally {
+			vi.unstubAllEnvs();
+		}
 		expect(
 			await client.creditAccount.findUniqueOrThrow({ where: { id: f.account.id } }),
 		).toMatchObject({

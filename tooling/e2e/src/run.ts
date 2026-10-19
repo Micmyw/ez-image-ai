@@ -54,6 +54,8 @@ const environment = {
 	MEDIA_MODERATION_ENABLED: "true",
 	MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS: "250000000",
 	MEDIA_PROVIDER_ADAPTER: "mock",
+	// Local mock slots still use the real provider lock and occupancy checks.
+	VIDEO_V1_PROVIDER_CONCURRENCY: "8",
 	MEDIA_ENABLED_PROVIDERS: "kie",
 	MEDIA_RECOVERY_PROVIDERS: "",
 	MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: undefined,

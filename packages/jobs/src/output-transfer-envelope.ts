@@ -1,5 +1,9 @@
 import type { NormalizedResult, ProviderOutput } from "@repo/ai";
 import { hasKieChargeOrOutputEvidence } from "@repo/config";
+import {
+	readProviderTerminalEvidence,
+	type ProviderAttemptIdentity,
+} from "@repo/config/provider-terminal-evidence";
 
 const MAX_OUTPUTS = 4;
 const MAX_REMOTE_URL_LENGTH = 4_096;
@@ -63,7 +67,7 @@ export function responseSnapshotForResult(
 		NormalizedResult,
 		"outputs" | "providerCharged" | "confirmedTechnicalFailure" | "confirmedZeroCostRejection"
 	>,
-	previous?: { provider: string; responseSnapshot: unknown },
+	previous?: ProviderAttemptIdentity & { responseSnapshot: unknown },
 ) {
 	const prior =
 		previous?.provider === "kie" &&
@@ -80,9 +84,13 @@ export function responseSnapshotForResult(
 			: 0,
 		Array.isArray(prior?.outputs) ? prior.outputs.length : 0,
 	);
+	const providerTerminalEvidence = previous
+		? readProviderTerminalEvidence(prior?.providerTerminalEvidence, previous)
+		: null;
 	return {
 		providerCharged: result.providerCharged || prior?.providerCharged === true,
 		outputCount: Math.max(result.outputs.length, priorOutputCount),
+		...(providerTerminalEvidence ? { providerTerminalEvidence } : {}),
 		...(previous?.provider === "kie" && hasKieChargeOrOutputEvidence(previous.responseSnapshot)
 			? { zeroCostRejectionConflict: true }
 			: {}),

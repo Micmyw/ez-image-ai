@@ -4,6 +4,7 @@
 	"main": "./index.ts",
 	"types": "./**/*.ts",
 	"exports": {
+		"./provider-terminal-evidence": "./provider-terminal-evidence.ts",
 		".": "./index.ts",
 		"./client": "./client.ts",
 		"./kie-zero-cost-rejection": "./kie-zero-cost-rejection.ts",
