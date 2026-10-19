@@ -391,7 +391,13 @@ describe("claimGenerationDraftTransaction", () => {
 			},
 			$executeRaw: vi.fn(),
 			mediaAsset: {
-				findFirst: vi.fn().mockResolvedValue({ id: "asset_1", byteSize: 128n, uploadSessions: [] }),
+				findFirst: vi.fn().mockResolvedValue({
+					id: "asset_1",
+					byteSize: 128n,
+					status: "VERIFYING",
+					deletedAt: null,
+					uploadSessions: [],
+				}),
 				updateMany: vi.fn().mockResolvedValue({ count: 1 }),
 			},
 			storageUsageReservation: {
@@ -441,7 +447,7 @@ describe("claimGenerationDraftTransaction", () => {
 		);
 		expect(tx.mediaAsset.updateMany).toHaveBeenCalledWith(
 			expect.objectContaining({
-				where: { id: "asset_1", ownerId: "draft:draft_1", status: "VERIFYING" },
+				where: { id: "asset_1", ownerId: "draft:draft_1", status: "VERIFYING", deletedAt: null },
 				data: { ownerType: "USER", ownerId: "user_1" },
 			}),
 		);

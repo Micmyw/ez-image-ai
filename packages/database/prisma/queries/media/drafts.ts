@@ -13,6 +13,7 @@ import {
 import { maximumMediaStorageBytes } from "@repo/config/server";
 
 import type { Prisma } from "../../generated/client";
+import { accountInputRetentionPatch } from "./account-input-promotion";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
 import {
@@ -323,6 +324,7 @@ async function claimGenerationDraftWithPolicy(
 				assetId: draft.assetId,
 				previousOwnerId: draft.ownerId,
 				nextOwnerId: input.userId,
+				...(!requireGuestBootstrap ? { accountPromotionDraftId: draft.id } : {}),
 			},
 			tx,
 		);
@@ -379,6 +381,7 @@ export async function transferGuestGenerationDraftToRegisteredUserInTransaction(
 			assetId: draft.assetId,
 			previousOwnerId: input.anonymousOwnerId,
 			nextOwnerId: input.registeredUserId,
+			accountPromotionDraftId: draft.id,
 		},
 		tx,
 	);
@@ -386,7 +389,12 @@ export async function transferGuestGenerationDraftToRegisteredUserInTransaction(
 }
 
 async function transferGenerationDraftAssetOwnership(
-	input: { assetId: string | null; previousOwnerId: string; nextOwnerId: string },
+	input: {
+		assetId: string | null;
+		previousOwnerId: string;
+		nextOwnerId: string;
+		accountPromotionDraftId?: string;
+	},
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
 	if (!input.assetId) return;
@@ -396,6 +404,7 @@ async function transferGenerationDraftAssetOwnership(
 		await lockOwnerStorageUsage({ ownerType: "USER", ownerId }, tx);
 	}
 	await lockMediaAssetGenerationBindings([input.assetId], tx);
+	await tx.$executeRaw`SELECT "id" FROM "media_asset" WHERE "id" = ${input.assetId} FOR UPDATE`;
 	const asset = await tx.mediaAsset.findFirst({
 		where: {
 			id: input.assetId,
@@ -407,7 +416,19 @@ async function transferGenerationDraftAssetOwnership(
 		},
 		include: { uploadSessions: { select: { id: true }, orderBy: { createdAt: "asc" }, take: 1 } },
 	});
-	if (!asset || asset.byteSize <= 0n) throw new Error("DRAFT_UNAVAILABLE");
+	if (
+		!asset ||
+		asset.byteSize <= 0n ||
+		asset.deletedAt ||
+		!["VERIFYING", "READY"].includes(asset.status)
+	)
+		throw new Error("DRAFT_UNAVAILABLE");
+	const retentionPatch = input.accountPromotionDraftId
+		? await accountInputRetentionPatch(
+				{ draftId: input.accountPromotionDraftId, nextOwnerId: input.nextOwnerId, asset },
+				tx,
+			)
+		: {};
 	const uploadSession = asset.uploadSessions[0];
 	const referenceKey = uploadSession
 		? `media-upload:${uploadSession.id}`
@@ -454,8 +475,13 @@ async function transferGenerationDraftAssetOwnership(
 		});
 	}
 	const transferredVerifying = await tx.mediaAsset.updateMany({
-		where: { id: input.assetId, ownerId: input.previousOwnerId, status: "VERIFYING" },
-		data: { ownerType: "USER", ownerId: input.nextOwnerId },
+		where: {
+			id: input.assetId,
+			ownerId: input.previousOwnerId,
+			status: "VERIFYING",
+			deletedAt: null,
+		},
+		data: { ownerType: "USER", ownerId: input.nextOwnerId, ...retentionPatch },
 	});
 	if (transferredVerifying.count === 1) {
 		await tx.outboxEvent.create({
@@ -476,7 +502,7 @@ async function transferGenerationDraftAssetOwnership(
 	if (startedReadyTransfer.count !== 1) throw new Error("DRAFT_UNAVAILABLE");
 	const transferredReady = await tx.mediaAsset.updateMany({
 		where: { id: input.assetId, ownerId: input.previousOwnerId, status: "VERIFYING" },
-		data: { ownerType: "USER", ownerId: input.nextOwnerId, status: "READY" },
+		data: { ownerType: "USER", ownerId: input.nextOwnerId, status: "READY", ...retentionPatch },
 	});
 	if (transferredReady.count !== 1) throw new Error("DRAFT_UNAVAILABLE");
 }

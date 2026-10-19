@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-19 — Guest input account retention preparation
+
+- Prepare permanent account retention for an exclusively claimed guest input before any guest generation has been accepted, with expiry and storage cleanup safeguards. This upgrade stays disabled until the cleanup rollout is verified.
+- Preserve accepted guest results, watermarks, shared credits, access grants and content review.
+
 ## 2026-10-19 — Guest access on shared networks
 
 - Allow independent guests on a shared internet connection to upload and submit edits without sharing an IP or subnet quota, including the legacy draft entry.
