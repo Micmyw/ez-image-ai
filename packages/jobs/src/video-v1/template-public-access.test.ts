@@ -211,12 +211,12 @@ describe("authenticated template admission remains scoped and funded", () => {
 		);
 		expect(admitted.price.paidFundingPolicy).toEqual({ minimumUsdMicrosPerCredit: 21944n });
 	});
-	it("does not bypass unapproved or expired template pricing", () => {
+	it("does not bypass unapproved template pricing", () => {
 		vi.mocked(resolveVideoEffectPrice).mockImplementationOnce(() => {
-			throw new Error("VIDEO_EFFECT_PRICE_EXPIRED");
+			throw new Error("VIDEO_EFFECT_PRICE_NOT_APPROVED");
 		});
 		expect(() => requireVideoTemplateAdmission(customer, base, bindings, request)).toThrow(
-			"VIDEO_EFFECT_PRICE_EXPIRED",
+			"VIDEO_EFFECT_PRICE_NOT_APPROVED",
 		);
 	});
 });

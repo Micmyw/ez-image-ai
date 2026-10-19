@@ -134,13 +134,23 @@ describe("video upload model admission", () => {
 		["VIDEO_V1_ENABLED", "false", "VIDEO_ACCESS_DENIED"],
 		["SEEAPI_WEBHOOK_SIGNING_KEYS", "", "VIDEO_SEEAPI_CALLBACK_NOT_CONFIGURED"],
 		["WAFFO_PRIVATE_KEY", "", "VIDEO_MODERATION_NOT_CONFIGURED"],
-		["VIDEO_PRICE_VALID_UNTIL", "2000-01-01T00:00:00.000Z", "VIDEO_PRICE_EXPIRED"],
 		["VIDEO_PRICE_ACCEPTED_VERSION", "old-price", "VIDEO_PRICE_NOT_APPROVED"],
 	])("retains the %s admission check before storage reservation", async (key, value, error) => {
 		vi.stubEnv(key, value);
 		await expect(createVideoUpload({ id: "owner" }, input)).rejects.toThrow(error);
 		expect(createMediaUploadSessionTransaction).not.toHaveBeenCalled();
 	});
+	it.each([undefined, "invalid-date", "2000-01-01T00:00:00Z"])(
+		"permits a valid upload after retired price deadline %s",
+		async (deadline) => {
+			vi.stubEnv("VIDEO_PRICE_VALID_UNTIL", deadline);
+			await expect(createVideoUpload({ id: "registered-user" }, input)).resolves.toMatchObject({
+				method: "PUT",
+			});
+			expect(createMediaUploadSessionTransaction).toHaveBeenCalledOnce();
+		},
+	);
+
 	it("admits a registered user in authenticated mode", async () => {
 		await expect(createVideoUpload({ id: "registered-user" }, input)).resolves.toMatchObject({
 			method: "PUT",

@@ -109,9 +109,10 @@ describe("Raindance frozen contract and independent admission", () => {
 			expect(() =>
 				resolveVideoEffectTemplate(input, { ...env, RAINDANCE_ENABLED: "false" }),
 			).toThrow("VIDEO_EFFECT_DISABLED");
-			expect(() =>
-				resolveVideoEffectPrice(input, { ...env, HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2025-01-01" }),
-			).toThrow("VIDEO_EFFECT_PRICE_EXPIRED");
+			expect(
+				resolveVideoEffectPrice(input, { ...env, HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2025-01-01" })
+					.credits,
+			).toBe(price.credits);
 		},
 	);
 	it("rejects two identities disguised as Solo", () => {
@@ -243,6 +244,21 @@ describe("approved ten-second effects", () => {
 });
 
 describe("frozen Hotel Lobby template", () => {
+	it.each([undefined, "", "invalid-date", "2000-01-01T00:00:00Z"])(
+		"does not expire otherwise valid effect prices from retired approval time %s",
+		(deadline) => {
+			const baseline = resolveVideoEffectPrice(request, fixtureEnvironment());
+			const price = resolveVideoEffectPrice(request, {
+				...fixtureEnvironment(),
+				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: deadline,
+			});
+			expect(price.credits).toBe(baseline.credits);
+			expect(price.pricingDetails).toMatchObject({
+				priceApprovalExpiryMode: "none",
+				validUntil: null,
+			});
+		},
+	);
 	it("maps two roles to a scene before fixed single-image video; recovery does not use mutable flags", () => {
 		const stored = createVideoEffectTemplateSnapshot(request);
 		expect(stored.storage).toEqual({
@@ -328,7 +344,7 @@ describe("one complete duo quote", () => {
 		expect(price.pricingDetails.directCostMicros).toBe("160500");
 		expect(price.pricingDetails.costPolicy.markupBps).toBe("20000");
 		expect(price.pricingDetails.costPolicy.paymentFeeBps).toBe("750");
-		expect(price.pricingDetails.validUntil).toBe("2026-10-20T00:00:00.000Z");
+		expect(price.pricingDetails.validUntil).toBeNull();
 		expect(createVideoEffectTemplateSnapshot(request).video).toMatchObject({
 			productKey: "video-seedance-1-5-pro",
 			duration: 5,
@@ -470,66 +486,29 @@ describe("one complete duo quote", () => {
 			}),
 		).toThrow("VIDEO_EFFECT_COST_POLICY_NOT_CONFIGURED");
 	});
-	it("expires at the earlier scene or video cost deadline", () => {
-		const env = fixtureEnvironment();
-		expect(resolveVideoEffectPrice(request, env).pricingDetails.validUntil).toBe(
-			"2026-10-20T00:00:00.000Z",
-		);
-		expect(
-			resolveVideoEffectPrice(request, {
-				...env,
-				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2026-10-10T00:00:00Z",
-			}).pricingDetails.validUntil,
-		).toBe("2026-10-10T00:00:00.000Z");
-		expect(() =>
-			resolveVideoEffectPrice(request, {
-				...env,
-				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2026-10-05T00:00:00Z",
-			}),
-		).toThrow("VIDEO_EFFECT_PRICE_EXPIRED");
-		expect(() =>
-			resolveVideoEffectPrice(request, { ...env, VIDEO_PRICE_VALID_UNTIL: "2026-10-05T00:00:00Z" }),
-		).toThrow("VIDEO_PRICE_EXPIRED");
-	});
 	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
-		"keeps %s approval finite when ordinary video explicitly has no deadline",
+		"keeps %s current price unchanged after retired price deadlines",
 		(effectId) => {
 			const env = {
 				...fixtureEnvironment(),
-				VIDEO_PRICE_VALID_UNTIL: "none",
 				RAINDANCE_ENABLED: "true",
 				RAINDANCE_ACCEPTED_TEMPLATE_VERSION: RAINDANCE_TEMPLATE_VERSION,
 			};
-			const input = {
-				...request,
-				effectId,
-				inputs: {
-					leftAssetId: "left",
-					rightAssetId: effectId === "raindance-solo" ? "left" : "right",
-				},
-			};
-			vi.setSystemTime(new Date("2026-10-21T00:00:00.000Z"));
-			const price = resolveVideoEffectPrice(input, env);
-			expect(price.pricingDetails).toMatchObject({
-				priceApprovalExpiryMode: "until",
-				validUntil: "2026-11-01T00:00:00.000Z",
-			});
-			expect(price.pricingDetails.costPolicy.markupBps).toBe("20000");
-			expect(price.pricingDetails.costPolicy.paymentFeeBps).toBe("750");
-			vi.setSystemTime(new Date("2026-11-01T00:00:00.000Z"));
-			expect(() => resolveVideoEffectPrice(input, env)).toThrow("VIDEO_EFFECT_PRICE_EXPIRED");
-		},
-	);
-	it.each([undefined, "", "none", "invalid-date"])(
-		"does not extend template approval from an absent or malformed expiry %s",
-		(validUntil) => {
-			expect(() =>
-				resolveVideoEffectPrice(request, {
-					...fixtureEnvironment(),
-					VIDEO_PRICE_VALID_UNTIL: "none",
-					HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: validUntil,
-				}),
-			).toThrow("VIDEO_EFFECT_PRICE_EXPIRED");
+			const input = { ...request, effectId, inputs: { leftAssetId: "same", rightAssetId: "same" } };
+			const baseline = resolveVideoEffectPrice(input, env);
+			for (const deadline of [undefined, "", "invalid-date", "2000-01-01T00:00:00Z"]) {
+				const price = resolveVideoEffectPrice(input, {
+					...env,
+					HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: deadline,
+					VIDEO_PRICE_VALID_UNTIL: deadline,
+				});
+				expect(price.credits).toBe(baseline.credits);
+				expect(price.pricingDetails.costPolicy).toEqual(baseline.pricingDetails.costPolicy);
+				expect(price.pricingDetails).toMatchObject({
+					priceApprovalExpiryMode: "none",
+					validUntil: null,
+				});
+			}
 		},
 	);
 	it("never invents approval, provider cost, moderation, transfer or storage budget", () => {

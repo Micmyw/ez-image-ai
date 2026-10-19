@@ -70,7 +70,7 @@ void test("documented closed reference uses the current shared basis without cha
 	);
 	const result = prepareHotelLobbyEnvironment(normalized);
 	assert.equal(result.summary.credits, "69");
-	assert.equal(result.summary.validUntil, "2026-10-12T00:00:00.000Z");
+	assert.ok(!("validUntil" in result.summary));
 	assert.equal(result.summary.templateEnabled, false);
 	assert.equal(result.summary.buildEnabled, false);
 });
@@ -95,7 +95,7 @@ void test("preserves packed policies, secrets, funding and ordinary prices; comp
 	assert.equal(next.HOTEL_LOBBY_DUO_ENABLED, "false");
 	assert.equal(next.HOTEL_LOBBY_DUO_BUILD_ENABLED, "false");
 	assert.equal(next.HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION, undefined);
-	assert.equal(result.summary.validUntil, "2026-10-12T00:00:00.000Z");
+	assert.ok(!("validUntil" in result.summary));
 	const changed = new Set(result.summary.changedKeys);
 	for (const [key, value] of Object.entries(previous)) {
 		if (key === "VIDEO_RUNTIME_CONFIG" || changed.has(key)) continue;
@@ -141,6 +141,7 @@ void test("prepares an authenticated build patch without copying secrets, base p
 	assert.equal(patch.HOTEL_LOBBY_DUO_ACCESS, "authenticated");
 	assert.equal(patch.HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION, undefined);
 	assert.equal(patch.HOTEL_LOBBY_DUO_INTERNAL_FUNDING, undefined);
+	assert.equal(patch.HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL, undefined);
 	for (const key of Object.keys(patch)) assert.ok(key.startsWith("HOTEL_LOBBY_DUO_"));
 	const serialized = serializePrivateEnvironment(result.environment);
 	for (const value of [
@@ -157,17 +158,17 @@ void test("prepares an authenticated build patch without copying secrets, base p
 	);
 });
 
-void test("a nonexpiring ordinary approval keeps the template's independent finite deadline", () => {
+void test("new preparation and overlays omit both retired price deadlines without renewing them", () => {
 	const input = fixture();
 	input.VIDEO_PRICE_VALID_UNTIL = "none";
 	const prepared = prepareHotelLobbyEnvironment(input);
 	const result = expandVideoRuntimeEnvironment(prepared.environment);
-	assert.equal(result.VIDEO_PRICE_VALID_UNTIL, "none");
-	assert.equal(prepared.summary.validUntil, "2026-10-12T00:00:00.000Z");
-	assert.equal(result.HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL, "2026-10-12T00:00:00.000Z");
+	assert.equal(result.VIDEO_PRICE_VALID_UNTIL, undefined);
+	assert.ok(!("validUntil" in prepared.summary));
+	assert.equal(result.HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL, undefined);
 });
 
-void test("keeps earlier expiries and prior acceptance; never creates funding or enables template", () => {
+void test("preserves prior acceptance and never creates funding or enables the template", () => {
 	const input = fixture();
 	delete input.VIDEO_INTERNAL_FUNDING;
 	delete input.HOTEL_LOBBY_DUO_INTERNAL_FUNDING;
@@ -178,7 +179,7 @@ void test("keeps earlier expiries and prior acceptance; never creates funding or
 	input.VIDEO_PRICE_VALID_UNTIL = "2026-10-07T00:00:00Z";
 	const result = prepareHotelLobbyEnvironment(input);
 	const output = expandVideoRuntimeEnvironment(result.environment);
-	assert.equal(result.summary.validUntil, "2026-10-07T00:00:00.000Z");
+	assert.ok(!("validUntil" in result.summary));
 	assert.equal(
 		output.HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION,
 		input.HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION,
@@ -189,26 +190,30 @@ void test("keeps earlier expiries and prior acceptance; never creates funding or
 	assert.equal(output.HOTEL_LOBBY_DUO_INTERNAL_FUNDING, undefined);
 });
 
-void test("accepts empty template expiry placeholders but rejects invalid or expired existing approval", () => {
-	const input = fixture();
-	const result = prepareHotelLobbyEnvironment({
-		...input,
-		HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "  ",
+for (const deadline of [undefined, "", "  ", "none", "invalid", "2000-01-01T00:00:00Z"]) {
+	void test(`ignores legacy price deadline ${JSON.stringify(deadline)} after the retired preparation cutoff`, () => {
+		mock.timers.setTime(Date.parse("2026-10-19T00:00:00Z"));
+		const baseline = prepareHotelLobbyEnvironment(fixture());
+		const input = fixture();
+		for (const key of ["VIDEO_PRICE_VALID_UNTIL", "HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL"]) {
+			if (deadline === undefined) delete input[key];
+			else input[key] = deadline;
+		}
+		const snapshot = { ...input };
+		const result = prepareHotelLobbyEnvironment(input);
+		assert.deepEqual(input, snapshot);
+		assert.deepEqual(result.environment, baseline.environment);
+		assert.equal(result.summary.credits, "69");
+		assert.equal(result.summary.completeCostMicros, baseline.summary.completeCostMicros);
+		assert.ok(!("validUntil" in result.summary));
+		const overlay = prepareHotelLobbyBuildOverlay(input);
+		assert.equal(
+			JSON.parse(overlay.environment.HOTEL_LOBBY_DUO_RUNTIME_CONFIG)
+				.HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL,
+			undefined,
+		);
 	});
-	assert.equal(result.summary.validUntil, "2026-10-12T00:00:00.000Z");
-	assert.throws(
-		() => prepareHotelLobbyEnvironment({ ...input, HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "invalid" }),
-		/EXPIRY_INVALID/,
-	);
-	assert.throws(
-		() =>
-			prepareHotelLobbyEnvironment({
-				...input,
-				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2026-10-01T00:00:00Z",
-			}),
-		/EXPIRED/,
-	);
-});
+}
 
 void test("updates packed image flags without altering other flags or duplicating Kie", () => {
 	const input = fixture();
@@ -227,7 +232,7 @@ void test("updates packed image flags without altering other flags or duplicatin
 	assert.equal(output.MEDIA_ENABLED_PROVIDERS, input.MEDIA_ENABLED_PROVIDERS);
 });
 
-void test("rejects conflicting, oversized, invalid and expired policy instead of silently rewriting it", () => {
+void test("rejects conflicting and oversized policy instead of silently rewriting it", () => {
 	const input = fixture();
 	assert.throws(
 		() =>
@@ -240,15 +245,6 @@ void test("rejects conflicting, oversized, invalid and expired policy instead of
 	assert.throws(
 		() => prepareHotelLobbyEnvironment({ ...input, VIDEO_PRICE_BASIS: "x".repeat(5000) }),
 		/VIDEO_RUNTIME_CONFIG_INVALID/,
-	);
-	assert.throws(
-		() =>
-			prepareHotelLobbyEnvironment({ ...input, VIDEO_PRICE_VALID_UNTIL: "2026-10-01T00:00:00Z" }),
-		/EXPIRED/,
-	);
-	assert.throws(
-		() => prepareHotelLobbyEnvironment({ ...input, VIDEO_PRICE_VALID_UNTIL: "invalid" }),
-		/EXPIRY_INVALID/,
 	);
 });
 

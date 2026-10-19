@@ -23,8 +23,8 @@ const changes = {
 	VIDEO_V1_BUILD_PRICE_BASIS: "Veo region tariff observed 2026-10-08; no recharge bonus",
 };
 describe("explicit video tier contract deployment upgrade", () => {
-	it.each(["none", "2100-01-01T00:00:00.000Z"])(
-		"upgrades only known contract/version evidence while preserving %s and all policies",
+	it.each(["none", "2100-01-01T00:00:00.000Z", "2000-01-01T00:00:00.000Z", "invalid-date"])(
+		"upgrades only known contract/version evidence without renewing legacy price metadata %s",
 		(deadline) => {
 			const policy = { ...base, VIDEO_PRICE_VALID_UNTIL: deadline };
 			const input = {

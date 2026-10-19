@@ -94,14 +94,19 @@ function scenario(
 	patch: Record<string, string | undefined> = {},
 	flatPatch: Record<string, string | undefined> = {},
 ) {
-	const expectedPolicy = Object.fromEntries(
+	const originalPolicy = Object.fromEntries(
 		Object.entries({ ...activePolicy, ...patch }).filter(([, value]) => value !== undefined),
+	);
+	const expectedPolicy = Object.fromEntries(
+		Object.entries(originalPolicy).filter(
+			([key]) => !["VIDEO_PRICE_VALID_UNTIL", "HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL"].includes(key),
+		),
 	);
 	const environment = Object.fromEntries(
 		Object.entries({ ...flat, ...flatPatch }).filter(([, value]) => value !== undefined),
 	);
 	const legacyPolicy = {
-		...expectedPolicy,
+		...originalPolicy,
 		VIDEO_V1_ALLOWED_USER_IDS: "retired-user,admin",
 		VIDEO_MODEL_ALLOWED_OPTIONS: "[]",
 	};
@@ -265,9 +270,27 @@ describe("build policy compaction semantics", () => {
 			["116", "101"],
 		]);
 	});
+	it.each([undefined, "none", "invalid-date", "2000-01-01T00:00:00Z"])(
+		"retires only price deadlines while preserving pricing and funding authorization: %s",
+		(deadline) => {
+			const { before, after } = environments({
+				VIDEO_PRICE_VALID_UNTIL: deadline,
+				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: deadline,
+			});
+			expect(after).not.toHaveProperty("VIDEO_PRICE_VALID_UNTIL");
+			expect(after).not.toHaveProperty("HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL");
+			expect(after.VIDEO_INTERNAL_FUNDING).toBe(before.VIDEO_INTERNAL_FUNDING);
+			expect(after.HOTEL_LOBBY_DUO_INTERNAL_FUNDING).toBe(before.HOTEL_LOBBY_DUO_INTERNAL_FUNDING);
+			expect(verifyApprovedVideoRetailPrices(after)).toEqual(
+				verifyApprovedVideoRetailPrices(before),
+			);
+			expect(verifyApprovedVideoEffectPrices(after)).toEqual(
+				verifyApprovedVideoEffectPrices(before),
+			);
+		},
+	);
 	it.each([
 		[{ VIDEO_PRICE_ACCEPTED_VERSION: "unapproved" }, {}, "VIDEO_PRICE_NOT_APPROVED"],
-		[{ VIDEO_PRICE_VALID_UNTIL: "2000-01-01" }, {}, "VIDEO_PRICE_EXPIRED"],
 		[{ VIDEO_COST_STORAGE_MICROS: undefined }, {}, "VIDEO_COST_POLICY_NOT_CONFIGURED"],
 		[{ RUMPELSTILTSKIN_ACCESS: "invalid" }, {}, "RUMPELSTILTSKIN_ACCESS_INVALID"],
 	] as const)(
