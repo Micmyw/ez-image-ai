@@ -80,6 +80,25 @@
 	--spark-y: -29px;
 	color: #b89aff;
 }
+.feedback-burst i:nth-child(even)::after {
+	content: "";
+	position: absolute;
+	left: 6px;
+	top: 4px;
+	width: 4px;
+	height: 12px;
+	border-radius: 1px;
+	background: currentColor;
+	animation: feedback-ribbon-turn 360ms ease-out both;
+}
+@keyframes feedback-ribbon-turn {
+	from {
+		transform: rotate(-35deg);
+	}
+	to {
+		transform: rotate(180deg);
+	}
+}
 @keyframes feedback-gift-sway {
 	0%,
 	79%,
@@ -187,7 +206,8 @@
 @media (prefers-reduced-motion: reduce) {
 	.feedback-gift,
 	.feedback-burst,
-	.feedback-burst i {
+	.feedback-burst i,
+	.feedback-burst i::after {
 		animation: none;
 	}
 }
