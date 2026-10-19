@@ -17,7 +17,6 @@ describe("optional effect build isolation", () => {
 	it.each([
 		"VIDEO_EFFECT_TEMPLATE_NOT_CONFIRMED",
 		"VIDEO_EFFECT_PRICE_NOT_APPROVED",
-		"VIDEO_EFFECT_PRICE_EXPIRED",
 		"VIDEO_EFFECT_COST_POLICY_NOT_CONFIRMED",
 		"VIDEO_EFFECT_COST_POLICY_NOT_CONFIGURED",
 		"VIDEO_EFFECT_PAYMENT_COST_NOT_CONFIRMED",
@@ -54,7 +53,7 @@ describe("optional effect build isolation", () => {
 	it.each([
 		"VIDEO_RUNTIME_CONFIG_INVALID",
 		"VIDEO_RUNTIME_CONFIG_CONFLICT",
-		"VIDEO_PRICE_EXPIRED",
+		"VIDEO_VISUAL_COST_POLICY_NOT_CONFIRMED",
 		"VIDEO_COST_POLICY_NOT_CONFIGURED",
 	])("keeps %s fatal", (reason) => {
 		vi.mocked(resolveVideoEffectPrice).mockImplementation(() => {

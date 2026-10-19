@@ -80,7 +80,7 @@ describe("authenticated reference-template build transport", () => {
 
 describe("Cloudflare build secret transport", () => {
 	it.each(["2026-10-12T00:00:00.000Z", "2000-01-01T00:00:00.000Z", "none"])(
-		"cancels only the explicitly selected ordinary price deadline from %s",
+		"ignores the retired expiry control without rewriting legacy price metadata from %s",
 		(validUntil) => {
 			const policy = {
 				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
@@ -106,67 +106,63 @@ describe("Cloudflare build secret transport", () => {
 			const output = parseEnv(
 				readCloudflareBuildEnvironment(input, (evidence) => observed.push(evidence)),
 			);
-			expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual({
-				...policy,
-				VIDEO_PRICE_VALID_UNTIL: "none",
-			});
+			expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual(policy);
 			expect(expandVideoRuntimeEnvironment(output)).toMatchObject({
 				PRIVATE_KEY: "unchanged-fixture",
 				VIDEO_V1_ENABLED: "true",
-				VIDEO_PRICE_VALID_UNTIL: "none",
+				VIDEO_PRICE_VALID_UNTIL: validUntil,
 			});
-			expect(observed).toEqual([
-				{
-					previousVersion: VIDEO_SUPPLIER_PRICE_VERSION,
-					nextVersion: VIDEO_SUPPLIER_PRICE_VERSION,
-					validUntil,
-				},
-			]);
+			expect(observed).toEqual([]);
 			expect(input).toEqual(snapshot);
 			expect(output).not.toHaveProperty("VIDEO_V1_BUILD_PRICE_EXPIRY");
 			expect(withoutCloudflareBuildSecrets(input)).toEqual({});
 		},
 	);
 	it.each([undefined, "", "invalid-date", "None", "unlimited"])(
-		"never invents an inherited deadline for expiry cancellation (%s)",
+		"does not require or invent a retired inherited price deadline (%s)",
 		(validUntil) => {
-			expect(() =>
+			const policy = {
+				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+				VIDEO_PRICE_BASIS: "original-cost-evidence",
+				VIDEO_PRICE_VALID_UNTIL: validUntil,
+			};
+			const output = parseEnv(
 				readCloudflareBuildEnvironment({
 					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
-					VIDEO_RUNTIME_CONFIG: JSON.stringify({
-						VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
-						VIDEO_PRICE_BASIS: "original-cost-evidence",
-						VIDEO_PRICE_VALID_UNTIL: validUntil,
-					}),
+					VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
 					VIDEO_V1_BUILD_PRICE_EXPIRY: "none",
 				}),
-			).toThrow(/^VIDEO_BUILD_PRICE_POLICY_REQUIRED$/);
+			);
+			expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual(JSON.parse(JSON.stringify(policy)));
 		},
 	);
 	it.each(["", "None", " none", "none ", "2100-01-01", "false", "none\nINJECTED=true"])(
-		"rejects a malformed build expiry control %j",
+		"keeps every retired build expiry control inert and out of the output: %j",
 		(value) => {
-			expect(() =>
-				readCloudflareBuildEnvironment({
-					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
-					VIDEO_V1_BUILD_PRICE_EXPIRY: value,
-				}),
-			).toThrow(/^VIDEO_BUILD_PRICE_EXPIRY_OVERRIDE_INVALID$/);
+			const input = {
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+				VIDEO_V1_BUILD_PRICE_EXPIRY: value,
+			};
+			expect(parseEnv(readCloudflareBuildEnvironment(input))).toEqual({
+				VIDEO_V1_ENABLED: "false",
+			});
+			expect(withoutCloudflareBuildSecrets(input)).toEqual({});
 		},
 	);
-	it("does not cancel a legacy price snapshot unless its version approval migrates in the same build", () => {
+	it("keeps retired expiry controls independent from explicit supplier version migration", () => {
+		const policy = {
+			VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
+			VIDEO_PRICE_BASIS: "original-cost-evidence",
+			VIDEO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00.000Z",
+		};
 		const input = {
 			CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
-			VIDEO_RUNTIME_CONFIG: JSON.stringify({
-				VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
-				VIDEO_PRICE_BASIS: "original-cost-evidence",
-				VIDEO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00.000Z",
-			}),
+			VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
 			VIDEO_V1_BUILD_PRICE_EXPIRY: "none",
 		};
-		expect(() => readCloudflareBuildEnvironment(input)).toThrow(
-			/^VIDEO_BUILD_PRICE_POLICY_REQUIRED$/,
-		);
+		expect(
+			JSON.parse(parseEnv(readCloudflareBuildEnvironment(input)).VIDEO_RUNTIME_CONFIG!),
+		).toEqual(policy);
 		const output = parseEnv(
 			readCloudflareBuildEnvironment({
 				...input,
@@ -175,37 +171,40 @@ describe("Cloudflare build secret transport", () => {
 			}),
 		);
 		expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual({
+			...policy,
 			VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 			VIDEO_PRICE_BASIS: "original-cost-evidence; new-public-supplier-source",
-			VIDEO_PRICE_VALID_UNTIL: "none",
 		});
 	});
-	it("accepts a persisted explicit none deadline during supplier evidence migration", () => {
-		const observed: unknown[] = [];
-		const output = parseEnv(
-			readCloudflareBuildEnvironment(
+	it.each([undefined, "none", "invalid-date", "2000-01-01T00:00:00.000Z"])(
+		"ignores a retired deadline during supplier evidence migration: %s",
+		(validUntil) => {
+			const observed: unknown[] = [];
+			const output = parseEnv(
+				readCloudflareBuildEnvironment(
+					{
+						CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+						VIDEO_RUNTIME_CONFIG: JSON.stringify({
+							VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+							VIDEO_PRICE_BASIS: "original-cost-evidence",
+							VIDEO_PRICE_VALID_UNTIL: validUntil,
+						}),
+						VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+						VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
+					},
+					(evidence) => observed.push(evidence),
+				),
+			);
+			expect(expandVideoRuntimeEnvironment(output).VIDEO_PRICE_VALID_UNTIL).toBe(validUntil);
+			expect(observed).toEqual([
 				{
-					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
-					VIDEO_RUNTIME_CONFIG: JSON.stringify({
-						VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
-						VIDEO_PRICE_BASIS: "original-cost-evidence",
-						VIDEO_PRICE_VALID_UNTIL: "none",
-					}),
-					VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
-					VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
+					previousVersion: VIDEO_SUPPLIER_PRICE_VERSION,
+					nextVersion: VIDEO_SUPPLIER_PRICE_VERSION,
+					expiryEnforced: false,
 				},
-				(evidence) => observed.push(evidence),
-			),
-		);
-		expect(expandVideoRuntimeEnvironment(output).VIDEO_PRICE_VALID_UNTIL).toBe("none");
-		expect(observed).toEqual([
-			{
-				previousVersion: VIDEO_SUPPLIER_PRICE_VERSION,
-				nextVersion: VIDEO_SUPPLIER_PRICE_VERSION,
-				validUntil: "none",
-			},
-		]);
-	});
+			]);
+		},
+	);
 	it("keeps an inherited finite deadline when only an ambient runtime expiry tries to cancel it", () => {
 		const policy = {
 			VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
@@ -222,7 +221,7 @@ describe("Cloudflare build secret transport", () => {
 		expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual(policy);
 	});
 	it.each(["kie-public-2026-10-04.3", VIDEO_SUPPLIER_PRICE_VERSION])(
-		"migrates only supplier approval from %s and appends evidence without changing the inherited expiry",
+		"migrates only supplier approval from %s and appends evidence without renewing retired expiry metadata",
 		(previousVersion) => {
 			const base = {
 				VIDEO_PRICE_ACCEPTED_VERSION: previousVersion,
@@ -265,7 +264,7 @@ describe("Cloudflare build secret transport", () => {
 				{
 					previousVersion,
 					nextVersion: VIDEO_SUPPLIER_PRICE_VERSION,
-					validUntil: base.VIDEO_PRICE_VALID_UNTIL,
+					expiryEnforced: false,
 				},
 			]);
 			expect(input).toEqual(snapshot);
@@ -330,32 +329,32 @@ describe("Cloudflare build secret transport", () => {
 		{ VIDEO_PRICE_BASIS: "  " },
 		{ VIDEO_PRICE_ACCEPTED_VERSION: "arbitrary-unapproved-version" },
 		{ VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.2" },
-		{ VIDEO_PRICE_VALID_UNTIL: "invalid-date" },
-		{ VIDEO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00.000Z" },
-		{ VIDEO_PRICE_VALID_UNTIL: new Date(Date.now()).toISOString() },
-	])("refuses invalid or expired inherited approval before replacing it", (overrides) => {
-		const base = Object.keys(overrides).length
-			? {
-					VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
-					VIDEO_PRICE_BASIS: "original-price-evidence",
-					VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
-					...overrides,
-				}
-			: {};
-		const observed: unknown[] = [];
-		expect(() =>
-			readCloudflareBuildEnvironment(
-				{
-					CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged-fixture",
-					VIDEO_RUNTIME_CONFIG: JSON.stringify(base),
-					VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
-					VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
-				},
-				(evidence) => observed.push(evidence),
-			),
-		).toThrow(/^VIDEO_BUILD_PRICE_POLICY_REQUIRED$/);
-		expect(observed).toEqual([]);
-	});
+	])(
+		"refuses missing or unapproved supplier version and basis before replacing them",
+		(overrides) => {
+			const base = Object.keys(overrides).length
+				? {
+						VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
+						VIDEO_PRICE_BASIS: "original-price-evidence",
+						VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
+						...overrides,
+					}
+				: {};
+			const observed: unknown[] = [];
+			expect(() =>
+				readCloudflareBuildEnvironment(
+					{
+						CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged-fixture",
+						VIDEO_RUNTIME_CONFIG: JSON.stringify(base),
+						VIDEO_V1_BUILD_PRICE_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+						VIDEO_V1_BUILD_PRICE_BASIS: "new-public-supplier-source",
+					},
+					(evidence) => observed.push(evidence),
+				),
+			).toThrow(/^VIDEO_BUILD_PRICE_POLICY_REQUIRED$/);
+			expect(observed).toEqual([]);
+		},
+	);
 	it("rejects existing price flat/packed conflicts without logging policy", () => {
 		expect(() =>
 			readCloudflareBuildEnvironment({
@@ -544,7 +543,7 @@ describe("Cloudflare build secret transport", () => {
 			VIDEO_V1_ACCESS: "authenticated",
 			VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 			VIDEO_PRICE_BASIS: "original-cost-evidence; new-public-supplier-source",
-			VIDEO_PRICE_VALID_UNTIL: "none",
+			VIDEO_PRICE_VALID_UNTIL: base.VIDEO_PRICE_VALID_UNTIL,
 			HOTEL_LOBBY_DUO_ACCESS: "authenticated",
 			RAINDANCE_ACCESS: "authenticated",
 			VIDEO_INTERNAL_FUNDING: base.VIDEO_INTERNAL_FUNDING,
@@ -748,10 +747,10 @@ describe("Cloudflare build secret transport", () => {
 		);
 		expect(expired.HOTEL_LOBBY_DUO_ENABLED).toBe("true");
 		expect(assessOptionalVideoEffectOptions(expired)[0]).toMatchObject({
-			available: false,
-			reasons: ["VIDEO_EFFECT_PRICE_EXPIRED"],
+			available: true,
+			reasons: [],
 		});
-		expect(() =>
+		expect(
 			resolveVideoEffectPrice(
 				{
 					effectId: "hotel-lobby-duo",
@@ -760,7 +759,16 @@ describe("Cloudflare build secret transport", () => {
 				},
 				expired,
 			),
-		).toThrow("VIDEO_EFFECT_PRICE_EXPIRED");
+		).toEqual(
+			resolveVideoEffectPrice(
+				{
+					effectId: "hotel-lobby-duo",
+					presetKey: "standard",
+					inputs: { leftAssetId: "left", rightAssetId: "right" },
+				},
+				merged,
+			),
+		);
 		const missing = expandVideoRuntimeEnvironment(
 			parseEnv(
 				readCloudflareBuildEnvironment({

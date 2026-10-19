@@ -54,7 +54,7 @@ const policy = {
 	VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
 };
 describe("effect price release preflight", () => {
-	it("recomputes all six options and reports expired or drifting policy without exposing secrets", () => {
+	it("recomputes all six options and ignores retired approval dates and reports drifting policy without exposing secrets", () => {
 		const input = {
 			VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
 			VIDEO_V1_ENABLED: "true",
@@ -88,10 +88,11 @@ describe("effect price release preflight", () => {
 				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2000-01-01",
 			}),
 		});
-		expect(expired).toMatchObject({ checked: 0, rows: [] });
+		expect(expired).toMatchObject({ checked: 6 });
 		expect(expired.effects).toHaveLength(6);
 		for (const option of expired.effects)
-			expect(option).toMatchObject({ available: false, reasons: ["VIDEO_EFFECT_PRICE_EXPIRED"] });
+			expect(option).toMatchObject({ available: true, reasons: [] });
+		expect(expired.rows).toEqual(report.rows);
 	});
 	it("isolates unavailable long options and independently disabled effects", () => {
 		const report = verifyApprovedVideoEffectPrices({
@@ -142,7 +143,12 @@ describe("effect price release preflight", () => {
 		const output = parseEnv(readCloudflareBuildEnvironment(input));
 		expect(output.HOTEL_LOBBY_DUO_ENABLED).toBe("false");
 		expect(output.UNRELATED).toBe("kept");
-		expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual(policy);
+		const {
+			VIDEO_PRICE_VALID_UNTIL: _videoExpiry,
+			HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: _effectExpiry,
+			...activePolicy
+		} = policy;
+		expect(JSON.parse(output.VIDEO_RUNTIME_CONFIG!)).toEqual(activePolicy);
 		expect(withoutCloudflareBuildSecrets(input)).not.toHaveProperty(
 			"VIDEO_EFFECT_BUILD_RETAIL_PRICE_VERSION",
 		);
@@ -180,7 +186,12 @@ describe("effect price release preflight", () => {
 		const result = parseEnv(readCloudflareBuildEnvironment(input));
 		expect(result.HOTEL_LOBBY_DUO_ENABLED).toBe("false");
 		expect(result.UNRELATED).toBe("kept");
-		expect(JSON.parse(result.VIDEO_RUNTIME_CONFIG!)).toEqual(policy);
+		const {
+			VIDEO_PRICE_VALID_UNTIL: _videoExpiry,
+			HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: _effectExpiry,
+			...activePolicy
+		} = policy;
+		expect(JSON.parse(result.VIDEO_RUNTIME_CONFIG!)).toEqual(activePolicy);
 		const active = { ...base, HOTEL_LOBBY_DUO_PRICE_BASIS: "" };
 		active.HOTEL_LOBBY_DUO_PRICE_BASIS = "x".repeat(
 			4_990 - Buffer.byteLength(JSON.stringify(active)),

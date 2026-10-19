@@ -31,6 +31,28 @@ const policy = {
 };
 
 describe("private video runtime environment transport", () => {
+	it("accepts retired price timestamps in old bundles without conflicts and omits only their exact names from new packs", () => {
+		const legacy = {
+			...policy,
+			VIDEO_PRICE_VALID_UNTIL: "2000-01-01",
+			HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "invalid-date",
+		};
+		const input = {
+			VIDEO_RUNTIME_CONFIG: JSON.stringify(legacy),
+			VIDEO_PRICE_VALID_UNTIL: "different-flat",
+			HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "another-flat",
+			OTHER_PRICE_VALID_UNTIL: "unchanged",
+		};
+		expect(() => expandVideoRuntimeEnvironment(input)).not.toThrow();
+		const packed = packVideoRuntimeEnvironment(input);
+		expect(parseVideoRuntimeConfig(packed.VIDEO_RUNTIME_CONFIG)).toEqual(policy);
+		expect(packed).toMatchObject({ OTHER_PRICE_VALID_UNTIL: "unchanged" });
+		expect(packed).not.toHaveProperty("VIDEO_PRICE_VALID_UNTIL");
+		expect(packed).not.toHaveProperty("HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL");
+		expect(() =>
+			expandVideoRuntimeEnvironment({ ...input, VIDEO_COST_STORAGE_MICROS: "different" }),
+		).toThrow("VIDEO_RUNTIME_CONFIG_CONFLICT");
+	});
 	it("reads obsolete access fields for compatibility and drops them from new runtime packs", () => {
 		const legacy = {
 			...policy,

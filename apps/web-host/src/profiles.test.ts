@@ -403,7 +403,6 @@ describe("prepared deployment artifacts", () => {
 				VIDEO_V1_ACCESS: "authenticated",
 				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
 				VIDEO_PRICE_BASIS: `${multiModelVideoEnvironment.VIDEO_PRICE_BASIS}; new-public-supplier-source`,
-				VIDEO_PRICE_VALID_UNTIL: "none",
 			};
 			for (const name of ["website", "workflows"] as const) {
 				expect(parseVideoRuntimeConfig(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG)).toEqual(
@@ -498,8 +497,14 @@ describe("prepared deployment artifacts", () => {
 				expect(policy).not.toHaveProperty("HOTEL_LOBBY_DUO_ENABLED");
 				expect(result[name].vars).not.toHaveProperty("HOTEL_LOBBY_DUO_ACCESS");
 			}
-			if (profile === "hybrid")
-				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).toMatchObject(input);
+			if (profile === "hybrid") {
+				const {
+					VIDEO_PRICE_VALID_UNTIL: _videoExpiry,
+					HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: _effectExpiry,
+					...activeInput
+				} = input;
+				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).toMatchObject(activeInput);
+			}
 			const expiredInput = {
 				...input,
 				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00Z",
@@ -513,14 +518,12 @@ describe("prepared deployment artifacts", () => {
 					...expiredArtifacts[`${name}.secrets`],
 					...(expiredArtifacts[name].vars as Record<string, string>),
 				});
-				expect(runtime.HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL).toBe(
-					expiredInput.HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL,
-				);
+				expect(runtime).not.toHaveProperty("HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL");
 				const options = assessOptionalVideoEffectOptions(runtime);
 				for (const index of [0, 2, 4])
 					expect(options[index]).toMatchObject({
-						available: false,
-						reasons: ["VIDEO_EFFECT_PRICE_EXPIRED"],
+						available: true,
+						reasons: [],
 					});
 			}
 		},
@@ -631,8 +634,10 @@ describe("prepared deployment artifacts", () => {
 				expect(packed[name].vars).toMatchObject({ VIDEO_V1_ENABLED: "true" });
 				expect(packed[name].vars).not.toHaveProperty("VIDEO_RUNTIME_CONFIG");
 			}
-			if (profile === "hybrid")
-				expect(JSON.parse(packed["workflows.secrets"].JOBS_RUNTIME_ENV)).toMatchObject(input);
+			if (profile === "hybrid") {
+				const { VIDEO_PRICE_VALID_UNTIL: _expiry, ...activeInput } = input;
+				expect(JSON.parse(packed["workflows.secrets"].JOBS_RUNTIME_ENV)).toMatchObject(activeInput);
+			}
 		},
 	);
 	it("refuses conflicting packed policy before preparing artifacts", () => {

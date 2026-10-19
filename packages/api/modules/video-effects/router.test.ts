@@ -102,7 +102,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("template API authorization and strict public contracts", () => {
 	it.each([
-		"VIDEO_EFFECT_PRICE_EXPIRED",
+		"VIDEO_EFFECT_PRICE_NOT_APPROVED",
 		"VIDEO_EFFECT_APPROVED_PRICES_CHANGED",
 		"VIDEO_EFFECT_APPROVED_MARKUP_CHANGED",
 	])("reports %s as unavailable without exposing policy or accepting an order", async (reason) => {

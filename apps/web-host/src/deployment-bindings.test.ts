@@ -78,16 +78,19 @@ describe("retired Worker bindings", () => {
 			});
 		},
 	);
-	it("retires obsolete video access text fields without requiring replacement restrictions", async () => {
+	it("retires only obsolete video access and price-time fields in an undeployed snapshot", async () => {
 		const obsolete = [
 			{ name: "VIDEO_V1_ALLOWED_USER_IDS", type: "secret_text" },
 			{ name: "VIDEO_MODEL_ALLOWED_OPTIONS", type: "plain_text" },
+			{ name: "VIDEO_PRICE_VALID_UNTIL", type: "secret_text" },
+			{ name: "HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL", type: "plain_text" },
 		];
 		const preserved = [
 			{ name: "VIDEO_V1_ENABLED", type: "plain_text" },
 			{ name: "KIE_API_KEY", type: "secret_text" },
 			{ name: "VIDEO_WORKFLOW", type: "workflow" },
 			{ name: "UNRELATED_PRIVATE_SETTING", type: "secret_text" },
+			{ name: "VIDEO_PRICE_VALID_UNTIL_EXTRA", type: "secret_text" },
 		];
 		const request = vi
 			.fn<typeof fetch>()
@@ -100,7 +103,6 @@ describe("retired Worker bindings", () => {
 					nextBindingNames: ["VIDEO_RUNTIME_CONFIG", ...preserved.map(({ name }) => name)],
 					nextVideoRuntimeConfig: JSON.stringify({
 						VIDEO_MODEL_CONTRACT_VERSION: "fixture-current-contract",
-						VIDEO_PRICE_VALID_UNTIL: "none",
 					}),
 				},
 				request,
@@ -109,9 +111,12 @@ describe("retired Worker bindings", () => {
 			versionId: "staged-version",
 			retired: obsolete.map(({ name }) => name),
 		});
-		expect(JSON.parse(request.mock.calls[1]![1]!.body as string).env).toEqual({
-			VIDEO_V1_ALLOWED_USER_IDS: null,
-			VIDEO_MODEL_ALLOWED_OPTIONS: null,
+		expect(JSON.parse(request.mock.calls[1]![1]!.body as string)).toEqual({
+			env: Object.fromEntries(obsolete.map(({ name }) => [name, null])),
+			annotations: {
+				"workers/message":
+					"Prepare retired bindings for release-sha; do not deploy this intermediate version",
+			},
 		});
 	});
 	it("stages covered video settings while preserving the flat kill switch, secrets, and resources", async () => {
