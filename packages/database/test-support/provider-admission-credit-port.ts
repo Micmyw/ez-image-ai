@@ -82,6 +82,7 @@ export class CreditAdmissionPostgresFixture {
 				"submittedByUserId" text NOT NULL, "quoteId" text NOT NULL UNIQUE REFERENCES ${this.table("generation_quote")}(id),
 				"idempotencyKey" text NOT NULL, "productKey" text NOT NULL,
 				"catalogVersion" text NOT NULL, "pricingVersion" text NOT NULL,
+				"fundingSource" text NOT NULL DEFAULT 'CREDITS',
 				"creditsReserved" bigint NOT NULL, "inputSnapshot" jsonb NOT NULL, "pricingSnapshot" jsonb NOT NULL,
 				"editSessionId" text, "parentJobId" text, status text NOT NULL DEFAULT 'RESERVED',
 				version integer NOT NULL DEFAULT 0, "executionEngine" text NOT NULL DEFAULT 'legacy',
