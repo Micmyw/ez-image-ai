@@ -31,6 +31,53 @@ const response = (result: unknown) => Response.json({ success: true, result });
 
 describe("retired Worker bindings", () => {
 	it.each(["secret_text", "plain_text"])(
+		"retires an obsolete provider capacity %s binding only in an undeployed snapshot",
+		async (type) => {
+			const preserved = [
+				{ name: "VIDEO_V1_ENABLED", type: "plain_text" },
+				{ name: "VIDEO_V1_OUTPUT_ALLOWED_HOSTS", type: "secret_text" },
+				{ name: "VIDEO_V1_PROVIDER_CONCURRENCY_EXTRA", type: "secret_text" },
+				{ name: "KIE_API_KEY", type: "secret_text" },
+				{ name: "VIDEO_WORKFLOW", type: "workflow" },
+			];
+			const request = vi
+				.fn<typeof fetch>()
+				.mockResolvedValueOnce(
+					response({
+						id: "current-version",
+						bindings: [{ name: "VIDEO_V1_PROVIDER_CONCURRENCY", type }, ...preserved],
+					}),
+				)
+				.mockResolvedValueOnce(response({ id: "staged-version", bindings: preserved }));
+			await expect(
+				stageRetiredWorkerBindings(
+					{
+						...options,
+						nextBindingNames: ["VIDEO_RUNTIME_CONFIG", ...preserved.map(({ name }) => name)],
+						nextVideoRuntimeConfig: JSON.stringify({
+							VIDEO_V1_OUTPUT_ALLOWED_HOSTS: "cdn.example.test",
+						}),
+					},
+					request,
+				),
+			).resolves.toEqual({
+				versionId: "staged-version",
+				retired: ["VIDEO_V1_PROVIDER_CONCURRENCY"],
+			});
+			expect(request.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
+				[expect.stringContaining("/versions/latest"), "GET"],
+				[expect.stringContaining("/versions/latest"), "PATCH"],
+			]);
+			expect(JSON.parse(request.mock.calls[1]![1]!.body as string)).toEqual({
+				env: { VIDEO_V1_PROVIDER_CONCURRENCY: null },
+				annotations: {
+					"workers/message":
+						"Prepare retired bindings for release-sha; do not deploy this intermediate version",
+				},
+			});
+		},
+	);
+	it.each(["secret_text", "plain_text"])(
 		"stages retirement of the guest global daily %s limit while preserving active guest limits",
 		async (type) => {
 			const preserved = [

@@ -99,7 +99,12 @@ function scenario(
 	);
 	const expectedPolicy = Object.fromEntries(
 		Object.entries(originalPolicy).filter(
-			([key]) => !["VIDEO_PRICE_VALID_UNTIL", "HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL"].includes(key),
+			([key]) =>
+				![
+					"VIDEO_PRICE_VALID_UNTIL",
+					"HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL",
+					"VIDEO_V1_PROVIDER_CONCURRENCY",
+				].includes(key),
 		),
 	);
 	const environment = Object.fromEntries(

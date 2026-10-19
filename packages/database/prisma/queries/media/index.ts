@@ -43,4 +43,8 @@ export * from "./video-v1-recovery";
 export * from "./video-template-admission";
 export * from "./video-template-execution";
 export * from "./image-passes";
-export * from "./provider-dispatch-capacity";
+
+export {
+	lockProviderDispatchCapacity,
+	PROVIDER_DISPATCH_RETRY_MS,
+} from "./provider-dispatch-capacity";

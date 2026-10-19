@@ -13,7 +13,6 @@ import {
 const policy = {
 	VIDEO_V1_ACCESS: "internal",
 	VIDEO_MODEL_CONTRACT_VERSION: "fixture-model-contract",
-	VIDEO_V1_PROVIDER_CONCURRENCY: "1",
 	VIDEO_V1_OUTPUT_ALLOWED_HOSTS: "cdn.example.test",
 	VIDEO_V1_UPLOAD_CORS_READY: "true",
 	VIDEO_COST_STORAGE_MICROS: "100",
@@ -53,7 +52,7 @@ describe("private video runtime environment transport", () => {
 			expandVideoRuntimeEnvironment({ ...input, VIDEO_COST_STORAGE_MICROS: "different" }),
 		).toThrow("VIDEO_RUNTIME_CONFIG_CONFLICT");
 	});
-	it("reads a legacy global admission limit but omits it from new packs and keeps execution capacity", () => {
+	it("reads a legacy global admission limit but omits it from new packs", () => {
 		const legacy = { ...policy, VIDEO_V1_GLOBAL_CONCURRENCY: "5" };
 		const input = {
 			VIDEO_RUNTIME_CONFIG: JSON.stringify(legacy),
@@ -64,9 +63,21 @@ describe("private video runtime environment transport", () => {
 		const packed = packVideoRuntimeEnvironment(input);
 		expect(parseVideoRuntimeConfig(packed.VIDEO_RUNTIME_CONFIG)).toEqual(policy);
 		expect(packed).not.toHaveProperty("VIDEO_V1_GLOBAL_CONCURRENCY");
-		expect(parseVideoRuntimeConfig(packed.VIDEO_RUNTIME_CONFIG).VIDEO_V1_PROVIDER_CONCURRENCY).toBe(
-			"1",
-		);
+	});
+	it("reads the retired provider capacity without conflicts and omits it from new packs", () => {
+		const legacy = { ...policy, VIDEO_V1_PROVIDER_CONCURRENCY: "2" };
+		const input = {
+			VIDEO_RUNTIME_CONFIG: JSON.stringify(legacy),
+			VIDEO_V1_PROVIDER_CONCURRENCY: "different-flat-value",
+			VIDEO_V1_PROVIDER_CONCURRENCY_EXTRA: "unchanged",
+		};
+		expect(parseVideoRuntimeConfig(input.VIDEO_RUNTIME_CONFIG)).toEqual(legacy);
+		expect(expandVideoRuntimeEnvironment(input)).toMatchObject(legacy);
+		const packed = packVideoRuntimeEnvironment(input);
+		expect(parseVideoRuntimeConfig(packed.VIDEO_RUNTIME_CONFIG)).toEqual(policy);
+		expect(packed).not.toHaveProperty("VIDEO_V1_PROVIDER_CONCURRENCY");
+		expect(packed.VIDEO_V1_PROVIDER_CONCURRENCY_EXTRA).toBe("unchanged");
+		expect(input.VIDEO_V1_PROVIDER_CONCURRENCY).toBe("different-flat-value");
 	});
 	it("reads obsolete access fields for compatibility and drops them from new runtime packs", () => {
 		const legacy = {
@@ -190,12 +201,12 @@ describe("private video runtime environment transport", () => {
 	});
 	it("rejects conflicting source values at expansion and packaging before mutation", () => {
 		const input = {
-			VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
-			VIDEO_V1_PROVIDER_CONCURRENCY: "5",
+			VIDEO_RUNTIME_CONFIG: JSON.stringify({ ...policy, VIDEO_V1_PROVIDER_POLL_SECONDS: "30" }),
+			VIDEO_V1_PROVIDER_POLL_SECONDS: "60",
 		};
 		expect(() => expandVideoRuntimeEnvironment(input)).toThrow("VIDEO_RUNTIME_CONFIG_CONFLICT");
 		expect(() => packVideoRuntimeEnvironment(input)).toThrow("VIDEO_RUNTIME_CONFIG_CONFLICT");
-		expect(input.VIDEO_V1_PROVIDER_CONCURRENCY).toBe("5");
+		expect(input.VIDEO_V1_PROVIDER_POLL_SECONDS).toBe("60");
 	});
 	it("hydrates every allowed field and preserves unrelated process credentials", () => {
 		const packedPolicy = Object.fromEntries(

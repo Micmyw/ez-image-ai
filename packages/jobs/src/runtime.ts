@@ -88,8 +88,6 @@ import {
 	runReadCommitted,
 	settleCreditsInTransaction,
 	lockProviderDispatchCapacity,
-	hasProviderDispatchCapacity,
-	PROVIDER_DISPATCH_RETRY_MS,
 } from "@repo/database";
 import type { Prisma } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -650,17 +648,8 @@ export function createDatabaseDispatchStore(
 				if (lockedProvider !== route.provider) {
 					throw new Error("DISPATCH_ROUTE_CHANGED_DURING_CLAIM");
 				}
-				// This fresh Read Committed statement sees send fences committed while
-				// acquiring the shared provider lock. A queue wait creates no attempt.
-				if (!(await hasProviderDispatchCapacity(tx, route.provider, environment))) {
-					const now = new Date();
-					return deferProviderDispatch(
-						tx,
-						job,
-						new Date(now.getTime() + PROVIDER_DISPATCH_RETRY_MS),
-						now,
-					);
-				}
+				// The legacy project concurrency setting is not a verified provider quota.
+				// Keep the atomic job claim and pre-send fence without limiting other jobs.
 				const rawInput = job.inputSnapshot as unknown as ProviderExecutionInput & {
 					sourceAssetId?: string;
 				};
