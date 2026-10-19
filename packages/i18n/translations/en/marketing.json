@@ -271,12 +271,19 @@
 				"standard": "Try free",
 				"quality": "Continue",
 				"retry": "Retry",
-				"retryAvailability": "Check availability"
+				"retryAvailability": "Check availability",
+				"signInBonus": "Sign in · one-time 5-credit bonus per account"
 			},
 			"errors": {
 				"turnstile": "Complete the verification and try again.",
 				"rateLimit": "Guest upload limit reached. Please try again later. Your image and prompt are still here.",
-				"upload": "We could not prepare this private guest edit. Try the upload again."
+				"upload": "We could not prepare this private guest edit. Try the upload again.",
+				"contentRejected": "This reference image did not pass the safety check. Choose a different image.",
+				"reviewRequired": "This reference image needs manual review. No generation has started.",
+				"safetyUnavailable": "The safety check is unavailable. Your image and prompt are kept; try checking this request again later.",
+				"reviewPending": "Your reference image is still being checked. Retry to continue checking the same upload.",
+				"referenceExpired": "This upload can no longer be reused. Choose the image again to start a new upload.",
+				"reviewUnknown": "We could not confirm the safety check. Your upload is kept; retry to check the same request."
 			},
 			"prompt": "Describe your image",
 			"reference": "Reference image · optional",

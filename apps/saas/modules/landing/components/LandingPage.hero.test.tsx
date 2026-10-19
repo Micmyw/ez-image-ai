@@ -29,7 +29,6 @@ vi.mock("@repo/config/client", () => ({
 		{
 			id: "free",
 			monthlyCredits: 25,
-			maximumConcurrentJobs: 1,
 			maximumInputBytes: 10 * 1024 * 1024,
 			allowedProducts: ["image-fast"],
 			prices: [],
@@ -37,7 +36,6 @@ vi.mock("@repo/config/client", () => ({
 		{
 			id: "creator",
 			monthlyCredits: 700,
-			maximumConcurrentJobs: 3,
 			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: ["image-fast", "image-quality"],
 			prices: [
@@ -48,7 +46,6 @@ vi.mock("@repo/config/client", () => ({
 		{
 			id: "studio",
 			monthlyCredits: 3_000,
-			maximumConcurrentJobs: 10,
 			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: ["image-fast", "image-quality"],
 			prices: [

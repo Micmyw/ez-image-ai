@@ -9,6 +9,21 @@ import {
 } from "./worker-executors";
 
 describe("Worker executor workload boundaries", () => {
+	it("keeps account-copy byte transfers heavy and durable orphan recovery in maintenance", () => {
+		const parent: TaskRequest = { taskId: "media-deliver-outbox", payload: {} };
+		const copy = { taskId: "media-copy-account-input", payload: { promotionId: "copy" } };
+		const cleanup = {
+			taskId: "media-cleanup-account-input-copy",
+			payload: { promotionId: "copy" },
+		};
+		expect(workerExecutorLane(copy)).toBe("heavy");
+		expect(workerExecutorLane(cleanup)).toBe("maintenance");
+		expect(workerExecutorLane({ taskId: "media-recover-account-input-copies", payload: {} })).toBe(
+			"maintenance",
+		);
+		expect(() => assertWorkerInlineTask(parent, copy)).toThrow("CROSS_EXECUTOR_INLINE_TASK");
+		expect(() => assertWorkerInlineTask(parent, cleanup)).not.toThrow();
+	});
 	it("keeps targeted output delivery on the bounded control executor", () => {
 		expect(
 			workerExecutorForTask({

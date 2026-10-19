@@ -271,12 +271,19 @@
 				"standard": "Probar gratis",
 				"quality": "Continuar",
 				"retry": "Reintentar",
-				"retryAvailability": "Ver disponibilidad"
+				"retryAvailability": "Ver disponibilidad",
+				"signInBonus": "Inicia sesión · bono único de 5 créditos por cuenta"
 			},
 			"errors": {
 				"rateLimit": "Has alcanzado el límite de subidas para invitados. Inténtalo de nuevo más tarde. Tu imagen y tu instrucción siguen aquí.",
 				"turnstile": "Completa la verificación y vuelve a intentarlo.",
-				"upload": "No pudimos preparar esta edición privada de invitado. Vuelve a subir la imagen."
+				"upload": "No pudimos preparar esta edición privada de invitado. Vuelve a subir la imagen.",
+				"contentRejected": "Esta imagen de referencia no superó la revisión de seguridad. Elige otra imagen.",
+				"reviewRequired": "Esta imagen de referencia necesita una revisión manual. No se ha iniciado ninguna generación.",
+				"safetyUnavailable": "La revisión de seguridad no está disponible. Conservamos tu imagen y descripción; vuelve a comprobar esta solicitud más tarde.",
+				"reviewPending": "Tu imagen de referencia sigue en revisión. Reintenta para seguir comprobando la misma carga.",
+				"referenceExpired": "Esta carga ya no se puede reutilizar. Elige la imagen de nuevo para iniciar otra carga.",
+				"reviewUnknown": "No pudimos confirmar la revisión de seguridad. Conservamos tu carga; reintenta para comprobar la misma solicitud."
 			},
 			"prompt": "Describe tu edición",
 			"reference": "Imagen de origen",

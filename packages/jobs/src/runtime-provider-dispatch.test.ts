@@ -28,7 +28,7 @@ vi.mock("@repo/database", () => ({
 	})),
 }));
 
-import { createDatabaseDispatchStore } from "./runtime";
+import { createDatabaseDispatchStore, createDatabaseGuestAdmissionDependencies } from "./runtime";
 
 const now = new Date("2026-10-19T12:00:00Z");
 const route = {
@@ -273,21 +273,55 @@ describe("durable provider dispatch waiting", () => {
 		expect(f.tx.generationJob.updateMany).not.toHaveBeenCalled();
 	});
 
-	it("preserves the old guest single-active scheduling guard even when supplier capacity is free", async () => {
+	it("allows a queued guest to reach provider scheduling while another guest is active", async () => {
 		const f = fixture(true);
-		capacity.available = true;
-		f.tx.generationJob.findFirst.mockImplementation(async (args: { select?: unknown }) =>
-			args.select ? { ...f.job, id: "other-active-guest" } : f.job,
+		f.job.status = "RESERVED";
+		f.tx.generationJob.findFirst.mockImplementation(
+			async () => ({ id: "another-active-guest" }) as never,
 		);
-		expect(await f.store.claimDispatch({ jobId: f.job.id, version: 4 })).toBeNull();
+		const admission = createDatabaseGuestAdmissionDependencies(f.database as never, f.options);
+		await expect(
+			admission.admit({ jobId: f.job.id, trialId: "guest-trial", now }),
+		).resolves.toMatchObject({ outcome: "ADMITTED" });
 		expect(f.tx.generationAttempt.create).not.toHaveBeenCalled();
-		expect(f.tx.guestRiskBudgetBucket.updateMany).not.toHaveBeenCalled();
+		expect(f.tx.generationJob.findFirst).not.toHaveBeenCalled();
 	});
-	it("preserves the old ten-minute unsent guest expiry guard", async () => {
+
+	it("keeps a provider-waiting guest after ten minutes while the real trial is valid", async () => {
 		const f = fixture(true);
-		capacity.available = true;
-		Object.assign(f.job, { createdAt: new Date(now.getTime() - 10 * 60_000) });
-		expect(await f.store.claimDispatch({ jobId: f.job.id, version: 4 })).toBeNull();
+		Object.assign(f.job, { status: "RESERVED", createdAt: new Date(now.getTime() - 15 * 60_000) });
+		const admission = createDatabaseGuestAdmissionDependencies(f.database as never, f.options);
+		await expect(
+			admission.admit({ jobId: f.job.id, trialId: "guest-trial", now }),
+		).resolves.toMatchObject({ outcome: "ADMITTED" });
+		expect(f.tx.generationAttempt.create).not.toHaveBeenCalled();
+	});
+
+	it("does not inherit a historical estimate as a pre-provider scheduling delay", async () => {
+		const f = fixture(true);
+		f.job.status = "RESERVED";
+		f.job.dispatchEligibleAt = new Date(now.getTime() + 30_000);
+		const admission = createDatabaseGuestAdmissionDependencies(f.database as never, f.options);
+		await expect(
+			admission.admit({ jobId: f.job.id, trialId: "guest-trial", now }),
+		).resolves.toMatchObject({ outcome: "ADMITTED" });
+		expect(f.job.dispatchEligibleAt).toEqual(now);
+		await expect(
+			admission.admit({ jobId: f.job.id, trialId: "guest-trial", now }),
+		).resolves.toMatchObject({ outcome: "SKIPPED" });
+		expect(f.events.size).toBe(1);
+	});
+
+	it("does not suppress provider dispatch just because another guest has unfinished work", async () => {
+		const f = fixture(true);
+		capacity.available = false;
+		f.tx.generationJob.findFirst.mockImplementation(async (args: { select?: unknown }) => {
+			if (args.select) return { id: "another-active-guest" } as never;
+			return f.job;
+		});
+		await expect(f.store.claimDispatch({ jobId: f.job.id, version: 4 })).resolves.toMatchObject({
+			deferred: true,
+		});
 		expect(f.tx.generationAttempt.create).not.toHaveBeenCalled();
 	});
 });

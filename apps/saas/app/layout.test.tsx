@@ -163,9 +163,38 @@ describe("SaaS root layout", () => {
 				raindanceName: fullMessages.videoEffects.raindanceName,
 				raindanceNavigationDescription: fullMessages.videoEffects.raindanceNavigationDescription,
 			});
+			expect(clientMessages.feedback).toEqual({
+				entry: fullMessages.feedback.entry,
+				footer: fullMessages.feedback.footer,
+				report: fullMessages.feedback.report,
+			});
+			for (const [key, value] of Object.entries(fullMessages.media)) {
+				if (key === "history") {
+					expect(clientMessages.media.history).toEqual({ title: fullMessages.media.history.title });
+				} else if (["assets", "edits"].includes(key)) {
+					expect(clientMessages.media).not.toHaveProperty(key);
+				} else if (key === "create") {
+					expect(clientMessages.media.create).not.toHaveProperty("preparation");
+					for (const [createKey, createValue] of Object.entries(fullMessages.media.create)) {
+						if (createKey !== "preparation")
+							expect(clientMessages.media.create[createKey]).toEqual(createValue);
+					}
+				} else {
+					expect(clientMessages.media[key]).toEqual(value);
+				}
+			}
 			for (const [namespace, messages] of Object.entries(fullMessages)) {
 				if (
-					!["admin", "faq", "publicContent", "home", "videoV1", "videoEffects"].includes(namespace)
+					![
+						"admin",
+						"faq",
+						"publicContent",
+						"home",
+						"videoV1",
+						"videoEffects",
+						"media",
+						"feedback",
+					].includes(namespace)
 				) {
 					expect(clientMessages[namespace]).toEqual(messages);
 				}

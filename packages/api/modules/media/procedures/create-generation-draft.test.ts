@@ -58,6 +58,24 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("marketing generation draft input", () => {
+	it("allows independent drafts from the same public IP without a network quota", async () => {
+		databaseMocks.queryRaw.mockResolvedValue([{ allowed: false }]);
+		const context = {
+			context: {
+				headers: new Headers({ origin: "https://app.test", "cf-connecting-ip": "192.0.2.7" }),
+				responseHeaders: new Headers(),
+			},
+		};
+		await expect(
+			call(draftProcedureModule.createGenerationDraft, validDraft, context),
+		).resolves.toMatchObject({ draftId: "draft_1" });
+		await expect(
+			call(draftProcedureModule.createGenerationDraft, validDraft, context),
+		).resolves.toMatchObject({ draftId: "draft_1" });
+		expect(databaseMocks.queryRaw).not.toHaveBeenCalled();
+		const inputs = vi.mocked(createGenerationDraftTransaction).mock.calls.map(([input]) => input);
+		expect(inputs[0].abuseLimits?.subjectHash).not.toBe(inputs[1].abuseLimits?.subjectHash);
+	});
 	it("accepts all 20 current product-owned SKUs and their cell controls", () => {
 		expect(inputSchema).toBeDefined();
 		if (!inputSchema) return;
@@ -162,7 +180,7 @@ describe("marketing generation draft input", () => {
 		await expect(
 			call(draftProcedureModule.createGenerationDraft, boundaryInput, context),
 		).resolves.toMatchObject({ draftId: "draft_1", guestReady: false });
-		expect(databaseMocks.queryRaw).toHaveBeenCalledOnce();
+		expect(databaseMocks.queryRaw).not.toHaveBeenCalled();
 		expect(putPrivateMediaObject).toHaveBeenCalledOnce();
 		expect(createGenerationDraftTransaction).toHaveBeenCalledOnce();
 

@@ -95,7 +95,7 @@ function createGrantCommand(input: CreditGrantInput): CreditCommand {
 /** Read immutable command identity only; this does not establish spendable balance. */
 export async function hasMatchingCreditGrant(
 	input: Omit<CreditGrantInput, "accountId"> & { ownerType: "USER"; ownerId: string },
-	client: MediaTransactionClient,
+	client: MediaDatabaseClient,
 ): Promise<boolean> {
 	const entry = await client.creditLedgerEntry.findUnique({
 		where: { referenceKey: input.referenceKey },

@@ -14,13 +14,30 @@ import {
 	type ProductModelKey,
 } from "@repo/config";
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
-import { unexpiredStorageReservations } from "@repo/database";
+import { effectiveMediaStorageLimit, unexpiredStorageReservations } from "@repo/database";
 import { db } from "@repo/database/client";
 
 import { ensureFreePlanCreditsForGeneration } from "./free-plan-credits";
 import { loadUserPlanEntitlement } from "./plan-entitlement";
 import { enforceMediaRateLimit } from "./rate-limit";
 import { maximumMediaStorageBytes } from "./storage-limits";
+
+const rateLimitReceiptBrand: unique symbol = Symbol("generation-rate-limit-receipt");
+export interface GenerationRateLimitReceipt {
+	readonly [rateLimitReceiptBrand]: true;
+}
+const rateLimitReceiptOwners = new WeakMap<GenerationRateLimitReceipt, string>();
+
+/** Issued only after this incoming request passes the real flood guard. Never serialized. */
+export async function createGenerationRateLimitReceipt(
+	userId: string,
+	enforceRateLimit: typeof enforceMediaRateLimit = enforceMediaRateLimit,
+): Promise<GenerationRateLimitReceipt> {
+	await enforceRateLimit(userId, "media:generation");
+	const receipt = Object.freeze({ [rateLimitReceiptBrand]: true as const });
+	rateLimitReceiptOwners.set(receipt, userId);
+	return receipt;
+}
 
 export interface GenerationAccessSnapshot {
 	generationEnabled: boolean;
@@ -31,13 +48,17 @@ export interface GenerationAccessSnapshot {
 	globalDailyCostMicros?: bigint;
 	maximumGlobalDailyCostMicros?: bigint;
 	storageUsageBytes: bigint;
-	maximumStorageBytes: bigint;
+	maximumStorageBytes: bigint | null;
 	planId: PlanId;
 	sourceAssetReady: boolean;
 	sourceAssetBytes: bigint | null;
 }
 
 export interface GenerationAuthorizationInput {
+	/** Server-selected HTTP flood bucket; never a customer credit or trial counter. */
+	rateLimitAction?: "media:quote" | "media:generation";
+	/** Request-local capability; a client object or another owner cannot satisfy it. */
+	rateLimitReceipt?: GenerationRateLimitReceipt;
 	/** Server-verified receipt; never populated from unvalidated request metadata. */
 	temporaryReference?: TemporaryReference;
 	userId: string;
@@ -171,7 +192,11 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 			globalDailyCostMicros: globalDailyCost?._sum.costMicros ?? 0n,
 			...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
 			storageUsageBytes: storageUsage._sum.bytes ?? 0n,
-			maximumStorageBytes: maximumMediaStorageBytes(),
+			maximumStorageBytes: await effectiveMediaStorageLimit(
+				{ ownerType: "USER", ownerId: input.userId },
+				maximumMediaStorageBytes(),
+				db,
+			),
 			planId: entitlement.id,
 			sourceAssetReady: isUsableGenerationSourceAsset(input.input, sourceAsset),
 			sourceAssetBytes: sourceAsset?.byteSize ?? null,
@@ -189,7 +214,15 @@ export async function assertGenerationAllowed(
 	if (!generationEnabled) {
 		throw new Error("MODEL_DISABLED");
 	}
-	await dependencies.enforceRateLimit(input.userId, "media:generation");
+	if (input.rateLimitReceipt !== undefined) {
+		if (
+			rateLimitReceiptOwners.get(input.rateLimitReceipt) !== input.userId ||
+			(input.rateLimitAction !== undefined && input.rateLimitAction !== "media:generation")
+		)
+			throw new Error("NOT_FOUND");
+	} else {
+		await dependencies.enforceRateLimit(input.userId, input.rateLimitAction ?? "media:generation");
+	}
 	if (
 		(input.catalogVersion && input.catalogVersion !== DEFAULT_PRODUCT_CONFIG.catalogVersion) ||
 		(input.pricingVersion && input.pricingVersion !== DEFAULT_PRODUCT_CONFIG.pricingVersion)
@@ -223,7 +256,10 @@ export async function assertGenerationAllowed(
 	}
 	if (access.creditDebt > 0n) throw new Error("CREDIT_DEBT_OUTSTANDING");
 	if (access.spendableCredits < input.credits) throw new Error("INSUFFICIENT_CREDITS");
-	if (access.storageUsageBytes >= access.maximumStorageBytes) {
+	if (
+		access.maximumStorageBytes !== null &&
+		access.storageUsageBytes >= access.maximumStorageBytes
+	) {
 		throw new Error("STORAGE_QUOTA_EXCEEDED");
 	}
 	if (

@@ -1,0 +1,93 @@
+.feedback-dialog :is(button, a, input, select, textarea, summary):focus-visible {
+	outline: 2px solid #b79cff;
+	outline-offset: 3px;
+}
+.feedback-muted {
+	color: #c4b8cf;
+	font-size: 12px;
+	line-height: 1.6;
+}
+.feedback-field {
+	display: grid;
+	gap: 6px;
+	font-size: 13px;
+}
+.feedback-field :is(input, select, textarea) {
+	width: 100%;
+	min-height: 44px;
+	border: 1px solid #675775;
+	border-radius: 8px;
+	padding: 10px;
+	color: #f2ecfa;
+	background: #2a2033;
+}
+.feedback-field textarea {
+	resize: vertical;
+}
+.feedback-field input::placeholder,
+.feedback-field textarea::placeholder {
+	color: #b3a4c0;
+}
+.feedback-preview {
+	color: #c4b8cf;
+	font-size: 12px;
+}
+.feedback-preview summary {
+	cursor: pointer;
+	padding: 12px 0;
+}
+.feedback-preview pre {
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	font: inherit;
+}
+.feedback-email-action {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 44px;
+	border-radius: 9px;
+	background: #b79cff;
+	color: #231630;
+	font-size: 14px;
+	font-weight: 600;
+}
+.feedback-copy {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	font-size: 12px;
+}
+.feedback-address {
+	user-select: all;
+	overflow-wrap: anywhere;
+}
+.feedback-copy button {
+	min-height: 44px;
+	min-width: 44px;
+	padding: 8px;
+	border: 1px solid #675775;
+	border-radius: 8px;
+	cursor: pointer;
+}
+
+.feedback-dialog > button:last-child {
+	min-height: 44px;
+	min-width: 44px;
+	display: grid;
+	place-items: center;
+	top: 4px;
+	right: 4px;
+}
+.feedback-preview summary {
+	min-height: 44px;
+}
+@media (prefers-reduced-motion: reduce) {
+	.feedback-dialog,
+	.feedback-backdrop {
+		animation: none !important;
+		transition: none !important;
+	}
+}

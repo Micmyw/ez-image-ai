@@ -784,7 +784,7 @@ describe("production media runtime stores", () => {
 		},
 	);
 
-	it("keeps internal guest polling separate from the public capacity estimate", async () => {
+	it("admits another guest without turning its public estimate into a concurrency gate", async () => {
 		await client.$executeRawUnsafe(
 			'TRUNCATE TABLE "user", "guest_abuse_bucket", "guest_risk_budget_bucket", "outbox_event", "generation_quote" CASCADE',
 		);
@@ -805,19 +805,20 @@ describe("production media runtime stores", () => {
 				now: waiting.now,
 			});
 			expect(result).toEqual({
-				outcome: "BUSY",
-				retryAt: new Date(waiting.now.getTime() + 5_000),
+				outcome: "ADMITTED",
+				jobId: waiting.jobId,
+				version: 1,
 			});
 			await expect(
 				client.guestMediaTrial.findUniqueOrThrow({ where: { id: waiting.trialId } }),
 			).resolves.toMatchObject({
-				projectedDispatchAt: new Date(waiting.now.getTime() + 60_000),
-				estimateExpiresAt: new Date(waiting.now.getTime() + 2 * 60_000),
+				projectedDispatchAt: waiting.now,
+				estimateExpiresAt: new Date(waiting.now.getTime() + 30_000),
 			});
 			await expect(
 				client.generationJob.findUniqueOrThrow({ where: { id: waiting.jobId } }),
 			).resolves.toMatchObject({
-				dispatchEligibleAt: new Date(waiting.now.getTime() + 5_000),
+				dispatchEligibleAt: waiting.now,
 			});
 		} finally {
 			await client.generationJob.updateMany({
@@ -991,7 +992,7 @@ describe("production media runtime stores", () => {
 		}
 	});
 
-	it("expires a busy guest job when its public queue estimate would exceed immutable expiry", async () => {
+	it("preserves a guest request and its reservations while its real expiry is still in the future", async () => {
 		await client.$executeRawUnsafe(
 			'TRUNCATE TABLE "user", "guest_abuse_bucket", "guest_risk_budget_bucket", "outbox_event", "generation_quote" CASCADE',
 		);
@@ -1022,7 +1023,7 @@ describe("production media runtime stores", () => {
 					trialId: waiting.trialId,
 					now: waiting.now,
 				}),
-			).resolves.toEqual({ outcome: "EXPIRED", jobId: waiting.jobId });
+			).resolves.toEqual({ outcome: "ADMITTED", jobId: waiting.jobId, version: 1 });
 			const trial = await client.guestMediaTrial.findUniqueOrThrow({
 				where: { id: waiting.trialId },
 			});
@@ -1044,26 +1045,26 @@ describe("production media runtime stores", () => {
 				]),
 			).resolves.toEqual([
 				expect.objectContaining({
-					status: "FAILED",
-					failureCode: "GUEST_QUEUE_EXPIRED",
-					terminalAt: waiting.now,
+					status: "DISPATCH_QUEUED",
+					failureCode: null,
+					terminalAt: null,
 				}),
 				expect.objectContaining({
-					status: "RELEASED",
-					releasedAmount: 5n,
+					status: "ACTIVE",
+					releasedAmount: 0n,
 				}),
-				expect.objectContaining({ reservedMicros: 0n }),
+				expect.objectContaining({ reservedMicros: 20_000n }),
 				1,
 				0,
 			]);
 			expect(trial).toMatchObject({
-				currentJobId: null,
-				eligibility: "AVAILABLE",
-				riskState: "RELEASED",
+				currentJobId: waiting.jobId,
+				eligibility: "IN_FLIGHT",
+				riskState: "HELD",
 				projectedDispatchAt: waiting.now,
 				estimateExpiresAt: nearExpiry,
 				expiresAt: nearExpiry,
-				terminalAt: waiting.now,
+				terminalAt: null,
 			});
 		} finally {
 			await client.generationJob.updateMany({
@@ -3665,7 +3666,9 @@ describe("production media runtime stores", () => {
 	});
 
 	it("audits duplicate zero-cost repairs once, settles each owner's five credits once, and clears capacity", async () => {
-		const fixtures = await Promise.all([seedHeldKieRejection(), seedHeldKieRejection()]);
+		// Admission is fixture setup here. Keep its serializable reservations apart;
+		// the duplicate repair and settlement operations below remain concurrent.
+		const fixtures = [await seedHeldKieRejection(), await seedHeldKieRejection()];
 		for (const fixture of fixtures) {
 			const [first, second] = await Promise.all([
 				resolveAdminKieZeroCostRejection(fixture.repair, client),

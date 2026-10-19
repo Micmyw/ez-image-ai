@@ -24,7 +24,6 @@ describe("loadUserPlanEntitlement", () => {
 
 		await expect(loadUserPlanEntitlement("user-1", { now })).resolves.toMatchObject({
 			id: "creator",
-			maximumConcurrentJobs: 3,
 			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: [
 				"image-nano-banana-2-lite",
@@ -52,7 +51,6 @@ describe("loadUserPlanEntitlement", () => {
 
 		await expect(loadUserPlanEntitlement("user-2")).resolves.toMatchObject({
 			id: "free",
-			maximumConcurrentJobs: 1,
 			maximumInputBytes: 10 * 1024 * 1024,
 			allowedProducts: ["image-nano-banana-2-lite"],
 		});

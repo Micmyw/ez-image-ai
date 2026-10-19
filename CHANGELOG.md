@@ -1,12 +1,37 @@
 # Changelog
 
+## 2026-10-19 — Video pricing availability
+
+Valid video prices no longer stop working at a price approval deadline. Invalid optional effect settings no longer block unrelated fixes from being released; new orders still require valid prices, safety, funding and authorization. Quote, reviewed-content and material-rights expiry remain enforced, and accepted jobs retain their frozen prices and private access rules.
+
 ## 2026-10-19 — Subscriber output storage compatibility
 
 - Prepare image and video output recovery to honor admitted subscriber storage policy after subscription expiry. Free-account caps, byte accounting and new-request admission remain unchanged.
 
-## 2026-10-19 — Video pricing availability
+## 2026-10-19 — Guest input account retention preparation
 
-Valid video prices no longer stop working at a price approval deadline. Invalid optional effect settings no longer block unrelated fixes from being released; new orders still require valid prices, safety, funding and authorization. Quote, reviewed-content and material-rights expiry remain enforced, and accepted jobs retain their frozen prices and private access rules.
+- Prepare permanent account retention for an exclusively claimed guest input before any guest generation has been accepted, with expiry and storage cleanup safeguards. This upgrade stays disabled until the cleanup rollout is verified.
+- Preserve accepted guest results, watermarks, shared credits, access grants and content review.
+
+## 2026-10-19 — Guest access on shared networks
+
+- Allow independent guests on a shared internet connection to upload and submit edits without sharing an IP or subnet quota, including the legacy draft entry.
+- Keep verification, content review, session/device allowances, shared minute/hour capacity, queues and cost controls in place. Signed-in account generation keeps its existing account boundaries.
+
+## 2026-10-19 — Feedback by email
+
+- Add accessible feedback and bug-report entries beside the generator and in the footer, with a previewable email draft and copy-address fallback in English, German, Spanish and French.
+- Explain that accepted feedback may receive 100–1,000 credits after manual review. Opening or sending feedback does not award credits; no editor content is attached automatically.
+
+## 2026-10-19 — One-time account sign-in bonus
+
+- Give each new or existing registered account one non-expiring 5-credit sign-in bonus, separate from monthly Free credits. Existing credit debt is repaid first.
+- Offer account continuation when guest uploads or daily trials reach their limit, while preserving the existing model access, generation prices, and content review.
+
+## 2026-10-19 — Image submission request counting
+
+- Count each combined image submission once in the generation request guard, including concurrent recovery paths, while keeping independent quote throttling and ordinary creation/retry protection.
+- Keep accepted-request replays and concurrent duplicates on the same job and credit reservation; quote previews do not use the generation request bucket.
 
 ## 2026-10-19 — Guest availability throughout the day
 

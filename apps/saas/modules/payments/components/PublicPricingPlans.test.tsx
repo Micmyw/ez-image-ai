@@ -84,7 +84,6 @@ vi.mock("@repo/config/client", async (importOriginal) => ({
 		{
 			id: "free",
 			allowedProducts: ["image-nano-banana-2-lite"],
-			maximumConcurrentJobs: 1,
 			maximumInputBytes: 10 * 1024 * 1024,
 			monthlyCredits: 25,
 			prices: [],
@@ -92,7 +91,6 @@ vi.mock("@repo/config/client", async (importOriginal) => ({
 		{
 			id: "creator",
 			allowedProducts: ["image-nano-banana-2-lite", "image-gpt-image-2", "image-seedream-5-pro"],
-			maximumConcurrentJobs: 3,
 			maximumInputBytes: 20 * 1024 * 1024,
 			monthlyCredits: 700,
 			prices: [
@@ -103,7 +101,6 @@ vi.mock("@repo/config/client", async (importOriginal) => ({
 		{
 			id: "ultimate",
 			allowedProducts: ["image-nano-banana-2-lite", "image-gpt-image-2", "image-seedream-5-pro"],
-			maximumConcurrentJobs: 6,
 			maximumInputBytes: 20 * 1024 * 1024,
 			monthlyCredits: 1800,
 			prices: [
@@ -114,7 +111,6 @@ vi.mock("@repo/config/client", async (importOriginal) => ({
 		{
 			id: "studio",
 			allowedProducts: ["image-nano-banana-2-lite", "image-gpt-image-2", "image-seedream-5-pro"],
-			maximumConcurrentJobs: 10,
 			maximumInputBytes: 20 * 1024 * 1024,
 			monthlyCredits: 3000,
 			prices: [
@@ -252,6 +248,7 @@ describe("PublicPricingPlans", () => {
 		expect(visibleText).toContain("All available image models");
 		expect(visibleText).toContain("Private assets");
 		expect(visibleText).toContain("Private edit history");
+		expect(visibleText).not.toContain("concurrent edits");
 		expect(visibleText).toContain("Portrait, square, and landscape ratios");
 		expect(visibleText).not.toMatch(
 			/Standard Edit|Quality Edit|Kie|OpenRouter|providerModelId|providerCostMicros|gpt-image-2-image-to-image|seedream\/5-pro-image-to-image|\$0\.0/i,

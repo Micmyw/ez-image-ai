@@ -6,6 +6,32 @@ import { maintenanceTasksAt, parseTaskRequest, taskDefinition } from "./registry
 const dispatchTask = "media-dispatch-image-kie-nano-banana-2";
 
 describe("orchestration task admission", () => {
+	it("admits account-copy identities without client-selected storage locations", () => {
+		for (const taskId of ["media-copy-account-input", "media-cleanup-account-input-copy"]) {
+			expect(parseTaskRequest({ taskId, payload: { promotionId: "promotion-1" } })).toEqual({
+				taskId,
+				payload: { promotionId: "promotion-1" },
+			});
+			for (const extra of [
+				{ objectKey: "users/other/final" },
+				{ ownerId: "other" },
+				{ leaseToken: "old" },
+			])
+				expect(() =>
+					parseTaskRequest({ taskId, payload: { promotionId: "promotion-1", ...extra } }),
+				).toThrow();
+		}
+		expect(taskDefinition("media-copy-account-input")).toMatchObject({
+			queue: "media-account-input-copy",
+			timeoutSeconds: 120,
+		});
+		expect(taskDefinition("media-cleanup-account-input-copy")).toMatchObject({
+			queue: "media-account-input-copy-cleanup",
+		});
+		expect(maintenanceTasksAt(Date.UTC(2026, 9, 19, 12, 1))).toContain(
+			"media-recover-account-input-copies",
+		);
+	});
 	it("preserves bounded diagnostic identities without admitting arbitrary trace data", () => {
 		const request = {
 			taskId: "media-verify-upload",
@@ -136,9 +162,10 @@ describe("orchestration capacity and maintenance", () => {
 		expect(() => taskDefinition("not-a-task")).toThrow();
 	});
 
-	it("preserves the nine UTC schedules including separate hourly minute offsets", () => {
+	it("preserves the UTC schedules and includes durable account-copy recovery", () => {
 		const at = (minute: number) => maintenanceTasksAt(Date.UTC(2026, 8, 8, 4, minute));
 		const everyMinute = [
+			"media-recover-account-input-copies",
 			"media-deliver-outbox",
 			"media-recover-finalizing-generations",
 			"media-recover-verifications",
@@ -162,7 +189,7 @@ describe("orchestration capacity and maintenance", () => {
 				"media-reconcile-subscriptions",
 			].sort(),
 		);
-		expect(new Set(Array.from({ length: 60 }, (_, minute) => at(minute)).flat()).size).toBe(9);
+		expect(new Set(Array.from({ length: 60 }, (_, minute) => at(minute)).flat()).size).toBe(10);
 		expect(() => maintenanceTasksAt(Number.NaN)).toThrow();
 	});
 });

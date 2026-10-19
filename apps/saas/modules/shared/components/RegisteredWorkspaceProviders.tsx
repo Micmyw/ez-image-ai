@@ -1,6 +1,12 @@
 "use client";
 
 import { SessionProvider } from "@auth/components/SessionProvider";
+import {
+	type AbstractIntlMessages,
+	NextIntlClientProvider,
+	useLocale,
+	useMessages,
+} from "next-intl";
 import dynamic from "next/dynamic";
 import type { PropsWithChildren } from "react";
 
@@ -14,12 +20,19 @@ const ActiveOrganizationProvider = dynamic(() =>
 	),
 );
 
-export function RegisteredWorkspaceProviders({ children }: PropsWithChildren) {
+export function RegisteredWorkspaceProviders({
+	children,
+	mediaMessages,
+}: PropsWithChildren<{ mediaMessages: AbstractIntlMessages }>) {
+	const messages = useMessages();
+	const locale = useLocale();
 	return (
-		<SessionProvider>
-			<ActiveOrganizationProvider>
-				<ConfirmationAlertProvider>{children}</ConfirmationAlertProvider>
-			</ActiveOrganizationProvider>
-		</SessionProvider>
+		<NextIntlClientProvider locale={locale} messages={{ ...messages, media: mediaMessages }}>
+			<SessionProvider>
+				<ActiveOrganizationProvider>
+					<ConfirmationAlertProvider>{children}</ConfirmationAlertProvider>
+				</ActiveOrganizationProvider>
+			</SessionProvider>
+		</NextIntlClientProvider>
 	);
 }

@@ -7,6 +7,7 @@ import {
 } from "@repo/config";
 
 import type { Prisma } from "../../generated/client";
+import { effectiveMediaStorageLimit } from "./storage-quota";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import { runSerializable, type MediaTransactionClient } from "./types";
 
@@ -57,7 +58,16 @@ export async function reserveTemporaryReference(
 			}),
 		]);
 		if (pending >= 5) throw new Error("ACTIVE_UPLOAD_SESSION_LIMIT_EXCEEDED");
-		if (input.bytes <= 0 || (usage._sum.bytes ?? 0n) + BigInt(input.bytes) > input.maximumBytes)
+		const maximumBytes = await effectiveMediaStorageLimit(
+			{ ownerType: "USER", ownerId: input.ownerId },
+			input.maximumBytes,
+			tx,
+			now,
+		);
+		if (
+			input.bytes <= 0 ||
+			(maximumBytes !== null && (usage._sum.bytes ?? 0n) + BigInt(input.bytes) > maximumBytes)
+		)
 			throw new Error("STORAGE_QUOTA_EXCEEDED");
 		return tx.storageUsageReservation.create({
 			data: {

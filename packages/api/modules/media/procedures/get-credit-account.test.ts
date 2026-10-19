@@ -17,8 +17,16 @@ vi.mock("@repo/database/client", () => ({
 		generationJob: { count: database.countActiveJobs },
 	},
 }));
-vi.mock("@repo/database", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@repo/database")>()),
+vi.mock("@repo/database", () => ({
+	ACTIVE_GENERATION_JOB_STATUSES: [
+		"RESERVED",
+		"DISPATCH_QUEUED",
+		"SUBMITTING",
+		"PROVIDER_PENDING",
+		"PROVIDER_RUNNING",
+		"NEEDS_RECONCILIATION",
+		"FINALIZING",
+	],
 	findEffectivePaidSubscription: database.findSubscription,
 }));
 vi.mock("../lib/free-plan-credits", () => ({
@@ -45,7 +53,7 @@ describe("getCreditAccount", () => {
 		freeCredits.ensure.mockResolvedValue({ status: "GRANTED" });
 	});
 
-	it("returns current balance and plan concurrency without exposing billing internals", async () => {
+	it("returns balance and input entitlement without an unfinished-job quota", async () => {
 		await expect(
 			call(getCreditAccount, undefined, { context: { headers: new Headers() } }),
 		).resolves.toEqual({
@@ -54,7 +62,6 @@ describe("getCreditAccount", () => {
 			creditDebt: "0",
 			version: 7,
 			activeJobs: 2,
-			maximumConcurrentJobs: 3,
 			maximumInputBytes: 20 * 1024 * 1024,
 		});
 		expect(freeCredits.ensure).toHaveBeenCalledWith("user-1");

@@ -22,7 +22,6 @@ function account(spendableCredits: string): CreditAccount {
 		creditDebt: "0",
 		version: 1,
 		activeJobs: 0,
-		maximumConcurrentJobs: 1,
 		maximumInputBytes: 1_000_000,
 	};
 }

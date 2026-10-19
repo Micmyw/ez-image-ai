@@ -36,8 +36,6 @@ describe("retired Worker bindings", () => {
 			const preserved = [
 				"GUEST_SESSION_MAX_ACCEPTED_PER_DAY",
 				"GUEST_DEVICE_MAX_ACCEPTED_PER_DAY",
-				"GUEST_IP_MAX_PER_24_HOURS",
-				"GUEST_SUBNET_MAX_PER_24_HOURS",
 				"GUEST_GLOBAL_MAX_PER_MINUTE",
 				"GUEST_GLOBAL_MAX_PER_HOUR",
 				"GUEST_GLOBAL_MAX_PER_24_HOURS_OTHER",
@@ -71,6 +69,56 @@ describe("retired Worker bindings", () => {
 			]);
 			expect(JSON.parse(request.mock.calls[1]![1]!.body as string)).toEqual({
 				env: { GUEST_GLOBAL_MAX_PER_24_HOURS: null },
+				annotations: {
+					"workers/message":
+						"Prepare retired bindings for release-sha; do not deploy this intermediate version",
+				},
+			});
+		},
+	);
+	it.each(["secret_text", "plain_text"])(
+		"retires guest network %s bindings only on an undeployed snapshot",
+		async (type) => {
+			const oldLimits = [
+				"GUEST_IP_MAX_ACTIVE_JOBS",
+				"GUEST_IP_MAX_PER_10_MINUTES",
+				"GUEST_IP_MAX_PER_24_HOURS",
+				"GUEST_SUBNET_MAX_PER_24_HOURS",
+				"MEDIA_MAX_ACTIVE_ANONYMOUS_DRAFTS",
+				"MEDIA_MAX_ANONYMOUS_DRAFT_BYTES",
+			].map((name) => ({ name, type }));
+			const preserved = [
+				"GUEST_SESSION_MAX_ACCEPTED_PER_DAY",
+				"GUEST_DEVICE_MAX_ACCEPTED_PER_DAY",
+				"GUEST_GLOBAL_MAX_PER_MINUTE",
+				"GUEST_GLOBAL_MAX_PER_HOUR",
+				"GUEST_IP_MAX_ACTIVE_JOBS_OTHER",
+				"GUEST_SUBNET_MAX_PER_24_HOURS_OTHER",
+				"MEDIA_MAX_ACTIVE_ANONYMOUS_DRAFTS_OTHER",
+			].map((name) => ({ name, type: "secret_text" }));
+			const request = vi
+				.fn<typeof fetch>()
+				.mockResolvedValueOnce(
+					response({ id: "old-version", bindings: [...oldLimits, ...preserved] }),
+				)
+				.mockResolvedValueOnce(
+					response({ id: "network-limits-retired-version", bindings: preserved }),
+				);
+			await expect(
+				stageRetiredWorkerBindings(
+					{ ...options, nextBindingNames: preserved.map(({ name }) => name) },
+					request,
+				),
+			).resolves.toEqual({
+				versionId: "network-limits-retired-version",
+				retired: oldLimits.map(({ name }) => name),
+			});
+			expect(request.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
+				[expect.stringContaining("/versions/latest"), "GET"],
+				[expect.stringContaining("/versions/latest"), "PATCH"],
+			]);
+			expect(JSON.parse(request.mock.calls[1]![1]!.body as string)).toEqual({
+				env: Object.fromEntries(oldLimits.map(({ name }) => [name, null])),
 				annotations: {
 					"workers/message":
 						"Prepare retired bindings for release-sha; do not deploy this intermediate version",
@@ -464,7 +512,7 @@ describe("retired Worker bindings", () => {
 		const preserved = [
 			{ name: "GUEST_SESSION_MAX_ACCEPTED_PER_DAY", type: "secret_text" },
 			{ name: "GUEST_DEVICE_MAX_ACCEPTED_PER_DAY", type: "secret_text" },
-			{ name: "GUEST_IP_MAX_PER_10_MINUTES", type: "secret_text" },
+			{ name: "GUEST_GLOBAL_MAX_PER_HOUR", type: "secret_text" },
 			...staged.bindings,
 		];
 		const request = vi

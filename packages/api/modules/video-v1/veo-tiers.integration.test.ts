@@ -104,17 +104,17 @@ const ctx = { context: { headers: new Headers() } };
 let client: PrismaClient;
 let ownerId: string;
 let accountId: string;
-let mockProviderConcurrency: string;
 beforeAll(async () => {
 	const connectionString = process.env.TEST_DATABASE_URL;
 	if (!connectionString) throw new Error("BLOCKED: explicit TEST_DATABASE_URL required");
 	if (!isExplicitVideoVerificationTarget(new URL(connectionString)))
 		throw new Error("ISOLATED_VIDEO_TEST_DATABASE_REQUIRED");
 	client = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
-	// Six lifecycle cases submit once each; retain all older send evidence.
-	mockProviderConcurrency = await providerCapacityForTestRequests(client, 6);
+	// All six tier/mode fixtures really submit once; preserve every historical occupied slot.
+	environment.VIDEO_V1_PROVIDER_CONCURRENCY = await providerCapacityForTestRequests(client, 6);
 });
 beforeEach(async () => {
+	vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
 	for (const [key, value] of Object.entries(environment)) vi.stubEnv(key, value);
 	ownerId = `veo-tier-test-${crypto.randomUUID()}`;
 	vi.mocked(auth.api.getSession).mockResolvedValue({
@@ -249,7 +249,7 @@ describe("protected Veo quote, receipt and dispatch", () => {
 			});
 		},
 	);
-	it("keeps the five-slot legacy capacity gate and admits the same receipt only after fixture slots settle", async () => {
+	it("queues one funded receipt despite five unfinished legacy jobs without sending to a provider", async () => {
 		const blockers: string[] = [];
 		for (let index = 0; index < 5; index++) {
 			const quote = await client.generationQuote.create({
@@ -286,30 +286,43 @@ describe("protected Veo quote, receipt and dispatch", () => {
 			});
 			blockers.push(job.id);
 		}
-		await runWithDatabaseClient(client, async () => {
-			const quote = await call(videoV1Router.quote, base, ctx);
-			const receipt = {
-				quoteId: quote.quoteId,
-				idempotencyKey: crypto.randomUUID(),
-				request: base,
-			};
-			await expect(call(videoV1Router.jobs.create, receipt, ctx)).rejects.toMatchObject({
-				message: "VIDEO_PROVIDER_BUSY",
+		const providerFetch = vi
+			.spyOn(globalThis, "fetch")
+			.mockRejectedValue(new Error("ADMISSION_MUST_NOT_SEND_TO_PROVIDER"));
+		try {
+			await runWithDatabaseClient(client, async () => {
+				const quote = await call(videoV1Router.quote, base, ctx);
+				const receipt = {
+					quoteId: quote.quoteId,
+					idempotencyKey: crypto.randomUUID(),
+					request: base,
+				};
+				const created = await call(videoV1Router.jobs.create, receipt, ctx);
+				expect(created).toMatchObject({ stage: "QUEUED", creditState: "RESERVED" });
+				expect(await client.generationJob.count({ where: { quoteId: quote.quoteId } })).toBe(1);
+				expect(await client.creditReservation.count({ where: { accountId } })).toBe(1);
+				expect(
+					await client.creditReservation.findFirstOrThrow({ where: { accountId } }),
+				).toMatchObject({
+					jobId: created.jobId,
+					amount: BigInt(created.credits),
+					status: "ACTIVE",
+				});
+				await expect(call(videoV1Router.jobs.create, receipt, ctx)).resolves.toMatchObject({
+					jobId: created.jobId,
+				});
+				expect(await client.creditReservation.count({ where: { accountId } })).toBe(1);
+				expect(await client.generationAttempt.count({ where: { jobId: created.jobId } })).toBe(0);
+				expect(
+					await client.generationJob.count({
+						where: { id: { in: blockers }, ownerId, status: "RESERVED" },
+					}),
+				).toBe(5);
+				expect(providerFetch).not.toHaveBeenCalled();
 			});
-			expect(await client.creditReservation.count({ where: { accountId } })).toBe(0);
-			expect(await client.generationJob.count({ where: { quoteId: quote.quoteId } })).toBe(0);
-			// Only this case's synthetic slots settle; never rewrite other suites' jobs.
-			await client.generationJob.updateMany({
-				where: { id: { in: blockers }, ownerId },
-				data: { status: "FAILED", terminalAt: new Date() },
-			});
-			const created = await call(videoV1Router.jobs.create, receipt, ctx);
-			expect(await client.creditReservation.count({ where: { accountId } })).toBe(1);
-			await expect(call(videoV1Router.jobs.create, receipt, ctx)).resolves.toMatchObject({
-				jobId: created.jobId,
-			});
-			expect(await client.creditReservation.count({ where: { accountId } })).toBe(1);
-		});
+		} finally {
+			providerFetch.mockRestore();
+		}
 	});
 	it.each(
 		(["lite", "fast", "quality"] as const).flatMap((veoTier) =>
@@ -376,12 +389,8 @@ describe("protected Veo quote, receipt and dispatch", () => {
 					Response.json({ code: 200, data: { taskId: `fake-${job.id}` } }),
 				);
 				const adapter = new KieVideoModelsAdapter({ apiKey: "fixture", fetch });
-				// Only mock sends use these finite slots. Quote/admission above and the
-				// separate five-slot admission regression retain their original limit.
-				vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
-				vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", mockProviderConcurrency);
 				const overrides = {
-					env: { ...environment, VIDEO_V1_PROVIDER_CONCURRENCY: mockProviderConcurrency },
+					env: environment,
 					provider: {
 						submit: adapter.submit.bind(adapter),
 						retrieve: adapter.retrieve.bind(adapter),

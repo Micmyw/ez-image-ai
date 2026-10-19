@@ -271,12 +271,19 @@
 				"standard": "Gratis testen",
 				"quality": "Weiter",
 				"retry": "Erneut versuchen",
-				"retryAvailability": "Verfügbarkeit prüfen"
+				"retryAvailability": "Verfügbarkeit prüfen",
+				"signInBonus": "Anmelden · einmalig 5 Bonus-Credits pro Konto"
 			},
 			"errors": {
 				"turnstile": "Schließe die Überprüfung ab und versuche es erneut.",
 				"rateLimit": "Das Upload-Limit für Gäste ist erreicht. Bitte versuche es später erneut. Dein Bild und Prompt bleiben erhalten.",
-				"upload": "Diese private Gastbearbeitung konnte nicht vorbereitet werden. Versuche den Upload erneut."
+				"upload": "Diese private Gastbearbeitung konnte nicht vorbereitet werden. Versuche den Upload erneut.",
+				"contentRejected": "Dieses Referenzbild hat die Sicherheitsprüfung nicht bestanden. Wähle ein anderes Bild.",
+				"reviewRequired": "Dieses Referenzbild muss manuell geprüft werden. Es wurde noch keine Generierung gestartet.",
+				"safetyUnavailable": "Die Sicherheitsprüfung ist nicht verfügbar. Bild und Prompt bleiben erhalten; prüfe diese Anfrage später erneut.",
+				"reviewPending": "Dein Referenzbild wird noch geprüft. Wiederholen setzt die Prüfung desselben Uploads fort.",
+				"referenceExpired": "Dieser Upload kann nicht mehr verwendet werden. Wähle das Bild erneut für einen neuen Upload.",
+				"reviewUnknown": "Wir konnten die Sicherheitsprüfung nicht bestätigen. Dein Upload bleibt erhalten; wiederhole die Prüfung derselben Anfrage."
 			},
 			"prompt": "Bearbeitung beschreiben",
 			"reference": "Quellbild",

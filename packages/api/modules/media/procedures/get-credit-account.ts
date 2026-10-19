@@ -37,7 +37,6 @@ export const getCreditAccount = protectedProcedure
 			creditDebt: jsonBigInt(account?.creditDebt ?? 0n),
 			version: account?.version ?? 0,
 			activeJobs,
-			maximumConcurrentJobs: entitlement.maximumConcurrentJobs,
 			maximumInputBytes: entitlement.maximumInputBytes,
 		};
 	});

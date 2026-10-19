@@ -22,6 +22,7 @@ export function workerExecutorLane(input: TaskRequest): WorkerExecutorLane {
 		return ["kie", "fal", "replicate"].includes(route.provider) ? "control" : "heavy";
 	}
 	switch (request.taskId) {
+		case "media-copy-account-input":
 		case "media-finalize-generation":
 			return "heavy";
 		case "media-verify-upload":
@@ -35,6 +36,8 @@ export function workerExecutorLane(input: TaskRequest): WorkerExecutorLane {
 		case "media-settle-generation":
 			return "control";
 		case "media-deliver-outbox":
+		case "media-cleanup-account-input-copy":
+		case "media-recover-account-input-copies":
 		case "media-admit-guest-generation":
 		case "media-cancel-generation":
 		case "media-process-payment-event":

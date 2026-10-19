@@ -1260,6 +1260,21 @@
 				"recent": "Ediciones registradas recientes",
 				"private": "Archivos privados vinculados al propietario"
 			},
+			"preparation": {
+				"title": "Preparando tu imagen privada",
+				"copying": "Guardando la imagen original en tu cuenta…",
+				"verifying": "Comprobando tu imagen guardada antes de continuar…",
+				"ready": "Tu imagen está lista. Abriendo tu edición guardada…",
+				"failed": "No pudimos preparar esta imagen. Vuelve a subirla para continuar.",
+				"expired": "La imagen original caducó antes de guardarse. Vuelve a subirla.",
+				"unavailable": "Esta edición guardada no está disponible para tu cuenta actual.",
+				"connectionError": "No pudimos comprobar la imagen ahora. Vuelve a intentarlo.",
+				"paused": "Tu imagen todavía se está preparando. Comprueba de nuevo cuando quieras.",
+				"saved": "Tu instrucción y tus ajustes están guardados. La generación solo empezará cuando envíes la edición lista.",
+				"recheck": "Comprobar de nuevo",
+				"chooseAnother": "Elegir otra imagen",
+				"checking": "Comprobando…"
+			},
 			"restore": {
 				"qualityUpgradeRequired": "Se restauraron la imagen, la instrucción y el modelo de imagen seleccionado. Elige Pro, Ultimate o Max para continuar con ese modelo.",
 				"upgradeComplete": "Tu plan de pago está activo y se restauraron la imagen, la instrucción, los ajustes del modelo y la sesión de edición.",
@@ -1366,7 +1381,8 @@
 			"dailyAllowance": "Hoy: quedan {remaining, number} de {limit, number} ediciones gratuitas",
 			"dailyReset": "Se restablecen cada día a las 00:00 UTC. Las ediciones no utilizadas no se acumulan.",
 			"dailyLimitReached": "Has usado las dos ediciones gratuitas de hoy. Vuelve después de las 00:00 UTC para disponer de dos más.",
-			"editAnother": "Editar otra imagen"
+			"editAnother": "Editar otra imagen",
+			"loginBonus": "Inicia sesión para continuar con los créditos de tu cuenta. Cada cuenta recibe un bono único de 5 créditos, aparte de los créditos gratuitos mensuales."
 		},
 		"upgradeDialog": {
 			"title": "Desbloquea más modelos de imagen",
@@ -1376,7 +1392,7 @@
 			"continue": "Elegir un plan",
 			"modelDescription": "{model} está incluido en Pro, Ultimate y Max. Elige el plan que se adapte a tus necesidades de edición.",
 			"monthlyCredits": "{credits, number} créditos/mes",
-			"planDetails": "{concurrency, number} ediciones a la vez · imágenes de hasta {megabytes, number} MB",
+			"planDetails": "Imágenes de hasta {megabytes, number} MB",
 			"planNames": {
 				"creator": "Pro",
 				"ultimate": "Ultimate",

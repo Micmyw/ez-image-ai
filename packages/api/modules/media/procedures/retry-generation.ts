@@ -13,7 +13,6 @@ import {
 	productModelKeySchema,
 	type ImageAspectRatio,
 	type ImageSkuKey,
-	type PlanEntitlement,
 	type ProductModelKey,
 } from "@repo/config";
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
@@ -43,7 +42,6 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { dispatchCreatedJobBestEffort } from "../lib/dispatch-created-job";
 import { stableMediaErrorCode, toMediaOrpcError } from "../lib/errors";
 import { assertGenerationAllowed } from "../lib/generation-authorization";
-import { loadUserPlanEntitlement } from "../lib/plan-entitlement";
 import { buildMediaQuote } from "../lib/quote";
 import { maximumMediaStorageBytes } from "../lib/storage-limits";
 import {
@@ -81,7 +79,6 @@ export interface RetryGenerationDependencies {
 	}): Promise<GenerationRetryRequestClaim | null>;
 	findSource(input: { userId: string; jobId: string }): Promise<RetryGenerationSource | null>;
 	assertAllowed: typeof assertGenerationAllowed;
-	loadEntitlement(userId: string): Promise<Pick<PlanEntitlement, "maximumConcurrentJobs">>;
 	claimRequest(input: ClaimGenerationRetryRequestInput): Promise<GenerationRetryRequestClaim>;
 	createAdapter(): {
 		provider: TextModerationEvidence["provider"];
@@ -133,7 +130,6 @@ const defaultDependencies: RetryGenerationDependencies = {
 			},
 		}),
 	assertAllowed: (input) => assertGenerationAllowed(input),
-	loadEntitlement: (userId) => loadUserPlanEntitlement(userId),
 	claimRequest: (input) => claimGenerationRetryRequest(input, db),
 	createAdapter: () => createTextModerationAdapter(process.env),
 	persistApproved: (input) => createGenerationRetryQuoteCheckpoint(input, db),
@@ -256,7 +252,6 @@ export async function retryGenerationForUser(
 			pricingVersion: operation.pricingVersion,
 			enforceProspectiveDailyBudget: false,
 		});
-		const entitlement = await dependencies.loadEntitlement(userId);
 		const maximumGlobalDailyCostMicros = mediaDailyProviderCostBudgetMicros(process.env);
 		const quoteInput = {
 			ownerType: "USER" as const,
@@ -319,7 +314,6 @@ export async function retryGenerationForUser(
 			maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
 			...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
 			maximumStorageBytes: maximumMediaStorageBytes(),
-			maximumConcurrentJobs: entitlement.maximumConcurrentJobs,
 			...(operation.editContext ? { edit: operation.editContext } : {}),
 		});
 		jobCreated = true;

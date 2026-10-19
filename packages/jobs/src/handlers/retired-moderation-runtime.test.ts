@@ -39,6 +39,7 @@ function fixture(provider: string, status = "VERIFYING") {
 	});
 	const tx = {
 		$executeRaw: vi.fn(async () => 1),
+		$queryRaw: vi.fn(async () => []),
 		mediaAsset: { findUnique: async () => asset, updateMany, update },
 		assetModerationResult: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({})) },
 		auditLog: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({})) },

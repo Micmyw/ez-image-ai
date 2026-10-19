@@ -17,7 +17,6 @@ import {
 export const planEntitlementSchema = z.object({
 	id: planIdSchema,
 	monthlyCredits: z.number().int().nonnegative(),
-	maximumConcurrentJobs: z.number().int().positive(),
 	maximumInputBytes: z.number().int().positive(),
 	allowedProducts: z.array(productModelKeySchema).min(1),
 	prices: z.array(
@@ -38,7 +37,6 @@ export const PLAN_ENTITLEMENTS = z
 		{
 			id: "free",
 			monthlyCredits: 25,
-			maximumConcurrentJobs: 1,
 			maximumInputBytes: 10 * 1024 * 1024,
 			allowedProducts: ["image-nano-banana-2-lite"],
 			prices: [],
@@ -46,7 +44,6 @@ export const PLAN_ENTITLEMENTS = z
 		{
 			id: "creator",
 			monthlyCredits: 700,
-			maximumConcurrentJobs: 3,
 			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: [...EZPIC_PRODUCT_KEYS],
 			prices: [
@@ -57,7 +54,6 @@ export const PLAN_ENTITLEMENTS = z
 		{
 			id: "ultimate",
 			monthlyCredits: 1_800,
-			maximumConcurrentJobs: 6,
 			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: [...EZPIC_PRODUCT_KEYS],
 			prices: [
@@ -68,7 +64,6 @@ export const PLAN_ENTITLEMENTS = z
 		{
 			id: "studio",
 			monthlyCredits: 3_000,
-			maximumConcurrentJobs: 10,
 			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: [...EZPIC_PRODUCT_KEYS],
 			prices: [

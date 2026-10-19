@@ -19,6 +19,14 @@ export async function deliverOutboxEvent(
 ): Promise<void> {
 	const payload = objectValue(event.payload);
 	switch (event.eventType) {
+		case "ACCOUNT_INPUT_COPY_REQUESTED":
+			return dependencies.trigger("media-copy-account-input", {
+				promotionId: requiredString(payload.promotionId, event.aggregateId),
+			});
+		case "ACCOUNT_INPUT_COPY_ORPHAN_CHECK":
+			return triggerAndWait(dependencies, "media-cleanup-account-input-copy", {
+				promotionId: requiredString(payload.promotionId, event.aggregateId),
+			});
 		case "MODERATION_INCIDENT_ALERT":
 			if (
 				!dependencies.deliverModerationAlert ||

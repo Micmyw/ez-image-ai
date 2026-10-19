@@ -1,6 +1,7 @@
 import { passkey } from "@better-auth/passkey";
 import {
 	db,
+	ensureOneTimeLoginCreditGrant,
 	getInvitationById,
 	getOrganizationMembership,
 	getPurchasesByOrganizationId,
@@ -69,6 +70,18 @@ export const auth = betterAuth({
 							activeOrganizationId: user?.lastActiveOrganizationId ?? null,
 						},
 					};
+				},
+				after: async (session) => {
+					try {
+						await ensureOneTimeLoginCreditGrant({ ownerId: session.userId }, db);
+					} catch (error) {
+						// Balance reads and generation admission retry this idempotent gift.
+						logger.error("Login credit bonus could not be granted", {
+							ctx: "loginCreditBonus",
+							userId: session.userId,
+							errorType: error instanceof Error ? error.name : "UnknownError",
+						});
+					}
 				},
 			},
 		},

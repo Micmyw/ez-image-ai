@@ -10,7 +10,10 @@ export function GuestConversionActions({
 	return (
 		<div className="border-violet-200 bg-violet-50/80 p-4 sm:p-5 rounded-2xl border">
 			<div className="gap-3 sm:flex-row sm:items-center sm:justify-between flex flex-col">
-				<p className="max-w-xl text-sm leading-6 text-slate-600">{t("accountDisclosure")}</p>
+				<div className="max-w-xl space-y-1 text-sm leading-6 text-slate-600">
+					<p className="font-medium text-violet-800">{t("loginBonus")}</p>
+					<p>{t("accountDisclosure")}</p>
+				</div>
 				<div className="gap-2 flex flex-wrap">
 					<Button
 						type="button"

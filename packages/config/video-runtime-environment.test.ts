@@ -53,6 +53,21 @@ describe("private video runtime environment transport", () => {
 			expandVideoRuntimeEnvironment({ ...input, VIDEO_COST_STORAGE_MICROS: "different" }),
 		).toThrow("VIDEO_RUNTIME_CONFIG_CONFLICT");
 	});
+	it("reads a legacy global admission limit but omits it from new packs and keeps execution capacity", () => {
+		const legacy = { ...policy, VIDEO_V1_GLOBAL_CONCURRENCY: "5" };
+		const input = {
+			VIDEO_RUNTIME_CONFIG: JSON.stringify(legacy),
+			VIDEO_V1_GLOBAL_CONCURRENCY: "retired-conflicting-value",
+		};
+		expect(parseVideoRuntimeConfig(input.VIDEO_RUNTIME_CONFIG)).toEqual(legacy);
+		expect(() => expandVideoRuntimeEnvironment(input)).not.toThrow();
+		const packed = packVideoRuntimeEnvironment(input);
+		expect(parseVideoRuntimeConfig(packed.VIDEO_RUNTIME_CONFIG)).toEqual(policy);
+		expect(packed).not.toHaveProperty("VIDEO_V1_GLOBAL_CONCURRENCY");
+		expect(parseVideoRuntimeConfig(packed.VIDEO_RUNTIME_CONFIG).VIDEO_V1_PROVIDER_CONCURRENCY).toBe(
+			"1",
+		);
+	});
 	it("reads obsolete access fields for compatibility and drops them from new runtime packs", () => {
 		const legacy = {
 			...policy,

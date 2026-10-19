@@ -898,6 +898,46 @@ describe("guest private upload handoff", () => {
 		expect(databaseMocks.finalizeDraft).toHaveBeenCalledTimes(2);
 	});
 
+	it.each([
+		"GUEST_UPLOAD_CONTENT_REJECTED",
+		"GUEST_UPLOAD_REVIEW_REQUIRED",
+		"GUEST_UPLOAD_SAFETY_UNAVAILABLE",
+	])("projects %s as a terminal safe response instead of PENDING", async (code) => {
+		databaseMocks.loadCompletion.mockResolvedValue({
+			ownerId: "guest_owner",
+			assetId: "asset_1",
+			status: "COMPLETED",
+			stagingObjectKey: "users/guest_owner/staging/session_1/nonce.png",
+			contentType: "image/png",
+			expectedBytes: 8,
+			expectedSha256: "a".repeat(64),
+			capabilityVersion,
+		});
+		databaseMocks.finalizeDraft.mockRejectedValueOnce(new Error(code));
+		const result = await call(
+			completeGuestDraftUpload,
+			{
+				sessionId: "session_1",
+				completionToken: "b".repeat(43),
+				capabilityVersion,
+				productKey: "image-nano-banana-2-lite",
+				skuKey: "nano-banana-2-lite-1k",
+				sha256: "a".repeat(64),
+				prompt: "Replace the background",
+			},
+			{
+				context: {
+					headers: new Headers({ origin: "https://saas.test" }),
+					responseHeaders: new Headers(),
+				},
+			},
+		);
+		expect(result).toEqual({ status: "FAILED", code });
+		expect(result).not.toHaveProperty("claimToken");
+		expect(storageMocks.headObject).not.toHaveBeenCalled();
+		expect(uploadMocks.completeOwnedUploadSession).not.toHaveBeenCalled();
+	});
+
 	it("maps the internal bootstrap ceiling to one stable public capacity error", async () => {
 		databaseMocks.finalizeDraft.mockRejectedValueOnce(
 			new Error("GUEST_OUTSTANDING_BOOTSTRAP_CAP_EXCEEDED"),

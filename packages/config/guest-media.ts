@@ -16,22 +16,14 @@ export type GuestMediaDisabledReason =
 	| "GUEST_PRODUCTION_TRUSTED_PROXY_REQUIRED";
 
 export interface GuestAdmissionLimits {
-	maximumActiveJobsPerGuest: number;
 	maximumAcceptedTrialsPerSessionPerDay: number;
-	maximumActiveJobsPerDevice: number;
 	maximumAcceptedTrialsPerDevicePerDay: number;
-	maximumActiveJobsPerIp: number;
-	maximumRequestsPerIpPerTenMinutes: number;
-	maximumRequestsPerIpPerDay: number;
-	maximumRequestsPerSubnetPerDay: number;
 	maximumGlobalRequestsPerMinute: number;
 	maximumGlobalRequestsPerHour: number;
 	maximumOutstandingBootstraps: number;
 	maximumTemporaryPrincipals: number;
 	/** Compatibility aliases for the upload boundary while it migrates to the complete envelope. */
 	maximumRequestsPerMinute: number;
-	maximumRequestsPerIpPerHour: number;
-	maximumGlobalQueueDepth: number;
 }
 
 export interface GuestMediaRuntimeOverrideRecord {
@@ -55,7 +47,6 @@ export interface GuestMediaConfig {
 	maximumBytes: number;
 	mimeTypes: typeof GUEST_MEDIA_MIME_TYPES;
 	retentionMs: number;
-	queueTtlMs: number;
 	abuseEvidenceTtlMs: number;
 	bootstrapTtlMs: number;
 	linkIntentTtlMs: number;
@@ -90,27 +81,18 @@ const FIXED_GUEST_MEDIA_CONFIG = {
 	maximumBytes: 10 * 1024 * 1024,
 	mimeTypes: GUEST_MEDIA_MIME_TYPES,
 	retentionMs: 24 * 60 * 60 * 1_000,
-	queueTtlMs: 10 * 60 * 1_000,
 	abuseEvidenceTtlMs: 30 * 24 * 60 * 60 * 1_000,
 	bootstrapTtlMs: 30 * 60 * 1_000,
 	linkIntentTtlMs: 15 * 60 * 1_000,
 	resultGrantTtlMs: 15 * 60 * 1_000,
 	limits: Object.freeze({
-		maximumActiveJobsPerGuest: 1,
 		maximumAcceptedTrialsPerSessionPerDay: 2,
-		maximumActiveJobsPerDevice: 1,
 		maximumAcceptedTrialsPerDevicePerDay: 2,
-		maximumActiveJobsPerIp: 2,
-		maximumRequestsPerIpPerTenMinutes: 2,
-		maximumRequestsPerIpPerDay: 3,
-		maximumRequestsPerSubnetPerDay: 20,
 		maximumGlobalRequestsPerMinute: 3,
 		maximumGlobalRequestsPerHour: 30,
 		maximumOutstandingBootstraps: 25,
 		maximumTemporaryPrincipals: 100,
 		maximumRequestsPerMinute: 3,
-		maximumRequestsPerIpPerHour: 3,
-		maximumGlobalQueueDepth: 25,
 	}),
 } as const;
 
@@ -193,7 +175,6 @@ export function getGuestMediaConfig(
 	) {
 		reason = "GUEST_CONFIGURATION_INVALID";
 	}
-	const queueTtlMs = productionEnvelope?.queueTtlMs ?? FIXED_GUEST_MEDIA_CONFIG.queueTtlMs;
 	const abuseEvidenceTtlMs =
 		productionEnvelope?.abuseEvidenceTtlMs ?? FIXED_GUEST_MEDIA_CONFIG.abuseEvidenceTtlMs;
 	const limits = Object.freeze(productionEnvelope?.limits ?? FIXED_GUEST_MEDIA_CONFIG.limits);
@@ -203,7 +184,6 @@ export function getGuestMediaConfig(
 		reason,
 		promotionPeriod,
 		...FIXED_GUEST_MEDIA_CONFIG,
-		queueTtlMs,
 		abuseEvidenceTtlMs,
 		limits,
 		riskBudgetMicros,
@@ -279,68 +259,42 @@ function productionAbuseOverrideReady(input: {
 }
 
 function readProductionGuestEnvelope(environment: Record<string, unknown>): {
-	queueTtlMs: number;
 	abuseEvidenceTtlMs: number;
 	limits: GuestAdmissionLimits;
 } | null {
-	const queueTtlSeconds = positiveInteger(environment.GUEST_QUEUE_TTL_SECONDS);
 	const abuseEvidenceTtlDays = positiveInteger(environment.GUEST_ABUSE_EVIDENCE_TTL_DAYS);
 	const configured = {
-		maximumActiveJobsPerGuest: positiveInteger(environment.GUEST_SESSION_MAX_ACTIVE_JOBS),
 		maximumAcceptedTrialsPerSessionPerDay: positiveInteger(
 			environment.GUEST_SESSION_MAX_ACCEPTED_PER_DAY,
 		),
-		maximumActiveJobsPerDevice: positiveInteger(environment.GUEST_DEVICE_MAX_ACTIVE_JOBS),
 		maximumAcceptedTrialsPerDevicePerDay: positiveInteger(
 			environment.GUEST_DEVICE_MAX_ACCEPTED_PER_DAY,
 		),
-		maximumActiveJobsPerIp: positiveInteger(environment.GUEST_IP_MAX_ACTIVE_JOBS),
-		maximumRequestsPerIpPerTenMinutes: positiveInteger(environment.GUEST_IP_MAX_PER_10_MINUTES),
-		maximumRequestsPerIpPerDay: positiveInteger(environment.GUEST_IP_MAX_PER_24_HOURS),
-		maximumRequestsPerSubnetPerDay: positiveInteger(environment.GUEST_SUBNET_MAX_PER_24_HOURS),
 		maximumGlobalRequestsPerMinute: positiveInteger(environment.GUEST_GLOBAL_MAX_PER_MINUTE),
 		maximumGlobalRequestsPerHour: positiveInteger(environment.GUEST_GLOBAL_MAX_PER_HOUR),
-		maximumGlobalQueueDepth: positiveInteger(environment.GUEST_QUEUE_MAX_DEPTH),
 		maximumOutstandingBootstraps: positiveInteger(environment.GUEST_BOOTSTRAP_MAX_OUTSTANDING),
 		maximumTemporaryPrincipals: positiveInteger(environment.GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL),
 	};
-	if (
-		queueTtlSeconds === null ||
-		abuseEvidenceTtlDays === null ||
-		Object.values(configured).some((value) => value === null)
-	) {
+	if (abuseEvidenceTtlDays === null || Object.values(configured).some((value) => value === null)) {
 		return null;
 	}
 	const completeLimits = configured as Record<keyof typeof configured, number>;
 	if (
-		queueTtlSeconds > 600 ||
 		abuseEvidenceTtlDays !== 30 ||
-		completeLimits.maximumActiveJobsPerGuest > 1 ||
 		completeLimits.maximumAcceptedTrialsPerSessionPerDay > 2 ||
-		completeLimits.maximumActiveJobsPerDevice > 1 ||
 		completeLimits.maximumAcceptedTrialsPerDevicePerDay > 2 ||
-		completeLimits.maximumActiveJobsPerIp > 2 ||
-		completeLimits.maximumRequestsPerIpPerTenMinutes > 2 ||
-		completeLimits.maximumRequestsPerIpPerDay > 3 ||
-		completeLimits.maximumRequestsPerSubnetPerDay > 20 ||
 		completeLimits.maximumGlobalRequestsPerMinute > 3 ||
 		completeLimits.maximumGlobalRequestsPerHour > 30 ||
-		completeLimits.maximumGlobalQueueDepth > 25 ||
 		completeLimits.maximumOutstandingBootstraps > 25 ||
 		completeLimits.maximumTemporaryPrincipals > 100
 	) {
 		return null;
 	}
 	return {
-		queueTtlMs: queueTtlSeconds * 1_000,
 		abuseEvidenceTtlMs: abuseEvidenceTtlDays * 24 * 60 * 60 * 1_000,
 		limits: {
 			...completeLimits,
 			maximumRequestsPerMinute: completeLimits.maximumGlobalRequestsPerMinute,
-			maximumRequestsPerIpPerHour: Math.min(
-				completeLimits.maximumRequestsPerIpPerDay,
-				completeLimits.maximumRequestsPerSubnetPerDay,
-			),
 		} as GuestAdmissionLimits,
 	};
 }

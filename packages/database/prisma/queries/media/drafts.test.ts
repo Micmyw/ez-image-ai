@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("../../client", () => ({
+	getDatabaseClient: () => {
+		throw new Error("Unexpected implicit database connection");
+	},
+}));
+
 import {
 	claimGenerationDraftTransaction,
 	createGenerationDraftTransaction,
@@ -80,7 +86,56 @@ const currentDraftSelections = [
 	})),
 ] as const;
 
+function inactiveAccountInputCopyQuery(draftId: string) {
+	return vi.fn(async (query: TemplateStringsArray, ...values: unknown[]) => {
+		// These existing claim fixtures have no durable copy intent. Keep the real
+		// status helper active, and reject any unrelated raw-query dependency.
+		expect(query.join("?")).toBe(
+			'SELECT "id","payload" FROM "outbox_event" WHERE "dedupeKey"=? AND "eventType"=?',
+		);
+		expect(values).toEqual([`account-input-copy:v1:${draftId}`, "ACCOUNT_INPUT_COPY_INTENT"]);
+		return [];
+	});
+}
+
 describe("createGenerationDraftTransaction", () => {
+	it("does not apply legacy subject count or byte quotas to independent public drafts", async () => {
+		const tx = {
+			$executeRaw: vi.fn().mockResolvedValue(1),
+			$queryRaw: vi.fn().mockResolvedValue([{ allowed: true }]),
+			generationDraft: {
+				findMany: vi
+					.fn()
+					.mockResolvedValue([{ assetId: "one" }, { assetId: "two" }, { assetId: "three" }]),
+				create: vi.fn(async ({ data }) => ({ id: "draft-new", expiresAt: data.expiresAt })),
+			},
+			mediaAsset: { aggregate: vi.fn().mockResolvedValue({ _sum: { byteSize: 100_000_000n } }) },
+		};
+		const result = createGenerationDraftTransaction(
+			{
+				claimTokenHash: "a".repeat(64),
+				productKey: "image-nano-banana-2-lite",
+				input: {
+					kind: "image-to-image",
+					prompt: "Change sky",
+					skuKey: "nano-banana-2-lite-1k",
+					aspectRatio: "auto",
+				},
+				expiresAt: new Date(Date.now() + 60_000),
+				abuseLimits: {
+					subjectHash: "same-former-ip",
+					maximumActiveDrafts: 3,
+					maximumActiveBytes: 25_000_000n,
+					maximumGlobalDraftsPerMinute: 100,
+				},
+			},
+			{
+				$transaction: async (operation: (transaction: typeof tx) => Promise<unknown>) =>
+					operation(tx),
+			} as never,
+		);
+		await expect(result).resolves.toMatchObject({ id: "draft-new" });
+	});
 	it.each(currentDraftSelections)(
 		"accepts the current $productKey / $skuKey selection without exposing a Provider field",
 		async ({ productKey, skuKey, aspectRatio, controls }) => {
@@ -334,6 +389,9 @@ describe("finalizeGuestDraftFromReadyUploadTransaction", () => {
 describe("claimGenerationDraftTransaction", () => {
 	it("atomically consumes one active token and transfers its temporary asset to the user", async () => {
 		const tx = {
+			$queryRaw: inactiveAccountInputCopyQuery("draft_1"),
+			subscription: { findMany: vi.fn(async () => []) },
+			billingPeriod: { fields: { paidAmount: "paidAmount" } },
 			generationDraft: {
 				findFirst: vi.fn().mockResolvedValue({
 					id: "draft_1",
@@ -351,7 +409,13 @@ describe("claimGenerationDraftTransaction", () => {
 			},
 			$executeRaw: vi.fn(),
 			mediaAsset: {
-				findFirst: vi.fn().mockResolvedValue({ id: "asset_1", byteSize: 128n, uploadSessions: [] }),
+				findFirst: vi.fn().mockResolvedValue({
+					id: "asset_1",
+					byteSize: 128n,
+					status: "VERIFYING",
+					deletedAt: null,
+					uploadSessions: [],
+				}),
 				updateMany: vi.fn().mockResolvedValue({ count: 1 }),
 			},
 			storageUsageReservation: {
@@ -401,7 +465,7 @@ describe("claimGenerationDraftTransaction", () => {
 		);
 		expect(tx.mediaAsset.updateMany).toHaveBeenCalledWith(
 			expect.objectContaining({
-				where: { id: "asset_1", ownerId: "draft:draft_1", status: "VERIFYING" },
+				where: { id: "asset_1", ownerId: "draft:draft_1", status: "VERIFYING", deletedAt: null },
 				data: { ownerType: "USER", ownerId: "user_1" },
 			}),
 		);
@@ -413,6 +477,7 @@ describe("claimGenerationDraftTransaction", () => {
 				}),
 			}),
 		);
+		expect(tx.$queryRaw).toHaveBeenCalledOnce();
 	});
 
 	it("rejects a replay when the atomic state change loses", async () => {
@@ -469,6 +534,7 @@ describe("claimGenerationDraftTransaction", () => {
 			status: "SUBMITTED",
 		};
 		const tx = {
+			$queryRaw: inactiveAccountInputCopyQuery("draft_1"),
 			generationDraft: {
 				findFirst: vi.fn().mockResolvedValueOnce(activeDraft).mockResolvedValueOnce(submittedDraft),
 				updateMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -521,6 +587,7 @@ describe("claimGenerationDraftTransaction", () => {
 			expiresAt: new Date("2026-08-14T01:00:00Z"),
 		};
 		const tx = {
+			$queryRaw: inactiveAccountInputCopyQuery("draft_1"),
 			generationDraft: {
 				findFirst: vi.fn().mockResolvedValue(submittedDraft),
 				updateMany: vi.fn().mockResolvedValue({ count: 0 }),
@@ -575,6 +642,7 @@ describe("claimGenerationDraftTransaction", () => {
 			expiresAt: new Date("2026-08-14T01:00:00Z"),
 		};
 		const tx = {
+			$queryRaw: inactiveAccountInputCopyQuery("draft_1"),
 			generationDraft: { findFirst: vi.fn().mockResolvedValue(submittedDraft) },
 		};
 		const client = { $transaction: vi.fn((operation) => operation(tx)) };
@@ -616,7 +684,10 @@ describe("claimGenerationDraftTransaction", () => {
 				productKey,
 				expiresAt: new Date("2026-09-08T01:00:00.000Z"),
 			};
-			const tx = { generationDraft: { findFirst: vi.fn().mockResolvedValue(submittedDraft) } };
+			const tx = {
+				$queryRaw: inactiveAccountInputCopyQuery("draft_1"),
+				generationDraft: { findFirst: vi.fn().mockResolvedValue(submittedDraft) },
+			};
 			const client = { $transaction: vi.fn((operation) => operation(tx)) };
 
 			await expect(
@@ -646,6 +717,7 @@ describe("claimGenerationDraftTransaction", () => {
 
 	it("does not return provider, cost, credential, or unknown durable JSON fields", async () => {
 		const tx = {
+			$queryRaw: inactiveAccountInputCopyQuery("draft_1"),
 			generationDraft: {
 				findFirst: vi.fn().mockResolvedValue({
 					id: "draft_1",

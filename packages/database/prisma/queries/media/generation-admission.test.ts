@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("../../client", () => ({
+	getDatabaseClient: () => {
+		throw new Error("Unexpected implicit database connection");
+	},
+}));
+
 import { loadCurrentGenerationAdmission } from "./generation-admission";
 
 function transaction(overrides: string[] = [], planId = "free") {
@@ -51,14 +57,14 @@ describe("transaction-current admission", () => {
 			),
 		).rejects.toThrow("ENTITLEMENT_REQUIRED");
 	});
-	it("derives concurrency and the tighter product size limit from the current plan", async () => {
+	it("derives the tighter product size limit without limiting unfinished task counts", async () => {
 		const tx = transaction([], "studio");
 		const admission = await loadCurrentGenerationAdmission(
 			{ ownerId: "owner", productKey: "image-nano-banana", costMicros: 10n, now: new Date() },
 			tx as never,
 		);
 		expect(admission.maximumInputBytes).toBe(10_000_000);
-		expect(admission.maximumConcurrentJobs).toBeGreaterThan(1);
+		expect(admission).not.toHaveProperty("maximumConcurrentJobs");
 		expect(tx.runtimeConfigOverride.findMany).toHaveBeenCalledTimes(1);
 		expect(tx.subscription.findMany).toHaveBeenCalledTimes(1);
 	});

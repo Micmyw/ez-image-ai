@@ -69,10 +69,10 @@ import {
 	canSettleKieZeroCostRejection,
 	claimGenerationOutputTransferTransaction,
 	claimOutboxBatch,
+	claimMediaStorageCleanupTransaction,
 	completeGenerationOutputTransferTransaction,
 	completeOutboxEvent,
 	deferOutboxEvent,
-	deriveGuestQueueEstimate,
 	expireGuestJobBeforeProvider,
 	expireGuestMediaTransaction,
 	failGenerationOutputTransferTransaction,
@@ -96,6 +96,17 @@ import type {
 	MediaAssetStatus,
 	ModerationStatus,
 } from "@repo/database/generated-client";
+import {
+	claimAccountInputCopy,
+	registerAccountInputCopyMultipart,
+	clearAccountInputCopyMultipart,
+	commitAccountInputCopy,
+	failAccountInputCopy,
+	recoverAccountInputCopies,
+	claimAccountInputCopyOrphan,
+	recordAccountInputCopyOrphanPass,
+	reconcileAccountInputCopyTargetInTransaction,
+} from "@repo/database/media-account-input-copy";
 import {
 	abortMultipartUpload,
 	assertMediaKind,
@@ -125,6 +136,9 @@ import type { MediaObjectMetadata } from "@repo/storage";
 
 import {
 	DispatchAdmissionBlockedError,
+	type AccountInputCopyDependencies,
+	type AccountInputCopyOrphanDependencies,
+	type AccountInputCopyRecoveryDependencies,
 	type DispatchStore,
 	type DispatchDeferred,
 	type FinalizationDependencies,
@@ -369,14 +383,13 @@ export function createDatabaseGuestAdmissionDependencies(
 	options: GuestAdmissionRuntimeOptions = {},
 ): GuestAdmissionDependencies {
 	const environment = options.environment ?? process.env;
-	const retryDelayMs = options.retryDelayMs ?? 30_000;
 	const queueCapacity = options.queueCapacity ?? 1;
 	const serviceTimeMs = options.serviceTimeMs ?? 60_000;
 	return {
 		async admit(input) {
 			return database.$transaction(
 				async (tx) => {
-					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('guest-dispatch-global', 0))`;
+					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`guest-dispatch:${input.jobId}`}, 0))`;
 					const job = await tx.generationJob.findUnique({
 						where: { executionEngine: "legacy", id: input.jobId },
 						include: {
@@ -393,10 +406,7 @@ export function createDatabaseGuestAdmissionDependencies(
 					if (job.attempts.length !== 0 || job.status !== "RESERVED") {
 						return { outcome: "SKIPPED" as const, jobId: job.id };
 					}
-					if (
-						input.now.getTime() - job.createdAt.getTime() >= 10 * 60_000 ||
-						trial.expiresAt <= input.now
-					) {
+					if (trial.expiresAt <= input.now) {
 						const expired = await expireGuestJobBeforeProvider(
 							{ jobId: job.id, now: input.now, queueCapacity, serviceTimeMs },
 							tx,
@@ -440,85 +450,6 @@ export function createDatabaseGuestAdmissionDependencies(
 							? { outcome: "SKIPPED" as const, jobId: job.id }
 							: expired;
 					}
-					if (job.dispatchEligibleAt && job.dispatchEligibleAt > input.now) {
-						return { outcome: "BUSY" as const, retryAt: job.dispatchEligibleAt };
-					}
-					const active = await tx.generationJob.findFirst({
-						where: {
-							executionEngine: "legacy",
-							serviceClass: "GUEST_SLOW",
-							id: { not: job.id },
-							status: {
-								in: [
-									"DISPATCH_QUEUED",
-									"SUBMITTING",
-									"PROVIDER_PENDING",
-									"PROVIDER_RUNNING",
-									"NEEDS_RECONCILIATION",
-									"FINALIZING",
-								],
-							},
-						},
-						select: { id: true },
-					});
-					const [oldest] = await tx.$queryRaw<Array<{ id: string }>>`
-						SELECT "id"
-						FROM "generation_job"
-						WHERE "serviceClass" = 'GUEST_SLOW'::"GenerationServiceClass"
-						  AND "executionEngine" = 'legacy'
-						  AND "status" = 'RESERVED'::"GenerationJobStatus"
-						  AND ("dispatchEligibleAt" IS NULL OR "dispatchEligibleAt" <= ${input.now})
-						ORDER BY "createdAt" ASC, "id" ASC
-						FOR UPDATE SKIP LOCKED
-						LIMIT 1
-					`;
-					if (active || oldest?.id !== job.id) {
-						const retryAt = new Date(
-							Math.min(input.now.getTime() + retryDelayMs, trial.expiresAt.getTime() - 1),
-						);
-						const queueDepth = await tx.generationJob.count({
-							where: {
-								executionEngine: "legacy",
-								serviceClass: "GUEST_SLOW",
-								id: { not: job.id },
-								status: {
-									in: [
-										"RESERVED",
-										"DISPATCH_QUEUED",
-										"SUBMITTING",
-										"PROVIDER_PENDING",
-										"PROVIDER_RUNNING",
-										"NEEDS_RECONCILIATION",
-										"FINALIZING",
-									],
-								},
-							},
-						});
-						const estimate = deriveGuestQueueEstimate({
-							now: input.now,
-							queueDepth,
-							queueCapacity,
-							serviceTimeMs,
-							immutableExpiry: trial.expiresAt,
-						});
-						if (!estimate) {
-							const expired = await expireGuestJobBeforeProvider(
-								{
-									jobId: job.id,
-									now: input.now,
-									createReplacement: false,
-									queueCapacity,
-									serviceTimeMs,
-								},
-								tx,
-							);
-							return expired.outcome === "SKIPPED"
-								? { outcome: "SKIPPED" as const, jobId: job.id }
-								: expired;
-						}
-						await updateGuestQueueEstimate(tx, job.id, trial.id, retryAt, estimate);
-						return { outcome: "BUSY" as const, retryAt };
-					}
 					const changed = await tx.generationJob.updateMany({
 						where: {
 							executionEngine: "legacy",
@@ -527,7 +458,11 @@ export function createDatabaseGuestAdmissionDependencies(
 							status: "RESERVED",
 							serviceClass: "GUEST_SLOW",
 						},
-						data: { status: "DISPATCH_QUEUED", version: { increment: 1 } },
+						data: {
+							status: "DISPATCH_QUEUED",
+							dispatchEligibleAt: input.now,
+							version: { increment: 1 },
+						},
 					});
 					if (changed.count !== 1) {
 						return { outcome: "BUSY" as const, retryAt: new Date(input.now.getTime() + 1_000) };
@@ -561,23 +496,6 @@ export function createDatabaseGuestMediaExpiryDependencies(
 }
 
 export const databaseGuestMediaExpiryDependencies = createDatabaseGuestMediaExpiryDependencies(db);
-
-async function updateGuestQueueEstimate(
-	tx: Prisma.TransactionClient,
-	jobId: string,
-	trialId: string,
-	retryAt: Date,
-	estimate: { projectedDispatchAt: Date; estimateExpiresAt: Date },
-): Promise<void> {
-	await tx.generationJob.update({
-		where: { executionEngine: "legacy", id: jobId },
-		data: { dispatchEligibleAt: retryAt },
-	});
-	await tx.guestMediaTrial.update({
-		where: { id: trialId },
-		data: estimate,
-	});
-}
 
 export function createDatabaseDispatchStore(
 	database: PrismaClient,
@@ -1315,6 +1233,7 @@ export function createDatabaseStorageCleanupDependencies(
 ): StorageCleanupDependencies {
 	return {
 		...storage,
+		claimDeletion: (input) => claimMediaStorageCleanupTransaction(input, database),
 		async isComplete(operationKey) {
 			return Boolean(
 				await database.auditLog.findFirst({
@@ -1340,6 +1259,7 @@ export function createDatabaseStorageCleanupDependencies(
 						metadata: {
 							assetId: input.assetId,
 							objectKey: input.objectKey,
+							...(input.deletedObjectKeys ? { deletedObjectKeys: input.deletedObjectKeys } : {}),
 							...(input.multipartUploadId ? { multipartUploadId: input.multipartUploadId } : {}),
 							...(input.uploadSessionId ? { uploadSessionId: input.uploadSessionId } : {}),
 							...(input.reservationStatus ? { reservationStatus: input.reservationStatus } : {}),
@@ -1373,6 +1293,38 @@ export function createDatabaseStorageCleanupDependencies(
 }
 
 export const databaseStorageCleanupDependencies = createDatabaseStorageCleanupDependencies(db);
+
+export function createDatabaseAccountInputCopyDependencies(
+	database: PrismaClient,
+): AccountInputCopyDependencies {
+	return {
+		claim: (input) => claimAccountInputCopy(input, database),
+		registerMultipart: (input) => registerAccountInputCopyMultipart(input, database),
+		clearMultipart: (input) => clearAccountInputCopyMultipart(input, database),
+		commit: (input) => commitAccountInputCopy(input, database),
+		fail: (input) => failAccountInputCopy(input, database),
+		copy: promoteStagedObject,
+	};
+}
+
+export function createDatabaseAccountInputCopyOrphanDependencies(
+	database: PrismaClient,
+): AccountInputCopyOrphanDependencies {
+	return {
+		claim: (input) => claimAccountInputCopyOrphan(input, database),
+		listMultipartUploads,
+		abortMultipartUpload,
+		deleteObject,
+		recordPass: (input) => recordAccountInputCopyOrphanPass(input, database),
+	};
+}
+
+export function createDatabaseAccountInputCopyRecoveryDependencies(
+	database: PrismaClient,
+	dispatch: AccountInputCopyRecoveryDependencies["dispatch"],
+): AccountInputCopyRecoveryDependencies {
+	return { recover: (input) => recoverAccountInputCopies(input, database), dispatch };
+}
 
 interface VerifyUploadRuntimeOptions {
 	environment?: NodeJS.ProcessEnv;
@@ -1938,6 +1890,13 @@ async function claimMediaVerification(
 		});
 		if (!asset) return null;
 		if (asset.deletedAt !== null || asset.status === "DELETED") return null;
+		if (asset.kind === "INPUT") {
+			const copy = await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx);
+			if (copy.terminal) {
+				outboxCommitted = true;
+				return null;
+			}
+		}
 		// Retired provider attempts never become a fresh paid SeeAPI submission.
 		// Preserve completed evidence as written; unfinished attempts stay held for review.
 		if (asset.verificationProvider?.split("+").includes("sightengine")) {
@@ -2298,6 +2257,10 @@ async function claimMediaVerification(
 				approved: false,
 				failureCode: "ASSET_VERIFICATION_DEADLINE_EXCEEDED",
 			});
+			if (asset.kind === "INPUT")
+				outboxCommitted =
+					(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx))
+						.terminal || outboxCommitted;
 			return null;
 		}
 
@@ -2328,6 +2291,10 @@ async function claimMediaVerification(
 				approved: false,
 				failureCode: "ASSET_VERIFICATION_FAILED",
 			});
+			if (asset.kind === "INPUT")
+				outboxCommitted =
+					(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx))
+						.terminal || outboxCommitted;
 			return null;
 		}
 		const generation = Math.max(asset.verificationGeneration, 1);
@@ -2484,6 +2451,11 @@ async function completeMediaVerification(
 			},
 		});
 		if (!asset) return false;
+		if (
+			asset.kind === "INPUT" &&
+			(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx)).terminal
+		)
+			return true;
 		if (promptRejected)
 			input = { ...input, decision: "REJECT", reasonCode: "ADMIN_CONTENT_REJECTED" };
 		const status =
@@ -2567,7 +2539,10 @@ async function completeMediaVerification(
 				verificationLastErrorCode: input.decision === "ALLOW" ? null : input.reasonCode,
 			},
 		});
-		return resolveJobsWaitingForMediaVerification(tx, {
+		const copyTerminal =
+			asset.kind === "INPUT" &&
+			(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx)).terminal;
+		const jobsCommitted = await resolveJobsWaitingForMediaVerification(tx, {
 			assetId: asset.id,
 			verificationGeneration: claim.generation,
 			approved: input.decision === "ALLOW",
@@ -2576,6 +2551,7 @@ async function completeMediaVerification(
 					? "INPUT_REVERIFICATION_REJECTED"
 					: "INPUT_REVERIFICATION_REVIEW_REQUIRED",
 		});
+		return copyTerminal || jobsCommitted;
 	});
 }
 
@@ -2612,6 +2588,11 @@ async function recordMediaVerificationWaitOrFailure(
 			},
 		});
 		if (!asset) return { outboxCommitted: false };
+		if (
+			asset.kind === "INPUT" &&
+			(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx)).terminal
+		)
+			return { outboxCommitted: true };
 		await appendVerificationEvidence(tx, {
 			assetId: asset.id,
 			assetChecksum: checksum,
@@ -2710,7 +2691,11 @@ async function recordMediaVerificationWaitOrFailure(
 		});
 		let outboxCommitted = false;
 		if (exhausted) {
-			outboxCommitted = await resolveJobsWaitingForMediaVerification(tx, {
+			if (asset.kind === "INPUT")
+				outboxCommitted = (
+					await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx)
+				).terminal;
+			const jobsCommitted = await resolveJobsWaitingForMediaVerification(tx, {
 				assetId: asset.id,
 				verificationGeneration: claim.generation,
 				approved: false,
@@ -2719,6 +2704,7 @@ async function recordMediaVerificationWaitOrFailure(
 						? "INPUT_REVERIFICATION_DEADLINE_EXCEEDED"
 						: "INPUT_REVERIFICATION_FAILED",
 			});
+			outboxCommitted ||= jobsCommitted;
 		}
 		if (retryAt) {
 			const pendingImage = status === "PENDING" && asset.mimeType.startsWith("image/");
@@ -5519,7 +5505,6 @@ async function guestDispatchChecksPass(
 		trial.riskState !== "HELD" ||
 		trial.providerBoundaryAt !== null ||
 		trial.expiresAt <= now ||
-		now.getTime() - job.createdAt.getTime() >= 10 * 60_000 ||
 		(job.dispatchEligibleAt !== null && job.dispatchEligibleAt > now) ||
 		!(await guestRuntimeEnabled(tx, environment, trial.promotionPeriod))
 	) {
@@ -5544,25 +5529,6 @@ async function guestDispatchChecksPass(
 	) {
 		return false;
 	}
-	const active = await tx.generationJob.findFirst({
-		where: {
-			executionEngine: "legacy",
-			serviceClass: "GUEST_SLOW",
-			id: { not: job.id },
-			status: {
-				in: [
-					"DISPATCH_QUEUED",
-					"SUBMITTING",
-					"PROVIDER_PENDING",
-					"PROVIDER_RUNNING",
-					"NEEDS_RECONCILIATION",
-					"FINALIZING",
-				],
-			},
-		},
-		select: { id: true },
-	});
-	if (active) return false;
 	const globalBudget = mediaDailyProviderCostBudgetMicros(environment);
 	// An explicitly uncapped guest promotion has no aggregate spend gate. Registered
 	// generation retains its own daily budget; quotes and guest cost accounting remain intact.

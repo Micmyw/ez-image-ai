@@ -44,7 +44,6 @@ export interface SubscriptionPrice {
 	 */
 	trialPeriodDays?: number;
 	monthlyCredits?: number;
-	maximumConcurrentJobs?: number;
 	maximumStorageBytes?: number;
 }
 
