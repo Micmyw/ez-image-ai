@@ -1,9 +1,8 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { configuredProviderDispatchKieCapacity, getCreditInvariantReport } from "@repo/database";
+import { getCreditInvariantReport } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
 import { executeMediaLoadRequest, type LoadTestConfiguration } from "./media-load";
 
 const TEST_DATABASE_URL = assertSafeTestDatabaseUrl(process.env.TEST_DATABASE_URL);
@@ -20,16 +19,14 @@ const configuration: LoadTestConfiguration = {
 
 describe("controlled media load database path", () => {
 	let client: PrismaClient;
-	let mockProviderConcurrency: string;
 
 	beforeAll(async () => {
 		client = new PrismaClient({
 			adapter: new PrismaPg({ connectionString: TEST_DATABASE_URL }),
 		});
-		// Keep historical occupancy intact and add only this suite's finite mock send budget.
-		mockProviderConcurrency = await providerCapacityForTestRequests(client, 8);
+		// The obsolete project setting must not limit real claims, even with prior pending work.
 		vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
-		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", mockProviderConcurrency);
+		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "2");
 	});
 
 	afterAll(async () => {
@@ -40,9 +37,41 @@ describe("controlled media load database path", () => {
 		}
 	});
 
-	it("retains explicit mock dispatch capacity without external provider configuration", async () => {
+	it("starts three simultaneous funded mock requests while the old project setting is two", async () => {
 		await withoutExternalProviderConfiguration(async () => {
-			expect(configuredProviderDispatchKieCapacity()).toBe(Number(mockProviderConcurrency));
+			const results = await Promise.all(
+				Array.from({ length: 3 }, (_, index) =>
+					executeMediaLoadRequest(
+						{ mode: "long", idempotencyKey: `k6:${RUN_ID}:retired-cap:${index}` },
+						configuration,
+					),
+				),
+			);
+			expect(new Set(results.map(({ jobId }) => jobId)).size).toBe(3);
+			expect(results.map(({ status }) => status)).toEqual([
+				"PROVIDER_PENDING",
+				"PROVIDER_PENDING",
+				"PROVIDER_PENDING",
+			]);
+			const jobs = await client.generationJob.findMany({
+				where: { id: { in: results.map(({ jobId }) => jobId) } },
+				include: { attempts: true, reservation: true },
+			});
+			expect(jobs).toHaveLength(3);
+			for (const job of jobs) {
+				expect(job.reservation).toMatchObject({ amount: 5n, status: "ACTIVE" });
+				expect(job.attempts).toEqual([
+					expect.objectContaining({
+						status: "RUNNING",
+						providerTaskId: expect.stringMatching(/^load-test-/),
+						uncertainSubmission: false,
+					}),
+				]);
+			}
+			const account = await client.creditAccount.findUniqueOrThrow({
+				where: { ownerType_ownerId: { ownerType: "USER", ownerId: OWNER_ID } },
+			});
+			expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
 		});
 	});
 
