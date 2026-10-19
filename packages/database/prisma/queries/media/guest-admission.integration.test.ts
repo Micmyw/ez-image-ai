@@ -1107,7 +1107,6 @@ describe("guest generation admission", () => {
 				maximumRequestsPerIpPerDay: limit + 1,
 				maximumRequestsPerSubnetPerDay: limit + 1,
 				maximumGlobalRequestsPerMinute: limit + 1,
-				maximumGlobalRequestsPerHour: limit + 1,
 				maximumGlobalQueueDepth: limit + 1,
 				queueCapacity: limit + 1,
 				riskBudgetMicros: BigInt(limit + 1) * 35_000n,

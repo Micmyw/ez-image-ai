@@ -176,7 +176,7 @@ describe("unaccepted guest input account retention", () => {
 				now,
 				allowedProductKeys: ["image-nano-banana-2-lite"],
 			},
-			{ $transaction: (fn) => fn(tx) } as never,
+			{ $transaction: <T>(fn: (transaction: typeof tx) => Promise<T>) => fn(tx) } as never,
 		);
 		expect(asset).toMatchObject({
 			retentionClass: "ACCOUNT",
@@ -195,7 +195,7 @@ describe("unaccepted guest input account retention", () => {
 				now,
 				allowedProductKeys: ["image-nano-banana-2-lite"],
 			},
-			{ $transaction: (fn) => fn(tx) } as never,
+			{ $transaction: <T>(fn: (transaction: typeof tx) => Promise<T>) => fn(tx) } as never,
 		);
 		expect(asset).toMatchObject({
 			retentionClass: "GUEST_TRIAL",
@@ -215,7 +215,7 @@ describe("unaccepted guest input account retention", () => {
 					now,
 					allowedProductKeys: ["image-nano-banana-2-lite"],
 				},
-				{ $transaction: (fn) => fn(tx) } as never,
+				{ $transaction: <T>(fn: (transaction: typeof tx) => Promise<T>) => fn(tx) } as never,
 			),
 		).rejects.toThrow("DRAFT_UNAVAILABLE");
 		expect(asset.retentionClass).toBe("GUEST_TRIAL");

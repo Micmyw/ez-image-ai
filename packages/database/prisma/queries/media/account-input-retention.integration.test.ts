@@ -42,7 +42,7 @@ async function fixture() {
 			ownerType: "USER",
 			ownerId: guest,
 			kind: "INPUT",
-			status: "READY",
+			status: "VERIFYING",
 			retentionClass: "GUEST_TRIAL",
 			deleteAfter: expiresAt,
 			objectKey: `users/${guest}/assets/${id}/input.png`,
@@ -50,8 +50,36 @@ async function fixture() {
 			byteSize: 10n,
 			checksum: "a".repeat(64),
 			finalizedAt: new Date(),
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: "test",
+			verificationProviderTaskId: `retention-moderation-${id}`,
+			verificationRuleVersion: "retention-test-rule",
+			verificationPolicyVersion: "retention-test-policy",
+			verificationValidUntil: expiresAt,
 		},
 	});
+	// Respect the same approval invariant enforced for production READY assets.
+	await db.assetModerationResult.create({
+		data: {
+			assetId: asset.id,
+			assetChecksum: asset.checksum!,
+			verificationGeneration: 1,
+			attemptNumber: 1,
+			evidenceKind: "INPUT",
+			provider: "test",
+			providerTaskId: `retention-moderation-${id}`,
+			ruleVersion: "retention-test-rule",
+			policyVersion: "retention-test-policy",
+			status: "APPROVED",
+			reasonCode: "ALLOW",
+			categories: {},
+			rawEnvelope: {},
+			validUntil: expiresAt,
+		},
+	});
+	await db.mediaAsset.update({ where: { id: asset.id }, data: { status: "READY" } });
+
 	const draft = await db.generationDraft.create({
 		data: {
 			ownerType: "USER",

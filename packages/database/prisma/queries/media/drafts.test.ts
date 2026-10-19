@@ -117,7 +117,10 @@ describe("createGenerationDraftTransaction", () => {
 					maximumGlobalDraftsPerMinute: 100,
 				},
 			},
-			{ $transaction: async (operation) => operation(tx) } as never,
+			{
+				$transaction: async (operation: (transaction: typeof tx) => Promise<unknown>) =>
+					operation(tx),
+			} as never,
 		);
 		await expect(result).resolves.toMatchObject({ id: "draft-new" });
 	});
