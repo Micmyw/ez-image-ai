@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import type { ReactElement, ReactNode } from "react";
-import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
+import {
+	renderToReadableStream as renderStream,
+	renderToStaticMarkup as renderStatic,
+} from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 const sessionMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
@@ -190,9 +193,18 @@ vi.mock("../modules/payments/components/CreditPackCheckoutActions", () => ({
 import { config as authConfig } from "../../../packages/auth/config";
 import { LandingPage } from "../modules/landing/components/LandingPage";
 import { HOME_FAQ_KEYS, PRICING_FAQ_KEYS } from "../modules/landing/lib/faq";
+import { ApiClientProvider } from "../modules/shared/components/ApiClientProvider";
 import PricingPage from "./(public)/pricing/page";
 import CreatePage, { generateMetadata as createMetadata } from "./create/page";
 import HomePage from "./page";
+
+// Pages are rendered without RootLayout here; preserve its real query context.
+function renderToStaticMarkup(page: ReactNode) {
+	return renderStatic(<ApiClientProvider>{page}</ApiClientProvider>);
+}
+function renderToReadableStream(page: ReactNode) {
+	return renderStream(<ApiClientProvider>{page}</ApiClientProvider>);
+}
 
 type PublicPageModule = {
 	default: (props?: unknown) => ReactElement | Promise<ReactElement>;
