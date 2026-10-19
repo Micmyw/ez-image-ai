@@ -102,7 +102,7 @@ export function readVideoV1Config(env: VideoV1Environment) {
 		pricingBasis: env.VIDEO_V1_PRICING_BASIS?.trim() || null,
 		providerCostMicros: positiveBigInt(env.VIDEO_V1_PROVIDER_COST_MICROS),
 		moderationCostMicros: positiveBigInt(env.VIDEO_V1_MODERATION_COST_MICROS),
-		// Execution capacity belongs to the paid-send queue, never customer admission.
+		// Legacy compatibility field only; never an admission or provider-send limit.
 		providerConcurrency: positiveInteger(env.VIDEO_V1_PROVIDER_CONCURRENCY),
 		providerPollSeconds: boundedInteger(env.VIDEO_V1_PROVIDER_POLL_SECONDS, 30, 300),
 		providerDeadlineSeconds: boundedInteger(env.VIDEO_V1_PROVIDER_DEADLINE_SECONDS, 1800, 7200),

@@ -16,37 +16,38 @@ const enabled = {
 
 describe("production provider dispatch capacity preflight", () => {
 	it.each([
-		{ VIDEO_V1_PROVIDER_CONCURRENCY: "8" },
-		{ VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_PROVIDER_CONCURRENCY: "8" }) },
-	])("reports only the configured positive capacity for flat or packed policy", (policy) => {
+		{},
+		{ VIDEO_V1_PROVIDER_CONCURRENCY: "2" },
+		{ VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_PROVIDER_CONCURRENCY: "2" }) },
+	])("does not certify or require the retired flat or packed capacity", (policy) => {
 		expect(
 			verifyProviderDispatchCapacity({ ...enabled, ...policy, KIE_API_KEY: "private-fixture" }),
-		).toEqual({ code: "KIE_PROVIDER_CAPACITY_PREFLIGHT_OK", capacity: 8 });
+		).toEqual({ code: "PROVIDER_CAPACITY_PREFLIGHT_RETIRED" });
 	});
 	it("retains the runtime's legacy adapter fallback when the explicit provider list is absent", () => {
-		expect(() =>
+		expect(
 			verifyProviderDispatchCapacity({
 				NODE_ENV: "production",
 				MEDIA_GENERATION_ENABLED: "true",
 				MEDIA_PROVIDER_ADAPTER: "kie",
 			}),
-		).toThrow("KIE_PROVIDER_CAPACITY_REQUIRED");
+		).toEqual({ code: "PROVIDER_CAPACITY_PREFLIGHT_RETIRED" });
 	});
-	it("requires Kie capacity for enabled native video even when image providers exclude Kie", () => {
-		expect(() =>
+	it("does not require capacity for enabled native video when image providers exclude Kie", () => {
+		expect(
 			verifyProviderDispatchCapacity({
 				...enabled,
 				MEDIA_ENABLED_PROVIDERS: "fal",
 				VIDEO_V1_ENABLED: "true",
 			}),
-		).toThrow("KIE_PROVIDER_CAPACITY_REQUIRED");
+		).toEqual({ code: "PROVIDER_CAPACITY_PREFLIGHT_RETIRED" });
 	});
 	it.each([undefined, "", "0", "-1", "1.5", "NaN", "9007199254740992"])(
-		"never invents a capacity for %s",
+		"does not replace the retired value %s with a fixed capacity",
 		(value) => {
-			expect(() =>
+			expect(
 				verifyProviderDispatchCapacity({ ...enabled, VIDEO_V1_PROVIDER_CONCURRENCY: value }),
-			).toThrow("KIE_PROVIDER_CAPACITY_REQUIRED");
+			).toEqual({ code: "PROVIDER_CAPACITY_PREFLIGHT_RETIRED" });
 		},
 	);
 	it.each([
@@ -67,8 +68,8 @@ describe("production provider dispatch capacity preflight", () => {
 	it.each([
 		{ VIDEO_RUNTIME_CONFIG: "private-malformed-fixture" },
 		{
-			VIDEO_V1_PROVIDER_CONCURRENCY: "8",
-			VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_PROVIDER_CONCURRENCY: "9" }),
+			VIDEO_V1_PROVIDER_POLL_SECONDS: "30",
+			VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_PROVIDER_POLL_SECONDS: "60" }),
 		},
 		{ MEDIA_ENABLED_PROVIDERS: "kie,private-invalid-provider" },
 		{ MEDIA_ENABLED_PROVIDERS: undefined, MEDIA_PROVIDER_ADAPTER: "private-invalid-fixture" },
@@ -115,22 +116,31 @@ describe("automatic builder capacity gate ordering", () => {
 			expect(result.stderr).not.toContain("KIE_PROVIDER_CAPACITY_REQUIRED");
 		},
 	);
-	it.each(["website", "jobs"])(
-		"rejects missing capacity before preparing artifacts or deploying %s",
-		(target) => {
+	it.each([
+		{ target: "website", capacity: undefined },
+		{ target: "jobs", capacity: undefined },
+		{ target: "website", capacity: "2" },
+		{ target: "jobs", capacity: "2" },
+	])(
+		"reaches the Git guard without certifying missing or legacy capacity for $target ($capacity)",
+		({ target, capacity }) => {
 			const result = build(target, {
 				...enabled,
 				DATABASE_URL: "postgresql://fixture:private-fixture@db.invalid/test?sslmode=verify-full",
+				...(capacity === undefined ? {} : { VIDEO_V1_PROVIDER_CONCURRENCY: capacity }),
 			});
 			expect(result.status).not.toBe(0);
-			expect(result.stderr).toContain("KIE_PROVIDER_CAPACITY_REQUIRED");
-			expect(result.stderr).not.toContain("PRODUCTION_MAIN_BRANCH_REQUIRED");
+			expect(result.stderr).toContain("PRODUCTION_MAIN_BRANCH_REQUIRED");
+			expect(result.stdout).toContain(
+				'Provider dispatch policy preflight: {"code":"PROVIDER_CAPACITY_PREFLIGHT_RETIRED"}',
+			);
+			expect(result.stdout + result.stderr).not.toMatch(/KIE_PROVIDER_CAPACITY|"capacity":/);
 			expect(result.stdout + result.stderr).not.toContain("private-fixture");
 			expect(result.stdout + result.stderr).not.toContain("do-not-print-fixture");
 		},
 	);
 	it.each(["website", "jobs"])(
-		"logs only approved evidence before the later Git guard for %s",
+		"does not label an arbitrary legacy number as approved provider evidence for %s",
 		(target) => {
 			const result = build(target, {
 				...enabled,
@@ -139,7 +149,10 @@ describe("automatic builder capacity gate ordering", () => {
 			});
 			expect(result.stderr).toContain("PRODUCTION_MAIN_BRANCH_REQUIRED");
 			expect(result.stdout).toContain(
-				'Provider dispatch capacity preflight: {"code":"KIE_PROVIDER_CAPACITY_PREFLIGHT_OK","capacity":8}',
+				'Provider dispatch policy preflight: {"code":"PROVIDER_CAPACITY_PREFLIGHT_RETIRED"}',
+			);
+			expect(result.stdout + result.stderr).not.toMatch(
+				/KIE_PROVIDER_CAPACITY_PREFLIGHT_OK|"capacity":/,
 			);
 			expect(result.stdout + result.stderr).not.toContain("private-fixture");
 			expect(result.stdout + result.stderr).not.toContain("do-not-print-fixture");

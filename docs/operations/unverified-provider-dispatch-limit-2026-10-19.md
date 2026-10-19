@@ -1,0 +1,15 @@
+# Retire the unverified project dispatch limit
+
+The previous production preflight reported `VIDEO_V1_PROVIDER_CONCURRENCY=2` from project configuration. It never queried Kie's account quota. No authenticated account-quota response or supplier console evidence established that two was the supplier's actual capacity.
+
+Legacy image dispatch, native final-video submission and template scene submission no longer compare global in-flight work with that value. They retain their transaction locks, per-job identity/version checks, atomic reservations and durable may-have-sent fences. Independent funded jobs may all obtain send claims; a replay of one job cannot create another paid attempt. No replacement fixed limit is introduced.
+
+The scheduled guest monitor also no longer disables guest admission merely because its queue reaches 25 jobs or waits ten minutes. Queue depth and age remain observable warnings; configured risk budget, watermark, billing mismatch and overdue-cleanup protections retain their existing closure behavior. Historical runtime overrides are not automatically changed by this release.
+
+The configuration key remains accepted in historical policy input, but is retired: it cannot cause a packed/flat conflict and new policy packs omit it. Normal deployment removes any obsolete flat binding through the existing undeployed-snapshot retirement path. The build preflight still checks unrelated transport/provider policy and emits `PROVIDER_CAPACITY_PREFLIGHT_RETIRED`, with no quota value or claim of supplier verification. Old occupancy SQL is retained only as explicitly named legacy diagnostics and is absent from the business-query barrel and send paths.
+
+Existing delayed Outbox events, `dispatchEligibleAt`, DEFERRED responses and Workflow continuation consumers remain compatible. Native Workflows pin their implementation, so release verification must distinguish the new deployed source from old running instances rather than assuming that a new Worker tag changes an existing Workflow.
+
+Provider HTTP429 and equivalent Kie envelope responses currently have uncertain acceptance. They retain their send fence and reservation and use existing original-task query/reconciliation backoff; they are not retried as another create request. This patch does not invent proof that a quota response was uncharged or unaccepted. Known terminal evidence, content review, per-file/storage checks and billing remain unchanged. Executor slots for bounded memory/short operations are unchanged and must not be represented as supplier account capacity.
+
+Regression coverage includes four independently funded native contexts with project configuration two, simultaneous duplicate claims, uncertain-response replay, credit settlement replay and insufficient-balance races. Test provider boundaries are mocked; PostgreSQL is disposable loopback-only. Genuine generated-client/Worker/full lifecycle certification belongs to official CI. No real paid request, secret read, production DDL or financial offer provisioning is required for this release.

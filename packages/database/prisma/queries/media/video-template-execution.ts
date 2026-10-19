@@ -11,12 +11,12 @@ import {
 import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
-import {
-	hasProviderDispatchCapacity,
-	lockProviderDispatchCapacity,
-} from "./provider-dispatch-capacity";
+import { lockProviderDispatchCapacity } from "./provider-dispatch-capacity";
 import { runReadCommitted } from "./types";
-import { clearVideoProviderDispatch, deferVideoProviderDispatch } from "./video-provider-dispatch";
+import {
+	clearVideoProviderDispatch,
+	type DeferredVideoProviderDispatch,
+} from "./video-provider-dispatch";
 import { recordVideoTemplateBusinessEvent } from "./video-template-events";
 import {
 	findApprovedVideoTemplateMotionReference,
@@ -264,7 +264,9 @@ export async function recordVideoTemplateImageReview(
 export async function claimVideoTemplateSceneSubmission(input: {
 	jobId: string;
 	callbackTokenHash: string;
-}) {
+}): Promise<
+	{ execution: Awaited<ReturnType<typeof lock>>; claimed: boolean } | DeferredVideoProviderDispatch
+> {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
 		await lockProviderDispatchCapacity(tx, "kie");
 		await lockVideoOwnerStorage(tx, input.jobId);
@@ -273,14 +275,7 @@ export async function claimVideoTemplateSceneSubmission(input: {
 			throw new Error("VIDEO_TEMPLATE_REFERENCE_HAS_NO_SCENE");
 		if (e.submittedAt) return { execution: e, claimed: false };
 		active(e);
-		if (!(await hasProviderDispatchCapacity(tx, "kie"))) {
-			return deferVideoProviderDispatch(
-				tx,
-				input.jobId,
-				json(e.job.videoExecution!.stageData),
-				"scene",
-			);
-		}
+		// Retain per-job funding, review and send fences; the old project cap is retired.
 		assertVideoTemplateRoleIdentities(e.job);
 		const review = json(e.inputReview);
 		const profile = readVideoTextSafetyProfile(e.job.inputSnapshot);

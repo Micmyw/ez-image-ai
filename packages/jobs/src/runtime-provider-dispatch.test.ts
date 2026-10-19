@@ -42,6 +42,8 @@ function fixture(guest = false) {
 	const job = {
 		id: "provider-queue-job",
 		version: 4,
+		ownerType: "USER",
+		ownerId: "funded-owner",
 		status: "DISPATCH_QUEUED",
 		serviceClass: "STANDARD",
 		productKey: "image-nano-banana-2-lite",
@@ -123,9 +125,9 @@ function fixture(guest = false) {
 				consumedMicros: 0n,
 				hardLimitMicros: 250_000n,
 			})),
-			updateMany: vi.fn(),
+			updateMany: vi.fn(async () => ({ count: 1 })),
 		},
-		guestMediaTrial: { updateMany: vi.fn() },
+		guestMediaTrial: { updateMany: vi.fn(async () => ({ count: 1 })) },
 		runtimeConfigOverride: { findFirst: vi.fn(async () => null) },
 		outboxEvent: {
 			upsert: vi.fn(async ({ where, create }) => {
@@ -164,8 +166,30 @@ describe("durable provider dispatch waiting", () => {
 	});
 	afterEach(() => vi.useRealTimers());
 
-	it("commits a due Outbox event without crossing the provider send fence", async () => {
+	it("dispatches four independently accepted jobs despite an unverified project limit of two", async () => {
+		const fixtures = Array.from({ length: 4 }, (_, index) => {
+			const f = fixture();
+			f.job.id = `accepted-job-${index}`;
+			f.job.ownerId = `funded-owner-${index}`;
+			f.options.environment.VIDEO_V1_PROVIDER_CONCURRENCY = "2";
+			return f;
+		});
+		const claims = await Promise.all(
+			fixtures.map((f) => f.store.claimDispatch({ jobId: f.job.id, version: 4 })),
+		);
+		for (const [index, claim] of claims.entries()) {
+			expect(claim).toMatchObject({ attemptId: "attempt-1", provider: "kie" });
+			expect(fixtures[index]!.tx.generationAttempt.create).toHaveBeenCalledOnce();
+			expect(fixtures[index]!.tx.generationAttempt.update).toHaveBeenCalledWith(
+				expect.objectContaining({ data: expect.objectContaining({ uncertainSubmission: true }) }),
+			);
+		}
+		expect(capacity.order.some((value) => value.startsWith("capacity:"))).toBe(false);
+	});
+
+	it("preserves an already persisted due time without crossing the provider send fence", async () => {
 		const f = fixture();
+		f.job.dispatchEligibleAt = new Date(now.getTime() + 5_000);
 		const result = await f.store.claimDispatch({ jobId: f.job.id, version: f.job.version });
 		expect(result).toEqual({
 			deferred: true,
@@ -202,6 +226,7 @@ describe("durable provider dispatch waiting", () => {
 
 	it("keeps a waiting guest's trial and risk reservation untouched", async () => {
 		const f = fixture(true);
+		f.job.dispatchEligibleAt = new Date(now.getTime() + 5_000);
 		expect(await f.store.claimDispatch({ jobId: f.job.id, version: 4 })).toMatchObject({
 			deferred: true,
 		});
@@ -215,6 +240,7 @@ describe("durable provider dispatch waiting", () => {
 
 	it("reuses the persisted deadline on early replay and can resume from it after process loss", async () => {
 		const f = fixture();
+		f.job.dispatchEligibleAt = new Date(now.getTime() + 5_000);
 		await f.store.claimDispatch({ jobId: f.job.id, version: 4 });
 		capacity.available = true;
 		vi.setSystemTime(new Date(now.getTime() + 1_000));
@@ -320,8 +346,11 @@ describe("durable provider dispatch waiting", () => {
 			return f.job;
 		});
 		await expect(f.store.claimDispatch({ jobId: f.job.id, version: 4 })).resolves.toMatchObject({
-			deferred: true,
+			attemptId: "attempt-1",
+			provider: "kie",
 		});
-		expect(f.tx.generationAttempt.create).not.toHaveBeenCalled();
+		expect(f.tx.generationAttempt.create).toHaveBeenCalledOnce();
+		expect(f.tx.guestRiskBudgetBucket.updateMany).toHaveBeenCalledOnce();
+		expect(f.tx.guestMediaTrial.updateMany).toHaveBeenCalledOnce();
 	});
 });

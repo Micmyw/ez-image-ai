@@ -1,6 +1,9 @@
 import type { Prisma } from "../../generated/client";
 import { PROVIDER_DISPATCH_RETRY_MS } from "./provider-dispatch-capacity";
 
+// Retain the response contract for existing pinned Workflow continuations.
+export type DeferredVideoProviderDispatch = { deferred: true; retryAfterMs: number };
+
 export async function deferVideoProviderDispatch(
 	tx: Prisma.TransactionClient,
 	jobId: string,

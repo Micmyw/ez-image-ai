@@ -65,10 +65,9 @@ export function evaluateGuestOperationalSafety(input: GuestOperationalSafetyInpu
 	if (!budgetConfigured) closureReasons.push("RISK_BUDGET_CONFIGURATION");
 	else if (thresholdPercent >= 90) closureReasons.push("RISK_BUDGET");
 	else if (thresholdPercent >= 50) warnings.push("RISK_BUDGET");
-	if (input.queueDepth >= 25) closureReasons.push("QUEUE_DEPTH");
-	else if (input.queueDepth > 20) warnings.push("QUEUE_DEPTH");
-	if (input.oldestQueueAgeSeconds >= 600) closureReasons.push("QUEUE_AGE");
-	else if (input.oldestQueueAgeSeconds > 300) warnings.push("QUEUE_AGE");
+	// Queue size and age are observations, never authority to close funded work.
+	if (input.queueDepth > 20) warnings.push("QUEUE_DEPTH");
+	if (input.oldestQueueAgeSeconds > 300) warnings.push("QUEUE_AGE");
 	if (input.uncertainOlderThanTenMinutes > 0) warnings.push("UNCERTAIN_ATTEMPT_AGE");
 	// Individual safety checks retry and queue outage permissions for review.
 	if ((input.moderationErrorRate ?? 0) > 0.01) warnings.push("MODERATION_ERRORS");

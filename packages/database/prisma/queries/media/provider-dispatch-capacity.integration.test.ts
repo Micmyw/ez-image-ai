@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { Prisma } from "../../generated/client";
 import {
-	hasProviderDispatchCapacity,
+	isBelowLegacyConfiguredKieDispatchLimit,
 	lockProviderDispatchCapacity,
 } from "./provider-dispatch-capacity";
 import { lockSharedKieCapacity } from "./shared-provider-capacity";
@@ -360,10 +360,12 @@ describe("provider sends share an atomic in-flight gate", () => {
 
 	it("does not guess capacity for another provider or missing Kie configuration", async () => {
 		await withTransaction(async (tx) => {
-			expect(await hasProviderDispatchCapacity(tx, "replicate", {})).toBe(true);
-			expect(await hasProviderDispatchCapacity(tx, "kie", {})).toBe(false);
+			expect(await isBelowLegacyConfiguredKieDispatchLimit(tx, "replicate", {})).toBe(true);
+			expect(await isBelowLegacyConfiguredKieDispatchLimit(tx, "kie", {})).toBe(false);
 			expect(
-				await hasProviderDispatchCapacity(tx, "kie", { VIDEO_V1_PROVIDER_CONCURRENCY: "0" }),
+				await isBelowLegacyConfiguredKieDispatchLimit(tx, "kie", {
+					VIDEO_V1_PROVIDER_CONCURRENCY: "0",
+				}),
 			).toBe(false);
 		});
 	});
@@ -374,7 +376,9 @@ describe("provider sends share an atomic in-flight gate", () => {
 				withTransaction(async (tx, client) => {
 					await lockProviderDispatchCapacity(tx, "kie");
 					if (
-						!(await hasProviderDispatchCapacity(tx, "kie", { VIDEO_V1_PROVIDER_CONCURRENCY: "6" }))
+						!(await isBelowLegacyConfiguredKieDispatchLimit(tx, "kie", {
+							VIDEO_V1_PROVIDER_CONCURRENCY: "6",
+						}))
 					)
 						return "DEFERRED";
 					await client.query(
@@ -402,7 +406,9 @@ describe("provider sends share an atomic in-flight gate", () => {
 			await withTransaction(async (tx, client) => {
 				await client.query("SET LOCAL lock_timeout TO '500ms'");
 				await lockProviderDispatchCapacity(tx, "replicate");
-				expect(await hasProviderDispatchCapacity(tx, "replicate", environment)).toBe(true);
+				expect(await isBelowLegacyConfiguredKieDispatchLimit(tx, "replicate", environment)).toBe(
+					true,
+				);
 			});
 		} finally {
 			await holder.query("ROLLBACK");
@@ -433,7 +439,8 @@ async function withTransaction<T>(
 		client.release();
 	}
 }
-const capacity = () => withTransaction((tx) => hasProviderDispatchCapacity(tx, "kie", environment));
+const capacity = () =>
+	withTransaction((tx) => isBelowLegacyConfiguredKieDispatchLimit(tx, "kie", environment));
 const terminalEvidence = (status: string) => ({
 	version: 1,
 	provider: "kie",
