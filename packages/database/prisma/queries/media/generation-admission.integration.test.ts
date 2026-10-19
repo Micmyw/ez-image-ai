@@ -244,7 +244,9 @@ describe("combined generation final atomic qualification", () => {
 		).toMatchObject({ reservedCredits: 10n, spendableCredits: 90n });
 	});
 	it("admits 32 independently funded accounts without executing provider work", async () => {
-		const fixtures = await Promise.all(Array.from({ length: 32 }, () => fixture()));
+		const fixtures: Awaited<ReturnType<typeof fixture>>[] = [];
+		// Seed each ledger independently; the admission race below remains concurrent.
+		for (let index = 0; index < 32; index += 1) fixtures.push(await fixture());
 		const results = await Promise.all(
 			fixtures.map((f) =>
 				createGenerationJobTransaction({ ...f.input, maximumConcurrentJobs: 1 }, client),

@@ -16,7 +16,22 @@ import type {
 	CreateGenerationJobResult,
 	MediaTransactionClient,
 } from "./types";
-import { isDatabaseUniqueConflict, runReadCommitted } from "./types";
+import { isDatabaseUniqueConflict, runReadCommitted, runSerializable } from "./types";
+
+class AssetAdmissionIsolationRequired extends Error {}
+
+// Canonical text-to-image fields contain no stored-media references. Unknown
+// or future fields conservatively retain the asset writers' SSI protocol.
+const ASSET_FREE_TEXT_INPUT_KEYS = new Set([
+	"kind",
+	"prompt",
+	"skuKey",
+	"aspectRatio",
+	"outputFormat",
+	"background",
+	"width",
+	"height",
+]);
 
 async function getDatabaseNow(
 	client: MediaTransactionClient | Prisma.TransactionClient,
@@ -116,10 +131,22 @@ export async function createGenerationJobTransaction(
 		throw new Error("ASSET_CONTENT_CHANGED");
 	}
 
-	// Owner/storage/budget/account locks protect mutable admission predicates.
-	// Fresh reads observe any prior lock holder without reserving supplier capacity.
+	// Asset binding/deletion writers retain their existing Serializable protocol.
+	// Only a verified asset-free text quote can use fresh-read admission; supplier
+	// occupancy remains a separate ReadCommitted claim immediately before send.
+	let serializable = input.inputAssetIds.length > 0 || Boolean(input.edit);
+	const runAdmission = async <T>(operation: (tx: Prisma.TransactionClient) => Promise<T>) => {
+		if (serializable) return runSerializable(client, operation);
+		try {
+			return await runReadCommitted(client, operation);
+		} catch (error) {
+			if (!(error instanceof AssetAdmissionIsolationRequired)) throw error;
+			serializable = true;
+			return runSerializable(client, operation);
+		}
+	};
 	try {
-		return await runReadCommitted(client, async (tx) => {
+		return await runAdmission(async (tx) => {
 			const operationNow = await getDatabaseNow(tx);
 			if (input.validateCurrentEligibility) {
 				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.ownerType}:${input.ownerId}:generation-concurrency`}, 0))`;
@@ -143,6 +170,16 @@ export async function createGenerationJobTransaction(
 				quote.inputFingerprint !== fingerprintGenerationQuoteSecurityPayload(quote)
 			) {
 				throw new Error("TEXT_MODERATION_EVIDENCE_INVALID");
+			}
+			if (
+				!serializable &&
+				(!isJsonObject(quote.inputSnapshot) ||
+					quote.inputSnapshot.kind !== "text-to-image" ||
+					Object.keys(quote.inputSnapshot).some((key) => !ASSET_FREE_TEXT_INPUT_KEYS.has(key)))
+			) {
+				// No writes precede this restart. The authoritative quote also guards
+				// isolation when a caller omits the corresponding asset-ID array.
+				throw new AssetAdmissionIsolationRequired();
 			}
 			await assertQuoteModerationPermitted(quote, tx);
 			const replay = await findExistingJob(input, tx);

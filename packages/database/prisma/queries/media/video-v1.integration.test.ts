@@ -1638,7 +1638,9 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		).toBe(2);
 	});
 	it("admits 32 different funded owners without executing provider work", async () => {
-		const fixtures = await Promise.all(Array.from({ length: 32 }, () => fixture()));
+		const fixtures: Awaited<ReturnType<typeof fixture>>[] = [];
+		// Seed each ledger independently; the admission race below remains concurrent.
+		for (let index = 0; index < 32; index += 1) fixtures.push(await fixture());
 		const outcomes = await Promise.all(
 			fixtures.map(({ input }) =>
 				createVideoJobRecord(

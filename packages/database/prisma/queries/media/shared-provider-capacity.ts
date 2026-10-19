@@ -19,10 +19,7 @@ export async function lockProviderDispatchCapacity(
 export async function hasProviderDispatchCapacity(
 	tx: Prisma.TransactionClient,
 	provider: string,
-	environment: {
-		VIDEO_V1_PROVIDER_CONCURRENCY?: string;
-		VIDEO_RUNTIME_CONFIG?: string;
-	} = process.env,
+	environment: Record<string, string | undefined> = process.env,
 ): Promise<boolean> {
 	if (provider !== "kie") return true;
 	const maximum = configuredSharedKieCapacity(environment);
@@ -76,10 +73,7 @@ export async function hasProviderDispatchCapacity(
 
 /** Preserve the existing packed/flat server configuration and conflict checks. */
 export function configuredSharedKieCapacity(
-	environment: {
-		VIDEO_V1_PROVIDER_CONCURRENCY?: string;
-		VIDEO_RUNTIME_CONFIG?: string;
-	} = process.env,
+	environment: Record<string, string | undefined> = process.env,
 ): number | null {
 	const value = Number(expandVideoRuntimeEnvironment(environment).VIDEO_V1_PROVIDER_CONCURRENCY);
 	return Number.isSafeInteger(value) && value > 0 ? value : null;
