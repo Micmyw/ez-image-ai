@@ -2,6 +2,18 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { configuredSharedKieCapacity } from "../../../packages/database/prisma/queries/media/shared-provider-capacity";
+
+void test("local mock jobs have explicit shared-provider dispatch capacity", () => {
+	const runner = readFileSync(new URL("./run.ts", import.meta.url), "utf8");
+	const capacity = /VIDEO_V1_PROVIDER_CONCURRENCY:\s*"(\d+)"/.exec(runner)?.[1];
+	assert.equal(
+		configuredSharedKieCapacity({ VIDEO_V1_PROVIDER_CONCURRENCY: capacity }),
+		8,
+		"the loopback mock runner must configure its slots rather than bypass the provider gate",
+	);
+});
+
 void test("pins new local image jobs to the configured Kie SKU catalog", () => {
 	const runner = readFileSync(new URL("./run.ts", import.meta.url), "utf8");
 	const seed = readFileSync(new URL("./seed.ts", import.meta.url), "utf8");
