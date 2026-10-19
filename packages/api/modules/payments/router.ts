@@ -18,6 +18,7 @@ import { getCheckoutReturnState } from "./procedures/get-checkout-return-state";
 import { getCreditPackCheckoutState } from "./procedures/get-credit-pack-checkout-state";
 import { getCreditPackProviderAvailability } from "./procedures/get-credit-pack-provider-availability";
 import { getImagePassCheckoutState } from "./procedures/get-image-pass-checkout-state";
+import { getImagePassOffer } from "./procedures/get-image-pass-offer";
 import { getProviderAvailability } from "./procedures/get-provider-availability";
 import { listPurchases } from "./procedures/list-purchases";
 import {
@@ -42,6 +43,7 @@ export const paymentsRouter = {
 	capturePayPalImagePassCheckout,
 	createImagePassCheckout,
 	getImagePassCheckoutState,
+	getImagePassOffer,
 	createCheckoutLink,
 	createCreditPackCheckout,
 	createCustomerPortalLink,

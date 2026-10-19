@@ -1,7 +1,17 @@
 import { NextIntlClientProvider } from "next-intl";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const availability = vi.hoisted(() => ({
+	data: { available: true } as { available: boolean } | undefined,
+	isError: false,
+	isPending: false,
+}));
+vi.mock("@tanstack/react-query", async (original) => ({
+	...(await original<typeof import("@tanstack/react-query")>()),
+	useQuery: () => availability,
+}));
 
 import de from "../../../../../packages/i18n/translations/de/saas.json";
 import en from "../../../../../packages/i18n/translations/en/saas.json";
@@ -10,6 +20,26 @@ import fr from "../../../../../packages/i18n/translations/fr/saas.json";
 import { ImagePassBanner } from "./ImagePassBanner";
 
 describe("image pass offer banner", () => {
+	beforeEach(() => {
+		availability.data = { available: true };
+		availability.isError = false;
+		availability.isPending = false;
+	});
+	it.each(["unavailable", "loading", "error"])(
+		"hides checkout advertising when server availability is %s",
+		(mode) => {
+			availability.data = mode === "loading" ? undefined : { available: mode === "error" };
+			availability.isError = mode === "error";
+			availability.isPending = mode === "loading";
+			expect(
+				renderToStaticMarkup(
+					<NextIntlClientProvider locale="en" messages={en}>
+						<ImagePassBanner />
+					</NextIntlClientProvider>,
+				),
+			).toBe("");
+		},
+	);
 	it.each(Object.entries({ en, de, es, fr }))(
 		"renders the one-time USD offer in %s without changing it into credits",
 		(locale, messages) => {

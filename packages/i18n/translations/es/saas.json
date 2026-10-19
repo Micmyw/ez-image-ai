@@ -2240,6 +2240,8 @@
 		"checkAgain": "Comprobar el pago de nuevo",
 		"retryPass": "Reintentar · 1 pase de imagen",
 		"balanceError": "Saldo de pases no disponible",
-		"retryBalance": "Comprobar saldo de nuevo"
+		"retryBalance": "Comprobar saldo de nuevo",
+		"availabilityLoading": "Comprobando la disponibilidad…",
+		"unavailable": "Esta oferta no está disponible actualmente. Inténtalo de nuevo más tarde."
 	}
 }

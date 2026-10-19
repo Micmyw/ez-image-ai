@@ -2240,6 +2240,8 @@
 		"checkAgain": "Zahlung erneut prüfen",
 		"retryPass": "Erneut versuchen · 1 Bildpass",
 		"balanceError": "Bildpass-Guthaben nicht verfügbar",
-		"retryBalance": "Guthaben erneut prüfen"
+		"retryBalance": "Guthaben erneut prüfen",
+		"availabilityLoading": "Verfügbarkeit wird geprüft…",
+		"unavailable": "Dieses Angebot ist derzeit nicht verfügbar. Bitte versuche es später erneut."
 	}
 }

@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
 	acquire: vi.fn(() => true),
 	release: vi.fn(),
 	redirecting: vi.fn(),
+	available: true,
 }));
 vi.mock("react", async (original) => ({
 	...(await original<typeof import("react")>()),
@@ -39,7 +40,11 @@ vi.mock("@shared/lib/purchase-attribution", () => ({
 vi.mock("@tanstack/react-query", async (original) => ({
 	...(await original<typeof import("@tanstack/react-query")>()),
 	useMutation: () => ({ mutateAsync: state.checkout }),
-	useQuery: () => ({ data: { available: 3 } }),
+	useQuery: ({ queryKey }: { queryKey: string[] }) => ({
+		data: { available: queryKey[0] === "payments-image-pass-offer" ? state.available : 3 },
+		isPending: false,
+		isError: false,
+	}),
 }));
 vi.mock("../hooks/use-payment-action", () => ({
 	usePaymentAction: () => ({
@@ -75,11 +80,19 @@ beforeEach(() => {
 	state.ownerId = "owner-a";
 	state.cursor = 0;
 	state.slots = [];
+	state.available = true;
 	state.checkout.mockReset();
 	vi.stubGlobal("window", { location: { assign: state.assign } });
 });
 afterEach(() => vi.unstubAllGlobals());
 describe("image pass checkout UI", () => {
+	it("does not start checkout when the server offer is unavailable", async () => {
+		state.available = false;
+		buy(render())();
+		await flush();
+		expect(state.checkout).not.toHaveBeenCalled();
+		expect(state.acquire).not.toHaveBeenCalled();
+	});
 	it("coalesces clicks and preserves the same purchase key after an uncertain checkout response", async () => {
 		let reject!: (reason: Error) => void;
 		state.checkout

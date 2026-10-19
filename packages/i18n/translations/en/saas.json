@@ -2240,6 +2240,8 @@
 		"checkAgain": "Check payment again",
 		"retryPass": "Retry · 1 image pass",
 		"balanceError": "Pass balance unavailable",
-		"retryBalance": "Check balance again"
+		"retryBalance": "Check balance again",
+		"availabilityLoading": "Checking offer availability…",
+		"unavailable": "This offer is currently unavailable. Please try again later."
 	}
 }

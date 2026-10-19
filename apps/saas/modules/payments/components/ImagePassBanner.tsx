@@ -1,13 +1,19 @@
 "use client";
 
 import { IMAGE_PASS_PUBLIC_OFFER } from "@repo/config/client";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowUpRightIcon, ImageIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 
+import { imagePassOfferQueryOptions } from "../lib/image-pass-offer-query";
+
 export function ImagePassBanner({ registered = false }: { registered?: boolean }) {
 	const t = useTranslations("imagePass");
 	const offer = IMAGE_PASS_PUBLIC_OFFER;
+	const availability = useQuery(imagePassOfferQueryOptions());
+	if (availability.isError || availability.isPending || availability.data?.available !== true)
+		return null;
 	return (
 		<aside
 			aria-label={t("bannerLabel")}

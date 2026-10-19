@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { usePaymentAction } from "../hooks/use-payment-action";
+import { imagePassOfferQueryOptions } from "../lib/image-pass-offer-query";
 
 export function ImagePassPurchase() {
 	const t = useTranslations("imagePass");
@@ -25,6 +26,9 @@ export function ImagePassPurchase() {
 	const offer = IMAGE_PASS_PUBLIC_OFFER;
 	const payment = usePaymentAction();
 	const balance = useQuery(imagePassBalanceQueryOptions(ownerId));
+	const availability = useQuery(imagePassOfferQueryOptions());
+	const offerAvailable =
+		!availability.isError && !availability.isPending && availability.data?.available === true;
 	const checkout = useMutation(orpc.payments.createImagePassCheckout.mutationOptions());
 	const attempt = useRef<{ ownerId: string; key: string } | null>(null);
 	const pending = useRef(false);
@@ -39,7 +43,8 @@ export function ImagePassPurchase() {
 	}, []);
 	const [failed, setFailed] = useState(false);
 	async function buy() {
-		if (!ownerId || pending.current || !payment.acquire("image-pass:paypal")) return;
+		if (!ownerId || !offerAvailable || pending.current || !payment.acquire("image-pass:paypal"))
+			return;
 		pending.current = true;
 		setFailed(false);
 		if (attempt.current?.ownerId !== ownerId)
@@ -94,11 +99,16 @@ export function ImagePassPurchase() {
 					{t("balance", { count: balance.data.available })}
 				</p>
 			)}
+			{!offerAvailable && (
+				<p aria-live="polite" className="mt-5 text-sm text-[#d1c5df]">
+					{availability.isPending ? t("availabilityLoading") : t("unavailable")}
+				</p>
+			)}
 			{ownerId ? (
 				<button
 					type="button"
 					onClick={() => void buy()}
-					disabled={Boolean(payment.action)}
+					disabled={!offerAvailable || Boolean(payment.action)}
 					aria-busy={Boolean(payment.action?.key === "image-pass:paypal")}
 					className="mt-7 min-h-12 gap-2 px-5 text-sm font-semibold hover:bg-white focus-visible:outline-violet-200 inline-flex w-full items-center justify-center rounded-xl bg-[#f5efff] text-[#34246f] focus-visible:outline-2 focus-visible:outline-offset-4 disabled:opacity-60"
 				>
@@ -111,14 +121,14 @@ export function ImagePassPurchase() {
 						t("pay", { amount: offer.amount, currency: offer.currency })
 					)}
 				</button>
-			) : (
+			) : offerAvailable ? (
 				<Link
 					href="/signup?redirectTo=%2Fimage-pass"
 					className="mt-7 min-h-12 bg-white px-5 text-sm font-semibold inline-flex w-full items-center justify-center rounded-xl text-[#34246f]"
 				>
 					{t("signIn")}
 				</Link>
-			)}
+			) : null}
 			{failed && (
 				<p role="alert" className="mt-3 text-sm leading-6 text-rose-200">
 					{t("checkoutError")}
