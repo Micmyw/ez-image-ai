@@ -274,6 +274,34 @@ function artifacts(
 
 describe("prepared deployment artifacts", () => {
 	it.each(["workers", "hybrid"] as const)(
+		"keeps fresh account copying disabled by default in %s",
+		(profile) => {
+			const result = artifacts(profile);
+			expect(result["website.secrets"]).not.toHaveProperty("ACCOUNT_INPUT_COPY_ENABLED");
+			expect(result["workflows.secrets"]).not.toHaveProperty("ACCOUNT_INPUT_COPY_ENABLED");
+		},
+	);
+	it.each(["workers", "hybrid"] as const)(
+		"transports the explicit private account-copy switch without packing it in %s",
+		(profile) => {
+			for (const value of ["true", "false"]) {
+				const result = artifacts(profile, { ACCOUNT_INPUT_COPY_ENABLED: value });
+				expect(result["website.secrets"].ACCOUNT_INPUT_COPY_ENABLED).toBe(value);
+				expect(result["workflows.secrets"].ACCOUNT_INPUT_COPY_ENABLED).toBe(value);
+				expect(result.website.vars).not.toHaveProperty("ACCOUNT_INPUT_COPY_ENABLED");
+				expect(result.workflows.vars).not.toHaveProperty("ACCOUNT_INPUT_COPY_ENABLED");
+				if (profile === "hybrid")
+					expect(
+						JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV!).ACCOUNT_INPUT_COPY_ENABLED,
+					).toBe(value);
+				for (const secrets of [result["website.secrets"], result["workflows.secrets"]]) {
+					expect(secrets).not.toHaveProperty("NEXT_PUBLIC_ACCOUNT_INPUT_COPY_ENABLED");
+					expect(secrets.VIDEO_RUNTIME_CONFIG ?? "").not.toContain("ACCOUNT_INPUT_COPY_ENABLED");
+				}
+			}
+		},
+	);
+	it.each(["workers", "hybrid"] as const)(
 		"publishes the authenticated customer entry by default without inventing approvals in %s",
 		(profile) => {
 			const result = artifacts(profile);

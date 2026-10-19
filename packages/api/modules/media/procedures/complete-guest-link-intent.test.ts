@@ -80,7 +80,7 @@ describe("completeGuestLinkIntent", () => {
 		expect(claimedCookie).toContain("HttpOnly");
 		expect(claimedCookie).toContain("SameSite=Lax");
 		expect(claimedCookie).toContain("Path=/create;");
-		expect(claimedCookie).toContain("Max-Age=300");
+		expect(claimedCookie).toContain("Max-Age=86400");
 	});
 	it("keeps result-only grants on /try without creating an editor draft cookie", async () => {
 		vi.mocked(completeGuestLinkIntentTransaction).mockResolvedValue({
@@ -102,6 +102,27 @@ describe("completeGuestLinkIntent", () => {
 		);
 		expect(result).toMatchObject({ mode: "RESULT", jobId: "guest-job-1", returnPath: "/try" });
 		expect(responseHeaders.getSetCookie().join("\n")).not.toContain("media_claimed_draft");
+	});
+	it("retains only the public preparation state when linking a pending input draft", async () => {
+		const preparation = { promotionId: "copy-1", status: "COPYING" as const };
+		vi.mocked(completeGuestLinkIntentTransaction).mockResolvedValue({
+			mode: "DRAFT",
+			draftId: "draft-1",
+			returnPath: "/create",
+			preparation,
+		} as never);
+		await expect(
+			call(
+				completeGuestLinkIntent,
+				{},
+				{
+					context: {
+						headers: new Headers({ cookie: `media_guest_link_intent=${linkToken}` }),
+						responseHeaders: new Headers(),
+					},
+				},
+			),
+		).resolves.toEqual({ mode: "DRAFT", draftId: "draft-1", returnPath: "/create", preparation });
 	});
 	it.each(["/blog/1980s-ai-photo", "/effects/1980s-ai-photo"])(
 		"scopes a claimed preset draft from %s to its canonical registered article",
@@ -130,7 +151,7 @@ describe("completeGuestLinkIntent", () => {
 			expect(claimedCookie).toContain("Path=/blog/1980s-ai-photo;");
 			expect(claimedCookie).toContain("HttpOnly");
 			expect(claimedCookie).toContain("SameSite=Lax");
-			expect(claimedCookie).toContain("Max-Age=300");
+			expect(claimedCookie).toContain("Max-Age=86400");
 		},
 	);
 	it.each([

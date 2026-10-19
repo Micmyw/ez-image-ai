@@ -8,6 +8,7 @@ vi.mock("./guest-bootstrap", () => ({
 	createGuestSessionBootstrapWithClaimFence: vi.fn(),
 }));
 
+import { accountInputRetentionPatch } from "./account-input-promotion";
 import {
 	claimGenerationDraftTransaction,
 	claimGuestGenerationDraftTransaction,
@@ -52,6 +53,8 @@ function fixture(
 		$executeRaw: vi.fn(async () => 1),
 		$queryRaw: vi.fn(async () => [{ now }]),
 		user: { findUnique: vi.fn(async () => ({ isAnonymous: false })) },
+		subscription: { findMany: vi.fn(async () => []) },
+		billingPeriod: { fields: { paidAmount: "paidAmount" } },
 		generationDraft: {
 			findFirst: vi.fn(async ({ where }) => {
 				if (
@@ -99,32 +102,40 @@ function fixture(
 }
 const input = { draftId: "draft", anonymousOwnerId: "guest", registeredUserId: "account", now };
 afterEach(() => vi.unstubAllEnvs());
-describe("unaccepted guest input account retention", () => {
-	it("defaults the producer upgrade off until receiver rollout and drain are confirmed", async () => {
-		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "false");
-		const { asset, tx } = fixture();
-		await transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx as never);
-		expect(asset).toMatchObject({
-			ownerId: "account",
-			retentionClass: "GUEST_TRIAL",
-			deleteAfter: expect.any(Date),
-		});
-	});
+describe("retired same-key guest input retention", () => {
+	it.each(["true", "false", ""])(
+		"never adopts the original key for legacy flag %j",
+		async (flag) => {
+			vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", flag);
+			const { asset, tx } = fixture();
+			expect(
+				await accountInputRetentionPatch(
+					{ draftId: "draft", nextOwnerId: "account", asset },
+					tx as never,
+				),
+			).toEqual({});
+			expect(tx.$queryRaw).not.toHaveBeenCalled();
+			expect(tx.outboxEvent.updateMany).not.toHaveBeenCalled();
+		},
+	);
 	it.each(["READY", "VERIFYING"])(
-		"adopts a live exclusive %s input with account retention when enabled",
+		"preserves the original %s guest deadline when the new copy protocol is off",
 		async (status) => {
 			vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
+			vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "false");
 			const { asset, tx } = fixture({ status });
+			const deadline = asset.deleteAfter;
 			await transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx as never);
 			expect(asset).toMatchObject({
 				ownerId: "account",
-				retentionClass: "ACCOUNT",
-				deleteAfter: null,
+				retentionClass: "GUEST_TRIAL",
+				deleteAfter: deadline,
 				status,
 			});
+			expect(tx.outboxEvent.updateMany).not.toHaveBeenCalled();
 		},
 	);
-	it("cannot adopt a cleanup tombstone even when the link request started before its deadline", async () => {
+	it("cannot transfer a cleanup tombstone", async () => {
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
 		const { tx } = fixture({ status: "DELETED", deletedAt: now });
 		await expect(
@@ -132,44 +143,9 @@ describe("unaccepted guest input account retention", () => {
 		).rejects.toThrow("DRAFT_UNAVAILABLE");
 		expect(tx.storageUsageReservation.update).not.toHaveBeenCalled();
 	});
-	it("uses the current database time after locking rather than the original request time", async () => {
+	it("keeps the ordinary registered claim in guest retention when the fresh copy protocol is off", async () => {
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
-		const { tx } = fixture();
-		tx.$queryRaw.mockResolvedValue([{ now: new Date(now.getTime() + 120_000) }]);
-		await expect(
-			transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx as never),
-		).rejects.toThrow("DRAFT_UNAVAILABLE");
-		expect(tx.storageUsageReservation.update).not.toHaveBeenCalled();
-	});
-	it.each(["trial", "binding"])(
-		"does not upgrade an input already used by a guest %s",
-		async (kind) => {
-			vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
-			const { tx } = fixture();
-			if (kind === "trial")
-				tx.guestMediaTrial.findFirst.mockResolvedValue({ id: "trial" } as never);
-			else tx.generationJobAsset.findFirst.mockResolvedValue({ jobId: "accepted" } as never);
-			await expect(
-				transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx as never),
-			).rejects.toThrow("DRAFT_UNAVAILABLE");
-			expect(tx.storageUsageReservation.update).not.toHaveBeenCalled();
-		},
-	);
-	it("requires an exclusive input rather than extending another live draft's retention", async () => {
-		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
-		const { tx } = fixture();
-		tx.generationDraft.findFirst.mockImplementation(async ({ where }) =>
-			where.assetId && typeof where.id !== "string"
-				? ({ id: "other-draft" } as never)
-				: fixture().tx.generationDraft.findFirst({ where }),
-		);
-		await expect(
-			transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx as never),
-		).rejects.toThrow("DRAFT_UNAVAILABLE");
-		expect(tx.storageUsageReservation.update).not.toHaveBeenCalled();
-	});
-	it("also upgrades the ordinary registered ACTIVE-draft claim entry", async () => {
-		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
+		vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "false");
 		const { asset, tx } = fixture({}, { status: "ACTIVE" });
 		await claimGenerationDraftTransaction(
 			{
@@ -181,12 +157,12 @@ describe("unaccepted guest input account retention", () => {
 			{ $transaction: <T>(fn: (transaction: typeof tx) => Promise<T>) => fn(tx) } as never,
 		);
 		expect(asset).toMatchObject({
-			retentionClass: "ACCOUNT",
-			deleteAfter: null,
+			retentionClass: "GUEST_TRIAL",
+			deleteAfter: expect.any(Date),
 			ownerId: "account",
 		});
 	});
-	it("keeps anonymous bootstrap claims in guest retention even with the producer enabled", async () => {
+	it("keeps anonymous bootstrap claims in guest retention", async () => {
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
 		const { asset, tx } = fixture({}, { status: "ACTIVE" });
 		tx.user.findUnique.mockResolvedValue({ isAnonymous: true });
@@ -205,51 +181,12 @@ describe("unaccepted guest input account retention", () => {
 			ownerId: "guest",
 		});
 	});
-	it("checks the actual next owner even if the registered claim helper is called directly", async () => {
-		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
-		const { asset, tx } = fixture({}, { status: "ACTIVE" });
+	it("checks the actual registered owner even when called directly", async () => {
+		const { asset, tx } = fixture();
 		tx.user.findUnique.mockResolvedValue({ isAnonymous: true });
-		await expect(
-			claimGenerationDraftTransaction(
-				{
-					claimTokenHash: "claim",
-					userId: "account",
-					now,
-					allowedProductKeys: ["image-nano-banana-2-lite"],
-				},
-				{ $transaction: <T>(fn: (transaction: typeof tx) => Promise<T>) => fn(tx) } as never,
-			),
-		).rejects.toThrow("DRAFT_UNAVAILABLE");
-		expect(asset.retentionClass).toBe("GUEST_TRIAL");
-	});
-	it("checks the claimed draft deadline after lock waiting as well as the asset deadline", async () => {
-		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
-		const { tx } = fixture({ deleteAfter: new Date(now.getTime() + 300_000) });
-		tx.$queryRaw.mockResolvedValue([{ now: new Date(now.getTime() + 120_000) }]);
 		await expect(
 			transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx as never),
 		).rejects.toThrow("DRAFT_UNAVAILABLE");
-	});
-	it("retires only the exact still-pending guest deadline event without a physical cleanup receipt", async () => {
-		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
-		const { tx } = fixture();
-		await transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx as never);
-		expect(tx.outboxEvent.updateMany).toHaveBeenCalledWith({
-			where: expect.objectContaining({
-				dedupeKey: "guest-media-deadline-cleanup:asset",
-				status: "PENDING",
-				eventType: "MEDIA_OBJECT_DELETE",
-				aggregateType: "MEDIA_ASSET",
-				aggregateId: "asset",
-				availableAt: new Date(now.getTime() + 60_000),
-				payload: { path: ["objectKey"], equals: "final-key" },
-				AND: [{ payload: { path: ["assetId"], equals: "asset" } }],
-			}),
-			data: expect.objectContaining({
-				status: "PROCESSED",
-				processedAt: now,
-				lastError: "SUPERSEDED_BY_ACCOUNT_INPUT_PROMOTION",
-			}),
-		});
+		expect(asset.retentionClass).toBe("GUEST_TRIAL");
 	});
 });

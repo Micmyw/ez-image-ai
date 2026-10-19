@@ -4,8 +4,18 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { PrismaClient, type Prisma } from "../../generated/client";
-import { transferGuestGenerationDraftToRegisteredUserInTransaction } from "./drafts";
+import {
+	claimAccountInputCopy,
+	commitAccountInputCopy,
+	parseAccountInputCopyIntent,
+	reconcileAccountInputCopyTargetInTransaction,
+} from "./account-input-copy";
+import {
+	getClaimedGenerationDraft,
+	transferGuestGenerationDraftToRegisteredUserInTransaction,
+} from "./drafts";
 import { lockGuestOwnerPromotion } from "./guest-admission";
+import { applyAdminModerationReview } from "./moderation-operations";
 import { claimMediaStorageCleanupTransaction } from "./storage-cleanup";
 
 let db: PrismaClient;
@@ -119,89 +129,213 @@ async function fixture() {
 	};
 }
 
-describe("account input retention and physical cleanup serialization", () => {
-	it("lets the account transaction win against an already-dispatched deletion waiting on the asset lock", async () => {
+describe("registered input retention protocols", () => {
+	it("retains a registered draft through a distinct account target using the genuine ORM contract", async () => {
+		vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "true");
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
 		const { asset, input } = await fixture();
-		let unlock!: () => void, adopted!: () => void;
-		const release = new Promise<void>((resolve) => {
-			unlock = resolve;
+		const claimed = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+			await lockGuestOwnerPromotion(tx, input.anonymousOwnerId, "retention-test");
+			return transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx);
 		});
-		const ready = new Promise<void>((resolve) => {
-			adopted = resolve;
+		expect(claimed.preparation).toMatchObject({ status: "COPYING" });
+		expect(claimed.input).not.toHaveProperty("sourceAssetId");
+		const event = await db.outboxEvent.findUniqueOrThrow({
+			where: { dedupeKey: `account-input-copy:v1:${input.draftId}` },
 		});
-		const promotion = db.$transaction(
-			async (tx) => {
+		const intent = parseAccountInputCopyIntent(event.payload);
+		expect(intent.target.assetId).not.toBe(asset.id);
+		expect(intent.target.objectKey).not.toBe(asset.objectKey);
+		await expect(
+			db.mediaAsset.findUniqueOrThrow({ where: { id: intent.target.assetId } }),
+		).resolves.toMatchObject({
+			ownerId: input.registeredUserId,
+			status: "UPLOADING",
+			retentionClass: "ACCOUNT",
+			deleteAfter: null,
+		});
+		const copy = await claimAccountInputCopy({ promotionId: event.id }, db);
+		if (!copy) throw new Error("COPY_LEASE_MISSING");
+		// The physical-copy boundary is supplied here; storage is independently
+		// simulated/tested. This verifies real ORM mappings and migration triggers.
+		await commitAccountInputCopy(
+			{
+				promotionId: copy.promotionId,
+				leaseToken: copy.leaseToken,
+				checksum: copy.source.checksum,
+				bytes: copy.source.bytes,
+				mimeType: copy.source.mimeType,
+			},
+			db,
+		);
+		await expect(
+			db.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } }),
+		).resolves.toMatchObject({
+			ownerId: input.anonymousOwnerId,
+			retentionClass: "GUEST_TRIAL",
+			deleteAfter: asset.deleteAfter,
+			objectKey: asset.objectKey,
+		});
+		await expect(
+			db.mediaAsset.findUniqueOrThrow({ where: { id: intent.target.assetId } }),
+		).resolves.toMatchObject({
+			ownerId: input.registeredUserId,
+			status: "VERIFYING",
+			checksum: asset.checksum,
+			verificationGeneration: 1,
+		});
+		await expect(
+			db.generationDraft.findUniqueOrThrow({ where: { id: input.draftId } }),
+		).resolves.toMatchObject({ ownerId: input.registeredUserId, assetId: intent.target.assetId });
+		await expect(
+			db.storageUsageReservation.findUniqueOrThrow({
+				where: { referenceKey: `account-input-copy:${intent.target.assetId}` },
+			}),
+		).resolves.toMatchObject({
+			ownerId: input.registeredUserId,
+			bytes: asset.byteSize,
+			status: "COMMITTED",
+		});
+		const restored = await getClaimedGenerationDraft(
+			{ draftId: input.draftId, userId: input.registeredUserId },
+			db,
+		);
+		expect(restored?.preparation).toMatchObject({ status: "VERIFYING" });
+		expect(restored?.input).not.toHaveProperty("sourceAssetId");
+	});
+	it.each(["APPROVE", "RECHECK"] as const)(
+		"preserves the genuine admin %s path for a copied input under content REVIEW",
+		async (action) => {
+			vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "true");
+			const { input } = await fixture();
+			await db.$transaction(async (tx: Prisma.TransactionClient) => {
 				await lockGuestOwnerPromotion(tx, input.anonymousOwnerId, "retention-test");
 				await transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx);
-				adopted();
-				await release;
-			},
-			{ timeout: 10_000 },
-		);
-		// Surface an early promotion failure instead of leaving the barrier pending.
-		await Promise.race([
-			ready,
-			promotion.then(() => {
-				throw new Error("PROMOTION_DID_NOT_REACH_BARRIER");
-			}),
-		]);
-		let connected!: (pid: number) => void;
-		const connection = new Promise<number>((resolve) => {
-			connected = resolve;
-		});
-		const observed = {
-			$transaction: (
-				action: (tx: Prisma.TransactionClient) => Promise<unknown>,
-				options: {
-					isolationLevel?: Prisma.TransactionIsolationLevel;
-					maxWait?: number;
-					timeout?: number;
+			});
+			const event = await db.outboxEvent.findUniqueOrThrow({
+				where: { dedupeKey: `account-input-copy:v1:${input.draftId}` },
+			});
+			const intent = parseAccountInputCopyIntent(event.payload);
+			const copy = await claimAccountInputCopy({ promotionId: event.id }, db);
+			if (!copy) throw new Error("COPY_LEASE_MISSING");
+			await commitAccountInputCopy(
+				{
+					promotionId: copy.promotionId,
+					leaseToken: copy.leaseToken,
+					checksum: copy.source.checksum,
+					bytes: copy.source.bytes,
+					mimeType: copy.source.mimeType,
 				},
-			) =>
-				db.$transaction(async (tx) => {
-					const [row] = await tx.$queryRaw<Array<{ pid: number }>>`SELECT pg_backend_pid() AS pid`;
-					connected(row!.pid);
-					return action(tx);
-				}, options),
-		};
-		const deletion = claimMediaStorageCleanupTransaction(
-			{ assetId: asset.id, objectKeys: ["old-stage", asset.objectKey], releasesReservation: true },
-			observed as never,
-		);
-		try {
-			const pid = await connection;
-			let waiting = false;
-			for (let attempt = 0; attempt < 100 && !waiting; attempt++) {
-				const [row] = await db.$queryRaw<
-					Array<{ waiting: boolean }>
-				>`SELECT EXISTS (SELECT 1 FROM pg_locks WHERE pid = ${pid} AND locktype = 'advisory' AND NOT granted) AS waiting`;
-				waiting = row!.waiting;
-				if (!waiting) await new Promise((resolve) => setTimeout(resolve, 10));
-			}
-			expect(waiting).toBe(true);
-		} finally {
-			unlock();
-		}
-		await promotion;
-		await expect(deletion).resolves.toBe("SKIP");
+				db,
+			);
+			const verification = {
+				provider: "test",
+				ruleVersion: "retention-test-rule",
+				policyVersion: "retention-test-policy",
+			};
+			const review = await db.$transaction(async (tx: Prisma.TransactionClient) => {
+				await tx.mediaAsset.update({
+					where: { id: intent.target.assetId },
+					data: {
+						status: "QUARANTINED",
+						verificationAttemptCount: 1,
+						verificationProvider: verification.provider,
+						verificationProviderTaskId: `copy-content-review-${event.id}`,
+						verificationRuleVersion: verification.ruleVersion,
+						verificationPolicyVersion: verification.policyVersion,
+						verificationLastErrorCode: "SEEAPI_CONTENT_REVIEW",
+					},
+				});
+				await tx.assetModerationResult.create({
+					data: {
+						assetId: intent.target.assetId,
+						assetChecksum: copy.source.checksum,
+						verificationGeneration: 1,
+						attemptNumber: 1,
+						evidenceKind: "INPUT",
+						...verification,
+						providerTaskId: `copy-content-review-${event.id}`,
+						status: "REVIEW",
+						reasonCode: "SEEAPI_CONTENT_REVIEW",
+						categories: {},
+						rawEnvelope: {},
+					},
+				});
+				const review = await tx.moderationReview.create({
+					data: {
+						targetType: "ASSET",
+						targetId: intent.target.assetId,
+						provider: verification.provider,
+						stage: "IMAGE",
+						status: "BLOCKED",
+						attemptEpoch: "1",
+						lastErrorCode: "SEEAPI_CONTENT_REVIEW",
+						firstFailureAt: new Date(),
+						lastFailureAt: new Date(),
+					},
+				});
+				expect(
+					await reconcileAccountInputCopyTargetInTransaction(
+						{ assetId: intent.target.assetId },
+						tx,
+					),
+				).toEqual({ terminal: false });
+				return review;
+			});
+			await expect(
+				applyAdminModerationReview(
+					{
+						reviewId: review.id,
+						version: review.version,
+						action,
+						reason: "Reviewed copied original",
+						idempotencyKey: randomUUID(),
+						actorUserId: input.registeredUserId,
+						verification,
+					},
+					db,
+				),
+			).resolves.toMatchObject({ status: action === "APPROVE" ? "APPROVED" : "RECHECKING" });
+			await db.$transaction((tx: Prisma.TransactionClient) =>
+				reconcileAccountInputCopyTargetInTransaction({ assetId: intent.target.assetId }, tx),
+			);
+			await expect(
+				db.mediaAsset.findUniqueOrThrow({ where: { id: intent.target.assetId } }),
+			).resolves.toMatchObject({
+				status: action === "APPROVE" ? "READY" : "VERIFYING",
+				deletedAt: null,
+			});
+		},
+	);
+	it("cannot extend guest retention or suppress deadline cleanup with the historical flag", async () => {
+		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
+		vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "false");
+		const { asset, input } = await fixture();
+		await db.$transaction(async (tx: Prisma.TransactionClient) => {
+			await lockGuestOwnerPromotion(tx, input.anonymousOwnerId, "retention-test");
+			await transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx);
+		});
 		await expect(
 			db.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } }),
 		).resolves.toMatchObject({
 			ownerId: input.registeredUserId,
-			retentionClass: "ACCOUNT",
-			deleteAfter: null,
-			status: "READY",
-			deletedAt: null,
+			retentionClass: "GUEST_TRIAL",
+			deleteAfter: asset.deleteAfter,
+			objectKey: asset.objectKey,
+		});
+		await db.mediaAsset.update({
+			where: { id: asset.id },
+			data: { deleteAfter: new Date(Date.now() - 1) },
 		});
 		await expect(
-			db.storageUsageReservation.findUniqueOrThrow({
-				where: { referenceKey: `media-draft:${asset.id}` },
-			}),
-		).resolves.toMatchObject({ ownerId: input.registeredUserId, status: "COMMITTED", bytes: 10n });
+			claimMediaStorageCleanupTransaction({ assetId: asset.id, objectKeys: [asset.objectKey] }, db),
+		).resolves.toBe("DELETE");
+		await expect(
+			db.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } }),
+		).resolves.toMatchObject({ status: "DELETED", deletedAt: expect.any(Date) });
 	});
 
-	it("rejects adoption after deletion authorization commits, even while physical deletion is still outstanding", async () => {
+	it("rejects ownership transfer after deletion authorization commits, while physical deletion is outstanding", async () => {
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
 		const { asset, input } = await fixture();
 		await db.mediaAsset.update({
@@ -212,7 +346,7 @@ describe("account input retention and physical cleanup serialization", () => {
 			claimMediaStorageCleanupTransaction({ assetId: asset.id, objectKeys: [asset.objectKey] }, db),
 		).resolves.toBe("DELETE");
 		await expect(
-			db.$transaction(async (tx) => {
+			db.$transaction(async (tx: Prisma.TransactionClient) => {
 				await lockGuestOwnerPromotion(tx, input.anonymousOwnerId, "retention-test");
 				return transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx);
 			}),

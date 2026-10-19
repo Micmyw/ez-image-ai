@@ -1261,6 +1261,21 @@
 				"recent": "Recent registered edits",
 				"private": "Owner-scoped private media"
 			},
+			"preparation": {
+				"title": "Preparing your private image",
+				"copying": "Saving the original image to your account…",
+				"verifying": "Checking your saved image before you can continue…",
+				"ready": "Your image is ready. Opening your saved edit…",
+				"failed": "We could not prepare this image. Please upload it again to continue.",
+				"expired": "The original image expired before it could be saved. Please upload it again.",
+				"unavailable": "This saved edit is unavailable for your current account.",
+				"connectionError": "We could not check the image right now. Try checking again.",
+				"paused": "Your image is still being prepared. Check again when you are ready.",
+				"saved": "Your instruction and settings are saved. Image generation will start only after you submit the ready edit.",
+				"recheck": "Check again",
+				"chooseAnother": "Choose another image",
+				"checking": "Checking…"
+			},
 			"restore": {
 				"qualityUpgradeRequired": "Your image, instruction, and selected image model were restored. Choose Pro, Ultimate, or Max to continue with that model.",
 				"upgradeComplete": "Your paid plan is active, and your saved image, instruction, model settings, and edit session have been restored.",

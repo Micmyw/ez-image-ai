@@ -34,6 +34,74 @@ export interface OutboxPayload {
 	outboxEventId?: string;
 }
 
+export interface AccountInputCopyPayload {
+	promotionId: string;
+}
+
+export interface AccountInputCopyClaim extends AccountInputCopyPayload {
+	leaseToken: string;
+	source: {
+		assetId: string;
+		objectKey: string;
+		checksum: string;
+		bytes: number;
+		mimeType: "image/jpeg" | "image/png" | "image/webp";
+	};
+	target: { assetId: string; objectKey: string; ownerId: string };
+	multipartUploadId?: string;
+}
+
+export interface AccountInputCopyDependencies {
+	claim(input: AccountInputCopyPayload): Promise<AccountInputCopyClaim | null>;
+	registerMultipart(
+		input: AccountInputCopyPayload & { leaseToken: string; multipartUploadId: string },
+	): Promise<void>;
+	clearMultipart(
+		input: AccountInputCopyPayload & { leaseToken: string; multipartUploadId: string },
+	): Promise<void>;
+	commit(
+		this: void,
+		input: AccountInputCopyPayload & {
+			leaseToken: string;
+			checksum: string;
+			bytes: number;
+			mimeType: string;
+			storageEtag?: string;
+			storageVersionId?: string;
+		},
+	): Promise<void>;
+	fail(
+		input: AccountInputCopyPayload & {
+			leaseToken: string;
+			reasonCode: string;
+			definitive: boolean;
+		},
+	): Promise<void>;
+	copy: typeof import("@repo/storage").promoteStagedObject;
+}
+
+export interface AccountInputCopyOrphanDependencies {
+	claim(
+		input: AccountInputCopyPayload,
+	): Promise<
+		| ({ assetId: string; objectKey: string; multipartUploadId?: string } & AccountInputCopyPayload)
+		| null
+	>;
+	listMultipartUploads: typeof import("@repo/storage").listMultipartUploads;
+	abortMultipartUpload: typeof import("@repo/storage").abortMultipartUpload;
+	deleteObject: typeof import("@repo/storage").deleteObject;
+	recordPass(input: AccountInputCopyPayload): Promise<void>;
+}
+
+export interface AccountInputCopyRecoveryDependencies {
+	recover(input: { limit: number }): Promise<{ promotionIds: string[]; orphanIds: string[] }>;
+	dispatch(
+		taskId: string,
+		payload: Record<string, unknown>,
+		options: { idempotencyKey: string },
+	): Promise<unknown>;
+}
+
 export interface DispatchClaim {
 	attemptId: string;
 	attemptNumber: number;

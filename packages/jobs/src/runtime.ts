@@ -99,6 +99,17 @@ import type {
 	ModerationStatus,
 } from "@repo/database/generated-client";
 import {
+	claimAccountInputCopy,
+	registerAccountInputCopyMultipart,
+	clearAccountInputCopyMultipart,
+	commitAccountInputCopy,
+	failAccountInputCopy,
+	recoverAccountInputCopies,
+	claimAccountInputCopyOrphan,
+	recordAccountInputCopyOrphanPass,
+	reconcileAccountInputCopyTargetInTransaction,
+} from "@repo/database/media-account-input-copy";
+import {
 	abortMultipartUpload,
 	assertMediaKind,
 	isMediaContentType,
@@ -127,6 +138,9 @@ import type { MediaObjectMetadata } from "@repo/storage";
 
 import {
 	DispatchAdmissionBlockedError,
+	type AccountInputCopyDependencies,
+	type AccountInputCopyOrphanDependencies,
+	type AccountInputCopyRecoveryDependencies,
 	type DispatchStore,
 	type DispatchDeferred,
 	type FinalizationDependencies,
@@ -1282,6 +1296,38 @@ export function createDatabaseStorageCleanupDependencies(
 
 export const databaseStorageCleanupDependencies = createDatabaseStorageCleanupDependencies(db);
 
+export function createDatabaseAccountInputCopyDependencies(
+	database: PrismaClient,
+): AccountInputCopyDependencies {
+	return {
+		claim: (input) => claimAccountInputCopy(input, database),
+		registerMultipart: (input) => registerAccountInputCopyMultipart(input, database),
+		clearMultipart: (input) => clearAccountInputCopyMultipart(input, database),
+		commit: (input) => commitAccountInputCopy(input, database),
+		fail: (input) => failAccountInputCopy(input, database),
+		copy: promoteStagedObject,
+	};
+}
+
+export function createDatabaseAccountInputCopyOrphanDependencies(
+	database: PrismaClient,
+): AccountInputCopyOrphanDependencies {
+	return {
+		claim: (input) => claimAccountInputCopyOrphan(input, database),
+		listMultipartUploads,
+		abortMultipartUpload,
+		deleteObject,
+		recordPass: (input) => recordAccountInputCopyOrphanPass(input, database),
+	};
+}
+
+export function createDatabaseAccountInputCopyRecoveryDependencies(
+	database: PrismaClient,
+	dispatch: AccountInputCopyRecoveryDependencies["dispatch"],
+): AccountInputCopyRecoveryDependencies {
+	return { recover: (input) => recoverAccountInputCopies(input, database), dispatch };
+}
+
 interface VerifyUploadRuntimeOptions {
 	environment?: NodeJS.ProcessEnv;
 	headObject?: (location: { bucket: "media"; key: string }) => Promise<MediaObjectMetadata>;
@@ -1846,6 +1892,13 @@ async function claimMediaVerification(
 		});
 		if (!asset) return null;
 		if (asset.deletedAt !== null || asset.status === "DELETED") return null;
+		if (asset.kind === "INPUT") {
+			const copy = await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx);
+			if (copy.terminal) {
+				outboxCommitted = true;
+				return null;
+			}
+		}
 		// Retired provider attempts never become a fresh paid SeeAPI submission.
 		// Preserve completed evidence as written; unfinished attempts stay held for review.
 		if (asset.verificationProvider?.split("+").includes("sightengine")) {
@@ -2206,6 +2259,10 @@ async function claimMediaVerification(
 				approved: false,
 				failureCode: "ASSET_VERIFICATION_DEADLINE_EXCEEDED",
 			});
+			if (asset.kind === "INPUT")
+				outboxCommitted =
+					(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx))
+						.terminal || outboxCommitted;
 			return null;
 		}
 
@@ -2236,6 +2293,10 @@ async function claimMediaVerification(
 				approved: false,
 				failureCode: "ASSET_VERIFICATION_FAILED",
 			});
+			if (asset.kind === "INPUT")
+				outboxCommitted =
+					(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx))
+						.terminal || outboxCommitted;
 			return null;
 		}
 		const generation = Math.max(asset.verificationGeneration, 1);
@@ -2392,6 +2453,11 @@ async function completeMediaVerification(
 			},
 		});
 		if (!asset) return false;
+		if (
+			asset.kind === "INPUT" &&
+			(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx)).terminal
+		)
+			return true;
 		if (promptRejected)
 			input = { ...input, decision: "REJECT", reasonCode: "ADMIN_CONTENT_REJECTED" };
 		const status =
@@ -2475,7 +2541,10 @@ async function completeMediaVerification(
 				verificationLastErrorCode: input.decision === "ALLOW" ? null : input.reasonCode,
 			},
 		});
-		return resolveJobsWaitingForMediaVerification(tx, {
+		const copyTerminal =
+			asset.kind === "INPUT" &&
+			(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx)).terminal;
+		const jobsCommitted = await resolveJobsWaitingForMediaVerification(tx, {
 			assetId: asset.id,
 			verificationGeneration: claim.generation,
 			approved: input.decision === "ALLOW",
@@ -2484,6 +2553,7 @@ async function completeMediaVerification(
 					? "INPUT_REVERIFICATION_REJECTED"
 					: "INPUT_REVERIFICATION_REVIEW_REQUIRED",
 		});
+		return copyTerminal || jobsCommitted;
 	});
 }
 
@@ -2520,6 +2590,11 @@ async function recordMediaVerificationWaitOrFailure(
 			},
 		});
 		if (!asset) return { outboxCommitted: false };
+		if (
+			asset.kind === "INPUT" &&
+			(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx)).terminal
+		)
+			return { outboxCommitted: true };
 		await appendVerificationEvidence(tx, {
 			assetId: asset.id,
 			assetChecksum: checksum,
@@ -2618,7 +2693,11 @@ async function recordMediaVerificationWaitOrFailure(
 		});
 		let outboxCommitted = false;
 		if (exhausted) {
-			outboxCommitted = await resolveJobsWaitingForMediaVerification(tx, {
+			if (asset.kind === "INPUT")
+				outboxCommitted = (
+					await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx)
+				).terminal;
+			const jobsCommitted = await resolveJobsWaitingForMediaVerification(tx, {
 				assetId: asset.id,
 				verificationGeneration: claim.generation,
 				approved: false,
@@ -2627,6 +2706,7 @@ async function recordMediaVerificationWaitOrFailure(
 						? "INPUT_REVERIFICATION_DEADLINE_EXCEEDED"
 						: "INPUT_REVERIFICATION_FAILED",
 			});
+			outboxCommitted ||= jobsCommitted;
 		}
 		if (retryAt) {
 			const pendingImage = status === "PENDING" && asset.mimeType.startsWith("image/");

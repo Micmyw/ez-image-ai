@@ -27,6 +27,7 @@ import { createMultipartPartUrl } from "./procedures/create-multipart-part-url";
 import { createQuote } from "./procedures/create-quote";
 import { createUploadSession } from "./procedures/create-upload-session";
 import { deleteAsset } from "./procedures/delete-asset";
+import { getAccountInputCopyStatus } from "./procedures/get-account-input-copy-status";
 import { getAssetAccessUrl } from "./procedures/get-asset-access-url";
 import { getCreditAccount } from "./procedures/get-credit-account";
 import { getEditSession } from "./procedures/get-edit-session";
@@ -70,6 +71,7 @@ export const mediaRouter = {
 	beginGuestLinkIntent,
 	completeGuestLinkIntent,
 	claimGenerationDraft,
+	getAccountInputCopyStatus,
 	cancelGeneration,
 	retryGeneration,
 	getJob,

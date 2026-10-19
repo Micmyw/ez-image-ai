@@ -86,6 +86,9 @@ const dispatchPayload = strictObject({
 });
 
 const payloadParsers = {
+	"media-copy-account-input": strictObject({ promotionId: text }),
+	"media-cleanup-account-input-copy": strictObject({ promotionId: text }),
+	"media-recover-account-input-copies": scheduled,
 	"media-deliver-outbox": scheduled,
 	"media-deliver-output-review": strictObject({ eventId: text }),
 	"media-deliver-events": strictObject({
@@ -212,6 +215,9 @@ export function parseTaskRequest(value: unknown): TaskRequest {
 }
 
 const definitions: Record<keyof typeof payloadParsers, TaskDefinition> = {
+	"media-copy-account-input": definition("media-account-input-copy", 1, 120, 5),
+	"media-cleanup-account-input-copy": definition("media-account-input-copy-cleanup", 1, 120),
+	"media-recover-account-input-copies": definition("media-account-input-copy-recovery", 1, 120),
 	"media-deliver-outbox": definition("media-outbox", 2, 120),
 	"media-deliver-output-review": definition("media-outbox", 2, 120),
 	"media-deliver-events": definition("media-outbox", 2, 120),
@@ -293,6 +299,7 @@ export function taskDefinition(
 export function maintenanceTasksAt(value: number): string[] {
 	const minute = new Date(timestamp(value)).getUTCMinutes();
 	const tasks = [
+		"media-recover-account-input-copies",
 		"media-deliver-outbox",
 		"media-recover-finalizing-generations",
 		"media-recover-verifications",

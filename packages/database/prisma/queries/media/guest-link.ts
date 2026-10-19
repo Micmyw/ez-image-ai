@@ -1,4 +1,5 @@
 import type { Prisma } from "../../generated/client";
+import { getAccountInputCopyStatus, type AccountInputCopyStatus } from "./account-input-copy";
 import { transferGuestGenerationDraftToRegisteredUserInTransaction } from "./drafts";
 import { lockGuestOwnerPromotion } from "./guest-admission";
 import type { MediaTransactionClient } from "./types";
@@ -32,7 +33,12 @@ export interface GuestLinkIntentSnapshot {
 }
 
 export type CompleteGuestLinkIntentTransactionResult =
-	| { mode: "DRAFT"; draftId: string; returnPath: GuestReturnPath }
+	| {
+			mode: "DRAFT";
+			draftId: string;
+			returnPath: GuestReturnPath;
+			preparation?: AccountInputCopyStatus;
+	  }
 	| {
 			mode: "RESULT";
 			jobId: string;
@@ -195,6 +201,7 @@ export async function completeGuestLinkIntentTransaction(
 				mode: "DRAFT",
 				draftId: draft.id,
 				returnPath: asGuestReturnPath(intent.returnPath),
+				...(draft.preparation ? { preparation: draft.preparation } : {}),
 			};
 		} else if (intent.trialId) {
 			const trial = await tx.guestMediaTrial.findFirst({
@@ -258,10 +265,17 @@ async function loadCompletedLinkResult(
 	tx: Prisma.TransactionClient,
 ): Promise<CompleteGuestLinkIntentTransactionResult> {
 	if (intent.claimedDraftId) {
+		const preparation = intent.registeredUserId
+			? await getAccountInputCopyStatus(
+					{ ownerId: intent.registeredUserId, draftId: intent.claimedDraftId },
+					tx,
+				)
+			: null;
 		return {
 			mode: "DRAFT",
 			draftId: intent.claimedDraftId,
 			returnPath: asGuestReturnPath(intent.returnPath),
+			...(preparation && preparation.status !== "READY" ? { preparation } : {}),
 		};
 	}
 	if (intent.trialId && intent.registeredUserId) {

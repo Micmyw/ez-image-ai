@@ -1261,6 +1261,21 @@
 				"recent": "Letzte registrierte Bearbeitungen",
 				"private": "Eigentümergebundene private Medien"
 			},
+			"preparation": {
+				"title": "Ihr privates Bild wird vorbereitet",
+				"copying": "Das Originalbild wird in Ihrem Konto gespeichert…",
+				"verifying": "Ihr gespeichertes Bild wird geprüft, bevor Sie fortfahren können…",
+				"ready": "Ihr Bild ist bereit. Ihre gespeicherte Bearbeitung wird geöffnet…",
+				"failed": "Dieses Bild konnte nicht vorbereitet werden. Bitte laden Sie es erneut hoch.",
+				"expired": "Das Originalbild ist abgelaufen, bevor es gespeichert werden konnte. Bitte laden Sie es erneut hoch.",
+				"unavailable": "Diese gespeicherte Bearbeitung ist für Ihr aktuelles Konto nicht verfügbar.",
+				"connectionError": "Das Bild konnte gerade nicht geprüft werden. Versuchen Sie es erneut.",
+				"paused": "Ihr Bild wird noch vorbereitet. Prüfen Sie den Status erneut, wenn Sie bereit sind.",
+				"saved": "Ihre Anweisung und Einstellungen sind gespeichert. Die Bilderzeugung beginnt erst, wenn Sie die fertige Bearbeitung absenden.",
+				"recheck": "Erneut prüfen",
+				"chooseAnother": "Anderes Bild wählen",
+				"checking": "Wird geprüft…"
+			},
 			"restore": {
 				"qualityUpgradeRequired": "Bild, Anweisung und das gewählte Bildmodell wurden wiederhergestellt. Wählen Sie Pro, Ultimate oder Max, um mit diesem Modell fortzufahren.",
 				"upgradeComplete": "Ihr bezahlter Tarif ist aktiv. Bild, Anweisung, Modelleinstellungen und Bearbeitungssitzung wurden wiederhergestellt.",

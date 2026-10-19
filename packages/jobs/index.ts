@@ -2,6 +2,7 @@ export * from "./src/contracts";
 export * from "./src/queues";
 export * from "./src/runtime";
 export * from "./src/handlers/check-credit-invariants";
+export * from "./src/handlers/account-input-copy";
 export * from "./src/handlers/cleanup-assets";
 export * from "./src/handlers/cleanup-storage-object";
 export * from "./src/handlers/cancel-generation";

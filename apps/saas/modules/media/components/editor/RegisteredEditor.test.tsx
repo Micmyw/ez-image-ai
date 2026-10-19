@@ -9,12 +9,19 @@ const mocks = vi.hoisted(() => ({
 	parent: vi.fn(),
 	cookies: vi.fn(),
 	workspace: vi.fn(),
+	preparation: vi.fn(),
 }));
 vi.mock("@auth/lib/server", () => ({ getSession: async () => ({ user: { id: "owner" } }) }));
 vi.mock("@media/components/CreatorWorkspace", () => ({
 	CreatorWorkspace: (props: unknown) => {
 		mocks.workspace(props);
 		return <div>Editor</div>;
+	},
+}));
+vi.mock("./AccountInputPreparation", () => ({
+	AccountInputPreparation: (props: unknown) => {
+		mocks.preparation(props);
+		return <div>Preparing private image</div>;
 	},
 }));
 vi.mock("@repo/database", () => ({
@@ -124,4 +131,31 @@ describe("selected-image tool recovery", () => {
 			}),
 		);
 	});
+	it.each(["COPYING", "VERIFYING", "FAILED", "EXPIRED"])(
+		"keeps a %s claimed image outside the generator across page refreshes",
+		async (status) => {
+			mocks.cookies.mockResolvedValue({ get: () => ({ value: "draft-pending" }) });
+			mocks.draft.mockResolvedValue({
+				id: "draft-pending",
+				productKey: "image-nano-banana-2-lite",
+				input: { kind: "image-to-image", prompt: "Saved instruction" },
+				preparation: { promotionId: "copy-1", status },
+			});
+
+			for (let refresh = 0; refresh < 2; refresh++) {
+				const html = renderToStaticMarkup(
+					await RegisteredEditor({ searchParams: Promise.resolve({}) }),
+				);
+				expect(html).toContain("Preparing private image");
+			}
+			expect(mocks.preparation).toHaveBeenCalledWith(
+				expect.objectContaining({
+					draftId: "draft-pending",
+					initialStatus: { promotionId: "copy-1", status },
+				}),
+			);
+			expect(mocks.workspace).not.toHaveBeenCalled();
+			expect(mocks.asset).not.toHaveBeenCalled();
+		},
+	);
 });

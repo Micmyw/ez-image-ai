@@ -680,15 +680,38 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	}, testInfo) => {
 		const prompt = marker("insufficient", "A long cinematic sequence", testInfo.retry);
 		const user = await userByEmail(emptyEmail);
+		await openCreator(page, prompt, emptyEmail);
+		// First sign-in grants five credits; select an allowed seven-credit SKU.
+		await page.getByRole("button", { name: /^Model: / }).click();
+		await page.getByRole("button", { name: "GPT Image", exact: true }).click();
+		await page.locator('[data-test="editor-model-image-gpt-image-2"]').click();
+		const submit = page.locator('[data-test="generation-submit"]');
+		await expect(submit).toHaveAccessibleName("Start edit 7 credits");
+		await expect(submit).toBeEnabled();
+		await expect(page.locator('[data-test="editor-model-access-notice"]')).toBeHidden();
+		const account = (
+			await rows<{ spendableCredits: string }>(
+				`SELECT "spendableCredits" FROM credit_account WHERE "ownerType"='USER' AND "ownerId"=$1`,
+				[user.id],
+			)
+		)[0]!;
+		expect(account.spendableCredits).toBe("5");
 		const before = await count(
 			`SELECT count(*) FROM credit_ledger_entry l JOIN credit_account a ON a.id=l."accountId" WHERE a."ownerId"=$1`,
 			[user.id],
 		);
-		await openCreator(page, prompt, emptyEmail);
-		await page.locator('[data-test="generation-submit"]').click();
+		const reservationsBefore = await count(
+			`SELECT count(*) FROM credit_reservation r JOIN credit_account a ON a.id=r."accountId" WHERE a."ownerId"=$1`,
+			[user.id],
+		);
+		const rejected = page.waitForResponse((response) =>
+			response.url().includes("/api/rpc/media/submitGeneration"),
+		);
+		await submit.click();
+		expect(await (await rejected).text()).toContain("INSUFFICIENT_CREDITS");
 		await expect(
 			page.locator('[data-test="registered-generator"]').getByRole("alert"),
-		).toBeVisible();
+		).toContainText("You do not have enough credits for this edit.");
 		expect(await jobsForPrompt(user.id, prompt)).toHaveLength(0);
 		expect(
 			await count(
@@ -702,6 +725,12 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				[user.id],
 			),
 		).toBe(before);
+		expect(
+			await count(
+				`SELECT count(*) FROM credit_reservation r JOIN credit_account a ON a.id=r."accountId" WHERE a."ownerId"=$1`,
+				[user.id],
+			),
+		).toBe(reservationsBefore);
 	});
 
 	test("legacy upload API verifies permanent images and releases invalid uploads", async ({
