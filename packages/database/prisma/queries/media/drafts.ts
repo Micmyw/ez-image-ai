@@ -171,8 +171,13 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 			},
 		});
 		if (!session) throw new Error("GUEST_UPLOAD_UNAVAILABLE");
+		if (
+			session.asset.deletedAt ||
+			(session.asset.deleteAfter && session.asset.deleteAfter <= input.verification.now)
+		)
+			throw new Error("GUEST_UPLOAD_UNAVAILABLE");
 		if (!hasCurrentApprovedMediaAssetEvidence(session.asset, input.verification)) {
-			throw new Error("GUEST_UPLOAD_NOT_READY");
+			throw new Error(guestUploadVerificationError(session.asset, input.verification));
 		}
 		const consumed = await tx.mediaUploadSession.updateMany({
 			where: {
@@ -213,6 +218,53 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 		);
 		return { id: draft.id, expiresAt: draft.expiresAt };
 	});
+}
+
+/** Presentation only: no failure path can create a draft or authorize an asset. */
+function guestUploadVerificationError(
+	asset: Parameters<typeof hasCurrentApprovedMediaAssetEvidence>[0],
+	verification: Parameters<typeof hasCurrentApprovedMediaAssetEvidence>[1],
+): string {
+	if (["UPLOADING", "VERIFYING"].includes(asset.status)) return "GUEST_UPLOAD_NOT_READY";
+	const evidence = asset.moderationResults[0];
+	if (!evidence) return "GUEST_UPLOAD_SAFETY_UNAVAILABLE";
+	const matching =
+		(asset.verificationEngine ?? "legacy") === "legacy" &&
+		asset.kind === "INPUT" &&
+		Boolean(asset.checksum) &&
+		asset.verificationAttemptCount > 0 &&
+		asset.verificationProvider === verification.provider &&
+		asset.verificationRuleVersion === verification.ruleVersion &&
+		asset.verificationPolicyVersion === verification.policyVersion &&
+		evidence?.assetChecksum === asset.checksum &&
+		evidence.verificationGeneration === asset.verificationGeneration &&
+		evidence.attemptNumber === asset.verificationAttemptCount &&
+		evidence.evidenceKind === asset.kind &&
+		evidence.provider === asset.verificationProvider &&
+		evidence.providerTaskId === asset.verificationProviderTaskId &&
+		evidence.ruleVersion === verification.ruleVersion &&
+		evidence.policyVersion === verification.policyVersion &&
+		asset.verificationValidUntil &&
+		evidence.validUntil &&
+		evidence.validUntil.getTime() === asset.verificationValidUntil.getTime() &&
+		evidence.validUntil > verification.now;
+	if (asset.status === "QUARANTINED" && matching) {
+		if (
+			evidence.status === "REJECTED" &&
+			[
+				"SEEAPI_CONTENT_NOT_ALLOWED",
+				"ADMIN_CONTENT_REJECTED",
+				"SEXUAL_CONTENT",
+				"GRAPHIC_CONTENT",
+				"VIOLENT_CONTENT",
+				"WEAPON_THREAT",
+				"SELF_HARM_CONTENT",
+			].includes(evidence.reasonCode)
+		)
+			return "GUEST_UPLOAD_CONTENT_REJECTED";
+		if (evidence.status === "REVIEW") return "GUEST_UPLOAD_REVIEW_REQUIRED";
+	}
+	return "GUEST_UPLOAD_SAFETY_UNAVAILABLE";
 }
 
 export async function claimGenerationDraftTransaction(

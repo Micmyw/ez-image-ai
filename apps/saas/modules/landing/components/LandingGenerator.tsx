@@ -72,6 +72,7 @@ import {
 	getGuestCapability,
 	type GuestCapabilitySnapshot,
 	type GuestCapabilityProduct,
+	type GuestDraftUploadCheckpoint,
 	type GuestProductKey,
 	LANDING_IMAGE_CONTENT_TYPES,
 	submitGuestDraftHandoff,
@@ -206,7 +207,17 @@ function LandingGeneratorWorkspace({
 	const [effectDraftReady, setEffectDraftReady] = useState(false);
 	const [reselectReference, setReselectReference] = useState(false);
 	const effectDraftInitialized = useRef(false);
-	const [submitError, setSubmitError] = useState<"turnstile" | "upload" | "rateLimit">();
+	const [submitError, setSubmitError] = useState<
+		| "turnstile"
+		| "upload"
+		| "rateLimit"
+		| "contentRejected"
+		| "reviewRequired"
+		| "safetyUnavailable"
+		| "reviewPending"
+		| "reviewUnknown"
+		| "referenceExpired"
+	>();
 	const [uploadPercentage, setUploadPercentage] = useState<number>();
 	const [stage, setStage] = useState<LandingGeneratorStage>("checking");
 	const [isDragging, setIsDragging] = useState(false);
@@ -218,6 +229,19 @@ function LandingGeneratorWorkspace({
 	const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 	const uploadAttemptKey = useRef<string | null>(null);
 	const submissionInFlight = useRef(false);
+	const guestUploadCheckpoint = useRef<GuestDraftUploadCheckpoint | null>(null);
+	useEffect(() => {
+		guestUploadCheckpoint.current = null;
+	}, [
+		file,
+		prompt,
+		selectedProductKey,
+		selectedSkuKey,
+		aspectRatio,
+		controlValues.outputFormat,
+		controlValues.background,
+		capability?.version,
+	]);
 
 	useEffect(() => {
 		let active = true;
@@ -626,6 +650,7 @@ function LandingGeneratorWorkspace({
 		setUploadPercentage(undefined);
 		setSubmitError(undefined);
 		uploadAttemptKey.current = null;
+		guestUploadCheckpoint.current = null;
 	}
 
 	function changeSku(nextSkuKey: string) {
@@ -747,6 +772,10 @@ function LandingGeneratorWorkspace({
 				: `${LOCAL_TURNSTILE_EVIDENCE}-${crypto.randomUUID()}`;
 			if (GUEST_TURNSTILE_SITE_KEY) resetChallenge();
 			const handoff = await uploadGuestDraft({
+				checkpoint: guestUploadCheckpoint.current,
+				onCheckpoint: (checkpoint) => {
+					guestUploadCheckpoint.current = checkpoint;
+				},
 				capabilityVersion: capability.version,
 				productKey: selectedProduct.key,
 				skuKey: selectedSku.skuKey,
@@ -784,6 +813,21 @@ function LandingGeneratorWorkspace({
 				setFileError(fileErrorMessage(error, t, maximumMegabytes));
 			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_RATE_LIMITED") {
 				setSubmitError("rateLimit");
+			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_CONTENT_REJECTED") {
+				setSubmitError("contentRejected");
+			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_REVIEW_REQUIRED") {
+				setSubmitError("reviewRequired");
+			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_SAFETY_UNAVAILABLE") {
+				setSubmitError("safetyUnavailable");
+			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_COMPLETION_TIMEOUT") {
+				setSubmitError("reviewPending");
+			} else if (
+				error instanceof Error &&
+				["GUEST_UPLOAD_SESSION_EXPIRED", "GUEST_UPLOAD_RETRY_INPUT_CHANGED"].includes(error.message)
+			) {
+				setSubmitError("referenceExpired");
+			} else if (guestUploadCheckpoint.current?.uploaded) {
+				setSubmitError("reviewUnknown");
 			} else {
 				setSubmitError("upload");
 			}
