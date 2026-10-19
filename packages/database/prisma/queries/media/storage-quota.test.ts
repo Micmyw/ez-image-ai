@@ -52,6 +52,13 @@ describe("subscriber aggregate storage policy", () => {
 			await outputMediaStorageLimit({ ...owner, assetId: "output-a" }, freeLimit, tx as never),
 		).toBeNull();
 	});
+	it("applies a new paid subscription to output admitted under the free quota", async () => {
+		subscription.mockResolvedValue({ id: "new-subscription" });
+		const tx = boundOutput(freezeAggregateStoragePolicy({ credits: "5" }, freeLimit));
+		expect(
+			await outputMediaStorageLimit({ ...owner, assetId: "output-a" }, freeLimit, tx as never),
+		).toBeNull();
+	});
 	it("does not adopt a frozen policy through another owner's output binding", async () => {
 		const tx = boundOutput(freezeAggregateStoragePolicy({}, null));
 		expect(

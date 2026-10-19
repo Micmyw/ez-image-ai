@@ -16,7 +16,7 @@ The API quote/create preflight supports the same nullable policy so it cannot re
 
 The parent approved preserving admitted subscriber output after subscription expiry. Successful image and video job admission writes `aggregateStoragePolicy: {schemaVersion: 1, maximumBytes: null | decimalString}` on the job's own `pricingSnapshot`. It does not modify the reviewed quote, quote fingerprint, or existing financial fields.
 
-Legacy image finalization reads that server-owned policy through the asset's owner-scoped OUTPUT job binding. Video recovery reads it through the owner-scoped authoritative job. Missing historical policy falls back to the current effective subscription. Invalid policies fail closed. Existing native video/scene reservations continue their original guarantee across quota/plan changes.
+Legacy image finalization reads that server-owned policy through the asset's owner-scoped OUTPUT job binding. Video recovery reads it through the owner-scoped authoritative job. A current effective paid subscription also removes a finite quota frozen by a formerly free job; the frozen unlimited promise survives later expiry. Missing historical policy falls back to the current effective subscription. Invalid policies fail closed. Existing native video/scene reservations continue their original guarantee across quota/plan changes.
 
 The only consumer comparing a whole job pricing snapshot is retry reconciliation: it now excludes exactly this server-owned extension from the job-side comparison. Quote fingerprints and complete quote pricing comparisons remain exact; all original financial/routing keys still participate. Other consumers read particular pricing fields and accept the extra job key.
 
@@ -99,3 +99,7 @@ api package:
 ## Remaining review and rollout requirements
 
 Official Prisma generation, full PostgreSQL concurrency/admission/finalization coverage, and clean type checks remain required before treating this as fully verified. In particular, the prepared native/template integration tests have not run. The current branch changes a server-side snapshot contract; deploy a compatible jobs consumer before the website producer, and keep matching code on rollback. A mixed old jobs consumer can still apply the old finite output cap to a newly admitted subscriber job. No release was attempted.
+
+## Independent review correction
+
+A free-admitted job originally retained its finite frozen cap even after the owner upgraded to a valid paid subscription. A new regression reproduced that rejection, then the output policy was corrected to accept either current paid eligibility or a frozen unlimited admission. Focused policy/admission transaction checks passed 28 tests after this correction. No quote or credit logic changed.

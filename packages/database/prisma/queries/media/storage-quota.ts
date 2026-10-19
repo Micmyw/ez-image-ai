@@ -73,7 +73,15 @@ export async function outputMediaStorageLimit(
 			)?.job;
 	if (job) {
 		const frozen = readAggregateStoragePolicy(job.pricingSnapshot);
-		if (frozen !== undefined) return frozen;
+		if (frozen === null) return null;
+		if (frozen !== undefined) {
+			const current = await effectiveMediaStorageLimit(
+				{ ownerType: owner.ownerType, ownerId: owner.ownerId },
+				freeMaximumBytes,
+				client,
+			);
+			return current === null ? null : frozen;
+		}
 	}
 	return effectiveMediaStorageLimit(
 		{ ownerType: owner.ownerType, ownerId: owner.ownerId },
