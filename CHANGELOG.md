@@ -4,6 +4,7 @@
 
 - Buy three successful single-image generations for USD 1 across all supported image models and sizes, with PayPal as the only payment option. Additional purchases are supported.
 - Highlight the available offer in a small banner above the shared homepage and Create workspace. Purchased image uses remain separate from ordinary credits and video.
+- Support empty public REST requests for image-pass availability while preserving existing RPC clients and strict input validation.
 
 ## 2026-10-19 — Retire the unverified provider dispatch limit
 
