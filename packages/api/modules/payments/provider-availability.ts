@@ -7,6 +7,7 @@ import {
 import { createCreditPackCheckoutSnapshot } from "@repo/config/server";
 import { findPriceByPlanId, resolvePaymentProvider } from "@repo/payments";
 import type { PaymentProviderName } from "@repo/payments/types";
+import { isWaffoBillingPlanReference } from "@repo/payments/waffo-price-reference";
 
 import { isNewBillingEnabled } from "./billing-gate";
 
@@ -130,6 +131,9 @@ export function isExactBillingPlanSnapshot(
 	}
 	return (
 		isBillingPlanEnvironmentCompatible(billingPlan.metadata, provider) &&
+		(provider !== "waffo" ||
+			!providerPriceId.startsWith("waffo:") ||
+			isWaffoBillingPlanReference(providerPriceId, billingPlan.metadata)) &&
 		billingPlan.provider === provider &&
 		billingPlan.providerPriceId === providerPriceId &&
 		billingPlan.productKind === "PLAN" &&

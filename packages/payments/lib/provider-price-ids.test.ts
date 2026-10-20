@@ -118,6 +118,22 @@ describe("provider-scoped price mappings", () => {
 		).toBe("PROD_0123456789QrStUvWxYzAb");
 	});
 
+	it("selects an explicit Waffo annual version while monthly and packs keep native IDs", () => {
+		const productId = "PROD_0123456789AbCdEfGhIjKl";
+		const annualKey = `waffo:${productId}:fixture-version-2`;
+		process.env.WAFFO_PRODUCT_ID_CREATOR_YEARLY = annualKey;
+		process.env.WAFFO_PRODUCT_ID_CREATOR_MONTHLY = productId;
+		process.env.WAFFO_PRODUCT_ID_CREDITS_1500 = annualKey;
+		expect(
+			getProviderPriceIdByPlanId("waffo", "creator", { type: "subscription", interval: "year" }),
+		).toBe(annualKey);
+		expect(getPlanIdByProviderPriceId("waffo", annualKey)).toBe("creator");
+		expect(
+			getProviderPriceIdByPlanId("waffo", "creator", { type: "subscription", interval: "month" }),
+		).toBe(productId);
+		expect(getCreditPackProviderProductId("waffo", "credits-1500")).toBeNull();
+	});
+
 	it("maps credit packs only for PayPal and Waffo and rejects Stripe", () => {
 		process.env.PAYPAL_PRODUCT_ID_CREDITS_1500 = "PROD-CREDITS-1500";
 		process.env.WAFFO_PRODUCT_ID_CREDITS_1500 = "PROD_0123456789QrStUvWxYzAb";

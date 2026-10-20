@@ -133,6 +133,54 @@ describe("payment provider availability", () => {
 		},
 	);
 
+	it("requires exact real-version provenance for a reused Waffo annual product", () => {
+		const productId = "PROD_0123456789AbCdEfGhIjKl";
+		const key = `waffo:${productId}:fixture-version-2`;
+		const currentAnnualPrice = getPlanEntitlement("creator").prices.find(
+			(price) => price.interval === "year",
+		)!;
+		const currentAnnualMicros = BigInt(Math.round(currentAnnualPrice.amount * 1_000_000));
+		const plan = {
+			id: "versioned-annual",
+			provider: "waffo",
+			providerPriceId: key,
+			productKind: "PLAN" as const,
+			active: true,
+			version: 1,
+			name: "creator",
+			creditsPerPeriod: 700n,
+			priceMicros: currentAnnualMicros,
+			currency: "USD",
+			metadata: {
+				planId: "creator",
+				interval: "year",
+				version: 1,
+				billingPricingVersion: "2026-09-15.1",
+				waffoProductId: productId,
+				waffoProductVersionId: "fixture-version-2",
+				waffoProductVersionNumber: 2,
+				waffoTaxCategory: "saas",
+			},
+		};
+		expect(
+			isExactBillingPlanSnapshot(plan, "waffo", key, { planId: "creator", interval: "year" }),
+		).toBe(true);
+		expect(
+			isExactBillingPlanSnapshot(
+				{ ...plan, metadata: { ...plan.metadata, waffoProductVersionId: "another-version" } },
+				"waffo",
+				key,
+				{ planId: "creator", interval: "year" },
+			),
+		).toBe(false);
+		expect(
+			isExactBillingPlanSnapshot({ ...plan, priceMicros: currentAnnualMicros + 1n }, "waffo", key, {
+				planId: "creator",
+				interval: "year",
+			}),
+		).toBe(false);
+	});
+
 	it("rejects an unmarked or sandbox plan snapshot when collecting live money", () => {
 		vi.stubEnv("PAYPAL_ENVIRONMENT", "live");
 		const plan = {

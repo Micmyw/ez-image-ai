@@ -1,5 +1,7 @@
 import { parseEnv } from "node:util";
 
+import { parseWaffoPriceReference } from "@repo/payments/waffo-price-reference";
+
 const bindingNames = [
 	"PAYPAL_PLAN_ID_CREATOR_YEARLY",
 	"PAYPAL_PLAN_ID_ULTIMATE_YEARLY",
@@ -25,10 +27,18 @@ export function withAnnualPlanBindings(source: string, override: string | undefi
 		)
 			throw invalid();
 		for (const key of bindingNames) {
-			const pattern = key.startsWith("PAYPAL_") ? /^P-[A-Z0-9-]+$/ : /^PROD_[0-9A-Za-z]{22}$/;
-			if (typeof values[key] !== "string" || !pattern.test(values[key])) throw invalid();
+			const value = values[key];
+			if (typeof value !== "string") throw invalid();
+			if (
+				key.startsWith("PAYPAL_") ? !/^P-[A-Z0-9-]+$/.test(value) : !parseWaffoPriceReference(value)
+			)
+				throw invalid();
 		}
 		if (new Set(Object.values(values)).size !== bindingNames.length) throw invalid();
+		const waffoProducts = bindingNames
+			.filter((key) => key.startsWith("WAFFO_"))
+			.map((key) => parseWaffoPriceReference(values[key] as string)!.productId);
+		if (new Set(waffoProducts).size !== 3) throw invalid();
 		const ids = values as Record<(typeof bindingNames)[number], string>;
 		const previous = parseEnv(source);
 		if (

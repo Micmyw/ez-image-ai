@@ -561,6 +561,82 @@ describe("createCheckoutLink", () => {
 		expect(bindCheckoutIntent).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		{ historical: false, expectedMicros: 114_000_000n },
+		{ historical: true, expectedMicros: 190_000_000n },
+	])(
+		"uses the immutable Waffo plan amount for annual checkout (historical CREATED intent: $historical)",
+		async ({ historical, expectedMicros }) => {
+			const productId = "PROD_0123456789AbCdEfGhIjKl";
+			const versionKey = `waffo:${productId}:fixture-version-2`;
+			const currentPlan = {
+				...billingPlan,
+				id: "waffo-annual-current",
+				provider: "waffo",
+				providerPriceId: versionKey,
+				priceMicros: 114_000_000n,
+				metadata: {
+					...billingPlan.metadata,
+					interval: "year",
+					waffoProductId: productId,
+					waffoProductVersionId: "fixture-version-2",
+					waffoProductVersionNumber: 2,
+					waffoTaxCategory: "saas",
+				},
+			};
+			vi.mocked(findPriceByPlanId).mockReturnValue({
+				...monthlyPrice,
+				interval: "year",
+				amount: 114,
+			});
+			vi.mocked(getProviderPriceIdByPlanId).mockReturnValue(versionKey);
+			findBillingPlan.mockResolvedValue(currentPlan);
+			if (historical) {
+				const oldPlan = {
+					...currentPlan,
+					id: "waffo-annual-historical",
+					providerPriceId: productId,
+					priceMicros: 190_000_000n,
+					metadata: { ...billingPlan.metadata, interval: "year" },
+				};
+				getPaymentCheckoutIntentForOwnerByIdempotencyKey.mockResolvedValue({
+					id: "historical-intent",
+					idempotencyKey: "test-old-0000",
+					provider: "waffo",
+					ownerType: "USER",
+					ownerId: "user-1",
+					submittedByUserId: "user-1",
+					productKind: "PLAN",
+					billingPlanId: oldPlan.id,
+					billingPlan: oldPlan,
+					planKey: "creator",
+					interval: "year",
+					status: "CREATED",
+					providerSessionId: null,
+					providerCheckoutUrl: null,
+				});
+			}
+			await call(
+				createCheckoutLink,
+				{
+					provider: "waffo",
+					planId: "creator",
+					interval: "year",
+					idempotencyKey: historical ? "test-old-0000" : "new-annual-0001",
+				},
+				{ context: { headers: new Headers() } },
+			);
+			expect(providerCheckout).toHaveBeenCalledWith(
+				expect.objectContaining({
+					priceId: historical ? productId : versionKey,
+					amountMicros: expectedMicros,
+					currency: "USD",
+				}),
+			);
+			if (historical) expect(createCheckoutIntent).not.toHaveBeenCalled();
+		},
+	);
+
 	it("recovers a subscription checkout left in PROVIDER_CREATING without creating a duplicate", async () => {
 		const historicalBillingPlan = {
 			...billingPlan,

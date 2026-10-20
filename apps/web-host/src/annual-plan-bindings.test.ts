@@ -37,6 +37,31 @@ describe("annual provider binding rollout", () => {
 		expect(Object.keys(parsed).sort()).toEqual(Object.keys(parseEnv(source)).sort());
 	});
 
+	it("selects exact Waffo versions in all six annual bindings and leaves monthly values alone", () => {
+		const versioned = {
+			...bindings,
+			...Object.fromEntries(
+				Object.entries(bindings)
+					.filter(([key]) => key.startsWith("WAFFO_"))
+					.map(([key, productId], index) => [
+						key,
+						`waffo:${productId}:fixture-version-${index + 2}`,
+					]),
+			),
+		};
+		const result = parseEnv(
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: source,
+				ANNUAL_PLAN_BINDINGS: JSON.stringify(versioned),
+			}),
+		);
+		expect(result).toMatchObject(versioned);
+		expect(result.WAFFO_PRODUCT_ID_CREATOR_MONTHLY).toBe(
+			parseEnv(source).WAFFO_PRODUCT_ID_CREATOR_MONTHLY,
+		);
+		expect(result.PRIVATE_VALUE).toBe(parseEnv(source).PRIVATE_VALUE);
+	});
+
 	it("preserves the exact source without the dedicated override", () => {
 		expect(readCloudflareBuildEnvironment({ CLOUDFLARE_PRODUCTION_ENV: source })).toBe(source);
 	});
@@ -47,8 +72,21 @@ describe("annual provider binding rollout", () => {
 		{ ...bindings, PAYPAL_CLIENT_SECRET: "fixture-never-print" },
 		{ ...bindings, WAFFO_PRODUCT_ID_CREATOR_YEARLY: "PROD_bad\nBILLING_ENABLED=false" },
 		{ ...bindings, PAYPAL_PLAN_ID_CREATOR_YEARLY: "wrong-provider-id" },
+		{
+			...bindings,
+			WAFFO_PRODUCT_ID_CREATOR_YEARLY: `waffo:${bindings.WAFFO_PRODUCT_ID_CREATOR_YEARLY}:latest`,
+		},
+		{
+			...bindings,
+			WAFFO_PRODUCT_ID_CREATOR_YEARLY: `waffo:${bindings.WAFFO_PRODUCT_ID_CREATOR_YEARLY}:`,
+		},
 		{ ...bindings, WAFFO_PRODUCT_ID_STUDIO_YEARLY: bindings.WAFFO_PRODUCT_ID_CREATOR_YEARLY },
 		{ ...bindings, PAYPAL_PLAN_ID_STUDIO_YEARLY: bindings.PAYPAL_PLAN_ID_CREATOR_YEARLY },
+		{
+			...bindings,
+			WAFFO_PRODUCT_ID_CREATOR_YEARLY: `waffo:${bindings.WAFFO_PRODUCT_ID_CREATOR_YEARLY}:fixture-version-2`,
+			WAFFO_PRODUCT_ID_ULTIMATE_YEARLY: `waffo:${bindings.WAFFO_PRODUCT_ID_CREATOR_YEARLY}:fixture-version-3`,
+		},
 		[],
 		null,
 	])(

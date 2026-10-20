@@ -186,6 +186,7 @@ function reducerClient(input: {
 		client: client as unknown as ReducerClient,
 		createdPurchase: () => createdPurchaseData,
 		updatedPurchases: () => updatedPurchaseData,
+		subscription: () => currentSubscription,
 	};
 }
 
@@ -288,6 +289,62 @@ describe("non-Stripe subscription product-kind isolation", () => {
 			expect(fixture.updatedPurchases()).not.toHaveLength(0);
 			for (const update of fixture.updatedPurchases())
 				expect(update).not.toHaveProperty("attribution");
+		},
+	);
+
+	it.each([
+		{
+			providerPriceId: "PROD_0123456789AbCdEfGhIjKl",
+			amountMicros: 190_000_000n,
+			planId: "historical-plan",
+		},
+		{
+			providerPriceId: "waffo:PROD_0123456789AbCdEfGhIjKl:fixture-version-2",
+			amountMicros: 114_000_000n,
+			planId: "new-version-plan",
+		},
+	])(
+		"binds Waffo callbacks to the frozen $planId FK without a mutable native-product lookup",
+		async ({ providerPriceId, amountMicros, planId }) => {
+			const checkout = checkoutIntent();
+			checkout.provider = "waffo";
+			checkout.providerOrderId = "subscription-1";
+			checkout.billingPlanId = planId;
+			checkout.interval = "year";
+			checkout.billingPlan = {
+				...checkout.billingPlan,
+				id: planId,
+				provider: "waffo",
+				providerPriceId,
+				priceMicros: amountMicros,
+				metadata: { ...checkout.billingPlan.metadata, interval: "year" },
+			};
+			const immutablePlan = structuredClone(checkout.billingPlan);
+			const fixture = reducerClient({ checkout });
+			const fact = {
+				...providerFact(checkout.id),
+				provider: "waffo" as const,
+				providerCustomerId: "USER:user-1",
+			};
+			await applyProviderBillingFact(fact, fixture.client);
+			expect(fixture.subscription()).toMatchObject({ planId, plan: immutablePlan });
+			expect(fixture.createdPurchase()).toMatchObject({
+				provider: "waffo",
+				priceId: providerPriceId,
+			});
+			await applyProviderBillingFact(
+				{
+					...fact,
+					providerEventId: "later-status",
+					occurredAt: new Date(FACT_DATE.getTime() + 1_000),
+				},
+				fixture.client,
+			);
+			expect(fixture.updatedPurchases()).toContainEqual({
+				status: "active",
+				priceId: providerPriceId,
+			});
+			expect(checkout.billingPlan).toEqual(immutablePlan);
 		},
 	);
 

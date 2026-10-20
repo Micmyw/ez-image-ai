@@ -1,3 +1,4 @@
+import { resolveWaffoProductId } from "../../lib/waffo-price-reference";
 import type {
 	ResumeCheckoutInput,
 	SubscriptionCheckoutInspection,
@@ -98,7 +99,7 @@ export async function resumeWaffoCheckout(
 ): Promise<string> {
 	if (!client.auth) throw new Error("WAFFO_SESSION_AUTH_UNAVAILABLE");
 	const { token, expiresAt } = await client.auth.issueSessionToken({
-		productId: input.priceId,
+		productId: resolveWaffoProductId(input.priceId),
 		buyerIdentity: `${input.ownerType}:${input.ownerId}`,
 	});
 	if (!token || !(new Date(expiresAt) > new Date()))

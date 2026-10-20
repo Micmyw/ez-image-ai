@@ -11,6 +11,7 @@
 		"./config": "./config.ts",
 		"./types": "./types.ts",
 		"./lib/helper": "./lib/helper.ts",
+		"./waffo-price-reference": "./lib/waffo-price-reference.ts",
 		"./waffo-content-safety": "./provider/waffo/content-safety.ts"
 	},
 	"scripts": {

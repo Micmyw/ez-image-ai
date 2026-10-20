@@ -1,3 +1,6 @@
+import { TaxCategory, type PriceSnapshot } from "@waffo/pancake-ts";
+
+import { resolveWaffoProductId } from "../../lib/waffo-price-reference";
 import type {
 	CheckoutRecoveryResult,
 	CreateCheckoutLinkOptions,
@@ -22,6 +25,7 @@ export interface WaffoSdkBoundary {
 		authenticated: {
 			create(input: {
 				productId: string;
+				priceSnapshot?: PriceSnapshot;
 				currency: string;
 				buyerIdentity: string;
 				buyerEmail?: string;
@@ -107,7 +111,15 @@ export async function createWaffoCheckoutLink(
 	options: CreateCheckoutLinkOptions,
 ): Promise<CreatedCheckout> {
 	const result = await client.checkout.authenticated.create({
-		productId: options.priceId,
+		productId: resolveWaffoProductId(options.priceId),
+		...(options.type === "subscription"
+			? {
+					priceSnapshot: {
+						amount: subscriptionAmount(options.amountMicros),
+						taxCategory: TaxCategory.SaaS,
+					},
+				}
+			: {}),
 		currency: options.currency,
 		buyerIdentity: `${options.ownerType}:${options.ownerId}`,
 		...(options.email ? { buyerEmail: options.email } : {}),
@@ -287,4 +299,12 @@ function recordValue(value: unknown): Record<string, unknown> | null {
 
 function stringValue(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function subscriptionAmount(micros: bigint | undefined): string {
+	if (typeof micros !== "bigint" || micros <= 0n || micros % 10_000n !== 0n)
+		throw new Error("WAFFO_CHECKOUT_AMOUNT_INVALID");
+	// No floating point conversion: retain the immutable server amount, including
+	// old CREATED intents whose native product now publishes a different price.
+	return `${micros / 1_000_000n}.${((micros % 1_000_000n) / 10_000n).toString().padStart(2, "0")}`;
 }

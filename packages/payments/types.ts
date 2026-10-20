@@ -106,9 +106,10 @@ export interface PaymentsConfig {
 
 export interface CreateCheckoutLinkOptions {
 	type: "subscription" | "one-time";
+	/** Immutable local provider-price key; the Waffo adapter resolves its native product ID. */
 	priceId: string;
 	currency: string;
-	/** Exact server-owned amount for one-time checkout, in millionths of a currency unit. */
+	/** Exact server-owned amount from the immutable BillingPlan snapshot, in millionths of a currency unit. */
 	amountMicros?: bigint;
 	/** Server-owned checkout line description. */
 	description?: string;
