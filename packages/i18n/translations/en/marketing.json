@@ -185,7 +185,7 @@
 			},
 			"annualBilling": {
 				"question": "How does annual billing affect credits?",
-				"answer": "Pro is $190 per year, Ultimate is $490, and Max is $790. EzImageAI Credits are still issued monthly—700 for Pro, 1,800 for Ultimate, and 3,000 for Max—and unused credits do not roll over."
+				"answer": "Annual Pro/Ultimate/Max: $190/$490/$790 per year—about 17% off 12 monthly payments. Monthly credits: 700/1,800/3,000, with no rollover."
 			},
 			"cancelSubscription": {
 				"question": "How do I cancel my subscription?",

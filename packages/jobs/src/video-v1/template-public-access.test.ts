@@ -90,7 +90,7 @@ const request = {
 };
 beforeEach(() => vi.clearAllMocks());
 
-describe("authenticated template admission remains scoped and funded", () => {
+describe("authenticated template admission remains scoped and uses shared credits", () => {
 	it.each(["raindance-solo", "raindance-duo"] as const)(
 		"opens %s independently without borrowing administrator funding",
 		(effectId) => {
@@ -109,7 +109,7 @@ describe("authenticated template admission remains scoped and funded", () => {
 			expect(
 				requireVideoTemplateAdmission(customer, environment, bindings, input).price
 					.paidFundingPolicy,
-			).toEqual({ minimumUsdMicrosPerCredit: 21944n });
+			).toBeUndefined();
 			expect(() =>
 				requireVideoTemplateAdmission(
 					customer,
@@ -136,10 +136,14 @@ describe("authenticated template admission remains scoped and funded", () => {
 			).toBeUndefined();
 		},
 	);
-	it("admits an ordinary registered customer with all existing safety and funding gates", () => {
+	it("admits an ordinary registered customer with safety gates and shared-account funding", () => {
 		const admitted = requireVideoTemplateAdmission(customer, base, bindings, request);
 		expect(admitted.price.credits).toBe(69n);
-		expect(admitted.price.paidFundingPolicy).toEqual({ minimumUsdMicrosPerCredit: 21944n });
+		expect(admitted.price.paidFundingPolicy).toBeUndefined();
+		expect(admitted.price.pricingDetails).toMatchObject({
+			funding: { mode: "shared-media-credits-v1" },
+			paidRevenueQualified: false,
+		});
 		expect(admitted.visualSafetyProfile.provider).toBe("seeapi");
 		expect(admitted.config.access).toBe("authenticated");
 		expect(customer.role).toBe("user");
@@ -209,7 +213,7 @@ describe("authenticated template admission remains scoped and funded", () => {
 			bindings,
 			request,
 		);
-		expect(admitted.price.paidFundingPolicy).toEqual({ minimumUsdMicrosPerCredit: 21944n });
+		expect(admitted.price.paidFundingPolicy).toBeUndefined();
 	});
 	it("does not bypass unapproved template pricing", () => {
 		vi.mocked(resolveVideoEffectPrice).mockImplementationOnce(() => {

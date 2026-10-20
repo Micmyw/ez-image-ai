@@ -30,6 +30,7 @@ import {
 	type VideoRuntimeEnvironmentKey,
 } from "@repo/config/video-runtime-environment";
 
+import { withAnnualPlanBindings } from "./annual-plan-bindings";
 import { assessOptionalVideoEffectOptions } from "./optional-video-effect-readiness";
 import { requireRumpelstiltskinPreparation } from "./profiles";
 
@@ -99,7 +100,10 @@ export function readCloudflareBuildEnvironment(
 		),
 		environment,
 	);
-	return withAccountInputCopyBuildOverride(source, environment);
+	return withAnnualPlanBindings(
+		withAccountInputCopyBuildOverride(source, environment),
+		environment.ANNUAL_PLAN_BINDINGS,
+	);
 }
 
 function withAccountInputCopyBuildOverride(
@@ -545,6 +549,7 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key.startsWith(partPrefix) ||
 			key === "SEEAPI_API_KEY" ||
 			key === "ACCOUNT_INPUT_COPY_BUILD_ENABLED" ||
+			key === "ANNUAL_PLAN_BINDINGS" ||
 			key === "ACCOUNT_INPUT_COPY_ENABLED" ||
 			key === "VIDEO_RUNTIME_CONFIG" ||
 			key === "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" ||

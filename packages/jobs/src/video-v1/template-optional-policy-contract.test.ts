@@ -285,10 +285,17 @@ describe("optional build transport preserves mandatory runtime gates", () => {
 						...(duration === 10 ? { duration: 10 as const } : {}),
 						inputs: { leftAssetId: "same", rightAssetId: "same" },
 					};
-					expect(
-						requireVideoTemplateAdmission(context, buildTransport(), bindings, input, { audience })
-							.price.credits,
-					).toBe(duration === 5 ? 69n : audience === "annual" ? 101n : 116n);
+					const price = requireVideoTemplateAdmission(context, buildTransport(), bindings, input, {
+						audience,
+					}).price;
+					expect(price.credits).toBe(duration === 5 ? 69n : audience === "annual" ? 101n : 116n);
+					expect(price.paidFundingPolicy).toBeUndefined();
+					expect(price.pricingDetails).toMatchObject({
+						funding: { mode: "shared-media-credits-v1" },
+						paidRevenueQualified: false,
+						retailReference: { creditFloorMicros: "21944" },
+					});
+					expect(price.pricingDetails).not.toHaveProperty("minimumGrossRevenueMicros");
 				}
 		},
 	);

@@ -220,11 +220,7 @@ const access = protectedProcedure
 				durationOptions,
 				pricingValidUntil: pricingContext.eligibility?.validUntil ?? null,
 				...(pricing ? { pricing } : {}),
-				creditBalance: await getVideoTemplateCreditBalance(
-					user.id,
-					admitted.price.paidFundingPolicy,
-					db,
-				),
+				creditBalance: await getVideoTemplateCreditBalance(user.id, undefined, db),
 			};
 		} catch (error) {
 			return {

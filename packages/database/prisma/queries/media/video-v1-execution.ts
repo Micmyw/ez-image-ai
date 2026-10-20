@@ -250,11 +250,9 @@ export async function claimVideoProviderSubmission(input: {
 			clock.now,
 		);
 		const pricingDetails = object(object(job.pricingSnapshot).pricingDetails);
-		// Only ordinary video may use the frozen shared balance policy. Historical
-		// paid/internal snapshots and every independent template keep their own rules.
+		// Explicit shared orders use the same frozen balance policy for ordinary
+		// video and templates. Historical paid/internal snapshots keep their rules.
 		const sharedFunding =
-			!job.videoTemplateExecution &&
-			object(job.inputSnapshot).videoEffectTemplate === undefined &&
 			object(job.pricingSnapshot).paidFundingPolicy === undefined &&
 			readVideoSharedFundingSnapshot(pricingDetails.funding);
 		if (
