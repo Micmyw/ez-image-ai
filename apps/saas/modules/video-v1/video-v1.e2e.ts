@@ -575,13 +575,17 @@ async function selectSetting(page: Page, label: string, value: string) {
 		const toggle = page.getByRole("switch", { name: label, exact: true });
 		if ((await toggle.getAttribute("aria-checked")) !== value) await toggle.click();
 	} else {
+		const menu = page.locator('[data-test="video-settings-menu"]');
 		await page.getByRole("button", { name: "Video settings", exact: true }).click();
-		const radio = page
+		await expect(menu).toBeVisible();
+		const radio = menu
 			.getByRole("group", { name: label, exact: true })
 			.locator(`input[value="${value}"]`);
+		await expect(radio).toBeEnabled();
 		await radio.locator("..").click();
 		await expect(radio).toBeChecked();
-		await page.getByRole("button", { name: "Done", exact: true }).click();
+		await menu.getByRole("button", { name: "Done", exact: true }).click();
+		await expect(menu).toBeHidden();
 	}
 }
 
