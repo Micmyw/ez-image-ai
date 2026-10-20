@@ -271,6 +271,7 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 			}
 			setCheckoutUnavailable(true);
 		} finally {
+			if (payment.getSnapshot() === action) payment.release();
 			if (inflight.current === request) inflight.current = null;
 			if (ownedAction.current === action) ownedAction.current = null;
 		}

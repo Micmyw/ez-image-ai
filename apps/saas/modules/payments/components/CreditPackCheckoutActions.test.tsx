@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
 	ownerId: "owner-a",
 	orgId: null as string | null,
 	cursor: 0,
+	deferEffects: false,
 	slots: [] as { current?: unknown; value?: unknown; deps?: unknown[]; cleanup?: () => void }[],
 	checkout: vi.fn(),
 	attribution: vi.fn(),
@@ -44,6 +45,7 @@ vi.mock("react", async (original) => ({
 		const index = state.cursor++,
 			prior = state.slots[index];
 		if (prior?.deps && deps.every((value, i) => value === prior.deps![i])) return;
+		if (state.deferEffects) return;
 		prior?.cleanup?.();
 		state.slots[index] = { deps, cleanup: effect() || undefined };
 	},
@@ -137,6 +139,7 @@ beforeEach(() => {
 	state.orgId = null;
 	state.cursor = 0;
 	state.slots = [];
+	state.deferEffects = false;
 	state.action = null;
 	state.status = "PENDING";
 	state.acquire.mockImplementation((key: string) => {
@@ -367,4 +370,25 @@ describe("credit pack checkout creation and browser recovery", () => {
 			expect(window.location.href).toBe("https://example.test/pricing");
 		},
 	);
+	it("releases its starting action when a changed owner is rendered before passive effects", async () => {
+		let resolve!: (value: unknown) => void;
+		state.attribution.mockImplementationOnce(
+			() =>
+				new Promise((done) => {
+					resolve = done;
+				}),
+		);
+		button(render())();
+		await flush();
+		state.ownerId = "owner-b";
+		state.orgId = "org-b";
+		state.deferEffects = true;
+		render();
+		resolve({});
+		await flush();
+		expect(state.checkout).not.toHaveBeenCalled();
+		expect(state.action).toBeNull();
+		state.deferEffects = false;
+		render();
+	});
 });
