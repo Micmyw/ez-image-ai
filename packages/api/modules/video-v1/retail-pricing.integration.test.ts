@@ -769,18 +769,18 @@ describe("effect duration and annual qualification through protected RPC and Pos
 					item.pricing?.annualCredits,
 				]),
 			).toEqual([
-				[5, "69", "69", "69"],
-				[10, "101", "116", "101"],
+				[5, "92", "92", "92"],
+				[10, "154", "178", "154"],
 			]);
 			expect(JSON.stringify(access)).not.toMatch(
 				/subscriptionId|providerCost|MarkupBps|costPolicy/,
 			);
 			const q = await scoped(() => call(videoEffectsRouter.quote, input, ctx));
-			expect(q.credits).toBe("101");
+			expect(q.credits).toBe("154");
 			expect(q.pricing).toMatchObject({
 				audience: "annual",
-				savedCredits: "15",
-				standardCredits: "116",
+				savedCredits: "24",
+				standardCredits: "178",
 			});
 			const key = crypto.randomUUID();
 			const accept = () =>
@@ -793,7 +793,7 @@ describe("effect duration and annual qualification through protected RPC and Pos
 				);
 			const replies = await Promise.all(Array.from({ length: 4 }, accept));
 			expect(new Set(replies.map((item) => item.jobId)).size).toBe(1);
-			expect(replies[0]).toMatchObject({ duration: 10, credits: "101" });
+			expect(replies[0]).toMatchObject({ duration: 10, credits: "154" });
 			await client.subscription.update({
 				where: { id: subscriptionId },
 				data: { status: "EXPIRED" },
@@ -826,8 +826,8 @@ describe("effect duration and annual qualification through protected RPC and Pos
 		expect(await client.creditReservation.count({ where: { accountId } })).toBe(0);
 		const refreshed = await scoped(() => call(videoEffectsRouter.quote, input, ctx));
 		expect(refreshed).toMatchObject({
-			credits: "116",
-			pricing: { audience: "standard", savedCredits: "0", annualCredits: "101" },
+			credits: "178",
+			pricing: { audience: "standard", savedCredits: "0", annualCredits: "154" },
 		});
 	});
 	it("rechecks the effect annual proof inside the refund account lock", async () => {

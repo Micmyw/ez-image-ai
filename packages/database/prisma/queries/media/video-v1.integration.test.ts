@@ -2252,7 +2252,7 @@ describe("video V1 admission isolated PostgreSQL", () => {
 				},
 				client,
 			),
-		).rejects.toThrow("VIDEO_MODEL_RETIRED");
+		).rejects.toThrow("VIDEO_MODEL_SELECTION_UNSUPPORTED");
 		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
 		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
 		expect(await client.creditAccount.findUnique({ where: { id: f.account.id } })).toMatchObject({
