@@ -1003,7 +1003,7 @@ test("the landing generator supports model and SKU choice plus drop, replace, an
 	await dropPng(page, dropZone, "dropped-source.png");
 	await expect(page.getByRole("img", { name: /preview of dropped-source\.png/i })).toBeVisible();
 	await expect(
-		page.getByText(/gpt image 2 requires sign-in and a pro, ultimate, or max plan/i),
+		page.getByText(/gpt image 2 requires sign-in and enough account credits/i),
 	).toBeVisible();
 	await expect(page.getByText(/describe the image you want to continue/i)).toBeVisible();
 
