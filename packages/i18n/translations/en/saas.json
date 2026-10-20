@@ -2046,6 +2046,7 @@
 		"nativeSoundHint": "This model may include native audio and has no sound switch.",
 		"unavailableShort": "Unavailable",
 		"modelAvailabilityHint": "Options depend on the selected model. Unavailable settings cannot be quoted.",
+		"modelRetired": "This model no longer accepts new requests. Choose another model; your saved settings are unchanged.",
 		"selectionUnavailable": "This model and setting combination is not available for generation right now.",
 		"settings": "Video settings",
 		"done": "Done",

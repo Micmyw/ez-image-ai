@@ -1,4 +1,7 @@
-import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
+import {
+	createVideoEffectTemplateSnapshot,
+	parseVideoEffectTemplateSnapshot,
+} from "@repo/config/video-effects.server";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { VIDEO_V1_RULE_VERSION } from "@repo/config/video-v1";
 import { describe, expect, it, vi } from "vitest";
@@ -473,6 +476,39 @@ describe("template scene preparation durable boundaries (local mocks)", () => {
 		expect(f.provider.retrieve).toHaveBeenCalledWith("scene-task");
 		expect(f.store.markVideoTemplateNeedsReview).not.toHaveBeenCalled();
 	});
+	it.each([5, 10] as const)(
+		"prepares a frozen legacy %ss template after new admissions switch to Mini without changing its contract",
+		async (duration) => {
+			const f = fixture();
+			const original = f.state.templateSnapshot;
+			const legacy = parseVideoEffectTemplateSnapshot({
+				...original,
+				schemaVersion: duration === 10 ? 3 : 1,
+				templateVersion:
+					duration === 10 ? "hotel-lobby-duo-10s-2026-10-08.1" : "hotel-lobby-duo-2026-10-05.1",
+				video: {
+					...original.video,
+					productKey: "video-seedance-1-5-pro",
+					duration,
+					fixedLens: true,
+					prompt: "Frozen original fixed camera choreography.",
+				},
+				output: { ...original.output, durationSeconds: duration },
+			});
+			f.state.templateSnapshot = legacy;
+			f.state.job.inputSnapshot.videoEffectTemplate = legacy;
+			Object.assign(f.deps.env, {
+				HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION: "hotel-lobby-duo-mini-2026-10-20.1",
+				HOTEL_LOBBY_DUO_ACCEPTED_LONG_TEMPLATE_VERSION: "hotel-lobby-duo-mini-10s-2026-10-20.1",
+			});
+			expect(await f.run()).toEqual({ status: "ALLOW" });
+			expect(f.state.templateSnapshot).toEqual(legacy);
+			expect(f.state.templateSnapshot.video.productKey).toBe("video-seedance-1-5-pro");
+			expect(f.provider.submit).toHaveBeenCalledTimes(1);
+			expect(await f.run()).toEqual({ status: "ALLOW" });
+			expect(f.provider.submit).toHaveBeenCalledTimes(1);
+		},
+	);
 	it("checks the emergency runtime gate only before the first scene POST", async () => {
 		const f = fixture();
 		vi.mocked(f.deps.requireRuntimeEnabled).mockRejectedValueOnce(

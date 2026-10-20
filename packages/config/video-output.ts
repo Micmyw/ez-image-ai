@@ -6,6 +6,10 @@ import {
 	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
 	HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
 	RAINDANCE_LONG_TEMPLATE_VERSION,
+	HOTEL_LOBBY_TEMPLATE_VERSION,
+	RAINDANCE_TEMPLATE_VERSION,
+	LEGACY_HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+	LEGACY_RAINDANCE_LONG_TEMPLATE_VERSION,
 } from "./video-effects";
 import { VIDEO_VEO_TIER_CONTRACT_VERSION, videoVeoTierSchema } from "./video-models";
 import { videoOutputReportSchema, type VideoOutputReport } from "./video-output-report";
@@ -136,14 +140,33 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 		const longTemplate =
 			config.schemaVersion === 3 &&
 			((config.effectId === HOTEL_LOBBY_EFFECT_ID &&
-				config.templateVersion === HOTEL_LOBBY_LONG_TEMPLATE_VERSION) ||
+				config.templateVersion === LEGACY_HOTEL_LOBBY_LONG_TEMPLATE_VERSION) ||
 				([RAINDANCE_SOLO_EFFECT_ID, RAINDANCE_DUO_EFFECT_ID].includes(String(config.effectId)) &&
-					config.templateVersion === RAINDANCE_LONG_TEMPLATE_VERSION));
-		const productKey = referenceTemplate ? "video-seedance-2" : "video-seedance-1-5-pro";
+					config.templateVersion === LEGACY_RAINDANCE_LONG_TEMPLATE_VERSION));
+		const miniTemplate =
+			config.schemaVersion === 4 &&
+			((config.effectId === HOTEL_LOBBY_EFFECT_ID &&
+				config.templateVersion ===
+					(output.durationSeconds === 10
+						? HOTEL_LOBBY_LONG_TEMPLATE_VERSION
+						: HOTEL_LOBBY_TEMPLATE_VERSION)) ||
+				([RAINDANCE_SOLO_EFFECT_ID, RAINDANCE_DUO_EFFECT_ID].includes(String(config.effectId)) &&
+					config.templateVersion ===
+						(output.durationSeconds === 10
+							? RAINDANCE_LONG_TEMPLATE_VERSION
+							: RAINDANCE_TEMPLATE_VERSION))) &&
+			video.fixedLens === false;
+		const durationSeconds =
+			longTemplate || (miniTemplate && output.durationSeconds === 10) ? 10 : 5;
+		const productKey = referenceTemplate
+			? "video-seedance-2"
+			: miniTemplate
+				? "video-seedance-2-mini"
+				: "video-seedance-1-5-pro";
 		if (
-			(!legacyTemplate && !referenceTemplate && !longTemplate) ||
+			(!legacyTemplate && !referenceTemplate && !longTemplate && !miniTemplate) ||
 			typeof config.templateVersion !== "string" ||
-			output.durationSeconds !== (longTemplate ? 10 : 5) ||
+			output.durationSeconds !== durationSeconds ||
 			output.resolution !== "720p" ||
 			output.aspectRatio !== "9:16" ||
 			output.sound !== false ||
@@ -165,7 +188,7 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 		return {
 			audioSafetyPolicy: readVideoAudioSafetyPolicy(snapshot),
 			productKey,
-			durationSeconds: longTemplate ? 10 : 5,
+			durationSeconds,
 			sound: output.sound,
 			resolution: output.resolution,
 			aspectRatio: output.aspectRatio,

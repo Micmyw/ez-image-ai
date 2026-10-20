@@ -1,3 +1,4 @@
+import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
 import {
 	VIDEO_MODEL_CATALOG,
 	getVideoModelOptions,
@@ -32,6 +33,49 @@ function requestParameters(
 	return "input" in request ? request.input : request;
 }
 describe("Kie multi-model video boundary", () => {
+	it.each([5, 10] as const)(
+		"serializes a new Mini template's frozen %ss contract without old or reference fields",
+		(duration) => {
+			const template = createVideoEffectTemplateSnapshot({
+				effectId: "hotel-lobby-duo",
+				presetKey: "standard",
+				...(duration === 10 ? { duration } : {}),
+				inputs: { leftAssetId: "left", rightAssetId: "right" },
+			});
+			const request = buildKieVideoModelRequest({
+				productKey: template.video.productKey,
+				mode: template.video.mode,
+				prompt: template.video.prompt,
+				duration: template.video.duration,
+				resolution: template.video.resolution,
+				aspectRatio: template.video.aspectRatio,
+				sound: template.video.sound,
+				inputAssetId: "sealed-scene",
+				imageUrl,
+				callbackUrl,
+				...(template.video.fixedLens ? { templateFixedLens: true } : {}),
+			});
+			expect(request).toMatchObject({
+				model: "bytedance/seedance-2-mini",
+				input: {
+					first_frame_url: imageUrl,
+					generate_audio: false,
+					duration,
+					resolution: "720p",
+					aspect_ratio: "9:16",
+				},
+			});
+			const parameters = requestParameters(request);
+			for (const key of [
+				"fixed_lens",
+				"input_urls",
+				"reference_image_urls",
+				"reference_video_urls",
+				"reference_audio_urls",
+			])
+				expect(parameters).not.toHaveProperty(key);
+		},
+	);
 	it.each(
 		VIDEO_MODEL_CATALOG.filter((model) => model.status === "implemented").flatMap((model) =>
 			model.modes.map((mode) => ({ productKey: model.productKey, mode })),

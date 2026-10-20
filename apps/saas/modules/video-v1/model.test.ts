@@ -111,6 +111,48 @@ describe("video confirmation identity", () => {
 });
 
 describe("video form and observable state", () => {
+	it("refreshes a definitively retired new request without normalizing its saved settings", () => {
+		expect(
+			getVideoFailureRecovery({ code: "BAD_REQUEST", data: { code: "VIDEO_MODEL_RETIRED" } }),
+		).toEqual({
+			reason: "unsupportedSelection",
+			clearQuote: true,
+			refreshCatalog: true,
+			normalizeDraft: false,
+		});
+	});
+	it("preserves a retired 1080p draft and refuses even stale catalog pricing until an explicit model choice", () => {
+		const retired = {
+			...initialVideoDraft,
+			productKey: "video-seedance-1-5-pro",
+			prompt: "A quiet landscape",
+			resolution: "1080p",
+		};
+		expect(changeVideoDraft(retired, { prompt: "Keep this description" })).toMatchObject({
+			productKey: retired.productKey,
+			resolution: "1080p",
+		});
+		expect(validateVideoDraft(retired)).toBe("unsupportedSelection");
+		expect(
+			videoModel.videoSelectionCredits(retired, {
+				accessAllowed: true,
+				models: [
+					{
+						productKey: retired.productKey,
+						available: true,
+						options: [{ ...retired, available: true, credits: "23" }],
+					},
+				],
+			}),
+		).toBeNull();
+		const chosen = changeVideoDraft(retired, { productKey: "video-seedance-2-mini" });
+		expect(chosen).toMatchObject({
+			productKey: "video-seedance-2-mini",
+			resolution: "720p",
+			prompt: retired.prompt,
+		});
+		expect(validateVideoDraft(chosen)).toBeNull();
+	});
 	it("asks for a description before applying the model length bounds", () => {
 		for (const prompt of ["", "  \n\t"]) {
 			expect(validateVideoDraft({ ...initialVideoDraft, prompt })).toBe("promptRequired");

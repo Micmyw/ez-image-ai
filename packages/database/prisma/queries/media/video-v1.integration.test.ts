@@ -3,6 +3,7 @@ import { applyVideoInternalFunding } from "@repo/config/video-internal-funding";
 import {
 	VIDEO_MODEL_CATALOG,
 	VIDEO_MODEL_CATALOG_VERSION,
+	isVideoModelRetired,
 	type VideoModelSelection,
 } from "@repo/config/video-models";
 import { createVideoAudioSafetyPolicy, VIDEO_OUTPUT_MAX_BYTES } from "@repo/config/video-output";
@@ -66,7 +67,7 @@ const limits = {
 	maximumInputBytes: 10_000_000,
 };
 const modelModeSelections = VIDEO_MODEL_CATALOG.filter(
-	(model) => model.status === "implemented",
+	(model) => model.status === "implemented" && !isVideoModelRetired(model.productKey),
 ).flatMap((model) =>
 	model.modes.map((mode) => ({
 		productKey: model.productKey,
@@ -2218,9 +2219,9 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			});
 		},
 	);
-	it("Seedance 1.5 Pro 4s 480p silent quote admits through the real pending-evidence constraint", async () => {
+	it("Seedance Mini 4s 480p silent quote admits through the real pending-evidence constraint", async () => {
 		const selection = {
-			productKey: "video-seedance-1-5-pro",
+			productKey: "video-seedance-2-mini",
 			mode: "text-to-video" as const,
 			duration: 4,
 			resolution: "480p",
@@ -2233,6 +2234,30 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			productKey: selection.productKey,
 			inputSnapshot: selection,
 			creditsReserved: price.credits,
+		});
+	});
+	it("refuses a new retired Seedance 1.5 quote before creating a job or reserving credits", async () => {
+		const f = await fixture();
+		await expect(
+			createVideoQuoteRecord(
+				{
+					...f.input,
+					request: {
+						...request,
+						productKey: "video-seedance-1-5-pro",
+						duration: 4,
+						resolution: "480p",
+					},
+					maximumInputBytes: limits.maximumInputBytes,
+				},
+				client,
+			),
+		).rejects.toThrow("VIDEO_MODEL_RETIRED");
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+		expect(await client.creditAccount.findUnique({ where: { id: f.account.id } })).toMatchObject({
+			spendableCredits: 100n,
+			reservedCredits: 0n,
 		});
 	});
 	it("Veo 3.1 Fast 4s 720p native-audio quote admits and reserves only once", async () => {

@@ -71,6 +71,10 @@ Max 的 H3 Unlimited 浮层明确限定 **480P 4–8 秒 / 768P 4–6 秒，高�
 
 采用的交互结构：家族分组模型选择；参数面板展示画幅、时长、分辨率；有声音开关的型号才能切换声音；原生声音不可关闭的型号明确标注；所有选项由合法组合驱动，参数变化使旧报价失效。本批仍按单次一个结果与文生/单图生输入执行，未引入参考视频、多镜头剪辑和伪造的生成速度承诺。
 
+## 2026-10-20 模板模型迁移
+
+Hotel Lobby 与 Raindance 新订单迁往 Seedance 2 Mini，复用现行费用、成本及年度折扣计算。5 秒改为普通/年付均 92 积分；10 秒普通 178、年付 154 积分。旧订单保持原模型与冻结报价，Rumpelstiltskin 不变。详见[完整预算与兼容发布](../operations/seedance-mini-migration-2026-10-20.md)；下方旧 1.5 Pro 数据仅作历史依据，不用于新订单。
+
 ## 公开供应商价目依据
 
 来源：[Kie 价格表](https://kie.ai/pricing)、[Kling 2.6](https://kie.ai/kling-2-6)、[Kling 3](https://kie.ai/kling-3-0)、[Kling 3 Turbo](https://kie.ai/kling-3-0-turbo)、[Seedance 1 Pro Fast](https://kie.ai/bytedance/seedance-v1?model=bytedance%2Fv1-pro-fast-image-to-video)。以下为文本/单图输入；不套用参考视频的折扣。

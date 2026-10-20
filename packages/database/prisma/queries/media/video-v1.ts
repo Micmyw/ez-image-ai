@@ -362,7 +362,9 @@ export async function createVideoJobRecord(
 	if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 128)
 		throw new Error("INVALID_IDEMPOTENCY_KEY");
 	const requiresScene =
-		input.template?.template.schemaVersion === 1 || input.template?.template.schemaVersion === 3;
+		input.template?.template.schemaVersion === 1 ||
+		input.template?.template.schemaVersion === 3 ||
+		input.template?.template.schemaVersion === 4;
 	// Every mutable admission predicate is protected by the ordered advisory/
 	// row locks below. READ COMMITTED observes the prior lock holder's commit;
 	// a SERIALIZABLE snapshot taken before waiting needlessly aborts busy bursts.

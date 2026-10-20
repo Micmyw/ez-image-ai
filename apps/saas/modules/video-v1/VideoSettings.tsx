@@ -5,6 +5,7 @@ import {
 	getVideoModel,
 	getVideoModelOptions,
 	getVideoVariantGroup,
+	isVideoModelRetired,
 	VIDEO_MODEL_CATALOG,
 	type VideoModelOption,
 } from "@repo/config/video-models";
@@ -141,6 +142,7 @@ export function VideoSettings({
 						{VIDEO_MODEL_CATALOG.filter(
 							(entry) =>
 								entry.family === family &&
+								!isVideoModelRetired(entry.productKey) &&
 								(!getVideoVariantGroup(entry.productKey) ||
 									getVideoVariantGroup(entry.productKey)!.productKey === entry.productKey),
 						).map((entry) => {

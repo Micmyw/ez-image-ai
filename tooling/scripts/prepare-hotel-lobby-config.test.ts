@@ -54,7 +54,7 @@ beforeEach(() => {
 });
 afterEach(() => mock.timers.reset());
 
-void test("documented closed reference uses the current shared basis without changing the 69-credit budget", async () => {
+void test("documented closed reference uses the current shared basis without changing the 92-credit budget", async () => {
 	const input = parseEnv(
 		await readFile(
 			new URL("../../docs/operations/hotel-lobby-configuration.example.env", import.meta.url),
@@ -69,7 +69,7 @@ void test("documented closed reference uses the current shared basis without cha
 		}),
 	);
 	const result = prepareHotelLobbyEnvironment(normalized);
-	assert.equal(result.summary.credits, "69");
+	assert.equal(result.summary.credits, "92");
 	assert.ok(!("validUntil" in result.summary));
 	assert.equal(result.summary.templateEnabled, false);
 	assert.equal(result.summary.buildEnabled, false);
@@ -82,14 +82,14 @@ void test("offline preparation rejects stale shared approval without upgrading i
 	assert.deepEqual(input, snapshot);
 });
 
-void test("preserves packed policies, secrets, funding and ordinary prices; computes 69 closed credits", () => {
+void test("preserves packed policies, secrets, funding and ordinary prices; computes 92 closed credits", () => {
 	const input = packVideoRuntimeEnvironment(fixture());
 	const snapshot = { ...input };
 	const result = prepareHotelLobbyEnvironment(input);
 	const previous = expandVideoRuntimeEnvironment(input);
 	const next = expandVideoRuntimeEnvironment(result.environment);
 	assert.deepEqual(input, snapshot);
-	assert.equal(result.summary.credits, "69");
+	assert.equal(result.summary.credits, "92");
 	assert.ok(result.summary.packedBytes <= 5000);
 	assert.ok(BigInt(result.summary.profitToCostBps) >= 20000n);
 	assert.equal(next.HOTEL_LOBBY_DUO_ENABLED, "false");
@@ -130,7 +130,7 @@ void test("repeated preparation preserves the existing model contract and is ide
 void test("prepares an authenticated build patch without copying secrets, base policy, funding or enablement", () => {
 	const input = fixture();
 	const result = prepareHotelLobbyBuildOverlay(input, "authenticated");
-	assert.equal(result.summary.credits, "69");
+	assert.equal(result.summary.credits, "92");
 	assert.equal(result.summary.includesBaseSnapshot, false);
 	assert.deepEqual(Object.keys(result.environment).sort(), [
 		"HOTEL_LOBBY_DUO_BUILD_ENABLED",
@@ -203,7 +203,7 @@ for (const deadline of [undefined, "", "  ", "none", "invalid", "2000-01-01T00:0
 		const result = prepareHotelLobbyEnvironment(input);
 		assert.deepEqual(input, snapshot);
 		assert.deepEqual(result.environment, baseline.environment);
-		assert.equal(result.summary.credits, "69");
+		assert.equal(result.summary.credits, "92");
 		assert.equal(result.summary.completeCostMicros, baseline.summary.completeCostMicros);
 		assert.ok(!("validUntil" in result.summary));
 		const overlay = prepareHotelLobbyBuildOverlay(input);
@@ -265,7 +265,7 @@ void test("private file preparation refuses input overwrite, existing files and 
 			/OUTPUT_MUST_BE_PRIVATE/,
 		);
 		const summary = await prepareHotelLobbyConfig({ inputPath, repositoryRoot: root });
-		assert.equal(summary.credits, "69");
+		assert.equal(summary.credits, "92");
 		assert.equal(summary.outputPath, path.join(root, DEFAULT_HOTEL_LOBBY_OUTPUT));
 		assert.equal(await readFile(inputPath, "utf8"), source);
 		const output = parseEnv(await readFile(summary.outputPath, "utf8"));

@@ -11,6 +11,7 @@ import {
 	HOTEL_LOBBY_PRICE_VERSION,
 	HOTEL_LOBBY_SAFETY_POLICY_VERSION,
 	createVideoEffectTemplateSnapshot,
+	parseVideoEffectTemplateSnapshot,
 } from "@repo/config/video-effects.server";
 import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
 import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
@@ -191,7 +192,18 @@ function buildTransport(patch: Record<string, string | undefined> = {}) {
 		.join("\n");
 	return parseEnv(readCloudflareBuildEnvironment({ CLOUDFLARE_PRODUCTION_ENV: source }));
 }
-const template = createVideoEffectTemplateSnapshot(request);
+const currentTemplate = createVideoEffectTemplateSnapshot(request);
+const template = parseVideoEffectTemplateSnapshot({
+	...currentTemplate,
+	schemaVersion: 1,
+	templateVersion: "hotel-lobby-duo-2026-10-05.1",
+	video: {
+		...currentTemplate.video,
+		productKey: "video-seedance-1-5-pro",
+		fixedLens: true,
+		prompt: "Frozen historical scene performance.",
+	},
+});
 function accepted() {
 	return {
 		id: "accepted-fixture",
@@ -226,7 +238,7 @@ describe("optional build transport preserves mandatory runtime gates", () => {
 			expect(
 				requireVideoTemplateAdmission(context, runtime, bindings, request).price,
 			).toMatchObject({
-				credits: 69n,
+				credits: 92n,
 				pricingDetails: { priceApprovalExpiryMode: "none", validUntil: null },
 			});
 			const expiresAt = new Date(Date.now() + 600_000);
@@ -288,7 +300,7 @@ describe("optional build transport preserves mandatory runtime gates", () => {
 					const price = requireVideoTemplateAdmission(context, buildTransport(), bindings, input, {
 						audience,
 					}).price;
-					expect(price.credits).toBe(duration === 5 ? 69n : audience === "annual" ? 101n : 116n);
+					expect(price.credits).toBe(duration === 5 ? 92n : audience === "annual" ? 154n : 178n);
 					expect(price.paidFundingPolicy).toBeUndefined();
 					expect(price.pricingDetails).toMatchObject({
 						funding: { mode: "shared-media-credits-v1" },
@@ -302,7 +314,7 @@ describe("optional build transport preserves mandatory runtime gates", () => {
 	it("admits the complete synthetic approved policy through real pricing and readiness", () => {
 		expect(
 			requireVideoTemplateAdmission(context, buildTransport(), bindings, request).price.credits,
-		).toBe(69n);
+		).toBe(92n);
 	});
 	it.each(invalidCases)(
 		"keeps %s unavailable for new quote and create despite build transport",

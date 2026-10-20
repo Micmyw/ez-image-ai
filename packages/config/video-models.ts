@@ -345,6 +345,10 @@ export const VIDEO_MODEL_CATALOG: readonly VideoModelDefinition[] = [
 export function getVideoModel(productKey: string): VideoModelDefinition | undefined {
 	return VIDEO_MODEL_CATALOG.find((entry) => entry.productKey === productKey);
 }
+/** New-order retirement never changes the frozen provider/receipt capabilities. */
+export function isVideoModelRetired(productKey: string): boolean {
+	return productKey === "video-seedance-1-5-pro";
+}
 export function getVideoModelOptions(productKey: string, mode: VideoMode): VideoModelOption[] {
 	const entry = getVideoModel(productKey);
 	if (!entry || entry.status !== "implemented") return [];
@@ -427,7 +431,7 @@ export const videoModelReceiptInputSchema = z
 
 /** New quotes and admissions use only today's documented capability intersection. */
 export const videoModelInputSchema = videoModelReceiptInputSchema.refine(
-	validateVideoModelSelection,
+	(input) => !isVideoModelRetired(input.productKey) && validateVideoModelSelection(input),
 	{ message: "VIDEO_MODEL_SELECTION_UNSUPPORTED" },
 );
 export type VideoModelInput = z.infer<typeof videoModelInputSchema>;

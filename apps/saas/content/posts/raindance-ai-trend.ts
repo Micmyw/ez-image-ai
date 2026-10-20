@@ -70,7 +70,7 @@ Our [Hotel Lobby duo](/video-effects/hotel-lobby-ai) uses the same upload-and-qu
 4. **Check the result in your private history.** Accepted work continues in the background. Returning to the same order checks its progress without starting it again.
 5. **Download and edit your post.** If you want a photo-to-pier reveal, place your original photograph before the clip in your editor and use a hard cut. The built-in template starts on the pier; it does not promise that opening transition.
 
-The preset uses a fixed camera and restrained movement to keep the short scene readable. It does not promise exact lip synchronization, perfect facial similarity or the original choreography. Review the faces and movement before sharing.
+The preset asks for steady framing and restrained movement to keep the short scene readable. It does not promise exact lip synchronization, perfect facial similarity or the original choreography. Review the faces and movement before sharing.
 
 ## Can you do the Raindance AI trend for free?
 

@@ -1,4 +1,8 @@
-import { VIDEO_MODEL_CATALOG, getVideoModelOptions } from "@repo/config/video-models";
+import {
+	VIDEO_MODEL_CATALOG,
+	getVideoModelOptions,
+	isVideoModelRetired,
+} from "@repo/config/video-models";
 import {
 	readVideoRetailDisplay,
 	resolveVideoModelPrice,
@@ -40,6 +44,7 @@ export function hasAvailableVideoModel(
 	for (const model of VIDEO_MODEL_CATALOG) {
 		if (
 			model.status !== "implemented" ||
+			isVideoModelRetired(model.productKey) ||
 			disabledKeys.has(`media.model.${model.productKey}.enabled`)
 		)
 			continue;
@@ -84,43 +89,46 @@ export function buildVideoCatalogModels(
 	};
 	return VIDEO_MODEL_CATALOG.map((model) => {
 		const commonReasons = accessAllowed ? [...readReady(false).reasons] : ["VIDEO_ACCESS_DENIED"];
+		const retired = isVideoModelRetired(model.productKey);
+		if (accessAllowed && retired) commonReasons.push("VIDEO_MODEL_RETIRED");
 		if (
 			disabledKeys.has("media.generation.enabled") ||
 			disabledKeys.has(`media.model.${model.productKey}.enabled`)
 		)
 			commonReasons.push("VIDEO_DISABLED");
-		const options = !accessAllowed
-			? []
-			: publicOptions.get(model.productKey)!.map((option) => {
-					// Model-wide gate reasons travel once; options carry only additional
-					// sound/price reasons. `available` always reflects BOTH sets.
-					const reasons = readReady(option.sound).reasons.filter(
-						(reason) => !commonReasons.includes(reason),
-					);
-					let credits: string | null = null;
-					let pricing: VideoRetailDisplay | null = null;
-					try {
-						const price = resolveVideoModelPrice(
-							{ productKey: model.productKey, ...option },
-							environment,
-							pricingContext,
+		const options =
+			!accessAllowed || retired
+				? []
+				: publicOptions.get(model.productKey)!.map((option) => {
+						// Model-wide gate reasons travel once; options carry only additional
+						// sound/price reasons. `available` always reflects BOTH sets.
+						const reasons = readReady(option.sound).reasons.filter(
+							(reason) => !commonReasons.includes(reason),
 						);
-						credits = price.credits.toString();
-						pricing = readVideoRetailDisplay(price.pricingDetails);
-					} catch (error) {
-						const reason = error instanceof Error ? error.message : "VIDEO_PRICE_NOT_CONFIGURED";
-						reasons.push(
-							/^[A-Z][A-Z0-9_]{2,80}$/.test(reason) ? reason : "VIDEO_PRICE_NOT_CONFIGURED",
-						);
-					}
-					return {
-						...option,
-						available: commonReasons.length === 0 && reasons.length === 0,
-						reasons: [...new Set(reasons)],
-						credits,
-						...(pricing ? { pricing } : {}),
-					};
-				});
+						let credits: string | null = null;
+						let pricing: VideoRetailDisplay | null = null;
+						try {
+							const price = resolveVideoModelPrice(
+								{ productKey: model.productKey, ...option },
+								environment,
+								pricingContext,
+							);
+							credits = price.credits.toString();
+							pricing = readVideoRetailDisplay(price.pricingDetails);
+						} catch (error) {
+							const reason = error instanceof Error ? error.message : "VIDEO_PRICE_NOT_CONFIGURED";
+							reasons.push(
+								/^[A-Z][A-Z0-9_]{2,80}$/.test(reason) ? reason : "VIDEO_PRICE_NOT_CONFIGURED",
+							);
+						}
+						return {
+							...option,
+							available: commonReasons.length === 0 && reasons.length === 0,
+							reasons: [...new Set(reasons)],
+							credits,
+							...(pricing ? { pricing } : {}),
+						};
+					});
 		return {
 			productKey: model.productKey,
 			available: model.status === "implemented" && options.some((option) => option.available),

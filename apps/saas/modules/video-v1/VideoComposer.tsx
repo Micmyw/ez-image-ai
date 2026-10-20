@@ -1,7 +1,7 @@
 "use client";
 
 import { ComposerHeader } from "@media/components/editor/ComposerHeader";
-import { getVideoModel } from "@repo/config/video-models";
+import { getVideoModel, isVideoModelRetired } from "@repo/config/video-models";
 import type { VideoRetailDisplay } from "@repo/config/video-pricing.server";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
@@ -220,7 +220,11 @@ export function VideoComposer(props: {
 						</button>
 					)}
 					{props.catalogUnavailable && <output>{t("disabled")}</output>}
-					{props.selectionUnavailable && <output>{t("selectionUnavailable")}</output>}
+					{isVideoModelRetired(draft.productKey) && !props.confirmation ? (
+						<output data-test="video-model-retired">{t("modelRetired")}</output>
+					) : props.selectionUnavailable ? (
+						<output>{t("selectionUnavailable")}</output>
+					) : null}
 					{!registered && <p>{t("signInHint")}</p>}
 					{props.error && <p role="alert">{t(`errors.${props.error}`)}</p>}
 					{props.error === "unauthorized" && (

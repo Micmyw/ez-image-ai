@@ -71,6 +71,76 @@ function render(stage: VideoState["stage"], canPlay = false) {
 
 describe("truthful video delivery UI", () => {
 	it.each([
+		{
+			locale: "en",
+			messages: en,
+			notice:
+				"This model no longer accepts new requests. Choose another model; your saved settings are unchanged.",
+		},
+		{
+			locale: "de",
+			messages: de,
+			notice:
+				"Dieses Modell nimmt keine neuen Anfragen mehr an. Wähle ein anderes Modell; deine gespeicherten Einstellungen bleiben erhalten.",
+		},
+		{
+			locale: "es",
+			messages: es,
+			notice:
+				"Este modelo ya no acepta solicitudes nuevas. Elige otro modelo; tus ajustes guardados no han cambiado.",
+		},
+		{
+			locale: "fr",
+			messages: fr,
+			notice:
+				"Ce modèle n’accepte plus de nouvelles demandes. Choisissez un autre modèle ; vos réglages enregistrés restent inchangés.",
+		},
+	])(
+		"asks for an explicit replacement of a retired draft in $locale",
+		({ locale, messages, notice }) => {
+			const markup = renderToStaticMarkup(
+				<NextIntlClientProvider locale={locale} messages={messages} timeZone="UTC">
+					<VideoComposer
+						draft={{
+							...initialVideoDraft,
+							productKey: "video-seedance-1-5-pro",
+							resolution: "1080p",
+						}}
+						upload={{ status: "idle", progress: 0, preview: null, assetId: null, error: null }}
+						models={[]}
+						registered
+						locked={false}
+						uploading={false}
+						ready
+						enabled={false}
+						busy={null}
+						quote={null}
+						previewCredits={null}
+						quoteExpired={false}
+						confirmation={false}
+						error={null}
+						jobId={null}
+						maximumBytes={10 * 1024 * 1024}
+						storageUnavailable={false}
+						catalogPending={false}
+						catalogError={false}
+						catalogUnavailable={false}
+						selectionUnavailable
+						onChange={vi.fn()}
+						onGenerate={vi.fn()}
+						onConfirm={vi.fn()}
+						onSignIn={vi.fn()}
+						onRetryCatalog={vi.fn()}
+						onSelectFile={vi.fn()}
+						onRemoveFile={vi.fn()}
+					/>
+				</NextIntlClientProvider>,
+			);
+			expect(markup).toContain(renderToStaticMarkup(<>{notice}</>));
+			expect(markup).toContain("1080P");
+		},
+	);
+	it.each([
 		{ locale: "en", messages: en },
 		{ locale: "de", messages: de },
 		{ locale: "es", messages: es },

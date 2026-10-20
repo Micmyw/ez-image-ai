@@ -2,6 +2,7 @@ import {
 	getVideoModel,
 	getVideoModelOptions,
 	getVideoVariantGroup,
+	isVideoModelRetired,
 	validateVideoModelSelection,
 	videoModelInputSchema,
 	type VideoModelInput,
@@ -229,7 +230,12 @@ export function videoSelectionPricing(
 }
 
 function videoSelectionOption(draft: VideoDraft, catalog?: SelectionCatalog) {
-	if (!catalog?.accessAllowed || !validateVideoModelSelection(draft)) return null;
+	if (
+		!catalog?.accessAllowed ||
+		isVideoModelRetired(draft.productKey) ||
+		!validateVideoModelSelection(draft)
+	)
+		return null;
 	const model = catalog.models.find((entry) => entry.productKey === draft.productKey);
 	if (!model?.available) return null;
 	const option = model.options.find(
@@ -331,7 +337,8 @@ export function getVideoErrorKey(error: unknown): VideoErrorKey {
 		(item): item is string => typeof item === "string",
 	);
 	const code = codes.join(" ");
-	if (codes.includes("VIDEO_MODEL_OPTION_UNAVAILABLE")) return "unsupportedSelection";
+	if (codes.includes("VIDEO_MODEL_OPTION_UNAVAILABLE") || codes.includes("VIDEO_MODEL_RETIRED"))
+		return "unsupportedSelection";
 	if (codes.includes("INVALID_VIDEO_QUOTE")) return "quoteExpired";
 	if (/IDEMPOTENCY_CONFLICT/.test(code)) return "conflict";
 	if (/QUOTE_EXPIRED|QUOTE_INVALID|STALE_QUOTE|PRICE_CHANGED/.test(code)) return "quoteExpired";
@@ -358,6 +365,7 @@ export function getVideoFailureRecovery(error: unknown) {
 	const codes = [value.code, value.data?.code, value.message];
 	const normalizeDraft =
 		codes.includes("VIDEO_MODEL_OPTION_UNAVAILABLE") || codes.includes("INVALID_VIDEO_QUOTE");
+	const retired = codes.includes("VIDEO_MODEL_RETIRED");
 	const rejectedBeforeEnqueue = codes.some(
 		(code) =>
 			typeof code === "string" &&
@@ -370,11 +378,13 @@ export function getVideoFailureRecovery(error: unknown) {
 		// Only definitive rejection permits a new confirmation/key; lost responses keep the receipt.
 		clearQuote:
 			normalizeDraft ||
+			retired ||
 			rejectedBeforeEnqueue ||
 			reason === "conflict" ||
 			reason === "quoteExpired" ||
 			reason === "priceUnavailable",
-		refreshCatalog: normalizeDraft || reason === "quoteExpired" || reason === "priceUnavailable",
+		refreshCatalog:
+			normalizeDraft || retired || reason === "quoteExpired" || reason === "priceUnavailable",
 		normalizeDraft,
 	};
 }

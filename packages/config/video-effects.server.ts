@@ -17,6 +17,11 @@ import {
 	VIDEO_EFFECT_RETAIL_PRICE_VERSION,
 	HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
 	RAINDANCE_LONG_TEMPLATE_VERSION,
+	LEGACY_HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+	LEGACY_RAINDANCE_LONG_TEMPLATE_VERSION,
+	LEGACY_VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+	HOTEL_LOBBY_TEMPLATE_VERSION,
+	RAINDANCE_TEMPLATE_VERSION,
 	videoEffectPricingDisplaySchema,
 	type VideoEffectRequest,
 } from "./video-effects";
@@ -37,14 +42,17 @@ export {
 	RUMPELSTILTSKIN_SAFETY_POLICY_VERSION,
 } from "./rumpelstiltskin-reference.server";
 
-export const HOTEL_LOBBY_TEMPLATE_VERSION = "hotel-lobby-duo-2026-10-05.1";
-export const RAINDANCE_TEMPLATE_VERSION = "raindance-2026-10-07.1";
+export const LEGACY_HOTEL_LOBBY_TEMPLATE_VERSION = "hotel-lobby-duo-2026-10-05.1";
+export const LEGACY_RAINDANCE_TEMPLATE_VERSION = "raindance-2026-10-07.1";
 export {
 	HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
 	RAINDANCE_LONG_TEMPLATE_VERSION,
+	HOTEL_LOBBY_TEMPLATE_VERSION,
+	RAINDANCE_TEMPLATE_VERSION,
 } from "./video-effects";
-export const RAINDANCE_PRICE_VERSION = "raindance-cost-2026-10-07.1";
-export const HOTEL_LOBBY_PRICE_VERSION = "hotel-lobby-duo-cost-2026-10-05.2";
+export const RAINDANCE_PRICE_VERSION = "raindance-mini-cost-2026-10-20.1";
+export const LEGACY_HOTEL_LOBBY_PRICE_VERSION = "hotel-lobby-duo-cost-2026-10-05.2";
+export const HOTEL_LOBBY_PRICE_VERSION = "hotel-lobby-duo-mini-cost-2026-10-20.1";
 export const HOTEL_LOBBY_SAFETY_POLICY_VERSION = "hotel-lobby-duo-safety-2026-10-05.1";
 /** Revenue must cover three times complete budgeted cost, including payment fees. */
 export const HOTEL_LOBBY_MINIMUM_MARKUP_BPS = 20_000n;
@@ -101,7 +109,10 @@ const legacyVideoEffectTemplateSnapshotSchema = z
 		schemaVersion: z.literal(1),
 		effectId: z.enum([HOTEL_LOBBY_EFFECT_ID, RAINDANCE_SOLO_EFFECT_ID, RAINDANCE_DUO_EFFECT_ID]),
 		presetKey: z.literal("standard"),
-		templateVersion: z.enum([HOTEL_LOBBY_TEMPLATE_VERSION, RAINDANCE_TEMPLATE_VERSION]),
+		templateVersion: z.enum([
+			LEGACY_HOTEL_LOBBY_TEMPLATE_VERSION,
+			LEGACY_RAINDANCE_TEMPLATE_VERSION,
+		]),
 		safetyPolicyVersion: z.literal(HOTEL_LOBBY_SAFETY_POLICY_VERSION),
 		preprocessingVersion: z.literal("sealed-upload-2026-10-05.1"),
 		scene: z
@@ -150,8 +161,8 @@ const legacyVideoEffectTemplateSnapshotSchema = z
 		(snapshot) =>
 			snapshot.templateVersion ===
 			(snapshot.effectId === HOTEL_LOBBY_EFFECT_ID
-				? HOTEL_LOBBY_TEMPLATE_VERSION
-				: RAINDANCE_TEMPLATE_VERSION),
+				? LEGACY_HOTEL_LOBBY_TEMPLATE_VERSION
+				: LEGACY_RAINDANCE_TEMPLATE_VERSION),
 		{ message: "Template version does not match effect" },
 	);
 /** Ten-second choreography is a separate frozen contract; never reinterpret schema 1 orders. */
@@ -159,7 +170,10 @@ const longVideoEffectTemplateSnapshotSchema = z
 	.object({
 		...legacyVideoEffectTemplateSnapshotSchema.shape,
 		schemaVersion: z.literal(3),
-		templateVersion: z.enum([HOTEL_LOBBY_LONG_TEMPLATE_VERSION, RAINDANCE_LONG_TEMPLATE_VERSION]),
+		templateVersion: z.enum([
+			LEGACY_HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+			LEGACY_RAINDANCE_LONG_TEMPLATE_VERSION,
+		]),
 		video: legacyVideoEffectTemplateSnapshotSchema.shape.video.extend({ duration: z.literal(10) }),
 		output: legacyVideoEffectTemplateSnapshotSchema.shape.output.extend({
 			durationSeconds: z.literal(10),
@@ -170,9 +184,48 @@ const longVideoEffectTemplateSnapshotSchema = z
 		(snapshot) =>
 			snapshot.templateVersion ===
 			(snapshot.effectId === HOTEL_LOBBY_EFFECT_ID
-				? HOTEL_LOBBY_LONG_TEMPLATE_VERSION
-				: RAINDANCE_LONG_TEMPLATE_VERSION),
+				? LEGACY_HOTEL_LOBBY_LONG_TEMPLATE_VERSION
+				: LEGACY_RAINDANCE_LONG_TEMPLATE_VERSION),
 		{ message: "Template version does not match effect" },
+	);
+/** Mini has no fixed-lens API capability. New contracts never reinterpret schema 1/3 receipts. */
+const miniVideoEffectTemplateSnapshotSchema = z
+	.object({
+		...legacyVideoEffectTemplateSnapshotSchema.shape,
+		schemaVersion: z.literal(4),
+		templateVersion: z.enum([
+			HOTEL_LOBBY_TEMPLATE_VERSION,
+			RAINDANCE_TEMPLATE_VERSION,
+			HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+			RAINDANCE_LONG_TEMPLATE_VERSION,
+		]),
+		video: legacyVideoEffectTemplateSnapshotSchema.shape.video.extend({
+			productKey: z.literal("video-seedance-2-mini"),
+			duration: z.union([z.literal(5), z.literal(10)]),
+			fixedLens: z.literal(false),
+		}),
+		output: legacyVideoEffectTemplateSnapshotSchema.shape.output.extend({
+			durationSeconds: z.union([z.literal(5), z.literal(10)]),
+		}),
+	})
+	.strict()
+	.refine(
+		(snapshot) => {
+			const hotel = snapshot.effectId === HOTEL_LOBBY_EFFECT_ID;
+			const long = snapshot.video.duration === 10;
+			return (
+				snapshot.output.durationSeconds === snapshot.video.duration &&
+				snapshot.templateVersion ===
+					(long
+						? hotel
+							? HOTEL_LOBBY_LONG_TEMPLATE_VERSION
+							: RAINDANCE_LONG_TEMPLATE_VERSION
+						: hotel
+							? HOTEL_LOBBY_TEMPLATE_VERSION
+							: RAINDANCE_TEMPLATE_VERSION)
+			);
+		},
+		{ message: "Template version and output must match effect and duration" },
 	);
 const rumpelstiltskinMotionPrompt = `Use the authorized silent reference video as the motion and scene reference.
 Replace only the LEFT dancing adult with the subject from the uploaded adult portrait.
@@ -240,6 +293,7 @@ export const videoEffectTemplateSnapshotSchema = z.union([
 	legacyVideoEffectTemplateSnapshotSchema,
 	rumpelstiltskinTemplateSnapshotSchema,
 	longVideoEffectTemplateSnapshotSchema,
+	miniVideoEffectTemplateSnapshotSchema,
 ]);
 export type VideoEffectTemplateConfig = z.infer<typeof videoEffectTemplateSnapshotSchema>;
 
@@ -298,7 +352,7 @@ export function createVideoEffectTemplateSnapshot(
 	const solo = request.effectId === RAINDANCE_SOLO_EFFECT_ID;
 	const long = request.duration === 10;
 	return videoEffectTemplateSnapshotSchema.parse({
-		schemaVersion: long ? 3 : 1,
+		schemaVersion: 4,
 		effectId: request.effectId,
 		presetKey: "standard",
 		templateVersion: long
@@ -326,13 +380,13 @@ export function createVideoEffectTemplateSnapshot(
 			maxOutputBytes: 10_000_000,
 		},
 		video: {
-			productKey: "video-seedance-1-5-pro",
+			productKey: "video-seedance-2-mini",
 			mode: "image-to-video",
 			duration: long ? 10 : 5,
 			resolution: "720p",
 			aspectRatio: "9:16",
 			sound: false,
-			prompt: long
+			prompt: (long
 				? raindance
 					? raindanceLongMotion +
 						(solo
@@ -344,15 +398,16 @@ export function createVideoEffectTemplateSnapshot(
 						(solo
 							? " Keep exactly one adult in frame throughout."
 							: " Keep the left person on the left and the right person on the right. One makes a small gesture while the other reacts, then they exchange a brief glance.")
-					: motionPrompt,
+					: motionPrompt
+			).replace(/(?:a |one )?fixed camera/g, "steady framing"),
 			promptVersion: long
 				? raindance
-					? `raindance-${solo ? "solo" : "duo"}-motion-10s-2026-10-08.1`
-					: "hotel-lobby-motion-10s-2026-10-08.1"
+					? `raindance-${solo ? "solo" : "duo"}-mini-motion-10s-2026-10-20.1`
+					: "hotel-lobby-mini-motion-10s-2026-10-20.1"
 				: raindance
-					? `raindance-${solo ? "solo" : "duo"}-motion-2026-10-07.1`
-					: "hotel-lobby-motion-2026-10-05.1",
-			fixedLens: true,
+					? `raindance-${solo ? "solo" : "duo"}-mini-motion-2026-10-20.1`
+					: "hotel-lobby-mini-motion-2026-10-20.1",
+			fixedLens: false,
 		},
 		output: {
 			durationSeconds: long ? 10 : 5,
@@ -529,7 +584,8 @@ export function isVideoEffectRetailPricingApproved(
 }
 export function readVideoEffectPricingDisplay(details: unknown) {
 	const parsed = videoEffectPricingDisplaySchema.safeParse(
-		readVideoRetailDisplay(details, VIDEO_EFFECT_RETAIL_PRICE_VERSION),
+		readVideoRetailDisplay(details, VIDEO_EFFECT_RETAIL_PRICE_VERSION) ??
+			readVideoRetailDisplay(details, LEGACY_VIDEO_EFFECT_RETAIL_PRICE_VERSION),
 	);
 	return parsed.success ? parsed.data : null;
 }
@@ -551,8 +607,8 @@ export function assertApprovedVideoEffectRetailPrice(
 	if ((duration !== 5 && duration !== 10) || !isVideoEffectRetailPricingApproved(environment))
 		return;
 	const audience = context.audience ?? "standard";
-	const standardCredits = duration === 5 ? 69n : 116n;
-	const annualCredits = duration === 5 ? 69n : 101n;
+	const standardCredits = duration === 5 ? 92n : 178n;
+	const annualCredits = duration === 5 ? 92n : 154n;
 	const standardMarkup = duration === 5 ? "20000" : "27500";
 	const annualMarkup = duration === 5 ? "20000" : "23750";
 	const details = price.pricingDetails;
