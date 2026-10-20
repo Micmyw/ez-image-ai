@@ -2,6 +2,8 @@ import { getCurrentCheckoutAttribution } from "@shared/lib/purchase-attribution"
 import React, { type ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+type CheckoutAttribution = Awaited<ReturnType<typeof getCurrentCheckoutAttribution>>;
+
 const state = vi.hoisted(() => ({
 	ownerId: "owner-a",
 	cursor: 0,
@@ -58,7 +60,7 @@ vi.mock("@shared/lib/orpc-query-utils", () => ({
 vi.mock("@shared/lib/purchase-attribution", () => ({
 	captureCheckoutTrigger: vi.fn(),
 	clearCheckoutTrigger: vi.fn(),
-	getCurrentCheckoutAttribution: vi.fn(async () => ({})),
+	getCurrentCheckoutAttribution: vi.fn(async () => ({ triggerPath: null })),
 }));
 vi.mock("@tanstack/react-query", async (original) => ({
 	...(await original<typeof import("@tanstack/react-query")>()),
@@ -167,7 +169,7 @@ beforeEach(() => {
 	state.redirecting.mockReset().mockImplementation(() => {
 		if (state.action) state.action = { ...state.action, stage: "redirecting" };
 	});
-	vi.mocked(getCurrentCheckoutAttribution).mockReset().mockResolvedValue({});
+	vi.mocked(getCurrentCheckoutAttribution).mockReset().mockResolvedValue({ triggerPath: null });
 	state.checkout.mockReset();
 	state.refetch.mockResolvedValue({});
 	state.replaceState.mockReset().mockImplementation((_savedState, _title, href: string) => {
@@ -221,10 +223,10 @@ describe("image pass checkout UI", () => {
 	it.each(["owner change", "unmount"])(
 		"does not create checkout after %s while attribution is pending and releases its lock",
 		async (change) => {
-			let resolve!: (value: {}) => void;
+			let resolve!: (value: CheckoutAttribution) => void;
 			vi.mocked(getCurrentCheckoutAttribution).mockImplementationOnce(
 				() =>
-					new Promise((done) => {
+					new Promise<CheckoutAttribution>((done) => {
 						resolve = done;
 					}),
 			);
@@ -238,7 +240,7 @@ describe("image pass checkout UI", () => {
 				for (const slot of state.slots) slot.cleanup?.();
 			}
 			expect.soft(state.action).toBeNull();
-			resolve({});
+			resolve({ triggerPath: null });
 			await flush();
 			expect(state.checkout).not.toHaveBeenCalled();
 			expect(state.assign).not.toHaveBeenCalled();
@@ -248,11 +250,11 @@ describe("image pass checkout UI", () => {
 	it.each(["resolve", "reject"])(
 		"does not create checkout or release a replacement action when old attribution %s occurs",
 		async (outcome) => {
-			let resolve!: (value: {}) => void;
+			let resolve!: (value: CheckoutAttribution) => void;
 			let reject!: (error: Error) => void;
 			vi.mocked(getCurrentCheckoutAttribution).mockImplementationOnce(
 				() =>
-					new Promise((done, fail) => {
+					new Promise<CheckoutAttribution>((done, fail) => {
 						resolve = done;
 						reject = fail;
 					}),
@@ -261,7 +263,7 @@ describe("image pass checkout UI", () => {
 			state.release();
 			state.acquire("image-pass:paypal");
 			const replacement = state.action;
-			if (outcome === "resolve") resolve({});
+			if (outcome === "resolve") resolve({ triggerPath: null });
 			else reject(new Error("attribution unavailable"));
 			await flush();
 			expect(state.checkout).not.toHaveBeenCalled();
