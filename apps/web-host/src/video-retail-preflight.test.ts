@@ -39,7 +39,9 @@ describe("production retail release preflight", () => {
 			enabled: true,
 			checked: 1188,
 			differences: 0,
-			costPolicy: { paymentFeeBps: "654", baseMarkupBps: "11000" },
+			costPolicy: { paymentFeeBps: "654", baseMarkupBps: "11000", creditFloorMicros: "21944" },
+			historicalRetailReferenceMicros: "21944",
+			salesCreditFloorMicros: "13166",
 		});
 		expect(JSON.stringify(report)).not.toContain("secret-test-sentinel");
 	});

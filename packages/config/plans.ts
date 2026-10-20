@@ -2,6 +2,7 @@ import { z } from "zod";
 
 // Subscription USD prices and monthly allowances have their own immutable cohort.
 // Image SKU repricing must not disable unchanged subscription plans.
+// Annual-only repricing keeps this cohort so unchanged monthly snapshots stay eligible.
 export const BILLING_PRICING_VERSION = "2026-09-15.1";
 
 import {
@@ -48,7 +49,7 @@ export const PLAN_ENTITLEMENTS = z
 			allowedProducts: [...EZPIC_PRODUCT_KEYS],
 			prices: [
 				{ interval: "month", amount: 19, currency: "USD" },
-				{ interval: "year", amount: 190, currency: "USD" },
+				{ interval: "year", amount: 114, currency: "USD" },
 			],
 		},
 		{
@@ -58,7 +59,7 @@ export const PLAN_ENTITLEMENTS = z
 			allowedProducts: [...EZPIC_PRODUCT_KEYS],
 			prices: [
 				{ interval: "month", amount: 49, currency: "USD" },
-				{ interval: "year", amount: 490, currency: "USD" },
+				{ interval: "year", amount: 294, currency: "USD" },
 			],
 		},
 		{
@@ -68,7 +69,7 @@ export const PLAN_ENTITLEMENTS = z
 			allowedProducts: [...EZPIC_PRODUCT_KEYS],
 			prices: [
 				{ interval: "month", amount: 79, currency: "USD" },
-				{ interval: "year", amount: 790, currency: "USD" },
+				{ interval: "year", amount: 474, currency: "USD" },
 			],
 		},
 	]);

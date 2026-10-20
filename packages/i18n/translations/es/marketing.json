@@ -185,7 +185,7 @@
 			},
 			"annualBilling": {
 				"question": "¿Cómo afecta la facturación anual a los créditos?",
-				"answer": "Pro cuesta $190 al año, Ultimate $490 y Max $790. Los EzImageAI Credits se siguen otorgando cada mes—700 para Pro, 1.800 para Ultimate y 3.000 para Max—y los no utilizados no se acumulan."
+				"answer": "Las nuevas suscripciones anuales cuestan $114 al año para Pro, $294 para Ultimate y $474 para Max, incluidas las renovaciones—un 50 % menos que doce pagos mensuales. Los EzImageAI Credits se siguen otorgando cada mes—700 para Pro, 1.800 para Ultimate y 3.000 para Max—y los no utilizados no se acumulan. Los créditos de estos nuevos planes anuales sirven para imágenes y vídeos normales; Hotel Lobby, Raindance y Rumpelstiltskin requieren otros créditos de pago que cumplan los requisitos. Las suscripciones existentes conservan sus condiciones actuales."
 			},
 			"cancelSubscription": {
 				"question": "¿Cómo cancelo mi suscripción?",

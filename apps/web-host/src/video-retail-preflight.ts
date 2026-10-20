@@ -2,6 +2,7 @@ import {
 	isVideoRetailPricingApproved,
 	resolveVideoModelPrice,
 	resolveVideoModelCostBasis,
+	HISTORICAL_VIDEO_RETAIL_REFERENCE_MICROS_PER_CREDIT,
 	videoPaidCreditFloorMicros,
 	VIDEO_RETAIL_PRICE_VERSION,
 	type VideoPricingSelection,
@@ -27,7 +28,7 @@ export function verifyApprovedVideoRetailPrices(input: Record<string, string | u
 				value.toString(),
 			]),
 		),
-		creditFloorMicros: videoPaidCreditFloorMicros().toString(),
+		creditFloorMicros: HISTORICAL_VIDEO_RETAIL_REFERENCE_MICROS_PER_CREDIT.toString(),
 	};
 	if (policy.markupBps !== 11000n) throw new Error("VIDEO_RETAIL_EXISTING_BASE_MARKUP_CHANGED");
 	const differences: object[] = [];
@@ -56,6 +57,8 @@ export function verifyApprovedVideoRetailPrices(input: Record<string, string | u
 		policyVersion: VIDEO_RETAIL_PRICE_VERSION,
 		checked: approved.rows.length,
 		differences: 0,
+		historicalRetailReferenceMicros: HISTORICAL_VIDEO_RETAIL_REFERENCE_MICROS_PER_CREDIT.toString(),
+		salesCreditFloorMicros: videoPaidCreditFloorMicros().toString(),
 		costPolicy,
 	};
 }

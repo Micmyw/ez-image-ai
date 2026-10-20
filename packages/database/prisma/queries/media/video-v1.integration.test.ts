@@ -349,6 +349,7 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		accountId: string,
 		options: {
 			paid: bigint;
+			priceMicros?: bigint;
 			refunded?: bigint;
 			credits?: bigint;
 			periods?: number;
@@ -365,7 +366,7 @@ describe("video V1 admission isolated PostgreSQL", () => {
 				providerPriceId: `video-paid-test-${id}`,
 				name: "ISOLATED_PAID_FUNDING_FIXTURE",
 				creditsPerPeriod: credits,
-				priceMicros: 3_000_000n,
+				priceMicros: options.priceMicros ?? 3_000_000n,
 				currency: options.currency ?? "USD",
 				metadata: {},
 			},
@@ -1044,6 +1045,69 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			command: { metadata: { paidFundingPolicy: { minimumUsdMicrosPerCredit: "21944" } } },
 		});
 	});
+	it.each([
+		{ plan: "creator", credits: 700n, oldAnnualUsd: 190n, annualUsd: 114n },
+		{ plan: "ultimate", credits: 1_800n, oldAnnualUsd: 490n, annualUsd: 294n },
+		{ plan: "studio", credits: 3_000n, oldAnnualUsd: 790n, annualUsd: 474n },
+	])(
+		"reserves only historical qualified $plan annual credits and never falls back to the cheaper new annual lot",
+		async (tier) => {
+			const f = await fixture(0n);
+			const cheaperRef = await paidSubscriptionGrant(f.ownerId, f.account.id, {
+				paid: tier.annualUsd * 1_000_000n,
+				priceMicros: tier.annualUsd * 1_000_000n,
+				credits: tier.credits,
+				periods: 12,
+			});
+			expect(await getVideoTemplateCreditBalance(f.ownerId, paidFundingPolicy, client)).toEqual({
+				totalCredits: tier.credits.toString(),
+				eligibleCredits: "0",
+			});
+			const historicalRef = await paidSubscriptionGrant(f.ownerId, f.account.id, {
+				paid: tier.oldAnnualUsd * 1_000_000n,
+				priceMicros: tier.oldAnnualUsd * 1_000_000n,
+				credits: tier.credits,
+				periods: 12,
+			});
+			const qualified = await requote(f, { ...price, paidFundingPolicy });
+			const result = await createVideoJobRecord(qualified.input, client);
+			const allocations = await client.creditReservationAllocation.findMany({
+				where: { reservation: { jobId: result.jobId } },
+				include: { lot: true },
+			});
+			expect(allocations).toHaveLength(1);
+			expect(allocations[0]!.lot.grantReferenceKey).toBe(historicalRef);
+			expect(allocations[0]!.amount).toBe(price.credits);
+			expect(await getVideoTemplateCreditBalance(f.ownerId, paidFundingPolicy, client)).toEqual({
+				totalCredits: (tier.credits * 2n - price.credits).toString(),
+				eligibleCredits: (tier.credits - price.credits).toString(),
+			});
+
+			// Total balance is sufficient, but eligible historical receipts are one credit short.
+			const blocked = await requote(f, {
+				...price,
+				credits: tier.credits - price.credits + 1n,
+				paidFundingPolicy,
+			});
+			await expect(
+				createVideoJobRecord(
+					{
+						...blocked.input,
+						idempotencyKey: crypto.randomUUID(),
+					},
+					client,
+				),
+			).rejects.toThrow("INSUFFICIENT_PAID_CREDITS");
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(1);
+			expect(
+				await client.creditLot.findUniqueOrThrow({
+					where: {
+						accountId_grantReferenceKey: { accountId: f.account.id, grantReferenceKey: cheaperRef },
+					},
+				}),
+			).toMatchObject({ remainingAmount: tier.credits, reservedAmount: 0n });
+		},
+	);
 	it.each([
 		{ label: "discount below floor", paid: 1_000_000n },
 		{ label: "non-USD funding", paid: 3_000_000n, currency: "EUR" },

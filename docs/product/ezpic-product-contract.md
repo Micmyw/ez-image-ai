@@ -227,15 +227,19 @@ monetary prices from the same entries rather than repeating entitlement numbers.
 | Public plan (internal key) | Monthly credits | Concurrent edits | Allowed products             | Max image input | Price                |
 | -------------------------- | --------------: | ---------------: | ---------------------------- | --------------: | -------------------- |
 | Free (`free`, internal)    |              25 |                1 | Nano Banana 2 Lite           |           10 MB | $0                   |
-| Pro (`creator`)            |             700 |                3 | All 12 public image products |           20 MB | $19/month, $190/year |
-| Ultimate (`ultimate`)      |           1,800 |                6 | All 12 public image products |           20 MB | $49/month, $490/year |
-| Max (`studio`)             |           3,000 |               10 | All 12 public image products |           20 MB | $79/month, $790/year |
+| Pro (`creator`)            |             700 |                3 | All 12 public image products |           20 MB | $19/month, $114/year |
+| Ultimate (`ultimate`)      |           1,800 |                6 | All 12 public image products |           20 MB | $49/month, $294/year |
+| Max (`studio`)             |           3,000 |               10 | All 12 public image products |           20 MB | $79/month, $474/year |
 
-Monthly credits are granted once per internal monthly credit period. Annual billing changes only
-the payment cadence: Pro, Ultimate, and Max receive 700, 1,800, and 3,000 credits per month rather
+Monthly credits are granted once per internal monthly credit period. Annual payment retains monthly
+credit issuance: Pro, Ultimate, and Max receive 700, 1,800, and 3,000 credits per month rather
 than an annual lump sum. Unused plan credits expire with their monthly period and do not roll over.
-Public pricing opens on annual billing, hides Free, and shows the rounded `-17%` saving produced by
-annual prices equal to ten monthly payments.
+Public pricing opens on annual billing, hides Free, and shows `-50%`: each annual price is
+`12 × monthly price × 50%`. These are recurring annual prices, not a first-year promotion.
+Existing subscriptions retain their frozen prices; this change does not migrate them.
+Ordinary images and videos retain their shared-credit rules. Separate paid video templates retain
+their actual receipt qualification: the new annual credit lots cannot fund Hotel Lobby, Raindance,
+or Rumpelstiltskin under the existing threshold; other qualifying paid lots remain usable.
 
 The API enforces product access, active-job concurrency, and input byte size at exact boundaries and
 fails closed under concurrent confirmation. Privacy, private assets, edit sessions/history, and the

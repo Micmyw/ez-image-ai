@@ -2,8 +2,14 @@ import { PUBLIC_CREDIT_PACKS } from "./credit-packs";
 import { PLAN_ENTITLEMENTS } from "./plans";
 import { getVideoModel, type VideoVeoTier } from "./video-models";
 import { createVideoAudioSafetyPolicy } from "./video-output";
+import {
+	HISTORICAL_VIDEO_RETAIL_REFERENCE_MICROS_PER_CREDIT,
+	VIDEO_RETAIL_REFERENCE_PRICE_VERSION,
+} from "./video-retail-reference.server";
 import { configuredVideoVisualSafetyProfile } from "./video-safety";
 import { createVideoTextSafetyProfile } from "./video-text-safety";
+
+export { HISTORICAL_VIDEO_RETAIL_REFERENCE_MICROS_PER_CREDIT };
 
 /**
  * Public price basis: explicit Veo tiers observed on 2026-10-08; Mini/Fast
@@ -11,7 +17,7 @@ import { createVideoTextSafetyProfile } from "./video-text-safety";
  * Not an account-specific bill. See docs/operations/video-v1-price-basis-2026-10-08.md.
  */
 export const VIDEO_SUPPLIER_PRICE_VERSION = "kie-public-2026-10-08.1";
-export const VIDEO_RETAIL_PRICE_VERSION = "video-retail-2026-10-08.1";
+export const VIDEO_RETAIL_PRICE_VERSION = VIDEO_RETAIL_REFERENCE_PRICE_VERSION;
 export const VIDEO_ANNUAL_ELIGIBILITY_VERSION = "video-annual-eligibility-2026-10-08.1";
 export type VideoRetailAudience = "standard" | "annual";
 export type VideoRetailEligibility = {
@@ -325,7 +331,8 @@ export function calculateVideoRetailPrice(input: {
 	creditFloorMicros?: bigint;
 }) {
 	const p = input.policy;
-	const creditFloorMicros = input.creditFloorMicros ?? videoPaidCreditFloorMicros();
+	const creditFloorMicros =
+		input.creditFloorMicros ?? HISTORICAL_VIDEO_RETAIL_REFERENCE_MICROS_PER_CREDIT;
 	if (
 		Object.values(p).some((value) => value < 0n) ||
 		input.providerCostMicros <= 0n ||

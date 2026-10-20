@@ -80,45 +80,6 @@ vi.mock("next/link", () => ({
 
 vi.mock("@repo/config/client", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@repo/config/client")>()),
-	PLAN_ENTITLEMENTS: [
-		{
-			id: "free",
-			allowedProducts: ["image-nano-banana-2-lite"],
-			maximumInputBytes: 10 * 1024 * 1024,
-			monthlyCredits: 25,
-			prices: [],
-		},
-		{
-			id: "creator",
-			allowedProducts: ["image-nano-banana-2-lite", "image-gpt-image-2", "image-seedream-5-pro"],
-			maximumInputBytes: 20 * 1024 * 1024,
-			monthlyCredits: 700,
-			prices: [
-				{ amount: 19, currency: "USD", interval: "month" },
-				{ amount: 190, currency: "USD", interval: "year" },
-			],
-		},
-		{
-			id: "ultimate",
-			allowedProducts: ["image-nano-banana-2-lite", "image-gpt-image-2", "image-seedream-5-pro"],
-			maximumInputBytes: 20 * 1024 * 1024,
-			monthlyCredits: 1800,
-			prices: [
-				{ amount: 49, currency: "USD", interval: "month" },
-				{ amount: 490, currency: "USD", interval: "year" },
-			],
-		},
-		{
-			id: "studio",
-			allowedProducts: ["image-nano-banana-2-lite", "image-gpt-image-2", "image-seedream-5-pro"],
-			maximumInputBytes: 20 * 1024 * 1024,
-			monthlyCredits: 3000,
-			prices: [
-				{ amount: 79, currency: "USD", interval: "month" },
-				{ amount: 790, currency: "USD", interval: "year" },
-			],
-		},
-	],
 	PUBLIC_CREDIT_PACKS: [
 		{
 			packKey: "credits-1500",
@@ -242,9 +203,42 @@ describe("PublicPricingPlans", () => {
 			/<button[^>]*data-test="public-pricing-interval-year"[^>]*>/,
 		)?.[0];
 		expect(yearlyButton).toContain('aria-pressed="true"');
-		expect(visibleText).toContain("-17%");
-		expect(visibleText).toContain("Billed $190 yearly");
+		expect(visibleText).toContain("-50%");
+		for (const [total, savings] of [
+			[114, 114],
+			[294, 294],
+			[474, 474],
+		]) {
+			expect(visibleText).toContain(
+				`Billed $${total} yearly · save $${savings} (50%) vs 12 monthly payments`,
+			);
+		}
+		for (const credits of [700, 1800, 3000]) {
+			expect(visibleText).toContain(`${credits} credits per month`);
+		}
+		for (const [planId, amount] of [
+			["creator", "9.50"],
+			["ultimate", "24.50"],
+			["studio", "39.50"],
+		]) {
+			expect(markup).toContain(`data-test="public-pricing-${planId}-price">$${amount}</strong>`);
+		}
 		expect(markup).toMatch(/data-plan-id="ultimate"[^>]*data-recommended="true"/);
+	});
+
+	it("keeps monthly prices, allowances, and checkout cadence unchanged", () => {
+		const markup = renderToStaticMarkup(<PublicPricingPlans locale="en-US" initialView="month" />);
+		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
+		for (const [planId, amount, credits] of [
+			["creator", 19, 700],
+			["ultimate", 49, 1800],
+			["studio", 79, 3000],
+		]) {
+			expect(markup).toContain(`data-test="public-pricing-${planId}-price">$${amount}</strong>`);
+			expect(visibleText).toContain(`${credits} credits per month`);
+			expect(markup).toContain(`href="/pricing?plan=${planId}&amp;interval=month"`);
+		}
+		expect(markup).not.toContain("annual-summary");
 	});
 
 	it("shows stable product capabilities without provider or cost details", () => {

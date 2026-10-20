@@ -346,7 +346,7 @@ test.describe("consolidated public routes", () => {
 
 		await expect(yearly).toHaveAttribute("aria-pressed", "true");
 		await expect(monthly).toHaveAttribute("aria-pressed", "false");
-		await expect(yearly).toContainText("-17%");
+		await expect(yearly).toContainText("-50%");
 		await expect(intervalFieldset).toBeVisible();
 		const intervalWidths = await intervalFieldset.evaluate((element) => ({
 			clientWidth: element.clientWidth,
@@ -363,17 +363,17 @@ test.describe("consolidated public routes", () => {
 		await expect(
 			page.locator('[data-test="public-pricing-plan"][data-plan-id="studio"]'),
 		).toContainText("Max");
-		await expect(page.locator('[data-test="public-pricing-creator-price"]')).toHaveText("$15.83");
-		await expect(page.locator('[data-test="public-pricing-ultimate-price"]')).toHaveText("$40.83");
-		await expect(page.locator('[data-test="public-pricing-studio-price"]')).toHaveText("$65.83");
+		await expect(page.locator('[data-test="public-pricing-creator-price"]')).toHaveText("$9.50");
+		await expect(page.locator('[data-test="public-pricing-ultimate-price"]')).toHaveText("$24.50");
+		await expect(page.locator('[data-test="public-pricing-studio-price"]')).toHaveText("$39.50");
 		await expect(page.locator('[data-test="public-pricing-creator-annual-summary"]')).toContainText(
-			/\$190.*\$38.*17%.*12 monthly payments/,
+			/\$114.*\$114.*50%.*12 monthly payments/,
 		);
 		await expect(
 			page.locator('[data-test="public-pricing-ultimate-annual-summary"]'),
-		).toContainText(/\$490.*\$98.*17%.*12 monthly payments/);
+		).toContainText(/\$294.*\$294.*50%.*12 monthly payments/);
 		await expect(page.locator('[data-test="public-pricing-studio-annual-summary"]')).toContainText(
-			/\$790.*\$158.*17%.*12 monthly payments/,
+			/\$474.*\$474.*50%.*12 monthly payments/,
 		);
 
 		await monthly.click();

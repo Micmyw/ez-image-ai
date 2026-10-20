@@ -25,6 +25,62 @@ const billingPlanDrifts: Array<[string, BillingPlanDrift]> = [
 ];
 
 describe("payment provider availability", () => {
+	it.each([
+		{ planId: "creator" as const, monthly: 19, yearly: 114, previousYearly: 190, credits: 700 },
+		{ planId: "ultimate" as const, monthly: 49, yearly: 294, previousYearly: 490, credits: 1_800 },
+		{ planId: "studio" as const, monthly: 79, yearly: 474, previousYearly: 790, credits: 3_000 },
+	])(
+		"accepts new annual and unchanged monthly snapshots for $planId on both channels",
+		async (plan) => {
+			vi.stubEnv("PAYPAL_ENVIRONMENT", "live");
+			vi.stubEnv("WAFFO_ENVIRONMENT", "prod");
+			for (const interval of ["month", "year"] as const) {
+				const snapshot = (provider: "paypal" | "waffo", priceMicros: bigint) => ({
+					id: `${provider}-${plan.planId}-${interval}`,
+					provider,
+					providerPriceId: `${provider}-${plan.planId}-${interval}-price`,
+					productKind: "PLAN" as const,
+					active: true,
+					version: 1,
+					name: plan.planId,
+					creditsPerPeriod: BigInt(plan.credits),
+					priceMicros,
+					currency: "USD",
+					metadata: {
+						planId: plan.planId,
+						interval,
+						version: 1,
+						billingPricingVersion: "2026-09-15.1",
+						providerEnvironment: provider === "paypal" ? "live" : "prod",
+					},
+				});
+				const selection = { planId: plan.planId, interval };
+				expect(
+					(
+						await resolveProviderAvailability(selection, {
+							isCheckoutAvailable: () => true,
+							getProviderPriceId: (provider) => `${provider}-${plan.planId}-${interval}-price`,
+							findBillingPlan: async (provider) =>
+								snapshot(
+									provider,
+									BigInt((interval === "year" ? plan.yearly : plan.monthly) * 1_000_000),
+								),
+						})
+					).map(({ name }) => name),
+				).toEqual(["paypal", "waffo"]);
+
+				if (interval === "year") {
+					for (const provider of ["paypal", "waffo"] as const) {
+						const previous = snapshot(provider, BigInt(plan.previousYearly * 1_000_000));
+						expect(
+							isExactBillingPlanSnapshot(previous, provider, previous.providerPriceId, selection),
+						).toBe(false);
+					}
+				}
+			}
+		},
+	);
+
 	it.each(["subscription", "credit-pack"])(
 		"awaits merchant readiness for %s and opens Waffo after approval",
 		async (kind) => {
