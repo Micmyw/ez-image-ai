@@ -4,7 +4,7 @@
 
 - Set new Pro, Ultimate and Max annual subscriptions to $114, $294 and $474 per year, including renewals: 50% less than twelve monthly payments. Show the annual total, monthly equivalent and savings consistently.
 - Keep monthly prices at $19/$49/$79 and monthly credit grants at 700/1,800/3,000. Annual credits continue to arrive monthly; existing subscriptions retain their original terms.
-- Keep approved video credit prices and existing template funding requirements unchanged.
+- Use the same valid credits for images, ordinary videos, Hotel Lobby, Raindance and Rumpelstiltskin regardless of purchase discounts or grant source. Keep generation credit prices and annual video savings, expiry, refunds, account ownership and safe reservation/return rules. Image passes remain a separate explicit choice.
 
 ## 2026-10-20 — Clearer payment returns and image funding
 

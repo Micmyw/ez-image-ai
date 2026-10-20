@@ -22,7 +22,7 @@ is embedded in the product code.
 
 ## Public products, one wallet, and legal SKUs
 
-EzImageAI exposes twelve image products backed by one `EzImageAI Credit` balance. Credit use is selected
+EzImageAI exposes twelve image products backed by one `EzImageAI Credit` balance. All new credit-funded images, ordinary videos and independent video templates use the same valid balance, including discounted purchases and grants. Purchase price does not change generation value; expiry, refunds, debt, owner scope and existing atomic ledger protections still apply. The explicitly selected USD1 image-pass offer remains separate. Credit use is selected
 by the exact legal SKU, not by a universal per-image rate:
 
 | Public product key             | Legal SKU                   | Parameters | EzImageAI Credits |

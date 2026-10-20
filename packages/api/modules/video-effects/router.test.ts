@@ -251,10 +251,14 @@ describe("template API authorization and strict public contracts", () => {
 			);
 		},
 	);
-	it("reports template access for an ordinary registered customer when explicitly enabled", async () => {
+	it("uses the shared account balance without filtering new template access by paid receipt value", async () => {
 		vi.stubEnv("VIDEO_V1_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ACCESS", "authenticated");
+		vi.mocked(getVideoTemplateCreditBalance).mockResolvedValueOnce({
+			totalCredits: "391",
+			eligibleCredits: "391",
+		});
 		vi.mocked(requireVideoTemplateAdmission).mockReturnValue({
 			maximumInputBytes: 7_000_000,
 			price: { credits: 69n, paidFundingPolicy: { minimumUsdMicrosPerCredit: 21_944n } },
@@ -264,11 +268,11 @@ describe("template API authorization and strict public contracts", () => {
 			accessAllowed: true,
 			available: true,
 			credits: "69",
-			creditBalance: { totalCredits: "391", eligibleCredits: "0" },
+			creditBalance: { totalCredits: "391", eligibleCredits: "391" },
 		});
 		expect(getVideoTemplateCreditBalance).toHaveBeenCalledWith(
 			"owner",
-			{ minimumUsdMicrosPerCredit: 21_944n },
+			undefined,
 			expect.anything(),
 		);
 		expect(requireVideoTemplateAdmission).toHaveBeenCalledWith(
