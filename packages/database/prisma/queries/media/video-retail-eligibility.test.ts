@@ -1,3 +1,5 @@
+import { VIDEO_EFFECT_RETAIL_PRICE_VERSION } from "@repo/config/video-effects";
+import { VIDEO_RETAIL_PRICE_VERSION } from "@repo/config/video-pricing.server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./billing", () => ({ findEffectivePaidSubscription: vi.fn() }));
@@ -92,8 +94,8 @@ describe("server annual video qualification", () => {
 		effective.mockResolvedValue({ ...subscription(), status: "PAST_DUE", graceEndsAt: now });
 		expect((await resolveVideoRetailEligibility("owner", client, now)).audience).toBe("standard");
 	});
-	it.each(["video-retail-2026-10-08.1", "video-effect-retail-2026-10-08.1"])(
-		"%s rejects qualification changes and cross-owner proof; preserves legacy snapshots",
+	it.each([VIDEO_RETAIL_PRICE_VERSION, VIDEO_EFFECT_RETAIL_PRICE_VERSION])(
+		"%s rejects qualification changes and cross-owner proof",
 		async (version) => {
 			const eligibility = await resolveVideoRetailEligibility("owner", client, now);
 			const details = {
@@ -121,4 +123,23 @@ describe("server annual video qualification", () => {
 			).resolves.toBeUndefined();
 		},
 	);
+	it("requires a new quote for the old effect retail version even when its annual proof is current", async () => {
+		const eligibility = await resolveVideoRetailEligibility("owner", client, now);
+		effective.mockClear();
+		await expect(
+			assertVideoRetailEligibility(
+				"owner",
+				{
+					retail: {
+						version: "video-effect-retail-2026-10-08.1",
+						eligibility,
+						display: { audience: "annual" },
+					},
+				},
+				client,
+				now,
+			),
+		).rejects.toThrow("PRICE_CHANGED");
+		expect(effective).not.toHaveBeenCalled();
+	});
 });

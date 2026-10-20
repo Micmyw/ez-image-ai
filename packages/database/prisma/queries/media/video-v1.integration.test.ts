@@ -20,7 +20,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import approvedVideoRetail from "../../../../config/fixtures/video-retail-approved-2026-10-08.json";
 import { providerCapacityForTestRequests } from "../../../test-support/provider-dispatch-capacity";
 import { runWithDatabaseClient } from "../../client";
-import { PrismaClient } from "../../generated/client";
+import { PrismaClient, type Prisma } from "../../generated/client";
 import { createMediaUploadSessionTransaction } from "./assets";
 import {
 	createCreditGrant,
@@ -1618,6 +1618,93 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		const first = await createVideoJobRecord(acceptedInput, client);
 		await new Promise((resolve) => setTimeout(resolve, 1100));
 		expect(await createVideoJobRecord(acceptedInput, client)).toEqual({ ...first, replayed: true });
+	});
+	it("rejects an unaccepted old-effect retail quote but replays its accepted frozen receipt without another reservation", async () => {
+		const { input, account } = await fixture();
+		const original = await client.generationQuote.findUniqueOrThrow({
+			where: { id: input.quoteId },
+		});
+		const eligibility = await resolveVideoRetailEligibility(input.ownerId, client);
+		const oldPrice = {
+			...input.price,
+			pricingDetails: {
+				retail: {
+					version: "video-effect-retail-2026-10-08.1",
+					eligibility,
+					display: { audience: eligibility.audience },
+				},
+			},
+		};
+		const { id: _id, createdAt: _createdAt, ...fields } = original;
+		const frozenQuote = {
+			...fields,
+			inputSnapshot: fields.inputSnapshot as never,
+			pricingSnapshot: {
+				...(fields.pricingSnapshot as Prisma.InputJsonObject),
+				pricingDetails: oldPrice.pricingDetails,
+			},
+		};
+		const quote = await client.generationQuote.create({
+			data: {
+				...frozenQuote,
+				inputFingerprint: fingerprintGenerationQuoteSecurityPayload(frozenQuote),
+			},
+		});
+		const replayInput = { ...input, quoteId: quote.id, price: oldPrice };
+		await expect(createVideoJobRecord(replayInput, client)).rejects.toThrow("PRICE_CHANGED");
+		expect(await client.creditReservation.count({ where: { accountId: account.id } })).toBe(0);
+		expect(await client.generationJob.count({ where: { ownerId: input.ownerId } })).toBe(0);
+		// Reproduce a pre-cutover acceptance with INSERTs; immutable receipts are never rewritten.
+		const historical = await client.$transaction(async (tx) => {
+			const job = await tx.generationJob.create({
+				data: {
+					ownerType: "USER",
+					ownerId: input.ownerId,
+					submittedByUserId: input.ownerId,
+					quoteId: quote.id,
+					idempotencyKey: input.idempotencyKey,
+					productKey: quote.productKey,
+					catalogVersion: quote.catalogVersion,
+					pricingVersion: quote.pricingVersion,
+					creditsReserved: quote.credits,
+					executionEngine: "video-workflow-v1",
+					inputSnapshot: quote.inputSnapshot as never,
+					pricingSnapshot: quote.pricingSnapshot as never,
+				},
+			});
+			await reserveCreditsInTransaction(
+				{
+					accountId: account.id,
+					jobId: job.id,
+					amount: quote.credits,
+					referenceKey: `job:${job.id}:reserve`,
+				},
+				tx,
+			);
+			await tx.videoExecution.create({
+				data: {
+					jobId: job.id,
+					workflowInstanceId: `video-v1-${job.id}`,
+					modelContractVersion: quote.catalogVersion,
+					stage: "QUEUED",
+					startState: "PENDING",
+				},
+			});
+			return job;
+		});
+		await expect(createVideoJobRecord(replayInput, client)).resolves.toEqual({
+			jobId: historical.id,
+			replayed: true,
+		});
+		expect(await client.generationJob.findUniqueOrThrow({ where: { id: historical.id } })).toEqual(
+			historical,
+		);
+		expect(await client.creditReservation.count({ where: { accountId: account.id } })).toBe(1);
+		expect(
+			await client.creditLedgerEntry.count({ where: { accountId: account.id, type: "RESERVE" } }),
+		).toBe(1);
+		expect(await client.videoExecution.count({ where: { jobId: historical.id } })).toBe(1);
+		expect(await client.generationAttempt.count({ where: { jobId: historical.id } })).toBe(0);
 	});
 	it.each(["lite", "fast", "quality"] as const)(
 		"replays an immutable bridge-compatible %s admission after quote expiry",
