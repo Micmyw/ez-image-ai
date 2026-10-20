@@ -719,29 +719,52 @@ describe("video submission database correctness", () => {
 			);
 		},
 	);
-	it.each(["retained-paid-policy", "template"])(
-		"refuses shared-credit funding for %s before creating a send fence",
-		async (mode) => {
-			const f = await fixture({
-				template: mode === "template",
-				...(mode === "retained-paid-policy"
-					? { paidFundingPolicy: { minimumUsdMicrosPerCredit: "10000" } }
-					: {}),
-				pricingDetails: () => ({
-					validUntil: "2099-01-01T00:00:00.000Z",
-					funding: { mode: "shared-media-credits-v1" },
-					paidRevenueQualified: false,
-				}),
-			});
-			await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
-				"VIDEO_FUNDING_POLICY_CHANGED",
-			);
-			expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(0);
-			expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
-				"ACTIVE",
-			);
-		},
-	);
+	it("refuses shared-credit funding retaining a paid policy before creating a send fence", async () => {
+		const f = await fixture({
+			paidFundingPolicy: { minimumUsdMicrosPerCredit: "10000" },
+			pricingDetails: () => ({
+				validUntil: "2099-01-01T00:00:00.000Z",
+				funding: { mode: "shared-media-credits-v1" },
+				paidRevenueQualified: false,
+			}),
+		});
+		await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
+			"VIDEO_FUNDING_POLICY_CHANGED",
+		);
+		expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(0);
+		expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
+			"ACTIVE",
+		);
+	});
+	it("claims a reviewed shared-credit template once and preserves its reservation", async () => {
+		const f = await fixture({
+			template: true,
+			pricingDetails: () => ({
+				validUntil: "2099-01-01T00:00:00.000Z",
+				funding: { mode: "shared-media-credits-v1" },
+				paidRevenueQualified: false,
+			}),
+		});
+		const claimed = await run(() => claimVideoProviderSubmission(f.claim));
+		expect(claimed).toMatchObject({
+			claimed: true,
+			attempt: { status: "SUBMISSION_UNCERTAIN", uncertainSubmission: true },
+		});
+		expect(await run(() => claimVideoProviderSubmission(f.claim))).toMatchObject({
+			claimed: false,
+			attempt: { id: claimed.attempt.id },
+		});
+		const job = await run(() => getVideoExecutionContext(f.job.id));
+		expect(job?.status).toBe("SUBMITTING");
+		expect(job?.attempts).toHaveLength(1);
+		expect(job?.reservation).toMatchObject({ id: f.reservation.id, status: "ACTIVE" });
+		expect(job?.pricingSnapshot).toEqual(f.job.pricingSnapshot);
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { reservationId: f.reservation.id, type: "RELEASE" },
+			}),
+		).toBe(0);
+	});
 	it("replays an existing shared-credit send fence before rechecking funding", async () => {
 		const f = await fixture({
 			pricingDetails: () => ({
