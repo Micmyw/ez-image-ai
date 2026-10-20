@@ -38,7 +38,7 @@ export async function resolveImagePassOfferAvailability(
 
 export const getImagePassOffer = publicProcedure
 	.route({ method: "GET", path: "/payments/image-pass-offer", tags: ["Payments"] })
-	.input(z.void())
+	.input(z.object({}).strict().optional())
 	.output(z.object({ available: z.boolean() }))
 	.handler(async ({ context: { responseHeaders } }) => {
 		responseHeaders?.set("Cache-Control", "no-store");
