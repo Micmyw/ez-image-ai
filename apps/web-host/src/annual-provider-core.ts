@@ -82,6 +82,25 @@ export function safeFailure(error: unknown) {
 			}
 		: { code: "PROVIDER_OPERATION_FAILED" };
 }
+export type DiagnosticEvidence = {
+	stage:
+		| "WAFFO_CATALOG"
+		| "WAFFO_STORE"
+		| "WAFFO_SCHEMA"
+		| "WAFFO_VERSIONS"
+		| "WAFFO_EVIDENCE_START"
+		| "WAFFO_EVIDENCE_COMPLETE"
+		| "PAYPAL_MAPPED_START"
+		| "PAYPAL_PLAN_SHAPE"
+		| "PAYPAL_LIST_START"
+		| "PAYPAL_LIST_COMPLETE";
+	plan?: AnnualTier["key"];
+	productId?: string;
+	fields?: Record<string, string>;
+};
+export function shape(value: unknown): string {
+	return value === null ? "null" : Array.isArray(value) ? "array" : typeof value;
+}
 export interface WaffoCatalog {
 	store: Data;
 	products: Data[];
@@ -126,7 +145,15 @@ export type WaffoEvidence = {
 export function waffoEvidence(raw: Data): WaffoEvidence {
 	const versions = list(raw.versions).map((input) => {
 		const version = record(input);
-		const metadata = version.metadata == null ? {} : record(version.metadata);
+		let metadataValue = version.metadata;
+		if (typeof metadataValue === "string" && raw.metadataEncoding === "json-string") {
+			try {
+				metadataValue = JSON.parse(metadataValue);
+			} catch {
+				throw new AnnualOperationError("WAFFO_METADATA_JSON_INVALID");
+			}
+		}
+		const metadata = metadataValue == null ? {} : record(metadataValue);
 		const prices = list(version.prices).map((entry) => {
 			const price = record(entry);
 			const info = record(price.priceInfo);
@@ -287,17 +314,35 @@ export type AuditResult = Awaited<ReturnType<typeof auditAnnualProviders>>;
 export async function auditAnnualProviders(
 	environment: Record<string, string | undefined>,
 	port: ProviderPort,
+	options: { onDiagnostic?: (evidence: DiagnosticEvidence) => void } = {},
 ) {
 	if (environment.WAFFO_ENVIRONMENT !== "prod" || environment.PAYPAL_ENVIRONMENT !== "live")
 		throw new AnnualOperationError("PRODUCTION_ENVIRONMENT_REQUIRED");
+	options.onDiagnostic?.({ stage: "WAFFO_CATALOG" });
 	const catalog = await port.waffoCatalog();
 	if (catalog.store.id !== environment.WAFFO_STORE_ID)
 		throw new AnnualOperationError("WAFFO_STORE_ID_MISMATCH");
-	const products = catalog.products.map(waffoEvidence);
+	const products = catalog.products.map((product) => {
+		options.onDiagnostic?.({
+			stage: "WAFFO_EVIDENCE_START",
+			productId: string(product.id),
+			fields: {
+				name: shape(product.name),
+				status: shape(product.status),
+				hasProdVersion: shape(product.hasProdVersion),
+				versions: shape(product.versions),
+			},
+		});
+		const evidence = waffoEvidence(product);
+		options.onDiagnostic?.({ stage: "WAFFO_EVIDENCE_COMPLETE", productId: evidence.id });
+		return evidence;
+	});
 	const unique = new Set(products.map((product) => product.id));
 	if (unique.size !== products.length) throw new AnnualOperationError("WAFFO_CATALOG_DUPLICATE");
 	const issues: string[] = [];
 	if (catalog.store.status !== "active") issues.push("WAFFO_STORE_NOT_ACTIVE");
+	if (catalog.store.prodEnabled !== true || catalog.store.payinEnable !== true)
+		issues.push("WAFFO_STORE_PAYIN_NOT_ENABLED");
 	const tiers = [];
 	for (const tier of ANNUAL_TIERS) {
 		const suffix = tier.key.toUpperCase();
@@ -309,6 +354,14 @@ export async function auditAnnualProviders(
 		const monthlyWaffo = getWaffo(environment[`WAFFO_PRODUCT_ID_${suffix}_MONTHLY`]);
 		const oldWaffo = getWaffo(tier.waffo);
 		const currentWaffo = getWaffo(environment[`WAFFO_PRODUCT_ID_${suffix}_YEARLY`]);
+		options.onDiagnostic?.({
+			stage: "PAYPAL_MAPPED_START",
+			plan: tier.key,
+			fields: {
+				monthlyBinding: shape(environment[`PAYPAL_PLAN_ID_${suffix}_MONTHLY`]),
+				annualBinding: shape(environment[`PAYPAL_PLAN_ID_${suffix}_YEARLY`]),
+			},
+		});
 		const monthlyPayPal = paypalEvidence(
 			await port.paypalPlan(string(environment[`PAYPAL_PLAN_ID_${suffix}_MONTHLY`])),
 		);
@@ -338,7 +391,17 @@ export async function auditAnnualProviders(
 			currentPayPal.productId !== oldPayPal.productId
 		)
 			issues.push(`PAYPAL_PRODUCT_IDENTITY_${suffix}_INVALID`);
+		options.onDiagnostic?.({
+			stage: "PAYPAL_LIST_START",
+			plan: tier.key,
+			productId: oldPayPal.productId,
+		});
 		const listed = await port.paypalPlans(oldPayPal.productId);
+		options.onDiagnostic?.({
+			stage: "PAYPAL_LIST_COMPLETE",
+			plan: tier.key,
+			productId: oldPayPal.productId,
+		});
 		// The adapter returns details, never trust list summaries for monetary terms.
 		const paypalDetails = listed.map(paypalEvidence);
 		const paypalCandidates = paypalDetails.filter((plan) =>
@@ -386,12 +449,16 @@ export async function auditAnnualProviders(
 				issues.push(`PAYPAL_TARGET_${suffix}_INVALID`);
 		if (
 			currentWaffo.id !== tier.waffo &&
-			!waffoTargets.some((target) => target.id === currentWaffo.id)
+			(!waffoCandidates.some((target) => target.id === currentWaffo.id) ||
+				currentWaffo.status !== "active" ||
+				!currentWaffo.hasProdVersion ||
+				!validWaffoTerms(currentWaffo.production, tier.annual, "yearly"))
 		)
 			issues.push(`WAFFO_CURRENT_${suffix}_UNEXPECTED`);
 		if (
 			currentPayPal.id !== tier.paypal &&
-			!paypalTargets.some((target) => target.id === currentPayPal.id)
+			(!paypalCandidates.some((target) => target.id === currentPayPal.id) ||
+				!validPaypalTerms(currentPayPal, tier.annual, "YEAR"))
 		)
 			issues.push(`PAYPAL_CURRENT_${suffix}_UNEXPECTED`);
 		tiers.push({
@@ -420,9 +487,64 @@ export async function auditAnnualProviders(
 			id: string(catalog.store.id),
 			name: string(catalog.store.name),
 			status: string(catalog.store.status),
+			prodEnabled: catalog.store.prodEnabled === true,
+			payinEnable: catalog.store.payinEnable === true,
 		},
 		schemaFields: catalog.schemaFields,
 		tiers,
+		issues,
+		ready: issues.length === 0,
+	};
+}
+
+/** Independent read-only channel audit; Waffo parsing cannot block these PayPal facts. */
+export async function auditPayPalAnnualProviders(
+	environment: Record<string, string | undefined>,
+	port: Pick<ProviderPort, "paypalPlan" | "paypalPlans">,
+	options: {
+		onPlan?: (evidence: {
+			plan: AnnualTier["key"];
+			interval: "monthly" | "annual";
+			terms: PayPalEvidence;
+		}) => void;
+		onDiagnostic?: (evidence: DiagnosticEvidence) => void;
+	} = {},
+) {
+	if (environment.PAYPAL_ENVIRONMENT !== "live")
+		throw new AnnualOperationError("PRODUCTION_ENVIRONMENT_REQUIRED");
+	const issues: string[] = [];
+	const tiers = [];
+	for (const tier of ANNUAL_TIERS) {
+		const suffix = tier.key.toUpperCase();
+		options.onDiagnostic?.({ stage: "PAYPAL_MAPPED_START", plan: tier.key });
+		const monthly = paypalEvidence(
+			await port.paypalPlan(string(environment[`PAYPAL_PLAN_ID_${suffix}_MONTHLY`])),
+		);
+		options.onPlan?.({ plan: tier.key, interval: "monthly", terms: monthly });
+		const annual = paypalEvidence(
+			await port.paypalPlan(string(environment[`PAYPAL_PLAN_ID_${suffix}_YEARLY`])),
+		);
+		options.onPlan?.({ plan: tier.key, interval: "annual", terms: annual });
+		if (!validPaypalTerms(monthly, tier.monthly, "MONTH"))
+			issues.push(`PAYPAL_MONTHLY_${suffix}_INVALID`);
+		if (!validPaypalTerms(annual, annual.id === tier.paypal ? tier.previous : tier.annual, "YEAR"))
+			issues.push(`PAYPAL_ANNUAL_${suffix}_INVALID`);
+		tiers.push({
+			plan: tier.key,
+			monthlyCredits: tier.credits,
+			monthly,
+			annual,
+			mappedProductRelationship:
+				monthly.productId === annual.productId ? "SAME_PRODUCT" : "DIFFERENT_PRODUCTS",
+		});
+	}
+	return {
+		operation: ANNUAL_OPERATION,
+		mode: "audit-paypal" as const,
+		tiers,
+		distinctProductIds: [
+			...new Set(tiers.flatMap((tier) => [tier.monthly.productId, tier.annual.productId])),
+		],
 		issues,
 		ready: issues.length === 0,
 	};

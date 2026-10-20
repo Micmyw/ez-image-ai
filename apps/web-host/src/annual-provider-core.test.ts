@@ -9,6 +9,8 @@ import {
 	ANNUAL_TIERS,
 	AnnualOperationError,
 	auditAnnualProviders,
+	auditPayPalAnnualProviders,
+	waffoEvidence,
 	safeFailure,
 	targetName,
 	type Data,
@@ -92,7 +94,14 @@ function fixtures() {
 		async waffoCatalog() {
 			reads.push("waffo-catalog");
 			return {
-				store: { id: "STO_FIXTURE", name: "EzPic", status: "active", private: "SECRET" },
+				store: {
+					id: "STO_FIXTURE",
+					name: "EzPic",
+					status: "active",
+					prodEnabled: true,
+					payinEnable: true,
+					private: "SECRET",
+				},
 				products: waffo,
 				schemaFields: {},
 			};
@@ -128,6 +137,57 @@ describe("annual provider audit", () => {
 		);
 		expect(fixture.reads.filter((entry) => entry.startsWith("paypal-list"))).toHaveLength(3);
 	});
+	it("parses string metadata only when the live schema explicitly identifies a JSON-encoded String", () => {
+		const fixture = fixtures();
+		const product = fixture.waffo[0]!;
+		const version = (product.versions as Data[])[0]!;
+		version.metadata = JSON.stringify({ trialDays: 7, private: "DO_NOT_PRINT" });
+		expect(() => waffoEvidence(product)).toThrow("RESPONSE_SHAPE_INVALID");
+		product.metadataEncoding = "json-string";
+		const evidence = waffoEvidence(product);
+		expect(evidence.production?.trialDays).toBe(7);
+		expect(JSON.stringify(evidence)).not.toContain("DO_NOT_PRINT");
+	});
+	it("emits only fixed diagnostic stages and field types without raw values", async () => {
+		const fixture = fixtures();
+		const diagnostics: unknown[] = [];
+		await auditAnnualProviders(fixture.environment, fixture.port, {
+			onDiagnostic: (entry) => diagnostics.push(entry),
+		});
+		expect(diagnostics).toContainEqual(
+			expect.objectContaining({
+				stage: "WAFFO_EVIDENCE_START",
+				fields: expect.objectContaining({ name: "string", versions: "array" }),
+			}),
+		);
+		expect(JSON.stringify(diagnostics)).not.toMatch(/SECRET|MUST_NOT_PRINT|PRIVATE_PAYLOAD/);
+	});
+
+	it("audits all six mapped PayPal plans independently of Waffo and streams safe plan evidence", async () => {
+		const fixture = fixtures();
+		fixture.port.waffoCatalog = async () => {
+			throw new Error("Waffo must not run");
+		};
+		const evidence: unknown[] = [];
+		const result = await auditPayPalAnnualProviders(fixture.environment, fixture.port, {
+			onPlan: (plan) => evidence.push(plan),
+		});
+		expect(result.ready).toBe(true);
+		expect(evidence).toHaveLength(6);
+		expect(result.tiers.every((tier) => tier.mappedProductRelationship === "SAME_PRODUCT")).toBe(
+			true,
+		);
+		expect(JSON.stringify(evidence)).not.toMatch(/PRIVATE_PAYLOAD|links|SECRET/);
+		expect(fixture.reads).toHaveLength(6);
+	});
+	it("reports actual PayPal product relationships even when monthly and yearly products differ", async () => {
+		const fixture = fixtures();
+		fixture.paypal.get("P-MONTHLYCREATOR")!.product_id = "PROD-MONTHLYONLY";
+		const result = await auditPayPalAnnualProviders(fixture.environment, fixture.port);
+		expect(result.tiers[0]?.mappedProductRelationship).toBe("DIFFERENT_PRODUCTS");
+		expect(result.distinctProductIds).toContain("PROD-MONTHLYONLY");
+	});
+
 	it("rejects monthly price, finite annual cycles, trials and setup fees", async () => {
 		const fixture = fixtures();
 		const monthly = fixture.paypal.get("P-MONTHLYCREATOR")!;

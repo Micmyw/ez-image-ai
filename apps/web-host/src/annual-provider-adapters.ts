@@ -8,11 +8,15 @@ import {
 	list,
 	string,
 	targetName,
+	waffoEvidence,
+	validWaffoTerms,
+	shape,
+	type DiagnosticEvidence,
 	type AnnualTier,
 	type Data,
-	type ProviderPort,
 	type WaffoCatalog,
 } from "./annual-provider-core";
+import type { PreparationPort } from "./annual-provider-prepare";
 
 type GraphQL = {
 	query(input: {
@@ -173,13 +177,23 @@ export function createProviderPort(
 		fetch?: Fetch;
 		waffoClient?: WaffoClient;
 		onSchemaFields?: (fields: Record<string, string[]>) => void;
+		onDiagnostic?: (evidence: DiagnosticEvidence) => void;
 	} = {},
-): ProviderPort {
+): PreparationPort {
 	if (environment.WAFFO_ENVIRONMENT !== "prod" || environment.PAYPAL_ENVIRONMENT !== "live")
 		throw new AnnualOperationError("PRODUCTION_ENVIRONMENT_REQUIRED");
 	const nativeFetch = options.fetch ?? fetch;
 	const approvedQueries = new Set<string>();
 	const writableWaffoIds = new Set<string>();
+	const protectedWaffoIds = new Set([
+		...oldWaffoIds,
+		...Object.entries(environment)
+			.filter(([key]) => key.startsWith("WAFFO_PRODUCT_ID_"))
+			.map(([, value]) => value)
+			.filter((value): value is string => !!value),
+	]);
+	const observedWaffoIds = new Set<string>();
+	const verifiedPayPalProduct = new Map<string, string>();
 	const paypalProductIds = new Set<string>();
 	let lastStatus: number | undefined;
 	let lastRequestId: string | undefined;
@@ -308,6 +322,18 @@ export function createProviderPort(
 	const paypalPlan = async (id: string): Promise<Data> => {
 		if (!/^P-[0-9A-Z]+$/.test(id)) throw new AnnualOperationError("PAYPAL_PLAN_ID_INVALID");
 		const plan = await paypal("GET", `/v1/billing/plans/${id}`);
+		options.onDiagnostic?.({
+			stage: "PAYPAL_PLAN_SHAPE",
+			productId: id,
+			fields: {
+				productId: shape(plan.product_id),
+				name: shape(plan.name),
+				status: shape(plan.status),
+				billingCycles: shape(plan.billing_cycles),
+				paymentPreferences: shape(plan.payment_preferences),
+				taxes: shape(plan.taxes),
+			},
+		});
 		if (
 			plan.id !== id ||
 			typeof plan.product_id !== "string" ||
@@ -315,104 +341,137 @@ export function createProviderPort(
 		)
 			throw new AnnualOperationError("PAYPAL_PLAN_IDENTITY_INVALID");
 		paypalProductIds.add(plan.product_id);
+		const oldTier = ANNUAL_TIERS.find((tier) => tier.paypal === id);
+		if (oldTier) verifiedPayPalProduct.set(oldTier.key, plan.product_id);
 		return plan;
 	};
-	return {
+	let catalogPlan:
+		| {
+				schemaFields: Record<string, string[]>;
+				paging: string;
+				hasProd: boolean;
+				metadataEncoding: "json-string" | "object";
+		  }
+		| undefined;
+	const port: PreparationPort = {
 		async waffoCatalog(): Promise<WaffoCatalog> {
-			const root = record(
-				record(
-					(
-						await query(
-							`query AnnualCatalogSchema { __schema { queryType { fields { name args { name type { ${typeSelection} } } type { ${typeSelection} } } } } }`,
-						)
-					).__schema,
-				).queryType,
-			);
-			const rootFields = list(root.fields).map(record);
-			const rootField = (name: string) => {
-				const field = rootFields.find((entry) => entry.name === name);
-				if (!field) throw new AnnualOperationError("WAFFO_SCHEMA_UNSUPPORTED");
-				return field;
-			};
-			const schemaFields: Record<string, string[]> = {};
-			const inspect = async (name: string) => {
-				if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name))
-					throw new AnnualOperationError("WAFFO_SCHEMA_UNSUPPORTED");
-				const result = record(
-					(
-						await query(
-							`query AnnualCatalogType($name: String!) { __type(name: $name) { fields { name type { ${typeSelection} } } } }`,
-							{ name },
-						)
-					).__type,
+			if (!catalogPlan) {
+				const root = record(
+					record(
+						(
+							await query(
+								`query AnnualCatalogSchema { __schema { queryType { fields { name args { name type { ${typeSelection} } } type { ${typeSelection} } } } } }`,
+							)
+						).__schema,
+					).queryType,
 				);
-				const fields = list(result.fields).map(record);
-				const allowed = new Set([
-					"id",
-					"name",
-					"status",
-					"hasProdVersion",
+				const rootFields = list(root.fields).map(record);
+				const rootField = (name: string) => {
+					const field = rootFields.find((entry) => entry.name === name);
+					if (!field) throw new AnnualOperationError("WAFFO_SCHEMA_UNSUPPORTED");
+					return field;
+				};
+				const schemaFields: Record<string, string[]> = {};
+				const inspect = async (name: string) => {
+					if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name))
+						throw new AnnualOperationError("WAFFO_SCHEMA_UNSUPPORTED");
+					const result = record(
+						(
+							await query(
+								`query AnnualCatalogType($name: String!) { __type(name: $name) { fields { name type { ${typeSelection} } } } }`,
+								{ name },
+							)
+						).__type,
+					);
+					const fields = list(result.fields).map(record);
+					const allowed = new Set([
+						"id",
+						"name",
+						"status",
+						"hasProdVersion",
+						"versionNumber",
+						"billingPeriod",
+						"prices",
+						"metadata",
+						"isTestVersion",
+						"isProdVersion",
+						"currency",
+						"priceInfo",
+						"amount",
+						"taxCategory",
+						"trialAmount",
+					]);
+					schemaFields[name] = fields
+						.map((field) => string(field.name))
+						.filter((field) => allowed.has(field));
+					options.onSchemaFields?.({ [name]: schemaFields[name] });
+					options.onDiagnostic?.({
+						stage: "WAFFO_SCHEMA",
+						fields: Object.fromEntries(
+							fields
+								.filter((entry) => allowed.has(String(entry.name)))
+								.map((entry) => [string(entry.name), typeName(entry.type)]),
+						),
+					});
+					return fields;
+				};
+				const productRoot = rootField("subscriptionProducts");
+				const versionRoot = rootField("subscriptionProductVersions");
+				const productFields = await inspect(typeName(productRoot.type));
+				const versionFields = await inspect(typeName(versionRoot.type));
+				const field = (fields: Data[], name: string) => {
+					const match = fields.find((entry) => entry.name === name);
+					if (!match) throw new AnnualOperationError("WAFFO_SCHEMA_UNSUPPORTED");
+					return match;
+				};
+				for (const name of ["id", "name", "status"]) field(productFields, name);
+				for (const name of [
 					"versionNumber",
+					"name",
 					"billingPeriod",
-					"prices",
 					"metadata",
 					"isTestVersion",
 					"isProdVersion",
-					"currency",
-					"priceInfo",
-					"amount",
-					"taxCategory",
-					"trialAmount",
-				]);
-				schemaFields[name] = fields
-					.map((field) => string(field.name))
-					.filter((field) => allowed.has(field));
-				options.onSchemaFields?.({ [name]: schemaFields[name] });
-				return fields;
-			};
-			const productRoot = rootField("subscriptionProducts");
-			const versionRoot = rootField("subscriptionProductVersions");
-			const productFields = await inspect(typeName(productRoot.type));
-			const versionFields = await inspect(typeName(versionRoot.type));
-			const field = (fields: Data[], name: string) => {
-				const match = fields.find((entry) => entry.name === name);
-				if (!match) throw new AnnualOperationError("WAFFO_SCHEMA_UNSUPPORTED");
-				return match;
-			};
-			for (const name of ["id", "name", "status"]) field(productFields, name);
-			for (const name of [
-				"versionNumber",
-				"name",
-				"billingPeriod",
-				"metadata",
-				"isTestVersion",
-				"isProdVersion",
-			])
-				field(versionFields, name);
-			const currencyFields = await inspect(typeName(field(versionFields, "prices").type));
-			field(currencyFields, "currency");
-			const priceFields = await inspect(typeName(field(currencyFields, "priceInfo").type));
-			field(priceFields, "amount");
-			field(priceFields, "taxCategory");
-			// A schema without explicit trialAmount cannot certify the no-trial invariant.
-			field(priceFields, "trialAmount");
-			const productArguments = list(productRoot.args)
-				.map(record)
-				.map((entry) => entry.name);
-			const paging = `${productArguments.includes("limit") ? ", limit: 1000" : ""}${productArguments.includes("offset") ? ", offset: 0" : ""}`;
-			rootField("subscriptionProductsCount");
-			const hasProd = productFields.some((entry) => entry.name === "hasProdVersion");
+				])
+					field(versionFields, name);
+				const currencyFields = await inspect(typeName(field(versionFields, "prices").type));
+				field(currencyFields, "currency");
+				const priceFields = await inspect(typeName(field(currencyFields, "priceInfo").type));
+				field(priceFields, "amount");
+				field(priceFields, "taxCategory");
+				// A schema without explicit trialAmount cannot certify the no-trial invariant.
+				field(priceFields, "trialAmount");
+				const productArguments = list(productRoot.args)
+					.map(record)
+					.map((entry) => entry.name);
+				const paging = `${productArguments.includes("limit") ? ", limit: 1000" : ""}${productArguments.includes("offset") ? ", offset: 0" : ""}`;
+				rootField("subscriptionProductsCount");
+				const hasProd = productFields.some((entry) => entry.name === "hasProdVersion");
+				const metadataEncoding =
+					typeName(field(versionFields, "metadata").type) === "String" ? "json-string" : "object";
+				catalogPlan = { schemaFields, paging, hasProd, metadataEncoding };
+			}
+			const { schemaFields, paging, hasProd, metadataEncoding } = catalogPlan;
 			const data = await query(
 				`query AnnualCatalog($storeId: String!) { subscriptionProducts(storeId: $storeId${paging}) { id name status ${hasProd ? "hasProdVersion" : ""} } subscriptionProductsCount(storeId: $storeId) }`,
 				{ storeId: required(environment, "WAFFO_STORE_ID") },
 			);
+			options.onDiagnostic?.({
+				stage: "WAFFO_CATALOG",
+				fields: {
+					subscriptionProducts: shape(data.subscriptionProducts),
+					subscriptionProductsCount: shape(data.subscriptionProductsCount),
+				},
+			});
 			const products = list(data.subscriptionProducts).map(record);
+			for (const product of products) observedWaffoIds.add(string(product.id));
 			if (data.subscriptionProductsCount !== products.length)
 				throw new AnnualOperationError("WAFFO_CATALOG_INCOMPLETE");
 			const storeData = await query(
-				"query AnnualStore($id: String!) { store(id: $id) { id name status } }",
+				"query AnnualStore($id: String!) { store(id: $id) { id name status prodEnabled payinEnable } }",
 				{ id: required(environment, "WAFFO_STORE_ID") },
 			);
+			options.onDiagnostic?.({ stage: "WAFFO_STORE", fields: { store: shape(storeData.store) } });
 			// Inspect every subscription product so an existing target with an older name is visible.
 			const relevant = products;
 			for (const product of relevant) {
@@ -420,7 +479,29 @@ export function createProviderPort(
 					"query AnnualProductVersions($productId: String!) { subscriptionProductVersions(productId: $productId) { versionNumber name billingPeriod metadata isTestVersion isProdVersion prices { currency priceInfo { amount taxCategory trialAmount } } } }",
 					{ productId: string(product.id) },
 				);
+				options.onDiagnostic?.({
+					stage: "WAFFO_VERSIONS",
+					productId: string(product.id),
+					fields: { versions: shape(versions.subscriptionProductVersions) },
+				});
 				product.versions = list(versions.subscriptionProductVersions);
+				product.metadataEncoding = metadataEncoding;
+				for (const rawVersion of list(product.versions)) {
+					const version = record(rawVersion);
+					options.onDiagnostic?.({
+						stage: "WAFFO_VERSIONS",
+						productId: string(product.id),
+						fields: {
+							metadata: shape(version.metadata),
+							name: shape(version.name),
+							versionNumber: shape(version.versionNumber),
+							billingPeriod: shape(version.billingPeriod),
+							prices: shape(version.prices),
+							isProdVersion: shape(version.isProdVersion),
+							isTestVersion: shape(version.isTestVersion),
+						},
+					});
+				}
 				if (!hasProd)
 					product.hasProdVersion = list(product.versions).some(
 						(version) => record(version).isProdVersion === true,
@@ -470,13 +551,35 @@ export function createProviderPort(
 					metadata: { operation: ANNUAL_OPERATION, previousProductId: previousId },
 				});
 				const id = string(result.product.id);
-				if (!/^PROD_[0-9A-Za-z]{22}$/.test(id) || oldWaffoIds.has(id))
+				if (
+					!/^PROD_[0-9A-Za-z]{22}$/.test(id) ||
+					protectedWaffoIds.has(id) ||
+					observedWaffoIds.has(id)
+				)
 					throw new AnnualOperationError("WAFFO_CREATED_ID_INVALID");
 				writableWaffoIds.add(id);
 				return id;
 			} catch {
 				throw new AnnualOperationError("WAFFO_CREATE_UNCERTAIN", lastStatus, lastRequestId);
 			}
+		},
+		async waffoAuthorizeTarget(id, tier) {
+			if (mode !== "prepare" || protectedWaffoIds.has(id))
+				throw new AnnualOperationError("REQUEST_NOT_ALLOWED");
+			const catalog = await port.waffoCatalog();
+			const target = catalog.products.find((product) => product.id === id);
+			if (!target) throw new AnnualOperationError("WAFFO_TARGET_NOT_FOUND");
+			const evidence = waffoEvidence(target);
+			if (
+				!evidence.test ||
+				evidence.test.name !== targetName(tier) ||
+				evidence.test.operation !== ANNUAL_OPERATION ||
+				evidence.test.previousProductId !== tier.waffo ||
+				!validWaffoTerms(evidence.test, tier.annual, "yearly") ||
+				(evidence.production && !validWaffoTerms(evidence.production, tier.annual, "yearly"))
+			)
+				throw new AnnualOperationError("WAFFO_TARGET_OWNERSHIP_INVALID");
+			writableWaffoIds.add(id);
 		},
 		async waffoPublish(id) {
 			try {
@@ -493,6 +596,8 @@ export function createProviderPort(
 			}
 		},
 		async paypalCreate(tier, productId) {
+			if (verifiedPayPalProduct.get(tier.key) !== productId)
+				throw new AnnualOperationError("PAYPAL_PRODUCT_IDENTITY_INVALID");
 			try {
 				const result = await paypal(
 					"POST",
@@ -506,4 +611,5 @@ export function createProviderPort(
 			}
 		},
 	};
+	return port;
 }
