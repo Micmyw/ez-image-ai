@@ -4,7 +4,7 @@
 
 - Set new Pro, Ultimate and Max annual subscriptions to $114, $294 and $474 per year, including renewals: 50% less than twelve monthly payments. Show the annual total, monthly equivalent and savings consistently.
 - Keep monthly prices at $19/$49/$79 and monthly credit grants at 700/1,800/3,000. Annual credits continue to arrive monthly; existing subscriptions retain their original terms.
-- Preserve approved video credit prices and template funding requirements independently of subscription sale prices. New discounted annual credits do not qualify for the existing paid-template funding threshold; other qualifying paid credits remain usable.
+- Keep approved video credit prices and existing template funding requirements unchanged.
 
 ## 2026-10-20 — Clearer payment returns and image funding
 

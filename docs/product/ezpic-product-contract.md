@@ -237,9 +237,6 @@ than an annual lump sum. Unused plan credits expire with their monthly period an
 Public pricing opens on annual billing, hides Free, and shows `-50%`: each annual price is
 `12 × monthly price × 50%`. These are recurring annual prices, not a first-year promotion.
 Existing subscriptions retain their frozen prices; this change does not migrate them.
-Ordinary images and videos retain their shared-credit rules. Separate paid video templates retain
-their actual receipt qualification: the new annual credit lots cannot fund Hotel Lobby, Raindance,
-or Rumpelstiltskin under the existing threshold; other qualifying paid lots remain usable.
 
 The API enforces product access, active-job concurrency, and input byte size at exact boundaries and
 fails closed under concurrent confirmation. Privacy, private assets, edit sessions/history, and the

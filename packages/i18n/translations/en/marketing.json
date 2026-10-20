@@ -185,7 +185,7 @@
 			},
 			"annualBilling": {
 				"question": "How does annual billing affect credits?",
-				"answer": "For new annual subscriptions, Pro is $114 per year, Ultimate is $294, and Max is $474, including renewals—50% less than twelve monthly payments. EzImageAI Credits are still issued monthly—700 for Pro, 1,800 for Ultimate, and 3,000 for Max—and unused credits do not roll over. Credits from these new annual plans work for regular images and videos; Hotel Lobby, Raindance, and Rumpelstiltskin require other qualifying paid credits. Existing subscriptions keep their current terms."
+				"answer": "New annual Pro/Ultimate/Max: $114/$294/$474 each year—50% off 12 monthly payments. Monthly credits: 700/1,800/3,000, with no rollover. Existing subscriptions keep their terms."
 			},
 			"cancelSubscription": {
 				"question": "How do I cancel my subscription?",
