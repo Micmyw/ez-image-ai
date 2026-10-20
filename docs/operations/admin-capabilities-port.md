@@ -131,18 +131,23 @@ Node 做公开地址验证及 DNS 绑定；Workers 使用现有
 
 ## 增量迁移审查
 
-SQL：`packages/database/prisma/migrations/20261020010000_admin_capabilities/migration.sql`。
+结构 SQL：`packages/database/prisma/migrations/20261020010000_admin_capabilities/migration.sql`。
 由更新前目标 Prisma schema 到当前 schema 的 `prisma migrate diff --script` 生成。
 包含 8 张增量管理/工单表、`ADMIN_DEDUCT` ledger enum 值和
 可空 `subscription.initialPaymentEvidence`；不删除表、不重写历史订单、角色或积分。
+生产发布复核另补充 `20261020010100_admin_capabilities_private_boundary/migration.sql`：
+仅为上述 8 张新表启用 RLS，撤销 PUBLIC 与 Supabase API 角色的直接访问，
+保留既有 `ezpic_app` 服务端角色。它不更改其他表、schema 或历史角色的权限。
 
 Prisma 是目标当前 PostgreSQL 业务运行时。三种 Drizzle schema 同步了新管理表；
 工单/机器人配置 CRUD 有对应 Drizzle 实现。原项目的媒体付款账本、
 PaymentEvent/BillingPeriod/Image Pass 在 Drizzle 替代实现中本就不完整，
 退款和付款事实继续使用当前正式 Prisma 实现，不宣称 MySQL/SQLite 全站退款可用。
 
-本次仅在全新隔离 PostgreSQL 16 测试库应用全部迁移。生产未应用。
-上线前由用户审查 SQL、备份和现有迁移基线；按仓库
+本地实施阶段仅在全新隔离 PostgreSQL 16 测试库应用全部迁移。
+用户随后授权合并主分支、推送远程并包括数据库更新；发布阶段的目标、备份、
+迁移核对和执行结果记录在 [生产迁移记录](admin-capabilities-production-2026-10-20.md)。
+按仓库
 `packages/database/prisma/migrations/README.md` 的已有部署流程执行，
 不要向未正确基线化的旧数据库盲目运行完整初始迁移。
 网站和后台 Worker 都需相同的机器人加密 key/允许列表；不向浏览器传秘密。
@@ -203,8 +208,8 @@ fixture 删除本次唯一测试用户、登录凭据和管理 key；不可变�
   本机 Docker Desktop 启动遇到 `dockerInference` socket 权限错误。没有重置 Docker 数据、
   删除 socket 或绕过仓库包装流程。Next 生产构建与后台最终 workerd 产物通过，
   不能替代网站最终 OpenNext 包装验证。
-- **NOT_RUN**：提供方沙盒/真实付款与退款、真实机器人平台送达、OAuth-only MCP 客户端、
-  生产迁移、远程 CI、Git push/PR/merge、部署与线上验收。
-- 上线前需用户审查增量 SQL，并在网站和后台配置一致的机器人加密 key 与目的地主机列表。
+- **NOT_RUN（本地实施阶段）**：提供方沙盒/真实付款与退款、真实机器人平台送达、OAuth-only MCP 客户端、
+  生产迁移、远程 CI、Git push/PR/merge、部署与线上验收；后续发布证据见生产迁移记录。
+- 上线前需在网站和后台配置一致的机器人加密 key 与目的地主机列表。
   再按实际账户检查 PayPal/Waffo/历史 Stripe 权限和退款结果核对流程；
   本次代码测试没有证明这些外部账户已可用。

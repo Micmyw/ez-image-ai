@@ -69,6 +69,40 @@ describe("admin access on isolated PostgreSQL", () => {
 		await client.$disconnect();
 	});
 
+	it("keeps management and support tables private from direct database API roles", async () => {
+		const boundaries = await client.$queryRaw<
+			{ tableName: string; rowSecurity: boolean; apiDenied: boolean; publicDenied: boolean }[]
+		>`
+			SELECT c.relname AS "tableName", c.relrowsecurity AS "rowSecurity",
+				NOT EXISTS (
+					SELECT 1 FROM pg_roles r
+					WHERE r.rolname IN ('anon', 'authenticated', 'service_role')
+						AND has_table_privilege(
+							r.oid, c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+						)
+				) AS "apiDenied",
+				NOT EXISTS (
+					SELECT 1 FROM aclexplode(COALESCE(c.relacl, acldefault('r', c.relowner))) a
+					WHERE a.grantee = 0
+				) AS "publicDenied"
+			FROM pg_class c
+			JOIN pg_namespace n ON n.oid = c.relnamespace
+			WHERE n.nspname = 'public' AND c.relname IN (
+				'admin_service_account', 'admin_api_key', 'admin_execution',
+				'admin_bot_config', 'admin_bot_receipt', 'support_ticket',
+				'support_ticket_message', 'admin_refund_request'
+			)
+		`;
+		expect(boundaries).toHaveLength(8);
+		for (const boundary of boundaries) {
+			expect(boundary, boundary.tableName).toMatchObject({
+				rowSecurity: true,
+				apiDenied: true,
+				publicDenied: true,
+			});
+		}
+	});
+
 	async function fixtureAccount() {
 		const account = await createAdminServiceAccount(
 			{
