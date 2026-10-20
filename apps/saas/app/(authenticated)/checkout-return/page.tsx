@@ -20,20 +20,32 @@ export default async function CheckoutReturnPage({
 	searchParams,
 }: {
 	searchParams: Promise<{
-		organizationId?: string;
-		expectedPlanId?: string;
-		returnTo?: string;
-		checkoutIntentId?: string;
-		canceled?: string;
+		organizationId?: string | string[];
+		expectedPlanId?: string | string[];
+		returnTo?: string | string[];
+		checkoutIntentId?: string | string[];
+		canceled?: string | string[];
+		approved?: string | string[];
 	}>;
 }) {
-	const [session, t, { organizationId, expectedPlanId, returnTo, checkoutIntentId, canceled }] =
-		await Promise.all([getSession(), getTranslations("checkoutReturn"), searchParams]);
+	const [session, t, params] = await Promise.all([
+		getSession(),
+		getTranslations("checkoutReturn"),
+		searchParams,
+	]);
 
 	if (!session) {
 		redirect("/login");
 	}
-	const safeReturnTo = sanitizeEditorReturnPath(returnTo);
+	const { expectedPlanId } = params;
+	const organizationId =
+		typeof params.organizationId === "string" ? params.organizationId : undefined;
+	const checkoutIntentId =
+		typeof params.checkoutIntentId === "string" ? params.checkoutIntentId.trim() : undefined;
+	const canceled = params.canceled !== undefined;
+	const safeReturnTo = sanitizeEditorReturnPath(
+		typeof params.returnTo === "string" ? params.returnTo : undefined,
+	);
 	if (
 		expectedPlanId !== "creator" &&
 		expectedPlanId !== "ultimate" &&
@@ -56,7 +68,8 @@ export default async function CheckoutReturnPage({
 				checkoutIntentId={
 					checkoutIntentId?.length && checkoutIntentId.length <= 128 ? checkoutIntentId : undefined
 				}
-				canceled={canceled === "1"}
+				canceled={canceled}
+				approved={!canceled && params.approved === "1"}
 			/>
 		</AuthWrapper>
 	);

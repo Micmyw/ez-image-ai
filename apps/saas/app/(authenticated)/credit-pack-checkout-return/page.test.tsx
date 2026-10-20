@@ -54,6 +54,49 @@ describe("credit pack checkout return page", () => {
 		});
 		const content = (result.props.children as React.ReactElement[])[1];
 
-		expect(content.props).toEqual({ intentId: "intent-1", providerOrderId: "order-1" });
+		expect(content.props).toEqual({
+			intentId: "intent-1",
+			providerOrderId: "order-1",
+			approved: false,
+			canceled: false,
+		});
+	});
+	it("passes cancellation ahead of the approval marker and token", async () => {
+		getSession.mockResolvedValue({ user: { id: "user-1" } });
+		const module = await import("./page");
+		const result = await module.default({
+			searchParams: Promise.resolve({
+				intentId: "intent-1",
+				token: "order-1",
+				approved: "1",
+				canceled: ["", "1"],
+			}),
+		});
+		const content = (result.props.children as React.ReactElement[])[1];
+		expect(content.props).toMatchObject({
+			canceled: true,
+			approved: false,
+			providerOrderId: undefined,
+		});
+	});
+	it("rejects repeated intent query values without throwing a trim error", async () => {
+		getSession.mockResolvedValue({ user: { id: "user-1" } });
+		const module = await import("./page");
+		await expect(
+			module.default({ searchParams: Promise.resolve({ intentId: ["one", "two"] }) }),
+		).rejects.toThrow("REDIRECT:/pricing");
+	});
+	it("does not approve repeated markers or tokens", async () => {
+		getSession.mockResolvedValue({ user: { id: "user-1" } });
+		const module = await import("./page");
+		const result = await module.default({
+			searchParams: Promise.resolve({
+				intentId: "intent-1",
+				token: ["one", "two"],
+				approved: ["1", "1"],
+			}),
+		});
+		const content = (result.props.children as React.ReactElement[])[1];
+		expect(content.props).toMatchObject({ approved: false, providerOrderId: undefined });
 	});
 });

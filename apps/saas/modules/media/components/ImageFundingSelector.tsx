@@ -1,13 +1,14 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 
 export type ImageFundingSource = "CREDITS" | "IMAGE_PASS";
 
 export function ImageFundingSelector({
 	value,
 	available,
+	creditsAvailable,
+	reserved = 0,
 	failed = false,
 	onRefresh,
 	disabled = false,
@@ -15,20 +16,22 @@ export function ImageFundingSelector({
 }: {
 	value: ImageFundingSource;
 	available?: number;
+	creditsAvailable?: string;
+	reserved?: number;
 	failed?: boolean;
 	onRefresh?: () => void;
 	disabled?: boolean;
 	onChange: (value: ImageFundingSource) => void;
 }) {
 	const t = useTranslations("imagePass");
+	if (value === "CREDITS" && (available ?? 0) < 1 && reserved < 1) return null;
+
 	return (
-		<fieldset
-			className="mt-3 mb-3 border-white/10 bg-white/[0.025] p-3 rounded-xl border"
-			disabled={disabled}
-		>
-			<legend className="px-1 text-xs font-semibold text-violet-200">{t("fundingLabel")}</legend>
-			<div className="gap-x-5 gap-y-3 text-sm text-white flex flex-wrap">
-				<label className="min-h-9 gap-2 flex cursor-pointer items-center">
+		<fieldset className="my-2 min-w-0" data-test="image-funding-selector" disabled={disabled}>
+			<legend className="sr-only">{t("fundingLabel")}</legend>
+			<div className="gap-x-4 gap-y-1 text-xs flex flex-wrap items-center text-[#b7acbf]">
+				<span aria-hidden="true">{t("fundingLabel")}</span>
+				<label className="min-h-8 gap-2 text-white flex cursor-pointer items-center">
 					<input
 						type="radio"
 						name="image-funding"
@@ -37,9 +40,11 @@ export function ImageFundingSelector({
 						onChange={() => onChange("CREDITS")}
 						className="accent-violet-400"
 					/>
-					{t("fundingCredits")}
+					{creditsAvailable === undefined
+						? t("fundingCredits")
+						: t("fundingCreditsAvailable", { count: creditsAvailable })}
 				</label>
-				<label className="min-h-9 gap-2 flex cursor-pointer items-center">
+				<label className="min-h-8 gap-2 text-white flex cursor-pointer items-center">
 					<input
 						type="radio"
 						name="image-funding"
@@ -55,29 +60,22 @@ export function ImageFundingSelector({
 							? t("fundingLoading")
 							: t("fundingPasses", { count: available })}
 				</label>
-				<Link
-					href="/image-pass"
-					className="min-h-9 text-xs font-semibold text-violet-200 ml-auto flex items-center underline underline-offset-4"
-				>
-					{t("buyMore")}
-				</Link>
+				{reserved > 0 && <span>{t("fundingReserved", { count: reserved })}</span>}
+				{failed && onRefresh && (
+					<button
+						type="button"
+						onClick={onRefresh}
+						className="min-h-8 text-violet-200 underline underline-offset-4"
+					>
+						{t("retryBalance")}
+					</button>
+				)}
 			</div>
-			{failed && onRefresh && (
-				<button
-					type="button"
-					onClick={onRefresh}
-					className="mt-2 min-h-9 text-xs text-violet-200 underline underline-offset-4"
-				>
-					{t("retryBalance")}
-				</button>
+			{value === "IMAGE_PASS" && !failed && available !== undefined && available < 1 && (
+				<p className="mt-1 text-xs leading-5 text-[#b7acbf]" aria-live="polite">
+					{t("fundingExhausted")}
+				</p>
 			)}
-			<p className="mt-1 text-xs leading-5 text-[#b7acbf]" aria-live="polite">
-				{value === "IMAGE_PASS"
-					? available !== undefined && available < 1
-						? t("fundingEmpty")
-						: t("fundingPolicy")
-					: t("fundingSeparate")}
-			</p>
 		</fieldset>
 	);
 }

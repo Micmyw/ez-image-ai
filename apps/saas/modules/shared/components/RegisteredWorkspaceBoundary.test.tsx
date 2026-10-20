@@ -82,6 +82,8 @@ describe("registered workspace private media messages", () => {
 					<RegisteredWorkspaceProviders
 						mediaMessages={full.media}
 						imagePassMessages={full.imagePass}
+						checkoutReturnMessages={full.checkoutReturn}
+						creditPackCheckoutReturnMessages={full.creditPackCheckoutReturn}
 					>
 						<PrivateMediaProbe />
 					</RegisteredWorkspaceProviders>
@@ -92,6 +94,8 @@ describe("registered workspace private media messages", () => {
 				...publicMessages,
 				media: full.media,
 				imagePass: full.imagePass,
+				checkoutReturn: full.checkoutReturn,
+				creditPackCheckoutReturn: full.creditPackCheckoutReturn,
 			});
 			expect(markup).toContain(full.media.assets.subtitle);
 			expect(onError).not.toHaveBeenCalled();
@@ -108,6 +112,8 @@ describe("registered workspace private media messages", () => {
 		expect(result.props.children.props).toEqual({
 			mediaMessages: full.media,
 			imagePassMessages: full.imagePass,
+			checkoutReturnMessages: full.checkoutReturn,
+			creditPackCheckoutReturnMessages: full.creditPackCheckoutReturn,
 			children: "Workspace content",
 		});
 	});

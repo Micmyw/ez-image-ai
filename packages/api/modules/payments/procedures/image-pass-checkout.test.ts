@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 	capture: vi.fn(),
 	ingest: vi.fn(),
 	grant: vi.fn(),
+	recover: vi.fn(),
 }));
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
@@ -46,7 +47,7 @@ vi.mock("../checkout-attribution", async () => ({
 	...(await vi.importActual("../checkout-attribution")),
 	captureCheckoutAttribution: async () => undefined,
 }));
-vi.mock("./checkout-recovery", () => ({ recoverProviderCreatingCheckout: vi.fn() }));
+vi.mock("./checkout-recovery", () => ({ recoverProviderCreatingCheckout: mocks.recover }));
 import { auth } from "@repo/auth";
 
 import { capturePayPalImagePassCheckout } from "./capture-paypal-image-pass-checkout";
@@ -165,6 +166,7 @@ describe("PayPal image-pass checkout", () => {
 		mocks.capture.mockResolvedValue(captured());
 		mocks.ingest.mockResolvedValue({ replayed: false });
 		mocks.grant.mockResolvedValue(null);
+		mocks.recover.mockReset();
 	});
 	afterEach(() => vi.unstubAllEnvs());
 	it.each([
@@ -196,9 +198,83 @@ describe("PayPal image-pass checkout", () => {
 				priceId: IMAGE_PASS_PAYPAL_SKU,
 				currency: "USD",
 				amountMicros: 1000000n,
-				redirectUrl: `https://app.ezpic.test/image-pass-checkout-return?intentId=${intent.id}`,
+				redirectUrl: `https://app.ezpic.test/image-pass-checkout-return?intentId=${intent.id}&approved=1`,
+				cancelUrl: `https://app.ezpic.test/image-pass?canceled=1&intentId=${intent.id}`,
 			}),
 		);
+	});
+	it.each([
+		{ cancelUrl: "https://attacker.invalid/collect" },
+		{ redirectUrl: "//attacker.invalid/collect" },
+		{ returnUrl: "javascript:alert(1)" },
+		{ intentId: "attacker-intent" },
+		{ approved: "1" },
+	])(
+		"rejects client-supplied checkout destinations, approval markers or intent IDs %j",
+		async (patch) => {
+			await expect(
+				call(createImagePassCheckout, { ...input, ...patch }, context),
+			).rejects.toMatchObject({
+				code: "BAD_REQUEST",
+			});
+			expect(mocks.createIntent).not.toHaveBeenCalled();
+			expect(mocks.checkout).not.toHaveBeenCalled();
+		},
+	);
+	it("keeps a trusted intent ID inside the server-generated URL query", async () => {
+		const trustedId = "intent/?approved=0&canceled=0&next=https://attacker.invalid/#fragment";
+		mocks.intent.mockResolvedValue({ ...intent, id: trustedId });
+		await call(createImagePassCheckout, input, context);
+		const options = mocks.checkout.mock.calls[0]![0];
+		const returned = new URL(options.redirectUrl);
+		expect(options.cancelUrl).toEqual(expect.any(String));
+		const canceled = new URL(options.cancelUrl);
+		expect([returned.origin, returned.pathname, returned.hash]).toEqual([
+			"https://app.ezpic.test",
+			"/image-pass-checkout-return",
+			"",
+		]);
+		expect([...returned.searchParams]).toEqual([
+			["intentId", trustedId],
+			["approved", "1"],
+		]);
+		expect([canceled.origin, canceled.pathname, canceled.hash]).toEqual([
+			"https://app.ezpic.test",
+			"/image-pass",
+			"",
+		]);
+		expect([...canceled.searchParams]).toEqual([
+			["canceled", "1"],
+			["intentId", trustedId],
+		]);
+	});
+	it("replays both trusted return destinations when recovering provider creation", async () => {
+		mocks.byKey.mockResolvedValue({ ...intent, status: "PROVIDER_CREATING" });
+		mocks.recover.mockResolvedValue({
+			kind: "RECOVERED",
+			checkout: {
+				checkoutUrl: "https://www.sandbox.paypal.com/recovered",
+				providerSessionId: "ORDER-1",
+				expiresAt: null,
+			},
+		});
+		await expect(call(createImagePassCheckout, input, context)).resolves.toEqual({
+			checkoutLink: "https://www.sandbox.paypal.com/recovered",
+			intentId: intent.id,
+		});
+		expect(mocks.recover).toHaveBeenCalledWith(
+			expect.objectContaining({
+				checkoutOptions: expect.objectContaining({
+					checkoutIntentId: intent.id,
+					idempotencyKey: intent.idempotencyKey,
+					redirectUrl: `https://app.ezpic.test/image-pass-checkout-return?intentId=${intent.id}&approved=1`,
+					cancelUrl: `https://app.ezpic.test/image-pass?canceled=1&intentId=${intent.id}`,
+				}),
+			}),
+			expect.anything(),
+		);
+		expect(mocks.mark).not.toHaveBeenCalled();
+		expect(mocks.checkout).not.toHaveBeenCalled();
 	});
 	it.each([
 		{ priceMicros: 1n },

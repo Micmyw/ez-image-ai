@@ -164,7 +164,11 @@ test.describe("checkout review browser flow", () => {
 		await page.clock.fastForward(31_000);
 		await expect.poll(() => reads).toBeGreaterThan(before);
 		expect(refreshes).toHaveLength(0);
+		const beforeManualCheck = reads;
 		await banner.getByRole("button", { name: "Check payment status" }).click();
+		await expect.poll(() => reads).toBeGreaterThan(beforeManualCheck);
+		expect(refreshes).toHaveLength(0);
+		await banner.getByRole("button", { name: "Finish approved subscription" }).click();
 		await expect.poll(() => refreshes.length).toBe(1);
 		expect(refreshes[0]).toEqual({ checkoutIntentId: pending.id, retryReview: true });
 		closed = true;

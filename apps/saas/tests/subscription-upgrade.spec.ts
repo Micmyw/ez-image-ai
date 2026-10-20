@@ -1,18 +1,30 @@
 import { expect, test } from "@playwright/test";
 import pg from "pg";
 
+import { assertLocalMediaE2E } from "../../../tooling/e2e/src/guard";
 import { EDITOR_UPGRADE_STORAGE_KEY } from "../modules/payments/lib/editor-upgrade";
 import { captureConsentedGrowthEvents } from "./growth-events";
 
-const pool = new pg.Pool({ connectionString: requiredEnvironment("TEST_DATABASE_URL") });
-const runId = requiredEnvironment("E2E_RUN_ID");
+const localEnvironment = assertLocalMediaE2E();
+const pool = new pg.Pool({ connectionString: localEnvironment.databaseUrl });
+const runId = localEnvironment.runId;
 const freeEmail = `media-e2e-free-${runId}@example.test`;
 const subscriptionId = `e2e:${runId}:creator:free-upgrade`;
+const returnFixture = {
+	planId: `upgrade-return-plan-${runId}`,
+	priceId: `TEST-PAYPAL-UPGRADE-RETURN-${runId}`,
+	intentId: `upgrade-return-intent-${runId}`,
+	subscriptionId: `upgrade-return-subscription-${runId}`,
+	providerSubscriptionId: `TEST-PAYPAL-SUBSCRIPTION-${runId}`,
+	periodId: `upgrade-return-period-${runId}`,
+	paymentId: `paypal:TEST-UPGRADE-RETURN-PAYMENT-${runId}`,
+};
 
 test.describe("subscription upgrade checkout recovery", () => {
 	test.describe.configure({ timeout: 90_000 });
 
 	test.beforeEach(async () => {
+		await cleanupCreatorReturnFixture();
 		await pool.query(
 			`UPDATE subscription
 			 SET status='EXPIRED', "graceEndsAt"=NULL, "updatedAt"=now()
@@ -28,6 +40,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 	});
 
 	test.afterEach(async () => {
+		await cleanupCreatorReturnFixture();
 		await pool.query(
 			`UPDATE subscription
 			 SET status='EXPIRED', "graceEndsAt"=NULL, "updatedAt"=now()
@@ -170,30 +183,64 @@ test.describe("subscription upgrade checkout recovery", () => {
 			.toContain(prompt);
 		await expect.poll(() => freeGrantCount(user.id)).toBe(1);
 		const grantCountBeforeReturn = await freeGrantCount(user.id);
+		// The fixture represents trusted processing in the isolated database. It
+		// creates no provider resource, payment event, Outbox work or credit grant.
+		await prepareCreatorReturnFixture(user.id);
+		const unexpectedPaymentMutations: string[] = [];
+		await page.route("**/api/rpc/payments/**", async (route) => {
+			const path = new URL(route.request().url()).pathname;
+			if (/^\/api\/rpc\/payments\/(?!get|list)/.test(path)) {
+				unexpectedPaymentMutations.push(path);
+				await route.abort("blockedbyclient");
+				return;
+			}
+			await route.continue();
+		});
 
 		const pendingState = page.waitForResponse(
 			(response) =>
-				response.url().includes("/api/rpc/payments/getCheckoutReturnState") &&
-				response.request().method() === "POST",
+				response.url().includes("/api/rpc/payments/getCheckoutReturnState") && response.ok(),
 		);
 		await page.goto(
-			`/checkout-return?expectedPlanId=creator&returnTo=${encodeURIComponent(
+			`/checkout-return?expectedPlanId=creator&checkoutIntentId=${encodeURIComponent(returnFixture.intentId)}&returnTo=${encodeURIComponent(
 				"/create?upgrade=complete",
 			)}`,
 		);
 		await pendingState;
-		await expect(page.getByRole("heading", { name: /processing your purchase/i })).toBeVisible();
-		await expect(page.getByText(/confirming your purchase/i)).toBeVisible();
+		await expect(
+			page.getByRole("heading", { name: "Your subscription checkout", exact: true }),
+		).toBeVisible();
+		const checkoutStatus = page.getByTestId("subscription-checkout-status");
+		await expect(checkoutStatus).toHaveAttribute("data-status", "PENDING");
+		await expect(checkoutStatus).toContainText("Subscription payment has not been confirmed");
 		expect(await freeGrantCount(user.id)).toBe(grantCountBeforeReturn);
 		await activateCreatorFixture(user.id);
 		const unpaidState = await page.request.post("/api/rpc/payments/getCheckoutReturnState", {
-			data: { json: { expectedPlanId: "creator" } },
+			data: {
+				json: { expectedPlanId: "creator", checkoutIntentId: returnFixture.intentId },
+			},
 		});
 		expect(unpaidState.ok()).toBe(true);
 		expect(await unpaidState.json()).toMatchObject({
 			json: { status: "PENDING", planId: null, paidThrough: null },
 		});
 		await recordCreatorPaymentFixture();
+		const paidState = await page.request.post("/api/rpc/payments/getCheckoutReturnState", {
+			data: {
+				json: { expectedPlanId: "creator", checkoutIntentId: returnFixture.intentId },
+			},
+		});
+		expect(paidState.ok()).toBe(true);
+		expect(await paidState.json()).toMatchObject({ json: { status: "ACTIVE", planId: "creator" } });
+		const legacyState = await page.request.post("/api/rpc/payments/getCheckoutReturnState", {
+			data: { json: { expectedPlanId: "creator" } },
+		});
+		expect(legacyState.ok()).toBe(true);
+		expect(await legacyState.json()).toMatchObject({ json: pendingCheckoutState });
+		await expect(checkoutStatus).toHaveAttribute("data-status", "ACTIVE", { timeout: 15_000 });
+		await expect(page).toHaveURL(/\/checkout-return\?/);
+		await expect(checkoutStatus).toContainText("Your subscription is confirmed");
+		await page.getByTestId("subscription-continue").click();
 
 		await expect(page).toHaveURL(/\/create\?model=image-gpt-image-2$/, { timeout: 15_000 });
 		await expect(page.getByText(/your paid plan is active/i)).toBeVisible();
@@ -209,43 +256,93 @@ test.describe("subscription upgrade checkout recovery", () => {
 		await expect
 			.poll(() => growthEvents.map(({ name }) => name))
 			.toEqual(expect.arrayContaining(["upgrade_prompt_viewed", "subscription_activated"]));
+		expect(unexpectedPaymentMutations).toEqual([]);
 	});
 });
 
+const pendingCheckoutState = { status: "PENDING", planId: null, paidThrough: null };
+
+async function prepareCreatorReturnFixture(userId: string): Promise<void> {
+	const copied = await pool.query(
+		`INSERT INTO billing_plan (id, provider, "providerPriceId", "productKind", name,
+			"creditsPerPeriod", "priceMicros", currency, active, version, metadata, "updatedAt")
+		 SELECT $1, 'paypal', $2, 'PLAN', name, "creditsPerPeriod", "priceMicros", currency,
+			active, version, metadata || '{"interval":"month","source":"local-subscription-return-e2e"}'::jsonb, now()
+		 FROM billing_plan WHERE provider='e2e' AND "providerPriceId"='e2e-creator' AND "productKind"='PLAN'`,
+		[returnFixture.planId, returnFixture.priceId],
+	);
+	if (copied.rowCount !== 1) throw new Error("Local Creator billing plan fixture is missing");
+	await pool.query(
+		`INSERT INTO payment_checkout_intent (id, provider, "ownerType", "ownerId", "submittedByUserId",
+			"productKind", "billingPlanId", "planKey", interval, "idempotencyKey", "providerSessionId", status,
+			"checkoutRecovery", "updatedAt")
+		 VALUES ($1, 'paypal', 'USER', $2, $2, 'PLAN', $3, 'creator', 'month', $1, $4, 'PROVIDER_PENDING',
+			'{"version":1,"mode":"MERCHANT","scope":"local-fixture","status":"PENDING"}', now())`,
+		[returnFixture.intentId, userId, returnFixture.planId, returnFixture.providerSubscriptionId],
+	);
+}
+
 async function activateCreatorFixture(userId: string): Promise<void> {
-	const plan = (
-		await pool.query<{ id: string }>(
-			`SELECT id FROM billing_plan WHERE provider='e2e' AND "providerPriceId"='e2e-creator'`,
-		)
-	).rows[0];
-	if (!plan) throw new Error("Local Creator billing plan fixture is missing");
 	await pool.query(
 		`INSERT INTO subscription (
 			id, "ownerType", "ownerId", provider, "providerSubscriptionId", "planId", status,
 			"currentPeriodStart", "currentPeriodEnd", "createdAt", "updatedAt"
 		 ) VALUES (
-			$1, 'USER', $2, 'e2e', $3, $4, 'ACTIVE', now(), now() + interval '1 month', now(), now()
-		 )
-		 ON CONFLICT (provider, "providerSubscriptionId") DO UPDATE SET
-			"ownerId"=EXCLUDED."ownerId", "planId"=EXCLUDED."planId", status='ACTIVE',
-			"currentPeriodStart"=EXCLUDED."currentPeriodStart",
-			"currentPeriodEnd"=EXCLUDED."currentPeriodEnd", "graceEndsAt"=NULL, "updatedAt"=now()`,
-		[`subscription-${runId}-free-upgrade`, userId, subscriptionId, plan.id],
+			$1, 'USER', $2, 'paypal', $3, $4, 'ACTIVE', now(), now() + interval '1 month', now(), now()
+		 )`,
+		[
+			returnFixture.subscriptionId,
+			userId,
+			returnFixture.providerSubscriptionId,
+			returnFixture.planId,
+		],
 	);
+	const completed = await pool.query(
+		`UPDATE payment_checkout_intent SET status='COMPLETED', "activeScopeKey"=NULL, "updatedAt"=now()
+		 WHERE id=$1 AND provider='paypal' AND "ownerType"='USER' AND "ownerId"=$2
+			AND "billingPlanId"=$3 AND "providerSessionId"=$4 AND status='PROVIDER_PENDING'`,
+		[returnFixture.intentId, userId, returnFixture.planId, returnFixture.providerSubscriptionId],
+	);
+	if (completed.rowCount !== 1)
+		throw new Error("Owned subscription checkout fixture was not completed");
 }
 
 async function recordCreatorPaymentFixture(): Promise<void> {
-	await pool.query(
+	const recorded = await pool.query(
 		`INSERT INTO billing_period (
 			id, "subscriptionId", "startsAt", "endsAt", status,
 			"paidAmount", "creditAmount", "providerInvoicePaymentId", "createdAt", "updatedAt"
-		 ) SELECT $1, id, "currentPeriodStart", "currentPeriodEnd", 'ACTIVE',
-			19000000, 700, $2, now(), now()
-		   FROM subscription WHERE provider='e2e' AND "providerSubscriptionId"=$3
-		 ON CONFLICT (id) DO UPDATE SET
-			"startsAt"=EXCLUDED."startsAt", "endsAt"=EXCLUDED."endsAt", status='ACTIVE',
-			"paidAmount"=EXCLUDED."paidAmount", "updatedAt"=now()`,
-		[`period-${runId}-free-upgrade`, `${subscriptionId}:local-payment`, subscriptionId],
+		 ) SELECT $1, sub.id, sub."currentPeriodStart", sub."currentPeriodEnd", 'ACTIVE',
+			plan."priceMicros", plan."creditsPerPeriod", $2, now(), now()
+		   FROM subscription sub JOIN billing_plan plan ON plan.id=sub."planId"
+		   WHERE sub.id=$3 AND sub.provider='paypal' AND sub."providerSubscriptionId"=$4`,
+		[
+			returnFixture.periodId,
+			returnFixture.paymentId,
+			returnFixture.subscriptionId,
+			returnFixture.providerSubscriptionId,
+		],
+	);
+	if (recorded.rowCount !== 1)
+		throw new Error("Owned subscription payment fixture was not recorded");
+}
+
+async function cleanupCreatorReturnFixture(): Promise<void> {
+	await pool.query('DELETE FROM billing_period WHERE id=$1 AND "subscriptionId"=$2', [
+		returnFixture.periodId,
+		returnFixture.subscriptionId,
+	]);
+	await pool.query(
+		`DELETE FROM subscription WHERE id=$1 AND provider='paypal' AND "providerSubscriptionId"=$2`,
+		[returnFixture.subscriptionId, returnFixture.providerSubscriptionId],
+	);
+	await pool.query(
+		`DELETE FROM payment_checkout_intent WHERE id=$1 AND provider='paypal' AND "billingPlanId"=$2`,
+		[returnFixture.intentId, returnFixture.planId],
+	);
+	await pool.query(
+		`DELETE FROM billing_plan WHERE id=$1 AND provider='paypal' AND "providerPriceId"=$2`,
+		[returnFixture.planId, returnFixture.priceId],
 	);
 }
 
@@ -293,10 +390,4 @@ async function checkoutFixtureCounts(
 		purchases: Number(result.rows[0]?.purchases ?? 0),
 		subscriptions: Number(result.rows[0]?.subscriptions ?? 0),
 	};
-}
-
-function requiredEnvironment(name: string): string {
-	const value = process.env[name];
-	if (!value) throw new Error(`${name} is required for subscription upgrade E2E`);
-	return value;
 }

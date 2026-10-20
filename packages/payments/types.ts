@@ -211,6 +211,13 @@ export interface SubscriptionCheckoutInspection {
 	providerOrderId?: string;
 }
 
+export interface ResumeCheckoutInput {
+	checkoutUrl: string;
+	priceId: string;
+	ownerType: "USER" | "ORGANIZATION";
+	ownerId: string;
+}
+
 export type PaymentProvider = {
 	name: PaymentProviderName;
 	capabilities: PaymentProviderCapabilities;
@@ -220,12 +227,8 @@ export type PaymentProvider = {
 		input: SubscriptionCheckoutRecoveryInput,
 	) => Promise<SubscriptionCheckoutInspection>;
 	activateSubscriptionCheckout?: (input: SubscriptionCheckoutRecoveryInput) => Promise<void>;
-	resumeSubscriptionCheckout?: (input: {
-		checkoutUrl: string;
-		priceId: string;
-		ownerType: "USER" | "ORGANIZATION";
-		ownerId: string;
-	}) => Promise<string>;
+	resumeCheckout?: (input: ResumeCheckoutInput) => Promise<string>;
+	resumeSubscriptionCheckout?: (input: ResumeCheckoutInput) => Promise<string>;
 	listPaymentEvents?: (
 		window: import("./provider/event-source").ProviderEventWindow,
 	) => Promise<import("./provider/event-source").ProviderEventPage>;

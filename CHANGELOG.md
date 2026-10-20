@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-20 — Clearer payment returns and image funding
+
+- Show compact available credit and image-pass balances, including passes in progress. Keep an explicit credit choice when selected passes run out, without switching payment methods automatically.
+- Give image-pack, credit-pack and subscription returns clear payment status and options to check again or continue creating. Cancellation and browser history checks only read status; older return links require an explicit confirmation before payment capture or subscription recovery.
+- Confirm subscription success against the specific checkout and paid period. Refresh Waffo authentication on the original credit-pack session when resuming, with duplicate-order and account safeguards.
+
 ## 2026-10-19 — $1 PayPal image purchase
 
 - Buy three successful single-image generations for USD 1 across all supported image models and sizes, with PayPal as the only payment option. Additional purchases are supported.

@@ -1,11 +1,81 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./PendingSubscriptionCheckout", () => ({ PendingSubscriptionCheckout: () => null }));
 
 const testState = vi.hoisted(() => ({
 	availabilityInputs: [] as Array<{ interval: "month" | "year"; planId: string }>,
+	ownerId: "user-1",
+	anonymous: false,
+	orgId: null as string | null,
+	behavior: false,
+	cursor: 0,
+	slots: [] as { current?: unknown; value?: unknown; deps?: unknown[]; cleanup?: () => void }[],
+	action: null as { key: string; stage: "starting" | "redirecting" } | null,
+	checkout: vi.fn(),
+	acquire: vi.fn(),
+	release: vi.fn(),
+	redirecting: vi.fn(),
+	started: vi.fn(),
+	bindReturn: vi.fn(),
+	pendingReads: [] as unknown[],
+	pendingCache: new Map<string, { id: string } | null>(),
+}));
+
+vi.mock("react", async (original) => {
+	const react = await original<typeof import("react")>();
+	return {
+		...react,
+		useRef: (value: unknown) =>
+			testState.behavior
+				? (testState.slots[testState.cursor++] ??= { current: value })
+				: react.useRef(value),
+		useState: (value: unknown) => {
+			if (!testState.behavior) return react.useState(value);
+			const slot = (testState.slots[testState.cursor++] ??= { value });
+			return [
+				slot.value,
+				(next: unknown) => {
+					slot.value = next;
+				},
+			];
+		},
+		useEffect: (effect: () => void | (() => void), deps: unknown[]) => {
+			if (!testState.behavior) return react.useEffect(effect, deps);
+			const index = testState.cursor++,
+				prior = testState.slots[index];
+			if (prior?.deps && deps.every((value, i) => value === prior.deps![i])) return;
+			prior?.cleanup?.();
+			testState.slots[index] = { deps, cleanup: effect() || undefined };
+		},
+	};
+});
+vi.mock("@payments/hooks/use-payment-action", () => ({
+	usePaymentAction: () => ({
+		action: testState.action,
+		getSnapshot: () => testState.action,
+		acquire: testState.acquire,
+		release: testState.release,
+		redirecting: testState.redirecting,
+	}),
+}));
+vi.mock("@shared/lib/purchase-attribution", () => ({
+	captureCheckoutTrigger: vi.fn(),
+	clearCheckoutTrigger: vi.fn(),
+	getCurrentCheckoutAttribution: vi.fn(async () => ({})),
+}));
+vi.mock("../../video-effects/lib/payment-return", () => ({
+	bindVideoEffectPaymentReturn: testState.bindReturn,
+}));
+
+vi.mock("@auth/lib/api", () => ({
+	useSessionQuery: () => ({
+		data: {
+			user: { id: testState.ownerId, isAnonymous: testState.anonymous },
+			session: { activeOrganizationId: testState.orgId },
+		},
+	}),
 }));
 
 vi.mock("@payments/hooks/plan-data", () => ({
@@ -68,7 +138,7 @@ vi.mock("@repo/ui/components/tabs", () => ({
 vi.mock("@shared/hooks/locale-currency", () => ({ useLocaleCurrency: () => "USD" }));
 vi.mock("@shared/hooks/router", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("@shared/lib/growth-analytics", () => ({
-	saasGrowthFunnel: { checkoutStarted: vi.fn() },
+	saasGrowthFunnel: { checkoutStarted: testState.started },
 }));
 vi.mock("@shared/lib/orpc-query-utils", () => ({
 	orpc: {
@@ -86,9 +156,22 @@ vi.mock("@shared/lib/orpc-query-utils", () => ({
 vi.mock("@tanstack/react-query", () => ({
 	keepPreviousData: (data: unknown) => data,
 	useQueryClient: () => ({ prefetchQuery: vi.fn() }),
-	useMutation: () => ({ mutateAsync: vi.fn() }),
-	useQuery: ({ input }: { input?: { interval: "month" | "year"; planId: string } }) => {
-		if (!input) return { data: null, isPending: false, isError: false };
+	useMutation: () => ({ mutateAsync: testState.checkout }),
+	useQuery: ({
+		input,
+		queryKey,
+	}: {
+		input?: { interval: "month" | "year"; planId: string };
+		queryKey?: unknown;
+	}) => {
+		if (!input) {
+			testState.pendingReads.push(queryKey);
+			return {
+				data: testState.pendingCache.get(JSON.stringify(queryKey)) ?? null,
+				isPending: false,
+				isError: false,
+			};
+		}
 		testState.availabilityInputs.push(input);
 		return {
 			data: {
@@ -112,6 +195,29 @@ vi.mock("./PaymentProviderSelector", () => ({
 
 import { PricingTable } from "./PricingTable";
 
+function renderCheckout() {
+	testState.behavior = true;
+	testState.cursor = 0;
+	return PricingTable({ userId: testState.ownerId });
+}
+function checkout(node: React.ReactElement): (provider: "paypal") => Promise<void> {
+	const props = node.props as {
+		onCheckout?: (provider: "paypal") => Promise<void>;
+		children?: React.ReactNode;
+	};
+	if (props.onCheckout) return props.onCheckout;
+	for (const child of React.Children.toArray(props.children)) {
+		if (!React.isValidElement(child)) continue;
+		try {
+			return checkout(child);
+		} catch {}
+	}
+	throw new Error("checkout control missing");
+}
+async function flush() {
+	for (let i = 0; i < 20; i++) await Promise.resolve();
+}
+
 describe("PricingTable", () => {
 	it("shows subscription management instead of a second paid checkout for subscribers", () => {
 		const markup = renderToStaticMarkup(<PricingTable userId="user-1" activePlanId="ultimate" />);
@@ -120,7 +226,36 @@ describe("PricingTable", () => {
 		expect(markup).not.toContain("pricing.choosePlan");
 	});
 	beforeEach(() => {
+		vi.clearAllMocks();
 		testState.availabilityInputs.length = 0;
+		testState.pendingReads.length = 0;
+		testState.pendingCache.clear();
+		testState.ownerId = "user-1";
+		testState.anonymous = false;
+		testState.orgId = null;
+		testState.behavior = false;
+		testState.slots = [];
+		testState.action = null;
+		testState.checkout.mockReset();
+		testState.started.mockResolvedValue(undefined);
+		testState.acquire.mockImplementation((key: string) => {
+			if (testState.action) return false;
+			testState.action = { key, stage: "starting" };
+			return true;
+		});
+		testState.release.mockImplementation(() => {
+			testState.action = null;
+		});
+		testState.redirecting.mockImplementation(() => {
+			if (testState.action) testState.action = { ...testState.action, stage: "redirecting" };
+		});
+		vi.stubGlobal("window", {
+			location: { href: "https://example.test/pricing", pathname: "/pricing", search: "" },
+		});
+	});
+	afterEach(() => {
+		for (const slot of testState.slots) slot.cleanup?.();
+		vi.unstubAllGlobals();
 	});
 
 	it("defaults authenticated subscription selection to yearly billing", () => {
@@ -137,5 +272,142 @@ describe("PricingTable", () => {
 
 		expect(markup).toContain('data-provider-selector="ultimate-year-provider"');
 		expect(testState.availabilityInputs).toContainEqual({ planId: "ultimate", interval: "year" });
+	});
+	it("shares the owned pending-checkout cache and unlocks when read-only status closes it", () => {
+		const key = ["pending-subscription-checkout", "user-1"];
+		testState.pendingCache.set(JSON.stringify(key), { id: "intent" });
+		const pending = renderToStaticMarkup(<PricingTable userId="user-1" />);
+		expect(testState.pendingReads).toContainEqual(key);
+		expect(
+			pending
+				.match(/<button\b(?=[^>]*data-test="subscription-checkout")[^>]*>/g)
+				?.every((button) => button.includes("disabled")),
+		).toBe(true);
+		testState.pendingCache.set(JSON.stringify(key), null);
+		const closed = renderToStaticMarkup(<PricingTable userId="user-1" />);
+		expect(
+			closed
+				.match(/<button\b(?=[^>]*data-test="subscription-checkout")[^>]*>/g)
+				?.some((button) => !button.includes("disabled")),
+		).toBe(true);
+	});
+	it("does not reuse another owner's pending checkout after sign-in changes", () => {
+		testState.pendingCache.set(JSON.stringify(["pending-subscription-checkout", "user-1"]), {
+			id: "old-intent",
+		});
+		testState.ownerId = "user-2";
+		const markup = renderToStaticMarkup(<PricingTable userId="user-2" />);
+		expect(testState.pendingReads).toContainEqual(["pending-subscription-checkout", "user-2"]);
+		expect(
+			markup
+				.match(/<button\b(?=[^>]*data-test="subscription-checkout")[^>]*>/g)
+				?.some((button) => !button.includes("disabled")),
+		).toBe(true);
+	});
+	it("does not put an anonymous session in an owned checkout cache", () => {
+		testState.anonymous = true;
+		renderToStaticMarkup(<PricingTable userId="user-1" />);
+		expect(testState.pendingReads).toContainEqual(["pending-subscription-checkout", null]);
+	});
+	it("releases only its pending action on unmount and ignores the late checkout", async () => {
+		let resolve!: (value: unknown) => void;
+		testState.checkout.mockImplementationOnce(
+			() =>
+				new Promise((done) => {
+					resolve = done;
+				}),
+		);
+		const pending = checkout(renderCheckout())("paypal");
+		await flush();
+		for (const slot of testState.slots) slot.cleanup?.();
+		expect(testState.action).toBeNull();
+		resolve({ checkoutLink: "https://paypal.example/old", checkoutIntentId: "old" });
+		await pending;
+		expect(window.location.href).toBe("https://example.test/pricing");
+		expect(testState.bindReturn).not.toHaveBeenCalled();
+		expect(testState.started).not.toHaveBeenCalled();
+	});
+	it("ignores the prior owner and organization and gives the new scope a fresh attempt", async () => {
+		let resolve!: (value: unknown) => void;
+		testState.checkout.mockImplementationOnce(
+			() =>
+				new Promise((done) => {
+					resolve = done;
+				}),
+		);
+		const old = checkout(renderCheckout())("paypal");
+		await flush();
+		const oldKey = testState.checkout.mock.calls[0]![0].idempotencyKey;
+		testState.ownerId = "user-2";
+		testState.orgId = "org-2";
+		renderCheckout();
+		testState.checkout.mockResolvedValueOnce({
+			checkoutLink: "https://paypal.example/new",
+			checkoutIntentId: "new",
+		});
+		const current = checkout(renderCheckout())("paypal");
+		await current;
+		expect(testState.checkout).toHaveBeenCalledTimes(2);
+		expect(testState.checkout.mock.calls[1]![0].idempotencyKey).not.toBe(oldKey);
+		const currentAction = testState.action;
+		resolve({ checkoutLink: "https://paypal.example/old", checkoutIntentId: "old" });
+		await old;
+		expect(window.location.href).toBe("https://paypal.example/new");
+		expect(testState.action).toBe(currentAction);
+		expect(testState.bindReturn).toHaveBeenCalledOnce();
+		expect(testState.bindReturn).toHaveBeenCalledWith("user-2", "new", "/pricing");
+	});
+	it("does not redirect or release a newer action with the same plan key", async () => {
+		let resolve!: (value: unknown) => void;
+		testState.checkout.mockImplementationOnce(
+			() =>
+				new Promise((done) => {
+					resolve = done;
+				}),
+		);
+		const pending = checkout(renderCheckout())("paypal");
+		await flush();
+		testState.release();
+		testState.acquire("plan:creator");
+		const newer = testState.action;
+		resolve({ checkoutLink: "https://paypal.example/old", checkoutIntentId: "old" });
+		await pending;
+		expect(window.location.href).toBe("https://example.test/pricing");
+		expect(testState.action).toBe(newer);
+		expect(testState.bindReturn).not.toHaveBeenCalled();
+		expect(testState.started).not.toHaveBeenCalled();
+	});
+	it("keeps a newer same-key action when the prior request fails or unmounts", async () => {
+		let reject!: (error: Error) => void;
+		testState.checkout.mockImplementationOnce(
+			() =>
+				new Promise((_done, fail) => {
+					reject = fail;
+				}),
+		);
+		const pending = checkout(renderCheckout())("paypal");
+		await flush();
+		testState.release();
+		testState.acquire("plan:creator");
+		const newer = testState.action;
+		for (const slot of testState.slots) slot.cleanup?.();
+		expect(testState.action).toBe(newer);
+		reject(new Error("old response lost"));
+		await pending;
+		expect(testState.action).toBe(newer);
+		expect(testState.release).toHaveBeenCalledOnce();
+	});
+	it("preserves normal redirecting state during navigation cleanup", async () => {
+		testState.checkout.mockResolvedValueOnce({
+			checkoutLink: "https://paypal.example/current",
+			checkoutIntentId: "current",
+		});
+		await checkout(renderCheckout())("paypal");
+		expect(window.location.href).toBe("https://paypal.example/current");
+		const redirecting = testState.action;
+		expect(redirecting?.stage).toBe("redirecting");
+		for (const slot of testState.slots) slot.cleanup?.();
+		expect(testState.action).toBe(redirecting);
+		expect(testState.release).not.toHaveBeenCalled();
 	});
 });

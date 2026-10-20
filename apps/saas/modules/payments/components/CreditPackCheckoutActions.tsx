@@ -12,10 +12,12 @@ import {
 import { useMutation, useQueries } from "@tanstack/react-query";
 import { ArrowUpRightIcon, Loader2Icon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { createContext, useContext, useRef, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { bindVideoEffectPaymentReturn } from "../../video-effects/lib/payment-return";
 import { usePaymentAction } from "../hooks/use-payment-action";
+import { saveCreditPackCheckoutContext } from "../lib/credit-pack-checkout-context";
 import {
 	createCreditPackCheckoutAttemptController,
 	filterCreditPackCheckoutProviders,
@@ -23,6 +25,11 @@ import {
 	type CreditPackCheckoutSelection,
 } from "./checkout-attempt";
 import { PaymentProviderSelector } from "./PaymentProviderSelector";
+
+const CreditPackCheckoutRecovery = dynamic(
+	() => import("./CreditPackCheckoutRecovery").then((module) => module.CreditPackCheckoutRecovery),
+	{ ssr: false },
+);
 
 type PublicCreditPackKey = (typeof PUBLIC_CREDIT_PACKS)[number]["packKey"];
 
@@ -105,10 +112,64 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 	const router = useRouter();
 	const payment = usePaymentAction();
 	const session = useSessionQuery();
+	const user = session.data?.user;
+	const ownerId = user && !user.isAnonymous ? user.id : undefined;
+	const organizationId = session.data?.session?.activeOrganizationId ?? null;
+	const scope = ownerId ? JSON.stringify([ownerId, organizationId]) : null;
+	const currentScope = useRef(scope);
+	currentScope.current = scope;
+	const currentPayment = useRef(payment);
+	currentPayment.current = payment;
+	const mounted = useRef(true);
+	const inflight = useRef<symbol | null>(null);
+	const ownedAction = useRef<ReturnType<typeof payment.getSnapshot>>(null);
+	const attemptScope = useRef(scope);
+	const previousScope = useRef(scope);
 	const [checkoutUnavailable, setCheckoutUnavailable] = useState(false);
 	const checkoutAttempts = useRef(
 		createCreditPackCheckoutAttemptController(createCheckoutAttemptKey),
 	);
+	if (attemptScope.current !== scope) {
+		attemptScope.current = scope;
+		checkoutAttempts.current = createCreditPackCheckoutAttemptController(createCheckoutAttemptKey);
+	}
+	const [recovery, setRecovery] = useState<{ scope: string; intentId: string } | null>(null);
+	const recoveryIntentId = recovery?.scope === scope ? recovery.intentId : undefined;
+	useEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+			const action = currentPayment.current;
+			if (inflight.current && ownedAction.current && action.getSnapshot() === ownedAction.current)
+				action.release();
+			ownedAction.current = null;
+		};
+	}, []);
+	useEffect(() => {
+		if (previousScope.current === scope) return;
+		previousScope.current = scope;
+		const action = currentPayment.current;
+		if (inflight.current && ownedAction.current && action.getSnapshot() === ownedAction.current)
+			action.release();
+		inflight.current = null;
+		ownedAction.current = null;
+		setCheckoutUnavailable(false);
+	}, [scope, packKey]);
+	useEffect(() => {
+		const restore = () => {
+			const action = currentPayment.current;
+			const active = action.getSnapshot();
+			if (active?.key.startsWith(`pack:${packKey}:`) && active.stage === "redirecting")
+				action.release();
+		};
+		restore();
+		window.addEventListener("pageshow", restore);
+		window.addEventListener("focus", restore);
+		return () => {
+			window.removeEventListener("pageshow", restore);
+			window.removeEventListener("focus", restore);
+		};
+	}, [packKey]);
 	const createCheckout = useMutation(orpc.payments.createCreditPackCheckout.mutationOptions());
 	const options = useContext(CreditPackPaymentContext);
 	const provider = options?.provider ?? null;
@@ -119,8 +180,16 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 	const processing = payment.action?.key.startsWith(`pack:${packKey}:`);
 
 	async function beginCheckout(provider: CreditPackCheckoutProvider) {
-		if (!canPay) return;
+		if (!canPay || inflight.current) return;
+		if (!ownerId || !scope) {
+			router.push("/signup?redirectTo=%2Fpricing");
+			return;
+		}
 		if (!payment.acquire(`pack:${packKey}:${provider}`)) return;
+		const action = payment.getSnapshot();
+		ownedAction.current = action;
+		const request = Symbol("credit-pack-checkout");
+		inflight.current = request;
 		captureCheckoutTrigger();
 		const selection: CreditPackCheckoutSelection = { packKey, provider };
 		const idempotencyKey = checkoutAttempts.current.begin(selection);
@@ -128,24 +197,47 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 		const originatingPath = window.location.pathname + window.location.search;
 
 		try {
+			const attribution = await getCurrentCheckoutAttribution();
+			if (
+				!mounted.current ||
+				currentScope.current !== scope ||
+				inflight.current !== request ||
+				payment.getSnapshot() !== action
+			)
+				return;
 			const { checkoutLink, intentId } = await createCheckout.mutateAsync({
 				provider,
 				packKey,
 				idempotencyKey,
-				attribution: await getCurrentCheckoutAttribution(),
+				attribution,
 			});
+			if (
+				!mounted.current ||
+				currentScope.current !== scope ||
+				inflight.current !== request ||
+				payment.getSnapshot() !== action
+			)
+				return;
 			checkoutAttempts.current.succeeded(selection);
 			clearCheckoutTrigger();
-			bindVideoEffectPaymentReturn(session.data?.user?.id, intentId, originatingPath);
+			saveCreditPackCheckoutContext(ownerId, organizationId, packKey, intentId);
+			setRecovery({ scope, intentId });
+			bindVideoEffectPaymentReturn(ownerId, intentId, originatingPath);
 			payment.redirecting();
 			window.location.href = checkoutLink;
 		} catch (error) {
-			payment.release();
+			if (!mounted.current || currentScope.current !== scope || inflight.current !== request)
+				return;
+			if (payment.getSnapshot() === action) payment.release();
 			if (getErrorCode(error) === "UNAUTHORIZED") {
 				router.push("/signup?redirectTo=%2Fpricing");
 				return;
 			}
 			setCheckoutUnavailable(true);
+		} finally {
+			if (payment.getSnapshot() === action) payment.release();
+			if (inflight.current === request) inflight.current = null;
+			if (ownedAction.current === action) ownedAction.current = null;
 		}
 	}
 
@@ -153,6 +245,7 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 		<div className="pt-5 mt-auto">
 			<button
 				type="button"
+				data-testid={`credit-pack-buy-${packKey}`}
 				disabled={Boolean(payment.action) || !canPay}
 				aria-busy={Boolean(processing)}
 				onClick={() => provider && void beginCheckout(provider)}
@@ -171,6 +264,15 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 					<ArrowUpRightIcon className="size-3.5" aria-hidden="true" />
 				)}
 			</button>
+			{ownerId && (
+				<CreditPackCheckoutRecovery
+					key={`${scope}:${packKey}`}
+					ownerId={ownerId}
+					organizationId={organizationId}
+					packKey={packKey}
+					createdIntentId={recoveryIntentId}
+				/>
+			)}
 			{(checkoutUnavailable || availability?.failed || (availability?.ready && !canPay)) && (
 				<p className="mt-2 text-xs leading-5 text-center text-[#ff9da8]" role="alert">
 					{t("pricing.creditPackCheckoutUnavailable")}

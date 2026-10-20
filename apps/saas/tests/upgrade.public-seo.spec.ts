@@ -1,5 +1,17 @@
 import { expect, test, type Page } from "@playwright/test";
 
+const pendingCheckoutFixture = {
+	id: "pending-1",
+	provider: "paypal",
+	planId: "creator",
+	interval: "year",
+	status: "PENDING",
+	canResume: true,
+	canChange: false,
+	waitUntil: null,
+	checkedAt: null,
+};
+
 type BillingFixtures = {
 	registered?: boolean;
 	pending?: boolean;
@@ -74,15 +86,7 @@ async function mockBilling(page: Page, options: BillingFixtures = {}) {
 					]
 				: [];
 		else if (path.endsWith("getPendingSubscriptionCheckout"))
-			json = options.pending
-				? {
-						id: "pending-1",
-						provider: "paypal",
-						planId: "creator",
-						interval: "year",
-						checkoutLink: "https://checkout.example.invalid/pending",
-					}
-				: null;
+			json = options.pending ? pendingCheckoutFixture : null;
 		else if (path.endsWith("unreadCount")) json = { count: 0 };
 		else if (path.endsWith("getPublicCatalog")) json = { products: [] };
 		else if (path.endsWith("createCheckoutLink") || path.endsWith("createCreditPackCheckout"))
@@ -337,13 +341,27 @@ test("unfinished checkout is resumed in place and blocks a second subscription",
 	page,
 }) => {
 	await mockBilling(page, { pending: true });
+	const resumed: Array<{ checkoutIntentId: string }> = [];
+	await page.route("**/api/rpc/payments/resumePendingSubscriptionCheckout", (route) => {
+		resumed.push(route.request().postDataJSON().json);
+		return route.fulfill({
+			json: {
+				json: { checkoutLink: new URL("/__e2e__/pending-checkout", page.url()).href },
+			},
+		});
+	});
+	await page.route("**/__e2e__/pending-checkout", (route) =>
+		route.fulfill({ contentType: "text/html", body: "<h1>Mock pending checkout</h1>" }),
+	);
 	await page.goto("/pricing?plan=creator&interval=year");
 	const dialog = page.getByRole("dialog");
-	await expect(dialog.getByRole("link", { name: "Resume checkout" })).toHaveAttribute(
-		"href",
-		"https://checkout.example.invalid/pending",
-	);
+	const resume = dialog.getByRole("button", { name: "Resume checkout", exact: true });
+	await expect(resume).toBeVisible();
 	await expect(dialog.locator('[data-test="subscription-checkout"]')).toHaveCount(0);
+	expect(resumed).toEqual([]);
+	await resume.click();
+	await expect(page.getByRole("heading", { name: "Mock pending checkout" })).toBeVisible();
+	expect(resumed).toEqual([{ checkoutIntentId: "pending-1" }]);
 });
 
 test("active subscribers see management and an unavailable channel never enables payment", async ({
@@ -396,26 +414,26 @@ test("Max stays fully visible and payment preferences remain selectable with an 
 	page,
 }) => {
 	await mockBilling(page);
-	await page.route("**/api/rpc/payments/getPendingSubscriptionCheckout**", (route) =>
-		route.fulfill({
-			contentType: "application/json",
-			body: JSON.stringify({
+	let reads = 0;
+	let refreshes = 0;
+	await page.route("**/api/rpc/payments/getPendingSubscriptionCheckout**", (route) => {
+		reads++;
+		return route.fulfill({
+			json: {
 				json: {
+					...pendingCheckoutFixture,
 					id: "pending-waffo-123",
 					provider: "waffo",
-					planId: "creator",
-					interval: "year",
-					checkoutLink: null,
+					status: "UNKNOWN",
+					canResume: false,
 				},
-			}),
-		}),
-	);
-	await page.route("**/api/rpc/payments/refreshPendingSubscriptionCheckout", (route) =>
-		route.fulfill({
-			contentType: "application/json",
-			body: JSON.stringify({ json: { status: "UNKNOWN" } }),
-		}),
-	);
+			},
+		});
+	});
+	await page.route("**/api/rpc/payments/refreshPendingSubscriptionCheckout", (route) => {
+		refreshes++;
+		return route.abort("blockedbyclient");
+	});
 	for (const viewport of [
 		{ width: 1280, height: 720 },
 		{ width: 390, height: 844 },
@@ -442,10 +460,13 @@ test("Max stays fully visible and payment preferences remain selectable with an 
 		await dialog.getByRole("radio", { name: "Waffo", exact: true }).check();
 		await expect(dialog.getByRole("radio", { name: "Waffo", exact: true })).toBeChecked();
 		await expect(dialog.locator('[data-test="subscription-checkout"]')).toHaveCount(0);
+		const beforeManualCheck = reads;
 		await dialog.getByRole("button", { name: "Check payment status" }).click();
+		await expect.poll(() => reads).toBeGreaterThan(beforeManualCheck);
+		expect(refreshes).toBe(0);
 		await expect(
 			dialog.getByText(
-				"We couldn't confirm this payment. Contact support with the order reference.",
+				"We could not confirm the payment status yet. Keep this order reference; you can check again or contact support.",
 			),
 		).toBeVisible();
 		await expect(dialog.getByRole("link", { name: "Contact support" })).toHaveAttribute(
@@ -453,6 +474,7 @@ test("Max stays fully visible and payment preferences remain selectable with an 
 			/(?:mailto:|\/contact)/,
 		);
 		await expect(dialog).toContainText("pending-waffo-123");
+		await dialog.getByText("Order details & help", { exact: true }).click();
 		await expect(dialog).toContainText("If you were charged, do not pay again.");
 		await expect(dialog.locator('[data-test="subscription-checkout"]')).toHaveCount(0);
 		await page.screenshot({ path: test.info().outputPath(`pending-max-${viewport.width}.png`) });
@@ -568,15 +590,22 @@ for (const status of ["PAID", "CLOSED"] as const) {
 		await mockBilling(page, { pending: true });
 		let checked = false;
 		let calls = 0;
+		let reads = 0;
 		let release!: () => void;
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
 		});
+		const recoveryView = {
+			...pendingCheckoutFixture,
+			status,
+			canResume: false,
+		};
 		await page.route("**/api/rpc/payments/getPendingSubscriptionCheckout**", async (route) => {
-			if (!checked || status === "PAID") return route.fallback();
+			reads++;
 			return route.fulfill({
-				contentType: "application/json",
-				body: JSON.stringify({ json: null }),
+				json: {
+					json: checked ? (status === "CLOSED" ? null : recoveryView) : pendingCheckoutFixture,
+				},
 			});
 		});
 		await page.route("**/api/rpc/payments/refreshPendingSubscriptionCheckout", async (route) => {
@@ -585,24 +614,32 @@ for (const status of ["PAID", "CLOSED"] as const) {
 			checked = true;
 			return route.fulfill({
 				contentType: "application/json",
-				body: JSON.stringify({ json: { status } }),
+				body: JSON.stringify({ json: recoveryView }),
 			});
 		});
 		await page.goto("/pricing?plan=studio&interval=year");
 		const dialog = page.getByRole("dialog");
 		const check = dialog.getByRole("button", { name: "Check payment status" });
-		await check.evaluate((button: HTMLButtonElement) => {
+		const beforeManualCheck = reads;
+		await check.click();
+		await expect.poll(() => reads).toBeGreaterThan(beforeManualCheck);
+		expect(calls).toBe(0);
+		const finish = dialog.getByRole("button", { name: "Finish approved subscription" });
+		await expect(finish).toBeEnabled();
+		await finish.evaluate((button: HTMLButtonElement) => {
 			button.click();
 			button.click();
 		});
-		await expect(check).toBeDisabled();
+		await expect(finish).toBeDisabled();
 		await expect.poll(() => calls).toBe(1);
 		release();
 		if (status === "PAID") {
 			await expect(dialog).toContainText(
 				"We are confirming its payment and updating your account.",
 			);
-			await expect(dialog.getByRole("link", { name: "Resume checkout" })).toHaveCount(0);
+			await expect(
+				dialog.getByRole("button", { name: "Resume checkout", exact: true }),
+			).toHaveCount(0);
 			await expect(dialog.locator('[data-test="subscription-checkout"]')).toHaveCount(0);
 		} else {
 			await expect(check).toHaveCount(0);

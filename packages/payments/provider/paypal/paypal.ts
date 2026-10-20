@@ -295,7 +295,7 @@ async function createPayPalOrderCheckoutLink(
 						payment_method_preference: "IMMEDIATE_PAYMENT_REQUIRED",
 						shipping_preference: "NO_SHIPPING",
 						return_url: options.redirectUrl ?? "",
-						cancel_url: options.redirectUrl ?? "",
+						cancel_url: options.cancelUrl ?? options.redirectUrl ?? "",
 					},
 				},
 			},

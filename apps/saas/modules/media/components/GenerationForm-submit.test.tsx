@@ -1,10 +1,15 @@
 import React, { type ReactElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
 	ownerId: "owner-a",
 	loaded: true,
-	passAvailable: 3,
+	passAvailable: 3 as number | undefined,
+	passReserved: 0,
+	passFailed: false,
+	creditFailed: false,
+	generationPending: false,
 	cursor: 0,
 	slots: [] as {
 		current?: unknown;
@@ -92,11 +97,18 @@ vi.mock("../hooks/use-generation", () => ({
 				],
 			},
 		},
-		creditAccount: { data: { spendableCredits: "100" } },
-		imagePass: { data: { available: state.passAvailable } },
+		creditAccount: { data: { spendableCredits: "100" }, isError: state.creditFailed },
+		imagePass: {
+			data: { available: state.passAvailable, reserved: state.passReserved },
+			isError: state.passFailed,
+		},
 		quote: null,
 		createQuote: { isPending: false, error: null },
-		createGeneration: { mutateAsync: state.mutateAsync, isPending: false, error: null },
+		createGeneration: {
+			mutateAsync: state.mutateAsync,
+			isPending: state.generationPending,
+			error: null,
+		},
 		beginNewAction: state.beginNewAction,
 	}),
 }));
@@ -141,10 +153,17 @@ function find(
 function submit(element: ReturnType<typeof render>) {
 	(element.props.onSubmit as () => void)();
 }
+function fundingMarkup(element: ReturnType<typeof render>) {
+	return renderToStaticMarkup(find(element, ImageFundingSelector));
+}
 beforeEach(() => {
 	state.ownerId = "owner-a";
 	state.loaded = true;
 	state.passAvailable = 3;
+	state.passReserved = 0;
+	state.passFailed = false;
+	state.creditFailed = false;
+	state.generationPending = false;
 	state.slots = [];
 	state.cursor = 0;
 	state.values = {
@@ -208,12 +227,70 @@ describe("GenerationForm submission callbacks", () => {
 		await flush();
 		expect(state.mutateAsync).not.toHaveBeenCalled();
 	});
+	it("shows only a successfully read credit balance in the funding choice", () => {
+		expect(find(render(), ImageFundingSelector).props.creditsAvailable).toBe("100");
+		state.creditFailed = true;
+		expect(find(render(), ImageFundingSelector).props.creditsAvailable).toBeUndefined();
+	});
+	it("passes reserved balances through and preserves the draft as the selector hides and reappears", () => {
+		state.passAvailable = 0;
+		let element = render();
+		expect(fundingMarkup(element)).toBe("");
+		(find(element, PromptPanel).props.onChange as (prompt: string) => void)("My unsent draft");
+		(find(element, ImageOutputSettings).props.onChange as (ratio: string) => void)("1:1");
+		state.passReserved = 1;
+		element = render();
+		expect(find(element, ImageFundingSelector).props.reserved).toBe(1);
+		expect(fundingMarkup(element)).toContain("fundingReserved");
+		expect(find(element, PromptPanel).props.value).toBe("My unsent draft");
+		expect(state.values.aspectRatio).toBe("1:1");
+		state.passReserved = 0;
+		element = render();
+		expect(fundingMarkup(element)).toBe("");
+		expect(find(element, PromptPanel).props.value).toBe("My unsent draft");
+		expect(state.values.aspectRatio).toBe("1:1");
+		expect(find(element, ImageFundingSelector).props.value).toBe("CREDITS");
+	});
+	it("blocks a failed pass choice until credits are explicitly selected without losing the prompt", async () => {
+		let element = render();
+		(find(element, PromptPanel).props.onChange as (prompt: string) => void)("Keep this draft");
+		(find(element, ImageFundingSelector).props.onChange as (source: ImageFundingSource) => void)(
+			"IMAGE_PASS",
+		);
+		state.passFailed = true;
+		element = render();
+		expect(find(element, ImageFundingSelector).props.value).toBe("IMAGE_PASS");
+		expect(fundingMarkup(element)).toContain("balanceError");
+		submit(element);
+		await flush();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+		(find(element, ImageFundingSelector).props.onChange as (source: ImageFundingSource) => void)(
+			"CREDITS",
+		);
+		element = render();
+		expect(find(element, PromptPanel).props.value).toBe("Keep this draft");
+		submit(element);
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledWith(
+			expect.objectContaining({
+				fundingSource: "CREDITS",
+				input: expect.objectContaining({ prompt: "Keep this draft" }),
+			}),
+		);
+	});
+	it("disables funding controls while generation is pending", () => {
+		state.generationPending = true;
+		expect(find(render(), ImageFundingSelector).props.disabled).toBe(true);
+	});
 	it("resets the funding choice when the signed-in account changes", () => {
 		(find(render(), ImageFundingSelector).props.onChange as (source: ImageFundingSource) => void)(
 			"IMAGE_PASS",
 		);
 		state.ownerId = "owner-b";
+		state.passAvailable = 0;
+		state.passReserved = 0;
 		expect(find(render(), ImageFundingSelector).props.value).toBe("CREDITS");
+		expect(fundingMarkup(render())).toBe("");
 	});
 	it("selects the accepted job and observes only that job's committed task region", async () => {
 		const onCreated = vi.fn();

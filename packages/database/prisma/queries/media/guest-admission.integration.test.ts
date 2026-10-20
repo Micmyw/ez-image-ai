@@ -627,7 +627,8 @@ describe("guest generation admission", () => {
 
 	it("aggregates global-rate denials after the business transaction rolls back", async () => {
 		const evidenceTtlMs = 17 * 24 * 60 * 60_000;
-		const first = await createGuestFixture("rate-first");
+		const now = guestAdmissionTestTime(5);
+		const first = await createGuestFixture("rate-first", now);
 		await createGuestAdmission(
 			guestAdmissionInput(first, {
 				idempotencyKey: "guest-rate-first",
@@ -635,7 +636,7 @@ describe("guest generation admission", () => {
 				abuseEvidenceTtlMs: evidenceTtlMs,
 			}),
 		);
-		const denied = await createGuestFixture("rate-denied");
+		const denied = await createGuestFixture("rate-denied", now);
 		const input = guestAdmissionInput(denied, {
 			idempotencyKey: "guest-rate-denied",
 			maximumRequestsPerMinute: 1,
