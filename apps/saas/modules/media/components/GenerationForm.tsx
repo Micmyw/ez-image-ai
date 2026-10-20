@@ -589,6 +589,7 @@ export function GenerationForm({
 			<ImageFundingSelector
 				value={fundingSource}
 				available={passAvailable}
+				reserved={generation.imagePass?.data?.reserved}
 				failed={generation.imagePass?.isError}
 				onRefresh={() => {
 					void generation.imagePass?.refetch();

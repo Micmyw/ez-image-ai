@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-20 — Clearer image-pack checkout returns
+
+- Show a compact payment choice only when image passes are available or in progress. Keep an explicit credit choice when selected passes run out, without switching payment methods automatically.
+- Return canceled PayPal image-pack checkouts to the purchase page with server-confirmed payment status and clear options to check again or continue generating. Browser Back and refresh preserve checkout context without capturing payment. Older return links require an explicit payment confirmation before capture.
+
 ## 2026-10-19 — $1 PayPal image purchase
 
 - Buy three successful single-image generations for USD 1 across all supported image models and sizes, with PayPal as the only payment option. Additional purchases are supported.

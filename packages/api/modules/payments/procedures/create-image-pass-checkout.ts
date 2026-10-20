@@ -159,6 +159,7 @@ export const createImagePassCheckout = protectedProcedure
 			email: user.email,
 			name: user.name ?? "",
 			redirectUrl: imagePassCheckoutReturnUrl(trustedIntent.id),
+			cancelUrl: imagePassCheckoutCancelUrl(trustedIntent.id),
 			customerId: customer?.providerCustomerId,
 		};
 
@@ -249,6 +250,14 @@ function imagePassCheckoutReturnUrl(intentId: string): string {
 		"/image-pass-checkout-return",
 		getBaseUrl(process.env.NEXT_PUBLIC_SAAS_URL, 3000),
 	);
+	url.searchParams.set("intentId", intentId);
+	url.searchParams.set("approved", "1");
+	return url.toString();
+}
+
+function imagePassCheckoutCancelUrl(intentId: string): string {
+	const url = new URL("/image-pass", getBaseUrl(process.env.NEXT_PUBLIC_SAAS_URL, 3000));
+	url.searchParams.set("canceled", "1");
 	url.searchParams.set("intentId", intentId);
 	return url.toString();
 }

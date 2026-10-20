@@ -11,16 +11,27 @@ export async function generateMetadata() {
 export default async function ImagePassReturnPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ intentId?: string; token?: string }>;
+	searchParams: Promise<{
+		intentId?: string | string[];
+		token?: string | string[];
+		canceled?: string | string[];
+		approved?: string | string[];
+	}>;
 }) {
 	const params = await searchParams;
-	const intentId = params.intentId?.trim();
-	if (!intentId) redirect("/image-pass");
+	const intentId = typeof params.intentId === "string" ? params.intentId.trim() : undefined;
+	if (!intentId || intentId.length > 128) redirect("/image-pass");
+	const canceled = params.canceled !== undefined;
+	if (canceled) redirect(`/image-pass?canceled=1&intentId=${encodeURIComponent(intentId)}`);
 	return (
 		<main className="px-4 py-16 min-h-screen">
 			<ImagePassCheckoutReturnContent
 				intentId={intentId}
-				providerOrderId={params.token?.trim() || undefined}
+				providerOrderId={
+					typeof params.token === "string" ? params.token.trim() || undefined : undefined
+				}
+				canceled={canceled}
+				approved={params.approved === "1"}
 			/>
 		</main>
 	);

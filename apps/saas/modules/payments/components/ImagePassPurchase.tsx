@@ -16,16 +16,24 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { usePaymentAction } from "../hooks/use-payment-action";
+import {
+	clearImagePassCheckoutContext,
+	readImagePassCheckoutContext,
+	saveImagePassCheckoutContext,
+} from "../lib/image-pass-checkout-context";
 import { imagePassOfferQueryOptions } from "../lib/image-pass-offer-query";
 
-export function ImagePassPurchase() {
+export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: boolean } = {}) {
 	const t = useTranslations("imagePass");
 	const session = useSessionQuery();
 	const user = session.data?.user;
 	const ownerId = user && user.isAnonymous !== true ? user.id : null;
 	const offer = IMAGE_PASS_PUBLIC_OFFER;
 	const payment = usePaymentAction();
+	const currentPayment = useRef(payment);
+	currentPayment.current = payment;
 	const balance = useQuery(imagePassBalanceQueryOptions(ownerId));
+	const refreshBalance = balance.refetch;
 	const availability = useQuery(imagePassOfferQueryOptions());
 	const offerAvailable =
 		!availability.isError && !availability.isPending && availability.data?.available === true;
@@ -42,6 +50,67 @@ export function ImagePassPurchase() {
 		};
 	}, []);
 	const [failed, setFailed] = useState(false);
+	const [restored, setRestored] = useState<{ ownerId: string; intentId: string } | null>(null);
+	const checkoutIntentId = restored?.ownerId === ownerId ? restored.intentId : intentId;
+	useEffect(() => {
+		if (!ownerId) {
+			setRestored(null);
+			return;
+		}
+		const savedIntent = intentId || readImagePassCheckoutContext(ownerId);
+		setRestored(savedIntent ? { ownerId, intentId: savedIntent } : null);
+	}, [ownerId, intentId]);
+	const checkoutState = useQuery({
+		...orpc.payments.getImagePassCheckoutState.queryOptions({
+			input: { intentId: checkoutIntentId ?? "" },
+		}),
+		queryKey: ["image-pass-checkout", ownerId, checkoutIntentId],
+		enabled: Boolean(ownerId && checkoutIntentId),
+		refetchInterval: (query) => (query.state.data?.status === "PENDING" ? 3_000 : false),
+	});
+	const status = checkoutState.data?.status;
+	const refreshCheckoutState = checkoutState.refetch;
+	const completed = checkoutState.isSuccess && status === "COMPLETED";
+	useEffect(() => {
+		if (!ownerId || !checkoutIntentId || !checkoutState.isSuccess) return;
+		if (status === "COMPLETED" || status === "EXPIRED" || status === "CANCELED")
+			clearImagePassCheckoutContext(ownerId, checkoutIntentId);
+		else saveImagePassCheckoutContext(ownerId, checkoutIntentId);
+		if (completed) void refreshBalance();
+	}, [ownerId, checkoutIntentId, status, checkoutState.isSuccess, completed, refreshBalance]);
+	useEffect(() => {
+		const restore = (event: Event) => {
+			if (!ownerId) return;
+			if (event.type === "pageshow" && (event as PageTransitionEvent).persisted)
+				pending.current = false;
+			const paymentAction = currentPayment.current;
+			if (
+				paymentAction.action?.key === "image-pass:paypal" &&
+				paymentAction.action.stage === "redirecting"
+			) {
+				pending.current = false;
+				paymentAction.release();
+			}
+			const savedIntent = readImagePassCheckoutContext(ownerId) || intentId;
+			setRestored(savedIntent ? { ownerId, intentId: savedIntent } : null);
+			if (savedIntent && savedIntent === checkoutIntentId) void refreshCheckoutState();
+		};
+		window.addEventListener("pageshow", restore);
+		window.addEventListener("focus", restore);
+		return () => {
+			window.removeEventListener("pageshow", restore);
+			window.removeEventListener("focus", restore);
+		};
+	}, [ownerId, intentId, checkoutIntentId, refreshCheckoutState]);
+	const statusMessage = checkoutState.isError
+		? "checkoutStatusError"
+		: completed
+			? "returnCompleted"
+			: status === "REVIEW"
+				? "returnReview"
+				: status === "EXPIRED" || status === "CANCELED"
+					? "checkoutNotCompleted"
+					: "checkoutUnconfirmed";
 	async function buy() {
 		if (!ownerId || !offerAvailable || pending.current || !payment.acquire("image-pass:paypal"))
 			return;
@@ -51,7 +120,7 @@ export function ImagePassPurchase() {
 			attempt.current = { ownerId, key: crypto.randomUUID() };
 		captureCheckoutTrigger();
 		try {
-			const { checkoutLink } = await checkout.mutateAsync({
+			const { checkoutLink, intentId: createdIntentId } = await checkout.mutateAsync({
 				provider: "paypal",
 				idempotencyKey: attempt.current.key,
 				attribution: await getCurrentCheckoutAttribution(),
@@ -61,7 +130,21 @@ export function ImagePassPurchase() {
 				return;
 			}
 			clearCheckoutTrigger();
+			saveImagePassCheckoutContext(ownerId, createdIntentId);
+			setRestored({ ownerId, intentId: createdIntentId });
 			attempt.current = null;
+			try {
+				const returnUrl = new URL(window.location.href);
+				for (const key of ["intentId", "canceled", "approved", "token"])
+					returnUrl.searchParams.delete(key);
+				window.history.replaceState(
+					window.history.state,
+					"",
+					`${returnUrl.pathname}${returnUrl.search}${returnUrl.hash}`,
+				);
+			} catch {
+				// The new intent is already recoverable even if browser history cannot be updated.
+			}
 			payment.redirecting();
 			window.location.assign(checkoutLink);
 		} catch {
@@ -99,6 +182,37 @@ export function ImagePassPurchase() {
 					{t("balance", { count: balance.data.available })}
 				</p>
 			)}
+			{ownerId && checkoutIntentId && (
+				<div
+					data-testid="image-pass-checkout-status"
+					data-status={checkoutState.isError ? "error" : (status ?? "loading")}
+					className="mt-6 border-violet-300/25 bg-violet-400/10 p-4 rounded-2xl border"
+				>
+					<h2 className="text-sm font-semibold text-violet-100">{t("checkoutStatusTitle")}</h2>
+					<p className="mt-2 text-sm leading-6 text-[#d1c5df]" aria-live="polite">
+						{t(statusMessage)}
+					</p>
+					<div className="mt-3 gap-3 flex flex-wrap items-center">
+						{!completed && (
+							<button
+								type="button"
+								data-testid="image-pass-check-status"
+								onClick={() => void checkoutState.refetch()}
+								disabled={checkoutState.isFetching}
+								className="min-h-10 border-violet-300/30 px-3 text-sm text-violet-100 rounded-lg border disabled:opacity-60"
+							>
+								{t("checkStatus")}
+							</button>
+						)}
+						<Link
+							href="/create"
+							className="min-h-10 text-sm text-violet-200 inline-flex items-center underline underline-offset-4"
+						>
+							{t("continueGenerating")}
+						</Link>
+					</div>
+				</div>
+			)}
 			{!offerAvailable && (
 				<p aria-live="polite" className="mt-5 text-sm text-[#d1c5df]">
 					{availability.isPending ? t("availabilityLoading") : t("unavailable")}
@@ -107,6 +221,7 @@ export function ImagePassPurchase() {
 			{ownerId ? (
 				<button
 					type="button"
+					data-testid="image-pass-buy"
 					onClick={() => void buy()}
 					disabled={!offerAvailable || Boolean(payment.action)}
 					aria-busy={Boolean(payment.action?.key === "image-pass:paypal")}
@@ -117,11 +232,13 @@ export function ImagePassPurchase() {
 							<Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
 							{t("processing")}
 						</>
+					) : checkoutIntentId && !completed ? (
+						t("tryPurchaseAgain")
 					) : (
 						t("pay", { amount: offer.amount, currency: offer.currency })
 					)}
 				</button>
-			) : offerAvailable ? (
+			) : !ownerId && offerAvailable ? (
 				<Link
 					href="/signup?redirectTo=%2Fimage-pass"
 					className="mt-7 min-h-12 bg-white px-5 text-sm font-semibold inline-flex w-full items-center justify-center rounded-xl text-[#34246f]"

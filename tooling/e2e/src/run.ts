@@ -123,6 +123,7 @@ async function main(): Promise<void> {
 							"tests/avatar-upload.spec.ts",
 							"tests/subscription-upgrade.spec.ts",
 							"tests/checkout-review.spec.ts",
+							"tests/image-pass-return.spec.ts",
 							"tests/billing-auth.spec.ts",
 							"tests/attribution.public-seo.spec.ts",
 							// This fixture additionally requires the CI-owned database or a
