@@ -32,6 +32,7 @@ export function getRegistrationAttributionSnapshot(
 	context: RegistrationRequestContext | null | undefined,
 	origin: string,
 	now = new Date(),
+	environment: Record<string, string | undefined> = process.env,
 ): RegistrationAttribution | null {
 	if (!isRegistrationCreationPath(context?.path, context?.params?.id)) return null;
 	const headers = context?.headers ?? context?.request?.headers;
@@ -44,10 +45,35 @@ export function getRegistrationAttributionSnapshot(
 		// cookie.parseCookie decodes the URI-encoded browser cookie once.
 		const value: unknown = JSON.parse(encoded);
 		const firstTouch = sanitizeFirstTouchAttribution(value, origin, now);
-		return firstTouch ? { ...firstTouch, registeredAt: now.toISOString() } : null;
+		const country = trustedRegistrationCountry(headers, environment);
+		return firstTouch
+			? {
+					...firstTouch,
+					registeredAt: now.toISOString(),
+					...(country ? { country, countrySource: "registration_proxy" as const } : {}),
+				}
+			: null;
 	} catch {
 		return null;
 	}
+}
+
+/** Same explicitly configured proxy boundary as guest identity; no IP is stored.
+ * This is the registration request's country, not a reconstructed landing location.
+ */
+export function trustedRegistrationCountry(
+	headers: Headers | undefined,
+	environment: Record<string, string | undefined>,
+): string | null {
+	const provider = environment.MEDIA_TRUSTED_PROXY_PROVIDER?.trim().toLowerCase();
+	const value =
+		provider === "cloudflare"
+			? headers?.get("cf-ipcountry")
+			: provider === "vercel"
+				? headers?.get("x-vercel-ip-country")
+				: null;
+	const country = value?.trim().toUpperCase();
+	return country && /^[A-Z]{2}$/.test(country) && !["XX", "ZZ"].includes(country) ? country : null;
 }
 
 /** The user comes from the adapter's create hook, never from an auth request body. */

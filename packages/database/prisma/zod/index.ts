@@ -102,7 +102,7 @@ export type VideoExecutionScalarFieldEnum = z.infer<typeof VideoExecutionScalarF
 
 // File: GenerationJobScalarFieldEnum.schema.ts
 
-export const GenerationJobScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'quoteId', 'idempotencyKey', 'productKey', 'catalogVersion', 'pricingVersion', 'creditsReserved', 'archivedCreditsCharged', 'archivedCreditsReleased', 'inputSnapshot', 'pricingSnapshot', 'executionEngine', 'status', 'serviceClass', 'dispatchEligibleAt', 'guestTrialId', 'version', 'failureCode', 'failureMessage', 'finalizationStage', 'finalizationRetryCount', 'finalizationErrorCode', 'nextFinalizeAt', 'createdAt', 'updatedAt', 'terminalAt', 'editSessionId', 'parentJobId'])
+export const GenerationJobScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'quoteId', 'idempotencyKey', 'productKey', 'catalogVersion', 'pricingVersion', 'creditsReserved', 'fundingSource', 'archivedCreditsCharged', 'archivedCreditsReleased', 'inputSnapshot', 'pricingSnapshot', 'executionEngine', 'status', 'serviceClass', 'dispatchEligibleAt', 'guestTrialId', 'version', 'failureCode', 'failureMessage', 'finalizationStage', 'finalizationRetryCount', 'finalizationErrorCode', 'nextFinalizeAt', 'createdAt', 'updatedAt', 'terminalAt', 'editSessionId', 'parentJobId'])
 
 export type GenerationJobScalarFieldEnum = z.infer<typeof GenerationJobScalarFieldEnumSchema>;
 
@@ -246,7 +246,7 @@ export type BillingPlanScalarFieldEnum = z.infer<typeof BillingPlanScalarFieldEn
 
 // File: SubscriptionScalarFieldEnum.schema.ts
 
-export const SubscriptionScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'provider', 'providerSubscriptionId', 'planId', 'purchaseId', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd', 'cancellationRequestedAt', 'renewalDisabledAt', 'cancellationError', 'scheduledPlanId', 'lastProviderEventAt', 'lastProviderEventId', 'lastReconciliationSweepId', 'lastReconciliationAppliedSweepId', 'lastReconciledAt', 'graceEndsAt', 'refundTerminationRequestedAt', 'refundTerminationPaymentId', 'refundTerminationEnvironment', 'refundTerminatedAt', 'refundTerminationError', 'createdAt', 'updatedAt'])
+export const SubscriptionScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'provider', 'providerSubscriptionId', 'planId', 'purchaseId', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd', 'cancellationRequestedAt', 'renewalDisabledAt', 'cancellationError', 'scheduledPlanId', 'lastProviderEventAt', 'lastProviderEventId', 'lastReconciliationSweepId', 'lastReconciliationAppliedSweepId', 'lastReconciledAt', 'graceEndsAt', 'refundTerminationRequestedAt', 'refundTerminationPaymentId', 'refundTerminationEnvironment', 'refundTerminatedAt', 'refundTerminationError', 'initialPaymentEvidence', 'createdAt', 'updatedAt'])
 
 export type SubscriptionScalarFieldEnum = z.infer<typeof SubscriptionScalarFieldEnumSchema>;
 
@@ -258,7 +258,7 @@ export type PaymentCustomerScalarFieldEnum = z.infer<typeof PaymentCustomerScala
 
 // File: PaymentCheckoutIntentScalarFieldEnum.schema.ts
 
-export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'productKind', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'providerOrderId', 'providerCheckoutUrl', 'checkoutRecovery', 'attribution', 'activeScopeKey', 'creditPackCatalogVersion', 'creditPackPricingVersion', 'creditPackSubscriberEligibilityVersion', 'creditPackBaseCredits', 'creditPackBonusCredits', 'creditPackTotalCredits', 'creditPackExpiryMonths', 'creditPackSubscriberBonusEligible', 'creditPackSubscriberSubscriptionId', 'creditPackSubscriberPlanKey', 'creditPackEligibilityEvaluatedAt', 'status', 'expiresAt', 'createdAt', 'updatedAt'])
+export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'productKind', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'providerOrderId', 'providerCheckoutUrl', 'checkoutRecovery', 'attribution', 'activeScopeKey', 'creditPackCatalogVersion', 'creditPackPricingVersion', 'creditPackSubscriberEligibilityVersion', 'creditPackBaseCredits', 'creditPackBonusCredits', 'creditPackTotalCredits', 'creditPackExpiryMonths', 'creditPackSubscriberBonusEligible', 'creditPackSubscriberSubscriptionId', 'creditPackSubscriberPlanKey', 'creditPackEligibilityEvaluatedAt', 'status', 'expiresAt', 'createdAt', 'updatedAt', 'imagePassOfferSnapshot'])
 
 export type PaymentCheckoutIntentScalarFieldEnum = z.infer<typeof PaymentCheckoutIntentScalarFieldEnumSchema>;
 
@@ -267,6 +267,36 @@ export type PaymentCheckoutIntentScalarFieldEnum = z.infer<typeof PaymentCheckou
 export const PaymentCheckoutIntentIdempotencyAliasScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'idempotencyKey', 'checkoutIntentId', 'createdAt'])
 
 export type PaymentCheckoutIntentIdempotencyAliasScalarFieldEnum = z.infer<typeof PaymentCheckoutIntentIdempotencyAliasScalarFieldEnumSchema>;
+
+// File: ImagePassGrantScalarFieldEnum.schema.ts
+
+export const ImagePassGrantScalarFieldEnumSchema = z.enum(['id', 'checkoutIntentId', 'purchaseId', 'ownerId', 'provider', 'providerOrderId', 'providerPaymentId', 'paidAmountMicros', 'currency', 'offerSnapshot', 'status', 'paidAt', 'createdAt'])
+
+export type ImagePassGrantScalarFieldEnum = z.infer<typeof ImagePassGrantScalarFieldEnumSchema>;
+
+// File: ImagePassUnitScalarFieldEnum.schema.ts
+
+export const ImagePassUnitScalarFieldEnumSchema = z.enum(['id', 'grantId', 'ordinal', 'status'])
+
+export type ImagePassUnitScalarFieldEnum = z.infer<typeof ImagePassUnitScalarFieldEnumSchema>;
+
+// File: ImagePassReservationScalarFieldEnum.schema.ts
+
+export const ImagePassReservationScalarFieldEnumSchema = z.enum(['id', 'unitId', 'jobId', 'ownerId', 'status', 'createdAt', 'finalizedAt'])
+
+export type ImagePassReservationScalarFieldEnum = z.infer<typeof ImagePassReservationScalarFieldEnumSchema>;
+
+// File: ImagePassLedgerEntryScalarFieldEnum.schema.ts
+
+export const ImagePassLedgerEntryScalarFieldEnumSchema = z.enum(['id', 'grantId', 'unitId', 'jobId', 'operation', 'referenceKey', 'metadata', 'createdAt'])
+
+export type ImagePassLedgerEntryScalarFieldEnum = z.infer<typeof ImagePassLedgerEntryScalarFieldEnumSchema>;
+
+// File: ImagePassAdjustmentScalarFieldEnum.schema.ts
+
+export const ImagePassAdjustmentScalarFieldEnumSchema = z.enum(['id', 'grantId', 'provider', 'providerAdjustmentId', 'kind', 'amountMicros', 'currency', 'occurredAt', 'createdAt'])
+
+export type ImagePassAdjustmentScalarFieldEnum = z.infer<typeof ImagePassAdjustmentScalarFieldEnumSchema>;
 
 // File: CreditPackFulfillmentScalarFieldEnum.schema.ts
 
@@ -382,6 +412,54 @@ export const VideoTemplateExecutionScalarFieldEnumSchema = z.enum(['jobId', 'tem
 
 export type VideoTemplateExecutionScalarFieldEnum = z.infer<typeof VideoTemplateExecutionScalarFieldEnumSchema>;
 
+// File: AdminServiceAccountScalarFieldEnum.schema.ts
+
+export const AdminServiceAccountScalarFieldEnumSchema = z.enum(['id', 'name', 'scope', 'scopeKey', 'permissions', 'disabledAt', 'createdByUserId', 'createdAt', 'updatedAt'])
+
+export type AdminServiceAccountScalarFieldEnum = z.infer<typeof AdminServiceAccountScalarFieldEnumSchema>;
+
+// File: AdminApiKeyScalarFieldEnum.schema.ts
+
+export const AdminApiKeyScalarFieldEnumSchema = z.enum(['id', 'serviceAccountId', 'name', 'keyHash', 'keyPrefix', 'expiresAt', 'revokedAt', 'lastUsedAt', 'createdByUserId', 'createdAt'])
+
+export type AdminApiKeyScalarFieldEnum = z.infer<typeof AdminApiKeyScalarFieldEnumSchema>;
+
+// File: AdminExecutionScalarFieldEnum.schema.ts
+
+export const AdminExecutionScalarFieldEnumSchema = z.enum(['id', 'actorId', 'actorType', 'credentialId', 'scope', 'scopeKey', 'operation', 'inputHash', 'targetId', 'status', 'response', 'errorCode', 'createdAt', 'completedAt'])
+
+export type AdminExecutionScalarFieldEnum = z.infer<typeof AdminExecutionScalarFieldEnumSchema>;
+
+// File: AdminBotConfigScalarFieldEnum.schema.ts
+
+export const AdminBotConfigScalarFieldEnumSchema = z.enum(['id', 'payload', 'encryptedSecrets', 'version', 'updatedBy', 'createdAt', 'updatedAt'])
+
+export type AdminBotConfigScalarFieldEnum = z.infer<typeof AdminBotConfigScalarFieldEnumSchema>;
+
+// File: AdminBotReceiptScalarFieldEnum.schema.ts
+
+export const AdminBotReceiptScalarFieldEnumSchema = z.enum(['id', 'eventKey', 'event', 'status', 'results', 'createdAt', 'completedAt'])
+
+export type AdminBotReceiptScalarFieldEnum = z.infer<typeof AdminBotReceiptScalarFieldEnumSchema>;
+
+// File: SupportTicketScalarFieldEnum.schema.ts
+
+export const SupportTicketScalarFieldEnumSchema = z.enum(['id', 'createdByUserId', 'organizationId', 'subject', 'status', 'requestKey', 'createdAt', 'updatedAt'])
+
+export type SupportTicketScalarFieldEnum = z.infer<typeof SupportTicketScalarFieldEnumSchema>;
+
+// File: SupportTicketMessageScalarFieldEnum.schema.ts
+
+export const SupportTicketMessageScalarFieldEnumSchema = z.enum(['id', 'ticketId', 'authorType', 'authorId', 'body', 'requestKey', 'createdAt'])
+
+export type SupportTicketMessageScalarFieldEnum = z.infer<typeof SupportTicketMessageScalarFieldEnumSchema>;
+
+// File: AdminRefundRequestScalarFieldEnum.schema.ts
+
+export const AdminRefundRequestScalarFieldEnumSchema = z.enum(['id', 'paymentKey', 'orderNo', 'ownerType', 'ownerId', 'provider', 'providerEnvironment', 'productKind', 'providerPaymentId', 'providerOrderId', 'subscriptionId', 'amountMicros', 'currency', 'status', 'providerRequestId', 'providerRefundId', 'reason', 'cancelSubscription', 'requestedBy', 'processingToken', 'processingLeasedUntil', 'providerAcceptedAt', 'completedAt', 'lastError', 'result', 'createdAt', 'updatedAt'])
+
+export type AdminRefundRequestScalarFieldEnum = z.infer<typeof AdminRefundRequestScalarFieldEnumSchema>;
+
 // File: SortOrder.schema.ts
 
 export const SortOrderSchema = z.enum(['asc', 'desc'])
@@ -426,7 +504,7 @@ export type PurchaseType = z.infer<typeof PurchaseTypeSchema>;
 
 // File: PaymentProductKind.schema.ts
 
-export const PaymentProductKindSchema = z.enum(['PLAN', 'CREDIT_PACK'])
+export const PaymentProductKindSchema = z.enum(['PLAN', 'CREDIT_PACK', 'IMAGE_PASS'])
 
 export type PaymentProductKind = z.infer<typeof PaymentProductKindSchema>;
 
@@ -522,7 +600,7 @@ export type CreditReservationStatus = z.infer<typeof CreditReservationStatusSche
 
 // File: CreditLedgerEntryType.schema.ts
 
-export const CreditLedgerEntryTypeSchema = z.enum(['GRANT', 'RESERVE', 'SETTLE', 'RELEASE', 'EXPIRE', 'REFUND', 'DEBT_REPAYMENT', 'DEBT_INCURRED'])
+export const CreditLedgerEntryTypeSchema = z.enum(['GRANT', 'RESERVE', 'SETTLE', 'RELEASE', 'EXPIRE', 'REFUND', 'DEBT_REPAYMENT', 'DEBT_INCURRED', 'ADMIN_DEDUCT'])
 
 export type CreditLedgerEntryType = z.infer<typeof CreditLedgerEntryTypeSchema>;
 
@@ -950,6 +1028,7 @@ export const GenerationJobSchema = z.object({
   catalogVersion: z.string(),
   pricingVersion: z.string(),
   creditsReserved: z.bigint(),
+  fundingSource: z.string().default("CREDITS"),
   archivedCreditsCharged: z.bigint().nullish(),
   archivedCreditsReleased: z.bigint().nullish(),
   inputSnapshot: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
@@ -1520,6 +1599,7 @@ export const SubscriptionSchema = z.object({
   refundTerminationEnvironment: z.string().nullish(),
   refundTerminatedAt: z.date().nullish(),
   refundTerminationError: z.string().nullish(),
+  initialPaymentEvidence: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });
@@ -1576,6 +1656,7 @@ export const PaymentCheckoutIntentSchema = z.object({
   expiresAt: z.date().nullish(),
   createdAt: z.date(),
   updatedAt: z.date(),
+  imagePassOfferSnapshot: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
 });
 
 export type PaymentCheckoutIntentType = z.infer<typeof PaymentCheckoutIntentSchema>;
@@ -1593,6 +1674,87 @@ export const PaymentCheckoutIntentIdempotencyAliasSchema = z.object({
 });
 
 export type PaymentCheckoutIntentIdempotencyAliasType = z.infer<typeof PaymentCheckoutIntentIdempotencyAliasSchema>;
+
+
+// File: ImagePassGrant.schema.ts
+
+export const ImagePassGrantSchema = z.object({
+  id: z.string(),
+  checkoutIntentId: z.string(),
+  purchaseId: z.string().nullish(),
+  ownerId: z.string(),
+  provider: z.string(),
+  providerOrderId: z.string(),
+  providerPaymentId: z.string(),
+  paidAmountMicros: z.bigint(),
+  currency: z.string(),
+  offerSnapshot: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
+  status: z.string().default("ACTIVE"),
+  paidAt: z.date(),
+  createdAt: z.date(),
+});
+
+export type ImagePassGrantType = z.infer<typeof ImagePassGrantSchema>;
+
+
+// File: ImagePassUnit.schema.ts
+
+export const ImagePassUnitSchema = z.object({
+  id: z.string(),
+  grantId: z.string(),
+  ordinal: z.number().int(),
+  status: z.string().default("AVAILABLE"),
+});
+
+export type ImagePassUnitType = z.infer<typeof ImagePassUnitSchema>;
+
+
+// File: ImagePassReservation.schema.ts
+
+export const ImagePassReservationSchema = z.object({
+  id: z.string(),
+  unitId: z.string(),
+  jobId: z.string(),
+  ownerId: z.string(),
+  status: z.string().default("ACTIVE"),
+  createdAt: z.date(),
+  finalizedAt: z.date().nullish(),
+});
+
+export type ImagePassReservationType = z.infer<typeof ImagePassReservationSchema>;
+
+
+// File: ImagePassLedgerEntry.schema.ts
+
+export const ImagePassLedgerEntrySchema = z.object({
+  id: z.string(),
+  grantId: z.string(),
+  unitId: z.string().nullish(),
+  jobId: z.string().nullish(),
+  operation: z.string(),
+  referenceKey: z.string(),
+  metadata: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
+  createdAt: z.date(),
+});
+
+export type ImagePassLedgerEntryType = z.infer<typeof ImagePassLedgerEntrySchema>;
+
+
+// File: ImagePassAdjustment.schema.ts
+
+export const ImagePassAdjustmentSchema = z.object({
+  id: z.string(),
+  grantId: z.string(),
+  provider: z.string(),
+  providerAdjustmentId: z.string(),
+  kind: z.string(),
+  amountMicros: z.bigint(),
+  currency: z.string(),
+  occurredAt: z.date(),
+  createdAt: z.date(),
+});
+
+export type ImagePassAdjustmentType = z.infer<typeof ImagePassAdjustmentSchema>;
 
 
 // File: CreditPackFulfillment.schema.ts
@@ -1980,4 +2142,157 @@ export const VideoTemplateExecutionSchema = z.object({
 });
 
 export type VideoTemplateExecutionType = z.infer<typeof VideoTemplateExecutionSchema>;
+
+
+// File: AdminServiceAccount.schema.ts
+
+export const AdminServiceAccountSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  scope: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
+  scopeKey: z.string(),
+  permissions: z.array(z.string()),
+  disabledAt: z.date().nullish(),
+  createdByUserId: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type AdminServiceAccountType = z.infer<typeof AdminServiceAccountSchema>;
+
+
+// File: AdminApiKey.schema.ts
+
+export const AdminApiKeySchema = z.object({
+  id: z.string(),
+  serviceAccountId: z.string(),
+  name: z.string(),
+  keyHash: z.string(),
+  keyPrefix: z.string(),
+  expiresAt: z.date(),
+  revokedAt: z.date().nullish(),
+  lastUsedAt: z.date().nullish(),
+  createdByUserId: z.string(),
+  createdAt: z.date(),
+});
+
+export type AdminApiKeyType = z.infer<typeof AdminApiKeySchema>;
+
+
+// File: AdminExecution.schema.ts
+
+export const AdminExecutionSchema = z.object({
+  id: z.string(),
+  actorId: z.string(),
+  actorType: z.string(),
+  credentialId: z.string().nullish(),
+  scope: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
+  scopeKey: z.string(),
+  operation: z.string(),
+  inputHash: z.string(),
+  targetId: z.string().nullish(),
+  status: z.string(),
+  response: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
+  errorCode: z.string().nullish(),
+  createdAt: z.date(),
+  completedAt: z.date().nullish(),
+});
+
+export type AdminExecutionType = z.infer<typeof AdminExecutionSchema>;
+
+
+// File: AdminBotConfig.schema.ts
+
+export const AdminBotConfigSchema = z.object({
+  id: z.string(),
+  payload: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
+  encryptedSecrets: z.string().nullish(),
+  version: z.number().int().default(1),
+  updatedBy: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type AdminBotConfigType = z.infer<typeof AdminBotConfigSchema>;
+
+
+// File: AdminBotReceipt.schema.ts
+
+export const AdminBotReceiptSchema = z.object({
+  id: z.string(),
+  eventKey: z.string(),
+  event: z.string(),
+  status: z.string(),
+  results: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
+  createdAt: z.date(),
+  completedAt: z.date().nullish(),
+});
+
+export type AdminBotReceiptType = z.infer<typeof AdminBotReceiptSchema>;
+
+
+// File: SupportTicket.schema.ts
+
+export const SupportTicketSchema = z.object({
+  id: z.string(),
+  createdByUserId: z.string(),
+  organizationId: z.string().nullish(),
+  subject: z.string(),
+  status: z.string().default("OPEN"),
+  requestKey: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type SupportTicketType = z.infer<typeof SupportTicketSchema>;
+
+
+// File: SupportTicketMessage.schema.ts
+
+export const SupportTicketMessageSchema = z.object({
+  id: z.string(),
+  ticketId: z.string(),
+  authorType: z.string(),
+  authorId: z.string(),
+  body: z.string(),
+  requestKey: z.string(),
+  createdAt: z.date(),
+});
+
+export type SupportTicketMessageType = z.infer<typeof SupportTicketMessageSchema>;
+
+
+// File: AdminRefundRequest.schema.ts
+
+export const AdminRefundRequestSchema = z.object({
+  id: z.string(),
+  paymentKey: z.string(),
+  orderNo: z.string(),
+  ownerType: OwnerTypeSchema,
+  ownerId: z.string(),
+  provider: z.string(),
+  providerEnvironment: z.string(),
+  productKind: PaymentProductKindSchema,
+  providerPaymentId: z.string(),
+  providerOrderId: z.string().nullish(),
+  subscriptionId: z.string().nullish(),
+  amountMicros: z.bigint(),
+  currency: z.string(),
+  status: z.string().default("PENDING"),
+  providerRequestId: z.string(),
+  providerRefundId: z.string().nullish(),
+  reason: z.string().nullish(),
+  cancelSubscription: z.boolean(),
+  requestedBy: z.string(),
+  processingToken: z.string().nullish(),
+  processingLeasedUntil: z.date().nullish(),
+  providerAcceptedAt: z.date().nullish(),
+  completedAt: z.date().nullish(),
+  lastError: z.string().nullish(),
+  result: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type AdminRefundRequestType = z.infer<typeof AdminRefundRequestSchema>;
 

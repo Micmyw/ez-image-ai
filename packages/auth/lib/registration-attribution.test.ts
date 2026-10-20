@@ -8,6 +8,7 @@ import {
 	getRegistrationAttributionSnapshot,
 	persistNewUserRegistrationAttribution,
 	shouldClearRegistrationAttributionCookie,
+	trustedRegistrationCountry,
 } from "./registration-attribution";
 
 const now = new Date("2026-10-08T12:00:00.000Z");
@@ -35,6 +36,60 @@ function context(path: string, value: unknown = firstTouch, consent = "true") {
 }
 
 describe("registration attribution boundary", () => {
+	it("records the consented registration region only from the configured proxy", () => {
+		const captured = context("/sign-up/email", {
+			...firstTouch,
+			utmTerm: "portrait",
+			utmContent: "hero",
+		});
+		captured.request.headers.set("cf-ipcountry", "US");
+		captured.request.headers.set("x-vercel-ip-country", "DE");
+		expect(getRegistrationAttributionSnapshot(captured, origin, now, {})).not.toHaveProperty(
+			"country",
+		);
+		expect(
+			getRegistrationAttributionSnapshot(captured, origin, now, {
+				MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
+			}),
+		).toMatchObject({
+			utmTerm: "portrait",
+			utmContent: "hero",
+			country: "US",
+			countrySource: "registration_proxy",
+		});
+		expect(
+			getRegistrationAttributionSnapshot(captured, origin, now, {
+				MEDIA_TRUSTED_PROXY_PROVIDER: "vercel",
+			}),
+		).toMatchObject({ country: "DE" });
+		captured.request.headers.set(
+			"cookie",
+			captured.request.headers.get("cookie")!.replace("consent=true", "consent=false"),
+		);
+		expect(
+			getRegistrationAttributionSnapshot(captured, origin, now, {
+				MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
+			}),
+		).toBeNull();
+	});
+
+	it("keeps unsupported geography unknown and rejects cookie supplied geography", () => {
+		for (const value of ["XX", "T1", "ZZ", "US,DE", "US<script>"]) {
+			expect(
+				trustedRegistrationCountry(new Headers({ "cf-ipcountry": value }), {
+					MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
+				}),
+			).toBeNull();
+		}
+		expect(
+			getRegistrationAttributionSnapshot(
+				context("/sign-up/email", { ...firstTouch, country: "US" }),
+				origin,
+				now,
+			),
+		).toBeNull();
+	});
+
 	it.each([
 		"/sign-up/email",
 		"/sign-in/social",

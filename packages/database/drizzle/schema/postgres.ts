@@ -17,7 +17,11 @@ import {
 
 export const purchaseTypeEnum = pgEnum("PurchaseType", ["SUBSCRIPTION", "ONE_TIME"]);
 
-export const paymentProductKindEnum = pgEnum("PaymentProductKind", ["PLAN", "CREDIT_PACK"]);
+export const paymentProductKindEnum = pgEnum("PaymentProductKind", [
+	"PLAN",
+	"CREDIT_PACK",
+	"IMAGE_PASS",
+]);
 
 export const ownerTypeEnum = pgEnum("OwnerType", ["USER", "ORGANIZATION"]);
 
@@ -685,6 +689,7 @@ export const userRelations = relations(user, ({ many }) => ({
 	purchases: many(purchase),
 	notifications: many(notification),
 	notificationPreferences: many(userNotificationPreference),
+	supportTickets: many(supportTicket),
 }));
 
 export const sessionRelations = relations(session, ({ one }) => ({
@@ -713,6 +718,7 @@ export const organizationRelations = relations(organization, ({ many }) => ({
 	invitations: many(invitation),
 
 	purchases: many(purchase),
+	supportTickets: many(supportTicket),
 }));
 
 export const memberRelations = relations(member, ({ one }) => ({
@@ -896,3 +902,241 @@ export const moderationIncidentTarget = pgTable(
 	},
 	(table) => [primaryKey({ columns: [table.incidentId, table.targetType, table.targetId] })],
 );
+
+// Machine principals are separate from Better Auth users and cannot sign in.
+export const adminServiceAccount = pgTable(
+	"admin_service_account",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		name: text("name").notNull(),
+		scope: jsonb("scope").notNull(),
+		scopeKey: text("scopeKey").notNull(),
+		permissions: text("permissions").array().default([]).notNull(),
+		disabledAt: timestamp("disabledAt", { withTimezone: true, precision: 3 }),
+		createdByUserId: text("createdByUserId").notNull(),
+		createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt", { withTimezone: true, precision: 3 })
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("admin_service_account_scopeKey_createdAt_idx").on(table.scopeKey, table.createdAt),
+	],
+);
+
+export const adminApiKey = pgTable(
+	"admin_api_key",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		serviceAccountId: text("serviceAccountId")
+			.notNull()
+			.references(() => adminServiceAccount.id, { onDelete: "restrict", onUpdate: "cascade" }),
+		name: text("name").notNull(),
+		keyHash: text("keyHash").notNull().unique(),
+		keyPrefix: text("keyPrefix").notNull(),
+		expiresAt: timestamp("expiresAt", { withTimezone: true, precision: 3 }).notNull(),
+		revokedAt: timestamp("revokedAt", { withTimezone: true, precision: 3 }),
+		lastUsedAt: timestamp("lastUsedAt", { withTimezone: true, precision: 3 }),
+		createdByUserId: text("createdByUserId").notNull(),
+		createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("admin_api_key_serviceAccountId_createdAt_idx").on(
+			table.serviceAccountId,
+			table.createdAt,
+		),
+	],
+);
+
+// Execution journal only; financial entries remain in the existing credit ledger.
+export const adminExecution = pgTable(
+	"admin_execution",
+	{
+		id: text("id").primaryKey(),
+		actorId: text("actorId").notNull(),
+		actorType: text("actorType").notNull(),
+		credentialId: text("credentialId"),
+		scope: jsonb("scope").notNull(),
+		scopeKey: text("scopeKey").notNull(),
+		operation: text("operation").notNull(),
+		inputHash: text("inputHash").notNull(),
+		targetId: text("targetId"),
+		status: text("status").notNull(),
+		response: jsonb("response"),
+		errorCode: text("errorCode"),
+		createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).defaultNow().notNull(),
+		completedAt: timestamp("completedAt", { withTimezone: true, precision: 3 }),
+	},
+	(table) => [
+		index("admin_execution_actorId_scopeKey_createdAt_idx").on(
+			table.actorId,
+			table.scopeKey,
+			table.createdAt,
+		),
+		index("admin_execution_operation_createdAt_idx").on(table.operation, table.createdAt),
+	],
+);
+
+export const adminBotConfig = pgTable("admin_bot_config", {
+	id: text("id").primaryKey(),
+	payload: jsonb("payload").notNull(),
+	encryptedSecrets: text("encryptedSecrets"),
+	version: integer("version").default(1).notNull(),
+	updatedBy: text("updatedBy").notNull(),
+	createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).defaultNow().notNull(),
+	updatedAt: timestamp("updatedAt", { withTimezone: true, precision: 3 })
+		.$onUpdate(() => new Date())
+		.notNull(),
+});
+
+// Once-only best-effort delivery claim, not a reliable retry queue.
+export const adminBotReceipt = pgTable("admin_bot_receipt", {
+	id: text("id").primaryKey(),
+	eventKey: text("eventKey").notNull().unique(),
+	event: text("event").notNull(),
+	status: text("status").notNull(),
+	results: jsonb("results"),
+	createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).defaultNow().notNull(),
+	completedAt: timestamp("completedAt", { withTimezone: true, precision: 3 }),
+});
+
+export const supportTicket = pgTable(
+	"support_ticket",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		createdByUserId: text("createdByUserId")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
+		organizationId: text("organizationId").references(() => organization.id, {
+			onDelete: "cascade",
+			onUpdate: "cascade",
+		}),
+		subject: text("subject").notNull(),
+		status: text("status").default("OPEN").notNull(),
+		requestKey: text("requestKey").notNull(),
+		createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt", { withTimezone: true, precision: 3 })
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("support_ticket_createdByUserId_requestKey_key").on(
+			table.createdByUserId,
+			table.requestKey,
+		),
+		index("support_ticket_createdByUserId_updatedAt_idx").on(
+			table.createdByUserId,
+			table.updatedAt,
+		),
+		index("support_ticket_organizationId_updatedAt_idx").on(table.organizationId, table.updatedAt),
+		index("support_ticket_status_updatedAt_idx").on(table.status, table.updatedAt),
+	],
+);
+
+export const supportTicketMessage = pgTable(
+	"support_ticket_message",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		ticketId: text("ticketId")
+			.notNull()
+			.references(() => supportTicket.id, { onDelete: "cascade", onUpdate: "cascade" }),
+		authorType: text("authorType").notNull(),
+		authorId: text("authorId").notNull(),
+		body: text("body").notNull(),
+		requestKey: text("requestKey").notNull(),
+		createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("support_ticket_message_ticketId_requestKey_key").on(
+			table.ticketId,
+			table.requestKey,
+		),
+		index("support_ticket_message_ticketId_createdAt_idx").on(table.ticketId, table.createdAt),
+	],
+);
+
+export const adminRefundRequest = pgTable(
+	"admin_refund_request",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		paymentKey: text("paymentKey").notNull().unique(),
+		orderNo: text("orderNo").notNull(),
+		ownerType: ownerTypeEnum("ownerType").notNull(),
+		ownerId: text("ownerId").notNull(),
+		provider: text("provider").notNull(),
+		providerEnvironment: text("providerEnvironment").notNull(),
+		productKind: paymentProductKindEnum("productKind").notNull(),
+		providerPaymentId: text("providerPaymentId").notNull(),
+		providerOrderId: text("providerOrderId"),
+		subscriptionId: text("subscriptionId"),
+		amountMicros: bigint("amountMicros", { mode: "bigint" }).notNull(),
+		currency: text("currency").notNull(),
+		status: text("status").default("PENDING").notNull(),
+		providerRequestId: text("providerRequestId").notNull().unique(),
+		providerRefundId: text("providerRefundId"),
+		reason: text("reason"),
+		cancelSubscription: boolean("cancelSubscription").default(false).notNull(),
+		requestedBy: text("requestedBy").notNull(),
+		processingToken: text("processingToken"),
+		processingLeasedUntil: timestamp("processingLeasedUntil", {
+			withTimezone: true,
+			precision: 3,
+		}),
+		providerAcceptedAt: timestamp("providerAcceptedAt", { withTimezone: true, precision: 3 }),
+		completedAt: timestamp("completedAt", { withTimezone: true, precision: 3 }),
+		lastError: text("lastError"),
+		result: jsonb("result"),
+		createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt", { withTimezone: true, precision: 3 })
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("admin_refund_request_ownerType_ownerId_createdAt_idx").on(
+			table.ownerType,
+			table.ownerId,
+			table.createdAt,
+		),
+		index("admin_refund_request_status_updatedAt_idx").on(table.status, table.updatedAt),
+	],
+);
+
+export const adminServiceAccountRelations = relations(adminServiceAccount, ({ many }) => ({
+	keys: many(adminApiKey),
+}));
+
+export const adminApiKeyRelations = relations(adminApiKey, ({ one }) => ({
+	account: one(adminServiceAccount, {
+		fields: [adminApiKey.serviceAccountId],
+		references: [adminServiceAccount.id],
+	}),
+}));
+
+export const supportTicketRelations = relations(supportTicket, ({ one, many }) => ({
+	createdByUser: one(user, {
+		fields: [supportTicket.createdByUserId],
+		references: [user.id],
+	}),
+	organization: one(organization, {
+		fields: [supportTicket.organizationId],
+		references: [organization.id],
+	}),
+	messages: many(supportTicketMessage),
+}));
+
+export const supportTicketMessageRelations = relations(supportTicketMessage, ({ one }) => ({
+	ticket: one(supportTicket, {
+		fields: [supportTicketMessage.ticketId],
+		references: [supportTicket.id],
+	}),
+}));

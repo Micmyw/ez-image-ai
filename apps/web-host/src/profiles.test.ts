@@ -28,6 +28,7 @@ import { describe, expect, it } from "vitest";
 
 import { rumpelstiltskinEnvironmentFixture } from "../test-support/rumpelstiltskin-fixture";
 import { readCloudflareBuildEnvironment } from "./build-secrets";
+import { publicBuildVariables } from "./deployment";
 import { assessOptionalVideoEffectOptions } from "./optional-video-effect-readiness";
 import {
 	createProfileArtifacts,
@@ -71,6 +72,35 @@ describe("deployment profiles", () => {
 			KIE_API_KEY: "runtime-secret",
 		});
 	});
+	it.each(["workers", "hybrid"] as const)(
+		"keeps bot credentials private and synchronized across the %s profile",
+		(profile) => {
+			const privateBot = {
+				ADMIN_BOT_ENCRYPTION_KEY: Buffer.alloc(32, 7).toString("base64"),
+				ADMIN_BOT_ALLOWED_HOSTS: "notify.example.test",
+			};
+			const result = artifacts(profile, privateBot);
+			for (const target of ["website", "workflows"] as const) {
+				expect(result[`${target}.secrets`]).toMatchObject(privateBot);
+				expect(JSON.stringify(result[target])).not.toContain("ADMIN_BOT_");
+				const videoPolicy = JSON.parse(result[`${target}.secrets`].VIDEO_RUNTIME_CONFIG ?? "{}");
+				for (const key of Object.keys(privateBot)) expect(videoPolicy).not.toHaveProperty(key);
+			}
+			if (profile === "hybrid")
+				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).toMatchObject(privateBot);
+			expect(
+				publicBuildVariables({
+					...privateBot,
+					NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
+				}),
+			).toEqual({ NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com" });
+			expect(() =>
+				publicBuildVariables({
+					NEXT_PUBLIC_ADMIN_BOT_ENCRYPTION_KEY: privateBot.ADMIN_BOT_ENCRYPTION_KEY,
+				}),
+			).toThrow("UNRECOGNIZED_PUBLIC_VARIABLE");
+		},
+	);
 	it("packs image model switches without packing global, moderation, or billing controls", () => {
 		const environment = workersRuntimeEnvironment({
 			MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",

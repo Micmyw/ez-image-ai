@@ -1,5 +1,6 @@
 import { claimPaymentEvent, failPaymentEvent, runSerializable, type Prisma } from "@repo/database";
 import { logger } from "@repo/logs";
+import { notifyAdminPaymentSuccess } from "@repo/notifications/admin-bots";
 
 import type { StripeBillingSource } from "./billing-source";
 import { normalizeStripePaymentEvent } from "./event-normalizer";
@@ -105,7 +106,7 @@ export async function processClaimedStripePaymentEvent(
 		});
 		const transactionFenceTime = input.now ?? new Date();
 
-		return await runSerializable(client, async (tx) => {
+		const committed = await runSerializable(client, async (tx) => {
 			const rows = await tx.$queryRaw<
 				Array<{
 					id: string;
@@ -131,13 +132,50 @@ export async function processClaimedStripePaymentEvent(
 				return { outcome: "IGNORED" as const, grantsCreated: 0 };
 			}
 
+			const paymentWhere =
+				normalized.fact.kind === "PAID_INVOICE"
+					? {
+							providerInvoicePaymentId: normalized.fact.providerInvoicePaymentId,
+							subscription: {
+								provider: "stripe",
+								providerSubscriptionId: normalized.fact.providerSubscriptionId,
+							},
+						}
+					: null;
+			const existingPayment = paymentWhere
+				? await tx.billingPeriod.findFirst({ where: paymentWhere, select: { id: true } })
+				: null;
 			const result = await applyStripeBillingFact(normalized.fact, tx, {
 				paymentEventId: input.paymentEventId,
 				now: transactionFenceTime,
 			});
 			await finishPaymentEvent(input, transactionFenceTime, "PROCESSED", tx);
-			return { outcome: "PROCESSED" as const, grantsCreated: result.grantsCreated };
+			const paymentNewlyRecorded =
+				!!paymentWhere &&
+				!existingPayment &&
+				!!(await tx.billingPeriod.findFirst({ where: paymentWhere, select: { id: true } }));
+			return {
+				outcome: "PROCESSED" as const,
+				grantsCreated: result.grantsCreated,
+				paymentNewlyRecorded,
+			};
 		});
+		if (
+			"paymentNewlyRecorded" in committed &&
+			committed.paymentNewlyRecorded &&
+			normalized.fact?.kind === "PAID_INVOICE"
+		) {
+			await notifyAdminPaymentSuccess({
+				paymentEventId: input.paymentEventId,
+				provider: "stripe",
+				kind: "subscription",
+				providerPaymentId: normalized.fact.providerInvoicePaymentId,
+				providerSubscriptionId: normalized.fact.providerSubscriptionId,
+			}).catch(() =>
+				logger.warn({ paymentEventId: input.paymentEventId }, "Admin payment notification failed"),
+			);
+		}
+		return { outcome: committed.outcome, grantsCreated: committed.grantsCreated };
 	} catch (error) {
 		if (error instanceof PaymentEventFenceError) {
 			const event = await client.paymentEvent.findUnique({

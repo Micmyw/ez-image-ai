@@ -7,6 +7,7 @@ import {
 } from "@repo/database";
 import { getImagePassPurchaseByProviderPayment } from "@repo/database";
 import { logger } from "@repo/logs";
+import { notifyAdminPaymentSuccess } from "@repo/notifications/admin-bots";
 
 import { applyCreditPackPaymentFact, applyCreditPackRefundFact } from "./credit-pack-reducer";
 import {
@@ -177,8 +178,18 @@ export async function processClaimedProviderPaymentEvent(
 			};
 		}
 		const transactionFenceTime = input.now ?? new Date();
+		const subscriptionPaymentWhere =
+			normalized.kind === "SUBSCRIPTION" && normalized.fact.payment
+				? {
+						providerInvoicePaymentId: `${provider}:${normalized.fact.payment.providerPaymentId}`,
+						subscription: {
+							provider,
+							providerSubscriptionId: normalized.fact.providerSubscriptionId,
+						},
+					}
+				: null;
 
-		return await runSerializable(client, async (tx) => {
+		const committed = await runSerializable(client, async (tx) => {
 			const rows = await tx.$queryRaw<
 				Array<{
 					id: string;
@@ -199,14 +210,58 @@ export async function processClaimedProviderPaymentEvent(
 				throw new PaymentEventFenceError();
 			}
 
+			const existingPayment = subscriptionPaymentWhere
+				? await tx.billingPeriod.findFirst({
+						where: subscriptionPaymentWhere,
+						select: { id: true },
+					})
+				: null;
 			const result = await applyVerifiedProviderFact(normalized, tx, {
 				paymentEventId: input.paymentEventId,
 				providerEnvironment: event.providerEnvironment,
 				now: transactionFenceTime,
 			});
 			await finishPaymentEvent(input, transactionFenceTime, tx);
-			return { outcome: "PROCESSED" as const, grantsCreated: result.grantsCreated };
+			const paymentNewlyRecorded = subscriptionPaymentWhere
+				? !existingPayment &&
+					!!(await tx.billingPeriod.findFirst({
+						where: subscriptionPaymentWhere,
+						select: { id: true },
+					}))
+				: result.grantsCreated > 0;
+			return {
+				outcome: "PROCESSED" as const,
+				grantsCreated: result.grantsCreated,
+				paymentNewlyRecorded,
+			};
 		});
+		// The newly committed payment binding is the settlement winner. A prepaid
+		// future period can be paid before its credit grant becomes active.
+		// External bot work is strictly after commit and never enters payment retry.
+		if (committed.paymentNewlyRecorded) {
+			const payment =
+				normalized.kind === "CREDIT_PACK_PAID"
+					? { kind: "one-time" as const, providerPaymentId: normalized.fact.providerPaymentId }
+					: normalized.kind === "SUBSCRIPTION" && normalized.fact.payment
+						? {
+								kind: "subscription" as const,
+								providerPaymentId: normalized.fact.payment.providerPaymentId,
+								providerSubscriptionId: normalized.fact.providerSubscriptionId,
+							}
+						: null;
+			if (payment)
+				await notifyAdminPaymentSuccess({
+					paymentEventId: input.paymentEventId,
+					provider,
+					...payment,
+				}).catch(() =>
+					logger.warn(
+						{ paymentEventId: input.paymentEventId },
+						"Admin payment notification failed",
+					),
+				);
+		}
+		return { outcome: committed.outcome, grantsCreated: committed.grantsCreated };
 	} catch (error) {
 		if (error instanceof PaymentEventFenceError) {
 			const event = await client.paymentEvent.findUnique({

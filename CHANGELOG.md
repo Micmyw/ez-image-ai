@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-20 — Administrative operations and support
+
+- Add real business overviews, registration cohorts, period reports and acquisition filters, with currency-separated revenue and explicit unknown historical evidence.
+- Add private account/organization support tickets and configurable Telegram, Feishu, WeCom and Webhook notifications with encrypted credentials and isolated delivery failures.
+- Add scoped administrator service accounts, expiring hash-only keys, a shared audited REST/OpenAPI/MCP execution contract and a standalone management Skill.
+- Add provider-backed full refund requests, reconciliation and independent credit adjustments. Preserve existing credit debt, Image Pass revocation and PayPal/Waffo current-period refund termination rules.
+
 ## 2026-10-20 — Video model update
 
 - Use Seedance 2 Mini for new Hotel Lobby and Raindance videos, with updated five- and ten-second credit quotes. Annual video savings and shared account credits continue to apply.

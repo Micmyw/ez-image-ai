@@ -1,5 +1,6 @@
 import {
 	createCreditGrant,
+	freezeInitialSubscriptionPaymentEvidence,
 	isDatabaseUniqueConflict,
 	PAYMENT_PROVIDER_CORRELATION_MISSING,
 	requeuePaymentEventsMissingCheckoutCorrelation,
@@ -152,6 +153,20 @@ export async function applyProviderBillingFact(
 		subscriptionExisted &&
 		((fact.provider === "waffo" && paymentPeriod !== null && fact.currentPeriod === null) ||
 			(paymentPeriod?.allowsStaleEvent === true && isEventStale(fact, subscription)));
+	const initialPaymentEvidence = freezeInitialSubscriptionPaymentEvidence({
+		existing: subscription.initialPaymentEvidence,
+		subscriptionCreated: !subscriptionExisted,
+		checkoutIntentId: checkoutIntent?.id ?? null,
+		initialPeriod: currentPeriod,
+		payment: paymentPeriod,
+	});
+	// Keep this optional analytical evidence in the existing locked transaction.
+	// Do not attach a later payment to an old subscription whose first cycle is unknown.
+	const initialEvidenceWrite =
+		initialPaymentEvidence &&
+		JSON.stringify(initialPaymentEvidence) !== JSON.stringify(subscription.initialPaymentEvidence)
+			? { initialPaymentEvidence: { ...initialPaymentEvidence } }
+			: {};
 	if (subscriptionExisted && !preserveSubscriptionEvent) {
 		assertEventOrdering(fact, subscription);
 	}
@@ -162,6 +177,7 @@ export async function applyProviderBillingFact(
 				data: {
 					status: fact.status,
 					cancelAtPeriodEnd: fact.cancelAtPeriodEnd,
+					...initialEvidenceWrite,
 					...(["CANCELED", "EXPIRED"].includes(fact.status)
 						? { renewalDisabledAt: fact.occurredAt, cancellationError: null }
 						: {}),
@@ -181,6 +197,12 @@ export async function applyProviderBillingFact(
 								: subscription.graceEndsAt,
 				},
 			});
+	if (preserveSubscriptionEvent && initialEvidenceWrite.initialPaymentEvidence) {
+		await client.subscription.update({
+			where: { id: subscription.id },
+			data: initialEvidenceWrite,
+		});
+	}
 	if (!preserveSubscriptionEvent) {
 		await client.purchase.update({
 			where: { id: subscription.purchase!.id },

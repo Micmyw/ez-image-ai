@@ -206,7 +206,7 @@ export const purchase = sqliteTable(
 			onDelete: "cascade",
 		}),
 		type: text({ enum: ["SUBSCRIPTION", "ONE_TIME"] }).notNull(),
-		productKind: text("productKind", { enum: ["PLAN", "CREDIT_PACK"] })
+		productKind: text("productKind", { enum: ["PLAN", "CREDIT_PACK", "IMAGE_PASS"] })
 			.default("PLAN")
 			.notNull(),
 		provider: text("provider").default("stripe").notNull(),
@@ -242,7 +242,7 @@ export const billingPlan = sqliteTable(
 			.primaryKey(),
 		provider: text("provider").notNull(),
 		providerPriceId: text("providerPriceId").notNull(),
-		productKind: text("productKind", { enum: ["PLAN", "CREDIT_PACK"] })
+		productKind: text("productKind", { enum: ["PLAN", "CREDIT_PACK", "IMAGE_PASS"] })
 			.default("PLAN")
 			.notNull(),
 		name: text("name").notNull(),
@@ -368,7 +368,7 @@ export const paymentCheckoutIntent = sqliteTable(
 		ownerType: text("ownerType", { enum: ["USER", "ORGANIZATION"] }).notNull(),
 		ownerId: text("ownerId").notNull(),
 		submittedByUserId: text("submittedByUserId").notNull(),
-		productKind: text("productKind", { enum: ["PLAN", "CREDIT_PACK"] })
+		productKind: text("productKind", { enum: ["PLAN", "CREDIT_PACK", "IMAGE_PASS"] })
 			.default("PLAN")
 			.notNull(),
 		billingPlanId: text("billingPlanId")
@@ -656,12 +656,14 @@ export const userRelations = relations(user, ({ many }) => ({
 	memberships: many(member),
 	notifications: many(notification),
 	notificationPreferences: many(userNotificationPreference),
+	supportTickets: many(supportTicket),
 }));
 
 export const organizationRelations = relations(organization, ({ many }) => ({
 	members: many(member),
 	invitations: many(invitation),
 	purchases: many(purchase),
+	supportTickets: many(supportTicket),
 }));
 
 export const memberRelations = relations(member, ({ one }) => ({
@@ -866,3 +868,257 @@ export const moderationIncidentTarget = sqliteTable(
 	},
 	(table) => [primaryKey({ columns: [table.incidentId, table.targetType, table.targetId] })],
 );
+
+// Machine principals are separate from Better Auth users and cannot sign in.
+export const adminServiceAccount = sqliteTable(
+	"admin_service_account",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		name: text("name").notNull(),
+		scope: text("scope", { mode: "json" }).notNull(),
+		scopeKey: text("scopeKey").notNull(),
+		permissions: text("permissions", { mode: "json" })
+			.$type<string[]>()
+			.default(sql`'[]'`)
+			.notNull(),
+		disabledAt: integer("disabledAt", { mode: "timestamp_ms" }),
+		createdByUserId: text("createdByUserId").notNull(),
+		createdAt: integer("createdAt", { mode: "timestamp_ms" })
+			.default(sql`(CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))`)
+			.notNull(),
+		updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("admin_service_account_scopeKey_createdAt_idx").on(table.scopeKey, table.createdAt),
+	],
+);
+
+export const adminApiKey = sqliteTable(
+	"admin_api_key",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		serviceAccountId: text("serviceAccountId")
+			.notNull()
+			.references(() => adminServiceAccount.id, { onDelete: "restrict", onUpdate: "cascade" }),
+		name: text("name").notNull(),
+		keyHash: text("keyHash").notNull().unique(),
+		keyPrefix: text("keyPrefix").notNull(),
+		expiresAt: integer("expiresAt", { mode: "timestamp_ms" }).notNull(),
+		revokedAt: integer("revokedAt", { mode: "timestamp_ms" }),
+		lastUsedAt: integer("lastUsedAt", { mode: "timestamp_ms" }),
+		createdByUserId: text("createdByUserId").notNull(),
+		createdAt: integer("createdAt", { mode: "timestamp_ms" })
+			.default(sql`(CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))`)
+			.notNull(),
+	},
+	(table) => [
+		index("admin_api_key_serviceAccountId_createdAt_idx").on(
+			table.serviceAccountId,
+			table.createdAt,
+		),
+	],
+);
+
+// Execution journal only; financial entries remain in the existing credit ledger.
+export const adminExecution = sqliteTable(
+	"admin_execution",
+	{
+		id: text("id").primaryKey(),
+		actorId: text("actorId").notNull(),
+		actorType: text("actorType").notNull(),
+		credentialId: text("credentialId"),
+		scope: text("scope", { mode: "json" }).notNull(),
+		scopeKey: text("scopeKey").notNull(),
+		operation: text("operation").notNull(),
+		inputHash: text("inputHash").notNull(),
+		targetId: text("targetId"),
+		status: text("status").notNull(),
+		response: text("response", { mode: "json" }),
+		errorCode: text("errorCode"),
+		createdAt: integer("createdAt", { mode: "timestamp_ms" })
+			.default(sql`(CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))`)
+			.notNull(),
+		completedAt: integer("completedAt", { mode: "timestamp_ms" }),
+	},
+	(table) => [
+		index("admin_execution_actorId_scopeKey_createdAt_idx").on(
+			table.actorId,
+			table.scopeKey,
+			table.createdAt,
+		),
+		index("admin_execution_operation_createdAt_idx").on(table.operation, table.createdAt),
+	],
+);
+
+export const adminBotConfig = sqliteTable("admin_bot_config", {
+	id: text("id").primaryKey(),
+	payload: text("payload", { mode: "json" }).notNull(),
+	encryptedSecrets: text("encryptedSecrets"),
+	version: integer("version").default(1).notNull(),
+	updatedBy: text("updatedBy").notNull(),
+	createdAt: integer("createdAt", { mode: "timestamp_ms" })
+		.default(sql`(CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))`)
+		.notNull(),
+	updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+		.$onUpdate(() => new Date())
+		.notNull(),
+});
+
+// Once-only best-effort delivery claim, not a reliable retry queue.
+export const adminBotReceipt = sqliteTable("admin_bot_receipt", {
+	id: text("id").primaryKey(),
+	eventKey: text("eventKey").notNull().unique(),
+	event: text("event").notNull(),
+	status: text("status").notNull(),
+	results: text("results", { mode: "json" }),
+	createdAt: integer("createdAt", { mode: "timestamp_ms" })
+		.default(sql`(CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))`)
+		.notNull(),
+	completedAt: integer("completedAt", { mode: "timestamp_ms" }),
+});
+
+export const supportTicket = sqliteTable(
+	"support_ticket",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		createdByUserId: text("createdByUserId")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
+		organizationId: text("organizationId").references(() => organization.id, {
+			onDelete: "cascade",
+			onUpdate: "cascade",
+		}),
+		subject: text("subject").notNull(),
+		status: text("status").default("OPEN").notNull(),
+		requestKey: text("requestKey").notNull(),
+		createdAt: integer("createdAt", { mode: "timestamp_ms" })
+			.default(sql`(CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))`)
+			.notNull(),
+		updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("support_ticket_createdByUserId_requestKey_key").on(
+			table.createdByUserId,
+			table.requestKey,
+		),
+		index("support_ticket_createdByUserId_updatedAt_idx").on(
+			table.createdByUserId,
+			table.updatedAt,
+		),
+		index("support_ticket_organizationId_updatedAt_idx").on(table.organizationId, table.updatedAt),
+		index("support_ticket_status_updatedAt_idx").on(table.status, table.updatedAt),
+	],
+);
+
+export const supportTicketMessage = sqliteTable(
+	"support_ticket_message",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		ticketId: text("ticketId")
+			.notNull()
+			.references(() => supportTicket.id, { onDelete: "cascade", onUpdate: "cascade" }),
+		authorType: text("authorType").notNull(),
+		authorId: text("authorId").notNull(),
+		body: text("body").notNull(),
+		requestKey: text("requestKey").notNull(),
+		createdAt: integer("createdAt", { mode: "timestamp_ms" })
+			.default(sql`(CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))`)
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("support_ticket_message_ticketId_requestKey_key").on(
+			table.ticketId,
+			table.requestKey,
+		),
+		index("support_ticket_message_ticketId_createdAt_idx").on(table.ticketId, table.createdAt),
+	],
+);
+
+export const adminRefundRequest = sqliteTable(
+	"admin_refund_request",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		paymentKey: text("paymentKey").notNull().unique(),
+		orderNo: text("orderNo").notNull(),
+		ownerType: text("ownerType", { enum: ["USER", "ORGANIZATION"] }).notNull(),
+		ownerId: text("ownerId").notNull(),
+		provider: text("provider").notNull(),
+		providerEnvironment: text("providerEnvironment").notNull(),
+		productKind: text("productKind", { enum: ["PLAN", "CREDIT_PACK", "IMAGE_PASS"] }).notNull(),
+		providerPaymentId: text("providerPaymentId").notNull(),
+		providerOrderId: text("providerOrderId"),
+		subscriptionId: text("subscriptionId"),
+		amountMicros: sqliteBigInt("amountMicros").notNull(),
+		currency: text("currency").notNull(),
+		status: text("status").default("PENDING").notNull(),
+		providerRequestId: text("providerRequestId").notNull().unique(),
+		providerRefundId: text("providerRefundId"),
+		reason: text("reason"),
+		cancelSubscription: integer("cancelSubscription", { mode: "boolean" }).default(false).notNull(),
+		requestedBy: text("requestedBy").notNull(),
+		processingToken: text("processingToken"),
+		processingLeasedUntil: integer("processingLeasedUntil", { mode: "timestamp_ms" }),
+		providerAcceptedAt: integer("providerAcceptedAt", { mode: "timestamp_ms" }),
+		completedAt: integer("completedAt", { mode: "timestamp_ms" }),
+		lastError: text("lastError"),
+		result: text("result", { mode: "json" }),
+		createdAt: integer("createdAt", { mode: "timestamp_ms" })
+			.default(sql`(CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))`)
+			.notNull(),
+		updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("admin_refund_request_ownerType_ownerId_createdAt_idx").on(
+			table.ownerType,
+			table.ownerId,
+			table.createdAt,
+		),
+		index("admin_refund_request_status_updatedAt_idx").on(table.status, table.updatedAt),
+	],
+);
+
+export const adminServiceAccountRelations = relations(adminServiceAccount, ({ many }) => ({
+	keys: many(adminApiKey),
+}));
+
+export const adminApiKeyRelations = relations(adminApiKey, ({ one }) => ({
+	account: one(adminServiceAccount, {
+		fields: [adminApiKey.serviceAccountId],
+		references: [adminServiceAccount.id],
+	}),
+}));
+
+export const supportTicketRelations = relations(supportTicket, ({ one, many }) => ({
+	createdByUser: one(user, {
+		fields: [supportTicket.createdByUserId],
+		references: [user.id],
+	}),
+	organization: one(organization, {
+		fields: [supportTicket.organizationId],
+		references: [organization.id],
+	}),
+	messages: many(supportTicketMessage),
+}));
+
+export const supportTicketMessageRelations = relations(supportTicketMessage, ({ one }) => ({
+	ticket: one(supportTicket, {
+		fields: [supportTicketMessage.ticketId],
+		references: [supportTicket.id],
+	}),
+}));

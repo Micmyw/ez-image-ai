@@ -30,9 +30,25 @@ export type PaymentCheckoutIntentStatus =
 export const PaymentProductKind = {
 	PLAN: "PLAN",
 	CREDIT_PACK: "CREDIT_PACK",
+	IMAGE_PASS: "IMAGE_PASS",
 } as const;
 
 export type PaymentProductKind = (typeof PaymentProductKind)[keyof typeof PaymentProductKind];
+
+export const CreditLedgerEntryType = {
+	GRANT: "GRANT",
+	RESERVE: "RESERVE",
+	SETTLE: "SETTLE",
+	RELEASE: "RELEASE",
+	EXPIRE: "EXPIRE",
+	REFUND: "REFUND",
+	DEBT_REPAYMENT: "DEBT_REPAYMENT",
+	DEBT_INCURRED: "DEBT_INCURRED",
+	ADMIN_DEDUCT: "ADMIN_DEDUCT",
+} as const;
+
+export type CreditLedgerEntryType =
+	(typeof CreditLedgerEntryType)[keyof typeof CreditLedgerEntryType];
 
 export const CreditPackFulfillmentStatus = {
 	FULFILLED: "FULFILLED",

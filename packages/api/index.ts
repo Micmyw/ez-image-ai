@@ -31,6 +31,7 @@ import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
 import type { StatusCode } from "hono/utils/http-status";
 
+import { createAdminAgentRoutes } from "./modules/admin-agent/http";
 import { trustedGuestClientIdentity } from "./modules/media/lib/draft-client-identity";
 import {
 	GUEST_BOOTSTRAP_COOKIE,
@@ -277,6 +278,7 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 					ready ? 200 : 503,
 				);
 			})
+			.route("/admin", createAdminAgentRoutes())
 			// oRPC handlers (for RPC and OpenAPI)
 			.use("*", async (c, next) => {
 				const { requestId, traceId } = getLogContext();

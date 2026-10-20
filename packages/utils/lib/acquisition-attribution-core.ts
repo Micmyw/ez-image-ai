@@ -142,6 +142,8 @@ export function cleanFirstTouch(
 	const utmSource = utmToken(value.utmSource);
 	const utmMedium = utmToken(value.utmMedium);
 	const utmCampaign = utmToken(value.utmCampaign);
+	const utmTerm = utmToken(value.utmTerm);
+	const utmContent = utmToken(value.utmContent);
 	return {
 		version: 1,
 		landingPath,
@@ -149,8 +151,10 @@ export function cleanFirstTouch(
 		utmSource,
 		utmMedium,
 		utmCampaign,
+		...(value.utmTerm !== undefined ? { utmTerm } : {}),
+		...(value.utmContent !== undefined ? { utmContent } : {}),
 		source:
-			utmSource || utmMedium || utmCampaign
+			utmSource || utmMedium || utmCampaign || utmTerm || utmContent
 				? "campaign"
 				: referrerOrigin
 					? "referral"
@@ -176,6 +180,8 @@ export function collectFirstTouchAttribution(
 				utmSource: url.searchParams.get("utm_source"),
 				utmMedium: url.searchParams.get("utm_medium"),
 				utmCampaign: url.searchParams.get("utm_campaign"),
+				utmTerm: url.searchParams.get("utm_term"),
+				utmContent: url.searchParams.get("utm_content"),
 				capturedAt: now.toISOString(),
 			},
 			url.origin,
@@ -189,6 +195,8 @@ export function collectFirstTouchAttribution(
 			utmSource: null,
 			utmMedium: null,
 			utmCampaign: null,
+			utmTerm: null,
+			utmContent: null,
 			capturedAt: now.toISOString(),
 		};
 	}

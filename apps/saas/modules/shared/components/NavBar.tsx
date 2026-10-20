@@ -37,6 +37,7 @@ import {
 	HistoryIcon,
 	ImagePlusIcon,
 	ImagesIcon,
+	LifeBuoyIcon,
 	MenuIcon,
 	SettingsIcon,
 	ShieldUserIcon,
@@ -412,10 +413,16 @@ export function NavBar() {
 					]
 				: []),
 			{
+				label: t("app.menu.support"),
+				href: "/settings/support",
+				icon: LifeBuoyIcon,
+				isActive: pathname === "/settings/support",
+			},
+			{
 				label: t("app.menu.accountSettings"),
 				href: "/settings/general",
 				icon: UserCogIcon,
-				isActive: pathname.startsWith("/settings/"),
+				isActive: pathname.startsWith("/settings/") && pathname !== "/settings/support",
 				subItems: accountSubItems,
 			},
 			...(user?.role === "admin"
@@ -424,7 +431,7 @@ export function NavBar() {
 							label: t("app.menu.admin"),
 							href: "/admin",
 							icon: ShieldUserIcon,
-							isActive: pathname.startsWith("/admin/"),
+							isActive: pathname === "/admin" || pathname.startsWith("/admin/"),
 						},
 					]
 				: []),

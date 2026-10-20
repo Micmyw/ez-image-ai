@@ -6,6 +6,7 @@ import { mediaRouter } from "../modules/media/router";
 import { notificationsRouter } from "../modules/notifications/router";
 import { organizationsRouter } from "../modules/organizations/router";
 import { paymentsRouter } from "../modules/payments/router";
+import { supportRouter } from "../modules/support/router";
 import { usersRouter } from "../modules/users/router";
 import { videoEffectsRouter } from "../modules/video-effects/router";
 import { videoV1Router } from "../modules/video-v1/router";
@@ -16,6 +17,7 @@ export const router = publicProcedure.router({
 	organizations: organizationsRouter,
 	users: usersRouter,
 	payments: paymentsRouter,
+	support: supportRouter,
 	ai: aiRouter,
 	notifications: notificationsRouter,
 	media: mediaRouter,
