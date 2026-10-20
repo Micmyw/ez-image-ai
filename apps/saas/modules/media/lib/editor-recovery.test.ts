@@ -1,4 +1,4 @@
-import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
+import { EZPIC_PRODUCT_KEYS, resolvePlanEntitlement } from "@repo/config/client";
 import { describe, expect, it } from "vitest";
 
 import { hasEditorRecoveryRequest, resolveEditorAllowedProductKeys } from "./editor-recovery";
@@ -18,13 +18,17 @@ describe("resolveEditorRecovery", () => {
 		expect(hasEditorRecoveryRequest({}, null)).toBe(false);
 	});
 
-	it("derives current Kie-backed product entitlements from the durable billing plan", () => {
+	it("keeps all supported image models available without changing the owner's free plan limits", () => {
 		expect(resolveEditorAllowedProductKeys({ planId: "creator" }, "ignored")).toEqual([
 			...EZPIC_PRODUCT_KEYS,
 		]);
-		expect(resolveEditorAllowedProductKeys({}, "unknown-plan")).toEqual([
-			"image-nano-banana-2-lite",
-		]);
+		expect(resolveEditorAllowedProductKeys(undefined, undefined)).toEqual([...EZPIC_PRODUCT_KEYS]);
+		expect(resolveEditorAllowedProductKeys({}, "unknown-plan")).toEqual([...EZPIC_PRODUCT_KEYS]);
+		expect(resolvePlanEntitlement(undefined, undefined)).toMatchObject({
+			id: "free",
+			monthlyCredits: 25,
+			maximumInputBytes: 10 * 1024 * 1024,
+		});
 	});
 
 	it("preserves a matrix-valid paid selection for upgrade", () => {

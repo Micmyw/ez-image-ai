@@ -1,3 +1,4 @@
+import { EZPIC_PRODUCT_KEYS } from "@repo/config";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const database = vi.hoisted(() => ({ findEffectiveSubscription: vi.fn() }));
@@ -46,13 +47,13 @@ describe("loadUserPlanEntitlement", () => {
 		);
 	});
 
-	it("fails closed to Free when no paid subscription remains effective", async () => {
+	it("keeps Free input limits and shared image access when no paid subscription remains effective", async () => {
 		database.findEffectiveSubscription.mockResolvedValue(null);
 
 		await expect(loadUserPlanEntitlement("user-2")).resolves.toMatchObject({
 			id: "free",
 			maximumInputBytes: 10 * 1024 * 1024,
-			allowedProducts: ["image-nano-banana-2-lite"],
+			allowedProducts: [...EZPIC_PRODUCT_KEYS],
 		});
 	});
 });

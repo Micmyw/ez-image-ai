@@ -1,5 +1,6 @@
 import { createHmac } from "node:crypto";
 
+import { EZPIC_PRODUCT_KEYS } from "@repo/config";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // These cases inject the transaction boundary; never initialize a real database client.
@@ -167,8 +168,12 @@ describe("guest admission pre-transaction boundary", () => {
 		expect(dependencies.createTransaction).not.toHaveBeenCalled();
 	});
 
-	it("rejects a forged, legacy, or paid-only tier before moderation and persistence", async () => {
-		for (const productKey of ["image-fast", "image-gpt-image-2", "video-fast"] as const) {
+	it("rejects all account-credit models and forged products from sponsored guest admission", async () => {
+		for (const productKey of [
+			...EZPIC_PRODUCT_KEYS.filter((key) => key !== "image-nano-banana-2-lite"),
+			"image-fast",
+			"video-fast",
+		]) {
 			const dependencies = validDependencies();
 			await expect(
 				submitGuestGenerationForGuest(

@@ -23,7 +23,7 @@ import {
 } from "@media/lib/image-sku-selection";
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
 import { useToolPrompt, useToolPromptBinding } from "@media/lib/tool-prompt-context";
-import { getImageProductSelectionContract, getPlanEntitlement } from "@repo/config/client";
+import { getImageProductSelectionContract } from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
@@ -467,13 +467,7 @@ function LandingGeneratorWorkspace({
 	);
 	const selectedProduct =
 		localizedProducts.find((product) => product.key === selectedProductKey) ?? null;
-	const modelOptions = localizedProducts.map((product) => ({
-		...product,
-		requiresUpgrade:
-			file || requireReference
-				? product.accessHint === "paid-account"
-				: !getPlanEntitlement("free").allowedProducts.includes(product.key),
-	}));
+	const modelOptions = localizedProducts;
 	const selectedSku =
 		selectedProduct?.skuMatrix.cells.find((cell) => cell.skuKey === selectedSkuKey) ?? null;
 	const capabilityUsable =

@@ -74,9 +74,9 @@
 				"title": "Empresa"
 			},
 			"free": {
-				"description": "Prueba Nano Banana 2 Lite 1K con una asignación mensual de créditos.",
+				"description": "Usa cualquier modelo de imagen con una asignación mensual de créditos.",
 				"features": {
-					"standardEdit": "Acceso a Nano Banana 2 Lite 1K",
+					"standardEdit": "Todos los modelos de imagen disponibles",
 					"privateAssets": "Imágenes de origen y recursos editados privados",
 					"editHistory": "Sesiones e historial de edición privados"
 				},
@@ -120,7 +120,7 @@
 		"subscriberBonusAmount": "Bonificación de suscriptor: {credits}",
 		"subscriberReceives": "Los suscriptores reciben {credits} créditos",
 		"title": "Precios",
-		"tierAccessStandard": "Acceso a Nano Banana 2 Lite 1K",
+		"tierAccessStandard": "Todos los modelos de imagen disponibles",
 		"tierAccessAll": "Todos los modelos de imagen disponibles y sus opciones de SKU específicas",
 		"trialPeriod": "{days} {days, plural, one {día} other {días}} de prueba gratis",
 		"year": "{count, plural, one {año} other {{count} años}}",

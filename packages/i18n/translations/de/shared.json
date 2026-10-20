@@ -74,9 +74,9 @@
 				"title": "Enterprise"
 			},
 			"free": {
-				"description": "Teste Nano Banana 2 Lite 1K mit einem monatlichen Credit-Kontingent.",
+				"description": "Nutze jedes Bildmodell mit einem monatlichen Credit-Kontingent.",
 				"features": {
-					"standardEdit": "Zugriff auf Nano Banana 2 Lite 1K",
+					"standardEdit": "Alle verfügbaren Bildmodelle",
 					"privateAssets": "Private Quellbilder und bearbeitete Assets",
 					"editHistory": "Private Bearbeitungssitzungen und Verlauf"
 				},
@@ -120,7 +120,7 @@
 		"subscriberBonusAmount": "Abo-Bonus: {credits}",
 		"subscriberReceives": "Abonnenten erhalten {credits} Credits",
 		"title": "Preise",
-		"tierAccessStandard": "Zugriff auf Nano Banana 2 Lite 1K",
+		"tierAccessStandard": "Alle verfügbaren Bildmodelle",
 		"tierAccessAll": "Alle verfügbaren Bildmodelle und modellspezifischen SKU-Optionen",
 		"trialPeriod": "{days} {days, plural, one {Tag} other {Tage}} kostenlose Testphase",
 		"year": "Jahr",

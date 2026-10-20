@@ -33,7 +33,7 @@ describe("SaaS plan data", () => {
 
 		expect(planData?.free?.features.slice(0, 5)).toEqual([
 			"Localized credits 25",
-			"Localized images 5 at 5",
+			"Localized images 1-5 at 5-25",
 			"Localized monthly expiry",
 			"Localized size 10",
 			"Localized pricing.products.free.features.contract",

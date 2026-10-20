@@ -39,7 +39,7 @@ export const PLAN_ENTITLEMENTS = z
 			id: "free",
 			monthlyCredits: 25,
 			maximumInputBytes: 10 * 1024 * 1024,
-			allowedProducts: ["image-nano-banana-2-lite"],
+			allowedProducts: [...EZPIC_PRODUCT_KEYS],
 			prices: [],
 		},
 		{

@@ -1,9 +1,15 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { buildMediaQuote } from "../../../../api/modules/media/lib/quote";
 import { PrismaClient } from "../../generated/client";
-import { createCreditGrant } from "./credits";
-import { createGenerationJobTransaction } from "./jobs";
+import {
+	createCreditGrant,
+	getCreditInvariantReport,
+	refundCreditGrant,
+	releaseCredits,
+} from "./credits";
+import { createGenerationJobTransaction, transitionGenerationJob } from "./jobs";
 import {
 	createModeratedGenerationQuoteTransaction,
 	fingerprintGenerationQuoteSecurityPayload,
@@ -12,6 +18,15 @@ import {
 let client: PrismaClient;
 let overrideVersion = Math.floor(Date.now() / 1000);
 const prefix = `batch1-admission-${crypto.randomUUID()}`;
+const sunburstSelection = {
+	productKey: "image-gpt-image-2-5-sunburst",
+	input: {
+		kind: "text-to-image",
+		prompt: "A sunlit mountain landscape",
+		skuKey: "gpt-image-2-5-sunburst-1k",
+		aspectRatio: "1:1",
+	},
+} as const;
 
 function isolatedUrl() {
 	const value = process.env.TEST_DATABASE_URL;
@@ -27,12 +42,29 @@ function isolatedUrl() {
 }
 
 async function fixture(
-	options: { productKey?: string; amount?: bigint; assetBytes?: bigint } = {},
+	options: {
+		productKey?: string;
+		amount?: bigint;
+		assetBytes?: bigint;
+		catalogSelection?: Parameters<typeof buildMediaQuote>[0];
+		grantExpiresAt?: Date;
+	} = {},
 ) {
+	const catalogQuote = options.catalogSelection
+		? buildMediaQuote(options.catalogSelection, {
+				enabledProviders: new Set(["kie"]),
+				generationEnabled: true,
+			})
+		: undefined;
 	const ownerId = `${prefix}-${crypto.randomUUID()}`;
 	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
 	await createCreditGrant(
-		{ accountId: account.id, amount: options.amount ?? 100n, referenceKey: `${ownerId}:grant` },
+		{
+			accountId: account.id,
+			amount: options.amount ?? 100n,
+			referenceKey: `${ownerId}:grant`,
+			expiresAt: options.grantExpiresAt,
+		},
 		client,
 	);
 	const validUntil = new Date(Date.now() + 60_000);
@@ -82,15 +114,17 @@ async function fixture(
 			ownerType: "USER" as const,
 			ownerId,
 			submittedByUserId: ownerId,
-			productKey: options.productKey ?? "image-nano-banana-2-lite",
-			catalogVersion: "test",
-			pricingVersion: "test",
-			credits: 5n,
-			costMicros: 100n,
-			inputSnapshot: asset
-				? { kind: "image-to-image", sourceAssetId: asset.id, prompt: "fixed simulated prompt" }
-				: { kind: "text-to-image", prompt: "fixed simulated prompt" },
-			pricingSnapshot: {},
+			productKey: catalogQuote?.productKey ?? options.productKey ?? "image-nano-banana-2-lite",
+			catalogVersion: catalogQuote?.catalogVersion ?? "test",
+			pricingVersion: catalogQuote?.pricingVersion ?? "test",
+			credits: catalogQuote?.credits ?? 5n,
+			costMicros: catalogQuote?.costMicros ?? 100n,
+			inputSnapshot:
+				options.catalogSelection?.input ??
+				(asset
+					? { kind: "image-to-image", sourceAssetId: asset.id, prompt: "fixed simulated prompt" }
+					: { kind: "text-to-image", prompt: "fixed simulated prompt" }),
+			pricingSnapshot: catalogQuote?.pricingSnapshot ?? {},
 			expiresAt: new Date(Date.now() + 60_000),
 		};
 		const quote = await createModeratedGenerationQuoteTransaction(
@@ -116,12 +150,12 @@ async function fixture(
 			expectedModerationRuleVersion: "test-rule",
 			expectedModerationProvider: "waffo",
 			maximumConcurrentJobs: 99,
-			maximumDailyCostMicros: 1000n,
+			maximumDailyCostMicros: catalogQuote ? catalogQuote.costMicros * 3n : 1000n,
 			maximumStorageBytes: 10_000_000_000n,
 			validateCurrentEligibility: true,
 		};
 	}
-	return { ownerId, account, makeInput, input: await makeInput() };
+	return { ownerId, account, catalogQuote, makeInput, input: await makeInput() };
 }
 
 async function disable(configKey: string) {
@@ -164,8 +198,8 @@ describe("combined generation final atomic qualification", () => {
 			}
 		},
 	);
-	it("rejects a paid plan that ended after the approved quote", async () => {
-		const f = await fixture({ productKey: "image-nano-banana-2" });
+	it("spends valid shared credits after the subscription ended following quotation", async () => {
+		const f = await fixture({ catalogSelection: sunburstSelection });
 		const start = new Date(Date.now() - 60_000),
 			end = new Date(Date.now() + 60_000);
 		const plan = await client.billingPlan.create({
@@ -204,11 +238,100 @@ describe("combined generation final atomic qualification", () => {
 			where: { id: subscription.id },
 			data: { refundTerminationRequestedAt: new Date() },
 		});
-		await expect(createGenerationJobTransaction(f.input, client)).rejects.toThrow(
-			"ENTITLEMENT_REQUIRED",
-		);
-		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+		await expect(createGenerationJobTransaction(f.input, client)).resolves.toMatchObject({
+			replayed: false,
+			job: { creditsReserved: 7n },
+			reservation: { amount: 7n, status: "ACTIVE" },
+		});
+		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({
+			valid: true,
+			account: { spendable: 93n, reserved: 7n, debt: 0n },
+		});
 	});
+	it("admits Sunburst 1K from a non-subscriber grant and replays its ledger release", async () => {
+		const f = await fixture({ amount: 377n, catalogSelection: sunburstSelection });
+		expect(f.catalogQuote).toMatchObject({ credits: 7n, costMicros: 30_000n });
+		expect(
+			await client.subscription.count({ where: { ownerType: "USER", ownerId: f.ownerId } }),
+		).toBe(0);
+		const created = await createGenerationJobTransaction(f.input, client);
+		expect(created).toMatchObject({
+			replayed: false,
+			job: { status: "RESERVED", creditsReserved: 7n },
+			reservation: { amount: 7n, status: "ACTIVE" },
+		});
+		await expect(createGenerationJobTransaction(f.input, client)).resolves.toMatchObject({
+			replayed: true,
+			job: { id: created.job.id },
+			reservation: { id: created.reservation.id },
+		});
+		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({
+			valid: true,
+			account: { spendable: 370n, reserved: 7n, debt: 0n },
+		});
+
+		// Exercise a definite failure before provider submission using the real job and ledger APIs.
+		await expect(
+			transitionGenerationJob(
+				{
+					jobId: created.job.id,
+					expectedStatuses: ["RESERVED"],
+					expectedVersion: created.job.version,
+					nextStatus: "FAILED",
+					failureCode: "TEST_BEFORE_PROVIDER_FAILURE",
+				},
+				client,
+			),
+		).resolves.toMatchObject({ applied: true, job: { status: "FAILED" } });
+		const release = {
+			reservationId: created.reservation.id,
+			referenceKey: `job:${created.job.id}:test-failure-release`,
+		};
+		const released = await releaseCredits(release, client);
+		expect(released).toMatchObject({ status: "RELEASED", releasedAmount: 7n });
+		await expect(releaseCredits(release, client)).resolves.toEqual(released);
+		await expect(createGenerationJobTransaction(f.input, client)).resolves.toMatchObject({
+			replayed: true,
+			job: { id: created.job.id, status: "FAILED" },
+			reservation: { id: created.reservation.id, status: "RELEASED" },
+		});
+		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({
+			valid: true,
+			account: { spendable: 377n, reserved: 0n, debt: 0n },
+			ledger: { reserved: 7n, released: 7n, settled: 0n },
+		});
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(1);
+		expect(await client.generationAttempt.count({ where: { jobId: created.job.id } })).toBe(0);
+		for (const type of ["RESERVE", "RELEASE"] as const)
+			expect(
+				await client.creditLedgerEntry.count({ where: { accountId: f.account.id, type } }),
+			).toBe(1);
+	});
+	it.each(["expired", "refunded"] as const)(
+		"rejects %s shared credits for a non-subscriber without creating image work",
+		async (funding) => {
+			const f = await fixture({
+				amount: 377n,
+				catalogSelection: sunburstSelection,
+				...(funding === "expired" ? { grantExpiresAt: new Date(Date.now() - 60_000) } : {}),
+			});
+			if (funding === "refunded")
+				await refundCreditGrant(
+					{
+						accountId: f.account.id,
+						grantReferenceKey: `${f.ownerId}:grant`,
+						amount: 377n,
+						referenceKey: `${f.ownerId}:refund`,
+					},
+					client,
+				);
+			await expect(createGenerationJobTransaction(f.input, client)).rejects.toThrow(
+				"INSUFFICIENT_CREDITS",
+			);
+			expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+		},
+	);
 	it("admits multiple funded requests for one account and keeps each replay stable", async () => {
 		const f = await fixture();
 		const inputs = [f.input, await f.makeInput()].map((input) => ({

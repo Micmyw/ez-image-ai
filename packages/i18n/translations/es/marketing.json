@@ -211,7 +211,7 @@
 			"paidSignIn": "Se requiere iniciar sesión y un plan de pago",
 			"oneOutput": "Un resultado",
 			"freeQueue": "2 ediciones gratis al día · marca de agua · disponibles hasta 24 horas",
-			"qualityAccess": "{model} requiere iniciar sesión y un plan Pro, Ultimate o Max.",
+			"qualityAccess": "{model} requiere iniciar sesión y tener suficientes créditos en la cuenta.",
 			"temporaryResult": "Tu vista previa permanece privada y temporal.",
 			"temporarySessionDisclosure": "EzImageAI crea una sesión temporal para esta prueba, conserva los archivos del invitado hasta 24 horas y usa señales seudónimas contra abusos durante el periodo descrito en nuestra Política de privacidad.",
 			"qualityCta": "Más modelos de imagen · plan de pago",
@@ -662,7 +662,7 @@
 		},
 		"pricing": {
 			"title": "Edición de imágenes con IA gratis y planes de pago",
-			"description": "Empieza con 25 EzImageAI Credits al mes en una cuenta Free. Nano Banana 2 Lite 1K usa 5 créditos por edición: hasta cinco ediciones al mes. Los planes de pago ofrecen más créditos y modelos de imagen adicionales."
+			"description": "Empieza con 25 EzImageAI Credits al mes en una cuenta Free. Nano Banana 2 Lite 1K usa 5 créditos por edición: hasta cinco ediciones al mes. Los planes de pago ofrecen más créditos mensuales."
 		},
 		"guides": {
 			"quickStart": "Empieza tu primera edición",

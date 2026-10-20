@@ -74,9 +74,9 @@
 				"title": "Enterprise"
 			},
 			"free": {
-				"description": "Try Nano Banana 2 Lite 1K with a monthly credit allowance.",
+				"description": "Use any image model with a monthly credit allowance.",
 				"features": {
-					"standardEdit": "Nano Banana 2 Lite 1K access",
+					"standardEdit": "All available image models",
 					"privateAssets": "Private source images and edited assets",
 					"editHistory": "Private edit sessions and history"
 				},
@@ -120,7 +120,7 @@
 		"subscriberBonusAmount": "Subscriber bonus: {credits}",
 		"subscriberReceives": "Subscribers receive {credits} credits",
 		"title": "Pricing",
-		"tierAccessStandard": "Nano Banana 2 Lite 1K access",
+		"tierAccessStandard": "All available image models",
 		"tierAccessAll": "All available image models and model-specific SKU options",
 		"trialPeriod": "{days} {days, plural, one {day} other {days}} free trial",
 		"year": "{count, plural, one {year} other {{count} years}}",

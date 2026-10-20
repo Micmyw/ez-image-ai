@@ -1,3 +1,4 @@
+import { EZPIC_PRODUCT_KEYS, IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config";
 import { describe, expect, it, vi } from "vitest";
 
 const production = vi.hoisted(() => ({
@@ -39,6 +40,7 @@ import {
 	isUsableGenerationSourceAsset,
 	type GenerationAccessSnapshot,
 } from "./generation-authorization";
+import { buildMediaQuote } from "./quote";
 
 const IMAGE_EDIT_INPUT = {
 	kind: "image-to-image" as const,
@@ -67,6 +69,78 @@ const BASE_SNAPSHOT = {
 } satisfies GenerationAccessSnapshot;
 
 describe("generation authorization", () => {
+	it.each(
+		EZPIC_PRODUCT_KEYS.flatMap((productKey) =>
+			IMAGE_SKU_KEYS_BY_PRODUCT[productKey].map((skuKey) => ({ productKey, skuKey })),
+		),
+	)(
+		"authorizes $productKey / $skuKey with valid shared credits and no paid plan",
+		async ({ productKey, skuKey }) => {
+			const input = {
+				kind: "text-to-image" as const,
+				prompt: "A ceramic vase in a sunlit room",
+				skuKey,
+				aspectRatio: skuKey === "gpt-image-2-4k" ? ("3:2" as const) : ("1:1" as const),
+			};
+			const quote = buildMediaQuote({ productKey, input }, KIE_IMAGE_ROUTE_GRAPH);
+			await expect(
+				assertGenerationAllowed(
+					{
+						userId: "credit-owner",
+						productKey,
+						input,
+						credits: quote.credits,
+						costMicros: quote.costMicros,
+						routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+					},
+					{
+						enforceRateLimit: async () => {},
+						isEnvironmentGenerationEnabled: () => true,
+						loadAccess: async () => ({ ...BASE_SNAPSHOT, planId: "free", spendableCredits: 377n }),
+					},
+				),
+			).resolves.toBeUndefined();
+		},
+	);
+	it.each(["text-to-image", "image-to-image"] as const)(
+		"authorizes the unchanged Sunburst 1K quote for funded Free %s requests",
+		async (kind) => {
+			const input = {
+				kind,
+				prompt: "A ceramic vase in a sunlit room",
+				skuKey: "gpt-image-2-5-sunburst-1k" as const,
+				aspectRatio: "1:1" as const,
+				...(kind === "image-to-image" ? { sourceAssetId: IMAGE_EDIT_INPUT.sourceAssetId } : {}),
+			} as Parameters<typeof buildMediaQuote>[0]["input"];
+			const productKey = "image-gpt-image-2-5-sunburst" as const;
+			const quote = buildMediaQuote({ productKey, input }, KIE_IMAGE_ROUTE_GRAPH);
+			expect(quote).toMatchObject({ credits: 7n, costMicros: 30_000n });
+			const request = {
+				userId: "credit-owner",
+				productKey,
+				input,
+				credits: quote.credits,
+				costMicros: quote.costMicros,
+				routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+			};
+			const dependencies = {
+				enforceRateLimit: async () => {},
+				isEnvironmentGenerationEnabled: () => true,
+				loadAccess: async () => ({
+					...BASE_SNAPSHOT,
+					planId: "free" as const,
+					spendableCredits: 7n,
+				}),
+			};
+			await expect(assertGenerationAllowed(request, dependencies)).resolves.toBeUndefined();
+			await expect(
+				assertGenerationAllowed(request, {
+					...dependencies,
+					loadAccess: async () => ({ ...BASE_SNAPSHOT, planId: "free", spendableCredits: 6n }),
+				}),
+			).rejects.toThrow("INSUFFICIENT_CREDITS");
+		},
+	);
 	it("authorizes a free owner for one highest-resolution image using only an available pass", async () => {
 		await expect(
 			assertGenerationAllowed(
@@ -336,7 +410,6 @@ describe("generation authorization", () => {
 			{ storageUsageBytes: 100n, maximumStorageBytes: 100n },
 			"STORAGE_QUOTA_EXCEEDED",
 		],
-		["plan entitlement", { planId: "free" }, "ENTITLEMENT_REQUIRED"],
 		["source asset", { sourceAssetReady: false }, "ASSET_NOT_READY"],
 		["credits", { spendableCredits: 1n }, "INSUFFICIENT_CREDITS"],
 	] as const)("rejects %s before a generation write", async (_case, override, code) => {
