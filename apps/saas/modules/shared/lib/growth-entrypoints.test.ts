@@ -44,8 +44,8 @@ describe("authenticated growth event entrypoints", () => {
 
 		expect(form).toContain(".upgradePromptViewed(");
 		expect(pricing).toMatch(/checkoutLink[\s\S]*\.checkoutStarted\([\s\S]*location\.href/);
-		expect(checkoutReturn).toMatch(
-			/checkoutReturnDestination[\s\S]*\.subscriptionActivated\([\s\S]*router\.replace/,
-		);
+		// CheckoutReturnContent.test.tsx covers ACTIVE/PAST_DUE and explicit continuation.
+		// This entrypoint contract only requires the activation event to remain wired.
+		expect(checkoutReturn).toContain(".subscriptionActivated(expectedPlanId)");
 	});
 });

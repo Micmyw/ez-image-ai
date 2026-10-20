@@ -242,6 +242,9 @@ describe("subscription checkout return intent", () => {
 		expect(texts(element)).toContain("completed");
 		expect(state.replace).not.toHaveBeenCalled();
 		expect(find(element, "subscription-continue")).toBeTruthy();
+		expect(state.activated).toHaveBeenCalledExactlyOnceWith("creator");
+		render();
+		expect(state.activated).toHaveBeenCalledOnce();
 	});
 	it("describes past-due access without claiming a new subscription activation", () => {
 		state.status = "PAST_DUE";
