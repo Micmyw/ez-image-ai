@@ -14,7 +14,9 @@ export type PaymentProviderName = "stripe" | "paypal" | "waffo";
 export type CreditPackPaymentProviderName = Exclude<PaymentProviderName, "stripe">;
 export type PaymentOwner = { ownerType: "USER" | "ORGANIZATION"; ownerId: string };
 
-type PaymentProductKind = "PLAN" | "CREDIT_PACK";
+// Existing rows can include Image Pass purchases even though this alternative
+// checkout writer only admits its implemented plan / credit-pack contracts.
+type PaymentProductKind = "PLAN" | "CREDIT_PACK" | "IMAGE_PASS";
 
 export interface CreditPackCheckoutIntentSnapshotInput {
 	catalogVersion: string;

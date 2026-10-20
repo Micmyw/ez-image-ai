@@ -8,6 +8,7 @@
 		"build": "wrangler deploy --dry-run --outdir dist",
 		"build:workers": "wrangler deploy --config wrangler.workers.jsonc --dry-run --outdir dist-workers",
 		"test:artifact:workerd": "node test-support/artifact-workerd-smoke.mjs",
+		"test:admin-bots:workerd": "node --test test-support/admin-bot-environment.workerd.test.mjs",
 		"dev": "wrangler dev",
 		"test": "vitest run"
 	},

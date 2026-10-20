@@ -1008,6 +1008,9 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+      vitest:
+        specifier: 'catalog:'
+        version: 4.1.11(@opentelemetry/api@1.9.1)(@types/node@26.1.2)(@vitest/coverage-v8@4.1.11)(vite@7.3.5(@types/node@26.1.2)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.51.2)(tsx@4.23.5)(yaml@2.9.0))
 
   packages/payments:
     dependencies:
@@ -1026,6 +1029,9 @@ importers:
       '@repo/logs':
         specifier: workspace:*
         version: link:../logs
+      '@repo/notifications':
+        specifier: workspace:*
+        version: link:../notifications
       '@waffo/pancake-ts':
         specifier: 0.19.1
         version: 0.19.1

@@ -23,11 +23,20 @@ export const firstTouchAttributionSchema = z
 		utmSource: nullableText,
 		utmMedium: nullableText,
 		utmCampaign: nullableText,
+		// Absent on historical snapshots; null means the new collector observed no tag.
+		utmTerm: nullableText.optional(),
+		utmContent: nullableText.optional(),
 		capturedAt: z.iso.datetime(),
 	})
 	.strict();
 export const registrationAttributionSchema = firstTouchAttributionSchema.extend({
 	registeredAt: z.iso.datetime(),
+	country: z
+		.string()
+		.regex(/^[A-Z]{2}$/)
+		.nullable()
+		.optional(),
+	countrySource: z.literal("registration_proxy").optional(),
 });
 export const checkoutAttributionSchema = z
 	.object({
@@ -75,6 +84,10 @@ export function parseRegistrationAttribution(
 ): RegistrationAttribution | null {
 	const parsed = registrationAttributionSchema.safeParse(value);
 	if (!parsed.success) return null;
-	const { registeredAt, ...firstTouch } = parsed.data;
-	return { ...cleanFirstTouch(firstTouch, origin), registeredAt };
+	const { registeredAt, country, countrySource, ...firstTouch } = parsed.data;
+	return {
+		...cleanFirstTouch(firstTouch, origin),
+		registeredAt,
+		...(countrySource === "registration_proxy" ? { country: country ?? null, countrySource } : {}),
+	};
 }

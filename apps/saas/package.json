@@ -13,6 +13,7 @@
 		"dev": "next dev --port 3000",
 		"e2e": "pnpm exec playwright test --ui",
 		"e2e:ci": "pnpm exec playwright install && pnpm exec playwright test",
+		"e2e:admin": "playwright test --config playwright.admin.config.ts",
 		"start": "next start",
 		"generate": "fumadocs-mdx",
 		"postinstall": "fumadocs-mdx",

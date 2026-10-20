@@ -22,6 +22,7 @@ const commands: Array<{ args: string[]; database: boolean }> = [
 	{ args: ["--filter", "@repo/ai", "test"], database: false },
 	{ args: ["--filter", "@repo/storage", "test"], database: false },
 	{ args: ["--filter", "@repo/payments", "test"], database: false },
+	{ args: ["--filter", "@repo/notifications", "test"], database: false },
 	{ args: ["--filter", "@repo/database", "test"], database: false },
 	{ args: ["--filter", "@repo/auth", "test"], database: false },
 	{

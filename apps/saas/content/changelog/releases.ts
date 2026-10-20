@@ -1,5 +1,13 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-10-20",
+		title: "Track a support conversation in your account",
+		changes: [
+			"Create a private support ticket and follow replies and status in Support.",
+			"Organization conversations stay within their organization. Refunds continue to follow the existing payment, credit and subscription rules.",
+		],
+	},
+	{
 		date: "2026-10-11",
 		title: "AI news in the Blog",
 		changes: [

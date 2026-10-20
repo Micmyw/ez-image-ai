@@ -36,6 +36,7 @@ export function createPayPalHttpBoundary(
 		async request(input) {
 			const response = await fetchImplementation(input.url, {
 				method: input.method,
+				redirect: "manual",
 				signal: AbortSignal.timeout(15_000),
 				headers: input.headers,
 				...(input.body === undefined

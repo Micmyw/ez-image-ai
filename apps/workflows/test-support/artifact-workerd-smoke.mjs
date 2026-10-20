@@ -33,6 +33,14 @@ assert.match(source, /VideoGenerationWorkflowV1/, "Video V1 class must survive f
 assert(!source.includes("/runtime/client.mjs"), "Node Prisma runtime leaked into the Worker");
 assert(!source.includes("/sharp/lib/"), "Native Sharp leaked into the Worker");
 assert(!source.includes("/remote-media-node.ts"), "Node media transport leaked into the Worker");
+assert(
+	!source.includes("/admin-bots/transport-node.ts"),
+	"Node bot transport leaked into the Worker",
+);
+assert(
+	source.includes("/admin-bots/transport-worker.ts"),
+	"Worker bot transport must survive final bundling",
+);
 const wasmFiles = (await readdir(output)).filter((file) => file.endsWith(".wasm"));
 assert.equal(wasmFiles.length, 1, "Expected the generated Prisma query compiler");
 const secret = "artifact-smoke-only-32-character-secret";

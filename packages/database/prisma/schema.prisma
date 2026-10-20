@@ -54,6 +54,7 @@ model User {
   guestLinkAnonymousOwners GuestLinkIntent[]            @relation("GuestLinkAnonymousOwner")
   guestLinkRegistrations   GuestLinkIntent[]            @relation("GuestLinkRegisteredUser")
   guestResultGrants        GuestResultAccessGrant[]     @relation("GuestGrantRegisteredUser")
+  supportTickets           SupportTicket[]
 
   @@unique([email])
   @@map("user")
@@ -161,6 +162,7 @@ model Organization {
   members            Member[]
   invitations        Invitation[]
   purchases          Purchase[]
+  supportTickets     SupportTicket[]
 
   @@unique([slug])
   @@map("organization")
@@ -414,6 +416,7 @@ enum CreditLedgerEntryType {
   REFUND
   DEBT_REPAYMENT
   DEBT_INCURRED
+  ADMIN_DEDUCT
 }
 
 enum EventProcessingStatus {
@@ -1268,6 +1271,8 @@ model Subscription {
   refundTerminationEnvironment     String?
   refundTerminatedAt               DateTime?          @db.Timestamptz(3)
   refundTerminationError            String?
+  /// Frozen only when a new subscription is admitted through a verified checkout.
+  initialPaymentEvidence            Json?
   createdAt                        DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt                        DateTime           @updatedAt @db.Timestamptz(3)
   periods                          BillingPeriod[]
@@ -1857,4 +1862,156 @@ model VideoTemplateExecution {
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
   @@index([sceneState, updatedAt, jobId])
   @@map("video_template_execution")
+}
+
+/// Machine principals are separate from Better Auth users and cannot sign in.
+model AdminServiceAccount {
+  id              String        @id @default(cuid())
+  name            String
+  scope           Json
+  scopeKey        String
+  permissions     String[]      @default([])
+  disabledAt      DateTime?     @db.Timestamptz(3)
+  createdByUserId  String
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @db.Timestamptz(3)
+  keys            AdminApiKey[]
+
+  @@index([scopeKey, createdAt])
+  @@map("admin_service_account")
+}
+
+model AdminApiKey {
+  id                String              @id @default(cuid())
+  serviceAccountId  String
+  account           AdminServiceAccount @relation(fields: [serviceAccountId], references: [id], onDelete: Restrict)
+  name              String
+  keyHash           String              @unique
+  keyPrefix         String
+  expiresAt         DateTime            @db.Timestamptz(3)
+  revokedAt         DateTime?           @db.Timestamptz(3)
+  lastUsedAt        DateTime?           @db.Timestamptz(3)
+  createdByUserId   String
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+
+  @@index([serviceAccountId, createdAt])
+  @@map("admin_api_key")
+}
+
+/// Execution journal, not a financial ledger. Secrets and read results are never retained.
+model AdminExecution {
+  id            String    @id
+  actorId       String
+  actorType     String
+  credentialId  String?
+  scope         Json
+  scopeKey      String
+  operation     String
+  inputHash     String
+  targetId      String?
+  status        String
+  response      Json?
+  errorCode     String?
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  completedAt   DateTime? @db.Timestamptz(3)
+
+  @@index([actorId, scopeKey, createdAt])
+  @@index([operation, createdAt])
+  @@map("admin_execution")
+}
+
+model AdminBotConfig {
+  id                String   @id
+  payload           Json
+  encryptedSecrets  String?
+  version           Int      @default(1)
+  updatedBy         String
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("admin_bot_config")
+}
+
+/// Once-only best-effort delivery claim. This is not a reliable retry queue.
+model AdminBotReceipt {
+  id           String    @id
+  eventKey     String    @unique
+  event        String
+  status       String
+  results      Json?
+  createdAt    DateTime  @default(now()) @db.Timestamptz(3)
+  completedAt  DateTime? @db.Timestamptz(3)
+
+  @@map("admin_bot_receipt")
+}
+
+model SupportTicket {
+  id                 String                 @id @default(cuid())
+  createdByUserId    String
+  createdByUser      User                   @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  organizationId    String?
+  organization      Organization?          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  subject            String
+  status             String                 @default("OPEN")
+  requestKey         String
+  createdAt          DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime               @updatedAt @db.Timestamptz(3)
+  messages           SupportTicketMessage[]
+
+  @@unique([createdByUserId, requestKey])
+  @@index([createdByUserId, updatedAt])
+  @@index([organizationId, updatedAt])
+  @@index([status, updatedAt])
+  @@map("support_ticket")
+}
+
+model SupportTicketMessage {
+  id          String        @id @default(cuid())
+  ticketId    String
+  ticket      SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorType  String
+  authorId    String
+  body        String
+  requestKey  String
+  createdAt   DateTime      @default(now()) @db.Timestamptz(3)
+
+  @@unique([ticketId, requestKey])
+  @@index([ticketId, createdAt])
+  @@map("support_ticket_message")
+}
+
+/// Durable refund command and provider receipt; all funds and credits stay in the existing ledger.
+model AdminRefundRequest {
+  id                       String             @id @default(cuid())
+  paymentKey               String             @unique
+  orderNo                  String
+  ownerType                OwnerType
+  ownerId                  String
+  provider                 String
+  providerEnvironment      String
+  productKind              PaymentProductKind
+  providerPaymentId        String
+  providerOrderId          String?
+  subscriptionId           String?
+  /// @zod.custom.use(z.bigint())
+  amountMicros             BigInt
+  currency                 String
+  status                   String             @default("PENDING")
+  providerRequestId        String             @unique
+  providerRefundId         String?
+  reason                   String?
+  cancelSubscription       Boolean            @default(false)
+  requestedBy              String
+  processingToken          String?
+  processingLeasedUntil    DateTime?          @db.Timestamptz(3)
+  providerAcceptedAt       DateTime?          @db.Timestamptz(3)
+  completedAt              DateTime?          @db.Timestamptz(3)
+  lastError                String?
+  result                   Json?
+  createdAt                DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@index([ownerType, ownerId, createdAt])
+  @@index([status, updatedAt])
+  @@map("admin_refund_request")
 }

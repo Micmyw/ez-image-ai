@@ -205,7 +205,9 @@ export const purchase = mysqlTable(
 			onDelete: "cascade",
 		}),
 		type: purchaseTypeEnum.notNull(),
-		productKind: mysqlEnum("productKind", ["PLAN", "CREDIT_PACK"]).default("PLAN").notNull(),
+		productKind: mysqlEnum("productKind", ["PLAN", "CREDIT_PACK", "IMAGE_PASS"])
+			.default("PLAN")
+			.notNull(),
 		provider: text("provider").default("stripe").notNull(),
 		customerId: text("customerId").notNull(),
 		subscriptionId: text("subscriptionId"),
@@ -237,7 +239,9 @@ export const billingPlan = mysqlTable(
 			.primaryKey(),
 		provider: varchar("provider", { length: 64 }).notNull(),
 		providerPriceId: varchar("providerPriceId", { length: 255 }).notNull(),
-		productKind: mysqlEnum("productKind", ["PLAN", "CREDIT_PACK"]).default("PLAN").notNull(),
+		productKind: mysqlEnum("productKind", ["PLAN", "CREDIT_PACK", "IMAGE_PASS"])
+			.default("PLAN")
+			.notNull(),
 		name: text("name").notNull(),
 		creditsPerPeriod: bigint("creditsPerPeriod", { mode: "bigint" }).notNull(),
 		priceMicros: bigint("priceMicros", { mode: "bigint" }).notNull(),
@@ -348,7 +352,9 @@ export const paymentCheckoutIntent = mysqlTable(
 		ownerType: mysqlEnum("ownerType", ["USER", "ORGANIZATION"]).notNull(),
 		ownerId: varchar("ownerId", { length: 255 }).notNull(),
 		submittedByUserId: varchar("submittedByUserId", { length: 255 }).notNull(),
-		productKind: mysqlEnum("productKind", ["PLAN", "CREDIT_PACK"]).default("PLAN").notNull(),
+		productKind: mysqlEnum("productKind", ["PLAN", "CREDIT_PACK", "IMAGE_PASS"])
+			.default("PLAN")
+			.notNull(),
 		billingPlanId: varchar("billingPlanId", { length: 255 })
 			.notNull()
 			.references(() => billingPlan.id, { onDelete: "restrict" }),
@@ -611,12 +617,14 @@ export const userRelations = relations(user, ({ many }) => ({
 	memberships: many(member),
 	notifications: many(notification),
 	notificationPreferences: many(userNotificationPreference),
+	supportTickets: many(supportTicket),
 }));
 
 export const organizationRelations = relations(organization, ({ many }) => ({
 	members: many(member),
 	invitations: many(invitation),
 	purchases: many(purchase),
+	supportTickets: many(supportTicket),
 }));
 
 export const memberRelations = relations(member, ({ one }) => ({
@@ -821,3 +829,257 @@ export const moderationIncidentTarget = mysqlTable(
 	},
 	(table) => [primaryKey({ columns: [table.incidentId, table.targetType, table.targetId] })],
 );
+
+// Machine principals are separate from Better Auth users and cannot sign in.
+export const adminServiceAccount = mysqlTable(
+	"admin_service_account",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		name: text("name").notNull(),
+		scope: json("scope").notNull(),
+		scopeKey: varchar("scopeKey", { length: 255 }).notNull(),
+		permissions: json("permissions")
+			.$type<string[]>()
+			.default(sql`(JSON_ARRAY())`)
+			.notNull(),
+		disabledAt: timestamp("disabledAt", { fsp: 3 }),
+		createdByUserId: varchar("createdByUserId", { length: 255 }).notNull(),
+		createdAt: timestamp("createdAt", { fsp: 3 })
+			.default(sql`CURRENT_TIMESTAMP(3)`)
+			.notNull(),
+		updatedAt: timestamp("updatedAt", { fsp: 3 })
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("admin_service_account_scopeKey_createdAt_idx").on(table.scopeKey, table.createdAt),
+	],
+);
+
+export const adminApiKey = mysqlTable(
+	"admin_api_key",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		serviceAccountId: varchar("serviceAccountId", { length: 255 })
+			.notNull()
+			.references(() => adminServiceAccount.id, { onDelete: "restrict", onUpdate: "cascade" }),
+		name: text("name").notNull(),
+		keyHash: varchar("keyHash", { length: 255 }).notNull().unique(),
+		keyPrefix: text("keyPrefix").notNull(),
+		expiresAt: timestamp("expiresAt", { fsp: 3 }).notNull(),
+		revokedAt: timestamp("revokedAt", { fsp: 3 }),
+		lastUsedAt: timestamp("lastUsedAt", { fsp: 3 }),
+		createdByUserId: varchar("createdByUserId", { length: 255 }).notNull(),
+		createdAt: timestamp("createdAt", { fsp: 3 })
+			.default(sql`CURRENT_TIMESTAMP(3)`)
+			.notNull(),
+	},
+	(table) => [
+		index("admin_api_key_serviceAccountId_createdAt_idx").on(
+			table.serviceAccountId,
+			table.createdAt,
+		),
+	],
+);
+
+// Execution journal only; financial entries remain in the existing credit ledger.
+export const adminExecution = mysqlTable(
+	"admin_execution",
+	{
+		id: varchar("id", { length: 255 }).primaryKey(),
+		actorId: varchar("actorId", { length: 255 }).notNull(),
+		actorType: text("actorType").notNull(),
+		credentialId: text("credentialId"),
+		scope: json("scope").notNull(),
+		scopeKey: varchar("scopeKey", { length: 255 }).notNull(),
+		operation: varchar("operation", { length: 255 }).notNull(),
+		inputHash: text("inputHash").notNull(),
+		targetId: text("targetId"),
+		status: varchar("status", { length: 255 }).notNull(),
+		response: json("response"),
+		errorCode: text("errorCode"),
+		createdAt: timestamp("createdAt", { fsp: 3 })
+			.default(sql`CURRENT_TIMESTAMP(3)`)
+			.notNull(),
+		completedAt: timestamp("completedAt", { fsp: 3 }),
+	},
+	(table) => [
+		index("admin_execution_actorId_scopeKey_createdAt_idx").on(
+			table.actorId,
+			table.scopeKey,
+			table.createdAt,
+		),
+		index("admin_execution_operation_createdAt_idx").on(table.operation, table.createdAt),
+	],
+);
+
+export const adminBotConfig = mysqlTable("admin_bot_config", {
+	id: varchar("id", { length: 255 }).primaryKey(),
+	payload: json("payload").notNull(),
+	encryptedSecrets: text("encryptedSecrets"),
+	version: int("version").default(1).notNull(),
+	updatedBy: text("updatedBy").notNull(),
+	createdAt: timestamp("createdAt", { fsp: 3 })
+		.default(sql`CURRENT_TIMESTAMP(3)`)
+		.notNull(),
+	updatedAt: timestamp("updatedAt", { fsp: 3 })
+		.$onUpdate(() => new Date())
+		.notNull(),
+});
+
+// Once-only best-effort delivery claim, not a reliable retry queue.
+export const adminBotReceipt = mysqlTable("admin_bot_receipt", {
+	id: varchar("id", { length: 255 }).primaryKey(),
+	eventKey: varchar("eventKey", { length: 255 }).notNull().unique(),
+	event: text("event").notNull(),
+	status: varchar("status", { length: 255 }).notNull(),
+	results: json("results"),
+	createdAt: timestamp("createdAt", { fsp: 3 })
+		.default(sql`CURRENT_TIMESTAMP(3)`)
+		.notNull(),
+	completedAt: timestamp("completedAt", { fsp: 3 }),
+});
+
+export const supportTicket = mysqlTable(
+	"support_ticket",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		createdByUserId: varchar("createdByUserId", { length: 255 })
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
+		organizationId: varchar("organizationId", { length: 255 }).references(() => organization.id, {
+			onDelete: "cascade",
+			onUpdate: "cascade",
+		}),
+		subject: text("subject").notNull(),
+		status: varchar("status", { length: 255 }).default("OPEN").notNull(),
+		requestKey: varchar("requestKey", { length: 255 }).notNull(),
+		createdAt: timestamp("createdAt", { fsp: 3 })
+			.default(sql`CURRENT_TIMESTAMP(3)`)
+			.notNull(),
+		updatedAt: timestamp("updatedAt", { fsp: 3 })
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("support_ticket_createdByUserId_requestKey_key").on(
+			table.createdByUserId,
+			table.requestKey,
+		),
+		index("support_ticket_createdByUserId_updatedAt_idx").on(
+			table.createdByUserId,
+			table.updatedAt,
+		),
+		index("support_ticket_organizationId_updatedAt_idx").on(table.organizationId, table.updatedAt),
+		index("support_ticket_status_updatedAt_idx").on(table.status, table.updatedAt),
+	],
+);
+
+export const supportTicketMessage = mysqlTable(
+	"support_ticket_message",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		ticketId: varchar("ticketId", { length: 255 })
+			.notNull()
+			.references(() => supportTicket.id, { onDelete: "cascade", onUpdate: "cascade" }),
+		authorType: text("authorType").notNull(),
+		authorId: text("authorId").notNull(),
+		body: text("body").notNull(),
+		requestKey: varchar("requestKey", { length: 255 }).notNull(),
+		createdAt: timestamp("createdAt", { fsp: 3 })
+			.default(sql`CURRENT_TIMESTAMP(3)`)
+			.notNull(),
+	},
+	(table) => [
+		uniqueIndex("support_ticket_message_ticketId_requestKey_key").on(
+			table.ticketId,
+			table.requestKey,
+		),
+		index("support_ticket_message_ticketId_createdAt_idx").on(table.ticketId, table.createdAt),
+	],
+);
+
+export const adminRefundRequest = mysqlTable(
+	"admin_refund_request",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		paymentKey: varchar("paymentKey", { length: 255 }).notNull().unique(),
+		orderNo: text("orderNo").notNull(),
+		ownerType: mysqlEnum("ownerType", ["USER", "ORGANIZATION"]).notNull(),
+		ownerId: varchar("ownerId", { length: 255 }).notNull(),
+		provider: text("provider").notNull(),
+		providerEnvironment: text("providerEnvironment").notNull(),
+		productKind: mysqlEnum("productKind", ["PLAN", "CREDIT_PACK", "IMAGE_PASS"]).notNull(),
+		providerPaymentId: text("providerPaymentId").notNull(),
+		providerOrderId: text("providerOrderId"),
+		subscriptionId: text("subscriptionId"),
+		amountMicros: bigint("amountMicros", { mode: "bigint" }).notNull(),
+		currency: text("currency").notNull(),
+		status: varchar("status", { length: 255 }).default("PENDING").notNull(),
+		providerRequestId: varchar("providerRequestId", { length: 255 }).notNull().unique(),
+		providerRefundId: text("providerRefundId"),
+		reason: text("reason"),
+		cancelSubscription: boolean("cancelSubscription").default(false).notNull(),
+		requestedBy: text("requestedBy").notNull(),
+		processingToken: text("processingToken"),
+		processingLeasedUntil: timestamp("processingLeasedUntil", { fsp: 3 }),
+		providerAcceptedAt: timestamp("providerAcceptedAt", { fsp: 3 }),
+		completedAt: timestamp("completedAt", { fsp: 3 }),
+		lastError: text("lastError"),
+		result: json("result"),
+		createdAt: timestamp("createdAt", { fsp: 3 })
+			.default(sql`CURRENT_TIMESTAMP(3)`)
+			.notNull(),
+		updatedAt: timestamp("updatedAt", { fsp: 3 })
+			.$onUpdate(() => new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("admin_refund_request_ownerType_ownerId_createdAt_idx").on(
+			table.ownerType,
+			table.ownerId,
+			table.createdAt,
+		),
+		index("admin_refund_request_status_updatedAt_idx").on(table.status, table.updatedAt),
+	],
+);
+
+export const adminServiceAccountRelations = relations(adminServiceAccount, ({ many }) => ({
+	keys: many(adminApiKey),
+}));
+
+export const adminApiKeyRelations = relations(adminApiKey, ({ one }) => ({
+	account: one(adminServiceAccount, {
+		fields: [adminApiKey.serviceAccountId],
+		references: [adminServiceAccount.id],
+	}),
+}));
+
+export const supportTicketRelations = relations(supportTicket, ({ one, many }) => ({
+	createdByUser: one(user, {
+		fields: [supportTicket.createdByUserId],
+		references: [user.id],
+	}),
+	organization: one(organization, {
+		fields: [supportTicket.organizationId],
+		references: [organization.id],
+	}),
+	messages: many(supportTicketMessage),
+}));
+
+export const supportTicketMessageRelations = relations(supportTicketMessage, ({ one }) => ({
+	ticket: one(supportTicket, {
+		fields: [supportTicketMessage.ticketId],
+		references: [supportTicket.id],
+	}),
+}));

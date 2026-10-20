@@ -72,6 +72,8 @@ jobs:
         run: pnpm cloudflare:jobs:build
       - name: Start the final jobs artifact in workerd
         run: pnpm --filter @repo/workflows test:artifact:workerd
+      - name: Verify private bot bindings in website and background workerd contexts
+        run: pnpm --filter @repo/workflows test:admin-bots:workerd
       - name: Workers public-only media transport smoke
         run: pnpm --filter @repo/storage test:remote-media:workerd
       - name: Cloudflare website Workers artifact build
@@ -194,6 +196,58 @@ jobs:
         env:
           TEST_DATABASE_URL: ${{ env.GUEST_TEST_DATABASE_URL }}
         run: pnpm verify:invariants
+
+  admin-capabilities:
+    name: Administrator and customer support browser flows
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://ai_media_test:ai_media_test_only@127.0.0.1:55432/ezpic_admin_capabilities_test
+      TEST_DATABASE_URL: postgresql://ai_media_test:ai_media_test_only@127.0.0.1:55432/ezpic_admin_capabilities_test
+      NEXT_PUBLIC_SAAS_URL: http://127.0.0.1:3310
+      E2E_ADMIN_CAPABILITIES: "true"
+      E2E_USE_PRODUCTION_BUILD: "true"
+      E2E_TEST_MEDIA_ADAPTERS: "true"
+      E2E_RUN_ID: admin-capabilities-ci
+      MEDIA_GENERATION_ENABLED: "false"
+      GUEST_MEDIA_ENABLED: "false"
+      VIDEO_V1_ENABLED: "false"
+      BILLING_ENABLED: "false"
+      ERROR_MONITORING_ENABLED: "false"
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: ezpic_admin_capabilities_test
+          POSTGRES_USER: ai_media_test
+          POSTGRES_PASSWORD: ai_media_test_only
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_media_test -d ezpic_admin_capabilities_test"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @repo/database generate
+      - run: pnpm db:migrate:deploy
+      - run: pnpm --filter saas exec playwright install --with-deps chromium
+      - run: pnpm --filter saas build --webpack
+      - run: pnpm --filter saas e2e:admin
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: admin-capabilities-browser
+          path: |
+            apps/saas/playwright-report/admin-capabilities
+            apps/saas/test-results/admin-capabilities
+          retention-days: 7
 
   builds:
     name: Production app builds
