@@ -6,6 +6,15 @@
 - Keep monthly prices at $19/$49/$79 and monthly credit grants at 700/1,800/3,000. Annual credits continue to arrive monthly; existing subscriptions retain their original terms.
 - Use the same valid credits for images, ordinary videos, Hotel Lobby, Raindance and Rumpelstiltskin regardless of purchase discounts or grant source. Keep generation credit prices and annual video savings, expiry, refunds, account ownership and safe reservation/return rules. Image passes remain a separate explicit choice.
 
+## 2026-10-20 — Shared credits for every generation
+
+- Use the same valid account credits for images, ordinary video, Hotel Lobby, Raindance and Rumpelstiltskin, including discounted and gifted credits. Keep existing generation prices and annual video discounts.
+- Preserve credit expiry, refunds, debt, owner checks, reservations, moderation and duplicate-request protection. Existing accepted orders retain their frozen terms; the $1 image-pass offer remains separate.
+
+## 2026-10-20 — Checkout price continuity
+
+- Preserve a checkout's original price when its Waffo product receives a new version. Resuming an existing checkout keeps the same session.
+
 ## 2026-10-20 — Clearer payment returns and image funding
 
 - Show compact available credit and image-pass balances, including passes in progress. Keep an explicit credit choice when selected passes run out, without switching payment methods automatically.

@@ -22,7 +22,15 @@ is embedded in the product code.
 
 ## Public products, one wallet, and legal SKUs
 
-EzImageAI exposes twelve image products backed by one `EzImageAI Credit` balance. All new credit-funded images, ordinary videos and independent video templates use the same valid balance, including discounted purchases and grants. Purchase price does not change generation value; expiry, refunds, debt, owner scope and existing atomic ledger protections still apply. The explicitly selected USD1 image-pass offer remains separate. Credit use is selected
+New credit-funded images, ordinary videos and independent video templates use the same valid
+account credits, including gifted and discounted credits. Individual credit lots do not need a
+paid-receipt floor to fund new generation. Complete server quotes, access and content review,
+credit expiry, refunds, debt, account locks, atomic reservation and idempotency still apply.
+Accepted orders retain their frozen funding policies. Shared credits do not certify paid
+revenue or realized margin. The USD1 image-pass offer remains a separate explicit choice and
+cannot fund video.
+
+EzImageAI exposes twelve image products backed by one `EzImageAI Credit` balance. Credit use is selected
 by the exact legal SKU, not by a universal per-image rate:
 
 | Public product key             | Legal SKU                   | Parameters | EzImageAI Credits |
