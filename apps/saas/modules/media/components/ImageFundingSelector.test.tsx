@@ -61,6 +61,33 @@ describe("explicit image funding choice", () => {
 		expect(markup).not.toContain("fundingPolicy");
 		expect(onChange).not.toHaveBeenCalled();
 	});
+	it.each(["0", "377", "9007199254740993"])(
+		"shows the exact available credit balance %s beside passes",
+		(creditsAvailable) => {
+			const onChange = vi.fn();
+			const markup = renderToStaticMarkup(
+				<ImageFundingSelector
+					value="CREDITS"
+					creditsAvailable={creditsAvailable}
+					available={3}
+					reserved={1}
+					onChange={onChange}
+				/>,
+			);
+			expect(markup).toContain(`fundingCreditsAvailable ${creditsAvailable}`);
+			expect(markup).toContain("fundingPasses 3");
+			expect(markup).toContain("fundingReserved 1");
+			expect(input(markup, "CREDITS")).toContain('checked=""');
+			expect(onChange).not.toHaveBeenCalled();
+		},
+	);
+	it("keeps the plain credit label when its available balance is unknown", () => {
+		const markup = renderToStaticMarkup(
+			<ImageFundingSelector value="CREDITS" available={3} onChange={vi.fn()} />,
+		);
+		expect(markup).toContain("fundingCredits");
+		expect(markup).not.toContain("fundingCreditsAvailable");
+	});
 	it("shows reserved passes even when none are currently available", () => {
 		const markup = renderToStaticMarkup(
 			<ImageFundingSelector value="CREDITS" available={0} reserved={2} onChange={vi.fn()} />,

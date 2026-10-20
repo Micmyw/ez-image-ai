@@ -1,4 +1,5 @@
 import type {
+	ResumeCheckoutInput,
 	SubscriptionCheckoutInspection,
 	SubscriptionCheckoutRecoveryInput,
 } from "../../types";
@@ -91,14 +92,9 @@ export async function recoverWaffoSubscriptionCheckout(
 	return { status: "CLOSED", providerOrderId: order?.id };
 }
 
-export async function resumeWaffoSubscriptionCheckout(
+export async function resumeWaffoCheckout(
 	client: WaffoSdkBoundary,
-	input: {
-		checkoutUrl: string;
-		priceId: string;
-		ownerType: "USER" | "ORGANIZATION";
-		ownerId: string;
-	},
+	input: ResumeCheckoutInput,
 ): Promise<string> {
 	if (!client.auth) throw new Error("WAFFO_SESSION_AUTH_UNAVAILABLE");
 	const { token, expiresAt } = await client.auth.issueSessionToken({
@@ -111,3 +107,5 @@ export async function resumeWaffoSubscriptionCheckout(
 	url.hash = new URLSearchParams({ token }).toString();
 	return url.toString();
 }
+
+export const resumeWaffoSubscriptionCheckout = resumeWaffoCheckout;

@@ -40,6 +40,7 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 	const checkout = useMutation(orpc.payments.createImagePassCheckout.mutationOptions());
 	const attempt = useRef<{ ownerId: string; key: string } | null>(null);
 	const pending = useRef(false);
+	const ownedAction = useRef<ReturnType<typeof payment.getSnapshot>>(null);
 	const currentOwner = useRef(ownerId);
 	currentOwner.current = ownerId;
 	const mounted = useRef(true);
@@ -47,8 +48,12 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 		mounted.current = true;
 		return () => {
 			mounted.current = false;
+			const action = currentPayment.current;
+			if (ownedAction.current && action.getSnapshot() === ownedAction.current) action.release();
+			ownedAction.current = null;
+			pending.current = false;
 		};
-	}, []);
+	}, [ownerId]);
 	const [failed, setFailed] = useState(false);
 	const [restored, setRestored] = useState<{ ownerId: string; intentId: string } | null>(null);
 	const checkoutIntentId = restored?.ownerId === ownerId ? restored.intentId : intentId;
@@ -114,21 +119,27 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 	async function buy() {
 		if (!ownerId || !offerAvailable || pending.current || !payment.acquire("image-pass:paypal"))
 			return;
+		const action = payment.getSnapshot();
+		ownedAction.current = action;
 		pending.current = true;
+		const isCurrent = () =>
+			mounted.current &&
+			currentOwner.current === ownerId &&
+			ownedAction.current === action &&
+			payment.getSnapshot() === action;
 		setFailed(false);
 		if (attempt.current?.ownerId !== ownerId)
 			attempt.current = { ownerId, key: crypto.randomUUID() };
 		captureCheckoutTrigger();
 		try {
+			const attribution = await getCurrentCheckoutAttribution();
+			if (!isCurrent()) return;
 			const { checkoutLink, intentId: createdIntentId } = await checkout.mutateAsync({
 				provider: "paypal",
 				idempotencyKey: attempt.current.key,
-				attribution: await getCurrentCheckoutAttribution(),
+				attribution,
 			});
-			if (!mounted.current || currentOwner.current !== ownerId) {
-				payment.release();
-				return;
-			}
+			if (!isCurrent()) return;
 			clearCheckoutTrigger();
 			saveImagePassCheckoutContext(ownerId, createdIntentId);
 			setRestored({ ownerId, intentId: createdIntentId });
@@ -148,10 +159,13 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 			payment.redirecting();
 			window.location.assign(checkoutLink);
 		} catch {
-			if (mounted.current && currentOwner.current === ownerId) setFailed(true);
-			payment.release();
+			if (isCurrent()) setFailed(true);
 		} finally {
-			pending.current = false;
+			if (payment.getSnapshot() === action) payment.release();
+			if (ownedAction.current === action) {
+				ownedAction.current = null;
+				pending.current = false;
+			}
 		}
 	}
 	return (
@@ -178,9 +192,16 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 				))}
 			</ul>
 			{balance.data && (
-				<p className="mt-5 text-sm text-violet-200" aria-live="polite">
-					{t("balance", { count: balance.data.available })}
-				</p>
+				<div
+					className="mt-5 gap-x-4 gap-y-1 text-sm text-violet-200 flex flex-wrap"
+					data-test="image-pass-balance"
+					aria-live="polite"
+				>
+					<span>{t("balance", { count: balance.data.available })}</span>
+					{balance.data.reserved > 0 && (
+						<span>{t("fundingReserved", { count: balance.data.reserved })}</span>
+					)}
+				</div>
 			)}
 			{ownerId && checkoutIntentId && (
 				<div

@@ -1,5 +1,6 @@
 "use client";
 
+import { useSessionQuery } from "@auth/lib/api";
 import { config } from "@config";
 import { cn } from "@repo/ui";
 import { Button } from "@repo/ui/components/button";
@@ -12,14 +13,31 @@ import { usePaymentAction } from "../hooks/use-payment-action";
 
 export function PendingSubscriptionCheckout({ compact = false }: { compact?: boolean }) {
 	const t = useTranslations("pricing.pendingCheckout");
+	const checkoutReturn = useTranslations("checkoutReturn");
 	const pricing = useTranslations("pricing");
+	const session = useSessionQuery();
+	const user = session.data?.user;
+	const ownerId = user && user.isAnonymous !== true ? user.id : null;
+	const currentOwner = useRef(ownerId);
 	const queryClient = useQueryClient();
 	const payment = usePaymentAction();
-	const busy = useRef(false);
-	const checked = useRef({ id: "", at: 0 });
+	const busy = useRef<string | null>(null);
+	if (currentOwner.current !== ownerId) busy.current = null;
+	currentOwner.current = ownerId;
+	const mounted = useRef(true);
+	useEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+		};
+	}, []);
 	const pollingUntil = useRef(Date.now() + 120_000);
 	const [error, setError] = useState(false);
-	const queryOptions = orpc.payments.getPendingSubscriptionCheckout.queryOptions({ input: {} });
+	const queryOptions = {
+		...orpc.payments.getPendingSubscriptionCheckout.queryOptions({ input: {} }),
+		queryKey: ["pending-subscription-checkout", ownerId],
+		enabled: Boolean(ownerId),
+	};
 	const pending = useQuery({
 		...queryOptions,
 		refetchInterval: (query) => {
@@ -34,33 +52,25 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 	const refresh = useMutation(orpc.payments.refreshPendingSubscriptionCheckout.mutationOptions());
 	const cancel = useMutation(orpc.payments.cancelPendingSubscriptionCheckout.mutationOptions());
 	const resume = useMutation(orpc.payments.resumePendingSubscriptionCheckout.mutationOptions());
-	const refreshAsync = refresh.mutateAsync;
+	const refetch = pending.refetch;
 	const id = pending.data?.id;
-	const recoveryStatus = pending.data?.status;
+	const currentIntent = useRef(id);
+	currentIntent.current = id;
 	useEffect(() => {
-		if (!id || recoveryStatus === "REVIEW" || recoveryStatus === "PAID") return;
+		if (!ownerId) return;
 		const check = () => {
-			if (
-				document.visibilityState === "hidden" ||
-				busy.current ||
-				(checked.current.id === id && Date.now() - checked.current.at < 30_000)
-			)
-				return;
-			checked.current = { id, at: Date.now() };
+			if (document.visibilityState === "hidden") return;
 			pollingUntil.current = Date.now() + 120_000;
-			void refreshAsync({ checkoutIntentId: id })
-				.then(() => queryClient.invalidateQueries({ queryKey: orpc.payments.key() }))
-				.catch(() => setError(true));
+			void refetch();
 		};
-		check();
 		window.addEventListener("focus", check);
 		window.addEventListener("pageshow", check);
 		return () => {
 			window.removeEventListener("focus", check);
 			window.removeEventListener("pageshow", check);
 		};
-	}, [id, recoveryStatus, refreshAsync, queryClient]);
-	if (!pending.data) return null;
+	}, [ownerId, refetch]);
+	if (!ownerId || !pending.data) return null;
 	const checkout = pending.data;
 	const provider = checkout.provider === "paypal" ? "PayPal" : "Waffo";
 	const plan = ["creator", "ultimate", "studio"].includes(checkout.planId)
@@ -71,10 +81,15 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 		? `mailto:${config.supportEmail}?subject=${encodeURIComponent(t("supportSubject", { id: checkout.id }))}&body=${encodeURIComponent(`${t("order", { id: checkout.id })}\n${plan} · ${period} · ${provider}`)}`
 		: "/contact";
 	const disabled =
-		Boolean(payment.action) || refresh.isPending || cancel.isPending || resume.isPending;
-	async function act(action: "resume" | "refresh" | "cancel") {
-		if (busy.current || !payment.acquire(`pending-${action}`)) return;
-		busy.current = true;
+		Boolean(payment.action) ||
+		pending.isFetching ||
+		refresh.isPending ||
+		cancel.isPending ||
+		resume.isPending;
+	async function act(action: "resume" | "finish" | "cancel") {
+		const actionKey = `pending-${action}:${ownerId}:${checkout.id}`;
+		if (busy.current || !payment.acquire(actionKey)) return;
+		busy.current = actionKey;
 		setError(false);
 		pollingUntil.current = Date.now() + 120_000;
 		let redirecting = false;
@@ -82,6 +97,12 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 			const input = { checkoutIntentId: checkout.id };
 			if (action === "resume") {
 				const result = await resume.mutateAsync(input);
+				if (
+					!mounted.current ||
+					currentOwner.current !== ownerId ||
+					currentIntent.current !== checkout.id
+				)
+					return;
 				payment.redirecting();
 				window.location.assign(result.checkoutLink);
 				redirecting = true;
@@ -89,14 +110,25 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 				const result = await (action === "cancel"
 					? cancel.mutateAsync(input)
 					: refresh.mutateAsync({ ...input, retryReview: true }));
+				if (
+					!mounted.current ||
+					currentOwner.current !== ownerId ||
+					currentIntent.current !== checkout.id
+				)
+					return;
 				queryClient.setQueryData(queryOptions.queryKey, result.status === "CLOSED" ? null : result);
 				await queryClient.invalidateQueries({ queryKey: orpc.payments.key() });
 			}
 		} catch {
-			setError(true);
+			if (
+				mounted.current &&
+				currentOwner.current === ownerId &&
+				currentIntent.current === checkout.id
+			)
+				setError(true);
 		} finally {
-			busy.current = false;
-			if (!redirecting) payment.release();
+			if (busy.current === actionKey) busy.current = null;
+			if (!redirecting && payment.getSnapshot()?.key === actionKey) payment.release();
 		}
 	}
 	const details = (
@@ -112,6 +144,7 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 		<section
 			className={cn("pending-checkout p-3 text-sm rounded-xl border", compact ? "mt-3" : "mb-4")}
 			aria-label={t("title")}
+			data-testid="pending-subscription-checkout"
 		>
 			<p className="font-medium">{t("title")}</p>
 			<p className="mt-1 text-xs text-muted-foreground">
@@ -121,6 +154,7 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 			<div className="mt-2 gap-2 flex flex-wrap items-center">
 				{checkout.canResume && (
 					<Button
+						data-testid="pending-subscription-resume"
 						size="sm"
 						disabled={disabled}
 						loading={resume.isPending}
@@ -131,6 +165,7 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 				)}
 				{checkout.canChange && (
 					<Button
+						data-testid="pending-subscription-change-plan"
 						size="sm"
 						variant="outline"
 						disabled={disabled}
@@ -141,15 +176,32 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 					</Button>
 				)}
 				<Button
+					data-testid="pending-subscription-check-status"
 					size="sm"
 					variant="outline"
 					aria-label={t("refresh")}
 					disabled={disabled}
-					loading={refresh.isPending}
-					onClick={() => void act("refresh")}
+					loading={pending.isFetching}
+					onClick={() => {
+						setError(false);
+						pollingUntil.current = Date.now() + 120_000;
+						void refetch();
+					}}
 				>
 					{t(compact ? "check" : "refresh")}
 				</Button>
+				{["PENDING", "APPROVED", "UNKNOWN", "REVIEW"].includes(checkout.status) && (
+					<Button
+						data-testid="pending-subscription-confirm-payment"
+						size="sm"
+						variant="outline"
+						disabled={disabled}
+						loading={refresh.isPending}
+						onClick={() => void act("finish")}
+					>
+						{checkoutReturn("finishApproved")}
+					</Button>
+				)}
 				<a
 					href={supportHref}
 					target={config.supportEmail ? undefined : "_blank"}
@@ -160,7 +212,7 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 				</a>
 			</div>
 			<output className="mt-2 text-xs leading-5 block text-muted-foreground" aria-live="polite">
-				{t(error ? "UNKNOWN" : checkout.status)}
+				{t(error || pending.isError ? "UNKNOWN" : checkout.status)}
 			</output>
 			{checkout.waitUntil && checkout.status === "WAITING" && (
 				<p className="mt-1 text-xs text-muted-foreground">

@@ -99,6 +99,11 @@ const test = base.extend<{ paymentMock: PaymentMock }>({
 				await route.fulfill({ status: 409, json: rpcError("IMAGE_PASS_INSUFFICIENT") });
 				return;
 			}
+			// This RPC is a read-only catalog check despite its name lacking a get/list prefix.
+			if (path === "/api/rpc/videoV1/availability") {
+				await route.continue();
+				return;
+			}
 			if (
 				/^\/api\/rpc\/(?:payments|media|videoV1)\/(?!get|list)/.test(path) ||
 				(request.method() !== "GET" && /^\/api\/(?:payments|media|video)(?:\/|$)/.test(path))
@@ -152,13 +157,20 @@ for (const viewport of [
 			await expect(selector.locator('input[value="IMAGE_PASS"]')).toBeDisabled();
 			await expectNoHorizontalOverflow(page);
 
-			paymentMock.available = 3;
-			paymentMock.reserved = 0;
+			paymentMock.available = 2;
+			paymentMock.reserved = 1;
 			await page.reload();
-			await expect(selector).toContainText("3 available");
+			await expect(selector).toContainText("2 available");
+			await expect(selector).toContainText("1 in progress");
+			await expect(selector.locator('input[value="CREDITS"]')).toBeChecked();
 			await expect(selector.locator('input[value="IMAGE_PASS"]')).toBeEnabled();
 			await expectNoHorizontalOverflow(page);
 			await selector.screenshot({ path: testInfo.outputPath("compact-funding.png") });
+			await selector.locator('input[value="IMAGE_PASS"]').check();
+			await expect(page.locator('[data-test="generation-submit"]')).toContainText("1 image pass");
+			await page.locator('[data-test="registered-generator"]').screenshot({
+				path: testInfo.outputPath("paid-pass-selected.png"),
+			});
 			expect(paymentMock.checkouts).toBe(0);
 			expect(paymentMock.submissions).toEqual([]);
 		});

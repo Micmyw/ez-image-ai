@@ -1,10 +1,7 @@
 import { WaffoPancake } from "@waffo/pancake-ts";
 
-import type { PaymentProvider } from "../../types";
-import {
-	recoverWaffoSubscriptionCheckout,
-	resumeWaffoSubscriptionCheckout,
-} from "./checkout-recovery";
+import type { PaymentProvider, ResumeCheckoutInput } from "../../types";
+import { recoverWaffoSubscriptionCheckout, resumeWaffoCheckout } from "./checkout-recovery";
 import { listWaffoPaymentEvents } from "./event-source";
 import {
 	cancelWaffoSubscription,
@@ -44,6 +41,8 @@ export function createWaffoProvider(
 ): PaymentProvider {
 	const configuredClient = client ?? createWaffoClient(environment);
 	const storeId = requiredValue(environment.WAFFO_STORE_ID);
+	const resumeCheckout = (input: ResumeCheckoutInput) =>
+		resumeWaffoCheckout(configuredClient, input);
 	return {
 		name: "waffo",
 		capabilities: {
@@ -65,7 +64,8 @@ export function createWaffoProvider(
 		inspectCheckout: (input) => inspectWaffoSubscriptionCheckout(configuredClient, storeId, input),
 		recoverSubscriptionCheckout: (input) =>
 			recoverWaffoSubscriptionCheckout(configuredClient, storeId, input),
-		resumeSubscriptionCheckout: (input) => resumeWaffoSubscriptionCheckout(configuredClient, input),
+		resumeCheckout,
+		resumeSubscriptionCheckout: resumeCheckout,
 		inspectSubscriptionCancellation: (input) =>
 			inspectWaffoSubscriptionCancellation(configuredClient, storeId, input),
 	};

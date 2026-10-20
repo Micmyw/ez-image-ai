@@ -1,3 +1,4 @@
+import { getCurrentCheckoutAttribution } from "@shared/lib/purchase-attribution";
 import React, { type ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -9,12 +10,14 @@ const state = vi.hoisted(() => ({
 	capture: vi.fn(),
 	assign: vi.fn(),
 	replaceState: vi.fn(),
-	acquire: vi.fn(() => true),
+	acquire: vi.fn((_key: string) => true),
 	release: vi.fn(),
 	redirecting: vi.fn(),
 	refetch: vi.fn(),
 	queryOptions: vi.fn(),
 	available: true,
+	passAvailable: 3,
+	passReserved: 0,
 	checkoutStatus: "PENDING",
 	stateError: false,
 	action: null as { key: string; stage: string } | null,
@@ -70,7 +73,13 @@ vi.mock("@tanstack/react-query", async (original) => ({
 				? options.enabled
 					? { status: state.checkoutStatus }
 					: undefined
-				: { available: options.queryKey[0] === "payments-image-pass-offer" ? state.available : 3 },
+				: {
+						available:
+							options.queryKey[0] === "payments-image-pass-offer"
+								? state.available
+								: state.passAvailable,
+						reserved: state.passReserved,
+					},
 			isPending: false,
 			isError: checkoutState && state.stateError,
 			isSuccess: !(checkoutState && state.stateError),
@@ -82,12 +91,16 @@ vi.mock("@tanstack/react-query", async (original) => ({
 vi.mock("../hooks/use-payment-action", () => ({
 	usePaymentAction: () => ({
 		action: state.action,
+		getSnapshot: () => state.action,
 		acquire: state.acquire,
 		release: state.release,
 		redirecting: state.redirecting,
 	}),
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", () => ({
+	useTranslations: () => (key: string, values?: { count?: number }) =>
+		key === "balance" || key === "fundingReserved" ? `${key} ${values?.count}` : key,
+}));
 import { ImagePassPurchase } from "./ImagePassPurchase";
 function render(options: { intentId?: string; canceled?: boolean } = {}) {
 	state.cursor = 0;
@@ -138,9 +151,23 @@ beforeEach(() => {
 	state.cursor = 0;
 	state.slots = [];
 	state.available = true;
+	state.passAvailable = 3;
+	state.passReserved = 0;
 	state.stateError = false;
 	state.checkoutStatus = "PENDING";
 	state.action = null;
+	state.acquire.mockReset().mockImplementation((key: string) => {
+		if (state.action) return false;
+		state.action = { key, stage: "starting" };
+		return true;
+	});
+	state.release.mockReset().mockImplementation(() => {
+		state.action = null;
+	});
+	state.redirecting.mockReset().mockImplementation(() => {
+		if (state.action) state.action = { ...state.action, stage: "redirecting" };
+	});
+	vi.mocked(getCurrentCheckoutAttribution).mockReset().mockResolvedValue({});
 	state.checkout.mockReset();
 	state.refetch.mockResolvedValue({});
 	state.replaceState.mockReset().mockImplementation((_savedState, _title, href: string) => {
@@ -166,12 +193,93 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("image pass checkout UI", () => {
+	it.each([
+		{ available: 3, reserved: 1 },
+		{ available: 0, reserved: 2 },
+	])(
+		"shows available and in-progress image passes on the purchase page: %o",
+		({ available, reserved }) => {
+			state.passAvailable = available;
+			state.passReserved = reserved;
+			const element = render();
+			expect(texts(element)).toContain(`balance ${available}`);
+			expect(texts(element)).toContain(`fundingReserved ${reserved}`);
+			expect(state.checkout).not.toHaveBeenCalled();
+			expect(state.capture).not.toHaveBeenCalled();
+		},
+	);
+	it("does not suggest in-progress passes when none are reserved", () => {
+		expect(texts(render())).not.toContain("fundingReserved");
+	});
 	it("does not start checkout when the server offer is unavailable", async () => {
 		state.available = false;
 		buy(render())();
 		await flush();
 		expect(state.checkout).not.toHaveBeenCalled();
 		expect(state.acquire).not.toHaveBeenCalled();
+	});
+	it.each(["owner change", "unmount"])(
+		"does not create checkout after %s while attribution is pending and releases its lock",
+		async (change) => {
+			let resolve!: (value: {}) => void;
+			vi.mocked(getCurrentCheckoutAttribution).mockImplementationOnce(
+				() =>
+					new Promise((done) => {
+						resolve = done;
+					}),
+			);
+			buy(render())();
+			expect(state.action?.stage).toBe("starting");
+			expect(state.checkout).not.toHaveBeenCalled();
+			if (change === "owner change") {
+				state.ownerId = "owner-b";
+				render();
+			} else {
+				for (const slot of state.slots) slot.cleanup?.();
+			}
+			expect.soft(state.action).toBeNull();
+			resolve({});
+			await flush();
+			expect(state.checkout).not.toHaveBeenCalled();
+			expect(state.assign).not.toHaveBeenCalled();
+			expect(state.release).toHaveBeenCalledOnce();
+		},
+	);
+	it.each(["resolve", "reject"])(
+		"does not create checkout or release a replacement action when old attribution %s occurs",
+		async (outcome) => {
+			let resolve!: (value: {}) => void;
+			let reject!: (error: Error) => void;
+			vi.mocked(getCurrentCheckoutAttribution).mockImplementationOnce(
+				() =>
+					new Promise((done, fail) => {
+						resolve = done;
+						reject = fail;
+					}),
+			);
+			buy(render())();
+			state.release();
+			state.acquire("image-pass:paypal");
+			const replacement = state.action;
+			if (outcome === "resolve") resolve({});
+			else reject(new Error("attribution unavailable"));
+			await flush();
+			expect(state.checkout).not.toHaveBeenCalled();
+			expect(state.action).toBe(replacement);
+			expect(state.release).toHaveBeenCalledOnce();
+			expect(texts(render())).not.toContain("checkoutError");
+		},
+	);
+	it("releases its starting action when attribution fails", async () => {
+		vi.mocked(getCurrentCheckoutAttribution).mockRejectedValueOnce(
+			new Error("attribution unavailable"),
+		);
+		buy(render())();
+		await flush();
+		expect(state.checkout).not.toHaveBeenCalled();
+		expect(state.action).toBeNull();
+		expect(state.release).toHaveBeenCalledOnce();
+		expect(texts(render())).toContain("checkoutError");
 	});
 	it("coalesces clicks and preserves the same purchase key after an uncertain checkout response", async () => {
 		let reject!: (reason: Error) => void;
@@ -201,6 +309,7 @@ describe("image pass checkout UI", () => {
 		await flush();
 		expect(state.checkout.mock.calls[1]![0]).toEqual(request);
 		expect(state.assign).toHaveBeenCalledWith("https://www.sandbox.paypal.com/approve");
+		expect(state.action).toEqual({ key: "image-pass:paypal", stage: "redirecting" });
 		expect(window.sessionStorage.getItem("image-pass-checkout:owner-a")).toBe("intent");
 	});
 	it("does not redirect or store a different signed-in owner's old checkout", async () => {

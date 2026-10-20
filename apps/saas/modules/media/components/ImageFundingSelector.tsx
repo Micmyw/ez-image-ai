@@ -7,6 +7,7 @@ export type ImageFundingSource = "CREDITS" | "IMAGE_PASS";
 export function ImageFundingSelector({
 	value,
 	available,
+	creditsAvailable,
 	reserved = 0,
 	failed = false,
 	onRefresh,
@@ -15,6 +16,7 @@ export function ImageFundingSelector({
 }: {
 	value: ImageFundingSource;
 	available?: number;
+	creditsAvailable?: string;
 	reserved?: number;
 	failed?: boolean;
 	onRefresh?: () => void;
@@ -38,7 +40,9 @@ export function ImageFundingSelector({
 						onChange={() => onChange("CREDITS")}
 						className="accent-violet-400"
 					/>
-					{t("fundingCredits")}
+					{creditsAvailable === undefined
+						? t("fundingCredits")
+						: t("fundingCreditsAvailable", { count: creditsAvailable })}
 				</label>
 				<label className="min-h-8 gap-2 text-white flex cursor-pointer items-center">
 					<input

@@ -1,5 +1,6 @@
 "use client";
 
+import { useSessionQuery } from "@auth/lib/api";
 import { usePlanData } from "@payments/hooks/plan-data";
 import { usePaymentAction } from "@payments/hooks/use-payment-action";
 import {
@@ -97,6 +98,48 @@ export function PricingTable({
 
 	const { planData } = usePlanData();
 	const authenticated = Boolean(userId || organizationId);
+	const session = useSessionQuery();
+	const user = session.data?.user;
+	const ownerId = user?.isAnonymous === true ? null : (user?.id ?? userId ?? null);
+	const scope = JSON.stringify([
+		ownerId,
+		organizationId ?? session.data?.session?.activeOrganizationId ?? null,
+	]);
+	const currentScope = useRef(scope);
+	currentScope.current = scope;
+	const currentPayment = useRef(payment);
+	currentPayment.current = payment;
+	const mounted = useRef(true);
+	const inflight = useRef<symbol | null>(null);
+	const ownedAction = useRef<ReturnType<typeof payment.getSnapshot>>(null);
+	const attemptScope = useRef(scope);
+	const previousScope = useRef(scope);
+	if (attemptScope.current !== scope) {
+		attemptScope.current = scope;
+		checkoutAttempts.current = createCheckoutAttemptController(createGrowthAttemptKey);
+	}
+	useEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+			const action = currentPayment.current;
+			if (inflight.current && ownedAction.current && action.getSnapshot() === ownedAction.current)
+				action.release();
+			inflight.current = null;
+			ownedAction.current = null;
+		};
+	}, []);
+	useEffect(() => {
+		if (previousScope.current === scope) return;
+		previousScope.current = scope;
+		const action = currentPayment.current;
+		if (inflight.current && ownedAction.current && action.getSnapshot() === ownedAction.current)
+			action.release();
+		inflight.current = null;
+		ownedAction.current = null;
+		setCheckoutUnavailable(false);
+		setCheckoutConflict(null);
+	}, [scope]);
 	useEffect(() => {
 		if (!compact || !authenticated || hasSubscription) return;
 		for (const planId of ["creator", "ultimate", "studio"] as const) {
@@ -127,7 +170,8 @@ export function PricingTable({
 	}, [compact, selectedPlan, interval, hasSubscription]);
 	const pending = useQuery({
 		...orpc.payments.getPendingSubscriptionCheckout.queryOptions({ input: {} }),
-		enabled: authenticated && !hasSubscription,
+		queryKey: ["pending-subscription-checkout", ownerId],
+		enabled: authenticated && Boolean(ownerId) && !hasSubscription,
 	});
 	const hasPendingCheckout = authenticated && Boolean(pending.data);
 	const previousPendingId = useRef<string | null>(null);
@@ -155,7 +199,7 @@ export function PricingTable({
 		interval: "month" | "year",
 		provider: SubscriptionCheckoutProvider | null,
 	) => {
-		if (hasSubscription || checkoutBlocked) return;
+		if (hasSubscription || checkoutBlocked || inflight.current) return;
 		captureCheckoutTrigger();
 		if (!(userId || organizationId)) {
 			if (planId === "creator" || planId === "ultimate" || planId === "studio") {
@@ -172,6 +216,15 @@ export function PricingTable({
 		}
 
 		if (!payment.acquire(`plan:${planId}`)) return;
+		const action = payment.getSnapshot();
+		ownedAction.current = action;
+		const request = Symbol("subscription-checkout");
+		inflight.current = request;
+		const isCurrent = () =>
+			mounted.current &&
+			currentScope.current === scope &&
+			inflight.current === request &&
+			payment.getSnapshot() === action;
 		setCheckoutConflict(null);
 		setCheckoutUnavailable(false);
 		const selection: CheckoutSelection = { provider, planId, interval };
@@ -179,21 +232,25 @@ export function PricingTable({
 		const originatingPath = window.location.pathname + window.location.search;
 
 		try {
+			const attribution = await getCurrentCheckoutAttribution();
+			if (!isCurrent()) return;
 			const { checkoutLink, checkoutIntentId } = await createCheckoutLinkMutation.mutateAsync({
 				provider,
 				planId,
 				interval,
 				idempotencyKey: checkoutAttemptKey,
-				attribution: await getCurrentCheckoutAttribution(),
+				attribution,
 			});
+			if (!isCurrent()) return;
 
 			void saasGrowthFunnel.checkoutStarted(checkoutAttemptKey, planId).catch(() => undefined);
 			checkoutAttempts.current.succeeded(selection);
 			clearCheckoutTrigger();
-			bindVideoEffectPaymentReturn(userId, checkoutIntentId, originatingPath);
+			bindVideoEffectPaymentReturn(ownerId ?? undefined, checkoutIntentId, originatingPath);
 			payment.redirecting();
 			window.location.href = checkoutLink;
 		} catch (error) {
+			if (!isCurrent()) return;
 			const conflict = error instanceof Error && "code" in error && error.code === "CONFLICT";
 			if (conflict)
 				setCheckoutConflict(
@@ -201,7 +258,10 @@ export function PricingTable({
 				);
 			else setCheckoutUnavailable(true);
 			if (conflict) await pending.refetch();
-			payment.release();
+		} finally {
+			if (payment.getSnapshot() === action) payment.release();
+			if (inflight.current === request) inflight.current = null;
+			if (ownedAction.current === action) ownedAction.current = null;
 		}
 	};
 

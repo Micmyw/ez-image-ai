@@ -21,6 +21,7 @@ const {
 	paymentsConfig,
 	providerCheckout,
 	providerRecoverCheckout,
+	providerResumeCheckout,
 	resetCheckoutIntentProviderCreating,
 	transitionCheckoutIntentToReview,
 	verifyOrganizationBillingManagement,
@@ -43,6 +44,7 @@ const {
 	paymentsConfig: { billingAttachedTo: "user" as "user" | "organization" },
 	providerCheckout: vi.fn(),
 	providerRecoverCheckout: vi.fn(),
+	providerResumeCheckout: vi.fn(),
 	resetCheckoutIntentProviderCreating: vi.fn(),
 	transitionCheckoutIntentToReview: vi.fn(),
 	verifyOrganizationBillingManagement: vi.fn(),
@@ -131,6 +133,31 @@ const billingPlan = {
 	metadata: {},
 };
 
+const ownedCreditPackIntent = {
+	id: "credit-pack-intent-1",
+	idempotencyKey: "credit-pack-checkout-0001",
+	provider: "paypal",
+	status: "CREATED",
+	submittedByUserId: "user-1",
+	productKind: "CREDIT_PACK",
+	billingPlanId: billingPlan.id,
+	planKey: "credits-1500",
+	interval: "one-time",
+	creditPackCatalogVersion: "2026-09-06.1",
+	creditPackPricingVersion: "2026-09-06.1",
+	creditPackSubscriberEligibilityVersion: "2026-09-06.1",
+	creditPackBaseCredits: 1_500n,
+	creditPackBonusCredits: 300n,
+	creditPackTotalCredits: 1_800n,
+	creditPackExpiryMonths: 6,
+	creditPackSubscriberBonusEligible: true,
+	creditPackSubscriberSubscriptionId: "subscription-ultimate",
+	creditPackSubscriberPlanKey: "ultimate",
+	creditPackEligibilityEvaluatedAt: new Date("2026-09-06T08:30:00.000Z"),
+	billingPlan,
+	creditPackFulfillment: null,
+};
+
 describe("createCreditPackCheckout", () => {
 	beforeEach(() => {
 		vi.stubEnv("BILLING_ENABLED", "true");
@@ -164,30 +191,7 @@ describe("createCreditPackCheckout", () => {
 			},
 			replayed: false,
 		});
-		getPaymentCheckoutIntentForOwner.mockResolvedValue({
-			id: "credit-pack-intent-1",
-			idempotencyKey: "credit-pack-checkout-0001",
-			provider: "paypal",
-			status: "CREATED",
-			submittedByUserId: "user-1",
-			productKind: "CREDIT_PACK",
-			billingPlanId: billingPlan.id,
-			planKey: "credits-1500",
-			interval: "one-time",
-			creditPackCatalogVersion: "2026-09-06.1",
-			creditPackPricingVersion: "2026-09-06.1",
-			creditPackSubscriberEligibilityVersion: "2026-09-06.1",
-			creditPackBaseCredits: 1_500n,
-			creditPackBonusCredits: 300n,
-			creditPackTotalCredits: 1_800n,
-			creditPackExpiryMonths: 6,
-			creditPackSubscriberBonusEligible: true,
-			creditPackSubscriberSubscriptionId: "subscription-ultimate",
-			creditPackSubscriberPlanKey: "ultimate",
-			creditPackEligibilityEvaluatedAt: new Date("2026-09-06T08:30:00.000Z"),
-			billingPlan,
-			creditPackFulfillment: null,
-		});
+		getPaymentCheckoutIntentForOwner.mockResolvedValue(ownedCreditPackIntent);
 		markCheckoutIntentProviderCreating.mockResolvedValue({
 			id: "credit-pack-intent-1",
 			status: "PROVIDER_CREATING",
@@ -198,6 +202,9 @@ describe("createCreditPackCheckout", () => {
 			expiresAt: null,
 		});
 		providerRecoverCheckout.mockResolvedValue({ status: "UNKNOWN" });
+		providerResumeCheckout
+			.mockReset()
+			.mockResolvedValue("https://pancake.waffo.ai/store/test/checkout/session-1#token=fresh");
 		resetCheckoutIntentProviderCreating.mockResolvedValue({ count: 1 });
 		transitionCheckoutIntentToReview.mockResolvedValue({ count: 1 });
 		getPaymentProvider.mockReturnValue({
@@ -273,6 +280,75 @@ describe("createCreditPackCheckout", () => {
 			expect(createCheckoutIntent).not.toHaveBeenCalled();
 			expect(providerCheckout).not.toHaveBeenCalled();
 			expect(isPaymentProviderCheckoutAvailable).toHaveBeenCalledWith(provider, { fresh: true });
+		},
+	);
+
+	it.each(["paypal", "waffo"] as const)(
+		"gives %s distinct trusted approval and cancel callbacks",
+		async (provider) => {
+			getPaymentCheckoutIntentForOwner.mockResolvedValue({
+				...ownedCreditPackIntent,
+				provider,
+				billingPlan: { ...billingPlan, provider },
+			});
+			await call(
+				createCreditPackCheckout,
+				{ provider, packKey: "credits-1500", idempotencyKey: "credit-pack-safe-callback-0001" },
+				{ context: { headers: new Headers() } },
+			);
+			const options = providerCheckout.mock.calls[0]![0];
+			expect(options.cancelUrl).toEqual(expect.any(String));
+			const approved = new URL(options.redirectUrl);
+			const canceled = new URL(options.cancelUrl);
+			expect(approved.origin).toBe("https://app.ezpic.test");
+			expect(approved.pathname).toBe("/credit-pack-checkout-return");
+			expect(Object.fromEntries(approved.searchParams)).toEqual({
+				intentId: "credit-pack-intent-1",
+				approved: "1",
+			});
+			expect(canceled.origin).toBe(approved.origin);
+			expect(canceled.pathname).toBe(approved.pathname);
+			expect(Object.fromEntries(canceled.searchParams)).toEqual({
+				intentId: "credit-pack-intent-1",
+				canceled: "1",
+			});
+		},
+	);
+
+	it("encodes the trusted intent without allowing it to add callback flags", async () => {
+		const id = "intent?approved=0&canceled=1#fragment";
+		getPaymentCheckoutIntentForOwner.mockResolvedValue({ ...ownedCreditPackIntent, id });
+		await call(
+			createCreditPackCheckout,
+			{
+				provider: "paypal",
+				packKey: "credits-1500",
+				idempotencyKey: "credit-pack-safe-callback-0001",
+			},
+			{ context: { headers: new Headers() } },
+		);
+		const options = providerCheckout.mock.calls[0]![0];
+		expect(Object.fromEntries(new URL(options.redirectUrl).searchParams)).toEqual({
+			intentId: id,
+			approved: "1",
+		});
+		expect(Object.fromEntries(new URL(options.cancelUrl).searchParams)).toEqual({
+			intentId: id,
+			canceled: "1",
+		});
+	});
+
+	it.each(["approved", "canceled", "redirectUrl", "cancelUrl", "returnUrl"])(
+		"rejects a browser-provided %s override",
+		(field) => {
+			expect(
+				creditPackCheckoutInputSchema.safeParse({
+					provider: "paypal",
+					packKey: "credits-1500",
+					idempotencyKey: "credit-pack-safe-callback-0001",
+					[field]: "https://attacker.invalid",
+				}).success,
+			).toBe(false);
 		},
 	);
 
@@ -425,7 +501,9 @@ describe("createCreditPackCheckout", () => {
 				ownerType: "USER",
 				ownerId: "user-1",
 				redirectUrl:
-					"https://app.ezpic.test/credit-pack-checkout-return?intentId=credit-pack-intent-1",
+					"https://app.ezpic.test/credit-pack-checkout-return?intentId=credit-pack-intent-1&approved=1",
+				cancelUrl:
+					"https://app.ezpic.test/credit-pack-checkout-return?intentId=credit-pack-intent-1&canceled=1",
 			}),
 		);
 		expect(markCheckoutIntentProviderCreating).toHaveBeenCalledWith(
@@ -556,6 +634,129 @@ describe("createCreditPackCheckout", () => {
 		expect(providerCheckout).not.toHaveBeenCalled();
 	});
 
+	function waffoPending(existingKey = true) {
+		const pendingIntent = {
+			...ownedCreditPackIntent,
+			provider: "waffo",
+			ownerType: "USER",
+			ownerId: "user-1",
+			status: "PROVIDER_PENDING",
+			providerSessionId: "session-1",
+			providerOrderId: "order-1",
+			providerCheckoutUrl: "https://pancake.waffo.ai/store/test/checkout/session-1#token=expired",
+			expiresAt: new Date("2026-09-06T09:15:00.000Z"),
+			billingPlan: { ...billingPlan, provider: "waffo" },
+		};
+		getPaymentCheckoutIntentForOwnerByIdempotencyKey.mockResolvedValue(
+			existingKey ? pendingIntent : null,
+		);
+		createCheckoutIntent.mockResolvedValue({ intent: pendingIntent, replayed: true });
+		getPaymentCheckoutIntentForOwner.mockResolvedValue(pendingIntent);
+		getPaymentProvider.mockReturnValue({
+			name: "waffo",
+			capabilities: { checkout: true },
+			createCheckout: providerCheckout,
+			resumeCheckout: providerResumeCheckout,
+		});
+		return pendingIntent;
+	}
+	function retryWaffo() {
+		return call(
+			createCreditPackCheckout,
+			{
+				provider: "waffo",
+				packKey: "credits-1500",
+				idempotencyKey: "waffo-credit-pack-retry-0001",
+			},
+			{ context: { headers: new Headers() } },
+		);
+	}
+
+	it.each([true, false])(
+		"renews only the original Waffo session token on retry (existing key=%s)",
+		async (existingKey) => {
+			waffoPending(existingKey);
+			await expect(retryWaffo()).resolves.toEqual({
+				checkoutLink: "https://pancake.waffo.ai/store/test/checkout/session-1#token=fresh",
+				intentId: "credit-pack-intent-1",
+			});
+			expect(providerResumeCheckout).toHaveBeenCalledOnce();
+			expect(providerResumeCheckout).toHaveBeenCalledWith({
+				checkoutUrl: "https://pancake.waffo.ai/store/test/checkout/session-1#token=expired",
+				priceId: "PROD-CREDITS-1500",
+				ownerType: "USER",
+				ownerId: "user-1",
+			});
+			expect(getPaymentCheckoutIntentForOwner).toHaveBeenLastCalledWith(
+				{ intentId: "credit-pack-intent-1", ownerType: "USER", ownerId: "user-1" },
+				expect.anything(),
+			);
+			expect(getPaymentCheckoutIntentForOwner).toHaveBeenCalledTimes(existingKey ? 1 : 2);
+			expect(providerCheckout).not.toHaveBeenCalled();
+			expect(providerRecoverCheckout).not.toHaveBeenCalled();
+			expect(bindCheckoutIntent).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each([null, new Date("2026-09-06T08:30:00.000Z")])(
+		"does not renew an expired or unverified Waffo session %s",
+		async (expiresAt) => {
+			const pendingIntent = waffoPending();
+			getPaymentCheckoutIntentForOwnerByIdempotencyKey.mockResolvedValue({
+				...pendingIntent,
+				expiresAt,
+			});
+			await expect(retryWaffo()).rejects.toMatchObject({ code: "CONFLICT" });
+			expect(providerResumeCheckout).not.toHaveBeenCalled();
+			expect(providerCheckout).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each([
+		{ status: "COMPLETED" },
+		{ providerSessionId: "different-session" },
+		{ providerOrderId: "different-order" },
+		{ providerCheckoutUrl: "https://pancake.waffo.ai/store/test/checkout/other#token=old" },
+		{ expiresAt: new Date("2026-09-06T08:30:00.000Z") },
+		{ ownerId: "different-owner" },
+		{ submittedByUserId: "different-submitter" },
+	])("does not return a renewed token after the owned session changes %o", async (change) => {
+		const pendingIntent = waffoPending();
+		getPaymentCheckoutIntentForOwner.mockResolvedValue({ ...pendingIntent, ...change });
+		await expect(retryWaffo()).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(providerCheckout).not.toHaveBeenCalled();
+		expect(bindCheckoutIntent).not.toHaveBeenCalled();
+	});
+
+	it("does not let a token renewal change the original Waffo resource", async () => {
+		waffoPending();
+		providerResumeCheckout.mockResolvedValue("https://attacker.invalid/checkout/other#token=fresh");
+		await expect(retryWaffo()).rejects.toMatchObject({ code: "CONFLICT" });
+		expect(providerCheckout).not.toHaveBeenCalled();
+	});
+
+	it("fails closed when Waffo token renewal is unavailable", async () => {
+		waffoPending();
+		getPaymentProvider.mockReturnValue({
+			name: "waffo",
+			capabilities: { checkout: true },
+			createCheckout: providerCheckout,
+		});
+		await expect(retryWaffo()).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+		expect(providerCheckout).not.toHaveBeenCalled();
+	});
+
+	it("keeps the existing Waffo resource after a token renewal failure", async () => {
+		waffoPending();
+		providerResumeCheckout.mockRejectedValue(new Error("private-token-provider-detail"));
+		await expect(retryWaffo()).rejects.toMatchObject({
+			code: "SERVICE_UNAVAILABLE",
+			message: "PAYMENT_CHECKOUT_RESUME_UNAVAILABLE",
+		});
+		expect(providerCheckout).not.toHaveBeenCalled();
+		expect(bindCheckoutIntent).not.toHaveBeenCalled();
+	});
+
 	it("recovers and binds a provider-created checkout after local binding was interrupted", async () => {
 		getPaymentCheckoutIntentForOwnerByIdempotencyKey.mockResolvedValue({
 			id: "credit-pack-intent-1",
@@ -610,6 +811,10 @@ describe("createCreditPackCheckout", () => {
 			expect.objectContaining({
 				checkoutIntentId: "credit-pack-intent-1",
 				idempotencyKey: "credit-pack-checkout-canonical-0001",
+				redirectUrl:
+					"https://app.ezpic.test/credit-pack-checkout-return?intentId=credit-pack-intent-1&approved=1",
+				cancelUrl:
+					"https://app.ezpic.test/credit-pack-checkout-return?intentId=credit-pack-intent-1&canceled=1",
 				providerCreatingAt: new Date("2026-09-06T08:29:00.000Z"),
 				now: new Date("2026-09-06T08:30:00.000Z"),
 			}),

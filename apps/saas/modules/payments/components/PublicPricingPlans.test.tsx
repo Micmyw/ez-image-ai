@@ -187,12 +187,20 @@ vi.mock("@shared/lib/orpc-query-utils", () => ({
 	orpc: {
 		payments: {
 			createCreditPackCheckout: { mutationOptions: () => ({}) },
+			getCreditPackCheckoutState: { queryOptions: () => ({}) },
 			getCreditPackProviderAvailability: { queryOptions: () => ({}) },
 		},
 	},
 }));
 vi.mock("@tanstack/react-query", () => ({
 	useMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
+	useQuery: () => ({
+		data: undefined,
+		isPending: true,
+		isError: false,
+		isSuccess: false,
+		refetch: vi.fn(),
+	}),
 	useQueries: ({ queries }: { queries: unknown[] }) =>
 		queries.map(() => ({
 			data: {
@@ -273,6 +281,7 @@ describe("PublicPricingPlans", () => {
 			expect(visibleText).toContain(price);
 		}
 		expect(visibleText.match(/Buy credits/g)).toHaveLength(4);
+		expect(markup).not.toContain('data-testid="credit-pack-recovery-');
 		expect(visibleText.match(/PayPal/g)).toHaveLength(1);
 		expect(visibleText.match(/Waffo/g)).toHaveLength(1);
 		expect(visibleText).toContain("Valid for 6 months");

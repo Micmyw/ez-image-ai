@@ -94,7 +94,12 @@ describe("getCreditPackCheckoutState", () => {
 			provider: "paypal",
 			productKind: "CREDIT_PACK",
 			status: "PROVIDER_PENDING",
-			billingPlan: { productKind: "CREDIT_PACK" },
+			billingPlan: {
+				productKind: "CREDIT_PACK",
+				provider: "paypal",
+				currency: "USD",
+				priceMicros: 59_000_000n,
+			},
 			creditPackFulfillment: null,
 		});
 
@@ -104,11 +109,95 @@ describe("getCreditPackCheckoutState", () => {
 				{ intentId: "credit-pack-intent-1" },
 				{ context: { headers: new Headers() } },
 			),
-		).resolves.toEqual({ status: "PENDING" });
+		).resolves.toEqual({ status: "PENDING", provider: "paypal", amount: "59.00", currency: "USD" });
 		expect(getPaymentCheckoutIntentForOwner).toHaveBeenCalledWith(
 			{ intentId: "credit-pack-intent-1", ownerType: "USER", ownerId: "user-1" },
 			expect.anything(),
 		);
+	});
+
+	it.each(["paypal", "waffo"] as const)(
+		"returns only safe server-bound %s confirmation details",
+		async (provider) => {
+			getPaymentCheckoutIntentForOwner.mockResolvedValue({
+				id: "credit-pack-intent-1",
+				provider,
+				productKind: "CREDIT_PACK",
+				status: "PROVIDER_PENDING",
+				providerOrderId: "private-provider-order",
+				providerSessionId: "private-provider-session",
+				providerCheckoutUrl: "https://private.invalid/approval",
+				billingPlan: {
+					productKind: "CREDIT_PACK",
+					provider,
+					currency: "USD",
+					priceMicros: 59_000_000n,
+					providerPriceId: "private-product",
+				},
+				creditPackFulfillment: null,
+			});
+			await expect(
+				call(
+					getCreditPackCheckoutState,
+					{ intentId: "credit-pack-intent-1" },
+					{ context: { headers: new Headers() } },
+				),
+			).resolves.toEqual({ status: "PENDING", provider, amount: "59.00", currency: "USD" });
+		},
+	);
+
+	it.each([
+		{ priceMicros: 10_000n, amount: "0.01" },
+		{ priceMicros: 59_990_000n, amount: "59.99" },
+		{ priceMicros: 9_000_000_000_010_000n, amount: "9000000000.01" },
+	])("preserves the exact stored amount $amount", async ({ priceMicros, amount }) => {
+		getPaymentCheckoutIntentForOwner.mockResolvedValue({
+			id: "credit-pack-intent-1",
+			provider: "paypal",
+			productKind: "CREDIT_PACK",
+			status: "PROVIDER_PENDING",
+			billingPlan: { productKind: "CREDIT_PACK", provider: "paypal", currency: "USD", priceMicros },
+			creditPackFulfillment: null,
+		});
+		await expect(
+			call(
+				getCreditPackCheckoutState,
+				{ intentId: "credit-pack-intent-1" },
+				{ context: { headers: new Headers() } },
+			),
+		).resolves.toMatchObject({ amount, currency: "USD" });
+	});
+
+	it.each([
+		{ priceMicros: 0n },
+		{ priceMicros: -10_000n },
+		{ priceMicros: 1n },
+		{ priceMicros: undefined },
+		{ currency: "EUR" },
+		{ provider: "waffo" },
+		{ productKind: "PLAN" },
+	])("does not offer confirmation with an invalid bound plan %o", async (override) => {
+		getPaymentCheckoutIntentForOwner.mockResolvedValue({
+			id: "credit-pack-intent-1",
+			provider: "paypal",
+			productKind: "CREDIT_PACK",
+			status: "PROVIDER_PENDING",
+			billingPlan: {
+				productKind: "CREDIT_PACK",
+				provider: "paypal",
+				currency: "USD",
+				priceMicros: 59_000_000n,
+				...override,
+			},
+			creditPackFulfillment: null,
+		});
+		await expect(
+			call(
+				getCreditPackCheckoutState,
+				{ intentId: "credit-pack-intent-1" },
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
 	});
 
 	it("does not reveal an intent outside the owner scope", async () => {

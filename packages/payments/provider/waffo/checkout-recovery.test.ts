@@ -4,6 +4,7 @@ import {
 	recoverWaffoSubscriptionCheckout,
 	resumeWaffoSubscriptionCheckout,
 } from "./checkout-recovery";
+import { createWaffoProvider } from "./index";
 import type { WaffoSdkBoundary } from "./waffo";
 const input = {
 	checkoutIntentId: "i1",
@@ -129,5 +130,37 @@ describe("Waffo owned subscription checkout closure", () => {
 		});
 		expect(url).toBe("https://pancake.waffo.ai/store/store/checkout/cs1#token=fresh-token");
 		expect(issueSessionToken).toHaveBeenCalledWith({ productId: "p1", buyerIdentity: "USER:u1" });
+	});
+});
+
+describe("Waffo shared checkout session authentication", () => {
+	it("renews a credit-pack session through the same capability as subscriptions without creating another checkout", async () => {
+		const issueSessionToken = vi.fn().mockResolvedValue({
+			token: "new-token",
+			expiresAt: new Date(Date.now() + 60_000).toISOString(),
+		});
+		const create = vi.fn();
+		const provider = createWaffoProvider({ WAFFO_STORE_ID: "test-store" }, {
+			auth: { issueSessionToken },
+			checkout: { authenticated: { create } },
+		} as unknown as WaffoSdkBoundary);
+		expect(provider.resumeCheckout).toBeTypeOf("function");
+		expect(provider.resumeCheckout).toBe(provider.resumeSubscriptionCheckout);
+		await expect(
+			provider.resumeCheckout!({
+				checkoutUrl:
+					"https://pancake.waffo.ai/store/test-store/checkout/same-session?lang=en#token=old-token",
+				priceId: "one-time-product",
+				ownerType: "USER",
+				ownerId: "test-owner",
+			}),
+		).resolves.toBe(
+			"https://pancake.waffo.ai/store/test-store/checkout/same-session?lang=en#token=new-token",
+		);
+		expect(issueSessionToken).toHaveBeenCalledWith({
+			productId: "one-time-product",
+			buyerIdentity: "USER:test-owner",
+		});
+		expect(create).not.toHaveBeenCalled();
 	});
 });

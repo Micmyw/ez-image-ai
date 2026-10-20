@@ -24,7 +24,14 @@ export const getCreditPackCheckoutState = protectedProcedure
 		description: "Reads owner-scoped processing state without exposing provider product IDs",
 	})
 	.input(z.object({ intentId: z.string().trim().min(1).max(128) }).strict())
-	.output(z.object({ status: creditPackCheckoutStateSchema }))
+	.output(
+		z.object({
+			status: creditPackCheckoutStateSchema,
+			provider: z.enum(["paypal", "waffo"]),
+			amount: z.string().regex(/^\d+\.\d{2}$/),
+			currency: z.literal("USD"),
+		}),
+	)
 	.handler(async ({ input, context: { session, user } }) => {
 		const owner = await resolveStateOwner(user.id, session.activeOrganizationId);
 		const intent = await getPaymentCheckoutIntentForOwner(
@@ -35,11 +42,22 @@ export const getCreditPackCheckoutState = protectedProcedure
 			!intent ||
 			(intent.provider !== "paypal" && intent.provider !== "waffo") ||
 			intent.productKind !== "CREDIT_PACK" ||
-			intent.billingPlan.productKind !== "CREDIT_PACK"
+			intent.billingPlan.productKind !== "CREDIT_PACK" ||
+			intent.billingPlan.provider !== intent.provider ||
+			intent.billingPlan.currency !== "USD" ||
+			typeof intent.billingPlan.priceMicros !== "bigint" ||
+			intent.billingPlan.priceMicros <= 0n ||
+			intent.billingPlan.priceMicros % 10_000n !== 0n
 		) {
 			throw new ORPCError("NOT_FOUND");
 		}
-		return resolveCreditPackCheckoutState(intent);
+		const cents = intent.billingPlan.priceMicros / 10_000n;
+		return {
+			...resolveCreditPackCheckoutState(intent),
+			provider: intent.provider,
+			amount: `${cents / 100n}.${(cents % 100n).toString().padStart(2, "0")}`,
+			currency: "USD" as const,
+		};
 	});
 
 export function resolveCreditPackCheckoutState(

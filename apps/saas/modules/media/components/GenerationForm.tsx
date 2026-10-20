@@ -589,6 +589,11 @@ export function GenerationForm({
 			<ImageFundingSelector
 				value={fundingSource}
 				available={passAvailable}
+				creditsAvailable={
+					generation.creditAccount.isError
+						? undefined
+						: generation.creditAccount.data?.spendableCredits
+				}
 				reserved={generation.imagePass?.data?.reserved}
 				failed={generation.imagePass?.isError}
 				onRefresh={() => {

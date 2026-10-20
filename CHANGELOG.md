@@ -1,9 +1,10 @@
 # Changelog
 
-## 2026-10-20 — Clearer image-pack checkout returns
+## 2026-10-20 — Clearer payment returns and image funding
 
-- Show a compact payment choice only when image passes are available or in progress. Keep an explicit credit choice when selected passes run out, without switching payment methods automatically.
-- Return canceled PayPal image-pack checkouts to the purchase page with server-confirmed payment status and clear options to check again or continue generating. Browser Back and refresh preserve checkout context without capturing payment. Older return links require an explicit payment confirmation before capture.
+- Show compact available credit and image-pass balances, including passes in progress. Keep an explicit credit choice when selected passes run out, without switching payment methods automatically.
+- Give image-pack, credit-pack and subscription returns clear payment status and options to check again or continue creating. Cancellation and browser history checks only read status; older return links require an explicit confirmation before payment capture or subscription recovery.
+- Confirm subscription success against the specific checkout and paid period. Refresh Waffo authentication on the original credit-pack session when resuming, with duplicate-order and account safeguards.
 
 ## 2026-10-19 — $1 PayPal image purchase
 

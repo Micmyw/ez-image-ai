@@ -263,6 +263,7 @@ function checkoutReturnUrl(
 	url.searchParams.set("expectedPlanId", planId);
 	url.searchParams.set("checkoutIntentId", checkoutIntentId);
 	if (canceled) url.searchParams.set("canceled", "1");
+	else url.searchParams.set("approved", "1");
 	url.searchParams.set("returnTo", "/create?upgrade=complete");
 	return url.toString();
 }

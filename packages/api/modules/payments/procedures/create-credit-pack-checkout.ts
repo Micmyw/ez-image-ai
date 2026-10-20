@@ -19,6 +19,7 @@ import {
 	isPaymentProviderCheckoutAvailable,
 } from "@repo/payments";
 import { config as paymentsConfig } from "@repo/payments/config";
+import type { PaymentProvider } from "@repo/payments/types";
 import { getBaseUrl } from "@repo/utils";
 import { z } from "zod";
 
@@ -77,7 +78,7 @@ export const createCreditPackCheckout = protectedProcedure
 				trustedIntent.providerSessionId &&
 				trustedIntent.providerCheckoutUrl
 			) {
-				return { checkoutLink: trustedIntent.providerCheckoutUrl, intentId: trustedIntent.id };
+				return resumeCreditPackCheckout(trustedIntent, providerDefinition, owner, packKey, user.id);
 			}
 			if (trustedIntent.status !== "CREATED" && trustedIntent.status !== "PROVIDER_CREATING") {
 				throw new ORPCError("CONFLICT");
@@ -155,7 +156,7 @@ export const createCreditPackCheckout = protectedProcedure
 				trustedIntent.providerSessionId &&
 				trustedIntent.providerCheckoutUrl
 			) {
-				return { checkoutLink: trustedIntent.providerCheckoutUrl, intentId: trustedIntent.id };
+				return resumeCreditPackCheckout(trustedIntent, providerDefinition, owner, packKey, user.id);
 			}
 			if (trustedIntent.status !== "CREATED" && trustedIntent.status !== "PROVIDER_CREATING") {
 				throw new ORPCError("CONFLICT");
@@ -181,6 +182,7 @@ export const createCreditPackCheckout = protectedProcedure
 			email: user.email,
 			name: user.name ?? "",
 			redirectUrl: creditPackCheckoutReturnUrl(trustedIntent.id),
+			cancelUrl: creditPackCheckoutReturnUrl(trustedIntent.id, true),
 			customerId: customer?.providerCustomerId,
 		};
 
@@ -239,6 +241,58 @@ export const createCreditPackCheckout = protectedProcedure
 			throw new ORPCError("INTERNAL_SERVER_ERROR");
 		}
 	});
+
+async function resumeCreditPackCheckout(
+	intent: NonNullable<Awaited<ReturnType<typeof getPaymentCheckoutIntentForOwner>>>,
+	provider: PaymentProvider,
+	owner: { ownerType: "USER" | "ORGANIZATION"; ownerId: string },
+	packKey: string,
+	submittedByUserId: string,
+) {
+	const storedUrl = intent.providerCheckoutUrl;
+	if (!storedUrl || !intent.providerSessionId) throw new ORPCError("CONFLICT");
+	if (intent.provider !== "waffo") return { checkoutLink: storedUrl, intentId: intent.id };
+	if (!intent.expiresAt || intent.expiresAt <= new Date()) throw new ORPCError("CONFLICT");
+	if (!provider.resumeCheckout) throw new ORPCError("SERVICE_UNAVAILABLE");
+
+	let checkoutLink: string;
+	try {
+		checkoutLink = await provider.resumeCheckout({
+			checkoutUrl: storedUrl,
+			priceId: intent.billingPlan.providerPriceId,
+			...owner,
+		});
+	} catch {
+		throw new ORPCError("SERVICE_UNAVAILABLE", { message: "PAYMENT_CHECKOUT_RESUME_UNAVAILABLE" });
+	}
+	try {
+		const original = new URL(storedUrl);
+		const renewed = new URL(checkoutLink);
+		original.hash = "";
+		renewed.hash = "";
+		if (original.toString() !== renewed.toString()) throw new Error("RESOURCE_CHANGED");
+	} catch {
+		throw new ORPCError("CONFLICT");
+	}
+	const current = await getPaymentCheckoutIntentForOwner({ intentId: intent.id, ...owner }, db);
+	if (
+		!isTrustedCreditPackIntent(current, "waffo", packKey, submittedByUserId) ||
+		current.id !== intent.id ||
+		current.ownerType !== owner.ownerType ||
+		current.ownerId !== owner.ownerId ||
+		current.status !== "PROVIDER_PENDING" ||
+		current.providerSessionId !== intent.providerSessionId ||
+		current.providerOrderId !== intent.providerOrderId ||
+		current.providerCheckoutUrl !== storedUrl ||
+		current.billingPlanId !== intent.billingPlanId ||
+		current.billingPlan.providerPriceId !== intent.billingPlan.providerPriceId ||
+		!current.expiresAt ||
+		current.expiresAt <= new Date()
+	) {
+		throw new ORPCError("CONFLICT");
+	}
+	return { checkoutLink, intentId: current.id };
+}
 
 async function resolveCreditPackCheckoutOwner(
 	userId: string,
@@ -343,12 +397,13 @@ function isPaidPlanKey(value: string | null): boolean {
 	return value === "creator" || value === "ultimate" || value === "studio";
 }
 
-function creditPackCheckoutReturnUrl(intentId: string): string {
+function creditPackCheckoutReturnUrl(intentId: string, canceled = false): string {
 	const url = new URL(
 		"/credit-pack-checkout-return",
 		getBaseUrl(process.env.NEXT_PUBLIC_SAAS_URL, 3000),
 	);
 	url.searchParams.set("intentId", intentId);
+	url.searchParams.set(canceled ? "canceled" : "approved", "1");
 	return url.toString();
 }
 

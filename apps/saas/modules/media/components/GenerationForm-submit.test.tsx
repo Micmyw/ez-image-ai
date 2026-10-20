@@ -8,6 +8,7 @@ const state = vi.hoisted(() => ({
 	passAvailable: 3 as number | undefined,
 	passReserved: 0,
 	passFailed: false,
+	creditFailed: false,
 	generationPending: false,
 	cursor: 0,
 	slots: [] as {
@@ -96,7 +97,7 @@ vi.mock("../hooks/use-generation", () => ({
 				],
 			},
 		},
-		creditAccount: { data: { spendableCredits: "100" } },
+		creditAccount: { data: { spendableCredits: "100" }, isError: state.creditFailed },
 		imagePass: {
 			data: { available: state.passAvailable, reserved: state.passReserved },
 			isError: state.passFailed,
@@ -161,6 +162,7 @@ beforeEach(() => {
 	state.passAvailable = 3;
 	state.passReserved = 0;
 	state.passFailed = false;
+	state.creditFailed = false;
 	state.generationPending = false;
 	state.slots = [];
 	state.cursor = 0;
@@ -224,6 +226,11 @@ describe("GenerationForm submission callbacks", () => {
 		submit(element);
 		await flush();
 		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("shows only a successfully read credit balance in the funding choice", () => {
+		expect(find(render(), ImageFundingSelector).props.creditsAvailable).toBe("100");
+		state.creditFailed = true;
+		expect(find(render(), ImageFundingSelector).props.creditsAvailable).toBeUndefined();
 	});
 	it("passes reserved balances through and preserves the draft as the selector hides and reappears", () => {
 		state.passAvailable = 0;

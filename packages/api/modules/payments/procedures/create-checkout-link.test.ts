@@ -203,6 +203,51 @@ describe("createCheckoutLink", () => {
 		});
 	});
 
+	it.each(["paypal", "waffo"] as const)(
+		"marks only the %s approval callback as approved",
+		async (provider) => {
+			findBillingPlan.mockResolvedValue({ ...billingPlan, provider });
+			await call(
+				createCheckoutLink,
+				{
+					provider,
+					planId: "creator",
+					interval: "month",
+					idempotencyKey: "subscription-safe-callback-0001",
+				},
+				{ context: { headers: new Headers() } },
+			);
+			const options = providerCheckout.mock.calls[0]![0];
+			const approved = new URL(options.redirectUrl);
+			const canceled = new URL(options.cancelUrl);
+			expect(approved.origin).toBe("https://app.ezpic.test");
+			expect(approved.pathname).toBe("/checkout-return");
+			expect(approved.searchParams.get("approved")).toBe("1");
+			expect(approved.searchParams.has("canceled")).toBe(false);
+			expect(canceled.searchParams.get("canceled")).toBe("1");
+			expect(canceled.searchParams.has("approved")).toBe(false);
+			for (const url of [approved, canceled]) {
+				expect(url.searchParams.get("checkoutIntentId")).toBe("checkout-intent-1");
+				expect(url.searchParams.get("expectedPlanId")).toBe("creator");
+			}
+		},
+	);
+
+	it.each(["approved", "canceled", "redirectUrl", "cancelUrl", "returnUrl"])(
+		"rejects a browser-provided %s subscription callback override",
+		(field) => {
+			expect(
+				checkoutInputSchema.safeParse({
+					provider: "paypal",
+					planId: "creator",
+					interval: "month",
+					idempotencyKey: "subscription-safe-callback-0001",
+					[field]: "https://attacker.invalid",
+				}).success,
+			).toBe(false);
+		},
+	);
+
 	it.each([true, false])(
 		"freezes the actual product page only with consent (%s)",
 		async (consented) => {
@@ -461,7 +506,9 @@ describe("createCheckoutLink", () => {
 				ownerType: "USER",
 				ownerId: "user-1",
 				redirectUrl:
-					"https://app.ezpic.test/checkout-return?expectedPlanId=creator&checkoutIntentId=checkout-intent-1&returnTo=%2Fcreate%3Fupgrade%3Dcomplete",
+					"https://app.ezpic.test/checkout-return?expectedPlanId=creator&checkoutIntentId=checkout-intent-1&approved=1&returnTo=%2Fcreate%3Fupgrade%3Dcomplete",
+				cancelUrl:
+					"https://app.ezpic.test/checkout-return?expectedPlanId=creator&checkoutIntentId=checkout-intent-1&canceled=1&returnTo=%2Fcreate%3Fupgrade%3Dcomplete",
 			}),
 		);
 		expect(markCheckoutIntentProviderCreating).toHaveBeenCalledWith(
@@ -566,6 +613,10 @@ describe("createCheckoutLink", () => {
 				checkoutIntentId: "checkout-intent-1",
 				idempotencyKey: "checkout-operation-canonical-0001",
 				priceId: "P-CREATOR-HISTORICAL",
+				redirectUrl:
+					"https://app.ezpic.test/checkout-return?expectedPlanId=creator&checkoutIntentId=checkout-intent-1&approved=1&returnTo=%2Fcreate%3Fupgrade%3Dcomplete",
+				cancelUrl:
+					"https://app.ezpic.test/checkout-return?expectedPlanId=creator&checkoutIntentId=checkout-intent-1&canceled=1&returnTo=%2Fcreate%3Fupgrade%3Dcomplete",
 				providerCreatingAt: new Date("2026-09-06T08:29:00.000Z"),
 			}),
 		);
