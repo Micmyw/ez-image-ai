@@ -1,14 +1,38 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { type FeedbackKind, scheduleFeedbackReveal } from "../lib/feedback";
 
 import "./feedback-trigger.css";
 
-const FeedbackDialog = lazy(() =>
-	import("./FeedbackDialog").then((module) => ({ default: module.FeedbackDialog })),
+type FeedbackDialogComponent = typeof import("./FeedbackDialog").FeedbackDialog;
+
+/** Static code only: preloading must not mount the form or load any account data. */
+export function createFeedbackDialogResource(load: () => Promise<FeedbackDialogComponent>) {
+	let pending: Promise<FeedbackDialogComponent> | null = null;
+	let component: FeedbackDialogComponent | null = null;
+	return {
+		read: () => component,
+		load(this: void) {
+			if (pending) return pending;
+			pending = load()
+				.then((loaded) => {
+					component = loaded;
+					return loaded;
+				})
+				.catch((error: unknown) => {
+					pending = null;
+					throw error;
+				});
+			return pending;
+		},
+	};
+}
+
+export const feedbackDialogResource = createFeedbackDialogResource(() =>
+	import("./FeedbackDialog").then((module) => module.FeedbackDialog),
 );
 
 function GiftIcon() {
@@ -46,12 +70,64 @@ export function FeedbackButton({
 	kind?: FeedbackKind;
 }) {
 	const t = useTranslations("feedback");
+	const studio = useTranslations("studio");
+	const statusId = useId();
 	const [open, setOpen] = useState(false);
 	const [requested, setRequested] = useState(false);
 	const [burst, setBurst] = useState(false);
+	const [Dialog, setDialog] = useState<FeedbackDialogComponent | null>(null);
+	const [loadFailed, setLoadFailed] = useState(false);
+	const trigger = useRef<HTMLButtonElement>(null);
 	const cancelReveal = useRef<(() => void) | null>(null);
-	useEffect(() => () => cancelReveal.current?.(), []);
+	const requestVersion = useRef(0);
+	const pending = !Dialog && (open || burst);
+	const cancelOpening = useCallback(() => {
+		requestVersion.current += 1;
+		cancelReveal.current?.();
+		cancelReveal.current = null;
+		setBurst(false);
+		setOpen(false);
+		trigger.current?.focus({ preventScroll: true });
+	}, []);
+	useEffect(
+		() => () => {
+			requestVersion.current += 1;
+			cancelReveal.current?.();
+		},
+		[],
+	);
+	useEffect(() => {
+		if (!pending) return;
+		function escape(event: KeyboardEvent) {
+			if (event.key !== "Escape" || event.defaultPrevented) return;
+			event.preventDefault();
+			cancelOpening();
+		}
+		document.addEventListener("keydown", escape);
+		return () => document.removeEventListener("keydown", escape);
+	}, [pending, cancelOpening]);
 	if (!supportEmail) return null;
+	const preload = () => {
+		// After an explicit open, failures retry only from the user's open/retry action.
+		if (!requested) void feedbackDialogResource.load().catch(() => {});
+	};
+	const loadDialog = () => {
+		const version = ++requestVersion.current;
+		setLoadFailed(false);
+		const cached = feedbackDialogResource.read();
+		if (cached) {
+			setDialog(() => cached);
+			return;
+		}
+		void feedbackDialogResource.load().then(
+			(component) => {
+				if (requestVersion.current === version) setDialog(() => component);
+			},
+			() => {
+				if (requestVersion.current === version) setLoadFailed(true);
+			},
+		);
+	};
 	const finishReveal = () => {
 		cancelReveal.current?.();
 		cancelReveal.current = null;
@@ -61,13 +137,19 @@ export function FeedbackButton({
 	return (
 		<>
 			<button
+				ref={trigger}
 				type="button"
 				className={`feedback-trigger feedback-trigger-${variant}`}
 				aria-haspopup="dialog"
-				aria-expanded={open}
+				aria-expanded={open || burst}
+				aria-busy={pending && !loadFailed ? true : undefined}
+				aria-describedby={pending ? statusId : undefined}
+				onPointerEnter={preload}
+				onFocus={preload}
 				onClick={() => {
 					if (burst) return;
 					setRequested(true);
+					if (!Dialog) loadDialog();
 					const reducedMotion =
 						variant === "report" ||
 						(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
@@ -97,15 +179,36 @@ export function FeedbackButton({
 					{t(variant === "report" ? "report" : variant === "footer" ? "footer" : "entry")}
 				</span>
 			</button>
-			{requested && (
-				<Suspense fallback={null}>
-					<FeedbackDialog
-						open={open}
-						onOpenChange={setOpen}
-						supportEmail={supportEmail}
-						initialKind={kind}
-					/>
-				</Suspense>
+			{pending && (
+				<span
+					id={statusId}
+					className="ml-2 gap-2 text-xs inline-flex flex-wrap items-center"
+					role={loadFailed ? "alert" : "status"}
+				>
+					<span>{studio(loadFailed ? "error" : "loading")}</span>
+					{loadFailed && (
+						<button
+							type="button"
+							className="min-h-11 px-2 underline focus-visible:outline-2"
+							onClick={() => {
+								finishReveal();
+								loadDialog();
+							}}
+						>
+							{studio("retry")}
+						</button>
+					)}
+					<button
+						type="button"
+						className="min-h-11 px-2 underline focus-visible:outline-2"
+						onClick={cancelOpening}
+					>
+						{studio("closePanel")}
+					</button>
+				</span>
+			)}
+			{requested && Dialog && (
+				<Dialog open={open} onOpenChange={setOpen} supportEmail={supportEmail} initialKind={kind} />
 			)}
 		</>
 	);

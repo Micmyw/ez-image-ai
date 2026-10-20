@@ -122,6 +122,7 @@ export async function getGuestCapability(
 		method: "GET",
 		credentials: "same-origin",
 		headers: { Accept: "application/json" },
+		signal: AbortSignal.timeout(12_000),
 	});
 	if (!response.ok) throw new Error("GUEST_CAPABILITY_UNAVAILABLE");
 	return parseGuestCapability(await response.json());

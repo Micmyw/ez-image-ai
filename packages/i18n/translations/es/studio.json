@@ -1,0 +1,378 @@
+{
+	"imagePass": {
+		"bannerLabel": "Paquete de imágenes de pago único",
+		"bannerTitle": "{units} imágenes por {currency} {amount}",
+		"bannerDetail": "Modelos de imagen actuales · hasta 4K · sin suscripción",
+		"buy": "Comprar paquete",
+		"oneTime": "Compra de pago único",
+		"title": "{units} imágenes generadas con éxito",
+		"pageTitle": "Paquete de imágenes — 3 imágenes por 1 USD",
+		"description": "Elige cualquier modelo de imagen disponible actualmente, incluidas las opciones compatibles de hasta 4K. Cada tarea genera una imagen.",
+		"models": "Modelos de imagen actuales y resoluciones compatibles, incluida 4K",
+		"singleOutput": "Cada imagen generada con éxito usa un pase. Solo imágenes, sin vídeo.",
+		"separate": "Los pases de imagen son independientes de los créditos y las suscripciones.",
+		"repeat": "Puedes comprar otro paquete cuando lo necesites.",
+		"balance": "{count} pases de imagen disponibles",
+		"pay": "Pagar {currency} {amount} con PayPal",
+		"processing": "Abriendo PayPal…",
+		"signIn": "Crear una cuenta o iniciar sesión",
+		"checkoutError": "No se pudo abrir el pago. Inténtalo de nuevo para continuar la misma compra.",
+		"fundingLabel": "Pagar con",
+		"fundingReserved": "{count} en curso",
+		"fundingExhausted": "No hay usos de imágenes disponibles. Elige créditos para continuar.",
+		"fundingCreditsAvailable": "Créditos · {count} disponibles",
+		"fundingCredits": "Créditos",
+		"fundingPasses": "Pases de imagen · {count} disponibles",
+		"fundingLoading": "Comprobando pases de imagen…",
+		"buyMore": "Comprar 3 pases de imagen",
+		"fundingEmpty": "No hay pases de imagen disponibles. Compra un paquete o elige créditos expresamente para continuar.",
+		"fundingPolicy": "Se reserva un pase mientras se procesa la tarea y se usa para una imagen generada con éxito. No se usan créditos. Se mantienen la revisión de contenido y los límites de almacenamiento.",
+		"fundingSeparate": "Los créditos y los pases de imagen son opciones independientes. Tu selección no cambiará automáticamente.",
+		"fundingPolicyTitle": "Condiciones de los pases de imagen",
+		"onePass": "1 pase de imagen",
+		"back": "Volver al editor",
+		"checkoutStatusTitle": "Estado de tu compra",
+		"checkoutUnconfirmed": "El pago aún no se ha confirmado. Comprueba su estado antes de volver a intentarlo.",
+		"checkoutNotCompleted": "Esta compra no se ha completado. Puedes volver a intentarlo.",
+		"checkoutStatusError": "Aún no hemos podido comprobar este pago. Comprueba su estado antes de iniciar otra compra.",
+		"checkStatus": "Comprobar estado",
+		"tryPurchaseAgain": "Volver a comprar",
+		"continueGenerating": "Seguir generando",
+		"returnAwaitingConfirmation": "Si has autorizado el pago de {currency} {amount} en PayPal, confirma abajo para completarlo. Si no, vuelve a la compra.",
+		"returnConfirmPayment": "Confirmar pago de {currency} {amount}",
+		"returnTitle": "Tu paquete de imágenes",
+		"returnCompleted": "Pago confirmado. Tus pases de imagen están disponibles en el editor.",
+		"returnPending": "Confirmando el pago y añadiendo tus pases de imagen. Mantén esta página abierta.",
+		"returnReview": "Todavía no hemos podido confirmar esta compra. Compruébala de nuevo antes de iniciar otro pago.",
+		"checkoutBack": "Ver paquete de imágenes",
+		"checkAgain": "Comprobar el pago de nuevo",
+		"retryPass": "Reintentar · 1 pase de imagen",
+		"balanceError": "Saldo de pases no disponible",
+		"retryBalance": "Comprobar saldo de nuevo",
+		"availabilityLoading": "Comprobando la disponibilidad…",
+		"unavailable": "Esta oferta no está disponible actualmente. Inténtalo de nuevo más tarde."
+	},
+	"media": {
+		"assets": {
+			"title": "Biblioteca de recursos",
+			"subtitle": "Imágenes de origen y resultados editados privados.",
+			"filters": {
+				"all": "Todos",
+				"image": "Imágenes",
+				"video": "Vídeos"
+			},
+			"previewAlt": "Recurso generado privado",
+			"preview": "Mostrar vista previa",
+			"video": "Vídeo",
+			"image": "Imagen",
+			"reuse": "Reutilizar como entrada",
+			"download": "Descargar",
+			"source": "Creación de origen",
+			"delete": "Eliminar",
+			"empty": "Aún no hay recursos de imagen.",
+			"more": "Cargar más"
+		},
+		"edits": {
+			"title": "Sesiones de edición",
+			"subtitle": "Continúa revisiones privadas de imágenes o crea una rama desde cualquier versión lista.",
+			"untitled": "Edición sin título",
+			"versions": "{count, plural, one {# versión} other {# versiones}}",
+			"empty": "Aún no hay sesiones de edición.",
+			"more": "Cargar más",
+			"back": "Volver a las sesiones de edición",
+			"loading": "Cargando sesión de edición…",
+			"version": "Versión {number}",
+			"prompt": "Prompt",
+			"credits": "{credits} créditos",
+			"editAgain": "Editar de nuevo",
+			"assetDeleted": "Recurso eliminado",
+			"outputUnavailable": "Resultado no disponible",
+			"thumbnailAlt": "Miniatura privada del resultado",
+			"legacyProduct": "Edición anterior",
+			"renameLabel": "Título de la sesión",
+			"renamePlaceholder": "Pon nombre a esta edición",
+			"rename": "Cambiar nombre",
+			"unavailableTitle": "Esta sesión de edición no está disponible",
+			"unavailableDescription": "Vuelve a tus sesiones de edición y elige otra."
+		},
+		"history": {
+			"title": "Historial de creaciones",
+			"subtitle": "Sigue cada proceso y recupera el trabajo después de actualizar.",
+			"filter": "Filtrar creaciones",
+			"filters": {
+				"all": "Todas",
+				"active": "En curso",
+				"succeeded": "Listas",
+				"failed": "Requieren atención",
+				"canceled": "Canceladas"
+			},
+			"outputs": "{count, plural, one {# resultado} other {# resultados}}",
+			"reserved": "Reservados",
+			"legacyProduct": "Edición anterior",
+			"empty": "No hay creaciones para este filtro.",
+			"more": "Cargar más"
+		}
+	},
+	"settings": {
+		"account": {
+			"avatar": {
+				"description": "Para cambiar tu avatar, haz clic en la imagen en este bloque y selecciona un archivo de tu ordenador para subir.",
+				"notifications": {
+					"error": "No se pudo actualizar el avatar",
+					"success": "El avatar se actualizó correctamente"
+				},
+				"title": "Tu avatar"
+			},
+			"changeEmail": {
+				"description": "Para cambiar tu correo, introduce el nuevo correo y guarda. Tendrás que confirmar el nuevo correo antes de que se active.",
+				"notifications": {
+					"error": "No se pudo actualizar el correo",
+					"success": "El correo se actualizó correctamente"
+				},
+				"title": "Tu correo"
+			},
+			"changeName": {
+				"notifications": {
+					"error": "No se pudo actualizar el nombre",
+					"success": "El nombre se actualizó correctamente"
+				},
+				"title": "Tu nombre"
+			},
+			"deleteAccount": {
+				"confirmation": "¿Estás seguro de que deseas eliminar tu cuenta?",
+				"description": "Eliminar permanentemente tu cuenta. Una vez eliminada, no hay vuelta atrás. Para confirmar, introduce tu contraseña a continuación:",
+				"notifications": {
+					"error": "No se pudo eliminar la cuenta",
+					"success": "La cuenta se eliminó correctamente"
+				},
+				"submit": "Eliminar cuenta",
+				"title": "Eliminar cuenta"
+			},
+			"language": {
+				"description": "Selecciona el idioma de tu cuenta. Los cambios se guardan automáticamente.",
+				"notifications": {
+					"error": "No se pudo actualizar el idioma",
+					"success": "El idioma se actualizó correctamente"
+				},
+				"title": "Tu idioma"
+			},
+			"security": {
+				"activeSessions": {
+					"description": "Estas son todas las sesiones activas de tu cuenta. Haz clic en la X para terminar una sesión específica.",
+					"title": "Sesiones activas",
+					"notifications": {
+						"revokeSession": {
+							"success": "Sesión revocada"
+						}
+					},
+					"currentSession": "Sesión actual"
+				},
+				"changePassword": {
+					"currentPassword": "Contraseña actual",
+					"newPassword": "Nueva contraseña",
+					"notifications": {
+						"error": "No se pudo actualizar la contraseña",
+						"success": "La contraseña se actualizó correctamente"
+					},
+					"title": "Tu contraseña"
+				},
+				"connectedAccounts": {
+					"connect": "Conectar",
+					"connected": "Conectado",
+					"disconnect": "Desconectar",
+					"title": "Cuentas conectadas"
+				},
+				"passkeys": {
+					"addPasskey": "Añadir passkey",
+					"deletePasskey": "Eliminar passkey",
+					"description": "Usa passkeys como alternativa segura a las contraseñas.",
+					"dialog": {
+						"editPasskey": {
+							"description": "Elige un nombre reconocible para identificar esta passkey más adelante.",
+							"label": "Nombre de la passkey",
+							"placeholder": "Portátil del trabajo",
+							"title": "Nombrar passkey"
+						}
+					},
+					"editPasskey": "Editar passkey",
+					"fallbackName": "Passkey sin nombre",
+					"notifications": {
+						"addPasskey": {
+							"error": {
+								"title": "No se pudo añadir el passkey"
+							},
+							"success": {
+								"title": "Passkey añadido"
+							}
+						},
+						"deletePasskey": {
+							"error": {
+								"title": "No se pudo eliminar el passkey"
+							},
+							"loading": {
+								"title": "Eliminando passkey..."
+							},
+							"success": {
+								"title": "Passkey eliminado"
+							}
+						},
+						"updatePasskey": {
+							"error": {
+								"title": "No se pudo actualizar la passkey"
+							},
+							"success": {
+								"title": "Passkey actualizada"
+							}
+						}
+					},
+					"title": "Passkeys"
+				},
+				"setPassword": {
+					"description": "Aún no has establecido una contraseña. Para establecer una, debes seguir el flujo de restablecimiento de contraseña. Haz clic en el botón de abajo para enviar un correo y restablecer tu contraseña siguiendo las instrucciones del correo.",
+					"notifications": {
+						"error": "No se pudo enviar el enlace para establecer la contraseña. Por favor, inténtalo de nuevo.",
+						"success": "Revisa tu bandeja de entrada para el enlace para establecer tu contraseña."
+					},
+					"submit": "Establecer contraseña",
+					"title": "Tu contraseña"
+				},
+				"title": "Seguridad",
+				"twoFactor": {
+					"title": "Autenticación de dos factores",
+					"description": "Añade una capa extra de seguridad a tu cuenta.",
+					"dialog": {
+						"password": {
+							"title": "Verificar con contraseña",
+							"description": "Por favor, verifica tu cuenta introduciendo tu contraseña:",
+							"label": "Tu contraseña:"
+						},
+						"totpUrl": {
+							"description": "Usa tu aplicación de autenticación preferida y escanea el código QR o introduce el secreto manualmente a continuación para configurar la autenticación de dos factores.",
+							"code": "Introduce el código de 6 dígitos para verificar la configuración:",
+							"title": "Activar autenticación de dos factores"
+						}
+					},
+					"enable": "Activar autenticación de dos factores",
+					"notifications": {
+						"verify": {
+							"success": {
+								"title": "La autenticación de dos factores se ha activado correctamente."
+							}
+						},
+						"enable": {
+							"error": {
+								"title": "No se pudo verificar tu cuenta con la contraseña proporcionada. Por favor, inténtalo de nuevo."
+							}
+						},
+						"disable": {
+							"success": {
+								"title": "La autenticación de dos factores se ha desactivado correctamente."
+							}
+						}
+					},
+					"passwordRequired": {
+						"description": "Establece una contraseña antes de activar la autenticación de dos factores. Usaremos tu contraseña para confirmar cambios sensibles en tu cuenta.",
+						"title": "Se requiere una contraseña"
+					},
+					"disable": "Desactivar autenticación de dos factores",
+					"enabled": "Tienes la autenticación de dos factores activada en tu cuenta."
+				}
+			},
+			"subtitle": "Gestiona la configuración de tu cuenta personal.",
+			"title": "Configuración de cuenta"
+		},
+		"billing": {
+			"cancelSubscription": {
+				"label": "Cancelar suscripción",
+				"confirmation": {
+					"title": "¿Cancelar la suscripción?",
+					"description": "Tu acceso finalizará según las condiciones de cancelación de tu proveedor de pago.",
+					"confirm": "Cancelar suscripción"
+				},
+				"notifications": {
+					"success": "Cancelación solicitada.",
+					"error": "No se pudo cancelar la suscripción. Inténtalo de nuevo."
+				}
+			},
+			"createCustomerPortal": {
+				"label": "Gestionar facturación",
+				"notifications": {
+					"error": {
+						"title": "No se pudo crear una sesión del portal de cliente. Por favor, inténtalo de nuevo."
+					}
+				}
+			},
+			"activePlan": {
+				"cancellationPending": "Tu solicitud de cancelación está pendiente de confirmación del servicio de pago. Las nuevas suscripciones siguen bloqueadas aunque termine este período pagado. Tus beneficios pagados siguen disponibles hasta su fecha de finalización.",
+				"cancellationRetrying": "La cancelación de la renovación aún no está confirmada. Seguiremos reintentándolo automáticamente. Las nuevas suscripciones siguen bloqueadas; tus beneficios pagados conservan su fecha de finalización original.",
+				"status": {
+					"cancellationPending": "Cancelación solicitada",
+					"active": "Activo",
+					"canceled": "Cancelado",
+					"expired": "Expirado",
+					"incomplete": "Incompleto",
+					"past_due": "Vencido",
+					"paused": "Pausado",
+					"trialing": "Prueba",
+					"unpaid": "Impagado",
+					"canceling": "Renovación cancelada",
+					"pending": "Pendiente"
+				},
+				"title": "Tu plan",
+				"refundTerminationPending": "Tu pago se ha reembolsado por completo y los beneficios del plan han finalizado. Estamos confirmando la cancelación de la renovación antes de que puedas suscribirte de nuevo.",
+				"refundTerminationRetrying": "Los beneficios del plan reembolsado han finalizado. La cancelación de la renovación aún no está confirmada; seguiremos intentándolo. Podrás suscribirte de nuevo cuando se confirme.",
+				"refundTerminated": "Tu suscripción reembolsada ha finalizado y la cancelación de la renovación está confirmada. Ya puedes suscribirte de nuevo con cualquier método de pago disponible.",
+				"cancellationScheduled": "Tu plan seguirá disponible hasta el {date}. No se renovará.",
+				"multipleSubscriptions": "Hay más de una suscripción abierta. Revisa los métodos de pago y cancela las renovaciones que ya no necesites.",
+				"paymentMethod": "Método de pago: {provider}",
+				"effectivePlan": "Esta suscripción determina actualmente los beneficios de tu plan.",
+				"currentPeriodEnd": "El período de facturación actual termina el {date}."
+			},
+			"changePlan": {
+				"description": "Elige un plan al que suscribirte.",
+				"title": "Cambiar tu plan"
+			},
+			"title": "Facturación"
+		},
+		"notificationsPage": {
+			"title": "Notificaciones",
+			"description": "Elige cómo recibes las notificaciones. Las opciones desactivadas se guardan; por defecto todo está activado.",
+			"groups": {
+				"general": {
+					"title": "General"
+				}
+			},
+			"types": {
+				"APP_UPDATE": {
+					"label": "Actualizaciones de la app"
+				},
+				"MODERATION_ALERT": {
+					"label": "Alertas de controles de seguridad (administradores)"
+				}
+			},
+			"columns": {
+				"type": "Notificación",
+				"inApp": "En la app",
+				"email": "Correo"
+			}
+		},
+		"menu": {
+			"account": {
+				"billing": "Facturación",
+				"dangerZone": "Zona de peligro",
+				"general": "General",
+				"notifications": "Notificaciones",
+				"security": "Seguridad",
+				"title": "Cuenta"
+			},
+			"organization": {
+				"billing": "Facturación",
+				"general": "General",
+				"members": "Miembros",
+				"title": "Organización",
+				"dangerZone": "Zona de peligro"
+			}
+		},
+		"save": "Guardar"
+	}
+}

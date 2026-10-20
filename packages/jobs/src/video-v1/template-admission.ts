@@ -32,9 +32,14 @@ import {
 	findExistingVideoTemplateAdmission,
 	getVideoTemplateJobRecord,
 	listVideoTemplateJobRecords,
+	type VideoTemplateHistoryFamily,
 } from "@repo/database/video-template";
 import type { VideoAdmissionLimits, VideoPrice } from "@repo/database/video-v1";
-import { authorizeVideoPlayback } from "@repo/database/video-v1-fulfillment";
+import {
+	authorizeVideoPlayback,
+	authorizeVideoPlaybackSnapshot,
+	type VideoPlaybackSnapshot,
+} from "@repo/database/video-v1-fulfillment";
 
 import { ensureVideoWorkflowStarted, requireVideoModelReadiness } from "./admission";
 import type { VideoOwnerContext, VideoWorkflowBinding } from "./contracts";
@@ -273,7 +278,8 @@ export async function getVideoTemplatePublicState(
 }
 async function toVideoTemplatePublicState(
 	ownerId: string,
-	job: Awaited<ReturnType<typeof getVideoTemplateJobRecord>>,
+	job: Omit<Awaited<ReturnType<typeof listVideoTemplateJobRecords>>["rows"][number], "assets">,
+	playbackSnapshot?: VideoPlaybackSnapshot,
 ) {
 	if (!job?.videoTemplateExecution || !job.videoExecution || !job.reservation)
 		throw new Error("NOT_FOUND");
@@ -300,7 +306,11 @@ async function toVideoTemplatePublicState(
 			stage === "READY" &&
 			job.status === "SUCCEEDED" &&
 			job.reservation.status === "SETTLED" &&
-			Boolean(await authorizeVideoPlayback(ownerId, job.id)),
+			Boolean(
+				playbackSnapshot
+					? authorizeVideoPlaybackSnapshot(ownerId, playbackSnapshot)
+					: await authorizeVideoPlayback(ownerId, job.id),
+			),
 		failureCode:
 			stage === "NEEDS_REVIEW"
 				? "REVIEW_REQUIRED"
@@ -315,12 +325,12 @@ async function toVideoTemplatePublicState(
 
 export async function listVideoTemplatePublicStates(
 	context: Pick<VideoOwnerContext, "userId">,
-	input: { cursor?: string; limit?: number },
+	input: { cursor?: string; limit?: number; templateFamily?: VideoTemplateHistoryFamily },
 ) {
 	const result = await listVideoTemplateJobRecords(context.userId, input, db);
 	return {
 		items: await Promise.all(
-			result.rows.map((job) => toVideoTemplatePublicState(context.userId, job)),
+			result.rows.map((job) => toVideoTemplatePublicState(context.userId, job, job)),
 		),
 		nextCursor: result.nextCursor,
 	};

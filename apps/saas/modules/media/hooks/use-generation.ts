@@ -16,6 +16,7 @@ import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recover
 import type { GenerationInput } from "../lib/form-schema";
 import { imagePassBalanceQueryKey, imagePassBalanceQueryOptions } from "../lib/image-pass-query";
 import { recordGenerationAccepted } from "../lib/preview-timing";
+import { publicCatalogQueryOptions } from "../lib/public-catalog-query";
 
 type EditorQuote = { id: string; productKey: EditorProductKey; credits: string; expiresAt: string };
 type GenerationResult = Pick<
@@ -63,11 +64,7 @@ export function useGeneration({
 			currentOwner.current = null;
 		};
 	}, []); // oxlint-disable-line eslint-plugin-react-hooks/exhaustive-deps
-	const catalog = useQuery({
-		queryKey: ["media-catalog"],
-		queryFn: () => orpcClient.media.getPublicCatalog(),
-		staleTime: 5 * 60_000,
-	});
+	const catalog = useQuery(publicCatalogQueryOptions);
 	const creditAccount = useQuery(creditAccountQueryOptions(ownerId));
 	const imagePass = useQuery(imagePassBalanceQueryOptions(ownerId));
 	const createQuote = useMutation({

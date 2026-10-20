@@ -19,6 +19,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { type MouseEvent, useState } from "react";
 
+import { isBlogAdArticlePath } from "../../../public-content/lib/blog-ad-routing";
 import {
 	PUBLIC_NAVIGATION_GROUPS,
 	type PublicNavigationGroup,
@@ -49,6 +50,7 @@ export function StudioToolNavigation({
 	const videoMode = useSearchParams().get("mode") === "video";
 	const selected = useRequestedImageModel();
 	const [menu, setMenu] = useState<PublicNavigationGroup["id"] | null>(null);
+	const [prefetchModelHref, setPrefetchModelHref] = useState<string | null>(null);
 	const catalog = useQuery(publicCatalogQueryOptions);
 	const products = (catalog.data?.products ?? []).filter(
 		(product) => isEditorProductKey(product.key) && product.skuMatrix?.cells.length,
@@ -112,7 +114,13 @@ export function StudioToolNavigation({
 			<Link
 				key={product.key}
 				href={href}
-				prefetch={false}
+				prefetch={
+					prefetchModelHref === href && pathname !== href && !isBlogAdArticlePath(pathname)
+						? null
+						: false
+				}
+				onMouseEnter={() => setPrefetchModelHref(href)}
+				onFocus={() => setPrefetchModelHref(href)}
 				onClick={(event) => navigateToWorkspace(event, href, product.key)}
 				className={
 					vertical

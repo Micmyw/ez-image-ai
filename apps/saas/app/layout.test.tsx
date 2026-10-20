@@ -60,6 +60,7 @@ vi.mock("next-intl/server", () => ({
 			common: { menu: { login: "Sign In" } },
 			home: { generator: { title: "Image editor" } },
 			admin: { title: "Administration" },
+			support: { title: "Private support tickets" },
 			faq: { items: { question: "Frequently asked question" } },
 			publicContent: { contact: { description: "Contact support" } },
 			videoV1: { title: "Create a short video" },
@@ -148,9 +149,14 @@ describe("SaaS root layout", () => {
 			expect(markup).toContain(renderToStaticMarkup(serverContent));
 			const [clientMessages] = mocks.clientMessages.mock.lastCall ?? [];
 			expect(clientMessages).not.toHaveProperty("admin");
+			expect(clientMessages).not.toHaveProperty("support");
 			expect(clientMessages).not.toHaveProperty("faq");
 			expect(clientMessages).not.toHaveProperty("publicContent");
 			expect(clientMessages).not.toHaveProperty("videoV1");
+			expect(clientMessages.settings).toEqual({
+				menu: fullMessages.settings.menu,
+				billing: { title: fullMessages.settings.billing.title },
+			});
 			expect(clientMessages.home).toEqual({
 				generator: fullMessages.home.generator,
 				creatorWorkflows: fullMessages.home.creatorWorkflows,
@@ -210,6 +216,8 @@ describe("SaaS root layout", () => {
 				if (
 					![
 						"admin",
+						"support",
+						"settings",
 						"faq",
 						"publicContent",
 						"home",

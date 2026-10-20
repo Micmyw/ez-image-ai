@@ -75,17 +75,18 @@ export async function resolveProviderAvailability(
 	});
 	if (!price) return [];
 
-	const available = [];
-	for (const provider of checkoutPaymentProviderNames) {
-		if (!(await dependencies.isCheckoutAvailable(provider))) continue;
-		const providerPriceId = dependencies.getProviderPriceId(provider);
-		if (!providerPriceId) continue;
-		const billingPlan = await dependencies.findBillingPlan(provider, providerPriceId);
-		if (!isExactBillingPlanSnapshot(billingPlan, provider, providerPriceId, selection)) continue;
-		const definition = resolvePaymentProvider(provider);
-		if (definition) available.push(definition);
-	}
-	return available;
+	const available = await Promise.all(
+		checkoutPaymentProviderNames.map(async (provider) => {
+			if (!(await dependencies.isCheckoutAvailable(provider))) return null;
+			const providerPriceId = dependencies.getProviderPriceId(provider);
+			if (!providerPriceId) return null;
+			const billingPlan = await dependencies.findBillingPlan(provider, providerPriceId);
+			if (!isExactBillingPlanSnapshot(billingPlan, provider, providerPriceId, selection))
+				return null;
+			return resolvePaymentProvider(provider);
+		}),
+	);
+	return available.filter((provider) => provider != null);
 }
 
 export async function resolveCreditPackProviderAvailability(
@@ -93,21 +94,21 @@ export async function resolveCreditPackProviderAvailability(
 	dependencies: CreditPackAvailabilityDependencies,
 ) {
 	if (!isNewBillingEnabled()) return [];
-	const available = [];
-	for (const provider of checkoutPaymentProviderNames) {
-		if (!(await dependencies.isCheckoutAvailable(provider))) continue;
-		const providerProductId = dependencies.getProviderProductId(provider);
-		if (!providerProductId) continue;
-		const billingPlan = await dependencies.findBillingPlan(provider, providerProductId);
-		if (
-			!isExactCreditPackBillingPlanSnapshot(billingPlan, provider, providerProductId, selection)
-		) {
-			continue;
-		}
-		const definition = resolvePaymentProvider(provider);
-		if (definition) available.push(definition);
-	}
-	return available;
+	const available = await Promise.all(
+		checkoutPaymentProviderNames.map(async (provider) => {
+			if (!(await dependencies.isCheckoutAvailable(provider))) return null;
+			const providerProductId = dependencies.getProviderProductId(provider);
+			if (!providerProductId) return null;
+			const billingPlan = await dependencies.findBillingPlan(provider, providerProductId);
+			if (
+				!isExactCreditPackBillingPlanSnapshot(billingPlan, provider, providerProductId, selection)
+			) {
+				return null;
+			}
+			return resolvePaymentProvider(provider);
+		}),
+	);
+	return available.filter((provider) => provider != null);
 }
 
 export function isExactBillingPlanSnapshot(

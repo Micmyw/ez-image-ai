@@ -41,12 +41,7 @@ export async function ImageToImagePage({
 }: {
 	searchParams?: Promise<CreatePageFilters>;
 }) {
-	const [session, t, locale] = await Promise.all([
-		getSession(),
-		getTranslations("imageToImage"),
-		getLocale(),
-	]);
-	const registered = Boolean(session && !isAnonymousUser(session.user));
+	const [t, locale] = await Promise.all([getTranslations("imageToImage"), getLocale()]);
 	const canonical = new URL(publicPagePath("/image-to-image", locale), getBaseUrl()).href;
 	const structuredData = {
 		"@context": "https://schema.org",
@@ -106,15 +101,7 @@ export async function ImageToImagePage({
 						</div>
 						<div className="mt-6">
 							<Suspense fallback={<p className="p-6 text-slate-300 text-center">{t("loading")}</p>}>
-								{registered ? (
-									<RegisteredWorkspaceBoundary>
-										<MainAccountBoundary>
-											<RegisteredEditor searchParams={searchParams} />
-										</MainAccountBoundary>
-									</RegisteredWorkspaceBoundary>
-								) : (
-									<LandingGenerator />
-								)}
+								<ImageToImageWorkspace searchParams={searchParams} />
 							</Suspense>
 						</div>
 						<div className="mt-6 flex justify-center">
@@ -248,5 +235,23 @@ export async function ImageToImagePage({
 				</footer>
 			</main>
 		</StudioShell>
+	);
+}
+
+async function ImageToImageWorkspace({
+	searchParams,
+}: {
+	searchParams: Promise<CreatePageFilters>;
+}) {
+	const session = await getSession();
+	const registered = Boolean(session && !isAnonymousUser(session.user));
+	return registered ? (
+		<RegisteredWorkspaceBoundary>
+			<MainAccountBoundary>
+				<RegisteredEditor searchParams={searchParams} />
+			</MainAccountBoundary>
+		</RegisteredWorkspaceBoundary>
+	) : (
+		<LandingGenerator />
 	);
 }

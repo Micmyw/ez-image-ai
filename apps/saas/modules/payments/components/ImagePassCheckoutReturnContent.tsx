@@ -10,6 +10,8 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { useCheckoutStatePolling } from "../hooks/use-checkout-state-polling";
+import { subscribeToCheckoutForeground } from "../lib/checkout-state-polling";
 import {
 	clearImagePassCheckoutContext,
 	saveImagePassCheckoutContext,
@@ -46,13 +48,26 @@ export function ImagePassCheckoutReturnContent({
 			mounted.current = false;
 		};
 	}, []);
+	const polling = useCheckoutStatePolling(
+		ownerId ? JSON.stringify([ownerId, intentId]) : null,
+		1_500,
+	);
 	const state = useQuery({
 		...orpc.payments.getImagePassCheckoutState.queryOptions({ input: { intentId } }),
 		queryKey: ["image-pass-checkout", ownerId, intentId],
 		enabled: Boolean(ownerId),
-		refetchInterval: (query) =>
-			!query.state.data || query.state.data.status === "PENDING" ? 1_500 : false,
+		refetchInterval: polling.refetchInterval,
 	});
+	const refreshState = state.refetch;
+	useEffect(
+		() =>
+			subscribeToCheckoutForeground(() => {
+				if (!ownerId) return;
+				polling.restart();
+				void refreshState();
+			}),
+		[ownerId, polling, refreshState],
+	);
 	const status = state.data?.status;
 	const mayCapture = Boolean(key && !canceled && state.isSuccess && status === "PENDING");
 	async function capturePayment() {
@@ -70,6 +85,7 @@ export function ImagePassCheckoutReturnContent({
 			await capture.mutateAsync({ intentId, providerOrderId });
 			if (!mounted.current || currentKey.current !== key) return;
 			captured.current = key;
+			polling.restart();
 			await state.refetch();
 		} catch {
 			if (mounted.current && currentKey.current === key && captured.current !== key)
@@ -168,7 +184,10 @@ export function ImagePassCheckoutReturnContent({
 					<button
 						type="button"
 						data-testid="image-pass-check-status"
-						onClick={() => void state.refetch()}
+						onClick={() => {
+							polling.restart();
+							void state.refetch();
+						}}
 						className="min-h-11 px-4 text-sm rounded-xl border"
 					>
 						{t("checkStatus")}

@@ -1,7 +1,8 @@
 "use client";
 
 import { useSession } from "@auth/hooks/use-session";
-import { fullOrganizationQueryKey, useFullOrganizationQuery } from "@organizations/lib/api";
+import { useFullOrganizationQuery } from "@organizations/lib/api";
+import { invalidateOrganizationQueries } from "@organizations/lib/query-cache";
 import type { ActiveOrganization } from "@repo/auth";
 import { authClient } from "@repo/auth/client";
 import { isOrganizationAdmin } from "@repo/auth/lib/helper";
@@ -63,9 +64,7 @@ export function OrganizationInvitationsList({ organizationId }: { organizationId
 					"organizations.settings.members.notifications.revokeInvitation.loading.description",
 				),
 				success: () => {
-					void queryClient.invalidateQueries({
-						queryKey: fullOrganizationQueryKey(organizationId),
-					});
+					void invalidateOrganizationQueries(queryClient, organizationId);
 					return t(
 						"organizations.settings.members.notifications.revokeInvitation.success.description",
 					);

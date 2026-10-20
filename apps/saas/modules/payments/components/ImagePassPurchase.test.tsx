@@ -192,9 +192,32 @@ beforeEach(() => {
 });
 afterEach(() => {
 	for (const slot of state.slots) slot.cleanup?.();
+	vi.useRealTimers();
 	vi.unstubAllGlobals();
 });
 describe("image pass checkout UI", () => {
+	it("slows restored pending reads and restarts read-only polling on explicit checks or focus", async () => {
+		vi.useFakeTimers();
+		const element = render({ intentId: "intent" });
+		const polling = state.queryOptions.mock.lastCall![0].refetchInterval;
+		const pending = { state: { status: "success", data: { status: "PENDING" } } };
+		expect(polling(pending)).toBe(3_000);
+		vi.advanceTimersByTime(120_000);
+		expect(polling(pending)).toBe(30_000);
+		expect(texts(render({ intentId: "intent" }))).toContain("checkoutUnconfirmed");
+		(find(element, "image-pass-check-status").props as { onClick: () => void }).onClick();
+		expect(polling(pending)).toBe(3_000);
+		vi.advanceTimersByTime(120_000);
+		window.dispatchEvent(new Event("focus"));
+		expect(polling(pending)).toBe(3_000);
+		expect(polling({ state: { ...pending.state, status: "error" } })).toBe(false);
+		await flush();
+		expect(state.refetch).toHaveBeenCalledTimes(2);
+		expect(state.checkout).not.toHaveBeenCalled();
+		expect(state.capture).not.toHaveBeenCalled();
+		expect(window.sessionStorage.getItem("image-pass-checkout:owner-a")).toBe("intent");
+	});
+
 	it.each([
 		{ available: 3, reserved: 1 },
 		{ available: 0, reserved: 2 },

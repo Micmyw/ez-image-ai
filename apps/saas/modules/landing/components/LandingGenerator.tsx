@@ -219,7 +219,14 @@ function LandingGeneratorWorkspace({
 		| "referenceExpired"
 	>();
 	const [uploadPercentage, setUploadPercentage] = useState<number>();
-	const [stage, setStage] = useState<LandingGeneratorStage>("checking");
+	const [operationStage, setStage] = useState<LandingGeneratorStage>("ready");
+	const [guestStatus, setGuestStatus] = useState<"checking" | "ready" | "failed">("checking");
+	const [catalogStatus, setCatalogStatus] = useState<"checking" | "ready" | "failed">("checking");
+	const availabilityStatus = file || requireReference ? guestStatus : catalogStatus;
+	const stage =
+		(operationStage === "ready" || operationStage === "failed") && availabilityStatus !== "ready"
+			? availabilityStatus
+			: operationStage;
 	const [isDragging, setIsDragging] = useState(false);
 	const [isDockVisible, setIsDockVisible] = useState(false);
 	const [isDockExpanded, setIsDockExpanded] = useState(false);
@@ -245,53 +252,62 @@ function LandingGeneratorWorkspace({
 
 	useEffect(() => {
 		let active = true;
-		setStage("checking");
+		setGuestStatus("checking");
+		setCatalogStatus("checking");
 		if (!isEffectEditor)
 			void trackBrowserGrowthEvent(
 				{ name: "landing_viewed", properties: { status: "viewed" } },
 				{ dedupeKey: "landing" },
 			);
-		void Promise.allSettled([
-			getGuestCapability(),
-			queryClient.fetchQuery({
+		// Each input mode waits only for its own capability. A slow upload check
+		// must not block text editing, and a late response must not reset a handoff.
+		void getGuestCapability().then(
+			(snapshot) => {
+				if (!active) return;
+				setCapability(snapshot);
+				setGuestStatus("ready");
+			},
+			() => {
+				if (!active) return;
+				setCapability(null);
+				setGuestStatus("failed");
+			},
+		);
+		void queryClient
+			.fetchQuery({
 				...publicCatalogQueryOptions,
 				// An explicit retry must recheck availability even when an earlier result was cached.
 				...(capabilityRequestKey > 0 ? { staleTime: 0 } : {}),
-			}),
-		]).then(([guest, catalog]) => {
-			if (!active) return;
-			const snapshot = guest.status === "fulfilled" ? guest.value : null;
-			setCapability(snapshot);
-			const available: GuestCapabilityProduct[] =
-				catalog.status === "fulfilled"
-					? catalog.value.products.flatMap((product) =>
-							isEditorProductKey(product.key) &&
-							product.inputKinds.includes("text-to-image") &&
-							product.skuMatrix
-								? [
-										{
-											key: product.key,
-											label: product.label,
-											description: product.description,
-											credits: `${product.credits}` as `${number}`,
-											accessHint: "paid-account" as const,
-											aspectRatios: product.skuMatrix.cells.flatMap((cell) => cell.aspectRatios),
-											skuMatrix: product.skuMatrix,
-										},
-									]
-								: [],
-						)
-					: [];
-			setTextProducts(available);
-			if (!isEffectEditor)
-				setSelectedProductKey((current) =>
-					resolveLandingProductSelection(
-						available.length ? available : (snapshot?.products ?? []),
-						current,
-					),
-				);
-			setStage(guest.status === "rejected" && catalog.status === "rejected" ? "failed" : "ready");
-		});
+			})
+			.then(
+				(catalog) => {
+					if (!active) return;
+					const available: GuestCapabilityProduct[] = catalog.products.flatMap((product) =>
+						isEditorProductKey(product.key) &&
+						product.inputKinds.includes("text-to-image") &&
+						product.skuMatrix
+							? [
+									{
+										key: product.key,
+										label: product.label,
+										description: product.description,
+										credits: `${product.credits}` as `${number}`,
+										accessHint: "paid-account" as const,
+										aspectRatios: product.skuMatrix.cells.flatMap((cell) => cell.aspectRatios),
+										skuMatrix: product.skuMatrix,
+									},
+								]
+							: [],
+					);
+					setTextProducts(available);
+					setCatalogStatus("ready");
+				},
+				() => {
+					if (!active) return;
+					setTextProducts([]);
+					setCatalogStatus("failed");
+				},
+			);
 		return () => {
 			active = false;
 		};
@@ -558,11 +574,13 @@ function LandingGeneratorWorkspace({
 		},
 	});
 	const canRetryCapability =
-		(stage === "failed" && capability === null) || (stage === "ready" && !capabilityUsable);
+		availabilityStatus === "failed" || (stage === "ready" && !capabilityUsable);
 
 	function retryCapability() {
 		setSubmitError(undefined);
-		setStage("checking");
+		setStage("ready");
+		setGuestStatus("checking");
+		setCatalogStatus("checking");
 		setCapabilityRequestKey((current) => current + 1);
 	}
 

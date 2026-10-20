@@ -57,6 +57,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 	// FAQ and contact copy is rendered only by Server Components from the full messages.
 	const {
 		admin: _admin,
+		support: _support,
 		faq: _faq,
 		publicContent: _publicContent,
 		home,
@@ -66,11 +67,16 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		feedback,
 		checkoutReturn,
 		creditPackCheckoutReturn,
+		settings,
 		...messages
 	} = await getMessages();
 	// Video workspaces supply their detailed copy locally; public navigation needs only its labels.
 	const clientMessages = {
 		...Object.fromEntries(Object.entries(messages).filter(([key]) => key !== "videoV1")),
+		// Account panels and routes restore their forms locally; public menus need only labels.
+		...(settings
+			? { settings: { menu: settings.menu, billing: { title: settings.billing.title } } }
+			: {}),
 		// Full return-page copy is restored inside RegisteredWorkspaceBoundary.
 		// Public pricing needs only these pending-checkout and recovery actions.
 		...(checkoutReturn

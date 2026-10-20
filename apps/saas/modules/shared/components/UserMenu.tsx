@@ -152,7 +152,7 @@ export function UserMenu({
 						<DropdownMenuItem
 							nativeButton={false}
 							render={(props) => (
-								<Link {...props} href="/settings/billing">
+								<Link {...props} href="/settings/billing" prefetch={false}>
 									{t("settings.billing.title")}
 								</Link>
 							)}
@@ -160,7 +160,7 @@ export function UserMenu({
 						<DropdownMenuItem
 							nativeButton={false}
 							render={(props) => (
-								<Link {...props} href="/history">
+								<Link {...props} href="/history" prefetch={false}>
 									{t("media.history.title")}
 								</Link>
 							)}
@@ -189,6 +189,7 @@ export function UserMenu({
 						<Link
 							{...props}
 							href="/settings/general"
+							prefetch={studio ? false : undefined}
 							className={cn(props.className, "flex items-center")}
 						>
 							<SettingsIcon className="mr-2 size-4" />

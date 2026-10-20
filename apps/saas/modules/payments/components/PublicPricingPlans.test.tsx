@@ -1,8 +1,11 @@
 import React from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@auth/lib/api", () => ({ useSessionQuery: () => ({ data: null, isPending: false }) }));
+vi.mock("next/dynamic", async () => ({
+	default: (await import("next/dist/shared/lib/app-dynamic")).default,
+}));
 
 const translations: Record<string, string> = {
 	"payments.providerSelector.providers.paypal": "PayPal",
@@ -257,8 +260,31 @@ describe("PublicPricingPlans", () => {
 		);
 	});
 
-	it("renders all four one-time credit packs with the subscriber bonus and only PayPal or Waffo", () => {
+	it("retains static credit-pack pricing for SSR without mounting checkout on the annual view", () => {
 		const markup = renderToStaticMarkup(<PublicPricingPlans locale="en-US" />);
+		expect(markup.match(/data-test="public-credit-pack"/g)).toHaveLength(4);
+		for (const [base, total, price] of [
+			["1,500", "1,800", "$59"],
+			["3,000", "3,600", "$109"],
+			["5,000", "6,000", "$169"],
+			["8,000", "9,600", "$259"],
+		]) {
+			expect(markup).toContain(`Base credits: ${base}`);
+			expect(markup).toContain(`Subscribers receive ${total} credits`);
+			expect(markup).toContain(price);
+		}
+		expect(markup).not.toContain("credit-pack-payment-options");
+		expect(markup).not.toContain('data-testid="credit-pack-recovery-');
+		expect(markup).not.toContain("Buy credits");
+		expect(markup).toContain('data-test="public-pricing-credit-packs-tab"');
+	});
+
+	it("renders all four one-time credit packs with the subscriber bonus and only PayPal or Waffo when selected", async () => {
+		const stream = await renderToReadableStream(
+			<PublicPricingPlans locale="en-US" initialView="credit-packs" />,
+		);
+		await stream.allReady;
+		const markup = await new Response(stream).text();
 		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
 
 		expect(visibleText).toContain("Credit Packs");

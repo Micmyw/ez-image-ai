@@ -41,6 +41,7 @@ export function PhotoIdeaRecommendations({
 							readingTime={t("readingTime", { minutes: card.readingMinutes })}
 							level="h3"
 							featured={featured && posts.length === 1}
+							imageLoading="lazy"
 						/>
 					);
 				})}

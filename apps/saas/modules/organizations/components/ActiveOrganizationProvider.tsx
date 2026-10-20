@@ -3,6 +3,7 @@
 import { useSession } from "@auth/hooks/use-session";
 import { sessionQueryKey } from "@auth/lib/api";
 import { activeOrganizationQueryKey, useActiveOrganizationQuery } from "@organizations/lib/api";
+import { invalidateOrganizationQueries } from "@organizations/lib/query-cache";
 import { authClient } from "@repo/auth/client";
 import { isOrganizationAdmin } from "@repo/auth/lib/helper";
 import { config as paymentsConfig } from "@repo/payments/config";
@@ -40,6 +41,11 @@ export function ActiveOrganizationProvider({ children }: { children: ReactNode }
 
 	const refetchActiveOrganization = async () => {
 		if (!hasActiveOrganizationIdentifier) {
+			return;
+		}
+
+		if (activeOrganization) {
+			await invalidateOrganizationQueries(queryClient, activeOrganization.id);
 			return;
 		}
 

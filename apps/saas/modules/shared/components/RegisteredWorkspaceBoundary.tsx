@@ -25,28 +25,23 @@ export async function RegisteredWorkspaceBoundary({ children }: PropsWithChildre
 
 	const queryClient = getServerQueryClient();
 
-	await queryClient.prefetchQuery({
-		queryKey: sessionQueryKey,
-		queryFn: () => session,
-	});
-
-	if (authConfig.organizations.enable) {
-		await queryClient.prefetchQuery({
-			queryKey: organizationListQueryKey,
-			queryFn: getOrganizationList,
-		});
-	}
-
-	if (paymentsConfig.billingAttachedTo === "user") {
-		await queryClient.prefetchQuery({
-			queryKey: orpc.payments.listPurchases.queryKey({
-				input: {},
-			}),
-			queryFn: () => listPurchases(),
-		});
-	}
-
-	const { imagePass, media, checkoutReturn, creditPackCheckoutReturn } = await getMessages();
+	queryClient.setQueryData(sessionQueryKey, session);
+	const [{ imagePass, media, checkoutReturn, creditPackCheckoutReturn, settings, support }] =
+		await Promise.all([
+			getMessages(),
+			authConfig.organizations.enable
+				? queryClient.prefetchQuery({
+						queryKey: organizationListQueryKey,
+						queryFn: getOrganizationList,
+					})
+				: undefined,
+			paymentsConfig.billingAttachedTo === "user"
+				? queryClient.prefetchQuery({
+						queryKey: orpc.payments.listPurchases.queryKey({ input: {} }),
+						queryFn: () => listPurchases(),
+					})
+				: undefined,
+		]);
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
 			{/* Full payment/library copy is serialized only after the registered-user boundary. */}
@@ -55,6 +50,8 @@ export async function RegisteredWorkspaceBoundary({ children }: PropsWithChildre
 				mediaMessages={media}
 				checkoutReturnMessages={checkoutReturn}
 				creditPackCheckoutReturnMessages={creditPackCheckoutReturn}
+				settingsMessages={settings}
+				supportMessages={support}
 			>
 				{children}
 			</RegisteredWorkspaceProviders>

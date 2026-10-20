@@ -1,9 +1,7 @@
 "use client";
 
-import { feedback as de } from "@repo/i18n/translations/de/shared.json";
-import { feedback as en } from "@repo/i18n/translations/en/shared.json";
-import { feedback as es } from "@repo/i18n/translations/es/shared.json";
-import { feedback as fr } from "@repo/i18n/translations/fr/shared.json";
+import { isLocale, type Locale } from "@repo/i18n/config";
+import { Button } from "@repo/ui/components/button";
 import {
 	Dialog,
 	DialogContent,
@@ -12,7 +10,7 @@ import {
 	DialogTitle,
 } from "@repo/ui/components/dialog";
 import { NextIntlClientProvider, useLocale, useMessages, useTranslations } from "next-intl";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { buildFeedbackMailto, copyFeedbackEmail, type FeedbackKind } from "../lib/feedback";
 
@@ -24,13 +22,92 @@ type FeedbackDialogProps = {
 	supportEmail: string;
 	initialKind?: FeedbackKind;
 };
-const feedbackMessages = { de, en, es, fr };
+type FeedbackMessages = typeof import("@repo/i18n/translations/en/feedback.json").feedback;
+const feedbackImports = {
+	de: () =>
+		import("@repo/i18n/translations/de/feedback.json").then((module) => module.default.feedback),
+	en: () =>
+		import("@repo/i18n/translations/en/feedback.json").then((module) => module.default.feedback),
+	es: () =>
+		import("@repo/i18n/translations/es/feedback.json").then((module) => module.default.feedback),
+	fr: () =>
+		import("@repo/i18n/translations/fr/feedback.json").then((module) => module.default.feedback),
+};
+const feedbackMessages = new Map<
+	Locale,
+	{ pending: Promise<FeedbackMessages>; value?: FeedbackMessages }
+>();
 
-/** This namespace travels with the existing lazy dialog, not the initial root payload. */
+export function loadFeedbackMessages(locale: string) {
+	const selected = isLocale(locale) ? locale : "en";
+	const cached = feedbackMessages.get(selected);
+	if (cached) return cached.pending;
+	const pending = feedbackImports[selected]()
+		.then((value) => {
+			const entry = feedbackMessages.get(selected);
+			if (entry) entry.value = value;
+			return value;
+		})
+		.catch((error: unknown) => {
+			feedbackMessages.delete(selected);
+			throw error;
+		});
+	feedbackMessages.set(selected, { pending });
+	return pending;
+}
+
+/** Only the current locale's projection travels with the requested dialog. */
 export function FeedbackDialog(props: FeedbackDialogProps) {
 	const locale = useLocale();
 	const messages = useMessages();
-	const feedback = feedbackMessages[locale as keyof typeof feedbackMessages] ?? en;
+	const studio = useTranslations("studio");
+	const entry = useTranslations("feedback");
+	const [attempt, setAttempt] = useState(0);
+	const [loaded, setLoaded] = useState<{
+		locale: string;
+		attempt: number;
+		feedback?: FeedbackMessages;
+		failed?: boolean;
+	} | null>(null);
+	const current = loaded?.locale === locale && loaded.attempt === attempt ? loaded : null;
+	const feedback =
+		current?.feedback ?? feedbackMessages.get(isLocale(locale) ? locale : "en")?.value;
+	useEffect(() => {
+		let active = true;
+		loadFeedbackMessages(locale).then(
+			(copy) => {
+				if (active) setLoaded({ locale, attempt, feedback: copy });
+			},
+			() => {
+				if (active) setLoaded({ locale, attempt, failed: true });
+			},
+		);
+		return () => {
+			active = false;
+		};
+	}, [locale, attempt]);
+	if (!feedback)
+		return (
+			<Dialog open={props.open} onOpenChange={props.onOpenChange}>
+				<DialogContent closeLabel={studio("closePanel")} className="feedback-dialog studio-theme">
+					<DialogHeader>
+						<DialogTitle>{entry("entry")}</DialogTitle>
+						<DialogDescription aria-live="polite">
+							{studio(current?.failed ? "error" : "loading")}
+						</DialogDescription>
+					</DialogHeader>
+					{current?.failed && (
+						<Button
+							type="button"
+							variant="secondary"
+							onClick={() => setAttempt((value) => value + 1)}
+						>
+							{studio("retry")}
+						</Button>
+					)}
+				</DialogContent>
+			</Dialog>
+		);
 	return (
 		<NextIntlClientProvider locale={locale} messages={{ ...messages, feedback }}>
 			<FeedbackDialogContent {...props} />

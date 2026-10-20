@@ -11,6 +11,8 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { useEditSession } from "../../hooks/use-edit-session";
+import { useNearViewport } from "../../hooks/use-near-viewport";
+import { usePageVisible } from "../../hooks/use-page-visible";
 import { isEditorProductKey } from "../../lib/editor-recovery";
 import { isPublicImageSkuKey } from "../../lib/image-sku-selection";
 import { getJobPresentation } from "../../lib/job-status";
@@ -190,24 +192,34 @@ function VersionThumbnail({
 
 function PrivateThumbnail({ assetId }: { assetId: string }) {
 	const t = useTranslations("media.edits");
+	const { ref, nearViewport } = useNearViewport();
+	const visible = usePageVisible();
 	const access = useQuery({
 		queryKey: ["media-asset-preview", assetId],
-		queryFn: () => orpcClient.media.getAssetAccessUrl({ assetId, disposition: "inline" }),
+		queryFn: ({ signal }) =>
+			orpcClient.media.getAssetAccessUrl({ assetId, disposition: "inline" }, { signal }),
+		enabled: nearViewport && visible,
 		staleTime: 4 * 60_000,
 	});
-	if (!access.data || access.isError) {
-		return (
-			<div className="p-4 text-sm flex aspect-square items-center justify-center rounded-xl bg-muted text-center text-muted-foreground">
-				{t("outputUnavailable")}
-			</div>
-		);
-	}
 	return (
-		<img
-			src={access.data.url}
-			alt={t("thumbnailAlt")}
-			className="aspect-square size-full rounded-xl object-cover"
-		/>
+		<div ref={ref} className="aspect-square overflow-hidden rounded-xl bg-muted">
+			{access.data && !access.isError ? (
+				<img
+					src={access.data.url}
+					alt={t("thumbnailAlt")}
+					loading="lazy"
+					decoding="async"
+					className="aspect-square size-full object-cover"
+				/>
+			) : (
+				<div
+					aria-busy={!access.isError}
+					className="p-4 text-sm flex size-full items-center justify-center text-center text-muted-foreground"
+				>
+					{t(access.isError ? "outputUnavailable" : "loading")}
+				</div>
+			)}
+		</div>
 	);
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@auth/hooks/use-session";
+import { useActiveHistoryPolling } from "@media/hooks/use-active-history-polling";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
@@ -29,21 +30,28 @@ function OwnedVideoEffectHistory({
 	const t = useTranslations("videoEffects");
 	const format = useFormatter();
 	const visible = usePageVisible();
+	const queryKey = ["video-effects", "history", ownerId, family];
 	const history = useInfiniteQuery({
-		queryKey: ["video-effects", "history", ownerId],
-		queryFn: ({ pageParam }) =>
-			videoEffectsApi.jobs.list({ limit: 20, ...(pageParam ? { cursor: pageParam } : {}) }),
+		queryKey,
+		queryFn: ({ pageParam, signal }) =>
+			videoEffectsApi.jobs.list(
+				{ limit: 20, templateFamily: family, ...(pageParam ? { cursor: pageParam } : {}) },
+				{ signal },
+			),
 		initialPageParam: null as string | null,
 		getNextPageParam: (last) => last.nextCursor ?? undefined,
 		retry: false,
-		refetchInterval: (query) =>
-			visible &&
-			query.state.data?.pages.some((page) =>
-				page.items.some((item) => !["READY", "FAILED", "NEEDS_REVIEW"].includes(item.stage)),
-			)
-				? 2500
-				: false,
-		refetchIntervalInBackground: false,
+	});
+	useActiveHistoryPolling({
+		queryKey,
+		data: history.data,
+		enabled: visible,
+		interval: 2_500,
+		getId: (item) => item.jobId,
+		isActive: (item) => !["READY", "FAILED", "NEEDS_REVIEW"].includes(item.stage),
+		detailKey: (id) => ["video-effects", "job", ownerId, id],
+		read: (jobId, signal) => videoEffectsApi.jobs.get({ jobId }, { signal }),
+		merge: (item, update) => (update.updatedAt < item.updatedAt ? item : update),
 	});
 	const items =
 		history.data?.pages

@@ -117,8 +117,20 @@ test.describe("Guides browsing and article interactions", () => {
 		await expect(directory.locator(`h2 a[href="${promptGuidePath}"]`)).toBeVisible();
 		await expect(directory.locator(`h2 a[href="${privacyGuidePath}"]`)).toBeVisible();
 		await expect(directory.getByRole("searchbox")).toHaveCount(1);
-		await expect(directory.getByRole("button", { name: "Photo Ideas", exact: true })).toBeVisible();
-		await expect(directory.locator("article")).toHaveCount(isPublished ? 3 : 2);
+		const photoIdeas = directory.getByRole("button", { name: "Photo Ideas", exact: true });
+		await photoIdeas.click();
+		await expect(photoIdeas).toHaveAttribute("aria-pressed", "true");
+		await expect(directory.locator(`h2 a[href="${effectPath}"]`)).toHaveCount(isPublished ? 1 : 0);
+		await expect(directory.locator(`h2 a[href="${promptGuidePath}"]`)).toHaveCount(0);
+		await expect(directory.locator(`h2 a[href="${privacyGuidePath}"]`)).toHaveCount(0);
+
+		await directory.getByRole("searchbox").fill("How to Write AI Image Editing Prompts");
+		await expect(directory.locator("article")).toHaveCount(0);
+		await expect(directory.locator(".blog-results")).toHaveText("0 posts");
+		await directory.getByRole("button", { name: "All posts", exact: true }).click();
+		await expect(directory.locator("article")).toHaveCount(1);
+		await expect(directory.locator(".blog-results")).toHaveText("1 post");
+		await expect(directory.locator(`h2 a[href="${promptGuidePath}"]`)).toBeVisible();
 		await expect(page).toHaveURL(/\/blog$/);
 	});
 

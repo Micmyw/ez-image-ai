@@ -15,7 +15,9 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { useCheckoutStatePolling } from "../hooks/use-checkout-state-polling";
 import { usePaymentAction } from "../hooks/use-payment-action";
+import { subscribeToCheckoutForeground } from "../lib/checkout-state-polling";
 import {
 	clearImagePassCheckoutContext,
 	readImagePassCheckoutContext,
@@ -65,13 +67,17 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 		const savedIntent = intentId || readImagePassCheckoutContext(ownerId);
 		setRestored(savedIntent ? { ownerId, intentId: savedIntent } : null);
 	}, [ownerId, intentId]);
+	const polling = useCheckoutStatePolling(
+		ownerId && checkoutIntentId ? JSON.stringify([ownerId, checkoutIntentId]) : null,
+		3_000,
+	);
 	const checkoutState = useQuery({
 		...orpc.payments.getImagePassCheckoutState.queryOptions({
 			input: { intentId: checkoutIntentId ?? "" },
 		}),
 		queryKey: ["image-pass-checkout", ownerId, checkoutIntentId],
 		enabled: Boolean(ownerId && checkoutIntentId),
-		refetchInterval: (query) => (query.state.data?.status === "PENDING" ? 3_000 : false),
+		refetchInterval: polling.refetchInterval,
 	});
 	const status = checkoutState.data?.status;
 	const refreshCheckoutState = checkoutState.refetch;
@@ -98,15 +104,13 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 			}
 			const savedIntent = readImagePassCheckoutContext(ownerId) || intentId;
 			setRestored(savedIntent ? { ownerId, intentId: savedIntent } : null);
-			if (savedIntent && savedIntent === checkoutIntentId) void refreshCheckoutState();
+			if (savedIntent && savedIntent === checkoutIntentId) {
+				polling.restart();
+				void refreshCheckoutState();
+			}
 		};
-		window.addEventListener("pageshow", restore);
-		window.addEventListener("focus", restore);
-		return () => {
-			window.removeEventListener("pageshow", restore);
-			window.removeEventListener("focus", restore);
-		};
-	}, [ownerId, intentId, checkoutIntentId, refreshCheckoutState]);
+		return subscribeToCheckoutForeground(restore);
+	}, [ownerId, intentId, checkoutIntentId, refreshCheckoutState, polling]);
 	const statusMessage = checkoutState.isError
 		? "checkoutStatusError"
 		: completed
@@ -218,7 +222,10 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 							<button
 								type="button"
 								data-testid="image-pass-check-status"
-								onClick={() => void checkoutState.refetch()}
+								onClick={() => {
+									polling.restart();
+									void checkoutState.refetch();
+								}}
 								disabled={checkoutState.isFetching}
 								className="min-h-10 border-violet-300/30 px-3 text-sm text-violet-100 rounded-lg border disabled:opacity-60"
 							>

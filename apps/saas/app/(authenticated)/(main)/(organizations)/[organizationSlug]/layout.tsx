@@ -1,10 +1,11 @@
 import { getActiveOrganization } from "@auth/lib/server";
-import { activeOrganizationQueryKey } from "@organizations/lib/api";
+import { seedOrganizationQueries } from "@organizations/lib/query-cache";
 import { listPurchases } from "@payments/lib/server";
 import { config as paymentsConfig } from "@repo/payments/config";
 import { AppWrapper } from "@shared/components/AppWrapper";
 import { orpc } from "@shared/lib/orpc-query-utils";
-import { getServerQueryClient } from "@shared/lib/server";
+import { createQueryClient } from "@shared/lib/query-client";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { notFound } from "next/navigation";
 import type { PropsWithChildren } from "react";
 
@@ -24,12 +25,8 @@ export default async function OrganizationLayout({
 		return notFound();
 	}
 
-	const queryClient = getServerQueryClient();
-
-	await queryClient.prefetchQuery({
-		queryKey: activeOrganizationQueryKey({ slug: organizationSlug }),
-		queryFn: () => organization,
-	});
+	const queryClient = createQueryClient();
+	seedOrganizationQueries(queryClient, organization);
 
 	if (paymentsConfig.billingAttachedTo === "organization") {
 		await queryClient.prefetchQuery({
@@ -42,5 +39,9 @@ export default async function OrganizationLayout({
 		});
 	}
 
-	return <AppWrapper>{children}</AppWrapper>;
+	return (
+		<HydrationBoundary state={dehydrate(queryClient)}>
+			<AppWrapper>{children}</AppWrapper>
+		</HydrationBoundary>
+	);
 }

@@ -285,6 +285,7 @@ const list = protectedProcedure
 			.object({
 				cursor: z.string().min(1).max(160).optional(),
 				limit: z.number().int().min(1).max(20).default(20),
+				templateFamily: z.enum(["hotel-lobby", "raindance", "rumpelstiltskin"]).optional(),
 			})
 			.strict(),
 	)

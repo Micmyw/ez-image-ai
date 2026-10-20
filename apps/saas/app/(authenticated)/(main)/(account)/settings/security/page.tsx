@@ -9,7 +9,8 @@ import { SetPasswordForm } from "@settings/components/SetPassword";
 import { TwoFactorBlock } from "@settings/components/TwoFactorBlock";
 import { PageHeader } from "@shared/components/PageHeader";
 import { SettingsList } from "@shared/components/SettingsList";
-import { getServerQueryClient } from "@shared/lib/server";
+import { createQueryClient } from "@shared/lib/query-client";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
@@ -28,28 +29,23 @@ export default async function AccountSettingsPage() {
 		redirect("/login");
 	}
 
-	const userAccounts = await getUserAccounts();
+	const [userAccounts, userPasskeys, t] = await Promise.all([
+		getUserAccounts(),
+		config.enablePasskeys ? getUserPasskeys() : undefined,
+		getTranslations("settings.account.security"),
+	]);
 
 	const userHasPassword = userAccounts?.some((account) => account.providerId === "credential");
 
-	const queryClient = getServerQueryClient();
-
-	await queryClient.prefetchQuery({
-		queryKey: userAccountQueryKey,
-		queryFn: () => getUserAccounts(),
-	});
-
-	if (config.enablePasskeys) {
-		await queryClient.prefetchQuery({
-			queryKey: userPasskeyQueryKey,
-			queryFn: () => getUserPasskeys(),
-		});
+	// Page-local state also reaches the browser when the shared layout is reused.
+	const queryClient = createQueryClient();
+	queryClient.setQueryData(userAccountQueryKey, userAccounts);
+	if (userPasskeys !== undefined) {
+		queryClient.setQueryData(userPasskeyQueryKey, userPasskeys);
 	}
 
-	const t = await getTranslations("settings.account.security");
-
 	return (
-		<>
+		<HydrationBoundary state={dehydrate(queryClient)}>
 			<PageHeader title={t("title")} />
 
 			<SettingsList>
@@ -60,6 +56,6 @@ export default async function AccountSettingsPage() {
 				{config.enableTwoFactor && <TwoFactorBlock />}
 				<ActiveSessionsBlock />
 			</SettingsList>
-		</>
+		</HydrationBoundary>
 	);
 }

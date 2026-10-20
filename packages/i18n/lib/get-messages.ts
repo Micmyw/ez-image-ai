@@ -9,7 +9,17 @@ async function importLocaleMessages<T>(
 	locale: Locale,
 	scope: TranslationScope | "shared",
 ): Promise<T> {
-	return (await import(`../translations/${locale}/${scope}.json`)).default as T;
+	const messages = import(`../translations/${locale}/${scope}.json`);
+	if (scope === "saas") {
+		// Keep the public namespace contract while allowing the lazy video view
+		// to load only video copy instead of every account/admin message.
+		const [saas, video] = await Promise.all([
+			messages,
+			import(`../translations/${locale}/video.json`),
+		]);
+		return { ...saas.default, ...video.default } as T;
+	}
+	return (await messages).default as T;
 }
 
 export async function getMessagesForLocale<T = Record<string, unknown>>(

@@ -21,7 +21,11 @@ export async function MainAccountBoundary({ children }: PropsWithChildren) {
 		redirect("/onboarding");
 	}
 
-	const organizations = await getOrganizationList();
+	const organizations =
+		authConfig.organizations.enable &&
+		(authConfig.organizations.requireOrganization || paymentsConfig.requireActiveSubscription)
+			? await getOrganizationList()
+			: [];
 
 	if (authConfig.organizations.enable && authConfig.organizations.requireOrganization) {
 		const organization =

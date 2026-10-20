@@ -4,6 +4,7 @@ import { orpcClient } from "@shared/lib/orpc-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
+import { useGenerationMode } from "../lib/generation-mode-context";
 import {
 	getJobPollingInterval,
 	getJobPresentation,
@@ -11,9 +12,12 @@ import {
 	reconcileJobSnapshot,
 } from "../lib/job-status";
 import { recordOutputReceived } from "../lib/preview-timing";
+import { usePageVisible } from "./use-page-visible";
 
 export function useJob(jobId: string | null) {
 	const queryClient = useQueryClient();
+	const active = useGenerationMode()?.mode !== "video";
+	const visible = usePageVisible();
 	const refreshedSettlement = useRef<string | null>(null);
 	const query = useQuery({
 		queryKey: ["media-job", jobId],
@@ -28,17 +32,19 @@ export function useJob(jobId: string | null) {
 				recordOutputReceived(current.id, asset.id, current.requestId);
 			return current;
 		},
-		enabled: Boolean(jobId),
+		enabled: Boolean(jobId) && active && visible,
 		refetchInterval: (query) => {
+			if (!active || !visible) return false;
 			const status = query.state.data?.status ?? "RESERVED";
 			return getJobPollingInterval({
 				status,
 				credits: query.state.data,
 				hasReadyOutput: Boolean(query.state.data?.assets.length),
-				isDocumentVisible:
-					typeof document === "undefined" || document.visibilityState === "visible",
+				isDocumentVisible: visible,
 			});
 		},
+		staleTime: 0,
+		refetchIntervalInBackground: false,
 		refetchOnWindowFocus: true,
 	});
 	const settlement =

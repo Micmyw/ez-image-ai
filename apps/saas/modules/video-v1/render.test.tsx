@@ -1,20 +1,24 @@
 import { getVideoModelOptions } from "@repo/config/video-models";
+import { getMessagesForLocale, type SaasMessages } from "@repo/i18n";
 import { NextIntlClientProvider, useTranslations } from "next-intl";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import de from "../../../../packages/i18n/translations/de/saas.json";
-import en from "../../../../packages/i18n/translations/en/saas.json";
-import es from "../../../../packages/i18n/translations/es/saas.json";
-import fr from "../../../../packages/i18n/translations/fr/saas.json";
 import type { VideoState } from "./api";
 import { getVideoErrorKey, initialVideoDraft } from "./model";
+
+const [de, en, es, fr] = await Promise.all(
+	(["de", "en", "es", "fr"] as const).map((locale) =>
+		getMessagesForLocale<SaasMessages>(locale, "saas"),
+	),
+);
 
 vi.mock("./api", () => ({ videoApi: { jobs: { playback: vi.fn() } } }));
 vi.mock("@auth/hooks/use-session", () => ({
 	useSession: () => ({ user: { id: "owner-1", isAnonymous: false } }),
 }));
 vi.mock("./use-video", () => ({ usePageVisible: () => true, useVideoJob: vi.fn() }));
+vi.mock("@media/hooks/use-active-history-polling", () => ({ useActiveHistoryPolling: vi.fn() }));
 vi.mock("@tanstack/react-query", () => ({
 	useInfiniteQuery: () => ({
 		data: {

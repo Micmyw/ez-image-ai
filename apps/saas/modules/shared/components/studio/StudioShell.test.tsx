@@ -25,6 +25,7 @@ vi.mock("next/navigation", () => ({
 	useRouter: () => ({ prefetch: vi.fn() }),
 }));
 vi.mock("next-intl", () => ({
+	useLocale: () => "en",
 	useTranslations: () => (key: string, values?: { credits?: string }) =>
 		key === "creditBalance" ? `creditBalance:${values?.credits}` : key,
 }));

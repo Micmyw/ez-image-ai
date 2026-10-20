@@ -31,6 +31,8 @@ export function ComposerHeader() {
 						className="composer-category"
 						aria-pressed={mode === "video"}
 						data-generator-mode="video"
+						onMouseEnter={() => workspace.preloadMode?.("video")}
+						onFocus={() => workspace.preloadMode?.("video")}
 						onClick={() => workspace.selectMode("video")}
 					>
 						<ClapperboardIcon size={17} aria-hidden="true" />

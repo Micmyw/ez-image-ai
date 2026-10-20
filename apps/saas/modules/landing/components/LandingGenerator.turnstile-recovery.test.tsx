@@ -123,6 +123,7 @@ describe("LandingGenerator verification feedback", () => {
 	afterEach(() => vi.unstubAllGlobals());
 	beforeEach(() => {
 		vi.clearAllMocks();
+		harness.queryClient.fetchQuery.mockResolvedValue({ products: [] });
 		harness.cursor = 0;
 		harness.states = [];
 		harness.initialized = [];
@@ -137,6 +138,67 @@ describe("LandingGenerator verification feedback", () => {
 			products: [product],
 			queueEstimate: { kind: "capacity" },
 		});
+	});
+
+	it("makes reference editing ready while the unrelated text catalog is still pending", async () => {
+		harness.queryClient.fetchQuery.mockReturnValueOnce(new Promise(() => {}));
+		renderWorkspace();
+		harness.capabilityEffect?.();
+		await vi.waitFor(() =>
+			expect(findElement(renderWorkspace(), "output")?.props["data-stage"]).toBe("ready"),
+		);
+	});
+
+	it("makes text editing ready while the unrelated upload capability is still pending", async () => {
+		harness.getCapability.mockReturnValueOnce(new Promise(() => {}));
+		harness.queryClient.fetchQuery.mockResolvedValueOnce({
+			products: [{ ...product, inputKinds: ["text-to-image"] }],
+		} as never);
+		renderWorkspace(false);
+		harness.capabilityEffect?.();
+		await vi.waitFor(() =>
+			expect(findElement(renderWorkspace(false), "output")?.props["data-stage"]).toBe("ready"),
+		);
+	});
+
+	it("does not overwrite an active handoff when a late upload capability arrives", async () => {
+		let resolveCapability!: (value: unknown) => void;
+		harness.getCapability.mockReturnValueOnce(
+			new Promise((resolve) => {
+				resolveCapability = resolve;
+			}),
+		);
+		harness.queryClient.fetchQuery.mockResolvedValueOnce({
+			products: [{ ...product, inputKinds: ["text-to-image"] }],
+		} as never);
+		renderWorkspace(false);
+		harness.capabilityEffect?.();
+		await vi.waitFor(() =>
+			expect(findElement(renderWorkspace(false), "output")?.props["data-stage"]).toBe("ready"),
+		);
+		// Model/SKU selection is made by the same control used by the real form.
+		callback<(key: string) => void>(
+			renderWorkspace(false),
+			harness.modelSelector,
+			"onChange",
+		)(product.key);
+		vi.stubGlobal("window", {
+			sessionStorage: { setItem: vi.fn(), getItem: () => null, removeItem: vi.fn() },
+			location: { assign: vi.fn() },
+		});
+		callback<(event: { preventDefault: () => void }) => void>(
+			renderWorkspace(false),
+			"form",
+			"onSubmit",
+		)({ preventDefault: vi.fn() });
+		expect(findElement(renderWorkspace(false), "output")?.props["data-stage"]).toBe("handoff");
+		resolveCapability({
+			enabled: true,
+			products: [product],
+			upload: { maximumBytes: 10 * 1024 * 1024, mimeTypes: ["image/png"] },
+		});
+		await Promise.resolve();
+		expect(findElement(renderWorkspace(false), "output")?.props["data-stage"]).toBe("handoff");
 	});
 
 	it.each([
@@ -313,10 +375,10 @@ async function readyWorkspace() {
 	return renderWorkspace();
 }
 
-function renderWorkspace(): ReactElement {
+function renderWorkspace(withSource = true): ReactElement {
 	harness.cursor = 0;
 	harness.refCursor = 0;
-	const wrapper = LandingGenerator({ initialFile: source });
+	const wrapper = LandingGenerator({ initialFile: withSource ? source : undefined });
 	const Workspace = wrapper.type as (props: typeof wrapper.props) => ReactElement;
 	return Workspace(wrapper.props);
 }

@@ -24,7 +24,124 @@ const billingPlanDrifts: Array<[string, BillingPlanDrift]> = [
 	["a stale pricing version", { pricingVersion: "2026-08-25.1" }],
 ];
 
+type AvailabilityKind = "subscription" | "credit-pack";
+type AvailabilityDependencies = Parameters<typeof resolveProviderAvailability>[1];
+type BillingSnapshot = NonNullable<
+	Awaited<ReturnType<AvailabilityDependencies["findBillingPlan"]>>
+>;
+
+function deferred<T>() {
+	let resolve!: (value: T) => void;
+	const promise = new Promise<T>((done) => {
+		resolve = done;
+	});
+	return { promise, resolve };
+}
+
+function availabilitySnapshot(
+	kind: AvailabilityKind,
+	provider: "paypal" | "waffo",
+): BillingSnapshot {
+	const pack = createCreditPackCheckoutSnapshot("credits-1500", false);
+	return {
+		id: `${provider}-plan`,
+		provider,
+		providerPriceId: `${provider}-price`,
+		active: true,
+		version: 1,
+		productKind: kind === "subscription" ? "PLAN" : "CREDIT_PACK",
+		name: kind === "subscription" ? "creator" : pack.packKey,
+		creditsPerPeriod: kind === "subscription" ? 700n : BigInt(pack.baseCredits),
+		priceMicros: kind === "subscription" ? 19_000_000n : BigInt(pack.priceMicros),
+		currency: "USD",
+		metadata:
+			kind === "subscription"
+				? {
+						planId: "creator",
+						interval: "month",
+						version: 1,
+						pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
+					}
+				: {
+						version: 1,
+						productKind: "CREDIT_PACK",
+						packKey: pack.packKey,
+						catalogVersion: pack.catalogVersion,
+						pricingVersion: pack.pricingVersion,
+						expiryMonths: pack.expiryMonths,
+					},
+	};
+}
+
+function availability(
+	kind: AvailabilityKind,
+	dependencies: Pick<AvailabilityDependencies, "isCheckoutAvailable" | "findBillingPlan">,
+) {
+	return kind === "subscription"
+		? resolveProviderAvailability(
+				{ planId: "creator", interval: "month" },
+				{ ...dependencies, getProviderPriceId: (provider) => `${provider}-price` },
+			)
+		: resolveCreditPackProviderAvailability(
+				{ packKey: "credits-1500" },
+				{ ...dependencies, getProviderProductId: (provider) => `${provider}-price` },
+			);
+}
+
 describe("payment provider availability", () => {
+	it.each(["subscription", "credit-pack"] as const)(
+		"checks %s providers independently while preserving PayPal then Waffo output order",
+		async (kind) => {
+			const readiness = { paypal: deferred<boolean>(), waffo: deferred<boolean>() };
+			const snapshots = {
+				paypal: deferred<BillingSnapshot | null>(),
+				waffo: deferred<BillingSnapshot | null>(),
+			};
+			const isCheckoutAvailable = vi.fn(
+				(provider: "paypal" | "waffo") => readiness[provider].promise,
+			);
+			const findBillingPlan = vi.fn((provider: "paypal" | "waffo") => snapshots[provider].promise);
+			const pending = availability(kind, { isCheckoutAvailable, findBillingPlan });
+			expect(isCheckoutAvailable.mock.calls).toEqual([["paypal"], ["waffo"]]);
+			expect(findBillingPlan).not.toHaveBeenCalled();
+
+			readiness.waffo.resolve(true);
+			await vi.waitFor(() => expect(findBillingPlan).toHaveBeenCalledWith("waffo", "waffo-price"));
+			expect(findBillingPlan).not.toHaveBeenCalledWith("paypal", expect.any(String));
+			readiness.paypal.resolve(true);
+			await vi.waitFor(() =>
+				expect(findBillingPlan).toHaveBeenCalledWith("paypal", "paypal-price"),
+			);
+			snapshots.waffo.resolve(availabilitySnapshot(kind, "waffo"));
+			snapshots.paypal.resolve(availabilitySnapshot(kind, "paypal"));
+			expect((await pending).map(({ name }) => name)).toEqual(["paypal", "waffo"]);
+		},
+	);
+
+	it.each([
+		["subscription", "readiness"],
+		["subscription", "snapshot"],
+		["credit-pack", "readiness"],
+		["credit-pack", "snapshot"],
+	] as const)(
+		"fails the entire %s availability closed if one provider's %s check errors",
+		async (kind, stage) => {
+			const failure = new Error("provider check unavailable");
+			await expect(
+				availability(kind, {
+					isCheckoutAvailable: async (provider) => {
+						if (provider === "waffo" && stage === "readiness") throw failure;
+						return true;
+					},
+					findBillingPlan: async (provider) => {
+						if (provider === "waffo" && stage === "snapshot") throw failure;
+						return availabilitySnapshot(kind, provider);
+					},
+				}),
+			).rejects.toBe(failure);
+		},
+	);
+
 	it.each([
 		{ planId: "creator" as const, monthly: 19, yearly: 114, previousYearly: 190, credits: 700 },
 		{ planId: "ultimate" as const, monthly: 49, yearly: 294, previousYearly: 490, credits: 1_800 },

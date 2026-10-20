@@ -4,6 +4,8 @@
 	"main": "./index.ts",
 	"types": "./index.ts",
 	"scripts": {
+		"generate:client-messages": "node scripts/generate-client-messages.mjs",
+		"check:client-messages": "node scripts/generate-client-messages.mjs --check",
 		"clean": "git clean -xdf .cache .turbo dist node_modules",
 		"type-check": "tsc --noEmit"
 	},

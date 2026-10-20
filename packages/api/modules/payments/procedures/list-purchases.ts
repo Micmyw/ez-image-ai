@@ -79,16 +79,16 @@ export const listPurchases = protectedProcedure
 			}
 		}
 
-		const purchases = organizationId
-			? await getPurchasesByOrganizationId(organizationId)
-			: await getPurchasesByUserId(user.id);
-		const effective = await findEffectivePaidSubscription(
-			{
-				ownerType: organizationId ? "ORGANIZATION" : "USER",
-				ownerId: organizationId ?? user.id,
-			},
-			db,
-		);
+		const [purchases, effective] = await Promise.all([
+			organizationId ? getPurchasesByOrganizationId(organizationId) : getPurchasesByUserId(user.id),
+			findEffectivePaidSubscription(
+				{
+					ownerType: organizationId ? "ORGANIZATION" : "USER",
+					ownerId: organizationId ?? user.id,
+				},
+				db,
+			),
+		]);
 
 		return purchases.map((purchase) => {
 			const {

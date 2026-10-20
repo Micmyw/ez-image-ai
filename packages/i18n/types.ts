@@ -2,6 +2,7 @@ import type mailMessages from "./translations/en/mail.json";
 import type marketingMessages from "./translations/en/marketing.json";
 import type saasMessages from "./translations/en/saas.json";
 import type sharedMessages from "./translations/en/shared.json";
+import type videoMessages from "./translations/en/video.json";
 
 export interface LocaleDefinition {
 	/**
@@ -37,6 +38,6 @@ export interface I18nConfig {
 
 export type SharedMessages = typeof sharedMessages;
 export type MarketingMessages = typeof marketingMessages & SharedMessages;
-export type SaasMessages = typeof saasMessages & SharedMessages;
+export type SaasMessages = typeof saasMessages & typeof videoMessages & SharedMessages;
 export type UnifiedAppMessages = MarketingMessages & SaasMessages;
 export type MailMessages = typeof mailMessages;

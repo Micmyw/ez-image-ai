@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession } from "@auth/hooks/use-session";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useActiveOrganization } from "@organizations/hooks/use-active-organization";
 import type { supportTicketDetailSchema } from "@repo/api/modules/support/types";
@@ -11,7 +12,7 @@ import { orpcClient } from "@shared/lib/orpc-client";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -26,6 +27,7 @@ type TicketForm = z.infer<typeof ticketFormSchema>;
 function useSupportSubmission<T>(execute: (input: T & { requestKey: string }) => Promise<unknown>) {
 	const busy = useRef(false);
 	const request = useRef<(T & { requestKey: string }) | null>(null);
+	const uncertainRequest = useRef(false);
 	const [uncertain, setUncertain] = useState(false);
 	const mutation = useMutation({ mutationFn: execute, retry: false });
 	return {
@@ -33,7 +35,7 @@ function useSupportSubmission<T>(execute: (input: T & { requestKey: string }) =>
 		uncertain,
 		locked: mutation.isPending || uncertain,
 		submit: async (input: T) => {
-			if (busy.current || uncertain) return false;
+			if (busy.current || uncertainRequest.current) return false;
 			busy.current = true;
 			request.current ??= { ...structuredClone(input), requestKey: crypto.randomUUID() };
 			try {
@@ -49,7 +51,10 @@ function useSupportSubmission<T>(execute: (input: T & { requestKey: string }) =>
 					)
 				)
 					request.current = null;
-				else setUncertain(true);
+				else {
+					uncertainRequest.current = true;
+					setUncertain(true);
+				}
 				return false;
 			} finally {
 				busy.current = false;
@@ -84,34 +89,89 @@ export function TicketMessages({ ticket }: { ticket: TicketDetail }) {
 }
 
 export function SupportWorkspace() {
+	const { user } = useSession();
+	const { activeOrganization } = useActiveOrganization();
+	if (!user || user.isAnonymous) return null;
+	return (
+		<SupportWorkspaceContent
+			key={JSON.stringify([user.id, activeOrganization?.id ?? null])}
+			ownerId={user.id}
+			activeOrganization={activeOrganization}
+		/>
+	);
+}
+
+function SupportWorkspaceContent({
+	ownerId,
+	activeOrganization,
+}: {
+	ownerId: string;
+	activeOrganization: { id: string; name: string } | null;
+}) {
 	const t = useTranslations("support");
 	const queryClient = useQueryClient();
-	const { activeOrganization } = useActiveOrganization();
 	const [organizationScope, setOrganizationScope] = useState(false);
 	const [page, setPage] = useState(1);
 	const [selected, setSelected] = useState<string | null>(null);
 	const organizationId = organizationScope ? activeOrganization?.id : undefined;
+	const scope = JSON.stringify([ownerId, organizationId ?? null]);
+	const currentScope = useRef(scope);
+	currentScope.current = scope;
+	const mounted = useRef(true);
+	useEffect(() => {
+		mounted.current = true;
+		return () => {
+			mounted.current = false;
+		};
+	}, []);
+	const listScopeKey = [
+		...orpc.support.list.key(),
+		{ ownerId, organizationId: organizationId ?? null },
+	];
+	const detailKey = (ticketId: string) => [
+		...orpc.support.get.key(),
+		{ ownerId, organizationId: organizationId ?? null, ticketId },
+	];
 	const tickets = useQuery(
 		orpc.support.list.queryOptions({
+			queryKey: [...listScopeKey, { page, pageSize: 20 }],
 			input: { page, pageSize: 20, ...(organizationId ? { organizationId } : {}) },
 			retry: false,
 		}),
 	);
 	const detail = useQuery(
 		orpc.support.get.queryOptions({
+			queryKey: detailKey(selected ?? ""),
 			input: { ticketId: selected ?? "" },
 			enabled: Boolean(selected),
 			retry: false,
 		}),
 	);
+	const publishConfirmedTicket = async (ticket: TicketDetail) => {
+		const isCurrent = () =>
+			mounted.current &&
+			currentScope.current === scope &&
+			ticket.createdByUserId === ownerId &&
+			ticket.organizationId === (organizationId ?? null);
+		if (!isCurrent()) return false;
+		const queryKey = detailKey(ticket.id);
+		// A slower GET must not replace this confirmed write with an older conversation.
+		await queryClient.cancelQueries({ queryKey, exact: true });
+		if (!isCurrent()) return false;
+		queryClient.setQueryData<TicketDetail>(queryKey, (previous) =>
+			previous && Date.parse(previous.updatedAt) > Date.parse(ticket.updatedAt) ? previous : ticket,
+		);
+		// List refresh failure does not make an acknowledged write uncertain.
+		void queryClient.invalidateQueries({ queryKey: listScopeKey }).catch(() => undefined);
+		return true;
+	};
 	const form = useForm<TicketForm>({
 		resolver: zodResolver(ticketFormSchema),
 		defaultValues: { subject: "", body: "" },
 	});
 	const create = useSupportSubmission<TicketForm & { organizationId?: string }>(async (input) => {
 		const result = await orpcClient.support.create(input);
-		setSelected(result.ticket.id);
-		await queryClient.invalidateQueries({ queryKey: orpc.support.list.key() });
+		if (await publishConfirmedTicket(result.ticket)) setSelected(result.ticket.id);
 	});
 	return (
 		<div className="space-y-6">
@@ -254,9 +314,9 @@ export function SupportWorkspace() {
 							<CustomerReply
 								key={detail.data.id}
 								ticketId={detail.data.id}
+								onConfirmed={publishConfirmedTicket}
 								refresh={async () => {
-									await detail.refetch();
-									await tickets.refetch();
+									await Promise.all([detail.refetch(), tickets.refetch()]);
 								}}
 							/>
 						</>
@@ -269,9 +329,11 @@ export function SupportWorkspace() {
 
 function CustomerReply({
 	ticketId,
+	onConfirmed,
 	refresh,
 }: {
 	ticketId: string;
+	onConfirmed: (ticket: TicketDetail) => Promise<boolean>;
 	refresh: () => Promise<unknown>;
 }) {
 	const t = useTranslations("support");
@@ -279,16 +341,16 @@ function CustomerReply({
 		resolver: zodResolver(replyFormSchema),
 		defaultValues: { body: "" },
 	});
-	const reply = useSupportSubmission<{ ticketId: string; body: string }>((input) =>
-		orpcClient.support.reply(input),
-	);
+	const reply = useSupportSubmission<{ ticketId: string; body: string }>(async (input) => {
+		const result = await orpcClient.support.reply(input);
+		if (result.ticket.id === ticketId) await onConfirmed(result.ticket);
+	});
 	return (
 		<form
 			className="space-y-3"
 			onSubmit={form.handleSubmit(async ({ body }) => {
 				if (await reply.submit({ ticketId, body })) {
 					form.reset();
-					await refresh();
 				}
 			})}
 		>

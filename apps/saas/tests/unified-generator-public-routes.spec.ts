@@ -246,6 +246,82 @@ async function mode(page: Page, value: "image" | "video") {
 	await expect(page.locator(`[data-generator-panel="${value}"]`)).toBeVisible();
 }
 
+test("a slow first video load keeps mode controls and the image draft available", async ({
+	page,
+}) => {
+	await setup(page, false);
+	await page.goto("/");
+	await page.locator("#landing-edit-prompt").fill("Keep this image draft while video loads");
+	const initialScripts = await page.evaluate(() =>
+		performance.getEntriesByType("resource").map((resource) => resource.name),
+	);
+	let release!: () => void;
+	let requested!: () => void;
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const firstRequest = new Promise<void>((resolve) => {
+		requested = resolve;
+	});
+	await page.route("**/_next/static/chunks/**", async (route) => {
+		requested();
+		await gate;
+		await route.continue();
+	});
+	try {
+		const videoTab = page.locator('[data-generator-panel="image"] [data-generator-mode="video"]');
+		await videoTab.hover();
+		await firstRequest;
+		await videoTab.click();
+		await expect(page.locator('[data-test="video-workspace-loading"]')).toBeVisible();
+		await expect(
+			page.locator('[data-test="video-workspace-loading"]').getByRole("status"),
+		).toContainText("Loading your workspace");
+		await mode(page, "image");
+		await expect(page.locator("#landing-edit-prompt")).toHaveValue(
+			"Keep this image draft while video loads",
+		);
+		await mode(page, "video");
+		await expect(
+			page.locator('[data-test="video-workspace-loading"] [data-generator-mode="video"]'),
+		).toBeFocused();
+	} finally {
+		release();
+	}
+	await expect(page.locator("#video-prompt")).toBeVisible();
+	await expect(page.locator('[data-test="video-workspace-loading"]')).toHaveCount(0);
+	await expect(
+		page.locator('[data-generator-panel="video"] [data-generator-mode="video"]'),
+	).toBeFocused();
+	if (process.env.E2E_USE_PRODUCTION_BUILD === "true") {
+		const addedScripts = await page.evaluate(
+			(initial) =>
+				performance
+					.getEntriesByType("resource")
+					.filter(
+						(entry) =>
+							!initial.includes(entry.name) &&
+							new URL(entry.name).pathname.startsWith("/_next/static/chunks/"),
+					)
+					.map((entry) => entry.name),
+			initialScripts,
+		);
+		const { gzipSync } = await import("node:zlib");
+		let bytes = 0;
+		for (const url of new Set(addedScripts)) {
+			const response = await page.request.get(url);
+			expect(response.ok()).toBeTruthy();
+			const body = await response.body();
+			bytes += gzipSync(body).byteLength;
+		}
+		console.log("First video visit JavaScript gzip bytes:", bytes);
+		expect(
+			bytes,
+			"Video must not download complete application dictionaries in four languages",
+		).toBeLessThan(64 * 1024);
+	}
+});
+
 for (const locale of ["en", "de"] as const) {
 	test(`quality warnings show actual and requested video details without granting playback (${locale})`, async ({
 		page,

@@ -1,0 +1,378 @@
+{
+	"imagePass": {
+		"bannerLabel": "One-time image pack",
+		"bannerTitle": "{units} images for {currency} {amount}",
+		"bannerDetail": "Current image models · up to 4K · no subscription",
+		"buy": "Get image pack",
+		"oneTime": "One-time purchase",
+		"title": "{units} successful images",
+		"pageTitle": "Image pack — 3 images for USD 1",
+		"description": "Choose any currently available image model, including supported options up to 4K. Each task produces one image.",
+		"models": "Current image models and supported resolutions, including 4K",
+		"singleOutput": "One successful image uses one pass. Images only, no video.",
+		"separate": "Image passes are separate from credits and subscriptions.",
+		"repeat": "Buy another pack whenever you need it.",
+		"balance": "{count} image passes available",
+		"pay": "Pay {currency} {amount} with PayPal",
+		"processing": "Opening PayPal…",
+		"signIn": "Create an account or sign in",
+		"checkoutError": "Checkout could not be opened. Try again to resume the same purchase.",
+		"fundingLabel": "Pay with",
+		"fundingReserved": "{count} in progress",
+		"fundingExhausted": "No passes available. Choose credits to continue.",
+		"fundingCreditsAvailable": "Credits · {count} available",
+		"fundingCredits": "Credits",
+		"fundingPasses": "Image passes · {count} available",
+		"fundingLoading": "Checking image passes…",
+		"buyMore": "Get 3 image passes",
+		"fundingEmpty": "No image passes available. Buy a pack or explicitly choose credits to continue.",
+		"fundingPolicy": "One pass is reserved while the task runs and used for one successful image. Credits are not used. Existing content review and storage limits still apply.",
+		"fundingSeparate": "Credits and image passes are separate choices. Your selection will not switch automatically.",
+		"fundingPolicyTitle": "Image pass policy",
+		"onePass": "1 image pass",
+		"back": "Return to editor",
+		"checkoutStatusTitle": "Your checkout status",
+		"checkoutUnconfirmed": "Payment has not been confirmed. Check its status before trying again.",
+		"checkoutNotCompleted": "This checkout has not completed. You can try purchasing again.",
+		"checkoutStatusError": "We could not check this payment yet. Check its status again before trying another purchase.",
+		"checkStatus": "Check status",
+		"tryPurchaseAgain": "Try purchasing again",
+		"continueGenerating": "Continue generating",
+		"returnAwaitingConfirmation": "If you approved the {currency} {amount} payment in PayPal, confirm below to finish. Otherwise, return to checkout.",
+		"returnConfirmPayment": "Confirm {currency} {amount} payment",
+		"returnTitle": "Your image pack",
+		"returnCompleted": "Payment confirmed. Your image passes are available in the editor.",
+		"returnPending": "Confirming payment and adding your image passes. Keep this page open.",
+		"returnReview": "We could not yet confirm this purchase. Check again before starting another payment.",
+		"checkoutBack": "View image pack",
+		"checkAgain": "Check payment again",
+		"retryPass": "Retry · 1 image pass",
+		"balanceError": "Pass balance unavailable",
+		"retryBalance": "Check balance again",
+		"availabilityLoading": "Checking offer availability…",
+		"unavailable": "This offer is currently unavailable. Please try again later."
+	},
+	"media": {
+		"assets": {
+			"title": "Asset library",
+			"subtitle": "Private source images and edited outputs.",
+			"filters": {
+				"all": "All assets",
+				"image": "Images",
+				"video": "Videos"
+			},
+			"previewAlt": "Private generated asset",
+			"preview": "Show preview",
+			"video": "Video",
+			"image": "Image",
+			"reuse": "Reuse as input",
+			"download": "Download",
+			"source": "Source creation",
+			"delete": "Delete",
+			"empty": "No image assets yet.",
+			"more": "Load more"
+		},
+		"edits": {
+			"title": "Edit sessions",
+			"subtitle": "Continue private image revisions and branch from any ready version.",
+			"untitled": "Untitled edit",
+			"versions": "{count, plural, one {# version} other {# versions}}",
+			"empty": "No edit sessions yet.",
+			"more": "Load more",
+			"back": "Back to edit sessions",
+			"loading": "Loading edit session…",
+			"version": "Version {number}",
+			"prompt": "Prompt",
+			"credits": "{credits} credits",
+			"editAgain": "Edit again",
+			"assetDeleted": "Asset deleted",
+			"outputUnavailable": "Output unavailable",
+			"thumbnailAlt": "Private result thumbnail",
+			"legacyProduct": "Legacy edit",
+			"renameLabel": "Session title",
+			"renamePlaceholder": "Name this edit",
+			"rename": "Rename",
+			"unavailableTitle": "This edit session is unavailable",
+			"unavailableDescription": "Return to your edit sessions and choose another one."
+		},
+		"history": {
+			"title": "Creation history",
+			"subtitle": "Follow every run and recover work after a refresh.",
+			"filter": "Filter creations",
+			"filters": {
+				"all": "All",
+				"active": "In progress",
+				"succeeded": "Ready",
+				"failed": "Needs attention",
+				"canceled": "Canceled"
+			},
+			"outputs": "{count, plural, one {# output} other {# outputs}}",
+			"reserved": "Reserved",
+			"legacyProduct": "Legacy edit",
+			"empty": "No creations match this filter.",
+			"more": "Load more"
+		}
+	},
+	"settings": {
+		"account": {
+			"avatar": {
+				"description": "To change your avatar click the picture in this block and select a file from your computer to upload.",
+				"notifications": {
+					"error": "Could not update avatar",
+					"success": "Avatar was updated successfully"
+				},
+				"title": "Your avatar"
+			},
+			"changeEmail": {
+				"description": "To change your email, enter the new email and hit save. You will have to confirm the new email before it will become active.",
+				"notifications": {
+					"error": "Could not update email",
+					"success": "Email was updated successfully"
+				},
+				"title": "Your email"
+			},
+			"changeName": {
+				"notifications": {
+					"error": "Could not update name",
+					"success": "Name was updated successfully"
+				},
+				"title": "Your name"
+			},
+			"deleteAccount": {
+				"confirmation": "Are you sure you want to delete your account?",
+				"description": "Permanently delete your account. Once you delete your account, there is no going back. To confirm, please enter your password below:",
+				"notifications": {
+					"error": "Could not delete account",
+					"success": "Account was deleted successfully"
+				},
+				"submit": "Delete account",
+				"title": "Delete account"
+			},
+			"language": {
+				"description": "Select your preferred account language. Changes are saved automatically.",
+				"notifications": {
+					"error": "Could not update language",
+					"success": "Language was updated successfully"
+				},
+				"title": "Your language"
+			},
+			"security": {
+				"activeSessions": {
+					"description": "These are all the active sessions of your account. Click the X to end a specifc session.",
+					"title": "Active sessions",
+					"notifications": {
+						"revokeSession": {
+							"success": "Session revoked"
+						}
+					},
+					"currentSession": "Current session"
+				},
+				"changePassword": {
+					"currentPassword": "Current password",
+					"newPassword": "New password",
+					"notifications": {
+						"error": "Could not update password",
+						"success": "Password was updated successfully"
+					},
+					"title": "Your password"
+				},
+				"connectedAccounts": {
+					"connect": "Connect",
+					"connected": "Connected",
+					"disconnect": "Disconnect",
+					"title": "Connected accounts"
+				},
+				"passkeys": {
+					"addPasskey": "Add passkey",
+					"deletePasskey": "Delete passkey",
+					"description": "Use passkeys as a secure alternative to passwords.",
+					"dialog": {
+						"editPasskey": {
+							"description": "Choose a recognizable name so you can identify this passkey later.",
+							"label": "Passkey name",
+							"placeholder": "Work laptop",
+							"title": "Name passkey"
+						}
+					},
+					"editPasskey": "Edit passkey",
+					"fallbackName": "Unnamed passkey",
+					"notifications": {
+						"addPasskey": {
+							"error": {
+								"title": "Could not add passkey"
+							},
+							"success": {
+								"title": "Passkey added"
+							}
+						},
+						"deletePasskey": {
+							"error": {
+								"title": "Could not delete passkey"
+							},
+							"loading": {
+								"title": "Deleting passkey..."
+							},
+							"success": {
+								"title": "Passkey deleted"
+							}
+						},
+						"updatePasskey": {
+							"error": {
+								"title": "Could not update passkey"
+							},
+							"success": {
+								"title": "Passkey updated"
+							}
+						}
+					},
+					"title": "Passkeys"
+				},
+				"setPassword": {
+					"description": "You have not set a password yet. To set one, you need to go through the password reset flow. Click the button below to send an email to reset your password and follow the instructions in the email.",
+					"notifications": {
+						"error": "Could not send link to set password. Please try again.",
+						"success": "Check your inbox for the link to set your password."
+					},
+					"submit": "Set password",
+					"title": "Your password"
+				},
+				"title": "Security",
+				"twoFactor": {
+					"title": "Two-factor authentication",
+					"description": "Add an extra layer of security to your account.",
+					"dialog": {
+						"password": {
+							"title": "Verify with password",
+							"description": "Please verify your account by entering your password:",
+							"label": "Your password:"
+						},
+						"totpUrl": {
+							"description": "Use your preferred authenticator app and scan the QR code with it or enter the secret below manually to set up two-factor authentication.",
+							"code": "Enter 6-digit code to verify the setup:",
+							"title": "Enable two-factor authentication"
+						}
+					},
+					"enable": "Enable two-factor authentication",
+					"notifications": {
+						"verify": {
+							"success": {
+								"title": "Two-factor authentication has been enabled successfully."
+							}
+						},
+						"enable": {
+							"error": {
+								"title": "Could not verify your account with the provided password. Please try again."
+							}
+						},
+						"disable": {
+							"success": {
+								"title": "Two-factor authentication has been disabled successfully."
+							}
+						}
+					},
+					"passwordRequired": {
+						"description": "Set a password before enabling two-factor authentication. Your password is required to verify changes to this security setting.",
+						"title": "Password required"
+					},
+					"disable": "Disable two-factor authentication",
+					"enabled": "You have two-factor authentication enabled for your account."
+				}
+			},
+			"subtitle": "Manage the settings of your personal account.",
+			"title": "Account settings"
+		},
+		"billing": {
+			"cancelSubscription": {
+				"label": "Cancel subscription",
+				"confirmation": {
+					"title": "Cancel subscription?",
+					"description": "Your access will end according to your payment provider's cancellation terms.",
+					"confirm": "Cancel subscription"
+				},
+				"notifications": {
+					"success": "Cancellation requested.",
+					"error": "Could not cancel the subscription. Please try again."
+				}
+			},
+			"createCustomerPortal": {
+				"label": "Manage billing",
+				"notifications": {
+					"error": {
+						"title": "Could not create a customer portal session. Please try again."
+					}
+				}
+			},
+			"activePlan": {
+				"cancellationPending": "Your cancellation request is awaiting confirmation from the payment service. New subscriptions remain blocked, even if this paid period ends. Your existing paid benefits remain available until their end date.",
+				"cancellationRetrying": "Renewal cancellation is still unconfirmed. We will keep retrying automatically. New subscriptions remain blocked; your existing paid benefits keep their original end date.",
+				"status": {
+					"cancellationPending": "Cancellation requested",
+					"active": "Active",
+					"canceled": "Canceled",
+					"expired": "Expired",
+					"incomplete": "Incomplete",
+					"past_due": "Past due",
+					"paused": "Paused",
+					"trialing": "Trialing",
+					"unpaid": "Unpaid",
+					"canceling": "Renewal canceled",
+					"pending": "Pending"
+				},
+				"title": "Your plan",
+				"refundTerminationPending": "Your payment was fully refunded and its plan benefits have ended. We are confirming renewal cancellation before you can subscribe again.",
+				"refundTerminationRetrying": "Your refunded plan benefits have ended. Renewal cancellation is still unconfirmed; we will keep retrying. You can subscribe again once cancellation is confirmed.",
+				"refundTerminated": "Your refunded subscription has ended and renewal cancellation is confirmed. You can subscribe again now using any available payment method.",
+				"cancellationScheduled": "Your plan remains available until {date}. It will not renew.",
+				"multipleSubscriptions": "More than one subscription is still open. Review each payment method below and cancel any renewal you no longer need.",
+				"paymentMethod": "Payment method: {provider}",
+				"effectivePlan": "This subscription currently determines your plan benefits.",
+				"currentPeriodEnd": "Current billing period ends on {date}."
+			},
+			"changePlan": {
+				"description": "Choose a plan to subscribe to.",
+				"title": "Change your plan"
+			},
+			"title": "Billing"
+		},
+		"notificationsPage": {
+			"title": "Notifications",
+			"description": "Choose how you receive notifications. Disabled options are stored; everything is enabled by default.",
+			"groups": {
+				"general": {
+					"title": "General"
+				}
+			},
+			"types": {
+				"APP_UPDATE": {
+					"label": "App updates"
+				},
+				"MODERATION_ALERT": {
+					"label": "Safety check service alerts (administrators)"
+				}
+			},
+			"columns": {
+				"type": "Notification",
+				"inApp": "In-app",
+				"email": "Email"
+			}
+		},
+		"menu": {
+			"account": {
+				"billing": "Billing",
+				"dangerZone": "Danger zone",
+				"general": "General",
+				"notifications": "Notifications",
+				"security": "Security",
+				"title": "Account"
+			},
+			"organization": {
+				"billing": "Billing",
+				"general": "General",
+				"members": "Members",
+				"title": "Organization",
+				"dangerZone": "Danger zone"
+			}
+		},
+		"save": "Save"
+	}
+}

@@ -1,6 +1,5 @@
 import { docs } from "@docs-source/server";
 import { type InferPageType, loader } from "fumadocs-core/source";
-import { lucideIconsPlugin } from "fumadocs-core/source/lucide-icons";
 
 export const DOCS_RESERVED_SLUGS = ["api", "og", "llms.txt", "llms-full.txt", "llms.mdx"] as const;
 
@@ -13,7 +12,6 @@ export function isReservedDocsSlug(slug: string): boolean {
 export const source = loader({
 	baseUrl: "/docs",
 	source: docs.toFumadocsSource(),
-	plugins: [lucideIconsPlugin()],
 });
 
 for (const page of source.getPages()) {

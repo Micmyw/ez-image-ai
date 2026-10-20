@@ -9,6 +9,7 @@ export type SignInDraftSaver = (destination: URL) => void | Promise<void>;
 export const GenerationModeContext = createContext<{
 	mode: GeneratorMode;
 	selectMode: (mode: GeneratorMode) => void;
+	preloadMode?: (mode: GeneratorMode) => void;
 	registerSignInDraft: (save: SignInDraftSaver) => () => void;
 	prepareSignIn: (destination: string) => Promise<string>;
 } | null>(null);

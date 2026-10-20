@@ -263,12 +263,13 @@ test("serves English content, canonical, schema, assets and localized noindex vi
 		),
 	).toBe(true);
 	for (const image of await page.locator(".coloring-comparison img").all()) {
+		await image.scrollIntoViewIfNeeded();
 		await expect(image).toBeVisible();
-		expect(
-			await image.evaluate(
-				(element: HTMLImageElement) => element.complete && element.naturalWidth > 0,
-			),
-		).toBe(true);
+		await expect
+			.poll(() =>
+				image.evaluate((element: HTMLImageElement) => element.complete && element.naturalWidth > 0),
+			)
+			.toBe(true);
 	}
 	const sitemap = await request.get("/sitemap.xml");
 	expect(await sitemap.text()).toContain(`${baseURL}${route}`);

@@ -1,11 +1,19 @@
 import { createHash } from "node:crypto";
 
-import { videoEffectRequestSchema, type VideoEffectRequest } from "@repo/config/video-effects";
+import {
+	HOTEL_LOBBY_EFFECT_ID,
+	RAINDANCE_SOLO_EFFECT_ID,
+	RAINDANCE_DUO_EFFECT_ID,
+	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
+	videoEffectRequestSchema,
+	type VideoEffectRequest,
+} from "@repo/config/video-effects";
 import {
 	parseVideoEffectTemplateSnapshot,
 	type VideoEffectTemplateConfig,
 } from "@repo/config/video-effects.server";
 
+import type { Prisma } from "../../generated/client";
 import type { MediaDatabaseClient, MediaTransactionClient } from "./types";
 import { findApprovedVideoTemplateMotionReference } from "./video-template-reference";
 import {
@@ -13,6 +21,14 @@ import {
 	createVideoJobRecord,
 	findExistingVideoAdmission,
 } from "./video-v1";
+import { videoPlaybackSelect } from "./video-v1-fulfillment";
+
+export type VideoTemplateHistoryFamily = "hotel-lobby" | "raindance" | "rumpelstiltskin";
+const templateHistoryEffects = {
+	"hotel-lobby": [HOTEL_LOBBY_EFFECT_ID],
+	raindance: [RAINDANCE_SOLO_EFFECT_ID, RAINDANCE_DUO_EFFECT_ID],
+	rumpelstiltskin: [RUMPELSTILTSKIN_SOLO_EFFECT_ID],
+} satisfies Record<VideoTemplateHistoryFamily, string[]>;
 
 export type TemplateAdmission = {
 	request: VideoEffectRequest;
@@ -207,19 +223,50 @@ export async function getVideoTemplateJobRecord(
 }
 export async function listVideoTemplateJobRecords(
 	ownerId: string,
-	input: { cursor?: string; limit?: number },
+	input: { cursor?: string; limit?: number; templateFamily?: VideoTemplateHistoryFamily },
 	db: MediaDatabaseClient,
 ) {
 	const limit = Math.min(20, Math.max(1, input.limit ?? 20));
-	if (input.cursor) await getVideoTemplateJobRecord(ownerId, input.cursor, db);
+	const where: Prisma.GenerationJobWhereInput = {
+		ownerType: "USER",
+		ownerId,
+		executionEngine: "video-workflow-v1",
+		videoTemplateExecution: input.templateFamily
+			? {
+					is: {
+						OR: templateHistoryEffects[input.templateFamily].map((effectId) => ({
+							templateSnapshot: { path: ["effectId"], equals: effectId },
+						})),
+					},
+				}
+			: { isNot: null },
+	};
+	if (input.cursor) {
+		const cursor = await db.generationJob.findFirst({
+			where: { ...where, id: input.cursor },
+			select: {
+				id: true,
+				videoExecution: { select: { jobId: true } },
+				reservation: { select: { id: true } },
+			},
+		});
+		if (!cursor?.videoExecution || !cursor.reservation) throw new Error("NOT_FOUND");
+	}
 	const rows = await db.generationJob.findMany({
-		where: {
-			ownerType: "USER",
-			ownerId,
-			executionEngine: "video-workflow-v1",
-			videoTemplateExecution: { isNot: null },
+		where,
+		select: {
+			...videoPlaybackSelect,
+			creditsReserved: true,
+			updatedAt: true,
+			videoTemplateExecution: {
+				select: {
+					templateSnapshot: true,
+					sceneState: true,
+					sceneSubmissionUncertain: true,
+					updatedAt: true,
+				},
+			},
 		},
-		include: { videoTemplateExecution: true, videoExecution: true, reservation: true },
 		orderBy: [{ createdAt: "desc" }, { id: "desc" }],
 		...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
 		take: limit + 1,

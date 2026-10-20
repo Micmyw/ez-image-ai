@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@auth/hooks/use-session";
+import { useActiveHistoryPolling } from "@media/hooks/use-active-history-polling";
 import { Button } from "@repo/ui/components/button";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -16,22 +17,27 @@ export function VideoHistory() {
 	const t = useTranslations("videoV1");
 	const { user } = useSession();
 	const visible = usePageVisible();
+	const queryKey = ["video-v1", "history", user?.id];
+	const enabled = Boolean(user && !user.isAnonymous);
 	const history = useInfiniteQuery({
-		queryKey: ["video-v1", "history", user?.id],
-		queryFn: ({ pageParam }) =>
-			videoApi.jobs.list({ limit: 20, ...(pageParam ? { cursor: pageParam } : {}) }),
+		queryKey,
+		queryFn: ({ pageParam, signal }) =>
+			videoApi.jobs.list({ limit: 20, ...(pageParam ? { cursor: pageParam } : {}) }, { signal }),
 		initialPageParam: null as string | null,
 		getNextPageParam: (last) => last.nextCursor ?? undefined,
-		enabled: Boolean(user && !user.isAnonymous),
+		enabled,
 		retry: false,
-		refetchInterval: (query) =>
-			visible &&
-			query.state.data?.pages.some((page) =>
-				page.items.some((item) => videoPollInterval(item.stage, true)),
-			)
-				? 2000
-				: false,
-		refetchIntervalInBackground: false,
+	});
+	useActiveHistoryPolling({
+		queryKey,
+		data: history.data,
+		enabled: enabled && visible,
+		interval: 2_000,
+		getId: (item) => item.jobId,
+		isActive: (item) => Boolean(videoPollInterval(item.stage, true)),
+		detailKey: (id) => ["video-v1", "job", user?.id, id],
+		read: (jobId, signal) => videoApi.jobs.get({ jobId }, { signal }),
+		merge: (item, update) => (update.updatedAt < item.updatedAt ? item : update),
 	});
 	const items = history.data?.pages.flatMap((page) => page.items) ?? [];
 	return (

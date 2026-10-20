@@ -1,0 +1,29 @@
+{
+	"feedback": {
+		"entry": "Feedback · angenommene Ideen bringen 100–1.000 Credits",
+		"footer": "Feedback-Prämien",
+		"report": "Dieses Problem melden",
+		"title": "Hilf uns, EzImageAI zu verbessern",
+		"rewardPolicy": "Angenommene Vorschläge und Fehlermeldungen können 100–1.000 Credits erhalten. Unser Team prüft jeden Beitrag, bestimmt die Höhe und schreibt die Credits nach der Annahme manuell gut.",
+		"noAutomaticReward": "Das Öffnen dieses Formulars oder das Senden einer E-Mail vergibt keine Credits. Doppelte oder bereits bekannte Meldungen sind möglicherweise nicht berechtigt.",
+		"kind": "Art des Feedbacks",
+		"idea": "Vorschlag",
+		"bug": "Fehlermeldung",
+		"accountEmail": "E-Mail des EzImageAI-Kontos (optional)",
+		"emailPlaceholder": "Konto für die Gutschrift bei Annahme eingeben",
+		"description": "Dein Feedback",
+		"descriptionPlaceholder": "Was ist passiert, was hast du erwartet oder was würdest du verbessern?",
+		"screenshots": "Füge bei Bedarf in deiner E-Mail-App einen bereinigten Screenshot hinzu. Entferne zuerst private Informationen.",
+		"privacy": "Nur dein hier eingegebener Text wird in den Entwurf übernommen. Prompts, Bilder, Zahlungsdaten und Fehlerdetails werden nicht automatisch hinzugefügt. Prüfe die E-Mail vor dem Senden.",
+		"preview": "E-Mail-Entwurf ansehen",
+		"recipient": "An",
+		"openEmail": "E-Mail-Entwurf öffnen",
+		"copy": "E-Mail-Adresse kopieren",
+		"copied": "E-Mail-Adresse kopiert.",
+		"copyFailed": "Kopieren ist nicht verfügbar. Markiere die E-Mail-Adresse oben und kopiere sie manuell.",
+		"emailFallback": "Keine E-Mail-App? Kopiere die Adresse und sende dein Feedback über deinen gewohnten E-Mail-Dienst.",
+		"subjectIdea": "EzImageAI: Vorschlag",
+		"subjectBug": "EzImageAI: Fehlermeldung",
+		"close": "Feedback schließen"
+	}
+}

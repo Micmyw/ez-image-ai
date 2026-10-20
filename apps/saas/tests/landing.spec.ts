@@ -787,6 +787,7 @@ test("the landing generator reports capability checking before it becomes ready"
 	});
 
 	await page.goto("/");
+	await page.locator("#landing-source-image").setInputFiles(pngFile("checking-source.png"));
 	await capabilityRequested.promise;
 	try {
 		await expect(stage(page, "checking")).toBeVisible();
@@ -796,6 +797,41 @@ test("the landing generator reports capability checking before it becomes ready"
 		capabilityGate.resolve();
 	}
 	await expect(stage(page, "ready")).toBeVisible();
+});
+
+test("text editing does not wait for guest upload availability", async ({ page }) => {
+	const capabilityGate = deferred<void>();
+	await page.route("**/api/media/guest-capability", async (route) => {
+		await capabilityGate.promise;
+		await route.fulfill({ contentType: "application/json", body: JSON.stringify(capability) });
+	});
+	try {
+		await page.goto("/");
+		await expect(stage(page, "ready")).toBeVisible();
+		await page.locator("#landing-edit-prompt").fill("A blue ceramic cup in soft window light");
+		await expect(page.locator('[data-test="landing-generate"]')).toBeEnabled();
+	} finally {
+		capabilityGate.resolve();
+	}
+});
+
+test("reference editing does not wait for the text catalog", async ({ page }) => {
+	const catalogGate = deferred<void>();
+	await page.route("**/api/rpc/media/getPublicCatalog**", async (route) => {
+		await catalogGate.promise;
+		await route.fulfill({
+			contentType: "application/json",
+			body: JSON.stringify({ json: { products: [] } }),
+		});
+	});
+	try {
+		await page.goto("/");
+		await page.locator("#landing-source-image").setInputFiles(pngFile("reference-source.png"));
+		await expect(stage(page, "ready")).toBeVisible();
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toBeEnabled();
+	} finally {
+		catalogGate.resolve();
+	}
 });
 
 test("a failed capability check can be retried without reloading the page", async ({ page }) => {

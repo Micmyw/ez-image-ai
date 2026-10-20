@@ -2,10 +2,10 @@
 
 import { useAuthErrorMessages } from "@auth/hooks/errors-messages";
 import { useSession } from "@auth/hooks/use-session";
+import { loadAuthClient, preloadAuthClient } from "@auth/lib/auth-client";
 import { config } from "@config";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { OrganizationInvitationAlert } from "@organizations/components/OrganizationInvitationAlert";
-import { authClient } from "@repo/auth/client";
 import { config as authConfig } from "@repo/auth/config";
 import { Alert, AlertDescription, AlertTitle } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
@@ -29,7 +29,7 @@ import { AlertTriangleIcon, ArrowRightIcon, MailboxIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect } from "react";
+import { type BaseSyntheticEvent, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { withQuery } from "ufo";
 import { z } from "zod";
@@ -49,6 +49,7 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 	const { user, loaded: sessionLoaded } = useSession();
 	const { getAuthErrorMessage } = useAuthErrorMessages();
 	const searchParams = useSearchParams();
+	const submissionInFlight = useRef(false);
 
 	const invitationId = searchParams.get("invitationId");
 	const email = searchParams.get("email");
@@ -75,9 +76,9 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 		}
 	}, [user, sessionLoaded]); // oxlint-disable-line eslint-plugin-react-hooks/exhaustive-deps
 
-	const onSubmit = form.handleSubmit(async ({ email, password, name }) => {
+	const submitForm = form.handleSubmit(async ({ email, password, name }) => {
 		try {
-			await captureRegistrationFirstTouch();
+			const [authClient] = await Promise.all([loadAuthClient(), captureRegistrationFirstTouch()]);
 			const { error } = await (authConfig.enablePasswordLogin
 				? await authClient.signUp.email({
 						email,
@@ -116,6 +117,17 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 		}
 	});
 
+	const onSubmit = async (event?: BaseSyntheticEvent) => {
+		event?.preventDefault();
+		if (submissionInFlight.current) return;
+		submissionInFlight.current = true;
+		try {
+			await submitForm(event);
+		} finally {
+			submissionInFlight.current = false;
+		}
+	};
+
 	return (
 		<div>
 			<h1 className="font-bold text-xl md:text-2xl text-center">{t("auth.signup.title")}</h1>
@@ -133,7 +145,13 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 					{invitationId && <OrganizationInvitationAlert className="mb-6" />}
 
 					<Form {...form}>
-						<form className="gap-4 flex flex-col items-stretch" onSubmit={onSubmit}>
+						<form
+							className="gap-4 flex flex-col items-stretch"
+							onSubmit={onSubmit}
+							onFocusCapture={preloadAuthClient}
+							onPointerEnter={preloadAuthClient}
+							aria-busy={form.formState.isSubmitting}
+						>
 							{form.formState.isSubmitted && form.formState.errors.root && (
 								<Alert variant="error">
 									<AlertTriangleIcon />
@@ -207,7 +225,11 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 
 							<div className="gap-2 sm:grid-cols-2 grid grid-cols-1 items-stretch">
 								{Object.keys(oAuthProviders).map((providerId) => (
-									<SocialSigninButton key={providerId} provider={providerId as OAuthProvider} />
+									<SocialSigninButton
+										key={providerId}
+										provider={providerId as OAuthProvider}
+										disabled={form.formState.isSubmitting}
+									/>
 								))}
 							</div>
 						</>

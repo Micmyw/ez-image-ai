@@ -37,6 +37,7 @@ export function HeaderNavigationMenu({
 	triggerRef,
 	restoreFocus = true,
 	showAccountActions = true,
+	prefetchWorkspaceLinks = true,
 }: {
 	registered: boolean;
 	account?: ReactNode;
@@ -47,6 +48,7 @@ export function HeaderNavigationMenu({
 	triggerRef?: RefObject<HTMLButtonElement | null>;
 	restoreFocus?: boolean;
 	showAccountActions?: boolean;
+	prefetchWorkspaceLinks?: boolean;
 }) {
 	const t = useTranslations("studio");
 	const common = useTranslations("common.menu");
@@ -136,8 +138,12 @@ export function HeaderNavigationMenu({
 					{registered && (
 						<div className="studio-drawer-link-group">
 							<p className="studio-drawer-label">{t("workspace")}</p>
-							<Link href="/history">{t("history")}</Link>
-							<Link href="/assets">{t("assets")}</Link>
+							<Link href="/history" prefetch={prefetchWorkspaceLinks ? undefined : false}>
+								{t("history")}
+							</Link>
+							<Link href="/assets" prefetch={prefetchWorkspaceLinks ? undefined : false}>
+								{t("assets")}
+							</Link>
 							<Link href="/edits">{t("edits")}</Link>
 							{admin && <Link href="/admin">{t("admin")}</Link>}
 						</div>

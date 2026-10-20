@@ -1,4 +1,193 @@
-# Homepage performance
+# Customer-facing performance
+
+## October 20 full customer-surface follow-up
+
+The follow-up covers the public tools/model catalog and model pages, examples,
+Blog/Photo Ideas and legal/content pages, Docs, authentication, account and
+organization settings, support, subscriptions/credit packs/Image Pass, image
+history/assets/edit sessions, ordinary video and the three template families.
+The audit follows actual routes and shared dependencies, including paths outside
+the main editor. It does not treat a mock API, local build or source inspection as
+evidence of production latency or a real payment/provider outcome.
+
+Implemented changes:
+
+- The studio loads the selected panel and current locale in parallel. General,
+  security, notifications, billing, history list, history detail and assets have
+  independent code boundaries. Hover/focus warms static resources only; rejected
+  imports can be retried, and closing or switching ignores late completions.
+  Studio links do not prefetch a complete private page when their click opens a
+  panel instead.
+- `studio.json` and `feedback.json` are generated client projections. Their source
+  remains `saas.json` and `shared.json`; regenerate using
+  `pnpm --filter @repo/i18n generate:client-messages`, and check parity with
+  `pnpm --filter @repo/i18n check:client-messages`. Each locale is requested
+  independently. Normal server translation consumers retain their full contract.
+- Image-to-image public content no longer waits for the session outside its
+  Suspense boundary. Coloring examples retain responsive dimensions and source
+  sets; only desktop receives preload hints. Docs removes an unused whole-icon
+  plugin. Model-link intent uses the existing route loading boundary; public 404
+  and advertising CSP navigation paths are unchanged.
+- Authentication forms prepare the existing SDK on intent and show operation
+  progress immediately. OAuth attribution still completes before authentication;
+  passkey errors do not navigate as though authentication succeeded. Onboarding
+  remains pending through its completion callback. Notification/preferences and
+  invitation failures are visible and retryable instead of appearing empty or
+  successful. Normal sign-in autofill remains available.
+- Feedback code has visible loading, close/Escape cancellation and explicit retry.
+  A late download cannot reopen a canceled dialog; an opened form keeps its state.
+- Safety-checked independent account/payment reads run concurrently. Page-local
+  hydration carries security and organization data during client navigation.
+  Organization aliases come from the authorized response, and related role/member
+  views invalidate together. Confirmed support writes seed their exact scoped
+  detail cache; unknown submissions keep their original lock.
+- Public pricing retains static plan/credit-pack HTML and loads credit-pack
+  payment components only on selection. Visited payment components stay mounted.
+  Pending credit-pack/Image Pass status checks use a 120-second fast window,
+  then 30-second read-only polling. Read errors stop automatic polling; explicit
+  refresh or foreground return can resume. This does not create another order,
+  capture again, or reinterpret a pending payment as failed.
+- Private edit thumbnails request their existing authorized URLs only near the
+  viewport. Hidden generation modes and hidden pages pause eligible status reads.
+  Resuming reads does not resubmit or cancel server work.
+- History polling targets active IDs from **all** loaded pages with bounded
+  concurrency. Completed pages, order and cursors stay intact. Owner keys isolate
+  history caches. Manual list refreshes take precedence over earlier polling
+  rounds. Template-family filtering happens before pagination, including the
+  cursor's owner/family checks; history does not require current generation access.
+- Video history reuses the same current database evidence for its `canPlay` hint.
+  A page changes from one list read plus one Prisma read per READY item to one
+  list read, with a separate narrow cursor check when present. This is the
+  application-query count, not a claim of one physical SQL statement. Actual
+  playback still rereads authorization; ownership, settlement, moderation,
+  checksum/ETag, expiry and historical audio rules remain enforced.
+
+Controlled local production builds, using the same browser resource checks:
+
+| Surface                                              | Before JavaScript gzip bytes | After JavaScript gzip bytes | Reduction |
+| ---------------------------------------------------- | ---------------------------: | --------------------------: | --------: |
+| Additional code on opening image history from Create |                      220,660 |                      21,279 |     90.4% |
+| Login initial requested scripts                      |                      408,118 |                     392,418 |      3.8% |
+| Pricing initial requested scripts                    |                      340,784 |                     332,507 |      2.4% |
+
+History changes from 18 added scripts to four. Its regression check now enforces
+a **32 KiB** added-code budget and excludes checkout and passkey-registration
+code. Keyboard intent warms static code without reading private history. Tests
+hold and reject chunk requests to verify close, retry, switching panels and
+editor-draft continuity. Login checks that WebAuthn code is absent before intent;
+pricing still serves all four credit-pack cards and prices in its initial HTML.
+
+The combined candidate's first-video added payload is **30,744 gzip bytes**,
+compared with **150,228** in the observed deployed resource set (**79.5% less**).
+The first batch alone measured 29,326 bytes; subsequent shared changes account
+for the combined figure. This comparison concerns downloaded code, not a
+controlled before/after production latency measurement.
+
+The final homepage check measures **441,973 JavaScript + 60,501 HTML + 33,679 CSS
+gzip bytes**, or **536,153 bytes total**. The existing **526 KiB** aggregate and
+64 KiB document budgets pass. All eight stylesheets remain independently
+cacheable, with zero duplicated inline styles and the account/chart/docs
+exclusions intact. The substantial homepage payload remains a constraint; the
+history and video reductions are not reductions in the whole homepage payload.
+Docs also no longer includes the unused whole-icon-map plugin in its server
+chunks; chunk redistribution prevents attributing a precise overall server-size
+saving to the former 139,018-byte gzip chunk.
+
+Local verification completed:
+
+| Check                                                                         | Result                                                           |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| Production Next build, including TypeScript                                   | Passed                                                           |
+| SaaS and i18n type checks; generated-message parity                           | Passed                                                           |
+| Account, authentication, payments, support and shared UI units                | 462 tests / 58 files passed                                      |
+| Media, video, landing and public-content units                                | 752 tests / 81 files passed                                      |
+| Focused feedback/history-race and notification/invitation follow-ups          | 32 tests / 4 files and 12 tests / 2 files passed; overlaps above |
+| Database history query units                                                  | 31 tests / 1 file passed                                         |
+| Jobs history/authorization units                                              | 58 tests / 4 files passed                                        |
+| API payments/video/playback units                                             | 89 tests / 6 files passed                                        |
+| New customer performance browser scenarios                                    | 8 passed against the production build                            |
+| Broad public/guest production browser coverage, including affected-spec rerun | 185 passed, 8 skipped across 193 scenarios                       |
+| Affected-file lint, formatting and diff whitespace                            | Passed                                                           |
+
+The broad browser run initially passed 182 scenarios and failed three older
+content assertions. Two hardcoded an obsolete three-article catalog; they now
+exercise the actual category/search behavior and target-article identity. One
+mistook the read-only image-pass offer RPC's POST transport for a payment mutation;
+only that verified query was added to the guard's exact allowlist. No generation
+or checkout write was permitted. The two affected specs then passed all 20
+enabled scenarios without application changes. Five skipped scenarios concern
+an already-expired advertising preview, and three require an explicitly enabled
+local administrator/database fixture. The reported 185 is the combined outcome,
+not a claim that the original broad command exited successfully.
+
+Before/after evidence and validation logs are in the ignored
+`output/playwright/customer-performance-2026-10-20/` directory. These are local
+checks. Browser account flows use fixtures; the run has no local PostgreSQL
+service, and unmocked read paths can log connection failures. It does not certify
+real authenticated database flows, checkout, provider generation or live latency.
+These measurements were collected before Git publication. Publication and its
+automatic CI/deployment results need separate verification against the resulting
+commit. The implementation changes no production configuration and performs no
+real payment or paid generation.
+
+## October 20 page opening and mode switching
+
+The reported slow operations were opening a page and switching features/models.
+A fresh Chrome visit to the deployed homepage on the local network observed
+6.66 s TTFB, 26.06 s FCP and 4.98 s for its first Image-to-Video switch. Individual
+initial JS/CSS requests took several seconds. These are single network observations,
+not field percentiles or Lighthouse results, and do not isolate Worker, origin or
+CDN time. The local changes below have not been deployed.
+
+The first video visit downloaded four complete SaaS translation dictionaries,
+including administration and support text. Extracting the unchanged `videoV1`
+namespace into `translations/{en,de,es,fr}/video.json` cuts its added JavaScript
+from **150,228 to 29,326 gzip bytes (80.5%)**. The former is the deployed resource
+set; the latter is the local production build's browser-observed added chunks.
+The test checks a 64 KiB budget. `getMessagesForLocale(locale, "saas")` still
+includes video copy and English fallback, and `SaasMessages` keeps the same keys.
+All four extracted files were compared against the original JSON; no messages
+changed. Raw locale key/placeholder parity is checked before fallback.
+
+Changes to the opening and interaction path:
+
+- Text editing waits for the public model catalog; reference editing waits for
+  the upload capability. Their independent responses cannot reset an ongoing
+  upload/sign-in handoff. Both availability reads time out after 12 seconds,
+  with the existing explicit retry. Generation mutations retain their existing
+  acceptance and retry rules.
+- Video code preloads on tab hover or keyboard focus. Loading and pending-session
+  states retain working mode buttons and a localized status. Replacing the loading
+  tab preserves keyboard focus; both visited workspaces remain mounted.
+- Model/SKU translations are memoized in the signed-in image form, avoiding a
+  complete rebuild on every prompt keystroke.
+- Independent account messages, organizations and purchase reads start together
+  after authentication. The account guard skips organization reads when neither
+  organization admission nor subscription eligibility needs them.
+- Full account settings and support text wait for the registered boundary;
+  public menus retain their labels and lazy account panels restore settings.
+  Below-fold Photo Idea images load lazily even when their card is featured.
+
+Controlled browser checks hold either availability request or video chunks open
+to verify that unrelated controls remain usable. The focus regression was observed
+before the fix. These checks use local API fixtures and do not create paid media.
+The final production build passes TypeScript, 293 focused unit tests and all
+52 scenarios in `landing.spec.ts` and `unified-generator-public-routes.spec.ts`.
+Affected lint/format checks and the i18n package type check pass.
+
+The final homepage resource check measures 443,285 JavaScript + 60,714 HTML +
+33,675 CSS gzip bytes, **537,674 bytes in total**. It stays within the existing
+526 KiB budget, with zero duplicated inline styles and the account/chart/docs
+exclusions intact. The homepage total remains substantial; the 80.5% reduction
+above applies specifically to the added first-video payload.
+
+Production build timings cannot establish a live speedup over the network sample.
+The remaining live delivery latency needs a deployed before/after trace and
+separate HTML/API/CDN timing; this change makes no Cloudflare cache-policy changes.
+
+Evidence is under `output/playwright/performance-2026-10-20/`: `live-cold.json`,
+`live-video-switch.json`, `live-video-gzip.json`, `build-final.log`, `unit-final.log`
+and `browser-final.log`. The failed `live-video-chunks.json` fetch is not evidence.
 
 ## October 19 generation feature budget
 

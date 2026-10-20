@@ -140,9 +140,45 @@ beforeEach(() => {
 });
 afterEach(() => {
 	for (const slot of state.slots) slot.cleanup?.();
+	vi.useRealTimers();
 	vi.unstubAllGlobals();
 });
 describe("credit pack checkout return boundaries", () => {
+	it("slows pending reads and resumes only status checks after manual or foreground recovery", async () => {
+		vi.useFakeTimers();
+		const element = render({ canceled: true });
+		const polling = state.query.mock.lastCall![0].refetchInterval;
+		const pending = { state: { status: "success", data: state.data } };
+		expect(polling(pending)).toBe(1_500);
+		vi.advanceTimersByTime(120_000);
+		expect(polling(pending)).toBe(30_000);
+		expect(text(render({ canceled: true }))).toContain("pending");
+		(find(element, "credit-pack-check-status").props as { onClick: () => void }).onClick();
+		expect(polling(pending)).toBe(1_500);
+		vi.advanceTimersByTime(120_000);
+		window.dispatchEvent(new Event("focus"));
+		expect(polling(pending)).toBe(1_500);
+		expect(polling({ state: { ...pending.state, status: "error" } })).toBe(false);
+		await flush();
+		expect(state.refetch).toHaveBeenCalledTimes(2);
+		expect(state.capture).not.toHaveBeenCalled();
+		expect(state.replace).not.toHaveBeenCalled();
+	});
+
+	it("starts a new fast window only for the new owner and intent scope", () => {
+		vi.useFakeTimers();
+		render({ canceled: true });
+		const oldPolling = state.query.mock.lastCall![0].refetchInterval;
+		const pending = { state: { status: "success", data: state.data } };
+		vi.advanceTimersByTime(120_000);
+		state.orgId = "org-b";
+		render({ canceled: true });
+		const newPolling = state.query.mock.lastCall![0].refetchInterval;
+		expect(oldPolling(pending)).toBe(30_000);
+		expect(newPolling(pending)).toBe(1_500);
+		expect(state.capture).not.toHaveBeenCalled();
+	});
+
 	it("waits for successful owner-scoped pending state before automatic capture", async () => {
 		state.data = undefined;
 		state.isPending = true;

@@ -26,11 +26,15 @@ export function RegisteredWorkspaceProviders({
 	mediaMessages,
 	checkoutReturnMessages,
 	creditPackCheckoutReturnMessages,
+	settingsMessages,
+	supportMessages,
 }: PropsWithChildren<{
 	imagePassMessages: Record<string, string>;
 	mediaMessages: AbstractIntlMessages;
 	checkoutReturnMessages: AbstractIntlMessages;
 	creditPackCheckoutReturnMessages: AbstractIntlMessages;
+	settingsMessages: AbstractIntlMessages;
+	supportMessages: AbstractIntlMessages;
 }>) {
 	const messages = useMessages();
 	const locale = useLocale();
@@ -43,6 +47,8 @@ export function RegisteredWorkspaceProviders({
 				media: mediaMessages,
 				checkoutReturn: checkoutReturnMessages,
 				creditPackCheckoutReturn: creditPackCheckoutReturnMessages,
+				settings: settingsMessages,
+				support: supportMessages,
 			}}
 		>
 			<SessionProvider>

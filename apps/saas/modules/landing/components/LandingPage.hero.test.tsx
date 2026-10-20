@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import englishMessages from "../../../../../packages/i18n/translations/en/marketing.json";
 import saasMessages from "../../../../../packages/i18n/translations/en/saas.json";
+import videoMessages from "../../../../../packages/i18n/translations/en/video.json";
 
 const navigation = vi.hoisted(() => ({ search: "" }));
 vi.mock("@payments/components/ImagePassBanner", () => ({
@@ -14,7 +15,11 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("@auth/hooks/use-session", () => ({ useSession: () => ({ user: null }) }));
 vi.mock("@auth/lib/api", () => ({ useSessionQuery: () => ({ isPending: true }) }));
-vi.mock("next-intl", () => ({ useMessages: () => ({}), useLocale: () => "en" }));
+vi.mock("next-intl", () => ({
+	useMessages: () => ({}),
+	useLocale: () => "en",
+	useTranslations: () => (key: string) => key,
+}));
 
 vi.mock("@shared/components/studio/StudioShell", () => ({
 	StudioShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -102,8 +107,8 @@ describe("LandingPage hero hierarchy", () => {
 		navigation.search = "mode=video";
 		const markup = renderToStaticMarkup(await LandingPage({ workspace: true }));
 		const heading = markup.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
-		expect(heading).toContain(saasMessages.videoV1.title);
-		expect(markup).toContain(saasMessages.videoV1.description);
+		expect(heading).toContain(videoMessages.videoV1.title);
+		expect(markup).toContain(videoMessages.videoV1.description);
 	});
 	it("keeps the keyword heading and concise intro while explaining the meaning in the FAQ", async () => {
 		const markup = renderToStaticMarkup(await LandingPage());
@@ -143,6 +148,7 @@ function createTranslator() {
 	}
 	collect(englishMessages);
 	collect(saasMessages);
+	collect(videoMessages);
 	const translate = (key: string) => messages[key] ?? key;
 	translate.raw = () => ({ first: "Feature" });
 	translate.rich = (key: string, values: { accent: (children: ReactNode) => ReactNode }) => {

@@ -2,7 +2,7 @@
 
 import { useSession } from "@auth/hooks/use-session";
 import { NOTIFICATION_GROUPS } from "@repo/notifications/catalog";
-import { Card, Switch } from "@repo/ui";
+import { Button, Card, Switch } from "@repo/ui";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -13,11 +13,13 @@ type TargetKey = "IN_APP" | "EMAIL";
 export function NotificationPreferencesForm() {
 	const { user } = useSession();
 	const t = useTranslations("settings.notificationsPage");
+	const status = useTranslations("studio");
 	const queryClient = useQueryClient();
 
-	const { data, isPending } = useQuery(
+	const { data, isPending, isError, isFetching, refetch } = useQuery(
 		orpc.notifications.getPreferences.queryOptions({ input: {} }),
 	);
+	const preferencesReady = !isPending && !isError && data !== undefined;
 
 	const disabledSet = useMemo(() => {
 		const set = new Set<string>();
@@ -46,6 +48,7 @@ export function NotificationPreferencesForm() {
 		target: TargetKey,
 		nextEnabled: boolean,
 	) => {
+		if (!preferencesReady || updateMutation.isPending) return;
 		updateMutation.mutate({
 			type,
 			target,
@@ -54,9 +57,24 @@ export function NotificationPreferencesForm() {
 	};
 
 	return (
-		<Card className="p-6">
+		<Card className="p-6" aria-busy={isFetching}>
 			{isPending ? (
-				<p className="text-sm text-muted-foreground">…</p>
+				<output className="text-sm block text-muted-foreground" aria-live="polite">
+					{status("loading")}
+				</output>
+			) : !preferencesReady ? (
+				<div role="alert">
+					<p className="text-sm text-muted-foreground">{status("error")}</p>
+					<Button
+						type="button"
+						variant="secondary"
+						className="mt-3"
+						loading={isFetching}
+						onClick={() => void refetch()}
+					>
+						{status("retry")}
+					</Button>
+				</div>
 			) : (
 				<div className="gap-8 flex flex-col">
 					{NOTIFICATION_GROUPS.map((group) => (

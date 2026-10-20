@@ -5,8 +5,11 @@ import type { VideoCatalog } from "./api";
 
 const fixture = vi.hoisted(() => ({
 	client: null as QueryClient | null,
+	mode: "video" as "video" | "image",
+	visible: true,
 	options: null as {
-		refetchInterval?: (query: { state: { data?: Partial<VideoCatalog> } }) => number;
+		enabled?: boolean;
+		refetchInterval?: (query: { state: { data?: Partial<VideoCatalog> } }) => number | false;
 		refetchIntervalInBackground?: boolean;
 	} | null,
 	cleanups: [] as Array<() => void>,
@@ -21,6 +24,10 @@ vi.mock("react", () => ({
 vi.mock("@auth/hooks/use-session", () => ({
 	useSession: () => ({ user: { id: "owner-a", isAnonymous: false } }),
 }));
+vi.mock("@media/lib/generation-mode-context", () => ({
+	useGenerationMode: () => ({ mode: fixture.mode }),
+}));
+vi.mock("@media/hooks/use-page-visible", () => ({ usePageVisible: () => fixture.visible }));
 vi.mock("@shared/lib/orpc-query-utils", () => ({
 	orpc: { payments: { key: () => [["payments"]] } },
 }));
@@ -39,6 +46,8 @@ import { useVideoCatalog } from "./use-video";
 beforeEach(() => {
 	vi.useFakeTimers();
 	fixture.client = new QueryClient();
+	fixture.mode = "video";
+	fixture.visible = true;
 	fixture.options = null;
 	fixture.cleanups = [];
 });
@@ -60,6 +69,15 @@ describe("video catalog qualification refresh", () => {
 		const expired = { pricingValidUntil: new Date(Date.now() - 1).toISOString() };
 		expect(interval?.({ state: { data: expired } })).toBe(30_000);
 		expect(fixture.options?.refetchIntervalInBackground).toBe(false);
+	});
+	it.each([
+		{ mode: "image" as const, visible: true },
+		{ mode: "video" as const, visible: false },
+	])("suspends catalog reads outside its visible mode: %o", (visibility) => {
+		Object.assign(fixture, visibility);
+		useVideoCatalog();
+		expect(fixture.options?.enabled).toBe(false);
+		expect(fixture.options?.refetchInterval?.({ state: {} })).toBe(false);
 	});
 	it.each(["success", "invalidate"])(
 		"refreshes only the current owner's catalog on a payment query %s",

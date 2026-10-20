@@ -29,7 +29,10 @@ vi.mock("@repo/database/video-v1", () => ({
 	getVideoJobRecord: vi.fn(),
 	listVideoJobRecords: vi.fn(),
 }));
-vi.mock("@repo/database/video-v1-fulfillment", () => ({ authorizeVideoPlayback: vi.fn() }));
+vi.mock("@repo/database/video-v1-fulfillment", () => ({
+	authorizeVideoPlayback: vi.fn(),
+	authorizeVideoPlaybackSnapshot: vi.fn(() => null),
+}));
 vi.mock("@repo/database/video-template", () => ({
 	createVideoTemplateQuoteRecord: vi.fn(),
 	createVideoTemplateJobRecord: vi.fn(),

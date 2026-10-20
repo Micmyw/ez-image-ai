@@ -1,3 +1,4 @@
+import { getUnifiedMessagesForLocale } from "@repo/i18n";
 import { NextIntlClientProvider } from "next-intl";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -23,14 +24,37 @@ vi.mock("@repo/ui/components/dialog", () => ({
 }));
 
 import { FeedbackButton } from "./FeedbackButton";
-import { FeedbackDialog } from "./FeedbackDialog";
+import { FeedbackDialog, loadFeedbackMessages } from "./FeedbackDialog";
 
 const locales = { en, de, es, fr };
 
 describe("customer feedback", () => {
 	it.each(Object.entries(locales))(
+		"keeps a localized loading dialog with a close control before %s copy arrives",
+		async (locale, messages) => {
+			const full = await getUnifiedMessagesForLocale(locale as keyof typeof locales);
+			const onError = vi.fn();
+			const markup = renderToStaticMarkup(
+				<NextIntlClientProvider
+					locale={locale}
+					timeZone="UTC"
+					onError={onError}
+					messages={{ studio: full.studio, feedback: { entry: messages.feedback.entry } }}
+				>
+					<FeedbackDialog open onOpenChange={vi.fn()} supportEmail="help@configured.test" />
+				</NextIntlClientProvider>,
+			);
+			expect(markup).toContain(full.studio.loading);
+			expect(markup).toContain(`aria-label="${full.studio.closePanel}"`);
+			expect(markup).not.toContain("mailto:");
+			expect(onError).not.toHaveBeenCalled();
+		},
+	);
+	it.each(Object.entries(locales))(
 		"renders a user-controlled email draft in %s",
-		(locale, messages) => {
+		async (locale, messages) => {
+			const projected = await loadFeedbackMessages(locale);
+			expect(projected).toEqual(messages.feedback);
 			const onError = vi.fn();
 			const markup = renderToStaticMarkup(
 				<NextIntlClientProvider

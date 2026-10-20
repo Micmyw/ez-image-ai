@@ -75,6 +75,8 @@ describe("registered image pass translations", () => {
 						mediaMessages={messages.media}
 						checkoutReturnMessages={messages.checkoutReturn}
 						creditPackCheckoutReturnMessages={messages.creditPackCheckoutReturn}
+						settingsMessages={messages.settings}
+						supportMessages={messages.support}
 					>
 						<PaymentCopy
 							expected={messages.imagePass}

@@ -1,0 +1,378 @@
+{
+	"imagePass": {
+		"bannerLabel": "Einmaliges Bildpaket",
+		"bannerTitle": "{units} Bilder für {currency} {amount}",
+		"bannerDetail": "Aktuelle Bildmodelle · bis zu 4K · kein Abo",
+		"buy": "Bildpaket kaufen",
+		"oneTime": "Einmaliger Kauf",
+		"title": "{units} erfolgreiche Bilder",
+		"pageTitle": "Bildpaket — 3 Bilder für 1 USD",
+		"description": "Wähle ein aktuell verfügbares Bildmodell, einschließlich unterstützter Optionen bis zu 4K. Jeder Auftrag erzeugt ein Bild.",
+		"models": "Aktuelle Bildmodelle und unterstützte Auflösungen, einschließlich 4K",
+		"singleOutput": "Ein erfolgreiches Bild verbraucht einen Bildpass. Nur Bilder, keine Videos.",
+		"separate": "Bildpässe sind von Credits und Abonnements getrennt.",
+		"repeat": "Kaufe bei Bedarf jederzeit ein weiteres Paket.",
+		"balance": "{count} Bildpässe verfügbar",
+		"pay": "Mit PayPal {currency} {amount} bezahlen",
+		"processing": "PayPal wird geöffnet…",
+		"signIn": "Konto erstellen oder anmelden",
+		"checkoutError": "Die Zahlung konnte nicht geöffnet werden. Versuche es erneut, um denselben Kauf fortzusetzen.",
+		"fundingLabel": "Bezahlen mit",
+		"fundingReserved": "{count} in Bearbeitung",
+		"fundingExhausted": "Keine Bildnutzungen verfügbar. Wähle Credits, um fortzufahren.",
+		"fundingCreditsAvailable": "Credits · {count} verfügbar",
+		"fundingCredits": "Credits",
+		"fundingPasses": "Bildpässe · {count} verfügbar",
+		"fundingLoading": "Bildpässe werden geprüft…",
+		"buyMore": "3 Bildpässe kaufen",
+		"fundingEmpty": "Keine Bildpässe verfügbar. Kaufe ein Paket oder wähle ausdrücklich Credits, um fortzufahren.",
+		"fundingPolicy": "Während des Auftrags wird ein Bildpass reserviert und für ein erfolgreiches Bild verbraucht. Es werden keine Credits verwendet. Inhaltsprüfung und Speicherlimits gelten weiterhin.",
+		"fundingSeparate": "Credits und Bildpässe sind getrennte Optionen. Deine Auswahl wechselt nicht automatisch.",
+		"fundingPolicyTitle": "Regeln für Bildpässe",
+		"onePass": "1 Bildpass",
+		"back": "Zurück zum Editor",
+		"checkoutStatusTitle": "Status deines Kaufs",
+		"checkoutUnconfirmed": "Die Zahlung wurde noch nicht bestätigt. Prüfe den Status, bevor du es erneut versuchst.",
+		"checkoutNotCompleted": "Dieser Kauf wurde nicht abgeschlossen. Du kannst es erneut versuchen.",
+		"checkoutStatusError": "Wir konnten diese Zahlung noch nicht prüfen. Prüfe den Status erneut, bevor du einen weiteren Kauf startest.",
+		"checkStatus": "Status prüfen",
+		"tryPurchaseAgain": "Kauf erneut versuchen",
+		"continueGenerating": "Weiter Bilder erstellen",
+		"returnAwaitingConfirmation": "Wenn du die Zahlung über {currency} {amount} bei PayPal genehmigt hast, bestätige sie unten zum Abschluss. Andernfalls kehre zur Kaufseite zurück.",
+		"returnConfirmPayment": "Zahlung über {currency} {amount} bestätigen",
+		"returnTitle": "Dein Bildpaket",
+		"returnCompleted": "Zahlung bestätigt. Deine Bildpässe sind im Editor verfügbar.",
+		"returnPending": "Die Zahlung wird bestätigt und deine Bildpässe werden hinzugefügt. Lass diese Seite geöffnet.",
+		"returnReview": "Dieser Kauf konnte noch nicht bestätigt werden. Prüfe ihn erneut, bevor du eine weitere Zahlung startest.",
+		"checkoutBack": "Bildpaket ansehen",
+		"checkAgain": "Zahlung erneut prüfen",
+		"retryPass": "Erneut versuchen · 1 Bildpass",
+		"balanceError": "Bildpass-Guthaben nicht verfügbar",
+		"retryBalance": "Guthaben erneut prüfen",
+		"availabilityLoading": "Verfügbarkeit wird geprüft…",
+		"unavailable": "Dieses Angebot ist derzeit nicht verfügbar. Bitte versuche es später erneut."
+	},
+	"media": {
+		"assets": {
+			"title": "Medienbibliothek",
+			"subtitle": "Private Quellbilder und bearbeitete Ergebnisse.",
+			"filters": {
+				"all": "Alle Medien",
+				"image": "Bilder",
+				"video": "Videos"
+			},
+			"previewAlt": "Privates generiertes Medium",
+			"preview": "Vorschau anzeigen",
+			"video": "Video",
+			"image": "Bild",
+			"reuse": "Als Eingabe verwenden",
+			"download": "Herunterladen",
+			"source": "Quellerstellung",
+			"delete": "Löschen",
+			"empty": "Noch keine Bild-Assets.",
+			"more": "Mehr laden"
+		},
+		"edits": {
+			"title": "Bearbeitungssitzungen",
+			"subtitle": "Setzen Sie private Bildbearbeitungen fort oder verzweigen Sie von jeder fertigen Version.",
+			"untitled": "Unbenannte Bearbeitung",
+			"versions": "{count, plural, one {# Version} other {# Versionen}}",
+			"empty": "Noch keine Bearbeitungssitzungen.",
+			"more": "Mehr laden",
+			"back": "Zurück zu den Bearbeitungen",
+			"loading": "Bearbeitungssitzung wird geladen…",
+			"version": "Version {number}",
+			"prompt": "Prompt",
+			"credits": "{credits} Credits",
+			"editAgain": "Erneut bearbeiten",
+			"assetDeleted": "Bild gelöscht",
+			"outputUnavailable": "Ergebnis nicht verfügbar",
+			"thumbnailAlt": "Private Ergebnisvorschau",
+			"legacyProduct": "Frühere Bearbeitung",
+			"renameLabel": "Sitzungstitel",
+			"renamePlaceholder": "Bearbeitung benennen",
+			"rename": "Umbenennen",
+			"unavailableTitle": "Diese Bearbeitungssitzung ist nicht verfügbar",
+			"unavailableDescription": "Kehren Sie zu Ihren Bearbeitungen zurück und wählen Sie eine andere Sitzung."
+		},
+		"history": {
+			"title": "Erstellungsverlauf",
+			"subtitle": "Verfolgen Sie jeden Lauf und setzen Sie Arbeit nach dem Aktualisieren fort.",
+			"filter": "Erstellungen filtern",
+			"filters": {
+				"all": "Alle",
+				"active": "In Bearbeitung",
+				"succeeded": "Bereit",
+				"failed": "Handlung nötig",
+				"canceled": "Abgebrochen"
+			},
+			"outputs": "{count, plural, one {# Ausgabe} other {# Ausgaben}}",
+			"reserved": "Reserviert",
+			"legacyProduct": "Frühere Bearbeitung",
+			"empty": "Keine Erstellungen für diesen Filter.",
+			"more": "Mehr laden"
+		}
+	},
+	"settings": {
+		"account": {
+			"avatar": {
+				"description": "Um deinen Avatar zu ändern, klicke auf das Bild in diesem Block und wähle eine Datei von deinem Computer zum Hochladen aus.",
+				"notifications": {
+					"error": "Avatar konnte nicht aktualisiert werden",
+					"success": "Avatar wurde erfolgreich aktualisiert"
+				},
+				"title": "Dein Avatar"
+			},
+			"changeEmail": {
+				"description": "Um deine E-Mail zu ändern, ändere sie im Eingabefeld und drücke auf Speichern. Du musst die neue E-Mail bestätigen, bevor sie aktiv wird.",
+				"notifications": {
+					"error": "E-Mail konnte nicht aktualisiert werden",
+					"success": "E-Mail wurde erfolgreich aktualisiert"
+				},
+				"title": "Deine E-Mail"
+			},
+			"changeName": {
+				"notifications": {
+					"error": "Name konnte nicht aktualisiert werden",
+					"success": "Name wurde erfolgreich aktualisiert"
+				},
+				"title": "Dein Name"
+			},
+			"deleteAccount": {
+				"confirmation": "Bist du sicher, dass du dein Konto löschen möchtest?",
+				"description": "Lösche dein Konto dauerhaft. \nSobald Du dein Konto gelöscht hast, gibt es kein Zurück mehr. \nBitte sei dir sicher, bevor du hier weitermachst.",
+				"notifications": {
+					"error": "Konto konnte nicht gelöscht werden",
+					"success": "Konto wurde erfolgreich gelöscht"
+				},
+				"submit": "Konto löschen",
+				"title": "Konto löschen"
+			},
+			"language": {
+				"description": "Wähle deine bevorzugte Kontosprache. Änderungen werden automatisch gespeichert.",
+				"notifications": {
+					"error": "Sprache konnte nicht aktualisiert werden",
+					"success": "Sprache wurde erfolgreich aktualisiert"
+				},
+				"title": "Deine Sprache"
+			},
+			"security": {
+				"activeSessions": {
+					"description": "Dies sind alle aktiven Sitzungen deines Kontos. Klicke auf das X, um eine bestimmte Sitzung zu beenden.",
+					"title": "Aktive Sitzungen",
+					"notifications": {
+						"revokeSession": {
+							"success": "Session beendet"
+						}
+					},
+					"currentSession": "Aktuelle Sitzung"
+				},
+				"changePassword": {
+					"currentPassword": "Aktuelles Passwort",
+					"newPassword": "Neues Passwort",
+					"notifications": {
+						"error": "Passwort kann nicht aktualisiert werden",
+						"success": "Passwort wurde erfolgreich aktualisiert"
+					},
+					"title": "Dein Passwort"
+				},
+				"connectedAccounts": {
+					"connect": "Verbinden",
+					"connected": "Verbunden",
+					"disconnect": "Trennen",
+					"title": "Verbundene Konten"
+				},
+				"passkeys": {
+					"addPasskey": "Passkey hinzufügen",
+					"deletePasskey": "Passkey löschen",
+					"description": "Verwende Passkeys als sichere alternative zu Passwörtern.",
+					"dialog": {
+						"editPasskey": {
+							"description": "Wähle einen eindeutigen Namen, damit du diesen Passkey später wiedererkennst.",
+							"label": "Passkey-Name",
+							"placeholder": "Arbeitslaptop",
+							"title": "Passkey benennen"
+						}
+					},
+					"editPasskey": "Passkey bearbeiten",
+					"fallbackName": "Unbenannter Passkey",
+					"notifications": {
+						"addPasskey": {
+							"error": {
+								"title": "Kann keinen Hauptschlüssel hinzufügen"
+							},
+							"success": {
+								"title": "Passkey hinzugefügt"
+							}
+						},
+						"deletePasskey": {
+							"error": {
+								"title": "Der Hauptschlüssel konnte nicht gelöscht werden"
+							},
+							"loading": {
+								"title": "Hauptschlüssel löschen..."
+							},
+							"success": {
+								"title": "Passkey gelöscht"
+							}
+						},
+						"updatePasskey": {
+							"error": {
+								"title": "Passkey konnte nicht aktualisiert werden"
+							},
+							"success": {
+								"title": "Passkey aktualisiert"
+							}
+						}
+					},
+					"title": "Passwörter"
+				},
+				"setPassword": {
+					"description": "Du hast noch kein Passwort festgelegt. Um ein solches festzulegen, musst du den Ablauf der Passwortrücksetzung durchlaufen. Klicke auf die Schaltfläche unten, um eine E-Mail zum Zurücksetzen deines Passworts zu senden, und folge den Anweisungen in der E-Mail.",
+					"notifications": {
+						"error": "Der Link zum Festlegen des Passworts konnte nicht gesendet werden. Bitte versuche es erneut.",
+						"success": "Prüfen deinen Posteingang auf den Link, um Ihr Passwort festzulegen."
+					},
+					"submit": "Passwort festlegen",
+					"title": "Dein Passwort"
+				},
+				"title": "Sicherheit",
+				"twoFactor": {
+					"description": "Füge deinem Konto eine zusätzliche Sicherheitsebene hinzu.",
+					"dialog": {
+						"password": {
+							"description": "Bitte verifiziere dein Konto, indem du dein Passwort eingibst:",
+							"label": "Dein Passwort:",
+							"title": "Mit Passwort verifizieren"
+						},
+						"totpUrl": {
+							"code": "Geben Sie den 6-stelligen Code ein, um die Einrichtung zu bestätigen:",
+							"description": "Verwende deine bevorzugte Authentifizierungs-App und scanne den QR-Code damit oder gib das unten stehende Geheimnis manuell ein, um die Zwei-Faktor-Authentifizierung einzurichten.",
+							"title": "Zwei-Faktor-Authentifizierung aktivieren"
+						}
+					},
+					"disable": "Zwei-Faktor-Authentifizierung deaktivieren",
+					"enable": "Zwei-Faktor-Authentifizierung aktivieren",
+					"enabled": "Du hast die Zwei-Faktor-Authentifizierung für dein Konto aktiviert.",
+					"notifications": {
+						"disable": {
+							"success": {
+								"title": "Die Zwei-Faktor-Authentifizierung wurde erfolgreich deaktiviert."
+							}
+						},
+						"enable": {
+							"error": {
+								"title": "Dein Konto konnte mit dem angegebenen Passwort nicht verifiziert werden. Bitte versuche es erneut."
+							}
+						},
+						"verify": {
+							"success": {
+								"title": "Die Zwei-Faktor-Authentifizierung wurde erfolgreich aktiviert."
+							}
+						}
+					},
+					"passwordRequired": {
+						"description": "Lege zuerst ein Passwort für dein Konto fest. Danach kannst du die Zwei-Faktor-Authentifizierung aktivieren.",
+						"title": "Passwort erforderlich"
+					},
+					"title": "Zwei-Faktor-Authentifizierung"
+				}
+			},
+			"subtitle": "Verwalte die Einstellungen deines persönlichen Kontos.",
+			"title": "Kontoeinstellungen"
+		},
+		"billing": {
+			"cancelSubscription": {
+				"label": "Abonnement kündigen",
+				"confirmation": {
+					"title": "Abonnement kündigen?",
+					"description": "Dein Zugriff endet gemäß den Kündigungsbedingungen deines Zahlungsanbieters.",
+					"confirm": "Abonnement kündigen"
+				},
+				"notifications": {
+					"success": "Kündigung angefordert.",
+					"error": "Das Abonnement konnte nicht gekündigt werden. Bitte versuche es erneut."
+				}
+			},
+			"createCustomerPortal": {
+				"label": "Abrechung verwalten",
+				"notifications": {
+					"error": {
+						"title": "Es konnte keine Kundenportalsitzung erstellt werden. \nBitte versuche es erneut."
+					}
+				}
+			},
+			"activePlan": {
+				"cancellationPending": "Deine Kündigung wartet auf die Bestätigung des Zahlungsdienstes. Neue Abonnements bleiben auch nach Ablauf dieses bezahlten Zeitraums gesperrt. Deine bezahlten Leistungen bleiben bis zu ihrem Enddatum verfügbar.",
+				"cancellationRetrying": "Die Kündigung der Verlängerung ist noch nicht bestätigt. Wir versuchen es automatisch weiter. Neue Abonnements bleiben gesperrt; das ursprüngliche Enddatum deiner bezahlten Leistungen bleibt bestehen.",
+				"status": {
+					"cancellationPending": "Kündigung angefordert",
+					"active": "Aktiv",
+					"canceled": "Gekündigt",
+					"expired": "Ausgelaufen",
+					"incomplete": "Unvollständig",
+					"past_due": "Überfällig",
+					"paused": "Pausiert",
+					"trialing": "Testversion",
+					"unpaid": "Unbezahlt",
+					"canceling": "Verlängerung gekündigt",
+					"pending": "Ausstehend"
+				},
+				"title": "Dein Plan",
+				"refundTerminationPending": "Deine Zahlung wurde vollständig erstattet und die Tarifleistungen sind beendet. Bevor du erneut abonnieren kannst, bestätigen wir die Kündigung der Verlängerung.",
+				"refundTerminationRetrying": "Die Leistungen deines erstatteten Tarifs sind beendet. Die Kündigung der Verlängerung ist noch unbestätigt; wir versuchen es weiter. Nach der Bestätigung kannst du erneut abonnieren.",
+				"refundTerminated": "Dein erstattetes Abonnement ist beendet und die Kündigung der Verlängerung wurde bestätigt. Du kannst jetzt mit jeder verfügbaren Zahlungsmethode erneut abonnieren.",
+				"cancellationScheduled": "Dein Tarif bleibt bis zum {date} verfügbar und wird nicht verlängert.",
+				"multipleSubscriptions": "Mehrere Abonnements sind noch offen. Prüfe die Zahlungsmethoden unten und kündige nicht mehr benötigte Verlängerungen.",
+				"paymentMethod": "Zahlungsmethode: {provider}",
+				"effectivePlan": "Dieses Abonnement bestimmt derzeit deine Tarifvorteile.",
+				"currentPeriodEnd": "Der aktuelle Abrechnungszeitraum endet am {date}."
+			},
+			"changePlan": {
+				"description": "Wähle einen Plan aus, den du abonnieren möchtest.",
+				"title": "Ändere deinen Plan"
+			},
+			"title": "Zahlung"
+		},
+		"notificationsPage": {
+			"title": "Benachrichtigungen",
+			"description": "Lege fest, wie du Benachrichtigungen erhältst. Deaktivierte Optionen werden gespeichert; standardmäßig ist alles aktiviert.",
+			"groups": {
+				"general": {
+					"title": "Allgemein"
+				}
+			},
+			"types": {
+				"APP_UPDATE": {
+					"label": "App-Updates"
+				},
+				"MODERATION_ALERT": {
+					"label": "Warnungen zu Sicherheitsprüfungen (Administratoren)"
+				}
+			},
+			"columns": {
+				"type": "Benachrichtigung",
+				"inApp": "In der App",
+				"email": "E-Mail"
+			}
+		},
+		"menu": {
+			"account": {
+				"billing": "Abrechnung",
+				"dangerZone": "Danger-Zone",
+				"general": "Allgemein",
+				"notifications": "Benachrichtigungen",
+				"security": "Sicherheit",
+				"title": "Konto"
+			},
+			"organization": {
+				"billing": "Abrechnung",
+				"general": "Allgemein",
+				"members": "Mitglieder",
+				"title": "Organisation",
+				"dangerZone": "Gefahrenzone"
+			}
+		},
+		"save": "Speichern"
+	}
+}

@@ -34,6 +34,7 @@ const EMPTY_NOTIFICATION_LIST: NotificationRow[] = [];
 
 export function NotificationCenter({ className }: { className?: string }) {
 	const t = useTranslations("app.notifications");
+	const status = useTranslations("studio");
 	const { user } = useSession();
 	const queryClient = useQueryClient();
 	const [open, setOpen] = useState(false);
@@ -46,7 +47,13 @@ export function NotificationCenter({ className }: { className?: string }) {
 		refetchOnWindowFocus: true,
 	});
 
-	const { data: list = EMPTY_NOTIFICATION_LIST } = useQuery({
+	const {
+		data: list = EMPTY_NOTIFICATION_LIST,
+		isPending: listPending,
+		isError: listFailed,
+		isFetching: listFetching,
+		refetch: refetchList,
+	} = useQuery({
 		...orpc.notifications.list.queryOptions({
 			input: {},
 		}),
@@ -130,15 +137,39 @@ export function NotificationCenter({ className }: { className?: string }) {
 						size="sm"
 						className="h-8 text-xs shrink-0"
 						disabled={
-							list.length === 0 || !list.some((n) => !n.read) || markAllReadMutation.isPending
+							listPending ||
+							listFailed ||
+							list.length === 0 ||
+							!list.some((n) => !n.read) ||
+							markAllReadMutation.isPending
 						}
 						onClick={() => markAllReadMutation.mutate({})}
 					>
 						{t("markAllRead")}
 					</Button>
 				</div>
-				<div className="max-h-80 px-1 py-2 overflow-y-auto">
-					{list.length === 0 ? (
+				<div className="max-h-80 px-1 py-2 overflow-y-auto" aria-busy={listFetching}>
+					{listPending ? (
+						<output
+							className="px-3 py-6 text-sm block text-center text-muted-foreground"
+							aria-live="polite"
+						>
+							{status("loading")}
+						</output>
+					) : listFailed ? (
+						<div role="alert" className="px-3 py-6 text-center">
+							<p className="text-sm text-muted-foreground">{status("error")}</p>
+							<Button
+								type="button"
+								variant="secondary"
+								className="mt-3 mx-auto"
+								loading={listFetching}
+								onClick={() => void refetchList()}
+							>
+								{status("retry")}
+							</Button>
+						</div>
+					) : list.length === 0 ? (
 						<p className="px-3 py-6 text-sm text-center text-muted-foreground">{t("empty")}</p>
 					) : (
 						<ul className="gap-1 flex flex-col">

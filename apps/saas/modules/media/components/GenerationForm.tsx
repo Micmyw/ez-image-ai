@@ -159,25 +159,29 @@ export function GenerationForm({
 	});
 	// A sibling can populate the browser catalog before this streamed form hydrates.
 	// Keep its recovery markup identical until the workspace is ready for input.
-	const products = (ready ? (generation.catalog.data?.products ?? []) : []).map((product) =>
-		isEditorProductKey(product.key)
-			? {
-					...product,
-					label: t(`products.${product.key}.label`),
-					description: t(`products.${product.key}.description`),
-					...(product.skuMatrix
-						? {
-								skuMatrix: {
-									...product.skuMatrix,
-									cells: product.skuMatrix.cells.map((cell) => ({
-										...cell,
-										label: t(`skus.${cell.skuKey}.label`),
-									})),
-								},
-							}
-						: {}),
-				}
-			: product,
+	const products = useMemo(
+		() =>
+			(ready ? (generation.catalog.data?.products ?? []) : []).map((product) =>
+				isEditorProductKey(product.key)
+					? {
+							...product,
+							label: t(`products.${product.key}.label`),
+							description: t(`products.${product.key}.description`),
+							...(product.skuMatrix
+								? {
+										skuMatrix: {
+											...product.skuMatrix,
+											cells: product.skuMatrix.cells.map((cell) => ({
+												...cell,
+												label: t(`skus.${cell.skuKey}.label`),
+											})),
+										},
+									}
+								: {}),
+						}
+					: product,
+			),
+		[ready, generation.catalog.data?.products, t],
 	);
 	const [sourceReady, setSourceReady] = useState(initialSourceReady);
 	const [sourcePending, setSourcePending] = useState(false);

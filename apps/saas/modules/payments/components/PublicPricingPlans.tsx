@@ -10,11 +10,13 @@ import {
 	CrownIcon,
 	HistoryIcon,
 	Layers3Icon,
+	Loader2Icon,
 	LockKeyholeIcon,
 	SparklesIcon,
 	WandSparklesIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { type ComponentType, type ReactNode, useState } from "react";
 
@@ -25,8 +27,20 @@ import {
 	hasCompleteAnnualBilling,
 } from "../lib/annual-plan-pricing";
 import { upgradeHref } from "../lib/upgrade-selection";
-import { CreditPackCheckoutActions, CreditPackPaymentOptions } from "./CreditPackCheckoutActions";
 import { useUpgrade } from "./upgrade-context";
+
+const CreditPackPaymentOptions = dynamic(
+	() => import("./CreditPackCheckoutActions").then((module) => module.CreditPackPaymentOptions),
+	{ loading: () => <CreditPackCheckoutLoading /> },
+);
+const CreditPackCheckoutActions = dynamic(
+	() => import("./CreditPackCheckoutActions").then((module) => module.CreditPackCheckoutActions),
+	{ loading: () => <CreditPackCheckoutLoading compact /> },
+);
+
+function preloadCreditPackCheckout() {
+	return import("./CreditPackCheckoutActions").then(() => undefined).catch(() => undefined);
+}
 
 const planIds = ["creator", "ultimate", "studio"] as const;
 
@@ -47,6 +61,7 @@ export function PublicPricingPlans({
 }) {
 	const t = useTranslations();
 	const [view, setView] = useState<PricingView>(initialView);
+	const [creditPacksOpened, setCreditPacksOpened] = useState(initialView === "credit-packs");
 	const openUpgrade = useUpgrade();
 	const payment = usePaymentAction();
 	const PlanHeading = headingLevel === 2 ? "h2" : "h3";
@@ -70,6 +85,62 @@ export function PublicPricingPlans({
 	const showingCreditPacks = view === "credit-packs";
 	const subscriptionId = `${hideViewToggle ? "upgrade" : "public"}-subscription-pricing`;
 	const creditPackId = `${hideViewToggle ? "upgrade" : "public"}-credit-pack-pricing`;
+	const creditPackCards = (
+		<div className="credit-pack-grid mt-3 gap-3 md:grid-cols-2 xl:grid-cols-4 grid">
+			{PUBLIC_CREDIT_PACKS.map((pack) => (
+				<article
+					key={pack.packKey}
+					data-pack-key={pack.packKey}
+					data-test="public-credit-pack"
+					className="border-white/9 bg-white/[0.035] p-5 hover:-translate-y-1 hover:bg-white/[0.055] flex min-h-[23rem] flex-col rounded-[1.5rem] border shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] transition hover:border-[#a98bff]/35 hover:shadow-[0_24px_60px_-42px_rgba(136,100,255,0.9)] motion-reduce:transform-none"
+				>
+					<div className="gap-2 text-white flex items-center">
+						<span className="size-8 inline-flex items-center justify-center rounded-xl border border-[#b79cff]/20 bg-[#b79cff]/10">
+							<CoinsIcon className="size-4 text-[#c7b8ff]" aria-hidden="true" />
+						</span>
+						<PlanHeading className="text-lg font-semibold tracking-[-0.025em]">
+							{t("pricing.creditPackTitle", {
+								credits: formatNumber(locale, pack.baseCredits),
+							})}
+						</PlanHeading>
+					</div>
+					<p className="mt-5 text-white flex items-end">
+						<strong className="text-4xl font-semibold leading-none tracking-[-0.05em]">
+							{formatCurrency(locale, pack.price.amount, pack.price.currency)}
+						</strong>
+						<span className="mb-0.5 ml-2 text-xs text-[#9f94a8]">{t("pricing.oneTime")}</span>
+					</p>
+					<p className="mt-3 text-sm font-semibold leading-5 text-[#c7b8ff]">
+						{t("pricing.subscriberReceives", {
+							credits: formatNumber(locale, pack.subscriberCredits),
+						})}
+					</p>
+					<ul className="mt-5 space-y-3 text-sm leading-5 text-[#d8cfdd]">
+						<li className="gap-2.5 flex items-start">
+							<Layers3Icon className="mt-0.5 size-4 shrink-0 text-[#bcaaff]" aria-hidden="true" />
+							{t("pricing.baseCredits", {
+								credits: formatNumber(locale, pack.baseCredits),
+							})}
+						</li>
+						<li className="gap-2.5 flex items-start">
+							<SparklesIcon className="mt-0.5 size-4 shrink-0 text-[#bcaaff]" aria-hidden="true" />
+							{t("pricing.subscriberBonusAmount", {
+								credits: formatNumber(locale, pack.subscriberCredits - pack.baseCredits),
+							})}
+						</li>
+						<li className="gap-2.5 flex items-start">
+							<CalendarClockIcon
+								className="mt-0.5 size-4 shrink-0 text-[#bcaaff]"
+								aria-hidden="true"
+							/>
+							{t("pricing.creditPackValidity", { months: pack.expiryMonths })}
+						</li>
+					</ul>
+					{creditPacksOpened && <CreditPackCheckoutActions packKey={pack.packKey} />}
+				</article>
+			))}
+		</div>
+	);
 
 	return (
 		<div className={className} data-test="public-pricing-plans">
@@ -105,7 +176,12 @@ export function PublicPricingPlans({
 						</PricingViewButton>
 						<PricingViewButton
 							active={showingCreditPacks}
-							onClick={() => setView("credit-packs")}
+							onClick={() => {
+								setCreditPacksOpened(true);
+								setView("credit-packs");
+							}}
+							onMouseEnter={preloadCreditPackCheckout}
+							onFocus={preloadCreditPackCheckout}
 							dataTest="public-pricing-credit-packs-tab"
 							controls={creditPackId}
 						>
@@ -298,70 +374,13 @@ export function PublicPricingPlans({
 							percent: PUBLIC_CREDIT_PACKS[0]?.subscriberBonusPercent ?? 20,
 						})}
 					</div>
-					<CreditPackPaymentOptions active={showingCreditPacks}>
-						<div className="credit-pack-grid mt-3 gap-3 md:grid-cols-2 xl:grid-cols-4 grid">
-							{PUBLIC_CREDIT_PACKS.map((pack) => (
-								<article
-									key={pack.packKey}
-									data-pack-key={pack.packKey}
-									data-test="public-credit-pack"
-									className="border-white/9 bg-white/[0.035] p-5 hover:-translate-y-1 hover:bg-white/[0.055] flex min-h-[23rem] flex-col rounded-[1.5rem] border shadow-[inset_0_1px_0_rgba(255,255,255,0.035)] transition hover:border-[#a98bff]/35 hover:shadow-[0_24px_60px_-42px_rgba(136,100,255,0.9)] motion-reduce:transform-none"
-								>
-									<div className="gap-2 text-white flex items-center">
-										<span className="size-8 inline-flex items-center justify-center rounded-xl border border-[#b79cff]/20 bg-[#b79cff]/10">
-											<CoinsIcon className="size-4 text-[#c7b8ff]" aria-hidden="true" />
-										</span>
-										<PlanHeading className="text-lg font-semibold tracking-[-0.025em]">
-											{t("pricing.creditPackTitle", {
-												credits: formatNumber(locale, pack.baseCredits),
-											})}
-										</PlanHeading>
-									</div>
-									<p className="mt-5 text-white flex items-end">
-										<strong className="text-4xl font-semibold leading-none tracking-[-0.05em]">
-											{formatCurrency(locale, pack.price.amount, pack.price.currency)}
-										</strong>
-										<span className="mb-0.5 ml-2 text-xs text-[#9f94a8]">
-											{t("pricing.oneTime")}
-										</span>
-									</p>
-									<p className="mt-3 text-sm font-semibold leading-5 text-[#c7b8ff]">
-										{t("pricing.subscriberReceives", {
-											credits: formatNumber(locale, pack.subscriberCredits),
-										})}
-									</p>
-									<ul className="mt-5 space-y-3 text-sm leading-5 text-[#d8cfdd]">
-										<li className="gap-2.5 flex items-start">
-											<Layers3Icon
-												className="mt-0.5 size-4 shrink-0 text-[#bcaaff]"
-												aria-hidden="true"
-											/>
-											{t("pricing.baseCredits", {
-												credits: formatNumber(locale, pack.baseCredits),
-											})}
-										</li>
-										<li className="gap-2.5 flex items-start">
-											<SparklesIcon
-												className="mt-0.5 size-4 shrink-0 text-[#bcaaff]"
-												aria-hidden="true"
-											/>
-											{t("pricing.subscriberBonusAmount", {
-												credits: formatNumber(locale, pack.subscriberCredits - pack.baseCredits),
-											})}
-										</li>
-										<li className="gap-2.5 flex items-start">
-											<CalendarClockIcon
-												className="mt-0.5 size-4 shrink-0 text-[#bcaaff]"
-												aria-hidden="true"
-											/>
-											{t("pricing.creditPackValidity", { months: pack.expiryMonths })}
-										</li>
-									</ul>
-									<CreditPackCheckoutActions packKey={pack.packKey} />
-								</article>
-							))}
-						</div>
-					</CreditPackPaymentOptions>
+					{creditPacksOpened ? (
+						<CreditPackPaymentOptions active={showingCreditPacks}>
+							{creditPackCards}
+						</CreditPackPaymentOptions>
+					) : (
+						creditPackCards
+					)}
 				</div>
 			</div>
 			{!showingCreditPacks && (
@@ -406,18 +425,38 @@ function CapabilityRail({ hasAllImageModels }: { hasAllImageModels: boolean }) {
 	);
 }
 
+function CreditPackCheckoutLoading({ compact = false }: { compact?: boolean }) {
+	const t = useTranslations();
+	return (
+		<output
+			data-test="credit-pack-checkout-loading"
+			aria-live="polite"
+			className={`gap-2 text-sm flex items-center justify-center text-[#b8adbf] ${
+				compact ? "min-h-11 mt-auto" : "min-h-[30rem]"
+			}`}
+		>
+			<Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+			{t("pricing.paymentOptionsLoading")}
+		</output>
+	);
+}
+
 function PricingViewButton({
 	active,
 	children,
 	controls,
 	dataTest,
 	onClick,
+	onMouseEnter,
+	onFocus,
 }: {
 	active: boolean;
 	children: ReactNode;
 	controls: string;
 	dataTest: string;
 	onClick: () => void;
+	onMouseEnter?: () => void;
+	onFocus?: () => void;
 }) {
 	return (
 		<button
@@ -426,6 +465,8 @@ function PricingViewButton({
 			aria-pressed={active}
 			data-test={dataTest}
 			onClick={onClick}
+			onMouseEnter={onMouseEnter}
+			onFocus={onFocus}
 			className={`min-h-11 gap-1 px-2 text-xs sm:gap-2 sm:px-5 sm:text-sm font-semibold focus-visible:outline-violet-200 inline-flex shrink-0 items-center rounded-full transition focus-visible:outline-2 focus-visible:outline-offset-2 ${
 				active
 					? "bg-[#f4efff] text-[#2d2140] shadow-[0_8px_22px_-14px_rgba(255,255,255,0.9)]"

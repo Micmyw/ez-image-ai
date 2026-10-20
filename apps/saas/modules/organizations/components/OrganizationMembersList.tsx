@@ -1,7 +1,8 @@
 "use client";
 import { useSession } from "@auth/hooks/use-session";
 import { useOrganizationMemberRoles } from "@organizations/hooks/member-roles";
-import { fullOrganizationQueryKey, useFullOrganizationQuery } from "@organizations/lib/api";
+import { useFullOrganizationQuery } from "@organizations/lib/api";
+import { invalidateOrganizationQueries } from "@organizations/lib/query-cache";
 import type { OrganizationMemberRole } from "@repo/auth";
 import { authClient } from "@repo/auth/client";
 import { isOrganizationAdmin } from "@repo/auth/lib/helper";
@@ -56,9 +57,7 @@ export function OrganizationMembersList({ organizationId }: { organizationId: st
 					"organizations.settings.members.notifications.updateMembership.loading.description",
 				),
 				success: () => {
-					void queryClient.invalidateQueries({
-						queryKey: fullOrganizationQueryKey(organizationId),
-					});
+					void invalidateOrganizationQueries(queryClient, organizationId);
 
 					return t(
 						"organizations.settings.members.notifications.updateMembership.success.description",
@@ -80,9 +79,7 @@ export function OrganizationMembersList({ organizationId }: { organizationId: st
 			{
 				loading: t("organizations.settings.members.notifications.removeMember.loading.description"),
 				success: () => {
-					void queryClient.invalidateQueries({
-						queryKey: fullOrganizationQueryKey(organizationId),
-					});
+					void invalidateOrganizationQueries(queryClient, organizationId);
 
 					return t("organizations.settings.members.notifications.removeMember.success.description");
 				},

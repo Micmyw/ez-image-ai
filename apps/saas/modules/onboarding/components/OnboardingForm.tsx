@@ -30,9 +30,10 @@ export function OnboardingForm() {
 	};
 
 	const onCompleted = async () => {
-		await authClient.updateUser({
+		const { error } = await authClient.updateUser({
 			onboardingComplete: true,
 		});
+		if (error) throw error;
 
 		await clearCache();
 		router.replace(getSafeRedirectPath(redirectTo));

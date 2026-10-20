@@ -1,0 +1,29 @@
+{
+	"feedback": {
+		"entry": "Feedback · accepted ideas earn 100–1,000 credits",
+		"footer": "Feedback rewards",
+		"report": "Report this issue",
+		"title": "Help improve EzImageAI",
+		"rewardPolicy": "Accepted suggestions and bug reports may earn 100–1,000 credits. Our team reviews each submission, chooses the amount and grants credits manually after acceptance.",
+		"noAutomaticReward": "Opening this form or sending an email does not award credits. Duplicate or already known reports may not qualify.",
+		"kind": "Feedback type",
+		"idea": "Suggestion",
+		"bug": "Bug report",
+		"accountEmail": "EzImageAI account email (optional)",
+		"emailPlaceholder": "Enter the account to receive credits if accepted",
+		"description": "Your feedback",
+		"descriptionPlaceholder": "What happened, what did you expect, or what would you improve?",
+		"screenshots": "If useful, attach a redacted screenshot in your email app. Remove private information first.",
+		"privacy": "Only the text you enter here goes into the draft. No prompt, image, payment details or error metadata is added automatically. Review your email before sending.",
+		"preview": "Preview email draft",
+		"recipient": "To",
+		"openEmail": "Open email draft",
+		"copy": "Copy email address",
+		"copied": "Email address copied.",
+		"copyFailed": "Copy is unavailable. Select the email address above and copy it manually.",
+		"emailFallback": "No email app? Copy this address and send your feedback from your usual email service.",
+		"subjectIdea": "EzImageAI: suggestion",
+		"subjectBug": "EzImageAI: bug report",
+		"close": "Close feedback"
+	}
+}

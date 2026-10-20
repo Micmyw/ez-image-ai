@@ -10,18 +10,24 @@ const mocks = vi.hoisted(() => ({
 	getMessages: vi.fn(),
 	getServerQueryClient: vi.fn(),
 	messages: vi.fn(),
+	getOrganizationList: vi.fn(),
+	listPurchases: vi.fn(),
+	organizations: { enable: false },
+	payments: { billingAttachedTo: "organization" },
 }));
 
 vi.mock("@auth/lib/api", () => ({ sessionQueryKey: ["session"] }));
 vi.mock("@auth/lib/server", () => ({
 	getSession: mocks.getSession,
-	getOrganizationList: vi.fn(),
+	getOrganizationList: mocks.getOrganizationList,
 }));
 vi.mock("@organizations/lib/api", () => ({ organizationListQueryKey: ["organizations"] }));
-vi.mock("@payments/lib/server", () => ({ listPurchases: vi.fn() }));
-vi.mock("@repo/auth/config", () => ({ config: { organizations: { enable: false } } }));
-vi.mock("@repo/payments/config", () => ({ config: { billingAttachedTo: "organization" } }));
-vi.mock("@shared/lib/orpc-query-utils", () => ({ orpc: {} }));
+vi.mock("@payments/lib/server", () => ({ listPurchases: mocks.listPurchases }));
+vi.mock("@repo/auth/config", () => ({ config: { organizations: mocks.organizations } }));
+vi.mock("@repo/payments/config", () => ({ config: mocks.payments }));
+vi.mock("@shared/lib/orpc-query-utils", () => ({
+	orpc: { payments: { listPurchases: { queryKey: () => ["purchases"] } } },
+}));
 vi.mock("@shared/lib/server", () => ({ getServerQueryClient: mocks.getServerQueryClient }));
 vi.mock("next-intl/server", () => ({ getMessages: mocks.getMessages }));
 vi.mock("next/dynamic", async () => ({
@@ -47,10 +53,12 @@ function PrivateMediaProbe() {
 	const history = useTranslations("media.history");
 	const preparation = useTranslations("media.create.preparation");
 	const imagePass = useTranslations("imagePass");
+	const settings = useTranslations("settings.account.changeName");
+	const support = useTranslations("support");
 	return (
 		<p>
 			{assets("subtitle")} {edits("subtitle")} {history("subtitle")} {preparation("copying")}{" "}
-			{imagePass("returnPending")}
+			{imagePass("returnPending")} {settings("title")} {support("title")}
 		</p>
 	);
 }
@@ -58,7 +66,34 @@ function PrivateMediaProbe() {
 describe("registered workspace private media messages", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mocks.organizations.enable = false;
+		mocks.payments.billingAttachedTo = "organization";
 		mocks.getServerQueryClient.mockImplementation(() => new QueryClient());
+	});
+
+	it("starts independent account reads together after authentication", async () => {
+		mocks.organizations.enable = true;
+		mocks.payments.billingAttachedTo = "user";
+		mocks.getSession.mockResolvedValue({ user: { id: "member", isAnonymous: false } });
+		mocks.getMessages.mockResolvedValue(await getUnifiedMessagesForLocale("en"));
+		let finishOrganizations!: (value: unknown[]) => void;
+		mocks.getOrganizationList.mockReturnValueOnce(
+			new Promise((resolve) => {
+				finishOrganizations = resolve;
+			}),
+		);
+		mocks.listPurchases.mockResolvedValue([]);
+		const boundary = RegisteredWorkspaceBoundary({ children: "Workspace" });
+		try {
+			await vi.waitFor(() => {
+				expect(mocks.getOrganizationList).toHaveBeenCalledOnce();
+				expect(mocks.listPurchases).toHaveBeenCalledOnce();
+				expect(mocks.getMessages).toHaveBeenCalledOnce();
+			});
+		} finally {
+			finishOrganizations([]);
+			await boundary;
+		}
 	});
 
 	it.each(["en", "de", "es", "fr"] as const)(
@@ -84,6 +119,8 @@ describe("registered workspace private media messages", () => {
 						imagePassMessages={full.imagePass}
 						checkoutReturnMessages={full.checkoutReturn}
 						creditPackCheckoutReturnMessages={full.creditPackCheckoutReturn}
+						settingsMessages={full.settings}
+						supportMessages={full.support}
 					>
 						<PrivateMediaProbe />
 					</RegisteredWorkspaceProviders>
@@ -96,8 +133,12 @@ describe("registered workspace private media messages", () => {
 				imagePass: full.imagePass,
 				checkoutReturn: full.checkoutReturn,
 				creditPackCheckoutReturn: full.creditPackCheckoutReturn,
+				settings: full.settings,
+				support: full.support,
 			});
 			expect(markup).toContain(full.media.assets.subtitle);
+			expect(markup).toContain(full.settings.account.changeName.title);
+			expect(markup).toContain(full.support.title);
 			expect(onError).not.toHaveBeenCalled();
 		},
 	);
@@ -114,6 +155,8 @@ describe("registered workspace private media messages", () => {
 			imagePassMessages: full.imagePass,
 			checkoutReturnMessages: full.checkoutReturn,
 			creditPackCheckoutReturnMessages: full.creditPackCheckoutReturn,
+			settingsMessages: full.settings,
+			supportMessages: full.support,
 			children: "Workspace content",
 		});
 	});

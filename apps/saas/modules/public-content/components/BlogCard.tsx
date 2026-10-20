@@ -12,12 +12,14 @@ export function BlogCard({
 	readingTime,
 	level = "h2",
 	featured = false,
+	imageLoading = featured ? "eager" : "lazy",
 }: {
 	post: BlogCardData;
 	category: string;
 	readingTime: string;
 	level?: "h2" | "h3";
 	featured?: boolean;
+	imageLoading?: "eager" | "lazy";
 }) {
 	const t = useTranslations();
 	const Heading = level;
@@ -39,7 +41,7 @@ export function BlogCard({
 								alt={post.comparisonInput.alt}
 								width={post.comparisonInput.width}
 								height={post.comparisonInput.height}
-								loading={featured ? "eager" : "lazy"}
+								loading={imageLoading}
 								sizes="(max-width: 639px) 50vw, 28vw"
 							/>
 							<span>{t("effects.before")}</span>
@@ -51,7 +53,7 @@ export function BlogCard({
 							alt={post.cover.alt}
 							width={post.cover.width}
 							height={post.cover.height}
-							loading={featured ? "eager" : "lazy"}
+							loading={imageLoading}
 							sizes={
 								post.comparisonInput
 									? "(max-width: 639px) 50vw, 28vw"

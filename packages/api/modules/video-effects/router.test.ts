@@ -52,6 +52,7 @@ import {
 	createVideoTemplateJob,
 	createVideoTemplateQuote,
 	getVideoTemplatePublicState,
+	listVideoTemplatePublicStates,
 	requireVideoTemplateAdmission,
 	requireVideoTemplateRuntimeEnabled,
 	readVideoEffectTestReadiness,
@@ -101,6 +102,29 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("template API authorization and strict public contracts", () => {
+	it.each(["hotel-lobby", "raindance", "rumpelstiltskin"] as const)(
+		"passes the optional %s history family to the owner-scoped reader",
+		async (templateFamily) => {
+			vi.mocked(listVideoTemplatePublicStates).mockResolvedValue({
+				items: [],
+				nextCursor: null,
+			});
+			expect(await call(videoEffectsRouter.jobs.list, { templateFamily, limit: 10 }, ctx)).toEqual({
+				items: [],
+				nextCursor: null,
+			});
+			expect(listVideoTemplatePublicStates).toHaveBeenCalledExactlyOnceWith(
+				{ userId: user.id },
+				{ templateFamily, limit: 10 },
+			);
+		},
+	);
+	it("rejects an unknown history family before the reader", async () => {
+		await expect(
+			call(videoEffectsRouter.jobs.list, { templateFamily: "unknown" } as never, ctx),
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(listVideoTemplatePublicStates).not.toHaveBeenCalled();
+	});
 	it.each([
 		"VIDEO_EFFECT_PRICE_NOT_APPROVED",
 		"VIDEO_EFFECT_APPROVED_PRICES_CHANGED",

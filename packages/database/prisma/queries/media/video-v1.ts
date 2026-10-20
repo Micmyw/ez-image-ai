@@ -51,6 +51,7 @@ import {
 	videoTemplateSceneReservationKey,
 	videoTemplateSceneReservationBytes,
 } from "./video-template-storage";
+import { videoPlaybackSelect } from "./video-v1-fulfillment";
 import {
 	videoOutputStoragePolicy,
 	videoOutputReservationBytes,
@@ -674,10 +675,26 @@ export async function listVideoJobRecords(
 	tx: MediaDatabaseClient,
 ) {
 	const limit = Math.min(20, Math.max(1, input.limit ?? 20));
-	if (input.cursor) await getVideoJobRecord(ownerId, input.cursor, tx);
+	if (input.cursor) {
+		const cursor = await tx.generationJob.findFirst({
+			where: { id: input.cursor, ownerType: "USER", ownerId, executionEngine: ENGINE },
+			select: {
+				id: true,
+				videoExecution: { select: { jobId: true } },
+				reservation: { select: { id: true } },
+			},
+		});
+		if (!cursor?.videoExecution || !cursor.reservation) throw new Error("NOT_FOUND");
+	}
 	const rows = await tx.generationJob.findMany({
 		where: { ownerType: "USER", ownerId, executionEngine: ENGINE },
-		include: { videoExecution: true, reservation: true },
+		select: {
+			...videoPlaybackSelect,
+			creditsReserved: true,
+			pricingSnapshot: true,
+			failureCode: true,
+			updatedAt: true,
+		},
 		orderBy: [{ createdAt: "desc" }, { id: "desc" }],
 		...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
 		take: limit + 1,

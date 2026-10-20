@@ -110,14 +110,42 @@ beforeEach(() => {
 	state.capture.mockReset().mockResolvedValue({ accepted: true, replayed: false });
 	state.refetch.mockResolvedValue({});
 	state.invalidate.mockResolvedValue(undefined);
-	vi.stubGlobal("window", { sessionStorage: new Map() });
+	const events = new EventTarget();
+	vi.stubGlobal("window", {
+		sessionStorage: new Map(),
+		addEventListener: events.addEventListener.bind(events),
+		removeEventListener: events.removeEventListener.bind(events),
+		dispatchEvent: events.dispatchEvent.bind(events),
+	});
 });
 afterEach(() => {
 	for (const slot of state.slots) slot.cleanup?.();
+	vi.useRealTimers();
 	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
 });
 describe("trusted image pass payment return", () => {
+	it("slows long-pending reads, stops on GET errors and resumes read-only checks on return", async () => {
+		vi.useFakeTimers();
+		const element = render({ canceled: true });
+		const polling = state.queryOptions.mock.lastCall![0].refetchInterval;
+		const pending = { state: { status: "success", data: { status: "PENDING" } } };
+		expect(polling(pending)).toBe(1_500);
+		vi.advanceTimersByTime(120_000);
+		expect(polling(pending)).toBe(30_000);
+		expect(texts(render({ canceled: true }))).toContain("checkoutUnconfirmed");
+		button(element)();
+		expect(polling(pending)).toBe(1_500);
+		vi.advanceTimersByTime(120_000);
+		window.dispatchEvent(new Event("pageshow"));
+		expect(polling(pending)).toBe(1_500);
+		expect(polling({ state: { ...pending.state, status: "error" } })).toBe(false);
+		await flush();
+		expect(state.refetch).toHaveBeenCalledTimes(2);
+		expect(state.capture).not.toHaveBeenCalled();
+		expect(state.invalidate).not.toHaveBeenCalled();
+	});
+
 	it("does not treat PayPal return or capture acceptance as fulfilled image passes", async () => {
 		render();
 		await flush();

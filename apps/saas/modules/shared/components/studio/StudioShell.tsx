@@ -18,29 +18,36 @@ import {
 	XIcon,
 	ShieldUserIcon,
 } from "lucide-react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { type MouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import {
+	type MouseEvent,
+	type ReactNode,
+	type SyntheticEvent,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 
 import { HeaderNavigationMenu } from "./HeaderNavigationMenu";
 import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
+import { LocalizedStudioPanels } from "./LocalizedStudioPanels";
 import {
 	resetStudioWorkspace,
 	StudioContext,
 	studioPanelForPath,
 	type StudioPanel,
 } from "./studio-context";
+import { preloadStudioPanel, studioPanelResourceKind } from "./studio-panel-resources";
 import { StudioPanelBoundary } from "./StudioPanelBoundary";
 import { StudioSignInLink } from "./StudioSignInLink";
 import { StudioToolNavigation } from "./StudioToolNavigation";
 
 import "./studio.css";
 
-const StudioPanels = dynamic(() =>
-	import("./LocalizedStudioPanels").then((module) => module.LocalizedStudioPanels),
-);
 const OrganzationSelect = dynamic(() =>
 	import("@organizations/components/OrganizationSelect").then((module) => module.OrganzationSelect),
 );
@@ -72,6 +79,7 @@ export function StudioShell({
 }
 
 function StudioShellContent({ children, brandName }: { children: ReactNode; brandName: string }) {
+	const locale = useLocale();
 	const t = useTranslations("studio");
 	const common = useTranslations("common.menu");
 	const accountMenu = useTranslations("app.menu");
@@ -97,6 +105,7 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 	const panelActive = useRef(false);
 	const openPanel = useCallback(
 		(next: StudioPanel) => {
+			preloadStudioPanel(next, locale);
 			if (!panelActive.current)
 				opener.current = navigationOpen
 					? navigationTrigger.current
@@ -107,7 +116,7 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 			setPanel(next);
 			setNavigationOpen(false);
 		},
-		[navigationOpen],
+		[navigationOpen, locale],
 	);
 	const closePanel = useCallback(() => {
 		setPanel(null);
@@ -151,6 +160,16 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 			document.getElementById("image-editor")?.scrollIntoView({ behavior: "smooth" });
 		}
 		setNavigationOpen(false);
+	}
+	function preloadPanelForIntent(event: SyntheticEvent<HTMLDivElement>) {
+		if (!registered || !editing || !(event.target instanceof Element)) return;
+		const anchor = event.target.closest("a[href]");
+		if (!(anchor instanceof HTMLAnchorElement) || anchor.target || anchor.hasAttribute("download"))
+			return;
+		const url = new URL(anchor.href, window.location.href);
+		if (url.origin !== window.location.origin || url.searchParams.get("full") === "true") return;
+		const next = studioPanelForPath(url.pathname);
+		if (next) preloadStudioPanel(next, locale);
 	}
 
 	useEffect(() => {
@@ -260,7 +279,10 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 						{authConfig.organizations.enable && !authConfig.organizations.hideOrganization && (
 							<OrganzationSelect className="mb-3 w-full" />
 						)}
-						<StudioCredits onClick={() => openPanel({ kind: "billing" })} />
+						<StudioCredits
+							onClick={() => openPanel({ kind: "billing" })}
+							onIntent={() => preloadStudioPanel({ kind: "billing" }, locale)}
+						/>
 						<UserMenu showUserName studio />
 					</>
 				) : (
@@ -280,6 +302,8 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 				data-workspace={showSidebar}
 				data-panel-open={Boolean(panel)}
 				onClickCapture={intercept}
+				onPointerOverCapture={preloadPanelForIntent}
+				onFocusCapture={preloadPanelForIntent}
 			>
 				{showSidebar && (
 					<aside className="studio-sidebar" inert={mobile && Boolean(panel)}>
@@ -337,6 +361,7 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 								onOpenChange={setNavigationOpen}
 								triggerRef={navigationTrigger}
 								restoreFocus={!panel}
+								prefetchWorkspaceLinks={!editing}
 								account={
 									<>
 										<UserMenu showUserName studio />
@@ -377,14 +402,20 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 										variant={panel.kind === kind ? "primary" : "secondary"}
 										aria-current={panel.kind === kind ? "page" : undefined}
 										onClick={() => openPanel({ kind })}
+										onPointerEnter={() => preloadStudioPanel({ kind }, locale)}
+										onFocus={() => preloadStudioPanel({ kind }, locale)}
 									>
 										{t(`panels.${kind}`)}
 									</Button>
 								))}
 							</nav>
 						)}
-						<StudioPanelBoundary key={panel.kind} errorLabel={t("error")} retryLabel={t("retry")}>
-							<StudioPanels panel={panel} onChange={openPanel} onClose={closePanel} />
+						<StudioPanelBoundary
+							key={`${locale}:${studioPanelResourceKind(panel)}`}
+							errorLabel={t("error")}
+							retryLabel={t("retry")}
+						>
+							<LocalizedStudioPanels panel={panel} onChange={openPanel} onClose={closePanel} />
 						</StudioPanelBoundary>
 					</aside>
 				)}
@@ -393,12 +424,18 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 	);
 }
 
-function StudioCredits({ onClick }: { onClick: () => void }) {
+function StudioCredits({ onClick, onIntent }: { onClick: () => void; onIntent: () => void }) {
 	const t = useTranslations("studio");
 	const ownerId = creditAccountOwnerId(useSession());
 	const account = useQuery(creditAccountQueryOptions(ownerId));
 	return (
-		<button className="studio-credit-link" onClick={onClick} aria-label={t("credits")}>
+		<button
+			className="studio-credit-link"
+			onClick={onClick}
+			onPointerEnter={onIntent}
+			onFocus={onIntent}
+			aria-label={t("credits")}
+		>
 			<CoinsIcon />
 			<span className="!ml-0">
 				{ownerId && account.data

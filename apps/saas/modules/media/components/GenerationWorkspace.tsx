@@ -2,16 +2,35 @@
 
 import { useSession } from "@auth/hooks/use-session";
 import { useSessionQuery } from "@auth/lib/api";
+import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import { GenerationModeContext, type SignInDraftSaver } from "../lib/generation-mode-context";
 import { generatorMode, generatorModeUrl, validVideoJobId } from "../lib/generator-navigation";
+import { ComposerHeader } from "./editor/ComposerHeader";
 
-const VideoWorkspace = dynamic(() =>
-	import("../../video-v1/LocalizedVideoWorkspace").then((module) => module.LocalizedVideoWorkspace),
-);
+const loadVideoWorkspace = () =>
+	import("../../video-v1/LocalizedVideoWorkspace").then((module) => module.LocalizedVideoWorkspace);
+
+const VideoWorkspace = dynamic(loadVideoWorkspace, {
+	loading: VideoWorkspaceLoading,
+});
+
+function VideoWorkspaceLoading() {
+	const t = useTranslations("imageToImage");
+	return (
+		<section className="studio-composer mt-6 min-h-72" data-test="video-workspace-loading">
+			<ComposerHeader />
+			<output className="p-6 text-sm block text-[#b7acbf]">{t("loading")}</output>
+		</section>
+	);
+}
+
+const preloadMode = (mode: "image" | "video") => {
+	if (mode === "video") void loadVideoWorkspace().catch(() => {});
+};
 
 export function GenerationWorkspaceHeading({
 	imageTitle,
@@ -62,17 +81,28 @@ export function GenerationWorkspace({ children }: { children: ReactNode }) {
 		if (previousMode.current !== mode) pendingFocus.current = true;
 		previousMode.current = mode;
 		if (!pendingFocus.current) return;
+		let loadingTab: HTMLElement | null = null;
 		const focusTab = () => {
+			// Do not steal focus if the user has moved elsewhere during the download.
+			if (
+				loadingTab &&
+				document.activeElement !== loadingTab &&
+				document.activeElement !== document.body
+			) {
+				pendingFocus.current = false;
+				return true;
+			}
 			const tab = root.current?.querySelector<HTMLElement>(
 				`[data-generator-panel="${mode}"] [data-generator-mode="${mode}"]`,
 			);
 			if (!tab) return false;
-			pendingFocus.current = false;
+			loadingTab = tab.closest('[data-test="video-workspace-loading"]') ? tab : null;
+			pendingFocus.current = Boolean(loadingTab);
 			tab.focus({ preventScroll: true });
-			return true;
+			return !loadingTab;
 		};
 		if (focusTab() || !root.current) return;
-		// The first video visit loads a separate client chunk; retain keyboard focus after it mounts.
+		// Keep observing through the placeholder so replacing its tab preserves keyboard focus.
 		const observer = new MutationObserver(() => {
 			if (focusTab()) observer.disconnect();
 		});
@@ -84,6 +114,7 @@ export function GenerationWorkspace({ children }: { children: ReactNode }) {
 			value={{
 				mode,
 				registerSignInDraft,
+				preloadMode,
 				async prepareSignIn(destination) {
 					if (signInOperation.current) return signInOperation.current;
 					setSignInPending(true);
@@ -112,9 +143,13 @@ export function GenerationWorkspace({ children }: { children: ReactNode }) {
 				<div data-generator-panel="image" hidden={mode !== "image"} inert={mode !== "image"}>
 					{children}
 				</div>
-				{(visitedVideo || mode === "video") && !sessionPending && (
+				{(visitedVideo || mode === "video") && (
 					<div data-generator-panel="video" hidden={mode !== "video"} inert={mode !== "video"}>
-						<VideoWorkspace key={owner} initialJobId={validVideoJobId(params.get("videoJob"))} />
+						{sessionPending ? (
+							<VideoWorkspaceLoading />
+						) : (
+							<VideoWorkspace key={owner} initialJobId={validVideoJobId(params.get("videoJob"))} />
+						)}
 					</div>
 				)}
 			</div>

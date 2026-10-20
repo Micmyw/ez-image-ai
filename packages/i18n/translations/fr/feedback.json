@@ -1,0 +1,29 @@
+{
+	"feedback": {
+		"entry": "Avis · les idées retenues rapportent 100 à 1 000 crédits",
+		"footer": "Récompenses pour vos avis",
+		"report": "Signaler ce problème",
+		"title": "Aidez-nous à améliorer EzImageAI",
+		"rewardPolicy": "Les suggestions et signalements de bugs retenus peuvent recevoir 100 à 1 000 crédits. Notre équipe examine chaque proposition, fixe le montant et attribue les crédits manuellement après acceptation.",
+		"noAutomaticReward": "Ouvrir ce formulaire ou envoyer un e-mail ne donne aucun crédit. Les signalements en double ou déjà connus peuvent ne pas être admissibles.",
+		"kind": "Type de retour",
+		"idea": "Suggestion",
+		"bug": "Signalement de bug",
+		"accountEmail": "E-mail du compte EzImageAI (facultatif)",
+		"emailPlaceholder": "Compte à créditer si votre retour est retenu",
+		"description": "Votre retour",
+		"descriptionPlaceholder": "Que s’est-il passé, qu’attendiez-vous ou que souhaitez-vous améliorer ?",
+		"screenshots": "Si utile, joignez une capture expurgée depuis votre application de messagerie. Masquez d’abord les informations privées.",
+		"privacy": "Seul le texte saisi ici est inclus dans le brouillon. Aucune instruction, image, donnée de paiement ou information d’erreur n’est ajoutée automatiquement. Vérifiez l’e-mail avant l’envoi.",
+		"preview": "Voir le brouillon de l’e-mail",
+		"recipient": "À",
+		"openEmail": "Ouvrir le brouillon",
+		"copy": "Copier l’adresse e-mail",
+		"copied": "Adresse e-mail copiée.",
+		"copyFailed": "Copie indisponible. Sélectionnez l’adresse ci-dessus et copiez-la manuellement.",
+		"emailFallback": "Pas d’application de messagerie ? Copiez cette adresse et envoyez votre retour depuis votre service habituel.",
+		"subjectIdea": "EzImageAI : suggestion",
+		"subjectBug": "EzImageAI : signalement de bug",
+		"close": "Fermer le formulaire"
+	}
+}

@@ -1,6 +1,16 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-10-20",
+		title: "Faster pages and workspace switching",
+		changes: [
+			"Start editing as soon as the selected input mode is ready. An availability check that fails can be retried without reloading the page.",
+			"Video loads less data on its first visit and keeps Image and Video controls available while loading. Switching modes preserves your drafts and ongoing work.",
+			"History, assets and account panels load separately, with visible progress and retry controls. Long edit histories load previews as you reach them.",
+			"Sign-in and payment actions show clearer progress. Pending purchases stay on the same order, and confirmed support replies appear immediately.",
+		],
+	},
+	{
+		date: "2026-10-20",
 		title: "Track a support conversation in your account",
 		changes: [
 			"Create a private support ticket and follow replies and status in Support.",

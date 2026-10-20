@@ -2,7 +2,12 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ useEditSession: vi.fn(), useQuery: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+	useEditSession: vi.fn(),
+	useQuery: vi.fn(),
+	nearViewport: true,
+	visible: true,
+}));
 
 vi.mock("@repo/ui/components/badge", () => ({
 	Badge: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
@@ -51,11 +56,18 @@ vi.mock("next/link", () => ({
 	),
 }));
 vi.mock("../../hooks/use-edit-session", () => ({ useEditSession: mocks.useEditSession }));
+vi.mock("../../hooks/use-near-viewport", () => ({
+	useNearViewport: () => ({ ref: { current: null }, nearViewport: mocks.nearViewport }),
+}));
+vi.mock("../../hooks/use-page-visible", () => ({ usePageVisible: () => mocks.visible }));
 
 import { EditVersionTimeline } from "./EditVersionTimeline";
 
 describe("EditVersionTimeline", () => {
 	beforeEach(() => {
+		vi.clearAllMocks();
+		mocks.nearViewport = true;
+		mocks.visible = true;
 		mocks.useQuery.mockReturnValue({
 			data: { url: "https://private.invalid/short-lived" },
 			isError: false,
@@ -142,6 +154,22 @@ describe("EditVersionTimeline", () => {
 		expect(markup).not.toContain("parentJob=job-branch-failed");
 		expect(markup).not.toContain("parentJob=job-legacy");
 		expect(markup).toContain('src="https://private.invalid/short-lived"');
+		expect(markup).toContain('loading="lazy"');
+		expect(markup).toContain('decoding="async"');
 		expect(visible).not.toMatch(/provider|video|text-to-image|cost|kie|image-quality/i);
+	});
+
+	it.each([
+		{ nearViewport: false, visible: true },
+		{ nearViewport: true, visible: false },
+	])("does not authorize offscreen or hidden thumbnails: %o", (visibility) => {
+		Object.assign(mocks, visibility);
+		mocks.useQuery.mockReturnValue({ isPending: true, isError: false });
+		const markup = renderToStaticMarkup(<EditVersionTimeline sessionId="session-1" />);
+		expect(mocks.useQuery).toHaveBeenCalled();
+		for (const [options] of mocks.useQuery.mock.calls) expect(options.enabled).toBe(false);
+		expect(markup).not.toContain("<img");
+		expect(markup).not.toContain("Output unavailable");
+		expect(markup).toContain('aria-busy="true"');
 	});
 });

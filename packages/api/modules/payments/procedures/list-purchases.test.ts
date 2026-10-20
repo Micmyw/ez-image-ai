@@ -95,11 +95,101 @@ const organizationMembership = {
 	},
 } satisfies NonNullable<Awaited<ReturnType<typeof getOrganizationMembership>>>;
 
+function deferred<T>() {
+	let resolve!: (value: T) => void;
+	let reject!: (error: Error) => void;
+	const promise = new Promise<T>((done, fail) => {
+		resolve = done;
+		reject = fail;
+	});
+	return { promise, resolve, reject };
+}
+
 describe("listPurchases", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(findEffectivePaidSubscription).mockResolvedValue(null);
 		vi.mocked(auth.api.getSession).mockResolvedValue(authenticatedSession);
+	});
+
+	it("starts independent personal purchase and subscription reads together", async () => {
+		const purchases = deferred<Awaited<ReturnType<typeof getPurchasesByUserId>>>();
+		const effective = deferred<Awaited<ReturnType<typeof findEffectivePaidSubscription>>>();
+		vi.mocked(getPurchasesByUserId).mockReturnValueOnce(purchases.promise);
+		vi.mocked(findEffectivePaidSubscription).mockReturnValueOnce(effective.promise);
+		const pending = call(listPurchases, {}, { context: { headers: new Headers() } });
+
+		await vi.waitFor(() => {
+			expect(getPurchasesByUserId).toHaveBeenCalledWith("user-1");
+			expect(findEffectivePaidSubscription).toHaveBeenCalledWith(
+				{ ownerType: "USER", ownerId: "user-1" },
+				expect.anything(),
+			);
+		});
+		purchases.resolve([]);
+		effective.resolve(null);
+		await expect(pending).resolves.toEqual([]);
+	});
+
+	it("waits for organization membership before starting either parallel read", async () => {
+		const membership = deferred<Awaited<ReturnType<typeof getOrganizationMembership>>>();
+		const purchases = deferred<Awaited<ReturnType<typeof getPurchasesByOrganizationId>>>();
+		const effective = deferred<Awaited<ReturnType<typeof findEffectivePaidSubscription>>>();
+		vi.mocked(getOrganizationMembership).mockReturnValueOnce(membership.promise);
+		vi.mocked(getPurchasesByOrganizationId).mockReturnValueOnce(purchases.promise);
+		vi.mocked(findEffectivePaidSubscription).mockReturnValueOnce(effective.promise);
+		const pending = call(
+			listPurchases,
+			{ organizationId: "organization-1" },
+			{ context: { headers: new Headers() } },
+		);
+
+		await vi.waitFor(() => expect(getOrganizationMembership).toHaveBeenCalled());
+		expect(getPurchasesByOrganizationId).not.toHaveBeenCalled();
+		expect(findEffectivePaidSubscription).not.toHaveBeenCalled();
+		membership.resolve(organizationMembership);
+		await vi.waitFor(() => {
+			expect(getPurchasesByOrganizationId).toHaveBeenCalledWith("organization-1");
+			expect(findEffectivePaidSubscription).toHaveBeenCalledWith(
+				{ ownerType: "ORGANIZATION", ownerId: "organization-1" },
+				expect.anything(),
+			);
+		});
+		purchases.resolve([]);
+		effective.resolve(null);
+		await expect(pending).resolves.toEqual([]);
+	});
+
+	it.each(["purchases", "effective subscription"])(
+		"does not return partial billing data when the %s read fails",
+		async (failedRead) => {
+			const purchases = deferred<Awaited<ReturnType<typeof getPurchasesByUserId>>>();
+			const effective = deferred<Awaited<ReturnType<typeof findEffectivePaidSubscription>>>();
+			vi.mocked(getPurchasesByUserId).mockReturnValueOnce(purchases.promise);
+			vi.mocked(findEffectivePaidSubscription).mockReturnValueOnce(effective.promise);
+			const pending = call(listPurchases, {}, { context: { headers: new Headers() } });
+			const failure = new Error("billing read unavailable");
+			const assertion = expect(pending).rejects.toThrow("billing read unavailable");
+			await vi.waitFor(() => expect(findEffectivePaidSubscription).toHaveBeenCalled());
+			if (failedRead === "purchases") {
+				purchases.reject(failure);
+				effective.resolve(null);
+			} else {
+				purchases.resolve([]);
+				effective.reject(failure);
+			}
+			await assertion;
+		},
+	);
+
+	it("rejects unauthenticated requests before reading purchases or subscriptions", async () => {
+		vi.mocked(auth.api.getSession).mockResolvedValueOnce(null);
+		await expect(
+			call(listPurchases, {}, { context: { headers: new Headers() } }),
+		).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+		expect(getPurchasesByUserId).not.toHaveBeenCalled();
+		expect(getPurchasesByOrganizationId).not.toHaveBeenCalled();
+		expect(findEffectivePaidSubscription).not.toHaveBeenCalled();
 	});
 
 	it("returns an image-pass purchase without promoting it to subscription entitlements", async () => {
@@ -239,6 +329,7 @@ describe("listPurchases", () => {
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 
 		expect(getPurchasesByOrganizationId).not.toHaveBeenCalled();
+		expect(findEffectivePaidSubscription).not.toHaveBeenCalled();
 	});
 
 	it("allows organization members to list their organization's purchases", async () => {

@@ -59,7 +59,68 @@ const include = {
 	},
 } satisfies Prisma.GenerationJobInclude;
 type VideoJob = Prisma.GenerationJobGetPayload<{ include: typeof include }>;
-type VideoAsset = VideoJob["assets"][number]["asset"];
+/** The same current evidence is required for history hints and private playback. */
+export const videoPlaybackSelect = {
+	id: true,
+	ownerType: true,
+	ownerId: true,
+	executionEngine: true,
+	status: true,
+	inputSnapshot: true,
+	videoExecution: { select: { stage: true, stageData: true } },
+	reservation: { select: { status: true } },
+	assets: {
+		where: { role: "OUTPUT" },
+		select: {
+			asset: {
+				select: {
+					id: true,
+					ownerType: true,
+					ownerId: true,
+					status: true,
+					kind: true,
+					objectKey: true,
+					mimeType: true,
+					byteSize: true,
+					durationMillis: true,
+					checksum: true,
+					storageEtag: true,
+					deletedAt: true,
+					deleteAfter: true,
+					verificationEngine: true,
+					verificationProvider: true,
+					verificationRuleVersion: true,
+					verificationPolicyVersion: true,
+					verificationProviderTaskId: true,
+					verificationValidUntil: true,
+					verificationGeneration: true,
+					verificationAttemptCount: true,
+					moderationResults: {
+						orderBy: [{ verificationGeneration: "desc" }, { attemptNumber: "desc" }],
+						take: 1,
+						select: {
+							evidenceKind: true,
+							status: true,
+							assetChecksum: true,
+							provider: true,
+							providerTaskId: true,
+							verificationGeneration: true,
+							attemptNumber: true,
+							ruleVersion: true,
+							policyVersion: true,
+							validUntil: true,
+							rawEnvelope: true,
+						},
+					},
+				},
+			},
+		},
+	},
+} satisfies Prisma.GenerationJobSelect;
+export type VideoPlaybackSnapshot = Prisma.GenerationJobGetPayload<{
+	select: typeof videoPlaybackSelect;
+}>;
+type VideoApprovalAsset = VideoPlaybackSnapshot["assets"][number]["asset"];
 function json(value: unknown): Prisma.InputJsonObject {
 	return value && typeof value === "object" && !Array.isArray(value)
 		? (value as Prisma.InputJsonObject)
@@ -693,7 +754,10 @@ export async function recordVideoOutputReview(input: {
 	});
 }
 
-function matchingVisualIdentity(asset: VideoAsset, profile: VideoVisualSafetyProfile): boolean {
+function matchingVisualIdentity(
+	asset: VideoApprovalAsset,
+	profile: VideoVisualSafetyProfile,
+): boolean {
 	return (
 		asset.verificationProvider === profile.provider &&
 		asset.verificationRuleVersion === profile.ruleVersion &&
@@ -703,7 +767,7 @@ function matchingVisualIdentity(asset: VideoAsset, profile: VideoVisualSafetyPro
 
 /** Authenticated sampled-frame results retain their provider-specific scope. */
 function matchingVisualApproval(
-	asset: VideoAsset,
+	asset: VideoApprovalAsset,
 	profile: VideoVisualSafetyProfile,
 	evidence: Prisma.InputJsonObject,
 ): boolean {
@@ -759,7 +823,7 @@ function matchingVisualApproval(
 }
 
 function matchingAudioApproval(
-	asset: VideoAsset,
+	asset: VideoApprovalAsset,
 	spec: Prisma.InputJsonObject,
 	evidence: Prisma.InputJsonObject,
 ): boolean {
@@ -782,7 +846,7 @@ function matchingAudioApproval(
 }
 
 export function hasVideoApproval(
-	asset: VideoAsset,
+	asset: VideoApprovalAsset,
 	now = new Date(),
 	spec?: Prisma.InputJsonObject,
 	profile: VideoVisualSafetyProfile = createVideoVisualSafetyProfile("sightengine", 5),
@@ -966,19 +1030,24 @@ export async function failVideoDelivery(jobId: string, reasonCode: string, rejec
 	});
 }
 
-/** Null means unavailable; never reveal another owner's task or asset. */
-export async function authorizeVideoPlayback(userId: string, jobId: string) {
-	const job = await getDatabaseClient().generationJob.findFirst({
-		where: {
-			id: jobId,
-			ownerType: "USER",
-			ownerId: userId,
-			executionEngine: ENGINE,
-			status: "SUCCEEDED",
-		},
-		include,
-	});
-	if (!job || job.videoExecution?.stage !== "READY" || job.reservation?.status !== "SETTLED")
+/**
+ * Evaluate a request-local database projection, never a client-supplied or cached record.
+ * History can reuse its evidence read; issuing and serving playback still read current state.
+ */
+export function authorizeVideoPlaybackSnapshot(
+	userId: string,
+	job: VideoPlaybackSnapshot | null,
+	now = new Date(),
+) {
+	if (
+		!job ||
+		job.ownerType !== "USER" ||
+		job.ownerId !== userId ||
+		job.executionEngine !== ENGINE ||
+		job.status !== "SUCCEEDED" ||
+		job.videoExecution?.stage !== "READY" ||
+		job.reservation?.status !== "SETTLED"
+	)
 		return null;
 	const asset = job.assets[0]?.asset;
 	if (
@@ -989,7 +1058,7 @@ export async function authorizeVideoPlayback(userId: string, jobId: string) {
 		asset.ownerId !== userId ||
 		!hasVideoApproval(
 			asset,
-			new Date(),
+			now,
 			json(json(job.videoExecution.stageData).outputSpec),
 			readVideoVisualSafetyProfile(job.inputSnapshot),
 			readVideoAudioSafetyPolicy(job.inputSnapshot),
@@ -997,4 +1066,19 @@ export async function authorizeVideoPlayback(userId: string, jobId: string) {
 	)
 		return null;
 	return asset;
+}
+
+/** Null means unavailable; never reveal another owner's task or asset. */
+export async function authorizeVideoPlayback(userId: string, jobId: string) {
+	const job = await getDatabaseClient().generationJob.findFirst({
+		where: {
+			id: jobId,
+			ownerType: "USER",
+			ownerId: userId,
+			executionEngine: ENGINE,
+			status: "SUCCEEDED",
+		},
+		select: videoPlaybackSelect,
+	});
+	return authorizeVideoPlaybackSnapshot(userId, job);
 }

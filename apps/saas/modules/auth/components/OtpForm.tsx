@@ -1,9 +1,9 @@
 "use client";
 
 import { useAuthErrorMessages } from "@auth/hooks/errors-messages";
+import { loadAuthClient, preloadAuthClient } from "@auth/lib/auth-client";
 import { config } from "@config";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { authClient } from "@repo/auth/client";
 import { Alert, AlertTitle } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import {
@@ -26,6 +26,7 @@ import { AlertTriangleIcon, ArrowLeftIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
+import { type BaseSyntheticEvent, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
@@ -38,6 +39,7 @@ export function OtpForm() {
 	const router = useRouter();
 	const { getAuthErrorMessage } = useAuthErrorMessages();
 	const searchParams = useSearchParams();
+	const submissionInFlight = useRef(false);
 
 	const invitationId = searchParams.get("invitationId");
 	const redirectTo = searchParams.get("redirectTo");
@@ -53,8 +55,9 @@ export function OtpForm() {
 		},
 	});
 
-	const onSubmit = form.handleSubmit(async ({ code }) => {
+	const submitForm = form.handleSubmit(async ({ code }) => {
 		try {
+			const authClient = await loadAuthClient();
 			const { error } = await authClient.twoFactor.verifyTotp({
 				code,
 			});
@@ -73,13 +76,30 @@ export function OtpForm() {
 		}
 	});
 
+	const onSubmit = async (event?: BaseSyntheticEvent) => {
+		event?.preventDefault();
+		if (submissionInFlight.current) return;
+		submissionInFlight.current = true;
+		try {
+			await submitForm(event);
+		} finally {
+			submissionInFlight.current = false;
+		}
+	};
+
 	return (
 		<>
 			<h1 className="font-bold text-xl md:text-2xl">{t("auth.verify.title")}</h1>
 			<p className="mt-1 mb-4 text-foreground/60">{t("auth.verify.message")}</p>
 
 			<Form {...form}>
-				<form className="gap-4 flex flex-col items-stretch" onSubmit={onSubmit}>
+				<form
+					className="gap-4 flex flex-col items-stretch"
+					onSubmit={onSubmit}
+					onFocusCapture={preloadAuthClient}
+					onPointerEnter={preloadAuthClient}
+					aria-busy={form.formState.isSubmitting}
+				>
 					{form.formState.errors.root && (
 						<Alert variant="error">
 							<AlertTriangleIcon />
@@ -98,9 +118,10 @@ export function OtpForm() {
 										maxLength={6}
 										{...field}
 										autoComplete="one-time-code"
+										disabled={form.formState.isSubmitting}
 										onChange={(value) => {
 											field.onChange(value);
-											void onSubmit();
+											if (value.length === 6) void onSubmit();
 										}}
 									>
 										<InputOTPGroup>

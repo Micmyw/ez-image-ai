@@ -11,10 +11,12 @@ const mocks = vi.hoisted(() => ({
 	visible: true,
 	useInfiniteQuery: vi.fn(),
 	list: vi.fn(),
+	poll: vi.fn(),
 	link: vi.fn(),
 }));
 vi.mock("@auth/hooks/use-session", () => ({ useSession: () => ({ user: mocks.user }) }));
 vi.mock("@tanstack/react-query", () => ({ useInfiniteQuery: mocks.useInfiniteQuery }));
+vi.mock("@media/hooks/use-active-history-polling", () => ({ useActiveHistoryPolling: mocks.poll }));
 vi.mock("../lib/api", () => ({ videoEffectsApi: { jobs: { list: mocks.list } } }));
 vi.mock("../../video-v1/use-video", () => ({ usePageVisible: () => mocks.visible }));
 vi.mock("next/link", () => ({
@@ -64,10 +66,6 @@ function render(family?: "hotel-lobby" | "raindance" | "rumpelstiltskin") {
 function queryOptions() {
 	return mocks.useInfiniteQuery.mock.calls.at(-1)![0];
 }
-function queryWith(items: VideoEffectState[]) {
-	return { state: { data: { pages: [{ items, nextCursor: null }] } } };
-}
-
 beforeEach(() => {
 	vi.clearAllMocks();
 	mocks.user = { id: "owner-a" };
@@ -106,10 +104,10 @@ describe("Hotel Lobby owned task history", () => {
 			result(queryKey[2] === "owner-a" ? [item()] : []),
 		);
 		expect(render()).toContain("owner-a-job");
-		expect(queryOptions().queryKey).toEqual(["video-effects", "history", "owner-a"]);
+		expect(queryOptions().queryKey).toEqual(["video-effects", "history", "owner-a", "hotel-lobby"]);
 		mocks.user = { id: "owner-b" };
 		expect(render()).not.toContain("owner-a-job");
-		expect(queryOptions().queryKey).toEqual(["video-effects", "history", "owner-b"]);
+		expect(queryOptions().queryKey).toEqual(["video-effects", "history", "owner-b", "hotel-lobby"]);
 	});
 	it("paginates the template-only endpoint with twenty orders per page", async () => {
 		render();
@@ -117,7 +115,10 @@ describe("Hotel Lobby owned task history", () => {
 		expect(options.initialPageParam).toBeNull();
 		await options.queryFn({ pageParam: null });
 		await options.queryFn({ pageParam: "next-page" });
-		expect(mocks.list.mock.calls).toEqual([[{ limit: 20 }], [{ limit: 20, cursor: "next-page" }]]);
+		expect(mocks.list.mock.calls).toEqual([
+			[{ limit: 20, templateFamily: "hotel-lobby" }, { signal: undefined }],
+			[{ limit: 20, templateFamily: "hotel-lobby", cursor: "next-page" }, { signal: undefined }],
+		]);
 		expect(options.getNextPageParam({ nextCursor: "next-page" })).toBe("next-page");
 		expect(options.getNextPageParam({ nextCursor: null })).toBeUndefined();
 	});
@@ -148,23 +149,25 @@ describe("Hotel Lobby owned task history", () => {
 	});
 	it("polls only a visible page with unfinished orders", () => {
 		render();
-		const options = queryOptions();
-		expect(options.refetchInterval(queryWith([item()]))).toBe(2500);
-		expect(options.refetchInterval(queryWith([]))).toBe(false);
-		expect(options.refetchInterval({ state: {} })).toBe(false);
-		expect(
-			options.refetchInterval(
-				queryWith([
-					item({ stage: "READY" }),
-					item({ stage: "FAILED" }),
-					item({ stage: "NEEDS_REVIEW" }),
-				]),
-			),
-		).toBe(false);
-		expect(options.refetchIntervalInBackground).toBe(false);
+		const options = mocks.poll.mock.calls.at(-1)![0];
+		expect(queryOptions()).not.toHaveProperty("refetchInterval");
+		expect(options.interval).toBe(2500);
+		expect(options.enabled).toBe(true);
+		expect(options.isActive(item())).toBe(true);
+		for (const stage of ["READY", "FAILED", "NEEDS_REVIEW"] as const)
+			expect(options.isActive(item({ stage }))).toBe(false);
 		mocks.visible = false;
 		render();
-		expect(queryOptions().refetchInterval(queryWith([item()]))).toBe(false);
+		expect(mocks.poll.mock.calls.at(-1)![0].enabled).toBe(false);
+	});
+	it("requests and caches each template family separately before pagination", async () => {
+		render("raindance");
+		expect(queryOptions().queryKey).toEqual(["video-effects", "history", "owner-a", "raindance"]);
+		await queryOptions().queryFn({ pageParam: null });
+		expect(mocks.list).toHaveBeenLastCalledWith(
+			{ limit: 20, templateFamily: "raindance" },
+			{ signal: undefined },
+		);
 	});
 	it("renders empty, loading and recoverable error states", () => {
 		expect(render()).toContain(en.videoEffects.emptyHistory);

@@ -3,6 +3,7 @@
 import { useSession } from "@auth/hooks/use-session";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { authClient } from "@repo/auth/client";
+import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import {
 	Form,
@@ -16,7 +17,7 @@ import { Input } from "@repo/ui/components/input";
 import { UserAvatarUpload } from "@settings/components/UserAvatarUpload";
 import { ArrowRightIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect } from "react";
+import { type BaseSyntheticEvent, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -24,9 +25,10 @@ const formSchema = z.object({
 	name: z.string(),
 });
 
-export function OnboardingAccountStep({ onCompleted }: { onCompleted: () => void }) {
+export function OnboardingAccountStep({ onCompleted }: { onCompleted: () => Promise<void> }) {
 	const t = useTranslations();
 	const { user } = useSession();
+	const submissionInFlight = useRef(false);
 	const form = useForm({
 		resolver: zodResolver(formSchema),
 		defaultValues: {
@@ -40,15 +42,16 @@ export function OnboardingAccountStep({ onCompleted }: { onCompleted: () => void
 		}
 	}, [user]); // oxlint-disable-line eslint-plugin-react-hooks/exhaustive-deps
 
-	const onSubmit = form.handleSubmit(async ({ name }) => {
+	const submitForm = form.handleSubmit(async ({ name }) => {
 		form.clearErrors("root");
 
 		try {
-			await authClient.updateUser({
+			const { error } = await authClient.updateUser({
 				name,
 			});
+			if (error) throw error;
 
-			onCompleted();
+			await onCompleted();
 		} catch {
 			form.setError("root", {
 				type: "server",
@@ -57,10 +60,30 @@ export function OnboardingAccountStep({ onCompleted }: { onCompleted: () => void
 		}
 	});
 
+	const onSubmit = async (event?: BaseSyntheticEvent) => {
+		event?.preventDefault();
+		if (submissionInFlight.current) return;
+		submissionInFlight.current = true;
+		try {
+			await submitForm(event);
+		} finally {
+			submissionInFlight.current = false;
+		}
+	};
+
 	return (
 		<div>
 			<Form {...form}>
-				<form className="gap-8 flex flex-col items-stretch" onSubmit={onSubmit}>
+				<form
+					className="gap-8 flex flex-col items-stretch"
+					onSubmit={onSubmit}
+					aria-busy={form.formState.isSubmitting}
+				>
+					{form.formState.errors.root?.message && (
+						<Alert variant="error">
+							<AlertDescription>{form.formState.errors.root.message}</AlertDescription>
+						</Alert>
+					)}
 					<FormField
 						control={form.control}
 						name="name"

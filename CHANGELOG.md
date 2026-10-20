@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-20 — Faster pages, workspace panels and account interactions
+
+- Let text editing and reference-image editing become ready independently, with bounded availability checks and an explicit retry after failure.
+- Load only video translations when opening Video, prepare its code on tab hover or keyboard focus, and keep mode controls available during loading. Preserve each mode's draft, running work and keyboard focus.
+- Reduce repeated model-menu work while typing, start independent account reads together, and defer private settings text and below-fold Photo Idea images.
+- Load history, assets and each account panel separately, with current-language messages, loading feedback and an explicit retry. Keep the editor available when a panel is slow.
+- Load private edit thumbnails near the viewport, refresh only active jobs across loaded history pages, and pause hidden workspace/status reads. Filter video-template history before pagination.
+- Keep public tool content available while the session loads; defer offscreen mobile coloring examples and prepare model navigation on intent.
+- Defer sign-in and credit-pack checkout code until needed, preserve static pricing content, and reduce repeated account/payment reads. Keep pending payments on the same order while lowering prolonged status polling.
+- Show confirmed support messages immediately and keep account/organization caches separate.
+
 ## 2026-10-20 — Administrative operations and support
 
 - Add real business overviews, registration cohorts, period reports and acquisition filters, with currency-separated revenue and explicit unknown historical evidence.

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@auth/hooks/use-session";
+import { schedulePrivatePlaybackRefresh } from "@media/lib/private-playback-refresh";
 import { useQuery } from "@tanstack/react-query";
 import { DownloadIcon, FilmIcon, RefreshCwIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -94,34 +95,29 @@ export function VideoEffectJob({ jobId }: { jobId: string }) {
 function PrivateEffectVideo({ state }: { state: VideoEffectState }) {
 	const t = useTranslations("videoEffects");
 	const { user } = useSession();
+	const visible = usePageVisible();
 	const video = useRef<HTMLVideoElement>(null);
 	const position = useRef(0);
 	const [failed, setFailed] = useState(false);
 	const [downloading, setDownloading] = useState(false);
 	const playback = useQuery({
 		queryKey: ["video-effects", "playback", user?.id, state.jobId],
-		queryFn: () => videoEffectsApi.jobs.playback({ jobId: state.jobId }),
+		queryFn: ({ signal }) => videoEffectsApi.jobs.playback({ jobId: state.jobId }, { signal }),
+		enabled: visible && Boolean(user && !user.isAnonymous),
 		retry: false,
 		gcTime: 0,
 		staleTime: 0,
 	});
 	const { data, refetch } = playback;
 	useEffect(() => {
-		if (!data) return;
-		const delay = Date.parse(data.expiresAt) - Date.now();
-		if (delay <= 0) {
-			setFailed(true);
-			return;
-		}
-		const timer = setTimeout(
-			() => {
-				position.current = video.current?.currentTime ?? 0;
-				void refetch();
-			},
-			Math.min(delay, 2_147_483_647),
-		);
-		return () => clearTimeout(timer);
-	}, [data, refetch]);
+		return schedulePrivatePlaybackRefresh(data?.expiresAt, visible, () => {
+			position.current = video.current?.currentTime ?? 0;
+			// Re-enabling the query may already be renewing an expired grant.
+			void refetch({ cancelRefetch: false }).then((result) => {
+				if (!result.isError) setFailed(false);
+			});
+		});
+	}, [data?.expiresAt, refetch, visible]);
 	async function download() {
 		setDownloading(true);
 		try {
@@ -145,6 +141,7 @@ function PrivateEffectVideo({ state }: { state: VideoEffectState }) {
 	}
 	return (
 		<div className="ve-private-video">
+			{playback.isPending && <output>{t("loading")}</output>}
 			{data && !failed && !playback.isError && (
 				<video
 					ref={video}

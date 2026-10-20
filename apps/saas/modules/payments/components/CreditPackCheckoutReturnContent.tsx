@@ -11,6 +11,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { consumeVideoEffectPaymentReturn } from "../../video-effects/lib/payment-return";
+import { useCheckoutStatePolling } from "../hooks/use-checkout-state-polling";
+import { subscribeToCheckoutForeground } from "../lib/checkout-state-polling";
 import { clearCreditPackCheckoutContext } from "../lib/credit-pack-checkout-context";
 import { getCreditPackCheckoutDestination } from "./checkout-attempt";
 
@@ -53,16 +55,12 @@ export function CreditPackCheckoutReturnContent({
 		};
 	}, []);
 	const capture = useMutation(orpc.payments.capturePayPalCreditPackCheckout.mutationOptions());
+	const polling = useCheckoutStatePolling(scope, 1_500);
 	const checkoutState = useQuery({
 		...orpc.payments.getCreditPackCheckoutState.queryOptions({ input: { intentId } }),
 		queryKey: ["credit-pack-checkout", ownerId, organizationId, intentId],
 		enabled: Boolean(ownerId && !session.isPending),
-		refetchInterval: (query) =>
-			query.state.status === "error"
-				? false
-				: !query.state.data || query.state.data.status === "PENDING"
-					? 1_500
-					: false,
+		refetchInterval: polling.refetchInterval,
 	});
 	const status = checkoutState.data?.status;
 	const details =
@@ -92,6 +90,7 @@ export function CreditPackCheckoutReturnContent({
 			if (!mounted.current || currentKey.current !== key) return;
 			captured.current = key;
 			setAcceptedKey(key);
+			polling.restart();
 			await checkoutState.refetch();
 		} catch {
 			if (mounted.current && currentKey.current === key && captured.current !== key)
@@ -136,15 +135,13 @@ export function CreditPackCheckoutReturnContent({
 	const refreshState = checkoutState.refetch;
 	useEffect(() => {
 		const refresh = () => {
-			if (ownerId) void refreshState();
+			if (ownerId) {
+				polling.restart();
+				void refreshState();
+			}
 		};
-		window.addEventListener("pageshow", refresh);
-		window.addEventListener("focus", refresh);
-		return () => {
-			window.removeEventListener("pageshow", refresh);
-			window.removeEventListener("focus", refresh);
-		};
-	}, [ownerId, organizationId, intentId, refreshState]);
+		return subscribeToCheckoutForeground(refresh);
+	}, [ownerId, organizationId, intentId, refreshState, polling]);
 	const waitingConfirmation = mayCapture && !approved && !accepted && !captureFailed;
 	const message = completed
 		? t("completed")
@@ -195,7 +192,10 @@ export function CreditPackCheckoutReturnContent({
 					<button
 						type="button"
 						data-testid="credit-pack-check-status"
-						onClick={() => void checkoutState.refetch()}
+						onClick={() => {
+							polling.restart();
+							void checkoutState.refetch();
+						}}
 						className="min-h-10 px-4 text-sm rounded-lg border"
 					>
 						{t("checkStatus")}

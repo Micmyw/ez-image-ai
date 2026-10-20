@@ -2,6 +2,7 @@
 
 import { useSession } from "@auth/hooks/use-session";
 import { useGenerationMode } from "@media/lib/generation-mode-context";
+import { schedulePrivatePlaybackRefresh } from "@media/lib/private-playback-refresh";
 import { Button } from "@repo/ui/components/button";
 import { useQuery } from "@tanstack/react-query";
 import { DownloadIcon, RefreshCwIcon } from "lucide-react";
@@ -31,28 +32,20 @@ function PrivateVideo({ jobId }: { jobId: string }) {
 	const access = useQuery({
 		queryKey: ["video-v1", "playback", user?.id, jobId],
 		queryFn: () => videoApi.jobs.playback({ jobId }),
-		enabled: Boolean(user && !user.isAnonymous),
+		enabled: Boolean(user && !user.isAnonymous) && visible,
 		retry: false,
 		gcTime: 0,
 		staleTime: 0,
 	});
 	const { data: authorization, refetch } = access;
 	useEffect(() => {
-		if (!authorization || !visible) return;
-		const remaining = Date.parse(authorization.expiresAt) - Date.now();
-		if (remaining <= 0) {
-			setPlaybackFailed(true);
-			return;
-		}
-		const timer = setTimeout(
-			() => {
-				position.current = video.current?.currentTime ?? 0;
-				void refetch();
-			},
-			Math.min(remaining, 2_147_483_647),
-		);
-		return () => clearTimeout(timer);
-	}, [authorization, refetch, visible]);
+		return schedulePrivatePlaybackRefresh(authorization?.expiresAt, visible, () => {
+			position.current = video.current?.currentTime ?? 0;
+			void refetch({ cancelRefetch: false }).then((result) => {
+				if (!result.isError) setPlaybackFailed(false);
+			});
+		});
+	}, [authorization?.expiresAt, refetch, visible]);
 	async function refreshAccess() {
 		position.current = video.current?.currentTime ?? 0;
 		setPlaybackFailed(false);

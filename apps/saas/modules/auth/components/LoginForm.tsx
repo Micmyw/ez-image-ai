@@ -2,10 +2,10 @@
 
 import { useAuthErrorMessages } from "@auth/hooks/errors-messages";
 import { sessionQueryKey } from "@auth/lib/api";
+import { loadAuthClient, preloadAuthClient } from "@auth/lib/auth-client";
 import { config } from "@config";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { OrganizationInvitationAlert } from "@organizations/components/OrganizationInvitationAlert";
-import { authClient } from "@repo/auth/client";
 import { config as authConfig } from "@repo/auth/config";
 import { Alert, AlertDescription, AlertTitle } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
@@ -26,7 +26,7 @@ import {
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { type BaseSyntheticEvent, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { withQuery } from "ufo";
 import { z } from "zod";
@@ -58,6 +58,8 @@ export function LoginForm() {
 
 	const [showPassword, setShowPassword] = useState(false);
 	const [hydrated, setHydrated] = useState(false);
+	const [isPasskeyPending, setIsPasskeyPending] = useState(false);
+	const submissionInFlight = useRef(false);
 	useEffect(() => setHydrated(true), []);
 	const invitationId = searchParams.get("invitationId");
 	const email = searchParams.get("email");
@@ -82,8 +84,9 @@ export function LoginForm() {
 		}
 	}, [user, sessionLoaded]); // oxlint-disable-line eslint-plugin-react-hooks/exhaustive-deps
 
-	const onSubmit = form.handleSubmit(async (values) => {
+	const submitForm = form.handleSubmit(async (values) => {
 		try {
+			const authClient = await loadAuthClient();
 			if (values.mode === "password") {
 				const { data, error } = await authClient.signIn.email({
 					...values,
@@ -122,9 +125,29 @@ export function LoginForm() {
 		}
 	});
 
-	const signInWithPasskey = async () => {
+	const onSubmit = async (event?: BaseSyntheticEvent) => {
+		event?.preventDefault();
+		if (submissionInFlight.current) return;
+		submissionInFlight.current = true;
 		try {
-			await authClient.signIn.passkey();
+			await submitForm(event);
+		} finally {
+			submissionInFlight.current = false;
+		}
+	};
+
+	const signInWithPasskey = async () => {
+		if (submissionInFlight.current) return;
+		submissionInFlight.current = true;
+		setIsPasskeyPending(true);
+		form.clearErrors("root");
+		try {
+			const authClient = await loadAuthClient();
+			const { error } = await authClient.signIn.passkey();
+
+			if (error) {
+				throw error;
+			}
 
 			router.replace(redirectPath);
 		} catch (e) {
@@ -133,10 +156,14 @@ export function LoginForm() {
 					e && typeof e === "object" && "code" in e ? (e.code as string) : undefined,
 				),
 			});
+		} finally {
+			submissionInFlight.current = false;
+			setIsPasskeyPending(false);
 		}
 	};
 
 	const signinMode = form.watch("mode");
+	const isSigningIn = form.formState.isSubmitting || isPasskeyPending;
 
 	return (
 		<div data-auth-form="login">
@@ -162,16 +189,27 @@ export function LoginForm() {
 					{invitationId && <OrganizationInvitationAlert className="mb-6" />}
 
 					<Form {...form}>
-						<form className="space-y-4" method="post" onSubmit={onSubmit}>
+						<form
+							className="space-y-4"
+							method="post"
+							onSubmit={onSubmit}
+							onFocusCapture={preloadAuthClient}
+							onPointerEnter={preloadAuthClient}
+							aria-busy={isSigningIn}
+						>
 							{authConfig.enableMagicLink && authConfig.enablePasswordLogin && (
 								<LoginModeSwitch
 									activeMode={signinMode}
-									onChange={(mode) => form.setValue("mode", mode as typeof signinMode)}
+									onChange={(mode) => {
+										if (!submissionInFlight.current) {
+											form.setValue("mode", mode as typeof signinMode);
+										}
+									}}
 									variant="auth"
 								/>
 							)}
 
-							{form.formState.isSubmitted && form.formState.errors.root?.message && (
+							{form.formState.errors.root?.message && (
 								<Alert variant="error">
 									<AlertTriangleIcon />
 									<AlertTitle>{form.formState.errors.root.message}</AlertTitle>
@@ -188,7 +226,7 @@ export function LoginForm() {
 											<Input
 												{...field}
 												autoComplete="email"
-												disabled={!hydrated || form.formState.isSubmitting}
+												disabled={!hydrated || isSigningIn}
 												className="h-12 border-white/10 px-4 text-white rounded-xl bg-[#171020] shadow-none focus-visible:border-[#b79cff] focus-visible:ring-[#b79cff]/35 aria-invalid:border-destructive aria-invalid:ring-destructive/25"
 											/>
 										</FormControl>
@@ -210,7 +248,7 @@ export function LoginForm() {
 														className="h-12 border-white/10 px-4 pr-12 text-white rounded-xl bg-[#171020] shadow-none focus-visible:border-[#b79cff] focus-visible:ring-[#b79cff]/35 aria-invalid:border-destructive aria-invalid:ring-destructive/25"
 														{...field}
 														autoComplete="current-password"
-														disabled={!hydrated || form.formState.isSubmitting}
+														disabled={!hydrated || isSigningIn}
 													/>
 													<button
 														type="button"
@@ -244,7 +282,7 @@ export function LoginForm() {
 								type="submit"
 								variant="primary"
 								loading={form.formState.isSubmitting}
-								disabled={!hydrated || form.formState.isSubmitting}
+								disabled={!hydrated || isSigningIn}
 							>
 								{signinMode === "magic-link"
 									? t("auth.login.sendMagicLink")
@@ -271,6 +309,7 @@ export function LoginForm() {
 										<SocialSigninButton
 											key={providerId}
 											provider={providerId as OAuthProvider}
+											disabled={isSigningIn}
 											className="min-h-11 border-white/10 bg-white/[0.065] text-white hover:bg-white/[0.11] rounded-xl border focus-visible:ring-[#b79cff] focus-visible:ring-offset-[#21182c]"
 										/>
 									))}
@@ -280,6 +319,11 @@ export function LoginForm() {
 										variant="secondary"
 										className="min-h-11 border-white/[0.08] hover:bg-white/[0.05] hover:text-white sm:col-span-2 w-full rounded-xl border bg-transparent text-[#c9becf] focus-visible:ring-[#b79cff] focus-visible:ring-offset-[#21182c]"
 										onClick={() => signInWithPasskey()}
+										onFocus={preloadAuthClient}
+										onPointerEnter={preloadAuthClient}
+										loading={isPasskeyPending}
+										disabled={!hydrated || isSigningIn}
+										aria-busy={isPasskeyPending}
 									>
 										<KeyIcon className="mr-1.5 size-4 text-primary" />
 										{t("auth.login.loginWithPasskey")}

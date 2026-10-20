@@ -3,6 +3,7 @@
 import { OrganizationLogo } from "@organizations/components/OrganizationLogo";
 import { organizationListQueryKey } from "@organizations/lib/api";
 import { authClient } from "@repo/auth/client";
+import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import { useRouter } from "@shared/hooks/router";
 import { useQueryClient } from "@tanstack/react-query";
@@ -25,8 +26,10 @@ export function OrganizationInvitationModal({
 	const router = useRouter();
 	const queryClient = useQueryClient();
 	const [submitting, setSubmitting] = useState<false | "accept" | "reject">(false);
+	const [failed, setFailed] = useState(false);
 
 	const onSelectAnswer = async (accept: boolean) => {
+		setFailed(false);
 		setSubmitting(accept ? "accept" : "reject");
 		try {
 			if (accept) {
@@ -55,7 +58,7 @@ export function OrganizationInvitationModal({
 				router.replace("/");
 			}
 		} catch {
-			// TODO: handle error
+			setFailed(true);
 		} finally {
 			setSubmitting(false);
 		}
@@ -76,6 +79,12 @@ export function OrganizationInvitationModal({
 					<strong className="font-medium text-lg">{organizationName}</strong>
 				</div>
 			</div>
+
+			{failed && (
+				<Alert variant="error" className="mb-4">
+					<AlertDescription>{t("auth.errors.unknown")}</AlertDescription>
+				</Alert>
+			)}
 
 			<div className="gap-2 flex">
 				<Button

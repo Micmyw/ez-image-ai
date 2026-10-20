@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import en from "../../../../../../../../../packages/i18n/translations/en/saas.json";
+import enSaas from "../../../../../../../../../packages/i18n/translations/en/saas.json";
+import enVideo from "../../../../../../../../../packages/i18n/translations/en/video.json";
+
+const en = { ...enSaas, ...enVideo };
 
 const mocks = vi.hoisted(() => ({
 	getSession: vi.fn(),

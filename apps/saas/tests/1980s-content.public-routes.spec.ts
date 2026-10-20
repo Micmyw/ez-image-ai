@@ -43,7 +43,10 @@ test.beforeEach(async ({ page, baseURL }) => {
 		const readOnlyMedia = ["/api/media/guest-capability", "/api/rpc/media/getPublicCatalog"];
 		const businessApi = /^\/api\/(?:media|rpc\/(?:media|payments|billing))\//.test(path);
 		const safeRead = ["GET", "HEAD", "OPTIONS"].includes(request.method()) && !businessApi;
-		if (safeRead || readOnlyMedia.includes(path)) return route.continue();
+		// This public offer query reads availability only; oRPC transports it as POST.
+		const readOnlyImagePassOffer =
+			request.method() === "POST" && path === "/api/rpc/payments/getImagePassOffer";
+		if (safeRead || readOnlyMedia.includes(path) || readOnlyImagePassOffer) return route.continue();
 		blocked.push(`${request.method()} ${path}`);
 		return route.abort("blockedbyclient");
 	});
@@ -273,7 +276,11 @@ test.describe("1980s real published content — local public-route acceptance", 
 		await page.goto("/blog");
 		await declineOptionalConsent(page);
 		await expect(page.locator(".blog-filters")).toBeVisible();
-		await expect(page.locator(".blog-results")).toHaveText("3 posts");
+		await page
+			.getByRole("searchbox", { name: "Search the Blog" })
+			.fill("How to Write AI Image Editing Prompts");
+		await expect(page.locator(".blog-results")).toHaveText("1 post");
+		await expect(page.locator(".blog-directory .blog-card")).toHaveCount(1);
 		const card = page
 			.locator(".blog-card-with-cover")
 			.filter({ has: page.locator(`a[href="${guidePath}"]`) });

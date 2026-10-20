@@ -34,7 +34,10 @@ import {
 	type VideoAdmissionLimits,
 	type VideoPrice,
 } from "@repo/database/video-v1";
-import { authorizeVideoPlayback } from "@repo/database/video-v1-fulfillment";
+import {
+	authorizeVideoPlayback,
+	authorizeVideoPlaybackSnapshot,
+} from "@repo/database/video-v1-fulfillment";
 
 import type {
 	CreateVideoJobInput,
@@ -246,7 +249,7 @@ export async function ensureVideoWorkflowStarted(
 	}
 }
 
-type PublicRecord = Awaited<ReturnType<typeof getVideoJobRecord>>;
+type PublicRecord = Omit<Awaited<ReturnType<typeof listVideoJobRecords>>["rows"][number], "assets">;
 export function toVideoPublicState(job: PublicRecord): VideoPublicState {
 	if (!job.videoExecution || !job.reservation) throw new Error("VIDEO_EXECUTION_INVALID");
 	const snapshot =
@@ -307,13 +310,10 @@ export async function listVideoPublicStates(
 	input: { cursor?: string; limit?: number },
 ) {
 	const result = await listVideoJobRecords(context.userId, input, db);
-	const items = await Promise.all(
-		result.rows.map(async (job) => {
-			const state = toVideoPublicState(job);
-			if (state.canPlay)
-				state.canPlay = Boolean(await authorizeVideoPlayback(context.userId, job.id));
-			return state;
-		}),
-	);
+	const items = result.rows.map((job) => {
+		const state = toVideoPublicState(job);
+		if (state.canPlay) state.canPlay = Boolean(authorizeVideoPlaybackSnapshot(context.userId, job));
+		return state;
+	});
 	return { items, nextCursor: result.nextCursor };
 }

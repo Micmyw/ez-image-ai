@@ -3,7 +3,21 @@ import { authClient } from "@repo/auth/client";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
-export const organizationListQueryKey = ["user", "organizations"] as const;
+import {
+	activeOrganizationQueryKey,
+	fullOrganizationQueryKey,
+	organizationListQueryKey,
+	type ActiveOrganizationIdentifier,
+} from "./query-cache";
+
+export {
+	activeOrganizationQueryKey,
+	fullOrganizationQueryKey,
+	invalidateOrganizationQueries,
+	organizationListQueryKey,
+	type ActiveOrganizationIdentifier,
+} from "./query-cache";
+
 export const useOrganizationListQuery = () => {
 	return useQuery({
 		queryKey: organizationListQueryKey,
@@ -19,14 +33,6 @@ export const useOrganizationListQuery = () => {
 	});
 };
 
-export interface ActiveOrganizationIdentifier {
-	slug?: string;
-	id?: string;
-}
-
-export const activeOrganizationQueryKey = (identifier: ActiveOrganizationIdentifier) =>
-	["user", "activeOrganization", identifier.slug ?? identifier.id ?? ""] as const;
-
 export const useActiveOrganizationQuery = (
 	identifier: ActiveOrganizationIdentifier,
 	options?: {
@@ -34,7 +40,7 @@ export const useActiveOrganizationQuery = (
 	},
 ) => {
 	const { slug, id } = identifier;
-	const cacheKey = slug ?? id ?? "";
+	const cacheKey = slug || id || "";
 
 	return useQuery({
 		queryKey: activeOrganizationQueryKey(identifier),
@@ -52,12 +58,10 @@ export const useActiveOrganizationQuery = (
 
 			return data;
 		},
-		enabled: options?.enabled && !!cacheKey,
-		placeholderData: (previousData) => previousData,
+		enabled: (options?.enabled ?? true) && !!cacheKey,
 	});
 };
 
-export const fullOrganizationQueryKey = (id: string) => ["fullOrganization", id] as const;
 export const useFullOrganizationQuery = (id: string) => {
 	return useQuery({
 		queryKey: fullOrganizationQueryKey(id),

@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { OrganizationRoleSelect } from "@organizations/components/OrganizationRoleSelect";
-import { fullOrganizationQueryKey } from "@organizations/lib/api";
+import { invalidateOrganizationQueries } from "@organizations/lib/query-cache";
 import { authClient } from "@repo/auth/client";
 import { Button } from "@repo/ui/components/button";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@repo/ui/components/form";
@@ -44,9 +44,7 @@ export function InviteMemberForm({ organizationId }: { organizationId: string })
 
 			form.reset();
 
-			await queryClient.invalidateQueries({
-				queryKey: fullOrganizationQueryKey(organizationId),
-			});
+			await invalidateOrganizationQueries(queryClient, organizationId);
 
 			toastSuccess(t("organizations.settings.members.inviteMember.notifications.success.title"));
 		} catch {
