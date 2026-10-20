@@ -281,6 +281,9 @@ describe("independent complete reference-video cost approval", () => {
 			reference as Parameters<typeof createPublicRumpelstiltskinCostApproval>[0],
 		);
 		expect(defaultApproval.revenue.minimumGrossUsdMicrosPerCredit).toBe("21944");
+		expect(defaultApproval.revenue.basis).toBe(
+			"Nonbinding historical retail reference; shared credits do not establish qualified payment revenue.",
+		);
 		expect(defaultApproval.pricingVersion).toBe(RUMPELSTILTSKIN_PRICE_VERSION);
 		expect(defaultApproval.revenue.basis).toMatch(/historical.*reference/i);
 	});

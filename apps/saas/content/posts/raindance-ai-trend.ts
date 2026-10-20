@@ -41,7 +41,7 @@ export const raindanceDocuments = [
 		published: true,
 		body: `The **Raindance AI trend** turns a photo into a seaside music-video moment: a wooden pier, warm sunset light and a relaxed performance toward the camera. People pair the edit with “Raindance” by Dave featuring Tems. The AI-generated visual and the song are separate parts of the finished post.
 
-To make your version here, choose Solo for one adult photo or Duet for two, sign in to see the complete price, upload and choose Generate. A fresh quote is checked before starting; any price change requires your confirmation. EzImageAI creates an original **5- or 10-second, 720p, 9:16 silent MP4** (5 seconds by default). Add an available, appropriately licensed sound when posting. The prompts below are free to copy; generating a video uses eligible paid credits.
+To make your version here, choose Solo for one adult photo or Duet for two, sign in to see the complete price, upload and choose Generate. A fresh quote is checked before starting; any price change requires your confirmation. EzImageAI creates an original **5- or 10-second, 720p, 9:16 silent MP4** (5 seconds by default). Add an available, appropriately licensed sound when posting. The prompts below are free to copy; generating a video uses available credits.
 
 ## What is the Raindance AI trend?
 
@@ -74,7 +74,7 @@ The preset uses a fixed camera and restrained movement to keep the short scene r
 
 ## Can you do the Raindance AI trend for free?
 
-You can read this guide and copy every prompt below for free. **EzImageAI video generation is paid**, requires sign-in and uses eligible credits. The guest image allowance does not include video. The amount shown in your current quote is the amount to review before confirming.
+You can read this guide and copy every prompt below for free. **EzImageAI video generation uses credits** and requires sign-in. The guest image allowance does not include video. The amount shown in your current quote is the amount to review before confirming.
 
 For an edit without AI generation, the linked CapCut collection advertises free templates. Check the individual template and your app's export screen: paid assets, account rules and regional availability can differ. We have not verified a free AI video offer on another service and do not promise one.
 
@@ -148,7 +148,7 @@ Solo needs one clear adult photo. Duet needs two role photos. Only use photos yo
 
 ### Is the Raindance prompt free?
 
-Yes. The text suggestions are free to copy. Video generation uses paid eligible credits and the current quote; copying a prompt or uploading a photo does not itself charge for a video.
+Yes. The text suggestions are free to copy. Video generation uses available credits and the current quote; copying a prompt or uploading a photo does not itself charge for a video.
 
 ### Does the video include music or exact lip-sync?
 
@@ -171,7 +171,7 @@ A confirmed failure follows the existing credit and settlement rules. An uncerta
 - [Hotel Lobby AI duo](/video-effects/hotel-lobby-ai): an orange-studio performance from two photos.
 - [AI image editing prompts](/blog/ai-image-editing-prompts): clearer instructions for preparing your source image.
 - [Image-to-image editor](/image-to-image): adjust a portrait before making a video.
-- [Credits and billing](/docs/credits): understand balances, reservations and eligible credits.
+- [Credits and billing](/docs/credits): understand balances, reservations and available credits.
 - [Private editing workflow](/blog/private-image-editing-workflow): understand private inputs and results.`,
 	},
 ] as const satisfies readonly BlogPost[];

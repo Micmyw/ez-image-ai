@@ -122,8 +122,8 @@ export const rumpelstiltskinCostApprovalSchema = z
 			})
 			.strict()
 			.optional(),
-		// Required receipt floor for this immutable price approval, including annual/bonus dilution.
-		// Actual paid lots must independently qualify after refunds; fees are deducted separately.
+		// Historical receipt basis for this immutable price approval, including annual/bonus dilution.
+		// New shared orders do not qualify lots by receipts; frozen paid snapshots retain their policy.
 		revenue: z
 			.object({
 				minimumGrossUsdMicrosPerCredit: positiveMicros,
@@ -208,7 +208,7 @@ export function createPublicRumpelstiltskinCostApproval(
 			minimumGrossUsdMicrosPerCredit:
 				HISTORICAL_VIDEO_RETAIL_REFERENCE_MICROS_PER_CREDIT.toString(),
 			basis:
-				"Historical approved video retail reference; actual paid receipts after refunds per ALL issued annual and bonus credits must independently meet this floor.",
+				"Nonbinding historical retail reference; shared credits do not establish qualified payment revenue.",
 		},
 		provider: {
 			productKey: "video-seedance-2",
@@ -269,7 +269,7 @@ export function readRumpelstiltskinCostApproval(
 	if (Date.parse(approval.approvedAt) > now)
 		throw new Error("RUMPELSTILTSKIN_COST_NOT_YET_APPROVED");
 	// This financial cap belongs to the existing approved price version, not today's sale catalog.
-	// A future price version must explicitly establish its own reference; actual lot gates remain.
+	// A future price version must establish its own reference; new shared orders do not use a lot gate.
 	if (
 		approval.pricingVersion !== "rumpelstiltskin-cost-2026-10-07.1" ||
 		BigInt(approval.revenue.minimumGrossUsdMicrosPerCredit) >
