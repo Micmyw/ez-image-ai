@@ -6,6 +6,7 @@ import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { VIDEO_V1_RULE_VERSION } from "@repo/config/video-v1";
 import { describe, expect, it, vi } from "vitest";
 
+import legacyHotelTemplates from "./fixtures/hotel-lobby-legacy-templates.json";
 import {
 	prepareVideoTemplate,
 	type VideoTemplatePreparationDependencies,
@@ -480,21 +481,8 @@ describe("template scene preparation durable boundaries (local mocks)", () => {
 		"prepares a frozen legacy %ss template after new admissions switch to Mini without changing its contract",
 		async (duration) => {
 			const f = fixture();
-			const original = f.state.templateSnapshot;
-			const legacy = parseVideoEffectTemplateSnapshot({
-				...original,
-				schemaVersion: duration === 10 ? 3 : 1,
-				templateVersion:
-					duration === 10 ? "hotel-lobby-duo-10s-2026-10-08.1" : "hotel-lobby-duo-2026-10-05.1",
-				video: {
-					...original.video,
-					productKey: "video-seedance-1-5-pro",
-					duration,
-					fixedLens: true,
-					prompt: "Frozen original fixed camera choreography.",
-				},
-				output: { ...original.output, durationSeconds: duration },
-			});
+			// Exact pre-migration 5f705a1 receipts include their original motion prompt versions.
+			const legacy = parseVideoEffectTemplateSnapshot(legacyHotelTemplates[duration]);
 			f.state.templateSnapshot = legacy;
 			f.state.job.inputSnapshot.videoEffectTemplate = legacy;
 			Object.assign(f.deps.env, {

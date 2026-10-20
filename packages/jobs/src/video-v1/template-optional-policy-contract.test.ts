@@ -10,7 +10,6 @@ import {
 	RAINDANCE_TEMPLATE_VERSION,
 	HOTEL_LOBBY_PRICE_VERSION,
 	HOTEL_LOBBY_SAFETY_POLICY_VERSION,
-	createVideoEffectTemplateSnapshot,
 	parseVideoEffectTemplateSnapshot,
 } from "@repo/config/video-effects.server";
 import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
@@ -18,6 +17,7 @@ import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server"
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 
 import { readCloudflareBuildEnvironment } from "../../../../apps/web-host/src/build-secrets";
+import legacyHotelTemplates from "./fixtures/hotel-lobby-legacy-templates.json";
 vi.mock("@repo/database", () => ({ getActiveRuntimeConfigOverrides: vi.fn(async () => []) }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/database/video-retail-eligibility", () => ({
@@ -192,18 +192,8 @@ function buildTransport(patch: Record<string, string | undefined> = {}) {
 		.join("\n");
 	return parseEnv(readCloudflareBuildEnvironment({ CLOUDFLARE_PRODUCTION_ENV: source }));
 }
-const currentTemplate = createVideoEffectTemplateSnapshot(request);
-const template = parseVideoEffectTemplateSnapshot({
-	...currentTemplate,
-	schemaVersion: 1,
-	templateVersion: "hotel-lobby-duo-2026-10-05.1",
-	video: {
-		...currentTemplate.video,
-		productKey: "video-seedance-1-5-pro",
-		fixedLens: true,
-		prompt: "Frozen historical scene performance.",
-	},
-});
+// Freeze the complete pre-migration receipt, including the original prompt and its version.
+const template = parseVideoEffectTemplateSnapshot(legacyHotelTemplates[5]);
 function accepted() {
 	return {
 		id: "accepted-fixture",

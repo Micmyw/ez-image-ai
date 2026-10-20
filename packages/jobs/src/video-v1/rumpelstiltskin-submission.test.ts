@@ -7,10 +7,14 @@ import {
 	type KieVideoModelInput,
 } from "@repo/ai/media/providers/kie-video-models";
 import { buildKieVideoV1Request } from "@repo/ai/media/providers/kie-video-v1";
-import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
+import {
+	createVideoEffectTemplateSnapshot,
+	parseVideoEffectTemplateSnapshot,
+} from "@repo/config/video-effects.server";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import legacyRaindanceTemplate from "./fixtures/raindance-solo-legacy-template.json";
 import { submitVideoAttempt, type VideoSubmissionDependencies } from "./submission";
 
 const adapters = vi.hoisted(() => ({
@@ -96,16 +100,18 @@ const motionReference = {
 function fixture(kind: "reference" | "model" | "legacy" | "legacy-template" = "reference") {
 	const now = new Date("2026-10-07T00:00:00Z");
 	const template =
-		kind === "reference" || kind === "legacy-template"
-			? createVideoEffectTemplateSnapshot(
-					{
-						effectId: kind === "reference" ? "rumpelstiltskin-solo" : "raindance-solo",
-						presetKey: "standard",
-						inputs: { leftAssetId: "fixture-subject", rightAssetId: "fixture-subject" },
-					},
-					{ RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: JSON.stringify(motionReference) },
-				)
-			: undefined;
+		kind === "legacy-template"
+			? parseVideoEffectTemplateSnapshot(legacyRaindanceTemplate)
+			: kind === "reference"
+				? createVideoEffectTemplateSnapshot(
+						{
+							effectId: "rumpelstiltskin-solo",
+							presetKey: "standard",
+							inputs: { leftAssetId: "fixture-subject", rightAssetId: "fixture-subject" },
+						},
+						{ RUMPELSTILTSKIN_APPROVED_MOTION_REFERENCE: JSON.stringify(motionReference) },
+					)
+				: undefined;
 	const attempts: Array<{
 		id: string;
 		providerTaskId: string | null;
@@ -333,6 +339,13 @@ describe("existing submission paths remain distinct", () => {
 
 	it("keeps Raindance schema 1 on its scene image and Seedance 1.5 adapter", async () => {
 		const f = fixture("legacy-template");
+		// Frozen from pre-migration 5f705a1; today's builder only creates new Mini orders.
+		expect(f.template).toMatchObject({
+			schemaVersion: 1,
+			templateVersion: "raindance-2026-10-07.1",
+			video: { productKey: "video-seedance-1-5-pro", fixedLens: true },
+		});
+		const frozen = JSON.stringify(f.inputSnapshot);
 		await submitVideoAttempt("fixture-job", f.deps);
 		expect(adapters.modelSubmit).toHaveBeenCalledTimes(1);
 		expect(adapters.referenceSubmit).not.toHaveBeenCalled();
@@ -344,6 +357,11 @@ describe("existing submission paths remain distinct", () => {
 				templateFixedLens: true,
 			}),
 		);
+		expect(buildKieVideoModelRequest(adapters.modelSubmit.mock.calls[0]![0])).toMatchObject({
+			model: "bytedance/seedance-1.5-pro",
+			input: { input_urls: [subjectUrl], fixed_lens: true },
+		});
+		expect(JSON.stringify(f.inputSnapshot)).toBe(frozen);
 	});
 
 	it("keeps historical no-productKey requests on legacy Kling", async () => {
