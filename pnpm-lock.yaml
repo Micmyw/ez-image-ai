@@ -570,6 +570,9 @@ importers:
       '@repo/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@repo/payments':
+        specifier: workspace:*
+        version: link:../../packages/payments
     devDependencies:
       '@repo/tsconfig':
         specifier: workspace:*

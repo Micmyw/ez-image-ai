@@ -124,12 +124,15 @@ describe("Waffo owned subscription checkout closure", () => {
 		});
 		const url = await resumeWaffoSubscriptionCheckout({ auth: { issueSessionToken } } as never, {
 			checkoutUrl: "https://pancake.waffo.ai/store/store/checkout/cs1#token=old",
-			priceId: "p1",
+			priceId: "waffo:PROD_0123456789AbCdEfGhIjKl:fixture-version-2",
 			ownerType: "USER",
 			ownerId: "u1",
 		});
 		expect(url).toBe("https://pancake.waffo.ai/store/store/checkout/cs1#token=fresh-token");
-		expect(issueSessionToken).toHaveBeenCalledWith({ productId: "p1", buyerIdentity: "USER:u1" });
+		expect(issueSessionToken).toHaveBeenCalledWith({
+			productId: "PROD_0123456789AbCdEfGhIjKl",
+			buyerIdentity: "USER:u1",
+		});
 	});
 });
 
@@ -150,7 +153,7 @@ describe("Waffo shared checkout session authentication", () => {
 			provider.resumeCheckout!({
 				checkoutUrl:
 					"https://pancake.waffo.ai/store/test-store/checkout/same-session?lang=en#token=old-token",
-				priceId: "one-time-product",
+				priceId: "PROD_0123456789QrStUvWxYzAb",
 				ownerType: "USER",
 				ownerId: "test-owner",
 			}),
@@ -158,7 +161,7 @@ describe("Waffo shared checkout session authentication", () => {
 			"https://pancake.waffo.ai/store/test-store/checkout/same-session?lang=en#token=new-token",
 		);
 		expect(issueSessionToken).toHaveBeenCalledWith({
-			productId: "one-time-product",
+			productId: "PROD_0123456789QrStUvWxYzAb",
 			buyerIdentity: "USER:test-owner",
 		});
 		expect(create).not.toHaveBeenCalled();

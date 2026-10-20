@@ -1,9 +1,9 @@
-import { generateKeyPairSync, sign } from "node:crypto";
+import { createHash, generateKeyPairSync, sign, verify } from "node:crypto";
 
 import { describe, expect, it, vi } from "vitest";
 
 import type { CreateCheckoutLinkOptions } from "../../types";
-import { createConfiguredWaffoWebhookVerifier } from "./index";
+import { createConfiguredWaffoWebhookVerifier, createWaffoClient } from "./index";
 import {
 	cancelWaffoSubscription,
 	createWaffoCheckoutLink,
@@ -16,6 +16,7 @@ const checkoutOptions: CreateCheckoutLinkOptions = {
 	type: "subscription",
 	priceId: "PROD_0123456789AbCdEfGhIjKl",
 	currency: "USD",
+	amountMicros: 19_000_000n,
 	billingPlanId: "billing-plan-1",
 	checkoutIntentId: "checkout-intent-1",
 	idempotencyKey: "checkout-attempt-1",
@@ -114,6 +115,7 @@ describe("Waffo Pancake SDK boundary", () => {
 		});
 		expect(create).toHaveBeenCalledWith({
 			productId: "PROD_0123456789AbCdEfGhIjKl",
+			priceSnapshot: { amount: "19.00", taxCategory: "saas" },
 			expiresInSeconds: 900,
 			currency: "USD",
 			buyerIdentity: "USER:user-1",
@@ -128,6 +130,141 @@ describe("Waffo Pancake SDK boundary", () => {
 			},
 		});
 	});
+
+	it.each([
+		{ priceId: checkoutOptions.priceId, amountMicros: 190_000_000n, expected: "190.00" },
+		{ priceId: checkoutOptions.priceId, amountMicros: 490_000_000n, expected: "490.00" },
+		{ priceId: checkoutOptions.priceId, amountMicros: 790_000_000n, expected: "790.00" },
+		{
+			priceId: `waffo:${checkoutOptions.priceId}:fixture-version-2`,
+			amountMicros: 114_000_000n,
+			expected: "114.00",
+		},
+		{
+			priceId: `waffo:${checkoutOptions.priceId}:fixture-version-2`,
+			amountMicros: 294_000_000n,
+			expected: "294.00",
+		},
+		{
+			priceId: `waffo:${checkoutOptions.priceId}:fixture-version-2`,
+			amountMicros: 474_000_000n,
+			expected: "474.00",
+		},
+	])(
+		"freezes the bound subscription amount $expected on native product checkout",
+		async ({ priceId, amountMicros, expected }) => {
+			const create = vi.fn().mockResolvedValue({
+				sessionId: "versioned-session",
+				checkoutUrl: "https://pancake.waffo.ai/checkout/versioned-session",
+				expiresAt: "2026-10-20T12:15:00Z",
+			});
+			const client: WaffoSdkBoundary = {
+				checkout: { authenticated: { create } },
+				orders: { cancelSubscription: vi.fn() },
+				webhooks: { verify: vi.fn() },
+			};
+			await createWaffoCheckoutLink(client, { ...checkoutOptions, priceId, amountMicros });
+			expect(create).toHaveBeenCalledWith(
+				expect.objectContaining({
+					productId: checkoutOptions.priceId,
+					priceSnapshot: { amount: expected, taxCategory: "saas" },
+					metadata: expect.objectContaining({ billingPlanId: checkoutOptions.billingPlanId }),
+				}),
+			);
+		},
+	);
+	it.each([undefined, 0n, -1n, 114_000_001n])(
+		"refuses invalid immutable subscription amount %s before sending",
+		async (amountMicros) => {
+			const create = vi.fn();
+			const client: WaffoSdkBoundary = {
+				checkout: { authenticated: { create } },
+				orders: { cancelSubscription: vi.fn() },
+				webhooks: { verify: vi.fn() },
+			};
+			await expect(
+				createWaffoCheckoutLink(client, { ...checkoutOptions, amountMicros }),
+			).rejects.toThrow("WAFFO_CHECKOUT_AMOUNT_INVALID");
+			expect(create).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each([
+		{
+			priceId: checkoutOptions.priceId,
+			amountMicros: 190_000_000n,
+			amount: "190.00",
+			billingPlanId: "historical-plan",
+		},
+		{
+			priceId: `waffo:${checkoutOptions.priceId}:fixture-version-2`,
+			amountMicros: 114_000_000n,
+			amount: "114.00",
+			billingPlanId: "new-version-plan",
+		},
+	])(
+		"serializes the immutable $amount recurring price through the installed SDK and merchant signature",
+		async ({ priceId, amountMicros, amount, billingPlanId }) => {
+			const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+			const requests = new Map<string, Record<string, unknown>>();
+			const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+				const path = new URL(input instanceof Request ? input.url : input).pathname;
+				if (typeof init?.body !== "string") throw new Error("Expected signed JSON body");
+				const headers = new Headers(init.headers);
+				const canonical = `POST\n${path}\n${headers.get("x-timestamp")}\n${createHash("sha256").update(init.body).digest("base64")}`;
+				expect(
+					verify(
+						"RSA-SHA256",
+						Buffer.from(canonical),
+						publicKey,
+						Buffer.from(headers.get("x-signature") ?? "", "base64"),
+					),
+				).toBe(true);
+				requests.set(path, JSON.parse(init.body));
+				if (path === "/v1/actions/auth/issue-session-token")
+					return Response.json({
+						data: { token: "fixture-token", expiresAt: "2030-10-20T12:05:00Z" },
+					});
+				if (path === "/v1/actions/checkout/create-session")
+					return Response.json({
+						data: {
+							sessionId: "same-product-session",
+							checkoutUrl: "https://pancake.waffo.ai/checkout/same-product-session",
+							expiresAt: "2030-10-20T12:15:00Z",
+						},
+					});
+				throw new Error("Unexpected SDK operation");
+			});
+			const client = createWaffoClient(
+				{
+					WAFFO_ENVIRONMENT: "test",
+					WAFFO_MERCHANT_ID: "MER_0123456789AbCdEfGhIjKl",
+					WAFFO_PRIVATE_KEY: privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
+					WAFFO_WEBHOOK_PUBLIC_KEY: publicKey.export({ type: "spki", format: "pem" }).toString(),
+				},
+				{ fetch: fetcher },
+			);
+			await expect(
+				createWaffoCheckoutLink(client, {
+					...checkoutOptions,
+					priceId,
+					amountMicros,
+					billingPlanId,
+				}),
+			).resolves.toMatchObject({ providerSessionId: "same-product-session" });
+			expect(requests.get("/v1/actions/checkout/create-session")).toMatchObject({
+				productId: checkoutOptions.priceId,
+				priceSnapshot: { amount, taxCategory: "saas" },
+				metadata: { billingPlanId },
+				orderMerchantExternalId: checkoutOptions.checkoutIntentId,
+			});
+			expect(requests.get("/v1/actions/auth/issue-session-token")).toEqual({
+				productId: checkoutOptions.priceId,
+				buyerIdentity: "USER:user-1",
+			});
+			expect(fetcher).toHaveBeenCalledTimes(2);
+		},
+	);
 
 	it("uses the same authenticated checkout boundary for a server-owned one-time product", async () => {
 		const create = vi.fn().mockResolvedValue({

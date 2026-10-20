@@ -8,6 +8,7 @@ import {
 } from "@repo/config/video-effects.server";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
+import { applyVideoSharedFunding } from "@repo/config/video-shared-funding";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
 
@@ -15,13 +16,25 @@ import { providerCapacityForTestRequests } from "../../../test-support/provider-
 import { runWithDatabaseClient } from "../../client";
 import { PrismaClient, type Prisma } from "../../generated/client";
 import { createMediaUploadSessionTransaction } from "./assets";
-import { createCreditGrant, releaseCredits } from "./credits";
+import {
+	createCreditGrant,
+	getCreditInvariantReport,
+	refundCreditGrant,
+	releaseCredits,
+	settleCredits,
+} from "./credits";
+import {
+	grantNewAnnualCredits,
+	newAnnualProviders,
+	newAnnualTiers,
+} from "./testing/annual-credit-fixture";
 import { withStorageSubscription } from "./testing/subscriber-storage-fixture";
 import {
 	createVideoTemplateQuoteRecord,
 	createVideoTemplateJobRecord,
 	findExistingVideoTemplateAdmission,
 } from "./video-template-admission";
+import { getVideoTemplateCreditBalance } from "./video-template-credits";
 import {
 	claimVideoTemplateSceneSubmission,
 	recordVideoTemplateReview,
@@ -36,7 +49,7 @@ import {
 	markVideoTemplateNeedsReview,
 	markVideoTemplateSceneFailed,
 } from "./video-template-execution";
-import { createVideoJobRecord, createVideoQuoteRecord } from "./video-v1";
+import { createVideoJobRecord, createVideoQuoteRecord, type VideoPrice } from "./video-v1";
 import {
 	claimVideoResourceCleanup,
 	completeVideoResourceCleanup,
@@ -101,10 +114,11 @@ async function fixture(
 	const ownerId = `template-db-test-${randomUUID()}`;
 	owners.push(ownerId);
 	const account = await db.creditAccount.create({ data: { ownerType: "USER", ownerId } });
-	await createCreditGrant(
-		{ accountId: account.id, amount: credits, referenceKey: `grant:${ownerId}` },
-		db,
-	);
+	if (credits > 0n)
+		await createCreditGrant(
+			{ accountId: account.id, amount: credits, referenceKey: `grant:${ownerId}` },
+			db,
+		);
 	const assets = await Promise.all(
 		[0, 1].map((i) =>
 			db.mediaAsset.create({
@@ -169,6 +183,23 @@ async function accepted() {
 	const f = await fixture();
 	const { jobId } = await createVideoTemplateJobRecord(f.input, db);
 	return { ...f, jobId };
+}
+async function sharedFixture(credits = 7n, effectId: VideoEffectId = "hotel-lobby-duo") {
+	const f = await fixture(credits, effectId);
+	const retailPrice = {
+		...f.base.price,
+		paidFundingPolicy: { minimumUsdMicrosPerCredit: 21_944n },
+		pricingDetails: {},
+	} satisfies VideoPrice & { paidFundingPolicy: { minimumUsdMicrosPerCredit: bigint } };
+	const price = applyVideoSharedFunding(retailPrice);
+	const quote = await createVideoTemplateQuoteRecord(
+		{ ...f.base, price, maximumInputBytes: 10000000 },
+		db,
+	);
+	return {
+		...f,
+		input: { ...f.input, quoteId: quote.quoteId, price, paidFundingPolicy: undefined },
+	};
 }
 
 it("subscribers retain both template scene and video output byte reservations above the free quota", async () => {
@@ -279,6 +310,284 @@ async function storedScene(jobId: string) {
 	return asset;
 }
 describe("template admission and durable scene PostgreSQL regressions", () => {
+	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
+		"spends gifted shared credits for %s without a separate paid-credit wallet",
+		async (effectId) => {
+			const f = await sharedFixture(7n, effectId);
+			const accepted = await createVideoTemplateJobRecord(f.input, db);
+			const allocations = await db.creditReservationAllocation.findMany({
+				where: { reservation: { jobId: accepted.jobId } },
+				include: { lot: true },
+			});
+			expect(allocations).toHaveLength(1);
+			expect(allocations[0]).toMatchObject({
+				amount: 7n,
+				lot: { grantReferenceKey: `grant:${f.ownerId}` },
+			});
+			expect(await getCreditInvariantReport(allocations[0]!.lot.accountId, db)).toMatchObject({
+				valid: true,
+				account: { spendable: 0n, reserved: 7n, debt: 0n },
+			});
+		},
+	);
+	it.each(["settle", "release"] as const)(
+		"shared template %s keeps mixed annual/gift refund revocations and idempotence",
+		async (mode) => {
+			const f = await sharedFixture(3n);
+			const annual = await grantNewAnnualCredits(db, f.ownerId, {
+				...newAnnualTiers[0],
+				provider: "paypal",
+			});
+			await refundCreditGrant(
+				{
+					accountId: annual.account.id,
+					grantReferenceKey: annual.grantReferenceKey,
+					amount: 696n,
+					referenceKey: `trim:${f.ownerId}`,
+				},
+				db,
+			);
+			const accepted = await createVideoTemplateJobRecord(f.input, db);
+			const reservation = await db.creditReservation.findUniqueOrThrow({
+				where: { jobId: accepted.jobId },
+				include: { allocations: { include: { lot: true } } },
+			});
+			expect(
+				Object.fromEntries(
+					reservation.allocations.map((allocation) => [
+						allocation.lot.grantReferenceKey,
+						allocation.amount,
+					]),
+				),
+			).toEqual({ [`grant:${f.ownerId}`]: 3n, [annual.grantReferenceKey]: 4n });
+			const refund = {
+				accountId: annual.account.id,
+				grantReferenceKey: annual.grantReferenceKey,
+				amount: 4n,
+				referenceKey: `refund:${f.ownerId}`,
+			};
+			const refunded = await refundCreditGrant(refund, db);
+			expect(await refundCreditGrant(refund, db)).toEqual(refunded);
+			await createCreditGrant(
+				{ accountId: annual.account.id, amount: 7n, referenceKey: `spare:${f.ownerId}` },
+				db,
+			);
+			const mutation = {
+				reservationId: reservation.id,
+				amount: 7n,
+				referenceKey: `${mode}:${f.ownerId}`,
+			};
+			const finalize = mode === "settle" ? settleCredits : releaseCredits;
+			const result = await finalize(mutation, db);
+			expect(await finalize(mutation, db)).toEqual(result);
+			await expect(finalize({ ...mutation, amount: 6n }, db)).rejects.toThrow(
+				"IDEMPOTENCY_CONFLICT",
+			);
+			expect(await getCreditInvariantReport(annual.account.id, db)).toMatchObject({
+				valid: true,
+				account: {
+					spendable: mode === "settle" ? 7n : 10n,
+					reserved: 0n,
+					debt: mode === "settle" ? 4n : 0n,
+				},
+			});
+			expect(
+				await db.creditLot.findUniqueOrThrow({
+					where: {
+						accountId_grantReferenceKey: {
+							accountId: annual.account.id,
+							grantReferenceKey: annual.grantReferenceKey,
+						},
+					},
+				}),
+			).toMatchObject({ remainingAmount: 0n, reservedAmount: 0n });
+			const refunds = await db.creditLedgerEntry.findMany({
+				where: { accountId: annual.account.id, type: "REFUND" },
+			});
+			expect(refunds.reduce((sum, entry) => sum + entry.amount, 0n)).toBe(700n);
+		},
+	);
+	it("shared template admission excludes expired and fully refunded lots", async () => {
+		const f = await sharedFixture(7n);
+		const annual = await grantNewAnnualCredits(db, f.ownerId, {
+			...newAnnualTiers[0],
+			provider: "waffo",
+		});
+		await refundCreditGrant(
+			{
+				accountId: annual.account.id,
+				grantReferenceKey: annual.grantReferenceKey,
+				amount: 700n,
+				referenceKey: `refund:${f.ownerId}`,
+			},
+			db,
+		);
+		await db.creditLot.update({
+			where: {
+				accountId_grantReferenceKey: {
+					accountId: annual.account.id,
+					grantReferenceKey: `grant:${f.ownerId}`,
+				},
+			},
+			data: { expiresAt: new Date(Date.now() - 1000) },
+		});
+		await expect(createVideoTemplateJobRecord(f.input, db)).rejects.toThrow("INSUFFICIENT_CREDITS");
+		expect(await db.creditReservation.count({ where: { accountId: annual.account.id } })).toBe(0);
+		await createCreditGrant(
+			{ accountId: annual.account.id, amount: 7n, referenceKey: `valid:${f.ownerId}` },
+			db,
+		);
+		const accepted = await createVideoTemplateJobRecord(f.input, db);
+		const allocation = await db.creditReservationAllocation.findMany({
+			where: { reservation: { jobId: accepted.jobId } },
+			include: { lot: true },
+		});
+		expect(allocation).toHaveLength(1);
+		expect(allocation[0]!.lot.grantReferenceKey).toBe(`valid:${f.ownerId}`);
+		await db.creditLot.update({
+			where: { id: allocation[0]!.lotId },
+			data: { expiresAt: new Date(Date.now() - 1000) },
+		});
+		await releaseCredits(
+			{ reservationId: allocation[0]!.reservationId, referenceKey: `expired-release:${f.ownerId}` },
+			db,
+		);
+		expect(await getCreditInvariantReport(annual.account.id, db)).toMatchObject({
+			valid: true,
+			account: { spendable: 0n, reserved: 0n, debt: 0n },
+		});
+	});
+	it("shared templates cannot overspend a mixed account under competing submissions", async () => {
+		const f = await sharedFixture(3n);
+		const annual = await grantNewAnnualCredits(db, f.ownerId, {
+			...newAnnualTiers[0],
+			provider: "paypal",
+		});
+		await refundCreditGrant(
+			{
+				accountId: annual.account.id,
+				grantReferenceKey: annual.grantReferenceKey,
+				amount: 696n,
+				referenceKey: `trim:${f.ownerId}`,
+			},
+			db,
+		);
+		const second = await createVideoTemplateQuoteRecord(
+			{ ...f.base, price: f.input.price, maximumInputBytes: 10000000 },
+			db,
+		);
+		const outcomes = await Promise.allSettled(
+			[f.input, { ...f.input, quoteId: second.quoteId, idempotencyKey: randomUUID() }].map(
+				(input) => createVideoTemplateJobRecord(input, db),
+			),
+		);
+		expect(outcomes.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		expect(outcomes.find((result) => result.status === "rejected")).toMatchObject({
+			reason: new Error("INSUFFICIENT_CREDITS"),
+		});
+		expect(await db.creditReservation.count({ where: { accountId: annual.account.id } })).toBe(1);
+		expect(await getCreditInvariantReport(annual.account.id, db)).toMatchObject({
+			valid: true,
+			account: { spendable: 0n, reserved: 7n, debt: 0n },
+		});
+	});
+	it("shared template concurrent retries create only one reservation and durable intent", async () => {
+		const f = await sharedFixture();
+		const results = await Promise.all(
+			Array.from({ length: 8 }, () => createVideoTemplateJobRecord(f.input, db)),
+		);
+		expect(new Set(results.map((result) => result.jobId)).size).toBe(1);
+		expect(results.filter((result) => !result.replayed)).toHaveLength(1);
+		expect(await db.creditReservation.count({ where: { account: { ownerId: f.ownerId } } })).toBe(
+			1,
+		);
+		expect(
+			await db.videoExecution.count({
+				where: { jobId: results[0]!.jobId, stage: "QUEUED", startState: "PENDING" },
+			}),
+		).toBe(1);
+	});
+	it.each(
+		newAnnualTiers.flatMap((tier) =>
+			newAnnualProviders.flatMap((provider) =>
+				(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const).map((effectId) => ({
+					...tier,
+					provider,
+					effectId,
+				})),
+			),
+		),
+	)(
+		"shares $provider $planId annual credits with $effectId without a receipt-price gate",
+		async (selection) => {
+			const f = await fixture(0n, selection.effectId);
+			const annual = await grantNewAnnualCredits(db, f.ownerId, selection);
+			const retailPrice = {
+				...f.base.price,
+				credits: 69n,
+				paidFundingPolicy: { minimumUsdMicrosPerCredit: 21_944n },
+				pricingDetails: {},
+			} satisfies VideoPrice & { paidFundingPolicy: { minimumUsdMicrosPerCredit: bigint } };
+			const sharedPrice = applyVideoSharedFunding(retailPrice);
+			expect(await getVideoTemplateCreditBalance(f.ownerId, undefined, db)).toEqual({
+				totalCredits: selection.monthlyCredits.toString(),
+				eligibleCredits: selection.monthlyCredits.toString(),
+			});
+			const quote = await createVideoTemplateQuoteRecord(
+				{ ...f.base, price: sharedPrice, maximumInputBytes: 10000000 },
+				db,
+			);
+			const input = {
+				...f.input,
+				quoteId: quote.quoteId,
+				price: sharedPrice,
+				paidFundingPolicy: undefined,
+			};
+			const accepted = await createVideoTemplateJobRecord(input, db);
+			expect(await createVideoTemplateJobRecord(input, db)).toEqual({
+				...accepted,
+				replayed: true,
+			});
+			const reservation = await db.creditReservation.findUniqueOrThrow({
+				where: { jobId: accepted.jobId },
+				include: { allocations: { include: { lot: true } } },
+			});
+			expect(reservation.amount).toBe(69n);
+			expect(reservation.allocations).toHaveLength(1);
+			expect(reservation.allocations[0]).toMatchObject({
+				amount: 69n,
+				lot: {
+					grantReferenceKey: annual.grantReferenceKey,
+					remainingAmount: selection.monthlyCredits - 69n,
+					reservedAmount: 69n,
+				},
+			});
+			expect(
+				await db.billingPeriod.count({ where: { subscriptionId: annual.subscription.id } }),
+			).toBe(12);
+			expect(
+				await db.creditLedgerEntry.count({
+					where: { accountId: annual.account.id, type: "RESERVE" },
+				}),
+			).toBe(1);
+			const job = await db.generationJob.findUniqueOrThrow({ where: { id: accepted.jobId } });
+			expect(job.pricingSnapshot).not.toHaveProperty("paidFundingPolicy");
+			expect(job.pricingSnapshot).toMatchObject({
+				pricingDetails: {
+					paidRevenueQualified: false,
+					funding: { mode: "shared-media-credits-v1" },
+				},
+			});
+			await reviewInputs(accepted.jobId);
+			const sceneClaim = { jobId: accepted.jobId, callbackTokenHash: randomUUID() };
+			expect(await run(() => claimVideoTemplateSceneSubmission(sceneClaim))).toMatchObject({
+				claimed: true,
+			});
+			expect(await run(() => claimVideoTemplateSceneSubmission(sceneClaim))).toMatchObject({
+				claimed: false,
+			});
+		},
+	);
 	it.each([
 		{ validUntil: "2000-01-01T00:00:00.000Z" },
 		{ priceApprovalExpiryMode: "until", validUntil: "2000-01-01T00:00:00.000Z" },

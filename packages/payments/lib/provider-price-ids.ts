@@ -6,6 +6,7 @@ import {
 
 import type { PaymentProviderName, PlanPrice } from "../types";
 import { findPriceByPlanId, type PlanId, type RecurringInterval } from "./plans";
+import { parseWaffoPriceReference } from "./waffo-price-reference";
 
 interface ProviderPriceMappingEntry {
 	provider: PaymentProviderName;
@@ -84,7 +85,7 @@ export function getProviderPriceIdByPlanId(
 			entry.interval === selection.interval,
 	)?.environmentKey;
 	const candidate = environmentKey ? process.env[environmentKey]?.trim() : undefined;
-	return candidate && providerIdPatterns[provider].test(candidate) ? candidate : null;
+	return candidate && isProviderPriceId(provider, candidate) ? candidate : null;
 }
 
 export function getPlanIdByProviderPriceId(priceId: string): PlanId | null;
@@ -134,7 +135,7 @@ function isProviderName(value: string): value is PaymentProviderName {
 }
 
 function findMapping(provider: PaymentProviderName, priceId: string) {
-	if (!providerIdPatterns[provider].test(priceId)) return undefined;
+	if (!isProviderPriceId(provider, priceId)) return undefined;
 	return providerPriceMappings.find(
 		(entry) => entry.provider === provider && process.env[entry.environmentKey]?.trim() === priceId,
 	);
@@ -157,4 +158,10 @@ function providerEnvironmentKey(
 function creditPackEnvironmentKey(provider: CreditPackProvider, packKey: CreditPackKey): string {
 	const credits = packKey.slice("credits-".length);
 	return `${provider === "paypal" ? "PAYPAL_PRODUCT_ID" : "WAFFO_PRODUCT_ID"}_CREDITS_${credits}`;
+}
+
+function isProviderPriceId(provider: PaymentProviderName, value: string): boolean {
+	return provider === "waffo"
+		? parseWaffoPriceReference(value) !== null
+		: providerIdPatterns[provider].test(value);
 }

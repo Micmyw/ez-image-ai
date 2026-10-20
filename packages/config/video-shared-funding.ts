@@ -11,7 +11,7 @@ type FundingPrice = {
 	pricingDetails?: JsonObject;
 };
 
-/** New ordinary video shares image credits; retail calculations do not certify lot revenue. */
+/** New video orders share image credits; retail calculations do not certify lot revenue. */
 export function applyVideoSharedFunding<Price extends FundingPrice>(
 	price: Price,
 ): Omit<Price, "paidFundingPolicy" | "pricingDetails"> & {
@@ -25,6 +25,11 @@ export function applyVideoSharedFunding<Price extends FundingPrice>(
 		completeCostMicros,
 		profitMicros,
 		markupBps,
+		minimumNetRevenueMicros,
+		netContributionProfitMicros,
+		netProfitBps,
+		minimumRevenueToCostBps,
+		creditRevenueBasis,
 		...costDetails
 	} = price.pricingDetails ?? {};
 	return {
@@ -43,6 +48,11 @@ export function applyVideoSharedFunding<Price extends FundingPrice>(
 					completeCostMicros,
 					profitMicros,
 					markupBps,
+					minimumNetRevenueMicros,
+					netContributionProfitMicros,
+					netProfitBps,
+					minimumRevenueToCostBps,
+					creditRevenueBasis,
 				}).filter(([, value]) => value !== undefined),
 			),
 		},

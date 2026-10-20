@@ -8,12 +8,15 @@ import {
 import { createVideoAudioSafetyPolicy, VIDEO_OUTPUT_MAX_BYTES } from "@repo/config/video-output";
 import {
 	resolveVideoModelPrice,
+	VIDEO_RETAIL_PRICE_VERSION,
 	VIDEO_SUPPLIER_PRICE_VERSION,
 } from "@repo/config/video-pricing.server";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
+import { applyVideoSharedFunding } from "@repo/config/video-shared-funding";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import approvedVideoRetail from "../../../../config/fixtures/video-retail-approved-2026-10-08.json";
 import { providerCapacityForTestRequests } from "../../../test-support/provider-dispatch-capacity";
 import { runWithDatabaseClient } from "../../client";
 import { PrismaClient } from "../../generated/client";
@@ -28,6 +31,7 @@ import {
 } from "./credits";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 import { withStorageSubscription } from "./testing/subscriber-storage-fixture";
+import { resolveVideoRetailEligibility } from "./video-retail-eligibility";
 import { getVideoTemplateCreditBalance } from "./video-template-credits";
 import {
 	createVideoJobRecord,
@@ -349,6 +353,7 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		accountId: string,
 		options: {
 			paid: bigint;
+			priceMicros?: bigint;
 			refunded?: bigint;
 			credits?: bigint;
 			periods?: number;
@@ -365,7 +370,7 @@ describe("video V1 admission isolated PostgreSQL", () => {
 				providerPriceId: `video-paid-test-${id}`,
 				name: "ISOLATED_PAID_FUNDING_FIXTURE",
 				creditsPerPeriod: credits,
-				priceMicros: 3_000_000n,
+				priceMicros: options.priceMicros ?? 3_000_000n,
 				currency: options.currency ?? "USD",
 				metadata: {},
 			},
@@ -401,6 +406,83 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			});
 		await createCreditGrant({ accountId, amount: credits, referenceKey }, client);
 		return referenceKey;
+	}
+	async function currentAnnualSubscriptionGrant(
+		ownerId: string,
+		accountId: string,
+		selection: {
+			provider: "paypal" | "waffo";
+			planId: "creator" | "ultimate" | "studio";
+			priceMicros: bigint;
+			monthlyCredits: bigint;
+		},
+	) {
+		const id = crypto.randomUUID();
+		const [clock] = await client.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS "now"`;
+		const startsAt = new Date(clock!.now);
+		startsAt.setUTCDate(1);
+		startsAt.setUTCHours(0, 0, 0, 0);
+		const boundary = (index: number) => {
+			const date = new Date(startsAt);
+			date.setUTCMonth(date.getUTCMonth() + index);
+			return date;
+		};
+		const plan = await client.billingPlan.create({
+			data: {
+				provider: selection.provider,
+				providerPriceId: `video-current-annual-test-${id}`,
+				name: selection.planId,
+				productKind: "PLAN",
+				version: 1,
+				creditsPerPeriod: selection.monthlyCredits,
+				priceMicros: selection.priceMicros,
+				currency: "USD",
+				metadata: {
+					planId: selection.planId,
+					interval: "year",
+					version: 1,
+					billingPricingVersion: "2026-09-15.1",
+					providerEnvironment: selection.provider === "paypal" ? "live" : "prod",
+				},
+			},
+		});
+		const subscription = await client.subscription.create({
+			data: {
+				ownerType: "USER",
+				ownerId,
+				provider: selection.provider,
+				providerSubscriptionId: `video-current-annual-test-${id}`,
+				planId: plan.id,
+				status: "ACTIVE",
+				currentPeriodStart: startsAt,
+				currentPeriodEnd: boundary(12),
+			},
+		});
+		const referenceKey = `${selection.provider}-payment:${id}:period:0:grant`;
+		await client.billingPeriod.createMany({
+			data: Array.from({ length: 12 }, (_, index) => ({
+				subscriptionId: subscription.id,
+				startsAt: boundary(index),
+				endsAt: boundary(index + 1),
+				status: index === 0 ? ("ACTIVE" as const) : ("PENDING" as const),
+				creditAmount: selection.monthlyCredits,
+				grantReferenceKey: index === 0 ? referenceKey : `${referenceKey}:future:${index}`,
+				providerInvoiceId: id,
+				providerInvoicePaymentId: `${selection.provider}:${id}`,
+				paidAmount: selection.priceMicros,
+				refundedAmount: 0n,
+			})),
+		});
+		await createCreditGrant(
+			{
+				accountId,
+				amount: selection.monthlyCredits,
+				referenceKey,
+				expiresAt: boundary(1),
+			},
+			client,
+		);
+		return { subscription, referenceKey };
 	}
 	async function paidPackGrant(ownerId: string, accountId: string, bonusCredits: bigint) {
 		const id = crypto.randomUUID();
@@ -610,6 +692,151 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		});
 		await client.creditAccount.update({ where: { id: f.account.id }, data: { creditDebt: 0n } });
 	});
+	it.each(
+		[
+			{ planId: "creator" as const, priceMicros: 114_000_000n, monthlyCredits: 700n },
+			{ planId: "ultimate" as const, priceMicros: 294_000_000n, monthlyCredits: 1_800n },
+			{ planId: "studio" as const, priceMicros: 474_000_000n, monthlyCredits: 3_000n },
+		].flatMap((tier) =>
+			(["paypal", "waffo"] as const).flatMap((provider) =>
+				([5, 10] as const).map((duration) => ({ ...tier, provider, duration })),
+			),
+		),
+	)(
+		"new $provider $planId annual receipts fund $duration-second ordinary video at the unchanged approved annual debit",
+		async (selection) => {
+			const f = await fixture(0n);
+			const annual = await currentAnnualSubscriptionGrant(f.ownerId, f.account.id, selection);
+			const periods = await client.billingPeriod.findMany({
+				where: { subscriptionId: annual.subscription.id },
+				orderBy: { startsAt: "asc" },
+			});
+			expect(periods).toHaveLength(12);
+			expect(periods.every((period) => period.paidAmount === selection.priceMicros)).toBe(true);
+			expect(periods.reduce((sum, period) => sum + period.creditAmount, 0n)).toBe(
+				selection.monthlyCredits * 12n,
+			);
+			expect(new Set(periods.map((period) => period.providerInvoicePaymentId)).size).toBe(1);
+			expect(await getVideoTemplateCreditBalance(f.ownerId, paidFundingPolicy, client)).toEqual({
+				totalCredits: selection.monthlyCredits.toString(),
+				eligibleCredits: "0",
+			});
+			const eligibility = await resolveVideoRetailEligibility(f.ownerId, client);
+			expect(eligibility).toMatchObject({
+				audience: "annual",
+				ownerId: f.ownerId,
+				subscriptionId: annual.subscription.id,
+				planKey: selection.planId,
+				validUntil: annual.subscription.currentPeriodEnd!.toISOString(),
+			});
+			// Exact operating assumptions of the frozen approved retail matrix, not live provider evidence.
+			const approvedEnvironment = {
+				VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+				VIDEO_RETAIL_PRICE_ACCEPTED_VERSION: VIDEO_RETAIL_PRICE_VERSION,
+				VIDEO_PRICE_BASIS: "APPROVED_RETAIL_MATRIX_HISTORICAL_COST_FIXTURE",
+				VIDEO_PRICE_VALID_UNTIL: "none",
+				VIDEO_COST_VISUAL_POLICY_VERSION: visualSafetyProfile.policyVersion,
+				VIDEO_COST_TEXT_RULE_VERSION: createVideoTextSafetyProfile().ruleVersion,
+				VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
+				VIDEO_COST_MODERATION_BASE_MICROS: "5100",
+				VIDEO_COST_MODERATION_PER_SECOND_MICROS: "200",
+				VIDEO_COST_RUNTIME_MICROS: "100000",
+				VIDEO_COST_STORAGE_MICROS: "10000",
+				VIDEO_COST_PAYMENT_FIXED_MICROS: "0",
+				VIDEO_COST_PAYMENT_FEE_BPS: "654",
+				VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
+			};
+			const selectedRequest = {
+				...request,
+				productKey: "video-seedance-2-mini",
+				resolution: "720p",
+				duration: selection.duration,
+			};
+			const selectedProfile = createVideoVisualSafetyProfile("seeapi", selection.duration);
+			const matrixRow = approvedVideoRetail.rows.find(
+				({ selection: option }) =>
+					option.productKey === selectedRequest.productKey &&
+					option.mode === selectedRequest.mode &&
+					option.duration === selectedRequest.duration &&
+					option.resolution === selectedRequest.resolution &&
+					option.sound === selectedRequest.sound,
+			);
+			expect(matrixRow).toBeDefined();
+			const standard = resolveVideoModelPrice(selectedRequest, approvedEnvironment);
+			const annualPrice = resolveVideoModelPrice(selectedRequest, approvedEnvironment, {
+				audience: eligibility.audience,
+				eligibility,
+			});
+			expect(standard.credits.toString()).toBe(matrixRow!.standardCredits);
+			expect(annualPrice.credits.toString()).toBe(matrixRow!.annualCredits);
+			expect(annualPrice.credits).toBeLessThan(standard.credits);
+			const ordinaryPrice = applyVideoSharedFunding(annualPrice);
+			expect(ordinaryPrice.paidFundingPolicy).toBeUndefined();
+			expect(ordinaryPrice.pricingDetails).toMatchObject({
+				paidRevenueQualified: false,
+				funding: { mode: "shared-media-credits-v1" },
+				retailReference: { creditFloorMicros: "21944" },
+				retail: {
+					display: {
+						standardCredits: matrixRow!.standardCredits,
+						annualCredits: matrixRow!.annualCredits,
+						credits: matrixRow!.annualCredits,
+						audience: "annual",
+					},
+				},
+			});
+			const quote = await createVideoQuoteRecord(
+				{
+					...f.input,
+					request: selectedRequest,
+					visualSafetyProfile: selectedProfile,
+					price: ordinaryPrice,
+					maximumInputBytes: limits.maximumInputBytes,
+				},
+				client,
+			);
+			const input = {
+				...f.input,
+				request: selectedRequest,
+				visualSafetyProfile: selectedProfile,
+				idempotencyKey: crypto.randomUUID(),
+				quoteId: quote.quoteId,
+				price: ordinaryPrice,
+				paidFundingPolicy: undefined,
+			};
+			// Admission rechecks the real annual proof after locking the account, then reserves shared lots.
+			const accepted = await createVideoJobRecord(input, client);
+			await expect(createVideoJobRecord(input, client)).resolves.toEqual({
+				...accepted,
+				replayed: true,
+			});
+			const stored = await client.generationJob.findUniqueOrThrow({
+				where: { id: accepted.jobId },
+				include: { reservation: { include: { allocations: { include: { lot: true } } } } },
+			});
+			expect(stored.creditsReserved).toBe(ordinaryPrice.credits);
+			expect(stored.pricingSnapshot).not.toHaveProperty("paidFundingPolicy");
+			expect(stored.pricingSnapshot).toMatchObject({
+				pricingDetails: ordinaryPrice.pricingDetails,
+			});
+			expect(stored.reservation!.allocations).toHaveLength(1);
+			expect(stored.reservation!.allocations[0]).toMatchObject({
+				amount: ordinaryPrice.credits,
+				lot: {
+					grantReferenceKey: annual.referenceKey,
+					remainingAmount: selection.monthlyCredits - ordinaryPrice.credits,
+					reservedAmount: ordinaryPrice.credits,
+				},
+			});
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(1);
+			const reserves = await client.creditLedgerEntry.findMany({
+				where: { accountId: f.account.id, type: "RESERVE" },
+			});
+			expect(reserves).toHaveLength(1);
+			expect(reserves[0]!.metadata).not.toHaveProperty("command.metadata.paidFundingPolicy");
+			expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({ valid: true });
+		},
+	);
 	it.each([
 		{ label: "gift only", gifted: 7n, paid: 0n },
 		{ label: "paid only below the former revenue floor", gifted: 0n, paid: 7n },
@@ -1044,6 +1271,69 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			command: { metadata: { paidFundingPolicy: { minimumUsdMicrosPerCredit: "21944" } } },
 		});
 	});
+	it.each([
+		{ plan: "creator", credits: 700n, oldAnnualUsd: 190n, annualUsd: 114n },
+		{ plan: "ultimate", credits: 1_800n, oldAnnualUsd: 490n, annualUsd: 294n },
+		{ plan: "studio", credits: 3_000n, oldAnnualUsd: 790n, annualUsd: 474n },
+	])(
+		"reserves only historical qualified $plan annual credits and never falls back to the cheaper new annual lot",
+		async (tier) => {
+			const f = await fixture(0n);
+			const cheaperRef = await paidSubscriptionGrant(f.ownerId, f.account.id, {
+				paid: tier.annualUsd * 1_000_000n,
+				priceMicros: tier.annualUsd * 1_000_000n,
+				credits: tier.credits,
+				periods: 12,
+			});
+			expect(await getVideoTemplateCreditBalance(f.ownerId, paidFundingPolicy, client)).toEqual({
+				totalCredits: tier.credits.toString(),
+				eligibleCredits: "0",
+			});
+			const historicalRef = await paidSubscriptionGrant(f.ownerId, f.account.id, {
+				paid: tier.oldAnnualUsd * 1_000_000n,
+				priceMicros: tier.oldAnnualUsd * 1_000_000n,
+				credits: tier.credits,
+				periods: 12,
+			});
+			const qualified = await requote(f, { ...price, paidFundingPolicy });
+			const result = await createVideoJobRecord(qualified.input, client);
+			const allocations = await client.creditReservationAllocation.findMany({
+				where: { reservation: { jobId: result.jobId } },
+				include: { lot: true },
+			});
+			expect(allocations).toHaveLength(1);
+			expect(allocations[0]!.lot.grantReferenceKey).toBe(historicalRef);
+			expect(allocations[0]!.amount).toBe(price.credits);
+			expect(await getVideoTemplateCreditBalance(f.ownerId, paidFundingPolicy, client)).toEqual({
+				totalCredits: (tier.credits * 2n - price.credits).toString(),
+				eligibleCredits: (tier.credits - price.credits).toString(),
+			});
+
+			// Total balance is sufficient, but eligible historical receipts are one credit short.
+			const blocked = await requote(f, {
+				...price,
+				credits: tier.credits - price.credits + 1n,
+				paidFundingPolicy,
+			});
+			await expect(
+				createVideoJobRecord(
+					{
+						...blocked.input,
+						idempotencyKey: crypto.randomUUID(),
+					},
+					client,
+				),
+			).rejects.toThrow("INSUFFICIENT_PAID_CREDITS");
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(1);
+			expect(
+				await client.creditLot.findUniqueOrThrow({
+					where: {
+						accountId_grantReferenceKey: { accountId: f.account.id, grantReferenceKey: cheaperRef },
+					},
+				}),
+			).toMatchObject({ remainingAmount: tier.credits, reservedAmount: 0n });
+		},
+	);
 	it.each([
 		{ label: "discount below floor", paid: 1_000_000n },
 		{ label: "non-USD funding", paid: 3_000_000n, currency: "EUR" },

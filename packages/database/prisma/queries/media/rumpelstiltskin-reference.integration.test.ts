@@ -4,16 +4,24 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
+import { applyVideoSharedFunding } from "@repo/config/video-shared-funding";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { providerCapacityForTestRequests } from "../../../test-support/provider-dispatch-capacity";
 import { runWithDatabaseClient } from "../../client";
 import { PrismaClient, type Prisma } from "../../generated/client";
 import { createCreditGrant, releaseCredits } from "./credits";
 import {
+	grantNewAnnualCredits,
+	newAnnualProviders,
+	newAnnualTiers,
+} from "./testing/annual-credit-fixture";
+import {
 	createVideoTemplateJobRecord,
 	createVideoTemplateQuoteRecord,
 } from "./video-template-admission";
+import { getVideoTemplateCreditBalance } from "./video-template-credits";
 import {
 	claimVideoTemplateImageReview,
 	finalizeVideoTemplateReferenceInput,
@@ -23,6 +31,7 @@ import {
 	recordVideoTemplateReview,
 } from "./video-template-execution";
 import { fingerprintVideoTemplateReferenceApproval } from "./video-template-reference";
+import { claimVideoProviderSubmission, recordVideoInputReview } from "./video-v1-execution";
 
 const textProfile = createVideoTextSafetyProfile();
 const object = (value: unknown) => value as Record<string, unknown>;
@@ -30,13 +39,15 @@ const owners: string[] = [];
 let db: PrismaClient;
 const run = <T>(operation: () => T) => runWithDatabaseClient(db, operation);
 
-beforeAll(() => {
+beforeAll(async () => {
 	const raw = process.env.TEST_DATABASE_URL;
 	if (!raw) throw new Error("TEST_DATABASE_URL_REQUIRED");
 	const url = new URL(raw);
 	if (!["127.0.0.1", "localhost", "[::1]"].includes(url.hostname) || !url.pathname.includes("test"))
 		throw new Error("ISOLATED_TEST_DATABASE_REQUIRED");
 	db = new PrismaClient({ adapter: new PrismaPg({ connectionString: raw, max: 10 }) });
+	vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
+	vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", await providerCapacityForTestRequests(db, 8));
 });
 
 afterAll(async () => {
@@ -69,12 +80,17 @@ afterAll(async () => {
 			});
 		}
 	} finally {
+		vi.unstubAllEnvs();
 		await db.$disconnect();
 	}
 });
 
 async function fixture(
-	options: { wrongReferenceOwner?: boolean; missingRightsEvidence?: boolean } = {},
+	options: {
+		wrongReferenceOwner?: boolean;
+		missingRightsEvidence?: boolean;
+		credits?: bigint;
+	} = {},
 ) {
 	const ownerId = `reference-db-test-${randomUUID()}`;
 	owners.push(ownerId);
@@ -98,10 +114,11 @@ async function fixture(
 		},
 	});
 	const account = await db.creditAccount.create({ data: { ownerType: "USER", ownerId } });
-	await createCreditGrant(
-		{ accountId: account.id, amount: 100n, referenceKey: `grant:${ownerId}` },
-		db,
-	);
+	if ((options.credits ?? 100n) > 0n)
+		await createCreditGrant(
+			{ accountId: account.id, amount: options.credits ?? 100n, referenceKey: `grant:${ownerId}` },
+			db,
+		);
 	// These are synthetic backend evidence records; no provider or storage is contacted.
 	const rawEnvelope = {
 		requestId: taskId,
@@ -281,7 +298,7 @@ async function admitted() {
 	return { ...f, quote, input, jobId: job.jobId };
 }
 
-async function reviewSubject(f: Awaited<ReturnType<typeof admitted>>) {
+async function reviewSubject(f: Awaited<ReturnType<typeof fixture>> & { jobId: string }) {
 	const execution = await run(() => getVideoTemplateExecution(f.jobId));
 	if (!execution) throw new Error("REFERENCE_TEST_EXECUTION_REQUIRED");
 	const fingerprint = object(execution.job.inputSnapshot).requestFingerprint;
@@ -329,7 +346,115 @@ async function reviewSubject(f: Awaited<ReturnType<typeof admitted>>) {
 	);
 }
 
+async function claimSharedReferenceProvider(
+	f: Awaited<ReturnType<typeof fixture>> & { jobId: string },
+) {
+	await reviewSubject(f);
+	await run(() => finalizeVideoTemplateReferenceInput(f.jobId));
+	const job = await db.generationJob.findUniqueOrThrow({ where: { id: f.jobId } });
+	const requestId = `shared-reference-prompt-${randomUUID()}`;
+	const ruleVersion = "shared-reference-input-review-test";
+	await run(() =>
+		recordVideoInputReview(f.jobId, {
+			status: "ALLOW",
+			ruleVersion,
+			textSafetyProfile: textProfile,
+			textDecision: {
+				decision: "ALLOW",
+				reasonCode: "WAFFO_PROMPT_ALLOWED",
+				ruleVersion: textProfile.ruleVersion,
+				evidence: {
+					requestId,
+					models: ["waffo-prompt-sift"],
+					operations: 1,
+					waffo: { requestId, action: "allow", semanticStatus: "scored", matchedCategories: [] },
+				},
+			},
+			requestFingerprint: object(job.inputSnapshot).requestFingerprint,
+			validUntil: f.expiry,
+		}),
+	);
+	const input = {
+		jobId: f.jobId,
+		callbackTokenHash: randomUUID(),
+		providerModelId: "synthetic-reference-provider",
+		ruleVersion,
+	};
+	expect(await run(() => claimVideoProviderSubmission(input))).toMatchObject({ claimed: true });
+	expect(await run(() => claimVideoProviderSubmission(input))).toMatchObject({ claimed: false });
+	expect(await db.generationAttempt.count({ where: { jobId: f.jobId } })).toBe(1);
+}
+
 describe("Rumpelstiltskin reference template PostgreSQL binding", () => {
+	it.each(
+		newAnnualTiers.flatMap((tier) => newAnnualProviders.map((provider) => ({ ...tier, provider }))),
+	)(
+		"shares $provider $planId annual credits with the reference template without receipt-price qualification",
+		async (selection) => {
+			const f = await fixture({ credits: 0n });
+			const annual = await grantNewAnnualCredits(db, f.ownerId, selection);
+			const sharedPrice = applyVideoSharedFunding({
+				...f.base.price,
+				credits: 493n,
+				paidFundingPolicy: { minimumUsdMicrosPerCredit: 21_944n },
+			});
+			const quote = await createVideoTemplateQuoteRecord(
+				{ ...f.base, price: sharedPrice, maximumInputBytes: 10_000_000 },
+				db,
+			);
+			const input = {
+				...f.base,
+				quoteId: quote.quoteId,
+				price: sharedPrice,
+				paidFundingPolicy: undefined,
+				idempotencyKey: randomUUID(),
+				limits: {
+					ownerConcurrency: 1,
+					globalConcurrency: 10000,
+					providerConcurrency: 10000,
+					maximumStorageBytes: 1_000_000_000n,
+					maximumInputBytes: 10_000_000,
+				},
+			};
+			expect(await getVideoTemplateCreditBalance(f.ownerId, undefined, db)).toEqual({
+				totalCredits: selection.monthlyCredits.toString(),
+				eligibleCredits: selection.monthlyCredits.toString(),
+			});
+			const job = await createVideoTemplateJobRecord(input, db);
+			expect(await createVideoTemplateJobRecord(input, db)).toEqual({ ...job, replayed: true });
+			const reservation = await db.creditReservation.findUniqueOrThrow({
+				where: { jobId: job.jobId },
+				include: { allocations: { include: { lot: true } } },
+			});
+			expect(reservation.amount).toBe(493n);
+			expect(reservation.allocations).toHaveLength(1);
+			expect(reservation.allocations[0]).toMatchObject({
+				amount: 493n,
+				lot: {
+					grantReferenceKey: annual.grantReferenceKey,
+					remainingAmount: selection.monthlyCredits - 493n,
+					reservedAmount: 493n,
+				},
+			});
+			expect(
+				await db.billingPeriod.count({ where: { subscriptionId: annual.subscription.id } }),
+			).toBe(12);
+			expect(
+				await db.creditLedgerEntry.count({
+					where: { accountId: annual.account.id, type: "RESERVE" },
+				}),
+			).toBe(1);
+			const stored = await db.generationJob.findUniqueOrThrow({ where: { id: job.jobId } });
+			expect(stored.pricingSnapshot).not.toHaveProperty("paidFundingPolicy");
+			expect(stored.pricingSnapshot).toMatchObject({
+				pricingDetails: {
+					paidRevenueQualified: false,
+					funding: { mode: "shared-media-credits-v1" },
+				},
+			});
+			await claimSharedReferenceProvider({ ...f, jobId: job.jobId });
+		},
+	);
 	it("admits one private subject, copies one review and resolves without creating a scene", async () => {
 		const definitions = await db.$queryRaw<Array<{ definition: string }>>`
 			SELECT pg_get_functiondef(p.oid) AS definition

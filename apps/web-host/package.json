@@ -11,7 +11,8 @@
 	},
 	"dependencies": {
 		"@cloudflare/containers": "catalog:",
-		"@repo/config": "workspace:*"
+		"@repo/config": "workspace:*",
+		"@repo/payments": "workspace:*"
 	},
 	"devDependencies": {
 		"@repo/tsconfig": "workspace:*",

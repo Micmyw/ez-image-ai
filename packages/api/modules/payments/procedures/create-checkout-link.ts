@@ -161,6 +161,7 @@ export const createCheckoutLink = protectedProcedure
 			type: "subscription" as const,
 			priceId: trustedBillingPlan.providerPriceId,
 			currency: trustedBillingPlan.currency,
+			amountMicros: trustedBillingPlan.priceMicros,
 			billingPlanId: checkoutIntent.intent.billingPlanId,
 			checkoutIntentId: checkoutIntent.intent.id,
 			idempotencyKey: checkoutIntent.intent.idempotencyKey,

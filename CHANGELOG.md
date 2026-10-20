@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-20 — Checkout price continuity
+
+- Preserve a checkout's original price when its Waffo product receives a new version. Resuming an existing checkout keeps the same session.
+
 ## 2026-10-20 — Clearer payment returns and image funding
 
 - Show compact available credit and image-pass balances, including passes in progress. Keep an explicit credit choice when selected passes run out, without switching payment methods automatically.

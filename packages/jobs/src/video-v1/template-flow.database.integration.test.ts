@@ -12,6 +12,7 @@ import type { VideoEffectRequest } from "@repo/config/video-effects";
 import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
+import { applyVideoSharedFunding } from "@repo/config/video-shared-funding";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { createCreditGrant, releaseCredits } from "@repo/database";
 import { runWithDatabaseClient } from "@repo/database/client";
@@ -369,6 +370,18 @@ type Sample = {
 	externalPaidCalls: 0;
 };
 const samples: Sample[] = [];
+const annualFundingScenarios = [
+	{ planId: "creator", monthlyCredits: 700n, priceMicros: 114_000_000n },
+	{ planId: "ultimate", monthlyCredits: 1_800n, priceMicros: 294_000_000n },
+	{ planId: "studio", monthlyCredits: 3_000n, priceMicros: 474_000_000n },
+].flatMap((tier, index) =>
+	(["paypal", "waffo"] as const).map((provider) => ({
+		...tier,
+		provider,
+		effectId: (["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)[index]!,
+	})),
+);
+type AnnualFunding = (typeof annualFundingScenarios)[number];
 describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 	let client: PrismaClient;
 	let paidPlanId: string;
@@ -476,38 +489,72 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 	async function fixture(
 		effectId: VideoEffectRequest["effectId"] = "hotel-lobby-duo",
 		duration: 5 | 10 = 5,
+		annualFunding?: AnnualFunding,
 	) {
 		external.expectedDuration = duration;
 		const ownerId = `hotel-flow-test-${crypto.randomUUID()}`;
 		ownerIds.push(ownerId);
 		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
 		const paymentId = crypto.randomUUID();
-		const grantReferenceKey = `paypal-payment:${paymentId}:period:0:grant`;
+		const provider = annualFunding?.provider ?? "paypal";
+		const grantReferenceKey = `${provider}-payment:${paymentId}:period:0:grant`;
+		const [clock] = await client.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS "now"`;
+		const startsAt = new Date(clock!.now);
+		startsAt.setUTCDate(1);
+		startsAt.setUTCHours(0, 0, 0, 0);
+		const month = (offset: number) => {
+			const date = new Date(startsAt);
+			date.setUTCMonth(date.getUTCMonth() + offset);
+			return date;
+		};
+		const planId = annualFunding
+			? (
+					await client.billingPlan.create({
+						data: {
+							provider,
+							providerPriceId: `template-shared-annual-${paymentId}`,
+							name: annualFunding.planId,
+							productKind: "PLAN",
+							creditsPerPeriod: annualFunding.monthlyCredits,
+							priceMicros: annualFunding.priceMicros,
+							currency: "USD",
+							metadata: { planId: annualFunding.planId, interval: "year" },
+						},
+					})
+				).id
+			: paidPlanId;
 		const subscription = await client.subscription.create({
 			data: {
 				ownerType: "USER",
 				ownerId,
-				provider: "paypal",
+				provider,
 				providerSubscriptionId: paymentId,
-				planId: paidPlanId,
+				planId,
 				status: "ACTIVE",
+				...(annualFunding ? { currentPeriodStart: startsAt, currentPeriodEnd: month(12) } : {}),
 			},
 		});
-		await client.billingPeriod.create({
-			data: {
+		const credits = annualFunding?.monthlyCredits ?? 100n;
+		await client.billingPeriod.createMany({
+			data: Array.from({ length: annualFunding ? 12 : 1 }, (_, index) => ({
 				subscriptionId: subscription.id,
-				startsAt: new Date(Date.now() - 1000),
-				endsAt: new Date(Date.now() + 86_400_000),
-				status: "ACTIVE",
-				creditAmount: 100n,
-				grantReferenceKey,
+				startsAt: annualFunding ? month(index) : new Date(Date.now() - 1000),
+				endsAt: annualFunding ? month(index + 1) : new Date(Date.now() + 86_400_000),
+				status: index === 0 ? ("ACTIVE" as const) : ("PENDING" as const),
+				creditAmount: credits,
+				grantReferenceKey: index === 0 ? grantReferenceKey : `${grantReferenceKey}:future:${index}`,
 				providerInvoiceId: paymentId,
-				providerInvoicePaymentId: `paypal:${paymentId}`,
-				paidAmount: 3_000_000n,
-			},
+				providerInvoicePaymentId: `${provider}:${paymentId}`,
+				paidAmount: annualFunding?.priceMicros ?? 3_000_000n,
+			})),
 		});
 		await createCreditGrant(
-			{ accountId: account.id, amount: 100n, referenceKey: grantReferenceKey },
+			{
+				accountId: account.id,
+				amount: credits,
+				referenceKey: grantReferenceKey,
+				...(annualFunding ? { expiresAt: month(1) } : {}),
+			},
 			client,
 		);
 		const inputs = await Promise.all(
@@ -539,8 +586,14 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 			inputs: { leftAssetId: inputs[0]!.id, rightAssetId: inputs[1]!.id },
 		};
 		const template = createVideoEffectTemplateSnapshot(request);
+		const quotedPrice = annualFunding
+			? applyVideoSharedFunding({
+					...price,
+					paidFundingPolicy: { minimumUsdMicrosPerCredit: 21_944n },
+				})
+			: price;
 		const profile = {
-			price,
+			price: quotedPrice,
 			visualSafetyProfile:
 				duration === 5 ? visualSafetyProfile : createVideoVisualSafetyProfile("seeapi", duration),
 			textSafetyProfile: createVideoTextSafetyProfile(),
@@ -558,7 +611,7 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 				...profile,
 				quoteId: quote.quoteId,
 				idempotencyKey: crypto.randomUUID(),
-				paidFundingPolicy: { minimumUsdMicrosPerCredit: 21_944n },
+				paidFundingPolicy: annualFunding ? undefined : { minimumUsdMicrosPerCredit: 21_944n },
 				requestReceivedAt: new Date(),
 				limits: {
 					ownerConcurrency: 1,
@@ -576,6 +629,9 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 		});
 		return {
 			ownerId,
+			accountId: account.id,
+			grantReferenceKey,
+			subscriptionId: subscription.id,
 			jobId: accepted.jobId,
 			template,
 			inputs,
@@ -735,6 +791,44 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 		expect(await authorizeVideoPlayback("different-owner", f.jobId)).toBeNull();
 		return job;
 	}
+	it.each(annualFundingScenarios)(
+		"settles $provider $planId annual shared credits for $effectId through both paid-stage fences once",
+		async (annualFunding) =>
+			runWithDatabaseClient(client, async () => {
+				const f = await fixture(annualFunding.effectId, 5, annualFunding);
+				expect(
+					await client.billingPeriod.count({ where: { subscriptionId: f.subscriptionId } }),
+				).toBe(12);
+				const before = { scene: external.sceneCalls, video: external.paidMockCalls };
+				const flow = await execute(f, `${annualFunding.provider}-${annualFunding.planId}-shared`);
+				expect(flow.result).toEqual({ completed: true, stage: "READY" });
+				const job = await assertReady(f);
+				expect(job.pricingSnapshot).not.toHaveProperty("paidFundingPolicy");
+				expect(job.pricingSnapshot).toMatchObject({
+					pricingDetails: {
+						paidRevenueQualified: false,
+						funding: { mode: "shared-media-credits-v1" },
+					},
+				});
+				const allocations = await client.creditReservationAllocation.findMany({
+					where: { reservationId: f.reservationId },
+					include: { lot: true },
+				});
+				expect(allocations).toHaveLength(1);
+				expect(allocations[0]).toMatchObject({
+					amount: price.credits,
+					lot: {
+						grantReferenceKey: f.grantReferenceKey,
+						remainingAmount: annualFunding.monthlyCredits - price.credits,
+						reservedAmount: 0n,
+					},
+				});
+				expect(await flow.repeat()).toEqual({ completed: true, stage: "READY" });
+				await assertReady(f);
+				expect(external.sceneCalls - before.scene).toBe(1);
+				expect(external.paidMockCalls - before.video).toBe(1);
+			}),
+	);
 	it("holds a ten-second output whose moderation evidence covers only five seconds without settlement or playback", async () =>
 		runWithDatabaseClient(client, async () => {
 			external.shortReview = true;
@@ -954,33 +1048,50 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 			expect(external.paidMockCalls - before.video).toBe(1);
 		}));
 
-	it("releases the single reservation once after an authoritative scene rejection and never submits final video", async () =>
-		runWithDatabaseClient(client, async () => {
-			const f = await fixture();
-			const before = { scene: external.sceneCalls, video: external.paidMockCalls };
-			external.sceneRejected = true;
-			const flow = await execute(f, "definitive-scene-rejection");
-			expect(flow.result).toEqual({ completed: true, stage: "REJECTED" });
-			await failVideoDelivery(f.jobId, "REPEATED_FAILURE", true);
-			expect(await failVideoExecution(f.jobId, "REPEATED_FAILURE", true)).toBe(false);
-			const job = await client.generationJob.findUniqueOrThrow({
-				where: { id: f.jobId },
-				include: { reservation: true, attempts: true },
-			});
-			expect(job.reservation?.status).toBe("RELEASED");
-			expect(job.attempts).toHaveLength(0);
-			expect(
-				await client.creditLedgerEntry.count({
-					where: { reservationId: f.reservationId, type: "RELEASE" },
-				}),
-			).toBe(1);
-			expect(
-				await client.creditLedgerEntry.count({
-					where: { reservationId: f.reservationId, type: "SETTLE" },
-				}),
-			).toBe(0);
-			expect(await authorizeVideoPlayback(f.ownerId, f.jobId)).toBeNull();
-			expect(external.sceneCalls - before.scene).toBe(1);
-			expect(external.paidMockCalls - before.video).toBe(0);
-		}));
+	it.each([
+		{ label: "historical paid credits", funding: undefined },
+		{ label: "new annual shared credits", funding: annualFundingScenarios[0]! },
+	])(
+		"releases $label once after an authoritative scene rejection and never submits final video",
+		async ({ funding }) =>
+			runWithDatabaseClient(client, async () => {
+				const f = await fixture("hotel-lobby-duo", 5, funding);
+				const before = { scene: external.sceneCalls, video: external.paidMockCalls };
+				external.sceneRejected = true;
+				const flow = await execute(f, "definitive-scene-rejection");
+				expect(flow.result).toEqual({ completed: true, stage: "REJECTED" });
+				await failVideoDelivery(f.jobId, "REPEATED_FAILURE", true);
+				expect(await failVideoExecution(f.jobId, "REPEATED_FAILURE", true)).toBe(false);
+				const job = await client.generationJob.findUniqueOrThrow({
+					where: { id: f.jobId },
+					include: { reservation: true, attempts: true },
+				});
+				expect(job.reservation?.status).toBe("RELEASED");
+				expect(job.attempts).toHaveLength(0);
+				expect(
+					await client.creditLedgerEntry.count({
+						where: { reservationId: f.reservationId, type: "RELEASE" },
+					}),
+				).toBe(1);
+				expect(
+					await client.creditLedgerEntry.count({
+						where: { reservationId: f.reservationId, type: "SETTLE" },
+					}),
+				).toBe(0);
+				expect(await authorizeVideoPlayback(f.ownerId, f.jobId)).toBeNull();
+				expect(external.sceneCalls - before.scene).toBe(1);
+				expect(external.paidMockCalls - before.video).toBe(0);
+				if (funding)
+					expect(
+						await client.creditLot.findUniqueOrThrow({
+							where: {
+								accountId_grantReferenceKey: {
+									accountId: f.accountId,
+									grantReferenceKey: f.grantReferenceKey,
+								},
+							},
+						}),
+					).toMatchObject({ remainingAmount: funding.monthlyCredits, reservedAmount: 0n });
+			}),
+	);
 });

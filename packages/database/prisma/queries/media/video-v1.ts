@@ -426,7 +426,7 @@ export async function createVideoJobRecord(
 		)
 			throw new Error("PRICE_CHANGED");
 		const funding = input.price.pricingDetails?.funding;
-		const sharedFunding = !input.template && readVideoSharedFundingSnapshot(funding);
+		const sharedFunding = readVideoSharedFundingSnapshot(funding);
 		if (
 			(funding !== undefined &&
 				((!sharedFunding && !readVideoInternalFundingSnapshot(funding, input.ownerId, now)) ||

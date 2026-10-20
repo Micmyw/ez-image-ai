@@ -185,7 +185,7 @@
 			},
 			"annualBilling": {
 				"question": "¿Cómo afecta la facturación anual a los créditos?",
-				"answer": "Pro cuesta $190 al año, Ultimate $490 y Max $790. Los EzImageAI Credits se siguen otorgando cada mes—700 para Pro, 1.800 para Ultimate y 3.000 para Max—y los no utilizados no se acumulan."
+				"answer": "Pro/Ultimate/Max anual: $190/$490/$790 al año—aproximadamente un 17 % menos que 12 pagos mensuales. Créditos mensuales: 700/1.800/3.000, sin acumulación."
 			},
 			"cancelSubscription": {
 				"question": "¿Cómo cancelo mi suscripción?",
