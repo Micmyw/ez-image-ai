@@ -24,12 +24,12 @@ import {
 } from "../../packages/config/video-runtime-environment";
 import { VIDEO_TEXT_SAFETY_RULE_VERSION } from "../../packages/config/video-text-safety";
 
-export const HOTEL_LOBBY_PRICE_SOURCE = "docs/operations/hotel-lobby-pricing-2026-10-05.md";
+export const HOTEL_LOBBY_PRICE_SOURCE = "docs/operations/seedance-mini-migration-2026-10-20.md";
 export const DEFAULT_HOTEL_LOBBY_OUTPUT = ".wrangler/hotel-lobby/prepared/.env.local";
 export const DEFAULT_HOTEL_LOBBY_OVERLAY_OUTPUT =
 	".wrangler/hotel-lobby/prepared/build-overlay.env";
 const selection = {
-	productKey: "video-seedance-1-5-pro",
+	productKey: "video-seedance-2-mini",
 	mode: "image-to-video" as const,
 	duration: 5,
 	resolution: "720p",
@@ -104,8 +104,8 @@ export function prepareHotelLobbyEnvironment(input: Record<string, string>) {
 			costEvidence: "BUDGET_NOT_INVOICE" as const,
 			pricingVersion: quote.pricingVersion,
 			credits: quote.credits.toString(),
-			referenceCredits: "69",
-			matchesReferenceBudget: quote.credits === 69n,
+			referenceCredits: "92",
+			matchesReferenceBudget: quote.credits === 92n,
 			providerCostMicros: quote.providerCostMicros.toString(),
 			completeCostMicros: quote.pricingDetails.completeCostMicros,
 			minimumGrossRevenueMicros: quote.pricingDetails.minimumGrossRevenueMicros,

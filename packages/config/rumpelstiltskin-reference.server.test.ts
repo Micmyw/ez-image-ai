@@ -177,14 +177,14 @@ describe("independent motion-reference contract", () => {
 				),
 			).toBe(false);
 	});
-	it("does not reinterpret or change any legacy snapshot as a reference contract", () => {
+	it("does not reinterpret a separate scene template as a reference contract", () => {
 		const legacy = createVideoEffectTemplateSnapshot({
 			effectId: "hotel-lobby-duo",
 			presetKey: "standard",
 			inputs: { leftAssetId: "left", rightAssetId: "right" },
 		});
 		expect(parseVideoEffectTemplateSnapshot(legacy)).toEqual(legacy);
-		expect(legacy.schemaVersion).toBe(1);
+		expect(legacy.schemaVersion).toBe(4);
 		expect(() =>
 			parseVideoEffectTemplateSnapshot({ ...legacy, effectId: request.effectId }),
 		).toThrow();

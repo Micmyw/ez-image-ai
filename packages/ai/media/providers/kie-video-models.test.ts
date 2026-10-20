@@ -32,6 +32,38 @@ function requestParameters(
 	return "input" in request ? request.input : request;
 }
 describe("Kie multi-model video boundary", () => {
+	it.each([5, 10] as const)(
+		"serializes Mini's silent %ss first-frame contract without old or reference fields",
+		(duration) => {
+			const request = buildKieVideoModelRequest({
+				...inputFor("video-seedance-2-mini", "image-to-video"),
+				duration,
+				resolution: "720p",
+				aspectRatio: "9:16",
+				sound: false,
+				inputAssetId: "sealed-scene",
+			});
+			expect(request).toMatchObject({
+				model: "bytedance/seedance-2-mini",
+				input: {
+					first_frame_url: imageUrl,
+					generate_audio: false,
+					duration,
+					resolution: "720p",
+					aspect_ratio: "9:16",
+				},
+			});
+			const parameters = requestParameters(request);
+			for (const key of [
+				"fixed_lens",
+				"input_urls",
+				"reference_image_urls",
+				"reference_video_urls",
+				"reference_audio_urls",
+			])
+				expect(parameters).not.toHaveProperty(key);
+		},
+	);
 	it.each(
 		VIDEO_MODEL_CATALOG.filter((model) => model.status === "implemented").flatMap((model) =>
 			model.modes.map((mode) => ({ productKey: model.productKey, mode })),

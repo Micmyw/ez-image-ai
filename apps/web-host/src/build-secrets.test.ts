@@ -736,7 +736,7 @@ describe("Cloudflare build secret transport", () => {
 			}),
 		).toThrow(/^VIDEO_RUNTIME_CONFIG_INVALID$/);
 	});
-	it("validates the merged 69-credit quote before the separate template build switch can open", () => {
+	it("validates the merged 92-credit quote before the separate template build switch can open", () => {
 		const base = {
 			VIDEO_V1_ACCESS: "internal",
 			VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
@@ -804,7 +804,7 @@ describe("Cloudflare build secret transport", () => {
 				},
 				raindance,
 			).credits,
-		).toBe(69n);
+		).toBe(92n);
 		expect(() =>
 			readCloudflareBuildEnvironment({
 				...input,
@@ -829,7 +829,7 @@ describe("Cloudflare build secret transport", () => {
 				},
 				merged,
 			).credits,
-		).toBe(69n);
+		).toBe(92n);
 		const expiredInput = {
 			...input,
 			HOTEL_LOBBY_DUO_RUNTIME_CONFIG: JSON.stringify({

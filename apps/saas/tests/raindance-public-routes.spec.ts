@@ -49,22 +49,22 @@ const scenario = (patch: Partial<Scenario> = {}): Scenario => ({
 	creates: [],
 	playback: 0,
 	ordinaryVideoJobRequests: 0,
-	eligibleCredits: "120",
-	quoteCredits: "24",
+	eligibleCredits: "240",
+	quoteCredits: "92",
 	...patch,
 });
 
 function effectPricing(duration: 5 | 10, annual = false) {
-	const standardCredits = duration === 5 ? "69" : "116";
-	const annualCredits = duration === 5 ? "69" : "101";
+	const standardCredits = duration === 5 ? "92" : "178";
+	const annualCredits = duration === 5 ? "92" : "154";
 	return {
-		policyVersion: "video-effect-retail-2026-10-08.1",
+		policyVersion: "video-effect-mini-retail-2026-10-20.1",
 		audience: annual ? "annual" : "standard",
 		credits: annual ? annualCredits : standardCredits,
 		standardCredits,
 		annualCredits,
-		savedCredits: duration === 10 && annual ? "15" : "0",
-		annualSavingsCredits: duration === 10 ? "15" : "0",
+		savedCredits: duration === 10 && annual ? "24" : "0",
+		annualSavingsCredits: duration === 10 ? "24" : "0",
 	};
 }
 async function setup(page: Page, state: Scenario) {
@@ -121,7 +121,7 @@ async function setup(page: Page, state: Scenario) {
 				},
 			});
 		if (endpoint === "media/getCreditAccount")
-			return reply({ spendableCredits: "120", reservedCredits: "0" });
+			return reply({ spendableCredits: "240", reservedCredits: "0" });
 		if (endpoint === "media/getPublicCatalog") return reply({ products: [] });
 		if (endpoint === "payments/listPurchases") return reply([]);
 		if (endpoint === "videoV1/availability") return reply({ available: false });
@@ -133,9 +133,9 @@ async function setup(page: Page, state: Scenario) {
 				available: state.available,
 				accessAllowed: true,
 				reasons: [],
-				credits: state.available ? "24" : null,
+				credits: state.available ? "92" : null,
 				creditBalance: state.available
-					? { totalCredits: "120", eligibleCredits: state.eligibleCredits }
+					? { totalCredits: "240", eligibleCredits: state.eligibleCredits }
 					: null,
 				...(state.durations
 					? {
@@ -198,15 +198,26 @@ async function setup(page: Page, state: Scenario) {
 				expiresAt: new Date(Date.now() + (state.expired ? -1000 : 60_000)).toISOString(),
 			});
 		}
+		const acceptedRequest =
+			endpoint === "videoEffects/jobs/create" ? body?.request : state.creates.at(-1)?.request;
+		const acceptedDuration =
+			acceptedRequest &&
+			typeof acceptedRequest === "object" &&
+			(acceptedRequest as Record<string, unknown>).duration === 10
+				? 10
+				: 5;
 		const job = {
 			jobId: "mock-template-job",
 			effectId: state.effectId,
 			name: state.effectId === "raindance-solo" ? "Raindance solo" : "Raindance duet",
 			presetKey: "standard",
-			templateVersion: "1",
+			templateVersion: `raindance-mini-${acceptedDuration === 10 ? "10s-" : ""}2026-10-20.1`,
+			duration: acceptedDuration,
 			stage: "CREATING_SCENE",
 			creditState: "RESERVED",
-			credits: "24",
+			credits: state.durations
+				? effectPricing(acceptedDuration, state.annual).credits
+				: state.quoteCredits,
 			canPlay: false,
 			failureCode: null,
 			updatedAt: "2026-10-05T00:00:00Z",
@@ -296,24 +307,24 @@ test("Raindance: duration drafts stay separate between solo and duet", async ({ 
 	await setup(page, state);
 	await page
 		.locator(".ve-duration")
-		.getByRole("button", { name: "10 seconds 101 credits", exact: true })
+		.getByRole("button", { name: "10 seconds 154 credits", exact: true })
 		.click();
 	await page.locator("#ve-upload-left").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
 	await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
 	await expect(
-		page.locator(".ve-duration").getByRole("button", { name: "5 seconds 69 credits", exact: true }),
+		page.locator(".ve-duration").getByRole("button", { name: "5 seconds 92 credits", exact: true }),
 	).toHaveAttribute("aria-pressed", "true");
 	await page.getByRole("button", { name: "Solo · 1 photo", exact: true }).click();
 	await expect(
 		page
 			.locator(".ve-duration")
-			.getByRole("button", { name: "10 seconds 101 credits", exact: true }),
+			.getByRole("button", { name: "10 seconds 154 credits", exact: true }),
 	).toHaveAttribute("aria-pressed", "true");
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
 	await page.locator(".ve-workbench").screenshot({ path: info.outputPath("raindance-10s.png") });
 	await page
-		.getByRole("button", { name: t.generate.replace("{credits}", "101"), exact: true })
+		.getByRole("button", { name: t.generate.replace("{credits}", "154"), exact: true })
 		.click();
 	await expect(page.locator(".ve-result h2")).toHaveText(t.raindance.creatingScene);
 	expect(state.creates).toHaveLength(1);
@@ -333,7 +344,7 @@ test("Raindance: solo binds one upload; duet and Hotel Lobby drafts remain separ
 	await page.locator("#ve-upload-left").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
 	await page
-		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
+		.getByRole("button", { name: t.generate.replace("{credits}", "92"), exact: true })
 		.click();
 	await expect(page.locator("#raindance-history a")).toHaveCount(1);
 	expect(state.quotes[0]).toMatchObject({
@@ -346,11 +357,11 @@ test("Raindance: solo binds one upload; duet and Hotel Lobby drafts remain separ
 	await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.empty);
 	await uploadBoth(page);
-	state.quoteCredits = "25";
+	state.quoteCredits = "93";
 	await page
-		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
+		.getByRole("button", { name: t.generate.replace("{credits}", "92"), exact: true })
 		.click();
-	await expect(page.locator("#ve-price-change")).toContainText("25 credits");
+	await expect(page.locator("#ve-price-change")).toContainText("93 credits");
 	expect(state.quotes[1]).toMatchObject({
 		effectId: "raindance-duo",
 		inputs: { leftAssetId: "asset-2", rightAssetId: "asset-3" },
@@ -372,7 +383,7 @@ test("Raindance: lost paid response recovers the same solo confirmation", async 
 	await page.locator("#ve-upload-left").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
 	await page
-		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
+		.getByRole("button", { name: t.generate.replace("{credits}", "92"), exact: true })
 		.click();
 	await expect(page.getByRole("button", { name: t.recover, exact: true })).toBeVisible();
 	await page.reload();
@@ -396,7 +407,7 @@ test("Raindance: leaving a mode during quotation cannot accept a hidden order", 
 	await page.locator("#ve-upload-left").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
 	await page
-		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
+		.getByRole("button", { name: t.generate.replace("{credits}", "92"), exact: true })
 		.click();
 	await expect.poll(() => state.quotes.length).toBe(1);
 	await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
@@ -406,7 +417,7 @@ test("Raindance: leaving a mode during quotation cannot accept a hidden order", 
 	await page.getByRole("button", { name: "Solo · 1 photo", exact: true }).click();
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
 	await expect(
-		page.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true }),
+		page.getByRole("button", { name: t.generate.replace("{credits}", "92"), exact: true }),
 	).toBeEnabled();
 	expect(state.creates).toHaveLength(0);
 });
@@ -429,7 +440,7 @@ for (const late of ["accepted", "INSUFFICIENT_ELIGIBLE_CREDITS", "QUOTE_EXPIRED_
 		await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
 		const generate = () =>
 			page
-				.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
+				.getByRole("button", { name: t.generate.replace("{credits}", "92"), exact: true })
 				.click();
 		await generate();
 		await expect.poll(() => state.creates.length).toBe(1);
@@ -487,7 +498,7 @@ test("Raindance: review-regression mounted recovery observes an already persiste
 	await page.locator("#ve-upload-left").setInputFiles(source);
 	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
 	await page
-		.getByRole("button", { name: t.generate.replace("{credits}", "24"), exact: true })
+		.getByRole("button", { name: t.generate.replace("{credits}", "92"), exact: true })
 		.click();
 	await expect.poll(() => state.creates.length).toBe(1);
 	await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
@@ -544,7 +555,7 @@ test("Raindance: insufficient balance opens credit packs and preserves duet phot
 	await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
 	await page
 		.locator(".ve-duration")
-		.getByRole("button", { name: "10 seconds 116 credits", exact: true })
+		.getByRole("button", { name: "10 seconds 178 credits", exact: true })
 		.click();
 	await uploadBoth(page);
 	await page.locator(".ve-creator .ve-primary").click();
@@ -566,16 +577,16 @@ test("Raindance: insufficient balance opens credit packs and preserves duet phot
 	expect(JSON.stringify(stored)).not.toMatch(/blob:|base64|uploadUrl|signed/);
 	expect(state.quotes).toHaveLength(0);
 	expect(state.creates).toHaveLength(0);
-	state.eligibleCredits = "120";
+	state.eligibleCredits = "240";
 	await page.goto(`${path}?mode=duo`);
 	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
 	await expect(
 		page
 			.locator(".ve-duration")
-			.getByRole("button", { name: "10 seconds 116 credits", exact: true }),
+			.getByRole("button", { name: "10 seconds 178 credits", exact: true }),
 	).toHaveAttribute("aria-pressed", "true");
 	await expect(
-		page.getByRole("button", { name: t.generate.replace("{credits}", "116"), exact: true }),
+		page.getByRole("button", { name: t.generate.replace("{credits}", "178"), exact: true }),
 	).toBeEnabled();
 });
 

@@ -843,6 +843,37 @@ describe("authoritative provider confirmation", () => {
 		expect(f.provider.retrieve).not.toHaveBeenCalled();
 		expect(f.store.failVideoExecution).not.toHaveBeenCalled();
 	});
+	it("queries a retired Seedance 1.5 Pro 1080p attempt using its original model and never submits a replacement", async () => {
+		const f = fixture();
+		Object.assign(f.job.inputSnapshot, {
+			productKey: "video-seedance-1-5-pro",
+			duration: 10,
+			resolution: "1080p",
+			sound: false,
+			modelContractVersion: "video-models-2026-10-08.1",
+		});
+		f.attempt.push({
+			id: "accepted-seedance-15",
+			providerTaskId: "original-seedance-15-task",
+			providerModelId: "bytedance/seedance-1.5-pro",
+			status: "SUBMITTED",
+		});
+		Object.assign(f.deps.env, {
+			VIDEO_V1_ENABLED: "false",
+			VIDEO_MODEL_CONTRACT_VERSION: "unconfirmed",
+		});
+		expect(await confirmVideoProviderResult("job-1", f.deps)).toMatchObject({ status: "PENDING" });
+		expect(f.provider.retrieve).toHaveBeenCalledWith(
+			"original-seedance-15-task",
+			"video-seedance-1-5-pro",
+		);
+		expect(await submitVideoAttempt("job-1", f.deps)).toMatchObject({
+			status: "ACCEPTED",
+			providerTaskId: "original-seedance-15-task",
+		});
+		expect(f.provider.submit).not.toHaveBeenCalled();
+		expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+	});
 	it("continues an accepted previous-catalog attempt after admission settings advance", async () => {
 		const f = fixture();
 		Object.assign(f.job.inputSnapshot, {

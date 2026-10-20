@@ -2,6 +2,7 @@ import { videoEffectIdSchema, videoEffectName } from "@repo/config/video-effects
 import type { resolveVideoEffectPrice } from "@repo/config/video-effects.server";
 import {
 	getVideoModel,
+	isVideoModelRetired,
 	validateVideoModelSelection,
 	type VideoModelSelection,
 } from "@repo/config/video-models";
@@ -55,6 +56,8 @@ export function requireVideoAdmission(
 	const config = readVideoV1Config(environment);
 	if (!canAccessVideoV1(config, { id: context.userId, role: context.role }))
 		throw new Error("VIDEO_ACCESS_DENIED");
+	if (isVideoModelRetired(videoRequestSelection(request).productKey))
+		throw new Error("VIDEO_MODEL_RETIRED");
 	const admitted = requireVideoModelReadiness(environment, bindings, request, { pricingContext });
 	return {
 		...admitted,

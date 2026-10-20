@@ -267,12 +267,12 @@ describe("build policy compaction semantics", () => {
 		expect(
 			effects.rows?.map(({ standardCredits, annualCredits }) => [standardCredits, annualCredits]),
 		).toEqual([
-			["69", "69"],
-			["116", "101"],
-			["69", "69"],
-			["116", "101"],
-			["69", "69"],
-			["116", "101"],
+			["92", "92"],
+			["178", "154"],
+			["92", "92"],
+			["178", "154"],
+			["92", "92"],
+			["178", "154"],
 		]);
 	});
 	it.each([undefined, "none", "invalid-date", "2000-01-01T00:00:00Z"])(

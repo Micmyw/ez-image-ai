@@ -6,9 +6,40 @@ import {
 	VIDEO_MODEL_CATALOG,
 	validateVideoModelSelection,
 	videoModelInputSchema,
+	videoModelReceiptInputSchema,
 } from "./video-models";
 
 describe("official video model capabilities", () => {
+	it.each(["text-to-video", "image-to-video"] as const)(
+		"rejects new Seedance 1.5 Pro %s orders while preserving frozen 1080p receipts",
+		(mode) => {
+			const frozen = {
+				productKey: "video-seedance-1-5-pro",
+				mode,
+				prompt: "A quiet landscape",
+				duration: 10,
+				resolution: "1080p",
+				aspectRatio: "16:9",
+				sound: false,
+				...(mode === "image-to-video" ? { inputAssetId: "frozen-image" } : {}),
+			};
+			expect(getVideoModel(frozen.productKey)?.status).toBe("implemented");
+			expect(validateVideoModelSelection(frozen)).toBe(true);
+			expect(videoModelReceiptInputSchema.parse(frozen)).toEqual(frozen);
+			expect(videoModelInputSchema.safeParse(frozen).success).toBe(false);
+			expect(
+				videoModelInputSchema.safeParse({ ...frozen, productKey: "video-seedance-2-mini" }).success,
+			).toBe(false);
+			for (const resolution of ["480p", "720p"])
+				expect(
+					videoModelInputSchema.safeParse({
+						...frozen,
+						productKey: "video-seedance-2-mini",
+						resolution,
+					}).success,
+				).toBe(true);
+		},
+	);
 	it("uses source framing for new Kling 3 image requests, as the first frame owns its ratio", () => {
 		const options = getVideoModelOptions("video-kling-3", "image-to-video");
 		expect(new Set(options.map((option) => option.aspectRatio))).toEqual(new Set(["source"]));
@@ -47,7 +78,7 @@ describe("official video model capabilities", () => {
 							prompt: "A quiet landscape",
 							...(mode === "image-to-video" ? { inputAssetId: "sealed-image" } : {}),
 						}).success,
-					).toBe(true);
+					).toBe(model.productKey !== "video-seedance-1-5-pro");
 				}
 			}
 		}
@@ -166,7 +197,7 @@ describe("official video model capabilities", () => {
 			expect(
 				videoModelInputSchema.safeParse({ ...base, prompt: "海".repeat(model.maxPromptCodePoints) })
 					.success,
-			).toBe(true);
+			).toBe(model.productKey !== "video-seedance-1-5-pro");
 			expect(
 				videoModelInputSchema.safeParse({
 					...base,

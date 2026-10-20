@@ -45,6 +45,21 @@ const environment = {
 const bindings = { workflow: true, r2: true, hyperdrive: true, uploadCors: true };
 
 describe("lightweight video navigation availability", () => {
+	it("excludes retired Seedance 1.5 Pro from new catalog availability and navigation", () => {
+		const models = buildVideoCatalogModels(environment, bindings, true, new Set());
+		const retired = models.find((entry) => entry.productKey === "video-seedance-1-5-pro")!;
+		expect(retired).toMatchObject({
+			available: false,
+			options: [],
+			reasons: ["VIDEO_MODEL_RETIRED"],
+		});
+		const onlyRetiredEnabled = new Set(
+			models
+				.filter((entry) => entry.productKey !== retired.productKey)
+				.map((entry) => `media.model.${entry.productKey}.enabled`),
+		);
+		expect(hasAvailableVideoModel(environment, bindings, true, onlyRetiredEnabled)).toBe(false);
+	});
 	it.each([
 		{ name: "approved", overrides: {}, access: true, disabled: [] },
 		{ name: "denied", overrides: {}, access: false, disabled: [] },
@@ -150,11 +165,7 @@ describe("video public catalogue pricing and readiness", () => {
 				new Set(),
 			);
 			expect(models.every((model) => !model.available)).toBe(true);
-			for (const productKey of [
-				"video-seedance-2-mini",
-				"video-seedance-2-fast",
-				"video-seedance-1-5-pro",
-			]) {
+			for (const productKey of ["video-seedance-2-mini", "video-seedance-2-fast"]) {
 				const model = models.find((item) => item.productKey === productKey)!;
 				expect(model.reasons).toContain("VIDEO_PRICE_NOT_APPROVED");
 				expect(model.options.every((option) => option.credits === null && !option.available)).toBe(
@@ -188,7 +199,7 @@ describe("video public catalogue pricing and readiness", () => {
 		expect(mini.options.every((option) => option.available && option.credits !== null)).toBe(true);
 	});
 	it.each([undefined, "", "[]", "not-json"])(
-		"quotes official Seedance 1.5 Pro options regardless of stale model scope %s",
+		"quotes official Seedance 2 Mini options regardless of stale model scope %s",
 		(scope) => {
 			const models = buildVideoCatalogModels(
 				{
@@ -199,7 +210,7 @@ describe("video public catalogue pricing and readiness", () => {
 				true,
 				new Set(),
 			);
-			const seedance = models.find((model) => model.productKey === "video-seedance-1-5-pro")!;
+			const seedance = models.find((model) => model.productKey === "video-seedance-2-mini")!;
 			expect(seedance.available).toBe(true);
 			expect(seedance.options).toContainEqual({
 				mode: "text-to-video",

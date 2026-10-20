@@ -85,7 +85,7 @@ describe("Raindance frozen contract and independent admission", () => {
 				duration: 5,
 				resolution: "720p",
 				sound: false,
-				fixedLens: true,
+				fixedLens: false,
 			});
 			expect(parseVideoEffectTemplateSnapshot(snapshot)).toEqual(snapshot);
 			expect(() =>
@@ -148,7 +148,7 @@ describe("approved ten-second effects", () => {
 			const base = { ...request, effectId, inputs: { leftAssetId: "one", rightAssetId: "one" } };
 			const long = createVideoEffectTemplateSnapshot({ ...base, duration: 10 });
 			const short = createVideoEffectTemplateSnapshot(base);
-			expect(long.schemaVersion).toBe(3);
+			expect(long.schemaVersion).toBe(4);
 			expect(long.video.prompt).toContain("Seconds 8–10");
 			expect(long.video.prompt).not.toBe(short.video.prompt);
 			expect(long.video.duration).toBe(10);
@@ -167,7 +167,7 @@ describe("approved ten-second effects", () => {
 					assertApprovedVideoEffectRetailPrice(input, upgraded(), annual, { audience: "annual" }),
 				).not.toThrow();
 				expect([standard.credits, annual.credits]).toEqual(
-					duration === 5 ? [69n, 69n] : [116n, 101n],
+					duration === 5 ? [92n, 92n] : [178n, 154n],
 				);
 				expect(standard.pricingDetails.costPolicy.paymentFeeBps).toBe("750");
 				expect(standard.pricingDetails.costPolicy.markupBps).toBe(
@@ -239,7 +239,7 @@ describe("approved ten-second effects", () => {
 		delete env.VIDEO_EFFECT_RETAIL_PRICE_ACCEPTED_VERSION;
 		expect(() => resolveVideoEffectPrice(input, env)).toThrow("VIDEO_EFFECT_PRICE_NOT_APPROVED");
 		expect(parseVideoEffectTemplateSnapshot(snapshot)).toEqual(snapshot);
-		expect(resolveVideoEffectPrice(request, env).credits).toBe(69n);
+		expect(resolveVideoEffectPrice(request, env).credits).toBe(92n);
 	});
 });
 
@@ -274,12 +274,12 @@ describe("frozen Hotel Lobby template", () => {
 		expect(stored.scene.prompt).toContain("image 1 defines the LEFT");
 		expect(stored.scene.prompt).toContain("image 2 defines the RIGHT");
 		expect(stored.video).toMatchObject({
-			productKey: "video-seedance-1-5-pro",
+			productKey: "video-seedance-2-mini",
 			duration: 5,
 			resolution: "720p",
 			aspectRatio: "9:16",
 			sound: false,
-			fixedLens: true,
+			fixedLens: false,
 		});
 		expect(parseVideoEffectTemplateSnapshot(JSON.parse(JSON.stringify(stored)))).toEqual(stored);
 		expect(() => resolveVideoEffectTemplate(request, {})).toThrow("VIDEO_EFFECT_DISABLED");
@@ -320,7 +320,7 @@ describe("frozen Hotel Lobby template", () => {
 					VIDEO_MODEL_ALLOWED_OPTIONS,
 				}).video,
 			).toMatchObject({
-				productKey: "video-seedance-1-5-pro",
+				productKey: "video-seedance-2-mini",
 				mode: "image-to-video",
 				duration: 5,
 				resolution: "720p",
@@ -340,13 +340,13 @@ describe("one complete duo quote", () => {
 		};
 		const price = resolveVideoEffectPrice(request, env);
 		expect(price.pricingDetails.videoPricingVersion).toBe(VIDEO_SUPPLIER_PRICE_VERSION);
-		expect(price.providerCostMicros).toBe(107_500n);
-		expect(price.pricingDetails.directCostMicros).toBe("160500");
+		expect(price.providerCostMicros).toBe(225_000n);
+		expect(price.pricingDetails.directCostMicros).toBe("278000");
 		expect(price.pricingDetails.costPolicy.markupBps).toBe("20000");
 		expect(price.pricingDetails.costPolicy.paymentFeeBps).toBe("750");
 		expect(price.pricingDetails.validUntil).toBeNull();
 		expect(createVideoEffectTemplateSnapshot(request).video).toMatchObject({
-			productKey: "video-seedance-1-5-pro",
+			productKey: "video-seedance-2-mini",
 			duration: 5,
 			resolution: "720p",
 			sound: false,
@@ -409,7 +409,7 @@ describe("one complete duo quote", () => {
 				resolveVideoEffectPrice(request, { ...env, HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS: value }),
 			).toThrow("VIDEO_EFFECT_PAYMENT_COST_NOT_CONFIRMED");
 	});
-	it("quotes 69 credits for the explicit conservative budget and rejects the economics of 68", () => {
+	it("quotes 92 credits for the Mini budget and rejects the economics of 91", () => {
 		const price = resolveVideoEffectPrice(request, {
 			...fixtureEnvironment(),
 			VIDEO_COST_MODERATION_BASE_MICROS: "5100",
@@ -423,9 +423,9 @@ describe("one complete duo quote", () => {
 			HOTEL_LOBBY_DUO_ADDITIONAL_RUNTIME_COST_MICROS: "100000",
 			HOTEL_LOBBY_DUO_ADDITIONAL_STORAGE_COST_MICROS: "10000",
 		});
-		expect(price.credits).toBe(69n);
-		expect(price.pricingDetails.minimumGrossRevenueMicros).toBe("1514136");
-		expect(price.pricingDetails.completeCostMicros).toBe("501228");
+		expect(price.credits).toBe(92n);
+		expect(price.pricingDetails.minimumGrossRevenueMicros).toBe("2018848");
+		expect(price.pricingDetails.completeCostMicros).toBe("669637");
 		const previousRevenue =
 			(price.credits - 1n) * price.paidFundingPolicy.minimumUsdMicrosPerCredit;
 		const previousPaymentFee = (previousRevenue * 750n + 9999n) / 10000n;
@@ -447,19 +447,19 @@ describe("one complete duo quote", () => {
 			markupBps: 20000n,
 		};
 		const expected = calculateVideoRetailPrice({
-			providerCostMicros: 107500n,
+			providerCostMicros: 225000n,
 			duration: 5,
 			sound: false,
 			policy,
 		});
-		expect(price.providerCostMicros).toBe(107500n);
+		expect(price.providerCostMicros).toBe(225000n);
 		expect(price.moderationCostMicros).toBe(38000n);
 		expect(price.credits).toBe(expected.credits);
-		expect(price.pricingDetails.directCostMicros).toBe("160500");
+		expect(price.pricingDetails.directCostMicros).toBe("278000");
 		expect(price.pricingDetails.costPolicy.paymentFixedAllocationMicros).toBe("2000");
 		expect(price.pricingDetails.costComponents).toMatchObject({
 			sceneProviderCostMicros: "20000",
-			videoProviderCostMicros: "87500",
+			videoProviderCostMicros: "205000",
 			inputReviewCostMicros: "2000",
 			sceneReviewCostMicros: "1000",
 		});

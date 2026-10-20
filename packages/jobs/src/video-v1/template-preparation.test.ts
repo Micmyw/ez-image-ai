@@ -1,8 +1,12 @@
-import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
+import {
+	createVideoEffectTemplateSnapshot,
+	parseVideoEffectTemplateSnapshot,
+} from "@repo/config/video-effects.server";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { VIDEO_V1_RULE_VERSION } from "@repo/config/video-v1";
 import { describe, expect, it, vi } from "vitest";
 
+import legacyHotelTemplates from "./fixtures/hotel-lobby-legacy-templates.json";
 import {
 	prepareVideoTemplate,
 	type VideoTemplatePreparationDependencies,
@@ -473,6 +477,26 @@ describe("template scene preparation durable boundaries (local mocks)", () => {
 		expect(f.provider.retrieve).toHaveBeenCalledWith("scene-task");
 		expect(f.store.markVideoTemplateNeedsReview).not.toHaveBeenCalled();
 	});
+	it.each([5, 10] as const)(
+		"prepares a frozen legacy %ss template after new admissions switch to Mini without changing its contract",
+		async (duration) => {
+			const f = fixture();
+			// Exact pre-migration 5f705a1 receipts include their original motion prompt versions.
+			const legacy = parseVideoEffectTemplateSnapshot(legacyHotelTemplates[duration]);
+			f.state.templateSnapshot = legacy;
+			f.state.job.inputSnapshot.videoEffectTemplate = legacy;
+			Object.assign(f.deps.env, {
+				HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION: "hotel-lobby-duo-mini-2026-10-20.1",
+				HOTEL_LOBBY_DUO_ACCEPTED_LONG_TEMPLATE_VERSION: "hotel-lobby-duo-mini-10s-2026-10-20.1",
+			});
+			expect(await f.run()).toEqual({ status: "ALLOW" });
+			expect(f.state.templateSnapshot).toEqual(legacy);
+			expect(f.state.templateSnapshot.video.productKey).toBe("video-seedance-1-5-pro");
+			expect(f.provider.submit).toHaveBeenCalledTimes(1);
+			expect(await f.run()).toEqual({ status: "ALLOW" });
+			expect(f.provider.submit).toHaveBeenCalledTimes(1);
+		},
+	);
 	it("checks the emergency runtime gate only before the first scene POST", async () => {
 		const f = fixture();
 		vi.mocked(f.deps.requireRuntimeEnabled).mockRejectedValueOnce(

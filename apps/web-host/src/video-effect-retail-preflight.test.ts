@@ -54,6 +54,42 @@ const policy = {
 	VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
 };
 describe("effect price release preflight", () => {
+	it("applies the explicit Mini rollout to known legacy template approvals without changing funding, budgets or access", () => {
+		const legacy = {
+			...policy,
+			HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION: "hotel-lobby-duo-2026-10-05.1",
+			HOTEL_LOBBY_DUO_ACCEPTED_LONG_TEMPLATE_VERSION: "hotel-lobby-duo-10s-2026-10-08.1",
+			RAINDANCE_ACCEPTED_TEMPLATE_VERSION: "raindance-2026-10-07.1",
+			RAINDANCE_ACCEPTED_LONG_TEMPLATE_VERSION: "raindance-10s-2026-10-08.1",
+			HOTEL_LOBBY_DUO_PRICE_VERSION: "hotel-lobby-duo-cost-2026-10-05.2",
+			VIDEO_EFFECT_RETAIL_PRICE_ACCEPTED_VERSION: "video-effect-retail-2026-10-08.1",
+			HOTEL_LOBBY_DUO_ACCESS: "authenticated",
+			HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS: "20000",
+			HOTEL_LOBBY_DUO_INTERNAL_FUNDING: "frozen-internal-evidence",
+		};
+		const output = parseEnv(
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "HOTEL_LOBBY_DUO_ENABLED=true\nUNRELATED=kept",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify(legacy),
+				VIDEO_EFFECT_BUILD_RETAIL_PRICE_VERSION: VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+			}),
+		);
+		const active = JSON.parse(output.VIDEO_RUNTIME_CONFIG!);
+		expect(active).toMatchObject({
+			HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION: HOTEL_LOBBY_TEMPLATE_VERSION,
+			HOTEL_LOBBY_DUO_ACCEPTED_LONG_TEMPLATE_VERSION: HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
+			RAINDANCE_ACCEPTED_TEMPLATE_VERSION: RAINDANCE_TEMPLATE_VERSION,
+			RAINDANCE_ACCEPTED_LONG_TEMPLATE_VERSION: RAINDANCE_LONG_TEMPLATE_VERSION,
+			HOTEL_LOBBY_DUO_PRICE_VERSION: HOTEL_LOBBY_PRICE_VERSION,
+			VIDEO_EFFECT_RETAIL_PRICE_ACCEPTED_VERSION: VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+			HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS: legacy.HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS,
+			HOTEL_LOBBY_DUO_ACCESS: legacy.HOTEL_LOBBY_DUO_ACCESS,
+			HOTEL_LOBBY_DUO_INTERNAL_FUNDING: legacy.HOTEL_LOBBY_DUO_INTERNAL_FUNDING,
+		});
+		expect(active.HOTEL_LOBBY_DUO_PRICE_BASIS).toContain("seedance-mini-migration-2026-10-20.md");
+		expect(output.HOTEL_LOBBY_DUO_ENABLED).toBe("true");
+		expect(output.UNRELATED).toBe("kept");
+	});
 	it("recomputes all six options and ignores retired approval dates and reports drifting policy without exposing secrets", () => {
 		const input = {
 			VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
@@ -64,8 +100,8 @@ describe("effect price release preflight", () => {
 		const report = verifyApprovedVideoEffectPrices(input);
 		expect(report).toMatchObject({ enabled: true, checked: 6, differences: 0 });
 		expect(report.rows?.find((row) => row.duration === 10)?.standard).toMatchObject({
-			directCostMicros: "437400",
-			riskAdjustedCostMicros: "486000",
+			directCostMicros: "672400",
+			riskAdjustedCostMicros: "747112",
 			costPolicy: { paymentFeeBps: "750", markupBps: "27500" },
 		});
 		expect(JSON.stringify(report)).not.toContain("secret-sentinel");

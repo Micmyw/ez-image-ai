@@ -283,6 +283,57 @@ async function quoteAndConfirm(page: Page, doubleClick = false) {
 	else await page.locator('[data-test="video-generate"]').click();
 }
 
+test("UI Mock: a retired 1080p draft requires an explicit model replacement", async ({
+	context,
+	page,
+}) => {
+	const state = scenario();
+	await setup(context, page, state);
+	await page
+		.getByLabel("Describe your video", { exact: true })
+		.fill("Keep the original description.");
+	await expect
+		.poll(() =>
+			page.evaluate(() =>
+				Object.keys(sessionStorage).some((key) => key.startsWith("video-v1:draft:")),
+			),
+		)
+		.toBe(true);
+	await page.evaluate(() => {
+		const key = Object.keys(sessionStorage).find((value) => value.startsWith("video-v1:draft:"))!;
+		const saved = JSON.parse(sessionStorage.getItem(key)!);
+		saved.draft.productKey = "video-seedance-1-5-pro";
+		saved.draft.resolution = "1080p";
+		sessionStorage.setItem(key, JSON.stringify(saved));
+	});
+	await page.reload();
+	const model = page.getByRole("button", { name: "Video model", exact: true });
+	await expect(model).toHaveAttribute("data-product-key", "video-seedance-1-5-pro");
+	await expect(page.getByRole("button", { name: "Video settings", exact: true })).toContainText(
+		"1080P",
+	);
+	await expect(page.locator('[data-test="video-model-retired"]')).toContainText(
+		"Choose another model",
+	);
+	await expect(page.locator('[data-test="video-generate"]')).toBeDisabled();
+	await model.click();
+	await page.getByRole("button", { name: "Seedance", exact: true }).click();
+	await expect(page.getByRole("button", { name: "Seedance 1.5 Pro", exact: true })).toHaveCount(0);
+	await page.getByRole("button", { name: "Seedance 2", exact: true }).click();
+	await page.getByRole("button", { name: "Mini", exact: true }).click();
+	await expect(model).toHaveAttribute("data-product-key", "video-seedance-2-mini");
+	await expect(page.getByRole("button", { name: "Video settings", exact: true })).toContainText(
+		"720P",
+	);
+	await expect(page.locator('[data-test="video-model-retired"]')).toHaveCount(0);
+	await expect(page.getByLabel("Describe your video", { exact: true })).toHaveValue(
+		"Keep the original description.",
+	);
+	await expect(page.locator('[data-test="video-generate"]')).toBeEnabled();
+	expect(state.quotes).toBe(0);
+	expect(state.creates).toHaveLength(0);
+});
+
 for (const catalogCase of [
 	"available target",
 	"disabled target",

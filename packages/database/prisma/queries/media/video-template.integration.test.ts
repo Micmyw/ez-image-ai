@@ -623,11 +623,12 @@ describe("template admission and durable scene PostgreSQL regressions", () => {
 			),
 		),
 	)(
-		"scene-emergency closure blocks $effectId $duration seconds before reservation: $configKey",
+		"Mini scene-emergency closure blocks $effectId $duration seconds before reservation: $configKey",
 		async ({ effectId, duration, configKey }) => {
 			// The quote predates closure. Final admission must recheck both scene gates
 			// inside its transaction even after an earlier asynchronous readiness check.
 			const f = await fixture(100n, effectId, duration);
+			expect(f.input.template.schemaVersion).toBe(4);
 			const versions = await db.runtimeConfigOverride.aggregate({ _max: { version: true } });
 			const flag = await db.runtimeConfigOverride.create({
 				data: {
@@ -677,7 +678,7 @@ describe("template admission and durable scene PostgreSQL regressions", () => {
 		).rejects.toThrow();
 		const job = await db.generationJob.findUniqueOrThrow({ where: { id: accepted.jobId } });
 		expect(object(job.inputSnapshot).duration).toBe(10);
-		expect(object(object(job.inputSnapshot).videoEffectTemplate).schemaVersion).toBe(3);
+		expect(object(object(job.inputSnapshot).videoEffectTemplate).schemaVersion).toBe(4);
 		expect(await db.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(1);
 	});
 	it.each([

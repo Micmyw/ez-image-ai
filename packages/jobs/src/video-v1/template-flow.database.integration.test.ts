@@ -248,15 +248,21 @@ const mockHttp: typeof fetch = async (input, init) => {
 		} else {
 			external.paidMockCalls++;
 			external.videoRequests.push(body.input);
-			expect(body.model).toBe("bytedance/seedance-1.5-pro");
+			expect(body.model).toBe("bytedance/seedance-2-mini");
 			expect(body.input).toMatchObject({
 				duration: external.expectedDuration,
 				resolution: "720p",
 				aspect_ratio: "9:16",
 				generate_audio: false,
-				fixed_lens: true,
 			});
-			expect(body.input.input_urls).toHaveLength(1);
+			expect(body.input.first_frame_url).toMatch(/^https:\/\/private\.video\.test\//);
+			for (const field of [
+				"input_urls",
+				"fixed_lens",
+				"reference_image_urls",
+				"reference_video_urls",
+			])
+				expect(body.input).not.toHaveProperty(field);
 		}
 		const taskId = `${isScene ? "scene" : "video"}_${crypto.randomUUID().replaceAll("-", "")}`;
 		external.tasks.set(taskId, { callbackUrl: body.callBackUrl });
@@ -873,7 +879,6 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 					duration: 10,
 					resolution: "720p",
 					generate_audio: false,
-					fixed_lens: true,
 				});
 				expect(external.videoRequests.at(-1)?.prompt).toBe(f.template.video.prompt);
 				expect(await flow.repeat()).toEqual({ completed: true, stage: "READY" });
@@ -922,9 +927,9 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 					(asset) => `https://private.video.test/${encodeURIComponent(asset.objectKey)}`,
 				),
 			);
-			expect(external.videoRequests.at(-1)?.input_urls).toEqual([
+			expect(external.videoRequests.at(-1)?.first_frame_url).toBe(
 				`https://private.video.test/${encodeURIComponent(ready.videoTemplateExecution!.sceneAsset!.objectKey)}`,
-			]);
+			);
 			expect(external.textPrompts.slice(before.texts)).toEqual([
 				f.template.scene.prompt,
 				f.template.video.prompt,

@@ -1,0 +1,82 @@
+{
+	"5": {
+		"schemaVersion": 1,
+		"effectId": "hotel-lobby-duo",
+		"presetKey": "standard",
+		"templateVersion": "hotel-lobby-duo-2026-10-05.1",
+		"safetyPolicyVersion": "hotel-lobby-duo-safety-2026-10-05.1",
+		"preprocessingVersion": "sealed-upload-2026-10-05.1",
+		"scene": {
+			"productKey": "nano-banana-2-lite-1k",
+			"aspectRatio": "9:16",
+			"outputCount": 1,
+			"prompt": "Create one original continuous portrait-oriented orange recording-studio scene.\nReference image 1 defines the LEFT performer. Reference image 2 defines the RIGHT performer.\nKeep their facial features and visible identity differences distinct. Show exactly two adult\nperformers with clear space between them and one suspended microphone between them. Use a clean\nseamless orange background and soft studio lighting. Keep faces, heads and hands within the frame\nwith room for movement. This is a single scene, not a collage or split-screen. Do not add a third\nperson, text, logos or captions. Do not imitate any named artist's identity. Do not swap identities.",
+			"promptVersion": "hotel-lobby-scene-2026-10-05.1",
+			"maxOutputBytes": 10000000
+		},
+		"video": {
+			"productKey": "video-seedance-1-5-pro",
+			"mode": "image-to-video",
+			"duration": 5,
+			"resolution": "720p",
+			"aspectRatio": "9:16",
+			"sound": false,
+			"prompt": "Animate this exact two-person scene as a short original performance. Keep the\nleft performer on the left and the right performer on the right. Maintain a fixed camera and\ncontinuous framing. The left performer makes a brief rhythmic gesture while the right reacts,\nthen the right leads while the left reacts. Use restrained natural motion. Keep both faces visible.\nNo cuts, identity swaps, merging faces, extra people, mirrored synchronized gestures or large\noverlapping gestures. Preserve the orange studio and the single hanging microphone. Silent video.",
+			"promptVersion": "hotel-lobby-motion-2026-10-05.1",
+			"fixedLens": true
+		},
+		"output": {
+			"durationSeconds": 5,
+			"resolution": "720p",
+			"width": 720,
+			"height": 1280,
+			"aspectRatio": "9:16",
+			"sound": false
+		},
+		"storage": {
+			"sceneMaximumBytes": 20000000,
+			"sceneRetentionSeconds": 2592000,
+			"videoMaximumBytes": 104857600
+		}
+	},
+	"10": {
+		"schemaVersion": 3,
+		"effectId": "hotel-lobby-duo",
+		"presetKey": "standard",
+		"templateVersion": "hotel-lobby-duo-10s-2026-10-08.1",
+		"safetyPolicyVersion": "hotel-lobby-duo-safety-2026-10-05.1",
+		"preprocessingVersion": "sealed-upload-2026-10-05.1",
+		"scene": {
+			"productKey": "nano-banana-2-lite-1k",
+			"aspectRatio": "9:16",
+			"outputCount": 1,
+			"prompt": "Create one original continuous portrait-oriented orange recording-studio scene.\nReference image 1 defines the LEFT performer. Reference image 2 defines the RIGHT performer.\nKeep their facial features and visible identity differences distinct. Show exactly two adult\nperformers with clear space between them and one suspended microphone between them. Use a clean\nseamless orange background and soft studio lighting. Keep faces, heads and hands within the frame\nwith room for movement. This is a single scene, not a collage or split-screen. Do not add a third\nperson, text, logos or captions. Do not imitate any named artist's identity. Do not swap identities.",
+			"promptVersion": "hotel-lobby-scene-2026-10-05.1",
+			"maxOutputBytes": 10000000
+		},
+		"video": {
+			"productKey": "video-seedance-1-5-pro",
+			"mode": "image-to-video",
+			"duration": 10,
+			"resolution": "720p",
+			"aspectRatio": "9:16",
+			"sound": false,
+			"prompt": "Animate this exact two-person orange studio scene for ten seconds with one fixed camera.\nSeconds 0–2: both adults settle into a relaxed pose, faces visible and one suspended microphone between them.\nSeconds 2–5: the LEFT performer leads with one small rhythmic shoulder and hand gesture while the RIGHT reacts.\nSeconds 5–8: the RIGHT performer takes the lead with a different restrained gesture while the LEFT reacts.\nSeconds 8–10: they exchange a brief glance and return to a calm finishing pose.\nKeep left and right identities, clothing, positions, framing and the original scene throughout.\nNo cuts, identity swaps, face merging, extra people, mirrored choreography, overlapping gestures, text or logos.\nSilent video; no speech, lip synchronization, song or named artist's performance.",
+			"promptVersion": "hotel-lobby-motion-10s-2026-10-08.1",
+			"fixedLens": true
+		},
+		"output": {
+			"durationSeconds": 10,
+			"resolution": "720p",
+			"width": 720,
+			"height": 1280,
+			"aspectRatio": "9:16",
+			"sound": false
+		},
+		"storage": {
+			"sceneMaximumBytes": 20000000,
+			"sceneRetentionSeconds": 2592000,
+			"videoMaximumBytes": 104857600
+		}
+	}
+}

@@ -5,15 +5,23 @@ export const HOTEL_LOBBY_EFFECT_ID = "hotel-lobby-duo";
 export const RAINDANCE_SOLO_EFFECT_ID = "raindance-solo";
 export const RAINDANCE_DUO_EFFECT_ID = "raindance-duo";
 export const RUMPELSTILTSKIN_SOLO_EFFECT_ID = "rumpelstiltskin-solo";
-export const VIDEO_EFFECT_RETAIL_PRICE_VERSION = "video-effect-retail-2026-10-08.1";
-export const HOTEL_LOBBY_LONG_TEMPLATE_VERSION = "hotel-lobby-duo-10s-2026-10-08.1";
-export const RAINDANCE_LONG_TEMPLATE_VERSION = "raindance-10s-2026-10-08.1";
+export const LEGACY_VIDEO_EFFECT_RETAIL_PRICE_VERSION = "video-effect-retail-2026-10-08.1";
+export const VIDEO_EFFECT_RETAIL_PRICE_VERSION = "video-effect-mini-retail-2026-10-20.1";
+export const LEGACY_HOTEL_LOBBY_LONG_TEMPLATE_VERSION = "hotel-lobby-duo-10s-2026-10-08.1";
+export const LEGACY_RAINDANCE_LONG_TEMPLATE_VERSION = "raindance-10s-2026-10-08.1";
+export const HOTEL_LOBBY_LONG_TEMPLATE_VERSION = "hotel-lobby-duo-mini-10s-2026-10-20.1";
+export const RAINDANCE_LONG_TEMPLATE_VERSION = "raindance-mini-10s-2026-10-20.1";
+export const HOTEL_LOBBY_TEMPLATE_VERSION = "hotel-lobby-duo-mini-2026-10-20.1";
+export const RAINDANCE_TEMPLATE_VERSION = "raindance-mini-2026-10-20.1";
 export const videoEffectDurationSchema = z.union([z.literal(5), z.literal(10)]);
 export type VideoEffectDuration = z.infer<typeof videoEffectDurationSchema>;
 /** Public amounts only. Cost policy and membership evidence never enter this projection. */
 export const videoEffectPricingDisplaySchema = z
 	.object({
-		policyVersion: z.literal(VIDEO_EFFECT_RETAIL_PRICE_VERSION),
+		policyVersion: z.enum([
+			VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+			LEGACY_VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+		]),
 		audience: z.enum(["standard", "annual"]),
 		credits: z.string().regex(/^\d+$/),
 		standardCredits: z.string().regex(/^\d+$/),

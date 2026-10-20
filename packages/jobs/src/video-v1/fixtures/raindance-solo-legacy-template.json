@@ -1,0 +1,40 @@
+{
+	"schemaVersion": 1,
+	"effectId": "raindance-solo",
+	"presetKey": "standard",
+	"templateVersion": "raindance-2026-10-07.1",
+	"safetyPolicyVersion": "hotel-lobby-duo-safety-2026-10-05.1",
+	"preprocessingVersion": "sealed-upload-2026-10-05.1",
+	"scene": {
+		"productKey": "nano-banana-2-lite-1k",
+		"aspectRatio": "9:16",
+		"outputCount": 1,
+		"prompt": "Create an original cinematic portrait photograph on a weathered wooden pier\nover a calm blue-green sea at sunset. Use warm amber rim light, a visible horizon and soft natural\nshadows. Preserve the adult subjects' facial features, hair and clothing from the supplied\nreferences. Compose a waist-up or three-quarter portrait with faces large enough to recognize,\nhands clear of faces and safe space around the edges. One continuous scene, no collage, no extra\npeople, text, logos or captions. Do not imitate any named artist or copy an existing music video. Both references show the SAME adult. Show exactly ONE person seated on the pier, looking toward the lens. Never duplicate the person.",
+		"promptVersion": "raindance-solo-scene-2026-10-07.1",
+		"maxOutputBytes": 10000000
+	},
+	"video": {
+		"productKey": "video-seedance-1-5-pro",
+		"mode": "image-to-video",
+		"duration": 5,
+		"resolution": "720p",
+		"aspectRatio": "9:16",
+		"sound": false,
+		"prompt": "Animate this original sunset pier portrait for five seconds with a fixed\ncamera. Preserve each subject's face, hair, clothing and position, the pier and the horizon.\nUse a gentle sea breeze, a small natural sway and a relaxed music-video-style performance toward\nthe lens. Keep faces visible and motion restrained. No scene cuts, face blending, extra people,\nlarge hand gestures or camera moves. Silent video, no speech and no song. Do not reproduce\nspecific lyrics, lip synchronization or any named artist's performance. Keep exactly one adult in frame throughout.",
+		"promptVersion": "raindance-solo-motion-2026-10-07.1",
+		"fixedLens": true
+	},
+	"output": {
+		"durationSeconds": 5,
+		"resolution": "720p",
+		"width": 720,
+		"height": 1280,
+		"aspectRatio": "9:16",
+		"sound": false
+	},
+	"storage": {
+		"sceneMaximumBytes": 20000000,
+		"sceneRetentionSeconds": 2592000,
+		"videoMaximumBytes": 104857600
+	}
+}

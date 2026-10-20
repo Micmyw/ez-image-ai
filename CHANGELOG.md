@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-20 — Video model update
+
+- Use Seedance 2 Mini for new Hotel Lobby and Raindance videos, with updated five- and ten-second credit quotes. Annual video savings and shared account credits continue to apply.
+- Remove Seedance 1.5 Pro from new video choices. Existing jobs retain their model and receipt; an older draft requires choosing a current model before generating.
+
 ## 2026-10-20 — Recurring annual plans at 50% savings
 
 - Set new Pro, Ultimate and Max annual subscriptions to $114, $294 and $474 per year, including renewals: 50% less than twelve monthly payments. Show the annual total, monthly equivalent and savings consistently.

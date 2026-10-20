@@ -4,6 +4,15 @@ import { parseVideoDraft, serializeVideoDraft, videoDraftKey } from "./draft-sto
 import { changeVideoDraft, initialVideoDraft } from "./model";
 
 describe("isolated video drafts", () => {
+	it("restores a retired unsubmitted 1080p model without silently switching to a lower-resolution replacement", () => {
+		const old = {
+			...initialVideoDraft,
+			productKey: "video-seedance-1-5-pro",
+			resolution: "1080p",
+			prompt: "Keep the original scene",
+		};
+		expect(parseVideoDraft(serializeVideoDraft(old, "owner-a", 100), "owner-a", 200)).toEqual(old);
+	});
 	const draft = {
 		...initialVideoDraft,
 		prompt: "Unfinished motion draft",

@@ -2046,6 +2046,7 @@
 		"nativeSoundHint": "Dieses Modell kann natives Audio enthalten und hat keinen Tonschalter.",
 		"unavailableShort": "Nicht verfügbar",
 		"modelAvailabilityHint": "Optionen hängen vom ausgewählten Modell ab. Für nicht verfügbare Einstellungen gibt es kein Angebot.",
+		"modelRetired": "Dieses Modell nimmt keine neuen Anfragen mehr an. Wähle ein anderes Modell; deine gespeicherten Einstellungen bleiben erhalten.",
 		"selectionUnavailable": "Diese Kombination aus Modell und Einstellungen ist derzeit nicht zur Generierung verfügbar.",
 		"settings": "Videoeinstellungen",
 		"done": "Fertig",

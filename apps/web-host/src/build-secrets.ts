@@ -10,6 +10,9 @@ import {
 	HOTEL_LOBBY_TEMPLATE_VERSION,
 	RAINDANCE_TEMPLATE_VERSION,
 	HOTEL_LOBBY_PRICE_VERSION,
+	LEGACY_HOTEL_LOBBY_TEMPLATE_VERSION,
+	LEGACY_RAINDANCE_TEMPLATE_VERSION,
+	LEGACY_HOTEL_LOBBY_PRICE_VERSION,
 } from "@repo/config/video-effects.server";
 import {
 	validateVideoModelSelection,
@@ -254,7 +257,7 @@ function withVideoRuntimeOverrides(
 		const patch = parseHotelLobbyRuntimeOverride(templateOverride);
 		const mergedPolicy = { ...policy, ...patch };
 		const selection = {
-			productKey: "video-seedance-1-5-pro",
+			productKey: "video-seedance-2-mini",
 			mode: "image-to-video" as const,
 			duration: 5,
 			resolution: "720p",
@@ -281,17 +284,32 @@ function withVideoRuntimeOverrides(
 		if (
 			environment.VIDEO_EFFECT_BUILD_RETAIL_PRICE_VERSION !== VIDEO_EFFECT_RETAIL_PRICE_VERSION ||
 			!policy ||
-			policy.HOTEL_LOBBY_DUO_PRICE_VERSION !== HOTEL_LOBBY_PRICE_VERSION ||
-			policy.HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION !== HOTEL_LOBBY_TEMPLATE_VERSION ||
-			policy.RAINDANCE_ACCEPTED_TEMPLATE_VERSION !== RAINDANCE_TEMPLATE_VERSION
+			![LEGACY_HOTEL_LOBBY_PRICE_VERSION, HOTEL_LOBBY_PRICE_VERSION].includes(
+				policy.HOTEL_LOBBY_DUO_PRICE_VERSION ?? "",
+			) ||
+			![LEGACY_HOTEL_LOBBY_TEMPLATE_VERSION, HOTEL_LOBBY_TEMPLATE_VERSION].includes(
+				policy.HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION ?? "",
+			) ||
+			![LEGACY_RAINDANCE_TEMPLATE_VERSION, RAINDANCE_TEMPLATE_VERSION].includes(
+				policy.RAINDANCE_ACCEPTED_TEMPLATE_VERSION ?? "",
+			) ||
+			!policy.HOTEL_LOBBY_DUO_PRICE_BASIS?.trim()
 		)
 			throw new Error("VIDEO_EFFECT_BUILD_RETAIL_POLICY_REQUIRED");
 		const previous = parseEnv(source);
 		expandVideoRuntimeEnvironment({ ...previous, VIDEO_RUNTIME_CONFIG: encoded });
 		const patch = {
 			VIDEO_EFFECT_RETAIL_PRICE_ACCEPTED_VERSION: VIDEO_EFFECT_RETAIL_PRICE_VERSION,
+			HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION: HOTEL_LOBBY_TEMPLATE_VERSION,
+			RAINDANCE_ACCEPTED_TEMPLATE_VERSION: RAINDANCE_TEMPLATE_VERSION,
 			HOTEL_LOBBY_DUO_ACCEPTED_LONG_TEMPLATE_VERSION: HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
 			RAINDANCE_ACCEPTED_LONG_TEMPLATE_VERSION: RAINDANCE_LONG_TEMPLATE_VERSION,
+			HOTEL_LOBBY_DUO_PRICE_VERSION: HOTEL_LOBBY_PRICE_VERSION,
+			HOTEL_LOBBY_DUO_PRICE_BASIS:
+				policy.HOTEL_LOBBY_DUO_PRICE_VERSION === HOTEL_LOBBY_PRICE_VERSION ||
+				policy.HOTEL_LOBBY_DUO_PRICE_BASIS.includes("seedance-mini-migration-2026-10-20.md")
+					? policy.HOTEL_LOBBY_DUO_PRICE_BASIS
+					: `${policy.HOTEL_LOBBY_DUO_PRICE_BASIS}; Mini 720p first-frame $0.041/s; docs/operations/seedance-mini-migration-2026-10-20.md`,
 		};
 		// The canonical runtime pack already omits retired ordinary-video allowlists.
 		// Compact before this additive overlay so unused legacy fields cannot consume

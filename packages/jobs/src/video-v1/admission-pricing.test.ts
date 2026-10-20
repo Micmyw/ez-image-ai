@@ -50,7 +50,7 @@ vi.mock("./workflow-binding", () => ({ getVideoWorkflowBinding: () => undefined 
 import { resolveVideoModelPrice } from "@repo/config/video-pricing.server";
 import { createVideoJobRecord, findExistingVideoAdmission } from "@repo/database/video-v1";
 
-import { createVideoJob, requireVideoAdmission } from "./admission";
+import { createVideoJob, requireVideoAdmission, requireVideoModelReadiness } from "./admission";
 
 const environment = {
 	VIDEO_V1_ENABLED: "true",
@@ -93,9 +93,56 @@ const legacyRequest = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	fixtures.job.videoExecution.stage = "QUEUED";
 	vi.mocked(findExistingVideoAdmission).mockResolvedValue(null);
 });
 describe("video admission pricing and shared credit funding binding", () => {
+	it("keeps frozen Seedance 1.5 Pro runtime readiness independent of new admission retirement", () => {
+		const request = { ...legacyRequest, productKey: "video-seedance-1-5-pro", resolution: "1080p" };
+		expect(requireVideoModelReadiness(environment, bindings, request).price).toEqual(
+			fixtures.price,
+		);
+		expect(resolveVideoModelPrice).toHaveBeenCalledWith(request, environment, undefined);
+	});
+	it.each(["QUEUED", "SUBMISSION_UNCERTAIN"])(
+		"closes new Seedance 1.5 Pro admission while replaying its frozen 1080p %s order",
+		async (stage) => {
+			const request = {
+				...legacyRequest,
+				productKey: "video-seedance-1-5-pro",
+				resolution: "1080p",
+			};
+			const owner = { userId: "registered-user", role: "user" };
+			expect(() => requireVideoAdmission(owner, environment, bindings, request)).toThrow(
+				"VIDEO_MODEL_RETIRED",
+			);
+			expect(resolveVideoModelPrice).not.toHaveBeenCalled();
+			vi.mocked(findExistingVideoAdmission).mockResolvedValue({ id: "job-1" } as never);
+			fixtures.job.videoExecution.stage = stage;
+			const replay = await createVideoJob(
+				owner,
+				{ quoteId: "old-quote", idempotencyKey: "old-model-key", request },
+				options,
+			);
+			expect(replay).toMatchObject({
+				jobId: "job-1",
+				stage,
+				creditState: "RESERVED",
+				credits: "42",
+			});
+			expect(findExistingVideoAdmission).toHaveBeenCalledWith(
+				expect.objectContaining({
+					ownerId: owner.userId,
+					quoteId: "old-quote",
+					idempotencyKey: "old-model-key",
+					request,
+				}),
+				expect.anything(),
+			);
+			expect(createVideoJobRecord).not.toHaveBeenCalled();
+			expect(resolveVideoModelPrice).not.toHaveBeenCalled();
+		},
+	);
 	it("rejects a new historical Kling image ratio but replays its accepted receipt before current admission", async () => {
 		const request = {
 			...legacyRequest,
@@ -212,11 +259,11 @@ describe("video admission pricing and shared credit funding binding", () => {
 		expect(createVideoJobRecord).not.toHaveBeenCalled();
 	});
 	it.each([undefined, "[]", "not-json"])(
-		"prices and admits official Seedance 1.5 Pro options regardless of stale model scope %s",
+		"prices and admits official Seedance 2 Mini options regardless of stale model scope %s",
 		async (scope) => {
 			const request = {
 				...legacyRequest,
-				productKey: "video-seedance-1-5-pro",
+				productKey: "video-seedance-2-mini",
 				resolution: "720p",
 			};
 			const currentEnvironment = { ...environment, VIDEO_MODEL_ALLOWED_OPTIONS: scope };
@@ -236,8 +283,8 @@ describe("video admission pricing and shared credit funding binding", () => {
 		},
 	);
 	it.each([
-		{ productKey: "video-seedance-1-5-pro", duration: 13, resolution: "720p" },
-		{ productKey: "video-seedance-1-5-pro", duration: 5, resolution: "4k" },
+		{ productKey: "video-seedance-2-mini", duration: 16, resolution: "720p" },
+		{ productKey: "video-seedance-2-mini", duration: 5, resolution: "4k" },
 		{ productKey: "video-seedance-1-pro-fast", mode: "text-to-video", resolution: "720p" },
 		{ productKey: "video-unsupported", resolution: "720p" },
 	] as const)(
