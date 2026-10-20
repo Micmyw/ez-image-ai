@@ -22,7 +22,7 @@ describe("EzPic Stripe plan configuration", () => {
 
 		expect("prices" in creator && creator.prices).toEqual([
 			expect.objectContaining({ interval: "month", amount: 19, priceId: undefined }),
-			expect.objectContaining({ interval: "year", amount: 190, priceId: undefined }),
+			expect.objectContaining({ interval: "year", amount: 114, priceId: undefined }),
 		]);
 	});
 
@@ -39,19 +39,19 @@ describe("EzPic Stripe plan configuration", () => {
 			creator: {
 				prices: [
 					{ interval: "month", amount: 19, priceId: "price_CreatorMonthly123" },
-					{ interval: "year", amount: 190, priceId: "price_CreatorYearly123" },
+					{ interval: "year", amount: 114, priceId: "price_CreatorYearly123" },
 				],
 			},
 			ultimate: {
 				prices: [
 					{ interval: "month", amount: 49, priceId: "price_UltimateMonthly123" },
-					{ interval: "year", amount: 490, priceId: "price_UltimateYearly123" },
+					{ interval: "year", amount: 294, priceId: "price_UltimateYearly123" },
 				],
 			},
 			studio: {
 				prices: [
 					{ interval: "month", amount: 79, priceId: "price_StudioMonthly123" },
-					{ interval: "year", amount: 790, priceId: "price_StudioYearly123" },
+					{ interval: "year", amount: 474, priceId: "price_StudioYearly123" },
 				],
 			},
 		});

@@ -59,15 +59,16 @@ twelve monthly grant periods.
 | Public plan (internal key) | Credits/month | Concurrent edits | Products                     | Max input | Monthly | Annual | Approximate images/month |
 | -------------------------- | ------------: | ---------------: | ---------------------------- | --------: | ------: | -----: | -----------------------: |
 | Free (`free`, internal)    |            25 |                1 | Nano Banana 2 Lite           |     10 MB |      $0 |     $0 |           5 at 5 Credits |
-| Pro (`creator`)            |           700 |                3 | All 12 public image products |     20 MB |     $19 |   $190 |                   28–140 |
-| Ultimate (`ultimate`)      |         1,800 |                6 | All 12 public image products |     20 MB |     $49 |   $490 |                   72–360 |
-| Max (`studio`)             |         3,000 |               10 | All 12 public image products |     20 MB |     $79 |   $790 |                  120–600 |
+| Pro (`creator`)            |           700 |                3 | All 12 public image products |     20 MB |     $19 |   $114 |                   28–140 |
+| Ultimate (`ultimate`)      |         1,800 |                6 | All 12 public image products |     20 MB |     $49 |   $294 |                   72–360 |
+| Max (`studio`)             |         3,000 |               10 | All 12 public image products |     20 MB |     $79 |   $474 |                  120–600 |
 
 The paid-plan ranges divide the allowance by the current maximum twenty-five-credit and minimum
 five-credit SKU and count only whole outputs. Mixed usage draws from the same EzImageAI Credit balance.
 The UI displays the exact SKU charge before confirmation; it does not advertise one universal
-per-image charge. Annual prices equal ten monthly payments, so the public rounded discount is
-`-17%`.
+per-image charge. The recurring annual prices are `12 × monthly price × 50%`, so the public
+discount is `-50%`. The same annual rate applies to each renewal for the new plans; existing
+subscriptions retain their frozen terms and are not migrated.
 
 All plans retain owner-scoped private assets, metering, moderation, durable jobs, and the immutable
 credit ledger. The browser submits stable product/SKU keys and supported parameters only. Provider
@@ -228,14 +229,18 @@ The 15% buffer is a finance-planning reserve only. It is not added to the browse
 Credit amount or silently written into a quote; the quote freezes the catalog cost, and a different
 reconciled Kie charge requires operator review.
 
+The annual rows use the 2026-10-20 recurring prices and `(annual price × 0.94 − $0.30) / 12`;
+monthly and Credit Pack inputs are unchanged. These are the same planning assumptions as above,
+not newly verified payment fees.
+
 | Plan / cadence                      | Net monthly revenue after assumptions | Worst full-use variable cost | Planning gross margin |
 | ----------------------------------- | ------------------------------------: | ---------------------------: | --------------------: |
 | Pro monthly                         |                               $17.560 |                       $4.620 |                 73.7% |
-| Pro annual, monthly allocation      |                               $14.858 |                       $4.620 |                 68.9% |
+| Pro annual, monthly allocation      |                                $8.905 |                       $4.620 |                 48.1% |
 | Ultimate monthly                    |                               $45.760 |                      $11.880 |                 74.0% |
-| Ultimate annual, monthly allocation |                               $38.358 |                      $11.880 |                 69.0% |
+| Ultimate annual, monthly allocation |                               $23.005 |                      $11.880 |                 48.4% |
 | Max monthly                         |                               $73.960 |                      $19.800 |                 73.2% |
-| Max annual, monthly allocation      |                               $61.858 |                      $19.800 |                 68.0% |
+| Max annual, monthly allocation      |                               $37.105 |                      $19.800 |                 46.6% |
 
 |         Pack | Net revenue | Base-credit cost / margin | Subscriber-credit cost / margin |
 | -----------: | ----------: | ------------------------: | ------------------------------: |
@@ -256,7 +261,9 @@ snapshot. Missing, malformed, cross-environment, or economically mismatched conf
 closed. Checkout return grants no credits; verified events and Outbox workers own every grant,
 renewal, cancellation, refund, Debt, release, and replay.
 
-Subscription pricing uses image pricing version `2026-09-13.2`; Credit Pack catalog/pricing/
+The subscription snapshot cohort remains `2026-09-15.1`; changing only annual prices must not
+disable unchanged monthly bindings. Prepare new immutable annual plan snapshots and provider
+identifiers for $114/$294/$474 before switching both PayPal and Waffo. Credit Pack catalog/pricing/
 eligibility remains `2026-09-06.1`. Update public copy, catalog, server snapshots, Webhook projection,
 and tests together. Stripe remains optional only for historical lifecycle maintenance and is not
 available for new checkout.

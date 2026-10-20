@@ -43,7 +43,7 @@ vi.mock("@repo/config/client", () => ({
 			allowedProducts: ["image-fast", "image-quality"],
 			prices: [
 				{ amount: 19, currency: "USD", interval: "month" },
-				{ amount: 190, currency: "USD", interval: "year" },
+				{ amount: 114, currency: "USD", interval: "year" },
 			],
 		},
 		{
@@ -53,7 +53,7 @@ vi.mock("@repo/config/client", () => ({
 			allowedProducts: ["image-fast", "image-quality"],
 			prices: [
 				{ amount: 79, currency: "USD", interval: "month" },
-				{ amount: 790, currency: "USD", interval: "year" },
+				{ amount: 474, currency: "USD", interval: "year" },
 			],
 		},
 	],

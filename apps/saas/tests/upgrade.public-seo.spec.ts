@@ -139,7 +139,7 @@ test("header shows real available credits and opens the upgrade picker at deskto
 			ratio: 1,
 		});
 		await expect(dialog.locator('[data-test="checkout-selection"]')).toHaveText(
-			"Ultimate$490.00/year",
+			"Ultimate$294.00/year",
 		);
 		await expect
 			.poll(() => dialog.evaluate((element) => element.scrollWidth <= element.clientWidth))
@@ -157,7 +157,7 @@ test("header shows real available credits and opens the upgrade picker at deskto
 			await dialog.locator('input[value="studio"]').check();
 			await expect(dialog.locator('input[value="studio"]')).toBeChecked();
 			await expect(dialog.locator('[data-test="checkout-selection"]')).toHaveText(
-				"Max$790.00/year",
+				"Max$474.00/year",
 			);
 			await expect(dialog.locator('[data-test="subscription-checkout"]')).toBeInViewport();
 		}

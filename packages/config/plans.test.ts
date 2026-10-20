@@ -24,7 +24,7 @@ describe("subscription plan catalog", () => {
 				monthlyCredits: 700,
 				prices: [
 					{ interval: "month", amount: 19, currency: "USD" },
-					{ interval: "year", amount: 190, currency: "USD" },
+					{ interval: "year", amount: 114, currency: "USD" },
 				],
 			},
 			{
@@ -32,7 +32,7 @@ describe("subscription plan catalog", () => {
 				monthlyCredits: 1_800,
 				prices: [
 					{ interval: "month", amount: 49, currency: "USD" },
-					{ interval: "year", amount: 490, currency: "USD" },
+					{ interval: "year", amount: 294, currency: "USD" },
 				],
 			},
 			{
@@ -40,21 +40,21 @@ describe("subscription plan catalog", () => {
 				monthlyCredits: 3_000,
 				prices: [
 					{ interval: "month", amount: 79, currency: "USD" },
-					{ interval: "year", amount: 790, currency: "USD" },
+					{ interval: "year", amount: 474, currency: "USD" },
 				],
 			},
 		]);
 	});
 
-	it("keeps annual prices at two months free for a truthful rounded 17 percent saving", () => {
+	it("keeps recurring annual prices at half of twelve monthly payments", () => {
 		for (const plan of PLAN_ENTITLEMENTS.filter(({ id }) => id !== "free")) {
 			const monthly = plan.prices.find(({ interval }) => interval === "month");
 			const yearly = plan.prices.find(({ interval }) => interval === "year");
 
 			expect(monthly, `${plan.id} monthly price`).toBeDefined();
 			expect(yearly, `${plan.id} yearly price`).toBeDefined();
-			expect(yearly?.amount).toBe(monthly!.amount * 10);
-			expect(Math.round((1 - yearly!.amount / (monthly!.amount * 12)) * 100)).toBe(17);
+			expect(yearly?.amount).toBe(monthly!.amount * 12 * 0.5);
+			expect(Math.round((1 - yearly!.amount / (monthly!.amount * 12)) * 100)).toBe(50);
 		}
 	});
 

@@ -1,7 +1,6 @@
 import { z } from "zod";
 
-import { PUBLIC_CREDIT_PACKS } from "./credit-packs";
-import { PLAN_ENTITLEMENTS } from "./plans";
+import { HISTORICAL_VIDEO_RETAIL_REFERENCE_MICROS_PER_CREDIT } from "./video-retail-reference.server";
 
 export const RUMPELSTILTSKIN_TEMPLATE_VERSION = "rumpelstiltskin-reference-2026-10-07.1";
 export const RUMPELSTILTSKIN_PRICE_VERSION = "rumpelstiltskin-cost-2026-10-07.1";
@@ -102,23 +101,6 @@ export function readApprovedRumpelstiltskinMotionReference(
 
 const micros = z.string().regex(/^\d{1,14}$/);
 const positiveMicros = micros.refine((value) => BigInt(value) > 0n);
-function catalogCreditFloorMicros(): bigint {
-	const floors = [
-		...PLAN_ENTITLEMENTS.flatMap((plan) =>
-			plan.prices.map(
-				(price) =>
-					BigInt(Math.round(price.amount * 1_000_000)) /
-					BigInt(plan.monthlyCredits * (price.interval === "year" ? 12 : 1)),
-			),
-		),
-		...PUBLIC_CREDIT_PACKS.map(
-			(pack) => BigInt(Math.round(pack.price.amount * 1_000_000)) / BigInt(pack.subscriberCredits),
-		),
-	];
-	if (!floors.length || floors.some((floor) => floor <= 0n))
-		throw new Error("RUMPELSTILTSKIN_REVENUE_NOT_APPROVED");
-	return floors.reduce((minimum, floor) => (floor < minimum ? floor : minimum));
-}
 /** Independent complete-cost approval. No legacy public tariff or template budget is inherited. */
 export const rumpelstiltskinCostApprovalSchema = z
 	.object({
@@ -140,8 +122,8 @@ export const rumpelstiltskinCostApprovalSchema = z
 			})
 			.strict()
 			.optional(),
-		// Actual currently purchasable discounted USD receipts / ALL issued credits, including bonuses.
-		// Fees are deducted separately. An unverified coupon or merchant rate cannot fill this approval.
+		// Historical receipt basis for this immutable price approval, including annual/bonus dilution.
+		// New shared orders do not qualify lots by receipts; frozen paid snapshots retain their policy.
 		revenue: z
 			.object({
 				minimumGrossUsdMicrosPerCredit: positiveMicros,
@@ -223,9 +205,10 @@ export function createPublicRumpelstiltskinCostApproval(
 			assumptions: policy.assumptions,
 		},
 		revenue: {
-			minimumGrossUsdMicrosPerCredit: catalogCreditFloorMicros().toString(),
+			minimumGrossUsdMicrosPerCredit:
+				HISTORICAL_VIDEO_RETAIL_REFERENCE_MICROS_PER_CREDIT.toString(),
 			basis:
-				"Current USD catalog's lowest gross price per ALL issued paid credits, including annual and subscriber pack bonuses; lower discounted receipts require a lower explicit approval.",
+				"Nonbinding historical retail reference; shared credits do not establish qualified payment revenue.",
 		},
 		provider: {
 			productKey: "video-seedance-2",
@@ -285,7 +268,13 @@ export function readRumpelstiltskinCostApproval(
 	const approval = parsed.data;
 	if (Date.parse(approval.approvedAt) > now)
 		throw new Error("RUMPELSTILTSKIN_COST_NOT_YET_APPROVED");
-	if (BigInt(approval.revenue.minimumGrossUsdMicrosPerCredit) > catalogCreditFloorMicros())
+	// This financial cap belongs to the existing approved price version, not today's sale catalog.
+	// A future price version must establish its own reference; new shared orders do not use a lot gate.
+	if (
+		approval.pricingVersion !== "rumpelstiltskin-cost-2026-10-07.1" ||
+		BigInt(approval.revenue.minimumGrossUsdMicrosPerCredit) >
+			HISTORICAL_VIDEO_RETAIL_REFERENCE_MICROS_PER_CREDIT
+	)
 		throw new Error("RUMPELSTILTSKIN_REVENUE_NOT_APPROVED");
 	if (
 		reference &&

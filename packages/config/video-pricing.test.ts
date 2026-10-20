@@ -48,8 +48,8 @@ function approvedPriceEnvironment() {
 }
 afterEach(() => vi.useRealTimers());
 describe("video full variable cost pricing", () => {
-	it("uses the lowest annual revenue per issued credit including bonuses", () => {
-		expect(videoPaidCreditFloorMicros()).toBe(21_944n);
+	it("reports the actual sales catalog floor after annual repricing, including bonuses", () => {
+		expect(videoPaidCreditFloorMicros()).toBe(13_166n);
 	});
 	it("uses exact supplier tariffs including per-video steps and free single-image input", () => {
 		expect(videoSupplierCostMicros(request)).toBe(275_000n);

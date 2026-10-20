@@ -47,9 +47,12 @@ input-size authorization:
 | Plan     | Monthly credits | Concurrent edits | Products                    | Max input | Price                | Images/month |
 | -------- | --------------: | ---------------: | --------------------------- | --------: | -------------------- | -----------: |
 | Free     |              25 |                1 | Nano Banana 2 Lite          |     10 MB | $0                   |            5 |
-| Pro      |             700 |                3 | All 9 public image products |     20 MB | $19/month, $190/year |       28–140 |
-| Ultimate |           1,800 |                6 | All 9 public image products |     20 MB | $49/month, $490/year |       72–360 |
-| Max      |           3,000 |               10 | All 9 public image products |     20 MB | $79/month, $790/year |      120–600 |
+| Pro      |             700 |                3 | All 9 public image products |     20 MB | $19/month, $114/year |       28–140 |
+| Ultimate |           1,800 |                6 | All 9 public image products |     20 MB | $49/month, $294/year |       72–360 |
+| Max      |           3,000 |               10 | All 9 public image products |     20 MB | $79/month, $474/year |      120–600 |
+
+New annual subscriptions renew at these annual rates: 50% less than twelve monthly payments.
+Credits are still granted monthly. Existing subscriptions retain their original terms.
 
 Paid-plan ranges use the current 5–25 EzImageAI Credit charge per legal SKU cell. Output format and
 background controls do not change that charge.

@@ -538,7 +538,7 @@ describe("product configuration", () => {
 				],
 				prices: [
 					{ interval: "month", amount: 19, currency: "USD" },
-					{ interval: "year", amount: 190, currency: "USD" },
+					{ interval: "year", amount: 114, currency: "USD" },
 				],
 			},
 			{
@@ -561,7 +561,7 @@ describe("product configuration", () => {
 				],
 				prices: [
 					{ interval: "month", amount: 49, currency: "USD" },
-					{ interval: "year", amount: 490, currency: "USD" },
+					{ interval: "year", amount: 294, currency: "USD" },
 				],
 			},
 			{
@@ -584,7 +584,7 @@ describe("product configuration", () => {
 				],
 				prices: [
 					{ interval: "month", amount: 79, currency: "USD" },
-					{ interval: "year", amount: 790, currency: "USD" },
+					{ interval: "year", amount: 474, currency: "USD" },
 				],
 			},
 		]);

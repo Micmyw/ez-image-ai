@@ -48,7 +48,11 @@ observations separately and never submit a real-money test without an authorized
 For each enabled channel, configure six subscription mappings (three plans, month/year) and four
 Credit Pack mappings. Verify the actual provider products have the expected USD prices, monthly or
 yearly interval, no unexpected trial/setup fee, and cancellation behavior. An ID's syntax and a local
-snapshot alone do not establish the external product's configuration.
+snapshot alone do not establish the external product's configuration. New annual Pro/Ultimate/Max
+plans must renew indefinitely at $114/$294/$474 per year, equal to 50% of twelve monthly payments;
+there is no first-year-only discount. Keep monthly $19/$49/$79 mappings and monthly credits
+700/1,800/3,000 unchanged. Prepare and verify both PayPal and Waffo annual replacements before
+switching either channel, and preserve every existing subscription and historical plan snapshot.
 
 Subscription BillingPlan metadata must include `version: 1`, `planId`, `interval`,
 `billingPricingVersion: "2026-09-15.1"`, and the exact `providerEnvironment`. Credit Pack metadata must

@@ -18,6 +18,7 @@ import {
 	resolveVideoEffectPrice,
 	resolveVideoEffectTemplate,
 } from "./video-effects.server";
+import { videoPaidCreditFloorMicros } from "./video-pricing.server";
 
 // Entirely synthetic local contract fixtures, never a production asset, approval or price.
 const reference = {
@@ -267,6 +268,37 @@ describe("independent motion-reference contract", () => {
 });
 
 describe("independent complete reference-video cost approval", () => {
+	it("preserves the approved revenue reference and exact price version after annual sale repricing", () => {
+		expect(videoPaidCreditFloorMicros()).toBe(13_166n);
+		expect(
+			readRumpelstiltskinCostApproval(
+				environment(),
+				reference as Parameters<typeof createPublicRumpelstiltskinCostApproval>[0],
+			),
+		).toEqual(approval);
+		vi.setSystemTime(new Date("2026-10-07T18:00:00Z"));
+		const defaultApproval = createPublicRumpelstiltskinCostApproval(
+			reference as Parameters<typeof createPublicRumpelstiltskinCostApproval>[0],
+		);
+		expect(defaultApproval.revenue.minimumGrossUsdMicrosPerCredit).toBe("21944");
+		expect(defaultApproval.revenue.basis).toBe(
+			"Nonbinding historical retail reference; shared credits do not establish qualified payment revenue.",
+		);
+		expect(defaultApproval.pricingVersion).toBe(RUMPELSTILTSKIN_PRICE_VERSION);
+		expect(defaultApproval.revenue.basis).toMatch(/historical.*reference/i);
+	});
+	it.each(["rumpelstiltskin-cost-2026-10-20.1", "unknown"])(
+		"never inherits the reference for an unapproved price version %s",
+		(pricingVersion) => {
+			expect(() =>
+				readRumpelstiltskinCostApproval({
+					...environment(),
+					RUMPELSTILTSKIN_COST_APPROVAL: JSON.stringify({ ...approval, pricingVersion }),
+				}),
+			).toThrow("RUMPELSTILTSKIN_COST_INVALID");
+		},
+	);
+
 	it.each([2, 3, 4, 5, 15, 2.25])(
 		"uses total input-plus-output billed seconds for public reference duration %s",
 		(durationSeconds) => {
@@ -479,7 +511,7 @@ describe("independent complete reference-video cost approval", () => {
 		});
 		expect(costly.credits).toBeGreaterThan(regular.credits);
 	});
-	it("refuses an unreviewed or above-cheapest-catalog revenue assumption", () => {
+	it("refuses an unreviewed or above-approved-version revenue assumption", () => {
 		const missingRevenue: Record<string, unknown> = { ...approval };
 		delete missingRevenue.revenue;
 		expect(() =>

@@ -87,31 +87,6 @@ vi.mock("@payments/hooks/plan-data", () => ({
 		},
 	}),
 }));
-vi.mock("@repo/payments/config", () => ({
-	config: {
-		plans: {
-			creator: {
-				prices: [
-					{ type: "subscription", amount: 19, currency: "USD", interval: "month" },
-					{ type: "subscription", amount: 190, currency: "USD", interval: "year" },
-				],
-			},
-			ultimate: {
-				recommended: true,
-				prices: [
-					{ type: "subscription", amount: 49, currency: "USD", interval: "month" },
-					{ type: "subscription", amount: 490, currency: "USD", interval: "year" },
-				],
-			},
-			studio: {
-				prices: [
-					{ type: "subscription", amount: 79, currency: "USD", interval: "month" },
-					{ type: "subscription", amount: 790, currency: "USD", interval: "year" },
-				],
-			},
-		},
-	},
-}));
 vi.mock("@repo/ui", () => ({
 	cn: (...values: unknown[]) => values.filter((value) => typeof value === "string").join(" "),
 }));
@@ -262,9 +237,31 @@ describe("PricingTable", () => {
 		const markup = renderToStaticMarkup(<PricingTable userId="user-1" />);
 
 		expect(markup).toContain('data-selected-interval="year"');
-		expect(markup).toContain("USD 190");
-		expect(markup).toContain("USD 490");
-		expect(markup).toContain("USD 790");
+		expect(markup).toContain("USD 114");
+		expect(markup).toContain("USD 294");
+		expect(markup).toContain("USD 474");
+	});
+
+	it("shows half-price annual equivalents and the full annual checkout total in the upgrade picker", () => {
+		const markup = renderToStaticMarkup(<PricingTable userId="user-1" compact />);
+		for (const amount of [9.5, 24.5, 39.5]) {
+			expect(markup).toContain(`>USD ${amount}</span>`);
+		}
+		expect(markup.match(/−50%/g)).toHaveLength(3);
+		expect(markup).toContain("USD 294/pricing.year");
+	});
+
+	it("keeps authenticated monthly selection at the existing prices", () => {
+		const markup = renderToStaticMarkup(
+			<PricingTable userId="user-1" initialSelection={{ planId: "ultimate", interval: "month" }} />,
+		);
+		expect(markup).toContain('data-selected-interval="month"');
+		for (const amount of [19, 49, 79]) {
+			expect(markup).toContain(`data-test="price-table-plan-price">USD ${amount}<span`);
+		}
+		for (const planId of ["creator", "ultimate", "studio"]) {
+			expect(testState.availabilityInputs).toContainEqual({ planId, interval: "month" });
+		}
 	});
 
 	it("renders checkout controls and provider availability for Ultimate", () => {

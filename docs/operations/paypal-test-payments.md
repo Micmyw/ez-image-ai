@@ -52,20 +52,24 @@ write the current webhook ID, and start the app together.
 
 PayPal catalog products do not themselves define a checkout amount. Six recurring plans
 carry subscription prices; the four one-time orders use the server's frozen credit-pack
-amounts. Seven catalog products represent three membership tiers and four credit packs.
+amounts. Seven catalog products represent three membership tiers and four credit packs. The table below
+is the current application contract for new checkout, not evidence that an older sandbox plan
+has been repriced. Verify the provider plan and create a new immutable mapping when needed.
 
 | Plan or pack              | USD price | Credits                               |
 | ------------------------- | --------- | ------------------------------------- |
-| Pro monthly / yearly      | 19 / 190  | 700 each month                        |
-| Ultimate monthly / yearly | 49 / 490  | 1,800 each month                      |
-| Max monthly / yearly      | 79 / 790  | 3,000 each month                      |
+| Pro monthly / yearly      | 19 / 114  | 700 each month                        |
+| Ultimate monthly / yearly | 49 / 294  | 1,800 each month                      |
+| Max monthly / yearly      | 79 / 474  | 3,000 each month                      |
 | 1,500-credit pack         | 59        | 1,500; 1,800 for an active subscriber |
 | 3,000-credit pack         | 109       | 3,000; 3,600 for an active subscriber |
 | 5,000-credit pack         | 169       | 5,000; 6,000 for an active subscriber |
 | 8,000-credit pack         | 259       | 8,000; 9,600 for an active subscriber |
 
 Pro and Max retain the internal keys `creator` and `studio`. Annual subscriptions issue
-credits monthly. Packs expire after six months. The configured sandbox plans have no trial
+credits monthly. New annual plans renew at $114/$294/$474 each year with no introductory
+expiry, equal to 50% of twelve monthly payments. Existing subscriptions keep their original plans.
+Packs expire after six months. The configured sandbox plans have no trial
 or setup fee, do not automatically collect outstanding balances, and use a payment failure
 threshold of one. Review these settings before provisioning any production plans.
 

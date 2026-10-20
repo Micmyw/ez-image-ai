@@ -185,7 +185,7 @@
 			},
 			"annualBilling": {
 				"question": "Comment la facturation annuelle affecte-t-elle les crédits ?",
-				"answer": "Pro/Ultimate/Max annuels : 190/490/790 $ par an—environ 17 % de moins que 12 paiements mensuels. Crédits mensuels : 700/1 800/3 000, sans report."
+				"answer": "Nouveaux abonnements annuels Pro/Ultimate/Max : 114/294/474 $ par an, renouvellements compris—50 % de moins que 12 paiements mensuels. Crédits mensuels : 700/1 800/3 000, sans report. Les abonnements existants gardent leurs conditions."
 			},
 			"cancelSubscription": {
 				"question": "Comment résilier mon abonnement ?",

@@ -56,16 +56,18 @@ must match the current server catalog and immutable `BillingPlan` snapshots:
 
 | Plan or pack              | USD price | Credit entitlement                    |
 | ------------------------- | --------- | ------------------------------------- |
-| Pro monthly / yearly      | 19 / 190  | 700 each month                        |
-| Ultimate monthly / yearly | 49 / 490  | 1,800 each month                      |
-| Max monthly / yearly      | 79 / 790  | 3,000 each month                      |
+| Pro monthly / yearly      | 19 / 114  | 700 each month                        |
+| Ultimate monthly / yearly | 49 / 294  | 1,800 each month                      |
+| Max monthly / yearly      | 79 / 474  | 3,000 each month                      |
 | 1,500-credit pack         | 59        | 1,500; 1,800 for an active subscriber |
 | 3,000-credit pack         | 109       | 3,000; 3,600 for an active subscriber |
 | 5,000-credit pack         | 169       | 5,000; 6,000 for an active subscriber |
 | 8,000-credit pack         | 259       | 8,000; 9,600 for an active subscriber |
 
 Public plan names Pro and Max correspond to the stable internal keys `creator` and `studio`.
-Annual subscriptions grant credits monthly. Packs expire after six months. Existing plan
+Annual subscriptions grant credits monthly. New annual products must recur at $114/$294/$474
+each year with no introductory expiry, equal to 50% of twelve monthly payments. Existing
+subscriptions retain their original products. Packs expire after six months. Existing plan
 snapshots are immutable: resolve mismatches by provisioning a new product/snapshot version.
 
 ## Webhook and local processing

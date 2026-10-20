@@ -102,14 +102,15 @@ monthly grant through twelve billing periods.
 | Public plan (internal key) | Credits/month | Allowed image products      | Monthly | Annual | Whole-image range/month |
 | -------------------------- | ------------: | --------------------------- | ------: | -----: | ----------------------: |
 | Free (`free`, internal)    |            25 | Nano Banana 2 Lite          |      $0 |     $0 |             5 (Nano 1K) |
-| Pro (`creator`)            |           700 | All 9 public image products |     $19 |   $190 |                  28–140 |
-| Ultimate (`ultimate`)      |         1,800 | All 9 public image products |     $49 |   $490 |                  72–360 |
-| Max (`studio`)             |         3,000 | All 9 public image products |     $79 |   $790 |                 120–600 |
+| Pro (`creator`)            |           700 | All 9 public image products |     $19 |   $114 |                  28–140 |
+| Ultimate (`ultimate`)      |         1,800 | All 9 public image products |     $49 |   $294 |                  72–360 |
+| Max (`studio`)             |         3,000 | All 9 public image products |     $79 |   $474 |                 120–600 |
 
 The paid-plan ranges use the current minimum five-credit and maximum twenty-five-credit SKU. They are
 not a promise that every mix consumes the same number of credits. Public pricing opens on annual
-billing and displays the rounded `-17%` saving produced by annual prices equal to ten monthly
-payments.
+billing and displays `-50%`: the recurring annual prices are `12 × monthly price × 50%`.
+The annual inputs in this worksheet are updated for 2026-10-20, with the existing SKU costs and planning
+assumptions retained. Existing subscriptions keep their frozen terms and are not migrated.
 
 ## Credit Pack inputs
 
@@ -180,11 +181,11 @@ operations must investigate any reconciled Kie charge that disagrees with that s
 | Plan / cadence                      | Net monthly revenue | Worst full-use variable cost | Planning gross margin |
 | ----------------------------------- | ------------------: | ---------------------------: | --------------------: |
 | Pro monthly                         |             $17.560 |                       $4.620 |                 73.7% |
-| Pro annual, monthly allocation      |             $14.858 |                       $4.620 |                 68.9% |
+| Pro annual, monthly allocation      |              $8.905 |                       $4.620 |                 48.1% |
 | Ultimate monthly                    |             $45.760 |                      $11.880 |                 74.0% |
-| Ultimate annual, monthly allocation |             $38.358 |                      $11.880 |                 69.0% |
+| Ultimate annual, monthly allocation |             $23.005 |                      $11.880 |                 48.4% |
 | Max monthly                         |             $73.960 |                      $19.800 |                 73.2% |
-| Max annual, monthly allocation      |             $61.858 |                      $19.800 |                 68.0% |
+| Max annual, monthly allocation      |             $37.105 |                      $19.800 |                 46.6% |
 
 |         Pack | Net revenue | Base-credit cost / margin | Subscriber-credit cost / margin |
 | -----------: | ----------: | ------------------------: | ------------------------------: |

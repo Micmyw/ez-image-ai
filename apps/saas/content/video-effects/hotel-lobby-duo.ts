@@ -52,7 +52,7 @@ export const hotelLobbyRecord: VideoEffectRecord = {
 		{
 			question: "Is it free?",
 			answer:
-				"Generation uses your account and eligible paid credits. Sign in to see the complete current price before uploading. Choose Generate when both photos are ready; a changed price requires your confirmation.",
+				"Generation uses available account credits. Sign in to see the complete current price before uploading. Choose Generate when both photos are ready; a changed price requires your confirmation.",
 		},
 		{
 			question: "Does the video include the original song?",

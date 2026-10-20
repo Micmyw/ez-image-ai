@@ -6,10 +6,12 @@ import {
 	calculateVideoRetailPrice,
 	resolveVideoModelPrice,
 	resolveVideoRetailTarget,
+	videoPaidCreditFloorMicros,
 	VIDEO_RETAIL_PRICE_VERSION,
 	VIDEO_SUPPLIER_PRICE_VERSION,
 } from "./video-pricing.server";
 import { createVideoVisualSafetyProfile } from "./video-safety";
+import { applyVideoSharedFunding } from "./video-shared-funding";
 import { createVideoTextSafetyProfile } from "./video-text-safety";
 
 const environment = {
@@ -30,6 +32,33 @@ const environment = {
 };
 
 describe("approved family video retail and annual upgrade prices", () => {
+	it("keeps approved shared-credit debits independent of lower annual receipts without claiming paid revenue", () => {
+		expect(videoPaidCreditFloorMicros()).toBe(13_166n);
+		const row = approved.rows[0]!;
+		const price = resolveVideoModelPrice(
+			row.selection as Parameters<typeof resolveVideoModelPrice>[0],
+			environment,
+		);
+		expect(price.credits.toString()).toBe(row.standardCredits);
+		expect(price.pricingDetails).toMatchObject({ creditFloorMicros: "21944" });
+		const shared = applyVideoSharedFunding(price);
+		expect(shared.credits).toBe(price.credits);
+		expect(shared.pricingVersion).toBe(price.pricingVersion);
+		expect(shared.paidFundingPolicy).toBeUndefined();
+		expect(shared.pricingDetails.paidRevenueQualified).toBe(false);
+		expect(shared.pricingDetails.retailReference).toMatchObject({ creditFloorMicros: "21944" });
+		for (const key of [
+			"creditFloorMicros",
+			"minimumGrossRevenueMicros",
+			"paymentFeeMicros",
+			"completeCostMicros",
+			"profitMicros",
+			"markupBps",
+		]) {
+			expect(shared.pricingDetails).not.toHaveProperty(key);
+		}
+	});
+
 	it("reproduces every approved price from actual supplier units and complete costs", () => {
 		expect(approved.rows).toHaveLength(1188);
 		expect(VIDEO_RETAIL_PRICE_VERSION).toBe(environment.VIDEO_RETAIL_PRICE_ACCEPTED_VERSION);

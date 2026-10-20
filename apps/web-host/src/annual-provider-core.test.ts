@@ -1,0 +1,424 @@
+import { describe, expect, it } from "vitest";
+
+import {
+	assertAllowedProviderRequest,
+	createProviderPort,
+	unsupportedCommercialFields,
+	paypalCreateBody,
+} from "./annual-provider-adapters";
+import {
+	ANNUAL_TIERS,
+	AnnualOperationError,
+	auditAnnualProviders,
+	auditPayPalAnnualProviders,
+	waffoEvidence,
+	safeFailure,
+	targetName,
+	type Data,
+	type ProviderPort,
+} from "./annual-provider-core";
+
+function fixtures() {
+	const environment: Record<string, string> = {
+		WAFFO_ENVIRONMENT: "prod",
+		PAYPAL_ENVIRONMENT: "live",
+		WAFFO_STORE_ID: "STO_FIXTURE",
+	};
+	const waffo: Data[] = [];
+	const paypal = new Map<string, Data>();
+	for (const tier of ANNUAL_TIERS) {
+		const suffix = tier.key.toUpperCase();
+		const productId = `PROD-FIXTURE${suffix}`;
+		const waffoMonthly = `PROD_MONTHLY${suffix}`;
+		const paypalMonthly = `P-MONTHLY${suffix}`;
+		environment[`WAFFO_PRODUCT_ID_${suffix}_MONTHLY`] = waffoMonthly;
+		environment[`WAFFO_PRODUCT_ID_${suffix}_YEARLY`] = tier.waffo;
+		environment[`PAYPAL_PLAN_ID_${suffix}_MONTHLY`] = paypalMonthly;
+		environment[`PAYPAL_PLAN_ID_${suffix}_YEARLY`] = tier.paypal;
+		for (const [id, price, period] of [
+			[waffoMonthly, tier.monthly, "monthly"],
+			[tier.waffo, tier.previous, "yearly"],
+		] as const) {
+			waffo.push({
+				id,
+				name: id,
+				status: "active",
+				hasProdVersion: true,
+				versions: [
+					{
+						name: id,
+						versionNumber: 1,
+						billingPeriod: period,
+						isProdVersion: true,
+						isTestVersion: true,
+						metadata: { unrelatedPrivateMetadata: "MUST_NOT_PRINT" },
+						prices: [
+							{
+								currency: "USD",
+								priceInfo: { amount: `${price / 100}.00`, taxCategory: "saas", trialAmount: null },
+							},
+						],
+					},
+				],
+			});
+		}
+		for (const [id, price, period] of [
+			[paypalMonthly, tier.monthly, "MONTH"],
+			[tier.paypal, tier.previous, "YEAR"],
+		] as const) {
+			paypal.set(id, {
+				id,
+				product_id: productId,
+				name: id,
+				status: "ACTIVE",
+				billing_cycles: [
+					{
+						frequency: { interval_unit: period, interval_count: 1 },
+						tenure_type: "REGULAR",
+						sequence: 1,
+						total_cycles: 0,
+						pricing_scheme: { fixed_price: { value: `${price / 100}.00`, currency_code: "USD" } },
+					},
+				],
+				payment_preferences: {
+					auto_bill_outstanding: true,
+					setup_fee: { value: "0.00", currency_code: "USD" },
+					setup_fee_failure_action: "CANCEL",
+					payment_failure_threshold: 2,
+				},
+				links: [{ href: "PRIVATE_PAYLOAD" }],
+			});
+		}
+	}
+	const reads: string[] = [];
+	const port: ProviderPort = {
+		async waffoCatalog() {
+			reads.push("waffo-catalog");
+			return {
+				store: {
+					id: "STO_FIXTURE",
+					name: "EzPic",
+					status: "active",
+					prodEnabled: true,
+					payinEnable: true,
+					private: "SECRET",
+				},
+				products: waffo,
+				schemaFields: {},
+			};
+		},
+		async paypalPlan(id) {
+			reads.push(`paypal-plan:${id}`);
+			const plan = paypal.get(id);
+			if (!plan) throw new Error("SECRET");
+			return plan;
+		},
+		async paypalPlans(productId) {
+			reads.push(`paypal-list:${productId}`);
+			return [...paypal.values()].filter((plan) => plan.product_id === productId);
+		},
+	};
+	return { environment, port, waffo, paypal, reads };
+}
+
+describe("annual provider audit", () => {
+	it("reads both providers, certifies unchanged monthly terms, and prints only allowed evidence", async () => {
+		const fixture = fixtures();
+		const result = await auditAnnualProviders(fixture.environment, fixture.port);
+		expect(result.ready).toBe(true);
+		expect(result.tiers.map((tier) => tier.monthlyCredits)).toEqual([700, 1800, 3000]);
+		expect(result.tiers.map((tier) => tier.paypal.monthly.billingCycles[0]?.amountMinor)).toEqual([
+			1900, 4900, 7900,
+		]);
+		expect(
+			result.tiers.map((tier) => tier.waffo.previousAnnual.production?.prices[0]?.amountMinor),
+		).toEqual([19000, 49000, 79000]);
+		expect(JSON.stringify(result)).not.toMatch(
+			/SECRET|MUST_NOT_PRINT|PRIVATE_PAYLOAD|links|unrelatedPrivateMetadata/,
+		);
+		expect(fixture.reads.filter((entry) => entry.startsWith("paypal-list"))).toHaveLength(3);
+	});
+	it("audits qualified real production versions while retaining the original annual price history", async () => {
+		const fixture = fixtures();
+		for (const tier of ANNUAL_TIERS) {
+			const product = fixture.waffo.find((entry) => entry.id === tier.waffo)!;
+			const versions = product.versions as Data[];
+			const previous = versions[0]!;
+			previous.id = `VERSION_OLD_${tier.key}`;
+			previous.isProdVersion = false;
+			const current = structuredClone(previous);
+			const currentId = `VERSION_NEW_${tier.key}`;
+			current.id = currentId;
+			current.versionNumber = 2;
+			current.isProdVersion = true;
+			current.isTestVersion = false;
+			((current.prices as Data[])[0]!.priceInfo as Data).amount = `${tier.annual / 100}.00`;
+			versions.push(current);
+			fixture.environment[`WAFFO_PRODUCT_ID_${tier.key.toUpperCase()}_YEARLY`] =
+				`waffo:${tier.waffo}:${currentId}`;
+		}
+		const result = await auditAnnualProviders(fixture.environment, fixture.port);
+		expect(result.ready).toBe(true);
+		expect(result.tiers.map((tier) => tier.waffo.currentAnnual.production?.id)).toEqual([
+			"VERSION_NEW_creator",
+			"VERSION_NEW_ultimate",
+			"VERSION_NEW_studio",
+		]);
+		fixture.environment.WAFFO_PRODUCT_ID_CREATOR_YEARLY = `waffo:${ANNUAL_TIERS[0].waffo}:VERSION_OLD_creator`;
+		const stale = await auditAnnualProviders(fixture.environment, fixture.port);
+		expect(stale.ready).toBe(false);
+		expect(stale.issues).toContain("WAFFO_CURRENT_CREATOR_UNEXPECTED");
+	});
+	it("parses string metadata only when the live schema explicitly identifies a JSON-encoded String", () => {
+		const fixture = fixtures();
+		const product = fixture.waffo[0]!;
+		const version = (product.versions as Data[])[0]!;
+		version.metadata = JSON.stringify({ trialDays: 7, private: "DO_NOT_PRINT" });
+		expect(() => waffoEvidence(product)).toThrow("RESPONSE_SHAPE_INVALID");
+		product.metadataEncoding = "json-string";
+		const evidence = waffoEvidence(product);
+		expect(evidence.production?.trialDays).toBe(7);
+		expect(JSON.stringify(evidence)).not.toContain("DO_NOT_PRINT");
+	});
+	it("emits only fixed diagnostic stages and field types without raw values", async () => {
+		const fixture = fixtures();
+		const diagnostics: unknown[] = [];
+		await auditAnnualProviders(fixture.environment, fixture.port, {
+			onDiagnostic: (entry) => diagnostics.push(entry),
+		});
+		expect(diagnostics).toContainEqual(
+			expect.objectContaining({
+				stage: "WAFFO_EVIDENCE_START",
+				fields: expect.objectContaining({ name: "string", versions: "array" }),
+			}),
+		);
+		expect(JSON.stringify(diagnostics)).not.toMatch(/SECRET|MUST_NOT_PRINT|PRIVATE_PAYLOAD/);
+	});
+
+	it("audits all six mapped PayPal plans independently of Waffo and streams safe plan evidence", async () => {
+		const fixture = fixtures();
+		fixture.port.waffoCatalog = async () => {
+			throw new Error("Waffo must not run");
+		};
+		const evidence: unknown[] = [];
+		const result = await auditPayPalAnnualProviders(fixture.environment, fixture.port, {
+			onPlan: (plan) => evidence.push(plan),
+		});
+		expect(result.ready).toBe(true);
+		expect(evidence).toHaveLength(6);
+		expect(result.tiers.every((tier) => tier.mappedProductRelationship === "SAME_PRODUCT")).toBe(
+			true,
+		);
+		expect(JSON.stringify(evidence)).not.toMatch(/PRIVATE_PAYLOAD|links|SECRET/);
+		expect(fixture.reads).toHaveLength(6);
+	});
+	it("reports actual PayPal product relationships even when monthly and yearly products differ", async () => {
+		const fixture = fixtures();
+		fixture.paypal.get("P-MONTHLYCREATOR")!.product_id = "PROD-MONTHLYONLY";
+		const result = await auditPayPalAnnualProviders(fixture.environment, fixture.port);
+		expect(result.tiers[0]?.mappedProductRelationship).toBe("DIFFERENT_PRODUCTS");
+		expect(result.distinctProductIds).toContain("PROD-MONTHLYONLY");
+	});
+
+	it("rejects monthly price, finite annual cycles, trials and setup fees", async () => {
+		const fixture = fixtures();
+		const monthly = fixture.paypal.get("P-MONTHLYCREATOR")!;
+		(monthly.billing_cycles as Data[])[0]!.total_cycles = 12;
+		const annual = fixture.waffo.find((product) => product.id === ANNUAL_TIERS[1].waffo)!;
+		((annual.versions as Data[])[0]!.metadata as Data).trialDays = 7;
+		const result = await auditAnnualProviders(fixture.environment, fixture.port);
+		expect(result.ready).toBe(false);
+		expect(result.issues).toContain("PAYPAL_MONTHLY_CREATOR_INVALID");
+		expect(result.issues).toContain("WAFFO_OLD_ANNUAL_ULTIMATE_INVALID");
+	});
+	it("does not substitute test terms for production terms", async () => {
+		const fixture = fixtures();
+		const annual = fixture.waffo.find((product) => product.id === ANNUAL_TIERS[0].waffo)!;
+		const version = (annual.versions as Data[])[0]!;
+		version.isProdVersion = false;
+		const result = await auditAnnualProviders(fixture.environment, fixture.port);
+		expect(result.issues).toContain("WAFFO_OLD_ANNUAL_CREATOR_INVALID");
+		expect(result.tiers[0]?.waffo.previousAnnual.production).toBeNull();
+	});
+	it("detects ambiguous targets and checks real candidate terms", async () => {
+		const fixture = fixtures();
+		const tier = ANNUAL_TIERS[0];
+		for (let i = 0; i < 2; i++)
+			fixture.paypal.set(`P-NEW${i}`, {
+				...paypalCreateBody(tier, "PROD-FIXTURECREATOR"),
+				id: `P-NEW${i}`,
+			});
+		const result = await auditAnnualProviders(fixture.environment, fixture.port);
+		expect(result.issues).toContain("TARGET_CREATOR_AMBIGUOUS");
+	});
+	it("never serializes raw errors or error messages", () => {
+		expect(safeFailure(new Error("Authorization Bearer TOP_SECRET"))).toEqual({
+			code: "PROVIDER_OPERATION_FAILED",
+		});
+		expect(
+			safeFailure(new AnnualOperationError("PAYPAL_REQUEST_FAILED", 403, "debug-123")),
+		).toEqual({ code: "PAYPAL_REQUEST_FAILED", status: 403, requestId: "debug-123" });
+		expect(
+			JSON.stringify(safeFailure(new AnnualOperationError("FAILED", 500, "Authorization: SECRET"))),
+		).not.toContain("SECRET");
+	});
+});
+
+describe("provider request fence", () => {
+	const base = {
+		mode: "prepare" as const,
+		allowedGraphql: new Set(["query Approved { stores { id } }"]),
+		writableWaffoIds: new Set(["PROD_NEW"]),
+		paypalProductIds: new Set(["PROD-EXISTING"]),
+	};
+	it.each([
+		["POST", "https://api-m.paypal.com/v1/billing/subscriptions", {}],
+		["POST", "https://api-m.paypal.com/v2/checkout/orders", {}],
+		["POST", "https://api.waffo.ai/v1/actions/auth/issue-session-token", {}],
+		["POST", "https://api.waffo.ai/v1/actions/subscription-product/update-product", {}],
+		["POST", "https://evil.test/v1/graphql", { query: "query Approved { stores { id } }" }],
+		["POST", "https://api.waffo.ai/v1/graphql", { query: "query { customers { email } }" }],
+		[
+			"POST",
+			"https://api.waffo.ai/v1/actions/subscription-product/publish-product",
+			{ id: ANNUAL_TIERS[0].waffo },
+		],
+	])("blocks %s %s", (method, url, body) => {
+		expect(() => assertAllowedProviderRequest({ ...base, method, url, body })).toThrow(
+			"REQUEST_NOT_ALLOWED",
+		);
+	});
+	it("blocks all catalog writes in audit mode", () => {
+		expect(() =>
+			assertAllowedProviderRequest({
+				...base,
+				mode: "audit",
+				method: "POST",
+				url: "https://api-m.paypal.com/v1/billing/plans",
+				body: paypalCreateBody(ANNUAL_TIERS[0], "PROD-EXISTING"),
+			}),
+		).toThrow("REQUEST_NOT_ALLOWED");
+	});
+	it("uses human-readable names without operation markers and preserves PayPal failure threshold two", () => {
+		expect(ANNUAL_TIERS.map(targetName)).toEqual([
+			"EzPic Pro - Yearly USD114",
+			"EzPic Ultimate - Yearly USD294",
+			"EzPic Max - Yearly USD474",
+		]);
+		for (const tier of ANNUAL_TIERS) {
+			const body = paypalCreateBody(tier, "PROD-EXISTING");
+			expect((body.payment_preferences as Data).payment_failure_threshold).toBe(2);
+			expect(body.name).not.toContain("20261020annual50");
+		}
+	});
+	it("detects unsupported native commercial fields by type while exposing only their names", () => {
+		const namedFields = (names: string[]) =>
+			names.map((name) => ({ name, privateValue: "DO_NOT_PRINT" }));
+		expect(
+			unsupportedCommercialFields(
+				namedFields([
+					"billingPeriod",
+					"prices",
+					"metadata",
+					"media",
+					"description",
+					"isProdVersion",
+				]),
+				"product",
+			),
+		).toEqual([]);
+		expect(
+			unsupportedCommercialFields(namedFields(["trialAmount", "amount", "taxCategory"]), "price"),
+		).toEqual([]);
+		const unknown = [
+			"setupFee",
+			"trialDays",
+			"totalCycles",
+			"billingInterval",
+			"autoRenew",
+			"introductoryPrice",
+			"discount",
+			"taxPercentage",
+			"paymentPreferences",
+			"setup_fee",
+		];
+		expect(unsupportedCommercialFields(namedFields(unknown), "version")).toEqual(unknown);
+		expect(unsupportedCommercialFields(namedFields(["billingPeriod"]), "price")).toEqual([
+			"billingPeriod",
+		]);
+		expect(
+			JSON.stringify(unsupportedCommercialFields(namedFields(unknown), "version")),
+		).not.toContain("DO_NOT_PRINT");
+	});
+
+	it("permits exactly the fixed recurring 114/294/474 USD plans", () => {
+		for (const tier of ANNUAL_TIERS) {
+			const body = paypalCreateBody(tier, "PROD-EXISTING");
+			expect(() =>
+				assertAllowedProviderRequest({
+					...base,
+					method: "POST",
+					url: "https://api-m.paypal.com/v1/billing/plans",
+					body,
+				}),
+			).not.toThrow();
+			(body.billing_cycles as Data[])[0]!.total_cycles = 1;
+			expect(() =>
+				assertAllowedProviderRequest({
+					...base,
+					method: "POST",
+					url: "https://api-m.paypal.com/v1/billing/plans",
+					body,
+				}),
+			).toThrow("REQUEST_NOT_ALLOWED");
+		}
+	});
+	it("gets PayPal candidate details rather than using list summaries", async () => {
+		const fixture = fixtures();
+		const tier = ANNUAL_TIERS[0];
+		const calls: string[] = [];
+		const productId = "PROD-EXISTING";
+		const detail = { ...paypalCreateBody(tier, productId), id: "P-NEW123" };
+		const port = createProviderPort(
+			{
+				...fixture.environment,
+				PAYPAL_CLIENT_ID: "secret-client",
+				PAYPAL_CLIENT_SECRET: "secret-token",
+			},
+			"audit",
+			{
+				waffoClient: {
+					graphql: {
+						async query() {
+							return {};
+						},
+					},
+					subscriptionProducts: {
+						async create() {
+							throw new Error();
+						},
+						async publish() {},
+						async updateStatus() {},
+					},
+				},
+				fetch: async (input) => {
+					const url =
+						typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+					calls.push(url);
+					if (url.endsWith("/oauth2/token"))
+						return Response.json({ access_token: "secret-access" });
+					if (url.endsWith("/plans/P-NEW123")) return Response.json(detail);
+					return Response.json({
+						plans: [{ id: "P-NEW123", name: targetName(tier) }],
+						total_pages: 1,
+						total_items: 1,
+					});
+				},
+			},
+		);
+		await port.paypalPlan("P-NEW123"); // Establish authenticated existing product identity.
+		const plans = await port.paypalPlans(productId);
+		expect(plans).toEqual([detail]);
+		expect(calls.filter((url) => url.endsWith("/plans/P-NEW123"))).toHaveLength(2);
+	});
+});

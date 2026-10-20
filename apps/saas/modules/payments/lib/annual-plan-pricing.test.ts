@@ -1,3 +1,4 @@
+import { getPlanEntitlement } from "@repo/config/client";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -7,32 +8,22 @@ import {
 } from "./annual-plan-pricing";
 
 describe("annual plan pricing", () => {
-	it("shows the real annual total and savings against twelve monthly payments", () => {
-		expect(
-			calculateAnnualPlanPricing([
-				{ interval: "month", amount: 19, currency: "USD" },
-				{ interval: "year", amount: 190, currency: "USD" },
-			]),
-		).toEqual({
-			total: 190,
-			monthlyEquivalent: 190 / 12,
-			savings: 38,
-			savingsPercent: 17,
-			currency: "USD",
-		});
-		expect(
-			calculateAnnualPlanPricing([
-				{ interval: "month", amount: 79, currency: "USD" },
-				{ interval: "year", amount: 790, currency: "USD" },
-			]),
-		).toEqual({
-			total: 790,
-			monthlyEquivalent: 790 / 12,
-			savings: 158,
-			savingsPercent: 17,
-			currency: "USD",
-		});
-	});
+	it.each([
+		{ planId: "creator" as const, total: 114, monthlyEquivalent: 9.5 },
+		{ planId: "ultimate" as const, total: 294, monthlyEquivalent: 24.5 },
+		{ planId: "studio" as const, total: 474, monthlyEquivalent: 39.5 },
+	])(
+		"shows $planId annual total and 50 percent savings against twelve monthly payments",
+		(plan) => {
+			expect(calculateAnnualPlanPricing(getPlanEntitlement(plan.planId).prices)).toEqual({
+				total: plan.total,
+				monthlyEquivalent: plan.monthlyEquivalent,
+				savings: plan.total,
+				savingsPercent: 50,
+				currency: "USD",
+			});
+		},
+	);
 
 	it("omits an annual summary when either billing cadence is unavailable", () => {
 		expect(calculateAnnualPlanPricing([])).toBeNull();
@@ -58,7 +49,7 @@ describe("annual plan pricing", () => {
 	it("requires annual billing for every billable plan before showing a shared cadence", () => {
 		const creatorPrices = [
 			{ interval: "month" as const, amount: 19, currency: "USD" },
-			{ interval: "year" as const, amount: 190, currency: "USD" },
+			{ interval: "year" as const, amount: 114, currency: "USD" },
 		];
 		const studioMonthlyOnly = [{ interval: "month" as const, amount: 79, currency: "USD" }];
 
@@ -68,7 +59,7 @@ describe("annual plan pricing", () => {
 				creatorPrices,
 				[
 					{ interval: "month", amount: 79, currency: "USD" },
-					{ interval: "year", amount: 790, currency: "USD" },
+					{ interval: "year", amount: 474, currency: "USD" },
 				],
 			]),
 		).toBe(true);
