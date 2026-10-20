@@ -17,6 +17,11 @@ import {
 	type WaffoCatalog,
 } from "./annual-provider-core";
 import type { PreparationPort } from "./annual-provider-prepare";
+import {
+	UNUSED_WAFFO_ANNUAL_PRODUCTS,
+	type WaffoProductUsage,
+	type WaffoVersionPort,
+} from "./annual-provider-versions";
 
 type GraphQL = {
 	query(input: {
@@ -30,12 +35,15 @@ type WaffoClient = {
 		create(input: Data): Promise<{ product: Data }>;
 		publish(input: Data): Promise<unknown>;
 		updateStatus(input: Data): Promise<unknown>;
+		update?(input: Data): Promise<{ product: Data }>;
 	};
 };
 type Fetch = typeof fetch;
 const paypalOrigin = "https://api-m.paypal.com";
 const waffoOrigin = "https://api.waffo.ai";
 const createPath = "/v1/actions/subscription-product/create-product";
+const updatePath = "/v1/actions/subscription-product/update-product";
+export type AnnualProviderMode = "audit" | "prepare" | "waffo-update";
 const publishPath = "/v1/actions/subscription-product/publish-product";
 const activatePath = "/v1/actions/subscription-product/update-status";
 const oldWaffoIds = new Set<string>(ANNUAL_TIERS.map((tier) => tier.waffo));
@@ -44,7 +52,7 @@ export function assertAllowedProviderRequest(input: {
 	url: string;
 	method: string;
 	body?: unknown;
-	mode: "audit" | "prepare";
+	mode: AnnualProviderMode;
 	allowedGraphql: Set<string>;
 	writableWaffoIds: Set<string>;
 	paypalProductIds: Set<string>;
@@ -57,6 +65,19 @@ export function assertAllowedProviderRequest(input: {
 	if (url.origin === waffoOrigin && method === "POST" && !url.search) {
 		const payload = record(body);
 		if (url.pathname === "/v1/graphql" && input.allowedGraphql.has(string(payload.query))) return;
+		if (mode === "waffo-update" && url.pathname === updatePath) {
+			const tier = ANNUAL_TIERS.find((entry) => entry.waffo === payload.id);
+			if (
+				tier &&
+				JSON.stringify(payload) ===
+					JSON.stringify({
+						id: tier.waffo,
+						prices: { USD: { amount: `${tier.annual / 100}.00`, taxCategory: "saas" } },
+					})
+			)
+				return;
+		}
+
 		if (mode === "prepare" && url.pathname === createPath) {
 			const tier = ANNUAL_TIERS.find((entry) => targetName(entry) === payload.name);
 			const metadata = record(payload.metadata);
@@ -194,14 +215,14 @@ function typeName(value: unknown): string {
 const typeSelection = "kind name ofType { kind name ofType { kind name ofType { kind name } } }";
 export function createProviderPort(
 	environment: Record<string, string | undefined>,
-	mode: "audit" | "prepare",
+	mode: AnnualProviderMode,
 	options: {
 		fetch?: Fetch;
 		waffoClient?: WaffoClient;
 		onSchemaFields?: (fields: Record<string, string[]>) => void;
 		onDiagnostic?: (evidence: DiagnosticEvidence) => void;
 	} = {},
-): PreparationPort {
+): PreparationPort & WaffoVersionPort {
 	if (environment.WAFFO_ENVIRONMENT !== "prod" || environment.PAYPAL_ENVIRONMENT !== "live")
 		throw new AnnualOperationError("PRODUCTION_ENVIRONMENT_REQUIRED");
 	const nativeFetch = options.fetch ?? fetch;
@@ -367,6 +388,7 @@ export function createProviderPort(
 		if (oldTier) verifiedPayPalProduct.set(oldTier.key, plan.product_id);
 		return plan;
 	};
+	let rootFieldsCache: Data[] | undefined;
 	let catalogPlan:
 		| {
 				schemaFields: Record<string, string[]>;
@@ -375,7 +397,7 @@ export function createProviderPort(
 				metadataEncoding: "json-string" | "object";
 		  }
 		| undefined;
-	const port: PreparationPort = {
+	const port: PreparationPort & WaffoVersionPort = {
 		async waffoCatalog(): Promise<WaffoCatalog> {
 			if (!catalogPlan) {
 				const root = record(
@@ -388,6 +410,7 @@ export function createProviderPort(
 					).queryType,
 				);
 				const rootFields = list(root.fields).map(record);
+				rootFieldsCache = rootFields;
 				const rootField = (name: string) => {
 					const field = rootFields.find((entry) => entry.name === name);
 					if (!field) throw new AnnualOperationError("WAFFO_SCHEMA_UNSUPPORTED");
@@ -459,6 +482,7 @@ export function createProviderPort(
 				};
 				for (const name of ["id", "name", "status"]) field(productFields, name);
 				for (const name of [
+					"id",
 					"versionNumber",
 					"name",
 					"billingPeriod",
@@ -515,7 +539,7 @@ export function createProviderPort(
 			const relevant = products;
 			for (const product of relevant) {
 				const versions = await query(
-					"query AnnualProductVersions($productId: String!) { subscriptionProductVersions(productId: $productId) { versionNumber name billingPeriod metadata isTestVersion isProdVersion prices { currency priceInfo { amount taxCategory trialAmount } } } }",
+					"query AnnualProductVersions($productId: String!) { subscriptionProductVersions(productId: $productId) { id versionNumber name billingPeriod metadata isTestVersion isProdVersion prices { currency priceInfo { amount taxCategory trialAmount } } } }",
 					{ productId: string(product.id) },
 				);
 				options.onDiagnostic?.({
@@ -578,6 +602,110 @@ export function createProviderPort(
 			}
 			throw new AnnualOperationError("PAYPAL_CATALOG_INCOMPLETE");
 		},
+		async waffoUnusedProductUsage() {
+			const unknown = (reason: WaffoProductUsage["reason"]): WaffoProductUsage[] =>
+				UNUSED_WAFFO_ANNUAL_PRODUCTS.map((productId) => ({
+					productId,
+					subscriptionOrderCount: null,
+					status: "UNKNOWN",
+					reason,
+				}));
+			try {
+				if (!rootFieldsCache) await port.waffoCatalog();
+				const count = rootFieldsCache?.find((field) => field.name === "subscriptionOrdersCount");
+				if (!count) return unknown("PRODUCT_ORDER_FILTER_UNSUPPORTED");
+				const args = list(count.args).map(record);
+				const filter = args.find((arg) => arg.name === "filter");
+				if (!filter || !args.some((arg) => arg.name === "storeId"))
+					return unknown("PRODUCT_ORDER_FILTER_UNSUPPORTED");
+				const filterType = typeName(filter.type);
+				if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(filterType))
+					return unknown("PRODUCT_ORDER_FILTER_UNSUPPORTED");
+				const fields = list(
+					record(
+						(
+							await query(
+								`query AnnualOrderFilter($name: String!) { __type(name: $name) { inputFields { name type { ${typeSelection} } } } }`,
+								{ name: filterType },
+							)
+						).__type,
+					).inputFields,
+				).map(record);
+				const productFilter =
+					fields.find((field) => field.name === "subscriptionProductId") ??
+					fields.find((field) => field.name === "productId");
+				if (!productFilter) return unknown("PRODUCT_ORDER_FILTER_UNSUPPORTED");
+				const comparisonType = typeName(productFilter.type);
+				const comparisons = list(
+					record(
+						(
+							await query(
+								`query AnnualOrderFilter($name: String!) { __type(name: $name) { inputFields { name type { ${typeSelection} } } } }`,
+								{ name: comparisonType },
+							)
+						).__type,
+					).inputFields,
+				).map(record);
+				const eq = comparisons.find((field) => field.name === "eq");
+				if (!eq || !["String", "ID"].includes(typeName(eq.type)))
+					return unknown("PRODUCT_ORDER_FILTER_UNSUPPORTED");
+				const usage: WaffoProductUsage[] = [];
+				for (const productId of UNUSED_WAFFO_ANNUAL_PRODUCTS) {
+					const result = await query(
+						`query AnnualUnusedProductOrders($storeId: String!, $filter: ${filterType}!) { subscriptionOrdersCount(storeId: $storeId, filter: $filter) }`,
+						{
+							storeId: required(environment, "WAFFO_STORE_ID"),
+							filter: { [String(productFilter.name)]: { eq: productId } },
+						},
+					);
+					if (
+						!Number.isSafeInteger(result.subscriptionOrdersCount) ||
+						Number(result.subscriptionOrdersCount) < 0
+					)
+						return unknown("PRODUCT_ORDER_COUNT_UNAVAILABLE");
+					usage.push({
+						productId,
+						subscriptionOrderCount: Number(result.subscriptionOrdersCount),
+						status: "VERIFIED",
+					});
+				}
+				return usage;
+			} catch {
+				return unknown("PRODUCT_ORDER_COUNT_UNAVAILABLE");
+			}
+		},
+		async waffoUpdateProductionVersion(tier, previousVersionId) {
+			if (mode !== "waffo-update" || !waffo.subscriptionProducts.update)
+				throw new AnnualOperationError("REQUEST_NOT_ALLOWED");
+			const catalog = await port.waffoCatalog();
+			const raw = catalog.products.find((product) => product.id === tier.waffo);
+			if (
+				!raw ||
+				catalog.store.id !== environment.WAFFO_STORE_ID ||
+				catalog.store.status !== "active" ||
+				catalog.store.prodEnabled !== true ||
+				catalog.store.payinEnable !== true
+			)
+				throw new AnnualOperationError("WAFFO_VERSION_STORE_NOT_READY");
+			const product = waffoEvidence(raw);
+			if (
+				product.status !== "active" ||
+				!product.hasProdVersion ||
+				!validWaffoTerms(product.production, tier.previous, "yearly") ||
+				product.production?.prices[0]?.taxCategory !== "saas" ||
+				product.production.id !== previousVersionId
+			)
+				throw new AnnualOperationError("WAFFO_VERSION_BASELINE_CHANGED");
+			try {
+				await waffo.subscriptionProducts.update({
+					id: tier.waffo,
+					prices: { USD: { amount: `${tier.annual / 100}.00`, taxCategory: "saas" } },
+				});
+			} catch {
+				throw new AnnualOperationError("WAFFO_UPDATE_VERSION_UNCERTAIN", lastStatus, lastRequestId);
+			}
+		},
+
 		async waffoCreate(tier, previousId) {
 			if (mode !== "prepare" || tier.waffo !== previousId)
 				throw new AnnualOperationError("REQUEST_NOT_ALLOWED");

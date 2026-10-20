@@ -1,7 +1,7 @@
 import { pathToFileURL } from "node:url";
 import { parseEnv } from "node:util";
 
-import { createProviderPort } from "./annual-provider-adapters";
+import { createProviderPort, type AnnualProviderMode } from "./annual-provider-adapters";
 import {
 	AnnualOperationError,
 	auditAnnualProviders,
@@ -9,7 +9,13 @@ import {
 	safeFailure,
 	type DiagnosticEvidence,
 } from "./annual-provider-core";
-import { prepareAnnualProviders, parsePriorAttempts } from "./annual-provider-prepare";
+import { parsePriorAttempts } from "./annual-provider-prepare";
+import {
+	auditWaffoAnnualVersions,
+	decodeVersionBaseline,
+	updateWaffoAnnualProductionVersions,
+	type VersionReceipt,
+} from "./annual-provider-versions";
 import { readCloudflareBuildEnvironment } from "./build-secrets";
 
 export async function runAnnualProviderCli(
@@ -17,18 +23,32 @@ export async function runAnnualProviderCli(
 	environment: Record<string, string | undefined> = process.env,
 ) {
 	const mode = args[0];
+	const readonly = mode === "audit" || mode === "audit-paypal" || mode === "audit-waffo-versions";
+	const updating = mode === "update-waffo-versions";
 	if (
-		(mode !== "audit" && mode !== "audit-paypal" && mode !== "prepare") ||
-		args.length > 2 ||
-		(args[1] !== undefined && (mode !== "prepare" || !args[1].startsWith("--attempted=")))
+		(!readonly && !updating) ||
+		(readonly && args.length !== 1) ||
+		(updating &&
+			(args.length < 2 ||
+				args.length > 3 ||
+				!args[1]?.startsWith("--baseline=") ||
+				(args[2] !== undefined && !args[2].startsWith("--attempted="))))
 	)
 		throw new AnnualOperationError("MODE_INVALID");
-	const priorAttempts = parsePriorAttempts(args[1]?.slice("--attempted=".length));
-	// Keep protected credentials in this process. Never write the decoded source to disk.
+	const baseline = updating
+		? decodeVersionBaseline(args[1]!.slice("--baseline=".length))
+		: undefined;
+	const priorAttempts = updating
+		? parsePriorAttempts(args[2]?.slice("--attempted=".length))
+		: undefined;
+	// Protected credentials remain in this process; only allowlisted provider evidence is printable.
 	const protectedEnvironment = parseEnv(readCloudflareBuildEnvironment(environment));
 	const onDiagnostic = (diagnostic: DiagnosticEvidence) =>
 		process.stdout.write(`${JSON.stringify({ operation: "20261020annual50", diagnostic })}\n`);
-	const port = createProviderPort(protectedEnvironment, mode === "prepare" ? "prepare" : "audit", {
+	const onReceipt = (receipt: VersionReceipt) =>
+		process.stdout.write(`${JSON.stringify({ receipt })}\n`);
+	const providerMode: AnnualProviderMode = updating ? "waffo-update" : "audit";
+	const port = createProviderPort(protectedEnvironment, providerMode, {
 		onDiagnostic,
 		onSchemaFields: (schemaFields) =>
 			process.stdout.write(`${JSON.stringify({ operation: "20261020annual50", schemaFields })}\n`),
@@ -44,10 +64,12 @@ export async function runAnnualProviderCli(
 				})
 			: mode === "audit"
 				? await auditAnnualProviders(protectedEnvironment, port, { onDiagnostic })
-				: await prepareAnnualProviders(protectedEnvironment, port, {
-						priorAttempts,
-						onReceipt: (receipt) => process.stdout.write(`${JSON.stringify({ receipt })}\n`),
-					});
+				: mode === "audit-waffo-versions"
+					? await auditWaffoAnnualVersions(protectedEnvironment, port)
+					: await updateWaffoAnnualProductionVersions(protectedEnvironment, port, baseline!, {
+							priorAttempts,
+							onReceipt,
+						});
 	process.stdout.write(`${JSON.stringify(result)}\n`);
 	return result.ready ? 0 : 1;
 }

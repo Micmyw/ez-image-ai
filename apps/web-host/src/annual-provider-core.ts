@@ -124,6 +124,7 @@ export type PriceEvidence = {
 	trialAmountMinor: number | null;
 };
 export type WaffoVersionEvidence = {
+	id?: string;
 	versionNumber: number;
 	name: string;
 	billingPeriod: string;
@@ -143,6 +144,7 @@ export type WaffoEvidence = {
 	hasProdVersion: boolean;
 	production: WaffoVersionEvidence | null;
 	test: WaffoVersionEvidence | null;
+	versions: WaffoVersionEvidence[];
 };
 export function waffoEvidence(raw: Data): WaffoEvidence {
 	const versions = list(raw.versions).map((input) => {
@@ -180,6 +182,7 @@ export function waffoEvidence(raw: Data): WaffoEvidence {
 		)
 			throw new AnnualOperationError("WAFFO_VERSION_UNKNOWN");
 		return {
+			...(version.id !== undefined ? { id: string(version.id) } : {}),
 			versionNumber: Number(version.versionNumber),
 			name: string(version.name),
 			billingPeriod: string(version.billingPeriod),
@@ -206,6 +209,7 @@ export function waffoEvidence(raw: Data): WaffoEvidence {
 		hasProdVersion: raw.hasProdVersion === true,
 		production: prod[0] ?? null,
 		test: test[0] ?? null,
+		versions,
 	};
 }
 export type PayPalEvidence = {
@@ -355,7 +359,13 @@ export async function auditAnnualProviders(
 		};
 		const monthlyWaffo = getWaffo(environment[`WAFFO_PRODUCT_ID_${suffix}_MONTHLY`]);
 		const oldWaffo = getWaffo(tier.waffo);
-		const currentWaffo = getWaffo(environment[`WAFFO_PRODUCT_ID_${suffix}_YEARLY`]);
+		const currentWaffoBinding = string(environment[`WAFFO_PRODUCT_ID_${suffix}_YEARLY`]);
+		const qualifiedBinding = /^waffo:(PROD_[0-9A-Za-z]{22}):([A-Za-z0-9_-]{1,128})$/.exec(
+			currentWaffoBinding,
+		);
+		if (currentWaffoBinding.startsWith("waffo:") && !qualifiedBinding)
+			throw new AnnualOperationError("WAFFO_ANNUAL_VERSION_BINDING_INVALID");
+		const currentWaffo = getWaffo(qualifiedBinding?.[1] ?? currentWaffoBinding);
 		options.onDiagnostic?.({
 			stage: "PAYPAL_MAPPED_START",
 			plan: tier.key,
@@ -380,8 +390,10 @@ export async function auditAnnualProviders(
 		)
 			issues.push(`WAFFO_MONTHLY_${suffix}_INVALID`);
 		if (
-			!validWaffoTerms(oldWaffo.production, tier.previous, "yearly") ||
-			oldWaffo.status !== "active"
+			!oldWaffo.versions.some((version) => validWaffoTerms(version, tier.previous, "yearly")) ||
+			oldWaffo.status !== "active" ||
+			!oldWaffo.hasProdVersion ||
+			!oldWaffo.production
 		)
 			issues.push(`WAFFO_OLD_ANNUAL_${suffix}_INVALID`);
 		if (!validPaypalTerms(monthlyPayPal, tier.monthly, "MONTH"))
@@ -449,12 +461,17 @@ export async function auditAnnualProviders(
 				target.productId !== oldPayPal.productId
 			)
 				issues.push(`PAYPAL_TARGET_${suffix}_INVALID`);
+		const currentIsTarget = validWaffoTerms(currentWaffo.production, tier.annual, "yearly");
 		if (
-			currentWaffo.id !== tier.waffo &&
-			(!waffoCandidates.some((target) => target.id === currentWaffo.id) ||
-				currentWaffo.status !== "active" ||
-				!currentWaffo.hasProdVersion ||
-				!validWaffoTerms(currentWaffo.production, tier.annual, "yearly"))
+			currentWaffo.status !== "active" ||
+			!currentWaffo.hasProdVersion ||
+			(qualifiedBinding
+				? currentWaffo.id !== tier.waffo ||
+					currentWaffo.production?.id !== qualifiedBinding[2] ||
+					!currentIsTarget
+				: currentWaffo.id === tier.waffo
+					? !currentIsTarget && !validWaffoTerms(currentWaffo.production, tier.previous, "yearly")
+					: !waffoCandidates.some((target) => target.id === currentWaffo.id) || !currentIsTarget)
 		)
 			issues.push(`WAFFO_CURRENT_${suffix}_UNEXPECTED`);
 		if (
@@ -469,6 +486,7 @@ export async function auditAnnualProviders(
 			waffo: {
 				monthly: monthlyWaffo,
 				previousAnnual: oldWaffo,
+				currentAnnualBinding: currentWaffoBinding,
 				currentAnnual: currentWaffo,
 				targets: waffoTargets,
 				candidates: waffoCandidates,

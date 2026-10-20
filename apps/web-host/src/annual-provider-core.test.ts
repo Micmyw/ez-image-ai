@@ -138,6 +138,37 @@ describe("annual provider audit", () => {
 		);
 		expect(fixture.reads.filter((entry) => entry.startsWith("paypal-list"))).toHaveLength(3);
 	});
+	it("audits qualified real production versions while retaining the original annual price history", async () => {
+		const fixture = fixtures();
+		for (const tier of ANNUAL_TIERS) {
+			const product = fixture.waffo.find((entry) => entry.id === tier.waffo)!;
+			const versions = product.versions as Data[];
+			const previous = versions[0]!;
+			previous.id = `VERSION_OLD_${tier.key}`;
+			previous.isProdVersion = false;
+			const current = structuredClone(previous);
+			const currentId = `VERSION_NEW_${tier.key}`;
+			current.id = currentId;
+			current.versionNumber = 2;
+			current.isProdVersion = true;
+			current.isTestVersion = false;
+			((current.prices as Data[])[0]!.priceInfo as Data).amount = `${tier.annual / 100}.00`;
+			versions.push(current);
+			fixture.environment[`WAFFO_PRODUCT_ID_${tier.key.toUpperCase()}_YEARLY`] =
+				`waffo:${tier.waffo}:${currentId}`;
+		}
+		const result = await auditAnnualProviders(fixture.environment, fixture.port);
+		expect(result.ready).toBe(true);
+		expect(result.tiers.map((tier) => tier.waffo.currentAnnual.production?.id)).toEqual([
+			"VERSION_NEW_creator",
+			"VERSION_NEW_ultimate",
+			"VERSION_NEW_studio",
+		]);
+		fixture.environment.WAFFO_PRODUCT_ID_CREATOR_YEARLY = `waffo:${ANNUAL_TIERS[0].waffo}:VERSION_OLD_creator`;
+		const stale = await auditAnnualProviders(fixture.environment, fixture.port);
+		expect(stale.ready).toBe(false);
+		expect(stale.issues).toContain("WAFFO_CURRENT_CREATOR_UNEXPECTED");
+	});
 	it("parses string metadata only when the live schema explicitly identifies a JSON-encoded String", () => {
 		const fixture = fixtures();
 		const product = fixture.waffo[0]!;
