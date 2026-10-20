@@ -24,16 +24,26 @@ export function RegisteredWorkspaceProviders({
 	children,
 	imagePassMessages,
 	mediaMessages,
+	checkoutReturnMessages,
+	creditPackCheckoutReturnMessages,
 }: PropsWithChildren<{
 	imagePassMessages: Record<string, string>;
 	mediaMessages: AbstractIntlMessages;
+	checkoutReturnMessages: AbstractIntlMessages;
+	creditPackCheckoutReturnMessages: AbstractIntlMessages;
 }>) {
 	const messages = useMessages();
 	const locale = useLocale();
 	return (
 		<NextIntlClientProvider
 			locale={locale}
-			messages={{ ...messages, imagePass: imagePassMessages, media: mediaMessages }}
+			messages={{
+				...messages,
+				imagePass: imagePassMessages,
+				media: mediaMessages,
+				checkoutReturn: checkoutReturnMessages,
+				creditPackCheckoutReturn: creditPackCheckoutReturnMessages,
+			}}
 		>
 			<SessionProvider>
 				<ActiveOrganizationProvider>

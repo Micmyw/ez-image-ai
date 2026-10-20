@@ -21,18 +21,27 @@ import { RegisteredWorkspaceProviders } from "./RegisteredWorkspaceProviders";
 function PaymentCopy({
 	expected,
 	media,
+	checkoutReturn,
+	creditPackCheckoutReturn,
 }: {
 	expected: Record<string, string>;
 	media: AbstractIntlMessages;
+	checkoutReturn: Record<string, string>;
+	creditPackCheckoutReturn: Record<string, string>;
 }) {
 	const t = useTranslations("imagePass");
+	const subscription = useTranslations("checkoutReturn");
+	const credits = useTranslations("creditPackCheckoutReturn");
 	const common = useTranslations("common");
 	const preparation = useTranslations("media.create.preparation");
 	expect(useMessages().imagePass).toEqual(expected);
 	expect(useMessages().media).toEqual(media);
+	expect(useMessages().checkoutReturn).toEqual(checkoutReturn);
+	expect(useMessages().creditPackCheckoutReturn).toEqual(creditPackCheckoutReturn);
 	return (
 		<p>
-			{t("title", { units: 3 })} {t("returnPending")} {common("menu.login")} {preparation("title")}
+			{t("title", { units: 3 })} {t("returnPending")} {common("menu.login")} {preparation("title")}{" "}
+			{subscription("completed")} {credits("loading")}
 		</p>
 	);
 }
@@ -64,8 +73,15 @@ describe("registered image pass translations", () => {
 					<RegisteredWorkspaceProviders
 						imagePassMessages={messages.imagePass}
 						mediaMessages={messages.media}
+						checkoutReturnMessages={messages.checkoutReturn}
+						creditPackCheckoutReturnMessages={messages.creditPackCheckoutReturn}
 					>
-						<PaymentCopy expected={messages.imagePass} media={messages.media} />
+						<PaymentCopy
+							expected={messages.imagePass}
+							media={messages.media}
+							checkoutReturn={messages.checkoutReturn}
+							creditPackCheckoutReturn={messages.creditPackCheckoutReturn}
+						/>
 					</RegisteredWorkspaceProviders>
 				</NextIntlClientProvider>,
 			);
@@ -73,7 +89,8 @@ describe("registered image pass translations", () => {
 				renderToStaticMarkup(
 					<p>
 						{messages.imagePass.title.replace("{units}", "3")} {messages.imagePass.returnPending}{" "}
-						{messages.common.menu.login} {messages.media.create.preparation.title}
+						{messages.common.menu.login} {messages.media.create.preparation.title}{" "}
+						{messages.checkoutReturn.completed} {messages.creditPackCheckoutReturn.loading}
 					</p>,
 				),
 			);

@@ -169,6 +169,19 @@ describe("SaaS root layout", () => {
 				bannerDetail: fullMessages.imagePass.bannerDetail,
 				buy: fullMessages.imagePass.buy,
 			});
+			expect(clientMessages.checkoutReturn).toEqual({
+				finishApproved: fullMessages.checkoutReturn.finishApproved,
+			});
+			expect(clientMessages.creditPackCheckoutReturn).toEqual(
+				Object.fromEntries(
+					["completed", "error", "review", "notCompleted", "pending", "viewStatus"].map((key) => [
+						key,
+						fullMessages.creditPackCheckoutReturn[
+							key as keyof typeof fullMessages.creditPackCheckoutReturn
+						],
+					]),
+				),
+			);
 			expect(fullMessages.imagePass.returnPending).not.toBe("");
 			expect(clientMessages.feedback).toEqual({
 				entry: fullMessages.feedback.entry,
@@ -205,6 +218,8 @@ describe("SaaS root layout", () => {
 						"imagePass",
 						"media",
 						"feedback",
+						"checkoutReturn",
+						"creditPackCheckoutReturn",
 					].includes(namespace)
 				) {
 					expect(clientMessages[namespace]).toEqual(messages);

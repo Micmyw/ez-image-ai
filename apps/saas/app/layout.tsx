@@ -64,11 +64,30 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		imagePass,
 		media,
 		feedback,
+		checkoutReturn,
+		creditPackCheckoutReturn,
 		...messages
 	} = await getMessages();
 	// Video workspaces supply their detailed copy locally; public navigation needs only its labels.
 	const clientMessages = {
 		...Object.fromEntries(Object.entries(messages).filter(([key]) => key !== "videoV1")),
+		// Full return-page copy is restored inside RegisteredWorkspaceBoundary.
+		// Public pricing needs only these pending-checkout and recovery actions.
+		...(checkoutReturn
+			? { checkoutReturn: { finishApproved: checkoutReturn.finishApproved } }
+			: {}),
+		...(creditPackCheckoutReturn
+			? {
+					creditPackCheckoutReturn: {
+						completed: creditPackCheckoutReturn.completed,
+						error: creditPackCheckoutReturn.error,
+						review: creditPackCheckoutReturn.review,
+						notCompleted: creditPackCheckoutReturn.notCompleted,
+						pending: creditPackCheckoutReturn.pending,
+						viewStatus: creditPackCheckoutReturn.viewStatus,
+					},
+				}
+			: {}),
 		// LandingPage renders the remaining home copy on the server; its interactive
 		// sections need only these four namespaces during hydration and navigation.
 		home: {
