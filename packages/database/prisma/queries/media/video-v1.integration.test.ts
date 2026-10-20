@@ -697,9 +697,13 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			{ planId: "creator" as const, priceMicros: 114_000_000n, monthlyCredits: 700n },
 			{ planId: "ultimate" as const, priceMicros: 294_000_000n, monthlyCredits: 1_800n },
 			{ planId: "studio" as const, priceMicros: 474_000_000n, monthlyCredits: 3_000n },
-		].flatMap((tier) => (["paypal", "waffo"] as const).map((provider) => ({ ...tier, provider }))),
+		].flatMap((tier) =>
+			(["paypal", "waffo"] as const).flatMap((provider) =>
+				([5, 10] as const).map((duration) => ({ ...tier, provider, duration })),
+			),
+		),
 	)(
-		"new $provider $planId annual receipts fund ordinary video at the unchanged approved annual debit",
+		"new $provider $planId annual receipts fund $duration-second ordinary video at the unchanged approved annual debit",
 		async (selection) => {
 			const f = await fixture(0n);
 			const annual = await currentAnnualSubscriptionGrant(f.ownerId, f.account.id, selection);
@@ -742,102 +746,95 @@ describe("video V1 admission isolated PostgreSQL", () => {
 				VIDEO_COST_PAYMENT_FEE_BPS: "654",
 				VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
 			};
-			let reservedCredits = 0n;
-			for (const [index, duration] of ([5, 10] as const).entries()) {
-				const selectedRequest = {
-					...request,
-					productKey: "video-seedance-2-mini",
-					resolution: "720p",
-					duration,
-				};
-				const selectedProfile = createVideoVisualSafetyProfile("seeapi", duration);
-				const matrixRow = approvedVideoRetail.rows.find(
-					({ selection: option }) =>
-						option.productKey === selectedRequest.productKey &&
-						option.mode === selectedRequest.mode &&
-						option.duration === selectedRequest.duration &&
-						option.resolution === selectedRequest.resolution &&
-						option.sound === selectedRequest.sound,
-				);
-				expect(matrixRow).toBeDefined();
-				const standard = resolveVideoModelPrice(selectedRequest, approvedEnvironment);
-				const annualPrice = resolveVideoModelPrice(selectedRequest, approvedEnvironment, {
-					audience: eligibility.audience,
-					eligibility,
-				});
-				expect(standard.credits.toString()).toBe(matrixRow!.standardCredits);
-				expect(annualPrice.credits.toString()).toBe(matrixRow!.annualCredits);
-				expect(annualPrice.credits).toBeLessThan(standard.credits);
-				const ordinaryPrice = applyVideoSharedFunding(annualPrice);
-				expect(ordinaryPrice.paidFundingPolicy).toBeUndefined();
-				expect(ordinaryPrice.pricingDetails).toMatchObject({
-					paidRevenueQualified: false,
-					funding: { mode: "shared-media-credits-v1" },
-					retailReference: { creditFloorMicros: "21944" },
-					retail: {
-						display: {
-							standardCredits: matrixRow!.standardCredits,
-							annualCredits: matrixRow!.annualCredits,
-							credits: matrixRow!.annualCredits,
-							audience: "annual",
-						},
+			const selectedRequest = {
+				...request,
+				productKey: "video-seedance-2-mini",
+				resolution: "720p",
+				duration: selection.duration,
+			};
+			const selectedProfile = createVideoVisualSafetyProfile("seeapi", selection.duration);
+			const matrixRow = approvedVideoRetail.rows.find(
+				({ selection: option }) =>
+					option.productKey === selectedRequest.productKey &&
+					option.mode === selectedRequest.mode &&
+					option.duration === selectedRequest.duration &&
+					option.resolution === selectedRequest.resolution &&
+					option.sound === selectedRequest.sound,
+			);
+			expect(matrixRow).toBeDefined();
+			const standard = resolveVideoModelPrice(selectedRequest, approvedEnvironment);
+			const annualPrice = resolveVideoModelPrice(selectedRequest, approvedEnvironment, {
+				audience: eligibility.audience,
+				eligibility,
+			});
+			expect(standard.credits.toString()).toBe(matrixRow!.standardCredits);
+			expect(annualPrice.credits.toString()).toBe(matrixRow!.annualCredits);
+			expect(annualPrice.credits).toBeLessThan(standard.credits);
+			const ordinaryPrice = applyVideoSharedFunding(annualPrice);
+			expect(ordinaryPrice.paidFundingPolicy).toBeUndefined();
+			expect(ordinaryPrice.pricingDetails).toMatchObject({
+				paidRevenueQualified: false,
+				funding: { mode: "shared-media-credits-v1" },
+				retailReference: { creditFloorMicros: "21944" },
+				retail: {
+					display: {
+						standardCredits: matrixRow!.standardCredits,
+						annualCredits: matrixRow!.annualCredits,
+						credits: matrixRow!.annualCredits,
+						audience: "annual",
 					},
-				});
-				const quote = await createVideoQuoteRecord(
-					{
-						...f.input,
-						request: selectedRequest,
-						visualSafetyProfile: selectedProfile,
-						price: ordinaryPrice,
-						maximumInputBytes: limits.maximumInputBytes,
-					},
-					client,
-				);
-				const input = {
+				},
+			});
+			const quote = await createVideoQuoteRecord(
+				{
 					...f.input,
 					request: selectedRequest,
 					visualSafetyProfile: selectedProfile,
-					idempotencyKey: crypto.randomUUID(),
-					quoteId: quote.quoteId,
 					price: ordinaryPrice,
-					paidFundingPolicy: undefined,
-				};
-				// Admission rechecks the real annual proof after locking the account, then reserves shared lots.
-				const accepted = await createVideoJobRecord(input, client);
-				reservedCredits += ordinaryPrice.credits;
-				await expect(createVideoJobRecord(input, client)).resolves.toEqual({
-					...accepted,
-					replayed: true,
-				});
-				const stored = await client.generationJob.findUniqueOrThrow({
-					where: { id: accepted.jobId },
-					include: { reservation: { include: { allocations: { include: { lot: true } } } } },
-				});
-				expect(stored.creditsReserved).toBe(ordinaryPrice.credits);
-				expect(stored.pricingSnapshot).not.toHaveProperty("paidFundingPolicy");
-				expect(stored.pricingSnapshot).toMatchObject({
-					pricingDetails: ordinaryPrice.pricingDetails,
-				});
-				expect(stored.reservation!.allocations).toHaveLength(1);
-				expect(stored.reservation!.allocations[0]).toMatchObject({
-					amount: ordinaryPrice.credits,
-					lot: {
-						grantReferenceKey: annual.referenceKey,
-						remainingAmount: selection.monthlyCredits - reservedCredits,
-						reservedAmount: reservedCredits,
-					},
-				});
-				expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(
-					index + 1,
-				);
-				const reserves = await client.creditLedgerEntry.findMany({
-					where: { accountId: f.account.id, type: "RESERVE" },
-				});
-				expect(reserves).toHaveLength(index + 1);
-				for (const reserve of reserves)
-					expect(reserve.metadata).not.toHaveProperty("command.metadata.paidFundingPolicy");
-				expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({ valid: true });
-			}
+					maximumInputBytes: limits.maximumInputBytes,
+				},
+				client,
+			);
+			const input = {
+				...f.input,
+				request: selectedRequest,
+				visualSafetyProfile: selectedProfile,
+				idempotencyKey: crypto.randomUUID(),
+				quoteId: quote.quoteId,
+				price: ordinaryPrice,
+				paidFundingPolicy: undefined,
+			};
+			// Admission rechecks the real annual proof after locking the account, then reserves shared lots.
+			const accepted = await createVideoJobRecord(input, client);
+			await expect(createVideoJobRecord(input, client)).resolves.toEqual({
+				...accepted,
+				replayed: true,
+			});
+			const stored = await client.generationJob.findUniqueOrThrow({
+				where: { id: accepted.jobId },
+				include: { reservation: { include: { allocations: { include: { lot: true } } } } },
+			});
+			expect(stored.creditsReserved).toBe(ordinaryPrice.credits);
+			expect(stored.pricingSnapshot).not.toHaveProperty("paidFundingPolicy");
+			expect(stored.pricingSnapshot).toMatchObject({
+				pricingDetails: ordinaryPrice.pricingDetails,
+			});
+			expect(stored.reservation!.allocations).toHaveLength(1);
+			expect(stored.reservation!.allocations[0]).toMatchObject({
+				amount: ordinaryPrice.credits,
+				lot: {
+					grantReferenceKey: annual.referenceKey,
+					remainingAmount: selection.monthlyCredits - ordinaryPrice.credits,
+					reservedAmount: ordinaryPrice.credits,
+				},
+			});
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(1);
+			const reserves = await client.creditLedgerEntry.findMany({
+				where: { accountId: f.account.id, type: "RESERVE" },
+			});
+			expect(reserves).toHaveLength(1);
+			expect(reserves[0]!.metadata).not.toHaveProperty("command.metadata.paidFundingPolicy");
+			expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({ valid: true });
 		},
 	);
 	it.each([

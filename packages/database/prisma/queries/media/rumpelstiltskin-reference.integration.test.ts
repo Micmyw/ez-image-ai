@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
+import { applyVideoSharedFunding } from "@repo/config/video-shared-funding";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -11,9 +12,15 @@ import { runWithDatabaseClient } from "../../client";
 import { PrismaClient, type Prisma } from "../../generated/client";
 import { createCreditGrant, releaseCredits } from "./credits";
 import {
+	grantNewAnnualCredits,
+	newAnnualProviders,
+	newAnnualTiers,
+} from "./testing/annual-credit-fixture";
+import {
 	createVideoTemplateJobRecord,
 	createVideoTemplateQuoteRecord,
 } from "./video-template-admission";
+import { getVideoTemplateCreditBalance } from "./video-template-credits";
 import {
 	claimVideoTemplateImageReview,
 	finalizeVideoTemplateReferenceInput,
@@ -74,7 +81,11 @@ afterAll(async () => {
 });
 
 async function fixture(
-	options: { wrongReferenceOwner?: boolean; missingRightsEvidence?: boolean } = {},
+	options: {
+		wrongReferenceOwner?: boolean;
+		missingRightsEvidence?: boolean;
+		credits?: bigint;
+	} = {},
 ) {
 	const ownerId = `reference-db-test-${randomUUID()}`;
 	owners.push(ownerId);
@@ -98,10 +109,11 @@ async function fixture(
 		},
 	});
 	const account = await db.creditAccount.create({ data: { ownerType: "USER", ownerId } });
-	await createCreditGrant(
-		{ accountId: account.id, amount: 100n, referenceKey: `grant:${ownerId}` },
-		db,
-	);
+	if ((options.credits ?? 100n) > 0n)
+		await createCreditGrant(
+			{ accountId: account.id, amount: options.credits ?? 100n, referenceKey: `grant:${ownerId}` },
+			db,
+		);
 	// These are synthetic backend evidence records; no provider or storage is contacted.
 	const rawEnvelope = {
 		requestId: taskId,
@@ -330,6 +342,74 @@ async function reviewSubject(f: Awaited<ReturnType<typeof admitted>>) {
 }
 
 describe("Rumpelstiltskin reference template PostgreSQL binding", () => {
+	it.each(
+		newAnnualTiers.flatMap((tier) => newAnnualProviders.map((provider) => ({ ...tier, provider }))),
+	)(
+		"shares $provider $planId annual credits with the reference template without receipt-price qualification",
+		async (selection) => {
+			const f = await fixture({ credits: 0n });
+			const annual = await grantNewAnnualCredits(db, f.ownerId, selection);
+			const sharedPrice = applyVideoSharedFunding({
+				...f.base.price,
+				credits: 493n,
+				paidFundingPolicy: { minimumUsdMicrosPerCredit: 21_944n },
+			});
+			const quote = await createVideoTemplateQuoteRecord(
+				{ ...f.base, price: sharedPrice, maximumInputBytes: 10_000_000 },
+				db,
+			);
+			const input = {
+				...f.base,
+				quoteId: quote.quoteId,
+				price: sharedPrice,
+				paidFundingPolicy: undefined,
+				idempotencyKey: randomUUID(),
+				limits: {
+					ownerConcurrency: 1,
+					globalConcurrency: 10000,
+					providerConcurrency: 10000,
+					maximumStorageBytes: 1_000_000_000n,
+					maximumInputBytes: 10_000_000,
+				},
+			};
+			expect(await getVideoTemplateCreditBalance(f.ownerId, undefined, db)).toEqual({
+				totalCredits: selection.monthlyCredits.toString(),
+				eligibleCredits: selection.monthlyCredits.toString(),
+			});
+			const job = await createVideoTemplateJobRecord(input, db);
+			expect(await createVideoTemplateJobRecord(input, db)).toEqual({ ...job, replayed: true });
+			const reservation = await db.creditReservation.findUniqueOrThrow({
+				where: { jobId: job.jobId },
+				include: { allocations: { include: { lot: true } } },
+			});
+			expect(reservation.amount).toBe(493n);
+			expect(reservation.allocations).toHaveLength(1);
+			expect(reservation.allocations[0]).toMatchObject({
+				amount: 493n,
+				lot: {
+					grantReferenceKey: annual.grantReferenceKey,
+					remainingAmount: selection.monthlyCredits - 493n,
+					reservedAmount: 493n,
+				},
+			});
+			expect(
+				await db.billingPeriod.count({ where: { subscriptionId: annual.subscription.id } }),
+			).toBe(12);
+			expect(
+				await db.creditLedgerEntry.count({
+					where: { accountId: annual.account.id, type: "RESERVE" },
+				}),
+			).toBe(1);
+			const stored = await db.generationJob.findUniqueOrThrow({ where: { id: job.jobId } });
+			expect(stored.pricingSnapshot).not.toHaveProperty("paidFundingPolicy");
+			expect(stored.pricingSnapshot).toMatchObject({
+				pricingDetails: {
+					paidRevenueQualified: false,
+					funding: { mode: "shared-media-credits-v1" },
+				},
+			});
+		},
+	);
 	it("admits one private subject, copies one review and resolves without creating a scene", async () => {
 		const definitions = await db.$queryRaw<Array<{ definition: string }>>`
 			SELECT pg_get_functiondef(p.oid) AS definition

@@ -8,6 +8,7 @@ import {
 } from "@repo/config/video-effects.server";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
+import { applyVideoSharedFunding } from "@repo/config/video-shared-funding";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
 
@@ -16,12 +17,18 @@ import { runWithDatabaseClient } from "../../client";
 import { PrismaClient, type Prisma } from "../../generated/client";
 import { createMediaUploadSessionTransaction } from "./assets";
 import { createCreditGrant, releaseCredits } from "./credits";
+import {
+	grantNewAnnualCredits,
+	newAnnualProviders,
+	newAnnualTiers,
+} from "./testing/annual-credit-fixture";
 import { withStorageSubscription } from "./testing/subscriber-storage-fixture";
 import {
 	createVideoTemplateQuoteRecord,
 	createVideoTemplateJobRecord,
 	findExistingVideoTemplateAdmission,
 } from "./video-template-admission";
+import { getVideoTemplateCreditBalance } from "./video-template-credits";
 import {
 	claimVideoTemplateSceneSubmission,
 	recordVideoTemplateReview,
@@ -101,10 +108,11 @@ async function fixture(
 	const ownerId = `template-db-test-${randomUUID()}`;
 	owners.push(ownerId);
 	const account = await db.creditAccount.create({ data: { ownerType: "USER", ownerId } });
-	await createCreditGrant(
-		{ accountId: account.id, amount: credits, referenceKey: `grant:${ownerId}` },
-		db,
-	);
+	if (credits > 0n)
+		await createCreditGrant(
+			{ accountId: account.id, amount: credits, referenceKey: `grant:${ownerId}` },
+			db,
+		);
 	const assets = await Promise.all(
 		[0, 1].map((i) =>
 			db.mediaAsset.create({
@@ -279,6 +287,85 @@ async function storedScene(jobId: string) {
 	return asset;
 }
 describe("template admission and durable scene PostgreSQL regressions", () => {
+	it.each(
+		newAnnualTiers.flatMap((tier) =>
+			newAnnualProviders.flatMap((provider) =>
+				(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const).map((effectId) => ({
+					...tier,
+					provider,
+					effectId,
+				})),
+			),
+		),
+	)(
+		"shares $provider $planId annual credits with $effectId without a receipt-price gate",
+		async (selection) => {
+			const f = await fixture(0n, selection.effectId);
+			const annual = await grantNewAnnualCredits(db, f.ownerId, selection);
+			const sharedPrice = applyVideoSharedFunding({
+				...f.base.price,
+				credits: 69n,
+				paidFundingPolicy: { minimumUsdMicrosPerCredit: 21_944n },
+			});
+			expect(await getVideoTemplateCreditBalance(f.ownerId, undefined, db)).toEqual({
+				totalCredits: selection.monthlyCredits.toString(),
+				eligibleCredits: selection.monthlyCredits.toString(),
+			});
+			const quote = await createVideoTemplateQuoteRecord(
+				{ ...f.base, price: sharedPrice, maximumInputBytes: 10000000 },
+				db,
+			);
+			const input = {
+				...f.input,
+				quoteId: quote.quoteId,
+				price: sharedPrice,
+				paidFundingPolicy: undefined,
+			};
+			const accepted = await createVideoTemplateJobRecord(input, db);
+			expect(await createVideoTemplateJobRecord(input, db)).toEqual({
+				...accepted,
+				replayed: true,
+			});
+			const reservation = await db.creditReservation.findUniqueOrThrow({
+				where: { jobId: accepted.jobId },
+				include: { allocations: { include: { lot: true } } },
+			});
+			expect(reservation.amount).toBe(69n);
+			expect(reservation.allocations).toHaveLength(1);
+			expect(reservation.allocations[0]).toMatchObject({
+				amount: 69n,
+				lot: {
+					grantReferenceKey: annual.grantReferenceKey,
+					remainingAmount: selection.monthlyCredits - 69n,
+					reservedAmount: 69n,
+				},
+			});
+			expect(
+				await db.billingPeriod.count({ where: { subscriptionId: annual.subscription.id } }),
+			).toBe(12);
+			expect(
+				await db.creditLedgerEntry.count({
+					where: { accountId: annual.account.id, type: "RESERVE" },
+				}),
+			).toBe(1);
+			const job = await db.generationJob.findUniqueOrThrow({ where: { id: accepted.jobId } });
+			expect(job.pricingSnapshot).not.toHaveProperty("paidFundingPolicy");
+			expect(job.pricingSnapshot).toMatchObject({
+				pricingDetails: {
+					paidRevenueQualified: false,
+					funding: { mode: "shared-media-credits-v1" },
+				},
+			});
+			await reviewInputs(accepted.jobId);
+			const sceneClaim = { jobId: accepted.jobId, callbackTokenHash: randomUUID() };
+			expect(await run(() => claimVideoTemplateSceneSubmission(sceneClaim))).toMatchObject({
+				claimed: true,
+			});
+			expect(await run(() => claimVideoTemplateSceneSubmission(sceneClaim))).toMatchObject({
+				claimed: false,
+			});
+		},
+	);
 	it.each([
 		{ validUntil: "2000-01-01T00:00:00.000Z" },
 		{ priceApprovalExpiryMode: "until", validUntil: "2000-01-01T00:00:00.000Z" },
