@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-20 — Shared credits for every generation
+
+- Use the same valid account credits for images, ordinary video, Hotel Lobby, Raindance and Rumpelstiltskin, including discounted and gifted credits. Keep existing generation prices and annual video discounts.
+- Preserve credit expiry, refunds, debt, owner checks, reservations, moderation and duplicate-request protection. Existing accepted orders retain their frozen terms; the $1 image-pass offer remains separate.
+
 ## 2026-10-20 — Checkout price continuity
 
 - Preserve a checkout's original price when its Waffo product receives a new version. Resuming an existing checkout keeps the same session.

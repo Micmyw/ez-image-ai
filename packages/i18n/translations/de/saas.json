@@ -2176,7 +2176,7 @@
 			"SETTLED": "{credits} Credits abgerechnet. Wiedergabe und Downloads kosten nicht zusätzlich.",
 			"RELEASED": "Die Reservierung von {credits} Credits wurde freigegeben."
 		},
-		"insufficient": "Für diesen Auftrag sind nicht genügend berechtigte Credits vorhanden. Prüfe dein Guthaben oder füge Credits hinzu.",
+		"insufficient": "Für diesen Auftrag sind nicht genügend verfügbare Credits vorhanden. Prüfe dein Guthaben oder füge Credits hinzu.",
 		"unavailable": "Die Videoerstellung ist vorübergehend nicht verfügbar. Bitte versuche es später erneut.",
 		"requestFailed": "Die Antwort konnte nicht bestätigt werden. Falls eine Bestätigung aussteht, prüfe dieselbe Anfrage, um ihren Ausgang zu klären.",
 		"raindanceName": "Raindance AI-Trend",
@@ -2214,10 +2214,10 @@
 			"history": "Deine Rumpelstiltskin-Videos",
 			"emptyHistory": "Deine Rumpelstiltskin-Videoaufträge erscheinen hier."
 		},
-		"eligibleBalance": "Für dieses Video verfügbare bezahlte Credits",
+		"eligibleBalance": "Verfügbare Credits",
 		"accountBalance": "Kontoguthaben: {credits} Credits",
-		"eligibleBalanceHint": "Für dieses Video zählen nur berechtigte, bezahlte Credits. Deine übrigen Credits bleiben auf deinem Konto.",
-		"creditShortfall": "Du benötigst noch {credits} berechtigte Credits, um dieses Video zu erstellen.",
+		"eligibleBalanceHint": "Bilder und Videos nutzen dieselben Credits. Verfallene Credits und Credit-Schulden können die Nutzung begrenzen.",
+		"creditShortfall": "Du benötigst noch {credits} Credits, um dieses Video zu erstellen.",
 		"loadingPrice": "Wird geladen…",
 		"priceUnavailable": "Nicht verfügbar",
 		"balanceUnavailable": "Nicht verfügbar",

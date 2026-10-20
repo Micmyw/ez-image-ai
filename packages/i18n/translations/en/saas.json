@@ -2176,7 +2176,7 @@
 			"SETTLED": "{credits} credits settled. No extra charge for playback or downloads.",
 			"RELEASED": "The reservation of {credits} credits has been released."
 		},
-		"insufficient": "There are not enough eligible credits for this order. Review your balance or add credits.",
+		"insufficient": "Not enough available credits for this order. Check your balance or add credits.",
 		"unavailable": "Video generation is temporarily unavailable. Please try again later.",
 		"requestFailed": "The response could not be confirmed. If a confirmation is pending, check the same request to recover its outcome.",
 		"raindanceName": "Raindance AI trend",
@@ -2214,10 +2214,10 @@
 			"history": "Your Rumpelstiltskin videos",
 			"emptyHistory": "Your Rumpelstiltskin video orders will appear here."
 		},
-		"eligibleBalance": "Paid credits available for this video",
+		"eligibleBalance": "Available credits",
 		"accountBalance": "Account total: {credits} credits",
-		"eligibleBalanceHint": "Only eligible paid credits count toward this video. Your other credits stay in your account.",
-		"creditShortfall": "You need {credits} more eligible credits to generate this video.",
+		"eligibleBalanceHint": "Images and videos share valid credits. Expired credits and credit debt can limit availability.",
+		"creditShortfall": "You need {credits} more credits to generate this video.",
 		"loadingPrice": "Loading…",
 		"priceUnavailable": "Unavailable",
 		"balanceUnavailable": "Unavailable",

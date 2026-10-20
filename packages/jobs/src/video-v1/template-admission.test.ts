@@ -198,7 +198,11 @@ describe("template admission and public recovery state", () => {
 			referenceTemplate.video,
 			{ priceOverride: expect.objectContaining({ credits: 12n, pricingVersion: "fixture" }) },
 		);
-		expect(admitted.price.paidFundingPolicy).toEqual({ minimumUsdMicrosPerCredit: 10n });
+		expect(admitted.price.paidFundingPolicy).toBeUndefined();
+		expect(admitted.price.pricingDetails).toMatchObject({
+			funding: { mode: "shared-media-credits-v1" },
+			paidRevenueQualified: false,
+		});
 	});
 	it("replays the original accepted confirmation before mutable availability and pricing", async () => {
 		vi.mocked(findExistingVideoTemplateAdmission).mockResolvedValue({ id: "job" } as never);
@@ -231,13 +235,21 @@ describe("template admission and public recovery state", () => {
 			expect.objectContaining({
 				request,
 				template,
-				price: expect.objectContaining({ credits: 12n }),
+				paidFundingPolicy: undefined,
+				price: expect.objectContaining({
+					credits: 12n,
+					paidFundingPolicy: undefined,
+					pricingDetails: expect.objectContaining({
+						funding: { mode: "shared-media-credits-v1" },
+						paidRevenueQualified: false,
+					}),
+				}),
 				limits: expect.objectContaining({ maximumInputBytes: 7_000_000 }),
 			}),
 			expect.anything(),
 		);
 	});
-	it("never inherits ordinary video internal funding without separate template authorization", () => {
+	it("uses the same valid shared credits without separate internal-template funding authorization", () => {
 		const funding = JSON.stringify({
 			userIds: ["owner"],
 			validUntil: "2100-01-01T00:00:00Z",
@@ -249,7 +261,11 @@ describe("template admission and public recovery state", () => {
 			bindings,
 			request,
 		);
-		expect(ordinary.price.paidFundingPolicy).toEqual({ minimumUsdMicrosPerCredit: 10n });
+		expect(ordinary.price.paidFundingPolicy).toBeUndefined();
+		expect(ordinary.price.pricingDetails).toMatchObject({
+			funding: { mode: "shared-media-credits-v1" },
+			paidRevenueQualified: false,
+		});
 		const explicit = requireVideoTemplateAdmission(
 			{ userId: "owner", role: "admin" },
 			{ ...environment, VIDEO_V1_ACCESS: "internal", HOTEL_LOBBY_DUO_INTERNAL_FUNDING: funding },
@@ -257,7 +273,40 @@ describe("template admission and public recovery state", () => {
 			request,
 		);
 		expect(explicit.price.paidFundingPolicy).toBeUndefined();
+		expect(explicit.price.pricingDetails).toMatchObject({
+			funding: { mode: "shared-media-credits-v1" },
+			paidRevenueQualified: false,
+		});
 	});
+	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
+		"keeps the %s debit while producing a shared-credit quote and admission policy",
+		(effectId) => {
+			const admitted = requireVideoTemplateAdmission(
+				{ userId: "owner" },
+				{ ...environment, RAINDANCE_ENABLED: "true", RAINDANCE_ACCESS: "authenticated" },
+				bindings,
+				{
+					...request,
+					effectId,
+					inputs: {
+						leftAssetId: "left",
+						rightAssetId: effectId === "raindance-solo" ? "left" : "right",
+					},
+				},
+			);
+			expect(admitted.price).toMatchObject({
+				credits: 12n,
+				pricingVersion: "fixture",
+				providerCostMicros: 1000n,
+				moderationCostMicros: 100n,
+				paidFundingPolicy: undefined,
+				pricingDetails: {
+					funding: { mode: "shared-media-credits-v1" },
+					paidRevenueQualified: false,
+				},
+			});
+		},
+	);
 	it.each([
 		{ MEDIA_GENERATION_ENABLED: "false" },
 		{ MEDIA_NANO_BANANA_2_LITE_ENABLED: "false" },

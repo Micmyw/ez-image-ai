@@ -20,9 +20,9 @@ import {
 	isVideoEffectRetailPricingApproved,
 	readVideoEffectPricingDisplay,
 } from "@repo/config/video-effects.server";
-import { applyVideoInternalFunding } from "@repo/config/video-internal-funding";
 import { readVideoOutputReport } from "@repo/config/video-output-report";
 import type { VideoRetailPricingContext } from "@repo/config/video-pricing.server";
+import { applyVideoSharedFunding } from "@repo/config/video-shared-funding";
 import type { VideoV1Bindings } from "@repo/config/video-v1";
 import { db } from "@repo/database/client";
 import { resolveVideoRetailEligibility } from "@repo/database/video-retail-eligibility";
@@ -104,14 +104,9 @@ export function requireVideoTemplateAdmission(
 	const admitted = requireVideoModelReadiness(environment, bindings, template.video, {
 		priceOverride: effectPrice,
 	});
-	// An ordinary video administrator budget never authorizes this separate two-stage product.
-	const price = applyVideoInternalFunding(effectPrice, context, {
-		...environment,
-		VIDEO_INTERNAL_FUNDING:
-			request.effectId === "hotel-lobby-duo"
-				? environment.HOTEL_LOBBY_DUO_INTERNAL_FUNDING
-				: undefined,
-	}) satisfies VideoPrice;
+	// Templates use the same valid account credits as images and ordinary video.
+	// Cost approval retains the debit; it does not certify the receipt value of the reserved lots.
+	const price = applyVideoSharedFunding(effectPrice) satisfies VideoPrice;
 	return {
 		...admitted,
 		template,

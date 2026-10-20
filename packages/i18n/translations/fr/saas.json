@@ -2176,7 +2176,7 @@
 			"SETTLED": "{credits} crédits débités. Aucun supplément pour la lecture ou les téléchargements.",
 			"RELEASED": "La réservation de {credits} crédits a été libérée."
 		},
-		"insufficient": "Les crédits éligibles sont insuffisants pour cette commande. Vérifiez votre solde ou ajoutez des crédits.",
+		"insufficient": "Le solde disponible est insuffisant pour cette commande. Vérifiez votre solde ou ajoutez des crédits.",
 		"unavailable": "La génération de vidéos est temporairement indisponible. Veuillez réessayer plus tard.",
 		"requestFailed": "La réponse n’a pas pu être confirmée. Si une confirmation est en attente, vérifiez la même demande pour retrouver son résultat.",
 		"raindanceName": "Tendance Raindance AI",
@@ -2214,10 +2214,10 @@
 			"history": "Vos vidéos Rumpelstiltskin",
 			"emptyHistory": "Vos commandes de vidéo Rumpelstiltskin apparaîtront ici."
 		},
-		"eligibleBalance": "Crédits payants disponibles pour cette vidéo",
+		"eligibleBalance": "Crédits disponibles",
 		"accountBalance": "Total du compte : {credits} crédits",
-		"eligibleBalanceHint": "Seuls les crédits payants admissibles comptent pour cette vidéo. Vos autres crédits restent sur votre compte.",
-		"creditShortfall": "Il vous faut encore {credits} crédits admissibles pour générer cette vidéo.",
+		"eligibleBalanceHint": "Images et vidéos partagent les mêmes crédits. Les crédits expirés et les dettes de crédits peuvent limiter le solde disponible.",
+		"creditShortfall": "Il vous faut encore {credits} crédits pour générer cette vidéo.",
 		"loadingPrice": "Chargement…",
 		"priceUnavailable": "Indisponible",
 		"balanceUnavailable": "Indisponible",
