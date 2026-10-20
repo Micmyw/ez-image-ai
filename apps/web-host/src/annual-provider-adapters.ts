@@ -152,10 +152,32 @@ export function paypalCreateBody(tier: AnnualTier, productId: string): Data {
 			auto_bill_outstanding: true,
 			setup_fee: { value: "0.00", currency_code: "USD" },
 			setup_fee_failure_action: "CANCEL",
-			payment_failure_threshold: 3,
+			payment_failure_threshold: 2,
 		},
 	};
 }
+/** Native commercial fields require explicit parsing; metadata is not evidence about them. */
+export function unsupportedCommercialFields(
+	fields: Data[],
+	role: "product" | "version" | "currency" | "price",
+): string[] {
+	const handled = {
+		product: new Set(["billingPeriod", "prices", "metadata"]),
+		version: new Set(["billingPeriod", "prices", "metadata"]),
+		currency: new Set(["currency", "priceInfo"]),
+		price: new Set(["amount", "taxCategory", "trialAmount"]),
+	}[role];
+	return fields
+		.map((field) => string(field.name))
+		.filter(
+			(name) =>
+				!handled.has(name) &&
+				/fee|trial|cycl|bill|recurr|renew|setup|introduct|discount|promot|coupon|duration|interval|period|frequency|installment|tax|pric|amount|currenc|charge|payment|initial|expiry|expires|termination|commitment/i.test(
+					name,
+				),
+		);
+}
+
 function required(environment: Record<string, string | undefined>, key: string): string {
 	const value = environment[key];
 	if (!value?.trim()) throw new AnnualOperationError("CONFIGURATION_INCOMPLETE");
@@ -372,7 +394,10 @@ export function createProviderPort(
 					return field;
 				};
 				const schemaFields: Record<string, string[]> = {};
-				const inspect = async (name: string) => {
+				const inspect = async (
+					name: string,
+					role: "product" | "version" | "currency" | "price",
+				) => {
 					if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name))
 						throw new AnnualOperationError("WAFFO_SCHEMA_UNSUPPORTED");
 					const result = record(
@@ -384,6 +409,14 @@ export function createProviderPort(
 						).__type,
 					);
 					const fields = list(result.fields).map(record);
+					const unsupported = unsupportedCommercialFields(fields, role);
+					if (unsupported.length) {
+						options.onDiagnostic?.({
+							stage: "WAFFO_SCHEMA_UNSUPPORTED_COMMERCIAL_FIELDS",
+							unsupportedCommercialFields: unsupported,
+						});
+						throw new AnnualOperationError("WAFFO_NATIVE_COMMERCIAL_FIELDS_UNSUPPORTED");
+					}
 					const allowed = new Set([
 						"id",
 						"name",
@@ -417,8 +450,8 @@ export function createProviderPort(
 				};
 				const productRoot = rootField("subscriptionProducts");
 				const versionRoot = rootField("subscriptionProductVersions");
-				const productFields = await inspect(typeName(productRoot.type));
-				const versionFields = await inspect(typeName(versionRoot.type));
+				const productFields = await inspect(typeName(productRoot.type), "product");
+				const versionFields = await inspect(typeName(versionRoot.type), "version");
 				const field = (fields: Data[], name: string) => {
 					const match = fields.find((entry) => entry.name === name);
 					if (!match) throw new AnnualOperationError("WAFFO_SCHEMA_UNSUPPORTED");
@@ -434,9 +467,15 @@ export function createProviderPort(
 					"isProdVersion",
 				])
 					field(versionFields, name);
-				const currencyFields = await inspect(typeName(field(versionFields, "prices").type));
+				const currencyFields = await inspect(
+					typeName(field(versionFields, "prices").type),
+					"currency",
+				);
 				field(currencyFields, "currency");
-				const priceFields = await inspect(typeName(field(currencyFields, "priceInfo").type));
+				const priceFields = await inspect(
+					typeName(field(currencyFields, "priceInfo").type),
+					"price",
+				);
 				field(priceFields, "amount");
 				field(priceFields, "taxCategory");
 				// A schema without explicit trialAmount cannot certify the no-trial invariant.

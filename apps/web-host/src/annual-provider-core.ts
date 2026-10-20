@@ -60,7 +60,7 @@ export function amount(value: unknown): number {
 	return Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
 }
 export function targetName(tier: AnnualTier): string {
-	return `EzPic ${tier.label} annual USD${tier.annual / 100} ${ANNUAL_OPERATION}`;
+	return `EzPic ${tier.label} - Yearly USD${tier.annual / 100}`;
 }
 export class AnnualOperationError extends Error {
 	readonly code: string;
@@ -87,6 +87,7 @@ export type DiagnosticEvidence = {
 		| "WAFFO_CATALOG"
 		| "WAFFO_STORE"
 		| "WAFFO_SCHEMA"
+		| "WAFFO_SCHEMA_UNSUPPORTED_COMMERCIAL_FIELDS"
 		| "WAFFO_VERSIONS"
 		| "WAFFO_EVIDENCE_START"
 		| "WAFFO_EVIDENCE_COMPLETE"
@@ -97,6 +98,7 @@ export type DiagnosticEvidence = {
 	plan?: AnnualTier["key"];
 	productId?: string;
 	fields?: Record<string, string>;
+	unsupportedCommercialFields?: string[];
 };
 export function shape(value: unknown): string {
 	return value === null ? "null" : Array.isArray(value) ? "array" : typeof value;

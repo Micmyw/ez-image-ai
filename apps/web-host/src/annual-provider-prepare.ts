@@ -12,6 +12,7 @@ import {
 	type AnnualTier,
 	type ProviderPort,
 	type WaffoEvidence,
+	type PayPalEvidence,
 } from "./annual-provider-core";
 
 export type AttemptKey = `${"waffo" | "paypal"}:${AnnualTier["key"]}`;
@@ -75,6 +76,21 @@ function candidateIdentity(
 	return ownedTarget(product, tier);
 }
 
+function samePayPalPaymentPreferences(
+	candidate: PayPalEvidence,
+	previous: PayPalEvidence,
+): boolean {
+	return (
+		candidate.paymentPreferences.setupFeeMinor === previous.paymentPreferences.setupFeeMinor &&
+		candidate.paymentPreferences.autoBillOutstanding ===
+			previous.paymentPreferences.autoBillOutstanding &&
+		candidate.paymentPreferences.setupFeeFailureAction ===
+			previous.paymentPreferences.setupFeeFailureAction &&
+		candidate.paymentPreferences.paymentFailureThreshold ===
+			previous.paymentPreferences.paymentFailureThreshold &&
+		candidate.taxPercent === previous.taxPercent
+	);
+}
 /** Caller must carry ATTEMPT_STARTED keys from durable build logs on any resumed run. */
 export async function prepareAnnualProviders(
 	environment: Record<string, string | undefined>,
@@ -86,6 +102,18 @@ export async function prepareAnnualProviders(
 ) {
 	const initial = await auditAnnualProviders(environment, port);
 	if (!initial.ready) throw new AnnualOperationError("AUDIT_NOT_READY");
+	// This price-only operation preserves the independently audited payment preferences.
+	for (const tier of initial.tiers) {
+		const preferences = tier.paypal.previousAnnual.paymentPreferences;
+		if (
+			!preferences.autoBillOutstanding ||
+			preferences.setupFeeMinor !== 0 ||
+			preferences.setupFeeFailureAction !== "CANCEL" ||
+			preferences.paymentFailureThreshold !== 2 ||
+			tier.paypal.previousAnnual.taxPercent !== null
+		)
+			throw new AnnualOperationError("PAYPAL_PREVIOUS_PREFERENCES_CHANGED");
+	}
 	if (!port.waffoCreate || !port.waffoPublish || !port.waffoActivate || !port.paypalCreate)
 		throw new AnnualOperationError("PREPARATION_NOT_AVAILABLE");
 	const attempts = new Set(options.priorAttempts ?? []);
@@ -252,10 +280,19 @@ export async function prepareAnnualProviders(
 		const choosePayPal = (
 			plans: ReturnType<typeof paypalEvidence>[],
 		): ReturnType<typeof paypalEvidence> | undefined => {
+			if (
+				plans.some(
+					(plan) =>
+						plan.name === targetName(tier) &&
+						!samePayPalPaymentPreferences(plan, baseline.paypal.previousAnnual),
+				)
+			)
+				throw new AnnualOperationError("PAYPAL_TARGET_PREFERENCES_MISMATCH");
 			const candidates = plans.filter(
 				(plan) =>
 					plan.productId === baseline.paypal.previousAnnual.productId &&
-					validPaypalTerms(plan, tier.annual, "YEAR"),
+					validPaypalTerms(plan, tier.annual, "YEAR") &&
+					samePayPalPaymentPreferences(plan, baseline.paypal.previousAnnual),
 			);
 			if (candidates.length > 1) throw new AnnualOperationError("PAYPAL_TARGET_AMBIGUOUS");
 			return candidates[0];
@@ -326,7 +363,8 @@ export async function prepareAnnualProviders(
 			!candidateIdentity(waffo, verified.waffo.previousAnnual, tier) ||
 			!paypal ||
 			paypal.productId !== verified.paypal.previousAnnual.productId ||
-			!validPaypalTerms(paypal, tier.annual, "YEAR")
+			!validPaypalTerms(paypal, tier.annual, "YEAR") ||
+			!samePayPalPaymentPreferences(paypal, verified.paypal.previousAnnual)
 		)
 			throw new AnnualOperationError("PREPARED_BINDING_VERIFICATION_FAILED");
 	}

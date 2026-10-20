@@ -325,6 +325,16 @@ describe("controlled annual provider preparation", () => {
 		expect(f.calls.some((call) => /create|publish|activate/.test(call))).toBe(false);
 	});
 
+	it("stops before any writes if old PayPal non-price preferences differ from the audited threshold two", async () => {
+		const f = fixture();
+		const oldAnnual = f.plans.find((plan) => plan.id === ANNUAL_TIERS[2].paypal)!;
+		(oldAnnual.payment_preferences as Data).payment_failure_threshold = 3;
+		await expect(prepareAnnualProviders(f.environment, f.port)).rejects.toThrow(
+			"PAYPAL_PREVIOUS_PREFERENCES_CHANGED",
+		);
+		expect(f.calls.some((call) => /create|publish|activate/.test(call))).toBe(false);
+	});
+
 	it("validates attempt keys and refuses an unsafe audit before any writes", async () => {
 		expect(() => parsePriorAttempts("paypal:orders")).toThrow("PRIOR_ATTEMPTS_INVALID");
 		expect(() => parsePriorAttempts("waffo:creator,waffo:creator")).toThrow(

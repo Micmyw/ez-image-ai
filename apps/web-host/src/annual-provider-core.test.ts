@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
 	assertAllowedProviderRequest,
 	createProviderPort,
+	unsupportedCommercialFields,
 	paypalCreateBody,
 } from "./annual-provider-adapters";
 import {
@@ -83,7 +84,7 @@ function fixtures() {
 					auto_bill_outstanding: true,
 					setup_fee: { value: "0.00", currency_code: "USD" },
 					setup_fee_failure_action: "CANCEL",
-					payment_failure_threshold: 3,
+					payment_failure_threshold: 2,
 				},
 				links: [{ href: "PRIVATE_PAYLOAD" }],
 			});
@@ -267,6 +268,58 @@ describe("provider request fence", () => {
 			}),
 		).toThrow("REQUEST_NOT_ALLOWED");
 	});
+	it("uses human-readable names without operation markers and preserves PayPal failure threshold two", () => {
+		expect(ANNUAL_TIERS.map(targetName)).toEqual([
+			"EzPic Pro - Yearly USD114",
+			"EzPic Ultimate - Yearly USD294",
+			"EzPic Max - Yearly USD474",
+		]);
+		for (const tier of ANNUAL_TIERS) {
+			const body = paypalCreateBody(tier, "PROD-EXISTING");
+			expect((body.payment_preferences as Data).payment_failure_threshold).toBe(2);
+			expect(body.name).not.toContain("20261020annual50");
+		}
+	});
+	it("detects unsupported native commercial fields by type while exposing only their names", () => {
+		const namedFields = (names: string[]) =>
+			names.map((name) => ({ name, privateValue: "DO_NOT_PRINT" }));
+		expect(
+			unsupportedCommercialFields(
+				namedFields([
+					"billingPeriod",
+					"prices",
+					"metadata",
+					"media",
+					"description",
+					"isProdVersion",
+				]),
+				"product",
+			),
+		).toEqual([]);
+		expect(
+			unsupportedCommercialFields(namedFields(["trialAmount", "amount", "taxCategory"]), "price"),
+		).toEqual([]);
+		const unknown = [
+			"setupFee",
+			"trialDays",
+			"totalCycles",
+			"billingInterval",
+			"autoRenew",
+			"introductoryPrice",
+			"discount",
+			"taxPercentage",
+			"paymentPreferences",
+			"setup_fee",
+		];
+		expect(unsupportedCommercialFields(namedFields(unknown), "version")).toEqual(unknown);
+		expect(unsupportedCommercialFields(namedFields(["billingPeriod"]), "price")).toEqual([
+			"billingPeriod",
+		]);
+		expect(
+			JSON.stringify(unsupportedCommercialFields(namedFields(unknown), "version")),
+		).not.toContain("DO_NOT_PRINT");
+	});
+
 	it("permits exactly the fixed recurring 114/294/474 USD plans", () => {
 		for (const tier of ANNUAL_TIERS) {
 			const body = paypalCreateBody(tier, "PROD-EXISTING");
