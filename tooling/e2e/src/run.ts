@@ -12,7 +12,7 @@ const landingRegression = process.argv.includes("--landing-regression");
 const landingRegressionGrep =
 	"a guest text prompt|the public root exposes|the editor follows|the landing generator supports|the selected model and SKU cross|a retryable failure preserves|the landing page proves|the landing tool stays usable";
 const grep = process.argv.includes("--video-regression")
-	? "crops an avatar|requires review evidence|mobile editor keeps|subscription upgrade waits for verified payment"
+	? "crops an avatar|requires review evidence|mobile editor keeps|subscription upgrade from billing waits for verified payment"
 	: undefined;
 const runId =
 	process.env.E2E_RUN_ID ?? `${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
@@ -121,6 +121,7 @@ async function main(): Promise<void> {
 					: [
 							"tests/media-generation.spec.ts",
 							"tests/avatar-upload.spec.ts",
+							"tests/model-upgrade.spec.ts",
 							"tests/subscription-upgrade.spec.ts",
 							"tests/checkout-review.spec.ts",
 							"tests/image-pass-return.spec.ts",

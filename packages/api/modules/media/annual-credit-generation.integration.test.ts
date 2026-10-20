@@ -1,11 +1,17 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { BILLING_PRICING_VERSION, DEFAULT_PRODUCT_CONFIG } from "@repo/config";
-import { createCreditGrant, releaseCredits } from "@repo/database";
+import {
+	createCreditGrant,
+	getCreditInvariantReport,
+	refundCreditGrant,
+	releaseCredits,
+} from "@repo/database";
 import { runWithDatabaseClient } from "@repo/database/client";
 import { PrismaClient } from "@repo/database/generated-client";
 import { getVideoTemplateCreditBalance } from "@repo/database/video-template";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ensureFreePlanCreditsForUser } from "./lib/free-plan-credits";
 import { loadUserPlanEntitlement } from "./lib/plan-entitlement";
 import { createGenerationForUser } from "./procedures/create-generation";
 import { createQuoteForUser } from "./procedures/create-quote";
@@ -25,6 +31,16 @@ const input = {
 		aspectRatio: "1:1" as const,
 	},
 };
+const sunburstInput = {
+	productKey: "image-gpt-image-2-5-sunburst",
+	fundingSource: "CREDITS",
+	input: {
+		kind: "text-to-image",
+		prompt: "An original watercolor landscape with a sailboat on a calm lake",
+		skuKey: "gpt-image-2-5-sunburst-1k",
+		aspectRatio: "1:1",
+	},
+} as const;
 let client: PrismaClient;
 const owners: string[] = [];
 
@@ -46,6 +62,7 @@ beforeEach(() => {
 	vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
 	vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
 	vi.stubEnv("MEDIA_NANO_BANANA_2_ENABLED", "true");
+	vi.stubEnv("MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED", "true");
 	vi.stubEnv("KIE_API_KEY", "isolated-annual-admission-fixture");
 });
 afterEach(async () => {
@@ -70,6 +87,54 @@ afterEach(async () => {
 	vi.unstubAllEnvs();
 });
 afterAll(async () => client?.$disconnect());
+
+async function nonSubscriberFixture(amount: bigint) {
+	const ownerId = `shared-image-${crypto.randomUUID()}`;
+	owners.push(ownerId);
+	await client.user.create({
+		data: {
+			id: ownerId,
+			name: "Isolated shared-credit image admission",
+			email: `${ownerId}@example.test`,
+			emailVerified: true,
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		},
+	});
+	// Record real promotional history so preflight cannot replenish the test balance.
+	await runWithDatabaseClient(client, () => ensureFreePlanCreditsForUser(ownerId));
+	const account = await client.creditAccount.findUniqueOrThrow({
+		where: { ownerType_ownerId: { ownerType: "USER", ownerId } },
+	});
+	for (const grant of await client.creditLedgerEntry.findMany({
+		where: { accountId: account.id, type: "GRANT" },
+	}))
+		await refundCreditGrant(
+			{
+				accountId: account.id,
+				grantReferenceKey: grant.referenceKey,
+				amount: grant.amount,
+				referenceKey: `${ownerId}:promotional-refund:${grant.id}`,
+			},
+			client,
+		);
+	const referenceKey = `${ownerId}:compensation-grant`;
+	await createCreditGrant(
+		{
+			accountId: account.id,
+			amount,
+			expiresAt: new Date(Date.now() + 60 * 60_000),
+			referenceKey,
+		},
+		client,
+	);
+	expect(await client.subscription.count({ where: { ownerType: "USER", ownerId } })).toBe(0);
+	expect(await getCreditInvariantReport(account.id, client)).toMatchObject({
+		valid: true,
+		account: { spendable: amount, reserved: 0n, debt: 0n },
+	});
+	return { ownerId, accountId: account.id, referenceKey };
+}
 
 // Real API business functions, catalog quotation, entitlement, SQL admission, ledger and
 // allocation. The explicit local safety adapter supplies synthetic review evidence; this
@@ -195,6 +260,120 @@ describe("new annual receipts fund ordinary image admission", () => {
 				expect(
 					await client.billingPeriod.count({ where: { subscriptionId: subscription.id } }),
 				).toBe(12);
+			});
+		},
+	);
+});
+
+describe("shared-credit image admission without a subscription", () => {
+	it("quotes and reserves Sunburst 1K from 377 compensation credits once", async () => {
+		const { ownerId, accountId, referenceKey } = await nonSubscriberFixture(377n);
+		await runWithDatabaseClient(client, async () => {
+			expect((await loadUserPlanEntitlement(ownerId)).id).toBe("free");
+			const quote = await createQuoteForUser(ownerId, sunburstInput);
+			expect(quote).toMatchObject({
+				credits: 7n,
+				fundingSource: "CREDITS",
+				imagePassUnits: 0,
+				pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
+			});
+			expect(quote.pricingSnapshot).not.toHaveProperty("paidFundingPolicy");
+			expect(
+				await client.generationQuote.findUniqueOrThrow({ where: { id: quote.id } }),
+			).toMatchObject({
+				productKey: sunburstInput.productKey,
+				credits: 7n,
+				costMicros: 30_000n,
+				inputSnapshot: sunburstInput.input,
+				moderationDecision: "ALLOW",
+				moderationProvider: "test",
+			});
+			const request = {
+				quoteId: quote.id,
+				idempotencyKey: ownerId,
+				fundingSource: "CREDITS" as const,
+			};
+			const created = await createGenerationForUser(ownerId, request);
+			expect(created).toMatchObject({
+				replayed: false,
+				job: { creditsReserved: 7n, fundingSource: "CREDITS", imagePassUnits: 0 },
+			});
+			await expect(createGenerationForUser(ownerId, request)).resolves.toMatchObject({
+				replayed: true,
+				job: { id: created.job.id, creditsReserved: 7n, fundingSource: "CREDITS" },
+			});
+			expect(
+				await client.creditReservation.findUniqueOrThrow({ where: { jobId: created.job.id } }),
+			).toMatchObject({
+				accountId,
+				amount: 7n,
+				status: "ACTIVE",
+			});
+			const allocations = await client.creditReservationAllocation.findMany({
+				where: { reservation: { jobId: created.job.id } },
+				include: { lot: true },
+			});
+			expect(allocations).toHaveLength(1);
+			expect(allocations[0]).toMatchObject({
+				amount: 7n,
+				lot: { grantReferenceKey: referenceKey, remainingAmount: 370n, reservedAmount: 7n },
+			});
+			expect(await getCreditInvariantReport(accountId, client)).toMatchObject({
+				valid: true,
+				account: { spendable: 370n, reserved: 7n, debt: 0n },
+			});
+			expect(await client.generationJob.count({ where: { ownerId } })).toBe(1);
+			expect(await client.creditLedgerEntry.count({ where: { accountId, type: "RESERVE" } })).toBe(
+				1,
+			);
+			expect(
+				await client.outboxEvent.count({ where: { aggregateId: created.job.id } }),
+			).toBeGreaterThan(0);
+			expect(await client.generationAttempt.count({ where: { jobId: created.job.id } })).toBe(0);
+		});
+	});
+	it.each(["quote", "generation"] as const)(
+		"rejects six shared credits before %s without creating image work",
+		async (stage) => {
+			const { ownerId, accountId, referenceKey } = await nonSubscriberFixture(
+				stage === "quote" ? 6n : 377n,
+			);
+			await runWithDatabaseClient(client, async () => {
+				if (stage === "quote") {
+					await expect(createQuoteForUser(ownerId, sunburstInput)).rejects.toThrow(
+						"INSUFFICIENT_CREDITS",
+					);
+				} else {
+					const quote = await createQuoteForUser(ownerId, sunburstInput);
+					await refundCreditGrant(
+						{
+							accountId,
+							grantReferenceKey: referenceKey,
+							amount: 371n,
+							referenceKey: `${ownerId}:refund-after-quote`,
+						},
+						client,
+					);
+					await expect(
+						createGenerationForUser(ownerId, {
+							quoteId: quote.id,
+							idempotencyKey: ownerId,
+							fundingSource: "CREDITS",
+						}),
+					).rejects.toThrow("INSUFFICIENT_CREDITS");
+				}
+				expect(await client.generationQuote.count({ where: { ownerId } })).toBe(
+					stage === "quote" ? 0 : 1,
+				);
+				expect(await client.generationJob.count({ where: { ownerId } })).toBe(0);
+				expect(await client.creditReservation.count({ where: { accountId } })).toBe(0);
+				expect(
+					await client.creditLedgerEntry.count({ where: { accountId, type: "RESERVE" } }),
+				).toBe(0);
+				expect(await getCreditInvariantReport(accountId, client)).toMatchObject({
+					valid: true,
+					account: { spendable: 6n, reserved: 0n, debt: 0n },
+				});
 			});
 		},
 	);

@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
 	passReserved: 0,
 	passFailed: false,
 	creditFailed: false,
+	spendableCredits: "100",
 	generationPending: false,
 	cursor: 0,
 	slots: [] as {
@@ -94,10 +95,29 @@ vi.mock("../hooks/use-generation", () => ({
 							],
 						},
 					},
+					{
+						key: "image-gpt-image-2-5-sunburst",
+						label: "GPT Image 2.5 Sunburst",
+						credits: 7,
+						skuMatrix: {
+							defaultSkuKey: "gpt-image-2-5-sunburst-1k",
+							cells: [
+								{
+									skuKey: "gpt-image-2-5-sunburst-1k",
+									credits: 7,
+									aspectRatios: ["auto", "1:1"],
+									controls: [],
+								},
+							],
+						},
+					},
 				],
 			},
 		},
-		creditAccount: { data: { spendableCredits: "100" }, isError: state.creditFailed },
+		creditAccount: {
+			data: { spendableCredits: state.spendableCredits },
+			isError: state.creditFailed,
+		},
 		imagePass: {
 			data: { available: state.passAvailable, reserved: state.passReserved },
 			isError: state.passFailed,
@@ -113,6 +133,7 @@ vi.mock("../hooks/use-generation", () => ({
 	}),
 }));
 
+import { resolveEditorAllowedProductKeys } from "../lib/editor-recovery";
 import { PromptPanel } from "./editor/PromptPanel";
 import { GenerationForm } from "./GenerationForm";
 import { ImageFundingSelector, type ImageFundingSource } from "./ImageFundingSelector";
@@ -163,6 +184,7 @@ beforeEach(() => {
 	state.passReserved = 0;
 	state.passFailed = false;
 	state.creditFailed = false;
+	state.spendableCredits = "100";
 	state.generationPending = false;
 	state.slots = [];
 	state.cursor = 0;
@@ -197,6 +219,27 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it("submits Sunburst 1K with shared credits for a funded owner without a subscription", async () => {
+		state.spendableCredits = "377";
+		state.values.productKey = "image-gpt-image-2-5-sunburst";
+		state.values.skuKey = "gpt-image-2-5-sunburst-1k";
+		state.values.aspectRatio = "1:1";
+		const onCreated = vi.fn();
+		submit(render(onCreated, null, resolveEditorAllowedProductKeys(undefined, undefined)));
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledWith(
+			expect.objectContaining({
+				productKey: "image-gpt-image-2-5-sunburst",
+				fundingSource: "CREDITS",
+				expectedCredits: "7",
+				input: expect.objectContaining({
+					skuKey: "gpt-image-2-5-sunburst-1k",
+					aspectRatio: "1:1",
+				}),
+			}),
+		);
+		expect(onCreated).toHaveBeenCalledWith("accepted-job");
+	});
 	it("does not automatically spend image passes when credits are the selected source", async () => {
 		submit(render());
 		await flush();

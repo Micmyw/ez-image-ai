@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EffectEditorContext } from "../../effects/lib/editor-context";
 import type { EffectPageContent, PublicEffectPreset } from "../../effects/lib/types";
+import { resolveEditorAllowedProductKeys } from "../lib/editor-recovery";
 import { ToolPromptProvider } from "../lib/tool-prompt-context";
 
 const mocks = vi.hoisted(() => ({ useGeneration: vi.fn(), modelOptions: vi.fn() }));
@@ -78,12 +79,17 @@ vi.mock("next-intl", () => ({
 			"products.image-nano-banana-2-lite.description": "Localized fast 1K edits",
 			"products.image-gpt-image-2.label": "Localized GPT Image 2",
 			"products.image-gpt-image-2.description": "Localized detailed 1K, 2K, and 4K edits",
+			"products.image-gpt-image-2-5-sunburst.label": "GPT Image 2.5 Sunburst",
+			"products.image-gpt-image-2-5-sunburst.description": "Detailed 1K, 2K, and 4K images",
 			"products.image-seedream-5-pro.label": "Localized Seedream 5 Pro",
 			"products.image-seedream-5-pro.description": "Localized Basic and High edits",
 			"skus.nano-banana-2-lite-1k.label": "Localized 1K",
 			"skus.gpt-image-2-1k.label": "Localized GPT 1K",
 			"skus.gpt-image-2-2k.label": "Localized 2K",
 			"skus.gpt-image-2-4k.label": "Localized 4K",
+			"skus.gpt-image-2-5-sunburst-1k.label": "Sunburst 1K",
+			"modelMenu.viewPlans": "View plans",
+			paidPlan: "Paid plan",
 			"skus.seedream-5-pro-basic-1k.label": "Localized 1K Basic",
 			"skus.seedream-5-pro-high-2k.label": "Localized 2K High",
 			"fields.prompt": "Localized edit instruction",
@@ -288,6 +294,21 @@ function generationState() {
 						description: "Catalog detailed 1K, 2K, and 4K edits",
 						credits: 7,
 						skuMatrix: gptMatrix,
+						fields: [],
+					},
+					{
+						key: "image-gpt-image-2-5-sunburst",
+						label: "Catalog GPT Image 2.5 Sunburst",
+						description: "Catalog detailed images",
+						credits: 7,
+						skuMatrix: {
+							...gptMatrix,
+							defaultSkuKey: "gpt-image-2-5-sunburst-1k",
+							cells: gptMatrix.cells.map((cell) => ({
+								...cell,
+								skuKey: cell.skuKey.replace("gpt-image-2-", "gpt-image-2-5-sunburst-"),
+							})),
+						},
 						fields: [],
 					},
 					{
@@ -764,7 +785,7 @@ describe("GenerationForm product copy", () => {
 		},
 	);
 
-	it("shows required and available credits with an upgrade action", () => {
+	it("shows the credit shortfall and a funding action without requiring model membership", () => {
 		const state = generationState();
 		state.createQuote.error = new Error("INSUFFICIENT_CREDITS");
 		mocks.useGeneration.mockReturnValue(state);
@@ -772,6 +793,7 @@ describe("GenerationForm product copy", () => {
 		const markup = renderToStaticMarkup(
 			<GenerationForm
 				onCreated={vi.fn()}
+				allowedProductKeys={resolveEditorAllowedProductKeys(undefined, undefined)}
 				initialSourceReady
 				initialDraft={{
 					productKey: "image-gpt-image-2",
@@ -791,6 +813,8 @@ describe("GenerationForm product copy", () => {
 		expect(markup).toContain("Upgrade");
 		expect(markup).not.toContain('href="/settings/billing"');
 		expect(markup).toMatch(/<button[^>]*>Upgrade<\/button>/);
+		expect(markup).not.toContain("View plans");
+		expect(markup).not.toContain('data-test="editor-model-access-notice"');
 	});
 
 	it("keeps a legacy concurrency error readable without presenting an account task quota", () => {
@@ -817,31 +841,45 @@ describe("GenerationForm product copy", () => {
 		expect(markup).not.toContain('href="/history"');
 	});
 
-	it("restores a paid-model draft with an inline upgrade notice instead of opening a dialog", () => {
+	it("lets an unsubscribed owner with 377 valid credits generate Sunburst 1K at 1:1", () => {
+		const state = generationState();
+		state.creditAccount.data.spendableCredits = "377";
+		state.creditAccount.data.activeJobs = 0;
+		mocks.useGeneration.mockReturnValue(state);
 		const markup = renderToStaticMarkup(
 			<GenerationForm
 				onCreated={vi.fn()}
-				allowedProductKeys={["image-nano-banana-2-lite"]}
+				allowedProductKeys={resolveEditorAllowedProductKeys(undefined, undefined)}
 				initialDraft={{
-					productKey: "image-gpt-image-2",
+					productKey: "image-gpt-image-2-5-sunburst",
 					input: {
-						kind: "image-to-image",
+						kind: "text-to-image",
 						prompt: "Keep this exact instruction",
-						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
-						skuKey: "gpt-image-2-4k",
-						aspectRatio: "16:9",
+						skuKey: "gpt-image-2-5-sunburst-1k",
+						aspectRatio: "1:1",
 					},
 				}}
 			/>,
 		);
 
 		expect(markup).not.toContain("Localized upgrade dialog");
-		expect(markup).toContain('data-test="editor-model-access-notice"');
+		expect(markup).not.toContain('data-test="editor-model-access-notice"');
+		expect(markup).not.toContain("View plans");
+		expect(markup).not.toContain("Paid plan");
+		expect(markup).toContain("Generate image");
+		expect(markup).toContain("7 credits");
+		const submit = markup.match(/<button\b[^>]*type="submit"[^>]*>/)?.[0];
+		expect(submit).toBeDefined();
+		expect(submit).not.toContain("disabled");
 		const selected = markup.match(
-			/<button[^>]*data-test="editor-model-image-gpt-image-2"[^>]*>/,
+			/<button[^>]*data-test="editor-model-image-gpt-image-2-5-sunburst"[^>]*>/,
 		)?.[0];
 		expect(selected).toContain('aria-pressed="true"');
-		expect(markup).toContain("Localized 4K");
+		expect(mocks.modelOptions.mock.lastCall?.[0].products).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ key: "image-gpt-image-2-5-sunburst", requiresUpgrade: false }),
+			]),
+		);
 	});
 
 	it("restores a legal cell control while keeping the SKU credit price unchanged", () => {

@@ -2,7 +2,6 @@ import { expect, test } from "@playwright/test";
 import pg from "pg";
 
 import { assertLocalMediaE2E } from "../../../tooling/e2e/src/guard";
-import { EDITOR_UPGRADE_STORAGE_KEY } from "../modules/payments/lib/editor-upgrade";
 import { captureConsentedGrowthEvents } from "./growth-events";
 
 const localEnvironment = assertLocalMediaE2E();
@@ -139,7 +138,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		expect(growthEvents.map(({ name }) => name)).not.toContain("checkout_started");
 	});
 
-	test("subscription upgrade waits for verified payment and restores the editor", async ({
+	test("subscription upgrade from billing waits for verified payment and preserves the editor", async ({
 		page,
 	}) => {
 		const growthEvents = await captureConsentedGrowthEvents(page);
@@ -167,22 +166,19 @@ test.describe("subscription upgrade checkout recovery", () => {
 		await page.getByRole("button", { name: /^Model: / }).click();
 		await page.getByRole("button", { name: "GPT Image", exact: true }).click();
 		await page.locator('[data-test="editor-model-image-gpt-image-2"]').click();
-		const dialog = page.getByRole("dialog", { name: /unlock more image models/i });
-		await expect(dialog).toBeHidden();
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("GPT Image 2");
 		await expect(promptInput).toHaveValue(prompt);
-		await page.locator('[data-test="editor-model-upgrade"]').click();
-		await expect(dialog).toContainText(/image, instruction, and model settings stay saved/i);
-		await dialog.getByRole("button", { name: /choose a plan/i }).click();
+		await expect(page.locator('[data-test="generation-submit"]')).toBeEnabled();
+		await expect(page.locator('[data-test="editor-model-upgrade"]')).toHaveCount(0);
+		await expect(page.locator('[data-test="editor-model-access-notice"]')).toHaveCount(0);
 
-		await expect(page).toHaveURL(/\/choose-plan\?returnTo=/);
-		await expect
-			.poll(() =>
-				page.evaluate((key) => window.sessionStorage.getItem(key), EDITOR_UPGRADE_STORAGE_KEY),
-			)
-			.toContain(prompt);
+		await page.goto("/settings/billing");
+		await expect(page.locator('[data-test="price-table-plan"]')).toHaveCount(3);
+		await page.goto("/choose-plan?returnTo=%2Fcreate");
+		await expect(page.locator('[data-test="price-table-plan"]')).toHaveCount(3);
 		await expect.poll(() => freeGrantCount(user.id)).toBe(1);
 		const grantCountBeforeReturn = await freeGrantCount(user.id);
+		const grantsBeforeReturn = await creditGrants(user.id);
 		// The fixture represents trusted processing in the isolated database. It
 		// creates no provider resource, payment event, Outbox work or credit grant.
 		await prepareCreatorReturnFixture(user.id);
@@ -203,7 +199,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		);
 		await page.goto(
 			`/checkout-return?expectedPlanId=creator&checkoutIntentId=${encodeURIComponent(returnFixture.intentId)}&returnTo=${encodeURIComponent(
-				"/create?upgrade=complete",
+				"/create",
 			)}`,
 		);
 		await pendingState;
@@ -214,6 +210,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		await expect(checkoutStatus).toHaveAttribute("data-status", "PENDING");
 		await expect(checkoutStatus).toContainText("Subscription payment has not been confirmed");
 		expect(await freeGrantCount(user.id)).toBe(grantCountBeforeReturn);
+		expect(await creditGrants(user.id)).toEqual(grantsBeforeReturn);
 		await activateCreatorFixture(user.id);
 		const unpaidState = await page.request.post("/api/rpc/payments/getCheckoutReturnState", {
 			data: {
@@ -224,6 +221,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		expect(await unpaidState.json()).toMatchObject({
 			json: { status: "PENDING", planId: null, paidThrough: null },
 		});
+		expect(await creditGrants(user.id)).toEqual(grantsBeforeReturn);
 		await recordCreatorPaymentFixture();
 		const paidState = await page.request.post("/api/rpc/payments/getCheckoutReturnState", {
 			data: {
@@ -240,22 +238,19 @@ test.describe("subscription upgrade checkout recovery", () => {
 		await expect(checkoutStatus).toHaveAttribute("data-status", "ACTIVE", { timeout: 15_000 });
 		await expect(page).toHaveURL(/\/checkout-return\?/);
 		await expect(checkoutStatus).toContainText("Your subscription is confirmed");
+		expect(await creditGrants(user.id)).toEqual(grantsBeforeReturn);
 		await page.getByTestId("subscription-continue").click();
 
-		await expect(page).toHaveURL(/\/create\?model=image-gpt-image-2$/, { timeout: 15_000 });
-		await expect(page.getByText(/your paid plan is active/i)).toBeVisible();
+		await expect(page).toHaveURL(/\/create$/, { timeout: 15_000 });
 		await expect(page.getByLabel(/edit instruction|image prompt/i)).toHaveValue(prompt);
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("GPT Image 2");
 		await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible();
-		await expect
-			.poll(() =>
-				page.evaluate((key) => window.sessionStorage.getItem(key), EDITOR_UPGRADE_STORAGE_KEY),
-			)
-			.toBeNull();
+		await expect(page.locator('[data-test="generation-submit"]')).toBeEnabled();
 		expect(await freeGrantCount(user.id)).toBe(grantCountBeforeReturn);
+		expect(await creditGrants(user.id)).toEqual(grantsBeforeReturn);
 		await expect
 			.poll(() => growthEvents.map(({ name }) => name))
-			.toEqual(expect.arrayContaining(["upgrade_prompt_viewed", "subscription_activated"]));
+			.toEqual(expect.arrayContaining(["subscription_activated"]));
 		expect(unexpectedPaymentMutations).toEqual([]);
 	});
 });
@@ -375,6 +370,17 @@ async function freeGrantCount(userId: string): Promise<number> {
 		[userId, `free-plan:user:${userId}:%`],
 	);
 	return Number(result.rows[0]?.count ?? 0);
+}
+
+async function creditGrants(userId: string): Promise<{ count: string; amount: string }> {
+	const result = await pool.query<{ count: string; amount: string }>(
+		`SELECT count(*)::text AS count, COALESCE(sum(entry.amount), 0)::text AS amount
+		 FROM credit_ledger_entry entry
+		 JOIN credit_account account ON account.id=entry."accountId"
+		 WHERE account."ownerType"='USER' AND account."ownerId"=$1 AND entry.type='GRANT'`,
+		[userId],
+	);
+	return result.rows[0]!;
 }
 
 async function checkoutFixtureCounts(

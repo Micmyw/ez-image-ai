@@ -211,7 +211,7 @@
 			"paidSignIn": "Connexion et forfait payant requis",
 			"oneOutput": "Un résultat",
 			"freeQueue": "2 retouches gratuites par jour · filigrane · disponibles jusqu’à 24 heures",
-			"qualityAccess": "{model} nécessite une connexion et un forfait Pro, Ultimate ou Max.",
+			"qualityAccess": "{model} nécessite une connexion et suffisamment de crédits sur le compte.",
 			"temporaryResult": "Votre aperçu reste privé et temporaire.",
 			"temporarySessionDisclosure": "EzImageAI crée une session temporaire pour cet essai, conserve les médias invités jusqu’à 24 heures et utilise des signaux pseudonymes contre les abus pendant la période décrite dans notre Politique de confidentialité.",
 			"qualityCta": "Plus de modèles d’image · forfait payant",
@@ -662,7 +662,7 @@
 		},
 		"pricing": {
 			"title": "Retouche d’images IA gratuite et forfaits payants",
-			"description": "Commencez avec 25 EzImageAI Credits par mois sur un compte Free. Nano Banana 2 Lite 1K utilise 5 crédits par retouche, soit jusqu’à cinq retouches par mois. Les forfaits payants offrent davantage de crédits et des modèles d’image supplémentaires."
+			"description": "Commencez avec 25 EzImageAI Credits par mois sur un compte Free. Nano Banana 2 Lite 1K utilise 5 crédits par retouche, soit jusqu’à cinq retouches par mois. Les forfaits payants offrent plus de crédits mensuels."
 		},
 		"guides": {
 			"quickStart": "Commencer votre première retouche",

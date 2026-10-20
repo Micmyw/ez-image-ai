@@ -211,7 +211,7 @@
 			"paidSignIn": "Sign-in and a paid plan required",
 			"oneOutput": "One output",
 			"freeQueue": "2 free edits daily · watermarked · available for up to 24 hours",
-			"qualityAccess": "{model} requires sign-in and a Pro, Ultimate, or Max plan.",
+			"qualityAccess": "{model} requires sign-in and enough account credits.",
 			"temporaryResult": "Your preview stays private and temporary.",
 			"temporarySessionDisclosure": "EzImageAI creates a temporary session for this trial, keeps guest media for up to 24 hours, and uses pseudonymous abuse signals for the policy period described in our Privacy Policy.",
 			"qualityCta": "More image models · paid plan",
@@ -662,7 +662,7 @@
 		},
 		"pricing": {
 			"title": "Free AI image editing and paid plans",
-			"description": "Start with 25 monthly EzImageAI Credits on a Free account. Nano Banana 2 Lite 1K uses 5 credits per edit—up to five edits a month. Paid plans offer more credits and additional image models."
+			"description": "Start with 25 monthly EzImageAI Credits on a Free account. Nano Banana 2 Lite 1K uses 5 credits per edit—up to five edits a month. Paid plans offer more monthly credits."
 		},
 		"guides": {
 			"quickStart": "Start your first edit",

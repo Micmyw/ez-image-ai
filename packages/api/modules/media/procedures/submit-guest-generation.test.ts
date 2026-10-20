@@ -115,14 +115,17 @@ describe("submitGuestGeneration", () => {
 		expect(submitGuestGenerationForGuest).not.toHaveBeenCalled();
 	});
 
-	it("rejects a legacy or paid product before entering guest admission", async () => {
-		await expect(
-			call(submitGuestGeneration, { ...validInput(), productKey: "image-fast" } as never, {
-				context: { headers: new Headers() },
-			}),
-		).rejects.toBeDefined();
-		expect(submitGuestGenerationForGuest).not.toHaveBeenCalled();
-	});
+	it.each(["image-fast", "image-gpt-image-2-5-sunburst"])(
+		"rejects %s before entering sponsored guest admission",
+		async (productKey) => {
+			await expect(
+				call(submitGuestGeneration, { ...validInput(), productKey } as never, {
+					context: { headers: new Headers() },
+				}),
+			).rejects.toBeDefined();
+			expect(submitGuestGenerationForGuest).not.toHaveBeenCalled();
+		},
+	);
 
 	it("rejects any SKU except the fixed Nano Banana 2 Lite 1K offer", async () => {
 		await expect(

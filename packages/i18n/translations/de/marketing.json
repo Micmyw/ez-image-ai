@@ -211,7 +211,7 @@
 			"paidSignIn": "Anmeldung und kostenpflichtiger Tarif erforderlich",
 			"oneOutput": "Ein Ergebnis",
 			"freeQueue": "2 kostenlose Bearbeitungen täglich · Wasserzeichen · bis zu 24 Stunden verfügbar",
-			"qualityAccess": "{model} erfordert eine Anmeldung und einen Pro-, Ultimate- oder Max-Tarif.",
+			"qualityAccess": "{model} erfordert eine Anmeldung und genügend Kontoguthaben.",
 			"temporaryResult": "Deine Vorschau bleibt privat und vorübergehend.",
 			"temporarySessionDisclosure": "EzImageAI erstellt für diesen Test eine temporäre Sitzung, bewahrt Gastmedien bis zu 24 Stunden auf und nutzt pseudonyme Missbrauchssignale für den in unserer Datenschutzerklärung beschriebenen Zeitraum.",
 			"qualityCta": "Weitere Bildmodelle · kostenpflichtiger Tarif",
@@ -662,7 +662,7 @@
 		},
 		"pricing": {
 			"title": "Kostenlose KI-Bildbearbeitung und kostenpflichtige Tarife",
-			"description": "Mit einem Free-Konto erhältst du monatlich 25 EzImageAI Credits. Nano Banana 2 Lite 1K benötigt 5 Credits pro Bearbeitung – das reicht für bis zu fünf Bearbeitungen im Monat. Kostenpflichtige Tarife bieten mehr Credits und zusätzliche Bildmodelle."
+			"description": "Mit einem Free-Konto erhältst du monatlich 25 EzImageAI Credits. Nano Banana 2 Lite 1K benötigt 5 Credits pro Bearbeitung – das reicht für bis zu fünf Bearbeitungen im Monat. Kostenpflichtige Pläne bieten mehr monatliche Credits."
 		},
 		"guides": {
 			"quickStart": "Erste Bearbeitung starten",

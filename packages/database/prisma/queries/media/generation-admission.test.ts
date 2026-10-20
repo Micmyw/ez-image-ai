@@ -1,3 +1,4 @@
+import { EZPIC_PRODUCT_KEYS } from "@repo/config";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../client", () => ({
@@ -49,14 +50,17 @@ describe("transaction-current admission", () => {
 			).rejects.toThrow("MODEL_DISABLED");
 		},
 	);
-	it("rejects a paid product when the paid subscription is no longer effective", async () => {
-		await expect(
-			loadCurrentGenerationAdmission(
-				{ ownerId: "owner", productKey: "image-nano-banana-2", costMicros: 10n, now: new Date() },
-				transaction() as never,
-			),
-		).rejects.toThrow("ENTITLEMENT_REQUIRED");
-	});
+	it.each(EZPIC_PRODUCT_KEYS)(
+		"admits %s without an effective paid subscription",
+		async (productKey) => {
+			await expect(
+				loadCurrentGenerationAdmission(
+					{ ownerId: "owner", productKey, costMicros: 30_000n, now: new Date() },
+					transaction() as never,
+				),
+			).resolves.toMatchObject({ maximumInputBytes: expect.any(Number) });
+		},
+	);
 	it("derives the tighter product size limit without limiting unfinished task counts", async () => {
 		const tx = transaction([], "studio");
 		const admission = await loadCurrentGenerationAdmission(
