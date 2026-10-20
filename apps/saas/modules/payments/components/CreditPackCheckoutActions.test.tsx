@@ -100,16 +100,26 @@ vi.mock("@tanstack/react-query", () => ({
 		};
 	},
 }));
+vi.mock("next/dynamic", () => ({ default: () => "checkout-recovery" }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 import {
 	readCreditPackCheckoutContext,
 	saveCreditPackCheckoutContext,
 } from "../lib/credit-pack-checkout-context";
 import { CreditPackCheckoutActions } from "./CreditPackCheckoutActions";
+import { CreditPackCheckoutRecovery } from "./CreditPackCheckoutRecovery";
 const packKey = PUBLIC_CREDIT_PACKS[0]!.packKey;
 function render() {
 	state.cursor = 0;
-	return CreditPackCheckoutActions({ packKey });
+	const element = CreditPackCheckoutActions({ packKey });
+	const children = React.Children.map(element.props.children, (child) => {
+		if (React.isValidElement(child) && child.type === "checkout-recovery")
+			return CreditPackCheckoutRecovery(
+				child.props as Parameters<typeof CreditPackCheckoutRecovery>[0],
+			);
+		return child;
+	});
+	return React.cloneElement(element, {}, children);
 }
 function button(node: ReactElement): () => void {
 	if (node.type === "button") return (node.props as { onClick: () => void }).onClick;
@@ -179,6 +189,24 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("credit pack checkout creation and browser recovery", () => {
+	it("does not initialize authenticated recovery in the guest pricing render", () => {
+		state.ownerId = "";
+		render();
+		expect(state.query).not.toHaveBeenCalled();
+	});
+	it("releases a restored redirecting action before the recovery chunk is ready", () => {
+		state.action = { key: `pack:${packKey}:paypal`, stage: "redirecting" };
+		render();
+		expect(state.action).toBeNull();
+		expect(state.checkout).not.toHaveBeenCalled();
+	});
+	it("does not release a starting action while restoring the page", () => {
+		state.action = { key: `pack:${packKey}:paypal`, stage: "starting" };
+		const starting = state.action;
+		render();
+		window.dispatchEvent(new Event("focus"));
+		expect(state.action).toBe(starting);
+	});
 	it("coalesces clicks and saves only the current owner's returned intent before redirect", async () => {
 		state.checkout.mockResolvedValue({
 			checkoutLink: "https://paypal.example/approve",

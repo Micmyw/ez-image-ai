@@ -9,19 +9,15 @@ import {
 	clearCheckoutTrigger,
 	getCurrentCheckoutAttribution,
 } from "@shared/lib/purchase-attribution";
-import { useMutation, useQueries, useQuery } from "@tanstack/react-query";
+import { useMutation, useQueries } from "@tanstack/react-query";
 import { ArrowUpRightIcon, Loader2Icon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
+import dynamic from "next/dynamic";
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { bindVideoEffectPaymentReturn } from "../../video-effects/lib/payment-return";
 import { usePaymentAction } from "../hooks/use-payment-action";
-import {
-	clearCreditPackCheckoutContext,
-	readCreditPackCheckoutContext,
-	saveCreditPackCheckoutContext,
-} from "../lib/credit-pack-checkout-context";
+import { saveCreditPackCheckoutContext } from "../lib/credit-pack-checkout-context";
 import {
 	createCreditPackCheckoutAttemptController,
 	filterCreditPackCheckoutProviders,
@@ -29,6 +25,11 @@ import {
 	type CreditPackCheckoutSelection,
 } from "./checkout-attempt";
 import { PaymentProviderSelector } from "./PaymentProviderSelector";
+
+const CreditPackCheckoutRecovery = dynamic(
+	() => import("./CreditPackCheckoutRecovery").then((module) => module.CreditPackCheckoutRecovery),
+	{ ssr: false },
+);
 
 type PublicCreditPackKey = (typeof PUBLIC_CREDIT_PACKS)[number]["packKey"];
 
@@ -155,57 +156,20 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 		setCheckoutUnavailable(false);
 	}, [scope, packKey]);
 	useEffect(() => {
-		const intentId = ownerId
-			? readCreditPackCheckoutContext(ownerId, organizationId, packKey)
-			: undefined;
-		setRecovery(scope && intentId ? { scope, intentId } : null);
-	}, [scope, ownerId, organizationId, packKey]);
-	const recoveryState = useQuery({
-		...orpc.payments.getCreditPackCheckoutState.queryOptions({
-			input: { intentId: recoveryIntentId ?? "" },
-		}),
-		queryKey: ["credit-pack-checkout", ownerId, organizationId, recoveryIntentId],
-		enabled: Boolean(ownerId && recoveryIntentId),
-		refetchInterval: false,
-	});
-	const refreshRecovery = recoveryState.refetch;
-	useEffect(() => {
 		const restore = () => {
-			if (!ownerId || !scope) return;
 			const action = currentPayment.current;
-			if (
-				action.action?.key.startsWith(`pack:${packKey}:`) &&
-				action.action.stage === "redirecting"
-			)
+			const active = action.getSnapshot();
+			if (active?.key.startsWith(`pack:${packKey}:`) && active.stage === "redirecting")
 				action.release();
-			const intentId = readCreditPackCheckoutContext(ownerId, organizationId, packKey);
-			setRecovery(intentId ? { scope, intentId } : null);
-			if (intentId && intentId === recoveryIntentId) void refreshRecovery();
 		};
+		restore();
 		window.addEventListener("pageshow", restore);
 		window.addEventListener("focus", restore);
 		return () => {
 			window.removeEventListener("pageshow", restore);
 			window.removeEventListener("focus", restore);
 		};
-	}, [ownerId, organizationId, scope, packKey, recoveryIntentId, refreshRecovery]);
-	useEffect(() => {
-		if (
-			ownerId &&
-			recoveryIntentId &&
-			recoveryState.isSuccess &&
-			(recoveryState.data?.status === "COMPLETED" ||
-				recoveryState.data?.status === "EXPIRED" ||
-				recoveryState.data?.status === "CANCELED")
-		)
-			clearCreditPackCheckoutContext(ownerId, organizationId, recoveryIntentId);
-	}, [
-		ownerId,
-		organizationId,
-		recoveryIntentId,
-		recoveryState.isSuccess,
-		recoveryState.data?.status,
-	]);
+	}, [packKey]);
 	const createCheckout = useMutation(orpc.payments.createCreditPackCheckout.mutationOptions());
 	const options = useContext(CreditPackPaymentContext);
 	const provider = options?.provider ?? null;
@@ -300,32 +264,14 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 					<ArrowUpRightIcon className="size-3.5" aria-hidden="true" />
 				)}
 			</button>
-			{recoveryIntentId && (
-				<div
-					className="mt-3 space-y-2 text-xs text-center text-[#cfc1e8]"
-					data-testid={`credit-pack-recovery-${packKey}`}
-				>
-					<p aria-live="polite">
-						{t(
-							recoveryState.isError
-								? "creditPackCheckoutReturn.error"
-								: recoveryState.data?.status === "COMPLETED"
-									? "creditPackCheckoutReturn.completed"
-									: recoveryState.data?.status === "REVIEW"
-										? "creditPackCheckoutReturn.review"
-										: recoveryState.data?.status === "EXPIRED" ||
-											  recoveryState.data?.status === "CANCELED"
-											? "creditPackCheckoutReturn.notCompleted"
-											: "creditPackCheckoutReturn.pending",
-						)}
-					</p>
-					<Link
-						href={`/credit-pack-checkout-return?intentId=${encodeURIComponent(recoveryIntentId)}`}
-						className="min-h-9 inline-flex items-center underline underline-offset-4"
-					>
-						{t("creditPackCheckoutReturn.viewStatus")}
-					</Link>
-				</div>
+			{ownerId && (
+				<CreditPackCheckoutRecovery
+					key={`${scope}:${packKey}`}
+					ownerId={ownerId}
+					organizationId={organizationId}
+					packKey={packKey}
+					createdIntentId={recoveryIntentId}
+				/>
 			)}
 			{(checkoutUnavailable || availability?.failed || (availability?.ready && !canPay)) && (
 				<p className="mt-2 text-xs leading-5 text-center text-[#ff9da8]" role="alert">
