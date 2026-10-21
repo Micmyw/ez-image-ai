@@ -1,6 +1,7 @@
 import { call } from "@orpc/server";
 import type { Session } from "@repo/auth";
 import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
+import { ANALYTICS_CONSENT_VERSION } from "@repo/utils/lib/analytics-policy";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -261,7 +262,13 @@ describe("createCheckoutLink", () => {
 					idempotencyKey: "checkout-attribution-0001",
 					attribution: { triggerPath: "/video?code=secret#private" },
 				},
-				{ context: { headers: new Headers({ cookie: `consent=${consented}` }) } },
+				{
+					context: {
+						headers: new Headers({
+							cookie: `consent=${consented}; consent_version=${ANALYTICS_CONSENT_VERSION}`,
+						}),
+					},
+				},
 			);
 			const data = createCheckoutIntent.mock.calls[0]?.[0];
 			if (consented) {

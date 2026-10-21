@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	consentCookie: undefined as string | undefined,
+	consentVersion: "2" as string | undefined,
 	clientMessages: vi.fn(),
 	locale: "en",
 	serverMessages: undefined as Record<string, unknown> | undefined,
@@ -28,6 +29,13 @@ vi.mock("@shared/components/SiteAnalytics", () => ({ SiteAnalytics: () => null }
 vi.mock("@shared/components/ConsentBanner", () => ({
 	ConsentBanner: () => <aside data-test="consent-banner" />,
 }));
+vi.mock("@shared/components/PrivacySettings", () => ({
+	PrivacySettings: () => (
+		<button type="button" data-test="privacy-settings">
+			Privacy settings
+		</button>
+	),
+}));
 vi.mock("@shared/components/ConsentProvider", () => ({
 	ConsentProvider: ({
 		children,
@@ -43,8 +51,15 @@ vi.mock("@shared/lib/base-url", () => ({
 }));
 vi.mock("next/headers", () => ({
 	cookies: async () => ({
-		get: (name: string) =>
-			name === "consent" && mocks.consentCookie ? { value: mocks.consentCookie } : undefined,
+		get: (name: string) => {
+			const value =
+				name === "consent"
+					? mocks.consentCookie
+					: name === "consent_version"
+						? mocks.consentVersion
+						: undefined;
+			return value ? { value } : undefined;
+		},
 	}),
 }));
 vi.mock("next-intl", () => ({
@@ -78,6 +93,7 @@ vi.mock("nuqs/adapters/next/app", () => ({ NuqsAdapter: passthrough }));
 describe("SaaS root layout", () => {
 	beforeEach(() => {
 		mocks.consentCookie = undefined;
+		mocks.consentVersion = "2";
 		mocks.clientMessages.mockClear();
 		mocks.locale = "en";
 		mocks.serverMessages = undefined;
@@ -88,19 +104,24 @@ describe("SaaS root layout", () => {
 	});
 
 	it.each([
-		[undefined, "undecided"],
-		["true", "accepted"],
-		["false", "declined"],
-		["unexpected", "undecided"],
+		[undefined, "2", "undecided"],
+		["true", "2", "accepted"],
+		["true", undefined, "undecided"],
+		["true", "1", "undecided"],
+		["false", "2", "declined"],
+		["false", undefined, "declined"],
+		["unexpected", "2", "undecided"],
 	] as const)(
-		"initializes consent %s as %s and mounts the consent UI",
-		async (cookie, expected) => {
+		"initializes consent %s with version %s as %s and mounts the consent UI",
+		async (cookie, version, expected) => {
 			mocks.consentCookie = cookie;
+			mocks.consentVersion = version;
 			const { default: RootLayout } = await import("./layout");
 			const markup = renderToStaticMarkup(await RootLayout({ children: <main>content</main> }));
 
 			expect(markup).toContain(`data-initial-consent="${expected}"`);
 			expect(markup).toContain('data-test="consent-banner"');
+			expect(markup).toContain('data-test="privacy-settings"');
 			expect(markup).not.toContain("data-clarity-mask");
 		},
 	);

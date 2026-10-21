@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 // The generated OpenNext artifact is absent before the application build.
-vi.mock("./.open-next/worker.js", () => ({
+vi.mock("../.open-next/worker.js", () => ({
 	default: { fetch: mocks.fetch },
 	DOQueueHandler: class {},
 	DOShardedTagCache: class {},

@@ -123,7 +123,13 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		page,
 	}, testInfo) => {
 		const pageErrors: string[] = [];
-		page.on("pageerror", (error) => pageErrors.push(error.message));
+		page.on("pageerror", (error) => {
+			pageErrors.push(`${new URL(page.url()).pathname}: ${error.message}`);
+			void testInfo.attach("page-error", {
+				body: error.stack ?? error.message,
+				contentType: "text/plain",
+			});
+		});
 		const prompt = marker("text-image", "A ceramic vase in warm afternoon light", testInfo.retry);
 		page.on("requestfailed", (request) => {
 			if (request.resourceType() === "image")

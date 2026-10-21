@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { ANALYTICS_CONSENT_VERSION } from "@repo/utils/lib/analytics-policy";
 
 const saasUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 
@@ -8,7 +9,10 @@ export interface CapturedGrowthEvent {
 }
 
 export async function captureConsentedGrowthEvents(page: Page): Promise<CapturedGrowthEvent[]> {
-	await page.context().addCookies([{ name: "consent", value: "true", url: saasUrl }]);
+	await page.context().addCookies([
+		{ name: "consent", value: "true", url: saasUrl },
+		{ name: "consent_version", value: ANALYTICS_CONSENT_VERSION, url: saasUrl },
+	]);
 	const events: CapturedGrowthEvent[] = [];
 	await page.exposeFunction("__recordEzPicGrowthEvent", (event: CapturedGrowthEvent) => {
 		events.push(event);

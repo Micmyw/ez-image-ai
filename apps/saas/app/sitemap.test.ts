@@ -63,6 +63,7 @@ describe("consolidated SaaS sitemap", () => {
 				"/docs/image-editing",
 				"/docs/credits",
 				"/docs/privacy",
+				"/docs/support",
 			].sort(),
 		);
 		expect(urls.every(({ origin }) => origin === "https://www.ezpic.test")).toBe(true);
@@ -87,8 +88,8 @@ describe("consolidated SaaS sitemap", () => {
 			"/image-to-image": "2026-09-21",
 			"/photo-to-coloring-page": "2026-10-04",
 			"/pricing": "2026-09-16",
-			"/changelog": "2026-10-11",
-			"/privacy": "2026-10-11",
+			"/changelog": "2026-10-21",
+			"/privacy": "2026-10-21",
 			"/terms": "2026-10-04",
 			"/blog": "2026-10-11",
 			"/blog/tesco-ai-meal-planning-assistant": "2026-10-11",

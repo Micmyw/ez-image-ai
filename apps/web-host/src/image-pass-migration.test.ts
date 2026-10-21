@@ -20,7 +20,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const migrationsDirectory = path.join(root, "packages/database/prisma/migrations");
 const files: MigrationFile[] = await Promise.all(
 	(await readdir(migrationsDirectory, { withFileTypes: true }))
-		.filter((entry) => entry.isDirectory())
+		// This one-time release tool is pinned to its original reviewed migration set.
+		// New migrations must not expand the fixture or its production guard.
+		.filter((entry) => entry.isDirectory() && entry.name <= MIGRATION_NAME)
 		.map(async (entry) => ({
 			name: entry.name,
 			sql: await readFile(path.join(migrationsDirectory, entry.name, "migration.sql"), "utf8"),

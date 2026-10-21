@@ -104,14 +104,14 @@ test.describe("checkout review browser flow", () => {
 		});
 		await page.goto("/admin/media");
 		const panel = page.locator("#checkout-review");
-		await panel.getByLabel("Order reference", { exact: true }).fill(snapshot.id);
-		await panel.getByRole("button", { name: "Load checkout" }).click();
-		const close = panel.getByRole("button", { name: "Close reviewed checkout" });
+		await panel.getByLabel("订单编号", { exact: true }).fill(snapshot.id);
+		await panel.getByRole("button", { name: "加载结账单" }).click();
+		const close = panel.getByRole("button", { name: "关闭已复核的结账单" });
 		await expect(close).toBeDisabled();
 		await panel
-			.getByLabel(/Support case reference/)
+			.getByLabel(/客服工单编号及商户复核说明/)
 			.fill("Support case E2E; merchant records checked");
-		await panel.getByLabel(/Reason for closure/).fill("Customer left before authorizing payment");
+		await panel.getByLabel(/关闭原因/).fill("Customer left before authorizing payment");
 		await panel.getByRole("checkbox").nth(0).check();
 		await expect(close).toBeDisabled();
 		await panel.getByRole("checkbox").nth(1).check();
@@ -121,9 +121,9 @@ test.describe("checkout review browser flow", () => {
 		await expect(close).toBeVisible();
 		await panel.screenshot({ path: testInfo.outputPath("checkout-review-mobile.png") });
 		await close.click();
-		await expect(panel.getByRole("alert")).toContainText("PayPal did not confirm");
+		await expect(panel.getByRole("alert")).toContainText("PayPal 未确认");
 		await close.click();
-		await expect(panel.getByRole("status")).toContainText("This checkout is closed");
+		await expect(panel.getByRole("status")).toContainText("此结账单已关闭");
 		expect(submissions).toHaveLength(2);
 		expect(submissions[0]).toEqual(submissions[1]);
 		expect(submissions[0]).toMatchObject({

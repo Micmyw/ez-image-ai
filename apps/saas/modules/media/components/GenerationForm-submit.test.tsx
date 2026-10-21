@@ -56,6 +56,10 @@ vi.mock("@auth/hooks/use-session", () => ({
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@shared/hooks/router", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("@shared/hooks/generation-analytics", () => ({
+	useGenerationAnalytics: vi.fn(),
+	trackGenerationAction: vi.fn(),
+}));
 vi.mock("../../effects/lib/editor-context", () => ({
 	useEffectEditor: () => null,
 	useEffectEditorBinding: () => {},

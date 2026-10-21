@@ -2,6 +2,7 @@ import {
 	ATTRIBUTION_COOKIE_NAME,
 	type RegistrationAttribution,
 } from "@repo/utils/lib/acquisition-attribution";
+import { ANALYTICS_CONSENT_VERSION } from "@repo/utils/lib/analytics-policy";
 import type { BetterAuthOptions } from "better-auth";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -24,6 +25,7 @@ vi.mock("@repo/database", () => ({
 	getUserByEmail: vi.fn(),
 	getUserById: vi.fn(async () => ({ lastActiveOrganizationId: null })),
 	setUserRegistrationAttributionOnce: state.save,
+	recordGrowthEvent: vi.fn(),
 }));
 vi.mock("better-auth/adapters/prisma", async () => {
 	const { memoryAdapter } = await import("better-auth/adapters/memory");
@@ -56,7 +58,7 @@ const password = "isolated-test-password";
 let auth: typeof import("../auth").auth;
 
 function sourceCookie(landingPath = "/blog/new-photo-ideas", consent = "true"): string {
-	return `consent=${consent}; ${ATTRIBUTION_COOKIE_NAME}=${encodeURIComponent(
+	return `consent=${consent}; consent_version=${ANALYTICS_CONSENT_VERSION}; ${ATTRIBUTION_COOKIE_NAME}=${encodeURIComponent(
 		JSON.stringify({
 			version: 1,
 			landingPath,

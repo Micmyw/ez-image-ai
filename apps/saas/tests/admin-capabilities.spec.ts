@@ -30,7 +30,7 @@ test.describe("administrator capabilities on an isolated local database", () => 
 		try {
 			await loginAdminCapabilities(page, fixture.admin, "/admin/analytics");
 			for (const [route, heading] of [
-				["analytics", "Business analytics"],
+				["analytics", "业务统计"],
 				["payments", "Payments and refunds"],
 				["notifications", "Payment and support notifications"],
 				["support", "Support inbox"],
@@ -38,19 +38,19 @@ test.describe("administrator capabilities on an isolated local database", () => 
 			]) {
 				await page.locator(`a[href="/admin/${route}"]`).first().click();
 				await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
-				await expect(page.getByText(/^Loading(?:\.{3}|…)$/)).toHaveCount(0);
+				await expect(page.getByText(/^(?:Loading|正在加载)(?:\.{3}|…)$/)).toHaveCount(0);
 				if (route === "analytics") {
-					await expect(page.locator("dt").filter({ hasText: /^Registered users$/ })).toBeVisible();
+					await expect(page.locator("dt").filter({ hasText: /^注册用户$/ })).toBeVisible();
 					const recentUsers = page
 						.locator("dt")
-						.filter({ hasText: /^New users · 24 hours$/ })
+						.filter({ hasText: /^近 24 小时新增用户$/ })
 						.locator("..")
 						.locator("dd");
 					// Both unique fixture identities were registered just before signing in.
 					expect(Number(await recentUsers.innerText())).toBeGreaterThanOrEqual(2);
 				}
 				await expect(
-					page.getByText("The request could not be completed.", { exact: false }),
+					page.getByText(/The request could not be completed\.|请求未能完成。/),
 				).toHaveCount(0);
 				await testInfo.attach(`admin-${route}`, {
 					body: await page.screenshot({ fullPage: true }),
@@ -62,7 +62,7 @@ test.describe("administrator capabilities on an isolated local database", () => 
 			await customerPage.goto("/admin/analytics");
 			await expect(customerPage).not.toHaveURL(/\/admin(?:\/|$)/, { timeout: 30_000 });
 			await expect(
-				customerPage.getByRole("heading", { name: "Business analytics", exact: true }),
+				customerPage.getByRole("heading", { name: "业务统计", exact: true }),
 			).toHaveCount(0);
 		} finally {
 			await customerContext.close();
@@ -150,7 +150,7 @@ test.describe("administrator capabilities on an isolated local database", () => 
 			await dialog.getByLabel("Account name", { exact: true }).fill(accountName);
 			await dialog.getByLabel("User or organization ID", { exact: true }).fill(fixture.customer.id);
 			await dialog.getByRole("checkbox", { name: "admin.tickets.read", exact: true }).check();
-			await dialog.getByRole("button", { name: "Save", exact: true }).click();
+			await dialog.getByRole("button", { name: "保存", exact: true }).click();
 			await expect(dialog).toHaveCount(0);
 			const article = page
 				.getByRole("article")

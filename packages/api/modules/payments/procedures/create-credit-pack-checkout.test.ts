@@ -1,5 +1,6 @@
 import { call } from "@orpc/server";
 import type { Session } from "@repo/auth";
+import { ANALYTICS_CONSENT_VERSION } from "@repo/utils/lib/analytics-policy";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -238,7 +239,13 @@ describe("createCreditPackCheckout", () => {
 					idempotencyKey: "credit-pack-attribution-0001",
 					attribution: { triggerPath: "/photo-to-coloring-page?token=secret#private" },
 				},
-				{ context: { headers: new Headers({ cookie: `consent=${consented}` }) } },
+				{
+					context: {
+						headers: new Headers({
+							cookie: `consent=${consented}; consent_version=${ANALYTICS_CONSENT_VERSION}`,
+						}),
+					},
+				},
 			);
 			const data = createCheckoutIntent.mock.calls[0]?.[0];
 			if (consented) {

@@ -17,7 +17,7 @@ export const postBotJson: BotPostJson = async (url, body, headers) => {
 	const payload = JSON.stringify(body);
 	return new Promise((resolve, reject) => {
 		const req = request(
-			url,
+			url.href,
 			{
 				method: "POST",
 				headers: {

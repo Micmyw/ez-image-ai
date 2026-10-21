@@ -34,18 +34,22 @@ export function deploymentEnvironment(
 	input: Record<string, string>,
 	canonicalOrigin: string,
 ): Record<string, string> {
-	const environment = expandVideoRuntimeEnvironment(input);
+	const environment = Object.fromEntries(
+		Object.entries(expandVideoRuntimeEnvironment(input)).filter(
+			([key]) =>
+				![
+					"NEXT_PUBLIC_POSTHOG_KEY",
+					"NEXT_PUBLIC_POSTHOG_HOST",
+					"EZPIC_POSTHOG_PROJECT_ID",
+				].includes(key),
+		),
+	);
 	if (environment.NEXT_PUBLIC_SAAS_URL !== canonicalOrigin) throw new Error("WEB_ORIGIN_MISMATCH");
 	publicBuildVariables(environment);
 	const result = Object.fromEntries(
 		Object.entries(environment).filter(
 			([key, value]) =>
 				value &&
-				![
-					"NEXT_PUBLIC_POSTHOG_KEY",
-					"NEXT_PUBLIC_POSTHOG_HOST",
-					"EZPIC_POSTHOG_PROJECT_ID",
-				].includes(key) &&
 				key !== "VIDEO_V1_BUILD_ENABLED" &&
 				key !== "VIDEO_V1_BUILD_ACCESS" &&
 				key !== "VIDEO_V1_BUILD_PRICE_VERSION" &&

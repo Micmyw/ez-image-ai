@@ -129,24 +129,22 @@ test.describe("order attribution administration", () => {
 		await expect(page).toHaveURL(/\/admin\/media$/, { timeout: 60_000 });
 		const panel = page.locator("#payment-attribution");
 		await expect(panel).toBeVisible({ timeout: 90_000 });
-		await panel.getByLabel("Order or checkout reference (optional)").fill(purchaseId);
-		await panel.getByRole("button", { name: "Find reference" }).click();
+		await panel.getByLabel("订单或结账编号（可选）").fill(purchaseId);
+		await panel.getByRole("button", { name: "按编号查找" }).click();
 		await expect(panel).toContainText("https://search.example.test");
 		await expect(panel).toContainText("/blog/photo-ideas");
 		await expect(panel).toContainText("/photo-to-coloring-page");
-		await expect(panel).toContainText(
-			"Subscription renewals inherit this original checkout attribution.",
-		);
+		await expect(panel).toContainText("订阅续费沿用最初结账时的归因信息。");
 		await expect(panel).not.toContainText("local-private");
 		await panel.screenshot({ path: testInfo.outputPath("order-attribution-desktop.png") });
 		await page.setViewportSize({ width: 390, height: 900 });
-		await expect(panel.getByText("Page that triggered checkout", { exact: true })).toBeVisible();
+		await expect(panel.getByText("触发结账的页面", { exact: true })).toBeVisible();
 		await panel.screenshot({ path: testInfo.outputPath("order-attribution-mobile.png") });
-		await panel.getByLabel("Order or checkout reference (optional)").fill(checkoutId);
-		await panel.getByRole("button", { name: "Find reference" }).click();
+		await panel.getByLabel("订单或结账编号（可选）").fill(checkoutId);
+		await panel.getByRole("button", { name: "按编号查找" }).click();
 		await expect(panel).toContainText(checkoutId);
-		await expect(panel).toContainText("Credit pack");
-		await expect(panel.getByText("Unknown", { exact: true }).first()).toBeVisible();
+		await expect(panel).toContainText("积分包");
+		await expect(panel.getByText("未知", { exact: true }).first()).toBeVisible();
 		await expect(panel).not.toContainText("/blog/photo-ideas");
 	});
 });

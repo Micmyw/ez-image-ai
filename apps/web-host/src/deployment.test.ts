@@ -2,6 +2,26 @@ import { describe, expect, it } from "vitest";
 
 import { deploymentEnvironment, publicBuildVariables } from "./deployment";
 
+it("removes retired PostHog settings before validating the public build environment", () => {
+	const environment = deploymentEnvironment(
+		{
+			NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
+			NEXT_PUBLIC_POSTHOG_HOST: "https://us.i.posthog.com",
+			NEXT_PUBLIC_POSTHOG_KEY: "retired-key",
+			EZPIC_POSTHOG_PROJECT_ID: "retired-project",
+			NEXT_PUBLIC_CLARITY_PROJECT_ID: "active-clarity",
+		},
+		"https://ezimageai.com",
+	);
+	expect(environment).not.toHaveProperty("NEXT_PUBLIC_POSTHOG_HOST");
+	expect(environment).not.toHaveProperty("NEXT_PUBLIC_POSTHOG_KEY");
+	expect(environment).not.toHaveProperty("EZPIC_POSTHOG_PROJECT_ID");
+	expect(publicBuildVariables(environment)).toEqual({
+		NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
+		NEXT_PUBLIC_CLARITY_PROJECT_ID: "active-clarity",
+	});
+});
+
 describe("Cloudflare deployment environment", () => {
 	it.each(["5", "100", "retired-invalid"])(
 		"ignores the retired guest global daily limit %s while preserving active guest limits",
