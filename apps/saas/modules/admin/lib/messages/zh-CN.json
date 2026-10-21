@@ -154,6 +154,7 @@
 			},
 			"dimension": "分组与筛选维度",
 			"dimensions": {
+				"source": "流量来源（自动识别）",
 				"utm_source": "来源（utm_source）",
 				"utm_medium": "媒介（utm_medium）",
 				"utm_campaign": "营销活动（utm_campaign）",
@@ -170,7 +171,7 @@
 				"value": "精确匹配"
 			},
 			"filterValue": "来源精确值",
-			"sourceBasis": "首次访问归因在注册时固定保存。未标记、历史缺失和全部来源含义不同。国家或地区是用户同意后在注册时记录的推测值，并非核实的居住地。",
+			"sourceBasis": "流量来源优先使用 UTM，没有 UTM 时读取来源网站。可直接选择 chatgpt.com 等来源，也可输入精确值。首次访问归因在注册时固定保存，历史缺失仍为未知。国家或地区是用户同意后记录的推测值，并非核实的居住地。",
 			"signups": "注册人数",
 			"checkouts": "结账人数",
 			"paid": "付款人数",

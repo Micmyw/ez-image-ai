@@ -91,6 +91,8 @@ describe("admin capability safeguards", () => {
 		expect(sourceFilterInput("empty", "ignored")).toBe("");
 		expect(sourceFilterInput("unknown", "ignored")).toBeNull();
 		expect(sourceFilterInput("value", " campaign ")).toBe("campaign");
+		expect(sourceFilterInput("source:chatgpt.com", "ignored")).toBe("chatgpt.com");
+		expect(sourceFilterInput("source:all", "ignored")).toBe("all");
 	});
 
 	it("formats exact micros beyond Number safe integers and uses currency precision", () => {

@@ -138,6 +138,60 @@ describe("administration analytics business meaning", () => {
 		).toBeNull();
 	});
 
+	it("groups ChatGPT UTM and referrer registrations together without losing unknown history", () => {
+		const data = facts({
+			users: [
+				user("a", { registrationAttribution: attribution("ChatGPT.com") }),
+				user("b", {
+					registrationAttribution: {
+						...attribution(null),
+						source: "referral",
+						referrerOrigin: "https://chatgpt.com",
+					},
+				}),
+				user("other-campaign", {
+					registrationAttribution: {
+						...attribution("google"),
+						referrerOrigin: "https://chatgpt.com",
+					},
+				}),
+				user("direct", { registrationAttribution: attribution(null) }),
+				user("historical", { registrationAttribution: null }),
+			],
+		});
+		const run = (source?: string | null) =>
+			buildAdminAnalyticsFunnel(data, {
+				scope: platform,
+				range: "7d",
+				groupBy: "source",
+				filters: source === undefined ? {} : { source },
+				now,
+			});
+		expect(run().rows).toContainEqual({ value: "chatgpt.com", signups: 2, checkouts: 1, paid: 1 });
+		expect(run().options.source).toEqual(["", "chatgpt.com", "google", null]);
+		expect(run("chatgpt.com").totals).toEqual({ signups: 2, checkouts: 1, paid: 1 });
+		expect(run("").totals.signups).toBe(1);
+		expect(run(null).totals.signups).toBe(1);
+		expect(adminAnalyticsAttribution(data.users[1].registrationAttribution)).toMatchObject({
+			source: "chatgpt.com",
+			utm_source: "",
+			referrer: "https://chatgpt.com",
+		});
+	});
+
+	it("keeps absent or invalid acquisition evidence unknown", () => {
+		expect(
+			adminAnalyticsAttribution({ ...attribution(null), source: "unknown" }).source,
+		).toBeNull();
+		expect(
+			adminAnalyticsAttribution({
+				...attribution(null),
+				source: "referral",
+				referrerOrigin: "not a URL",
+			}).source,
+		).toBeNull();
+	});
+
 	it("isolates organization and personal business facts even for the same member", () => {
 		const data = facts({
 			users: [user("a", { organizationIds: ["org-a"] }), user("b", { organizationIds: ["org-b"] })],

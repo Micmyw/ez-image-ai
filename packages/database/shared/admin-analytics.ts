@@ -6,6 +6,7 @@ export const ADMIN_ANALYTICS_RANGES = {
 	"30d": 2_592_000_000,
 } as const;
 export const ADMIN_ANALYTICS_DIMENSIONS = [
+	"source",
 	"utm_source",
 	"utm_medium",
 	"utm_campaign",
@@ -92,6 +93,7 @@ export function adminAnalyticsAttribution(
 ): Record<AdminAnalyticsDimension, string | null> {
 	const snapshot = record(value);
 	const keys: Record<AdminAnalyticsDimension, string> = {
+		source: "source",
 		utm_source: "utmSource",
 		utm_medium: "utmMedium",
 		utm_campaign: "utmCampaign",
@@ -104,7 +106,24 @@ export function adminAnalyticsAttribution(
 	return Object.fromEntries(
 		ADMIN_ANALYTICS_DIMENSIONS.map((dimension) => {
 			const key = keys[dimension];
-			if (!valid || !(key in snapshot!)) return [dimension, null];
+			if (!valid) return [dimension, null];
+			if (dimension === "source") {
+				if (snapshot!.source === "unknown") return [dimension, null];
+				const utm = snapshot!.utmSource;
+				if (typeof utm === "string" && /^[a-z0-9][a-z0-9_.-]{0,63}$/i.test(utm))
+					return [dimension, utm.toLowerCase()];
+				if (typeof snapshot!.referrerOrigin === "string") {
+					try {
+						const referrer = new URL(snapshot!.referrerOrigin);
+						if (["http:", "https:"].includes(referrer.protocol))
+							return [dimension, referrer.hostname.replace(/^www\./, "")];
+					} catch {
+						// Invalid historical referral data cannot establish an acquisition source.
+					}
+				}
+				return [dimension, snapshot!.source === "direct" ? "" : null];
+			}
+			if (!(key in snapshot!)) return [dimension, null];
 			if (dimension === "country") {
 				return [
 					dimension,

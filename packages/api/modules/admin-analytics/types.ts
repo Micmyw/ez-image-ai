@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const adminAnalyticsDimensions = [
+	"source",
 	"utm_source",
 	"utm_medium",
 	"utm_campaign",
@@ -21,6 +22,7 @@ export const adminAnalyticsFunnelInputSchema = z
 		groupBy: z.enum(adminAnalyticsDimensions).default("utm_source"),
 		filters: z
 			.object({
+				source: filterValue,
 				utm_source: filterValue,
 				utm_medium: filterValue,
 				utm_campaign: filterValue,
@@ -97,6 +99,7 @@ export const adminAnalyticsFunnelOutputSchema = z.object({
 	rows: z.array(counts.extend({ value: z.string().nullable() })),
 	rowsTruncated: z.boolean(),
 	options: z.object({
+		source: z.array(z.string().nullable()),
 		utm_source: z.array(z.string().nullable()),
 		utm_medium: z.array(z.string().nullable()),
 		utm_campaign: z.array(z.string().nullable()),

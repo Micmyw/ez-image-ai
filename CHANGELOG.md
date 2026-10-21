@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-21 — Direct acquisition-source filters
+
+- Show registration sources such as chatgpt.com directly, combining UTM source with referring-site fallback while preserving unknown history.
+- Offer ChatGPT and recorded source values in the administrator source selector without requiring manual exact-value entry.
+
 ## 2026-10-21 — Compact image pack offer
 
 - Show the compact image pack offer as $1.00, with a more visible blue-to-purple gradient and a quieter purchase button.

@@ -7,6 +7,15 @@ import { describe, expect, it } from "vitest";
 import { adminAnalyticsFunnelInputSchema, adminAnalyticsReportInputSchema } from "./types";
 
 describe("admin analytics operation contracts", () => {
+	it("accepts detected acquisition-source grouping and exact ChatGPT filters", () => {
+		expect(
+			adminAnalyticsFunnelInputSchema.parse({
+				groupBy: "source",
+				filters: { source: "chatgpt.com" },
+			}),
+		).toMatchObject({ groupBy: "source", filters: { source: "chatgpt.com" } });
+	});
+
 	it("rejects tenant override input and retains empty/unknown filters", () => {
 		expect(
 			adminAnalyticsFunnelInputSchema.parse({ filters: { utm_source: "", country: null } }),

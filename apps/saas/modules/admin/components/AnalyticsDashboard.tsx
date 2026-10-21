@@ -12,7 +12,12 @@ import { Input } from "@repo/ui/components/input";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 
-import { moneyMicros, sourceFilterInput, useAdminOperation } from "../lib/capabilities-client";
+import {
+	moneyMicros,
+	sourceFilterInput,
+	useAdminOperation,
+	type SourceFilterMode,
+} from "../lib/capabilities-client";
 import {
 	CapabilityError,
 	CapabilityLoading,
@@ -22,7 +27,6 @@ import {
 import { ConversionFunnelPanel } from "./ConversionFunnelPanel";
 
 type Dimension = (typeof adminAnalyticsDimensions)[number];
-type FilterMode = "all" | "empty" | "unknown" | "value";
 
 export function RevenueTable({
 	rows,
@@ -123,18 +127,28 @@ export function AnalyticsDashboard() {
 	const [environment, setEnvironment] = useState<"production" | "test">("production");
 	const overview = useAdminOperation<AdminAnalyticsOverview>("analytics_overview", { environment });
 	const [range, setRange] = useState<"24h" | "7d" | "30d">("7d");
-	const [dimension, setDimension] = useState<Dimension>("utm_source");
-	const [filterMode, setFilterMode] = useState<FilterMode>("all");
+	const [dimension, setDimension] = useState<Dimension>("source");
+	const [filterMode, setFilterMode] = useState<SourceFilterMode>("all");
 	const [filterValue, setFilterValue] = useState("");
 	const [filters, setFilters] = useState<Record<string, unknown>>({
 		range: "7d",
-		groupBy: "utm_source",
+		groupBy: "source",
 		filters: {},
 	});
 	const funnel = useAdminOperation<AdminAnalyticsFunnel>("analytics_funnel", {
 		...filters,
 		environment,
 	});
+	const sourceValues = [
+		...new Set([
+			...(dimension === "source" || dimension === "utm_source" ? ["chatgpt.com"] : []),
+			...(dimension === "referrer" ? ["https://chatgpt.com"] : []),
+			...(funnel.data?.options[dimension] ?? []).filter(
+				(value): value is string => value !== null && value !== "",
+			),
+			...(filterMode.startsWith("source:") ? [filterMode.slice("source:".length)] : []),
+		]),
+	];
 	const [from, setFrom] = useState("");
 	const [to, setTo] = useState("");
 	const [reportInput, setReportInput] = useState<Record<string, unknown>>({ compare: true });
@@ -209,10 +223,17 @@ export function AnalyticsDashboard() {
 						label={t("filter")}
 						value={filterMode}
 						onChange={setFilterMode}
-						options={(["all", "empty", "unknown", "value"] as const).map((value) => ({
-							value,
-							label: t(`filters.${value}`),
-						}))}
+						options={[
+							{ value: "all", label: t("filters.all") },
+							...sourceValues.map((value) => ({
+								value: `source:${value}` as const,
+								label: value,
+							})),
+							...(["empty", "unknown", "value"] as const).map((value) => ({
+								value,
+								label: t(`filters.${value}`),
+							})),
+						]}
 					/>
 					<label className="space-y-1 text-sm">
 						<span>{t("filterValue")}</span>

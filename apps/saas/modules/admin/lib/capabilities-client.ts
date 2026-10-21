@@ -163,8 +163,11 @@ export function moneyMicros(value: string | null, currency: string | null, local
 	}
 }
 
-export function sourceFilterInput(mode: "all" | "empty" | "value" | "unknown", value: string) {
+export type SourceFilterMode = "all" | "empty" | "value" | "unknown" | `source:${string}`;
+
+export function sourceFilterInput(mode: SourceFilterMode, value: string) {
 	if (mode === "all") return undefined;
 	if (mode === "unknown") return null;
+	if (mode.startsWith("source:")) return mode.slice("source:".length);
 	return mode === "empty" ? "" : value.trim();
 }

@@ -499,6 +499,7 @@
 				},
 				"dimension": "Group and filter by",
 				"dimensions": {
+					"source": "Acquisition source (automatic)",
 					"utm_source": "UTM source",
 					"utm_medium": "UTM medium",
 					"utm_campaign": "UTM campaign",
@@ -515,7 +516,7 @@
 					"value": "Exact value"
 				},
 				"filterValue": "Exact source value",
-				"sourceBasis": "First-touch attribution is frozen at registration. Unlabelled values differ from missing history and all values. Country is a consented registration-time proxy, not verified residence.",
+				"sourceBasis": "Acquisition source uses UTM first, then the referring website. Select chatgpt.com or another source directly, or enter an exact value. Attribution is frozen at registration; missing history stays unknown. Country is a consented proxy, not verified residence.",
 				"signups": "Registrations",
 				"checkouts": "Checkout users",
 				"paid": "Paying users",

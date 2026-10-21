@@ -499,6 +499,7 @@
 				},
 				"dimension": "Gruppieren und filtern nach",
 				"dimensions": {
+					"source": "Herkunftsquelle (automatisch)",
 					"utm_source": "UTM-Quelle",
 					"utm_medium": "UTM-Medium",
 					"utm_campaign": "UTM-Kampagne",
@@ -515,7 +516,7 @@
 					"value": "Exakter Wert"
 				},
 				"filterValue": "Exakter Quellenwert",
-				"sourceBasis": "Erste Herkunft wird bei Registrierung festgehalten. Leere Werte, fehlende Historie und alle Werte sind verschieden. Das Land ist ein mit Einwilligung erfasster Indikator, kein bestätigter Wohnsitz.",
+				"sourceBasis": "Die Herkunftsquelle nutzt zuerst UTM, dann die verweisende Website. Wähle chatgpt.com oder eine andere Quelle direkt aus oder gib einen exakten Wert ein. Die Zuordnung wird bei Registrierung festgehalten; fehlende Historie bleibt unbekannt. Das Land ist ein mit Einwilligung erfasster Indikator, kein bestätigter Wohnsitz.",
 				"signups": "Registrierungen",
 				"checkouts": "Nutzer mit Checkout",
 				"paid": "Zahlende Nutzer",

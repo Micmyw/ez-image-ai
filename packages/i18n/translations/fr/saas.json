@@ -499,6 +499,7 @@
 				},
 				"dimension": "Regrouper et filtrer par",
 				"dimensions": {
+					"source": "Source d’acquisition (automatique)",
 					"utm_source": "Source UTM",
 					"utm_medium": "Support UTM",
 					"utm_campaign": "Campagne UTM",
@@ -515,7 +516,7 @@
 					"value": "Valeur exacte"
 				},
 				"filterValue": "Valeur exacte de l’origine",
-				"sourceBasis": "L’attribution initiale est figée à l’inscription. Valeur vide, historique inconnu et tous les résultats sont distincts. Le pays est un indicateur consenti, pas une résidence vérifiée.",
+				"sourceBasis": "La source utilise d’abord les UTM, puis le site référent. Sélectionnez directement chatgpt.com ou une autre source, ou saisissez une valeur exacte. L’attribution est figée à l’inscription ; l’historique absent reste inconnu. Le pays est un indicateur consenti, pas une résidence vérifiée.",
 				"signups": "Inscriptions",
 				"checkouts": "Utilisateurs passés en caisse",
 				"paid": "Utilisateurs payants",

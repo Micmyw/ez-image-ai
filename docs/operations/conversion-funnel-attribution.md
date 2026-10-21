@@ -43,6 +43,12 @@ unconsented journeys are not reconstructed.
 
 ## Attribution and coverage
 
+- The registration-source panel defaults to automatic acquisition source: UTM source first,
+  then the referring hostname, so ChatGPT UTM and referrer entries both display as
+  `chatgpt.com`. The source selector includes a ChatGPT shortcut and recorded values for
+  the selected dimension; choose a source and apply without typing an exact value. The
+  shortcut remains available with zero matching registrations. Raw UTM/referrer dimensions
+  remain available, and missing historical attribution is never backfilled or inferred.
 - GA page locations now retain only validated `utm_source`, `utm_medium`, `utm_campaign`,
   `utm_term`, and `utm_content`. Other query values and fragments remain redacted. Public
   Create, image tools, model pages and Image Pass are included. Private account paths remain disabled.
