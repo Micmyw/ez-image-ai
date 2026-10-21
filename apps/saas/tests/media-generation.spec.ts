@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { growthAnalyticsEventSchema } from "@repo/utils/lib/growth-analytics";
 import pg from "pg";
 
 import { captureConsentedGrowthEvents } from "./growth-events";
@@ -597,8 +598,17 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		const reusedSource = page.getByRole("img", { name: /selected source image/i });
 		await expect(reusedSource).toBeVisible({ timeout: 30_000 });
 		await expect.poll(() => reusedSource.getAttribute("src")).not.toBe(originalPreviewUrl);
+		// Global observations can interleave, but funnel order and deduplication remain exact.
+		const observationEvents = new Set([
+			"page_viewed",
+			"identity_observed",
+			"generation_action_observed",
+			"generation_input_observed",
+		]);
 		await expect
-			.poll(() => growthEvents.map(({ name }) => name))
+			.poll(() =>
+				growthEvents.map(({ name }) => name).filter((name) => !observationEvents.has(name)),
+			)
 			.toEqual([
 				"editor_quote_created",
 				"editor_generation_confirmed",
@@ -607,11 +617,15 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				"result_downloaded",
 				"edit_again_started",
 			]);
+		for (const event of growthEvents) {
+			// The strict schema allows public product keys, never raw provider/model identifiers.
+			expect(growthAnalyticsEventSchema.parse(event)).toEqual(event);
+		}
 		const serializedGrowthEvents = JSON.stringify(growthEvents);
 		expect(serializedGrowthEvents).not.toContain(prompt);
 		expect(serializedGrowthEvents).not.toContain(job.id);
 		expect(serializedGrowthEvents).not.toMatch(
-			/assetId|signed|https?:|provider|model|cost|email|token/i,
+			/assetId|signed|https?:|provider|modelId|cost|email|token/i,
 		);
 	});
 

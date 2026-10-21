@@ -24,6 +24,10 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
+			"./.open-next/worker.js": path.resolve(
+				import.meta.dirname,
+				"./test-support/open-next-worker.ts",
+			),
 			"server-only": path.resolve(import.meta.dirname, "./test-support/server-only.ts"),
 			"@config": path.resolve(import.meta.dirname, "./config"),
 			"@docs": path.resolve(import.meta.dirname, "./modules/docs"),

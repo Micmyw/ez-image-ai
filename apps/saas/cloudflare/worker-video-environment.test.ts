@@ -11,8 +11,8 @@ const mocks = vi.hoisted(() => ({
 	disconnect: vi.fn(),
 }));
 
-// The generated OpenNext artifact is absent before the application build.
-vi.mock("../.open-next/worker.js", () => ({
+// Vitest resolves this alias even before OpenNext generates its Worker artifact.
+vi.mock("./.open-next/worker.js", () => ({
 	default: { fetch: mocks.fetch },
 	DOQueueHandler: class {},
 	DOShardedTagCache: class {},

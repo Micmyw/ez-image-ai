@@ -1,12 +1,10 @@
 import type { Page } from "@playwright/test";
 import { ANALYTICS_CONSENT_VERSION } from "@repo/utils/lib/analytics-policy";
+import type { GrowthAnalyticsEvent } from "@repo/utils/lib/growth-analytics";
 
 const saasUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 
-export interface CapturedGrowthEvent {
-	name: string;
-	properties: Record<string, string>;
-}
+export type CapturedGrowthEvent = GrowthAnalyticsEvent;
 
 export async function captureConsentedGrowthEvents(page: Page): Promise<CapturedGrowthEvent[]> {
 	await page.context().addCookies([
