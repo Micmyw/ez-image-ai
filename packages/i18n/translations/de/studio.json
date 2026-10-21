@@ -1,7 +1,8 @@
 {
 	"imagePass": {
 		"bannerLabel": "Einmaliges Bildpaket",
-		"bannerTitle": "{units} Bilder für {currency} {amount}",
+		"dismissBanner": "Bildpaket-Angebot schließen",
+		"bannerTitle": "{units} Bilder für ${amount}",
 		"bannerDetail": "Aktuelle Bildmodelle · bis zu 4K · kein Abo",
 		"buy": "Bildpaket kaufen",
 		"oneTime": "Einmaliger Kauf",

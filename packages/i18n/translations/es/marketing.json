@@ -707,8 +707,8 @@
 	},
 	"common": {
 		"consent": {
-			"label": "Analítica y privacidad",
-			"message": "Contamos vistas anónimas sin identificador de visitante. La analítica opcional ayuda a entender las fuentes y la generación de imágenes y vídeos, con grabaciones enmascaradas de Clarity. El texto introducido permanece oculto. Puedes rechazar la medición o cambiar tu elección en Privacidad. Las funciones esenciales siguen disponibles.",
+			"label": "Cookies y privacidad",
+			"message": "Usamos cookies y tecnologías similares para que el sitio funcione, analizar el tráfico y mejorar tu experiencia. Puedes gestionar la analítica opcional en cualquier momento desde Ajustes de privacidad.",
 			"decline": "Rechazar analítica",
 			"allow": "Permitir analítica",
 			"settings": "Ajustes de privacidad",

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-10-21 — Compact image pack offer
+
+- Show the compact image pack offer as $1.00, with a more visible blue-to-purple gradient and a quieter purchase button.
+- Add a localized close button that keeps the offer hidden for the current tab session, while preserving the image pack purchase page.
+
+## 2026-10-21 — Simpler cookie notice
+
+- Explain cookies, site analytics and privacy choices in a shorter notice across all four languages, with detailed disclosures in the Privacy Policy.
+- Reduce the banner's text, button and spacing sizes, and keep the privacy link inline for a more compact notice.
+- Show automatic privacy notices on public pages; keep history, account, billing and administration pages clear while retaining their explicit Privacy settings entry.
+
 ## 2026-10-21 — First-party analytics and regional privacy choices
 
 - Replace PostHog delivery and deployment requirements with first-party conversion observations and anonymous hourly page/source counters.

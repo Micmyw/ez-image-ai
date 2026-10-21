@@ -192,6 +192,7 @@ describe("SaaS root layout", () => {
 			});
 			expect(clientMessages.imagePass).toEqual({
 				bannerLabel: fullMessages.imagePass.bannerLabel,
+				dismissBanner: fullMessages.imagePass.dismissBanner,
 				bannerTitle: fullMessages.imagePass.bannerTitle,
 				bannerDetail: fullMessages.imagePass.bannerDetail,
 				buy: fullMessages.imagePass.buy,

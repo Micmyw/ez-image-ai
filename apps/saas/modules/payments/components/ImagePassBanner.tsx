@@ -2,42 +2,72 @@
 
 import { IMAGE_PASS_OFFER_SUMMARY } from "@repo/config/image-pass-summary";
 import { useQuery } from "@tanstack/react-query";
+import { XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { imagePassOfferQueryOptions } from "../lib/image-pass-offer-query";
+
+import styles from "./ImagePassBanner.module.css";
+
+const dismissalKey = `ezpic:image-pass-banner:${IMAGE_PASS_OFFER_SUMMARY.offerVersion}`;
 
 export function ImagePassBanner({ registered = false }: { registered?: boolean }) {
 	const t = useTranslations("imagePass");
 	const offer = IMAGE_PASS_OFFER_SUMMARY;
+	const [dismissed, setDismissed] = useState(false);
 	const availability = useQuery(imagePassOfferQueryOptions());
-	if (availability.isError || availability.isPending || availability.data?.available !== true)
+	useEffect(() => {
+		try {
+			if (window.sessionStorage.getItem(dismissalKey) === "1") setDismissed(true);
+		} catch {
+			// Closing still works when optional browser storage is unavailable.
+		}
+	}, []);
+	function dismissBanner() {
+		setDismissed(true);
+		try {
+			window.sessionStorage.setItem(dismissalKey, "1");
+		} catch {
+			// Keep the in-memory choice for this mounted workspace.
+		}
+	}
+	if (
+		dismissed ||
+		availability.isError ||
+		availability.isPending ||
+		availability.data?.available !== true
+	)
 		return null;
 	return (
-		<aside
-			aria-label={t("bannerLabel")}
-			className="border-violet-300/20 text-white border-b bg-[#21182f]"
-			data-test="image-pass-banner"
-		>
-			<div className="gap-x-4 gap-y-2 py-3 text-sm container flex flex-wrap items-center justify-center text-center">
-				<p>
-					<strong className="font-semibold">
+		<aside aria-label={t("bannerLabel")} className={styles.banner} data-test="image-pass-banner">
+			<div className={`container ${styles.content}`}>
+				<p className={styles.copy}>
+					<strong className={styles.title}>
 						{t("bannerTitle", {
 							units: offer.units,
 							amount: offer.amount,
-							currency: offer.currency,
 						})}
 					</strong>
-					<span className="ml-2 text-xs text-[#b7acbf]">{t("bannerDetail")}</span>
+					<span className={styles.detail}>{t("bannerDetail")}</span>
 				</p>
 				<Link
 					href={registered ? "/image-pass" : "/signup?redirectTo=%2Fimage-pass"}
-					className="min-h-9 gap-1 bg-white px-3 text-xs font-semibold hover:bg-violet-100 focus-visible:outline-violet-200 inline-flex items-center rounded-lg text-[#34246f] focus-visible:outline-2 focus-visible:outline-offset-2"
+					className={styles.cta}
 				>
 					{t("buy")}
 					<span aria-hidden="true">↗</span>
 				</Link>
 			</div>
+			<button
+				type="button"
+				aria-label={t("dismissBanner")}
+				className={styles.close}
+				onClick={dismissBanner}
+			>
+				<XIcon size={14} strokeWidth={1.75} aria-hidden="true" />
+			</button>
 		</aside>
 	);
 }

@@ -1999,8 +1999,8 @@
 	},
 	"common": {
 		"consent": {
-			"label": "Analytics and privacy",
-			"message": "We count anonymous page totals without a visitor ID. Optional analytics helps us understand sources and image/video generation, including masked Clarity recordings. Input text is hidden. You can decline all audience measurement or change your choice in Privacy settings. Essential features keep working.",
+			"label": "Cookies and privacy",
+			"message": "We use cookies and similar technologies to keep our site working, analyze traffic, and improve your experience. You can manage optional analytics anytime in Privacy settings.",
 			"decline": "Decline analytics",
 			"allow": "Allow analytics",
 			"settings": "Privacy settings",
@@ -2415,7 +2415,8 @@
 	},
 	"imagePass": {
 		"bannerLabel": "One-time image pack",
-		"bannerTitle": "{units} images for {currency} {amount}",
+		"dismissBanner": "Dismiss image pack offer",
+		"bannerTitle": "{units} images for ${amount}",
 		"bannerDetail": "Current image models · up to 4K · no subscription",
 		"buy": "Get image pack",
 		"oneTime": "One-time purchase",

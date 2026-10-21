@@ -1999,8 +1999,8 @@
 	},
 	"common": {
 		"consent": {
-			"label": "Analyses et confidentialité",
-			"message": "Nous comptons les pages vues de façon anonyme, sans identifiant de visiteur. Les analyses facultatives aident à comprendre les sources et la génération d’images et de vidéos, avec des enregistrements Clarity masqués. Le texte saisi reste caché. Vous pouvez refuser la mesure d’audience ou modifier votre choix dans Confidentialité. Les fonctions essentielles restent disponibles.",
+			"label": "Cookies et confidentialité",
+			"message": "Nous utilisons des cookies et des technologies similaires pour faire fonctionner le site, analyser le trafic et améliorer votre expérience. Vous pouvez gérer les analyses facultatives à tout moment dans les paramètres de confidentialité.",
 			"decline": "Refuser les analyses",
 			"allow": "Autoriser les analyses",
 			"settings": "Paramètres de confidentialité",
@@ -2415,7 +2415,8 @@
 	},
 	"imagePass": {
 		"bannerLabel": "Pack d’images à paiement unique",
-		"bannerTitle": "{units} images pour {currency} {amount}",
+		"dismissBanner": "Fermer l’offre du pack d’images",
+		"bannerTitle": "{units} images pour ${amount}",
 		"bannerDetail": "Modèles d’image actuels · jusqu’à 4K · sans abonnement",
 		"buy": "Acheter le pack",
 		"oneTime": "Achat à paiement unique",

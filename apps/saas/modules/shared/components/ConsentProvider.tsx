@@ -25,6 +25,7 @@ export const ConsentContext = createContext<{
 	aggregateAllowed: boolean;
 	policyReady: boolean;
 	showBanner: boolean;
+	preferencesOpen: boolean;
 	privacySignal: boolean;
 	openPreferences: () => void;
 	closePreferences: () => void;
@@ -37,6 +38,7 @@ export const ConsentContext = createContext<{
 	aggregateAllowed: false,
 	policyReady: false,
 	showBanner: false,
+	preferencesOpen: false,
 	privacySignal: false,
 	openPreferences: () => {},
 	closePreferences: () => {},
@@ -169,6 +171,7 @@ export function ConsentProvider({
 					(consentStatus === "accepted" || !policy.requiresOptIn),
 				aggregateAllowed: !!policy && !policy.privacySignal && consentStatus !== "declined",
 				policyReady: !!policy,
+				preferencesOpen,
 				showBanner:
 					preferencesOpen ||
 					(!dismissed &&

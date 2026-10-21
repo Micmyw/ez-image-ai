@@ -707,8 +707,8 @@
 	},
 	"common": {
 		"consent": {
-			"label": "Analysen und Datenschutz",
-			"message": "Wir zählen anonyme Seitenaufrufe ohne Besucherkennung. Optionale Analysen helfen bei Herkunft und Bild-/Videogenerierung, einschließlich maskierter Clarity-Aufzeichnungen. Eingabetext bleibt verborgen. Sie können die Reichweitenmessung ablehnen oder Ihre Auswahl unter Datenschutz ändern. Notwendige Funktionen bleiben verfügbar.",
+			"label": "Cookies und Datenschutz",
+			"message": "Wir verwenden Cookies und ähnliche Technologien, um unsere Website zu betreiben, Zugriffe zu analysieren und Ihr Erlebnis zu verbessern. Optionale Analysen können Sie jederzeit in den Datenschutzeinstellungen verwalten.",
 			"decline": "Analysen ablehnen",
 			"allow": "Analysen erlauben",
 			"settings": "Datenschutzeinstellungen",

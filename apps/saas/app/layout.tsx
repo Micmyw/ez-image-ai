@@ -114,6 +114,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 			? {
 					imagePass: {
 						bannerLabel: imagePass.bannerLabel,
+						dismissBanner: imagePass.dismissBanner,
 						bannerTitle: imagePass.bannerTitle,
 						bannerDetail: imagePass.bannerDetail,
 						buy: imagePass.buy,

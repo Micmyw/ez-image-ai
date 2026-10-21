@@ -1,7 +1,8 @@
 {
 	"imagePass": {
 		"bannerLabel": "One-time image pack",
-		"bannerTitle": "{units} images for {currency} {amount}",
+		"dismissBanner": "Dismiss image pack offer",
+		"bannerTitle": "{units} images for ${amount}",
 		"bannerDetail": "Current image models · up to 4K · no subscription",
 		"buy": "Get image pack",
 		"oneTime": "One-time purchase",

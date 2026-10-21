@@ -43,18 +43,21 @@ describe("image pass offer banner", () => {
 	it.each(Object.entries({ en, de, es, fr }))(
 		"renders the one-time USD offer in %s without changing it into credits",
 		(locale, messages) => {
-			const { bannerLabel, bannerTitle, bannerDetail, buy } = messages.imagePass;
+			const { bannerLabel, bannerTitle, bannerDetail, dismissBanner, buy } = messages.imagePass;
 			const markup = renderToStaticMarkup(
 				<NextIntlClientProvider
 					locale={locale}
-					messages={{ imagePass: { bannerLabel, bannerTitle, bannerDetail, buy } }}
+					timeZone="UTC"
+					messages={{ imagePass: { bannerLabel, bannerTitle, bannerDetail, dismissBanner, buy } }}
 				>
 					<ImagePassBanner registered />
 				</NextIntlClientProvider>,
 			);
-			expect(markup).toContain("USD 1.00");
+			expect(markup).toContain("$1.00");
+			expect(markup).not.toContain("USD");
 			expect(markup).toContain("4K");
 			expect(markup).toContain('href="/image-pass"');
+			expect(markup).toContain(`aria-label="${dismissBanner}"`);
 			expect(markup).not.toContain("25 credits");
 			expect(markup).not.toContain("75 credits");
 		},
@@ -66,5 +69,15 @@ describe("image pass offer banner", () => {
 			</NextIntlClientProvider>,
 		);
 		expect(markup).toContain("/signup?redirectTo=%2Fimage-pass");
+	});
+	it("provides an accessible dismissal button beside the purchase link", () => {
+		const markup = renderToStaticMarkup(
+			<NextIntlClientProvider locale="en" messages={en}>
+				<ImagePassBanner registered />
+			</NextIntlClientProvider>,
+		);
+		expect(markup).toContain('aria-label="Dismiss image pack offer"');
+		expect(markup).toContain('type="button"');
+		expect(markup).toContain('href="/image-pass"');
 	});
 });
