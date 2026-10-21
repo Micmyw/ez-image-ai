@@ -5,7 +5,15 @@ import { describe, expect, it } from "vitest";
 import nextConfig from "./next.config";
 
 describe("Turnstile content security policy", () => {
-	it.each(["/", "/try"])("allows the verification script and frame on %s", async (pathname) => {
+	it.each([
+		"/",
+		"/try",
+		"/blog/private-image-editing-workflow",
+		"/blog/ai-image-editing-prompts",
+		"/blog/tesco-ai-meal-planning-assistant",
+		"/blog/tesco-ai-meal-planning-assistant?blogAdTest=banner",
+		"/blog/tesco-ai-meal-planning-assistant?blogAdTest=native",
+	])("allows verification without advertising frames on %s", async (pathname) => {
 		const response = await unstable_getResponseFromNextConfig({
 			url: `https://ezimageai.com${pathname}`,
 			nextConfig,
@@ -18,6 +26,8 @@ describe("Turnstile content security policy", () => {
 		);
 
 		expect(directives.get("script-src")).toContain("https://challenges.cloudflare.com");
+		expect(directives.get("script-src")).toContain("https://www.clarity.ms");
+		expect(directives.get("script-src")).toContain("https://www.googletagmanager.com");
 		expect(directives.get("frame-src")).toEqual(["https://challenges.cloudflare.com"]);
 		expect(directives.get("default-src")).toEqual(["'self'"]);
 		expect(directives.get("frame-ancestors")).toEqual(["'none'"]);

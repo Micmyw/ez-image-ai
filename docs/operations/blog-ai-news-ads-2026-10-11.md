@@ -1,5 +1,7 @@
 # Tesco AI news and isolated Blog advertising
 
+Archived on 2026-10-21: the Adsterra integration, static build package and observation scripts were removed at the user's request. The news article and its editorial features remain. The advertising descriptions below preserve the historical checkpoint rather than current application behavior.
+
 This is the historical preparation checkpoint for the news/default-off release through `58d020b215f071ddb5e8464024bbe1372cc37a48`. Its blocked `data:` transport and unapproved dedicated-origin descriptions are historical evidence. For the later human-authorized independent-origin finite test, current implementation and validation boundaries, see [the independent-origin test runbook](blog-ad-origin-test-2026-10-11.md).
 
 ## Branch and release ownership

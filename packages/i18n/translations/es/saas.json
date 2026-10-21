@@ -2255,15 +2255,6 @@
 			"comparisons": "Comparación probada",
 			"photo-ideas": "Ideas fotográficas"
 		},
-		"ads": {
-			"label": "Publicidad",
-			"privacy": "Política de privacidad",
-			"show": "Mostrar anuncios del blog",
-			"hide": "Ocultar anuncios del blog",
-			"banner": "Anuncio de banner del blog",
-			"native": "Anuncio nativo del blog",
-			"notice": "Los anuncios opcionales del blog usan Adsterra. Si eliges mostrarlos, la red publicitaria recibe tu dirección IP e información del navegador y puede usar cookies de terceros. EzImageAI no transmite datos de la cuenta, prompts ni fotos al marco del anuncio."
-		},
 		"photoIdeas": {
 			"recommended": "Ideas fotográficas para explorar",
 			"explore": "Ver ideas fotográficas",

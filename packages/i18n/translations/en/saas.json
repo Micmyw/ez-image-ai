@@ -2255,15 +2255,6 @@
 			"comparisons": "Tested comparison",
 			"photo-ideas": "Photo Ideas"
 		},
-		"ads": {
-			"label": "Advertisement",
-			"privacy": "Privacy policy",
-			"show": "Show blog ads",
-			"hide": "Hide blog ads",
-			"banner": "Blog banner advertisement",
-			"native": "Blog native advertisement",
-			"notice": "Optional blog ads use Adsterra. If you choose to show them, the ad network receives your IP address and browser information and may use third-party cookies. EzImageAI does not pass account details, prompts or photos to the ad frame."
-		},
 		"photoIdeas": {
 			"recommended": "Photo ideas to explore",
 			"explore": "Browse photo ideas",

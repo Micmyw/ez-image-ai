@@ -1,5 +1,8 @@
 {
 	"feedback": {
+		"rewardTitle": "Feedback rewards",
+		"rewardDescription": "Accepted feedback may earn 100–1,000 credits",
+		"dismissReward": "Dismiss feedback rewards",
 		"entry": "Feedback · accepted ideas earn 100–1,000 credits",
 		"footer": "Feedback rewards",
 		"report": "Report this issue",

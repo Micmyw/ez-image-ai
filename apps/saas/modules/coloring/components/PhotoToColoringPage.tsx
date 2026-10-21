@@ -1,10 +1,12 @@
 import { getSession } from "@auth/lib/server";
+import { config } from "@config";
 import {
 	RegisteredEditor,
 	type CreatePageFilters,
 } from "@media/components/editor/RegisteredEditor";
 import { ToolPromptProvider } from "@media/lib/tool-prompt-context";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
+import { FeedbackRewardEntry } from "@shared/components/FeedbackRewardEntry";
 import { MainAccountBoundary } from "@shared/components/MainAccountBoundary";
 import { RegisteredWorkspaceBoundary } from "@shared/components/RegisteredWorkspaceBoundary";
 import { StudioShell } from "@shared/components/studio/StudioShell";
@@ -73,6 +75,7 @@ export async function PhotoToColoringPage({
 								<Suspense fallback={<p aria-busy="true">{t("loading")}</p>}>
 									<ColoringWorkspace searchParams={searchParams} />
 								</Suspense>
+								<FeedbackRewardEntry supportEmail={config.supportEmail} />
 							</section>
 							<ColoringExample />
 						</div>

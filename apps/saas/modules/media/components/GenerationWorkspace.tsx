@@ -2,6 +2,8 @@
 
 import { useSession } from "@auth/hooks/use-session";
 import { useSessionQuery } from "@auth/lib/api";
+import { config } from "@config";
+import { FeedbackRewardEntry } from "@shared/components/FeedbackRewardEntry";
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
@@ -152,6 +154,7 @@ export function GenerationWorkspace({ children }: { children: ReactNode }) {
 						)}
 					</div>
 				)}
+				<FeedbackRewardEntry supportEmail={config.supportEmail} />
 			</div>
 		</GenerationModeContext.Provider>
 	);

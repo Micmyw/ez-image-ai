@@ -1,5 +1,7 @@
 # Independent Blog ad origin: finite test
 
+Archived on 2026-10-21: EzImageAI's Adsterra integration, static build package and observation scripts were removed at the user's request. This runbook records the earlier finite test and no longer describes active application behavior or an advertising rollout. No third-party account or remote advertising resource was changed.
+
 ## Authorization and release ownership
 
 The human approved testing at **2026-10-11 11:05:45 UTC**, responding “你先放行测试” to the concrete proposal for `ads.ezimageai.com`, article-only embedding, document navigation between articles and product pages, and ordinary banner/native testing. This authorizes the isolated origin and bounded test; it does not authorize permanent inventory, additional creative domains, popup/top-navigation/same-origin permissions, new accounts, paid plans, generation or checkout actions.

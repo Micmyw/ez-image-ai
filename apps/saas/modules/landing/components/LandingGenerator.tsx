@@ -1263,7 +1263,6 @@ function LandingGeneratorWorkspace({
 								: t("freeQueue")}
 					</span>
 				)}
-				<FeedbackButton supportEmail={config.supportEmail} />
 				{(file || requireReference) && (
 					<span className="gap-1.5 sm:ml-auto inline-flex items-center">
 						<LockKeyholeIcon className="size-3.5 text-emerald-300" aria-hidden="true" />

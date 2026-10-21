@@ -1,5 +1,7 @@
 # Passive advertising observation, 2026-10-11
 
+Archived on 2026-10-21: the site advertising integration, its build package and observation scripts were removed at the user’s request. The files below preserve historical evidence; they are not current application code or instructions to activate advertising. No third-party account or remote advertising resource was changed.
+
 This directory records the historical news/default-off preparation through main `58d020b215f071ddb5e8464024bbe1372cc37a48`; its CSP and `data:` transport descriptions refer to that checkpoint. The later authorized static-origin implementation and finite testing are described in [the independent-origin test runbook](../../blog-ad-origin-test-2026-10-11.md). These old observations remain unchanged and do not certify later supplier inventory.
 
 Both supplied loaders returned empty bodies. Advertising must stay disabled: this run cannot certify the specific widget's native format, dimensions, responsive behavior, creatives, popup/redirect behavior, or cookie inventory. The existing app CSP also blocks the supplied script domains. No production security policy was changed.

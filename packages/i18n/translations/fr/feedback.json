@@ -1,5 +1,8 @@
 {
 	"feedback": {
+		"rewardTitle": "Avis récompensés",
+		"rewardDescription": "Les retours retenus peuvent rapporter 100 à 1 000 crédits",
+		"dismissReward": "Masquer les récompenses des avis",
 		"entry": "Avis · les idées retenues rapportent 100 à 1 000 crédits",
 		"footer": "Récompenses pour vos avis",
 		"report": "Signaler ce problème",

@@ -250,7 +250,9 @@ test("feedback code loading can be canceled and the dialog can open afterwards",
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	await mockCustomerReads(page);
 	await page.goto("/create");
-	const trigger = page.locator(".feedback-trigger-inline");
+	const trigger = page
+		.locator('[data-test="feedback-reward-entry"]')
+		.getByRole("button", { name: /^Feedback rewards/ });
 	await expect(trigger).toBeVisible();
 	let release!: () => void;
 	const pending = new Promise<void>((resolve) => {

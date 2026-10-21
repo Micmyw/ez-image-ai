@@ -12,6 +12,9 @@ vi.mock("next-intl/server", () => ({
 vi.mock("@shared/components/studio/StudioShell", () => ({
 	StudioShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
+vi.mock("@shared/components/FeedbackRewardEntry", () => ({
+	FeedbackRewardEntry: () => <aside data-feedback-reward-entry="" />,
+}));
 vi.mock("@shared/components/RegisteredWorkspaceBoundary", () => ({
 	RegisteredWorkspaceBoundary: ({ children }: { children: ReactNode }) => children,
 }));
@@ -69,6 +72,7 @@ describe("image-to-image page streaming", () => {
 			expect(shell).toContain("data-image-to-image-page");
 			expect(shell).toContain("<h1");
 			expect(shell).toContain("Public examples");
+			expect(shell).toContain("data-feedback-reward-entry");
 			expect(shell).toContain("loading");
 			expect(shell).not.toContain("data-guest-editor");
 			expect(shell).not.toContain("data-registered-editor");

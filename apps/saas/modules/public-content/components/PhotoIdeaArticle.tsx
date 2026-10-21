@@ -1,9 +1,11 @@
 import { getSession } from "@auth/lib/server";
+import { config } from "@config";
 import {
 	RegisteredEditor,
 	type CreatePageFilters,
 } from "@media/components/editor/RegisteredEditor";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
+import { FeedbackRewardEntry } from "@shared/components/FeedbackRewardEntry";
 import { MainAccountBoundary } from "@shared/components/MainAccountBoundary";
 import { RegisteredWorkspaceBoundary } from "@shared/components/RegisteredWorkspaceBoundary";
 import { getBaseUrl } from "@shared/lib/base-url";
@@ -95,6 +97,7 @@ export async function PhotoIdeaArticle({
 						<Suspense fallback={<output>{t("effects.loadingEditor")}</output>}>
 							<PhotoIdeaGenerationWorkspace searchParams={searchParams} />
 						</Suspense>
+						<FeedbackRewardEntry supportEmail={config.supportEmail} />
 					</div>
 					<EffectExampleStage />
 				</div>

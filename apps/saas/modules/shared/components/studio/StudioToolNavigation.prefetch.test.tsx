@@ -105,12 +105,26 @@ describe("model navigation intent prefetch", () => {
 		},
 	);
 
-	it.each(["/models/gpt-image-2", "/blog/tesco-ai-meal-planning-assistant"])(
-		"does not prefetch the current model or an article document transition from %s",
-		(pathname) => {
-			runtime.pathname = pathname;
-			links().find((link) => link.props.href === "/models/gpt-image-2")!.props.onFocus!();
+	it("does not prefetch the current model after intent", () => {
+		runtime.pathname = "/models/gpt-image-2";
+		links().find((link) => link.props.href === "/models/gpt-image-2")!.props.onFocus!();
+		expect(links().every((link) => link.props.prefetch === false)).toBe(true);
+	});
+
+	it.each(["onMouseEnter", "onFocus"] as const)(
+		"prefetches only the intended model from an ordinary article after %s",
+		(event) => {
+			runtime.pathname = "/blog/tesco-ai-meal-planning-assistant";
 			expect(links().every((link) => link.props.prefetch === false)).toBe(true);
+			const href = "/models/gpt-image-2";
+			links().find((link) => link.props.href === href)!.props[event]!();
+			const next = links();
+			expect(next.find((link) => link.props.href === href)?.props.prefetch).toBeNull();
+			expect(
+				next
+					.filter((link) => link.props.href !== href)
+					.every((link) => link.props.prefetch === false),
+			).toBe(true);
 		},
 	);
 });

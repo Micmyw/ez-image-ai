@@ -26,6 +26,25 @@ it("renders an accessible gift entry without loading its dialog before interacti
 	expect(state.dialogImported).not.toHaveBeenCalled();
 });
 
+it("shows the reward title and adoption condition without loading the feedback form", () => {
+	const rewardTitle = "Feedback rewards";
+	const rewardDescription = "Accepted feedback earns 100–1,000 credits";
+	const markup = renderToStaticMarkup(
+		<NextIntlClientProvider
+			locale="en"
+			messages={{ feedback: { ...en.feedback, rewardTitle, rewardDescription } }}
+			timeZone="UTC"
+		>
+			<FeedbackButton supportEmail="help@configured.test" variant="reward" />
+		</NextIntlClientProvider>,
+	);
+	expect(markup).toContain(rewardTitle);
+	expect(markup).toContain(rewardDescription);
+	expect(markup).toContain("feedback-gift");
+	expect(markup).not.toContain(en.feedback.title);
+	expect(state.dialogImported).not.toHaveBeenCalled();
+});
+
 describe("feedback dialog static code resource", () => {
 	it("deduplicates hover, focus and open without mounting the form", async () => {
 		const component = vi.fn(() => <div>Feedback form</div>);

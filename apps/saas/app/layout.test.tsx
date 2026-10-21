@@ -211,10 +211,16 @@ describe("SaaS root layout", () => {
 				),
 			);
 			expect(fullMessages.imagePass.returnPending).not.toBe("");
+			for (const key of ["rewardTitle", "rewardDescription", "dismissReward"] as const) {
+				expect(fullMessages.feedback[key]).toBeTypeOf("string");
+			}
 			expect(clientMessages.feedback).toEqual({
 				entry: fullMessages.feedback.entry,
 				footer: fullMessages.feedback.footer,
 				report: fullMessages.feedback.report,
+				rewardTitle: fullMessages.feedback.rewardTitle,
+				rewardDescription: fullMessages.feedback.rewardDescription,
+				dismissReward: fullMessages.feedback.dismissReward,
 			});
 			for (const [key, value] of Object.entries(fullMessages.media)) {
 				if (key === "history") {

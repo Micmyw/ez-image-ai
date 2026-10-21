@@ -19,7 +19,6 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { type MouseEvent, useState } from "react";
 
-import { isBlogAdArticlePath } from "../../../public-content/lib/blog-ad-routing";
 import {
 	PUBLIC_NAVIGATION_GROUPS,
 	type PublicNavigationGroup,
@@ -114,11 +113,7 @@ export function StudioToolNavigation({
 			<Link
 				key={product.key}
 				href={href}
-				prefetch={
-					prefetchModelHref === href && pathname !== href && !isBlogAdArticlePath(pathname)
-						? null
-						: false
-				}
+				prefetch={prefetchModelHref === href && pathname !== href ? null : false}
 				onMouseEnter={() => setPrefetchModelHref(href)}
 				onFocus={() => setPrefetchModelHref(href)}
 				onClick={(event) => navigateToWorkspace(event, href, product.key)}

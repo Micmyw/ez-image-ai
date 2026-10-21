@@ -1,9 +1,11 @@
 import { getSession } from "@auth/lib/server";
+import { config } from "@config";
 import {
 	RegisteredEditor,
 	type CreatePageFilters,
 } from "@media/components/editor/RegisteredEditor";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
+import { FeedbackRewardEntry } from "@shared/components/FeedbackRewardEntry";
 import { MainAccountBoundary } from "@shared/components/MainAccountBoundary";
 import { RegisteredWorkspaceBoundary } from "@shared/components/RegisteredWorkspaceBoundary";
 import { StudioShell } from "@shared/components/studio/StudioShell";
@@ -104,6 +106,7 @@ export async function ImageToImagePage({
 								<ImageToImageWorkspace searchParams={searchParams} />
 							</Suspense>
 						</div>
+						<FeedbackRewardEntry supportEmail={config.supportEmail} />
 						<div className="mt-6 flex justify-center">
 							<a
 								href="#image-to-image-examples"

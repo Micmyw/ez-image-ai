@@ -2,6 +2,8 @@ import { gzipSync } from "node:zlib";
 
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
+import { expectNoAdvertising, watchAdFreeBrowsing } from "./helpers/ad-free-browsing";
+
 const ONE_PIXEL_PNG =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
@@ -959,6 +961,140 @@ test("the public root exposes the image editor before authentication", async ({ 
 	await expect(page.locator("body")).not.toContainText(
 		/raphael|openrouter|sourceful|riverflow|providerModelId|providerCostMicros|providerTaskId|KIE_API_KEY|api\.kie\.ai/i,
 	);
+});
+
+for (const width of [1440, 390]) {
+	test(`feedback rewards stay beside the usable generator and dismiss for this visit at ${width}px`, async ({
+		page,
+	}, testInfo) => {
+		test.setTimeout(60_000);
+		await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		await page.goto("/");
+		await expect(stage(page, "ready")).toBeVisible();
+		const entry = page.locator('[data-test="feedback-reward-entry"]');
+		const dismiss = entry.getByRole("button", { name: "Dismiss feedback rewards", exact: true });
+		const feedback = entry.getByRole("button", { name: /^Feedback rewards/ });
+		const prompt = page.getByRole("textbox", { name: "Image prompt", exact: true });
+		const generate = page.getByRole("button", { name: /sign in to generate/i });
+		await expect(entry).toBeVisible();
+		await expect(feedback).toContainText("100–1,000");
+		await expect(dismiss).toBeVisible();
+		await expect(page.getByRole("dialog")).toHaveCount(0);
+		await prompt.fill("A quiet lilac studio for the feedback layout review");
+		await generate.click({ trial: true });
+		for (const control of [prompt, generate, dismiss]) {
+			await control.scrollIntoViewIfNeeded();
+			expect(
+				await control.evaluate((element) => {
+					const box = element.getBoundingClientRect();
+					const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+					return element === hit || element.contains(hit);
+				}),
+			).toBe(true);
+		}
+		expect(
+			await entry.evaluate((element) =>
+				["fixed", "absolute"].includes(getComputedStyle(element).position),
+			),
+		).toBe(false);
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+		).toBe(true);
+		await entry.scrollIntoViewIfNeeded();
+		await expect(generate).toBeInViewport();
+		await page.evaluate(() => document.fonts.ready.then(() => undefined));
+		const screenshotName = `feedback-${width === 1440 ? "desktop" : "mobile"}`;
+		const screenshotPath = testInfo.outputPath(`${screenshotName}.png`);
+		await page.screenshot({
+			path: screenshotPath,
+			animations: "disabled",
+		});
+		await testInfo.attach(screenshotName, { path: screenshotPath, contentType: "image/png" });
+		await feedback.click();
+		const dialog = page.getByRole("dialog", { name: "Help improve EzImageAI" });
+		await expect(dialog).toBeVisible();
+		await expect(dialog.getByText(/does not award credits/)).toBeVisible();
+		await dialog.getByRole("button", { name: "Close feedback", exact: true }).click();
+		await dismiss.click();
+		await expect(entry).toHaveCount(0);
+		await expect(page.getByRole("dialog")).toHaveCount(0);
+		await expect(prompt).toHaveValue("A quiet lilac studio for the feedback layout review");
+		for (const path of ["/create", "/models/nano-banana-2-lite", "/image-to-image", "/"]) {
+			await page.goto(path);
+			await expect(stage(page, "ready")).toBeVisible();
+			await expect(entry).toHaveCount(0);
+			await expect(page.getByRole("dialog")).toHaveCount(0);
+		}
+		await page.reload();
+		await expect(stage(page, "ready")).toBeVisible();
+		await expect(entry).toHaveCount(0);
+		await page.screenshot({
+			path: testInfo.outputPath(`${screenshotName}-dismissed.png`),
+			animations: "disabled",
+		});
+		const footer = page.locator("[data-footer-navigation]");
+		await footer.getByRole("button", { name: "Feedback rewards", exact: true }).click();
+		await expect(dialog).toBeVisible();
+		await expect(
+			dialog.getByRole("link", { name: "Open email draft", exact: true }),
+		).toHaveAttribute("href", /^mailto:/);
+		await dialog.getByRole("button", { name: "Close feedback", exact: true }).click();
+		await expect(entry).toHaveCount(0);
+	});
+}
+
+test("feedback rewards appear on dedicated generators before dismissal carries across pages", async ({
+	page,
+}) => {
+	const entry = page.locator('[data-test="feedback-reward-entry"]');
+	const paths = ["/models/nano-banana-2-lite", "/image-to-image"];
+	// Playwright gives this test a fresh browser context, with no prior dismissal.
+	for (const path of paths) {
+		await page.goto(path);
+		await expect(stage(page, "ready")).toBeVisible();
+		await expect(entry).toBeVisible();
+		await expect(entry.getByRole("button", { name: /^Feedback rewards/ })).toBeVisible();
+	}
+	await entry.getByRole("button", { name: "Dismiss feedback rewards", exact: true }).click();
+	await expect(entry).toHaveCount(0);
+	await expect(page.getByRole("dialog")).toHaveCount(0);
+	for (const path of paths) {
+		await page.goto(path);
+		await expect(stage(page, "ready")).toBeVisible();
+		await expect(entry).toHaveCount(0);
+	}
+});
+
+test("historical blog advertising routes stay free of ads and empty slots", async ({
+	page,
+	baseURL,
+}, testInfo) => {
+	const observed = await watchAdFreeBrowsing(page, baseURL!);
+	for (const path of [
+		"/blog/private-image-editing-workflow",
+		"/blog/ai-image-editing-prompts?blogAdTest=banner",
+		"/blog/tesco-ai-meal-planning-assistant?blogAdTest=native",
+	]) {
+		const response = await page.goto(path);
+		expect(response?.status()).toBe(200);
+		const csp = response?.headers()["content-security-policy"] ?? "";
+		expect(csp).not.toMatch(/ads\.ezimageai\.com|highrevenueformat|profitableratecpmnetwork/);
+		expect(csp).toContain("https://www.clarity.ms");
+		await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+		await page.locator("[data-footer-navigation]").scrollIntoViewIfNeeded();
+		await expectNoAdvertising(page, observed);
+		if (
+			path === "/blog/private-image-editing-workflow" &&
+			/^[a-z0-9]{6,32}$/.test(process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? "")
+		) {
+			await expect.poll(() => observed.clarityRequests.length).toBeGreaterThan(0);
+		}
+	}
+	await testInfo.attach("ad-free-blog-network.json", {
+		body: JSON.stringify(observed, null, 2),
+		contentType: "application/json",
+	});
 });
 
 test("the editor follows the user as a compact dock and expands without losing input", async ({

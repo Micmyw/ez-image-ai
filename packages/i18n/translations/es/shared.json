@@ -151,6 +151,9 @@
 		"buyCredits": "Comprar créditos"
 	},
 	"feedback": {
+		"rewardTitle": "Comentarios con recompensa",
+		"rewardDescription": "Los comentarios aceptados pueden recibir 100–1.000 créditos",
+		"dismissReward": "Ocultar recompensas por comentarios",
 		"entry": "Comentarios · las ideas aceptadas reciben 100–1.000 créditos",
 		"footer": "Recompensas por comentarios",
 		"report": "Informar de este problema",

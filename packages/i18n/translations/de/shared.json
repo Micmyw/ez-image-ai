@@ -151,6 +151,9 @@
 		"buyCredits": "Credits kaufen"
 	},
 	"feedback": {
+		"rewardTitle": "Prämien für Feedback",
+		"rewardDescription": "Angenommenes Feedback kann 100–1.000 Credits erhalten",
+		"dismissReward": "Feedback-Prämien ausblenden",
 		"entry": "Feedback · angenommene Ideen bringen 100–1.000 Credits",
 		"footer": "Feedback-Prämien",
 		"report": "Dieses Problem melden",

@@ -8,7 +8,6 @@ import type { ReactNode } from "react";
 import { EffectExample } from "../../../../modules/effects/components/EffectExample";
 import { getPublishedEffectById } from "../../../../modules/effects/lib/content";
 import { effectPath } from "../../../../modules/effects/lib/types";
-import { BlogAds } from "../../../../modules/public-content/components/BlogAds";
 import { BlogAnalytics } from "../../../../modules/public-content/components/BlogAnalytics";
 import { BlogCard } from "../../../../modules/public-content/components/BlogCard";
 import { BlogEffectFeature } from "../../../../modules/public-content/components/BlogEffectFeature";
@@ -24,7 +23,6 @@ import { EffectCallout } from "../../../../modules/public-content/components/Eff
 import type { PhotoIdeaSearchParams } from "../../../../modules/public-content/components/PhotoIdeaArticle";
 import { PublicMarkdown } from "../../../../modules/public-content/components/PublicMarkdown";
 import { PublicPageShell } from "../../../../modules/public-content/components/PublicPageShell";
-import { getBlogAdSettings } from "../../../../modules/public-content/lib/blog-ads";
 import {
 	getContentHeadings,
 	getReadingMinutes,
@@ -60,7 +58,6 @@ export async function generateMetadata({
 			job?: string | string[];
 			mode?: string | string[];
 			lang?: string | string[];
-			blogAdTest?: string | string[];
 		}
 	>;
 }) {
@@ -74,7 +71,7 @@ export async function generateMetadata({
 		path: blogPath(post),
 		title: post.title,
 		description: post.description,
-		index: search.blogAdTest === undefined,
+		index: true,
 	});
 	return {
 		...metadata,
@@ -113,7 +110,6 @@ export default async function BlogArticlePage({
 			job?: string | string[];
 			mode?: string | string[];
 			lang?: string | string[];
-			blogAdTest?: string | string[];
 		}
 	>;
 }) {
@@ -134,11 +130,6 @@ export default async function BlogArticlePage({
 			await import("../../../../modules/public-content/components/PhotoIdeaArticle");
 		return <PhotoIdeaArticle post={post} recipe={recipe} searchParams={searchParams} />;
 	}
-	const adSearch = await searchParams;
-	const adSettings = getBlogAdSettings(process.env, {
-		pathname: blogPath(post),
-		format: adSearch.blogAdTest,
-	});
 	const visual = getBlogVisual(post);
 	const visualPost = withBlogVisualCover(post);
 	const headings = getContentHeadings(post.body);
@@ -322,10 +313,6 @@ export default async function BlogArticlePage({
 							</ul>
 						</section>
 					)}
-					<BlogAds
-						key={`${post.id}:${typeof adSearch.blogAdTest === "string" ? adSearch.blogAdTest : "off"}`}
-						settings={adSettings}
-					/>
 					<footer className="blog-author">
 						<p>{BLOG_EDITORIAL_TEAM.name}</p>
 						<p>{t("guides.authorAbout")}</p>

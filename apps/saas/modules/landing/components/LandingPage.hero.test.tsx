@@ -10,6 +10,9 @@ const navigation = vi.hoisted(() => ({ search: "" }));
 vi.mock("@payments/components/ImagePassBanner", () => ({
 	ImagePassBanner: () => <aside data-image-pass-banner="" />,
 }));
+vi.mock("@shared/components/FeedbackRewardEntry", () => ({
+	FeedbackRewardEntry: () => <aside data-feedback-reward-entry="" />,
+}));
 vi.mock("next/navigation", () => ({
 	useSearchParams: () => new URLSearchParams(navigation.search),
 }));
@@ -103,6 +106,17 @@ describe("LandingPage hero hierarchy", () => {
 	beforeEach(() => {
 		navigation.search = "";
 	});
+	it.each(["", "mode=video"])(
+		"keeps one feedback reward entry beside either generator (%s)",
+		async (search) => {
+			navigation.search = search;
+			const markup = renderToStaticMarkup(await LandingPage({ workspace: true }));
+			expect(markup.match(/data-feedback-reward-entry/g)).toHaveLength(1);
+			expect(markup.indexOf("data-feedback-reward-entry")).toBeLessThan(
+				markup.indexOf('id="explore-models"'),
+			);
+		},
+	);
 	it("uses video copy when the same generator is in video mode", async () => {
 		navigation.search = "mode=video";
 		const markup = renderToStaticMarkup(await LandingPage({ workspace: true }));

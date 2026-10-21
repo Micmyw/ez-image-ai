@@ -66,7 +66,7 @@ export function FeedbackButton({
 	kind = "idea",
 }: {
 	supportEmail?: string;
-	variant?: "inline" | "footer" | "report";
+	variant?: "inline" | "footer" | "report" | "reward";
 	kind?: FeedbackKind;
 }) {
 	const t = useTranslations("feedback");
@@ -175,9 +175,16 @@ export function FeedbackButton({
 						</span>
 					)}
 				</span>
-				<span>
-					{t(variant === "report" ? "report" : variant === "footer" ? "footer" : "entry")}
-				</span>
+				{variant === "reward" ? (
+					<span className="feedback-reward-copy">
+						<strong>{t("rewardTitle")}</strong>
+						<span>{t("rewardDescription")}</span>
+					</span>
+				) : (
+					<span>
+						{t(variant === "report" ? "report" : variant === "footer" ? "footer" : "entry")}
+					</span>
+				)}
 			</button>
 			{pending && (
 				<span

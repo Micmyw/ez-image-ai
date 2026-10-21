@@ -9,6 +9,9 @@ vi.mock("@shared/lib/base-url", () => ({ getBaseUrl: () => "https://www.ezpic.te
 vi.mock("@shared/components/studio/StudioShell", () => ({
 	StudioShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
+vi.mock("@shared/components/FeedbackRewardEntry", () => ({
+	FeedbackRewardEntry: () => <aside data-feedback-reward-entry="" />,
+}));
 vi.mock("@shared/components/MainAccountBoundary", () => ({
 	MainAccountBoundary: ({ children }: { children: ReactNode }) => (
 		<div data-account-boundary="">{children}</div>
@@ -132,25 +135,42 @@ describe("photo to coloring page", () => {
 		expect(html).toContain('data-account-editor="true"');
 		expect(html).toContain("data-account-boundary");
 	});
-	it("renders useful answers, one heading and factual structured data on the server", async () => {
-		session.mockResolvedValue(null);
-		const stream = await renderToReadableStream(await PhotoToColoringPage({}));
-		await stream.allReady;
-		const html = await new Response(stream).text();
-		expect(html.match(/<h1(?:\s|>)/g)).toHaveLength(1);
-		expect(html).toContain("generating a new image first is not required");
-		expect(html).toContain("A4 or US Letter");
-		expect(html).toContain("not a customer upload");
-		const schema = JSON.parse(
-			html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)![1]!,
-		);
-		expect(schema["@graph"].map((entry: { "@type": string }) => entry["@type"])).toEqual([
-			"WebPage",
-			"WebApplication",
-			"BreadcrumbList",
-		]);
-		expect(JSON.stringify(schema)).not.toMatch(/aggregateRating|reviewCount|price|FAQPage/);
-	});
+	it.each([
+		{ registered: false, source: false },
+		{ registered: true, source: false },
+		{ registered: false, source: true },
+		{ registered: true, source: true },
+	])(
+		"renders one feedback entry and factual public copy (registered: $registered, source: $source)",
+		async ({ registered, source }) => {
+			session.mockResolvedValue(
+				registered ? { user: { id: "account", isAnonymous: false } } : null,
+			);
+			const stream = await renderToReadableStream(
+				await PhotoToColoringPage({
+					searchParams: Promise.resolve(
+						source ? { guestAsset: "selected-result", guestJob: "selected-job" } : {},
+					),
+				}),
+			);
+			await stream.allReady;
+			const html = await new Response(stream).text();
+			expect(html.match(/data-feedback-reward-entry/g)).toHaveLength(1);
+			expect(html.match(/<h1(?:\s|>)/g)).toHaveLength(1);
+			expect(html).toContain("generating a new image first is not required");
+			expect(html).toContain("A4 or US Letter");
+			expect(html).toContain("not a customer upload");
+			const schema = JSON.parse(
+				html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)![1]!,
+			);
+			expect(schema["@graph"].map((entry: { "@type": string }) => entry["@type"])).toEqual([
+				"WebPage",
+				"WebApplication",
+				"BreadcrumbList",
+			]);
+			expect(JSON.stringify(schema)).not.toMatch(/aggregateRating|reviewCount|price|FAQPage/);
+		},
+	);
 	it("prepares source-preserving instructions for each detail and background choice", () => {
 		expect(buildColoringPrompt("simple", "remove")).toContain("large closed areas");
 		expect(buildColoringPrompt("simple", "remove")).toContain("Remove the background");

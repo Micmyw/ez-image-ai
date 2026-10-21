@@ -141,7 +141,16 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 			: {}),
 		// The existing lazy feedback dialog restores its detailed copy when requested.
 		...(feedback
-			? { feedback: { entry: feedback.entry, footer: feedback.footer, report: feedback.report } }
+			? {
+					feedback: {
+						entry: feedback.entry,
+						footer: feedback.footer,
+						report: feedback.report,
+						rewardTitle: feedback.rewardTitle,
+						rewardDescription: feedback.rewardDescription,
+						dismissReward: feedback.dismissReward,
+					},
+				}
 			: {}),
 	};
 	const cookieStore = await cookies();

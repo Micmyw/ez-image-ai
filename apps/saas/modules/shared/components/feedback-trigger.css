@@ -22,6 +22,63 @@
 	outline: 2px solid #b79cff;
 	outline-offset: 3px;
 }
+.feedback-reward-entry {
+	display: flex;
+	max-width: 76rem;
+	align-items: center;
+	gap: 4px;
+	margin: 16px auto 0;
+	padding: 4px;
+	border: 1px solid #b79cff66;
+	border-radius: 16px;
+	background: linear-gradient(110deg, #b79cff1f, #ff9aa70d);
+	color: #eee5ff;
+}
+.feedback-trigger-reward {
+	min-width: 0;
+	flex: 1;
+	justify-content: flex-start;
+	gap: 12px;
+	padding: 10px 12px;
+	border-radius: 12px;
+}
+.feedback-trigger-reward:hover {
+	background: #b79cff12;
+	color: #fff;
+}
+.feedback-reward-copy {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.feedback-reward-copy strong {
+	display: block;
+	font-size: 14px;
+}
+.feedback-reward-copy > span {
+	display: block;
+	margin-top: 2px;
+	color: #c9bdd9;
+}
+.feedback-reward-dismiss {
+	display: inline-flex;
+	min-width: 44px;
+	min-height: 44px;
+	flex: 0 0 44px;
+	align-items: center;
+	justify-content: center;
+	border-radius: 12px;
+	color: #c9bdd9;
+	font-size: 24px;
+	cursor: pointer;
+}
+.feedback-reward-dismiss:hover {
+	background: #b79cff12;
+	color: #fff;
+}
+.feedback-reward-dismiss:focus-visible {
+	outline: 2px solid #b79cff;
+	outline-offset: 2px;
+}
 .feedback-trigger-report {
 	padding-left: 0;
 	text-decoration: underline;
