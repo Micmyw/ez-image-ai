@@ -25,6 +25,8 @@ const environment = {
 	E2E_FUNDED_AUTH_ONLY: avatarOnly || avatarLanding ? "true" : "false",
 	DATABASE_URL: process.env.TEST_DATABASE_URL,
 	NEXT_PUBLIC_SAAS_URL: saasOrigin,
+	// Show feedback UI with a reserved test address; browser tests never send mail.
+	NEXT_PUBLIC_SUPPORT_EMAIL: "feedback@local-media-e2e.test",
 	MEDIA_BUCKET_NAME: process.env.MEDIA_BUCKET_NAME ?? "media-private",
 	S3_ENDPOINT: process.env.S3_ENDPOINT ?? "http://127.0.0.1:9000",
 	S3_REGION: process.env.S3_REGION ?? "auto",
