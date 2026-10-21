@@ -5,6 +5,7 @@ import {
 	sanitizeAttributionPath,
 	type CheckoutAttribution,
 } from "@repo/utils/lib/acquisition-attribution";
+import { resolveAnalyticsPolicy } from "@repo/utils/lib/analytics-policy";
 import { z } from "zod";
 
 // Optional analytics data cannot select an owner, price, plan, or redirect destination.
@@ -21,14 +22,7 @@ export async function captureCheckoutAttribution(
 	userId: string,
 	now = new Date(),
 ): Promise<CheckoutAttribution | undefined> {
-	if (
-		!input ||
-		!headers
-			.get("cookie")
-			?.split(";")
-			.some((cookie) => cookie.trim() === "consent=true")
-	)
-		return undefined;
+	if (!input || !resolveAnalyticsPolicy(headers).analyticsAllowed) return undefined;
 	const origin = getBaseUrl(process.env.NEXT_PUBLIC_SAAS_URL, 3000);
 	const user = await db.user.findUnique({
 		where: { id: userId },

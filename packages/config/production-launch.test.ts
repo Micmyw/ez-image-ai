@@ -81,9 +81,6 @@ const productionEnvironment = {
 	EZPIC_STRIPE_WEBHOOK_SCOPE_ID: "stripe-webhook:ezpic-production",
 	SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
 	EZPIC_SENTRY_ENVIRONMENT: "ezpic-production",
-	NEXT_PUBLIC_POSTHOG_KEY: "phc_public_project_key_123456",
-	NEXT_PUBLIC_POSTHOG_HOST: "https://us.i.posthog.com",
-	EZPIC_POSTHOG_PROJECT_ID: "posthog:ezpic-production",
 	MAIL_FROM: "EzPic <noreply@ezpic.ai>",
 	RESEND_API_KEY: "mail-secret-present-only",
 	EZPIC_MAIL_PROVIDER_ID: "resend:ezpic-production",
@@ -637,7 +634,6 @@ describe("EzPic production launch environment", () => {
 		["NEXT_PUBLIC_SAAS_URL", "http://127.0.0.1:3000"],
 		["NEXT_PUBLIC_SAAS_URL", "https://app.ezpic.ai/unexpected-path"],
 		["S3_ENDPOINT", "http://127.0.0.1:59000"],
-		["NEXT_PUBLIC_POSTHOG_HOST", "https://posthog.placeholder.invalid"],
 	] as const)("rejects a non-production %s", (key, value) => {
 		expect(() =>
 			validateEzPicLaunchEnvironment({ ...productionEnvironment, [key]: value }),
@@ -650,7 +646,6 @@ describe("EzPic production launch environment", () => {
 		"EZPIC_MEDIA_BUCKET_RESOURCE_ID",
 		"EZPIC_STRIPE_WEBHOOK_SCOPE_ID",
 		"EZPIC_WORKFLOWS_ENVIRONMENT_ID",
-		"EZPIC_POSTHOG_PROJECT_ID",
 		"EZPIC_SENTRY_ENVIRONMENT",
 		"EZPIC_MAIL_PROVIDER_ID",
 	] as const)("rejects placeholder launch resource %s", (key) => {
@@ -696,7 +691,6 @@ describe("EzPic production launch environment", () => {
 			"PAYPAL_CLIENT_SECRET",
 			"WAFFO_PRIVATE_KEY",
 			"SENTRY_DSN",
-			"NEXT_PUBLIC_POSTHOG_KEY",
 			"EZPIC_GSC_PROPERTY",
 			"RESEND_API_KEY",
 		] as const) {

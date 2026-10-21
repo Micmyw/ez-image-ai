@@ -19,6 +19,7 @@ import {
 	CapabilitySection,
 	CapabilitySelect,
 } from "./CapabilityUi";
+import { ConversionFunnelPanel } from "./ConversionFunnelPanel";
 
 type Dimension = (typeof adminAnalyticsDimensions)[number];
 type FilterMode = "all" | "empty" | "unknown" | "value";
@@ -145,6 +146,7 @@ export function AnalyticsDashboard() {
 
 	return (
 		<div className="space-y-6">
+			<ConversionFunnelPanel />
 			<CapabilitySection title={t("title")} description={t("description")}>
 				<CapabilitySelect
 					label={t("environment")}

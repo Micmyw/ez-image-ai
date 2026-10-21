@@ -12,8 +12,6 @@ const publicVariables = new Set([
 	"NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION",
 	"NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY",
 	"NEXT_PUBLIC_AVATARS_BUCKET_NAME",
-	"NEXT_PUBLIC_POSTHOG_KEY",
-	"NEXT_PUBLIC_POSTHOG_HOST",
 	"NEXT_PUBLIC_GOOGLE_ANALYTICS_ID",
 	"NEXT_PUBLIC_CLARITY_PROJECT_ID",
 	"NEXT_PUBLIC_MIXPANEL_TOKEN",
@@ -43,6 +41,11 @@ export function deploymentEnvironment(
 		Object.entries(environment).filter(
 			([key, value]) =>
 				value &&
+				![
+					"NEXT_PUBLIC_POSTHOG_KEY",
+					"NEXT_PUBLIC_POSTHOG_HOST",
+					"EZPIC_POSTHOG_PROJECT_ID",
+				].includes(key) &&
 				key !== "VIDEO_V1_BUILD_ENABLED" &&
 				key !== "VIDEO_V1_BUILD_ACCESS" &&
 				key !== "VIDEO_V1_BUILD_PRICE_VERSION" &&

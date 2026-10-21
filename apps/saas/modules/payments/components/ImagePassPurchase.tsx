@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import { useCheckoutStatePolling } from "../hooks/use-checkout-state-polling";
 import { usePaymentAction } from "../hooks/use-payment-action";
 import { subscribeToCheckoutForeground } from "../lib/checkout-state-polling";
+import { trackCheckoutStage } from "../lib/conversion";
 import {
 	clearImagePassCheckoutContext,
 	readImagePassCheckoutContext,
@@ -124,6 +125,7 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 		if (!ownerId || !offerAvailable || pending.current || !payment.acquire("image-pass:paypal"))
 			return;
 		const action = payment.getSnapshot();
+		trackCheckoutStage("purchase_clicked", "IMAGE_PASS");
 		ownedAction.current = action;
 		pending.current = true;
 		const isCurrent = () =>
@@ -138,6 +140,7 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 		try {
 			const attribution = await getCurrentCheckoutAttribution();
 			if (!isCurrent()) return;
+			trackCheckoutStage("checkout_requested", "IMAGE_PASS");
 			const { checkoutLink, intentId: createdIntentId } = await checkout.mutateAsync({
 				provider: "paypal",
 				idempotencyKey: attempt.current.key,
@@ -161,8 +164,10 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 				// The new intent is already recoverable even if browser history cannot be updated.
 			}
 			payment.redirecting();
+			trackCheckoutStage("checkout_redirected", "IMAGE_PASS");
 			window.location.assign(checkoutLink);
-		} catch {
+		} catch (error) {
+			trackCheckoutStage("checkout_failed", "IMAGE_PASS", error);
 			if (isCurrent()) setFailed(true);
 		} finally {
 			if (payment.getSnapshot() === action) payment.release();
@@ -269,6 +274,7 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 			) : !ownerId && offerAvailable ? (
 				<Link
 					href="/signup?redirectTo=%2Fimage-pass"
+					onClick={() => trackCheckoutStage("purchase_clicked", "IMAGE_PASS")}
 					className="mt-7 min-h-12 bg-white px-5 text-sm font-semibold inline-flex w-full items-center justify-center rounded-xl text-[#34246f]"
 				>
 					{t("signIn")}

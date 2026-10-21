@@ -1,5 +1,13 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-10-21",
+		title: "Updated analytics choices and privacy information",
+		changes: [
+			"Privacy settings now control detailed analytics and masked recordings across image and video generation. Input text is never copied into analytics.",
+			"Anonymous page totals are separate from account-linked conversion observations. Regional consent rules, browser privacy signals and an always-available privacy choice are explained in the Privacy Policy.",
+		],
+	},
+	{
 		date: "2026-10-20",
 		title: "Faster pages and workspace switching",
 		changes: [

@@ -9,6 +9,7 @@ import {
 	getUserByEmail,
 	getUserById,
 	setUserRegistrationAttributionOnce,
+	recordGrowthEvent,
 } from "@repo/database";
 import { config as i18nConfig, type Locale } from "@repo/i18n";
 import { logger } from "@repo/logs";
@@ -35,6 +36,7 @@ import {
 	persistNewUserRegistrationAttribution,
 	shouldClearRegistrationAttributionCookie,
 } from "./lib/registration-attribution";
+import { persistRegistrationConversion } from "./lib/registration-conversion";
 import { invitationOnlyPlugin } from "./plugins/invitation-only";
 
 const getLocaleFromRequest = (request?: Request) => {
@@ -101,6 +103,17 @@ export const auth = betterAuth({
 						logger.error("Registration attribution could not be saved", {
 							ctx: "registrationAttribution",
 							userId: createdUser.id,
+							errorType: error instanceof Error ? error.name : "UnknownError",
+						});
+					}
+					try {
+						await persistRegistrationConversion(createdUser, ctx, {
+							origin: appUrl,
+							save: recordGrowthEvent,
+						});
+					} catch (error) {
+						logger.error("Registration conversion observation could not be saved", {
+							ctx: "registrationConversion",
 							errorType: error instanceof Error ? error.name : "UnknownError",
 						});
 					}

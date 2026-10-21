@@ -707,9 +707,14 @@
 	},
 	"common": {
 		"consent": {
-			"message": "Google Analytics y Microsoft Clarity funcionan automáticamente. Elige si permites la analítica opcional de PostHog y los registros de las fuentes de registro y de las páginas que generan compras. El almacenamiento esencial sigue disponible.",
-			"decline": "Rechazar opcionales",
-			"allow": "Permitir opcionales"
+			"label": "Analítica y privacidad",
+			"message": "Contamos vistas anónimas sin identificador de visitante. La analítica opcional ayuda a entender las fuentes y la generación de imágenes y vídeos, con grabaciones enmascaradas de Clarity. El texto introducido permanece oculto. Puedes rechazar la medición o cambiar tu elección en Privacidad. Las funciones esenciales siguen disponibles.",
+			"decline": "Rechazar analítica",
+			"allow": "Permitir analítica",
+			"settings": "Ajustes de privacidad",
+			"policy": "Política de privacidad",
+			"close": "Cerrar",
+			"privacySignal": "La señal de privacidad de tu navegador desactiva la analítica y las grabaciones."
 		},
 		"footer": {
 			"blog": "Blog",

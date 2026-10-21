@@ -77,9 +77,10 @@ function harness(initialUrl = "https://ezimageai.com/", cookie = "") {
 			callback();
 		}
 	};
-	const start = () =>
+	const start = (analyticsAllowed = true) =>
 		startSiteAnalytics({
 			browser: browser as unknown as Window,
+			analyticsAllowed,
 			googleAnalyticsId: "G-TEST123456",
 			clarityProjectId: "testproject1",
 		});
@@ -98,167 +99,209 @@ function harness(initialUrl = "https://ezimageai.com/", cookie = "") {
 	};
 }
 
-describe("automatic website analytics", () => {
-	it("queues visits immediately and gives rendering a turn between vendor executions", () => {
-		const app = harness("https://ezimageai.com/?token=private-token");
-		app.start();
-		expect(app.scripts).toHaveLength(0);
-		expect(app.gtag).toHaveBeenCalledWith(
-			"event",
-			"page_view",
-			expect.objectContaining({
-				page_location: "https://ezimageai.com/",
-			}),
-		);
-		app.browser.history.pushState({}, "", "/pricing");
-		expect(app.gtag.mock.calls.filter(([command]) => command === "event")).toHaveLength(2);
-		app.loaded();
-		expect(app.scripts).toHaveLength(0);
-		app.paint();
-		expect(app.scripts).toHaveLength(0);
-		app.idle();
-		expect(app.scripts).toHaveLength(1);
-		app.scripts[0]?.onload?.();
-		expect(app.scripts).toHaveLength(1);
-		app.paint();
-		app.idle();
-		expect(app.scripts).toHaveLength(2);
-		expect(JSON.stringify(app.gtag.mock.calls)).not.toContain("private-token");
-	});
-	it("loads after paint when hydration starts on an already loaded page", () => {
+describe("consent-controlled website analytics", () => {
+	it("loads no vendors until permission resolves and sends analytics-only consent", () => {
 		const app = harness();
-		app.loaded();
-		app.start();
-		expect(app.scripts).toHaveLength(0);
-		app.paint();
-		app.idle();
-		expect(app.scripts).toHaveLength(1);
-		app.scripts[0]?.onload?.();
-		app.paint();
-		app.idle();
-		expect(app.scripts).toHaveLength(2);
-	});
-	it("uses a timer when idle callbacks are unavailable", () => {
-		const app = harness();
-		Reflect.deleteProperty(app.browser, "requestIdleCallback");
-		app.start();
-		app.loaded();
-		app.paint();
-		expect(app.scripts).toHaveLength(0);
-		app.runTimers();
-		app.runTimers();
-		expect(app.scripts).toHaveLength(2);
-	});
-	it("bounds the wait when load or animation frames stall", () => {
-		const app = harness();
-		app.start();
-		expect(app.scripts).toHaveLength(0);
-		app.runTimers();
-		app.runTimers();
-		expect(app.scripts).toHaveLength(2);
-		app.finishLoading();
-		app.start();
-		expect(app.scripts).toHaveLength(2);
-	});
-	it("continues after a blocked first vendor and does not append scripts twice", () => {
-		const app = harness();
-		app.start();
-		app.loaded();
-		app.paint();
-		app.idle();
-		expect(app.scripts).toHaveLength(1);
-		app.scripts[0]?.onerror?.();
-		app.paint();
-		app.idle();
-		expect(app.scripts).toHaveLength(2);
-		app.runTimers();
-		app.events.dispatchEvent(new Event("pagehide"));
-		expect(app.scripts).toHaveLength(2);
-	});
-	it("attempts startup before an early page exit without loading twice", () => {
-		const app = harness();
-		app.start();
-		expect(app.scripts).toHaveLength(0);
-		app.events.dispatchEvent(new Event("pagehide"));
-		expect(app.scripts).toHaveLength(2);
+		app.start(false);
 		app.finishLoading();
 		app.runTimers();
+		expect(app.scripts).toHaveLength(0);
+		expect(app.gtag).not.toHaveBeenCalled();
+		expect(app.clarity).not.toHaveBeenCalled();
+		app.start(true);
+		app.finishLoading();
 		expect(app.scripts).toHaveLength(2);
+		expect(app.clarity).toHaveBeenCalledWith("consentv2", {
+			analytics_Storage: "granted",
+			ad_Storage: "denied",
+		});
 	});
-	it.each(["", "consent=false", "consent=true"])(
-		"loads both services without waiting for consent (%s)",
-		(cookie) => {
-			const app = harness("https://ezimageai.com/", cookie);
-			app.start();
-			app.finishLoading();
-			expect(app.scripts.map(({ src }) => src)).toEqual([
-				"https://www.googletagmanager.com/gtag/js?id=G-TEST123456",
-				"https://www.clarity.ms/tag/testproject1",
-			]);
-			expect(app.gtag.mock.calls.some(([command]) => command === "consent")).toBe(false);
-			expect(app.clarity.mock.calls.some(([command]) => command === "consentv2")).toBe(false);
-		},
-	);
+	it("cancels deferred loads after refusal", () => {
+		const app = harness();
+		app.start();
+		app.start(false);
+		app.finishLoading();
+		app.runTimers();
+		expect(app.scripts).toHaveLength(0);
+		expect(app.clarity).toHaveBeenLastCalledWith("consentv2", {
+			analytics_Storage: "denied",
+			ad_Storage: "denied",
+		});
+		expect(app.clarity).not.toHaveBeenCalledWith("stop");
+	});
+	it("withdraws consent without stopping the SDK and restores consent without restarting it", () => {
+		const app = harness();
+		app.start();
+		app.finishLoading();
+		app.start(false);
+		expect(app.clarity).toHaveBeenCalledWith("consentv2", {
+			analytics_Storage: "denied",
+			ad_Storage: "denied",
+		});
+		expect(app.clarity).not.toHaveBeenCalledWith("stop");
+		expect(app.browser).toHaveProperty("ga-disable-G-TEST123456", true);
+		app.start(true);
+		app.finishLoading();
+		expect(app.scripts).toHaveLength(2);
+		expect(app.clarity).not.toHaveBeenCalledWith("start");
+		expect(app.clarity).toHaveBeenLastCalledWith("consentv2", {
+			analytics_Storage: "granted",
+			ad_Storage: "denied",
+		});
+	});
+	it("keeps a late-loading SDK under denied consent after withdrawal", () => {
+		const app = harness();
+		app.start();
+		app.finishLoading();
+		app.start(false);
+		app.scripts.find((script) => script.src.includes("clarity"))?.onload?.();
+		expect(app.clarity).toHaveBeenLastCalledWith("consentv2", {
+			analytics_Storage: "denied",
+			ad_Storage: "denied",
+		});
+		expect(app.clarity).not.toHaveBeenCalledWith("stop");
+	});
+	it("still stops on private navigation after withdrawal and on a late script load", () => {
+		const app = harness();
+		app.start();
+		app.finishLoading();
+		app.start(false);
+		app.browser.history.pushState({}, "", "/admin/analytics");
+		expect(app.clarity).toHaveBeenLastCalledWith("stop");
+		app.clarity.mockClear();
+		app.scripts.find((script) => script.src.includes("clarity"))?.onload?.();
+		expect(app.clarity).toHaveBeenLastCalledWith("stop");
+		app.browser.history.pushState({}, "", "/create");
+		expect(app.clarity).not.toHaveBeenCalledWith("start");
+	});
+	it("still stops recording when a browser privacy signal becomes active", () => {
+		const app = harness();
+		app.start();
+		app.finishLoading();
+		vi.stubGlobal("navigator", { globalPrivacyControl: true });
+		try {
+			app.start(false);
+			expect(app.clarity).toHaveBeenLastCalledWith("stop");
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
 	it.each([
 		"/login",
-		"/try?token=test#preview",
-		"/history/private-job",
 		"/settings/billing",
 		"/admin/users",
-	])("loads the standard Clarity integration on %s", (pathname) => {
-		const app = harness(`https://ezimageai.com${pathname}`, "consent=false");
-		app.browser.document.referrer = "https://ezimageai.com/login?token=test";
+		"/history/job",
+		"/create?token=secret",
+		"/create?prompt=secret",
+		"/create#private",
+	])("excludes replay on %s", (path) => {
+		const app = harness(`https://ezimageai.com${path}`);
 		app.start();
 		app.finishLoading();
-		expect(app.scripts.map(({ src }) => src)).toContain("https://www.clarity.ms/tag/testproject1");
+		expect(app.scripts.some((s) => s.src.includes("clarity"))).toBe(false);
 	});
-	it("keeps replay running across page navigation, including private routes", () => {
+	it.each([
+		"/",
+		"/create",
+		"/create?mode=video",
+		"/create?videoJob=opaque-task",
+		"/video/effects/rumpelstiltskin",
+	])("includes generation workspace %s", (path) => {
+		const app = harness(`https://ezimageai.com${path}`);
+		app.start();
+		app.finishLoading();
+		expect(app.scripts.some((s) => s.src.includes("clarity"))).toBe(true);
+	});
+	it("stops before private navigation and resumes on returning to the editor", () => {
 		const app = harness();
 		app.start();
-		app.browser.history.pushState({}, "", "/history/private-job?token=test");
-		app.browser.history.replaceState({}, "", "/pricing");
 		app.finishLoading();
-		expect(app.clarity).not.toHaveBeenCalledWith("stop");
-		expect(app.browser.addEventListener.mock.calls.map(([name]) => name)).not.toContain("click");
-		expect(app.browser.addEventListener.mock.calls.map(([name]) => name)).not.toContain("submit");
+		app.browser.history.pushState({}, "", "/admin/analytics");
+		expect(app.clarity).toHaveBeenLastCalledWith("stop");
+		app.browser.history.pushState({}, "", "/create?mode=video");
+		expect(app.clarity).toHaveBeenCalledWith("start");
+		app.finishLoading();
 		expect(app.scripts).toHaveLength(2);
 	});
-	it("preserves GA address redaction and public-page measurement", () => {
-		const app = harness("https://ezimageai.com/?token=private-token&prompt=private-text");
+	it("preserves ChatGPT UTM in GA while removing private URL state", () => {
+		const app = harness(
+			"https://ezimageai.com/create?utm_source=chatgpt.com&job=private-job&prompt=private-text#secret",
+		);
 		app.start();
 		expect(app.gtag).toHaveBeenCalledWith(
 			"event",
 			"page_view",
 			expect.objectContaining({
-				page_location: "https://ezimageai.com/",
+				page_location: "https://ezimageai.com/create?utm_source=chatgpt.com",
 				page_referrer: "https://www.google.com/",
 			}),
 		);
-		expect(JSON.stringify(app.gtag.mock.calls)).not.toMatch(/private-token|private-text/);
-		app.browser.history.pushState({}, "", "/history/private-job");
-		expect(app.browser).toHaveProperty("ga-disable-G-TEST123456", true);
-		expect(app.gtag.mock.calls.filter(([command]) => command === "event")).toHaveLength(1);
+		expect(JSON.stringify(app.gtag.mock.calls)).not.toMatch(/private-job|private-text|#secret/);
 	});
-	it("initializes once per document without duplicate scripts or page views", () => {
+	it("rejects unsafe UTM for replay and sanitizes it for GA", () => {
+		const app = harness("https://ezimageai.com/?utm_source=private%40example.com");
+		app.start();
+		app.finishLoading();
+		expect(app.scripts.some((s) => s.src.includes("clarity"))).toBe(false);
+		expect(JSON.stringify(app.gtag.mock.calls)).not.toContain("private");
+	});
+	it("defers tags until after paint and bounds a stalled idle callback", () => {
+		const app = harness();
+		app.start();
+		expect(app.scripts).toHaveLength(0);
+		app.loaded();
+		app.paint();
+		expect(app.scripts).toHaveLength(0);
+		app.idle();
+		expect(app.scripts).toHaveLength(1);
+		app.scripts[0]?.onload?.();
+		app.paint();
+		app.idle();
+		expect(app.scripts).toHaveLength(2);
+		const delayed = harness();
+		delayed.start();
+		for (let i = 0; i < 4; i++) delayed.runTimers();
+		expect(delayed.scripts).toHaveLength(2);
+	});
+	it("deduplicates remounts and repeated page observations", () => {
 		const app = harness();
 		app.start();
 		app.start();
 		app.browser.history.replaceState({}, "", "/");
 		app.browser.history.pushState({}, "", "/pricing");
-		app.browser.history.replaceState({}, "", "/pricing");
 		app.finishLoading();
 		expect(app.scripts).toHaveLength(2);
-		expect(app.gtag.mock.calls.filter(([command]) => command === "event")).toHaveLength(2);
+		expect(app.gtag.mock.calls.filter((c) => c[0] === "event")).toHaveLength(2);
 	});
-	it("allows the normal Clarity startup queue to run after a navigation", () => {
+	it("forwards allowed generation buckets without raw inputs or task identity", () => {
 		const app = harness();
-		const browser = app.browser as unknown as Window & {
-			clarity?: ((...args: unknown[]) => void) & { q?: unknown[][] };
-		};
-		Reflect.deleteProperty(browser, "clarity");
 		app.start();
-		app.browser.history.pushState({}, "", "/history/private-job");
-		browser.clarity?.("start", { projectId: "testproject1" });
-		expect(browser.clarity?.q?.some(([command]) => command === "start")).toBe(true);
+		const send = (detail: unknown) => {
+			const event = new Event("ezpic:growth-event");
+			Object.assign(event, { detail });
+			app.events.dispatchEvent(event);
+		};
+		send({
+			name: "generation_input_observed",
+			properties: {
+				generation: { mediaKind: "video", phase: "editing", textLength: "51-200", inputCount: 1 },
+				anonymousSessionHash: "private-id",
+			},
+		});
+		expect(app.clarity).toHaveBeenCalledWith("set", "generation_textLength", "51-200");
+		expect(app.clarity).toHaveBeenCalledWith("event", "video_editing");
+		expect(JSON.stringify(app.clarity.mock.calls)).not.toContain("private-id");
+		app.clarity.mockClear();
+		send({
+			name: "generation_input_observed",
+			properties: {
+				generation: { mediaKind: "video", phase: "editing", prompt: "private prompt" },
+			},
+		});
+		expect(app.clarity).not.toHaveBeenCalled();
+		app.start(false);
+		app.clarity.mockClear();
+		send({ name: "editor_generation_succeeded" });
+		expect(app.clarity).not.toHaveBeenCalled();
 	});
 });

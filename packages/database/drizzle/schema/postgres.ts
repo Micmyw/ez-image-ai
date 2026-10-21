@@ -680,6 +680,7 @@ export const userNotificationPreference = pgTable(
 );
 
 export const userRelations = relations(user, ({ many }) => ({
+	growthEvents: many(growthEvent),
 	sessions: many(session),
 	accounts: many(account),
 	passkeys: many(passkey),
@@ -1140,3 +1141,44 @@ export const supportTicketMessageRelations = relations(supportTicketMessage, ({ 
 		references: [supportTicket.id],
 	}),
 }));
+
+export const growthEvent = pgTable(
+	"growth_event",
+	{
+		id: text("id").primaryKey(),
+		sessionHash: text("sessionHash").notNull(),
+		userId: text("userId").references(() => user.id, { onDelete: "cascade", onUpdate: "cascade" }),
+		internal: boolean("internal").notNull().default(false),
+		name: text("name").notNull(),
+		path: text("path"),
+		source: text("source"),
+		medium: text("medium"),
+		campaign: text("campaign"),
+		device: text("device").notNull(),
+		productKind: text("productKind"),
+		errorCategory: text("errorCategory"),
+		diagnostics: jsonb("diagnostics"),
+		createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("growth_event_createdAt_idx").on(table.createdAt),
+		index("growth_event_sessionHash_createdAt_idx").on(table.sessionHash, table.createdAt),
+		index("growth_event_userId_createdAt_idx").on(table.userId, table.createdAt),
+	],
+);
+
+export const growthEventRelations = relations(growthEvent, ({ one }) => ({
+	user: one(user, { fields: [growthEvent.userId], references: [user.id] }),
+}));
+
+export const trafficAggregate = pgTable(
+	"traffic_aggregate",
+	{
+		hour: timestamp("hour", { withTimezone: true, precision: 3 }).notNull(),
+		path: text("path").notNull(),
+		source: text("source").notNull(),
+		device: text("device").notNull(),
+		views: integer("views").notNull().default(0),
+	},
+	(table) => [primaryKey({ columns: [table.hour, table.path, table.source, table.device] })],
+);

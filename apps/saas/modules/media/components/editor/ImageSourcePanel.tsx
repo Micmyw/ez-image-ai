@@ -208,7 +208,12 @@ export function ImageSourcePanel({
 				>
 					<div className="composer-reference-image aspect-square overflow-hidden rounded-lg bg-muted">
 						{previewUrl ? (
-							<img src={previewUrl} alt={t("selectedAlt")} className="size-full object-contain" />
+							<img
+								data-clarity-mask="true"
+								src={previewUrl}
+								alt={t("selectedAlt")}
+								className="size-full object-contain"
+							/>
 						) : (
 							<div
 								className="p-3 text-xs flex size-full items-center justify-center text-center text-muted-foreground"

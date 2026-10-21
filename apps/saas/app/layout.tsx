@@ -5,6 +5,7 @@ import { ApiClientProvider } from "@shared/components/ApiClientProvider";
 import { ClientProviders } from "@shared/components/ClientProviders";
 import { ConsentBanner } from "@shared/components/ConsentBanner";
 import { ConsentProvider } from "@shared/components/ConsentProvider";
+import { PrivacySettings } from "@shared/components/PrivacySettings";
 import { SiteAnalytics } from "@shared/components/SiteAnalytics";
 import { getBaseUrl, parseGoogleSiteVerification } from "@shared/lib/base-url";
 import { parseConsentStatus } from "@shared/lib/consent";
@@ -142,13 +143,17 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 			? { feedback: { entry: feedback.entry, footer: feedback.footer, report: feedback.report } }
 			: {}),
 	};
-	const consentStatus = parseConsentStatus((await cookies()).get("consent")?.value);
+	const cookieStore = await cookies();
+	const choice = cookieStore.get("consent")?.value;
+	const consentStatus = parseConsentStatus(
+		choice === "true" && cookieStore.get("consent_version")?.value !== "2" ? undefined : choice,
+	);
 
 	return (
 		<html lang={locale} suppressHydrationWarning className={sansFont.variable}>
 			<body className={cn("min-h-screen bg-background text-foreground antialiased")}>
-				<SiteAnalytics />
 				<ConsentProvider initialConsentStatus={consentStatus}>
+					<SiteAnalytics />
 					<NuqsAdapter>
 						<NextIntlClientProvider messages={clientMessages}>
 							<ThemeProvider
@@ -162,6 +167,9 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 									<ClientProviders>
 										<ConsentBanner />
 										{children}
+										<div className="px-4 py-3 text-center text-muted-foreground">
+											<PrivacySettings />
+										</div>
 										<Toaster position="top-right" />
 									</ClientProviders>
 								</ApiClientProvider>

@@ -102,15 +102,14 @@ indexable and appear in the same-origin sitemap; Blog, Changelog, Contact, Docs,
 workspace, creator, history, assets, checkout, settings, and admin routes remain outside the
 indexable set. `NEXT_PUBLIC_SAAS_URL` is the only canonical public origin.
 
-The 18-step editing funnel uses one shared strict event schema and the existing cookie-consent
-choice. It rejects prompts, filenames, private/signed URLs, raw job or asset IDs, email, tokens,
-Provider/model/cost data, and raw responses before transport. The browser keeps the local
-`ezpic:growth-event` fixture and, only with consent and complete production configuration, sends the
-same minimized event to PostHog under a `sha256:` anonymous session identifier. The public landing
-passes that identifier through a same-origin POST rather than a URL. Real external ingestion is still
-`NOT_COMPLETED`. Admins receive read-only aggregate media operations—success, latency, Provider cost,
-moderation, failure, credit settlement, repeat-edit, route, and kill-switch state—through the
-existing admin-only oRPC and PostgreSQL boundaries.
+The editing funnel uses strict, first-party browser events with versioned regional privacy choices.
+It rejects raw prompts, filenames, private URLs, account and task IDs, tokens, supplier details and costs.
+Anonymous hourly page/source counters contain no visitor ID and remain separate from account-linked
+conversion observations and verified payment records. GA4 and masked Clarity replay follow the same
+optional-analytics permission; image/video input diagnostics contain only length buckets, public options
+and stages. PostHog delivery and release requirements are retired. The existing administrator boundary
+provides private Chinese conversion, attribution and moderation reports.
+See [website analytics](docs/operations/website-analytics.md) for policy, data limits and verification.
 
 See [the growth, SEO, and operations contract](docs/product/ezpic-growth-operations.md) for the
 index matrix, complete event list, metrics definitions, rollback, and external `NOT_COMPLETED`
@@ -141,7 +140,7 @@ See the [production runbook](docs/operations/ezpic-production-runbook.md),
 [launch checklist](docs/operations/ezpic-launch-checklist.md),
 [rollback procedure](docs/operations/ezpic-rollback.md), and
 [final cost model](docs/product/ezpic-final-cost-model.md). Real PostgreSQL, Trigger.dev, private
-S3/R2, Provider, moderation, PayPal/Waffo, optional legacy Stripe maintenance, Sentry, PostHog/GSC,
+S3/R2, Provider, moderation, PayPal/Waffo, optional legacy Stripe maintenance, Sentry, first-party analytics/GSC,
 mail, deployment, DNS/SSL, alert arrival, load, cost, and rollback evidence remains separately
 `NOT_COMPLETED`.
 

@@ -43,12 +43,12 @@ describe("homepage growth analytics module boundary", () => {
 	it("preserves explicit click context and parameters when deferring the original dispatcher", async () => {
 		const send = vi.fn();
 		const original = createBrowserGrowthAnalyticsDispatcher({
-			getCookie: () => "consent=true",
+			getCookie: () => "consent=true; consent_version=2",
 			dispatch: send,
 		});
 		const wait = deferred<{ trackBrowserGrowthEvent: typeof original.track }>();
 		const track = createLazyBrowserGrowthTracker({
-			cookie: () => "consent=true",
+			cookie: () => "consent=true; consent_version=2",
 			load: () => wait.promise,
 			active: () => undefined,
 			clearUnconsented: vi.fn(),
@@ -76,13 +76,13 @@ describe("homepage growth analytics module boundary", () => {
 		const attribution = createGrowthContentAttributionStore({ hasConsent: () => true });
 		const send = vi.fn();
 		const original = createBrowserGrowthAnalyticsDispatcher({
-			getCookie: () => "consent=true",
+			getCookie: () => "consent=true; consent_version=2",
 			dispatch: send,
 			attribution,
 		});
 		const wait = deferred<{ trackBrowserGrowthEvent: typeof original.track }>();
 		const track = createLazyBrowserGrowthTracker({
-			cookie: () => "consent=true",
+			cookie: () => "consent=true; consent_version=2",
 			load: () => wait.promise,
 			active: () => undefined,
 			clearUnconsented: vi.fn(),
@@ -99,7 +99,7 @@ describe("homepage growth analytics module boundary", () => {
 	});
 
 	it("withdrawal during loading is rechecked by the actual dispatcher before any external send", async () => {
-		let cookie = "consent=true";
+		let cookie = "consent=true; consent_version=2";
 		const external = vi.fn();
 		const send = vi.fn();
 		const original = createBrowserGrowthAnalyticsDispatcher({
@@ -131,13 +131,13 @@ describe("homepage growth analytics module boundary", () => {
 		});
 		const send = vi.fn();
 		const original = createBrowserGrowthAnalyticsDispatcher({
-			getCookie: () => "consent=true",
+			getCookie: () => "consent=true; consent_version=2",
 			dispatch: send,
 			attribution,
 		});
 		const load = vi.fn();
 		const track = createLazyBrowserGrowthTracker({
-			cookie: () => "consent=true",
+			cookie: () => "consent=true; consent_version=2",
 			load,
 			active: () => ({
 				trackBrowserGrowthEvent: (input, options) => original.track(input, options),
@@ -155,7 +155,7 @@ describe("homepage growth analytics module boundary", () => {
 		const send = vi.fn();
 		const wait = deferred<{ trackBrowserGrowthEvent: typeof send }>();
 		const track = createLazyBrowserGrowthTracker({
-			cookie: () => "consent=true",
+			cookie: () => "consent=true; consent_version=2",
 			load: () => wait.promise,
 			active: () => undefined,
 			clearUnconsented: vi.fn(),
@@ -172,7 +172,7 @@ describe("homepage growth analytics module boundary", () => {
 		const stored = new Map<string, string>();
 		const location = { pathname: "/", protocol: "https:" };
 		vi.stubGlobal("location", location);
-		vi.stubGlobal("document", { cookie: "consent=true" });
+		vi.stubGlobal("document", { cookie: "consent=true; consent_version=2" });
 		const dispatch = vi.fn();
 		vi.stubGlobal("window", {
 			sessionStorage: {
@@ -186,7 +186,7 @@ describe("homepage growth analytics module boundary", () => {
 			clearBrowserGrowthContentAttribution();
 			const wait = deferred<{ trackBrowserGrowthEvent: typeof trackBrowserGrowthEvent }>();
 			const track = createLazyBrowserGrowthTracker({
-				cookie: () => "consent=true",
+				cookie: () => "consent=true; consent_version=2",
 				load: () => wait.promise,
 				active: () => undefined,
 				clearUnconsented: vi.fn(),
@@ -214,7 +214,7 @@ describe("homepage growth analytics module boundary", () => {
 		const send = vi.fn().mockResolvedValue("sent");
 		const wait = deferred<{ trackBrowserGrowthEvent: typeof send }>();
 		const track = createLazyBrowserGrowthTracker({
-			cookie: () => "consent=true",
+			cookie: () => "consent=true; consent_version=2",
 			load: () => wait.promise,
 			active: () => undefined,
 			clearUnconsented: vi.fn(),
@@ -255,7 +255,7 @@ describe("homepage growth analytics module boundary", () => {
 			const send = vi.fn();
 			const wait = deferred<{ trackBrowserGrowthEvent: typeof send }>();
 			const track = createLazyBrowserGrowthTracker({
-				cookie: () => "consent=true",
+				cookie: () => "consent=true; consent_version=2",
 				load: () => wait.promise,
 				active: () => undefined,
 				clearUnconsented: vi.fn(),
@@ -273,7 +273,7 @@ describe("homepage growth analytics module boundary", () => {
 
 	it("failed optional loading does not reject an upload flow", async () => {
 		const track = createLazyBrowserGrowthTracker({
-			cookie: () => "consent=true",
+			cookie: () => "consent=true; consent_version=2",
 			load: async () => {
 				throw new Error("offline");
 			},
@@ -284,8 +284,10 @@ describe("homepage growth analytics module boundary", () => {
 	});
 
 	it("keeps original exact consent and one-way session cookie parsing", () => {
-		expect(hasGrowthAnalyticsConsent("xconsent=true; consent=false")).toBe(false);
-		expect(hasGrowthAnalyticsConsent("other=1; consent=true")).toBe(true);
+		expect(hasGrowthAnalyticsConsent("xconsent=true; consent_version=2; consent=false")).toBe(
+			false,
+		);
+		expect(hasGrowthAnalyticsConsent("other=1; consent=true; consent_version=2")).toBe(true);
 		const hash = `sha256:${"a".repeat(64)}`;
 		expect(
 			readGrowthAnalyticsSessionHash(`ezpic_analytics_session=${encodeURIComponent(hash)}`),

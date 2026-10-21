@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminDiagnosticCode } from "@admin/components/AdminDiagnosticCode";
 import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
@@ -151,7 +152,7 @@ export function GrowthOperationsPanel() {
 							<SelectItem value="all">{t("all")}</SelectItem>
 							{JOB_STATUSES.map((status) => (
 								<SelectItem key={status} value={status}>
-									{status}
+									<AdminDiagnosticCode code={status} />
 								</SelectItem>
 							))}
 						</SelectContent>
@@ -233,7 +234,7 @@ export function GrowthOperationsSummary({ data }: { data: GrowthOperationsData }
 						{data.failureCodes.length ? (
 							data.failureCodes.map((failure) => (
 								<div key={failure.code} className="gap-3 p-3 text-sm flex justify-between">
-									<code>{failure.code}</code>
+									<AdminDiagnosticCode code={failure.code} />
 									<span>{failure.count}</span>
 								</div>
 							))
@@ -259,7 +260,9 @@ export function GrowthOperationsSummary({ data }: { data: GrowthOperationsData }
 									<tr key={`${route.productKey}:${route.skuKey ?? "legacy"}:${route.status}`}>
 										<td className="p-3">{products(`${route.productKey}.label`)}</td>
 										<td className="p-3">{route.skuKey ?? "-"}</td>
-										<td className="p-3">{route.status}</td>
+										<td className="p-3">
+											<AdminDiagnosticCode code={route.status} />
+										</td>
 										<td className="p-3">{route.jobs}</td>
 									</tr>
 								))}

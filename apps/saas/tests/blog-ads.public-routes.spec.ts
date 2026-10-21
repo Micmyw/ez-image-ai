@@ -217,7 +217,10 @@ async function watchApp(page: Page, context: BrowserContext) {
 }
 
 async function acceptExistingConsent(context: BrowserContext) {
-	await context.addCookies([{ name: "consent", value: "true", url: new URL(baseUrl).origin }]);
+	await context.addCookies([
+		{ name: "consent", value: "true", url: new URL(baseUrl).origin },
+		{ name: "consent_version", value: "2", url: new URL(baseUrl).origin },
+	]);
 }
 
 async function expectAppUrl(page: Page, pathname: string) {
@@ -506,7 +509,7 @@ test.describe("real app blog ad isolation (empty document fixtures, no inventory
 		await expect(page.getByRole("button", { name: "Show blog ads", exact: true })).toHaveCount(0);
 		await expectNoAds(page, evidence);
 		expect(evidence.fixtureDocumentRequests).toEqual([]);
-		await page.getByRole("button", { name: "Allow optional", exact: true }).click();
+		await page.getByRole("button", { name: "Allow analytics", exact: true }).click();
 		await expect(page.getByRole("button", { name: "Show blog ads", exact: true })).toBeVisible();
 		await expectNoAds(page, evidence);
 		expect(evidence.fixtureDocumentRequests).toEqual([]);

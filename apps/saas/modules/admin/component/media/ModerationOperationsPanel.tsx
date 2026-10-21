@@ -133,7 +133,10 @@ export function ModerationOperationsPanel() {
 										</p>
 										<Badge>{statusLabel(incident.status)}</Badge>
 									</div>
-									<p className="text-sm">{errorLabel(incident.lastErrorCode)}</p>
+									<p className="text-sm">
+										{errorLabel(incident.lastErrorCode)}{" "}
+										<code className="text-xs break-all">({incident.lastErrorCode})</code>
+									</p>
 									<dl className="gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3 grid">
 										<div>
 											<dt className="text-muted-foreground">{t("failureCount")}</dt>

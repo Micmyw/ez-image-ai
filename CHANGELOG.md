@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-10-21 — First-party analytics and regional privacy choices
+
+- Replace PostHog delivery and deployment requirements with first-party conversion observations and anonymous hourly page/source counters.
+- Gate GA4, Clarity and persistent attribution with trusted-region rules, versioned choices and browser privacy signals; allow reopening privacy settings on every page.
+- Cover image/video generation in Clarity using masked inputs and bounded input/option/stage diagnostics; stop recording on private routes and after refusal.
+- Show aggregate traffic and Chinese generation diagnostics in the existing private administrator dashboard.
+
+## 2026-10-21 — Private administrator Chinese display
+
+- Show Simplified Chinese navigation, conversion analytics, order attribution and media/moderation operations inside the existing administrator-only pages.
+- Keep public locale settings unchanged and retain original diagnostic codes alongside Chinese explanations.
+
+## 2026-10-21 — Conversion visibility and attribution
+
+- Preserve validated UTM attribution, including ChatGPT, on public tool and model page views.
+- Add consented first-party visit and checkout observations for subscriptions, credit packs and Image Pass purchases.
+- Show customer registration cohorts, actual generation outcomes, checkout creation and verified payments with source/device filters, unknown-source coverage and first-attempt failures.
+- Exclude identified administrator traffic; browser redirects never confirm payment.
+
 ## 2026-10-20 — Faster pages, workspace panels and account interactions
 
 - Let text editing and reference-image editing become ready independently, with bounded availability checks and an explicit retry after failure.

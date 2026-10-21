@@ -30,6 +30,7 @@ import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 import { bindVideoEffectPaymentReturn } from "../../video-effects/lib/payment-return";
+import { trackCheckoutStage } from "../lib/conversion";
 import {
 	createCheckoutAttemptController,
 	filterSubscriptionCheckoutProviders,
@@ -200,6 +201,7 @@ export function PricingTable({
 		provider: SubscriptionCheckoutProvider | null,
 	) => {
 		if (hasSubscription || checkoutBlocked || inflight.current) return;
+		trackCheckoutStage("purchase_clicked", "PLAN");
 		captureCheckoutTrigger();
 		if (!(userId || organizationId)) {
 			if (planId === "creator" || planId === "ultimate" || planId === "studio") {
@@ -212,6 +214,7 @@ export function PricingTable({
 
 		if (!provider || (planId !== "creator" && planId !== "ultimate" && planId !== "studio")) {
 			setCheckoutUnavailable(true);
+			trackCheckoutStage("checkout_failed", "PLAN", { code: "SERVICE_UNAVAILABLE" });
 			return;
 		}
 
@@ -234,6 +237,7 @@ export function PricingTable({
 		try {
 			const attribution = await getCurrentCheckoutAttribution();
 			if (!isCurrent()) return;
+			trackCheckoutStage("checkout_requested", "PLAN");
 			const { checkoutLink, checkoutIntentId } = await createCheckoutLinkMutation.mutateAsync({
 				provider,
 				planId,
@@ -248,8 +252,10 @@ export function PricingTable({
 			clearCheckoutTrigger();
 			bindVideoEffectPaymentReturn(ownerId ?? undefined, checkoutIntentId, originatingPath);
 			payment.redirecting();
+			trackCheckoutStage("checkout_redirected", "PLAN");
 			window.location.href = checkoutLink;
 		} catch (error) {
+			trackCheckoutStage("checkout_failed", "PLAN", error);
 			if (!isCurrent()) return;
 			const conflict = error instanceof Error && "code" in error && error.code === "CONFLICT";
 			if (conflict)

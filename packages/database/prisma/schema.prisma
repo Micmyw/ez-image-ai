@@ -55,9 +55,46 @@ model User {
   guestLinkRegistrations   GuestLinkIntent[]            @relation("GuestLinkRegisteredUser")
   guestResultGrants        GuestResultAccessGrant[]     @relation("GuestGrantRegisteredUser")
   supportTickets           SupportTicket[]
+  growthEvents             GrowthEvent[]
 
   @@unique([email])
   @@map("user")
+}
+
+/// Consented browser observations only; never billing or generation truth.
+model GrowthEvent {
+  id            String   @id
+  sessionHash   String
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  internal      Boolean  @default(false)
+  name          String
+  path          String?
+  source        String?
+  medium        String?
+  campaign      String?
+  device        String
+  productKind   String?
+  errorCategory String?
+  diagnostics   Json?
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([createdAt])
+  @@index([sessionHash, createdAt])
+  @@index([userId, createdAt])
+  @@map("growth_event")
+}
+
+/// Anonymous hourly counters; no visitor or account identifiers.
+model TrafficAggregate {
+  hour   DateTime @db.Timestamptz(3)
+  path   String
+  source String
+  device String
+  views  Int      @default(0)
+
+  @@id([hour, path, source, device])
+  @@map("traffic_aggregate")
 }
 
 model Session {

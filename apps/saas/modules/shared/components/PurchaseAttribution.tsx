@@ -5,15 +5,19 @@ import {
 	captureCheckoutTrigger,
 	captureRegistrationFirstTouch,
 	clearPurchaseAttribution,
+	preparePurchaseAttribution,
 } from "@shared/lib/purchase-attribution";
 import { useEffect } from "react";
 
 export function PurchaseAttribution() {
-	const { userHasConsented } = useCookieConsent();
+	const { analyticsAllowed, policyReady } = useCookieConsent();
 	useEffect(() => {
-		void captureRegistrationFirstTouch();
-		if (!userHasConsented) clearPurchaseAttribution();
-	}, [userHasConsented]);
+		preparePurchaseAttribution();
+	}, []);
+	useEffect(() => {
+		if (analyticsAllowed) void captureRegistrationFirstTouch();
+		else if (policyReady) clearPurchaseAttribution();
+	}, [analyticsAllowed, policyReady]);
 	useEffect(() => {
 		function capture(event: MouseEvent) {
 			if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)

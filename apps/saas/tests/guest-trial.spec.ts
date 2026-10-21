@@ -130,7 +130,10 @@ async function enterGuestWorkspace(page: Page, prompt: string, clientIp: string)
 			}),
 		);
 	}
-	await page.context().addCookies([{ name: "consent", value: "true", url: saasUrl }]);
+	await page.context().addCookies([
+		{ name: "consent", value: "true", url: saasUrl },
+		{ name: "consent_version", value: "2", url: saasUrl },
+	]);
 	await page.goto("/");
 	await page.getByLabel(/image prompt|edit instruction/i).fill(prompt);
 	const chooserPromise = page.waitForEvent("filechooser");

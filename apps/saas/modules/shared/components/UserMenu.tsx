@@ -106,6 +106,7 @@ export function UserMenu({
 				ref={trigger}
 				render={(props) => (
 					<button
+						data-clarity-mask="true"
 						{...props}
 						type="button"
 						className={cn(
@@ -130,6 +131,7 @@ export function UserMenu({
 			/>
 
 			<DropdownMenuContent
+				data-clarity-mask="true"
 				positionMethod={studio ? "fixed" : undefined}
 				data-studio-menu={studio ? "" : undefined}
 				onClickCapture={openWorkspacePanel}

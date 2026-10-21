@@ -22,6 +22,7 @@ export const ADMIN_ANALYTICS_REPORT_MAX_DAYS = 92;
 
 export interface AdminAnalyticsUser {
 	id: string;
+	role?: string | null;
 	createdAt: Date;
 	isAnonymous: boolean;
 	legacyGuest: boolean;
@@ -285,7 +286,9 @@ export function buildAdminAnalyticsFunnel(
 	const scoped = scopedFacts(facts, input.scope);
 	const data = selectEnvironment(scoped, environment);
 	const since = new Date(now.getTime() - ADMIN_ANALYTICS_RANGES[input.range]);
-	const cohort = data.users.filter((user) => inWindow(user.createdAt, since, now));
+	const cohort = data.users.filter(
+		(user) => user.role !== "admin" && inWindow(user.createdAt, since, now),
+	);
 	const filters = input.filters ?? {};
 	const users = cohort.filter((user) => {
 		const attribution = adminAnalyticsAttribution(user.registrationAttribution);

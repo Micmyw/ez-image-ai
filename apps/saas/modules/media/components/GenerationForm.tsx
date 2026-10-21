@@ -9,7 +9,9 @@ import { getImageProductSelectionContract, IMAGE_PASS_PUBLIC_OFFER } from "@repo
 import { EZPIC_PRODUCT_KEYS, getPlanEntitlement, type ImageAspectRatio } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
+import { textLengthBucket, generationErrorCategory } from "@repo/utils/lib/generation-diagnostics";
 import { STUDIO_ASSET_SELECTED_EVENT } from "@shared/components/studio/studio-context";
+import { useGenerationAnalytics, trackGenerationAction } from "@shared/hooks/generation-analytics";
 import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { captureCheckoutTrigger } from "@shared/lib/purchase-attribution";
@@ -305,6 +307,17 @@ export function GenerationForm({
 	]);
 	const error = generation.createGeneration.error ?? generation.createQuote.error;
 	const errorKey = getEditorErrorKey(error);
+	useGenerationAnalytics(
+		{
+			mediaKind: "image",
+			phase: error ? "blocked" : sourcePending ? "uploading" : "editing",
+			publicModel: values.productKey,
+			textLength: textLengthBucket(values.prompt.trim().length),
+			inputCount: values.sourceAssetId ? 1 : 0,
+			...(error ? { reason: generationErrorCategory(errorKey) } : {}),
+		},
+		active,
+	);
 	const safetyOutcome = getPromptSafetyOutcome(error);
 	const displayedCredits = generation.quote?.credits ?? selectedCell?.credits ?? product?.credits;
 	const isImageEdit = requireReference || sourcePending || Boolean(values.sourceAssetId);
@@ -576,6 +589,13 @@ export function GenerationForm({
 			inert={!ready}
 			id="registered-generator"
 			onSubmit={form.handleSubmit((validated) => {
+				trackGenerationAction({
+					mediaKind: "image",
+					phase: "confirm",
+					publicModel: validated.productKey,
+					textLength: textLengthBucket(validated.prompt.trim().length),
+					inputCount: validated.sourceAssetId ? 1 : 0,
+				});
 				if (!passSelected && !allowedProductKeys.includes(validated.productKey)) {
 					setUpgradeOpen(true);
 					return;

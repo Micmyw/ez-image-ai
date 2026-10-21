@@ -17,6 +17,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 
 import { bindVideoEffectPaymentReturn } from "../../video-effects/lib/payment-return";
 import { usePaymentAction } from "../hooks/use-payment-action";
+import { trackCheckoutStage } from "../lib/conversion";
 import { saveCreditPackCheckoutContext } from "../lib/credit-pack-checkout-context";
 import {
 	createCreditPackCheckoutAttemptController,
@@ -181,6 +182,7 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 
 	async function beginCheckout(provider: CreditPackCheckoutProvider) {
 		if (!canPay || inflight.current) return;
+		trackCheckoutStage("purchase_clicked", "CREDIT_PACK");
 		if (!ownerId || !scope) {
 			router.push("/signup?redirectTo=%2Fpricing");
 			return;
@@ -205,6 +207,7 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 				payment.getSnapshot() !== action
 			)
 				return;
+			trackCheckoutStage("checkout_requested", "CREDIT_PACK");
 			const { checkoutLink, intentId } = await createCheckout.mutateAsync({
 				provider,
 				packKey,
@@ -224,8 +227,10 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 			setRecovery({ scope, intentId });
 			bindVideoEffectPaymentReturn(ownerId, intentId, originatingPath);
 			payment.redirecting();
+			trackCheckoutStage("checkout_redirected", "CREDIT_PACK");
 			window.location.href = checkoutLink;
 		} catch (error) {
+			trackCheckoutStage("checkout_failed", "CREDIT_PACK", error);
 			if (!mounted.current || currentScope.current !== scope || inflight.current !== request)
 				return;
 			if (payment.getSnapshot() === action) payment.release();

@@ -32,6 +32,7 @@ export function collectCheckoutTrigger(value: string, now = new Date()): Capture
 const fixedPaths = new Set([
 	"/",
 	"/pricing",
+	"/image-pass",
 	"/choose-plan",
 	"/create",
 	"/try",

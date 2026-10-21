@@ -10,6 +10,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 import { usePaymentAction } from "../hooks/use-payment-action";
+import { trackCheckoutStage } from "../lib/conversion";
 
 export function PendingSubscriptionCheckout({ compact = false }: { compact?: boolean }) {
 	const t = useTranslations("pricing.pendingCheckout");
@@ -96,6 +97,8 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 		try {
 			const input = { checkoutIntentId: checkout.id };
 			if (action === "resume") {
+				trackCheckoutStage("purchase_clicked", "PLAN");
+				trackCheckoutStage("checkout_requested", "PLAN");
 				const result = await resume.mutateAsync(input);
 				if (
 					!mounted.current ||
@@ -104,6 +107,7 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 				)
 					return;
 				payment.redirecting();
+				trackCheckoutStage("checkout_redirected", "PLAN");
 				window.location.assign(result.checkoutLink);
 				redirecting = true;
 			} else {
@@ -119,7 +123,8 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 				queryClient.setQueryData(queryOptions.queryKey, result.status === "CLOSED" ? null : result);
 				await queryClient.invalidateQueries({ queryKey: orpc.payments.key() });
 			}
-		} catch {
+		} catch (error) {
+			if (action === "resume") trackCheckoutStage("checkout_failed", "PLAN", error);
 			if (
 				mounted.current &&
 				currentOwner.current === ownerId &&

@@ -4,6 +4,7 @@ import { useSession } from "@auth/hooks/use-session";
 import { useGenerationMode } from "@media/lib/generation-mode-context";
 import { schedulePrivatePlaybackRefresh } from "@media/lib/private-playback-refresh";
 import { Button } from "@repo/ui/components/button";
+import { useGenerationAnalytics } from "@shared/hooks/generation-analytics";
 import { useQuery } from "@tanstack/react-query";
 import { DownloadIcon, RefreshCwIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -77,6 +78,7 @@ function PrivateVideo({ jobId }: { jobId: string }) {
 				!access.isError && (
 					// oxlint-disable-next-line jsx-a11y/media-has-caption -- No transcript is supplied with the original model audio; fabricated captions would misrepresent it.
 					<video
+						data-clarity-mask="true"
 						key={`${access.data.url}:${access.data.expiresAt}`}
 						ref={video}
 						controls
@@ -139,7 +141,9 @@ export function VideoStateCard({ state }: { state: VideoState }) {
 					{t(`credits.${state.creditState}`, { credits: state.credits })}
 				</p>
 			</div>
-			<p className="text-xs break-all text-muted-foreground">{t("jobId", { id: state.jobId })}</p>
+			<p data-clarity-mask="true" className="text-xs break-all text-muted-foreground">
+				{t("jobId", { id: state.jobId })}
+			</p>
 			{state.creditState !== "RELEASED" && state.pricing?.audience === "annual" && (
 				<VideoRetailPrice pricing={state.pricing} />
 			)}
@@ -154,6 +158,19 @@ export function VideoStateCard({ state }: { state: VideoState }) {
 export function VideoJob({ jobId }: { jobId: string }) {
 	const t = useTranslations("videoV1");
 	const job = useVideoJob(jobId);
+	const analyticsActive = useGenerationMode()?.mode !== "image";
+	useGenerationAnalytics(
+		{
+			mediaKind: "video",
+			phase:
+				job.data?.stage === "READY"
+					? "succeeded"
+					: job.data?.stage === "FAILED"
+						? "failed"
+						: "submitted",
+		},
+		!!job.data && analyticsActive,
+	);
 	return (
 		<div className="space-y-3">
 			{job.isPending && <output>{t("loadingJob")}</output>}

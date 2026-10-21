@@ -6,15 +6,16 @@ import { type PropsWithChildren, useMemo } from "react";
 
 export function AdminMessagesProvider({
 	admin,
+	locale,
 	children,
-}: PropsWithChildren<{ admin: UnifiedAppMessages["admin"] }>) {
+}: PropsWithChildren<{ admin: UnifiedAppMessages["admin"]; locale?: string }>) {
 	const inheritedMessages = useMessages();
-	const locale = useLocale();
+	const inheritedLocale = useLocale();
 	const messages = useMemo(() => ({ ...inheritedMessages, admin }), [inheritedMessages, admin]);
 
 	return (
-		<NextIntlClientProvider locale={locale} messages={messages}>
-			{children}
+		<NextIntlClientProvider locale={locale ?? inheritedLocale} messages={messages}>
+			<div lang={locale ?? inheritedLocale}>{children}</div>
 		</NextIntlClientProvider>
 	);
 }

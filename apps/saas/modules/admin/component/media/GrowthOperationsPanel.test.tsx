@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next-intl", () => ({
+	useLocale: () => "en",
 	useTranslations:
 		(namespace: string) => (key: string, values?: Record<string, string | number>) => {
 			if (namespace === "media.create.products") {

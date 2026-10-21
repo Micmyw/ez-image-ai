@@ -16,6 +16,18 @@ export const UserScalarFieldEnumSchema = z.enum(['id', 'name', 'email', 'emailVe
 
 export type UserScalarFieldEnum = z.infer<typeof UserScalarFieldEnumSchema>;
 
+// File: GrowthEventScalarFieldEnum.schema.ts
+
+export const GrowthEventScalarFieldEnumSchema = z.enum(['id', 'sessionHash', 'userId', 'internal', 'name', 'path', 'source', 'medium', 'campaign', 'device', 'productKind', 'errorCategory', 'diagnostics', 'createdAt'])
+
+export type GrowthEventScalarFieldEnum = z.infer<typeof GrowthEventScalarFieldEnumSchema>;
+
+// File: TrafficAggregateScalarFieldEnum.schema.ts
+
+export const TrafficAggregateScalarFieldEnumSchema = z.enum(['hour', 'path', 'source', 'device', 'views'])
+
+export type TrafficAggregateScalarFieldEnum = z.infer<typeof TrafficAggregateScalarFieldEnumSchema>;
+
 // File: SessionScalarFieldEnum.schema.ts
 
 export const SessionScalarFieldEnumSchema = z.enum(['id', 'expiresAt', 'ipAddress', 'userAgent', 'userId', 'impersonatedBy', 'activeOrganizationId', 'token', 'createdAt', 'updatedAt'])
@@ -736,6 +748,41 @@ export const UserSchema = z.object({
 });
 
 export type UserType = z.infer<typeof UserSchema>;
+
+
+// File: GrowthEvent.schema.ts
+
+export const GrowthEventSchema = z.object({
+  id: z.string(),
+  sessionHash: z.string(),
+  userId: z.string().nullish(),
+  internal: z.boolean(),
+  name: z.string(),
+  path: z.string().nullish(),
+  source: z.string().nullish(),
+  medium: z.string().nullish(),
+  campaign: z.string().nullish(),
+  device: z.string(),
+  productKind: z.string().nullish(),
+  errorCategory: z.string().nullish(),
+  diagnostics: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
+  createdAt: z.date(),
+});
+
+export type GrowthEventType = z.infer<typeof GrowthEventSchema>;
+
+
+// File: TrafficAggregate.schema.ts
+
+export const TrafficAggregateSchema = z.object({
+  hour: z.date(),
+  path: z.string(),
+  source: z.string(),
+  device: z.string(),
+  views: z.number().int(),
+});
+
+export type TrafficAggregateType = z.infer<typeof TrafficAggregateSchema>;
 
 
 // File: Session.schema.ts

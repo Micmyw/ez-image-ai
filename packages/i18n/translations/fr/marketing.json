@@ -707,9 +707,14 @@
 	},
 	"common": {
 		"consent": {
-			"message": "Google Analytics et Microsoft Clarity fonctionnent automatiquement. Choisissez si vous autorisez les analyses facultatives de PostHog et l'enregistrement des sources d'inscription et des pages qui déclenchent les achats. Le stockage essentiel reste disponible.",
-			"decline": "Refuser les facultatifs",
-			"allow": "Autoriser les facultatifs"
+			"label": "Analyses et confidentialité",
+			"message": "Nous comptons les pages vues de façon anonyme, sans identifiant de visiteur. Les analyses facultatives aident à comprendre les sources et la génération d’images et de vidéos, avec des enregistrements Clarity masqués. Le texte saisi reste caché. Vous pouvez refuser la mesure d’audience ou modifier votre choix dans Confidentialité. Les fonctions essentielles restent disponibles.",
+			"decline": "Refuser les analyses",
+			"allow": "Autoriser les analyses",
+			"settings": "Paramètres de confidentialité",
+			"policy": "Politique de confidentialité",
+			"close": "Fermer",
+			"privacySignal": "Le signal de confidentialité de votre navigateur désactive les analyses et les enregistrements."
 		},
 		"footer": {
 			"blog": "Blog",

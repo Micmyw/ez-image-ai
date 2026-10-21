@@ -707,9 +707,14 @@
 	},
 	"common": {
 		"consent": {
-			"message": "Google Analytics und Microsoft Clarity laufen automatisch. Entscheide, ob du optionale PostHog-Produktanalysen sowie Aufzeichnungen der Registrierungsquellen und der Seiten, die Käufe auslösen, zulässt. Notwendiger Speicher bleibt verfügbar.",
-			"decline": "Optionale ablehnen",
-			"allow": "Optionale erlauben"
+			"label": "Analysen und Datenschutz",
+			"message": "Wir zählen anonyme Seitenaufrufe ohne Besucherkennung. Optionale Analysen helfen bei Herkunft und Bild-/Videogenerierung, einschließlich maskierter Clarity-Aufzeichnungen. Eingabetext bleibt verborgen. Sie können die Reichweitenmessung ablehnen oder Ihre Auswahl unter Datenschutz ändern. Notwendige Funktionen bleiben verfügbar.",
+			"decline": "Analysen ablehnen",
+			"allow": "Analysen erlauben",
+			"settings": "Datenschutzeinstellungen",
+			"policy": "Datenschutzerklärung",
+			"close": "Schließen",
+			"privacySignal": "Das Datenschutzsignal Ihres Browsers deaktiviert Analysen und Aufzeichnungen."
 		},
 		"footer": {
 			"blog": "Blog",

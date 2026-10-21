@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminDiagnosticCode } from "@admin/components/AdminDiagnosticCode";
 import { Button } from "@repo/ui/components/button";
 import { Card } from "@repo/ui/components/card";
 import { Input } from "@repo/ui/components/input";
@@ -143,7 +144,7 @@ function PaymentAttributionRecord({ row }: { row: PaymentAttributionRow }) {
 			<div className="gap-2 text-sm flex flex-wrap justify-between">
 				<code className="break-all">{row.id}</code>
 				<span>
-					{row.provider} · {row.status ?? t("unknown")}
+					{row.provider} · {row.status ? <AdminDiagnosticCode code={row.status} /> : t("unknown")}
 				</span>
 			</div>
 			<dl className="gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3 grid">

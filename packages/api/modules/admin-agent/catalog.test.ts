@@ -9,7 +9,7 @@ import { adminOperationCatalog, adminOpenApi } from "./discovery";
 
 describe("published capability contracts", () => {
 	it("registers only real handlers with unique names, routes and valid JSON schemas", () => {
-		expect(adminOperations).toHaveLength(14);
+		expect(adminOperations).toHaveLength(15);
 		expect(new Set(adminOperations.map((operation) => operation.name)).size).toBe(
 			adminOperations.length,
 		);
@@ -41,6 +41,9 @@ describe("published capability contracts", () => {
 			scope: { kind: "user", userId: "customer" },
 			permissions: [...ADMIN_PERMISSION_CODES],
 		});
+		expect(catalog.operations.some((operation) => operation.name === "analytics_conversion")).toBe(
+			false,
+		);
 		expect(
 			catalog.operations.some((operation) => operation.name.startsWith("notifications_")),
 		).toBe(false);

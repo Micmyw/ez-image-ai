@@ -9,7 +9,25 @@ import {
 } from "../../shared/admin-analytics";
 import { readAdminAnalyticsFacts } from "../../shared/admin-analytics-reader";
 import type { AdminScope } from "../../shared/admin-scope";
+import {
+	buildConversionFunnel,
+	readConversionObservations,
+	type ConversionInput,
+} from "../../shared/conversion-funnel";
 import { db } from "../client";
+
+export function getAdminConversionFunnel(input: ConversionInput) {
+	const timed = { ...input, now: input.now ?? new Date() };
+	return db.$transaction(
+		async (tx) => {
+			const query = <T>(statement: string, parameters: readonly unknown[]) =>
+				tx.$queryRawUnsafe<T[]>(statement, ...parameters);
+			const facts = await readAdminAnalyticsFacts(query, { kind: "platform" });
+			return buildConversionFunnel(facts, await readConversionObservations(query, timed), timed);
+		},
+		{ isolationLevel: "RepeatableRead", timeout: 30_000 },
+	);
+}
 
 // SQL is authored in admin-analytics-reader; values are positional parameters.
 const readFacts = (scope: AdminScope) =>

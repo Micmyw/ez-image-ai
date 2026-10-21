@@ -1,10 +1,13 @@
 "use client";
 
 import { ComposerHeader } from "@media/components/editor/ComposerHeader";
+import { useGenerationMode } from "@media/lib/generation-mode-context";
 import { getVideoModel, isVideoModelRetired } from "@repo/config/video-models";
 import type { VideoRetailDisplay } from "@repo/config/video-pricing.server";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
+import { textLengthBucket, generationErrorCategory } from "@repo/utils/lib/generation-diagnostics";
+import { useGenerationAnalytics, trackGenerationAction } from "@shared/hooks/generation-analytics";
 import { FilmIcon, HistoryIcon, ImagePlusIcon, XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -56,6 +59,24 @@ export function VideoComposer(props: {
 	const fileInput = useRef<HTMLInputElement>(null);
 	const model = getVideoModel(draft.productKey)!;
 	const canReference = model.modes.includes("image-to-video");
+	const diagnostics = {
+		mediaKind: "video" as const,
+		publicModel: draft.productKey,
+		textLength: textLengthBucket(draft.prompt.trim().length),
+		inputCount: draft.inputAssetId ? 1 : 0,
+		duration: draft.duration,
+		resolution: draft.resolution as "720p",
+		aspectRatio: draft.aspectRatio as "16:9",
+		sound: draft.sound,
+	};
+	useGenerationAnalytics(
+		{
+			...diagnostics,
+			phase: props.error ? "blocked" : props.uploading ? "uploading" : quote ? "quote" : "editing",
+			...(props.error ? { reason: generationErrorCategory(props.error) } : {}),
+		},
+		useGenerationMode()?.mode !== "image",
+	);
 	const pricing =
 		quote && (!props.quoteExpired || props.confirmation) ? quote.pricing : props.previewPricing;
 	return (
@@ -70,7 +91,7 @@ export function VideoComposer(props: {
 				<ComposerHeader />
 				<VideoAnnualBanner pricing={pricing} disabled={locked || props.uploading} />
 				<div className="video-composer-inputs">
-					<div className="video-reference">
+					<div data-clarity-mask="true" className="video-reference">
 						<input
 							ref={fileInput}
 							id="video-image"
@@ -185,7 +206,10 @@ export function VideoComposer(props: {
 								disabled={
 									(!props.enabled && !props.confirmation) || Boolean(props.busy) || props.uploading
 								}
-								onClick={props.onConfirm}
+								onClick={() => {
+									trackGenerationAction({ ...diagnostics, phase: "confirm" });
+									props.onConfirm();
+								}}
 							>
 								{t(
 									props.busy === "create"
@@ -200,7 +224,10 @@ export function VideoComposer(props: {
 							<Button
 								data-test="video-generate"
 								disabled={!props.ready || !props.enabled || Boolean(props.busy) || props.uploading}
-								onClick={props.onGenerate}
+								onClick={() => {
+									trackGenerationAction({ ...diagnostics, phase: "quote" });
+									props.onGenerate();
+								}}
 							>
 								{props.busy === "quote"
 									? t("quoting")

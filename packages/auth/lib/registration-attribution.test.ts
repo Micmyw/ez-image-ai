@@ -29,7 +29,7 @@ function context(path: string, value: unknown = firstTouch, consent = "true") {
 		path,
 		request: new Request(`${origin}/api/auth${path}`, {
 			headers: {
-				cookie: `consent=${consent}; ${ATTRIBUTION_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(value))}`,
+				cookie: `consent=${consent}; consent_version=2; ${ATTRIBUTION_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(value))}`,
 			},
 		}),
 	};
@@ -64,7 +64,9 @@ describe("registration attribution boundary", () => {
 		).toMatchObject({ country: "DE" });
 		captured.request.headers.set(
 			"cookie",
-			captured.request.headers.get("cookie")!.replace("consent=true", "consent=false"),
+			captured.request.headers
+				.get("cookie")!
+				.replace("consent=true; consent_version=2", "consent=false"),
 		);
 		expect(
 			getRegistrationAttributionSnapshot(captured, origin, now, {
@@ -113,15 +115,18 @@ describe("registration attribution boundary", () => {
 		});
 	});
 
-	it.each(["false", "", "TRUE", "1"])("requires explicit consent=true (%s)", (consent) => {
-		expect(
-			getRegistrationAttributionSnapshot(
-				context("/sign-up/email", firstTouch, consent),
-				origin,
-				now,
-			),
-		).toBeNull();
-	});
+	it.each(["false", "", "TRUE", "1"])(
+		"requires explicit consent=true; consent_version=2 (%s)",
+		(consent) => {
+			expect(
+				getRegistrationAttributionSnapshot(
+					context("/sign-up/email", firstTouch, consent),
+					origin,
+					now,
+				),
+			).toBeNull();
+		},
+	);
 
 	it("accepts Better Auth's OAuth route template only for a configured provider", () => {
 		for (const id of ["google", "github"]) {
@@ -157,9 +162,9 @@ describe("registration attribution boundary", () => {
 	it("does not infer a first touch when cookies are missing, blocked, malformed, or stale", () => {
 		for (const cookie of [
 			"",
-			"consent=true",
-			`consent=true; ${ATTRIBUTION_COOKIE_NAME}=%invalid`,
-			`consent=true; ${ATTRIBUTION_COOKIE_NAME}=${"a".repeat(4097)}`,
+			"consent=true; consent_version=2",
+			`consent=true; consent_version=2; ${ATTRIBUTION_COOKIE_NAME}=%invalid`,
+			`consent=true; consent_version=2; ${ATTRIBUTION_COOKIE_NAME}=${"a".repeat(4097)}`,
 		]) {
 			expect(
 				getRegistrationAttributionSnapshot(

@@ -606,6 +606,7 @@ export const userNotificationPreference = mysqlTable(
 
 // Relations
 export const userRelations = relations(user, ({ many }) => ({
+	growthEvents: many(growthEvent),
 	sessions: many(session),
 	accounts: many(account),
 	passkeys: many(passkey),
@@ -1083,3 +1084,47 @@ export const supportTicketMessageRelations = relations(supportTicketMessage, ({ 
 		references: [supportTicket.id],
 	}),
 }));
+
+export const growthEvent = mysqlTable(
+	"growth_event",
+	{
+		id: varchar("id", { length: 256 }).primaryKey(),
+		sessionHash: varchar("sessionHash", { length: 256 }).notNull(),
+		userId: varchar("userId", { length: 256 }).references(() => user.id, {
+			onDelete: "cascade",
+			onUpdate: "cascade",
+		}),
+		internal: boolean("internal").notNull().default(false),
+		name: varchar("name", { length: 256 }).notNull(),
+		path: varchar("path", { length: 256 }),
+		source: varchar("source", { length: 256 }),
+		medium: varchar("medium", { length: 256 }),
+		campaign: varchar("campaign", { length: 256 }),
+		device: varchar("device", { length: 256 }).notNull(),
+		productKind: varchar("productKind", { length: 256 }),
+		errorCategory: varchar("errorCategory", { length: 256 }),
+		diagnostics: json("diagnostics"),
+		createdAt: timestamp("createdAt", { fsp: 3 }).defaultNow().notNull(),
+	},
+	(table) => [
+		index("growth_event_createdAt_idx").on(table.createdAt),
+		index("growth_event_sessionHash_createdAt_idx").on(table.sessionHash, table.createdAt),
+		index("growth_event_userId_createdAt_idx").on(table.userId, table.createdAt),
+	],
+);
+
+export const growthEventRelations = relations(growthEvent, ({ one }) => ({
+	user: one(user, { fields: [growthEvent.userId], references: [user.id] }),
+}));
+
+export const trafficAggregate = mysqlTable(
+	"traffic_aggregate",
+	{
+		hour: timestamp("hour", { fsp: 3 }).notNull(),
+		path: varchar("path", { length: 64 }).notNull(),
+		source: varchar("source", { length: 64 }).notNull(),
+		device: varchar("device", { length: 64 }).notNull(),
+		views: int("views").notNull().default(0),
+	},
+	(table) => [primaryKey({ columns: [table.hour, table.path, table.source, table.device] })],
+);

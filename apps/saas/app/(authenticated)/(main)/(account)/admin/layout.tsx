@@ -1,4 +1,5 @@
 import { AdminMessagesProvider } from "@admin/components/AdminMessagesProvider";
+import { ADMIN_DISPLAY_LOCALE, getAdminDisplayMessages } from "@admin/lib/messages";
 import { getSession } from "@auth/lib/server";
 import { config } from "@repo/auth/config";
 import { Logo } from "@repo/ui";
@@ -14,12 +15,12 @@ import {
 	LifeBuoyIcon,
 	UsersIcon,
 } from "lucide-react";
-import { getMessages, getTranslations } from "next-intl/server";
+import { createTranslator } from "next-intl";
+import { getMessages } from "next-intl/server";
 import { redirect } from "next/navigation";
 import type { PropsWithChildren } from "react";
 
 export default async function AdminLayout({ children }: PropsWithChildren) {
-	const t = await getTranslations("admin");
 	const session = await getSession();
 
 	if (!session) {
@@ -30,9 +31,15 @@ export default async function AdminLayout({ children }: PropsWithChildren) {
 		redirect("/");
 	}
 	const { admin } = await getMessages();
+	const displayMessages = getAdminDisplayMessages(admin);
+	const t = createTranslator({
+		locale: ADMIN_DISPLAY_LOCALE,
+		messages: { admin: displayMessages },
+		namespace: "admin",
+	});
 
 	return (
-		<AdminMessagesProvider admin={admin}>
+		<AdminMessagesProvider admin={displayMessages} locale={ADMIN_DISPLAY_LOCALE}>
 			<PageHeader title={t("title")} subtitle={t("description")} />
 
 			<SettingsMenu

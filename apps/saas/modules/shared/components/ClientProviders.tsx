@@ -5,6 +5,7 @@ import { UpgradeProvider } from "@payments/components/UpgradeProvider";
 import type { PropsWithChildren } from "react";
 
 import { ArticleNavigationBoundary } from "../../public-content/components/ArticleNavigationBoundary";
+import { ConversionTracking } from "./ConversionTracking";
 import { PurchaseAttribution } from "./PurchaseAttribution";
 
 export function ClientProviders({ children }: PropsWithChildren) {
@@ -18,7 +19,10 @@ export function ClientProviders({ children }: PropsWithChildren) {
 		>
 			<ArticleNavigationBoundary />
 			<PurchaseAttribution />
+			<ConversionTracking />
+			<AggregateTrafficTracking />
 			<UpgradeProvider>{children}</UpgradeProvider>
 		</ProgressProvider>
 	);
 }
+import { AggregateTrafficTracking } from "./AggregateTrafficTracking";

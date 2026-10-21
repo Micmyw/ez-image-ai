@@ -8,6 +8,7 @@ type BrowserGrowthModule = Pick<typeof GrowthAnalytics, "trackBrowserGrowthEvent
 type Track = typeof GrowthAnalytics.trackBrowserGrowthEvent;
 let activeModule: BrowserGrowthModule | undefined;
 let consentRevision = 0;
+export const growthConsentRevision = () => consentRevision;
 
 export function invalidatePendingBrowserGrowthAnalytics() {
 	consentRevision++;

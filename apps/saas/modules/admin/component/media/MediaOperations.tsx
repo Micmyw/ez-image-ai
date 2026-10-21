@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminDiagnosticCode } from "@admin/components/AdminDiagnosticCode";
 import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
@@ -206,8 +207,12 @@ export function MediaOperations() {
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="PAYMENT">Payment</SelectItem>
-								<SelectItem value="PROVIDER">Generation</SelectItem>
+								<SelectItem value="PAYMENT">
+									<AdminDiagnosticCode code="PAYMENT" />
+								</SelectItem>
+								<SelectItem value="PROVIDER">
+									<AdminDiagnosticCode code="PROVIDER" />
+								</SelectItem>
 							</SelectContent>
 						</Select>
 						<Input
@@ -237,9 +242,15 @@ export function MediaOperations() {
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="DISPATCH">Dispatch</SelectItem>
-								<SelectItem value="FINALIZE">Finalize</SelectItem>
-								<SelectItem value="SETTLE">Settle</SelectItem>
+								<SelectItem value="DISPATCH">
+									<AdminDiagnosticCode code="DISPATCH" />
+								</SelectItem>
+								<SelectItem value="FINALIZE">
+									<AdminDiagnosticCode code="FINALIZE" />
+								</SelectItem>
+								<SelectItem value="SETTLE">
+									<AdminDiagnosticCode code="SETTLE" />
+								</SelectItem>
 							</SelectContent>
 						</Select>
 						<Input

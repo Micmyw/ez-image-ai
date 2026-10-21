@@ -3,11 +3,12 @@ import {
 	sanitizeFirstTouchAttribution,
 	type RegistrationAttribution,
 } from "@repo/utils/lib/acquisition-attribution";
+import { resolveAnalyticsPolicy } from "@repo/utils/lib/analytics-policy";
 import { parseCookie } from "cookie";
 
 import { isAnonymousUser, type BetterAuthUserBoundary } from "./anonymous-boundary";
 
-interface RegistrationRequestContext {
+export interface RegistrationRequestContext {
 	path?: string;
 	request?: Request;
 	headers?: Headers;
@@ -37,7 +38,7 @@ export function getRegistrationAttributionSnapshot(
 	if (!isRegistrationCreationPath(context?.path, context?.params?.id)) return null;
 	const headers = context?.headers ?? context?.request?.headers;
 	const cookies = parseCookie(headers?.get("cookie") ?? "");
-	if (cookies.consent !== "true") return null;
+	if (!headers || !resolveAnalyticsPolicy(headers, environment).analyticsAllowed) return null;
 	const encoded = cookies[ATTRIBUTION_COOKIE_NAME];
 	if (!encoded || encoded.length > 4096) return null;
 

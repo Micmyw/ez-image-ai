@@ -41,7 +41,7 @@ describe.skipIf(!enabled)("admin analytics production SQL in isolated PostgreSQL
 		await client.query(`SET search_path TO "${schema}"`);
 		await client.query("SET TIME ZONE 'UTC'");
 		await client.query(`
-			CREATE TABLE "user" (id text PRIMARY KEY, email text, "createdAt" timestamptz, "isAnonymous" boolean, "registrationAttribution" jsonb);
+			CREATE TABLE "user" (id text PRIMARY KEY, email text, "createdAt" timestamptz, "isAnonymous" boolean, "registrationAttribution" jsonb, role text);
 			CREATE TABLE "member" ("userId" text, "organizationId" text);
 			CREATE TABLE "payment_checkout_intent" (id text PRIMARY KEY, provider text, "ownerType" text, "ownerId" text, "submittedByUserId" text, "createdAt" timestamptz, "productKind" text, "providerSessionId" text, "providerOrderId" text);
 			CREATE TABLE "subscription" (id text PRIMARY KEY, provider text, "providerSubscriptionId" text, "ownerType" text, "ownerId" text, status text, "createdAt" timestamptz, "currentPeriodEnd" timestamptz, "renewalDisabledAt" timestamptz, "refundTerminationRequestedAt" timestamptz, "initialPaymentEvidence" jsonb);
@@ -69,7 +69,7 @@ describe.skipIf(!enabled)("admin analytics production SQL in isolated PostgreSQL
 			countrySource: "registration_proxy",
 		};
 		await client.query(
-			`INSERT INTO "user" VALUES
+			`INSERT INTO "user" (id, email, "createdAt", "isAnonymous", "registrationAttribution") VALUES
 			('a','a@example.test','2026-10-19',false,$1), ('b','b@example.test','2026-10-19',false,null),
 			('anonymous','guest@anonymous.invalid','2026-10-19',true,null), ('legacy','old@guest.invalid','2026-10-19',false,null);
 		`,

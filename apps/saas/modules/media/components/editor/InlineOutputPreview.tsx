@@ -116,6 +116,7 @@ export function InlineOutputPreview({
 		/>
 	) : (
 		<img
+			data-clarity-mask="true"
 			key={retryKey}
 			src={display.url}
 			alt={t("generatedAlt")}
@@ -150,6 +151,7 @@ function InlineComparison({
 	if (!input.data)
 		return (
 			<img
+				data-clarity-mask="true"
 				src={outputUrl}
 				alt={t("generatedAlt")}
 				onLoad={onLoad}

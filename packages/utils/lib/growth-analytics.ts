@@ -1,7 +1,9 @@
 import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 import { z } from "zod";
 
-import { registerBrowserGrowthAnalytics } from "./growth-analytics-browser";
+import { sendFirstPartyGrowthEvent } from "./conversion-transport";
+import { generationDiagnosticsSchema } from "./generation-diagnostics";
+import { growthConsentRevision, registerBrowserGrowthAnalytics } from "./growth-analytics-browser";
 import {
 	EZPIC_ANALYTICS_SESSION_COOKIE,
 	EZPIC_CONTENT_ATTRIBUTION_STORAGE_KEY,
@@ -17,6 +19,14 @@ export {
 } from "./growth-analytics-cookie";
 
 export const EZPIC_GROWTH_EVENT_NAMES = [
+	"generation_input_observed",
+	"generation_action_observed",
+	"page_viewed",
+	"identity_observed",
+	"purchase_clicked",
+	"checkout_requested",
+	"checkout_redirected",
+	"checkout_failed",
 	"video_effect_view",
 	"video_effect_sample_play",
 	"video_effect_inputs_ready",
@@ -111,6 +121,11 @@ export type GrowthContentAttribution = z.infer<typeof growthContentAttributionSc
 export const growthAnalyticsPropertiesSchema = z
 	.object({
 		...contentAttributionShape,
+		generation: generationDiagnosticsSchema.optional(),
+		productKind: z.enum(["PLAN", "CREDIT_PACK", "IMAGE_PASS"]).optional(),
+		errorCategory: z
+			.enum(["unavailable", "conflict", "unauthorized", "network", "unknown"])
+			.optional(),
 		task_hash: analyticsHashSchema.optional(),
 		plan: z.enum(["free", "creator", "ultimate", "studio"]).optional(),
 		productKey: z.enum(EZPIC_ANALYTICS_PRODUCT_KEYS).optional(),
@@ -579,7 +594,7 @@ export function trackBrowserGrowthEvent(
 			}
 			window.dispatchEvent(new CustomEvent(eventName, { detail }));
 		},
-		sendExternal: sendConfiguredPostHogGrowthEvent,
+		sendExternal: sendFirstPartyGrowthEvent,
 	});
 	return browserGrowthAnalyticsDispatcher.track(event, options);
 }
@@ -625,81 +640,32 @@ export async function hashGrowthTaskIdentity(
 	return `sha256:${[...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
-export function createPostHogGrowthSender(options: {
-	key: string;
-	host: string;
-	fetch: typeof fetch;
-}): (event: unknown) => Promise<void> {
-	if (!/^phc_[A-Za-z0-9_-]{10,}$/.test(options.key)) {
-		throw new Error("NEXT_PUBLIC_POSTHOG_KEY is invalid");
-	}
-	const host = productionAnalyticsHost(options.host);
-	return async (input) => {
-		if (containsSensitiveAnalyticsData(input)) throw new Error("ANALYTICS_EVENT_REJECTED");
-		const event = growthAnalyticsEventSchema.parse(input);
-		const distinctId = event.properties.anonymousSessionHash;
-		if (!distinctId) throw new Error("ANALYTICS_SESSION_REQUIRED");
-		const response = await options.fetch(new URL("/capture/", host).toString(), {
-			method: "POST",
-			credentials: "omit",
-			keepalive: true,
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({
-				api_key: options.key,
-				event: event.name,
-				properties: { ...event.properties, distinct_id: distinctId, $lib: "ezpic-browser" },
-			}),
-		});
-		if (!response.ok) throw new Error("POSTHOG_INGESTION_FAILED");
-	};
-}
-
-async function getOrCreateBrowserGrowthAnalyticsSessionHash(): Promise<string | undefined> {
+let pendingBrowserSessionHash: Promise<string | undefined> | undefined;
+export async function getOrCreateBrowserGrowthAnalyticsSessionHash(): Promise<string | undefined> {
 	if (typeof document === "undefined" || typeof crypto === "undefined") return undefined;
 	if (!hasGrowthAnalyticsConsent(document.cookie ?? "")) return undefined;
 	const existing = readGrowthAnalyticsSessionHash(document.cookie);
 	if (existing) return existing;
 	if (!crypto.getRandomValues || !crypto.subtle) return undefined;
-	const random = crypto.getRandomValues(new Uint8Array(32));
-	const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", random));
-	const hash = `sha256:${[...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
-	if (!hasGrowthAnalyticsConsent(document.cookie ?? "")) return undefined;
-	const secure =
-		typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
-	document.cookie = `${EZPIC_ANALYTICS_SESSION_COOKIE}=${hash}; Path=/; Max-Age=2592000; SameSite=Lax${secure}`;
-	return hash;
-}
-
-let configuredPostHogSender: ((event: unknown) => Promise<void>) | null | undefined;
-
-async function sendConfiguredPostHogGrowthEvent(event: GrowthAnalyticsEvent): Promise<void> {
-	if (configuredPostHogSender === undefined) {
-		const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
-		const host = process.env.NEXT_PUBLIC_POSTHOG_HOST?.trim();
-		if (!key && !host) configuredPostHogSender = null;
-		else if (!key || !host) throw new Error("POSTHOG_CONFIGURATION_INCOMPLETE");
-		else configuredPostHogSender = createPostHogGrowthSender({ key, host, fetch });
+	if (!pendingBrowserSessionHash) {
+		const revision = growthConsentRevision();
+		pendingBrowserSessionHash = (async () => {
+			const random = crypto.getRandomValues(new Uint8Array(32));
+			const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", random));
+			const hash = `sha256:${[...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+			if (revision !== growthConsentRevision() || !hasGrowthAnalyticsConsent(document.cookie ?? ""))
+				return undefined;
+			const secure =
+				typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+			document.cookie = `${EZPIC_ANALYTICS_SESSION_COOKIE}=${hash}; Path=/; Max-Age=2592000; SameSite=Lax${secure}`;
+			return hash;
+		})();
 	}
-	await configuredPostHogSender?.(event);
-}
-
-function productionAnalyticsHost(value: string): URL {
-	let url: URL;
 	try {
-		url = new URL(value);
-	} catch {
-		throw new Error("NEXT_PUBLIC_POSTHOG_HOST is invalid");
+		return await pendingBrowserSessionHash;
+	} finally {
+		pendingBrowserSessionHash = undefined;
 	}
-	if (
-		url.protocol !== "https:" ||
-		url.username ||
-		url.password ||
-		url.hostname.endsWith(".invalid") ||
-		["localhost", "127.0.0.1", "::1"].includes(url.hostname)
-	) {
-		throw new Error("NEXT_PUBLIC_POSTHOG_HOST must be a real HTTPS origin");
-	}
-	return new URL(url.origin);
 }
 
 type EzPicProductKey = (typeof EZPIC_ANALYTICS_PRODUCT_KEYS)[number];

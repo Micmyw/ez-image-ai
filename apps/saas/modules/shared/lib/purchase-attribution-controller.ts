@@ -9,6 +9,7 @@ import {
 	collectCheckoutTrigger,
 	firstTouchCookie,
 } from "@repo/utils/lib/acquisition-attribution-core";
+import { hasGrowthAnalyticsConsent } from "@repo/utils/lib/growth-analytics-cookie";
 
 import {
 	type AttributionStorage,
@@ -53,7 +54,7 @@ export function createPurchaseAttribution(
 			?.slice(name.length + 1);
 	}
 	function hasConsent() {
-		return readCookie("consent") === "true";
+		return hasGrowthAnalyticsConsent(runtime.cookie());
 	}
 	function remove(key: string) {
 		try {

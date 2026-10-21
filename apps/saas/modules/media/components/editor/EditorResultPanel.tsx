@@ -276,6 +276,7 @@ function SignedOutput({ jobId, assetId }: { jobId: string; assetId: string }) {
 	if (!output.data) return <p aria-busy="true">{t("loading")}</p>;
 	return (
 		<img
+			data-clarity-mask="true"
 			src={output.data.url}
 			alt={t("generatedAlt")}
 			onLoad={(event) => recordOutputLoaded(jobId, assetId, event.currentTarget)}
@@ -312,6 +313,7 @@ function SignedComparison({
 	if (state === "output-only" && output.data) {
 		return (
 			<img
+				data-clarity-mask="true"
 				src={output.data.url}
 				alt={t("generatedAlt")}
 				onLoad={(event) => recordOutputLoaded(jobId, outputAssetId, event.currentTarget)}

@@ -6,6 +6,7 @@ import de from "../../../../../../packages/i18n/translations/de/saas.json";
 import en from "../../../../../../packages/i18n/translations/en/saas.json";
 import es from "../../../../../../packages/i18n/translations/es/saas.json";
 import fr from "../../../../../../packages/i18n/translations/fr/saas.json";
+import { ADMIN_DISPLAY_LOCALE, getAdminDisplayMessages } from "../../lib/messages";
 import { PaymentAttributionRecords } from "./PaymentAttributionPanel";
 
 const attributed = {
@@ -39,6 +40,7 @@ describe("order attribution display", () => {
 	it.each([
 		["en", en],
 		["de", de],
+		[ADMIN_DISPLAY_LOCALE, { ...en, admin: getAdminDisplayMessages(en.admin) }],
 	] as const)(
 		"renders distinct registration and checkout pages with historical unknowns in %s",
 		(locale, messages) => {

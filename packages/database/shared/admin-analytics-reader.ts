@@ -31,7 +31,7 @@ const userScope = `($1 = 'platform' OR ($1 = 'user' AND u.id = $2)
 	OR ($1 = 'organization' AND EXISTS (SELECT 1 FROM "member" m WHERE m."userId" = u.id AND m."organizationId" = $2)))`;
 
 export const ADMIN_ANALYTICS_SQL = {
-	users: `SELECT u.id, u."createdAt", u."registrationAttribution", u."isAnonymous",
+	users: `SELECT u.id, u.role, u."createdAt", u."registrationAttribution", u."isAnonymous",
 		false AS "legacyGuest", ARRAY(SELECT m."organizationId" FROM "member" m WHERE m."userId" = u.id) AS "organizationIds"
 		FROM "user" u WHERE ${registered("u")} AND ${userScope} ${rowLimit}`,
 	checkouts: `SELECT c.id, c."ownerType"::text, c."ownerId", c."createdAt", u.id AS "userId"

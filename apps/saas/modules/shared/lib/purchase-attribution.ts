@@ -5,6 +5,7 @@ import {
 	collectFirstTouchAttribution,
 	firstTouchCookie,
 } from "@repo/utils/lib/acquisition-attribution-core";
+import { hasGrowthAnalyticsConsent } from "@repo/utils/lib/growth-analytics-cookie";
 
 import type {
 	AttributionIdentity,
@@ -50,10 +51,7 @@ export function createLazyPurchaseAttribution(
 	}
 	function hasConsent() {
 		try {
-			return runtime
-				.cookie()
-				.split(";")
-				.some((part) => part.trim() === "consent=true");
+			return hasGrowthAnalyticsConsent(runtime.cookie());
 		} catch {
 			return false;
 		}
@@ -304,6 +302,10 @@ function browserStore() {
 }
 
 export const captureRegistrationFirstTouch = () => browserStore()?.captureFirstTouch();
+/** Capture only the in-memory entry while the uncached policy request is pending. */
+export const preparePurchaseAttribution = () => {
+	browserStore();
+};
 export const captureCheckoutTrigger = () => browserStore()?.captureTrigger();
 export const completeRegistrationAttribution = () => browserStore()?.registrationComplete();
 export const syncPurchaseAttributionIdentity = (user: AttributionIdentity | null) =>

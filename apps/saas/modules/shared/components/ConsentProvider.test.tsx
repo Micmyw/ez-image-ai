@@ -8,6 +8,9 @@ const mocks = vi.hoisted(() => ({
 		consentStatus: "undecided" as "accepted" | "declined" | "undecided",
 		declineCookies: vi.fn(),
 		userHasConsented: false,
+		showBanner: true,
+		privacySignal: false,
+		closePreferences: vi.fn(),
 	},
 }));
 
@@ -32,6 +35,7 @@ describe("consent state", () => {
 	beforeEach(() => {
 		mocks.consent.consentStatus = "undecided";
 		mocks.consent.userHasConsented = false;
+		mocks.consent.showBanner = true;
 	});
 
 	it("preserves a declined server cookie instead of treating it as undecided", () => {
@@ -54,6 +58,7 @@ describe("consent state", () => {
 		expect(undecidedMarkup).toContain(">allow<");
 
 		mocks.consent.consentStatus = "declined";
+		mocks.consent.showBanner = false;
 		expect(renderToStaticMarkup(<ConsentBanner />)).toBe("");
 
 		mocks.consent.consentStatus = "accepted";

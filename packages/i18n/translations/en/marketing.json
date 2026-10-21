@@ -707,9 +707,14 @@
 	},
 	"common": {
 		"consent": {
-			"message": "Google Analytics and Microsoft Clarity run automatically. Choose whether to allow optional PostHog product analytics and records of registration sources and pages that trigger purchases. Essential storage remains available.",
-			"decline": "Decline optional",
-			"allow": "Allow optional"
+			"label": "Analytics and privacy",
+			"message": "We count anonymous page totals without a visitor ID. Optional analytics helps us understand sources and image/video generation, including masked Clarity recordings. Input text is hidden. You can decline all audience measurement or change your choice in Privacy settings. Essential features keep working.",
+			"decline": "Decline analytics",
+			"allow": "Allow analytics",
+			"settings": "Privacy settings",
+			"policy": "Privacy Policy",
+			"close": "Close",
+			"privacySignal": "Your browser privacy signal disables analytics and recording."
 		},
 		"footer": {
 			"blog": "Blog",

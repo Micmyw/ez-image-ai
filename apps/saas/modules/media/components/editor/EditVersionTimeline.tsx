@@ -205,6 +205,7 @@ function PrivateThumbnail({ assetId }: { assetId: string }) {
 		<div ref={ref} className="aspect-square overflow-hidden rounded-xl bg-muted">
 			{access.data && !access.isError ? (
 				<img
+					data-clarity-mask="true"
 					src={access.data.url}
 					alt={t("thumbnailAlt")}
 					loading="lazy"

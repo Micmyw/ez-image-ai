@@ -18,5 +18,9 @@ export function StudioPanels({
 }: StudioPanelProps & { component: ComponentType<StudioPanelProps> }) {
 	const { user } = useSession();
 	if (!user) return null;
-	return <Panel {...props} />;
+	return (
+		<div data-clarity-mask="true">
+			<Panel {...props} />
+		</div>
+	);
 }

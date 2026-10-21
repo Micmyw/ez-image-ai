@@ -13,7 +13,10 @@ function harness(
 ) {
 	let url = new URL(initialUrl);
 	let time = new Date("2026-10-08T10:00:00.000Z");
-	const cookies = new Map<string, string>([["consent", consent]]);
+	const cookies = new Map<string, string>([
+		["consent", consent],
+		["consent_version", "2"],
+	]);
 	const stored = new Map<string, string>();
 	const writes: string[] = [];
 	const runtime = {
@@ -78,6 +81,8 @@ describe("consented registration first touch", () => {
 			utmSource: "google",
 			utmMedium: "cpc",
 			utmCampaign: "fall",
+			utmTerm: null,
+			utmContent: null,
 			capturedAt: "2026-10-08T10:00:00.000Z",
 		});
 		const value = JSON.stringify(app.firstTouch());

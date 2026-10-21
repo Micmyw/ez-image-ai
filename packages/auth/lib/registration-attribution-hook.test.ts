@@ -179,7 +179,7 @@ describe("Better Auth registration attribution hooks with an isolated memory ada
 	it.each([
 		"",
 		sourceCookie("/blog/declined", "false"),
-		`consent=true; ${ATTRIBUTION_COOKIE_NAME}=malformed`,
+		`consent=true; consent_version=2; ${ATTRIBUTION_COOKIE_NAME}=malformed`,
 	])(
 		"creates the account without recording absent, declined or malformed source (%s)",
 		async (cookie) => {

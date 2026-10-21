@@ -31,7 +31,7 @@ describe("template analytics use the existing consent boundary", () => {
 		});
 		expect(await dispatcher.track(event, { dedupeKey: "accepted:job" })).toBe("blocked");
 		expect(dispatch).not.toHaveBeenCalled();
-		cookie = "consent=true";
+		cookie = "consent=true; consent_version=2";
 		expect(await dispatcher.track(event, { dedupeKey: "accepted:job" })).toBe("sent");
 		expect(await dispatcher.track(event, { dedupeKey: "accepted:job" })).toBe("duplicate");
 		expect(dispatch).toHaveBeenCalledTimes(1);

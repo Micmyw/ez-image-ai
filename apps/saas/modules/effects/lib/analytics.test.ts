@@ -45,7 +45,7 @@ function harness() {
 	const events: GrowthAnalyticsEvent[] = [];
 	const makeDispatcher = (attribution = store) =>
 		createBrowserGrowthAnalyticsDispatcher({
-			getCookie: () => (consent ? "consent=true" : "consent=false"),
+			getCookie: () => (consent ? "consent=true; consent_version=2" : "consent=false"),
 			resolveAnonymousSessionHash: async () => sessionHash,
 			hashTask: async () => taskHash,
 			attribution,
@@ -236,7 +236,7 @@ describe("consent-aware tab attribution", () => {
 		const app = harness();
 		app.store.set(context);
 		const dispatcher = createBrowserGrowthAnalyticsDispatcher({
-			getCookie: () => (app.store.read() ? "consent=true" : "consent=false"),
+			getCookie: () => (app.store.read() ? "consent=true; consent_version=2" : "consent=false"),
 			attribution: app.store,
 			resolveAnonymousSessionHash: async () => {
 				app.setConsent(false);
@@ -251,7 +251,7 @@ describe("consent-aware tab attribution", () => {
 	it("suppresses reused editor events on protected preview", async () => {
 		const dispatch = vi.fn();
 		const dispatcher = createBrowserGrowthAnalyticsDispatcher({
-			getCookie: () => "consent=true",
+			getCookie: () => "consent=true; consent_version=2",
 			isSuppressed: () => true,
 			dispatch,
 		});

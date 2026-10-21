@@ -19,7 +19,10 @@ const module = { createPurchaseAttribution };
 
 function harness(consent = "true", load = vi.fn(async () => module)) {
 	let url = new URL("https://ezimageai.com/blog/portrait?utm_source=google&token=private#private");
-	const cookies = new Map([["consent", consent]]);
+	const cookies = new Map([
+		["consent", consent],
+		["consent_version", "2"],
+	]);
 	const stored = new Map<string, string>();
 	const runtime: AttributionRuntime = {
 		location: () => url,

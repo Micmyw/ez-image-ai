@@ -3,8 +3,11 @@ import {
 	getAdminAnalyticsFunnel,
 	getAdminAnalyticsOverview,
 	getAdminAnalyticsReport,
+	getAdminConversionFunnel,
 } from "@repo/database";
 
+import { AdminGatewayError } from "../admin-agent/types";
+import { conversionInputSchema, conversionOutputSchema } from "./conversion-types";
 import {
 	adminAnalyticsFunnelInputSchema,
 	adminAnalyticsFunnelOutputSchema,
@@ -17,6 +20,7 @@ import {
 export type AdminAnalyticsOperation =
 	| "analytics_overview"
 	| "analytics_funnel"
+	| "analytics_conversion"
 	| "analytics_report";
 
 /** All public transports authorize through the management executor before calling this handler. */
@@ -26,6 +30,12 @@ export async function executeAdminAnalyticsOperation(
 	context: { scope: AdminScope },
 ) {
 	switch (operation) {
+		case "analytics_conversion": {
+			if (context.scope.kind !== "platform") throw new AdminGatewayError("FORBIDDEN", 403);
+			return conversionOutputSchema.parse(
+				await getAdminConversionFunnel(conversionInputSchema.parse(input)),
+			);
+		}
 		case "analytics_overview": {
 			const parsed = adminAnalyticsOverviewInputSchema.parse(input);
 			return adminAnalyticsOverviewOutputSchema.parse(

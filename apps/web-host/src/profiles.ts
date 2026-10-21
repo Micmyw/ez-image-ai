@@ -298,6 +298,9 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 	// in the Next.js build. Keep their build values, but do not bind them a second time.
 	// Evidence paths are offline-only; production cannot enable local test endpoints.
 	const nonRuntimeVariables = new Set([
+		"NEXT_PUBLIC_POSTHOG_KEY",
+		"NEXT_PUBLIC_POSTHOG_HOST",
+		"EZPIC_POSTHOG_PROJECT_ID",
 		"VIDEO_V1_BUILD_ENABLED",
 		"VIDEO_V1_BUILD_ACCESS",
 		"VIDEO_V1_BUILD_PRICE_VERSION",

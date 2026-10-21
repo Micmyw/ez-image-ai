@@ -38,9 +38,9 @@ test("consented first touch survives content to pricing navigation and stores on
 		"/blog/1980s-ai-photo?utm_source=google&utm_medium=cpc&utm_campaign=fall&token=private-token#private",
 		{ referer: "https://www.google.com/search?token=private-referrer" },
 	);
-	await expect(page.getByRole("button", { name: "Allow optional", exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Allow analytics", exact: true })).toBeVisible();
 	expect((await context.cookies()).some((cookie) => cookie.name === cookieName)).toBe(false);
-	await page.getByRole("button", { name: "Allow optional", exact: true }).click();
+	await page.getByRole("button", { name: "Allow analytics", exact: true }).click();
 	await expect
 		.poll(async () => (await context.cookies()).some((cookie) => cookie.name === cookieName))
 		.toBe(true);
@@ -85,12 +85,12 @@ test("declined attribution remains absent across later public navigation", async
 }) => {
 	test.setTimeout(120_000);
 	await page.goto("/blog/1980s-ai-photo?utm_source=google");
-	await page.getByRole("button", { name: "Decline optional", exact: true }).click();
+	await page.getByRole("button", { name: "Decline analytics", exact: true }).click();
 	await page.locator('a[href="/pricing"]:visible').first().click();
 	await expect(page).toHaveURL(/\/pricing(?:\?|$)/);
 	expect((await context.cookies()).some((cookie) => cookie.name === cookieName)).toBe(false);
 	expect(await page.evaluate((key) => sessionStorage.getItem(key), triggerKey)).toBeNull();
 	await page.reload();
-	await expect(page.getByRole("button", { name: "Allow optional", exact: true })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: "Allow analytics", exact: true })).toHaveCount(0);
 	expect((await context.cookies()).some((cookie) => cookie.name === cookieName)).toBe(false);
 });

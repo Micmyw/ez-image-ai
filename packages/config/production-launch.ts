@@ -22,7 +22,7 @@ const environmentManifestSchema = z
 				mediaBucket: resourceIdSchema,
 				stripeWebhookScope: resourceIdSchema.optional(),
 				workflowEnvironment: resourceIdSchema,
-				posthogProject: resourceIdSchema,
+				posthogProject: resourceIdSchema.optional(),
 				sentryEnvironment: resourceIdSchema,
 				mailProvider: resourceIdSchema,
 			})
@@ -58,7 +58,6 @@ const environmentMatrixSchema = z
 			"database",
 			"mediaBucket",
 			"workflowEnvironment",
-			"posthogProject",
 			"sentryEnvironment",
 			"mailProvider",
 		] as const) {
@@ -89,7 +88,7 @@ export interface EzPicLaunchEnvironment {
 		mediaBucket: string;
 		stripeWebhookScope?: string;
 		workflowEnvironment: string;
-		posthogProject: string;
+		posthogProject?: string;
 		sentryEnvironment: string;
 		mailProvider: string;
 	};
@@ -263,7 +262,6 @@ export function validateEzPicLaunchEnvironment(
 
 	const saas = realHttpsOrigin(input, "NEXT_PUBLIC_SAAS_URL");
 	realHttpsOrigin(input, "S3_ENDPOINT");
-	realHttpsOrigin(input, "NEXT_PUBLIC_POSTHOG_HOST");
 	assertWorkflowsConfiguration({ ...input, NODE_ENV: "production" });
 
 	for (const key of [
@@ -278,9 +276,7 @@ export function validateEzPicLaunchEnvironment(
 		requiredString(input, key);
 	}
 	if (!usesHyperdriveDatabase(input)) requiredString(input, "DATABASE_URL");
-	if (!/^phc_[A-Za-z0-9_-]{10,}$/.test(requiredString(input, "NEXT_PUBLIC_POSTHOG_KEY"))) {
-		throw new Error("NEXT_PUBLIC_POSTHOG_KEY must be a configured public project key");
-	}
+
 	// Search Console may be verified through DNS; its optional HTML token is not a readiness gate.
 	assertNonPlaceholderToken(requiredString(input, "EZPIC_GSC_PROPERTY"), "EZPIC_GSC_PROPERTY");
 	assertProductionSupportEmail(requiredString(input, "NEXT_PUBLIC_SUPPORT_EMAIL"));
@@ -307,7 +303,6 @@ export function validateEzPicLaunchEnvironment(
 					}
 				: {}),
 			workflowEnvironment: requiredResourceId(input, "EZPIC_WORKFLOWS_ENVIRONMENT_ID"),
-			posthogProject: requiredResourceId(input, "EZPIC_POSTHOG_PROJECT_ID"),
 			sentryEnvironment: requiredResourceId(input, "EZPIC_SENTRY_ENVIRONMENT"),
 			mailProvider: requiredResourceId(input, "EZPIC_MAIL_PROVIDER_ID"),
 		},

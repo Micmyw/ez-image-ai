@@ -4,7 +4,7 @@ import {
 	sanitizeAttributionPath,
 	sanitizeFirstTouchAttribution,
 } from "@repo/utils/lib/acquisition-attribution";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const findUser = vi.hoisted(() => vi.fn());
 vi.mock("@repo/database/client", () => ({ db: { user: { findUnique: findUser } } }));
@@ -17,6 +17,7 @@ describe("bounded acquisition attribution", () => {
 		vi.clearAllMocks();
 		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", origin);
 	});
+	afterEach(() => vi.unstubAllEnvs());
 	it("retains landing and external origin while discarding private URL data", () => {
 		const source = collectFirstTouchAttribution(
 			`${origin}/blog/photo-ideas?utm_source=google&utm_medium=search&utm_campaign=autumn&email=secret%40mail.com&token=secret#password`,
@@ -104,7 +105,7 @@ describe("bounded acquisition attribution", () => {
 		};
 		findUser.mockResolvedValue({ registrationAttribution: registration });
 		const result = await captureCheckoutAttribution(
-			new Headers({ cookie: "consent=true" }),
+			new Headers({ cookie: "consent=true; consent_version=2" }),
 			{ triggerPath: `${origin}/video?token=secret#private` },
 			"user-a",
 			now,
@@ -122,6 +123,47 @@ describe("bounded acquisition attribution", () => {
 		expect(
 			checkoutTriggerInputSchema.safeParse({ triggerPath: "/create", userId: "user-b" }).success,
 		).toBe(false);
+	});
+	it.each([
+		{ cookie: "consent=regional; consent_version=2", "cf-ipcountry": "DE" },
+		{ cookie: "consent=regional; consent_version=2", "cf-ipcountry": "XX" },
+		{ cookie: "consent=true", "cf-ipcountry": "DE" },
+		{ cookie: "consent=false; consent_version=2", "cf-ipcountry": "US" },
+		{ cookie: "consent=true; consent_version=2", "cf-ipcountry": "US", "sec-gpc": "1" },
+		{ cookie: "consent=regional; consent_version=2", "cf-ipcountry": "US", dnt: "1" },
+	] as Record<string, string>[])(
+		"rechecks server policy before reading attribution: %j",
+		async (headers) => {
+			vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
+			vi.stubEnv("ANALYTICS_OPT_OUT_COUNTRIES", "US");
+			expect(
+				await captureCheckoutAttribution(
+					new Headers(headers),
+					{ triggerPath: "/create" },
+					"user-a",
+					now,
+				),
+			).toBeUndefined();
+			expect(findUser).not.toHaveBeenCalled();
+		},
+	);
+	it("allows a regional choice only when the trusted server location permits it", async () => {
+		vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
+		vi.stubEnv("ANALYTICS_OPT_OUT_COUNTRIES", "US");
+		findUser.mockResolvedValue(null);
+		const headers = new Headers({
+			cookie: "consent=regional; consent_version=2",
+			"cf-ipcountry": "US",
+		});
+		expect(
+			await captureCheckoutAttribution(headers, { triggerPath: "/create" }, "user-a", now),
+		).toMatchObject({ triggerPath: "/create" });
+		findUser.mockClear();
+		vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "");
+		expect(
+			await captureCheckoutAttribution(headers, { triggerPath: "/create" }, "user-a", now),
+		).toBeUndefined();
+		expect(findUser).not.toHaveBeenCalled();
 	});
 	it("preserves old frozen registration snapshots beyond cookie lifetime and old unknown data", () => {
 		const registration = {

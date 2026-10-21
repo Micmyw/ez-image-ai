@@ -1,3 +1,4 @@
+import { conversionInputSchema } from "../admin-analytics/conversion-types";
 import { executeAdminAnalyticsOperation } from "../admin-analytics/service";
 import {
 	adminAnalyticsOverviewInputSchema,
@@ -12,6 +13,19 @@ import {
 import { AdminGatewayError, type AdminOperation } from "./types";
 
 export const adminOperations: AdminOperation[] = [
+	{
+		name: "analytics_conversion",
+		description:
+			"Read consented traffic and the customer registration cohort, generation failures and trusted paid conversions.",
+		path: "/api/admin/analytics/conversion",
+		inputSchema: conversionInputSchema,
+		permission: "admin.analytics.read",
+		method: "GET",
+		readOnly: true,
+		platformOnly: true,
+		handler: (input, context) =>
+			executeAdminAnalyticsOperation("analytics_conversion", input, context),
+	},
 	...(
 		[
 			[

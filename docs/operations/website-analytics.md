@@ -1,90 +1,40 @@
 # Website analytics
 
-Browser loading behavior updated: September 16, 2026. Vendor verification below retains its
-original dates and scope.
+Implementation: 2026-10-21. These workspace changes are local; no production migration or deployment has been performed for this change.
 
-## Configuration
+## Services and scope
 
-Set these values in the ignored `.env.production.local` file:
+- PostHog transport, public build variables and mandatory launch identifiers are retired. Existing private environment values and the external account are not deleted. Historical manifests can still contain an optional `posthogProject` field.
+- First-party `/api/analytics/traffic` increments finite hourly counters by public path category, source category and coarse device. Requests omit credentials and referrer headers. It rejects cookies, authorization, privacy signals, known bot user agents, extra fields and foreign origins. There are no visitor IDs, IPs, raw UAs, account links, prompts, media or per-visit rows. This is best-effort JavaScript page-view measurement, not a unique-user count, impression count, bot-proof counter or payment denominator.
+- Detailed `/api/analytics/events` uses the existing allowlisted event schema, server-resolved account identity and a random hashed browser cookie. The server independently checks current permission and trusted geography. Generation diagnostics contain text-length buckets, input counts, public model/options and stages, never text or file contents. Browser outcomes remain observations, not billing truth.
+- `/admin/analytics` separates anonymous views, observed browsers, server registration cohorts, generation outcomes and verified financial evidence. The private Chinese report includes the top 50 generation diagnostic groups. Source/device filters apply to detailed populations. Anonymous counters use the time/device filters and always show all broad source categories: an exact detailed source such as `www.google.com` cannot be isolated from a stored `google` category. Hourly aggregates expose their rounded UTC start; rolling conversion ranges retain their original exact boundary.
 
-| Variable                          | Source                                                   | Purpose                              |
-| --------------------------------- | -------------------------------------------------------- | ------------------------------------ |
-| `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` | GA4 web data stream, `G-...`                             | Public-page visits                   |
-| `NEXT_PUBLIC_CLARITY_PROJECT_ID`  | Clarity project settings                                 | Standard website heatmaps and replay |
-| `NEXT_PUBLIC_POSTHOG_KEY`         | PostHog project API key, `phc_...`                       | Existing restricted product events   |
-| `NEXT_PUBLIC_POSTHOG_HOST`        | `https://us.i.posthog.com` or `https://eu.i.posthog.com` | Match the project's region           |
-| `EZPIC_POSTHOG_PROJECT_ID`        | PostHog project ID                                       | Launch evidence identifier           |
+## Permission and geography
 
-These are public collection identifiers. A PostHog personal API key is not needed.
-The GA4, Clarity and PostHog identifiers supplied for EzPic are configured locally. PostHog uses
-project `604257` in US Cloud, with collection host `https://us.i.posthog.com`; its project token
-is stored only in the ignored production environment file. Never place a service-management
-credential in a `NEXT_PUBLIC_` variable.
+`GET /api/analytics/policy` is private/no-store. Geography is read only from the proxy selected by `MEDIA_TRUSTED_PROXY_PROVIDER`. It is not embedded in cacheable public HTML. `ANALYTICS_OPT_OUT_COUNTRIES` is a comma-separated server setting; its initial default is `US`. Set it to an empty string for worldwide opt-in. Configure any additions only after checking the applicable requirements; no-cookie measurement is not a universal legal exemption. EEA, UK and Switzerland always require opt-in even if mistakenly listed. Unknown/unconfigured countries fail closed.
 
-The website's browser bundle reads `NEXT_PUBLIC_` values at build time. Rebuild and deploy the
-website after changing them; updating only runtime secrets is insufficient. The shared deployment
-allowlist includes both analytics IDs. Legacy website Container builds also accept the Clarity ID.
-Use the selected hosting profile's preparation and build flow in the
-[hosting runbook](./cloudflare-hosting-runbook.md). Do not switch hosting profiles as a side effect
-of configuring analytics.
+Explicit acceptance writes `consent=true` and `consent_version=2` for up to 30 days. Old acceptance is renewed for the revised purposes; old refusal remains effective. Regional permission writes `consent=regional` for one day and is re-evaluated on each document and every server ingestion; it is not fabricated explicit consent and does not enable blog advertising. Refusal and GPC/DNT override regional defaults. Anonymous totals do not wait for optional consent but honor refusal and privacy signals. Business records, authentication and generation are independent of the choice.
 
-## Collection behavior
+A nonmodal banner appears only where a choice is required. The global Privacy settings control reopens choices on public and account pages. Declining removes optional attribution/browser state, cancels pending events, denies vendor consent and stops Clarity including cookieless replay. Essential product storage remains available.
 
-- GA4 and Clarity load automatically once per document when their IDs are configured. They do
-  not read the consent cookie or wait for the banner. The app does not send synthetic consent
-  grants to either vendor; vendor-side settings and behavior still apply.
-- Startup installs the GA4 page-view queue and navigation tracking immediately. Vendor script
-  downloads wait for page load, a paint opportunity, and browser idle time, with a two-second
-  fallback from initialization. GA4 starts first; Clarity starts after GA4 loads or fails and
-  the browser has another paint/idle opportunity. A two-second fallback also bounds a stalled
-  first tag. An early page exit attempts to load all pending tags. Public visits queued
-  during the wait keep their sanitized URLs; an exit before a vendor loads cannot guarantee
-  delivery, and Clarity replay starts when its tag loads.
-- GA4 tracks public page views, including public SPA navigation, using URLs with query strings
-  and fragments removed. Referrers are reduced to origins, titles use the static product name,
-  advertising signals are disabled, and the Google disable flag is set on private routes.
-- In GA4, turn off **Enhanced measurement** for this web stream so the dashboard does not
-  independently add automatic history, form, search, download or outbound-link events. The app
-  sends its own page views; product conversion events use the separate PostHog transport.
-- Clarity uses its standard tag across public, auth, guest, editing, account, billing and admin
-  pages. There is no application route/referrer/query filter, full-page masking attribute,
-  navigation stop, or late-start suppression. The app does not override Clarity's own masking
-  settings or its built-in input protections. Keep or change project settings in Clarity itself.
-- The cookie banner continues to control only PostHog's restricted product events. Its choice
-  does not start, stop or reload GA4 or Clarity. No PostHog Replay or Self-driving is installed.
+## GA4 and Clarity
 
-## Free-plan scope
+Set the public collection IDs `NEXT_PUBLIC_GOOGLE_ANALYTICS_ID` and `NEXT_PUBLIC_CLARITY_PROJECT_ID` before building. No management keys belong in public variables. Use the existing Cloudflare prepare/build workflow; build or secret preparation is not deployment. `ANALYTICS_OPT_OUT_COUNTRIES` is a runtime server setting.
 
-- GA4 Standard is free; Analytics 360 is a separate enterprise product.
-- Microsoft documents Clarity as free without a traffic limit.
-- PostHog product analytics includes 1 million events each month. Its free allowances renew
-  monthly. The free plan without a payment card stops at the limits; paid account usage and
-  spending limits need to be checked separately in the account's billing page.
-- PostHog Self-driving is separate: the current page offers 3 PRs per month free, then $15 per PR.
-  The `@posthog/wizard self-driving` command is not required for this analytics integration.
+GA4 measures only allowlisted public pages with sanitized UTM page locations and origin-only referrers. Advertising signals and advertising storage are denied. Clarity covers public pages and both generation workspaces, including `/create?mode=video`; account, admin, billing and private history routes are excluded. Unexpected URL parameters or fragments disable replay. Approved editor job/videoJob references can appear in recorded URLs. Private previews, account menus and embedded private panels are explicitly masked. Native text inputs and dropdown contents are always masked by Clarity; do not mirror input text into DOM or tags to bypass this restriction.
 
-References: [Google Analytics](https://marketingplatform.google.com/about/analytics/),
-[Clarity FAQ](https://learn.microsoft.com/en-us/clarity/faq),
-[Clarity masking](https://learn.microsoft.com/en-us/clarity/setup-and-installation/clarity-masking),
-[PostHog pricing](https://posthog.com/pricing),
-[PostHog Self-driving](https://posthog.com/docs/self-driving).
+Enable Consent Mode in the Clarity project before release and confirm new recordings. The integration sends `consentv2` with `analytics_Storage` granted only when permitted and `ad_Storage` always denied. Denial alone can retain cookieless recording, so the SDK `stop` API is also called. Deferred scripts recheck permission at load. The SDK is restarted only when permission and route allow it.
 
-## Verification state
+Custom tags use the `generation_` prefix: mediaKind, phase, publicModel, textLength, inputCount, supported options and bounded reason. Events include image/video editing, upload, quote/confirmation, submitted and result stages. Select these tags/events in Clarity to inspect where a journey stalls. They never call `identify` or send account IDs, raw prompts, file names or private media URLs.
 
-Focused consent, product-event, analytics and root-layout tests verify automatic loading for all
-banner choices, unrestricted Clarity navigation, one initialization per document, absence of the
-full-page mask and unchanged GA address redaction. The isolated browser check intercepts vendor
-scripts; it does not prove vendor ingestion or dashboard visibility. Both configured public
-vendor tag URLs returned HTTP 200 at the initial configuration check.
+Official references: [masking](https://learn.microsoft.com/en-us/clarity/setup-and-installation/clarity-masking), [ConsentV2](https://learn.microsoft.com/en-us/clarity/setup-and-installation/clarity-consent-api-v2), [client events/tags](https://learn.microsoft.com/en-us/clarity/setup-and-installation/clarity-api), [SDK lifecycle source](https://github.com/microsoft/clarity/blob/master/packages/clarity-js/src/clarity.ts).
 
-On September 11, the existing PostHog sender submitted one synthetic `landing_viewed` event
-from a local configuration probe, and the US `/capture/` endpoint returned HTTP 200. Evidence is
-stored locally in `.wrangler/evidence/posthog.json`. This verifies endpoint connectivity; the
-response-body acknowledgement and dashboard visibility have not been confirmed. The focused
-product-event and consent suites passed all 19 tests. No real user's consent setting was changed.
+## Database and verification
 
-Production deployment and real dashboard verification are `NOT_COMPLETED`: the workspace is
-undergoing a separate hosting migration, and these browser-code changes have not been released.
-After deploying the selected, verified website build, confirm automatic loading from a clean
-browser context, GA4 Realtime and Clarity data. Test PostHog consent independently.
-Confirm the probe in PostHog Activity and verify actual website funnel events after deployment.
+Apply `20261021100000_growth_event_funnel` followed by `20261021120000_anonymous_traffic_diagnostics` before deploying the consumers. Both tables use the existing private application-role/RLS boundary. Counters and detailed observations older than 90 days are removed in bounded batches on new activity; idle sites purge on subsequent activity. The aggregate endpoint has a global 12,000-request/minute ceiling; it is coarse protection, not a human-traffic guarantee. Client page deduplication is memory-only.
+
+Focused tests cover region trust, explicit refusal/version renewal, source sanitization, anonymous credentials, immutable registration attribution, SDK start/revoke, generation payload limits and private Chinese labels. The migration and atomic SQL were exercised on an isolated local PGlite PostgreSQL engine. Browser tests intercept external vendors and business APIs; this validates local integration behavior, not actual Microsoft/Google ingestion, payment, generation or dashboard visibility. Production migration, deployment and authenticated vendor-dashboard verification are NOT_RUN.
+
+Final local verification on 2026-10-21: 151 SaaS, 38 API, 122 web-host and 2 Cloudflare build-policy checks passed. Both isolated PostgreSQL integration cases passed, including the independent anonymous source categories, and the 8 affected Chinese-admin checks passed again. Three browser scenarios passed for opt-in, regional permission and privacy signals, including first-touch persistence across navigation and optional-cookie cleanup after refusal. SaaS, API and web-host type checks, affected-source formatting/lint and `git diff --check` passed. Temporary browser and database processes were stopped after verification.
+
+See [conversion and attribution](./conversion-funnel-attribution.md) for cohort and payment evidence semantics. Historical September PostHog connectivity evidence is retired and does not certify this implementation.
