@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { VIDEO_MODEL_KEYS } from "./video-model-keys";
 import {
 	getVideoModel,
 	getVideoModelOptions,
@@ -10,6 +11,11 @@ import {
 } from "./video-models";
 
 describe("official video model capabilities", () => {
+	it("keeps the lightweight analytics identities aligned with the complete catalog", () => {
+		expect([...VIDEO_MODEL_KEYS].sort()).toEqual(
+			VIDEO_MODEL_CATALOG.map((model) => model.productKey).sort(),
+		);
+	});
 	it.each(["text-to-video", "image-to-video"] as const)(
 		"rejects new Seedance 1.5 Pro %s orders while preserving frozen 1080p receipts",
 		(mode) => {

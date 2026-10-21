@@ -91,6 +91,7 @@ describe("bounded anonymous dimensions and input diagnostics", () => {
 			{ fileName: "secret.png" },
 			{ inputCount: 1000 },
 			{ publicModel: "private-provider-route" },
+			{ publicModel: "video-kling-unlisted" },
 		])
 			expect(generationDiagnosticsSchema.safeParse({ ...safe, ...field }).success).toBe(false);
 	});

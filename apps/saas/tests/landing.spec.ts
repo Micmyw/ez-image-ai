@@ -607,8 +607,9 @@ test("the production homepage excludes account tools, charts, and documentation 
 	for (const marker of [
 		"current-editor-result",
 		"notifications.markAllRead",
-		// Stable product key from the authenticated video catalog.
-		"video-kling-2-6-v1",
+		// Analytics uses public keys; detailed video capabilities still belong to the editor.
+		"OFFICIAL_MODEL_CONTRACT_UNAVAILABLE",
+		"OFFICIAL_VARIANT_MAPPING_UNCONFIRMED",
 		// The path itself also belongs to the shared payment-return helpers.
 		"rumpelstiltskin-navigation",
 		// The visible gift entry must not preload its detailed feedback form.

@@ -1,5 +1,5 @@
 import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
-import { getVideoModel } from "@repo/config/video-models";
+import { VIDEO_MODEL_KEYS } from "@repo/config/video-model-keys";
 import { z } from "zod";
 
 export const generationDiagnosticsSchema = z
@@ -22,7 +22,9 @@ export const generationDiagnosticsSchema = z
 			.string()
 			.max(64)
 			.refine(
-				(key) => (EZPIC_PRODUCT_KEYS as readonly string[]).includes(key) || !!getVideoModel(key),
+				(key) =>
+					(EZPIC_PRODUCT_KEYS as readonly string[]).includes(key) ||
+					(VIDEO_MODEL_KEYS as readonly string[]).includes(key),
 			)
 			.optional(),
 		textLength: z.enum(["empty", "1-50", "51-200", "201-1000", "1001-plus"]).optional(),

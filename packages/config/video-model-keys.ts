@@ -1,0 +1,20 @@
+/** Public identities only: safe for shared analytics without loading editor capabilities. */
+export const VIDEO_MODEL_KEYS = [
+	"video-minimax-h3",
+	"video-minimax-h3-turbo",
+	"video-minimax-h3-max-turbo",
+	"video-minimax-h3-max",
+	"video-seedance-2-5",
+	"video-seedance-2-mini",
+	"video-seedance-1-pro-fast",
+	"video-seedance-1-5-pro",
+	"video-seedance-2",
+	"video-seedance-2-fast",
+	"video-gemini-omni-flash",
+	"video-kling-3",
+	"video-kling-3-turbo",
+	"video-kling-2-6-v1",
+	"video-veo-3-1",
+	"video-veo-3-1-fast",
+	"video-veo-3-1-pro",
+] as const;

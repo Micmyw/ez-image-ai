@@ -19,6 +19,7 @@
 		"./video-effects-access.server": "./video-effects-access.server.ts",
 		"./rumpelstiltskin-reference.server": "./rumpelstiltskin-reference.server.ts",
 		"./video-models": "./video-models.ts",
+		"./video-model-keys": "./video-model-keys.ts",
 		"./video-internal-funding": "./video-internal-funding.ts",
 		"./video-shared-funding": "./video-shared-funding.ts",
 		"./video-output": "./video-output.ts",

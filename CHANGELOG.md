@@ -6,6 +6,7 @@
 - Gate GA4, Clarity and persistent attribution with trusted-region rules, versioned choices and browser privacy signals; allow reopening privacy settings on every page.
 - Cover image/video generation in Clarity using masked inputs and bounded input/option/stage diagnostics; stop recording on private routes and after refusal.
 - Show aggregate traffic and Chinese generation diagnostics in the existing private administrator dashboard.
+- Keep public generation diagnostics from preloading the complete video capability catalog on anonymous visits.
 
 ## 2026-10-21 — Private administrator Chinese display
 
