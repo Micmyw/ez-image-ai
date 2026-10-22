@@ -28,9 +28,13 @@ describe("fused engine admission with PostgreSQL receipts", () => {
 		if (!connectionString) throw new Error("EXPLICIT_TEST_DATABASE_REQUIRED");
 		const url = new URL(connectionString);
 		if (
+			!["postgres:", "postgresql:"].includes(url.protocol) ||
 			url.hostname !== "127.0.0.1" ||
 			url.port !== "55432" ||
-			!/^\/ezpic_[a-z0-9_]+_test$/.test(url.pathname)
+			url.search ||
+			url.hash ||
+			(url.pathname !== "/ai_media_foundation_test" &&
+				!/^\/ezpic_[a-z0-9_]+_test$/.test(url.pathname))
 		)
 			throw new Error("UNSAFE_TEST_DATABASE");
 		client = new PrismaClient({ adapter: new PrismaPg({ connectionString, max: 4 }) });

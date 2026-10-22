@@ -21,7 +21,7 @@ vi.mock("@repo/payments", () => ({
 	paymentProviderNames: ["stripe", "paypal", "waffo"] as const,
 	webhookHandler: vi.fn(() => new Response(null, { status: 204 })),
 }));
-vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn() }));
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn(), wakeJob: vi.fn() }));
 
 import { auth } from "@repo/auth";
 import { validateEzPicLaunchEnvironment } from "@repo/config/server";

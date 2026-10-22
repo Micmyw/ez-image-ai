@@ -326,12 +326,16 @@ function assertNarrowGitleaksFixtureIgnores(value) {
 		.split("\n")
 		.map((line) => line.trim())
 		.filter((line) => line && !line.startsWith("#"));
-	const expectedCount = 29 + historicalPublicPlacements.size;
+	const expectedCount = 30 + historicalPublicPlacements.size;
 	if (fingerprints.length !== expectedCount || new Set(fingerprints).size !== expectedCount) {
 		throw new Error(
 			`Gitleaks fixture allowlist must contain exactly ${expectedCount} unique known fingerprints`,
 		);
 	}
+	assertIncludes(
+		value,
+		"20eb0eac01807f476072dc1bdb5baf6a707ff60d:tooling/e2e/src/scanless-image-callback.test.ts:generic-api-key:23",
+	);
 	for (const fingerprint of historicalPublicPlacements) {
 		if (!fingerprints.includes(fingerprint)) {
 			throw new Error(

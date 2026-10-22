@@ -55,6 +55,12 @@ export class AccountInputCopyPostgresPort {
 		});
 		await this.pool.query(`CREATE SCHEMA "${this.schema}"`);
 		await this.pool.query(`
+			CREATE TYPE "${this.schema}"."OwnerType" AS ENUM ('USER', 'ORGANIZATION');
+			CREATE TABLE ${this.table("media_owner_storage_fence")} (
+				"ownerType" "${this.schema}"."OwnerType" NOT NULL, "ownerId" text NOT NULL,
+				revision bigint NOT NULL DEFAULT 0,
+				PRIMARY KEY ("ownerType", "ownerId")
+			);
 			CREATE TABLE ${this.table("user")} (id text PRIMARY KEY, "isAnonymous" boolean);
 			CREATE TABLE ${this.table("media_asset")} (
 				id text PRIMARY KEY, "ownerType" text NOT NULL, "ownerId" text NOT NULL,
@@ -122,6 +128,7 @@ export class AccountInputCopyPostgresPort {
 
 	async reset() {
 		const names = [
+			"media_owner_storage_fence",
 			"user",
 			"media_asset",
 			"asset_moderation_result",

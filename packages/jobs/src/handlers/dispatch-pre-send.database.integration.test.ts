@@ -31,7 +31,8 @@ describe("committed dispatch preparation with real PostgreSQL", () => {
 			!["postgres:", "postgresql:"].includes(url.protocol) ||
 			url.hostname !== "127.0.0.1" ||
 			url.port !== "55432" ||
-			url.pathname !== "/scanless_phase_owner_migration_test" ||
+			(url.pathname !== "/scanless_phase_owner_migration_test" &&
+				url.pathname !== "/ai_media_foundation_test") ||
 			url.search ||
 			url.hash
 		)

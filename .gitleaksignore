@@ -1,4 +1,6 @@
 # Exact historical fingerprints for synthetic credentials in test fixtures.
+# Fixed synthetic phase UUID in the callback contract fixture, not a credential.
+20eb0eac01807f476072dc1bdb5baf6a707ff60d:tooling/e2e/src/scanless-image-callback.test.ts:generic-api-key:23
 c56c7ab545c0a975c9646480a7e23cf464a0298b:packages/api/modules/media/procedures/create-generation.test.ts:generic-api-key:35
 c56c7ab545c0a975c9646480a7e23cf464a0298b:packages/api/modules/media/procedures/create-generation.test.ts:generic-api-key:90
 c56c7ab545c0a975c9646480a7e23cf464a0298b:packages/api/modules/media/procedures/create-generation.test.ts:generic-api-key:155

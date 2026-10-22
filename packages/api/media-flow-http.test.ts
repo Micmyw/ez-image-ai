@@ -4,8 +4,9 @@ import type { RouterClient } from "@orpc/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fixture = vi.hoisted(() => ({
+	database: {},
 	getSession: vi.fn(async () => ({ user: { id: "test-owner" }, session: { id: "test-session" } })),
-	findFirst: vi.fn(async () => ({
+	getStatus: vi.fn(async () => ({
 		id: "test-job",
 		status: "PROVIDER_RUNNING",
 		version: 2,
@@ -30,7 +31,10 @@ vi.mock("@repo/config/server", async (original) => ({
 	validateServerEnvironment: vi.fn(),
 }));
 vi.mock("@repo/database/client", () => ({
-	db: { generationJob: { findFirst: fixture.findFirst } },
+	db: fixture.database,
+}));
+vi.mock("@repo/database/media-job-status", () => ({
+	getOwnedGenerationJobStatus: fixture.getStatus,
 }));
 vi.mock("@repo/jobs", () => ({
 	createProviderWebhookVerifierRegistry: () => ({ get: vi.fn(() => null) }),
@@ -41,7 +45,7 @@ vi.mock("@repo/storage", () => ({
 	putTemporaryReferenceObject: vi.fn(),
 }));
 vi.mock("@repo/payments", () => ({ paymentProviderNames: [], webhookHandler: vi.fn() }));
-vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn() }));
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn(), wakeJob: vi.fn() }));
 vi.mock("./orpc/router", async () => ({
 	router: { media: { getJob: (await import("./modules/media/procedures/get-job")).getJob } },
 }));
@@ -52,6 +56,7 @@ import { app } from "./index";
 import type { getJob } from "./modules/media/procedures/get-job";
 
 beforeEach(() => {
+	vi.clearAllMocks();
 	vi.stubGlobal(
 		"fetch",
 		vi.fn(() => {
@@ -82,6 +87,11 @@ describe("media status HTTP boundary", () => {
 		await expect(client.media.getJob({ jobId: "test-job" })).resolves.toMatchObject({
 			id: "test-job",
 		});
+		expect(fixture.getStatus).toHaveBeenCalledExactlyOnceWith(
+			"test-job",
+			"test-owner",
+			fixture.database,
+		);
 		expect(responseHeaders?.get("cache-control")).toBe("private, no-store");
 		expect(responseHeaders?.get("x-request-id")).toBe("request-http-test");
 		for (const stage of ["request.identity", "request.http"])
@@ -102,6 +112,11 @@ describe("media status HTTP boundary", () => {
 	it("preserves private no-store on the OpenAPI response as well", async () => {
 		const response = await app.request("/api/media/jobs/test-job");
 		expect(response.status).toBe(200);
+		expect(fixture.getStatus).toHaveBeenCalledExactlyOnceWith(
+			"test-job",
+			"test-owner",
+			fixture.database,
+		);
 		expect(response.headers.get("cache-control")).toBe("private, no-store");
 		expect(await response.json()).toMatchObject({ id: "test-job" });
 	});

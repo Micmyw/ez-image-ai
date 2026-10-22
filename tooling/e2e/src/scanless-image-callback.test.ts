@@ -20,7 +20,7 @@ const environment = {
 const identity = { assetId: "fixture-input", generation: 2, submissionToken: "submission-2" };
 const phaseOwner = {
 	workflowId: `job-${"a".repeat(64)}`,
-	phaseKey: "434c89ce-0f78-4d22-8aa9-f90cece30539",
+	phaseKey: "00000000-0000-4000-8000-000000000001",
 	epoch: 4,
 };
 

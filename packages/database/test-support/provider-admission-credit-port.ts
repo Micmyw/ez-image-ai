@@ -93,6 +93,7 @@ export class CreditAdmissionPostgresFixture {
 				"editSessionId" text, "parentJobId" text, status text NOT NULL DEFAULT 'RESERVED',
 				version integer NOT NULL DEFAULT 0, "executionEngine" text NOT NULL DEFAULT 'legacy',
 				"serviceClass" text NOT NULL DEFAULT 'STANDARD', "createdAt" timestamptz NOT NULL DEFAULT now(),
+				"updatedAt" timestamptz NOT NULL DEFAULT now(),
 				UNIQUE ("ownerType", "ownerId", "idempotencyKey")
 			);
 			CREATE TABLE ${this.table("credit_reservation")} (

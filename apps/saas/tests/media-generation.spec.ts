@@ -256,7 +256,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(review).toBeEnabled();
 	});
 
-	test("upload preview ignores removed completions without starting safety checks", async ({
+	test("upload preview ignores removed completions and observes only the replacement review", async ({
 		page,
 	}) => {
 		await page.goto("/create");
@@ -276,8 +276,15 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		let uploads = 0;
 		let firstCompleted = false;
 		const accesses: string[] = [];
+		const reviewRequests: Array<{ assetId: string; token: string }> = [];
+		const replacementAssetId = "0f447af8-8cf3-4a79-83dd-c9c831e2c732";
 		page.on("request", (request) => {
-			if (request.url().includes("getAssetAccessUrl")) accesses.push(request.url());
+			if (/getAssetAccessUrl|createQuote|submitGeneration/.test(request.url()))
+				accesses.push(request.url());
+		});
+		await page.route("**/api/rpc/media/getTemporaryReferenceStatus**", async (route) => {
+			reviewRequests.push(route.request().postDataJSON().json);
+			await route.fulfill({ json: { json: { status: "APPROVED", moderationReason: null } } });
 		});
 		await page.route("**/api/media/temporary-references", async (route) => {
 			const sequence = ++uploads;
@@ -285,10 +292,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			try {
 				await route.fulfill({
 					json: {
-						assetId:
-							sequence === 1
-								? "0f447af8-8cf3-4a79-83dd-c9c831e2c731"
-								: "0f447af8-8cf3-4a79-83dd-c9c831e2c732",
+						assetId: sequence === 1 ? "0f447af8-8cf3-4a79-83dd-c9c831e2c731" : replacementAssetId,
 						token: `receipt-${sequence}`,
 						expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
 					},
@@ -310,15 +314,17 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			await page
 				.locator('[data-test="registered-generator"] input[type="file"]')
 				.setInputFiles("public/examples/case-tangerine-camera.webp");
-			await expect(
-				page.getByText("Uploaded. Safety is checked when you generate.", { exact: true }),
-			).toBeVisible();
+			await expect(page.getByText("Source image ready", { exact: true })).toBeVisible();
 			const replacementUrl = await preview.getAttribute("src");
 			expect(replacementUrl).not.toBe(removedUrl);
 			release();
 			await expect.poll(() => firstCompleted).toBe(true);
 			await expect(preview).toHaveAttribute("src", replacementUrl!);
 			await expect(review).toBeEnabled();
+			expect(reviewRequests.length).toBeGreaterThan(0);
+			expect(reviewRequests).toEqual(
+				reviewRequests.map(() => ({ assetId: replacementAssetId, token: "receipt-2" })),
+			);
 			expect(accesses).toEqual([]);
 			await expect
 				.poll(() =>
@@ -377,8 +383,11 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		}
 	});
 
-	for (const width of [1280, 390]) {
-		test(`upload preview becomes ready without safety polling at ${width}px`, async ({
+	for (const { width, verdict } of [
+		{ width: 1280, verdict: "APPROVED" },
+		{ width: 390, verdict: "REJECTED" },
+	] as const) {
+		test(`upload preview observes pending review then ${verdict.toLowerCase()} at ${width}px`, async ({
 			page,
 		}, testInfo) => {
 			await page.setViewportSize({ width, height: 900 });
@@ -399,23 +408,35 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				release = resolve;
 			});
 			const legacyRequests: string[] = [];
+			const reviewRequests: Array<{ assetId: string; token: string }> = [];
+			let reviewStatus: "PENDING" | "APPROVED" | "REJECTED" = "PENDING";
+			const receipt = {
+				assetId: "0f447af8-8cf3-4a79-83dd-c9c831e2c735",
+				token: "receipt",
+				expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+			};
 			page.on("request", (request) => {
 				if (
-					/createUploadSession|completeUploadSession|getAssetAccessUrl|createQuote/.test(
+					/createUploadSession|completeUploadSession|getAssetAccessUrl|createQuote|submitGeneration/.test(
 						request.url(),
 					)
 				)
 					legacyRequests.push(request.url());
 			});
-			await page.route("**/api/media/temporary-references", async (route) => {
-				await gate;
+			await page.route("**/api/rpc/media/getTemporaryReferenceStatus**", async (route) => {
+				reviewRequests.push(route.request().postDataJSON().json);
 				await route.fulfill({
 					json: {
-						assetId: "0f447af8-8cf3-4a79-83dd-c9c831e2c735",
-						token: "receipt",
-						expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+						json: {
+							status: reviewStatus,
+							moderationReason: reviewStatus === "REJECTED" ? "restrictedContent" : null,
+						},
 					},
 				});
+			});
+			await page.route("**/api/media/temporary-references", async (route) => {
+				await gate;
+				await route.fulfill({ json: receipt });
 			});
 			try {
 				await page
@@ -430,11 +451,34 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				const localUrl = await preview.getAttribute("src");
 				await expect(review).toBeDisabled();
 				release();
-				await expect(
-					page.getByText("Uploaded. Safety is checked when you generate.", { exact: true }),
-				).toBeVisible();
+				await expect(page.getByText("Uploaded · checking image…", { exact: true })).toBeVisible();
+				await expect.poll(() => reviewRequests.length).toBeGreaterThan(0);
+				// Pending review may be reused by Generate; only an unfinished upload blocks it.
 				await expect(review).toBeEnabled();
 				await expect(preview).toHaveAttribute("src", localUrl!);
+				reviewStatus = verdict;
+				if (verdict === "APPROVED") {
+					await expect(page.getByText("Source image ready", { exact: true })).toBeVisible();
+					await expect(review).toBeEnabled();
+					await expect(preview).toHaveAttribute("src", localUrl!);
+				} else {
+					const notice = page.locator('[data-test="content-safety-notice"]');
+					await expect(
+						notice.getByRole("heading", { name: "Please choose another image", exact: true }),
+					).toBeVisible();
+					await expect(notice).toContainText(
+						"The safety check flagged content restricted by our policy.",
+					);
+					await expect(notice).toContainText(
+						"No generation credits were charged and your one-time waiver was not used.",
+					);
+					await expect(review).toBeDisabled();
+					await expect(preview).toHaveCount(0);
+				}
+				expect(reviewRequests.length).toBeGreaterThanOrEqual(2);
+				expect(reviewRequests).toEqual(
+					reviewRequests.map(() => ({ assetId: receipt.assetId, token: receipt.token })),
+				);
 				expect(legacyRequests).toEqual([]);
 				expect(
 					await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -462,10 +506,15 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		});
 	}
 
-	test("temporary reference uploads without an asset, then generates once from the approved bytes", async ({
+	test("temporary reference pre-review is reused when generating once from the approved bytes", async ({
 		page,
 	}, testInfo) => {
 		const prompt = marker("temporary-reference", "A ceramic vase in soft daylight", testInfo.retry);
+		const user = await userByEmail(fundedEmail);
+		const creditReservationsBefore = await count(
+			`SELECT count(*) FROM credit_reservation r JOIN credit_account a ON a.id=r."accountId" WHERE a."ownerId"=$1`,
+			[user.id],
+		);
 		await page.goto("/create");
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
 			"Nano Banana 2 Lite",
@@ -483,29 +532,53 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			.setInputFiles("public/examples/case-tangerine-camera.webp");
 		const uploadResponse = await uploaded;
 		expect(uploadResponse.ok()).toBe(true);
-		await expect(
-			page.getByText("Uploaded. Safety is checked when you generate.", { exact: true }),
-		).toBeVisible();
-		const user = await userByEmail(fundedEmail);
-		const reservation = (
-			await rows<{ referenceKey: string }>(
-				`SELECT "referenceKey" FROM storage_usage_reservation WHERE "ownerId"=$1 AND "referenceKey" LIKE 'temporary-reference:%' AND status='COMMITTED' ORDER BY "createdAt" DESC LIMIT 1`,
-				[user.id],
+		const receipt = (await uploadResponse.json()) as { assetId: string; token: string };
+		// Upload now creates a private input and durable review intent. Observe the
+		// actual status endpoint/pump completion before checking reuse at Generate.
+		await expect(page.getByText("Source image ready", { exact: true })).toBeVisible({
+			timeout: 30_000,
+		});
+		const source = (
+			await rows<{ ownerId: string; kind: string; status: string; checksum: string }>(
+				`SELECT "ownerId", kind, status, checksum FROM media_asset WHERE id=$1`,
+				[receipt.assetId],
 			)
 		)[0]!;
-		const receipt = { assetId: reservation.referenceKey.slice("temporary-reference:".length) };
-		expect(await count("SELECT count(*) FROM media_asset WHERE id=$1", [receipt.assetId])).toBe(0);
+		expect(source).toMatchObject({ ownerId: user.id, kind: "INPUT", status: "READY" });
 		expect(
-			await count('SELECT count(*) FROM asset_moderation_result WHERE "assetId"=$1', [
-				receipt.assetId,
-			]),
-		).toBe(0);
+			await count(
+				`SELECT count(*) FROM storage_usage_reservation WHERE "ownerId"=$1 AND "referenceKey"=$2 AND status='COMMITTED'`,
+				[user.id, `temporary-reference:${receipt.assetId}`],
+			),
+		).toBe(1);
 		expect(
-			await count('SELECT count(*) FROM outbox_event WHERE "aggregateId"=$1', [receipt.assetId]),
-		).toBe(0);
-		await expect(
-			page.getByText("Uploaded. Safety is checked when you generate.", { exact: true }),
-		).toBeVisible();
+			await count(
+				`SELECT count(*) FROM outbox_event WHERE "aggregateId"=$1 AND "eventType"='MEDIA_ASSET_VERIFY' AND "dedupeKey"=$2`,
+				[receipt.assetId, `temporary-reference-verify:${receipt.assetId}:g1`],
+			),
+		).toBe(1);
+		const reviewQuery = `SELECT id, status, "assetChecksum", "verificationGeneration", "attemptNumber" FROM asset_moderation_result WHERE "assetId"=$1 ORDER BY id`;
+		const preReview = await rows<{
+			id: string;
+			status: string;
+			assetChecksum: string;
+			verificationGeneration: number;
+			attemptNumber: number;
+		}>(reviewQuery, [receipt.assetId]);
+		expect(preReview).toHaveLength(1);
+		expect(preReview[0]).toMatchObject({
+			status: "APPROVED",
+			assetChecksum: source.checksum,
+			verificationGeneration: 1,
+			attemptNumber: 1,
+		});
+		expect(await jobsForPrompt(user.id, prompt)).toHaveLength(0);
+		expect(
+			await count(
+				`SELECT count(*) FROM credit_reservation r JOIN credit_account a ON a.id=r."accountId" WHERE a."ownerId"=$1`,
+				[user.id],
+			),
+		).toBe(creditReservationsBefore);
 		const submit = page.locator('[data-test="generation-submit"]');
 		await expect(submit).toBeEnabled();
 		await submit.dblclick();
@@ -514,12 +587,9 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		expect(await count('SELECT count(*) FROM generation_attempt WHERE "jobId"=$1', [job.id])).toBe(
 			1,
 		);
-		expect(
-			await count(
-				`SELECT count(*) FROM asset_moderation_result WHERE "assetId"=$1 AND status='APPROVED'`,
-				[receipt.assetId],
-			),
-		).toBe(1);
+		// The exact immutable verdict survives admission and double-click replay;
+		// a second review or new generation would change these identities/counts.
+		expect(await rows(reviewQuery, [receipt.assetId])).toEqual(preReview);
 		expect(
 			await count(
 				`SELECT count(*) FROM generation_job_asset WHERE "jobId"=$1 AND "assetId"=$2 AND role='INPUT'`,

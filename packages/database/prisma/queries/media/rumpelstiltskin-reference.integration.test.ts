@@ -351,6 +351,12 @@ async function claimSharedReferenceProvider(
 ) {
 	await reviewSubject(f);
 	await run(() => finalizeVideoTemplateReferenceInput(f.jobId));
+	const execution = await run(() => getVideoTemplateExecution(f.jobId));
+	if (!execution) throw new Error("REFERENCE_TEST_EXECUTION_REQUIRED");
+	const subjectReview = object(
+		object(object(execution.resolvedInputIdentity).sourceReviewEvidence).left,
+	);
+	expect(subjectReview.decision).toMatchObject({ decision: "ALLOW" });
 	const job = await db.generationJob.findUniqueOrThrow({ where: { id: f.jobId } });
 	const requestId = `shared-reference-prompt-${randomUUID()}`;
 	const ruleVersion = "shared-reference-input-review-test";
@@ -370,6 +376,7 @@ async function claimSharedReferenceProvider(
 					waffo: { requestId, action: "allow", semanticStatus: "scored", matchedCategories: [] },
 				},
 			},
+			imageDecision: subjectReview.decision,
 			requestFingerprint: object(job.inputSnapshot).requestFingerprint,
 			validUntil: f.expiry,
 		}),

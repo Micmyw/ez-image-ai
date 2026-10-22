@@ -15,7 +15,7 @@ vi.mock("@repo/payments", () => ({
 	paymentProviderNames: ["stripe", "paypal", "waffo"] as const,
 	webhookHandler: vi.fn(),
 }));
-vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn() }));
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn(), wakeJob: vi.fn() }));
 
 import { app } from "./index";
 
