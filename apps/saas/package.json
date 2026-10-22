@@ -18,7 +18,7 @@
 		"generate": "fumadocs-mdx",
 		"postinstall": "fumadocs-mdx",
 		"test": "pnpm test:cloudflare-build && vitest run",
-		"test:cloudflare-build": "node --test cloudflare/build-network-guard.test.mjs cloudflare/linux-build-cleanup.test.mjs cloudflare/linux-build-policy.test.mjs",
+		"test:cloudflare-build": "node --test cloudflare/build-network-guard.test.mjs cloudflare/linux-build-cleanup.test.mjs cloudflare/linux-build-policy.test.mjs cloudflare/load-manifest.test.mjs cloudflare/cache-handlers.test.mjs",
 		"test:artifact:workerd": "node cloudflare/artifact-workerd-smoke.mjs",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",

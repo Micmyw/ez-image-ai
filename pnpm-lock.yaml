@@ -267,7 +267,7 @@ overrides:
 
 patchedDependencies:
   '@aws-sdk/xml-builder@3.972.40': 57ced060b9c50aa773f70940940b9225e9b15e5c459f56a4075f16981ac60549
-  '@opennextjs/cloudflare@1.20.6': 88dc5dd0431aca6211e60ea47cbe53ab6d20289e5c8b1cc00f4f505e2f8614cd
+  '@opennextjs/cloudflare@1.20.6': 618216ce0c814c2319d1e23295460f0127897ef824d62fbbe003ed10c17f7154
   '@prisma/client@7.9.1': 9e1fae88e83faff725cd9441ced54cd202abe2ff26a34ef4bf336a421e71243d
   pg-cloudflare@1.4.0: 89d31ae23785148089c68f3547b8c0e5b832f24797562f1cec5461974a1f435b
 
@@ -373,7 +373,7 @@ importers:
         version: 5.7.1(@standard-schema/spec@1.1.0)(ajv@8.20.0)(effect@3.20.0)(react-hook-form@7.84.0(react@19.2.8))(valibot@1.4.2(typescript@6.0.3))(zod@4.4.3)
       '@opennextjs/cloudflare':
         specifier: 'catalog:'
-        version: 1.20.6(patch_hash=88dc5dd0431aca6211e60ea47cbe53ab6d20289e5c8b1cc00f4f505e2f8614cd)(next@16.4.1(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(wrangler@4.129.0(@types/node@26.1.2))
+        version: 1.20.6(patch_hash=618216ce0c814c2319d1e23295460f0127897ef824d62fbbe003ed10c17f7154)(next@16.4.1(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(wrangler@4.129.0(@types/node@26.1.2))
       '@orpc/client':
         specifier: 'catalog:'
         version: 1.14.13(@opentelemetry/api@1.9.1)
@@ -10351,7 +10351,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@opennextjs/cloudflare@1.20.6(patch_hash=88dc5dd0431aca6211e60ea47cbe53ab6d20289e5c8b1cc00f4f505e2f8614cd)(next@16.4.1(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(wrangler@4.129.0(@types/node@26.1.2))':
+  '@opennextjs/cloudflare@1.20.6(patch_hash=618216ce0c814c2319d1e23295460f0127897ef824d62fbbe003ed10c17f7154)(next@16.4.1(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.62.1)(@types/node@26.1.2)(react-dom@19.2.8(react@19.2.8))(react@19.2.8))(wrangler@4.129.0(@types/node@26.1.2))':
     dependencies:
       '@ast-grep/napi': 0.40.5
       '@dotenvx/dotenvx': 1.31.0

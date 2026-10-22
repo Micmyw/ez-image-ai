@@ -66,3 +66,78 @@ index 9042330e64bd617058d75514315c08e11ef35d79..d205f1d0ed696867f942a9dcca5abebf
                  return;
              }
              const nextAlarmMs = Date.now() + Math.pow(2, existingFailedState.retryCount + 1) * this.revalidationRetryInterval;
+diff --git a/dist/cli/build/patches/plugins/load-manifest.js b/dist/cli/build/patches/plugins/load-manifest.js
+--- a/dist/cli/build/patches/plugins/load-manifest.js
++++ b/dist/cli/build/patches/plugins/load-manifest.js
+@@ -31,8 +31,17 @@
+     const { outputDir } = buildOpts;
+     const baseDir = join(outputDir, "server-functions/default", getPackagePath(buildOpts));
+     const dotNextDir = join(baseDir, ".next");
+-    const manifests = await glob(join(dotNextDir, "**/{*-manifest,required-server-files,prefetch-hints}.json"), {
+-        windowsPathsNoEscape: true,
++    // Manifests to inline:
++    // - `*-manifest.json`
++    // - `required-server-files.json`
++    // - `prefetch-hints.json` (Next 16.2+)
++    // - `server/preview-props.json` (Next 16.4+)
++    const manifests = await glob([
++        join(dotNextDir, "**/{*-manifest,required-server-files,prefetch-hints}.json"),
++        join(dotNextDir, "server/preview-props.json"),
++    ], {
++        windowsPathsNoEscape: true,
++        nodir: true,
+     });
+     const returnManifests = (await Promise.all(manifests.map(async (manifest) => `
+ if ($PATH.endsWith("${normalizePath("/" + relative(dotNextDir, manifest))}")) {
+diff --git a/dist/cli/build/patches/plugins/next-server.js b/dist/cli/build/patches/plugins/next-server.js
+--- a/dist/cli/build/patches/plugins/next-server.js
++++ b/dist/cli/build/patches/plugins/next-server.js
+@@ -83,27 +83,27 @@
+ export function createComposableCacheHandlersRule(handlerPath) {
+     return `
+ rule:
+-  # matches
+-  # - const { cacheHandlers } = this.nextConfig.experimental; pre Next 16
+-  # - const { cacheMaxMemorySize, cacheHandlers } = this.nextConfig; from Next 16
+-  kind: lexical_declaration
+-  regex: cacheHandlers
+-  inside:
+-    kind: method_definition
+-    has:
+-      field: name
+-      regex: ^loadCustomCacheHandlers$
+-    stopBy: end
+-
+-fix: |-
+-  const cacheHandlers = null;
+-  const handlersSymbol = Symbol.for('@next/cache-handlers');
+-  const handlersMapSymbol = Symbol.for('@next/cache-handlers-map');
+-  const handlersSetSymbol = Symbol.for('@next/cache-handlers-set');
+-  globalThis[handlersMapSymbol] = new Map();
+-  globalThis[handlersMapSymbol].set("default", require('${normalizePath(handlerPath)}').default);
+-  globalThis[handlersMapSymbol].set("remote", require('${normalizePath(handlerPath)}').default);
+-  globalThis[handlersSetSymbol] = new Set(globalThis[handlersMapSymbol].values());
++  # Next 16.3 rebinds cacheMaxMemorySize into the same declaration as cacheHandlers,
++  # and the native method body consumes both. Replacing only the declaration orphans
++  # those bindings once minified (ReferenceError at runtime). Replace the whole method
++  # body so no native reference to a dropped binding can survive.
++  kind: statement_block
++  inside:
++    kind: method_definition
++    field: body
++    has:
++      field: name
++      regex: ^loadCustomCacheHandlers$
++
++fix: |-
++  {
++    const handlersMapSymbol = Symbol.for('@next/cache-handlers-map');
++    const handlersSetSymbol = Symbol.for('@next/cache-handlers-set');
++    globalThis[handlersMapSymbol] = new Map();
++    globalThis[handlersMapSymbol].set("default", require('${normalizePath(handlerPath)}').default);
++    globalThis[handlersMapSymbol].set("remote", require('${normalizePath(handlerPath)}').default);
++    globalThis[handlersSetSymbol] = new Set(globalThis[handlersMapSymbol].values());
++  }
+ `;
+ }
+ /**

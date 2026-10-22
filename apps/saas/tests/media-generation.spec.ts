@@ -147,6 +147,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(page.locator('[data-test="generation-submit"]')).toHaveAccessibleName(
 			"Generate image 7 credits",
 		);
+		// Report a streamed model-page hydration failure before doing paid workflow work.
+		expect(pageErrors).toEqual([]);
 		// The streamed form is visible before its live catalog and handlers are ready.
 		// Match openCreator: wait for the live credit price before entering the prompt.
 		await page
