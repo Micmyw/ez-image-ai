@@ -48,14 +48,20 @@ type Scenario = {
 	retailAudience: "standard" | "annual" | null;
 	quoteAudience: "standard" | "annual" | null;
 	acceptedPricing: VideoRetailDisplay | null;
+	acceptedCredits: string | null;
 	stage: MockStage;
 	available: boolean;
+	submissions: Array<Record<string, unknown>>;
 	creates: Array<Record<string, unknown>>;
+	acceptedKeys: Set<string>;
+	legacyQuoteReads: number;
+	// Server-side quote evaluations, including the atomic jobs/submit path.
 	quotes: number;
 	catalogReads: number;
 	gets: number;
 	playback: number;
 	loseFirstResponse: boolean;
+	acceptLostResponse: boolean;
 	quoteError: string | null;
 	createError: string | null;
 	quoteCredits: string;
@@ -71,14 +77,19 @@ function scenario(): Scenario {
 		retailAudience: null,
 		quoteAudience: null,
 		acceptedPricing: null,
+		acceptedCredits: null,
 		stage: "QUEUED",
 		available: true,
+		submissions: [],
 		creates: [],
+		acceptedKeys: new Set(),
+		legacyQuoteReads: 0,
 		quotes: 0,
 		catalogReads: 0,
 		gets: 0,
 		playback: 0,
 		loseFirstResponse: false,
+		acceptLostResponse: true,
 		quoteError: null,
 		createError: null,
 		quoteCredits: "23",
@@ -128,7 +139,7 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 		const job = {
 			jobId: "ui-mock-video-1",
 			stage: state.stage,
-			credits: "23",
+			credits: state.acceptedCredits ?? "23",
 			creditState:
 				state.stage === "READY" ? "SETTLED" : state.stage === "REJECTED" ? "RELEASED" : "RESERVED",
 			canPlay: state.stage === "READY",
@@ -207,27 +218,68 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 				})),
 			});
 		}
-		if (endpoint === "quote") {
+		if (endpoint === "quote" || endpoint === "jobs/submit") {
+			const request = endpoint === "jobs/submit" ? body.request : body;
+			if (endpoint === "jobs/submit") {
+				state.submissions.push(body);
+				const previous = state.creates.find(
+					(input) => input.idempotencyKey === body.idempotencyKey,
+				);
+				if (previous && state.acceptedKeys.has(body.idempotencyKey)) {
+					expect(body).toEqual(previous);
+					state.creates.push(body);
+					// A recovery response may fail current preflight while the original
+					// request is still accepted. It never authorizes a new paid attempt.
+					if (state.createError) return reject(state.createError);
+					return reply({ kind: "created", state: job });
+				}
+			} else state.legacyQuoteReads++;
 			state.quotes++;
-			state.quoteRequests.push(body);
+			state.quoteRequests.push(request);
 			if (state.quoteError) return reject(state.quoteError);
-			return reply({
+			const quote = {
 				quoteId: `ui-mock-quote-${state.quotes}`,
 				credits: state.quoteCredits,
 				expiresAt: new Date(Date.now() + (state.quoteExpired ? -1000 : 60_000)).toISOString(),
 				requestFingerprint: "ui-mock-fingerprint",
-				...retailPrice(body, state.quoteAudience ?? state.retailAudience),
+				...retailPrice(request, state.quoteAudience ?? state.retailAudience),
+			};
+			if (endpoint === "quote") return reply(quote);
+			if (
+				state.quoteExpired ||
+				body.expectedCredits !== quote.credits ||
+				JSON.stringify(body.expectedPricing) !== JSON.stringify(quote.pricing ?? null)
+			)
+				return reply({ kind: "quote_only", quote });
+			state.creates.push(body);
+			if (state.createError) return reject(state.createError);
+			state.acceptedKeys.add(body.idempotencyKey);
+			state.acceptedPricing ??= quote.pricing ?? null;
+			state.acceptedCredits ??= quote.credits;
+			if (state.loseFirstResponse && state.creates.length === 1)
+				return route.abort("connectionreset");
+			return reply({
+				kind: "created",
+				state: {
+					...job,
+					credits: quote.credits,
+					...(state.acceptedPricing ? { pricing: state.acceptedPricing } : {}),
+				},
 			});
 		}
 		if (endpoint === "jobs/create") {
+			state.creates.push(body);
+			if (state.createError) return reject(state.createError);
+			const loseResponse = state.loseFirstResponse && state.creates.length === 1;
+			if (loseResponse && !state.acceptLostResponse) return route.abort("connectionreset");
 			state.acceptedPricing ??=
 				retailPrice(body.request, state.quoteAudience ?? state.retailAudience)?.pricing ?? null;
-			state.creates.push(body);
-			if (state.loseFirstResponse && state.creates.length === 1)
-				return route.abort("connectionreset");
-			if (state.createError) return reject(state.createError);
+			state.acceptedCredits ??= state.acceptedPricing?.credits ?? state.quoteCredits;
+			state.acceptedKeys.add(body.idempotencyKey);
+			if (loseResponse) return route.abort("connectionreset");
 			return reply({
 				...job,
+				credits: state.acceptedCredits,
 				...(state.acceptedPricing
 					? { credits: state.acceptedPricing.credits, pricing: state.acceptedPricing }
 					: {}),
@@ -271,7 +323,7 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 	await expect(page.locator('[data-test="video-workspace"]')).toBeVisible();
 }
 
-async function quoteAndConfirm(page: Page, doubleClick = false) {
+async function generateVideo(page: Page, doubleClick = false) {
 	await page
 		.getByLabel("Describe your video", { exact: true })
 		.fill("UI mock only: a slow camera above a quiet lake.");
@@ -451,9 +503,16 @@ test("UI Mock: changed annual qualification refreshes the catalog and survives p
 	const previousReads = state.catalogReads;
 	state.retailAudience = "standard";
 	state.quoteAudience = "standard";
-	await quoteAndConfirm(page, true);
+	await generateVideo(page, true);
 	await expect(page.locator('[data-test="video-confirm"]')).toContainText("96");
 	expect(state.creates).toHaveLength(0);
+	expect(state.acceptedKeys.size).toBe(0);
+	expect(state.submissions).toHaveLength(1);
+	expect(state.submissions[0]).toMatchObject({
+		expectedCredits: "66",
+		expectedPricing: { audience: "annual" },
+	});
+	expect(state.legacyQuoteReads).toBe(0);
 	expect(state.quotes).toBe(1);
 	await expect(page.locator('[data-test="video-retail-price"]').first().locator("s")).toHaveCount(
 		0,
@@ -517,6 +576,9 @@ test("UI Mock: accepted annual savings stay frozen after qualification changes a
 		animations: "disabled",
 	});
 	expect(state.creates).toHaveLength(1);
+	expect(state.submissions).toHaveLength(1);
+	expect(state.acceptedKeys.size).toBe(1);
+	expect(state.legacyQuoteReads).toBe(0);
 });
 
 test("UI Mock: standard annual offer opens yearly plans and closing preserves the draft", async ({
@@ -595,9 +657,14 @@ test("UI Mock: text confirmation, refresh, closed-page recovery and private play
 }, testInfo) => {
 	const state = scenario();
 	await setup(context, page, state);
-	await quoteAndConfirm(page, true);
+	await generateVideo(page, true);
 	await expect(page.locator('[data-test="video-job"]')).toHaveAttribute("data-stage", "QUEUED");
 	expect(state.creates).toHaveLength(1);
+	expect(state.submissions).toHaveLength(1);
+	expect(state.submissions[0]).toMatchObject({ expectedCredits: "23", expectedPricing: null });
+	expect(state.submissions[0]).not.toHaveProperty("quoteId");
+	expect(state.acceptedKeys.size).toBe(1);
+	expect(state.legacyQuoteReads).toBe(0);
 	expect(state.creates[0]!.request as { sound: boolean; duration: number }).toMatchObject({
 		sound: false,
 		duration: 5,
@@ -640,19 +707,20 @@ test("UI Mock: interrupted confirmation retains its exact key through reload", a
 	const state = scenario();
 	state.loseFirstResponse = true;
 	await setup(context, page, state);
-	await quoteAndConfirm(page);
+	await generateVideo(page);
 	await expect(page.getByRole("button", { name: "Check the same request" })).toBeEnabled();
 	await expect.poll(() => pendingConfirmations(page)).toHaveLength(1);
-	await page.evaluate(() => {
-		for (const key of Object.keys(sessionStorage).filter((entry) =>
-			entry.startsWith("video-v1:confirmation:"),
-		)) {
-			const confirmation = JSON.parse(sessionStorage.getItem(key)!);
-			confirmation.quote.expiresAt = "2000-01-01T00:00:00.000Z";
-			sessionStorage.setItem(key, JSON.stringify(confirmation));
-		}
+	const original = JSON.parse((await pendingConfirmations(page))[0]!);
+	expect(original).toMatchObject({
+		version: 2,
+		ownerId: expect.any(String),
+		input: state.submissions[0],
+		recoveryRequired: true,
 	});
+	expect(original).not.toHaveProperty("quote");
 	state.available = false;
+	state.quoteError = "VIDEO_PRICE_EXPIRED";
+	state.quoteExpired = true;
 	await page.reload();
 	await expect(page.getByRole("button", { name: "Check the same request" })).toBeEnabled();
 	await page.screenshot({
@@ -664,7 +732,82 @@ test("UI Mock: interrupted confirmation retains its exact key through reload", a
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
 	expect(state.creates).toHaveLength(2);
 	expect(state.creates[1]).toEqual(state.creates[0]);
+	expect(state.submissions).toEqual([original.input, original.input]);
+	expect(state.acceptedKeys.size).toBe(1);
+	expect(state.legacyQuoteReads).toBe(0);
 	expect(state.quotes).toBe(1);
+});
+
+test("UI Mock: uncertain atomic submission survives pricing rejections without replacing its key", async ({
+	context,
+	page,
+}) => {
+	const state = scenario();
+	state.loseFirstResponse = true;
+	await setup(context, page, state);
+	await generateVideo(page);
+	await expect(page.getByRole("button", { name: "Check the same request" })).toBeEnabled();
+	const original = state.submissions[0]!;
+	const quoteCount = state.quotes;
+	state.available = false;
+	await page.reload();
+	for (const code of ["VIDEO_MODEL_PRICE_EXPIRED", "VIDEO_PRICE_EXPIRED"]) {
+		state.createError = code;
+		const before = state.submissions.length;
+		await page.getByRole("button", { name: "Check the same request" }).click();
+		await expect.poll(() => state.submissions.length).toBe(before + 1);
+		await expect(page.locator('[data-test="video-workspace"]').getByRole("alert")).toHaveText(
+			"Video pricing is temporarily unavailable. Please check back later.",
+		);
+		await expect(page.getByRole("button", { name: "Check the same request" })).toBeEnabled();
+		await expect(page.getByLabel("Describe your video", { exact: true })).toBeDisabled();
+		const pending = (await pendingConfirmations(page)).map((value) => JSON.parse(value!));
+		expect(pending).toEqual([
+			expect.objectContaining({ version: 2, input: original, recoveryRequired: true }),
+		]);
+		expect(state.submissions.at(-1)).toEqual(original);
+		expect(state.acceptedKeys.size).toBe(1);
+		expect(state.quotes).toBe(quoteCount);
+	}
+	state.createError = null;
+	await page.getByRole("button", { name: "Check the same request" }).click();
+	await expect(page.locator('[data-test="video-job"]')).toHaveAttribute("data-stage", "QUEUED");
+	expect(state.submissions).toEqual([original, original, original, original]);
+	expect(state.acceptedKeys.size).toBe(1);
+	await expect.poll(() => pendingConfirmations(page)).toEqual([]);
+});
+
+test("UI Mock: interrupted legacy confirmation replays its exact receipt after quote expiry", async ({
+	context,
+	page,
+}) => {
+	const state = scenario();
+	state.loseFirstResponse = true;
+	state.quoteCredits = "29";
+	await setup(context, page, state);
+	await generateVideo(page);
+	await expect(page.locator('[data-test="video-confirm"]')).toContainText("29 credits");
+	await page.locator('[data-test="video-confirm"]').click();
+	await expect(page.getByRole("button", { name: "Check the same request" })).toBeEnabled();
+	await page.evaluate(() => {
+		const key = Object.keys(sessionStorage).find((entry) =>
+			entry.startsWith("video-v1:confirmation:"),
+		)!;
+		const confirmation = JSON.parse(sessionStorage.getItem(key)!);
+		if (confirmation.version !== 1) throw new Error("Expected a legacy quote confirmation");
+		confirmation.quote.expiresAt = "2000-01-01T00:00:00.000Z";
+		sessionStorage.setItem(key, JSON.stringify(confirmation));
+	});
+	state.available = false;
+	await page.reload();
+	await page.getByRole("button", { name: "Check the same request" }).click();
+	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+	expect(state.submissions).toHaveLength(1);
+	expect(state.creates).toHaveLength(2);
+	expect(state.creates[1]).toEqual(state.creates[0]);
+	expect(state.acceptedKeys.size).toBe(1);
+	expect(state.quotes).toBe(1);
+	expect(state.legacyQuoteReads).toBe(0);
 });
 
 async function pendingConfirmations(page: Page) {
@@ -682,7 +825,7 @@ test("UI Mock: changed pricing requires a fresh quote and explicit confirmation 
 	const state = scenario();
 	state.createError = "PRICE_CHANGED";
 	await setup(context, page, state);
-	await quoteAndConfirm(page);
+	await generateVideo(page);
 	await expect(page.locator('[data-test="video-workspace"]').getByRole("alert")).toContainText(
 		"Review the current cost again",
 	);
@@ -690,6 +833,7 @@ test("UI Mock: changed pricing requires a fresh quote and explicit confirmation 
 	await expect.poll(() => pendingConfirmations(page)).toEqual([]);
 	await expect.poll(() => state.catalogReads).toBe(2);
 	expect(state.creates).toHaveLength(1);
+	expect(state.acceptedKeys.size).toBe(0);
 	await page.screenshot({
 		path: testInfo.outputPath("changed-price-rejected-quote-cleared.png"),
 		fullPage: true,
@@ -711,22 +855,32 @@ test("UI Mock: changed pricing requires a fresh quote and explicit confirmation 
 	await page.locator('[data-test="video-confirm"]').click();
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
 	expect(state.creates).toHaveLength(2);
+	expect(state.creates[1]!.quoteId).toEqual(expect.any(String));
 	expect(state.creates[1]!.quoteId).not.toBe(original.quoteId);
 	expect(state.creates[1]!.idempotencyKey).not.toBe(original.idempotencyKey);
 	expect(state.creates[1]!.request).toEqual(original.request);
+	expect(state.acceptedKeys.size).toBe(1);
 });
 
 for (const code of ["VIDEO_MODEL_PRICE_EXPIRED", "VIDEO_PRICE_EXPIRED"]) {
-	test(`UI Mock: ${code} clears a rejected stored confirmation and refreshes availability`, async ({
+	test(`UI Mock: ${code} clears a rejected legacy confirmation and refreshes availability`, async ({
 		context,
 		page,
 	}, testInfo) => {
 		const state = scenario();
 		state.loseFirstResponse = true;
+		// This legacy request was interrupted before acceptance; the retry can
+		// therefore definitively reject it without abandoning an accepted task.
+		state.acceptLostResponse = false;
+		state.quoteCredits = "29";
 		await setup(context, page, state);
-		await quoteAndConfirm(page);
+		await generateVideo(page);
+		await expect(page.locator('[data-test="video-confirm"]')).toContainText("29 credits");
+		await page.locator('[data-test="video-confirm"]').click();
 		await expect(page.getByRole("button", { name: "Check the same request" })).toBeEnabled();
 		await expect.poll(() => pendingConfirmations(page)).toHaveLength(1);
+		expect(JSON.parse((await pendingConfirmations(page))[0]!).version).toBe(1);
+		const previousCatalogReads = state.catalogReads;
 		state.createError = code;
 		state.available = false;
 		await page.getByRole("button", { name: "Check the same request" }).click();
@@ -734,11 +888,13 @@ for (const code of ["VIDEO_MODEL_PRICE_EXPIRED", "VIDEO_PRICE_EXPIRED"]) {
 			"Video pricing is temporarily unavailable. Please check back later.",
 		);
 		await expect.poll(() => pendingConfirmations(page)).toEqual([]);
-		await expect.poll(() => state.catalogReads).toBe(2);
+		await expect.poll(() => state.catalogReads).toBe(previousCatalogReads + 1);
 		await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
 		await expect(page.locator('[data-test="video-generate"]')).toBeDisabled();
 		expect(state.creates).toHaveLength(2);
 		expect(state.creates[1]).toEqual(state.creates[0]);
+		expect(state.submissions).toHaveLength(1);
+		expect(state.acceptedKeys.size).toBe(0);
 		expect(state.quotes).toBe(1);
 		await page.screenshot({
 			path: testInfo.outputPath(`${code.toLowerCase()}-confirmation-cleared.png`),
@@ -949,7 +1105,7 @@ test("UI Mock: rejection reports released credits without a paid retry", async (
 	const state = scenario();
 	state.stage = "REJECTED";
 	await setup(context, page, state);
-	await quoteAndConfirm(page);
+	await generateVideo(page);
 	await expect(page.locator('[data-test="video-job"]')).toContainText("23 credits released");
 	await expect(page.locator('[data-test="video-job"] button')).toHaveCount(0);
 	await expect(page.locator("video")).toHaveCount(0);
@@ -984,7 +1140,7 @@ test("UI Mock: uncertainty keeps credits reserved and hidden tabs pause status p
 	const state = scenario();
 	state.stage = "SUBMISSION_UNCERTAIN";
 	await setup(context, page, state);
-	await quoteAndConfirm(page);
+	await generateVideo(page);
 	await expect(page.locator('[data-test="video-job"]')).toContainText("23 credits reserved");
 	await expect(page.locator('[data-test="video-job"] button')).toHaveCount(0);
 	await expect.poll(() => state.gets).toBeGreaterThan(0);

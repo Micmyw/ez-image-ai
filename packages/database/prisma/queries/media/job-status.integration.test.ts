@@ -237,6 +237,10 @@ function jsonSize(value: unknown) {
 
 async function createStatusJob(overrides: Partial<Prisma.GenerationJobUncheckedCreateInput> = {}) {
 	const ownerId = crypto.randomUUID();
+	const videoJobId =
+		overrides.executionEngine === "video-workflow-v1"
+			? (overrides.id ?? crypto.randomUUID())
+			: undefined;
 	fixtureOwners.push(ownerId);
 	const quote = await client.generationQuote.create({
 		data: {
@@ -270,7 +274,61 @@ async function createStatusJob(overrides: Partial<Prisma.GenerationJobUncheckedC
 			},
 			pricingSnapshot: { private: "not returned" },
 			...overrides,
+			...(videoJobId !== undefined
+				? {
+						id: videoJobId,
+						videoExecution: {
+							create: {
+								workflowInstanceId: `video-v1-${videoJobId}`,
+								modelContractVersion: "status-fixture-v1",
+							},
+						},
+					}
+				: {}),
 		},
+	});
+}
+
+async function createStatusFunding(
+	job: { id: string; ownerId: string },
+	input: { amount: bigint; settledAmount?: bigint; releasedAmount?: bigint },
+) {
+	// Retained status fixtures still need conserved lot and allocation balances.
+	const settledAmount = input.settledAmount ?? 0n;
+	const releasedAmount = input.releasedAmount ?? 0n;
+	const reservedAmount = input.amount - settledAmount - releasedAmount;
+	return client.$transaction(async (transaction) => {
+		const account = await transaction.creditAccount.create({
+			data: {
+				ownerType: "USER",
+				ownerId: job.ownerId,
+				spendableCredits: releasedAmount,
+				reservedCredits: reservedAmount,
+			},
+		});
+		const lot = await transaction.creditLot.create({
+			data: {
+				accountId: account.id,
+				grantReferenceKey: `status-fixture:${job.id}`,
+				grantedAmount: input.amount,
+				remainingAmount: releasedAmount,
+				reservedAmount,
+			},
+		});
+		const reservation = await transaction.creditReservation.create({
+			data: {
+				jobId: job.id,
+				accountId: account.id,
+				amount: input.amount,
+				settledAmount,
+				releasedAmount,
+				status: reservedAmount === 0n ? "SETTLED" : "ACTIVE",
+				allocations: {
+					create: { lotId: lot.id, amount: input.amount, settledAmount, releasedAmount },
+				},
+			},
+		});
+		return { account, lot, reservation };
 	});
 }
 
@@ -394,18 +452,10 @@ describe("single-statement job status equivalence", () => {
 		const job = await createStatusJob({ status: "FINALIZING" });
 		const large = 9_007_199_254_740_993n;
 		const date = new Date("2026-10-22T12:34:56.789Z");
-		const account = await client.creditAccount.create({
-			data: { ownerType: "USER", ownerId: job.ownerId },
-		});
-		await client.creditReservation.create({
-			data: {
-				jobId: job.id,
-				accountId: account.id,
-				amount: large + 2n,
-				settledAmount: large,
-				releasedAmount: 2n,
-				status: "SETTLED",
-			},
+		await createStatusFunding(job, {
+			amount: large + 2n,
+			settledAmount: large,
+			releasedAmount: 2n,
 		});
 		const output = await createStatusAsset(job.ownerId, {
 			byteSize: large,
@@ -663,12 +713,7 @@ describe("single-statement job status equivalence", () => {
 
 	it("reuses a caller transaction and reads its fresh settlement and asset state", async () => {
 		const job = await createStatusJob({ status: "FAILED" });
-		const account = await client.creditAccount.create({
-			data: { ownerType: "USER", ownerId: job.ownerId },
-		});
-		await client.creditReservation.create({
-			data: { jobId: job.id, accountId: account.id, amount: 17n },
-		});
+		const funding = await createStatusFunding(job, { amount: 17n });
 		expect(
 			(await readEquivalentStatus("before-settlement", job.id, job.ownerId))?.reservation,
 		).toEqual({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
@@ -676,6 +721,20 @@ describe("single-statement job status equivalence", () => {
 			await transaction.creditReservation.update({
 				where: { jobId: job.id },
 				data: { status: "SETTLED", settledAmount: 5n, releasedAmount: 12n },
+			});
+			await transaction.creditReservationAllocation.update({
+				where: {
+					reservationId_lotId: { reservationId: funding.reservation.id, lotId: funding.lot.id },
+				},
+				data: { settledAmount: 5n, releasedAmount: 12n },
+			});
+			await transaction.creditLot.update({
+				where: { id: funding.lot.id },
+				data: { remainingAmount: 12n, reservedAmount: 0n },
+			});
+			await transaction.creditAccount.update({
+				where: { id: funding.account.id },
+				data: { spendableCredits: 12n, reservedCredits: 0n },
 			});
 			expect(
 				(await readEquivalentStatus("transaction-settlement", job.id, job.ownerId, transaction))
