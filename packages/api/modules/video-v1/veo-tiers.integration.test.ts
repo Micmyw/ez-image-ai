@@ -1,5 +1,6 @@
 import { call } from "@orpc/server";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { createConfiguredVideoSafetyAdapter } from "@repo/ai/media/moderation/video-configured";
 import { KieVideoModelsAdapter } from "@repo/ai/media/providers/kie-video-models";
 import {
 	VIDEO_MODEL_CATALOG_VERSION,
@@ -18,8 +19,7 @@ import {
 import { runWithDatabaseClient } from "@repo/database/client";
 import { PrismaClient } from "@repo/database/generated-client";
 import { fingerprintVideoRequest } from "@repo/database/video-v1";
-import { recordVideoInputReview } from "@repo/database/video-v1-execution";
-import { submitVideoAttempt } from "@repo/jobs/video-v1/submission";
+import { reviewVideoInput, submitVideoAttempt } from "@repo/jobs/video-v1/submission";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
@@ -202,6 +202,8 @@ async function sealedInput() {
 			width: 1280,
 			height: 720,
 			checksum: "a".repeat(64),
+			storageEtag: `sealed-etag-${ownerId}`,
+			storageVersionId: `sealed-version-${ownerId}`,
 			finalizedAt: new Date(),
 		},
 	});
@@ -362,41 +364,88 @@ describe("protected Veo quote, receipt and dispatch", () => {
 					),
 				).rejects.toMatchObject({ message: "IDEMPOTENCY_CONFLICT" });
 				const textSafetyProfile = createVideoTextSafetyProfile();
-				await recordVideoInputReview(job.id, {
-					status: "ALLOW",
-					ruleVersion: VIDEO_V1_RULE_VERSION,
-					requestFingerprint: fingerprintVideoRequest(ownerId, request),
-					textSafetyProfile,
-					textDecision: {
-						decision: "ALLOW",
-						reasonCode: "WAFFO_PROMPT_ALLOWED",
-						ruleVersion: textSafetyProfile.ruleVersion,
-						evidence: {
+				const textDecision = {
+					decision: "ALLOW" as const,
+					reasonCode: "WAFFO_PROMPT_ALLOWED",
+					ruleVersion: textSafetyProfile.ruleVersion,
+					evidence: {
+						requestId: "fixture",
+						models: ["waffo-prompt-sift"],
+						operations: 1,
+						scores: {},
+						waffo: {
 							requestId: "fixture",
-							models: ["waffo-prompt-sift"],
-							operations: 1,
-							waffo: {
-								requestId: "fixture",
-								action: "allow",
-								semanticStatus: "scored",
-								matchedCategories: [],
-							},
+							action: "allow" as const,
+							semanticStatus: "scored",
+							matchedCategories: [],
 						},
 					},
-					validUntil: new Date(Date.now() + 60_000).toISOString(),
-				});
+				};
+				const imageTaskId = `synthetic-input-review-${job.id}`;
+				const moderationFetch = vi.fn<typeof globalThis.fetch>(async () =>
+					Response.json({
+						id: imageTaskId,
+						object: "inference",
+						model: "nsfw-filter",
+						endpoint: "image-moderation",
+						provider: "seeapi",
+						status: "succeeded",
+						result: {
+							type: "json",
+							data: { flagged: false, categories: { nsfw: [], special_care: [] } },
+						},
+						error: null,
+					}),
+				);
 				const fetch = vi.fn<typeof globalThis.fetch>(async () =>
 					Response.json({ code: 200, data: { taskId: `fake-${job.id}` } }),
 				);
 				const adapter = new KieVideoModelsAdapter({ apiKey: "fixture", fetch });
 				const overrides = {
 					env: environment,
+					moderateText: vi.fn(async () => textDecision),
+					safety: createConfiguredVideoSafetyAdapter(environment, { fetch: moderationFetch }),
 					provider: {
 						submit: adapter.submit.bind(adapter),
 						retrieve: adapter.retrieve.bind(adapter),
 					},
-					signRead: async () => "https://private.example.test/sealed.png",
+					signRead: vi.fn(async (_objectKey: string) => "https://private.example.test/sealed.png"),
 				};
+				await expect(submitVideoAttempt(job.id, overrides)).resolves.toMatchObject({
+					status: "INPUT_REVIEW_REQUIRED",
+				});
+				expect(fetch).not.toHaveBeenCalled();
+				// Exercise the real review claim, image parser and task binding with synthetic provider evidence.
+				await expect(reviewVideoInput(job.id, overrides)).resolves.toMatchObject({
+					status: "ALLOW",
+				});
+				const reviewed = await client.videoExecution.findUniqueOrThrow({
+					where: { jobId: job.id },
+				});
+				expect(reviewed.stageData).toMatchObject({
+					inputReview: {
+						status: "ALLOW",
+						ruleVersion: VIDEO_V1_RULE_VERSION,
+						requestFingerprint: fingerprintVideoRequest(ownerId, request),
+						textSafetyProfile,
+						textDecision,
+					},
+				});
+				expect(moderationFetch).toHaveBeenCalledTimes(mode === "image-to-video" ? 1 : 0);
+				if (mode === "image-to-video") {
+					const identity = (job.inputSnapshot as Record<string, unknown>).inputIdentity;
+					expect(reviewed.stageData).toMatchObject({
+						inputReview: {
+							imageTaskId,
+							imageSubmissionUncertain: false,
+							imageCallback: identity,
+							imageDecision: { decision: "ALLOW", evidence: { seeapi: { taskId: imageTaskId } } },
+						},
+					});
+					expect(overrides.signRead).toHaveBeenCalledWith(
+						(identity as Record<string, unknown>).objectKey,
+					);
+				}
 				await expect(submitVideoAttempt(job.id, overrides)).resolves.toMatchObject({
 					status: "ACCEPTED",
 				});

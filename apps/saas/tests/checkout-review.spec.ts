@@ -168,11 +168,17 @@ test.describe("checkout review browser flow", () => {
 		await banner.getByRole("button", { name: "Check payment status" }).click();
 		await expect.poll(() => reads).toBeGreaterThan(beforeManualCheck);
 		expect(refreshes).toHaveLength(0);
-		await banner.getByRole("button", { name: "Finish approved subscription" }).click();
+		const finish = banner.getByRole("button", { name: "Finish approved subscription" });
+		await finish.click();
 		await expect.poll(() => refreshes.length).toBe(1);
 		expect(refreshes[0]).toEqual({ checkoutIntentId: pending.id, retryReview: true });
+		// A request reaching the route does not mean React Query applied its result
+		// and restarted polling. Wait until the mutation releases the UI first.
+		await expect(finish).toBeEnabled();
+		const beforeClosedCheck = reads;
 		closed = true;
 		await page.clock.fastForward(31_000);
+		await expect.poll(() => reads).toBeGreaterThan(beforeClosedCheck);
 		await expect(banner).toHaveCount(0);
 	});
 });

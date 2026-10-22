@@ -324,7 +324,14 @@ describe("committed and observed verification continuations with real PostgreSQL
 				: "READY",
 		);
 		const observed = (await f.observation())!;
-		await client.mediaAsset.update({ where: { id: f.assetId }, data: mutation });
+		await client.mediaAsset.update({
+			where: { id: f.assetId },
+			data: {
+				...mutation,
+				// Fixtures keep append-only evidence, so repeat runs need distinct leases.
+				...("verificationLeaseToken" in mutation ? { verificationLeaseToken: f.assetId } : {}),
+			},
+		});
 		expect(await getObservedAssetGenerationContinuation(observed, client)).toBeUndefined();
 	});
 
@@ -424,9 +431,11 @@ describe("committed and observed verification continuations with real PostgreSQL
 			client,
 		);
 		const receipt = { eventId: old.id, workerId: "old-workflow", leaseToken: prepared!.leaseToken };
-		expect(
-			(await beginWorkflowOutboxExecution({ ...receipt, timeoutSeconds: 30 }, client)).state,
-		).toBe("active");
+		const begun = await beginWorkflowOutboxExecution({ ...receipt, timeoutSeconds: 30 }, client);
+		expect(begun.state).toBe("active");
+		if (begun.state !== "active") throw new Error("Expected an active execution receipt");
+		expect(begun.event.lastError).toMatch(/^EXECUTION_IN_PROGRESS:/);
+		const executionReceipt = { ...receipt, executionMarker: begun.event.lastError! };
 		expect(await getObservedAssetGenerationContinuation((await f.observation())!, client)).toEqual({
 			eventIds: [],
 		});
@@ -447,10 +456,20 @@ describe("committed and observed verification continuations with real PostgreSQL
 				},
 			});
 		});
-		expect(await completeWorkflowOutboxExecution(receipt, client)).toBe(true);
-		expect(await completeWorkflowOutboxExecution({ ...receipt, eventId: next.id }, client)).toBe(
-			false,
-		);
+		const [leased] = await client.$queryRaw<Array<{ leasedUntil: Date; now: Date }>>`
+			SELECT "leasedUntil", clock_timestamp() AS "now"
+			FROM "outbox_event" WHERE "id" = ${old.id}`;
+		expect(leased!.leasedUntil.getTime()).toBeGreaterThan(leased!.now.getTime());
+		// A live lease alone cannot ACK work after execution begins: the current
+		// execution marker must match, and it never grants authority over g2.
+		expect(await completeWorkflowOutboxExecution(receipt, client)).toBe(false);
+		expect(await completeWorkflowOutboxExecution(executionReceipt, client)).toBe(true);
+		expect(
+			await completeWorkflowOutboxExecution({ ...executionReceipt, eventId: next.id }, client),
+		).toBe(false);
+		expect(await client.outboxEvent.findUnique({ where: { id: old.id } })).toMatchObject({
+			status: "PROCESSED",
+		});
 		expect(await client.outboxEvent.findUnique({ where: { id: next.id } })).toMatchObject({
 			status: "PENDING",
 		});

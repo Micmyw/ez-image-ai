@@ -767,7 +767,11 @@ describe("generation output transfer runtime", () => {
 		vi.useFakeTimers({ toFake: ["Date"] });
 		vi.setSystemTime(started);
 		try {
+			const [beforeFinalization] = await client.$queryRaw<Array<{ now: Date }>>`
+				SELECT clock_timestamp() AS "now"`;
 			const result = await finalizeMedia(payload, dependencies);
+			const [afterFinalization] = await client.$queryRaw<Array<{ now: Date }>>`
+				SELECT clock_timestamp() AS "now"`;
 			expect(result).toMatchObject({ outcome: "WAITING_MODERATION", readyOutputs: 0 });
 			expect(result.outputReviewEventIds).toHaveLength(1);
 			const event = await client.outboxEvent.findUniqueOrThrow({
@@ -777,10 +781,13 @@ describe("generation output transfer runtime", () => {
 			expect(event).toMatchObject({
 				eventType: "MEDIA_ASSET_VERIFY",
 				status: "PENDING",
-				availableAt: new Date(started),
 				attempts: 0,
 				payload: { assetId },
 			});
+			// Immediate durable work uses the database clock even while provider
+			// polling is tested against a fixed application clock.
+			expect(event.availableAt.getTime()).toBeGreaterThanOrEqual(beforeFinalization!.now.getTime());
+			expect(event.availableAt.getTime()).toBeLessThanOrEqual(afterFinalization!.now.getTime());
 			expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({
 				verificationProviderTaskId: "persisted-seeapi-task",
 				verificationNextAttemptAt: new Date(started + 5000),
@@ -792,6 +799,11 @@ describe("generation output transfer runtime", () => {
 			// A duplicate finalizer returns the same stored event without resetting time.
 			vi.setSystemTime(started + 4000);
 			expect(await finalizeMedia(payload, dependencies)).toEqual(result);
+			expect(await client.outboxEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject(
+				{
+					availableAt: event.availableAt,
+				},
+			);
 			expect(retrieve).toHaveBeenCalledTimes(1);
 			vi.setSystemTime(started + 5000);
 			let release!: () => void;

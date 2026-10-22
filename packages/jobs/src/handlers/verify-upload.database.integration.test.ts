@@ -194,6 +194,10 @@ describe("claimed draft asset verification", () => {
 		});
 		await dependencies.verify(f.assetId);
 		expect(f.submitImage).toHaveBeenCalledTimes(1);
+		expect(f.submitImage).toHaveBeenCalledWith(
+			expect.objectContaining({ assetUrl: "https://private.example/verified-output.png" }),
+		);
+		expect(f.createSignedReadUrl).toHaveBeenCalledTimes(1);
 		expect(f.retrieveImage).not.toHaveBeenCalled();
 		await expect(
 			client.mediaAsset.findUniqueOrThrow({ where: { id: f.assetId } }),
@@ -208,10 +212,11 @@ describe("claimed draft asset verification", () => {
 
 		await dependencies.verify(f.assetId);
 		expect(f.submitImage).toHaveBeenCalledTimes(1);
+		expect(f.createSignedReadUrl).toHaveBeenCalledTimes(1);
 		expect(f.retrieveImage).toHaveBeenCalledExactlyOnceWith({
 			moderationTaskId: f.taskId,
 			ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
-			assetUrl: "https://private.example/verified-output.png",
+			assetUrl: "",
 		});
 		await expect(
 			client.mediaAsset.findUniqueOrThrow({ where: { id: f.assetId } }),
@@ -239,6 +244,10 @@ describe("claimed draft asset verification", () => {
 			const dependencies = createDatabaseVerifyUploadDependencies(client, f.options);
 			await dependencies.verify(f.assetId);
 			expect(f.submitImage).toHaveBeenCalledTimes(1);
+			expect(f.submitImage).toHaveBeenCalledWith(
+				expect.objectContaining({ assetUrl: "https://private.example/verified-output.png" }),
+			);
+			expect(f.createSignedReadUrl).toHaveBeenCalledTimes(1);
 			expect(f.retrieveImage).not.toHaveBeenCalled();
 			await expect(
 				client.mediaAsset.findUniqueOrThrow({ where: { id: f.assetId } }),
@@ -260,10 +269,11 @@ describe("claimed draft asset verification", () => {
 			});
 			await dependencies.verify(f.assetId);
 			expect(f.submitImage).toHaveBeenCalledTimes(1);
+			expect(f.createSignedReadUrl).toHaveBeenCalledTimes(1);
 			expect(f.retrieveImage).toHaveBeenCalledExactlyOnceWith({
 				moderationTaskId: f.taskId,
 				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
-				assetUrl: "https://private.example/verified-output.png",
+				assetUrl: "",
 			});
 			await expect(
 				client.mediaAsset.findUniqueOrThrow({ where: { id: f.assetId } }),
@@ -1267,17 +1277,19 @@ async function completedImageFixture() {
 	const adapter = new SeeapiSafetyAdapter({ apiKey: "local-fixture", fetch: fetcher });
 	const submitImage = vi.fn(adapter.submitImage.bind(adapter));
 	const retrieveImage = vi.fn(adapter.retrieveImage.bind(adapter));
+	const createSignedReadUrl = vi.fn(async () => "https://private.example/verified-output.png");
 	return {
 		assetId,
 		taskId,
 		adapter,
 		submitImage,
 		retrieveImage,
+		createSignedReadUrl,
 		options: {
 			environment: {},
 			moderationProvider: "seeapi",
 			safety: Object.assign(new TestMediaSafetyAdapter("ALLOW"), { submitImage, retrieveImage }),
-			createSignedReadUrl: async () => "https://private.example/verified-output.png",
+			createSignedReadUrl,
 		},
 	};
 }

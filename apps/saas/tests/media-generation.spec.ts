@@ -524,15 +524,11 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			timeout: 30_000,
 		});
 		await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
-		const uploaded = page.waitForResponse((response) =>
-			response.url().endsWith("/api/media/temporary-references"),
+		const receipt = await captureUploadedReferenceReceipt(page, () =>
+			page
+				.locator('[data-test="registered-generator"] input[type="file"]')
+				.setInputFiles("public/examples/case-tangerine-camera.webp"),
 		);
-		await page
-			.locator('[data-test="registered-generator"] input[type="file"]')
-			.setInputFiles("public/examples/case-tangerine-camera.webp");
-		const uploadResponse = await uploaded;
-		expect(uploadResponse.ok()).toBe(true);
-		const receipt = (await uploadResponse.json()) as { assetId: string; token: string };
 		// Upload now creates a private input and durable review intent. Observe the
 		// actual status endpoint/pump completion before checking reuse at Generate.
 		await expect(page.getByText("Source image ready", { exact: true })).toBeVisible({
@@ -1132,6 +1128,40 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		).toBe(true);
 	});
 });
+
+async function captureUploadedReferenceReceipt(
+	page: import("@playwright/test").Page,
+	upload: () => Promise<void>,
+): Promise<{ assetId: string; token: string }> {
+	const origin = new URL(page.url()).origin;
+	const [statusRequest] = await Promise.all([
+		page.waitForRequest((request) => {
+			const url = new URL(request.url());
+			return (
+				request.method() === "POST" &&
+				url.origin === origin &&
+				url.pathname === "/api/rpc/media/getTemporaryReferenceStatus"
+			);
+		}),
+		page
+			.waitForResponse((response) => {
+				const url = new URL(response.url());
+				return (
+					response.request().method() === "POST" &&
+					url.origin === origin &&
+					url.pathname === "/api/media/temporary-references"
+				);
+			})
+			.then((response) => expect(response.ok()).toBe(true)),
+		upload(),
+	]);
+	// The UI parsed the real upload receipt before issuing this owner-bound read.
+	// Request payloads are retained by Playwright; re-reading the upload response
+	// body would depend on Chromium's evictable Network.getResponseBody cache.
+	const receipt = statusRequest.postDataJSON().json;
+	expect(receipt).toEqual({ assetId: expect.any(String), token: expect.any(String) });
+	return receipt;
+}
 
 async function openCreator(page: import("@playwright/test").Page, prompt: string, email: string) {
 	const user = await userByEmail(email);
