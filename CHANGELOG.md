@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-23 — Framework security updates
+
+- Update Next.js to 16.4.1 and Sentry's Next.js integration to 10.75.2 to address the published image-optimization, Server Actions and tunnel-route advisories.
+- Preserve the dependency release-age policy and production security-audit gate.
+
 ## 2026-10-22 — Shorter image and video generation paths
 
 - Reuse validated image streams and immutable video inspection evidence to remove repeated transfers and decoding.

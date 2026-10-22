@@ -9,6 +9,7 @@ import { runInNewContext } from "node:vm";
 const app = fileURLToPath(new URL("../", import.meta.url));
 const output = path.join(app, "dist/worker");
 const assets = path.join(app, ".open-next/assets");
+const origin = "https://website-artifact-smoke.invalid";
 const wranglerRequire = createRequire(
 	realpathSync(path.join(app, "node_modules/wrangler/package.json")),
 );
@@ -36,6 +37,7 @@ const staticFile = (await readdir(path.join(assets, "_next/static"), { recursive
 	(file) => file.endsWith(".js"),
 );
 assert(staticFile, "Expected a built Next.js static asset");
+const blockedOutboundOrigins = [];
 const runtime = new Miniflare(
 	convertV4MiniflareOptions({
 		host: "127.0.0.1",
@@ -65,6 +67,10 @@ const runtime = new Miniflare(
 			NEXT_TAG_CACHE_DO_SHARDED: { className: "DOShardedTagCache", useSQLite: true },
 		},
 		serviceBindings: { WORKER_SELF_REFERENCE: "website-artifact-smoke" },
+		outboundService: (request) => {
+			blockedOutboundOrigins.push(new URL(request.url).origin);
+			return new Response("Outbound HTTP is disabled for artifact smoke", { status: 502 });
+		},
 		hyperdrives: {
 			HYPERDRIVE: checkDatabase ? connectionString : "postgresql://build:build@127.0.0.1:1/build",
 		},
@@ -86,27 +92,53 @@ const runtime = new Miniflare(
 	}),
 );
 
-async function request(endpoint) {
-	const response = await runtime.dispatchFetch(
-		`https://website-artifact-smoke.invalid${endpoint}`,
-		{ signal: AbortSignal.timeout(30_000) },
-	);
+async function request(endpoint, { headers, status = 200 } = {}) {
+	const response = await runtime.dispatchFetch(`${origin}${endpoint}`, {
+		headers,
+		redirect: "manual",
+		signal: AbortSignal.timeout(30_000),
+	});
 	const body = await response.text();
-	assert.equal(response.status, 200, `${endpoint}: ${body.slice(0, 300)}`);
+	assert.equal(response.status, status, `${endpoint}: ${body.slice(0, 300)}`);
 	return { response, body };
 }
 
 try {
 	await runtime.ready;
-	const [health, login, asset] = await Promise.all([
+	// Locale cookies are deliberately present, but no authentication cookie is sent.
+	// These anonymous routes return before any account/organization/database queries.
+	const publicHeaders = { cookie: "NEXT_LOCALE=fr" };
+	const [health, login, asset, home, create, video] = await Promise.all([
 		request("/api/health"),
 		request("/login"),
 		request(`/_next/static/${staticFile.replaceAll(path.sep, "/")}`),
+		request("/", { headers: publicHeaders }),
+		request("/create?lang=es", { headers: publicHeaders }),
+		request("/video", { status: 307 }),
 	]);
 	assert.deepEqual(JSON.parse(health.body), { status: "alive" });
 	assert.match(login.response.headers.get("content-type"), /text\/html/);
 	assert.match(login.response.headers.get("cache-control"), /private.*no-store/);
 	assert.match(asset.response.headers.get("cache-control"), /immutable/);
+	// Unlike /login and /api/health, these paths exercise OpenNext's compiled
+	// Node proxy adapter and its request-header forwarding into next-intl.
+	assert.match(home.body, /<html\b[^>]*\blang="en"/);
+	assert.match(create.body, /<html\b[^>]*\blang="es"/);
+	for (const [endpoint, page] of Object.entries({ "/": home, "/create?lang=es": create })) {
+		assert.match(page.response.headers.get("content-type"), /text\/html/);
+		assert.equal(page.response.headers.get("x-robots-tag"), null, endpoint);
+		assert.match(
+			page.body,
+			/<meta\b(?=[^>]*\bname="robots")(?=[^>]*\bcontent="index,\s*follow")[^>]*>/,
+			`${endpoint}: public indexing metadata`,
+		);
+	}
+	// Inspect the original response: following redirects could hide a lost auth
+	// boundary or the private route's proxy headers behind a successful login page.
+	const videoLocation = video.response.headers.get("location");
+	assert(videoLocation, "Anonymous /video must redirect to login");
+	assert.equal(new URL(videoLocation, origin).href, `${origin}/login`);
+	assert.equal(video.response.headers.get("x-robots-tag"), "noindex, nofollow");
 	// next-themes serializes a server function into browser JavaScript. Execute
 	// the actual rendered script to catch bundler helpers escaping that function.
 	const themeScript = [...login.body.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
@@ -142,12 +174,18 @@ try {
 		);
 		for (const result of catalogs) assert(Array.isArray(JSON.parse(result.body).products));
 	}
+	assert.deepEqual(blockedOutboundOrigins, [], "Artifact probes must not request external HTTP");
 	process.stdout.write(
 		JSON.stringify({
 			artifact: "dist/worker/cloudflare-worker.js",
 			startedInWorkerd: true,
 			liveness: true,
 			dynamicLoginPage: true,
+			publicProxyLocales: true,
+			publicIndexingHeaders: true,
+			anonymousVideoLoginRedirect: true,
+			privateVideoNoindex: true,
+			externalHttpRequests: blockedOutboundOrigins.length,
 			inlineThemeInitialization: true,
 			staticAssetCaching: true,
 			concurrentLocalPostgresQueries: checkDatabase,
