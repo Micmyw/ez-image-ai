@@ -24,6 +24,7 @@ import {
 	type ProviderKey,
 	type ProviderOutput,
 	type ProviderTaskSnapshot,
+	type ProviderSubmission,
 	type RetrieveOnlyMediaProviderAdapter,
 	chooseCatalogRoute,
 	configuredProviderKeysFromEnvironment,
@@ -60,9 +61,24 @@ import {
 } from "@repo/config/server";
 import {
 	recordModerationOutcome,
+	recordLockedAssetModerationOutcome,
 	lockAssetPromptReview,
 	hasCurrentApprovedMediaAssetEvidence,
 	isHistoricalImageModerationProvider,
+	imageModerationRetryAt,
+	kieGenerationCallbackRetryAt,
+	readTerminalMediaVerificationObservation,
+	getObservedAssetGenerationContinuation,
+	KIE_IMAGE_COMPLETION_NOTICE_PROVIDER,
+	KIE_IMAGE_COMPLETION_NOTICE_PREFIX,
+	claimImagePhaseOwnerInTransaction,
+	getImagePhaseOwner,
+	getProviderEventDeliveryWait,
+	isImagePhaseOwnerCurrent,
+	sameImagePhaseOwner,
+	prepareGenerationSubmissionInTransaction,
+	isGenerationSubmissionPreparationCurrentInTransaction,
+	type GenerationSubmissionPreparation,
 } from "@repo/database";
 import {
 	claimOutputModerationGraceInTransaction,
@@ -71,6 +87,8 @@ import {
 	claimOutboxBatch,
 	claimMediaStorageCleanupTransaction,
 	completeGenerationOutputTransferTransaction,
+	completePersistedImageFinalizationInTransaction,
+	readStreamingImageFinalization,
 	completeOutboxEvent,
 	deferOutboxEvent,
 	expireGuestJobBeforeProvider,
@@ -84,12 +102,20 @@ import {
 	releaseOutboxEvent,
 	resolveGuestRuntimeConfigOverride,
 	reserveGenerationOutputStorageTransaction,
+	isDatabaseSerializationConflict,
+	isDatabaseLockNotAvailable,
+	isStorageFreshReadEnabled,
 	runSerializable,
 	runReadCommitted,
+	SERIALIZABLE_RETRY_LIMIT,
 	settleCreditsInTransaction,
-	lockProviderDispatchCapacity,
 } from "@repo/database";
-import type { Prisma } from "@repo/database";
+import type {
+	MediaVerificationAdmission,
+	Prisma,
+	ImagePhaseOwner,
+	ImagePhaseContext,
+} from "@repo/database";
 import { db } from "@repo/database/client";
 import type {
 	PrismaClient,
@@ -108,6 +134,16 @@ import {
 	reconcileAccountInputCopyTargetInTransaction,
 } from "@repo/database/media-account-input-copy";
 import {
+	recordMediaJobNotification,
+	type MediaJobNotification,
+} from "@repo/database/media-job-notifications";
+import {
+	MEDIA_VERIFICATION_CLAIM_SELECT,
+	readMediaVerificationQueryProjection,
+	readMediaVerificationVerdictProjection,
+	type MediaVerificationClaimAsset,
+} from "@repo/database/media-verification-projections";
+import {
 	abortMultipartUpload,
 	assertMediaKind,
 	isMediaContentType,
@@ -120,7 +156,7 @@ import {
 	detectMediaType,
 	headObject,
 	inspectPrivateMediaObject,
-	inspectRemoteMedia,
+	openInspectedRemoteMedia,
 	listMultipartUploads,
 	MediaValidationError,
 	promoteStagedObject,
@@ -129,6 +165,7 @@ import {
 	RemoteMediaPolicyError,
 	streamRemoteObjectToStorage,
 	tryWriteImmutableGenerationImage,
+	canStreamImmutableGenerationImage,
 	GUEST_WATERMARK_VERSION,
 	watermarkStagedGuestImage,
 } from "@repo/storage";
@@ -136,14 +173,20 @@ import type { MediaObjectMetadata } from "@repo/storage";
 
 import {
 	DispatchAdmissionBlockedError,
+	GenerationTransferRequiresHeavyError,
+	OutputTransferClaimConflictError,
+	ProviderEventPhaseHeldError,
 	type AccountInputCopyDependencies,
 	type AccountInputCopyOrphanDependencies,
 	type AccountInputCopyRecoveryDependencies,
 	type DispatchStore,
 	type DispatchDeferred,
+	type DispatchOwnershipLost,
+	type ReconciliationLease,
 	type FinalizationDependencies,
 	type FinalizationClaim,
 	type FinalizationFailure,
+	type FinalizationRetryEvent,
 	type FinalizationStore,
 	type GuestAdmissionDependencies,
 	type GuestMediaExpiryDependencies,
@@ -152,15 +195,18 @@ import {
 	type ProviderCancellationStore,
 	type ProviderEventStore,
 	type SettlementStore,
+	SettlementTransactionConflictError,
 	type OutboxCommitResult,
 	type UncertainSubmissionEvidence,
 } from "./contracts";
+import { createDispatchPreSendProofs } from "./dispatch-pre-send-proof";
 import { generationPollingDelaySeconds } from "./generation-polling-policy";
 import type { StorageCleanupDependencies } from "./handlers/cleanup-storage-object";
 import {
 	canReuseApprovedImageEvidence,
 	IMAGE_APPROVAL_NO_TIME_EXPIRY,
 } from "./media-approval-lifetime";
+import { imageModerationCallbackUrl } from "./orchestration/image-moderation-callback-auth";
 import { kieCompletionCallbackUrl } from "./orchestration/kie-callback-auth";
 import { unmanagedLegacyTask } from "./orchestration/legacy-task-ownership";
 import {
@@ -172,6 +218,7 @@ import {
 import type { OutputTransferEnvelope } from "./output-transfer-envelope";
 import { providerCdnAllowlist } from "./provider-output-policy";
 import { dispatchRouteFor, providerQueueKey } from "./queues";
+import { publishCommittedMediaJobNotification } from "./realtime/publish";
 
 export interface ProviderRegistryOptions {
 	includeRecoveryProviders?: boolean;
@@ -294,6 +341,8 @@ export function getAnyRegisteredProvider(
 }
 
 export interface DispatchRuntimeOptions {
+	workflowId?: string;
+	phaseOwner?: ImagePhaseOwner;
 	beforeSynchronousCommit?: () => Promise<void>;
 	afterInputAuthorization?: () => Promise<void>;
 	createSignedReadUrl?: typeof createSignedReadUrl;
@@ -504,44 +553,16 @@ export function createDatabaseDispatchStore(
 	const environment = options.environment ?? process.env;
 	const enabledProviders =
 		options.enabledProviders ?? locallyExecutableProviderKeysFromEnvironment(environment);
+	const preSendProofs = createDispatchPreSendProofs();
 	return {
 		async claimDispatch(payload) {
 			if (environment.MEDIA_GENERATION_ENABLED !== "true") {
 				throw new DispatchAdmissionBlockedError();
 			}
+			let preparation: GenerationSubmissionPreparation | undefined;
 			const claim = await runReadCommitted(database, async (tx) => {
-				// Old unpinned deliveries resolve only the lock identity from an unlocked
-				// snapshot. Re-read after the provider lock and job lock before mutation.
-				let lockedProvider = payload.provider;
-				if (lockedProvider === undefined) {
-					const candidate = await tx.generationJob.findFirst({
-						where: {
-							executionEngine: "legacy",
-							id: payload.jobId,
-							version: payload.version,
-							status: { in: ["RESERVED", "DISPATCH_QUEUED"] },
-						},
-						include: {
-							attempts: { orderBy: { attemptNumber: "desc" }, take: 1 },
-							quote: { select: { costMicros: true, moderationDecision: true } },
-						},
-					});
-					if (!candidate || candidate.quote.moderationDecision === "BYPASS") return null;
-					const resolution = quotedExecutableRoutes(candidate, enabledProviders, environment);
-					if (resolution.kind === "RESOLVED") {
-						const existing = candidate.attempts[0];
-						lockedProvider = (
-							existing
-								? resolution.routes.find(
-										(route) =>
-											route.provider === existing.provider &&
-											route.providerModelId === existing.providerModelId,
-									)
-								: chooseCatalogRoute(resolution.routes, deterministicFraction(candidate.id))
-						)?.provider;
-					}
-				}
-				if (lockedProvider !== undefined) await lockProviderDispatchCapacity(tx, lockedProvider);
+				// Serialize the same job only. Frozen routes are read after this lock;
+				// unrelated owners do not share a retired provider-capacity lock.
 				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`generation-dispatch:${payload.jobId}`}, 0))`;
 				const job = await tx.generationJob.findFirst({
 					where: {
@@ -575,6 +596,18 @@ export function createDatabaseDispatchStore(
 					return dispatchAdmissionBlocked;
 				}
 				const existing = job.attempts[0];
+				if (existing) {
+					await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${existing.id} FOR UPDATE`;
+					const owner = await getImagePhaseOwner(
+						{ kind: "generation", attemptId: existing.id },
+						tx,
+					);
+					if (
+						(owner && owner.workflowId !== options.workflowId) ||
+						(options.phaseOwner && (!owner || !sameImagePhaseOwner(owner, options.phaseOwner)))
+					)
+						return { phaseOwnershipLost: true as const, ...(owner ? { phaseOwner: owner } : {}) };
+				}
 				if (isGuest && existing) return null;
 				if (
 					existing &&
@@ -644,9 +677,6 @@ export function createDatabaseDispatchStore(
 						diagnosticRoute: route,
 					});
 					return null;
-				}
-				if (lockedProvider !== route.provider) {
-					throw new Error("DISPATCH_ROUTE_CHANGED_DURING_CLAIM");
 				}
 				// The legacy project concurrency setting is not a verified provider quota.
 				// Keep the atomic job claim and pre-send fence without limiting other jobs.
@@ -761,20 +791,47 @@ export function createDatabaseDispatchStore(
 							requestSnapshot: { catalogRoute: route.provider } as Prisma.InputJsonValue,
 						},
 					}));
-				await tx.generationAttempt.update({
-					where: { AND: { job: { executionEngine: "legacy" } }, id: attempt.id },
-					data: preSendAttemptState(
+				let phaseOwner: ImagePhaseOwner | undefined;
+				if (options.workflowId) {
+					const ownership = await claimImagePhaseOwnerInTransaction(
 						{
-							attemptId: attempt.id,
-							attemptNumber: attempt.attemptNumber,
-							jobId: job.id,
-							provider: route.provider,
-							providerModelId: route.providerModelId,
-							inputSnapshot: job.inputSnapshot,
+							phase: { kind: "generation", attemptId: attempt.id },
+							workflowId: options.workflowId,
+							expectedOwner: options.phaseOwner,
+							businessLeasedUntil: attempt.reconcileLeasedUntil,
 						},
+						tx,
+					);
+					if (!ownership.owned) throw new ImagePhaseOwnershipLostError(ownership.phaseOwner);
+					phaseOwner = ownership.phaseOwner;
+				}
+				const preSend = preSendAttemptState(
+					{
+						attemptId: attempt.id,
+						attemptNumber: attempt.attemptNumber,
+						jobId: job.id,
+						provider: route.provider,
+						providerModelId: route.providerModelId,
+						inputSnapshot: job.inputSnapshot,
+					},
+					now,
+				);
+				preparation = await prepareGenerationSubmissionInTransaction(
+					{
+						attemptId: attempt.id,
+						attemptNumber: attempt.attemptNumber,
+						jobId: job.id,
+						jobVersion: job.version + 1,
+						provider: route.provider,
+						providerModelId: route.providerModelId,
+						inputSnapshot: job.inputSnapshot,
+						pricingSnapshot: job.pricingSnapshot,
+						requestSnapshot: preSend.requestSnapshot as Prisma.InputJsonValue,
 						now,
-					),
-				});
+						nextReconcileAt: preSend.nextReconcileAt as Date,
+					},
+					tx,
+				);
 				if (isGuest) {
 					const trial = job.guestTrial!;
 					const committedRisk = await tx.guestRiskBudgetBucket.updateMany({
@@ -811,6 +868,7 @@ export function createDatabaseDispatchStore(
 					if (consumed.count !== 1) throw new Error("GUEST_TRIAL_CONSUME_FAILED");
 				}
 				return {
+					...(phaseOwner ? { phaseOwner } : {}),
 					attemptId: attempt.id,
 					attemptNumber: attempt.attemptNumber,
 					serviceClass: job.serviceClass,
@@ -826,31 +884,53 @@ export function createDatabaseDispatchStore(
 								? kieCompletionCallbackUrl(attempt.id, environment)
 								: undefined,
 				};
+			}).catch((error: unknown) => {
+				if (error instanceof ImagePhaseOwnershipLostError) return error.result;
+				throw error;
 			});
 			if (claim === dispatchAdmissionBlocked) throw new DispatchAdmissionBlockedError();
+			if (claim && "attemptId" in claim) {
+				if (!preparation) throw new Error("GENERATION_SUBMISSION_PREPARATION_MISSING");
+				// A lost/unknown COMMIT never reaches this registration boundary.
+				return preSendProofs.register(claim, preparation);
+			}
 			return claim;
 		},
-		async recordSubmissionStarted(attemptId) {
-			const attempt = await database.generationAttempt.findUniqueOrThrow({
-				where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
-				include: { job: { select: { inputSnapshot: true } } },
-			});
-			await database.generationAttempt.update({
-				where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
-				data: preSendAttemptState(
-					{
-						attemptId: attempt.id,
-						attemptNumber: attempt.attemptNumber,
-						jobId: attempt.jobId,
-						provider: attempt.provider,
-						providerModelId: attempt.providerModelId,
-						inputSnapshot: attempt.job.inputSnapshot,
-					},
-					new Date(),
-				),
+		async recordSubmissionStarted(attemptId, phaseOwner, preparedClaim) {
+			if (preparedClaim !== undefined) {
+				const prepared = preSendProofs.consume(preparedClaim, attemptId, phaseOwner);
+				if (!prepared) return false;
+				return runReadCommitted(database, async (tx) => {
+					if (
+						!(await isGenerationSubmissionPreparationCurrentInTransaction(prepared, phaseOwner, tx))
+					)
+						return false as const;
+				});
+			}
+			return database.$transaction(async (tx) => {
+				await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${attemptId} FOR UPDATE`;
+				if (!(await generationPhaseIsCurrent(attemptId, phaseOwner, tx))) return false as const;
+				const attempt = await tx.generationAttempt.findUniqueOrThrow({
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
+					include: { job: { select: { inputSnapshot: true } } },
+				});
+				await tx.generationAttempt.update({
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
+					data: preSendAttemptState(
+						{
+							attemptId: attempt.id,
+							attemptNumber: attempt.attemptNumber,
+							jobId: attempt.jobId,
+							provider: attempt.provider,
+							providerModelId: attempt.providerModelId,
+							inputSnapshot: attempt.job.inputSnapshot,
+						},
+						new Date(),
+					),
+				});
 			});
 		},
-		async recordSubmission(attemptId, submission) {
+		async recordSubmission(attemptId, submission, phaseOwner) {
 			return database.$transaction(async (tx) => {
 				// A query/callback can finish while the create request is returning.
 				// Read after the row lock so a late acknowledgement cannot erase it.
@@ -864,6 +944,10 @@ export function createDatabaseDispatchStore(
 				const providerTaskId = boundedString(submission.providerTaskId, 512);
 				if (!providerTaskId) {
 					throw new Error("Accepted provider submission omitted its task ID");
+				}
+				if (!(await generationPhaseIsCurrent(attemptId, phaseOwner, tx))) {
+					await preserveLateAcceptedGeneration(tx, attempt, submission);
+					return lostGenerationPhase(attemptId, tx);
 				}
 				if (
 					readProviderTerminalEvidence(
@@ -903,7 +987,13 @@ export function createDatabaseDispatchStore(
 							: undefined,
 						uncertainSubmission: false,
 						errorSnapshot: {},
-						nextReconcileAt: terminal ? null : new Date(Date.now() + 10_000),
+						nextReconcileAt: terminal
+							? null
+							: await kieGenerationCallbackRetryAt(
+									{ ...attempt, providerTaskId },
+									new Date(Date.now() + 10_000),
+									tx,
+								),
 					},
 				});
 				const changed = await tx.generationJob.updateMany({
@@ -929,15 +1019,32 @@ export function createDatabaseDispatchStore(
 					return changed.count === 1 ? { eventIds: [event.id] } : undefined;
 				}
 				// A concurrent state transition retains the historical compatibility read.
-				return changed.count === 1 ? { eventIds: [], pollAttemptId: attempt.id } : undefined;
+				return changed.count === 1
+					? { eventIds: [], pollAttemptId: attempt.id, ...(phaseOwner ? { phaseOwner } : {}) }
+					: undefined;
 			});
 		},
-		async recordUncertainSubmission(attemptId, evidence) {
-			await database.$transaction(async (tx) => {
+		async recordUncertainSubmission(attemptId, evidence, phaseOwner) {
+			return database.$transaction(async (tx) => {
+				await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${attemptId} FOR UPDATE`;
 				const existing = await tx.generationAttempt.findUniqueOrThrow({
 					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 				});
 				const recovery = safeUncertainRecoveryEvidence(existing.provider, evidence);
+				if (!(await generationPhaseIsCurrent(attemptId, phaseOwner, tx))) {
+					// Preserve only an unbound accepted identity. A stale error cannot
+					// overwrite a newer terminal verdict or clear the uncertainty hold.
+					if (
+						!existing.providerTaskId &&
+						evidence.providerTaskId &&
+						["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"].includes(existing.status)
+					)
+						await tx.generationAttempt.update({
+							where: { id: attemptId },
+							data: { ...recovery, nextReconcileAt: new Date() },
+						});
+					return lostGenerationPhase(attemptId, tx);
+				}
 				const attempt = await tx.generationAttempt.update({
 					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 					data: {
@@ -945,7 +1052,15 @@ export function createDatabaseDispatchStore(
 						status: "SUBMISSION_UNCERTAIN",
 						uncertainSubmission: true,
 						submittedAt: new Date(),
-						nextReconcileAt: new Date(Date.now() + 30_000),
+						nextReconcileAt: await kieGenerationCallbackRetryAt(
+							{
+								...existing,
+								providerTaskId:
+									boundedString(evidence.providerTaskId, 512) ?? existing.providerTaskId,
+							},
+							new Date(Date.now() + 30_000),
+							tx,
+						),
 					},
 				});
 				const changed = await tx.generationJob.updateMany({
@@ -955,8 +1070,11 @@ export function createDatabaseDispatchStore(
 				if (changed.count !== 1) throw new Error("Uncertain submission job state changed");
 			});
 		},
-		async recordProviderAdapterUnavailable(attemptId) {
-			await database.$transaction(async (tx) => {
+		async recordProviderAdapterUnavailable(attemptId, phaseOwner) {
+			return database.$transaction(async (tx) => {
+				await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${attemptId} FOR UPDATE`;
+				if (!(await generationPhaseIsCurrent(attemptId, phaseOwner, tx)))
+					return lostGenerationPhase(attemptId, tx);
 				const attempt = await tx.generationAttempt.findUnique({
 					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 					include: { job: { select: { status: true } } },
@@ -973,20 +1091,21 @@ export function createDatabaseDispatchStore(
 				});
 			});
 		},
-		async recordSynchronousCompletion(attemptId, submission, result) {
+		async recordSynchronousCompletion(attemptId, submission, result, phaseOwner) {
 			return database.$transaction(async (tx) => {
 				await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${attemptId} FOR UPDATE`;
 				const attempt = await tx.generationAttempt.findUniqueOrThrow({
 					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 					include: { job: { select: { productKey: true } } },
 				});
+				const currentOwner = await generationPhaseIsCurrent(attemptId, phaseOwner, tx);
 				if (
 					readProviderTerminalEvidence(
 						objectRecord(attempt.responseSnapshot)?.providerTerminalEvidence,
 						attempt,
 					)
 				)
-					return;
+					return currentOwner ? undefined : lostGenerationPhase(attemptId, tx);
 				if (submission.outcome !== "accepted") {
 					throw new Error("Only accepted provider submissions may complete synchronously");
 				}
@@ -1002,6 +1121,15 @@ export function createDatabaseDispatchStore(
 					mediaKindForJob(attempt.job.productKey),
 					result.outputs,
 				);
+				if (!currentOwner) {
+					await preserveLateAcceptedGeneration(
+						tx,
+						attempt,
+						submission,
+						envelope ? { envelope, result } : undefined,
+					);
+					return lostGenerationPhase(attemptId, tx);
+				}
 				if (!envelope) {
 					await transitionTerminalSuccessWithoutMedia(tx, {
 						attemptId,
@@ -1060,8 +1188,11 @@ export function createDatabaseDispatchStore(
 				return { eventIds: [event.id] };
 			});
 		},
-		async recordRejectedSubmission(attemptId, failure) {
-			await database.$transaction(async (tx) => {
+		async recordRejectedSubmission(attemptId, failure, phaseOwner) {
+			return database.$transaction(async (tx) => {
+				await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${attemptId} FOR UPDATE`;
+				if (!(await generationPhaseIsCurrent(attemptId, phaseOwner, tx)))
+					return lostGenerationPhase(attemptId, tx);
 				const attempt = await tx.generationAttempt.findUniqueOrThrow({
 					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 					include: {
@@ -1158,6 +1289,93 @@ export function createDatabaseDispatchStore(
 	};
 }
 export const databaseDispatchStore: DispatchStore = createDatabaseDispatchStore(db);
+
+class ImagePhaseOwnershipLostError extends Error {
+	readonly result: DispatchOwnershipLost;
+	constructor(phaseOwner?: ImagePhaseOwner) {
+		super("IMAGE_PHASE_OWNERSHIP_LOST");
+		this.result = { phaseOwnershipLost: true, ...(phaseOwner ? { phaseOwner } : {}) };
+	}
+}
+
+async function generationPhaseIsCurrent(
+	attemptId: string,
+	owner: ImagePhaseOwner | undefined,
+	tx: Prisma.TransactionClient,
+): Promise<boolean> {
+	const phase = { kind: "generation" as const, attemptId };
+	return owner
+		? isImagePhaseOwnerCurrent(phase, owner, tx)
+		: !(await getImagePhaseOwner(phase, tx));
+}
+
+async function lostGenerationPhase(
+	attemptId: string,
+	tx: Prisma.TransactionClient,
+): Promise<DispatchOwnershipLost> {
+	const phaseOwner = await getImagePhaseOwner({ kind: "generation", attemptId }, tx);
+	return { phaseOwnershipLost: true, ...(phaseOwner ? { phaseOwner } : {}) };
+}
+
+/** Acceptance remains durable even when its executor's epoch expired during I/O. */
+async function preserveLateAcceptedGeneration(
+	tx: Prisma.TransactionClient,
+	attempt: {
+		id: string;
+		provider: string;
+		providerTaskId: string | null;
+		status: string;
+		responseSnapshot: unknown;
+	},
+	submission: Extract<ProviderSubmission, { outcome: "accepted" }>,
+	completion?: { envelope: OutputTransferEnvelope; result: NormalizedResult },
+): Promise<void> {
+	const providerTaskId = boundedString(submission.providerTaskId, 512);
+	if (!providerTaskId) throw new Error("ACCEPTED_PROVIDER_TASK_MISSING");
+	if (attempt.providerTaskId && attempt.providerTaskId !== providerTaskId)
+		throw new Error("PROVIDER_SUBMISSION_TASK_MISMATCH");
+	if (!["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"].includes(attempt.status)) return;
+	// The first authenticated completion and its immutable envelope must stay a
+	// pair. A second stale executor may only observe it, never replace metadata.
+	const priorCompletion = objectRecord(objectRecord(attempt.responseSnapshot)?.phaseCompletion);
+	if (priorCompletion) {
+		if (priorCompletion.providerTaskId !== providerTaskId)
+			throw new Error("PROVIDER_SUBMISSION_TASK_MISMATCH");
+		return;
+	}
+	if (completion) {
+		await tx.generationAttemptTransferEnvelope.upsert({
+			where: { attemptId: attempt.id },
+			create: { attemptId: attempt.id, payload: outputTransferEnvelopeInput(completion.envelope) },
+			update: {},
+		});
+	}
+	const submissionToken = boundedString(submission.reconciliation.submissionToken, 256);
+	await tx.generationAttempt.update({
+		where: { id: attempt.id },
+		data: {
+			providerTaskId,
+			...safeReconciliationEndpoints(attempt.provider, providerTaskId, submission.reconciliation),
+			...(submissionToken ? { submissionToken } : {}),
+			// Do not change the attempt/job state or uncertainty here. The current
+			// owner consumes a preserved synchronous completion under its own lease.
+			nextReconcileAt: new Date(),
+			...(completion
+				? {
+						responseSnapshot: {
+							...responseSnapshotForResult(completion.result, attempt),
+							phaseCompletion: {
+								providerTaskId,
+								progress: completion.result.progress,
+								providerCostMicros: completion.result.providerCostMicros,
+								providerCharged: completion.result.providerCharged,
+							},
+						} as Prisma.InputJsonValue,
+					}
+				: {}),
+		},
+	});
+}
 
 async function deferProviderDispatch(
 	tx: Prisma.TransactionClient,
@@ -1358,6 +1576,7 @@ export const MEDIA_VERIFICATION_RETRY_POLICY = {
 } as const;
 
 interface MediaVerificationClaim {
+	phaseOwner?: ImagePhaseOwner;
 	assetId: string;
 	nextAllowedQueryAt: Date | null;
 	objectKey: string;
@@ -1377,6 +1596,7 @@ interface MediaVerificationClaim {
 	deadlineAt: Date;
 	submissionToken: string | null;
 	submissionUncertain: boolean;
+	callbackReceivedAt?: Date | null;
 	forceObjectInspection: boolean;
 	processingDeadlineExpired: boolean;
 	startedAt: Date;
@@ -1391,7 +1611,13 @@ export function createDatabaseVerifyUploadDependencies(
 		async verify(
 			this: void,
 			assetId: string,
-			verificationOptions = { allowQuarantinedReverification: false },
+			verificationOptions: {
+				allowQuarantinedReverification?: boolean;
+				queryOnly?: boolean;
+				admission?: MediaVerificationAdmission;
+				workflowId?: string;
+				phaseOwner?: ImagePhaseOwner;
+			} = {},
 		): Promise<OutboxCommitResult> {
 			// Factories are imported during closed-generation builds. Resolve live
 			// moderation configuration only when work starts, before any DB claim.
@@ -1408,18 +1634,69 @@ export function createDatabaseVerifyUploadDependencies(
 				console.info("media.upload.verification", {
 					assetId,
 					stage,
+					at: now,
 					stageMs: now - lastStageAt,
 					elapsedMs: now - taskStartedAt,
 					...details,
 				});
 				lastStageAt = now;
 			};
+			recordStage("verification_started");
+			if (verificationOptions.queryOnly) {
+				const observed = await readTerminalMediaVerificationObservation(
+					{
+						assetId,
+						provider: moderationProvider,
+						ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+						policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+					},
+					database,
+					verificationOptions.admission,
+				);
+				const continuation = observed
+					? await getObservedAssetGenerationContinuation(observed, database)
+					: undefined;
+				if (observed && continuation) {
+					const owner = await getImagePhaseOwner(
+						{ kind: "verification", assetId, generation: observed.generation },
+						database,
+					);
+					if (
+						(owner && owner.workflowId !== verificationOptions.workflowId) ||
+						(verificationOptions.phaseOwner &&
+							(!owner || !sameImagePhaseOwner(owner, verificationOptions.phaseOwner)))
+					) {
+						return {
+							outboxCommitted: false,
+							...(owner ? { phaseOwner: owner } : {}),
+							phaseOwnershipLost: true,
+						};
+					}
+					recordStage("terminal_observed", {
+						generation: observed.generation,
+						status: observed.status,
+					});
+					return {
+						outboxCommitted: false,
+						verificationObservation: {
+							assetId: observed.assetId,
+							generation: observed.generation,
+							status: observed.status,
+							eventIds: continuation.eventIds,
+						},
+					};
+				}
+			}
 			const claimed = await claimMediaVerification(database, {
 				assetId,
 				provider: moderationProvider,
 				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 				allowQuarantinedReverification: verificationOptions.allowQuarantinedReverification === true,
+				queryOnly: verificationOptions.queryOnly === true,
+				imageRetrievalSupported: typeof safety.retrieveImage === "function",
+				workflowId: verificationOptions.workflowId,
+				phaseOwner: verificationOptions.phaseOwner,
 			});
 			const { claim } = claimed;
 			let outboxCommitted = claimed.outboxCommitted;
@@ -1435,7 +1712,24 @@ export function createDatabaseVerifyUploadDependencies(
 						}
 					: { outboxCommitted: claimed.outboxCommitted },
 			);
-			if (!claim) return { outboxCommitted };
+			if (!claim)
+				return {
+					outboxCommitted,
+					...(claimed.phaseOwner ? { phaseOwner: claimed.phaseOwner } : {}),
+					...(claimed.phaseOwnershipLost ? { phaseOwnershipLost: true } : {}),
+				};
+			const withPhase = async (result: OutboxCommitResult): Promise<OutboxCommitResult> => {
+				if (
+					!result.outboxCommitted &&
+					!result.queryOnly &&
+					!result.verificationCommit &&
+					!result.verificationObservation &&
+					!result.phaseOwnershipLost &&
+					!(await verificationPhaseIsCurrent(claim, database))
+				)
+					result = { ...result, phaseOwnershipLost: true };
+				return { ...result, ...(claim.phaseOwner ? { phaseOwner: claim.phaseOwner } : {}) };
+			};
 
 			let checksum = claim.checksum;
 			let storageEtag = claim.storageEtag;
@@ -1458,16 +1752,17 @@ export function createDatabaseVerifyUploadDependencies(
 						contentLength: Number(claim.byteSize),
 					});
 					if (claim.forceObjectInspection && checksum && inspected.sha256 !== checksum) {
-						outboxCommitted = await completeMediaVerification(database, claim, {
-							decision: "REJECT",
-							reasonCode: "LEGACY_UPLOAD_CHECKSUM_MISMATCH",
-							ruleVersion: claim.ruleVersion,
-							checksum,
-							storageEtag,
-							storageVersionId,
-							finalizedAt,
-						});
-						return { outboxCommitted };
+						return withPhase(
+							await completeMediaVerification(database, claim, {
+								decision: "REJECT",
+								reasonCode: "LEGACY_UPLOAD_CHECKSUM_MISMATCH",
+								ruleVersion: claim.ruleVersion,
+								checksum,
+								storageEtag,
+								storageVersionId,
+								finalizedAt,
+							}),
+						);
 					}
 					checksum = inspected.sha256;
 					storageEtag = inspected.etag;
@@ -1493,23 +1788,34 @@ export function createDatabaseVerifyUploadDependencies(
 						metadata.contentType !== claim.mimeType ||
 						detectedType !== claim.mimeType
 					) {
-						outboxCommitted = await completeMediaVerification(database, claim, {
-							decision: "REJECT",
-							reasonCode: "UPLOAD_METADATA_MISMATCH",
-							ruleVersion: claim.ruleVersion,
-							checksum,
-							storageEtag,
-							storageVersionId,
-							finalizedAt,
-						});
-						return { outboxCommitted };
+						return withPhase(
+							await completeMediaVerification(database, claim, {
+								decision: "REJECT",
+								reasonCode: "UPLOAD_METADATA_MISMATCH",
+								ruleVersion: claim.ruleVersion,
+								checksum,
+								storageEtag,
+								storageVersionId,
+								finalizedAt,
+							}),
+						);
 					}
 				}
 
-				const assetUrl = await (options.createSignedReadUrl ?? createSignedReadUrl)({
-					...location,
-					expiresIn: 300,
-				});
+				// SeeAPI's existing-task GET ignores the adapter interface's assetUrl.
+				// New submissions and other adapters still receive a signed private URL.
+				const retrieveExistingSeeapiTask =
+					claim.provider === "seeapi" &&
+					claim.mimeType.startsWith("image/") &&
+					claim.providerTaskId !== null &&
+					(verificationOptions.queryOnly === true || typeof safety.submitImage === "function") &&
+					typeof safety.retrieveImage === "function";
+				const assetUrl = retrieveExistingSeeapiTask
+					? ""
+					: await (options.createSignedReadUrl ?? createSignedReadUrl)({
+							...location,
+							expiresIn: 300,
+						});
 				if (!verifiedImmutableObject) {
 					const persistedInspection = await database.mediaAsset.updateMany({
 						where: {
@@ -1522,7 +1828,7 @@ export function createDatabaseVerifyUploadDependencies(
 						},
 						data: { checksum, storageEtag, storageVersionId, finalizedAt },
 					});
-					if (persistedInspection.count !== 1) return { outboxCommitted };
+					if (persistedInspection.count !== 1) return withPhase({ outboxCommitted });
 				}
 				recordStage("prepared");
 				moderationStarted = true;
@@ -1534,7 +1840,7 @@ export function createDatabaseVerifyUploadDependencies(
 						"ERROR",
 						checksum,
 					);
-					return { outboxCommitted };
+					return withPhase({ outboxCommitted });
 				}
 				// Poll/recover an uncertain detector submission without sending another paid inference.
 				if (
@@ -1549,24 +1855,37 @@ export function createDatabaseVerifyUploadDependencies(
 						"ERROR",
 						checksum,
 					);
-					return { outboxCommitted };
+					return withPhase({ outboxCommitted });
 				}
 				let decision: ModerationDecision;
 				const asyncImage =
 					claim.mimeType.startsWith("image/") &&
-					typeof safety.submitImage === "function" &&
+					(verificationOptions.queryOnly === true || typeof safety.submitImage === "function") &&
 					typeof safety.retrieveImage === "function";
 				if (claim.mimeType.startsWith("image/") && !asyncImage) {
+					if (!(await verificationPhaseMayCallProvider(claim, database)))
+						return withPhase({ outboxCommitted: false, phaseOwnershipLost: true });
 					detectorRequestInFlight = true;
 					decision = await safety.moderateImage({ assetUrl, ruleVersion: claim.ruleVersion });
 					detectorRequestInFlight = false;
 					recordStage("moderation_result", { decision: decision.decision });
 				} else {
 					let providerTaskId = claim.providerTaskId;
+					let completedDecision: ModerationDecision | undefined;
+					let submittedPending = false;
 					if (!providerTaskId) {
+						if (verificationOptions.queryOnly)
+							throw new Error("MODERATION_QUERY_ONLY_IDENTITY_MISSING");
 						const submissionToken = await beginMediaVerificationSubmission(database, claim);
-						if (!submissionToken) return { outboxCommitted };
+						if (!submissionToken) return withPhase({ outboxCommitted, phaseOwnershipLost: true });
 						recordStage("submission_recorded");
+						const callbackUrl =
+							asyncImage && claim.provider === "seeapi"
+								? imageModerationCallbackUrl(
+										{ assetId: claim.assetId, generation: claim.generation, submissionToken },
+										environment,
+									)
+								: undefined;
 						detectorRequestInFlight = true;
 						const submitted = await (
 							asyncImage ? safety.submitImage!.bind(safety) : safety.submitVideo.bind(safety)
@@ -1574,6 +1893,7 @@ export function createDatabaseVerifyUploadDependencies(
 							assetUrl,
 							ruleVersion: claim.ruleVersion,
 							idempotencyKey: submissionToken,
+							...(asyncImage && claim.provider === "seeapi" ? { callbackUrl } : {}),
 						});
 						detectorRequestInFlight = false;
 						recordStage("moderation_submitted");
@@ -1586,7 +1906,7 @@ export function createDatabaseVerifyUploadDependencies(
 								checksum,
 								submitted.moderationTaskId,
 							);
-							return { outboxCommitted };
+							return withPhase({ outboxCommitted });
 						}
 						providerTaskId = submitted.moderationTaskId;
 						const binding = await bindMediaVerificationProviderTask(
@@ -1603,37 +1923,82 @@ export function createDatabaseVerifyUploadDependencies(
 								checksum,
 								providerTaskId,
 							);
-							return { outboxCommitted };
+							return withPhase({ outboxCommitted });
 						}
 						if (binding === "BOUND_LEASE_EXPIRED") {
-							return { outboxCommitted };
+							return withPhase({ outboxCommitted, phaseOwnershipLost: true });
+						}
+						// An authenticated POST can already contain the complete verdict. Only
+						// consume it after binding that exact task under the existing lease.
+						if (asyncImage && submitted.completedDecision) {
+							const verdict = submitted.completedDecision;
+							completedDecision =
+								verdict.ruleVersion === claim.ruleVersion &&
+								(claim.provider !== "seeapi" ||
+									(verdict.evidence?.seeapi?.taskId === providerTaskId &&
+										verdict.evidence.requestId === providerTaskId))
+									? verdict
+									: {
+											decision: "ERROR",
+											reasonCode: "MODERATION_INVALID_RESPONSE",
+											ruleVersion: claim.ruleVersion,
+										};
+						} else if (
+							asyncImage &&
+							claim.provider === "seeapi" &&
+							callbackUrl &&
+							submitted.ruleVersion === claim.ruleVersion &&
+							(submitted.nonterminalState === "queued" ||
+								submitted.nonterminalState === "processing")
+						) {
+							// The authenticated POST already proves PENDING. Persist it and
+							// release this lease so an early callback can wake the same task.
+							// Without callbacks/this explicit opt-in, retain immediate retrieval.
+							submittedPending = true;
 						}
 					}
-					const retrieval = { moderationTaskId: providerTaskId, ruleVersion: claim.ruleVersion };
-					recordStage("retrieval_prepared", {
-						nextAllowedQueryAt: claim.nextAllowedQueryAt?.getTime() ?? null,
-						queryStartedAt: Date.now(),
-						allowedQueryToStartMs: claim.nextAllowedQueryAt
-							? Math.max(0, Date.now() - claim.nextAllowedQueryAt.getTime())
-							: null,
+					if (completedDecision) {
+						decision = completedDecision;
+					} else if (submittedPending) {
+						decision = {
+							decision: "REVIEW",
+							reasonCode: "IMAGE_PROCESSING",
+							ruleVersion: claim.ruleVersion,
+						};
+					} else {
+						const retrieval = { moderationTaskId: providerTaskId, ruleVersion: claim.ruleVersion };
+						if (!(await verificationPhaseMayCallProvider(claim, database)))
+							return withPhase({ outboxCommitted: false, phaseOwnershipLost: true });
+						recordStage("retrieval_prepared", {
+							nextAllowedQueryAt: claim.nextAllowedQueryAt?.getTime() ?? null,
+							queryStartedAt: Date.now(),
+							allowedQueryToStartMs: claim.nextAllowedQueryAt
+								? Math.max(0, Date.now() - claim.nextAllowedQueryAt.getTime())
+								: null,
+						});
+						detectorRequestInFlight = true;
+						decision = asyncImage
+							? await safety.retrieveImage!({ ...retrieval, assetUrl })
+							: await safety.retrieveVideo(retrieval);
+						detectorRequestInFlight = false;
+					}
+					recordStage("moderation_result", {
+						decision: decision.decision,
+						source: completedDecision || submittedPending ? "submission" : "retrieval",
 					});
-					detectorRequestInFlight = true;
-					decision = asyncImage
-						? await safety.retrieveImage!({ ...retrieval, assetUrl })
-						: await safety.retrieveVideo(retrieval);
-					detectorRequestInFlight = false;
-					recordStage("moderation_result", { decision: decision.decision });
 					if (
 						decision.decision === "REVIEW" &&
 						["VIDEO_PROCESSING", "IMAGE_PROCESSING"].includes(decision.reasonCode)
 					) {
-						return await recordMediaVerificationWaitOrFailure(
+						const pending = await recordMediaVerificationWaitOrFailure(
 							database,
 							claim,
 							decision.reasonCode,
 							"PENDING",
 							checksum,
 						);
+						recordStage("pending_committed");
+						return withPhase(pending);
 					}
 				}
 				if (decision.decision === "ERROR") {
@@ -1644,9 +2009,9 @@ export function createDatabaseVerifyUploadDependencies(
 						"ERROR",
 						checksum,
 					);
-					return { outboxCommitted };
+					return withPhase({ outboxCommitted });
 				}
-				outboxCommitted = await completeMediaVerification(database, claim, {
+				const completed = await completeMediaVerification(database, claim, {
 					...decision,
 					detectorCompleted: true,
 					checksum,
@@ -1654,10 +2019,12 @@ export function createDatabaseVerifyUploadDependencies(
 					storageVersionId,
 					finalizedAt,
 				});
+				recordStage("verdict_transaction_completed", { decision: decision.decision });
+				return withPhase(completed);
 			} catch (error) {
 				options.onVerificationError?.(error);
 				if (isDeterministicLegacyInspectionFailure(error)) {
-					outboxCommitted = await completeMediaVerification(database, claim, {
+					const inspected = await completeMediaVerification(database, claim, {
 						decision: "REJECT",
 						reasonCode: "UPLOAD_INSPECTION_FAILED",
 						ruleVersion: claim.ruleVersion,
@@ -1666,7 +2033,7 @@ export function createDatabaseVerifyUploadDependencies(
 						storageVersionId,
 						finalizedAt,
 					});
-					return { outboxCommitted };
+					return withPhase(inspected);
 				}
 				if (detectorRequestInFlight && claim.mimeType.startsWith("image/")) {
 					const message = moderationServiceErrorCode(error);
@@ -1687,7 +2054,7 @@ export function createDatabaseVerifyUploadDependencies(
 						"ERROR",
 						checksum,
 					);
-					return { outboxCommitted };
+					return withPhase({ outboxCommitted });
 				}
 				// Persistence failures are not detector outages and cannot consume the permission budget.
 				if (moderationStarted && claim.mimeType.startsWith("image/")) throw error;
@@ -1700,12 +2067,12 @@ export function createDatabaseVerifyUploadDependencies(
 			} finally {
 				recordStage("attempt_finished");
 			}
-			return { outboxCommitted };
+			return withPhase({ outboxCommitted });
 		},
 	};
 }
 
-async function appendVerificationEvidence(
+export async function appendVerificationEvidence(
 	tx: Prisma.TransactionClient,
 	input: {
 		assetId: string;
@@ -1724,16 +2091,10 @@ async function appendVerificationEvidence(
 		validUntil?: Date | null;
 	},
 ): Promise<void> {
-	const existing = await tx.assetModerationResult.findFirst({
-		where: {
-			assetId: input.assetId,
-			verificationGeneration: input.verificationGeneration,
-			attemptNumber: input.attemptNumber,
-		},
-		select: { id: true },
-	});
-	if (existing) return;
-	await tx.assetModerationResult.create({
+	// The immutable (asset, generation, attempt) key arbitrates duplicates atomically.
+	// A different proof for the same attempt must never replace the first row.
+	await tx.assetModerationResult.createMany({
+		skipDuplicates: true,
 		data: {
 			assetId: input.assetId,
 			assetChecksum:
@@ -1766,9 +2127,36 @@ async function resolveJobsWaitingForMediaVerification(
 		verificationGeneration: number;
 		approved: boolean;
 		failureCode?: string;
+		outputReady?: {
+			ownerType: "USER" | "ORGANIZATION";
+			ownerId: string;
+			notifications: MediaJobNotification[];
+		};
+		continuationEvents?: Array<{ id: string; availableAt: Date }>;
 	},
 ): Promise<boolean> {
 	let outboxCommitted = false;
+	const enqueue = async (data: Prisma.OutboxEventCreateManyInput) => {
+		const collector = input.continuationEvents;
+		if (!collector) return tx.outboxEvent.createMany({ skipDuplicates: true, data });
+		// Immediate events use PostgreSQL's clock default. Return that committed
+		// time with the ID instead of replacing it with a possibly skewed host clock.
+		const inserted = await tx.outboxEvent.createManyAndReturn({
+			skipDuplicates: true,
+			data: { ...data, id: crypto.randomUUID() },
+			select: { id: true, availableAt: true },
+		});
+		if (inserted.length) collector.push(...inserted);
+		else {
+			// A dedupe conflict must return the actual durable row, not our unused ID.
+			const existing = await tx.outboxEvent.findFirst({
+				where: { dedupeKey: data.dedupeKey, status: { in: ["PENDING", "LEASED"] } },
+				select: { id: true, availableAt: true },
+			});
+			if (existing) collector.push(existing);
+		}
+		return { count: inserted.length };
+	};
 	const bindings = await tx.generationJobAsset.findMany({
 		where: {
 			AND: { job: { executionEngine: "legacy" } },
@@ -1778,7 +2166,12 @@ async function resolveJobsWaitingForMediaVerification(
 					role: "INPUT",
 					job: { status: { in: ["RESERVED", "DISPATCH_QUEUED"] } },
 				},
-				{ role: "OUTPUT", job: { status: "FINALIZING" } },
+				{
+					role: "OUTPUT",
+					job: input.outputReady
+						? { ownerType: input.outputReady.ownerType, ownerId: input.outputReady.ownerId }
+						: { status: "FINALIZING" },
+				},
 			],
 		},
 		include: { job: true },
@@ -1786,50 +2179,76 @@ async function resolveJobsWaitingForMediaVerification(
 	});
 	for (const binding of bindings) {
 		if (binding.role === "OUTPUT") {
+			if (input.outputReady) {
+				input.outputReady.notifications.push(
+					await recordMediaJobNotification(tx, {
+						jobId: binding.jobId,
+						revision: `asset:${input.assetId}:g${input.verificationGeneration}:ready`,
+					}),
+				);
+				outboxCommitted = true;
+			}
+			if (binding.job.status !== "FINALIZING") continue;
 			const completedFinalizationScan = await tx.outboxEvent.findUnique({
 				where: { dedupeKey: `generation-settle:${binding.jobId}` },
-				select: { id: true },
+				select: { id: true, status: true, availableAt: true },
 			});
+			if (
+				completedFinalizationScan &&
+				["PENDING", "LEASED"].includes(completedFinalizationScan.status)
+			)
+				input.continuationEvents?.push(completedFinalizationScan);
 			if (!completedFinalizationScan) {
+				if (
+					input.approved &&
+					getCatalogEntry(binding.job.productKey as ProductModelKey)?.mediaKind === "image" &&
+					(await completePersistedImageFinalizationInTransaction(
+						{
+							job: binding.job,
+							verification: {
+								provider: imageModerationProviderForEnvironment(process.env),
+								ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+								policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+								now: new Date(),
+							},
+							settlementEvents: input.continuationEvents,
+						},
+						tx,
+					))
+				) {
+					outboxCommitted = true;
+					continue;
+				}
 				// Async moderation can finish before the finalization retry is due.
-				// Wake the complete output scan now; only that scan may queue settlement.
+				// Incomplete or historical outputs still need the full heavy scan.
 				const dedupeKey = `generation-finalize-after-output-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`;
-				const inserted = await tx.outboxEvent.createMany({
-					skipDuplicates: true,
-					data: {
-						eventType: "GENERATION_FINALIZE_RETRY",
-						aggregateType: "GENERATION_JOB",
-						aggregateId: binding.jobId,
-						dedupeKey,
-						payload: { jobId: binding.jobId, version: binding.job.version },
-					},
+				const inserted = await enqueue({
+					eventType: "GENERATION_FINALIZE_RETRY",
+					aggregateType: "GENERATION_JOB",
+					aggregateId: binding.jobId,
+					dedupeKey,
+					payload: { jobId: binding.jobId, version: binding.job.version },
 				});
 				outboxCommitted ||= inserted.count > 0;
 				continue;
 			}
-			const inserted = await tx.outboxEvent.createMany({
-				skipDuplicates: true,
-				data: {
-					eventType: "GENERATION_SETTLE",
-					aggregateType: "GENERATION_JOB",
-					aggregateId: binding.jobId,
-					dedupeKey: `generation-settle-after-output-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
-					payload: { jobId: binding.jobId, version: binding.job.version },
-				},
+			const inserted = await enqueue({
+				eventType: "GENERATION_SETTLE",
+				aggregateType: "GENERATION_JOB",
+				aggregateId: binding.jobId,
+				dedupeKey: `generation-settle-after-output-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
+				payload: { jobId: binding.jobId, version: binding.job.version },
 			});
 			outboxCommitted ||= inserted.count > 0;
 			continue;
 		}
 		if (input.approved) {
-			const inserted = await tx.outboxEvent.createMany({
-				skipDuplicates: true,
-				data: {
-					eventType: "GENERATION_DISPATCH",
-					aggregateType: "GENERATION_JOB",
-					aggregateId: binding.jobId,
-					dedupeKey: `generation-dispatch-after-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
-					payload: { jobId: binding.jobId, version: binding.job.version },
-				},
+			const inserted = await enqueue({
+				eventType: "GENERATION_DISPATCH",
+				aggregateType: "GENERATION_JOB",
+				aggregateId: binding.jobId,
+				dedupeKey: `generation-dispatch-after-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
+				payload: { jobId: binding.jobId, version: binding.job.version },
 			});
 			outboxCommitted ||= inserted.count > 0;
 			continue;
@@ -1848,15 +2267,12 @@ async function resolveJobsWaitingForMediaVerification(
 			},
 		});
 		if (changed.count !== 1) continue;
-		const inserted = await tx.outboxEvent.createMany({
-			skipDuplicates: true,
-			data: {
-				eventType: "GENERATION_SETTLE",
-				aggregateType: "GENERATION_JOB",
-				aggregateId: binding.jobId,
-				dedupeKey: `generation-settle-after-input-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
-				payload: { jobId: binding.jobId, version: binding.job.version + 1 },
-			},
+		const inserted = await enqueue({
+			eventType: "GENERATION_SETTLE",
+			aggregateType: "GENERATION_JOB",
+			aggregateId: binding.jobId,
+			dedupeKey: `generation-settle-after-input-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
+			payload: { jobId: binding.jobId, version: binding.job.version + 1 },
 		});
 		outboxCommitted ||= inserted.count > 0;
 	}
@@ -1871,17 +2287,73 @@ async function claimMediaVerification(
 		ruleVersion: string;
 		policyVersion: string;
 		allowQuarantinedReverification: boolean;
+		queryOnly?: boolean;
+		imageRetrievalSupported?: boolean;
+		workflowId?: string;
+		phaseOwner?: ImagePhaseOwner;
 	},
-): Promise<{ claim: MediaVerificationClaim | null; outboxCommitted: boolean }> {
+): Promise<{
+	claim: MediaVerificationClaim | null;
+	outboxCommitted: boolean;
+	phaseOwner?: ImagePhaseOwner;
+	phaseOwnershipLost?: true;
+}> {
 	let outboxCommitted = false;
+	let phaseOwner: ImagePhaseOwner | undefined;
+	let phaseOwnershipLost: true | undefined;
 	const claim = await database.$transaction<MediaVerificationClaim | null>(async (tx) => {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${input.assetId}`}, 0))`;
-		let asset = await tx.mediaAsset.findUnique({
-			where: { verificationEngine: "legacy", id: input.assetId },
-		});
+		let queryProjection =
+			input.queryOnly && input.workflowId
+				? await readMediaVerificationQueryProjection(input.assetId, tx)
+				: undefined;
+		let asset: MediaVerificationClaimAsset | null =
+			queryProjection !== undefined
+				? (queryProjection?.asset ?? null)
+				: await tx.mediaAsset.findUnique({
+						where: { verificationEngine: "legacy", id: input.assetId },
+					});
 		if (!asset) return null;
+		phaseOwner = queryProjection
+			? queryProjection.phaseOwner
+			: await getImagePhaseOwner(
+					{
+						kind: "verification",
+						assetId: asset.id,
+						generation: Math.max(1, asset.verificationGeneration),
+					},
+					tx,
+				);
+		if (
+			(phaseOwner && phaseOwner.workflowId !== input.workflowId) ||
+			(input.phaseOwner &&
+				(!phaseOwner ||
+					!sameImagePhaseOwner(phaseOwner, input.phaseOwner) ||
+					(asset.verificationProvider && asset.verificationProvider !== input.provider) ||
+					(asset.verificationRuleVersion && asset.verificationRuleVersion !== input.ruleVersion) ||
+					(asset.verificationPolicyVersion &&
+						asset.verificationPolicyVersion !== input.policyVersion)))
+		) {
+			phaseOwnershipLost = true;
+			return null;
+		}
+		// A result-only execution may never reset an old identity or claim a new
+		// paid submission after its callback became stale. Recheck inside the lease lock.
+		if (
+			input.queryOnly &&
+			(asset.status !== "VERIFYING" ||
+				!asset.mimeType.startsWith("image/") ||
+				!asset.verificationProviderTaskId ||
+				asset.verificationSubmissionUncertain ||
+				asset.verificationGeneration < 1 ||
+				asset.verificationProvider !== input.provider ||
+				asset.verificationRuleVersion !== input.ruleVersion ||
+				asset.verificationPolicyVersion !== input.policyVersion ||
+				!input.imageRetrievalSupported)
+		)
+			return null;
 		if (asset.deletedAt !== null || asset.status === "DELETED") return null;
-		if (asset.kind === "INPUT") {
+		if (asset.kind === "INPUT" && queryProjection?.hasAccountInputCopy !== false) {
 			const copy = await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx);
 			if (copy.terminal) {
 				outboxCommitted = true;
@@ -2009,16 +2481,17 @@ async function claimMediaVerification(
 		const hasLegacyReverificationMarker =
 			!isTemporaryReferenceObjectKey(asset.objectKey) &&
 			asset.status === "VERIFYING" &&
-			Boolean(
-				await tx.auditLog.findFirst({
-					where: {
-						action: "MEDIA_ASSET_LEGACY_REVERIFICATION_STARTED",
-						targetType: "MEDIA_ASSET",
-						targetId: asset.id,
-					},
-					select: { id: true },
-				}),
-			);
+			(queryProjection?.hasLegacyReverificationMarker ??
+				Boolean(
+					await tx.auditLog.findFirst({
+						where: {
+							action: "MEDIA_ASSET_LEGACY_REVERIFICATION_STARTED",
+							targetType: "MEDIA_ASSET",
+							targetId: asset.id,
+						},
+						select: { id: true },
+					}),
+				));
 		const isAuthorizedLegacyReverification =
 			asset.status === "QUARANTINED" &&
 			input.allowQuarantinedReverification &&
@@ -2056,6 +2529,7 @@ async function claimMediaVerification(
 					verificationExhaustedAt: null,
 					verificationValidUntil: null,
 					verificationSubmissionToken: null,
+					verificationCallbackReceivedAt: null,
 					verificationSubmissionUncertain: false,
 					verificationSubmittedAt: null,
 					verificationLastErrorCode: null,
@@ -2077,6 +2551,7 @@ async function claimMediaVerification(
 					},
 				},
 			});
+			queryProjection = undefined;
 			asset = await tx.mediaAsset.findUniqueOrThrow({
 				where: { verificationEngine: "legacy", id: asset.id },
 			});
@@ -2150,6 +2625,8 @@ async function claimMediaVerification(
 					verificationLastErrorCode: "VERIFICATION_LEASE_EXPIRED",
 				},
 			});
+			// The transaction appended ERROR evidence; its earlier count is obsolete.
+			queryProjection = undefined;
 			asset = await tx.mediaAsset.findUniqueOrThrow({
 				where: { verificationEngine: "legacy", id: asset.id },
 			});
@@ -2183,11 +2660,13 @@ async function claimMediaVerification(
 					verificationExhaustedAt: null,
 					verificationValidUntil: null,
 					verificationSubmissionToken: null,
+					verificationCallbackReceivedAt: null,
 					verificationSubmissionUncertain: false,
 					verificationSubmittedAt: null,
 					verificationLastErrorCode: null,
 				},
 			});
+			queryProjection = undefined;
 			asset = await tx.mediaAsset.findUniqueOrThrow({
 				where: { verificationEngine: "legacy", id: asset.id },
 			});
@@ -2255,13 +2734,15 @@ async function claimMediaVerification(
 			return null;
 		}
 
-		const failureCount = await tx.assetModerationResult.count({
-			where: {
-				assetId: asset.id,
-				verificationGeneration: Math.max(asset.verificationGeneration, 1),
-				status: "ERROR",
-			},
-		});
+		const failureCount =
+			queryProjection?.failureCount ??
+			(await tx.assetModerationResult.count({
+				where: {
+					assetId: asset.id,
+					verificationGeneration: Math.max(asset.verificationGeneration, 1),
+					status: "ERROR",
+				},
+			}));
 		if (failureCount >= MEDIA_VERIFICATION_RETRY_POLICY.maxTransientFailures) {
 			await tx.mediaAsset.update({
 				where: { verificationEngine: "legacy", id: asset.id },
@@ -2291,9 +2772,26 @@ async function claimMediaVerification(
 		const generation = Math.max(asset.verificationGeneration, 1);
 		const attemptNumber = asset.verificationAttemptCount + 1;
 		const nextAllowedQueryAt = asset.verificationNextAttemptAt;
+		if (input.workflowId) {
+			const ownership = await claimImagePhaseOwnerInTransaction(
+				{
+					phase: { kind: "verification", assetId: asset.id, generation },
+					workflowId: input.workflowId,
+					expectedOwner: input.phaseOwner,
+					businessLeasedUntil: asset.verificationLeasedUntil,
+				},
+				tx,
+			);
+			phaseOwner = ownership.phaseOwner;
+			if (!ownership.owned) {
+				phaseOwnershipLost = true;
+				return null;
+			}
+		}
 		const leaseToken = crypto.randomUUID();
 		const claimed = await tx.mediaAsset.update({
 			where: { verificationEngine: "legacy", id: asset.id },
+			select: MEDIA_VERIFICATION_CLAIM_SELECT,
 			data: {
 				verificationGeneration: generation,
 				verificationAttemptCount: attemptNumber,
@@ -2310,6 +2808,7 @@ async function claimMediaVerification(
 		});
 		return {
 			processingDeadlineExpired,
+			...(phaseOwner ? { phaseOwner } : {}),
 			nextAllowedQueryAt,
 			startedAt: now,
 			assetId: claimed.id,
@@ -2330,11 +2829,48 @@ async function claimMediaVerification(
 			deadlineAt,
 			submissionToken: claimed.verificationSubmissionToken,
 			submissionUncertain: claimed.verificationSubmissionUncertain,
+			callbackReceivedAt: claimed.verificationCallbackReceivedAt,
 			forceObjectInspection: isAuthorizedLegacyReverification || hasLegacyReverificationMarker,
 			leaseToken,
 		};
 	});
-	return { claim, outboxCommitted };
+	return {
+		claim,
+		outboxCommitted,
+		...(phaseOwner ? { phaseOwner } : {}),
+		...(phaseOwnershipLost ? { phaseOwnershipLost } : {}),
+	};
+}
+
+async function verificationPhaseIsCurrent(
+	claim: MediaVerificationClaim,
+	tx: Prisma.TransactionClient,
+): Promise<boolean> {
+	const phase = {
+		kind: "verification" as const,
+		assetId: claim.assetId,
+		generation: claim.generation,
+	};
+	return claim.phaseOwner
+		? isImagePhaseOwnerCurrent(phase, claim.phaseOwner, tx)
+		: !(await getImagePhaseOwner(phase, tx));
+}
+
+async function verificationPhaseMayCallProvider(
+	claim: MediaVerificationClaim,
+	tx: Prisma.TransactionClient,
+): Promise<boolean> {
+	const [result] = await tx.$queryRaw<Array<{ current: boolean }>>`
+	 SELECT EXISTS (SELECT 1 FROM "media_asset" asset
+	 LEFT JOIN "media_workflow_phase_owner" owner ON owner."phaseKind" = 'verification'
+	  AND owner."subjectId" = asset."id" AND owner."generation" = asset."verificationGeneration" AND owner."leasedUntil" > clock_timestamp()
+	 WHERE asset."id" = ${claim.assetId} AND asset."verificationEngine" = 'legacy'
+	  AND asset."status" = 'VERIFYING' AND asset."verificationGeneration" = ${claim.generation}
+	  AND asset."verificationLeaseToken" = ${claim.leaseToken} AND asset."verificationLeasedUntil" > clock_timestamp()
+	  AND ((${claim.phaseOwner?.phaseKey ?? null}::text IS NULL AND owner."phaseKey" IS NULL)
+	   OR (owner."phaseKey" = ${claim.phaseOwner?.phaseKey ?? null} AND owner."workflowId" = ${claim.phaseOwner?.workflowId ?? null}
+	    AND owner."epoch" = ${claim.phaseOwner?.epoch ?? null}::int))) AS "current"`;
+	return result?.current === true;
 }
 
 async function beginMediaVerificationSubmission(
@@ -2343,29 +2879,38 @@ async function beginMediaVerificationSubmission(
 ): Promise<string | null> {
 	return database.$transaction(async (tx) => {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
-		const asset = await tx.mediaAsset.findFirst({
-			where: {
-				verificationEngine: "legacy",
-				id: claim.assetId,
-				status: "VERIFYING",
-				verificationGeneration: claim.generation,
-				verificationLeaseToken: claim.leaseToken,
-				verificationLeasedUntil: { gt: new Date() },
-				verificationProviderTaskId: null,
-				verificationSubmissionUncertain: false,
-			},
-		});
-		if (!asset) return null;
-		const submissionToken = asset.verificationSubmissionToken ?? crypto.randomUUID();
-		await tx.mediaAsset.update({
-			where: { verificationEngine: "legacy", id: asset.id },
-			data: {
-				verificationSubmissionToken: submissionToken,
-				verificationSubmissionUncertain: true,
-				verificationSubmittedAt: new Date(),
-			},
-		});
-		return submissionToken;
+		// Keep the lock in its own statement so this update sees changes committed
+		// while waiting for it. No provider request starts before this commit.
+		const now = new Date();
+		const [asset] = await tx.$queryRaw<Array<{ verificationSubmissionToken: string }>>`
+			UPDATE "media_asset" AS asset
+			SET "verificationSubmissionToken" = COALESCE("verificationSubmissionToken", ${crypto.randomUUID()}),
+				"verificationCallbackReceivedAt" = CASE
+					WHEN "verificationSubmissionToken" IS NULL THEN NULL
+					ELSE "verificationCallbackReceivedAt"
+				END,
+				"verificationSubmissionUncertain" = TRUE,
+				"verificationSubmittedAt" = ${now},
+				"updatedAt" = ${now}
+			WHERE "verificationEngine" = 'legacy'
+				AND "id" = ${claim.assetId}
+				AND "status" = 'VERIFYING'
+				AND "verificationGeneration" = ${claim.generation}
+				AND "verificationLeaseToken" = ${claim.leaseToken}
+				AND "verificationLeasedUntil" > ${now}
+				AND "verificationProviderTaskId" IS NULL
+				AND "verificationSubmissionUncertain" = FALSE
+				AND EXISTS (SELECT 1 FROM (SELECT 1) anchor
+					LEFT JOIN "media_workflow_phase_owner" owner ON owner."phaseKind" = 'verification'
+					 AND owner."subjectId" = asset."id" AND owner."generation" = asset."verificationGeneration"
+					 AND owner."leasedUntil" > clock_timestamp()
+					WHERE ((${claim.phaseOwner?.phaseKey ?? null}::text IS NULL AND owner."phaseKey" IS NULL)
+					 OR (owner."phaseKey" = ${claim.phaseOwner?.phaseKey ?? null}
+					  AND owner."workflowId" = ${claim.phaseOwner?.workflowId ?? null}
+					  AND owner."epoch" = ${claim.phaseOwner?.epoch ?? null}::int)))
+			RETURNING "verificationSubmissionToken"
+		`;
+		return asset?.verificationSubmissionToken ?? null;
 	});
 }
 
@@ -2377,26 +2922,35 @@ async function bindMediaVerificationProviderTask(
 ): Promise<"BOUND_ACTIVE" | "BOUND_LEASE_EXPIRED" | "LOST"> {
 	return database.$transaction(async (tx) => {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
-		const asset = await tx.mediaAsset.findFirst({
-			where: {
-				verificationEngine: "legacy",
-				id: claim.assetId,
-				status: "VERIFYING",
-				verificationGeneration: claim.generation,
-				verificationLeaseToken: claim.leaseToken,
-				verificationSubmissionToken: submissionToken,
-				verificationSubmissionUncertain: true,
-				OR: [{ verificationProviderTaskId: null }, { verificationProviderTaskId: providerTaskId }],
-			},
-		});
+		// A successful submission must remain recoverable even when its lease
+		// expired during the external request; only retrieval requires a live lease.
+		const [asset] = await tx.$queryRaw<
+			Array<{ verificationLeasedUntil: Date | null; ownerCurrent: boolean }>
+		>`
+			UPDATE "media_asset" AS asset
+			SET "verificationProviderTaskId" = ${providerTaskId},
+				"verificationSubmissionUncertain" = FALSE,
+				"updatedAt" = ${new Date()}
+			WHERE "verificationEngine" = 'legacy'
+				AND "id" = ${claim.assetId}
+				AND "status" = 'VERIFYING'
+				AND "verificationGeneration" = ${claim.generation}
+				AND "verificationLeaseToken" = ${claim.leaseToken}
+				AND "verificationSubmissionToken" = ${submissionToken}
+				AND "verificationSubmissionUncertain" = TRUE
+				AND ("verificationProviderTaskId" IS NULL OR "verificationProviderTaskId" = ${providerTaskId})
+			RETURNING "verificationLeasedUntil",
+				EXISTS (SELECT 1 FROM (SELECT 1) anchor
+					LEFT JOIN "media_workflow_phase_owner" owner ON owner."phaseKind" = 'verification'
+					 AND owner."subjectId" = asset."id" AND owner."generation" = asset."verificationGeneration"
+					 AND owner."leasedUntil" > clock_timestamp()
+					WHERE ((${claim.phaseOwner?.phaseKey ?? null}::text IS NULL AND owner."phaseKey" IS NULL)
+					 OR (owner."phaseKey" = ${claim.phaseOwner?.phaseKey ?? null}
+					  AND owner."workflowId" = ${claim.phaseOwner?.workflowId ?? null}
+					  AND owner."epoch" = ${claim.phaseOwner?.epoch ?? null}::int))) AS "ownerCurrent"
+		`;
 		if (!asset) return "LOST";
-		await tx.mediaAsset.update({
-			where: { verificationEngine: "legacy", id: asset.id },
-			data: {
-				verificationProviderTaskId: providerTaskId,
-				verificationSubmissionUncertain: false,
-			},
-		});
+		if (!asset.ownerCurrent) return "BOUND_LEASE_EXPIRED";
 		return asset.verificationLeasedUntil && asset.verificationLeasedUntil > new Date()
 			? "BOUND_ACTIVE"
 			: "BOUND_LEASE_EXPIRED";
@@ -2413,52 +2967,101 @@ async function completeMediaVerification(
 		storageVersionId: string | null;
 		finalizedAt: Date | null;
 	},
-): Promise<boolean> {
+): Promise<OutboxCommitResult> {
 	if (!input.checksum || !/^[a-f0-9]{64}$/i.test(input.checksum)) {
-		return failMediaVerification(database, claim, "CHECKSUM_UNAVAILABLE", "ERROR", null);
+		return {
+			outboxCommitted: await failMediaVerification(
+				database,
+				claim,
+				"CHECKSUM_UNAVAILABLE",
+				"ERROR",
+				null,
+			),
+		};
 	}
 	if (input.ruleVersion !== claim.ruleVersion) {
-		return failMediaVerification(
-			database,
-			claim,
-			"VERIFICATION_RULE_VERSION_MISMATCH",
-			"ERROR",
-			input.checksum,
-		);
+		return {
+			outboxCommitted: await failMediaVerification(
+				database,
+				claim,
+				"VERIFICATION_RULE_VERSION_MISMATCH",
+				"ERROR",
+				input.checksum,
+			),
+		};
 	}
 	const approvedChecksum = input.checksum;
-	return database.$transaction(async (tx) => {
+	const notifications: MediaJobNotification[] = [];
+	let committedStatus: "READY" | "QUARANTINED" | null = null;
+	const completed = await database.$transaction<OutboxCommitResult>(async (tx) => {
 		const promptRejected = await lockAssetPromptReview(claim.assetId, tx);
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
+		if (!(await verificationPhaseIsCurrent(claim, tx)))
+			return { outboxCommitted: false, phaseOwnershipLost: true };
+		if (claim.kind === "OUTPUT") {
+			// Transfer claim/record take the job row before its output asset/binding.
+			// Match that order before committing the verdict or repairing positions.
+			await tx.$queryRaw`
+				SELECT job."id" FROM "generation_job" job
+				WHERE job."executionEngine" = 'legacy' AND job."id" IN (
+					SELECT binding."jobId" FROM "generation_job_asset" binding
+					WHERE binding."assetId" = ${claim.assetId} AND binding."role" = 'OUTPUT'
+				)
+				ORDER BY job."id" FOR NO KEY UPDATE OF job
+			`;
+		}
 		const now = new Date();
-		const asset = await tx.mediaAsset.findFirst({
-			where: {
-				verificationEngine: "legacy",
-				id: claim.assetId,
-				status: "VERIFYING",
-				verificationGeneration: claim.generation,
-				verificationLeaseToken: claim.leaseToken,
-				verificationLeasedUntil: { gt: now },
-			},
-		});
-		if (!asset) return false;
+		const verdictProjection = claim.phaseOwner
+			? await readMediaVerificationVerdictProjection(
+					{
+						assetId: claim.assetId,
+						generation: claim.generation,
+						leaseToken: claim.leaseToken,
+						now,
+					},
+					tx,
+				)
+			: undefined;
+		const asset =
+			verdictProjection !== undefined
+				? (verdictProjection?.asset ?? null)
+				: await tx.mediaAsset.findFirst({
+						where: {
+							verificationEngine: "legacy",
+							id: claim.assetId,
+							status: "VERIFYING",
+							verificationGeneration: claim.generation,
+							verificationLeaseToken: claim.leaseToken,
+							verificationLeasedUntil: { gt: now },
+						},
+					});
+		if (!asset) return { outboxCommitted: false };
+		// Copy targets and their immutable pointer are created in one transaction;
+		// existing ordinary assets never acquire a copy pointer later. Reuse only
+		// this locked transaction's negative fact; positive/legacy paths still reconcile.
+		const needsCopyReconciliation =
+			asset.kind === "INPUT" && verdictProjection?.hasAccountInputCopy !== false;
 		if (
-			asset.kind === "INPUT" &&
+			needsCopyReconciliation &&
 			(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx)).terminal
 		)
-			return true;
+			return { outboxCommitted: true };
 		if (promptRejected)
 			input = { ...input, decision: "REJECT", reasonCode: "ADMIN_CONTENT_REJECTED" };
 		const status =
 			input.decision === "ALLOW" ? "APPROVED" : input.decision === "REJECT" ? "REJECTED" : "REVIEW";
 		if (asset.mimeType.startsWith("image/") && input.detectorCompleted) {
-			const failures = await tx.assetModerationResult.count({
-				where: { assetId: asset.id, verificationGeneration: claim.generation, status: "ERROR" },
-			});
-			const previous = await tx.moderationReview.findUnique({
-				where: { targetType_targetId: { targetType: "ASSET", targetId: asset.id } },
-			});
-			await recordModerationOutcome(
+			const failures =
+				verdictProjection?.failureCount ??
+				(await tx.assetModerationResult.count({
+					where: { assetId: asset.id, verificationGeneration: claim.generation, status: "ERROR" },
+				}));
+			const previous = verdictProjection
+				? verdictProjection.previousReview
+				: await tx.moderationReview.findUnique({
+						where: { targetType_targetId: { targetType: "ASSET", targetId: asset.id } },
+					});
+			await recordLockedAssetModerationOutcome(
 				{
 					targetType: "ASSET",
 					targetId: asset.id,
@@ -2479,7 +3082,9 @@ async function completeMediaVerification(
 								? "BLOCKED"
 								: "REJECTED",
 					serviceResponded: true,
+					detectorCompleted: true,
 				},
+				previous,
 				tx,
 			);
 		} else if (asset.mimeType.startsWith("image/")) {
@@ -2530,20 +3135,67 @@ async function completeMediaVerification(
 				verificationLastErrorCode: input.decision === "ALLOW" ? null : input.reasonCode,
 			},
 		});
+		committedStatus = input.decision === "ALLOW" ? "READY" : "QUARANTINED";
 		const copyTerminal =
-			asset.kind === "INPUT" &&
+			needsCopyReconciliation &&
 			(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx)).terminal;
+		const continuationEvents: Array<{ id: string; availableAt: Date }> = [];
 		const jobsCommitted = await resolveJobsWaitingForMediaVerification(tx, {
 			assetId: asset.id,
 			verificationGeneration: claim.generation,
+			continuationEvents,
 			approved: input.decision === "ALLOW",
+			...(process.env.MEDIA_JOB_EVENTS_ENABLED === "true" &&
+			asset.kind === "OUTPUT" &&
+			asset.mimeType.startsWith("image/") &&
+			input.decision === "ALLOW"
+				? { outputReady: { ownerType: asset.ownerType, ownerId: asset.ownerId, notifications } }
+				: {}),
 			failureCode:
 				input.decision === "REJECT"
 					? "INPUT_REVERIFICATION_REJECTED"
 					: "INPUT_REVERIFICATION_REVIEW_REQUIRED",
 		});
-		return copyTerminal || jobsCommitted;
+		const eventIds = [
+			...new Set(
+				continuationEvents
+					.sort(
+						(left, right) =>
+							left.availableAt.getTime() - right.availableAt.getTime() ||
+							left.id.localeCompare(right.id),
+					)
+					.map(({ id }) => id),
+			),
+		].slice(0, 100);
+		return {
+			outboxCommitted: copyTerminal || jobsCommitted,
+			...(!copyTerminal
+				? {
+						verificationCommit: {
+							assetId: asset.id,
+							generation: claim.generation,
+							status: committedStatus,
+							eventIds,
+						},
+					}
+				: {}),
+		};
 	});
+	if (committedStatus) {
+		console.info("media.upload.verification", {
+			assetId: claim.assetId,
+			generation: claim.generation,
+			stage: "verdict_committed",
+			at: Date.now(),
+			status: committedStatus,
+		});
+	}
+	await Promise.all(
+		notifications.map((notification) =>
+			publishCommittedMediaJobNotification(notification, database),
+		),
+	);
+	return completed;
 }
 
 async function failMediaVerification(
@@ -2567,6 +3219,8 @@ async function recordMediaVerificationWaitOrFailure(
 	return database.$transaction(async (tx) => {
 		await lockAssetPromptReview(claim.assetId, tx);
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
+		if (!(await verificationPhaseIsCurrent(claim, tx)))
+			return { outboxCommitted: false, phaseOwnershipLost: true };
 		const now = new Date();
 		const asset = await tx.mediaAsset.findFirst({
 			where: {
@@ -2598,22 +3252,28 @@ async function recordMediaVerificationWaitOrFailure(
 			reasonCode,
 			rawEnvelope: { decision: status },
 		});
-		const totalFailureCount = await tx.assetModerationResult.count({
-			where: {
-				assetId: asset.id,
-				verificationGeneration: claim.generation,
-				status: "ERROR",
-			},
-		});
-		let failureCount = await tx.assetModerationResult.count({
-			where: {
-				assetId: asset.id,
-				verificationGeneration: claim.generation,
-				status: "ERROR",
-				reasonCode: { in: [...MODERATION_RETRYABLE_ERROR_CODES] },
-			},
-		});
-		if (claim.processingDeadlineExpired)
+		const totalFailureCount =
+			status === "ERROR"
+				? await tx.assetModerationResult.count({
+						where: {
+							assetId: asset.id,
+							verificationGeneration: claim.generation,
+							status: "ERROR",
+						},
+					})
+				: 0;
+		let failureCount =
+			status === "ERROR"
+				? await tx.assetModerationResult.count({
+						where: {
+							assetId: asset.id,
+							verificationGeneration: claim.generation,
+							status: "ERROR",
+							reasonCode: { in: [...MODERATION_RETRYABLE_ERROR_CODES] },
+						},
+					})
+				: 0;
+		if (status === "ERROR" && claim.processingDeadlineExpired)
 			failureCount += await tx.assetModerationResult.count({
 				where: {
 					assetId: asset.id,
@@ -2656,7 +3316,7 @@ async function recordMediaVerificationWaitOrFailure(
 				tx,
 			);
 		}
-		const retryAt = exhausted
+		const normalRetryAt = exhausted
 			? null
 			: status === "PENDING"
 				? new Date(
@@ -2666,12 +3326,25 @@ async function recordMediaVerificationWaitOrFailure(
 								: MEDIA_VERIFICATION_RETRY_POLICY.processingPollMs),
 					)
 				: new Date(now.getTime() + Math.min(60_000, 1_000 * 2 ** Math.max(failureCount - 1, 0)));
+		const retryAt = imageModerationRetryAt({
+			retryAt: normalRetryAt,
+			now,
+			callbackReceivedAt: asset.verificationCallbackReceivedAt,
+			claimedCallbackReceivedAt: claim.callbackReceivedAt,
+			providerTaskId: asset.verificationProviderTaskId,
+			submissionUncertain: asset.verificationSubmissionUncertain,
+			pending: status === "PENDING" && asset.mimeType.startsWith("image/"),
+		});
 		await tx.mediaAsset.update({
 			where: { verificationEngine: "legacy", id: asset.id },
 			data: {
 				status: exhausted ? "VERIFICATION_FAILED" : "VERIFYING",
 				...(["MODERATION_CONFIGURATION_ERROR", "MODERATION_INVALID_INPUT"].includes(reasonCode)
-					? { verificationSubmissionUncertain: false, verificationSubmissionToken: null }
+					? {
+							verificationSubmissionUncertain: false,
+							verificationSubmissionToken: null,
+							verificationCallbackReceivedAt: null,
+						}
 					: {}),
 				verificationLeaseToken: null,
 				verificationLeasedUntil: null,
@@ -2699,14 +3372,20 @@ async function recordMediaVerificationWaitOrFailure(
 		}
 		if (retryAt) {
 			const pendingImage = status === "PENDING" && asset.mimeType.startsWith("image/");
+			const queryOnly =
+				pendingImage && asset.verificationProviderTaskId && !asset.verificationSubmissionUncertain
+					? { queryOnly: true as const }
+					: {};
 			// One active polling continuation per verification generation. Scheduled
 			// recovery can retry its delivery without creating a Workflow on every poll.
 			const dedupeKey = pendingImage
 				? `media-asset-verify:${asset.id}:g${claim.generation}:poll`
 				: `media-asset-verify:${asset.id}:g${claim.generation}:a${claim.attemptNumber + 1}`;
+			const eventId = crypto.randomUUID();
 			const inserted = await tx.outboxEvent.createMany({
 				skipDuplicates: true,
 				data: {
+					id: eventId,
 					eventType: "MEDIA_ASSET_VERIFY",
 					aggregateType: "MEDIA_ASSET",
 					aggregateId: asset.id,
@@ -2717,19 +3396,26 @@ async function recordMediaVerificationWaitOrFailure(
 					},
 					// The same event supports targeted delivery and scheduled recovery.
 					// The asset's due time/lease throttles reads independently of delivery.
-					availableAt: pendingImage ? now : retryAt,
+					// Immediate polling intent uses the DB default; real backoff stays explicit.
+					...(pendingImage ? {} : { availableAt: retryAt }),
 				},
 			});
 			outboxCommitted ||= pendingImage && inserted.count > 0;
 			if (pendingImage && asset.kind === "OUTPUT" && asset.verificationProviderTaskId) {
-				// Read the actual row in the committing transaction, including on dedupe.
-				// A crash after commit leaves this very event for scheduled delivery.
-				const event = await tx.outboxEvent.findUniqueOrThrow({
-					where: { dedupeKey },
-					select: { id: true },
-				});
-				return { outboxCommitted, outputReviewEventId: event.id };
+				// The successful insert already proves the committed identity. On dedupe,
+				// use the stored row so targeted delivery and recovery share the same event.
+				const outputReviewEventId =
+					inserted.count > 0
+						? eventId
+						: (
+								await tx.outboxEvent.findUniqueOrThrow({
+									where: { dedupeKey },
+									select: { id: true },
+								})
+							).id;
+				return { outboxCommitted, outputReviewEventId, ...queryOnly };
 			}
+			return { outboxCommitted, ...queryOnly };
 		}
 		return { outboxCommitted };
 	});
@@ -2774,6 +3460,7 @@ async function failUncertainMediaVerification(
 ): Promise<boolean> {
 	return database.$transaction(async (tx) => {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
+		if (!(await verificationPhaseIsCurrent(claim, tx))) return false;
 		const asset = await tx.mediaAsset.findFirst({
 			where: {
 				verificationEngine: "legacy",
@@ -3093,8 +3780,297 @@ function fundingReservationAuditMetadata(
 			};
 }
 
+async function fenceSettlementOutputVersions(tx: Prisma.TransactionClient, assetIds: string[]) {
+	if (assetIds.length === 0) return;
+	// SSI runs this last so a row changed after its snapshot raises 40001. The
+	// fresh-read path instead reads every decision field after taking these locks.
+	// NOWAIT avoids an account -> asset wait against guest cleanup's inverse order.
+	const rows = await tx.$queryRaw<Array<{ id: string }>>`
+		SELECT "id" FROM "media_asset" WHERE "id" = ANY(${assetIds}::text[])
+		ORDER BY "id" FOR UPDATE NOWAIT
+	`;
+	const actualIds = new Set(rows.map(({ id }) => id));
+	if (rows.length !== assetIds.length || assetIds.some((id) => !actualIds.has(id)))
+		throw new Error("SETTLEMENT_OUTPUT_FENCE_LOST");
+}
+
+class SettlementFreshReadConflictError extends Error {
+	readonly code = "SETTLEMENT_FRESH_READ_CONFLICT" as const;
+
+	constructor(readonly reason: "OUTPUT_BINDINGS_CHANGED" | "FUNDING_CHANGED" | "JOB_CHANGED") {
+		super(`Settlement read set changed: ${reason}`);
+		this.name = "SettlementFreshReadConflictError";
+	}
+}
+
+function isSettlementFreshReadEnabled(): boolean {
+	return process.env.MEDIA_SETTLEMENT_FRESH_READ_ENABLED === "true";
+}
+
+function sameSettlementBindings(
+	left: Array<{ assetId: string; assetChecksum: string }>,
+	right: Array<{ assetId: string; assetChecksum: string }>,
+): boolean {
+	if (left.length !== right.length) return false;
+	const expected = new Map(left.map((binding) => [binding.assetId, binding.assetChecksum]));
+	return (
+		expected.size === left.length &&
+		new Set(right.map(({ assetId }) => assetId)).size === right.length &&
+		right.every((binding) => expected.get(binding.assetId) === binding.assetChecksum)
+	);
+}
+
+type SettlementCreditJob = Pick<
+	Prisma.GenerationJobGetPayload<{ include: { reservation: true } }>,
+	| "id"
+	| "status"
+	| "guestTrialId"
+	| "serviceClass"
+	| "failureCode"
+	| "pricingSnapshot"
+	| "creditsReserved"
+	| "reservation"
+>;
+
+async function settleLockedGenerationCredits(
+	tx: Prisma.TransactionClient,
+	job: SettlementCreditJob,
+	outputState: ReturnType<typeof evaluateSettlementOutputs>,
+): Promise<string | undefined> {
+	if (!job.reservation) throw new Error("GENERATION_FUNDING_CONFLICT");
+	let chargeCredits = calculateSettlementCharge({
+		status: job.status,
+		failureCode: job.failureCode,
+		readyOutputCount: outputState.readyOutputCount,
+		reservedCredits: job.creditsReserved,
+		pricingSnapshot: job.pricingSnapshot,
+	});
+	let moderationFailureCode: string | undefined;
+	if (
+		job.status === "FINALIZING" &&
+		!job.guestTrialId &&
+		job.serviceClass !== "GUEST_SLOW" &&
+		job.failureCode !== "SUBMISSION_REJECTED_CONFIRMED" &&
+		outputState.readyOutputCount === 0 &&
+		outputState.contentRejectedOutputCount > 0 &&
+		job.pricingSnapshot &&
+		typeof job.pricingSnapshot === "object" &&
+		!Array.isArray(job.pricingSnapshot) &&
+		job.pricingSnapshot.outputModerationBillingPolicy === OUTPUT_MODERATION_BILLING_POLICY
+	) {
+		const waived = await claimOutputModerationGraceInTransaction(
+			{ accountId: job.reservation.accountId, jobId: job.id },
+			tx,
+		);
+		chargeCredits = waived
+			? 0n
+			: settlementPolicyFromSnapshot(job.pricingSnapshot, job.creditsReserved).maxCharge;
+		moderationFailureCode = waived
+			? "OUTPUT_CONTENT_BLOCKED_WAIVED"
+			: "OUTPUT_CONTENT_BLOCKED_CHARGED";
+	}
+	await settleCreditsInTransaction(
+		{ reservationId: job.reservation.id, amount: chargeCredits, referenceKey: `settle:${job.id}` },
+		tx,
+	);
+	return moderationFailureCode;
+}
+
+async function settleGenerationCreditsWithFreshReads(
+	database: PrismaClient,
+	jobId: string,
+): Promise<{ outcome: "SKIPPED" | "SETTLED" } | null> {
+	const bindingSelect = {
+		where: { role: "OUTPUT" as const },
+		select: { assetId: true, assetChecksum: true },
+	};
+	for (let attempt = 1; attempt <= SERIALIZABLE_RETRY_LIMIT; attempt += 1) {
+		try {
+			return await runReadCommitted(database, async (tx) => {
+				// Only discover identities here. No pre-lock result authorizes a charge.
+				const discovered = await tx.generationJob.findFirst({
+					where: {
+						executionEngine: "legacy",
+						id: jobId,
+						status: { in: ["FINALIZING", "CANCELED"] },
+					},
+					select: {
+						id: true,
+						fundingSource: true,
+						reservation: { select: { id: true, accountId: true, amount: true } },
+						assets: bindingSelect,
+					},
+				});
+				if (!discovered) return { outcome: "SKIPPED" };
+				if (discovered.fundingSource !== "CREDITS") return null;
+				if (!discovered.reservation) return { outcome: "SKIPPED" };
+				const assetIds = [...new Set(discovered.assets.map(({ assetId }) => assetId))].sort();
+				for (const assetId of assetIds)
+					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${assetId}`}, 0))`;
+				const accounts = await tx.$queryRaw<
+					Array<{ id: string; ownerType: string; ownerId: string }>
+				>`
+					SELECT "id", "ownerType", "ownerId" FROM "credit_account"
+					WHERE "id" = ${discovered.reservation.accountId} FOR UPDATE
+				`;
+				const account = accounts[0];
+				if (!account) throw new Error("GENERATION_FUNDING_CONFLICT");
+				// Account precedes job for old SSI settlements; NOWAIT breaks guest
+				// cleanup's job/asset -> account inversion without changing its locks.
+				const jobs = await tx.$queryRaw<Array<{ id: string }>>`
+					SELECT "id" FROM "generation_job" WHERE "id" = ${jobId}
+					AND "executionEngine" = 'legacy' AND "fundingSource" = 'CREDITS'
+					AND "status" IN ('FINALIZING', 'CANCELED') FOR UPDATE NOWAIT
+				`;
+				if (jobs.length === 0) return { outcome: "SKIPPED" };
+				// All output-binding writers must first perform the compatible job
+				// write fence. Enable only after those receivers deploy and old writers drain.
+				const lockedBindings = await tx.generationJobAsset.findMany({
+					where: { jobId, role: "OUTPUT" },
+					select: { assetId: true, assetChecksum: true },
+				});
+				if (!sameSettlementBindings(discovered.assets, lockedBindings))
+					throw new SettlementFreshReadConflictError("OUTPUT_BINDINGS_CHANGED");
+				await fenceSettlementOutputVersions(tx, assetIds);
+				const job = await tx.generationJob.findFirst({
+					where: {
+						executionEngine: "legacy",
+						id: jobId,
+						fundingSource: "CREDITS",
+						status: { in: ["FINALIZING", "CANCELED"] },
+					},
+					include: { reservation: true, assets: settlementOutputInclude },
+				});
+				if (!job) throw new SettlementFreshReadConflictError("JOB_CHANGED");
+				if (!sameSettlementBindings(lockedBindings, job.assets))
+					throw new SettlementFreshReadConflictError("OUTPUT_BINDINGS_CHANGED");
+				const reservation = job.reservation;
+				if (
+					!reservation ||
+					reservation.id !== discovered.reservation.id ||
+					reservation.accountId !== account.id ||
+					reservation.amount !== discovered.reservation.amount
+				)
+					throw new SettlementFreshReadConflictError("FUNDING_CHANGED");
+				if (
+					account.ownerType !== job.ownerType ||
+					account.ownerId !== job.ownerId ||
+					reservation.amount !== job.creditsReserved
+				)
+					throw new Error("GENERATION_FUNDING_CONFLICT");
+				assertGenerationFundingBinding(job, { fundingSource: "CREDITS" });
+				const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS "now"`;
+				if (!(clock?.now instanceof Date) || !Number.isFinite(clock.now.getTime()))
+					throw new Error("SETTLEMENT_DATABASE_CLOCK_MISSING");
+				const outputState = evaluateSettlementOutputs(
+					job.assets,
+					clock.now,
+					imageModerationProviderForEnvironment(process.env),
+				);
+				if (outputState.waitingForVerification) return { outcome: "SKIPPED" };
+				// Already-finalized reservations still repair FINALIZING under these
+				// same locks. No old claim-side write may bypass fresh evidence.
+				const active = reservation.status === "ACTIVE";
+				const moderationFailureCode = active
+					? await settleLockedGenerationCredits(tx, job, outputState)
+					: undefined;
+				if (job.status === "FINALIZING") {
+					const terminal = await tx.generationJob.updateMany({
+						where: {
+							executionEngine: "legacy",
+							id: job.id,
+							fundingSource: "CREDITS",
+							status: "FINALIZING",
+							version: job.version,
+						},
+						data: {
+							status: outputState.readyOutputCount > 0 ? "SUCCEEDED" : "FAILED",
+							failureCode:
+								outputState.readyOutputCount > 0
+									? null
+									: (moderationFailureCode ?? settlementFailureCode(job.failureCode)),
+							terminalAt: clock.now,
+							version: { increment: 1 },
+						},
+					});
+					if (terminal.count !== 1) throw new SettlementFreshReadConflictError("JOB_CHANGED");
+				}
+				return { outcome: active ? "SETTLED" : "SKIPPED" };
+			});
+		} catch (error) {
+			if (
+				!(error instanceof SettlementFreshReadConflictError) &&
+				!isDatabaseSerializationConflict(error) &&
+				!isDatabaseLockNotAvailable(error)
+			)
+				throw error;
+			if (attempt === SERIALIZABLE_RETRY_LIMIT) throw new SettlementTransactionConflictError(error);
+		}
+	}
+	throw new Error("Settlement transaction retry limit exceeded");
+}
+
+async function repairSettledGenerationWithSerializable(database: PrismaClient, jobId: string) {
+	await runSerializable(
+		database,
+		async (tx) => {
+			const discovered = await tx.generationJob.findFirst({
+				where: { executionEngine: "legacy", id: jobId, status: { in: ["FINALIZING", "CANCELED"] } },
+				select: { id: true, assets: { where: { role: "OUTPUT" }, select: { assetId: true } } },
+			});
+			if (!discovered) return;
+			const assetIds = [...new Set(discovered.assets.map(({ assetId }) => assetId))].sort();
+			for (const assetId of assetIds)
+				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${assetId}`}, 0))`;
+			const job = await tx.generationJob.findFirst({
+				where: { executionEngine: "legacy", id: jobId, status: { in: ["FINALIZING", "CANCELED"] } },
+				include: { reservation: true, assets: settlementOutputInclude },
+			});
+			if (!job) return;
+			const reservation = await getGenerationFundingReservation(
+				job.id,
+				tx,
+				job.reservation ?? null,
+			);
+			if (!reservation || reservation.status === "ACTIVE") return;
+			assertGenerationFundingBinding(job, reservation);
+			const outputState = evaluateSettlementOutputs(
+				job.assets,
+				new Date(),
+				imageModerationProviderForEnvironment(process.env),
+			);
+			if (outputState.waitingForVerification) return;
+			assertImagePassSettlementCardinality(
+				reservation,
+				job.assets.length,
+				outputState.readyOutputCount,
+			);
+			await tx.generationJob.updateMany({
+				where: { executionEngine: "legacy", id: job.id, status: "FINALIZING" },
+				data: {
+					status: outputState.readyOutputCount > 0 ? "SUCCEEDED" : "FAILED",
+					failureCode:
+						outputState.readyOutputCount > 0 ? null : settlementFailureCode(job.failureCode),
+					terminalAt: new Date(),
+				},
+			});
+			await fenceSettlementOutputVersions(tx, assetIds);
+		},
+		{ retryLockNotAvailable: true },
+	).catch((error: unknown) => {
+		if (isDatabaseSerializationConflict(error) || isDatabaseLockNotAvailable(error))
+			throw new SettlementTransactionConflictError(error);
+		throw error;
+	});
+}
+
 export function createDatabaseSettlementStore(database: PrismaClient): SettlementStore {
 	return {
+		async settleForJob(payload) {
+			return isSettlementFreshReadEnabled()
+				? settleGenerationCreditsWithFreshReads(database, payload.jobId)
+				: null;
+		},
 		async claimSettlement(payload) {
 			const job = await database.generationJob.findFirst({
 				where: {
@@ -3128,15 +4104,9 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 				outputState.readyOutputCount,
 			);
 			if (reservation.status !== "ACTIVE") {
-				await database.generationJob.updateMany({
-					where: { executionEngine: "legacy", id: job.id, status: "FINALIZING" },
-					data: {
-						status: outputState.readyOutputCount > 0 ? "SUCCEEDED" : "FAILED",
-						failureCode:
-							outputState.readyOutputCount > 0 ? null : settlementFailureCode(job.failureCode),
-						terminalAt: new Date(),
-					},
-				});
+				if (reservation.fundingSource === "CREDITS" && isSettlementFreshReadEnabled()) {
+					await settleGenerationCreditsWithFreshReads(database, job.id);
+				} else await repairSettledGenerationWithSerializable(database, job.id);
 				return null;
 			}
 			return {
@@ -3163,122 +4133,108 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 			};
 		},
 		async settle(claim) {
-			await runSerializable(database, async (tx) => {
-				let job = await tx.generationJob.findFirst({
-					where: {
-						executionEngine: "legacy",
-						id: claim.jobId,
-						status: { in: ["FINALIZING", "CANCELED"] },
-					},
-					include: { reservation: true, assets: settlementOutputInclude },
-				});
-				if (!job) return;
-				let reservation = await getGenerationFundingReservation(
-					job.id,
-					tx,
-					job.reservation ?? null,
-				);
-				if (!reservation || reservation.status !== "ACTIVE") return;
-				assertGenerationFundingBinding(job, reservation);
-				for (const assetId of [...new Set(job.assets.map((binding) => binding.assetId))].sort()) {
-					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${assetId}`}, 0))`;
-				}
-				job = await tx.generationJob.findFirst({
-					where: {
-						executionEngine: "legacy",
-						id: claim.jobId,
-						status: { in: ["FINALIZING", "CANCELED"] },
-					},
-					include: { reservation: true, assets: settlementOutputInclude },
-				});
-				if (!job) return;
-				reservation = await getGenerationFundingReservation(job.id, tx, job.reservation ?? null);
-				if (!reservation || reservation.status !== "ACTIVE") return;
-				assertGenerationFundingBinding(job, reservation);
-				const outputState = evaluateSettlementOutputs(
-					job.assets,
-					new Date(),
-					imageModerationProviderForEnvironment(process.env),
-				);
-				if (outputState.waitingForVerification) return;
-				assertImagePassSettlementCardinality(
-					reservation,
-					job.assets.length,
-					outputState.readyOutputCount,
-				);
-				if (reservation.fundingSource === "IMAGE_PASS") {
-					await finalizeImagePassReservationInTransaction(
-						{
-							jobId: job.id,
-							ownerId: job.ownerId,
-							hasUsableOutput: outputState.readyOutputCount === 1,
+			if (claim.fundingSource !== "IMAGE_PASS" && isSettlementFreshReadEnabled()) {
+				const result = await settleGenerationCreditsWithFreshReads(database, claim.jobId);
+				if (result) return;
+			}
+			await runSerializable(
+				database,
+				async (tx) => {
+					// The first read only discovers the lock set. Funding and moderation
+					// evidence are loaded once below; Serializable keeps the same snapshot.
+					const lockSnapshot = await tx.generationJob.findFirst({
+						where: {
+							executionEngine: "legacy",
+							id: claim.jobId,
+							status: { in: ["FINALIZING", "CANCELED"] },
 						},
+						select: {
+							id: true,
+							assets: { where: { role: "OUTPUT" }, select: { assetId: true } },
+						},
+					});
+					if (!lockSnapshot) return;
+					const outputAssetIds = [
+						...new Set(lockSnapshot.assets.map((binding) => binding.assetId)),
+					].sort();
+					for (const assetId of outputAssetIds) {
+						await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${assetId}`}, 0))`;
+					}
+					const job = await tx.generationJob.findFirst({
+						where: {
+							executionEngine: "legacy",
+							id: claim.jobId,
+							status: { in: ["FINALIZING", "CANCELED"] },
+						},
+						include: { reservation: true, assets: settlementOutputInclude },
+					});
+					if (!job) return;
+					const reservation = await getGenerationFundingReservation(
+						job.id,
 						tx,
+						job.reservation ?? null,
 					);
+					if (!reservation || reservation.status !== "ACTIVE") return;
+					assertGenerationFundingBinding(job, reservation);
+					const outputState = evaluateSettlementOutputs(
+						job.assets,
+						new Date(),
+						imageModerationProviderForEnvironment(process.env),
+					);
+					if (outputState.waitingForVerification) return;
+					assertImagePassSettlementCardinality(
+						reservation,
+						job.assets.length,
+						outputState.readyOutputCount,
+					);
+					if (reservation.fundingSource === "IMAGE_PASS") {
+						await finalizeImagePassReservationInTransaction(
+							{
+								jobId: job.id,
+								ownerId: job.ownerId,
+								hasUsableOutput: outputState.readyOutputCount === 1,
+							},
+							tx,
+						);
+						await tx.generationJob.updateMany({
+							where: { executionEngine: "legacy", id: job.id, status: "FINALIZING" },
+							data: {
+								status: outputState.readyOutputCount === 1 ? "SUCCEEDED" : "FAILED",
+								failureCode:
+									outputState.readyOutputCount === 1
+										? null
+										: settlementFailureCode(job.failureCode),
+								terminalAt: new Date(),
+								version: { increment: 1 },
+							},
+						});
+						await fenceSettlementOutputVersions(tx, outputAssetIds);
+						return;
+					}
+					const moderationFailureCode = await settleLockedGenerationCredits(tx, job, outputState);
 					await tx.generationJob.updateMany({
 						where: { executionEngine: "legacy", id: job.id, status: "FINALIZING" },
 						data: {
-							status: outputState.readyOutputCount === 1 ? "SUCCEEDED" : "FAILED",
+							status: outputState.readyOutputCount > 0 ? "SUCCEEDED" : "FAILED",
 							failureCode:
-								outputState.readyOutputCount === 1 ? null : settlementFailureCode(job.failureCode),
+								outputState.readyOutputCount > 0
+									? null
+									: (moderationFailureCode ?? settlementFailureCode(job.failureCode)),
 							terminalAt: new Date(),
 							version: { increment: 1 },
 						},
 					});
-					return;
-				}
-				if (!job.reservation) throw new Error("GENERATION_FUNDING_CONFLICT");
-				let chargeCredits = calculateSettlementCharge({
-					status: job.status,
-					failureCode: job.failureCode,
-					readyOutputCount: outputState.readyOutputCount,
-					reservedCredits: job.creditsReserved,
-					pricingSnapshot: job.pricingSnapshot,
-				});
-				let moderationFailureCode: string | undefined;
+					await fenceSettlementOutputVersions(tx, outputAssetIds);
+				},
+				{ retryLockNotAvailable: true },
+			).catch((error: unknown) => {
 				if (
-					job.status === "FINALIZING" &&
-					!job.guestTrialId &&
-					job.serviceClass !== "GUEST_SLOW" &&
-					job.failureCode !== "SUBMISSION_REJECTED_CONFIRMED" &&
-					outputState.readyOutputCount === 0 &&
-					outputState.contentRejectedOutputCount > 0 &&
-					job.pricingSnapshot &&
-					typeof job.pricingSnapshot === "object" &&
-					!Array.isArray(job.pricingSnapshot) &&
-					job.pricingSnapshot.outputModerationBillingPolicy === OUTPUT_MODERATION_BILLING_POLICY
-				) {
-					const waived = await claimOutputModerationGraceInTransaction(
-						{ accountId: job.reservation.accountId, jobId: job.id },
-						tx,
-					);
-					chargeCredits = waived
-						? 0n
-						: settlementPolicyFromSnapshot(job.pricingSnapshot, job.creditsReserved).maxCharge;
-					moderationFailureCode = waived
-						? "OUTPUT_CONTENT_BLOCKED_WAIVED"
-						: "OUTPUT_CONTENT_BLOCKED_CHARGED";
-				}
-				await settleCreditsInTransaction(
-					{
-						reservationId: job.reservation.id,
-						amount: chargeCredits,
-						referenceKey: `settle:${job.id}`,
-					},
-					tx,
-				);
-				await tx.generationJob.updateMany({
-					where: { executionEngine: "legacy", id: job.id, status: "FINALIZING" },
-					data: {
-						status: outputState.readyOutputCount > 0 ? "SUCCEEDED" : "FAILED",
-						failureCode:
-							outputState.readyOutputCount > 0
-								? null
-								: (moderationFailureCode ?? settlementFailureCode(job.failureCode)),
-						terminalAt: new Date(),
-						version: { increment: 1 },
-					},
-				});
+					error !== null &&
+					typeof error === "object" &&
+					(isDatabaseSerializationConflict(error) || isDatabaseLockNotAvailable(error))
+				)
+					throw new SettlementTransactionConflictError(error);
+				throw error;
 			});
 		},
 	};
@@ -3448,9 +4404,47 @@ export function createDatabaseProviderCancellationStore(
 export const databaseProviderCancellationStore: ProviderCancellationStore =
 	createDatabaseProviderCancellationStore(db);
 
-export function createDatabaseFinalizationStore(database: PrismaClient): FinalizationStore {
+export function createDatabaseFinalizationStore(
+	database: PrismaClient,
+	options: { streamingTransfersOnly?: boolean } = {},
+): FinalizationStore {
 	return {
 		async claimFinalization(payload) {
+			if (options.streamingTransfersOnly) {
+				const projected = await readStreamingImageFinalization(payload.jobId, database);
+				if (!projected || !projected.attemptId) return null;
+				if (
+					projected.ownerType !== "USER" ||
+					projected.serviceClass === "GUEST_SLOW" ||
+					projected.guestTrialId !== null ||
+					getCatalogEntry(projected.productKey as ProductModelKey)?.mediaKind !== "image" ||
+					!Array.isArray(projected.outputs) ||
+					projected.outputs.length > 4 ||
+					projected.outputs.some((output) => output?.kind !== "remote-url")
+				) {
+					throw new GenerationTransferRequiresHeavyError();
+				}
+				const outputs = providerOutputsFromTransferEnvelope("image", {
+					version: 1,
+					outputs: projected.outputs,
+				});
+				if (
+					outputs.length === 0 ||
+					outputs.some((output) => output.kind !== "remote-url") ||
+					(projected.fundingSource === "IMAGE_PASS" && outputs.length !== 1)
+				) {
+					throw new GenerationTransferRequiresHeavyError();
+				}
+				return {
+					jobId: projected.jobId,
+					ownerId: projected.ownerId,
+					mediaKind: "image",
+					candidates: outputs.map((output, index) => ({
+						key: `${projected.attemptId}:${index}`,
+						output,
+					})),
+				};
+			}
 			return database.$transaction(async (tx) => {
 				const job = await tx.generationJob.findFirst({
 					where: { executionEngine: "legacy", id: payload.jobId, status: "FINALIZING" },
@@ -3614,6 +4608,11 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 		},
 		async recordFinalizationWait(claim, results) {
 			await runSerializable(database, async (tx) => {
+				// Claim and completion writers take job ownership before output bindings.
+				await tx.$queryRaw`
+					SELECT "id" FROM "generation_job" WHERE "id" = ${claim.jobId}
+					AND "executionEngine" = 'legacy' FOR NO KEY UPDATE
+				`;
 				const job = await tx.generationJob.findUniqueOrThrow({
 					where: { executionEngine: "legacy", id: claim.jobId },
 				});
@@ -3623,6 +4622,10 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 		},
 		async recordFinalization(claim, results, failure) {
 			await runSerializable(database, async (tx) => {
+				await tx.$queryRaw`
+					SELECT "id" FROM "generation_job" WHERE "id" = ${claim.jobId}
+					AND "executionEngine" = 'legacy' FOR NO KEY UPDATE
+				`;
 				const job = await tx.generationJob.findUniqueOrThrow({
 					where: { executionEngine: "legacy", id: claim.jobId },
 				});
@@ -3659,9 +4662,20 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 					job.finalizationRetryCount >= OUTPUT_TRANSFER_MAX_FINALIZATION_ATTEMPTS &&
 					(await isAlreadyTerminalizedOutputTransfer(tx, claim, failure))
 				) {
+					const retry = await tx.outboxEvent.findUnique({
+						where: {
+							dedupeKey: `generation-finalize-after-transfer-exhaustion:${job.id}:${failure.assetId}:${failure.transferToken}`,
+						},
+						select: { id: true, availableAt: true, status: true },
+					});
 					return {
 						outcome: "RETRY_SCHEDULED" as const,
 						retryCount: job.finalizationRetryCount,
+						...(retry &&
+						(retry.status === "PENDING" || retry.status === "LEASED") &&
+						retry.availableAt.getTime() === job.nextFinalizeAt?.getTime()
+							? { retryEvent: { id: retry.id, availableAt: retry.availableAt.getTime() } }
+							: {}),
 					};
 				}
 				if (
@@ -3678,28 +4692,26 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 						transferRetryCount,
 						failure,
 					);
+					const retryEvent = await queueFinalizationRetryEvent(tx, {
+						jobId: job.id,
+						version: job.version,
+						dedupeKey: `generation-finalize-transfer-wait:${job.id}:${wait.key}`,
+						availableAt: wait.availableAt,
+					});
 					await tx.generationJob.update({
 						where: { executionEngine: "legacy", id: job.id },
 						data: {
 							finalizationStage: failure.stage,
 							finalizationRetryCount: transferRetryCount,
 							finalizationErrorCode: failure.code,
-							nextFinalizeAt: wait.availableAt,
+							nextFinalizeAt: new Date(retryEvent.availableAt),
 						},
 					});
-					await tx.outboxEvent.upsert({
-						where: { dedupeKey: `generation-finalize-transfer-wait:${job.id}:${wait.key}` },
-						create: {
-							eventType: "GENERATION_FINALIZE_RETRY",
-							aggregateType: "GENERATION_JOB",
-							aggregateId: job.id,
-							dedupeKey: `generation-finalize-transfer-wait:${job.id}:${wait.key}`,
-							payload: { jobId: job.id, version: job.version },
-							availableAt: wait.availableAt,
-						},
-						update: {},
-					});
-					return { outcome: "RETRY_SCHEDULED" as const, retryCount: transferRetryCount };
+					return {
+						outcome: "RETRY_SCHEDULED" as const,
+						retryCount: transferRetryCount,
+						retryEvent,
+					};
 				}
 				const retryCount =
 					job.finalizationStage === failure.stage ? job.finalizationRetryCount + 1 : 1;
@@ -3708,58 +4720,70 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 					retryCount >= OUTPUT_TRANSFER_MAX_FINALIZATION_ATTEMPTS &&
 					(await terminalizeExhaustedOutputTransfer(tx, claim, failure))
 				) {
-					const nextFinalizeAt = new Date();
+					const retryEvent = await queueFinalizationRetryEvent(tx, {
+						jobId: job.id,
+						version: job.version,
+						dedupeKey: `generation-finalize-after-transfer-exhaustion:${job.id}:${failure.assetId}:${failure.transferToken}`,
+						availableAt: new Date(),
+					});
 					await tx.generationJob.update({
 						where: { executionEngine: "legacy", id: job.id },
 						data: {
 							finalizationStage: failure.stage,
 							finalizationRetryCount: retryCount,
 							finalizationErrorCode: OUTPUT_TRANSFER_EXHAUSTED_CODE,
-							nextFinalizeAt,
+							nextFinalizeAt: new Date(retryEvent.availableAt),
 						},
 					});
-					const retryDedupeKey = `generation-finalize-after-transfer-exhaustion:${job.id}:${failure.assetId}:${failure.transferToken}`;
-					await tx.outboxEvent.upsert({
-						where: { dedupeKey: retryDedupeKey },
-						create: {
-							eventType: "GENERATION_FINALIZE_RETRY",
-							aggregateType: "GENERATION_JOB",
-							aggregateId: job.id,
-							dedupeKey: retryDedupeKey,
-							payload: { jobId: job.id, version: job.version },
-							availableAt: nextFinalizeAt,
-						},
-						update: {},
-					});
-					return { outcome: "RETRY_SCHEDULED" as const, retryCount };
+					return { outcome: "RETRY_SCHEDULED" as const, retryCount, retryEvent };
 				}
 				const nextFinalizeAt = new Date(Date.now() + Math.min(60, 2 ** retryCount) * 60_000);
+				const retryEvent = await queueFinalizationRetryEvent(tx, {
+					jobId: job.id,
+					version: job.version,
+					dedupeKey: `generation-finalize-retry:${job.id}:${failure.stage.toLowerCase()}:${retryCount}`,
+					availableAt: nextFinalizeAt,
+				});
 				await tx.generationJob.update({
 					where: { executionEngine: "legacy", id: job.id },
 					data: {
 						finalizationStage: failure.stage,
 						finalizationRetryCount: retryCount,
 						finalizationErrorCode: failure.code,
-						nextFinalizeAt,
+						nextFinalizeAt: new Date(retryEvent.availableAt),
 					},
 				});
-				const retryDedupeKey = `generation-finalize-retry:${job.id}:${failure.stage.toLowerCase()}:${retryCount}`;
-				await tx.outboxEvent.upsert({
-					where: { dedupeKey: retryDedupeKey },
-					create: {
-						eventType: "GENERATION_FINALIZE_RETRY",
-						aggregateType: "GENERATION_JOB",
-						aggregateId: job.id,
-						dedupeKey: retryDedupeKey,
-						payload: { jobId: job.id, version: job.version },
-						availableAt: nextFinalizeAt,
-					},
-					update: {},
-				});
-				return { outcome: "RETRY_SCHEDULED" as const, retryCount };
+				return { outcome: "RETRY_SCHEDULED" as const, retryCount, retryEvent };
 			});
 		},
 	};
+}
+
+async function queueFinalizationRetryEvent(
+	tx: Prisma.TransactionClient,
+	input: { jobId: string; version: number; dedupeKey: string; availableAt: Date },
+): Promise<FinalizationRetryEvent> {
+	const id = crypto.randomUUID();
+	const inserted = await tx.outboxEvent.createMany({
+		data: {
+			id,
+			eventType: "GENERATION_FINALIZE_RETRY",
+			aggregateType: "GENERATION_JOB",
+			aggregateId: input.jobId,
+			dedupeKey: input.dedupeKey,
+			payload: { jobId: input.jobId, version: input.version },
+			availableAt: input.availableAt,
+		},
+		skipDuplicates: true,
+	});
+	if (inserted.count === 1) return { id, availableAt: input.availableAt.getTime() };
+	// Replay keeps the winner's lease and original due time. This identity is
+	// returned only after the enclosing job/retry transaction commits.
+	const event = await tx.outboxEvent.findUniqueOrThrow({
+		where: { dedupeKey: input.dedupeKey },
+		select: { id: true, availableAt: true },
+	});
+	return { id: event.id, availableAt: event.availableAt.getTime() };
 }
 
 async function bindFinalizationResults(
@@ -4086,6 +5110,38 @@ async function terminalizeExhaustedOutputTransfer(
 
 export const databaseFinalizationStore: FinalizationStore = createDatabaseFinalizationStore(db);
 
+async function retryOutputTransferTransaction<T>(
+	scope: { jobId: string; assetId: string; operation: "claim" | "reserve" | "complete" },
+	transaction: () => Promise<T>,
+): Promise<T> {
+	// Use the database helper's isolation switch. The legacy Serializable
+	// branch already retries internally; only the fresh-read branch needs this
+	// outer retry budget. Never multiply the two layers' attempt counts.
+	const maxAttempts = isStorageFreshReadEnabled() ? 3 : 1;
+	for (let attempt = 1; ; attempt++) {
+		try {
+			return await transaction();
+		} catch (error) {
+			// Callers supply one database-only transaction, never a storage operation.
+			// A confirmed rollback may retry under the same transfer identity; a
+			// connection loss is not proof that a claim or completion did not commit.
+			const rolledBack =
+				error !== null && typeof error === "object" && isDatabaseSerializationConflict(error);
+			console.warn("media.output.database_failure", {
+				...scope,
+				attempt,
+				classification: rolledBack ? "rollback_conflict" : "unknown",
+				willRetry: rolledBack && attempt < maxAttempts,
+			});
+			if (!rolledBack) throw error;
+			if (attempt === maxAttempts) {
+				if (scope.operation === "claim") throw new OutputTransferClaimConflictError(error);
+				throw error;
+			}
+		}
+	}
+}
+
 export function createFinalizationDependencies(
 	environment = process.env,
 	options: {
@@ -4093,8 +5149,12 @@ export function createFinalizationDependencies(
 		safety?: MediaSafetyAdapter;
 		database?: PrismaClient;
 		verification?: { verify(assetId: string): Promise<OutboxCommitResult | void> };
+		/** New Workflow adapters release heavy transfer capacity before the first review. */
+		deferOutputReview?: boolean;
+		/** Stateless URL transfer executor: never loads inline bodies or uses buffered fallback. */
+		streamingTransfersOnly?: boolean;
 		storage?: Partial<{
-			inspectRemoteMedia: typeof inspectRemoteMedia;
+			openInspectedRemoteMedia: typeof openInspectedRemoteMedia;
 			putPrivateMediaObject: typeof putPrivateMediaObject;
 			streamRemoteObjectToStorage: typeof streamRemoteObjectToStorage;
 			tryWriteImmutableGenerationImage: typeof tryWriteImmutableGenerationImage;
@@ -4104,7 +5164,11 @@ export function createFinalizationDependencies(
 	} = {},
 ): FinalizationDependencies {
 	const database = options.database ?? db;
-	const store = options.store ?? createDatabaseFinalizationStore(database);
+	const store =
+		options.store ??
+		createDatabaseFinalizationStore(database, {
+			streamingTransfersOnly: options.streamingTransfersOnly,
+		});
 	const verification =
 		options.verification ??
 		createDatabaseVerifyUploadDependencies(database, {
@@ -4112,7 +5176,7 @@ export function createFinalizationDependencies(
 			safety: options.safety,
 		});
 	const storage = {
-		inspectRemoteMedia,
+		openInspectedRemoteMedia,
 		putPrivateMediaObject,
 		streamRemoteObjectToStorage,
 		tryWriteImmutableGenerationImage,
@@ -4122,14 +5186,26 @@ export function createFinalizationDependencies(
 	};
 	return {
 		store,
-		async persistCandidate(claim, candidate) {
+		async persistCandidate(claim, candidate, context) {
+			const streamingTransfersOnly = options.streamingTransfersOnly === true;
+			if (
+				streamingTransfersOnly &&
+				(claim.mediaKind !== "image" || claim.guest || candidate.output.kind !== "remote-url")
+			) {
+				throw new GenerationTransferRequiresHeavyError();
+			}
 			const managed = await database.generationJob.findUnique({
 				where: { id: claim.jobId, executionEngine: "legacy" },
 				select: { id: true },
 			});
 			if (!managed) throw new Error("LEGACY_EXECUTOR_NOT_MANAGED");
-			const existing = await store.findPersistedCandidate(claim.jobId, candidate.key);
-			if (existing) return existing;
+			if (!context?.persistedCandidateChecked) {
+				const existing = await store.findPersistedCandidate(claim.jobId, candidate.key);
+				if (existing) return existing;
+			}
+			const deferOutputReview =
+				(options.deferOutputReview === true || streamingTransfersOnly) &&
+				claim.mediaKind === "image";
 			if (claim.guest && claim.guest.deleteAfter <= new Date()) {
 				throw {
 					code: "GUEST_RETENTION_EXPIRED",
@@ -4160,6 +5236,23 @@ export function createFinalizationDependencies(
 				};
 			}
 			const storedMimeType = matchingPlaceholder?.mimeType;
+			if (
+				streamingTransfersOnly &&
+				storedMimeType !== undefined &&
+				!canStreamImmutableGenerationImage({ contentType: storedMimeType, contentLength: 1 })
+			) {
+				throw new GenerationTransferRequiresHeavyError();
+			}
+			if (
+				streamingTransfersOnly &&
+				matchingPlaceholder &&
+				(matchingPlaceholder.outputTransferToken ||
+					matchingPlaceholder.outputTransferLeaseExpiresAt ||
+					matchingPlaceholder.outputStagingObjectKey ||
+					matchingPlaceholder.outputPromotionMultipartUploadId)
+			) {
+				throw new GenerationTransferRequiresHeavyError();
+			}
 			if (storedMimeType !== undefined && !isMediaContentType(storedMimeType)) {
 				throw new MediaValidationError(
 					"OUTPUT_MEDIA_TYPE_UNSUPPORTED",
@@ -4167,303 +5260,414 @@ export function createFinalizationDependencies(
 				);
 			}
 			let inlineBody: Buffer | null = null;
-			const mimeType =
-				candidate.output.kind === "inline-base64"
-					? (() => {
-							const decoded = decodeInlineBase64MediaOutput(candidate.output);
-							assertMediaKind(decoded.contentType, claim.mediaKind);
-							inlineBody = decoded.body;
-							return decoded.contentType;
-						})()
-					: (storedMimeType ??
-						(
-							await storage.inspectRemoteMedia(candidate.output.url, {
+			let openedSource: Awaited<ReturnType<typeof openInspectedRemoteMedia>> | undefined;
+			try {
+				if (streamingTransfersOnly && !matchingPlaceholder?.finalizedAt) {
+					try {
+						openedSource = await storage.openInspectedRemoteMedia(
+							(candidate.output as Extract<ProviderOutput, { kind: "remote-url" }>).url,
+							{
+								allowedHosts: providerCdnAllowlist(environment),
+								maxRedirects: storageConfig.media.remoteMaxRedirects,
+								connectTimeoutMs: storageConfig.media.remoteConnectTimeoutMs,
+								firstByteTimeoutMs: storageConfig.media.remoteFirstByteTimeoutMs,
+								totalTimeoutMs: storageConfig.media.remoteTotalTimeoutMs,
+								expectedKind: "image",
+							},
+						);
+					} catch (error) {
+						if (error instanceof MediaValidationError)
+							throw new GenerationTransferRequiresHeavyError();
+						throw error;
+					}
+					if (
+						!canStreamImmutableGenerationImage({
+							contentType: openedSource.contentType,
+							contentLength: openedSource.headers["content-length"],
+						}) ||
+						(storedMimeType !== undefined && storedMimeType !== openedSource.contentType)
+					) {
+						throw new GenerationTransferRequiresHeavyError();
+					}
+				}
+				const mimeType =
+					candidate.output.kind === "inline-base64"
+						? (() => {
+								const decoded = decodeInlineBase64MediaOutput(candidate.output);
+								assertMediaKind(decoded.contentType, claim.mediaKind);
+								inlineBody = decoded.body;
+								return decoded.contentType;
+							})()
+						: (storedMimeType ??
+							openedSource?.contentType ??
+							(openedSource = await storage.openInspectedRemoteMedia(candidate.output.url, {
 								allowedHosts: providerCdnAllowlist(environment),
 								maxRedirects: storageConfig.media.remoteMaxRedirects,
 								connectTimeoutMs: storageConfig.media.remoteConnectTimeoutMs,
 								firstByteTimeoutMs: storageConfig.media.remoteFirstByteTimeoutMs,
 								totalTimeoutMs: storageConfig.media.remoteTotalTimeoutMs,
 								expectedKind: claim.mediaKind,
-							})
-						).contentType);
-			assertMediaKind(mimeType, claim.mediaKind);
-			const objectKey = createAssetObjectKey(claim.ownerId, assetId, mimeType);
-			const transfer = await claimGenerationOutputTransferTransaction(
-				{
-					jobId: claim.jobId,
-					ownerId: claim.ownerId,
-					assetId,
-					objectKey,
-					mimeType,
-					sourceUrl,
-					...(claim.guest ? { guest: { deleteAfter: claim.guest.deleteAfter } } : {}),
-					createStagingObjectKey: (transferToken) =>
-						createStagingObjectKey(claim.ownerId, assetId, transferToken, mimeType),
-				},
-				database,
-			);
-			if (transfer.outcome === "IN_PROGRESS") {
-				throw {
-					code: OUTPUT_TRANSFER_IN_PROGRESS_CODE,
-					stage: "TRANSFER",
-					retryable: true,
-				};
-			}
-
-			let completedAsset = transfer.asset;
-			if (transfer.outcome === "CLAIMED") {
-				try {
-					const reserve = async (bytes: number) => {
-						const reserved = await reserveGenerationOutputStorageTransaction(
-							{
-								assetId,
-								ownerId: claim.ownerId,
-								transferToken: transfer.transferToken,
-								bytes: BigInt(bytes),
+							})).contentType);
+				assertMediaKind(mimeType, claim.mediaKind);
+				const objectKey = createAssetObjectKey(claim.ownerId, assetId, mimeType);
+				// The streaming preflight has already checked the real response length.
+				// Reserve those bytes with the transfer claim, before opening a private write.
+				const storageReservation =
+					streamingTransfersOnly && openedSource && !claim.guest
+						? {
+								bytes: BigInt(openedSource.headers["content-length"]!),
 								maximumStorageBytes: maximumMediaStorageBytes(environment),
+							}
+						: undefined;
+				const transfer = await retryOutputTransferTransaction(
+					{ jobId: claim.jobId, assetId, operation: "claim" },
+					() =>
+						claimGenerationOutputTransferTransaction(
+							{
+								jobId: claim.jobId,
+								ownerId: claim.ownerId,
+								assetId,
+								objectKey,
+								mimeType,
+								sourceUrl,
+								deferOutputReview,
+								streamingTransfersOnly,
+								...(storageReservation ? { storageReservation } : {}),
+								...(claim.guest ? { guest: { deleteAfter: claim.guest.deleteAfter } } : {}),
+								createStagingObjectKey: (transferToken) =>
+									createStagingObjectKey(claim.ownerId, assetId, transferToken, mimeType),
 							},
 							database,
-						);
-						if (reserved.outcome === "STALE")
-							throw { code: "OUTPUT_TRANSFER_FENCE_LOST", stage: "TRANSFER", retryable: true };
+						),
+				);
+				if (transfer.outcome === "REQUIRES_HEAVY") throw new GenerationTransferRequiresHeavyError();
+				if (transfer.outcome === "IN_PROGRESS") {
+					throw {
+						code: OUTPUT_TRANSFER_IN_PROGRESS_CODE,
+						stage: "TRANSFER",
+						retryable: true,
 					};
-					const direct =
-						!claim.guest && !transfer.promotionMultipartUploadId
-							? await storage.tryWriteImmutableGenerationImage({
-									bucket: "media",
-									key: objectKey,
-									contentType: mimeType,
-									...(inlineBody
-										? { body: inlineBody }
-										: {
-												sourceUrl: (
-													candidate.output as Extract<ProviderOutput, { kind: "remote-url" }>
-												).url,
-												allowedHosts: providerCdnAllowlist(environment),
-											}),
-									reserve,
-								})
-							: null;
-					// Keep the old lease/staging metadata contract for drain/rollback. Direct
-					// mode never writes that staging key; its eventual delete is harmless.
-					const promoted =
-						direct ??
-						(await (async () => {
-							const staged = inlineBody
-								? await storage.putPrivateMediaObject({
-										bucket: "media",
-										key: transfer.stagingObjectKey,
-										contentType: mimeType,
-										body: inlineBody,
-									})
-								: await storage.streamRemoteObjectToStorage({
-										bucket: "media",
-										key: transfer.stagingObjectKey,
-										sourceUrl: (candidate.output as Extract<ProviderOutput, { kind: "remote-url" }>)
-											.url,
-										allowedHosts: providerCdnAllowlist(environment),
-										expectedContentType: mimeType,
-										expectedMediaKind: claim.mediaKind,
-									});
-							await reserve(staged.bytes);
-							return claim.guest
-								? await storage.watermarkStagedGuestImage({
-										staging: { bucket: "media", key: transfer.stagingObjectKey },
-										final: { bucket: "media", key: objectKey },
-										contentType: mimeType as "image/jpeg" | "image/png" | "image/webp",
-										deleteAfter: claim.guest.deleteAfter,
-									})
-								: await storage.promoteStagedObject({
-										staging: { bucket: "media", key: transfer.stagingObjectKey },
-										final: { bucket: "media", key: objectKey },
-										contentType: mimeType,
-										contentLength: staged.bytes,
-										acceptExistingFinalIdentity: true,
-										preferSinglePut: true,
-										promotion: {
-											uploadId: transfer.promotionMultipartUploadId ?? undefined,
-											onMultipartUploadCreated: async ({ uploadId }) => {
-												await recordGenerationOutputPromotionMultipartTransaction(
-													{
-														assetId,
-														ownerId: claim.ownerId,
-														transferToken: transfer.transferToken,
-														multipartUploadId: uploadId,
-													},
-													database,
-												);
-											},
+				}
+
+				let completedAsset = transfer.asset;
+				let outputReviewEventId =
+					transfer.outcome === "COMPLETED" ? transfer.outputReviewEventId : undefined;
+				if (transfer.outcome === "CLAIMED") {
+					try {
+						// Only this freshly claimed immutable write can consume the receipt.
+						// Recovery, changed lengths and later reserve calls recheck the lease.
+						let reservedStorageBytes =
+							transfer.freshAsset === true ? transfer.reservedStorageBytes : undefined;
+						const reserve = async (bytes: number) => {
+							const committedBytes = reservedStorageBytes;
+							reservedStorageBytes = undefined;
+							if (
+								storageReservation &&
+								Number.isSafeInteger(bytes) &&
+								bytes > 0 &&
+								committedBytes === BigInt(bytes) &&
+								committedBytes === storageReservation.bytes
+							)
+								return;
+							const reserved = await retryOutputTransferTransaction(
+								{ jobId: claim.jobId, assetId, operation: "reserve" },
+								() =>
+									reserveGenerationOutputStorageTransaction(
+										{
+											assetId,
+											ownerId: claim.ownerId,
+											transferToken: transfer.transferToken,
+											bytes: BigInt(bytes),
+											maximumStorageBytes: maximumMediaStorageBytes(environment),
 										},
-									});
-						})());
-					let guestCompletedAt: Date | undefined;
-					if (claim.guest) {
-						const resizedReservation = await reserveGenerationOutputStorageTransaction(
-							{
-								assetId,
-								ownerId: claim.ownerId,
-								transferToken: transfer.transferToken,
-								bytes: BigInt(promoted.bytes),
-								maximumStorageBytes: maximumMediaStorageBytes(environment),
-							},
-							database,
+										database,
+									),
+							);
+							if (reserved.outcome === "STALE")
+								throw { code: "OUTPUT_TRANSFER_FENCE_LOST", stage: "TRANSFER", retryable: true };
+						};
+						const direct =
+							!claim.guest && !transfer.promotionMultipartUploadId
+								? await storage.tryWriteImmutableGenerationImage({
+										bucket: "media",
+										key: objectKey,
+										contentType: mimeType,
+										streamingOnly: streamingTransfersOnly,
+										freshClaim: transfer.freshAsset === true,
+										...(openedSource ? { openedSource } : {}),
+										...(inlineBody
+											? { body: inlineBody }
+											: {
+													sourceUrl: (
+														candidate.output as Extract<ProviderOutput, { kind: "remote-url" }>
+													).url,
+													allowedHosts: providerCdnAllowlist(environment),
+												}),
+										reserve,
+									})
+								: null;
+						if (streamingTransfersOnly && !direct) {
+							// Preflight used the storage writer's own eligibility predicate;
+							// null here violates its contract. Retain the fenced retry and
+							// never enter a buffer/multipart path in this executor.
+							throw {
+								code: "STREAMING_OUTPUT_WRITE_UNAVAILABLE",
+								stage: "TRANSFER",
+								retryable: true,
+							};
+						}
+						// Keep the old lease/staging metadata contract for drain/rollback. Direct
+						// mode never writes that staging key; its eventual delete is harmless.
+						const promoted =
+							direct ??
+							(await (async () => {
+								const staged = inlineBody
+									? await storage.putPrivateMediaObject({
+											bucket: "media",
+											key: transfer.stagingObjectKey,
+											contentType: mimeType,
+											body: inlineBody,
+										})
+									: await storage.streamRemoteObjectToStorage({
+											bucket: "media",
+											key: transfer.stagingObjectKey,
+											sourceUrl: (
+												candidate.output as Extract<ProviderOutput, { kind: "remote-url" }>
+											).url,
+											allowedHosts: providerCdnAllowlist(environment),
+											expectedContentType: mimeType,
+											expectedMediaKind: claim.mediaKind,
+											...(openedSource ? { openedSource } : {}),
+										});
+								await reserve(staged.bytes);
+								return claim.guest
+									? await storage.watermarkStagedGuestImage({
+											staging: { bucket: "media", key: transfer.stagingObjectKey },
+											final: { bucket: "media", key: objectKey },
+											contentType: mimeType as "image/jpeg" | "image/png" | "image/webp",
+											deleteAfter: claim.guest.deleteAfter,
+										})
+									: await storage.promoteStagedObject({
+											staging: { bucket: "media", key: transfer.stagingObjectKey },
+											final: { bucket: "media", key: objectKey },
+											contentType: mimeType,
+											contentLength: staged.bytes,
+											acceptExistingFinalIdentity: true,
+											preferSinglePut: true,
+											promotion: {
+												uploadId: transfer.promotionMultipartUploadId ?? undefined,
+												onMultipartUploadCreated: async ({ uploadId }) => {
+													await recordGenerationOutputPromotionMultipartTransaction(
+														{
+															assetId,
+															ownerId: claim.ownerId,
+															transferToken: transfer.transferToken,
+															multipartUploadId: uploadId,
+														},
+														database,
+													);
+												},
+											},
+										});
+							})());
+						let guestCompletedAt: Date | undefined;
+						if (claim.guest) {
+							const resizedReservation = await retryOutputTransferTransaction(
+								{ jobId: claim.jobId, assetId, operation: "reserve" },
+								() =>
+									reserveGenerationOutputStorageTransaction(
+										{
+											assetId,
+											ownerId: claim.ownerId,
+											transferToken: transfer.transferToken,
+											bytes: BigInt(promoted.bytes),
+											maximumStorageBytes: maximumMediaStorageBytes(environment),
+										},
+										database,
+									),
+							);
+							if (resizedReservation.outcome === "STALE") {
+								throw {
+									code: "OUTPUT_TRANSFER_FENCE_LOST",
+									stage: "TRANSFER",
+									retryable: true,
+								};
+							}
+							// Storage has confirmed watermarking and clean-source deletion. Record
+							// that completion on PostgreSQL's clock, which owns the transfer lease.
+							const [clock] = await database.$queryRaw<Array<{ now: Date }>>`
+							SELECT clock_timestamp() AS "now"
+						`;
+							if (!clock) throw new Error("Database did not return its current time");
+							guestCompletedAt = clock.now;
+						}
+						const completed = await retryOutputTransferTransaction(
+							{ jobId: claim.jobId, assetId, operation: "complete" },
+							() =>
+								completeGenerationOutputTransferTransaction(
+									{
+										assetId,
+										ownerId: claim.ownerId,
+										transferToken: transfer.transferToken,
+										bytes: BigInt(promoted.bytes),
+										checksum: promoted.sha256,
+										storageEtag: promoted.etag ?? null,
+										storageVersionId: promoted.versionId ?? null,
+										deferOutputReview,
+										...(claim.guest && guestCompletedAt
+											? {
+													guestWatermark: {
+														version: GUEST_WATERMARK_VERSION,
+														watermarkedAt: guestCompletedAt,
+														cleanStagingDeletedAt: guestCompletedAt,
+														deleteAfter: claim.guest.deleteAfter,
+													},
+												}
+											: {}),
+									},
+									database,
+								),
 						);
-						if (resizedReservation.outcome === "STALE") {
+						if (completed.outcome === "STALE") {
 							throw {
 								code: "OUTPUT_TRANSFER_FENCE_LOST",
 								stage: "TRANSFER",
 								retryable: true,
 							};
 						}
-						// Storage has confirmed watermarking and clean-source deletion. Record
-						// that completion on PostgreSQL's clock, which owns the transfer lease.
-						const [clock] = await database.$queryRaw<Array<{ now: Date }>>`
-							SELECT clock_timestamp() AS "now"
-						`;
-						if (!clock) throw new Error("Database did not return its current time");
-						guestCompletedAt = clock.now;
-					}
-					const completed = await completeGenerationOutputTransferTransaction(
-						{
-							assetId,
-							ownerId: claim.ownerId,
-							transferToken: transfer.transferToken,
-							bytes: BigInt(promoted.bytes),
-							checksum: promoted.sha256,
-							storageEtag: promoted.etag ?? null,
-							storageVersionId: promoted.versionId ?? null,
-							...(claim.guest && guestCompletedAt
-								? {
-										guestWatermark: {
-											version: GUEST_WATERMARK_VERSION,
-											watermarkedAt: guestCompletedAt,
-											cleanStagingDeletedAt: guestCompletedAt,
-											deleteAfter: claim.guest.deleteAfter,
-										},
-									}
-								: {}),
-						},
-						database,
-					);
-					if (completed.outcome === "STALE") {
-						throw {
-							code: "OUTPUT_TRANSFER_FENCE_LOST",
-							stage: "TRANSFER",
-							retryable: true,
+						completedAsset = completed.asset;
+						outputReviewEventId = completed.outputReviewEventId;
+					} catch (error) {
+						const structured = error as {
+							code?: unknown;
+							stage?: unknown;
+							retryable?: unknown;
 						};
-					}
-					completedAsset = completed.asset;
-				} catch (error) {
-					const structured = error as {
-						code?: unknown;
-						stage?: unknown;
-						retryable?: unknown;
-					};
-					if (
-						error instanceof MediaValidationError ||
-						error instanceof RemoteMediaPolicyError ||
-						error instanceof GenerationOutputStorageError ||
-						(typeof structured.code === "string" &&
-							structured.stage === "TRANSFER" &&
-							structured.retryable === false)
-					) {
-						let failed;
-						try {
-							failed = await failGenerationOutputTransferTransaction(
-								{
-									assetId,
-									ownerId: claim.ownerId,
-									transferToken: transfer.transferToken,
-									errorCode:
-										error instanceof MediaValidationError ||
-										error instanceof RemoteMediaPolicyError ||
-										error instanceof GenerationOutputStorageError
-											? error.code
-											: (structured.code as string),
-								},
-								database,
-							);
-						} catch {
+						if (
+							error instanceof MediaValidationError ||
+							error instanceof RemoteMediaPolicyError ||
+							error instanceof GenerationOutputStorageError ||
+							(typeof structured.code === "string" &&
+								structured.stage === "TRANSFER" &&
+								structured.retryable === false)
+						) {
+							let failed;
+							try {
+								failed = await failGenerationOutputTransferTransaction(
+									{
+										assetId,
+										ownerId: claim.ownerId,
+										transferToken: transfer.transferToken,
+										errorCode:
+											error instanceof MediaValidationError ||
+											error instanceof RemoteMediaPolicyError ||
+											error instanceof GenerationOutputStorageError
+												? error.code
+												: (structured.code as string),
+									},
+									database,
+								);
+							} catch {
+								throw {
+									code: "OUTPUT_TRANSFER_FAILURE_PERSIST_RETRYABLE",
+									stage: "TRANSFER",
+									retryable: true,
+								};
+							}
+							if (failed.outcome === "FAILED") throw error;
 							throw {
-								code: "OUTPUT_TRANSFER_FAILURE_PERSIST_RETRYABLE",
+								code: "OUTPUT_TRANSFER_FENCE_LOST",
 								stage: "TRANSFER",
 								retryable: true,
 							};
 						}
-						if (failed.outcome === "FAILED") throw error;
+						if (
+							typeof structured.code === "string" &&
+							structured.stage === "TRANSFER" &&
+							structured.retryable === true
+						) {
+							throw {
+								code: structured.code,
+								stage: "TRANSFER",
+								retryable: true,
+								assetId,
+								transferToken: transfer.transferToken,
+							};
+						}
 						throw {
-							code: "OUTPUT_TRANSFER_FENCE_LOST",
-							stage: "TRANSFER",
-							retryable: true,
-						};
-					}
-					if (
-						typeof structured.code === "string" &&
-						structured.stage === "TRANSFER" &&
-						structured.retryable === true
-					) {
-						throw {
-							code: structured.code,
+							code: "STORAGE_TRANSFER_RETRYABLE",
 							stage: "TRANSFER",
 							retryable: true,
 							assetId,
 							transferToken: transfer.transferToken,
 						};
 					}
-					throw {
-						code: "STORAGE_TRANSFER_RETRYABLE",
-						stage: "TRANSFER",
-						retryable: true,
-						assetId,
-						transferToken: transfer.transferToken,
-					};
 				}
-			}
 
-			if (completedAsset.status === "READY") return { assetId, approved: true };
-			if (["QUARANTINED", "VERIFICATION_FAILED", "DELETED"].includes(completedAsset.status)) {
-				return { assetId, approved: false };
-			}
-			const progress = await verification.verify(assetId);
-			const asset = await database.mediaAsset.findUniqueOrThrow({
-				where: { verificationEngine: "legacy", id: assetId },
-			});
-			if (asset.status === "VERIFYING") {
-				const pending = asset.verificationLastErrorCode === "IMAGE_PROCESSING";
-				const polling =
-					!asset.verificationLastErrorCode &&
-					asset.verificationLeaseToken &&
-					asset.verificationLeasedUntil &&
-					asset.verificationLeasedUntil > new Date();
-				if (
-					asset.kind === "OUTPUT" &&
-					asset.mimeType.startsWith("image/") &&
-					(pending || polling) &&
-					asset.verificationProviderTaskId
-				) {
-					// Duplicate/old finalizers may observe a wait committed by another actor.
-					// Look up its real event; never create a replacement or reset the due time.
-					const eventId =
-						progress?.outputReviewEventId ??
-						(
-							await database.outboxEvent.findUnique({
-								where: {
-									dedupeKey: `media-asset-verify:${asset.id}:g${asset.verificationGeneration}:poll`,
-								},
-								select: { id: true },
-							})
-						)?.id;
-					if (pending || eventId)
-						return {
-							assetId,
-							approved: false,
-							moderationPending: true,
-							...(eventId ? { outputReviewEventId: eventId } : {}),
-						};
+				// The same policy-checked stream supplied both the media signature and
+				// the transfer. Release it before moderation, including on recovered writes.
+				openedSource?.stream.destroy();
+				openedSource = undefined;
+				inlineBody = null;
+				if (completedAsset.status === "READY") return { assetId, approved: true };
+				if (["QUARANTINED", "VERIFICATION_FAILED", "DELETED"].includes(completedAsset.status)) {
+					return { assetId, approved: false };
 				}
-				throw { code: "MODERATION_RETRYABLE", stage: "MODERATION", retryable: true };
+				if (deferOutputReview) {
+					if (!outputReviewEventId)
+						throw { code: "OUTPUT_REVIEW_INTENT_MISSING", stage: "MODERATION", retryable: true };
+					console.info("media.output.transfer", {
+						jobId: claim.jobId,
+						assetId,
+						stage: "resources_released_review_deferred",
+						at: Date.now(),
+						outputReviewEventId,
+					});
+					return { assetId, approved: false, moderationPending: true, outputReviewEventId };
+				}
+				const progress = await verification.verify(assetId);
+				const asset = await database.mediaAsset.findUniqueOrThrow({
+					where: { verificationEngine: "legacy", id: assetId },
+				});
+				if (asset.status === "VERIFYING") {
+					const pending = asset.verificationLastErrorCode === "IMAGE_PROCESSING";
+					const polling =
+						!asset.verificationLastErrorCode &&
+						asset.verificationLeaseToken &&
+						asset.verificationLeasedUntil &&
+						asset.verificationLeasedUntil > new Date();
+					if (
+						asset.kind === "OUTPUT" &&
+						asset.mimeType.startsWith("image/") &&
+						(pending || polling) &&
+						asset.verificationProviderTaskId
+					) {
+						// Duplicate/old finalizers may observe a wait committed by another actor.
+						// Look up its real event; never create a replacement or reset the due time.
+						const eventId =
+							progress?.outputReviewEventId ??
+							(
+								await database.outboxEvent.findUnique({
+									where: {
+										dedupeKey: `media-asset-verify:${asset.id}:g${asset.verificationGeneration}:poll`,
+									},
+									select: { id: true },
+								})
+							)?.id;
+						if (pending || eventId)
+							return {
+								assetId,
+								approved: false,
+								moderationPending: true,
+								...(eventId ? { outputReviewEventId: eventId } : {}),
+							};
+					}
+					throw { code: "MODERATION_RETRYABLE", stage: "MODERATION", retryable: true };
+				}
+				return { assetId, approved: asset.status === "READY" };
+			} finally {
+				openedSource?.stream.destroy();
 			}
-			return { assetId, approved: asset.status === "READY" };
 		},
 	};
 }
@@ -4480,20 +5684,31 @@ export function createDatabaseProviderEventStore(
 				const event = await tx.providerWebhookEvent.findFirst({
 					where: {
 						id: eventId,
-						provider: { notIn: ["kie-video-v1", "sightengine-video-v1", "seeapi-video-v1"] },
+						provider: {
+							notIn: [
+								"kie-video-v1",
+								"sightengine-video-v1",
+								"seeapi-video-v1",
+								KIE_IMAGE_COMPLETION_NOTICE_PROVIDER,
+							],
+						},
 						NOT: { providerEventId: { startsWith: "video-v1:" } },
-						OR: [
-							{ status: "RECEIVED" },
-							{ status: "PROCESSING", processingLeasedUntil: { lte: new Date() } },
-						],
 					},
 				});
 				if (!event?.providerTaskId) return null;
+				if (event.status !== "RECEIVED" && event.status !== "PROCESSING") return null;
 				const owner = await tx.generationAttempt.findFirst({
 					where: { provider: event.provider, providerTaskId: event.providerTaskId },
-					select: { job: { select: { executionEngine: true } } },
+					select: { id: true, job: { select: { executionEngine: true } } },
 				});
 				if (owner && owner.job.executionEngine !== "legacy") return null;
+				// A held phase or processing lease is pending work. Compute its remaining
+				// duration on the database clock and let Outbox persist a normal wait.
+				const retryAfterMs = await getProviderEventDeliveryWait(
+					{ eventId: event.id, attemptId: owner?.id, includeProcessingLease: true },
+					tx,
+				);
+				if (retryAfterMs > 0) throw new ProviderEventPhaseHeldError(retryAfterMs);
 				const processingToken = crypto.randomUUID();
 				const claimed = await tx.providerWebhookEvent.updateMany({
 					where: { id: event.id, status: event.status, processingToken: event.processingToken },
@@ -4503,7 +5718,7 @@ export function createDatabaseProviderEventStore(
 						processingLeasedUntil: new Date(Date.now() + 60_000),
 					},
 				});
-				if (claimed.count !== 1) return null;
+				if (claimed.count !== 1) throw new ProviderEventPhaseHeldError();
 				const attempt = await tx.generationAttempt.findFirst({
 					where: {
 						AND: { job: { executionEngine: "legacy" } },
@@ -4562,6 +5777,11 @@ export function createDatabaseProviderEventStore(
 						          "lastProviderOccurredAt", "lastProviderReceivedAt", "lastProviderSequence", "errorSnapshot"
 					   FROM "generation_attempt" WHERE "id" = ${claim.attemptId} FOR UPDATE`;
 				if (!attempt) throw new Error("Provider event attempt not found");
+				const retryAfterMs = await getProviderEventDeliveryWait(
+					{ eventId: claim.eventId, attemptId: attempt.id, includeProcessingLease: false },
+					tx,
+				);
+				if (retryAfterMs > 0) throw new ProviderEventPhaseHeldError(retryAfterMs);
 				await options.afterAttemptLock?.({ eventId: claim.eventId, attemptId: attempt.id });
 				const job = await tx.generationJob.findUniqueOrThrow({
 					where: { executionEngine: "legacy", id: attempt.jobId },
@@ -4761,6 +5981,12 @@ export function createDatabaseProviderEventStore(
 		async markProviderRecoveryUnavailable(claim) {
 			if (await unmanagedLegacyTask(database, { attemptId: claim.attemptId })) return;
 			await database.$transaction(async (tx) => {
+				await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${claim.attemptId} FOR UPDATE`;
+				const retryAfterMs = await getProviderEventDeliveryWait(
+					{ eventId: claim.eventId, attemptId: claim.attemptId, includeProcessingLease: false },
+					tx,
+				);
+				if (retryAfterMs > 0) throw new ProviderEventPhaseHeldError(retryAfterMs);
 				const attempt = await tx.generationAttempt.findUnique({
 					where: { AND: { job: { executionEngine: "legacy" } }, id: claim.attemptId },
 					select: { id: true, jobId: true, status: true, errorSnapshot: true },
@@ -4818,7 +6044,7 @@ export function createDatabaseProviderEventStore(
 }
 export const databaseProviderEventStore: ProviderEventStore = createDatabaseProviderEventStore(db);
 
-export interface ReconciliationRuntimeOptions {
+export interface ReconciliationRuntimeOptions extends ImagePhaseContext {
 	afterAttemptRead?: () => Promise<void>;
 	afterAttemptUpdate?: () => Promise<void>;
 }
@@ -4830,23 +6056,45 @@ export function createDatabaseReconciliationStore(
 	return {
 		async getPollingState(attemptId) {
 			if (!attemptId.trim()) throw new Error("INVALID_GENERATION_ATTEMPT_ID");
-			const attempt = await database.generationAttempt.findUnique({
-				where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
-				select: {
-					status: true,
-					providerTaskId: true,
-					nextReconcileAt: true,
-					reconcileLeasedUntil: true,
-					job: { select: { status: true } },
-				},
-			});
+			// Keep each observation fresh while reading the attempt and its job in
+			// one statement instead of Prisma's separate relation query.
+			const [attempt] = await database.$queryRaw<
+				Array<{
+					nextReconcileAt: Date | null;
+					reconcileLeasedUntil: Date | null;
+					pending: boolean;
+					phaseKey: string | null;
+					workflowId: string | null;
+					epoch: number | null;
+				}>
+			>`
+				SELECT attempt."nextReconcileAt", attempt."reconcileLeasedUntil",
+				  (attempt."providerTaskId" IS NOT NULL AND attempt."providerTaskId" <> ''
+				   AND attempt."status" IN ('SUBMISSION_UNCERTAIN', 'SUBMITTED', 'RUNNING')
+				   AND job."status" IN ('SUBMITTING', 'PROVIDER_PENDING', 'PROVIDER_RUNNING')) AS "pending",
+				  owner."phaseKey", owner."workflowId", owner."epoch"
+				FROM "generation_attempt" attempt
+				JOIN "generation_job" job ON job."id" = attempt."jobId"
+				LEFT JOIN "media_workflow_phase_owner" owner ON owner."phaseKind" = 'generation'
+				 AND owner."subjectId" = attempt."id" AND owner."generation" = 0 AND owner."leasedUntil" > clock_timestamp()
+				WHERE attempt."id" = ${attemptId} AND job."executionEngine" = 'legacy'`;
+			const phaseOwner =
+				attempt?.phaseKey && attempt.workflowId && attempt.epoch
+					? { phaseKey: attempt.phaseKey, workflowId: attempt.workflowId, epoch: attempt.epoch }
+					: undefined;
 			if (
-				!attempt?.providerTaskId ||
-				!["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"].includes(attempt.status) ||
-				!["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"].includes(attempt.job.status)
+				(phaseOwner && phaseOwner.workflowId !== options.workflowId) ||
+				(options.phaseOwner &&
+					(!phaseOwner || !sameImagePhaseOwner(phaseOwner, options.phaseOwner)))
 			)
-				return null;
+				return {
+					pollAt: new Date(0),
+					phaseOwnershipLost: true,
+					...(phaseOwner ? { phaseOwner } : {}),
+				};
+			if (!attempt || !attempt.pending) return null;
 			return {
+				...(phaseOwner ? { phaseOwner } : {}),
 				pollAt: new Date(
 					Math.max(
 						attempt.nextReconcileAt?.getTime() ?? 0,
@@ -4861,17 +6109,34 @@ export function createDatabaseReconciliationStore(
 				throw new Error("INVALID_GENERATION_ATTEMPT_ID");
 			const leasedUntil = new Date(now.getTime() + leaseSeconds * 1_000);
 			const scopedAttemptId = attemptId ?? null;
-			return database.$queryRaw`
+			const claim = async (
+				tx: Prisma.TransactionClient,
+				phaseOwner?: ImagePhaseOwner,
+			): Promise<ReconciliationLease[]> => {
+				const leases = await tx.$queryRaw<
+					Array<
+						ReconciliationLease & {
+							responseSnapshot?: unknown;
+							transferEnvelope?: unknown;
+							productKey?: string;
+						}
+					>
+				>`
 			WITH claimable AS (
-				SELECT "id" FROM "generation_attempt"
+				SELECT "id" FROM "generation_attempt" candidate
 				WHERE "jobId" IN (SELECT "id" FROM "generation_job" WHERE "executionEngine" = 'legacy')
 				AND ("providerTaskId" IS NOT NULL OR "uncertainSubmission" = true)
 			  AND "status" IN ('SUBMISSION_UNCERTAIN', 'SUBMITTED', 'RUNNING')
 				  AND (${scopedAttemptId}::text IS NULL OR "id" = ${scopedAttemptId})
 				  AND ("nextReconcileAt" IS NULL OR "nextReconcileAt" <= ${now})
 				  AND ("reconcileLeasedUntil" IS NULL OR "reconcileLeasedUntil" <= ${now})
+				  AND NOT EXISTS (SELECT 1 FROM "media_workflow_phase_owner" owner
+				   WHERE owner."phaseKind" = 'generation' AND owner."subjectId" = candidate."id" AND owner."generation" = 0
+				   AND owner."leasedUntil" > clock_timestamp() AND (
+				    ${phaseOwner?.phaseKey ?? null}::text IS NULL OR owner."phaseKey" <> ${phaseOwner?.phaseKey ?? null}
+				    OR owner."workflowId" <> ${phaseOwner?.workflowId ?? null} OR owner."epoch" <> ${phaseOwner?.epoch ?? null}::int))
 				ORDER BY "updatedAt", "id" FOR UPDATE SKIP LOCKED LIMIT ${limit}
-			)
+			), leased AS (
 			UPDATE "generation_attempt" attempt
 			SET "reconcileLeaseToken" = gen_random_uuid()::text,
 			    "reconcileLeasedUntil" = ${leasedUntil},
@@ -4882,7 +6147,77 @@ export function createDatabaseReconciliationStore(
 			          attempt."providerResultUrl" AS "resultUrl",
 			          attempt."reconcileLeaseToken" AS "leaseToken",
 			          GREATEST(1, FLOOR(EXTRACT(EPOCH FROM (${now} - attempt."updatedAt")) / 60))::int AS "staleAgeMinutes",
-			          attempt."reconciliationCount" AS "repairCount"`;
+			          attempt."reconciliationCount" AS "repairCount", attempt."responseSnapshot"
+			), consumed AS (
+				UPDATE "provider_webhook_event" notice
+				SET "status" = 'PROCESSED', "processedAt" = ${now}
+				FROM leased WHERE leased."provider" = 'kie'
+				  AND notice."provider" = ${KIE_IMAGE_COMPLETION_NOTICE_PROVIDER}
+				  AND notice."providerEventId" = ${KIE_IMAGE_COMPLETION_NOTICE_PREFIX} || leased."attemptId" || ':' || leased."providerTaskId"
+				  AND notice."providerTaskId" = leased."providerTaskId"
+				  AND notice."status" = 'RECEIVED'
+				RETURNING notice."id"
+			)
+			SELECT leased.*, envelope."payload" AS "transferEnvelope", job."productKey"
+			FROM leased JOIN "generation_job" job ON job."id" = leased."jobId"
+			LEFT JOIN "generation_attempt_transfer_envelope" envelope ON envelope."attemptId" = leased."attemptId"
+			 AND leased."responseSnapshot" ? 'phaseCompletion'`;
+				return leases.map(({ responseSnapshot, transferEnvelope, productKey, ...lease }) => {
+					const saved = objectRecord(objectRecord(responseSnapshot)?.phaseCompletion);
+					const outputs =
+						saved && productKey
+							? providerOutputsFromTransferEnvelope(mediaKindForJob(productKey), transferEnvelope)
+							: [];
+					const completion =
+						saved && outputs.length > 0 && saved.providerTaskId === lease.providerTaskId
+							? {
+									snapshot: {
+										providerTaskId: lease.providerTaskId!,
+										status: "SUCCEEDED" as const,
+										raw: {},
+									},
+									result: {
+										outputs,
+										progress: typeof saved.progress === "number" ? saved.progress : null,
+										providerCostMicros:
+											typeof saved.providerCostMicros === "number"
+												? saved.providerCostMicros
+												: null,
+										providerCharged: saved.providerCharged === true,
+										failure: null,
+										retryable: false,
+									},
+								}
+							: undefined;
+					return {
+						...lease,
+						...(phaseOwner ? { phaseOwner } : {}),
+						...(completion ? { completion } : {}),
+					};
+				});
+			};
+			if (!options.workflowId || !attemptId) return claim(database);
+			return database.$transaction(async (tx) => {
+				const [attempt] = await tx.$queryRaw<Array<{ reconcileLeasedUntil: Date | null }>>`
+				 SELECT "reconcileLeasedUntil" FROM "generation_attempt"
+				 WHERE "id" = ${attemptId} AND "status" IN ('SUBMISSION_UNCERTAIN', 'SUBMITTED', 'RUNNING')
+				 AND "jobId" IN (SELECT "id" FROM "generation_job" WHERE "executionEngine" = 'legacy')
+				 AND ("providerTaskId" IS NOT NULL OR "uncertainSubmission" = true)
+				 AND ("nextReconcileAt" IS NULL OR "nextReconcileAt" <= ${now})
+				 AND ("reconcileLeasedUntil" IS NULL OR "reconcileLeasedUntil" <= ${now}) FOR UPDATE`;
+				if (!attempt) return [];
+				const ownership = await claimImagePhaseOwnerInTransaction(
+					{
+						phase: { kind: "generation", attemptId },
+						workflowId: options.workflowId!,
+						expectedOwner: options.phaseOwner,
+						businessLeasedUntil: attempt.reconcileLeasedUntil,
+					},
+					tx,
+				);
+				if (!ownership.owned) return [];
+				return claim(tx, ownership.phaseOwner);
+			});
 		},
 		async recordReconciled(lease, snapshot, result) {
 			return database.$transaction(async (tx) => {
@@ -4896,6 +6231,8 @@ export function createDatabaseReconciliationStore(
 					Array<{ id: string }>
 				>`SELECT "id" FROM "generation_attempt" WHERE "id" = ${lease.attemptId} AND "reconcileLeaseToken" = ${lease.leaseToken} FOR UPDATE`;
 				if (locked.length !== 1) return { outboxCommitted: false };
+				if (!(await generationPhaseIsCurrent(lease.attemptId, lease.phaseOwner, tx)))
+					return { outboxCommitted: false, phaseOwnershipLost: true };
 				const attempt = await tx.generationAttempt.findFirst({
 					where: {
 						AND: { job: { executionEngine: "legacy" } },
@@ -5096,9 +6433,13 @@ export function createDatabaseReconciliationStore(
 						nextReconcileAt:
 							terminalFailure || snapshot.status === "SUCCEEDED"
 								? null
-								: new Date(
-										Date.now() +
-											generationPollingDelaySeconds(attempt.submittedAt, new Date()) * 1_000,
+								: await kieGenerationCallbackRetryAt(
+										attempt,
+										new Date(
+											Date.now() +
+												generationPollingDelaySeconds(attempt.submittedAt, new Date()) * 1_000,
+										),
+										tx,
 									),
 					},
 				});
@@ -5196,13 +6537,16 @@ export function createDatabaseReconciliationStore(
 		},
 		async releaseReconciliationLease(lease, code, retryAt) {
 			await database.$transaction(async (tx) => {
+				// Serialize with the callback before deciding whether backoff can advance.
+				await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${lease.attemptId} AND "reconcileLeaseToken" = ${lease.leaseToken} FOR UPDATE`;
+				if (!(await generationPhaseIsCurrent(lease.attemptId, lease.phaseOwner, tx))) return;
 				const attempt = await tx.generationAttempt.findFirst({
 					where: {
 						AND: { job: { executionEngine: "legacy" } },
 						id: lease.attemptId,
 						reconcileLeaseToken: lease.leaseToken,
 					},
-					select: { errorSnapshot: true },
+					select: { id: true, provider: true, providerTaskId: true, errorSnapshot: true },
 				});
 				if (!attempt) return;
 				const changed = await tx.generationAttempt.updateMany({
@@ -5215,7 +6559,7 @@ export function createDatabaseReconciliationStore(
 						errorSnapshot: reconciliationErrorSnapshot(attempt.errorSnapshot, code),
 						reconcileLeaseToken: null,
 						reconcileLeasedUntil: null,
-						nextReconcileAt: retryAt,
+						nextReconcileAt: await kieGenerationCallbackRetryAt(attempt, retryAt, tx),
 					},
 				});
 				if (changed.count === 1 && lease.repairCount >= 5) {
@@ -5235,6 +6579,8 @@ export function createDatabaseReconciliationStore(
 			code = "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
 		) {
 			await database.$transaction(async (tx) => {
+				await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${lease.attemptId} AND "reconcileLeaseToken" = ${lease.leaseToken} FOR UPDATE`;
+				if (!(await generationPhaseIsCurrent(lease.attemptId, lease.phaseOwner, tx))) return;
 				const attempt = await tx.generationAttempt.findFirst({
 					where: {
 						AND: { job: { executionEngine: "legacy" } },

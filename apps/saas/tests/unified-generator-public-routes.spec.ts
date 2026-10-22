@@ -11,13 +11,15 @@ type State = {
 	quoteExpired: boolean;
 	catalogAvailable: boolean;
 	catalogReads: number;
-	quoteGate?: Promise<void>;
+	submitGate?: Promise<void>;
 	sealError: boolean;
 	uploads: number;
 	creates: any[];
+	submissions: any[];
 	quotes: any[];
 	loseFirst: boolean;
 	createError: string | null;
+	submitError: string | null;
 	createGate?: Promise<void>;
 	sealGate?: Promise<void>;
 	jobPatch?: Record<string, unknown>;
@@ -33,9 +35,11 @@ async function setup(page: Page, signedIn = true) {
 		sealError: false,
 		uploads: 0,
 		creates: [],
+		submissions: [],
 		quotes: [],
 		loseFirst: false,
 		createError: null,
+		submitError: null,
 	};
 	const product = {
 		key: "image-nano-banana-2-lite",
@@ -167,7 +171,6 @@ async function setup(page: Page, signedIn = true) {
 		}
 		if (endpoint === "quote") {
 			state.quotes.push(body);
-			await state.quoteGate;
 			return reply({
 				quoteId: `ui-quote-${state.quotes.length}`,
 				credits: state.quoteCredits,
@@ -175,10 +178,24 @@ async function setup(page: Page, signedIn = true) {
 				requestFingerprint: "ui-only",
 			});
 		}
-		if (endpoint === "jobs/create") {
-			state.creates.push(body);
-			if (state.loseFirst && state.creates.length === 1) return route.abort("connectionreset");
-			if (state.createError)
+		if (endpoint === "jobs/create" || endpoint === "jobs/submit") {
+			const submitting = endpoint === "jobs/submit";
+			const requests = submitting ? state.submissions : state.creates;
+			requests.push(body);
+			await (submitting ? state.submitGate : state.createGate);
+			if (submitting && (body.expectedCredits !== state.quoteCredits || state.quoteExpired))
+				return reply({
+					kind: "quote_only",
+					quote: {
+						quoteId: `ui-submit-quote-${state.submissions.length}`,
+						credits: state.quoteCredits,
+						expiresAt: new Date(Date.now() + (state.quoteExpired ? -1000 : 60000)).toISOString(),
+						requestFingerprint: "ui-only",
+					},
+				});
+			if (state.loseFirst && requests.length === 1) return route.abort("connectionreset");
+			const failure = submitting ? state.submitError : state.createError;
+			if (failure)
 				return route.fulfill({
 					status: 400,
 					json: {
@@ -186,13 +203,12 @@ async function setup(page: Page, signedIn = true) {
 							defined: false,
 							code: "BAD_REQUEST",
 							status: 400,
-							message: state.createError,
-							data: { code: state.createError },
+							message: failure,
+							data: { code: failure },
 						},
 					},
 				});
-			await state.createGate;
-			return reply(job);
+			return reply(submitting ? { kind: "created", state: job } : job);
 		}
 		if (endpoint === "jobs/get") return reply(job);
 		if (endpoint === "jobs/list") return reply({ items: [job], nextCursor: null });
@@ -358,6 +374,7 @@ for (const locale of ["en", "de"] as const) {
 		await expect(card).toHaveAttribute("data-stage", "READY");
 		await expect(card.locator("video")).toHaveCount(0);
 		expect(state.creates).toHaveLength(0);
+		expect(state.submissions).toHaveLength(0);
 		expect(state.quotes).toHaveLength(0);
 	});
 }
@@ -438,6 +455,7 @@ test("historical Kling confirmation rejected before admission unlocks legal fram
 	);
 	expect(state.quotes).toHaveLength(0);
 	expect(state.creates).toHaveLength(1);
+	expect(state.submissions).toHaveLength(0);
 	await page.reload();
 	await expect(page.locator("#video-prompt")).toBeEnabled();
 	await expect(page.locator("#video-prompt")).toHaveValue(original.request.prompt);
@@ -453,16 +471,16 @@ test("historical Kling confirmation rejected before admission unlocks legal fram
 	await expect(page.locator("#video-upload-status")).toContainText("Image secured");
 	await page.locator('[data-test="video-generate"]').click();
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
-	expect(state.quotes).toHaveLength(1);
-	expect(state.creates).toHaveLength(2);
-	expect(state.creates[1].request).toEqual({
+	expect(state.quotes).toHaveLength(0);
+	expect(state.creates).toHaveLength(1);
+	expect(state.submissions).toHaveLength(1);
+	expect(state.submissions[0].request).toEqual({
 		...original.request,
 		aspectRatio: "source",
 		inputAssetId: "ui-asset",
 	});
-	expect(state.quotes[0]).toEqual(state.creates[1].request);
-	expect(state.creates[1].idempotencyKey).not.toBe(original.idempotencyKey);
-	expect(state.creates[1].quoteId).not.toBe(original.quoteId);
+	expect(state.submissions[0].idempotencyKey).not.toBe(original.idempotencyKey);
+	expect(state.submissions[0]).not.toHaveProperty("quoteId");
 });
 
 test("historical Kling confirmation with an unknown response replays the accepted request unchanged", async ({
@@ -488,13 +506,14 @@ test("historical Kling confirmation with an unknown response replays the accepte
 	await page.locator('[data-test="video-confirm"]').click();
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
 	expect(state.creates).toEqual([original, original]);
+	expect(state.submissions).toHaveLength(0);
 	expect(state.quotes).toHaveLength(0);
 	expect(
 		await page.evaluate(() => sessionStorage.getItem("video-v1:confirmation:ui-owner")),
 	).toBeNull();
 });
 
-test("upfront backend price needs no prompt or quote, blank prompt is explicit, same-price generation is single-click", async ({
+test("upfront backend price needs no prompt or quote, blank prompt is explicit, same-price generation uses one submit RPC", async ({
 	page,
 }) => {
 	const state = await setup(page);
@@ -509,6 +528,7 @@ test("upfront backend price needs no prompt or quote, blank prompt is explicit, 
 	);
 	expect(state.quotes).toHaveLength(0);
 	expect(state.creates).toHaveLength(0);
+	expect(state.submissions).toHaveLength(0);
 	await page.locator('[data-test="video-settings-trigger"]').click();
 	await page.getByRole("radio", { name: "10 seconds", exact: true }).check();
 	await page.keyboard.press("Escape");
@@ -521,9 +541,11 @@ test("upfront backend price needs no prompt or quote, blank prompt is explicit, 
 		(button as HTMLButtonElement).click();
 	});
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
-	expect(state.quotes).toHaveLength(1);
-	expect(state.creates).toHaveLength(1);
-	expect(state.creates[0].request).toMatchObject({
+	expect(state.quotes).toHaveLength(0);
+	expect(state.creates).toHaveLength(0);
+	expect(state.submissions).toHaveLength(1);
+	expect(state.submissions[0]).toMatchObject({ expectedCredits: "41", expectedPricing: null });
+	expect(state.submissions[0].request).toMatchObject({
 		duration: 10,
 		prompt: "A slow camera above a quiet lake.",
 	});
@@ -547,6 +569,7 @@ test("reference errors and reload retain image intent, explicit remove restores 
 		"Upload and secure one reference image",
 	);
 	expect(state.creates).toHaveLength(0);
+	expect(state.submissions).toHaveLength(0);
 	await page.reload();
 	await expect(
 		page.getByLabel("Describe movement and camera direction", { exact: true }),
@@ -581,8 +604,9 @@ test("reference errors and reload retain image intent, explicit remove restores 
 	});
 	await page.locator('[data-test="video-generate"]').click();
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
-	expect(state.creates[0].request).toMatchObject({ mode: "text-to-video" });
-	expect(state.creates[0].request).not.toHaveProperty("inputAssetId");
+	expect(state.submissions[0].request).toMatchObject({ mode: "text-to-video" });
+	expect(state.submissions[0].request).not.toHaveProperty("inputAssetId");
+	expect(state.creates).toHaveLength(0);
 });
 
 function referenceFile() {
@@ -614,6 +638,7 @@ test("model, resolution and audio changes show the exact catalog price with an e
 	await expect(page.locator("#video-prompt")).toHaveValue("");
 	expect(state.quotes).toHaveLength(0);
 	expect(state.creates).toHaveLength(0);
+	expect(state.submissions).toHaveLength(0);
 });
 
 test("replacing an in-flight reference ignores the first upload's late completion", async ({
@@ -634,11 +659,12 @@ test("replacing an in-flight reference ignores the first upload's late completio
 	release();
 	await page.locator('[data-test="video-generate"]').click();
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
-	expect(state.creates[0].request).toMatchObject({
+	expect(state.submissions[0].request).toMatchObject({
 		mode: "image-to-video",
 		inputAssetId: "ui-asset-2",
 	});
-	expect(state.creates).toHaveLength(1);
+	expect(state.submissions).toHaveLength(1);
+	expect(state.creates).toHaveLength(0);
 });
 
 async function chooseVideoGroup(page: Page, family: string, name: string) {
@@ -721,6 +747,7 @@ test("real video variants default without a base button, cancel mutually exclusi
 	await captureVideoVariant(page, "ezimage-video-kling-variants.png");
 	expect(state.quotes).toHaveLength(0);
 	expect(state.creates).toHaveLength(0);
+	expect(state.submissions).toHaveLength(0);
 });
 
 for (const width of [390, 320])
@@ -743,14 +770,16 @@ for (const width of [390, 320])
 		await page.locator("#video-prompt").fill("A slow camera above a calm lake.");
 		await page.locator('[data-test="video-generate"]').click();
 		await expect(page.locator('[data-test="video-job"]')).toBeVisible();
-		expect(state.quotes[0]).toMatchObject({
+		expect(state.submissions[0].request).toMatchObject({
 			productKey: "video-veo-3-1",
 			veoTier: "quality",
 			duration: 8,
 			resolution: "720p",
 		});
-		expect(state.creates[0].request).toEqual(state.quotes[0]);
-		expect(state.creates[0].request).not.toHaveProperty("variantSelections");
+		expect(state.submissions).toHaveLength(1);
+		expect(state.submissions[0].request).not.toHaveProperty("variantSelections");
+		expect(state.quotes).toHaveLength(0);
+		expect(state.creates).toHaveLength(0);
 	});
 
 for (const outcome of ["definite version rejection", "unknown accepted response"])
@@ -759,7 +788,7 @@ for (const outcome of ["definite version rejection", "unknown accepted response"
 	}) => {
 		const state = await setup(page);
 		state.quoteCredits = "154";
-		state.createError = outcome === "definite version rejection" ? "INVALID_VIDEO_QUOTE" : null;
+		state.submitError = outcome === "definite version rejection" ? "INVALID_VIDEO_QUOTE" : null;
 		state.loseFirst = outcome === "unknown accepted response";
 		await page.goto("/create?mode=video");
 		await expect(page.locator("#video-prompt")).toBeEnabled();
@@ -768,22 +797,21 @@ for (const outcome of ["definite version rejection", "unknown accepted response"
 		await variants.getByRole("button", { name: "Quality", exact: true }).click();
 		await page.locator("#video-prompt").fill("Keep this quality and move the camera slowly.");
 		await page.locator('[data-test="video-generate"]').click();
-		await expect.poll(() => state.creates.length).toBe(1);
-		const original = state.creates[0];
-		if (state.createError) {
+		await expect.poll(() => state.submissions.length).toBe(1);
+		const original = state.submissions[0];
+		if (state.submitError) {
 			await expect(page.locator("#video-prompt")).toBeEnabled();
 			await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
 			await expect.poll(() => state.catalogReads).toBeGreaterThan(1);
 			expect(
 				await page.evaluate(() => sessionStorage.getItem("video-v1:confirmation:ui-owner")),
 			).toBeNull();
-			state.createError = null;
+			state.submitError = null;
 			await page.reload();
 			await expect(variants).toContainText("Current: Quality");
 			await page.locator('[data-test="video-generate"]').click();
 			await expect(page.locator('[data-test="video-job"]')).toBeVisible();
-			expect(state.creates[1].idempotencyKey).not.toBe(original.idempotencyKey);
-			expect(state.quotes).toHaveLength(2);
+			expect(state.submissions[1].idempotencyKey).not.toBe(original.idempotencyKey);
 		} else {
 			await expect(page.locator('[data-test="video-confirm"]')).toBeEnabled();
 			await expect(page.locator("#video-prompt")).toBeDisabled();
@@ -792,33 +820,47 @@ for (const outcome of ["definite version rejection", "unknown accepted response"
 			await expect(variants.getByRole("button", { name: "Quality", exact: true })).toBeDisabled();
 			await page.locator('[data-test="video-confirm"]').click();
 			await expect(page.locator('[data-test="video-job"]')).toBeVisible();
-			expect(state.creates[1]).toEqual(original);
-			expect(state.quotes).toHaveLength(1);
+			expect(state.submissions[1]).toEqual(original);
 		}
-		expect(state.creates[1].request.veoTier).toBe("quality");
+		expect(state.submissions).toHaveLength(2);
+		expect(state.submissions[1].request.veoTier).toBe("quality");
+		expect(state.quotes).toHaveLength(0);
+		expect(state.creates).toHaveLength(0);
 	});
 
-test("a quote resolved after leaving video is discarded and an expired quote never creates", async ({
+test("a changed-price submit resolved while video is hidden stays uncharged, drops its quote on return and never creates an expired quote", async ({
 	page,
 }) => {
 	const state = await setup(page);
+	state.quoteCredits = "29";
 	let release!: () => void;
-	state.quoteGate = new Promise((resolve) => {
+	state.submitGate = new Promise((resolve) => {
 		release = resolve;
 	});
 	await page.goto("/create?mode=video");
 	await page.locator("#video-prompt").fill("A quiet lake at golden hour.");
 	await page.locator('[data-test="video-generate"]').click();
-	await expect.poll(() => state.quotes.length).toBe(1);
+	await expect.poll(() => state.submissions.length).toBe(1);
 	await mode(page, "image");
+	const quoted = page.waitForResponse((response) =>
+		response.url().endsWith("/videoV1/jobs/submit"),
+	);
 	release();
+	await quoted;
+	// quote_only proves this key did not create a job. Wait until the workspace
+	// processes that receipt while hidden, then verify the existing mode policy.
+	await expect
+		.poll(() => page.evaluate(() => sessionStorage.getItem("video-v1:confirmation:ui-owner")))
+		.toBeNull();
 	await mode(page, "video");
 	await expect(page.locator('[data-test="video-generate"]')).toBeEnabled();
 	expect(state.creates).toHaveLength(0);
+	expect(state.quotes).toHaveLength(0);
 	await expect(page.locator('[data-test="video-confirm"]')).toHaveCount(0);
 	state.quoteExpired = true;
 	await page.locator('[data-test="video-generate"]').click();
 	await expect(page.locator('[data-test="video-workspace"]')).toContainText("The quote expired");
+	expect(state.submissions).toHaveLength(2);
 	expect(state.creates).toHaveLength(0);
 });
 test("desktop and mobile compact composer, accessible model and settings menus", async ({
@@ -961,9 +1003,42 @@ test("logout and account changes isolate drafts and immutable receipts, includin
 	);
 	await page.locator('[data-test="video-confirm"]').click();
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
-	expect(state.creates).toHaveLength(2);
-	expect(state.creates[1]).toEqual(state.creates[0]);
-	expect(state.quotes).toHaveLength(1);
+	expect(state.submissions).toHaveLength(2);
+	expect(state.submissions[1]).toEqual(state.submissions[0]);
+	expect(state.creates).toHaveLength(0);
+	expect(state.quotes).toHaveLength(0);
+});
+
+test("an unknown submit survives reload and a changed policy before same-key recovery", async ({
+	page,
+}) => {
+	const state = await setup(page);
+	state.loseFirst = true;
+	await page.goto("/create?mode=video");
+	await page.locator("#video-prompt").fill("Recover this request without creating a replacement.");
+	await page.locator('[data-test="video-generate"]').click();
+	await expect(page.locator('[data-test="video-confirm"]')).toContainText("same request");
+	const original = state.submissions[0];
+	await page.reload();
+	state.submitError = "VIDEO_MODEL_RETIRED";
+	const rejected = page.waitForResponse(
+		(response) => response.url().endsWith("/videoV1/jobs/submit") && response.status() === 400,
+	);
+	await page.locator('[data-test="video-confirm"]').click();
+	await rejected;
+	await expect(page.locator('[data-test="video-confirm"]')).toBeEnabled();
+	await expect(page.locator("#video-prompt")).toBeDisabled();
+	expect(
+		await page.evaluate(() =>
+			JSON.parse(sessionStorage.getItem("video-v1:confirmation:ui-owner")!),
+		),
+	).toMatchObject({ version: 2, ownerId: "ui-owner", input: original, recoveryRequired: true });
+	state.submitError = null;
+	await page.locator('[data-test="video-confirm"]').click();
+	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+	expect(state.submissions).toEqual([original, original, original]);
+	expect(state.creates).toHaveLength(0);
+	expect(state.quotes).toHaveLength(0);
 });
 
 test("a rejected reference upload blocks generation until reselected, and image-only models require an upload", async ({
@@ -978,6 +1053,7 @@ test("a rejected reference upload blocks generation until reselected, and image-
 	await page.locator('[data-test="video-generate"]').click();
 	expect(state.quotes).toHaveLength(0);
 	expect(state.creates).toHaveLength(0);
+	expect(state.submissions).toHaveLength(0);
 	await page.locator("#video-model").click();
 	await page.getByRole("button", { name: "Seedance", exact: true }).click();
 	await page.getByRole("button", { name: "Seedance 1 Pro Fast", exact: true }).click();
@@ -991,16 +1067,18 @@ test("a rejected reference upload blocks generation until reselected, and image-
 		page.getByLabel("Describe movement and camera direction", { exact: true }),
 	).toBeVisible();
 	expect(state.creates).toHaveLength(0);
+	expect(state.submissions).toHaveLength(0);
 	state.sealError = false;
 	await page.locator("#video-image").setInputFiles(referenceFile());
 	await expect(page.locator("#video-upload-status")).toContainText("Image secured");
 	await page.locator('[data-test="video-generate"]').click();
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
-	expect(state.creates[0].request).toMatchObject({
+	expect(state.submissions[0].request).toMatchObject({
 		productKey: "video-seedance-1-pro-fast",
 		mode: "image-to-video",
 		inputAssetId: "ui-asset-2",
 	});
+	expect(state.creates).toHaveLength(0);
 });
 test("mode drafts, history navigation and portal focus stay isolated", async ({ page }) => {
 	await setup(page, false);
@@ -1087,7 +1165,7 @@ test("price invalidation, known rejection and immutable unknown-response retry",
 	expect(state.creates).toHaveLength(2);
 	expect(state.creates[1]).toEqual(state.creates[0]);
 });
-test("upload and in-flight creation survive switching, retaining the job after Back", async ({
+test("upload and in-flight submission survive switching, retaining the job after Back", async ({
 	page,
 }) => {
 	const state = await setup(page);
@@ -1111,15 +1189,15 @@ test("upload and in-flight creation survive switching, retaining the job after B
 	seal();
 	await mode(page, "video");
 	await expect(page.locator("#video-upload-status")).toContainText("Image secured");
-	await reviewChangedPrice(page, state);
-	let create!: () => void;
-	state.createGate = new Promise((resolve) => {
-		create = resolve;
+	await page.locator("#video-prompt").fill("Animate the reference while preserving both drafts.");
+	let submit!: () => void;
+	state.submitGate = new Promise((resolve) => {
+		submit = resolve;
 	});
-	await page.locator('[data-test="video-confirm"]').click();
-	await expect.poll(() => state.creates.length).toBe(1);
+	await page.locator('[data-test="video-generate"]').click();
+	await expect.poll(() => state.submissions.length).toBe(1);
 	await mode(page, "image");
-	create();
+	submit();
 	await expect(page).toHaveURL(/videoJob=ui-video-1/);
 	expect(new URL(page.url()).searchParams.get("mode")).toBeNull();
 	await expect(page.locator("#landing-edit-prompt")).toHaveValue("Image remains unchanged.");
@@ -1128,4 +1206,6 @@ test("upload and in-flight creation survive switching, retaining the job after B
 	await page.goBack();
 	await mode(page, "video");
 	await expect(page.locator('[data-test="video-job"]')).toBeVisible();
+	expect(state.creates).toHaveLength(0);
+	expect(state.quotes).toHaveLength(0);
 });

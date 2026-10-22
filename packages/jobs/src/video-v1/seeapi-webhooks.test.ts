@@ -3,10 +3,14 @@ import { createHash, createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 
 import type { VideoWorkflowBinding } from "./contracts";
-import { createSeeapiVideoCallbackUrl } from "./seeapi-callback-url";
+import {
+	createSeeapiVideoCallbackUrl,
+	createSeeapiVideoInputCallbackUrl,
+} from "./seeapi-callback-url";
 import {
 	createSeeapiVideoModerationWebhookHandler,
 	notifyPendingSeeapiVideoModerationEvents,
+	notifyPendingSeeapiVideoInputModerationEvents,
 	type SeeapiVideoModerationWebhookDependencies,
 } from "./seeapi-webhooks";
 
@@ -74,6 +78,94 @@ async function request(
 }
 
 describe("SeeAPI video moderation callback", () => {
+	it("persists a signed input callback separately and wakes the same Workflow without trusting body task IDs", async () => {
+		const dep = dependencies();
+		const input = {
+			jobId: "job1",
+			assetId: "input-asset",
+			submissionToken: "persisted-submission-token",
+		};
+		const persistInput = vi.fn<
+			NonNullable<SeeapiVideoModerationWebhookDependencies["persistInput"]>
+		>(async () => ({
+			eventId: "input-event",
+			jobId: "job1",
+			workflowInstanceId: "video-v1-job1",
+			notified: false,
+			replayed: false,
+		}));
+		const markInputNotified = vi.fn(async () => ({ count: 1 }));
+		const url = await createSeeapiVideoInputCallbackUrl(input, environment);
+		expect(
+			(
+				await createSeeapiVideoModerationWebhookHandler({
+					...dep,
+					persistInput,
+					markInputNotified,
+				})(await request({ url }))
+			).status,
+		).toBe(202);
+		expect(persistInput).toHaveBeenCalledWith(expect.objectContaining(input));
+		expect(dep.persist).not.toHaveBeenCalled();
+		expect(dep.sendEvent).toHaveBeenCalledWith({
+			type: "moderation-result",
+			payload: { jobId: "job1", eventId: "input-event" },
+		});
+		expect(persistInput.mock.invocationCallOrder[0]).toBeLessThan(
+			dep.sendEvent.mock.invocationCallOrder[0]!,
+		);
+		expect(markInputNotified).toHaveBeenCalledWith("input-event");
+		expect(dep.markNotified).not.toHaveBeenCalled();
+	});
+	it("keeps a failed input notification pending for a provider retry or targeted recovery", async () => {
+		const dep = dependencies();
+		dep.sendEvent.mockRejectedValueOnce(new Error("WORKFLOW_UNAVAILABLE"));
+		const input = {
+			jobId: "job1",
+			assetId: "input-asset",
+			submissionToken: "persisted-submission-token",
+		};
+		const persistInput = vi.fn<
+			NonNullable<SeeapiVideoModerationWebhookDependencies["persistInput"]>
+		>(async () => ({
+			eventId: "input-event",
+			jobId: "job1",
+			workflowInstanceId: "video-v1-job1",
+			notified: false,
+			replayed: false,
+		}));
+		const markInputNotified = vi.fn(async () => ({ count: 1 }));
+		const url = await createSeeapiVideoInputCallbackUrl(input, environment);
+		expect(
+			(
+				await createSeeapiVideoModerationWebhookHandler({
+					...dep,
+					persistInput,
+					markInputNotified,
+				})(await request({ url }))
+			).status,
+		).toBe(503);
+		expect(markInputNotified).not.toHaveBeenCalled();
+		const events = vi.fn(async () => [
+			{
+				eventId: "input-event",
+				jobId: "job1",
+				workflowInstanceId: "video-v1-job1",
+				notified: false,
+				replayed: true,
+			},
+		]);
+		expect(
+			await notifyPendingSeeapiVideoInputModerationEvents({
+				binding: dep.binding,
+				jobId: "job1",
+				events,
+				markNotified: markInputNotified,
+			}),
+		).toEqual({ notified: 1, failed: 0 });
+		expect(events).toHaveBeenCalledWith(50, "job1");
+		expect(markInputNotified).toHaveBeenCalledWith("input-event");
+	});
 	it("persists exact signed evidence and attempt URL identity before notifying only its Workflow", async () => {
 		const dep = dependencies();
 		const body = '{ "taskId": "foreign-task", "status": "approved", "arbitrary": "字" }';

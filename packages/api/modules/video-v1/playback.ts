@@ -7,6 +7,21 @@ import { parseVideoRange, signPlaybackGrant, verifyPlaybackGrant } from "./playb
 
 export async function createVideoPlayback(userId: string, jobId: string, download = false) {
 	const asset = await authorizeVideoPlayback(userId, jobId);
+	return createVideoPlaybackFromAuthorizedAsset(userId, jobId, asset, download);
+}
+
+/** Only call with the asset returned by the current owner/approval authorization graph. */
+export function createVideoPlaybackFromAuthorizedAsset(
+	userId: string,
+	jobId: string,
+	asset: {
+		id: string;
+		checksum: string | null;
+		verificationValidUntil: Date | null;
+		deleteAfter: Date | null;
+	} | null,
+	download = false,
+) {
 	if (!asset?.checksum) throw new Error("NOT_FOUND");
 	const expires = Math.min(
 		Date.now() + 300_000,
@@ -60,13 +75,15 @@ export async function serveVideoPlayback(request: Request, jobId: string): Promi
 		return new Response(null, { status: 403, headers });
 	const bytes = Number(asset.byteSize);
 	const location = { bucket: "media" as const, key: asset.objectKey };
-	const actual = await headObject(location);
-	if (
-		actual.contentLength !== bytes ||
-		actual.contentType !== "video/mp4" ||
-		actual.etag !== asset.storageEtag
-	)
-		return new Response(null, { status: 409, headers });
+	if (request.method === "HEAD") {
+		const actual = await headObject(location);
+		if (
+			actual.contentLength !== bytes ||
+			actual.contentType !== "video/mp4" ||
+			actual.etag !== asset.storageEtag
+		)
+			return new Response(null, { status: 409, headers });
+	}
 	headers.set("Content-Type", "video/mp4");
 	headers.set(
 		"Content-Disposition",
@@ -84,11 +101,23 @@ export async function serveVideoPlayback(request: Request, jobId: string): Promi
 	headers.set("Content-Length", String(contentLength));
 	if (range) headers.set("Content-Range", `bytes ${range.start}-${range.end}/${bytes}`);
 	if (request.method === "HEAD") return new Response(null, { status: 200, headers });
-	const object = await readPrivateMediaStream({
-		...location,
-		ifMatch: asset.storageEtag,
-		...(range ? { range } : {}),
-	});
+	// The conditional GET validates the same immutable object while opening its
+	// body. A preceding HEAD would add a storage round trip to every range.
+	let object;
+	try {
+		object = await readPrivateMediaStream({
+			...location,
+			ifMatch: asset.storageEtag,
+			...(range ? { range } : {}),
+		});
+	} catch (error) {
+		const details = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+		if (details.name !== "PreconditionFailed" && details.$metadata?.httpStatusCode !== 412)
+			throw error;
+		headers.delete("Content-Length");
+		headers.delete("Content-Range");
+		return new Response(null, { status: 409, headers });
+	}
 	if (
 		object.contentLength !== contentLength ||
 		object.contentType !== "video/mp4" ||

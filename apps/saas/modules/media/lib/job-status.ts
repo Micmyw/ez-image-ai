@@ -97,6 +97,8 @@ export function getJobPollingInterval(input: {
 	)
 		return input.hasReadyOutput ? (input.isDocumentVisible ? 30_000 : 60_000) : false;
 	if (input.status === "NEEDS_RECONCILIATION") return 15_000;
+	// Keep this independent of WebSocket health: a healthy hub can still be
+	// missing a post-commit publication. Heartbeat/replay never lengthens this bound.
 	return input.isDocumentVisible ? 2_000 : 15_000;
 }
 

@@ -1,17 +1,18 @@
 import type { Prisma } from "../../generated/client";
 import { ACTIVE_GENERATION_JOB_STATUSES } from "./state-machine";
 
-/** A missing video account cap leaves the existing image-only admission unchanged. */
+/** Frozen legacy admission compatibility only; the current project cap is retired. */
 export function configuredSharedKieCapacity(environment = process.env): number | null {
 	const value = Number(environment.VIDEO_V1_PROVIDER_CONCURRENCY);
 	return Number.isSafeInteger(value) && value > 0 ? value : null;
 }
 
-/** Acquire before owner/storage/account locks; count in a separate fresh statement. */
+/** Legacy diagnostic lock order. Current admission and sends must not acquire this lock. */
 export async function lockSharedKieCapacity(tx: Prisma.TransactionClient): Promise<void> {
 	await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('media:provider-capacity:kie', 0))`;
 }
 
+/** Retained for legacy compatibility tests, never for current dispatch authorization. */
 export async function assertSharedKieCapacity(
 	tx: Prisma.TransactionClient,
 	maximum: number,

@@ -11,6 +11,7 @@ import {
 	generationFundingSource,
 	type GenerationFundingSource,
 } from "@repo/database/media-image-passes";
+import type { CreateModeratedGenerationQuoteInput } from "@repo/database/media-quotes";
 import { resolveDatabaseDispatchRoute } from "@repo/jobs";
 import { dispatchJob } from "@repo/jobs/orchestration/client";
 import { logger } from "@repo/logs";
@@ -161,11 +162,17 @@ export interface PreparedGenerationAdmission {
 	ownerId: string;
 	quote: GenerationQuoteForCreation;
 	routeGraphOptions: ExecutableRouteGraphOptions;
+	/** Present only when quote persistence belongs to the job admission transaction. */
+	preparedQuote?: CreateModeratedGenerationQuoteInput;
 }
 
 interface CreatedGenerationJob {
 	continuationEventIds?: string[];
 	verificationAssetId?: string;
+	committedQuote?: Pick<
+		GenerationQuoteForCreation,
+		"id" | "productKey" | "credits" | "pricingSnapshot" | "expiresAt"
+	>;
 	job: {
 		id: string;
 		status: string;
@@ -198,6 +205,7 @@ interface CreateGenerationDependencies {
 		submittedByUserId: string;
 		quoteId: string;
 		idempotencyKey: string;
+		preparedQuote?: CreateModeratedGenerationQuoteInput;
 		inputAssetIds: string[];
 		expectedModerationRuleVersion: string;
 		expectedModerationProvider: string;
@@ -391,6 +399,7 @@ async function createGenerationFromQuote(
 			submittedByUserId: userId,
 			quoteId: quote.id,
 			idempotencyKey: input.idempotencyKey,
+			...(admission?.preparedQuote ? { preparedQuote: admission.preparedQuote } : {}),
 			inputAssetIds: sourceAssetId ? [sourceAssetId] : [],
 			expectedModerationRuleVersion: TEXT_MODERATION_RULE_VERSION,
 			expectedModerationProvider: textModerationProviderForEnvironment(process.env),

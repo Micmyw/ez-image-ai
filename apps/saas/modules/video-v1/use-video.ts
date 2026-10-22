@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@auth/hooks/use-session";
+import { useJobEvents } from "@media/hooks/use-job-events";
 import { usePageVisible } from "@media/hooks/use-page-visible";
 import { useGenerationMode } from "@media/lib/generation-mode-context";
 import { orpc } from "@shared/lib/orpc-query-utils";
@@ -59,8 +60,9 @@ export function useVideoJob(jobId: string) {
 	const { user } = useSession();
 	const visible = usePageVisible();
 	const active = useGenerationMode()?.mode !== "image";
-	return useQuery({
-		queryKey: ["video-v1", "job", user?.id, jobId],
+	const queryKey = ["video-v1", "job", user?.id, jobId];
+	const query = useQuery({
+		queryKey,
 		queryFn: ({ signal }) => videoApi.jobs.get({ jobId }, { signal }),
 		enabled: Boolean(user && !user.isAnonymous && jobId) && active && visible,
 		staleTime: 0,
@@ -71,4 +73,16 @@ export function useVideoJob(jobId: string) {
 				: videoPollInterval(query.state.data?.stage, visible && active),
 		refetchIntervalInBackground: false,
 	});
+	useJobEvents({
+		jobId,
+		ownerId: user?.id,
+		queryKey,
+		enabled:
+			Boolean(user && !user.isAnonymous && jobId) &&
+			active &&
+			visible &&
+			!(query.error && getVideoErrorKey(query.error) === "unauthorized") &&
+			!["READY", "FAILED", "REJECTED"].includes(query.data?.stage ?? ""),
+	});
+	return query;
 }

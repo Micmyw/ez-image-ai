@@ -3,13 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	getSession: vi.fn(),
-	findFirst: vi.fn(),
+	getStatus: vi.fn(),
+	database: {},
 	sign: vi.fn(async () => "https://private.test/preview"),
 }));
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: mocks.getSession } } }));
 vi.mock("@repo/database/client", () => ({
-	db: { generationJob: { findFirst: mocks.findFirst } },
+	db: mocks.database,
+}));
+vi.mock("@repo/database/media-job-status", () => ({
+	getOwnedGenerationJobStatus: mocks.getStatus,
 }));
 vi.mock("@repo/storage", () => ({ createSignedReadUrl: mocks.sign }));
 
@@ -89,8 +93,8 @@ const baseJob = {
 };
 
 describe("getJob", () => {
-	it("projects only required database fields and includes an authorized preview in one response", async () => {
-		mocks.findFirst.mockResolvedValue(baseJob);
+	it("reads owner-scoped state and includes an authorized preview in one response", async () => {
+		mocks.getStatus.mockResolvedValue(baseJob);
 		const responseHeaders = new Headers();
 		const result = await call(
 			getJob,
@@ -107,21 +111,14 @@ describe("getJob", () => {
 			displayVersion: expect.any(String),
 			observedAt: expect.any(Number),
 		});
-		const query = mocks.findFirst.mock.calls[0][0];
-		expect(query.where.executionEngine).toBe("legacy");
-		expect(query).not.toHaveProperty("include");
-		expect(query.select.reservation).toEqual({
-			select: { status: true, settledAmount: true, releasedAmount: true },
-		});
-		expect(query.select.assets.select.asset.select).not.toHaveProperty("rawEnvelope");
-		expect(query.select.assets.select.asset.select).not.toHaveProperty("verificationLastError");
+		expect(mocks.getStatus).toHaveBeenCalledExactlyOnceWith("job-1", "user-1", mocks.database);
 	});
 	it.each(["PENDING", "REJECTED", "ERROR", "REVIEW", "BYPASSED"])(
 		"does not sign %s as approved",
 		async (status) => {
 			const output = asset("blocked");
 			output.moderationResults[0].status = status;
-			mocks.findFirst.mockResolvedValue({
+			mocks.getStatus.mockResolvedValue({
 				...baseJob,
 				assets: [{ role: "OUTPUT", asset: output }],
 			});
@@ -141,7 +138,7 @@ describe("getJob", () => {
 			status: "BYPASSED",
 			reasonCode: MODERATION_BYPASS_REASON,
 		});
-		mocks.findFirst.mockResolvedValue({ ...baseJob, assets: [{ role: "OUTPUT", asset: output }] });
+		mocks.getStatus.mockResolvedValue({ ...baseJob, assets: [{ role: "OUTPUT", asset: output }] });
 		const result = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
 		expect(result.assets).toEqual([]);
 		expect(mocks.sign).not.toHaveBeenCalled();
@@ -156,7 +153,7 @@ describe("getJob", () => {
 		{ verificationPolicyVersion: "old-policy" },
 		{ ownerType: "GUEST" },
 	])("never signs expired, revoked, mismatched or guest assets: %j", async (changes) => {
-		mocks.findFirst.mockResolvedValue({
+		mocks.getStatus.mockResolvedValue({
 			...baseJob,
 			assets: [{ role: "OUTPUT", asset: { ...asset("blocked"), ...changes } }],
 		});
@@ -166,9 +163,9 @@ describe("getJob", () => {
 		expect(mocks.sign).not.toHaveBeenCalled();
 	});
 	it("changes displayVersion on revocation even without job.version changing", async () => {
-		mocks.findFirst.mockResolvedValue(baseJob);
+		mocks.getStatus.mockResolvedValue(baseJob);
 		const before = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
-		mocks.findFirst.mockResolvedValue({ ...baseJob, assets: [] });
+		mocks.getStatus.mockResolvedValue({ ...baseJob, assets: [] });
 		const after = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
 		expect(after.version).toBe(before.version);
 		expect(after.displayVersion).not.toBe(before.displayVersion);
@@ -183,18 +180,18 @@ describe("getJob", () => {
 				assets: [{ role: "INPUT", position: 0, asset: asset("asset-input") }],
 				reservation: { status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n },
 			};
-			mocks.findFirst.mockResolvedValue(failed);
+			mocks.getStatus.mockResolvedValue(failed);
 			expect(
 				await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } }),
 			).toMatchObject({ failureReason: failureCode, creditsReleased: "0", canRetry: false });
-			mocks.findFirst.mockResolvedValue({
+			mocks.getStatus.mockResolvedValue({
 				...failed,
 				reservation: { status: "SETTLED", settledAmount: 0n, releasedAmount: 17n },
 			});
 			expect(
 				await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } }),
 			).toMatchObject({ failureReason: failureCode, creditsReleased: "17", canRetry: true });
-			mocks.findFirst.mockResolvedValue({ ...failed, status: "NEEDS_RECONCILIATION" });
+			mocks.getStatus.mockResolvedValue({ ...failed, status: "NEEDS_RECONCILIATION" });
 			expect(
 				await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } }),
 			).toMatchObject({ canRetry: false });
@@ -202,7 +199,7 @@ describe("getJob", () => {
 	);
 
 	it("does not offer one-click retry after the reference expires", async () => {
-		mocks.findFirst.mockResolvedValue({
+		mocks.getStatus.mockResolvedValue({
 			...baseJob,
 			status: "FAILED",
 			failureCode: "GENERATION_TIMEOUT",
@@ -220,7 +217,7 @@ describe("getJob", () => {
 	it.each(["WAIVED", "CHARGED"])(
 		"preserves the %s moderation billing outcome after output cleanup",
 		async (outcome) => {
-			mocks.findFirst.mockResolvedValue({
+			mocks.getStatus.mockResolvedValue({
 				...baseJob,
 				status: "FAILED",
 				failureCode: `OUTPUT_CONTENT_BLOCKED_${outcome}`,
@@ -243,7 +240,7 @@ describe("getJob", () => {
 	);
 
 	it("does not describe a review requirement as a confirmed content violation", async () => {
-		mocks.findFirst.mockResolvedValue({
+		mocks.getStatus.mockResolvedValue({
 			...baseJob,
 			status: "FAILED",
 			assets: [
@@ -267,7 +264,7 @@ describe("getJob", () => {
 	});
 
 	it("preserves terminal job charges after the test ledger is archived", async () => {
-		mocks.findFirst.mockResolvedValue({
+		mocks.getStatus.mockResolvedValue({
 			...baseJob,
 			reservation: null,
 			archivedCreditsCharged: 12n,
@@ -281,7 +278,7 @@ describe("getJob", () => {
 	it.each(["FINALIZING", "SUCCEEDED"])(
 		"returns approved %s outputs independently of settlement without private routing data",
 		async (status) => {
-			mocks.findFirst.mockResolvedValue({
+			mocks.getStatus.mockResolvedValue({
 				...baseJob,
 				status,
 				...(status === "FINALIZING"
@@ -315,16 +312,12 @@ describe("getJob", () => {
 			expect(JSON.stringify(result)).not.toMatch(
 				/must-not-leak|providerModelId|providerCostMicros|objectKey|assetChecksum/,
 			);
-			expect(mocks.findFirst).toHaveBeenCalledWith(
-				expect.objectContaining({
-					where: { id: "job-1", ownerType: "USER", ownerId: "user-1", executionEngine: "legacy" },
-				}),
-			);
+			expect(mocks.getStatus).toHaveBeenCalledWith("job-1", "user-1", mocks.database);
 		},
 	);
 
 	it("marks only server-cancelable states as cancelable", async () => {
-		mocks.findFirst.mockResolvedValue({
+		mocks.getStatus.mockResolvedValue({
 			...baseJob,
 			status: "PROVIDER_RUNNING",
 			attempts: [{ progress: 42, status: "RUNNING", uncertainSubmission: false }],
@@ -334,7 +327,7 @@ describe("getJob", () => {
 			call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } }),
 		).resolves.toMatchObject({ canCancel: true });
 
-		mocks.findFirst.mockResolvedValue({
+		mocks.getStatus.mockResolvedValue({
 			...baseJob,
 			status: "SUBMITTING",
 			attempts: [{ progress: null, status: "SUBMITTING", uncertainSubmission: false }],
@@ -345,7 +338,7 @@ describe("getJob", () => {
 	});
 
 	it("disables cancellation when any attempt still requires reconciliation", async () => {
-		mocks.findFirst.mockResolvedValue({
+		mocks.getStatus.mockResolvedValue({
 			...baseJob,
 			status: "PROVIDER_RUNNING",
 			attempts: [{ progress: 42, status: "RUNNING", uncertainSubmission: false }],
@@ -358,7 +351,7 @@ describe("getJob", () => {
 	});
 
 	it("exposes a safe moderation-rejection reason without returning the quarantined output", async () => {
-		mocks.findFirst.mockResolvedValue({
+		mocks.getStatus.mockResolvedValue({
 			...baseJob,
 			status: "FAILED",
 			reservation: { settledAmount: 0n, releasedAmount: 17n },
@@ -384,20 +377,16 @@ describe("getJob", () => {
 	});
 
 	it("returns not found for a job outside the authenticated tenant boundary", async () => {
-		mocks.findFirst.mockResolvedValue(null);
+		mocks.getStatus.mockResolvedValue(null);
 
 		await expect(
 			call(getJob, { jobId: "job-other" }, { context: { headers: new Headers() } }),
 		).rejects.toBeInstanceOf(ORPCError);
-		expect(mocks.findFirst).toHaveBeenCalledWith(
-			expect.objectContaining({
-				where: { id: "job-other", ownerType: "USER", ownerId: "user-1", executionEngine: "legacy" },
-			}),
-		);
+		expect(mocks.getStatus).toHaveBeenCalledWith("job-other", "user-1", mocks.database);
 	});
 
 	it("does not expose an asset binding owned by another tenant", async () => {
-		mocks.findFirst.mockResolvedValue({
+		mocks.getStatus.mockResolvedValue({
 			...baseJob,
 			assets: [
 				{
@@ -421,7 +410,7 @@ describe("getJob", () => {
 	});
 
 	it("does not present a legacy job as a current Kie SKU", async () => {
-		mocks.findFirst.mockResolvedValue({
+		mocks.getStatus.mockResolvedValue({
 			...baseJob,
 			productKey: "image-fast",
 			inputSnapshot: {

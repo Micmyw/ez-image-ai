@@ -95,6 +95,8 @@ export type ModerationEvidence = {
 export interface ModerationSubmission {
 	/** Optional immediate terminal evidence; old image consumers may continue polling. */
 	completedDecision?: ModerationDecision;
+	/** Authenticated submission response explicitly remained nonterminal; absent on old adapters. */
+	nonterminalState?: "queued" | "processing";
 	moderationTaskId: string;
 	status: "QUEUED" | "RUNNING";
 	ruleVersion: string;

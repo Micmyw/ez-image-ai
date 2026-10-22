@@ -34,6 +34,7 @@ export function VideoComposer(props: {
 	enabled: boolean;
 	busy: "quote" | "create" | null;
 	quote: VideoQuote | null;
+	pendingPrice?: Pick<VideoQuote, "credits" | "pricing">;
 	previewCredits: string | null;
 	previewPricing?: VideoRetailDisplay | null;
 	quoteExpired: boolean;
@@ -55,7 +56,8 @@ export function VideoComposer(props: {
 	onRemoveFile: () => void;
 }) {
 	const t = useTranslations("videoV1");
-	const { draft, upload, locked, quote, registered } = props;
+	const { draft, upload, locked, registered } = props;
+	const quote = props.quote ?? props.pendingPrice;
 	const fileInput = useRef<HTMLInputElement>(null);
 	const model = getVideoModel(draft.productKey)!;
 	const canReference = model.modes.includes("image-to-video");

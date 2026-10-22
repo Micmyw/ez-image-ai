@@ -4,5 +4,6 @@ declare namespace Cloudflare {
 		WORKFLOWS_DISPATCH_SECRET: string;
 		WORKFLOWS_DISPATCH_URL: string;
 		JOBS_RUNTIME_ENV: string;
+		MEDIA_SETTLEMENT_FRESH_READ_ENABLED?: string;
 	}
 }

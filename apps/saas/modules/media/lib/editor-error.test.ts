@@ -21,6 +21,7 @@ describe("getEditorErrorKey", () => {
 		["PROVIDER_CONCURRENT_JOB_LIMIT_REACHED", "providerBusy"],
 		["RATE_LIMITED", "rateLimited"],
 		["INPUT_TOO_LARGE", "inputTooLarge"],
+		["MEDIA_REQUEST_CONFLICT", "safeError"],
 	] as const)("maps %s to safe editor copy", (code, key) => {
 		expect(getEditorErrorKey(new Error(code))).toBe(key);
 	});
@@ -36,6 +37,14 @@ describe("getEditorErrorKey", () => {
 			).toBe(key);
 		},
 	);
+
+	it("keeps a structured transaction conflict out of balance and asset guidance", () => {
+		const error = Object.assign(new Error("INSUFFICIENT_CREDITS ASSET_NOT_READY"), {
+			code: "CONFLICT",
+			data: { code: "MEDIA_REQUEST_CONFLICT" },
+		});
+		expect(getEditorErrorKey(error)).toBe("safeError");
+	});
 
 	it.each([
 		"UNKNOWN_CONCURRENT_JOB_LIMIT_REACHED",

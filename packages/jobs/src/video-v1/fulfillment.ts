@@ -4,6 +4,7 @@ import { moderationServiceErrorCode } from "@repo/config";
 import { maximumMediaStorageBytes } from "@repo/config/server";
 import { videoOutputConstraints } from "@repo/config/video-output";
 import { readVideoV1Config } from "@repo/config/video-v1";
+import { mediaJobNotification } from "@repo/database/media-job-notifications";
 import {
 	beginVideoReviewSubmission,
 	claimVideoOutputReview,
@@ -24,8 +25,13 @@ import {
 } from "@repo/database/video-v1-seeapi-events";
 import { createSignedReadUrl } from "@repo/storage";
 
+import { publishCommittedMediaJobNotification } from "../realtime/publish";
 import type { ReviewStepResult, StoredOutputRef, VideoPublicState } from "./contracts";
-import { inspectVideoObject, transferVideoOutput } from "./output-storage";
+import {
+	inspectPersistedVideoObject,
+	inspectVideoObject,
+	transferVideoOutput,
+} from "./output-storage";
 import { createSeeapiVideoCallbackUrl } from "./seeapi-callback-url";
 import { notifyPendingSeeapiVideoModerationEvents } from "./seeapi-webhooks";
 import { getVideoWorkflowBinding } from "./workflow-binding";
@@ -53,17 +59,20 @@ export async function storeVideoOutput(
 	try {
 		// A complete immutable object can outlive the DB commit. Read it by ETag and
 		// recompute both checksum and MP4 spec before adopting it; never regenerate.
-		const existing = await inspectVideoObject(
-			claim.asset.objectKey,
-			claim.status === "STORED" && claim.asset.checksum && claim.asset.storageEtag
-				? {
-						checksum: claim.asset.checksum,
-						etag: claim.asset.storageEtag,
-						bytes: Number(claim.asset.byteSize),
-					}
-				: undefined,
-			claim.constraints,
-		);
+		const existing =
+			claim.status === "CLAIMED" && claim.freshTransfer
+				? null
+				: await inspectVideoObject(
+						claim.asset.objectKey,
+						claim.status === "STORED" && claim.asset.checksum && claim.asset.storageEtag
+							? {
+									checksum: claim.asset.checksum,
+									etag: claim.asset.storageEtag,
+									bytes: Number(claim.asset.byteSize),
+								}
+							: undefined,
+						claim.constraints,
+					);
 		if (claim.status === "STORED") {
 			if (!existing) throw new Error("VIDEO_STORED_OBJECT_MISSING");
 			return {
@@ -76,6 +85,7 @@ export async function storeVideoOutput(
 			existing ??
 			(await transferVideoOutput({
 				key: claim.asset.objectKey,
+				freshTransfer: claim.freshTransfer,
 				url: claim.sourceUrl,
 				maxBytes: claim.maxBytes,
 				constraints: claim.constraints,
@@ -98,7 +108,7 @@ export async function storeVideoOutput(
 		if (claim.token) await releaseVideoStorageLease(jobId, claim.asset.id, claim.token);
 		const details = error as { retryable?: boolean; code?: string };
 		if (details.retryable === false)
-			await failVideoDelivery(jobId, details.code ?? "VIDEO_OUTPUT_SPECIFICATION_FAILED");
+			await failVideoJob(jobId, details.code ?? "VIDEO_OUTPUT_SPECIFICATION_FAILED");
 		throw error;
 	}
 }
@@ -195,13 +205,9 @@ export async function reviewStoredVideo(
 					};
 				}
 			}
-			const stored = await inspectVideoObject(
-				claim.asset.objectKey,
-				{
-					checksum: claim.asset.checksum,
-					etag: claim.asset.storageEtag,
-					bytes: Number(claim.asset.byteSize),
-				},
+			const stored = await inspectPersistedVideoObject(
+				claim.asset,
+				claim.reviewContext.outputSpec,
 				constraints,
 			);
 			if (!stored) throw new Error("VIDEO_STORED_OBJECT_MISSING");
@@ -349,7 +355,7 @@ export async function reviewStoredVideo(
 			evidence: decision.evidence ? JSON.parse(JSON.stringify(decision.evidence)) : {},
 		});
 		if (!allowed) {
-			await failVideoDelivery(jobId, decision.reasonCode, true);
+			await failVideoJob(jobId, decision.reasonCode, true);
 			return { status: "REJECT", reasonCode: decision.reasonCode };
 		}
 		return { status: "ALLOW" };
@@ -365,22 +371,20 @@ export async function finalizeVideoJob(jobId: string): Promise<VideoPublicState>
 	const job = await getVideoFulfillmentSnapshot(jobId);
 	const asset = job.assets[0]?.asset;
 	if (!asset?.checksum || !asset.storageEtag) throw new Error("VIDEO_FINAL_OUTPUT_MISSING");
-	const checked = await inspectVideoObject(
-		asset.objectKey,
-		{
-			checksum: asset.checksum,
-			etag: asset.storageEtag,
-			bytes: Number(asset.byteSize),
-		},
+	const checked = await inspectPersistedVideoObject(
+		asset,
+		(job.videoExecution.stageData as { outputSpec?: unknown } | null)?.outputSpec,
 		videoOutputConstraints(job.inputSnapshot),
 	);
 	if (!checked) throw new Error("VIDEO_FINAL_OUTPUT_UNREADABLE");
-	return finalizeVideoDelivery(jobId, {
+	const state = await finalizeVideoDelivery(jobId, {
 		assetId: asset.id,
 		checksum: checked.checksum,
 		etag: checked.etag,
 		checkedAt: new Date(),
 	});
+	await notifyCommittedVideoState(state);
+	return state;
 }
 
 export async function failVideoJob(
@@ -388,5 +392,15 @@ export async function failVideoJob(
 	reasonCode: string,
 	rejected = false,
 ): Promise<VideoPublicState> {
-	return failVideoDelivery(jobId, reasonCode, rejected);
+	const state = await failVideoDelivery(jobId, reasonCode, rejected);
+	await notifyCommittedVideoState(state);
+	return state;
+}
+
+async function notifyCommittedVideoState(state: VideoPublicState): Promise<void> {
+	if (!["READY", "FAILED", "REJECTED"].includes(state.stage)) return;
+	// Terminal revisions are stable. Reuse the committed result instead of rereading the Outbox.
+	await publishCommittedMediaJobNotification(
+		mediaJobNotification({ jobId: state.jobId, revision: `video:${state.stage.toLowerCase()}` }),
+	);
 }

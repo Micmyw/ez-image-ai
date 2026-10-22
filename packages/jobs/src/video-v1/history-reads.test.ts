@@ -120,9 +120,84 @@ describe("history playback without per-row database reloads", () => {
 		expect(JSON.stringify(result)).not.toMatch(/private|checksum|storageEtag|moderationResults/);
 
 		vi.mocked(getVideoJobRecord).mockResolvedValue(rows[0] as never);
-		vi.mocked(authorizeVideoPlayback).mockResolvedValue(null);
-		expect((await getVideoPublicState({ userId: "owner" }, "job-0")).canPlay).toBe(false);
-		expect(authorizeVideoPlayback).toHaveBeenCalledExactlyOnceWith("owner", "job-0");
+		const grant = vi.fn((asset) => ({
+			url: `/content/${asset.id}`,
+			expiresAt: new Date(Date.now() + 60_000).toISOString(),
+			ownerId: "owner",
+		}));
+		const detail = await getVideoPublicState({ userId: "owner" }, "job-0", grant);
+		expect(detail.canPlay).toBe(true);
+		expect(detail.playback?.url).toBe("/content/output-job-0");
+		expect(getVideoJobRecord).toHaveBeenCalledExactlyOnceWith("owner", "job-0", {});
+		expect(grant).toHaveBeenCalledExactlyOnceWith(rows[0]!.assets[0]!.asset);
+		expect(authorizeVideoPlayback).not.toHaveBeenCalled();
+		// A later status request cannot reuse the earlier grant after evidence changes.
+		rows[0]!.assets[0]!.asset.deletedAt = new Date();
+		grant.mockClear();
+		expect(await getVideoPublicState({ userId: "owner" }, "job-0", grant)).toMatchObject({
+			canPlay: false,
+		});
+		expect(grant).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		[
+			"owner",
+			(row: ReturnType<typeof historyRow>) => {
+				row.ownerId = "other";
+			},
+		],
+		[
+			"asset owner",
+			(row: ReturnType<typeof historyRow>) => {
+				row.assets[0]!.asset.ownerId = "other";
+			},
+		],
+		[
+			"expired evidence",
+			(row: ReturnType<typeof historyRow>) => {
+				row.assets[0]!.asset.verificationValidUntil = new Date(0);
+			},
+		],
+		[
+			"expired retention",
+			(row: ReturnType<typeof historyRow>) => {
+				row.assets[0]!.asset.deleteAfter = new Date(0);
+			},
+		],
+		[
+			"checksum",
+			(row: ReturnType<typeof historyRow>) => {
+				row.assets[0]!.asset.checksum = "b".repeat(64);
+			},
+		],
+		[
+			"pending review",
+			(row: ReturnType<typeof historyRow>) => {
+				row.assets[0]!.asset.status = "VERIFYING";
+			},
+		],
+		[
+			"rejected review",
+			(row: ReturnType<typeof historyRow>) => {
+				row.assets[0]!.asset.moderationResults[0]!.status = "REJECTED";
+			},
+		],
+		[
+			"unsettled credits",
+			(row: ReturnType<typeof historyRow>) => {
+				row.reservation!.status = "ACTIVE";
+			},
+		],
+	] as const)("never issues an inline grant with invalid %s", async (_reason, mutate) => {
+		const row = historyRow("job");
+		mutate(row);
+		vi.mocked(getVideoJobRecord).mockResolvedValue(row as never);
+		const grant = vi.fn();
+		const state = await getVideoPublicState({ userId: "owner" }, "job", grant);
+		expect(state.canPlay).toBe(false);
+		expect(state).not.toHaveProperty("playback");
+		expect(grant).not.toHaveBeenCalled();
 	});
 
 	it("forwards template family and evaluates both variants without repeated playback reads", async () => {

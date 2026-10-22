@@ -12,7 +12,7 @@ import {
 	assertSharedKieCapacity,
 } from "./shared-provider-capacity";
 
-describe("consumer-first admission compatibility", () => {
+describe("frozen legacy admission compatibility", () => {
 	it("preserves the old flat-only capacity reader without changing admission policy", () => {
 		expect(configuredSharedKieCapacity({ VIDEO_V1_PROVIDER_CONCURRENCY: "2" })).toBe(2);
 		expect(

@@ -1,8 +1,13 @@
 import type {
 	FinalizationDependencies,
 	FinalizationFailure,
+	FinalizationRetryEvent,
 	JobPayload,
 	PersistedCandidate,
+} from "../contracts";
+import {
+	GenerationTransferRequiresHeavyError,
+	OutputTransferClaimConflictError,
 } from "../contracts";
 
 const DEFAULT_MAX_INLINE_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -14,6 +19,7 @@ export async function finalizeMedia(
 	outcome: "SKIPPED" | "FINALIZED" | "RETRY_SCHEDULED" | "WAITING_MODERATION";
 	readyOutputs: number;
 	outputReviewEventIds?: string[];
+	retryEvent?: FinalizationRetryEvent;
 }> {
 	const claim = await dependencies.store.claimFinalization(payload);
 	if (!claim) return { outcome: "SKIPPED", readyOutputs: 0 };
@@ -41,9 +47,16 @@ export async function finalizeMedia(
 			}
 		}
 		try {
-			const result = await dependencies.persistCandidate(claim, candidate);
+			const result = await dependencies.persistCandidate(claim, candidate, {
+				persistedCandidateChecked: true,
+			});
 			results.push({ ...result, candidateKey: candidate.key });
 		} catch (error) {
+			if (
+				error instanceof GenerationTransferRequiresHeavyError ||
+				error instanceof OutputTransferClaimConflictError
+			)
+				throw error;
 			const failure = { ...finalizationFailure(error), candidateKey: candidate.key };
 			if (failure.retryable) {
 				retryFailure ??= failure;
@@ -78,6 +91,9 @@ export async function finalizeMedia(
 			outcome: "RETRY_SCHEDULED",
 			readyOutputs: results.filter((result) => result.approved).length,
 			...continuation,
+			...(resolution?.outcome === "RETRY_SCHEDULED" && resolution.retryEvent
+				? { retryEvent: resolution.retryEvent }
+				: {}),
 		};
 	}
 	if (pending.length) {

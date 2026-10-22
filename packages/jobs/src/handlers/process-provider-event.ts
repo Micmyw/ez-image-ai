@@ -1,4 +1,5 @@
 import type { ProviderEventDependencies, ProviderWebhookPayload } from "../contracts";
+import { ProviderEventPhaseHeldError } from "../contracts";
 
 export async function processProviderEvent(
 	payload: ProviderWebhookPayload,
@@ -17,7 +18,8 @@ export async function processProviderEvent(
 		const result = await adapter.normalizeResult(claim.snapshot);
 		await dependencies.store.recordProviderProgress(claim, result);
 		return { outcome: "PROCESSED" };
-	} catch {
+	} catch (error) {
+		if (error instanceof ProviderEventPhaseHeldError) throw error;
 		await dependencies.store.recordProviderEventFailure(claim, "PROVIDER_RESPONSE_INVALID");
 		return { outcome: "FAILED" };
 	}

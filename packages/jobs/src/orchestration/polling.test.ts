@@ -59,6 +59,59 @@ function fixture() {
 }
 
 describe("one durable polling tick", () => {
+	it("immediately consumes a notice that became due while a successful query held the lease", async () => {
+		const f = fixture();
+		f.store.getPollingState
+			.mockResolvedValueOnce({ pollAt: f.now })
+			.mockResolvedValueOnce({ pollAt: f.now, leasedUntil: null })
+			.mockResolvedValueOnce(null);
+		f.store.recordReconciled
+			.mockResolvedValueOnce({ outboxCommitted: false })
+			.mockResolvedValueOnce({ outboxCommitted: true });
+		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
+			done: true,
+			waitSeconds: 0,
+			outboxCommitted: true,
+		});
+		expect(f.adapter.retrieve).toHaveBeenCalledTimes(2);
+		expect(f.store.claimStale).toHaveBeenCalledTimes(2);
+		expect(f.adapter.submit).not.toHaveBeenCalled();
+	});
+	it("bounds immediate rechecks and preserves a second committed due time without a new wait floor", async () => {
+		const f = fixture();
+		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
+			done: false,
+			waitSeconds: 0,
+			retryImmediately: true,
+			outboxCommitted: false,
+		});
+		expect(f.adapter.retrieve).toHaveBeenCalledTimes(2);
+		expect(f.store.claimStale).toHaveBeenCalledTimes(2);
+	});
+	it("honors a short persisted provider due time without imposing a five-second minimum", async () => {
+		const f = fixture();
+		f.store.getPollingState.mockResolvedValue({ pollAt: new Date(f.now.getTime() + 1500) });
+		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
+			done: false,
+			waitSeconds: 2,
+			outboxCommitted: false,
+		});
+		expect(f.adapter.retrieve).not.toHaveBeenCalled();
+	});
+	it("does not accelerate an unsuccessful read or bypass its persisted retry delay", async () => {
+		const f = fixture();
+		f.adapter.retrieve.mockRejectedValueOnce(new Error("provider retry-after"));
+		f.store.getPollingState
+			.mockResolvedValueOnce({ pollAt: f.now })
+			.mockResolvedValueOnce({ pollAt: new Date(f.now.getTime() + 120_000) });
+		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
+			done: false,
+			waitSeconds: 60,
+			outboxCommitted: false,
+		});
+		expect(f.adapter.retrieve).toHaveBeenCalledOnce();
+		expect(f.store.releaseReconciliationLease).toHaveBeenCalledOnce();
+	});
 	it("retains the legacy signal when an older store does not report committed events", async () => {
 		const f = fixture();
 		f.store.recordReconciled.mockResolvedValueOnce(undefined);

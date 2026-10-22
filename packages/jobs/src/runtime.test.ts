@@ -619,6 +619,7 @@ function retryDatabase(job: ReturnType<typeof frozenRouteJob>) {
 		errorSnapshot: {},
 	};
 	const transaction = {
+		$queryRaw: vi.fn(async () => []),
 		generationAttempt: {
 			findUniqueOrThrow: vi.fn(async ({ where }: { where: { id: string } }) => ({
 				...attemptedRoute,

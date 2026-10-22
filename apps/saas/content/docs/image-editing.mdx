@@ -1,5 +1,5 @@
 ---
-updatedAt: 2026-10-04
+updatedAt: 2026-10-22
 indexable: true
 title: Image generation and editing
 description: Work with source photos, choose model settings, and continue or recover an edit without losing track of your result.
@@ -24,6 +24,12 @@ the editor shows the size limit for your account and model. Upload only images y
 In the signed-in editor, selecting a photo shows its preview and starts the upload. You can keep
 writing while it uploads. Generation becomes available when the reference is ready and the other
 requirements are met.
+
+After an upload completes, its safety review can run while you finish writing. The reference
+shows when a review is pending or cannot be approved. You can submit while review is pending;
+generation waits for the same review to pass. A rejected reference must be replaced or removed.
+If a safety check cannot finish, follow the message beside the reference. A temporary problem
+reading the review status does not bypass the safety check when you submit.
 
 If the upload fails, retry it. To continue without a photo, remove it explicitly. An unfinished
 or failed reference is not silently ignored and turned into a text-only generation.

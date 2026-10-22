@@ -16,6 +16,21 @@ const request = {
 afterEach(() => vi.restoreAllMocks());
 
 describe("task execution timing", () => {
+	it("marks a fused child as sharing its parent's executor request", () => {
+		const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+		logTaskStarted(request, context, 3_500, {
+			executionMode: "inline",
+			parentTaskId: "media-execute-event",
+		});
+		expect(info).toHaveBeenCalledExactlyOnceWith(
+			"media.task.started",
+			expect.objectContaining({
+				executionMode: "inline",
+				parentTaskId: "media-execute-event",
+				outboxEventId: "event-1",
+			}),
+		);
+	});
 	it("records the first admitted event start using bounded identity fields only", () => {
 		const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
 		logTaskStarted(request, context, 3_500);

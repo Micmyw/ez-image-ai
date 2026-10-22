@@ -5,11 +5,12 @@
 	"exports": {
 		".": "./index.ts",
 		"./orchestration/*": "./src/orchestration/*.ts",
+		"./realtime/*": "./src/realtime/*.ts",
 		"./video-v1/*": "./src/video-v1/*.ts"
 	},
 	"scripts": {
-		"test": "vitest run --config vitest.config.ts --exclude \"**/*.database.integration.test.ts\"",
-		"test:integration": "vitest run src/handlers/finalization-transfer.database.integration.test.ts src/handlers/jobs.database.integration.test.ts src/handlers/legacy-engine-isolation.database.integration.test.ts src/handlers/recover-finalizing-generations.database.integration.test.ts src/handlers/runtime-stores.database.integration.test.ts src/handlers/verify-upload.database.integration.test.ts src/handlers/moderation-outage.database.integration.test.ts src/handlers/temporary-reference.database.integration.test.ts src/handlers/output-review-delivery.database.integration.test.ts src/handlers/continuation-delivery.database.integration.test.ts src/video-v1/flow.database.integration.test.ts src/video-v1/seeapi-flow.database.integration.test.ts src/video-v1/template-flow.database.integration.test.ts --config vitest.config.ts",
+		"test": "vitest run --config vitest.config.ts --exclude \"**/*.database.integration.test.ts\" --exclude \"**/*.database.diagnostic.test.ts\"",
+		"test:integration": "vitest run src/handlers/image-phase-owner.database.integration.test.ts src/handlers/fused-admission.database.integration.test.ts src/handlers/finalization-transfer.database.integration.test.ts src/handlers/finalization-lock-order.database.integration.test.ts src/handlers/output-review-claim-lock.database.integration.test.ts src/handlers/jobs.database.integration.test.ts src/handlers/kie-callback.database.integration.test.ts src/handlers/image-moderation-polling.database.integration.test.ts src/handlers/verification-continuation.database.integration.test.ts src/handlers/verification-submit-fast-path.database.integration.test.ts src/handlers/verification-projection.database.integration.test.ts src/handlers/dispatch-pre-send.database.integration.test.ts src/handlers/verification-handoff.database.integration.test.ts src/handlers/settlement-concurrency.database.integration.test.ts src/handlers/legacy-engine-isolation.database.integration.test.ts src/handlers/recover-finalizing-generations.database.integration.test.ts src/handlers/runtime-stores.database.integration.test.ts src/handlers/verify-upload.database.integration.test.ts src/handlers/moderation-outage.database.integration.test.ts src/handlers/temporary-reference.database.integration.test.ts src/handlers/output-review-delivery.database.integration.test.ts src/handlers/continuation-delivery.database.integration.test.ts src/video-v1/flow.database.integration.test.ts src/video-v1/seeapi-flow.database.integration.test.ts src/video-v1/template-flow.database.integration.test.ts --config vitest.config.ts",
 		"type-check": "tsc --noEmit --incremental false"
 	},
 	"dependencies": {

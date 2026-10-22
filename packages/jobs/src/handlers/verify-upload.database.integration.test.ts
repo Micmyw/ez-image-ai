@@ -3,6 +3,7 @@ import {
 	MEDIA_VERIFICATION_POLICY_VERSION,
 	MEDIA_VERIFICATION_RULE_VERSION,
 	TestMediaSafetyAdapter,
+	SeeapiSafetyAdapter,
 } from "@repo/ai";
 import {
 	claimGenerationDraftTransaction,
@@ -30,6 +31,248 @@ describe("claimed draft asset verification", () => {
 	});
 
 	afterAll(async () => client?.$disconnect());
+	it.each([false, true])(
+		"uses a completed SeeAPI submission with flagged=%s without a redundant retrieval",
+		async (flagged) => {
+			const assetId = crypto.randomUUID();
+			await client.mediaAsset.create({
+				data: {
+					id: assetId,
+					ownerType: "USER",
+					ownerId: `latency-test-${assetId}`,
+					kind: "OUTPUT",
+					status: "VERIFYING",
+					objectKey: `users/test/assets/${assetId}/original.png`,
+					mimeType: "image/png",
+					byteSize: 16n,
+					checksum: "c".repeat(64),
+					finalizedAt: new Date(),
+				},
+			});
+			const fetcher = vi.fn(async () =>
+				Response.json({
+					id: `review_${assetId}`,
+					object: "inference",
+					model: "nsfw-filter",
+					endpoint: "image-moderation",
+					provider: "seeapi",
+					status: "succeeded",
+					error: null,
+					result: {
+						type: "json",
+						data: { flagged, categories: { nsfw: flagged ? ["blocked"] : [], special_care: [] } },
+					},
+				}),
+			);
+			const adapter = new SeeapiSafetyAdapter({ apiKey: "local-fixture", fetch: fetcher });
+			const retrieveImage = vi.fn(async () => {
+				throw new Error("Completed evidence must not require a second request");
+			});
+			const dependencies = createDatabaseVerifyUploadDependencies(client, {
+				environment: {},
+				moderationProvider: "seeapi",
+				safety: Object.assign(new TestMediaSafetyAdapter("ALLOW"), {
+					submitImage: adapter.submitImage.bind(adapter),
+					retrieveImage,
+				}),
+				createSignedReadUrl: async () => "https://private.example/verified-output.png",
+			});
+			await dependencies.verify(assetId);
+			await dependencies.verify(assetId);
+			expect(fetcher).toHaveBeenCalledTimes(1);
+			expect(retrieveImage).not.toHaveBeenCalled();
+			expect(await client.mediaAsset.findUnique({ where: { id: assetId } })).toMatchObject({
+				status: flagged ? "QUARANTINED" : "READY",
+			});
+			expect(
+				await client.assetModerationResult.findFirstOrThrow({ where: { assetId } }),
+			).toMatchObject({
+				assetChecksum: "c".repeat(64),
+				providerTaskId: `review_${assetId}`,
+				status: flagged ? "REJECTED" : "APPROVED",
+			});
+		},
+	);
+
+	it("commits independent SeeAPI image approvals while another approval transaction remains open", async () => {
+		// Prior tests may intentionally leave an outage open. This case covers the
+		// ordinary failure-free path, with no active incident requiring recovery.
+		await client.moderationIncident.updateMany({
+			where: { activeKey: "seeapi:IMAGE" },
+			data: { status: "RECOVERED", activeKey: null, recoveredAt: new Date() },
+		});
+		const first = await completedImageFixture();
+		const second = await completedImageFixture();
+		let releaseApproval!: () => void;
+		let approvalWritten = false;
+		const released = new Promise<void>((resolve) => {
+			releaseApproval = resolve;
+		});
+		const pausedClient = client.$extends({
+			query: {
+				mediaAsset: {
+					async update({ args, query }) {
+						const result = await query(args);
+						if (args.where.id === first.assetId && args.data.status === "READY") {
+							approvalWritten = true;
+							await released;
+						}
+						return result;
+					},
+				},
+			},
+		});
+		const firstApproval = createDatabaseVerifyUploadDependencies(
+			pausedClient as unknown as PrismaClient,
+			first.options,
+		).verify(first.assetId);
+		void firstApproval.catch(() => undefined);
+		let secondApproval: typeof firstApproval | undefined;
+		try {
+			await expect.poll(() => approvalWritten, { timeout: 2_000 }).toBe(true);
+			const [assetLock] = await client.$queryRaw<Array<{ available: boolean }>>`
+				SELECT pg_try_advisory_xact_lock(hashtextextended(${`media-verification:${first.assetId}`}, 0)) AS available`;
+			expect(assetLock?.available).toBe(false);
+			// READY and its evidence stay invisible until their transaction commits.
+			expect(
+				await client.mediaAsset.findUniqueOrThrow({ where: { id: first.assetId } }),
+			).toMatchObject({ status: "VERIFYING" });
+			expect(await client.assetModerationResult.count({ where: { assetId: first.assetId } })).toBe(
+				0,
+			);
+
+			let independentCommitted = false;
+			secondApproval = createDatabaseVerifyUploadDependencies(client, second.options)
+				.verify(second.assetId)
+				.then((result) => {
+					independentCommitted = true;
+					return result;
+				});
+			void secondApproval.catch(() => undefined);
+			await expect.poll(() => independentCommitted, { timeout: 2_000 }).toBe(true);
+			expect(
+				await client.mediaAsset.findUniqueOrThrow({ where: { id: second.assetId } }),
+			).toMatchObject({ status: "READY" });
+			const [incidentLock] = await client.$queryRaw<Array<{ available: boolean }>>`
+				SELECT pg_try_advisory_xact_lock_shared(hashtextextended(${"moderation-incident:seeapi:IMAGE"}, 0)) AS available`;
+			expect(incidentLock?.available).toBe(true);
+			releaseApproval();
+			await Promise.all([firstApproval, secondApproval]);
+			for (const fixture of [first, second]) {
+				expect(fixture.submitImage).toHaveBeenCalledOnce();
+				expect(fixture.retrieveImage).not.toHaveBeenCalled();
+				expect(
+					await client.mediaAsset.findUniqueOrThrow({ where: { id: fixture.assetId } }),
+				).toMatchObject({ status: "READY", verificationProviderTaskId: fixture.taskId });
+				expect(
+					await client.assetModerationResult.findMany({ where: { assetId: fixture.assetId } }),
+				).toMatchObject([
+					{
+						status: "APPROVED",
+						assetChecksum: "c".repeat(64),
+						provider: "seeapi",
+						providerTaskId: fixture.taskId,
+					},
+				]);
+			}
+		} finally {
+			releaseApproval();
+			await Promise.allSettled([firstApproval, ...(secondApproval ? [secondApproval] : [])]);
+		}
+	});
+
+	it("binds a completed submission after lease expiry but only retrieves that task on recovery", async () => {
+		const f = await completedImageFixture();
+		const dependencies = createDatabaseVerifyUploadDependencies(client, {
+			...f.options,
+			afterVideoSubmission: async () => {
+				await client.mediaAsset.update({
+					where: { id: f.assetId },
+					data: { verificationLeasedUntil: new Date(0) },
+				});
+			},
+		});
+		await dependencies.verify(f.assetId);
+		expect(f.submitImage).toHaveBeenCalledTimes(1);
+		expect(f.retrieveImage).not.toHaveBeenCalled();
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: f.assetId } }),
+		).resolves.toMatchObject({
+			status: "VERIFYING",
+			verificationProviderTaskId: f.taskId,
+			verificationSubmissionUncertain: false,
+		});
+		await expect(
+			client.assetModerationResult.count({ where: { assetId: f.assetId } }),
+		).resolves.toBe(0);
+
+		await dependencies.verify(f.assetId);
+		expect(f.submitImage).toHaveBeenCalledTimes(1);
+		expect(f.retrieveImage).toHaveBeenCalledExactlyOnceWith({
+			moderationTaskId: f.taskId,
+			ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			assetUrl: "https://private.example/verified-output.png",
+		});
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: f.assetId } }),
+		).resolves.toMatchObject({
+			status: "QUARANTINED",
+			verificationProviderTaskId: f.taskId,
+		});
+		await expect(
+			client.assetModerationResult.count({ where: { assetId: f.assetId, status: "APPROVED" } }),
+		).resolves.toBe(0);
+	});
+
+	it.each(["taskId", "requestId", "ruleVersion"] as const)(
+		"fails closed for a completed verdict with a mismatched %s and retains the original task",
+		async (field) => {
+			const f = await completedImageFixture();
+			f.submitImage.mockImplementation(async (input) => {
+				const submitted = await f.adapter.submitImage(input);
+				const verdict = submitted.completedDecision!;
+				if (field === "ruleVersion") verdict.ruleVersion = "different-rule";
+				else if (field === "requestId") verdict.evidence!.requestId = "other-task";
+				else verdict.evidence!.seeapi!.taskId = "other-task";
+				return submitted;
+			});
+			const dependencies = createDatabaseVerifyUploadDependencies(client, f.options);
+			await dependencies.verify(f.assetId);
+			expect(f.submitImage).toHaveBeenCalledTimes(1);
+			expect(f.retrieveImage).not.toHaveBeenCalled();
+			await expect(
+				client.mediaAsset.findUniqueOrThrow({ where: { id: f.assetId } }),
+			).resolves.toMatchObject({
+				status: "VERIFYING",
+				verificationProviderTaskId: f.taskId,
+				verificationSubmissionUncertain: false,
+				verificationLastErrorCode: "MODERATION_INVALID_RESPONSE",
+			});
+			await expect(
+				client.assetModerationResult.findFirstOrThrow({ where: { assetId: f.assetId } }),
+			).resolves.toMatchObject({
+				status: "ERROR",
+				reasonCode: "MODERATION_INVALID_RESPONSE",
+			});
+			await client.mediaAsset.update({
+				where: { id: f.assetId },
+				data: { verificationNextAttemptAt: new Date(0) },
+			});
+			await dependencies.verify(f.assetId);
+			expect(f.submitImage).toHaveBeenCalledTimes(1);
+			expect(f.retrieveImage).toHaveBeenCalledExactlyOnceWith({
+				moderationTaskId: f.taskId,
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				assetUrl: "https://private.example/verified-output.png",
+			});
+			await expect(
+				client.mediaAsset.findUniqueOrThrow({ where: { id: f.assetId } }),
+			).resolves.toMatchObject({ status: "QUARANTINED" });
+			await expect(
+				client.assetModerationResult.count({ where: { assetId: f.assetId, status: "APPROVED" } }),
+			).resolves.toBe(0);
+		},
+	);
 
 	it("reuses finalized output inspection while still requiring the image safety decision", async () => {
 		const assetId = crypto.randomUUID();
@@ -985,6 +1228,59 @@ describe("claimed draft asset verification", () => {
 		await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(0);
 	});
 });
+
+async function completedImageFixture() {
+	const assetId = crypto.randomUUID();
+	const taskId = `review_${assetId}`;
+	await client.mediaAsset.create({
+		data: {
+			id: assetId,
+			ownerType: "USER",
+			ownerId: `latency-test-${assetId}`,
+			kind: "OUTPUT",
+			status: "VERIFYING",
+			objectKey: `users/test/assets/${assetId}/original.png`,
+			mimeType: "image/png",
+			byteSize: 16n,
+			checksum: "c".repeat(64),
+			finalizedAt: new Date(),
+		},
+	});
+	const fetcher = vi.fn<typeof fetch>(async (_url, request) => {
+		// Deliberately contradict the POST verdict: an expired claim must use
+		// authenticated recovery evidence, not its earlier in-memory approval.
+		const flagged = request?.method === "GET";
+		return Response.json({
+			id: taskId,
+			object: "inference",
+			model: "nsfw-filter",
+			endpoint: "image-moderation",
+			provider: "seeapi",
+			status: "succeeded",
+			error: null,
+			result: {
+				type: "json",
+				data: { flagged, categories: { nsfw: flagged ? ["blocked"] : [], special_care: [] } },
+			},
+		});
+	});
+	const adapter = new SeeapiSafetyAdapter({ apiKey: "local-fixture", fetch: fetcher });
+	const submitImage = vi.fn(adapter.submitImage.bind(adapter));
+	const retrieveImage = vi.fn(adapter.retrieveImage.bind(adapter));
+	return {
+		assetId,
+		taskId,
+		adapter,
+		submitImage,
+		retrieveImage,
+		options: {
+			environment: {},
+			moderationProvider: "seeapi",
+			safety: Object.assign(new TestMediaSafetyAdapter("ALLOW"), { submitImage, retrieveImage }),
+			createSignedReadUrl: async () => "https://private.example/verified-output.png",
+		},
+	};
+}
 
 function assertSafeTestDatabaseUrl(value: string | undefined): void {
 	if (!value) throw new Error("TEST_DATABASE_URL is required");

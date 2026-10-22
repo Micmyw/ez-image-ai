@@ -328,6 +328,19 @@ function fixture() {
 	};
 }
 
+function approvedProviderInputReview(f: ReturnType<typeof fixture>) {
+	return {
+		status: "ALLOW",
+		ruleVersion: "video-rule",
+		requestFingerprint: "frozen-request",
+		validUntil: "2026-10-08T00:00:00Z",
+		textSafetyProfile: f.inputReview.textSafetyProfile,
+		textDecision: f.inputReview.motionTextDecision,
+		// prepareVideoTemplate copies this frozen subject decision into the provider fence.
+		imageDecision: structuredClone(f.inputReview.left.decision),
+	};
+}
+
 beforeEach(() => {
 	vi.stubEnv("VIDEO_RUNTIME_CONFIG", undefined);
 	vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1");
@@ -455,14 +468,7 @@ describe("reviewed reference input and paid send fence", () => {
 			const frozen = structuredClone(f.job.pricingSnapshot);
 			await finalizeVideoTemplateReferenceInput(f.job.id);
 			f.job.videoExecution.stageData = {
-				inputReview: {
-					status: "ALLOW",
-					ruleVersion: "video-rule",
-					requestFingerprint: "frozen-request",
-					validUntil: "2026-10-08T00:00:00Z",
-					textSafetyProfile: f.inputReview.textSafetyProfile,
-					textDecision: f.inputReview.motionTextDecision,
-				},
+				inputReview: approvedProviderInputReview(f),
 			};
 			const input = {
 				jobId: f.job.id,
@@ -477,6 +483,56 @@ describe("reviewed reference input and paid send fence", () => {
 			expect(mocked.release).not.toHaveBeenCalled();
 		},
 	);
+	it.each(["missing", "rejected", "processing"])(
+		"refuses a new paid send with %s visual evidence despite an ALLOW status",
+		async (state) => {
+			const f = fixture();
+			await finalizeVideoTemplateReferenceInput(f.job.id);
+			const review: Record<string, unknown> = approvedProviderInputReview(f);
+			if (state === "missing") delete review.imageDecision;
+			else
+				review.imageDecision = {
+					decision: state === "rejected" ? "REJECT" : "REVIEW",
+					reasonCode: state === "rejected" ? "IMAGE_REJECTED" : "IMAGE_PROCESSING",
+				};
+			f.job.videoExecution.stageData = { inputReview: review };
+			await expect(
+				claimVideoProviderSubmission({
+					jobId: f.job.id,
+					callbackTokenHash: "token-hash",
+					providerModelId: "seedance2",
+					ruleVersion: "video-rule",
+				}),
+			).rejects.toThrow("VIDEO_INPUT_REVIEW_REQUIRED");
+			expect(f.tx.generationAttempt.create).not.toHaveBeenCalled();
+		},
+	);
+	it("replays a historical accepted attempt without requiring newer review fields or rewriting evidence", async () => {
+		const f = fixture();
+		const historicalReview = { status: "ALLOW", legacyEvidence: "immutable-old-evidence" };
+		f.job.videoExecution.stageData = { inputReview: historicalReview };
+		const accepted = {
+			id: "old-attempt",
+			providerTaskId: "old-task",
+			status: "SUBMITTED",
+			requestSnapshot: { historical: "immutable-old-request" },
+		};
+		f.job.attempts = [accepted];
+		const original = structuredClone({ review: historicalReview, attempts: f.job.attempts });
+		await expect(
+			claimVideoProviderSubmission({
+				jobId: f.job.id,
+				callbackTokenHash: "new-token-must-not-be-used",
+				providerModelId: "seedance2",
+				ruleVersion: "video-rule",
+			}),
+		).resolves.toEqual({ claimed: false, attempt: accepted });
+		expect(f.job.videoExecution.stageData.inputReview).toEqual(original.review);
+		expect(f.job.attempts).toEqual(original.attempts);
+		expect(f.tx.generationAttempt.create).not.toHaveBeenCalled();
+		expect(f.tx.videoExecution.update).not.toHaveBeenCalled();
+		expect(f.tx.mediaAsset.findFirst).not.toHaveBeenCalled();
+	});
 	it("seals the single private subject with review evidence and creates no scene", async () => {
 		const f = fixture();
 		const identity = await finalizeVideoTemplateReferenceInput(f.job.id);
@@ -515,14 +571,7 @@ describe("reviewed reference input and paid send fence", () => {
 			const f = fixture();
 			await finalizeVideoTemplateReferenceInput(f.job.id);
 			f.job.videoExecution.stageData = {
-				inputReview: {
-					status: "ALLOW",
-					ruleVersion: "video-rule",
-					requestFingerprint: "frozen-request",
-					validUntil: "2026-10-08T00:00:00Z",
-					textSafetyProfile: f.inputReview.textSafetyProfile,
-					textDecision: f.inputReview.motionTextDecision,
-				},
+				inputReview: approvedProviderInputReview(f),
 			};
 			const input = {
 				jobId: f.job.id,
@@ -582,14 +631,7 @@ describe("reviewed reference input and paid send fence", () => {
 		f.inputReview.right.validUntil = "2026-10-08T00:00:00Z";
 		await finalizeVideoTemplateReferenceInput(f.job.id);
 		f.job.videoExecution.stageData = {
-			inputReview: {
-				status: "ALLOW",
-				ruleVersion: "video-rule",
-				requestFingerprint: "frozen-request",
-				validUntil: "2026-10-08T00:00:00Z",
-				textSafetyProfile: f.inputReview.textSafetyProfile,
-				textDecision: f.inputReview.motionTextDecision,
-			},
+			inputReview: approvedProviderInputReview(f),
 		};
 		vi.setSystemTime(new Date("2026-10-07T16:00:00Z"));
 		await expect(finalizeVideoTemplateReferenceInput(f.job.id)).resolves.toBeTruthy();

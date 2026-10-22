@@ -4,6 +4,13 @@ import {
 	expirePendingMediaUploadSessions,
 	monitorGuestOperationalSafety,
 	recoverExpiredPaymentEvents,
+	prepareWorkflowOutboxDelivery,
+	beginWorkflowOutboxExecution,
+	completeWorkflowOutboxExecution,
+	failWorkflowOutboxExecution,
+	deferWorkflowOutboxExecution,
+	readWorkflowOutboxEvent,
+	deleteExpiredImagePhaseOwners,
 } from "@repo/database";
 import {
 	getAssetGenerationContinuation,
@@ -12,6 +19,7 @@ import {
 	getProviderEventContinuation,
 	getInitialGenerationEventIds,
 } from "@repo/database";
+import type { MediaVerificationAdmission } from "@repo/database";
 import { db } from "@repo/database/client";
 import { deliverModerationIncidentNotification } from "@repo/notifications/moderation-incident";
 
@@ -52,6 +60,11 @@ import {
 import { recoverMediaVerifications } from "../handlers/recover-media-verifications";
 import { recoverCheckout } from "../handlers/recover-subscription-checkout";
 import { settleGeneration } from "../handlers/settle-generation";
+import {
+	executeFusedTargetedEvent,
+	executeTargetedEvent,
+	prepareTargetedEvent,
+} from "../handlers/targeted-event-delivery";
 import { terminateSubscriptionAfterRefund } from "../handlers/terminate-refunded-subscription";
 import { verifyUpload } from "../handlers/verify-upload";
 import {
@@ -76,7 +89,14 @@ import {
 	resolveDatabaseDispatchRoute,
 } from "../runtime";
 import { dispatchJob } from "./client";
-import type { TaskExecutionContext, TaskRequest } from "./contracts";
+import type { TaskContinuation, TaskExecutionContext, TaskRequest } from "./contracts";
+import { parseTaskContinuation } from "./contracts";
+import {
+	consumeFusedLegacyTaskAdmission,
+	createFusedLegacyTaskAdmission,
+	type FusedLegacyTaskAdmission,
+	type FusedLegacyTaskAdmissionProof,
+} from "./fused-legacy-task-admission";
 import { unmanagedLegacyTask } from "./legacy-task-ownership";
 import { executePollingTick } from "./polling";
 import {
@@ -93,7 +113,56 @@ export interface ExecutorDependencies {
 	dispatch?: typeof dispatchJob;
 	now?: () => Date;
 	environment?: Record<string, string | undefined>;
+	/** Only the separately routed, bounded streaming receiver enables this. */
+	streamingTransfersOnly?: boolean;
 	assertInlineTask?(parent: TaskRequest, child: TaskRequest): void;
+}
+
+async function recoverCompletedEvent(request: TaskRequest): Promise<Record<string, unknown>> {
+	if (request.taskId === "media-verify-upload")
+		return {
+			done: true,
+			waitSeconds: 0,
+			continuation: await getAssetGenerationContinuation(request.payload.assetId as string, db),
+		};
+	if (request.taskId === "media-settle-generation") return { continuation: { eventIds: [] } };
+	const jobId = request.payload.jobId as string;
+	if (dispatchRouteForTask(request.taskId))
+		return { continuation: await getSubmittedGenerationContinuation(jobId, db) };
+	// A transfer can commit its output-review events before its response is lost.
+	// They must be recovered alongside settlement, without replaying the transfer.
+	const [settlement, outputs] = await Promise.all([
+		getFinalizationContinuation(jobId, db, {
+			recoverRetry: true,
+			excludeEventId: request.outboxReceipt?.eventId,
+		}),
+		db.generationJobAsset.findMany({
+			where: { jobId, role: "OUTPUT", asset: { status: "VERIFYING", deletedAt: null } },
+			select: { assetId: true },
+			take: 100,
+		}),
+	]);
+	const reviews = outputs.length
+		? await db.outboxEvent.findMany({
+				where: {
+					aggregateType: "MEDIA_ASSET",
+					aggregateId: { in: outputs.map(({ assetId }) => assetId) },
+					eventType: { in: ["MEDIA_ASSET_VERIFY", "MEDIA_ASSET_MODERATION_REQUESTED"] },
+					status: { in: ["PENDING", "LEASED"] },
+				},
+				select: { id: true },
+				take: 100,
+			})
+		: [];
+	return {
+		continuation: {
+			...settlement,
+			eventIds: [...new Set([...settlement.eventIds, ...reviews.map(({ id }) => id)])].slice(
+				0,
+				100,
+			),
+		},
+	};
 }
 
 export async function executeTask(
@@ -101,7 +170,7 @@ export async function executeTask(
 	context: TaskExecutionContext,
 	dependencies: ExecutorDependencies = {},
 ): Promise<unknown> {
-	const { taskId, payload } = parseTaskRequest(request);
+	const parsed = parseTaskRequest(request);
 	if (
 		!Number.isSafeInteger(context.attempt) ||
 		context.attempt < 1 ||
@@ -112,7 +181,41 @@ export async function executeTask(
 	) {
 		throw new Error("INVALID_TASK_EXECUTION_CONTEXT");
 	}
-	const unmanaged = await unmanagedLegacyTask(db, payload);
+	return executeParsedTask(parsed, context, dependencies);
+}
+
+/** Only parsed request-local children enter here; private admissions never cross RPC. */
+async function executeParsedTask(
+	parsed: TaskRequest,
+	context: TaskExecutionContext,
+	dependencies: ExecutorDependencies,
+	fusedAdmission?: FusedLegacyTaskAdmission,
+	proof?: FusedLegacyTaskAdmissionProof,
+): Promise<unknown> {
+	const { taskId, payload } = parsed;
+	if (parsed.outboxReceipt) {
+		return executeTargetedEvent(parsed, {
+			begin: (input) => fusedAdmission?.begin(input) ?? beginWorkflowOutboxExecution(input, db),
+			complete: (input) => completeWorkflowOutboxExecution(input, db),
+			fail: (input) => failWorkflowOutboxExecution(input, db),
+			defer: (input) => deferWorkflowOutboxExecution(input, db),
+			execute: (task) =>
+				executeParsedTask(task, context, dependencies, undefined, fusedAdmission?.proofFor(task)),
+			recover: recoverCompletedEvent,
+		});
+	}
+	let verificationAdmission: MediaVerificationAdmission | undefined;
+	const unmanaged = consumeFusedLegacyTaskAdmission(proof, parsed, context, db)
+		? null
+		: await unmanagedLegacyTask(
+				db,
+				payload,
+				taskId === "media-verify-upload" && payload.queryOnly === true
+					? (admission) => {
+							verificationAdmission = admission;
+						}
+					: undefined,
+			);
 	if (unmanaged) return unmanaged;
 	const dispatch = dependencies.dispatch ?? dispatchJob;
 	const environment = dependencies.environment ?? process.env;
@@ -150,10 +253,18 @@ export async function executeTask(
 			store: createDatabaseDispatchStore(db, {
 				environment,
 				enabledProviders: new Set(registry.keys()),
+				...(context.workflowId
+					? { workflowId: context.workflowId, phaseOwner: context.phaseOwner }
+					: {}),
 			}),
 			getProvider: (provider) => getRegisteredProvider(registry, provider),
 			isGenerationEnabled: () => environment.MEDIA_GENERATION_ENABLED === "true",
 		});
+		if (
+			result.phaseOwnershipLost ||
+			(result.phaseOwner && context.workflowId !== result.phaseOwner.workflowId)
+		)
+			return { ...result, phaseOwnershipLost: true, continuation: { eventIds: [] } };
 		return {
 			...result,
 			continuation:
@@ -164,6 +275,81 @@ export async function executeTask(
 	}
 
 	switch (taskId) {
+		case "media-execute-event": {
+			const input = parseTaskPayload(taskId, payload);
+			return executeFusedTargetedEvent(input, {
+				prepare: async () =>
+					(await executeTask(
+						{ taskId: "media-prepare-event", payload: { eventId: input.eventId } },
+						context,
+						dependencies,
+					)) as { preparedEvent: TaskRequest | null; eventRetryAfterMs?: number },
+				execute: (child) => {
+					// A new event owns a new asset/provider phase. Only its Workflow identity
+					// carries forward; an input review epoch cannot authorize model submission.
+					const { phaseOwner: _parentPhaseOwner, ...parentContext } = context;
+					const childContext = {
+						...parentContext,
+						attempt: 1,
+						maxAttempts: taskDefinition(child.taskId).maxAttempts,
+					};
+					logTaskStarted(child, childContext, now().getTime(), {
+						executionMode: "inline",
+						parentTaskId: taskId,
+					});
+					return executeParsedTask(
+						child,
+						childContext,
+						dependencies,
+						createFusedLegacyTaskAdmission(db, child, childContext),
+					);
+				},
+				recover: async () => {
+					const event = await readWorkflowOutboxEvent(input.eventId, db);
+					if (!event) return { eventRecoveryState: "missing" };
+					if (event.status !== "PROCESSED") return { eventRecoveryState: "held" };
+					// A completion receipt recovers only committed control state, never its paid body.
+					let continuation;
+					if (event.aggregateType === "MEDIA_ASSET")
+						continuation = await getAssetGenerationContinuation(event.aggregateId, db);
+					else if (["JOB_CREATED", "GENERATION_DISPATCH"].includes(event.eventType))
+						continuation = await getSubmittedGenerationContinuation(event.aggregateId, db);
+					else if (event.eventType === "GENERATION_SETTLE") continuation = { eventIds: [] };
+					else
+						continuation = (
+							await recoverCompletedEvent({
+								taskId: "media-finalize-generation",
+								payload: { jobId: event.aggregateId },
+							})
+						).continuation;
+					return {
+						eventRecoveryState: "completed",
+						continuation: parseTaskContinuation(continuation),
+					};
+				},
+			});
+		}
+		case "media-prepare-event": {
+			const input = parseTaskPayload(taskId, payload);
+			let eventRetryAfterMs: number | undefined;
+			const preparedEvent = await prepareTargetedEvent(
+				{ eventId: input.eventId, workerId: `workflow:${context.runId}:event:${input.eventId}` },
+				{
+					prepare: async (claim) => {
+						const prepared = await prepareWorkflowOutboxDelivery(claim, db);
+						eventRetryAfterMs = prepared.retryAfterMs;
+						return prepared.event;
+					},
+					resolve: resolveDatabaseDispatchRoute,
+					complete: (receipt) => completeWorkflowOutboxExecution(receipt, db),
+				},
+			);
+			return {
+				preparedEvent,
+				...(eventRetryAfterMs === undefined ? {} : { eventRetryAfterMs }),
+				continuation: { eventIds: [] },
+			};
+		}
 		case "media-copy-account-input":
 			return copyAccountInput(
 				parseTaskPayload(taskId, payload),
@@ -204,8 +390,9 @@ export async function executeTask(
 				{
 					store: databaseOutboxStore,
 					now,
-					deliver: (event) =>
-						deliverOutboxEvent(event, {
+					deliver: async (event) => {
+						let continuation: TaskContinuation | undefined;
+						await deliverOutboxEvent(event, {
 							deliverModerationAlert: deliverModerationIncidentNotification,
 							trigger: async (childTaskId, childPayload) => {
 								if (await unmanagedLegacyTask(db, childPayload)) return;
@@ -224,17 +411,25 @@ export async function executeTask(
 									payload: childPayload,
 									...outboxTaskTrace(event),
 								};
-								dependencies.assertInlineTask?.(request, child);
+								dependencies.assertInlineTask?.(parsed, child);
 								const childContext = {
 									attempt: 1,
 									maxAttempts: taskDefinition(childTaskId, environment).maxAttempts,
 									runId: `${context.runId}:outbox:${event.id}:${event.leaseToken}`,
 								};
 								logTaskStarted(child, childContext, now().getTime());
-								await executeTask(child, childContext, dependencies);
+								const result = await executeTask(child, childContext, dependencies);
+								if (childTaskId === "media-process-provider-webhook")
+									continuation = parseTaskContinuation(
+										(result as { continuation?: unknown } | null)?.continuation,
+									);
 							},
 							resolveDispatchRoute: resolveDatabaseDispatchRoute,
-						}),
+						});
+						// The parent returns these identities after ACK. Workflows consume
+						// them only after this maintenance invocation releases its slot.
+						return continuation;
+					},
 				},
 			);
 		case "media-admit-guest-generation": {
@@ -254,14 +449,24 @@ export async function executeTask(
 		}
 		case "media-finalize-generation": {
 			const input = parseTaskPayload(taskId, payload);
-			const result = await finalizeMedia(input, createFinalizationDependencies());
-			const continuation =
-				result.outcome === "WAITING_MODERATION"
+			const result = await finalizeMedia(
+				input,
+				createFinalizationDependencies(environment, {
+					deferOutputReview: input.deferOutputReview,
+					...(dependencies.streamingTransfersOnly ? { streamingTransfersOnly: true } : {}),
+				}),
+			);
+			const continuation = result.retryEvent
+				? { eventIds: [result.retryEvent.id], notBefore: result.retryEvent.availableAt }
+				: result.outcome === "WAITING_MODERATION"
 					? { eventIds: result.outputReviewEventIds ?? [] }
-					: await getFinalizationContinuation(input.jobId, db);
+					: await getFinalizationContinuation(input.jobId, db, {
+							recoverRetry: result.outcome === "RETRY_SCHEDULED",
+						});
 			return {
 				...result,
 				continuation: {
+					...continuation,
 					eventIds: [
 						...new Set([...continuation.eventIds, ...(result.outputReviewEventIds ?? [])]),
 					],
@@ -300,11 +505,70 @@ export async function executeTask(
 			};
 		}
 		case "media-poll-generation":
-			return executePollingTick(parseTaskPayload(taskId, payload));
+			return executePollingTick(parseTaskPayload(taskId, payload), undefined, context);
 		case "media-verify-upload": {
 			const input = parseTaskPayload(taskId, payload);
-			const progress = await verifyUpload(input, databaseVerifyUploadDependencies);
-			const signal = progress === undefined ? {} : { outboxCommitted: progress.outboxCommitted };
+			const progress = context.workflowId
+				? await verifyUpload(
+						input,
+						databaseVerifyUploadDependencies,
+						verificationAdmission,
+						context,
+					)
+				: verificationAdmission
+					? await verifyUpload(input, databaseVerifyUploadDependencies, verificationAdmission)
+					: await verifyUpload(input, databaseVerifyUploadDependencies);
+			const signal =
+				progress === undefined
+					? {}
+					: {
+							outboxCommitted: progress.outboxCommitted,
+							...(progress.phaseOwner ? { phaseOwner: progress.phaseOwner } : {}),
+							...(progress.phaseOwnershipLost ? { phaseOwnershipLost: true } : {}),
+							...(progress.queryOnly ? { queryOnly: true } : {}),
+						};
+			if (
+				progress?.phaseOwnershipLost ||
+				(progress?.phaseOwner && progress.phaseOwner.workflowId !== context.workflowId)
+			)
+				return {
+					done: false,
+					waitSeconds: 60,
+					...signal,
+					phaseOwnershipLost: true,
+					continuation: { eventIds: [] },
+				};
+			if (progress?.verificationCommit) {
+				const committed = progress.verificationCommit;
+				if (
+					committed.assetId !== input.assetId ||
+					!Number.isSafeInteger(committed.generation) ||
+					committed.generation < 1
+				)
+					throw new Error("INVALID_VERIFICATION_COMMIT_RECEIPT");
+				return {
+					done: true,
+					waitSeconds: 0,
+					...signal,
+					continuation: { eventIds: committed.eventIds },
+				};
+			}
+			if (progress?.verificationObservation) {
+				const observed = progress.verificationObservation;
+				if (
+					!input.queryOnly ||
+					observed.assetId !== input.assetId ||
+					!Number.isSafeInteger(observed.generation) ||
+					observed.generation < 1
+				)
+					throw new Error("INVALID_VERIFICATION_TERMINAL_OBSERVATION");
+				return {
+					done: true,
+					waitSeconds: 0,
+					...signal,
+					continuation: { eventIds: observed.eventIds },
+				};
+			}
 			const asset = await db.mediaAsset.findUnique({
 				where: { id: input.assetId },
 				select: {
@@ -313,6 +577,8 @@ export async function executeTask(
 					verificationNextAttemptAt: true,
 					verificationLeasedUntil: true,
 					verificationLastErrorCode: true,
+					verificationProviderTaskId: true,
+					verificationSubmissionUncertain: true,
 				},
 			});
 			if (asset?.verificationLastErrorCode === "MODERATION_PROVIDER_RETIRED")
@@ -324,18 +590,34 @@ export async function executeTask(
 					...signal,
 					continuation: await getAssetGenerationContinuation(input.assetId, db),
 				};
-			// A pending provider check keeps its existing task identity and DB lease.
-			// Workflow sleep releases the executor until the persisted retry is due.
+			// Only a successful bound PENDING commit may immediately consume a new
+			// callback. Unclaimed, uncertain and failed work retain their retry wait.
+			const currentTime = now().getTime();
 			const nextAt = Math.max(
 				asset.verificationNextAttemptAt?.getTime() ?? 0,
 				asset.verificationLeasedUntil?.getTime() ?? 0,
 			);
+			if (
+				progress?.queryOnly === true &&
+				asset.verificationProviderTaskId &&
+				asset.verificationSubmissionUncertain === false &&
+				asset.verificationNextAttemptAt &&
+				nextAt <= currentTime
+			)
+				return {
+					done: false,
+					continuation: { eventIds: [] },
+					...signal,
+					waitSeconds: 0,
+					retryImmediately: true,
+				};
+			// Workflow sleep releases the executor until the persisted retry is due.
 			return {
 				done: false,
 				continuation: { eventIds: [] },
 				...signal,
 				waitSeconds: nextAt
-					? Math.min(60, Math.max(1, Math.ceil((nextAt - now().getTime()) / 1_000)))
+					? Math.min(60, Math.max(1, Math.ceil((nextAt - currentTime) / 1_000)))
 					: 5,
 			};
 		}
@@ -427,8 +709,8 @@ export async function executeTask(
 				{ limit: 25, staleAfterSeconds: DEFAULT_FINALIZATION_STALE_AFTER_SECONDS },
 				createDatabaseFinalizingGenerationRecoveryStore(db),
 			);
-		case "media-recover-verifications":
-			return recoverMediaVerifications(
+		case "media-recover-verifications": {
+			const result = await recoverMediaVerifications(
 				{ limit: 25 },
 				{
 					listCandidates: (input) => listVerificationRecoveryCandidates(db, input, environment),
@@ -442,6 +724,10 @@ export async function executeTask(
 						),
 				},
 			);
+			// Keep bounded owner cleanup off the generation and callback paths.
+			await deleteExpiredImagePhaseOwners({ limit: 100 }, db);
+			return result;
+		}
 		case "media-recover-payment-events":
 			return recoverExpiredPaymentEvents({ limit: 25 }, db);
 		default:

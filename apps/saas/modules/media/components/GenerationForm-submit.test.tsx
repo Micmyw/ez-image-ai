@@ -138,6 +138,8 @@ vi.mock("../hooks/use-generation", () => ({
 }));
 
 import { resolveEditorAllowedProductKeys } from "../lib/editor-recovery";
+import { temporaryReferenceReviewPresentation } from "../lib/temporary-reference-review";
+import type { ImageSourcePanel } from "./editor/ImageSourcePanel";
 import { PromptPanel } from "./editor/PromptPanel";
 import { GenerationForm } from "./GenerationForm";
 import { ImageFundingSelector, type ImageFundingSource } from "./ImageFundingSelector";
@@ -223,6 +225,44 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it.each(["PENDING", "NOT_STARTED", "REJECTED", "UNAVAILABLE"] as const)(
+		"uses the upload pre-review %s result to admit or block a new Generate submission",
+		async (status) => {
+			const reference = {
+				assetId: "83c3d232-19aa-4be3-9eed-c88a73456789",
+				token: "signed-upload-reference",
+				expiresAt: new Date(Date.now() + 60_000).toISOString(),
+			};
+			const source = find(render(), PromptPanel).props.referencePanel as unknown as ReactElement<
+				React.ComponentProps<typeof ImageSourcePanel>
+			>;
+			expect(source.props.ownerId).toBe(state.ownerId);
+			source.props.onChange(reference.assetId, reference);
+			source.props.onReadyChange(true);
+			render();
+			const presentation = temporaryReferenceReviewPresentation(
+				{ status, moderationReason: status === "REJECTED" ? "restrictedContent" : null },
+				null,
+			);
+			source.props.onReadyChange(presentation.canSubmit);
+			submit(render());
+			await flush();
+			if (status === "REJECTED" || status === "UNAVAILABLE") {
+				expect(state.mutateAsync).not.toHaveBeenCalled();
+			} else {
+				expect(state.mutateAsync).toHaveBeenCalledOnce();
+				expect(state.mutateAsync).toHaveBeenCalledWith(
+					expect.objectContaining({
+						temporaryReferenceToken: reference.token,
+						input: expect.objectContaining({
+							kind: "image-to-image",
+							sourceAssetId: reference.assetId,
+						}),
+					}),
+				);
+			}
+		},
+	);
 	it("submits Sunburst 1K with shared credits for a funded owner without a subscription", async () => {
 		state.spendableCredits = "377";
 		state.values.productKey = "image-gpt-image-2-5-sunburst";

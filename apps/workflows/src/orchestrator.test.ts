@@ -21,6 +21,180 @@ function fakeSteps() {
 }
 
 describe("durable job orchestration", () => {
+	it("treats an explicit empty callback batch as completed without polling or scanning", async () => {
+		const step = fakeSteps();
+		const invoke = vi.fn().mockResolvedValue({ status: "ok", continuations: [] });
+		await runTask({ taskId: "media-deliver-outbox", payload: {} }, "empty-batch", step, invoke);
+		expect(invoke).toHaveBeenCalledOnce();
+		expect(step.sleep).not.toHaveBeenCalled();
+		expect(step.sleepUntil).not.toHaveBeenCalled();
+	});
+
+	it("leaves a foreign callback phase owner in charge without polling or following its dependent events", async () => {
+		const step = fakeSteps();
+		step.phaseOwnership = true;
+		const invoke = vi.fn().mockResolvedValue({
+			status: "ok",
+			continuations: [
+				{
+					eventIds: ["owner-dependent-event"],
+					pollAttemptId: "original-attempt",
+					phaseOwner: { workflowId: "other-workflow", phaseKey: "phase", epoch: 3 },
+				},
+			],
+		});
+		await runTask(
+			{ taskId: "media-deliver-outbox", payload: {} },
+			"callback-workflow",
+			step,
+			invoke,
+		);
+		expect(invoke).toHaveBeenCalledOnce();
+		expect(step.sleep).not.toHaveBeenCalled();
+	});
+
+	it("continues inline callback events after parent release through the existing receipt path without another scan", async () => {
+		const step = fakeSteps();
+		step.targetedEventDelivery = true;
+		let maintenanceActive = false;
+		const invoke = vi.fn(async (request) => {
+			if (request.taskId === "media-deliver-outbox") {
+				maintenanceActive = true;
+				await Promise.resolve();
+				maintenanceActive = false;
+				return {
+					status: "ok" as const,
+					continuations: [
+						{ eventIds: ["finalize-event", "finalize-event"] },
+						{ eventIds: ["finalize-event"] },
+					],
+				};
+			}
+			expect(maintenanceActive).toBe(false);
+			if (request.taskId === "media-prepare-event") {
+				const id = request.payload.eventId;
+				return {
+					status: "ok" as const,
+					continuation: { eventIds: [] },
+					preparedEvent: {
+						taskId:
+							id === "finalize-event" ? "media-finalize-generation" : "media-settle-generation",
+						payload: { jobId: "job", version: 0 },
+						outboxReceipt: { eventId: id, workerId: "worker", leaseToken: `lease-${id}` },
+					},
+				};
+			}
+			return {
+				status: "ok" as const,
+				deliveryState: "completed" as const,
+				continuation: {
+					eventIds: request.taskId === "media-finalize-generation" ? ["settle-event"] : [],
+				},
+			};
+		});
+		const request = { taskId: "media-deliver-outbox", payload: {} };
+		await runTask(request, "maintenance", step, invoke);
+		expect(invoke.mock.calls.map(([task]) => task.taskId)).toEqual([
+			"media-deliver-outbox",
+			"media-prepare-event",
+			"media-finalize-generation",
+			"media-prepare-event",
+			"media-settle-generation",
+		]);
+		await runTask(request, "maintenance", step, invoke);
+		expect(invoke).toHaveBeenCalledTimes(5);
+	});
+
+	it("keeps all callback event identities across batches larger than 100 with at most four branches", async () => {
+		const step = fakeSteps();
+		const first = Array.from({ length: 100 }, (_, index) => `first-${index}`);
+		const second = Array.from({ length: 100 }, (_, index) => `second-${index}`);
+		let active = 0;
+		let peak = 0;
+		const delivered: string[] = [];
+		const invoke = vi.fn(async (request) => {
+			if (request.taskId === "media-deliver-outbox")
+				return {
+					status: "ok" as const,
+					continuations: [
+						{ eventIds: first, notBefore: 1_800_000_001_000 },
+						{ eventIds: second, notBefore: 1_800_000_002_000 },
+					],
+				};
+			expect(request.taskId).toBe("media-deliver-events");
+			expect(request.payload.eventIds).toHaveLength(1);
+			peak = Math.max(peak, ++active);
+			await Promise.resolve();
+			delivered.push(...request.payload.eventIds);
+			active--;
+			return { status: "ok" as const, continuation: { eventIds: [] } };
+		});
+		await runTask({ taskId: "media-deliver-outbox", payload: {} }, "many-callbacks", step, invoke);
+		expect(delivered).toEqual([...first, ...second]);
+		expect(peak).toBe(4);
+		expect(step.sleepUntil.mock.calls.map(([, at]) => at)).toEqual([
+			...Array(100).fill(1_800_000_001_000),
+			...Array(100).fill(1_800_000_002_000),
+		]);
+	});
+
+	it("lets ready callbacks progress while another polls and never treats lost ownership as completion", async () => {
+		const step = fakeSteps();
+		step.phaseOwnership = true;
+		const phaseOwner = { workflowId: "callback-run", phaseKey: "phase", epoch: 3 };
+		let releasePoll!: () => void;
+		const pending = new Promise<void>((resolve) => {
+			releasePoll = resolve;
+		});
+		let ready!: () => void;
+		const didDeliver = new Promise<void>((resolve) => {
+			ready = resolve;
+		});
+		const delivered: string[] = [];
+		const invoke = vi.fn(async (request, context) => {
+			if (request.taskId === "media-deliver-outbox")
+				return {
+					status: "ok" as const,
+					continuations: [
+						{ eventIds: ["blocked-event"], pollAttemptId: "accepted-attempt", phaseOwner },
+						{ eventIds: ["ready-1", "ready-2", "ready-3", "ready-4", "ready-5"] },
+					],
+				};
+			if (request.taskId === "media-poll-generation") {
+				expect(request.payload.attemptId).toBe("accepted-attempt");
+				expect(context.phaseOwner).toEqual(phaseOwner);
+				await pending;
+				return {
+					status: "ok" as const,
+					poll: {
+						done: false,
+						waitSeconds: 60,
+						phaseOwnershipLost: true,
+						phaseOwner,
+						continuation: { eventIds: [] },
+					},
+				};
+			}
+			delivered.push(...request.payload.eventIds);
+			if (delivered.length === 5) ready();
+			return { status: "ok" as const, continuation: { eventIds: [] } };
+		});
+		const running = runTask(
+			{ taskId: "media-deliver-outbox", payload: {} },
+			"callback-run",
+			step,
+			invoke,
+		);
+		await didDeliver;
+		expect(delivered).toEqual(["ready-1", "ready-2", "ready-3", "ready-4", "ready-5"]);
+		releasePoll();
+		await running;
+		expect(delivered).not.toContain("blocked-event");
+		expect(
+			invoke.mock.calls.filter(([request]) => request.taskId === "media-poll-generation"),
+		).toHaveLength(1);
+	});
+
 	it("waits until the committed continuation due time before delivering its exact events", async () => {
 		const clock = vi.spyOn(Date, "now").mockReturnValue(1_800_000_000_000);
 		try {
@@ -61,7 +235,6 @@ describe("durable job orchestration", () => {
 			expect(invoke).toHaveBeenCalledTimes(2);
 			expect(step.sleepUntil.mock.calls).toEqual([
 				[`${request.taskId}-continue-wait`, 1_800_000_002_500],
-				[`${request.taskId}-continue-wait`, 1_800_000_002_500],
 			]);
 		} finally {
 			clock.mockRestore();
@@ -71,6 +244,7 @@ describe("durable job orchestration", () => {
 		const clock = vi.spyOn(Date, "now").mockReturnValue(1_800_000_003_000);
 		try {
 			const step = fakeSteps();
+			step.sleepUntil.mockRejectedValue(new Error("You can't sleep until a time in the past"));
 			const invoke = vi
 				.fn()
 				.mockResolvedValue({ status: "ok" })
@@ -85,10 +259,7 @@ describe("durable job orchestration", () => {
 				invoke,
 			);
 			expect(step.sleep).not.toHaveBeenCalled();
-			expect(step.sleepUntil).toHaveBeenCalledExactlyOnceWith(
-				"media-dispatch-image-kie-nano-banana-2-continue-wait",
-				1_800_000_002_500,
-			);
+			expect(step.sleepUntil).not.toHaveBeenCalled();
 			expect(invoke.mock.calls.map(([task]) => task.taskId)).toEqual([
 				"media-dispatch-image-kie-nano-banana-2",
 				"media-deliver-events",
@@ -168,7 +339,6 @@ describe("durable job orchestration", () => {
 			await runTask(request, "interrupted-wait", step, invoke);
 			expect(currentTime).toBe(1_800_000_100_000);
 			expect(step.sleepUntil.mock.calls).toEqual([
-				[`${request.taskId}-continue-wait`, 1_800_000_002_500],
 				[`${request.taskId}-continue-wait`, 1_800_000_002_500],
 			]);
 			expect(step.sleep).not.toHaveBeenCalled();
@@ -423,6 +593,24 @@ describe("durable job orchestration", () => {
 		]);
 	});
 
+	it("consumes a callback continuation from the final maintenance pass without requiring another scan", async () => {
+		let scans = 0;
+		const invoke = vi.fn(async (request) => {
+			if (request.taskId === "media-deliver-outbox")
+				return {
+					status: "ok" as const,
+					continuations: ++scans === 2 ? [{ eventIds: ["late-finalize"] }] : [],
+				};
+			return { status: "ok" as const, continuation: { eventIds: [] } };
+		});
+		await runMaintenance(Date.UTC(2026, 8, 19, 5, 45), "cron", fakeSteps(), invoke);
+		expect(scans).toBe(2);
+		expect(invoke.mock.calls.at(-1)?.[0]).toEqual({
+			taskId: "media-deliver-events",
+			payload: { eventIds: ["late-finalize"] },
+		});
+	});
+
 	it("runs maintenance in order instead of competing for the single executor slot", async () => {
 		let active = 0;
 		let peak = 0;
@@ -481,6 +669,22 @@ describe("durable job orchestration", () => {
 				.map((call) => call[1].attempt),
 		).toEqual([1, 1]);
 		expect(step.sleep).toHaveBeenCalledOnce();
+	});
+
+	it("retries a completed server capacity wait immediately without spending an execution attempt", async () => {
+		const step = fakeSteps();
+		const invoke = vi
+			.fn()
+			.mockResolvedValueOnce({ status: "busy", capacityWaited: true })
+			.mockResolvedValue({ status: "ok", continuation: { eventIds: [] } });
+		await runTask(
+			{ taskId: "media-dispatch-image-kie-nano-banana-2", payload: { jobId: "job", version: 0 } },
+			"run",
+			step,
+			invoke,
+		);
+		expect(invoke.mock.calls.map(([, context]) => context.attempt)).toEqual([1, 1]);
+		expect(step.sleep).not.toHaveBeenCalled();
 	});
 
 	it("replays completed steps without repeating a side effect", async () => {

@@ -11,7 +11,10 @@ import {
 
 import { ensureVideoWorkflowStarted } from "./admission";
 import type { RecoverySummary, VideoStartState, VideoWorkflowBinding } from "./contracts";
-import { notifyPendingSeeapiVideoModerationEvents } from "./seeapi-webhooks";
+import {
+	notifyPendingSeeapiVideoModerationEvents,
+	notifyPendingSeeapiVideoInputModerationEvents,
+} from "./seeapi-webhooks";
 import { getVideoWorkflowBinding } from "./workflow-binding";
 
 export interface VideoRecoveryDependencies {
@@ -43,8 +46,16 @@ const defaults: VideoRecoveryDependencies = {
 	needsReview: markVideoNeedsReview,
 	events: listPendingVideoWebhookEvents,
 	notified: markVideoWebhookNotified,
-	moderationEvents: (jobId, binding, limit) =>
-		notifyPendingSeeapiVideoModerationEvents({ jobId, binding, limit }),
+	moderationEvents: async (jobId, binding, limit) => {
+		const results = await Promise.all([
+			notifyPendingSeeapiVideoModerationEvents({ jobId, binding, limit }),
+			notifyPendingSeeapiVideoInputModerationEvents({ jobId, binding, limit }),
+		]);
+		return results.reduce(
+			(sum, item) => ({ notified: sum.notified + item.notified, failed: sum.failed + item.failed }),
+			{ notified: 0, failed: 0 },
+		);
+	},
 };
 
 /** Indexed bounded exception recovery. Admission gates do not stop accepted work. */

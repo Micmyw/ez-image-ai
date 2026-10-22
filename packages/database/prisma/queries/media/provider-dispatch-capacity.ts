@@ -4,9 +4,10 @@ import type { Prisma } from "../../generated/client";
 
 export const PROVIDER_DISPATCH_RETRY_MS = 5_000;
 
-/** Serialize atomic send claims for adapters sharing a provider account.
- * This transaction lock does not limit the number of accepted provider tasks. */
-export async function lockProviderDispatchCapacity(
+/** Frozen legacy diagnostic protocol only; NEVER take this lock for current paid sends.
+ * The project-wide cap is retired. Current authorization uses job/attempt fences,
+ * owner storage and financial locks, with no provider-wide mutable claim counter. */
+export async function lockLegacyProviderDispatchDiagnostic(
 	tx: Prisma.TransactionClient,
 	provider: string,
 ): Promise<void> {
@@ -14,8 +15,8 @@ export async function lockProviderDispatchCapacity(
 }
 
 /** Read-only compatibility diagnostic; NEVER use this as dispatch authorization.
- * The legacy project value is not a verified supplier quota. The caller
- * must use ReadCommitted: this separate statement sees the preceding winner.
+ * The legacy project value is not a verified supplier quota. A diagnostic
+ * using the frozen lock protocol must use ReadCommitted for a fresh observation.
  * A lease, job stage, or elapsed time is never proof that a provider finished.
  * The narrow legacy-success branch recognizes the old successful result writer
  * that omitted completedAt; it reads frozen output evidence and terminal job

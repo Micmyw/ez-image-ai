@@ -11,7 +11,7 @@ import { claimVideoProviderSubmission } from "./video-v1-execution";
 beforeEach(() => vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "2"));
 afterEach(() => vi.unstubAllEnvs());
 
-describe("video sends wait without crossing a paid request fence", () => {
+describe("video sends preserve their paid request fences without a global provider lock", () => {
 	it.each(["generation", "scene"] as const)(
 		"rechecks %s safety instead of waiting on an unverified project quota",
 		async (phase) => {
@@ -34,7 +34,11 @@ describe("video sends wait without crossing a paid request fence", () => {
 			expect(fixture.tx.generationAttempt.create).not.toHaveBeenCalled();
 			expect(fixture.tx.videoTemplateExecution.update).not.toHaveBeenCalled();
 
-			expect(fixture.order[0]).toBe("media:provider-capacity:kie");
+			expect(fixture.order).toEqual([
+				"media-owner-storage-usage:USER:owner",
+				"media-owner-storage-fence:USER:owner",
+				"video-v1:job",
+			]);
 			expect(fixture.transactionOptions).toEqual({
 				isolationLevel: "ReadCommitted",
 				maxWait: 5_000,
@@ -112,8 +116,13 @@ function queueFixture(attempts: unknown[] = [], submittedAt: Date | null = null)
 		videoExecution: { stage: "INPUT_REVIEW", stageData: { inputReview: { status: "ALLOW" } } },
 	};
 	const tx = {
-		$executeRaw: vi.fn(async (_sql: TemplateStringsArray, ...values: unknown[]) => {
-			order.push(String(values[0]));
+		$executeRaw: vi.fn(async (sql: TemplateStringsArray, ...values: unknown[]) => {
+			const statement = sql.join("");
+			if (statement.includes("pg_advisory_xact_lock")) order.push(String(values[0]));
+			else if (statement.includes("INSERT INTO media_owner_storage_fence")) {
+				expect(values).toEqual(["USER", "owner"]);
+				order.push(`media-owner-storage-fence:${String(values[0])}:${String(values[1])}`);
+			} else throw new Error("Unexpected video claim SQL");
 			return 1;
 		}),
 		$queryRaw: vi.fn(async (sql: TemplateStringsArray) =>

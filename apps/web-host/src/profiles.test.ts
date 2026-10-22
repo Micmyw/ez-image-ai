@@ -28,7 +28,7 @@ import { describe, expect, it } from "vitest";
 
 import { rumpelstiltskinEnvironmentFixture } from "../test-support/rumpelstiltskin-fixture";
 import { readCloudflareBuildEnvironment } from "./build-secrets";
-import { publicBuildVariables } from "./deployment";
+import { deploymentEnvironment, publicBuildVariables } from "./deployment";
 import { assessOptionalVideoEffectOptions } from "./optional-video-effect-readiness";
 import {
 	createProfileArtifacts,
@@ -303,6 +303,106 @@ function artifacts(
 }
 
 describe("prepared deployment artifacts", () => {
+	it.each(["workers", "hybrid"] as const)(
+		"keeps CREDITS settlement fresh reads opt-in and privately transports the switch in %s",
+		(profile) => {
+			const key = "MEDIA_SETTLEMENT_FRESH_READ_ENABLED";
+			for (const value of [undefined, "true", "false"]) {
+				const environment = deploymentEnvironment(
+					{
+						NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
+						...(value === undefined ? {} : { [key]: value }),
+					},
+					"https://ezimageai.com",
+				);
+				const result = artifacts(profile, environment);
+				const privateEnvironments = [result["website.secrets"], result["workflows.secrets"]];
+				if (profile === "hybrid")
+					privateEnvironments.push(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV!));
+				for (const privateEnvironment of privateEnvironments) {
+					if (value === undefined) expect(privateEnvironment).not.toHaveProperty(key);
+					else expect(privateEnvironment[key]).toBe(value);
+					expect(privateEnvironment).not.toHaveProperty(`NEXT_PUBLIC_${key}`);
+					for (const pack of ["VIDEO_RUNTIME_CONFIG", "MEDIA_IMAGE_MODEL_FLAGS"])
+						expect(JSON.parse(privateEnvironment[pack] ?? "{}")).not.toHaveProperty(key);
+				}
+				for (const name of ["website", "workflows"] as const)
+					expect(result[name].vars).not.toHaveProperty(key);
+				expect(publicBuildVariables(environment)).not.toHaveProperty(key);
+			}
+			expect(() => publicBuildVariables({ [`NEXT_PUBLIC_${key}`]: "true" })).toThrow(
+				"UNRECOGNIZED_PUBLIC_VARIABLE",
+			);
+		},
+	);
+	it.each(["workers", "hybrid"] as const)(
+		"keeps first-login ReadCommitted opt-in and transports its independent switch in %s",
+		(profile) => {
+			const key = "MEDIA_LOGIN_BONUS_READ_COMMITTED_ENABLED";
+			const disabled = artifacts(profile);
+			for (const name of ["website", "workflows"] as const)
+				expect(disabled[`${name}.secrets`]).not.toHaveProperty(key);
+			for (const value of ["true", "false"]) {
+				const result = artifacts(profile, { [key]: value });
+				for (const name of ["website", "workflows"] as const) {
+					expect(result[`${name}.secrets`][key]).toBe(value);
+					expect(result[name].vars).not.toHaveProperty(key);
+					expect(result[`${name}.secrets`]).not.toHaveProperty(`NEXT_PUBLIC_${key}`);
+					expect(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG ?? "").not.toContain(key);
+				}
+				if (profile === "hybrid")
+					expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV!)[key]).toBe(value);
+			}
+		},
+	);
+	it.each(["workers", "hybrid"] as const)(
+		"keeps fenced storage transactions opt-in across every writer in %s",
+		(profile) => {
+			const disabled = artifacts(profile);
+			expect(disabled["website.secrets"]).not.toHaveProperty("MEDIA_STORAGE_FRESH_READ_ENABLED");
+			expect(disabled["workflows.secrets"]).not.toHaveProperty("MEDIA_STORAGE_FRESH_READ_ENABLED");
+			for (const value of ["true", "false"]) {
+				const result = artifacts(profile, { MEDIA_STORAGE_FRESH_READ_ENABLED: value });
+				for (const name of ["website", "workflows"] as const) {
+					expect(result[`${name}.secrets`].MEDIA_STORAGE_FRESH_READ_ENABLED).toBe(value);
+					expect(result[name].vars).not.toHaveProperty("MEDIA_STORAGE_FRESH_READ_ENABLED");
+					expect(result[`${name}.secrets`]).not.toHaveProperty(
+						"NEXT_PUBLIC_MEDIA_STORAGE_FRESH_READ_ENABLED",
+					);
+					expect(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG ?? "").not.toContain(
+						"MEDIA_STORAGE_FRESH_READ_ENABLED",
+					);
+				}
+				if (profile === "hybrid")
+					expect(
+						JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV!)
+							.MEDIA_STORAGE_FRESH_READ_ENABLED,
+					).toBe(value);
+			}
+		},
+	);
+	it.each(["workers", "hybrid"] as const)(
+		"keeps notification producers opt-in and transports their private switch in %s",
+		(profile) => {
+			const disabled = artifacts(profile);
+			expect(disabled["website.secrets"]).not.toHaveProperty("MEDIA_JOB_EVENTS_ENABLED");
+			expect(disabled["workflows.secrets"]).not.toHaveProperty("MEDIA_JOB_EVENTS_ENABLED");
+			for (const value of ["true", "false"]) {
+				const result = artifacts(profile, { MEDIA_JOB_EVENTS_ENABLED: value });
+				for (const name of ["website", "workflows"] as const) {
+					expect(result[`${name}.secrets`].MEDIA_JOB_EVENTS_ENABLED).toBe(value);
+					expect(result[name].vars).not.toHaveProperty("MEDIA_JOB_EVENTS_ENABLED");
+					expect(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG ?? "").not.toContain(
+						"MEDIA_JOB_EVENTS_ENABLED",
+					);
+				}
+				if (profile === "hybrid")
+					expect(
+						JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV!).MEDIA_JOB_EVENTS_ENABLED,
+					).toBe(value);
+			}
+		},
+	);
 	it.each(["workers", "hybrid"] as const)(
 		"keeps fresh account copying disabled by default in %s",
 		(profile) => {
@@ -899,6 +999,39 @@ describe("prepared deployment artifacts", () => {
 			"INVALID_PAYMENT_WEBHOOK_INGRESS_ORIGIN",
 		);
 	});
+	it.each(["workers", "hybrid"] as const)(
+		"binds dispatch and job notifications to the selected %s runtime",
+		(profile) => {
+			const value = artifacts(profile);
+			const { jobsName, websiteName } = profileSettings(profile, "production");
+			expect(value.website.services).toEqual([
+				{ binding: "WORKER_SELF_REFERENCE", service: websiteName },
+				{ binding: "JOBS_DISPATCH", service: jobsName },
+			]);
+			expect(value.workflows.services).toEqual([
+				{ binding: "JOBS_CONTROL", service: jobsName, entrypoint: "ControlExecutor" },
+				{ binding: "JOBS_TRANSFER", service: jobsName, entrypoint: "TransferExecutor" },
+			]);
+			expect(value.website.durable_objects).toMatchObject({
+				bindings: expect.arrayContaining([
+					{ name: "NEXT_CACHE_DO_QUEUE", class_name: "DOQueueHandler" },
+					{ name: "MEDIA_JOB_EVENTS", class_name: "MediaJobEvents", script_name: jobsName },
+				]),
+			});
+			expect(value.workflows.durable_objects).toMatchObject({
+				bindings: expect.arrayContaining([
+					{ name: "MEDIA_JOB_EVENTS", class_name: "MediaJobEvents" },
+					profile === "workers"
+						? { name: "JOBS_EXECUTOR", class_name: "WorkerJobs" }
+						: { name: "JOBS_RUNTIME", class_name: "JobsContainer" },
+				]),
+			});
+			expect(value.workflows.migrations).toContainEqual({
+				tag: "media-job-events-v1",
+				new_sqlite_classes: ["MediaJobEvents"],
+			});
+		},
+	);
 	it("builds the default pair without Containers and without public secrets", () => {
 		const value = artifacts("workers");
 		for (const config of [value.website, value.workflows]) {
@@ -917,6 +1050,7 @@ describe("prepared deployment artifacts", () => {
 		expect(value.workflows.containers).toHaveLength(1);
 		expect(value.workflows.migrations).toEqual([
 			{ tag: "v1", new_sqlite_classes: ["JobsContainer"] },
+			{ tag: "media-job-events-v1", new_sqlite_classes: ["MediaJobEvents"] },
 		]);
 		const secrets = value["workflows.secrets"];
 		expect(secrets).toHaveProperty("JOBS_RUNTIME_ENV");

@@ -1,0 +1,432 @@
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index a779d149eeca6cf1c3d58e9c79e900a94b92fcca..2e8ba76407abbb81e4ab54aa56ed95c4a7d33426 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -3,6 +3,7 @@
+ /// <reference types="node" />
+ import { TlsOptions } from 'cloudflare:sockets';
+ import { EventEmitter } from 'events';
++type WriteCallback = (...args: unknown[]) => void;
+ /**
+  * Wrapper around the Cloudflare built-in socket that can be used by the `Connection`.
+  */
+@@ -15,17 +16,30 @@ export declare class CloudflareSocket extends EventEmitter {
+     private _cfSocket;
+     private _cfWriter;
+     private _cfReader;
++    private _corkDepth;
++    private _corkBuffers;
++    private _corkCallbacks;
++    private _corkBytes;
++    private _writesDone;
++    private _ending;
+     constructor(ssl: boolean);
+     setNoDelay(): this;
+     setKeepAlive(): this;
+     ref(): this;
+     unref(): this;
++    cork(): void;
++    uncork(): void;
+     connect(port: number, host: string, connectListener?: (...args: unknown[]) => void): Promise<this | undefined>;
+     _listen(): Promise<void>;
+     _listenOnce(): Promise<void>;
+-    write(data: Uint8Array | string, encoding?: BufferEncoding, callback?: (...args: unknown[]) => void): true | void;
+-    end(data?: Buffer, encoding?: BufferEncoding, callback?: (...args: unknown[]) => void): this;
+-    destroy(reason: string): this;
++    write(data: Uint8Array | string, encoding?: BufferEncoding | WriteCallback, callback?: WriteCallback): boolean | void;
++    private _writeNow;
++    private _completeWrite;
++    private _callCallbacks;
++    private _flushWrites;
++    end(data?: Buffer, encoding?: BufferEncoding | WriteCallback, callback?: WriteCallback): this;
++    destroy(reason?: string | Error): this;
+     startTls(options: TlsOptions): void;
+     _addClosedHandler(): void;
+ }
++export {};
+diff --git a/dist/index.js b/dist/index.js
+index 7f0933ec1b3a5f3ce4a0d7d5b8fa00f9a1fe553e..70e6019998a4043dd5a67e0f8e9b0c5f0be881ec 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -2,6 +2,8 @@
+ Object.defineProperty(exports, "__esModule", { value: true });
+ exports.CloudflareSocket = void 0;
+ const events_1 = require("events");
++const MAX_CORK_BYTES = 64 * 1024;
++const MAX_CORK_WRITES = 64;
+ /**
+  * Wrapper around the Cloudflare built-in socket that can be used by the `Connection`.
+  */
+@@ -16,6 +18,12 @@ class CloudflareSocket extends events_1.EventEmitter {
+         this._cfSocket = null;
+         this._cfWriter = null;
+         this._cfReader = null;
++        this._corkDepth = 0;
++        this._corkBuffers = [];
++        this._corkCallbacks = [];
++        this._corkBytes = 0;
++        this._writesDone = Promise.resolve();
++        this._ending = false;
+     }
+     setNoDelay() {
+         return this;
+@@ -29,6 +37,16 @@ class CloudflareSocket extends events_1.EventEmitter {
+     unref() {
+         return this;
+     }
++    cork() {
++        if (!this.destroyed && !this._ending)
++            this._corkDepth++;
++    }
++    uncork() {
++        if (this._corkDepth > 0)
++            this._corkDepth--;
++        if (this._corkDepth === 0)
++            this._flushWrites();
++    }
+     async connect(port, host, connectListener) {
+         try {
+             log('connecting');
+@@ -77,35 +95,127 @@ class CloudflareSocket extends events_1.EventEmitter {
+         this.emit('data', Buffer.from(value));
+     }
+     write(data, encoding = 'utf8', callback = () => { }) {
++        if (typeof encoding === 'function') {
++            callback = encoding;
++            encoding = 'utf8';
++        }
++        if (this.destroyed || this._ending) {
++            this._completeWrite([callback], Promise.resolve(new Error('Cannot write after socket end')));
++            return false;
++        }
+         if (data.length === 0)
+             return callback();
+         if (typeof data === 'string')
+             data = Buffer.from(data, encoding);
+-        log('sending data direct:', data);
+-        this._cfWriter.write(data).then(() => {
+-            log('data sent');
+-            callback();
+-        }, (err) => {
+-            log('send error', err);
+-            callback(err);
+-        });
++        if (this._corkDepth === 0)
++            return this._writeNow(data, [callback]);
++        if (data.byteLength > MAX_CORK_BYTES) {
++            this._flushWrites();
++            return this._writeNow(data, [callback]);
++        }
++        if (this._corkBytes + data.byteLength > MAX_CORK_BYTES || this._corkBuffers.length >= MAX_CORK_WRITES) {
++            this._flushWrites();
++        }
++        // The serializer may reuse its scratch storage immediately after write().
++        this._corkBuffers.push(Buffer.from(data));
++        this._corkCallbacks.push(callback);
++        this._corkBytes += data.byteLength;
++        // Preserve this adapter's existing return contract. Native writer promises
++        // govern completion; corking does not invent a Node-style drain event.
+         return true;
+     }
+-    end(data = Buffer.alloc(0), encoding = 'utf8', callback = () => { }) {
+-        log('ending CF socket');
+-        this.write(data, encoding, (err) => {
+-            this._cfSocket.close();
+-            if (callback)
+-                callback(err);
++    _writeNow(data, callbacks) {
++        let writing;
++        try {
++            writing = this._cfWriter.write(data).then(() => undefined, (error) => error);
++        }
++        catch (error) {
++            writing = Promise.resolve(error);
++        }
++        // Submit synchronously to the same native writer. Awaiting the previous
++        // write here would reintroduce small-packet delays between protocol frames.
++        this._completeWrite(callbacks, writing);
++        return true;
++    }
++    _completeWrite(callbacks, outcome) {
++        this._writesDone = Promise.all([this._writesDone, outcome]).then(([previousError, error]) => {
++            const failure = previousError !== null && previousError !== void 0 ? previousError : error;
++            this._callCallbacks(callbacks, failure);
++            return failure;
+         });
++    }
++    _callCallbacks(callbacks, error) {
++        let thrown;
++        for (const callback of callbacks) {
++            try {
++                if (error === undefined)
++                    callback();
++                else
++                    callback(error);
++            }
++            catch (failure) {
++                thrown !== null && thrown !== void 0 ? thrown : (thrown = failure);
++            }
++        }
++        if (thrown !== undefined)
++            queueMicrotask(() => { throw thrown; });
++    }
++    _flushWrites() {
++        if (this._corkBuffers.length === 0)
++            return;
++        const buffers = this._corkBuffers;
++        const callbacks = this._corkCallbacks;
++        const bytes = this._corkBytes;
++        this._corkBuffers = [];
++        this._corkCallbacks = [];
++        this._corkBytes = 0;
++        this._writeNow(buffers.length === 1 ? buffers[0] : Buffer.concat(buffers, bytes), callbacks);
++    }
++    end(data = Buffer.alloc(0), encoding = 'utf8', callback = () => { }) {
++        if (typeof encoding === 'function') {
++            callback = encoding;
++            encoding = 'utf8';
++        }
++        if (!this._ending) {
++            this._corkDepth = 0;
++            this._flushWrites();
++            if (data.length > 0)
++                this.write(data, encoding);
++            this._ending = true;
++            this.writable = false;
++            // An empty end must not close while a just-flushed batch is in flight.
++            // This promise also waits for every earlier write callback in order.
++            this._writesDone = this._writesDone.then((error) => {
++                var _a;
++                if (!this.destroyed)
++                    (_a = this._cfSocket) === null || _a === void 0 ? void 0 : _a.close();
++                return error;
++            });
++        }
++        this._writesDone.then((error) => this._callCallbacks([callback], error));
+         return this;
+     }
+     destroy(reason) {
+-        log('destroying CF socket', reason);
++        var _a;
++        if (this.destroyed)
++            return this;
+         this.destroyed = true;
+-        return this.end();
++        this.writable = false;
++        this._corkDepth = 0;
++        const callbacks = this._corkCallbacks;
++        this._corkBuffers = [];
++        this._corkCallbacks = [];
++        this._corkBytes = 0;
++        if (callbacks.length > 0) {
++            this._completeWrite(callbacks, Promise.resolve(reason instanceof Error ? reason : new Error(reason !== null && reason !== void 0 ? reason : 'Socket destroyed')));
++        }
++        (_a = this._cfSocket) === null || _a === void 0 ? void 0 : _a.close();
++        return this;
+     }
+     startTls(options) {
++        if (this._corkDepth > 0 || this._corkBuffers.length > 0) {
++            throw new Error('Cannot start TLS with buffered plaintext');
++        }
+         if (this._upgraded) {
+             // Don't try to upgrade again.
+             this.emit('error', 'Cannot call `startTls()` more than once on a socket');
+diff --git a/dist/index.js.map b/dist/index.js.map
+index 079127341b6654086b457eb5eb19d239e2693f4a..c6ad0e457033c98e86c0df1eb9d0bbdaa8ddab94 100644
+--- a/dist/index.js.map
++++ b/dist/index.js.map
+@@ -1 +1 @@
+-{"version":3,"file":"index.js","sourceRoot":"","sources":["../src/index.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
++{"version":3,"file":"index.js","sourceRoot":"","sources":["../src/index.ts"],"names":[],"mappings":"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"}
+\ No newline at end of file
+diff --git a/src/index.ts b/src/index.ts
+index 9b1e517ba3881462144cd1f9ecb825b957094327..7961e8e001880aba9ead899f35e54f9e85a77919 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -1,6 +1,10 @@
+ import { SocketOptions, Socket, TlsOptions } from 'cloudflare:sockets'
+ import { EventEmitter } from 'events'
+ 
++type WriteCallback = (...args: unknown[]) => void
++const MAX_CORK_BYTES = 64 * 1024
++const MAX_CORK_WRITES = 64
++
+ /**
+  * Wrapper around the Cloudflare built-in socket that can be used by the `Connection`.
+  */
+@@ -13,6 +17,12 @@ export class CloudflareSocket extends EventEmitter {
+   private _cfSocket: Socket | null = null
+   private _cfWriter: WritableStreamDefaultWriter | null = null
+   private _cfReader: ReadableStreamDefaultReader | null = null
++  private _corkDepth = 0
++  private _corkBuffers: Uint8Array[] = []
++  private _corkCallbacks: WriteCallback[] = []
++  private _corkBytes = 0
++  private _writesDone: Promise<unknown> = Promise.resolve()
++  private _ending = false
+ 
+   constructor(readonly ssl: boolean) {
+     super()
+@@ -31,6 +41,15 @@ export class CloudflareSocket extends EventEmitter {
+     return this
+   }
+ 
++  cork() {
++    if (!this.destroyed && !this._ending) this._corkDepth++
++  }
++
++  uncork() {
++    if (this._corkDepth > 0) this._corkDepth--
++    if (this._corkDepth === 0) this._flushWrites()
++  }
++
+   async connect(port: number, host: string, connectListener?: (...args: unknown[]) => void) {
+     try {
+       log('connecting')
+@@ -84,42 +103,124 @@ export class CloudflareSocket extends EventEmitter {
+ 
+   write(
+     data: Uint8Array | string,
+-    encoding: BufferEncoding = 'utf8',
+-    callback: (...args: unknown[]) => void = () => {}
++    encoding: BufferEncoding | WriteCallback = 'utf8',
++    callback: WriteCallback = () => {}
+   ) {
++    if (typeof encoding === 'function') {
++      callback = encoding
++      encoding = 'utf8'
++    }
++    if (this.destroyed || this._ending) {
++      this._completeWrite([callback], Promise.resolve(new Error('Cannot write after socket end')))
++      return false
++    }
+     if (data.length === 0) return callback()
+     if (typeof data === 'string') data = Buffer.from(data, encoding)
+ 
+-    log('sending data direct:', data)
+-    this._cfWriter!.write(data).then(
+-      () => {
+-        log('data sent')
+-        callback()
+-      },
+-      (err) => {
+-        log('send error', err)
+-        callback(err)
+-      }
+-    )
++    if (this._corkDepth === 0) return this._writeNow(data, [callback])
++    if (data.byteLength > MAX_CORK_BYTES) {
++      this._flushWrites()
++      return this._writeNow(data, [callback])
++    }
++    if (this._corkBytes + data.byteLength > MAX_CORK_BYTES || this._corkBuffers.length >= MAX_CORK_WRITES) {
++      this._flushWrites()
++    }
++    // The serializer may reuse its scratch storage immediately after write().
++    this._corkBuffers.push(Buffer.from(data))
++    this._corkCallbacks.push(callback)
++    this._corkBytes += data.byteLength
++    // Preserve this adapter's existing return contract. Native writer promises
++    // govern completion; corking does not invent a Node-style drain event.
++    return true
++  }
++
++  private _writeNow(data: Uint8Array, callbacks: WriteCallback[]) {
++    let writing: Promise<unknown>
++    try {
++      writing = this._cfWriter!.write(data).then(() => undefined, (error) => error)
++    } catch (error) {
++      writing = Promise.resolve(error)
++    }
++    // Submit synchronously to the same native writer. Awaiting the previous
++    // write here would reintroduce small-packet delays between protocol frames.
++    this._completeWrite(callbacks, writing)
+     return true
+   }
+ 
+-  end(data = Buffer.alloc(0), encoding: BufferEncoding = 'utf8', callback: (...args: unknown[]) => void = () => {}) {
+-    log('ending CF socket')
+-    this.write(data, encoding, (err) => {
+-      this._cfSocket!.close()
+-      if (callback) callback(err)
++  private _completeWrite(callbacks: WriteCallback[], outcome: Promise<unknown>) {
++    this._writesDone = Promise.all([this._writesDone, outcome]).then(([previousError, error]) => {
++      const failure = previousError ?? error
++      this._callCallbacks(callbacks, failure)
++      return failure
+     })
++  }
++
++  private _callCallbacks(callbacks: WriteCallback[], error?: unknown) {
++    let thrown: unknown
++    for (const callback of callbacks) {
++      try {
++        if (error === undefined) callback()
++        else callback(error)
++      } catch (failure) {
++        thrown ??= failure
++      }
++    }
++    if (thrown !== undefined) queueMicrotask(() => { throw thrown })
++  }
++
++  private _flushWrites() {
++    if (this._corkBuffers.length === 0) return
++    const buffers = this._corkBuffers
++    const callbacks = this._corkCallbacks
++    const bytes = this._corkBytes
++    this._corkBuffers = []
++    this._corkCallbacks = []
++    this._corkBytes = 0
++    this._writeNow(buffers.length === 1 ? buffers[0] : Buffer.concat(buffers, bytes), callbacks)
++  }
++
++  end(data: Buffer = Buffer.alloc(0), encoding: BufferEncoding | WriteCallback = 'utf8', callback: WriteCallback = () => {}) {
++    if (typeof encoding === 'function') {
++      callback = encoding
++      encoding = 'utf8'
++    }
++    if (!this._ending) {
++      this._corkDepth = 0
++      this._flushWrites()
++      if (data.length > 0) this.write(data, encoding)
++      this._ending = true
++      this.writable = false
++      // An empty end must not close while a just-flushed batch is in flight.
++      // This promise also waits for every earlier write callback in order.
++      this._writesDone = this._writesDone.then((error) => {
++        if (!this.destroyed) this._cfSocket?.close()
++        return error
++      })
++    }
++    this._writesDone.then((error) => this._callCallbacks([callback], error))
+     return this
+   }
+ 
+-  destroy(reason: string) {
+-    log('destroying CF socket', reason)
++  destroy(reason?: string | Error) {
++    if (this.destroyed) return this
+     this.destroyed = true
+-    return this.end()
++    this.writable = false
++    this._corkDepth = 0
++    const callbacks = this._corkCallbacks
++    this._corkBuffers = []
++    this._corkCallbacks = []
++    this._corkBytes = 0
++    if (callbacks.length > 0) {
++      this._completeWrite(callbacks, Promise.resolve(reason instanceof Error ? reason : new Error(reason ?? 'Socket destroyed')))
++    }
++    this._cfSocket?.close()
++    return this
+   }
+ 
+   startTls(options: TlsOptions) {
++    if (this._corkDepth > 0 || this._corkBuffers.length > 0) {
++      throw new Error('Cannot start TLS with buffered plaintext')
++    }
+     if (this._upgraded) {
+       // Don't try to upgrade again.
+       this.emit('error', 'Cannot call `startTls()` more than once on a socket')

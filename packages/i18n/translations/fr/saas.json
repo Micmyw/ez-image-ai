@@ -1770,6 +1770,7 @@
 				"paused": "Envoi en pause",
 				"uploadFailed": "Échec de l’envoi · réessayez ou retirez l’image",
 				"uploadedForGeneration": "Image importée. La vérification a lieu lors de la génération.",
+				"reviewStatusUnavailable": "Image importée. Le statut de la vérification est temporairement indisponible ; il sera vérifié lors de la génération.",
 				"expired": "Cette référence a expiré. Veuillez la téléverser à nouveau."
 			},
 			"mode": {

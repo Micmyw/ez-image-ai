@@ -8,6 +8,7 @@ import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { VIDEO_V1_RULE_VERSION } from "@repo/config/video-v1";
 import { describe, expect, it, vi } from "vitest";
 
+import { verifySeeapiVideoInputCallbackUrl } from "./seeapi-callback-url";
 import {
 	confirmVideoProviderResult,
 	reviewVideoInput,
@@ -62,6 +63,7 @@ function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video", def
 	};
 	const store = {
 		getVideoExecutionContext: vi.fn(async () => job),
+		getVideoInputReviewContext: vi.fn(async () => job),
 		assertVideoInputIdentity: vi.fn(),
 		recordVideoInputReview: vi.fn(async (_jobId: string, patch: Record<string, unknown>) => {
 			stageData.inputReview = {
@@ -69,7 +71,14 @@ function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video", def
 				...patch,
 			};
 		}),
-		claimVideoImageReview: vi.fn(async () => true),
+		claimVideoImageReview: vi.fn(async (_jobId: string, metadata?: Record<string, unknown>) => {
+			stageData.inputReview = {
+				...((stageData.inputReview as Record<string, unknown>) ?? {}),
+				...metadata,
+				imageSubmissionUncertain: true,
+			};
+			return true;
+		}),
 		claimVideoProviderSubmission: vi.fn(async (input: { providerModelId: string }) => {
 			if (attempt[0]) return { claimed: false, attempt: attempt[0] };
 			if (deferredClaims-- > 0) return { deferred: true, retryAfterMs: 5000 };
@@ -143,6 +152,16 @@ function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video", def
 		},
 	} as unknown as VideoSubmissionDependencies;
 	return { deps, job, store, provider, safety, allow, textAllow, moderateText, attempt };
+}
+
+function deferred<T>() {
+	let resolve!: (value: T) => void;
+	let reject!: (reason: Error) => void;
+	const promise = new Promise<T>((done, fail) => {
+		resolve = done;
+		reject = fail;
+	});
+	return { promise, resolve, reject };
 }
 
 describe("video V1 paid submission fence", () => {
@@ -587,6 +606,156 @@ describe("video V1 paid submission fence", () => {
 });
 
 describe("input moderation", () => {
+	it("starts independent text and image reviews together only after the durable send fence", async () => {
+		const f = fixture("image-to-video");
+		const textGate = deferred<typeof f.textAllow>();
+		const imageGate =
+			deferred<
+				Awaited<ReturnType<NonNullable<VideoSubmissionDependencies["safety"]["submitImage"]>>>
+			>();
+		const textStarted = deferred<void>();
+		const imageStarted = deferred<void>();
+		f.deps.moderateText = vi.fn(() => {
+			textStarted.resolve();
+			return textGate.promise;
+		});
+		const submitImage = vi.fn(() => {
+			expect(f.job.videoExecution.stageData.inputReview).toMatchObject({
+				imageSubmissionUncertain: true,
+				requestFingerprint: "fingerprint",
+				textSafetyProfile: createVideoTextSafetyProfile(),
+			});
+			imageStarted.resolve();
+			return imageGate.promise;
+		});
+		const retrieveImage = vi.fn();
+		f.deps.safety = { ...f.safety, submitImage, retrieveImage };
+		const pending = reviewVideoInput("job-1", f.deps);
+		await Promise.all([textStarted.promise, imageStarted.promise]);
+		expect(f.store.claimVideoImageReview).toHaveBeenCalledTimes(1);
+		expect(f.store.claimVideoImageReview.mock.invocationCallOrder[0]).toBeLessThan(
+			vi.mocked(f.deps.moderateText).mock.invocationCallOrder[0]!,
+		);
+		expect(f.store.claimVideoImageReview.mock.invocationCallOrder[0]).toBeLessThan(
+			submitImage.mock.invocationCallOrder[0]!,
+		);
+		imageGate.resolve({
+			moderationTaskId: "image-review",
+			status: "RUNNING",
+			ruleVersion: VIDEO_V1_RULE_VERSION,
+			idempotency: { key: "stable", providerSupported: false, replayed: false },
+			completedDecision: f.allow,
+		});
+		await vi.waitFor(() =>
+			expect(f.job.videoExecution.stageData.inputReview).toMatchObject({
+				imageTaskId: "image-review",
+			}),
+		);
+		textGate.resolve(f.textAllow);
+		expect(await pending).toEqual({ status: "ALLOW" });
+		expect(f.store.getVideoInputReviewContext).toHaveBeenCalledOnce();
+		expect(f.store.getVideoExecutionContext).not.toHaveBeenCalled();
+		// Metadata + send fence, task ID, then decisions + final approval: three commits.
+		expect(f.store.recordVideoInputReview).toHaveBeenCalledTimes(2);
+		expect(retrieveImage).not.toHaveBeenCalled();
+		expect(f.store.recordVideoInputReview).toHaveBeenLastCalledWith(
+			"job-1",
+			expect.objectContaining({
+				textDecision: f.textAllow,
+				imageDecision: f.allow,
+				status: "ALLOW",
+			}),
+		);
+	});
+	it("preserves the completed image branch when text throws and never submits the same image review twice", async () => {
+		const f = fixture("image-to-video");
+		f.deps.moderateText = vi
+			.fn()
+			.mockRejectedValueOnce(new Error("TEXT_TRANSPORT_FAILED"))
+			.mockResolvedValue(f.textAllow);
+		const submitImage = vi.fn(async () => ({
+			moderationTaskId: "review-completed",
+			status: "RUNNING" as const,
+			ruleVersion: VIDEO_V1_RULE_VERSION,
+			idempotency: { key: "stable", providerSupported: false, replayed: false },
+			completedDecision: f.allow,
+		}));
+		f.deps.safety = { ...f.safety, submitImage, retrieveImage: vi.fn() };
+		await expect(reviewVideoInput("job-1", f.deps)).rejects.toThrow("TEXT_TRANSPORT_FAILED");
+		expect(f.job.videoExecution.stageData.inputReview).toMatchObject({
+			imageTaskId: "review-completed",
+			imageDecision: f.allow,
+			imageSubmissionUncertain: false,
+		});
+		expect(f.job.videoExecution.stageData.inputReview).not.toHaveProperty("status", "ALLOW");
+		expect(await reviewVideoInput("job-1", f.deps)).toEqual({ status: "ALLOW" });
+		expect(submitImage).toHaveBeenCalledOnce();
+	});
+	it("preserves text evidence and the uncertainty fence after a lost image submission response", async () => {
+		const f = fixture("image-to-video");
+		const submitImage = vi.fn(async () => {
+			throw new Error("IMAGE_RESPONSE_LOST");
+		});
+		f.deps.safety = { ...f.safety, submitImage, retrieveImage: vi.fn() };
+		expect(await reviewVideoInput("job-1", f.deps)).toMatchObject({
+			status: "ERROR",
+			reasonCode: "VIDEO_IMAGE_REVIEW_SUBMISSION_UNCERTAIN",
+		});
+		expect(f.job.videoExecution.stageData.inputReview).toMatchObject({
+			textDecision: f.textAllow,
+			imageSubmissionUncertain: true,
+		});
+		expect(await reviewVideoInput("job-1", f.deps)).toMatchObject({
+			status: "ERROR",
+			reasonCode: "VIDEO_IMAGE_REVIEW_SUBMISSION_UNCERTAIN",
+		});
+		expect(submitImage).toHaveBeenCalledOnce();
+		expect(f.moderateText).toHaveBeenCalledOnce();
+		expect(f.provider.submit).not.toHaveBeenCalled();
+	});
+	it("never starts image work for a persisted text rejection", async () => {
+		const f = fixture("image-to-video");
+		f.job.videoExecution.stageData.inputReview = {
+			requestFingerprint: "fingerprint",
+			textSafetyProfile: createVideoTextSafetyProfile(),
+			textDecision: { ...f.textAllow, decision: "REJECT", reasonCode: "TEXT_REJECTED" },
+		};
+		expect(await reviewVideoInput("job-1", f.deps)).toEqual({
+			status: "REJECT",
+			reasonCode: "TEXT_REJECTED",
+		});
+		expect(f.safety.moderateImage).not.toHaveBeenCalled();
+		expect(f.store.claimVideoImageReview).not.toHaveBeenCalled();
+	});
+	it("sends a purpose-bound input callback using the same token committed before submit", async () => {
+		const f = fixture("image-to-video");
+		Object.assign(f.deps.env, {
+			NEXT_PUBLIC_SAAS_URL: "https://example.test",
+			VIDEO_SEEAPI_CALLBACK_SECRET: "fixture-only-callback-secret-abcdefghijklmnopqrstuvwxyz",
+			SEEAPI_WEBHOOK_SIGNING_KEYS: JSON.stringify({
+				whkey_fixture: "whsec_fixture-only-signing-key-abcdefghijklmnopqrstuvwxyz",
+			}),
+		});
+		const submitImage = vi.fn<NonNullable<VideoSubmissionDependencies["safety"]["submitImage"]>>(
+			async () => ({
+				moderationTaskId: "callback-review",
+				status: "RUNNING",
+				ruleVersion: VIDEO_V1_RULE_VERSION,
+				idempotency: { key: "stable", providerSupported: false, replayed: false },
+				completedDecision: f.allow,
+			}),
+		);
+		f.deps.safety = { ...f.safety, submitImage, retrieveImage: vi.fn() };
+		expect(await reviewVideoInput("job-1", f.deps)).toEqual({ status: "ALLOW" });
+		const token = f.store.claimVideoImageReview.mock.calls[0]![1]!.callbackToken;
+		expect(token).toEqual(expect.any(String));
+		expect(
+			await verifySeeapiVideoInputCallbackUrl(
+				submitImage.mock.calls[0]![0].callbackUrl!,
+				f.deps.env,
+			),
+		).toEqual({ jobId: "job-1", assetId: "input-1", submissionToken: token });
+	});
 	it("consumes synchronous input moderation and submits immediately without a polling delay", async () => {
 		const f = fixture("image-to-video");
 		const retrieveImage = vi.fn();

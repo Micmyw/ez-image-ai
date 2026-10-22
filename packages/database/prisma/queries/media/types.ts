@@ -44,6 +44,8 @@ export interface CreateGenerationJobInput {
 	submittedByUserId: string;
 	quoteId: string;
 	idempotencyKey: string;
+	/** Server-only approved quote, committed atomically with its job and reservation. */
+	preparedQuote?: CreateModeratedGenerationQuoteInput;
 	inputAssetIds: string[];
 	expectedInputAssets?: Array<{ assetId: string; assetChecksum: string }>;
 	expectedModerationRuleVersion: string;
@@ -78,6 +80,14 @@ export interface CreateGenerationJobInput {
 export interface CreateGenerationJobResult {
 	continuationEventIds?: string[];
 	verificationAssetId?: string;
+	/** Frozen quote actually committed, including when a concurrent/older receiver wins. */
+	committedQuote?: {
+		id: string;
+		productKey: string;
+		credits: bigint;
+		pricingSnapshot: Prisma.JsonValue;
+		expiresAt: Date;
+	};
 	job: {
 		id: string;
 		status: GenerationJobStatusValue;
@@ -149,11 +159,13 @@ export const SERIALIZABLE_RETRY_LIMIT = 4;
 
 export interface SerializableAttemptEvent {
 	attempt: number;
-	outcome: "STARTED" | "SERIALIZATION_CONFLICT";
+	outcome: "STARTED" | "SERIALIZATION_CONFLICT" | "LOCK_NOT_AVAILABLE";
 }
 
 export interface SerializableExecutionOptions {
 	onAttempt?: (event: SerializableAttemptEvent) => void;
+	/** Only for callers whose NOWAIT failure proves this transaction was rolled back. */
+	retryLockNotAvailable?: boolean;
 }
 
 interface DatabaseErrorShape {
@@ -189,6 +201,7 @@ export function isDatabaseUniqueConflict(error: unknown): boolean {
 }
 
 export function isDatabaseSerializationConflict(error: unknown): boolean {
+	if (!error || typeof error !== "object") return false;
 	const details = getDatabaseErrorShape(error);
 	const cause = details.meta?.driverAdapterError?.cause ?? details.cause;
 	return (
@@ -196,6 +209,13 @@ export function isDatabaseSerializationConflict(error: unknown): boolean {
 		cause?.originalCode === "40001" ||
 		cause?.kind === "TransactionWriteConflict"
 	);
+}
+
+export function isDatabaseLockNotAvailable(error: unknown): boolean {
+	if (!error || typeof error !== "object") return false;
+	const details = getDatabaseErrorShape(error);
+	const cause = details.meta?.driverAdapterError?.cause ?? details.cause;
+	return details.code === "55P03" || cause?.originalCode === "55P03";
 }
 
 export async function runSerializable<T>(
@@ -212,10 +232,15 @@ export async function runSerializable<T>(
 				timeout: 20_000,
 			});
 		} catch (error) {
-			if (!isDatabaseSerializationConflict(error) || attempt === SERIALIZABLE_RETRY_LIMIT) {
+			const outcome = isDatabaseSerializationConflict(error)
+				? "SERIALIZATION_CONFLICT"
+				: options?.retryLockNotAvailable && isDatabaseLockNotAvailable(error)
+					? "LOCK_NOT_AVAILABLE"
+					: null;
+			if (!outcome || attempt === SERIALIZABLE_RETRY_LIMIT) {
 				throw error;
 			}
-			options?.onAttempt?.({ attempt, outcome: "SERIALIZATION_CONFLICT" });
+			options?.onAttempt?.({ attempt, outcome });
 		}
 	}
 	throw new Error("Serializable transaction retry limit exceeded");

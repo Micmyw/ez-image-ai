@@ -1,42 +1,60 @@
 import { readBoundedBody, verifyRequest } from "@repo/jobs/orchestration/auth";
+import { ExecutionCapacity, parseCapacityWait } from "@repo/jobs/orchestration/capacity";
 import type {
 	TaskRequest,
 	TaskExecutionContext,
 	PollingTickResult,
 } from "@repo/jobs/orchestration/contracts";
 import {
-	parsePollingTickResult,
+	serializePollingTickResult,
 	parseOutputReviewContinuation,
 	parseTaskContinuation,
+	parseTaskContinuations,
+	GenerationTransferRequiresHeavyError,
+	parseImagePhaseOwner,
 } from "@repo/jobs/orchestration/contracts";
-import { parseTaskRequest, taskDefinition } from "@repo/jobs/orchestration/registry";
+import {
+	executionFailureEvidence,
+	databaseConflictRetryFor,
+} from "@repo/jobs/orchestration/execution-recovery";
+import {
+	parseEventDeliveryResult,
+	parseTaskRequest,
+	taskDefinition,
+} from "@repo/jobs/orchestration/registry";
 import { logTaskStarted } from "@repo/jobs/orchestration/task-timing";
 
 export interface WorkerExecutionOptions {
 	secret: string;
 	execute(request: TaskRequest, context: TaskExecutionContext): Promise<unknown>;
-	poll(input: { attemptId: string }): Promise<PollingTickResult>;
+	poll(input: { attemptId: string }, context: TaskExecutionContext): Promise<PollingTickResult>;
 	maxActive?: number;
+	/** Independent service requests have no shared count-based admission queue. */
+	admission?: "managed" | "request";
+	streamingTransfersOnly?: boolean;
 	acceptsTask?(request: TaskRequest): boolean;
 	onEvent?(event: {
 		phase: "busy" | "completed";
 		taskId: string;
 		runId: string;
 		active: number;
-		maximum: number;
+		maximum: number | null;
 		elapsedMs?: number;
-		outcome?: "ok" | "failed";
+		startedAt?: number;
+		completedAt?: number;
+		capacityWaitMs?: number;
+		outcome?: "ok" | "failed" | "rerouted";
 	}): void;
 	env?: Record<string, string | undefined>;
 }
 
 export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 	if (options.secret.length < 32) throw new Error("INVALID_RUNTIME_SECRET");
-	const maximum = options.maxActive ?? 4;
-	if (!Number.isSafeInteger(maximum) || maximum < 1 || maximum > 16)
+	const maximum = options.admission === "request" ? null : (options.maxActive ?? 4);
+	if (maximum !== null && (!Number.isSafeInteger(maximum) || maximum < 1 || maximum > 16))
 		throw new Error("INVALID_RUNTIME_CONCURRENCY");
-	let active = 0;
-	const queues = new Map<string, number>();
+	const capacity = maximum === null ? undefined : new ExecutionCapacity(maximum);
+	let requestActive = 0;
 	const respond = (status: number, data: unknown) =>
 		Response.json(data, { status, headers: { "cache-control": "no-store" } });
 	const report = (event: Parameters<NonNullable<WorkerExecutionOptions["onEvent"]>>[0]) => {
@@ -63,13 +81,57 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 		let request: TaskRequest;
 		let context: TaskExecutionContext;
 		let definition: ReturnType<typeof taskDefinition>;
+		let waitForCapacityMs: number;
+		let supportsImmediatePolling: boolean;
+		let supportsDatabaseConflictRetry: boolean;
 		try {
 			const value = JSON.parse(body);
+			if (
+				!value ||
+				typeof value !== "object" ||
+				Array.isArray(value) ||
+				Object.keys(value).some(
+					(key) =>
+						![
+							"request",
+							"context",
+							"waitForCapacityMs",
+							"supportsImmediatePolling",
+							"supportsDatabaseConflictRetry",
+						].includes(key),
+				)
+			)
+				throw new Error("INVALID_EXECUTION_ENVELOPE");
+			waitForCapacityMs = parseCapacityWait(value.waitForCapacityMs);
+			supportsImmediatePolling = value.supportsImmediatePolling === true;
+			supportsDatabaseConflictRetry = value.supportsDatabaseConflictRetry === true;
 			request = parseTaskRequest(value.request);
 			if (options.acceptsTask && !options.acceptsTask(request))
 				throw new Error("WRONG_TASK_EXECUTOR");
 			definition = taskDefinition(request.taskId, options.env ?? process.env);
 			context = value.context;
+			if (
+				!context ||
+				typeof context !== "object" ||
+				Array.isArray(context) ||
+				Object.keys(context).some(
+					(key) => !["attempt", "maxAttempts", "runId", "workflowId", "phaseOwner"].includes(key),
+				)
+			)
+				throw new Error("INVALID_TASK_CONTEXT");
+			if (context?.workflowId !== undefined) {
+				if (
+					typeof context.workflowId !== "string" ||
+					!/^[a-zA-Z0-9_-]{1,128}$/.test(context.workflowId) ||
+					context.workflowId !== context.runId
+				)
+					throw new Error("INVALID_WORKFLOW_OWNER");
+				if (context.phaseOwner !== undefined) {
+					context.phaseOwner = parseImagePhaseOwner(context.phaseOwner);
+					if (context.phaseOwner.workflowId !== context.workflowId)
+						throw new Error("INVALID_WORKFLOW_OWNER");
+				}
+			} else if (context?.phaseOwner !== undefined) throw new Error("INVALID_WORKFLOW_OWNER");
 			if (
 				!context ||
 				!Number.isSafeInteger(context.attempt) ||
@@ -84,59 +146,107 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 		} catch {
 			return respond(400, { status: "invalid_task" });
 		}
-		const queued = queues.get(definition.queue) ?? 0;
 		const identity = { taskId: request.taskId, runId: context.runId, maximum };
-		if (active >= maximum || queued >= definition.concurrency) {
-			report({ ...identity, phase: "busy", active });
-			return respond(429, { status: "busy" });
+		const requestedAt = Date.now();
+		const admission = capacity
+			? await capacity.acquire(definition, waitForCapacityMs, incoming.signal)
+			: {
+					release: () => {
+						requestActive--;
+					},
+					waited: false,
+				};
+		const admittedAt = Date.now();
+		if (!admission.release) {
+			report({
+				...identity,
+				phase: "busy",
+				active: capacity?.active ?? requestActive,
+				capacityWaitMs: admittedAt - requestedAt,
+			});
+			return respond(429, {
+				status: "busy",
+				...(admission.waited ? { capacityWaited: true } : {}),
+			});
 		}
-		active++;
-		queues.set(definition.queue, queued + 1);
-		const startedAt = Date.now();
+		const startedAt = admittedAt;
+		if (!capacity) requestActive++;
 		logTaskStarted(request, context, startedAt);
-		let outcome: "ok" | "failed" = "ok";
+		let outcome: "ok" | "failed" | "rerouted" = "ok";
 		try {
 			// Deadlines belong to bounded I/O and Workflow delivery. Releasing this
 			// slot on a raced timeout would allow abandoned execution to overlap.
 			if (request.taskId === "media-poll-generation") {
-				const poll = await options.poll({ attemptId: request.payload.attemptId as string });
+				const poll = serializePollingTickResult(
+					await options.poll({ attemptId: request.payload.attemptId as string }, context),
+					supportsImmediatePolling,
+					5,
+				);
 				return respond(200, { status: "ok", poll });
 			}
 			const result = await options.execute(request, context);
+			const delivery = parseEventDeliveryResult(request, result);
 			const continuation = parseTaskContinuation(
 				(result as { continuation?: unknown } | null)?.continuation,
 			);
+			const continuations = parseTaskContinuations(
+				(result as { continuations?: unknown } | null)?.continuations,
+			);
 			if (request.taskId === "media-verify-upload")
-				return respond(200, { status: "ok", poll: parsePollingTickResult(result) });
+				return respond(200, {
+					status: "ok",
+					poll: serializePollingTickResult(result, supportsImmediatePolling, 1),
+					...delivery,
+				});
 			if (request.taskId === "media-finalize-generation") {
 				const outputReview = parseOutputReviewContinuation(result);
 				return respond(200, {
 					status: "ok",
+					...delivery,
 					...(outputReview ? { outputReview } : {}),
 					...(continuation ? { continuation } : {}),
 				});
 			}
-			return respond(200, { status: "ok", ...(continuation ? { continuation } : {}) });
-		} catch {
+			return respond(200, {
+				status: "ok",
+				...delivery,
+				...(continuation ? { continuation } : {}),
+				...(continuations ? { continuations } : {}),
+			});
+		} catch (error) {
+			if (
+				options.streamingTransfersOnly &&
+				request.taskId === "media-finalize-generation" &&
+				error instanceof GenerationTransferRequiresHeavyError
+			) {
+				outcome = "rerouted";
+				return respond(409, { status: "reroute", executor: "heavy" });
+			}
 			outcome = "failed";
+			const retry = databaseConflictRetryFor(error, request, supportsDatabaseConflictRetry);
 			process.stderr.write(
 				JSON.stringify({
 					event: "job_execution_failed",
 					taskId: request.taskId,
 					runId: context.runId,
 					attempt: context.attempt,
+					...executionFailureEvidence(error),
 				}) + "\n",
 			);
+			if (retry) return respond(503, retry);
 			return respond(502, { status: "failed" });
 		} finally {
-			active--;
-			queues.set(definition.queue, (queues.get(definition.queue) ?? 1) - 1);
+			const completedAt = Date.now();
+			admission.release();
 			report({
 				...identity,
 				phase: "completed",
-				active,
+				active: capacity?.active ?? requestActive,
 				outcome,
-				elapsedMs: Date.now() - startedAt,
+				startedAt,
+				completedAt,
+				capacityWaitMs: admittedAt - requestedAt,
+				elapsedMs: completedAt - startedAt,
 			});
 		}
 	};

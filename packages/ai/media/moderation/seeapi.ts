@@ -35,6 +35,17 @@ const taskSchema = z.object({
 export class SeeapiSafetyAdapter {
 	constructor(private readonly options: HttpClientOptions & { apiKey: string }) {}
 	async submitImage(input: SubmitVideoInput): Promise<ModerationSubmission> {
+		if (input.callbackUrl) {
+			const callback = new URL(input.callbackUrl);
+			if (
+				callback.protocol !== "https:" ||
+				callback.username ||
+				callback.password ||
+				callback.hash ||
+				input.callbackUrl.length > 2048
+			)
+				throw new Error("MODERATION_INVALID_INPUT");
+		}
 		const task = await this.call("/v1/inferences", {
 			method: "POST",
 			headers: { "Idempotency-Key": input.idempotencyKey },
@@ -42,6 +53,7 @@ export class SeeapiSafetyAdapter {
 				model: "nsfw-filter",
 				endpoint: "image-moderation",
 				provider: "seeapi",
+				...(input.callbackUrl ? { callback_url: input.callbackUrl } : {}),
 				input: { image_url: input.assetUrl, threshold_offset: 0, strict_special_care: true },
 			}),
 		});
@@ -51,6 +63,9 @@ export class SeeapiSafetyAdapter {
 			moderationTaskId: task.id,
 			...(task.status === "succeeded"
 				? { completedDecision: completedTaskDecision(task, input.ruleVersion) }
+				: {}),
+			...((task.status === "queued" || task.status === "processing") && task.result === null
+				? { nonterminalState: task.status }
 				: {}),
 			status: task.status === "queued" ? "QUEUED" : "RUNNING",
 			ruleVersion: input.ruleVersion,

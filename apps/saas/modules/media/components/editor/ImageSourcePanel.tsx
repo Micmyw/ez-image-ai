@@ -9,7 +9,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { MediaUploadItem, MediaUploadStatus } from "../../hooks/use-media-upload";
+import { useTemporaryReferenceStatus } from "../../hooks/use-temporary-reference-status";
 import { getModerationErrorReason } from "../../lib/editor-error";
+import { temporaryReferenceReviewPresentation } from "../../lib/temporary-reference-review";
 import type { TemporaryReferenceReceipt } from "../../lib/temporary-reference-upload";
 import { ContentSafetyNotice } from "../ContentSafetyNotice";
 import { MediaUploader } from "../MediaUploader";
@@ -32,6 +34,7 @@ const uploadStatusLabels = {
 } as const;
 
 export function ImageSourcePanel({
+	ownerId = null,
 	sourceAssetId,
 	temporaryReference,
 	onChange,
@@ -43,6 +46,7 @@ export function ImageSourcePanel({
 	uploadLabel,
 	presentation = "default",
 }: {
+	ownerId?: string | null;
 	sourceAssetId: string;
 	temporaryReference?: TemporaryReferenceReceipt;
 	onChange: (assetId: string, reference?: TemporaryReferenceReceipt) => void;
@@ -137,6 +141,17 @@ export function ImageSourcePanel({
 		localPreview && sourceAssetId === (localPreview.assetId ?? localPreview.selectionSourceId)
 			? localPreview
 			: null;
+	const currentTemporaryReference =
+		temporaryReference?.assetId === sourceAssetId ? temporaryReference : undefined;
+	const temporaryStatus = useTemporaryReferenceStatus({
+		ownerId,
+		reference: currentTemporaryReference,
+		enabled: !referenceExpired && !pending,
+	});
+	const temporaryPresentation = temporaryReferenceReviewPresentation(
+		temporaryStatus.data,
+		temporaryStatus.error,
+	);
 	const serverPreviewEnabled =
 		!temporaryReference &&
 		Boolean(sourceAssetId) &&
@@ -153,11 +168,16 @@ export function ImageSourcePanel({
 				: false,
 		staleTime: 4 * 60_000,
 	});
-	const safetyMessage = serverPreviewEnabled ? terminalSafetyMessage(preview.error) : null;
+	const safetyMessage = currentTemporaryReference
+		? temporaryPresentation.safetyMessage
+		: serverPreviewEnabled
+			? terminalSafetyMessage(preview.error)
+			: null;
 	const readablePreview = !serverPreviewEnabled || preview.isError ? undefined : preview.data;
 	const ready = Boolean(
 		sourceAssetId &&
-		(readablePreview || (temporaryReference?.assetId === sourceAssetId && !referenceExpired)) &&
+		(readablePreview ||
+			(currentTemporaryReference && !referenceExpired && temporaryPresentation.canSubmit)) &&
 		!pending,
 	);
 	const previewUrl = safetyMessage ? undefined : (currentLocalPreview?.url ?? readablePreview?.url);
@@ -165,13 +185,13 @@ export function ImageSourcePanel({
 		? "expired"
 		: safetyMessage
 			? "unavailable"
-			: ready
-				? temporaryReference
-					? "uploadedForGeneration"
-					: "ready"
-				: currentLocalPreview
-					? uploadStatusLabels[currentLocalPreview.status]
-					: "checking";
+			: currentTemporaryReference && !pending
+				? temporaryPresentation.status
+				: ready
+					? "ready"
+					: currentLocalPreview
+						? uploadStatusLabels[currentLocalPreview.status]
+						: "checking";
 
 	useEffect(() => {
 		onReadyChange(ready);
@@ -220,13 +240,9 @@ export function ImageSourcePanel({
 								aria-live="polite"
 							>
 								{t(
-									referenceExpired
-										? "expired"
-										: temporaryReference
-											? "uploadedForGeneration"
-											: safetyMessage
-												? "unavailable"
-												: "preparing",
+									currentTemporaryReference || referenceExpired || safetyMessage
+										? status
+										: "preparing",
 								)}
 							</div>
 						)}
@@ -256,7 +272,11 @@ export function ImageSourcePanel({
 				<ContentSafetyNotice
 					stage="input"
 					outcome={safetyMessage === "blocked" ? "blocked" : "unavailable"}
-					reason={getModerationErrorReason(preview.error)}
+					reason={
+						currentTemporaryReference
+							? temporaryPresentation.moderationReason
+							: getModerationErrorReason(preview.error)
+					}
 					billing="beforeGeneration"
 					onRevise={removeSource}
 				/>

@@ -1770,6 +1770,7 @@
 				"paused": "Subida en pausa",
 				"uploadFailed": "La subida falló · reintenta o elimina",
 				"uploadedForGeneration": "Subida. La seguridad se comprueba al generar.",
+				"reviewStatusUnavailable": "Subida. El estado de la revisión no está disponible temporalmente; se comprobará al generar.",
 				"expired": "Esta referencia ha caducado. Vuelve a subirla."
 			},
 			"mode": {

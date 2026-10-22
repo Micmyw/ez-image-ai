@@ -5,6 +5,7 @@ export const WORKER_EXECUTORS = {
 	// Keep the original object identity so old Workflows and new heavy transfers
 	// still share the same single slot during a rolling deployment.
 	heavy: { name: "jobs-primary", maxActive: 1 },
+	// Old Workflow deliveries drain here. New control work uses JOBS_CONTROL.
 	control: { name: "jobs-control", maxActive: 4 },
 	maintenance: { name: "jobs-maintenance", maxActive: 1 },
 } as const;
@@ -32,6 +33,8 @@ export function workerExecutorLane(input: TaskRequest): WorkerExecutorLane {
 		case "media-poll-generation":
 		case "media-deliver-output-review":
 		case "media-deliver-events":
+		case "media-prepare-event":
+		case "media-execute-event":
 		case "media-process-provider-webhook":
 		case "media-settle-generation":
 			return "control";
@@ -68,8 +71,22 @@ export function workerExecutorForTask(request: TaskRequest) {
 	return WORKER_EXECUTORS[workerExecutorLane(request)];
 }
 
+/** The streaming receiver must validate its DB projection before loading media. */
+export function workerServiceForTask(input: TaskRequest): "JOBS_CONTROL" | "JOBS_TRANSFER" | null {
+	const request = parseTaskRequest(input);
+	if (request.taskId === "media-finalize-generation") return "JOBS_TRANSFER";
+	return workerExecutorLane(request) === "control" ? "JOBS_CONTROL" : null;
+}
+
 /** Inline Outbox children retain the parent's slot and completion-before-ACK. */
 export function assertWorkerInlineTask(parent: TaskRequest, child: TaskRequest): void {
+	// Callback normalization is control-only, performs no provider request and must
+	// return its lease wait directly to the original Outbox delivery before ACK.
+	if (
+		child.taskId === "media-process-provider-webhook" &&
+		(parent.taskId === "media-deliver-outbox" || parent.taskId === "media-deliver-events")
+	)
+		return;
 	if (
 		parent.taskId !== "media-deliver-outbox" ||
 		workerExecutorLane(parent) !== "maintenance" ||

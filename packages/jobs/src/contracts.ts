@@ -12,6 +12,8 @@ import type {
 	SubmissionUncertainty,
 } from "@repo/ai";
 
+import type { TaskContinuation } from "./orchestration/contracts";
+
 export interface JobPayload {
 	jobId: string;
 	version: number;
@@ -103,6 +105,7 @@ export interface AccountInputCopyRecoveryDependencies {
 }
 
 export interface DispatchClaim {
+	phaseOwner?: import("@repo/database").ImagePhaseOwner;
 	attemptId: string;
 	attemptNumber: number;
 	serviceClass: "STANDARD" | "GUEST_SLOW";
@@ -156,6 +159,7 @@ export class DispatchAdmissionBlockedError extends Error {
 }
 
 export interface DispatchContinuation {
+	phaseOwner?: import("@repo/database").ImagePhaseOwner;
 	eventIds: string[];
 	pollAttemptId?: string;
 	notBefore?: number;
@@ -167,25 +171,47 @@ export interface DispatchDeferred {
 	continuation: DispatchContinuation;
 }
 
+export interface DispatchOwnershipLost {
+	phaseOwnershipLost: true;
+	phaseOwner?: import("@repo/database").ImagePhaseOwner;
+}
+
 export interface DispatchStore {
-	claimDispatch(payload: DispatchJobPayload): Promise<DispatchClaim | DispatchDeferred | null>;
-	recordSubmissionStarted(attemptId: string): Promise<void>;
+	claimDispatch(
+		payload: DispatchJobPayload,
+	): Promise<DispatchClaim | DispatchDeferred | DispatchOwnershipLost | null>;
+	recordSubmissionStarted(
+		attemptId: string,
+		phaseOwner?: import("@repo/database").ImagePhaseOwner,
+		/** The actual in-memory claim returned by this store; never a task/HTTP payload. */
+		preparedClaim?: DispatchClaim,
+	): Promise<void | false>;
 	/** Older stores may omit continuation; durable stores return committed identities. */
 	recordSubmission(
 		attemptId: string,
 		submission: ProviderSubmission,
-	): Promise<DispatchContinuation | void>;
+		phaseOwner?: import("@repo/database").ImagePhaseOwner,
+	): Promise<DispatchContinuation | DispatchOwnershipLost | void>;
 	recordSynchronousCompletion(
 		attemptId: string,
 		submission: ProviderSubmission,
 		result: NormalizedResult,
-	): Promise<DispatchContinuation | void>;
+		phaseOwner?: import("@repo/database").ImagePhaseOwner,
+	): Promise<DispatchContinuation | DispatchOwnershipLost | void>;
 	recordUncertainSubmission(
 		attemptId: string,
 		evidence: UncertainSubmissionEvidence,
-	): Promise<void>;
-	recordProviderAdapterUnavailable(attemptId: string): Promise<void>;
-	recordRejectedSubmission(attemptId: string, failure: ProviderFailure): Promise<void>;
+		phaseOwner?: import("@repo/database").ImagePhaseOwner,
+	): Promise<DispatchOwnershipLost | void>;
+	recordProviderAdapterUnavailable(
+		attemptId: string,
+		phaseOwner?: import("@repo/database").ImagePhaseOwner,
+	): Promise<DispatchOwnershipLost | void>;
+	recordRejectedSubmission(
+		attemptId: string,
+		failure: ProviderFailure,
+		phaseOwner?: import("@repo/database").ImagePhaseOwner,
+	): Promise<DispatchOwnershipLost | void>;
 }
 
 export interface UncertainSubmissionEvidence extends SubmissionUncertainty {
@@ -215,6 +241,15 @@ export interface ProviderEventClaim {
 	processingToken: string;
 }
 
+/** No callback work was performed; retain the original durable delivery for retry. */
+export class ProviderEventPhaseHeldError extends Error {
+	readonly code = "PROVIDER_EVENT_PHASE_HELD";
+	constructor(readonly retryAfterMs = 30_000) {
+		super("PROVIDER_EVENT_PHASE_HELD");
+		this.name = "ProviderEventPhaseHeldError";
+	}
+}
+
 export interface ProviderEventStore {
 	claimProviderEvent(eventId: string): Promise<ProviderEventClaim | null>;
 	recordProviderProgress(claim: ProviderEventClaim, result: NormalizedResult): Promise<void>;
@@ -230,6 +265,38 @@ export interface ProviderEventDependencies {
 export interface FinalizationCandidate {
 	key: string;
 	output: ProviderOutput;
+}
+
+/** Executor handoff, not a provider or finalization failure. */
+export class GenerationTransferRequiresHeavyError extends Error {
+	readonly code = "GENERATION_TRANSFER_REQUIRES_HEAVY" as const;
+
+	constructor() {
+		super("Generation output requires the heavy transfer executor");
+		this.name = "GenerationTransferRequiresHeavyError";
+	}
+}
+
+/** A rolled-back database claim; this candidate has no transfer lease or storage write. */
+export class OutputTransferClaimConflictError extends Error {
+	readonly code = "OUTPUT_TRANSFER_CLAIM_CONFLICT" as const;
+	readonly phase = "BEFORE_TRANSFER_LEASE" as const;
+
+	constructor(cause: unknown) {
+		super("Generation output claim exhausted its database conflict retries", { cause });
+		this.name = "OutputTransferClaimConflictError";
+	}
+}
+
+/** Settlement's database transaction rolled back; no financial or job change committed. */
+export class SettlementTransactionConflictError extends Error {
+	readonly code = "SETTLEMENT_TRANSACTION_CONFLICT" as const;
+	readonly phase = "TRANSACTION_ROLLED_BACK" as const;
+
+	constructor(cause: unknown) {
+		super("Generation settlement exhausted its database conflict retries", { cause });
+		this.name = "SettlementTransactionConflictError";
+	}
 }
 
 export interface FinalizationClaim {
@@ -259,8 +326,14 @@ export interface FinalizationFailure {
 
 export const MAX_TRANSIENT_FINALIZATION_RETRIES = 5;
 
+export interface FinalizationRetryEvent {
+	id: string;
+	/** Actual committed Outbox due time, as epoch milliseconds. */
+	availableAt: number;
+}
+
 export type FinalizationRetryResolution =
-	| { outcome: "RETRY_SCHEDULED"; retryCount: number }
+	| { outcome: "RETRY_SCHEDULED"; retryCount: number; retryEvent?: FinalizationRetryEvent }
 	| { outcome: "TERMINAL"; retryCount: number };
 
 export interface FinalizationStore {
@@ -294,6 +367,7 @@ export interface FinalizationDependencies {
 	persistCandidate(
 		claim: FinalizationClaim,
 		candidate: FinalizationCandidate,
+		context?: { persistedCandidateChecked: true },
 	): Promise<PersistedCandidate>;
 	maxInlineImageBytes?: number;
 }
@@ -310,6 +384,8 @@ export interface SettlementClaim {
 }
 
 export interface SettlementStore {
+	/** Null delegates to the legacy claim path; concrete results come from a committed transaction. */
+	settleForJob?(payload: JobPayload): Promise<{ outcome: "SKIPPED" | "SETTLED" } | null>;
 	claimSettlement(payload: JobPayload): Promise<SettlementClaim | null>;
 	settle(claim: SettlementClaim): Promise<void>;
 }
@@ -358,6 +434,9 @@ export interface ProviderCancellationDependencies {
 }
 
 export interface ReconciliationLease {
+	phaseOwner?: import("@repo/database").ImagePhaseOwner;
+	/** A late synchronous response is consumed only after a current DB lease. */
+	completion?: { snapshot: ProviderTaskSnapshot; result: NormalizedResult };
 	jobId: string;
 	version: number;
 	attemptId: string;
@@ -390,11 +469,34 @@ export interface ReconciliationStore {
 	markUncertainForManualReconciliation(lease: ReconciliationLease, code?: string): Promise<void>;
 }
 
+/** Internal proof returned only after the verification transaction has committed. */
+export interface VerificationCommitReceipt {
+	assetId: string;
+	generation: number;
+	status: "READY" | "QUARANTINED";
+	/** Existing or newly inserted durable rows, never speculative next-stage identities. */
+	eventIds: string[];
+}
+
+/** Query-only completion observed at one validated database snapshot, not a new write. */
+export interface VerificationTerminalObservation {
+	assetId: string;
+	generation: number;
+	status: "READY" | "QUARANTINED" | "VERIFICATION_FAILED" | "DELETED";
+	eventIds: string[];
+}
+
 export interface OutboxCommitResult {
+	phaseOwner?: import("@repo/database").ImagePhaseOwner;
+	phaseOwnershipLost?: true;
 	/** True only after a transaction commits a new next-stage Outbox event. */
 	outboxCommitted: boolean;
 	/** Actual committed output polling event; never derived from a diagnostic trace. */
 	outputReviewEventId?: string;
+	/** Bound current image task; later ticks may use capacity reserved for result queries. */
+	queryOnly?: true;
+	verificationCommit?: VerificationCommitReceipt;
+	verificationObservation?: VerificationTerminalObservation;
 }
 
 export interface ReconciliationDependencies {
@@ -405,7 +507,12 @@ export interface ReconciliationDependencies {
 }
 
 export interface GenerationPollingStore extends ReconciliationStore {
-	getPollingState(attemptId: string): Promise<{ pollAt: Date; leasedUntil?: Date | null } | null>;
+	getPollingState(attemptId: string): Promise<{
+		pollAt: Date;
+		leasedUntil?: Date | null;
+		phaseOwner?: import("@repo/database").ImagePhaseOwner;
+		phaseOwnershipLost?: true;
+	} | null>;
 }
 
 export interface OutboxLease {
@@ -449,6 +556,6 @@ export interface OutboxStore {
 
 export interface OutboxDependencies {
 	store: OutboxStore;
-	deliver(event: OutboxLease): Promise<void>;
+	deliver(event: OutboxLease): Promise<TaskContinuation | void>;
 	now?: () => Date;
 }

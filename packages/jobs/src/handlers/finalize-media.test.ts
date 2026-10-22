@@ -2,6 +2,10 @@ import { MediaValidationError } from "@repo/storage";
 import { describe, expect, it, vi } from "vitest";
 
 import type { FinalizationClaim, FinalizationStore } from "../contracts";
+import {
+	GenerationTransferRequiresHeavyError,
+	OutputTransferClaimConflictError,
+} from "../contracts";
 import { finalizeMedia } from "./finalize-media";
 
 const CLAIM: FinalizationClaim = {
@@ -30,6 +34,7 @@ const CLAIM: FinalizationClaim = {
 
 function createStore(): FinalizationStore & {
 	claimFinalization: ReturnType<typeof vi.fn>;
+	findPersistedCandidate: ReturnType<typeof vi.fn>;
 	recordFinalization: ReturnType<typeof vi.fn>;
 	recordFinalizationRetry: ReturnType<typeof vi.fn>;
 } {
@@ -45,6 +50,118 @@ function createStore(): FinalizationStore & {
 }
 
 describe("finalizeMedia terminal transfer policy", () => {
+	it("returns the committed retry event and preserves independent pending output reviews", async () => {
+		const store = createStore();
+		const retryEvent = { id: "committed-transfer-retry", availableAt: 1_800_000_120_000 };
+		store.recordFinalizationRetry.mockResolvedValueOnce({
+			outcome: "RETRY_SCHEDULED",
+			retryCount: 1,
+			retryEvent,
+		});
+		await expect(
+			finalizeMedia(
+				{ jobId: CLAIM.jobId, version: 0 },
+				{
+					store,
+					persistCandidate: async (_claim, candidate) => {
+						if (candidate.key === "candidate-invalid") throw new Error("remote timeout");
+						return {
+							assetId: "pending-output",
+							approved: false,
+							moderationPending: true,
+							outputReviewEventId: "committed-output-review",
+						};
+					},
+				},
+			),
+		).resolves.toEqual({
+			outcome: "RETRY_SCHEDULED",
+			readyOutputs: 0,
+			retryEvent,
+			outputReviewEventIds: ["committed-output-review"],
+		});
+		expect(store.recordFinalization).not.toHaveBeenCalled();
+	});
+
+	it("hands the same task back to heavy without finalization retry or settlement", async () => {
+		const store = createStore();
+		const reroute = new GenerationTransferRequiresHeavyError();
+		await expect(
+			finalizeMedia(
+				{ jobId: CLAIM.jobId, version: 0 },
+				{
+					store,
+					persistCandidate: async () => {
+						throw reroute;
+					},
+				},
+			),
+		).rejects.toBe(reroute);
+		expect(store.recordFinalizationRetry).not.toHaveBeenCalled();
+		expect(store.recordFinalization).not.toHaveBeenCalled();
+	});
+	it("keeps a persisted sibling when a later candidate's claim conflict retries the same task", async () => {
+		const store = createStore();
+		const persisted = new Map<string, { assetId: string; approved: boolean }>();
+		const conflict = new OutputTransferClaimConflictError({ code: "P2034" });
+		let secondClaimFailed = false;
+		store.findPersistedCandidate.mockImplementation(
+			async (_jobId: string, key: string) => persisted.get(key) ?? null,
+		);
+		const persistCandidate = vi.fn(
+			async (_claim: FinalizationClaim, candidate: { key: string }) => {
+				if (candidate.key === CLAIM.candidates[1]!.key && !secondClaimFailed) {
+					secondClaimFailed = true;
+					throw conflict;
+				}
+				const result = { assetId: `asset:${candidate.key}`, approved: true };
+				persisted.set(candidate.key, result);
+				return result;
+			},
+		);
+		const dependencies = { store, persistCandidate };
+		await expect(finalizeMedia({ jobId: CLAIM.jobId, version: 0 }, dependencies)).rejects.toBe(
+			conflict,
+		);
+		expect(persisted.size).toBe(1);
+		expect(store.recordFinalizationRetry).not.toHaveBeenCalled();
+		expect(store.recordFinalization).not.toHaveBeenCalled();
+		await expect(finalizeMedia({ jobId: CLAIM.jobId, version: 0 }, dependencies)).resolves.toEqual({
+			outcome: "FINALIZED",
+			readyOutputs: 2,
+		});
+		expect(persistCandidate.mock.calls.map(([, candidate]) => candidate.key)).toEqual([
+			CLAIM.candidates[0]!.key,
+			CLAIM.candidates[1]!.key,
+			CLAIM.candidates[1]!.key,
+		]);
+		expect(store.recordFinalizationRetry).not.toHaveBeenCalled();
+		expect(store.recordFinalization).toHaveBeenCalledOnce();
+	});
+	it("returns the committed first-review event without settling or spending a technical retry", async () => {
+		const store = createStore();
+		const claim = { ...CLAIM, candidates: CLAIM.candidates.slice(0, 1) };
+		store.claimFinalization.mockResolvedValue(claim);
+		const persistCandidate = vi.fn(async () => ({
+			assetId: "private-output",
+			approved: false,
+			moderationPending: true,
+			outputReviewEventId: "committed-first-review",
+		}));
+		await expect(
+			finalizeMedia({ jobId: claim.jobId, version: 0 }, { store, persistCandidate }),
+		).resolves.toEqual({
+			outcome: "WAITING_MODERATION",
+			readyOutputs: 0,
+			outputReviewEventIds: ["committed-first-review"],
+		});
+		expect(persistCandidate).toHaveBeenCalledWith(claim, claim.candidates[0], {
+			persistedCandidateChecked: true,
+		});
+		expect(store.findPersistedCandidate).toHaveBeenCalledOnce();
+		expect(store.recordFinalization).not.toHaveBeenCalled();
+		expect(store.recordFinalizationRetry).not.toHaveBeenCalled();
+	});
 	it("persists a deterministic validation failure and still settles valid sibling outputs", async () => {
 		const store = createStore();
 		const persistCandidate = vi.fn(

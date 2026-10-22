@@ -1,0 +1,11 @@
+{
+	"name": "ezpic-realtime-test",
+	"main": "test-support/job-events-worker.ts",
+	"compatibility_date": "2026-09-10",
+	"compatibility_flags": ["nodejs_compat"],
+	"durable_objects": {
+		"bindings": [{ "name": "MEDIA_JOB_EVENTS", "class_name": "MediaJobEvents" }]
+	},
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["MediaJobEvents"] }],
+	"vars": { "WORKFLOWS_DISPATCH_SECRET": "test-only-32-character-shared-secret" }
+}

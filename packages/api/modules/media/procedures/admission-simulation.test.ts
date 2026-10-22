@@ -74,12 +74,19 @@ vi.mock("../lib/free-plan-credits", () => ({
 	ensureFreePlanCreditsForUser: () => harness.active.operation("freeGrant"),
 	ensureFreePlanCreditsForGeneration: () => harness.active.operation("freeGrant"),
 }));
-vi.mock("../lib/plan-entitlement", () => ({
-	loadUserPlanEntitlement: async () => {
+vi.mock("../lib/plan-entitlement", () => {
+	const loadUserPlanEntitlement = async () => {
 		await harness.active.operation("entitlement");
 		return { id: "free", maximumConcurrentJobs: 1 };
-	},
-}));
+	};
+	return {
+		loadUserPlanEntitlement,
+		loadUserPlanAccess: async () => ({
+			entitlement: await loadUserPlanEntitlement(),
+			hasEffectivePaidSubscription: false,
+		}),
+	};
+});
 
 import { logger } from "@repo/logs";
 
@@ -286,13 +293,22 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 		createGenerationJob: async (request) => {
 			await operation("jobTransaction", 24);
 			const existing = jobs.get(request.quoteId);
-			if (existing) return { job: existing, replayed: true };
+			if (existing)
+				return { job: existing, replayed: true, committedQuote: quotes.get(request.quoteId) };
+			const quote = request.preparedQuote
+				? {
+						...request.preparedQuote,
+						id: request.quoteId,
+						costMicros: request.preparedQuote.costMicros ?? 0n,
+						job: null,
+					}
+				: quotes.get(request.quoteId);
 			if (request.validateCurrentEligibility)
 				await loadCurrentGenerationAdmission(
 					{
 						ownerId: request.ownerId,
-						productKey: quotes.get(request.quoteId).productKey,
-						costMicros: quotes.get(request.quoteId).costMicros,
+						productKey: quote.productKey,
+						costMicros: quote.costMicros,
 						now: new Date(),
 					},
 					{
@@ -301,6 +317,10 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 						billingPeriod: { fields: { paidAmount: "paidAmount" } },
 					} as never,
 				);
+			// Model the real transaction's uniqueness/commit boundary after delayed reads.
+			// PostgreSQL rollback and concurrency are verified by the integration suite.
+			const raced = jobs.get(request.quoteId);
+			if (raced) return { job: raced, replayed: true, committedQuote: quotes.get(request.quoteId) };
 			const job = {
 				id: `job-${jobs.size + 1}`,
 				ownerType: request.ownerType,
@@ -313,12 +333,21 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 				creditsReserved: 5n,
 				idempotencyKey: request.idempotencyKey,
 			};
+			if (request.preparedQuote) {
+				quotes.set(request.quoteId, quote);
+				counts.atomicQuoteWrite = (counts.atomicQuoteWrite ?? 0) + 1;
+			}
 			jobs.set(request.quoteId, job);
 			quotes.get(request.quoteId).job = job;
 			counts.reservation = (counts.reservation ?? 0) + 1;
 			const eventId = `admission:${job.id}`;
 			admissionEvents.set(eventId, job);
-			return { job, replayed: false, continuationEventIds: [eventId] };
+			return {
+				job,
+				replayed: false,
+				continuationEventIds: [eventId],
+				...(request.preparedQuote ? { committedQuote: quote } : {}),
+			};
 		},
 	};
 	const dependencies: NonNullable<Parameters<typeof submitGenerationForUser>[2]> = {
@@ -605,6 +634,8 @@ describe("quote and generation request accounting", () => {
 		// A replay is a new interface request, never another business reservation.
 		expect(f.rateLimitActions).toEqual(["media:generation", "media:generation"]);
 		expect(f.counts.reservation).toBe(1);
+		expect(f.counts.quoteTransaction ?? 0).toBe(0);
+		expect(f.counts.atomicQuoteWrite).toBe(1);
 	});
 	it("checks each concurrent HTTP request once while accepting the same job and reservation once", async () => {
 		const f = fixture();

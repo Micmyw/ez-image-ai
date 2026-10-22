@@ -6,9 +6,54 @@ import {
 	assertWorkerInlineTask,
 	workerExecutorForTask,
 	workerExecutorLane,
+	workerServiceForTask,
 } from "./worker-executors";
 
 describe("Worker executor workload boundaries", () => {
+	it("keeps callback normalization inside either original Outbox parent", () => {
+		const child = {
+			taskId: "media-process-provider-webhook",
+			payload: { providerWebhookEventId: "event" },
+		};
+		for (const parent of [
+			{ taskId: "media-deliver-outbox", payload: {} },
+			{ taskId: "media-deliver-events", payload: { eventIds: ["event"] } },
+		])
+			expect(() => assertWorkerInlineTask(parent, child)).not.toThrow();
+		expect(() =>
+			assertWorkerInlineTask(
+				{ taskId: "media-finalize-generation", payload: { jobId: "job", version: 0 } },
+				child,
+			),
+		).toThrow("CROSS_EXECUTOR_INLINE_TASK");
+	});
+	it("routes new lightweight and preflighted streaming work to request-owned services", () => {
+		expect(
+			workerServiceForTask({ taskId: "media-verify-upload", payload: { assetId: "asset" } }),
+		).toBe("JOBS_CONTROL");
+		expect(
+			workerServiceForTask({
+				taskId: "media-dispatch-image-kie-nano-banana-2",
+				payload: { jobId: "job", version: 0 },
+			}),
+		).toBe("JOBS_CONTROL");
+		expect(
+			workerServiceForTask({
+				taskId: "media-finalize-generation",
+				payload: { jobId: "job", version: 0 },
+			}),
+		).toBe("JOBS_TRANSFER");
+		for (const request of [
+			{
+				taskId: "media-verify-upload",
+				payload: { assetId: "asset", allowQuarantinedReverification: true },
+			},
+			{ taskId: "media-copy-account-input", payload: { promotionId: "copy" } },
+			{ taskId: "media-deliver-outbox", payload: {} },
+		])
+			expect(workerServiceForTask(request)).toBeNull();
+		expect(() => workerServiceForTask({ taskId: "unknown", payload: {} })).toThrow();
+	});
 	it("keeps account-copy byte transfers heavy and durable orphan recovery in maintenance", () => {
 		const parent: TaskRequest = { taskId: "media-deliver-outbox", payload: {} };
 		const copy = { taskId: "media-copy-account-input", payload: { promotionId: "copy" } };
@@ -24,7 +69,7 @@ describe("Worker executor workload boundaries", () => {
 		expect(() => assertWorkerInlineTask(parent, copy)).toThrow("CROSS_EXECUTOR_INLINE_TASK");
 		expect(() => assertWorkerInlineTask(parent, cleanup)).not.toThrow();
 	});
-	it("keeps targeted output delivery on the bounded control executor", () => {
+	it("keeps the legacy targeted-delivery receiver available during drain", () => {
 		expect(
 			workerExecutorForTask({
 				taskId: "media-deliver-output-review",

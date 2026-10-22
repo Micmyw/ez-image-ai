@@ -23,7 +23,6 @@ import {
 	createStagingObjectKey,
 	createSignedUpload,
 	deleteObject,
-	inspectPrivateImage,
 	normalizeVideoReferenceToPng,
 } from "@repo/storage";
 
@@ -135,13 +134,6 @@ export async function completeVideoEffectUpload(
 	const sourceInput = { contentType: asset.mimeType, byteSize: Number(asset.byteSize) };
 	validateVideoUpload(sourceInput, maximumBytes);
 	const source = { bucket: "media" as const, key: asset.objectKey };
-	// Both checks genuinely decode the content. Orientation may change dimensions during normalization.
-	await inspectPrivateImage({
-		...source,
-		contentType: sourceInput.contentType,
-		contentLength: sourceInput.byteSize,
-		ifMatch: asset.storageEtag!,
-	});
 	const final = { bucket: "media" as const, key: `${asset.objectKey}.template-input.png` };
 	const normalized = await normalizeVideoReferenceToPng({
 		source,
@@ -152,12 +144,6 @@ export async function completeVideoEffectUpload(
 		maximumBytes,
 	});
 	if (!normalized.etag) throw new Error("VIDEO_INPUT_NOT_SEALED");
-	const dimensions = await inspectPrivateImage({
-		...final,
-		contentType: "image/png",
-		contentLength: normalized.bytes,
-		ifMatch: normalized.etag,
-	});
 	const sealed = await recordVideoInputIdentity({
 		ownerId: user.id,
 		sessionId: input.sessionId,
@@ -169,7 +155,8 @@ export async function completeVideoEffectUpload(
 		versionId: normalized.versionId,
 		bytes: normalized.bytes,
 		mimeType: "image/png",
-		...dimensions,
+		width: normalized.width,
+		height: normalized.height,
 	});
 	await cleanupTemplateSource(user.id, input.sessionId, final.key).catch(() => undefined);
 	return sealedInputDto(sealed);

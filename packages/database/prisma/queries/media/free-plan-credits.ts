@@ -1,4 +1,5 @@
 import { findEffectivePaidSubscription } from "./billing";
+import { ensureCreditAccountInTransaction } from "./credit-accounts";
 import { createCreditGrant, hasMatchingCreditGrant } from "./credits";
 import { runSerializable, type MediaTransactionClient } from "./types";
 
@@ -70,11 +71,10 @@ export async function ensureFreeMonthlyCreditGrant(
 			return { status: "PAID_SUBSCRIPTION", referenceKey };
 		}
 
-		const account = await tx.creditAccount.upsert({
-			where: { ownerType_ownerId: { ownerType: "USER", ownerId: input.ownerId } },
-			create: { ownerType: "USER", ownerId: input.ownerId },
-			update: {},
-		});
+		const account = await ensureCreditAccountInTransaction(
+			{ ownerType: "USER", ownerId: input.ownerId },
+			tx,
+		);
 		await createCreditGrant(
 			{
 				accountId: account.id,

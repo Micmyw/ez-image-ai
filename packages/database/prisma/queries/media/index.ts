@@ -1,14 +1,18 @@
 export * from "./account-input-copy";
 export * from "./assets";
+export * from "./persisted-image-finalization";
+export * from "./streaming-image-finalization";
 export * from "./asset-binding-locks";
 export * from "./admin-diagnostics";
 export * from "./admin-growth-operations";
 export * from "./admin-safe-image-catalog";
 export * from "./admin-operations";
 export * from "./attempts";
+export * from "./dispatch-preparation";
 export * from "./billing";
 export * from "./payment-environment";
 export * from "./credit-allocations";
+export * from "./credit-accounts";
 export * from "./credits";
 export * from "./output-moderation-billing";
 export * from "./drafts";
@@ -23,6 +27,8 @@ export * from "./guest-retention";
 export * from "./jobs";
 export * from "./continuations";
 export * from "./kie-callback";
+export * from "./image-moderation-callback";
+export * from "./image-phase-ownership";
 export * from "./kie-zero-cost-rejection";
 export * from "./idempotency";
 export * from "./operations";
@@ -34,6 +40,7 @@ export * from "./storage-usage-locks";
 export * from "./storage-quota";
 export * from "./storage-cleanup";
 export * from "./temporary-references";
+export * from "./temporary-reference-status";
 export * from "./stripe-refund-repairs";
 export * from "./types";
 export * from "./webhooks";
@@ -44,7 +51,4 @@ export * from "./video-template-admission";
 export * from "./video-template-execution";
 export * from "./image-passes";
 
-export {
-	lockProviderDispatchCapacity,
-	PROVIDER_DISPATCH_RETRY_MS,
-} from "./provider-dispatch-capacity";
+export { PROVIDER_DISPATCH_RETRY_MS } from "./provider-dispatch-capacity";

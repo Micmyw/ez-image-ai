@@ -1,4 +1,3 @@
-import { ORPCError } from "@orpc/server";
 import { VIDEO_MODEL_CATALOG } from "@repo/config/video-models";
 import { isVideoRetailPricingApproved } from "@repo/config/video-pricing.server";
 import {
@@ -26,30 +25,12 @@ import { loadUserPlanEntitlement } from "../media/lib/plan-entitlement";
 import { enforceMediaRateLimit } from "../media/lib/rate-limit";
 import { maximumMediaStorageBytes } from "../media/lib/storage-limits";
 import { buildVideoCatalogModels, hasAvailableVideoModel } from "./catalog";
-import { createVideoPlayback } from "./playback";
+import { videoAction } from "./errors";
+import { createVideoPlayback, createVideoPlaybackFromAuthorizedAsset } from "./playback";
+import { submit } from "./procedures/submit";
 import { createVideoUpload, completeVideoUpload } from "./uploads";
 
 const jobInput = z.object({ jobId: z.string().min(1).max(160) }).strict();
-async function videoAction<T>(action: () => Promise<T>): Promise<T> {
-	try {
-		return await action();
-	} catch (error) {
-		if (error instanceof ORPCError) throw error;
-		const message = error instanceof Error ? error.message : "VIDEO_REQUEST_FAILED";
-		// Do not return provider messages, SQL errors, prompts, or private storage URLs.
-		const code = /^[A-Z][A-Z0-9_]{2,80}$/.test(message) ? message : "VIDEO_REQUEST_FAILED";
-		throw new ORPCError(
-			code === "IDEMPOTENCY_CONFLICT"
-				? "CONFLICT"
-				: code === "NOT_FOUND"
-					? "NOT_FOUND"
-					: code === "VIDEO_ACCESS_DENIED"
-						? "FORBIDDEN"
-						: "BAD_REQUEST",
-			{ message: code, data: { code } },
-		);
-	}
-}
 
 async function readCatalogPolicy(user: NonNullable<Parameters<typeof canAccessVideoV1>[1]>) {
 	const config = readVideoV1Config(process.env);
@@ -192,9 +173,15 @@ const create = protectedProcedure
 const get = protectedProcedure
 	.route({ method: "GET", path: "/video-v1/jobs/{jobId}", tags: ["Video V1"] })
 	.input(jobInput)
-	.handler(({ context: { user }, input }) =>
-		videoAction(() => getVideoPublicState({ userId: user.id }, input.jobId)),
-	);
+	.handler(({ context: { user, responseHeaders }, input }) => {
+		responseHeaders?.set("Cache-Control", "private, no-store");
+		return videoAction(() =>
+			getVideoPublicState({ userId: user.id }, input.jobId, (asset) => ({
+				...createVideoPlaybackFromAuthorizedAsset(user.id, input.jobId, asset),
+				ownerId: user.id,
+			})),
+		);
+	});
 const list = protectedProcedure
 	.route({ method: "GET", path: "/video-v1/jobs", tags: ["Video V1"] })
 	.input(
@@ -358,6 +345,6 @@ export const videoV1Router = {
 	availability,
 	quote,
 	uploads: { create: uploadCreate, complete: uploadComplete },
-	jobs: { create, get, list, playback },
+	jobs: { submit, create, get, list, playback },
 	admin: { diagnostics },
 };

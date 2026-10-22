@@ -41,6 +41,8 @@ vi.mock("@repo/database/client", () => ({
 vi.mock("@repo/database/video-v1", () => ({
 	createVideoJobRecord: vi.fn(async () => ({ jobId: "job-1", replayed: false })),
 	findExistingVideoAdmission: vi.fn(async () => null),
+	findExistingVideoSubmission: vi.fn(async () => null),
+	submitVideoJobRecord: vi.fn(async () => ({ kind: "created", jobId: "job-1", replayed: false })),
 	getVideoJobRecord: vi.fn(async () => fixtures.job),
 	listVideoJobRecords: vi.fn(),
 }));
@@ -48,9 +50,20 @@ vi.mock("@repo/database/video-v1-fulfillment", () => ({ authorizeVideoPlayback: 
 vi.mock("./workflow-binding", () => ({ getVideoWorkflowBinding: () => undefined }));
 
 import { resolveVideoModelPrice } from "@repo/config/video-pricing.server";
-import { createVideoJobRecord, findExistingVideoAdmission } from "@repo/database/video-v1";
+import {
+	createVideoJobRecord,
+	findExistingVideoAdmission,
+	findExistingVideoSubmission,
+	submitVideoJobRecord,
+	getVideoJobRecord,
+} from "@repo/database/video-v1";
 
-import { createVideoJob, requireVideoAdmission, requireVideoModelReadiness } from "./admission";
+import {
+	createVideoJob,
+	submitVideoJob,
+	requireVideoAdmission,
+	requireVideoModelReadiness,
+} from "./admission";
 
 const environment = {
 	VIDEO_V1_ENABLED: "true",
@@ -95,6 +108,97 @@ beforeEach(() => {
 	vi.clearAllMocks();
 	fixtures.job.videoExecution.stage = "QUEUED";
 	vi.mocked(findExistingVideoAdmission).mockResolvedValue(null);
+	vi.mocked(findExistingVideoSubmission).mockReset().mockResolvedValue(null);
+	vi.mocked(submitVideoJobRecord)
+		.mockReset()
+		.mockResolvedValue({ kind: "created", jobId: "job-1", replayed: false });
+});
+describe("combined video submit orchestration", () => {
+	const input = {
+		request: legacyRequest,
+		idempotencyKey: "one-key",
+		expectedCredits: "42",
+		expectedPricing: null,
+	};
+	const owner = { userId: "registered-user", role: "user" };
+	it("loads current admission once and submits the server-owned price through one database operation", async () => {
+		const loadLimits = vi.fn().mockResolvedValue(options.limits);
+		const result = await submitVideoJob(owner, input, { ...options, loadLimits });
+		expect(result).toMatchObject({ kind: "created", state: { jobId: "job-1" } });
+		expect(loadLimits).toHaveBeenCalledOnce();
+		expect(resolveVideoModelPrice).toHaveBeenCalledOnce();
+		expect(submitVideoJobRecord).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({
+				...input,
+				ownerId: owner.userId,
+				price: expect.objectContaining({ credits: 42n }),
+			}),
+			expect.anything(),
+		);
+		expect(createVideoJobRecord).not.toHaveBeenCalled();
+	});
+	it.each(["QUEUED", "SUBMISSION_UNCERTAIN"])(
+		"replays accepted %s before disabled admission, changed prices or expired input policies",
+		async (stage) => {
+			vi.mocked(findExistingVideoSubmission).mockResolvedValue({ id: "job-1" } as never);
+			fixtures.job.videoExecution.stage = stage;
+			const loadLimits = vi.fn().mockRejectedValue(new Error("SHOULD_NOT_LOAD"));
+			const result = await submitVideoJob(owner, input, {
+				...options,
+				loadLimits,
+				environment: { VIDEO_V1_ENABLED: "false", MEDIA_GENERATION_ENABLED: "false" },
+			});
+			expect(result).toMatchObject({ kind: "created", state: { jobId: "job-1", stage } });
+			expect(loadLimits).not.toHaveBeenCalled();
+			expect(resolveVideoModelPrice).not.toHaveBeenCalled();
+			expect(submitVideoJobRecord).not.toHaveBeenCalled();
+		},
+	);
+	it("recovers the original job after a lost database commit acknowledgement", async () => {
+		vi.mocked(findExistingVideoSubmission)
+			.mockResolvedValueOnce(null)
+			.mockResolvedValueOnce({ id: "job-1" } as never);
+		vi.mocked(submitVideoJobRecord).mockRejectedValueOnce(new Error("COMMIT_RESPONSE_LOST"));
+		expect(
+			await submitVideoJob(owner, input, { ...options, loadLimits: async () => options.limits }),
+		).toMatchObject({ kind: "created", state: { jobId: "job-1" } });
+		expect(submitVideoJobRecord).toHaveBeenCalledOnce();
+	});
+	it("recovers a concurrent acceptance before returning a newly closed admission error", async () => {
+		vi.mocked(findExistingVideoSubmission)
+			.mockResolvedValueOnce(null)
+			.mockResolvedValueOnce({ id: "job-1" } as never);
+		const result = await submitVideoJob(owner, input, {
+			...options,
+			loadLimits: async () => options.limits,
+			environment: { ...environment, VIDEO_V1_ENABLED: "false" },
+		});
+		expect(result).toMatchObject({ kind: "created", state: { jobId: "job-1" } });
+		expect(submitVideoJobRecord).not.toHaveBeenCalled();
+	});
+	it("does not replace an unresolved submission with another attempt", async () => {
+		vi.mocked(submitVideoJobRecord).mockRejectedValueOnce(new Error("UNKNOWN_COMMIT"));
+		await expect(
+			submitVideoJob(owner, input, { ...options, loadLimits: async () => options.limits }),
+		).rejects.toThrow("UNKNOWN_COMMIT");
+		expect(submitVideoJobRecord).toHaveBeenCalledOnce();
+	});
+	it("returns a changed quote without starting work or reading a fabricated job", async () => {
+		const result = {
+			kind: "quote_only" as const,
+			quote: {
+				quoteId: "price-change",
+				credits: "43",
+				expiresAt: "2030-01-01T00:00:00.000Z",
+				requestFingerprint: "fingerprint",
+			},
+		};
+		vi.mocked(submitVideoJobRecord).mockResolvedValueOnce(result);
+		expect(
+			await submitVideoJob(owner, input, { ...options, loadLimits: async () => options.limits }),
+		).toEqual(result);
+		expect(getVideoJobRecord).not.toHaveBeenCalled();
+	});
 });
 describe("video admission pricing and shared credit funding binding", () => {
 	it("keeps frozen Seedance 1.5 Pro runtime readiness independent of new admission retirement", () => {

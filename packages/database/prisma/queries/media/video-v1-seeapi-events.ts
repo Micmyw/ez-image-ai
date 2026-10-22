@@ -8,6 +8,12 @@ import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { runReadCommitted } from "./types";
 import type { VideoModerationEventReference } from "./video-v1-moderation-events";
 
+export {
+	listPendingSeeapiVideoInputModerationEvents,
+	markSeeapiVideoInputModerationWebhookNotified,
+	persistSeeapiVideoInputModerationWebhook,
+} from "./video-v1-input-seeapi-events";
+
 const ENGINE = "video-workflow-v1";
 const PROVIDER = "seeapi-video-v1";
 const MAX_CONFIRMATION_READS = 3;

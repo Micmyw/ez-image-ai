@@ -2,7 +2,12 @@ import { createHmac } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { createSeeapiVideoCallbackUrl, verifySeeapiVideoCallbackUrl } from "./seeapi-callback-url";
+import {
+	createSeeapiVideoCallbackUrl,
+	verifySeeapiVideoCallbackUrl,
+	createSeeapiVideoInputCallbackUrl,
+	verifySeeapiVideoInputCallbackUrl,
+} from "./seeapi-callback-url";
 
 const environment: Record<string, string | undefined> = {
 	NEXT_PUBLIC_SAAS_URL: "https://video.example.com",
@@ -13,6 +18,58 @@ const environment: Record<string, string | undefined> = {
 	}),
 };
 const identity = { assetId: "video_asset-123", generation: 2, attemptNumber: 3 };
+
+describe("SeeAPI video input callback URL", () => {
+	const input = {
+		jobId: "input-job",
+		assetId: "input-asset",
+		submissionToken: "persisted-submission-token",
+	};
+	it("binds the job, asset and persisted submission token without changing output callback semantics", async () => {
+		const url = await createSeeapiVideoInputCallbackUrl(input, environment);
+		expect(await verifySeeapiVideoInputCallbackUrl(url, environment)).toEqual(input);
+		expect(await verifySeeapiVideoCallbackUrl(url, environment)).toBeNull();
+		expect(
+			await verifySeeapiVideoInputCallbackUrl(
+				await createSeeapiVideoCallbackUrl(identity, environment),
+				environment,
+			),
+		).toBeNull();
+	});
+	it.each(["job", "submission", "phase", "proof"])("rejects a changed %s", async (field) => {
+		const url = new URL(await createSeeapiVideoInputCallbackUrl(input, environment));
+		url.searchParams.set(field, "changed-different-identity");
+		expect(await verifySeeapiVideoInputCallbackUrl(url.href, environment)).toBeNull();
+	});
+	it.each(["phase", "job", "submission", "proof"])("rejects duplicate %s fields", async (field) => {
+		const url = new URL(await createSeeapiVideoInputCallbackUrl(input, environment));
+		url.searchParams.append(field, url.searchParams.get(field)!);
+		expect(await verifySeeapiVideoInputCallbackUrl(url.href, environment)).toBeNull();
+	});
+	it("rejects a transplanted asset, origin, or output-purpose HMAC", async () => {
+		const url = new URL(await createSeeapiVideoInputCallbackUrl(input, environment));
+		url.pathname = "/api/webhooks/video-v1/seeapi/another-asset";
+		expect(await verifySeeapiVideoInputCallbackUrl(url.href, environment)).toBeNull();
+		const original = new URL(await createSeeapiVideoInputCallbackUrl(input, environment));
+		const wrongOrigin = new URL(original);
+		wrongOrigin.hostname = "another.example.com";
+		expect(await verifySeeapiVideoInputCallbackUrl(wrongOrigin.href, environment)).toBeNull();
+		original.searchParams.set(
+			"proof",
+			createHmac("sha256", environment.VIDEO_SEEAPI_CALLBACK_SECRET!)
+				.update(
+					JSON.stringify([
+						"ezpic:video-v1:seeapi-moderation-callback:v1",
+						input.jobId,
+						input.assetId,
+						input.submissionToken,
+					]),
+				)
+				.digest("hex"),
+		);
+		expect(await verifySeeapiVideoInputCallbackUrl(original.href, environment)).toBeNull();
+	});
+});
 
 async function validCallbackUrl() {
 	return new URL(await createSeeapiVideoCallbackUrl(identity, environment));

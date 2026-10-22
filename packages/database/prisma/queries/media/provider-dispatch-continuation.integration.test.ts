@@ -34,7 +34,7 @@ beforeAll(async () => {
   "aggregateId" text NOT NULL, "dedupeKey" text UNIQUE NOT NULL, payload jsonb NOT NULL,
   status text NOT NULL DEFAULT 'PENDING', attempts integer NOT NULL DEFAULT 0,
   "availableAt" timestamptz NOT NULL, "createdAt" timestamptz NOT NULL DEFAULT now(),
-  "leaseOwner" text, "leaseToken" text, "leasedUntil" timestamptz, "processedAt" timestamptz
+  "leaseOwner" text, "leaseToken" text, "leasedUntil" timestamptz, "processedAt" timestamptz, "lastError" text
  )`);
 });
 afterAll(async () => {
@@ -95,6 +95,11 @@ function port(): MediaTransactionClient {
 		}
 	};
 	return {
+		$queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) =>
+			connection(async (client) => {
+				const sql = sqltag(strings, ...values);
+				return (await client.query(sql.text, sql.values)).rows;
+			}),
 		$transaction: async <T>(
 			operation: (tx: unknown) => Promise<T>,
 			options: { isolationLevel: string },

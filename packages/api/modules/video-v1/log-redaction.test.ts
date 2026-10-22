@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { redactVideoAccessLog } from "./log-redaction";
 
 describe("private video callback access logs", () => {
+	it("redacts image moderation callback identity and proof", () => {
+		expect(
+			redactVideoAccessLog(
+				"POST /api/webhooks/moderation/seeapi-image?asset=private&generation=1&submission=private&token=secret 202",
+			),
+		).toBe("POST /api/webhooks/moderation/seeapi-image?[redacted] 202");
+	});
 	it("redacts the template scene callback token", () => {
 		expect(
 			redactVideoAccessLog(

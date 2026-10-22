@@ -6,6 +6,7 @@ import { seeapiUpstream } from "./test-support/seeapi-workerd-upstream";
 export default defineConfig({
 	test: {
 		projects: [
+			"./vitest.realtime.config.ts",
 			{
 				plugins: [
 					cloudflareTest({

@@ -2,6 +2,8 @@ import type { NormalizedResult, ProviderTaskSnapshot } from "@repo/ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/database", () => ({
+	getImagePhaseOwner: async () => undefined,
+	getProviderEventDeliveryWait: async () => 0,
 	getGenerationFundingReservation: async (
 		jobId: string,
 		tx: {

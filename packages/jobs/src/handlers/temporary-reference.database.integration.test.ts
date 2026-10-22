@@ -11,6 +11,8 @@ import {
 	type TemporaryReference,
 } from "@repo/config";
 import {
+	applyAdminModerationReview,
+	commitTemporaryReferenceVerificationTransaction,
 	createCreditGrant,
 	createGenerationJobTransaction,
 	createModeratedGenerationQuoteTransaction,
@@ -23,6 +25,7 @@ import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
+import { IMAGE_APPROVAL_NO_TIME_EXPIRY } from "../media-approval-lifetime";
 import {
 	createDatabaseDispatchStore,
 	createDatabaseSettlementStore,
@@ -71,7 +74,11 @@ beforeAll(async () => {
 });
 afterAll(async () => client?.$disconnect());
 
-async function fixture(referenceRemainingMs = 86_400_000) {
+async function fixture(
+	referenceRemainingMs = 86_400_000,
+	preReview = false,
+	verificationPolicyVersion = MEDIA_VERIFICATION_POLICY_VERSION,
+) {
 	const ownerId = `temporary-test-${crypto.randomUUID()}`;
 	const assetId = crypto.randomUUID();
 	const now = new Date();
@@ -95,7 +102,22 @@ async function fixture(referenceRemainingMs = 86_400_000) {
 		},
 		client,
 	);
-	await finalizeStorageUsageReservation(storageReservation.id, "COMMITTED", client);
+	const prepare = () =>
+		commitTemporaryReferenceVerificationTransaction(
+			{
+				ownerId,
+				reservationId: storageReservation.id,
+				reference,
+				verification: {
+					provider: "seeapi",
+					ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+					policyVersion: verificationPolicyVersion,
+				},
+			},
+			client,
+		);
+	const preparation = preReview ? await prepare() : undefined;
+	if (!preReview) await finalizeStorageUsageReservation(storageReservation.id, "COMMITTED", client);
 	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
 	await createCreditGrant(
 		{ accountId: account.id, amount: 100n, referenceKey: `temporary-grant:${ownerId}` },
@@ -172,7 +194,7 @@ async function fixture(referenceRemainingMs = 86_400_000) {
 			},
 			client,
 		);
-	return { ownerId, assetId, reference, account, quote, create };
+	return { ownerId, assetId, reference, account, quote, create, prepare, preparation };
 }
 
 function verification(safety: TestMediaSafetyAdapter) {
@@ -186,7 +208,246 @@ function verification(safety: TestMediaSafetyAdapter) {
 	});
 }
 
+async function requestAdminReview(assetId: string, action: "RECHECK" | "REJECT") {
+	const asset = await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } });
+	const now = new Date();
+	const review = await client.moderationReview.create({
+		data: {
+			targetType: "ASSET",
+			targetId: assetId,
+			provider: "seeapi",
+			stage: "IMAGE",
+			status: "PENDING_REVIEW",
+			attemptEpoch: String(asset.verificationGeneration),
+			lastErrorCode: "MANUAL_REVIEW_REQUESTED",
+			firstFailureAt: now,
+			lastFailureAt: now,
+		},
+	});
+	return applyAdminModerationReview(
+		{
+			reviewId: review.id,
+			version: review.version,
+			action,
+			reason: "Fixture requests a review of the immutable input",
+			idempotencyKey: `temporary-review:${assetId}:${action}`,
+			actorUserId: "temporary-review-test-admin",
+			verification: {
+				provider: "seeapi",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+			},
+		},
+		client,
+	);
+}
+
 describe("temporary reference generation boundary", () => {
+	it("reviews a committed upload before Generate and reuses the approved generation without another paid review", async () => {
+		const f = await fixture(86_400_000, true);
+		expect(f.preparation?.continuationEventIds).toHaveLength(1);
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+		expect(await client.creditAccount.findUnique({ where: { id: f.account.id } })).toMatchObject({
+			reservedCredits: 0n,
+		});
+		const safety = new TestMediaSafetyAdapter("ALLOW");
+		const moderate = vi.spyOn(safety, "moderateImage");
+		const verifier = verification(safety);
+		await verifier.verify(f.assetId);
+		const approved = await client.mediaAsset.findUniqueOrThrow({ where: { id: f.assetId } });
+		expect(approved).toMatchObject({
+			status: "READY",
+			verificationGeneration: 1,
+			checksum: f.reference.checksum,
+		});
+		const { job, continuationEventIds } = await f.create();
+		expect(
+			await client.outboxEvent.findMany({
+				where: { id: { in: continuationEventIds } },
+				select: { eventType: true },
+			}),
+		).toEqual([{ eventType: "JOB_CREATED" }]);
+		await verifier.verify(f.assetId);
+		expect(moderate).toHaveBeenCalledOnce();
+		expect(await client.mediaAsset.findUnique({ where: { id: f.assetId } })).toMatchObject({
+			verificationGeneration: approved.verificationGeneration,
+			verificationAttemptCount: approved.verificationAttemptCount,
+		});
+		expect(
+			await client.outboxEvent.count({
+				where: { aggregateId: f.assetId, eventType: "MEDIA_ASSET_VERIFY" },
+			}),
+		).toBe(1);
+		expect(
+			await dispatchStore().claimDispatch({ jobId: job.id, version: job.version }),
+		).not.toBeNull();
+	});
+	it("attaches Generate to pre-existing PENDING review and never duplicates its paid submit", async () => {
+		const f = await fixture(86_400_000, true);
+		let pending = true;
+		const submitImage = vi.fn(async (input: { idempotencyKey: string; ruleVersion: string }) => ({
+			moderationTaskId: `pre-review-${f.assetId}`,
+			status: "QUEUED" as const,
+			ruleVersion: input.ruleVersion,
+			idempotency: { key: input.idempotencyKey, providerSupported: false, replayed: false },
+		}));
+		const retrieveImage = vi.fn(async ({ ruleVersion }: { ruleVersion: string }) => ({
+			decision: pending ? ("REVIEW" as const) : ("ALLOW" as const),
+			reasonCode: pending ? "IMAGE_PROCESSING" : "NO_POLICY_MATCH",
+			ruleVersion,
+		}));
+		const verifier = verification(
+			Object.assign(new TestMediaSafetyAdapter("ERROR"), { submitImage, retrieveImage }),
+		);
+		await verifier.verify(f.assetId);
+		const reviewing = await client.mediaAsset.findUniqueOrThrow({ where: { id: f.assetId } });
+		expect(reviewing.verificationProviderTaskId).toBe(`pre-review-${f.assetId}`);
+		expect(await f.prepare()).toMatchObject({ continuationEventIds: [] });
+		const { job } = await f.create();
+		expect(await client.mediaAsset.findUnique({ where: { id: f.assetId } })).toMatchObject({
+			verificationGeneration: reviewing.verificationGeneration,
+			verificationProviderTaskId: reviewing.verificationProviderTaskId,
+			verificationSubmissionToken: reviewing.verificationSubmissionToken,
+		});
+		expect(await dispatchStore().claimDispatch({ jobId: job.id, version: job.version })).toBeNull();
+		pending = false;
+		await client.mediaAsset.update({
+			where: { id: f.assetId },
+			data: { verificationNextAttemptAt: new Date(0) },
+		});
+		await verifier.verify(f.assetId);
+		expect(submitImage).toHaveBeenCalledOnce();
+		expect(retrieveImage).toHaveBeenCalledTimes(2);
+		expect(
+			await dispatchStore().claimDispatch({ jobId: job.id, version: job.version }),
+		).not.toBeNull();
+	});
+	it("rejects a complete historical approval under the old policy before reserving credits", async () => {
+		const oldPolicy = "media-policy-2026-09-08.1";
+		const f = await fixture(86_400_000, true, oldPolicy);
+		// Reproduce an old receiver's valid commit: append complete evidence first,
+		// then publish READY under that same policy. Existing evidence is never edited.
+		const original = await client.$transaction(async (tx) => {
+			const validUntil = new Date(IMAGE_APPROVAL_NO_TIME_EXPIRY);
+			const evidence = await tx.assetModerationResult.create({
+				data: {
+					assetId: f.assetId,
+					assetChecksum: f.reference.checksum,
+					verificationGeneration: 1,
+					attemptNumber: 1,
+					evidenceKind: "INPUT",
+					provider: "seeapi",
+					providerTaskId: null,
+					ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+					policyVersion: oldPolicy,
+					status: "APPROVED",
+					reasonCode: "TEST_HISTORICAL_ALLOW",
+					categories: {},
+					rawEnvelope: { decision: "ALLOW" },
+					validUntil,
+				},
+			});
+			await tx.mediaAsset.update({
+				where: { id: f.assetId },
+				data: {
+					status: "READY",
+					verificationAttemptCount: 1,
+					verificationValidUntil: validUntil,
+					verificationDeadlineAt: null,
+				},
+			});
+			return evidence;
+		});
+		await expect(f.create()).rejects.toThrow("ASSET_MODERATION_EVIDENCE_STALE");
+		expect(await client.assetModerationResult.findUnique({ where: { id: original.id } })).toEqual(
+			original,
+		);
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+		expect(await client.creditAccount.findUnique({ where: { id: f.account.id } })).toMatchObject({
+			reservedCredits: 0n,
+		});
+	});
+	it("reserves a waiting job during legal reverification but cannot dispatch using an earlier generation's approval", async () => {
+		const f = await fixture(86_400_000, true);
+		const safety = new TestMediaSafetyAdapter("ALLOW");
+		const moderate = vi.spyOn(safety, "moderateImage");
+		const verifier = verification(safety);
+		await verifier.verify(f.assetId);
+		const original = await client.assetModerationResult.findFirstOrThrow({
+			where: { assetId: f.assetId },
+		});
+		await requestAdminReview(f.assetId, "RECHECK");
+		expect(await client.mediaAsset.findUnique({ where: { id: f.assetId } })).toMatchObject({
+			status: "VERIFYING",
+			verificationGeneration: 2,
+			verificationAttemptCount: 0,
+		});
+		expect(
+			await client.assetModerationResult.count({
+				where: { assetId: f.assetId, verificationGeneration: 2 },
+			}),
+		).toBe(0);
+		// VERIFYING admission intentionally reserves and waits; it is not approval.
+		const { job } = await f.create();
+		expect(await client.creditAccount.findUnique({ where: { id: f.account.id } })).toMatchObject({
+			reservedCredits: 5n,
+		});
+		expect(await dispatchStore().claimDispatch({ jobId: job.id, version: job.version })).toBeNull();
+		expect(await client.generationAttempt.count({ where: { jobId: job.id } })).toBe(0);
+		await verifier.verify(f.assetId);
+		expect(moderate).toHaveBeenCalledTimes(2);
+		expect(
+			await client.assetModerationResult.findFirstOrThrow({
+				where: { assetId: f.assetId, verificationGeneration: 2 },
+			}),
+		).toMatchObject({ status: "APPROVED" });
+		expect(await client.assetModerationResult.findUnique({ where: { id: original.id } })).toEqual(
+			original,
+		);
+		const current = await client.generationJob.findUniqueOrThrow({ where: { id: job.id } });
+		expect(
+			await dispatchStore().claimDispatch({ jobId: job.id, version: current.version }),
+		).not.toBeNull();
+	});
+	it("rejects an approval revoked by an appended administrator decision without rewriting prior evidence", async () => {
+		const f = await fixture(86_400_000, true);
+		await verification(new TestMediaSafetyAdapter("ALLOW")).verify(f.assetId);
+		const original = await client.assetModerationResult.findFirstOrThrow({
+			where: { assetId: f.assetId },
+		});
+		await requestAdminReview(f.assetId, "REJECT");
+		expect(
+			await client.assetModerationResult.findFirstOrThrow({
+				where: { assetId: f.assetId },
+				orderBy: { attemptNumber: "desc" },
+			}),
+		).toMatchObject({ status: "REJECTED", attemptNumber: original.attemptNumber + 1 });
+		expect(await client.assetModerationResult.findUnique({ where: { id: original.id } })).toEqual(
+			original,
+		);
+		expect(await client.mediaAsset.findUnique({ where: { id: f.assetId } })).toMatchObject({
+			status: "QUARANTINED",
+		});
+		await expect(f.create()).rejects.toThrow("ASSET_NOT_READY");
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+		expect(await client.creditAccount.findUnique({ where: { id: f.account.id } })).toMatchObject({
+			reservedCredits: 0n,
+		});
+	});
+	it("concurrent preparation commits one review generation and one outbox intent", async () => {
+		const f = await fixture();
+		const results = await Promise.all([f.prepare(), f.prepare()]);
+		expect(results.flatMap((result) => result.continuationEventIds)).toHaveLength(1);
+		expect(
+			await client.outboxEvent.count({
+				where: { aggregateId: f.assetId, eventType: "MEDIA_ASSET_VERIFY" },
+			}),
+		).toBe(1);
+		expect(await client.mediaAsset.findUnique({ where: { id: f.assetId } })).toMatchObject({
+			verificationGeneration: 1,
+		});
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+	});
 	it("allows a still-valid reference close to expiry through moderation and dispatch", async () => {
 		const f = await fixture(60_000);
 		const { job } = await f.create();
@@ -293,7 +554,8 @@ describe("temporary reference generation boundary", () => {
 		expect(submitImage).toHaveBeenCalledOnce();
 		expect(retrieveImage).toHaveBeenCalledTimes(2);
 		const claim = await dispatchStore().claimDispatch({ jobId: job.id, version: 0 });
-		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+		if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+			throw new Error("Expected available provider capacity");
 		expect(claim).not.toBeNull();
 		expect(claim!.input).toMatchObject({
 			sourceAsset: { assetId: f.assetId, transferUrl: submitImage.mock.calls[0]![0].assetUrl },

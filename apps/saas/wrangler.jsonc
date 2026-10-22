@@ -7,8 +7,13 @@
 	"keep_names": false,
 	"workers_dev": false,
 	"preview_urls": false,
-	"observability": { "enabled": true },
-	"assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+	"observability": {
+		"enabled": true
+	},
+	"assets": {
+		"directory": ".open-next/assets",
+		"binding": "ASSETS"
+	},
 	"vars": {
 		"CANONICAL_ORIGIN": "http://localhost:8787",
 		"EZPIC_RUNTIME": "workers",
@@ -16,11 +21,24 @@
 		"MEDIA_TRUSTED_PROXY_PROVIDER": "cloudflare",
 		"VIDEO_V1_ENABLED": "false"
 	},
-	"images": { "binding": "IMAGES" },
-	"hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }],
+	"images": {
+		"binding": "IMAGES"
+	},
+	"hyperdrive": [
+		{
+			"binding": "HYPERDRIVE",
+			"id": "00000000000000000000000000000000"
+		}
+	],
 	"r2_buckets": [
-		{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "ezimageai-web-cache-local" },
-		{ "binding": "VIDEO_MEDIA_BUCKET", "bucket_name": "ezpic-media-local" }
+		{
+			"binding": "NEXT_INC_CACHE_R2_BUCKET",
+			"bucket_name": "ezimageai-web-cache-local"
+		},
+		{
+			"binding": "VIDEO_MEDIA_BUCKET",
+			"bucket_name": "ezpic-media-local"
+		}
 	],
 	"workflows": [
 		{
@@ -30,14 +48,37 @@
 			"script_name": "ezpic-workflows-workers-local"
 		}
 	],
-	"services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "ezimageai-web-local" }],
+	"services": [
+		{
+			"binding": "WORKER_SELF_REFERENCE",
+			"service": "ezimageai-web-local"
+		},
+		{
+			"binding": "JOBS_DISPATCH",
+			"service": "ezpic-workflows-workers-local"
+		}
+	],
 	"durable_objects": {
 		"bindings": [
-			{ "name": "NEXT_CACHE_DO_QUEUE", "class_name": "DOQueueHandler" },
-			{ "name": "NEXT_TAG_CACHE_DO_SHARDED", "class_name": "DOShardedTagCache" }
+			{
+				"name": "NEXT_CACHE_DO_QUEUE",
+				"class_name": "DOQueueHandler"
+			},
+			{
+				"name": "NEXT_TAG_CACHE_DO_SHARDED",
+				"class_name": "DOShardedTagCache"
+			},
+			{
+				"name": "MEDIA_JOB_EVENTS",
+				"class_name": "MediaJobEvents",
+				"script_name": "ezpic-workflows-workers-local"
+			}
 		]
 	},
 	"migrations": [
-		{ "tag": "workers-cache-v1", "new_sqlite_classes": ["DOQueueHandler", "DOShardedTagCache"] }
+		{
+			"tag": "workers-cache-v1",
+			"new_sqlite_classes": ["DOQueueHandler", "DOShardedTagCache"]
+		}
 	]
 }

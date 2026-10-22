@@ -1,4 +1,9 @@
-import { OutboxDeliveryPendingError, type OutboxDependencies } from "../contracts";
+import {
+	OutboxDeliveryPendingError,
+	ProviderEventPhaseHeldError,
+	type OutboxDependencies,
+} from "../contracts";
+import type { TaskContinuation } from "../orchestration/contracts";
 
 const SAFE_DELIVERY_ERROR_CODES = new Set([
 	"WORKFLOWS_DISPATCH_REJECTED",
@@ -26,7 +31,7 @@ export async function dispatchOutbox(
 		eventIds?: string[];
 	},
 	dependencies: OutboxDependencies,
-): Promise<{ claimed: number; delivered: number }> {
+): Promise<{ claimed: number; delivered: number; continuations?: TaskContinuation[] }> {
 	const events = await dependencies.store.claimBatch({
 		workerId: input.workerId,
 		limit: Math.min(Math.max(input.limit ?? 25, 1), 100),
@@ -37,15 +42,18 @@ export async function dispatchOutbox(
 			: { outputReviewEventId: input.outputReviewEventId }),
 	});
 	let delivered = 0;
+	const continuations: TaskContinuation[] = [];
 	for (const event of events) {
 		try {
-			await dependencies.deliver(event);
+			const continuation = await dependencies.deliver(event);
 			await dependencies.store.complete(event.id, input.workerId, event.leaseToken);
 			delivered += 1;
+			if (continuation) continuations.push(continuation);
 		} catch (error) {
 			const now = dependencies.now?.() ?? new Date();
 			if (
 				error instanceof OutboxDeliveryPendingError ||
+				error instanceof ProviderEventPhaseHeldError ||
 				((input.outputReviewEventId ||
 					input.eventIds ||
 					[
@@ -66,7 +74,10 @@ export async function dispatchOutbox(
 					id: event.id,
 					workerId: input.workerId,
 					leaseToken: event.leaseToken,
-					retryAt: new Date(now.getTime() + 30_000),
+					retryAt: new Date(
+						now.getTime() +
+							(error instanceof ProviderEventPhaseHeldError ? error.retryAfterMs : 30_000),
+					),
 				});
 				continue;
 			}
@@ -80,5 +91,5 @@ export async function dispatchOutbox(
 			});
 		}
 	}
-	return { claimed: events.length, delivered };
+	return { claimed: events.length, delivered, ...(continuations.length ? { continuations } : {}) };
 }

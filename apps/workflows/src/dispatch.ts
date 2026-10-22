@@ -1,10 +1,11 @@
 import { readBoundedBody, verifyRequest, workflowInstanceId } from "@repo/jobs/orchestration/auth";
 import { createJobDispatcher } from "@repo/jobs/orchestration/client";
 import type { TaskRequest } from "@repo/jobs/orchestration/contracts";
-import { parseTaskRequest } from "@repo/jobs/orchestration/registry";
+import { isWorkflowEventTask, parseTaskRequest } from "@repo/jobs/orchestration/registry";
 
 export type JobsParams =
-	| { kind: "task"; request: TaskRequest }
+	| { kind: "task"; request: TaskRequest; executionVersion?: 2 }
+	| { kind: "continuation"; request: TaskRequest; notBefore?: number; executionVersion?: 2 }
 	| { kind: "maintenance"; timestamp: number };
 export interface WorkflowCreator {
 	createBatch(
@@ -14,7 +15,11 @@ export interface WorkflowCreator {
 			retention?: { successRetention: "1 day"; errorRetention: "7 days" };
 		}[],
 	): Promise<unknown>;
-	get(id: string): Promise<{ status(): Promise<{ status: string }>; restart(): Promise<void> }>;
+	get(id: string): Promise<{
+		status(): Promise<{ status: string }>;
+		restart(): Promise<void>;
+		sendEvent?(event: { type: string; payload: unknown }): Promise<void>;
+	}>;
 }
 
 export function createWorkflowBindingDispatcher(input: {
@@ -86,7 +91,14 @@ export async function handleDispatch(
 		await workflows.createBatch([
 			{
 				id,
-				params: { kind: "task", request: task },
+				params: {
+					kind: "task",
+					request: task,
+					...(isWorkflowEventTask(task.taskId) ||
+					["media-deliver-events", "media-poll-generation"].includes(task.taskId)
+						? { executionVersion: 2 as const }
+						: {}),
+				},
 				retention: { successRetention: "1 day", errorRetention: "7 days" },
 			},
 		]);

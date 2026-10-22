@@ -1,0 +1,671 @@
+{
+	"auditDate": "2026-10-22",
+	"timezone": "Asia/Shanghai",
+	"baseHead": "3383e74474125d8242731d728df92c9f4ecac901",
+	"baseline": "current working tree including prior uncommitted optimization; source hashes identify inspected files",
+	"newGenerationRunsPerformed": 0,
+	"productionQueriesPerformed": 0,
+	"limitations": [
+		"One recorded run per scenario; these are not percentiles or a paired before/after benchmark.",
+		"68-byte output fixture; fixed provider and review delays; local workerd/PostgreSQL/MinIO.",
+		"Harness polls every 250 ms; product visible-tab polling is 2000 ms.",
+		"nonProviderWallTimeMs includes review service time, I/O, database work, and scheduling; it is not all removable overhead.",
+		"Execution durations may overlap provider time and may include post-visible settlement. Do not sum them as critical-path duration.",
+		"connectionWaitMs and sqlExecutionMs are not measured in the existing flow timings.",
+		"Source inspection establishes code behavior, not deployed configuration or production latency."
+	],
+	"codeSnapshot": [
+		{
+			"path": "apps/workflows/src/orchestrator.ts",
+			"sha256": "e683b55dde0c374cfe9c7c81f3f6eb899602acacd9cf6cc8c4fd4ab033afc0b6"
+		},
+		{
+			"path": "apps/workflows/src/workers.ts",
+			"sha256": "df0712cdf02bcd24dcf085b473abd36c0e6c637dd1ea41a74cb78a2ea01788f3"
+		},
+		{
+			"path": "apps/workflows/src/video-orchestrator.ts",
+			"sha256": "e1577cfaa39b520c3e2d9ce7378c08b4550003947b45d7fa991590f2b191f9e6"
+		},
+		{
+			"path": "packages/jobs/src/runtime.ts",
+			"sha256": "2c9d88c9ddec88bf7e9048427ed89ed4193e6a79cc05e8a33359e1f60201989a"
+		},
+		{
+			"path": "packages/jobs/src/video-v1/submission.ts",
+			"sha256": "50576fa245596bd439f6383c23b6b0d85ef4ff2b7ec0f49994efceeadb9bef61"
+		},
+		{
+			"path": "packages/database/prisma/client.ts",
+			"sha256": "a45e784493f91592aa55f006aaac05fe8135e805fc319c6a63774dbb8dc6c62f"
+		},
+		{
+			"path": "packages/database/prisma/queries/media/video-v1-execution.ts",
+			"sha256": "c9c0078c61299de6e86cb86b92e3a70395ec2978953f36d0123b458f29494997"
+		},
+		{
+			"path": "packages/jobs/src/video-v1/output-storage.ts",
+			"sha256": "cfdedcb4b3364344dda04cb6fda90ff81078619e6e82baaee988a6f9bf0b26a5"
+		},
+		{
+			"path": "packages/storage/lib/stream-copy.ts",
+			"sha256": "ec81050776c312e7738e53e073f5a891fa794df405db0fbf53131a29a6a6c256"
+		},
+		{
+			"path": "packages/config/video-v1.ts",
+			"sha256": "00366f50c955331b19b6eb6eb86bdfe6a970b76da0aa0dad19bf8f448bab58b5"
+		},
+		{
+			"path": "tooling/e2e/src/scanless-runtime.mts",
+			"sha256": "6d423d78d32c629742cfae1a47a97a36a5ff694834e965b8ed46cc3fa85b339b"
+		},
+		{
+			"path": "packages/jobs/src/orchestration/client.ts",
+			"sha256": "c85049fed440cd3c4c9f583fc5ee570b1a38e48951f39573d3fd94e509839654"
+		},
+		{
+			"path": "apps/saas/modules/media/lib/job-status.ts",
+			"sha256": "9c956ff4347254d900a73b646ba1c9975e27a67b098005363ba9e46385eaf5d1"
+		},
+		{
+			"path": "apps/saas/modules/video-v1/model.ts",
+			"sha256": "a4346d7cfc23c84317eccc2c32cbc90ec813c82a28a9218bb30b88924f25f354"
+		},
+		{
+			"path": "packages/api/modules/media/lib/flow-timing.ts",
+			"sha256": "9eac93d783fb9d783693405125c8458c86e4ffe3a8048093c1b7e68b3d95eb51"
+		}
+	],
+	"scenarios": [
+		{
+			"label": "current-idle-immediate-latency",
+			"source": ".cache/first-image/current-idle-immediate-latency.json",
+			"sourceSha256": "e52d617dfd4bdb142f39842dbf94247389ff897cf548ca584d3426df6753ba02",
+			"logPath": ".cache/generation-latency/scanless-idle-immediate.log",
+			"logSha256": "290bd0da022933180984fd3fe12fceb04ece9f7dce6c5fae7a5decbfba745e6d",
+			"evidenceKind": "reanalysis-of-existing-local-fixture-run",
+			"outputBytes": 68,
+			"maintenanceBusy": false,
+			"beforeProviderMs": 3536,
+			"providerMs": 1507,
+			"afterProviderMs": 4390,
+			"clickToVisibleMs": 9433,
+			"nonProviderWallTimeMs": 7926,
+			"statusRequests": 34,
+			"reviews": [
+				{
+					"role": "input",
+					"fixtureServiceDelayMs": 0,
+					"observedCompletionLagMs": null,
+					"completionMode": "synchronous-submission"
+				},
+				{
+					"role": "output",
+					"fixtureServiceDelayMs": 0,
+					"observedCompletionLagMs": null,
+					"completionMode": "synchronous-submission"
+				}
+			],
+			"summedReviewObservationLagMs": 0,
+			"distinctLoggedWorkflowRunIds": 2,
+			"executions": [
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 130
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 1674
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 252
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"elapsedMs": 1235
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 135
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 758
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 76
+				},
+				{
+					"executor": "jobs-primary",
+					"task": "media-finalize-generation",
+					"elapsedMs": 3856
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 66
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-settle-generation",
+					"elapsedMs": 1444
+				}
+			],
+			"invariantChecks": {
+				"oneAttempt": true,
+				"oneSourceDownload": true,
+				"oneReservation": true,
+				"oneSettlement": true,
+				"twoReviews": true
+			}
+		},
+		{
+			"label": "current-idle-delayed-latency",
+			"source": ".cache/first-image/current-idle-delayed-latency.json",
+			"sourceSha256": "867d3f1781edb6d26bf27ebb68eacb46e8bf64574579e4613cdfca9c6eca7b67",
+			"logPath": ".cache/generation-latency/scanless-idle-delayed.log",
+			"logSha256": "9c18b462b711a07637e1887ca026fef7eafcbbafa7892968554debfc866e7b55",
+			"evidenceKind": "reanalysis-of-existing-local-fixture-run",
+			"outputBytes": 68,
+			"maintenanceBusy": false,
+			"beforeProviderMs": 9387,
+			"providerMs": 1508,
+			"afterProviderMs": 10599,
+			"clickToVisibleMs": 21494,
+			"nonProviderWallTimeMs": 19986,
+			"statusRequests": 80,
+			"reviews": [
+				{
+					"role": "input",
+					"fixtureServiceDelayMs": 3500,
+					"observedCompletionLagMs": 2570,
+					"completionMode": "authenticated-query"
+				},
+				{
+					"role": "output",
+					"fixtureServiceDelayMs": 3500,
+					"observedCompletionLagMs": 3067,
+					"completionMode": "authenticated-query"
+				}
+			],
+			"summedReviewObservationLagMs": 5637,
+			"distinctLoggedWorkflowRunIds": 2,
+			"executions": [
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 118
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 1258
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 1362
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 255
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"elapsedMs": 1229
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 112
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 719
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 69
+				},
+				{
+					"executor": "jobs-primary",
+					"task": "media-finalize-generation",
+					"elapsedMs": 3117
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 67
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 292
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 200
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 1391
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 76
+				},
+				{
+					"executor": "jobs-primary",
+					"task": "media-finalize-generation",
+					"elapsedMs": 891
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 75
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-settle-generation",
+					"elapsedMs": 1509
+				}
+			],
+			"invariantChecks": {
+				"oneAttempt": true,
+				"oneSourceDownload": true,
+				"oneReservation": true,
+				"oneSettlement": true,
+				"twoReviews": true
+			}
+		},
+		{
+			"label": "current-busy-immediate-latency",
+			"source": ".cache/first-image/current-busy-immediate-latency.json",
+			"sourceSha256": "8c43312a8bf19281f9e217889f896ab7ef9c544518ee546e82be9ef631ad50a0",
+			"logPath": ".cache/generation-latency/scanless-busy-immediate.log",
+			"logSha256": "87b98f4bf63ce3764fd355582fdfcb1019ff1aa126e09a033105779c67a1a34a",
+			"evidenceKind": "reanalysis-of-existing-local-fixture-run",
+			"outputBytes": 68,
+			"maintenanceBusy": true,
+			"beforeProviderMs": 3443,
+			"providerMs": 1505,
+			"afterProviderMs": 4296,
+			"clickToVisibleMs": 9244,
+			"nonProviderWallTimeMs": 7739,
+			"statusRequests": 34,
+			"reviews": [
+				{
+					"role": "input",
+					"fixtureServiceDelayMs": 0,
+					"observedCompletionLagMs": null,
+					"completionMode": "synchronous-submission"
+				},
+				{
+					"role": "output",
+					"fixtureServiceDelayMs": 0,
+					"observedCompletionLagMs": null,
+					"completionMode": "synchronous-submission"
+				}
+			],
+			"summedReviewObservationLagMs": 0,
+			"distinctLoggedWorkflowRunIds": 3,
+			"executions": [
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 124
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 1701
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 256
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"elapsedMs": 1223
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 110
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 714
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 65
+				},
+				{
+					"executor": "jobs-maintenance",
+					"task": "media-cancel-generation",
+					"elapsedMs": 3784
+				},
+				{
+					"executor": "jobs-primary",
+					"task": "media-finalize-generation",
+					"elapsedMs": 3725
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 72
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-settle-generation",
+					"elapsedMs": 1491
+				}
+			],
+			"invariantChecks": {
+				"oneAttempt": true,
+				"oneSourceDownload": true,
+				"oneReservation": true,
+				"oneSettlement": true,
+				"twoReviews": true
+			}
+		},
+		{
+			"label": "current-busy-delayed-latency",
+			"source": ".cache/first-image/current-busy-delayed-latency.json",
+			"sourceSha256": "94008b4b38ed76614292f909705e485d92a808695b96540c5b67c3385c54dcf9",
+			"logPath": ".cache/generation-latency/scanless-busy-delayed.log",
+			"logSha256": "49fab8e6965d98e5dba3595833e8c6b053170c61e6e8247a0cb3a2e3b5a04868",
+			"evidenceKind": "reanalysis-of-existing-local-fixture-run",
+			"outputBytes": 68,
+			"maintenanceBusy": true,
+			"beforeProviderMs": 9398,
+			"providerMs": 1507,
+			"afterProviderMs": 10772,
+			"clickToVisibleMs": 21677,
+			"nonProviderWallTimeMs": 20170,
+			"statusRequests": 81,
+			"reviews": [
+				{
+					"role": "input",
+					"fixtureServiceDelayMs": 3500,
+					"observedCompletionLagMs": 2564,
+					"completionMode": "authenticated-query"
+				},
+				{
+					"role": "output",
+					"fixtureServiceDelayMs": 3500,
+					"observedCompletionLagMs": 3082,
+					"completionMode": "authenticated-query"
+				}
+			],
+			"summedReviewObservationLagMs": 5646,
+			"distinctLoggedWorkflowRunIds": 3,
+			"executions": [
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 117
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 1246
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 1378
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 257
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"elapsedMs": 1246
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 112
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 708
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 69
+				},
+				{
+					"executor": "jobs-maintenance",
+					"task": "media-cancel-generation",
+					"elapsedMs": 3779
+				},
+				{
+					"executor": "jobs-primary",
+					"task": "media-finalize-generation",
+					"elapsedMs": 3137
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 72
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 299
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 201
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 1429
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 70
+				},
+				{
+					"executor": "jobs-primary",
+					"task": "media-finalize-generation",
+					"elapsedMs": 932
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 69
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-settle-generation",
+					"elapsedMs": 1524
+				}
+			],
+			"invariantChecks": {
+				"oneAttempt": true,
+				"oneSourceDownload": true,
+				"oneReservation": true,
+				"oneSettlement": true,
+				"twoReviews": true
+			}
+		},
+		{
+			"label": "current-idle-delayed-callback-latency",
+			"source": ".cache/first-image/current-idle-delayed-callback-latency.json",
+			"sourceSha256": "b5eb6037f78b0bfc2e6a90fe1a389d7b66eeca1e9b3957834f03bd42d56f2fb6",
+			"logPath": ".cache/generation-latency/scanless-callback.log",
+			"logSha256": "6e9aaa7323103735d53e2a87bade9c91d2a11b54096bc7e7ae261611ebe0cbbb",
+			"evidenceKind": "reanalysis-of-existing-local-fixture-run",
+			"outputBytes": 68,
+			"maintenanceBusy": false,
+			"beforeProviderMs": 7518,
+			"providerMs": 1513,
+			"afterProviderMs": 8011,
+			"clickToVisibleMs": 17042,
+			"nonProviderWallTimeMs": 15529,
+			"statusRequests": 62,
+			"reviews": [
+				{
+					"role": "input",
+					"fixtureServiceDelayMs": 3500,
+					"observedCompletionLagMs": 358,
+					"completionMode": "authenticated-query"
+				},
+				{
+					"role": "output",
+					"fixtureServiceDelayMs": 3500,
+					"observedCompletionLagMs": 343,
+					"completionMode": "authenticated-query"
+				}
+			],
+			"summedReviewObservationLagMs": 701,
+			"distinctLoggedWorkflowRunIds": 4,
+			"executions": [
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 156
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 1323
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 1289
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 262
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 542
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"elapsedMs": 1284
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 139
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 117
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 712
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 67
+				},
+				{
+					"executor": "jobs-primary",
+					"task": "media-finalize-generation",
+					"elapsedMs": 3158
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 76
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 294
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 1318
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 78
+				},
+				{
+					"executor": "jobs-primary",
+					"task": "media-finalize-generation",
+					"elapsedMs": 890
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-poll-generation",
+					"elapsedMs": 216
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 81
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-prepare-event",
+					"elapsedMs": 133
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-verify-upload",
+					"elapsedMs": 432
+				},
+				{
+					"executor": "jobs-control",
+					"task": "media-settle-generation",
+					"elapsedMs": 1512
+				}
+			],
+			"invariantChecks": {
+				"oneAttempt": true,
+				"oneSourceDownload": true,
+				"oneReservation": true,
+				"oneSettlement": true,
+				"twoReviews": true
+			}
+		}
+	]
+}

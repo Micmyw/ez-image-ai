@@ -4,6 +4,15 @@ import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "#prisma-runtime-client";
 
+import {
+	createDatabaseQueryMetrics,
+	databaseQueryLogArgs,
+	localSqlMetricsEnabled,
+	type DatabaseQueryContext,
+} from "./query-metrics";
+
+export type { DatabaseQueryContext } from "./query-metrics";
+
 // Next's server bundle and its outer Worker wrapper can contain separate copies
 // of this module. The context must still be shared by both copies.
 const contextKey = Symbol.for("ezpic.database.request-context");
@@ -17,16 +26,55 @@ export function runWithDatabaseClient<T>(client: PrismaClient, callback: () => T
 	return databaseContext.run(client, callback);
 }
 
-export function createRuntimeDatabaseClient(connectionString: string): PrismaClient {
+export function createRuntimeDatabaseClient(
+	connectionString: string,
+	diagnosticsContext?: DatabaseQueryContext,
+): PrismaClient {
 	if (!connectionString) throw new Error("DATABASE_URL is not set");
-	return new PrismaClient({
-		adapter: new PrismaPg({
-			connectionString,
+	return createClientWithLocalMetrics(
+		connectionString,
+		"request",
+		{
 			max: 1,
 			connectionTimeoutMillis: 10_000,
 			idleTimeoutMillis: 10_000,
-		}),
+		},
+		diagnosticsContext,
+	);
+}
+
+function createClientWithLocalMetrics(
+	connectionString: string,
+	clientKind: "request" | "node",
+	poolOptions: { max?: number; connectionTimeoutMillis?: number; idleTimeoutMillis?: number } = {},
+	diagnosticsContext?: DatabaseQueryContext,
+): PrismaClient {
+	if (
+		!localSqlMetricsEnabled(connectionString, process.env.EZPIC_LOCAL_SQL_METRICS, {
+			hyperdriveFlag: process.env.EZPIC_LOCAL_SQL_METRICS_HYPERDRIVE,
+			originalConnectionString: process.env.DATABASE_URL,
+		})
+	)
+		return new PrismaClient({ adapter: new PrismaPg({ connectionString, ...poolOptions }) });
+	const metricsFormat = process.env.EZPIC_LOCAL_SQL_METRICS_FORMAT;
+	const metrics = createDatabaseQueryMetrics({
+		clientKind,
+		context: diagnosticsContext,
+		emit: (sample) => console.info(...databaseQueryLogArgs(sample, metricsFormat)),
 	});
+	const client = new PrismaClient({
+		// A random local-only client identity lets PostgreSQL errors (including
+		// COMMIT failures) join the existing metrics without logging SQL or inputs.
+		// This is a startup parameter: it adds no query and changes no admission limit.
+		adapter: new PrismaPg({
+			connectionString,
+			...poolOptions,
+			application_name: metrics.snapshot().clientScope,
+		}),
+		log: [{ level: "query", emit: "event" }],
+	});
+	client.$on("query", metrics.observe);
+	return client;
 }
 
 // The website Worker routes every accepted request through a database scope,
@@ -57,9 +105,7 @@ export function getDatabaseClient(): PrismaClient {
 		throw new Error("DATABASE_REQUEST_SCOPE_REQUIRED");
 	}
 	if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set");
-	return (runtimeGlobals.prisma ??= new PrismaClient({
-		adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-	}));
+	return (runtimeGlobals.prisma ??= createClientWithLocalMetrics(process.env.DATABASE_URL, "node"));
 }
 
 // Preserve the existing import contract. Resolve at access time, never at

@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 const production = vi.hoisted(() => ({
 	budget: vi.fn(),
 	freeCredits: vi.fn(),
-	entitlement: vi.fn(),
+	planAccess: vi.fn(),
 	rateLimit: vi.fn(),
 	db: {
 		runtimeConfigOverride: { findFirst: vi.fn() },
@@ -30,7 +30,7 @@ vi.mock("@repo/config/server", async (importOriginal) => ({
 vi.mock("./free-plan-credits", () => ({
 	ensureFreePlanCreditsForGeneration: production.freeCredits,
 }));
-vi.mock("./plan-entitlement", () => ({ loadUserPlanEntitlement: production.entitlement }));
+vi.mock("./plan-entitlement", () => ({ loadUserPlanAccess: production.planAccess }));
 vi.mock("./rate-limit", () => ({ enforceMediaRateLimit: production.rateLimit }));
 
 import {
@@ -233,7 +233,10 @@ describe("generation authorization", () => {
 			production.db.creditLot.aggregate.mockResolvedValue({ _sum: { remainingAmount: 100n } });
 			production.db.generationQuote.aggregate.mockResolvedValue({ _sum: { costMicros: 0n } });
 			production.db.storageUsageReservation.aggregate.mockResolvedValue({ _sum: { bytes: 0n } });
-			production.entitlement.mockResolvedValue({ id: "free" });
+			production.planAccess.mockResolvedValue({
+				entitlement: { id: "free" },
+				hasEffectivePaidSubscription: false,
+			});
 			const check = assertGenerationAllowed({
 				userId: "user-1",
 				productKey: FREE_IMAGE_PRODUCT,

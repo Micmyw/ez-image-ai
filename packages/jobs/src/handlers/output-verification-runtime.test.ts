@@ -1,4 +1,8 @@
-import { TestMediaSafetyAdapter } from "@repo/ai";
+import {
+	MEDIA_VERIFICATION_POLICY_VERSION,
+	MEDIA_VERIFICATION_RULE_VERSION,
+	TestMediaSafetyAdapter,
+} from "@repo/ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/database/client", () => ({ db: {} }));
@@ -10,11 +14,12 @@ describe("output verification admission", () => {
 	afterEach(() => vi.useRealTimers());
 
 	it.each([
-		["image/png", "IMAGE_PROCESSING", 5_000, true],
-		["video/mp4", "VIDEO_PROCESSING", 15_000, false],
+		["image/png", "IMAGE_PROCESSING", 5_000, true, false],
+		["video/mp4", "VIDEO_PROCESSING", 15_000, false, false],
+		["image/png", "IMAGE_PROCESSING", 5_000, true, true],
 	] as const)(
 		"starts %s polling without bypassing its due time or resubmitting moderation",
-		async (mimeType, reasonCode, intervalMs, immediateWake) => {
+		async (mimeType, reasonCode, intervalMs, immediateWake, callbackDuringQuery) => {
 			vi.useFakeTimers({ toFake: ["Date"] });
 			const now = new Date("2026-09-21T08:04:14Z");
 			vi.setSystemTime(now);
@@ -31,23 +36,104 @@ describe("output verification admission", () => {
 				verificationGeneration: 0,
 				verificationAttemptCount: 0,
 				verificationNextAttemptAt: null as Date | null,
+				verificationEngine: "legacy",
+				verificationLeaseToken: null as string | null,
+				verificationLeasedUntil: null as Date | null,
 				verificationProviderTaskId: null as string | null,
+				verificationSubmissionToken: null as string | null,
 				verificationSubmissionUncertain: false,
+				verificationCallbackReceivedAt: null as Date | null,
 			};
 			const update = async ({ data }: { data: Record<string, unknown> }) => ({
 				...Object.assign(asset, data),
 			});
-			const committedEvents = new Set<string>();
+			const committedEvents = new Map<string, { id: string; availableAt: Date }>();
 			const wake = vi.fn(
-				async (input: { skipDuplicates: boolean; data: { dedupeKey: string } }) => {
+				async (input: {
+					skipDuplicates: boolean;
+					data: { id: string; dedupeKey: string; availableAt?: Date };
+				}) => {
 					expect(input.skipDuplicates).toBe(true);
 					if (committedEvents.has(input.data.dedupeKey)) return { count: 0 };
-					committedEvents.add(input.data.dedupeKey);
+					committedEvents.set(input.data.dedupeKey, {
+						id: input.data.id,
+						availableAt: input.data.availableAt ?? new Date(now),
+					});
 					return { count: 1 };
 				},
 			);
+			const countFailures = vi.fn(async () => 0);
 			const tx = {
 				$executeRaw: vi.fn(async () => 1),
+				$queryRaw: vi.fn(async (sql: TemplateStringsArray, ...values: unknown[]) => {
+					const statement = sql.join("?");
+					if (statement.includes('SELECT "phaseKey"')) return [];
+					if (statement.includes('AS "current"')) {
+						const [id, generation, leaseToken] = values;
+						return [
+							{
+								current:
+									asset.id === id &&
+									asset.verificationGeneration === generation &&
+									asset.verificationLeaseToken === leaseToken &&
+									!!asset.verificationLeasedUntil &&
+									asset.verificationLeasedUntil > new Date(),
+							},
+						];
+					}
+					if (statement.includes('RETURNING "verificationSubmissionToken"')) {
+						const [newToken, submittedAt, updatedAt, id, generation, leaseToken, startedAt] =
+							values;
+						if (
+							asset.verificationEngine !== "legacy" ||
+							asset.id !== id ||
+							asset.status !== "VERIFYING" ||
+							asset.verificationGeneration !== generation ||
+							asset.verificationLeaseToken !== leaseToken ||
+							!asset.verificationLeasedUntil ||
+							asset.verificationLeasedUntil <= (startedAt as Date) ||
+							asset.verificationProviderTaskId !== null ||
+							asset.verificationSubmissionUncertain
+						)
+							return [];
+						await update({
+							data: {
+								verificationSubmissionToken: asset.verificationSubmissionToken ?? newToken,
+								verificationCallbackReceivedAt: asset.verificationSubmissionToken
+									? asset.verificationCallbackReceivedAt
+									: null,
+								verificationSubmissionUncertain: true,
+								verificationSubmittedAt: submittedAt,
+								updatedAt,
+							},
+						});
+						return [{ verificationSubmissionToken: asset.verificationSubmissionToken }];
+					}
+					if (statement.includes('RETURNING "verificationLeasedUntil"')) {
+						const [providerTaskId, updatedAt, id, generation, leaseToken, submissionToken] = values;
+						if (
+							asset.verificationEngine !== "legacy" ||
+							asset.id !== id ||
+							asset.status !== "VERIFYING" ||
+							asset.verificationGeneration !== generation ||
+							asset.verificationLeaseToken !== leaseToken ||
+							asset.verificationSubmissionToken !== submissionToken ||
+							!asset.verificationSubmissionUncertain ||
+							(asset.verificationProviderTaskId !== null &&
+								asset.verificationProviderTaskId !== providerTaskId)
+						)
+							return [];
+						await update({
+							data: {
+								verificationProviderTaskId: providerTaskId,
+								verificationSubmissionUncertain: false,
+								updatedAt,
+							},
+						});
+						return [{ verificationLeasedUntil: asset.verificationLeasedUntil, ownerCurrent: true }];
+					}
+					throw new Error("UNEXPECTED_VERIFICATION_QUERY");
+				}),
 				mediaAsset: {
 					findUnique: async () => ({ ...asset }),
 					findFirst: async () => ({ ...asset }),
@@ -61,12 +147,16 @@ describe("output verification admission", () => {
 				generationJobAsset: { findMany: async () => [] },
 				assetModerationResult: {
 					findFirst: async () => null,
-					create: async () => ({}),
-					count: async () => 0,
+					createMany: async () => ({ count: 1 }),
+					count: countFailures,
 				},
 				outboxEvent: {
 					createMany: wake,
-					findUniqueOrThrow: async () => ({ id: "persisted-output-poll", availableAt: now }),
+					findUniqueOrThrow: async ({ where }: { where: { dedupeKey: string } }) => {
+						const event = committedEvents.get(where.dedupeKey);
+						if (!event) throw new Error("POLL_EVENT_NOT_FOUND");
+						return event;
+					},
 				},
 			};
 			const database = {
@@ -79,11 +169,11 @@ describe("output verification admission", () => {
 				ruleVersion: input.ruleVersion,
 				idempotency: { key: input.idempotencyKey, providerSupported: true, replayed: false },
 			}));
-			const retrieve = vi.fn(async (input: { ruleVersion: string }) => ({
-				decision: "REVIEW" as const,
-				reasonCode,
-				ruleVersion: input.ruleVersion,
-			}));
+			const retrieve = vi.fn(async (input: { ruleVersion: string }) => {
+				if (callbackDuringQuery && !asset.verificationCallbackReceivedAt)
+					asset.verificationCallbackReceivedAt = new Date();
+				return { decision: "REVIEW" as const, reasonCode, ruleVersion: input.ruleVersion };
+			});
 			const dependencies = createDatabaseVerifyUploadDependencies(database as never, {
 				safety: Object.assign(new TestMediaSafetyAdapter("ERROR"), {
 					submitImage: submit,
@@ -107,33 +197,48 @@ describe("output verification admission", () => {
 					),
 				createSignedReadUrl: async () => "https://private.example/output",
 			});
-			await expect(dependencies.verify(asset.id)).resolves.toEqual({
+			const firstResult = await dependencies.verify(asset.id);
+			const firstEvent = committedEvents.get(wake.mock.calls[0]![0].data.dedupeKey)!;
+			expect(firstResult).toEqual({
 				outboxCommitted: immediateWake,
-				...(immediateWake ? { outputReviewEventId: "persisted-output-poll" } : {}),
+				...(immediateWake ? { outputReviewEventId: firstEvent.id, queryOnly: true } : {}),
 			});
 			expect(wake).toHaveBeenCalledOnce();
 			expect.soft(wake).toHaveBeenCalledWith(
 				expect.objectContaining({
 					data: expect.objectContaining({
 						eventType: "MEDIA_ASSET_VERIFY",
-						availableAt: new Date(now.getTime() + (immediateWake ? 0 : intervalMs)),
+						...(immediateWake ? {} : { availableAt: new Date(now.getTime() + intervalMs) }),
 					}),
 				}),
 			);
-			expect.soft(asset.verificationNextAttemptAt).toEqual(new Date(now.getTime() + intervalMs));
+			if (immediateWake) {
+				expect(wake.mock.calls[0]![0].data).not.toHaveProperty("availableAt");
+			}
+			expect
+				.soft(asset.verificationNextAttemptAt)
+				.toEqual(new Date(now.getTime() + (callbackDuringQuery ? 0 : intervalMs)));
+			if (callbackDuringQuery) {
+				// A callback arriving while the current query holds the lease wakes one
+				// immediate authenticated retrieval, then normal polling resumes.
+				await expect(dependencies.verify(asset.id)).resolves.toMatchObject({
+					outboxCommitted: false,
+				});
+				expect(asset.verificationNextAttemptAt).toEqual(new Date(now.getTime() + intervalMs));
+			}
 			await expect(dependencies.verify(asset.id)).resolves.toMatchObject({
 				outboxCommitted: false,
 			});
 			expect(submit).toHaveBeenCalledOnce();
-			expect(retrieve).toHaveBeenCalledOnce();
+			expect(retrieve).toHaveBeenCalledTimes(callbackDuringQuery ? 2 : 1);
 			expect(asset.status).toBe("VERIFYING");
 			vi.setSystemTime(new Date(now.getTime() + intervalMs));
-			await expect(dependencies.verify(asset.id)).resolves.toEqual({
+			await expect(dependencies.verify(asset.id, { queryOnly: immediateWake })).resolves.toEqual({
 				outboxCommitted: false,
-				...(immediateWake ? { outputReviewEventId: "persisted-output-poll" } : {}),
+				...(immediateWake ? { outputReviewEventId: firstEvent.id, queryOnly: true } : {}),
 			});
 			expect(submit).toHaveBeenCalledOnce();
-			expect(retrieve).toHaveBeenCalledTimes(2);
+			expect(retrieve).toHaveBeenCalledTimes(callbackDuringQuery ? 3 : 2);
 			expect(retrieve).toHaveBeenLastCalledWith(
 				expect.objectContaining({ moderationTaskId: "same-moderation-task" }),
 			);
@@ -143,8 +248,62 @@ describe("output verification admission", () => {
 				expect(committedEvents.size).toBe(1);
 			}
 			expect(asset.status).toBe("VERIFYING");
+			// Admission retains one failure-budget check per claimed attempt;
+			// normal PENDING commits perform no further error aggregates.
+			expect(countFailures).toHaveBeenCalledTimes(callbackDuringQuery ? 3 : 2);
 		},
 	);
+	it.each([
+		"unsubmitted",
+		"uncertain",
+		"stale rule",
+		"stale policy",
+		"stale provider",
+		"ready",
+		"video",
+		"no retrieval",
+	])("does not submit or reset %s state through result-only capacity", async (state) => {
+		const asset = {
+			id: "result-only-asset",
+			mimeType: state === "video" ? "video/mp4" : "image/png",
+			status: state === "ready" ? "READY" : "VERIFYING",
+			verificationGeneration: 1,
+			verificationProviderTaskId: state === "unsubmitted" ? null : "bound-task",
+			verificationSubmissionUncertain: state === "uncertain",
+			verificationProvider: state === "stale provider" ? "old-provider" : "test",
+			verificationRuleVersion:
+				state === "stale rule" ? "old-rule" : MEDIA_VERIFICATION_RULE_VERSION,
+			verificationPolicyVersion:
+				state === "stale policy" ? "old-policy" : MEDIA_VERIFICATION_POLICY_VERSION,
+		};
+		const update = vi.fn();
+		const tx = {
+			$executeRaw: vi.fn(async () => 1),
+			$queryRaw: vi.fn(async () => []),
+			mediaAsset: { findUnique: async () => asset, update },
+		};
+		const submit = vi.fn();
+		const retrieve = vi.fn();
+		const deps = createDatabaseVerifyUploadDependencies(
+			{
+				...tx,
+				$transaction: async (operation: (tx: unknown) => Promise<unknown>) => operation(tx),
+			} as never,
+			{
+				moderationProvider: "test",
+				safety: Object.assign(new TestMediaSafetyAdapter("ALLOW"), {
+					submitImage: submit,
+					retrieveImage: state === "no retrieval" ? undefined : retrieve,
+				}),
+			},
+		);
+		await expect(
+			deps.verify(asset.id, { queryOnly: true, allowQuarantinedReverification: true }),
+		).resolves.toEqual({ outboxCommitted: false });
+		expect(submit).not.toHaveBeenCalled();
+		expect(retrieve).not.toHaveBeenCalled();
+		expect(update).not.toHaveBeenCalled();
+	});
 
 	it("excludes transfer-owned outputs before the recovery batch limit", async () => {
 		const findMany = vi.fn(async () => []);
@@ -196,6 +355,7 @@ describe("output verification admission", () => {
 			});
 			const tx = {
 				$executeRaw: vi.fn(async () => 1),
+				$queryRaw: vi.fn(async () => []),
 				mediaAsset: { findUnique: async () => asset, update },
 				auditLog: { findFirst: async () => null },
 				assetModerationResult: { count: async () => 0 },

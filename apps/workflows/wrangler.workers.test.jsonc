@@ -3,6 +3,18 @@
 	"main": "src/workers.ts",
 	"compatibility_date": "2026-09-10",
 	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"services": [
+		{
+			"binding": "JOBS_CONTROL",
+			"service": "ezpic-worker-executor-test",
+			"entrypoint": "ControlExecutor"
+		},
+		{
+			"binding": "JOBS_TRANSFER",
+			"service": "ezpic-worker-executor-test",
+			"entrypoint": "TransferExecutor"
+		}
+	],
 	"durable_objects": { "bindings": [{ "name": "JOBS_EXECUTOR", "class_name": "WorkerJobs" }] },
 	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkerJobs"] }],
 	"vars": {

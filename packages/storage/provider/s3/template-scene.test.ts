@@ -26,6 +26,7 @@ import { storeImmutableVideoTemplateScene } from "./index";
 
 function fixture(source: Buffer, contentType = "image/jpeg") {
 	let stored: Buffer | null = null;
+	let conflictWinner: Buffer | null = null;
 	const writes: Record<string, unknown>[] = [];
 	mocks.remote.mockImplementation(async () => ({
 		headers: { "content-type": contentType },
@@ -35,11 +36,14 @@ function fixture(source: Buffer, contentType = "image/jpeg") {
 		async (command: { constructor: { name: string }; input: Record<string, unknown> }) => {
 			if (command.constructor.name === "PutObjectCommand") {
 				writes.push(command.input);
+				if (conflictWinner) stored = conflictWinner;
 				if (stored)
 					throw Object.assign(new Error("immutable conflict"), { name: "PreconditionFailed" });
 				stored = Buffer.from(command.input.Body as Buffer);
 				return { ETag: "canonical", VersionId: "version-1" };
 			}
+			if (command.constructor.name !== "GetObjectCommand")
+				throw new Error(`UNEXPECTED_STORAGE_ROUND_TRIP:${command.constructor.name}`);
 			if (!stored) throw Object.assign(new Error("missing"), { name: "NoSuchKey" });
 			const buffer = stored;
 			const body = Object.assign(Readable.from([buffer]), {
@@ -68,7 +72,14 @@ function fixture(source: Buffer, contentType = "image/jpeg") {
 			allowedHosts: ["cdn.example"],
 			maximumBytes,
 		});
-	return { run, writes, bytes: () => stored! };
+	return {
+		run,
+		writes,
+		bytes: () => stored!,
+		conflictWith(winner: Buffer) {
+			conflictWinner = winner;
+		},
+	};
 }
 beforeEach(() => {
 	mocks.send.mockReset();
@@ -95,8 +106,14 @@ describe("canonical private scene transfer (mock S3, real image decoder)", () =>
 			Key: "users/owner/video-templates/scene.png",
 			ContentType: "image/png",
 		});
+		expect(mocks.send.mock.calls.map(([command]) => command.constructor.name)).toEqual([
+			"GetObjectCommand",
+			"PutObjectCommand",
+		]);
 		mocks.remote.mockRejectedValue(new Error("source changed or expired"));
+		mocks.send.mockClear();
 		expect(await f.run()).toEqual(result);
+		expect(mocks.send).toHaveBeenCalledTimes(1);
 		expect(mocks.remote).toHaveBeenCalledTimes(1);
 		expect(f.writes).toHaveLength(1);
 	});
@@ -109,5 +126,47 @@ describe("canonical private scene transfer (mock S3, real image decoder)", () =>
 		const f = fixture(Buffer.from("ffd8ffe000104a4649460000000000000000", "hex"));
 		await expect(f.run()).rejects.toThrow();
 		expect(f.writes).toHaveLength(0);
+	});
+	it("checks the final aspect ratio before writing", async () => {
+		const source = await sharp({
+			create: { width: 160, height: 90, channels: 3, background: "orange" },
+		})
+			.jpeg()
+			.toBuffer();
+		const f = fixture(source);
+		await expect(f.run()).rejects.toThrow("VIDEO_TEMPLATE_SCENE_ASPECT_RATIO_INVALID");
+		expect(f.writes).toHaveLength(0);
+	});
+	it("returns the validated conditional-write winner instead of the losing bytes", async () => {
+		const source = await sharp({
+			create: { width: 90, height: 160, channels: 3, background: "orange" },
+		})
+			.jpeg()
+			.toBuffer();
+		const winner = await sharp({
+			create: { width: 180, height: 320, channels: 3, background: "blue" },
+		})
+			.png()
+			.toBuffer();
+		const f = fixture(source);
+		f.conflictWith(winner);
+		expect(await f.run()).toMatchObject({
+			width: 180,
+			height: 320,
+			bytes: winner.length,
+			sha256: createHash("sha256").update(winner).digest("hex"),
+		});
+		expect(mocks.send).toHaveBeenCalledTimes(3);
+	});
+	it("rejects a truncated conditional-write winner despite readable dimensions", async () => {
+		const source = await sharp({
+			create: { width: 90, height: 160, channels: 3, background: "orange" },
+		})
+			.jpeg()
+			.toBuffer();
+		const winner = await sharp(source).png().toBuffer();
+		const f = fixture(source);
+		f.conflictWith(winner.subarray(0, Math.floor(winner.length / 2)));
+		await expect(f.run()).rejects.toThrow();
 	});
 });

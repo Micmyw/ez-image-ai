@@ -59,7 +59,7 @@ const DATABASE_URL = process.env.DATABASE_URL;
 
 interface SerializableAttemptObservation {
 	attempt: number;
-	outcome: "STARTED" | "SERIALIZATION_CONFLICT";
+	outcome: "STARTED" | "SERIALIZATION_CONFLICT" | "LOCK_NOT_AVAILABLE";
 }
 
 async function waitForAdvisoryLock(

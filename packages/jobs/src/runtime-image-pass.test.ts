@@ -10,10 +10,14 @@ const funding = vi.hoisted(() => ({
 	grace: vi.fn(),
 }));
 vi.mock("@repo/database", () => ({
+	getImagePhaseOwner: async () => undefined,
+	getProviderEventDeliveryWait: async () => 0,
 	getGenerationFundingReservation: funding.lookup,
 	finalizeImagePassReservationInTransaction: funding.finalize,
 	settleCreditsInTransaction: funding.creditSettle,
 	claimOutputModerationGraceInTransaction: funding.grace,
+	isDatabaseSerializationConflict: (error: { code?: string }) => error.code === "P2034",
+	isDatabaseLockNotAvailable: (error: { code?: string }) => error.code === "55P03",
 	runSerializable: async (
 		database: { $transaction: (operation: unknown) => unknown },
 		operation: unknown,
@@ -22,6 +26,7 @@ vi.mock("@repo/database", () => ({
 }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
 
+import { SettlementTransactionConflictError } from "./contracts";
 import { createDatabaseFinalizingGenerationRecoveryStore } from "./handlers/finalization-recovery-store";
 import {
 	createDatabaseFinalizationStore,
@@ -71,6 +76,7 @@ function fixture(output: "ready" | "blocked" | "pending" | "none" = "ready") {
 	};
 	const tx = {
 		$executeRaw: vi.fn(async () => 1),
+		$queryRaw: vi.fn(async () => job.assets.map(({ assetId }) => ({ id: assetId }))),
 		generationJob: {
 			findFirst: vi.fn(async () => job),
 			updateMany: vi.fn(async () => ({ count: 1 })),
@@ -96,6 +102,108 @@ function passClaim() {
 }
 
 describe("image pass job consumers", () => {
+	it("reads settlement evidence once after acquiring the complete output lock set", async () => {
+		const f = fixture();
+		const operations: string[] = [];
+		f.job.assets = [
+			{ ...f.job.assets[0]!, assetId: "output-b" },
+			{ ...f.job.assets[0]!, assetId: "output-a" },
+		];
+		// Use credits so the fixture can contain multiple outputs. Financial work
+		// remains mocked here; PostgreSQL tests own the isolation and ledger proof.
+		const credit = { id: "credit", amount: 5n, status: "ACTIVE", accountId: "account" };
+		Object.assign(f.job, { fundingSource: "CREDITS", creditsReserved: 5n, reservation: credit });
+		funding.lookup.mockResolvedValue({ ...credit, fundingSource: "CREDITS" });
+		f.tx.generationJob.findFirst.mockImplementation(async (query?: unknown) => {
+			operations.push(
+				query && typeof query === "object" && "select" in query ? "keys" : "evidence",
+			);
+			return f.job;
+		});
+		f.tx.$executeRaw.mockImplementation(async (...arguments_: unknown[]) => {
+			operations.push(String(arguments_[1]));
+			return 1;
+		});
+		funding.creditSettle.mockImplementationOnce(async () => operations.push("settle"));
+		f.tx.generationJob.updateMany.mockImplementationOnce(async () => {
+			operations.push("terminal");
+			return { count: 1 };
+		});
+		f.tx.$queryRaw.mockImplementationOnce(async () => {
+			operations.push("version-fence");
+			return [{ id: "output-a" }, { id: "output-b" }];
+		});
+		await f.store.settle({ ...passClaim(), fundingSource: "CREDITS", reservedCredits: 5n });
+		expect(operations).toEqual([
+			"keys",
+			"media-verification:output-a",
+			"media-verification:output-b",
+			"evidence",
+			"settle",
+			"terminal",
+			"version-fence",
+		]);
+		expect(f.tx.generationJob.findFirst).toHaveBeenNthCalledWith(1, {
+			where: { executionEngine: "legacy", id: "job", status: { in: ["FINALIZING", "CANCELED"] } },
+			select: {
+				id: true,
+				assets: { where: { role: "OUTPUT" }, select: { assetId: true } },
+			},
+		});
+		expect(funding.lookup).toHaveBeenCalledExactlyOnceWith("job", f.tx, credit);
+		expect(f.tx.generationJob.updateMany).toHaveBeenCalledWith(
+			expect.objectContaining({ data: expect.objectContaining({ status: "SUCCEEDED" }) }),
+		);
+	});
+
+	it.each(["CREDITS", "IMAGE_PASS"] as const)(
+		"refuses a missing output version fence after %s financial and terminal writes",
+		async (fundingSource) => {
+			const f = fixture();
+			if (fundingSource === "CREDITS") {
+				const credit = { id: "credit", amount: 5n, status: "ACTIVE", accountId: "account" };
+				Object.assign(f.job, { fundingSource, creditsReserved: 5n, reservation: credit });
+				funding.lookup.mockResolvedValue({ ...credit, fundingSource });
+			}
+			f.tx.$queryRaw.mockResolvedValueOnce([]);
+			await expect(f.store.settle({ ...passClaim(), fundingSource })).rejects.toThrow(
+				"SETTLEMENT_OUTPUT_FENCE_LOST",
+			);
+			expect(f.tx.generationJob.updateMany).toHaveBeenCalledOnce();
+			const finalize = fundingSource === "CREDITS" ? funding.creditSettle : funding.finalize;
+			expect(finalize).toHaveBeenCalledOnce();
+			expect(f.tx.$queryRaw.mock.invocationCallOrder[0]).toBeGreaterThan(
+				f.tx.generationJob.updateMany.mock.invocationCallOrder[0]!,
+			);
+		},
+	);
+
+	it.each(["P2034", "55P03"])("marks only a confirmed %s rollback as retryable", async (code) => {
+		const f = fixture();
+		const cause = { code };
+		vi.spyOn(f.database, "$transaction").mockRejectedValueOnce(cause);
+		await expect(f.store.settle(passClaim())).rejects.toMatchObject({
+			name: "SettlementTransactionConflictError",
+			code: "SETTLEMENT_TRANSACTION_CONFLICT",
+			phase: "TRANSACTION_ROLLED_BACK",
+			cause,
+		});
+	});
+
+	it("rejects a different asset even when the fence returns the expected row count", async () => {
+		const f = fixture();
+		f.tx.$queryRaw.mockResolvedValueOnce([{ id: "another-output" }]);
+		await expect(f.store.settle(passClaim())).rejects.toThrow("SETTLEMENT_OUTPUT_FENCE_LOST");
+	});
+
+	it("preserves an unknown commit outcome without a retryable rollback marker", async () => {
+		const f = fixture();
+		const cause = new Error("connection lost during commit");
+		vi.spyOn(f.database, "$transaction").mockRejectedValueOnce(cause);
+		await expect(f.store.settle(passClaim())).rejects.toBe(cause);
+		expect(cause).not.toBeInstanceOf(SettlementTransactionConflictError);
+	});
+
 	it("claims an independent pass reservation with zero ordinary credits", async () => {
 		const f = fixture();
 		await expect(f.store.claimSettlement(payload)).resolves.toMatchObject(passClaim());
@@ -213,6 +321,7 @@ describe("image pass job consumers", () => {
 
 	it("retains an independent pass hold during unknown/manual reconciliation and audits units as units", async () => {
 		const tx = {
+			$queryRaw: vi.fn(async () => [{ id: "attempt" }]),
 			generationAttempt: {
 				findFirst: vi.fn(async () => ({ errorSnapshot: {} })),
 				updateMany: vi.fn(async () => ({ count: 1 })),

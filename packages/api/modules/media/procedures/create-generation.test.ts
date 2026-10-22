@@ -23,7 +23,11 @@ vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn() }));
 
 import { dispatchJob } from "@repo/jobs/orchestration/client";
 
-import { createGenerationForUser, dispatchCreatedGeneration } from "./create-generation";
+import {
+	createGenerationForUser,
+	createGenerationFromApprovedQuote,
+	dispatchCreatedGeneration,
+} from "./create-generation";
 
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
 const KIE_ROUTE_OPTIONS = {
@@ -42,6 +46,59 @@ const NANO_INPUT = {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("createGenerationForUser", () => {
+	it("passes a server-approved pending quote directly to atomic admission without another preflight", async () => {
+		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
+		const priced = buildMediaQuote(
+			{ productKey: "image-nano-banana-2-lite", input: NANO_INPUT },
+			KIE_ROUTE_OPTIONS,
+		);
+		const preparedQuote = {
+			...priced,
+			quoteId: "atomic-quote",
+			ownerType: "USER" as const,
+			ownerId: "user-1",
+			submittedByUserId: "user-1",
+			inputSnapshot: NANO_INPUT,
+			expiresAt: new Date(Date.now() + 60_000),
+			moderation: {
+				decision: "ALLOW" as const,
+				provider: "test",
+				ruleVersion: "rule",
+				reasonCode: "NO_POLICY_MATCH",
+				inputFingerprint: "a".repeat(64),
+			},
+		};
+		const findQuote = vi.fn();
+		const getRouteGraphOptions = vi.fn();
+		const assertAllowed = vi.fn();
+		const createGenerationJob = vi.fn(async () => ({
+			job: { id: "atomic-job", status: "RESERVED", version: 0, creditsReserved: priced.credits },
+			replayed: false,
+		}));
+		await createGenerationFromApprovedQuote(
+			"user-1",
+			{ quoteId: preparedQuote.quoteId, idempotencyKey: "atomic-request" },
+			{
+				ownerId: "user-1",
+				quote: { ...preparedQuote, id: preparedQuote.quoteId },
+				preparedQuote,
+				routeGraphOptions: KIE_ROUTE_OPTIONS,
+			},
+			{
+				now: () => new Date(),
+				findQuote,
+				getRouteGraphOptions,
+				assertAllowed,
+				createGenerationJob,
+			},
+		);
+		expect(findQuote).not.toHaveBeenCalled();
+		expect(getRouteGraphOptions).not.toHaveBeenCalled();
+		expect(assertAllowed).not.toHaveBeenCalled();
+		expect(createGenerationJob).toHaveBeenCalledWith(
+			expect.objectContaining({ preparedQuote, validateCurrentEligibility: true }),
+		);
+	});
 	it("replays an accepted pass job even after the quote expires and the pass balance is empty", async () => {
 		const accepted = {
 			id: "accepted-pass-job",

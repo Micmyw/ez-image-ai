@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../client", () => ({
 	getDatabaseClient: () => {
@@ -8,13 +8,166 @@ vi.mock("../../client", () => ({
 
 import {
 	abortMediaUploadSessionTransaction,
+	claimGenerationOutputTransferTransaction,
 	claimMediaUploadSessionFinalizationTransaction,
 	completeMediaUploadSessionTransaction,
+	createGenerationOutputAssetBindingTransaction,
 	createMediaUploadSessionTransaction,
 	failMediaUploadSessionFinalizationTransaction,
 	markMediaAssetDeletedTransaction,
 	renewMediaUploadSessionFinalizationLeaseTransaction,
 } from "./assets";
+
+type OutputBindingWriter = "legacy-binding" | "serializable-claim" | "fresh-read-claim";
+
+function outputBindingClient(eligible: boolean) {
+	const events: string[] = [];
+	const tx = {
+		$executeRaw: vi.fn(async (strings: TemplateStringsArray) => {
+			const sql = strings.join("?");
+			if (sql.includes('UPDATE "generation_job"')) {
+				events.push("job-fence");
+				return eligible ? 1 : 0;
+			}
+			events.push("binding-lock");
+			return 1;
+		}),
+		$queryRaw: vi.fn(async () => {
+			events.push("asset-lock");
+			return [];
+		}),
+		generationJob: {
+			// A stale eligibility read must not authorize a new binding when the
+			// conditional job write has already observed a terminal/foreign job.
+			findFirst: vi.fn(async () => ({ id: "job_1", serviceClass: "STANDARD" })),
+		},
+		mediaAsset: {
+			findUnique: vi.fn(async (): Promise<Record<string, unknown> | null> => null),
+			create: vi.fn(async ({ data }: { data: Record<string, unknown> }) => data),
+			updateMany: vi.fn(async () => ({ count: 1 })),
+		},
+		generationJobAsset: {
+			upsert: vi.fn(async () => ({ id: "binding_1" })),
+		},
+	};
+	const client = {
+		$transaction: vi.fn(async (operation: (value: typeof tx) => Promise<unknown>) => operation(tx)),
+	};
+	return { client, tx, events };
+}
+
+function writeOutputBinding(
+	writer: OutputBindingWriter,
+	client: ReturnType<typeof outputBindingClient>["client"],
+	streamingTransfersOnly = false,
+) {
+	vi.stubEnv("MEDIA_STORAGE_FRESH_READ_ENABLED", writer === "fresh-read-claim" ? "true" : "false");
+	const asset = {
+		id: "asset_1",
+		ownerId: "user_1",
+		objectKey: "users/user_1/output.png",
+		mimeType: "image/png",
+		byteSize: 10n,
+		checksum: "a".repeat(64),
+		sourceUrl: "provider-output:attempt_1:0",
+	};
+	if (writer === "legacy-binding")
+		return createGenerationOutputAssetBindingTransaction(
+			{ jobId: "job_1", asset },
+			client as never,
+		);
+	return claimGenerationOutputTransferTransaction(
+		{
+			jobId: "job_1",
+			assetId: asset.id,
+			ownerId: asset.ownerId,
+			objectKey: asset.objectKey,
+			mimeType: asset.mimeType,
+			sourceUrl: asset.sourceUrl,
+			streamingTransfersOnly,
+			createStagingObjectKey: (token) => `users/user_1/staging/${token}.png`,
+			now: new Date("2026-10-22T00:00:00Z"),
+		},
+		client as never,
+	);
+}
+
+describe("generation output binding job fences", () => {
+	afterEach(() => vi.unstubAllEnvs());
+
+	it.each<OutputBindingWriter>(["legacy-binding", "serializable-claim", "fresh-read-claim"])(
+		"%s owns the eligible job before acquiring any binding or asset lock",
+		async (writer) => {
+			const { client, tx, events } = outputBindingClient(true);
+			const result = await writeOutputBinding(writer, client);
+			if (writer !== "legacy-binding") expect(result).toMatchObject({ freshAsset: true });
+			expect(events.slice(0, 2)).toEqual(["job-fence", "binding-lock"]);
+			expect(tx.generationJobAsset.upsert).toHaveBeenCalledOnce();
+			expect(client.$transaction).toHaveBeenCalledWith(
+				expect.any(Function),
+				expect.objectContaining({
+					isolationLevel: writer === "fresh-read-claim" ? "ReadCommitted" : "Serializable",
+				}),
+			);
+		},
+	);
+
+	it.each<OutputBindingWriter>(["serializable-claim", "fresh-read-claim"])(
+		"%s never labels an existing zero-byte placeholder as a fresh asset",
+		async (writer) => {
+			const { client, tx } = outputBindingClient(true);
+			tx.mediaAsset.findUnique.mockResolvedValueOnce({
+				id: "asset_1",
+				ownerType: "USER",
+				ownerId: "user_1",
+				kind: "OUTPUT",
+				verificationEngine: "legacy",
+				status: "VERIFYING",
+				byteSize: 0n,
+				checksum: null,
+				objectKey: "users/user_1/output.png",
+				mimeType: "image/png",
+				sourceUrl: "provider-output:attempt_1:0",
+				retentionClass: "ACCOUNT",
+				deleteAfter: null,
+				deletedAt: null,
+				finalizedAt: null,
+				outputTransferToken: null,
+			});
+			expect(await writeOutputBinding(writer, client)).toMatchObject({
+				outcome: "CLAIMED",
+				freshAsset: false,
+			});
+			expect(tx.mediaAsset.create).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each<OutputBindingWriter>(["legacy-binding", "serializable-claim", "fresh-read-claim"])(
+		"%s cannot create an output from stale eligibility after its job fence loses",
+		async (writer) => {
+			const { client, tx, events } = outputBindingClient(false);
+			await expect(writeOutputBinding(writer, client)).rejects.toThrow(
+				"GENERATION_JOB_NOT_FINALIZING_FOR_OUTPUT",
+			);
+			expect(events).toEqual(["job-fence"]);
+			expect(tx.mediaAsset.create).not.toHaveBeenCalled();
+			expect(tx.generationJobAsset.upsert).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each<OutputBindingWriter>(["serializable-claim", "fresh-read-claim"])(
+		"%s preserves REQUIRES_HEAVY when a streaming-only job fence loses",
+		async (writer) => {
+			const { client, tx, events } = outputBindingClient(false);
+			await expect(writeOutputBinding(writer, client, true)).resolves.toEqual({
+				outcome: "REQUIRES_HEAVY",
+			});
+			expect(events).toEqual(["job-fence"]);
+			expect(tx.mediaAsset.create).not.toHaveBeenCalled();
+			expect(tx.generationJobAsset.upsert).not.toHaveBeenCalled();
+		},
+	);
+});
 
 function transactionClient(overrides: Record<string, unknown> = {}) {
 	const tx = {

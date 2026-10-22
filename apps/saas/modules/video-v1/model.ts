@@ -9,6 +9,10 @@ import {
 	type VideoModelSelection,
 } from "@repo/config/video-models";
 import type { VideoRetailDisplay } from "@repo/config/video-pricing.server";
+import {
+	videoSubmissionInputSchema,
+	type VideoSubmissionInput,
+} from "@repo/config/video-submission";
 import { videoV1ReceiptInputSchema } from "@repo/config/video-v1";
 
 import type { VideoCreateInput, VideoQuote, VideoRequest, VideoState } from "./api";
@@ -39,12 +43,21 @@ export type VideoErrorKey =
 	| "network"
 	| "unsupportedSelection"
 	| "unavailable";
-export type VideoConfirmation = {
+export type VideoQuoteConfirmation = {
 	version: 1;
 	fingerprint: string;
 	quote: VideoQuote;
 	input: VideoCreateInput;
 };
+export type VideoSubmissionConfirmation = {
+	version: 2;
+	ownerId: string;
+	fingerprint: string;
+	input: VideoSubmissionInput;
+	/** A previous request may still be committing; a later preflight denial is not a cancellation. */
+	recoveryRequired?: true;
+};
+export type VideoConfirmation = VideoQuoteConfirmation | VideoSubmissionConfirmation;
 
 export const initialVideoDraft: VideoDraft = {
 	productKey: "video-kling-2-6-v1",
@@ -287,7 +300,7 @@ export function createVideoConfirmation(
 	request: VideoRequest,
 	quote: VideoQuote,
 	createId = () => crypto.randomUUID(),
-): VideoConfirmation {
+): VideoQuoteConfirmation {
 	return {
 		version: 1,
 		fingerprint: JSON.stringify(request),
@@ -296,10 +309,42 @@ export function createVideoConfirmation(
 	};
 }
 
-export function parseVideoConfirmation(raw: string | null): VideoConfirmation | null {
+export function createVideoSubmissionConfirmation(
+	ownerId: string,
+	request: VideoRequest,
+	expectedCredits: string,
+	expectedPricing: VideoSubmissionInput["expectedPricing"],
+	createId = () => crypto.randomUUID(),
+): VideoSubmissionConfirmation {
+	const input = videoSubmissionInputSchema.parse({
+		request,
+		expectedCredits,
+		expectedPricing,
+		idempotencyKey: createId(),
+	});
+	return { version: 2, ownerId, fingerprint: JSON.stringify(input), input };
+}
+
+export function parseVideoConfirmation(
+	raw: string | null,
+	ownerId?: string,
+): VideoConfirmation | null {
 	if (!raw) return null;
 	try {
 		const saved = JSON.parse(raw) as VideoConfirmation;
+		if (saved.version === 2) {
+			const parsed = videoSubmissionInputSchema.safeParse(saved.input);
+			if (
+				!parsed.success ||
+				typeof saved.ownerId !== "string" ||
+				!saved.ownerId ||
+				(ownerId !== undefined && saved.ownerId !== ownerId) ||
+				(saved.recoveryRequired !== undefined && saved.recoveryRequired !== true) ||
+				saved.fingerprint !== JSON.stringify(parsed.data)
+			)
+				return null;
+			return { ...saved, input: parsed.data };
+		}
 		const input = saved.input;
 		const request = input?.request;
 		if (

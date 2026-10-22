@@ -138,7 +138,7 @@ export type GenerationAttemptTransferEnvelopeScalarFieldEnum = z.infer<typeof Ge
 
 // File: MediaAssetScalarFieldEnum.schema.ts
 
-export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'retentionClass', 'deleteAfter', 'watermarkVersion', 'watermarkedAt', 'cleanStagingDeletedAt', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'storageEtag', 'storageVersionId', 'finalizedAt', 'outputTransferToken', 'outputTransferLeaseExpiresAt', 'outputStagingObjectKey', 'outputPromotionMultipartUploadId', 'sourceUrl', 'verificationEngine', 'videoCleanupCompletedAt', 'verificationGeneration', 'verificationAttemptCount', 'verificationProvider', 'verificationRuleVersion', 'verificationPolicyVersion', 'verificationProviderTaskId', 'verificationLeaseToken', 'verificationLeasedUntil', 'verificationNextAttemptAt', 'verificationDeadlineAt', 'verificationExhaustedAt', 'verificationValidUntil', 'verificationSubmissionToken', 'verificationSubmissionUncertain', 'verificationSubmittedAt', 'verificationLastErrorCode', 'createdAt', 'updatedAt', 'deletedAt'])
+export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'retentionClass', 'deleteAfter', 'watermarkVersion', 'watermarkedAt', 'cleanStagingDeletedAt', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'storageEtag', 'storageVersionId', 'finalizedAt', 'outputTransferToken', 'outputTransferLeaseExpiresAt', 'outputStagingObjectKey', 'outputPromotionMultipartUploadId', 'sourceUrl', 'verificationEngine', 'videoCleanupCompletedAt', 'verificationGeneration', 'verificationAttemptCount', 'verificationProvider', 'verificationRuleVersion', 'verificationPolicyVersion', 'verificationProviderTaskId', 'verificationLeaseToken', 'verificationLeasedUntil', 'verificationNextAttemptAt', 'verificationDeadlineAt', 'verificationExhaustedAt', 'verificationValidUntil', 'verificationSubmissionToken', 'verificationSubmissionUncertain', 'verificationSubmittedAt', 'verificationCallbackReceivedAt', 'verificationLastErrorCode', 'createdAt', 'updatedAt', 'deletedAt'])
 
 export type MediaAssetScalarFieldEnum = z.infer<typeof MediaAssetScalarFieldEnumSchema>;
 
@@ -165,6 +165,12 @@ export type AssetModerationResultScalarFieldEnum = z.infer<typeof AssetModeratio
 export const GenerationRetryRequestScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'sourceJobId', 'resultJobId', 'quoteId', 'idempotencyKey', 'status', 'operationFingerprint', 'operationSnapshot', 'leaseToken', 'leasedUntil', 'errorCode', 'createdAt', 'updatedAt', 'completedAt'])
 
 export type GenerationRetryRequestScalarFieldEnum = z.infer<typeof GenerationRetryRequestScalarFieldEnumSchema>;
+
+// File: MediaOwnerStorageFenceScalarFieldEnum.schema.ts
+
+export const MediaOwnerStorageFenceScalarFieldEnumSchema = z.enum(['ownerType', 'ownerId', 'revision'])
+
+export type MediaOwnerStorageFenceScalarFieldEnum = z.infer<typeof MediaOwnerStorageFenceScalarFieldEnumSchema>;
 
 // File: StorageUsageReservationScalarFieldEnum.schema.ts
 
@@ -207,6 +213,12 @@ export type CreditLedgerEntryScalarFieldEnum = z.infer<typeof CreditLedgerEntryS
 export const ProviderWebhookEventScalarFieldEnumSchema = z.enum(['id', 'provider', 'providerEventId', 'providerTaskId', 'verifiedAt', 'receivedAt', 'providerOccurredAt', 'providerSequence', 'envelope', 'status', 'processedAt', 'failureReason', 'processingToken', 'processingLeasedUntil'])
 
 export type ProviderWebhookEventScalarFieldEnum = z.infer<typeof ProviderWebhookEventScalarFieldEnumSchema>;
+
+// File: MediaWorkflowPhaseOwnerScalarFieldEnum.schema.ts
+
+export const MediaWorkflowPhaseOwnerScalarFieldEnumSchema = z.enum(['phaseKey', 'phaseKind', 'subjectId', 'generation', 'workflowId', 'epoch', 'leasedUntil', 'createdAt', 'updatedAt'])
+
+export type MediaWorkflowPhaseOwnerScalarFieldEnum = z.infer<typeof MediaWorkflowPhaseOwnerScalarFieldEnumSchema>;
 
 // File: OutboxEventScalarFieldEnum.schema.ts
 
@@ -1211,6 +1223,7 @@ export const MediaAssetSchema = z.object({
   verificationSubmissionToken: z.string().nullish(),
   verificationSubmissionUncertain: z.boolean(),
   verificationSubmittedAt: z.date().nullish(),
+  verificationCallbackReceivedAt: z.date().nullish(),
   verificationLastErrorCode: z.string().nullish(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -1311,6 +1324,17 @@ export const GenerationRetryRequestSchema = z.object({
 });
 
 export type GenerationRetryRequestType = z.infer<typeof GenerationRetryRequestSchema>;
+
+
+// File: MediaOwnerStorageFence.schema.ts
+
+export const MediaOwnerStorageFenceSchema = z.object({
+  ownerType: OwnerTypeSchema,
+  ownerId: z.string(),
+  revision: z.bigint().default(BigInt(0)),
+});
+
+export type MediaOwnerStorageFenceType = z.infer<typeof MediaOwnerStorageFenceSchema>;
 
 
 // File: StorageUsageReservation.schema.ts
@@ -1436,6 +1460,23 @@ export const ProviderWebhookEventSchema = z.object({
 });
 
 export type ProviderWebhookEventType = z.infer<typeof ProviderWebhookEventSchema>;
+
+
+// File: MediaWorkflowPhaseOwner.schema.ts
+
+export const MediaWorkflowPhaseOwnerSchema = z.object({
+  phaseKey: z.string(),
+  phaseKind: z.string(),
+  subjectId: z.string(),
+  generation: z.number().int(),
+  workflowId: z.string(),
+  epoch: z.number().int().default(1),
+  leasedUntil: z.date(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type MediaWorkflowPhaseOwnerType = z.infer<typeof MediaWorkflowPhaseOwnerSchema>;
 
 
 // File: OutboxEvent.schema.ts

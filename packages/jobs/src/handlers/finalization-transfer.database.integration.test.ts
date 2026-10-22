@@ -1,3 +1,5 @@
+import { Readable } from "node:stream";
+
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
 	MEDIA_VERIFICATION_POLICY_VERSION,
@@ -15,6 +17,13 @@ import {
 	createModeratedGenerationQuoteTransaction,
 	failGenerationOutputTransferTransaction,
 	fingerprintGenerationQuoteSecurityPayload,
+	getAssetGenerationContinuation,
+	getFinalizationContinuation,
+	prepareWorkflowOutboxEvent,
+	beginWorkflowOutboxExecution,
+	completeWorkflowOutboxExecution,
+	failWorkflowOutboxExecution,
+	deferWorkflowOutboxExecution,
 	reserveGenerationOutputStorageTransaction,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
@@ -30,13 +39,24 @@ import {
 } from "@repo/storage";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import {
+	runTask,
+	type DurableSteps,
+	type InvokeTask,
+} from "../../../../apps/workflows/src/orchestrator";
 import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
 import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
 
 const globalStorage = vi.hoisted(() => ({
 	// Existing cases exercise legacy streaming/promotion and guest recovery.
 	tryWriteImmutableGenerationImage: vi.fn(async () => null),
-	inspectRemoteMedia: vi.fn(async () => ({ contentType: "image/png" as const })),
+	openInspectedRemoteMedia: vi.fn(async () => ({
+		contentType: "image/png" as const,
+		status: 200,
+		headers: {},
+		url: new URL("https://replicate.delivery/test.png"),
+		stream: Readable.from([Buffer.from("89504e470d0a1a0a0000000d4948445200000001", "hex")]),
+	})),
 	putPrivateMediaObject: vi.fn(async () => {
 		throw new Error("GLOBAL_STORAGE_USED");
 	}),
@@ -55,7 +75,12 @@ vi.mock("@repo/storage", async () => ({
 	...(await vi.importActual<typeof import("@repo/storage")>("@repo/storage")),
 	...globalStorage,
 }));
+vi.mock("../realtime/publish", () => ({
+	publishCommittedMediaJobNotification: vi.fn(async () => false),
+}));
 
+import { GenerationTransferRequiresHeavyError } from "../contracts";
+import type { TaskRequest } from "../orchestration/contracts";
 import {
 	createDatabaseDispatchStore,
 	createDatabaseFinalizationStore,
@@ -65,6 +90,7 @@ import {
 } from "../runtime";
 import { finalizeMedia } from "./finalize-media";
 import { settleGeneration } from "./settle-generation";
+import { prepareTargetedEvent, executeTargetedEvent } from "./targeted-event-delivery";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const PNG_BODY = Buffer.from("89504e470d0a1a0a0000000d4948445200000001", "hex");
@@ -83,6 +109,520 @@ describe("generation output transfer runtime", () => {
 	});
 
 	afterAll(async () => client?.$disconnect());
+	it("continues a committed retry in the original Workflow at its due time without replaying transfer or settlement", async () => {
+		const seeded = await seedFinalizingJob([
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/retry.png",
+				trust: "untrusted-transfer-candidate",
+			},
+		]);
+		const source = await client.outboxEvent.findFirstOrThrow({
+			where: { aggregateId: seeded.jobId, eventType: "GENERATION_FINALIZE" },
+		});
+		const stream = vi.fn(async () => ({ bytes: PNG_BODY.byteLength, sha256: PNG_CHECKSUM }));
+		const deps = createFinalizationDependencies(process.env, {
+			database: client,
+			deferOutputReview: true,
+			storage: {
+				streamRemoteObjectToStorage: stream,
+				promoteStagedObject: async () => ({
+					bytes: PNG_BODY.byteLength,
+					sha256: PNG_CHECKSUM,
+					etag: "retry-output",
+					versionId: null,
+				}),
+			},
+		});
+		const persist = vi
+			.fn((...args: Parameters<typeof deps.persistCandidate>) => deps.persistCandidate(...args))
+			.mockRejectedValueOnce(new Error("transfer unavailable"));
+		const review = createDatabaseVerifyUploadDependencies(client, {
+			safety: new TestMediaSafetyAdapter("ALLOW"),
+			moderationProvider: "test",
+			createSignedReadUrl: async () => "https://private.example/retried-output",
+		});
+		// This fixture advances an explicit database clock. Start at the source's
+		// DB-generated due time even when the application clock is slightly behind.
+		let logicalNow = new Date(Math.max(Date.now(), source.availableAt.getTime()));
+		const prepared: TaskRequest[] = [];
+		const recovered = vi.fn(async (request: TaskRequest) => ({
+			continuation:
+				request.taskId === "media-settle-generation"
+					? { eventIds: [] }
+					: await getFinalizationContinuation(seeded.jobId, client, {
+							recoverRetry: true,
+							excludeEventId: request.outboxReceipt?.eventId,
+						}),
+		}));
+		const execute = vi.fn(async (request: TaskRequest) => {
+			if (request.taskId === "media-finalize-generation") {
+				const result = await finalizeMedia(
+					{ jobId: seeded.jobId, version: seeded.version },
+					{ ...deps, persistCandidate: persist },
+				);
+				return {
+					...result,
+					continuation: result.retryEvent
+						? { eventIds: [result.retryEvent.id], notBefore: result.retryEvent.availableAt }
+						: { eventIds: result.outputReviewEventIds ?? [] },
+				};
+			}
+			if (request.taskId === "media-verify-upload") {
+				await review.verify(request.payload.assetId as string);
+				return {
+					done: true,
+					waitSeconds: 0,
+					continuation: await getAssetGenerationContinuation(
+						request.payload.assetId as string,
+						client,
+					),
+				};
+			}
+			if (request.taskId === "media-settle-generation") {
+				await settleGeneration(
+					{ jobId: seeded.jobId, version: seeded.version },
+					{ store: createDatabaseSettlementStore(client) },
+				);
+				return { continuation: { eventIds: [] } };
+			}
+			throw new Error(`Unexpected task ${request.taskId}`);
+		});
+		const delivery = {
+			begin: (input: Parameters<typeof beginWorkflowOutboxExecution>[0]) =>
+				beginWorkflowOutboxExecution({ ...input, now: logicalNow }, client),
+			complete: (input: Parameters<typeof completeWorkflowOutboxExecution>[0]) =>
+				completeWorkflowOutboxExecution({ ...input, now: logicalNow }, client),
+			fail: (input: Parameters<typeof failWorkflowOutboxExecution>[0]) =>
+				failWorkflowOutboxExecution({ ...input, now: logicalNow }, client),
+			defer: (input: Parameters<typeof deferWorkflowOutboxExecution>[0]) =>
+				deferWorkflowOutboxExecution({ ...input, now: logicalNow }, client),
+			execute,
+			recover: recovered,
+		};
+		const invoke = vi.fn<InvokeTask>(async (request, context) => {
+			expect(context.runId).toBe("retry-original-workflow");
+			if (request.taskId === "media-prepare-event") {
+				const task = await prepareTargetedEvent(
+					{ eventId: request.payload.eventId as string, workerId: context.runId },
+					{
+						prepare: (input) => prepareWorkflowOutboxEvent({ ...input, now: logicalNow }, client),
+						resolve: async () => null,
+						complete: delivery.complete,
+					},
+				);
+				if (task) prepared.push(task);
+				return { status: "ok", preparedEvent: task };
+			}
+			const result = (await executeTargetedEvent(request, delivery)) as Awaited<
+				ReturnType<InvokeTask>
+			> & { done?: boolean; waitSeconds?: number };
+			return {
+				...result,
+				status: "ok",
+				...(request.taskId === "media-verify-upload"
+					? { poll: { done: result.done === true, waitSeconds: result.waitSeconds ?? 0 } }
+					: {}),
+			};
+		});
+		const outputs = new Map<string, unknown>();
+		let retryId = "";
+		const sleepUntil = vi.fn<NonNullable<DurableSteps["sleepUntil"]>>(async (_name, timestamp) => {
+			const due = new Date(timestamp);
+			const retry = await client.outboxEvent.findUniqueOrThrow({
+				where: { dedupeKey: `generation-finalize-retry:${seeded.jobId}:transfer:1` },
+			});
+			retryId = retry.id;
+			expect(retry.availableAt).toEqual(due);
+			expect(
+				await prepareWorkflowOutboxEvent(
+					{
+						eventId: retry.id,
+						workerId: "retry-original-workflow",
+						now: new Date(due.getTime() - 1),
+					},
+					client,
+				),
+			).toBeNull();
+			expect(await client.outboxEvent.findUniqueOrThrow({ where: { id: retry.id } })).toMatchObject(
+				{ status: "PENDING", leaseToken: null, attempts: 0 },
+			);
+			// The source task has already committed and ACKed. Losing its response
+			// must recover this exact future retry without executing finalization again.
+			expect(await executeTargetedEvent(prepared[0]!, delivery)).toMatchObject({
+				deliveryState: "completed",
+				continuation: { eventIds: [retry.id], notBefore: due.getTime() },
+			});
+			expect(execute).toHaveBeenCalledOnce();
+			logicalNow = due;
+		});
+		const steps: DurableSteps = {
+			targetedEventDelivery: true,
+			deferOutputReview: true,
+			async do<T>(name: string, _config: unknown, callback: () => Promise<T>): Promise<T> {
+				if (!outputs.has(name)) outputs.set(name, await callback());
+				return outputs.get(name) as T;
+			},
+			sleep: async () => {
+				throw new Error("Unexpected polling or legacy wait");
+			},
+			sleepUntil,
+		};
+		const initial = { taskId: "media-deliver-events", payload: { eventIds: [source.id] } };
+		await runTask(initial, "retry-original-workflow", steps, invoke);
+		expect(sleepUntil).toHaveBeenCalledOnce();
+		expect(
+			await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).toMatchObject({ status: "SUCCEEDED" });
+		expect(prepared.some((task) => task.outboxReceipt?.eventId === retryId)).toBe(true);
+		expect(persist).toHaveBeenCalledTimes(2);
+		expect(stream).toHaveBeenCalledOnce();
+		expect(execute).toHaveBeenCalledTimes(4);
+		await executeTargetedEvent(
+			prepared.find((task) => task.outboxReceipt?.eventId === retryId)!,
+			delivery,
+		);
+		await executeTargetedEvent(
+			prepared.find((task) => task.taskId === "media-settle-generation")!,
+			delivery,
+		);
+		await runTask(initial, "retry-original-workflow", steps, invoke);
+		expect(execute).toHaveBeenCalledTimes(4);
+		expect(stream).toHaveBeenCalledOnce();
+		expect(await client.generationAttempt.count({ where: { jobId: seeded.jobId } })).toBe(1);
+		expect(
+			await client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+		).toBe(1);
+	});
+
+	it("projects only the latest successful Kie URL envelope before entering a streaming executor", async () => {
+		const seeded = await seedFinalizingJob([
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/streaming.png",
+				trust: "untrusted-transfer-candidate",
+			},
+		]);
+		const store = createDatabaseFinalizationStore(client, { streamingTransfersOnly: true });
+		const payload = { jobId: seeded.jobId, version: seeded.version };
+		const claim = await store.claimFinalization(payload);
+		expect(claim?.candidates).toHaveLength(1);
+		const attempt = await client.generationAttempt.findFirstOrThrow({
+			where: { jobId: seeded.jobId },
+			orderBy: { attemptNumber: "desc" },
+		});
+		const remote = { kind: "remote-url", url: "https://replicate.delivery/streaming.png" };
+		for (const envelope of [
+			{
+				version: 1,
+				outputs: [
+					{ kind: "inline-base64", mimeType: "image/png", data: PNG_BODY.toString("base64") },
+				],
+			},
+			{
+				version: 1,
+				outputs: [
+					remote,
+					{ kind: "inline-base64", mimeType: "image/png", data: PNG_BODY.toString("base64") },
+				],
+			},
+			{ version: 2, outputs: [remote] },
+			{
+				version: 1,
+				outputs: [{ ...remote, url: `https://replicate.delivery/${"a".repeat(4096)}` }],
+			},
+			{ version: 1, outputs: { invalid: true } },
+		]) {
+			await client.generationAttemptTransferEnvelope.update({
+				where: { attemptId: attempt.id },
+				data: { payload: envelope },
+			});
+			await expect(store.claimFinalization(payload)).rejects.toBeInstanceOf(
+				GenerationTransferRequiresHeavyError,
+			);
+		}
+		await client.generationAttemptTransferEnvelope.update({
+			where: { attemptId: attempt.id },
+			data: { payload: { version: 1, outputs: [remote] } },
+		});
+		await client.generationAttempt.create({
+			data: {
+				jobId: seeded.jobId,
+				attemptNumber: attempt.attemptNumber + 1,
+				provider: "kie",
+				providerModelId: attempt.providerModelId,
+				status: "SUCCEEDED",
+				requestSnapshot: {},
+			},
+		});
+		// The newest success has no envelope. Never select an older valid success.
+		await expect(store.claimFinalization(payload)).rejects.toBeInstanceOf(
+			GenerationTransferRequiresHeavyError,
+		);
+		expect(
+			await client.mediaAsset.count({ where: { ownerId: seeded.ownerId, kind: "OUTPUT" } }),
+		).toBe(0);
+		expect(
+			await client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+		).toBe(0);
+	});
+	it("atomically refuses an existing heavy transfer without stealing or extending its lease", async () => {
+		const seeded = await seedFinalizingJob([
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/owned.png",
+				trust: "untrusted-transfer-candidate",
+			},
+		]);
+		const assetId = `asset_${crypto.randomUUID().replaceAll("-", "")}`;
+		const input = {
+			jobId: seeded.jobId,
+			ownerId: seeded.ownerId,
+			assetId,
+			objectKey: `users/${seeded.ownerId}/assets/${assetId}/original.png`,
+			mimeType: "image/png",
+			sourceUrl: "provider-output:old:0",
+			createStagingObjectKey: (token: string) =>
+				`users/${seeded.ownerId}/staging/${assetId}/${token}.png`,
+		};
+		const original = await claimGenerationOutputTransferTransaction(input, client);
+		if (original.outcome !== "CLAIMED") throw new Error("Expected initial lease");
+		const before = await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } });
+		const events = await client.outboxEvent.count({ where: { aggregateId: assetId } });
+		expect(
+			await claimGenerationOutputTransferTransaction(
+				{ ...input, streamingTransfersOnly: true },
+				client,
+			),
+		).toEqual({ outcome: "REQUIRES_HEAVY" });
+		expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toEqual(before);
+		expect(await client.outboxEvent.count({ where: { aggregateId: assetId } })).toBe(events);
+	});
+	it("commits first review with transfer and settles after control review without a second heavy finalize", async () => {
+		vi.stubEnv("MEDIA_JOB_EVENTS_ENABLED", "true");
+		try {
+			const seeded = await seedFinalizingJob([
+				{
+					kind: "remote-url",
+					url: "https://replicate.delivery/deferred.png",
+					trust: "untrusted-transfer-candidate",
+				},
+			]);
+			const payload = { jobId: seeded.jobId, version: seeded.version };
+			const reviewInHeavy = vi.fn(async () => {
+				throw new Error("HEAVY_REVIEW_FORBIDDEN");
+			});
+			const stream = vi.fn(async () => ({ bytes: PNG_BODY.byteLength, sha256: PNG_CHECKSUM }));
+			const deps = createFinalizationDependencies(process.env, {
+				database: client,
+				deferOutputReview: true,
+				verification: { verify: reviewInHeavy },
+				storage: {
+					streamRemoteObjectToStorage: stream,
+					promoteStagedObject: async () => ({
+						bytes: PNG_BODY.byteLength,
+						sha256: PNG_CHECKSUM,
+						etag: "deferred-etag",
+						versionId: null,
+					}),
+				},
+			});
+			const first = await finalizeMedia(payload, deps);
+			expect(first).toMatchObject({ outcome: "WAITING_MODERATION", readyOutputs: 0 });
+			expect(first.outputReviewEventIds).toHaveLength(1);
+			const event = await client.outboxEvent.findUniqueOrThrow({
+				where: { id: first.outputReviewEventIds![0] },
+			});
+			const assetId = event.aggregateId;
+			expect(event).toMatchObject({
+				eventType: "MEDIA_ASSET_VERIFY",
+				status: "PENDING",
+				dedupeKey: `media-asset-verify:${assetId}:g1:poll`,
+				payload: { assetId },
+			});
+			expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({
+				status: "VERIFYING",
+				checksum: PNG_CHECKSUM,
+				outputTransferToken: null,
+				verificationGeneration: 0,
+				verificationAttemptCount: 0,
+				verificationProviderTaskId: null,
+			});
+			const dueAt = new Date(Date.now() + 25_000);
+			await client.outboxEvent.update({ where: { id: event.id }, data: { availableAt: dueAt } });
+			expect(await finalizeMedia(payload, deps)).toEqual(first);
+			expect(await client.outboxEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject(
+				{
+					availableAt: dueAt,
+					status: "PENDING",
+				},
+			);
+			expect(stream).toHaveBeenCalledOnce();
+			expect(reviewInHeavy).not.toHaveBeenCalled();
+			expect(
+				await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			).toMatchObject({ status: "FINALIZING", finalizationRetryCount: 0 });
+			expect(
+				await client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+			).toBe(0);
+			const controlVerification = createDatabaseVerifyUploadDependencies(client, {
+				safety: new TestMediaSafetyAdapter("ALLOW"),
+				moderationProvider: "test",
+				createSignedReadUrl: async () => "https://private.example/approved-output",
+			});
+			await controlVerification.verify(assetId);
+			expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({
+				status: "READY",
+			});
+			const notifications = await client.outboxEvent.findMany({
+				where: { eventType: "MEDIA_JOB_UPDATED", aggregateId: seeded.jobId },
+			});
+			expect(notifications).toHaveLength(1);
+			expect(notifications[0]).toMatchObject({
+				status: "PENDING",
+				payload: { jobId: seeded.jobId, version: `asset:${assetId}:g1:ready` },
+			});
+			await controlVerification.verify(assetId);
+			expect(
+				await client.outboxEvent.count({
+					where: { dedupeKey: `generation-settle:${seeded.jobId}` },
+				}),
+			).toBe(1);
+			expect(
+				await client.outboxEvent.count({
+					where: {
+						dedupeKey: {
+							startsWith: `generation-finalize-after-output-verification:${seeded.jobId}:`,
+						},
+					},
+				}),
+			).toBe(0);
+			const settlementEvent = await client.outboxEvent.findUniqueOrThrow({
+				where: { dedupeKey: `generation-settle:${seeded.jobId}` },
+			});
+			const continuation = await getAssetGenerationContinuation(assetId, client);
+			expect(continuation).toEqual({ eventIds: [settlementEvent.id] });
+			const task = await prepareTargetedEvent(
+				{ eventId: continuation.eventIds[0]!, workerId: `review-continuation:${seeded.jobId}` },
+				{
+					prepare: (input) => prepareWorkflowOutboxEvent(input, client),
+					resolve: async () => null,
+					complete: (input) => completeWorkflowOutboxExecution(input, client),
+				},
+			);
+			expect(task).toMatchObject({
+				taskId: "media-settle-generation",
+				outboxReceipt: { eventId: settlementEvent.id },
+			});
+			const settle = vi.fn(async () => {
+				await settleGeneration(payload, { store: createDatabaseSettlementStore(client) });
+				return { continuation: { eventIds: [] } };
+			});
+			const delivery = {
+				begin: (input: Parameters<typeof beginWorkflowOutboxExecution>[0]) =>
+					beginWorkflowOutboxExecution(input, client),
+				complete: (input: Parameters<typeof completeWorkflowOutboxExecution>[0]) =>
+					completeWorkflowOutboxExecution(input, client),
+				fail: (input: Parameters<typeof failWorkflowOutboxExecution>[0]) =>
+					failWorkflowOutboxExecution(input, client),
+				defer: (input: Parameters<typeof deferWorkflowOutboxExecution>[0]) =>
+					deferWorkflowOutboxExecution(input, client),
+				execute: settle,
+				recover: async () => ({ continuation: { eventIds: [] } }),
+			};
+			expect(await executeTargetedEvent(task!, delivery)).toMatchObject({
+				deliveryState: "completed",
+			});
+			expect(await executeTargetedEvent(task!, delivery)).toMatchObject({
+				deliveryState: "completed",
+			});
+			expect(settle).toHaveBeenCalledOnce();
+			await settleGeneration(payload, { store: createDatabaseSettlementStore(client) });
+			expect(await client.generationAttempt.count({ where: { jobId: seeded.jobId } })).toBe(1);
+			expect(
+				await client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+			).toBe(1);
+			expect(
+				await client.outboxEvent.count({
+					where: { eventType: "MEDIA_JOB_UPDATED", aggregateId: seeded.jobId },
+				}),
+			).toBe(1);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+	it("cannot queue settlement until every sibling output is persisted and approved", async () => {
+		const seeded = await seedFinalizingJob([
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/first.png",
+				trust: "untrusted-transfer-candidate",
+			},
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/second.png",
+				trust: "untrusted-transfer-candidate",
+			},
+		]);
+		const payload = { jobId: seeded.jobId, version: seeded.version };
+		const deps = createFinalizationDependencies(process.env, {
+			database: client,
+			deferOutputReview: true,
+			verification: {
+				verify: async () => {
+					throw new Error("HEAVY_REVIEW_FORBIDDEN");
+				},
+			},
+			storage: {
+				streamRemoteObjectToStorage: async () => ({
+					bytes: PNG_BODY.byteLength,
+					sha256: PNG_CHECKSUM,
+				}),
+				promoteStagedObject: async () => ({
+					bytes: PNG_BODY.byteLength,
+					sha256: PNG_CHECKSUM,
+					etag: "two-output-etag",
+					versionId: null,
+				}),
+			},
+		});
+		const first = await finalizeMedia(payload, deps);
+		expect(first.outputReviewEventIds).toHaveLength(2);
+		const events = await client.outboxEvent.findMany({
+			where: { id: { in: first.outputReviewEventIds! } },
+			orderBy: { id: "asc" },
+		});
+		const verification = createDatabaseVerifyUploadDependencies(client, {
+			safety: new TestMediaSafetyAdapter("ALLOW"),
+			moderationProvider: "test",
+			createSignedReadUrl: async () => "https://private.example/approved-output",
+		});
+		await verification.verify(events[0]!.aggregateId);
+		expect(
+			await client.outboxEvent.count({ where: { dedupeKey: `generation-settle:${seeded.jobId}` } }),
+		).toBe(0);
+		expect(
+			await client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+		).toBe(0);
+		await verification.verify(events[1]!.aggregateId);
+		expect(
+			await client.outboxEvent.count({ where: { dedupeKey: `generation-settle:${seeded.jobId}` } }),
+		).toBe(1);
+		const bindings = await client.generationJobAsset.findMany({
+			where: { jobId: seeded.jobId, role: "OUTPUT" },
+			orderBy: { position: "asc" },
+			include: { asset: true },
+		});
+		expect(bindings.map((binding) => binding.position)).toEqual([0, 1]);
+		expect(bindings.map((binding) => binding.asset.sourceUrl?.split(":").at(-1))).toEqual([
+			"0",
+			"1",
+		]);
+		await settleGeneration(payload, { store: createDatabaseSettlementStore(client) });
+		expect(
+			await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).toMatchObject({ status: "SUCCEEDED" });
+	});
 	it
 		.skipIf(process.env.RUN_MEDIA_STORAGE_INTEGRATION !== "true")
 		.each(["DB_FAILURE", "LEASE_EXPIRED"])(
@@ -1011,7 +1551,8 @@ async function seedFinalizingJob(outputs: ProviderOutput[]) {
 		createSignedReadUrl: async () => "https://private.example/output-transfer-input.png",
 	});
 	const dispatch = await dispatchStore.claimDispatch({ jobId: created.job.id, version: 0 });
-	if (dispatch && "deferred" in dispatch) throw new Error("Expected available provider capacity");
+	if (dispatch && ("deferred" in dispatch || "phaseOwnershipLost" in dispatch))
+		throw new Error("Expected available provider capacity");
 	if (!dispatch) throw new Error("Expected dispatch claim");
 	await dispatchStore.recordSynchronousCompletion(
 		dispatch.attemptId,

@@ -1011,8 +1011,10 @@ describe("video V1 fulfillment isolated database", () => {
 	it("DB failure resume preserves one asset/key, quota reservation, attempt and immutable identity", async () => {
 		const item = await fixture();
 		const initial = await scoped(() => claimVideoOutputStorage(item.jobId, 200_000_000n));
+		expect(initial.freshTransfer).toBe(true);
 		await scoped(() => releaseVideoStorageLease(item.jobId, initial.asset.id, initial.token!));
 		const retry = await scoped(() => claimVideoOutputStorage(item.jobId, 200_000_000n));
+		expect(retry.freshTransfer).toBe(false);
 		expect(retry.asset.objectKey).toBe(initial.asset.objectKey);
 		expect(retry.asset.id).toBe(initial.asset.id);
 		expect(await client.storageUsageReservation.count({ where: { ownerId: item.ownerId } })).toBe(

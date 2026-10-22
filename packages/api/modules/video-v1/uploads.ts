@@ -154,12 +154,7 @@ export async function completeVideoUpload(user: User, input: { sessionId: string
 		maximumBytes,
 	);
 	const source = { bucket: "media" as const, key: asset.objectKey };
-	const dimensions = await inspectPrivateImage({
-		...source,
-		contentType: asset.mimeType as InputType,
-		contentLength: Number(asset.byteSize),
-		ifMatch: asset.storageEtag!,
-	});
+	let dimensions: { width: number; height: number };
 	let identity = {
 		objectKey: asset.objectKey,
 		checksum: asset.checksum!,
@@ -176,19 +171,11 @@ export async function completeVideoUpload(user: User, input: { sessionId: string
 			sourceBytes: Number(asset.byteSize),
 			sourceEtag: asset.storageEtag!,
 			maximumBytes,
+			preserveDimensions: true,
 		});
 		if (!normalized.etag) throw new Error("VIDEO_INPUT_NOT_SEALED");
-		const normalizedDimensions = await inspectPrivateImage({
-			...final,
-			contentType: "image/png",
-			contentLength: normalized.bytes,
-			ifMatch: normalized.etag,
-		});
-		if (
-			normalizedDimensions.width !== dimensions.width ||
-			normalizedDimensions.height !== dimensions.height
-		)
-			throw new Error("VIDEO_INPUT_DIMENSIONS_CHANGED");
+		// Normalization returns the dimensions decoded from the immutable winner.
+		dimensions = { width: normalized.width, height: normalized.height };
 		identity = {
 			objectKey: final.key,
 			checksum: normalized.sha256,
@@ -197,6 +184,13 @@ export async function completeVideoUpload(user: User, input: { sessionId: string
 			bytes: normalized.bytes,
 			mimeType: "image/png",
 		};
+	} else {
+		dimensions = await inspectPrivateImage({
+			...source,
+			contentType: asset.mimeType as InputType,
+			contentLength: Number(asset.byteSize),
+			ifMatch: asset.storageEtag!,
+		});
 	}
 	asset = await recordVideoInputIdentity({
 		ownerId: user.id,

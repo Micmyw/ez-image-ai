@@ -38,7 +38,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { isExplicitGuestVerificationTarget } from "../../../../tests/load/guest-verification-target";
 import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
 import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
-import { DispatchAdmissionBlockedError } from "../contracts";
+import { DispatchAdmissionBlockedError, ProviderEventPhaseHeldError } from "../contracts";
 import {
 	createDatabaseDispatchStore,
 	createDatabaseGuestAdmissionDependencies,
@@ -104,18 +104,28 @@ describe("production media runtime stores", () => {
 		const seeded = await seedFinalizingJob();
 		const output = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
 		const verification = createOutputVerificationDependencies("ALLOW");
-		expect(await verifyUpload({ assetId: output.assetId }, verification)).toEqual({
-			outboxCommitted: true,
-		});
+		const changed = await verifyUpload({ assetId: output.assetId }, verification);
 		const event = await client.outboxEvent.findFirstOrThrow({
 			where: { aggregateId: seeded.jobId, eventType: "GENERATION_FINALIZE_RETRY" },
+		});
+		const verifiedAsset = await client.mediaAsset.findUniqueOrThrow({
+			where: { id: output.assetId },
+		});
+		expect(changed).toEqual({
+			outboxCommitted: true,
+			verificationCommit: {
+				assetId: output.assetId,
+				generation: verifiedAsset.verificationGeneration,
+				status: "READY",
+				eventIds: [event.id],
+			},
 		});
 		// Simulate process death: never deliver the returned wake-up signal.
 		expect(await verifyUpload({ assetId: output.assetId }, verification)).toEqual({
 			outboxCommitted: false,
 		});
 		const workerId = `crash-recovery:${event.id}`;
-		const recovered = await claimFixtureOutboxEvent(event.id, workerId, new Date());
+		const recovered = await claimFixtureOutboxEvent(event.id, workerId, await databaseNow());
 		expect(recovered).toMatchObject({
 			id: event.id,
 			aggregateId: seeded.jobId,
@@ -139,7 +149,7 @@ describe("production media runtime stores", () => {
 		const event = await client.outboxEvent.findFirstOrThrow({
 			where: { aggregateId: seeded.jobId, eventType: "JOB_CREATED" },
 		});
-		let now = new Date();
+		let now = await databaseNow();
 		let loseResponse = true;
 		const submit = vi.fn(async () => ({
 			providerTaskId: `mock-kie-${seeded.jobId}`,
@@ -223,6 +233,154 @@ describe("production media runtime stores", () => {
 		).toMatchObject({ status: "ACTIVE", amount: seeded.credits });
 	});
 
+	it("claims independent image owners while another claim holds its input authorization transaction", async () => {
+		const first = await seedReservedJob("image-nano-banana-2-lite");
+		const second = await seedReservedJob("image-nano-banana-2-lite");
+		let releaseAuthorization!: () => void;
+		let authorizationReached = false;
+		const released = new Promise<void>((resolve) => {
+			releaseAuthorization = resolve;
+		});
+		const firstClaim = createTestDispatchStore({
+			afterInputAuthorization: async () => {
+				authorizationReached = true;
+				await released;
+			},
+		}).claimDispatch({ jobId: first.jobId, version: 0 });
+		void firstClaim.catch(() => undefined);
+		let secondClaim: typeof firstClaim | undefined;
+		try {
+			await expect.poll(() => authorizationReached, { timeout: 2_000 }).toBe(true);
+			let independentCommitted = false;
+			secondClaim = createTestDispatchStore()
+				.claimDispatch({ jobId: second.jobId, version: 0 })
+				.then((claim) => {
+					independentCommitted = true;
+					return claim;
+				});
+			void secondClaim.catch(() => undefined);
+			// The first transaction still owns its job and asset locks. Another owner
+			// must commit without waiting for that transaction to release them.
+			await expect.poll(() => independentCommitted, { timeout: 2_000 }).toBe(true);
+			releaseAuthorization();
+			const claims = await Promise.all([firstClaim, secondClaim]);
+			for (const [index, claim] of claims.entries()) {
+				const seeded = [first, second][index]!;
+				expect(claim).toMatchObject({ provider: "kie", attemptNumber: 1 });
+				const job = await client.generationJob.findUniqueOrThrow({
+					where: { id: seeded.jobId },
+					include: { attempts: true, reservation: true },
+				});
+				expect(job).toMatchObject({ status: "SUBMITTING", version: 1 });
+				expect(job.attempts).toMatchObject([
+					{ provider: "kie", status: "SUBMISSION_UNCERTAIN", uncertainSubmission: true },
+				]);
+				expect(job.attempts).toHaveLength(1);
+				expect(job.reservation).toMatchObject({ status: "ACTIVE", amount: seeded.credits });
+			}
+		} finally {
+			releaseAuthorization();
+			await Promise.allSettled([firstClaim, ...(secondClaim ? [secondClaim] : [])]);
+		}
+	});
+
+	it("submits the same image job once when twenty workers race without a provider lock", async () => {
+		const seeded = await seedReservedJob("image-nano-banana-2-lite");
+		const submit = vi.fn(async () => ({
+			providerTaskId: `mock-kie-${seeded.jobId}`,
+			status: "QUEUED" as const,
+			outcome: "accepted" as const,
+			idempotency: { key: seeded.jobId, providerSupported: false, replayed: false },
+			reconciliation: { submissionToken: seeded.jobId },
+		}));
+		const provider = {
+			provider: "kie" as const,
+			submit,
+			retrieve: vi.fn(),
+			normalizeResult: vi.fn(),
+		};
+		const store = createTestDispatchStore();
+		const outcomes = await Promise.all(
+			Array.from({ length: 20 }, () =>
+				dispatchGeneration(
+					{ jobId: seeded.jobId, version: 0 },
+					{ store, getProvider: () => provider },
+				),
+			),
+		);
+		expect(outcomes.filter(({ outcome }) => outcome === "SUBMITTED")).toHaveLength(1);
+		expect(outcomes.filter(({ outcome }) => outcome === "SKIPPED")).toHaveLength(19);
+		expect(submit).toHaveBeenCalledOnce();
+		const job = await client.generationJob.findUniqueOrThrow({
+			where: { id: seeded.jobId },
+			include: { attempts: true, reservation: true },
+		});
+		expect(job).toMatchObject({ status: "PROVIDER_PENDING" });
+		expect(job.attempts).toHaveLength(1);
+		expect(job.attempts[0]).toMatchObject({
+			provider: "kie",
+			providerTaskId: `mock-kie-${seeded.jobId}`,
+			uncertainSubmission: false,
+		});
+		expect(job.reservation).toMatchObject({ status: "ACTIVE", amount: seeded.credits });
+	});
+
+	it("never replays an uncertain image submission after removing the provider lock", async () => {
+		const seeded = await seedReservedJob("image-nano-banana-2-lite");
+		const submit = vi.fn(async () => {
+			throw new DOMException("provider response lost after sending", "AbortError");
+		});
+		const provider = {
+			provider: "kie" as const,
+			submit,
+			retrieve: vi.fn(),
+			normalizeResult: vi.fn(),
+		};
+		const store = createTestDispatchStore();
+		const dependencies = { store, getProvider: () => provider };
+		expect(await dispatchGeneration({ jobId: seeded.jobId, version: 0 }, dependencies)).toEqual({
+			outcome: "RECONCILE",
+		});
+		const uncertain = await client.generationJob.findUniqueOrThrow({
+			where: { id: seeded.jobId },
+			include: { attempts: true },
+		});
+		expect(uncertain).toMatchObject({ status: "PROVIDER_PENDING" });
+		expect(uncertain.attempts).toHaveLength(1);
+		expect(uncertain.attempts[0]).toMatchObject({
+			status: "SUBMISSION_UNCERTAIN",
+			uncertainSubmission: true,
+			providerTaskId: null,
+		});
+		const replay = () =>
+			Promise.all(
+				[0, uncertain.version].map((version) =>
+					dispatchGeneration({ jobId: seeded.jobId, version }, dependencies),
+				),
+			);
+		expect(await replay()).toEqual([{ outcome: "SKIPPED" }, { outcome: "SKIPPED" }]);
+		// A historical recovery write may put the job back into a claimable state;
+		// the persisted attempt's send evidence must still prevent another send.
+		await client.generationJob.update({
+			where: { id: seeded.jobId },
+			data: { status: "DISPATCH_QUEUED" },
+		});
+		expect(await replay()).toEqual([{ outcome: "SKIPPED" }, { outcome: "SKIPPED" }]);
+		expect(submit).toHaveBeenCalledOnce();
+		expect(await client.generationAttempt.count({ where: { jobId: seeded.jobId } })).toBe(1);
+		expect(
+			await client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: seeded.accountId } }),
+		).toMatchObject({ reservedCredits: seeded.credits });
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { referenceKey: `settle:${seeded.jobId}` },
+			}),
+		).toBe(0);
+	});
+
 	it("shares the lifetime waiver within a team independently of the personal account", async () => {
 		const ownerId = `moderation-team-${crypto.randomUUID()}`;
 		const team = await client.creditAccount.create({
@@ -293,9 +451,13 @@ describe("production media runtime stores", () => {
 		});
 		// The finalizer's immediate Outbox pass must be able to start polling now.
 		// The persisted due time, rather than delayed dispatch/cron, throttles SeeAPI reads.
-		expect.soft(pollingWake.availableAt.getTime()).toBeLessThanOrEqual(Date.now());
 		expect
-			.soft(pendingAsset.verificationNextAttemptAt!.getTime() - pollingWake.availableAt.getTime())
+			.soft(pollingWake.availableAt.getTime())
+			.toBeLessThanOrEqual((await databaseNow()).getTime());
+		const pollingPayload = pollingWake.payload as { originalDueAt: number };
+		expect(pollingPayload.originalDueAt).toEqual(expect.any(Number));
+		expect
+			.soft(pendingAsset.verificationNextAttemptAt!.getTime() - pollingPayload.originalDueAt)
 			.toBe(5_000);
 		await client.mediaAsset.update({
 			where: { id: assetId },
@@ -323,7 +485,7 @@ describe("production media runtime stores", () => {
 			where: {
 				aggregateId: seeded.jobId,
 				eventType: "GENERATION_FINALIZE_RETRY",
-				availableAt: { lte: new Date() },
+				availableAt: { lte: await databaseNow() },
 			},
 		});
 		expect(wake).not.toBeNull();
@@ -562,7 +724,8 @@ describe("production media runtime stores", () => {
 		const seeded = await seedReservedJob("image-fast");
 		const store = createTestDispatchStore();
 		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
-		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+		if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+			throw new Error("Expected available provider capacity");
 		expect(claim).not.toBeNull();
 
 		await store.recordRejectedSubmission(claim!.attemptId, {
@@ -643,7 +806,8 @@ describe("production media runtime stores", () => {
 			"https://private.example/input.png?X-Amz-Credential=temporary&X-Amz-Signature=secret";
 		const store = createTestDispatchStore({ createSignedReadUrl: async () => signedUrl });
 		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
-		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+		if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+			throw new Error("Expected available provider capacity");
 		if (!claim) throw new Error("Expected a dispatch claim");
 		const before = await client.generationAttempt.findUniqueOrThrow({
 			where: { id: claim.attemptId },
@@ -1243,7 +1407,8 @@ describe("production media runtime stores", () => {
 		const seeded = await seedReservedJob("image-fast");
 		const dispatchStore = createTestDispatchStore();
 		const claim = await dispatchStore.claimDispatch({ jobId: seeded.jobId, version: 0 });
-		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+		if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+			throw new Error("Expected available provider capacity");
 
 		await dispatchStore.recordRejectedSubmission(claim!.attemptId, {
 			code: "PROVIDER_REJECTED",
@@ -1527,7 +1692,8 @@ describe("production media runtime stores", () => {
 		const providerTaskId = `fal-real-task-${crypto.randomUUID()}`;
 		const store = createTestDispatchStore();
 		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
-		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+		if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+			throw new Error("Expected available provider capacity");
 
 		await store.recordSubmission(claim!.attemptId, {
 			providerTaskId,
@@ -1671,7 +1837,8 @@ describe("production media runtime stores", () => {
 			},
 		});
 		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
-		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+		if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+			throw new Error("Expected available provider capacity");
 		const submission = {
 			providerTaskId: claim!.attemptId,
 			status: "SUCCEEDED" as const,
@@ -1735,7 +1902,8 @@ describe("production media runtime stores", () => {
 			const seeded = await seedReservedJob("image-nano-banana-2-lite");
 			const store = createTestDispatchStore();
 			const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
-			if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+			if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+				throw new Error("Expected available provider capacity");
 			const dedupeKey = `generation-finalize:${seeded.jobId}:${claim!.attemptId}`;
 			const existing = terminal
 				? await client.outboxEvent.create({
@@ -1792,7 +1960,8 @@ describe("production media runtime stores", () => {
 				},
 			});
 			const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
-			if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+			if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+				throw new Error("Expected available provider capacity");
 			const dedupeKey = `generation-finalize:${seeded.jobId}:${claim!.attemptId}`;
 			const existing = rollback
 				? undefined
@@ -1856,7 +2025,8 @@ describe("production media runtime stores", () => {
 		const seeded = await seedReservedJob("image-quality");
 		const store = createTestDispatchStore();
 		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
-		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+		if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+			throw new Error("Expected available provider capacity");
 		await expect(
 			store.recordSynchronousCompletion(
 				claim!.attemptId,
@@ -2814,13 +2984,24 @@ describe("production media runtime stores", () => {
 				{ assetId: output.assetId },
 				createOutputVerificationDependencies(decision),
 			);
-			expect(changed).toEqual({ outboxCommitted: true });
 			expect(duplicate).toEqual({ outboxCommitted: false });
 			const wakes = await client.outboxEvent.findMany({
 				where: { aggregateId: seeded.jobId, eventType: "GENERATION_FINALIZE_RETRY" },
 			});
 			expect(wakes).toHaveLength(1);
-			expect(wakes[0]!.availableAt.getTime()).toBeLessThanOrEqual(Date.now());
+			const verifiedAsset = await client.mediaAsset.findUniqueOrThrow({
+				where: { id: output.assetId },
+			});
+			expect(changed).toEqual({
+				outboxCommitted: true,
+				verificationCommit: {
+					assetId: output.assetId,
+					generation: verifiedAsset.verificationGeneration,
+					status: decision === "ALLOW" ? "READY" : "QUARANTINED",
+					eventIds: [wakes[0]!.id],
+				},
+			});
+			expect(wakes[0]!.availableAt.getTime()).toBeLessThanOrEqual((await databaseNow()).getTime());
 			await expect(
 				client.mediaAsset.findUniqueOrThrow({ where: { id: sibling.assetId } }),
 			).resolves.toMatchObject({ status: "VERIFYING" });
@@ -3193,13 +3374,26 @@ describe("production media runtime stores", () => {
 			occurredAt,
 			20n,
 		);
-		const [firstClaim, concurrentClaim] = await Promise.all([
+		const results = await Promise.allSettled([
 			store.claimProviderEvent(success.id),
 			store.claimProviderEvent(success.id),
 		]);
-		expect([firstClaim, concurrentClaim].filter(Boolean)).toHaveLength(1);
-		const claimed = firstClaim ?? concurrentClaim!;
-		await store.recordProviderProgress(claimed!, normalizedResult("canonical-output"));
+		const winners = results.filter((result) => result.status === "fulfilled");
+		const held = results.filter((result) => result.status === "rejected");
+		expect(winners).toHaveLength(1);
+		expect(held).toHaveLength(1);
+		expect(held[0]!.reason).toBeInstanceOf(ProviderEventPhaseHeldError);
+		expect(held[0]!.reason.code).toBe("PROVIDER_EVENT_PHASE_HELD");
+		expect(held[0]!.reason.retryAfterMs).toBeGreaterThan(0);
+		const claimed = winners[0]!.value;
+		if (!claimed) throw new Error("EXPECTED_PROVIDER_EVENT_CLAIM");
+		expect(
+			await client.providerWebhookEvent.findUniqueOrThrow({ where: { id: success.id } }),
+		).toMatchObject({
+			status: "PROCESSING",
+			processingToken: claimed.processingToken,
+		});
+		await store.recordProviderProgress(claimed, normalizedResult("canonical-output"));
 
 		const laterFailure = await createProviderEvent(
 			seeded.provider,
@@ -4364,12 +4558,14 @@ async function runGuestLinkDispatchOrdering(
 	if (ordering === "link-then-dispatch") {
 		const linked = await fixture.completeLink();
 		const claim = await fixture.claimDispatch();
-		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+		if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+			throw new Error("Expected available provider capacity");
 		return { claim, linked };
 	}
 	if (ordering === "dispatch-then-link") {
 		const claim = await fixture.claimDispatch();
-		if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+		if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+			throw new Error("Expected available provider capacity");
 		const linked = await fixture.completeLink();
 		return { claim, linked };
 	}
@@ -4388,7 +4584,8 @@ async function runGuestLinkDispatchOrdering(
 	})();
 	release();
 	const [claim, linked] = await Promise.all([dispatching, linking]);
-	if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+	if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+		throw new Error("Expected available provider capacity");
 	return { claim, linked };
 }
 
@@ -4398,6 +4595,12 @@ async function cleanupGuestLinkDispatchFixture(fixture: GuestLinkDispatchFixture
 		data: { status: "FAILED", terminalAt: new Date() },
 	});
 	await revertRuntimeConfigOverride(fixture.overrideId, "task4-guest-test", client);
+}
+
+async function databaseNow(): Promise<Date> {
+	const [clock] = await client.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS "now"`;
+	if (!clock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+	return clock.now;
 }
 
 async function claimFixtureOutboxEvent(id: string, workerId: string, now: Date) {
@@ -4724,7 +4927,8 @@ async function seedFinalizingJob(
 	const seeded = await seedReservedJob(productKey, options);
 	const store = createTestDispatchStore();
 	const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
-	if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+	if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+		throw new Error("Expected available provider capacity");
 	await store.recordSynchronousCompletion(
 		claim!.attemptId,
 		{
@@ -4966,7 +5170,8 @@ async function seedPendingProviderJob(
 	const seeded = await seedReservedJob(productKey);
 	const store = createTestDispatchStore();
 	const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
-	if (claim && "deferred" in claim) throw new Error("Expected available provider capacity");
+	if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
+		throw new Error("Expected available provider capacity");
 	if (!claim || claim.provider === "openrouter") {
 		throw new Error("EXPECTED_WEBHOOK_PROVIDER_CLAIM");
 	}
@@ -5148,6 +5353,7 @@ function assertSafeTestDatabaseUrl(value: string | undefined): void {
 	if (isExplicitGuestVerificationTarget(parsed)) return;
 	const safeDatabase =
 		parsed.pathname === "/ai_media_foundation_test" ||
+		parsed.pathname === "/scanless_phase_owner_migration_test" ||
 		/^\/ezpic_[a-z0-9_]+_test(?:ing)?$/.test(parsed.pathname);
 	const explicitImageTarget =
 		process.env.MEDIA_IMAGE_TEST_DATABASE_URL === value &&
@@ -5161,7 +5367,7 @@ function assertSafeTestDatabaseUrl(value: string | undefined): void {
 		!safeDatabase
 	) {
 		throw new Error(
-			"TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test or a dedicated ezpic_*_test database",
+			"TEST_DATABASE_URL must target loopback ai_media_foundation_test, scanless_phase_owner_migration_test or a dedicated ezpic_*_test database",
 		);
 	}
 }

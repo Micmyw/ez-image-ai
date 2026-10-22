@@ -1,8 +1,12 @@
 # Workers and hybrid deployment profiles
 
 `EZPIC_DEPLOYMENT_PROFILE=workers` is the default prepared deployment. The website uses
-OpenNext on Workers, Workflows orchestrates tasks, and a private Durable Object executes the
-existing jobs handlers with Cloudflare Images. This profile has no Container resource.
+OpenNext on Workers, Workflows orchestrates tasks, and private service entrypoints execute
+lightweight control and eligible streaming transfers with request-owned database resources.
+Guarded Durable Objects retain buffered work and maintenance. This profile has no Container resource.
+
+The execution structure below includes the October 22 local implementation. The historical
+cutover evidence does not establish that these new entrypoints or bindings are deployed.
 
 The production cutover completed on September 11, 2026. See
 [current production status](cloudflare-production-status.md) and the
@@ -15,17 +19,27 @@ If a payment provider cannot reach the custom domain, `PAYMENT_WEBHOOK_INGRESS_O
 the same website Worker's exact HTTPS `workers.dev` origin. Preparation enables that address;
 only `POST /api/webhooks/payments` is forwarded to the existing verifier. Other routes stay closed.
 
-`EZPIC_DEPLOYMENT_PROFILE=hybrid` keeps the same Workers website and moves background execution
-to the existing jobs Container with Sharp. Both profiles use PostgreSQL as business truth and
-private R2 for assets. No schema migration was added by this runtime change.
+`EZPIC_DEPLOYMENT_PROFILE=hybrid` keeps the same Workers website and request-owned control/streaming
+entrypoints, retaining the existing jobs Container with Sharp for buffered work and maintenance.
+Both profiles use PostgreSQL as business truth and private R2 for assets. The original profile
+cutover added no business schema migration; the later image changes require the nullable callback
+field and private owner-storage-fence migrations documented in
+[the one-second budget](generation-one-second-budget-2026-10-22.md). Keep
+`MEDIA_STORAGE_FRESH_READ_ENABLED=false` until all quota writers support the fence and old code
+has drained; enabling the new isolation path is a separate second rollout phase.
+Keep `MEDIA_SETTLEMENT_FRESH_READ_ENABLED=false` until every output-binding writer supports the
+conditional job write fence and incompatible instances have drained. Its narrow CREDITS settlement
+transaction locks the account, job and outputs before reading current evidence; IMAGE_PASS retains
+Serializable. This switch is independent of the storage and login-grant switches. Disable it and
+drain its transactions before rolling back binding writers; no additional schema migration is needed.
 
-| Boundary            | workers                             | hybrid                                             |
-| ------------------- | ----------------------------------- | -------------------------------------------------- |
-| Website             | Workers + OpenNext + Images         | Workers + OpenNext + Images                        |
-| Jobs                | WorkerJobs Durable Object + Images  | JobsContainer + Sharp                              |
-| Orchestration       | Workflows                           | Workflows                                          |
-| Database access     | Request-owned Prisma via Hyperdrive | Hyperdrive for website; direct PostgreSQL for jobs |
-| Default preparation | No Docker build                     | Docker required for jobs build                     |
+| Boundary            | workers                                                           | hybrid                                                                       |
+| ------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| Website             | Workers + OpenNext + Images                                       | Workers + OpenNext + Images                                                  |
+| Jobs                | Service entrypoints; WorkerJobs for buffered work and maintenance | Service entrypoints; JobsContainer + Sharp for buffered work and maintenance |
+| Orchestration       | Workflows                                                         | Workflows                                                                    |
+| Database access     | Request-owned Prisma via Hyperdrive                               | Hyperdrive for website/service entrypoints; direct PostgreSQL for Container  |
+| Default preparation | No Docker build                                                   | Docker required for jobs build                                               |
 
 ## Configuration and preparation
 
@@ -112,43 +126,49 @@ same schema. The `workerd` condition selects the official edge runtime and its p
 query compiler. Keep generated files ignored and regenerate them during builds. This changes
 runtime artifacts only; it adds no tables or migrations.
 
-Workers jobs use three named objects in the existing `JOBS_EXECUTOR` namespace:
+New normal execution uses these private service bindings in both profiles:
 
-| Object             | Work                                                                                                      | Admitted concurrency |
-| ------------------ | --------------------------------------------------------------------------------------------------------- | -------------------- |
-| `jobs-primary`     | Output transfer/finalization, synchronous Gemini/OpenRouter image responses, explicit legacy reinspection | 1                    |
-| `jobs-control`     | Ordinary verification, asynchronous provider submission, generation polling/webhooks and settlement       | 4                    |
-| `jobs-maintenance` | Outbox delivery, cancellation, guest admission, billing and scheduled recovery                            | 1                    |
+| Binding / entrypoint                 | Work                                                                                                                          | Application-wide count cap |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `JOBS_CONTROL` / `ControlExecutor`   | Ordinary verification, asynchronous submissions, result queries, exact event preparation and settlement                       | None                       |
+| `JOBS_TRANSFER` / `TransferExecutor` | Known-length ordinary URL images up to the existing 25 MiB business limit, without transforms or persisted multipart recovery | None                       |
 
-The task classification is server-owned in `packages/jobs/src/orchestration/worker-executors.ts`.
-Unreviewed provider adapters and new registered task types default to the heavy lane.
-Ordinary verification reads bounded media headers; checksum fallback streams the stored object.
-New control/maintenance objects reject misrouted tasks before creating database resources.
-The original `jobs-primary` still accepts legacy deliveries at concurrency one, preserving heavy
-serialization while existing Workflows drain. Do not change the heavy object name to increase capacity.
-New names reuse the same class and binding and require no schema migration or additional cron.
+Both bindings target the selected jobs script, with their explicit named entrypoint. Each request
+verifies the signed envelope, strict task classification and receipt, and owns its database client.
+Provider processing no longer occupies a shared four-request application queue. Platform capacity,
+database capacity and real provider quotas remain external limits that need separate measurement.
 
-Each executor still enforces the existing per-queue cap in addition to its overall cap. Provider
-submission routes each have one target; ordinary verification and explicit legacy reinspection
-use different lanes, with an aggregate admission ceiling of five matching their queue limit of five.
-During cutover, old Workflows may deliver control/maintenance tasks to `jobs-primary`; drain old
-Workflows first when strict aggregate provider/queue limits must hold through the transition.
-Inline Outbox children execute sequentially within the maintenance parent's occupied slot. A guard
-rejects cross-lane inline execution without acknowledging its event; completion-before-ACK remains
-required. Do not recursively acquire the same single-slot executor for an inline child.
+The retired provider-wide application capacity mutex is also absent from normal image, video and
+template claims. Independent first successful reviews share the incident lock under narrow immutable
+evidence guards; failure and historical-review paths retain exclusive locking. Per-job/attempt,
+owner, financial and actual budget constraints remain authoritative.
 
-Objects may share an isolate's 128 MB memory budget, even though each object's active duration is
-billed separately. Keep heavy transfers serialized and validate memory and database pressure before
-raising any cap. Workflows waits durably when the executor is busy; request cancellation never
-prematurely releases execution capacity. The Node executor retains its existing overall and queue caps.
-The Durable Object only controls delivery/admission; database leases, immutable ledgers,
-uncertain submissions, Outbox acknowledgment and recovery remain in existing business code.
+Transfer admission projects bounded remote URLs in SQL before any legacy envelope/Base64 can enter
+the request. It checks actual response headers and existing transfer state before claiming resources.
+The source and private conditional PUT stream with backpressure; SHA256/length/magic validation
+completes before database completion. An explicit typed exclusion, before new transfer work, may
+route the identical task, receipt and attempt to the old heavy executor. Network failure or timeout
+never authorizes an automatic runtime switch or repeated provider submission.
+
+The existing `JOBS_EXECUTOR` namespace retains `jobs-primary` (1) for buffered/guest/legacy work,
+`jobs-control` (4) for older deliveries and binding-absent compatibility, and `jobs-maintenance` (1).
+The server-owned classification is in `packages/jobs/src/orchestration/worker-executors.ts`.
+Unreviewed adapters remain guarded. Inline Outbox children stay within the maintenance parent's
+slot; cross-lane inline execution is rejected without acknowledging the event. Hybrid retains the
+private Node executor for these guarded paths and its existing compatibility protocol.
+
+Different service entrypoints and DO names do not guarantee separate 128 MB isolates. Bounded
+streaming removes full-image buffers; full-chain concurrent tests must still include database
+clients, request state and runtime baseline memory. Business execution rights remain in PostgreSQL
+leases, immutable ledgers, uncertainty gates, Outbox acknowledgment and recovery. Durable recovery
+does not depend on a request or `waitUntil` staying alive indefinitely.
 
 `job.executor` logs include executor name, task/run identity, busy or completed phase, capacity and
 elapsed admitted execution time. They exclude payloads, prompts, URLs and credentials. Use busy rate,
-execution duration and database/provider limits to tune capacity. Local 5/10/20-request admission
-tests establish routing, bounded concurrency and progress under contention; they do not measure
-production user capacity, Cloudflare memory headroom, or the account's actual bill.
+execution duration and database/provider limits to assess capacity. Local simultaneous-admission
+tests establish routing and removal of the old count queue; only completed end-to-end runs establish
+local generation capacity. Neither establishes production capacity, Cloudflare memory headroom, or
+the account's actual bill. Record all failed and incomplete requests in a 50-user run's denominator.
 
 Normal generation stages immediately deliver their committed Outbox events in a separate durable
 step after releasing the executor slot. Verification and generation polling return an explicit

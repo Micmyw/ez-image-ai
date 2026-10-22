@@ -34,6 +34,8 @@ export type VideoPublicState = {
 	pricing?: VideoRetailDisplay;
 	output?: VideoOutputReport;
 	canPlay: boolean;
+	/** Request-local authorization; the content endpoint still checks current owner and evidence. */
+	playback?: { url: string; expiresAt: string; ownerId: string };
 	failureCode: string | null;
 	updatedAt: string;
 	effect?: { effectId: VideoEffectId; name: string; templateVersion: string };

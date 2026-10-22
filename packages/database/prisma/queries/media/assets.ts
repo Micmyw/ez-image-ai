@@ -8,10 +8,15 @@ import {
 	lockMediaAssetGenerationBindings,
 } from "./asset-binding-locks";
 import { effectiveMediaStorageLimit, outputMediaStorageLimit } from "./storage-quota";
-import { lockOwnerStorageUsage } from "./storage-usage-locks";
+import { isStorageFreshReadEnabled, lockOwnerStorageUsage } from "./storage-usage-locks";
 import { unexpiredStorageReservations } from "./temporary-references";
 import type { CursorPageInput, MediaDatabaseClient, MediaTransactionClient } from "./types";
-import { getMediaDatabaseClient, isDatabaseUniqueConflict, runSerializable } from "./types";
+import {
+	getMediaDatabaseClient,
+	isDatabaseUniqueConflict,
+	runReadCommitted,
+	runSerializable,
+} from "./types";
 
 const FINALIZATION_LEASE_MS = 5 * 60 * 1_000;
 // Keep a terminal session's reservation until durable cleanup runs. This must stay
@@ -1068,6 +1073,13 @@ async function getDatabaseNow(client: Prisma.TransactionClient): Promise<Date> {
 	return row.now;
 }
 
+/** Lease admission after a lock wait must not reuse the transaction start time. */
+async function getDatabaseWallClock(client: Prisma.TransactionClient): Promise<Date> {
+	const [row] = await client.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS "now"`;
+	if (!row) throw new Error("Database did not return its current time");
+	return row.now;
+}
+
 async function expirePendingUploadSession(
 	session: UploadSessionCleanupTarget,
 	now: Date,
@@ -1339,6 +1351,24 @@ export interface CreateGenerationOutputAssetBindingInput {
 	};
 }
 
+async function fenceGenerationOutputBindingJob(
+	input: { jobId: string; ownerId: string },
+	tx: Prisma.TransactionClient,
+): Promise<boolean> {
+	// Every binding inserter, including Serializable callers, owns the job before
+	// its binding/asset locks. The write also fences a stale SSI snapshot when a
+	// fresh-read settlement changes the job; a row lock or plain eligibility read
+	// alone cannot protect an empty output set across both isolation levels.
+	// Raw SQL preserves updatedAt, version, and every other business field.
+	const fenced = await tx.$executeRaw`
+		UPDATE "generation_job" SET "updatedAt" = "updatedAt"
+		WHERE "id" = ${input.jobId} AND "executionEngine" = 'legacy'
+		  AND "ownerType" = 'USER' AND "ownerId" = ${input.ownerId}
+		  AND "status" = 'FINALIZING'
+	`;
+	return fenced === 1;
+}
+
 /**
  * Makes an output asset durable and ties it to its FINALIZING job in the same
  * serializable transaction. The asset must never be visible as READY before
@@ -1352,18 +1382,14 @@ export async function createGenerationOutputAssetBindingTransaction(
 		throw new Error("GENERATION_OUTPUT_CHECKSUM_INVALID");
 	}
 	return runSerializable(client, async (tx) => {
+		if (
+			!(await fenceGenerationOutputBindingJob(
+				{ jobId: input.jobId, ownerId: input.asset.ownerId },
+				tx,
+			))
+		)
+			throw new Error("GENERATION_JOB_NOT_FINALIZING_FOR_OUTPUT");
 		await lockMediaAssetGenerationBindings([input.asset.id], tx);
-		const job = await tx.generationJob.findFirst({
-			where: {
-				id: input.jobId,
-				executionEngine: "legacy",
-				ownerType: "USER",
-				ownerId: input.asset.ownerId,
-				status: "FINALIZING",
-			},
-			select: { id: true },
-		});
-		if (!job) throw new Error("GENERATION_JOB_NOT_FINALIZING_FOR_OUTPUT");
 
 		let asset = await tx.mediaAsset.findUnique({ where: { id: input.asset.id } });
 		if (asset) {
@@ -1400,13 +1426,13 @@ export async function createGenerationOutputAssetBindingTransaction(
 		await tx.generationJobAsset.upsert({
 			where: {
 				jobId_assetId_role: {
-					jobId: job.id,
+					jobId: input.jobId,
 					assetId: asset.id,
 					role: "OUTPUT",
 				},
 			},
 			create: {
-				jobId: job.id,
+				jobId: input.jobId,
 				assetId: asset.id,
 				assetChecksum: input.asset.checksum,
 				role: "OUTPUT",
@@ -1426,6 +1452,11 @@ export interface ClaimGenerationOutputTransferInput {
 	mimeType: string;
 	sourceUrl: string;
 	guest?: { deleteAfter: Date };
+	deferOutputReview?: boolean;
+	/** Reject legacy transfer state atomically before allocating a stream-only claim. */
+	streamingTransfersOnly?: boolean;
+	/** Trusted source length for an ordinary stream-only claim; committed with its lease. */
+	storageReservation?: { bytes: bigint; maximumStorageBytes: bigint };
 	createStagingObjectKey: (transferToken: string) => string;
 	now?: Date;
 	leaseDurationMs?: number;
@@ -1444,11 +1475,20 @@ type GenerationOutputTransferAsset = {
 };
 
 export type GenerationOutputTransferClaim =
-	| { outcome: "COMPLETED"; asset: GenerationOutputTransferAsset }
+	| { outcome: "REQUIRES_HEAVY" }
+	| {
+			outcome: "COMPLETED";
+			asset: GenerationOutputTransferAsset;
+			outputReviewEventId?: string;
+	  }
 	| { outcome: "IN_PROGRESS"; asset: { id: string } }
 	| {
 			outcome: "CLAIMED";
 			asset: GenerationOutputTransferAsset;
+			/** Set only by the transaction that creates the absent asset. Missing means recovery. */
+			freshAsset?: boolean;
+			/** Same-call proof only: capacity reserved atomically for this asset and transfer token. */
+			reservedStorageBytes?: bigint;
 			transferToken: string;
 			stagingObjectKey: string;
 			promotionMultipartUploadId: string | null;
@@ -1475,9 +1515,34 @@ export async function claimGenerationOutputTransferTransaction(
 	input: ClaimGenerationOutputTransferInput,
 	client: MediaTransactionClient,
 ): Promise<GenerationOutputTransferClaim> {
-	return runSerializable(client, async (tx) => {
+	if (
+		input.streamingTransfersOnly &&
+		(input.guest || !["image/jpeg", "image/png", "image/webp"].includes(input.mimeType))
+	) {
+		return { outcome: "REQUIRES_HEAVY" };
+	}
+	if (input.storageReservation) {
+		if (!input.streamingTransfersOnly) {
+			throw new Error("GENERATION_OUTPUT_STORAGE_RESERVATION_REQUIRES_STREAMING_CLAIM");
+		}
+		assertGenerationOutputStorageInput(input.storageReservation);
+	}
+	const freshRead = isStorageFreshReadEnabled();
+	const transaction = freshRead ? runReadCommitted : runSerializable;
+	return transaction(client, async (tx) => {
+		// A combined claim takes the quota writer's owner fence before job/binding
+		// locks. Zero-byte legacy claims retain their original lock protocol.
+		if (input.storageReservation) {
+			await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
+		}
+		if (!(await fenceGenerationOutputBindingJob(input, tx))) {
+			if (input.streamingTransfersOnly) return { outcome: "REQUIRES_HEAVY" };
+			throw new Error("GENERATION_JOB_NOT_FINALIZING_FOR_OUTPUT");
+		}
 		await lockMediaAssetGenerationBindings([input.assetId], tx);
-		const now = input.now ?? (await getDatabaseNow(tx));
+		if (freshRead) await lockOutputTransferAsset(input, tx);
+		const now =
+			input.now ?? (freshRead ? await getDatabaseWallClock(tx) : await getDatabaseNow(tx));
 		const job = await tx.generationJob.findFirst({
 			where: {
 				id: input.jobId,
@@ -1492,6 +1557,8 @@ export async function claimGenerationOutputTransferTransaction(
 				guestTrial: { select: { expiresAt: true } },
 			},
 		});
+		if (input.streamingTransfersOnly && (!job || job.serviceClass === "GUEST_SLOW"))
+			return { outcome: "REQUIRES_HEAVY" };
 		if (!job) throw new Error("GENERATION_JOB_NOT_FINALIZING_FOR_OUTPUT");
 		const guestDeleteAfter = job.serviceClass === "GUEST_SLOW" ? job.guestTrial?.expiresAt : null;
 		if (
@@ -1506,13 +1573,25 @@ export async function claimGenerationOutputTransferTransaction(
 		}
 
 		let asset = await tx.mediaAsset.findUnique({ where: { id: input.assetId } });
+		const freshAsset = asset === null;
 		if (asset) {
+			if ((freshRead || input.storageReservation) && asset.verificationEngine !== "legacy")
+				throw new Error("GENERATION_OUTPUT_ASSET_CONFLICT");
 			assertGenerationOutputTransferAssetMatches(asset, input);
+			if (
+				input.streamingTransfersOnly &&
+				(asset.outputTransferToken ||
+					asset.outputTransferLeaseExpiresAt ||
+					asset.outputStagingObjectKey ||
+					asset.outputPromotionMultipartUploadId)
+			) {
+				return { outcome: "REQUIRES_HEAVY" };
+			}
 			if (asset.status === "DELETED" || asset.deletedAt) {
 				throw new Error("GENERATION_OUTPUT_ASSET_DELETED");
 			}
 			if (asset.status === "READY" || asset.status === "QUARANTINED") {
-				await bindGenerationOutputAsset(job.id, asset.id, tx);
+				await bindGenerationOutputAsset(job.id, asset, tx);
 				return { outcome: "COMPLETED", asset: outputTransferAsset(asset) };
 			}
 			if (asset.status !== "VERIFYING") {
@@ -1523,7 +1602,7 @@ export async function claimGenerationOutputTransferTransaction(
 					throw new Error("GENERATION_OUTPUT_TRANSFER_STATE_INCOMPLETE");
 				}
 				if (asset.outputTransferLeaseExpiresAt > now) {
-					await bindGenerationOutputAsset(job.id, asset.id, tx);
+					await bindGenerationOutputAsset(job.id, asset, tx);
 					return { outcome: "IN_PROGRESS", asset: { id: asset.id } };
 				}
 				await queueGenerationOutputStagingDeletion(
@@ -1548,8 +1627,15 @@ export async function claimGenerationOutputTransferTransaction(
 			) {
 				throw new Error("GENERATION_OUTPUT_TRANSFER_STATE_INCOMPLETE");
 			} else if (asset.finalizedAt) {
-				await bindGenerationOutputAsset(job.id, asset.id, tx);
-				return { outcome: "COMPLETED", asset: outputTransferAsset(asset) };
+				await bindGenerationOutputAsset(job.id, asset, tx);
+				const outputReviewEventId = input.deferOutputReview
+					? await queueInitialGenerationOutputReview(asset, now, tx)
+					: undefined;
+				return {
+					outcome: "COMPLETED",
+					asset: outputTransferAsset(asset),
+					...(outputReviewEventId ? { outputReviewEventId } : {}),
+				};
 			}
 		}
 
@@ -1603,10 +1689,18 @@ export async function claimGenerationOutputTransferTransaction(
 				outputPromotionMultipartUploadId: null,
 			};
 		}
-		await bindGenerationOutputAsset(job.id, asset.id, tx);
+		await bindGenerationOutputAsset(job.id, asset, tx);
+		// Reuse the asset just created or conditionally fenced above. A quota
+		// failure rolls back its lease and binding with the reservation, and all
+		// non-CLAIMED outcomes keep the existing recovery protocol without reserving.
+		const reserved = input.storageReservation
+			? await reserveGenerationOutputStorage(input.storageReservation, asset, tx)
+			: undefined;
 		return {
 			outcome: "CLAIMED",
 			asset: outputTransferAsset(asset),
+			freshAsset,
+			...(reserved ? { reservedStorageBytes: reserved.bytes } : {}),
 			transferToken,
 			stagingObjectKey,
 			promotionMultipartUploadId: null,
@@ -1684,13 +1778,13 @@ export async function reserveGenerationOutputStorageTransaction(
 	},
 	client: MediaTransactionClient,
 ): Promise<{ outcome: "RESERVED" | "STALE"; bytes: bigint }> {
-	if (input.bytes <= 0n) throw new Error("Generation output storage bytes must be positive");
-	if (input.maximumStorageBytes <= 0n) {
-		throw new Error("Generation output storage quota must be positive");
-	}
-	return runSerializable(client, async (tx) => {
+	assertGenerationOutputStorageInput(input);
+	const freshRead = isStorageFreshReadEnabled();
+	const transaction = freshRead ? runReadCommitted : runSerializable;
+	return transaction(client, async (tx) => {
 		await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
 		await lockMediaAssetGenerationBindings([input.assetId], tx);
+		if (freshRead) await lockOutputTransferAsset(input, tx);
 		const asset = await tx.mediaAsset.findFirst({
 			where: {
 				verificationEngine: "legacy",
@@ -1700,7 +1794,8 @@ export async function reserveGenerationOutputStorageTransaction(
 			},
 		});
 		if (!asset) throw new Error("Generation output asset not found for owner");
-		const now = input.now ?? (await getDatabaseNow(tx));
+		const now =
+			input.now ?? (freshRead ? await getDatabaseWallClock(tx) : await getDatabaseNow(tx));
 		if (
 			asset.status !== "VERIFYING" ||
 			asset.outputTransferToken !== input.transferToken ||
@@ -1710,58 +1805,101 @@ export async function reserveGenerationOutputStorageTransaction(
 		) {
 			return { outcome: "STALE", bytes: 0n };
 		}
-
-		const referenceKey = generationOutputStorageReferenceKey(asset.id);
-		const existing = await tx.storageUsageReservation.findUnique({ where: { referenceKey } });
 		if (
-			existing &&
-			(existing.ownerType !== asset.ownerType || existing.ownerId !== asset.ownerId)
+			freshRead &&
+			asset.retentionClass === "GUEST_TRIAL" &&
+			asset.deleteAfter &&
+			asset.deleteAfter <= now
 		) {
-			throw new Error("GENERATION_OUTPUT_STORAGE_RESERVATION_OWNER_CONFLICT");
-		}
-		if (existing?.status === "COMMITTED") {
-			throw new Error("GENERATION_OUTPUT_STORAGE_RESERVATION_ALREADY_COMMITTED");
-		}
-		const bytes =
-			existing?.status === "ACTIVE" && existing.bytes > input.bytes ? existing.bytes : input.bytes;
-		const usage = await tx.storageUsageReservation.aggregate({
-			where: {
-				ownerType: asset.ownerType,
-				ownerId: asset.ownerId,
-				status: { in: ["ACTIVE", "COMMITTED"] },
-				referenceKey: { not: referenceKey },
-				...unexpiredStorageReservations(),
-			},
-			_sum: { bytes: true },
-		});
-		const maximumBytes = await outputMediaStorageLimit(
-			{ ownerType: asset.ownerType, ownerId: asset.ownerId, assetId: asset.id },
-			input.maximumStorageBytes,
-			tx,
-		);
-		if (maximumBytes !== null && (usage._sum.bytes ?? 0n) + bytes > maximumBytes) {
-			throw new GenerationOutputStorageError();
+			throw new Error("GENERATION_OUTPUT_GUEST_RETENTION_EXPIRED");
 		}
 
-		await tx.storageUsageReservation.upsert({
-			where: { referenceKey },
-			create: {
-				ownerType: asset.ownerType,
-				ownerId: asset.ownerId,
-				bytes,
-				status: "ACTIVE",
-				referenceKey,
-				expiresAt: asset.outputTransferLeaseExpiresAt,
-			},
-			update: {
-				bytes,
-				status: "ACTIVE",
-				expiresAt: asset.outputTransferLeaseExpiresAt,
-				releasedAt: null,
-			},
-		});
-		return { outcome: "RESERVED", bytes };
+		return reserveGenerationOutputStorage(input, asset, tx);
 	});
+}
+
+function assertGenerationOutputStorageInput(input: { bytes: bigint; maximumStorageBytes: bigint }) {
+	if (input.bytes <= 0n) throw new Error("Generation output storage bytes must be positive");
+	if (input.maximumStorageBytes <= 0n) {
+		throw new Error("Generation output storage quota must be positive");
+	}
+}
+
+/** Caller owns the owner fence, asset binding and a live conditional transfer claim. */
+async function reserveGenerationOutputStorage(
+	input: { bytes: bigint; maximumStorageBytes: bigint },
+	asset: {
+		id: string;
+		ownerType: "USER" | "ORGANIZATION";
+		ownerId: string;
+		outputTransferLeaseExpiresAt: Date | null;
+	},
+	tx: Prisma.TransactionClient,
+): Promise<{ outcome: "RESERVED"; bytes: bigint }> {
+	const expiresAt = asset.outputTransferLeaseExpiresAt;
+	if (!expiresAt) throw new Error("GENERATION_OUTPUT_TRANSFER_STATE_INCOMPLETE");
+	const referenceKey = generationOutputStorageReferenceKey(asset.id);
+	const existing = await tx.storageUsageReservation.findUnique({ where: { referenceKey } });
+	if (existing && (existing.ownerType !== asset.ownerType || existing.ownerId !== asset.ownerId)) {
+		throw new Error("GENERATION_OUTPUT_STORAGE_RESERVATION_OWNER_CONFLICT");
+	}
+	if (existing?.status === "COMMITTED") {
+		throw new Error("GENERATION_OUTPUT_STORAGE_RESERVATION_ALREADY_COMMITTED");
+	}
+	const bytes =
+		existing?.status === "ACTIVE" && existing.bytes > input.bytes ? existing.bytes : input.bytes;
+	const usage = await tx.storageUsageReservation.aggregate({
+		where: {
+			ownerType: asset.ownerType,
+			ownerId: asset.ownerId,
+			status: { in: ["ACTIVE", "COMMITTED"] },
+			referenceKey: { not: referenceKey },
+			...unexpiredStorageReservations(),
+		},
+		_sum: { bytes: true },
+	});
+	const maximumBytes = await outputMediaStorageLimit(
+		{ ownerType: asset.ownerType, ownerId: asset.ownerId, assetId: asset.id },
+		input.maximumStorageBytes,
+		tx,
+	);
+	if (maximumBytes !== null && (usage._sum.bytes ?? 0n) + bytes > maximumBytes) {
+		throw new GenerationOutputStorageError();
+	}
+
+	await tx.storageUsageReservation.upsert({
+		where: { referenceKey },
+		create: {
+			ownerType: asset.ownerType,
+			ownerId: asset.ownerId,
+			bytes,
+			status: "ACTIVE",
+			referenceKey,
+			expiresAt,
+		},
+		update: {
+			bytes,
+			status: "ACTIVE",
+			expiresAt,
+			releasedAt: null,
+		},
+	});
+	return { outcome: "RESERVED", bytes };
+}
+
+async function lockOutputTransferAsset(
+	input: { assetId: string; ownerId: string },
+	tx: Prisma.TransactionClient,
+): Promise<void> {
+	// Retention takes only this row lock. Acquire it before reading the asset and
+	// wall clock, so neither quota writes nor the completion CAS can wait behind
+	// retention after accepting a lease or guest deadline that has since expired.
+	await tx.$queryRaw<Array<{ id: string }>>`
+		SELECT "id" FROM "media_asset"
+		WHERE "id" = ${input.assetId} AND "verificationEngine" = 'legacy'
+		  AND "ownerType" = 'USER' AND "ownerId" = ${input.ownerId}
+		FOR UPDATE
+	`;
 }
 
 export async function completeGenerationOutputTransferTransaction(
@@ -1773,6 +1911,7 @@ export async function completeGenerationOutputTransferTransaction(
 		checksum: string;
 		storageEtag: string | null;
 		storageVersionId: string | null;
+		deferOutputReview?: boolean;
 		guestWatermark?: {
 			version: string;
 			watermarkedAt: Date;
@@ -1782,13 +1921,20 @@ export async function completeGenerationOutputTransferTransaction(
 		now?: Date;
 	},
 	client: MediaTransactionClient,
-): Promise<{ outcome: "COMPLETED" | "STALE"; asset: GenerationOutputTransferAsset }> {
+): Promise<{
+	outcome: "COMPLETED" | "STALE";
+	asset: GenerationOutputTransferAsset;
+	outputReviewEventId?: string;
+}> {
 	if (input.bytes <= 0n || !/^[a-f0-9]{64}$/i.test(input.checksum)) {
 		throw new Error("Generation output transfer identity is invalid");
 	}
-	return runSerializable(client, async (tx) => {
+	const freshRead = isStorageFreshReadEnabled();
+	const transaction = freshRead ? runReadCommitted : runSerializable;
+	return transaction(client, async (tx) => {
 		await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
 		await lockMediaAssetGenerationBindings([input.assetId], tx);
+		if (freshRead) await lockOutputTransferAsset(input, tx);
 		const asset = await tx.mediaAsset.findFirst({
 			where: {
 				verificationEngine: "legacy",
@@ -1798,7 +1944,8 @@ export async function completeGenerationOutputTransferTransaction(
 			},
 		});
 		if (!asset) throw new Error("Generation output asset not found for owner");
-		const now = input.now ?? (await getDatabaseNow(tx));
+		const now =
+			input.now ?? (freshRead ? await getDatabaseWallClock(tx) : await getDatabaseNow(tx));
 		if (
 			asset.status !== "VERIFYING" ||
 			asset.outputTransferToken !== input.transferToken ||
@@ -1890,8 +2037,22 @@ export async function completeGenerationOutputTransferTransaction(
 			data: { assetChecksum: input.checksum },
 		});
 		await queueGenerationOutputStagingDeletion(asset.id, stagingObjectKey, input.transferToken, tx);
+		const outputReviewEventId = input.deferOutputReview
+			? await queueInitialGenerationOutputReview(
+					{
+						...asset,
+						checksum: input.checksum,
+						byteSize: input.bytes,
+						finalizedAt: now,
+						outputTransferToken: null,
+					},
+					now,
+					tx,
+				)
+			: undefined;
 		return {
 			outcome: "COMPLETED",
+			...(outputReviewEventId ? { outputReviewEventId } : {}),
 			asset: {
 				...outputTransferAsset(asset),
 				byteSize: input.bytes,
@@ -2063,15 +2224,60 @@ function outputTransferAsset(asset: {
 	};
 }
 
+async function queueInitialGenerationOutputReview(
+	asset: {
+		id: string;
+		kind: string;
+		status: string;
+		mimeType: string;
+		checksum: string | null;
+		byteSize: bigint;
+		finalizedAt: Date | null;
+		outputTransferToken: string | null;
+		verificationGeneration: number;
+	},
+	now: Date,
+	tx: Prisma.TransactionClient,
+): Promise<string | undefined> {
+	if (
+		asset.kind !== "OUTPUT" ||
+		asset.status !== "VERIFYING" ||
+		!asset.mimeType.startsWith("image/") ||
+		!asset.finalizedAt ||
+		!asset.checksum ||
+		asset.byteSize <= 0n ||
+		asset.outputTransferToken
+	)
+		return undefined;
+	// The first review and later pending queries share one committed event. A
+	// recovery must preserve its existing lease/due time rather than reschedule it.
+	const dedupeKey = `media-asset-verify:${asset.id}:g${Math.max(asset.verificationGeneration, 1)}:poll`;
+	const id = randomUUID();
+	const inserted = await tx.outboxEvent.createMany({
+		data: {
+			id,
+			eventType: "MEDIA_ASSET_VERIFY",
+			aggregateType: "MEDIA_ASSET",
+			aggregateId: asset.id,
+			dedupeKey,
+			payload: { assetId: asset.id, originalDueAt: now.getTime() },
+			availableAt: now,
+		},
+		skipDuplicates: true,
+	});
+	if (inserted.count === 1) return id;
+	// Only a duplicate needs to read the winner. A fresh transfer already knows
+	// the identity inserted in this transaction and must not add an SSI read.
+	return (await tx.outboxEvent.findUniqueOrThrow({ where: { dedupeKey }, select: { id: true } }))
+		.id;
+}
+
 async function bindGenerationOutputAsset(
 	jobId: string,
-	assetId: string,
+	asset: { id: string; checksum: string | null },
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
-	const asset = await tx.mediaAsset.findUniqueOrThrow({
-		where: { id: assetId },
-		select: { checksum: true },
-	});
+	const assetId = asset.id;
 	const assetChecksum =
 		asset.checksum && /^[a-f0-9]{64}$/i.test(asset.checksum)
 			? asset.checksum
@@ -2089,16 +2295,15 @@ async function queueGenerationOutputStagingDeletion(
 	transferToken: string,
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
-	await tx.outboxEvent.upsert({
-		where: { dedupeKey: `generation-output-staging-delete:${assetId}:${transferToken}` },
-		create: {
+	await tx.outboxEvent.createMany({
+		data: {
 			eventType: "MEDIA_OBJECT_DELETE",
 			aggregateType: "MEDIA_ASSET",
 			aggregateId: assetId,
 			dedupeKey: `generation-output-staging-delete:${assetId}:${transferToken}`,
 			payload: { assetId, objectKey: stagingObjectKey },
 		},
-		update: {},
+		skipDuplicates: true,
 	});
 }
 

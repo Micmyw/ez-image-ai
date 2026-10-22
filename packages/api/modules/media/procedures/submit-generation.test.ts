@@ -253,6 +253,37 @@ describe("combined generation admission", () => {
 		expect(result).toMatchObject({ replayed: true, job: { id: "job-1" } });
 		expect(f.dependencies.createJob).toHaveBeenCalledTimes(1);
 	});
+	it("recovers a job committed while quote preflight observes the newly reserved balance", async () => {
+		const f = fixture();
+		const createQuote = f.dependencies.createQuote.getMockImplementation()!;
+		f.dependencies.createQuote.mockImplementationOnce(async (...args) => {
+			const quote = await createQuote(...args);
+			await f.dependencies.createJob("owner", {
+				quoteId: quote.id,
+				idempotencyKey: input.idempotencyKey,
+			});
+			throw new Error("INSUFFICIENT_CREDITS");
+		});
+		await expect(submitGenerationForUser("owner", input, f.dependencies)).resolves.toMatchObject({
+			replayed: true,
+			job: { id: "job-1" },
+		});
+		expect(f.dependencies.createJob).toHaveBeenCalledOnce();
+	});
+	it("rejects a concurrent accepted job with the same key but a different frozen submission", async () => {
+		const f = fixture();
+		const createJob = f.dependencies.createJob.getMockImplementation()!;
+		f.dependencies.createJob.mockImplementationOnce(async (...args) => {
+			await createJob(...args);
+			const quote = f.quotes.get(args[1].quoteId)!;
+			quote.inputSnapshot = { submissionFingerprint: "b".repeat(64) };
+			throw new Error("INSUFFICIENT_CREDITS");
+		});
+		await expect(submitGenerationForUser("owner", input, f.dependencies)).rejects.toThrow(
+			"IDEMPOTENCY_CONFLICT",
+		);
+		expect(f.dependencies.dispatch).not.toHaveBeenCalled();
+	});
 	it.each([
 		{ ...input, input: { ...input.input, prompt: "Changed prompt" } },
 		{ ...input, expectedCredits: "7" },

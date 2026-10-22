@@ -1,6 +1,7 @@
 import type { ProviderKey } from "@repo/ai";
 
 import type { OutboxLease } from "../contracts";
+import { deliverMediaJobNotification } from "../realtime/publish";
 
 interface OutboxDeliveryDependencies {
 	deliverModerationAlert?(incidentId: string, state: "OPEN" | "RECOVERED"): Promise<void>;
@@ -19,6 +20,10 @@ export async function deliverOutboxEvent(
 ): Promise<void> {
 	const payload = objectValue(event.payload);
 	switch (event.eventType) {
+		case "MEDIA_JOB_UPDATED":
+			if (payload.eventId !== event.id || payload.jobId !== event.aggregateId)
+				throw new Error("MEDIA_JOB_NOTIFICATION_IDENTITY_MISMATCH");
+			return deliverMediaJobNotification(payload);
 		case "ACCOUNT_INPUT_COPY_REQUESTED":
 			return dependencies.trigger("media-copy-account-input", {
 				promotionId: requiredString(payload.promotionId, event.aggregateId),
@@ -73,7 +78,7 @@ export async function deliverOutboxEvent(
 			});
 		}
 		case "PROVIDER_EVENT_RECEIVED":
-			return dependencies.trigger("media-process-provider-webhook", {
+			return triggerAndWait(dependencies, "media-process-provider-webhook", {
 				providerWebhookEventId: requiredString(payload.providerWebhookEventId),
 			});
 		case "GENERATION_FINALIZE":

@@ -3,12 +3,16 @@ import { describe, expect, it, vi } from "vitest";
 import { recoverVideoExecutions, type VideoRecoveryDependencies } from "./recovery";
 
 const defaultSeeapi = vi.hoisted(() => vi.fn(async () => ({ notified: 2, failed: 1 })));
+const defaultInputSeeapi = vi.hoisted(() => vi.fn(async () => ({ notified: 1, failed: 0 })));
 const defaultCandidates = vi.hoisted(() =>
 	vi.fn(async () => [
 		{ jobId: "recovery-job", workflowInstanceId: "video-v1-recovery-job", startState: "STARTED" },
 	]),
 );
-vi.mock("./seeapi-webhooks", () => ({ notifyPendingSeeapiVideoModerationEvents: defaultSeeapi }));
+vi.mock("./seeapi-webhooks", () => ({
+	notifyPendingSeeapiVideoModerationEvents: defaultSeeapi,
+	notifyPendingSeeapiVideoInputModerationEvents: defaultInputSeeapi,
+}));
 vi.mock("@repo/database/video-v1-execution", () => ({
 	listPendingVideoWebhookEvents: vi.fn(async () => []),
 	markVideoWebhookNotified: vi.fn(),
@@ -47,10 +51,15 @@ describe("video recovery direct binding", () => {
 		expect(await recoverVideoExecutions(25, f.binding)).toEqual({
 			inspected: 1,
 			started: 0,
-			notified: 2,
+			notified: 3,
 			failed: 1,
 		});
 		expect(defaultSeeapi).toHaveBeenCalledExactlyOnceWith({
+			jobId: "recovery-job",
+			binding: f.binding,
+			limit: 25,
+		});
+		expect(defaultInputSeeapi).toHaveBeenCalledExactlyOnceWith({
 			jobId: "recovery-job",
 			binding: f.binding,
 			limit: 25,

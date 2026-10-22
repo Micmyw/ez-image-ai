@@ -14,7 +14,7 @@ import {
 	type ProductModelKey,
 } from "@repo/config";
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
-import { effectiveMediaStorageLimit, unexpiredStorageReservations } from "@repo/database";
+import { unexpiredStorageReservations } from "@repo/database";
 import { db } from "@repo/database/client";
 import {
 	assertImagePassAvailable,
@@ -24,7 +24,7 @@ import {
 } from "@repo/database/media-image-passes";
 
 import { ensureFreePlanCreditsForGeneration } from "./free-plan-credits";
-import { loadUserPlanEntitlement } from "./plan-entitlement";
+import { loadUserPlanAccess } from "./plan-entitlement";
 import { enforceMediaRateLimit } from "./rate-limit";
 import { maximumMediaStorageBytes } from "./storage-limits";
 
@@ -91,7 +91,8 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 	enforceRateLimit: enforceMediaRateLimit,
 	ensureFreeCredits: ensureFreePlanCreditsForGeneration,
 	async loadAccess(input) {
-		const startOfDay = new Date();
+		const now = new Date();
+		const startOfDay = new Date(now);
 		startOfDay.setUTCHours(0, 0, 0, 0);
 		const sourceAssetId = "sourceAssetId" in input.input ? input.input.sourceAssetId : undefined;
 		if (input.temporaryReference)
@@ -105,7 +106,7 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 			dailyCost,
 			globalDailyCost,
 			storageUsage,
-			entitlement,
+			planAccess,
 			sourceAsset,
 		] = await Promise.all([
 			// The request's route graph already includes these runtime overrides.
@@ -140,7 +141,7 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 				where: {
 					account: { ownerType: "USER", ownerId: input.userId },
 					remainingAmount: { gt: 0n },
-					OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+					OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
 				},
 				_sum: { remainingAmount: true },
 			}),
@@ -167,11 +168,11 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 					ownerType: "USER",
 					ownerId: input.userId,
 					status: { in: ["ACTIVE", "COMMITTED"] },
-					...unexpiredStorageReservations(),
+					...unexpiredStorageReservations(now),
 				},
 				_sum: { bytes: true },
 			}),
-			loadUserPlanEntitlement(input.userId),
+			loadUserPlanAccess(input.userId, { now }),
 			input.temporaryReference
 				? Promise.resolve({
 						mimeType: input.temporaryReference.contentType,
@@ -185,7 +186,7 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 								ownerId: input.userId,
 								status: "READY",
 								deletedAt: null,
-								OR: [{ deleteAfter: null }, { deleteAfter: { gt: new Date() } }],
+								OR: [{ deleteAfter: null }, { deleteAfter: { gt: now } }],
 							},
 							select: { mimeType: true, byteSize: true },
 						})
@@ -213,12 +214,10 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 			globalDailyCostMicros: globalDailyCost?._sum.costMicros ?? 0n,
 			...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
 			storageUsageBytes: storageUsage._sum.bytes ?? 0n,
-			maximumStorageBytes: await effectiveMediaStorageLimit(
-				{ ownerType: "USER", ownerId: input.userId },
-				maximumMediaStorageBytes(),
-				db,
-			),
-			planId: entitlement.id,
+			maximumStorageBytes: planAccess.hasEffectivePaidSubscription
+				? null
+				: maximumMediaStorageBytes(),
+			planId: planAccess.entitlement.id,
 			sourceAssetReady: isUsableGenerationSourceAsset(input.input, sourceAsset),
 			sourceAssetBytes: sourceAsset?.byteSize ?? null,
 		};

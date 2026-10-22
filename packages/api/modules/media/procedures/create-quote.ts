@@ -122,6 +122,8 @@ export async function createQuoteForUser(
 		fingerprint: string;
 		expectedCredits: string;
 		rateLimitReceipt?: GenerationRateLimitReceipt;
+		/** The server's merged-submit consumer persists this quote with the job. */
+		deferPersistence?: boolean;
 	},
 	timing: FlowTiming = createFlowTiming(),
 ): Promise<CreatedGenerationQuote> {
@@ -178,14 +180,20 @@ export async function createQuoteForUser(
 		expiresAt: new Date(dependencies.now().getTime() + 10 * 60_000),
 	};
 	const selection = dependencies.createAdapter();
+	let preparedQuote: CreateModeratedGenerationQuoteInput | undefined;
 	const created = await moderateQuoteInput(quoteInput, {
 		provider: selection.provider,
 		moderateText: (moderationInput) =>
 			timing.measure("admission.waffo", () => selection.adapter.moderateText(moderationInput)),
-		persistApproved: (moderation) =>
-			timing.measure("admission.quote.transaction", () =>
+		persistApproved: (moderation) => {
+			if (submission?.deferPersistence && routeGraphOptions) {
+				preparedQuote = { ...quoteInput, moderation };
+				return Promise.resolve({ ...quoteInput, id: submission.quoteId });
+			}
+			return timing.measure("admission.quote.transaction", () =>
 				dependencies.persistApproved({ ...quoteInput, moderation }),
-			),
+			);
+		},
 		recordDenied: (evidence) => dependencies.recordDenied(evidence),
 	});
 	return {
@@ -199,6 +207,7 @@ export async function createQuoteForUser(
 						ownerId: userId,
 						quote: { ...quoteInput, id: created.id },
 						routeGraphOptions,
+						...(preparedQuote ? { preparedQuote } : {}),
 					},
 				}
 			: {}),

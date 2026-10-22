@@ -40,10 +40,141 @@ vi.mock("@repo/logs", () => ({ logger: { error: vi.fn() } }));
 
 import {
 	abortIncompleteMultipartUploads,
+	inspectPrivateMediaObject,
 	listMultipartUploads,
 	promoteStagedObject,
 	tryWriteImmutableGenerationImage,
+	uploadMultipartPart,
 } from "./index";
+
+describe("stored private object inspection cleanup", () => {
+	const bytes = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+	const input = {
+		bucket: "media" as const,
+		key: "users/test/assets/a/original.png",
+		contentType: "image/png" as const,
+		contentLength: bytes.length,
+	};
+	const metadata = { ContentLength: bytes.length, ContentType: "image/png" };
+	beforeEach(() => s3.send.mockReset());
+	it.each([
+		{ ContentLength: undefined },
+		{ ContentLength: 0 },
+		{ ContentLength: Number.NaN },
+		{ ContentLength: bytes.length + 1 },
+		{ ContentLength: 26 * 1024 * 1024 },
+		{ ContentType: "image/jpeg" },
+	])("closes an unread Node response rejected by metadata %j", async (invalid) => {
+		const read = vi.fn();
+		const body = new Readable({ read });
+		s3.send.mockResolvedValueOnce({ ...metadata, ...invalid, Body: body });
+		await expect(inspectPrivateMediaObject(input)).rejects.toMatchObject({
+			code: "ContentType" in invalid ? "OUTPUT_MEDIA_TYPE_MISMATCH" : "OUTPUT_MEDIA_SIZE_EXCEEDED",
+		});
+		expect(body.destroyed).toBe(true);
+		expect(read).not.toHaveBeenCalled();
+		expect(s3.send).toHaveBeenCalledTimes(1);
+	});
+	it("cancels an unread Web response rejected by MIME metadata", async () => {
+		const cancel = vi.fn();
+		const pull = vi.fn();
+		const body = new ReadableStream<Uint8Array>({ pull, cancel }, { highWaterMark: 0 });
+		s3.send.mockResolvedValueOnce({ ...metadata, ContentType: "text/html", Body: body });
+		await expect(inspectPrivateMediaObject(input)).rejects.toMatchObject({
+			code: "OUTPUT_MEDIA_TYPE_MISMATCH",
+		});
+		expect(cancel).toHaveBeenCalledTimes(1);
+		expect(pull).not.toHaveBeenCalled();
+		expect(body.locked).toBe(false);
+		expect(s3.send).toHaveBeenCalledTimes(1);
+	});
+	it("preserves validation failure when response cleanup fails", async () => {
+		const cleanupError = new Error("response cleanup failed");
+		const cancel = vi.fn(() => Promise.reject(cleanupError));
+		const body = new ReadableStream<Uint8Array>({ cancel }, { highWaterMark: 0 });
+		s3.send.mockResolvedValueOnce({ ...metadata, ContentLength: 0, Body: body });
+		await expect(inspectPrivateMediaObject(input)).rejects.toMatchObject({
+			code: "OUTPUT_MEDIA_SIZE_EXCEEDED",
+		});
+		expect(cancel).toHaveBeenCalledTimes(1);
+	});
+	it("closes a non-iterable response before rejecting it", async () => {
+		const destroy = vi.fn();
+		s3.send.mockResolvedValueOnce({ ...metadata, Body: { destroy } });
+		await expect(inspectPrivateMediaObject(input)).rejects.toMatchObject({
+			code: "OUTPUT_MEDIA_SIZE_EXCEEDED",
+		});
+		expect(destroy).toHaveBeenCalledTimes(1);
+	});
+	it("preserves a read failure and closes the Node response", async () => {
+		const readError = new Error("stored response interrupted");
+		const body = new Readable({
+			read() {
+				this.destroy(readError);
+			},
+		});
+		const destroy = vi.spyOn(body, "destroy");
+		s3.send.mockResolvedValueOnce({ ...metadata, Body: body });
+		await expect(inspectPrivateMediaObject(input)).rejects.toBe(readError);
+		expect(body.destroyed).toBe(true);
+		expect(destroy).toHaveBeenCalledTimes(1);
+		expect(s3.send).toHaveBeenCalledTimes(1);
+	});
+	it("hashes every byte once and closes a successful Node response without auto-destroy", async () => {
+		const body = Readable.from([bytes.subarray(0, 8), bytes.subarray(8)], { autoDestroy: false });
+		const destroy = vi.spyOn(body, "destroy");
+		s3.send.mockResolvedValueOnce({ ...metadata, Body: body, ETag: "immutable-etag" });
+		await expect(inspectPrivateMediaObject(input)).resolves.toEqual({
+			bytes: bytes.length,
+			sha256: createHash("sha256").update(bytes).digest("hex"),
+			etag: "immutable-etag",
+			versionId: null,
+		});
+		expect(body.destroyed).toBe(true);
+		expect(destroy).toHaveBeenCalledTimes(1);
+		expect(s3.send).toHaveBeenCalledTimes(1);
+	});
+	it("fully validates a successful Web response without an extra read or source cancellation", async () => {
+		const cancel = vi.fn();
+		const pull = vi.fn((controller: ReadableStreamDefaultController<Uint8Array>) => {
+			controller.enqueue(bytes);
+			controller.close();
+		});
+		const body = new ReadableStream<Uint8Array>({ pull, cancel }, { highWaterMark: 0 });
+		s3.send.mockResolvedValueOnce({ ...metadata, Body: body });
+		await expect(inspectPrivateMediaObject(input)).resolves.toMatchObject({
+			bytes: bytes.length,
+			sha256: createHash("sha256").update(bytes).digest("hex"),
+		});
+		expect(body.locked).toBe(false);
+		expect(pull).toHaveBeenCalledTimes(1);
+		expect(cancel).not.toHaveBeenCalled();
+		expect(s3.send).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("multipart part cancellation", () => {
+	beforeEach(() => s3.send.mockReset());
+	it("forwards the transfer abort signal to the storage request", async () => {
+		const controller = new AbortController();
+		const body = Buffer.from("part");
+		s3.send.mockResolvedValue({ ETag: "part-etag" });
+		await expect(
+			uploadMultipartPart({
+				bucket: "media",
+				key: "users/u/assets/a/original.mp4",
+				uploadId: "upload-1",
+				partNumber: 1,
+				body,
+				signal: controller.signal,
+			}),
+		).resolves.toBe("part-etag");
+		expect(s3.send).toHaveBeenCalledWith(
+			expect.objectContaining({ input: expect.objectContaining({ Body: body, PartNumber: 1 }) }),
+			{ abortSignal: controller.signal },
+		);
+	});
+});
 
 describe("single private generation image", () => {
 	const body = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
@@ -55,6 +186,21 @@ describe("single private generation image", () => {
 		ETag: "fixed",
 	});
 	beforeEach(() => s3.send.mockReset());
+	it("refuses inline buffers in a concurrent streaming-only executor", async () => {
+		const reserve = vi.fn(async () => undefined);
+		await expect(
+			tryWriteImmutableGenerationImage({
+				bucket: "media",
+				key: "users/test/assets/a/original.png",
+				contentType: "image/png",
+				body,
+				reserve,
+				streamingOnly: true,
+			}),
+		).resolves.toBeNull();
+		expect(reserve).not.toHaveBeenCalled();
+		expect(s3.send).not.toHaveBeenCalled();
+	});
 	it("reserves before one conditional final write, without staging or promotion", async () => {
 		const reserve = vi.fn(async () => {
 			expect(s3.send).toHaveBeenCalledTimes(1);
@@ -73,6 +219,149 @@ describe("single private generation image", () => {
 			input: { IfNoneMatch: "*", Body: body, Key: "users/test/assets/a/original.png" },
 		});
 		expect(s3.send).toHaveBeenCalledTimes(2);
+	});
+	it("starts a newly claimed asset with one conditional PUT and no missing-object GET", async () => {
+		const reserve = vi.fn(async () => {
+			expect(s3.send).not.toHaveBeenCalled();
+		});
+		s3.send.mockResolvedValueOnce({ ETag: "fixed" });
+		const result = await tryWriteImmutableGenerationImage({
+			bucket: "media",
+			key: "users/test/assets/a/original.png",
+			contentType: "image/png",
+			body,
+			freshClaim: true,
+			reserve,
+		});
+		expect(result).toMatchObject({
+			bytes: body.length,
+			sha256: createHash("sha256").update(body).digest("hex"),
+		});
+		expect(s3.send).toHaveBeenCalledTimes(1);
+		expect(s3.send.mock.calls[0]![0]).toMatchObject({
+			input: { IfNoneMatch: "*", Body: body, Key: "users/test/assets/a/original.png" },
+		});
+	});
+	it.each([undefined, false])(
+		"keeps canonical-object recovery first when freshClaim is %s",
+		async (freshClaim) => {
+			s3.send.mockResolvedValueOnce(stored());
+			const result = await tryWriteImmutableGenerationImage({
+				bucket: "media",
+				key: "users/test/assets/a/original.png",
+				contentType: "image/png",
+				body: Buffer.concat([body, Buffer.from("changed provider")]),
+				freshClaim,
+				reserve: async () => undefined,
+			});
+			expect(result?.sha256).toBe(createHash("sha256").update(body).digest("hex"));
+			expect(s3.send).toHaveBeenCalledTimes(1);
+			expect(s3.send.mock.calls[0]![0].constructor.name).toBe("GetObjectCommand");
+		},
+	);
+	it.each([
+		Object.assign(new Error("conflict"), { name: "PreconditionFailed" }),
+		Object.assign(new Error("write outcome unknown"), { name: "TimeoutError" }),
+		Object.assign(new Error("storage failure"), { $metadata: { httpStatusCode: 503 } }),
+	])(
+		"reads and hashes the full canonical winner after a fresh PUT reports $message",
+		async (error) => {
+			const original = Buffer.concat([body, Buffer.from("original canonical bytes")]);
+			s3.send.mockRejectedValueOnce(error).mockResolvedValueOnce({
+				...stored(original),
+				Metadata: { sha256: "f".repeat(64) },
+			});
+			const reserve = vi.fn(async (_bytes: number) => undefined);
+			const result = await tryWriteImmutableGenerationImage({
+				bucket: "media",
+				key: "users/test/assets/a/original.png",
+				contentType: "image/png",
+				body,
+				freshClaim: true,
+				reserve,
+			});
+			expect(result).toMatchObject({
+				bytes: original.length,
+				sha256: createHash("sha256").update(original).digest("hex"),
+			});
+			expect(s3.send.mock.calls.map(([command]) => command.constructor.name)).toEqual([
+				"PutObjectCommand",
+				"GetObjectCommand",
+			]);
+			expect(reserve.mock.calls.map(([bytes]) => bytes)).toEqual([body.length, original.length]);
+		},
+	);
+	it("preserves an unknown fresh PUT failure when no canonical winner exists", async () => {
+		const error = new Error("connection closed after PUT");
+		s3.send.mockRejectedValueOnce(error).mockRejectedValueOnce(missing());
+		await expect(
+			tryWriteImmutableGenerationImage({
+				bucket: "media",
+				key: "users/test/assets/a/original.png",
+				contentType: "image/png",
+				body,
+				freshClaim: true,
+				reserve: async () => undefined,
+			}),
+		).rejects.toBe(error);
+		expect(s3.send.mock.calls.map(([command]) => command.constructor.name)).toEqual([
+			"PutObjectCommand",
+			"GetObjectCommand",
+		]);
+	});
+	it("rejects a truncated canonical winner even with a plausible ETag and checksum header", async () => {
+		s3.send
+			.mockRejectedValueOnce(
+				Object.assign(new Error("conflict"), { $metadata: { httpStatusCode: 412 } }),
+			)
+			.mockResolvedValueOnce({
+				...stored(),
+				ContentLength: body.length + 1,
+				Metadata: { sha256: "a".repeat(64) },
+			});
+		await expect(
+			tryWriteImmutableGenerationImage({
+				bucket: "media",
+				key: "users/test/assets/a/original.png",
+				contentType: "image/png",
+				body,
+				freshClaim: true,
+				reserve: async () => undefined,
+			}),
+		).rejects.toMatchObject({ code: "OUTPUT_MEDIA_SIZE_EXCEEDED" });
+		expect(s3.send).toHaveBeenCalledTimes(2);
+	});
+	it("does not read or write storage after a fresh claim loses its quota/lease fence", async () => {
+		await expect(
+			tryWriteImmutableGenerationImage({
+				bucket: "media",
+				key: "users/test/assets/a/original.png",
+				contentType: "image/png",
+				body,
+				freshClaim: true,
+				reserve: async () => {
+					throw new Error("FENCE_LOST");
+				},
+			}),
+		).rejects.toThrow("FENCE_LOST");
+		expect(s3.send).not.toHaveBeenCalled();
+	});
+	it("does not turn local body validation or a definitive access denial into recovery", async () => {
+		const input = {
+			bucket: "media" as const,
+			key: "users/test/assets/a/original.png",
+			contentType: "image/png" as const,
+			freshClaim: true,
+			reserve: async () => undefined,
+		};
+		await expect(
+			tryWriteImmutableGenerationImage({ ...input, body: Buffer.from("invalid image") }),
+		).rejects.toMatchObject({ code: "OUTPUT_MEDIA_TYPE_UNSUPPORTED" });
+		expect(s3.send).not.toHaveBeenCalled();
+		const denied = Object.assign(new Error("denied"), { $metadata: { httpStatusCode: 403 } });
+		s3.send.mockRejectedValueOnce(denied);
+		await expect(tryWriteImmutableGenerationImage({ ...input, body })).rejects.toBe(denied);
+		expect(s3.send).toHaveBeenCalledTimes(1);
 	});
 	it("recovers the same stored content after a DB failure without writing again", async () => {
 		s3.send.mockResolvedValueOnce(stored());

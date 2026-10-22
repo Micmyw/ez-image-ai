@@ -14,6 +14,7 @@ export const MEDIA_ERROR_CODES = [
 	"MODEL_DISABLED",
 	"RATE_LIMITED",
 	"PROVIDER_UNAVAILABLE",
+	"MEDIA_REQUEST_CONFLICT",
 	"QUOTE_EXPIRED",
 	"PRICE_CHANGED",
 	"BUDGET_EXCEEDED",
@@ -49,7 +50,9 @@ export function toMediaOrpcError(error: unknown): ORPCError<string, unknown> {
 	const status =
 		code === "NOT_FOUND"
 			? "NOT_FOUND"
-			: code === "GENERATION_RETRY_IN_PROGRESS" || code === "IDEMPOTENCY_CONFLICT"
+			: code === "GENERATION_RETRY_IN_PROGRESS" ||
+				  code === "IDEMPOTENCY_CONFLICT" ||
+				  code === "MEDIA_REQUEST_CONFLICT"
 				? "CONFLICT"
 				: "BAD_REQUEST";
 	return new ORPCError(status, {
@@ -65,21 +68,42 @@ export function toMediaOrpcError(error: unknown): ORPCError<string, unknown> {
 	});
 }
 
+function isConfirmedTransactionConflict(error: unknown): boolean {
+	if (!error || typeof error !== "object") return false;
+	type AdapterCause = { originalCode?: unknown; kind?: unknown };
+	const details = error as {
+		code?: unknown;
+		cause?: AdapterCause;
+		meta?: { driverAdapterError?: { cause?: AdapterCause } };
+	};
+	if (details.code === "P2034" || details.code === "40001") return true;
+	// An explicit transport/unknown transaction outcome overrides an older cause.
+	// P2010 is Prisma's raw-query wrapper; adapter errors have no top-level code.
+	if (details.code != null && details.code !== "P2010") return false;
+	const cause = details.meta?.driverAdapterError?.cause ?? details.cause;
+	// Recognize only database rollback markers, never query text or an earlier nested
+	// failure behind a transport error. This classification does not authorize replay.
+	return cause?.originalCode === "40001" || cause?.kind === "TransactionWriteConflict";
+}
+
 export function stableMediaErrorCode(error: unknown): MediaErrorCode {
 	if (error instanceof TextModerationError) return error.publicCode;
+	if (error instanceof MediaPublicError) return error.publicCode;
+	if (isConfirmedTransactionConflict(error)) return "MEDIA_REQUEST_CONFLICT";
 	const message = error instanceof Error ? error.message : "";
 	if (/TEXT_MODERATION_REJECT/.test(message)) return "CONTENT_NOT_ALLOWED";
 	if (/TEXT_MODERATION_REVIEW/.test(message)) return "CONTENT_REVIEW_REQUIRED";
 	if (/TEXT_MODERATION_(ERROR|CONFIGURATION_ERROR)/.test(message))
 		return "SAFETY_CHECK_UNAVAILABLE";
 	for (const code of MEDIA_ERROR_CODES) {
-		// Capacity scopes overlap by suffix. Preserve legacy aliases for other errors,
-		// but only a complete admission code may attribute a limit to an owner/provider.
-		const exactAdmissionCode =
+		// Preserve legacy aliases, but require complete capacity and technical codes
+		// so unrelated diagnostics cannot become an admission or transaction conflict.
+		const exactPublicCode =
 			code === "CONCURRENT_JOB_LIMIT_REACHED" ||
 			code === "PROVIDER_CONCURRENT_JOB_LIMIT_REACHED" ||
-			code === "RATE_LIMITED";
-		if (exactAdmissionCode ? message === code : message.includes(code)) return code;
+			code === "RATE_LIMITED" ||
+			code === "MEDIA_REQUEST_CONFLICT";
+		if (exactPublicCode ? message === code : message.includes(code)) return code;
 	}
 	if (/credit/i.test(message)) return "INSUFFICIENT_CREDITS";
 	if (/asset/i.test(message)) return "ASSET_NOT_READY";

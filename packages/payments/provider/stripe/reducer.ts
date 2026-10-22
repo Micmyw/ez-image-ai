@@ -1,4 +1,10 @@
-import { createCreditGrant, refundCreditGrant, runSerializable, type Prisma } from "@repo/database";
+import {
+	createCreditGrant,
+	ensureCreditAccountInTransaction,
+	refundCreditGrant,
+	runSerializable,
+	type Prisma,
+} from "@repo/database";
 
 import { lockRefundFundingAccount } from "../refund-funding-lock";
 import {
@@ -1020,11 +1026,7 @@ async function ensureCreditAccount(
 	ownerId: string,
 	client: Pick<TransactionClient, "creditAccount">,
 ) {
-	return client.creditAccount.upsert({
-		where: { ownerType_ownerId: { ownerType, ownerId } },
-		create: { ownerType, ownerId },
-		update: {},
-	});
+	return ensureCreditAccountInTransaction({ ownerType, ownerId }, client);
 }
 
 function assertCompatibleBillingPeriod(

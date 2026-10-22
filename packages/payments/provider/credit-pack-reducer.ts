@@ -1,6 +1,7 @@
 import { calculateCreditPackExpiresAt } from "@repo/config/server";
 import {
 	createCreditGrant,
+	ensureCreditAccountInTransaction,
 	expireCreditLotsInTransaction,
 	isDatabaseUniqueConflict,
 	lockCreditPackProviderPayment,
@@ -133,16 +134,10 @@ export async function applyCreditPackPaymentFact(
 			fulfilledAt: now,
 		},
 	});
-	const account = await client.creditAccount.upsert({
-		where: {
-			ownerType_ownerId: {
-				ownerType: fulfillment.ownerType,
-				ownerId: fulfillment.ownerId,
-			},
-		},
-		create: { ownerType: fulfillment.ownerType, ownerId: fulfillment.ownerId },
-		update: {},
-	});
+	const account = await ensureCreditAccountInTransaction(
+		{ ownerType: fulfillment.ownerType, ownerId: fulfillment.ownerId },
+		client,
+	);
 	await createCreditGrant(
 		{
 			accountId: account.id,

@@ -15,6 +15,10 @@ import {
 } from "@repo/config/video-safety";
 import { readVideoSharedFundingSnapshot } from "@repo/config/video-shared-funding";
 import {
+	videoSubmissionInputSchema,
+	type VideoSubmissionInput,
+} from "@repo/config/video-submission";
+import {
 	readVideoTextSafetyProfile,
 	type VideoTextSafetyProfile,
 } from "@repo/config/video-text-safety";
@@ -181,8 +185,17 @@ async function findSealedInput(
 			OR: [{ deleteAfter: null }, { deleteAfter: { gt: now } }],
 		},
 	});
+	return assertSealedInput(asset, maximumInputBytes, now);
+}
+
+function assertSealedInput(
+	asset: Prisma.MediaAssetGetPayload<{}> | null,
+	maximumInputBytes: number,
+	now: Date,
+) {
 	if (
 		!asset ||
+		(asset.deleteAfter !== null && asset.deleteAfter <= now) ||
 		!asset.checksum ||
 		!/^[a-f0-9]{64}$/i.test(asset.checksum) ||
 		!["image/jpeg", "image/png"].includes(asset.mimeType) ||
@@ -198,18 +211,31 @@ async function findSealedInput(
 	return asset;
 }
 
+type VideoQuoteRecordInput = {
+	ownerId: string;
+	request: VideoRequest;
+	price: VideoPrice;
+	visualSafetyProfile: VideoVisualSafetyProfile;
+	textSafetyProfile: VideoTextSafetyProfile;
+	audioSafetyPolicy: VideoAudioSafetyPolicy;
+	maximumInputBytes: number;
+	template?: TemplateAdmission;
+};
+
 export async function createVideoQuoteRecord(
-	input: {
-		ownerId: string;
-		request: VideoRequest;
-		price: VideoPrice;
-		visualSafetyProfile: VideoVisualSafetyProfile;
-		textSafetyProfile: VideoTextSafetyProfile;
-		audioSafetyPolicy: VideoAudioSafetyPolicy;
-		maximumInputBytes: number;
-		template?: TemplateAdmission;
-	},
+	input: VideoQuoteRecordInput,
 	client: MediaTransactionClient,
+) {
+	return runSerializable(
+		client,
+		async (tx) => (await createVideoQuoteInTransaction(input, tx)).publicQuote,
+	);
+}
+
+async function createVideoQuoteInTransaction(
+	input: VideoQuoteRecordInput,
+	tx: MediaDatabaseClient,
+	submission?: { id: string; fingerprint: string; admitting: boolean },
 ) {
 	const request = videoV1InputSchema.parse(input.request);
 	const visualSafetyProfile = requiredVisualSafetyProfile(input.visualSafetyProfile, request);
@@ -225,88 +251,103 @@ export async function createVideoQuoteRecord(
 		!input.price.pricingBasis
 	)
 		throw new Error("VIDEO_PRICE_NOT_CONFIGURED");
-	return runSerializable(client, async (tx) => {
-		const now = await databaseNow(tx);
+	const now = await databaseNow(tx);
+	// The atomic submission revalidates once under the credit-account lock.
+	if (!submission?.admitting)
 		await assertVideoRetailEligibility(input.ownerId, input.price.pricingDetails, tx, now);
-		if (request.mode === "image-to-video")
-			await lockMediaAssetGenerationBindings(
-				input.template
-					? [input.template.request.inputs.leftAssetId, input.template.request.inputs.rightAssetId]
-					: [request.inputAssetId!],
-				tx,
-			);
-		const asset = await findSealedInput(input.ownerId, request, input.maximumInputBytes, tx, now);
-		const templateData = input.template
-			? await templateAdmissionData(input.ownerId, input.template, input.maximumInputBytes, tx, now)
-			: {};
-		const requestFingerprint = input.template
-			? createHash("sha256")
-					.update(
-						canonicalVideoTemplateJson({
-							ownerId: input.ownerId,
-							request,
-							...templateData,
-							visualSafetyProfile,
-							textSafetyProfile,
-							audioSafetyPolicy,
-						}),
-					)
-					.digest("hex")
-			: fingerprintVideoRequest(input.ownerId, request);
-		const quote = {
-			ownerType: "USER" as const,
-			ownerId: input.ownerId,
-			submittedByUserId: input.ownerId,
-			productKey: requestProduct(request),
-			catalogVersion: requestContract(request),
-			pricingVersion: input.price.pricingVersion,
-			credits: input.price.credits,
-			costMicros: input.price.providerCostMicros + input.price.moderationCostMicros,
-			expiresAt: new Date(now.getTime() + 10 * 60_000),
-			inputSnapshot: {
-				...request,
-				...templateData,
-				visualSafetyProfile,
-				textSafetyProfile,
-				audioSafetyPolicy,
-				outputStoragePolicy: videoOutputStoragePolicy,
-				...(resolutionPolicy ? { resolutionPolicy } : {}),
-				schemaVersion: 1,
-				modelContractVersion: requestContract(request),
-				requestFingerprint,
-				inputIdentity: asset
-					? {
-							assetId: asset.id,
-							checksum: asset.checksum,
-							objectKey: asset.objectKey,
-							storageEtag: asset.storageEtag,
-							storageVersionId: asset.storageVersionId,
-							verificationGeneration: asset.verificationGeneration,
-						}
-					: null,
-			},
-			pricingSnapshot: videoPricingSnapshot(input.price),
-		};
-		const record = await tx.generationQuote.create({
-			data: {
-				...quote,
-				inputFingerprint: fingerprintGenerationQuoteSecurityPayload(quote),
-				moderationDecision: "PENDING_VIDEO_WORKFLOW",
-				moderationProvider: ENGINE,
-				moderationRuleVersion: requestContract(request),
-				moderationReasonCode: "PENDING_VIDEO_WORKFLOW",
-			},
-		});
-		return {
-			quoteId: record.id,
-			credits: record.credits.toString(),
-			...(readVideoRetailDisplay(input.price.pricingDetails)
-				? { pricing: readVideoRetailDisplay(input.price.pricingDetails)! }
-				: {}),
-			expiresAt: record.expiresAt.toISOString(),
+	if (request.mode === "image-to-video")
+		await lockMediaAssetGenerationBindings(
+			input.template
+				? [input.template.request.inputs.leftAssetId, input.template.request.inputs.rightAssetId]
+				: [request.inputAssetId!],
+			tx,
+		);
+	const asset = await findSealedInput(input.ownerId, request, input.maximumInputBytes, tx, now);
+	const templateData = input.template
+		? await templateAdmissionData(input.ownerId, input.template, input.maximumInputBytes, tx, now)
+		: {};
+	const requestFingerprint = input.template
+		? createHash("sha256")
+				.update(
+					canonicalVideoTemplateJson({
+						ownerId: input.ownerId,
+						request,
+						...templateData,
+						visualSafetyProfile,
+						textSafetyProfile,
+						audioSafetyPolicy,
+					}),
+				)
+				.digest("hex")
+		: fingerprintVideoRequest(input.ownerId, request);
+	const quote = {
+		ownerType: "USER" as const,
+		ownerId: input.ownerId,
+		submittedByUserId: input.ownerId,
+		productKey: requestProduct(request),
+		catalogVersion: requestContract(request),
+		pricingVersion: input.price.pricingVersion,
+		credits: input.price.credits,
+		costMicros: input.price.providerCostMicros + input.price.moderationCostMicros,
+		expiresAt: new Date(now.getTime() + 10 * 60_000),
+		inputSnapshot: {
+			...request,
+			...(submission ? { submissionFingerprint: submission.fingerprint } : {}),
+			...templateData,
+			visualSafetyProfile,
+			textSafetyProfile,
+			audioSafetyPolicy,
+			outputStoragePolicy: videoOutputStoragePolicy,
+			...(resolutionPolicy ? { resolutionPolicy } : {}),
+			schemaVersion: 1,
+			modelContractVersion: requestContract(request),
 			requestFingerprint,
-		};
+			inputIdentity: asset
+				? {
+						assetId: asset.id,
+						checksum: asset.checksum,
+						objectKey: asset.objectKey,
+						storageEtag: asset.storageEtag,
+						storageVersionId: asset.storageVersionId,
+						verificationGeneration: asset.verificationGeneration,
+					}
+				: null,
+		},
+		pricingSnapshot: videoPricingSnapshot(input.price),
+	};
+	const record = await tx.generationQuote.create({
+		data: {
+			...quote,
+			...(submission ? { id: submission.id } : {}),
+			inputFingerprint: fingerprintGenerationQuoteSecurityPayload(quote),
+			moderationDecision: "PENDING_VIDEO_WORKFLOW",
+			moderationProvider: ENGINE,
+			moderationRuleVersion: requestContract(request),
+			moderationReasonCode: "PENDING_VIDEO_WORKFLOW",
+		},
 	});
+	return { record, asset, publicQuote: publicVideoQuote(record) };
+}
+
+export type VideoQuoteResult = {
+	quoteId: string;
+	credits: string;
+	pricing?: NonNullable<ReturnType<typeof readVideoRetailDisplay>>;
+	expiresAt: string;
+	requestFingerprint: string;
+};
+
+function publicVideoQuote(record: Prisma.GenerationQuoteGetPayload<{}>): VideoQuoteResult {
+	const pricing = readVideoRetailDisplay(
+		(record.pricingSnapshot as Prisma.JsonObject).pricingDetails,
+	);
+	return {
+		quoteId: record.id,
+		credits: record.credits.toString(),
+		...(pricing ? { pricing } : {}),
+		expiresAt: record.expiresAt.toISOString(),
+		requestFingerprint: (record.inputSnapshot as Prisma.JsonObject).requestFingerprint as string,
+	};
 }
 
 export async function findExistingVideoAdmission(
@@ -342,22 +383,123 @@ export async function findExistingVideoAdmission(
 	return job;
 }
 
-export async function createVideoJobRecord(
-	input: {
-		ownerId: string;
-		quoteId: string;
-		idempotencyKey: string;
-		request: VideoRequest;
-		price: VideoPrice;
-		visualSafetyProfile: VideoVisualSafetyProfile;
-		textSafetyProfile: VideoTextSafetyProfile;
-		audioSafetyPolicy: VideoAudioSafetyPolicy;
-		limits: VideoAdmissionLimits;
-		requestReceivedAt?: Date;
-		paidFundingPolicy?: PaidCreditFundingPolicy;
-		template?: TemplateAdmission;
-	},
+export function videoSubmissionIdentity(input: VideoSubmissionInput & { ownerId: string }) {
+	const parsed = videoSubmissionInputSchema.parse({
+		idempotencyKey: input.idempotencyKey,
+		request: input.request,
+		expectedCredits: input.expectedCredits,
+		expectedPricing: input.expectedPricing,
+	});
+	const hash = (value: unknown) =>
+		createHash("sha256").update(canonicalVideoTemplateJson(value)).digest("hex");
+	return {
+		quoteId: `video_submit_${hash([input.ownerId, parsed.idempotencyKey])}`,
+		fingerprint: hash({ ownerId: input.ownerId, ...parsed }),
+	};
+}
+
+/** Accepted submissions replay before current admission, price or quote-expiry checks. */
+export async function findExistingVideoSubmission(
+	input: VideoSubmissionInput & { ownerId: string },
+	tx: MediaDatabaseClient,
+) {
+	const identity = videoSubmissionIdentity(input);
+	const job = await findExistingVideoAdmission(input, tx);
+	if (
+		job &&
+		(job.quoteId !== identity.quoteId ||
+			(job.inputSnapshot as Prisma.JsonObject).submissionFingerprint !== identity.fingerprint)
+	)
+		throw new Error("IDEMPOTENCY_CONFLICT");
+	return job;
+}
+
+/** Ordinary video only: one commit for quote, job, bindings, credits and execution intent. */
+export async function submitVideoJobRecord(
+	input: Omit<VideoJobRecordInput, "quoteId" | "template"> & VideoSubmissionInput,
 	client: MediaTransactionClient,
+) {
+	const identity = videoSubmissionIdentity(input);
+	const result = await runReadCommitted(client, async (tx) => {
+		await tx.$executeRaw`
+			SELECT pg_advisory_xact_lock(hashtextextended(${`USER:${input.ownerId}:generation-concurrency`}, 0))`;
+		const replay = await findExistingVideoSubmission(input, tx);
+		if (replay) return { kind: "created" as const, jobId: replay.id, replayed: true };
+		const existing = await tx.generationQuote.findFirst({
+			where: {
+				id: identity.quoteId,
+				ownerType: "USER",
+				ownerId: input.ownerId,
+				submittedByUserId: input.ownerId,
+			},
+		});
+		if (existing) {
+			if (
+				(existing.inputSnapshot as Prisma.JsonObject).submissionFingerprint !==
+					identity.fingerprint ||
+				existing.inputFingerprint !== fingerprintGenerationQuoteSecurityPayload(existing)
+			)
+				throw new Error("IDEMPOTENCY_CONFLICT");
+			if (existing.expiresAt <= (await databaseNow(tx))) throw new Error("QUOTE_EXPIRED");
+			// This key already received a changed price. Only an explicit quote
+			// confirmation may authorize it; a retry can never turn into a charge.
+			return { kind: "quote_only" as const, quote: publicVideoQuote(existing) };
+		}
+		const matches =
+			input.price.credits.toString() === input.expectedCredits &&
+			canonicalVideoTemplateJson(readVideoRetailDisplay(input.price.pricingDetails) ?? null) ===
+				canonicalVideoTemplateJson(input.expectedPricing);
+		// Preserve owner -> storage -> input -> credit-account lock order. The
+		// prepared quote and immutable input remain protected through admission.
+		if (matches) await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
+		const prepared = await createVideoQuoteInTransaction(
+			{
+				...input,
+				maximumInputBytes: input.limits.maximumInputBytes,
+			},
+			tx,
+			{ id: identity.quoteId, fingerprint: identity.fingerprint, admitting: matches },
+		);
+		if (!matches) return { kind: "quote_only" as const, quote: prepared.publicQuote };
+		const accepted = await createVideoJobInTransaction(
+			{ ...input, quoteId: identity.quoteId },
+			tx,
+			prepared,
+		);
+		return { kind: "created" as const, ...accepted };
+	});
+	if (result.kind === "created") await recordVideoReservationCommitted(result, client);
+	return result;
+}
+
+type VideoJobRecordInput = {
+	ownerId: string;
+	quoteId: string;
+	idempotencyKey: string;
+	request: VideoRequest;
+	price: VideoPrice;
+	visualSafetyProfile: VideoVisualSafetyProfile;
+	textSafetyProfile: VideoTextSafetyProfile;
+	audioSafetyPolicy: VideoAudioSafetyPolicy;
+	limits: VideoAdmissionLimits;
+	requestReceivedAt?: Date;
+	paidFundingPolicy?: PaidCreditFundingPolicy;
+	template?: TemplateAdmission;
+};
+
+export async function createVideoJobRecord(
+	input: VideoJobRecordInput,
+	client: MediaTransactionClient,
+) {
+	const accepted = await runReadCommitted(client, (tx) => createVideoJobInTransaction(input, tx));
+	await recordVideoReservationCommitted(accepted, client);
+	return accepted;
+}
+
+async function createVideoJobInTransaction(
+	input: VideoJobRecordInput,
+	tx: MediaDatabaseClient,
+	prepared?: Awaited<ReturnType<typeof createVideoQuoteInTransaction>>,
 ) {
 	const request = videoV1ReceiptInputSchema.parse(input.request);
 	if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 128)
@@ -369,43 +511,46 @@ export async function createVideoJobRecord(
 	// Every mutable admission predicate is protected by the ordered advisory/
 	// row locks below. READ COMMITTED observes the prior lock holder's commit;
 	// a SERIALIZABLE snapshot taken before waiting needlessly aborts busy bursts.
-	const accepted = await runReadCommitted(client, async (tx) => {
-		const admissionTransactionStartedAt = new Date().toISOString();
-		// Quote security fields are database-immutable. Read them before joining the
-		// owner admission lock, but defer all errors until an accepted replay is checked.
-		const quote = await tx.generationQuote.findFirst({
+	const admissionTransactionStartedAt = new Date().toISOString();
+	// Quote security fields are database-immutable. Read them before joining the
+	// owner admission lock, but defer all errors until an accepted replay is checked.
+	const quote =
+		prepared?.record ??
+		(await tx.generationQuote.findFirst({
 			where: {
 				id: input.quoteId,
 				ownerType: "USER",
 				ownerId: input.ownerId,
 				submittedByUserId: input.ownerId,
 			},
-		});
+		}));
+	if (!prepared) {
 		await tx.$executeRaw`
 			SELECT pg_advisory_xact_lock(hashtextextended(${`USER:${input.ownerId}:generation-concurrency`}, 0))`;
 		const replay = await findExistingVideoAdmission({ ...input, request }, tx);
 		if (replay) return { jobId: replay.id, replayed: true };
-		// Accepted receipts retain their exact historical framing. Only new
-		// admissions must satisfy today's narrower model capabilities.
-		videoV1InputSchema.parse(request);
-		if (
-			!quote ||
-			quote.productKey !== requestProduct(request) ||
-			quote.moderationDecision !== "PENDING_VIDEO_WORKFLOW" ||
-			quote.moderationProvider !== ENGINE ||
-			quote.catalogVersion !== requestContract(request) ||
-			quote.inputFingerprint !== fingerprintGenerationQuoteSecurityPayload(quote)
-		)
-			throw new Error("INVALID_VIDEO_QUOTE");
-		// This must be a separate statement AFTER the advisory lock returns: a
-		// statement that waits for a lock can otherwise retain its pre-wait snapshot.
-		const [capacity] = await tx.$queryRaw<
-			Array<{
-				now: Date;
-				quoteUsed: boolean;
-				blocked: boolean;
-			}>
-		>`
+	}
+	// Accepted receipts retain their exact historical framing. Only new
+	// admissions must satisfy today's narrower model capabilities.
+	videoV1InputSchema.parse(request);
+	if (
+		!quote ||
+		quote.productKey !== requestProduct(request) ||
+		quote.moderationDecision !== "PENDING_VIDEO_WORKFLOW" ||
+		quote.moderationProvider !== ENGINE ||
+		quote.catalogVersion !== requestContract(request) ||
+		quote.inputFingerprint !== fingerprintGenerationQuoteSecurityPayload(quote)
+	)
+		throw new Error("INVALID_VIDEO_QUOTE");
+	// This must be a separate statement AFTER the advisory lock returns: a
+	// statement that waits for a lock can otherwise retain its pre-wait snapshot.
+	const [capacity] = await tx.$queryRaw<
+		Array<{
+			now: Date;
+			quoteUsed: boolean;
+			blocked: boolean;
+		}>
+	>`
 			SELECT clock_timestamp() AS "now",
 				EXISTS(SELECT 1 FROM "generation_job" WHERE "quoteId" = ${quote.id}) AS "quoteUsed",
 				EXISTS(
@@ -413,237 +558,238 @@ export async function createVideoJobRecord(
 					WHERE "active" = true AND "value" = 'false'::jsonb
 						AND "configKey" IN ('media.generation.enabled', ${`media.model.${requestProduct(request)}.enabled`}, ${requiresScene ? `media.model.${input.template!.template.scene.productKey}.enabled` : `media.model.${requestProduct(request)}.enabled`}, ${requiresScene ? "media.model.image-nano-banana-2-lite.enabled" : `media.model.${requestProduct(request)}.enabled`})
 				) AS "blocked"`;
-		if (!capacity) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
-		const { now } = capacity;
-		if (capacity.quoteUsed) throw new Error("VIDEO_QUOTE_ALREADY_USED");
-		if (quote.expiresAt <= now) throw new Error("QUOTE_EXPIRED");
-		if (
-			quote.pricingVersion !== input.price.pricingVersion ||
-			quote.credits !== input.price.credits ||
-			quote.costMicros !== input.price.providerCostMicros + input.price.moderationCostMicros ||
-			quote.inputFingerprint !==
-				fingerprintGenerationQuoteSecurityPayload({
-					...quote,
-					pricingSnapshot: videoPricingSnapshot(input.price),
-				})
-		)
-			throw new Error("PRICE_CHANGED");
-		const funding = input.price.pricingDetails?.funding;
-		const sharedFunding = readVideoSharedFundingSnapshot(funding);
-		if (
-			(funding !== undefined &&
-				((!sharedFunding && !readVideoInternalFundingSnapshot(funding, input.ownerId, now)) ||
-					input.price.pricingDetails?.paidRevenueQualified !== false ||
-					input.price.paidFundingPolicy !== undefined ||
-					input.paidFundingPolicy !== undefined)) ||
-			(input.price.paidFundingPolicy !== undefined &&
-				input.price.paidFundingPolicy.minimumUsdMicrosPerCredit !==
-					input.paidFundingPolicy?.minimumUsdMicrosPerCredit)
-		)
-			throw new Error("VIDEO_FUNDING_POLICY_CHANGED");
-		if (
-			fingerprintVideoRequest(input.ownerId, snapshotRequest(quote.inputSnapshot)) !==
-			fingerprintVideoRequest(input.ownerId, request)
-		)
-			throw new Error("VIDEO_QUOTE_INPUT_MISMATCH");
-		const snap = quote.inputSnapshot as Prisma.JsonObject;
-		assertTemplateAdmissionSnapshot(snap, input.template, true);
-		if (!snap.visualSafetyProfile) throw new Error("VIDEO_SAFETY_PROFILE_CHANGED");
-		const visualSafetyProfile = requiredVisualSafetyProfile(input.visualSafetyProfile, request);
-		if (!snap.textSafetyProfile) throw new Error("VIDEO_TEXT_SAFETY_PROFILE_CHANGED");
-		const textSafetyProfile = requiredTextSafetyProfile(input.textSafetyProfile);
-		if (!snap.audioSafetyPolicy) throw new Error("VIDEO_AUDIO_SAFETY_POLICY_CHANGED");
-		const audioSafetyPolicy = requiredAudioSafetyPolicy(input.audioSafetyPolicy);
-		// Validate the frozen profile before comparing canonical security payloads.
-		// Re-quote on drift; never upgrade an existing quote to a new safety policy.
-		readVideoVisualSafetyProfile(snap);
-		readVideoTextSafetyProfile(snap);
-		readVideoAudioSafetyPolicy(snap);
-		videoOutputConstraints(snap);
-		if (
-			quote.inputFingerprint !==
+	if (!capacity) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+	const { now } = capacity;
+	if (capacity.quoteUsed) throw new Error("VIDEO_QUOTE_ALREADY_USED");
+	if (quote.expiresAt <= now) throw new Error("QUOTE_EXPIRED");
+	if (
+		quote.pricingVersion !== input.price.pricingVersion ||
+		quote.credits !== input.price.credits ||
+		quote.costMicros !== input.price.providerCostMicros + input.price.moderationCostMicros ||
+		quote.inputFingerprint !==
 			fingerprintGenerationQuoteSecurityPayload({
 				...quote,
-				inputSnapshot: { ...snap, visualSafetyProfile, textSafetyProfile, audioSafetyPolicy },
+				pricingSnapshot: videoPricingSnapshot(input.price),
 			})
-		)
-			throw new Error("VIDEO_SAFETY_PROFILE_CHANGED");
-		if (capacity.blocked) throw new Error("VIDEO_DISABLED");
-		await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
-		const outputBytes = videoOutputReservationBytes(quote.inputSnapshot);
-		const sceneBytes = input.template
-			? videoTemplateSceneReservationBytes(quote.inputSnapshot)
-			: 0n;
-		const usedBytes = await videoOwnerStorageUsage(tx, {
-			ownerType: "USER",
-			ownerId: input.ownerId,
-		});
-		if (request.mode === "image-to-video")
-			await lockMediaAssetGenerationBindings(
-				input.template
-					? [input.template.request.inputs.leftAssetId, input.template.request.inputs.rightAssetId]
-					: [request.inputAssetId!],
+	)
+		throw new Error("PRICE_CHANGED");
+	const funding = input.price.pricingDetails?.funding;
+	const sharedFunding = readVideoSharedFundingSnapshot(funding);
+	if (
+		(funding !== undefined &&
+			((!sharedFunding && !readVideoInternalFundingSnapshot(funding, input.ownerId, now)) ||
+				input.price.pricingDetails?.paidRevenueQualified !== false ||
+				input.price.paidFundingPolicy !== undefined ||
+				input.paidFundingPolicy !== undefined)) ||
+		(input.price.paidFundingPolicy !== undefined &&
+			input.price.paidFundingPolicy.minimumUsdMicrosPerCredit !==
+				input.paidFundingPolicy?.minimumUsdMicrosPerCredit)
+	)
+		throw new Error("VIDEO_FUNDING_POLICY_CHANGED");
+	if (
+		fingerprintVideoRequest(input.ownerId, snapshotRequest(quote.inputSnapshot)) !==
+		fingerprintVideoRequest(input.ownerId, request)
+	)
+		throw new Error("VIDEO_QUOTE_INPUT_MISMATCH");
+	const snap = quote.inputSnapshot as Prisma.JsonObject;
+	assertTemplateAdmissionSnapshot(snap, input.template, true);
+	if (!snap.visualSafetyProfile) throw new Error("VIDEO_SAFETY_PROFILE_CHANGED");
+	const visualSafetyProfile = requiredVisualSafetyProfile(input.visualSafetyProfile, request);
+	if (!snap.textSafetyProfile) throw new Error("VIDEO_TEXT_SAFETY_PROFILE_CHANGED");
+	const textSafetyProfile = requiredTextSafetyProfile(input.textSafetyProfile);
+	if (!snap.audioSafetyPolicy) throw new Error("VIDEO_AUDIO_SAFETY_POLICY_CHANGED");
+	const audioSafetyPolicy = requiredAudioSafetyPolicy(input.audioSafetyPolicy);
+	// Validate the frozen profile before comparing canonical security payloads.
+	// Re-quote on drift; never upgrade an existing quote to a new safety policy.
+	readVideoVisualSafetyProfile(snap);
+	readVideoTextSafetyProfile(snap);
+	readVideoAudioSafetyPolicy(snap);
+	videoOutputConstraints(snap);
+	if (
+		quote.inputFingerprint !==
+		fingerprintGenerationQuoteSecurityPayload({
+			...quote,
+			inputSnapshot: { ...snap, visualSafetyProfile, textSafetyProfile, audioSafetyPolicy },
+		})
+	)
+		throw new Error("VIDEO_SAFETY_PROFILE_CHANGED");
+	if (capacity.blocked) throw new Error("VIDEO_DISABLED");
+	if (!prepared) await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
+	const outputBytes = videoOutputReservationBytes(quote.inputSnapshot);
+	const sceneBytes = input.template ? videoTemplateSceneReservationBytes(quote.inputSnapshot) : 0n;
+	const usedBytes = await videoOwnerStorageUsage(tx, {
+		ownerType: "USER",
+		ownerId: input.ownerId,
+	});
+	if (request.mode === "image-to-video" && !prepared)
+		await lockMediaAssetGenerationBindings(
+			input.template
+				? [input.template.request.inputs.leftAssetId, input.template.request.inputs.rightAssetId]
+				: [request.inputAssetId!],
+			tx,
+		);
+	const asset = prepared
+		? request.mode === "image-to-video"
+			? assertSealedInput(prepared.asset, input.limits.maximumInputBytes, now)
+			: null
+		: await findSealedInput(input.ownerId, request, input.limits.maximumInputBytes, tx, now);
+	const roleInputs = input.template
+		? await findTemplateRoleInputs(
+				input.ownerId,
+				input.template.request,
+				input.limits.maximumInputBytes,
 				tx,
-			);
-		const asset = await findSealedInput(
+				now,
+			)
+		: [];
+	if (input.template) {
+		const currentData = await templateAdmissionData(
 			input.ownerId,
-			request,
+			input.template,
 			input.limits.maximumInputBytes,
 			tx,
 			now,
 		);
-		const roleInputs = input.template
-			? await findTemplateRoleInputs(
-					input.ownerId,
-					input.template.request,
-					input.limits.maximumInputBytes,
-					tx,
-					now,
-				)
-			: [];
-		if (input.template) {
-			const currentData = await templateAdmissionData(
-				input.ownerId,
-				input.template,
-				input.limits.maximumInputBytes,
-				tx,
-				now,
-			);
-			if (
-				canonicalVideoTemplateJson(currentData.roleInputIdentities) !==
-				canonicalVideoTemplateJson(snap.roleInputIdentities)
-			)
-				throw new Error("ASSET_CONTENT_CHANGED");
-		}
-		const identity = snap.inputIdentity as Prisma.JsonObject | null;
 		if (
-			asset &&
-			(!identity ||
-				identity.assetId !== asset.id ||
-				identity.checksum !== asset.checksum ||
-				identity.objectKey !== asset.objectKey ||
-				identity.storageEtag !== asset.storageEtag ||
-				identity.storageVersionId !== asset.storageVersionId ||
-				identity.verificationGeneration !== asset.verificationGeneration)
+			canonicalVideoTemplateJson(currentData.roleInputIdentities) !==
+			canonicalVideoTemplateJson(snap.roleInputIdentities)
 		)
 			throw new Error("ASSET_CONTENT_CHANGED");
-		const account = await tx.creditAccount.findUnique({
-			where: { ownerType_ownerId: { ownerType: "USER", ownerId: input.ownerId } },
-		});
-		if (!account) throw new Error("INSUFFICIENT_CREDITS");
-		// Refunds and reservations share this account lock. Read qualification in a
-		// separate statement after waiting; never lock billing rows in reverse order.
-		await tx.$queryRaw`SELECT "id" FROM "credit_account" WHERE "id" = ${account.id} FOR UPDATE`;
-		const admissionNow = await databaseNow(tx);
-		if (quote.expiresAt <= admissionNow) throw new Error("QUOTE_EXPIRED");
-		await assertVideoRetailEligibility(input.ownerId, input.price.pricingDetails, tx, admissionNow);
-		const maximumStorageBytes = await effectiveMediaStorageLimit(
-			{ ownerType: "USER", ownerId: input.ownerId },
-			input.limits.maximumStorageBytes,
-			tx,
-			admissionNow,
-		);
-		if (maximumStorageBytes !== null && usedBytes + outputBytes + sceneBytes > maximumStorageBytes)
-			throw new Error("STORAGE_QUOTA_EXCEEDED");
-		const job = await tx.generationJob.create({
-			data: {
-				ownerType: "USER",
-				ownerId: input.ownerId,
-				submittedByUserId: input.ownerId,
-				quoteId: quote.id,
-				idempotencyKey: input.idempotencyKey,
-				productKey: quote.productKey,
-				catalogVersion: quote.catalogVersion,
-				pricingVersion: quote.pricingVersion,
-				creditsReserved: quote.credits,
-				executionEngine: ENGINE,
-				inputSnapshot: quote.inputSnapshot as Prisma.InputJsonValue,
-				pricingSnapshot: freezeAggregateStoragePolicy(quote.pricingSnapshot, maximumStorageBytes),
-			},
-		});
-		const creditReservationStartedAt = new Date().toISOString();
-		await tx.storageUsageReservation.create({
-			data: {
-				ownerType: "USER",
-				ownerId: input.ownerId,
-				referenceKey: videoOutputReservationKey(job.id),
-				bytes: outputBytes,
-				// Non-temporary capacity counts until explicit release/commit, even
-				// when this diagnostic timestamp passes during provider recovery.
-				expiresAt: new Date(now.getTime() + 24 * 60 * 60_000),
-			},
-		});
-		if (input.template) {
-			if (sceneBytes > 0n)
-				await tx.storageUsageReservation.create({
-					data: {
-						ownerType: "USER",
-						ownerId: input.ownerId,
-						referenceKey: videoTemplateSceneReservationKey(job.id),
-						bytes: sceneBytes,
-						expiresAt: new Date(now.getTime() + 86400000),
-					},
-				});
-			await tx.videoTemplateExecution.create({
-				data: {
-					jobId: job.id,
-					templateSnapshot: snap.videoEffectTemplate as Prisma.InputJsonValue,
-					orderedRoleIdentities: snap.roleInputIdentities as Prisma.InputJsonValue,
-				},
-			});
-		}
-		await reserveCreditsInTransaction(
-			{
-				accountId: account.id,
-				jobId: job.id,
-				amount: quote.credits,
-				referenceKey: `job:${job.id}:reserve`,
-				paidFundingPolicy: input.paidFundingPolicy,
-			},
-			tx,
-		);
-		const creditReservationCompletedAt = new Date().toISOString();
-		for (const [position, boundAsset] of [
-			...new Map(
-				(roleInputs.length ? roleInputs : asset ? [asset] : []).map((value) => [value.id, value]),
-			).values(),
-		].entries())
-			await tx.generationJobAsset.create({
-				data: {
-					jobId: job.id,
-					assetId: boundAsset.id,
-					assetChecksum: boundAsset.checksum!,
-					role: "INPUT",
-					position,
-				},
-			});
-		await tx.videoExecution.create({
-			data: {
-				jobId: job.id,
-				workflowInstanceId: `video-v1-${job.id}`,
-				modelContractVersion: requestContract(request),
-				stage: "QUEUED",
-				startState: "PENDING",
-				stageData: {
-					timings: {
-						admissionTransactionStartedAt,
-						creditReservationStartedAt,
-						creditReservationCompletedAt,
-						...(input.requestReceivedAt
-							? { requestReceivedAt: input.requestReceivedAt.toISOString() }
-							: {}),
-						jobReservationWrittenAt: new Date().toISOString(),
-					},
-				},
-			},
-		});
-		await recordVideoTemplateBusinessEvent(tx, {
-			jobId: job.id,
-			event: "accepted",
-			templateSnapshot: input.template?.template,
-		});
-		return { jobId: job.id, replayed: false };
+	}
+	const identity = snap.inputIdentity as Prisma.JsonObject | null;
+	if (
+		asset &&
+		(!identity ||
+			identity.assetId !== asset.id ||
+			identity.checksum !== asset.checksum ||
+			identity.objectKey !== asset.objectKey ||
+			identity.storageEtag !== asset.storageEtag ||
+			identity.storageVersionId !== asset.storageVersionId ||
+			identity.verificationGeneration !== asset.verificationGeneration)
+	)
+		throw new Error("ASSET_CONTENT_CHANGED");
+	const account = await tx.creditAccount.findUnique({
+		where: { ownerType_ownerId: { ownerType: "USER", ownerId: input.ownerId } },
 	});
+	if (!account) throw new Error("INSUFFICIENT_CREDITS");
+	// Refunds and reservations share this account lock. Read qualification in a
+	// separate statement after waiting; never lock billing rows in reverse order.
+	await tx.$queryRaw`SELECT "id" FROM "credit_account" WHERE "id" = ${account.id} FOR UPDATE`;
+	const admissionNow = await databaseNow(tx);
+	if (quote.expiresAt <= admissionNow) throw new Error("QUOTE_EXPIRED");
+	await assertVideoRetailEligibility(input.ownerId, input.price.pricingDetails, tx, admissionNow);
+	const maximumStorageBytes = await effectiveMediaStorageLimit(
+		{ ownerType: "USER", ownerId: input.ownerId },
+		input.limits.maximumStorageBytes,
+		tx,
+		admissionNow,
+	);
+	if (maximumStorageBytes !== null && usedBytes + outputBytes + sceneBytes > maximumStorageBytes)
+		throw new Error("STORAGE_QUOTA_EXCEEDED");
+	const job = await tx.generationJob.create({
+		data: {
+			ownerType: "USER",
+			ownerId: input.ownerId,
+			submittedByUserId: input.ownerId,
+			quoteId: quote.id,
+			idempotencyKey: input.idempotencyKey,
+			productKey: quote.productKey,
+			catalogVersion: quote.catalogVersion,
+			pricingVersion: quote.pricingVersion,
+			creditsReserved: quote.credits,
+			executionEngine: ENGINE,
+			inputSnapshot: quote.inputSnapshot as Prisma.InputJsonValue,
+			pricingSnapshot: freezeAggregateStoragePolicy(quote.pricingSnapshot, maximumStorageBytes),
+		},
+	});
+	const creditReservationStartedAt = new Date().toISOString();
+	await tx.storageUsageReservation.create({
+		data: {
+			ownerType: "USER",
+			ownerId: input.ownerId,
+			referenceKey: videoOutputReservationKey(job.id),
+			bytes: outputBytes,
+			// Non-temporary capacity counts until explicit release/commit, even
+			// when this diagnostic timestamp passes during provider recovery.
+			expiresAt: new Date(now.getTime() + 24 * 60 * 60_000),
+		},
+	});
+	if (input.template) {
+		if (sceneBytes > 0n)
+			await tx.storageUsageReservation.create({
+				data: {
+					ownerType: "USER",
+					ownerId: input.ownerId,
+					referenceKey: videoTemplateSceneReservationKey(job.id),
+					bytes: sceneBytes,
+					expiresAt: new Date(now.getTime() + 86400000),
+				},
+			});
+		await tx.videoTemplateExecution.create({
+			data: {
+				jobId: job.id,
+				templateSnapshot: snap.videoEffectTemplate as Prisma.InputJsonValue,
+				orderedRoleIdentities: snap.roleInputIdentities as Prisma.InputJsonValue,
+			},
+		});
+	}
+	await reserveCreditsInTransaction(
+		{
+			accountId: account.id,
+			jobId: job.id,
+			amount: quote.credits,
+			referenceKey: `job:${job.id}:reserve`,
+			paidFundingPolicy: input.paidFundingPolicy,
+		},
+		tx,
+	);
+	const creditReservationCompletedAt = new Date().toISOString();
+	for (const [position, boundAsset] of [
+		...new Map(
+			(roleInputs.length ? roleInputs : asset ? [asset] : []).map((value) => [value.id, value]),
+		).values(),
+	].entries())
+		await tx.generationJobAsset.create({
+			data: {
+				jobId: job.id,
+				assetId: boundAsset.id,
+				assetChecksum: boundAsset.checksum!,
+				role: "INPUT",
+				position,
+			},
+		});
+	await tx.videoExecution.create({
+		data: {
+			jobId: job.id,
+			workflowInstanceId: `video-v1-${job.id}`,
+			modelContractVersion: requestContract(request),
+			stage: "QUEUED",
+			startState: "PENDING",
+			stageData: {
+				timings: {
+					admissionTransactionStartedAt,
+					creditReservationStartedAt,
+					creditReservationCompletedAt,
+					...(input.requestReceivedAt
+						? { requestReceivedAt: input.requestReceivedAt.toISOString() }
+						: {}),
+					jobReservationWrittenAt: new Date().toISOString(),
+				},
+			},
+		},
+	});
+	await recordVideoTemplateBusinessEvent(tx, {
+		jobId: job.id,
+		event: "accepted",
+		templateSnapshot: input.template?.template,
+	});
+	return { jobId: job.id, replayed: false };
+}
+
+async function recordVideoReservationCommitted(
+	accepted: { jobId: string; replayed: boolean },
+	client: MediaDatabaseClient,
+) {
 	if (!accepted.replayed) {
 		// Observe the durable reservation after the transaction's COMMIT has
 		// returned. A crash before this diagnostic write leaves it absent; a
@@ -657,13 +803,19 @@ export async function createVideoJobRecord(
 			WHERE "jobId" = ${accepted.jobId}
 				AND "stageData" #>> '{timings,jobReservedAt}' IS NULL`;
 	}
-	return accepted;
 }
 
 export async function getVideoJobRecord(ownerId: string, jobId: string, tx: MediaDatabaseClient) {
 	const job = await tx.generationJob.findFirst({
 		where: { id: jobId, ownerType: "USER", ownerId, executionEngine: ENGINE },
-		include: { videoExecution: true, reservation: true },
+		select: {
+			...videoPlaybackSelect,
+			productKey: true,
+			creditsReserved: true,
+			pricingSnapshot: true,
+			failureCode: true,
+			updatedAt: true,
+		},
 	});
 	if (!job?.videoExecution || !job.reservation) throw new Error("NOT_FOUND");
 	return job;

@@ -19,7 +19,8 @@ vi.mock("@auth/hooks/use-session", () => ({
 }));
 vi.mock("./use-video", () => ({ usePageVisible: () => true, useVideoJob: vi.fn() }));
 vi.mock("@media/hooks/use-active-history-polling", () => ({ useActiveHistoryPolling: vi.fn() }));
-vi.mock("@tanstack/react-query", () => ({
+vi.mock("@tanstack/react-query", async (original) => ({
+	...(await original<typeof import("@tanstack/react-query")>()),
 	useInfiniteQuery: () => ({
 		data: {
 			pages: [

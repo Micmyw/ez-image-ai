@@ -16,6 +16,7 @@ import {
 } from "./draft-storage";
 import {
 	createVideoConfirmation,
+	createVideoSubmissionConfirmation,
 	changeVideoDraft,
 	initialVideoDraft,
 	getVideoFailureRecovery,
@@ -98,7 +99,9 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		}
 		restoredOwner.current = owner;
 		try {
-			const saved = storageKey ? parseVideoConfirmation(sessionStorage.getItem(storageKey)) : null;
+			const saved = storageKey
+				? parseVideoConfirmation(sessionStorage.getItem(storageKey), owner)
+				: null;
 			let restored = parseVideoDraft(sessionStorage.getItem(videoDraftKey(owner)), owner);
 			if (registered && new URLSearchParams(window.location.search).get("videoResume") === "1") {
 				const handoff = parseVideoDraft(sessionStorage.getItem(VIDEO_GUEST_HANDOFF_KEY), "guest");
@@ -111,8 +114,14 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 					...restoreVideoDraft(saved.input.request),
 					...(restored?.variantSelections ? { variantSelections: restored.variantSelections } : {}),
 				});
-				setConfirmation(saved);
-				setQuote(saved.quote);
+				// A stored intent may have an older request still running on the
+				// server, even when no accepted job is visible to this tab yet.
+				const restoredConfirmation: VideoConfirmation =
+					saved.version === 2 ? { ...saved, recoveryRequired: true } : saved;
+				setConfirmation(restoredConfirmation);
+				setQuote(saved.version === 1 ? saved.quote : null);
+				if (storageKey && saved.version === 2)
+					sessionStorage.setItem(storageKey, JSON.stringify(restoredConfirmation));
 			} else if (restored) setDraft(restored);
 			if (!initialJobId && registered) {
 				const latest = validVideoJobId(sessionStorage.getItem(`video-v1:last-job:${owner}`));
@@ -161,16 +170,22 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		quotedRequest.current = null;
 	}, [upload.assetId]);
 	function change(patch: Partial<VideoDraft>) {
-		if (confirmation || busy === "create") return;
+		if (operation.current || confirmation || busy === "create") return;
 		revision.current++;
 		setDraft((current) => changeVideoDraft(current, patch, catalog.data));
 		setQuote(null);
 		quotedRequest.current = null;
 		setError(null);
 	}
-	function handleFailure(failure: unknown) {
+	function handleFailure(failure: unknown, intent?: VideoConfirmation) {
 		const recovery = getVideoFailureRecovery(failure);
 		setError(recovery.reason);
+		if (intent?.version === 2 && (intent.recoveryRequired || !recovery.clearQuote)) {
+			// A retry's changed policy cannot prove the previous request will not
+			// commit. Keep its original key/input and allow only explicit recovery.
+			saveConfirmation({ ...intent, recoveryRequired: true });
+			return;
+		}
 		if (recovery.clearQuote) {
 			saveConfirmation(null);
 			setQuote(null);
@@ -219,38 +234,18 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		}
 		const token = { epoch: ownerEpoch.current };
 		operation.current = token;
-		setBusy("quote");
+		setBusy("create");
 		setError(null);
 		setQuote(null);
 		quotedRequest.current = null;
-		const version = revision.current;
 		const request = videoRequestFor(draft);
-		const consentedCredits = previewCredits;
-		const consentedPricing = JSON.stringify(previewPricing);
 		try {
-			const result = await videoApi.quote(request);
-			if (isCurrentOperation(token) && version === revision.current) {
-				setQuote(result);
-				quotedRequest.current = { request, revision: version };
-				if (Date.parse(result.expiresAt) <= Date.now()) {
-					setError("quoteExpired");
-					return;
-				}
-				// The visible backend price is the user's consent. A changed quote needs
-				// a second explicit click; no preview request writes a quote record.
-				if (
-					result.credits === consentedCredits &&
-					JSON.stringify(result.pricing ?? null) === consentedPricing
-				) {
-					await submit(token, createVideoConfirmation(request, result));
-				} else {
-					// Keep this quote for explicit confirmation, while replacing stale
-					// owner-scoped previews before editing can reveal them again.
-					await catalog.refetch();
-				}
-			}
+			await submit(
+				token,
+				createVideoSubmissionConfirmation(owner, request, previewCredits!, previewPricing),
+			);
 		} catch (failure) {
-			if (isCurrentOperation(token) && version === revision.current) handleFailure(failure);
+			if (isCurrentOperation(token)) handleFailure(failure);
 		} finally {
 			finishOperation(token);
 		}
@@ -258,13 +253,13 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 	async function confirm() {
 		if (
 			operation.current ||
-			!quote ||
+			(!quote && !confirmation) ||
 			!registered ||
 			draftOwner !== owner ||
 			(!enabled && !confirmation)
 		)
 			return;
-		if ((quoteExpired || Date.parse(quote.expiresAt) <= Date.now()) && !confirmation) {
+		if (!confirmation && (!quote || quoteExpired || Date.parse(quote.expiresAt) <= Date.now())) {
 			setError("quoteExpired");
 			return;
 		}
@@ -278,7 +273,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		setBusy("create");
 		setError(null);
 		try {
-			await submit(token, confirmation ?? createVideoConfirmation(snapshot!.request, quote));
+			await submit(token, confirmation ?? createVideoConfirmation(snapshot!.request, quote!));
 		} finally {
 			finishOperation(token);
 		}
@@ -289,8 +284,22 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 		// Persist before sending. Retrying a timeout or refreshing reuses this exact request/key.
 		saveConfirmation(intent);
 		try {
-			const state = await videoApi.jobs.create(intent.input);
+			const result =
+				intent.version === 1
+					? { kind: "created" as const, state: await videoApi.jobs.create(intent.input) }
+					: await videoApi.jobs.submit(intent.input);
 			if (!isCurrentOperation(token)) return;
+			if (result.kind === "quote_only") {
+				// The response proves this submission did not reserve credits. Keep
+				// the changed quote for the existing, explicit confirmation action.
+				saveConfirmation(null);
+				setQuote(result.quote);
+				quotedRequest.current = { request: intent.input.request, revision: revision.current };
+				if (Date.parse(result.quote.expiresAt) <= Date.now()) setError("quoteExpired");
+				else await catalog.refetch();
+				return;
+			}
+			const state = result.state;
 			// Save the receipt before displaying it; an immediate refresh may beat router.replace.
 			try {
 				if (user?.id) sessionStorage.setItem(`video-v1:last-job:${user.id}`, state.jobId);
@@ -306,7 +315,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			void queryClient.invalidateQueries({ queryKey: ["media-credit-account"] });
 			window.history.replaceState(null, "", videoJobUrl(window.location.href, state.jobId));
 		} catch (failure) {
-			if (isCurrentOperation(token)) handleFailure(failure);
+			if (isCurrentOperation(token)) handleFailure(failure, intent);
 		}
 	}
 	const uploading = upload.status === "uploading" || upload.status === "sealing";
@@ -379,6 +388,14 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 			enabled={enabled}
 			busy={busy}
 			quote={quote}
+			pendingPrice={
+				confirmation?.version === 2
+					? {
+							credits: confirmation.input.expectedCredits,
+							pricing: confirmation.input.expectedPricing ?? undefined,
+						}
+					: undefined
+			}
 			previewCredits={previewCredits}
 			previewPricing={previewPricing}
 			quoteExpired={quoteExpired}

@@ -53,6 +53,12 @@ export class CreditAdmissionPostgresFixture {
 		this.pool = new Pool({ connectionString: raw, max: 12 });
 		await this.pool.query(`CREATE SCHEMA "${this.schema}"`);
 		await this.pool.query(`
+			CREATE TYPE "${this.schema}"."OwnerType" AS ENUM ('USER', 'ORGANIZATION');
+			CREATE TABLE ${this.table("media_owner_storage_fence")} (
+				"ownerType" "${this.schema}"."OwnerType" NOT NULL, "ownerId" text NOT NULL,
+				revision bigint NOT NULL DEFAULT 0,
+				PRIMARY KEY ("ownerType", "ownerId")
+			);
 			CREATE TABLE ${this.table("credit_account")} (
 				id text PRIMARY KEY, "ownerType" text NOT NULL, "ownerId" text NOT NULL,
 				"spendableCredits" bigint NOT NULL DEFAULT 0 CHECK ("spendableCredits">=0),
@@ -125,7 +131,7 @@ export class CreditAdmissionPostgresFixture {
 
 	async reset() {
 		await this.pool.query(
-			`TRUNCATE ${this.table("credit_account")}, ${this.table("generation_quote")}, ${this.table("outbox_event")}, ${this.table("generation_job_asset")}, ${this.table("subscription")}, ${this.table("storage_usage_reservation")} CASCADE`,
+			`TRUNCATE ${this.table("credit_account")}, ${this.table("generation_quote")}, ${this.table("outbox_event")}, ${this.table("generation_job_asset")}, ${this.table("subscription")}, ${this.table("storage_usage_reservation")}, ${this.table("media_owner_storage_fence")} CASCADE`,
 		);
 	}
 

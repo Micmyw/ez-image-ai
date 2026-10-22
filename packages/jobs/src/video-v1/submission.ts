@@ -20,6 +20,7 @@ import {
 	type KieVideoV1Submission,
 } from "@repo/ai/media/providers/kie-video-v1";
 import { VIDEO_VEO_TIER_CONTRACT_VERSION } from "@repo/config/video-models";
+import { readVideoSeeapiCallbackConfig } from "@repo/config/video-seeapi-callback";
 import {
 	isApprovedVideoTextDecision,
 	readVideoTextSafetyProfile,
@@ -40,6 +41,7 @@ import type {
 	SubmissionStepResult,
 	VideoInputSnapshot,
 } from "./contracts";
+import { createSeeapiVideoInputCallbackUrl } from "./seeapi-callback-url";
 import { requireVideoTemplateRuntimeEnabled } from "./template-runtime-gates";
 import { moderateVideoText } from "./text-moderation";
 
@@ -50,6 +52,7 @@ const object = (value: unknown): Record<string, unknown> =>
 type Store = Pick<
 	typeof database,
 	| "getVideoExecutionContext"
+	| "getVideoInputReviewContext"
 	| "assertVideoInputIdentity"
 	| "recordVideoInputReview"
 	| "claimVideoImageReview"
@@ -209,7 +212,7 @@ export async function reviewVideoInput(
 	overrides?: Partial<VideoSubmissionDependencies>,
 ): Promise<ReviewStepResult> {
 	const deps = dependencies(overrides);
-	const job = await deps.store.getVideoExecutionContext(jobId);
+	const job = await deps.store.getVideoInputReviewContext(jobId);
 	if (!job?.videoExecution) throw new Error("VIDEO_JOB_NOT_FOUND");
 	if (job.videoExecution.stage === "NEEDS_REVIEW")
 		return { status: "ERROR", reasonCode: "VIDEO_OPERATOR_REVIEW_REQUIRED", retryable: false };
@@ -242,6 +245,8 @@ export async function reviewVideoInput(
 		review.ruleVersion === VIDEO_V1_RULE_VERSION &&
 		matchesTextProfile &&
 		isApprovedVideoTextDecision(review.textDecision, textSafetyProfile) &&
+		(snapshot.mode !== "image-to-video" ||
+			readDecision(review.imageDecision)?.decision === "ALLOW") &&
 		review.requestFingerprint === snapshot.requestFingerprint &&
 		reviewUnexpired
 	)
@@ -255,101 +260,150 @@ export async function reviewVideoInput(
 	const deadlineAt = new Date(
 		startedAt.getTime() + config.moderationDeadlineSeconds * 1000,
 	).toISOString();
-	await deps.store.recordVideoInputReview(jobId, {
+	const metadata = {
 		ruleVersion: VIDEO_V1_RULE_VERSION,
 		requestFingerprint: snapshot.requestFingerprint,
 		textSafetyProfile,
-	});
+	};
 	let text =
 		matchesTextProfile && (review.status !== "ALLOW" || reviewUnexpired)
 			? readDecision(review.textDecision)
 			: null;
 	if (text?.ruleVersion !== textSafetyProfile.ruleVersion) text = null;
-	if (!text || text.decision === "ERROR") {
-		text = await deps.moderateText({
-			text: snapshot.prompt,
-			ruleVersion: textSafetyProfile.ruleVersion,
-		});
-		await deps.store.recordVideoInputReview(jobId, { textDecision: text });
-	}
-	if (text.decision === "REJECT" || text.decision === "REVIEW") {
+	// A known rejection or invalid cached approval never starts a new paid image review.
+	if (text?.decision === "REJECT" || text?.decision === "REVIEW") {
 		await deps.store.failVideoExecution(jobId, text.reasonCode, true);
 		return { status: "REJECT", reasonCode: text.reasonCode };
 	}
-	if (text.decision !== "ALLOW")
-		return { status: "ERROR", reasonCode: text.reasonCode, retryable: false };
-	if (!isApprovedVideoTextDecision(text, textSafetyProfile))
+	if (text?.decision === "ALLOW" && !isApprovedVideoTextDecision(text, textSafetyProfile))
 		return { status: "ERROR", reasonCode: "VIDEO_TEXT_REVIEW_INVALID", retryable: false };
-	if (snapshot.mode === "image-to-video") {
-		const identity = snapshot.inputIdentity;
-		if (!identity) throw new Error("VIDEO_INPUT_IDENTITY_MISSING");
-		let image = readDecision(review.imageDecision);
+	const identity = snapshot.mode === "image-to-video" ? snapshot.inputIdentity : null;
+	if (snapshot.mode === "image-to-video" && !identity)
+		throw new Error("VIDEO_INPUT_IDENTITY_MISSING");
+	const cachedImage = identity ? readDecision(review.imageDecision) : null;
+	const needsImage =
+		!!identity &&
+		(!cachedImage ||
+			cachedImage.decision === "ERROR" ||
+			(cachedImage.decision === "REVIEW" && cachedImage.reasonCode === "IMAGE_PROCESSING"));
+	let taskId = typeof review.imageTaskId === "string" ? review.imageTaskId : null;
+	let callbackUrl: string | undefined;
+	let preparedAssetUrl: string | undefined;
+	const uncertainImage: ReviewStepResult = {
+		status: "ERROR",
+		reasonCode: "VIDEO_IMAGE_REVIEW_SUBMISSION_UNCERTAIN",
+		retryable: false,
+	};
+	if (needsImage && deps.safety.submitImage && deps.safety.retrieveImage && !taskId) {
+		if (review.imageSubmissionUncertain) return uncertainImage;
+		preparedAssetUrl = await deps.signRead(identity!.objectKey);
+		const callbackToken = readVideoSeeapiCallbackConfig(deps.env).ready
+			? crypto.randomUUID()
+			: undefined;
+		if (callbackToken)
+			callbackUrl = await createSeeapiVideoInputCallbackUrl(
+				{ jobId, assetId: identity!.assetId, submissionToken: callbackToken },
+				deps.env,
+			);
+		// One transaction binds frozen metadata, callback identity and the may-have-sent
+		// fence before either independent external review is started.
 		if (
-			!image ||
-			image.decision === "ERROR" ||
-			(image.decision === "REVIEW" && image.reasonCode === "IMAGE_PROCESSING")
-		) {
-			image = null;
-			const assetUrl = await deps.signRead(identity.objectKey);
-			if (deps.safety.submitImage && deps.safety.retrieveImage) {
-				let taskId = typeof review.imageTaskId === "string" ? review.imageTaskId : null;
-				if (!taskId) {
-					if (review.imageSubmissionUncertain || !(await deps.store.claimVideoImageReview(jobId))) {
-						return {
-							status: "ERROR",
-							reasonCode: "VIDEO_IMAGE_REVIEW_SUBMISSION_UNCERTAIN",
-							retryable: false,
-						};
-					}
-					let submission;
-					try {
-						submission = await deps.safety.submitImage({
-							assetUrl,
-							ruleVersion: VIDEO_V1_RULE_VERSION,
-							idempotencyKey: `video-input:${jobId}:${identity.checksum}`,
-						});
-					} catch {
-						return {
-							status: "ERROR",
-							reasonCode: "VIDEO_IMAGE_REVIEW_SUBMISSION_UNCERTAIN",
-							retryable: false,
-						};
-					}
-					taskId = submission.moderationTaskId;
-					await deps.store.recordVideoInputReview(jobId, {
-						imageTaskId: taskId,
-						imageSubmissionUncertain: false,
+			!(await deps.store.claimVideoImageReview(jobId, {
+				...metadata,
+				...(callbackToken ? { callbackToken } : {}),
+			}))
+		)
+			return uncertainImage;
+	} else if (!matchesTextProfile || review.ruleVersion !== VIDEO_V1_RULE_VERSION) {
+		await deps.store.recordVideoInputReview(jobId, metadata);
+	}
+	let imageError: ReviewStepResult | undefined;
+	const decisions = await Promise.allSettled([
+		(async () =>
+			!text || text.decision === "ERROR"
+				? deps.moderateText({ text: snapshot.prompt, ruleVersion: textSafetyProfile.ruleVersion })
+				: text)(),
+		(async () => {
+			if (!needsImage || !identity) return cachedImage;
+			const assetUrl = preparedAssetUrl ?? (await deps.signRead(identity.objectKey));
+			if (!deps.safety.submitImage || !deps.safety.retrieveImage)
+				return deps.safety.moderateImage({ assetUrl, ruleVersion: VIDEO_V1_RULE_VERSION });
+			let image: ModerationDecision | null = null;
+			if (!taskId) {
+				let submission;
+				try {
+					submission = await deps.safety.submitImage({
+						assetUrl,
+						ruleVersion: VIDEO_V1_RULE_VERSION,
+						idempotencyKey: `video-input:${jobId}:${identity.checksum}`,
+						...(callbackUrl ? { callbackUrl } : {}),
 					});
-					image = submission.completedDecision ?? null;
+				} catch {
+					imageError = uncertainImage;
+					return null;
 				}
-				// A synchronous terminal is consumed now; otherwise query once immediately.
-				image ??= await deps.safety.retrieveImage({
+				taskId = submission.moderationTaskId;
+				await deps.store.recordVideoInputReview(jobId, {
+					imageTaskId: taskId,
+					imageSubmissionUncertain: false,
+				});
+				image = submission.completedDecision ?? null;
+			}
+			// Keep immediate terminal evidence and a single immediate read for existing
+			// pending providers. Signed callbacks interrupt the fallback Workflow wait.
+			return (
+				image ??
+				deps.safety.retrieveImage({
 					assetUrl,
 					moderationTaskId: taskId,
 					ruleVersion: VIDEO_V1_RULE_VERSION,
-				});
-			} else
-				image = await deps.safety.moderateImage({ assetUrl, ruleVersion: VIDEO_V1_RULE_VERSION });
-			await deps.store.recordVideoInputReview(jobId, { imageDecision: image });
-		}
-		if (image.decision === "REVIEW" && image.reasonCode === "IMAGE_PROCESSING") {
-			return { status: "PENDING", retryAfterSeconds: config.moderationPollSeconds, deadlineAt };
-		}
-		if (image.decision === "REJECT" || image.decision === "REVIEW") {
-			await deps.store.failVideoExecution(jobId, image.reasonCode, true);
-			return { status: "REJECT", reasonCode: image.reasonCode };
-		}
-		if (image.decision !== "ALLOW")
-			return { status: "ERROR", reasonCode: image.reasonCode, retryable: false };
+				})
+			);
+		})(),
+	]);
+	const [textResult, imageResult] = decisions;
+	text = textResult.status === "fulfilled" ? textResult.value : null;
+	const image = imageResult.status === "fulfilled" ? imageResult.value : null;
+	const patch: Record<string, unknown> = {
+		...(text ? { textDecision: text } : {}),
+		...(image ? { imageDecision: image } : {}),
+	};
+	// A thrown branch cannot abandon its sibling's finished evidence or erase the
+	// image send fence. Persist successful work before surfacing the original error.
+	if (textResult.status === "rejected" || imageResult.status === "rejected") {
+		if (Object.keys(patch).length) await deps.store.recordVideoInputReview(jobId, patch);
+		throw textResult.status === "rejected"
+			? textResult.reason
+			: (imageResult as PromiseRejectedResult).reason;
 	}
+	let result: ReviewStepResult;
+	if (text!.decision === "REJECT" || text!.decision === "REVIEW")
+		result = { status: "REJECT", reasonCode: text!.reasonCode };
+	else if (text!.decision !== "ALLOW")
+		result = { status: "ERROR", reasonCode: text!.reasonCode, retryable: false };
+	else if (!isApprovedVideoTextDecision(text, textSafetyProfile))
+		result = { status: "ERROR", reasonCode: "VIDEO_TEXT_REVIEW_INVALID", retryable: false };
+	else if (imageError) result = imageError;
+	else if (image?.decision === "REVIEW" && image.reasonCode === "IMAGE_PROCESSING")
+		result = { status: "PENDING", retryAfterSeconds: config.moderationPollSeconds, deadlineAt };
+	else if (image?.decision === "REJECT" || image?.decision === "REVIEW")
+		result = { status: "REJECT", reasonCode: image.reasonCode };
+	else if (image && image.decision !== "ALLOW")
+		result = { status: "ERROR", reasonCode: image.reasonCode, retryable: false };
+	else result = { status: "ALLOW" };
 	await deps.store.recordVideoInputReview(jobId, {
-		status: "ALLOW",
-		ruleVersion: VIDEO_V1_RULE_VERSION,
-		requestFingerprint: snapshot.requestFingerprint,
-		textSafetyProfile,
-		validUntil: new Date(deps.now().getTime() + 3600_000).toISOString(),
+		...patch,
+		...(result.status === "ALLOW"
+			? {
+					status: "ALLOW",
+					...metadata,
+					validUntil: new Date(deps.now().getTime() + 3600_000).toISOString(),
+				}
+			: {}),
 	});
-	return { status: "ALLOW" };
+	if (result.status === "REJECT")
+		await deps.store.failVideoExecution(jobId, result.reasonCode, true);
+	return result;
 }
 
 export async function submitVideoAttempt(

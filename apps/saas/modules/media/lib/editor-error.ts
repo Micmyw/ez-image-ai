@@ -26,6 +26,7 @@ export function getEditorErrorKey(error: unknown): EditorErrorKey {
 			? (error as { code?: unknown; message?: unknown; data?: { code?: unknown } })
 			: {};
 	const codes = [value.code, value.data?.code, value.message];
+	if (codes.includes("MEDIA_REQUEST_CONFLICT")) return "safeError";
 	if (codes.includes("IMAGE_PASS_INSUFFICIENT")) return "insufficientImagePasses";
 	if (codes.includes("GENERATION_FUNDING_CONFLICT")) return "fundingChanged";
 	if (

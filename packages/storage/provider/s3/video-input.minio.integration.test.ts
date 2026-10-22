@@ -1,9 +1,11 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { Readable } from "node:stream";
 
 import { CreateBucketCommand, S3Client } from "@aws-sdk/client-s3";
 import sharp from "sharp";
 import { beforeAll, describe, expect, it } from "vitest";
 
+import { runWithRemoteMediaTransport } from "../../lib/remote-media-runtime";
 import * as storage from "./index";
 
 const endpoint = process.env.S3_ENDPOINT ?? "";
@@ -110,6 +112,7 @@ describe("video immutable input and range storage (isolated MinIO)", () => {
 						sourceContentType: contentType,
 						maximumBytes: 10_000_000,
 					});
+					expect(converted).toMatchObject({ width: 96, height: 128 });
 					expect(
 						await storage.inspectPrivateImage({
 							...normalized,
@@ -156,6 +159,127 @@ describe("video immutable input and range storage (isolated MinIO)", () => {
 			}
 		},
 	);
+	it("uses the real conditional-write winner and recovers it after source reclamation", async () => {
+		const id = randomUUID();
+		const source = { bucket: "media" as const, key: `users/video-test/final/${id}.webp` };
+		const final = { bucket: "media" as const, key: `${source.key}.template-input.png` };
+		const original = await sharp({
+			create: { width: 160, height: 90, channels: 3, background: "orange" },
+		})
+			.webp()
+			.toBuffer();
+		const winner = await sharp({
+			create: { width: 180, height: 320, channels: 3, background: "blue" },
+		})
+			.png()
+			.toBuffer();
+		try {
+			const sourceEtag = await putFixture(source, original, "image/webp");
+			const winnerEtag = await putFixture(final, winner, "image/png");
+			const input = {
+				source,
+				final,
+				sourceBytes: original.length,
+				sourceEtag,
+				maximumBytes: 10_000_000,
+			};
+			const canonical = await storage.normalizeVideoReferenceToPng(input);
+			expect(canonical).toMatchObject({
+				bytes: winner.length,
+				sha256: createHash("sha256").update(winner).digest("hex"),
+				etag: winnerEtag,
+				width: 180,
+				height: 320,
+			});
+			await expect(
+				storage.normalizeVideoReferenceToPng({ ...input, preserveDimensions: true }),
+			).rejects.toThrow("VIDEO_INPUT_DIMENSIONS_CHANGED");
+			await storage.deleteObject(source);
+			expect(await storage.normalizeVideoReferenceToPng(input)).toEqual(canonical);
+		} finally {
+			await Promise.all([source, final].map((location) => storage.deleteObject(location)));
+		}
+	});
+	it("rejects an actual stored collision with truncated PNG pixel data", async () => {
+		const id = randomUUID();
+		const source = { bucket: "media" as const, key: `users/video-test/final/${id}.webp` };
+		const final = { bucket: "media" as const, key: `${source.key}.template-input.png` };
+		const original = await sharp({
+			create: { width: 160, height: 90, channels: 3, background: "orange" },
+		})
+			.webp()
+			.toBuffer();
+		const valid = await sharp(original).png().toBuffer();
+		const truncated = valid.subarray(0, Math.floor(valid.length / 2));
+		expect((await sharp(truncated).metadata()).width).toBe(160);
+		try {
+			const sourceEtag = await putFixture(source, original, "image/webp");
+			await putFixture(final, truncated, "image/png");
+			await expect(
+				storage.normalizeVideoReferenceToPng({
+					source,
+					final,
+					sourceBytes: original.length,
+					sourceEtag,
+					maximumBytes: 10_000_000,
+				}),
+			).rejects.toThrow();
+		} finally {
+			await Promise.all([source, final].map((location) => storage.deleteObject(location)));
+		}
+	});
+	it("writes a checked template scene once and replays it without the fixture supplier", async () => {
+		const location = {
+			bucket: "media" as const,
+			key: `users/video-test/scene/${randomUUID()}.png`,
+		};
+		const source = await sharp({
+			create: { width: 160, height: 90, channels: 3, background: "orange" },
+		})
+			.withMetadata({ orientation: 6 })
+			.jpeg()
+			.toBuffer();
+		let requests = 0;
+		try {
+			await runWithRemoteMediaTransport(
+				{
+					exactHostsOnly: true,
+					resolve: async () => [{ address: "8.8.8.8", family: 4 }],
+					async request() {
+						requests += 1;
+						if (requests !== 1) throw new Error("FIXTURE_SOURCE_EXPIRED");
+						return {
+							status: 200,
+							headers: { "content-type": "image/jpeg" },
+							stream: Readable.from([source]),
+						};
+					},
+				},
+				async () => {
+					const input = {
+						...location,
+						sourceUrl: "https://scene-fixture.example/scene.jpg",
+						allowedHosts: ["scene-fixture.example"],
+						maximumBytes: 10_000_000,
+					};
+					const result = await storage.storeImmutableVideoTemplateScene(input);
+					expect(result).toMatchObject({ width: 90, height: 160 });
+					const stored = await storage.readPrivateMediaStream({
+						...location,
+						ifMatch: result.etag!,
+					});
+					const actual = Buffer.from(await new Response(stored.body).arrayBuffer());
+					expect(result.bytes).toBe(actual.length);
+					expect(result.sha256).toBe(createHash("sha256").update(actual).digest("hex"));
+					expect((await sharp(actual).metadata()).exif).toBeUndefined();
+					expect(await storage.storeImmutableVideoTemplateScene(input)).toEqual(result);
+					expect(requests).toBe(1);
+				},
+			);
+		} finally {
+			await storage.deleteObject(location);
+		}
+	});
 	it("rejects forged MIME and invalid image content", async () => {
 		const key = `users/video-test/staging/${randomUUID()}.png`;
 		const invalid = Buffer.alloc(128, 0x61);
@@ -217,3 +341,24 @@ describe("video immutable input and range storage (isolated MinIO)", () => {
 		}
 	});
 });
+
+async function putFixture(
+	location: { bucket: "media"; key: string },
+	body: Buffer,
+	contentType: "image/png" | "image/webp",
+) {
+	const uploadUrl = await storage.createSignedUpload({
+		...location,
+		contentType,
+		contentLength: body.length,
+	});
+	const response = await fetch(uploadUrl, {
+		method: "PUT",
+		headers: { "content-type": contentType },
+		body: Uint8Array.from(body).buffer,
+	});
+	expect(response.ok).toBe(true);
+	const etag = response.headers.get("etag");
+	expect(etag).toBeTruthy();
+	return etag!;
+}

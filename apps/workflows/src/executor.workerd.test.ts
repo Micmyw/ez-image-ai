@@ -9,6 +9,70 @@ import { createWorkflowBindingDispatcher } from "./dispatch";
 import type { WorkersEnvironment } from "./workers";
 
 describe("complete Workers executor module", () => {
+	it("authenticates the stateless service before opening any database scope", async () => {
+		const control = (env as unknown as WorkersEnvironment).JOBS_CONTROL!;
+		const response = await control.fetch(
+			new Request("https://executor/internal/execute", { method: "POST", body: "{}" }),
+		);
+		expect(response.status).toBe(401);
+	});
+	it.each([
+		{ taskId: "media-finalize-generation", payload: { jobId: "job", version: 0 } },
+		{ taskId: "media-deliver-outbox", payload: {} },
+		{
+			taskId: "media-verify-upload",
+			payload: { assetId: "asset", allowQuarantinedReverification: true },
+		},
+	])("rejects $taskId outside its stateless control boundary", async (request) => {
+		const control = (env as unknown as WorkersEnvironment).JOBS_CONTROL!;
+		const body = JSON.stringify({
+			request,
+			context: { attempt: 1, maxAttempts: 5, runId: "control-route-test" },
+		});
+		const response = await control.fetch(
+			new Request("https://executor/internal/execute", {
+				method: "POST",
+				body,
+				headers: await signRequest(
+					"test-only-32-character-shared-secret",
+					"POST",
+					"/internal/execute",
+					body,
+				),
+			}),
+		);
+		expect(response.status).toBe(400);
+	});
+	it("authenticates the stateless transfer service and refuses a paid submit", async () => {
+		const transfer = (env as unknown as WorkersEnvironment).JOBS_TRANSFER!;
+		expect(
+			(
+				await transfer.fetch(
+					new Request("https://executor/internal/execute", { method: "POST", body: "{}" }),
+				)
+			).status,
+		).toBe(401);
+		const body = JSON.stringify({
+			request: {
+				taskId: "media-dispatch-image-kie-nano-banana-2",
+				payload: { jobId: "job", version: 0 },
+			},
+			context: { attempt: 1, maxAttempts: 1, runId: "transfer-route-test" },
+		});
+		const response = await transfer.fetch(
+			new Request("https://executor/internal/execute", {
+				method: "POST",
+				body,
+				headers: await signRequest(
+					"test-only-32-character-shared-secret",
+					"POST",
+					"/internal/execute",
+					body,
+				),
+			}),
+		);
+		expect(response.status).toBe(400);
+	});
 	it.each(Object.values(WORKER_EXECUTORS).map((policy) => policy.name))(
 		"authenticates the %s executor before using runtime resources",
 		async (name) => {

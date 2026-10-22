@@ -2,6 +2,7 @@ import {
 	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
 	VIDEO_PRIVATE_REFERENCE_ENVIRONMENT_KEYS,
 } from "@repo/config/video-runtime-environment";
+import { getMediaJobEventsBinding } from "@repo/jobs/realtime/context";
 import {
 	getVideoWorkflowBinding,
 	getVideoWorkflowReadinessBindings,
@@ -89,6 +90,15 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("video Worker runtime environment", () => {
+	it("makes the notification namespace available only within a native video step", async () => {
+		const binding = { idFromName: vi.fn(), get: vi.fn() };
+		expect(getMediaJobEventsBinding()).toBeUndefined();
+		await withVideoRuntime({ ...environment(), MEDIA_JOB_EVENTS: binding }, async () => {
+			expect(getMediaJobEventsBinding()).toBe(binding);
+		});
+		expect(getMediaJobEventsBinding()).toBeUndefined();
+		expect(mocks.disconnect).toHaveBeenCalledTimes(1);
+	});
 	it("hydrates a resumed reference test with private bindings before database work and clears them", async () => {
 		const privatePolicy = {
 			RUMPELSTILTSKIN_ACCESS: "internal",

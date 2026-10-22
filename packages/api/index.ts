@@ -32,6 +32,7 @@ import { logger as honoLogger } from "hono/logger";
 import type { StatusCode } from "hono/utils/http-status";
 
 import { createAdminAgentRoutes } from "./modules/admin-agent/http";
+import { serveMediaJobEvents } from "./modules/media/job-events";
 import { trustedGuestClientIdentity } from "./modules/media/lib/draft-client-identity";
 import {
 	GUEST_BOOTSTRAP_COOKIE,
@@ -45,6 +46,7 @@ import {
 	requireGuestAbuseHmac,
 } from "./modules/media/lib/guest-capability";
 import { uploadTemporaryReference } from "./modules/media/temporary-reference-upload";
+import { createImageModerationCallbackHandler } from "./modules/media/webhooks/image-moderation-callback";
 import { createKieCallbackHandler } from "./modules/media/webhooks/kie-callback";
 import { createProviderWebhookHandler } from "./modules/media/webhooks/provider-webhook";
 import { mediaLoadTestHandler } from "./modules/testing/media-load";
@@ -230,6 +232,7 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 			.on(["GET", "HEAD"], "/video-v1/jobs/:jobId/content", (c) =>
 				serveVideoPlayback(c.req.raw, c.req.param("jobId")),
 			)
+			.get("/media/jobs/:jobId/events", (c) => serveMediaJobEvents(c.req.raw))
 			// Provider webhooks must receive the untouched raw body before the oRPC catch-all.
 			.post("/webhooks/ai/:provider", (c) =>
 				c.req.param("provider") === "kie"
@@ -237,9 +240,11 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 					: providerWebhookHandler(c.req.param("provider"), c.req.raw),
 			)
 			.post("/webhooks/moderation/:provider", (c) =>
-				c.req.param("provider") === "sightengine"
-					? c.json({ code: "MODERATION_PROVIDER_RETIRED" }, 410)
-					: c.json({ code: "WEBHOOK_NOT_SUPPORTED" }, 404),
+				c.req.param("provider") === "seeapi-image"
+					? createImageModerationCallbackHandler()(c.req.raw)
+					: c.req.param("provider") === "sightengine"
+						? c.json({ code: "MODERATION_PROVIDER_RETIRED" }, 410)
+						: c.json({ code: "WEBHOOK_NOT_SUPPORTED" }, 404),
 			)
 			// Pure process liveness; no dependencies or business effects.
 			.get("/health", (c) => c.json({ status: "alive" }))

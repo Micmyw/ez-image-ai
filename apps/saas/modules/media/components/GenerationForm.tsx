@@ -643,6 +643,7 @@ export function GenerationForm({
 					disabled={generation.createGeneration.isPending}
 					referencePanel={
 						<ImageSourcePanel
+							ownerId={ownerId}
 							compact
 							presentation="composer"
 							label={requireReference ? imageToImage("referenceLabel") : undefined}

@@ -1,14 +1,17 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import messages from "../../../../../../packages/i18n/translations/en/saas.json";
 import frenchMessages from "../../../../../../packages/i18n/translations/fr/saas.json";
 
 let activeMessages = messages;
 
-const mocks = vi.hoisted(() => ({ useQuery: vi.fn() }));
+const mocks = vi.hoisted(() => ({ useQuery: vi.fn(), temporaryStatus: vi.fn() }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: mocks.useQuery }));
+vi.mock("../../hooks/use-temporary-reference-status", () => ({
+	useTemporaryReferenceStatus: mocks.temporaryStatus,
+}));
 vi.mock("@shared/lib/orpc-client", () => ({
 	orpcClient: { media: { getAssetAccessUrl: vi.fn() } },
 }));
@@ -28,6 +31,9 @@ vi.mock("next-intl", () => ({
 import { ImageSourcePanel } from "./ImageSourcePanel";
 
 describe("private input safety feedback", () => {
+	beforeEach(() => {
+		mocks.temporaryStatus.mockReturnValue({ data: undefined, error: null });
+	});
 	it.each([messages, frenchMessages])(
 		"renders the visible preparation status in the account locale",
 		(locale) => {
@@ -85,6 +91,98 @@ describe("private input safety feedback", () => {
 			expect(options.refetchInterval({ state: { error: new Error("ASSET_SAFETY_PENDING") } })).toBe(
 				2000,
 			);
+		},
+	);
+	it.each([messages, frenchMessages])(
+		"shows upload pre-review progress without waiting for Generate",
+		(locale) => {
+			activeMessages = locale;
+			mocks.useQuery.mockReturnValue({});
+			mocks.temporaryStatus.mockReturnValue({
+				data: { status: "PENDING", moderationReason: null },
+				error: null,
+			});
+			try {
+				const markup = renderToStaticMarkup(
+					<ImageSourcePanel
+						ownerId="owner"
+						sourceAssetId="private-input"
+						temporaryReference={{
+							assetId: "private-input",
+							token: "signed-reference",
+							expiresAt: new Date(Date.now() + 60000).toISOString(),
+						}}
+						onChange={vi.fn()}
+						onReadyChange={vi.fn()}
+					/>,
+				);
+				expect(markup).toContain(locale.media.editor.source.checking);
+				expect(markup).not.toContain(locale.media.editor.source.uploadedForGeneration);
+				expect(markup).not.toContain('role="alert"');
+			} finally {
+				activeMessages = messages;
+			}
+		},
+	);
+	it.each(["REJECTED", "UNAVAILABLE"])(
+		"shows %s before Generate without leaking provider diagnostics",
+		(status) => {
+			mocks.useQuery.mockReturnValue({});
+			mocks.temporaryStatus.mockReturnValue({
+				data: { status, moderationReason: status === "REJECTED" ? "sexualContent" : null },
+				error: null,
+			});
+			const markup = renderToStaticMarkup(
+				<ImageSourcePanel
+					ownerId="owner"
+					sourceAssetId="private-input"
+					temporaryReference={{
+						assetId: "private-input",
+						token: "signed-reference",
+						expiresAt: new Date(Date.now() + 60000).toISOString(),
+					}}
+					onChange={vi.fn()}
+					onReadyChange={vi.fn()}
+				/>,
+			);
+			expect(markup).toContain('role="alert"');
+			expect(markup).toContain(
+				messages.media.safety.titles[status === "REJECTED" ? "input" : "unavailable"].replaceAll(
+					"'",
+					"&#x27;",
+				),
+			);
+			expect(markup).toContain(messages.media.safety.billing.beforeGeneration);
+			expect(markup).not.toContain("signed-reference");
+			expect(markup).not.toContain("<img");
+		},
+	);
+	it.each([messages, frenchMessages])(
+		"explains a transient status-read error without declaring a content rejection",
+		(locale) => {
+			activeMessages = locale;
+			mocks.useQuery.mockReturnValue({});
+			mocks.temporaryStatus.mockReturnValue({ error: new Error("provider-secret-diagnostic") });
+			try {
+				const markup = renderToStaticMarkup(
+					<ImageSourcePanel
+						ownerId="owner"
+						sourceAssetId="private-input"
+						temporaryReference={{
+							assetId: "private-input",
+							token: "signed-reference",
+							expiresAt: new Date(Date.now() + 60000).toISOString(),
+						}}
+						onChange={vi.fn()}
+						onReadyChange={vi.fn()}
+					/>,
+				);
+				expect(markup).toContain(locale.media.editor.source.reviewStatusUnavailable);
+				expect(markup).not.toContain('role="alert"');
+				expect(markup).not.toContain("provider-secret-diagnostic");
+			} finally {
+				activeMessages = messages;
+			}
 		},
 	);
 });

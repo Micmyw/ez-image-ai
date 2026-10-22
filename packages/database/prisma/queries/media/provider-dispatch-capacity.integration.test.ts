@@ -6,7 +6,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Prisma } from "../../generated/client";
 import {
 	isBelowLegacyConfiguredKieDispatchLimit,
-	lockProviderDispatchCapacity,
+	lockLegacyProviderDispatchDiagnostic,
 } from "./provider-dispatch-capacity";
 import { lockSharedKieCapacity } from "./shared-provider-capacity";
 
@@ -49,7 +49,7 @@ afterAll(async () => {
 	await pool.end();
 });
 
-describe("provider sends share an atomic in-flight gate", () => {
+describe("frozen legacy occupancy diagnostics (not current dispatch authorization)", () => {
 	it("does not count unsent attempts or another provider", async () => {
 		await attempt({ id: "unsent", provider: "kie" });
 		await attempt({ id: "other", provider: "replicate", status: "RUNNING" });
@@ -84,7 +84,7 @@ describe("provider sends share an atomic in-flight gate", () => {
 		},
 	);
 
-	it("serializes the old admission lock and the new send lock on the same namespace", async () => {
+	it("preserves the old admission and send diagnostic lock namespace", async () => {
 		const holder = await pool.connect();
 		try {
 			await holder.query("BEGIN");
@@ -96,14 +96,14 @@ describe("provider sends share an atomic in-flight gate", () => {
 			await expect(
 				withTransaction(async (tx, client) => {
 					await client.query("SET LOCAL lock_timeout TO '100ms'");
-					await lockProviderDispatchCapacity(tx, "kie");
+					await lockLegacyProviderDispatchDiagnostic(tx, "kie");
 				}),
 			).rejects.toMatchObject({ code: "55P03" });
 		} finally {
 			await holder.query("ROLLBACK");
 			holder.release();
 		}
-		await withTransaction((tx) => lockProviderDispatchCapacity(tx, "kie"));
+		await withTransaction((tx) => lockLegacyProviderDispatchDiagnostic(tx, "kie"));
 	});
 
 	it.each(["SUCCEEDED", "FAILED", "CANCELED"])(
@@ -374,7 +374,7 @@ describe("provider sends share an atomic in-flight gate", () => {
 		const outcomes = await Promise.all(
 			Array.from({ length: 10 }, (_, index) =>
 				withTransaction(async (tx, client) => {
-					await lockProviderDispatchCapacity(tx, "kie");
+					await lockLegacyProviderDispatchDiagnostic(tx, "kie");
 					if (
 						!(await isBelowLegacyConfiguredKieDispatchLimit(tx, "kie", {
 							VIDEO_V1_PROVIDER_CONCURRENCY: "6",
@@ -405,7 +405,7 @@ describe("provider sends share an atomic in-flight gate", () => {
 			]);
 			await withTransaction(async (tx, client) => {
 				await client.query("SET LOCAL lock_timeout TO '500ms'");
-				await lockProviderDispatchCapacity(tx, "replicate");
+				await lockLegacyProviderDispatchDiagnostic(tx, "replicate");
 				expect(await isBelowLegacyConfiguredKieDispatchLimit(tx, "replicate", environment)).toBe(
 					true,
 				);

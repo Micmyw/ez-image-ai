@@ -34,6 +34,7 @@ import type { AcceptedWebhookResult, VideoRequestInput, VideoWorkflowBinding } f
 import { failVideoJob, finalizeVideoJob, reviewStoredVideo, storeVideoOutput } from "./fulfillment";
 import { acceptSeeapiVideoModerationWebhook } from "./seeapi-webhooks";
 import { confirmVideoProviderResult, reviewVideoInput, submitVideoAttempt } from "./submission";
+import { expectVideoNotificationOutbox } from "./video-outbox.test-fixtures";
 import { seeapiEnvelope } from "./video-safety.test-fixtures";
 import { runWithVideoWorkflowBinding } from "./workflow-binding";
 
@@ -66,6 +67,7 @@ const external = vi.hoisted(() => ({
 	sleeps: [] as string[],
 	lastCallbackUrl: "",
 	visualObjectKeys: [] as string[],
+	outputReads: [] as Array<{ key: string; bytes: number; ranged: boolean }>,
 	audioObjectHashes: [] as string[],
 	providerTasks: new Set<string>(),
 	visualTasks: new Set<string>(),
@@ -114,14 +116,27 @@ vi.mock("@repo/storage", async (original) => {
 				metadata: {},
 			};
 		},
-		readPrivateMediaStream: async ({ key, ifMatch }: { key: string; ifMatch?: string }) => {
+		readPrivateMediaStream: async ({
+			key,
+			ifMatch,
+			range,
+		}: {
+			key: string;
+			ifMatch?: string;
+			range?: { start: number; end: number };
+		}) => {
 			const object = external.objects.get(key);
 			if (!object || ifMatch !== object.etag) throw new Error("MOCK_OBJECT_IDENTITY_CHANGED");
+			const bytes = range ? object.bytes.subarray(range.start, range.end + 1) : object.bytes;
+			external.outputReads.push({ key, bytes: bytes.length, ranged: Boolean(range) });
 			return {
+				contentLength: bytes.length,
+				contentType: "video/mp4",
+				etag: object.etag,
 				body: new ReadableStream<Uint8Array>({
 					start(controller) {
-						for (let at = 0; at < object.bytes.length; at += 1024)
-							controller.enqueue(object.bytes.subarray(at, at + 1024));
+						for (let at = 0; at < bytes.length; at += 1024)
+							controller.enqueue(bytes.subarray(at, at + 1024));
 						controller.close();
 					},
 				}),
@@ -434,6 +449,7 @@ describe("SeeAPI visual actual-domain Mock flow", () => {
 		external.sleeps.length = 0;
 		external.lastCallbackUrl = "";
 		external.visualObjectKeys.length = 0;
+		external.outputReads.length = 0;
 		external.audioObjectHashes.length = 0;
 		vi.stubGlobal("fetch", mockHttp);
 	});
@@ -712,6 +728,21 @@ describe("SeeAPI visual actual-domain Mock flow", () => {
 					seeapiVideo: { checkedFrames: 8, thresholdOffset: 0, strictSpecialCare: true },
 				});
 				expect(external.visualObjectKeys).toEqual([asset.objectKey]);
+				expect(external.outputReads).toEqual([
+					{ key: asset.objectKey, bytes: 1, ranged: true },
+					{ key: asset.objectKey, bytes: 1, ranged: true },
+				]);
+				expect(job.videoExecution!.stageData).toMatchObject({
+					outputSpec: {
+						storageInspection: {
+							verifier: "video-mp4-stream-v1",
+							assetId: asset.id,
+							checksum: asset.checksum,
+							etag: asset.storageEtag,
+							bytes: Number(asset.byteSize),
+						},
+					},
+				});
 				expect(external.audioObjectHashes).toEqual([]);
 				expect(job.videoExecution!.stageData).not.toHaveProperty("audioReview");
 				expect(asset.moderationResults[0]!.rawEnvelope).not.toHaveProperty("audio");
@@ -777,7 +808,7 @@ describe("SeeAPI visual actual-domain Mock flow", () => {
 						where: { accountId: f.accountId, type: "SETTLE" },
 					}),
 				).toBe(1);
-				expect(await client.outboxEvent.count({ where: { aggregateId: f.jobId } })).toBe(0);
+				await expectVideoNotificationOutbox(client, f.jobId);
 			});
 		},
 	);

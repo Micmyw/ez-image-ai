@@ -1,5 +1,6 @@
 import {
 	createCreditGrant,
+	ensureCreditAccountInTransaction,
 	freezeInitialSubscriptionPaymentEvidence,
 	isDatabaseUniqueConflict,
 	PAYMENT_PROVIDER_CORRELATION_MISSING,
@@ -693,16 +694,10 @@ async function applyProviderPayment(
 					},
 				});
 		if (!active || saved.status === "REFUNDED") continue;
-		const account = await client.creditAccount.upsert({
-			where: {
-				ownerType_ownerId: {
-					ownerType: subscription.ownerType,
-					ownerId: subscription.ownerId,
-				},
-			},
-			create: { ownerType: subscription.ownerType, ownerId: subscription.ownerId },
-			update: {},
-		});
+		const account = await ensureCreditAccountInTransaction(
+			{ ownerType: subscription.ownerType, ownerId: subscription.ownerId },
+			client,
+		);
 		const existingGrant = await client.creditLedgerEntry.findUnique({
 			where: { referenceKey },
 		});

@@ -30,6 +30,49 @@ const INPUT = {
 
 describe("createQuoteForUser", () => {
 	afterEach(() => vi.unstubAllEnvs());
+	it("keeps an approved merged quote in memory for the atomic job transaction", async () => {
+		const persistApproved = vi.fn();
+		const moderateText = vi.fn(async ({ ruleVersion }) => ({
+			decision: "ALLOW" as const,
+			reasonCode: "NO_POLICY_MATCH",
+			ruleVersion,
+		}));
+		const routeGraphOptions = {
+			enabledProviders: new Set(["kie" as const]),
+			generationEnabled: true,
+		};
+		const created = await createQuoteForUser(
+			"user_1",
+			INPUT,
+			{
+				now: () => new Date(),
+				assertAllowed: vi.fn(async () => undefined),
+				getRouteGraphOptions: async () => routeGraphOptions,
+				createAdapter: () => ({ provider: "waffo", adapter: { moderateText } }),
+				persistApproved,
+				recordDenied: vi.fn(),
+			},
+			{
+				quoteId: "submit_approved",
+				fingerprint: "a".repeat(64),
+				expectedCredits: "5",
+				deferPersistence: true,
+			},
+		);
+		expect(created.id).toBe("submit_approved");
+		expect(moderateText).toHaveBeenCalledOnce();
+		expect(persistApproved).not.toHaveBeenCalled();
+		const prepared = created.admission?.preparedQuote;
+		expect(prepared).toMatchObject({
+			quoteId: created.id,
+			ownerId: "user_1",
+			inputSnapshot: { submissionFingerprint: "a".repeat(64) },
+			moderation: { decision: "ALLOW" },
+		});
+		expect(prepared!.moderation.inputFingerprint).toBe(
+			fingerprintGenerationQuoteSecurityPayload(prepared!),
+		);
+	});
 	it("rejects a changed displayed price before moderation or persistence", async () => {
 		const createAdapter = vi.fn();
 		const persistApproved = vi.fn();

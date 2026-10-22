@@ -1,9 +1,13 @@
 import { createRouteGraphSnapshot } from "@repo/ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const capacity = vi.hoisted(() => ({ available: false, order: [] as string[] }));
+const dispatchOrder = vi.hoisted(() => [] as string[]);
 vi.mock("@repo/database/client", () => ({ db: {} }));
-vi.mock("@repo/database", () => ({
+vi.mock("@repo/database", async (importOriginal) => ({
+	prepareGenerationSubmissionInTransaction: (
+		await importOriginal<typeof import("@repo/database")>()
+	).prepareGenerationSubmissionInTransaction,
+	getImagePhaseOwner: async () => undefined,
 	runReadCommitted: async (
 		database: { $transaction(operation: unknown, options: unknown): Promise<unknown> },
 		operation: unknown,
@@ -14,13 +18,6 @@ vi.mock("@repo/database", () => ({
 			timeout: 20_000,
 		}),
 	PROVIDER_DISPATCH_RETRY_MS: 5_000,
-	lockProviderDispatchCapacity: vi.fn(async (_tx, provider: string) => {
-		capacity.order.push(`provider-lock:${provider}`);
-	}),
-	hasProviderDispatchCapacity: vi.fn(async (_tx, provider: string) => {
-		capacity.order.push(`capacity:${provider}`);
-		return capacity.available;
-	}),
 	resolveGuestRuntimeConfigOverride: vi.fn(async () => true),
 	expireGuestJobBeforeProvider: vi.fn(async (input: { jobId: string }) => ({
 		outcome: "EXPIRED",
@@ -96,16 +93,20 @@ function fixture(guest = false) {
 	const events = new Map<string, { id: string; availableAt: Date; payload: unknown }>();
 	const tx = {
 		$executeRaw: vi.fn(async (_query: unknown, key: string) => {
-			capacity.order.push(`lock:${key}`);
+			dispatchOrder.push(`lock:${key}`);
 			return 0;
 		}),
-		$queryRaw: vi.fn(async () => [{ id: "guest-trial" }]),
+		$queryRaw: vi.fn(async (sql: TemplateStringsArray, ..._values: unknown[]) =>
+			sql.join("?").includes('UPDATE "generation_attempt" AS attempt')
+				? [{ attemptRowVersion: "101", jobRowVersion: "101" }]
+				: [{ id: "guest-trial" }],
+		),
 		generationJob: {
 			findUnique: vi.fn(async () => job),
 			count: vi.fn(async () => 0),
 			findFirst: vi.fn(async (args: { select?: unknown }) => {
 				if (args.select) return null;
-				capacity.order.push("read-job");
+				dispatchOrder.push("read-job");
 				return job;
 			}),
 			updateMany: vi.fn(async ({ data }: { data: Record<string, unknown> }) => {
@@ -161,8 +162,7 @@ describe("durable provider dispatch waiting", () => {
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(now);
-		capacity.available = false;
-		capacity.order = [];
+		dispatchOrder.length = 0;
 	});
 	afterEach(() => vi.useRealTimers());
 
@@ -180,11 +180,16 @@ describe("durable provider dispatch waiting", () => {
 		for (const [index, claim] of claims.entries()) {
 			expect(claim).toMatchObject({ attemptId: "attempt-1", provider: "kie" });
 			expect(fixtures[index]!.tx.generationAttempt.create).toHaveBeenCalledOnce();
-			expect(fixtures[index]!.tx.generationAttempt.update).toHaveBeenCalledWith(
-				expect.objectContaining({ data: expect.objectContaining({ uncertainSubmission: true }) }),
+			const preparation = fixtures[index]!.tx.$queryRaw.mock.calls.find(([sql]) =>
+				sql.join("?").includes('UPDATE "generation_attempt" AS attempt'),
 			);
+			expect(preparation?.[0].join("?")).toContain('"uncertainSubmission" = true');
+			expect(JSON.parse(preparation?.[3] as string)).toMatchObject({ submissionPhase: "pre_send" });
+			expect(fixtures[index]!.tx.generationAttempt.update).not.toHaveBeenCalled();
 		}
-		expect(capacity.order.some((value) => value.startsWith("capacity:"))).toBe(false);
+		expect(dispatchOrder.filter((value) => value.startsWith("lock:"))).toEqual(
+			fixtures.map((f) => `lock:generation-dispatch:${f.job.id}`),
+		);
 	});
 
 	it("preserves an already persisted due time without crossing the provider send fence", async () => {
@@ -211,12 +216,7 @@ describe("durable provider dispatch waiting", () => {
 		expect(f.tx.generationJob.updateMany).toHaveBeenCalledWith(
 			expect.objectContaining({ data: { dispatchEligibleAt: f.job.dispatchEligibleAt } }),
 		);
-		expect(capacity.order.indexOf("provider-lock:kie")).toBeLessThan(
-			capacity.order.indexOf(`lock:generation-dispatch:${f.job.id}`),
-		);
-		expect(capacity.order.lastIndexOf("read-job")).toBeGreaterThan(
-			capacity.order.indexOf("provider-lock:kie"),
-		);
+		expect(dispatchOrder).toEqual([`lock:generation-dispatch:${f.job.id}`, "read-job"]);
 		expect(f.database.$transaction).toHaveBeenCalledWith(expect.any(Function), {
 			isolationLevel: "ReadCommitted",
 			maxWait: 5_000,
@@ -242,7 +242,6 @@ describe("durable provider dispatch waiting", () => {
 		const f = fixture();
 		f.job.dispatchEligibleAt = new Date(now.getTime() + 5_000);
 		await f.store.claimDispatch({ jobId: f.job.id, version: 4 });
-		capacity.available = true;
 		vi.setSystemTime(new Date(now.getTime() + 1_000));
 		expect(await f.store.claimDispatch({ jobId: f.job.id, version: 4 })).toMatchObject({
 			deferred: true,
@@ -260,7 +259,7 @@ describe("durable provider dispatch waiting", () => {
 		expect(f.tx.generationAttempt.create).toHaveBeenCalledOnce();
 	});
 
-	it("locks the pinned provider before reading or locking the job", async () => {
+	it("validates the pinned route from one authoritative read under the job lock", async () => {
 		const f = fixture();
 		await f.store.claimDispatch({
 			jobId: f.job.id,
@@ -268,11 +267,7 @@ describe("durable provider dispatch waiting", () => {
 			provider: "kie",
 			providerModelId: route.providerModelId,
 		});
-		expect(capacity.order.slice(0, 3)).toEqual([
-			"provider-lock:kie",
-			`lock:generation-dispatch:${f.job.id}`,
-			"read-job",
-		]);
+		expect(dispatchOrder).toEqual([`lock:generation-dispatch:${f.job.id}`, "read-job"]);
 	});
 
 	it.each([
@@ -281,7 +276,6 @@ describe("durable provider dispatch waiting", () => {
 		{ providerTaskId: "provider-accepted-task" },
 	])("never resends a historical CREATED attempt with send evidence %j", async (evidence) => {
 		const f = fixture();
-		capacity.available = true;
 		f.job.attempts.push({
 			id: "historical-attempt",
 			attemptNumber: 1,
@@ -340,7 +334,6 @@ describe("durable provider dispatch waiting", () => {
 
 	it("does not suppress provider dispatch just because another guest has unfinished work", async () => {
 		const f = fixture(true);
-		capacity.available = false;
 		f.tx.generationJob.findFirst.mockImplementation(async (args: { select?: unknown }) => {
 			if (args.select) return { id: "another-active-guest" } as never;
 			return f.job;

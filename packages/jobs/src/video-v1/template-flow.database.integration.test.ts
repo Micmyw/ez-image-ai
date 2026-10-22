@@ -47,6 +47,7 @@ import {
 	prepareVideoTemplate,
 	type VideoTemplatePreparationDependencies,
 } from "./template-preparation";
+import { expectVideoNotificationOutbox } from "./video-outbox.test-fixtures";
 import { seeapiEnvelope } from "./video-safety.test-fixtures";
 import { runWithVideoWorkflowBinding } from "./workflow-binding";
 
@@ -139,15 +140,27 @@ vi.mock("@repo/storage", async (original) => {
 				metadata: {},
 			};
 		},
-		readPrivateMediaStream: async ({ key, ifMatch }: { key: string; ifMatch?: string }) => {
+		readPrivateMediaStream: async ({
+			key,
+			ifMatch,
+			range,
+		}: {
+			key: string;
+			ifMatch?: string;
+			range?: { start: number; end: number };
+		}) => {
 			const object = external.objects.get(key);
 			if (!object || ifMatch !== object.etag) throw new Error("MOCK_OBJECT_IDENTITY_CHANGED");
 			external.outputReads.push(key);
+			const bytes = range ? object.bytes.subarray(range.start, range.end + 1) : object.bytes;
 			return {
+				contentLength: bytes.length,
+				contentType: "video/mp4",
+				etag: object.etag,
 				body: new ReadableStream<Uint8Array>({
 					start(controller) {
-						for (let at = 0; at < object.bytes.length; at += 1024)
-							controller.enqueue(object.bytes.subarray(at, at + 1024));
+						for (let at = 0; at < bytes.length; at += 1024)
+							controller.enqueue(bytes.subarray(at, at + 1024));
 						controller.close();
 					},
 				}),
@@ -791,7 +804,7 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 				where: { reservationId: f.reservationId, type: "SETTLE" },
 			}),
 		).toBe(1);
-		expect(await client.outboxEvent.count({ where: { aggregateId: f.jobId } })).toBe(0);
+		await expectVideoNotificationOutbox(client, f.jobId);
 		const playable = await authorizeVideoPlayback(f.ownerId, f.jobId);
 		expect(playable?.id).toBe(finalOutputs[0]!.asset.id);
 		expect(await authorizeVideoPlayback("different-owner", f.jobId)).toBeNull();

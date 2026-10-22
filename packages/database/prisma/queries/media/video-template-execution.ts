@@ -12,7 +12,6 @@ import {
 import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
-import { lockProviderDispatchCapacity } from "./provider-dispatch-capacity";
 import { runReadCommitted } from "./types";
 import {
 	clearVideoProviderDispatch,
@@ -269,7 +268,8 @@ export async function claimVideoTemplateSceneSubmission(input: {
 	{ execution: Awaited<ReturnType<typeof lock>>; claimed: boolean } | DeferredVideoProviderDispatch
 > {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
-		await lockProviderDispatchCapacity(tx, "kie");
+		// Scene claims share no provider-wide counter. Keep the owner reservation
+		// and per-job submittedAt fence without serializing unrelated owners.
 		await lockVideoOwnerStorage(tx, input.jobId);
 		const e = await lock(tx, input.jobId);
 		if (isVideoTemplateReference(e.templateSnapshot))

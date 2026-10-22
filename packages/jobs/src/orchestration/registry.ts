@@ -1,7 +1,8 @@
 import { STATIC_DISPATCH_ROUTE_MANIFEST } from "@repo/ai/media/catalog/dispatch-manifest";
 
 import { parseMediaQueueLimits, providerQueueKey, QUEUE_NAMES } from "../queues";
-import type { TaskDefinition, TaskRequest } from "./contracts";
+import type { TaskDefinition, TaskRequest, OutboxExecutionState } from "./contracts";
+import { parsePollingTickResult, type PollingTickResult } from "./contracts";
 
 type Parser<T> = (value: unknown) => T;
 
@@ -98,9 +99,11 @@ const payloadParsers = {
 			return [...new Set(ids)];
 		},
 	}),
+	"media-prepare-event": strictObject({ eventId: text }),
+	"media-execute-event": strictObject({ eventId: text, recoverOnly: optional(boolean) }),
 	"media-admit-guest-generation": strictObject({ jobId: text, trialId: text }),
 	"media-cancel-generation": strictObject(job),
-	"media-finalize-generation": strictObject(job),
+	"media-finalize-generation": strictObject({ ...job, deferOutputReview: optional(boolean) }),
 	"media-settle-generation": strictObject(job),
 	"media-process-payment-event": strictObject({ paymentEventId: text }),
 	"media-terminate-refunded-subscription": strictObject({ subscriptionId: text }),
@@ -114,6 +117,7 @@ const payloadParsers = {
 	"media-verify-upload": strictObject({
 		assetId: text,
 		allowQuarantinedReverification: optional(boolean),
+		queryOnly: optional(boolean),
 	}),
 	"media-delete-object": strictObject(cleanup),
 	"media-abort-multipart": strictObject({ ...cleanup, multipartUploadId: text }),
@@ -192,6 +196,9 @@ export function parseTaskRequest(value: unknown): TaskRequest {
 	const envelope = strictObject({
 		taskId: text,
 		payload: record,
+		outboxReceipt: optional(
+			strictObject({ eventId: identity, workerId: text, leaseToken: identity }),
+		),
 		trace: optional(
 			strictObject({
 				requestId: optional(identity),
@@ -201,17 +208,135 @@ export function parseTaskRequest(value: unknown): TaskRequest {
 			}),
 		),
 	})(value);
+	if (envelope.outboxReceipt && !isWorkflowEventTask(envelope.taskId)) return invalid();
 	const trace = envelope.trace === undefined ? {} : { trace: envelope.trace };
+	const receipt =
+		envelope.outboxReceipt === undefined ? {} : { outboxReceipt: envelope.outboxReceipt };
 	if (dispatchRouteForTask(envelope.taskId)) {
 		parseDispatchPayload(envelope.taskId, envelope.payload);
-		return { taskId: envelope.taskId, payload: dispatchPayload(envelope.payload), ...trace };
+		return {
+			taskId: envelope.taskId,
+			payload: dispatchPayload(envelope.payload),
+			...trace,
+			...receipt,
+		};
 	}
 	if (!Object.hasOwn(payloadParsers, envelope.taskId)) return invalid();
 	return {
 		taskId: envelope.taskId,
 		payload: parseTaskPayload(envelope.taskId as keyof typeof payloadParsers, envelope.payload),
 		...trace,
+		...receipt,
 	};
+}
+
+/** The optimized lane is intentionally limited to the existing image continuation allowlist. */
+export function isWorkflowEventTask(taskId: string): boolean {
+	return (
+		dispatchRouteForTask(taskId)?.mediaKind === "image" ||
+		["media-verify-upload", "media-finalize-generation", "media-settle-generation"].includes(taskId)
+	);
+}
+
+export function parsePreparedEvent(value: unknown): TaskRequest | null {
+	if (value === null) return null;
+	const request = parseTaskRequest(value);
+	if (!request.outboxReceipt) return invalid();
+	return request;
+}
+
+export function parseEventDeliveryResult(
+	request: TaskRequest,
+	value: unknown,
+): {
+	preparedEvent?: TaskRequest | null;
+	executedEvent?: TaskRequest;
+	poll?: PollingTickResult;
+	eventRecoveryState?: "completed" | "held" | "missing";
+	eventRetryAfterMs?: number;
+	eventRetryAt?: number;
+	deliveryState?: OutboxExecutionState;
+} {
+	if (["media-prepare-event", "media-execute-event"].includes(request.taskId)) {
+		const result = record(value);
+		const preparedEvent = parsePreparedEvent(result.preparedEvent);
+		const executedEvent =
+			result.executedEvent === undefined ? undefined : parsePreparedEvent(result.executedEvent);
+		const recovery = result.eventRecoveryState;
+		if (
+			executedEvent !== undefined &&
+			(request.taskId !== "media-execute-event" ||
+				!executedEvent ||
+				preparedEvent !== null ||
+				request.payload.recoverOnly === true ||
+				executedEvent.outboxReceipt!.eventId !== request.payload.eventId ||
+				recovery !== undefined)
+		)
+			return invalid();
+		if (
+			request.taskId === "media-execute-event" &&
+			preparedEvent &&
+			preparedEvent.outboxReceipt!.eventId !== request.payload.eventId
+		)
+			return invalid();
+		if (
+			recovery !== undefined &&
+			(request.taskId !== "media-execute-event" ||
+				preparedEvent !== null ||
+				executedEvent !== undefined ||
+				typeof recovery !== "string" ||
+				!["completed", "held", "missing"].includes(recovery))
+		)
+			return invalid();
+		if (request.payload.recoverOnly === true && (preparedEvent !== null || recovery === undefined))
+			return invalid();
+		const execution = executedEvent ? parseEventDeliveryResult(executedEvent, result) : {};
+		const poll =
+			executedEvent?.taskId === "media-verify-upload"
+				? parsePollingTickResult(result.poll)
+				: undefined;
+		const eventRetryAt = result.eventRetryAt;
+		const eventRetryAfterMs = result.eventRetryAfterMs;
+		if (
+			eventRetryAfterMs !== undefined &&
+			(preparedEvent !== null ||
+				executedEvent !== undefined ||
+				eventRetryAt !== undefined ||
+				typeof eventRetryAfterMs !== "number" ||
+				!Number.isSafeInteger(eventRetryAfterMs) ||
+				eventRetryAfterMs < 0)
+		)
+			return invalid();
+		if (
+			eventRetryAt !== undefined &&
+			(preparedEvent !== null ||
+				executedEvent !== undefined ||
+				typeof eventRetryAt !== "number" ||
+				!Number.isSafeInteger(eventRetryAt) ||
+				eventRetryAt <= 0)
+		)
+			return invalid();
+		return {
+			preparedEvent,
+			...(executedEvent ? { executedEvent, ...execution } : {}),
+			...(poll ? { poll } : {}),
+			...(recovery === undefined
+				? {}
+				: { eventRecoveryState: recovery as "completed" | "held" | "missing" }),
+			...(eventRetryAt === undefined ? {} : { eventRetryAt }),
+			...(eventRetryAfterMs === undefined ? {} : { eventRetryAfterMs }),
+		};
+	}
+	if (request.outboxReceipt) {
+		const result = record(value);
+		if (
+			typeof result.deliveryState !== "string" ||
+			!["completed", "pending", "lost"].includes(result.deliveryState)
+		)
+			return invalid();
+		return { deliveryState: result.deliveryState as OutboxExecutionState };
+	}
+	return {};
 }
 
 const definitions: Record<keyof typeof payloadParsers, TaskDefinition> = {
@@ -221,6 +346,9 @@ const definitions: Record<keyof typeof payloadParsers, TaskDefinition> = {
 	"media-deliver-outbox": definition("media-outbox", 2, 120),
 	"media-deliver-output-review": definition("media-outbox", 2, 120),
 	"media-deliver-events": definition("media-outbox", 2, 120),
+	"media-prepare-event": definition("media-event-prepare", 4, 120),
+	// A lost wrapper response is recovered read-only, never retried as another paid execution.
+	"media-execute-event": definition("media-event-execute", 4, 300, 1),
 	"media-admit-guest-generation": definition("media-guest-admission", 1, 60, 1),
 	"media-cancel-generation": definition("media-provider-cancellation", 4, 60, 5),
 	"media-finalize-generation": definition(QUEUE_NAMES.finalization, 3, 900, 5),

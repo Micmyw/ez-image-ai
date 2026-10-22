@@ -9,7 +9,7 @@ vi.mock("../../client", () => ({
 import type { Prisma } from "../../generated/client";
 import type { MediaDatabaseClient } from "./types";
 import { listVideoTemplateJobRecords } from "./video-template-admission";
-import { listVideoJobRecords } from "./video-v1";
+import { getVideoJobRecord, listVideoJobRecords } from "./video-v1";
 import {
 	authorizeVideoPlayback,
 	authorizeVideoPlaybackSnapshot,
@@ -314,6 +314,37 @@ function historyClient() {
 }
 
 describe("bounded owner-scoped video history reads", () => {
+	it("loads current detail and playback evidence in the same owner-scoped query", async () => {
+		const db = historyClient();
+		const row = {
+			...reviewedJob(),
+			creditsReserved: 12n,
+			pricingSnapshot: {},
+			failureCode: null,
+			updatedAt: now,
+		};
+		db.generationJob.findFirst.mockResolvedValue(row);
+		const detail = await getVideoJobRecord("owner", "job", db.client);
+		expect(detail).toEqual(row);
+		expect(authorizeVideoPlaybackSnapshot("owner", detail)).toEqual(asset(row));
+		expect(db.generationJob.findFirst).toHaveBeenCalledExactlyOnceWith({
+			where: {
+				id: "job",
+				ownerType: "USER",
+				ownerId: "owner",
+				executionEngine: "video-workflow-v1",
+			},
+			select: {
+				...videoPlaybackSelect,
+				productKey: true,
+				creditsReserved: true,
+				pricingSnapshot: true,
+				failureCode: true,
+				updatedAt: true,
+			},
+		});
+	});
+
 	it("loads a full ordinary page and its latest output evidence in one findMany call", async () => {
 		const db = historyClient();
 		db.generationJob.findMany.mockResolvedValue(

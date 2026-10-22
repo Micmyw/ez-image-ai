@@ -9,6 +9,7 @@ import {
 	getVideoWorkflowCheckpoint,
 	markVideoNeedsReview,
 } from "@repo/database/video-v1-recovery";
+import { runWithMediaJobEvents, type MediaJobEventsNamespace } from "@repo/jobs/realtime/context";
 import { recoverVideoResources } from "@repo/jobs/video-v1/cleanup";
 import type { VideoWorkflowBinding } from "@repo/jobs/video-v1/contracts";
 import {
@@ -42,6 +43,7 @@ export interface VideoRuntimeEnvironment extends VideoRuntimeEnvironmentValues {
 	HYPERDRIVE: { connectionString: string };
 	IMAGES: CloudflareImagesBinding;
 	VIDEO_WORKFLOW: VideoWorkflowBinding;
+	MEDIA_JOB_EVENTS?: MediaJobEventsNamespace;
 	VIDEO_MEDIA_BUCKET?: unknown;
 	VIDEO_V1_UPLOAD_CORS_READY?: string;
 }
@@ -61,7 +63,9 @@ export async function withVideoRuntime<T>(
 				env.VIDEO_WORKFLOW,
 				() =>
 					runWithImageProcessor(createCloudflareImagesProcessor(env.IMAGES), () =>
-						runWithCloudflareRemoteMedia(operation),
+						runWithCloudflareRemoteMedia(() =>
+							runWithMediaJobEvents(env.MEDIA_JOB_EVENTS, operation),
+						),
 					),
 				{
 					r2: Boolean(env.VIDEO_MEDIA_BUCKET),

@@ -42,7 +42,7 @@ vi.mock("@repo/storage", () => ({
 	putTemporaryReferenceObject: vi.fn(),
 }));
 vi.mock("@repo/payments", () => ({ paymentProviderNames: [], webhookHandler: vi.fn() }));
-vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: fixture.wake }));
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: fixture.wake, wakeJob: vi.fn() }));
 vi.mock("@repo/logs", async (original) => ({
 	...(await original<typeof import("@repo/logs")>()),
 	logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), log: vi.fn() },
@@ -54,6 +54,10 @@ vi.mock("../lib/generation-authorization", async (original) => ({
 }));
 vi.mock("../lib/plan-entitlement", () => ({
 	loadUserPlanEntitlement: async () => ({ id: "creator" }),
+	loadUserPlanAccess: async () => ({
+		entitlement: { id: "creator" },
+		hasEffectivePaidSubscription: true,
+	}),
 }));
 vi.mock("../lib/rate-limit", () => ({ enforceMediaRateLimit: vi.fn() }));
 vi.mock("../lib/executable-route-graph", () => ({

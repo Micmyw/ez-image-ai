@@ -17,6 +17,45 @@ const sqliteBigInt = customType<{ data: bigint; driverData: string }>({
 	toDriver: (value) => value.toString(),
 });
 // Tables
+export const mediaOwnerStorageFence = sqliteTable(
+	"media_owner_storage_fence",
+	{
+		ownerType: text("ownerType", { enum: ["USER", "ORGANIZATION"] }).notNull(),
+		ownerId: text("ownerId").notNull(),
+		revision: sqliteBigInt("revision").notNull().default(0n),
+	},
+	(table) => [primaryKey({ columns: [table.ownerType, table.ownerId] })],
+);
+
+export const mediaWorkflowPhaseOwner = sqliteTable(
+	"media_workflow_phase_owner",
+	{
+		phaseKey: text("phaseKey")
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		phaseKind: text("phaseKind").notNull(),
+		subjectId: text("subjectId").notNull(),
+		generation: integer("generation").notNull(),
+		workflowId: text("workflowId").notNull(),
+		epoch: integer("epoch").notNull().default(1),
+		leasedUntil: integer("leasedUntil", { mode: "timestamp_ms" }).notNull(),
+		createdAt: integer("createdAt", { mode: "timestamp_ms" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+		updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		uniqueIndex("media_workflow_phase_owner_phaseKind_subjectId_generation_key").on(
+			table.phaseKind,
+			table.subjectId,
+			table.generation,
+		),
+		index("media_workflow_phase_owner_leasedUntil_idx").on(table.leasedUntil),
+	],
+);
+
 export const user = sqliteTable("user", {
 	id: text("id")
 		.$defaultFn(() => cuid())

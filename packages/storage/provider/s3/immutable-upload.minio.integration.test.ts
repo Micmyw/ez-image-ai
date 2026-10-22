@@ -23,44 +23,65 @@ describe("immutable staging upload promotion (MinIO)", () => {
 		expect(config.bucketNames.media).toBe(mediaBucket);
 		await storage.checkStorageMetadataAccess();
 	});
-	it("converges direct writes on one immutable object and recovers a write before DB commit", async () => {
-		const target = location("final", randomUUID());
-		const first = pngPayload(512);
-		const second = Buffer.from(first);
-		second[32] = 255;
-		let release!: () => void;
-		const bothReserved = new Promise<void>((resolve) => {
-			release = resolve;
-		});
-		let reservations = 0;
-		const reserve = vi.fn(async () => {
-			if (++reservations === 2) release();
-			await bothReserved;
-		});
-		try {
-			const results = await Promise.all(
-				[first, second].map((body) =>
-					storage.tryWriteImmutableGenerationImage({ ...target, contentType, body, reserve }),
-				),
-			);
-			const actual = await readObject(target);
-			expect([sha256(first), sha256(second)]).toContain(sha256(actual));
-			expect(results.map((result) => result?.sha256)).toEqual([sha256(actual), sha256(actual)]);
-			// The DB never recorded either identity. A later lease reads the existing
-			// immutable winner even if the supplier now supplies different bytes.
-			const recovered = await storage.tryWriteImmutableGenerationImage({
-				...target,
-				contentType,
-				body: pngPayload(256),
-				reserve,
+	it.each([
+		{ mode: "legacy", freshClaims: [undefined, undefined] },
+		{ mode: "fresh", freshClaims: [true, true] },
+		{ mode: "mixed", freshClaims: [true, undefined] },
+	])(
+		"converges $mode direct writes on one immutable object and recovers a write before DB commit",
+		async ({ freshClaims }) => {
+			const target = location("final", randomUUID());
+			const first = pngPayload(512);
+			const second = Buffer.from(first);
+			second[32] = 255;
+			let release!: () => void;
+			const bothReserved = new Promise<void>((resolve) => {
+				release = resolve;
 			});
-			expect(recovered).toMatchObject({ bytes: actual.length, sha256: sha256(actual) });
-			expect(await readObject(target)).toEqual(actual);
-			expect(await storage.listMultipartUploads(target)).toEqual([]);
-		} finally {
-			await deleteLocations(target);
-		}
-	});
+			let reservations = 0;
+			const reserve = vi.fn(async () => {
+				if (++reservations === 2) release();
+				await bothReserved;
+			});
+			try {
+				const results = await Promise.all(
+					[first, second].map((body, index) =>
+						storage.tryWriteImmutableGenerationImage({
+							...target,
+							contentType,
+							body,
+							reserve,
+							freshClaim: freshClaims[index],
+						}),
+					),
+				);
+				const actual = await readObject(target);
+				expect([sha256(first), sha256(second)]).toContain(sha256(actual));
+				expect(results.map((result) => result?.sha256)).toEqual([sha256(actual), sha256(actual)]);
+				// The DB never recorded either identity. A later lease reads the existing
+				// immutable winner even if the supplier now supplies different bytes.
+				const recovered = await storage.tryWriteImmutableGenerationImage({
+					...target,
+					contentType,
+					body: pngPayload(256),
+					reserve,
+				});
+				expect(recovered).toMatchObject({ bytes: actual.length, sha256: sha256(actual) });
+				const orphan = await storage.tryWriteImmutableGenerationImage({
+					...target,
+					contentType,
+					body: pngPayload(128),
+					freshClaim: true,
+					reserve,
+				});
+				expect(orphan).toMatchObject({ bytes: actual.length, sha256: sha256(actual) });
+				expect(await readObject(target)).toEqual(actual);
+				expect(await storage.listMultipartUploads(target)).toEqual([]);
+			} finally {
+				await deleteLocations(target);
+			}
+		},
+	);
 	it("does not create a final object after quota or lease rejection", async () => {
 		const target = location("final", randomUUID());
 		try {

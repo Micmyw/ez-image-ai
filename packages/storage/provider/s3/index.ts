@@ -19,11 +19,17 @@ import { logger } from "@repo/logs";
 
 import { config, MAX_AVATAR_UPLOAD_BYTES } from "../../config";
 import { getImageProcessor } from "../../image-processing/context";
+import type { ImageContentType } from "../../image-processing/types";
 import {
 	GUEST_WATERMARK_VERSION,
 	createWatermarkStagedGuestImage,
 } from "../../lib/image-watermark";
 import { writeImmutableReference } from "../../lib/immutable-reference";
+import {
+	canStreamImmutableGenerationImage,
+	writeValidatedPrivateImageStream,
+} from "../../lib/streaming-private-image";
+export { canStreamImmutableGenerationImage } from "../../lib/streaming-private-image";
 import {
 	assertDetectedMediaType,
 	assertMediaKind,
@@ -32,7 +38,7 @@ import {
 	MediaValidationError,
 	type MediaKind,
 } from "../../lib/media-signatures";
-import type { RemoteMediaRequestOptions } from "../../lib/stream-copy";
+import type { OpenedRemoteMedia, RemoteMediaRequestOptions } from "../../lib/stream-copy";
 import {
 	copyRemoteRequestToMultipart,
 	copyRemoteStreamToMultipart,
@@ -50,22 +56,30 @@ import type {
 } from "../../types";
 
 let s3Client: S3Client | null = null;
+let streamingS3Client: S3Client | null = null;
 
-function getS3Client(): S3Client {
-	if (s3Client) return s3Client;
+function getS3Client(streaming = false): S3Client {
+	const existing = streaming ? streamingS3Client : s3Client;
+	if (existing) return existing;
 	const endpoint = process.env.S3_ENDPOINT;
 	const accessKeyId = process.env.S3_ACCESS_KEY_ID;
 	const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY;
 	if (!endpoint) throw new Error("Missing env variable S3_ENDPOINT");
 	if (!accessKeyId) throw new Error("Missing env variable S3_ACCESS_KEY_ID");
 	if (!secretAccessKey) throw new Error("Missing env variable S3_SECRET_ACCESS_KEY");
-	s3Client = new S3Client({
+	const client = new S3Client({
 		region: process.env.S3_REGION || "auto",
 		endpoint,
 		forcePathStyle: true,
 		credentials: { accessKeyId, secretAccessKey },
+		// Presigning a stream must not freeze an optional checksum for an empty
+		// command body. HTTPS protects transport; we hash every source byte and
+		// persist that identity only after the conditional PUT completes.
+		...(streaming ? { requestChecksumCalculation: "WHEN_REQUIRED" as const } : {}),
 	});
-	return s3Client;
+	if (streaming) streamingS3Client = client;
+	else s3Client = client;
+	return client;
 }
 
 function bucketName(bucket: keyof typeof config.bucketNames): string {
@@ -132,7 +146,12 @@ export async function signMultipartPart(
 }
 
 export async function uploadMultipartPart(
-	input: MediaObjectLocation & { uploadId: string; partNumber: number; body: Buffer },
+	input: MediaObjectLocation & {
+		uploadId: string;
+		partNumber: number;
+		body: Buffer;
+		signal?: AbortSignal;
+	},
 ): Promise<string> {
 	assertPartNumber(input.partNumber);
 	const result = await getS3Client().send(
@@ -143,6 +162,7 @@ export async function uploadMultipartPart(
 			Body: input.body,
 			ContentLength: input.body.byteLength,
 		}),
+		input.signal ? { abortSignal: input.signal } : undefined,
 	);
 	if (!result.ETag) throw new Error("Storage did not return a multipart part ETag");
 	return result.ETag;
@@ -277,6 +297,93 @@ export async function readPrivateMediaStream(
 	};
 }
 
+const MAX_PRIVATE_REFERENCE_BYTES = 10_000_000;
+
+function imageByteStream(body: Uint8Array): ReadableStream<Uint8Array> {
+	return new ReadableStream({
+		start(controller) {
+			controller.enqueue(body);
+			controller.close();
+		},
+	});
+}
+
+/** One bounded read supplies identity, metadata and decoding with the exact same bytes. */
+async function readPrivateReferenceImage(
+	input: MediaObjectLocation & {
+		contentType: ImageContentType;
+		contentLength?: number;
+		ifMatch?: string;
+		maximumBytes: number;
+	},
+) {
+	if (
+		!Number.isSafeInteger(input.maximumBytes) ||
+		input.maximumBytes < 1 ||
+		input.maximumBytes > MAX_PRIVATE_REFERENCE_BYTES ||
+		(input.contentLength !== undefined &&
+			(!Number.isSafeInteger(input.contentLength) ||
+				input.contentLength < 1 ||
+				input.contentLength > input.maximumBytes))
+	)
+		throw new Error("INPUT_TOO_LARGE");
+	const stored = await getS3Client().send(
+		new GetObjectCommand({
+			...mediaLocation(input),
+			...(input.ifMatch ? { IfMatch: input.ifMatch } : {}),
+		}),
+	);
+	if (!stored.Body) throw new Error("PRIVATE_MEDIA_BODY_MISSING");
+	const source = stored.Body.transformToWebStream() as ReadableStream<Uint8Array>;
+	const reader = source.getReader();
+	try {
+		if (
+			!stored.ETag ||
+			(input.ifMatch && stored.ETag !== input.ifMatch) ||
+			stored.ContentType !== input.contentType ||
+			!Number.isSafeInteger(stored.ContentLength) ||
+			!stored.ContentLength ||
+			stored.ContentLength < 1 ||
+			(input.contentLength !== undefined && stored.ContentLength !== input.contentLength)
+		)
+			throw new Error("VIDEO_INPUT_IDENTITY_MISMATCH");
+		if (stored.ContentLength > input.maximumBytes) throw new Error("INPUT_TOO_LARGE");
+		// Allocate once; never collect an unbounded stream or double-buffer its chunks.
+		const body = Buffer.alloc(stored.ContentLength);
+		let bytes = 0;
+		for (;;) {
+			const item = await reader.read();
+			if (item.done) break;
+			bytes += item.value.byteLength;
+			if (bytes > body.length) throw new Error("VIDEO_INPUT_IDENTITY_MISMATCH");
+			body.set(item.value, bytes - item.value.byteLength);
+		}
+		if (bytes !== body.length) throw new Error("VIDEO_INPUT_IDENTITY_MISMATCH");
+		assertDetectedMediaType(body.subarray(0, 64), input.contentType);
+		return { body, bytes, etag: stored.ETag, versionId: stored.VersionId ?? null };
+	} finally {
+		await reader.cancel().catch(() => undefined);
+		reader.releaseLock();
+	}
+}
+
+async function inspectReferenceBytes(
+	body: Uint8Array,
+	contentType: ImageContentType,
+	validateDecoded = true,
+) {
+	const processor = getImageProcessor();
+	if (!processor.validateDecoded) throw new Error("VIDEO_INPUT_DECODER_UNAVAILABLE");
+	const dimensions = await processor.inspect(imageByteStream(body), contentType, {
+		contentLength: body.byteLength,
+	});
+	if (validateDecoded)
+		await processor.validateDecoded(imageByteStream(body), contentType, {
+			contentLength: body.byteLength,
+		});
+	return dimensions;
+}
+
 export async function inspectPrivateImage(
 	input: MediaObjectLocation & {
 		contentType: "image/jpeg" | "image/png" | "image/webp";
@@ -284,30 +391,11 @@ export async function inspectPrivateImage(
 		ifMatch?: string;
 	},
 ): Promise<{ width: number; height: number }> {
-	const object = await readPrivateMediaStream(input);
-	try {
-		if (object.contentLength !== input.contentLength || object.contentType !== input.contentType)
-			throw new Error("VIDEO_INPUT_IDENTITY_MISMATCH");
-		const processor = getImageProcessor();
-		const dimensions = await processor.inspect(object.body, input.contentType, {
-			contentLength: object.contentLength,
-		});
-		if (!processor.validateDecoded) throw new Error("VIDEO_INPUT_DECODER_UNAVAILABLE");
-		const decoded = await readPrivateMediaStream({
-			...input,
-			ifMatch: object.etag ?? input.ifMatch,
-		});
-		try {
-			await processor.validateDecoded(decoded.body, input.contentType, {
-				contentLength: decoded.contentLength,
-			});
-		} finally {
-			if (!decoded.body.locked) await decoded.body.cancel().catch(() => undefined);
-		}
-		return dimensions;
-	} finally {
-		if (!object.body.locked) await object.body.cancel().catch(() => undefined);
-	}
+	const { body } = await readPrivateReferenceImage({
+		...input,
+		maximumBytes: MAX_PRIVATE_REFERENCE_BYTES,
+	});
+	return inspectReferenceBytes(body, input.contentType);
 }
 
 /** Only small reference images use this bounded buffer; generated video stays streamed. */
@@ -319,33 +407,79 @@ export async function normalizeVideoReferenceToPng(input: {
 	maximumBytes: number;
 	/** Template uploads canonicalize every supported format; legacy WebP callers keep their default. */
 	sourceContentType?: "image/jpeg" | "image/png" | "image/webp";
-}): Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }> {
-	if (input.maximumBytes > 10_000_000 || input.sourceBytes > input.maximumBytes)
+	/** Ordinary WebP uploads preserve the existing no-geometry-change contract. */
+	preserveDimensions?: boolean;
+}): Promise<{
+	bytes: number;
+	sha256: string;
+	etag: string | null;
+	versionId: string | null;
+	width: number;
+	height: number;
+}> {
+	if (
+		!Number.isSafeInteger(input.maximumBytes) ||
+		input.maximumBytes < 1 ||
+		input.maximumBytes > MAX_PRIVATE_REFERENCE_BYTES ||
+		!Number.isSafeInteger(input.sourceBytes) ||
+		input.sourceBytes < 1 ||
+		input.sourceBytes > input.maximumBytes
+	)
 		throw new Error("INPUT_TOO_LARGE");
-	try {
-		const existing = await inspectPrivateMediaObject({
+	const inspectWinner = async () => {
+		const { body, ...identity } = await readPrivateReferenceImage({
 			...input.final,
 			contentType: "image/png",
-			contentLength: (await headObject(input.final)).contentLength,
+			maximumBytes: input.maximumBytes,
 		});
-		if (existing.bytes > input.maximumBytes) throw new Error("INPUT_TOO_LARGE");
-		return existing;
-	} catch (error) {
-		if (!isExplicitObjectNotFound(error)) throw error;
-	}
+		return {
+			...identity,
+			sha256: createHash("sha256").update(body).digest("hex"),
+			...(await inspectReferenceBytes(body, "image/png")),
+		};
+	};
+	const assertDimensions = (
+		source: { width: number; height: number },
+		final: { width: number; height: number },
+	) => {
+		if (
+			input.preserveDimensions &&
+			(source.width !== final.width || source.height !== final.height)
+		)
+			throw new Error("VIDEO_INPUT_DIMENSIONS_CHANGED");
+	};
+	// The conditional write arbitrates ownership. Looking for a final object first
+	// adds a storage round trip to every new upload, where it can only return 404.
+	const original = await readPrivateReferenceImage({
+		...input.source,
+		contentType: input.sourceContentType ?? "image/webp",
+		contentLength: input.sourceBytes,
+		ifMatch: input.sourceEtag,
+		maximumBytes: input.maximumBytes,
+	}).catch((error: unknown) => {
+		// Templates may reclaim their source after committing the canonical identity.
+		// Ordinary video still needs the source to enforce its geometry contract.
+		if (input.preserveDimensions || !isExplicitObjectNotFound(error)) throw error;
+		return null;
+	});
+	if (!original) return inspectWinner();
+	const sourceBody = original.body;
 	const processor = getImageProcessor();
 	if (!processor.normalizePng) throw new Error("VIDEO_WEBP_NORMALIZATION_UNAVAILABLE");
-	const object = await readPrivateMediaStream({ ...input.source, ifMatch: input.sourceEtag });
-	if (
-		object.contentLength !== input.sourceBytes ||
-		object.contentType !== (input.sourceContentType ?? "image/webp")
-	) {
-		await object.body.cancel();
-		throw new Error("VIDEO_INPUT_IDENTITY_MISMATCH");
-	}
-	const image = await processor.normalizePng(object.body, { contentLength: input.sourceBytes });
+	// Normalization consumes and fully decodes this same bounded source. A separate
+	// decode/transcode before it provides no additional evidence.
+	const sourceDimensions = await inspectReferenceBytes(
+		sourceBody,
+		input.sourceContentType ?? "image/webp",
+		false,
+	);
+	const image = await processor.normalizePng(imageByteStream(sourceBody), {
+		contentLength: input.sourceBytes,
+	});
 	const reader = image.getReader();
-	const chunks: Uint8Array[] = [];
+	// A fixed cap prevents a tiny-chunk stream from retaining an unbounded list or
+	// requiring a second complete output allocation when concatenating chunks.
+	const normalized = Buffer.alloc(input.maximumBytes);
 	let bytes = 0;
 	try {
 		for (;;) {
@@ -353,11 +487,13 @@ export async function normalizeVideoReferenceToPng(input: {
 			if (result.done) break;
 			bytes += result.value.byteLength;
 			if (bytes > input.maximumBytes) throw new Error("VIDEO_NORMALIZED_INPUT_TOO_LARGE");
-			chunks.push(result.value);
+			normalized.set(result.value, bytes - result.value.byteLength);
 		}
-		const body = Buffer.concat(chunks, bytes);
+		const body = normalized.subarray(0, bytes);
 		assertDetectedMediaType(body.subarray(0, 64), "image/png");
 		const sha256 = createHash("sha256").update(body).digest("hex");
+		const dimensions = await inspectReferenceBytes(body, "image/png");
+		assertDimensions(sourceDimensions, dimensions);
 		try {
 			const stored = await getS3Client().send(
 				new PutObjectCommand({
@@ -368,21 +504,22 @@ export async function normalizeVideoReferenceToPng(input: {
 					IfNoneMatch: "*",
 				}),
 			);
-			return { bytes, sha256, etag: stored.ETag ?? null, versionId: stored.VersionId ?? null };
+			return {
+				bytes,
+				sha256,
+				etag: stored.ETag ?? null,
+				versionId: stored.VersionId ?? null,
+				...dimensions,
+			};
 		} catch (error) {
 			if (!isConditionalWriteConflict(error)) throw error;
-			const winner = await headObject(input.final);
-			if (winner.contentLength > input.maximumBytes) throw new Error("INPUT_TOO_LARGE");
-			return inspectPrivateMediaObject({
-				...input.final,
-				contentType: "image/png",
-				contentLength: winner.contentLength,
-			});
+			const winner = await inspectWinner();
+			assertDimensions(sourceDimensions, winner);
+			return winner;
 		}
 	} finally {
 		await reader.cancel().catch(() => undefined);
 		reader.releaseLock();
-		if (!object.body.locked) await object.body.cancel().catch(() => undefined);
 	}
 }
 
@@ -513,8 +650,8 @@ export async function promoteStagedObject(input: {
 			validateHeader(header) {
 				assertDetectedMediaType(header, input.contentType);
 			},
-			uploadPart: ({ partNumber, body }) =>
-				uploadMultipartPart({ ...input.final, uploadId, partNumber, body }),
+			uploadPart: ({ partNumber, body, signal }) =>
+				uploadMultipartPart({ ...input.final, uploadId, partNumber, body, signal }),
 			complete: (parts) =>
 				completeMultipartUpload({ ...input.final, uploadId, parts, ifNoneMatch: "*" }),
 			abort: () => abortMultipartUpload({ ...input.final, uploadId }),
@@ -595,6 +732,13 @@ function isConditionalWriteConflict(error: unknown): boolean {
 	);
 }
 
+function isUncertainGenerationImageWrite(error: unknown): boolean {
+	if (error instanceof MediaValidationError) return false;
+	const status = (error as { $metadata?: { httpStatusCode?: unknown } } | null)?.$metadata
+		?.httpStatusCode;
+	return typeof status !== "number" || status === 408 || status >= 500;
+}
+
 async function inspectStoredMediaObject(
 	location: MediaObjectLocation,
 	contentType: MediaContentType,
@@ -602,63 +746,84 @@ async function inspectStoredMediaObject(
 	expectedSha256?: string,
 ): Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }> {
 	const result = await getS3Client().send(new GetObjectCommand(mediaLocation(location)));
-	if (
-		!result.Body ||
-		typeof (result.Body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] !== "function"
-	) {
-		throw new MediaValidationError("OUTPUT_MEDIA_SIZE_EXCEEDED", "Stored object body was empty");
-	}
-	const storedContentLength = result.ContentLength;
-	if (
-		!Number.isSafeInteger(storedContentLength) ||
-		!storedContentLength ||
-		storedContentLength > getMediaByteLimit(contentType) ||
-		(contentLength !== undefined && storedContentLength !== contentLength)
-	) {
-		throw new MediaValidationError(
-			"OUTPUT_MEDIA_SIZE_EXCEEDED",
-			"Stored object size does not match the expected provider output",
-		);
-	}
-	if (result.ContentType !== contentType) {
-		throw new MediaValidationError(
-			"OUTPUT_MEDIA_TYPE_MISMATCH",
-			"Stored object MIME metadata does not match the expected provider output",
-		);
-	}
-	const hash = createHash("sha256");
-	const headerChunks: Buffer[] = [];
-	let headerBytes = 0;
-	let bytes = 0;
-	for await (const value of result.Body as AsyncIterable<Uint8Array>) {
-		const chunk = Buffer.from(value);
-		bytes += chunk.byteLength;
-		if (bytes > storedContentLength)
+	const body = result.Body;
+	try {
+		if (!body || typeof (body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] !== "function") {
+			throw new MediaValidationError("OUTPUT_MEDIA_SIZE_EXCEEDED", "Stored object body was empty");
+		}
+		const storedContentLength = result.ContentLength;
+		if (
+			!Number.isSafeInteger(storedContentLength) ||
+			!storedContentLength ||
+			storedContentLength > getMediaByteLimit(contentType) ||
+			(contentLength !== undefined && storedContentLength !== contentLength)
+		) {
 			throw new MediaValidationError(
 				"OUTPUT_MEDIA_SIZE_EXCEEDED",
-				"Stored object exceeds the expected provider output size",
+				"Stored object size does not match the expected provider output",
 			);
-		hash.update(chunk);
-		if (headerBytes < 64) {
-			const slice = chunk.subarray(0, 64 - headerBytes);
-			headerChunks.push(slice);
-			headerBytes += slice.byteLength;
+		}
+		if (result.ContentType !== contentType) {
+			throw new MediaValidationError(
+				"OUTPUT_MEDIA_TYPE_MISMATCH",
+				"Stored object MIME metadata does not match the expected provider output",
+			);
+		}
+		const hash = createHash("sha256");
+		const headerChunks: Buffer[] = [];
+		let headerBytes = 0;
+		let bytes = 0;
+		for await (const value of body as AsyncIterable<Uint8Array>) {
+			const chunk = Buffer.from(value);
+			bytes += chunk.byteLength;
+			if (bytes > storedContentLength)
+				throw new MediaValidationError(
+					"OUTPUT_MEDIA_SIZE_EXCEEDED",
+					"Stored object exceeds the expected provider output size",
+				);
+			hash.update(chunk);
+			if (headerBytes < 64) {
+				const slice = chunk.subarray(0, 64 - headerBytes);
+				headerChunks.push(slice);
+				headerBytes += slice.byteLength;
+			}
+		}
+		if (bytes !== storedContentLength) {
+			throw new MediaValidationError(
+				"OUTPUT_MEDIA_SIZE_EXCEEDED",
+				"Stored object does not match the expected provider output size",
+			);
+		}
+		assertDetectedMediaType(Buffer.concat(headerChunks), contentType);
+		const sha256 = hash.digest("hex");
+		if (expectedSha256 && sha256 !== expectedSha256)
+			throw new MediaValidationError(
+				"OUTPUT_MEDIA_TYPE_MISMATCH",
+				"Final object checksum does not match the expected provider output",
+			);
+		return { bytes, sha256, etag: result.ETag ?? null, versionId: result.VersionId ?? null };
+	} finally {
+		// Metadata rejection happens before iteration can release the SDK response.
+		// Both Node and Workers own this body; never replace the validation/read error
+		// with a cleanup failure or consume the response a second time.
+		const response = body as
+			| {
+					destroy?: () => void;
+					destroyed?: boolean;
+					cancel?: () => Promise<void>;
+					locked?: boolean;
+			  }
+			| undefined;
+		try {
+			if (typeof response?.destroy === "function") {
+				if (!response.destroyed) response.destroy();
+			} else if (typeof response?.cancel === "function" && !response.locked) {
+				await response.cancel();
+			}
+		} catch {
+			// Preserve the authoritative inspection result.
 		}
 	}
-	if (bytes !== storedContentLength) {
-		throw new MediaValidationError(
-			"OUTPUT_MEDIA_SIZE_EXCEEDED",
-			"Stored object does not match the expected provider output size",
-		);
-	}
-	assertDetectedMediaType(Buffer.concat(headerChunks), contentType);
-	const sha256 = hash.digest("hex");
-	if (expectedSha256 && sha256 !== expectedSha256)
-		throw new MediaValidationError(
-			"OUTPUT_MEDIA_TYPE_MISMATCH",
-			"Final object checksum does not match the expected provider output",
-		);
-	return { bytes, sha256, etag: result.ETag ?? null, versionId: result.VersionId ?? null };
 }
 
 export async function checkStorageMetadataAccess(): Promise<void> {
@@ -688,8 +853,9 @@ export async function putPrivateMediaObject(
 	return { bytes: input.body.byteLength, sha256 };
 }
 
-/** One conditional private object for ordinary images (up to the existing 10 MiB
- * bounded PUT limit). Unknown-length/large files retain the streaming path.
+/** One conditional private object for ordinary images. Remote URL images stream
+ * up to the existing image byte limit; inline buffers retain the 10 MiB limit.
+ * Unknown-length files retain the multipart path.
  * The caller owns the deterministic key and fences quota/DB commit with its lease.
  */
 export async function tryWriteImmutableGenerationImage(
@@ -698,6 +864,13 @@ export async function tryWriteImmutableGenerationImage(
 		body?: Buffer;
 		sourceUrl?: string;
 		allowedHosts?: readonly string[];
+		/** Caller-owned inspected stream; a null fast-path result leaves it reusable. */
+		openedSource?: OpenedRemoteMedia;
+		/** A concurrent URL-only executor must never enter the buffered fallback. */
+		streamingOnly?: boolean;
+		/** True only when the committed transfer claim created a previously absent
+		 * asset under its job/binding locks. Missing/false keeps recovery GET-first. */
+		freshClaim?: boolean;
 		reserve(bytes: number): Promise<void>;
 	},
 	options: StreamRemoteObjectOptions = {},
@@ -713,15 +886,18 @@ export async function tryWriteImmutableGenerationImage(
 		input.contentType !== "image/webp"
 	)
 		return null;
-	const existing = await inspectExistingFinalObject({
-		final: input,
-		contentType: input.contentType,
-		contentLength: 0,
-		acceptExistingFinalIdentity: true,
-	});
-	if (existing) {
-		await input.reserve(existing.bytes);
-		return existing;
+	if (input.streamingOnly && input.body) return null;
+	if (input.freshClaim !== true) {
+		const existing = await inspectExistingFinalObject({
+			final: input,
+			contentType: input.contentType,
+			contentLength: 0,
+			acceptExistingFinalIdentity: true,
+		});
+		if (existing) {
+			await input.reserve(existing.bytes);
+			return existing;
+		}
 	}
 	const maximum = Math.min(10 * 1024 * 1024, getMediaByteLimit(input.contentType));
 	let stream: Readable;
@@ -731,28 +907,61 @@ export async function tryWriteImmutableGenerationImage(
 		if (length > maximum) return null;
 		stream = Readable.from([input.body]);
 	} else {
-		if (!input.sourceUrl || !input.allowedHosts)
+		if (!input.openedSource && (!input.sourceUrl || !input.allowedHosts))
 			throw new Error("GENERATION_OUTPUT_SOURCE_REQUIRED");
-		const response = await requestRemoteMediaStream(input.sourceUrl, {
-			allowedHosts: input.allowedHosts,
-			maxRedirects: config.media.remoteMaxRedirects,
-			connectTimeoutMs: config.media.remoteConnectTimeoutMs,
-			firstByteTimeoutMs: config.media.remoteFirstByteTimeoutMs,
-			totalTimeoutMs: config.media.remoteTotalTimeoutMs,
-			...options,
-		});
+		const response =
+			input.openedSource ??
+			(await requestRemoteMediaStream(input.sourceUrl!, {
+				allowedHosts: input.allowedHosts!,
+				maxRedirects: config.media.remoteMaxRedirects,
+				connectTimeoutMs: config.media.remoteConnectTimeoutMs,
+				firstByteTimeoutMs: config.media.remoteFirstByteTimeoutMs,
+				totalTimeoutMs: config.media.remoteTotalTimeoutMs,
+				...options,
+			}));
 		stream = response.stream;
 		length = Number(response.headers["content-length"]);
-		if (!Number.isSafeInteger(length) || length <= 0 || length > maximum) {
-			stream.destroy();
+		if (
+			!canStreamImmutableGenerationImage({
+				contentType: input.contentType,
+				contentLength: response.headers["content-length"],
+			})
+		) {
+			if (!input.openedSource) stream.destroy();
 			return null;
 		}
 	}
 	let identity: { etag: string | null; versionId: string | null } = { etag: null, versionId: null };
+	let writeAttempted = false;
 	const unexpectedMultipart = async (): Promise<never> => {
 		throw new Error("BOUNDED_OUTPUT_MULTIPART_UNEXPECTED");
 	};
 	try {
+		if (!input.body) {
+			await input.reserve(length);
+			const url = await getS3SignedUrl(
+				getS3Client(true),
+				new PutObjectCommand({
+					...mediaLocation(input),
+					ContentLength: length,
+					ContentType: input.contentType,
+					IfNoneMatch: "*",
+				}),
+				{
+					expiresIn:
+						Math.ceil((options.totalTimeoutMs ?? config.media.remoteTotalTimeoutMs) / 1000) + 60,
+					signableHeaders: new Set(["content-length", "content-type", "if-none-match"]),
+				},
+			);
+			writeAttempted = true;
+			return await writeValidatedPrivateImageStream({
+				url,
+				source: stream,
+				contentLength: length,
+				contentType: input.contentType,
+				timeoutMs: options.totalTimeoutMs ?? config.media.remoteTotalTimeoutMs,
+			});
+		}
 		const written = await writeImmutableReference(
 			{
 				body: Readable.toWeb(stream) as unknown as ReadableStream<Uint8Array>,
@@ -762,6 +971,7 @@ export async function tryWriteImmutableGenerationImage(
 			{
 				async put(body, sha256) {
 					await input.reserve(body.length);
+					writeAttempted = true;
 					const result = await getS3Client().send(
 						new PutObjectCommand({
 							...mediaLocation(input),
@@ -782,8 +992,21 @@ export async function tryWriteImmutableGenerationImage(
 		);
 		return { ...written, ...identity };
 	} catch (error) {
-		if (!isConditionalWriteConflict(error)) throw error;
-		const winner = await inspectStoredMediaObject(input, input.contentType, undefined);
+		if (
+			!isConditionalWriteConflict(error) &&
+			!(input.freshClaim === true && writeAttempted && isUncertainGenerationImageWrite(error))
+		)
+			throw error;
+		// A fresh claim does not prove that storage has no orphan or racing winner.
+		// After a conflict/uncertain PUT, consume and hash that whole immutable
+		// object. Never trust response headers as content or reopen the supplier.
+		const winner = await inspectExistingFinalObject({
+			final: input,
+			contentType: input.contentType,
+			contentLength: 0,
+			acceptExistingFinalIdentity: true,
+		});
+		if (!winner) throw error;
 		await input.reserve(winner.bytes);
 		return winner;
 	} finally {
@@ -816,23 +1039,15 @@ export async function storeImmutableVideoTemplateScene(
 	)
 		throw new Error("VIDEO_TEMPLATE_SCENE_BYTE_LIMIT_INVALID");
 	const inspectWinner = async () => {
-		const metadata = await headObject(input);
-		if (metadata.contentLength > input.maximumBytes || metadata.contentType !== "image/png")
-			throw new Error("VIDEO_TEMPLATE_SCENE_OBJECT_INVALID");
-		const identity = await inspectPrivateMediaObject({
+		const { body, ...identity } = await readPrivateReferenceImage({
 			...input,
 			contentType: "image/png",
-			contentLength: metadata.contentLength,
+			maximumBytes: input.maximumBytes,
 		});
-		const dimensions = await inspectPrivateImage({
-			...input,
-			contentType: "image/png",
-			contentLength: identity.bytes,
-			ifMatch: identity.etag ?? undefined,
-		});
+		const dimensions = await inspectReferenceBytes(body, "image/png");
 		if (Math.abs(dimensions.width / dimensions.height - 9 / 16) > 0.015)
 			throw new Error("VIDEO_TEMPLATE_SCENE_ASPECT_RATIO_INVALID");
-		return { ...identity, ...dimensions };
+		return { ...identity, sha256: createHash("sha256").update(body).digest("hex"), ...dimensions };
 	};
 	try {
 		return await inspectWinner();
@@ -850,15 +1065,15 @@ export async function storeImmutableVideoTemplateScene(
 		totalTimeoutMs: config.media.remoteTotalTimeoutMs,
 	});
 	const bounded = async (source: AsyncIterable<Uint8Array>) => {
-		const chunks: Buffer[] = [];
+		const body = Buffer.alloc(input.maximumBytes);
 		let bytes = 0;
 		for await (const chunk of source) {
 			bytes += chunk.byteLength;
 			if (bytes > input.maximumBytes) throw new Error("VIDEO_TEMPLATE_SCENE_TOO_LARGE");
-			chunks.push(Buffer.from(chunk));
+			body.set(chunk, bytes - chunk.byteLength);
 		}
 		if (!bytes) throw new Error("VIDEO_TEMPLATE_SCENE_EMPTY");
-		return Buffer.concat(chunks, bytes);
+		return body.subarray(0, bytes);
 	};
 	try {
 		const body = await bounded(response.stream);
@@ -866,17 +1081,12 @@ export async function storeImmutableVideoTemplateScene(
 		if (contentType !== "image/jpeg" && contentType !== "image/png" && contentType !== "image/webp")
 			throw new Error("VIDEO_TEMPLATE_SCENE_FORMAT_INVALID");
 		assertDetectedMediaType(body.subarray(0, 64), contentType);
-		const stream = () =>
-			new ReadableStream<Uint8Array>({
-				start(controller) {
-					controller.enqueue(body);
-					controller.close();
-				},
-			});
-		await processor.validateDecoded(stream(), contentType, { contentLength: body.length });
-		const normalized = await processor.normalizePng(stream(), { contentLength: body.length });
+		await inspectReferenceBytes(body, contentType, false);
+		const normalized = await processor.normalizePng(imageByteStream(body), {
+			contentLength: body.length,
+		});
 		const reader = normalized.getReader();
-		const normalizedChunks: Buffer[] = [];
+		const normalizedBytes = Buffer.alloc(input.maximumBytes);
 		let bytes = 0;
 		try {
 			for (;;) {
@@ -884,24 +1094,40 @@ export async function storeImmutableVideoTemplateScene(
 				if (result.done) break;
 				bytes += result.value.byteLength;
 				if (bytes > input.maximumBytes) throw new Error("VIDEO_TEMPLATE_SCENE_TOO_LARGE");
-				normalizedChunks.push(Buffer.from(result.value));
+				normalizedBytes.set(result.value, bytes - result.value.byteLength);
 			}
 		} finally {
 			await reader.cancel().catch(() => undefined);
 			reader.releaseLock();
 		}
-		const canonical = Buffer.concat(normalizedChunks, bytes);
+		const canonical = normalizedBytes.subarray(0, bytes);
 		assertDetectedMediaType(canonical.subarray(0, 64), "image/png");
-		const result = await tryWriteImmutableGenerationImage({
-			...input,
-			body: canonical,
-			contentType: "image/png",
-			reserve: async (reserved) => {
-				if (reserved > input.maximumBytes) throw new Error("VIDEO_TEMPLATE_SCENE_TOO_LARGE");
-			},
-		});
-		if (!result) throw new Error("VIDEO_TEMPLATE_SCENE_WRITE_FAILED");
-		return await inspectWinner();
+		const dimensions = await inspectReferenceBytes(canonical, "image/png");
+		if (Math.abs(dimensions.width / dimensions.height - 9 / 16) > 0.015)
+			throw new Error("VIDEO_TEMPLATE_SCENE_ASPECT_RATIO_INVALID");
+		const sha256 = createHash("sha256").update(canonical).digest("hex");
+		try {
+			const stored = await getS3Client().send(
+				new PutObjectCommand({
+					...mediaLocation(input),
+					Body: canonical,
+					ContentLength: bytes,
+					ContentType: "image/png",
+					Metadata: { sha256 },
+					IfNoneMatch: "*",
+				}),
+			);
+			return {
+				bytes,
+				sha256,
+				etag: stored.ETag ?? null,
+				versionId: stored.VersionId ?? null,
+				...dimensions,
+			};
+		} catch (error) {
+			if (!isConditionalWriteConflict(error)) throw error;
+			return inspectWinner();
+		}
 	} finally {
 		response.stream.destroy();
 	}
@@ -1048,8 +1274,8 @@ async function transformAndStoreGuestImage(input: {
 			validateHeader(header) {
 				assertDetectedMediaType(header, input.contentType);
 			},
-			uploadPart: ({ partNumber, body }) =>
-				uploadMultipartPart({ ...input.final, uploadId, partNumber, body }),
+			uploadPart: ({ partNumber, body, signal }) =>
+				uploadMultipartPart({ ...input.final, uploadId, partNumber, body, signal }),
 			complete: async (parts) => {
 				try {
 					await completeMultipartUpload({ ...input.final, uploadId, parts, ifNoneMatch: "*" });
@@ -1095,11 +1321,13 @@ export interface StreamRemoteObjectInput extends MediaObjectLocation {
 	expectedContentType: MediaContentType;
 	expectedMediaKind?: MediaKind;
 	maxBytes?: number;
+	/** A previously inspected, caller-owned download; no second supplier request. */
+	openedSource?: OpenedRemoteMedia;
 }
 
 export interface StreamRemoteObjectOptions extends Pick<
 	RemoteMediaRequestOptions,
-	"resolve" | "request"
+	"resolve" | "request" | "totalTimeoutMs"
 > {}
 
 export async function streamRemoteObjectToStorage(
@@ -1113,14 +1341,16 @@ export async function streamRemoteObjectToStorage(
 	});
 	const result = await copyRemoteRequestToMultipart(
 		async () => {
-			const response = await requestRemoteMediaStream(input.sourceUrl, {
-				allowedHosts: input.allowedHosts,
-				maxRedirects: config.media.remoteMaxRedirects,
-				connectTimeoutMs: config.media.remoteConnectTimeoutMs,
-				firstByteTimeoutMs: config.media.remoteFirstByteTimeoutMs,
-				totalTimeoutMs: config.media.remoteTotalTimeoutMs,
-				...options,
-			});
+			const response =
+				input.openedSource ??
+				(await requestRemoteMediaStream(input.sourceUrl, {
+					allowedHosts: input.allowedHosts,
+					maxRedirects: config.media.remoteMaxRedirects,
+					connectTimeoutMs: config.media.remoteConnectTimeoutMs,
+					firstByteTimeoutMs: config.media.remoteFirstByteTimeoutMs,
+					totalTimeoutMs: config.media.remoteTotalTimeoutMs,
+					...options,
+				}));
 			return response.stream;
 		},
 		{
@@ -1135,8 +1365,8 @@ export async function streamRemoteObjectToStorage(
 				const contentType = assertDetectedMediaType(header, input.expectedContentType);
 				if (input.expectedMediaKind) assertMediaKind(contentType, input.expectedMediaKind);
 			},
-			uploadPart: ({ partNumber, body }) =>
-				uploadMultipartPart({ ...input, uploadId, partNumber, body }),
+			uploadPart: ({ partNumber, body, signal }) =>
+				uploadMultipartPart({ ...input, uploadId, partNumber, body, signal }),
 			complete: (parts) => completeMultipartUpload({ ...input, uploadId, parts }),
 			abort: () => abortMultipartUpload({ ...input, uploadId }),
 		},

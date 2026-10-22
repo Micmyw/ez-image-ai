@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
 	OutboxDeliveryPendingError,
+	ProviderEventPhaseHeldError,
 	type DispatchStore,
 	type OutboxLease,
 	type OutboxStore,
@@ -49,8 +50,10 @@ const mocks = vi.hoisted(() => {
 		cancel: vi.fn(),
 		admit: vi.fn(),
 		payment: vi.fn(),
+		providerEvent: vi.fn(),
 		subscriptions: vi.fn(),
 		verify: vi.fn(),
+		finalize: vi.fn(),
 		expireGuest: vi.fn(),
 		monitorGuest: vi.fn(),
 		findAssets: vi.fn(),
@@ -60,6 +63,12 @@ const mocks = vi.hoisted(() => {
 		findAttempt: vi.fn(),
 		findProviderEvent: vi.fn(),
 		resolveDispatchRoute: vi.fn(),
+		prepareEvent: vi.fn(),
+		beginEvent: vi.fn(),
+		completeEvent: vi.fn(),
+		failEvent: vi.fn(),
+		deferEvent: vi.fn(),
+		readEvent: vi.fn(),
 		reconciliationStore,
 		finalizationStore,
 		finalizationRecovery: vi.fn(() => finalizationStore),
@@ -100,7 +109,10 @@ vi.mock("@repo/database/client", () => ({
 		providerWebhookEvent: { findUnique: mocks.findProviderEvent },
 	},
 }));
-vi.mock("@repo/database", () => ({
+vi.mock("@repo/database", async () => ({
+	MEDIA_VERIFICATION_OBSERVATION_SELECT: (
+		await import("../../../database/prisma/queries/media/continuations")
+	).MEDIA_VERIFICATION_OBSERVATION_SELECT,
 	expireGenerationDrafts: vi.fn(),
 	expirePendingMediaUploadSessions: vi.fn(),
 	recoverExpiredPaymentEvents: mocks.recoverPayments,
@@ -110,8 +122,18 @@ vi.mock("@repo/database", () => ({
 	getSubmittedGenerationContinuation: mocks.continuation,
 	getProviderEventContinuation: mocks.continuation,
 	getInitialGenerationEventIds: vi.fn(async () => []),
+	deleteExpiredImagePhaseOwners: vi.fn(async () => 0),
+	prepareWorkflowOutboxDelivery: mocks.prepareEvent,
+	beginWorkflowOutboxExecution: mocks.beginEvent,
+	completeWorkflowOutboxExecution: mocks.completeEvent,
+	failWorkflowOutboxExecution: mocks.failEvent,
+	deferWorkflowOutboxExecution: mocks.deferEvent,
+	readWorkflowOutboxEvent: mocks.readEvent,
 }));
 vi.mock("../handlers/process-payment-event", () => ({ processPaymentEvent: mocks.payment }));
+vi.mock("../handlers/process-provider-event", () => ({
+	processProviderEvent: mocks.providerEvent,
+}));
 vi.mock("../handlers/reconcile-subscriptions", () => ({
 	reconcileSubscriptions: mocks.subscriptions,
 }));
@@ -129,6 +151,7 @@ vi.mock("../handlers/account-input-copy", () => ({
 vi.mock("../handlers/cancel-generation", () => ({ cancelProviderGeneration: mocks.cancel }));
 vi.mock("../handlers/admit-guest-generation", () => ({ admitGuestGeneration: mocks.admit }));
 vi.mock("../handlers/verify-upload", () => ({ verifyUpload: mocks.verify }));
+vi.mock("../handlers/finalize-media", () => ({ finalizeMedia: mocks.finalize }));
 vi.mock("../handlers/expire-guest-media", () => ({ expireGuestMedia: mocks.expireGuest }));
 vi.mock("../handlers/finalization-recovery-store", () => ({
 	createDatabaseFinalizingGenerationRecoveryStore: mocks.finalizationRecovery,
@@ -180,6 +203,7 @@ beforeEach(() => {
 	mocks.cleanup.mockResolvedValue(undefined);
 	mocks.cancel.mockResolvedValue(undefined);
 	mocks.admit.mockResolvedValue(undefined);
+	mocks.providerEvent.mockReset().mockResolvedValue({ outcome: "PROCESSED" });
 	mocks.outboxStore.claimBatch.mockResolvedValue([]);
 	mocks.outboxStore.complete.mockResolvedValue(undefined);
 	mocks.outboxStore.defer.mockResolvedValue(undefined);
@@ -191,9 +215,231 @@ beforeEach(() => {
 	mocks.findJob.mockResolvedValue(null);
 	mocks.findAttempt.mockResolvedValue(null);
 	mocks.findProviderEvent.mockResolvedValue(null);
+	mocks.finalize.mockResolvedValue({ outcome: "SKIPPED", readyOutputs: 0 });
+	mocks.prepareEvent.mockReset();
+	mocks.beginEvent.mockReset();
+	mocks.completeEvent.mockReset().mockResolvedValue(true);
+	mocks.failEvent.mockReset().mockResolvedValue(true);
+	mocks.deferEvent.mockReset().mockResolvedValue(true);
+	mocks.readEvent.mockReset();
+});
+
+describe("fused control ownership admission", () => {
+	const dispatchTask = "media-dispatch-image-kie-nano-banana-2";
+	function prepare(assetReview = false, engine: string | null | undefined = "legacy") {
+		const row = {
+			id: "event",
+			eventType: assetReview ? "MEDIA_ASSET_VERIFY" : "GENERATION_DISPATCH",
+			aggregateType: assetReview ? "MEDIA_ASSET" : "GENERATION_JOB",
+			aggregateId: assetReview ? "asset" : "job",
+			payload: assetReview ? { assetId: "asset" } : { jobId: "job", version: 0 },
+			attempts: 1,
+			dedupeKey: "fused:event",
+			leaseOwner: "workflow:workflow-1:event:event",
+			leaseToken: "lease",
+			leasedUntil: new Date(Date.now() + 90_000),
+			availableAt: new Date(0),
+			lastError: "EXECUTION_IN_PROGRESS:00000000-0000-4000-8000-000000000000",
+		};
+		mocks.prepareEvent.mockResolvedValue({ event: row });
+		mocks.beginEvent.mockResolvedValue({
+			state: "active",
+			event: row,
+			...(engine === undefined
+				? {}
+				: {
+						engineObservation: {
+							aggregateType: row.aggregateType,
+							aggregateId: row.aggregateId,
+							engine,
+						},
+					}),
+		});
+		mocks.resolveDispatchRoute.mockResolvedValue({
+			taskId: dispatchTask,
+			provider: "kie",
+			providerModelId: "nano-banana-2",
+		});
+		if (assetReview)
+			mocks.verify.mockResolvedValueOnce({
+				verificationCommit: { assetId: "asset", generation: 1, eventIds: [] },
+			});
+		return row;
+	}
+
+	it.each([false, true])(
+		"removes only the redundant engine read for assetReview=%s",
+		async (assetReview) => {
+			prepare(assetReview);
+			const result = await executeTask(
+				{ taskId: "media-execute-event", payload: { eventId: "event" } },
+				{
+					...context,
+					workflowId: "workflow-1",
+					phaseOwner: { workflowId: "workflow-1", phaseKey: "old-input", epoch: 1 },
+				},
+			);
+			expect(result).toMatchObject({ preparedEvent: null, deliveryState: "completed" });
+			expect(mocks.beginEvent).toHaveBeenCalledWith(
+				expect.objectContaining({ observeExecutionEngine: true }),
+				expect.any(Object),
+			);
+			expect(mocks.findJob).not.toHaveBeenCalled();
+			expect(mocks.findAsset).not.toHaveBeenCalled();
+			if (assetReview) {
+				expect(mocks.verify).toHaveBeenCalledExactlyOnceWith(
+					{ assetId: "asset" },
+					mocks.runtime.databaseVerifyUploadDependencies,
+					undefined,
+					expect.objectContaining({ workflowId: "workflow-1" }),
+				);
+				expect(mocks.verify.mock.calls[0]![3]).not.toHaveProperty("phaseOwner");
+			} else {
+				expect(mocks.dispatchStore.claimDispatch).toHaveBeenCalledOnce();
+				expect(mocks.runtime.createDatabaseDispatchStore).toHaveBeenCalledWith(
+					expect.any(Object),
+					expect.objectContaining({ workflowId: "workflow-1", phaseOwner: undefined }),
+				);
+			}
+			expect(mocks.completeEvent).toHaveBeenCalledOnce();
+		},
+	);
+
+	it.each([null, "video-workflow-v1"])(
+		"keeps the outer ownership read for engine %s",
+		async (engine) => {
+			prepare(false, engine);
+			mocks.findJob.mockResolvedValue({ executionEngine: engine ?? "legacy" });
+			await executeTask({ taskId: "media-execute-event", payload: { eventId: "event" } }, context);
+			expect(mocks.findJob).toHaveBeenCalledExactlyOnceWith({
+				where: { id: "job" },
+				select: { executionEngine: true },
+			});
+			if (engine) expect(mocks.dispatchStore.claimDispatch).not.toHaveBeenCalled();
+		},
+	);
+
+	it("keeps non-fused receipt callers on the original ownership gate", async () => {
+		prepare();
+		await executeTask(
+			{
+				taskId: dispatchTask,
+				payload: { jobId: "job", version: 0 },
+				outboxReceipt: {
+					eventId: "event",
+					workerId: "workflow:workflow-1:event:event",
+					leaseToken: "lease",
+				},
+			},
+			context,
+		);
+		expect(mocks.beginEvent.mock.calls[0]![0]).not.toHaveProperty("observeExecutionEngine");
+		expect(mocks.findJob).toHaveBeenCalledOnce();
+	});
+
+	it.each(["completed", "lost", "recovery-required"])(
+		"never enters a business handler for a %s fused receipt",
+		async (state) => {
+			const row = prepare();
+			mocks.beginEvent.mockResolvedValue({ state, event: state === "lost" ? null : row });
+			const result = executeTask(
+				{ taskId: "media-execute-event", payload: { eventId: "event" } },
+				context,
+			);
+			if (state === "recovery-required")
+				await expect(result).rejects.toThrow("OUTBOX_RECOVERY_REQUIRED");
+			else await expect(result).resolves.toBeDefined();
+			expect(mocks.dispatchStore.claimDispatch).not.toHaveBeenCalled();
+			expect(mocks.findJob).not.toHaveBeenCalled();
+		},
+	);
 });
 
 describe("Node task executor", () => {
+	it("continues the committed finalization retry at its real due time without an event scan", async () => {
+		const retryEvent = { id: "committed-transfer-retry", availableAt: 1_800_000_120_000 };
+		mocks.finalize.mockResolvedValueOnce({
+			outcome: "RETRY_SCHEDULED",
+			readyOutputs: 0,
+			retryEvent,
+			outputReviewEventIds: ["committed-output-review"],
+		});
+		await expect(
+			executeTask(
+				{ taskId: "media-finalize-generation", payload: { jobId: "job", version: 0 } },
+				context,
+			),
+		).resolves.toMatchObject({
+			outcome: "RETRY_SCHEDULED",
+			continuation: {
+				eventIds: [retryEvent.id, "committed-output-review"],
+				notBefore: retryEvent.availableAt,
+			},
+		});
+		expect(mocks.continuation).not.toHaveBeenCalled();
+	});
+
+	it("returns the committed canonical settlement event on the output review completion response", async () => {
+		const { getAssetGenerationContinuation } =
+			await vi.importActual<typeof import("@repo/database")>("@repo/database");
+		const findEvents = vi.fn(
+			async (query: { where: { AND: Array<{ dedupeKey?: { in: string[] } }> } }) =>
+				query.where.AND[0]?.dedupeKey?.in.includes("generation-settle:job-1")
+					? [{ id: "committed-settlement-event" }]
+					: [],
+		);
+		mocks.continuation.mockImplementationOnce(() =>
+			getAssetGenerationContinuation("output", {
+				mediaAsset: { findUnique: async () => ({ kind: "OUTPUT", verificationGeneration: 1 }) },
+				generationJobAsset: { findMany: async () => [{ jobId: "job-1" }] },
+				outboxEvent: { findMany: findEvents },
+			} as never),
+		);
+		mocks.verify.mockResolvedValueOnce({ outboxCommitted: true });
+		mocks.findAsset.mockResolvedValue({
+			verificationEngine: "legacy",
+			status: "READY",
+			deletedAt: null,
+		});
+		expect(
+			await executeTask({ taskId: "media-verify-upload", payload: { assetId: "output" } }, context),
+		).toEqual({
+			done: true,
+			waitSeconds: 0,
+			outboxCommitted: true,
+			continuation: { eventIds: ["committed-settlement-event"] },
+		});
+		expect(findEvents).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: {
+					AND: [
+						expect.objectContaining({
+							aggregateType: "GENERATION_JOB",
+							eventType: { in: ["GENERATION_FINALIZE_RETRY", "GENERATION_SETTLE"] },
+						}),
+						{ status: { in: ["PENDING", "LEASED"] } },
+					],
+				},
+			}),
+		);
+	});
+	it("enables streaming-only dependencies only through the private executor configuration", async () => {
+		const task = {
+			taskId: "media-finalize-generation",
+			payload: { jobId: "job", version: 0, deferOutputReview: true },
+		};
+		await executeTask(task, context, { streamingTransfersOnly: true });
+		expect(mocks.runtime.createFinalizationDependencies).toHaveBeenLastCalledWith(
+			expect.anything(),
+			{ deferOutputReview: true, streamingTransfersOnly: true },
+		);
+		await executeTask(task, context);
+		expect(mocks.runtime.createFinalizationDependencies).toHaveBeenLastCalledWith(
+			expect.anything(),
+			{ deferOutputReview: true },
+		);
+		expect(mocks.finalize).toHaveBeenCalledTimes(2);
+	});
 	it("preserves original output due time in recovery diagnostics after delivery was deferred", async () => {
 		mocks.outboxStore.claimBatch.mockResolvedValue([
 			event({
@@ -398,6 +644,121 @@ describe("Node task executor", () => {
 			info.mockRestore();
 		}
 	});
+	it.each(["READY", "QUARANTINED"])(
+		"uses an authoritative %s commit without rereading its asset or continuation",
+		async (status) => {
+			mocks.findAsset.mockResolvedValue({ verificationEngine: "legacy" });
+			mocks.verify.mockResolvedValueOnce({
+				outboxCommitted: true,
+				verificationCommit: {
+					assetId: "output",
+					generation: 1,
+					status,
+					eventIds: ["committed-event"],
+				},
+			});
+			expect(
+				await executeTask(
+					{ taskId: "media-verify-upload", payload: { assetId: "output" } },
+					context,
+				),
+			).toEqual({
+				done: true,
+				waitSeconds: 0,
+				outboxCommitted: true,
+				continuation: { eventIds: ["committed-event"] },
+			});
+			// The existing execution-engine admission read stays in place.
+			expect(mocks.findAsset).toHaveBeenCalledExactlyOnceWith({
+				where: { id: "output" },
+				select: { verificationEngine: true },
+			});
+			expect(mocks.continuation).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each(["READY", "QUARANTINED", "VERIFICATION_FAILED", "DELETED"])(
+		"uses a validated query-only %s observation without another authority read",
+		async (status) => {
+			mocks.findAsset.mockResolvedValue({ verificationEngine: "legacy" });
+			mocks.verify.mockResolvedValueOnce({
+				outboxCommitted: false,
+				verificationObservation: { assetId: "output", generation: 3, status, eventIds: [] },
+			});
+			expect(
+				await executeTask(
+					{ taskId: "media-verify-upload", payload: { assetId: "output", queryOnly: true } },
+					context,
+				),
+			).toEqual({
+				done: true,
+				waitSeconds: 0,
+				outboxCommitted: false,
+				continuation: { eventIds: [] },
+			});
+			expect(mocks.findAsset).toHaveBeenCalledOnce();
+			expect(mocks.continuation).not.toHaveBeenCalled();
+		},
+	);
+
+	it("does not accept a terminal observation as a new paid verification receipt", async () => {
+		mocks.findAsset.mockResolvedValue({ verificationEngine: "legacy" });
+		mocks.verify.mockResolvedValueOnce({
+			outboxCommitted: false,
+			verificationObservation: { assetId: "output", generation: 3, status: "READY", eventIds: [] },
+		});
+		await expect(
+			executeTask({ taskId: "media-verify-upload", payload: { assetId: "output" } }, context),
+		).rejects.toThrow("INVALID_VERIFICATION_TERMINAL_OBSERVATION");
+	});
+
+	it("passes only the existing admission query's DB projection to a query-only verification", async () => {
+		const asset = { id: "output", verificationEngine: "legacy", status: "VERIFYING" };
+		mocks.findAsset.mockResolvedValue(asset);
+		mocks.verify.mockResolvedValueOnce({
+			outboxCommitted: false,
+			verificationObservation: { assetId: "output", generation: 1, status: "READY", eventIds: [] },
+		});
+		await executeTask(
+			{ taskId: "media-verify-upload", payload: { assetId: "output", queryOnly: true } },
+			context,
+		);
+		expect(mocks.findAsset).toHaveBeenCalledOnce();
+		expect(mocks.findAsset).toHaveBeenCalledWith({
+			where: { id: "output" },
+			select: expect.objectContaining({
+				verificationEngine: true,
+				verificationGeneration: true,
+				updatedAt: true,
+				verificationSubmissionUncertain: true,
+			}),
+		});
+		expect(mocks.findAsset.mock.calls[0]![0].select).not.toHaveProperty("objectKey");
+		expect(mocks.verify).toHaveBeenCalledWith(
+			{ assetId: "output", queryOnly: true },
+			mocks.runtime.databaseVerifyUploadDependencies,
+			{ asset },
+		);
+	});
+
+	it("rejects a caller-supplied admission observation before any database or verification access", async () => {
+		await expect(
+			executeTask(
+				{
+					taskId: "media-verify-upload",
+					payload: {
+						assetId: "output",
+						queryOnly: true,
+						admission: { asset: { status: "READY", verificationEngine: "legacy" } },
+					},
+				},
+				context,
+			),
+		).rejects.toThrow();
+		expect(mocks.findAsset).not.toHaveBeenCalled();
+		expect(mocks.verify).not.toHaveBeenCalled();
+	});
+
 	it("returns the persisted moderation due time for durable polling instead of waiting for cron", async () => {
 		const now = new Date("2026-09-19T06:00:00Z");
 		mocks.findAsset.mockResolvedValue({
@@ -417,6 +778,84 @@ describe("Node task executor", () => {
 		expect(
 			await executeTask({ taskId: "media-verify-upload", payload: { assetId: "output" } }, context),
 		).toEqual({ done: true, waitSeconds: 0, continuation: { eventIds: [] } });
+	});
+	it("immediately continues a committed bound image query when a callback became due during retrieval", async () => {
+		const now = new Date("2026-10-22T00:00:00Z");
+		mocks.verify.mockResolvedValueOnce({ outboxCommitted: false, queryOnly: true });
+		mocks.findAsset.mockResolvedValue({
+			status: "VERIFYING",
+			deletedAt: null,
+			verificationNextAttemptAt: now,
+			verificationLeasedUntil: null,
+			verificationProviderTaskId: "bound-review",
+			verificationSubmissionUncertain: false,
+		});
+		expect(
+			await executeTask(
+				{ taskId: "media-verify-upload", payload: { assetId: "output", queryOnly: true } },
+				context,
+				{ now: () => now },
+			),
+		).toEqual({
+			done: false,
+			waitSeconds: 0,
+			retryImmediately: true,
+			queryOnly: true,
+			outboxCommitted: false,
+			continuation: { eventIds: [] },
+		});
+	});
+	it.each([
+		["unclaimed work", { outboxCommitted: false }, {}, 1],
+		[
+			"missing task",
+			{ outboxCommitted: false, queryOnly: true },
+			{ verificationProviderTaskId: null },
+			1,
+		],
+		[
+			"uncertain task",
+			{ outboxCommitted: false, queryOnly: true },
+			{ verificationSubmissionUncertain: true },
+			1,
+		],
+		[
+			"active lease",
+			{ outboxCommitted: false, queryOnly: true },
+			{ verificationLeasedUntil: new Date("2026-10-22T00:01:00Z") },
+			60,
+		],
+		[
+			"future due",
+			{ outboxCommitted: false, queryOnly: true },
+			{ verificationNextAttemptAt: new Date("2026-10-22T00:00:03Z") },
+			3,
+		],
+		[
+			"missing due",
+			{ outboxCommitted: false, queryOnly: true },
+			{ verificationNextAttemptAt: null },
+			5,
+		],
+	] as const)("does not immediately retry %s", async (_label, progress, asset, waitSeconds) => {
+		const now = new Date("2026-10-22T00:00:00Z");
+		mocks.verify.mockResolvedValueOnce(progress);
+		mocks.findAsset.mockResolvedValue({
+			status: "VERIFYING",
+			deletedAt: null,
+			verificationNextAttemptAt: now,
+			verificationLeasedUntil: null,
+			verificationProviderTaskId: "bound-review",
+			verificationSubmissionUncertain: false,
+			...asset,
+		});
+		const result = await executeTask(
+			{ taskId: "media-verify-upload", payload: { assetId: "output", queryOnly: true } },
+			context,
+			{ now: () => now },
+		);
+		expect(result).toMatchObject({ done: false, waitSeconds });
+		expect(result).not.toHaveProperty("retryImmediately");
 	});
 
 	it("keeps payment recovery failures independent from durable Outbox delivery", async () => {
@@ -678,6 +1117,85 @@ describe("Node task executor", () => {
 			),
 		).resolves.toEqual({ outcome: "SKIPPED", continuation: { eventIds: ["recovery-event"] } });
 		expect(mocks.continuation).toHaveBeenCalledExactlyOnceWith("job-1", expect.anything());
+	});
+
+	it("returns every committed callback continuation after ACK without executing its heavy children inline", async () => {
+		const first = { eventIds: Array.from({ length: 100 }, (_, index) => `first-${index}`) };
+		const second = { eventIds: Array.from({ length: 100 }, (_, index) => `second-${index}`) };
+		const polling = {
+			eventIds: [],
+			pollAttemptId: "accepted-attempt",
+			phaseOwner: { workflowId: "image-workflow", phaseKey: "provider-phase", epoch: 2 },
+		};
+		const delayed = { eventIds: ["committed-settlement"], notBefore: 1_800_000_000_500 };
+		const continuations = [first, second, polling, delayed];
+		for (const continuation of continuations)
+			mocks.continuation.mockResolvedValueOnce(continuation);
+		const events = continuations.map((_, index) =>
+			event({
+				id: `callback-${index}`,
+				eventType: "PROVIDER_EVENT_RECEIVED",
+				payload: { providerWebhookEventId: `provider-${index}` },
+			}),
+		);
+		mocks.outboxStore.claimBatch.mockResolvedValueOnce(events);
+		expect(
+			await executeTask({ taskId: "media-deliver-outbox", payload: {} }, context, {
+				assertInlineTask: assertWorkerInlineTask,
+			}),
+		).toEqual({ claimed: 4, delivered: 4, continuations });
+		expect(mocks.providerEvent).toHaveBeenCalledTimes(4);
+		expect(mocks.outboxStore.complete).toHaveBeenCalledTimes(4);
+		expect(mocks.outboxStore.claimBatch).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({ limit: 50 }),
+		);
+		expect(mocks.dispatch).not.toHaveBeenCalled();
+		expect(mocks.finalize).not.toHaveBeenCalled();
+		expect(mocks.adapter.submit).not.toHaveBeenCalled();
+	});
+
+	it("does not forward a callback continuation when its Outbox ACK fails", async () => {
+		mocks.outboxStore.claimBatch.mockResolvedValueOnce([
+			event({
+				eventType: "PROVIDER_EVENT_RECEIVED",
+				payload: { providerWebhookEventId: "provider-event" },
+			}),
+		]);
+		mocks.continuation.mockResolvedValueOnce({ eventIds: ["committed-finalize"] });
+		mocks.outboxStore.complete.mockRejectedValueOnce(new Error("database unavailable"));
+		expect(
+			await executeTask({ taskId: "media-deliver-outbox", payload: {} }, context, {
+				assertInlineTask: assertWorkerInlineTask,
+			}),
+		).toEqual({ claimed: 1, delivered: 0 });
+		expect(mocks.dispatch).not.toHaveBeenCalled();
+	});
+
+	it("keeps a held inline callback unacknowledged without querying or forwarding a continuation", async () => {
+		mocks.outboxStore.claimBatch.mockResolvedValueOnce([
+			event({
+				eventType: "PROVIDER_EVENT_RECEIVED",
+				attempts: 11,
+				payload: { providerWebhookEventId: "provider-event" },
+			}),
+		]);
+		mocks.providerEvent.mockRejectedValueOnce(new ProviderEventPhaseHeldError(123_456));
+		expect(
+			await executeTask({ taskId: "media-deliver-outbox", payload: {} }, context, {
+				assertInlineTask: assertWorkerInlineTask,
+				now: () => new Date(1_800_000_000_000),
+			}),
+		).toEqual({ claimed: 1, delivered: 0 });
+		expect(mocks.outboxStore.defer).toHaveBeenCalledExactlyOnceWith({
+			id: "outbox-1",
+			workerId: "workflow:workflow-1",
+			leaseToken: "lease-1",
+			retryAt: new Date(1_800_000_123_456),
+		});
+		expect(mocks.outboxStore.complete).not.toHaveBeenCalled();
+		expect(mocks.outboxStore.release).not.toHaveBeenCalled();
+		expect(mocks.continuation).not.toHaveBeenCalled();
+		expect(mocks.dispatch).not.toHaveBeenCalled();
 	});
 
 	it("runs critical Outbox delivery inline and acknowledges only after completion", async () => {

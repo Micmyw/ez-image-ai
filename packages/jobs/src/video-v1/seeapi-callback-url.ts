@@ -6,8 +6,14 @@ export interface SeeapiVideoCallbackIdentity {
 	generation: number;
 	attemptNumber: number;
 }
+export interface SeeapiVideoInputCallbackIdentity {
+	jobId: string;
+	assetId: string;
+	submissionToken: string;
+}
 type Environment = Record<string, string | undefined>;
 const PURPOSE = "ezpic:video-v1:seeapi-moderation-callback:v1";
+const INPUT_PURPOSE = "ezpic:video-v1:seeapi-input-moderation-callback:v1";
 const PATH = "/api/webhooks/video-v1/seeapi/";
 
 function validIdentity(input: SeeapiVideoCallbackIdentity): boolean {
@@ -106,6 +112,95 @@ export async function verifySeeapiVideoCallbackUrl(
 			await key(config.callbackSecret, "verify"),
 			signature,
 			message(input),
+		))
+			? input
+			: null;
+	} catch {
+		return null;
+	}
+}
+
+function validInputIdentity(input: SeeapiVideoInputCallbackIdentity): boolean {
+	return (
+		/^[A-Za-z0-9_-]{1,160}$/.test(input.jobId) &&
+		/^[A-Za-z0-9_-]{1,160}$/.test(input.assetId) &&
+		/^[A-Za-z0-9_-]{16,128}$/.test(input.submissionToken)
+	);
+}
+function inputMessage(input: SeeapiVideoInputCallbackIdentity): Uint8Array<ArrayBuffer> {
+	return new Uint8Array(
+		new TextEncoder().encode(
+			JSON.stringify([INPUT_PURPOSE, input.jobId, input.assetId, input.submissionToken]),
+		),
+	);
+}
+
+/** Separate purpose and persisted token prevent an input callback from authorizing output review. */
+export async function createSeeapiVideoInputCallbackUrl(
+	input: SeeapiVideoInputCallbackIdentity,
+	environment: Environment,
+): Promise<string> {
+	const config = readVideoSeeapiCallbackConfig(environment);
+	const origin = resolveVideoV1CallbackBaseUrl(environment);
+	if (!config.ready || !config.callbackSecret || !origin || !validInputIdentity(input))
+		throw new Error("VIDEO_SEEAPI_CALLBACK_NOT_CONFIGURED");
+	const proof = Array.from(
+		new Uint8Array(
+			await crypto.subtle.sign(
+				"HMAC",
+				await key(config.callbackSecret, "sign"),
+				inputMessage(input),
+			),
+		),
+		(byte) => byte.toString(16).padStart(2, "0"),
+	).join("");
+	const url = new URL(`${PATH}${input.assetId}`, origin);
+	url.searchParams.set("phase", "input");
+	url.searchParams.set("job", input.jobId);
+	url.searchParams.set("submission", input.submissionToken);
+	url.searchParams.set("proof", proof);
+	return url.toString();
+}
+
+export async function verifySeeapiVideoInputCallbackUrl(
+	value: string,
+	environment: Environment,
+): Promise<SeeapiVideoInputCallbackIdentity | null> {
+	try {
+		const config = readVideoSeeapiCallbackConfig(environment);
+		const origin = resolveVideoV1CallbackBaseUrl(environment);
+		const url = new URL(value);
+		if (
+			!config.ready ||
+			!config.callbackSecret ||
+			!origin ||
+			url.origin !== origin ||
+			url.username ||
+			url.password ||
+			url.hash ||
+			!url.pathname.startsWith(PATH)
+		)
+			return null;
+		const fields = ["phase", "job", "submission", "proof"];
+		if (
+			Array.from(url.searchParams.keys()).length !== fields.length ||
+			fields.some((field) => url.searchParams.getAll(field).length !== 1) ||
+			url.searchParams.get("phase") !== "input"
+		)
+			return null;
+		const proof = url.searchParams.get("proof")!;
+		const input = {
+			assetId: url.pathname.slice(PATH.length),
+			jobId: url.searchParams.get("job")!,
+			submissionToken: url.searchParams.get("submission")!,
+		};
+		if (!validInputIdentity(input) || !/^[a-f0-9]{64}$/.test(proof)) return null;
+		const signature = Uint8Array.from(proof.match(/../g)!, (byte) => Number.parseInt(byte, 16));
+		return (await crypto.subtle.verify(
+			"HMAC",
+			await key(config.callbackSecret, "verify"),
+			signature,
+			inputMessage(input),
 		))
 			? input
 			: null;

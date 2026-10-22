@@ -291,6 +291,7 @@ export async function requeueAdminMediaVerification(
 				verificationExhaustedAt: null,
 				verificationValidUntil: null,
 				verificationSubmissionToken: null,
+				verificationCallbackReceivedAt: null,
 				verificationSubmissionUncertain: false,
 				verificationSubmittedAt: null,
 				verificationLastErrorCode: null,

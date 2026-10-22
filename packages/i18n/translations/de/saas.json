@@ -1770,6 +1770,7 @@
 				"paused": "Upload pausiert",
 				"uploadFailed": "Upload fehlgeschlagen · erneut versuchen oder entfernen",
 				"uploadedForGeneration": "Hochgeladen. Die Sicherheitsprüfung erfolgt beim Generieren.",
+				"reviewStatusUnavailable": "Hochgeladen. Der Prüfstatus ist vorübergehend nicht verfügbar; er wird beim Generieren geprüft.",
 				"expired": "Diese Referenz ist abgelaufen. Bitte erneut hochladen."
 			},
 			"mode": {

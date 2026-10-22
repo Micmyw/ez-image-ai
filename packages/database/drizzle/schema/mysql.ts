@@ -28,6 +28,43 @@ export const notificationTypeEnum = mysqlEnum("NotificationType", [
 export const notificationTargetEnum = mysqlEnum("NotificationTarget", ["IN_APP", "EMAIL"]);
 
 // Tables
+export const mediaOwnerStorageFence = mysqlTable(
+	"media_owner_storage_fence",
+	{
+		ownerType: mysqlEnum("ownerType", ["USER", "ORGANIZATION"]).notNull(),
+		ownerId: varchar("ownerId", { length: 255 }).notNull(),
+		revision: bigint("revision", { mode: "bigint" }).notNull().default(0n),
+	},
+	(table) => [primaryKey({ columns: [table.ownerType, table.ownerId] })],
+);
+
+export const mediaWorkflowPhaseOwner = mysqlTable(
+	"media_workflow_phase_owner",
+	{
+		phaseKey: varchar("phaseKey", { length: 128 })
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		phaseKind: varchar("phaseKind", { length: 32 }).notNull(),
+		subjectId: varchar("subjectId", { length: 128 }).notNull(),
+		generation: int("generation").notNull(),
+		workflowId: varchar("workflowId", { length: 128 }).notNull(),
+		epoch: int("epoch").notNull().default(1),
+		leasedUntil: timestamp("leasedUntil", { fsp: 3 }).notNull(),
+		createdAt: timestamp("createdAt", { fsp: 3 }).notNull().defaultNow(),
+		updatedAt: timestamp("updatedAt", { fsp: 3 })
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		uniqueIndex("media_workflow_phase_owner_phaseKind_subjectId_generation_key").on(
+			table.phaseKind,
+			table.subjectId,
+			table.generation,
+		),
+		index("media_workflow_phase_owner_leasedUntil_idx").on(table.leasedUntil),
+	],
+);
+
 export const user = mysqlTable("user", {
 	id: varchar("id", { length: 255 })
 		.$defaultFn(() => cuid())

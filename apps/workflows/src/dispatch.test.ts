@@ -28,6 +28,22 @@ function binding(status = "queued") {
 }
 
 describe("Workflow ingress", () => {
+	it.each([
+		["media-verify-upload", { assetId: "asset" }],
+		["media-deliver-events", { eventIds: ["event"] }],
+		["media-poll-generation", { attemptId: "attempt" }],
+		["media-dispatch-image-kie-nano-banana-2", { jobId: "job", version: 0 }],
+	] as const)("persists execution version 2 on new %s Workflows", async (taskId, payload) => {
+		const workflows = binding();
+		expect((await handleDispatch(await signed(taskId, payload), secret, workflows)).status).toBe(
+			202,
+		);
+		expect(workflows.createBatch.mock.calls[0]?.[0][0].params).toEqual({
+			kind: "task",
+			request: { taskId, payload },
+			executionVersion: 2,
+		});
+	});
 	it("keeps legacy dispatch identity when diagnostic trace is added or refreshed", async () => {
 		const workflows = binding("complete");
 		const dispatch = createWorkflowBindingDispatcher({

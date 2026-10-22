@@ -8,6 +8,7 @@ import { describe, expect, it } from "vitest";
 import * as videoModel from "./model";
 import {
 	createVideoConfirmation,
+	createVideoSubmissionConfirmation,
 	changeVideoDraft,
 	initialVideoDraft,
 	getVideoErrorKey,
@@ -37,6 +38,33 @@ const quote = {
 };
 
 describe("video confirmation identity", () => {
+	it("persists a v2 submission key before a server quote exists, scoped to its owner", () => {
+		const pending = createVideoSubmissionConfirmation(
+			"owner-a",
+			request,
+			"23",
+			null,
+			() => "same-key",
+		);
+		expect(pending).not.toHaveProperty("quote");
+		expect(parseVideoConfirmation(JSON.stringify(pending), "owner-a")).toEqual(pending);
+		expect(parseVideoConfirmation(JSON.stringify(pending), "owner-b")).toBeNull();
+		expect(
+			parseVideoConfirmation(JSON.stringify({ ...pending, recoveryRequired: true }), "owner-a"),
+		).toEqual({ ...pending, recoveryRequired: true });
+		for (const patch of [
+			{ expectedCredits: "24" },
+			{ request: { ...request, prompt: "Changed request" } },
+			{ idempotencyKey: "new-key" },
+		]) {
+			expect(
+				parseVideoConfirmation(
+					JSON.stringify({ ...pending, input: { ...pending.input, ...patch } }),
+					"owner-a",
+				),
+			).toBeNull();
+		}
+	});
 	it("retains a historical Kling 3 image receipt exactly after new framing choices close", () => {
 		const frozen = {
 			...request,

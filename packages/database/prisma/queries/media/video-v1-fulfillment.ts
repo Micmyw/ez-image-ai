@@ -20,6 +20,7 @@ import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { releaseCreditsInTransaction, settleCreditsInTransaction } from "./credits";
+import { recordMediaJobNotification } from "./job-notifications";
 import { outputMediaStorageLimit } from "./storage-quota";
 import { runReadCommitted } from "./types";
 import { recordVideoTemplateBusinessEvent } from "./video-template-events";
@@ -205,6 +206,7 @@ export async function claimVideoOutputStorage(jobId: string, maximumStorageBytes
 		if (asset?.checksum && asset.finalizedAt)
 			return {
 				status: "STORED" as const,
+				freshTransfer: false,
 				constraints,
 				asset,
 				maxBytes: Number(asset.byteSize),
@@ -214,6 +216,10 @@ export async function claimVideoOutputStorage(jobId: string, maximumStorageBytes
 		const now = new Date();
 		if (asset?.outputTransferLeaseExpiresAt && asset.outputTransferLeaseExpiresAt > now)
 			throw new Error("VIDEO_STORAGE_BUSY");
+		// A committed claim can be lost before its response reaches the runner.
+		// Only creation in this transaction proves this key has never been used;
+		// every persisted asset, including an unstarted retry, takes recovery.
+		const freshTransfer = !asset;
 		const assetId = asset?.id ?? randomUUID();
 		const referenceKey = `generation-output:${assetId}`;
 		const prepaidKey = videoOutputReservationKey(job.id);
@@ -289,6 +295,7 @@ export async function claimVideoOutputStorage(jobId: string, maximumStorageBytes
 		});
 		return {
 			status: "CLAIMED" as const,
+			freshTransfer,
 			asset,
 			token,
 			sourceUrl: payload.outputUrl,
@@ -302,6 +309,8 @@ export type VerifiedVideoObject = VideoOutputMetadata & {
 	bytes: number;
 	checksum: string;
 	etag: string;
+	/** Set only after a complete bounded stream hash and MP4 inspection. */
+	inspectionVersion?: "video-mp4-stream-v1";
 };
 export async function completeVideoOutputStorage(
 	jobId: string,
@@ -311,6 +320,7 @@ export async function completeVideoOutputStorage(
 ) {
 	if (
 		!/^[a-f0-9]{64}$/.test(output.checksum) ||
+		!Number.isSafeInteger(output.bytes) ||
 		output.bytes < 1 ||
 		output.bytes > MAX_BYTES ||
 		output.videoTracks !== 1
@@ -382,6 +392,32 @@ export async function completeVideoOutputStorage(
 				stageData: {
 					...json(job.videoExecution.stageData),
 					outputSpec: {
+						// The lease-guarded commit binds locally inspected bytes to their
+						// immutable object and accepted constraints. Historical callers
+						// without this inspection version retain full-read verification.
+						...(output.inspectionVersion === "video-mp4-stream-v1"
+							? {
+									storageInspection: {
+										schemaVersion: 1,
+										verifier: output.inspectionVersion,
+										assetId,
+										objectKey: asset.objectKey,
+										checksum: output.checksum,
+										etag: output.etag,
+										bytes: output.bytes,
+										checkedAt: now.toISOString(),
+										constraints: videoOutputConstraints(job.inputSnapshot),
+										metadata: {
+											durationMillis: output.durationMillis,
+											width: output.width,
+											height: output.height,
+											audioTracks: output.audioTracks,
+											audioTrackIds: output.audioTrackIds ?? [],
+											videoTracks: output.videoTracks,
+										},
+									},
+								}
+							: {}),
 						report: createVideoOutputReport(output, videoOutputConstraints(job.inputSnapshot)),
 						assetId,
 						checksum: output.checksum,
@@ -542,6 +578,7 @@ export async function beginVideoReviewSubmission(assetId: string, token: string)
 			verificationSubmissionUncertain: true,
 			verificationSubmittedAt: now,
 			verificationSubmissionToken: token,
+			verificationCallbackReceivedAt: null,
 		},
 	});
 	if (claimed.count !== 1) throw new Error("VIDEO_REVIEW_SUBMISSION_FENCE_UNAVAILABLE");
@@ -973,6 +1010,7 @@ export async function finalizeVideoDelivery(
 			event: "ready",
 			templateSnapshot: job.videoTemplateExecution?.templateSnapshot,
 		});
+		await recordMediaJobNotification(tx, { jobId, revision: "video:ready" });
 		return state(result);
 	});
 }
@@ -1025,6 +1063,10 @@ export async function failVideoDelivery(jobId: string, reasonCode: string, rejec
 			jobId,
 			event: "failed",
 			templateSnapshot: job.videoTemplateExecution?.templateSnapshot,
+		});
+		await recordMediaJobNotification(tx, {
+			jobId,
+			revision: rejected ? "video:rejected" : "video:failed",
 		});
 		return state(result);
 	});

@@ -30,6 +30,8 @@ vi.mock("@repo/storage", () => ({
 		sha256: "b".repeat(64),
 		etag: "canonical-etag",
 		versionId: null,
+		width: 720,
+		height: 1280,
 	})),
 }));
 vi.mock("../media/lib/asset-read-url", () => ({ signAuthorizedAssetReadUrl: vi.fn() }));
@@ -105,7 +107,7 @@ describe("template canonical immutable photo boundary", () => {
 				asset: { ...source, mimeType },
 			} as never);
 			const result = await completeVideoEffectUpload({ id: "owner" }, { sessionId: "session" });
-			expect(inspectPrivateImage).toHaveBeenCalledTimes(2);
+			expect(inspectPrivateImage).not.toHaveBeenCalled();
 			expect(normalizeVideoReferenceToPng).toHaveBeenCalledWith(
 				expect.objectContaining({
 					sourceContentType: mimeType,
@@ -123,6 +125,8 @@ describe("template canonical immutable photo boundary", () => {
 					mimeType: "image/png",
 					objectKey: "owner/final/photo.jpg.template-source.template-input.png",
 					etag: "canonical-etag",
+					width: 720,
+					height: 1280,
 				}),
 			);
 			expect(result.mimeType).toBe("image/png");
@@ -133,6 +137,14 @@ describe("template canonical immutable photo boundary", () => {
 			);
 		},
 	);
+	it("never publishes an identity when canonical decoding fails", async () => {
+		vi.mocked(normalizeVideoReferenceToPng).mockRejectedValueOnce(new Error("INVALID_IMAGE"));
+		await expect(
+			completeVideoEffectUpload({ id: "owner" }, { sessionId: "session" }),
+		).rejects.toThrow("INVALID_IMAGE");
+		expect(recordVideoInputIdentity).not.toHaveBeenCalled();
+		expect(deleteObject).not.toHaveBeenCalled();
+	});
 	it("rejects ordinary upload sessions as template canonical uploads", async () => {
 		vi.mocked(getVideoUploadSession).mockResolvedValue({
 			asset: { ...source, objectKey: "ordinary/photo.png" },

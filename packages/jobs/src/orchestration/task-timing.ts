@@ -20,12 +20,14 @@ export function logTaskStarted(
 	request: TaskRequest,
 	context: TaskExecutionContext,
 	startedAt = Date.now(),
+	diagnostic?: { executionMode: "inline"; parentTaskId: string },
 ): void {
 	try {
 		const { trace, payload } = request;
 		const firstExecution = context.attempt === 1 && (trace?.pollTick ?? 0) === 0;
 		console.info("media.task.started", {
 			taskId: request.taskId,
+			...diagnostic,
 			runId: context.runId,
 			executionAttempt: context.attempt,
 			...Object.fromEntries(

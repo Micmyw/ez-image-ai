@@ -40,6 +40,9 @@ import {
 	getVideoJobRecord,
 	listVideoJobRecords,
 	fingerprintVideoRequest,
+	findExistingVideoSubmission,
+	submitVideoJobRecord,
+	videoSubmissionIdentity,
 	type VideoPrice,
 } from "./video-v1";
 import { claimVideoProviderSubmission, recordVideoInputReview } from "./video-v1-execution";
@@ -548,6 +551,225 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		await createCreditGrant({ accountId, amount: 100n + bonusCredits, referenceKey }, client);
 		return referenceKey;
 	}
+	it("atomic submit commits quote, job, reservation and start intent in one transaction", async () => {
+		const f = await fixture();
+		const input = { ...f.input, expectedCredits: "7", expectedPricing: null };
+		const transaction = vi.spyOn(client, "$transaction");
+		let accepted;
+		try {
+			accepted = await submitVideoJobRecord(input, client);
+			expect(transaction).toHaveBeenCalledTimes(1);
+		} finally {
+			transaction.mockRestore();
+		}
+		expect(accepted.kind).toBe("created");
+		if (accepted.kind !== "created") throw new Error("EXPECTED_CREATED");
+		const job = await client.generationJob.findUniqueOrThrow({
+			where: { id: accepted.jobId },
+			include: { reservation: true, videoExecution: true, quote: true },
+		});
+		expect(job).toMatchObject({
+			creditsReserved: 7n,
+			reservation: { amount: 7n },
+			videoExecution: { stage: "QUEUED", startState: "PENDING" },
+		});
+		expect(job.quoteId).toBe(videoSubmissionIdentity(input).quoteId);
+		expect(job.inputSnapshot).toEqual(job.quote!.inputSnapshot);
+		expect(job.quote!.inputFingerprint).toBe(fingerprintGenerationQuoteSecurityPayload(job.quote!));
+		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({ valid: true });
+	});
+	it("atomic submit concurrent duplicate responses and retries reserve exactly once", async () => {
+		const f = await fixture();
+		const input = { ...f.input, expectedCredits: "7", expectedPricing: null };
+		const results = await Promise.all(
+			Array.from({ length: 20 }, () => submitVideoJobRecord(input, client)),
+		);
+		expect(results.every((result) => result.kind === "created")).toBe(true);
+		const ids = results.flatMap((result) => (result.kind === "created" ? [result.jobId] : []));
+		expect(new Set(ids).size).toBe(1);
+		// A lost browser response retries its immutable intent against current state.
+		expect(await findExistingVideoSubmission(input, client)).toMatchObject({ id: ids[0] });
+		expect(
+			await submitVideoJobRecord({ ...input, price: { ...price, credits: 99n } }, client),
+		).toMatchObject({ kind: "created", jobId: ids[0], replayed: true });
+		expect(
+			await client.generationQuote.count({
+				where: { ownerId: f.ownerId, id: { startsWith: "video_submit_" } },
+			}),
+		).toBe(1);
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(1);
+		expect(
+			await client.creditLedgerEntry.count({ where: { accountId: f.account.id, type: "RESERVE" } }),
+		).toBe(1);
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(1);
+		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({ valid: true });
+	});
+	it("atomic submit freezes and binds the sealed private input before releasing its lock", async () => {
+		const f = await modelQuoteFixture(
+			modelModeSelections.find((selection) => selection.mode === "image-to-video")!,
+		);
+		const input = { ...f.input, expectedCredits: "7", expectedPricing: null };
+		const result = await submitVideoJobRecord(input, client);
+		if (result.kind !== "created") throw new Error("EXPECTED_CREATED");
+		const job = await client.generationJob.findUniqueOrThrow({
+			where: { id: result.jobId },
+			include: { assets: true },
+		});
+		expect(job.inputSnapshot).toMatchObject({
+			inputIdentity: {
+				assetId: input.request.inputAssetId,
+				checksum: "a".repeat(64),
+				verificationGeneration: 0,
+			},
+		});
+		expect(job.assets).toEqual([
+			expect.objectContaining({
+				role: "INPUT",
+				assetId: input.request.inputAssetId,
+				assetChecksum: "a".repeat(64),
+			}),
+		]);
+		const other = await fixture();
+		await expect(
+			submitVideoJobRecord({ ...input, ownerId: other.ownerId }, client),
+		).rejects.toThrow("VIDEO_INPUT_NOT_AVAILABLE");
+		expect(await client.creditReservation.count({ where: { accountId: other.account.id } })).toBe(
+			0,
+		);
+	});
+	it.each(["request", "consent"])(
+		"atomic submit rejects changed %s with an accepted key",
+		async (change) => {
+			const f = await fixture();
+			const input = { ...f.input, expectedCredits: "7", expectedPricing: null };
+			await submitVideoJobRecord(input, client);
+			const changed =
+				change === "request"
+					? { ...input, request: { ...request, prompt: "A different instruction" } }
+					: { ...input, expectedCredits: "6" };
+			await expect(submitVideoJobRecord(changed, client)).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+			expect(
+				await client.creditLedgerEntry.count({
+					where: { accountId: f.account.id, type: "RESERVE" },
+				}),
+			).toBe(1);
+		},
+	);
+	it("atomic submit keeps changed prices uncharged, including repeated or concurrent retries", async () => {
+		const f = await fixture();
+		const input = { ...f.input, expectedCredits: "6", expectedPricing: null };
+		const results = await Promise.all(
+			Array.from({ length: 5 }, () => submitVideoJobRecord(input, client)),
+		);
+		const result = results[0]!;
+		expect(results.every((value) => JSON.stringify(value) === JSON.stringify(result))).toBe(true);
+		expect(result).toMatchObject({ kind: "quote_only", quote: { credits: "7" } });
+		expect(
+			await submitVideoJobRecord({ ...input, price: { ...price, credits: 6n } }, client),
+		).toEqual(result);
+		await expect(
+			submitVideoJobRecord(
+				{ ...input, request: { ...request, prompt: "Changed before acceptance" } },
+				client,
+			),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+		if (result.kind !== "quote_only") throw new Error("EXPECTED_QUOTE_ONLY");
+		const confirmation = {
+			...f.input,
+			quoteId: result.quote.quoteId,
+			idempotencyKey: "confirmed-changed-price",
+		};
+		await expect(
+			createVideoJobRecord({ ...confirmation, price: { ...price, credits: 8n } }, client),
+		).rejects.toThrow("PRICE_CHANGED");
+		await createVideoJobRecord(confirmation, client);
+		expect(
+			await client.creditLedgerEntry.count({ where: { accountId: f.account.id, type: "RESERVE" } }),
+		).toBe(1);
+	});
+	it("atomic submit compares the entire displayed pricing, even if credits match", async () => {
+		const f = await fixture();
+		const result = await submitVideoJobRecord(
+			{
+				...f.input,
+				expectedCredits: "7",
+				expectedPricing: {
+					policyVersion: "displayed-version",
+					audience: "annual",
+					credits: "7",
+					standardCredits: "10",
+					annualCredits: "7",
+					savedCredits: "3",
+					annualSavingsCredits: "3",
+				},
+			},
+			client,
+		);
+		expect(result.kind).toBe("quote_only");
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+	});
+	it("atomic submit isolates the same key across two owners", async () => {
+		const [a, b] = await Promise.all([fixture(), fixture()]);
+		const key = "same-client-key";
+		const [first, second] = await Promise.all(
+			[a, b].map((f) =>
+				submitVideoJobRecord(
+					{ ...f.input, idempotencyKey: key, expectedCredits: "7", expectedPricing: null },
+					client,
+				),
+			),
+		);
+		expect(first.kind).toBe("created");
+		expect(second.kind).toBe("created");
+		if (first.kind !== "created" || second.kind !== "created") throw new Error("EXPECTED_CREATED");
+		expect(first.jobId).not.toBe(second.jobId);
+		await expect(getVideoJobRecord(b.ownerId, first.jobId, client)).rejects.toThrow("NOT_FOUND");
+	});
+	it("atomic submit rolls back its new quote and all reservations when admission fails", async () => {
+		const f = await fixture(0n);
+		const input = { ...f.input, expectedCredits: "7", expectedPricing: null };
+		await expect(submitVideoJobRecord(input, client)).rejects.toThrow("INSUFFICIENT_CREDITS");
+		expect(
+			await client.generationQuote.findUnique({
+				where: { id: videoSubmissionIdentity(input).quoteId },
+			}),
+		).toBeNull();
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+		expect(await client.storageUsageReservation.count({ where: { ownerId: f.ownerId } })).toBe(0);
+	});
+	it("atomic submit never turns an expired changed quote into a reservation", async () => {
+		const f = await fixture();
+		const firstInput = { ...f.input, expectedCredits: "6", expectedPricing: null };
+		await submitVideoJobRecord(firstInput, client);
+		const stored = await client.generationQuote.findUniqueOrThrow({
+			where: { id: videoSubmissionIdentity(firstInput).quoteId },
+		});
+		const input = { ...firstInput, idempotencyKey: "expired-pending-submission" };
+		const identity = videoSubmissionIdentity(input);
+		const { id: _id, createdAt: _createdAt, ...fields } = stored;
+		const expired = {
+			...fields,
+			expiresAt: new Date(Date.now() - 1000),
+			inputSnapshot: {
+				...(fields.inputSnapshot as Prisma.JsonObject),
+				submissionFingerprint: identity.fingerprint,
+			},
+		};
+		await client.generationQuote.create({
+			data: {
+				...expired,
+				id: identity.quoteId,
+				inputSnapshot: expired.inputSnapshot as Prisma.InputJsonObject,
+				pricingSnapshot: fields.pricingSnapshot as Prisma.InputJsonObject,
+				inputFingerprint: fingerprintGenerationQuoteSecurityPayload(expired),
+			},
+		});
+		await expect(submitVideoJobRecord(input, client)).rejects.toThrow("QUOTE_EXPIRED");
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+	});
 	it("ignores a retired past price deadline through quote, paid admission and claim, keeping quote TTL", async () => {
 		const f = await fixture(1n);
 		await paidSubscriptionGrant(f.ownerId, f.account.id, { paid: 3_000_000n });

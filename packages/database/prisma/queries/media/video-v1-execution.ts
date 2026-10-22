@@ -4,12 +4,12 @@ import {
 	isApprovedVideoTextDecision,
 	readVideoTextSafetyProfile,
 	videoTextSafetyProfilesMatch,
+	type VideoTextSafetyProfile,
 } from "@repo/config/video-text-safety";
 
 import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { releaseCreditsInTransaction } from "./credits";
-import { lockProviderDispatchCapacity } from "./provider-dispatch-capacity";
 import { runReadCommitted } from "./types";
 import {
 	clearVideoProviderDispatch,
@@ -52,6 +52,70 @@ export function getVideoExecutionContext(jobId: string) {
 	});
 }
 
+const inputAssetIdentitySelect = {
+	ownerType: true,
+	ownerId: true,
+	deletedAt: true,
+	finalizedAt: true,
+	status: true,
+	checksum: true,
+	objectKey: true,
+	storageEtag: true,
+	storageVersionId: true,
+	verificationGeneration: true,
+	deleteAfter: true,
+} satisfies Prisma.MediaAssetSelect;
+
+/** Input review never needs credit lots, output assets or the full provider attempt history. */
+export function getVideoInputReviewContext(
+	jobId: string,
+	client: Prisma.TransactionClient = getDatabaseClient(),
+) {
+	return client.generationJob.findFirst({
+		where: { id: jobId, executionEngine: ENGINE },
+		select: {
+			id: true,
+			ownerType: true,
+			ownerId: true,
+			inputSnapshot: true,
+			failureCode: true,
+			videoExecution: {
+				select: {
+					stage: true,
+					stageData: true,
+					inputReviewStartedAt: true,
+					workflowInstanceId: true,
+				},
+			},
+			videoTemplateExecution: {
+				select: {
+					sceneState: true,
+					resolvedInputIdentity: true,
+					sceneAsset: { select: inputAssetIdentitySelect },
+				},
+			},
+			attempts: { select: { id: true }, take: 1 },
+			assets: {
+				where: { role: "INPUT" },
+				select: {
+					role: true,
+					assetId: true,
+					assetChecksum: true,
+					asset: { select: inputAssetIdentitySelect },
+				},
+			},
+		},
+	});
+}
+
+async function lockedInputReviewContext(tx: Prisma.TransactionClient, jobId: string) {
+	await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`video-v1:${jobId}`}, 0))`;
+	await tx.$queryRaw`SELECT "id" FROM "generation_job" WHERE "id" = ${jobId} AND "executionEngine" = ${ENGINE} FOR UPDATE`;
+	const job = await getVideoInputReviewContext(jobId, tx);
+	if (!job?.videoExecution) throw new Error("VIDEO_JOB_NOT_FOUND");
+	return job;
+}
+
 async function lockedContext(tx: Prisma.TransactionClient, jobId: string) {
 	// Domain writes use ReadCommitted plus this shared lock. Read state only AFTER
 	// acquiring it: independent jobs must not conflict through Serializable scans.
@@ -74,7 +138,14 @@ async function lockedContext(tx: Prisma.TransactionClient, jobId: string) {
 
 /** Recheck the sealed object identity inside every side-effect transaction. */
 export function assertVideoInputIdentity(
-	job: NonNullable<Awaited<ReturnType<typeof getVideoExecutionContext>>>,
+	job: Parameters<typeof assertVideoTemplateRoleIdentities>[0] & {
+		videoTemplateExecution?: {
+			resolvedInputIdentity: Prisma.JsonValue | null;
+			sceneAsset:
+				| Parameters<typeof assertVideoTemplateRoleIdentities>[0]["assets"][number]["asset"]
+				| null;
+		} | null;
+	},
 ) {
 	const original = object(job.inputSnapshot);
 	if (original.videoEffectTemplate) {
@@ -131,7 +202,7 @@ export function assertVideoInputIdentity(
 
 export async function recordVideoInputReview(jobId: string, patch: Record<string, unknown>) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
-		const job = await lockedContext(tx, jobId);
+		const job = await lockedInputReviewContext(tx, jobId);
 		if (
 			terminal.has(job.videoExecution!.stage) ||
 			job.videoExecution!.stage === "NEEDS_REVIEW" ||
@@ -145,7 +216,34 @@ export async function recordVideoInputReview(jobId: string, patch: Record<string
 			new Date(),
 		);
 		const data = object(job.videoExecution!.stageData);
-		const review = { ...object(data.inputReview), ...patch };
+		const current = object(data.inputReview);
+		if (
+			(patch.requestFingerprint !== undefined &&
+				patch.requestFingerprint !== object(job.inputSnapshot).requestFingerprint) ||
+			(current.imageTaskId && patch.imageTaskId && current.imageTaskId !== patch.imageTaskId)
+		)
+			throw new Error("VIDEO_INPUT_REVIEW_IDENTITY_CHANGED");
+		const next = { ...patch };
+		const currentImage = object(current.imageDecision);
+		const incomingImage = object(patch.imageDecision);
+		const terminalImage = (decision: Record<string, unknown>) =>
+			decision.decision === "ALLOW" ||
+			decision.decision === "REJECT" ||
+			(decision.decision === "REVIEW" && decision.reasonCode !== "IMAGE_PROCESSING");
+		// Callback wake and fallback retrieval can overlap. A late PENDING/error
+		// response must never replace the terminal evidence from the same task.
+		if (terminalImage(currentImage) && !terminalImage(incomingImage)) delete next.imageDecision;
+		// A rejection is monotonic even if a competing stale reader reports ALLOW.
+		if (terminalImage(currentImage) && currentImage.decision !== "ALLOW") delete next.imageDecision;
+		const review = { ...current, ...next };
+		if (
+			review.status === "ALLOW" &&
+			review.imageDecision &&
+			object(review.imageDecision).decision !== "ALLOW"
+		) {
+			review.status = "ERROR";
+			delete review.validUntil;
+		}
 		await tx.videoExecution.update({
 			where: { jobId },
 			data: {
@@ -160,9 +258,19 @@ export async function recordVideoInputReview(jobId: string, patch: Record<string
 	});
 }
 
-export async function claimVideoImageReview(jobId: string) {
+export interface VideoImageReviewPreparation {
+	ruleVersion: string;
+	requestFingerprint: string;
+	textSafetyProfile: VideoTextSafetyProfile;
+	callbackToken?: string;
+}
+
+export async function claimVideoImageReview(
+	jobId: string,
+	preparation?: VideoImageReviewPreparation,
+) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
-		const job = await lockedContext(tx, jobId);
+		const job = await lockedInputReviewContext(tx, jobId);
 		assertVideoInputIdentity(job);
 		await findApprovedVideoTemplateMotionReference(
 			object(job.inputSnapshot).videoEffectTemplate,
@@ -174,18 +282,61 @@ export async function claimVideoImageReview(jobId: string) {
 		if (
 			terminal.has(job.videoExecution!.stage) ||
 			job.videoExecution!.stage === "NEEDS_REVIEW" ||
+			job.attempts.length ||
 			review.imageSubmissionUncertain ||
 			review.imageTaskId ||
 			review.imageDecision
 		)
 			return false;
+		const snapshot = getVideoEffectiveInputSnapshot(job);
+		const identity = object(snapshot.inputIdentity);
+		if (
+			preparation &&
+			(snapshot.mode !== "image-to-video" ||
+				!identity.assetId ||
+				preparation.requestFingerprint !== snapshot.requestFingerprint ||
+				!videoTextSafetyProfilesMatch(
+					preparation.textSafetyProfile,
+					readVideoTextSafetyProfile(snapshot),
+				) ||
+				(preparation.callbackToken && !/^[A-Za-z0-9_-]{16,128}$/.test(preparation.callbackToken)))
+		)
+			throw new Error("VIDEO_INPUT_IDENTITY_CHANGED");
+		const prepared = preparation
+			? {
+					ruleVersion: preparation.ruleVersion,
+					requestFingerprint: preparation.requestFingerprint,
+					textSafetyProfile: preparation.textSafetyProfile,
+					...(preparation.callbackToken
+						? {
+								imageCallback: {
+									token: preparation.callbackToken,
+									assetId: identity.assetId,
+									checksum: identity.checksum,
+									objectKey: identity.objectKey,
+									storageEtag: identity.storageEtag,
+									storageVersionId: identity.storageVersionId,
+									verificationGeneration: identity.verificationGeneration,
+									requestFingerprint: snapshot.requestFingerprint,
+								},
+							}
+						: {}),
+				}
+			: {};
 		await tx.videoExecution.update({
 			where: { jobId },
 			data: {
+				...(preparation
+					? {
+							stage: "INPUT_REVIEW",
+							inputReviewStartedAt: job.videoExecution!.inputReviewStartedAt ?? new Date(),
+							lastProgressAt: new Date(),
+						}
+					: {}),
 				stateVersion: { increment: 1 },
 				stageData: {
 					...data,
-					inputReview: { ...review, imageSubmissionUncertain: true },
+					inputReview: { ...review, ...prepared, imageSubmissionUncertain: true },
 				} as Prisma.InputJsonValue,
 			},
 		});
@@ -204,7 +355,8 @@ export async function claimVideoProviderSubmission(input: {
 	| DeferredVideoProviderDispatch
 > {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
-		await lockProviderDispatchCapacity(tx, "kie");
+		// The retired project cap has no cross-job claim invariant. Owner storage
+		// and job locks below still protect capacity, immutable attempts and may-have-sent state.
 		await lockVideoOwnerStorage(tx, input.jobId);
 		const job = await lockedContext(tx, input.jobId);
 		const existing = job.attempts[0];
@@ -221,6 +373,8 @@ export async function claimVideoProviderSubmission(input: {
 			review.ruleVersion !== input.ruleVersion ||
 			!videoTextSafetyProfilesMatch(review.textSafetyProfile, textSafetyProfile) ||
 			!isApprovedVideoTextDecision(review.textDecision, textSafetyProfile) ||
+			(effectiveSnapshot.mode === "image-to-video" &&
+				object(review.imageDecision).decision !== "ALLOW") ||
 			review.requestFingerprint !== object(job.inputSnapshot).requestFingerprint ||
 			typeof review.validUntil !== "string" ||
 			!Number.isFinite(Date.parse(review.validUntil)) ||

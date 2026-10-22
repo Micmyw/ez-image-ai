@@ -1,5 +1,30 @@
 # Changelog
 
+## 2026-10-22 — Shorter image and video generation paths
+
+- Reuse validated image streams and immutable video inspection evidence to remove repeated transfers and decoding.
+- Continue image stages inside their existing Workflow and start independent reviews concurrently.
+- Fuse control-stage preparation and execution; callbacks wake the persisted phase owner instead of starting competing continuation chains.
+- Avoid redundant result queries after an explicit queued image-review response; retain callback delivery and polling recovery.
+- Keep immediate continuations independent of application clock skew and resume safely when a persisted wait deadline has already elapsed.
+- Begin input review after a private reference upload completes and reuse matching review evidence when generating.
+- Show temporary reference review progress and explain rejected or unavailable safety checks before a new generation is submitted.
+- Reserve ordinary streaming output storage with the transfer claim, while keeping recovery and quota checks.
+- Reduce temporary upload transaction conflicts under the existing storage concurrency switch, preserving quota, expiry and retry identity checks.
+- Avoid transaction restarts when a newly uploaded reference is still in its first safety review, preserving that review and its recovery state while generation waits for approval.
+- Reuse receipt-bound engine validation inside fused control execution and give each new event its own phase ownership.
+- Avoid unnecessary transaction restarts when submitting an eligible pre-reviewed reference, while retaining asset, review and credit fences.
+- Report confirmed transaction conflicts as a temporary request error instead of incorrectly blaming credits, assets or the provider.
+- Reduce repeated database reads during image review and preparation for generation submission.
+- Reuse database-query setup and eligible read-query plans in Workers while keeping each request's parameters, connection and transaction independent.
+- Replay private result hints on reconnect and coalesce duplicate hints while retaining periodic authorized status checks.
+- Remove the shared four-request control queue and stream ordinary image transfers independently, so unrelated generations can progress together.
+- Remove cross-user submission locks and allow first successful reviews to finish concurrently while preserving task ownership and incident recovery.
+- Release image transfer capacity before output review, remember early moderation callbacks, and wake waiting work when capacity becomes available.
+- Combine fresh image submission writes and overlap bounded video downloads/uploads. Add opt-in private result notifications with polling recovery.
+- Submit ordinary videos in one request while preserving price confirmation and retry recovery; include fresh private playback authorization with ready results.
+- Retain moderation, private access, credit accounting and recovery safeguards. These changes have local validation; production latency has not been measured.
+
 ## 2026-10-21 — Direct acquisition-source filters
 
 - Show registration sources such as chatgpt.com directly, combining UTM source with referring-site fallback while preserving unknown history.

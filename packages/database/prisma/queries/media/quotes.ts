@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { Prisma } from "../../generated/client";
-import { recordTextModerationOutcome } from "./moderation-operations";
+import { recordNewQuoteTextModerationOutcome } from "./moderation-operations";
 import type { MediaDatabaseClient, MediaTransactionClient } from "./types";
 import {
 	getMediaDatabaseClient,
@@ -38,6 +38,19 @@ export async function createModeratedGenerationQuoteTransaction(
 }
 
 export async function createModeratedGenerationQuote(
+	input: CreateModeratedGenerationQuoteInput,
+	client: MediaDatabaseClient,
+) {
+	const quote = await createModeratedGenerationQuoteRecord(input, client);
+	await recordNewQuoteTextModerationOutcome(
+		{ quoteId: quote.id, moderation: input.moderation },
+		client,
+	);
+	return quote;
+}
+
+/** Insert the immutable quote and audit. The owning transaction must also record its outcome. */
+export async function createModeratedGenerationQuoteRecord(
 	input: CreateModeratedGenerationQuoteInput,
 	client: MediaDatabaseClient,
 ) {
@@ -80,10 +93,6 @@ export async function createModeratedGenerationQuote(
 			metadata: {},
 		},
 	});
-	await recordTextModerationOutcome(
-		{ targetType: "QUOTE", targetId: quote.id, moderation: input.moderation },
-		client,
-	);
 	return quote;
 }
 

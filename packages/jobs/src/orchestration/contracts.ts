@@ -1,9 +1,53 @@
-export { OutboxDeliveryPendingError } from "../contracts";
+export {
+	OutboxDeliveryPendingError,
+	GenerationTransferRequiresHeavyError,
+	OutputTransferClaimConflictError,
+	SettlementTransactionConflictError,
+} from "../contracts";
 
 export interface TaskRequest {
 	taskId: string;
 	payload: Record<string, unknown>;
 	trace?: TaskTrace;
+	/** Private v1 delivery fence. Old receivers reject this envelope instead of ignoring it. */
+	outboxReceipt?: OutboxExecutionReceipt;
+}
+
+export interface OutboxExecutionReceipt {
+	eventId: string;
+	workerId: string;
+	leaseToken: string;
+}
+
+export type OutboxExecutionState = "completed" | "pending" | "lost";
+
+/** A durable phase owner, distinct from a short Outbox execution lease. */
+export interface ImagePhaseOwner {
+	workflowId: string;
+	phaseKey: string;
+	epoch: number;
+}
+
+export function parseImagePhaseOwner(value: unknown): ImagePhaseOwner {
+	const owner = value as Partial<ImagePhaseOwner> | null;
+	if (
+		!owner ||
+		typeof owner !== "object" ||
+		Array.isArray(owner) ||
+		Object.keys(owner).some((key) => !["workflowId", "phaseKey", "epoch"].includes(key)) ||
+		![owner.workflowId, owner.phaseKey].every(
+			(id) => typeof id === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(id),
+		) ||
+		!Number.isSafeInteger(owner.epoch) ||
+		owner.epoch! < 1
+	)
+		throw new Error("INVALID_IMAGE_PHASE_OWNER");
+	return { workflowId: owner.workflowId!, phaseKey: owner.phaseKey!, epoch: owner.epoch! };
+}
+
+export function imagePhaseEventType(value: ImagePhaseOwner): string {
+	const owner = parseImagePhaseOwner(value);
+	return `image-phase:${owner.phaseKey}:${owner.epoch}`;
 }
 
 /** Diagnostics only: never part of dispatch identity or business decisions. */
@@ -19,6 +63,9 @@ export interface TaskExecutionContext {
 	attempt: number;
 	maxAttempts: number;
 	runId: string;
+	/** Only an actual durable Workflow supplies this; direct wake run IDs are not owners. */
+	workflowId?: string;
+	phaseOwner?: ImagePhaseOwner;
 }
 
 export interface TaskDefinition {
@@ -29,7 +76,13 @@ export interface TaskDefinition {
 }
 
 export interface PollingTickResult {
+	phaseOwner?: ImagePhaseOwner;
+	phaseOwnershipLost?: boolean;
 	continuation?: TaskContinuation;
+	/** A successful read released its lease with a newly due persisted query. */
+	retryImmediately?: boolean;
+	/** Receiver-confirmed bound image review; a later tick may never submit. */
+	queryOnly?: boolean;
 	done: boolean;
 	waitSeconds: number;
 	/** Absent on old executors. False means no committed forwardable event. */
@@ -39,6 +92,7 @@ export interface PollingTickResult {
 export interface TaskContinuation {
 	eventIds: string[];
 	pollAttemptId?: string;
+	phaseOwner?: ImagePhaseOwner;
 	/** Absolute epoch milliseconds at which the committed events become due. */
 	notBefore?: number;
 }
@@ -60,8 +114,20 @@ export function parseTaskContinuation(value: unknown): TaskContinuation | undefi
 	return {
 		eventIds: [...new Set(next.eventIds)],
 		...(next.pollAttemptId ? { pollAttemptId: next.pollAttemptId } : {}),
+		...(next.phaseOwner === undefined ? {} : { phaseOwner: parseImagePhaseOwner(next.phaseOwner) }),
 		...(next.notBefore !== undefined ? { notBefore: next.notBefore } : {}),
 	};
+}
+
+/** One independent continuation per acknowledged item in a bounded Outbox batch. */
+export function parseTaskContinuations(value: unknown): TaskContinuation[] | undefined {
+	if (value === undefined) return undefined;
+	if (!Array.isArray(value) || value.length > 100) throw new Error("INVALID_TASK_CONTINUATIONS");
+	return value.map((item) => {
+		const continuation = parseTaskContinuation(item);
+		if (!continuation) throw new Error("INVALID_TASK_CONTINUATIONS");
+		return continuation;
+	});
 }
 
 export interface OutputReviewContinuation {
@@ -99,15 +165,43 @@ export function parsePollingTickResult(value: unknown): PollingTickResult {
 		typeof result.waitSeconds !== "number" ||
 		!Number.isFinite(result.waitSeconds) ||
 		(result.outboxCommitted !== undefined && typeof result.outboxCommitted !== "boolean") ||
-		(result.done ? result.waitSeconds !== 0 : result.waitSeconds < 1 || result.waitSeconds > 60)
+		(result.queryOnly !== undefined && typeof result.queryOnly !== "boolean") ||
+		(result.phaseOwnershipLost !== undefined && typeof result.phaseOwnershipLost !== "boolean") ||
+		(result.phaseOwnershipLost === true && result.done) ||
+		(result.retryImmediately !== undefined && typeof result.retryImmediately !== "boolean") ||
+		(result.retryImmediately === true && (result.done || result.waitSeconds !== 0)) ||
+		(result.done
+			? result.waitSeconds !== 0
+			: result.waitSeconds < (result.retryImmediately === true ? 0 : 1) || result.waitSeconds > 60)
 	)
 		throw new Error("INVALID_POLL_RESULT");
 	return {
 		done: result.done,
+		...(result.phaseOwner === undefined
+			? {}
+			: { phaseOwner: parseImagePhaseOwner(result.phaseOwner) }),
+		...(result.phaseOwnershipLost === undefined
+			? {}
+			: { phaseOwnershipLost: result.phaseOwnershipLost }),
 		waitSeconds: result.waitSeconds,
+		...(result.queryOnly === undefined ? {} : { queryOnly: result.queryOnly }),
+		...(result.retryImmediately === undefined ? {} : { retryImmediately: result.retryImmediately }),
 		...(result.continuation === undefined
 			? {}
 			: { continuation: parseTaskContinuation(result.continuation) }),
 		...(result.outboxCommitted === undefined ? {} : { outboxCommitted: result.outboxCommitted }),
 	};
+}
+
+/** Old Workflow instances cannot consume a pending response with zero delay. */
+export function serializePollingTickResult(
+	value: unknown,
+	supportsImmediatePolling: boolean,
+	legacyWaitSeconds: 1 | 5,
+): PollingTickResult {
+	const result = parsePollingTickResult(value);
+	if (supportsImmediatePolling || result.retryImmediately !== true) return result;
+	const compatible = { ...result, waitSeconds: legacyWaitSeconds };
+	delete compatible.retryImmediately;
+	return compatible;
 }

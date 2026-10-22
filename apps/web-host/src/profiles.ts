@@ -151,8 +151,12 @@ export function createProfileArtifacts(options: {
 			{ binding: "VIDEO_MEDIA_BUCKET", bucket_name: environment.MEDIA_BUCKET_NAME },
 		],
 		workflows: [{ ...videoWorkflow, script_name: settings.jobsName }],
-		services: [{ binding: "WORKER_SELF_REFERENCE", service: settings.websiteName }],
+		services: [
+			{ binding: "WORKER_SELF_REFERENCE", service: settings.websiteName },
+			{ binding: "JOBS_DISPATCH", service: settings.jobsName },
+		],
 	};
+	website.durable_objects = withMediaJobEventsBinding(website.durable_objects, settings.jobsName);
 	const jobsOverrides = (
 		options.jobsTemplate.env as Record<string, Record<string, unknown>> | undefined
 	)?.[target];
@@ -173,6 +177,14 @@ export function createProfileArtifacts(options: {
 	jobs.hyperdrive = hyperdrive;
 	jobs.images = { binding: "IMAGES" };
 	jobs.r2_buckets = [{ binding: "VIDEO_MEDIA_BUCKET", bucket_name: environment.MEDIA_BUCKET_NAME }];
+	jobs.durable_objects = withMediaJobEventsBinding(jobs.durable_objects);
+	jobs.services = [
+		...((jobs.services as Array<Record<string, unknown>> | undefined) ?? []).filter(
+			(binding) => !["JOBS_CONTROL", "JOBS_TRANSFER"].includes(String(binding.binding)),
+		),
+		{ binding: "JOBS_CONTROL", service: settings.jobsName, entrypoint: "ControlExecutor" },
+		{ binding: "JOBS_TRANSFER", service: settings.jobsName, entrypoint: "TransferExecutor" },
+	];
 	jobs.vars = {
 		...((jobs.vars as Record<string, unknown>) ?? {}),
 		...videoVars,
@@ -275,6 +287,21 @@ export function createProfileArtifacts(options: {
 			throw new Error(`WORKER_TEXT_BINDING_LIMIT: ${name} ${textBindings}/128`);
 	}
 	return artifacts;
+}
+
+/** Keep cache/executor identities while binding notifications to the selected jobs profile. */
+function withMediaJobEventsBinding(value: unknown, scriptName?: string) {
+	const current = value as { bindings?: Array<Record<string, unknown>> } | undefined;
+	return {
+		bindings: [
+			...(current?.bindings ?? []).filter((binding) => binding.name !== "MEDIA_JOB_EVENTS"),
+			{
+				name: "MEDIA_JOB_EVENTS",
+				class_name: "MediaJobEvents",
+				...(scriptName ? { script_name: scriptName } : {}),
+			},
+		],
+	};
 }
 
 function secretsWithoutVars(environment: Record<string, string>, config: Record<string, unknown>) {

@@ -5,6 +5,7 @@ import { applyProviderBillingFact } from "./lifecycle-reducer";
 
 vi.mock("@repo/database", async () => ({
 	...(await import("../../database/shared/admin-analytics-payment-evidence")),
+	...(await import("../../database/prisma/queries/media/credit-accounts")),
 	createCreditGrant: vi.fn(),
 	isDatabaseUniqueConflict: () => false,
 	PAYMENT_PROVIDER_CORRELATION_MISSING: "PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING",
@@ -102,7 +103,7 @@ function fixture(provider: "paypal" | "waffo", historical = false) {
 				return period;
 			},
 		},
-		creditAccount: { upsert: async () => ({ id: "account" }) },
+		creditAccount: { findUnique: async () => ({ id: "account" }) },
 		creditLedgerEntry: { findUnique: async () => null },
 	};
 	const fact: ProviderBillingFact = {

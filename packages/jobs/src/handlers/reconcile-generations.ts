@@ -3,7 +3,13 @@ import type { ReconciliationDependencies } from "../contracts";
 export async function reconcileGenerations(
 	input: { limit?: number; leaseSeconds?: number; attemptId?: string },
 	dependencies: ReconciliationDependencies,
-): Promise<{ claimed: number; reconciled: number; outboxCommitted?: boolean }> {
+): Promise<{
+	claimed: number;
+	reconciled: number;
+	outboxCommitted?: boolean;
+	phaseOwnershipLost?: true;
+	phaseOwner?: import("@repo/database").ImagePhaseOwner;
+}> {
 	if (input.attemptId !== undefined && !input.attemptId.trim()) {
 		throw new Error("INVALID_GENERATION_ATTEMPT_ID");
 	}
@@ -29,9 +35,9 @@ export async function reconcileGenerations(
 			);
 			continue;
 		}
-		let adapter: ReturnType<ReconciliationDependencies["getProvider"]>;
+		let adapter: ReturnType<ReconciliationDependencies["getProvider"]> | undefined;
 		try {
-			adapter = dependencies.getProvider(lease.provider);
+			if (!lease.completion) adapter = dependencies.getProvider(lease.provider);
 		} catch {
 			await dependencies.store.markUncertainForManualReconciliation(
 				lease,
@@ -40,13 +46,23 @@ export async function reconcileGenerations(
 			continue;
 		}
 		try {
-			const snapshot = await adapter.retrieve({
-				providerTaskId: lease.providerTaskId,
-				statusUrl: lease.statusUrl,
-				resultUrl: lease.resultUrl,
-			});
-			const result = await adapter.normalizeResult(snapshot);
+			const snapshot =
+				lease.completion?.snapshot ??
+				(await adapter!.retrieve({
+					providerTaskId: lease.providerTaskId,
+					statusUrl: lease.statusUrl,
+					resultUrl: lease.resultUrl,
+				}));
+			const result = lease.completion?.result ?? (await adapter!.normalizeResult(snapshot));
 			const progress = await dependencies.store.recordReconciled(lease, snapshot, result);
+			if (progress?.phaseOwnershipLost)
+				return {
+					claimed: leases.length,
+					reconciled,
+					outboxCommitted: false,
+					phaseOwnershipLost: true,
+					...(lease.phaseOwner ? { phaseOwner: lease.phaseOwner } : {}),
+				};
 			if (progress?.outboxCommitted) outboxCommitted = true;
 			else if (progress === undefined && outboxCommitted !== true) outboxCommitted = undefined;
 			reconciled += 1;

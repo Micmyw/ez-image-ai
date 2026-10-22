@@ -37,14 +37,6 @@ vi.mock("@repo/storage", () => ({
 }));
 vi.mock("@repo/database/client", () => {
 	const db = {
-		generationJob: {
-			findFirst: async (query: unknown) => {
-				fixture.counts.jobRead++;
-				fixture.queries.push(query);
-				await fixture.delay(40);
-				return fixture.job;
-			},
-		},
 		mediaAsset: {
 			findFirst: async () => {
 				fixture.counts.assetRead++;
@@ -55,6 +47,14 @@ vi.mock("@repo/database/client", () => {
 	};
 	return { db, getDatabaseClient: () => db };
 });
+vi.mock("@repo/database/media-job-status", () => ({
+	getOwnedGenerationJobStatus: async (jobId: string, ownerId: string) => {
+		fixture.counts.jobRead++;
+		fixture.queries.push({ jobId, ownerId });
+		await fixture.delay(40);
+		return fixture.job;
+	},
+}));
 import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
 import { getAssetAccessUrl } from "./get-asset-access-url";
 import { getJob } from "./get-job";
@@ -154,6 +154,7 @@ describe("fixed-delay status delivery simulation", () => {
 				).url;
 			}
 			expect(url).toBe("https://simulation.invalid/image");
+			expect(fixture.counts).toEqual({ jobRead: 1, assetRead: 0, sign: 1 });
 			samples.push({
 				readyToImageRequestMs: performance.now() - start,
 				statusProcedureMs,

@@ -34,6 +34,7 @@ import type { VideoWorkflowBinding, VideoRequestInput } from "./contracts";
 import { failVideoJob, finalizeVideoJob, reviewStoredVideo, storeVideoOutput } from "./fulfillment";
 import { acceptSeeapiVideoModerationWebhook } from "./seeapi-webhooks";
 import { confirmVideoProviderResult, reviewVideoInput, submitVideoAttempt } from "./submission";
+import { expectVideoNotificationOutbox } from "./video-outbox.test-fixtures";
 import { seeapiEnvelope } from "./video-safety.test-fixtures";
 import { acceptVideoProviderWebhook } from "./webhooks";
 import { runWithVideoWorkflowBinding } from "./workflow-binding";
@@ -117,15 +118,27 @@ vi.mock("@repo/storage", async (original) => {
 				metadata: {},
 			};
 		},
-		readPrivateMediaStream: async ({ key, ifMatch }: { key: string; ifMatch?: string }) => {
+		readPrivateMediaStream: async ({
+			key,
+			ifMatch,
+			range,
+		}: {
+			key: string;
+			ifMatch?: string;
+			range?: { start: number; end: number };
+		}) => {
 			const object = external.objects.get(key);
 			if (!object || ifMatch !== object.etag) throw new Error("MOCK_OBJECT_IDENTITY_CHANGED");
 			external.outputReads.push(key);
+			const bytes = range ? object.bytes.subarray(range.start, range.end + 1) : object.bytes;
 			return {
+				contentLength: bytes.length,
+				contentType: "video/mp4",
+				etag: object.etag,
 				body: new ReadableStream<Uint8Array>({
 					start(controller) {
-						for (let at = 0; at < object.bytes.length; at += 1024)
-							controller.enqueue(object.bytes.subarray(at, at + 1024));
+						for (let at = 0; at < bytes.length; at += 1024)
+							controller.enqueue(bytes.subarray(at, at + 1024));
 						controller.close();
 					},
 				}),
@@ -656,7 +669,7 @@ describe("video V1 actual-domain Mock end-to-end and measured concurrency", () =
 					where: { reservationId: job.reservation!.id, type: "SETTLE" },
 				}),
 			).toBe(1);
-			expect(await client.outboxEvent.count({ where: { aggregateId: job.id } })).toBe(0);
+			await expectVideoNotificationOutbox(client, job.id);
 			expect(await authorizeVideoPlayback(fixture.ownerId, job.id)).not.toBeNull();
 			expect(await authorizeVideoPlayback("other-owner", job.id)).toBeNull();
 			const acceptedCallback = external.tasks.get(job.attempts[0]!.providerTaskId!)!.callbackUrl;
@@ -664,6 +677,7 @@ describe("video V1 actual-domain Mock end-to-end and measured concurrency", () =
 				await runVideoGenerationV1({ jobId: job.id, schemaVersion: 1 }, steps, services),
 			).toEqual({ completed: true, stage: "READY" });
 			await finalizeVideoJob(job.id);
+			await expectVideoNotificationOutbox(client, job.id);
 			expect(
 				[...external.tasks.values()].filter((task) => task.callbackUrl === acceptedCallback),
 			).toHaveLength(1);

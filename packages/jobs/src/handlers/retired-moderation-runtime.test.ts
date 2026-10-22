@@ -41,7 +41,10 @@ function fixture(provider: string, status = "VERIFYING") {
 		$executeRaw: vi.fn(async () => 1),
 		$queryRaw: vi.fn(async () => []),
 		mediaAsset: { findUnique: async () => asset, updateMany, update },
-		assetModerationResult: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({})) },
+		assetModerationResult: {
+			findFirst: vi.fn(async () => null),
+			createMany: vi.fn(async () => ({ count: 0 })),
+		},
 		auditLog: { findFirst: vi.fn(async () => null), create: vi.fn(async () => ({})) },
 	};
 	const database = {
@@ -107,7 +110,7 @@ describe("retired Sightengine moderation runtime", () => {
 			expect(f.safety.retrieveImage).not.toHaveBeenCalled();
 			expect(f.safety.moderateImage).not.toHaveBeenCalled();
 			expect(f.inspect).not.toHaveBeenCalled();
-			expect(f.tx.assetModerationResult.create).not.toHaveBeenCalled();
+			expect(f.tx.assetModerationResult.createMany).not.toHaveBeenCalled();
 		},
 	);
 	it.each(["READY", "QUARANTINED", "VERIFICATION_FAILED"])(
@@ -123,7 +126,7 @@ describe("retired Sightengine moderation runtime", () => {
 			expect(f.tx.mediaAsset.update).not.toHaveBeenCalled();
 			expect(f.safety.submitImage).not.toHaveBeenCalled();
 			expect(f.safety.retrieveImage).not.toHaveBeenCalled();
-			expect(f.tx.assetModerationResult.create).not.toHaveBeenCalled();
+			expect(f.tx.assetModerationResult.createMany).not.toHaveBeenCalled();
 		},
 	);
 	it("excludes retired provider assets before the recovery batch limit", async () => {

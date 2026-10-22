@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
 	completeStore: vi.fn(),
 	releaseStore: vi.fn(),
 	inspect: vi.fn(),
+	inspectPersisted: vi.fn(),
 	transfer: vi.fn(),
 	snapshot: vi.fn(),
 	finalize: vi.fn(),
@@ -25,6 +26,7 @@ const mocks = vi.hoisted(() => ({
 	seeapiClaim: vi.fn(),
 	seeapiRecord: vi.fn(),
 	callbackUrl: vi.fn(),
+	publish: vi.fn(),
 }));
 vi.mock("@repo/database/video-v1-fulfillment", () => ({
 	claimVideoOutputReview: async (jobId: string, deadlineSeconds: number) => {
@@ -45,6 +47,7 @@ vi.mock("@repo/database/video-v1-fulfillment", () => ({
 }));
 vi.mock("./output-storage", () => ({
 	inspectVideoObject: mocks.inspect,
+	inspectPersistedVideoObject: mocks.inspectPersisted,
 	transferVideoOutput: mocks.transfer,
 }));
 vi.mock("@repo/storage", () => ({ createSignedReadUrl: mocks.sign }));
@@ -54,7 +57,8 @@ vi.mock("@repo/database/video-v1-seeapi-events", () => ({
 }));
 vi.mock("./seeapi-callback-url", () => ({ createSeeapiVideoCallbackUrl: mocks.callbackUrl }));
 vi.mock("./seeapi-webhooks", () => ({ notifyPendingSeeapiVideoModerationEvents: vi.fn() }));
-import { reviewStoredVideo, storeVideoOutput } from "./fulfillment";
+vi.mock("../realtime/publish", () => ({ publishCommittedMediaJobNotification: mocks.publish }));
+import { finalizeVideoJob, reviewStoredVideo, storeVideoOutput } from "./fulfillment";
 const asset = {
 	id: "sealed-output",
 	objectKey: "users/u/video/immutable.mp4",
@@ -121,8 +125,11 @@ describe("video fulfillment stage recovery", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mocks.inspect.mockResolvedValue(object);
+		mocks.inspectPersisted.mockResolvedValue(object);
 		mocks.sign.mockResolvedValue("https://private.invalid/signed-no-log");
 		mocks.beginSubmission.mockResolvedValue(undefined);
+		mocks.fail.mockResolvedValue({ jobId: "job", stage: "REJECTED" });
+		mocks.publish.mockResolvedValue(true);
 		mocks.seeapiClaim.mockResolvedValue({
 			status: "CLAIMED",
 			eventId: "event",
@@ -224,6 +231,36 @@ describe("video fulfillment stage recovery", () => {
 		});
 		expect(mocks.transfer).not.toHaveBeenCalled();
 	});
+	it("transfers a newly claimed identity directly, then recovers a failed DB commit without retransferring", async () => {
+		const claim = {
+			status: "CLAIMED",
+			token: "transfer",
+			asset,
+			maxBytes: 10000,
+			sourceUrl: "https://provider.invalid/result",
+		};
+		mocks.claimStore
+			.mockResolvedValueOnce({ ...claim, freshTransfer: true })
+			.mockResolvedValueOnce({ ...claim, freshTransfer: false });
+		mocks.transfer.mockResolvedValueOnce(object);
+		mocks.completeStore
+			.mockRejectedValueOnce(new Error("DB interrupted"))
+			.mockResolvedValueOnce(asset);
+		await expect(storeVideoOutput("job", {})).rejects.toThrow("DB interrupted");
+		expect(mocks.inspect).not.toHaveBeenCalled();
+		expect(mocks.transfer).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({ freshTransfer: true, key: asset.objectKey }),
+		);
+		expect(mocks.releaseStore).toHaveBeenCalledWith("job", asset.id, "transfer");
+		expect(await storeVideoOutput("job", {})).toEqual({
+			assetId: asset.id,
+			checksum: asset.checksum,
+			byteSize: "1000",
+		});
+		expect(mocks.inspect).toHaveBeenCalledExactlyOnceWith(asset.objectKey, undefined, undefined);
+		expect(mocks.transfer).toHaveBeenCalledOnce();
+		expect(mocks.completeStore).toHaveBeenLastCalledWith("job", asset.id, "transfer", object);
+	});
 	it.each(["transfer", "recovery", "stored"] as const)(
 		"passes the frozen audio policy through the %s storage path",
 		async (path) => {
@@ -316,7 +353,7 @@ describe("video fulfillment stage recovery", () => {
 			videoExecution: { stageData: { outputSpec: { audioTracks: 1, audioTrackIds: [2] } } },
 			assets: [{ asset: { ...asset, durationMillis: 6000n } }],
 		});
-		mocks.inspect.mockResolvedValue({ ...object, durationMillis: 6000 });
+		mocks.inspectPersisted.mockResolvedValue({ ...object, durationMillis: 6000 });
 		mocks.claimReview
 			.mockResolvedValueOnce({
 				status: "SUBMIT",
@@ -339,7 +376,7 @@ describe("video fulfillment stage recovery", () => {
 	});
 	it("retries a local inspection failure before acquiring the paid moderation fence", async () => {
 		mocks.claimReview.mockResolvedValue({ status: "SUBMIT", token: "submit", asset });
-		mocks.inspect.mockRejectedValueOnce(new Error("R2_UNAVAILABLE"));
+		mocks.inspectPersisted.mockRejectedValueOnce(new Error("R2_UNAVAILABLE"));
 		const safety = adapter({
 			decision: "REVIEW",
 			reasonCode: "VIDEO_PROCESSING",
@@ -708,4 +745,48 @@ describe("video fulfillment stage recovery", () => {
 			expect(safety.submitVideo).not.toHaveBeenCalled();
 		},
 	);
+});
+
+describe("final delivery uses persisted inspection without bypassing settlement", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mocks.inspectPersisted.mockResolvedValue(object);
+		mocks.finalize.mockResolvedValue({ jobId: "job", stage: "READY" });
+	});
+	it("passes only the current output record and frozen constraints to the inspection verifier", async () => {
+		const inputSnapshot = { duration: 5 };
+		const outputSpec = { checksum: asset.checksum, etag: asset.storageEtag };
+		mocks.snapshot.mockResolvedValue({
+			inputSnapshot,
+			assets: [{ asset }],
+			videoExecution: { stageData: { outputSpec } },
+		});
+		expect(await finalizeVideoJob("job")).toEqual({ jobId: "job", stage: "READY" });
+		expect(mocks.publish).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({ jobId: "job", version: "video:ready" }),
+		);
+		expect(mocks.inspectPersisted).toHaveBeenCalledExactlyOnceWith(
+			asset,
+			outputSpec,
+			videoOutputConstraints(inputSnapshot),
+		);
+		expect(mocks.inspect).not.toHaveBeenCalled();
+		expect(mocks.finalize).toHaveBeenCalledExactlyOnceWith("job", {
+			assetId: asset.id,
+			checksum: object.checksum,
+			etag: object.etag,
+			checkedAt: expect.any(Date),
+		});
+	});
+	it("never settles an unreadable private object", async () => {
+		mocks.snapshot.mockResolvedValue({
+			inputSnapshot: { duration: 5 },
+			assets: [{ asset }],
+			videoExecution: { stageData: {} },
+		});
+		mocks.inspectPersisted.mockResolvedValue(null);
+		await expect(finalizeVideoJob("job")).rejects.toThrow("VIDEO_FINAL_OUTPUT_UNREADABLE");
+		expect(mocks.finalize).not.toHaveBeenCalled();
+		expect(mocks.publish).not.toHaveBeenCalled();
+	});
 });

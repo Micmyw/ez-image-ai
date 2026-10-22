@@ -1770,6 +1770,7 @@
 				"paused": "Upload paused",
 				"uploadFailed": "Upload failed · retry or remove",
 				"uploadedForGeneration": "Uploaded. Safety is checked when you generate.",
+				"reviewStatusUnavailable": "Uploaded. Review status is temporarily unavailable; it will be checked when you generate.",
 				"expired": "This reference has expired. Please upload it again."
 			},
 			"mode": {

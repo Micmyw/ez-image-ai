@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/auth/lib/anonymous-boundary", () => ({
 	isAnonymousUser: (user: { isAnonymous?: boolean }) => user.isAnonymous === true,
@@ -10,7 +10,11 @@ import { authorizeVideoPlayback } from "@repo/database/video-v1-fulfillment";
 import { headObject, readPrivateMediaStream } from "@repo/storage";
 
 import { redactVideoAccessLog } from "./log-redaction";
-import { createVideoPlayback, serveVideoPlayback } from "./playback";
+import {
+	createVideoPlayback,
+	createVideoPlaybackFromAuthorizedAsset,
+	serveVideoPlayback,
+} from "./playback";
 const asset = {
 	id: "asset",
 	checksum: "a".repeat(64),
@@ -41,6 +45,7 @@ beforeEach(() => {
 		};
 	});
 });
+afterEach(() => vi.useRealTimers());
 async function request(method = "GET", range?: string) {
 	const access = await createVideoPlayback("owner", "job");
 	return new Request(new URL(access.url, "http://localhost"), {
@@ -55,6 +60,13 @@ describe("private MP4 HTTP semantics", () => {
 		expect(response.headers.get("content-range")).toBe("bytes 2-5/10");
 		expect(response.headers.get("content-length")).toBe("4");
 		expect((await response.arrayBuffer()).byteLength).toBe(4);
+		expect(headObject).not.toHaveBeenCalled();
+		expect(readPrivateMediaStream).toHaveBeenCalledExactlyOnceWith({
+			bucket: "media",
+			key: asset.objectKey,
+			ifMatch: asset.storageEtag,
+			range: { start: 2, end: 5 },
+		});
 	});
 	it("HEAD has complete length and opens no body", async () => {
 		const response = await serveVideoPlayback(await request("HEAD", "bytes=2-5"), "job");
@@ -62,6 +74,7 @@ describe("private MP4 HTTP semantics", () => {
 		expect(response.headers.get("content-length")).toBe("10");
 		expect(await response.text()).toBe("");
 		expect(readPrivateMediaStream).not.toHaveBeenCalled();
+		expect(headObject).toHaveBeenCalledTimes(1);
 	});
 	it("returns 416 for unsatisfiable ranges and full200 for unsupported multi-range", async () => {
 		const invalid = await serveVideoPlayback(await request("GET", "bytes=20-"), "job");
@@ -75,13 +88,99 @@ describe("private MP4 HTTP semantics", () => {
 		const granted = await request();
 		vi.mocked(authorizeVideoPlayback).mockResolvedValueOnce(null);
 		expect((await serveVideoPlayback(granted, "job")).status).toBe(404);
-		vi.mocked(headObject).mockResolvedValueOnce({
+		vi.mocked(readPrivateMediaStream).mockResolvedValueOnce({
 			contentLength: 10,
 			contentType: "video/mp4",
 			etag: '"replaced"',
-			metadata: {},
+			body: new ReadableStream(),
 		});
 		expect((await serveVideoPlayback(granted, "job")).status).toBe(409);
+	});
+	it.each([undefined, "bytes=2-5"])(
+		"opens GET %s in one 100ms storage operation instead of HEAD plus GET",
+		async (range) => {
+			vi.useFakeTimers();
+			const granted = await request("GET", range);
+			vi.mocked(headObject).mockImplementation(async () => {
+				await new Promise((resolve) => setTimeout(resolve, 40));
+				return {
+					contentLength: 10,
+					contentType: "video/mp4",
+					etag: asset.storageEtag,
+					metadata: {},
+				};
+			});
+			vi.mocked(readPrivateMediaStream).mockImplementation(async (input) => {
+				await new Promise((resolve) => setTimeout(resolve, 100));
+				const size = input.range ? input.range.end - input.range.start + 1 : 10;
+				return {
+					contentLength: size,
+					contentType: "video/mp4",
+					etag: asset.storageEtag,
+					body: new Blob([new Uint8Array(size)]).stream(),
+				};
+			});
+			const startedAt = Date.now();
+			const pending = serveVideoPlayback(granted, "job");
+			await vi.runAllTimersAsync();
+			expect((await pending).status).toBe(range ? 206 : 200);
+			expect(Date.now() - startedAt).toBe(100);
+			expect(headObject).not.toHaveBeenCalled();
+			expect(readPrivateMediaStream).toHaveBeenCalledTimes(1);
+		},
+	);
+	it.each([{ name: "PreconditionFailed" }, { $metadata: { httpStatusCode: 412 } }])(
+		"returns 409 for an If-Match rejection without exposing a body",
+		async (details) => {
+			const granted = await request("GET", "bytes=2-5");
+			vi.mocked(readPrivateMediaStream).mockRejectedValueOnce(
+				Object.assign(new Error("changed"), details),
+			);
+			const response = await serveVideoPlayback(granted, "job");
+			expect(response.status).toBe(409);
+			expect(response.headers.has("content-length")).toBe(false);
+			expect(response.headers.has("content-range")).toBe(false);
+			expect(await response.text()).toBe("");
+		},
+	);
+	it.each([{ contentLength: 9 }, { contentType: "text/html" }, { etag: "other" }])(
+		"cancels a GET body with changed identity metadata %j",
+		async (changed) => {
+			const cancel = vi.fn();
+			vi.mocked(readPrivateMediaStream).mockResolvedValueOnce({
+				contentLength: 10,
+				contentType: "video/mp4",
+				etag: asset.storageEtag,
+				...changed,
+				body: new ReadableStream({ cancel }),
+			});
+			expect((await serveVideoPlayback(await request(), "job")).status).toBe(409);
+			expect(cancel).toHaveBeenCalledTimes(1);
+		},
+	);
+	it("retains HEAD object identity validation", async () => {
+		vi.mocked(headObject).mockResolvedValueOnce({
+			contentLength: 11,
+			contentType: "video/mp4",
+			etag: asset.storageEtag,
+			metadata: {},
+		});
+		expect((await serveVideoPlayback(await request("HEAD"), "job")).status).toBe(409);
+		expect(readPrivateMediaStream).not.toHaveBeenCalled();
+	});
+	it("signs already-authorized assets without another database read and still checks expiry", async () => {
+		vi.useFakeTimers();
+		expect(createVideoPlaybackFromAuthorizedAsset("owner", "job", asset)).toEqual(
+			await createVideoPlayback("owner", "job"),
+		);
+		expect(authorizeVideoPlayback).toHaveBeenCalledTimes(1);
+		expect(() => createVideoPlaybackFromAuthorizedAsset("owner", "job", null)).toThrow("NOT_FOUND");
+		expect(() =>
+			createVideoPlaybackFromAuthorizedAsset("owner", "job", {
+				...asset,
+				verificationValidUntil: new Date(0),
+			}),
+		).toThrow("VIDEO_ACCESS_EXPIRED");
 	});
 	it("rejects expired grants and unsigned anonymous playback", async () => {
 		const granted = await request();

@@ -38,6 +38,7 @@ import { getGrantedGuestJob, getGuestJob } from "./procedures/get-guest-job";
 import { getImagePassBalance } from "./procedures/get-image-pass-balance";
 import { getJob } from "./procedures/get-job";
 import { getPublicCatalog } from "./procedures/get-public-catalog";
+import { getTemporaryReferenceStatus } from "./procedures/get-temporary-reference-status";
 import { listAssets } from "./procedures/list-assets";
 import { listEditSessions } from "./procedures/list-edit-sessions";
 import { listJobs } from "./procedures/list-jobs";
@@ -55,6 +56,7 @@ export const mediaRouter = {
 	adminModerationReviewAction,
 	adminModerationAcknowledge,
 	getPublicCatalog,
+	getTemporaryReferenceStatus,
 	createQuote,
 	createGeneration,
 	submitGeneration,

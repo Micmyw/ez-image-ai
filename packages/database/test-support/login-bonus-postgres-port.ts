@@ -128,13 +128,13 @@ export class LoginBonusPostgresPort {
 					)[0];
 				return row;
 			};
-			const create = async ({ data }: { data: Row }) => {
+			const create = async ({ data, skipDuplicates }: { data: Row; skipDuplicates?: boolean }) => {
 				const entries = Object.entries({ id: randomUUID(), ...data }).filter(
 					([, value]) => value !== undefined,
 				);
 				return (
 					await query(
-						`INSERT INTO ${this.table(name)} (${entries.map(([key]) => `"${key}"`).join(",")}) VALUES (${entries.map((_, i) => `$${i + 1}`).join(",")}) RETURNING *`,
+						`INSERT INTO ${this.table(name)} (${entries.map(([key]) => `"${key}"`).join(",")}) VALUES (${entries.map((_, i) => `$${i + 1}`).join(",")}) ${skipDuplicates ? "ON CONFLICT DO NOTHING " : ""}RETURNING *`,
 						entries.map(([, value]) => value),
 					)
 				)[0];
@@ -148,9 +148,17 @@ export class LoginBonusPostgresPort {
 					return row;
 				},
 				create,
-				createMany: async ({ data }: { data: Row[] }) => {
-					for (const row of data) await create({ data: row });
-					return { count: data.length };
+				createMany: async ({
+					data,
+					skipDuplicates,
+				}: {
+					data: Row | Row[];
+					skipDuplicates?: boolean;
+				}) => {
+					let count = 0;
+					for (const row of Array.isArray(data) ? data : [data])
+						if (await create({ data: row, skipDuplicates })) count++;
+					return { count };
 				},
 				update: async ({ where, data }: { where: Row; data: Row }) => {
 					const values: unknown[] = [];
@@ -206,6 +214,36 @@ export class LoginBonusPostgresPort {
 	}
 	client(): MediaTransactionClient {
 		return {
+			user: {
+				findUnique: async ({ where }: { where: { id: string } }) =>
+					(await this.rows(`SELECT * FROM ${this.table("user")} WHERE id=$1`, [where.id]))[0] ??
+					null,
+			},
+			creditLedgerEntry: {
+				findUnique: async ({
+					where,
+					include,
+				}: {
+					where: { referenceKey: string };
+					include?: Row;
+				}) => {
+					const entry =
+						(
+							await this.rows(
+								`SELECT * FROM ${this.table("credit_ledger_entry")} WHERE "referenceKey"=$1`,
+								[where.referenceKey],
+							)
+						)[0] ?? null;
+					if (entry && include?.account)
+						entry.account = (
+							await this.rows(
+								`SELECT "ownerType","ownerId" FROM ${this.table("credit_account")} WHERE id=$1`,
+								[entry.accountId],
+							)
+						)[0];
+					return entry;
+				},
+			},
 			$transaction: <T>(
 				operation: (tx: Prisma.TransactionClient) => Promise<T>,
 				options?: { isolationLevel: string },

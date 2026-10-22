@@ -25,6 +25,43 @@ export const paymentProductKindEnum = pgEnum("PaymentProductKind", [
 
 export const ownerTypeEnum = pgEnum("OwnerType", ["USER", "ORGANIZATION"]);
 
+export const mediaOwnerStorageFence = pgTable(
+	"media_owner_storage_fence",
+	{
+		ownerType: ownerTypeEnum("ownerType").notNull(),
+		ownerId: text("ownerId").notNull(),
+		revision: bigint("revision", { mode: "bigint" }).notNull().default(0n),
+	},
+	(table) => [primaryKey({ columns: [table.ownerType, table.ownerId] })],
+);
+
+export const mediaWorkflowPhaseOwner = pgTable(
+	"media_workflow_phase_owner",
+	{
+		phaseKey: text("phaseKey")
+			.primaryKey()
+			.$defaultFn(() => crypto.randomUUID()),
+		phaseKind: text("phaseKind").notNull(),
+		subjectId: text("subjectId").notNull(),
+		generation: integer("generation").notNull(),
+		workflowId: text("workflowId").notNull(),
+		epoch: integer("epoch").notNull().default(1),
+		leasedUntil: timestamp("leasedUntil", { withTimezone: true, precision: 3 }).notNull(),
+		createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+		updatedAt: timestamp("updatedAt", { withTimezone: true, precision: 3 })
+			.notNull()
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		uniqueIndex("media_workflow_phase_owner_phaseKind_subjectId_generation_key").on(
+			table.phaseKind,
+			table.subjectId,
+			table.generation,
+		),
+		index("media_workflow_phase_owner_leasedUntil_idx").on(table.leasedUntil),
+	],
+);
+
 export const subscriptionStatusEnum = pgEnum("SubscriptionStatus", [
 	"PENDING",
 	"ACTIVE",

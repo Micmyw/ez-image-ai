@@ -1,6 +1,6 @@
-import { wakeKieGenerationAttempt } from "@repo/database";
+import { wakeKieGenerationAttemptWithOwner, type wakeKieGenerationAttempt } from "@repo/database";
 import { db } from "@repo/database/client";
-import { dispatchJob } from "@repo/jobs/orchestration/client";
+import { wakeJob } from "@repo/jobs/orchestration/client";
 import { verifyKieCompletionCallback } from "@repo/jobs/orchestration/kie-callback-auth";
 import { z } from "zod";
 
@@ -17,18 +17,21 @@ interface Dependencies {
 			providerTaskId: string;
 		},
 		timing: FlowTiming,
-	): ReturnType<typeof wakeKieGenerationAttempt>;
-	dispatch: typeof dispatchJob;
+	): Promise<
+		| Awaited<ReturnType<typeof wakeKieGenerationAttemptWithOwner>>
+		| Awaited<ReturnType<typeof wakeKieGenerationAttempt>>
+	>;
+	dispatch: typeof wakeJob;
 }
 
 export function createKieCallbackHandler(
 	dependencies: Dependencies = {
 		secret: () => process.env.WORKFLOWS_DISPATCH_SECRET,
 		wake: (input, timing) =>
-			wakeKieGenerationAttempt(input, db, {
+			wakeKieGenerationAttemptWithOwner(input, db, {
 				onTiming: (stage, elapsedMs) => timing.mark(`callback.db.${stage}`, elapsedMs),
 			}),
-		dispatch: dispatchJob,
+		dispatch: wakeJob,
 	},
 ) {
 	return async (request: Request): Promise<Response> => {
@@ -52,10 +55,11 @@ export function createKieCallbackHandler(
 			const outcome = await timing.measure("callback.database", () =>
 				dependencies.wake({ attemptId, providerTaskId }, timing),
 			);
-			if (outcome === "invalid") return Response.json({ code: "WEBHOOK_INVALID" }, { status: 400 });
-			// The provider may finish before submission acceptance is committed locally.
-			if (outcome === "pending") return Response.json({ code: "CALLBACK_RETRY" }, { status: 503 });
-			if (outcome === "ready") {
+			const status = typeof outcome === "string" ? outcome : outcome.status;
+			const phaseOwner = typeof outcome === "string" ? undefined : outcome.phaseOwner;
+			if (status === "invalid") return Response.json({ code: "WEBHOOK_INVALID" }, { status: 400 });
+			// Early or duplicate notices are durable; the original acceptance/query owns recovery.
+			if (status === "ready") {
 				try {
 					await timing.measure("callback.wake", () =>
 						dependencies.dispatch(
@@ -64,6 +68,7 @@ export function createKieCallbackHandler(
 							{
 								idempotencyKey: `generation-callback:${attemptId}`,
 								timeoutMs: 3_000,
+								...(phaseOwner ? { phaseOwner } : {}),
 							},
 						),
 					);

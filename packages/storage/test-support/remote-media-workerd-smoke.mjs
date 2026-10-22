@@ -20,8 +20,9 @@ const workerd = miniflareRequire("workerd");
 await mkdir(output, { recursive: true });
 
 const entry = `
+import { Readable } from 'node:stream';
 import { runWithCloudflareRemoteMedia } from ${JSON.stringify(path.join(root, "packages/storage/lib/cloudflare-remote-media.ts"))};
-import { requestRemoteMediaStream, copyRemoteStreamToMultipart } from ${JSON.stringify(path.join(root, "packages/storage/lib/stream-copy.ts"))};
+import { requestRemoteMediaStream, openInspectedRemoteMedia, copyRemoteStreamToMultipart } from ${JSON.stringify(path.join(root, "packages/storage/lib/stream-copy.ts"))};
 const settings = {
   allowedHosts: ['cdn.provider.test', 'files.provider.test', 'private.provider.test', 'localhost'],
   maxRedirects: 2, connectTimeoutMs: 1000, totalTimeoutMs: 3000,
@@ -29,6 +30,37 @@ const settings = {
 export default { async fetch(request) {
   const mode = new URL(request.url).pathname.slice(1);
   try {
+    if (['unused-inspected', 'held-inspected-error', 'pending-inspected-cancel'].includes(mode)) {
+      let sent = false, cancelled = false;
+      const source = new Readable({
+        read() { if (!sent) { sent = true; this.push(Buffer.from([137,80,78,71,13,10,26,10])); } },
+        destroy(error, callback) { cancelled = true; callback(error); },
+      });
+      const opened = await openInspectedRemoteMedia('https://cdn.provider.test/image.png', {
+        ...settings, expectedKind: 'image',
+        resolve: async () => [{ address: '8.8.8.8', family: 4 }],
+        request: async () => ({ status: 200, headers: {}, stream: source }),
+      });
+      if (mode === 'unused-inspected') {
+        const closed = new Promise(resolve => opened.stream.once('close', resolve));
+        opened.stream.destroy();
+        await closed;
+        return Response.json({ cancelled, contentType: opened.contentType });
+      }
+      if (mode === 'pending-inspected-cancel') {
+        const reader = opened.stream[Symbol.asyncIterator]();
+        await reader.next();
+        const pending = reader.next();
+        opened.stream.destroy(new Error('TRANSFER_CANCELLED'));
+        try { await pending; } catch (error) { return Response.json({ cancelled, error: error.message }); }
+        throw new Error('Pending read did not reject');
+      }
+      source.destroy(new Error('SUPPLIER_TOTAL_TIMEOUT'));
+      await new Promise(resolve => setTimeout(resolve, 0));
+      try { for await (const chunk of opened.stream) { /* consume after the database hold */ } }
+      catch (error) { return Response.json({ cancelled, error: error.message }); }
+      throw new Error('Held supplier error did not propagate');
+    }
     if (mode === 'private-network') {
       const addresses = ['127.0.0.1', '10.0.0.1', '169.254.169.254', '[::1]', '[fd00::1]', '[::ffff:127.0.0.1]'];
       const results = [];
@@ -41,11 +73,11 @@ export default { async fetch(request) {
       return Response.json(results);
     }
     const operation = async () => {
-      const response = await requestRemoteMediaStream(
+      const response = await (mode === 'inspected' ? openInspectedRemoteMedia : requestRemoteMediaStream)(
         mode === 'dns-rebinding' ? 'https://localhost/media.png' : 'https://cdn.provider.test/' + mode,
         mode === 'dns-rebinding' || mode === 'no-scope'
           ? { ...settings, resolve: async () => [{ address: '8.8.8.8', family: 4 }] }
-          : settings,
+          : { ...settings, expectedKind: 'image' },
       );
       const parts = [];
       let aborted = false;
@@ -55,7 +87,7 @@ export default { async fetch(request) {
           uploadPart: async ({ body }) => { parts.push([...body]); return 'etag-' + parts.length; },
           complete: async () => {}, abort: async () => { aborted = true; },
         });
-        return Response.json({ bytes: result.bytes, sha256: result.sha256, parts, url: response.url.toString() });
+        return Response.json({ bytes: result.bytes, sha256: result.sha256, parts, url: response.url.toString(), contentType: response.contentType });
       } catch (error) { return Response.json({ error: error.message, code: error.code, aborted, parts }); }
     };
     return mode === 'no-scope' ? await operation() : await runWithCloudflareRemoteMedia(operation);
@@ -179,6 +211,17 @@ try {
 	const stream = await read("mocked-provider", "stream");
 	assert.equal(stream.bytes, 16, JSON.stringify(stream));
 	assert.equal(stream.parts.length, 4);
+	const inspected = await read("mocked-provider", "inspected");
+	assert.equal(inspected.contentType, "image/png");
+	assert.equal(inspected.bytes, stream.bytes);
+	assert.equal(inspected.sha256, stream.sha256);
+	assert.deepEqual(inspected.parts, stream.parts);
+	const unused = await read("mocked-provider", "unused-inspected");
+	assert.deepEqual(unused, { cancelled: true, contentType: "image/png" });
+	const held = await read("mocked-provider", "held-inspected-error");
+	assert.deepEqual(held, { cancelled: true, error: "SUPPLIER_TOTAL_TIMEOUT" });
+	const pending = await read("mocked-provider", "pending-inspected-cancel");
+	assert.deepEqual(pending, { cancelled: true, error: "TRANSFER_CANCELLED" });
 	const redirect = await read("mocked-provider", "redirect");
 	assert.equal(redirect.url, "https://files.provider.test/final");
 	assert.equal(redirect.bytes, 16);
@@ -205,6 +248,10 @@ try {
 				workerd: workerd.version,
 				nodeTransportExcluded: true,
 				streamedBytes: stream.bytes,
+				inspectedStreamReplayed: true,
+				unusedInspectedStreamCancelled: true,
+				pendingInspectedReadCancelled: true,
+				heldInspectedErrorPropagated: true,
 				redirectRevalidated: true,
 				byteCapAborted: true,
 				missingScopeRejected: true,

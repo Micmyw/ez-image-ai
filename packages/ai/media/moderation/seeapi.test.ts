@@ -38,11 +38,39 @@ function fixture(body: unknown, status = 200) {
 	};
 }
 describe("SeeAPI image moderation", () => {
+	it("returns the complete authenticated POST decision without requiring another request", async () => {
+		const { adapter, fetcher } = fixture(task());
+		const submitted = await adapter.submitImage({
+			...input,
+			callbackUrl: "https://private.example/api/webhooks/moderation/seeapi-image?token=secret",
+		});
+		expect(submitted.completedDecision).toMatchObject({
+			decision: "ALLOW",
+			evidence: { requestId: "task_test", seeapi: { taskId: "task_test" } },
+		});
+		expect(submitted.nonterminalState).toBeUndefined();
+		expect(fetcher).toHaveBeenCalledTimes(1);
+		expect(JSON.parse(fetcher.mock.calls[0]![1]!.body as string).callback_url).toContain(
+			"/api/webhooks/moderation/seeapi-image",
+		);
+	});
+	it.each([
+		"http://unsafe.test/callback",
+		"https://user:pass@private.example/callback",
+		"https://private.example/callback#fragment",
+	])("rejects an invalid callback destination %s before inference", async (callbackUrl) => {
+		const { adapter, fetcher } = fixture(task());
+		await expect(adapter.submitImage({ ...input, callbackUrl })).rejects.toThrow(
+			"MODERATION_INVALID_INPUT",
+		);
+		expect(fetcher).not.toHaveBeenCalled();
+	});
 	it("submits once with idempotency and strict settings, without approving acceptance", async () => {
 		const { adapter, fetcher } = fixture(task("processing"), 202);
 		expect(await adapter.submitImage(input)).toMatchObject({
 			moderationTaskId: "task_test",
 			status: "RUNNING",
+			nonterminalState: "processing",
 			idempotency: { key: input.idempotencyKey, providerSupported: true },
 		});
 		const [url, request] = fetcher.mock.calls[0]!;
@@ -56,6 +84,22 @@ describe("SeeAPI image moderation", () => {
 			provider: "seeapi",
 			input: { image_url: input.assetUrl, threshold_offset: 0, strict_special_care: true },
 		});
+	});
+	it.each(["queued", "processing"] as const)(
+		"preserves explicit %s submission state without inventing a completion verdict",
+		async (status) => {
+			const { adapter, fetcher } = fixture(task(status), 202);
+			const submitted = await adapter.submitImage(input);
+			expect(submitted).toMatchObject({ moderationTaskId: "task_test", nonterminalState: status });
+			expect(submitted.completedDecision).toBeUndefined();
+			expect(fetcher).toHaveBeenCalledOnce();
+		},
+	);
+	it("does not authorize deferred retrieval from a contradictory nonterminal response", async () => {
+		const { adapter } = fixture({ ...task(), status: "processing" }, 202);
+		const submitted = await adapter.submitImage(input);
+		expect(submitted.nonterminalState).toBeUndefined();
+		expect(submitted.completedDecision).toBeUndefined();
 	});
 	it.each([301, 302, 303, 307, 308])(
 		"rejects HTTP %s without following a credentialed redirect",

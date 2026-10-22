@@ -25,6 +25,8 @@ vi.mock("@repo/storage", () => ({
 		sha256: "sealed-png",
 		etag: "png-etag",
 		versionId: null,
+		width: 640,
+		height: 480,
 	})),
 }));
 vi.mock("../media/procedures/complete-upload-session", () => ({
@@ -102,8 +104,10 @@ describe("video V1 immutable upload boundary", () => {
 			expect.objectContaining({
 				source: { bucket: "media", key: asset.objectKey },
 				sourceEtag: asset.storageEtag,
+				preserveDimensions: true,
 			}),
 		);
+		expect(inspectPrivateImage).not.toHaveBeenCalled();
 		expect(recordVideoInputIdentity).toHaveBeenCalledWith(
 			expect.objectContaining({
 				sourceChecksum: "sealed-webp",
@@ -127,6 +131,36 @@ describe("video V1 immutable upload boundary", () => {
 		expect(completeOwnedUploadSession).not.toHaveBeenCalled();
 	});
 	it("does not make invalid image bytes eligible for quote", async () => {
+		vi.mocked(normalizeVideoReferenceToPng).mockRejectedValueOnce(new Error("INVALID_IMAGE"));
+		await expect(completeVideoUpload(user, { sessionId: "session" })).rejects.toThrow(
+			"INVALID_IMAGE",
+		);
+		expect(recordVideoInputIdentity).not.toHaveBeenCalled();
+	});
+	it.each(["image/jpeg", "image/png"])(
+		"inspects an untransformed %s once without normalization",
+		async (mimeType) => {
+			vi.mocked(getVideoUploadSession).mockResolvedValue({
+				asset: { ...asset, mimeType },
+			} as never);
+			await completeVideoUpload(user, { sessionId: "session" });
+			expect(inspectPrivateImage).toHaveBeenCalledExactlyOnceWith({
+				bucket: "media",
+				key: asset.objectKey,
+				contentType: mimeType,
+				contentLength: 100,
+				ifMatch: "webp-etag",
+			});
+			expect(normalizeVideoReferenceToPng).not.toHaveBeenCalled();
+			expect(recordVideoInputIdentity).toHaveBeenCalledWith(
+				expect.objectContaining({ checksum: "sealed-webp", mimeType, width: 640, height: 480 }),
+			);
+		},
+	);
+	it("does not publish an untransformed image when complete decoding fails", async () => {
+		vi.mocked(getVideoUploadSession).mockResolvedValue({
+			asset: { ...asset, mimeType: "image/png" },
+		} as never);
 		vi.mocked(inspectPrivateImage).mockRejectedValueOnce(new Error("INVALID_IMAGE"));
 		await expect(completeVideoUpload(user, { sessionId: "session" })).rejects.toThrow(
 			"INVALID_IMAGE",

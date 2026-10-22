@@ -28,6 +28,7 @@ import {
 	newAnnualProviders,
 	newAnnualTiers,
 } from "./testing/annual-credit-fixture";
+import { claimAcrossIndependentOwners } from "./testing/provider-claim-concurrency";
 import { withStorageSubscription } from "./testing/subscriber-storage-fixture";
 import {
 	createVideoTemplateQuoteRecord,
@@ -841,6 +842,38 @@ describe("template admission and durable scene PostgreSQL regressions", () => {
 		await expect(createVideoTemplateJobRecord(poor.input, db)).rejects.toThrow();
 		expect(await db.generationJob.count({ where: { ownerId: poor.ownerId } })).toBe(0);
 		expect(await db.storageUsageReservation.count({ where: { ownerId: poor.ownerId } })).toBe(0);
+	});
+	it("allows another owner to claim a scene while an unrelated template waits on its job lock", async () => {
+		const first = await accepted();
+		const second = await accepted();
+		await reviewInputs(first.jobId);
+		await reviewInputs(second.jobId);
+		const claims = await claimAcrossIndependentOwners({
+			client: db,
+			blockedJobId: first.jobId,
+			blockedClaim: () =>
+				run(() =>
+					claimVideoTemplateSceneSubmission({
+						jobId: first.jobId,
+						callbackTokenHash: randomUUID(),
+					}),
+				),
+			independentClaim: () =>
+				run(() =>
+					claimVideoTemplateSceneSubmission({
+						jobId: second.jobId,
+						callbackTokenHash: randomUUID(),
+					}),
+				),
+		});
+		for (const claim of claims) {
+			if ("deferred" in claim) throw new Error("Unexpected provider capacity wait");
+			expect(claim.claimed).toBe(true);
+			expect(claim.execution).toMatchObject({
+				sceneState: "SUBMITTING",
+				sceneSubmissionUncertain: true,
+			});
+		}
 	});
 	it("keeps full capacity and credits through uncertain first paid scene with zero final attempts", async () => {
 		const f = await accepted();

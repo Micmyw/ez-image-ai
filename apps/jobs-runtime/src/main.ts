@@ -7,7 +7,7 @@ import { createRuntimeServer } from "./server";
 const server = createRuntimeServer({
 	secret: process.env.WORKFLOWS_DISPATCH_SECRET ?? "",
 	execute: executeTask,
-	poll: executePollingTick,
+	poll: (input, context) => executePollingTick(input, undefined, context),
 	maxActive: Number(process.env.JOBS_RUNTIME_CONCURRENCY ?? "4"),
 });
 server.listen(Number(process.env.PORT ?? "8080"), "0.0.0.0");

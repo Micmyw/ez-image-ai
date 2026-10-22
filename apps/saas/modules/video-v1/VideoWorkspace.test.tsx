@@ -4,6 +4,7 @@ import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { VideoCatalog, VideoQuote, VideoState } from "./api";
+import { createVideoConfirmation, initialVideoDraft, videoRequestFor } from "./model";
 import type { VideoComposer } from "./VideoComposer";
 
 // Run the real workspace callbacks and effects with a deterministic hook host.
@@ -58,6 +59,7 @@ const fixture = vi.hoisted(() => ({
 	},
 	quote: vi.fn(),
 	create: vi.fn(),
+	submit: vi.fn(),
 	clear: vi.fn(),
 	queryClient: { invalidateQueries: vi.fn(), setQueryData: vi.fn() },
 }));
@@ -69,7 +71,9 @@ vi.mock("@media/lib/generation-mode-context", () => ({
 	useGeneratorSignInDraft: vi.fn(),
 }));
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => fixture.queryClient }));
-vi.mock("./api", () => ({ videoApi: { quote: fixture.quote, jobs: { create: fixture.create } } }));
+vi.mock("./api", () => ({
+	videoApi: { quote: fixture.quote, jobs: { create: fixture.create, submit: fixture.submit } },
+}));
 vi.mock("./use-video", () => ({ useVideoCatalog: () => fixture.catalog }));
 vi.mock("./use-video-upload", () => ({
 	useVideoUpload: () => ({ upload: { status: "idle" }, select: vi.fn(), clear: fixture.clear }),
@@ -102,6 +106,14 @@ function render() {
 function switchOwner(owner: string) {
 	fixture.owner = owner;
 	render();
+}
+function reload() {
+	for (const cleanup of host.cleanups.values()) cleanup();
+	host.values = [];
+	host.dependencies = [];
+	host.effects.clear();
+	host.cleanups.clear();
+	return render();
 }
 function deferred<T>() {
 	let resolve!: (value: T) => void;
@@ -187,6 +199,7 @@ beforeEach(() => {
 	fixture.catalog.refetch.mockReset().mockResolvedValue({ data: fixture.catalog.data });
 	fixture.quote.mockReset();
 	fixture.create.mockReset();
+	fixture.submit.mockReset();
 	const storage = new Map<string, string>();
 	vi.stubGlobal("sessionStorage", {
 		getItem: (key: string) => storage.get(key) ?? null,
@@ -214,8 +227,7 @@ describe("video workspace request lifetimes", () => {
 	] as const)(
 		"reports %s and unlocks the unchanged draft without automatic resubmission",
 		async (code, expected) => {
-			fixture.quote.mockResolvedValue(quote("capacity-quote"));
-			fixture.create.mockRejectedValue({ code: "BAD_REQUEST", message: code, data: { code } });
+			fixture.submit.mockRejectedValue({ code: "BAD_REQUEST", message: code, data: { code } });
 			await view.onGenerate();
 			render();
 			expect(view.error).toBe(expected);
@@ -224,59 +236,56 @@ describe("video workspace request lifetimes", () => {
 			expect(view.confirmation).toBe(false);
 			expect(view.quote).toBeNull();
 			expect(sessionStorage.getItem("video-v1:confirmation:owner-a")).toBeNull();
-			expect(fixture.create).toHaveBeenCalledTimes(1);
+			expect(fixture.submit).toHaveBeenCalledTimes(1);
 		},
 	);
 	it.each(["TOO_MANY_REQUESTS", "RATE_LIMITED", "UNKNOWN_VIDEO_PROVIDER_BUSY"])(
 		"retains and explicitly recovers the original receipt after %s",
 		async (code) => {
-			fixture.quote.mockResolvedValue(quote("uncertain-quote"));
-			fixture.create
+			fixture.submit
 				.mockRejectedValueOnce(new Error(code))
-				.mockResolvedValueOnce(receipt("recovered-job"));
+				.mockResolvedValueOnce({ kind: "created", state: receipt("recovered-job") });
 			await view.onGenerate();
 			render();
 			expect(view.confirmation).toBe(true);
 			expect(view.locked).toBe(true);
-			expect(fixture.create).toHaveBeenCalledTimes(1);
+			expect(fixture.submit).toHaveBeenCalledTimes(1);
 			const pending = sessionStorage.getItem("video-v1:confirmation:owner-a");
 			expect(pending).not.toBeNull();
 			await view.onConfirm();
 			render();
-			expect(fixture.create.mock.calls[1]).toEqual(fixture.create.mock.calls[0]);
+			expect(fixture.submit.mock.calls[1]).toEqual(fixture.submit.mock.calls[0]);
 			expect(view.jobId).toBe("recovered-job");
 		},
 	);
-	it("does not let an old A quote unlock a new A operation after A → B → A", async () => {
-		const old = deferred<VideoQuote>();
-		const current = deferred<VideoQuote>();
-		fixture.quote.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
-		fixture.create.mockResolvedValue(receipt("current-job"));
+	it("does not let an old A changed quote unlock a new A recovery after A → B → A", async () => {
+		const old = deferred<{ kind: "quote_only"; quote: VideoQuote }>();
+		const current = deferred<{ kind: "created"; state: VideoState }>();
+		fixture.submit.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
 		const oldRequest = view.onGenerate();
 		render();
 		switchOwner("owner-b");
 		switchOwner("owner-a");
-		const currentRequest = view.onGenerate();
+		const currentRequest = view.onConfirm();
 		render();
-		old.resolve(quote("old-quote"));
+		old.resolve({ kind: "quote_only", quote: quote("old-quote") });
 		await oldRequest;
 		render();
-		expect(view.busy).toBe("quote");
+		expect(view.busy).toBe("create");
 		await view.onGenerate();
-		expect(fixture.quote).toHaveBeenCalledTimes(2);
-		current.resolve(quote("current-quote"));
+		expect(fixture.submit).toHaveBeenCalledTimes(2);
+		current.resolve({ kind: "created", state: receipt("current-job") });
 		await currentRequest;
 		render();
-		expect(fixture.create).toHaveBeenCalledTimes(1);
+		expect(fixture.create).not.toHaveBeenCalled();
 		expect(view.jobId).toBe("current-job");
 	});
 	it.each(["success", "failure"])(
 		"ignores an old A create %s while the new A replays its frozen receipt",
 		async (outcome) => {
-			const old = deferred<VideoState>();
-			const current = deferred<VideoState>();
-			fixture.quote.mockResolvedValue(quote("accepted-quote"));
-			fixture.create.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
+			const old = deferred<{ kind: "created"; state: VideoState }>();
+			const current = deferred<{ kind: "created"; state: VideoState }>();
+			fixture.submit.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
 			const oldRequest = view.onGenerate();
 			await Promise.resolve();
 			render();
@@ -285,9 +294,9 @@ describe("video workspace request lifetimes", () => {
 			switchOwner("owner-a");
 			const currentRequest = view.onConfirm();
 			render();
-			expect(fixture.create.mock.calls[1]).toEqual(fixture.create.mock.calls[0]);
+			expect(fixture.submit.mock.calls[1]).toEqual(fixture.submit.mock.calls[0]);
 			const pendingReceipt = sessionStorage.getItem("video-v1:confirmation:owner-a");
-			if (outcome === "success") old.resolve(receipt("stale-job"));
+			if (outcome === "success") old.resolve({ kind: "created", state: receipt("stale-job") });
 			else old.reject(new Error("PRICE_CHANGED"));
 			await oldRequest;
 			render();
@@ -296,8 +305,8 @@ describe("video workspace request lifetimes", () => {
 			expect(view.jobId).toBeNull();
 			expect(sessionStorage.getItem("video-v1:confirmation:owner-a")).toBe(pendingReceipt);
 			await view.onConfirm();
-			expect(fixture.create).toHaveBeenCalledTimes(2);
-			current.resolve(receipt("current-job"));
+			expect(fixture.submit).toHaveBeenCalledTimes(2);
+			current.resolve({ kind: "created", state: receipt("current-job") });
 			await currentRequest;
 			render();
 			expect(view.jobId).toBe("current-job");
@@ -307,7 +316,10 @@ describe("video workspace request lifetimes", () => {
 	it("refreshes changed qualification, preserves the new quote, and keeps standard pricing after editing", async () => {
 		fixture.catalog.data = catalog("annual");
 		render();
-		fixture.quote.mockResolvedValue(quote("changed-quote", "standard"));
+		fixture.submit.mockResolvedValue({
+			kind: "quote_only",
+			quote: quote("changed-quote", "standard"),
+		});
 		fixture.catalog.refetch.mockImplementation(async () => {
 			fixture.catalog.data = catalog("standard");
 			render();
@@ -324,5 +336,121 @@ describe("video workspace request lifetimes", () => {
 		expect(view.quote).toBeNull();
 		expect(view.previewPricing?.audience).toBe("standard");
 		expect(view.previewCredits).toBe("96");
+	});
+	it("persists the complete owner-bound intent before the only network call and recovers after reload", async () => {
+		const jobs = new Map<string, VideoState>();
+		let reservations = 0;
+		fixture.submit.mockImplementation(async (input) => {
+			const pending = JSON.parse(sessionStorage.getItem("video-v1:confirmation:owner-a")!);
+			expect(pending).toMatchObject({ version: 2, ownerId: "owner-a", input });
+			const existing = jobs.get(input.idempotencyKey);
+			if (existing) return { kind: "created", state: existing };
+			reservations++;
+			jobs.set(input.idempotencyKey, receipt("one-job"));
+			throw new Error("RESPONSE_LOST");
+		});
+		await view.onGenerate();
+		reload();
+		expect(view.confirmation).toBe(true);
+		expect(view.pendingPrice?.credits).toBe("23");
+		expect(view.quote).toBeNull();
+		await view.onConfirm();
+		render();
+		expect(view.jobId).toBe("one-job");
+		expect(reservations).toBe(1);
+		expect(fixture.submit.mock.calls[1]).toEqual(fixture.submit.mock.calls[0]);
+		expect(fixture.quote).not.toHaveBeenCalled();
+		expect(fixture.create).not.toHaveBeenCalled();
+	});
+	it("uses a single submit request when the displayed price remains current", async () => {
+		fixture.submit.mockResolvedValue({ kind: "created", state: receipt("fast-job") });
+		await view.onGenerate();
+		render();
+		expect(view.jobId).toBe("fast-job");
+		expect(fixture.submit).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({
+				expectedCredits: "23",
+				expectedPricing: null,
+				request: expect.objectContaining({ prompt: "A sailboat on a calm lake." }),
+			}),
+		);
+		expect(fixture.quote).not.toHaveBeenCalled();
+		expect(fixture.create).not.toHaveBeenCalled();
+	});
+	it.each(["VIDEO_MODEL_RETIRED", "VIDEO_PRICE_NOT_CONFIGURED", "PRICE_CHANGED"])(
+		"keeps the original key after reload and a retry's %s while the first request may still commit",
+		async (code) => {
+			const old = deferred<{ kind: "created"; state: VideoState }>();
+			fixture.submit
+				.mockReturnValueOnce(old.promise)
+				.mockRejectedValueOnce(new Error(code))
+				.mockResolvedValueOnce({ kind: "created", state: receipt("original-eventual-job") });
+			const oldRequest = view.onGenerate();
+			const original = JSON.parse(sessionStorage.getItem("video-v1:confirmation:owner-a")!);
+			reload();
+			await view.onConfirm();
+			render();
+			const held = JSON.parse(sessionStorage.getItem("video-v1:confirmation:owner-a")!);
+			expect(held).toMatchObject({ input: original.input, recoveryRequired: true });
+			expect(view.confirmation).toBe(true);
+			expect(view.locked).toBe(true);
+			expect(view.draft.prompt).toBe(original.input.request.prompt);
+			old.resolve({ kind: "created", state: receipt("original-eventual-job") });
+			await oldRequest;
+			render();
+			expect(view.confirmation).toBe(true);
+			await view.onConfirm();
+			render();
+			expect(fixture.submit.mock.calls.map(([input]) => input)).toEqual([
+				original.input,
+				original.input,
+				original.input,
+			]);
+			expect(view.jobId).toBe("original-eventual-job");
+			expect(view.confirmation).toBe(false);
+		},
+	);
+	it("keeps a changed price uncharged until the existing explicit confirmation", async () => {
+		const changed = { ...quote("changed"), credits: "30" };
+		fixture.submit.mockResolvedValue({ kind: "quote_only", quote: changed });
+		fixture.catalog.refetch.mockResolvedValue({});
+		fixture.create.mockResolvedValue(receipt("confirmed-job"));
+		await view.onGenerate();
+		render();
+		expect(view.quote).toEqual(changed);
+		expect(view.confirmation).toBe(false);
+		expect(fixture.create).not.toHaveBeenCalled();
+		await view.onConfirm();
+		render();
+		expect(view.jobId).toBe("confirmed-job");
+		expect(fixture.create).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({ quoteId: "changed" }),
+		);
+	});
+	it("does not submit an expired changed quote", async () => {
+		fixture.submit.mockResolvedValue({
+			kind: "quote_only",
+			quote: { ...quote("expired"), expiresAt: new Date(Date.now() - 1).toISOString() },
+		});
+		await view.onGenerate();
+		render();
+		await view.onConfirm();
+		expect(view.error).toBe("quoteExpired");
+		expect(fixture.create).not.toHaveBeenCalled();
+	});
+	it("restores historical v1 pending confirmations through the original create endpoint", async () => {
+		const saved = createVideoConfirmation(
+			videoRequestFor({ ...initialVideoDraft, prompt: "Old accepted request" }),
+			quote("legacy"),
+			() => "old-key",
+		);
+		sessionStorage.setItem("video-v1:confirmation:owner-a", JSON.stringify(saved));
+		fixture.create.mockResolvedValue(receipt("legacy-job"));
+		reload();
+		await view.onConfirm();
+		render();
+		expect(fixture.create).toHaveBeenCalledExactlyOnceWith(saved.input);
+		expect(fixture.submit).not.toHaveBeenCalled();
+		expect(view.jobId).toBe("legacy-job");
 	});
 });

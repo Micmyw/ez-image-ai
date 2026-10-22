@@ -14,8 +14,10 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/database", () => ({
+	getImagePhaseOwner: async () => undefined,
 	lockAssetPromptReview: async () => false,
 	recordModerationOutcome: async () => undefined,
+	recordLockedAssetModerationOutcome: async () => undefined,
 }));
 vi.mock("@repo/database/media-account-input-copy", () => ({
 	claimAccountInputCopy: mocks.claim,
@@ -68,6 +70,9 @@ function verificationFixture(
 	const update = async ({ data }: { data: Record<string, unknown> }) => Object.assign(asset, data);
 	const tx = {
 		$executeRaw: async () => 1,
+		$queryRaw: async () => [
+			{ current: asset.status === "VERIFYING" && !!asset.verificationLeaseToken },
+		],
 		mediaAsset: {
 			findUnique: async () => ({ ...asset }),
 			findUniqueOrThrow: async () => ({ ...asset }),
@@ -81,9 +86,9 @@ function verificationFixture(
 		auditLog: { findFirst: async () => null, create: async () => ({}) },
 		assetModerationResult: {
 			findFirst: async () => null,
-			create: async ({ data }: { data: Record<string, unknown> }) => {
+			createMany: async ({ data }: { data: Record<string, unknown> }) => {
 				evidence.push(data);
-				return data;
+				return { count: 1 };
 			},
 			count: async () => (decision === "ERROR" ? 4 : 0),
 		},

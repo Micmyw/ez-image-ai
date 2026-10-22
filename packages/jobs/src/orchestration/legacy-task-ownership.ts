@@ -1,3 +1,7 @@
+import {
+	MEDIA_VERIFICATION_OBSERVATION_SELECT,
+	type MediaVerificationAdmission,
+} from "@repo/database";
 import type { PrismaClient } from "@repo/database/generated-client";
 
 export interface UnmanagedLegacyTask {
@@ -12,6 +16,7 @@ export interface UnmanagedLegacyTask {
 export async function unmanagedLegacyTask(
 	database: PrismaClient,
 	payload: Record<string, unknown>,
+	observeVerification?: (admission: MediaVerificationAdmission) => void,
 ): Promise<UnmanagedLegacyTask | null> {
 	const engines: Array<string | undefined> = [];
 	if (typeof payload.jobId === "string") {
@@ -22,11 +27,20 @@ export async function unmanagedLegacyTask(
 		engines.push(job?.executionEngine);
 	}
 	if (typeof payload.assetId === "string") {
-		const asset = await database.mediaAsset.findUnique({
-			where: { id: payload.assetId },
-			select: { verificationEngine: true },
-		});
-		engines.push(asset?.verificationEngine);
+		if (observeVerification) {
+			const asset = await database.mediaAsset.findUnique({
+				where: { id: payload.assetId },
+				select: MEDIA_VERIFICATION_OBSERVATION_SELECT,
+			});
+			engines.push(asset?.verificationEngine);
+			observeVerification({ asset });
+		} else {
+			const asset = await database.mediaAsset.findUnique({
+				where: { id: payload.assetId },
+				select: { verificationEngine: true },
+			});
+			engines.push(asset?.verificationEngine);
+		}
 	}
 	if (typeof payload.attemptId === "string") {
 		const attempt = await database.generationAttempt.findUnique({

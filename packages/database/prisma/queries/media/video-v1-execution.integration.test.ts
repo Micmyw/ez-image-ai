@@ -7,6 +7,7 @@ import { providerCapacityForTestRequests } from "../../../test-support/provider-
 import { runWithDatabaseClient } from "../../client";
 import { type Prisma, PrismaClient } from "../../generated/client";
 import { createCreditGrant, releaseCredits, reserveCredits } from "./credits";
+import { claimAcrossIndependentOwners } from "./testing/provider-claim-concurrency";
 import {
 	claimVideoProviderSubmission as claimVideoProviderSubmissionResult,
 	consumeVideoProviderEvents,
@@ -49,7 +50,7 @@ afterAll(async () => {
 		).toBe(0);
 		// These owners were created in this process in the explicitly isolated test DB.
 		// Preserve their immutable ledger while releasing mock-only reservations so
-		// subsequent suites do not inherit provider/global capacity from our fixtures.
+		// subsequent suites do not inherit active work from our fixtures.
 		const jobs = await client.generationJob.findMany({
 			where: {
 				ownerType: "USER",
@@ -106,8 +107,8 @@ afterAll(async () => {
 });
 const run = <T>(callback: () => T) => runWithDatabaseClient(client, callback);
 
-// These lifecycle fixtures require an immediate claim. Capacity waiting is
-// exercised separately by provider-dispatch-capacity.integration.test.ts.
+// These lifecycle fixtures require an immediate claim. Frozen legacy capacity
+// diagnostics are not current dispatch authorization.
 async function claimVideoProviderSubmission(
 	input: Parameters<typeof claimVideoProviderSubmissionResult>[0],
 ) {
@@ -1114,6 +1115,24 @@ describe("video submission database correctness", () => {
 		});
 		expect(job?.reservation?.status).toBe("ACTIVE");
 		expect(await client.outboxEvent.count({ where: { aggregateId: f.job.id } })).toBe(0);
+	});
+	it("allows another owner to claim while an unrelated video is waiting on its job lock", async () => {
+		const first = await fixture();
+		const second = await fixture();
+		const claims = await claimAcrossIndependentOwners({
+			client,
+			blockedJobId: first.job.id,
+			blockedClaim: () => run(() => claimVideoProviderSubmission(first.claim)),
+			independentClaim: () => run(() => claimVideoProviderSubmission(second.claim)),
+		});
+		for (const claim of claims) {
+			expect(claim.claimed).toBe(true);
+			expect(claim.attempt).toMatchObject({
+				status: "SUBMISSION_UNCERTAIN",
+				uncertainSubmission: true,
+			});
+		}
+		expect(claims[0].attempt.id).not.toBe(claims[1].attempt.id);
 	});
 	it("early, repeat and late callbacks preserve one original task and never create an outbox", async () => {
 		const f = await fixture();

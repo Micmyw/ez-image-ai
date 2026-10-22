@@ -1,4 +1,10 @@
-import { isPermittedModerationEvidence } from "@repo/config";
+import {
+	isPermittedModerationEvidence,
+	MODERATION_BYPASS_REASON,
+	temporaryReferenceObjectKey,
+	temporaryReferenceSchema,
+	type TemporaryReference,
+} from "@repo/config";
 import { EZPIC_PRODUCT_KEYS, LEGACY_EZPIC_PRODUCT_KEYS } from "@repo/config";
 import { maximumMediaStorageBytes } from "@repo/config/server";
 
@@ -12,11 +18,17 @@ import {
 	getGenerationFundingReservation,
 	reserveImagePassForJobInTransaction,
 } from "./image-passes";
-import { assertQuoteModerationPermitted } from "./moderation-operations";
-import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
+import {
+	assertQuoteModerationPermitted,
+	recordNewQuoteTextModerationOutcome,
+} from "./moderation-operations";
+import {
+	createModeratedGenerationQuoteRecord,
+	fingerprintGenerationQuoteSecurityPayload,
+} from "./quotes";
 import { canTransition, type GenerationJobStatusValue } from "./state-machine";
 import { effectiveMediaStorageLimit, freezeAggregateStoragePolicy } from "./storage-quota";
-import { lockOwnerStorageUsage } from "./storage-usage-locks";
+import { isStorageFreshReadEnabled, lockOwnerStorageUsage } from "./storage-usage-locks";
 import { adoptTemporaryReference, unexpiredStorageReservations } from "./temporary-references";
 import type {
 	CreateGenerationJobInput,
@@ -38,7 +50,205 @@ const ASSET_FREE_TEXT_INPUT_KEYS = new Set([
 	"background",
 	"width",
 	"height",
+	"submissionFingerprint",
 ]);
+
+const INITIAL_TEMPORARY_IMAGE_INPUT_KEYS = new Set([
+	"kind",
+	"prompt",
+	"sourceAssetId",
+	"skuKey",
+	"aspectRatio",
+	"outputFormat",
+	"background",
+	"strength",
+	"submissionFingerprint",
+	"editContext",
+	"temporaryReference",
+]);
+
+function isAssetFreeTextInput(value: Prisma.JsonValue | Prisma.InputJsonValue): boolean {
+	return (
+		isJsonObject(value) &&
+		value.kind === "text-to-image" &&
+		Object.keys(value).every((key) => ASSET_FREE_TEXT_INPUT_KEYS.has(key)) &&
+		(value.submissionFingerprint === undefined ||
+			(typeof value.submissionFingerprint === "string" &&
+				/^[a-f0-9]{64}$/.test(value.submissionFingerprint)))
+	);
+}
+
+// Stored-media RC admission is limited to a canonical temporary ROOT input.
+// An existing input also needs the first-review fence and state checks below.
+function isInitialTemporaryImageInput(
+	input: CreateGenerationJobInput,
+	value: Prisma.JsonValue | Prisma.InputJsonValue,
+): boolean {
+	if (
+		input.edit?.kind !== "ROOT" ||
+		input.inputAssetIds.length !== 1 ||
+		!isJsonObject(value) ||
+		value.kind !== "image-to-image" ||
+		typeof value.prompt !== "string" ||
+		!Object.keys(value).every((key) => INITIAL_TEMPORARY_IMAGE_INPUT_KEYS.has(key)) ||
+		typeof value.submissionFingerprint !== "string" ||
+		!/^[a-f0-9]{64}$/.test(value.submissionFingerprint) ||
+		!isJsonObject(value.editContext) ||
+		Object.keys(value.editContext).length !== 2 ||
+		value.editContext.kind !== "ROOT" ||
+		value.editContext.rootAssetId !== input.edit.rootAssetId ||
+		value.sourceAssetId !== input.edit.rootAssetId ||
+		value.sourceAssetId !== input.inputAssetIds[0] ||
+		["skuKey", "aspectRatio", "outputFormat", "background"].some(
+			(key) => value[key] !== undefined && typeof value[key] !== "string",
+		) ||
+		(value.strength !== undefined &&
+			(typeof value.strength !== "number" ||
+				!Number.isFinite(value.strength) ||
+				value.strength < 0 ||
+				value.strength > 1))
+	)
+		return false;
+	const parsed = temporaryReferenceSchema.safeParse(value.temporaryReference);
+	return (
+		parsed.success &&
+		parsed.data.ownerId === input.ownerId &&
+		parsed.data.assetId === value.sourceAssetId
+	);
+}
+
+async function fenceInitialTemporaryInput(
+	input: { reference: TemporaryReference; ownerId: string },
+	tx: Prisma.TransactionClient,
+): Promise<"READY" | "VERIFYING" | null> {
+	// Owner storage and binding locks precede verification ownership. The write
+	// also makes an older SSI deletion snapshot retry before it can miss the new
+	// job binding; SELECT FOR UPDATE alone would not provide that MVCC fence.
+	const { reference } = input;
+	await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${reference.assetId}`}, 0))`;
+	const [fenced] = await tx.$queryRaw<Array<{ status: "READY" | "VERIFYING" }>>`
+		UPDATE "media_asset" SET "updatedAt" = "updatedAt"
+		WHERE "id" = ${reference.assetId} AND "ownerType" = 'USER' AND "ownerId" = ${input.ownerId}
+		  AND "kind" = 'INPUT' AND "retentionClass" = 'ACCOUNT'
+		  AND "objectKey" = ${temporaryReferenceObjectKey(reference)}
+		  AND "checksum" = ${reference.checksum} AND "byteSize" = ${BigInt(reference.bytes)}
+		  AND "mimeType" = ${reference.contentType} AND "deleteAfter" = ${new Date(reference.expiresAt)}
+		  AND "verificationEngine" = 'legacy' AND "deletedAt" IS NULL
+		  AND "verificationGeneration" = 1 AND "verificationExhaustedAt" IS NULL
+		  AND (
+			("status" = 'READY' AND "verificationAttemptCount" > 0
+			 AND "verificationSubmissionUncertain" = false
+			 AND "verificationLeaseToken" IS NULL AND "verificationLeasedUntil" IS NULL
+			 AND "verificationNextAttemptAt" IS NULL AND "verificationLastErrorCode" IS NULL)
+			OR ("status" = 'VERIFYING' AND "finalizedAt" IS NOT NULL AND "verificationValidUntil" IS NULL)
+		  )
+		RETURNING "status"::text AS "status"
+	`;
+	return fenced?.status ?? null;
+}
+
+function isInitialPendingReview(
+	asset: Prisma.MediaAssetGetPayload<Record<string, never>>,
+	evidence: Prisma.AssetModerationResultGetPayload<Record<string, never>>[],
+	input: CreateGenerationJobInput,
+	now: Date,
+): boolean {
+	if (
+		asset.status !== "VERIFYING" ||
+		asset.verificationGeneration !== 1 ||
+		!asset.finalizedAt ||
+		!asset.verificationProvider ||
+		!input.expectedAssetModerationRuleVersion ||
+		!input.expectedAssetModerationPolicyVersion ||
+		asset.verificationRuleVersion !== input.expectedAssetModerationRuleVersion ||
+		asset.verificationPolicyVersion !== input.expectedAssetModerationPolicyVersion ||
+		asset.verificationValidUntil !== null ||
+		asset.verificationExhaustedAt !== null ||
+		!asset.verificationDeadlineAt ||
+		asset.verificationDeadlineAt <= now ||
+		evidence.some(
+			(item) =>
+				item.status !== "PENDING" ||
+				item.reasonCode !== "IMAGE_PROCESSING" ||
+				item.assetId !== asset.id ||
+				item.verificationGeneration !== asset.verificationGeneration ||
+				item.assetChecksum !== asset.checksum ||
+				item.evidenceKind !== "INPUT" ||
+				item.provider !== asset.verificationProvider ||
+				item.providerTaskId !== asset.verificationProviderTaskId ||
+				item.ruleVersion !== asset.verificationRuleVersion ||
+				item.policyVersion !== asset.verificationPolicyVersion ||
+				item.validUntil !== null ||
+				item.attemptNumber < 1 ||
+				item.attemptNumber > asset.verificationAttemptCount,
+		)
+	)
+		return false;
+	const noLease = asset.verificationLeaseToken === null && asset.verificationLeasedUntil === null;
+	const activeLease = Boolean(
+		asset.verificationLeaseToken &&
+		asset.verificationLeasedUntil &&
+		asset.verificationLeasedUntil > now,
+	);
+	const submitted = Boolean(asset.verificationSubmissionToken && asset.verificationSubmittedAt);
+	if (!evidence.length) {
+		const unsent =
+			asset.verificationProviderTaskId === null &&
+			asset.verificationSubmissionToken === null &&
+			asset.verificationSubmittedAt === null &&
+			!asset.verificationSubmissionUncertain;
+		if (asset.verificationLastErrorCode !== null || asset.verificationNextAttemptAt !== null)
+			return false;
+		if (asset.verificationAttemptCount === 0) return noLease && unsent;
+		if (asset.verificationAttemptCount !== 1 || !activeLease) return false;
+		// These are persisted first-attempt states, not proof that HTTP is still
+		// running. A crashed submission stays uncertain and joins the same recovery.
+		return (
+			unsent ||
+			(submitted &&
+				(asset.verificationProviderTaskId === null
+					? asset.verificationSubmissionUncertain
+					: !asset.verificationSubmissionUncertain))
+		);
+	}
+	if (!asset.verificationProviderTaskId || !submitted || asset.verificationSubmissionUncertain)
+		return false;
+	const latestAttempt = Math.max(...evidence.map((item) => item.attemptNumber));
+	return noLease
+		? latestAttempt === asset.verificationAttemptCount &&
+				asset.verificationLastErrorCode === "IMAGE_PROCESSING" &&
+				asset.verificationNextAttemptAt !== null
+		: activeLease &&
+				latestAttempt + 1 === asset.verificationAttemptCount &&
+				asset.verificationLastErrorCode === null &&
+				asset.verificationNextAttemptAt === null;
+}
+
+function assertPreparedSubmissionMatches(
+	input: CreateGenerationJobInput,
+	quote: {
+		ownerType: string;
+		ownerId: string;
+		submittedByUserId: string;
+		inputSnapshot: Prisma.JsonValue | Prisma.InputJsonValue;
+	},
+): void {
+	const prepared = input.preparedQuote;
+	if (!prepared) return;
+	const expected = isJsonObject(prepared.inputSnapshot)
+		? prepared.inputSnapshot.submissionFingerprint
+		: undefined;
+	if (
+		quote.ownerType !== input.ownerType ||
+		quote.ownerId !== input.ownerId ||
+		quote.submittedByUserId !== input.submittedByUserId ||
+		typeof expected !== "string" ||
+		!/^[a-f0-9]{64}$/.test(expected) ||
+		!isJsonObject(quote.inputSnapshot) ||
+		quote.inputSnapshot.submissionFingerprint !== expected
+	)
+		throw new Error("IDEMPOTENCY_CONFLICT");
+}
 
 async function getDatabaseNow(
 	client: MediaTransactionClient | Prisma.TransactionClient,
@@ -107,7 +317,15 @@ async function findExistingJob(
 	) {
 		throw new Error("IDEMPOTENCY_CONFLICT");
 	}
+	let committedQuote: CreateGenerationJobResult["committedQuote"];
+	if (input.preparedQuote) {
+		const quote = await client.generationQuote.findUnique({ where: { id: existing.quoteId } });
+		if (!quote) throw new Error("Quote not found for owner");
+		assertPreparedSubmissionMatches(input, quote);
+		committedQuote = committedQuoteSummary(quote);
+	}
 	return {
+		...(committedQuote ? { committedQuote } : {}),
 		continuationEventIds: await getInitialGenerationEventIds(existing.id, client),
 		job: {
 			id: existing.id,
@@ -132,6 +350,10 @@ export async function createGenerationJobTransaction(
 		throw new Error("First-release writes support USER owners only");
 	}
 	if (!input.idempotencyKey.trim()) throw new Error("Idempotency key is required");
+	if (input.preparedQuote) {
+		if (input.preparedQuote.quoteId !== input.quoteId) throw new Error("IDEMPOTENCY_CONFLICT");
+		assertPreparedSubmissionMatches(input, input.preparedQuote);
+	}
 	if (
 		input.expectedInputAssets &&
 		(input.expectedInputAssets.length !== input.inputAssetIds.length ||
@@ -144,15 +366,30 @@ export async function createGenerationJobTransaction(
 		throw new Error("ASSET_CONTENT_CHANGED");
 	}
 
-	// Asset binding/deletion writers retain their existing Serializable protocol.
-	// Only a verified asset-free text quote can use fresh-read admission; supplier
-	// occupancy remains a separate ReadCommitted claim immediately before send.
+	// The storage fence must reach every writer before enabling fresh temporary
+	// admissions. Only a fenced normal first review, pending or approved, is reused;
+	// other existing assets and edit continuations retain their SSI protocol.
+	const initialTemporaryAdmission = Boolean(
+		isStorageFreshReadEnabled() &&
+		input.preparedQuote &&
+		input.validateCurrentEligibility &&
+		isImageEditProduct(input.preparedQuote.productKey) &&
+		generationFundingSource(input.preparedQuote.pricingSnapshot) === "CREDITS" &&
+		input.maximumGlobalDailyCostMicros === undefined &&
+		isInitialTemporaryImageInput(input, input.preparedQuote.inputSnapshot),
+	);
 	// Global budget readers/writers must also share SSI predicate protection;
 	// their advisory lock alone cannot refresh a waiting Serializable snapshot.
 	let serializable =
-		input.inputAssetIds.length > 0 ||
-		Boolean(input.edit) ||
-		input.maximumGlobalDailyCostMicros !== undefined;
+		!initialTemporaryAdmission &&
+		(input.inputAssetIds.length > 0 ||
+			Boolean(input.edit) ||
+			input.maximumGlobalDailyCostMicros !== undefined ||
+			Boolean(
+				input.preparedQuote &&
+				(generationFundingSource(input.preparedQuote.pricingSnapshot) === "IMAGE_PASS" ||
+					!isAssetFreeTextInput(input.preparedQuote.inputSnapshot)),
+			));
 	const runAdmission = async <T>(operation: (tx: Prisma.TransactionClient) => Promise<T>) => {
 		if (serializable) return runSerializable(client, operation);
 		try {
@@ -169,7 +406,9 @@ export async function createGenerationJobTransaction(
 			if (input.validateCurrentEligibility) {
 				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.ownerType}:${input.ownerId}:generation-concurrency`}, 0))`;
 			}
-			const quote = await tx.generationQuote.findUnique({ where: { id: input.quoteId } });
+			const quote = input.preparedQuote
+				? await createModeratedGenerationQuoteRecord(input.preparedQuote, tx)
+				: await tx.generationQuote.findUnique({ where: { id: input.quoteId } });
 			if (
 				!quote ||
 				quote.ownerType !== input.ownerType ||
@@ -183,7 +422,7 @@ export async function createGenerationJobTransaction(
 			const fundingSource = generationFundingSource(quote.pricingSnapshot);
 			// Keep pass eligibility and its independent financial reservation under SSI,
 			// even when no asset binding or configured global budget requires it.
-			// No business writes precede this restart, and funding comes from the owned quote.
+			// Prepared quotes choose isolation before writing; persisted quotes restart before writes.
 			if (!serializable && fundingSource === "IMAGE_PASS")
 				throw new SerializableAdmissionRequired();
 			if (
@@ -197,12 +436,11 @@ export async function createGenerationJobTransaction(
 			}
 			if (
 				!serializable &&
-				(!isJsonObject(quote.inputSnapshot) ||
-					quote.inputSnapshot.kind !== "text-to-image" ||
-					Object.keys(quote.inputSnapshot).some((key) => !ASSET_FREE_TEXT_INPUT_KEYS.has(key)))
+				!isAssetFreeTextInput(quote.inputSnapshot) &&
+				!(initialTemporaryAdmission && isInitialTemporaryImageInput(input, quote.inputSnapshot))
 			) {
-				// No writes precede this restart. The authoritative quote also guards
-				// isolation when a caller omits the corresponding asset-ID array.
+				// The authoritative quote guards isolation, including omitted asset IDs.
+				// Roll back any provisional quote/audit writes before restarting.
 				throw new SerializableAdmissionRequired();
 			}
 			await assertQuoteModerationPermitted(quote, tx);
@@ -273,7 +511,7 @@ export async function createGenerationJobTransaction(
 			const temporaryValue = isJsonObject(quote.inputSnapshot)
 				? quote.inputSnapshot.temporaryReference
 				: undefined;
-			const temporaryReference =
+			const adoptedTemporaryReference =
 				temporaryValue === undefined
 					? null
 					: await adoptTemporaryReference(
@@ -282,9 +520,32 @@ export async function createGenerationJobTransaction(
 								ownerId: input.ownerId,
 								assetIds: input.inputAssetIds,
 								now: operationNow,
+								expectedRuleVersion: input.expectedAssetModerationRuleVersion,
+								expectedPolicyVersion: input.expectedAssetModerationPolicyVersion,
 							},
 							tx,
 						);
+			const temporaryReference = adoptedTemporaryReference?.reference ?? null;
+			// A newly created input retains its original INSERT + review-event path.
+			// Reuse must fence the complete immutable tuple after taking verification
+			// ownership, then independently re-read current asset/evidence below.
+			const fencedTemporaryInputStatus =
+				!serializable &&
+				initialTemporaryAdmission &&
+				temporaryReference &&
+				!adoptedTemporaryReference?.createdVerificationEventId
+					? await fenceInitialTemporaryInput(
+							{ reference: temporaryReference, ownerId: input.ownerId },
+							tx,
+						)
+					: null;
+			if (
+				!serializable &&
+				initialTemporaryAdmission &&
+				!adoptedTemporaryReference?.createdVerificationEventId &&
+				!fencedTemporaryInputStatus
+			)
+				throw new SerializableAdmissionRequired();
 			const edit = input.edit;
 			if (!edit && imageEditContext(quote.inputSnapshot)) throw new Error("NOT_FOUND");
 			const editBinding = edit
@@ -366,6 +627,24 @@ export async function createGenerationJobTransaction(
 			) {
 				throw new Error("ASSET_MODERATION_EVIDENCE_STALE");
 			}
+			if (
+				fencedTemporaryInputStatus === "READY" &&
+				(inputAssets.some(
+					(asset) => latestEvidenceByAssetId.get(asset.id)?.reasonCode !== "NO_POLICY_MATCH",
+				) ||
+					moderationEvidence.some(
+						(evidence) =>
+							!["PENDING", "APPROVED"].includes(evidence.status) ||
+							evidence.reasonCode.startsWith("ADMIN_") ||
+							evidence.reasonCode === MODERATION_BYPASS_REASON,
+					))
+			)
+				throw new SerializableAdmissionRequired();
+			if (
+				fencedTemporaryInputStatus === "VERIFYING" &&
+				!isInitialPendingReview(inputAssets[0]!, moderationEvidence, input, operationNow)
+			)
+				throw new SerializableAdmissionRequired();
 			const currentChecksumById = new Map(
 				inputAssets.map((asset) => [asset.id, asset.checksum as string]),
 			);
@@ -449,7 +728,7 @@ export async function createGenerationJobTransaction(
 					})),
 				});
 			}
-			await tx.outboxEvent.create({
+			const createdJobEvent = await tx.outboxEvent.create({
 				data: {
 					eventType: "JOB_CREATED",
 					aggregateType: "GENERATION_JOB",
@@ -457,6 +736,7 @@ export async function createGenerationJobTransaction(
 					dedupeKey: `job:${job.id}:created`,
 					payload: { jobId: job.id },
 				},
+				select: { id: true },
 			});
 			if (editBinding?.editSessionId) {
 				await tx.imageEditSession.update({
@@ -464,8 +744,50 @@ export async function createGenerationJobTransaction(
 					data: { updatedAt: new Date() },
 				});
 			}
+			// The fresh transaction already owns these exact durable receipts. Re-reading
+			// bindings and scanning Outbox here adds cross-owner SSI predicate conflicts.
+			// Previously adopted VERIFYING assets still use their current pending events.
+			const continuationEventIds = !inputAssets.some((asset) => asset.status === "VERIFYING")
+				? [createdJobEvent.id]
+				: adoptedTemporaryReference?.createdVerificationEventId
+					? [adoptedTemporaryReference.createdVerificationEventId]
+					: await getInitialGenerationEventIds(job.id, tx);
+			if (input.preparedQuote) {
+				// Fresh failure-free ALLOW shares the incident fence. Retried outcomes still
+				// acquire its exclusive form last, after the rest of admission is complete.
+				await recordNewQuoteTextModerationOutcome(
+					{ quoteId: quote.id, moderation: input.preparedQuote.moderation },
+					tx,
+				);
+			}
+			if (!serializable && initialTemporaryAdmission) {
+				// All owner/binding, credit and moderation locks are now held. A
+				// deadline crossed during any wait rolls back the entire admission.
+				const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`
+					SELECT clock_timestamp() AS "now"`;
+				if (!clock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+				if (quote.expiresAt <= clock.now) throw new Error("Quote expired");
+				if (!temporaryReference) throw new Error("TEMPORARY_REFERENCE_INVALID");
+				if (Date.parse(temporaryReference.expiresAt) <= clock.now.getTime())
+					throw new Error("TEMPORARY_REFERENCE_EXPIRED");
+				if (inputAssets.some((asset) => asset.deleteAfter && asset.deleteAfter <= clock.now))
+					throw new Error("TEMPORARY_REFERENCE_EXPIRED");
+				if (
+					fencedTemporaryInputStatus === "READY" &&
+					inputAssets.some(
+						(asset) => !asset.verificationValidUntil || asset.verificationValidUntil <= clock.now,
+					)
+				)
+					throw new Error("ASSET_MODERATION_EVIDENCE_STALE");
+				if (
+					fencedTemporaryInputStatus === "VERIFYING" &&
+					!isInitialPendingReview(inputAssets[0]!, moderationEvidence, input, clock.now)
+				)
+					throw new Error("ASSET_MODERATION_EVIDENCE_STALE");
+			}
 			return {
-				continuationEventIds: await getInitialGenerationEventIds(job.id, tx),
+				...(input.preparedQuote ? { committedQuote: committedQuoteSummary(quote) } : {}),
+				continuationEventIds,
 				...(temporaryReference &&
 				inputAssets.some(
 					(asset) => asset.id === temporaryReference.assetId && asset.status === "VERIFYING",
@@ -490,9 +812,42 @@ export async function createGenerationJobTransaction(
 		if (isDatabaseUniqueConflict(error)) {
 			const replay = await findExistingJob(input, client);
 			if (replay) return replay;
+			if (input.preparedQuote) {
+				// A receiver from the previous rollout may have committed only its quote.
+				// Reuse that immutable quote, including its original moderation evidence.
+				const quote = await client.generationQuote.findUnique({ where: { id: input.quoteId } });
+				if (quote) {
+					assertPreparedSubmissionMatches(input, quote);
+					// An accepted job may replay its frozen price. An unconsumed old quote
+					// still has to match the current admission contract checked by the API.
+					if (
+						quote.inputFingerprint !==
+						fingerprintGenerationQuoteSecurityPayload({
+							...input.preparedQuote,
+							expiresAt: quote.expiresAt,
+						})
+					)
+						throw new Error("PRICE_CHANGED");
+					const result = await createGenerationJobTransaction(
+						{ ...input, preparedQuote: undefined },
+						client,
+					);
+					return { ...result, committedQuote: committedQuoteSummary(quote) };
+				}
+			}
 		}
 		throw error;
 	}
+}
+
+function committedQuoteSummary(quote: NonNullable<CreateGenerationJobResult["committedQuote"]>) {
+	return {
+		id: quote.id,
+		productKey: quote.productKey,
+		credits: quote.credits,
+		pricingSnapshot: quote.pricingSnapshot,
+		expiresAt: quote.expiresAt,
+	};
 }
 
 function existingJobMatchesEdit(
@@ -713,7 +1068,7 @@ function generationJobInputSnapshot(inputSnapshot: Prisma.JsonValue): Prisma.Inp
 	return generationInput as Prisma.InputJsonObject;
 }
 
-function isJsonObject(value: Prisma.JsonValue | undefined): value is Prisma.JsonObject {
+function isJsonObject(value: unknown): value is Prisma.JsonObject {
 	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 

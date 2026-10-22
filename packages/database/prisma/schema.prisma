@@ -806,6 +806,7 @@ model MediaAsset {
   verificationSubmissionToken      String?                 @unique
   verificationSubmissionUncertain  Boolean                 @default(false)
   verificationSubmittedAt          DateTime?               @db.Timestamptz(3)
+  verificationCallbackReceivedAt   DateTime?               @db.Timestamptz(3)
   verificationLastErrorCode        String?
   createdAt                        DateTime                @default(now()) @db.Timestamptz(3)
   updatedAt                        DateTime                @updatedAt @db.Timestamptz(3)
@@ -929,6 +930,18 @@ model GenerationRetryRequest {
   @@index([sourceJobId, createdAt])
   @@index([status, leasedUntil])
   @@map("generation_retry_request")
+}
+
+/// Persistent conflict row shared by Serializable and ReadCommitted quota writers.
+/// Never expire or delete a fence while owner-scoped transactions may be running.
+model MediaOwnerStorageFence {
+  ownerType OwnerType
+  ownerId   String
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  revision  BigInt    @default(0)
+
+  @@id([ownerType, ownerId])
+  @@map("media_owner_storage_fence")
 }
 
 model StorageUsageReservation {
@@ -1074,6 +1087,24 @@ model ProviderWebhookEvent {
   @@map("provider_webhook_event")
 }
 
+/// A long-lived Workflow owner for one immutable verification generation or provider attempt.
+/// It is separate from short execution leases and never settles provider acceptance.
+model MediaWorkflowPhaseOwner {
+  phaseKey    String   @id @default(uuid())
+  phaseKind   String
+  subjectId   String
+  generation  Int
+  workflowId  String
+  epoch       Int      @default(1)
+  leasedUntil DateTime @db.Timestamptz(3)
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([phaseKind, subjectId, generation])
+  @@index([leasedUntil])
+  @@map("media_workflow_phase_owner")
+}
+
 model OutboxEvent {
   id                String            @id @default(cuid())
   eventType         String
@@ -1083,7 +1114,7 @@ model OutboxEvent {
   payload           Json
   status            OutboxEventStatus @default(PENDING)
   attempts          Int               @default(0)
-  availableAt       DateTime          @default(now()) @db.Timestamptz(3)
+  availableAt       DateTime          @default(dbgenerated("clock_timestamp()")) @db.Timestamptz(3)
   leaseOwner        String?
   leaseToken        String?           @unique
   leasedUntil       DateTime?         @db.Timestamptz(3)

@@ -175,17 +175,110 @@ function safeCode(value: string) {
 	return /^[A-Z][A-Z0-9_]{0,95}$/.test(value) ? value : "MODERATION_UNAVAILABLE";
 }
 
+interface TextModerationOutcomeInput {
+	targetType: "QUOTE" | "TEXT_ATTEMPT";
+	targetId: string;
+	moderation: {
+		provider: string;
+		decision: string;
+		ruleVersion: string;
+		retry?: { failures: number; lastErrorCode: string; startedAt: string; lastFailureAt: string };
+	};
+}
+
+/**
+ * Only call after this transaction INSERTed the immutable quote and its audit.
+ * A first, failure-free ALLOW has no prior target review to update. Successful
+ * owners share the incident fence; failures and historical outcomes still take
+ * its exclusive form. Never upgrade a held shared lock to exclusive.
+ */
+export async function recordNewQuoteTextModerationOutcome(
+	input: { quoteId: string; moderation: TextModerationOutcomeInput["moderation"] },
+	tx: MediaDatabaseClient,
+) {
+	const retry = input.moderation.retry;
+	if (!retry) return;
+	if (input.moderation.decision !== "ALLOW" || retry.failures !== 0) {
+		await recordTextModerationOutcome(
+			{ targetType: "QUOTE", targetId: input.quoteId, moderation: input.moderation },
+			tx,
+		);
+		return;
+	}
+	await recordFailureFreeModerationServiceSuccess(
+		{ provider: input.moderation.provider, stage: "TEXT", startedAt: new Date(retry.startedAt) },
+		tx,
+	);
+}
+
+/**
+ * The caller must hold the asset/prompt locks and read the review in that same
+ * transaction. Those locks prevent a concurrent review or administrator decision
+ * from appearing after the null check. Any historical/error/rejected outcome keeps
+ * the existing exclusive protocol; there is no shared-to-exclusive lock upgrade.
+ */
+export async function recordLockedAssetModerationOutcome(
+	input: ModerationOutcome & { detectorCompleted: boolean },
+	previousReview: { id: string } | null,
+	tx: MediaDatabaseClient,
+): Promise<void> {
+	if (
+		input.targetType !== "ASSET" ||
+		input.stage !== "IMAGE" ||
+		input.detectorCompleted !== true ||
+		input.status !== "APPROVED" ||
+		input.failures !== 0 ||
+		input.serviceResponded !== true ||
+		input.bypassed ||
+		previousReview !== null
+	) {
+		await recordModerationOutcome(input, tx);
+		return;
+	}
+	await recordFailureFreeModerationServiceSuccess(input, tx);
+}
+
+async function recordFailureFreeModerationServiceSuccess(
+	input: { provider: string; stage: "TEXT" | "IMAGE"; startedAt: Date },
+	tx: MediaDatabaseClient,
+): Promise<void> {
+	const activeKey = `${input.provider}:${input.stage}`;
+	await tx.$executeRaw`SELECT pg_advisory_xact_lock_shared(hashtextextended(${`moderation-incident:${activeKey}`}, 0))`;
+	// No active incident means no writes and no cross-owner exclusive lock. When
+	// one exists, lock that row before reading recovery/alert state. A waiter sees
+	// the updated row (or no active row), rather than recovering stale evidence.
+	const [incident] = await tx.$queryRaw<
+		Array<{
+			id: string;
+			failureCount: number;
+			lastFailureAt: Date;
+			alertedAt: Date | null;
+		}>
+	>`SELECT "id", "failureCount", "lastFailureAt", "alertedAt"
+		FROM "moderation_incident" WHERE "activeKey" = ${activeKey} FOR UPDATE`;
+	if (!incident) return;
+	let alerted = incident.alertedAt !== null;
+	if (!alerted && incident.failureCount >= MODERATION_MAX_FAILURES) {
+		const claim = await tx.moderationIncident.updateMany({
+			where: { id: incident.id, activeKey, alertedAt: null },
+			data: { alertedAt: new Date() },
+		});
+		if (claim.count === 1) {
+			alerted = true;
+			await enqueueIncidentAlert(tx, incident.id, "OPEN");
+		}
+	}
+	const startedAt = input.startedAt;
+	if (!(incident.lastFailureAt <= startedAt)) return;
+	const recovered = await tx.moderationIncident.updateMany({
+		where: { id: incident.id, activeKey, lastFailureAt: { lte: startedAt } },
+		data: { status: "RECOVERED", activeKey: null, recoveredAt: new Date() },
+	});
+	if (recovered.count === 1 && alerted) await enqueueIncidentAlert(tx, incident.id, "RECOVERED");
+}
+
 export async function recordTextModerationOutcome(
-	input: {
-		targetType: "QUOTE" | "TEXT_ATTEMPT";
-		targetId: string;
-		moderation: {
-			provider: string;
-			decision: string;
-			ruleVersion: string;
-			retry?: { failures: number; lastErrorCode: string; startedAt: string; lastFailureAt: string };
-		};
-	},
+	input: TextModerationOutcomeInput,
 	tx: MediaDatabaseClient,
 ) {
 	const retry = input.moderation.retry;
@@ -412,6 +505,7 @@ export async function applyAdminModerationReview(
 						verificationSubmissionUncertain: false,
 						verificationLastErrorCode: null,
 						verificationSubmissionToken: null,
+						verificationCallbackReceivedAt: null,
 						verificationSubmittedAt: null,
 					},
 				});

@@ -1,21 +1,11 @@
 import { hydrateVideoRuntimeEnvironment } from "@repo/config/video-runtime-environment";
-import { createRuntimeDatabaseClient, runWithDatabaseClient } from "@repo/database/client";
-import { signRequest, workflowInstanceId } from "@repo/jobs/orchestration/auth";
-import { executeTask } from "@repo/jobs/orchestration/executor";
-import { executePollingTick } from "@repo/jobs/orchestration/polling";
-import { taskDefinition } from "@repo/jobs/orchestration/registry";
+import { workflowInstanceId } from "@repo/jobs/orchestration/auth";
 import {
-	assertWorkerInlineTask,
 	workerExecutorForTask,
 	workerExecutorLane,
+	workerServiceForTask,
 	WORKER_EXECUTORS,
 } from "@repo/jobs/orchestration/worker-executors";
-import {
-	createCloudflareImagesProcessor,
-	type CloudflareImagesBinding,
-} from "@repo/storage/image-processing/cloudflare-images";
-import { runWithImageProcessor } from "@repo/storage/image-processing/context";
-import { runWithCloudflareRemoteMedia } from "@repo/storage/lib/cloudflare-remote-media";
 import {
 	DurableObject,
 	WorkflowEntrypoint,
@@ -23,34 +13,50 @@ import {
 	type WorkflowStep,
 } from "cloudflare:workers";
 
-import { createWorkflowBindingDispatcher, handleDispatch, type JobsParams } from "./dispatch";
-import { createWorkerExecutionHandler } from "./execution";
-import { runVideoMaintenance, type VideoRuntimeEnvironment } from "./video-runtime";
+import { handleDispatch, type JobsParams } from "./dispatch";
+import { createExecutorInvoker } from "./invoke";
+import { handleJobEventsRequest, isJobEventsRequest } from "./job-events";
+import {
+	createRuntimeExecutionHandler,
+	type RuntimeExecutionEnvironment,
+} from "./runtime-execution";
+import { createWakeContinuationScheduler, handleWake, handlePhaseWake } from "./wake";
+export { ControlExecutor } from "./control-executor";
+export { TransferExecutor } from "./transfer-executor";
+export { MediaJobEvents } from "./media-job-events";
+import { runVideoMaintenance } from "./video-runtime";
 export { VideoGenerationWorkflowV1 } from "./video-generation-v1";
 import {
 	runMaintenance,
+	runContinuation,
 	runPolling,
 	runTask,
+	waitForDueTime,
+	withTargetedEventDelivery,
 	type DurableSteps,
-	type InvokeTask,
-	type InvocationResult,
 } from "./orchestrator";
 
-export interface WorkersEnvironment extends VideoRuntimeEnvironment {
-	WORKFLOWS_DISPATCH_SECRET: string;
-	WORKFLOWS_DISPATCH_URL: string;
-	HYPERDRIVE: { connectionString: string };
-	IMAGES: CloudflareImagesBinding;
+export interface WorkersEnvironment extends RuntimeExecutionEnvironment {
+	/** Optional only for receiver-first rollout and historical local fixtures. */
+	JOBS_CONTROL?: { fetch(request: Request): Promise<Response> };
+	JOBS_TRANSFER?: { fetch(request: Request): Promise<Response> };
 	JOBS_EXECUTOR: DurableObjectNamespace<WorkerJobs>;
-	JOBS: Workflow<JobsParams>;
 }
 
 export class WorkerJobs extends DurableObject<WorkersEnvironment> {
-	private handler?: ReturnType<typeof createWorkerExecutionHandler>;
+	private handler?: ReturnType<typeof createRuntimeExecutionHandler>;
 
 	override async fetch(request: Request): Promise<Response> {
 		// Legacy handlers also consume private video policy from these settings.
 		hydrateVideoRuntimeEnvironment(this.env);
+		if (new URL(request.url).pathname === "/internal/wake")
+			return handleWake(
+				request,
+				this.env.WORKFLOWS_DISPATCH_SECRET,
+				workerInvoker(this.env),
+				(work) => this.ctx.waitUntil(work),
+				createWakeContinuationScheduler(this.env.JOBS),
+			);
 		const lane = this.ctx.id.equals(
 			this.env.JOBS_EXECUTOR.idFromName(WORKER_EXECUTORS.control.name),
 		)
@@ -58,26 +64,13 @@ export class WorkerJobs extends DurableObject<WorkersEnvironment> {
 			: this.ctx.id.equals(this.env.JOBS_EXECUTOR.idFromName(WORKER_EXECUTORS.maintenance.name))
 				? "maintenance"
 				: "heavy";
-		this.handler ??= createWorkerExecutionHandler({
-			secret: this.env.WORKFLOWS_DISPATCH_SECRET,
+		this.handler ??= createRuntimeExecutionHandler(this.env, {
 			maxActive: WORKER_EXECUTORS[lane].maxActive,
 			// The original object also accepts old Workflow deliveries. Keeping its
 			// cap at one preserves the heavy limit while existing Workflows drain.
 			acceptsTask: (task) => lane === "heavy" || workerExecutorLane(task) === lane,
 			onEvent: (event) =>
 				console.info("job.executor", { executor: WORKER_EXECUTORS[lane].name, ...event }),
-			execute: (task, context) =>
-				this.scoped(() =>
-					executeTask(task, context, {
-						assertInlineTask: assertWorkerInlineTask,
-						dispatch: createWorkflowBindingDispatcher({
-							url: this.env.WORKFLOWS_DISPATCH_URL,
-							secret: this.env.WORKFLOWS_DISPATCH_SECRET,
-							workflows: this.env.JOBS,
-						}),
-					}),
-				),
-			poll: (input) => this.scoped(() => executePollingTick(input)),
 		});
 		const execution = this.handler(request);
 		// Keep admitted work alive if its delivery connection is lost. Workflows
@@ -85,50 +78,21 @@ export class WorkerJobs extends DurableObject<WorkersEnvironment> {
 		this.ctx.waitUntil(execution.then(() => undefined));
 		return execution;
 	}
-
-	private async scoped<T>(operation: () => Promise<T>): Promise<T> {
-		const database = createRuntimeDatabaseClient(this.env.HYPERDRIVE.connectionString);
-		try {
-			return await runWithDatabaseClient(database, () =>
-				runWithImageProcessor(createCloudflareImagesProcessor(this.env.IMAGES), () =>
-					runWithCloudflareRemoteMedia(operation),
-				),
-			);
-		} finally {
-			await database.$disconnect();
-		}
-	}
 }
 
 export class JobsWorkflow extends WorkflowEntrypoint<WorkersEnvironment, JobsParams> {
 	override async run(event: WorkflowEvent<JobsParams>, step: WorkflowStep) {
-		const invoke: InvokeTask = async (request, context): Promise<InvocationResult> => {
-			const body = JSON.stringify({ request, context });
-			const executor = this.env.JOBS_EXECUTOR.get(
-				this.env.JOBS_EXECUTOR.idFromName(workerExecutorForTask(request).name),
-			);
-			const response = await executor.fetch(
-				new Request("https://executor/internal/execute", {
-					method: "POST",
-					body,
-					headers: await signRequest(
-						this.env.WORKFLOWS_DISPATCH_SECRET,
-						"POST",
-						"/internal/execute",
-						body,
-					),
-					signal: AbortSignal.timeout((taskDefinition(request.taskId).timeoutSeconds + 10) * 1000),
-				}),
-			);
-			if (response.status === 429) return { status: "busy" };
-			if (!response.ok) return { status: "failed" };
-			const result = (await response.json()) as InvocationResult;
-			if (result.status !== "ok") throw new Error("INVALID_RUNTIME_RESPONSE");
-			return result;
-		};
-		const steps = step as unknown as DurableSteps;
+		const invoke = workerInvoker(this.env);
+		const steps = withTargetedEventDelivery(
+			step as unknown as DurableSteps,
+			event.payload.kind === "maintenance" ? undefined : event.payload.executionVersion,
+		);
+		if (event.payload.kind === "continuation" && event.payload.notBefore !== undefined)
+			await waitForDueTime(steps, "wake-continuation-due", event.payload.notBefore);
 		if (event.payload.kind === "maintenance")
 			await runMaintenance(event.payload.timestamp, event.instanceId, steps, invoke);
+		else if (event.payload.kind === "continuation")
+			await runContinuation(event.payload.request, event.instanceId, steps, invoke);
 		else if (
 			["media-poll-generation", "media-verify-upload"].includes(event.payload.request.taskId)
 		)
@@ -138,8 +102,31 @@ export class JobsWorkflow extends WorkflowEntrypoint<WorkersEnvironment, JobsPar
 	}
 }
 
+function workerInvoker(env: WorkersEnvironment) {
+	const heavy = () =>
+		env.JOBS_EXECUTOR.get(env.JOBS_EXECUTOR.idFromName(WORKER_EXECUTORS.heavy.name));
+	return createExecutorInvoker(
+		env.WORKFLOWS_DISPATCH_SECRET,
+		(request) => {
+			const service = workerServiceForTask(request);
+			return service && env[service]
+				? env[service]
+				: env.JOBS_EXECUTOR.get(env.JOBS_EXECUTOR.idFromName(workerExecutorForTask(request).name));
+		},
+		(request) =>
+			request.taskId === "media-finalize-generation" && env.JOBS_TRANSFER ? heavy() : undefined,
+	);
+}
+
 export default {
 	fetch(request, env) {
+		if (isJobEventsRequest(request)) return handleJobEventsRequest(request, env);
+		if (new URL(request.url).pathname === "/internal/phase-wake")
+			return handlePhaseWake(request, env.WORKFLOWS_DISPATCH_SECRET, env.JOBS);
+		if (new URL(request.url).pathname === "/internal/wake")
+			return env.JOBS_EXECUTOR.get(
+				env.JOBS_EXECUTOR.idFromName(WORKER_EXECUTORS.control.name),
+			).fetch(request);
 		return handleDispatch(request, env.WORKFLOWS_DISPATCH_SECRET, env.JOBS);
 	},
 	async scheduled(controller, env) {

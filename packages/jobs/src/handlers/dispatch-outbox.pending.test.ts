@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { OutboxDeliveryPendingError, type OutboxLease, type OutboxStore } from "../contracts";
+import {
+	OutboxDeliveryPendingError,
+	ProviderEventPhaseHeldError,
+	type OutboxLease,
+	type OutboxStore,
+} from "../contracts";
 import { dispatchOutbox } from "./dispatch-outbox";
 
 function fixture() {
@@ -35,6 +40,32 @@ function fixture() {
 }
 
 describe("Outbox completion receipts", () => {
+	it.each([false, true])(
+		"persists callback lease waits without consuming failure attempts (targeted=%s)",
+		async (targeted) => {
+			const f = fixture();
+			const deliver = vi
+				.fn<(event: OutboxLease) => Promise<void>>()
+				.mockRejectedValue(new ProviderEventPhaseHeldError(599_123));
+			for (let cycle = 0; cycle < 20; cycle++) {
+				await dispatchOutbox(
+					{ workerId: "worker", ...(targeted ? { eventIds: ["outbox-payment"] } : {}) },
+					{ ...f, deliver },
+				);
+			}
+			expect(f.store.complete).not.toHaveBeenCalled();
+			expect(f.store.release).not.toHaveBeenCalled();
+			expect(f.attempts()).toBe(0);
+			expect(f.store.defer).toHaveBeenLastCalledWith(
+				expect.objectContaining({ retryAt: new Date(f.now().getTime() + 599_123) }),
+			);
+			deliver.mockResolvedValueOnce(undefined);
+			expect(await dispatchOutbox({ workerId: "worker" }, { ...f, deliver })).toEqual({
+				claimed: 1,
+				delivered: 1,
+			});
+		},
+	);
 	it.each([new TypeError("lost response"), new Error("WORKFLOWS_DISPATCH_UNCONFIRMED")])(
 		"retains the same targeted delivery on uncertain acceptance",
 		async (error) => {

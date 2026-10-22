@@ -5,7 +5,7 @@ import { useGenerationMode } from "@media/lib/generation-mode-context";
 import { schedulePrivatePlaybackRefresh } from "@media/lib/private-playback-refresh";
 import { Button } from "@repo/ui/components/button";
 import { useGenerationAnalytics } from "@shared/hooks/generation-analytics";
-import { useQuery } from "@tanstack/react-query";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 import { DownloadIcon, RefreshCwIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
@@ -15,7 +15,37 @@ import { usePageVisible, useVideoJob } from "./use-video";
 import { VideoOutputDetails } from "./VideoOutputDetails";
 import { VideoRetailPrice } from "./VideoRetailPrice";
 
-function PrivateVideo({ jobId }: { jobId: string }) {
+export function videoPlaybackQueryOptions({
+	ownerId,
+	jobId,
+	visible,
+	playback,
+}: {
+	ownerId?: string;
+	jobId: string;
+	visible: boolean;
+	playback?: VideoState["playback"];
+}) {
+	const path = `/api/video-v1/jobs/${encodeURIComponent(jobId)}/content?`;
+	const usable = (value: { url: string; expiresAt: string } | undefined) =>
+		Boolean(value && value.url.startsWith(path) && Date.parse(value.expiresAt) > Date.now());
+	const initial =
+		ownerId && playback?.ownerId === ownerId && usable(playback) ? playback : undefined;
+	return queryOptions({
+		queryKey: ["video-v1", "playback", ownerId, jobId],
+		queryFn: () => videoApi.jobs.playback({ jobId }),
+		enabled: Boolean(ownerId) && visible,
+		initialData: initial ? { url: initial.url, expiresAt: initial.expiresAt } : undefined,
+		// A fresh state response already performed the full authorization. Old
+		// snapshots and expired credentials retain the original playback RPC.
+		refetchOnMount: (query) => !usable(query.state.data),
+		retry: false,
+		gcTime: 0,
+		staleTime: 0,
+	});
+}
+
+function PrivateVideo({ jobId, playback }: { jobId: string; playback?: VideoState["playback"] }) {
 	const t = useTranslations("videoV1");
 	const { user } = useSession();
 	const pageVisible = usePageVisible();
@@ -30,14 +60,14 @@ function PrivateVideo({ jobId }: { jobId: string }) {
 	const [playbackFailed, setPlaybackFailed] = useState(false);
 	const [downloading, setDownloading] = useState(false);
 	const [downloadFailed, setDownloadFailed] = useState(false);
-	const access = useQuery({
-		queryKey: ["video-v1", "playback", user?.id, jobId],
-		queryFn: () => videoApi.jobs.playback({ jobId }),
-		enabled: Boolean(user && !user.isAnonymous) && visible,
-		retry: false,
-		gcTime: 0,
-		staleTime: 0,
-	});
+	const access = useQuery(
+		videoPlaybackQueryOptions({
+			ownerId: user && !user.isAnonymous ? user.id : undefined,
+			jobId,
+			visible,
+			playback,
+		}),
+	);
 	const { data: authorization, refetch } = access;
 	useEffect(() => {
 		return schedulePrivatePlaybackRefresh(authorization?.expiresAt, visible, () => {
@@ -149,7 +179,7 @@ export function VideoStateCard({ state }: { state: VideoState }) {
 			)}
 			{state.output && <VideoOutputDetails output={state.output} />}
 			{state.canPlay && state.stage === "READY" && (
-				<PrivateVideo key={state.jobId} jobId={state.jobId} />
+				<PrivateVideo key={state.jobId} jobId={state.jobId} playback={state.playback} />
 			)}
 		</section>
 	);
@@ -183,7 +213,7 @@ export function VideoJob({ jobId }: { jobId: string }) {
 					</Button>
 				</div>
 			)}
-			{job.data && <VideoStateCard state={job.data} />}
+			{job.data && !job.isError && <VideoStateCard state={job.data} />}
 		</div>
 	);
 }

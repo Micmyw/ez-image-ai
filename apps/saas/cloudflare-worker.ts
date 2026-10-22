@@ -1,9 +1,15 @@
+import { mediaJobEventsRoute } from "@repo/api/modules/media/job-events-handler";
 import { hydrateVideoRuntimeEnvironment } from "@repo/config/video-runtime-environment";
 import {
 	createLazyDatabaseClient,
 	createRuntimeDatabaseClient,
 	runWithDatabaseClient,
 } from "@repo/database/client";
+import {
+	runWithJobDispatchBinding,
+	type JobDispatchBinding,
+} from "@repo/jobs/orchestration/dispatch-binding";
+import { runWithMediaJobEvents, type MediaJobEventsNamespace } from "@repo/jobs/realtime/context";
 import type { VideoWorkflowBinding } from "@repo/jobs/video-v1/contracts";
 import { runWithVideoWorkflowBinding } from "@repo/jobs/video-v1/workflow-binding";
 import {
@@ -27,6 +33,8 @@ interface WebsiteWorkerEnvironment {
 	HYPERDRIVE: { connectionString: string };
 	IMAGES: CloudflareImagesBinding;
 	VIDEO_WORKFLOW?: VideoWorkflowBinding;
+	MEDIA_JOB_EVENTS?: MediaJobEventsNamespace;
+	JOBS_DISPATCH?: JobDispatchBinding;
 	VIDEO_MEDIA_BUCKET?: unknown;
 	VIDEO_V1_UPLOAD_CORS_READY?: string;
 }
@@ -68,13 +76,24 @@ export default {
 							runWithDatabaseClient(client, () =>
 								runWithImageProcessor(processor, () =>
 									runWithCloudflareRemoteMedia(() =>
-										runtimeEnvironment.VIDEO_WORKFLOW
-											? runWithVideoWorkflowBinding(runtimeEnvironment.VIDEO_WORKFLOW, callback, {
-													r2: Boolean(runtimeEnvironment.VIDEO_MEDIA_BUCKET),
-													hyperdrive: Boolean(runtimeEnvironment.HYPERDRIVE?.connectionString),
-													uploadCors: runtimeEnvironment.VIDEO_V1_UPLOAD_CORS_READY === "true",
-												})
-											: callback(),
+										runWithJobDispatchBinding(runtimeEnvironment.JOBS_DISPATCH, () =>
+											runWithMediaJobEvents(runtimeEnvironment.MEDIA_JOB_EVENTS, () =>
+												runtimeEnvironment.VIDEO_WORKFLOW
+													? runWithVideoWorkflowBinding(
+															runtimeEnvironment.VIDEO_WORKFLOW,
+															callback,
+															{
+																r2: Boolean(runtimeEnvironment.VIDEO_MEDIA_BUCKET),
+																hyperdrive: Boolean(
+																	runtimeEnvironment.HYPERDRIVE?.connectionString,
+																),
+																uploadCors:
+																	runtimeEnvironment.VIDEO_V1_UPLOAD_CORS_READY === "true",
+															},
+														)
+													: callback(),
+											),
+										),
 									),
 								),
 							),
@@ -84,7 +103,13 @@ export default {
 						// This is runScopedWorkerRequest's proxy, which keeps DB scope alive.
 						runWithRequestDefer(
 							(task) => context.waitUntil(task),
-							() => openNextWorker.fetch(request, environment, context),
+							// Return the upgrade untouched; OpenNext's HTTP bridge can drop response.webSocket.
+							() =>
+								mediaJobEventsRoute(request)
+									? import("@repo/api/modules/media/job-events").then(({ serveMediaJobEvents }) =>
+											serveMediaJobEvents(request),
+										)
+									: openNextWorker.fetch(request, environment, context),
 						),
 				);
 			},

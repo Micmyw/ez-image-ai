@@ -57,6 +57,7 @@ function readableAsset(id = "asset-readable"): MediaAssetReadRecord {
 		verificationExhaustedAt: null,
 		verificationValidUntil: validUntil,
 		verificationSubmissionToken: null,
+		verificationCallbackReceivedAt: null,
 		verificationSubmissionUncertain: false,
 		verificationSubmittedAt: new Date("2026-08-23T23:59:00.000Z"),
 		verificationLastErrorCode: null,

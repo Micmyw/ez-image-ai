@@ -16,6 +16,7 @@ import {
 } from "@repo/config/video-pricing.server";
 import { configuredVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { applyVideoSharedFunding } from "@repo/config/video-shared-funding";
+import type { VideoSubmissionInput } from "@repo/config/video-submission";
 import { configuredVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import {
 	canAccessVideoV1,
@@ -29,15 +30,15 @@ import { resolveVideoRetailEligibility } from "@repo/database/video-retail-eligi
 import {
 	createVideoJobRecord,
 	findExistingVideoAdmission,
+	findExistingVideoSubmission,
 	getVideoJobRecord,
 	listVideoJobRecords,
+	submitVideoJobRecord,
+	type VideoQuoteResult,
 	type VideoAdmissionLimits,
 	type VideoPrice,
 } from "@repo/database/video-v1";
-import {
-	authorizeVideoPlayback,
-	authorizeVideoPlaybackSnapshot,
-} from "@repo/database/video-v1-fulfillment";
+import { authorizeVideoPlaybackSnapshot } from "@repo/database/video-v1-fulfillment";
 
 import type {
 	CreateVideoJobInput,
@@ -170,6 +171,72 @@ export async function createVideoJob(
 	return getVideoPublicState(context, created.jobId);
 }
 
+export async function submitVideoJob(
+	context: VideoOwnerContext,
+	input: VideoSubmissionInput,
+	options: {
+		bindings: VideoV1Bindings;
+		loadLimits: () => Promise<
+			Pick<VideoAdmissionLimits, "maximumStorageBytes" | "maximumInputBytes">
+		>;
+		environment?: Record<string, string | undefined>;
+		binding?: VideoWorkflowBinding;
+		requestReceivedAt?: Date;
+	},
+): Promise<
+	{ kind: "created"; state: VideoPublicState } | { kind: "quote_only"; quote: VideoQuoteResult }
+> {
+	const owned = { ownerId: context.userId, ...input };
+	const binding = options.binding ?? getVideoWorkflowBinding();
+	const respond = async (jobId: string) => {
+		await ensureVideoWorkflowStarted(jobId, binding);
+		return { kind: "created" as const, state: await getVideoPublicState(context, jobId) };
+	};
+	const replay = await findExistingVideoSubmission(owned, db);
+	if (replay) return respond(replay.id);
+	let result;
+	try {
+		const environment = options.environment ?? process.env;
+		const [eligibility, limits] = await Promise.all([
+			isVideoRetailPricingApproved(environment)
+				? resolveVideoRetailEligibility(context.userId, db)
+				: undefined,
+			options.loadLimits(),
+		]);
+		const { config, price, visualSafetyProfile, textSafetyProfile, audioSafetyPolicy } =
+			requireVideoAdmission(
+				context,
+				environment,
+				options.bindings,
+				input.request,
+				eligibility ? { audience: eligibility.audience, eligibility } : undefined,
+			);
+		result = await submitVideoJobRecord(
+			{
+				...owned,
+				price,
+				visualSafetyProfile,
+				textSafetyProfile,
+				audioSafetyPolicy,
+				paidFundingPolicy: price.paidFundingPolicy,
+				requestReceivedAt: options.requestReceivedAt,
+				limits: {
+					...limits,
+					maximumInputBytes: Math.min(limits.maximumInputBytes, config.maxInputBytes),
+				},
+			},
+			db,
+		);
+	} catch (error) {
+		// Resolve a lost commit response or a concurrent identical request without
+		// replacing its key or reserving again. Unknown acceptance stays unknown.
+		const recovered = await findExistingVideoSubmission(owned, db);
+		if (!recovered) throw error;
+		return respond(recovered.id);
+	}
+	return result.kind === "created" ? respond(result.jobId) : result;
+}
+
 type StartDependencies = {
 	load(jobId: string): Promise<{
 		workflowInstanceId: string;
@@ -300,9 +367,20 @@ export function toVideoPublicState(job: PublicRecord): VideoPublicState {
 export async function getVideoPublicState(
 	context: VideoOwnerContext,
 	jobId: string,
+	createPlayback?: (
+		asset: NonNullable<ReturnType<typeof authorizeVideoPlaybackSnapshot>>,
+	) => NonNullable<VideoPublicState["playback"]>,
 ): Promise<VideoPublicState> {
-	const state = toVideoPublicState(await getVideoJobRecord(context.userId, jobId, db));
-	if (state.canPlay) state.canPlay = Boolean(await authorizeVideoPlayback(context.userId, jobId));
+	const job = await getVideoJobRecord(context.userId, jobId, db);
+	const state = toVideoPublicState(job);
+	if (state.canPlay) {
+		// This request's fresh projection contains the exact same ownership and
+		// approval evidence used by the private content endpoint. Reuse it for
+		// status and the optional grant instead of loading the job a second time.
+		const asset = authorizeVideoPlaybackSnapshot(context.userId, job);
+		state.canPlay = Boolean(asset);
+		if (asset && createPlayback) state.playback = createPlayback(asset);
+	}
 	return state;
 }
 export async function listVideoPublicStates(

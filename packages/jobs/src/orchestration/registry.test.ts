@@ -1,11 +1,108 @@
 import { STATIC_DISPATCH_ROUTE_MANIFEST } from "@repo/ai/media/catalog/dispatch-manifest";
 import { describe, expect, it } from "vitest";
 
-import { maintenanceTasksAt, parseTaskRequest, taskDefinition } from "./registry";
+import {
+	maintenanceTasksAt,
+	parseEventDeliveryResult,
+	parseTaskRequest,
+	taskDefinition,
+} from "./registry";
 
 const dispatchTask = "media-dispatch-image-kie-nano-banana-2";
 
 describe("orchestration task admission", () => {
+	it("requires exact receipt identity and typed review progress for a fused execution", () => {
+		const request = { taskId: "media-execute-event", payload: { eventId: "event" } };
+		const child = {
+			taskId: "media-verify-upload",
+			payload: { assetId: "asset" },
+			outboxReceipt: { eventId: "event", workerId: "workflow:one", leaseToken: "lease" },
+		};
+		const result = {
+			preparedEvent: null,
+			executedEvent: child,
+			deliveryState: "pending",
+			poll: {
+				done: false,
+				waitSeconds: 5,
+				phaseOwner: { workflowId: "workflow", phaseKey: "phase", epoch: 1 },
+			},
+		};
+		expect(parseEventDeliveryResult(request, result)).toEqual(result);
+		for (const invalid of [
+			{ ...result, preparedEvent: child },
+			{ ...result, executedEvent: { ...child, outboxReceipt: undefined } },
+			{
+				...result,
+				executedEvent: { ...child, outboxReceipt: { ...child.outboxReceipt, eventId: "other" } },
+			},
+			{ ...result, deliveryState: undefined },
+			{ ...result, poll: undefined },
+			{ ...result, poll: { ...result.poll, phaseOwner: { ...result.poll.phaseOwner, epoch: 0 } } },
+			{ ...result, eventRecoveryState: "completed" },
+		])
+			expect(() => parseEventDeliveryResult(request, invalid)).toThrow();
+		expect(() =>
+			parseEventDeliveryResult(
+				{ ...request, payload: { ...request.payload, recoverOnly: true } },
+				result,
+			),
+		).toThrow();
+		for (const eventRecoveryState of ["completed", "held", "missing"])
+			expect(
+				parseEventDeliveryResult(
+					{ ...request, payload: { ...request.payload, recoverOnly: true } },
+					{
+						preparedEvent: null,
+						eventRecoveryState,
+					},
+				),
+			).toEqual({ preparedEvent: null, eventRecoveryState });
+		expect(taskDefinition("media-execute-event").maxAttempts).toBe(1);
+	});
+	it("admits only a bounded due time for an unclaimed prepared event", () => {
+		const request = { taskId: "media-prepare-event", payload: { eventId: "event" } };
+		for (const eventRetryAfterMs of [0, 811])
+			expect(
+				parseEventDeliveryResult(request, {
+					preparedEvent: null,
+					eventRetryAfterMs,
+					privateUrl: "secret",
+				}),
+			).toEqual({ preparedEvent: null, eventRetryAfterMs });
+		for (const eventRetryAfterMs of [-1, 1.5, Infinity, NaN, "later", null])
+			expect(() =>
+				parseEventDeliveryResult(request, { preparedEvent: null, eventRetryAfterMs }),
+			).toThrow();
+		expect(() =>
+			parseEventDeliveryResult(request, {
+				preparedEvent: null,
+				eventRetryAfterMs: 811,
+				eventRetryAt: 1_800_000_000_811,
+			}),
+		).toThrow();
+		expect(
+			parseEventDeliveryResult(request, {
+				preparedEvent: null,
+				eventRetryAt: 1_800_000_000_811,
+				privateUrl: "secret",
+			}),
+		).toEqual({ preparedEvent: null, eventRetryAt: 1_800_000_000_811 });
+		for (const eventRetryAt of [0, -1, 1.5, Infinity, NaN, "later", null])
+			expect(() =>
+				parseEventDeliveryResult(request, { preparedEvent: null, eventRetryAt }),
+			).toThrow();
+		expect(() =>
+			parseEventDeliveryResult(request, {
+				preparedEvent: {
+					taskId: "media-verify-upload",
+					payload: { assetId: "asset" },
+					outboxReceipt: { eventId: "event", workerId: "worker", leaseToken: "fence" },
+				},
+				eventRetryAt: 1_800_000_000_811,
+			}),
+		).toThrow();
+	});
 	it("admits account-copy identities without client-selected storage locations", () => {
 		for (const taskId of ["media-copy-account-input", "media-cleanup-account-input-copy"]) {
 			expect(parseTaskRequest({ taskId, payload: { promotionId: "promotion-1" } })).toEqual({

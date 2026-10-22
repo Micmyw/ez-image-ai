@@ -79,25 +79,22 @@ export async function submitGenerationForUser(
 					quoteId,
 					fingerprint,
 					expectedCredits: input.expectedCredits,
+					deferPersistence: Boolean(dependencies.createPreparedJob),
 				},
 				timing,
 			);
 			admission = quote.admission;
 		} catch (error) {
-			// Concurrent identical submissions can race on the deterministic quote ID.
-			if (!error || typeof error !== "object" || !("code" in error) || error.code !== "P2002")
-				throw error;
+			// A competing admission can commit during this preflight and consume its
+			// balance. Recover an accepted request before returning that stale failure.
 			existing = await dependencies.findQuote(userId, quoteId);
-			if (!existing) throw error;
+			const duplicateQuote =
+				error !== null && typeof error === "object" && "code" in error && error.code === "P2002";
+			if (!existing || (!existing.job && !duplicateQuote)) throw error;
 		}
 	}
 	if (existing) {
-		const snapshot = existing.inputSnapshot as { submissionFingerprint?: unknown } | null;
-		if (
-			snapshot?.submissionFingerprint !== fingerprint ||
-			(existing.job && existing.job.idempotencyKey !== input.idempotencyKey)
-		)
-			throw new Error("IDEMPOTENCY_CONFLICT");
+		assertMatchingSubmission(existing, fingerprint, input.idempotencyKey);
 		quote = existing;
 	}
 	if (!quote) throw new Error("NOT_FOUND");
@@ -118,11 +115,22 @@ export async function submitGenerationForUser(
 				admission && dependencies.createPreparedJob
 					? await dependencies.createPreparedJob(userId, request, admission, undefined, timing)
 					: await dependencies.createJob(userId, request, undefined, timing, rateLimitReceipt);
+			if (result.committedQuote) {
+				quote = result.committedQuote;
+			} else if (result.replayed && admission?.preparedQuote) {
+				// A competing admission may have won with an earlier immutable quote expiry.
+				const committed = await dependencies.findQuote(userId, quoteId);
+				if (!committed?.job) throw new Error("NOT_FOUND");
+				assertMatchingSubmission(committed, fingerprint, input.idempotencyKey);
+				quote = committed;
+			}
 		} catch (error) {
 			// A concurrent request may have reserved the balance or committed while
 			// this request was checking admission. Recover that job before returning an error.
 			const recovered = await dependencies.findQuote(userId, quoteId);
 			if (!recovered?.job || recovered.job.idempotencyKey !== input.idempotencyKey) throw error;
+			assertMatchingSubmission(recovered, fingerprint, input.idempotencyKey);
+			quote = recovered;
 			result = { job: replayedSubmissionJob(recovered), replayed: true };
 		}
 	}
@@ -147,6 +155,19 @@ export async function submitGenerationForUser(
 			expiresAt: quote.expiresAt.toISOString(),
 		},
 	};
+}
+
+function assertMatchingSubmission(
+	quote: NonNullable<Awaited<ReturnType<Dependencies["findQuote"]>>>,
+	fingerprint: string,
+	idempotencyKey: string,
+): void {
+	const snapshot = quote.inputSnapshot as { submissionFingerprint?: unknown } | null;
+	if (
+		snapshot?.submissionFingerprint !== fingerprint ||
+		(quote.job && quote.job.idempotencyKey !== idempotencyKey)
+	)
+		throw new Error("IDEMPOTENCY_CONFLICT");
 }
 
 function replayedSubmissionJob(

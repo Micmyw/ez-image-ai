@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession } from "@auth/hooks/use-session";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
@@ -12,20 +13,23 @@ import {
 	reconcileJobSnapshot,
 } from "../lib/job-status";
 import { recordOutputReceived } from "../lib/preview-timing";
+import { useJobEvents } from "./use-job-events";
 import { usePageVisible } from "./use-page-visible";
 
 export function useJob(jobId: string | null) {
 	const queryClient = useQueryClient();
+	const { user } = useSession();
+	const queryKey = ["media-job", jobId, user?.id ?? null];
 	const active = useGenerationMode()?.mode !== "video";
 	const visible = usePageVisible();
 	const refreshedSettlement = useRef<string | null>(null);
 	const query = useQuery({
-		queryKey: ["media-job", jobId],
+		queryKey,
 		queryFn: async ({ signal }) => {
 			const result = await orpcClient.media.getJob({ jobId: jobId! }, { signal });
 			signal.throwIfAborted();
 			const current = reconcileJobSnapshot(
-				queryClient.getQueryData<typeof result>(["media-job", jobId]),
+				queryClient.getQueryData<typeof result>(queryKey),
 				result,
 			);
 			for (const asset of current.assets)
@@ -60,5 +64,12 @@ export function useJob(jobId: string | null) {
 	const accessDenied = ["UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND"].includes(
 		(query.error as { code?: string } | null)?.code ?? "",
 	);
+	useJobEvents({
+		jobId,
+		ownerId: user?.id,
+		queryKey,
+		enabled:
+			Boolean(user && !user.isAnonymous) && active && visible && !accessDenied && !settlement,
+	});
 	return { ...query, data: accessDenied ? undefined : query.data };
 }

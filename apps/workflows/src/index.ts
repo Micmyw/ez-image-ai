@@ -1,19 +1,26 @@
 import { Container, getContainer } from "@cloudflare/containers";
-import { signRequest, workflowInstanceId } from "@repo/jobs/orchestration/auth";
-import { taskDefinition } from "@repo/jobs/orchestration/registry";
+import { workflowInstanceId } from "@repo/jobs/orchestration/auth";
+import { workerServiceForTask } from "@repo/jobs/orchestration/worker-executors";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 
 import { ContainerActivity } from "./activity";
+import { createExecutorInvoker } from "./invoke";
+import { handleJobEventsRequest, isJobEventsRequest } from "./job-events";
+import { createWakeContinuationScheduler, handleWake, handlePhaseWake } from "./wake";
+export { ControlExecutor } from "./control-executor";
+export { TransferExecutor } from "./transfer-executor";
+export { MediaJobEvents } from "./media-job-events";
 import { runVideoMaintenance, type VideoRuntimeEnvironment } from "./video-runtime";
 export { VideoGenerationWorkflowV1 } from "./video-generation-v1";
 import { handleDispatch, type JobsParams } from "./dispatch";
 import {
 	runMaintenance,
+	runContinuation,
 	runPolling,
 	runTask,
+	waitForDueTime,
+	withTargetedEventDelivery,
 	type DurableSteps,
-	type InvokeTask,
-	type InvocationResult,
 } from "./orchestrator";
 
 export class JobsContainer extends Container<Cloudflare.Env> {
@@ -24,6 +31,14 @@ export class JobsContainer extends Container<Cloudflare.Env> {
 	private activity = new ContainerActivity();
 
 	override async fetch(request: Request): Promise<Response> {
+		if (new URL(request.url).pathname === "/internal/wake")
+			return handleWake(
+				request,
+				this.env.WORKFLOWS_DISPATCH_SECRET,
+				containerInvoker(this.env),
+				(work) => this.ctx.waitUntil(work),
+				createWakeContinuationScheduler(this.env.JOBS),
+			);
 		if (!this.activity.enter()) return new Response("Busy", { status: 429 });
 		try {
 			return await this.containerFetch(request);
@@ -75,32 +90,19 @@ function runtimeEnvironment(env: Cloudflare.Env): Record<string, string> {
 
 export class JobsWorkflow extends WorkflowEntrypoint<Cloudflare.Env, JobsParams> {
 	override async run(event: WorkflowEvent<JobsParams>, step: WorkflowStep) {
-		const invoke: InvokeTask = async (request, context): Promise<InvocationResult> => {
-			const body = JSON.stringify({ request, context });
-			const response = await getContainer(this.env.JOBS_RUNTIME, "jobs-primary").fetch(
-				new Request("http://runtime/internal/execute", {
-					method: "POST",
-					body,
-					headers: await signRequest(
-						this.env.WORKFLOWS_DISPATCH_SECRET,
-						"POST",
-						"/internal/execute",
-						body,
-					),
-					signal: AbortSignal.timeout((taskDefinition(request.taskId).timeoutSeconds + 10) * 1000),
-				}),
-			);
-			if (response.status === 429) return { status: "busy" };
-			if (!response.ok) return { status: "failed" };
-			const result = (await response.json()) as InvocationResult;
-			if (result.status !== "ok") throw new Error("INVALID_RUNTIME_RESPONSE");
-			return result;
-		};
+		const invoke = containerInvoker(this.env);
 		// Adapter narrows SDK duration template types while retaining actual durable
 		// step methods. No timers or nested steps are hidden in callbacks.
-		const steps = step as unknown as DurableSteps;
+		const steps = withTargetedEventDelivery(
+			step as unknown as DurableSteps,
+			event.payload.kind === "maintenance" ? undefined : event.payload.executionVersion,
+		);
+		if (event.payload.kind === "continuation" && event.payload.notBefore !== undefined)
+			await waitForDueTime(steps, "wake-continuation-due", event.payload.notBefore);
 		if (event.payload.kind === "maintenance")
 			await runMaintenance(event.payload.timestamp, event.instanceId, steps, invoke);
+		else if (event.payload.kind === "continuation")
+			await runContinuation(event.payload.request, event.instanceId, steps, invoke);
 		else if (
 			["media-poll-generation", "media-verify-upload"].includes(event.payload.request.taskId)
 		)
@@ -110,8 +112,29 @@ export class JobsWorkflow extends WorkflowEntrypoint<Cloudflare.Env, JobsParams>
 	}
 }
 
+function containerInvoker(env: Cloudflare.Env) {
+	return createExecutorInvoker(
+		env.WORKFLOWS_DISPATCH_SECRET,
+		(request) => {
+			const service = workerServiceForTask(request);
+			return service && env[service]
+				? env[service]
+				: getContainer(env.JOBS_RUNTIME, "jobs-primary");
+		},
+		(request) =>
+			request.taskId === "media-finalize-generation" && env.JOBS_TRANSFER
+				? getContainer(env.JOBS_RUNTIME, "jobs-primary")
+				: undefined,
+	);
+}
+
 export default {
 	fetch(request, env) {
+		if (isJobEventsRequest(request)) return handleJobEventsRequest(request, env);
+		if (new URL(request.url).pathname === "/internal/phase-wake")
+			return handlePhaseWake(request, env.WORKFLOWS_DISPATCH_SECRET, env.JOBS);
+		if (new URL(request.url).pathname === "/internal/wake")
+			return getContainer(env.JOBS_RUNTIME, "jobs-primary").fetch(request);
 		return handleDispatch(request, env.WORKFLOWS_DISPATCH_SECRET, env.JOBS);
 	},
 	async scheduled(controller, env) {

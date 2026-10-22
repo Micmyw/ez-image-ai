@@ -3,12 +3,18 @@ import { readVideoSeeapiCallbackConfig } from "@repo/config/video-seeapi-callbac
 import type { VideoModerationEventReference } from "@repo/database/video-v1-moderation-events";
 import {
 	listPendingSeeapiVideoModerationEvents,
+	listPendingSeeapiVideoInputModerationEvents,
 	markSeeapiVideoModerationWebhookNotified,
+	markSeeapiVideoInputModerationWebhookNotified,
 	persistSeeapiVideoModerationWebhook,
+	persistSeeapiVideoInputModerationWebhook,
 } from "@repo/database/video-v1-seeapi-events";
 
 import type { AcceptedWebhookResult, VideoWorkflowBinding } from "./contracts";
-import { verifySeeapiVideoCallbackUrl } from "./seeapi-callback-url";
+import {
+	verifySeeapiVideoCallbackUrl,
+	verifySeeapiVideoInputCallbackUrl,
+} from "./seeapi-callback-url";
 
 const MAX_BODY_BYTES = 256 * 1024;
 class SeeapiWebhookError extends Error {
@@ -24,6 +30,8 @@ export interface SeeapiVideoModerationWebhookDependencies {
 	environment?: Record<string, string | undefined>;
 	persist?: typeof persistSeeapiVideoModerationWebhook;
 	markNotified?: typeof markSeeapiVideoModerationWebhookNotified;
+	persistInput?: typeof persistSeeapiVideoInputModerationWebhook;
+	markInputNotified?: typeof markSeeapiVideoInputModerationWebhookNotified;
 	now?: () => Date;
 }
 async function readRawBody(request: Request): Promise<Uint8Array<ArrayBuffer>> {
@@ -58,7 +66,7 @@ async function readRawBody(request: Request): Promise<Uint8Array<ArrayBuffer>> {
 async function notify(
 	event: VideoModerationEventReference,
 	binding: VideoWorkflowBinding | undefined,
-	mark: typeof markSeeapiVideoModerationWebhookNotified,
+	mark: (eventId: string) => Promise<unknown>,
 ): Promise<boolean> {
 	if (event.notified) return true;
 	if (!binding || !event.jobId || event.workflowInstanceId !== `video-v1-${event.jobId}`)
@@ -83,8 +91,14 @@ export async function acceptSeeapiVideoModerationWebhook(
 ): Promise<AcceptedWebhookResult> {
 	const environment = options.environment ?? process.env;
 	const config = readVideoSeeapiCallbackConfig(environment);
-	const identity = await verifySeeapiVideoCallbackUrl(request.url, environment);
-	if (!config.ready || !identity)
+	const inputIdentity =
+		new URL(request.url).searchParams.get("phase") === "input"
+			? await verifySeeapiVideoInputCallbackUrl(request.url, environment)
+			: null;
+	const identity = inputIdentity
+		? null
+		: await verifySeeapiVideoCallbackUrl(request.url, environment);
+	if (!config.ready || (!identity && !inputIdentity))
 		throw new SeeapiWebhookError(401, "VIDEO_SEEAPI_CALLBACK_UNAUTHORIZED");
 	const bytes = await readRawBody(request);
 	const receivedAt = options.now?.() ?? new Date();
@@ -117,8 +131,7 @@ export async function acceptSeeapiVideoModerationWebhook(
 	const metadata = (name: string) => request.headers.get(name)?.slice(0, 256) ?? null;
 	let event: VideoModerationEventReference;
 	try {
-		event = await (options.persist ?? persistSeeapiVideoModerationWebhook)({
-			...identity,
+		const evidence = {
 			rawBody,
 			eventHash,
 			receivedAt,
@@ -127,16 +140,32 @@ export async function acceptSeeapiVideoModerationWebhook(
 				delivery: metadata("X-SEEAPI-Delivery"),
 				event: metadata("X-SEEAPI-Event"),
 			},
-		});
+		};
+		event = inputIdentity
+			? await (options.persistInput ?? persistSeeapiVideoInputModerationWebhook)({
+					...inputIdentity,
+					...evidence,
+				})
+			: await (options.persist ?? persistSeeapiVideoModerationWebhook)({
+					...identity!,
+					...evidence,
+				});
 	} catch (error) {
-		if (error instanceof Error && error.message === "VIDEO_SEEAPI_CALLBACK_IDENTITY_INVALID")
+		if (
+			error instanceof Error &&
+			["VIDEO_SEEAPI_CALLBACK_IDENTITY_INVALID", "VIDEO_INPUT_IDENTITY_CHANGED"].includes(
+				error.message,
+			)
+		)
 			throw new SeeapiWebhookError(401, "VIDEO_SEEAPI_CALLBACK_UNAUTHORIZED");
 		throw error;
 	}
 	const notified = await notify(
 		event,
 		options.binding,
-		options.markNotified ?? markSeeapiVideoModerationWebhookNotified,
+		inputIdentity
+			? (options.markInputNotified ?? markSeeapiVideoInputModerationWebhookNotified)
+			: (options.markNotified ?? markSeeapiVideoModerationWebhookNotified),
 	);
 	// A bound event must reach the Workflow. Let the provider retry durable inbox delivery;
 	// early callbacks have no task ID yet and are delivered after recordTask succeeds.
@@ -147,6 +176,32 @@ export async function acceptSeeapiVideoModerationWebhook(
 		notified,
 		...(event.jobId ? { jobId: event.jobId } : {}),
 	};
+}
+
+export async function notifyPendingSeeapiVideoInputModerationEvents(options: {
+	binding?: VideoWorkflowBinding;
+	jobId: string;
+	limit?: number;
+	events?: typeof listPendingSeeapiVideoInputModerationEvents;
+	markNotified?: typeof markSeeapiVideoInputModerationWebhookNotified;
+}) {
+	const result = { notified: 0, failed: 0 };
+	if (!options.binding) return result;
+	for (const event of await (options.events ?? listPendingSeeapiVideoInputModerationEvents)(
+		options.limit ?? 50,
+		options.jobId,
+	)) {
+		if (
+			await notify(
+				event,
+				options.binding,
+				options.markNotified ?? markSeeapiVideoInputModerationWebhookNotified,
+			)
+		)
+			result.notified++;
+		else result.failed++;
+	}
+	return result;
 }
 export function createSeeapiVideoModerationWebhookHandler(
 	options: SeeapiVideoModerationWebhookDependencies = {},

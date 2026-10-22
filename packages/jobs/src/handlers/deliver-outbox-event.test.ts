@@ -1,10 +1,51 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { runWithMediaJobEvents } from "../realtime/context";
 import { deleteStorageObject } from "./cleanup-storage-object";
 import { deliverOutboxEvent } from "./deliver-outbox-event";
 import { dispatchOutbox } from "./dispatch-outbox";
 
 describe("outbox delivery routes", () => {
+	it("returns callback normalization directly to the durable parent before ACK", async () => {
+		const trigger = vi.fn();
+		const triggerAndWait = vi.fn(async () => undefined);
+		await deliverOutboxEvent(
+			{
+				id: "callback-intent",
+				eventType: "PROVIDER_EVENT_RECEIVED",
+				aggregateId: "event",
+				payload: { providerWebhookEventId: "event" },
+				leaseToken: "lease",
+				attempts: 1,
+			},
+			{ trigger, triggerAndWait, resolveDispatchRoute: vi.fn() },
+		);
+		expect(triggerAndWait).toHaveBeenCalledWith("media-process-provider-webhook", {
+			providerWebhookEventId: "event",
+		});
+		expect(trigger).not.toHaveBeenCalled();
+	});
+	it("delivers a committed notification directly and rejects mismatched event identity", async () => {
+		const eventId = `mju_${"a".repeat(64)}`;
+		const event = {
+			id: eventId,
+			eventType: "MEDIA_JOB_UPDATED",
+			aggregateId: "job",
+			payload: { eventId, jobId: "job", version: "ready" },
+			leaseToken: "lease",
+			attempts: 1,
+		};
+		const send = vi.fn(async () => Response.json({ persisted: true, eventId }));
+		const dependencies = { trigger: vi.fn(), resolveDispatchRoute: vi.fn() };
+		await runWithMediaJobEvents({ idFromName: (id) => id, get: () => ({ fetch: send }) }, () =>
+			deliverOutboxEvent(event, dependencies),
+		);
+		expect(send).toHaveBeenCalledTimes(1);
+		expect(dependencies.trigger).not.toHaveBeenCalled();
+		await expect(
+			deliverOutboxEvent({ ...event, aggregateId: "another-job" }, dependencies),
+		).rejects.toThrow("MEDIA_JOB_NOTIFICATION_IDENTITY_MISMATCH");
+	});
 	it("dispatches account-copy bytes across lanes and waits inline only for orphan cleanup", async () => {
 		const delivered: string[] = [];
 		const dependencies = {

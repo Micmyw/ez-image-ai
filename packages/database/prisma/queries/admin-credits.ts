@@ -2,6 +2,7 @@ import { adminScopeAllowsOwner, type AdminScope } from "../../shared/admin-scope
 import { db } from "../client";
 import type { Prisma } from "../generated/client";
 import { AdminAccessError } from "./admin-access";
+import { ensureCreditAccountInTransaction } from "./media/credit-accounts";
 import { createCreditGrant, expireCreditLotsInTransaction } from "./media/credits";
 import {
 	assertCreditLedgerReplay,
@@ -66,11 +67,10 @@ export async function adjustAdminCredits(
 				? await tx.user.findUnique({ where: { id: input.ownerId }, select: { id: true } })
 				: await tx.organization.findUnique({ where: { id: input.ownerId }, select: { id: true } });
 		if (!owner) throw new AdminAccessError("ADMIN_CREDITS_OWNER_NOT_FOUND", 404);
-		const account = await tx.creditAccount.upsert({
-			where: { ownerType_ownerId: { ownerType: input.ownerType, ownerId: input.ownerId } },
-			create: { ownerType: input.ownerType, ownerId: input.ownerId },
-			update: {},
-		});
+		const account = await ensureCreditAccountInTransaction(
+			{ ownerType: input.ownerType, ownerId: input.ownerId },
+			tx,
+		);
 		await tx.$queryRaw`SELECT "id" FROM "credit_account" WHERE "id" = ${account.id} FOR UPDATE`;
 		const metadata = {
 			source: "ADMIN_ADJUSTMENT",
