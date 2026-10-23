@@ -157,6 +157,13 @@ const nextConfig: NextConfig = {
 		}
 
 		if (isServer) {
+			// These immutable JSON dictionaries do not depend on React's RSC/SSR
+			// conditions. Give them one server layer instead of repeating identical
+			// payloads for every importing application layer.
+			config.module.rules.push({
+				test: /[\\/]packages[\\/]i18n[\\/]translations[\\/].*\.json$/,
+				layer: "shared-i18n",
+			});
 			config.plugins.push(new PrismaPlugin());
 		}
 

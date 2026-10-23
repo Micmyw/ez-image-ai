@@ -9,10 +9,7 @@
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {
-		"@ai-sdk/openai": "catalog:",
-		"@ai-sdk/react": "catalog:",
 		"@repo/config": "workspace:*",
-		"ai": "catalog:",
 		"zod": "catalog:"
 	},
 	"devDependencies": {

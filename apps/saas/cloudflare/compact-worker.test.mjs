@@ -26,7 +26,7 @@ await test("ASCII printing preserves Unicode regexes, strings, templates and ser
 await test("uncompacted Unicode source fails the actual artifact guard", () => {
 	assert.throws(() => assertCompactWorker("const expression = /中文/u;"), /MUST_BE_ASCII/);
 	assert.throws(
-		() => assertCompactWorker(" ".repeat(34 * 1024 * 1024 + 1)),
+		() => assertCompactWorker(" ".repeat(28 * 1024 * 1024 + 1)),
 		/SOURCE_MEMORY_BUDGET_EXCEEDED/,
 	);
 });

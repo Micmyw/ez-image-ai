@@ -13,7 +13,6 @@
 			"@payments/*": ["./modules/payments/*"],
 			"@i18n/*": ["./modules/i18n/*"],
 			"@admin/*": ["./modules/admin/*"],
-			"@ai/*": ["./modules/ai/*"],
 			"@media/*": ["./modules/media/*"],
 			"@onboarding/*": ["./modules/onboarding/*"],
 			"@shared/*": ["./modules/shared/*"]

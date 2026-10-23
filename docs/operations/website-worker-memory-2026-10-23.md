@@ -41,7 +41,7 @@ Backing stores and runtime allocations must also fit the platform limit.
 3. Use the pinned Next dependency's Terser parser/printer with compression and
    identifier mangling disabled to emit ASCII JavaScript. This includes regex
    literals; no blind Unicode text replacement is used.
-4. Reject remaining non-ASCII source or source above the 34 MiB build budget,
+4. Reject remaining non-ASCII source or source above the 28 MiB build budget,
    preserve composed source maps, then replace only `apps/saas/dist/worker`.
 
 Production and staging profiles, including hybrid hosting, upload that exact
@@ -86,3 +86,32 @@ artifact; do not mix a source entrypoint with the artifact-only deployment profi
 - Local experiments and release/live reports are kept under the ignored
   `.cache/worker-memory-20261023/` directory. CI, deployed SHA and live Cloudflare
   results are separate evidence; a passing local smoke does not certify them.
+
+## Runtime cleanup follow-up
+
+The next cleanup removes the production-disabled template Chatbot route and API,
+generic text/image/audio SDK examples, unused mail adapters, and production barrel
+exports for benchmark tools. Benchmark commands and the live image/video adapters
+remain available. The lockfile removes 109 unreachable package records without
+changing any retained versions.
+
+Translation dictionaries use explicit namespace loaders and one immutable JSON
+server layer across RSC/SSR imports. Mail loads only mail/shared messages; config-only
+imports bypass the message barrel. The eight measured translation groups that each
+occurred four times no longer have duplicate chunks in the final server handler.
+English fallback and all four locales remain covered.
+
+| Local final artifact metric                       | Before cleanup | After cleanup |
+| ------------------------------------------------- | -------------: | ------------: |
+| ASCII JavaScript source, bytes                    |     30,200,177 |    25,621,661 |
+| Initial JS heap, bytes                            |     42,233,968 |    36,821,020 |
+| Retained JS heap after public/unsigned API probes |     87,411,460 |    79,776,852 |
+
+Source size falls by 15.2%; the memory figures measure the local workerd isolate,
+not production capacity. The smoke now also checks that the Chatbot route is absent
+and both old REST/RPC text-stream endpoints return 404. Its new 28 MiB source budget
+rejects the previous bloated artifact. Resend, localized transactional email,
+runtime mail rendering, organizations, billing, moderation, API documentation and
+the current image/video products remain because they have active consumers.
+Mailgun, Postmark, Nodemailer and the unused console adapter had no callers and
+were removed; this file-only cleanup is not counted as a runtime memory saving.

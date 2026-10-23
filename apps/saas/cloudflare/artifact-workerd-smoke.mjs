@@ -51,6 +51,11 @@ for (const forbidden of ["/runtime/client.mjs", "/sharp/lib/", "/remote-media-no
 assert(!source.includes("/runtime/client.mjs"), "Node Prisma runtime leaked into the Worker");
 assert(!source.includes("/sharp/lib/"), "Native Sharp leaked into the Worker");
 assert(!source.includes("/remote-media-node.ts"), "Node media transport leaked into the Worker");
+const routeManifest = JSON.parse(
+	await readFile(path.join(app, ".next/server/app-paths-manifest.json"), "utf8"),
+);
+assert(!Object.keys(routeManifest).some((route) => route.includes("/chatbot/")));
+assert(!source.includes("This is an example chatbot built with the OpenAI API"));
 const files = await readdir(output);
 assert(files.some((file) => file.endsWith("query_compiler_fast_bg.wasm")));
 const staticFile = (await readdir(path.join(assets, "_next/static"), { recursive: true })).find(
@@ -201,6 +206,8 @@ try {
 		assert.equal(JSON.parse(rejected.body).code, "WEBHOOK_VERIFICATION_FAILED");
 		assert.equal(rejected.response.headers.get("cache-control"), "no-store");
 	}
+	for (const endpoint of ["/api/ai/stream", "/api/rpc/ai/stream"])
+		await request(endpoint, { method: "POST", body: "{}", status: 404 });
 	await memoryProbe.measure("website.public-retained", 112, { retained: true });
 	if (checkDatabase) {
 		// The public catalog queries runtimeConfigOverride through the Next server

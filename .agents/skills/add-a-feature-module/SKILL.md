@@ -24,7 +24,7 @@ Use for a feature that owns multiple components, hooks, or server interactions. 
 
 ## Canonical reference
 
-The AI feature spans `apps/saas/modules/ai/components/AiChat.tsx`, `apps/saas/app/(authenticated)/(main)/(account)/chatbot/page.tsx`, and `packages/api/modules/ai/procedures/stream-message.ts`.
+The image editor spans `apps/saas/modules/media/components/editor/RegisteredEditor.tsx`, the shared Create route, and `packages/api/modules/media/procedures/create-generation.ts`. The former Chatbot template is retired.
 
 ## Done
 

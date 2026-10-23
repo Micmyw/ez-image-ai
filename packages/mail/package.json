@@ -12,7 +12,6 @@
 		"@repo/i18n": "workspace:*",
 		"@repo/logs": "workspace:*",
 		"@repo/ui": "workspace:*",
-		"nodemailer": "^10.0.9",
 		"react": "catalog:",
 		"react-dom": "catalog:",
 		"react-email": "^6.9.1",
@@ -22,7 +21,6 @@
 	"devDependencies": {
 		"@repo/tsconfig": "workspace:*",
 		"@types/node": "catalog:",
-		"@types/nodemailer": "catalog:",
 		"@types/react": "catalog:",
 		"typescript": "catalog:"
 	}

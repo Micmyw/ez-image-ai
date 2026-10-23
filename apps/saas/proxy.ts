@@ -1,4 +1,4 @@
-import { isLocale } from "@repo/i18n";
+import { isLocale } from "@repo/i18n/config";
 import { type NextRequest, NextResponse } from "next/server";
 
 import { publicPageIndexing } from "./modules/public-content/lib/indexing";

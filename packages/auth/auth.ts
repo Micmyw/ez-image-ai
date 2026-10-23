@@ -11,7 +11,7 @@ import {
 	setUserRegistrationAttributionOnce,
 	recordGrowthEvent,
 } from "@repo/database";
-import { config as i18nConfig, type Locale } from "@repo/i18n";
+import { config as i18nConfig, type Locale } from "@repo/i18n/config";
 import { logger } from "@repo/logs";
 import { sendEmail } from "@repo/mail";
 import { createWelcomeNotification } from "@repo/notifications";

@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-23 — Website runtime cleanup
+
+- Remove the retired template Chatbot page, unmetered text-stream API and unused text/audio SDK exports.
+- Share immutable server translation dictionaries and keep mail-only loads scoped to mail and shared copy.
+- Remove unused mail-provider alternatives; retain the active Resend delivery and localized transactional templates.
+- Keep benchmark tooling outside the production media barrel.
+
 ## 2026-10-23 — Website Worker memory
 
 - Reduce website cold-start memory by shipping compact ASCII JavaScript, including equivalent Unicode regular expressions, and preserve the checked artifact during deployment.

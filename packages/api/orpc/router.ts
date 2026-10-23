@@ -1,7 +1,6 @@
 import type { RouterClient } from "@orpc/server";
 
 import { adminRouter } from "../modules/admin/router";
-import { aiRouter } from "../modules/ai/router";
 import { ingestGrowthEvent } from "../modules/analytics/ingest";
 import { getAnalyticsPolicy } from "../modules/analytics/policy";
 import { ingestAggregateTraffic } from "../modules/analytics/traffic";
@@ -26,7 +25,6 @@ export const router = publicProcedure.router({
 	users: usersRouter,
 	payments: paymentsRouter,
 	support: supportRouter,
-	ai: aiRouter,
 	notifications: notificationsRouter,
 	media: mediaRouter,
 	videoV1: videoV1Router,

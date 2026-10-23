@@ -94,6 +94,5 @@ export function deploymentEnvironment(
 		E2E_TEST_MEDIA_ADAPTERS: "false",
 		E2E_DRAFT_HANDOFF: "false",
 		LOAD_TESTING_ENABLED: "false",
-		LEGACY_AI_STREAM_ENABLED: "false",
 	};
 }

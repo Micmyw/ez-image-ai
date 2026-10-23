@@ -25,7 +25,6 @@ const productionEnvironment = {
 	EZPIC_GSC_PROPERTY: "sc-domain:ezpic.ai",
 	BETTER_AUTH_SECRET: "server-secret-present-only-and-long-enough-123",
 	MEDIA_GENERATION_ENABLED: "true",
-	LEGACY_AI_STREAM_ENABLED: "false",
 	MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
 	MEDIA_NANO_BANANA_ENABLED: "false",
 	MEDIA_NANO_BANANA_2_ENABLED: "false",
@@ -431,7 +430,6 @@ describe("EzPic production launch environment", () => {
 		["a masked mock Provider", { MEDIA_ENABLED_PROVIDERS: "kie", MEDIA_PROVIDER_ADAPTER: "mock" }],
 		["the test moderation adapter", { MEDIA_SAFETY_ADAPTER: "test" }],
 		["test browser adapters", { E2E_TEST_MEDIA_ADAPTERS: "true" }],
-		["the legacy AI stream", { LEGACY_AI_STREAM_ENABLED: "true" }],
 		["a load-test route", { LOAD_TESTING_ENABLED: "true" }],
 	] as const)("rejects production with %s", (_label, override) => {
 		expect(() => validateEzPicLaunchEnvironment({ ...productionEnvironment, ...override })).toThrow(

@@ -1,5 +1,5 @@
 import { getPublicConfig } from "@repo/config/client";
-import { config as i18nConfig } from "@repo/i18n";
+import { config as i18nConfig } from "@repo/i18n/config";
 
 import type { MailConfig } from "./types";
 

@@ -6,7 +6,7 @@ const { minify } = createRequire(import.meta.url)("next/dist/compiled/terser");
 
 export function assertCompactWorker(source) {
 	if (/[^\p{ASCII}]/u.test(source)) throw new Error("WORKER_SOURCE_MUST_BE_ASCII");
-	if (Buffer.byteLength(source) > 34 * 1024 * 1024)
+	if (Buffer.byteLength(source) > 28 * 1024 * 1024)
 		throw new Error("WORKER_SOURCE_MEMORY_BUDGET_EXCEEDED");
 }
 

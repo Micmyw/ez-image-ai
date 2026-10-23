@@ -85,7 +85,6 @@ export function linuxBuildEnvironment(hostEnvironment) {
 		MEDIA_SAFETY_ADAPTER: "configured",
 		MEDIA_ENABLED_PROVIDERS: "",
 		MEDIA_RECOVERY_PROVIDERS: "",
-		LEGACY_AI_STREAM_ENABLED: "false",
 		EZPIC_RUNTIME: "node",
 	};
 }

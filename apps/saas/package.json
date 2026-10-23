@@ -25,7 +25,6 @@
 		"type-check": "next typegen && fumadocs-mdx && tsc --noEmit --incremental false"
 	},
 	"dependencies": {
-		"@ai-sdk/react": "catalog:",
 		"@bprogress/next": "^3.2.12",
 		"@hookform/resolvers": "catalog:",
 		"@opennextjs/cloudflare": "catalog:",
@@ -68,7 +67,6 @@
 		"recharts": "catalog:",
 		"server-only": "catalog:",
 		"sharp": "catalog:",
-		"streamdown": "catalog:",
 		"ufo": "catalog:",
 		"usehooks-ts": "catalog:",
 		"zod": "catalog:"

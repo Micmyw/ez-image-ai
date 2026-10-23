@@ -1,51 +1,23 @@
 import { toMerged } from "es-toolkit";
 
-import { config, type Locale } from "../config";
+import type { Locale } from "../config";
 import type { MarketingMessages, SaasMessages } from "../types";
+import { marketingMessages, saasMessages, videoMessages } from "./locale-loaders";
+import { getMailMessagesForLocale } from "./mail-messages";
+import { mergeMessages } from "./merge-messages";
 
 export type TranslationScope = "marketing" | "saas" | "mail";
-
-async function importLocaleMessages<T>(
-	locale: Locale,
-	scope: TranslationScope | "shared",
-): Promise<T> {
-	const messages = import(`../translations/${locale}/${scope}.json`);
-	if (scope === "saas") {
-		// Keep the public namespace contract while allowing the lazy video view
-		// to load only video copy instead of every account/admin message.
-		const [saas, video] = await Promise.all([
-			messages,
-			import(`../translations/${locale}/video.json`),
-		]);
-		return { ...saas.default, ...video.default } as T;
-	}
-	return (await messages).default as T;
-}
 
 export async function getMessagesForLocale<T = Record<string, unknown>>(
 	locale: Locale,
 	scope: TranslationScope,
 ): Promise<T> {
-	const localeMessages = await importLocaleMessages<T>(locale, scope);
-
-	const sharedMessages = await importLocaleMessages<Record<string, unknown>>(locale, "shared");
-
-	let messages = toMerged(localeMessages as Record<string, unknown>, sharedMessages) as T;
-
-	if (locale !== config.defaultLocale) {
-		const defaultLocaleMessages = await importLocaleMessages<T>(config.defaultLocale, scope);
-		const defaultSharedMessages = await importLocaleMessages<Record<string, unknown>>(
-			config.defaultLocale,
-			"shared",
-		);
-		const defaultMessages = toMerged(
-			defaultLocaleMessages as Record<string, unknown>,
-			defaultSharedMessages,
-		);
-		messages = toMerged(defaultMessages, messages as Record<string, unknown>) as T;
-	}
-
-	return messages;
+	if (scope === "mail") return getMailMessagesForLocale(locale) as Promise<T>;
+	return mergeMessages<T>(locale, async (selected) => {
+		if (scope === "marketing") return (await marketingMessages[selected]()).default;
+		const [saas, video] = await Promise.all([saasMessages[selected](), videoMessages[selected]()]);
+		return { ...saas.default, ...video.default };
+	});
 }
 
 export async function getUnifiedMessagesForLocale(

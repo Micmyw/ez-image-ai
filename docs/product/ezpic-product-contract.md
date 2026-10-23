@@ -322,8 +322,9 @@ recorded in
 
 Public navigation exposes Models, Examples, How It Works, Pricing, FAQ, Privacy, Terms, Blog, Changelog,
 Contact, Docs, Sign In, and Start Editing on the unified SaaS origin. Authenticated navigation is
-limited to Create, Edits, History, Assets, Billing, and Settings. Existing chatbot and video
-implementation code may remain, but those entries are hidden from EzImageAI navigation.
+limited to Create, Edits, History, Assets, Billing, and Settings. The unused template Chatbot
+page and its unmetered text-stream API have been removed. Image and Video share the
+Create composer under their independent admission policies.
 
 The same-origin sitemap includes public content and tool landing pages under the
 [public page indexing policy](public-page-indexing.md), including Create, Examples,

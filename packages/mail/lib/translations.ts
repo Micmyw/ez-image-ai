@@ -1,4 +1,4 @@
-import { config } from "@repo/i18n";
+import { config } from "@repo/i18n/config";
 
 export const defaultLocale = config.defaultLocale;
-export { defaultMailTranslations as defaultTranslations } from "@repo/i18n";
+export { default as defaultTranslations } from "@repo/i18n/translations/en/mail.json";

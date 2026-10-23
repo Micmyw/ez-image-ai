@@ -222,7 +222,6 @@ export function validateEzPicLaunchEnvironment(
 		requireTrue(input, key);
 	}
 
-	requireFalse(input, "LEGACY_AI_STREAM_ENABLED");
 	requireFalse(input, "E2E_TEST_MEDIA_ADAPTERS");
 	requireFalse(input, "E2E_DRAFT_HANDOFF");
 	requireFalse(input, "LOAD_TESTING_ENABLED");

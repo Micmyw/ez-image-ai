@@ -38,7 +38,6 @@ export default defineConfig({
 			"@payments": path.resolve(import.meta.dirname, "./modules/payments"),
 			"@i18n": path.resolve(import.meta.dirname, "./modules/i18n"),
 			"@admin": path.resolve(import.meta.dirname, "./modules/admin"),
-			"@ai": path.resolve(import.meta.dirname, "./modules/ai"),
 			"@media": path.resolve(import.meta.dirname, "./modules/media"),
 			"@onboarding": path.resolve(import.meta.dirname, "./modules/onboarding"),
 			"@settings": path.resolve(import.meta.dirname, "./modules/settings"),

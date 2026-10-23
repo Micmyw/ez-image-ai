@@ -41,6 +41,14 @@ Read for job/runtime/database packaging or deployment changes. Operational cutov
 
 ## Website and database runtime
 
+- Immutable translation JSON uses a shared server Webpack layer so RSC/SSR
+  imports do not duplicate dictionaries in the single Worker. Mail uses its
+  scoped loader, and locale config consumers import `@repo/i18n/config`.
+  The retired Chatbot/text-stream SDK is absent; benchmarks retain dedicated
+  entrypoints outside the production barrel. Keep the final ASCII source below
+  28 MiB and retain full locale fallback, mail rendering and retired-route smoke
+  coverage. See [website Worker memory](../operations/website-worker-memory-2026-10-23.md).
+
 - Rumpelstiltskin uses the existing native video Workflow and defaults to a visible
   authenticated customer entry. `RUMPELSTILTSKIN_ENABLED` defaults to `true` and is
   mirrored as a separate website/background binding; explicit `false` closes it.
