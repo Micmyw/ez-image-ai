@@ -5,6 +5,17 @@ vi.mock("@repo/logs", () => ({ logger: { info: log } }));
 import { createFlowTiming } from "./flow-timing";
 
 describe("flow timing", () => {
+	it("retains a failed observed span without serializing its error", () => {
+		createFlowTiming().mark("callback.db.transaction-finish", 20, undefined, "error");
+		expect(log).toHaveBeenLastCalledWith(
+			"media.flow.timing",
+			expect.objectContaining({
+				stage: "callback.db.transaction-finish",
+				stageMs: 20,
+				outcome: "error",
+			}),
+		);
+	});
 	it("measures success and failure without logging values or error payloads", async () => {
 		let now = 10;
 		const timing = createFlowTiming({ requestId: "request-1" }, () => now);

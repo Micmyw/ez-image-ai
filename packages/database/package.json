@@ -19,6 +19,8 @@
 		"./media-assets": "./prisma/queries/media/assets.ts",
 		"./media-job-status": "./prisma/queries/media/job-status.ts",
 		"./media-job-notifications": "./prisma/queries/media/job-notifications.ts",
+		"./media-image-callback": "./prisma/queries/media/image-moderation-callback.ts",
+		"./media-kie-callback": "./prisma/queries/media/kie-callback.ts",
 		"./media-verification-projections": "./prisma/queries/media/verification-projections.ts",
 		"./media-quotes": "./prisma/queries/media/quotes.ts",
 		"./media-image-passes": "./prisma/queries/media/image-passes.ts",

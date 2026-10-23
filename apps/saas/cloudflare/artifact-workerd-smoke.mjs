@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHmac } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -10,6 +11,8 @@ const app = fileURLToPath(new URL("../", import.meta.url));
 const output = path.join(app, "dist/worker");
 const assets = path.join(app, ".open-next/assets");
 const origin = "https://website-artifact-smoke.invalid";
+const callbackSecret = "artifact-callback-only-secret-00000000";
+const seeapiKey = "whsec_artifact_callback_only_signing_key";
 const wranglerRequire = createRequire(
 	realpathSync(path.join(app, "node_modules/wrangler/package.json")),
 );
@@ -88,13 +91,17 @@ const runtime = new Miniflare(
 			MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false",
 			MEDIA_GENERATION_ENABLED: "false",
 			MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
+			WORKFLOWS_DISPATCH_SECRET: callbackSecret,
+			SEEAPI_WEBHOOK_SIGNING_KEYS: JSON.stringify({ whkey_artifact: seeapiKey }),
 		},
 	}),
 );
 
-async function request(endpoint, { headers, status = 200 } = {}) {
+async function request(endpoint, { headers, status = 200, method, body: requestBody } = {}) {
 	const response = await runtime.dispatchFetch(`${origin}${endpoint}`, {
 		headers,
+		method,
+		body: requestBody,
 		redirect: "manual",
 		signal: AbortSignal.timeout(30_000),
 	});
@@ -166,6 +173,13 @@ try {
 	);
 	assert.deepEqual([...classes], ["dark"]);
 	assert.equal(style.colorScheme, "dark");
+	// Exercise the real outer Worker callback route, signatures and conditional
+	// database imports; these probes never submit generation or moderation work.
+	for (const endpoint of ["/api/webhooks/ai/kie", "/api/webhooks/moderation/seeapi-image"]) {
+		const rejected = await request(endpoint, { method: "POST", body: "{}", status: 401 });
+		assert.equal(JSON.parse(rejected.body).code, "WEBHOOK_VERIFICATION_FAILED");
+		assert.equal(rejected.response.headers.get("cache-control"), "no-store");
+	}
 	if (checkDatabase) {
 		// The public catalog queries runtimeConfigOverride through the Next server
 		// bundle. Concurrent requests also exercise the outer database context.
@@ -173,6 +187,50 @@ try {
 			Array.from({ length: 3 }, () => request("/api/media/catalog")),
 		);
 		for (const result of catalogs) assert(Array.isArray(JSON.parse(result.body).products));
+		const missingAttempt = "artifact-smoke-missing-attempt";
+		const kie = new URL("/api/webhooks/ai/kie", origin);
+		kie.searchParams.set("attempt", missingAttempt);
+		kie.searchParams.set(
+			"token",
+			createHmac("sha256", callbackSecret)
+				.update(`kie-completion:v1:${missingAttempt}`)
+				.digest("base64url"),
+		);
+		const missingAsset = "artifact-smoke-missing-asset";
+		const submission = "artifact-smoke-missing-submission";
+		const seeapi = new URL("/api/webhooks/moderation/seeapi-image", origin);
+		seeapi.searchParams.set("asset", missingAsset);
+		seeapi.searchParams.set("generation", "1");
+		seeapi.searchParams.set("submission", submission);
+		seeapi.searchParams.set(
+			"token",
+			createHmac("sha256", callbackSecret)
+				.update(JSON.stringify(["ezpic:image-moderation-callback:v1", missingAsset, 1, submission]))
+				.digest("base64url"),
+		);
+		const timestamp = String(Math.floor(Date.now() / 1000));
+		const rawBody = '{ "taskId": "ignored", "verdict": "ALLOW", "detail": "原始字节" }';
+		const unknownCallbacks = await Promise.all([
+			request(kie.pathname + kie.search, {
+				method: "POST",
+				status: 400,
+				body: JSON.stringify({ data: { taskId: "artifact-missing-provider-task" } }),
+			}),
+			request(seeapi.pathname + seeapi.search, {
+				method: "POST",
+				status: 400,
+				body: rawBody,
+				headers: {
+					"X-SEEAPI-Timestamp": timestamp,
+					"X-SEEAPI-Signing-Key": "whkey_artifact",
+					"X-SEEAPI-Signature": `v1=${createHmac("sha256", seeapiKey).update(`${timestamp}.${rawBody}`).digest("hex")}`,
+				},
+			}),
+		]);
+		for (const result of unknownCallbacks) {
+			assert.equal(JSON.parse(result.body).code, "WEBHOOK_INVALID");
+			assert.equal(result.response.headers.get("cache-control"), "no-store");
+		}
 	}
 	assert.deepEqual(blockedOutboundOrigins, [], "Artifact probes must not request external HTTP");
 	process.stdout.write(
@@ -189,6 +247,8 @@ try {
 			inlineThemeInitialization: true,
 			staticAssetCaching: true,
 			concurrentLocalPostgresQueries: checkDatabase,
+			imageCallbackSignatureRejection: true,
+			imageCallbackUnknownIdentityPostgresChecks: checkDatabase,
 			liveCloudflareVerified: false,
 		}) + "\n",
 	);

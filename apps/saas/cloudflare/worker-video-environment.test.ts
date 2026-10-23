@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
 	fetch: vi.fn(),
 	createProcessor: vi.fn(),
 	disconnect: vi.fn(),
+	callback: vi.fn(),
+	observeConstruction: vi.fn((_observe: unknown, operation: () => unknown) => operation()),
 }));
 
 // Vitest resolves this alias even before OpenNext generates its Worker artifact.
@@ -21,6 +23,13 @@ vi.mock("@repo/database/client", () => ({
 	createLazyDatabaseClient: () => ({ $disconnect: mocks.disconnect }),
 	createRuntimeDatabaseClient: vi.fn(),
 	runWithDatabaseClient: (_client: unknown, operation: () => unknown) => operation(),
+	runWithDatabaseClientConstructionObserver: mocks.observeConstruction,
+}));
+vi.mock("@repo/api/modules/media/webhooks/kie-callback", () => ({
+	createKieCallbackHandler: () => mocks.callback,
+}));
+vi.mock("@repo/api/modules/media/webhooks/image-moderation-callback", () => ({
+	createImageModerationCallbackHandler: () => mocks.callback,
 }));
 vi.mock("@repo/storage/image-processing/cloudflare-images", () => ({
 	createCloudflareImagesProcessor: mocks.createProcessor,
@@ -177,5 +186,98 @@ describe("website video runtime environment", () => {
 		expect(response.status).toBe(200);
 		expect(body).toBe("image route executed");
 		expect(mocks.fetch).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("website image callback ingress", () => {
+	beforeEach(() => {
+		vi.clearAllMocks();
+		mocks.createProcessor.mockReturnValue({});
+		mocks.disconnect.mockResolvedValue(undefined);
+		mocks.callback.mockResolvedValue(Response.json({ accepted: true }, { status: 202 }));
+		mocks.fetch.mockImplementation(async () => new Response("regular website route"));
+	});
+	afterEach(() => vi.unstubAllEnvs());
+
+	async function invoke(request: Request) {
+		const pending: Promise<unknown>[] = [];
+		const response = await worker.fetch(request, environment(), {
+			waitUntil: (task) => pending.push(task),
+			passThroughOnException: vi.fn(),
+		});
+		const body = await response.text();
+		await Promise.all(pending);
+		return { response, body };
+	}
+
+	it.each(["/api/webhooks/ai/kie", "/api/webhooks/moderation/seeapi-image"])(
+		"handles %s in the request scope without entering OpenNext or reading the signed body twice",
+		async (path) => {
+			const rawBody = '{ "spacing": "must stay intact" }';
+			const url = `https://ezpic.example${path}?token=private-callback-proof`;
+			mocks.callback.mockImplementation(async (request: Request) => {
+				expect(request.url).toBe(url);
+				expect(request.bodyUsed).toBe(false);
+				expect(await request.text()).toBe(rawBody);
+				expect(request.headers.get("X-SEEAPI-Signature")).toBe("exact-signature");
+				expect(mocks.disconnect).not.toHaveBeenCalled();
+				return Response.json({ accepted: true }, { status: 202 });
+			});
+			const { response } = await invoke(
+				new Request(url, {
+					method: "POST",
+					body: rawBody,
+					headers: { "X-SEEAPI-Signature": "exact-signature" },
+				}),
+			);
+			expect(response.status).toBe(202);
+			expect(response.headers.get("cache-control")).toBe("no-store");
+			expect(response.headers.get("x-request-id")).toMatch(/^[\w-]{36}$/);
+			expect(mocks.fetch).not.toHaveBeenCalled();
+			expect(mocks.callback).toHaveBeenCalledOnce();
+			expect(mocks.observeConstruction).toHaveBeenCalledOnce();
+			expect(mocks.disconnect).toHaveBeenCalledOnce();
+		},
+	);
+
+	it.each([
+		["GET", "/api/webhooks/ai/kie"],
+		["OPTIONS", "/api/webhooks/moderation/seeapi-image"],
+		["POST", "/api/webhooks/ai/kie/"],
+		["POST", "/api/webhooks/ai/kie/extra"],
+		["POST", "/api/webhooks/ai/other"],
+		["POST", "/api/webhooks/video/kie/attempt"],
+		["POST", "/api/webhooks/payments"],
+	])("retains normal routing for %s %s", async (method, path) => {
+		const { response } = await invoke(new Request(`https://ezpic.example${path}`, { method }));
+		expect(response.status).toBe(200);
+		expect(mocks.fetch).toHaveBeenCalledOnce();
+		expect(mocks.callback).not.toHaveBeenCalled();
+	});
+
+	it("retains the canonical origin boundary before invoking a callback", async () => {
+		const { response } = await invoke(
+			new Request("https://alternate.example/api/webhooks/ai/kie", {
+				method: "POST",
+				body: "{}",
+			}),
+		);
+		expect(response.status).toBe(421);
+		expect(mocks.callback).not.toHaveBeenCalled();
+		expect(mocks.fetch).not.toHaveBeenCalled();
+	});
+
+	it("does not replay a failed or uncertain callback through OpenNext", async () => {
+		mocks.callback.mockRejectedValue(new Error("unknown database acknowledgement"));
+		const { response } = await invoke(
+			new Request("https://ezpic.example/api/webhooks/ai/kie", {
+				method: "POST",
+				body: "{}",
+			}),
+		);
+		expect(response.status).toBe(503);
+		expect(mocks.callback).toHaveBeenCalledOnce();
+		expect(mocks.fetch).not.toHaveBeenCalled();
+		expect(mocks.disconnect).toHaveBeenCalledOnce();
 	});
 });

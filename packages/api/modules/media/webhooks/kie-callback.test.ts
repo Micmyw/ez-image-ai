@@ -9,7 +9,9 @@ const defaults = vi.hoisted(() => ({
 	wakeJob: vi.fn(),
 	dispatchJob: vi.fn(),
 }));
-vi.mock("@repo/database", () => ({ wakeKieGenerationAttemptWithOwner: defaults.wakeAttempt }));
+vi.mock("@repo/database/media-kie-callback", () => ({
+	wakeKieGenerationAttemptWithOwner: defaults.wakeAttempt,
+}));
 vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/jobs/orchestration/client", () => ({
 	wakeJob: defaults.wakeJob,

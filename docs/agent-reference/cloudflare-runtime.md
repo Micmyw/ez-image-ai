@@ -72,6 +72,7 @@ Read for job/runtime/database packaging or deployment changes. Operational cutov
   [Raindance rollout and rollback](../operations/raindance-rollout.md).
 
 - Both deployment profiles use `apps/saas/cloudflare-worker.ts` and OpenNext. Request contexts outlive response streams and registered background work, then disconnect Prisma. `workerd` adapter conditions exclude native Sharp/Node HTTPS.
+- Exact image-generation and image-review callback POSTs enter their existing handlers directly inside that same Worker request scope, after canonical-origin validation and before OpenNext. Preserve raw-body signature checks, bounded reads, durable notification-before-wake ordering and polling; errors never fall back to a second handler execution. The Hono routes remain compatible. See [callback ingress and timing](../operations/image-callback-ingress-2026-10-23.md).
 - Both Worker configs require `global_fetch_strictly_public`; media URLs must never use VPC fetch.
 - Workers fetch supports `redirect: "manual"`, not `redirect: "error"`. Signed Waffo merchant
   status and prompt-verification requests use manual mode and reject non-2xx responses without

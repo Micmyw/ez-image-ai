@@ -10,7 +10,7 @@ export interface FlowIds {
 
 export interface FlowTiming {
 	bind(ids: FlowIds): void;
-	mark(stage: string, stageMs: number, ids?: FlowIds): void;
+	mark(stage: string, stageMs: number, ids?: FlowIds, outcome?: "ok" | "error"): void;
 	measure<T>(stage: string, operation: () => Promise<T>, ids?: FlowIds): Promise<T>;
 }
 
@@ -39,8 +39,8 @@ export function createFlowTiming(ids: FlowIds = {}, now = () => performance.now(
 		bind(extra) {
 			bound = { ...bound, ...pickIds(extra) };
 		},
-		mark(stage, stageMs, extra) {
-			record(stage, stageMs, "ok", extra);
+		mark(stage, stageMs, extra, outcome = "ok") {
+			record(stage, stageMs, outcome, extra);
 		},
 		async measure(stage, operation, extra) {
 			const start = now();

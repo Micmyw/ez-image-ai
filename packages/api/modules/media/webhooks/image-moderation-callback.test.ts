@@ -1,6 +1,7 @@
 import { createHmac } from "node:crypto";
 
 import { imageModerationCallbackUrl } from "@repo/jobs/orchestration/image-moderation-callback-auth";
+import { logger } from "@repo/logs";
 import { describe, expect, it, vi } from "vitest";
 
 import { createImageModerationCallbackHandler } from "./image-moderation-callback";
@@ -48,10 +49,36 @@ function fixture() {
 	};
 }
 describe("image review callback delivery", () => {
+	it("measures authentication, raw body, signature, persistence and wake without logging secrets", async () => {
+		const log = vi.spyOn(logger, "info").mockImplementation(() => undefined);
+		try {
+			const f = fixture();
+			expect((await f.handler(f.request())).status).toBe(202);
+			const records = log.mock.calls
+				.filter(([name]) => name === "media.flow.timing")
+				.map(([, fields]) => fields as Record<string, unknown>);
+			expect(records.map((record) => record.stage)).toEqual([
+				"image-callback.auth",
+				"image-callback.body",
+				"image-callback.signature",
+				"image-callback.persist",
+				"image-callback.wake",
+				"image-callback.total",
+			]);
+			expect(new Set(records.map((record) => record.requestId)).size).toBe(1);
+			expect(records[0]).toMatchObject({ assetId: "asset", requestId: expect.any(String) });
+			expect(JSON.stringify(records)).not.toMatch(/untrusted|forged|whsec|submission|https:/);
+		} finally {
+			log.mockRestore();
+		}
+	});
 	it("wakes the stored attempt immediately and ignores all supplied results and task IDs", async () => {
 		const f = fixture();
 		expect((await f.handler(f.request())).status).toBe(202);
-		expect(f.wake).toHaveBeenCalledWith(identity);
+		expect(f.wake).toHaveBeenCalledWith(
+			identity,
+			expect.objectContaining({ mark: expect.any(Function) }),
+		);
 		expect(f.dispatch).toHaveBeenCalledWith(
 			"media-verify-upload",
 			{ assetId: "asset" },

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-23 — Image completion callbacks
+
+- Route image generation and image review callbacks directly through the website Worker, retaining signature checks, durable notifications and polling recovery.
+- Add callback ingress and transaction timings to distinguish runtime initialization, database work and Workflow signaling.
+
 ## 2026-10-23 — Image result delivery follow-up
 
 - Keep the generated image mounted while its original image and comparison controls become available.

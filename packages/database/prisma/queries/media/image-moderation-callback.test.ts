@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { createCallbackDatabaseTiming } from "./callback-timing";
 import { imageModerationRetryAt, wakeImageModeration } from "./image-moderation-callback";
 
 const identity = { assetId: "asset", generation: 2, submissionToken: "submission" };
@@ -140,5 +141,77 @@ describe("image review PENDING commit after a completion notification", () => {
 	it("does not postpone an already due retry", () => {
 		const earlier = new Date(now.getTime() - 1_000);
 		expect(imageModerationRetryAt({ ...pending, retryAt: earlier })).toBe(earlier);
+	});
+});
+
+describe("callback transaction observations", () => {
+	it("separates transaction acquisition, lock, query and commit acknowledgement", async () => {
+		let now = 10;
+		const onTiming = vi.fn();
+		const timing = createCallbackDatabaseTiming({ onTiming }, () => now);
+		const result = await timing.transaction(
+			async (body) => {
+				now += 100;
+				const value = await body({});
+				now += 20;
+				return value;
+			},
+			async () => {
+				await timing.measure("lock", async () => {
+					now += 30;
+				});
+				await timing.measure("read", async () => {
+					now += 40;
+				});
+				return "ready";
+			},
+		);
+		expect(result).toBe("ready");
+		expect(onTiming.mock.calls).toEqual([
+			["transaction-start", 100, "ok"],
+			["lock", 30, "ok"],
+			["read", 40, "ok"],
+			["transaction-finish", 20, "ok"],
+		]);
+	});
+	it.each(["start", "body", "commit"] as const)(
+		"never replays a transaction after a %s failure",
+		async (stage) => {
+			const failure = new Error("private database error");
+			const onTiming = vi.fn();
+			const timing = createCallbackDatabaseTiming({ onTiming });
+			const body = vi.fn(async () => {
+				if (stage === "body") throw failure;
+				return "ready";
+			});
+			const run = vi.fn(async (operation: (client: object) => Promise<string>) => {
+				if (stage === "start") throw failure;
+				const value = await operation({});
+				if (stage === "commit") throw failure;
+				return value;
+			});
+			await expect(timing.transaction(run, body)).rejects.toBe(failure);
+			expect(run).toHaveBeenCalledOnce();
+			expect(body).toHaveBeenCalledTimes(stage === "start" ? 0 : 1);
+			expect(onTiming).toHaveBeenLastCalledWith(
+				stage === "start" ? "transaction-start" : "transaction-finish",
+				expect.any(Number),
+				"error",
+			);
+			expect(JSON.stringify(onTiming.mock.calls)).not.toContain("private");
+		},
+	);
+	it("cannot turn a successful commit into a retry when diagnostics fail", async () => {
+		const timing = createCallbackDatabaseTiming({
+			onTiming() {
+				throw new Error("sink failure");
+			},
+		});
+		await expect(
+			timing.transaction(
+				(body) => body({}),
+				() => timing.measure("persist", async () => "ready"),
+			),
+		).resolves.toBe("ready");
 	});
 });

@@ -1,5 +1,8 @@
-import { wakeKieGenerationAttemptWithOwner, type wakeKieGenerationAttempt } from "@repo/database";
 import { db } from "@repo/database/client";
+import {
+	wakeKieGenerationAttemptWithOwner,
+	type wakeKieGenerationAttempt,
+} from "@repo/database/media-kie-callback";
 import { wakeJob } from "@repo/jobs/orchestration/client";
 import { verifyKieCompletionCallback } from "@repo/jobs/orchestration/kie-callback-auth";
 import { z } from "zod";
@@ -29,13 +32,16 @@ export function createKieCallbackHandler(
 		secret: () => process.env.WORKFLOWS_DISPATCH_SECRET,
 		wake: (input, timing) =>
 			wakeKieGenerationAttemptWithOwner(input, db, {
-				onTiming: (stage, elapsedMs) => timing.mark(`callback.db.${stage}`, elapsedMs),
+				onTiming: (stage, elapsedMs, outcome) =>
+					timing.mark(`callback.db.${stage}`, elapsedMs, undefined, outcome),
 			}),
 		dispatch: wakeJob,
 	},
 ) {
-	return async (request: Request): Promise<Response> => {
-		const timing = createFlowTiming({ requestId: crypto.randomUUID() });
+	return async (
+		request: Request,
+		timing = createFlowTiming({ requestId: crypto.randomUUID() }),
+	): Promise<Response> => {
 		return timing.measure("callback.total", async () => {
 			const authStarted = performance.now();
 			const attemptId = verifyKieCompletionCallback(new URL(request.url), dependencies.secret());
