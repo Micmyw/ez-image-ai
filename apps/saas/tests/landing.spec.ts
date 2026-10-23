@@ -943,7 +943,15 @@ test("the public root exposes the image editor before authentication", async ({ 
 		await page
 			.locator("main section[id]")
 			.evaluateAll((sections) => sections.map((section) => section.id)),
-	).toEqual(["image-editor", "before-after", "models", "how-it-works", "pricing", "faq"]);
+	).toEqual([
+		"image-editor",
+		"models",
+		"examples",
+		"before-after",
+		"how-it-works",
+		"pricing",
+		"faq",
+	]);
 	await expect(page.locator('[data-test="user-story-wall"]')).toHaveCount(0);
 	await expect(page.getByRole("region", { name: "Start with the edit you need" })).toBeVisible();
 	await expect(page.locator("body")).not.toContainText(
@@ -1352,25 +1360,25 @@ test("a guest upload limit explains the wait and preserves the draft without aut
 	expect(attempts).toBe(1);
 });
 
-test("the landing page proves edits with an interactive comparison and visual examples", async ({
+test("the landing page shows the original artwork and interactive illustration", async ({
 	page,
 }) => {
 	await page.goto("/");
-	const evidence = page.getByRole("region", { name: "A portrait, before and after" });
-	const comparison = evidence.getByRole("slider", {
-		name: "Compare the original and the actual EzImageAI result",
+	const demo = page.getByRole("region", { name: "Compare an image edit before and after" });
+	const comparison = demo.getByRole("slider", {
+		name: "Compare original and edited illustration",
 	});
-	await evidence.scrollIntoViewIfNeeded();
+	await demo.scrollIntoViewIfNeeded();
 	await expect(comparison).toBeVisible();
 	await expect(comparison).toHaveValue("52");
-	await evidence.getByRole("button", { name: "Show original", exact: true }).click();
+	await demo.getByRole("button", { name: "Show original", exact: true }).click();
 	await expect(comparison).toHaveValue("0");
-	await evidence.getByRole("button", { name: "Show result", exact: true }).click();
+	await demo.getByRole("button", { name: "Show edit direction", exact: true }).click();
 	await expect(comparison).toHaveValue("100");
 	await comparison.fill("36");
 	await expect(comparison).toHaveValue("36");
 
-	const images = evidence.locator("img");
+	const images = demo.locator("img");
 	await expect(images).toHaveCount(2);
 	await expect
 		.poll(() =>
@@ -1379,12 +1387,38 @@ test("the landing page proves edits with an interactive comparison and visual ex
 			),
 		)
 		.toBe(true);
-	for (const image of await images.all()) await expect(image).toHaveCSS("object-fit", "contain");
-	await expect(evidence).toContainText("Nano Banana 2 Lite · 1K · 5 credits");
-	await expect(evidence).toContainText("AI-generated fictional adult");
-	await expect(
-		evidence.getByRole("link", { name: "See the exact prompt and all three results" }),
-	).toHaveAttribute("href", "/blog/1980s-ai-photo");
+	await expect(images.nth(0)).toHaveAttribute("src", "/examples/studio-before.svg");
+	await expect(images.nth(1)).toHaveAttribute("src", "/examples/studio-after.svg");
+	await expect(demo).toContainText("This illustration demonstrates the interface");
+
+	const gallery = page.locator("#examples");
+	await gallery.scrollIntoViewIfNeeded();
+	await expect(gallery.locator("article")).toHaveCount(12);
+	const artworks = gallery.locator("img");
+	await expect(artworks).toHaveCount(12);
+	await expect
+		.poll(() =>
+			artworks.evaluateAll((elements) =>
+				elements.every((image) => image instanceof HTMLImageElement && image.naturalWidth > 0),
+			),
+		)
+		.toBe(true);
+	expect(
+		await artworks.evaluateAll((elements) =>
+			elements.every(
+				(image) =>
+					image instanceof HTMLImageElement &&
+					Math.abs(
+						image.clientHeight - (image.clientWidth * image.naturalHeight) / image.naturalWidth,
+					) < 2,
+			),
+		),
+		"example images preserve their original proportions",
+	).toBe(true);
+	const prompt = page.getByRole("textbox", { name: "Image prompt", exact: true });
+	await gallery.getByRole("button", { name: /mediterranean quiet/i }).click();
+	await expect(prompt).toHaveValue(/sunlit mediterranean retreat/i);
+	await expect(prompt).toBeFocused();
 });
 
 for (const width of [1440, 390]) {
@@ -1528,6 +1562,12 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 				...new Set(cards.map((card) => Math.round(card.getBoundingClientRect().x))),
 			]);
 		expect(useCaseColumns).toHaveLength(viewport.width >= 768 ? 3 : 1);
+		const exampleColumns = await page
+			.locator("#examples article")
+			.evaluateAll((examples) => [
+				...new Set(examples.map((example) => Math.round(example.getBoundingClientRect().x))),
+			]);
+		expect(exampleColumns).toHaveLength(viewport.width >= 1280 ? 4 : 2);
 		await selectModel(page, "GPT Image", "image-gpt-image-2");
 		await page
 			.locator("#landing-source-image")
@@ -1548,7 +1588,7 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 test("the before-and-after control has a visible keyboard focus treatment", async ({ page }) => {
 	await page.goto("/");
 	const slider = page.getByRole("slider", {
-		name: /compare the original and the actual EzImageAI result/i,
+		name: /compare original and edited illustration/i,
 	});
 	await slider.focus();
 	await expect(slider).toBeFocused();

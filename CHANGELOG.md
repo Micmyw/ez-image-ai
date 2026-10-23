@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-23 — Original homepage artwork
+
+- Restore the original 12-image inspiration gallery, prompt selection and horizontal illustrated comparison in their original order after model discovery.
+- Remove the replacement portrait comparison from the homepage while retaining the editing guides, corrected plan copy and purchase presentation experiments.
+
 ## 2026-10-23 — Website runtime cleanup
 
 - Remove the retired template Chatbot page, unmetered text-stream API and unused text/audio SDK exports.
@@ -10,7 +15,7 @@
 ## 2026-10-23 — First-use evidence and purchase experiments
 
 - Align Free image-model access and credit copy with actual account eligibility in English, German, Spanish and French; clarify pending credit settlement and link recovery steps.
-- Show a documented EzImageAI portrait edit on the homepage, replace illustrative creator stories with specific editing guides, and improve background-editing and credit guidance.
+- Replace illustrative creator stories with specific editing guides, and improve background-editing and credit guidance.
 - Compare annual/monthly pricing defaults and optional purchase guidance after a viewed account result through two consent-aware browser experiments. Explicit billing choices stay authoritative.
 - Add visible-result, new/existing customer activity and completion-time reporting, plus exposure, click, server-checkout and verified-payment experiment metrics in Analytics. These presentation changes do not modify prices, credits, payment processing or safety checks.
 

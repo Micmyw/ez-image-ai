@@ -11,6 +11,11 @@ Implementation date: 2026-10-23. This document describes local changes, not a pr
 
 Both use independent, versioned 50/50 hashes of the existing consented analytics browser cookie.
 No additional identifier, price, free allowance, model entitlement, payment operation or safety rule is introduced.
+
+The homepage retains its original 12-image inspiration gallery and illustrated comparison after model
+discovery. The replacement portrait comparison was withdrawn at the user's request; the editing guides
+and both purchase experiments remain. Illustrative artwork is labeled as such and is not product-output evidence.
+
 Without optional analytics the existing annual/result experience remains available. Explicit URL billing
 intervals and selections made before assignment take precedence and do not enroll that surface.
 Selections made after exposure are retained while reporting the originally assigned variant (intent to treat).

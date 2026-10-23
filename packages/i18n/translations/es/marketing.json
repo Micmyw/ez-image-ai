@@ -413,17 +413,16 @@
 			"draftOnly": "Una edición Nano Banana 2 Lite de invitado"
 		},
 		"beforeAfter": {
-			"eyebrow": "Generado con EzImageAI",
-			"title": "Un retrato, antes y después",
-			"description": "Nano Banana 2 Lite · 1K · 5 créditos. Esta edición de estudio de los años 80 se generó y revisó el 29 de septiembre de 2026.",
-			"disclaimer": "La imagen original representa a una adulta ficticia generada por IA. Cambian el pelo, la chaqueta y el fondo; los detalles faciales y el encuadre también varían ligeramente.",
+			"eyebrow": "Una fuente, un cambio claro",
+			"title": "Compara el antes y el después de una edición",
+			"description": "Arrastra el divisor para comparar una ilustración vectorial con una propuesta de edición diseñada a mano.",
+			"disclaimer": "Esta ilustración muestra la interfaz; no es una garantía de calidad.",
 			"before": "Original",
-			"after": "Resultado de EzImageAI",
-			"beforeAlt": "Adulta ficticia generada por IA antes de la edición del retrato",
-			"controlLabel": "Compara el original con el resultado real de EzImageAI",
-			"showOriginal": "Ver original",
-			"showEdit": "Ver resultado",
-			"evidenceLink": "Ver el prompt exacto y los tres resultados"
+			"after": "Dirección de edición",
+			"beforeAlt": "Ilustración vectorial original de una sala de lectura neutra",
+			"controlLabel": "Comparar la ilustración original y editada",
+			"showOriginal": "Mostrar original",
+			"showEdit": "Mostrar dirección"
 		},
 		"showcase": {
 			"eyebrow": "Recetas de prompts",

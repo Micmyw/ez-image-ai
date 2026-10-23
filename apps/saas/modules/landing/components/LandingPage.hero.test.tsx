@@ -87,6 +87,7 @@ vi.mock("@payments/components/PublicPricingPlans", () => ({
 }));
 
 vi.mock("./LandingGenerator", () => ({ LandingGenerator: () => <div /> }));
+vi.mock("./ShowcaseSection", () => ({ ShowcaseSection: () => <section id="examples" /> }));
 vi.mock("./BeforeAfterDemo", () => ({ BeforeAfterDemo: () => <section id="before-after" /> }));
 vi.mock("./EditingUseCases", () => ({ EditingUseCases: () => <section id="editing-use-cases" /> }));
 vi.mock("../../models/components/ExploreModels", () => ({
@@ -139,17 +140,20 @@ describe("LandingPage hero hierarchy", () => {
 		expect(faq).toContain("flexible prompt editing");
 		expect(faq).toContain("model capabilities, and plan limits still apply");
 	});
-	it("leads with product evidence and concrete uses before model discovery", async () => {
+	it("restores model discovery and original artwork before the editing guides", async () => {
 		const markup = renderToStaticMarkup(await LandingPage());
 		const heroEnd = markup.indexOf("</section>");
 		const models = markup.indexOf('id="explore-models"');
-		const examples = markup.indexOf('id="before-after"');
+		const examples = markup.indexOf('id="examples"');
+		const comparison = markup.indexOf('id="before-after"');
 		const uses = markup.indexOf('id="editing-use-cases"');
 		const photoIdeas = markup.indexOf('id="photo-idea-recommendations"');
-		expect(examples).toBeGreaterThan(heroEnd);
-		expect(uses).toBeGreaterThan(examples);
-		expect(models).toBeGreaterThan(uses);
-		expect(photoIdeas).toBeGreaterThan(models);
+		expect(models).toBeGreaterThan(heroEnd);
+		expect(examples).toBeGreaterThan(models);
+		expect(comparison).toBeGreaterThan(examples);
+		expect(uses).toBeGreaterThan(comparison);
+		expect(photoIdeas).toBeGreaterThan(uses);
+		expect(markup.match(/id="examples"/g)).toHaveLength(1);
 	});
 });
 

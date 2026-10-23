@@ -413,17 +413,16 @@
 			"draftOnly": "Create from text or an image"
 		},
 		"beforeAfter": {
-			"eyebrow": "Generated with EzImageAI",
-			"title": "A portrait, before and after",
-			"description": "Nano Banana 2 Lite · 1K · 5 credits. This 1980s studio edit was generated and reviewed on September 29, 2026.",
-			"disclaimer": "The source is an AI-generated fictional adult. The result changes the hair, jacket and background; facial details and the crop also changed slightly.",
+			"eyebrow": "One source, one clear change",
+			"title": "Compare an image edit before and after",
+			"description": "Drag the divider to compare a vector illustration with a hand-authored edit direction.",
+			"disclaimer": "This illustration demonstrates the interface; it is not a quality guarantee.",
 			"before": "Original",
-			"after": "EzImageAI result",
-			"beforeAlt": "AI-generated fictional adult before the portrait edit",
-			"controlLabel": "Compare the original and the actual EzImageAI result",
+			"after": "Edit direction",
+			"beforeAlt": "Original vector illustration of a neutral reading studio",
+			"controlLabel": "Compare original and edited illustration",
 			"showOriginal": "Show original",
-			"showEdit": "Show result",
-			"evidenceLink": "See the exact prompt and all three results"
+			"showEdit": "Show edit direction"
 		},
 		"showcase": {
 			"eyebrow": "Prompt recipes",

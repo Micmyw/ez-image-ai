@@ -413,17 +413,16 @@
 			"draftOnly": "Eine Nano Banana 2 Lite-Gastbearbeitung"
 		},
 		"beforeAfter": {
-			"eyebrow": "Mit EzImageAI erstellt",
-			"title": "Ein Porträt im Vorher-Nachher-Vergleich",
-			"description": "Nano Banana 2 Lite · 1K · 5 Credits. Diese Studiobearbeitung im Stil der 1980er wurde am 29. September 2026 erstellt und geprüft.",
-			"disclaimer": "Das Ausgangsbild zeigt eine KI-generierte fiktive Erwachsene. Haare, Jacke und Hintergrund wurden verändert; auch Gesichtsdetails und Bildausschnitt änderten sich leicht.",
+			"eyebrow": "Eine Quelle, eine klare Änderung",
+			"title": "Eine Bildbearbeitung im Vorher-Nachher-Vergleich",
+			"description": "Ziehe den Regler, um eine Vektorillustration mit einer von Hand gestalteten Bearbeitungsrichtung zu vergleichen.",
+			"disclaimer": "Diese Illustration zeigt die Oberfläche und ist kein Qualitätsversprechen.",
 			"before": "Original",
-			"after": "EzImageAI-Ergebnis",
-			"beforeAlt": "KI-generierte fiktive Erwachsene vor der Porträtbearbeitung",
-			"controlLabel": "Original und tatsächliches EzImageAI-Ergebnis vergleichen",
-			"showOriginal": "Original anzeigen",
-			"showEdit": "Ergebnis anzeigen",
-			"evidenceLink": "Genauen Prompt und alle drei Ergebnisse ansehen"
+			"after": "Bearbeitungsrichtung",
+			"beforeAlt": "Originale Vektorillustration eines neutralen Lesezimmers",
+			"controlLabel": "Original und bearbeitete Illustration vergleichen",
+			"showOriginal": "Original zeigen",
+			"showEdit": "Bearbeitungsrichtung zeigen"
 		},
 		"showcase": {
 			"eyebrow": "Prompt-Rezepte",
