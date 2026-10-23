@@ -132,7 +132,16 @@ export function createProfileArtifacts(options: {
 		...structuredClone(options.websiteTemplate),
 		...(account ? { account_id: account } : {}),
 		name: settings.websiteName,
-		main: path.join(root, "apps/saas/cloudflare-worker.ts"),
+		main: path.join(root, "apps/saas/dist/worker/cloudflare-worker.js"),
+		// Upload the exact memory-checked artifact without expanding its compact
+		// source or losing the ASCII printer's one-byte string guarantee.
+		no_bundle: true,
+		minify: false,
+		find_additional_modules: true,
+		rules: [
+			{ type: "CompiledWasm", globs: ["**/*.wasm"], fallthrough: true },
+			{ type: "Data", globs: ["**/*.bin"], fallthrough: true },
+		],
 		assets: { directory: path.join(root, "apps/saas/.open-next/assets"), binding: "ASSETS" },
 		vars: {
 			...videoVars,

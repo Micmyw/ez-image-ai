@@ -283,7 +283,7 @@ attempt without contacting a provider or changing a generation. CI runs both var
 For the website, run the following in Linux/WSL after the OpenNext build:
 
 ```bash
-pnpm --filter saas exec wrangler deploy --dry-run --outdir dist/worker
+pnpm cloudflare:web:build
 pnpm --filter saas test:artifact:workerd
 # With the disposable PostgreSQL database available:
 pnpm --filter saas test:artifact:workerd --database

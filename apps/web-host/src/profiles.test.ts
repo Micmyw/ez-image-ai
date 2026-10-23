@@ -38,6 +38,20 @@ import {
 } from "./profiles";
 
 describe("deployment profiles", () => {
+	it.each(["workers", "hybrid"] as const)(
+		"uploads the checked website artifact unchanged in %s",
+		(profile) => {
+			const { website } = artifacts(profile);
+			expect(website.main).toBe(path.join(root, "apps/saas/dist/worker/cloudflare-worker.js"));
+			expect(website.no_bundle).toBe(true);
+			expect(website.minify).toBe(false);
+			expect(website.find_additional_modules).toBe(true);
+			expect(website.rules).toEqual([
+				{ type: "CompiledWasm", globs: ["**/*.wasm"], fallthrough: true },
+				{ type: "Data", globs: ["**/*.bin"], fallthrough: true },
+			]);
+		},
+	);
 	it("defaults to Workers and rejects unknown profiles", () => {
 		expect(deploymentProfile({})).toBe("workers");
 		expect(deploymentProfile({ EZPIC_DEPLOYMENT_PROFILE: "hybrid" })).toBe("hybrid");

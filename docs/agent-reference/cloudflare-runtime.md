@@ -73,6 +73,7 @@ Read for job/runtime/database packaging or deployment changes. Operational cutov
   [Raindance rollout and rollback](../operations/raindance-rollout.md).
 
 - Both deployment profiles use `apps/saas/cloudflare-worker.ts` and OpenNext. Request contexts outlive response streams and registered background work, then disconnect Prisma. `workerd` adapter conditions exclude native Sharp/Node HTTPS.
+- `cloudflare:web:build` finishes with the compact ASCII artifact in `apps/saas/dist/worker`; deployment profiles upload it with `no_bundle: true` and explicit WASM/data rules. Preserve the parser-based regex escaping, composed source maps and final-workerd heap budgets. A second source-based bundle bypasses this memory fix. Ordinary minification alone leaves Unicode regex literals that can double the full source string in V8. See [website Worker memory](../operations/website-worker-memory-2026-10-23.md).
 - Exact image-generation and image-review callback POSTs enter their existing handlers directly inside that same Worker request scope, after canonical-origin validation and before OpenNext. Preserve raw-body signature checks, bounded reads, durable notification-before-wake ordering and polling; errors never fall back to a second handler execution. The Hono routes remain compatible. See [callback ingress and timing](../operations/image-callback-ingress-2026-10-23.md).
 - Both Worker configs require `global_fetch_strictly_public`; media URLs must never use VPC fetch.
 - Workers fetch supports `redirect: "manual"`, not `redirect: "error"`. Signed Waffo merchant

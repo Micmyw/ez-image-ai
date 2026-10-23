@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-23 — Website Worker memory
+
+- Reduce website cold-start memory by shipping compact ASCII JavaScript, including equivalent Unicode regular expressions, and preserve the checked artifact during deployment.
+- Add final-Worker memory budgets alongside page, locale, theme and callback smoke checks to catch this packaging regression before release.
+
 ## 2026-10-23 — Reliable image callback wakes
 
 - Fix model and image-review callbacks failing to wake their waiting Workflow because event types contained unsupported colons. Use valid event names while retaining phase ownership, authenticated result retrieval and polling recovery.

@@ -165,18 +165,6 @@ export async function buildInLinuxContainer(args = []) {
 		await run("pnpm", "--filter", "@repo/database", "exec", "prisma", "generate", "--no-hints");
 		console.log("Building Next/OpenNext in Linux; only public font downloads are allowed.");
 		await guarded("pnpm", "cloudflare:web:build");
-		console.log("Bundling the final Worker with Wrangler dry-run.");
-		await guarded(
-			"pnpm",
-			"--filter",
-			"saas",
-			"exec",
-			"wrangler",
-			"deploy",
-			"--dry-run",
-			"--outdir",
-			"dist/worker",
-		);
 		console.log("Executing the actual final Worker artifact in local workerd.");
 		await guarded("pnpm", "--filter", "saas", "test:artifact:workerd");
 		await mkdir(manifest.artifactDirectory, { recursive: true });
@@ -200,6 +188,13 @@ export async function buildInLinuxContainer(args = []) {
 		);
 		delete config.$schema;
 		config.main = "worker/cloudflare-worker.js";
+		config.no_bundle = true;
+		config.minify = false;
+		config.find_additional_modules = true;
+		config.rules = [
+			{ type: "CompiledWasm", globs: ["**/*.wasm"], fallthrough: true },
+			{ type: "Data", globs: ["**/*.bin"], fallthrough: true },
+		];
 		config.assets.directory = "assets";
 		// This local, closed template accompanies a real bundled artifact. Target
 		// names/secrets remain the separately authorized release preparation step.

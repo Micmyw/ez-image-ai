@@ -114,6 +114,9 @@ if (command === "build") {
 			BILLING_ENABLED: "false",
 			MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false",
 		});
+		// The automatic Git release must pass the same final-artifact memory and
+		// behavior checks as CI before publishing the website version.
+		runPnpm(["--filter", "saas", "test:artifact:workerd"], childEnvironment);
 	}
 } else if (command === "deploy") {
 	const sha = releaseSha();

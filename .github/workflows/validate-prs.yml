@@ -83,8 +83,6 @@ jobs:
           MEDIA_SAFETY_ADAPTER: configured
           MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false"
         run: pnpm cloudflare:web:build
-      - name: Bundle the final website Worker
-        run: pnpm --filter saas exec wrangler deploy --dry-run --outdir dist/worker
       - name: Start the final website artifact in workerd
         run: pnpm --filter saas test:artifact:workerd
 

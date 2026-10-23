@@ -7,6 +7,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 
+import { assertCompactWorker } from "./compact-worker.mjs";
+import { openWorkerMemoryProbe } from "./worker-memory.mjs";
+
 const app = fileURLToPath(new URL("../", import.meta.url));
 const output = path.join(app, "dist/worker");
 const assets = path.join(app, ".open-next/assets");
@@ -30,7 +33,21 @@ if (checkDatabase) {
 // Execute Wrangler's final output so this catches conditional export and WASM
 // errors that source-transform tests and a build-only dry-run cannot detect.
 const source = await readFile(path.join(output, "cloudflare-worker.js"), "utf8");
-assert.match(source, /wasm-compiler-edge/);
+assertCompactWorker(source);
+// Minification removes source-path comments, and upstream source maps can name
+// original TypeScript files. Check esbuild's actual included inputs instead.
+const metadata = JSON.parse(await readFile(path.join(output, "bundle-meta.json"), "utf8"));
+const bundledSources = Object.values(metadata.outputs).flatMap((entry) =>
+	Object.entries(entry.inputs ?? {})
+		.filter(([, details]) => details.bytesInOutput > 0)
+		.map(([file]) => file.replaceAll("\\", "/")),
+);
+assert(bundledSources.some((file) => file.endsWith("/runtime/wasm-compiler-edge.mjs")));
+for (const forbidden of ["/runtime/client.mjs", "/sharp/lib/", "/remote-media-node.ts"])
+	assert(
+		!bundledSources.some((file) => file.includes(forbidden)),
+		`Forbidden Worker source: ${forbidden}`,
+	);
 assert(!source.includes("/runtime/client.mjs"), "Node Prisma runtime leaked into the Worker");
 assert(!source.includes("/sharp/lib/"), "Native Sharp leaked into the Worker");
 assert(!source.includes("/remote-media-node.ts"), "Node media transport leaked into the Worker");
@@ -45,6 +62,7 @@ const runtime = new Miniflare(
 	convertV4MiniflareOptions({
 		host: "127.0.0.1",
 		port: 0,
+		inspectorPort: 0,
 		name: "website-artifact-smoke",
 		compatibilityDate: "2026-09-10",
 		compatibilityFlags: ["nodejs_compat", "global_fetch_strictly_public"],
@@ -110,8 +128,11 @@ async function request(endpoint, { headers, status = 200, method, body: requestB
 	return { response, body };
 }
 
+let memoryProbe;
 try {
 	await runtime.ready;
+	memoryProbe = await openWorkerMemoryProbe(runtime, "website-artifact-smoke");
+	await memoryProbe.measure("website.loaded", 64);
 	// Locale cookies are deliberately present, but no authentication cookie is sent.
 	// These anonymous routes return before any account/organization/database queries.
 	const publicHeaders = { cookie: "NEXT_LOCALE=fr" };
@@ -180,6 +201,7 @@ try {
 		assert.equal(JSON.parse(rejected.body).code, "WEBHOOK_VERIFICATION_FAILED");
 		assert.equal(rejected.response.headers.get("cache-control"), "no-store");
 	}
+	await memoryProbe.measure("website.public-retained", 112, { retained: true });
 	if (checkDatabase) {
 		// The public catalog queries runtimeConfigOverride through the Next server
 		// bundle. Concurrent requests also exercise the outer database context.
@@ -248,11 +270,13 @@ try {
 			staticAssetCaching: true,
 			concurrentLocalPostgresQueries: checkDatabase,
 			imageCallbackSignatureRejection: true,
+			localIsolateMemoryBudget: true,
 			imageCallbackUnknownIdentityPostgresChecks: checkDatabase,
 			liveCloudflareVerified: false,
 		}) + "\n",
 	);
 } finally {
+	memoryProbe?.close();
 	await runtime.dispose();
 	process.stdout.write("Website artifact workerd runtime disposed\n");
 }
