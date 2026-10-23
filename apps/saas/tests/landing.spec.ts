@@ -1521,12 +1521,13 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
 			`${viewport.width}px horizontal overflow`,
 		).toBe(true);
-		const exampleColumns = await page
-			.locator("#examples article")
-			.evaluateAll((examples) => [
-				...new Set(examples.map((example) => Math.round(example.getBoundingClientRect().x))),
+		const useCaseColumns = await page
+			.getByRole("region", { name: "Start with the edit you need" })
+			.getByRole("article")
+			.evaluateAll((cards) => [
+				...new Set(cards.map((card) => Math.round(card.getBoundingClientRect().x))),
 			]);
-		expect(exampleColumns).toHaveLength(viewport.width >= 1280 ? 4 : 2);
+		expect(useCaseColumns).toHaveLength(viewport.width >= 768 ? 3 : 1);
 		await selectModel(page, "GPT Image", "image-gpt-image-2");
 		await page
 			.locator("#landing-source-image")
