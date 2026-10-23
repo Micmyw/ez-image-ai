@@ -20,7 +20,8 @@ beforeAll(() => {
 		!["postgres:", "postgresql:"].includes(url.protocol) ||
 		url.hostname !== "127.0.0.1" ||
 		url.port !== "55432" ||
-		!/^\/ezpic_[a-z0-9_]+_test$/.test(url.pathname) ||
+		(url.pathname !== "/ai_media_foundation_test" &&
+			!/^\/ezpic_[a-z0-9_]+_test$/.test(url.pathname)) ||
 		url.search ||
 		url.hash
 	)
