@@ -3,6 +3,7 @@
 import { ArrowLeftRightIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
+import Link from "next/link";
 import { useState } from "react";
 
 export function BeforeAfterDemo() {
@@ -33,6 +34,12 @@ export function BeforeAfterDemo() {
 						</h2>
 						<p className="mt-4 text-base leading-7 text-slate-300">{t("description")}</p>
 						<p className="mt-4 text-sm leading-6 text-slate-400">{t("disclaimer")}</p>
+						<Link
+							href="/blog/1980s-ai-photo"
+							className="mt-4 text-violet-200 inline-block underline underline-offset-4"
+						>
+							{t("evidenceLink")}
+						</Link>
 						<div className="mt-6 gap-2 flex flex-wrap">
 							<button
 								type="button"
@@ -55,13 +62,13 @@ export function BeforeAfterDemo() {
 						data-test="before-after-frame"
 						className="border-white/10 p-2 sm:p-3 backdrop-blur-sm focus-within:ring-violet-300 relative overflow-hidden rounded-[2rem] border bg-[#211a31]/88 shadow-[0_34px_90px_-44px_rgba(108,77,255,0.75)] transition-shadow focus-within:ring-2 focus-within:ring-offset-4 focus-within:ring-offset-[#100a19]"
 					>
-						<div className="relative aspect-[3/2] overflow-hidden rounded-[1.55rem]">
+						<div className="relative aspect-[4/5] max-h-[40rem] overflow-hidden rounded-[1.55rem]">
 							<Image
-								src="/examples/studio-before.svg"
+								src="/images/effects/1980s-ai-photo/input-adult-v1.webp"
 								alt={t("beforeAlt")}
-								width={1200}
-								height={800}
-								className="inset-0 absolute h-full w-full object-cover"
+								width={1000}
+								height={1250}
+								className="inset-0 absolute h-full w-full object-contain"
 								sizes="(min-width: 1024px) 58vw, 100vw"
 							/>
 							<div
@@ -70,11 +77,11 @@ export function BeforeAfterDemo() {
 								aria-hidden="true"
 							>
 								<Image
-									src="/examples/studio-after.svg"
+									src="/images/effects/1980s-ai-photo/studio-portrait-v2.webp"
 									alt=""
-									width={1200}
-									height={800}
-									className="inset-0 absolute h-full w-full object-cover"
+									width={928}
+									height={1152}
+									className="inset-0 absolute h-full w-full object-contain"
 									sizes="(min-width: 1024px) 58vw, 100vw"
 								/>
 							</div>
@@ -89,10 +96,16 @@ export function BeforeAfterDemo() {
 								</span>
 							</div>
 
-							<span className="top-4 left-4 bg-slate-950/75 px-3 py-1 text-xs font-bold text-white backdrop-blur absolute rounded-full">
+							<span
+								hidden={position === 100}
+								className="top-4 right-4 bg-slate-950/75 px-3 py-1 text-xs font-bold text-white backdrop-blur absolute rounded-full"
+							>
 								{t("before")}
 							</span>
-							<span className="top-4 right-4 bg-white/90 px-3 py-1 text-xs font-bold text-slate-950 backdrop-blur absolute rounded-full">
+							<span
+								hidden={position === 0}
+								className="top-4 left-4 bg-white/90 px-3 py-1 text-xs font-bold text-slate-950 backdrop-blur absolute rounded-full"
+							>
 								{t("after")}
 							</span>
 							<label htmlFor="before-after-control" className="sr-only">

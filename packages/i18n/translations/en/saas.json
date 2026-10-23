@@ -775,6 +775,43 @@
 				"unavailable": "Unavailable",
 				"network": "Network or upload",
 				"unknown": "Unknown"
+			},
+			"experimentReport": {
+				"variant": "Variant",
+				"exposed": "Visible browsers",
+				"clicked": "Entry clicks",
+				"purchaseClicked": "Checkout button clicks",
+				"linked": "Linked accounts",
+				"ambiguous": "Ambiguous browsers",
+				"checkouts": "Checkout created",
+				"paid": "Verified payers",
+				"ctr": "Entry CTR",
+				"paymentRate": "Observed payment rate",
+				"mature": "7-day matured browsers",
+				"matureRate": "Mature payment rate",
+				"cohort": "Cohort",
+				"new": "New customers",
+				"existing": "Existing customers",
+				"attemptedUsers": "Users who generated",
+				"jobs": "Jobs",
+				"succeeded": "Succeeded",
+				"failed": "Failed",
+				"resultViewers": "Result viewers",
+				"downloaders": "Download starters",
+				"latencySamples": "Latency samples",
+				"p50Ms": "P50 completion",
+				"p90Ms": "P90 completion",
+				"annual": "Annual default",
+				"monthly": "Monthly default",
+				"control": "Existing result actions",
+				"guide": "Added purchase guide",
+				"title": "Purchase experiments",
+				"activityTitle": "Generation and result activity",
+				"activityBasis": "Activity in this date range, split by registration before or during the range. Completion time is server creation to successful terminal state, not time to visible image. Views and download starts need optional analytics; missing observations are not proof of no use.",
+				"basis": "Each experiment assigns consented browsers 50/50. First visible exposure within retained history starts a 7-day attribution window. Source/device filters apply to exposure. Only server-linked, unambiguous accounts can contribute checkout and verified production payment outcomes; renewals, tests and pre-exposure checkouts are excluded.",
+				"interpretation": "Entry clicks measure the tested surface; control has no added result-guide button. Compare downstream checkout clicks and verified payments in both arms. Mature rates use only browsers with a full 7-day window. Small samples, consent gaps, ambiguous links and interaction between the two tests prevent declaring a winner from CTR alone.",
+				"pricing-default-v1": "Pricing default: annual vs monthly (v1)",
+				"result-purchase-v1": "After a viewed account result: existing actions vs purchase guide (v1)"
 			}
 		}
 	},
@@ -1993,10 +2030,11 @@
 			"timeout": "Sorry, the generation service timed out and could not complete your image.",
 			"serviceUnavailable": "Sorry, the generation service was temporarily unavailable and could not complete your image.",
 			"generic": "Sorry, this image could not be completed.",
-			"creditsPending": "We are returning your reserved credits. The balance will update once this is complete.",
+			"creditsPending": "Your credits remain reserved until settlement is confirmed. This is not yet a completed refund.",
 			"creditsReturned": "No credits were charged. Your {credits} reserved credits have been returned.",
 			"retryHint": "Your prompt and settings are saved. You can try again.",
-			"referenceExpired": "Your prompt and settings are saved. Please select a reference image again before retrying."
+			"referenceExpired": "Your prompt and settings are saved. Please select a reference image again before retrying.",
+			"recoveryHelp": "Read the recovery steps or contact support"
 		}
 	},
 	"common": {

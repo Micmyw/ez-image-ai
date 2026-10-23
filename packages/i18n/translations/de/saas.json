@@ -775,6 +775,43 @@
 				"unavailable": "Nicht verfügbar",
 				"network": "Netzwerk oder Upload",
 				"unknown": "Unbekannt"
+			},
+			"experimentReport": {
+				"variant": "Variante",
+				"exposed": "Sichtbare Browser",
+				"clicked": "Einstiegsklicks",
+				"purchaseClicked": "Checkout-Klicks",
+				"linked": "Verknüpfte Konten",
+				"ambiguous": "Mehrdeutige Browser",
+				"checkouts": "Checkout erstellt",
+				"paid": "Bestätigte Zahler",
+				"ctr": "Einstiegs-CTR",
+				"paymentRate": "Beobachtete Zahlungsrate",
+				"mature": "Browser nach 7 Tagen",
+				"matureRate": "Zahlungsrate nach 7 Tagen",
+				"cohort": "Kohorte",
+				"new": "Neue Kunden",
+				"existing": "Bestehende Kunden",
+				"attemptedUsers": "Nutzer mit Generierung",
+				"jobs": "Aufträge",
+				"succeeded": "Erfolgreich",
+				"failed": "Fehlgeschlagen",
+				"resultViewers": "Ergebnisbetrachter",
+				"downloaders": "Download gestartet",
+				"latencySamples": "Zeitmessungen",
+				"p50Ms": "P50 Abschluss",
+				"p90Ms": "P90 Abschluss",
+				"annual": "Jährliche Vorauswahl",
+				"monthly": "Monatliche Vorauswahl",
+				"control": "Bisherige Ergebnisaktionen",
+				"guide": "Zusätzlicher Kaufhinweis",
+				"title": "Kauftests",
+				"activityTitle": "Generierung und Ergebnisnutzung",
+				"activityBasis": "Aktivität im Zeitraum, getrennt nach Registrierungsdatum. Dauer: Erstellung bis erfolgreicher Serverabschluss, nicht bis zur Bildanzeige. Ansichten und Download-Starts benötigen optionale Analyse; fehlende Daten beweisen keine fehlende Nutzung.",
+				"basis": "Zwei unabhängige 50/50-Browserzuweisungen mit Analyse-Einwilligung. Die erste sichtbare Anzeige im gespeicherten Verlauf startet ein 7-Tage-Fenster. Quelle und Gerät beziehen sich auf diese Anzeige. Nur eindeutig serverseitig verknüpfte Konten zählen für Checkout und bestätigte Produktivzahlungen; Verlängerungen, Tests und frühere Checkouts zählen nicht.",
+				"interpretation": "Einstiegsklicks betreffen die getestete Fläche; die Kontrollgruppe hat keinen zusätzlichen Ergebniskauf-Button. Vergleichen Sie auch Checkout-Klicks und bestätigte Zahlungen. Die abgeschlossene Rate nutzt nur volle 7-Tage-Fenster. Kleine Stichproben, Einwilligungslücken, Mehrdeutigkeit und Wechselwirkungen erlauben keinen Sieger allein nach CTR.",
+				"pricing-default-v1": "Preisvorauswahl: jährlich oder monatlich (v1)",
+				"result-purchase-v1": "Nach einem angesehenen Kontoergebnis: Aktionen oder Kaufhinweis (v1)"
 			}
 		}
 	},
@@ -1993,10 +2030,11 @@
 			"timeout": "Entschuldigung, der Bilddienst hat das Zeitlimit überschritten und konnte dein Bild nicht fertigstellen.",
 			"serviceUnavailable": "Entschuldigung, der Bilddienst war vorübergehend nicht verfügbar und konnte dein Bild nicht fertigstellen.",
 			"generic": "Entschuldigung, dieses Bild konnte nicht fertiggestellt werden.",
-			"creditsPending": "Deine reservierten Credits werden zurückgegeben. Das Guthaben wird danach aktualisiert.",
+			"creditsPending": "Ihre Credits bleiben bis zur bestätigten Abrechnung reserviert. Die Rückgabe ist noch nicht abgeschlossen.",
 			"creditsReturned": "Es wurden keine Credits berechnet. Deine {credits} reservierten Credits wurden zurückgegeben.",
 			"retryHint": "Dein Prompt und deine Einstellungen sind gespeichert. Du kannst es erneut versuchen.",
-			"referenceExpired": "Dein Prompt und deine Einstellungen sind gespeichert. Bitte wähle vor dem erneuten Versuch ein Referenzbild aus."
+			"referenceExpired": "Dein Prompt und deine Einstellungen sind gespeichert. Bitte wähle vor dem erneuten Versuch ein Referenzbild aus.",
+			"recoveryHelp": "Wiederherstellungsschritte lesen oder Support kontaktieren"
 		}
 	},
 	"common": {

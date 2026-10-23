@@ -23,12 +23,14 @@ export function InlineOutputPreview({
 	sourceId,
 	productKey,
 	refresh,
+	onOutputLoaded,
 }: {
 	jobId: string;
 	asset: InlinePreviewAsset;
 	sourceId?: string;
 	productKey: EditorProductKey;
 	refresh: () => Promise<{ data?: { assets: InlinePreviewAsset[] }; isError?: boolean }>;
+	onOutputLoaded?: (image: HTMLImageElement) => void;
 }) {
 	const t = useTranslations("media.status");
 	const [display, setDisplay] = useState({
@@ -92,6 +94,7 @@ export function InlineOutputPreview({
 	if (!display.url) return <p aria-busy="true">{t("loading")}</p>;
 	const loaded: ReactEventHandler<HTMLImageElement> = (event) => {
 		recordOutputLoaded(jobId, asset.id, event.currentTarget);
+		onOutputLoaded?.(event.currentTarget);
 	};
 	const failed = async () => {
 		// One automatic credential refresh per mounted content identity. Persistent

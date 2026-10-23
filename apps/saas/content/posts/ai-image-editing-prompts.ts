@@ -7,6 +7,7 @@ export const promptEditingDocuments = [
 		description:
 			"Write a clear edit instruction: name the change, protect the details that matter, and review the result. Includes product, portrait, and background examples.",
 		publishedAt: "2026-09-12",
+		updatedAt: "2026-10-23",
 		articleType: "prompt-guides",
 		categoryId: "prompt-writing",
 		authorId: "ezimageai-editorial",
@@ -31,6 +32,18 @@ Use this structure as a starting point: **Change [specific part] to [desired app
 For example: "Replace the background with a plain warm-gray studio backdrop. Keep the blue mug, handle shape, printed logo, and camera angle unchanged. Match the soft shadow to the new background."
 
 This is a suggested instruction, not a demonstrated EzImageAI result. AI edits can still alter details you ask to preserve.
+
+## Change a photo background with a prompt
+
+Start with one clear subject against a background you want to replace. In the [image editor](/create), upload the original JPEG, PNG or WebP and enter:
+
+"Replace only the background with a light gray studio wall and a matte white tabletop. Keep the subject's shape, color, position and visible text unchanged. Add a soft contact shadow consistent with the original lighting. Keep the original framing."
+
+Choose an available model, check its credit quote, and generate once. The [Free account allowance](/docs/credits#before-you-generate) can be used for available image models when the balance covers the quote. A plan purchase is not needed just to test this instruction.
+
+Compare the original and result at full size. Check the outline, fine hair, glass or transparent edges, printed text and contact shadow. If only the background is wrong, revise that part of the instruction and start again from the original. Each new generation has its own charge. This prompt is a starting instruction; it has not been validated as a product-output example.
+
+For documented comparisons with actual outputs, exact prompts and the details that changed, browse the published [Photo Ideas](/blog?category=photo-ideas). For printable outlines instead of a new setting, use [Photo to Coloring Page](/photo-to-coloring-page).
 
 ## Product photo: replace the setting
 
@@ -62,9 +75,9 @@ Higher resolution changes the output size; it does not guarantee a more accurate
 
 ## Prepare an edit in EzImageAI
 
-Open the [AI image editor](/#image-editor), choose a JPEG, PNG, or WebP source, and enter your instruction. The page checks current availability before you can continue. When the guest trial is available, it offers one private, watermarked preview; account access is required for the other editing options shown in the product.
+Open the [AI image editor](/#image-editor), choose a JPEG, PNG, or WebP source, and enter your instruction. The page checks current availability before you can continue. When the guest trial is available, it offers up to two sponsored edits per day, with one private, watermarked result per run; account access is required for the other editing options shown in the product.
 
-If editing is unavailable, you can still refine a prompt and inspect the [illustrative examples](/#examples). Check availability again later or [contact support](/contact). Signing in does not by itself restore an unavailable service.
+If editing is unavailable, you can still refine a prompt and inspect the published [Photo Ideas](/blog?category=photo-ideas). Check availability again later or [contact support](/contact). Signing in does not by itself restore an unavailable service.
 
 See the [quick start](/docs/quick-start) for the upload and result workflow, [output settings](/docs/image-editing) for image options, and [private editing guide](/blog/private-image-editing-workflow) for access and retention details.`,
 	},

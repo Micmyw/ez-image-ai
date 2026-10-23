@@ -70,6 +70,56 @@ function job(id: string, status: string): ConversionJob {
 	};
 }
 describe("customer conversion cohort", () => {
+	it("separates existing customer activity and completed-job latency from browser observations", () => {
+		const data = facts();
+		data.users.push({ ...data.users[0]!, id: "returning", createdAt: new Date("2026-08-01Z") });
+		const result = buildConversionFunnel(
+			data,
+			{
+				events: [
+					event("result_viewed"),
+					event("result_viewed"),
+					event("result_downloaded"),
+					event("editor_generation_succeeded", "returning", "returning-browser"),
+					event("result_viewed", "admin", "admin-browser"),
+				],
+				jobs: [
+					job("1", "FAILED"),
+					job("2", "SUCCEEDED"),
+					{
+						...job("3", "SUCCEEDED"),
+						userId: "returning",
+						terminalAt: new Date(createdAt.getTime() + 13000),
+					},
+					{ ...job("4", "RUNNING"), userId: "returning", terminalAt: null },
+					{ ...job("5", "SUCCEEDED"), userId: "admin" },
+				],
+			},
+			{ range: "7d", now },
+		);
+		expect(result.activity[0]).toMatchObject({
+			cohort: "new",
+			attemptedUsers: 1,
+			jobs: 2,
+			succeeded: 1,
+			failed: 1,
+			resultViewers: 1,
+			downloaders: 1,
+			latencySamples: 1,
+			p50Ms: 500,
+			p90Ms: 500,
+		});
+		expect(result.activity[1]).toMatchObject({
+			cohort: "existing",
+			attemptedUsers: 1,
+			jobs: 2,
+			succeeded: 1,
+			resultViewers: 0,
+			latencySamples: 1,
+			p50Ms: 10000,
+		});
+		expect(result.totals.signups).toBe(2);
+	});
 	it("links visits to real registrations without treating ordinary login as signup", () => {
 		const observations = {
 			events: [

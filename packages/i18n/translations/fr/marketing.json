@@ -153,7 +153,7 @@
 			},
 			"guestVsFree": {
 				"question": "Quelle est la différence entre l’accès invité et Free ?",
-				"answer": "Les invités disposent de deux retouches sponsorisées par jour avec Nano Banana 2 Lite en 1K. Les résultats privés et filigranés sont disponibles jusqu’à 24 heures. Un compte Free inscrit reçoit séparément 25 EzImageAI Credits par mois, soit jusqu’à cinq retouches avec Nano Banana 2 Lite en 1K. GPT Image 2 et Seedream 5 Pro nécessitent un forfait payant."
+				"answer": "Les visiteurs disposent de deux retouches sponsorisées par jour avec Nano Banana 2 Lite 1K ; les résultats avec filigrane restent disponibles jusqu’à 24 heures. Un compte Free reçoit 25 crédits par mois et un bonus de connexion distinct de 5 crédits, accordé une seule fois. Les modèles d’image disponibles, dont GPT Image 2 et Seedream 5 Pro, sont accessibles si le solde couvre le devis affiché. Les nouvelles images générées avec les crédits du compte n’ont pas le filigrane visiteur et leur durée de conservation prévue est de 30 jours. Téléchargez ceux que vous souhaitez conserver."
 			},
 			"editTiers": {
 				"question": "Quels modèles d’image et réglages de sortie sont disponibles ?",
@@ -208,13 +208,13 @@
 			"subtitle": "Commencez par une instruction ou ajoutez une image de référence. Connectez-vous et générez en un clic ; le bouton affiche le coût en crédits.",
 			"offer": "Essayez Nano Banana 2 Lite 1K gratuitement",
 			"noSignUp": "Sans inscription lorsque la file invitée est disponible",
-			"paidSignIn": "Connexion et forfait payant requis",
+			"paidSignIn": "Connectez-vous et utilisez vos crédits",
 			"oneOutput": "Un résultat",
 			"freeQueue": "2 retouches gratuites par jour · filigrane · disponibles jusqu’à 24 heures",
 			"qualityAccess": "{model} nécessite une connexion et suffisamment de crédits sur le compte.",
 			"temporaryResult": "Votre aperçu reste privé et temporaire.",
 			"temporarySessionDisclosure": "EzImageAI crée une session temporaire pour cet essai, conserve les médias invités jusqu’à 24 heures et utilise des signaux pseudonymes contre les abus pendant la période décrite dans notre Politique de confidentialité.",
-			"qualityCta": "Plus de modèles d’image · forfait payant",
+			"qualityCta": "Découvrir les modèles d’image · crédits du compte",
 			"retryChallenge": "Réessayer la vérification",
 			"characterCount": "{count, number} / {maximum, number}",
 			"settings": {
@@ -413,16 +413,17 @@
 			"draftOnly": "Une retouche Nano Banana 2 Lite invitée"
 		},
 		"beforeAfter": {
-			"eyebrow": "Une source, un changement clair",
-			"title": "Comparez une retouche avant et après",
-			"description": "Faites glisser le séparateur pour comparer une illustration vectorielle à une proposition de retouche réalisée à la main.",
-			"disclaimer": "Cette illustration présente l’interface ; elle ne garantit pas la qualité.",
+			"eyebrow": "Généré avec EzImageAI",
+			"title": "Un portrait, avant et après",
+			"description": "Nano Banana 2 Lite · 1K · 5 crédits. Cette retouche de studio inspirée des années 80 a été générée et vérifiée le 29 septembre 2026.",
+			"disclaimer": "La source représente une adulte fictive générée par IA. Les cheveux, la veste et le fond changent ; les détails du visage et le cadrage ont aussi légèrement varié.",
 			"before": "Original",
-			"after": "Direction de retouche",
-			"beforeAlt": "Illustration vectorielle originale d’un salon de lecture neutre",
-			"controlLabel": "Comparer l’illustration originale et retouchée",
-			"showOriginal": "Afficher l’original",
-			"showEdit": "Afficher la direction"
+			"after": "Résultat EzImageAI",
+			"beforeAlt": "Adulte fictive générée par IA avant la retouche du portrait",
+			"controlLabel": "Comparer l’original et le véritable résultat EzImageAI",
+			"showOriginal": "Voir l’original",
+			"showEdit": "Voir le résultat",
+			"evidenceLink": "Voir le prompt exact et les trois résultats"
 		},
 		"showcase": {
 			"eyebrow": "Recettes de prompts",
@@ -681,6 +682,21 @@
 					"question": "Puis-je utiliser EzImageAI comme éditeur d’images IA gratuit ?",
 					"answer": "Oui. Un compte Free inscrit reçoit 25 EzImageAI Credits par mois pour les retouches éligibles. Les invités peuvent séparément effectuer deux retouches sponsorisées par jour lorsque la file est disponible. « No Restrictions » désigne la retouche flexible par instructions, au-delà des modèles prédéfinis ; les limites de sécurité, légales, du modèle et d’utilisation restent applicables."
 				}
+			}
+		},
+		"useCases": {
+			"title": "Commencez par la retouche dont vous avez besoin",
+			"background": {
+				"title": "Changer le fond d’une photo",
+				"description": "Un prompt complet, les étapes d’importation et les points à vérifier : contours, ombres et détails à préserver."
+			},
+			"portrait": {
+				"title": "Créer un portrait des années 80",
+				"description": "Comparez trois véritables résultats issus de la même référence, puis essayez les prompts vérifiés."
+			},
+			"coloring": {
+				"title": "Transformer une photo en coloriage",
+				"description": "Choisissez les contours et le fond, puis téléchargez ou imprimez au format A4 ou US Letter."
 			}
 		}
 	},

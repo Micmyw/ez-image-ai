@@ -775,6 +775,43 @@
 				"unavailable": "Indisponible",
 				"network": "Réseau ou envoi",
 				"unknown": "Inconnu"
+			},
+			"experimentReport": {
+				"variant": "Variante",
+				"exposed": "Navigateurs exposés",
+				"clicked": "Clics d’entrée",
+				"purchaseClicked": "Clics de paiement",
+				"linked": "Comptes liés",
+				"ambiguous": "Navigateurs ambigus",
+				"checkouts": "Paiements initiés côté serveur",
+				"paid": "Payeurs vérifiés",
+				"ctr": "CTR d’entrée",
+				"paymentRate": "Taux de paiement observé",
+				"mature": "Navigateurs après 7 jours",
+				"matureRate": "Taux à 7 jours",
+				"cohort": "Cohorte",
+				"new": "Nouveaux clients",
+				"existing": "Clients existants",
+				"attemptedUsers": "Utilisateurs ayant généré",
+				"jobs": "Tâches",
+				"succeeded": "Réussites",
+				"failed": "Échecs",
+				"resultViewers": "Résultats consultés",
+				"downloaders": "Téléchargements lancés",
+				"latencySamples": "Mesures de durée",
+				"p50Ms": "P50 achèvement",
+				"p90Ms": "P90 achèvement",
+				"annual": "Annuel par défaut",
+				"monthly": "Mensuel par défaut",
+				"control": "Actions actuelles",
+				"guide": "Guide d’achat ajouté",
+				"title": "Tests d’achat",
+				"activityTitle": "Génération et consultation des résultats",
+				"activityBasis": "Activité sur la période, répartie par date d’inscription. Durée : création jusqu’au succès confirmé côté serveur, pas jusqu’à l’affichage. Les vues et téléchargements nécessitent l’analyse facultative ; une absence de données ne prouve pas une absence d’usage.",
+				"basis": "Chaque test répartit les navigateurs consentants à 50/50. La première exposition visible dans l’historique conservé ouvre une fenêtre de 7 jours. Source et appareil se rapportent à l’exposition. Seuls les comptes liés sans ambiguïté comptent pour les commandes et paiements réels vérifiés ; renouvellements, tests et commandes antérieures sont exclus.",
+				"interpretation": "Les clics d’entrée mesurent la surface testée ; le contrôle n’a pas le nouveau bouton après résultat. Comparez aussi les clics de paiement et paiements vérifiés. Le taux mature utilise des fenêtres complètes de 7 jours. Petits échantillons, lacunes de consentement, ambiguïtés et interactions empêchent de choisir un gagnant sur le seul CTR.",
+				"pricing-default-v1": "Tarif par défaut : annuel ou mensuel (v1)",
+				"result-purchase-v1": "Après consultation d’un résultat de compte : actions actuelles ou guide d’achat (v1)"
 			}
 		}
 	},
@@ -1993,10 +2030,11 @@
 			"timeout": "Désolé, le service de génération a dépassé le délai et n’a pas pu terminer votre image.",
 			"serviceUnavailable": "Désolé, le service de génération était temporairement indisponible et n’a pas pu terminer votre image.",
 			"generic": "Désolé, cette image n’a pas pu être terminée.",
-			"creditsPending": "Nous restituons vos crédits réservés. Votre solde sera ensuite mis à jour.",
+			"creditsPending": "Vos crédits restent réservés jusqu’à la confirmation du règlement. Leur restitution n’est pas encore terminée.",
 			"creditsReturned": "Aucun crédit n’a été facturé. Vos {credits} crédits réservés ont été restitués.",
 			"retryHint": "Votre description et vos réglages sont enregistrés. Vous pouvez réessayer.",
-			"referenceExpired": "Votre description et vos réglages sont enregistrés. Sélectionnez une image de référence avant de réessayer."
+			"referenceExpired": "Votre description et vos réglages sont enregistrés. Sélectionnez une image de référence avant de réessayer.",
+			"recoveryHelp": "Consulter les étapes de récupération ou contacter l’assistance"
 		}
 	},
 	"common": {

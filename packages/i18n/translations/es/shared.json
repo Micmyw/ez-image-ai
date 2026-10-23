@@ -74,7 +74,7 @@
 				"title": "Empresa"
 			},
 			"free": {
-				"description": "Usa cualquier modelo de imagen con una asignación mensual de créditos.",
+				"description": "Prueba los modelos de imagen disponibles con tus créditos mensuales.",
 				"features": {
 					"standardEdit": "Todos los modelos de imagen disponibles",
 					"privateAssets": "Imágenes de origen y recursos editados privados",
@@ -148,7 +148,12 @@
 			"creditsLabel": "{credits} créditos disponibles. Añadir créditos",
 			"creditsUnavailable": "Créditos no disponibles. Ver paquetes de créditos"
 		},
-		"buyCredits": "Comprar créditos"
+		"buyCredits": "Comprar créditos",
+		"resultGuide": {
+			"title": "¿Necesitas más ediciones?",
+			"description": "Compara planes mensuales y paquetes de créditos de pago único. Tu resultado actual ya está disponible para descargar.",
+			"action": "Comparar planes y créditos"
+		}
 	},
 	"feedback": {
 		"rewardTitle": "Comentarios con recompensa",

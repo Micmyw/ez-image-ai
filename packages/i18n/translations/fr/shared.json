@@ -74,7 +74,7 @@
 				"title": "Entreprise"
 			},
 			"free": {
-				"description": "Utilisez tout modèle d’image avec une allocation mensuelle de crédits.",
+				"description": "Essayez les modèles d’image disponibles avec vos crédits mensuels.",
 				"features": {
 					"standardEdit": "Tous les modèles d’image disponibles",
 					"privateAssets": "Images source et ressources retouchées privées",
@@ -148,7 +148,12 @@
 			"creditsLabel": "{credits} crédits disponibles. Ajouter des crédits",
 			"creditsUnavailable": "Crédits indisponibles. Voir les packs de crédits"
 		},
-		"buyCredits": "Acheter des crédits"
+		"buyCredits": "Acheter des crédits",
+		"resultGuide": {
+			"title": "Besoin de plus de retouches ?",
+			"description": "Comparez les abonnements mensuels et les packs de crédits à achat unique. Votre résultat actuel est déjà téléchargeable.",
+			"action": "Comparer les offres et les crédits"
+		}
 	},
 	"feedback": {
 		"rewardTitle": "Avis récompensés",

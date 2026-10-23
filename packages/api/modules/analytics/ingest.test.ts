@@ -1,5 +1,6 @@
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { call } from "@orpc/server";
+import { growthExperimentVariant } from "@repo/config/growth-experiments";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ session: vi.fn(), record: vi.fn() }));
@@ -37,6 +38,51 @@ beforeEach(() => {
 	mocks.record.mockReset().mockResolvedValue({ accepted: true });
 });
 describe("consented first-party ingestion", () => {
+	it("validates the browser's assigned arm and stores only bounded experiment diagnostics", async () => {
+		const variant = growthExperimentVariant("pricing-default-v1", hash);
+		const experiment = { experimentId: "pricing-default-v1", variant };
+		const body = {
+			...input,
+			event: { name: "experiment_exposed", properties: { anonymousSessionHash: hash, experiment } },
+		};
+		await invoke(body);
+		expect(mocks.record).toHaveBeenCalledWith(
+			expect.objectContaining({ userId: "customer", diagnostics: experiment }),
+		);
+		mocks.record.mockClear();
+		await expect(
+			invoke({
+				...body,
+				event: {
+					...body.event,
+					properties: {
+						...body.event.properties,
+						experiment: { ...experiment, variant: variant === "annual" ? "monthly" : "annual" },
+					},
+				},
+			}),
+		).rejects.toThrow();
+		await expect(
+			invoke({
+				...body,
+				event: {
+					...body.event,
+					properties: {
+						...body.event.properties,
+						experiment: { ...experiment, privateJobId: "secret" },
+					},
+				},
+			}),
+		).rejects.toThrow();
+		await expect(
+			invoke({
+				...body,
+				event: { name: "experiment_clicked", properties: { anonymousSessionHash: hash } },
+			}),
+		).rejects.toThrow();
+		expect(await invoke(body, { cookie: "consent=false" })).toEqual({ accepted: false });
+		expect(mocks.record).not.toHaveBeenCalled();
+	});
 	it("cannot forge the server registration proof", async () => {
 		await expect(
 			invoke({ ...input, event: { ...input.event, name: "registration_confirmed" } }),

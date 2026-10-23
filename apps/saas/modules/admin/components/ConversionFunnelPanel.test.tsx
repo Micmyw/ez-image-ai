@@ -48,6 +48,8 @@ describe("conversion panel evidence labels", () => {
 		"separates missing observations from authoritative zero payments in %s",
 		(locale, messages) => {
 			state.data = {
+				experiments: [],
+				activity: [],
 				totals: {
 					signups: 2,
 					generated: 1,

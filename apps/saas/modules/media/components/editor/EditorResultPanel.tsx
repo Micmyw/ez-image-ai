@@ -1,10 +1,12 @@
 "use client";
 
+import { ResultPurchaseGuide } from "@payments/components/ResultPurchaseGuide";
 import { IMAGE_ASPECT_RATIOS, type ImageAspectRatio } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { Progress } from "@repo/ui/components/progress";
+import { trackBrowserGrowthEvent } from "@repo/utils/lib/growth-analytics-browser";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useTranslations } from "next-intl";
@@ -34,6 +36,35 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 	const job = useJob(jobId);
 	const [canceling, setCanceling] = useState(false);
 	const [cancelError, setCancelError] = useState(false);
+	const [loadedOutput, setLoadedOutput] = useState<{ jobId: string; image: HTMLImageElement }>();
+	const [seenJob, setSeenJob] = useState<string>();
+	useEffect(() => {
+		if (
+			!loadedOutput ||
+			loadedOutput.jobId !== jobId ||
+			typeof IntersectionObserver === "undefined"
+		)
+			return;
+		let visible = false;
+		const record = () => {
+			if (!visible || document.visibilityState !== "visible") return;
+			setSeenJob(loadedOutput.jobId);
+			void trackBrowserGrowthEvent(
+				{ name: "result_viewed" },
+				{ dedupeKey: `result-viewed:${loadedOutput.jobId}` },
+			);
+		};
+		const observer = new IntersectionObserver(([entry]) => {
+			visible = Boolean(entry?.isIntersecting);
+			record();
+		});
+		observer.observe(loadedOutput.image);
+		document.addEventListener("visibilitychange", record);
+		return () => {
+			observer.disconnect();
+			document.removeEventListener("visibilitychange", record);
+		};
+	}, [loadedOutput, jobId]);
 
 	useEffect(() => {
 		const data = job.data;
@@ -79,6 +110,10 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 	const output = job.data.assets[0];
 	// Older cached responses can omit preview even though the current API always supplies it.
 	const hasInlinePreview = Boolean(output && output.preview !== undefined);
+	const onOutputLoaded = (image: HTMLImageElement) =>
+		setLoadedOutput((previous) =>
+			previous?.jobId === jobId && previous.image === image ? previous : { jobId, image },
+		);
 
 	async function cancel() {
 		if (!jobId) return;
@@ -133,6 +168,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 						sourceId={source?.id}
 						productKey={productKey}
 						refresh={job.refetch}
+						onOutputLoaded={onOutputLoaded}
 					/>
 				</div>
 			)}
@@ -142,13 +178,14 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 						jobId={jobId}
 						inputAssetId={source.id}
 						outputAssetId={output.id}
+						onOutputLoaded={onOutputLoaded}
 						productKey={productKey}
 					/>
 				</div>
 			)}
 			{presentation.stage === "ready" && !source && output && !hasInlinePreview && (
 				<div className="mt-6">
-					<SignedOutput jobId={jobId} assetId={output.id} />
+					<SignedOutput jobId={jobId} assetId={output.id} onOutputLoaded={onOutputLoaded} />
 				</div>
 			)}
 			{job.data.status === "SUCCEEDED" && !output && (
@@ -219,6 +256,9 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 					{t("details")}
 				</Button>
 			</div>
+			{seenJob === jobId && presentation.stage === "ready" && output && (
+				<ResultPurchaseGuide key={jobId} />
+			)}
 		</section>
 	);
 }
@@ -260,7 +300,15 @@ function EditorEmptyState() {
 	);
 }
 
-function SignedOutput({ jobId, assetId }: { jobId: string; assetId: string }) {
+function SignedOutput({
+	jobId,
+	assetId,
+	onOutputLoaded,
+}: {
+	jobId: string;
+	assetId: string;
+	onOutputLoaded: (image: HTMLImageElement) => void;
+}) {
 	const t = useTranslations("media.status");
 	const output = usePrivateAssetPreview(assetId);
 	if (output.isError)
@@ -275,7 +323,10 @@ function SignedOutput({ jobId, assetId }: { jobId: string; assetId: string }) {
 			data-clarity-mask="true"
 			src={output.data.url}
 			alt={t("generatedAlt")}
-			onLoad={(event) => recordOutputLoaded(jobId, assetId, event.currentTarget)}
+			onLoad={(event) => {
+				recordOutputLoaded(jobId, assetId, event.currentTarget);
+				onOutputLoaded(event.currentTarget);
+			}}
 			className="mx-auto max-h-[42rem] w-full rounded-xl object-contain"
 		/>
 	);
@@ -286,11 +337,13 @@ function SignedComparison({
 	inputAssetId,
 	outputAssetId,
 	productKey,
+	onOutputLoaded,
 }: {
 	jobId: string;
 	inputAssetId: string;
 	outputAssetId: string;
 	productKey: EditorProductKey;
+	onOutputLoaded: (image: HTMLImageElement) => void;
 }) {
 	const t = useTranslations("media.status");
 	const input = usePrivateAssetPreview(inputAssetId);
@@ -310,7 +363,10 @@ function SignedComparison({
 	}
 	return (
 		<BeforeAfterSlider
-			onOutputLoad={(event) => recordOutputLoaded(jobId, outputAssetId, event.currentTarget)}
+			onOutputLoad={(event) => {
+				recordOutputLoaded(jobId, outputAssetId, event.currentTarget);
+				onOutputLoaded(event.currentTarget);
+			}}
 			beforeUrl={input.data?.url}
 			afterUrl={output.data.url}
 			beforeAlt={t("compare.beforeAlt")}

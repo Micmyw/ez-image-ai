@@ -153,7 +153,7 @@
 			},
 			"guestVsFree": {
 				"question": "Worin unterscheiden sich Gastzugang und Free?",
-				"answer": "Gäste erhalten täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite in 1K. Private Ergebnisse mit Wasserzeichen bleiben bis zu 24 Stunden verfügbar. Ein registriertes Free-Konto erhält separat monatlich 25 EzImageAI Credits, ausreichend für bis zu fünf Bearbeitungen mit Nano Banana 2 Lite in 1K. GPT Image 2 und Seedream 5 Pro erfordern einen kostenpflichtigen Tarif."
+				"answer": "Gäste erhalten täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K; Ergebnisse mit Wasserzeichen sind bis zu 24 Stunden verfügbar. Ein registriertes Free-Konto erhält monatlich 25 Credits und einen separaten einmaligen Anmeldebonus von 5 Credits. Verfügbare Bildmodelle, darunter GPT Image 2 und Seedream 5 Pro, können mit ausreichendem Guthaben genutzt werden. Neu mit Konto-Credits erstellte Bilder haben kein Gast-Wasserzeichen; die vorgesehene Aufbewahrung beträgt 30 Tage. Laden Sie wichtige Ergebnisse herunter."
 			},
 			"editTiers": {
 				"question": "Welche Bildmodelle und Ausgabeeinstellungen sind verfügbar?",
@@ -208,13 +208,13 @@
 			"subtitle": "Beginne mit einem Prompt oder füge ein Referenzbild hinzu. Melde dich an und starte mit einem Klick; die Credit-Kosten stehen auf der Schaltfläche.",
 			"offer": "Nano Banana 2 Lite 1K kostenlos testen",
 			"noSignUp": "Keine Registrierung, wenn die Gast-Warteschlange verfügbar ist",
-			"paidSignIn": "Anmeldung und kostenpflichtiger Tarif erforderlich",
+			"paidSignIn": "Anmelden und Konto-Credits nutzen",
 			"oneOutput": "Ein Ergebnis",
 			"freeQueue": "2 kostenlose Bearbeitungen täglich · Wasserzeichen · bis zu 24 Stunden verfügbar",
 			"qualityAccess": "{model} erfordert eine Anmeldung und genügend Kontoguthaben.",
 			"temporaryResult": "Deine Vorschau bleibt privat und vorübergehend.",
 			"temporarySessionDisclosure": "EzImageAI erstellt für diesen Test eine temporäre Sitzung, bewahrt Gastmedien bis zu 24 Stunden auf und nutzt pseudonyme Missbrauchssignale für den in unserer Datenschutzerklärung beschriebenen Zeitraum.",
-			"qualityCta": "Weitere Bildmodelle · kostenpflichtiger Tarif",
+			"qualityCta": "Bildmodelle entdecken · Konto-Credits",
 			"retryChallenge": "Überprüfung erneut versuchen",
 			"characterCount": "{count, number} / {maximum, number}",
 			"settings": {
@@ -413,16 +413,17 @@
 			"draftOnly": "Eine Nano Banana 2 Lite-Gastbearbeitung"
 		},
 		"beforeAfter": {
-			"eyebrow": "Eine Quelle, eine klare Änderung",
-			"title": "Eine Bildbearbeitung im Vorher-Nachher-Vergleich",
-			"description": "Ziehe den Regler, um eine Vektorillustration mit einer von Hand gestalteten Bearbeitungsrichtung zu vergleichen.",
-			"disclaimer": "Diese Illustration zeigt die Oberfläche und ist kein Qualitätsversprechen.",
+			"eyebrow": "Mit EzImageAI erstellt",
+			"title": "Ein Porträt im Vorher-Nachher-Vergleich",
+			"description": "Nano Banana 2 Lite · 1K · 5 Credits. Diese Studiobearbeitung im Stil der 1980er wurde am 29. September 2026 erstellt und geprüft.",
+			"disclaimer": "Das Ausgangsbild zeigt eine KI-generierte fiktive Erwachsene. Haare, Jacke und Hintergrund wurden verändert; auch Gesichtsdetails und Bildausschnitt änderten sich leicht.",
 			"before": "Original",
-			"after": "Bearbeitungsrichtung",
-			"beforeAlt": "Originale Vektorillustration eines neutralen Lesezimmers",
-			"controlLabel": "Original und bearbeitete Illustration vergleichen",
-			"showOriginal": "Original zeigen",
-			"showEdit": "Bearbeitungsrichtung zeigen"
+			"after": "EzImageAI-Ergebnis",
+			"beforeAlt": "KI-generierte fiktive Erwachsene vor der Porträtbearbeitung",
+			"controlLabel": "Original und tatsächliches EzImageAI-Ergebnis vergleichen",
+			"showOriginal": "Original anzeigen",
+			"showEdit": "Ergebnis anzeigen",
+			"evidenceLink": "Genauen Prompt und alle drei Ergebnisse ansehen"
 		},
 		"showcase": {
 			"eyebrow": "Prompt-Rezepte",
@@ -681,6 +682,21 @@
 					"question": "Kann ich EzImageAI als kostenlosen KI-Bildeditor nutzen?",
 					"answer": "Ja. Ein registriertes Free-Konto erhält monatlich 25 EzImageAI Credits für berechtigte Bearbeitungen. Gäste können separat täglich zwei gesponserte Bearbeitungen nutzen, wenn die Warteschlange verfügbar ist. „No Restrictions“ bedeutet flexibles Bearbeiten per Prompt jenseits fester Vorlagen; Sicherheits-, Rechts-, Modell- und Nutzungslimits gelten weiterhin."
 				}
+			}
+		},
+		"useCases": {
+			"title": "Beginnen Sie mit Ihrer gewünschten Bearbeitung",
+			"background": {
+				"title": "Fotohintergrund ändern",
+				"description": "Ein vollständiger Prompt, Upload-Schritte und eine Checkliste für Kanten, Schatten und wichtige Details."
+			},
+			"portrait": {
+				"title": "Porträt im 80er-Stil erstellen",
+				"description": "Vergleichen Sie drei tatsächliche Ergebnisse mit derselben Vorlage und probieren Sie die geprüften Prompts."
+			},
+			"coloring": {
+				"title": "Foto in eine Malvorlage verwandeln",
+				"description": "Konturen und Hintergrund wählen, dann herunterladen oder auf A4 beziehungsweise US Letter drucken."
 			}
 		}
 	},

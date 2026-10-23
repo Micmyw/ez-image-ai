@@ -7,6 +7,13 @@
 - Remove unused mail-provider alternatives; retain the active Resend delivery and localized transactional templates.
 - Keep benchmark tooling outside the production media barrel.
 
+## 2026-10-23 — First-use evidence and purchase experiments
+
+- Align Free image-model access and credit copy with actual account eligibility in English, German, Spanish and French; clarify pending credit settlement and link recovery steps.
+- Show a documented EzImageAI portrait edit on the homepage, replace illustrative creator stories with specific editing guides, and improve background-editing and credit guidance.
+- Compare annual/monthly pricing defaults and optional purchase guidance after a viewed account result through two consent-aware browser experiments. Explicit billing choices stay authoritative.
+- Add visible-result, new/existing customer activity and completion-time reporting, plus exposure, click, server-checkout and verified-payment experiment metrics in Analytics. These presentation changes do not modify prices, credits, payment processing or safety checks.
+
 ## 2026-10-23 — Website Worker memory
 
 - Reduce website cold-start memory by shipping compact ASCII JavaScript, including equivalent Unicode regular expressions, and preserve the checked artifact during deployment.

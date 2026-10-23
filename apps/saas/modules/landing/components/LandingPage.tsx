@@ -17,9 +17,8 @@ import { PhotoIdeaRecommendations } from "../../public-content/components/PhotoI
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
 import { HOME_FAQ_KEYS } from "../lib/faq";
 import { BeforeAfterDemo } from "./BeforeAfterDemo";
-import { CreatorWorkflowsSection } from "./CreatorWorkflowsSection";
+import { EditingUseCases } from "./EditingUseCases";
 import { LandingGenerator } from "./LandingGenerator";
-import { ShowcaseSection } from "./ShowcaseSection";
 
 export async function LandingPage({
 	editor,
@@ -53,10 +52,11 @@ export async function LandingPage({
 					</div>
 				</section>
 
+				<div id="examples">
+					<BeforeAfterDemo />
+				</div>
+				<EditingUseCases />
 				<ExploreModels />
-				<ShowcaseSection />
-				<BeforeAfterDemo />
-				<CreatorWorkflowsSection />
 				{!workspace && <PhotoIdeaRecommendations featured />}
 
 				<section id="how-it-works" className="scroll-mt-20 py-20 text-white sm:py-28">

@@ -92,7 +92,7 @@ const mocks = {
       cancelGeneration: () => Promise.resolve({}),
     }};`,
 	"@shared/lib/growth-analytics": `export const saasGrowthFunnel = new Proxy({}, { get: () => () => Promise.resolve() });`,
-	"next-intl": `export const useTranslations = () => (key) => key;`,
+	"next-intl": `export const useTranslations = () => (key) => key; export const useLocale = () => "en";`,
 	"next/link": `import React from "react"; export default function Link(props) { return <a {...props} />; }`,
 	"@repo/ui/components/alert": `export const Alert = ({children}) => <div role="alert">{children}</div>; export const AlertDescription = ({children}) => <p>{children}</p>;`,
 	"@repo/ui/components/badge": `export const Badge = ({children}) => <span>{children}</span>;`,

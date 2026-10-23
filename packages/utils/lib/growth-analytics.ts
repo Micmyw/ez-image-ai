@@ -1,4 +1,5 @@
 import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
+import { GROWTH_EXPERIMENTS } from "@repo/config/growth-experiments";
 import { z } from "zod";
 
 import { sendFirstPartyGrowthEvent } from "./conversion-transport";
@@ -19,6 +20,9 @@ export {
 } from "./growth-analytics-cookie";
 
 export const EZPIC_GROWTH_EVENT_NAMES = [
+	"experiment_exposed",
+	"experiment_clicked",
+	"result_viewed",
 	"generation_input_observed",
 	"generation_action_observed",
 	"page_viewed",
@@ -121,6 +125,16 @@ export type GrowthContentAttribution = z.infer<typeof growthContentAttributionSc
 export const growthAnalyticsPropertiesSchema = z
 	.object({
 		...contentAttributionShape,
+		experiment: z
+			.object({
+				experimentId: z.enum(["pricing-default-v1", "result-purchase-v1"]),
+				variant: z.enum(["annual", "monthly", "control", "guide"]),
+			})
+			.strict()
+			.refine((value) =>
+				(GROWTH_EXPERIMENTS[value.experimentId] as readonly string[]).includes(value.variant),
+			)
+			.optional(),
 		generation: generationDiagnosticsSchema.optional(),
 		productKind: z.enum(["PLAN", "CREDIT_PACK", "IMAGE_PASS"]).optional(),
 		errorCategory: z
@@ -178,7 +192,12 @@ export const growthAnalyticsEventSchema = z
 		name: growthAnalyticsEventNameSchema,
 		properties: growthAnalyticsPropertiesSchema.optional().default({}),
 	})
-	.strict();
+	.strict()
+	.refine((event) =>
+		["experiment_exposed", "experiment_clicked"].includes(event.name)
+			? Boolean(event.properties.experiment) && !event.properties.generation
+			: !event.properties.experiment,
+	);
 
 export type GrowthAnalyticsEventName = z.infer<typeof growthAnalyticsEventNameSchema>;
 export type GrowthAnalyticsProperties = z.infer<typeof growthAnalyticsPropertiesSchema>;

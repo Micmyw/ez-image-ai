@@ -30,7 +30,7 @@ export async function sendFirstPartyGrowthEvent(event: GrowthAnalyticsEvent): Pr
 		/* Optional cookies can be unavailable. */
 	}
 	// Same-origin observations are best effort and never affect a product action.
-	await fetch("/api/analytics/events", {
+	const response = await fetch("/api/analytics/events", {
 		method: "POST",
 		credentials: "same-origin",
 		keepalive: true,
@@ -42,4 +42,6 @@ export async function sendFirstPartyGrowthEvent(event: GrowthAnalyticsEvent): Pr
 			path: publicAnalyticsPath(new URL(window.location.href)),
 		}),
 	});
+	if (!response.ok || (await response.json())?.accepted !== true)
+		throw new Error("ANALYTICS_OBSERVATION_NOT_ACCEPTED");
 }

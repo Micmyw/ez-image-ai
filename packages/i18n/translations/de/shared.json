@@ -74,7 +74,7 @@
 				"title": "Enterprise"
 			},
 			"free": {
-				"description": "Nutze jedes Bildmodell mit einem monatlichen Credit-Kontingent.",
+				"description": "Verfügbare Bildmodelle mit monatlichen Credits ausprobieren.",
 				"features": {
 					"standardEdit": "Alle verfügbaren Bildmodelle",
 					"privateAssets": "Private Quellbilder und bearbeitete Assets",
@@ -148,7 +148,12 @@
 			"creditsLabel": "{credits} Credits verfügbar. Credits hinzufügen",
 			"creditsUnavailable": "Credits nicht verfügbar. Credit-Pakete ansehen"
 		},
-		"buyCredits": "Credits kaufen"
+		"buyCredits": "Credits kaufen",
+		"resultGuide": {
+			"title": "Weitere Bilder bearbeiten?",
+			"description": "Vergleichen Sie Monatsabos und einmalige Credit-Pakete. Ihr aktuelles Ergebnis ist bereits zum Download verfügbar.",
+			"action": "Abos und Credits vergleichen"
+		}
 	},
 	"feedback": {
 		"rewardTitle": "Prämien für Feedback",

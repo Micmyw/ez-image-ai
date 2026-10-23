@@ -45,7 +45,7 @@ describe("GenerationFailureNotice", () => {
 		const text = renderToStaticMarkup(
 			<GenerationFailureNotice job={{ ...job, creditsReleased: "0" }} />,
 		);
-		expect(text).toContain("returning your reserved credits");
+		expect(text).toContain("remain reserved until settlement is confirmed");
 		expect(text).not.toContain("have been returned");
 	});
 	it("describes an unknown result without promising a refund or a retry", () => {

@@ -1,0 +1,6 @@
+{
+	"url": "https://ezimageai.com/robots.txt",
+	"checkedAt": "2026-10-23T12:33:04.8001487Z",
+	"status": 200,
+	"body": "User-Agent: *\nAllow: /\nDisallow: /api/\nDisallow: /admin/\nDisallow: /assets\nDisallow: /draft/\nDisallow: /edits\nDisallow: /history\nDisallow: /settings/\nDisallow: /try\n\nSitemap: https://ezimageai.com/sitemap.xml\nSitemap: https://ezimageai.com/sitemap-images.xml\n"
+}

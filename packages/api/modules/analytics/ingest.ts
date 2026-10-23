@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { auth } from "@repo/auth";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
+import { growthExperimentVariant } from "@repo/config/growth-experiments";
 import { recordGrowthEvent } from "@repo/database";
 import {
 	firstTouchAttributionSchema,
@@ -62,6 +63,12 @@ export const ingestGrowthEvent = publicProcedure
 			throw new ORPCError("BAD_REQUEST");
 		const session = await auth.api.getSession({ headers: context.headers });
 		const user = session?.user && !isAnonymousUser(session.user) ? session.user : null;
+		const experiment = input.event.properties.experiment;
+		if (
+			experiment &&
+			experiment.variant !== growthExperimentVariant(experiment.experimentId, sessionHash)
+		)
+			throw new ORPCError("BAD_REQUEST");
 		const firstTouch = sanitizeFirstTouchAttribution(input.firstTouch, origin);
 		const path = input.path ? sanitizeAttributionPath(input.path, origin) : null;
 		if (
@@ -84,6 +91,6 @@ export const ingestGrowthEvent = publicProcedure
 			device: analyticsDevice(agent),
 			productKind: input.event.properties.productKind ?? null,
 			errorCategory: input.event.properties.errorCategory ?? null,
-			diagnostics: input.event.properties.generation ?? null,
+			diagnostics: experiment ?? input.event.properties.generation ?? null,
 		});
 	});

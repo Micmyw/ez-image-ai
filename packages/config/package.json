@@ -6,6 +6,7 @@
 	"exports": {
 		".": "./index.ts",
 		"./client": "./client.ts",
+		"./growth-experiments": "./growth-experiments.ts",
 		"./image-pass": "./image-pass.ts",
 		"./image-pass-summary": "./image-pass-summary.ts",
 		"./image-pass.server": "./image-pass.server.ts",

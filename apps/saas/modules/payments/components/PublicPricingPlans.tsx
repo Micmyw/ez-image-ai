@@ -1,6 +1,7 @@
 "use client";
 
 import { getPlanUsageEstimate, PLAN_ENTITLEMENTS, PUBLIC_CREDIT_PACKS } from "@repo/config/client";
+import { useGrowthExperiment } from "@shared/hooks/use-growth-experiment";
 import {
 	ArrowRightIcon,
 	CalendarClockIcon,
@@ -50,7 +51,7 @@ export function PublicPricingPlans({
 	className,
 	headingLevel = 2,
 	locale,
-	initialView = "year",
+	initialView,
 	hideViewToggle = false,
 }: {
 	className?: string;
@@ -60,7 +61,17 @@ export function PublicPricingPlans({
 	hideViewToggle?: boolean;
 }) {
 	const t = useTranslations();
-	const [view, setView] = useState<PricingView>(initialView);
+	const [selectedView, setSelectedView] = useState<PricingView | undefined>(initialView);
+	const [earlyChoice, setEarlyChoice] = useState(false);
+	const experiment = useGrowthExperiment(
+		"pricing-default-v1",
+		!initialView && !hideViewToggle && !earlyChoice,
+	);
+	const view = selectedView ?? (experiment.variant === "monthly" ? "month" : "year");
+	const setView = (next: PricingView) => {
+		if (!experiment.variant) setEarlyChoice(true);
+		setSelectedView(next);
+	};
 	const [creditPacksOpened, setCreditPacksOpened] = useState(initialView === "credit-packs");
 	const openUpgrade = useUpgrade();
 	const payment = usePaymentAction();
@@ -143,7 +154,7 @@ export function PublicPricingPlans({
 	);
 
 	return (
-		<div className={className} data-test="public-pricing-plans">
+		<div ref={experiment.exposureRef} className={className} data-test="public-pricing-plans">
 			<div className="border-white/9 p-3 sm:p-5 lg:p-7 overflow-hidden rounded-[2.25rem] border bg-[radial-gradient(circle_at_50%_-12rem,rgba(151,116,255,0.18),transparent_31rem),linear-gradient(145deg,rgba(29,20,42,0.98),rgba(20,14,30,0.98))] shadow-[0_36px_110px_-70px_rgba(141,104,255,0.95),inset_0_1px_0_rgba(255,255,255,0.055)]">
 				<div className="flex justify-center" hidden={hideViewToggle}>
 					<fieldset
@@ -319,6 +330,8 @@ export function PublicPricingPlans({
 												event.preventDefault();
 												return;
 											}
+											experiment.trackClick();
+											setView(view);
 											if (
 												openUpgrade &&
 												!event.metaKey &&

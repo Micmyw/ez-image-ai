@@ -74,7 +74,7 @@
 				"title": "Enterprise"
 			},
 			"free": {
-				"description": "Use any image model with a monthly credit allowance.",
+				"description": "Try available image models with your monthly credits.",
 				"features": {
 					"standardEdit": "All available image models",
 					"privateAssets": "Private source images and edited assets",
@@ -148,7 +148,12 @@
 			"creditsLabel": "{credits} credits available. Add credits",
 			"creditsUnavailable": "Credits unavailable. View credit packs"
 		},
-		"buyCredits": "Buy credits"
+		"buyCredits": "Buy credits",
+		"resultGuide": {
+			"title": "Need more edits?",
+			"description": "Compare monthly plans and one-time credit packs. Your current result is already available to download.",
+			"action": "Compare plans and credits"
+		}
 	},
 	"feedback": {
 		"rewardTitle": "Feedback rewards",

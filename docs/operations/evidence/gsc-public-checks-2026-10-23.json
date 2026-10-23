@@ -1,0 +1,852 @@
+{
+	"method": "Unauthenticated public HTTP HTML and sitemap fetch. This is not Google URL Inspection live testing or evidence of Google's current indexed content.",
+	"sitemapDocuments": [
+		{
+			"url": "https://ezimageai.com/sitemap.xml",
+			"status": 200
+		}
+	],
+	"sitemapUrlCount": 57,
+	"entries": [
+		{
+			"url": "https://ezimageai.com/?lang=de",
+			"checkedAt": "2026-10-23T12:29:12.932Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/?lang=de",
+			"redirected": false,
+			"title": "Ein KI-Bildeditor, der mit deinem Bild beginnt | EzImageAI",
+			"htmlLang": "de",
+			"canonical": ["https://ezimageai.com/?lang=de"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 317043
+		},
+		{
+			"url": "https://ezimageai.com/?lang=es",
+			"checkedAt": "2026-10-23T12:30:56.288Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/?lang=es",
+			"redirected": false,
+			"title": "Un editor de imágenes con IA que parte de tu imagen | EzImageAI",
+			"htmlLang": "es",
+			"canonical": ["https://ezimageai.com/?lang=es"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 315671,
+			"previousAttempt": {
+				"url": "https://ezimageai.com/?lang=es",
+				"checkedAt": "2026-10-23T12:29:12.935Z",
+				"error": "TypeError: fetch failed"
+			}
+		},
+		{
+			"url": "https://ezimageai.com/contact?lang=de",
+			"checkedAt": "2026-10-23T12:29:12.936Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/contact?lang=de",
+			"redirected": false,
+			"title": "Kontakt | EzImageAI",
+			"htmlLang": "de",
+			"canonical": ["https://ezimageai.com/contact?lang=de"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/contact"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/contact?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/contact?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/contact?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/contact"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 144066
+		},
+		{
+			"url": "https://ezimageai.com/contact?lang=es",
+			"checkedAt": "2026-10-23T12:29:17.962Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/contact?lang=es",
+			"redirected": false,
+			"title": "Contáctanos | EzImageAI",
+			"htmlLang": "es",
+			"canonical": ["https://ezimageai.com/contact?lang=es"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/contact"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/contact?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/contact?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/contact?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/contact"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 142238
+		},
+		{
+			"url": "https://ezimageai.com/contact?lang=fr",
+			"checkedAt": "2026-10-23T12:29:17.963Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/contact?lang=fr",
+			"redirected": false,
+			"title": "Contactez-nous | EzImageAI",
+			"htmlLang": "fr",
+			"canonical": ["https://ezimageai.com/contact?lang=fr"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/contact"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/contact?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/contact?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/contact?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/contact"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 146583
+		},
+		{
+			"url": "https://ezimageai.com/create?lang=de",
+			"checkedAt": "2026-10-23T12:29:17.964Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/create?lang=de",
+			"redirected": false,
+			"title": "Ein KI-Bildeditor, der mit deinem Bild beginnt | EzImageAI",
+			"htmlLang": "de",
+			"canonical": ["https://ezimageai.com/create?lang=de"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/create"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/create?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/create?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/create?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/create"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 317557
+		},
+		{
+			"url": "https://ezimageai.com/create?lang=es",
+			"checkedAt": "2026-10-23T12:29:20.905Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/create?lang=es",
+			"redirected": false,
+			"title": "Un editor de imágenes con IA que parte de tu imagen | EzImageAI",
+			"htmlLang": "es",
+			"canonical": ["https://ezimageai.com/create?lang=es"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/create"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/create?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/create?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/create?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/create"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 316189
+		},
+		{
+			"url": "https://ezimageai.com/create?lang=fr",
+			"checkedAt": "2026-10-23T12:29:20.906Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/create?lang=fr",
+			"redirected": false,
+			"title": "Un éditeur d&#x27;images IA qui part de votre image | EzImageAI",
+			"htmlLang": "fr",
+			"canonical": ["https://ezimageai.com/create?lang=fr"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/create"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/create?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/create?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/create?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/create"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 321713
+		},
+		{
+			"url": "https://ezimageai.com/docs",
+			"checkedAt": "2026-10-23T12:29:20.906Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/docs",
+			"redirected": false,
+			"title": "How to use EzImageAI",
+			"htmlLang": "en",
+			"canonical": ["https://ezimageai.com/docs"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [],
+			"inSitemap": true,
+			"bytes": 147268
+		},
+		{
+			"url": "https://ezimageai.com/docs/credits",
+			"checkedAt": "2026-10-23T12:29:25.709Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/docs/credits",
+			"redirected": false,
+			"title": "Credits | EzImageAI",
+			"htmlLang": "en",
+			"canonical": ["https://ezimageai.com/docs/credits"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [],
+			"inSitemap": true,
+			"bytes": 161918
+		},
+		{
+			"url": "https://ezimageai.com/docs/image-editing",
+			"checkedAt": "2026-10-23T12:29:25.710Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/docs/image-editing",
+			"redirected": false,
+			"title": "Image generation and editing | EzImageAI",
+			"htmlLang": "en",
+			"canonical": ["https://ezimageai.com/docs/image-editing"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [],
+			"inSitemap": true,
+			"bytes": 169182
+		},
+		{
+			"url": "https://ezimageai.com/examples?lang=de",
+			"checkedAt": "2026-10-23T12:29:25.711Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/examples?lang=de",
+			"redirected": false,
+			"title": "Bildbearbeitungs-Prompts für deine eigenen Ideen | EzImageAI",
+			"htmlLang": "de",
+			"canonical": ["https://ezimageai.com/examples?lang=de"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/examples"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/examples?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/examples?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/examples?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/examples"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 168897
+		},
+		{
+			"url": "https://ezimageai.com/examples?lang=es",
+			"checkedAt": "2026-10-23T12:29:29.907Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/examples?lang=es",
+			"redirected": false,
+			"title": "Instrucciones de edición para adaptar a tus imágenes | EzImageAI",
+			"htmlLang": "es",
+			"canonical": ["https://ezimageai.com/examples?lang=es"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/examples"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/examples?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/examples?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/examples?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/examples"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 167318
+		},
+		{
+			"url": "https://ezimageai.com/examples?lang=fr",
+			"checkedAt": "2026-10-23T12:29:29.907Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/examples?lang=fr",
+			"redirected": false,
+			"title": "Des instructions de retouche à adapter à vos images | EzImageAI",
+			"htmlLang": "fr",
+			"canonical": ["https://ezimageai.com/examples?lang=fr"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/examples"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/examples?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/examples?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/examples?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/examples"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 171656
+		},
+		{
+			"url": "https://ezimageai.com/image-to-image?lang=de",
+			"checkedAt": "2026-10-23T12:29:29.908Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/image-to-image?lang=de",
+			"redirected": false,
+			"title": "Bild-zu-Bild-KI-Generator | EzImageAI",
+			"htmlLang": "de",
+			"canonical": ["https://ezimageai.com/image-to-image?lang=de"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/image-to-image"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/image-to-image?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/image-to-image?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/image-to-image?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/image-to-image"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 197990
+		},
+		{
+			"url": "https://ezimageai.com/image-to-image?lang=es",
+			"checkedAt": "2026-10-23T12:29:33.844Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/image-to-image?lang=es",
+			"redirected": false,
+			"title": "Generador de IA de imagen a imagen | EzImageAI",
+			"htmlLang": "es",
+			"canonical": ["https://ezimageai.com/image-to-image?lang=es"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/image-to-image"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/image-to-image?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/image-to-image?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/image-to-image?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/image-to-image"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 196496
+		},
+		{
+			"url": "https://ezimageai.com/image-to-image?lang=fr",
+			"checkedAt": "2026-10-23T12:29:33.845Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/image-to-image?lang=fr",
+			"redirected": false,
+			"title": "Générateur IA image à image | EzImageAI",
+			"htmlLang": "fr",
+			"canonical": ["https://ezimageai.com/image-to-image?lang=fr"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/image-to-image"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/image-to-image?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/image-to-image?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/image-to-image?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/image-to-image"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 201153
+		},
+		{
+			"url": "https://ezimageai.com/models",
+			"checkedAt": "2026-10-23T12:29:33.846Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/models",
+			"redirected": false,
+			"title": "AI Image Models — Find Your Creative Direction | EzImageAI",
+			"htmlLang": "en",
+			"canonical": ["https://ezimageai.com/models"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [],
+			"inSitemap": true,
+			"bytes": 157117
+		},
+		{
+			"url": "https://ezimageai.com/models/gpt-image-1-5",
+			"checkedAt": "2026-10-23T12:29:35.858Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/models/gpt-image-1-5",
+			"redirected": false,
+			"title": "GPT Image 1.5 AI Image Generator | EzImageAI",
+			"htmlLang": "en",
+			"canonical": ["https://ezimageai.com/models/gpt-image-1-5"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [],
+			"inSitemap": true,
+			"bytes": 162966
+		},
+		{
+			"url": "https://ezimageai.com/models/gpt-image-2",
+			"checkedAt": "2026-10-23T12:29:35.858Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/models/gpt-image-2",
+			"redirected": false,
+			"title": "GPT Image 2 AI Image Generator | EzImageAI",
+			"htmlLang": "en",
+			"canonical": ["https://ezimageai.com/models/gpt-image-2"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [],
+			"inSitemap": true,
+			"bytes": 162845
+		},
+		{
+			"url": "https://ezimageai.com/models/gpt-image-2-5-flare",
+			"checkedAt": "2026-10-23T12:29:35.859Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/models/gpt-image-2-5-flare",
+			"redirected": false,
+			"title": "GPT Image 2.5 Flare AI Image Generator | EzImageAI",
+			"htmlLang": "en",
+			"canonical": ["https://ezimageai.com/models/gpt-image-2-5-flare"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [],
+			"inSitemap": true,
+			"bytes": 162801
+		},
+		{
+			"url": "https://ezimageai.com/models/gpt-image-2-5-sunburst",
+			"checkedAt": "2026-10-23T12:29:40.910Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/models/gpt-image-2-5-sunburst",
+			"redirected": false,
+			"title": "GPT Image 2.5 Sunburst AI Image Generator | EzImageAI",
+			"htmlLang": "en",
+			"canonical": ["https://ezimageai.com/models/gpt-image-2-5-sunburst"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [],
+			"inSitemap": true,
+			"bytes": 163411
+		},
+		{
+			"url": "https://ezimageai.com/models/seedream-4",
+			"checkedAt": "2026-10-23T12:29:40.911Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/models/seedream-4",
+			"redirected": false,
+			"title": "Seedream 4.0 AI Image Generator | EzImageAI",
+			"htmlLang": "en",
+			"canonical": ["https://ezimageai.com/models/seedream-4"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [],
+			"inSitemap": true,
+			"bytes": 162967
+		},
+		{
+			"url": "https://ezimageai.com/models/seedream-5-pro",
+			"checkedAt": "2026-10-23T12:29:40.912Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/models/seedream-5-pro",
+			"redirected": false,
+			"title": "Seedream 5 Pro AI Image Generator | EzImageAI",
+			"htmlLang": "en",
+			"canonical": ["https://ezimageai.com/models/seedream-5-pro"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [],
+			"inSitemap": true,
+			"bytes": 163524
+		},
+		{
+			"url": "https://ezimageai.com/photo-to-coloring-page",
+			"checkedAt": "2026-10-23T12:29:41.939Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/photo-to-coloring-page",
+			"redirected": false,
+			"title": "Turn Photo into Coloring Page | EzImageAI",
+			"htmlLang": "en",
+			"canonical": ["https://ezimageai.com/photo-to-coloring-page"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [],
+			"inSitemap": true,
+			"bytes": 166453
+		},
+		{
+			"url": "https://ezimageai.com/pricing",
+			"checkedAt": "2026-10-23T12:29:41.940Z",
+			"status": 200,
+			"finalUrl": "https://ezimageai.com/pricing",
+			"redirected": false,
+			"title": "Pricing | EzImageAI",
+			"htmlLang": "en",
+			"canonical": ["https://ezimageai.com/pricing"],
+			"robots": [
+				{
+					"name": "robots",
+					"content": "index, follow"
+				}
+			],
+			"xRobotsTag": null,
+			"hreflang": [
+				{
+					"lang": "en",
+					"href": "https://ezimageai.com/pricing"
+				},
+				{
+					"lang": "de",
+					"href": "https://ezimageai.com/pricing?lang=de"
+				},
+				{
+					"lang": "es",
+					"href": "https://ezimageai.com/pricing?lang=es"
+				},
+				{
+					"lang": "fr",
+					"href": "https://ezimageai.com/pricing?lang=fr"
+				},
+				{
+					"lang": "x-default",
+					"href": "https://ezimageai.com/pricing"
+				}
+			],
+			"inSitemap": true,
+			"bytes": 182936
+		}
+	]
+}

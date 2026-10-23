@@ -775,6 +775,43 @@
 				"unavailable": "No disponible",
 				"network": "Red o carga",
 				"unknown": "Desconocido"
+			},
+			"experimentReport": {
+				"variant": "Variante",
+				"exposed": "Navegadores expuestos",
+				"clicked": "Clics de entrada",
+				"purchaseClicked": "Clics de pago",
+				"linked": "Cuentas vinculadas",
+				"ambiguous": "Navegadores ambiguos",
+				"checkouts": "Pago iniciado en servidor",
+				"paid": "Pagadores verificados",
+				"ctr": "CTR de entrada",
+				"paymentRate": "Tasa de pago observada",
+				"mature": "Navegadores con 7 días completos",
+				"matureRate": "Tasa de pago a 7 días",
+				"cohort": "Cohorte",
+				"new": "Clientes nuevos",
+				"existing": "Clientes existentes",
+				"attemptedUsers": "Usuarios que generaron",
+				"jobs": "Trabajos",
+				"succeeded": "Correctos",
+				"failed": "Fallidos",
+				"resultViewers": "Vieron resultados",
+				"downloaders": "Iniciaron descarga",
+				"latencySamples": "Muestras de tiempo",
+				"p50Ms": "P50 finalización",
+				"p90Ms": "P90 finalización",
+				"annual": "Anual por defecto",
+				"monthly": "Mensual por defecto",
+				"control": "Acciones actuales",
+				"guide": "Guía de compra añadida",
+				"title": "Experimentos de compra",
+				"activityTitle": "Generación y uso de resultados",
+				"activityBasis": "Actividad del período, separada por fecha de registro. El tiempo va de creación a finalización correcta en servidor, no a la imagen visible. Las vistas y descargas requieren analítica opcional; su ausencia no prueba falta de uso.",
+				"basis": "Cada experimento asigna navegadores con consentimiento 50/50. La primera exposición visible del historial conservado inicia 7 días de atribución. Fuente y dispositivo corresponden a la exposición. Solo cuentas vinculadas sin ambigüedad aportan pagos iniciados y pagos reales verificados; se excluyen renovaciones, pruebas y pagos iniciados antes de la exposición.",
+				"interpretation": "Los clics de entrada miden la superficie probada; el control no tiene el nuevo botón del resultado. Compara también clics de pago y pagos verificados. La tasa madura usa ventanas completas de 7 días. Muestras pequeñas, falta de consentimiento, ambigüedad e interacción entre pruebas impiden elegir un ganador solo por CTR.",
+				"pricing-default-v1": "Precio por defecto: anual frente a mensual (v1)",
+				"result-purchase-v1": "Tras ver un resultado de cuenta: acciones actuales frente a guía de compra (v1)"
 			}
 		}
 	},
@@ -1993,10 +2030,11 @@
 			"timeout": "Lo sentimos, el servicio de generación superó el tiempo de espera y no pudo completar tu imagen.",
 			"serviceUnavailable": "Lo sentimos, el servicio de generación no estaba disponible temporalmente y no pudo completar tu imagen.",
 			"generic": "Lo sentimos, no se pudo completar esta imagen.",
-			"creditsPending": "Estamos devolviendo tus créditos reservados. El saldo se actualizará cuando termine.",
+			"creditsPending": "Tus créditos siguen reservados hasta que se confirme la liquidación. Todavía no se ha completado su devolución.",
 			"creditsReturned": "No se cobró ningún crédito. Se han devuelto tus {credits} créditos reservados.",
 			"retryHint": "Tu descripción y ajustes están guardados. Puedes volver a intentarlo.",
-			"referenceExpired": "Tu descripción y ajustes están guardados. Selecciona una imagen de referencia antes de volver a intentarlo."
+			"referenceExpired": "Tu descripción y ajustes están guardados. Selecciona una imagen de referencia antes de volver a intentarlo.",
+			"recoveryHelp": "Consulta los pasos de recuperación o contacta con soporte"
 		}
 	},
 	"common": {

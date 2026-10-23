@@ -52,6 +52,12 @@ export function GenerationFailureNotice({
 					)}
 				</p>
 			)}
+			<a
+				href="/docs/image-editing#follow-progress-without-starting-over"
+				className="inline-block underline underline-offset-4"
+			>
+				{t("recoveryHelp")}
+			</a>
 		</div>
 	);
 }

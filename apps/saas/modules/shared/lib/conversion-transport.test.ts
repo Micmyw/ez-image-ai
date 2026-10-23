@@ -14,10 +14,20 @@ beforeEach(() => {
 		cookie: `consent=true; consent_version=2; ezpic_analytics_session=${hash}`,
 		referrer: "https://chatgpt.com/c/private-conversation",
 	});
-	vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+	vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({ accepted: true })));
 });
 afterEach(() => vi.unstubAllGlobals());
 describe("first-party event transport", () => {
+	it.each([503, 429, 200])(
+		"does not mark an unaccepted observation delivered (%s)",
+		async (status) => {
+			vi.mocked(fetch).mockResolvedValue(Response.json({ accepted: false }, { status }));
+			const { sendFirstPartyGrowthEvent } = await import("@repo/utils/lib/conversion-transport");
+			await expect(sendFirstPartyGrowthEvent(event)).rejects.toThrow(
+				"ANALYTICS_OBSERVATION_NOT_ACCEPTED",
+			);
+		},
+	);
 	it("carries safe attribution independently of vendor configuration", async () => {
 		const { sendFirstPartyGrowthEvent } = await import("@repo/utils/lib/conversion-transport");
 		await sendFirstPartyGrowthEvent(event);

@@ -171,6 +171,9 @@ vi.mock("../modules/landing/components/LandingGenerator", () => ({
 vi.mock("../modules/landing/components/BeforeAfterDemo", () => ({
 	BeforeAfterDemo: () => <section id="before-after" />,
 }));
+vi.mock("../modules/landing/components/EditingUseCases", () => ({
+	EditingUseCases: () => <section id="editing-use-cases" />,
+}));
 
 vi.mock("../modules/landing/components/ShowcaseSection", () => ({
 	ShowcaseSection: ({ standalone = false }: { standalone?: boolean }) =>
@@ -433,7 +436,7 @@ describe("consolidated public route contract", () => {
 	});
 
 	it("shares a yearly-default pricing switch with three plans and four credit packs", async () => {
-		const markup = renderToStaticMarkup(await PricingPage());
+		const markup = renderToStaticMarkup(await PricingPage({}));
 		const landingMarkup = renderToStaticMarkup(await LandingPage());
 
 		for (const messageKey of [

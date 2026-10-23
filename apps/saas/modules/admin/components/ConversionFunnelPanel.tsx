@@ -12,6 +12,7 @@ import {
 	CapabilitySection,
 	CapabilitySelect,
 } from "./CapabilityUi";
+import { ConversionExperimentsPanel } from "./ConversionExperimentsPanel";
 
 const steps = [
 	"signups",
@@ -217,6 +218,7 @@ export function ConversionFunnelPanel() {
 							))}
 						</ul>
 					)}
+					<ConversionExperimentsPanel data={data} />
 					<h3 className="font-medium">{t("failureTitle")}</h3>
 					{data.failures.length ? (
 						<ul className="space-y-1 text-sm">

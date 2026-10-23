@@ -1,3 +1,5 @@
+import { EXPERIMENT_RETENTION_MS } from "@repo/config/growth-experiments";
+
 import {
 	ADMIN_ANALYTICS_RANGES,
 	type AdminAnalyticsFacts,
@@ -5,6 +7,8 @@ import {
 } from "./admin-analytics";
 import type { AdminAnalyticsQuery } from "./admin-analytics-reader";
 import { readAggregateTraffic, aggregateTrafficSince } from "./aggregate-traffic";
+import { buildConversionActivity } from "./conversion-activity";
+import { buildConversionExperiments } from "./conversion-experiments";
 import type { GrowthEventInput } from "./growth-events";
 
 export interface ConversionInput {
@@ -61,7 +65,10 @@ export async function readConversionObservations(
 	const to = input.now ?? new Date();
 	const from = new Date(to.getTime() - ADMIN_ANALYTICS_RANGES[input.range]);
 	const [events, jobs, aggregateTraffic] = await Promise.all([
-		query<ConversionEvent>(CONVERSION_SQL.events, [from, to]),
+		query<ConversionEvent>(CONVERSION_SQL.events, [
+			new Date(to.getTime() - EXPERIMENT_RETENTION_MS),
+			to,
+		]),
 		query<ConversionJob>(CONVERSION_SQL.jobs, [from, to]),
 		readAggregateTraffic(query, input),
 	]);
@@ -304,6 +311,8 @@ export function buildConversionFunnel(
 	return {
 		since: from.toISOString(),
 		asOf: to.toISOString(),
+		experiments: buildConversionExperiments(facts, observations.events, from, to, input),
+		activity: buildConversionActivity(facts, events, observations.jobs, from, to, input),
 		aggregateTraffic: observations.aggregateTraffic ?? {
 			since: aggregateTrafficSince(input).toISOString(),
 			views: 0,

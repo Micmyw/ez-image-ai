@@ -153,7 +153,7 @@
 			},
 			"guestVsFree": {
 				"question": "What is the difference between Guest and Free?",
-				"answer": "Guest access offers two sponsored Nano Banana 2 Lite 1K edits per day, with private watermarked results kept for up to 24 hours. A registered Free account separately receives 25 EzImageAI Credits each month, enough for up to five Nano Banana 2 Lite 1K edits. GPT Image 2 and Seedream 5 Pro require a paid plan."
+				"answer": "Guest access offers two sponsored Nano Banana 2 Lite 1K edits per day, with watermarked results available for up to 24 hours. A registered Free account receives 25 credits each month plus a separate one-time 5-credit sign-in bonus. Free accounts can use available image models, including GPT Image 2 and Seedream 5 Pro, when their balance covers the displayed quote. New images generated with account credits have no guest watermark and a 30-day retention target. Download results you want to keep."
 			},
 			"editTiers": {
 				"question": "Which image models and output settings are available?",
@@ -208,13 +208,13 @@
 			"subtitle": "Start with a prompt, or add a reference image for an edit. Sign in and generate in one click, with the credit cost shown on the button.",
 			"offer": "Try Nano Banana 2 Lite 1K free",
 			"noSignUp": "No sign-up when the guest queue is available",
-			"paidSignIn": "Sign-in and a paid plan required",
+			"paidSignIn": "Sign in and use account credits",
 			"oneOutput": "One output",
 			"freeQueue": "2 free edits daily · watermarked · available for up to 24 hours",
 			"qualityAccess": "{model} requires sign-in and enough account credits.",
 			"temporaryResult": "Your preview stays private and temporary.",
 			"temporarySessionDisclosure": "EzImageAI creates a temporary session for this trial, keeps guest media for up to 24 hours, and uses pseudonymous abuse signals for the policy period described in our Privacy Policy.",
-			"qualityCta": "More image models · paid plan",
+			"qualityCta": "Explore image models · account credits",
 			"retryChallenge": "Retry verification",
 			"characterCount": "{count, number} / {maximum, number}",
 			"settings": {
@@ -413,16 +413,17 @@
 			"draftOnly": "Create from text or an image"
 		},
 		"beforeAfter": {
-			"eyebrow": "One source, one clear change",
-			"title": "Compare an image edit before and after",
-			"description": "Drag the divider to compare a vector illustration with a hand-authored edit direction.",
-			"disclaimer": "This illustration demonstrates the interface; it is not a quality guarantee.",
+			"eyebrow": "Generated with EzImageAI",
+			"title": "A portrait, before and after",
+			"description": "Nano Banana 2 Lite · 1K · 5 credits. This 1980s studio edit was generated and reviewed on September 29, 2026.",
+			"disclaimer": "The source is an AI-generated fictional adult. The result changes the hair, jacket and background; facial details and the crop also changed slightly.",
 			"before": "Original",
-			"after": "Edit direction",
-			"beforeAlt": "Original vector illustration of a neutral reading studio",
-			"controlLabel": "Compare original and edited illustration",
+			"after": "EzImageAI result",
+			"beforeAlt": "AI-generated fictional adult before the portrait edit",
+			"controlLabel": "Compare the original and the actual EzImageAI result",
 			"showOriginal": "Show original",
-			"showEdit": "Show edit direction"
+			"showEdit": "Show result",
+			"evidenceLink": "See the exact prompt and all three results"
 		},
 		"showcase": {
 			"eyebrow": "Prompt recipes",
@@ -681,6 +682,21 @@
 					"question": "Can I use EzImageAI as a free AI image editor?",
 					"answer": "Yes. A registered Free account receives 25 EzImageAI Credits each month for eligible edits. Separately, guests can make two sponsored edits per day when the queue is available. “No Restrictions” means flexible prompt editing beyond fixed templates; content safety, legal, model, and usage limits still apply."
 				}
+			}
+		},
+		"useCases": {
+			"title": "Start with the edit you need",
+			"background": {
+				"title": "Change a photo background",
+				"description": "A complete prompt, upload steps and a checklist for edges, shadows and details to keep."
+			},
+			"portrait": {
+				"title": "Create an 80s-style portrait",
+				"description": "Compare three actual outputs from one reference, then try the reviewed prompts."
+			},
+			"coloring": {
+				"title": "Turn a photo into a coloring page",
+				"description": "Choose outlines and background settings, then download or print on A4 or US Letter."
 			}
 		}
 	},

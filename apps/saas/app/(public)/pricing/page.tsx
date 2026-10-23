@@ -19,13 +19,18 @@ export async function generateMetadata(props: PublicMetadataProps) {
 	});
 }
 
-export default async function PricingPage() {
+export default async function PricingPage({ searchParams }: PublicMetadataProps) {
 	const locale = await getLocale();
 	const t = await getTranslations();
+	const params = await searchParams;
+	const interval = params?.interval;
 
 	return (
 		<PublicPageShell title={t("pricing.title")} description={t("pricing.description")}>
-			<PublicPricingPlans locale={locale} />
+			<PublicPricingPlans
+				locale={locale}
+				initialView={interval === "month" || interval === "year" ? interval : undefined}
+			/>
 			<section aria-labelledby="pricing-faq-title" className="mt-20 max-w-3xl mx-auto">
 				<div className="text-center">
 					<h2 id="pricing-faq-title" className="text-3xl font-semibold text-white">

@@ -19,6 +19,43 @@ const steps = z.object({
 export const conversionOutputSchema = z.object({
 	since: z.string(),
 	asOf: z.string(),
+	experiments: z.array(
+		z.object({
+			experimentId: z.enum(["pricing-default-v1", "result-purchase-v1"]),
+			windowDays: count,
+			variants: z.array(
+				z.object({
+					variant: z.string(),
+					exposed: count,
+					clicked: count,
+					purchaseClicked: count,
+					linked: count,
+					ambiguous: count,
+					checkouts: count,
+					paid: count,
+					mature: count,
+					maturePaid: count,
+				}),
+			),
+		}),
+	),
+	activity: z.array(
+		z.object({
+			cohort: z.enum(["new", "existing"]),
+			attemptedUsers: count,
+			jobs: count,
+			succeeded: count,
+			failed: count,
+			resultViewers: count,
+			downloaders: count,
+			purchaseClicked: count,
+			latencySamples: count,
+			checkouts: count,
+			paid: count,
+			p50Ms: z.number().nonnegative().nullable(),
+			p90Ms: z.number().nonnegative().nullable(),
+		}),
+	),
 	aggregateTraffic: z.object({
 		since: z.string(),
 		views: count,
