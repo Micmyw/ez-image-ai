@@ -943,21 +943,9 @@ test("the public root exposes the image editor before authentication", async ({ 
 		await page
 			.locator("main section[id]")
 			.evaluateAll((sections) => sections.map((section) => section.id)),
-	).toEqual([
-		"image-editor",
-		"models",
-		"examples",
-		"before-after",
-		"creator-workflows",
-		"how-it-works",
-		"pricing",
-		"faq",
-	]);
-	const storyWall = page.locator('[data-test="user-story-wall"]');
-	await expect(storyWall).toContainText(/six composite creator profiles/i);
-	await expect(storyWall.locator("#creator-workflows-disclaimer")).toContainText(
-		/not customer testimonials, published case studies, or promised results/i,
-	);
+	).toEqual(["image-editor", "before-after", "models", "how-it-works", "pricing", "faq"]);
+	await expect(page.locator('[data-test="user-story-wall"]')).toHaveCount(0);
+	await expect(page.getByRole("region", { name: "Start with the edit you need" })).toBeVisible();
 	await expect(page.locator("body")).not.toContainText(
 		/raphael|openrouter|sourceful|riverflow|providerModelId|providerCostMicros|providerTaskId|KIE_API_KEY|api\.kie\.ai/i,
 	);
@@ -1368,125 +1356,68 @@ test("the landing page proves edits with an interactive comparison and visual ex
 	page,
 }) => {
 	await page.goto("/");
-
-	const comparison = page.getByRole("slider", {
-		name: /compare original and edited illustration/i,
+	const evidence = page.getByRole("region", { name: "A portrait, before and after" });
+	const comparison = evidence.getByRole("slider", {
+		name: "Compare the original and the actual EzImageAI result",
 	});
-	await page.locator("#before-after").scrollIntoViewIfNeeded();
+	await evidence.scrollIntoViewIfNeeded();
 	await expect(comparison).toBeVisible();
 	await expect(comparison).toHaveValue("52");
-
-	await page.getByRole("button", { name: /show original/i }).click();
+	await evidence.getByRole("button", { name: "Show original", exact: true }).click();
 	await expect(comparison).toHaveValue("0");
-	await page.getByRole("button", { name: /show edit direction/i }).click();
+	await evidence.getByRole("button", { name: "Show result", exact: true }).click();
 	await expect(comparison).toHaveValue("100");
 	await comparison.fill("36");
 	await expect(comparison).toHaveValue("36");
 
-	const examples = page.locator("#examples article");
-	await page.locator("#examples").scrollIntoViewIfNeeded();
-	await expect(examples).toHaveCount(12);
-	await expect(page.locator("#examples img")).toHaveCount(12);
-	expect(
-		await page
-			.locator("#examples img")
-			.evaluateAll((images) =>
-				images.every((image) => image instanceof HTMLImageElement && image.naturalWidth > 0),
+	const images = evidence.locator("img");
+	await expect(images).toHaveCount(2);
+	await expect
+		.poll(() =>
+			images.evaluateAll((elements) =>
+				elements.every((image) => image instanceof HTMLImageElement && image.naturalWidth > 0),
 			),
-	).toBe(true);
-
-	expect(
-		await page
-			.locator("#examples img")
-			.evaluateAll((images) =>
-				images.every(
-					(image) =>
-						image instanceof HTMLImageElement &&
-						Math.abs(
-							image.clientHeight - (image.clientWidth * image.naturalHeight) / image.naturalWidth,
-						) < 2,
-				),
-			),
-		"example images preserve their original proportions",
-	).toBe(true);
-
-	const prompt = page.getByRole("textbox", { name: "Image prompt", exact: true });
-	await page
-		.locator("#examples")
-		.getByRole("button", { name: /mediterranean quiet/i })
-		.click();
-	await expect(prompt).toHaveValue(/sunlit mediterranean retreat/i);
-	await expect(prompt).toBeFocused();
+		)
+		.toBe(true);
+	for (const image of await images.all()) await expect(image).toHaveCSS("object-fit", "contain");
+	await expect(evidence).toContainText("Nano Banana 2 Lite · 1K · 5 credits");
+	await expect(evidence).toContainText("AI-generated fictional adult");
+	await expect(
+		evidence.getByRole("link", { name: "See the exact prompt and all three results" }),
+	).toHaveAttribute("href", "/blog/1980s-ai-photo");
 });
 
 for (const width of [1440, 390]) {
-	test(`creator workflows automatically cycle through cards at ${width}px`, async ({ page }) => {
-		await page.emulateMedia({ reducedMotion: "no-preference" });
+	test(`editing use cases link to actionable guides without overflow at ${width}px`, async ({
+		page,
+	}) => {
 		await page.setViewportSize({ width, height: 900 });
 		await page.goto("/");
-		const workflows = page.locator("#creator-workflows");
-		await workflows.scrollIntoViewIfNeeded();
-		await page.mouse.move(0, 0);
-		const tracks = workflows.locator(".creator-workflows-track");
-		const positions = () =>
-			tracks.evaluateAll((elements) =>
-				elements.map((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m42),
-			);
-		const start = await positions();
-		await expect
-			.poll(async () =>
-				(await positions()).every((position, i) => Math.abs(position - start[i]!) > 20),
-			)
-			.toBe(true);
-		await expect(workflows.getByRole("heading", { level: 3 })).toHaveCount(6);
-		for (const track of await tracks.all()) {
-			const lists = track.locator("ul");
-			await expect(lists).toHaveCount(2);
-			await expect(lists.nth(1)).toHaveAttribute("aria-hidden", "true");
-			const first = await lists.first().boundingBox();
-			const copy = await lists.nth(1).boundingBox();
-			expect(Math.abs(first!.height - copy!.height)).toBeLessThan(1);
-			expect(Math.abs(copy!.y - first!.y - first!.height)).toBeLessThan(1);
+		const useCases = page.getByRole("region", { name: "Start with the edit you need" });
+		await useCases.scrollIntoViewIfNeeded();
+		await expect(useCases.getByRole("article")).toHaveCount(3);
+		const destinations = [
+			[
+				"Change a photo background",
+				"/blog/ai-image-editing-prompts#change-a-photo-background-with-a-prompt",
+			],
+			["Create an 80s-style portrait", "/blog/1980s-ai-photo"],
+			["Turn a photo into a coloring page", "/photo-to-coloring-page"],
+		] as const;
+		for (const [name, href] of destinations) {
+			const link = useCases.getByRole("link", { name, exact: true });
+			await expect(link).toBeVisible();
+			await expect(link).toHaveAttribute("href", href);
+			await link.focus();
+			await expect(link).toBeFocused();
+			const bounds = await link.boundingBox();
+			expect(bounds!.x).toBeGreaterThanOrEqual(0);
+			expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
 		}
-		await page.screenshot({ path: test.info().outputPath(`creator-workflows-${width}.png`) });
+		await expect(page.locator("#creator-workflows")).toHaveCount(0);
+		await page.screenshot({ path: test.info().outputPath(`editing-use-cases-${width}.png`) });
 	});
 }
-
-test("creator workflows become static when reduced motion is requested", async ({ page }) => {
-	await page.emulateMedia({ reducedMotion: "reduce" });
-	await page.goto("/");
-
-	const workflows = page.locator("#creator-workflows");
-	await expect(workflows.locator(".creator-workflows-track").first()).toHaveCSS(
-		"animation-name",
-		"none",
-	);
-	await expect(workflows.locator(".creator-workflows-duplicate").first()).toBeHidden();
-	await expect(workflows.locator('button[aria-controls="creator-workflows-motion"]')).toBeHidden();
-});
-
-test("creator workflow movement can be paused and resumed", async ({ page }) => {
-	await page.emulateMedia({ reducedMotion: "no-preference" });
-	await page.goto("/");
-
-	const workflows = page.locator("#creator-workflows");
-	const track = workflows.locator(".creator-workflows-track--one");
-	const pauseButton = workflows.getByRole("button", { name: /pause movement/i });
-	await workflows.scrollIntoViewIfNeeded();
-	await page.mouse.move(0, 0);
-	await expect(track).toHaveCSS("animation-play-state", "running");
-	// Hover the stationary viewport; a looping card never passes Playwright's stability check.
-	await workflows.locator(".creator-workflows-viewport").first().hover();
-	await expect(track).toHaveCSS("animation-play-state", "paused");
-	await page.mouse.move(0, 0);
-	await expect(track).toHaveCSS("animation-play-state", "running");
-
-	await pauseButton.click();
-	await expect(track).toHaveCSS("animation-play-state", "paused");
-	const resumeButton = workflows.getByRole("button", { name: /resume movement/i });
-	await resumeButton.click();
-	await expect(track).toHaveCSS("animation-play-state", "running");
-});
 
 function pngFile(name: string) {
 	return {
@@ -1615,7 +1546,9 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 
 test("the before-and-after control has a visible keyboard focus treatment", async ({ page }) => {
 	await page.goto("/");
-	const slider = page.getByRole("slider", { name: /compare original and edited illustration/i });
+	const slider = page.getByRole("slider", {
+		name: /compare the original and the actual EzImageAI result/i,
+	});
 	await slider.focus();
 	await expect(slider).toBeFocused();
 	const frame = page.locator('[data-test="before-after-frame"]');

@@ -650,7 +650,10 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await comparison.focus();
 		await page.keyboard.press("End");
 		await expect(comparison).toHaveValue("100");
-		await page.getByRole("button", { name: /show result/i }).click();
+		await page
+			.getByLabel("Private result", { exact: true })
+			.getByRole("button", { name: "Show result", exact: true })
+			.click();
 		await expect(comparison).toHaveValue("0");
 		const download = page.waitForEvent("download");
 		await page.getByRole("button", { name: /^download$/i }).click();
@@ -672,6 +675,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			"identity_observed",
 			"generation_action_observed",
 			"generation_input_observed",
+			"result_viewed",
+			"experiment_exposed",
 		]);
 		await expect
 			.poll(() =>
@@ -685,6 +690,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				"result_downloaded",
 				"edit_again_started",
 			]);
+		expect(growthEvents.filter(({ name }) => name === "result_viewed")).toHaveLength(1);
 		for (const event of growthEvents) {
 			// The strict schema allows public product keys, never raw provider/model identifiers.
 			expect(growthAnalyticsEventSchema.parse(event)).toEqual(event);

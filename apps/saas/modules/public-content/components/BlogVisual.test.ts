@@ -80,8 +80,8 @@ describe("published Blog visual projection", () => {
 		expect(article.slug).toBe(post.slug);
 		expect(article.title).toBe(post.title);
 		expect(article.body).toBe(post.body);
-		expect(article.publishedAt).toBe("2026-09-12");
-		expect(article.updatedAt).toBeUndefined();
+		expect(article.publishedAt).toBe(post.publishedAt);
+		expect(article.updatedAt).toBe(post.updatedAt);
 	});
 
 	it("rejects stale examples and unrelated or nonpublished records", () => {

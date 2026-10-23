@@ -43,6 +43,15 @@ vi.mock("../hooks/use-payment-action", () => ({
 	usePaymentAction: () => ({ action: null }),
 }));
 vi.mock("./upgrade-context", () => ({ useUpgrade: () => null }));
+// This fixture invokes the component directly to inspect checkout mount lifetime.
+// The real consent and experiment hooks run in conversion-experiments-regression.mjs.
+vi.mock("@shared/hooks/use-growth-experiment", () => ({
+	useGrowthExperiment: () => ({
+		variant: undefined,
+		exposureRef: () => undefined,
+		trackClick: () => undefined,
+	}),
+}));
 
 import { PublicPricingPlans } from "./PublicPricingPlans";
 
