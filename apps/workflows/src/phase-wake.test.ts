@@ -32,7 +32,11 @@ async function signed(changes: Record<string, unknown> = {}) {
 	});
 }
 function binding() {
-	const sendEvent = vi.fn(async () => {});
+	const sendEvent = vi.fn(async (event: { type: string; payload: unknown }) => {
+		// Match the real cloud binding, which is stricter than local workerd.
+		if (event.type.length > 100 || !/^[a-zA-Z0-9_][a-zA-Z0-9_-]*$/.test(event.type))
+			throw new Error("(workflow.invalid_event_type) Provided event type is invalid");
+	});
 	return {
 		sendEvent,
 		createBatch: vi.fn(),
@@ -179,6 +183,7 @@ describe("authenticated single-owner phase signals", () => {
 		["(instance.not_found) Instance does not exist: private-instance", "INSTANCE_NOT_FOUND"],
 		["Engine was never started", "ENGINE_NOT_STARTED"],
 		["private-url-token-instance.not_found", "UNKNOWN"],
+		["private-url-token-workflow.invalid_event_type", "UNKNOWN"],
 	])("retains a safe binding error code for %s", async (message, errorCode) => {
 		const workflows = binding();
 		const failure = new Error(message);
@@ -207,6 +212,18 @@ describe("authenticated single-owner phase signals", () => {
 		expect(workflows.sendEvent).toHaveBeenCalledTimes(1);
 		expect(workflows.createBatch).not.toHaveBeenCalled();
 	});
+	it("classifies the observed cloud event rejection without logging its raw message", async () => {
+		const workflows = binding();
+		workflows.sendEvent.mockRejectedValueOnce(
+			new Error("(workflow.invalid_event_type) Provided event type is invalid: private-detail"),
+		);
+		expect((await handlePhaseWake(await signed(), secret, workflows)).status).toBe(503);
+		const record = diagnostic();
+		expect(record).toMatchObject({ stage: "send", errorCode: "INVALID_EVENT_TYPE" });
+		expect(JSON.stringify(record)).not.toContain("private-detail");
+		expect(workflows.sendEvent).toHaveBeenCalledTimes(1);
+		expect(workflows.createBatch).not.toHaveBeenCalled();
+	});
 	it("permits duplicate hints but never treats their payload as a moderation verdict", async () => {
 		const workflows = binding();
 		await handlePhaseWake(await signed(), secret, workflows);
@@ -216,6 +233,7 @@ describe("authenticated single-owner phase signals", () => {
 	});
 	it.each([
 		{ phaseOwner: { ...owner, epoch: 0 } },
+		{ phaseOwner: { ...owner, phaseKey: "a".repeat(128) } },
 		{ phaseOwner: { ...owner, approved: true } },
 		{ taskId: "media-finalize-generation", payload: { jobId: "job", version: 0 } },
 		{ payload: { assetId: "asset", allowQuarantinedReverification: true } },

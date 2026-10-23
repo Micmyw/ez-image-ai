@@ -85,6 +85,7 @@ export async function handlePhaseWake(
 	const startedAt = performance.now();
 	let owner: ImagePhaseOwner | undefined;
 	let task: TaskRequest | undefined;
+	let eventType: string;
 	const unavailable = (
 		stage: "configuration" | "binding" | "get" | "send",
 		reason:
@@ -132,7 +133,7 @@ export async function handlePhaseWake(
 								workflowId: owner.workflowId,
 								phaseKey: owner.phaseKey,
 								epoch: owner.epoch,
-								eventTypeLength: imagePhaseEventType(owner).length,
+								eventTypeLength: eventType.length,
 							}
 						: {}),
 				}),
@@ -174,6 +175,7 @@ export async function handlePhaseWake(
 		)
 			throw new Error("INVALID_PHASE_WAKE");
 		owner = parseImagePhaseOwner(value.phaseOwner);
+		eventType = imagePhaseEventType(owner);
 	} catch {
 		return new Response("Invalid phase wake", { status: 400 });
 	}
@@ -189,7 +191,7 @@ export async function handlePhaseWake(
 		return unavailable("binding", "SEND_EVENT_UNAVAILABLE");
 	try {
 		await instance.sendEvent({
-			type: imagePhaseEventType(owner),
+			type: eventType,
 			payload: { phaseKey: owner.phaseKey, epoch: owner.epoch },
 		});
 		return Response.json(
@@ -203,13 +205,18 @@ export async function handlePhaseWake(
 
 function phaseWakeErrorCode(
 	error: unknown,
-): "INSTANCE_NOT_FOUND" | "ENGINE_NOT_STARTED" | "UNKNOWN" {
+): "INSTANCE_NOT_FOUND" | "ENGINE_NOT_STARTED" | "INVALID_EVENT_TYPE" | "UNKNOWN" {
 	if (!(error instanceof Error)) return "UNKNOWN";
 	// These are fixed binding error markers, including the local Workflow runtime.
 	// Never emit arbitrary error messages or infer that they explain a production failure.
 	if (error.message === "instance.not_found" || error.message.startsWith("(instance.not_found) "))
 		return "INSTANCE_NOT_FOUND";
 	if (error.message === "Engine was never started") return "ENGINE_NOT_STARTED";
+	if (
+		error.message === "workflow.invalid_event_type" ||
+		error.message.startsWith("(workflow.invalid_event_type) ")
+	)
+		return "INVALID_EVENT_TYPE";
 	return "UNKNOWN";
 }
 

@@ -47,7 +47,11 @@ export function parseImagePhaseOwner(value: unknown): ImagePhaseOwner {
 
 export function imagePhaseEventType(value: ImagePhaseOwner): string {
 	const owner = parseImagePhaseOwner(value);
-	return `image-phase:${owner.phaseKey}:${owner.epoch}`;
+	// Cloud bindings reject ':' even though local workerd accepts it. Keep
+	// phase + epoch intact; truncation could signal a different phase owner.
+	const type = `image-phase-${owner.phaseKey}-${owner.epoch}`;
+	if (type.length > 100) throw new Error("INVALID_IMAGE_PHASE_EVENT_TYPE");
+	return type;
 }
 
 /** Diagnostics only: never part of dispatch identity or business decisions. */

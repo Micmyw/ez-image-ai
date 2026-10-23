@@ -49,11 +49,20 @@ describe("local Workflows runtime", () => {
 			warning.mockRestore();
 		}
 	});
-	it.each(["delivered", "lost"] as const)(
-		"retains the original phase and query-only continuation when signed signals are %s",
-		async (signal) => {
+	it.each([
+		{ signal: "delivered", taskId: "media-verify-upload" },
+		{ signal: "lost", taskId: "media-verify-upload" },
+		{ signal: "delivered", taskId: "media-poll-generation" },
+		{ signal: "lost", taskId: "media-poll-generation" },
+	] as const)(
+		"retains the original $taskId phase when signed signals are $signal",
+		async ({ signal, taskId }) => {
 			const id = `phase-ingress-${crypto.randomUUID()}`;
 			const phaseOwner = { workflowId: id, phaseKey: crypto.randomUUID(), epoch: 7 };
+			const payload =
+				taskId === "media-verify-upload"
+					? { assetId: "asset", queryOnly: true }
+					: { attemptId: "attempt" };
 			const inspection = await introspectWorkflowInstance(jobs, id);
 			try {
 				await inspection.modify(async (m) => {
@@ -85,10 +94,7 @@ describe("local Workflows runtime", () => {
 						kind: "continuation",
 						executionVersion: 2,
 						...(signal === "delivered" ? { notBefore } : {}),
-						request: {
-							taskId: "media-verify-upload",
-							payload: { assetId: "asset", queryOnly: true },
-						},
+						request: { taskId, payload },
 					},
 				});
 				if (signal === "delivered") {
@@ -96,8 +102,8 @@ describe("local Workflows runtime", () => {
 					for (const epoch of [6, 7, 7]) {
 						const owner = { ...phaseOwner, epoch };
 						const body = JSON.stringify({
-							taskId: "media-verify-upload",
-							payload: { assetId: "asset" },
+							taskId,
+							payload,
 							idempotencyKey: `phase-hint-${epoch}`,
 							phaseOwner: owner,
 						});

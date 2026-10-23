@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-23 — Reliable image callback wakes
+
+- Fix model and image-review callbacks failing to wake their waiting Workflow because event types contained unsupported colons. Use valid event names while retaining phase ownership, authenticated result retrieval and polling recovery.
+- Reject overlong event types before sending and identify Cloudflare's event-type rejection in safe diagnostics.
+
 ## 2026-10-23 — Image completion callbacks
 
 - Route image generation and image review callbacks directly through the website Worker, retaining signature checks, durable notifications and polling recovery.
