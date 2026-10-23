@@ -43,8 +43,8 @@ are released together. The website transports the unchanged private owner tuple.
 
 ## Verification
 
-`image-phase-event.test.ts` failed against the original formatter for the actual
-production phase and the maximum event length. The signed-ingress regression
+`image-phase-event.test.ts` failed against the original formatter for UUID
+phase identities and the maximum event length. The signed-ingress regression
 also failed with 503 when its binding enforced the real cloud alphabet. Both
 pass with the fix. Workerd coverage exercises model and review phase wakes,
 early and duplicate events, stale epochs, phase isolation and lost-event polling.

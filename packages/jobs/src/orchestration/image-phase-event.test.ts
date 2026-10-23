@@ -4,12 +4,12 @@ import { imagePhaseEventType } from "./contracts";
 
 const owner = {
 	workflowId: "job-workflow",
-	phaseKey: "7cc53c18-5feb-4fb1-b8a9-0c8dbd2ccbb0",
+	phaseKey: "00000000-0000-4000-8000-000000000001",
 	epoch: 1,
 };
 
 describe("Cloudflare image phase event contract", () => {
-	it("uses the cloud event alphabet, including for the phase that failed in production", () => {
+	it("uses the cloud event alphabet for UUID phase identities", () => {
 		// The cloud binding rejects colons with workflow.invalid_event_type;
 		// local workerd currently accepts them. Keep this independent of its mock.
 		expect(imagePhaseEventType(owner)).toMatch(/^[a-zA-Z0-9_][a-zA-Z0-9_-]*$/);
