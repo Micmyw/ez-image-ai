@@ -19,6 +19,18 @@ type Subscription = {
 const STATE_KEY = "notification-state";
 const MAX_SUBSCRIBERS = 16;
 
+function replyCloseCode(code: number): number {
+	// 1005 means the peer sent no status. Reserved/abnormal event codes cannot go on the wire.
+	if (code === 1005) return 1000;
+	if (
+		Number.isInteger(code) &&
+		((code >= 1000 && code <= 1014 && ![1004, 1005, 1006].includes(code)) ||
+			(code >= 3000 && code <= 4999))
+	)
+		return code;
+	return 1011;
+}
+
 /** Identity hints only. Business state and authorization always remain in PostgreSQL. */
 export class MediaJobEvents extends DurableObject {
 	async fetch(request: Request): Promise<Response> {
@@ -177,7 +189,7 @@ export class MediaJobEvents extends DurableObject {
 	}
 
 	webSocketClose(socket: WebSocket, code: number): void {
-		socket.close(code);
+		socket.close(replyCloseCode(code));
 	}
 	webSocketError(socket: WebSocket): void {
 		socket.close(1011, "Reconnect");

@@ -3,6 +3,7 @@ import {
 	MEDIA_VERIFICATION_POLICY_VERSION,
 	MEDIA_VERIFICATION_RULE_VERSION,
 	TestMediaSafetyAdapter,
+	type ModerationSubmission,
 } from "@repo/ai";
 import { PrismaClient } from "@repo/database/generated-client";
 import {
@@ -19,6 +20,9 @@ describe("verification projections with real PostgreSQL", () => {
 	const auditIds: string[] = [];
 	const reviewIds: string[] = [];
 	const pointerIds: string[] = [];
+	const jobIds: string[] = [];
+	const quoteIds: string[] = [];
+	const userIds: string[] = [];
 	beforeAll(async () => {
 		const connectionString = process.env.TEST_DATABASE_URL;
 		if (!connectionString) throw new Error("EXPLICIT_TEST_DATABASE_REQUIRED");
@@ -40,8 +44,14 @@ describe("verification projections with real PostgreSQL", () => {
 	afterAll(async () => {
 		if (!client) return;
 		try {
+			await client.generationJobAsset.deleteMany({ where: { jobId: { in: jobIds } } });
+			await client.generationJob.deleteMany({ where: { id: { in: jobIds } } });
+			await client.generationQuote.deleteMany({ where: { id: { in: quoteIds } } });
+			await client.user.deleteMany({ where: { id: { in: userIds } } });
 			await client.mediaWorkflowPhaseOwner.deleteMany({ where: { subjectId: { in: assetIds } } });
-			await client.outboxEvent.deleteMany({ where: { id: { in: pointerIds } } });
+			await client.outboxEvent.deleteMany({
+				where: { OR: [{ id: { in: pointerIds } }, { aggregateId: { in: assetIds } }] },
+			});
 			await client.auditLog.deleteMany({ where: { id: { in: auditIds } } });
 			await client.moderationReview.deleteMany({ where: { id: { in: reviewIds } } });
 			// Immutable moderation evidence and its asset remain in this disposable database.
@@ -53,7 +63,11 @@ describe("verification projections with real PostgreSQL", () => {
 		}
 	});
 
-	async function fixture(kind: "INPUT" | "OUTPUT" = "OUTPUT", verificationEngine = "legacy") {
+	async function fixture(
+		kind: "INPUT" | "OUTPUT" = "OUTPUT",
+		verificationEngine = "legacy",
+		moderationProvider = "seeapi",
+	) {
 		const id = crypto.randomUUID();
 		assetIds.push(id);
 		const asset = await client.mediaAsset.create({
@@ -73,7 +87,7 @@ describe("verification projections with real PostgreSQL", () => {
 				verificationGeneration: 1,
 				verificationEngine,
 				verificationAttemptCount: 1,
-				verificationProvider: "seeapi",
+				verificationProvider: moderationProvider,
 				verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 				verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 				verificationProviderTaskId: `task-${id}`,
@@ -93,9 +107,11 @@ describe("verification projections with real PostgreSQL", () => {
 			},
 		});
 		const owner = { phaseKey: phase.phaseKey, workflowId: phase.workflowId, epoch: phase.epoch };
-		const submit = vi.fn(async () => {
-			throw new Error("QUERY_MUST_NOT_SUBMIT");
-		});
+		const submit = vi.fn(
+			async (_input: { idempotencyKey: string }): Promise<ModerationSubmission> => {
+				throw new Error("QUERY_MUST_NOT_SUBMIT");
+			},
+		);
 		const retrieve = vi.fn(async () => ({
 			decision: "ALLOW" as const,
 			reasonCode: "NO_POLICY_MATCH",
@@ -103,7 +119,7 @@ describe("verification projections with real PostgreSQL", () => {
 		}));
 		const sign = vi.fn(async () => "https://private.invalid/signed");
 		const deps = createDatabaseVerifyUploadDependencies(client, {
-			moderationProvider: "seeapi",
+			moderationProvider,
 			safety: Object.assign(new TestMediaSafetyAdapter("ERROR"), {
 				submitImage: submit,
 				retrieveImage: retrieve,
@@ -120,9 +136,9 @@ describe("verification projections with real PostgreSQL", () => {
 				throw error;
 			},
 		});
-		const run = (expectedOwner = true) =>
+		const run = (expectedOwner = true, queryOnly = true) =>
 			deps.verify(id, {
-				queryOnly: true,
+				queryOnly,
 				workflowId: owner.workflowId,
 				...(expectedOwner ? { phaseOwner: owner } : {}),
 			});
@@ -155,6 +171,258 @@ describe("verification projections with real PostgreSQL", () => {
 			]);
 		},
 	);
+
+	it.each(["INPUT", "OUTPUT"] as const)(
+		"submits one fresh %s task using the locked projection and commits its approval",
+		async (kind) => {
+			const f = await fixture(kind);
+			await client.mediaAsset.update({
+				where: { id: f.id },
+				data: {
+					verificationProviderTaskId: null,
+					verificationSubmissionToken: null,
+					verificationAttemptCount: 0,
+					verificationLastErrorCode: null,
+				},
+			});
+			const taskId = `fresh-${f.id}`;
+			f.submit.mockImplementationOnce(async ({ idempotencyKey }) => ({
+				moderationTaskId: taskId,
+				status: "QUEUED",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				idempotency: { key: idempotencyKey, providerSupported: true, replayed: false },
+			}));
+			expect(await f.run(true, false)).toMatchObject({
+				verificationCommit: { assetId: f.id, generation: 1, status: "READY", eventIds: [] },
+			});
+			expect(f.submit).toHaveBeenCalledOnce();
+			expect(f.retrieve).toHaveBeenCalledOnce();
+			expect(await client.assetModerationResult.findMany({ where: { assetId: f.id } })).toEqual([
+				expect.objectContaining({
+					status: "APPROVED",
+					providerTaskId: taskId,
+					verificationGeneration: 1,
+				}),
+			]);
+		},
+	);
+
+	it.each(["workflow", "epoch", "expiry"] as const)(
+		"does not commit a verdict when its phase %s changes during retrieval",
+		async (change) => {
+			const f = await fixture();
+			f.retrieve.mockImplementationOnce(async () => {
+				await client.mediaWorkflowPhaseOwner.update({
+					where: { phaseKey: f.owner.phaseKey },
+					data:
+						change === "workflow"
+							? { workflowId: `other-${f.id}` }
+							: change === "epoch"
+								? { epoch: f.owner.epoch + 1 }
+								: { leasedUntil: new Date(0) },
+				});
+				return {
+					decision: "ALLOW",
+					reasonCode: "NO_POLICY_MATCH",
+					ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				};
+			});
+			expect(await f.run()).toMatchObject({ phaseOwnershipLost: true });
+			expect(f.retrieve).toHaveBeenCalledOnce();
+			expect(f.submit).not.toHaveBeenCalled();
+			expect(await client.assetModerationResult.count({ where: { assetId: f.id } })).toBe(0);
+			expect(await client.mediaAsset.findUnique({ where: { id: f.id } })).toMatchObject({
+				status: "VERIFYING",
+			});
+		},
+	);
+
+	it("keeps an uncertain first submission held when the non-query projection path is retried", async () => {
+		const f = await fixture("INPUT", "legacy", `projection-unknown-${crypto.randomUUID()}`);
+		const submissionToken = crypto.randomUUID();
+		await client.mediaAsset.update({
+			where: { id: f.id },
+			data: {
+				verificationProviderTaskId: null,
+				verificationSubmissionToken: submissionToken,
+				verificationSubmissionUncertain: true,
+				verificationLastErrorCode: "MODERATION_SUBMISSION_UNCERTAIN",
+			},
+		});
+		for (let attempt = 0; attempt < 2; attempt++) {
+			await client.mediaAsset.update({
+				where: { id: f.id },
+				data: { verificationNextAttemptAt: new Date(0) },
+			});
+			await f.run(true, false);
+			expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: f.id } })).toMatchObject({
+				status: "VERIFYING",
+				verificationGeneration: 1,
+				verificationProviderTaskId: null,
+				verificationSubmissionToken: submissionToken,
+				verificationSubmissionUncertain: true,
+			});
+		}
+		expect(f.submit).not.toHaveBeenCalled();
+		expect(f.retrieve).not.toHaveBeenCalled();
+		expect(
+			await client.assetModerationResult.count({ where: { assetId: f.id, status: "APPROVED" } }),
+		).toBe(0);
+	});
+
+	it("uses database time for an owned verdict despite a skewed caller clock", async () => {
+		const f = await fixture();
+		const leaseToken = crypto.randomUUID();
+		const read = (now: Date) =>
+			client.$transaction(async (tx) => {
+				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${f.id}`}, 0))`;
+				return readMediaVerificationVerdictProjection(
+					{ assetId: f.id, generation: 1, leaseToken, now, phaseOwner: f.owner },
+					tx,
+				);
+			});
+		await client.mediaAsset.update({
+			where: { id: f.id },
+			data: { verificationLeaseToken: leaseToken, verificationLeasedUntil: new Date(0) },
+		});
+		expect(await read(new Date("1900-01-01T00:00:00Z"))).toBeNull();
+		await client.mediaAsset.update({
+			where: { id: f.id },
+			data: { verificationLeasedUntil: new Date(Date.now() + 60_000) },
+		});
+		expect(await read(new Date("2100-01-01T00:00:00Z"))).toMatchObject({
+			asset: { id: f.id },
+			phaseOwnerCurrent: true,
+		});
+	});
+
+	it("distinguishes invalid asset leases from owner loss even when both are invalid", async () => {
+		const f = await fixture();
+		const read = () =>
+			client.$transaction(async (tx) => {
+				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${f.id}`}, 0))`;
+				return readMediaVerificationVerdictProjection(
+					{
+						assetId: f.id,
+						generation: 1,
+						leaseToken: "wrong-lease",
+						now: new Date(0),
+						phaseOwner: f.owner,
+					},
+					tx,
+				);
+			});
+		expect(await read()).toBeNull();
+		await client.mediaWorkflowPhaseOwner.update({
+			where: { phaseKey: f.owner.phaseKey },
+			data: { leasedUntil: new Date(0) },
+		});
+		expect(await read()).toMatchObject({ asset: null, phaseOwnerCurrent: false });
+	});
+
+	it("checks owner expiry after waiting for the output job row lock", async () => {
+		const f = await fixture();
+		await client.user.create({
+			data: {
+				id: f.asset.ownerId,
+				email: `${f.id}@example.test`,
+				emailVerified: true,
+				name: "Projection fixture",
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		});
+		userIds.push(f.asset.ownerId);
+		const quote = await client.generationQuote.create({
+			data: {
+				submittedByUserId: f.asset.ownerId,
+				ownerType: "USER",
+				ownerId: f.asset.ownerId,
+				productKey: "image-nano-banana-2-lite",
+				catalogVersion: "test",
+				pricingVersion: "test",
+				credits: 1n,
+				costMicros: 1n,
+				inputSnapshot: {},
+				pricingSnapshot: {},
+				expiresAt: new Date(Date.now() + 60_000),
+			},
+		});
+		quoteIds.push(quote.id);
+		const job = await client.generationJob.create({
+			data: {
+				submittedByUserId: f.asset.ownerId,
+				idempotencyKey: f.id,
+				quoteId: quote.id,
+				ownerType: "USER",
+				ownerId: f.asset.ownerId,
+				productKey: "image-nano-banana-2-lite",
+				catalogVersion: "test",
+				pricingVersion: "test",
+				creditsReserved: 1n,
+				inputSnapshot: {},
+				pricingSnapshot: {},
+				executionEngine: "legacy",
+				status: "FINALIZING",
+			},
+		});
+		jobIds.push(job.id);
+		await client.generationJobAsset.create({
+			data: {
+				jobId: job.id,
+				assetId: f.id,
+				role: "OUTPUT",
+				position: 0,
+				assetChecksum: f.asset.checksum!,
+			},
+		});
+		let release!: () => void;
+		let locked!: () => void;
+		const held = new Promise<void>((resolve) => {
+			locked = resolve;
+		});
+		const wait = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const blocker = client.$transaction(
+			async (tx) => {
+				await tx.$queryRaw`SELECT "id" FROM "generation_job" WHERE "id" = ${job.id} FOR NO KEY UPDATE`;
+				locked();
+				await wait;
+			},
+			{ timeout: 10_000 },
+		);
+		await held;
+		const pending = f.run();
+		try {
+			await expect
+				.poll(
+					async () => {
+						const [row] = await client.$queryRaw<Array<{ waiting: boolean }>>`
+				 SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE pid <> pg_backend_pid()
+				  AND datname = current_database() AND wait_event_type = 'Lock'
+				  AND query LIKE '%FOR NO KEY UPDATE OF job%') AS "waiting"`;
+						return row?.waiting === true;
+					},
+					{ timeout: 3_000, interval: 10 },
+				)
+				.toBe(true);
+			await client.mediaWorkflowPhaseOwner.update({
+				where: { phaseKey: f.owner.phaseKey },
+				data: { leasedUntil: new Date(0) },
+			});
+		} finally {
+			release();
+			await blocker;
+		}
+		expect(await pending).toMatchObject({ phaseOwnershipLost: true });
+		expect(f.retrieve).toHaveBeenCalledOnce();
+		expect(f.submit).not.toHaveBeenCalled();
+		expect(await client.assetModerationResult.count({ where: { assetId: f.id } })).toBe(0);
+		expect(await client.mediaAsset.findUnique({ where: { id: f.id } })).toMatchObject({
+			status: "VERIFYING",
+		});
+	});
 
 	it("rejects an expired expected owner and preserves its epoch for ownerless takeover", async () => {
 		const f = await fixture();

@@ -607,6 +607,9 @@ importers:
       '@repo/storage':
         specifier: workspace:*
         version: link:../../packages/storage
+      '@repo/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
     devDependencies:
       '@cloudflare/vitest-plugin':
         specifier: 1.1.4
@@ -902,6 +905,9 @@ importers:
       '@repo/storage':
         specifier: workspace:*
         version: link:../storage
+      '@repo/utils':
+        specifier: workspace:*
+        version: link:../utils
     devDependencies:
       '@repo/tsconfig':
         specifier: workspace:*

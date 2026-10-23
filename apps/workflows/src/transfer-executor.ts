@@ -11,6 +11,7 @@ export class TransferExecutor extends WorkerEntrypoint<RuntimeExecutionEnvironme
 	override fetch(request: Request): Promise<Response> {
 		hydrateVideoRuntimeEnvironment(this.env);
 		return createRuntimeExecutionHandler(this.env, {
+			waitUntil: (work) => this.ctx.waitUntil(work),
 			admission: "request",
 			streamingTransfersOnly: true,
 			acceptsTask: (task) => task.taskId === "media-finalize-generation",

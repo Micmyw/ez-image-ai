@@ -8,8 +8,10 @@ import {
 } from "cloudflare:test";
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { MediaJobEvents } from "./media-job-events";
+
 const sockets: WebSocket[] = [];
-const namespace = (env as unknown as { MEDIA_JOB_EVENTS: DurableObjectNamespace }).MEDIA_JOB_EVENTS;
+const namespace = (env as Cloudflare.Env).MEDIA_JOB_EVENTS;
 const notification = (jobId: string, character = "a") => ({
 	eventId: `mju_${character.repeat(64)}`,
 	jobId,
@@ -67,6 +69,55 @@ afterEach(() => {
 });
 
 describe("real workerd job notifications", () => {
+	it.each([
+		[1005, 1000],
+		[1006, 1011],
+		[1015, 1011],
+		[1004, 1011],
+		[1016, 1011],
+		[2999, 1011],
+		[5000, 1011],
+		[1000, 1000],
+		[1001, 1001],
+		[1008, 1008],
+		[1011, 1011],
+		[4001, 4001],
+	])("handles close status %s on a real socket using wire status %s", async (code, expected) => {
+		const jobId = `owner-${crypto.randomUUID()}`;
+		const socket = await subscribe(jobId, true);
+		const closed: number[] = [];
+		socket.addEventListener("close", (event) => closed.push(event.code));
+		await runInDurableObject(
+			namespace.get(namespace.idFromName(`media-job:${jobId}`)),
+			(instance: MediaJobEvents, state) => {
+				// The close event's status is synthetic; close() validates a real workerd WebSocket.
+				instance.webSocketClose(state.getWebSockets()[0]!, code);
+			},
+		);
+		await expect.poll(() => closed).toEqual([expected]);
+	});
+	it("reconnects after a client close without status and keeps a single notification stream", async () => {
+		const jobId = `owner-${crypto.randomUUID()}`;
+		const socket = await subscribe(jobId, true);
+		socket.close();
+		const stub = namespace.get(namespace.idFromName(`media-job:${jobId}`));
+		await expect
+			.poll(() => runInDurableObject(stub, (_instance, state) => state.getWebSockets().length))
+			.toBe(0);
+		const reconnected = await subscribe(jobId, true);
+		const messages: string[] = [];
+		reconnected.addEventListener("message", (event) => {
+			messages.push((JSON.parse(String(event.data)) as { type: string }).type);
+		});
+		const value = notification(jobId);
+		const changed = nextMessage(reconnected);
+		expect((await publish(value)).status).toBe(200);
+		expect(await changed).toEqual({ type: "job-updated", ...value });
+		const heartbeat = nextMessage(reconnected);
+		reconnected.send(JSON.stringify({ type: "heartbeat", nonce: 1, cursor: value.eventId }));
+		expect(await heartbeat).toMatchObject({ type: "heartbeat", nonce: 1, latest: value });
+		expect(messages).toEqual(["job-updated", "heartbeat"]);
+	});
 	it("does not overwrite a publication while the first subscription is being initialized", async () => {
 		const jobId = `owner-${crypto.randomUUID()}`;
 		const value = notification(jobId);

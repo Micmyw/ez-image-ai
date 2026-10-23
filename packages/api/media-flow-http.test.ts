@@ -30,7 +30,8 @@ vi.mock("@repo/config/server", async (original) => ({
 	validateEzPicLaunchEnvironment: vi.fn(),
 	validateServerEnvironment: vi.fn(),
 }));
-vi.mock("@repo/database/client", () => ({
+vi.mock("@repo/database/client", async (original) => ({
+	...(await original<typeof import("@repo/database/client")>()),
 	db: fixture.database,
 }));
 vi.mock("@repo/database/media-job-status", () => ({

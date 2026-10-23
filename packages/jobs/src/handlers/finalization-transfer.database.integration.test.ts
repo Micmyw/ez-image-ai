@@ -77,6 +77,7 @@ vi.mock("@repo/storage", async () => ({
 }));
 vi.mock("../realtime/publish", () => ({
 	publishCommittedMediaJobNotification: vi.fn(async () => false),
+	publishCommittedMediaJobNotifications: vi.fn(async () => undefined),
 }));
 
 import { GenerationTransferRequiresHeavyError } from "../contracts";

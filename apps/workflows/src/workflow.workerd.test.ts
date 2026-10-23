@@ -4,16 +4,137 @@ import {
 	SettlementTransactionConflictError,
 	imagePhaseEventType,
 } from "@repo/jobs/orchestration/contracts";
-import { env, introspectWorkflowInstance } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { env, SELF, introspectWorkflowInstance } from "cloudflare:test";
+import { describe, expect, it, vi } from "vitest";
 
 import { createWorkerExecutionHandler } from "./execution";
 import { JobsWorkflow } from "./index";
+import { handlePhaseWake } from "./wake";
 
 // Steps that call the paid Node runtime are mocked; orchestration, checkpoint
 // persistence, Workflow binding and durable waits run in real local workerd.
 const jobs = (env as Cloudflare.Env).JOBS;
 describe("local Workflows runtime", () => {
+	it("diagnoses a missing real Workflow binding instance without creating a replacement", async () => {
+		const phaseOwner = {
+			workflowId: `missing-${crypto.randomUUID()}`,
+			phaseKey: crypto.randomUUID(),
+			epoch: 1,
+		};
+		const secret = "test-only-32-character-shared-secret";
+		const body = JSON.stringify({
+			taskId: "media-verify-upload",
+			payload: { assetId: "missing-instance-asset" },
+			idempotencyKey: "missing-instance-wake",
+			phaseOwner,
+		});
+		const warning = vi.spyOn(console, "warn").mockImplementation(() => {});
+		try {
+			const request = new Request("https://jobs/internal/phase-wake", {
+				method: "POST",
+				body,
+				headers: await signRequest(secret, "POST", "/internal/phase-wake", body),
+			});
+			const response = await handlePhaseWake(request, secret, jobs);
+			expect(response.status).toBe(503);
+			expect(warning).toHaveBeenCalledOnce();
+			expect(JSON.parse(warning.mock.calls[0]![0] as string)).toMatchObject({
+				stage: "get",
+				reason: "INSTANCE_LOOKUP_FAILED",
+				errorCode: "INSTANCE_NOT_FOUND",
+				workflowId: phaseOwner.workflowId,
+			});
+			await expect(jobs.get(phaseOwner.workflowId)).rejects.toThrow("instance.not_found");
+		} finally {
+			warning.mockRestore();
+		}
+	});
+	it.each(["delivered", "lost"] as const)(
+		"retains the original phase and query-only continuation when signed signals are %s",
+		async (signal) => {
+			const id = `phase-ingress-${crypto.randomUUID()}`;
+			const phaseOwner = { workflowId: id, phaseKey: crypto.randomUUID(), epoch: 7 };
+			const inspection = await introspectWorkflowInstance(jobs, id);
+			try {
+				await inspection.modify(async (m) => {
+					await m.mockStepResult(
+						{ name: "poll-0-attempt-1-capacity-0" },
+						{
+							status: "ok",
+							poll: {
+								done: false,
+								waitSeconds: signal === "lost" ? 1 : 60,
+								queryOnly: true,
+								phaseOwner,
+								continuation: { eventIds: [] },
+							},
+						},
+					);
+					await m.mockStepResult(
+						{ name: "poll-1-attempt-1-capacity-0" },
+						{
+							status: "ok",
+							poll: { done: true, waitSeconds: 0, continuation: { eventIds: [] } },
+						},
+					);
+				});
+				const notBefore = Date.now() + 3_000;
+				const instance = await jobs.create({
+					id,
+					params: {
+						kind: "continuation",
+						executionVersion: 2,
+						...(signal === "delivered" ? { notBefore } : {}),
+						request: {
+							taskId: "media-verify-upload",
+							payload: { assetId: "asset", queryOnly: true },
+						},
+					},
+				});
+				if (signal === "delivered") {
+					// Real signed ingress + binding. Old epochs and duplicate hints do not own another query.
+					for (const epoch of [6, 7, 7]) {
+						const owner = { ...phaseOwner, epoch };
+						const body = JSON.stringify({
+							taskId: "media-verify-upload",
+							payload: { assetId: "asset" },
+							idempotencyKey: `phase-hint-${epoch}`,
+							phaseOwner: owner,
+						});
+						const response = await SELF.fetch("https://jobs/internal/phase-wake", {
+							method: "POST",
+							body,
+							headers: await signRequest(
+								"test-only-32-character-shared-secret",
+								"POST",
+								"/internal/phase-wake",
+								body,
+							),
+						});
+						expect(response.status).toBe(202);
+						expect(await response.json()).toMatchObject({ accepted: true, phaseOwner: owner });
+					}
+					expect(Date.now()).toBeLessThan(notBefore);
+				}
+				await inspection.waitForStatus("complete");
+				const outputs = (
+					(await instance.status()) as unknown as { __LOCAL_DEV_STEP_OUTPUTS: unknown[] }
+				).__LOCAL_DEV_STEP_OUTPUTS;
+				if (signal === "delivered") {
+					expect(outputs).toContainEqual({ phaseKey: phaseOwner.phaseKey, epoch: 7 });
+					expect(outputs).not.toContainEqual({ phaseKey: phaseOwner.phaseKey, epoch: 6 });
+				}
+				expect(
+					outputs.filter(
+						(value) => (value as { poll?: { done?: boolean } } | null)?.poll?.done === true,
+					),
+				).toHaveLength(1);
+				expect(await inspection.getOutput()).toEqual({ completed: true });
+			} finally {
+				await inspection.dispose();
+			}
+		},
+	);
 	it("buffers a real version 2 phase signal before its durable wait begins", async () => {
 		const id = `phase-early-${crypto.randomUUID()}`;
 		const phaseOwner = { workflowId: id, phaseKey: crypto.randomUUID(), epoch: 7 };

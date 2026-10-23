@@ -13,6 +13,7 @@ import {
 } from "@repo/storage/image-processing/cloudflare-images";
 import { runWithImageProcessor } from "@repo/storage/image-processing/context";
 import { runWithCloudflareRemoteMedia } from "@repo/storage/lib/cloudflare-remote-media";
+import { runWithRequestDefer, type RequestDefer } from "@repo/utils/request-lifecycle";
 
 import { createWorkflowBindingDispatcher, type JobsParams } from "./dispatch";
 import { createWorkerExecutionHandler, type WorkerExecutionOptions } from "./execution";
@@ -34,7 +35,7 @@ export function createRuntimeExecutionHandler(
 	options: Pick<
 		WorkerExecutionOptions,
 		"maxActive" | "admission" | "acceptsTask" | "onEvent" | "streamingTransfersOnly"
-	>,
+	> & { waitUntil?: RequestDefer },
 ) {
 	return createWorkerExecutionHandler({
 		...options,
@@ -58,6 +59,7 @@ export function createRuntimeExecutionHandler(
 							workflows: env.JOBS,
 						}),
 					}),
+				options.waitUntil,
 			),
 		poll: (input, context) =>
 			scoped(
@@ -67,6 +69,7 @@ export function createRuntimeExecutionHandler(
 					taskId: "media-poll-generation",
 				},
 				() => executePollingTick(input, undefined, context),
+				options.waitUntil,
 			),
 	});
 }
@@ -75,15 +78,58 @@ async function scoped<T>(
 	env: RuntimeExecutionEnvironment,
 	diagnostics: DatabaseQueryContext,
 	operation: () => Promise<T>,
+	waitUntil?: RequestDefer,
 ): Promise<T> {
 	const database = createRuntimeDatabaseClient(env.HYPERDRIVE.connectionString, diagnostics);
+	const pending = new Set<Promise<void>>();
+	let registered = false;
+	let closing = false;
+	let finish!: () => void;
+	const finished = new Promise<void>((resolve) => {
+		finish = resolve;
+	});
+	const lifetime = finished.then(async () => {
+		// Live tasks can register descendants; their ACKs need the same client too.
+		while (pending.size) await Promise.all([...pending]);
+		closing = true;
+		await database.$disconnect();
+	});
 	try {
-		return await runWithDatabaseClient(database, () =>
-			runWithImageProcessor(createCloudflareImagesProcessor(env.IMAGES), () =>
-				runWithCloudflareRemoteMedia(() => runWithMediaJobEvents(env.MEDIA_JOB_EVENTS, operation)),
+		// Register before executing business work, independently of response cancellation.
+		waitUntil?.(lifetime);
+	} catch (error) {
+		finish();
+		await lifetime.catch(() => {});
+		throw error;
+	}
+	const defer: RequestDefer = (promise) => {
+		if (closing) throw new Error("WORKER_RUNTIME_SCOPE_CLOSED");
+		registered = true;
+		// Observe rejection immediately; a notification failure cannot replay business work.
+		const task = Promise.resolve(promise).then(
+			() => {
+				pending.delete(task);
+			},
+			() => {
+				pending.delete(task);
+			},
+		);
+		pending.add(task);
+	};
+	try {
+		return await runWithRequestDefer(defer, () =>
+			runWithDatabaseClient(database, () =>
+				runWithImageProcessor(createCloudflareImagesProcessor(env.IMAGES), () =>
+					runWithCloudflareRemoteMedia(() =>
+						runWithMediaJobEvents(env.MEDIA_JOB_EVENTS, operation),
+					),
+				),
 			),
 		);
 	} finally {
-		await database.$disconnect();
+		finish();
+		// With no platform lifetime, draining remains synchronous. Empty scopes retain
+		// their original disconnect boundary; no background work leaks into another request.
+		if (!waitUntil || !registered) await lifetime;
 	}
 }

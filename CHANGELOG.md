@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-10-23 — Image result delivery follow-up
+
+- Keep the generated image mounted while its original image and comparison controls become available.
+- Isolate private preview URLs by account and remove denied or failed originals from comparison while keeping the generated result visible, including older response formats.
+- Continue after a committed image review without waiting for result notifications; keep notification delivery and its database acknowledgement within a managed request lifetime, with durable recovery.
+- Normalize reserved WebSocket close codes and add safe diagnostics for failed phase wakes without changing accepted Workflow event names.
+- Reduce repeated reads during first image-review submission and verdict persistence while retaining phase ownership, leases and immutable evidence.
+- Load email templates only when sending a template and emit generation timing diagnostics as single structured records.
+- These changes have local regression coverage; the production one-second budget and cold-start memory issue still require verification after release.
+
 ## 2026-10-23 — Framework security updates
 
 - Update Next.js to 16.4.1 and Sentry's Next.js integration to 10.75.2 to address the published image-optimization, Server Actions and tunnel-route advisories.

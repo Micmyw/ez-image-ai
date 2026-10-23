@@ -107,7 +107,9 @@ const reviewSigningKey = "whsec_scanless_local_fixture_20261022";
 const expectedSourceReads = process.env.SCANLESS_EXPECT_SOURCE_READS;
 if (expectedSourceReads !== undefined) assert.match(expectedSourceReads, /^[1-3]$/);
 const output = path.resolve(process.env.SCANLESS_ARTIFACT ?? path.join(app, "dist-workers"));
-const evidenceDirectory = path.join(root, ".cache/first-image");
+const evidenceDirectory = path.resolve(
+	process.env.SCANLESS_EVIDENCE_DIRECTORY ?? path.join(root, ".cache/first-image"),
+);
 await mkdir(evidenceDirectory, { recursive: true });
 const journal = createWriteStream(path.join(evidenceDirectory, `${label}.journal.jsonl`), {
 	flags: "wx",
@@ -1813,7 +1815,7 @@ document.getElementById('start').onclick=async()=>{
 			],
 		},
 	};
-	const directory = path.join(root, ".cache/first-image");
+	const directory = evidenceDirectory;
 	await mkdir(directory, { recursive: true });
 	await writeFile(path.join(directory, `${label}.json`), JSON.stringify(report, null, 2));
 	stage("report-written");
@@ -1826,7 +1828,7 @@ document.getElementById('start').onclick=async()=>{
 			"MAINTENANCE_DID_NOT_RUN",
 		);
 } catch (error) {
-	const dir = path.join(root, ".cache/first-image");
+	const dir = evidenceDirectory;
 	await mkdir(dir, { recursive: true });
 	await writeFile(
 		path.join(dir, `${label}.failed.json`),

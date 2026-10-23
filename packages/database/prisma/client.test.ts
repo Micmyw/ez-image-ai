@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	db,
 	runWithDatabaseClient,
+	runWithDatabaseClientConstructionObserver,
 	createLazyDatabaseClient,
 	createRuntimeDatabaseClient,
 } from "./client";
@@ -105,5 +106,75 @@ describe("lazy database client", () => {
 		await lazy.$disconnect();
 		expect(create).toHaveBeenCalledTimes(1);
 		expect(disconnect).toHaveBeenCalledTimes(1);
+	});
+});
+
+describe("request client construction observation", () => {
+	const url = "postgresql://unused:unused@localhost/unused";
+
+	it("observes only successful first-use construction, without opening a connection", async () => {
+		const observe = vi.fn();
+		const create = vi.fn(() => createRuntimeDatabaseClient(url));
+		const lazy = createLazyDatabaseClient(create);
+		await runWithDatabaseClientConstructionObserver(observe, async () => {
+			await Promise.resolve(lazy);
+			await lazy.$disconnect();
+			expect(observe).not.toHaveBeenCalled();
+			expect(create).not.toHaveBeenCalled();
+			// Accessing a delegate constructs the client but does not issue a query.
+			expect(lazy.user).toBe(lazy.user);
+			expect(create).toHaveBeenCalledTimes(1);
+			expect(observe).toHaveBeenCalledTimes(1);
+			expect(observe.mock.calls[0]).toEqual([expect.any(Number)]);
+			expect(observe.mock.calls[0][0]).toBeGreaterThanOrEqual(0);
+		});
+		await lazy.$disconnect();
+		expect(observe).toHaveBeenCalledTimes(1);
+	});
+
+	it("isolates overlapping observers and restores the outer scope after a nested failure", async () => {
+		const first = vi.fn();
+		const second = vi.fn();
+		const clients: PrismaClient[] = [];
+		let release!: () => void;
+		const ready = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const pending = runWithDatabaseClientConstructionObserver(first, async () => {
+			await ready;
+			await expect(
+				runWithDatabaseClientConstructionObserver(second, async () => {
+					clients.push(createRuntimeDatabaseClient(url));
+					throw new Error("nested failure");
+				}),
+			).rejects.toThrow("nested failure");
+			clients.push(createRuntimeDatabaseClient(url));
+		});
+		await runWithDatabaseClientConstructionObserver(second, async () => {
+			clients.push(createRuntimeDatabaseClient(url));
+			release();
+		});
+		await pending;
+		clients.push(createRuntimeDatabaseClient(url));
+		expect(first).toHaveBeenCalledTimes(1);
+		expect(second).toHaveBeenCalledTimes(2);
+		expect(new Set(clients).size).toBe(4);
+		await Promise.all(clients.map((value) => value.$disconnect()));
+	});
+
+	it("keeps observer failures diagnostic-only and never reports a failed construction as success", async () => {
+		const observe = vi.fn(() => {
+			throw new Error("diagnostic sink failed");
+		});
+		const constructed = runWithDatabaseClientConstructionObserver(observe, () =>
+			createRuntimeDatabaseClient(url),
+		);
+		expect(observe).toHaveBeenCalledTimes(1);
+		await constructed.$disconnect();
+		observe.mockClear();
+		expect(() =>
+			runWithDatabaseClientConstructionObserver(observe, () => createRuntimeDatabaseClient("")),
+		).toThrow("DATABASE_URL is not set");
+		expect(observe).not.toHaveBeenCalled();
 	});
 });

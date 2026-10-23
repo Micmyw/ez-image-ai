@@ -1,14 +1,13 @@
 "use client";
 
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
-import { orpcClient } from "@shared/lib/orpc-client";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type ReactEventHandler } from "react";
 
 import type { EditorProductKey } from "../../lib/editor-recovery";
 import { recordOutputLoaded } from "../../lib/preview-timing";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
+import { usePrivateAssetPreview } from "./use-private-asset-preview";
 
 export interface InlinePreviewAsset {
 	id: string;
@@ -104,7 +103,7 @@ export function InlineOutputPreview({
 		retryCount.current++;
 		await refreshPreview();
 	};
-	return sourceId ? (
+	return (
 		<InlineComparison
 			key={retryKey}
 			sourceId={sourceId}
@@ -113,16 +112,6 @@ export function InlineOutputPreview({
 			productKey={productKey}
 			onLoad={loaded}
 			onError={failed}
-		/>
-	) : (
-		<img
-			data-clarity-mask="true"
-			key={retryKey}
-			src={display.url}
-			alt={t("generatedAlt")}
-			onLoad={loaded}
-			onError={failed}
-			className="mx-auto max-h-[42rem] w-full rounded-xl object-contain"
 		/>
 	);
 }
@@ -135,7 +124,7 @@ function InlineComparison({
 	onLoad,
 	onError,
 }: {
-	sourceId: string;
+	sourceId?: string;
 	outputUrl: string;
 	outputId: string;
 	productKey: EditorProductKey;
@@ -143,28 +132,14 @@ function InlineComparison({
 	onError: ReactEventHandler<HTMLImageElement>;
 }) {
 	const t = useTranslations("media.status");
-	const input = useQuery({
-		queryKey: ["media-asset-preview", sourceId],
-		queryFn: () => orpcClient.media.getAssetAccessUrl({ assetId: sourceId, disposition: "inline" }),
-		staleTime: 4 * 60_000,
-	});
-	if (!input.data)
-		return (
-			<img
-				data-clarity-mask="true"
-				src={outputUrl}
-				alt={t("generatedAlt")}
-				onLoad={onLoad}
-				onError={onError}
-				className="mx-auto max-h-[42rem] w-full rounded-xl object-contain"
-			/>
-		);
+	const input = usePrivateAssetPreview(sourceId);
 	return (
 		<BeforeAfterSlider
-			beforeUrl={input.data.url}
+			beforeUrl={sourceId ? input.data?.url : undefined}
 			afterUrl={outputUrl}
 			beforeAlt={t("compare.beforeAlt")}
 			afterAlt={t("compare.afterAlt")}
+			outputOnlyAlt={t("generatedAlt")}
 			controlLabel={t("compare.control")}
 			showOriginalLabel={t("compare.showOriginal")}
 			showResultLabel={t("compare.showResult")}

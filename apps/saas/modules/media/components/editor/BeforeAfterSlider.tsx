@@ -7,6 +7,7 @@ export function BeforeAfterSlider({
 	afterUrl,
 	beforeAlt,
 	afterAlt,
+	outputOnlyAlt,
 	controlLabel,
 	showOriginalLabel,
 	showResultLabel,
@@ -16,10 +17,11 @@ export function BeforeAfterSlider({
 	onOutputLoad,
 	onOutputError,
 }: {
-	beforeUrl: string;
+	beforeUrl?: string;
 	afterUrl: string;
 	beforeAlt: string;
 	afterAlt: string;
+	outputOnlyAlt?: string;
 	controlLabel: string;
 	showOriginalLabel: string;
 	showResultLabel: string;
@@ -30,69 +32,95 @@ export function BeforeAfterSlider({
 	onOutputError?: ReactEventHandler<HTMLImageElement>;
 }) {
 	const [position, setPosition] = useState(50);
+	const [failedBeforeUrl, setFailedBeforeUrl] = useState<string>();
+	const canCompare = Boolean(beforeUrl && beforeUrl !== failedBeforeUrl);
 
 	return (
-		<div className="space-y-3">
-			<div className="sm:aspect-[4/3] relative aspect-square overflow-hidden rounded-2xl border bg-muted">
+		<div className={canCompare ? "space-y-3" : undefined}>
+			<div
+				className={
+					canCompare
+						? "sm:aspect-[4/3] relative aspect-square overflow-hidden rounded-2xl border bg-muted"
+						: undefined
+				}
+			>
+				{/* Keep this node mounted while the optional original lookup completes. */}
 				<img
+					data-clarity-mask="true"
 					src={afterUrl}
-					alt={afterAlt}
+					alt={canCompare ? afterAlt : (outputOnlyAlt ?? afterAlt)}
 					onLoad={onOutputLoad}
 					onError={onOutputError}
-					className="inset-0 absolute size-full object-contain"
+					className={
+						canCompare
+							? "inset-0 absolute size-full object-contain"
+							: "mx-auto max-h-[42rem] w-full rounded-xl object-contain"
+					}
 				/>
-				<span className="top-3 right-3 px-2 py-1 text-xs absolute rounded-full bg-background/90">
-					{afterLabel}
-				</span>
-				<div
-					className="inset-0 absolute overflow-hidden"
-					style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
-				>
-					<img src={beforeUrl} alt={beforeAlt} className="size-full object-contain" />
-					<span className="top-3 left-3 px-2 py-1 text-xs absolute rounded-full bg-background/90">
-						{beforeLabel}
-					</span>
+				{canCompare && (
+					<>
+						<span className="top-3 right-3 px-2 py-1 text-xs absolute rounded-full bg-background/90">
+							{afterLabel}
+						</span>
+						<div
+							className="inset-0 absolute overflow-hidden"
+							style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
+						>
+							<img
+								data-clarity-mask="true"
+								src={beforeUrl}
+								alt={beforeAlt}
+								onError={() => setFailedBeforeUrl(beforeUrl)}
+								className="size-full object-contain"
+							/>
+							<span className="top-3 left-3 px-2 py-1 text-xs absolute rounded-full bg-background/90">
+								{beforeLabel}
+							</span>
+						</div>
+						<div
+							className="inset-y-0 w-0.5 bg-white shadow pointer-events-none absolute"
+							style={{ left: `${position}%` }}
+							aria-hidden="true"
+						/>
+						<input
+							type="range"
+							min={0}
+							max={100}
+							value={position}
+							aria-label={controlLabel}
+							onChange={(event) => {
+								setPosition(Number(event.target.value));
+								onCompared?.();
+							}}
+							className="inset-0 absolute h-full w-full cursor-ew-resize opacity-0"
+						/>
+					</>
+				)}
+			</div>
+			{canCompare && (
+				<div className="gap-2 flex flex-wrap">
+					<button
+						type="button"
+						onClick={() => {
+							setPosition(100);
+							onCompared?.();
+						}}
+						className="px-3 py-2 text-sm rounded-lg border hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+					>
+						{showOriginalLabel}
+					</button>
+					<button
+						type="button"
+						onClick={() => {
+							setPosition(0);
+							onCompared?.();
+						}}
+						className="px-3 py-2 text-sm rounded-lg border hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+					>
+						{showResultLabel}
+					</button>
 				</div>
-				<div
-					className="inset-y-0 w-0.5 bg-white shadow pointer-events-none absolute"
-					style={{ left: `${position}%` }}
-					aria-hidden="true"
-				/>
-				<input
-					type="range"
-					min={0}
-					max={100}
-					value={position}
-					aria-label={controlLabel}
-					onChange={(event) => {
-						setPosition(Number(event.target.value));
-						onCompared?.();
-					}}
-					className="inset-0 absolute h-full w-full cursor-ew-resize opacity-0"
-				/>
-			</div>
-			<div className="gap-2 flex flex-wrap">
-				<button
-					type="button"
-					onClick={() => {
-						setPosition(100);
-						onCompared?.();
-					}}
-					className="px-3 py-2 text-sm rounded-lg border hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-				>
-					{showOriginalLabel}
-				</button>
-				<button
-					type="button"
-					onClick={() => {
-						setPosition(0);
-						onCompared?.();
-					}}
-					className="px-3 py-2 text-sm rounded-lg border hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-				>
-					{showResultLabel}
-				</button>
-			</div>
+			)}
 		</div>
 	);
 }

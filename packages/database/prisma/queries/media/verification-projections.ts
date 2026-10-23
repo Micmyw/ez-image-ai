@@ -115,7 +115,9 @@ type VerdictAsset = Prisma.MediaAssetGetPayload<{
 	};
 }>;
 
-interface VerdictRow extends VerdictAsset, VerificationFacts {
+interface VerdictRow extends Omit<VerdictAsset, "id">, VerificationFacts {
+	id: string | null;
+	phaseOwnerCurrent: boolean;
 	previousReviewId: string | null;
 	previousLastErrorCode: string | null;
 	previousLastFailureAt: Date | null;
@@ -123,26 +125,57 @@ interface VerdictRow extends VerdictAsset, VerificationFacts {
 
 /** Caller retains the prompt, verification and output-job lock order. */
 export async function readMediaVerificationVerdictProjection(
-	input: { assetId: string; generation: number; leaseToken: string; now: Date },
+	input: {
+		assetId: string;
+		generation: number;
+		leaseToken: string;
+		now: Date;
+		phaseOwner?: ImagePhaseOwner;
+	},
 	tx: Prisma.TransactionClient,
 ) {
 	const [row] = await tx.$queryRaw<VerdictRow[]>`
 	 SELECT asset."id", asset."kind", asset."mimeType", asset."ownerType", asset."ownerId",
 	  asset."verificationProviderTaskId", review."id" AS "previousReviewId",
 	  review."lastErrorCode" AS "previousLastErrorCode", review."lastFailureAt" AS "previousLastFailureAt",
+	  CASE WHEN ${input.phaseOwner?.phaseKey ?? null}::text IS NULL THEN TRUE ELSE
+	   EXISTS (SELECT 1 FROM "media_workflow_phase_owner" owner WHERE owner."phaseKind" = 'verification'
+	    AND owner."subjectId" = ${input.assetId} AND owner."generation" = ${input.generation}
+	    AND owner."phaseKey" = ${input.phaseOwner?.phaseKey ?? null}
+	    AND owner."workflowId" = ${input.phaseOwner?.workflowId ?? null}
+	    AND owner."epoch" = ${input.phaseOwner?.epoch ?? null}::int
+	    AND owner."leasedUntil" > clock_timestamp()) END AS "phaseOwnerCurrent",
 	  EXISTS (SELECT 1 FROM "outbox_event" copy WHERE copy."eventType" = 'ACCOUNT_INPUT_COPY_TARGET'
 	   AND copy."dedupeKey" = 'account-input-copy-target:' || asset."id") AS "hasAccountInputCopy",
 	  (SELECT COUNT(*)::int FROM "asset_moderation_result" evidence WHERE evidence."assetId" = asset."id"
 	   AND evidence."verificationGeneration" = asset."verificationGeneration"
 	   AND evidence."status" = 'ERROR') AS "failureCount"
-	 FROM "media_asset" asset
-	 LEFT JOIN "moderation_review" review ON review."targetType" = 'ASSET' AND review."targetId" = asset."id"
-	 WHERE asset."id" = ${input.assetId} AND asset."verificationEngine" = 'legacy'
+	 FROM (SELECT 1) anchor
+	 LEFT JOIN "media_asset" asset ON asset."id" = ${input.assetId} AND asset."verificationEngine" = 'legacy'
 	  AND asset."status" = 'VERIFYING' AND asset."verificationGeneration" = ${input.generation}
-	  AND asset."verificationLeaseToken" = ${input.leaseToken} AND asset."verificationLeasedUntil" > ${input.now}`;
+	  AND asset."verificationLeaseToken" = ${input.leaseToken}
+	  AND asset."verificationLeasedUntil" > CASE WHEN ${input.phaseOwner?.phaseKey ?? null}::text IS NULL
+	   THEN ${input.now} ELSE clock_timestamp() END
+	 LEFT JOIN "moderation_review" review ON review."targetType" = 'ASSET' AND review."targetId" = asset."id"
+	`;
 	if (!row) return null;
+	if (typeof row.phaseOwnerCurrent !== "boolean")
+		throw new Error("INVALID_VERIFICATION_PHASE_PROJECTION");
+	// Keep an expired/mismatched owner observable even if the asset lease also
+	// disappeared. An asset WHERE predicate must not hide phase ownership loss.
+	if (row.id === null)
+		return row.phaseOwnerCurrent
+			? null
+			: {
+					asset: null,
+					phaseOwnerCurrent: false,
+					hasAccountInputCopy: false,
+					failureCount: 0,
+					previousReview: null,
+				};
 	assertVerificationFacts(row);
 	const {
+		phaseOwnerCurrent,
 		previousReviewId,
 		previousLastErrorCode,
 		previousLastFailureAt,
@@ -158,7 +191,8 @@ export async function readMediaVerificationVerdictProjection(
 	)
 		throw new Error("INVALID_VERIFICATION_REVIEW_PROJECTION");
 	return {
-		asset,
+		asset: { ...asset, id: row.id },
+		phaseOwnerCurrent,
 		hasAccountInputCopy,
 		failureCount,
 		previousReview:

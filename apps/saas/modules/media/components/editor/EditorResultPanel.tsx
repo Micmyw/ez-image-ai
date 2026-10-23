@@ -7,7 +7,6 @@ import { Button } from "@repo/ui/components/button";
 import { Progress } from "@repo/ui/components/progress";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpcClient } from "@shared/lib/orpc-client";
-import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -26,6 +25,7 @@ import { ModerationNotice } from "../ModerationNotice";
 import { RetryGenerationButton } from "../RetryGenerationButton";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
 import { InlineOutputPreview } from "./InlineOutputPreview";
+import { usePrivateAssetPreview } from "./use-private-asset-preview";
 
 export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNew: () => void }) {
 	const t = useTranslations("media.status");
@@ -262,11 +262,7 @@ function EditorEmptyState() {
 
 function SignedOutput({ jobId, assetId }: { jobId: string; assetId: string }) {
 	const t = useTranslations("media.status");
-	const output = useQuery({
-		queryKey: ["media-asset-preview", assetId],
-		queryFn: () => orpcClient.media.getAssetAccessUrl({ assetId, disposition: "inline" }),
-		staleTime: 4 * 60_000,
-	});
+	const output = usePrivateAssetPreview(assetId);
 	if (output.isError)
 		return (
 			<Alert variant="error">
@@ -297,30 +293,9 @@ function SignedComparison({
 	productKey: EditorProductKey;
 }) {
 	const t = useTranslations("media.status");
-	const input = useQuery({
-		queryKey: ["media-asset-preview", inputAssetId],
-		queryFn: () =>
-			orpcClient.media.getAssetAccessUrl({ assetId: inputAssetId, disposition: "inline" }),
-		staleTime: 4 * 60_000,
-	});
-	const output = useQuery({
-		queryKey: ["media-asset-preview", outputAssetId],
-		queryFn: () =>
-			orpcClient.media.getAssetAccessUrl({ assetId: outputAssetId, disposition: "inline" }),
-		staleTime: 4 * 60_000,
-	});
+	const input = usePrivateAssetPreview(inputAssetId);
+	const output = usePrivateAssetPreview(outputAssetId);
 	const state = getSignedComparisonState(input, output);
-	if (state === "output-only" && output.data) {
-		return (
-			<img
-				data-clarity-mask="true"
-				src={output.data.url}
-				alt={t("generatedAlt")}
-				onLoad={(event) => recordOutputLoaded(jobId, outputAssetId, event.currentTarget)}
-				className="mx-auto max-h-[42rem] w-full rounded-xl object-contain"
-			/>
-		);
-	}
 	if (state === "unavailable") {
 		return (
 			<Alert variant="error">
@@ -328,7 +303,7 @@ function SignedComparison({
 			</Alert>
 		);
 	}
-	if (state === "loading" || !input.data || !output.data) {
+	if (state === "loading" || !output.data) {
 		return (
 			<p className="p-5 text-sm rounded-xl border text-muted-foreground">{t("compare.loading")}</p>
 		);
@@ -336,10 +311,11 @@ function SignedComparison({
 	return (
 		<BeforeAfterSlider
 			onOutputLoad={(event) => recordOutputLoaded(jobId, outputAssetId, event.currentTarget)}
-			beforeUrl={input.data.url}
+			beforeUrl={input.data?.url}
 			afterUrl={output.data.url}
 			beforeAlt={t("compare.beforeAlt")}
 			afterAlt={t("compare.afterAlt")}
+			outputOnlyAlt={t("generatedAlt")}
 			controlLabel={t("compare.control")}
 			showOriginalLabel={t("compare.showOriginal")}
 			showResultLabel={t("compare.showResult")}

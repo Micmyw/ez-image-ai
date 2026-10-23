@@ -12,6 +12,7 @@ export class ControlExecutor extends WorkerEntrypoint<RuntimeExecutionEnvironmen
 	override fetch(request: Request): Promise<Response> {
 		hydrateVideoRuntimeEnvironment(this.env);
 		return createRuntimeExecutionHandler(this.env, {
+			waitUntil: (work) => this.ctx.waitUntil(work),
 			admission: "request",
 			acceptsTask: (task) => workerExecutorLane(task) === "control",
 			onEvent: (event) =>

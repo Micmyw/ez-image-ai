@@ -10,6 +10,10 @@
  * Add --slow-first-image-only for a 3.3-second image transfer across real polling,
  * or --persistent-only for repeated storage failure. Both use dedicated reports.
  * --timing-only-check verifies newly added Resource Timing fields in one sample.
+ * --comparison-stability-only exercises delayed/failed original lookup and
+ * image identity with the current production components. Optional
+ * GENERATION_PREVIEW_SOURCE_ROOT substitutes only the two preview components
+ * from a saved exact baseline; it does not rewind the checkout.
  *
  * "before" replaces module sources with the saved timing-only snapshot;
  * it never rewinds or writes the checkout. All timings are actual wall-clock
@@ -31,7 +35,10 @@ const downstreamMode = process.argv.includes("--downstream");
 const persistentOnly = process.argv.includes("--persistent-only");
 const slowFirstImageOnly = process.argv.includes("--slow-first-image-only");
 const timingOnlyCheck = process.argv.includes("--timing-only-check");
-const reportPrefix = `${mode}${downstreamMode ? "-downstream" : persistentOnly ? "-persistent" : slowFirstImageOnly ? "-slow-first-image" : timingOnlyCheck ? "-timing-check" : ""}`;
+const comparisonStabilityOnly = process.argv.includes("--comparison-stability-only");
+const previewSourceRoot = process.env.GENERATION_PREVIEW_SOURCE_ROOT;
+if (comparisonStabilityOnly || previewSourceRoot) assert.equal(mode, "after");
+const reportPrefix = `${mode}${comparisonStabilityOnly ? "-comparison-stability" : downstreamMode ? "-downstream" : persistentOnly ? "-persistent" : slowFirstImageOnly ? "-slow-first-image" : timingOnlyCheck ? "-timing-check" : ""}`;
 const outputDirectory = path.resolve(
 	repo,
 	process.env.GENERATION_PREVIEW_OUTPUT_DIR ?? ".cache/generation-batch1/browser",
@@ -56,9 +63,23 @@ const snapshotModules = [
 	"apps/saas/modules/media/components/editor/EditorResultPanel.tsx",
 	"apps/saas/modules/media/components/editor/BeforeAfterSlider.tsx",
 	"apps/saas/modules/media/lib/preview-timing.ts",
+	...(mode === "after"
+		? ["apps/saas/modules/media/components/editor/use-private-asset-preview.ts"]
+		: []),
+];
+const previewModules = [
+	"apps/saas/modules/media/components/editor/InlineOutputPreview.tsx",
+	"apps/saas/modules/media/components/editor/BeforeAfterSlider.tsx",
 ];
 const sourceHashes = {};
 const mocks = {
+	"@auth/hooks/use-session": `
+    import { useSyncExternalStore } from "react";
+    const subscribe = (listener) => { window.addEventListener("preview-owner-changed", listener); return () => window.removeEventListener("preview-owner-changed", listener); };
+    export const useSession = () => {
+      const owner = useSyncExternalStore(subscribe, () => window.__previewOwner ?? null, () => null);
+      return { user: owner ? { id: owner, isAnonymous: true } : null, session: null, loaded: true };
+    };`,
 	"@shared/lib/orpc-client": `
     async function request(path, options) {
       const response = await fetch(path, { signal: options?.signal, cache: "no-store" });
@@ -95,6 +116,13 @@ async function bundle() {
 		sourceHashes[relative] = createHash("sha256").update(source).digest("hex");
 		substitutions.set(path.normalize(path.join(repo, relative)), source);
 	}
+	if (mode === "after") {
+		for (const relative of previewModules) {
+			const source = await readFile(path.resolve(repo, previewSourceRoot ?? "", relative), "utf8");
+			sourceHashes[relative] = createHash("sha256").update(source).digest("hex");
+			substitutions.set(path.normalize(path.join(repo, relative)), source);
+		}
+	}
 	const result = await build({
 		stdin: {
 			contents: `
@@ -104,10 +132,15 @@ async function bundle() {
         import { EditorResultPanel } from "./modules/media/components/editor/EditorResultPanel";
         import { recordOutputReceived, recordOutputLoaded } from "./modules/media/lib/preview-timing";
         const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const queryKey = () => ${mode === "after" ? '["media-job", "benchmark-job", window.__previewOwner ?? null]' : '["media-job", "benchmark-job"]'};
         window.__benchmark = {
-          refresh: () => client.refetchQueries({ queryKey: ["media-job", "benchmark-job"], exact: true }),
-          invalidate: () => client.invalidateQueries({ queryKey: ["media-job", "benchmark-job"], exact: true }),
-          read: () => client.getQueryData(["media-job", "benchmark-job"]),
+          refresh: () => client.refetchQueries({ queryKey: queryKey(), exact: true }),
+          invalidate: () => client.invalidateQueries({ queryKey: queryKey(), exact: true }),
+          read: () => client.getQueryData(queryKey()),
+          refreshOriginal: () => client.refetchQueries({ queryKey: ["media-asset-preview", "asset-input"], type: "active" }),
+          refreshOutput: () => client.refetchQueries({ queryKey: ["media-asset-preview", "asset-output"], type: "active" }),
+          readOriginalStatus: () => client.getQueryCache().findAll({ queryKey: ["media-asset-preview", "asset-input"] }).find((query) => query.getObserversCount() > 0)?.state.status,
+          setOwner: (owner) => { window.__previewOwner = owner; window.dispatchEvent(new Event("preview-owner-changed")); },
           probeTimingVisibility: (kind) => new Promise((resolve) => {
             const img = document.createElement("img");
             img.style.cssText = "position:fixed;left:10px;top:10px;width:40px;height:40px";
@@ -231,12 +264,14 @@ function freshScenario(name, overrides = {}) {
 		expiredTokenOnce: false,
 		accessDenied: false,
 		visibleForMs: 86_400_000,
+		contentVersion: "immutable-output-1",
 		...overrides,
 	};
 }
 
 function jobResponse(state) {
 	const observedAt = state.epoch + (state.staleResponse ? 0 : state.revision * 100);
+	const outputAssetId = state.outputAssetId ?? "asset-output";
 	const visible =
 		(state.staleResponse || !state.revoked) && (!state.downstream || state.outputReady);
 	return {
@@ -264,14 +299,14 @@ function jobResponse(state) {
 		assets: visible
 			? [
 					{
-						id: "asset-output",
+						id: outputAssetId,
 						mimeType: "image/png",
-						contentVersion: "immutable-output-1",
+						contentVersion: state.contentVersion,
 						visibleUntil: new Date(state.epoch + state.visibleForMs).toISOString(),
-						...(mode === "after"
+						...(mode === "after" && !state.legacyResponse
 							? {
 									preview: {
-										url: `${origin}/image/asset-output?credential=${state.generation}`,
+										url: `${origin}/image/${outputAssetId}?credential=${state.generation}`,
 										expiresAt: new Date(state.epoch + 300_000).toISOString(),
 									},
 								}
@@ -308,11 +343,7 @@ async function serve(request, response) {
 			url.pathname === "/api/job" ? "status" : url.pathname === "/api/access" ? "access" : "image",
 		assetId:
 			url.searchParams.get("asset") ||
-			(url.pathname.includes("asset-output")
-				? "asset-output"
-				: url.pathname.includes("asset-input")
-					? "asset-input"
-					: undefined),
+			(url.pathname.startsWith("/image/") ? url.pathname.slice("/image/".length) : undefined),
 		startedMs: performance.now() - state.startedAt,
 	};
 	state.operations.push(event);
@@ -338,16 +369,25 @@ async function serve(request, response) {
 		}
 	} else if (url.pathname === "/api/access") {
 		await sleep(event.assetId === "asset-input" ? delays.accessInput : delays.accessOutput);
-		response.setHeader("content-type", "application/json");
-		response.end(
-			JSON.stringify({
-				url: `${origin}/image/${event.assetId}?credential=${state.generation}`,
-				expiresAt: new Date(state.epoch + 300_000).toISOString(),
-			}),
-		);
+		if (
+			(state.originalAccessDenied && event.assetId === "asset-input") ||
+			(state.outputAccessDenied && event.assetId === "asset-output")
+		) {
+			response.writeHead(403).end("Denied fixture asset");
+		} else {
+			response.setHeader("content-type", "application/json");
+			response.end(
+				JSON.stringify({
+					url: `${origin}/image/${event.assetId}?credential=${state.generation}`,
+					expiresAt: new Date(state.epoch + 300_000).toISOString(),
+				}),
+			);
+		}
 	} else if (url.pathname.startsWith("/image/")) {
 		await sleep(state.imageDelayMs ?? delays.image);
-		if (
+		if (state.originalImageDenied && event.assetId === "asset-input") {
+			response.writeHead(403).end("Denied fixture original image");
+		} else if (
 			(state.expiredTokenOnce || state.persistentOutputError) &&
 			event.assetId === "asset-output"
 		) {
@@ -445,6 +485,7 @@ async function newPage() {
 			: route.abort("blockedbyclient"),
 	);
 	const page = await context.newPage();
+	page.setDefaultTimeout(8000);
 	page.on("pageerror", (error) => {
 		scenario.pageErrors ??= [];
 		scenario.pageErrors.push(error.message);
@@ -453,13 +494,17 @@ async function newPage() {
 	return { page, context };
 }
 
+function outputImage(page) {
+	return page.getByRole("img", { name: /^(generatedAlt|compare.afterAlt)$/ });
+}
+
 async function visibleOutput(page) {
 	await page.waitForFunction(
 		() => window.__timings.some((event) => event.stage === "visible"),
 		undefined,
 		{ timeout: 8000 },
 	);
-	const output = page.getByAltText("generatedAlt");
+	const output = outputImage(page);
 	await output.waitFor({ state: "visible" });
 	assert.equal(await output.evaluate((img) => img.complete && img.naturalWidth > 0), true);
 	assert.equal(
@@ -585,6 +630,261 @@ async function measure(name, overrides = {}) {
 	}
 }
 
+async function comparisonStability() {
+	await originalAuthorizationRegressions();
+	for (const { name, overrides } of [
+		{ name: "original-image-load-denied", overrides: { originalImageDenied: true } },
+		{ name: "original-arrives-after-output", overrides: {} },
+		{ name: "original-arrives-during-download", overrides: { imageDelayMs: 2300 } },
+		{ name: "original-added-after-output", overrides: { textOnly: true } },
+		{ name: "original-access-denied", overrides: { originalAccessDenied: true } },
+	]) {
+		scenario = freshScenario(name, overrides);
+		const { page, context } = await newPage();
+		let observation;
+		try {
+			await outputImage(page).waitFor({ state: "attached" });
+			const firstOutput = await outputImage(page).elementHandle();
+			const firstSrc = await firstOutput.getAttribute("src");
+			const inputResponse = page.waitForResponse((response) => {
+				const url = new URL(response.url());
+				return url.pathname === "/api/access" && url.searchParams.get("asset") === "asset-input";
+			});
+			const originalImageResponse = overrides.originalImageDenied
+				? page.waitForResponse(
+						(response) => new URL(response.url()).pathname === "/image/asset-input",
+					)
+				: null;
+			if (!overrides.imageDelayMs) {
+				await visibleOutput(page);
+				assert.equal(await page.getByRole("slider").count(), 0);
+				assert.equal(
+					scenario.operations.some(
+						(event) =>
+							event.operation === "access" && event.assetId === "asset-input" && event.finishedMs,
+					),
+					false,
+					"Output must be visible before original access completes",
+				);
+			}
+			if (overrides.textOnly) {
+				assert.equal(
+					scenario.operations.some((event) => event.operation === "access"),
+					false,
+				);
+				scenario.textOnly = false;
+				scenario.revision++;
+				await page.evaluate(() => window.__benchmark.refresh());
+			}
+			const response = await inputResponse;
+			if (originalImageResponse) {
+				assert.equal((await originalImageResponse).status(), 403);
+				await page.getByRole("slider").waitFor({ state: "detached" });
+				assert.equal(await page.getByAltText("compare.beforeAlt").count(), 0);
+			} else if (overrides.originalAccessDenied) {
+				assert.equal(response.status(), 403);
+				await page.waitForFunction(() => window.__benchmark.readOriginalStatus() === "error");
+				assert.equal(await page.getByRole("slider").count(), 0);
+			} else {
+				await page.getByRole("slider", { name: "compare.control" }).waitFor({ state: "visible" });
+				await page.getByRole("button", { name: "compare.showOriginal", exact: true }).click();
+				assert.equal(await page.getByRole("slider").inputValue(), "100");
+				await page.getByRole("button", { name: "compare.showResult", exact: true }).click();
+				assert.equal(await page.getByRole("slider").inputValue(), "0");
+			}
+			await visibleOutput(page);
+			assert.equal(
+				await page.getByRole("button", { name: "download", exact: true }).isEnabled(),
+				true,
+			);
+			for (let index = 0; index < 2; index++) {
+				scenario.generation++;
+				scenario.revision++;
+				await page.evaluate(() => window.__benchmark.refresh());
+			}
+			observation = {
+				name,
+				passed: false,
+				sameOutputNode: await outputImage(page).evaluate(
+					(current, first) => current === first,
+					firstOutput,
+				),
+				firstNodeConnected: await firstOutput.evaluate((img) => img.isConnected),
+				sameOutputSrc: (await outputImage(page).getAttribute("src")) === firstSrc,
+				outputRequests: scenario.operations.filter(
+					(event) => event.operation === "image" && event.assetId === "asset-output",
+				).length,
+				outputLoads: await page.evaluate(
+					() => window.__imageEvents.filter((event) => event.asset === "asset-output").length,
+				),
+				timings: await page.evaluate(() => window.__timings),
+				operations: scenario.operations,
+			};
+			report.regressions.push(observation);
+			assert.equal(
+				observation.sameOutputNode,
+				true,
+				"Original lookup must not replace the output DOM node",
+			);
+			assert.equal(observation.firstNodeConnected, true);
+			assert.equal(observation.sameOutputSrc, true);
+			assert.equal(
+				observation.outputRequests,
+				1,
+				"Original lookup and re-signing must not restart the output transfer",
+			);
+			assert.equal(
+				observation.outputLoads,
+				1,
+				"Comparison controls must not reload the output image",
+			);
+			assert.deepEqual(scenario.pageErrors ?? [], []);
+			observation.passed = true;
+			console.log(`${name}: stable output node, one output request and one load`);
+			if (name === "original-arrives-after-output") {
+				scenario.contentVersion = "immutable-output-2";
+				scenario.generation++;
+				scenario.revision++;
+				await page.evaluate(() => window.__benchmark.refresh());
+				await page.waitForFunction(() => {
+					const img = document.querySelector('img[alt="compare.afterAlt"]');
+					return img?.complete && img.naturalWidth > 0 && img.src.includes("credential=4");
+				});
+				assert.equal(await firstOutput.evaluate((img) => img.isConnected), false);
+				assert.equal(
+					scenario.operations.filter(
+						(event) => event.operation === "image" && event.assetId === "asset-output",
+					).length,
+					2,
+				);
+				report.regressions.push({
+					name: "changed contentVersion replaces the old image once",
+					passed: true,
+				});
+				const previousOutput = await outputImage(page).elementHandle();
+				scenario.outputAssetId = "asset-output-2";
+				scenario.generation++;
+				scenario.revision++;
+				await page.evaluate(() => window.__benchmark.refresh());
+				await page.waitForFunction(() => {
+					const img = document.querySelector('img[alt="compare.afterAlt"]');
+					return (
+						img?.complete && img.naturalWidth > 0 && img.src.includes("/image/asset-output-2?")
+					);
+				});
+				assert.equal(await previousOutput.evaluate((img) => img.isConnected), false);
+				assert.equal(
+					scenario.operations.filter(
+						(event) => event.operation === "image" && event.assetId === "asset-output-2",
+					).length,
+					1,
+				);
+				report.regressions.push({
+					name: "changed asset identity replaces the old image once despite unchanged contentVersion",
+					passed: true,
+				});
+			}
+		} finally {
+			if (observation) {
+				await page.screenshot({
+					path: path.join(outputDirectory, `${reportPrefix}-${name}.png`),
+					fullPage: true,
+				});
+			}
+			await context.close();
+		}
+	}
+}
+
+async function originalAuthorizationRegressions() {
+	for (const [legacyResponse, changeOwner] of [
+		[false, false],
+		[false, true],
+		[true, false],
+		[true, true],
+	]) {
+		scenario = freshScenario(
+			`${legacyResponse ? "legacy-" : ""}${changeOwner ? "original-owner-switch" : "original-access-revoked"}`,
+			{ legacyResponse },
+		);
+		const { page, context } = await newPage();
+		try {
+			await page.getByRole("slider", { name: "compare.control" }).waitFor({ state: "visible" });
+			const firstOutput = await outputImage(page).elementHandle();
+			const firstSrc = await firstOutput.getAttribute("src");
+			scenario.originalAccessDenied = true;
+			if (changeOwner) {
+				await page.evaluate(() => window.__benchmark.setOwner("another-owner"));
+				await outputImage(page).waitFor({ state: "visible" });
+				assert.equal(
+					await page.getByRole("slider").count(),
+					0,
+					"A new account must not consume the previous account's cached original URL",
+				);
+			} else {
+				await page.evaluate(() => window.__benchmark.refreshOriginal());
+			}
+			await page.waitForFunction(() => window.__benchmark.readOriginalStatus() === "error");
+			assert.equal(
+				await page.getByRole("slider").count(),
+				0,
+				"An explicit original authorization error must remove cached comparison controls",
+			);
+			assert.equal(await page.getByAltText("compare.beforeAlt").count(), 0);
+			assert.equal(await outputImage(page).getAttribute("src"), firstSrc);
+			if (!changeOwner) {
+				assert.equal(
+					await outputImage(page).evaluate((current, first) => current === first, firstOutput),
+					true,
+				);
+				assert.equal(
+					scenario.operations.filter(
+						(event) => event.operation === "image" && event.assetId === "asset-output",
+					).length,
+					1,
+				);
+			}
+			report.regressions.push({
+				name: scenario.name,
+				passed: true,
+				operations: scenario.operations,
+			});
+			console.log(`${scenario.name}: cached original removed; authorized output retained`);
+		} finally {
+			await context.close();
+		}
+	}
+	for (const textOnly of [false, true]) {
+		scenario = freshScenario(
+			textOnly ? "legacy-output-only-revoked" : "legacy-comparison-output-revoked",
+			{
+				legacyResponse: true,
+				textOnly,
+			},
+		);
+		const { page, context } = await newPage();
+		try {
+			await visibleOutput(page);
+			if (!textOnly) {
+				await page.getByRole("slider", { name: "compare.control" }).waitFor({ state: "visible" });
+			}
+			scenario.outputAccessDenied = true;
+			await page.evaluate(() => window.__benchmark.refreshOutput());
+			await outputImage(page).waitFor({ state: "detached" });
+			assert.equal(await page.getByAltText("compare.beforeAlt").count(), 0);
+			await page.getByText("comparisonUnavailable").waitFor({ state: "visible" });
+			report.regressions.push({
+				name: scenario.name,
+				passed: true,
+				operations: scenario.operations,
+			});
+			console.log(`${scenario.name}: revoked cached output removed`);
+		} finally {
+			await context.close();
+		}
+	}
+}
+
 async function regressions() {
 	scenario = freshScenario("resign-revoke-stale");
 	const { page, context } = await newPage();
@@ -614,7 +914,7 @@ async function regressions() {
 		scenario.revoked = true;
 		scenario.revision++;
 		await page.evaluate(() => window.__benchmark.refresh());
-		await page.getByAltText("generatedAlt").waitFor({ state: "detached" });
+		await outputImage(page).waitFor({ state: "detached" });
 		assert.equal((await page.evaluate(() => window.__benchmark.read())).assets.length, 0);
 		report.regressions.push({
 			name: "true revocation removes already visible image despite unchanged job.version",
@@ -623,7 +923,7 @@ async function regressions() {
 		scenario.staleResponse = true;
 		await page.evaluate(() => window.__benchmark.refresh());
 		assert.equal(
-			await page.getByAltText("generatedAlt").count(),
+			await outputImage(page).count(),
 			0,
 			"An older visible response must not restore a revoked output",
 		);
@@ -665,7 +965,7 @@ async function regressions() {
 		await visibleOutput(deniedPage.page);
 		scenario.accessDenied = true;
 		await deniedPage.page.evaluate(() => window.__benchmark.refresh());
-		await deniedPage.page.getByAltText("generatedAlt").waitFor({ state: "detached" });
+		await outputImage(deniedPage.page).waitFor({ state: "detached" });
 		await deniedPage.page.getByText("unavailableTitle").waitFor({ state: "visible" });
 		report.regressions.push({
 			name: "authorization error removes cached visible output",
@@ -679,7 +979,7 @@ async function regressions() {
 	const expiryPage = await newPage();
 	try {
 		await visibleOutput(expiryPage.page);
-		await expiryPage.page.getByAltText("generatedAlt").waitFor({ state: "detached" });
+		await outputImage(expiryPage.page).waitFor({ state: "detached" });
 		await expiryPage.page.getByText("comparisonUnavailable").waitFor({ state: "visible" });
 		report.regressions.push({
 			name: "asset visibility deadline removes output without waiting for the next poll",
@@ -710,7 +1010,7 @@ async function regressions() {
 		scenario.revision++;
 		await racePage.page.evaluate(() => window.__benchmark.refresh());
 		await failedRequestPromise;
-		await racePage.page.getByAltText("generatedAlt").waitFor({ state: "detached" });
+		await outputImage(racePage.page).waitFor({ state: "detached" });
 		assert.equal((await racePage.page.evaluate(() => window.__benchmark.read())).assets.length, 0);
 		report.regressions.push({
 			name: "new refetch aborts older in-flight status response using the actual hook signal",
@@ -780,6 +1080,25 @@ async function persistentOutputFailure() {
 			passed: true,
 			outputAttempts,
 			statusRequests,
+		});
+		scenario.persistentOutputError = false;
+		scenario.generation++;
+		scenario.revision++;
+		await failurePage.page.getByRole("button", { name: "retry", exact: true }).click();
+		await visibleOutput(failurePage.page);
+		assert.equal(
+			scenario.operations.filter(
+				(event) => event.operation === "image" && event.assetId === "asset-output",
+			).length,
+			outputAttempts + 1,
+		);
+		assert.equal(
+			scenario.operations.filter((event) => event.operation === "status").length,
+			statusRequests + 1,
+		);
+		report.regressions.push({
+			name: "explicit retry reauthorizes and displays recovered output with one new transfer",
+			passed: true,
 		});
 	} catch (error) {
 		report.regressions.push({
@@ -868,7 +1187,11 @@ try {
 		JSON.stringify(report.ownedProcesses, null, 2),
 	);
 	browser = await chromium.connect(browserServer.wsEndpoint());
-	if (timingOnlyCheck) await measure("resource-timing");
+	if (comparisonStabilityOnly) {
+		await comparisonStability();
+		await regressions();
+		await slowFirstImage();
+	} else if (timingOnlyCheck) await measure("resource-timing");
 	else if (slowFirstImageOnly) await slowFirstImage();
 	else if (persistentOnly) await persistentOutputFailure();
 	else if (downstreamMode) {
@@ -899,6 +1222,7 @@ try {
 		!persistentOnly &&
 		!slowFirstImageOnly &&
 		!timingOnlyCheck &&
+		!comparisonStabilityOnly &&
 		existsSync(baselinePath)
 	) {
 		const baseline = JSON.parse(await readFile(baselinePath, "utf8"));

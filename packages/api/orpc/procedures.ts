@@ -1,6 +1,7 @@
 import { ORPCError, os } from "@orpc/server";
 import { auth } from "@repo/auth";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
+import { runWithDatabaseClientConstructionObserver } from "@repo/database/client";
 import type { RequestDefer } from "@repo/utils/request-lifecycle";
 
 import { createFlowTiming } from "../modules/media/lib/flow-timing";
@@ -22,24 +23,32 @@ export const protectedProcedure = publicProcedure.use(async ({ context, next, pa
 	const timedMediaRequest =
 		path[0] === "media" &&
 		["getJob", "submitGeneration", "createQuote", "createGeneration"].includes(path[1] ?? "");
-	const loadSession = () => auth.api.getSession({ headers: context.headers });
-	const session = timedMediaRequest
-		? await createFlowTiming({ requestId: context.requestId }).measure(
-				"request.identity",
-				loadSession,
+	const timing = timedMediaRequest ? createFlowTiming({ requestId: context.requestId }) : undefined;
+	const authenticateAndContinue = async () => {
+		const loadSession = () => auth.api.getSession({ headers: context.headers });
+		const session = timing
+			? await timing.measure("request.identity", loadSession)
+			: await loadSession();
+
+		if (!session || isAnonymousUser(session.user)) {
+			throw new ORPCError("UNAUTHORIZED");
+		}
+
+		return await next({
+			context: {
+				session: session.session,
+				user: session.user,
+			},
+		});
+	};
+	// Construction may happen during auth or the subsequent authorized status read.
+	// This nested span is not additional time to add to identity/status wall time.
+	return timing && path[1] === "getJob"
+		? await runWithDatabaseClientConstructionObserver(
+				(durationMs) => timing.mark("request.database.client.construct", durationMs),
+				authenticateAndContinue,
 			)
-		: await loadSession();
-
-	if (!session || isAnonymousUser(session.user)) {
-		throw new ORPCError("UNAUTHORIZED");
-	}
-
-	return await next({
-		context: {
-			session: session.session,
-			user: session.user,
-		},
-	});
+		: await authenticateAndContinue();
 });
 
 export const adminProcedure = protectedProcedure.use(async ({ context, next }) => {

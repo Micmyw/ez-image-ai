@@ -100,10 +100,26 @@ function fixture(kind: "INPUT" | "OUTPUT" = "OUTPUT") {
 					previousLastFailureAt: state.previous?.lastFailureAt ?? null,
 					hasAccountInputCopy: state.hasCopy,
 					failureCount: state.failures,
+					phaseOwnerCurrent: state.providerGate && state.owner.epoch === owner.epoch,
 				},
 			];
 		if (statement.includes('clock_timestamp() AS "now"'))
 			return [{ ...state.owner, now: new Date() }];
+		if (statement.includes('RETURNING "verificationSubmissionToken"')) {
+			asset.verificationSubmissionToken ??= "fresh-submission-proof";
+			asset.verificationSubmissionUncertain = true;
+			return [{ verificationSubmissionToken: asset.verificationSubmissionToken }];
+		}
+		if (statement.includes('AS "ownerCurrent"')) {
+			asset.verificationProviderTaskId = "fresh-task";
+			asset.verificationSubmissionUncertain = false;
+			return [
+				{
+					verificationLeasedUntil: asset.verificationLeasedUntil,
+					ownerCurrent: state.providerGate,
+				},
+			];
+		}
 		if (statement.includes('AS "current"')) return [{ current: state.providerGate }];
 		if (statement.includes('SELECT "phaseKey"')) return [state.owner];
 		if (statement.includes("FOR NO KEY UPDATE OF job")) return [];
@@ -179,9 +195,9 @@ function fixture(kind: "INPUT" | "OUTPUT" = "OUTPUT") {
 			throw error;
 		},
 	});
-	const run = () =>
+	const run = (queryOnly = true) =>
 		dependencies.verify(asset.id, {
-			queryOnly: true,
+			...(queryOnly ? { queryOnly: true } : {}),
 			workflowId: owner.workflowId,
 			phaseOwner: owner,
 			admission: { asset: { ...asset } },
@@ -213,6 +229,33 @@ afterEach(() => vi.useRealTimers());
 
 describe("current-transaction verification projections", () => {
 	it.each(["INPUT", "OUTPUT"] as const)(
+		"starts one fresh %s submission using the locked snapshot without duplicate absence reads",
+		async (kind) => {
+			const f = fixture(kind);
+			Object.assign(f.asset, {
+				verificationProviderTaskId: null,
+				verificationSubmissionToken: null,
+				verificationAttemptCount: 0,
+				verificationLastErrorCode: null,
+			});
+			f.submit.mockImplementation(async (input: { idempotencyKey: string }) => ({
+				moderationTaskId: "fresh-task",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				idempotency: { key: input.idempotencyKey },
+			}));
+			expect(await f.run(false)).toMatchObject({ verificationCommit: { status: "READY" } });
+			expect(f.submit).toHaveBeenCalledOnce();
+			expect(f.retrieve).toHaveBeenCalledOnce();
+			expect(f.evidence).toHaveLength(1);
+			expect(f.evidence[0]).toMatchObject({ status: "APPROVED", providerTaskId: "fresh-task" });
+			expect(f.findUnique).not.toHaveBeenCalled();
+			expect(f.count).not.toHaveBeenCalled();
+			expect(f.tx.auditLog.findFirst).not.toHaveBeenCalled();
+			expect(mocks.reconcileCopy).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each(["INPUT", "OUTPUT"] as const)(
 		"commits %s approval without repeated absence/evidence reads or a new submission",
 		async (kind) => {
 			const f = fixture(kind);
@@ -234,8 +277,28 @@ describe("current-transaction verification projections", () => {
 			expect(f.retrieve).toHaveBeenCalledOnce();
 			expect(f.submit).not.toHaveBeenCalled();
 			expect(f.sign).not.toHaveBeenCalled();
+			expect(
+				f.query.mock.calls.filter(([sql]) => sql.join("?").includes('AS "current"')),
+			).toHaveLength(1);
 		},
 	);
+
+	it("does not append approval after the owner changes during provider retrieval", async () => {
+		const f = fixture();
+		f.retrieve.mockImplementationOnce(async () => {
+			f.state.owner.epoch++;
+			f.state.providerGate = false;
+			return {
+				decision: "ALLOW",
+				reasonCode: "NO_POLICY_MATCH",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			};
+		});
+		expect(await f.run()).toMatchObject({ phaseOwnershipLost: true });
+		expect(f.evidence).toHaveLength(0);
+		expect(f.asset.status).toBe("VERIFYING");
+		expect(f.submit).not.toHaveBeenCalled();
+	});
 
 	it.each([
 		["unknown submission", { verificationSubmissionUncertain: true }],

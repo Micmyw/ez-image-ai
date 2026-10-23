@@ -1,3 +1,4 @@
+import { skipToken } from "@tanstack/react-query";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -5,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	jobQuery: {} as Record<string, unknown>,
 	useQuery: vi.fn(),
+	getAssetAccessUrl: vi.fn(),
+	ownerId: "owner-1",
 }));
 
 vi.mock("@repo/ui/components/alert", () => ({
@@ -28,11 +31,17 @@ vi.mock("@shared/lib/orpc-client", () => ({
 	orpcClient: {
 		media: {
 			cancelGeneration: vi.fn(),
-			getAssetAccessUrl: vi.fn(),
+			getAssetAccessUrl: mocks.getAssetAccessUrl,
 		},
 	},
 }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: mocks.useQuery }));
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@tanstack/react-query")>()),
+	useQuery: mocks.useQuery,
+}));
+vi.mock("@auth/hooks/use-session", () => ({
+	useSession: () => ({ user: { id: mocks.ownerId } }),
+}));
 vi.mock("next/link", () => ({
 	default: ({ children, href }: { children: React.ReactNode; href: string }) => (
 		<a href={href}>{children}</a>
@@ -105,7 +114,116 @@ describe("EditorResultPanel", () => {
 		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
 		expect(markup).toContain('src="https://private.test/inline"');
 		expect(markup).toContain("stages.ready");
-		expect(mocks.useQuery).not.toHaveBeenCalled();
+		expect(mocks.useQuery).toHaveBeenCalledWith(expect.objectContaining({ queryFn: skipToken }));
+		expect(mocks.getAssetAccessUrl).not.toHaveBeenCalled();
+	});
+	it("scopes original URLs to the current account and cancels obsolete access requests", async () => {
+		mocks.jobQuery = { data: inlineImageJob(), isError: false };
+		renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+		expect(mocks.useQuery).toHaveBeenLastCalledWith(
+			expect.objectContaining({ queryKey: ["media-asset-preview", "asset-input", "owner-1"] }),
+		);
+
+		mocks.ownerId = "owner-2";
+		renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+		expect(mocks.useQuery).toHaveBeenLastCalledWith(
+			expect.objectContaining({ queryKey: ["media-asset-preview", "asset-input", "owner-2"] }),
+		);
+		const { signal } = new AbortController();
+		await mocks.useQuery.mock.lastCall![0].queryFn({ signal });
+		expect(mocks.getAssetAccessUrl).toHaveBeenCalledWith(
+			{ assetId: "asset-input", disposition: "inline" },
+			{ signal },
+		);
+	});
+	it.each(["UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND"])(
+		"removes cached original comparison on an explicit %s while preserving the authorized output",
+		(code) => {
+			mocks.jobQuery = { data: inlineImageJob(), isError: false };
+			mocks.useQuery.mockReturnValue({
+				data: { url: "https://private.test/original" },
+				isError: true,
+				error: { code },
+			});
+			const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+			expect(markup).toContain('src="https://private.test/inline"');
+			expect(markup).not.toContain('src="https://private.test/original"');
+			expect(markup).not.toContain('type="range"');
+			expect(markup).toContain("Download");
+		},
+	);
+	it("keeps an already authorized original after a temporary network error or URL expiry", () => {
+		mocks.jobQuery = { data: inlineImageJob(), isError: false };
+		mocks.useQuery.mockReturnValue({
+			data: { url: "https://private.test/original", expiresAt: "2000-01-01T00:00:00Z" },
+			isError: true,
+			error: new TypeError("Network request failed"),
+		});
+		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+		expect(markup).toContain('src="https://private.test/inline"');
+		expect(markup).toContain('src="https://private.test/original"');
+		expect(markup).toContain('type="range"');
+	});
+	it.each(["text-to-image", "image-to-image"])(
+		"scopes legacy %s preview requests to the account and forwards cancellation",
+		async (kind) => {
+			mocks.jobQuery = {
+				data: {
+					...imageJob(),
+					input: { kind },
+					...(kind === "text-to-image" ? { inputAssets: [] } : {}),
+				},
+				isError: false,
+			};
+			const assetIds =
+				kind === "text-to-image" ? ["asset-output"] : ["asset-input", "asset-output"];
+			for (const ownerId of ["owner-1", "owner-2"]) {
+				mocks.ownerId = ownerId;
+				mocks.useQuery.mockClear();
+				renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+				expect(mocks.useQuery.mock.calls.map(([options]) => options.queryKey)).toEqual(
+					assetIds.map((assetId) => ["media-asset-preview", assetId, ownerId]),
+				);
+				const { signal } = new AbortController();
+				for (const [options] of mocks.useQuery.mock.calls) {
+					await options.queryFn({ signal });
+					expect(mocks.getAssetAccessUrl).toHaveBeenCalledWith(
+						{ assetId: options.queryKey[1], disposition: "inline" },
+						{ signal },
+					);
+				}
+			}
+		},
+	);
+	it.each(["asset-input", "asset-output"])(
+		"removes a cached legacy comparison URL when %s access is denied",
+		(deniedAssetId) => {
+			mocks.useQuery.mockImplementation(({ queryKey }) => ({
+				data: { url: `https://private.test/${queryKey[1]}` },
+				isError: queryKey[1] === deniedAssetId,
+				error: queryKey[1] === deniedAssetId ? { code: "FORBIDDEN" } : null,
+			}));
+			const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+			expect(markup).not.toContain(`src="https://private.test/${deniedAssetId}"`);
+			expect(markup).not.toContain('type="range"');
+			if (deniedAssetId === "asset-input") {
+				expect(markup).toContain('src="https://private.test/asset-output"');
+			} else {
+				expect(markup).not.toContain('src="https://private.test/asset-input"');
+				expect(markup).toContain("comparisonUnavailable");
+			}
+		},
+	);
+	it("keeps a cached legacy comparison on temporary network failures", () => {
+		mocks.useQuery.mockImplementation(({ queryKey }) => ({
+			data: { url: `https://private.test/${queryKey[1]}`, expiresAt: "2000-01-01T00:00:00Z" },
+			isError: true,
+			error: new TypeError("Network request failed"),
+		}));
+		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+		expect(markup).toContain('src="https://private.test/asset-input"');
+		expect(markup).toContain('src="https://private.test/asset-output"');
+		expect(markup).toContain('type="range"');
 	});
 	it("offers retry for a settled technical failure and not an unsettled one", () => {
 		const data = {
@@ -215,6 +333,7 @@ describe("EditorResultPanel", () => {
 	});
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mocks.ownerId = "owner-1";
 		mocks.useQuery.mockReturnValue({ data: undefined, isError: false });
 		mocks.jobQuery = { data: imageJob(), isError: false, error: null, refetch: vi.fn() };
 	});
@@ -301,6 +420,21 @@ describe("EditorResultPanel", () => {
 		expect(markup).not.toContain("parentJob=");
 	});
 });
+
+function inlineImageJob() {
+	return {
+		...imageJob(),
+		assets: [
+			{
+				id: "asset-output",
+				mimeType: "image/png",
+				contentVersion: "content-1",
+				visibleUntil: "2099-01-01T00:00:00Z",
+				preview: { url: "https://private.test/inline", expiresAt: "2099-01-01T00:00:00Z" },
+			},
+		],
+	};
+}
 
 function imageJob({
 	productKey = "image-gpt-image-2",

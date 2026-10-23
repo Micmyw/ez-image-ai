@@ -218,7 +218,7 @@ import {
 import type { OutputTransferEnvelope } from "./output-transfer-envelope";
 import { providerCdnAllowlist } from "./provider-output-policy";
 import { dispatchRouteFor, providerQueueKey } from "./queues";
-import { publishCommittedMediaJobNotification } from "./realtime/publish";
+import { publishCommittedMediaJobNotifications } from "./realtime/publish";
 
 export interface ProviderRegistryOptions {
 	includeRecoveryProviders?: boolean;
@@ -2303,10 +2303,12 @@ async function claimMediaVerification(
 	let phaseOwnershipLost: true | undefined;
 	const claim = await database.$transaction<MediaVerificationClaim | null>(async (tx) => {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${input.assetId}`}, 0))`;
-		let queryProjection =
-			input.queryOnly && input.workflowId
-				? await readMediaVerificationQueryProjection(input.assetId, tx)
-				: undefined;
+		// The same locked snapshot covers first submission and later queries.
+		// Owner acquisition/renewal still reads the full row and fresh DB time;
+		// identity changes below invalidate these generation-specific facts.
+		let queryProjection = input.workflowId
+			? await readMediaVerificationQueryProjection(input.assetId, tx)
+			: undefined;
 		let asset: MediaVerificationClaimAsset | null =
 			queryProjection !== undefined
 				? (queryProjection?.asset ?? null)
@@ -2996,7 +2998,7 @@ async function completeMediaVerification(
 	const completed = await database.$transaction<OutboxCommitResult>(async (tx) => {
 		const promptRejected = await lockAssetPromptReview(claim.assetId, tx);
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
-		if (!(await verificationPhaseIsCurrent(claim, tx)))
+		if (!claim.phaseOwner && !(await verificationPhaseIsCurrent(claim, tx)))
 			return { outboxCommitted: false, phaseOwnershipLost: true };
 		if (claim.kind === "OUTPUT") {
 			// Transfer claim/record take the job row before its output asset/binding.
@@ -3018,10 +3020,13 @@ async function completeMediaVerification(
 						generation: claim.generation,
 						leaseToken: claim.leaseToken,
 						now,
+						phaseOwner: claim.phaseOwner,
 					},
 					tx,
 				)
 			: undefined;
+		if (verdictProjection?.phaseOwnerCurrent === false)
+			return { outboxCommitted: false, phaseOwnershipLost: true };
 		const asset =
 			verdictProjection !== undefined
 				? (verdictProjection?.asset ?? null)
@@ -3190,11 +3195,7 @@ async function completeMediaVerification(
 			status: committedStatus,
 		});
 	}
-	await Promise.all(
-		notifications.map((notification) =>
-			publishCommittedMediaJobNotification(notification, database),
-		),
-	);
+	await publishCommittedMediaJobNotifications(notifications, database);
 	return completed;
 }
 

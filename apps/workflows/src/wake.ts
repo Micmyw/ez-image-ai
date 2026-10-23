@@ -1,6 +1,10 @@
 import { readBoundedBody, verifyRequest, workflowInstanceId } from "@repo/jobs/orchestration/auth";
 import { parseTaskContinuation, type TaskRequest } from "@repo/jobs/orchestration/contracts";
-import { parseImagePhaseOwner, imagePhaseEventType } from "@repo/jobs/orchestration/contracts";
+import {
+	parseImagePhaseOwner,
+	imagePhaseEventType,
+	type ImagePhaseOwner,
+} from "@repo/jobs/orchestration/contracts";
 import { parseDatabaseConflictRetry } from "@repo/jobs/orchestration/execution-recovery";
 import {
 	parseEventDeliveryResult,
@@ -73,12 +77,72 @@ export function createWakeContinuationScheduler(
 export async function handlePhaseWake(
 	request: Request,
 	secret: string,
-	workflows: WorkflowCreator,
+	workflows: WorkflowCreator | undefined,
 ): Promise<Response> {
 	const url = new URL(request.url);
 	if (request.method !== "POST" || url.pathname !== "/internal/phase-wake" || url.search)
 		return new Response("Not found", { status: 404 });
-	if (!secret || secret.length < 32) return new Response("Unavailable", { status: 503 });
+	const startedAt = performance.now();
+	let owner: ImagePhaseOwner | undefined;
+	let task: TaskRequest | undefined;
+	const unavailable = (
+		stage: "configuration" | "binding" | "get" | "send",
+		reason:
+			| "SECRET_UNAVAILABLE"
+			| "BINDING_UNAVAILABLE"
+			| "INSTANCE_LOOKUP_FAILED"
+			| "SEND_EVENT_UNAVAILABLE"
+			| "EVENT_SEND_FAILED",
+		error?: unknown,
+	) => {
+		const errorName =
+			error instanceof Error &&
+			[
+				"Error",
+				"TypeError",
+				"RangeError",
+				"DataCloneError",
+				"InvalidAccessError",
+				"AbortError",
+				"TimeoutError",
+				"WorkflowError",
+			].includes(error.name)
+				? error.name
+				: "Unknown";
+		const correlation: Record<string, string> = {};
+		for (const key of ["assetId", "attemptId"] as const) {
+			const value = task?.payload[key];
+			if (typeof value === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(value))
+				correlation[key] = value;
+		}
+		// A runtime error's name and stage are observations, not a guessed platform root cause.
+		// Never include its message/stack, signed headers, arbitrary payloads or private URLs.
+		try {
+			console.warn(
+				JSON.stringify({
+					event: "generation_phase_wake_failed",
+					stage,
+					reason,
+					...(error === undefined ? {} : { errorName, errorCode: phaseWakeErrorCode(error) }),
+					durationMs: Math.max(0, Math.round((performance.now() - startedAt) * 1_000) / 1_000),
+					...(task ? { taskId: task.taskId } : {}),
+					...correlation,
+					...(owner
+						? {
+								workflowId: owner.workflowId,
+								phaseKey: owner.phaseKey,
+								epoch: owner.epoch,
+								eventTypeLength: imagePhaseEventType(owner).length,
+							}
+						: {}),
+				}),
+			);
+		} catch {
+			// Optional diagnostics must not replace the response or cause execution replay.
+		}
+		return new Response("Phase signal unavailable", { status: 503 });
+	};
+	if (!secret || secret.length < 32) return unavailable("configuration", "SECRET_UNAVAILABLE");
 	let body: string;
 	try {
 		body = await readBoundedBody(request);
@@ -87,7 +151,6 @@ export async function handlePhaseWake(
 	}
 	if (!(await verifyRequest(secret, "POST", url.pathname, body, request.headers)))
 		return new Response("Unauthorized", { status: 401 });
-	let owner;
 	try {
 		const value = JSON.parse(body) as Record<string, unknown>;
 		if (
@@ -100,7 +163,7 @@ export async function handlePhaseWake(
 			value.idempotencyKey.length > 512
 		)
 			throw new Error("INVALID_PHASE_WAKE");
-		const task = parseTaskRequest({
+		task = parseTaskRequest({
 			taskId: value.taskId,
 			payload: value.payload,
 			...(value.trace === undefined ? {} : { trace: value.trace }),
@@ -114,9 +177,17 @@ export async function handlePhaseWake(
 	} catch {
 		return new Response("Invalid phase wake", { status: 400 });
 	}
+	if (!workflows || typeof workflows.get !== "function")
+		return unavailable("binding", "BINDING_UNAVAILABLE");
+	let instance: Awaited<ReturnType<WorkflowCreator["get"]>>;
 	try {
-		const instance = await workflows.get(owner.workflowId);
-		if (!instance.sendEvent) throw new Error("PHASE_SIGNAL_UNAVAILABLE");
+		instance = await workflows.get(owner.workflowId);
+	} catch (error) {
+		return unavailable("get", "INSTANCE_LOOKUP_FAILED", error);
+	}
+	if (!instance || typeof instance.sendEvent !== "function")
+		return unavailable("binding", "SEND_EVENT_UNAVAILABLE");
+	try {
 		await instance.sendEvent({
 			type: imagePhaseEventType(owner),
 			payload: { phaseKey: owner.phaseKey, epoch: owner.epoch },
@@ -125,9 +196,21 @@ export async function handlePhaseWake(
 			{ accepted: true, wake: true, id: owner.workflowId, phaseOwner: owner },
 			{ status: 202, headers: { "cache-control": "no-store" } },
 		);
-	} catch {
-		return new Response("Phase signal unavailable", { status: 503 });
+	} catch (error) {
+		return unavailable("send", "EVENT_SEND_FAILED", error);
 	}
+}
+
+function phaseWakeErrorCode(
+	error: unknown,
+): "INSTANCE_NOT_FOUND" | "ENGINE_NOT_STARTED" | "UNKNOWN" {
+	if (!(error instanceof Error)) return "UNKNOWN";
+	// These are fixed binding error markers, including the local Workflow runtime.
+	// Never emit arbitrary error messages or infer that they explain a production failure.
+	if (error.message === "instance.not_found" || error.message.startsWith("(instance.not_found) "))
+		return "INSTANCE_NOT_FOUND";
+	if (error.message === "Engine was never started") return "ENGINE_NOT_STARTED";
+	return "UNKNOWN";
 }
 
 /** A wake is only an acceleration of a previously committed due state. */

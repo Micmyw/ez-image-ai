@@ -9,6 +9,37 @@ const baseLogger = createConsola({
 	},
 });
 
+// Format only this high-frequency diagnostic at the reporter boundary. Calls
+// still pass through Consola's level, pause, throttle and method interception.
+const defaultReporters = [...baseLogger.options.reporters];
+baseLogger.setReporters([
+	{
+		log(record, reporterContext) {
+			const [message, fields, extra] = record.args;
+			const context =
+				extra && typeof extra === "object" && "context" in extra ? extra.context : undefined;
+			if (
+				record.type === "info" &&
+				message === "media.flow.timing" &&
+				fields !== null &&
+				typeof fields === "object" &&
+				!Array.isArray(fields) &&
+				(record.args.length === 2 || (record.args.length === 3 && context !== undefined))
+			) {
+				console.info(
+					JSON.stringify({
+						...(redactForLog(fields) as Record<string, unknown>),
+						message: "media.flow.timing",
+						...(context === undefined ? {} : { context: redactForLog(context) }),
+					}),
+				);
+				return;
+			}
+			for (const reporter of defaultReporters) reporter.log(record, reporterContext);
+		},
+	},
+]);
+
 const LOG_METHODS = new Set([
 	"debug",
 	"error",

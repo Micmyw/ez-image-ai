@@ -65,6 +65,7 @@ export class WorkerJobs extends DurableObject<WorkersEnvironment> {
 				? "maintenance"
 				: "heavy";
 		this.handler ??= createRuntimeExecutionHandler(this.env, {
+			waitUntil: (work) => this.ctx.waitUntil(work),
 			maxActive: WORKER_EXECUTORS[lane].maxActive,
 			// The original object also accepts old Workflow deliveries. Keeping its
 			// cap at one preserves the heavy limit while existing Workflows drain.

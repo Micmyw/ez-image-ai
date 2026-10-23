@@ -2,6 +2,7 @@ import {
 	acknowledgePublishedMediaJobNotification,
 	type MediaJobNotification,
 } from "@repo/database/media-job-notifications";
+import { getRequestDefer } from "@repo/utils/request-lifecycle";
 
 import { signRequest } from "../orchestration/auth";
 import { getMediaJobEventsBinding, mediaJobEventsStub } from "./context";
@@ -76,4 +77,25 @@ export async function publishCommittedMediaJobNotification(
 	} finally {
 		if (timeout !== undefined) clearTimeout(timeout);
 	}
+}
+
+/** Start after commit, and retain the publisher's ACK inside the request's DB lifetime. */
+export async function publishCommittedMediaJobNotifications(
+	notifications: readonly MediaJobNotification[],
+	client?: NotificationDatabase,
+): Promise<void> {
+	if (!notifications.length || process.env.MEDIA_JOB_EVENTS_ENABLED !== "true") return;
+	const publication = Promise.all(
+		notifications.map((notification) => publishCommittedMediaJobNotification(notification, client)),
+	);
+	const defer = getRequestDefer();
+	if (defer) {
+		try {
+			defer(publication);
+			return;
+		} catch {
+			// Registration failed: keep the already-started publication and its DB work alive.
+		}
+	}
+	await publication;
 }

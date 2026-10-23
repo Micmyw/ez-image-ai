@@ -16,14 +16,27 @@ export type { DatabaseQueryContext } from "./query-metrics";
 // Next's server bundle and its outer Worker wrapper can contain separate copies
 // of this module. The context must still be shared by both copies.
 const contextKey = Symbol.for("ezpic.database.request-context");
+const constructionObserverKey = Symbol.for("ezpic.database.client-construction-observer");
+type DatabaseClientConstructionObserver = (durationMs: number) => void;
 const runtimeGlobals = globalThis as typeof globalThis & {
 	[contextKey]?: AsyncLocalStorage<PrismaClient>;
+	[constructionObserverKey]?: AsyncLocalStorage<DatabaseClientConstructionObserver>;
 	prisma?: PrismaClient;
 };
 const databaseContext = (runtimeGlobals[contextKey] ??= new AsyncLocalStorage<PrismaClient>());
+const constructionObserverContext = (runtimeGlobals[constructionObserverKey] ??=
+	new AsyncLocalStorage<DatabaseClientConstructionObserver>());
 
 export function runWithDatabaseClient<T>(client: PrismaClient, callback: () => T): T {
 	return databaseContext.run(client, callback);
+}
+
+/** Observe successful request-client construction only; no query or compiler-load inference. */
+export function runWithDatabaseClientConstructionObserver<T>(
+	observe: DatabaseClientConstructionObserver,
+	callback: () => T,
+): T {
+	return constructionObserverContext.run(observe, callback);
 }
 
 export function createRuntimeDatabaseClient(
@@ -31,7 +44,9 @@ export function createRuntimeDatabaseClient(
 	diagnosticsContext?: DatabaseQueryContext,
 ): PrismaClient {
 	if (!connectionString) throw new Error("DATABASE_URL is not set");
-	return createClientWithLocalMetrics(
+	const observe = constructionObserverContext.getStore();
+	const started = observe ? performance.now() : 0;
+	const client = createClientWithLocalMetrics(
 		connectionString,
 		"request",
 		{
@@ -41,6 +56,16 @@ export function createRuntimeDatabaseClient(
 		},
 		diagnosticsContext,
 	);
+	if (observe) {
+		try {
+			// Synchronous wall time ends before connection or first-query work.
+			// A missing sample (including a failed construction) means unknown, not zero.
+			observe(Math.max(0, performance.now() - started));
+		} catch {
+			// Diagnostics must not discard a constructed client or change a request outcome.
+		}
+	}
+	return client;
 }
 
 function createClientWithLocalMetrics(

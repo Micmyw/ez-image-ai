@@ -5,13 +5,18 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const sliderState = vi.hoisted(() => ({
 	position: 50,
 	setPosition: vi.fn(),
+	failedBeforeUrl: undefined as string | undefined,
+	setFailedBeforeUrl: vi.fn(),
 }));
 
 vi.mock("react", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("react")>();
 	return {
 		...actual,
-		useState: () => [sliderState.position, sliderState.setPosition],
+		useState: (initial: unknown) =>
+			initial === 50
+				? [sliderState.position, sliderState.setPosition]
+				: [sliderState.failedBeforeUrl, sliderState.setFailedBeforeUrl],
 	};
 });
 
@@ -20,7 +25,12 @@ import { BeforeAfterSlider } from "./BeforeAfterSlider";
 describe("BeforeAfterSlider", () => {
 	beforeEach(() => {
 		sliderState.position = 50;
+		sliderState.failedBeforeUrl = undefined;
 		sliderState.setPosition.mockReset();
+		sliderState.setFailedBeforeUrl.mockReset();
+		sliderState.setFailedBeforeUrl.mockImplementation((url: string | undefined) => {
+			sliderState.failedBeforeUrl = url;
+		});
 		sliderState.setPosition.mockImplementation((next: number | ((current: number) => number)) => {
 			sliderState.position = typeof next === "function" ? next(sliderState.position) : next;
 		});
@@ -38,6 +48,22 @@ describe("BeforeAfterSlider", () => {
 		expect(markup).not.toMatch(/aria-hidden="true"[^>]*>\s*<img[^>]+alt="Edited result image"/);
 	});
 
+	it("displays the output while the optional original is unavailable", () => {
+		const markup = renderToStaticMarkup(
+			<BeforeAfterSlider {...sliderProps} beforeUrl={undefined} outputOnlyAlt="Generated image" />,
+		);
+
+		expect(markup).toContain('alt="Generated image"');
+		expect(markup).toContain('src="https://signed.test/output"');
+		expect(markup).toContain('data-clarity-mask="true"');
+		expect(markup).toContain("max-h-[42rem]");
+		expect(markup).not.toContain('type="range"');
+		expect(markup).not.toContain('src="https://signed.test/input"');
+		expect(markup).not.toContain("Show original");
+		expect(markup).not.toContain("Show result");
+		expect(markup).not.toContain("absolute");
+	});
+
 	it("shows the input on the left and the approved output on the right at the midpoint", () => {
 		const markup = renderSlider();
 		const overlay = clippedLayer(markup);
@@ -50,6 +76,26 @@ describe("BeforeAfterSlider", () => {
 		expect(overlay).toContain(">Original</span>");
 		expect(overlay).not.toContain('alt="Edited result image"');
 		expect(overlay).not.toContain(">Result</span>");
+	});
+
+	it("falls back to the output when the original image fails and accepts a fresh original URL", () => {
+		const tree = BeforeAfterSlider(sliderProps);
+		const original = findElements(tree, "img").find(
+			(image) => (image.props as { src?: string }).src === sliderProps.beforeUrl,
+		) as React.ReactElement<{ onError(): void }>;
+		original.props.onError();
+
+		const fallback = renderSlider();
+		expect(fallback).toContain(`src="${sliderProps.afterUrl}"`);
+		expect(fallback).not.toContain('type="range"');
+		expect(fallback).not.toContain(`src="${sliderProps.beforeUrl}"`);
+		expect(fallback).not.toContain("Show original");
+
+		const renewed = renderToStaticMarkup(
+			<BeforeAfterSlider {...sliderProps} beforeUrl="https://signed.test/renewed-input" />,
+		);
+		expect(renewed).toContain('type="range"');
+		expect(renewed).toContain('src="https://signed.test/renewed-input"');
 	});
 
 	it("shows the correct full image from the original and result alternatives", () => {

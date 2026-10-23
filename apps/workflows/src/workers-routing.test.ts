@@ -81,7 +81,7 @@ function runtime(videoEnvironment: Record<string, string> = {}, stateless = true
 						fetch(request: Request) {
 							routed.push("jobs-control-request");
 							return new ControlExecutor(
-								{} as ExecutionContext,
+								{ waitUntil: () => undefined } as unknown as ExecutionContext,
 								environment as unknown as WorkersEnvironment,
 							).fetch(request);
 						},
@@ -90,7 +90,7 @@ function runtime(videoEnvironment: Record<string, string> = {}, stateless = true
 						fetch(request: Request) {
 							routed.push("jobs-transfer-request");
 							return new TransferExecutor(
-								{} as ExecutionContext,
+								{ waitUntil: () => undefined } as unknown as ExecutionContext,
 								environment as unknown as WorkersEnvironment,
 							).fetch(request);
 						},

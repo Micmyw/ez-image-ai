@@ -119,6 +119,7 @@ export function buildIntegrationPlan(phase = "all"): IntegrationCommand[] {
 				"src/handlers/verification-projection.database.integration.test.ts",
 				"src/handlers/dispatch-pre-send.database.integration.test.ts",
 				"src/handlers/verification-handoff.database.integration.test.ts",
+				"src/handlers/verification-notification.database.integration.test.ts",
 				"src/handlers/settlement-concurrency.database.integration.test.ts",
 				"src/handlers/legacy-engine-isolation.database.integration.test.ts",
 				"src/handlers/recover-finalizing-generations.database.integration.test.ts",

@@ -4,7 +4,6 @@ import { config, type Locale } from "../config";
 import type { mailTemplates } from "../emails";
 import { send } from "../provider";
 import type { TemplateId } from "./templates";
-import { getTemplate } from "./templates";
 
 export async function sendEmail<T extends TemplateId>(
 	params: {
@@ -31,6 +30,7 @@ export async function sendEmail<T extends TemplateId>(
 
 	if ("templateId" in params) {
 		const { templateId, context } = params;
+		const { getTemplate } = await import("./templates");
 		const template = await getTemplate({
 			templateId,
 			context,

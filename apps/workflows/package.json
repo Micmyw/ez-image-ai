@@ -9,6 +9,7 @@
 		"build:workers": "wrangler deploy --config wrangler.workers.jsonc --dry-run --outdir dist-workers",
 		"test:artifact:workerd": "node test-support/artifact-workerd-smoke.mjs",
 		"test:admin-bots:workerd": "node --test test-support/admin-bot-environment.workerd.test.mjs",
+		"test:runtime-lifetime:workerd": "node --test test-support/runtime-lifetime.workerd.test.mjs",
 		"dev": "wrangler dev",
 		"test": "vitest run"
 	},
@@ -17,7 +18,8 @@
 		"@repo/config": "workspace:*",
 		"@repo/database": "workspace:*",
 		"@repo/jobs": "workspace:*",
-		"@repo/storage": "workspace:*"
+		"@repo/storage": "workspace:*",
+		"@repo/utils": "workspace:*"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-plugin": "1.1.4",

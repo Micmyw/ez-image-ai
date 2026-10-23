@@ -67,9 +67,10 @@ for (const command of ["workflows:type-check", "workflows:build:ci"]) {
 	assertUnconditionalStep(quality, `pnpm ${command}`);
 }
 assertNotMatch(quality, /TRIGGER_|pnpm trigger:/);
-for (const workspace of ["@repo/workflows", "@repo/jobs-runtime", "@repo/auth"]) {
+for (const workspace of ["@repo/workflows", "@repo/jobs-runtime", "@repo/auth", "@repo/logs"]) {
 	assertIncludes(unitContracts, `"--filter", "${workspace}", "test"`);
 }
+assertIncludes(unitContracts, '"--filter", "@repo/workflows", "test:runtime-lifetime:workerd"');
 assertNotMatch(builds, /^ {6}DATABASE_URL:\s*\$\{\{\s*env\./m);
 assertPnpmSetupPrecedesNodeCache(workflow);
 assertPnpmSetupPrecedesNodeCache(providerSmokeWorkflow);
@@ -152,6 +153,16 @@ assertStepPrecedes(
 	"run: pnpm --filter saas build",
 );
 assertStepPrecedes(mockE2e, "run: pnpm --filter @repo/database generate", "run: pnpm e2e:media:ci");
+const imagePreviewCommand =
+	"node tooling/e2e/src/generation-preview-benchmark.mjs --mode after --comparison-stability-only";
+assertUnconditionalStep(mockE2e, imagePreviewCommand);
+assertStepPrecedes(
+	mockE2e,
+	"run: pnpm --filter saas exec playwright install --with-deps chromium",
+	`run: ${imagePreviewCommand}`,
+);
+assertIncludes(mockE2e, "name: image-preview-regressions");
+assertIncludes(mockE2e, "path: .cache/generation-preview-ci/**");
 const videoUiCommand = "pnpm --filter @repo/e2e-media run e2e --video-ui";
 assertUnconditionalStep(mockE2e, videoUiCommand);
 assertStepPrecedes(mockE2e, "run: pnpm e2e:media:ci", `run: ${videoUiCommand}`);
