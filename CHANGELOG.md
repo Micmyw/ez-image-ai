@@ -4,9 +4,11 @@
 
 - Update Next.js to 16.4.1 and Sentry's Next.js integration to 10.75.2 to address the published image-optimization, Server Actions and tunnel-route advisories.
 - Preserve the dependency release-age policy and production security-audit gate.
+- Update DOMPurify to 3.4.17 for the published template and detached-node sanitization fixes.
 - Backport OpenNext compatibility fixes for Next.js preview metadata and cache initialization so Worker requests start correctly.
 - Keep model-page navigation mounted while the editor streams in, preventing signed-in page hydration errors.
 - Return an HTTP 404 for unknown model routes before streaming the page.
+- Render showcase artwork on the server to reduce the homepage's initial JavaScript while preserving image quality and prompt selection.
 
 ## 2026-10-22 — Shorter image and video generation paths
 
