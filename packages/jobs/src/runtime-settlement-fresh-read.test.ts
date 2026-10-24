@@ -6,6 +6,7 @@ const funding = vi.hoisted(() => ({
 	finalizePass: vi.fn(),
 	grace: vi.fn(),
 	approved: vi.fn(),
+	kieRejection: vi.fn(),
 }));
 vi.mock("@repo/database", () => ({
 	SERIALIZABLE_RETRY_LIMIT: 4,
@@ -14,6 +15,7 @@ vi.mock("@repo/database", () => ({
 	finalizeImagePassReservationInTransaction: funding.finalizePass,
 	claimOutputModerationGraceInTransaction: funding.grace,
 	hasCurrentApprovedMediaAssetEvidence: funding.approved,
+	canSettleKieZeroCostRejection: funding.kieRejection,
 	isDatabaseSerializationConflict: (error: { code?: string } | null) => error?.code === "P2034",
 	isDatabaseLockNotAvailable: (error: { code?: string } | null) => error?.code === "55P03",
 	runReadCommitted: async (
@@ -93,6 +95,7 @@ function fixture() {
 		jobPresent: true,
 	};
 	const tx = {
+		generationAttempt: { findMany: vi.fn(async () => []) },
 		generationJob: {
 			findFirst: vi.fn(async (query: { select?: unknown }) => {
 				operations.push(query.select ? "discover" : "evidence");
@@ -154,6 +157,97 @@ function fixture() {
 }
 
 describe("fresh-read credit settlement", () => {
+	it.each(["true", "false"])(
+		"charges the frozen quote for a confirmed Kie sensitive rejection with fresh reads %s",
+		async (freshReads) => {
+			vi.stubEnv("MEDIA_SETTLEMENT_FRESH_READ_ENABLED", freshReads);
+			const f = fixture();
+			Object.assign(f.job, { failureCode: "PROVIDER_POLICY_REJECTED_NO_CHARGE", assets: [] });
+			Object.assign(f.job.pricingSnapshot, {
+				kiePolicyRejectionBillingPolicy: "charge-quoted-credits-v1",
+			});
+			const rejection = {
+				version: 1,
+				provider: "kie",
+				source: "record-info",
+				taskId: "task",
+				state: "fail",
+				failCode: "400",
+				failMsg:
+					"The input or output was flagged as sensitive. Please try again with different inputs.",
+				consumptionField: "creditsConsumed",
+				consumedCredits: 0,
+				outputCount: 0,
+				observedAt: "2026-10-24T00:00:00.000Z",
+			};
+			f.tx.generationAttempt.findMany.mockResolvedValue([
+				{ id: "attempt", responseSnapshot: { confirmedZeroCostRejection: rejection } },
+			] as never);
+			funding.kieRejection.mockResolvedValue(true);
+			await settleGeneration(payload, { store: f.store });
+			expect(funding.settle).toHaveBeenCalledExactlyOnceWith(
+				{ reservationId: "reservation", amount: 5n, referenceKey: "settle:job" },
+				f.tx,
+			);
+			expect(funding.grace).not.toHaveBeenCalled();
+			expect(f.tx.generationJob.updateMany).toHaveBeenCalledWith(
+				expect.objectContaining({
+					data: expect.objectContaining({
+						status: "FAILED",
+						failureCode: "PROVIDER_POLICY_REJECTED_CHARGED",
+					}),
+				}),
+			);
+		},
+	);
+	it("does not charge a claimed content rejection without the same attempt evidence", async () => {
+		const f = fixture();
+		Object.assign(f.job, { failureCode: "PROVIDER_POLICY_REJECTED_NO_CHARGE", assets: [] });
+		Object.assign(f.job.pricingSnapshot, {
+			kiePolicyRejectionBillingPolicy: "charge-quoted-credits-v1",
+		});
+		await expect(settleGeneration(payload, { store: f.store })).rejects.toThrow(
+			"KIE_REJECTION_BILLING_EVIDENCE_CONFLICT",
+		);
+		expect(funding.settle).not.toHaveBeenCalled();
+	});
+	it("keeps historical unmarked provider rejection quotes at zero charge", async () => {
+		const f = fixture();
+		Object.assign(f.job, { failureCode: "PROVIDER_POLICY_REJECTED_NO_CHARGE", assets: [] });
+		await settleGeneration(payload, { store: f.store });
+		expect(funding.settle).toHaveBeenCalledWith(expect.objectContaining({ amount: 0n }), f.tx);
+		expect(funding.kieRejection).not.toHaveBeenCalled();
+	});
+	it("holds unsupported rejection billing policies instead of charging or releasing credits", async () => {
+		const f = fixture();
+		Object.assign(f.job, { failureCode: "PROVIDER_POLICY_REJECTED_NO_CHARGE", assets: [] });
+		Object.assign(f.job.pricingSnapshot, {
+			kiePolicyRejectionBillingPolicy: "unknown-future-policy",
+		});
+		await expect(settleGeneration(payload, { store: f.store })).rejects.toThrow(
+			"KIE_REJECTION_BILLING_POLICY_UNSUPPORTED",
+		);
+		expect(funding.settle).not.toHaveBeenCalled();
+	});
+	it("keeps ordinary technical failures and sponsored trials outside customer rejection charges", async () => {
+		for (const sponsored of [false, true]) {
+			const f = fixture();
+			Object.assign(f.job, {
+				failureCode: sponsored ? "PROVIDER_POLICY_REJECTED_NO_CHARGE" : "GENERATION_TIMEOUT",
+				assets: [],
+				guestTrialId: sponsored ? "trial" : null,
+			});
+			Object.assign(f.job.pricingSnapshot, {
+				kiePolicyRejectionBillingPolicy: "charge-quoted-credits-v1",
+			});
+			await settleGeneration(payload, { store: f.store });
+			expect(funding.settle).toHaveBeenLastCalledWith(
+				expect.objectContaining({ amount: 0n }),
+				f.tx,
+			);
+		}
+		expect(funding.kieRejection).not.toHaveBeenCalled();
+	});
 	it.each([undefined, "false", "TRUE", "1"])(
 		"defaults to the legacy path for %s",
 		async (value) => {

@@ -38,6 +38,9 @@ import {
 import {
 	isTechnicalGenerationFailureCode,
 	KIE_ZERO_COST_REJECTION_CODE,
+	KIE_CHARGED_POLICY_REJECTION_CODE,
+	KIE_POLICY_REJECTION_BILLING_POLICY,
+	kieZeroCostRejectionEvidenceSchema,
 	isTemporaryReferenceObjectKey,
 	isRetryableModerationError,
 	MODERATION_RETRYABLE_ERROR_CODES,
@@ -3706,6 +3709,7 @@ function settlementFailureCode(failureCode: string | null): string {
 	return isTechnicalGenerationFailureCode(failureCode) ||
 		failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
 		failureCode === KIE_ZERO_COST_REJECTION_CODE ||
+		failureCode === KIE_CHARGED_POLICY_REJECTION_CODE ||
 		failureCode === GUEST_OUTPUT_CARDINALITY_INVALID_CODE
 		? failureCode
 		: "NO_USABLE_OUTPUT";
@@ -3719,11 +3723,21 @@ function calculateSettlementCharge(input: {
 	pricingSnapshot: unknown;
 }): bigint {
 	const policy = settlementPolicyFromSnapshot(input.pricingSnapshot, input.reservedCredits);
+	if (input.status === "CANCELED" || input.failureCode === "SUBMISSION_REJECTED_CONFIRMED")
+		return 0n;
 	if (
-		input.status === "CANCELED" ||
-		input.failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
-		input.readyOutputCount === 0
+		input.failureCode === KIE_ZERO_COST_REJECTION_CODE ||
+		input.failureCode === KIE_CHARGED_POLICY_REJECTION_CODE
 	) {
+		const billingPolicy = (input.pricingSnapshot as Record<string, unknown>)
+			.kiePolicyRejectionBillingPolicy;
+		// Accepted historical quotes retain the settlement contract frozen at admission.
+		if (billingPolicy === undefined) return 0n;
+		if (billingPolicy !== KIE_POLICY_REJECTION_BILLING_POLICY)
+			throw new Error("KIE_REJECTION_BILLING_POLICY_UNSUPPORTED");
+		return policy.maxCharge;
+	}
+	if (input.readyOutputCount === 0) {
 		return 0n;
 	}
 	const approvedUnits = Math.min(input.readyOutputCount, policy.requestedOutputCount);
@@ -3860,6 +3874,38 @@ async function settleLockedGenerationCredits(
 		pricingSnapshot: job.pricingSnapshot,
 	});
 	let moderationFailureCode: string | undefined;
+	// Sponsored anonymous trials have no customer credit quote to charge.
+	if (
+		(job.guestTrialId || job.serviceClass === "GUEST_SLOW") &&
+		job.failureCode === KIE_ZERO_COST_REJECTION_CODE
+	)
+		chargeCredits = 0n;
+	if (
+		chargeCredits > 0n &&
+		(job.failureCode === KIE_ZERO_COST_REJECTION_CODE ||
+			job.failureCode === KIE_CHARGED_POLICY_REJECTION_CODE)
+	) {
+		// Recheck the original authenticated/attested evidence under settlement locks.
+		// A failure code alone never authorizes charging for an unavailable output.
+		const attempts = await tx.generationAttempt.findMany({
+			where: { jobId: job.id },
+			select: { id: true, responseSnapshot: true },
+			take: 2,
+		});
+		const snapshot = attempts[0]?.responseSnapshot;
+		const evidence = kieZeroCostRejectionEvidenceSchema.safeParse(
+			snapshot && typeof snapshot === "object" && !Array.isArray(snapshot)
+				? snapshot.confirmedZeroCostRejection
+				: undefined,
+		);
+		if (
+			attempts.length !== 1 ||
+			!evidence.success ||
+			!(await canSettleKieZeroCostRejection(attempts[0]!.id, evidence.data, tx))
+		)
+			throw new Error("KIE_REJECTION_BILLING_EVIDENCE_CONFLICT");
+		moderationFailureCode = KIE_CHARGED_POLICY_REJECTION_CODE;
+	}
 	if (
 		job.status === "FINALIZING" &&
 		!job.guestTrialId &&

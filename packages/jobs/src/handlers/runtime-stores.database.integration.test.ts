@@ -3789,6 +3789,105 @@ describe("production media runtime stores", () => {
 		});
 	});
 
+	it.each(["false", "true"])(
+		"charges a new quoted Kie sensitive rejection once with fresh reads %s while provider consumption stays zero",
+		async (freshReads) => {
+			const previous = process.env.MEDIA_SETTLEMENT_FRESH_READ_ENABLED;
+			process.env.MEDIA_SETTLEMENT_FRESH_READ_ENABLED = freshReads;
+			try {
+				const seeded = await seedPendingProviderJob("image-nano-banana-2-lite", {
+					pricingSnapshot: {
+						credits: "5",
+						kiePolicyRejectionBillingPolicy: "charge-quoted-credits-v1",
+						settlementPolicy: { unitCredits: "5", requestedOutputCount: 1, maxCharge: "5" },
+					},
+				});
+				await client.generationAttempt.update({
+					where: { id: seeded.attemptId },
+					data: { nextReconcileAt: new Date(0) },
+				});
+				const { snapshot, result } = await zeroCostRejectionResult(seeded.providerTaskId);
+				const store = createDatabaseReconciliationStore(client);
+				const [lease] = await store.claimStale({
+					attemptId: seeded.attemptId,
+					limit: 1,
+					leaseSeconds: 60,
+					now: new Date(),
+				});
+				expect(lease).toBeDefined();
+				await store.recordReconciled(lease!, snapshot, result);
+				await store.recordReconciled(lease!, snapshot, result);
+				const settlement = { store: createDatabaseSettlementStore(client) };
+				await Promise.all([
+					settleGeneration({ ...seeded, version: 0 }, settlement),
+					settleGeneration({ ...seeded, version: 0 }, settlement),
+				]);
+				const job = await client.generationJob.findUniqueOrThrow({
+					where: { id: seeded.jobId },
+					include: { reservation: { include: { account: true } }, attempts: true },
+				});
+				expect(job).toMatchObject({
+					status: "FAILED",
+					failureCode: "PROVIDER_POLICY_REJECTED_CHARGED",
+					reservation: {
+						status: "SETTLED",
+						settledAmount: 5n,
+						releasedAmount: 0n,
+						account: {
+							spendableCredits: 95n,
+							reservedCredits: 0n,
+							creditDebt: 0n,
+							outputModerationGraceJobId: null,
+						},
+					},
+				});
+				expect(job.attempts[0]).toMatchObject({
+					providerCostMicros: 0n,
+					responseSnapshot: {
+						providerCharged: false,
+						confirmedZeroCostRejection: result.confirmedZeroCostRejection,
+					},
+				});
+				expect(
+					await client.creditLedgerEntry.count({
+						where: { referenceKey: `settle:${seeded.jobId}`, amount: 5n },
+					}),
+				).toBe(1);
+				expect(
+					await client.creditLedgerEntry.count({
+						where: { referenceKey: `settle:${seeded.jobId}:release` },
+					}),
+				).toBe(0);
+			} finally {
+				if (previous === undefined) delete process.env.MEDIA_SETTLEMENT_FRESH_READ_ENABLED;
+				else process.env.MEDIA_SETTLEMENT_FRESH_READ_ENABLED = previous;
+			}
+		},
+	);
+	it("uses the frozen charge policy for an audited Kie rejection recovery", async () => {
+		const fixture = await seedHeldKieRejection(false, {
+			pricingSnapshot: {
+				credits: "5",
+				kiePolicyRejectionBillingPolicy: "charge-quoted-credits-v1",
+				settlementPolicy: { unitCredits: "5", requestedOutputCount: 1, maxCharge: "5" },
+			},
+		});
+		await resolveAdminKieZeroCostRejection(fixture.repair, client);
+		await settleGeneration(
+			{ ...fixture, version: 0 },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		expect(
+			await client.generationJob.findUniqueOrThrow({
+				where: { id: fixture.jobId },
+				include: { reservation: true },
+			}),
+		).toMatchObject({
+			status: "FAILED",
+			failureCode: "PROVIDER_POLICY_REJECTED_CHARGED",
+			reservation: { settledAmount: 5n, releasedAmount: 0n },
+		});
+	});
 	it("settles only a proven zero-cost Kie rejection once and preserves its evidence", async () => {
 		const seeded = await seedPendingProviderJob();
 		await client.generationAttempt.update({
@@ -4622,6 +4721,7 @@ async function seedReservedJob(
 		credits?: bigint;
 		pricingSnapshot?: {
 			outputModerationBillingPolicy?: string;
+			kiePolicyRejectionBillingPolicy?: string;
 			credits: string;
 			settlementPolicy: {
 				unitCredits: string;
@@ -5166,8 +5266,9 @@ function createOutputVerificationDependencies(
 
 async function seedPendingProviderJob(
 	productKey: "image-fast" | "image-nano-banana-2-lite" = "image-fast",
+	options?: Parameters<typeof seedReservedJob>[1],
 ) {
-	const seeded = await seedReservedJob(productKey);
+	const seeded = await seedReservedJob(productKey, options);
 	const store = createTestDispatchStore();
 	const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
 	if (claim && ("deferred" in claim || "phaseOwnershipLost" in claim))
@@ -5191,8 +5292,11 @@ async function seedPendingProviderJob(
 	};
 }
 
-async function seedHeldKieRejection(active = false) {
-	const seeded = await seedPendingProviderJob("image-nano-banana-2-lite");
+async function seedHeldKieRejection(
+	active = false,
+	options?: Parameters<typeof seedReservedJob>[1],
+) {
+	const seeded = await seedPendingProviderJob("image-nano-banana-2-lite", options);
 	if (!active) {
 		await client.generationAttempt.update({
 			where: { id: seeded.attemptId },

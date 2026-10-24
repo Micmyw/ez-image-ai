@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 export const KIE_ZERO_COST_REJECTION_CODE = "PROVIDER_POLICY_REJECTED_NO_CHARGE";
+/** Provider zero consumption and customer credit settlement are independent facts. */
+export const KIE_CHARGED_POLICY_REJECTION_CODE = "PROVIDER_POLICY_REJECTED_CHARGED";
+export const KIE_POLICY_REJECTION_BILLING_POLICY = "charge-quoted-credits-v1";
 export const KIE_SENSITIVE_REJECTION_MESSAGE =
 	"The input or output was flagged as sensitive. Please try again with different inputs.";
 
