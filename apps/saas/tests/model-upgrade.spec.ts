@@ -148,7 +148,8 @@ for (const width of [1440, 390]) {
 		);
 		expect(saved.draft.productKey).toBe("image-seedream-5-pro");
 		expect(saved.draft.input.prompt).toBe("Keep this instruction while I compare image models.");
-		expect(saved.draft.input.sourceAssetId).toBe("");
+		expect(saved.draft.input.kind).toBe("text-to-image");
+		expect(saved.draft.input).not.toHaveProperty("sourceAssetId");
 		expect(saved.sourceReady).toBe(false);
 		await page.goBack();
 		await expect(modelTrigger).toContainText("Seedream 5 Pro");
