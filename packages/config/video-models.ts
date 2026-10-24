@@ -395,7 +395,16 @@ export const videoModelReceiptInputSchema = z
 	.object({
 		productKey: z.string().min(1).max(100),
 		mode: z.enum(["text-to-video", "image-to-video"]),
-		prompt: z.string().trim().min(1).max(10000),
+		prompt: z
+			.string()
+			.trim()
+			.min(1)
+			.max(10000)
+			.superRefine((prompt, context) => {
+				// Zod measures code points; the moderation contract measures UTF-16 units.
+				if (prompt.length > 10000)
+					context.addIssue({ code: "too_big", origin: "string", maximum: 10000, inclusive: true });
+			}),
 		duration: z.number().int().positive(),
 		resolution: z.string().min(1).max(20),
 		aspectRatio: z.string().min(1).max(20),

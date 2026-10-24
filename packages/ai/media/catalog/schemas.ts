@@ -6,7 +6,16 @@ import {
 } from "@repo/config";
 import { z } from "zod";
 
-export const promptSchema = z.string().trim().min(1).max(10_000);
+export const promptSchema = z
+	.string()
+	.trim()
+	.min(1)
+	.max(10_000)
+	.superRefine((prompt, context) => {
+		// Preserve the moderation UTF-16 limit when Zod counts Unicode code points.
+		if (prompt.length > 10_000)
+			context.addIssue({ code: "too_big", origin: "string", maximum: 10_000, inclusive: true });
+	});
 // Upload sessions use UUIDs, Prisma-created outputs use CUIDs, and older
 // fixtures/assets retain their prefix. Ownership is checked against the DB.
 export const mediaAssetIdSchema = z.union([

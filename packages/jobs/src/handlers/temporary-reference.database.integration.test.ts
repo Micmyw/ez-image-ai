@@ -22,7 +22,7 @@ import {
 	unexpiredStorageReservations,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { providerCapacityForTestRequests } from "../../../database/test-support/provider-dispatch-capacity";
 import { IMAGE_APPROVAL_NO_TIME_EXPIRY } from "../media-approval-lifetime";
@@ -73,6 +73,7 @@ beforeAll(async () => {
 	mockProviderConcurrency = await providerCapacityForTestRequests(client, 16);
 });
 afterAll(async () => client?.$disconnect());
+afterEach(() => vi.unstubAllEnvs());
 
 async function fixture(
 	referenceRemainingMs = 86_400_000,
@@ -645,45 +646,49 @@ describe("temporary reference generation boundary", () => {
 			0,
 		);
 	});
-	it("enforces aggregate quota under races and expires only temporary reservations", async () => {
-		const ownerId = `quota-${crypto.randomUUID()}`;
-		const attempts = await Promise.allSettled(
-			[1, 2].map(() =>
-				reserveTemporaryReference(
-					{
-						ownerId,
-						assetId: crypto.randomUUID(),
-						bytes: 60,
-						expiresAt: new Date(Date.now() + 86_400_000),
-						maximumBytes: 100n,
-					},
-					client,
+	it.each([false, true])(
+		"enforces raced quota and retention with automatic deletion %s",
+		async (automaticDeletion) => {
+			vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", automaticDeletion ? "true" : undefined);
+			const ownerId = `quota-${crypto.randomUUID()}`;
+			const attempts = await Promise.allSettled(
+				[1, 2].map(() =>
+					reserveTemporaryReference(
+						{
+							ownerId,
+							assetId: crypto.randomUUID(),
+							bytes: 60,
+							expiresAt: new Date(Date.now() + 86_400_000),
+							maximumBytes: 100n,
+						},
+						client,
+					),
 				),
-			),
-		);
-		expect(attempts.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-		await client.storageUsageReservation.updateMany({
-			where: { ownerId },
-			data: { expiresAt: new Date(0) },
-		});
-		await client.storageUsageReservation.create({
-			data: {
-				ownerType: "USER",
-				ownerId,
-				bytes: 10n,
-				status: "COMMITTED",
-				expiresAt: new Date(0),
-				referenceKey: `permanent:${ownerId}`,
-			},
-		});
-		const usage = await client.storageUsageReservation.aggregate({
-			where: {
-				ownerId,
-				status: { in: ["ACTIVE", "COMMITTED"] },
-				...unexpiredStorageReservations(),
-			},
-			_sum: { bytes: true },
-		});
-		expect(usage._sum.bytes).toBe(10n);
-	});
+			);
+			expect(attempts.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+			await client.storageUsageReservation.updateMany({
+				where: { ownerId },
+				data: { expiresAt: new Date(0) },
+			});
+			await client.storageUsageReservation.create({
+				data: {
+					ownerType: "USER",
+					ownerId,
+					bytes: 10n,
+					status: "COMMITTED",
+					expiresAt: new Date(0),
+					referenceKey: `permanent:${ownerId}`,
+				},
+			});
+			const usage = await client.storageUsageReservation.aggregate({
+				where: {
+					ownerId,
+					status: { in: ["ACTIVE", "COMMITTED"] },
+					...unexpiredStorageReservations(),
+				},
+				_sum: { bytes: true },
+			});
+			expect(usage._sum.bytes).toBe(automaticDeletion ? 10n : 70n);
+		},
+	);
 });

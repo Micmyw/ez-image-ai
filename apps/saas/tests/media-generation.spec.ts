@@ -827,7 +827,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		).toBe(reservationsBefore);
 	});
 
-	test("legacy upload API verifies permanent images and releases invalid uploads", async ({
+	test("legacy upload API verifies permanent images and retains invalid uploads during the deletion pause", async ({
 		page,
 	}) => {
 		const user = await userByEmail(fundedEmail);
@@ -863,22 +863,29 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		expect(reservation?.status).toBe("ACTIVE");
 		const cleanupDedupeKey = `media-upload-finalization-failure-cleanup:${session!.id}`;
 		const cleanup = (
-			await rows<{ status: string; availableAt: Date; createdAt: Date }>(
-				`SELECT status, "availableAt", "createdAt" FROM outbox_event WHERE "dedupeKey"=$1`,
+			await rows<{ status: string; attempts: number; availableAt: Date; createdAt: Date }>(
+				`SELECT status, attempts, "availableAt", "createdAt" FROM outbox_event WHERE "dedupeKey"=$1`,
 				[cleanupDedupeKey],
 			)
 		)[0];
 		expect(cleanup?.status).toBe("PENDING");
 		expect(cleanup!.availableAt.getTime()).toBeGreaterThan(cleanup!.createdAt.getTime());
+		const cleanupRequestedAt = new Date();
 		await pool.query(`UPDATE outbox_event SET "availableAt"=$2 WHERE "dedupeKey"=$1`, [
 			cleanupDedupeKey,
-			new Date(),
+			cleanupRequestedAt,
 		]);
 		await expect
 			.poll(async () =>
 				count(
-					`SELECT count(*) FROM outbox_event WHERE "dedupeKey"=$1 AND "processedAt" IS NOT NULL`,
-					[cleanupDedupeKey],
+					`SELECT count(*) FROM outbox_event WHERE "dedupeKey"=$1 AND status='PENDING'
+					 AND "processedAt" IS NULL AND "leaseToken" IS NULL AND attempts=$3
+					 AND "availableAt" > $2`,
+					[
+						cleanupDedupeKey,
+						new Date(cleanupRequestedAt.getTime() + 30 * 60_000),
+						cleanup!.attempts,
+					],
 				),
 			)
 			.toBe(1);
@@ -892,7 +899,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 						)
 					)[0]?.status,
 			)
-			.toBe("RELEASED");
+			.toBe("ACTIVE");
 	});
 
 	async function uploadLegacyFile(page: import("@playwright/test").Page, buffer: Buffer) {

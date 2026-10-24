@@ -266,6 +266,9 @@ describe("official video model capabilities", () => {
 		expect(videoModelInputSchema.safeParse({ ...base, prompt: "a".repeat(10001) }).success).toBe(
 			false,
 		);
+		expect(videoModelInputSchema.safeParse({ ...base, prompt: "😀".repeat(5000) }).success).toBe(
+			true,
+		);
 		expect(videoModelInputSchema.safeParse({ ...base, prompt: "😀".repeat(5001) }).success).toBe(
 			false,
 		);

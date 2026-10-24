@@ -15,7 +15,7 @@ import {
 	reserveImagePassForJobInTransaction,
 } from "@repo/database";
 import { PrismaClient, type Prisma } from "@repo/database/generated-client";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SettlementTransactionConflictError } from "../contracts";
 import { createDatabaseSettlementStore } from "../runtime";
@@ -653,6 +653,7 @@ describe.each([false, true])("settlement on PostgreSQL with fresh-read %s", (fre
 	const results: Record<string, unknown> = fresh ? {} : diagnostics;
 	if (fresh) diagnostics.freshRead = results;
 	beforeAll(() => vi.stubEnv("MEDIA_SETTLEMENT_FRESH_READ_ENABLED", fresh ? "true" : undefined));
+	beforeEach(() => vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", undefined));
 	afterAll(() => vi.unstubAllEnvs());
 	it("retains its selected isolation, current evidence and idempotent financial settlement", async () => {
 		const f = await fixture("correctness");
@@ -789,6 +790,8 @@ describe.each([false, true])("settlement on PostgreSQL with fresh-read %s", (fre
 	});
 
 	it("does not deadlock with guest cleanup holding output A while releasing waiting job B", async () => {
+		// Exercise the retained automatic-cleanup lock protocol explicitly.
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "true");
 		const f = await guestCleanupFixture();
 		const heldAccount = deferred<number>();
 		const cleanupAtAccount = deferred<void>();
