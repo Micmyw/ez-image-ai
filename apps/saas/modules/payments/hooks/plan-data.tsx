@@ -1,4 +1,8 @@
-import { getPlanUsageEstimate, PLAN_ENTITLEMENTS } from "@repo/config/client";
+import {
+	FREE_ACCOUNT_SIGN_IN_CREDITS,
+	getPlanUsageEstimate,
+	PLAN_ENTITLEMENTS,
+} from "@repo/config/client";
 import { config } from "@repo/payments/config";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
@@ -19,19 +23,26 @@ export function usePlanData() {
 		if (entitlement) {
 			const usage = getPlanUsageEstimate(entitlement.id);
 			technicalFeatures = [
-				t("pricing.monthlyCredits", { credits: entitlement.monthlyCredits }),
-				usage.minimumImageEdits === usage.maximumImageEdits
-					? t("pricing.monthlyFixedImageAllowance", {
-							count: usage.maximumImageEdits,
+				entitlement.id === "free"
+					? t("pricing.welcomeCredits", { credits: FREE_ACCOUNT_SIGN_IN_CREDITS })
+					: t("pricing.monthlyCredits", { credits: entitlement.monthlyCredits }),
+				entitlement.id === "free"
+					? t("pricing.welcomeImageAllowance", {
+							count: Math.floor(FREE_ACCOUNT_SIGN_IN_CREDITS / usage.minimumCreditsPerImage),
 							credits: usage.minimumCreditsPerImage,
 						})
-					: t("pricing.monthlyImageAllowance", {
-							minimum: usage.minimumImageEdits,
-							maximum: usage.maximumImageEdits,
-							minimumCredits: usage.minimumCreditsPerImage,
-							maximumCredits: usage.maximumCreditsPerImage,
-						}),
-				t("pricing.creditExpiry"),
+					: usage.minimumImageEdits === usage.maximumImageEdits
+						? t("pricing.monthlyFixedImageAllowance", {
+								count: usage.maximumImageEdits,
+								credits: usage.minimumCreditsPerImage,
+							})
+						: t("pricing.monthlyImageAllowance", {
+								minimum: usage.minimumImageEdits,
+								maximum: usage.maximumImageEdits,
+								minimumCredits: usage.minimumCreditsPerImage,
+								maximumCredits: usage.maximumCreditsPerImage,
+							}),
+				t(entitlement.id === "free" ? "pricing.welcomeCreditExpiry" : "pricing.creditExpiry"),
 				t("pricing.maximumInputSize", {
 					megabytes: Math.round(entitlement.maximumInputBytes / 1024 / 1024),
 				}),

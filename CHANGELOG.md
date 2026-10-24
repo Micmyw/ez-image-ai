@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-10-24 — Free trial, subscription access and sensitive-content billing
+
+- Give each registered account one lifetime 10-credit allowance, enough for two Nano Banana 2 Lite 1K generations, and stop recurring monthly Free grants. Keep historical grants and purchased/subscription credits intact.
+- Restore Nano Banana 2 Lite 1K as the Free image option. Other image models and HD or higher-quality output require an effective paid subscription, including image-pass submissions; accepted tasks retain their original execution contracts.
+- Charge the full quoted credits for confirmed Kie sensitive-content rejections on newly quoted credit-funded image attempts, even when Kie reports zero consumption and no output. Preserve authenticated evidence, immutable/idempotent settlement, technical-failure releases, old accepted billing policies and the separate output-review waiver.
+- Explain the charge and subscription limits before generation and in result notices, pricing, docs and all supported locales.
+
 ## 2026-10-24 — Image review diagnostics and retention
 
 - Distinguish SeeAPI image decoding failures and download timeouts from malformed responses, retaining the original task identity and moderation safeguards.

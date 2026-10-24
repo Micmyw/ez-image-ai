@@ -263,7 +263,7 @@ describe("GenerationForm submission callbacks", () => {
 			}
 		},
 	);
-	it("submits Sunburst 1K with shared credits for a funded owner without a subscription", async () => {
+	it("blocks Sunburst 1K with shared credits for a funded owner without a subscription", async () => {
 		state.spendableCredits = "377";
 		state.values.productKey = "image-gpt-image-2-5-sunburst";
 		state.values.skuKey = "gpt-image-2-5-sunburst-1k";
@@ -271,18 +271,8 @@ describe("GenerationForm submission callbacks", () => {
 		const onCreated = vi.fn();
 		submit(render(onCreated, null, resolveEditorAllowedProductKeys(undefined, undefined)));
 		await flush();
-		expect(state.mutateAsync).toHaveBeenCalledWith(
-			expect.objectContaining({
-				productKey: "image-gpt-image-2-5-sunburst",
-				fundingSource: "CREDITS",
-				expectedCredits: "7",
-				input: expect.objectContaining({
-					skuKey: "gpt-image-2-5-sunburst-1k",
-					aspectRatio: "1:1",
-				}),
-			}),
-		);
-		expect(onCreated).toHaveBeenCalledWith("accepted-job");
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+		expect(onCreated).not.toHaveBeenCalled();
 	});
 	it("does not automatically spend image passes when credits are the selected source", async () => {
 		submit(render());
@@ -291,17 +281,30 @@ describe("GenerationForm submission callbacks", () => {
 			expect.objectContaining({ fundingSource: "CREDITS" }),
 		);
 	});
-	it("accepts an explicit image pass choice independently of plan product access", async () => {
-		const element = render(vi.fn(), null, []);
+	it("does not let image passes bypass subscription model access", async () => {
+		state.values.productKey = "image-gpt-image-2-5-sunburst";
+		state.values.skuKey = "gpt-image-2-5-sunburst-1k";
+		const allowedProductKeys = resolveEditorAllowedProductKeys(undefined, undefined);
+		const element = render(vi.fn(), null, allowedProductKeys);
 		(find(element, ImageFundingSelector).props.onChange as (source: ImageFundingSource) => void)(
 			"IMAGE_PASS",
 		);
-		submit(render(vi.fn(), null, []));
+		submit(render(vi.fn(), null, allowedProductKeys));
+		await flush();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+		expect(state.beginNewAction).toHaveBeenCalled();
+	});
+	it("accepts an explicit image pass choice for an entitled model", async () => {
+		const allowedProductKeys = resolveEditorAllowedProductKeys(undefined, undefined);
+		const element = render(vi.fn(), null, allowedProductKeys);
+		(find(element, ImageFundingSelector).props.onChange as (source: ImageFundingSource) => void)(
+			"IMAGE_PASS",
+		);
+		submit(render(vi.fn(), null, allowedProductKeys));
 		await flush();
 		expect(state.mutateAsync).toHaveBeenCalledWith(
 			expect.objectContaining({ fundingSource: "IMAGE_PASS", expectedCredits: "5" }),
 		);
-		expect(state.beginNewAction).toHaveBeenCalled();
 	});
 	it("keeps an exhausted pass choice and blocks submission rather than falling back to credits", async () => {
 		(find(render(), ImageFundingSelector).props.onChange as (source: ImageFundingSource) => void)(

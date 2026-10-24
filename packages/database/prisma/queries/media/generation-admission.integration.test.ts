@@ -170,6 +170,43 @@ async function disable(configKey: string) {
 	});
 }
 
+async function subscribeOwner(ownerId: string) {
+	const start = new Date(Date.now() - 60_000),
+		end = new Date(Date.now() + 60_000);
+	const plan = await client.billingPlan.create({
+		data: {
+			provider: prefix,
+			providerPriceId: ownerId,
+			name: "creator",
+			creditsPerPeriod: 100n,
+			priceMicros: 100n,
+			currency: "USD",
+			metadata: { planId: "creator" },
+		},
+	});
+	return client.subscription.create({
+		data: {
+			ownerType: "USER",
+			ownerId,
+			provider: prefix,
+			providerSubscriptionId: ownerId,
+			planId: plan.id,
+			status: "ACTIVE",
+			currentPeriodStart: start,
+			currentPeriodEnd: end,
+			periods: {
+				create: {
+					startsAt: start,
+					endsAt: end,
+					paidAmount: 100n,
+					creditAmount: 100n,
+					status: "PENDING",
+				},
+			},
+		},
+	});
+}
+
 describe("combined generation final atomic qualification", () => {
 	beforeAll(() => {
 		client = new PrismaClient({ adapter: new PrismaPg({ connectionString: isolatedUrl() }) });
@@ -198,67 +235,85 @@ describe("combined generation final atomic qualification", () => {
 			}
 		},
 	);
-	it("spends valid shared credits after the subscription ended following quotation", async () => {
+	it("rejects an unused premium quote after its subscription ended despite valid credits", async () => {
 		const f = await fixture({ catalogSelection: sunburstSelection });
-		const start = new Date(Date.now() - 60_000),
-			end = new Date(Date.now() + 60_000);
-		const plan = await client.billingPlan.create({
-			data: {
-				provider: prefix,
-				providerPriceId: f.ownerId,
-				name: "creator",
-				creditsPerPeriod: 100n,
-				priceMicros: 100n,
-				currency: "USD",
-				metadata: { planId: "creator" },
-			},
-		});
-		const subscription = await client.subscription.create({
-			data: {
-				ownerType: "USER",
-				ownerId: f.ownerId,
-				provider: prefix,
-				providerSubscriptionId: f.ownerId,
-				planId: plan.id,
-				status: "ACTIVE",
-				currentPeriodStart: start,
-				currentPeriodEnd: end,
-				periods: {
-					create: {
-						startsAt: start,
-						endsAt: end,
-						paidAmount: 100n,
-						creditAmount: 100n,
-						status: "PENDING",
-					},
-				},
-			},
-		});
+		const subscription = await subscribeOwner(f.ownerId);
 		await client.subscription.update({
 			where: { id: subscription.id },
 			data: { refundTerminationRequestedAt: new Date() },
 		});
-		await expect(createGenerationJobTransaction(f.input, client)).resolves.toMatchObject({
-			replayed: false,
-			job: { creditsReserved: 7n },
-			reservation: { amount: 7n, status: "ACTIVE" },
-		});
+		await expect(createGenerationJobTransaction(f.input, client)).rejects.toThrow(
+			"ENTITLEMENT_REQUIRED",
+		);
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
 		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({
 			valid: true,
-			account: { spendable: 93n, reserved: 7n, debt: 0n },
+			account: { spendable: 100n, reserved: 0n, debt: 0n },
 		});
 	});
-	it("admits Sunburst 1K from a non-subscriber grant and replays its ledger release", async () => {
+	it.each(["ACTIVE", "CANCELED", "PAST_DUE"] as const)(
+		"admits premium 4K with a paid %s subscription and valid grant credits",
+		async (status) => {
+			const f = await fixture({
+				amount: 377n,
+				catalogSelection: {
+					...sunburstSelection,
+					input: { ...sunburstSelection.input, skuKey: "gpt-image-2-5-sunburst-4k" },
+				},
+			});
+			const subscription = await subscribeOwner(f.ownerId);
+			await client.subscription.update({
+				where: { id: subscription.id },
+				data: {
+					status,
+					...(status === "PAST_DUE"
+						? {
+								currentPeriodEnd: new Date(Date.now() - 1_000),
+								graceEndsAt: new Date(Date.now() + 60_000),
+							}
+						: {}),
+				},
+			});
+			await expect(createGenerationJobTransaction(f.input, client)).resolves.toMatchObject({
+				replayed: false,
+				job: { creditsReserved: 17n },
+				reservation: { amount: 17n, status: "ACTIVE" },
+			});
+			expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({
+				valid: true,
+				account: { spendable: 360n, reserved: 17n, debt: 0n },
+			});
+		},
+	);
+	it("rejects a premium image from a non-subscriber grant without reserving credits", async () => {
 		const f = await fixture({ amount: 377n, catalogSelection: sunburstSelection });
-		expect(f.catalogQuote).toMatchObject({ credits: 7n, costMicros: 30_000n });
 		expect(
 			await client.subscription.count({ where: { ownerType: "USER", ownerId: f.ownerId } }),
 		).toBe(0);
+		await expect(createGenerationJobTransaction(f.input, client)).rejects.toThrow(
+			"ENTITLEMENT_REQUIRED",
+		);
+		expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({
+			valid: true,
+			account: { spendable: 377n, reserved: 0n, debt: 0n },
+		});
+	});
+	it("keeps accepted premium work and its ledger replay stable after subscription expiry", async () => {
+		const f = await fixture({ amount: 377n, catalogSelection: sunburstSelection });
+		const subscription = await subscribeOwner(f.ownerId);
+		expect(f.catalogQuote).toMatchObject({ credits: 7n, costMicros: 30_000n });
 		const created = await createGenerationJobTransaction(f.input, client);
 		expect(created).toMatchObject({
 			replayed: false,
 			job: { status: "RESERVED", creditsReserved: 7n },
 			reservation: { amount: 7n, status: "ACTIVE" },
+		});
+		await client.subscription.update({
+			where: { id: subscription.id },
+			data: { refundTerminationRequestedAt: new Date() },
 		});
 		await expect(createGenerationJobTransaction(f.input, client)).resolves.toMatchObject({
 			replayed: true,
@@ -312,7 +367,6 @@ describe("combined generation final atomic qualification", () => {
 		async (funding) => {
 			const f = await fixture({
 				amount: 377n,
-				catalogSelection: sunburstSelection,
 				...(funding === "expired" ? { grantExpiresAt: new Date(Date.now() - 60_000) } : {}),
 			});
 			if (funding === "refunded")

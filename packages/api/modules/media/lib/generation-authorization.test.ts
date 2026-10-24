@@ -74,7 +74,7 @@ describe("generation authorization", () => {
 			IMAGE_SKU_KEYS_BY_PRODUCT[productKey].map((skuKey) => ({ productKey, skuKey })),
 		),
 	)(
-		"authorizes $productKey / $skuKey with valid shared credits and no paid plan",
+		"enforces subscription model access for $productKey / $skuKey despite a funded balance",
 		async ({ productKey, skuKey }) => {
 			const input = {
 				kind: "text-to-image" as const,
@@ -83,6 +83,23 @@ describe("generation authorization", () => {
 				aspectRatio: skuKey === "gpt-image-2-4k" ? ("3:2" as const) : ("1:1" as const),
 			};
 			const quote = buildMediaQuote({ productKey, input }, KIE_IMAGE_ROUTE_GRAPH);
+			const authorization = assertGenerationAllowed(
+				{
+					userId: "credit-owner",
+					productKey,
+					input,
+					credits: quote.credits,
+					costMicros: quote.costMicros,
+					routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+				},
+				{
+					enforceRateLimit: async () => {},
+					isEnvironmentGenerationEnabled: () => true,
+					loadAccess: async () => ({ ...BASE_SNAPSHOT, planId: "free", spendableCredits: 377n }),
+				},
+			);
+			if (productKey === FREE_IMAGE_PRODUCT) await expect(authorization).resolves.toBeUndefined();
+			else await expect(authorization).rejects.toThrow("ENTITLEMENT_REQUIRED");
 			await expect(
 				assertGenerationAllowed(
 					{
@@ -96,14 +113,18 @@ describe("generation authorization", () => {
 					{
 						enforceRateLimit: async () => {},
 						isEnvironmentGenerationEnabled: () => true,
-						loadAccess: async () => ({ ...BASE_SNAPSHOT, planId: "free", spendableCredits: 377n }),
+						loadAccess: async () => ({
+							...BASE_SNAPSHOT,
+							planId: "creator",
+							spendableCredits: 377n,
+						}),
 					},
 				),
 			).resolves.toBeUndefined();
 		},
 	);
 	it.each(["text-to-image", "image-to-image"] as const)(
-		"authorizes the unchanged Sunburst 1K quote for funded Free %s requests",
+		"allows subscriber shared credits for the unchanged Sunburst 1K %s quote",
 		async (kind) => {
 			const input = {
 				kind,
@@ -128,7 +149,7 @@ describe("generation authorization", () => {
 				isEnvironmentGenerationEnabled: () => true,
 				loadAccess: async () => ({
 					...BASE_SNAPSHOT,
-					planId: "free" as const,
+					planId: "creator" as const,
 					spendableCredits: 7n,
 				}),
 			};
@@ -136,12 +157,12 @@ describe("generation authorization", () => {
 			await expect(
 				assertGenerationAllowed(request, {
 					...dependencies,
-					loadAccess: async () => ({ ...BASE_SNAPSHOT, planId: "free", spendableCredits: 6n }),
+					loadAccess: async () => ({ ...BASE_SNAPSHOT, planId: "creator", spendableCredits: 6n }),
 				}),
 			).rejects.toThrow("INSUFFICIENT_CREDITS");
 		},
 	);
-	it("authorizes a free owner for one highest-resolution image using only an available pass", async () => {
+	it("does not let an available image pass unlock a premium model for a free owner", async () => {
 		await expect(
 			assertGenerationAllowed(
 				{
@@ -164,6 +185,36 @@ describe("generation authorization", () => {
 					loadAccess: async () => ({
 						...BASE_SNAPSHOT,
 						planId: "free",
+						spendableCredits: 0n,
+						imagePassAvailable: true,
+					}),
+				},
+			),
+		).rejects.toThrow("ENTITLEMENT_REQUIRED");
+	});
+	it("allows a subscribed owner to use an image pass without ordinary credits", async () => {
+		await expect(
+			assertGenerationAllowed(
+				{
+					userId: "pass-owner",
+					productKey: "image-nano-banana-pro",
+					credits: 25n,
+					costMicros: 120_000n,
+					fundingSource: "IMAGE_PASS",
+					input: {
+						kind: "text-to-image",
+						prompt: "A vase",
+						skuKey: "nano-banana-pro-4k",
+						aspectRatio: "1:1",
+					},
+					routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+				},
+				{
+					enforceRateLimit: async () => {},
+					isEnvironmentGenerationEnabled: () => true,
+					loadAccess: async () => ({
+						...BASE_SNAPSHOT,
+						planId: "creator",
 						spendableCredits: 0n,
 						imagePassAvailable: true,
 					}),
@@ -598,7 +649,7 @@ describe("server generation flood receipt", () => {
 	it("keeps a pass independent of credits while rechecking its balance and debt after a valid flood receipt", async () => {
 		const snapshot = {
 			...BASE_SNAPSHOT,
-			planId: "free" as const,
+			planId: "creator" as const,
 			spendableCredits: 0n,
 			imagePassAvailable: true,
 			storageUsageBytes: 100_000_000_000n,

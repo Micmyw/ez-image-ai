@@ -18,15 +18,19 @@ describe("resolveEditorRecovery", () => {
 		expect(hasEditorRecoveryRequest({}, null)).toBe(false);
 	});
 
-	it("keeps all supported image models available without changing the owner's free plan limits", () => {
+	it("requires paid plan access for every image model except Nano Banana 2 Lite 1K", () => {
 		expect(resolveEditorAllowedProductKeys({ planId: "creator" }, "ignored")).toEqual([
 			...EZPIC_PRODUCT_KEYS,
 		]);
-		expect(resolveEditorAllowedProductKeys(undefined, undefined)).toEqual([...EZPIC_PRODUCT_KEYS]);
-		expect(resolveEditorAllowedProductKeys({}, "unknown-plan")).toEqual([...EZPIC_PRODUCT_KEYS]);
+		expect(resolveEditorAllowedProductKeys(undefined, undefined)).toEqual([
+			"image-nano-banana-2-lite",
+		]);
+		expect(resolveEditorAllowedProductKeys({}, "unknown-plan")).toEqual([
+			"image-nano-banana-2-lite",
+		]);
 		expect(resolvePlanEntitlement(undefined, undefined)).toMatchObject({
 			id: "free",
-			monthlyCredits: 25,
+			monthlyCredits: 0,
 			maximumInputBytes: 10 * 1024 * 1024,
 		});
 	});

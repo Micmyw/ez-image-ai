@@ -49,6 +49,9 @@
 		"maximumInputSize": "Source images up to {megabytes, number} MB",
 		"month": "{count, plural, one {month} other {{count} months}}",
 		"monthlyCredits": "{credits, number} credits per month",
+		"welcomeCredits": "{credits, number} credits once per eligible account",
+		"welcomeImageAllowance": "{count, number} basic images at {credits, number} credits each",
+		"welcomeCreditExpiry": "One lifetime allowance; no monthly refill.",
 		"monthlyFixedImageAllowance": "Up to {count, number} images per month at {credits, number} credits each",
 		"monthlyImageAllowance": "About {minimum, number}–{maximum, number} images per month at {minimumCredits, number}–{maximumCredits, number} credits each",
 		"monthly": "Monthly",
@@ -74,9 +77,9 @@
 				"title": "Enterprise"
 			},
 			"free": {
-				"description": "Try available image models with your monthly credits.",
+				"description": "10 one-time credits for two Nano Banana 2 Lite 1K generations. No monthly refill.",
 				"features": {
-					"standardEdit": "All available image models",
+					"standardEdit": "Nano Banana 2 Lite 1K access",
 					"privateAssets": "Private source images and edited assets",
 					"editHistory": "Private edit sessions and history"
 				},
@@ -120,7 +123,7 @@
 		"subscriberBonusAmount": "Subscriber bonus: {credits}",
 		"subscriberReceives": "Subscribers receive {credits} credits",
 		"title": "Pricing",
-		"tierAccessStandard": "All available image models",
+		"tierAccessStandard": "Nano Banana 2 Lite 1K access",
 		"tierAccessAll": "All available image models and model-specific SKU options",
 		"trialPeriod": "{days} {days, plural, one {day} other {days}} free trial",
 		"year": "{count, plural, one {year} other {{count} years}}",

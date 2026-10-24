@@ -2,345 +2,93 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
+import { createCreditGrant, getCreditInvariantReport } from "./credits";
 import {
 	ensureFreeMonthlyCreditGrant,
 	hasMatchingFreeMonthlyCreditGrant,
 } from "./free-plan-credits";
 
+const prefix = "retired-free-monthly-" + crypto.randomUUID();
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const DATABASE_URL = process.env.DATABASE_URL;
-const RUN_ID = crypto.randomUUID();
-const OWNER_PREFIX = `pr6-free-credits-${RUN_ID}`;
-const PLAN_PROVIDER = `pr6-free-credits-${RUN_ID}`;
-
 let client: PrismaClient;
-const planIds: string[] = [];
-const subscriptionIds: string[] = [];
-const userIds: string[] = [];
 
-describe("Free monthly credit grants", () => {
+describe("retired Free monthly credit producer", () => {
 	beforeAll(() => {
 		client = new PrismaClient({
 			adapter: new PrismaPg({ connectionString: safeTestDatabaseUrl() }),
 		});
 	});
+	afterAll(async () => client?.$disconnect());
 
-	afterAll(async () => {
-		if (!client) return;
-		const [deletedSubscriptions, deletedPlans, deletedUsers] = await client.$transaction([
-			client.subscription.deleteMany({ where: { id: { in: subscriptionIds } } }),
-			client.billingPlan.deleteMany({ where: { id: { in: planIds } } }),
-			client.user.deleteMany({ where: { id: { in: userIds } } }),
-		]);
-		const [remainingSubscriptions, remainingPlans, remainingUsers] = await Promise.all([
-			client.subscription.count({ where: { id: { in: subscriptionIds } } }),
-			client.billingPlan.count({ where: { id: { in: planIds } } }),
-			client.user.count({ where: { id: { in: userIds } } }),
-		]);
-		if (
-			deletedSubscriptions.count !== subscriptionIds.length ||
-			deletedPlans.count !== planIds.length ||
-			deletedUsers.count !== userIds.length ||
-			remainingSubscriptions !== 0 ||
-			remainingPlans !== 0 ||
-			remainingUsers !== 0
-		) {
-			throw new Error("PR6_FREE_PLAN_FIXTURE_CLEANUP_FAILED");
-		}
-		await client.$disconnect();
-	});
-
-	it("returns before account, lot, or ledger writes for an anonymous user", async () => {
-		const ownerId = `${OWNER_PREFIX}-anonymous`;
-		const user = await client.user.create({
-			data: {
-				id: ownerId,
-				name: "Anonymous",
-				email: `${ownerId}@guest.invalid`,
-				emailVerified: false,
-				isAnonymous: true,
-				createdAt: new Date("2026-08-25T06:00:00.000Z"),
-				updatedAt: new Date("2026-08-25T06:00:00.000Z"),
-			},
-		});
-		userIds.push(user.id);
-
-		await expect(
-			ensureFreeMonthlyCreditGrant(
-				{
-					ownerId,
-					amount: 25n,
-					now: new Date("2026-08-25T06:00:00.000Z"),
-				},
-				client,
+	it("never creates monthly grants for a new owner, including concurrent future-month calls", async () => {
+		const ownerId = prefix + "-new";
+		const now = new Date();
+		const results = await Promise.all(
+			Array.from({ length: 12 }, (_, index) =>
+				ensureFreeMonthlyCreditGrant(
+					{
+						ownerId,
+						amount: 25n,
+						now: new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + index, 1)),
+					},
+					client,
+				),
 			),
-		).resolves.toEqual({ status: "ANONYMOUS_USER" });
+		);
+		expect(results.every(({ status }) => status === "DISABLED")).toBe(true);
 		expect(await client.creditAccount.count({ where: { ownerType: "USER", ownerId } })).toBe(0);
 		expect(
 			await client.creditLedgerEntry.count({
-				where: { account: { ownerType: "USER", ownerId } },
+				where: { referenceKey: { startsWith: "free-plan:user:" + ownerId } },
 			}),
 		).toBe(0);
 	});
 
-	it("fails closed before ledger writes when the authoritative user row is missing", async () => {
-		const ownerId = `${OWNER_PREFIX}-missing`;
-
-		await expect(
-			ensureFreeMonthlyCreditGrant(
-				{ ownerId, amount: 25n, now: new Date("2026-08-25T06:00:00.000Z") },
-				client,
-			),
-		).resolves.toEqual({ status: "USER_NOT_FOUND" });
-		expect(await client.creditAccount.count({ where: { ownerType: "USER", ownerId } })).toBe(0);
-	});
-
-	it("creates one existing-ledger grant for the UTC month", async () => {
-		const ownerId = `${OWNER_PREFIX}-grant`;
-		const now = new Date("2026-08-25T06:00:00.000Z");
-		await createRegisteredUser(ownerId);
-
-		await expect(
-			ensureFreeMonthlyCreditGrant({ ownerId, amount: 25n, now }, client),
-		).resolves.toMatchObject({
-			status: "GRANTED",
-			referenceKey: `free-plan:user:${ownerId}:2026-08`,
-		});
-
-		const account = await client.creditAccount.findUniqueOrThrow({
-			where: { ownerType_ownerId: { ownerType: "USER", ownerId } },
-		});
-		const [lots, ledger] = await Promise.all([
-			client.creditLot.findMany({ where: { accountId: account.id } }),
-			client.creditLedgerEntry.findMany({ where: { accountId: account.id } }),
-		]);
-		expect(account).toMatchObject({ spendableCredits: 25n, reservedCredits: 0n });
-		expect(lots).toHaveLength(1);
-		expect(lots[0]).toMatchObject({
-			grantedAmount: 25n,
-			remainingAmount: 25n,
-			expiresAt: new Date("2026-09-01T00:00:00.000Z"),
-		});
-		expect(ledger).toHaveLength(1);
-		expect(ledger[0]).toMatchObject({
-			type: "GRANT",
-			amount: 25n,
-			referenceKey: `free-plan:user:${ownerId}:2026-08`,
-		});
-		expect(ledger[0]?.metadata).toMatchObject({
-			command: {
+	it("preserves previously granted monthly lots and their immutable receipt while blocking renewal", async () => {
+		const ownerId = prefix + "-historical";
+		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+		const now = new Date();
+		const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+		const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+		const referenceKey = "free-plan:user:" + ownerId + ":" + periodStart.toISOString().slice(0, 7);
+		await createCreditGrant(
+			{
+				accountId: account.id,
+				amount: 25n,
+				referenceKey,
+				expiresAt: periodEnd,
 				metadata: {
 					planId: "free",
-					periodStart: "2026-08-01T00:00:00.000Z",
-					periodEnd: "2026-09-01T00:00:00.000Z",
+					periodStart: periodStart.toISOString(),
+					periodEnd: periodEnd.toISOString(),
 				},
 			},
-		});
-	});
-
-	it("is idempotent for replays and concurrent requests", async () => {
-		const ownerId = `${OWNER_PREFIX}-concurrent`;
-		await createRegisteredUser(ownerId);
-		const input = {
-			ownerId,
-			amount: 25n,
-			now: new Date("2026-08-25T06:00:00.000Z"),
-		};
-
-		await Promise.all([
-			ensureFreeMonthlyCreditGrant(input, client),
-			ensureFreeMonthlyCreditGrant(input, client),
-			ensureFreeMonthlyCreditGrant(input, client),
-		]);
-		await ensureFreeMonthlyCreditGrant(input, client);
-
-		const account = await client.creditAccount.findUniqueOrThrow({
-			where: { ownerType_ownerId: { ownerType: "USER", ownerId } },
-		});
-		const [lotCount, ledgerCount] = await Promise.all([
-			client.creditLot.count({ where: { accountId: account.id } }),
-			client.creditLedgerEntry.count({ where: { accountId: account.id, type: "GRANT" } }),
-		]);
-		expect(account.spendableCredits).toBe(25n);
-		expect(lotCount).toBe(1);
-		expect(ledgerCount).toBe(1);
-	});
-
-	it("matches the immutable requested grant after debt repayment and rejects changed commands", async () => {
-		const ownerId = `${OWNER_PREFIX}-debt-replay`;
-		await createRegisteredUser(ownerId);
-		await client.creditAccount.create({ data: { ownerType: "USER", ownerId, creditDebt: 10n } });
-		const input = { ownerId, amount: 25n, now: new Date("2026-08-25T06:00:00Z") };
-		await ensureFreeMonthlyCreditGrant(input, client);
-		const ledger = await client.creditLedgerEntry.findUniqueOrThrow({
-			where: { referenceKey: `free-plan:user:${ownerId}:2026-08` },
-		});
-		expect(ledger.amount).toBe(15n);
-		await expect(hasMatchingFreeMonthlyCreditGrant(input, client)).resolves.toBe(true);
-		await expect(
-			hasMatchingFreeMonthlyCreditGrant({ ...input, amount: 15n }, client),
-		).resolves.toBe(false);
-		await expect(ensureFreeMonthlyCreditGrant({ ...input, amount: 15n }, client)).rejects.toThrow(
-			"IDEMPOTENCY_CONFLICT",
-		);
-		await expect(
-			hasMatchingFreeMonthlyCreditGrant(
-				{ ...input, now: new Date("2026-09-01T00:00:00Z") },
-				client,
-			),
-		).resolves.toBe(false);
-		await expect(
-			hasMatchingFreeMonthlyCreditGrant({ ...input, ownerId: `${ownerId}-other` }, client),
-		).resolves.toBe(false);
-		await ensureFreeMonthlyCreditGrant({ ...input, now: new Date("2026-09-01T00:00:00Z") }, client);
-		expect(
-			await client.creditLedgerEntry.count({
-				where: { account: { ownerType: "USER", ownerId }, type: "GRANT" },
-			}),
-		).toBe(2);
-	});
-
-	it("reads a matching grant without advisory locks or account upserts", async () => {
-		const ownerId = `${OWNER_PREFIX}-query-count`;
-		await createRegisteredUser(ownerId);
-		const input = { ownerId, amount: 25n, now: new Date("2026-08-25T06:00:00Z") };
-		await ensureFreeMonthlyCreditGrant(input, client);
-		const observed = new PrismaClient({
-			adapter: new PrismaPg({ connectionString: safeTestDatabaseUrl() }),
-			log: [{ level: "query", emit: "event" }],
-		});
-		let queries: string[] = [];
-		observed.$on("query", ({ query }) => queries.push(query));
-		const samples: Array<{ before: number; after: number }> = [];
-		try {
-			await observed.$connect();
-			for (let i = 0; i < 3; i++) {
-				queries = [];
-				await ensureFreeMonthlyCreditGrant(input, observed);
-				const before = queries.length;
-				expect(queries.some((query) => query.includes("pg_advisory_xact_lock"))).toBe(true);
-				queries = [];
-				await expect(hasMatchingFreeMonthlyCreditGrant(input, observed)).resolves.toBe(true);
-				expect(
-					queries.some((query) => /pg_advisory_xact_lock|INSERT|UPDATE|BEGIN|COMMIT/i.test(query)),
-				).toBe(false);
-				expect(queries.length).toBeLessThan(before);
-				samples.push({ before, after: queries.length });
-			}
-			console.info("C5_ISOLATED_DB_SQL_COUNTS", JSON.stringify({ n: samples.length, samples }));
-		} finally {
-			await observed.$disconnect();
-		}
-	});
-
-	it.each([
-		{
-			label: "ACTIVE subscription",
-			status: "ACTIVE" as const,
-			graceEndsAt: null,
-			blocked: true,
-		},
-		{
-			label: "PAST_DUE subscription inside grace",
-			status: "PAST_DUE" as const,
-			graceEndsAt: new Date("2026-08-26T06:00:00.000Z"),
-			blocked: true,
-		},
-		{
-			label: "PAST_DUE subscription after grace",
-			status: "PAST_DUE" as const,
-			graceEndsAt: new Date("2026-08-25T05:59:59.999Z"),
-			blocked: false,
-		},
-		{
-			label: "old EXPIRED subscription",
-			status: "EXPIRED" as const,
-			graceEndsAt: new Date("2026-09-01T00:00:00.000Z"),
-			blocked: false,
-		},
-	])("handles a paid $label without stacking Free credits", async (scenario) => {
-		const ownerId = `${OWNER_PREFIX}-${scenario.status.toLowerCase()}-${crypto.randomUUID()}`;
-		await createRegisteredUser(ownerId);
-		const plan = await client.billingPlan.create({
-			data: {
-				provider: PLAN_PROVIDER,
-				providerPriceId: `price_${crypto.randomUUID()}`,
-				name: "creator",
-				creditsPerPeriod: 1_000n,
-				priceMicros: 19_000_000n,
-				currency: "USD",
-				metadata: { planId: "creator" },
-			},
-		});
-		planIds.push(plan.id);
-		const subscription = await client.subscription.create({
-			data: {
-				ownerType: "USER",
-				ownerId,
-				provider: "stripe",
-				providerSubscriptionId: `sub_${crypto.randomUUID()}`,
-				planId: plan.id,
-				status: scenario.status,
-				graceEndsAt: scenario.graceEndsAt,
-				currentPeriodStart: new Date("2026-08-01T00:00:00Z"),
-				currentPeriodEnd: new Date("2026-09-01T00:00:00Z"),
-				periods: {
-					create: {
-						startsAt: new Date("2026-08-01T00:00:00Z"),
-						endsAt: new Date("2026-09-01T00:00:00Z"),
-						paidAmount: 19000000n,
-						creditAmount: 1000n,
-						status: "ACTIVE",
-					},
-				},
-			},
-		});
-		subscriptionIds.push(subscription.id);
-
-		const result = await ensureFreeMonthlyCreditGrant(
-			{ ownerId, amount: 25n, now: new Date("2026-08-25T06:00:00.000Z") },
 			client,
 		);
-
-		expect(result.status).toBe(scenario.blocked ? "PAID_SUBSCRIPTION" : "GRANTED");
-		expect(
-			await client.creditLedgerEntry.count({
-				where: { account: { ownerType: "USER", ownerId }, type: "GRANT" },
-			}),
-		).toBe(scenario.blocked ? 0 : 1);
-		if (!scenario.blocked) {
-			await client.subscription.update({
-				where: { id: subscription.id },
-				data: { status: "ACTIVE", graceEndsAt: null },
-			});
-			const input = { ownerId, amount: 25n, now: new Date("2026-08-25T06:00:00Z") };
-			await expect(hasMatchingFreeMonthlyCreditGrant(input, client)).resolves.toBe(true);
-			await expect(ensureFreeMonthlyCreditGrant(input, client)).resolves.toMatchObject({
-				status: "PAID_SUBSCRIPTION",
-			});
-			expect(
-				await client.creditLedgerEntry.count({
-					where: { account: { ownerType: "USER", ownerId }, type: "GRANT" },
-				}),
-			).toBe(1);
-		}
+		const ledgerBefore = await client.creditLedgerEntry.findMany({
+			where: { accountId: account.id },
+		});
+		const lotsBefore = await client.creditLot.findMany({ where: { accountId: account.id } });
+		await expect(
+			hasMatchingFreeMonthlyCreditGrant({ ownerId, amount: 25n, now }, client),
+		).resolves.toBe(true);
+		for (const date of [now, periodEnd])
+			await expect(
+				ensureFreeMonthlyCreditGrant({ ownerId, amount: 25n, now: date }, client),
+			).resolves.toEqual({ status: "DISABLED" });
+		expect(await client.creditLedgerEntry.findMany({ where: { accountId: account.id } })).toEqual(
+			ledgerBefore,
+		);
+		expect(await client.creditLot.findMany({ where: { accountId: account.id } })).toEqual(
+			lotsBefore,
+		);
+		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({
+			valid: true,
+			account: { spendable: 25n, reserved: 0n, debt: 0n },
+		});
 	});
 });
-
-async function createRegisteredUser(ownerId: string): Promise<void> {
-	const user = await client.user.create({
-		data: {
-			id: ownerId,
-			name: "Registered",
-			email: `${ownerId}@example.test`,
-			emailVerified: true,
-			isAnonymous: false,
-			createdAt: new Date("2026-08-25T06:00:00.000Z"),
-			updatedAt: new Date("2026-08-25T06:00:00.000Z"),
-		},
-	});
-	userIds.push(user.id);
-}
 
 function safeTestDatabaseUrl(): string {
 	if (!TEST_DATABASE_URL) {

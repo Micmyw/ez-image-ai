@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { Prisma } from "../../generated/client";
-import { hasMatchingFreeMonthlyCreditGrant } from "./free-plan-credits";
+import {
+	ensureFreeMonthlyCreditGrant,
+	hasMatchingFreeMonthlyCreditGrant,
+} from "./free-plan-credits";
 import {
 	createCreditLedgerMetadata,
 	type CreditCommand,
@@ -42,6 +45,15 @@ function row(
 }
 
 describe("generation free grant immutable identity", () => {
+	it("disables new monthly grants before any database mutation", async () => {
+		const transaction = vi.fn(() => {
+			throw new Error("Retired monthly producer must not transact");
+		});
+		await expect(
+			ensureFreeMonthlyCreditGrant(input, { $transaction: transaction } as never),
+		).resolves.toEqual({ status: "DISABLED" });
+		expect(transaction).not.toHaveBeenCalled();
+	});
 	it("matches the requested command even when the entire grant repaid debt", async () => {
 		const findUnique = vi.fn().mockResolvedValue(row());
 		await expect(

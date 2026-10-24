@@ -70,7 +70,8 @@ export const getJob = protectedProcedure
 		const moderationBilling =
 			job.failureCode === "OUTPUT_CONTENT_BLOCKED_WAIVED"
 				? ("WAIVED" as const)
-				: job.failureCode === "OUTPUT_CONTENT_BLOCKED_CHARGED"
+				: job.failureCode === "OUTPUT_CONTENT_BLOCKED_CHARGED" ||
+					  job.failureCode === "PROVIDER_POLICY_REJECTED_CHARGED"
 					? ("CHARGED" as const)
 					: null;
 		const rejectedOutput = job.assets.find(

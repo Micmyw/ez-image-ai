@@ -37,7 +37,15 @@ describe("buildMediaQuote", () => {
 	it("freezes the disclosed first-block-free output billing policy for new jobs", () => {
 		expect(buildMediaQuote(NANO_QUOTE_INPUT, KIE_ROUTE_OPTIONS).pricingSnapshot).toMatchObject({
 			outputModerationBillingPolicy: "first-block-free-v1",
+			kiePolicyRejectionBillingPolicy: "charge-quoted-credits-v1",
 		});
+	});
+	it("keeps independent image passes outside the credit rejection charge policy", () => {
+		const quote = buildMediaQuote(
+			{ ...NANO_QUOTE_INPUT, fundingSource: "IMAGE_PASS" },
+			KIE_ROUTE_OPTIONS,
+		);
+		expect(quote.pricingSnapshot).not.toHaveProperty("kiePolicyRejectionBillingPolicy");
 	});
 	it("freezes the exact documented Kie model and selected SKU for all 29 image outputs", () => {
 		let count = 0;

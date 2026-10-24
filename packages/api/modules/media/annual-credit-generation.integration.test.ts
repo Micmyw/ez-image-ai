@@ -1,3 +1,4 @@
+import { call } from "@orpc/server";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { BILLING_PRICING_VERSION, DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import {
@@ -12,9 +13,23 @@ import { getVideoTemplateCreditBalance } from "@repo/database/video-template";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ensureFreePlanCreditsForUser } from "./lib/free-plan-credits";
+import { ensureFreePlanCreditsForGeneration } from "./lib/free-plan-credits";
 import { loadUserPlanEntitlement } from "./lib/plan-entitlement";
 import { createGenerationForUser } from "./procedures/create-generation";
 import { createQuoteForUser } from "./procedures/create-quote";
+import { getCreditAccount } from "./procedures/get-credit-account";
+
+const authentication = vi.hoisted(() => ({ ownerId: "" }));
+vi.mock("@repo/auth", () => ({
+	auth: {
+		api: {
+			getSession: async () => ({
+				user: { id: authentication.ownerId, isAnonymous: false },
+				session: { id: "isolated-session" },
+			}),
+		},
+	},
+}));
 
 const scenarios = [
 	{ planId: "creator", monthlyCredits: 700n, annualUsd: 114n },
@@ -40,6 +55,11 @@ const sunburstInput = {
 		skuKey: "gpt-image-2-5-sunburst-1k",
 		aspectRatio: "1:1",
 	},
+} as const;
+const freeInput = {
+	...sunburstInput,
+	productKey: "image-nano-banana-2-lite",
+	input: { ...sunburstInput.input, skuKey: "nano-banana-2-lite-1k" },
 } as const;
 let client: PrismaClient;
 const owners: string[] = [];
@@ -266,13 +286,83 @@ describe("new annual receipts fund ordinary image admission", () => {
 });
 
 describe("shared-credit image admission without a subscription", () => {
-	it("quotes and reserves Sunburst 1K from 377 compensation credits once", async () => {
+	it("grants ten lifetime credits once, admits exactly two basic generations and never refills monthly", async () => {
+		const ownerId = `welcome-image-${crypto.randomUUID()}`;
+		owners.push(ownerId);
+		authentication.ownerId = ownerId;
+		await client.user.create({
+			data: {
+				id: ownerId,
+				name: "Two-generation welcome allowance",
+				email: `${ownerId}@example.test`,
+				emailVerified: true,
+				isAnonymous: false,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		});
+		await runWithDatabaseClient(client, async () => {
+			const readBalance = () =>
+				call(getCreditAccount, undefined, { context: { headers: new Headers() } });
+			await expect(readBalance()).resolves.toMatchObject({
+				spendableCredits: "10",
+				reservedCredits: "0",
+			});
+			for (let index = 0; index < 2; index++) {
+				const quote = await createQuoteForUser(ownerId, freeInput);
+				await expect(
+					createGenerationForUser(ownerId, {
+						quoteId: quote.id,
+						idempotencyKey: `${ownerId}:${index}`,
+						fundingSource: "CREDITS",
+					}),
+				).resolves.toMatchObject({ replayed: false, job: { creditsReserved: 5n } });
+			}
+			await ensureFreePlanCreditsForGeneration(ownerId, new Date("2026-11-01T00:00:00Z"));
+			await expect(readBalance()).resolves.toMatchObject({
+				spendableCredits: "0",
+				reservedCredits: "10",
+			});
+			await expect(createQuoteForUser(ownerId, freeInput)).rejects.toThrow("INSUFFICIENT_CREDITS");
+			const account = await client.creditAccount.findUniqueOrThrow({
+				where: { ownerType_ownerId: { ownerType: "USER", ownerId } },
+			});
+			expect(
+				await client.creditLedgerEntry.count({ where: { accountId: account.id, type: "GRANT" } }),
+			).toBe(1);
+			expect(
+				await client.creditLedgerEntry.count({
+					where: { referenceKey: { startsWith: `free-plan:user:${ownerId}:` } },
+				}),
+			).toBe(0);
+			expect(await getCreditInvariantReport(account.id, client)).toMatchObject({
+				valid: true,
+				account: { spendable: 0n, reserved: 10n, debt: 0n },
+			});
+		});
+	});
+	it("rejects premium image quotation despite 377 valid compensation credits", async () => {
+		const { ownerId, accountId } = await nonSubscriberFixture(377n);
+		await runWithDatabaseClient(client, async () => {
+			await expect(createQuoteForUser(ownerId, sunburstInput)).rejects.toThrow(
+				"ENTITLEMENT_REQUIRED",
+			);
+			expect(await client.generationQuote.count({ where: { ownerId } })).toBe(0);
+			expect(await client.generationJob.count({ where: { ownerId } })).toBe(0);
+			expect(await client.creditReservation.count({ where: { accountId } })).toBe(0);
+			expect(await getCreditInvariantReport(accountId, client)).toMatchObject({
+				valid: true,
+				account: { spendable: 377n, reserved: 0n, debt: 0n },
+			});
+		});
+	});
+	it("quotes and reserves Nano Banana 2 Lite 1K from 377 compensation credits once", async () => {
 		const { ownerId, accountId, referenceKey } = await nonSubscriberFixture(377n);
 		await runWithDatabaseClient(client, async () => {
 			expect((await loadUserPlanEntitlement(ownerId)).id).toBe("free");
-			const quote = await createQuoteForUser(ownerId, sunburstInput);
+			const quote = await createQuoteForUser(ownerId, freeInput);
 			expect(quote).toMatchObject({
-				credits: 7n,
+				credits: 5n,
 				fundingSource: "CREDITS",
 				imagePassUnits: 0,
 				pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
@@ -281,10 +371,10 @@ describe("shared-credit image admission without a subscription", () => {
 			expect(
 				await client.generationQuote.findUniqueOrThrow({ where: { id: quote.id } }),
 			).toMatchObject({
-				productKey: sunburstInput.productKey,
-				credits: 7n,
-				costMicros: 30_000n,
-				inputSnapshot: sunburstInput.input,
+				productKey: freeInput.productKey,
+				credits: 5n,
+				costMicros: 20_000n,
+				inputSnapshot: freeInput.input,
 				moderationDecision: "ALLOW",
 				moderationProvider: "test",
 			});
@@ -296,17 +386,17 @@ describe("shared-credit image admission without a subscription", () => {
 			const created = await createGenerationForUser(ownerId, request);
 			expect(created).toMatchObject({
 				replayed: false,
-				job: { creditsReserved: 7n, fundingSource: "CREDITS", imagePassUnits: 0 },
+				job: { creditsReserved: 5n, fundingSource: "CREDITS", imagePassUnits: 0 },
 			});
 			await expect(createGenerationForUser(ownerId, request)).resolves.toMatchObject({
 				replayed: true,
-				job: { id: created.job.id, creditsReserved: 7n, fundingSource: "CREDITS" },
+				job: { id: created.job.id, creditsReserved: 5n, fundingSource: "CREDITS" },
 			});
 			expect(
 				await client.creditReservation.findUniqueOrThrow({ where: { jobId: created.job.id } }),
 			).toMatchObject({
 				accountId,
-				amount: 7n,
+				amount: 5n,
 				status: "ACTIVE",
 			});
 			const allocations = await client.creditReservationAllocation.findMany({
@@ -315,12 +405,12 @@ describe("shared-credit image admission without a subscription", () => {
 			});
 			expect(allocations).toHaveLength(1);
 			expect(allocations[0]).toMatchObject({
-				amount: 7n,
-				lot: { grantReferenceKey: referenceKey, remainingAmount: 370n, reservedAmount: 7n },
+				amount: 5n,
+				lot: { grantReferenceKey: referenceKey, remainingAmount: 372n, reservedAmount: 5n },
 			});
 			expect(await getCreditInvariantReport(accountId, client)).toMatchObject({
 				valid: true,
-				account: { spendable: 370n, reserved: 7n, debt: 0n },
+				account: { spendable: 372n, reserved: 5n, debt: 0n },
 			});
 			expect(await client.generationJob.count({ where: { ownerId } })).toBe(1);
 			expect(await client.creditLedgerEntry.count({ where: { accountId, type: "RESERVE" } })).toBe(
@@ -333,23 +423,23 @@ describe("shared-credit image admission without a subscription", () => {
 		});
 	});
 	it.each(["quote", "generation"] as const)(
-		"rejects six shared credits before %s without creating image work",
+		"rejects four shared credits before %s without creating image work",
 		async (stage) => {
 			const { ownerId, accountId, referenceKey } = await nonSubscriberFixture(
-				stage === "quote" ? 6n : 377n,
+				stage === "quote" ? 4n : 377n,
 			);
 			await runWithDatabaseClient(client, async () => {
 				if (stage === "quote") {
-					await expect(createQuoteForUser(ownerId, sunburstInput)).rejects.toThrow(
+					await expect(createQuoteForUser(ownerId, freeInput)).rejects.toThrow(
 						"INSUFFICIENT_CREDITS",
 					);
 				} else {
-					const quote = await createQuoteForUser(ownerId, sunburstInput);
+					const quote = await createQuoteForUser(ownerId, freeInput);
 					await refundCreditGrant(
 						{
 							accountId,
 							grantReferenceKey: referenceKey,
-							amount: 371n,
+							amount: 373n,
 							referenceKey: `${ownerId}:refund-after-quote`,
 						},
 						client,
@@ -372,7 +462,7 @@ describe("shared-credit image admission without a subscription", () => {
 				).toBe(0);
 				expect(await getCreditInvariantReport(accountId, client)).toMatchObject({
 					valid: true,
-					account: { spendable: 6n, reserved: 0n, debt: 0n },
+					account: { spendable: 4n, reserved: 0n, debt: 0n },
 				});
 			});
 		},

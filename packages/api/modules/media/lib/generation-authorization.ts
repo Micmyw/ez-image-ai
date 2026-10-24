@@ -268,10 +268,8 @@ export async function assertGenerationAllowed(
 	const entitlement = PLAN_ENTITLEMENTS.find((plan) => plan.id === access.planId);
 	if (fundingSource === "IMAGE_PASS" && !access.imagePassAvailable)
 		throw new Error("IMAGE_PASS_INSUFFICIENT");
-	if (
-		!entitlement ||
-		(fundingSource === "CREDITS" && !entitlement.allowedProducts.includes(input.productKey))
-	) {
+	// Funding selects what is reserved; it never grants subscription-only model access.
+	if (!entitlement || !entitlement.allowedProducts.includes(input.productKey)) {
 		throw new Error("ENTITLEMENT_REQUIRED");
 	}
 	if (!access.sourceAssetReady) throw new Error("ASSET_NOT_READY");

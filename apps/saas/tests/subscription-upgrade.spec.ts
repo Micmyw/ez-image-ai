@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import pg from "pg";
 
 import { assertLocalMediaE2E } from "../../../tooling/e2e/src/guard";
+import { EDITOR_UPGRADE_STORAGE_KEY } from "../modules/payments/lib/editor-upgrade";
 import { captureConsentedGrowthEvents } from "./growth-events";
 
 const localEnvironment = assertLocalMediaE2E();
@@ -138,7 +139,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		expect(growthEvents.map(({ name }) => name)).not.toContain("checkout_started");
 	});
 
-	test("subscription upgrade from billing waits for verified payment and preserves the editor", async ({
+	test("subscription upgrade waits for verified payment and restores the editor", async ({
 		page,
 	}) => {
 		const growthEvents = await captureConsentedGrowthEvents(page);
@@ -166,17 +167,21 @@ test.describe("subscription upgrade checkout recovery", () => {
 		await page.getByRole("button", { name: /^Model: / }).click();
 		await page.getByRole("button", { name: "GPT Image", exact: true }).click();
 		await page.locator('[data-test="editor-model-image-gpt-image-2"]').click();
+		const dialog = page.getByRole("dialog", { name: /unlock more image models/i });
+		await expect(dialog).toBeHidden();
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("GPT Image 2");
 		await expect(promptInput).toHaveValue(prompt);
-		await expect(page.locator('[data-test="generation-submit"]')).toBeEnabled();
-		await expect(page.locator('[data-test="editor-model-upgrade"]')).toHaveCount(0);
-		await expect(page.locator('[data-test="editor-model-access-notice"]')).toHaveCount(0);
+		await page.locator('[data-test="editor-model-upgrade"]').click();
+		await expect(dialog).toContainText(/image, instruction, and model settings stay saved/i);
+		await dialog.getByRole("button", { name: /choose a plan/i }).click();
 
-		await page.goto("/settings/billing");
-		await expect(page.locator('[data-test="price-table-plan"]')).toHaveCount(3);
-		await page.goto("/choose-plan?returnTo=%2Fcreate");
-		await expect(page.locator('[data-test="price-table-plan"]')).toHaveCount(3);
-		await expect.poll(() => freeGrantCount(user.id)).toBe(1);
+		await expect(page).toHaveURL(/\/choose-plan\?returnTo=/);
+		await expect
+			.poll(() =>
+				page.evaluate((key) => window.sessionStorage.getItem(key), EDITOR_UPGRADE_STORAGE_KEY),
+			)
+			.toContain(prompt);
+		await expect.poll(() => freeGrantCount(user.id)).toBe(0);
 		const grantCountBeforeReturn = await freeGrantCount(user.id);
 		const grantsBeforeReturn = await creditGrants(user.id);
 		// The fixture represents trusted processing in the isolated database. It
@@ -199,7 +204,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		);
 		await page.goto(
 			`/checkout-return?expectedPlanId=creator&checkoutIntentId=${encodeURIComponent(returnFixture.intentId)}&returnTo=${encodeURIComponent(
-				"/create",
+				"/create?upgrade=complete",
 			)}`,
 		);
 		await pendingState;
@@ -241,16 +246,22 @@ test.describe("subscription upgrade checkout recovery", () => {
 		expect(await creditGrants(user.id)).toEqual(grantsBeforeReturn);
 		await page.getByTestId("subscription-continue").click();
 
-		await expect(page).toHaveURL(/\/create$/, { timeout: 15_000 });
+		await expect(page).toHaveURL(/\/create\?model=image-gpt-image-2$/, { timeout: 15_000 });
+		await expect(page.getByText(/your paid plan is active/i)).toBeVisible();
 		await expect(page.getByLabel(/edit instruction|image prompt/i)).toHaveValue(prompt);
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("GPT Image 2");
 		await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible();
 		await expect(page.locator('[data-test="generation-submit"]')).toBeEnabled();
+		await expect
+			.poll(() =>
+				page.evaluate((key) => window.sessionStorage.getItem(key), EDITOR_UPGRADE_STORAGE_KEY),
+			)
+			.toBeNull();
 		expect(await freeGrantCount(user.id)).toBe(grantCountBeforeReturn);
 		expect(await creditGrants(user.id)).toEqual(grantsBeforeReturn);
 		await expect
 			.poll(() => growthEvents.map(({ name }) => name))
-			.toEqual(expect.arrayContaining(["subscription_activated"]));
+			.toEqual(expect.arrayContaining(["upgrade_prompt_viewed", "subscription_activated"]));
 		expect(unexpectedPaymentMutations).toEqual([]);
 	});
 });

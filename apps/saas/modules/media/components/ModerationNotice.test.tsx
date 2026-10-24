@@ -27,6 +27,25 @@ function render(overrides: Record<string, unknown>, locale = "en") {
 }
 
 describe("customer moderation feedback", () => {
+	it.each(["en", "de"])(
+		"explains a charged provider rejection without claiming an output or used waiver in %s",
+		(locale) => {
+			const markup = render(
+				{
+					failureCode: "PROVIDER_POLICY_REJECTED_CHARGED",
+					moderationBilling: "CHARGED",
+				},
+				locale,
+			);
+			expect(markup).toContain(
+				locale === "en" ? "The generation provider rejected" : "Der Generierungsanbieter hat",
+			);
+			expect(markup).toContain("17");
+			expect(markup).not.toContain("The image was generated");
+			expect(markup).not.toContain("waiver had already been used");
+			expect(markup).not.toContain("{credits}");
+		},
+	);
 	it("separates the outcome, charge, next step and appeal without exposing detector data", () => {
 		const markup = render({ moderationBilling: "CHARGED", moderationReason: "sexualContent" });
 		expect(markup).toContain("This result cannot be shown");

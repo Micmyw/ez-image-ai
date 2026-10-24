@@ -95,7 +95,7 @@
 			},
 			"free": {
 				"question": "Kann ich die Bild-zu-Bild-KI kostenlos nutzen?",
-				"answer": "Berechtigte Gäste können die Bearbeitung ausprobieren, wenn die gesponserte Gastwarteschlange verfügbar ist. Gastergebnisse tragen ein Wasserzeichen und werden bis zu 24 Stunden gespeichert. Registrierte Free-Konten haben ein separates monatliches Credit-Kontingent. Prüfe Kontingent und Modellzugang im Arbeitsbereich oder auf der Preisseite; der kostenlose Zugang ist begrenzt."
+				"answer": "Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K, ohne monatliche Auffüllung. Andere Bildmodelle und HD erfordern ein aktives kostenpflichtiges Abo."
 			},
 			"control": {
 				"question": "Bleibt jedes Detail meines Originalbilds erhalten?",
@@ -153,7 +153,7 @@
 			},
 			"guestVsFree": {
 				"question": "Worin unterscheiden sich Gastzugang und Free?",
-				"answer": "Gäste erhalten täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K; Ergebnisse mit Wasserzeichen sind bis zu 24 Stunden verfügbar. Ein registriertes Free-Konto erhält monatlich 25 Credits und einen separaten einmaligen Anmeldebonus von 5 Credits. Verfügbare Bildmodelle, darunter GPT Image 2 und Seedream 5 Pro, können mit ausreichendem Guthaben genutzt werden. Neu mit Konto-Credits erstellte Bilder haben kein Gast-Wasserzeichen; die vorgesehene Aufbewahrung beträgt 30 Tage. Laden Sie wichtige Ergebnisse herunter."
+				"answer": "Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K, ohne monatliche Auffüllung. Andere Bildmodelle und HD erfordern ein aktives kostenpflichtiges Abo. Mit Kontocredits erzeugte Bilder haben kein Gastwasserzeichen und eine angestrebte Aufbewahrung von 30 Tagen. Lade Ergebnisse herunter, die du behalten möchtest."
 			},
 			"editTiers": {
 				"question": "Welche Bildmodelle und Ausgabeeinstellungen sind verfügbar?",
@@ -165,7 +165,7 @@
 			},
 			"failedEdits": {
 				"question": "Was passiert mit Credits, wenn eine Bearbeitung fehlschlägt?",
-				"answer": "Technische Fehler ohne nutzbares Ergebnis geben die reservierten Credits frei. Wird ein generiertes Bild aus Inhaltsgründen gesperrt, erhält jedes Konto oder Team einmalig eine kostenlose Ausnahme; weitere gesperrte Ergebnisse kosten die angekündigten Credits. Abgelehnte Anweisungen oder Uploads verbrauchen diese Ausnahme nicht. Bei unklarem Ausgang bleiben Credits bis zur Klärung reserviert."
+				"answer": "Technische Fehler ohne nutzbares Ergebnis geben reservierte Credits frei. Lehnt der Generierungsanbieter nach der Übermittlung sensible Inhalte ab, werden alle angezeigten Credits berechnet, auch beim ersten Mal und ohne den Gebührenerlass zu nutzen. Für zurückgegebene Bilder, die unsere Sicherheitsprüfung sperrt, erhält jedes Konto oder Team einen einmaligen Gebührenerlass; spätere Sperrungen werden berechnet. Vor der Übermittlung gestoppte Anweisungen oder Uploads kosten keine Generierungs-Credits. Bei unklarem Ausgang bleiben Credits bis zur Klärung reserviert."
 			},
 			"privateUploads": {
 				"question": "Sind hochgeladene Bilder öffentlich?",
@@ -211,7 +211,7 @@
 			"paidSignIn": "Anmelden und Konto-Credits nutzen",
 			"oneOutput": "Ein Ergebnis",
 			"freeQueue": "2 kostenlose Bearbeitungen täglich · Wasserzeichen · bis zu 24 Stunden verfügbar",
-			"qualityAccess": "{model} erfordert eine Anmeldung und genügend Kontoguthaben.",
+			"qualityAccess": "{model} erfordert eine Anmeldung und einen Pro-, Ultimate- oder Max-Tarif.",
 			"temporaryResult": "Deine Vorschau bleibt privat und vorübergehend.",
 			"temporarySessionDisclosure": "EzImageAI erstellt für diesen Test eine temporäre Sitzung, bewahrt Gastmedien bis zu 24 Stunden auf und nutzt pseudonyme Missbrauchssignale für den in unserer Datenschutzerklärung beschriebenen Zeitraum.",
 			"qualityCta": "Bildmodelle entdecken · Konto-Credits",
@@ -272,7 +272,7 @@
 				"quality": "Weiter",
 				"retry": "Erneut versuchen",
 				"retryAvailability": "Verfügbarkeit prüfen",
-				"signInBonus": "Anmelden · einmalig 5 Bonus-Credits pro Konto"
+				"signInBonus": "Anmelden · einmalig 10 Credits pro Konto · 2 Basisbilder"
 			},
 			"errors": {
 				"turnstile": "Schließe die Überprüfung ab und versuche es erneut.",
@@ -662,7 +662,7 @@
 		},
 		"pricing": {
 			"title": "Kostenlose KI-Bildbearbeitung und kostenpflichtige Tarife",
-			"description": "Mit einem Free-Konto erhältst du monatlich 25 EzImageAI Credits. Nano Banana 2 Lite 1K benötigt 5 Credits pro Bearbeitung – das reicht für bis zu fünf Bearbeitungen im Monat. Kostenpflichtige Pläne bieten mehr monatliche Credits."
+			"description": "Berechtigte Konten erhalten einmalig 10 EzImageAI Credits für zwei Generierungen mit Nano Banana 2 Lite 1K zu je 5 Credits. Keine monatliche Auffüllung. Aktive kostenpflichtige Abos schalten andere Bildmodelle und HD-Optionen frei."
 		},
 		"guides": {
 			"quickStart": "Erste Bearbeitung starten",
@@ -679,7 +679,7 @@
 				},
 				"guestVsFree": {
 					"question": "Kann ich EzImageAI als kostenlosen KI-Bildeditor nutzen?",
-					"answer": "Ja. Ein registriertes Free-Konto erhält monatlich 25 EzImageAI Credits für berechtigte Bearbeitungen. Gäste können separat täglich zwei gesponserte Bearbeitungen nutzen, wenn die Warteschlange verfügbar ist. „No Restrictions“ bedeutet flexibles Bearbeiten per Prompt jenseits fester Vorlagen; Sicherheits-, Rechts-, Modell- und Nutzungslimits gelten weiterhin."
+					"answer": "Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K, ohne monatliche Auffüllung. Andere Bildmodelle und HD erfordern ein aktives kostenpflichtiges Abo. Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. „No Restrictions“ bedeutet flexible Prompt-Bearbeitung über feste Vorlagen hinaus; Inhalts-, Rechts-, Modell- und Nutzungslimits gelten weiterhin."
 				}
 			}
 		},

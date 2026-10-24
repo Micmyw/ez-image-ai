@@ -1,4 +1,5 @@
 export {
+	FREE_ACCOUNT_SIGN_IN_CREDITS,
 	getPlanEntitlement,
 	getPlanUsageEstimate,
 	PLAN_ENTITLEMENTS,

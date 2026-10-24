@@ -785,7 +785,7 @@ describe("GenerationForm product copy", () => {
 		},
 	);
 
-	it("shows the credit shortfall and a funding action without requiring model membership", () => {
+	it("shows the credit shortfall and a funding action for a subscribed owner", () => {
 		const state = generationState();
 		state.createQuote.error = new Error("INSUFFICIENT_CREDITS");
 		mocks.useGeneration.mockReturnValue(state);
@@ -793,7 +793,7 @@ describe("GenerationForm product copy", () => {
 		const markup = renderToStaticMarkup(
 			<GenerationForm
 				onCreated={vi.fn()}
-				allowedProductKeys={resolveEditorAllowedProductKeys(undefined, undefined)}
+				allowedProductKeys={resolveEditorAllowedProductKeys({ planId: "creator" }, "creator")}
 				initialSourceReady
 				initialDraft={{
 					productKey: "image-gpt-image-2",
@@ -841,7 +841,7 @@ describe("GenerationForm product copy", () => {
 		expect(markup).not.toContain('href="/history"');
 	});
 
-	it("lets an unsubscribed owner with 377 valid credits generate Sunburst 1K at 1:1", () => {
+	it("preserves a premium draft and shows upgrade access despite 377 valid credits", () => {
 		const state = generationState();
 		state.creditAccount.data.spendableCredits = "377";
 		state.creditAccount.data.activeJobs = 0;
@@ -863,21 +863,18 @@ describe("GenerationForm product copy", () => {
 		);
 
 		expect(markup).not.toContain("Localized upgrade dialog");
-		expect(markup).not.toContain('data-test="editor-model-access-notice"');
-		expect(markup).not.toContain("View plans");
-		expect(markup).not.toContain("Paid plan");
-		expect(markup).toContain("Generate image");
-		expect(markup).toContain("7 credits");
+		expect(markup).toContain('data-test="editor-model-access-notice"');
+		expect(markup).toContain("View plans");
+		expect(markup).toContain("Keep this exact instruction");
 		const submit = markup.match(/<button\b[^>]*type="submit"[^>]*>/)?.[0];
-		expect(submit).toBeDefined();
-		expect(submit).not.toContain("disabled");
+		expect(submit).toBeUndefined();
 		const selected = markup.match(
 			/<button[^>]*data-test="editor-model-image-gpt-image-2-5-sunburst"[^>]*>/,
 		)?.[0];
 		expect(selected).toContain('aria-pressed="true"');
 		expect(mocks.modelOptions.mock.lastCall?.[0].products).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ key: "image-gpt-image-2-5-sunburst", requiresUpgrade: false }),
+				expect.objectContaining({ key: "image-gpt-image-2-5-sunburst", requiresUpgrade: true }),
 			]),
 		);
 	});

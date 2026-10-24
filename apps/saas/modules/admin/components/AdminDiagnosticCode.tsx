@@ -6,6 +6,7 @@ import { useLocale } from "next-intl";
 const chineseLabels: Record<string, string> = {
 	NO_USABLE_OUTPUT: "没有可交付结果（需结合审查记录确认原因）",
 	PROVIDER_POLICY_REJECTED_NO_CHARGE: "服务商因内容政策拒绝，已确认未计费",
+	PROVIDER_POLICY_REJECTED_CHARGED: "服务商因敏感内容拒绝，已按报价扣除用户积分",
 	CONTENT_NOT_ALLOWED: "内容未通过审查",
 	ASSET_CONTENT_NOT_ALLOWED: "输入图片未通过内容审查",
 	SEEAPI_CONTENT_NOT_ALLOWED: "SeeAPI 判定内容不允许",

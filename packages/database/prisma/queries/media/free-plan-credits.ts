@@ -1,3 +1,5 @@
+import { getPlanEntitlement } from "@repo/config";
+
 import { findEffectivePaidSubscription } from "./billing";
 import { ensureCreditAccountInTransaction } from "./credit-accounts";
 import { createCreditGrant, hasMatchingCreditGrant } from "./credits";
@@ -10,6 +12,7 @@ export interface EnsureFreeMonthlyCreditGrantInput {
 }
 
 export type EnsureFreeMonthlyCreditGrantResult =
+	| { status: "DISABLED" }
 	| { status: "ANONYMOUS_USER" }
 	| { status: "USER_NOT_FOUND" }
 	| { status: "PAID_SUBSCRIPTION"; referenceKey: string }
@@ -50,6 +53,9 @@ export async function ensureFreeMonthlyCreditGrant(
 	input: EnsureFreeMonthlyCreditGrantInput,
 	client: MediaTransactionClient,
 ): Promise<EnsureFreeMonthlyCreditGrantResult> {
+	// Retire every current monthly producer, including direct callers. Historical
+	// lots and immutable receipts remain readable and retain their original expiry.
+	if (getPlanEntitlement("free").monthlyCredits === 0) return { status: "DISABLED" };
 	const grant = freeMonthlyGrant(input);
 	const { referenceKey } = grant;
 

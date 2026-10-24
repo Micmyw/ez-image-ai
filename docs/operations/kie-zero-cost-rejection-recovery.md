@@ -1,7 +1,15 @@
-# Confirmed zero-cost Kie policy rejection
+# Confirmed zero-consumption Kie policy rejection
 
 This recovery applies only to legacy image jobs. It never changes price, audience, provider
 credentials, input moderation, admission capacity limits or the separate video engine.
+
+Provider consumption and customer billing are separate facts. New ordinary CREDITS quotes freeze
+`kiePolicyRejectionBillingPolicy=charge-quoted-credits-v1`. A supported proven sensitive rejection
+under that policy charges the full original quote once, including the first rejection, and ends
+`FAILED / PROVIDER_POLICY_REJECTED_CHARGED`; it never consumes the output-review waiver.
+The provider cost remains zero in the attempt evidence. Historical unmarked quotes retain their
+zero-charge/release contract. Already-settled jobs are never reopened or backcharged. Image passes
+and sponsored anonymous trials keep their independent funding contracts.
 
 ## Automatic closure
 
@@ -15,8 +23,10 @@ observation time in the attempt response and audit log.
 Any conflicting prior cost, charge, output URL, transfer envelope, output asset or additional
 attempt retains the reservation for manual reconciliation. A recognized rejection uses the
 existing `GENERATION_SETTLE` Outbox and stable `settle:<job>` / `settle:<job>:release` ledger
-references. The job ends `FAILED` with `PROVIDER_POLICY_REJECTED_NO_CHARGE`; the original owner
-receives only the amount restorable under the existing lot expiry/refund/debt rules.
+references. The locked settlement reloads the same attempt evidence before a new-policy charge.
+An unmarked historical job ends `FAILED` with `PROVIDER_POLICY_REJECTED_NO_CHARGE`; its owner
+receives only the amount restorable under the existing lot expiry/refund/debt rules. An unknown
+policy version or conflicting evidence stays held without charging or releasing the reservation.
 
 ## Held historical tasks
 
@@ -35,9 +45,11 @@ receives only the amount restorable under the existing lot expiry/refund/debt ru
    locks the original attempt/job, clears reconciliation leases, saves before/after evidence
    and commits one settlement intent. A later success already recorded before recovery blocks
    the action; late callbacks/polls cannot revive a completed attempt.
-5. Wait for the existing worker to consume the settlement intent. Confirm one zero SETTLE and
-   one RELEASE, reservation finalized, job/attempt terminal, the correct owner's balance and
-   released capacity. A queued response alone does not prove credits were released. Expired or
+5. Wait for the existing worker to consume the settlement intent. Confirm one SETTLE under the
+   original frozen quote: zero plus RELEASE for historical unmarked credit jobs, or the full quote
+   and no RELEASE for the new charged policy. Confirm reservation finalized, job/attempt terminal,
+   the correct owner's balance and released capacity. A queued response alone does not prove
+   financial settlement. Expired or
    revoked credits must not become spendable again. Do not issue a replacement GRANT.
 
 ```json
@@ -59,7 +71,8 @@ receives only the amount restorable under the existing lot expiry/refund/debt ru
 
 ## Rollout and validation
 
-Publish the Jobs receiver before the administrator website producer, then verify each exact
+Publish compatible Jobs settlement receivers before the website begins producing charged-policy
+quotes, then verify each exact
 commit/version. No database migration or new runtime setting is required. Keep the compatible
 receiver until any committed settlements drain. Public checks and administrator recovery do not
 authorize a real paid generation or resubmission of rejected content.

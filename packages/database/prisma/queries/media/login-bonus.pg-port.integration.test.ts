@@ -16,6 +16,10 @@ import {
 	reserveCreditsInTransaction,
 	settleCreditsInTransaction,
 } from "./credits";
+import {
+	ensureFreeMonthlyCreditGrant,
+	hasMatchingFreeMonthlyCreditGrant,
+} from "./free-plan-credits";
 import { ensureOneTimeLoginCreditGrant } from "./login-bonus";
 
 const fixture = new LoginBonusPostgresPort();
@@ -35,7 +39,7 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 		expect(results.filter(({ status }) => status === "GRANTED")).toHaveLength(1);
 		expect(results.filter(({ status }) => status === "ALREADY_GRANTED")).toHaveLength(23);
 		expect(await account("registered")).toMatchObject({
-			spendableCredits: 5n,
+			spendableCredits: 10n,
 			reservedCredits: 0n,
 			creditDebt: 0n,
 		});
@@ -43,12 +47,12 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 			await fixture.rows(
 				`SELECT amount,"referenceKey" FROM ${fixture.table("credit_ledger_entry")}`,
 			),
-		).toEqual([{ amount: 5n, referenceKey: reference("registered") }]);
+		).toEqual([{ amount: 10n, referenceKey: reference("registered") }]);
 		expect(
 			await fixture.rows(
 				`SELECT "remainingAmount","expiresAt" FROM ${fixture.table("credit_lot")}`,
 			),
-		).toEqual([{ remainingAmount: 5n, expiresAt: null }]);
+		).toEqual([{ remainingAmount: 10n, expiresAt: null }]);
 	});
 
 	it("denies missing and anonymous principals while treating legacy non-anonymous null as an account", async () => {
@@ -60,34 +64,74 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 		await expect(claim("legacy")).resolves.toMatchObject({ status: "GRANTED" });
 		await user("other-account");
 		await expect(claim("other-account")).resolves.toMatchObject({ status: "GRANTED" });
-		expect(await account("legacy")).toMatchObject({ spendableCredits: 5n });
-		expect(await account("other-account")).toMatchObject({ spendableCredits: 5n });
+		expect(await account("legacy")).toMatchObject({ spendableCredits: 10n });
+		expect(await account("other-account")).toMatchObject({ spendableCredits: 10n });
 	});
 
-	it("repays debt through the existing ledger rule and still consumes the lifetime identity once", async () => {
-		await user("debtor");
-		await fixture.rows(
-			`INSERT INTO ${fixture.table("credit_account")} (id,"ownerType","ownerId","creditDebt") VALUES ('debt-account','USER','debtor',7)`,
-		);
-		await expect(claim("debtor")).resolves.toMatchObject({ status: "GRANTED" });
-		await expect(claim("debtor")).resolves.toMatchObject({ status: "ALREADY_GRANTED" });
-		expect(await account("debtor")).toMatchObject({
-			spendableCredits: 0n,
-			reservedCredits: 0n,
-			creditDebt: 2n,
-		});
-		expect(
+	it.each([
+		{ debt: 7n, remaining: 3n, repaid: 7n, outstanding: 0n },
+		{ debt: 15n, remaining: 0n, repaid: 10n, outstanding: 5n },
+	])(
+		"repays $debt debt through the existing ledger rule and consumes the lifetime identity once",
+		async ({ debt, remaining, repaid, outstanding }) => {
+			await user("debtor");
 			await fixture.rows(
-				`SELECT type,amount FROM ${fixture.table("credit_ledger_entry")} ORDER BY type`,
+				`INSERT INTO ${fixture.table("credit_account")} (id,"ownerType","ownerId","creditDebt") VALUES ('debt-account','USER','debtor',$1)`,
+				[debt.toString()],
+			);
+			await expect(claim("debtor")).resolves.toMatchObject({ status: "GRANTED" });
+			await expect(claim("debtor")).resolves.toMatchObject({ status: "ALREADY_GRANTED" });
+			expect(await account("debtor")).toMatchObject({
+				spendableCredits: remaining,
+				reservedCredits: 0n,
+				creditDebt: outstanding,
+			});
+			expect(
+				await fixture.rows(
+					`SELECT type,amount FROM ${fixture.table("credit_ledger_entry")} ORDER BY type`,
+				),
+			).toEqual([
+				{ type: "DEBT_REPAYMENT", amount: repaid },
+				{ type: "GRANT", amount: remaining },
+			]);
+			expect(
+				await fixture.rows(`SELECT "remainingAmount" FROM ${fixture.table("credit_lot")}`),
+			).toEqual(remaining ? [{ remainingAmount: remaining }] : []);
+		},
+	);
+
+	it("replays a historical five-credit receipt without topping it up to ten", async () => {
+		await user("historical-five");
+		await fixture.rows(
+			`INSERT INTO ${fixture.table("credit_account")} (id,"ownerType","ownerId") VALUES ('historical-account','USER','historical-five')`,
+		);
+		await fixture.transaction((tx) =>
+			createCreditGrant(
+				{
+					accountId: "historical-account",
+					amount: 5n,
+					referenceKey: reference("historical-five"),
+					expiresAt: null,
+					metadata: { program: "one-time-login-bonus-v1" },
+				},
+				tx,
 			),
-		).toEqual([
-			{ type: "DEBT_REPAYMENT", amount: 5n },
-			{ type: "GRANT", amount: 0n },
-		]);
-		expect(await fixture.rows(`SELECT id FROM ${fixture.table("credit_lot")}`)).toEqual([]);
+		);
+		const before = await account("historical-five");
+		const receipt = await fixture.rows(`SELECT * FROM ${fixture.table("credit_ledger_entry")}`);
+		const results = await Promise.all(Array.from({ length: 24 }, () => claim("historical-five")));
+		expect(results.every(({ status }) => status === "ALREADY_GRANTED")).toBe(true);
+		expect(await account("historical-five")).toEqual(before);
+		expect(before?.spendableCredits).toBe(5n);
+		expect(await fixture.rows(`SELECT * FROM ${fixture.table("credit_ledger_entry")}`)).toEqual(
+			receipt,
+		);
+		expect(
+			await fixture.rows(`SELECT "remainingAmount" FROM ${fixture.table("credit_lot")}`),
+		).toEqual([{ remainingAmount: 5n }]);
 	});
 
-	it("does not reissue a spent gift when separate monthly credit identities arrive", async () => {
+	it("does not reissue a spent gift or mint monthly credits while retaining a historical monthly grant", async () => {
 		await user("returning");
 		await claim("returning");
 		const current = await account("returning");
@@ -96,7 +140,7 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 				{
 					accountId: String(current?.id),
 					jobId: "spent-gift",
-					amount: 5n,
+					amount: 10n,
 					referenceKey: "test:spent-gift:reserve",
 				},
 				tx,
@@ -104,26 +148,47 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 		);
 		await fixture.transaction((tx) =>
 			settleCreditsInTransaction(
-				{ reservationId: held.id, amount: 5n, referenceKey: "test:spent-gift:settle" },
+				{ reservationId: held.id, amount: 10n, referenceKey: "test:spent-gift:settle" },
 				tx,
 			),
 		);
-		for (const month of ["2026-10", "2026-11"]) {
-			await fixture.transaction((tx) =>
-				createCreditGrant(
-					{
-						accountId: String(current?.id),
-						amount: 25n,
-						referenceKey: `free-plan:user:returning:${month}`,
-						metadata: { planId: "free" },
+		expect(await account("returning")).toMatchObject({ spendableCredits: 0n, reservedCredits: 0n });
+		const now = new Date();
+		const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+		const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+		await fixture.transaction((tx) =>
+			createCreditGrant(
+				{
+					accountId: String(current?.id),
+					amount: 25n,
+					referenceKey: `free-plan:user:returning:${periodStart.toISOString().slice(0, 7)}`,
+					expiresAt: periodEnd,
+					metadata: {
+						planId: "free",
+						periodStart: periodStart.toISOString(),
+						periodEnd: periodEnd.toISOString(),
 					},
-					tx,
+				},
+				tx,
+			),
+		);
+		for (const grantDate of [now, periodEnd]) {
+			await expect(
+				ensureFreeMonthlyCreditGrant(
+					{ ownerId: "returning", amount: 25n, now: grantDate },
+					fixture.client(),
 				),
-			);
+			).resolves.toEqual({ status: "DISABLED" });
 			await expect(claim("returning")).resolves.toMatchObject({ status: "ALREADY_GRANTED" });
 		}
+		await expect(
+			hasMatchingFreeMonthlyCreditGrant(
+				{ ownerId: "returning", amount: 25n, now },
+				fixture.client(),
+			),
+		).resolves.toBe(true);
 		expect(await account("returning")).toMatchObject({
-			spendableCredits: 50n,
+			spendableCredits: 25n,
 			reservedCredits: 0n,
 		});
 		expect(
@@ -131,14 +196,14 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 				`SELECT amount FROM ${fixture.table("credit_ledger_entry")} WHERE "referenceKey"=$1`,
 				[reference("returning")],
 			),
-		).toEqual([{ amount: 5n }]);
+		).toEqual([{ amount: 10n }]);
 		expect(
 			(
 				await fixture.rows(
 					`SELECT count(*)::int AS count FROM ${fixture.table("credit_ledger_entry")} WHERE type='GRANT'`,
 				)
 			)[0]?.count,
-		).toBe(3);
+		).toBe(2);
 	});
 
 	it("preserves a conflicting immutable lifetime record without minting a replacement", async () => {

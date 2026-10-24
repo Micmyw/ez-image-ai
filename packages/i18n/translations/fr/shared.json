@@ -49,6 +49,9 @@
 		"maximumInputSize": "Images source jusqu'à {megabytes, number} MB",
 		"month": "{count, plural, one {mois} other {{count} mois}}",
 		"monthlyCredits": "{credits, number} crédits par mois",
+		"welcomeCredits": "{credits, number} crédits une seule fois par compte éligible",
+		"welcomeImageAllowance": "{count, number} images de base à {credits, number} crédits chacune",
+		"welcomeCreditExpiry": "Une seule allocation par compte ; aucun renouvellement mensuel.",
 		"monthlyFixedImageAllowance": "Jusqu'à {count, number} images par mois à {credits, number} crédits chacune",
 		"monthlyImageAllowance": "Environ {minimum, number}–{maximum, number} images par mois à {minimumCredits, number}–{maximumCredits, number} crédits chacune",
 		"monthly": "Mensuel",
@@ -74,9 +77,9 @@
 				"title": "Entreprise"
 			},
 			"free": {
-				"description": "Essayez les modèles d’image disponibles avec vos crédits mensuels.",
+				"description": "10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K. Aucun renouvellement mensuel.",
 				"features": {
-					"standardEdit": "Tous les modèles d’image disponibles",
+					"standardEdit": "Accès à Nano Banana 2 Lite 1K",
 					"privateAssets": "Images source et ressources retouchées privées",
 					"editHistory": "Sessions et historique de retouche privés"
 				},
@@ -120,7 +123,7 @@
 		"subscriberBonusAmount": "Bonus abonné : {credits}",
 		"subscriberReceives": "Les abonnés reçoivent {credits} crédits",
 		"title": "Tarifs",
-		"tierAccessStandard": "Tous les modèles d’image disponibles",
+		"tierAccessStandard": "Accès à Nano Banana 2 Lite 1K",
 		"tierAccessAll": "Tous les modèles d’image disponibles et leurs options SKU propres",
 		"trialPeriod": "{days} {days, plural, one {jour} other {jours}} d'essai gratuit",
 		"year": "{count, plural, one {an} other {{count} ans}}",

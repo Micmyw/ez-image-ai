@@ -1728,7 +1728,7 @@
 				"upToResolution": "Bis zu {resolution}",
 				"upgradeNotice": "{model} erfordert Pro, Ultimate oder Max. Du kannst weiterbearbeiten, bevor du einen Tarif wählst."
 			},
-			"moderationBillingPolicy": "Inhaltssicherheit: Pro Konto oder Team ist die erste gesperrte Bildgenerierung einmalig kostenlos. Weitere gesperrte Ergebnisse werden mit den angezeigten Credits berechnet. Vor der Generierung abgelehnte Anweisungen oder Uploads und fehlgeschlagene Sicherheitsprüfungen kosten keine Credits und verbrauchen diese Ausnahme nicht.",
+			"moderationBillingPolicy": "Inhaltssicherheit: Lehnt der Generierungsanbieter nach der Übermittlung sensible Inhalte ab, werden alle angezeigten Credits berechnet, auch beim ersten Mal. Der einmalige Gebührenerlass wird dabei nicht genutzt. Für zurückgegebene Bilder, die unsere Sicherheitsprüfung sperrt, erhält jedes Konto oder Team einen einmaligen Gebührenerlass; spätere Sperrungen werden berechnet. Vor der Übermittlung gestoppte Anweisungen oder Uploads und technische Prüffehler kosten keine Credits.",
 			"generateWithCredits": "Bild generieren · {credits} Credits",
 			"startEditWithCredits": "Bearbeitung starten · {credits} Credits",
 			"checking": "Wird geprüft…",
@@ -1750,7 +1750,7 @@
 			"temporaryCompact": "Mit Wasserzeichen · temporär",
 			"submit": "Meine Nano-Banana-Bearbeitung starten",
 			"challenge": "Diese Gastbearbeitung bestätigen",
-			"qualityCta": "Weitere Bildmodelle · Anmelden",
+			"qualityCta": "Weitere Bildmodelle · kostenpflichtiger Tarif",
 			"retryChallenge": "Überprüfung erneut versuchen",
 			"retryPreview": "Private Vorschau erneut laden",
 			"viewStatus": "Status anzeigen",
@@ -1795,7 +1795,7 @@
 			"dailyReset": "Täglich um 00:00 UTC zurückgesetzt. Ungenutzte Bearbeitungen werden nicht übertragen.",
 			"dailyLimitReached": "Deine zwei kostenlosen Bearbeitungen für heute sind aufgebraucht. Ab 00:00 UTC stehen dir zwei neue zur Verfügung.",
 			"editAnother": "Ein weiteres Bild bearbeiten",
-			"loginBonus": "Melde dich an, um mit Konto-Credits fortzufahren. Jedes Konto erhält einmalig 5 Bonus-Credits, zusätzlich zu den monatlichen Gratis-Credits."
+			"loginBonus": "Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K, ohne monatliche Auffüllung. Andere Bildmodelle und HD erfordern ein aktives kostenpflichtiges Abo."
 		},
 		"upgradeDialog": {
 			"title": "Weitere Bildmodelle freischalten",
@@ -1986,6 +1986,7 @@
 		"safety": {
 			"titles": {
 				"prompt": "Bitte überarbeite diese Anweisung",
+				"providerBlocked": "Generierung durch die Inhaltssicherheit gesperrt",
 				"input": "Bitte wähle ein anderes Bild",
 				"output": "Dieses Ergebnis kann nicht angezeigt werden",
 				"unavailable": "Die Sicherheitsprüfung konnte nicht abgeschlossen werden",
@@ -1999,6 +2000,7 @@
 					"review": "Diese Anweisung konnte nicht freigegeben werden. Die Generierung wurde nicht gestartet.",
 					"unsupportedLanguage": "Wir können diesen Prompt in seiner aktuellen Sprache nicht prüfen. Die Generierung wurde nicht gestartet."
 				},
+				"providerBlocked": "Der Generierungsanbieter hat die Eingabe oder Ausgabe als sensibel abgelehnt. Es ist kein Ergebnis verfügbar.",
 				"input": {
 					"blocked": "Dieses Referenzbild hat die Sicherheitsprüfung nicht bestanden und kann nicht zur Generierung verwendet werden.",
 					"unavailable": "Dieses Bild ist nicht verfügbar oder seine Sicherheitsprüfung konnte nicht abgeschlossen werden."
@@ -2026,6 +2028,7 @@
 				"beforeGeneration": "Es wurden keine Generierungs-Credits berechnet und dein einmaliger Gebührenerlass wurde nicht genutzt.",
 				"waived": "Es wurden keine Credits berechnet: Der einmalige Gebührenerlass deines Kontos wurde genutzt. Künftige gesperrte Ergebnisse werden zum angezeigten Credit-Betrag berechnet.",
 				"charged": "Für diese Generierung wurden wie angekündigt {credits} Credits berechnet. Der einmalige Gebührenerlass deines Kontos war bereits genutzt.",
+				"providerRejection": "Alle {credits} angezeigten Credits wurden berechnet. Diese Ablehnung nutzt den einmaligen Gebührenerlass deines Kontos nicht.",
 				"returned": "Es wurden keine Credits berechnet und dein einmaliger Gebührenerlass wurde nicht genutzt. Reservierte Credits wurden freigegeben.",
 				"noCharge": "Es wurden keine Credits berechnet. Den freigegebenen Betrag findest du in der Credit-Übersicht.",
 				"summary": "Die tatsächliche Belastung und freigegebene Credits findest du in der Credit-Übersicht dieses Auftrags.",
@@ -2472,13 +2475,13 @@
 		"bannerLabel": "Einmaliges Bildpaket",
 		"dismissBanner": "Bildpaket-Angebot schließen",
 		"bannerTitle": "{units} Bilder für ${amount}",
-		"bannerDetail": "Aktuelle Bildmodelle · bis zu 4K · kein Abo",
+		"bannerDetail": "Nano Banana 2 Lite 1K · Premium-Modelle und HD erfordern ein Abo",
 		"buy": "Bildpaket kaufen",
 		"oneTime": "Einmaliger Kauf",
 		"title": "{units} erfolgreiche Bilder",
 		"pageTitle": "Bildpaket — 3 Bilder für 1 USD",
-		"description": "Wähle ein aktuell verfügbares Bildmodell, einschließlich unterstützter Optionen bis zu 4K. Jeder Auftrag erzeugt ein Bild.",
-		"models": "Aktuelle Bildmodelle und unterstützte Auflösungen, einschließlich 4K",
+		"description": "Nutze Bildpässe mit Nano Banana 2 Lite 1K. Ein aktives kostenpflichtiges Abo schaltet weitere Bildmodelle und unterstützte HD-Optionen bis 4K frei. Jeder Auftrag erzeugt ein Bild.",
+		"models": "Nano Banana 2 Lite 1K; Premium-Modelle und HD mit aktivem kostenpflichtigem Abo",
 		"singleOutput": "Ein erfolgreiches Bild verbraucht einen Bildpass. Nur Bilder, keine Videos.",
 		"separate": "Bildpässe sind von Credits und Abonnements getrennt.",
 		"repeat": "Kaufe bei Bedarf jederzeit ein weiteres Paket.",
@@ -2496,7 +2499,7 @@
 		"fundingLoading": "Bildpässe werden geprüft…",
 		"buyMore": "3 Bildpässe kaufen",
 		"fundingEmpty": "Keine Bildpässe verfügbar. Kaufe ein Paket oder wähle ausdrücklich Credits, um fortzufahren.",
-		"fundingPolicy": "Während des Auftrags wird ein Bildpass reserviert und für ein erfolgreiches Bild verbraucht. Es werden keine Credits verwendet. Inhaltsprüfung und Speicherlimits gelten weiterhin.",
+		"fundingPolicy": "Während des Auftrags wird ein Bildpass reserviert und für ein erfolgreiches Bild verbraucht. Es werden keine Credits verwendet. Premium-Bildmodelle und HD erfordern auch bei Bildpässen ein aktives kostenpflichtiges Abo. Inhaltsprüfung und Speicherlimits gelten weiterhin.",
 		"fundingSeparate": "Credits und Bildpässe sind getrennte Optionen. Deine Auswahl wechselt nicht automatisch.",
 		"fundingPolicyTitle": "Regeln für Bildpässe",
 		"onePass": "1 Bildpass",

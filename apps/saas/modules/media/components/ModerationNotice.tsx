@@ -10,6 +10,7 @@ export function ModerationNotice({
 		status: string;
 		fundingSource?: "CREDITS" | "IMAGE_PASS";
 		failureReason?: string | null;
+		failureCode?: string | null;
 		moderationReason?: string | null;
 		moderationStage?: "input" | "output";
 		moderationBilling?: "WAIVED" | "CHARGED" | null;
@@ -19,8 +20,10 @@ export function ModerationNotice({
 	const blocked = Boolean(job.moderationBilling) || job.failureReason === "CONTENT_NOT_ALLOWED";
 	const unavailable = job.failureReason === "SAFETY_CHECK_UNAVAILABLE" && job.status === "FAILED";
 	if (!blocked && !unavailable) return null;
-	const billing: SafetyBillingOutcome =
-		job.moderationBilling === "WAIVED"
+	const providerRejection = job.failureCode === "PROVIDER_POLICY_REJECTED_CHARGED";
+	const billing: SafetyBillingOutcome = providerRejection
+		? "providerRejection"
+		: job.moderationBilling === "WAIVED"
 			? "waived"
 			: job.moderationBilling === "CHARGED"
 				? "charged"
@@ -39,6 +42,7 @@ export function ModerationNotice({
 			fundingSource={job.fundingSource}
 			credits={job.creditsCharged}
 			jobId={job.id}
+			providerRejection={providerRejection}
 		/>
 	);
 }

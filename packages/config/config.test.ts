@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	DEFAULT_PRODUCT_CONFIG,
+	FREE_ACCOUNT_SIGN_IN_CREDITS,
 	getPlanUsageEstimate,
 	getPublicConfig,
 	parseProductConfig,
@@ -513,22 +514,9 @@ describe("product configuration", () => {
 		).toEqual([
 			{
 				id: "free",
-				monthlyCredits: 25,
+				monthlyCredits: 0,
 				maximumInputBytes: 10 * 1024 * 1024,
-				allowedProducts: [
-					"image-nano-banana-2-lite",
-					"image-nano-banana",
-					"image-nano-banana-2",
-					"image-nano-banana-pro",
-					"image-gpt-image-1-5",
-					"image-gpt-image-2",
-					"image-gpt-image-2-5-flare",
-					"image-gpt-image-2-5-sunburst",
-					"image-seedream-4",
-					"image-seedream-4-5",
-					"image-seedream-5-lite",
-					"image-seedream-5-pro",
-				],
+				allowedProducts: ["image-nano-banana-2-lite"],
 				prices: [],
 			},
 			{
@@ -604,11 +592,12 @@ describe("product configuration", () => {
 	});
 
 	it("publishes honest monthly edit estimates for each plan", () => {
+		expect(FREE_ACCOUNT_SIGN_IN_CREDITS).toBe(10);
 		expect(getPlanUsageEstimate("free")).toEqual({
-			minimumImageEdits: 1,
-			maximumImageEdits: 5,
+			minimumImageEdits: 0,
+			maximumImageEdits: 0,
 			minimumCreditsPerImage: 5,
-			maximumCreditsPerImage: 25,
+			maximumCreditsPerImage: 5,
 		});
 		expect(getPlanUsageEstimate("creator")).toEqual({
 			minimumImageEdits: 28,

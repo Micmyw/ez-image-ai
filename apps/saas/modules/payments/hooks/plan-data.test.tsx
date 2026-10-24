@@ -10,6 +10,11 @@ const translate = Object.assign(
 		if (key === "pricing.monthlyFixedImageAllowance")
 			return `Localized images ${String(values?.count)} at ${String(values?.credits)}`;
 		if (key === "pricing.creditExpiry") return "Localized monthly expiry";
+		if (key === "pricing.welcomeCredits")
+			return `Localized lifetime credits ${String(values?.credits)}`;
+		if (key === "pricing.welcomeImageAllowance")
+			return `Localized lifetime images ${String(values?.count)} at ${String(values?.credits)}`;
+		if (key === "pricing.welcomeCreditExpiry") return "Localized no monthly refill";
 		if (key === "pricing.concurrentEdits") return `Localized concurrency ${String(values?.count)}`;
 		if (key === "pricing.maximumInputSize") return `Localized size ${String(values?.megabytes)}`;
 		return `Localized ${key}`;
@@ -32,9 +37,9 @@ describe("SaaS plan data", () => {
 		renderToStaticMarkup(<Probe />);
 
 		expect(planData?.free?.features.slice(0, 5)).toEqual([
-			"Localized credits 25",
-			"Localized images 1-5 at 5-25",
-			"Localized monthly expiry",
+			"Localized lifetime credits 10",
+			"Localized lifetime images 2 at 5",
+			"Localized no monthly refill",
 			"Localized size 10",
 			"Localized pricing.products.free.features.contract",
 		]);

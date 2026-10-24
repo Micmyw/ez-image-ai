@@ -214,6 +214,22 @@ describe("getJob", () => {
 			inputReferenceState: "EXPIRED",
 		});
 	});
+	it("shows a charged Kie policy rejection as blocked even without an output image", async () => {
+		mocks.getStatus.mockResolvedValue({
+			...baseJob,
+			status: "FAILED",
+			failureCode: "PROVIDER_POLICY_REJECTED_CHARGED",
+			assets: [],
+			reservation: { status: "SETTLED", settledAmount: 17n, releasedAmount: 0n },
+		});
+		const result = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
+		expect(result).toMatchObject({
+			failureReason: "CONTENT_NOT_ALLOWED",
+			moderationBilling: "CHARGED",
+			creditsCharged: "17",
+			canRetry: false,
+		});
+	});
 	it.each(["WAIVED", "CHARGED"])(
 		"preserves the %s moderation billing outcome after output cleanup",
 		async (outcome) => {

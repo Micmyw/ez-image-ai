@@ -1728,7 +1728,7 @@
 				"upToResolution": "Hasta {resolution}",
 				"upgradeNotice": "{model} requiere Pro, Ultimate o Max. Puedes seguir editando antes de elegir un plan."
 			},
-			"moderationBillingPolicy": "Seguridad de contenido: cada cuenta o equipo dispone de una única exención de créditos para su primer resultado generado bloqueado. Los siguientes se cobran al precio indicado. Las instrucciones o imágenes rechazadas antes de generar y los fallos de revisión no consumen créditos ni la exención.",
+			"moderationBillingPolicy": "Seguridad de contenido: si el proveedor rechaza contenido sensible después del envío, se cobran todos los créditos indicados, incluso la primera vez, sin usar la exención única. Cada cuenta o equipo conserva una exención para las imágenes devueltas y bloqueadas por nuestra revisión; los bloqueos posteriores se cobran. Las instrucciones o imágenes detenidas antes del envío y los fallos técnicos de revisión no consumen créditos.",
 			"generateWithCredits": "Generar imagen · {credits} créditos",
 			"startEditWithCredits": "Iniciar edición · {credits} créditos",
 			"checking": "Comprobando…",
@@ -1750,7 +1750,7 @@
 			"temporaryCompact": "Con marca de agua · temporal",
 			"submit": "Iniciar mi edición Nano Banana",
 			"challenge": "Verifica esta edición de invitado",
-			"qualityCta": "Más modelos de imagen · Inicia sesión",
+			"qualityCta": "Más modelos de imagen · plan de pago",
 			"retryChallenge": "Reintentar la verificación",
 			"retryPreview": "Reintentar la vista previa privada",
 			"viewStatus": "Ver estado",
@@ -1795,7 +1795,7 @@
 			"dailyReset": "Se restablecen cada día a las 00:00 UTC. Las ediciones no utilizadas no se acumulan.",
 			"dailyLimitReached": "Has usado las dos ediciones gratuitas de hoy. Vuelve después de las 00:00 UTC para disponer de dos más.",
 			"editAnother": "Editar otra imagen",
-			"loginBonus": "Inicia sesión para continuar con los créditos de tu cuenta. Cada cuenta recibe un bono único de 5 créditos, aparte de los créditos gratuitos mensuales."
+			"loginBonus": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Los demás modelos y HD requieren una suscripción de pago activa."
 		},
 		"upgradeDialog": {
 			"title": "Desbloquea más modelos de imagen",
@@ -1986,6 +1986,7 @@
 		"safety": {
 			"titles": {
 				"prompt": "Revisa esta instrucción",
+				"providerBlocked": "Generación bloqueada por seguridad de contenido",
 				"input": "Elige otra imagen",
 				"output": "Este resultado no se puede mostrar",
 				"unavailable": "No pudimos completar la comprobación de seguridad",
@@ -1999,6 +2000,7 @@
 					"review": "No se pudo aprobar esta instrucción. La generación no ha comenzado.",
 					"unsupportedLanguage": "No podemos revisar este prompt en su idioma actual. La generación no ha comenzado."
 				},
+				"providerBlocked": "El proveedor de generación rechazó la entrada o la salida por contenido sensible. No hay ningún resultado disponible.",
 				"input": {
 					"blocked": "Esta imagen de referencia no superó la revisión de seguridad y no se puede usar para generar.",
 					"unavailable": "Esta imagen no está disponible o no se pudo completar su revisión de seguridad."
@@ -2026,6 +2028,7 @@
 				"beforeGeneration": "No se cobraron créditos de generación ni se utilizó tu exención única.",
 				"waived": "No se cobraron créditos: se utilizó la exención única de tu cuenta. Los próximos resultados bloqueados se cobrarán según los créditos indicados.",
 				"charged": "Se cobraron {credits} créditos por esta generación, según lo indicado. La exención única de tu cuenta ya se había utilizado.",
+				"providerRejection": "Se cobraron los {credits} créditos indicados. Este rechazo no utiliza la exención única de tu cuenta.",
 				"returned": "No se cobraron créditos ni se utilizó tu exención única. Se liberaron los créditos reservados.",
 				"noCharge": "No se cobraron créditos. Consulta el resumen de créditos para ver la cantidad liberada.",
 				"summary": "Consulta el resumen de créditos de esta tarea para ver el cobro real y los créditos liberados.",
@@ -2472,13 +2475,13 @@
 		"bannerLabel": "Paquete de imágenes de pago único",
 		"dismissBanner": "Cerrar oferta del paquete de imágenes",
 		"bannerTitle": "{units} imágenes por ${amount}",
-		"bannerDetail": "Modelos de imagen actuales · hasta 4K · sin suscripción",
+		"bannerDetail": "Nano Banana 2 Lite 1K · los modelos prémium y HD requieren suscripción",
 		"buy": "Comprar paquete",
 		"oneTime": "Compra de pago único",
 		"title": "{units} imágenes generadas con éxito",
 		"pageTitle": "Paquete de imágenes — 3 imágenes por 1 USD",
-		"description": "Elige cualquier modelo de imagen disponible actualmente, incluidas las opciones compatibles de hasta 4K. Cada tarea genera una imagen.",
-		"models": "Modelos de imagen actuales y resoluciones compatibles, incluida 4K",
+		"description": "Usa pases de imagen con Nano Banana 2 Lite 1K. Una suscripción de pago activa habilita otros modelos y opciones HD compatibles de hasta 4K. Cada tarea genera una imagen.",
+		"models": "Nano Banana 2 Lite 1K; modelos prémium y HD con una suscripción de pago activa",
 		"singleOutput": "Cada imagen generada con éxito usa un pase. Solo imágenes, sin vídeo.",
 		"separate": "Los pases de imagen son independientes de los créditos y las suscripciones.",
 		"repeat": "Puedes comprar otro paquete cuando lo necesites.",
@@ -2496,7 +2499,7 @@
 		"fundingLoading": "Comprobando pases de imagen…",
 		"buyMore": "Comprar 3 pases de imagen",
 		"fundingEmpty": "No hay pases de imagen disponibles. Compra un paquete o elige créditos expresamente para continuar.",
-		"fundingPolicy": "Se reserva un pase mientras se procesa la tarea y se usa para una imagen generada con éxito. No se usan créditos. Se mantienen la revisión de contenido y los límites de almacenamiento.",
+		"fundingPolicy": "Se reserva un pase mientras se procesa la tarea y se usa para una imagen generada con éxito. No se usan créditos. Los modelos de imagen prémium y HD requieren una suscripción de pago activa, también al usar pases. Se mantienen la revisión de contenido y los límites de almacenamiento.",
 		"fundingSeparate": "Los créditos y los pases de imagen son opciones independientes. Tu selección no cambiará automáticamente.",
 		"fundingPolicyTitle": "Condiciones de los pases de imagen",
 		"onePass": "1 pase de imagen",

@@ -11,6 +11,7 @@ import {
 } from "@repo/ai";
 import {
 	DEFAULT_PRODUCT_CONFIG,
+	KIE_POLICY_REJECTION_BILLING_POLICY,
 	OUTPUT_MODERATION_BILLING_POLICY,
 	type ProductModelKey,
 } from "@repo/config";
@@ -76,6 +77,9 @@ export function buildMediaQuote(
 	};
 	const pricingSnapshot: Prisma.InputJsonObject = {
 		...(fundingSource === "IMAGE_PASS" ? { fundingSource, imagePassUnits: 1 } : {}),
+		...(fundingSource === "CREDITS"
+			? { kiePolicyRejectionBillingPolicy: KIE_POLICY_REJECTION_BILLING_POLICY }
+			: {}),
 		outputModerationBillingPolicy: OUTPUT_MODERATION_BILLING_POLICY,
 		...(quote.skuKey ? { skuKey: quote.skuKey } : {}),
 		credits: quote.credits,

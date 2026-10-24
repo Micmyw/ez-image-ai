@@ -49,6 +49,9 @@
 		"maximumInputSize": "Quellbilder bis {megabytes, number} MB",
 		"month": "Monat",
 		"monthlyCredits": "{credits, number} Credits pro Monat",
+		"welcomeCredits": "Einmalig {credits, number} Credits pro berechtigtem Konto",
+		"welcomeImageAllowance": "{count, number} Basisbilder zu je {credits, number} Credits",
+		"welcomeCreditExpiry": "Einmaliges Kontoguthaben; keine monatliche Auffüllung.",
 		"monthlyFixedImageAllowance": "Bis zu {count, number} Bilder pro Monat bei {credits, number} Credits pro Bild",
 		"monthlyImageAllowance": "Etwa {minimum, number}–{maximum, number} Bilder pro Monat bei {minimumCredits, number}–{maximumCredits, number} Credits pro Bild",
 		"monthly": "Monatlich",
@@ -74,9 +77,9 @@
 				"title": "Enterprise"
 			},
 			"free": {
-				"description": "Verfügbare Bildmodelle mit monatlichen Credits ausprobieren.",
+				"description": "Einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K. Keine monatliche Auffüllung.",
 				"features": {
-					"standardEdit": "Alle verfügbaren Bildmodelle",
+					"standardEdit": "Zugriff auf Nano Banana 2 Lite 1K",
 					"privateAssets": "Private Quellbilder und bearbeitete Assets",
 					"editHistory": "Private Bearbeitungssitzungen und Verlauf"
 				},
@@ -120,7 +123,7 @@
 		"subscriberBonusAmount": "Abo-Bonus: {credits}",
 		"subscriberReceives": "Abonnenten erhalten {credits} Credits",
 		"title": "Preise",
-		"tierAccessStandard": "Alle verfügbaren Bildmodelle",
+		"tierAccessStandard": "Zugriff auf Nano Banana 2 Lite 1K",
 		"tierAccessAll": "Alle verfügbaren Bildmodelle und modellspezifischen SKU-Optionen",
 		"trialPeriod": "{days} {days, plural, one {Tag} other {Tage}} kostenlose Testphase",
 		"year": "Jahr",

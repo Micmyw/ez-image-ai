@@ -1,4 +1,3 @@
-import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -59,10 +58,10 @@ describe("selected-image tool recovery", () => {
 		});
 		mocks.cookies.mockResolvedValue({ get: () => undefined });
 	});
-	it("offers every supported image model to an authenticated owner without a subscription", async () => {
+	it("offers only Nano Banana 2 Lite 1K access to an owner without a subscription", async () => {
 		renderToStaticMarkup(await RegisteredEditor({ searchParams: Promise.resolve({}) }));
 		expect(mocks.workspace).toHaveBeenCalledWith(
-			expect.objectContaining({ allowedProductKeys: [...EZPIC_PRODUCT_KEYS] }),
+			expect.objectContaining({ allowedProductKeys: ["image-nano-banana-2-lite"] }),
 		);
 	});
 	it("restores the selected output and tool instruction without claiming an old draft or submitting", async () => {

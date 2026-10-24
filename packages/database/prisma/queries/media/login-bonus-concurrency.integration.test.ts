@@ -12,7 +12,10 @@ import {
 	reserveCreditsInTransaction,
 	settleCredits,
 } from "./credits";
-import { ensureFreeMonthlyCreditGrant } from "./free-plan-credits";
+import {
+	ensureFreeMonthlyCreditGrant,
+	hasMatchingFreeMonthlyCreditGrant,
+} from "./free-plan-credits";
 import { ensureOneTimeLoginCreditGrant } from "./login-bonus";
 import { isDatabaseSerializationConflict, runReadCommitted, runSerializable } from "./types";
 
@@ -206,7 +209,130 @@ describe("login bonus concurrency with the generated Prisma client", () => {
 			status: "ALREADY_GRANTED",
 		});
 		expect(observations.isolations).toEqual(["Serializable"]);
-		expect((await accountFor(ownerId)).spendableCredits).toBe(5n);
+		expect((await accountFor(ownerId)).spendableCredits).toBe(10n);
+	});
+
+	it("issues one ten-credit lifetime grant across simultaneous sessions and repeated calls", async () => {
+		const ownerId = await user("same-account");
+		const { observed, observations } = observeTransactions();
+		const results = await Promise.all(
+			Array.from({ length: 24 }, () => ensureOneTimeLoginCreditGrant({ ownerId }, observed)),
+		);
+		expect(results.filter(({ status }) => status === "GRANTED")).toHaveLength(1);
+		expect(results.filter(({ status }) => status === "ALREADY_GRANTED")).toHaveLength(23);
+		expect(observations.serializationConflicts).toBe(0);
+		expect(observations.isolations.every((isolation) => isolation === "ReadCommitted")).toBe(true);
+		const account = await accountFor(ownerId);
+		expect(account).toMatchObject({ spendableCredits: 10n, reservedCredits: 0n, creditDebt: 0n });
+		const receipt = await client.creditLedgerEntry.findUniqueOrThrow({
+			where: { referenceKey: reference(ownerId) },
+		});
+		expect(receipt).toMatchObject({ accountId: account.id, type: "GRANT", amount: 10n });
+		expect(await client.creditLot.count({ where: { accountId: account.id } })).toBe(1);
+		const attempts = observations.isolations.length;
+		await expect(ensureOneTimeLoginCreditGrant({ ownerId }, observed)).resolves.toMatchObject({
+			status: "ALREADY_GRANTED",
+		});
+		expect(observations.isolations).toHaveLength(attempts);
+		expect(await client.creditAccount.findUniqueOrThrow({ where: { id: account.id } })).toEqual(
+			account,
+		);
+		expect(
+			await client.creditLedgerEntry.findUniqueOrThrow({
+				where: { referenceKey: reference(ownerId) },
+			}),
+		).toEqual(receipt);
+		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
+	});
+
+	it("recognizes the historical five-credit receipt without a top-up or transaction", async () => {
+		const ownerId = await user("historical-five");
+		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+		await createCreditGrant(
+			{
+				accountId: account.id,
+				amount: 5n,
+				referenceKey: reference(ownerId),
+				expiresAt: null,
+				metadata: { program: "one-time-login-bonus-v1" },
+			},
+			client,
+		);
+		const before = await accountFor(ownerId);
+		const receipt = await client.creditLedgerEntry.findUniqueOrThrow({
+			where: { referenceKey: reference(ownerId) },
+		});
+		const { observed, observations } = observeTransactions();
+		const results = await Promise.all(
+			Array.from({ length: 24 }, () => ensureOneTimeLoginCreditGrant({ ownerId }, observed)),
+		);
+		expect(results.every(({ status }) => status === "ALREADY_GRANTED")).toBe(true);
+		expect(observations.isolations).toEqual([]);
+		expect(await accountFor(ownerId)).toEqual(before);
+		expect(before.spendableCredits).toBe(5n);
+		expect(await client.creditLot.count({ where: { accountId: account.id } })).toBe(1);
+		expect(await client.creditLedgerEntry.findMany({ where: { accountId: account.id } })).toEqual([
+			receipt,
+		]);
+		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
+	});
+
+	it("disables monthly minting while preserving historical monthly receipts and balances", async () => {
+		const ownerId = await user("disabled-monthly");
+		const now = new Date();
+		const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+		const periodEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+		const { observed, observations } = observeTransactions();
+		await expect(
+			ensureFreeMonthlyCreditGrant({ ownerId, amount: 25n, now }, observed),
+		).resolves.toEqual({ status: "DISABLED" });
+		expect(observations.isolations).toEqual([]);
+		expect(await client.creditAccount.count({ where: { ownerType: "USER", ownerId } })).toBe(0);
+		await ensureOneTimeLoginCreditGrant({ ownerId }, client);
+		const account = await accountFor(ownerId);
+		const historicalReference = `free-plan:user:${ownerId}:${periodStart.toISOString().slice(0, 7)}`;
+		await createCreditGrant(
+			{
+				accountId: account.id,
+				amount: 25n,
+				referenceKey: historicalReference,
+				expiresAt: periodEnd,
+				metadata: {
+					planId: "free",
+					periodStart: periodStart.toISOString(),
+					periodEnd: periodEnd.toISOString(),
+				},
+			},
+			client,
+		);
+		const before = await accountFor(ownerId);
+		const historicalReceipt = await client.creditLedgerEntry.findUniqueOrThrow({
+			where: { referenceKey: historicalReference },
+		});
+		const results = await Promise.all(
+			Array.from({ length: 24 }, (_, index) =>
+				ensureFreeMonthlyCreditGrant(
+					{ ownerId, amount: 25n, now: index % 2 ? periodEnd : now },
+					observed,
+				),
+			),
+		);
+		expect(results.every(({ status }) => status === "DISABLED")).toBe(true);
+		expect(observations.isolations).toEqual([]);
+		await expect(
+			hasMatchingFreeMonthlyCreditGrant({ ownerId, amount: 25n, now }, client),
+		).resolves.toBe(true);
+		expect(await accountFor(ownerId)).toEqual(before);
+		expect(before.spendableCredits).toBe(35n);
+		expect(
+			await client.creditLedgerEntry.count({ where: { accountId: account.id, type: "GRANT" } }),
+		).toBe(2);
+		expect(
+			await client.creditLedgerEntry.findUniqueOrThrow({
+				where: { referenceKey: historicalReference },
+			}),
+		).toEqual(historicalReceipt);
+		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
 	});
 
 	it("admits 50 independent funded users without a serialization retry", async () => {
@@ -237,7 +363,7 @@ describe("login bonus concurrency with the generated Prisma client", () => {
 		for (const { ownerId, accountId } of cases) {
 			expect(
 				await client.creditAccount.findUniqueOrThrow({ where: { id: accountId } }),
-			).toMatchObject({ spendableCredits: 105n, reservedCredits: 0n, creditDebt: 0n });
+			).toMatchObject({ spendableCredits: 110n, reservedCredits: 0n, creditDebt: 0n });
 			expect(
 				await client.creditLedgerEntry.count({
 					where: { referenceKey: `login-bonus:user:${ownerId}:v1`, accountId },
@@ -259,14 +385,14 @@ describe("login bonus concurrency with the generated Prisma client", () => {
 		expect(observations.isolations).toEqual(Array(50).fill("ReadCommitted"));
 		for (const ownerId of owners) {
 			const account = await accountFor(ownerId);
-			expect(account).toMatchObject({ spendableCredits: 5n, reservedCredits: 0n, creditDebt: 0n });
+			expect(account).toMatchObject({ spendableCredits: 10n, reservedCredits: 0n, creditDebt: 0n });
 			expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
 		}
 	});
 
 	it.each([
-		["monthly", "ssi-first"],
-		["monthly", "login-first"],
+		["historical-monthly", "ssi-first"],
+		["historical-monthly", "login-first"],
 		["admin", "ssi-first"],
 		["admin", "login-first"],
 	] as const)(
@@ -276,8 +402,23 @@ describe("login bonus concurrency with the generated Prisma client", () => {
 			const { observed, observations } = observeTransactions();
 			const paused = pauseAccountCreation(observed);
 			const ssiGrant = (database: PrismaClient) =>
-				kind === "monthly"
-					? ensureFreeMonthlyCreditGrant({ ownerId, amount: 25n, now: new Date() }, database)
+				kind === "historical-monthly"
+					? runSerializable(database, async (tx) => {
+							const account = await ensureCreditAccountInTransaction(
+								{ ownerType: "USER", ownerId },
+								tx,
+							);
+							// Model an old producer during drain without reopening current monthly minting.
+							await createCreditGrant(
+								{
+									accountId: account.id,
+									amount: 25n,
+									referenceKey: `historical-monthly:${ownerId}`,
+									metadata: { planId: "free" },
+								},
+								tx,
+							);
+						})
 					: adjustAdminCredits(
 							{
 								scope: { kind: "platform" },
@@ -306,7 +447,7 @@ describe("login bonus concurrency with the generated Prisma client", () => {
 			const [result] = await settled;
 			if (result?.status === "rejected") throw result.reason;
 			const account = await accountFor(ownerId);
-			expect(account.spendableCredits).toBe(kind === "monthly" ? 30n : 12n);
+			expect(account.spendableCredits).toBe(kind === "historical-monthly" ? 35n : 17n);
 			expect(observations.serializationConflicts).toBe(order === "ssi-first" ? 1 : 0);
 			expect(observations.isolations).toEqual(
 				order === "ssi-first" ? ["Serializable", "Serializable"] : ["ReadCommitted"],
@@ -420,7 +561,7 @@ describe("login bonus concurrency with the generated Prisma client", () => {
 				where: { ownerType_ownerId: owner },
 			});
 			expect(account.id).toBe(created?.status === "fulfilled" && created.value.id);
-			expect(account.spendableCredits).toBe(ownerType === "USER" ? 5n : 0n);
+			expect(account.spendableCredits).toBe(ownerType === "USER" ? 10n : 0n);
 			if (ownerType === "ORGANIZATION")
 				expect(waited?.status === "fulfilled" && waited.value).toEqual(account);
 			expect(await client.creditAccount.count({ where: owner })).toBe(1);
@@ -432,13 +573,13 @@ describe("login bonus concurrency with the generated Prisma client", () => {
 		const ownerId = await user("spent");
 		await ensureOneTimeLoginCreditGrant({ ownerId }, client);
 		const account = await accountFor(ownerId);
-		const job = await jobFor(ownerId, 5n);
+		const job = await jobFor(ownerId, 10n);
 		const reservation = await reserveCredits(
-			{ accountId: account.id, jobId: job.id, amount: 5n, referenceKey: `reserve:${job.id}` },
+			{ accountId: account.id, jobId: job.id, amount: 10n, referenceKey: `reserve:${job.id}` },
 			client,
 		);
 		await settleCredits(
-			{ reservationId: reservation.id, amount: 5n, referenceKey: `settle:${job.id}` },
+			{ reservationId: reservation.id, amount: 10n, referenceKey: `settle:${job.id}` },
 			client,
 		);
 		const { observed, observations } = observeTransactions();
@@ -461,7 +602,7 @@ describe("login bonus concurrency with the generated Prisma client", () => {
 		await refundCreditGrant(
 			{
 				accountId: account.id,
-				amount: 5n,
+				amount: 10n,
 				grantReferenceKey: reference(ownerId),
 				referenceKey: `refund:${ownerId}`,
 			},
@@ -483,10 +624,10 @@ describe("login bonus concurrency with the generated Prisma client", () => {
 		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
 	});
 
-	it("expires old lots atomically before adding the five-credit gift", async () => {
+	it("expires old lots atomically before adding the ten-credit gift", async () => {
 		const { ownerId, accountId } = await fundedUser("expired", 10n, new Date(Date.now() - 1000));
 		await ensureOneTimeLoginCreditGrant({ ownerId }, client);
-		expect(await accountFor(ownerId)).toMatchObject({ spendableCredits: 5n, creditDebt: 0n });
+		expect(await accountFor(ownerId)).toMatchObject({ spendableCredits: 10n, creditDebt: 0n });
 		expect(
 			await client.creditLedgerEntry.count({ where: { accountId, type: "EXPIRE", amount: 10n } }),
 		).toBe(1);
@@ -527,7 +668,7 @@ describe("login bonus concurrency with the generated Prisma client", () => {
 		if (result?.status === "rejected") throw result.reason;
 		expect(attempts).toContain("SERIALIZATION_CONFLICT");
 		expect(await accountFor(ownerId)).toMatchObject({
-			spendableCredits: 2n,
+			spendableCredits: 7n,
 			reservedCredits: 103n,
 			creditDebt: 0n,
 			version: 3,
@@ -582,7 +723,7 @@ describe("login bonus concurrency with the generated Prisma client", () => {
 		expect(await accountFor(ownerId)).toMatchObject({
 			spendableCredits: 0n,
 			reservedCredits: 0n,
-			creditDebt: 5n,
+			creditDebt: 0n,
 		});
 		expect(
 			await client.creditLedgerEntry.findUniqueOrThrow({
@@ -593,7 +734,7 @@ describe("login bonus concurrency with the generated Prisma client", () => {
 			await client.creditLedgerEntry.findUniqueOrThrow({
 				where: { referenceKey: `${reference(ownerId)}:debt-repayment` },
 			}),
-		).toMatchObject({ amount: 5n });
+		).toMatchObject({ amount: 10n });
 		expect(await getCreditInvariantReport(accountId, client)).toMatchObject({ valid: true });
 	});
 

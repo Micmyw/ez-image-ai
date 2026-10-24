@@ -37,13 +37,12 @@ export async function loadCurrentGenerationAdmission(
 		tx,
 	);
 	const entitlement = resolvePlanEntitlement(subscription?.plan.metadata, subscription?.plan.name);
+	if (!entitlement.allowedProducts.includes(productKey)) throw new Error("ENTITLEMENT_REQUIRED");
 	if (input.fundingSource === "IMAGE_PASS")
 		await assertImagePassAvailable(
 			{ ownerId: input.ownerId, productKey, skuKey: input.skuKey },
 			tx,
 		);
-	else if (!entitlement.allowedProducts.includes(productKey))
-		throw new Error("ENTITLEMENT_REQUIRED");
 	if (input.costMicros > BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumJobCostMicros))
 		throw new Error("BUDGET_EXCEEDED");
 	return {

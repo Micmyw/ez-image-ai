@@ -4,6 +4,7 @@ import { z } from "zod";
 // Image SKU repricing must not disable unchanged subscription plans.
 // Annual-only repricing keeps this cohort so unchanged monthly snapshots stay eligible.
 export const BILLING_PRICING_VERSION = "2026-09-15.1";
+export const FREE_ACCOUNT_SIGN_IN_CREDITS = 10;
 
 import {
 	EZPIC_PRODUCT_KEYS,
@@ -37,9 +38,9 @@ export const PLAN_ENTITLEMENTS = z
 	.parse([
 		{
 			id: "free",
-			monthlyCredits: 25,
+			monthlyCredits: 0,
 			maximumInputBytes: 10 * 1024 * 1024,
-			allowedProducts: [...EZPIC_PRODUCT_KEYS],
+			allowedProducts: ["image-nano-banana-2-lite"],
 			prices: [],
 		},
 		{

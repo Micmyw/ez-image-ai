@@ -2,7 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
-import { getCreditInvariantReport } from "./credits";
+import { createCreditGrant, getCreditInvariantReport } from "./credits";
 import { ensureFreeMonthlyCreditGrant } from "./free-plan-credits";
 import { ensureOneTimeLoginCreditGrant } from "./login-bonus";
 
@@ -45,7 +45,7 @@ describe("one-time login bonus on disposable PostgreSQL", () => {
 		return ownerId;
 	}
 
-	it("24 concurrent claims create one five-credit grant, lot and ledger entry", async () => {
+	it("24 concurrent claims create one ten-credit grant, lot and ledger entry", async () => {
 		const ownerId = await user("concurrent");
 		const results = await Promise.all(
 			Array.from({ length: 24 }, () => ensureOneTimeLoginCreditGrant({ ownerId }, client)),
@@ -54,13 +54,13 @@ describe("one-time login bonus on disposable PostgreSQL", () => {
 		const account = await client.creditAccount.findUniqueOrThrow({
 			where: { ownerType_ownerId: { ownerType: "USER", ownerId } },
 		});
-		expect(account).toMatchObject({ spendableCredits: 5n, reservedCredits: 0n, creditDebt: 0n });
+		expect(account).toMatchObject({ spendableCredits: 10n, reservedCredits: 0n, creditDebt: 0n });
 		expect(await client.creditLot.count({ where: { accountId: account.id } })).toBe(1);
 		expect(await client.creditLedgerEntry.count({ where: { accountId: account.id } })).toBe(1);
 		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
 	});
 
-	it("does not replace or repeat the separate monthly 25-credit allowance", async () => {
+	it("does not issue monthly credits alongside the one lifetime allowance", async () => {
 		const ownerId = await user("monthly");
 		const now = new Date();
 		await Promise.all([
@@ -71,15 +71,44 @@ describe("one-time login bonus on disposable PostgreSQL", () => {
 		const account = await client.creditAccount.findUniqueOrThrow({
 			where: { ownerType_ownerId: { ownerType: "USER", ownerId } },
 		});
-		expect(account.spendableCredits).toBe(30n);
+		expect(account.spendableCredits).toBe(10n);
 		const grants = await client.creditLedgerEntry.findMany({
 			where: { accountId: account.id, type: "GRANT" },
 		});
-		expect(grants).toHaveLength(2);
+		expect(grants).toHaveLength(1);
 		expect(grants.map(({ referenceKey }) => referenceKey)).toContain(
 			`login-bonus:user:${ownerId}:v1`,
 		);
 		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
+	});
+	it("preserves an exact historical five-credit receipt without topping up or replacing it", async () => {
+		const ownerId = await user("historical-five");
+		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+		const referenceKey = `login-bonus:user:${ownerId}:v1`;
+		await createCreditGrant(
+			{
+				accountId: account.id,
+				amount: 5n,
+				expiresAt: null,
+				referenceKey,
+				metadata: { program: "one-time-login-bonus-v1" },
+			},
+			client,
+		);
+		const ledgerBefore = await client.creditLedgerEntry.findMany({
+			where: { accountId: account.id },
+		});
+		await expect(ensureOneTimeLoginCreditGrant({ ownerId }, client)).resolves.toEqual({
+			status: "ALREADY_GRANTED",
+			referenceKey,
+		});
+		expect(await client.creditLedgerEntry.findMany({ where: { accountId: account.id } })).toEqual(
+			ledgerBefore,
+		);
+		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({
+			valid: true,
+			account: { spendable: 5n, reserved: 0n, debt: 0n },
+		});
 	});
 
 	it("rejects anonymous or absent identities without creating a credit account", async () => {

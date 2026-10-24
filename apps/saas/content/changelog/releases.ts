@@ -1,5 +1,14 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-10-24",
+		title: "Two free trial images and clearer generation limits",
+		changes: [
+			"Registered accounts receive one lifetime 10-credit allowance for two Nano Banana 2 Lite 1K generations. Recurring monthly Free credits are no longer issued; existing grants and purchases retain their balances and expiry.",
+			"Other image models and HD or higher-quality output require an effective paid subscription, including when using an image pass. Previously accepted tasks continue under their original contracts.",
+			"Sensitive-content rejections by the generation provider on new credit-funded attempts use the full quoted credits, even on the first rejection. The result notice explains the charge; technical failures retain their recovery and release rules.",
+		],
+	},
+	{
 		date: "2026-10-21",
 		title: "Updated analytics choices and privacy information",
 		changes: [

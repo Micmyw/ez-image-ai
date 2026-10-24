@@ -50,17 +50,57 @@ describe("transaction-current admission", () => {
 			).rejects.toThrow("MODEL_DISABLED");
 		},
 	);
-	it.each(EZPIC_PRODUCT_KEYS)(
-		"admits %s without an effective paid subscription",
+	it.each(EZPIC_PRODUCT_KEYS.filter((key) => key !== "image-nano-banana-2-lite"))(
+		"rejects %s without an effective paid subscription",
 		async (productKey) => {
 			await expect(
 				loadCurrentGenerationAdmission(
 					{ ownerId: "owner", productKey, costMicros: 30_000n, now: new Date() },
 					transaction() as never,
 				),
+			).rejects.toThrow("ENTITLEMENT_REQUIRED");
+		},
+	);
+	it("admits only Nano Banana 2 Lite 1K without an effective paid subscription", async () => {
+		await expect(
+			loadCurrentGenerationAdmission(
+				{
+					ownerId: "owner",
+					productKey: "image-nano-banana-2-lite",
+					skuKey: "nano-banana-2-lite-1k",
+					costMicros: 20_000n,
+					now: new Date(),
+				},
+				transaction() as never,
+			),
+		).resolves.toMatchObject({ maximumInputBytes: expect.any(Number) });
+	});
+	it.each(EZPIC_PRODUCT_KEYS)(
+		"admits %s with an effective paid subscription",
+		async (productKey) => {
+			await expect(
+				loadCurrentGenerationAdmission(
+					{ ownerId: "owner", productKey, costMicros: 30_000n, now: new Date() },
+					transaction([], "creator") as never,
+				),
 			).resolves.toMatchObject({ maximumInputBytes: expect.any(Number) });
 		},
 	);
+	it("does not let image passes unlock premium models without an effective subscription", async () => {
+		await expect(
+			loadCurrentGenerationAdmission(
+				{
+					ownerId: "owner",
+					productKey: "image-nano-banana-pro",
+					skuKey: "nano-banana-pro-4k",
+					fundingSource: "IMAGE_PASS",
+					costMicros: 120_000n,
+					now: new Date(),
+				},
+				transaction() as never,
+			),
+		).rejects.toThrow("ENTITLEMENT_REQUIRED");
+	});
 	it("derives the tighter product size limit without limiting unfinished task counts", async () => {
 		const tx = transaction([], "studio");
 		const admission = await loadCurrentGenerationAdmission(

@@ -1728,7 +1728,7 @@
 				"upToResolution": "Up to {resolution}",
 				"upgradeNotice": "{model} requires Pro, Ultimate, or Max. You can keep editing before choosing a plan."
 			},
-			"moderationBillingPolicy": "Content safety: your account or team gets one lifetime credit waiver if a generated image is blocked. Later blocked results use the quoted credits. Prompts or uploads stopped before generation and safety-check failures cost no credits and do not use the waiver.",
+			"moderationBillingPolicy": "Content safety: sensitive-content rejections by the generation provider after submission use the full quoted credits, including the first rejection, without using the one-time output waiver. For images returned and then blocked by our safety check, your account or team gets one lifetime credit waiver; later blocked results use the quoted credits. Prompts or uploads stopped before submission and technical safety-check failures cost no credits.",
 			"generateWithCredits": "Generate image · {credits} credits",
 			"startEditWithCredits": "Start edit · {credits} credits",
 			"checking": "Checking…",
@@ -1750,7 +1750,7 @@
 			"temporaryCompact": "Watermarked · temporary",
 			"submit": "Start my Nano Banana edit",
 			"challenge": "Verify this guest edit",
-			"qualityCta": "More image models · sign in",
+			"qualityCta": "More image models · paid plan",
 			"retryChallenge": "Retry verification",
 			"retryPreview": "Retry private preview",
 			"viewStatus": "View status",
@@ -1795,7 +1795,7 @@
 			"dailyReset": "Resets daily at 00:00 UTC. Unused edits do not roll over.",
 			"dailyLimitReached": "You have used today’s two free edits. Come back after 00:00 UTC for two more.",
 			"editAnother": "Edit another image",
-			"loginBonus": "Sign in to continue with account credits. Each account gets a one-time 5-credit bonus, separate from monthly free credits."
+			"loginBonus": "Eligible registered accounts receive 10 credits once for two Nano Banana 2 Lite 1K generations, with no monthly refill. Other image models and HD require an active paid subscription."
 		},
 		"upgradeDialog": {
 			"title": "Unlock more image models",
@@ -1986,6 +1986,7 @@
 		"safety": {
 			"titles": {
 				"prompt": "Please revise this instruction",
+				"providerBlocked": "Generation blocked by content safety",
 				"input": "Please choose another image",
 				"output": "This result cannot be shown",
 				"unavailable": "We couldn't complete the safety check",
@@ -1999,6 +2000,7 @@
 					"review": "This instruction could not be approved. Generation has not started.",
 					"unsupportedLanguage": "We cannot check this prompt in its current language. Generation has not started."
 				},
+				"providerBlocked": "The generation provider rejected the input or output as sensitive. No result is available.",
 				"input": {
 					"blocked": "This reference image did not pass the safety check and cannot be used for generation.",
 					"unavailable": "This image is unavailable or its safety review could not be completed."
@@ -2026,6 +2028,7 @@
 				"beforeGeneration": "No generation credits were charged and your one-time waiver was not used.",
 				"waived": "No credits were charged: your account’s one-time waiver was used. Future blocked results use the quoted credits.",
 				"charged": "{credits} credits were charged for this generation, as quoted. Your account’s one-time waiver had already been used.",
+				"providerRejection": "All {credits} quoted credits were charged. This rejection does not use your account’s one-time output waiver.",
 				"returned": "No credits were charged and your one-time waiver was not used. Reserved credits were released.",
 				"noCharge": "No credits were charged. See the credit summary for the amount released.",
 				"summary": "See this job’s credit summary for the actual charge and released credits.",
@@ -2472,13 +2475,13 @@
 		"bannerLabel": "One-time image pack",
 		"dismissBanner": "Dismiss image pack offer",
 		"bannerTitle": "{units} images for ${amount}",
-		"bannerDetail": "Current image models · up to 4K · no subscription",
+		"bannerDetail": "Nano Banana 2 Lite 1K · premium models and HD require a subscription",
 		"buy": "Get image pack",
 		"oneTime": "One-time purchase",
 		"title": "{units} successful images",
 		"pageTitle": "Image pack — 3 images for USD 1",
-		"description": "Choose any currently available image model, including supported options up to 4K. Each task produces one image.",
-		"models": "Current image models and supported resolutions, including 4K",
+		"description": "Use image passes with Nano Banana 2 Lite 1K. An active paid subscription unlocks other image models and supported HD options up to 4K. Each task produces one image.",
+		"models": "Nano Banana 2 Lite 1K; premium models and HD with an active paid subscription",
 		"singleOutput": "One successful image uses one pass. Images only, no video.",
 		"separate": "Image passes are separate from credits and subscriptions.",
 		"repeat": "Buy another pack whenever you need it.",
@@ -2496,7 +2499,7 @@
 		"fundingLoading": "Checking image passes…",
 		"buyMore": "Get 3 image passes",
 		"fundingEmpty": "No image passes available. Buy a pack or explicitly choose credits to continue.",
-		"fundingPolicy": "One pass is reserved while the task runs and used for one successful image. Credits are not used. Existing content review and storage limits still apply.",
+		"fundingPolicy": "One pass is reserved while the task runs and used for one successful image. Credits are not used. Premium image models and HD require an active paid subscription, including when using passes. Existing content review and storage limits still apply.",
 		"fundingSeparate": "Credits and image passes are separate choices. Your selection will not switch automatically.",
 		"fundingPolicyTitle": "Image pass policy",
 		"onePass": "1 image pass",

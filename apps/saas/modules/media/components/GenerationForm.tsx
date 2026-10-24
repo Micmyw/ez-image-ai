@@ -247,9 +247,7 @@ export function GenerationForm({
 	const passSkuAllowed = IMAGE_PASS_PUBLIC_OFFER.allowedSkuKeys.includes(values.skuKey);
 	const passReady =
 		passSelected && passSkuAllowed && !generation.imagePass?.isError && (passAvailable ?? 0) >= 1;
-	const upgradeRequired = Boolean(
-		product && !passSelected && !allowedProductKeys.includes(values.productKey),
-	);
+	const upgradeRequired = Boolean(product && !allowedProductKeys.includes(values.productKey));
 	const selectedCell = getImageSpecCell(product?.skuMatrix, values.skuKey);
 	const effectSelectionUnavailable = Boolean(
 		ready &&
@@ -596,7 +594,7 @@ export function GenerationForm({
 					textLength: textLengthBucket(validated.prompt.trim().length),
 					inputCount: validated.sourceAssetId ? 1 : 0,
 				});
-				if (!passSelected && !allowedProductKeys.includes(validated.productKey)) {
+				if (!allowedProductKeys.includes(validated.productKey)) {
 					setUpgradeOpen(true);
 					return;
 				}
@@ -691,7 +689,6 @@ export function GenerationForm({
 											skuMatrix: candidate.skuMatrix,
 											requiresUpgrade:
 												isEditorProductKey(candidate.key) &&
-												!passSelected &&
 												!allowedProductKeys.includes(candidate.key),
 										},
 									]

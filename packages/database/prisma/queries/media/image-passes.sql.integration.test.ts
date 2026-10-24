@@ -641,9 +641,22 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 		await sqlTransaction((tx) =>
 			reserveImagePassForJobInTransaction({ ownerId: f.ownerId, jobId }, tx),
 		);
-		await readyOutput(jobId, f.ownerId, new Date(Date.now() + 300));
+		// Create and expire this approval against the database clock, not a Windows/WSL offset.
+		const expiry = (
+			await pool!.query<{ validUntil: Date }>(
+				`SELECT clock_timestamp() + interval '2 seconds' AS "validUntil"`,
+			)
+		).rows[0]!.validUntil;
+		await readyOutput(jobId, f.ownerId, expiry);
 		await pool!.query(`UPDATE generation_job SET status='FINALIZING' WHERE id=$1`, [jobId]);
-		await new Promise((resolve) => setTimeout(resolve, 350));
+		await vi.waitFor(
+			async () => {
+				const row = (await pool!.query(`SELECT clock_timestamp() > $1 AS expired`, [expiry]))
+					.rows[0];
+				expect(row.expired).toBe(true);
+			},
+			{ timeout: 5_000, interval: 50 },
+		);
 		await expect(
 			sqlTransaction((tx) =>
 				finalizeImagePassReservationInTransaction(
@@ -667,12 +680,14 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 		).rejects.toThrow("IMAGE_PASS_LEDGER_IMMUTABLE");
 	});
 	it.each([
-		{ paid: false, usage: 0n, admitted: true },
-		{ paid: false, usage: 3n * 1024n * 1024n * 1024n, admitted: false },
-		{ paid: true, usage: 3n * 1024n * 1024n * 1024n, admitted: true },
+		{ paid: false, premium: false, usage: 0n, admitted: true },
+		{ paid: false, premium: false, usage: 3n * 1024n * 1024n * 1024n, admitted: false },
+		{ paid: false, premium: true, usage: 0n, admitted: false },
+		{ paid: false, premium: true, usage: 3n * 1024n * 1024n * 1024n, admitted: false },
+		{ paid: true, premium: true, usage: 3n * 1024n * 1024n * 1024n, admitted: true },
 	])(
-		"retains current storage policy for a 4K pass: paid=$paid admitted=$admitted",
-		async ({ paid, usage, admitted }) => {
+		"retains subscription and storage policy for passes: paid=$paid premium=$premium admitted=$admitted",
+		async ({ paid, premium, usage, admitted }) => {
 			const f = await paymentFixture();
 			await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
 			if (paid) {
@@ -696,26 +711,33 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 					`INSERT INTO storage_usage_reservation (id,"ownerType","ownerId",bytes,status,"referenceKey","expiresAt") VALUES ($1,'USER',$2,$3,'COMMITTED',$1,now()+interval '1 day')`,
 					["storage-" + crypto.randomUUID(), f.ownerId, usage],
 				);
+			const productKey = premium ? "image-nano-banana-pro" : "image-nano-banana-2-lite";
+			const skuKey = premium ? "nano-banana-pro-4k" : "nano-banana-2-lite-1k";
+			const credits = premium ? 25 : 5;
 			const pricingSnapshot = {
 				fundingSource: "IMAGE_PASS",
-				skuKey: "nano-banana-pro-4k",
-				credits: 25,
-				settlementPolicy: { unitCredits: "25", requestedOutputCount: 1, maxCharge: "25" },
+				skuKey,
+				credits,
+				settlementPolicy: {
+					unitCredits: String(credits),
+					requestedOutputCount: 1,
+					maxCharge: String(credits),
+				},
 			};
 			const quote = {
 				id: "admission-" + crypto.randomUUID(),
 				ownerType: "USER" as const,
 				ownerId: f.ownerId,
 				submittedByUserId: f.ownerId,
-				productKey: "image-nano-banana-pro",
+				productKey,
 				catalogVersion: "2026-09-14.1",
 				pricingVersion: "2026-09-13.2",
-				credits: 25n,
-				costMicros: 120000n,
+				credits: BigInt(credits),
+				costMicros: premium ? 120000n : 20000n,
 				inputSnapshot: {
 					kind: "text-to-image",
 					prompt: "A vase",
-					skuKey: "nano-banana-pro-4k",
+					skuKey,
 					aspectRatio: "1:1",
 				},
 				pricingSnapshot,
@@ -765,7 +787,9 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 				} as never,
 			);
 			if (!admitted) {
-				await expect(result).rejects.toThrow("STORAGE_QUOTA_EXCEEDED");
+				await expect(result).rejects.toThrow(
+					premium && !paid ? "ENTITLEMENT_REQUIRED" : "STORAGE_QUOTA_EXCEEDED",
+				);
 				expect(
 					await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
 				).toEqual({ available: 3, reserved: 0, consumed: 0, revoked: 0 });

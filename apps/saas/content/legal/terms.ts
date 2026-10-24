@@ -2,11 +2,11 @@ export const termsDocuments = [
 	{
 		path: "terms",
 		locale: "en",
-		updatedAt: "2026-10-04",
+		updatedAt: "2026-10-24",
 		title: "Terms of Service",
 		description:
 			"Terms for EzImageAI accounts, image-editing workflows, credits, subscriptions, content, and acceptable use.",
-		body: `_Last updated: October 4, 2026_
+		body: `_Last updated: October 24, 2026_
 
 These terms govern use of EzImageAI's public image editor and account-based image-editing service. EzImageAI is an independently operated service run by an individual. In these terms, "EzImageAI" refers to the service and its operator. You can reach the operator through the [Contact page](/contact). By using the service, you agree to the version presented when you use it.
 
@@ -20,7 +20,7 @@ Outside an available anonymous trial, real generation requires an account and su
 
 EzImageAI shows the credit cost before an account-based edit is confirmed. Credits are reserved when a generation job is created, charged according to the completed job state, and released when the ledger rules require release. Credits are a product usage unit, not cash, stored value, or a transferable financial instrument.
 
-For new generation quotes, each account or team receives one lifetime credit waiver when its generated result is blocked by a confirmed content-safety rejection. Subsequent blocked results are charged at the quoted generation amount, although the image remains unavailable. Prompt or upload rejection before generation, incomplete reviews, and technical safety-check failures do not consume this waiver. A failed check with no usable result releases the reservation. Sponsored guest trials do not consume an account waiver. Job details show the actual charge and release. Contact support to appeal a suspected incorrect decision; applicable consumer rights remain unaffected.
+For new credit-funded generation quotes, a generation-provider rejection of sensitive input or output after submission is charged at the full quoted amount, including the first rejection and when no image is returned. This does not use the one-time output-review waiver. For images returned and then blocked by our safety check, each account or team receives one lifetime credit waiver; subsequent blocked results use the quoted generation amount although the image remains unavailable. Prompt or upload rejection before submission, incomplete reviews, and technical safety-check failures do not consume this waiver and release the reservation when the outcome is confirmed. Sponsored guest trials do not charge customer credits or consume an account waiver. Previously accepted attempts retain their original policy. Job details show the actual charge and release. Contact support to appeal a suspected incorrect decision; applicable consumer rights remain unaffected.
 
 Paid Pro, Ultimate, and Max plans and current subscription prices are shown on the [Pricing page](/pricing). Any free account allowance is shown in the account. A paid checkout is available only when that payment option is offered. Recurring subscriptions continue for their stated interval until canceled. Cancellation and plan-management controls are available from the billing area, subject to applicable processing periods.
 

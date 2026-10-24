@@ -10,6 +10,7 @@ export type SafetyBillingOutcome =
 	| "beforeGeneration"
 	| "waived"
 	| "charged"
+	| "providerRejection"
 	| "returned"
 	| "noCharge"
 	| "sponsored"
@@ -24,6 +25,7 @@ export function ContentSafetyNotice({
 	fundingSource = "CREDITS",
 	jobId,
 	onRevise,
+	providerRejection = false,
 	className,
 }: {
 	stage: "prompt" | "input" | "output";
@@ -34,6 +36,7 @@ export function ContentSafetyNotice({
 	fundingSource?: "CREDITS" | "IMAGE_PASS";
 	jobId?: string;
 	onRevise?: () => void;
+	providerRejection?: boolean;
 	className?: string;
 }) {
 	const t = useTranslations("media.safety");
@@ -51,14 +54,22 @@ export function ContentSafetyNotice({
 		>
 			<Icon aria-hidden="true" />
 			<h3 className="text-base font-semibold leading-snug">
-				{t(blocked ? `titles.${stage}` : `titles.${outcome}`)}
+				{t(
+					providerRejection
+						? "titles.providerBlocked"
+						: blocked
+							? `titles.${stage}`
+							: `titles.${outcome}`,
+				)}
 			</h3>
 			<AlertDescription className="space-y-3">
 				<p>
 					{t(
-						outcome === "review" || outcome === "unsupportedLanguage"
-							? `summary.prompt.${outcome}`
-							: `summary.${stage}.${outcome}`,
+						providerRejection
+							? "summary.providerBlocked"
+							: outcome === "review" || outcome === "unsupportedLanguage"
+								? `summary.prompt.${outcome}`
+								: `summary.${stage}.${outcome}`,
 					)}
 				</p>
 				<dl className="space-y-3 text-sm">

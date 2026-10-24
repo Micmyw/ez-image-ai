@@ -72,7 +72,7 @@ describe("one-time registered-account login credit grant", () => {
 			expect(ledger.grant).toHaveBeenCalledWith(
 				{
 					accountId: "account-1",
-					amount: 5n,
+					amount: 10n,
 					expiresAt: null,
 					referenceKey: `login-bonus:user:${ownerId}:v1`,
 					metadata: { program: "one-time-login-bonus-v1" },
@@ -130,12 +130,38 @@ describe("one-time registered-account login credit grant", () => {
 
 	it("rechecks a concurrent winning receipt after waiting for the lifetime lock", async () => {
 		const { tx, client } = fixture();
-		ledger.matches.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+		ledger.matches
+			.mockResolvedValueOnce(false)
+			.mockResolvedValueOnce(false)
+			.mockResolvedValueOnce(true);
 		await expect(ensureOneTimeLoginCreditGrant({ ownerId: "owner-1" }, client)).resolves.toEqual({
 			status: "ALREADY_GRANTED",
 			referenceKey: "login-bonus:user:owner-1:v1",
 		});
 		expect(tx.creditAccount.findUnique).not.toHaveBeenCalled();
+		expect(ledger.grant).not.toHaveBeenCalled();
+	});
+	it("recognizes an exact historical five-credit lifetime receipt without topping it up", async () => {
+		ledger.matches.mockImplementation(async (input) => input.amount === 5n);
+		const { client, transaction } = fixture();
+		await expect(
+			ensureOneTimeLoginCreditGrant({ ownerId: "legacy-owner" }, client),
+		).resolves.toEqual({
+			status: "ALREADY_GRANTED",
+			referenceKey: "login-bonus:user:legacy-owner:v1",
+		});
+		expect(ledger.matches).toHaveBeenCalledWith(
+			expect.objectContaining({
+				amount: 5n,
+				expiresAt: null,
+				referenceKey: "login-bonus:user:legacy-owner:v1",
+				metadata: { program: "one-time-login-bonus-v1" },
+				ownerType: "USER",
+				ownerId: "legacy-owner",
+			}),
+			client,
+		);
+		expect(transaction).not.toHaveBeenCalled();
 		expect(ledger.grant).not.toHaveBeenCalled();
 	});
 

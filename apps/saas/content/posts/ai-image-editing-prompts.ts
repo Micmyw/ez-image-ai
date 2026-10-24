@@ -39,7 +39,7 @@ Start with one clear subject against a background you want to replace. In the [i
 
 "Replace only the background with a light gray studio wall and a matte white tabletop. Keep the subject's shape, color, position and visible text unchanged. Add a soft contact shadow consistent with the original lighting. Keep the original framing."
 
-Choose an available model, check its credit quote, and generate once. The [Free account allowance](/docs/credits#before-you-generate) can be used for available image models when the balance covers the quote. A plan purchase is not needed just to test this instruction.
+Choose an available model, check its credit quote, and generate once. The [Free account allowance](/docs/credits#before-you-generate) supports Nano Banana 2 Lite 1K when the balance covers the quote. Other image models and HD options require an active paid subscription.
 
 Compare the original and result at full size. Check the outline, fine hair, glass or transparent edges, printed text and contact shadow. If only the background is wrong, revise that part of the instruction and start again from the original. Each new generation has its own charge. This prompt is a starting instruction; it has not been validated as a product-output example.
 
