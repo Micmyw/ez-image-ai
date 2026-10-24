@@ -1,20 +1,20 @@
 "use client";
 
-import { updateLocale } from "@i18n/lib/update-locale";
-import type { Locale } from "@repo/i18n";
-import { config as i18nConfig } from "@repo/i18n";
+import { config as i18nConfig, type Locale } from "@repo/i18n";
 import { Button } from "@repo/ui/components/button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuRadioGroup,
-	DropdownMenuRadioItem,
-	DropdownMenuTrigger,
-} from "@repo/ui/components/dropdown-menu";
 import { GlobeIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+
+type MenuModule = typeof import("./LocaleSwitchMenu");
+let pendingMenu: Promise<MenuModule> | undefined;
+
+function loadMenu() {
+	return (pendingMenu ??= import("./LocaleSwitchMenu").catch((error: unknown) => {
+		pendingMenu = undefined;
+		throw error;
+	}));
+}
 
 export function LocaleSwitch({
 	className,
@@ -23,68 +23,94 @@ export function LocaleSwitch({
 	className?: string;
 	disabled?: boolean;
 }) {
-	const router = useRouter();
-	const pathname = usePathname();
 	const t = useTranslations("pricing.upgrade");
 	const currentLocale = useLocale();
-	const [pending, setPending] = useState(false);
+	const triggerId = useId();
+	const requestVersion = useRef(0);
+	const [loading, setLoading] = useState(false);
+	const [menu, setMenu] = useState<{
+		Component: MenuModule["LocaleSwitchMenu"];
+		initialFocus?: "first" | "last";
+	} | null>(null);
+	useEffect(() => {
+		if (disabled) {
+			requestVersion.current++;
+			setLoading(false);
+		}
+	}, [disabled]);
+	useEffect(
+		() => () => {
+			requestVersion.current++;
+		},
+		[],
+	);
 
-	if (Object.keys(i18nConfig.locales).length <= 1) {
-		return null;
+	if (Object.keys(i18nConfig.locales).length <= 1) return null;
+	if (menu) {
+		return (
+			<menu.Component
+				className={className}
+				disabled={disabled}
+				triggerId={triggerId}
+				initialFocus={menu.initialFocus}
+			/>
+		);
 	}
+	const preload = () => {
+		// Warm code only: mounting here would replace a focused trigger before activation.
+		if (!disabled) void loadMenu().catch(() => {});
+	};
+	const cancelOpening = () => {
+		requestVersion.current++;
+		setLoading(false);
+	};
+	const open = (initialFocus?: "first" | "last") => {
+		if (disabled) return;
+		if (loading) {
+			cancelOpening();
+			return;
+		}
+		const version = ++requestVersion.current;
+		setLoading(true);
+		void loadMenu().then(
+			({ LocaleSwitchMenu }) => {
+				if (requestVersion.current === version)
+					setMenu({ Component: LocaleSwitchMenu, initialFocus });
+			},
+			() => {
+				if (requestVersion.current === version) setLoading(false);
+			},
+		);
+	};
 
 	return (
-		<DropdownMenu modal={false}>
-			<DropdownMenuTrigger
-				render={
-					<Button
-						variant="ghost"
-						size="icon"
-						aria-label={t("language")}
-						title={i18nConfig.locales[currentLocale as Locale]?.label}
-						className={className}
-						disabled={disabled || pending}
-						aria-busy={pending}
-					>
-						<GlobeIcon className="size-4" aria-hidden />
-					</Button>
+		<Button
+			id={triggerId}
+			type="button"
+			variant="ghost"
+			size="icon"
+			aria-label={t("language")}
+			title={i18nConfig.locales[currentLocale as Locale]?.label}
+			className={className}
+			disabled={disabled}
+			aria-haspopup="menu"
+			aria-expanded={loading}
+			aria-busy={loading}
+			onPointerEnter={preload}
+			onFocus={preload}
+			onBlur={cancelOpening}
+			onClick={(event) => open(event.detail === 0 ? "first" : undefined)}
+			onKeyDown={(event) => {
+				if (event.key === "Escape" && loading) {
+					event.preventDefault();
+					cancelOpening();
+				} else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+					event.preventDefault();
+					open(event.key === "ArrowUp" ? "last" : "first");
 				}
-			/>
-
-			<DropdownMenuContent>
-				<DropdownMenuRadioGroup
-					value={currentLocale}
-					onValueChange={async (value) => {
-						if (value === currentLocale) return;
-						setPending(true);
-						try {
-							await updateLocale(value as Locale);
-							const publicPath =
-								pathname === "/" ||
-								/^\/(create|pricing|models|blog|docs|privacy|terms|changelog|contact)(\/|$)/.test(
-									pathname,
-								);
-							if (publicPath) {
-								const url = new URL(window.location.href);
-								if (value === "en") url.searchParams.delete("lang");
-								else url.searchParams.set("lang", value);
-								router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
-							}
-							router.refresh();
-						} finally {
-							setPending(false);
-						}
-					}}
-				>
-					{Object.entries(i18nConfig.locales).map(([locale, { label }]) => {
-						return (
-							<DropdownMenuRadioItem key={locale} value={locale}>
-								{label}
-							</DropdownMenuRadioItem>
-						);
-					})}
-				</DropdownMenuRadioGroup>
-			</DropdownMenuContent>
-		</DropdownMenu>
+			}}
+		>
+			<GlobeIcon className="size-4" aria-hidden />
+		</Button>
 	);
 }

@@ -9,6 +9,7 @@
 ## 2026-10-24 — Dependency security updates
 
 - Update Zod, body-parser and Undici to address high-severity advisories. Preserve the existing UTF-16 moderation limit for image and video prompts after Zod's Unicode length change.
+- Load the language menu on interaction so the homepage stays within its existing transfer budget after the security updates, retaining keyboard navigation and translated public URLs.
 
 ## 2026-10-23 — Original homepage artwork
 

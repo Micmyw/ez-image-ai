@@ -534,6 +534,85 @@ test("account controls preserve logout and account switching across document rel
 	await peer.close();
 });
 
+for (const [key, label] of [
+	["Enter", "English"],
+	["Space", "English"],
+	["ArrowDown", "English"],
+	["ArrowUp", "Français"],
+] as const) {
+	test(`the language menu supports a first keyboard open with ${key}`, async ({ page }) => {
+		await page.goto("/");
+		await expect(stage(page, "ready")).toBeVisible();
+		const trigger = page.getByRole("button", { name: "Language", exact: true });
+		await trigger.focus();
+		await trigger.press(key);
+		await expect(page.getByRole("menuitemradio", { name: label, exact: true })).toBeFocused();
+		await page.keyboard.press("Escape");
+		await expect(page.getByRole("menu")).toBeHidden();
+		await expect(trigger).toBeFocused();
+		await trigger.click();
+		await expect(page.getByRole("menuitemradio", { name: "English", exact: true })).toBeVisible();
+	});
+}
+
+test("the language menu cancels a pending open without reopening after its chunk arrives", async ({
+	page,
+}) => {
+	test.skip(process.env.E2E_USE_PRODUCTION_BUILD !== "true", "Requires production chunks");
+	await page.goto("/");
+	await expect(stage(page, "ready")).toBeVisible();
+	let release!: () => void;
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const requested = new Set<string>();
+	const finished = new Set<string>();
+	page.on("requestfinished", (request) => {
+		if (requested.has(request.url())) finished.add(request.url());
+	});
+	await page.route("**/_next/static/chunks/**", async (route) => {
+		requested.add(route.request().url());
+		await held;
+		await route.continue();
+	});
+	const trigger = page.getByRole("button", { name: "Language", exact: true });
+	try {
+		await trigger.click();
+		await expect.poll(() => requested.size).toBeGreaterThan(0);
+		await expect(trigger).toHaveAttribute("aria-busy", "true");
+		await trigger.press("Escape");
+		await expect(trigger).toHaveAttribute("aria-busy", "false");
+	} finally {
+		release();
+	}
+	await page.unrouteAll({ behavior: "wait" });
+	await expect.poll(() => finished.size).toBe(requested.size);
+	await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+	await expect(page.getByRole("menu")).toBeHidden();
+	await expect(trigger).toBeFocused();
+	await trigger.click();
+	await expect(page.getByRole("menuitemradio", { name: "English", exact: true })).toBeVisible();
+});
+
+test("the language menu retries a failed chunk on the next open", async ({ page }) => {
+	test.skip(process.env.E2E_USE_PRODUCTION_BUILD !== "true", "Requires production chunks");
+	await page.goto("/");
+	await expect(stage(page, "ready")).toBeVisible();
+	let rejected = 0;
+	await page.route("**/_next/static/chunks/**", async (route) => {
+		rejected++;
+		await route.abort("failed");
+	});
+	const trigger = page.getByRole("button", { name: "Language", exact: true });
+	await trigger.click();
+	await expect.poll(() => rejected).toBeGreaterThan(0);
+	await expect(trigger).toHaveAttribute("aria-busy", "false");
+	await expect(page.getByRole("menu")).toBeHidden();
+	await page.unrouteAll({ behavior: "wait" });
+	await trigger.click();
+	await expect(page.getByRole("menuitemradio", { name: "English", exact: true })).toBeVisible();
+});
+
 test("the production homepage excludes account tools, charts, and documentation styles", async ({
 	page,
 	request,
@@ -616,6 +695,8 @@ test("the production homepage excludes account tools, charts, and documentation 
 		"rumpelstiltskin-navigation",
 		// The visible gift entry must not preload its detailed feedback form.
 		"feedback-email-action",
+		// Language choices load only when the visitor interacts with their trigger.
+		"locale-switch-menu",
 	]) {
 		expect
 			.soft(
