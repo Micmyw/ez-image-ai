@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-24 — Image review diagnostics and retention
+
+- Distinguish SeeAPI image decoding failures and download timeouts from malformed responses, retaining the original task identity and moderation safeguards.
+- Explain unavailable originals and failed previews in the admin review panel, including Chinese, and show a separate read-only result from the existing detector task. Manual approval requires a loaded original image.
+- Pause automatic deletion of ordinary image originals and outputs by default, including queued cleanup, while preserving explicit owner deletion, access expiry, staging cleanup and storage accounting. R2 lifecycle expiration is managed separately; see the [retention operations note](docs/operations/image-retention-pause-2026-10-24.md).
+
 ## 2026-10-23 — Original homepage artwork
 
 - Restore the original 12-image inspiration gallery, prompt selection and horizontal illustrated comparison in their original order after model discovery.

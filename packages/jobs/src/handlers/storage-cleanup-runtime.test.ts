@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/database/client", () => ({ db: {} }));
 
@@ -13,6 +13,53 @@ const orphanAssetFence = {
 };
 
 describe("production storage cleanup store", () => {
+	afterEach(() => vi.unstubAllEnvs());
+	it.each(["final", "stage"])(
+		"retains an automatic tombstone's original and quota when cleaning %s",
+		async (objectKey) => {
+			vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", undefined);
+			const tx = {
+				$executeRaw: vi.fn(async () => 1),
+				mediaAsset: {
+					findUnique: vi.fn(async () => ({
+						id: "asset",
+						ownerId: "owner",
+						mimeType: "image/png",
+						verificationEngine: "legacy",
+						objectKey: "final",
+						status: "DELETED",
+						deletedAt: new Date(),
+						uploadSessions: [],
+					})),
+				},
+				auditLog: { findFirst: vi.fn(async () => null), create: vi.fn() },
+				storageUsageReservation: { updateMany: vi.fn() },
+			};
+			const storage = {
+				deleteObject: vi.fn(async () => undefined),
+				abortMultipartUpload: vi.fn(async () => undefined),
+			};
+			const dependencies = createDatabaseStorageCleanupDependencies(
+				{ $transaction: async (run: (client: typeof tx) => Promise<unknown>) => run(tx) } as never,
+				storage,
+			);
+			await expect(
+				deleteStorageObject(
+					{
+						assetId: "asset",
+						objectKey,
+						storageReservationReferenceKey: "temporary-reference:asset",
+					},
+					dependencies,
+				),
+			).rejects.toThrow("MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED");
+			if (objectKey === "stage")
+				expect(storage.deleteObject).toHaveBeenCalledExactlyOnceWith("stage");
+			else expect(storage.deleteObject).not.toHaveBeenCalled();
+			expect(tx.auditLog.create).not.toHaveBeenCalled();
+			expect(tx.storageUsageReservation.updateMany).not.toHaveBeenCalled();
+		},
+	);
 	it("wires the ownership fence before receipts and leaves a retained account object and reservation alone", async () => {
 		const create = vi.fn();
 		const updateMany = vi.fn();
@@ -30,6 +77,7 @@ describe("production storage cleanup store", () => {
 					deleteAfter: null,
 				})),
 			},
+			generationDraft: { findFirst: vi.fn(async () => null) },
 			auditLog: { create },
 			storageUsageReservation: { updateMany },
 		};
@@ -198,7 +246,7 @@ describe("production storage cleanup store", () => {
 		});
 	});
 
-	it.each(["generation-output", "media-draft"])(
+	it.each(["generation-output", "media-draft", "temporary-reference"])(
 		"releases a %s reservation only after its immutable object is deleted",
 		async (referencePrefix) => {
 			let cleanupRecorded = false;

@@ -1,4 +1,5 @@
 import type { ProviderKey } from "@repo/ai";
+import { isMediaAssetStorageReservationReference } from "@repo/config";
 
 import type { OutboxLease } from "../contracts";
 import { deliverMediaJobNotification } from "../realtime/publish";
@@ -240,9 +241,8 @@ function generatedOutputReservationPayload(
 ): { storageReservationReferenceKey?: string } {
 	if (payload.storageReservationReferenceKey === undefined) return {};
 	const assetId = requiredString(payload.assetId, assetIdFallback);
-	const expectedReferenceKey = `generation-output:${assetId}`;
-	if (payload.storageReservationReferenceKey !== expectedReferenceKey) {
+	if (!isMediaAssetStorageReservationReference(payload.storageReservationReferenceKey, assetId)) {
 		throw new Error("Generated output storage reservation reference is invalid");
 	}
-	return { storageReservationReferenceKey: expectedReferenceKey };
+	return { storageReservationReferenceKey: payload.storageReservationReferenceKey };
 }

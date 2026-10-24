@@ -8,6 +8,68 @@ import {
 } from "./cleanup-storage-object";
 
 describe("storage cleanup handlers", () => {
+	it.each(["delete", "multipart", "promotion"] as const)(
+		"retains the final original and completion receipt during paused %s cleanup",
+		async (kind) => {
+			const dependencies = {
+				claimDeletion: vi.fn(async () => ({
+					outcome: "DEFER" as const,
+					retainedObjectKey: "final",
+				})),
+				isComplete: vi.fn(async () => false),
+				deleteObject: vi.fn(async () => undefined),
+				abortMultipartUpload: vi.fn(async () => undefined),
+				listMultipartUploads: vi.fn(async () => []),
+				complete: vi.fn(async () => undefined),
+			};
+			const payload = { assetId: "asset", objectKey: "final" };
+			const work =
+				kind === "delete"
+					? deleteStorageObject(payload, dependencies)
+					: kind === "multipart"
+						? abortMultipartObject({ ...payload, multipartUploadId: "multipart" }, dependencies)
+						: cleanupUploadPromotion({ ...payload, promotionObjectKey: "final" }, dependencies);
+			await expect(work).rejects.toThrow("MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED");
+			expect(dependencies.deleteObject).not.toHaveBeenCalled();
+			if (kind === "multipart")
+				expect(dependencies.abortMultipartUpload).toHaveBeenCalledWith("final", "multipart");
+			else expect(dependencies.abortMultipartUpload).not.toHaveBeenCalled();
+			expect(dependencies.isComplete).not.toHaveBeenCalled();
+			expect(dependencies.complete).not.toHaveBeenCalled();
+		},
+	);
+	it("cleans only staging and incomplete multipart state while preserving a paused promotion's original and quota", async () => {
+		const dependencies = {
+			claimDeletion: vi.fn(async () => ({ outcome: "DEFER" as const, retainedObjectKey: "final" })),
+			isComplete: vi.fn(async () => false),
+			deleteObject: vi.fn(async () => undefined),
+			abortMultipartUpload: vi.fn(async () => undefined),
+			listMultipartUploads: vi.fn(async () => ["orphan-promotion"]),
+			complete: vi.fn(async () => undefined),
+		};
+		await expect(
+			cleanupUploadPromotion(
+				{
+					assetId: "asset",
+					objectKey: "stage",
+					cleanupObjectKeys: ["final"],
+					multipartUploadId: "stage-upload",
+					promotionObjectKey: "final",
+					promotionMultipartUploadId: "promotion-upload",
+					uploadSessionId: "session",
+					reservationStatus: "EXPIRED",
+				},
+				dependencies,
+			),
+		).rejects.toThrow("MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED");
+		expect(dependencies.deleteObject).toHaveBeenCalledExactlyOnceWith("stage");
+		expect(dependencies.abortMultipartUpload.mock.calls).toEqual([
+			["stage", "stage-upload"],
+			["final", "promotion-upload"],
+			["final", "orphan-promotion"],
+		]);
+		expect(dependencies.complete).not.toHaveBeenCalled();
+	});
 	it("fails closed before storage I/O when the mandatory ownership fence is missing", async () => {
 		const dependencies = {
 			isComplete: vi.fn(async () => false),
@@ -19,6 +81,26 @@ describe("storage cleanup handlers", () => {
 		).rejects.toThrow();
 		expect(dependencies.isComplete).not.toHaveBeenCalled();
 		expect(dependencies.deleteObject).not.toHaveBeenCalled();
+		expect(dependencies.complete).not.toHaveBeenCalled();
+	});
+	it("keeps a paused deletion pending when its idempotent staging cleanup fails", async () => {
+		const failure = new Error("staging temporarily unavailable");
+		const dependencies = {
+			claimDeletion: vi.fn(async () => ({ outcome: "DEFER" as const, retainedObjectKey: "final" })),
+			isComplete: vi.fn(async () => false),
+			deleteObject: vi.fn(async () => {
+				throw failure;
+			}),
+			abortMultipartUpload: vi.fn(async () => undefined),
+			complete: vi.fn(async () => undefined),
+		};
+		await expect(
+			deleteStorageObject(
+				{ assetId: "asset", objectKey: "stage", cleanupObjectKeys: ["final"] },
+				dependencies,
+			),
+		).rejects.toMatchObject({ code: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED", cause: failure });
+		expect(dependencies.deleteObject).toHaveBeenCalledExactlyOnceWith("stage");
 		expect(dependencies.complete).not.toHaveBeenCalled();
 	});
 	it("does not reuse primary-key-only or different cleanup-group receipts", async () => {

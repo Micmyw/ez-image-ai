@@ -1,5 +1,9 @@
 import { ORPCError } from "@orpc/server";
-import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
+import {
+	MEDIA_VERIFICATION_POLICY_VERSION,
+	MEDIA_VERIFICATION_RULE_VERSION,
+	SeeapiSafetyAdapter,
+} from "@repo/ai";
 import { imageModerationProviderForEnvironment } from "@repo/config";
 import {
 	acknowledgeModerationIncident,
@@ -61,7 +65,7 @@ const operationsOutputSchema = z.object({
 			targets: z.array(z.object({ targetType: z.string(), targetId: id })),
 		}),
 	),
-	reviews: z.array(reviewSchema.extend({ jobIds: z.array(id) })),
+	reviews: z.array(reviewSchema.extend({ jobIds: z.array(id), originalUnavailable: z.boolean() })),
 });
 
 export const adminModerationOperations = adminProcedure
@@ -99,6 +103,9 @@ export const adminModerationDetail = adminProcedure
 			prompt: z.string().nullable(),
 			imageUrl: z.string().nullable(),
 			uncertainSubmission: z.boolean(),
+			contentAvailability: z.enum(["AVAILABLE", "DELETED", "MISSING", "UNSUPPORTED"]),
+			canReviewContent: z.boolean(),
+			canQueryProvider: z.boolean(),
 		}),
 	)
 	.handler(async ({ input, context: { user } }) => {
@@ -106,12 +113,51 @@ export const adminModerationDetail = adminProcedure
 		return {
 			review: reviewSchema.parse(detail.review),
 			prompt: detail.prompt,
+			contentAvailability: detail.contentAvailability,
+			canReviewContent: detail.canReviewContent,
+			canQueryProvider: Boolean(detail.providerTask),
 			imageUrl: detail.asset?.mimeType.startsWith("image/")
 				? await createSignedReadUrl({ bucket: "media", key: detail.asset.objectKey, expiresIn: 60 })
 				: null,
-			uncertainSubmission: Boolean(
-				detail.asset?.verificationSubmissionUncertain && !detail.asset.verificationProviderTaskId,
-			),
+			uncertainSubmission: Boolean(detail.uncertainSubmission),
+		};
+	});
+
+/** Diagnostic GET only: never requeues a submission, changes evidence, or reopens a job. */
+export const adminModerationProviderResult = adminProcedure
+	.route({
+		method: "GET",
+		path: "/admin/media/moderation/reviews/{reviewId}/provider-result",
+		tags: ["Admin", "Media"],
+		summary: "Read the existing image review result",
+		description:
+			"Query the persisted SeeAPI task without resubmission or changing access and billing.",
+	})
+	.input(z.object({ reviewId: id }))
+	.output(
+		z.object({
+			reviewVersion: z.number().int().nonnegative(),
+			checkedAt: z.date(),
+			decision: z.enum(["ALLOW", "REJECT", "REVIEW", "ERROR"]),
+			reasonCode: code,
+		}),
+	)
+	.handler(async ({ input, context: { user } }) => {
+		const detail = await getAdminModerationReviewDetail(input.reviewId, user.id, db);
+		if (!detail.providerTask)
+			throw new ORPCError("CONFLICT", { message: "MODERATION_PROVIDER_TASK_UNAVAILABLE" });
+		const result = await new SeeapiSafetyAdapter({
+			apiKey: process.env.SEEAPI_API_KEY ?? "",
+			timeoutMs: 10_000,
+		}).retrieveImage({
+			moderationTaskId: detail.providerTask.id,
+			ruleVersion: detail.providerTask.ruleVersion,
+		});
+		return {
+			reviewVersion: detail.review.version,
+			checkedAt: new Date(),
+			decision: result.decision,
+			reasonCode: result.reasonCode,
 		};
 	});
 

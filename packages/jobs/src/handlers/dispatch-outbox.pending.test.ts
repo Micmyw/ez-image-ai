@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	OutboxDeliveryPendingError,
+	ImageDeletionPausedError,
 	ProviderEventPhaseHeldError,
 	type OutboxLease,
 	type OutboxStore,
@@ -40,6 +41,35 @@ function fixture() {
 }
 
 describe("Outbox completion receipts", () => {
+	it("keeps a queued image deletion pending through repeated retention pauses and resumes once", async () => {
+		const f = fixture();
+		const originalClaim = f.store.claimBatch.getMockImplementation()!;
+		f.store.claimBatch.mockImplementation(async (input) =>
+			(await originalClaim(input)).map((event) => ({
+				...event,
+				eventType: "MEDIA_OBJECT_DELETE",
+				aggregateId: "asset",
+				payload: { assetId: "asset", objectKey: "private/original.png" },
+			})),
+		);
+		const deliver = vi
+			.fn<(event: OutboxLease) => Promise<void>>()
+			.mockRejectedValue(new ImageDeletionPausedError());
+		for (let pass = 0; pass < 20; pass++)
+			await dispatchOutbox({ workerId: "worker" }, { ...f, deliver });
+		expect(f.store.complete).not.toHaveBeenCalled();
+		expect(f.store.release).not.toHaveBeenCalled();
+		expect(f.attempts()).toBe(0);
+		expect(f.store.defer).toHaveBeenLastCalledWith(
+			expect.objectContaining({ retryAt: new Date(f.now().getTime() + 3_600_000) }),
+		);
+		deliver.mockResolvedValueOnce(undefined);
+		expect(await dispatchOutbox({ workerId: "worker" }, { ...f, deliver })).toEqual({
+			claimed: 1,
+			delivered: 1,
+		});
+		expect(f.store.complete).toHaveBeenCalledOnce();
+	});
 	it.each([false, true])(
 		"persists callback lease waits without consuming failure attempts (targeted=%s)",
 		async (targeted) => {

@@ -50,7 +50,11 @@ export function moderationServiceErrorCode(error: unknown): string {
 	if (
 		typeof value.message === "string" &&
 		(isRetryableModerationError(value.message) ||
-			["MODERATION_CONFIGURATION_ERROR", "MODERATION_INVALID_INPUT"].includes(value.message))
+			[
+				"MODERATION_CONFIGURATION_ERROR",
+				"MODERATION_INVALID_INPUT",
+				"MODERATION_MEDIA_INVALID",
+			].includes(value.message))
 	)
 		return value.message;
 	if (value.name === "AbortError" || value.name === "TimeoutError") return "MODERATION_TIMEOUT";

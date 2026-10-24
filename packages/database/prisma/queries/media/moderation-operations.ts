@@ -366,8 +366,14 @@ export async function getAdminModerationReviewDetail(
 						id: true,
 						objectKey: true,
 						mimeType: true,
+						status: true,
 						deletedAt: true,
 						checksum: true,
+						finalizedAt: true,
+						verificationEngine: true,
+						verificationProvider: true,
+						verificationRuleVersion: true,
+						verificationGeneration: true,
 						verificationSubmissionUncertain: true,
 						verificationProviderTaskId: true,
 					},
@@ -383,16 +389,51 @@ export async function getAdminModerationReviewDetail(
 		},
 	});
 	const snapshot = quote?.inputSnapshot;
+	const prompt =
+		snapshot &&
+		typeof snapshot === "object" &&
+		!Array.isArray(snapshot) &&
+		typeof snapshot.prompt === "string"
+			? snapshot.prompt
+			: null;
+	const contentAvailability: "AVAILABLE" | "DELETED" | "MISSING" | "UNSUPPORTED" =
+		review.targetType === "ASSET"
+			? !asset
+				? "MISSING"
+				: asset.deletedAt || asset.status === "DELETED"
+					? "DELETED"
+					: !asset.mimeType.startsWith("image/")
+						? "UNSUPPORTED"
+						: "AVAILABLE"
+			: review.targetType === "QUOTE" && quote
+				? "AVAILABLE"
+				: "MISSING";
 	return {
 		review,
-		prompt:
-			snapshot &&
-			typeof snapshot === "object" &&
-			!Array.isArray(snapshot) &&
-			typeof snapshot.prompt === "string"
-				? snapshot.prompt
+		contentAvailability,
+		canReviewContent:
+			contentAvailability === "AVAILABLE" &&
+			(Boolean(prompt) ||
+				Boolean(asset?.checksum && asset.finalizedAt && asset.verificationEngine === "legacy")),
+		uncertainSubmission: Boolean(
+			asset?.verificationSubmissionUncertain && !asset.verificationProviderTaskId,
+		),
+		// A deleted object can still have a retrievable detector task. This is diagnostic
+		// identity only; querying it cannot restore the asset or authorize generation.
+		providerTask:
+			asset?.verificationEngine === "legacy" &&
+			asset.verificationProvider === "seeapi" &&
+			asset.mimeType.startsWith("image/") &&
+			asset.verificationProviderTaskId &&
+			asset.verificationRuleVersion
+				? {
+						id: asset.verificationProviderTaskId,
+						ruleVersion: asset.verificationRuleVersion,
+						generation: asset.verificationGeneration,
+					}
 				: null,
-		asset: asset && !asset.deletedAt ? asset : null,
+		prompt,
+		asset: asset && contentAvailability === "AVAILABLE" ? asset : null,
 	};
 }
 
@@ -789,6 +830,15 @@ export async function getAdminModerationOperations(
 	]);
 	const assetIds = reviews.filter((r) => r.targetType === "ASSET").map((r) => r.targetId);
 	const quoteIds = reviews.filter((r) => r.targetType === "QUOTE").map((r) => r.targetId);
+	const assets = await client.mediaAsset.findMany({
+		where: { id: { in: assetIds } },
+		select: { id: true, status: true, deletedAt: true },
+	});
+	const availableAssets = new Set(
+		assets
+			.filter((asset) => !asset.deletedAt && asset.status !== "DELETED")
+			.map((asset) => asset.id),
+	);
 	const jobs = await client.generationJob.findMany({
 		where: {
 			OR: [{ quoteId: { in: quoteIds } }, { assets: { some: { assetId: { in: assetIds } } } }],
@@ -808,6 +858,7 @@ export async function getAdminModerationOperations(
 		incidents: incidents.map(({ _count, ...row }) => ({ ...row, affectedTargets: _count.targets })),
 		reviews: page.map((r) => ({
 			...r,
+			originalUnavailable: r.targetType === "ASSET" && !availableAssets.has(r.targetId),
 			jobIds: jobs
 				.filter((j) =>
 					r.targetType === "QUOTE"

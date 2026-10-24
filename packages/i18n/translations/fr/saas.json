@@ -227,10 +227,10 @@
 			},
 			"moderation": {
 				"title": "Contrôles de sécurité et rétablissement",
-				"description": "Tentatives limitées, alertes regroupées et réexamen du contenu autorisé pendant les pannes techniques.",
+				"description": "Consultez les vérifications incomplètes, les incidents et les historiques de révision.",
 				"openIncidents": "Incidents de service ouverts",
-				"pendingReviews": "Contrôles nécessitant une intervention",
-				"outageWarning": "Un service de détection rencontre des problèmes techniques. Après la limite de tentatives, les demandes peuvent continuer avec un réexamen en attente. Les violations confirmées restent bloquées.",
+				"pendingReviews": "Dossiers de révision",
+				"outageWarning": "Un service de vérification rencontre un problème technique. Les vérifications incomplètes restent bloquées. Le rétablissement du service ne valide pas les contenus précédents.",
 				"incidents": "Incidents et rétablissement",
 				"noIncidents": "Aucun incident enregistré.",
 				"textStage": "Contrôle du texte",
@@ -286,10 +286,34 @@
 					"MODERATION_INVALID_RESPONSE": "Le service a renvoyé une réponse incomplète ou invalide.",
 					"MODERATION_SUBMISSION_UNCERTAIN": "La demande a peut-être été acceptée, mais son identifiant manque.",
 					"MODERATION_CONFIGURATION_ERROR": "La configuration du service doit être vérifiée.",
-					"CONTENT_REVIEW_REQUIRED": "Le service a demandé un examen manuel."
+					"CONTENT_REVIEW_REQUIRED": "Le service a demandé un examen manuel.",
+					"MODERATION_MEDIA_INVALID": "Le détecteur n’a pas pu décoder l’image ou a reçu un fichier incomplet.",
+					"IMAGE_PROCESSING": "Le détecteur traite encore l’image.",
+					"NO_POLICY_MATCH": "Le détecteur n’a signalé aucune restriction de contenu applicable.",
+					"SEEAPI_CONTENT_NOT_ALLOWED": "Le détecteur a signalé du contenu restreint. Ce résultat est automatisé.",
+					"SEEAPI_CONTENT_REVIEW": "Le détecteur a demandé une révision du contenu."
 				},
 				"newest": "Contrôles récents",
-				"older": "Contrôles précédents"
+				"older": "Contrôles précédents",
+				"originalUnavailable": "Original indisponible",
+				"recordedReason": "Résultat enregistré",
+				"previewFailed": "L’aperçu privé n’a pas pu être chargé. Actualisez-le avant d’approuver cette image.",
+				"providerLoading": "Consultation de la tâche de vérification existante…",
+				"providerQueryFailed": "Le résultat existant n’a pas pu être récupéré. Actualisez pour consulter à nouveau la même tâche.",
+				"providerResultTitle": "Dernier résultat du détecteur",
+				"providerCheckedAt": "Consulté : {time}",
+				"providerResultNote": "Seule la tâche existante est consultée. Cela ne restaure aucun média supprimé, ne modifie ni l’accès ni la facturation et ne soumet aucune nouvelle vérification. Les contenus disponibles nécessitent toujours l’action de révision ci-dessous.",
+				"contentAvailability": {
+					"DELETED": "L’image originale a été supprimée. Son historique reste disponible, mais l’image ne peut être ni prévisualisée ni approuvée.",
+					"MISSING": "Le contenu original n’est plus disponible. Les actions de révision sont désactivées.",
+					"UNSUPPORTED": "Ce type de contenu ne dispose pas d’un aperçu d’image dans ce panneau."
+				},
+				"providerDecisions": {
+					"ALLOW": "Validé",
+					"REJECT": "Contenu signalé",
+					"REVIEW": "En attente ou révision manuelle requise",
+					"ERROR": "Erreur technique"
+				}
 			},
 			"paymentAttribution": {
 				"title": "Attribution des commandes",

@@ -138,6 +138,21 @@ function store() {
 
 afterEach(() => vi.unstubAllEnvs());
 
+describe("retained temporary reference quota", () => {
+	it("retains committed and unknown-upload temporary bytes after access expiry while deletion is paused", () => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", undefined);
+		expect(unexpiredStorageReservations(now).OR).toContainEqual({
+			status: { in: ["ACTIVE", "COMMITTED"] },
+		});
+	});
+	it("keeps the prior temporary quota policy after explicit deletion enablement", () => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "true");
+		expect(unexpiredStorageReservations(now).OR).not.toContainEqual({
+			status: { in: ["ACTIVE", "COMMITTED"] },
+		});
+	});
+});
+
 describe.each(["false", "true"])(
 	"temporary reference pre-review preparation (fresh read=%s)",
 	(enabled) => {

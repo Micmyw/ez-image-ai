@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+
+import { ImageDeletionPausedError } from "../contracts";
+
 export type CleanupReservationStatus = "EXPIRED" | "RELEASED";
 
 interface DeleteStorageObjectPayload {
@@ -32,7 +36,7 @@ export interface StorageCleanupDependencies {
 		objectKeys: string[];
 		uploadSessionId?: string;
 		releasesReservation: boolean;
-	}): Promise<"DELETE" | "SKIP">;
+	}): Promise<"DELETE" | "SKIP" | { outcome: "DEFER"; retainedObjectKey: string }>;
 	isComplete(operationKey: string): Promise<boolean>;
 	deleteObject(objectKey: string): Promise<void>;
 	abortMultipartUpload(objectKey: string, uploadId: string): Promise<void>;
@@ -220,21 +224,49 @@ function cleanupOperationKey(
 }
 
 async function claimDeletion(
-	payload: DeleteStorageObjectPayload,
+	payload: DeleteStorageObjectPayload & {
+		multipartUploadId?: string;
+		promotionMultipartUploadId?: string;
+	},
 	dependencies: StorageCleanupDependencies,
 	extraObjectKey?: string,
 ): Promise<boolean> {
-	return (
-		(await dependencies.claimDeletion({
-			assetId: payload.assetId,
-			objectKeys: uniqueObjectKeys(payload, extraObjectKey),
-			...(payload.uploadSessionId ? { uploadSessionId: payload.uploadSessionId } : {}),
-			releasesReservation: Boolean(
-				(payload.uploadSessionId && payload.reservationStatus) ||
-				payload.storageReservationReferenceKey,
-			),
-		})) !== "SKIP"
-	);
+	const decision = await dependencies.claimDeletion({
+		assetId: payload.assetId,
+		objectKeys: uniqueObjectKeys(payload, extraObjectKey),
+		...(payload.uploadSessionId ? { uploadSessionId: payload.uploadSessionId } : {}),
+		releasesReservation: Boolean(
+			(payload.uploadSessionId && payload.reservationStatus) ||
+			payload.storageReservationReferenceKey,
+		),
+	});
+	if (typeof decision === "object" && decision.outcome === "DEFER") {
+		// A complete original may exist after a lost finalization response. Keep
+		// that exact key, but clean proven staging and incomplete multipart data.
+		try {
+			if (payload.multipartUploadId)
+				await abortMultipartUpload(payload.objectKey, payload.multipartUploadId, dependencies);
+			if (extraObjectKey && payload.promotionMultipartUploadId)
+				await abortMultipartUpload(
+					extraObjectKey,
+					payload.promotionMultipartUploadId,
+					dependencies,
+				);
+			if (extraObjectKey)
+				await abortIncompletePromotionMultipartUploads(
+					{ ...payload, promotionObjectKey: extraObjectKey },
+					dependencies,
+				);
+			for (const objectKey of uniqueObjectKeys(payload, extraObjectKey))
+				if (objectKey !== decision.retainedObjectKey) await dependencies.deleteObject(objectKey);
+		} catch (error) {
+			// Preserve the original deletion intent and quota even if ancillary
+			// cleanup fails. The same deferred event retries those idempotent writes.
+			throw new ImageDeletionPausedError(error);
+		}
+		throw new ImageDeletionPausedError();
+	}
+	return decision !== "SKIP";
 }
 
 async function abortIncompletePromotionMultipartUploads(
@@ -268,4 +300,3 @@ function isNoSuchUpload(error: unknown): boolean {
 		error && typeof error === "object" && "name" in error && error.name === "NoSuchUpload",
 	);
 }
-import { createHash } from "node:crypto";

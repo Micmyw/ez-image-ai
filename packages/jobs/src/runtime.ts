@@ -1456,7 +1456,8 @@ export function createDatabaseStorageCleanupDependencies(
 				if (
 					input.storageReservationReferenceKey &&
 					input.storageReservationReferenceKey !== `generation-output:${input.assetId}` &&
-					input.storageReservationReferenceKey !== `media-draft:${input.assetId}`
+					input.storageReservationReferenceKey !== `media-draft:${input.assetId}` &&
+					input.storageReservationReferenceKey !== `temporary-reference:${input.assetId}`
 				) {
 					throw new Error("Generated output storage reservation reference is invalid");
 				}
@@ -3289,7 +3290,11 @@ async function recordMediaVerificationWaitOrFailure(
 		const exhausted =
 			(isTemporaryReferenceObjectKey(asset.objectKey) && claim.deadlineAt <= now) ||
 			(status === "ERROR" &&
-				["MODERATION_CONFIGURATION_ERROR", "MODERATION_INVALID_INPUT"].includes(reasonCode)) ||
+				[
+					"MODERATION_CONFIGURATION_ERROR",
+					"MODERATION_INVALID_INPUT",
+					"MODERATION_MEDIA_INVALID",
+				].includes(reasonCode)) ||
 			(!imageRecovery && claim.deadlineAt <= now) ||
 			(status === "ERROR" &&
 				(imageRecovery ? failureCount : totalFailureCount) >=
@@ -3298,7 +3303,11 @@ async function recordMediaVerificationWaitOrFailure(
 			status === "ERROR" &&
 			asset.mimeType.startsWith("image/") &&
 			(isRetryableModerationError(reasonCode) ||
-				["MODERATION_CONFIGURATION_ERROR", "MODERATION_INVALID_INPUT"].includes(reasonCode))
+				[
+					"MODERATION_CONFIGURATION_ERROR",
+					"MODERATION_INVALID_INPUT",
+					"MODERATION_MEDIA_INVALID",
+				].includes(reasonCode))
 		) {
 			await recordModerationOutcome(
 				{
@@ -3340,7 +3349,11 @@ async function recordMediaVerificationWaitOrFailure(
 			where: { verificationEngine: "legacy", id: asset.id },
 			data: {
 				status: exhausted ? "VERIFICATION_FAILED" : "VERIFYING",
-				...(["MODERATION_CONFIGURATION_ERROR", "MODERATION_INVALID_INPUT"].includes(reasonCode)
+				...([
+					"MODERATION_CONFIGURATION_ERROR",
+					"MODERATION_INVALID_INPUT",
+					"MODERATION_MEDIA_INVALID",
+				].includes(reasonCode)
 					? {
 							verificationSubmissionUncertain: false,
 							verificationSubmissionToken: null,

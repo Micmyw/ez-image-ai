@@ -10,8 +10,13 @@ import type {
 } from "./types";
 
 const label = z.string().min(1).max(128);
+const taskIdSchema = z
+	.string()
+	.min(1)
+	.max(160)
+	.refine((value) => !/[^A-Za-z0-9_-]/.test(value));
 const taskSchema = z.object({
-	id: z.string().regex(/^[A-Za-z0-9_-]{1,160}$/),
+	id: taskIdSchema,
 	object: z.literal("inference"),
 	model: z.literal("nsfw-filter"),
 	endpoint: z.literal("image-moderation"),
@@ -29,7 +34,12 @@ const taskSchema = z.object({
 			}),
 		})
 		.nullable(),
-	error: z.unknown().refine((value) => value === null),
+	error: z
+		.object({
+			code: z.string().min(1).max(128),
+			message: z.string().max(4096),
+		})
+		.nullable(),
 });
 
 export class SeeapiSafetyAdapter {
@@ -57,9 +67,11 @@ export class SeeapiSafetyAdapter {
 				input: { image_url: input.assetUrl, threshold_offset: 0, strict_special_care: true },
 			}),
 		});
-		if (!["queued", "processing", "succeeded"].includes(task.status))
+		if (!["queued", "processing", "succeeded", "failed"].includes(task.status))
 			throw new Error("MODERATION_UNAVAILABLE");
 		return {
+			// A failed POST still identifies an accepted task. Preserve its binding
+			// and require authenticated retrieval instead of losing it or resubmitting.
 			moderationTaskId: task.id,
 			...(task.status === "succeeded"
 				? { completedDecision: completedTaskDecision(task, input.ruleVersion) }
@@ -78,12 +90,27 @@ export class SeeapiSafetyAdapter {
 			reasonCode: string,
 		): ModerationDecision => ({ decision, reasonCode, ruleVersion: input.ruleVersion });
 		try {
+			if (!taskIdSchema.safeParse(input.moderationTaskId).success)
+				return result("ERROR", "MODERATION_INVALID_INPUT");
 			const task = await this.call(`/v1/inferences/${encodeURIComponent(input.moderationTaskId)}`, {
 				method: "GET",
 			});
 			if (task.id !== input.moderationTaskId) return result("ERROR", "MODERATION_INVALID_RESPONSE");
+			if (task.status === "failed") {
+				// Classify only validated machine codes; provider messages may contain
+				// private media URLs and must never become diagnostics or policy verdicts.
+				const reasonCode =
+					task.error?.code === "MEDIA_INVALID"
+						? "MODERATION_MEDIA_INVALID"
+						: task.error?.code === "PROVIDER_TIMEOUT"
+							? "MODERATION_TIMEOUT"
+							: "MODERATION_UNAVAILABLE";
+				return result("ERROR", reasonCode);
+			}
 			if (task.status === "queued" || task.status === "processing")
-				return result("REVIEW", "IMAGE_PROCESSING");
+				return task.result === null
+					? result("REVIEW", "IMAGE_PROCESSING")
+					: result("ERROR", "MODERATION_INVALID_RESPONSE");
 			if (task.status !== "succeeded" || !task.result)
 				return result("ERROR", "MODERATION_UNAVAILABLE");
 			const data = task.result.data;
@@ -127,7 +154,13 @@ export class SeeapiSafetyAdapter {
 			{ maxResponseBytes: 64 * 1024, ...this.options },
 		);
 		if (!response.ok) throw new Error(moderationHttpErrorCode(response.status));
-		return taskSchema.parse(response.data);
+		const task = taskSchema.parse(response.data);
+		if (
+			(task.status === "failed" && task.result !== null) ||
+			(task.status !== "failed" && task.error !== null)
+		)
+			throw new Error("MODERATION_INVALID_RESPONSE");
+		return task;
 	}
 }
 

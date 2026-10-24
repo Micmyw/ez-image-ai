@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../client", () => ({
 	getDatabaseClient: () => {
@@ -896,6 +896,41 @@ describe("claimGenerationDraftTransaction", () => {
 });
 
 describe("expireGenerationDrafts", () => {
+	afterEach(() => vi.unstubAllEnvs());
+	it("expires an unusable draft while retaining its image and durable eventual deletion intent", async () => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", undefined);
+		const tx = {
+			generationDraft: {
+				findMany: vi.fn(async () => [{ id: "draft", assetId: "asset", ownerId: "owner" }]),
+				updateMany: vi.fn(async () => ({ count: 1 })),
+			},
+			mediaAsset: {
+				findUnique: vi.fn(async () => ({
+					objectKey: "private/original.png",
+					mimeType: "image/png",
+					verificationEngine: "legacy",
+				})),
+				updateMany: vi.fn(),
+			},
+			outboxEvent: { create: vi.fn() },
+		};
+		await expect(
+			expireGenerationDrafts(new Date(), {
+				$transaction: async (run: (client: typeof tx) => Promise<number>) => run(tx),
+			} as never),
+		).resolves.toBe(1);
+		expect(tx.generationDraft.updateMany).toHaveBeenCalledWith({
+			where: { id: "draft", status: "ACTIVE" },
+			data: { status: "EXPIRED" },
+		});
+		expect(tx.mediaAsset.updateMany).not.toHaveBeenCalled();
+		expect(tx.outboxEvent.create).toHaveBeenCalledWith({
+			data: expect.objectContaining({
+				eventType: "MEDIA_OBJECT_DELETE",
+				payload: { assetId: "asset", objectKey: "private/original.png" },
+			}),
+		});
+	});
 	it("limits expiry to the requested draft candidates", async () => {
 		const tx = {
 			generationDraft: {

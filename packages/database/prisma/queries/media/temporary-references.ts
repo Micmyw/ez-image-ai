@@ -1,5 +1,6 @@
 import {
 	assertTemporaryReferenceUsable,
+	isImageAutomaticDeletionEnabled,
 	TEMPORARY_REFERENCE_RESERVATION_PREFIX,
 	temporaryReferenceObjectKey,
 	temporaryReferenceSchema,
@@ -12,8 +13,9 @@ import { effectiveMediaStorageLimit } from "./storage-quota";
 import { isStorageFreshReadEnabled, lockOwnerStorageUsage } from "./storage-usage-locks";
 import { runReadCommitted, runSerializable, type MediaTransactionClient } from "./types";
 
-// Durable objects retain their existing accounting semantics. Temporary bytes
-// stop consuming logical quota at their deadline, without a cleanup job.
+// An unknown PUT/commit can leave a complete object behind an ACTIVE reservation.
+// Without automatic physical deletion, neither ACTIVE nor COMMITTED bytes may
+// disappear from quota merely because the private access receipt expired.
 export function unexpiredStorageReservations(
 	now = new Date(),
 ): Prisma.StorageUsageReservationWhereInput {
@@ -21,6 +23,9 @@ export function unexpiredStorageReservations(
 		OR: [
 			{ NOT: { referenceKey: { startsWith: TEMPORARY_REFERENCE_RESERVATION_PREFIX } } },
 			{ expiresAt: { gt: now } },
+			...(!isImageAutomaticDeletionEnabled()
+				? [{ status: { in: ["ACTIVE", "COMMITTED"] as Array<"ACTIVE" | "COMMITTED"> } }]
+				: []),
 		],
 	};
 }

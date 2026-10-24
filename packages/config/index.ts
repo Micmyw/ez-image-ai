@@ -4,6 +4,7 @@ export * from "./generation-failures";
 export * from "./kie-zero-cost-rejection";
 export * from "./content-safety";
 export * from "./temporary-references";
+export * from "./media-retention";
 export * from "./credit-packs";
 export * from "./image-pass";
 export * from "./plans";

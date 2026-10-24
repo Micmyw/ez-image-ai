@@ -1,3 +1,5 @@
+import { isImageAutomaticDeletionPaused } from "@repo/config";
+
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { queueGuestAssetCleanup } from "./guest-asset-cleanup";
 import type { MediaTransactionClient } from "./types";
@@ -10,6 +12,11 @@ export interface MediaStorageCleanupClaim {
 	releasesReservation?: boolean;
 }
 
+export type MediaStorageCleanupDecision =
+	| "DELETE"
+	| "SKIP"
+	| { outcome: "DEFER"; retainedObjectKey: string };
+
 /**
  * Consumer fence, independent of the account-promotion feature flag. Never hold
  * a database transaction across storage I/O: a committed tombstone prevents a
@@ -18,7 +25,7 @@ export interface MediaStorageCleanupClaim {
 export async function claimMediaStorageCleanupTransaction(
 	input: MediaStorageCleanupClaim,
 	client: MediaTransactionClient,
-): Promise<"DELETE" | "SKIP"> {
+): Promise<MediaStorageCleanupDecision> {
 	return client.$transaction(
 		async (tx) => {
 			await lockMediaAssetGenerationBindings([input.assetId], tx);
@@ -32,13 +39,17 @@ export async function claimMediaStorageCleanupTransaction(
 			if (!asset) return "DELETE";
 			const touchesFinal = input.objectKeys.includes(asset.objectKey);
 			if (!touchesFinal) {
+				if (input.releasesReservation && (await imageCleanupPaused(asset, tx)))
+					return { outcome: "DEFER", retainedObjectKey: asset.objectKey };
 				// Normal staging cleanup is valid for a live account asset, but cannot
 				// release the capacity occupied by its retained final object.
 				if (input.releasesReservation && asset.status !== "DELETED")
 					throw new Error("MEDIA_STORAGE_CLEANUP_RELEASE_WITHOUT_FINAL_KEY");
 				return "DELETE";
 			}
-			if (asset.status === "DELETED" && asset.deletedAt) return "DELETE";
+			const alreadyDeleted = asset.status === "DELETED" && asset.deletedAt;
+			if (alreadyDeleted && !(await imageCleanupPaused(asset, tx))) return "DELETE";
+			if (alreadyDeleted) return { outcome: "DEFER", retainedObjectKey: asset.objectKey };
 			const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS "now"`;
 			if (!clock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
 			const expiredUpload =
@@ -60,10 +71,29 @@ export async function claimMediaStorageCleanupTransaction(
 				)
 					throw new Error("MEDIA_STORAGE_CLEANUP_NOT_DUE");
 			} else if (asset.status !== "VERIFICATION_FAILED") {
-				// This includes old already-dispatched guest deadline payloads after
-				// adoption. A no-op must never write a physical-completion receipt.
-				if (asset.status !== "UPLOADING" || !expiredUpload) return "SKIP";
+				// Old guest deadlines cannot remove a subsequently adopted account asset.
+				if (asset.status !== "UPLOADING" || !expiredUpload) {
+					const expiredDraft = await tx.generationDraft.findFirst({
+						where: {
+							assetId: asset.id,
+							ownerId: asset.ownerId,
+							status: "EXPIRED",
+							expiresAt: { lte: clock.now },
+						},
+						select: { id: true },
+					});
+					if (
+						!expiredDraft ||
+						(await tx.generationJobAsset.findFirst({
+							where: { assetId: asset.id },
+							select: { jobId: true },
+						}))
+					)
+						return "SKIP";
+				}
 			}
+			if (await imageCleanupPaused(asset, tx))
+				return { outcome: "DEFER", retainedObjectKey: asset.objectKey };
 			// The deadline delivery has no reservation reference. Once tombstoned,
 			// the sweeper will skip this row, so preserve its canonical cleanup and
 			// capacity-release events atomically, using the original staging metadata.
@@ -88,4 +118,30 @@ export async function claimMediaStorageCleanupTransaction(
 		},
 		{ isolationLevel: "ReadCommitted", maxWait: 5_000, timeout: 20_000 },
 	);
+}
+
+async function imageCleanupPaused(
+	asset: Parameters<typeof queueGuestAssetCleanup>[0],
+	tx: Parameters<typeof queueGuestAssetCleanup>[2],
+): Promise<boolean> {
+	if (isImageAutomaticDeletionPaused(asset)) {
+		// Old expiration events may already have tombstoned the row. Only a
+		// durable owner deletion/abort audit can bypass the retention pause.
+		const explicitDeletion = await tx.auditLog.findFirst({
+			where: {
+				actorUserId: asset.ownerId,
+				OR: [
+					{ action: "MEDIA_ASSET_DELETED", targetType: "MEDIA_ASSET", targetId: asset.id },
+					{
+						action: "MEDIA_UPLOAD_ABORTED",
+						targetType: "MEDIA_UPLOAD_SESSION",
+						targetId: { in: asset.uploadSessions.map((session) => session.id) },
+					},
+				],
+			},
+			select: { id: true },
+		});
+		return !explicitDeletion;
+	}
+	return false;
 }

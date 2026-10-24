@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 
-import { isPermittedModerationEvidence } from "@repo/config";
+import {
+	isPermittedModerationEvidence,
+	TEMPORARY_REFERENCE_PREFIX,
+	TEMPORARY_REFERENCE_RESERVATION_PREFIX,
+} from "@repo/config";
 
 import type { MediaAssetKind, Prisma } from "../../generated/client";
 import {
@@ -2404,7 +2408,13 @@ export async function markMediaAssetDeletedTransaction(
 						? { uploadSessionId: uploadSession.id, reservationStatus: "RELEASED" }
 						: existing.kind === "OUTPUT"
 							? { storageReservationReferenceKey: `generation-output:${existing.id}` }
-							: { storageReservationReferenceKey: `media-draft:${existing.id}` }),
+							: {
+									storageReservationReferenceKey: existing.objectKey.startsWith(
+										TEMPORARY_REFERENCE_PREFIX,
+									)
+										? `${TEMPORARY_REFERENCE_RESERVATION_PREFIX}${existing.id}`
+										: `media-draft:${existing.id}`,
+								}),
 				},
 			},
 		});

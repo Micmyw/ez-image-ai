@@ -310,6 +310,7 @@ describe("registered input retention protocols", () => {
 	it("cannot extend guest retention or suppress deadline cleanup with the historical flag", async () => {
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
 		vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "false");
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "true");
 		const { asset, input } = await fixture();
 		await db.$transaction(async (tx: Prisma.TransactionClient) => {
 			await lockGuestOwnerPromotion(tx, input.anonymousOwnerId, "retention-test");
@@ -336,6 +337,7 @@ describe("registered input retention protocols", () => {
 	});
 
 	it("rejects ownership transfer after deletion authorization commits, while physical deletion is outstanding", async () => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "true");
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
 		const { asset, input } = await fixture();
 		await db.mediaAsset.update({

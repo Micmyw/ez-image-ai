@@ -393,10 +393,10 @@
 		},
 		"moderation": {
 			"title": "图片与提示词审查及恢复",
-			"description": "查看有限重试、按服务汇总的故障告警，以及技术故障期间已放行内容的复核。",
+			"description": "查看未完成的审查、服务故障与历史复核记录。",
 			"openIncidents": "尚未恢复的服务故障",
-			"pendingReviews": "需要处理的审查",
-			"outageWarning": "内容审查服务出现技术问题。达到重试上限后，请求可能继续执行并留下待复核记录。已确认违规的内容仍会被拦截。",
+			"pendingReviews": "复核记录",
+			"outageWarning": "内容审查服务出现技术问题。未完成的审查仍会阻止内容放行；服务恢复不会自动批准之前的内容。",
 			"incidents": "服务故障与恢复",
 			"noIncidents": "没有服务故障记录。",
 			"textStage": "提示词审查",
@@ -452,10 +452,34 @@
 				"MODERATION_INVALID_RESPONSE": "检测服务返回的结果不完整或格式无效。",
 				"MODERATION_SUBMISSION_UNCERTAIN": "检测服务可能已接受请求，但未返回任务 ID。",
 				"MODERATION_CONFIGURATION_ERROR": "检测服务配置需要检查。",
-				"CONTENT_REVIEW_REQUIRED": "检测服务要求人工复核。"
+				"CONTENT_REVIEW_REQUIRED": "检测服务要求人工复核。",
+				"MODERATION_MEDIA_INVALID": "检测服务无法解码图片，或收到的图片数据不完整。",
+				"IMAGE_PROCESSING": "检测服务仍在处理这张图片。",
+				"NO_POLICY_MATCH": "检测服务未发现匹配的内容限制。",
+				"SEEAPI_CONTENT_NOT_ALLOWED": "检测服务标记了受限内容。这是自动检测结果。",
+				"SEEAPI_CONTENT_REVIEW": "检测服务要求复核内容。"
 			},
 			"newest": "最新复核记录",
-			"older": "更早的复核记录"
+			"older": "更早的复核记录",
+			"originalUnavailable": "原图不可用",
+			"recordedReason": "当时记录的结果",
+			"previewFailed": "私有图片预览加载失败。请刷新预览，看到原图后再批准。",
+			"providerLoading": "正在查询原来的审查任务…",
+			"providerQueryFailed": "未能查询原任务的结果。可刷新后再次查询同一个任务。",
+			"providerResultTitle": "检测服务最新结果",
+			"providerCheckedAt": "查询时间：{time}",
+			"providerResultNote": "这里只查询原来的任务，不会恢复已删除图片、改变访问权限或费用，也不会重新提交检测。原图可用时，仍需通过下方操作完成复核。",
+			"contentAvailability": {
+				"DELETED": "原图已删除。审查记录仍然保留，但无法预览或人工批准这张图片。",
+				"MISSING": "原始内容已不可用，复核操作已禁用。",
+				"UNSUPPORTED": "这个复核面板不支持预览此类型的内容。"
+			},
+			"providerDecisions": {
+				"ALLOW": "检测通过",
+				"REJECT": "检测标记了受限内容",
+				"REVIEW": "尚未完成或需要人工复核",
+				"ERROR": "技术错误"
+			}
 		},
 		"paymentAttribution": {
 			"title": "订单来源归因",

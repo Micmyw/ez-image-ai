@@ -53,6 +53,7 @@ export { guestMediaProcedure } from "./guest-procedure";
 export const mediaRouter = {
 	adminModerationOperations,
 	adminModerationDetail,
+	adminModerationProviderResult,
 	adminModerationReviewAction,
 	adminModerationAcknowledge,
 	getPublicCatalog,
@@ -105,6 +106,7 @@ export const mediaRouter = {
 import {
 	adminModerationOperations,
 	adminModerationDetail,
+	adminModerationProviderResult,
 	adminModerationReviewAction,
 	adminModerationAcknowledge,
 } from "./procedures/admin-moderation";

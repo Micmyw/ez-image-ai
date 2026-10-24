@@ -10,6 +10,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 
+import { ModerationReviewEvidence } from "./ModerationReviewEvidence";
+
 type ReviewFilter = "PENDING_REVIEW" | "RECHECKING" | "BLOCKED" | "APPROVED" | "REJECTED";
 type ReviewAction = "APPROVE" | "REJECT" | "RECHECK";
 
@@ -22,6 +24,9 @@ export function ModerationOperationsPanel() {
 	const [selectedId, setSelectedId] = useState<string | null>(null);
 	const [reason, setReason] = useState("");
 	const [resultMessage, setResultMessage] = useState<string | null>(null);
+	const [previewLoadedUrl, setPreviewLoadedUrl] = useState<string | null>(null);
+	const [previewFailedUrl, setPreviewFailedUrl] = useState<string | null>(null);
+	const [previewVersion, setPreviewVersion] = useState(0);
 	const operationKeys = useRef(new Map<string, string>());
 	const operations = useQuery({
 		...orpc.media.adminModerationOperations.queryOptions({
@@ -35,9 +40,24 @@ export function ModerationOperationsPanel() {
 		staleTime: 0,
 		gcTime: 0,
 	});
+	const providerResult = useQuery({
+		...orpc.media.adminModerationProviderResult.queryOptions({
+			input: { reviewId: selectedId ?? "" },
+		}),
+		enabled: Boolean(
+			selectedId && details.data?.review.id === selectedId && details.data.canQueryProvider,
+		),
+		staleTime: 30_000,
+		gcTime: 0,
+		refetchOnWindowFocus: false,
+		retry: false,
+	});
 	const refresh = async () => {
 		await queryClient.invalidateQueries({ queryKey: orpc.media.adminModerationOperations.key() });
 		await queryClient.invalidateQueries({ queryKey: orpc.media.adminModerationDetail.key() });
+		await queryClient.invalidateQueries({
+			queryKey: orpc.media.adminModerationProviderResult.key(),
+		});
 		await queryClient.invalidateQueries({ queryKey: orpc.media.listMediaAuditLog.key() });
 	};
 	const action = useMutation(
@@ -63,7 +83,7 @@ export function ModerationOperationsPanel() {
 	const errorLabel = (value: string) =>
 		t.has(`errors.${value}`) ? t(`errors.${value}` as never) : t("errors.MODERATION_UNAVAILABLE");
 	const runAction = (selectedAction: ReviewAction) => {
-		if (!details.data) return;
+		if (!details.data || details.data.review.id !== selectedId) return;
 		const review = details.data.review;
 		const signature = `${review.id}:${review.version}:${selectedAction}:${reason.trim()}`;
 		const idempotencyKey = operationKeys.current.get(signature) ?? crypto.randomUUID();
@@ -79,7 +99,9 @@ export function ModerationOperationsPanel() {
 	};
 	const review = details.data?.review;
 	const canAct =
+		details.data?.canReviewContent &&
 		review &&
+		review.id === selectedId &&
 		["PENDING_REVIEW", "BLOCKED", "RECHECKING"].includes(review.status) &&
 		reason.trim().length >= 10 &&
 		!action.isPending;
@@ -225,6 +247,7 @@ export function ModerationOperationsPanel() {
 									<div className="min-w-0 space-y-1">
 										<div className="gap-2 flex flex-wrap items-center">
 											<Badge>{statusLabel(item.status)}</Badge>
+											{item.originalUnavailable && <Badge>{t("originalUnavailable")}</Badge>}
 											{item.bypassed && (
 												<span className="text-sm">{t("allowedPendingReview")}</span>
 											)}
@@ -245,6 +268,8 @@ export function ModerationOperationsPanel() {
 										variant="outline"
 										onClick={() => {
 											setSelectedId(item.id);
+											setPreviewLoadedUrl(null);
+											setPreviewFailedUrl(null);
 											setReason("");
 											setResultMessage(null);
 											action.reset();
@@ -286,11 +311,27 @@ export function ModerationOperationsPanel() {
 					</DialogHeader>
 					{details.isPending && <p>{t("loading")}</p>}
 					{details.isError && <p role="alert">{t("loadError")}</p>}
-					{details.data && (
+					{details.data?.review.id === selectedId && (
 						<>
 							<p className="text-sm break-all">
 								{details.data.review.targetId} · {statusLabel(details.data.review.status)}
 							</p>
+							<p className="text-sm">
+								{t("recordedReason")}: {errorLabel(details.data.review.lastErrorCode)}
+							</p>
+							<ModerationReviewEvidence
+								availability={details.data.contentAvailability}
+								previewFailed={Boolean(
+									details.data.imageUrl && previewFailedUrl === details.data.imageUrl,
+								)}
+								loading={providerResult.isFetching}
+								queryFailed={providerResult.isError}
+								result={
+									providerResult.data?.reviewVersion === details.data.review.version
+										? providerResult.data
+										: undefined
+								}
+							/>
 							{details.data.prompt && (
 								<pre className="p-4 text-sm rounded-lg bg-muted break-words whitespace-pre-wrap">
 									{details.data.prompt}
@@ -298,13 +339,32 @@ export function ModerationOperationsPanel() {
 							)}
 							{details.data.imageUrl && (
 								<img
+									key={`${details.data.review.id}:${details.data.imageUrl}:${previewVersion}`}
 									src={details.data.imageUrl}
 									alt={t("imageAlt")}
 									className="max-h-96 max-w-full rounded-lg object-contain"
 									referrerPolicy="no-referrer"
+									onLoad={(event) => {
+										setPreviewLoadedUrl(event.currentTarget.getAttribute("src"));
+										setPreviewFailedUrl(null);
+									}}
+									onError={(event) => {
+										setPreviewFailedUrl(event.currentTarget.getAttribute("src"));
+										setPreviewLoadedUrl(null);
+									}}
 								/>
 							)}
-							<Button size="sm" variant="outline" onClick={() => void details.refetch()}>
+							<Button
+								size="sm"
+								variant="outline"
+								onClick={() => {
+									setPreviewLoadedUrl(null);
+									setPreviewFailedUrl(null);
+									setPreviewVersion((version) => version + 1);
+									void details.refetch();
+									if (details.data?.canQueryProvider) void providerResult.refetch();
+								}}
+							>
 								{t("refreshPreview")}
 							</Button>
 							{details.data.uncertainSubmission && (
@@ -332,7 +392,16 @@ export function ModerationOperationsPanel() {
 								>
 									{t("recheck")}
 								</Button>
-								<Button disabled={!canAct} onClick={() => runAction("APPROVE")}>
+								<Button
+									disabled={
+										!canAct ||
+										(review?.targetType === "ASSET" &&
+											(!details.data.imageUrl ||
+												previewLoadedUrl !== details.data.imageUrl ||
+												previewFailedUrl === details.data.imageUrl))
+									}
+									onClick={() => runAction("APPROVE")}
+								>
 									{t("approve")}
 								</Button>
 								<Button

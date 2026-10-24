@@ -130,6 +130,77 @@ describe("SeeAPI image moderation", () => {
 		expect(JSON.stringify(result)).not.toMatch(/fixture-secret|signed=private/);
 	});
 	it.each([
+		["MEDIA_INVALID", "MODERATION_MEDIA_INVALID"],
+		["PROVIDER_TIMEOUT", "MODERATION_TIMEOUT"],
+		["UNSUPPORTED_PROVIDER_ERROR", "MODERATION_UNAVAILABLE"],
+	])(
+		"classifies an authenticated failed task with %s without exposing diagnostics",
+		async (code, reasonCode) => {
+			const { adapter, fetcher } = fixture({
+				...task("failed"),
+				error: { code, message: `Private diagnostic for ${input.assetUrl}` },
+			});
+			const result = await adapter.retrieveImage({ ...input, moderationTaskId: "task_test" });
+			expect(result).toEqual({ decision: "ERROR", reasonCode, ruleVersion: input.ruleVersion });
+			expect(fetcher).toHaveBeenCalledOnce();
+			expect(fetcher.mock.calls[0]![1]!.method).toBe("GET");
+			expect(JSON.stringify(result)).not.toMatch(
+				/Private diagnostic|fixture-secret|signed=private/,
+			);
+		},
+	);
+	it.each(["", "task/other", "task_test?private=secret", "task_test\n", "a".repeat(161)])(
+		"rejects invalid retrieval identity %j before sending credentials",
+		async (moderationTaskId) => {
+			const { adapter, fetcher } = fixture(task());
+			expect(await adapter.retrieveImage({ ...input, moderationTaskId })).toEqual({
+				decision: "ERROR",
+				reasonCode: "MODERATION_INVALID_INPUT",
+				ruleVersion: input.ruleVersion,
+			});
+			expect(fetcher).not.toHaveBeenCalled();
+		},
+	);
+	it.each([
+		{ ...task("failed"), id: "another-task", error: { code: "MEDIA_INVALID", message: "failed" } },
+		{ ...task(), status: "failed", error: { code: "MEDIA_INVALID", message: "failed" } },
+		{ ...task(), error: { code: "PROVIDER_TIMEOUT", message: "failed" } },
+		{ ...task("processing"), error: { code: "PROVIDER_TIMEOUT", message: "failed" } },
+		{ ...task(), status: "processing" },
+		{ ...task("failed"), error: "MEDIA_INVALID" },
+		{ ...task("failed"), error: { code: "MEDIA_INVALID" } },
+		{ ...task("failed"), error: { code: "", message: "failed" } },
+	])("does not trust inconsistent or malformed failure envelopes", async (response) => {
+		const { adapter, fetcher } = fixture(response);
+		expect(await adapter.retrieveImage({ ...input, moderationTaskId: "task_test" })).toEqual({
+			decision: "ERROR",
+			reasonCode: "MODERATION_INVALID_RESPONSE",
+			ruleVersion: input.ruleVersion,
+		});
+		expect(fetcher).toHaveBeenCalledOnce();
+	});
+	it.each(["MEDIA_INVALID", "PROVIDER_TIMEOUT", "UNSUPPORTED_PROVIDER_ERROR"])(
+		"preserves a failed POST task with %s for retrieval without retrying submission",
+		async (code) => {
+			const { adapter, fetcher } = fixture({
+				...task("failed"),
+				error: { code, message: `Private diagnostic for ${input.assetUrl}` },
+			});
+			const submitted = await adapter.submitImage(input);
+			expect(submitted).toMatchObject({
+				moderationTaskId: "task_test",
+				idempotency: { key: input.idempotencyKey, providerSupported: true, replayed: false },
+			});
+			expect(submitted.completedDecision).toBeUndefined();
+			expect(submitted.nonterminalState).toBeUndefined();
+			expect(JSON.stringify(submitted)).not.toMatch(
+				/Private diagnostic|fixture-secret|signed=private/,
+			);
+			expect(fetcher).toHaveBeenCalledOnce();
+			expect(fetcher.mock.calls[0]![1]!.method).toBe("POST");
+		},
+	);
+	it.each([
 		{},
 		{ ...task(), id: "wrong-task" },
 		{ ...task(), result: null },

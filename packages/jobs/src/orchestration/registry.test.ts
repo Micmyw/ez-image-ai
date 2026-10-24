@@ -194,8 +194,22 @@ describe("orchestration task admission", () => {
 	});
 
 	it("requires matching cleanup reservation identity and complete release metadata", () => {
+		for (const prefix of ["generation-output", "media-draft", "temporary-reference"]) {
+			expect(
+				parseTaskRequest({
+					taskId: "media-delete-object",
+					payload: {
+						assetId: "asset-1",
+						objectKey: "private/source",
+						storageReservationReferenceKey: `${prefix}:asset-1`,
+					},
+				}).payload.storageReservationReferenceKey,
+			).toBe(`${prefix}:asset-1`);
+		}
 		for (const extra of [
 			{ storageReservationReferenceKey: "generation-output:other-asset" },
+			{ storageReservationReferenceKey: "temporary-reference:other-asset" },
+			{ storageReservationReferenceKey: "media-draft:other-asset" },
 			{ uploadSessionId: "session-1" },
 			{ reservationStatus: "RELEASED" },
 		]) {

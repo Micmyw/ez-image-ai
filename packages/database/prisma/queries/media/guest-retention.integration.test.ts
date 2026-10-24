@@ -1,10 +1,13 @@
 import { randomUUID } from "node:crypto";
 
 import { PrismaPg } from "@prisma/adapter-pg";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
+import { markMediaAssetDeletedTransaction } from "./assets";
 import { expireGuestMediaTransaction } from "./guest-retention";
+import { claimMediaStorageCleanupTransaction } from "./storage-cleanup";
+import { unexpiredStorageReservations } from "./temporary-references";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -20,12 +23,176 @@ describe("guest absolute media retention", () => {
 	});
 
 	beforeEach(async () => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "true");
 		await client.$executeRawUnsafe(
 			'TRUNCATE TABLE "user", "guest_abuse_bucket", "guest_risk_budget_bucket", "outbox_event", "generation_quote" CASCADE',
 		);
 	});
 
 	afterAll(async () => client?.$disconnect());
+	afterEach(() => vi.unstubAllEnvs());
+
+	it("retains expired temporary quota for both known and uncertain uploads", async () => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", undefined);
+		const ownerId = await createAnonymousOwner("temporary-quota");
+		const now = new Date();
+		for (const status of ["ACTIVE", "COMMITTED", "RELEASED", "EXPIRED"] as const)
+			await client.storageUsageReservation.create({
+				data: {
+					ownerType: "USER",
+					ownerId,
+					referenceKey: `temporary-reference:${randomUUID()}`,
+					bytes: 128n,
+					status,
+					expiresAt: new Date(now.getTime() - 1),
+				},
+			});
+		const usage = () =>
+			client.storageUsageReservation.aggregate({
+				where: {
+					ownerType: "USER",
+					ownerId,
+					status: { in: ["ACTIVE", "COMMITTED"] },
+					...unexpiredStorageReservations(now),
+				},
+				_sum: { bytes: true },
+			});
+		expect((await usage())._sum.bytes).toBe(256n);
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "true");
+		expect((await usage())._sum.bytes ?? 0n).toBe(0n);
+	});
+
+	it("defers historical automatic tombstones while honoring a new owner deletion", async () => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", undefined);
+		const ownerId = await createAnonymousOwner("consumer-pause");
+		const now = new Date();
+		const asset = await client.mediaAsset.create({
+			data: {
+				ownerType: "USER",
+				ownerId,
+				kind: "INPUT",
+				status: "DELETED",
+				deletedAt: now,
+				retentionClass: "GUEST_TRIAL",
+				deleteAfter: new Date(now.getTime() - 1),
+				objectKey: `users/${ownerId}/assets/old/original.png`,
+				mimeType: "image/png",
+				byteSize: 128n,
+				checksum: "a".repeat(64),
+				finalizedAt: now,
+			},
+		});
+		await expect(
+			claimMediaStorageCleanupTransaction(
+				{ assetId: asset.id, objectKeys: [asset.objectKey] },
+				client,
+			),
+		).resolves.toEqual({ outcome: "DEFER", retainedObjectKey: asset.objectKey });
+		await client.storageUsageReservation.create({
+			data: {
+				ownerType: "USER",
+				ownerId,
+				referenceKey: `media-draft:${asset.id}`,
+				bytes: 128n,
+				status: "COMMITTED",
+				expiresAt: new Date(now.getTime() - 1),
+			},
+		});
+		await expect(
+			claimMediaStorageCleanupTransaction(
+				{
+					assetId: asset.id,
+					objectKeys: [`users/${ownerId}/staging/old.png`],
+					releasesReservation: true,
+				},
+				client,
+			),
+		).resolves.toEqual({ outcome: "DEFER", retainedObjectKey: asset.objectKey });
+		expect(
+			await client.storageUsageReservation.findUniqueOrThrow({
+				where: { referenceKey: `media-draft:${asset.id}` },
+			}),
+		).toMatchObject({ status: "COMMITTED", releasedAt: null });
+		const current = await client.mediaAsset.create({
+			data: {
+				ownerType: "USER",
+				ownerId,
+				kind: "INPUT",
+				status: "VERIFYING",
+				objectKey: `users/temporary-references/v1/${ownerId}/${randomUUID()}`,
+				mimeType: "image/png",
+				byteSize: 128n,
+				checksum: "b".repeat(64),
+				finalizedAt: now,
+			},
+		});
+		await client.storageUsageReservation.create({
+			data: {
+				ownerType: "USER",
+				ownerId,
+				referenceKey: `temporary-reference:${current.id}`,
+				bytes: 128n,
+				status: "COMMITTED",
+				expiresAt: new Date(now.getTime() - 1),
+			},
+		});
+		await markMediaAssetDeletedTransaction({ assetId: current.id, ownerId }, client);
+		await expect(
+			claimMediaStorageCleanupTransaction(
+				{ assetId: current.id, objectKeys: [current.objectKey] },
+				client,
+			),
+		).resolves.toBe("DELETE");
+		expect(
+			await client.storageUsageReservation.findUniqueOrThrow({
+				where: { referenceKey: `temporary-reference:${current.id}` },
+			}),
+		).toMatchObject({ status: "COMMITTED", releasedAt: null });
+	});
+
+	it("by default retains due guest originals while expiry and quota records remain unchanged", async () => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", undefined);
+		const now = new Date("2026-10-24T12:00:00Z");
+		const ownerId = await createAnonymousOwner("paused");
+		const asset = await client.mediaAsset.create({
+			data: {
+				ownerType: "USER",
+				ownerId,
+				kind: "INPUT",
+				status: "VERIFICATION_FAILED",
+				retentionClass: "GUEST_TRIAL",
+				deleteAfter: new Date(now.getTime() - 1),
+				objectKey: `users/${ownerId}/assets/paused/original.png`,
+				mimeType: "image/png",
+				byteSize: 128n,
+				checksum: "a".repeat(64),
+				finalizedAt: new Date(now.getTime() - 60_000),
+			},
+		});
+		await client.storageUsageReservation.create({
+			data: {
+				ownerType: "USER",
+				ownerId,
+				referenceKey: `media-draft:${asset.id}`,
+				bytes: 128n,
+				status: "COMMITTED",
+				expiresAt: asset.deleteAfter!,
+			},
+		});
+		const result = await expireGuestMediaTransaction({ now, limit: 25 }, client);
+		expect(result.expiredAssets).toBe(0);
+		expect(result.cleanupEvents).toBe(0);
+		expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } })).toMatchObject({
+			status: "VERIFICATION_FAILED",
+			deletedAt: null,
+			deleteAfter: asset.deleteAfter,
+		});
+		expect(
+			await client.storageUsageReservation.findUniqueOrThrow({
+				where: { referenceKey: `media-draft:${asset.id}` },
+			}),
+		).toMatchObject({ status: "COMMITTED", bytes: 128n, releasedAt: null });
+	});
 
 	it("denies expired guest asset authorization before scheduling every physical object deletion", async () => {
 		const now = new Date("2026-08-28T12:00:00.000Z");

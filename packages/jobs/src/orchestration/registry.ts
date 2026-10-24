@@ -1,4 +1,5 @@
 import { STATIC_DISPATCH_ROUTE_MANIFEST } from "@repo/ai/media/catalog/dispatch-manifest";
+import { isMediaAssetStorageReservationReference } from "@repo/config";
 
 import { parseMediaQueueLimits, providerQueueKey, QUEUE_NAMES } from "../queues";
 import type { TaskDefinition, TaskRequest, OutboxExecutionState } from "./contracts";
@@ -164,7 +165,10 @@ export function parseTaskPayload<T extends keyof typeof payloadParsers>(
 		const fields: Record<string, unknown> = parsed;
 		if (
 			fields.storageReservationReferenceKey !== undefined &&
-			fields.storageReservationReferenceKey !== `generation-output:${text(fields.assetId)}`
+			!isMediaAssetStorageReservationReference(
+				fields.storageReservationReferenceKey,
+				text(fields.assetId),
+			)
 		)
 			return invalid();
 		if (Boolean(fields.uploadSessionId) !== Boolean(fields.reservationStatus)) return invalid();

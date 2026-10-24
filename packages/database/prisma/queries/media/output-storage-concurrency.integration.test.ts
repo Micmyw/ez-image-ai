@@ -22,7 +22,10 @@ beforeAll(() => {
 	client = new PrismaClient({ adapter: new PrismaPg({ connectionString, max: 8 }) });
 });
 afterAll(() => client?.$disconnect());
-beforeEach(() => vi.stubEnv("MEDIA_STORAGE_FRESH_READ_ENABLED", "true"));
+beforeEach(() => {
+	vi.stubEnv("MEDIA_STORAGE_FRESH_READ_ENABLED", "true");
+	vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "true");
+});
 afterEach(() => vi.unstubAllEnvs());
 
 function deferred() {

@@ -227,10 +227,10 @@
 			},
 			"moderation": {
 				"title": "Sicherheitsprüfung und Wiederherstellung",
-				"description": "Begrenzte Wiederholungen, gebündelte Dienstwarnungen und Nachprüfung bei technischen Störungen.",
+				"description": "Unvollständige Prüfungen, Dienststörungen und frühere Prüfprotokolle einsehen.",
 				"openIncidents": "Offene Dienststörungen",
-				"pendingReviews": "Prüfungen mit Handlungsbedarf",
-				"outageWarning": "Ein Prüfdienst hat technische Probleme. Nach dem Wiederholungslimit können Anfragen mit einem Nachprüfungsvermerk fortgesetzt werden. Bestätigte Verstöße bleiben gesperrt.",
+				"pendingReviews": "Prüfprotokolle",
+				"outageWarning": "Ein Prüfdienst hat technische Probleme. Unvollständige Prüfungen bleiben gesperrt. Die Wiederherstellung des Dienstes genehmigt keine früheren Inhalte.",
 				"incidents": "Dienststörungen und Wiederherstellung",
 				"noIncidents": "Keine Dienststörungen erfasst.",
 				"textStage": "Textprüfung",
@@ -286,10 +286,34 @@
 					"MODERATION_INVALID_RESPONSE": "Die Antwort des Prüfdiensts ist unvollständig oder ungültig.",
 					"MODERATION_SUBMISSION_UNCERTAIN": "Die Anfrage wurde möglicherweise angenommen, aber die Auftrags-ID fehlt.",
 					"MODERATION_CONFIGURATION_ERROR": "Die Konfiguration des Prüfdiensts muss überprüft werden.",
-					"CONTENT_REVIEW_REQUIRED": "Der Prüfdienst hat eine manuelle Prüfung angefordert."
+					"CONTENT_REVIEW_REQUIRED": "Der Prüfdienst hat eine manuelle Prüfung angefordert.",
+					"MODERATION_MEDIA_INVALID": "Der Prüfdienst konnte das Bild nicht dekodieren oder erhielt unvollständige Daten.",
+					"IMAGE_PROCESSING": "Der Prüfdienst verarbeitet das Bild noch.",
+					"NO_POLICY_MATCH": "Der Prüfdienst hat keine zutreffende Inhaltsbeschränkung gemeldet.",
+					"SEEAPI_CONTENT_NOT_ALLOWED": "Der Prüfdienst hat eingeschränkte Inhalte erkannt. Dies ist ein automatisiertes Ergebnis.",
+					"SEEAPI_CONTENT_REVIEW": "Der Prüfdienst hat eine Inhaltsprüfung angefordert."
 				},
 				"newest": "Neueste Prüfungen",
-				"older": "Ältere Prüfungen"
+				"older": "Ältere Prüfungen",
+				"originalUnavailable": "Original nicht verfügbar",
+				"recordedReason": "Gespeichertes Ergebnis",
+				"previewFailed": "Die private Vorschau konnte nicht geladen werden. Aktualisiere sie, bevor du dieses Bild genehmigst.",
+				"providerLoading": "Vorhandenen Prüfauftrag abfragen…",
+				"providerQueryFailed": "Das vorhandene Prüfergebnis konnte nicht abgerufen werden. Aktualisiere, um denselben Auftrag erneut abzufragen.",
+				"providerResultTitle": "Aktuelles Prüfergebnis",
+				"providerCheckedAt": "Abgefragt: {time}",
+				"providerResultNote": "Es wird nur der vorhandene Auftrag abgefragt. Gelöschte Medien werden nicht wiederhergestellt; Zugriff und Abrechnung bleiben unverändert. Es wird keine neue Prüfung eingereicht. Verfügbare Inhalte erfordern weiterhin eine Prüfaktion unten.",
+				"contentAvailability": {
+					"DELETED": "Das Originalbild wurde gelöscht. Das Prüfprotokoll bleibt verfügbar, aber das Bild kann weder angezeigt noch genehmigt werden.",
+					"MISSING": "Der Originalinhalt ist nicht mehr verfügbar. Prüfaktionen sind deaktiviert.",
+					"UNSUPPORTED": "Dieser Inhaltstyp hat in diesem Prüfbereich keine Bildvorschau."
+				},
+				"providerDecisions": {
+					"ALLOW": "Bestanden",
+					"REJECT": "Inhalt beanstandet",
+					"REVIEW": "Ausstehend oder manuelle Prüfung erforderlich",
+					"ERROR": "Technischer Fehler"
+				}
 			},
 			"paymentAttribution": {
 				"title": "Bestellzuordnung",

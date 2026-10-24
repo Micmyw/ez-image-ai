@@ -471,30 +471,33 @@ describe("outbox delivery routes", () => {
 		]);
 	});
 
-	it("forwards the exact generated-output reservation reference to deletion cleanup", async () => {
-		const triggerAndWait = vi.fn(async () => undefined);
-		await deliverOutboxEvent(
-			{
-				id: "event-generated-output-delete",
-				eventType: "MEDIA_OBJECT_DELETE",
-				aggregateId: "asset-output",
-				payload: {
-					assetId: "asset-output",
-					objectKey: "users/u/assets/asset-output/original.png",
-					storageReservationReferenceKey: "generation-output:asset-output",
+	it.each(["generation-output", "media-draft", "temporary-reference"])(
+		"forwards the exact %s reservation reference to deletion cleanup",
+		async (prefix) => {
+			const triggerAndWait = vi.fn(async () => undefined);
+			await deliverOutboxEvent(
+				{
+					id: "event-generated-output-delete",
+					eventType: "MEDIA_OBJECT_DELETE",
+					aggregateId: "asset-output",
+					payload: {
+						assetId: "asset-output",
+						objectKey: "users/u/assets/asset-output/original.png",
+						storageReservationReferenceKey: `${prefix}:asset-output`,
+					},
+					leaseToken: "lease-generated-output-delete",
+					attempts: 1,
 				},
-				leaseToken: "lease-generated-output-delete",
-				attempts: 1,
-			},
-			{ trigger: vi.fn(), triggerAndWait, resolveDispatchRoute: vi.fn() },
-		);
+				{ trigger: vi.fn(), triggerAndWait, resolveDispatchRoute: vi.fn() },
+			);
 
-		expect(triggerAndWait).toHaveBeenCalledWith("media-delete-object", {
-			assetId: "asset-output",
-			objectKey: "users/u/assets/asset-output/original.png",
-			storageReservationReferenceKey: "generation-output:asset-output",
-		});
-	});
+			expect(triggerAndWait).toHaveBeenCalledWith("media-delete-object", {
+				assetId: "asset-output",
+				objectKey: "users/u/assets/asset-output/original.png",
+				storageReservationReferenceKey: `${prefix}:asset-output`,
+			});
+		},
+	);
 
 	it("releases cleanup delivery for retry when storage or cleanup completion fails", async () => {
 		const event = {

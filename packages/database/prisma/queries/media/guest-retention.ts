@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { isImageAutomaticDeletionEnabled } from "@repo/config";
+
 import type { Prisma } from "../../generated/client";
 import { releaseCreditsInTransaction, reserveCreditsInTransaction } from "./credits";
 import { queueGuestAssetCleanup } from "./guest-asset-cleanup";
@@ -87,6 +89,7 @@ async function expireDueGuestAssets(
 		SELECT "id"
 		FROM "media_asset"
 		WHERE "retentionClass" = 'GUEST_TRIAL'::"MediaRetentionClass"
+		  AND (${isImageAutomaticDeletionEnabled()} OR "verificationEngine" <> 'legacy' OR "mimeType" NOT LIKE 'image/%')
 		  AND "deleteAfter" <= ${input.now}
 		  AND ("status" <> 'DELETED'::"MediaAssetStatus" OR "deletedAt" IS NULL)
 		ORDER BY "deleteAfter" ASC, "createdAt" ASC, "id" ASC

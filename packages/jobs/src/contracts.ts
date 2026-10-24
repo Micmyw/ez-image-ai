@@ -250,6 +250,16 @@ export class ProviderEventPhaseHeldError extends Error {
 	}
 }
 
+/** A retention pause is a durable delivery wait, never a cleanup failure. */
+export class ImageDeletionPausedError extends Error {
+	readonly code = "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED";
+	readonly retryAfterMs = 60 * 60_000;
+	constructor(cause?: unknown) {
+		super("MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED", { cause });
+		this.name = "ImageDeletionPausedError";
+	}
+}
+
 export interface ProviderEventStore {
 	claimProviderEvent(eventId: string): Promise<ProviderEventClaim | null>;
 	recordProviderProgress(claim: ProviderEventClaim, result: NormalizedResult): Promise<void>;

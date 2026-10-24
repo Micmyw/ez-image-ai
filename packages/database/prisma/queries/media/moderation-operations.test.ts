@@ -1,10 +1,50 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+	getAdminModerationReviewDetail,
 	recordLockedAssetModerationOutcome,
 	type ModerationOutcome,
 } from "./moderation-operations";
-import type { MediaDatabaseClient } from "./types";
+import type { MediaDatabaseClient, MediaTransactionClient } from "./types";
+
+describe("administrator moderation original availability", () => {
+	it.each(["DELETED", "MISSING", "AVAILABLE"] as const)(
+		"separates %s content from existing provider task identity",
+		async (state) => {
+			const asset =
+				state === "MISSING"
+					? null
+					: {
+							id: "asset",
+							status: state === "DELETED" ? "DELETED" : "VERIFICATION_FAILED",
+							deletedAt: state === "DELETED" ? new Date() : null,
+							mimeType: "image/png",
+							objectKey: "private/original.png",
+							checksum: "a".repeat(64),
+							finalizedAt: new Date(),
+							verificationEngine: "legacy",
+							verificationProvider: "seeapi",
+							verificationProviderTaskId: "task-existing",
+							verificationRuleVersion: "rule-v1",
+							verificationGeneration: 1,
+						};
+			const audit = vi.fn(async () => ({}));
+			const client = {
+				moderationReview: {
+					findUnique: vi.fn(async () => ({ id: "review", targetType: "ASSET", targetId: "asset" })),
+				},
+				mediaAsset: { findUnique: vi.fn(async () => asset) },
+				auditLog: { create: audit },
+			} as unknown as MediaTransactionClient;
+			const result = await getAdminModerationReviewDetail("review", "admin", client);
+			expect(result.contentAvailability).toBe(state);
+			expect(result.canReviewContent).toBe(state === "AVAILABLE");
+			expect(result.asset).toEqual(state === "AVAILABLE" ? asset : null);
+			expect(result.providerTask?.id ?? null).toBe(state === "MISSING" ? null : "task-existing");
+			expect(audit).toHaveBeenCalledTimes(1);
+		},
+	);
+});
 
 function approved(): ModerationOutcome & { detectorCompleted: boolean } {
 	return {

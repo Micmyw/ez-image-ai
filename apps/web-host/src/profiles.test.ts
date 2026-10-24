@@ -318,6 +318,31 @@ function artifacts(
 
 describe("prepared deployment artifacts", () => {
 	it.each(["workers", "hybrid"] as const)(
+		"privately transports the image retention opt-in through %s",
+		(profile) => {
+			const key = "MEDIA_IMAGE_AUTO_DELETE_ENABLED";
+			for (const value of [undefined, "true", "false"]) {
+				const environment = deploymentEnvironment(
+					{
+						NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
+						...(value === undefined ? {} : { [key]: value }),
+					},
+					"https://ezimageai.com",
+				);
+				const result = artifacts(profile, environment);
+				const scopes = [result["website.secrets"], result["workflows.secrets"]];
+				if (profile === "hybrid")
+					scopes.push(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV!));
+				for (const scope of scopes) {
+					if (value === undefined) expect(scope).not.toHaveProperty(key);
+					else expect(scope[key]).toBe(value);
+					expect(scope).not.toHaveProperty(`NEXT_PUBLIC_${key}`);
+				}
+				expect(publicBuildVariables(environment)).not.toHaveProperty(key);
+			}
+		},
+	);
+	it.each(["workers", "hybrid"] as const)(
 		"keeps CREDITS settlement fresh reads opt-in and privately transports the switch in %s",
 		(profile) => {
 			const key = "MEDIA_SETTLEMENT_FRESH_READ_ENABLED";

@@ -68,6 +68,20 @@ without a task ID is withheld for recovery/review, not resubmitted blindly. Dete
 form the evidence identity, so changing enabled checks cannot reuse an approval from a different
 combination. Text quotes also bind their approved detector combination before credit reservation.
 
+Validated SeeAPI failed-task codes are technical results: `MEDIA_INVALID` maps to
+`MODERATION_MEDIA_INVALID` (terminal for that immutable image); `PROVIDER_TIMEOUT` maps to
+`MODERATION_TIMEOUT`. Neither means a content rejection. A valid failed POST response still binds
+its task ID and proceeds through authenticated retrieval; it does not authorize another POST.
+Conflicting status/result/error fields remain invalid responses, and raw provider messages are
+not exposed because they may contain private URLs.
+
+Administrator review shows the stored historical outcome separately from a fresh GET of the same
+persisted SeeAPI task. This read-only diagnostic is available even when the original was deleted;
+it cannot resubmit, overwrite evidence, reopen a job, approve content or change credits. Deleted,
+missing and failed image previews are explained explicitly, and manual image approval requires
+the current preview to load. An original that has already been physically deleted cannot be
+recovered by querying the detector. See [image retention](image-retention-pause-2026-10-24.md).
+
 Completing output verification writes a deduplicated finalization wake-up in the same transaction
 when the complete output scan has not yet been recorded. This avoids waiting for the generic
 finalization backoff after an asynchronous check finishes. It does not queue settlement early:

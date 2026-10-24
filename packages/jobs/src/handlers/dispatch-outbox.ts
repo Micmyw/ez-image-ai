@@ -1,5 +1,6 @@
 import {
 	OutboxDeliveryPendingError,
+	ImageDeletionPausedError,
 	ProviderEventPhaseHeldError,
 	type OutboxDependencies,
 } from "../contracts";
@@ -53,6 +54,7 @@ export async function dispatchOutbox(
 			const now = dependencies.now?.() ?? new Date();
 			if (
 				error instanceof OutboxDeliveryPendingError ||
+				error instanceof ImageDeletionPausedError ||
 				error instanceof ProviderEventPhaseHeldError ||
 				((input.outputReviewEventId ||
 					input.eventIds ||
@@ -76,7 +78,10 @@ export async function dispatchOutbox(
 					leaseToken: event.leaseToken,
 					retryAt: new Date(
 						now.getTime() +
-							(error instanceof ProviderEventPhaseHeldError ? error.retryAfterMs : 30_000),
+							(error instanceof ProviderEventPhaseHeldError ||
+							error instanceof ImageDeletionPausedError
+								? error.retryAfterMs
+								: 30_000),
 					),
 				});
 				continue;

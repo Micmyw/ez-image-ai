@@ -1,6 +1,7 @@
 import {
 	getImageProductSelectionContract,
 	getImageSkuSelectionContract,
+	isImageAutomaticDeletionPaused,
 	isEzPicProductKey,
 	LEGACY_EZPIC_PRODUCT_KEYS,
 	parseImageSelection,
@@ -768,12 +769,13 @@ export async function expireGenerationDrafts(
 			if (draft.assetId) {
 				const asset = await tx.mediaAsset.findUnique({
 					where: { id: draft.assetId },
-					select: { objectKey: true },
+					select: { objectKey: true, mimeType: true, verificationEngine: true },
 				});
-				await tx.mediaAsset.updateMany({
-					where: { id: draft.assetId, ownerId: draft.ownerId, deletedAt: null },
-					data: { status: "DELETED", deletedAt: now },
-				});
+				if (!asset || !isImageAutomaticDeletionPaused(asset))
+					await tx.mediaAsset.updateMany({
+						where: { id: draft.assetId, ownerId: draft.ownerId, deletedAt: null },
+						data: { status: "DELETED", deletedAt: now },
+					});
 				await tx.outboxEvent.create({
 					data: {
 						eventType: "MEDIA_OBJECT_DELETE",

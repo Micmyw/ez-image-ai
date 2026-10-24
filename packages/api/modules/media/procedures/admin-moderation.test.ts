@@ -16,6 +16,7 @@ vi.mock("../lib/text-moderation", () => ({
 	TEXT_MODERATION_RULE_VERSION: "test",
 }));
 
+import { SeeapiSafetyAdapter } from "@repo/ai";
 import { auth } from "@repo/auth";
 import {
 	applyAdminModerationReview,
@@ -30,11 +31,13 @@ import {
 	adminModerationAcknowledge,
 	adminModerationDetail,
 	adminModerationOperations,
+	adminModerationProviderResult,
 	adminModerationReviewAction,
 } from "./admin-moderation";
 
 const context = { context: { headers: new Headers() } };
 beforeEach(() => {
+	vi.restoreAllMocks();
 	vi.clearAllMocks();
 });
 function login(role: string) {
@@ -109,6 +112,9 @@ describe("moderation administrator boundary", () => {
 			call(adminModerationDetail, { reviewId: "review-1" }, context),
 		).rejects.toMatchObject({ code: "FORBIDDEN" });
 		await expect(
+			call(adminModerationProviderResult, { reviewId: "review-1" }, context),
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		await expect(
 			call(
 				adminModerationAcknowledge,
 				{ incidentId: "incident-1", reason: "Inspect this outage now" },
@@ -144,6 +150,7 @@ describe("moderation administrator boundary", () => {
 				{
 					...review,
 					jobIds: ["job-1"],
+					originalUnavailable: false,
 					prompt: "private prompt",
 					rawEnvelope: { secret: "secret" },
 				},
@@ -158,6 +165,9 @@ describe("moderation administrator boundary", () => {
 		vi.mocked(getAdminModerationReviewDetail).mockResolvedValue({
 			review,
 			prompt: null,
+			contentAvailability: "AVAILABLE",
+			canReviewContent: true,
+			providerTask: null,
 			asset: {
 				objectKey: "private/object.png",
 				mimeType: "image/png",
@@ -172,6 +182,73 @@ describe("moderation administrator boundary", () => {
 			expiresIn: 60,
 		});
 		expect(JSON.stringify(result)).not.toContain("private/object.png");
+	});
+	it("reports an unavailable original without signing a URL or allowing a manual decision", async () => {
+		login("admin");
+		vi.mocked(getAdminModerationReviewDetail).mockResolvedValue({
+			review,
+			prompt: null,
+			asset: null,
+			contentAvailability: "DELETED",
+			canReviewContent: false,
+			providerTask: { id: "task-existing", ruleVersion: "rule-v1", generation: 1 },
+		} as never);
+		const result = await call(adminModerationDetail, { reviewId: review.id }, context);
+		expect(result).toMatchObject({
+			contentAvailability: "DELETED",
+			imageUrl: null,
+			canReviewContent: false,
+			canQueryProvider: true,
+		});
+		expect(createSignedReadUrl).not.toHaveBeenCalled();
+		expect(JSON.stringify(result)).not.toContain("task-existing");
+	});
+	it("queries the original task after expiry without resubmission, asset authorization, or review writes", async () => {
+		login("admin");
+		vi.mocked(getAdminModerationReviewDetail).mockResolvedValue({
+			review,
+			prompt: null,
+			asset: null,
+			contentAvailability: "DELETED",
+			canReviewContent: false,
+			providerTask: { id: "task-existing", ruleVersion: "frozen-rule-v1", generation: 1 },
+		} as never);
+		const retrieve = vi.spyOn(SeeapiSafetyAdapter.prototype, "retrieveImage").mockResolvedValue({
+			decision: "REJECT",
+			reasonCode: "SEEAPI_CONTENT_NOT_ALLOWED",
+			ruleVersion: "frozen-rule-v1",
+			evidence: { requestId: "task-existing", models: [], operations: 1, scores: {} },
+		});
+		const submit = vi.spyOn(SeeapiSafetyAdapter.prototype, "submitImage");
+		const result = await call(adminModerationProviderResult, { reviewId: review.id }, context);
+		expect(retrieve).toHaveBeenCalledExactlyOnceWith({
+			moderationTaskId: "task-existing",
+			ruleVersion: "frozen-rule-v1",
+		});
+		expect(result).toMatchObject({
+			decision: "REJECT",
+			reasonCode: "SEEAPI_CONTENT_NOT_ALLOWED",
+			reviewVersion: 0,
+		});
+		expect(result.checkedAt).toBeInstanceOf(Date);
+		expect(JSON.stringify(result)).not.toMatch(/task-existing|evidence|frozen-rule/);
+		expect(submit).not.toHaveBeenCalled();
+		expect(createSignedReadUrl).not.toHaveBeenCalled();
+		expect(applyAdminModerationReview).not.toHaveBeenCalled();
+	});
+	it("never submits a missing task while querying uncertain historical acceptance", async () => {
+		login("admin");
+		vi.mocked(getAdminModerationReviewDetail).mockResolvedValue({
+			review,
+			providerTask: null,
+		} as never);
+		const retrieve = vi.spyOn(SeeapiSafetyAdapter.prototype, "retrieveImage");
+		const submit = vi.spyOn(SeeapiSafetyAdapter.prototype, "submitImage");
+		await expect(
+			call(adminModerationProviderResult, { reviewId: review.id }, context),
+		).rejects.toMatchObject({ code: "CONFLICT", message: "MODERATION_PROVIDER_TASK_UNAVAILABLE" });
+		expect(retrieve).not.toHaveBeenCalled();
+		expect(submit).not.toHaveBeenCalled();
 	});
 	it("requires an audit reason and passes the authenticated administrator identity", async () => {
 		login("admin");

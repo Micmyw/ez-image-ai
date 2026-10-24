@@ -1034,6 +1034,28 @@ describe("media upload transactions", () => {
 		});
 		expect(tx.storageUsageReservation.updateMany).not.toHaveBeenCalled();
 	});
+	it("explicit temporary-image deletion retains its exact quota reservation until physical cleanup", async () => {
+		const { client, tx } = transactionClient();
+		tx.mediaAsset.findFirst.mockResolvedValueOnce({
+			id: "asset_1",
+			objectKey: "users/temporary-references/v1/user_1/asset_1",
+			kind: "INPUT",
+			status: "READY",
+		} as never);
+		tx.mediaUploadSession.findFirst.mockResolvedValueOnce(null as never);
+		await markMediaAssetDeletedTransaction(
+			{ assetId: "asset_1", ownerId: "user_1" },
+			client as never,
+		);
+		expect(tx.outboxEvent.create).toHaveBeenCalledWith({
+			data: expect.objectContaining({
+				payload: expect.objectContaining({
+					storageReservationReferenceKey: "temporary-reference:asset_1",
+				}),
+			}),
+		});
+		expect(tx.storageUsageReservation.updateMany).not.toHaveBeenCalled();
+	});
 
 	it("refuses to delete an asset while its upload session can still write staging data", async () => {
 		const { client, tx } = transactionClient({

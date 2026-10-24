@@ -110,6 +110,32 @@ async function reviewFor(targetId: string) {
 		where: { targetType_targetId: { targetType: "ASSET", targetId } },
 	});
 }
+
+it("records an undecodable image as a terminal technical failure after one review, never a content rejection", async () => {
+	const media = await asset();
+	const worker = verifier();
+	worker.scan.mockResolvedValue({
+		decision: "ERROR",
+		reasonCode: "MODERATION_MEDIA_INVALID",
+		ruleVersion: contract.ruleVersion,
+	});
+	await worker.verify(media.id);
+	await worker.verify(media.id);
+	expect(worker.scan).toHaveBeenCalledTimes(1);
+	expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: media.id } })).toMatchObject({
+		status: "VERIFICATION_FAILED",
+		verificationLastErrorCode: "MODERATION_MEDIA_INVALID",
+		verificationNextAttemptAt: null,
+	});
+	expect(await reviewFor(media.id)).toMatchObject({
+		status: "BLOCKED",
+		lastErrorCode: "MODERATION_MEDIA_INVALID",
+		failureCount: 1,
+	});
+	expect(
+		await client.assetModerationResult.count({ where: { assetId: media.id, status: "REJECTED" } }),
+	).toBe(0);
+});
 async function queueRecheck(
 	targetType: "ASSET" | "QUOTE",
 	targetId: string,

@@ -1,0 +1,80 @@
+{
+	"target": "ezimageai-media-production",
+	"purpose": "User-requested pause of image automatic expiration; retain multipart abort rules",
+	"verification": {
+		"before": {
+			"rules": [
+				{
+					"id": "Default Multipart Abort Rule",
+					"enabled": true,
+					"conditions": {
+						"prefix": ""
+					},
+					"abortMultipartUploadsTransition": {
+						"condition": {
+							"type": "Age",
+							"maxAge": 604800
+						}
+					}
+				},
+				{
+					"id": "Temporary references - 24 hours",
+					"enabled": true,
+					"conditions": {
+						"prefix": "users/temporary-references/v1/"
+					},
+					"deleteObjectsTransition": {
+						"condition": {
+							"type": "Age",
+							"maxAge": 86400
+						}
+					},
+					"abortMultipartUploadsTransition": {
+						"condition": {
+							"type": "Age",
+							"maxAge": 86400
+						}
+					}
+				}
+			]
+		},
+		"writeStatus": 200,
+		"after": {
+			"success": true,
+			"errors": [],
+			"messages": [],
+			"result": {
+				"rules": [
+					{
+						"id": "Default Multipart Abort Rule",
+						"enabled": true,
+						"conditions": {
+							"prefix": ""
+						},
+						"abortMultipartUploadsTransition": {
+							"condition": {
+								"type": "Age",
+								"maxAge": 604800
+							}
+						}
+					},
+					{
+						"id": "Temporary references - 24 hours",
+						"enabled": true,
+						"conditions": {
+							"prefix": "users/temporary-references/v1/"
+						},
+						"abortMultipartUploadsTransition": {
+							"condition": {
+								"type": "Age",
+								"maxAge": 86400
+							}
+						}
+					}
+				]
+			},
+			"status": 200
+		},
+		"expectedRulesMatch": true
+	}
+}
