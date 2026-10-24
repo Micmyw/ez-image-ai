@@ -16,28 +16,32 @@ const expectations = {
 		placeholder: "Your watermarked result will appear here.",
 		compact: "Watermarked · temporary",
 		count: "1,234 / 10,000",
-		bonus: "one-time 5-credit bonus",
+		bonus:
+			"receive 10 credits once for two Nano Banana 2 Lite 1K generations, with no monthly refill",
 	},
 	de: {
 		source: "Privat für diese Bearbeitung übergeben",
 		placeholder: "Dein Ergebnis mit Wasserzeichen erscheint hier.",
 		compact: "Mit Wasserzeichen · temporär",
 		count: "1.234 / 10.000",
-		bonus: "einmalig 5 Bonus-Credits",
+		bonus:
+			"einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K, ohne monatliche Auffüllung",
 	},
 	es: {
 		source: "Transferido de forma privada para esta edición",
 		placeholder: "Tu resultado con marca de agua aparecerá aquí.",
 		compact: "Con marca de agua · temporal",
 		count: "1234 / 10.000",
-		bonus: "bono único de 5 créditos",
+		bonus:
+			"10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual",
 	},
 	fr: {
 		source: "Transférée en privé pour cette retouche",
 		placeholder: "Votre résultat filigrané apparaîtra ici.",
 		compact: "Filigrané · temporaire",
 		count: "1 234 / 10 000",
-		bonus: "bonus unique de 5 crédits",
+		bonus:
+			"10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel",
 	},
 } as const;
 
