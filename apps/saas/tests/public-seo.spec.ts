@@ -247,7 +247,7 @@ for (const width of [390, 320]) {
 		await context.clearCookies();
 		await page.setViewportSize({ width, height: 844 });
 		await page.goto("/");
-		const choices = page.getByRole("button", { name: "Decline analytics", exact: true });
+		const choices = page.getByRole("button", { name: "Reject non-essential", exact: true });
 		await expect(choices).toBeVisible();
 		const action = page.locator(
 			'[data-test="landing-generator"] button[aria-describedby="landing-stage-status"]',

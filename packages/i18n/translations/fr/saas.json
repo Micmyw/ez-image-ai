@@ -2066,10 +2066,10 @@
 	},
 	"common": {
 		"consent": {
-			"label": "Cookies et confidentialité",
-			"message": "Nous utilisons des cookies et des technologies similaires pour faire fonctionner le site, analyser le trafic et améliorer votre expérience. Vous pouvez gérer les analyses facultatives à tout moment dans les paramètres de confidentialité.",
-			"decline": "Refuser les analyses",
-			"allow": "Autoriser les analyses",
+			"label": "Nous respectons votre vie privée",
+			"message": "Nous utilisons des cookies pour améliorer votre expérience de navigation, proposer des fonctionnalités supplémentaires, analyser l’utilisation du site et soutenir nos activités marketing. Vous pouvez accepter tous les cookies, refuser les cookies non essentiels ou gérer vos préférences à tout moment dans les Paramètres de confidentialité.",
+			"decline": "Refuser les non essentiels",
+			"allow": "Tout accepter",
 			"settings": "Paramètres de confidentialité",
 			"policy": "Politique de confidentialité",
 			"close": "Fermer",

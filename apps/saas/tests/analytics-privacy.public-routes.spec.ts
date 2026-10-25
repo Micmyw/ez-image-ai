@@ -40,14 +40,14 @@ test("opt-in keeps aggregate counts separate, then withdraws consent without sto
 	test.setTimeout(120_000);
 	const observed = await fixtures(page, true);
 	await page.goto("/pricing?utm_source=chatgpt.com");
-	await expect(page.getByRole("button", { name: "Allow analytics", exact: true })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Accept all", exact: true })).toBeVisible();
 	await expect.poll(() => observed.traffic.length).toBe(1);
 	expect(observed.traffic[0]).toEqual({
 		body: { path: "/pricing", source: "chatgpt.com" },
 		cookie: undefined,
 	});
 	expect(observed.vendors).toEqual([]);
-	await page.getByRole("button", { name: "Allow analytics", exact: true }).click();
+	await page.getByRole("button", { name: "Accept all", exact: true }).click();
 	await expect.poll(() => observed.vendors.length).toBe(2);
 	await expect
 		.poll(async () => (await context.cookies()).find((c) => c.name === "consent_version")?.value)
@@ -69,7 +69,7 @@ test("opt-in keeps aggregate counts separate, then withdraws consent without sto
 		})),
 	);
 	await page.getByRole("button", { name: "Privacy settings", exact: true }).click();
-	await page.getByRole("button", { name: "Decline analytics", exact: true }).click();
+	await page.getByRole("button", { name: "Reject non-essential", exact: true }).click();
 	await expect
 		.poll(async () =>
 			page.evaluate(() => {
@@ -115,7 +115,9 @@ test("trusted opt-out region skips the banner while preserving a privacy choice"
 	await expect(page.locator("[data-consent-banner]")).toHaveCount(0);
 	expect((await context.cookies()).find((c) => c.name === "consent")?.value).toBe("regional");
 	await page.getByRole("button", { name: "Privacy settings", exact: true }).click();
-	await expect(page.getByRole("button", { name: "Decline analytics", exact: true })).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: "Reject non-essential", exact: true }),
+	).toBeVisible();
 });
 
 test("privacy signal blocks aggregate traffic and recording even in opt-out regions", async ({
@@ -128,7 +130,7 @@ test("privacy signal blocks aggregate traffic and recording even in opt-out regi
 	await expect(
 		page.getByText("Your browser privacy signal disables analytics and recording."),
 	).toBeVisible();
-	await expect(page.getByRole("button", { name: "Allow analytics", exact: true })).toBeDisabled();
+	await expect(page.getByRole("button", { name: "Accept all", exact: true })).toBeDisabled();
 	expect(observed.vendors).toEqual([]);
 	expect(observed.traffic).toEqual([]);
 });

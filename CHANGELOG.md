@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-25 — Cookie privacy notice
+
+- Add a visible privacy heading and explain how cookies support browsing, site features, usage analysis and marketing.
+- Use “Accept all” and “Reject non-essential” in the cookie notice across English, German, Spanish and French, with preferences available through the existing Privacy settings link.
+
 ## 2026-10-24 — Free trial, subscription access and sensitive-content billing
 
 - Give each registered account one lifetime 10-credit allowance, enough for two Nano Banana 2 Lite 1K generations, and stop recurring monthly Free grants. Keep historical grants and purchased/subscription credits intact.

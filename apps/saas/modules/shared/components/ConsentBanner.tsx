@@ -36,6 +36,7 @@ export function ConsentBanner() {
 				<CookieIcon className="mt-0.5 size-4 shrink-0 text-primary/60" aria-hidden="true" />
 				<div className="min-w-0 gap-2 sm:flex-row sm:items-center sm:gap-4 flex flex-1 flex-col">
 					<div className="text-xs leading-relaxed flex-1">
+						<h2 className="mb-1 text-sm font-semibold">{t("label")}</h2>
 						<p>
 							{t("message")}{" "}
 							<a href="/privacy" className="whitespace-nowrap underline underline-offset-2">

@@ -2066,10 +2066,10 @@
 	},
 	"common": {
 		"consent": {
-			"label": "Cookies and privacy",
-			"message": "We use cookies and similar technologies to keep our site working, analyze traffic, and improve your experience. You can manage optional analytics anytime in Privacy settings.",
-			"decline": "Decline analytics",
-			"allow": "Allow analytics",
+			"label": "We value your privacy",
+			"message": "We use cookies to improve your browsing experience, provide enhanced functionality, analyze site usage, and support our marketing efforts. You can accept all cookies, reject non-essential cookies, or manage your preferences at any time in Privacy settings.",
+			"decline": "Reject non-essential",
+			"allow": "Accept all",
 			"settings": "Privacy settings",
 			"policy": "Privacy Policy",
 			"close": "Close",

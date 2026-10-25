@@ -557,7 +557,7 @@ test("reference errors and reload retain image intent, explicit remove restores 
 	const state = await setup(page);
 	await page.setViewportSize({ width: 1440, height: 1000 });
 	await page.goto("/create?mode=video");
-	await page.getByRole("button", { name: "Decline analytics", exact: true }).click();
+	await page.getByRole("button", { name: "Reject non-essential", exact: true }).click();
 	await expect(page.locator("#video-mode")).toHaveCount(0);
 	await page.locator("#video-prompt").fill("Keep the reference and animate it.");
 	await page
@@ -871,7 +871,7 @@ test("desktop and mobile compact composer, accessible model and settings menus",
 	await page.setViewportSize({ width: 1440, height: 1000 });
 	await page.goto("/create?mode=video");
 	await expect(page.locator("#video-prompt")).toBeEnabled();
-	await page.getByRole("button", { name: "Decline analytics", exact: true }).click();
+	await page.getByRole("button", { name: "Reject non-essential", exact: true }).click();
 	await expect(page.locator('[data-test="video-generate"]')).toContainText("23 credits");
 	await expect(page.locator("#video-prompt")).toHaveValue("");
 	await page.screenshot({

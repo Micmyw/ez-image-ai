@@ -457,7 +457,7 @@ async function assertCanonical(page: Page, expected: string, indexable = true) {
 async function declineOptionalConsent(page: Page) {
 	const banner = page.locator("[data-consent-banner]");
 	if (await banner.count()) {
-		await banner.getByRole("button", { name: "Decline analytics", exact: true }).click();
+		await banner.getByRole("button", { name: "Reject non-essential", exact: true }).click();
 		await expect(banner).toHaveCount(0);
 	}
 }
