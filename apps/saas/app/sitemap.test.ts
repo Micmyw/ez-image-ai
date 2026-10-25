@@ -102,7 +102,7 @@ describe("consolidated SaaS sitemap", () => {
 			"/docs": "2026-10-04",
 			"/docs/credits": "2026-10-24",
 			"/docs/image-editing": "2026-10-23",
-			"/docs/privacy": "2026-10-21",
+			"/docs/privacy": "2026-10-25",
 			"/docs/quick-start": "2026-09-29",
 		});
 	});
