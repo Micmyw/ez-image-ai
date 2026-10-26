@@ -202,6 +202,10 @@
 		}
 	},
 	"home": {
+		"contentPolicyNotice": {
+			"label": "Inhalte für Erwachsene / NSFW sind verboten",
+			"details": "Inhaltsrichtlinie lesen (öffnet in einem neuen Tab)"
+		},
 		"generator": {
 			"eyebrow": "Bearbeitung planen",
 			"title": "Beschreibe die gewünschte Änderung",

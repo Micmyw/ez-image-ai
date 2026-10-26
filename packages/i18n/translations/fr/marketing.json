@@ -202,6 +202,10 @@
 		}
 	},
 	"home": {
+		"contentPolicyNotice": {
+			"label": "Contenu pour adultes / NSFW interdit",
+			"details": "Lire la politique de contenu (s’ouvre dans un nouvel onglet)"
+		},
 		"generator": {
 			"eyebrow": "Planifiez votre retouche",
 			"title": "Décrivez le changement souhaité",

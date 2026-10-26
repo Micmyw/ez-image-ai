@@ -202,6 +202,10 @@
 		}
 	},
 	"home": {
+		"contentPolicyNotice": {
+			"label": "Adult / NSFW content is prohibited",
+			"details": "Read our content policy (opens in a new tab)"
+		},
 		"generator": {
 			"eyebrow": "Start creating",
 			"title": "Describe the image you have in mind",

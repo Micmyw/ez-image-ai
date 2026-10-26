@@ -7,7 +7,7 @@ import { PublicPricingPlans } from "@payments/components/PublicPricingPlans";
 import { getPublicConfig } from "@repo/config/client";
 import { Logo } from "@repo/ui/components/logo";
 import { StudioShell } from "@shared/components/studio/StudioShell";
-import { ArrowRightIcon, ChevronDownIcon, LockKeyholeIcon } from "lucide-react";
+import { ArrowRightIcon, ChevronDownIcon, LockKeyholeIcon, ShieldBanIcon } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -50,6 +50,20 @@ export async function LandingPage({
 						/>
 
 						<GenerationWorkspace>{editor ?? <LandingGenerator />}</GenerationWorkspace>
+						<div className="mt-4 flex justify-center">
+							<a
+								href="/terms#prohibited-content"
+								target="_blank"
+								rel="noopener noreferrer"
+								data-test="content-policy-reminder"
+								className="min-h-10 gap-2 border-rose-300/20 bg-rose-400/5 px-4 py-2 text-xs font-semibold leading-5 text-rose-200 hover:border-rose-300/40 hover:bg-rose-400/10 hover:text-rose-100 focus-visible:outline-rose-300 inline-flex max-w-full items-center justify-center rounded-full border text-center transition focus-visible:outline-2 focus-visible:outline-offset-4 motion-reduce:transition-none"
+							>
+								<ShieldBanIcon className="size-4 shrink-0" aria-hidden="true" />
+								<span>{t("home.contentPolicyNotice.label")}</span>
+								<ArrowRightIcon className="size-3.5 shrink-0" aria-hidden="true" />
+								<span className="sr-only"> — {t("home.contentPolicyNotice.details")}</span>
+							</a>
+						</div>
 					</div>
 				</section>
 

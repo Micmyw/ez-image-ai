@@ -402,6 +402,11 @@ headings, instructions, and FAQ explain prompt control beyond fixed templates wh
 content-safety, legal, model, and usage limits. English is the indexable public version; translated
 interface views follow the main-content translation policy in `public-page-indexing.md`.
 
+The homepage and `/create` show a centered adult/NSFW prohibition reminder beneath the shared
+image/video generator in both modes and for visitors and registered users. The shield-and-arrow
+link opens `/terms#prohibited-content` in a new tab to preserve the current editor. The reminder
+uses the existing English, German, Spanish and French interface translations.
+
 Each of the six illustrative creator briefs appears once in the initial HTML and rendered DOM.
 Desktop uses three gently moving columns; mobile reuses those columns in a horizontal scroll area.
 Pause and reduced-motion support remain available without duplicated animation or breakpoint copy.

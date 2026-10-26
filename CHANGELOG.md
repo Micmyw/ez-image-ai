@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-26 — Content safety reminder
+
+- Show a visible adult/NSFW prohibition reminder beneath the image and video generators on the homepage and Create page in all four supported interface languages.
+- Link directly to the prohibited-content rules in a new tab so users can read the policy without leaving their draft.
+
 ## 2026-10-25 — Cookie privacy notice
 
 - Add a visible privacy heading and explain how cookies support browsing, site features, usage analysis and marketing.
