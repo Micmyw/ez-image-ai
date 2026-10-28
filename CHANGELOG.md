@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-28 — Image review transaction recovery
+
+- Give image review verdict commits an explicit transaction budget so a brief database lock wait does not discard an otherwise completed review at Prisma's default five-second limit.
+- Recover an expired review lease by retrieving its original provider task within the existing failure budget. Preserve content decisions, temporary-reference deadlines, unknown-submission holds and immutable credit settlement.
+
 ## 2026-10-26 — Content safety reminder
 
 - Show a visible adult/NSFW prohibition reminder beneath the image and video generators on the homepage and Create page in all four supported interface languages.

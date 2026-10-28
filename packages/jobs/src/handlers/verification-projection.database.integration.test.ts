@@ -3,6 +3,7 @@ import {
 	MEDIA_VERIFICATION_POLICY_VERSION,
 	MEDIA_VERIFICATION_RULE_VERSION,
 	TestMediaSafetyAdapter,
+	type ModerationDecision,
 	type ModerationSubmission,
 } from "@repo/ai";
 import { PrismaClient } from "@repo/database/generated-client";
@@ -112,11 +113,13 @@ describe("verification projections with real PostgreSQL", () => {
 				throw new Error("QUERY_MUST_NOT_SUBMIT");
 			},
 		);
-		const retrieve = vi.fn(async () => ({
-			decision: "ALLOW" as const,
-			reasonCode: "NO_POLICY_MATCH",
-			ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
-		}));
+		const retrieve = vi.fn(
+			async (): Promise<ModerationDecision> => ({
+				decision: "ALLOW" as const,
+				reasonCode: "NO_POLICY_MATCH",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			}),
+		);
 		const sign = vi.fn(async () => "https://private.invalid/signed");
 		const deps = createDatabaseVerifyUploadDependencies(client, {
 			moderationProvider,
@@ -632,6 +635,145 @@ describe("verification projections with real PostgreSQL", () => {
 		});
 	});
 
+	it("commits a retrieved verdict after a lock wait exceeds Prisma's default transaction timeout", async () => {
+		const f = await fixture();
+		let release!: () => void;
+		let locked!: () => void;
+		const held = new Promise<void>((resolve) => {
+			locked = resolve;
+		});
+		const wait = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const blocker = client.$transaction(
+			async (tx) => {
+				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`moderation-incident:${f.asset.verificationProvider}:IMAGE`}, 0))`;
+				locked();
+				await wait;
+			},
+			{ timeout: 15_000 },
+		);
+		await held;
+		// Observe rejection immediately so the intentional long wait cannot create an unhandled promise.
+		const pending = f.run().then(
+			(value) => ({ value, error: undefined }),
+			(error: unknown) => ({ value: undefined, error }),
+		);
+		try {
+			await expect
+				.poll(
+					async () => {
+						const [row] = await client.$queryRaw<Array<{ waiting: boolean }>>`
+					SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE pid <> pg_backend_pid()
+					AND datname = current_database() AND wait_event_type = 'Lock'
+					AND query LIKE '%pg_advisory_xact_lock_shared%') AS "waiting"`;
+						return row?.waiting === true;
+					},
+					{ timeout: 3_000, interval: 10 },
+				)
+				.toBe(true);
+			await new Promise((resolve) => setTimeout(resolve, 5_500));
+		} finally {
+			release();
+			await blocker;
+		}
+		const result = await pending;
+		expect(result.error).toBeUndefined();
+		expect(result.value).toMatchObject({ verificationCommit: { status: "READY" } });
+		expect(f.retrieve).toHaveBeenCalledOnce();
+		expect(f.submit).not.toHaveBeenCalled();
+		expect(await client.assetModerationResult.findMany({ where: { assetId: f.id } })).toEqual([
+			expect.objectContaining({
+				status: "APPROVED",
+				providerTaskId: f.asset.verificationProviderTaskId,
+			}),
+		]);
+	});
+
+	it.each(["ALLOW", "REJECT"] as const)(
+		"retrieves the same task after an expired verdict lease and deadline, honoring %s",
+		async (decision) => {
+			const f = await fixture();
+			const deadline = new Date(Date.now() - 1_000);
+			await client.mediaAsset.update({
+				where: { id: f.id },
+				data: {
+					verificationLeaseToken: crypto.randomUUID(),
+					verificationLeasedUntil: new Date(0),
+					verificationDeadlineAt: deadline,
+				},
+			});
+			f.retrieve.mockResolvedValueOnce({
+				decision,
+				reasonCode: decision === "ALLOW" ? "NO_POLICY_MATCH" : "NSFW",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			});
+			expect(await f.run()).toMatchObject({
+				verificationCommit: { status: decision === "ALLOW" ? "READY" : "QUARANTINED" },
+			});
+			await f.run();
+			expect(f.retrieve).toHaveBeenCalledExactlyOnceWith({
+				moderationTaskId: f.asset.verificationProviderTaskId,
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				assetUrl: "",
+			});
+			expect(f.submit).not.toHaveBeenCalled();
+			expect(f.sign).not.toHaveBeenCalled();
+			expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: f.id } })).toMatchObject({
+				verificationProviderTaskId: f.asset.verificationProviderTaskId,
+				verificationSubmissionToken: f.asset.verificationSubmissionToken,
+				verificationGeneration: 1,
+				verificationDeadlineAt: deadline,
+			});
+			expect(
+				await client.assetModerationResult.findMany({
+					where: { assetId: f.id },
+					orderBy: { attemptNumber: "asc" },
+				}),
+			).toEqual([
+				expect.objectContaining({
+					status: "ERROR",
+					reasonCode: "VERIFICATION_LEASE_EXPIRED",
+					attemptNumber: 1,
+				}),
+				expect.objectContaining({
+					status: decision === "ALLOW" ? "APPROVED" : "REJECTED",
+					attemptNumber: 2,
+				}),
+			]);
+		},
+	);
+
+	it.each(["missing task", "unknown submission", "temporary reference"] as const)(
+		"does not widen expired-lease recovery for %s",
+		async (boundary) => {
+			const f = await fixture(boundary === "temporary reference" ? "INPUT" : "OUTPUT");
+			await client.mediaAsset.update({
+				where: { id: f.id },
+				data: {
+					verificationLeaseToken: crypto.randomUUID(),
+					verificationLeasedUntil: new Date(0),
+					verificationDeadlineAt: new Date(0),
+					...(boundary === "missing task" ? { verificationProviderTaskId: null } : {}),
+					...(boundary === "unknown submission" ? { verificationSubmissionUncertain: true } : {}),
+					...(boundary === "temporary reference"
+						? {
+								objectKey: `users/temporary-references/v1/${f.asset.ownerId}/${f.id}`,
+								deleteAfter: new Date(Date.now() + 60_000),
+							}
+						: {}),
+				},
+			});
+			await f.run();
+			await f.run(true, false);
+			expect(f.retrieve).not.toHaveBeenCalled();
+			expect(f.submit).not.toHaveBeenCalled();
+			expect(
+				await client.assetModerationResult.count({ where: { assetId: f.id, status: "APPROVED" } }),
+			).toBe(0);
+		},
+	);
+
 	it("includes newly appended expired-lease evidence in the failure budget", async () => {
 		const f = await fixture();
 		await client.assetModerationResult.createMany({
@@ -655,6 +797,7 @@ describe("verification projections with real PostgreSQL", () => {
 				verificationAttemptCount: 4,
 				verificationLeaseToken: crypto.randomUUID(),
 				verificationLeasedUntil: new Date(0),
+				verificationDeadlineAt: new Date(0),
 			},
 		});
 		expect((await queryProjection(f.id))?.failureCount).toBe(3);
@@ -667,6 +810,7 @@ describe("verification projections with real PostgreSQL", () => {
 		expect(await client.mediaAsset.findUnique({ where: { id: f.id } })).toMatchObject({
 			status: "VERIFICATION_FAILED",
 			verificationLeaseToken: null,
+			verificationLastErrorCode: "VERIFICATION_LEASE_EXPIRED",
 		});
 	});
 });

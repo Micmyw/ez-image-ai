@@ -283,6 +283,35 @@ describe("current-transaction verification projections", () => {
 		},
 	);
 
+	it("reports the failed verdict stage without replaying retrieval or logging private errors", async () => {
+		const f = fixture();
+		const error = Object.assign(
+			new Error("private SQL and credentials must stay out of diagnostics"),
+			{ code: "P2028" },
+		);
+		mocks.recordOutcome.mockRejectedValueOnce(error);
+		const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+		try {
+			await expect(f.run()).rejects.toBe(error);
+			expect(f.retrieve).toHaveBeenCalledOnce();
+			expect(f.submit).not.toHaveBeenCalled();
+			expect(f.evidence).toHaveLength(0);
+			expect(f.asset.status).toBe("VERIFYING");
+			expect(f.asset.verificationProviderTaskId).toBe("bound-task");
+			expect(warn).toHaveBeenCalledExactlyOnceWith("media.upload.verification", {
+				assetId: f.asset.id,
+				generation: 1,
+				stage: "verdict_transaction_failed",
+				transactionStage: "moderation_outcome",
+				elapsedMs: 0,
+				timeoutMs: 20_000,
+				errorCode: "P2028",
+			});
+		} finally {
+			warn.mockRestore();
+		}
+	});
+
 	it("does not append approval after the owner changes during provider retrieval", async () => {
 		const f = fixture();
 		f.retrieve.mockImplementationOnce(async () => {

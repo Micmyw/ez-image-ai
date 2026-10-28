@@ -2694,7 +2694,14 @@ async function claimMediaVerification(
 		const boundedImageRecovery =
 			asset.mimeType.startsWith("image/") &&
 			(asset.verificationLastErrorCode === "IMAGE_PROCESSING" ||
-				isRetryableModerationError(asset.verificationLastErrorCode ?? ""));
+				isRetryableModerationError(asset.verificationLastErrorCode ?? "") ||
+				// A verdict transaction can roll back after retrieval. The expired
+				// lease is not a detector rejection: recover only its existing task.
+				// The failure budget below and temporary-reference deadline still apply.
+				(asset.verificationLastErrorCode === "VERIFICATION_LEASE_EXPIRED" &&
+					Boolean(asset.verificationProviderTaskId) &&
+					!asset.verificationSubmissionUncertain &&
+					input.imageRetrievalSupported === true));
 		if (
 			deadlineAt <= now &&
 			(!boundedImageRecovery || isTemporaryReferenceObjectKey(asset.objectKey))
@@ -2999,12 +3006,18 @@ async function completeMediaVerification(
 	const approvedChecksum = input.checksum;
 	const notifications: MediaJobNotification[] = [];
 	let committedStatus: "READY" | "QUARANTINED" | null = null;
-	const completed = await database.$transaction<OutboxCommitResult>(async (tx) => {
+	let transactionStage = "transaction_start";
+	const transactionStartedAt = Date.now();
+	const commitVerdict = async (tx: Prisma.TransactionClient): Promise<OutboxCommitResult> => {
+		transactionStage = "prompt_review";
 		const promptRejected = await lockAssetPromptReview(claim.assetId, tx);
+		transactionStage = "verification_lock";
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
+		transactionStage = "phase_owner";
 		if (!claim.phaseOwner && !(await verificationPhaseIsCurrent(claim, tx)))
 			return { outboxCommitted: false, phaseOwnershipLost: true };
 		if (claim.kind === "OUTPUT") {
+			transactionStage = "output_job_lock";
 			// Transfer claim/record take the job row before its output asset/binding.
 			// Match that order before committing the verdict or repairing positions.
 			await tx.$queryRaw`
@@ -3016,6 +3029,7 @@ async function completeMediaVerification(
 				ORDER BY job."id" FOR NO KEY UPDATE OF job
 			`;
 		}
+		transactionStage = "verdict_evidence";
 		const now = new Date();
 		const verdictProjection = claim.phaseOwner
 			? await readMediaVerificationVerdictProjection(
@@ -3059,6 +3073,7 @@ async function completeMediaVerification(
 			input = { ...input, decision: "REJECT", reasonCode: "ADMIN_CONTENT_REJECTED" };
 		const status =
 			input.decision === "ALLOW" ? "APPROVED" : input.decision === "REJECT" ? "REJECTED" : "REVIEW";
+		transactionStage = "moderation_outcome";
 		if (asset.mimeType.startsWith("image/") && input.detectorCompleted) {
 			const failures =
 				verdictProjection?.failureCount ??
@@ -3108,6 +3123,7 @@ async function completeMediaVerification(
 					? new Date(IMAGE_APPROVAL_NO_TIME_EXPIRY)
 					: new Date(now.getTime() + MEDIA_VERIFICATION_RETRY_POLICY.evidenceTtlMs)
 				: null;
+		transactionStage = "evidence_write";
 		await appendVerificationEvidence(tx, {
 			assetId: asset.id,
 			assetChecksum: approvedChecksum,
@@ -3127,6 +3143,7 @@ async function completeMediaVerification(
 			scores: input.evidence?.scores,
 			validUntil: verificationValidUntil,
 		});
+		transactionStage = "asset_write";
 		await tx.mediaAsset.update({
 			where: { verificationEngine: "legacy", id: asset.id },
 			data: {
@@ -3145,6 +3162,7 @@ async function completeMediaVerification(
 			},
 		});
 		committedStatus = input.decision === "ALLOW" ? "READY" : "QUARANTINED";
+		transactionStage = "continuation";
 		const copyTerminal =
 			needsCopyReconciliation &&
 			(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx)).terminal;
@@ -3176,6 +3194,7 @@ async function completeMediaVerification(
 					.map(({ id }) => id),
 			),
 		].slice(0, 100);
+		transactionStage = "commit";
 		return {
 			outboxCommitted: copyTerminal || jobsCommitted,
 			...(!copyTerminal
@@ -3189,7 +3208,24 @@ async function completeMediaVerification(
 					}
 				: {}),
 		};
-	});
+	};
+	// Match the bounded business-transaction budget instead of Prisma's implicit
+	// 5-second default. Keep the existing isolation, locks and atomic continuation;
+	// an unknown outcome never authorizes replaying this transaction or a provider call.
+	const completed = await database
+		.$transaction(commitVerdict, { maxWait: 5_000, timeout: 20_000 })
+		.catch((error: unknown) => {
+			console.warn("media.upload.verification", {
+				assetId: claim.assetId,
+				generation: claim.generation,
+				stage: "verdict_transaction_failed",
+				transactionStage,
+				elapsedMs: Date.now() - transactionStartedAt,
+				timeoutMs: 20_000,
+				errorCode: verificationErrorCode(error),
+			});
+			throw error;
+		});
 	if (committedStatus) {
 		console.info("media.upload.verification", {
 			assetId: claim.assetId,
