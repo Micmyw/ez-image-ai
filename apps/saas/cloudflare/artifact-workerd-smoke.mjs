@@ -141,8 +141,9 @@ try {
 	// Locale cookies are deliberately present, but no authentication cookie is sent.
 	// These anonymous routes return before any account/organization/database queries.
 	const publicHeaders = { cookie: "NEXT_LOCALE=fr" };
-	const [health, login, asset, home, create, video] = await Promise.all([
+	const [health, edgeHealth, login, asset, home, create, video] = await Promise.all([
 		request("/api/health"),
+		request("/health", { headers: publicHeaders }),
 		request("/login"),
 		request(`/_next/static/${staticFile.replaceAll(path.sep, "/")}`),
 		request("/", { headers: publicHeaders }),
@@ -150,6 +151,14 @@ try {
 		request("/video", { status: 307 }),
 	]);
 	assert.deepEqual(JSON.parse(health.body), { status: "alive" });
+	assert.deepEqual(JSON.parse(edgeHealth.body), { status: "alive" });
+	assert.equal(edgeHealth.response.headers.get("location"), null);
+	assert.equal(edgeHealth.response.headers.get("cache-control"), "no-store");
+	const localeHealth = await request("/de/health", { method: "HEAD" });
+	assert.equal(localeHealth.response.headers.get("location"), null);
+	assert.equal(localeHealth.body, "");
+	assert.match(home.response.headers.get("x-edge-cache") ?? "", /HIT|MISS|STALE/);
+	assert.equal(home.response.headers.get("cache-control"), "private, no-store");
 	assert.match(login.response.headers.get("content-type"), /text\/html/);
 	assert.match(login.response.headers.get("cache-control"), /private.*no-store/);
 	assert.match(asset.response.headers.get("cache-control"), /immutable/);

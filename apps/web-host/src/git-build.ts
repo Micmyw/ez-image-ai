@@ -215,15 +215,23 @@ if (command === "build") {
 		}
 		evidence.push(`${config.name}: version ${versions[0].version_id}, 100% traffic, ${sha}`);
 	}
-	for (const route of target === "website" ? ["/api/health", "/", "/docs", "/create"] : []) {
+	for (const route of target === "website"
+		? ["/health", "/api/health", "/", "/docs", "/create"]
+		: []) {
 		const url = new URL(route, "https://ezimageai.com");
 		const response = await fetch(url, {
 			redirect: "manual",
-			headers: { "Cache-Control": "no-cache" },
+			headers: {
+				"Cache-Control": "no-cache",
+				"User-Agent": "EzImageAI-DeployVerify/1.0",
+			},
 			signal: AbortSignal.timeout(30_000),
 		});
 		if (response.status !== 200) throw new Error(`LIVE_HTTP_FAILED: ${route} ${response.status}`);
-		await response.arrayBuffer();
+		const body = await response.text();
+		if ((route === "/health" || route === "/api/health") && !body.includes('"alive"')) {
+			throw new Error(`LIVE_HEALTH_BODY_FAILED: ${route}`);
+		}
 		evidence.push(`${url.toString()}: HTTP 200`);
 	}
 	const summary = `Production deployment verified for ${sha}\n\n${evidence.map((line) => `- ${line}`).join("\n")}\n`;

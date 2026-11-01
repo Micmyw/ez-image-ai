@@ -267,6 +267,56 @@ describe("website image callback ingress", () => {
 		expect(mocks.fetch).not.toHaveBeenCalled();
 	});
 
+	it("answers /health before OpenNext and keeps anonymous homepage HTML in the edge cache", async () => {
+		const entries = new Map<string, Response>();
+		vi.stubGlobal("caches", {
+			default: {
+				async match(request: Request) {
+					const found = entries.get(request.url);
+					return found ? found.clone() : undefined;
+				},
+				async put(request: Request, response: Response) {
+					entries.set(request.url, response.clone());
+				},
+			},
+		});
+		try {
+			const health = await invoke(new Request("https://ezpic.example/health"));
+			expect(health.response.status).toBe(200);
+			expect(health.response.headers.get("location")).toBeNull();
+			expect(JSON.parse(health.body)).toEqual({ status: "alive" });
+			const head = await invoke(new Request("https://ezpic.example/fr/health", { method: "HEAD" }));
+			expect(head.response.status).toBe(200);
+			expect(head.response.headers.get("location")).toBeNull();
+			expect(head.body).toBe("");
+			expect(mocks.fetch).not.toHaveBeenCalled();
+
+			mocks.fetch.mockImplementation(
+				async () =>
+					new Response("<html>anonymous-home</html>", {
+						headers: { "content-type": "text/html; charset=utf-8" },
+					}),
+			);
+			const first = await invoke(new Request("https://ezpic.example/"));
+			expect(first.response.headers.get("x-edge-cache")).toBe("MISS");
+			expect(first.response.headers.get("cache-control")).toBe("private, no-store");
+			expect(first.body).toContain("anonymous-home");
+			const second = await invoke(new Request("https://ezpic.example/"));
+			expect(second.response.headers.get("x-edge-cache")).toBe("HIT");
+			expect(second.body).toContain("anonymous-home");
+			const signedIn = await invoke(
+				new Request("https://ezpic.example/", {
+					headers: { cookie: "better-auth.session_token=account" },
+				}),
+			);
+			expect(signedIn.response.headers.get("x-edge-cache")).toBeNull();
+			expect(signedIn.body).toContain("anonymous-home");
+			expect(mocks.fetch).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+
 	it("does not replay a failed or uncertain callback through OpenNext", async () => {
 		mocks.callback.mockRejectedValue(new Error("unknown database acknowledgement"));
 		const { response } = await invoke(

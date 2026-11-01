@@ -24,6 +24,11 @@ import { forwardToWebsite } from "../web-host/src/forward";
 // @ts-ignore OpenNext generates this module after Next's application type check.
 import generatedWorker from "./.open-next/worker.js";
 import { createImageCallbackIngress } from "./cloudflare/image-callback";
+import {
+	publicHealthResponse,
+	readDefaultCache,
+	serveAnonymousHomepage,
+} from "./cloudflare/public-edge";
 import { runScopedWorkerRequest, type WorkerExecutionContext } from "./cloudflare/request-scope";
 
 interface WebsiteWorkerEnvironment {
@@ -61,61 +66,71 @@ export default {
 				request,
 				runtimeEnvironment.CANONICAL_ORIGIN,
 				async (forwardedRequest) => {
-					if (!runtimeEnvironment.HYPERDRIVE?.connectionString || !runtimeEnvironment.IMAGES) {
-						throw new Error("WEBSITE_WORKER_BINDINGS_REQUIRED");
-					}
-					const processor = createCloudflareImagesProcessor(runtimeEnvironment.IMAGES);
-					// Most requests (prefetches, public pages) never query the
-					// database; allocate the client only on first actual access.
-					const client = createLazyDatabaseClient(() =>
-						createRuntimeDatabaseClient(runtimeEnvironment.HYPERDRIVE.connectionString),
-					);
-					return runScopedWorkerRequest(
-						forwardedRequest,
-						runtimeEnvironment,
-						executionContext,
-						{
-							run: (callback) =>
-								runWithDatabaseClient(client, () =>
-									runWithImageProcessor(processor, () =>
-										runWithCloudflareRemoteMedia(() =>
-											runWithJobDispatchBinding(runtimeEnvironment.JOBS_DISPATCH, () =>
-												runWithMediaJobEvents(runtimeEnvironment.MEDIA_JOB_EVENTS, () =>
-													runtimeEnvironment.VIDEO_WORKFLOW
-														? runWithVideoWorkflowBinding(
-																runtimeEnvironment.VIDEO_WORKFLOW,
-																callback,
-																{
-																	r2: Boolean(runtimeEnvironment.VIDEO_MEDIA_BUCKET),
-																	hyperdrive: Boolean(
-																		runtimeEnvironment.HYPERDRIVE?.connectionString,
-																	),
-																	uploadCors:
-																		runtimeEnvironment.VIDEO_V1_UPLOAD_CORS_READY === "true",
-																},
-															)
-														: callback(),
+					const health = publicHealthResponse(forwardedRequest);
+					if (health) return health;
+					const renderWebsite = (documentRequest: Request) => {
+						if (!runtimeEnvironment.HYPERDRIVE?.connectionString || !runtimeEnvironment.IMAGES) {
+							throw new Error("WEBSITE_WORKER_BINDINGS_REQUIRED");
+						}
+						const processor = createCloudflareImagesProcessor(runtimeEnvironment.IMAGES);
+						// Most requests (prefetches, public pages) never query the
+						// database; allocate the client only on first actual access.
+						const client = createLazyDatabaseClient(() =>
+							createRuntimeDatabaseClient(runtimeEnvironment.HYPERDRIVE.connectionString),
+						);
+						return runScopedWorkerRequest(
+							documentRequest,
+							runtimeEnvironment,
+							executionContext,
+							{
+								run: (callback) =>
+									runWithDatabaseClient(client, () =>
+										runWithImageProcessor(processor, () =>
+											runWithCloudflareRemoteMedia(() =>
+												runWithJobDispatchBinding(runtimeEnvironment.JOBS_DISPATCH, () =>
+													runWithMediaJobEvents(runtimeEnvironment.MEDIA_JOB_EVENTS, () =>
+														runtimeEnvironment.VIDEO_WORKFLOW
+															? runWithVideoWorkflowBinding(
+																	runtimeEnvironment.VIDEO_WORKFLOW,
+																	callback,
+																	{
+																		r2: Boolean(runtimeEnvironment.VIDEO_MEDIA_BUCKET),
+																		hyperdrive: Boolean(
+																			runtimeEnvironment.HYPERDRIVE?.connectionString,
+																		),
+																		uploadCors:
+																			runtimeEnvironment.VIDEO_V1_UPLOAD_CORS_READY === "true",
+																	},
+																)
+															: callback(),
+													),
 												),
 											),
 										),
 									),
+								dispose: () => client.$disconnect(),
+							},
+							(request, environment, context) =>
+								// This is runScopedWorkerRequest's proxy, which keeps DB scope alive.
+								runWithRequestDefer(
+									(task) => context.waitUntil(task),
+									// Return the upgrade untouched; OpenNext's HTTP bridge can drop response.webSocket.
+									() =>
+										callbackIngress
+											? callbackIngress.handle(request)
+											: mediaJobEventsRoute(request)
+												? import("@repo/api/modules/media/job-events").then(
+														({ serveMediaJobEvents }) => serveMediaJobEvents(request),
+													)
+												: openNextWorker.fetch(request, environment, context),
 								),
-							dispose: () => client.$disconnect(),
-						},
-						(request, environment, context) =>
-							// This is runScopedWorkerRequest's proxy, which keeps DB scope alive.
-							runWithRequestDefer(
-								(task) => context.waitUntil(task),
-								// Return the upgrade untouched; OpenNext's HTTP bridge can drop response.webSocket.
-								() =>
-									callbackIngress
-										? callbackIngress.handle(request)
-										: mediaJobEventsRoute(request)
-											? import("@repo/api/modules/media/job-events").then(
-													({ serveMediaJobEvents }) => serveMediaJobEvents(request),
-												)
-											: openNextWorker.fetch(request, environment, context),
-							),
+						);
+					};
+					return serveAnonymousHomepage(
+						forwardedRequest,
+						executionContext,
+						readDefaultCache(),
+						renderWebsite,
 					);
 				},
 				runtimeEnvironment.PAYMENT_WEBHOOK_INGRESS_ORIGIN,
