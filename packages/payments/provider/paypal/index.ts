@@ -54,7 +54,7 @@ export function createPayPalHttpBoundary(
 					body = null;
 				}
 			}
-			return { status: response.status, body };
+			return { status: response.status, body, debugId: response.headers.get("paypal-debug-id") };
 		},
 	};
 }

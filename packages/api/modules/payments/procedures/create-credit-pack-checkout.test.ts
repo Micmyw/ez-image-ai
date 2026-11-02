@@ -53,6 +53,7 @@ const {
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
+	recordCheckoutDiagnostic: vi.fn().mockResolvedValue(undefined),
 	bindPaymentCheckoutIntentOrder: bindCheckoutIntentOrder,
 	bindPaymentCheckoutIntentSession: bindCheckoutIntent,
 	createPaymentCheckoutIntent: createCheckoutIntent,

@@ -125,6 +125,59 @@
 			"interpretation": "入口点击只代表实验位置的点击；对照组没有新增结果引导按钮。比较两组共同的结账按钮点击与核实付款；满 7 天付款率只用完整观察窗口。当前样本小，需同时看授权覆盖、归因歧义及两组实验的相互影响，不能仅凭点击率宣布胜出。",
 			"pricing-default-v1": "定价入口：默认年付 / 默认月付（v1）",
 			"result-purchase-v1": "查看账户结果后：原有操作 / 增加购买引导（v1)"
+		},
+		"checkoutDiagnostics": {
+			"title": "订单支付诊断",
+			"basis": "显示所选时间内创建的最近 20 笔图片次数包、积分包结账，包含管理员账户；不受上方来源和设备筛选影响。输入结账 ID 可跨日期精确查询。时间均为服务器接收时间（UTC）。",
+			"coverageHint": "创建结账说明已发起购买。点击数依赖可选的浏览器分析采集：记录为 0 不等于没有点击。发出跳转请求也不代表成功打开了支付页面。",
+			"reference": "结账 ID（留空看最近订单）",
+			"search": "查询",
+			"refresh": "刷新",
+			"truncated": "仅显示最近 20 笔；较早订单请使用结账 ID 查询。",
+			"empty": "未找到对应结账。",
+			"purchaseEvidence": "已发起购买，结账已创建",
+			"owner": "账户",
+			"localStatus": "本站订单状态",
+			"expired": "结账期限已过；不能据此判断客户弃单或支付失败。",
+			"noBrowser": "当前保留的时间线中没有浏览器上报，跳转与返回情况未知。",
+			"noEvents": "暂无诊断历史，不补造历史行为。",
+			"timelineTruncated": "仅展示最新 100 条诊断记录，更早的证据可能未展示。",
+			"invalidEvents": "已略过 {count} 条无法识别的记录。",
+			"receivedAt": "接收时间",
+			"attempt": "操作编号",
+			"outcomes": {
+				"COMPLETED": "付款已完成（本站记录）",
+				"PAYMENT_RECORDED": "已保存验证后的支付事件，待本站完成入账",
+				"CAPTURE_CONFIRMED": "已确认匹配订单的 PayPal 扣款，待本站完成入账",
+				"UNCONFIRMED": "付款未确认，原因未知"
+			},
+			"sources": {
+				"browser": "浏览器上报（未经服务端验证）",
+				"server": "服务端观测"
+			},
+			"operations": {
+				"create": "创建支付平台订单",
+				"bind": "保存支付订单关联",
+				"recovery": "恢复已有结账",
+				"capture": "请求并验证 PayPal 扣款",
+				"ingest": "保存验证后的支付事件"
+			},
+			"phases": {
+				"started": "已开始",
+				"succeeded": "已成功",
+				"failed": "记录到异常（不代表付款最终失败）",
+				"unconfirmed": "结果未确认"
+			},
+			"browser": {
+				"link_received": "浏览器收到结账链接",
+				"redirect_requested": "浏览器发出跳转请求",
+				"redirect_failed": "浏览器上报同步跳转异常",
+				"return_unmarked": "返回页已加载，无批准或取消标记",
+				"return_approved": "上报批准标记，不能据此确认付款",
+				"return_canceled": "上报取消标记，取消原因未经确认",
+				"return_conflicting": "同时上报批准和取消标记",
+				"capture_request_failed": "浏览器未收到成功扣款响应，服务端结果可能不同"
+			}
 		}
 	},
 	"capabilities": {

@@ -144,6 +144,20 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("credit pack checkout return boundaries", () => {
+	it("reports a client return and capture-response failure without forwarding the PayPal token", async () => {
+		const fetch = vi.fn().mockResolvedValue({ ok: true });
+		vi.stubGlobal("fetch", fetch);
+		state.capture.mockRejectedValueOnce(new TypeError("offline"));
+		render({ providerOrderId: "private-provider-token", approved: true });
+		await flush();
+		const bodies = fetch.mock.calls.map(([, init]) => JSON.parse(init.body));
+		expect(bodies).toEqual([
+			{ intentId: "intent", event: "return_approved" },
+			{ intentId: "intent", event: "capture_request_failed" },
+		]);
+		expect(JSON.stringify(bodies)).not.toContain("private-provider-token");
+	});
+
 	it("slows pending reads and resumes only status checks after manual or foreground recovery", async () => {
 		vi.useFakeTimers();
 		const element = render({ canceled: true });

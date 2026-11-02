@@ -17,6 +17,7 @@ import { createContext, useContext, useEffect, useRef, useState, type ReactNode 
 
 import { bindVideoEffectPaymentReturn } from "../../video-effects/lib/payment-return";
 import { usePaymentAction } from "../hooks/use-payment-action";
+import { reportCheckoutDiagnostic, redirectCheckout } from "../lib/checkout-diagnostics";
 import { trackCheckoutStage } from "../lib/conversion";
 import { saveCreditPackCheckoutContext } from "../lib/credit-pack-checkout-context";
 import {
@@ -221,6 +222,7 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 				payment.getSnapshot() !== action
 			)
 				return;
+			reportCheckoutDiagnostic({ intentId, event: "link_received" });
 			checkoutAttempts.current.succeeded(selection);
 			clearCheckoutTrigger();
 			saveCreditPackCheckoutContext(ownerId, organizationId, packKey, intentId);
@@ -228,7 +230,9 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 			bindVideoEffectPaymentReturn(ownerId, intentId, originatingPath);
 			payment.redirecting();
 			trackCheckoutStage("checkout_redirected", "CREDIT_PACK");
-			window.location.href = checkoutLink;
+			redirectCheckout(intentId, () => {
+				window.location.href = checkoutLink;
+			});
 		} catch (error) {
 			trackCheckoutStage("checkout_failed", "CREDIT_PACK", error);
 			if (!mounted.current || currentScope.current !== scope || inflight.current !== request)

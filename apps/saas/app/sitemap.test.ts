@@ -89,7 +89,7 @@ describe("consolidated SaaS sitemap", () => {
 			"/photo-to-coloring-page": "2026-10-04",
 			"/pricing": "2026-09-16",
 			"/changelog": "2026-10-24",
-			"/privacy": "2026-10-21",
+			"/privacy": "2026-11-02",
 			"/terms": "2026-10-24",
 			"/blog": "2026-10-23",
 			"/blog/tesco-ai-meal-planning-assistant": "2026-10-11",
@@ -102,7 +102,7 @@ describe("consolidated SaaS sitemap", () => {
 			"/docs": "2026-10-04",
 			"/docs/credits": "2026-10-24",
 			"/docs/image-editing": "2026-10-23",
-			"/docs/privacy": "2026-10-26",
+			"/docs/privacy": "2026-11-02",
 			"/docs/quick-start": "2026-09-29",
 		});
 	});

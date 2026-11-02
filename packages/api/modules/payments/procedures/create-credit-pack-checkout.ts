@@ -27,6 +27,7 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { verifyOrganizationBillingManagement } from "../../organizations/lib/membership";
 import { assertNewBillingEnabled, assertBillingEnvironmentReady } from "../billing-gate";
 import { captureCheckoutAttribution, checkoutTriggerInputSchema } from "../checkout-attribution";
+import { observeCheckoutOperation } from "../checkout-diagnostics";
 import { isExactCreditPackBillingPlanSnapshot } from "../provider-availability";
 import { recoverProviderCreatingCheckout } from "./checkout-recovery";
 
@@ -163,17 +164,19 @@ export const createCreditPackCheckout = protectedProcedure
 			}
 		}
 
+		const providerIntent = trustedIntent;
+		const diagnosticIdentity = { intentId: providerIntent.id, actorUserId: user.id };
 		const customer = await getPaymentCustomer(provider, owner, db);
 		const checkoutOptions = {
 			type: "one-time" as const,
-			priceId: trustedIntent.billingPlan.providerPriceId,
-			currency: trustedIntent.billingPlan.currency,
-			amountMicros: trustedIntent.billingPlan.priceMicros,
-			description: `EzPic ${trustedIntent.creditPackBaseCredits.toString()} credits`,
-			billingPlanId: trustedIntent.billingPlanId,
-			checkoutIntentId: trustedIntent.id,
-			idempotencyKey: trustedIntent.idempotencyKey,
-			planKey: trustedIntent.planKey,
+			priceId: providerIntent.billingPlan.providerPriceId,
+			currency: providerIntent.billingPlan.currency,
+			amountMicros: providerIntent.billingPlan.priceMicros,
+			description: `EzPic ${providerIntent.creditPackBaseCredits.toString()} credits`,
+			billingPlanId: providerIntent.billingPlanId,
+			checkoutIntentId: providerIntent.id,
+			idempotencyKey: providerIntent.idempotencyKey,
+			planKey: providerIntent.planKey,
 			...owner,
 			submittedByUserId: user.id,
 			...(owner.ownerType === "USER"
@@ -181,31 +184,40 @@ export const createCreditPackCheckout = protectedProcedure
 				: { organizationId: owner.ownerId }),
 			email: user.email,
 			name: user.name ?? "",
-			redirectUrl: creditPackCheckoutReturnUrl(trustedIntent.id),
-			cancelUrl: creditPackCheckoutReturnUrl(trustedIntent.id, true),
+			redirectUrl: creditPackCheckoutReturnUrl(providerIntent.id),
+			cancelUrl: creditPackCheckoutReturnUrl(providerIntent.id, true),
 			customerId: customer?.providerCustomerId,
 		};
 
-		if (trustedIntent.status === "PROVIDER_CREATING") {
+		if (providerIntent.status === "PROVIDER_CREATING") {
 			try {
-				const recovery = await recoverProviderCreatingCheckout(
-					{
-						provider: providerDefinition,
-						owner,
-						intent: trustedIntent,
-						checkoutOptions,
-						now: new Date(),
-					},
-					db,
+				const recovery = await observeCheckoutOperation(
+					{ ...diagnosticIdentity, operation: "recovery" },
+					() =>
+						recoverProviderCreatingCheckout(
+							{
+								provider: providerDefinition,
+								owner,
+								intent: providerIntent,
+								checkoutOptions,
+								now: new Date(),
+							},
+							db,
+						),
+					(result) => (result.kind === "RECOVERED" ? "succeeded" : "unconfirmed"),
 				);
 				if (recovery.kind === "RECOVERED") {
-					return { checkoutLink: recovery.checkout.checkoutUrl, intentId: trustedIntent.id };
+					return { checkoutLink: recovery.checkout.checkoutUrl, intentId: providerIntent.id };
 				}
 				if (recovery.kind === "REVIEW") throw new ORPCError("CONFLICT");
 			} catch (error) {
 				if (error instanceof ORPCError) throw error;
 				logger.error(
-					{ provider, errorClass: creditPackCheckoutErrorClass(error) },
+					{
+						provider,
+						intentId: providerIntent.id,
+						errorClass: creditPackCheckoutErrorClass(error),
+					},
 					"Credit-pack checkout recovery failed",
 				);
 				throw new ORPCError("INTERNAL_SERVER_ERROR");
@@ -213,29 +225,37 @@ export const createCreditPackCheckout = protectedProcedure
 		}
 
 		try {
-			await markPaymentCheckoutIntentProviderCreating({ intentId: trustedIntent.id, provider }, db);
+			await markPaymentCheckoutIntentProviderCreating(
+				{ intentId: providerIntent.id, provider },
+				db,
+			);
 		} catch (error) {
 			if (isCreditPackCheckoutConflict(error)) throw new ORPCError("CONFLICT");
 			throw new ORPCError("INTERNAL_SERVER_ERROR");
 		}
 
 		try {
-			const checkout = await providerDefinition.createCheckout(checkoutOptions);
-			await bindPaymentCheckoutIntentSession(
-				{
-					intentId: trustedIntent.id,
-					provider,
-					providerSessionId: checkout.providerSessionId,
-					...(provider === "paypal" ? { providerOrderId: checkout.providerSessionId } : {}),
-					providerCheckoutUrl: checkout.checkoutUrl,
-					expiresAt: checkout.expiresAt,
-				},
-				db,
+			const checkout = await observeCheckoutOperation(
+				{ ...diagnosticIdentity, operation: "create" },
+				() => providerDefinition.createCheckout(checkoutOptions),
 			);
-			return { checkoutLink: checkout.checkoutUrl, intentId: trustedIntent.id };
+			await observeCheckoutOperation({ ...diagnosticIdentity, operation: "bind" }, () =>
+				bindPaymentCheckoutIntentSession(
+					{
+						intentId: providerIntent.id,
+						provider,
+						providerSessionId: checkout.providerSessionId,
+						...(provider === "paypal" ? { providerOrderId: checkout.providerSessionId } : {}),
+						providerCheckoutUrl: checkout.checkoutUrl,
+						expiresAt: checkout.expiresAt,
+					},
+					db,
+				),
+			);
+			return { checkoutLink: checkout.checkoutUrl, intentId: providerIntent.id };
 		} catch (error) {
 			logger.error(
-				{ provider, errorClass: creditPackCheckoutErrorClass(error) },
+				{ provider, intentId: providerIntent.id, errorClass: creditPackCheckoutErrorClass(error) },
 				"Credit-pack checkout creation failed",
 			);
 			throw new ORPCError("INTERNAL_SERVER_ERROR");

@@ -196,6 +196,19 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("image pass checkout UI", () => {
+	it("records the image-pass cancellation return as a client flag only", () => {
+		const fetch = vi.fn().mockResolvedValue({ ok: true });
+		vi.stubGlobal("fetch", fetch);
+		render({ intentId: "intent", canceled: true });
+		expect(fetch).toHaveBeenCalledWith(
+			"/api/payments/checkout-diagnostics",
+			expect.objectContaining({
+				body: JSON.stringify({ intentId: "intent", event: "return_canceled" }),
+			}),
+		);
+		expect(state.checkout).not.toHaveBeenCalled();
+	});
+
 	it("slows restored pending reads and restarts read-only polling on explicit checks or focus", async () => {
 		vi.useFakeTimers();
 		const element = render({ intentId: "intent" });

@@ -836,6 +836,59 @@
 				"interpretation": "Los clics de entrada miden la superficie probada; el control no tiene el nuevo botón del resultado. Compara también clics de pago y pagos verificados. La tasa madura usa ventanas completas de 7 días. Muestras pequeñas, falta de consentimiento, ambigüedad e interacción entre pruebas impiden elegir un ganador solo por CTR.",
 				"pricing-default-v1": "Precio por defecto: anual frente a mensual (v1)",
 				"result-purchase-v1": "Tras ver un resultado de cuenta: acciones actuales frente a guía de compra (v1)"
+			},
+			"checkoutDiagnostics": {
+				"title": "Diagnóstico del pago",
+				"basis": "Hasta 20 pagos recientes de paquetes de imágenes y créditos creados en este periodo, incluidas cuentas administradoras. Independiente de filtros de fuente y dispositivo. La ID exacta busca en todas las fechas. Horas de recepción del servidor en UTC.",
+				"coverageHint": "Crear un pago confirma que se inició la compra. Los clics dependen del análisis opcional del navegador: 0 clics registrados no significa que nadie haya pulsado. Solicitar una redirección no confirma que se haya abierto la página de pago.",
+				"reference": "ID de pago (vacía para recientes)",
+				"search": "Buscar",
+				"refresh": "Actualizar",
+				"truncated": "Solo se muestran los 20 pagos más recientes. Busca los anteriores por ID.",
+				"empty": "No se encontraron pagos.",
+				"purchaseEvidence": "Compra iniciada; pago creado",
+				"owner": "Cuenta",
+				"localStatus": "Estado local del pedido",
+				"expired": "El plazo ha vencido. Esto no demuestra abandono ni fallo del pago.",
+				"noBrowser": "Sin informes del navegador en el historial conservado; navegación y regreso desconocidos.",
+				"noEvents": "Sin historial de diagnóstico. No se reconstruyen eventos pasados.",
+				"timelineTruncated": "Solo se muestran los últimos 100 registros; pueden faltar pruebas anteriores.",
+				"invalidEvents": "Se omitieron {count} registros no reconocidos.",
+				"receivedAt": "Recibido",
+				"attempt": "ID de operación",
+				"outcomes": {
+					"COMPLETED": "Pago completado (registro local)",
+					"PAYMENT_RECORDED": "Evento de pago verificado guardado; finalización pendiente",
+					"CAPTURE_CONFIRMED": "Captura PayPal correlacionada confirmada; finalización local pendiente",
+					"UNCONFIRMED": "Pago sin confirmar; causa desconocida"
+				},
+				"sources": {
+					"browser": "Informe del navegador (sin verificar)",
+					"server": "Observación del servidor"
+				},
+				"operations": {
+					"create": "Crear pago en el proveedor",
+					"bind": "Guardar vínculo del pedido",
+					"recovery": "Recuperar pago existente",
+					"capture": "Capturar y verificar pedido PayPal",
+					"ingest": "Guardar evento de pago verificado"
+				},
+				"phases": {
+					"started": "Iniciado",
+					"succeeded": "Correcto",
+					"failed": "Error observado (no es el resultado final del pago)",
+					"unconfirmed": "Resultado sin confirmar"
+				},
+				"browser": {
+					"link_received": "Enlace de pago recibido",
+					"redirect_requested": "Navegador solicitó redirección",
+					"redirect_failed": "Error síncrono de navegación informado",
+					"return_unmarked": "Página de regreso cargada sin indicador de aprobación/cancelación",
+					"return_approved": "Indicador de aprobación informado; no prueba el pago",
+					"return_canceled": "Indicador de cancelación informado; motivo sin verificar",
+					"return_conflicting": "Indicadores contradictorios de aprobación y cancelación",
+					"capture_request_failed": "El navegador no recibió una respuesta de captura correcta; el resultado del servidor puede diferir"
+				}
 			}
 		}
 	},

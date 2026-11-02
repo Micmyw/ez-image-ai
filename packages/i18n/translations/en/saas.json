@@ -836,6 +836,59 @@
 				"interpretation": "Entry clicks measure the tested surface; control has no added result-guide button. Compare downstream checkout clicks and verified payments in both arms. Mature rates use only browsers with a full 7-day window. Small samples, consent gaps, ambiguous links and interaction between the two tests prevent declaring a winner from CTR alone.",
 				"pricing-default-v1": "Pricing default: annual vs monthly (v1)",
 				"result-purchase-v1": "After a viewed account result: existing actions vs purchase guide (v1)"
+			},
+			"checkoutDiagnostics": {
+				"title": "Checkout diagnostics",
+				"basis": "Up to 20 recent image-pass and credit-pack checkouts created in this time range, including administrator accounts. Independent of source and device filters. Search uses an exact checkout ID across all dates. Times are server receipt times in UTC.",
+				"coverageHint": "A created checkout confirms purchase initiation. Clicks depend on optional browser analytics: zero recorded clicks does not mean nobody clicked. A redirect request does not prove that the payment page opened.",
+				"reference": "Checkout ID (blank for recent)",
+				"search": "Search",
+				"refresh": "Refresh",
+				"truncated": "Only the newest 20 checkouts are shown. Search by checkout ID for an older order.",
+				"empty": "No matching checkouts.",
+				"purchaseEvidence": "Purchase initiated; checkout created",
+				"owner": "Account",
+				"localStatus": "Local order state",
+				"expired": "The checkout deadline has passed. Expiry does not establish abandonment or a payment failure.",
+				"noBrowser": "No browser receipts in the retained timeline; navigation and return behavior are unknown.",
+				"noEvents": "No diagnostic history. Historical events are not reconstructed.",
+				"timelineTruncated": "Only the latest 100 diagnostic receipts are shown; earlier evidence may be missing.",
+				"invalidEvents": "{count} unrecognized receipts were omitted.",
+				"receivedAt": "Received",
+				"attempt": "Operation attempt",
+				"outcomes": {
+					"COMPLETED": "Payment completed (local record)",
+					"PAYMENT_RECORDED": "Verified payment event saved; completion pending",
+					"CAPTURE_CONFIRMED": "Correlated PayPal capture confirmed; local completion pending",
+					"UNCONFIRMED": "Payment unconfirmed; cause unknown"
+				},
+				"sources": {
+					"browser": "Browser report (unverified)",
+					"server": "Server observation"
+				},
+				"operations": {
+					"create": "Create provider checkout",
+					"bind": "Save provider order binding",
+					"recovery": "Recover the existing checkout",
+					"capture": "Capture and verify PayPal order",
+					"ingest": "Save verified payment event"
+				},
+				"phases": {
+					"started": "Started",
+					"succeeded": "Succeeded",
+					"failed": "Error observed (not a final payment outcome)",
+					"unconfirmed": "Result unconfirmed"
+				},
+				"browser": {
+					"link_received": "Checkout link received",
+					"redirect_requested": "Browser requested navigation",
+					"redirect_failed": "Synchronous navigation error reported",
+					"return_unmarked": "Return page hydrated without approval/cancel flag",
+					"return_approved": "Approval flag reported; not proof of payment",
+					"return_canceled": "Cancel flag reported; reason unverified",
+					"return_conflicting": "Conflicting approval and cancel flags reported",
+					"capture_request_failed": "Browser did not receive a successful capture response; server outcome may differ"
+				}
 			}
 		}
 	},

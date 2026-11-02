@@ -5,6 +5,7 @@ export * from "./organizations";
 export * from "./payment-providers";
 export * from "./payment-attribution";
 export * from "./checkout-recovery";
+export * from "./checkout-diagnostics";
 export * from "./purchases";
 export * from "./users";
 export * from "./admin-access";

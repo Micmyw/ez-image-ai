@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
 	data: undefined as unknown,
 	selections: [] as Array<{ value: string; options: Array<{ value: string }> }>,
 }));
+vi.mock("./CheckoutDiagnosticsPanel", () => ({ CheckoutDiagnosticsPanel: () => null }));
 vi.mock("../lib/capabilities-client", () => ({
 	useAdminOperation: () => ({ data: state.data, isPending: false, refetch: vi.fn() }),
 }));

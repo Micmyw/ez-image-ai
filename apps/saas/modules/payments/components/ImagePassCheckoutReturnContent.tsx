@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { useCheckoutStatePolling } from "../hooks/use-checkout-state-polling";
+import { reportCheckoutDiagnostic, checkoutReturnEvent } from "../lib/checkout-diagnostics";
 import { subscribeToCheckoutForeground } from "../lib/checkout-state-polling";
 import {
 	clearImagePassCheckoutContext,
@@ -32,6 +33,10 @@ export function ImagePassCheckoutReturnContent({
 	const session = useSessionQuery();
 	const ownerId = session.data?.user?.isAnonymous !== true ? session.data?.user?.id : undefined;
 	const queryClient = useQueryClient();
+	useEffect(() => {
+		if (ownerId)
+			reportCheckoutDiagnostic({ intentId, event: checkoutReturnEvent(approved, canceled) });
+	}, [ownerId, intentId, approved, canceled]);
 	const capture = useMutation(orpc.payments.capturePayPalImagePassCheckout.mutationOptions());
 	const [captureFailed, setCaptureFailed] = useState(false);
 	const started = useRef<string | null>(null);
@@ -88,8 +93,10 @@ export function ImagePassCheckoutReturnContent({
 			polling.restart();
 			await state.refetch();
 		} catch {
-			if (mounted.current && currentKey.current === key && captured.current !== key)
+			if (mounted.current && currentKey.current === key && captured.current !== key) {
+				reportCheckoutDiagnostic({ intentId, event: "capture_request_failed" });
 				setCaptureFailed(true);
+			}
 		} finally {
 			if (capturing.current === key) capturing.current = null;
 		}

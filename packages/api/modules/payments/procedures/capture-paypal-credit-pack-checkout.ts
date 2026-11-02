@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
 import { verifyOrganizationBillingManagement } from "../../organizations/lib/membership";
+import { observeCheckoutOperation } from "../checkout-diagnostics";
 
 export const capturePayPalCreditPackCheckoutInputSchema = z
 	.object({
@@ -53,34 +54,44 @@ export const capturePayPalCreditPackCheckout = protectedProcedure
 		if (intent.status !== "PROVIDER_PENDING") throw new ORPCError("CONFLICT");
 		if (!isPaymentProviderConfigured("paypal")) throw new ORPCError("NOT_FOUND");
 
-		let captured: CapturedCheckoutEvent;
+		const diagnosticIdentity = { intentId: intent.id, actorUserId: user.id };
 		try {
-			const provider = getPaymentProvider("paypal");
-			if (!provider?.captureCheckout) throw new Error("PAYPAL_CAPTURE_UNAVAILABLE");
-			captured = await provider.captureCheckout({
-				providerOrderId: trustedOrderId,
-				idempotencyKey: payPalCaptureIdempotencyKey(intent.id, trustedOrderId),
-			});
-			if (!isCorrelatedPayPalCapture(captured, intent.id, trustedOrderId)) {
-				throw new Error("PAYPAL_CAPTURE_CORRELATION_INVALID");
-			}
-			const receivedAt = new Date();
-			const persisted = await ingestPaymentEvent(
-				{
-					provider: "paypal",
-					providerEnvironment: process.env.PAYPAL_ENVIRONMENT,
-					providerEventId: captured.providerEventId,
-					normalizedTransactionId: captured.normalizedTransactionId,
-					verifiedAt: receivedAt,
-					receivedAt,
-					envelope: captured.envelope as never,
+			const captured = await observeCheckoutOperation(
+				{ ...diagnosticIdentity, operation: "capture" },
+				async () => {
+					const provider = getPaymentProvider("paypal");
+					if (!provider?.captureCheckout) throw new Error("PAYPAL_CAPTURE_UNAVAILABLE");
+					const captured = await provider.captureCheckout({
+						providerOrderId: trustedOrderId,
+						idempotencyKey: payPalCaptureIdempotencyKey(intent.id, trustedOrderId),
+					});
+					if (!isCorrelatedPayPalCapture(captured, intent.id, trustedOrderId)) {
+						throw new Error("PAYPAL_CAPTURE_CORRELATION_INVALID");
+					}
+					return captured;
 				},
-				db,
+			);
+			const receivedAt = new Date();
+			const persisted = await observeCheckoutOperation(
+				{ ...diagnosticIdentity, operation: "ingest" },
+				() =>
+					ingestPaymentEvent(
+						{
+							provider: "paypal",
+							providerEnvironment: process.env.PAYPAL_ENVIRONMENT,
+							providerEventId: captured.providerEventId,
+							normalizedTransactionId: captured.normalizedTransactionId,
+							verifiedAt: receivedAt,
+							receivedAt,
+							envelope: captured.envelope as never,
+						},
+						db,
+					),
 			);
 			return { accepted: true as const, replayed: persisted.replayed };
 		} catch (error) {
 			logger.error(
-				{ provider: "paypal", errorClass: captureErrorClass(error) },
+				{ provider: "paypal", intentId: intent.id, errorClass: captureErrorClass(error) },
 				"PayPal credit-pack capture failed",
 			);
 			throw new ORPCError("INTERNAL_SERVER_ERROR");

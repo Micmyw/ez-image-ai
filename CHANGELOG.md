@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-02 — Checkout diagnostic evidence
+
+- Add order-correlated diagnostics for image-pass and credit-pack checkout creation, local order binding, PayPal capture and verified payment-event ingestion. Preserve safe PayPal error codes and support debug IDs without storing raw responses or payment links in diagnostics.
+- Record bounded browser navigation/return observations separately from server-confirmed payment facts. Missing browser analytics, a cancel flag or checkout expiry never establishes customer abandonment.
+- Add a read-only order timeline and exact checkout-ID search to the conversion dashboard, with explicit historical/coverage limits. Diagnostic storage failures do not retry financial operations or replace their outcomes.
+
 ## 2026-10-28 — Image review transaction recovery
 
 - Give image review verdict commits an explicit transaction budget so a brief database lock wait does not discard an otherwise completed review at Prisma's default five-second limit.

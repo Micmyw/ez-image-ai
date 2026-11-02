@@ -1,5 +1,6 @@
 import { call } from "@orpc/server";
 import type { Session } from "@repo/auth";
+import { recordCheckoutDiagnostic } from "@repo/database";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -22,6 +23,7 @@ const {
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
+	recordCheckoutDiagnostic: vi.fn().mockResolvedValue(undefined),
 	getPaymentCheckoutIntentForOwner,
 	ingestPaymentEvent,
 }));
@@ -242,5 +244,28 @@ describe("capturePayPalCreditPackCheckout", () => {
 			),
 		).resolves.toEqual({ accepted: true, replayed: true });
 		expect(captureCheckout).not.toHaveBeenCalled();
+	});
+	it("distinguishes a successful capture from failure to persist its payment event", async () => {
+		ingestPaymentEvent.mockRejectedValueOnce(new Error("storage unavailable"));
+		await expect(
+			call(
+				capturePayPalCreditPackCheckout,
+				{ intentId: intent.id, providerOrderId: "PAYPAL-ORDER-1" },
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+		expect(captureCheckout).toHaveBeenCalledTimes(1);
+		expect(recordCheckoutDiagnostic).toHaveBeenCalledWith(
+			expect.objectContaining({
+				intentId: intent.id,
+				diagnostic: expect.objectContaining({ operation: "capture", phase: "succeeded" }),
+			}),
+		);
+		expect(recordCheckoutDiagnostic).toHaveBeenCalledWith(
+			expect.objectContaining({
+				intentId: intent.id,
+				diagnostic: expect.objectContaining({ operation: "ingest", phase: "failed" }),
+			}),
+		);
 	});
 });

@@ -10,6 +10,10 @@ import {
 import { cancelPurchaseSubscription } from "./procedures/cancel-subscription";
 import { capturePayPalCreditPackCheckout } from "./procedures/capture-paypal-credit-pack-checkout";
 import { capturePayPalImagePassCheckout } from "./procedures/capture-paypal-image-pass-checkout";
+import {
+	getAdminCheckoutDiagnostics,
+	reportCheckoutDiagnostic,
+} from "./procedures/checkout-diagnostics";
 import { createCheckoutLink } from "./procedures/create-checkout-link";
 import { createCreditPackCheckout } from "./procedures/create-credit-pack-checkout";
 import { createCustomerPortalLink } from "./procedures/create-customer-portal-link";
@@ -29,6 +33,8 @@ import {
 } from "./procedures/pending-subscription-checkout";
 
 export const paymentsRouter = {
+	getAdminCheckoutDiagnostics,
+	reportCheckoutDiagnostic,
 	listAdminPaymentAttribution: listAdminPaymentAttributionProcedure,
 	getAdminCheckoutReview,
 	resolveAdminCheckoutReview,

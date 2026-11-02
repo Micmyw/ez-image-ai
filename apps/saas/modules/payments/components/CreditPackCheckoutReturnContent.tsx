@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { consumeVideoEffectPaymentReturn } from "../../video-effects/lib/payment-return";
 import { useCheckoutStatePolling } from "../hooks/use-checkout-state-polling";
+import { reportCheckoutDiagnostic, checkoutReturnEvent } from "../lib/checkout-diagnostics";
 import { subscribeToCheckoutForeground } from "../lib/checkout-state-polling";
 import { clearCreditPackCheckoutContext } from "../lib/credit-pack-checkout-context";
 import { getCreditPackCheckoutDestination } from "./checkout-attempt";
@@ -32,6 +33,10 @@ export function CreditPackCheckoutReturnContent({
 	const session = useSessionQuery();
 	const user = session.data?.user;
 	const ownerId = user && !user.isAnonymous ? user.id : undefined;
+	useEffect(() => {
+		if (ownerId)
+			reportCheckoutDiagnostic({ intentId, event: checkoutReturnEvent(approved, canceled) });
+	}, [ownerId, intentId, approved, canceled]);
 	const organizationId = session.data?.session?.activeOrganizationId ?? null;
 	const scope = ownerId ? JSON.stringify([ownerId, organizationId, intentId]) : null;
 	const key =
@@ -93,8 +98,10 @@ export function CreditPackCheckoutReturnContent({
 			polling.restart();
 			await checkoutState.refetch();
 		} catch {
-			if (mounted.current && currentKey.current === key && captured.current !== key)
+			if (mounted.current && currentKey.current === key && captured.current !== key) {
+				reportCheckoutDiagnostic({ intentId, event: "capture_request_failed" });
 				setFailedKey(key);
+			}
 		} finally {
 			if (capturing.current === key) capturing.current = null;
 			if (mounted.current && currentKey.current === key) setConfirmingKey(null);

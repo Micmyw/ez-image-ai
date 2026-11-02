@@ -12,6 +12,7 @@ import {
 	CapabilitySection,
 	CapabilitySelect,
 } from "./CapabilityUi";
+import { CheckoutDiagnosticsPanel } from "./CheckoutDiagnosticsPanel";
 import { ConversionExperimentsPanel } from "./ConversionExperimentsPanel";
 
 const steps = [
@@ -233,6 +234,7 @@ export function ConversionFunnelPanel() {
 					)}
 				</>
 			)}
+			<CheckoutDiagnosticsPanel range={range} />
 		</CapabilitySection>
 	);
 }

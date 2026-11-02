@@ -1,3 +1,4 @@
+import { CheckoutProviderResponseError } from "../../lib/checkout-diagnostics";
 import type {
 	CapturedCheckoutEvent,
 	CaptureCheckoutOptions,
@@ -18,7 +19,7 @@ export interface PayPalHttpBoundary {
 		url: string;
 		headers: Record<string, string>;
 		body?: unknown;
-	}): Promise<{ status: number; body: unknown }>;
+	}): Promise<{ status: number; body: unknown; debugId?: string | null }>;
 }
 
 interface PayPalAuthorizedConfiguration {
@@ -58,7 +59,7 @@ export async function getPayPalAccessToken(
 	});
 	const accessToken = stringValue(recordValue(response.body)?.access_token);
 	if (response.status < 200 || response.status >= 300 || !accessToken) {
-		throw new Error("PAYPAL_OAUTH_RESPONSE_INVALID");
+		throw new CheckoutProviderResponseError("PAYPAL_OAUTH_RESPONSE_INVALID", response);
 	}
 	return accessToken;
 }
@@ -313,7 +314,7 @@ async function createPayPalOrderCheckoutLink(
 		);
 	const checkoutUrl = stringValue(approval?.href);
 	if ((response.status !== 200 && response.status !== 201) || !providerSessionId || !checkoutUrl) {
-		throw new Error("PAYPAL_CHECKOUT_RESPONSE_INVALID");
+		throw new CheckoutProviderResponseError("PAYPAL_CHECKOUT_RESPONSE_INVALID", response);
 	}
 	let creationTime = body?.create_time;
 	if (creationTime === undefined || creationTime === null) {
@@ -326,12 +327,13 @@ async function createPayPalOrderCheckoutLink(
 		});
 		const details = recordValue(detailsResponse.body);
 		if (detailsResponse.status !== 200 || stringValue(details?.id) !== providerSessionId) {
-			throw new Error("PAYPAL_CHECKOUT_RESPONSE_INVALID");
+			throw new CheckoutProviderResponseError("PAYPAL_CHECKOUT_RESPONSE_INVALID", detailsResponse);
 		}
 		creationTime = details?.create_time;
 	}
 	const createdAt = new Date(stringValue(creationTime) ?? "");
-	if (Number.isNaN(createdAt.getTime())) throw new Error("PAYPAL_CHECKOUT_RESPONSE_INVALID");
+	if (Number.isNaN(createdAt.getTime()))
+		throw new CheckoutProviderResponseError("PAYPAL_CHECKOUT_RESPONSE_INVALID", response);
 	return {
 		checkoutUrl,
 		providerSessionId,
@@ -371,7 +373,7 @@ export async function capturePayPalCheckoutOrder(
 		});
 	}
 	if (response.status !== 200 && response.status !== 201) {
-		throw new Error("PAYPAL_CAPTURE_RESPONSE_INVALID");
+		throw new CheckoutProviderResponseError("PAYPAL_CAPTURE_RESPONSE_INVALID", response);
 	}
 	const order = recordValue(response.body);
 	if (
@@ -379,14 +381,16 @@ export async function capturePayPalCheckoutOrder(
 		stringValue(order?.id) !== options.providerOrderId ||
 		stringValue(order?.status) !== "COMPLETED"
 	) {
-		throw new Error("PAYPAL_CAPTURE_RESPONSE_INVALID");
+		throw new CheckoutProviderResponseError("PAYPAL_CAPTURE_RESPONSE_INVALID", response);
 	}
 	const purchaseUnits = Array.isArray(order.purchase_units) ? order.purchase_units : [];
-	if (purchaseUnits.length !== 1) throw new Error("PAYPAL_CAPTURE_RESPONSE_INVALID");
+	if (purchaseUnits.length !== 1)
+		throw new CheckoutProviderResponseError("PAYPAL_CAPTURE_RESPONSE_INVALID", response);
 	const purchaseUnit = recordValue(purchaseUnits[0]);
 	const payments = recordValue(purchaseUnit?.payments);
 	const captures = Array.isArray(payments?.captures) ? payments.captures : [];
-	if (captures.length !== 1) throw new Error("PAYPAL_CAPTURE_RESPONSE_INVALID");
+	if (captures.length !== 1)
+		throw new CheckoutProviderResponseError("PAYPAL_CAPTURE_RESPONSE_INVALID", response);
 	const capture = recordValue(captures[0]);
 	const captureId = stringValue(capture?.id);
 	const occurredAt = stringValue(capture?.create_time);
@@ -399,10 +403,11 @@ export async function capturePayPalCheckoutOrder(
 		!occurredAt ||
 		Number.isNaN(new Date(occurredAt).getTime())
 	) {
-		throw new Error("PAYPAL_CAPTURE_RESPONSE_INVALID");
+		throw new CheckoutProviderResponseError("PAYPAL_CAPTURE_RESPONSE_INVALID", response);
 	}
 	const checkoutIntentId = stringValue(purchaseUnit?.custom_id);
-	if (!checkoutIntentId) throw new Error("PAYPAL_CAPTURE_RESPONSE_INVALID");
+	if (!checkoutIntentId)
+		throw new CheckoutProviderResponseError("PAYPAL_CAPTURE_RESPONSE_INVALID", response);
 	const payer = recordValue(order.payer);
 	const providerEventId = `capture-response:${captureId}`;
 	return {

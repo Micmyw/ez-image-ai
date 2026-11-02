@@ -836,6 +836,59 @@
 				"interpretation": "Les clics d’entrée mesurent la surface testée ; le contrôle n’a pas le nouveau bouton après résultat. Comparez aussi les clics de paiement et paiements vérifiés. Le taux mature utilise des fenêtres complètes de 7 jours. Petits échantillons, lacunes de consentement, ambiguïtés et interactions empêchent de choisir un gagnant sur le seul CTR.",
 				"pricing-default-v1": "Tarif par défaut : annuel ou mensuel (v1)",
 				"result-purchase-v1": "Après consultation d’un résultat de compte : actions actuelles ou guide d’achat (v1)"
+			},
+			"checkoutDiagnostics": {
+				"title": "Diagnostic du paiement",
+				"basis": "Jusqu’à 20 paiements récents de forfaits images et crédits créés sur cette période, comptes administrateurs inclus. Indépendant des filtres de source et d’appareil. La référence exacte recherche toutes les dates. Horaires de réception serveur en UTC.",
+				"coverageHint": "La création du paiement confirme une initiative d’achat. Les clics dépendent de l’analyse facultative du navigateur : 0 clic enregistré ne signifie pas qu’aucun clic n’a eu lieu. Une redirection demandée ne prouve pas l’ouverture de la page de paiement.",
+				"reference": "ID du paiement (vide pour les récents)",
+				"search": "Rechercher",
+				"refresh": "Actualiser",
+				"truncated": "Seuls les 20 paiements les plus récents sont affichés. Recherchez les anciens par ID.",
+				"empty": "Aucun paiement correspondant.",
+				"purchaseEvidence": "Achat initié ; paiement créé",
+				"owner": "Compte",
+				"localStatus": "État local de la commande",
+				"expired": "Le délai a expiré. Cela ne prouve ni abandon ni échec du paiement.",
+				"noBrowser": "Aucun signal du navigateur dans l’historique conservé ; navigation et retour inconnus.",
+				"noEvents": "Aucun historique de diagnostic. Les événements passés ne sont pas reconstitués.",
+				"timelineTruncated": "Seuls les 100 derniers signaux sont affichés ; des preuves antérieures peuvent manquer.",
+				"invalidEvents": "{count} signaux non reconnus ont été omis.",
+				"receivedAt": "Reçu",
+				"attempt": "ID de l’opération",
+				"outcomes": {
+					"COMPLETED": "Paiement terminé (enregistrement local)",
+					"PAYMENT_RECORDED": "Événement de paiement vérifié enregistré ; finalisation en attente",
+					"CAPTURE_CONFIRMED": "Capture PayPal corrélée confirmée ; finalisation locale en attente",
+					"UNCONFIRMED": "Paiement non confirmé ; cause inconnue"
+				},
+				"sources": {
+					"browser": "Signal du navigateur (non vérifié)",
+					"server": "Observation du serveur"
+				},
+				"operations": {
+					"create": "Créer le paiement chez le prestataire",
+					"bind": "Enregistrer le lien de commande",
+					"recovery": "Récupérer le paiement existant",
+					"capture": "Capturer et vérifier la commande PayPal",
+					"ingest": "Enregistrer l’événement de paiement vérifié"
+				},
+				"phases": {
+					"started": "Démarré",
+					"succeeded": "Réussi",
+					"failed": "Erreur observée (pas un résultat de paiement définitif)",
+					"unconfirmed": "Résultat non confirmé"
+				},
+				"browser": {
+					"link_received": "Lien de paiement reçu",
+					"redirect_requested": "Navigation demandée par le navigateur",
+					"redirect_failed": "Erreur de navigation synchrone signalée",
+					"return_unmarked": "Page de retour chargée sans indicateur d’approbation/annulation",
+					"return_approved": "Indicateur d’approbation signalé ; ne prouve pas le paiement",
+					"return_canceled": "Indicateur d’annulation signalé ; motif non vérifié",
+					"return_conflicting": "Indicateurs d’approbation et d’annulation contradictoires",
+					"capture_request_failed": "Le navigateur n’a pas reçu de réponse de capture réussie ; le résultat serveur peut différer"
+				}
 			}
 		}
 	},

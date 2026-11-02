@@ -2,6 +2,7 @@ import { call } from "@orpc/server";
 import type { Session } from "@repo/auth";
 import { getImagePassOfferSnapshot } from "@repo/config/image-pass";
 import { IMAGE_PASS_PAYPAL_SKU } from "@repo/config/image-pass.server";
+import { recordCheckoutDiagnostic } from "@repo/database";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	intent: vi.fn(),
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
+	recordCheckoutDiagnostic: vi.fn().mockResolvedValue(undefined),
 	getPaymentCheckoutIntentForOwner: mocks.intent,
 	getPaymentCheckoutIntentForOwnerByIdempotencyKey: mocks.byKey,
 	createPaymentCheckoutIntent: mocks.createIntent,
@@ -322,6 +324,12 @@ describe("PayPal image-pass checkout", () => {
 				context,
 			),
 		).resolves.toEqual({ accepted: true, replayed: false });
+		expect(recordCheckoutDiagnostic).toHaveBeenCalledWith(
+			expect.objectContaining({
+				intentId: intent.id,
+				diagnostic: expect.objectContaining({ operation: "capture", phase: "succeeded" }),
+			}),
+		);
 		expect(mocks.capture).toHaveBeenCalledWith({
 			providerOrderId: "ORDER-1",
 			idempotencyKey: expect.stringMatching(/^ip-[a-f0-9]{35}$/),
@@ -352,6 +360,11 @@ describe("PayPal image-pass checkout", () => {
 			),
 		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
 		expect(mocks.ingest).not.toHaveBeenCalled();
+		expect(recordCheckoutDiagnostic).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				diagnostic: expect.objectContaining({ operation: "capture", phase: "succeeded" }),
+			}),
+		);
 	});
 	it("cannot capture another owner's order", async () => {
 		mocks.intent.mockResolvedValue(null);

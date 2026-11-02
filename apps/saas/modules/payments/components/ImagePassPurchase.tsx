@@ -17,6 +17,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useCheckoutStatePolling } from "../hooks/use-checkout-state-polling";
 import { usePaymentAction } from "../hooks/use-payment-action";
+import { reportCheckoutDiagnostic, redirectCheckout } from "../lib/checkout-diagnostics";
 import { subscribeToCheckoutForeground } from "../lib/checkout-state-polling";
 import { trackCheckoutStage } from "../lib/conversion";
 import {
@@ -26,11 +27,18 @@ import {
 } from "../lib/image-pass-checkout-context";
 import { imagePassOfferQueryOptions } from "../lib/image-pass-offer-query";
 
-export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: boolean } = {}) {
+export function ImagePassPurchase({
+	intentId,
+	canceled = false,
+}: { intentId?: string; canceled?: boolean } = {}) {
 	const t = useTranslations("imagePass");
 	const session = useSessionQuery();
 	const user = session.data?.user;
 	const ownerId = user && user.isAnonymous !== true ? user.id : null;
+	useEffect(() => {
+		if (ownerId && intentId && canceled)
+			reportCheckoutDiagnostic({ intentId, event: "return_canceled" });
+	}, [ownerId, intentId, canceled]);
 	const offer = IMAGE_PASS_PUBLIC_OFFER;
 	const payment = usePaymentAction();
 	const currentPayment = useRef(payment);
@@ -147,6 +155,7 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 				attribution,
 			});
 			if (!isCurrent()) return;
+			reportCheckoutDiagnostic({ intentId: createdIntentId, event: "link_received" });
 			clearCheckoutTrigger();
 			saveImagePassCheckoutContext(ownerId, createdIntentId);
 			setRestored({ ownerId, intentId: createdIntentId });
@@ -165,7 +174,7 @@ export function ImagePassPurchase({ intentId }: { intentId?: string; canceled?: 
 			}
 			payment.redirecting();
 			trackCheckoutStage("checkout_redirected", "IMAGE_PASS");
-			window.location.assign(checkoutLink);
+			redirectCheckout(createdIntentId, () => window.location.assign(checkoutLink));
 		} catch (error) {
 			trackCheckoutStage("checkout_failed", "IMAGE_PASS", error);
 			if (isCurrent()) setFailed(true);

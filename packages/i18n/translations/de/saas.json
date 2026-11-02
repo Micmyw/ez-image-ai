@@ -836,6 +836,59 @@
 				"interpretation": "Einstiegsklicks betreffen die getestete Fläche; die Kontrollgruppe hat keinen zusätzlichen Ergebniskauf-Button. Vergleichen Sie auch Checkout-Klicks und bestätigte Zahlungen. Die abgeschlossene Rate nutzt nur volle 7-Tage-Fenster. Kleine Stichproben, Einwilligungslücken, Mehrdeutigkeit und Wechselwirkungen erlauben keinen Sieger allein nach CTR.",
 				"pricing-default-v1": "Preisvorauswahl: jährlich oder monatlich (v1)",
 				"result-purchase-v1": "Nach einem angesehenen Kontoergebnis: Aktionen oder Kaufhinweis (v1)"
+			},
+			"checkoutDiagnostics": {
+				"title": "Checkout-Diagnose",
+				"basis": "Bis zu 20 aktuelle Bildpaket- und Guthaben-Checkouts aus diesem Zeitraum, einschließlich Administratorkonten. Unabhängig von Quellen- und Gerätefiltern. Die genaue Checkout-ID durchsucht alle Daten. Zeiten: Serverempfang in UTC.",
+				"coverageHint": "Ein erstellter Checkout belegt eine Kaufinitiative. Klicks hängen von optionaler Browseranalyse ab: 0 erfasste Klicks bedeutet nicht, dass niemand geklickt hat. Eine angeforderte Weiterleitung belegt keine geöffnete Zahlungsseite.",
+				"reference": "Checkout-ID (leer für aktuelle)",
+				"search": "Suchen",
+				"refresh": "Aktualisieren",
+				"truncated": "Nur die neuesten 20 Checkouts. Ältere Bestellungen über die Checkout-ID suchen.",
+				"empty": "Keine passenden Checkouts.",
+				"purchaseEvidence": "Kauf initiiert; Checkout erstellt",
+				"owner": "Konto",
+				"localStatus": "Lokaler Bestellstatus",
+				"expired": "Die Checkout-Frist ist abgelaufen. Das belegt weder einen Kaufabbruch noch einen Zahlungsfehler.",
+				"noBrowser": "Keine Browsermeldungen in der gespeicherten Zeitleiste; Weiterleitung und Rückkehr unbekannt.",
+				"noEvents": "Kein Diagnoseverlauf. Frühere Ereignisse werden nicht rekonstruiert.",
+				"timelineTruncated": "Nur die neuesten 100 Meldungen; frühere Belege können fehlen.",
+				"invalidEvents": "{count} unbekannte Meldungen ausgelassen.",
+				"receivedAt": "Empfangen",
+				"attempt": "Vorgangs-ID",
+				"outcomes": {
+					"COMPLETED": "Zahlung abgeschlossen (lokaler Eintrag)",
+					"PAYMENT_RECORDED": "Verifiziertes Zahlungsereignis gespeichert; Abschluss ausstehend",
+					"CAPTURE_CONFIRMED": "Zugeordnete PayPal-Abbuchung bestätigt; lokaler Abschluss ausstehend",
+					"UNCONFIRMED": "Zahlung unbestätigt; Ursache unbekannt"
+				},
+				"sources": {
+					"browser": "Browsermeldung (unverifiziert)",
+					"server": "Serverbeobachtung"
+				},
+				"operations": {
+					"create": "Checkout beim Anbieter erstellen",
+					"bind": "Anbieterbestellung zuordnen",
+					"recovery": "Vorhandenen Checkout wiederherstellen",
+					"capture": "PayPal-Abbuchung anfordern und prüfen",
+					"ingest": "Verifiziertes Zahlungsereignis speichern"
+				},
+				"phases": {
+					"started": "Gestartet",
+					"succeeded": "Erfolgreich",
+					"failed": "Fehler beobachtet (kein endgültiges Zahlungsergebnis)",
+					"unconfirmed": "Ergebnis unbestätigt"
+				},
+				"browser": {
+					"link_received": "Checkout-Link empfangen",
+					"redirect_requested": "Browser hat Weiterleitung angefordert",
+					"redirect_failed": "Synchroner Weiterleitungsfehler gemeldet",
+					"return_unmarked": "Rückkehrseite geladen, ohne Freigabe-/Abbruchmarkierung",
+					"return_approved": "Freigabemarkierung gemeldet; kein Zahlungsbeleg",
+					"return_canceled": "Abbruchmarkierung gemeldet; Grund unbestätigt",
+					"return_conflicting": "Widersprüchliche Freigabe- und Abbruchmarkierungen",
+					"capture_request_failed": "Browser erhielt keine erfolgreiche Abbuchungsantwort; Serverergebnis kann abweichen"
+				}
 			}
 		}
 	},
