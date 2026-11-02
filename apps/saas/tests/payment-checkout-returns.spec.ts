@@ -241,9 +241,10 @@ for (const viewport of [
 			);
 			const status = page.getByTestId("credit-pack-checkout-status");
 			await expect(status).toHaveAttribute("data-status", "PENDING");
+			// The server gives cancellation priority before hydrating this component.
 			await expect
 				.poll(() => paymentMock.diagnostics)
-				.toContainEqual({ intentId: "credit-mock", event: "return_conflicting" });
+				.toContainEqual({ intentId: "credit-mock", event: "return_canceled" });
 			await expect(status).not.toContainText("Payment confirmed");
 			await expect(page.getByTestId("credit-pack-confirm-payment")).toHaveCount(0);
 			await wakeBrowser(page);
