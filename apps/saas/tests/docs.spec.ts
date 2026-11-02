@@ -3,7 +3,6 @@ import { expect, test } from "@playwright/test";
 const baseUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 const legacyUnnamespacedEndpoints = [
 	"/api/search?query=EzImageAI",
-	"/llms.txt",
 	"/llms-full.txt",
 	"/llms.mdx",
 	"/llms.mdx/quick-start",
@@ -147,6 +146,17 @@ test.describe("same-origin documentation", () => {
 			expect(response.headers()["x-robots-tag"], endpoint).toBe("noindex, follow");
 			expect(response.headers()["content-type"], endpoint).toMatch(/^image\//i);
 		}
+	});
+
+	test("root llms.txt describes the EzImageAI image editor", async ({ request }) => {
+		const response = await request.get("/llms.txt", { maxRedirects: 0 });
+		expect(response.status()).toBe(200);
+		expect(response.headers()["content-type"]).toContain("text/plain");
+		const body = await response.text();
+		expect(body).toContain("# EzImageAI");
+		expect(body).toContain("AI image editor");
+		expect(body).toContain(`${baseUrl}/pricing`);
+		expect(body).not.toMatch(/rap video/i);
 	});
 
 	test("legacy unnamespaced Docs artifacts are unavailable", async ({ request }) => {
