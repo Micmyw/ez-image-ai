@@ -1,6 +1,10 @@
 import { expect, test as base, type Page } from "@playwright/test";
 
 import { captureConsentedGrowthEvents } from "./growth-events";
+import {
+	mockCheckoutDiagnostic,
+	type CheckoutDiagnosticReceipt,
+} from "./helpers/checkout-diagnostics";
 
 type Provider = "paypal" | "waffo";
 type CreditStatus = "PENDING" | "COMPLETED" | "REVIEW" | "EXPIRED" | "CANCELED";
@@ -17,6 +21,7 @@ type PaymentMock = {
 	pendingReads: number;
 	creates: Array<{ provider: Provider; packKey: string }>;
 	captures: Array<{ intentId: string; providerOrderId: string }>;
+	diagnostics: CheckoutDiagnosticReceipt[];
 	recoveries: Array<{ checkoutIntentId: string; retryReview?: boolean; stateReads: number }>;
 	expectedCreates: number;
 	expectedCaptures: number;
@@ -62,6 +67,7 @@ const test = base.extend<{ paymentMock: PaymentMock }>({
 			pendingReads: 0,
 			creates: [],
 			captures: [],
+			diagnostics: [],
 			recoveries: [],
 			expectedCreates: 0,
 			expectedCaptures: 0,
@@ -78,6 +84,10 @@ const test = base.extend<{ paymentMock: PaymentMock }>({
 				return;
 			}
 			const path = url.pathname;
+			if (path === "/api/payments/checkout-diagnostics") {
+				await mockCheckoutDiagnostic(route, "credit-mock", mock.diagnostics);
+				return;
+			}
 			if (path === "/__e2e__/provider/mock") {
 				await route.fulfill({
 					contentType: "text/html",
@@ -231,6 +241,9 @@ for (const viewport of [
 			);
 			const status = page.getByTestId("credit-pack-checkout-status");
 			await expect(status).toHaveAttribute("data-status", "PENDING");
+			await expect
+				.poll(() => paymentMock.diagnostics)
+				.toContainEqual({ intentId: "credit-mock", event: "return_conflicting" });
 			await expect(status).not.toContainText("Payment confirmed");
 			await expect(page.getByTestId("credit-pack-confirm-payment")).toHaveCount(0);
 			await wakeBrowser(page);
@@ -265,6 +278,9 @@ for (const viewport of [
 			const status = page.getByTestId("credit-pack-checkout-status");
 			const confirm = page.getByTestId("credit-pack-confirm-payment");
 			await expect(confirm).toHaveText("Confirm USD 59.00 payment");
+			await expect
+				.poll(() => paymentMock.diagnostics)
+				.toContainEqual({ intentId: "credit-mock", event: "return_unmarked" });
 			await wakeBrowser(page);
 			await page.getByTestId("credit-pack-check-status").click();
 			await page.reload();
@@ -300,6 +316,9 @@ for (const viewport of [
 			);
 			const status = page.getByTestId("credit-pack-checkout-status");
 			await expect(status).toHaveAttribute("data-status", "PENDING");
+			await expect
+				.poll(() => paymentMock.diagnostics)
+				.toContainEqual({ intentId: "credit-mock", event: "return_approved" });
 			await expect(page.getByTestId("credit-pack-confirm-payment")).toHaveCount(0);
 			await expect(status).not.toContainText("Payment confirmed");
 			await wakeBrowser(page);
@@ -327,6 +346,14 @@ for (const viewport of [
 				await expect(buy).toBeEnabled();
 				await buy.click();
 				await expect(page.getByRole("heading", { name: "Mock provider checkout" })).toBeVisible();
+				await expect
+					.poll(() => paymentMock.diagnostics)
+					.toEqual(
+						expect.arrayContaining([
+							{ intentId: "credit-mock", event: "link_received" },
+							{ intentId: "credit-mock", event: "redirect_requested" },
+						]),
+					);
 				await page.goBack();
 				await expect(page).toHaveURL(/\/pricing$/);
 				await openCreditPacks(page);

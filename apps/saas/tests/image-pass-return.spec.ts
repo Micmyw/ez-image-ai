@@ -1,5 +1,10 @@
 import { expect, test as base, type Page } from "@playwright/test";
 
+import {
+	mockCheckoutDiagnostic,
+	type CheckoutDiagnosticReceipt,
+} from "./helpers/checkout-diagnostics";
+
 type CheckoutStatus = "PENDING" | "COMPLETED" | "REVIEW" | "EXPIRED" | "CANCELED";
 type PaymentMock = {
 	available: number;
@@ -9,6 +14,7 @@ type PaymentMock = {
 	stateReads: number;
 	checkouts: number;
 	captures: number;
+	diagnostics: CheckoutDiagnosticReceipt[];
 	submissions: Array<{ fundingSource?: string }>;
 	blockedMutations: string[];
 	blockedExternalPayments: string[];
@@ -33,6 +39,7 @@ const test = base.extend<{ paymentMock: PaymentMock }>({
 			stateReads: 0,
 			checkouts: 0,
 			captures: 0,
+			diagnostics: [],
 			submissions: [],
 			blockedMutations: [],
 			blockedExternalPayments: [],
@@ -47,6 +54,10 @@ const test = base.extend<{ paymentMock: PaymentMock }>({
 				return;
 			}
 			const path = url.pathname;
+			if (path === "/api/payments/checkout-diagnostics") {
+				await mockCheckoutDiagnostic(route, "mock", mock.diagnostics);
+				return;
+			}
 			if (path === "/__e2e__/paypal/mock") {
 				await route.fulfill({
 					contentType: "text/html",
@@ -210,6 +221,9 @@ for (const viewport of [
 			await page.goto(canceledPath);
 			const status = page.getByTestId("image-pass-checkout-status");
 			await expect(status).toHaveAttribute("data-status", "PENDING");
+			await expect
+				.poll(() => paymentMock.diagnostics)
+				.toContainEqual({ intentId: "mock", event: "return_canceled" });
 			await expect(status).not.toContainText("Payment confirmed");
 			await page.goto(`${canceledPath}&status=COMPLETED`);
 			await expect(status).toHaveAttribute("data-status", "PENDING");
@@ -251,6 +265,9 @@ for (const viewport of [
 			await expect(status).toHaveAttribute("data-status", "PENDING");
 			await expect(confirm).toBeVisible();
 			await expect(confirm).toHaveText("Confirm USD 1.00 payment");
+			await expect
+				.poll(() => paymentMock.diagnostics)
+				.toContainEqual({ intentId: "mock", event: "return_unmarked" });
 			await expect(status).not.toContainText("Payment confirmed");
 			await page.reload();
 			await expect(confirm).toBeVisible();
@@ -279,6 +296,14 @@ for (const viewport of [
 			await expect(page).toHaveURL(/\/__e2e__\/paypal\/mock$/);
 			await expect(page.getByRole("heading", { name: "Mock PayPal checkout" })).toBeVisible();
 			expect(paymentMock.checkouts).toBe(1);
+			await expect
+				.poll(() => paymentMock.diagnostics)
+				.toEqual(
+					expect.arrayContaining([
+						{ intentId: "mock", event: "link_received" },
+						{ intentId: "mock", event: "redirect_requested" },
+					]),
+				);
 
 			await page.goBack();
 			await expect(page).toHaveURL(/\/image-pass$/);
