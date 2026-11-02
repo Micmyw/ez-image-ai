@@ -1,12 +1,10 @@
-import {
-	FREE_ACCOUNT_SIGN_IN_CREDITS,
-	PLAN_ENTITLEMENTS,
-	type PlanEntitlement,
-} from "@repo/config/client";
+import { FREE_ACCOUNT_SIGN_IN_CREDITS, PLAN_ENTITLEMENTS } from "@repo/config/client";
 import { getBaseUrl } from "@shared/lib/base-url";
 
 import { MODEL_PAGES, modelPath } from "../../modules/models/lib/model-pages";
 import { getAllPublishedBlogPosts } from "../../modules/public-content/lib/content";
+
+type PlanEntitlement = (typeof PLAN_ENTITLEMENTS)[number];
 
 const PUBLIC_PLAN_NAMES = {
 	free: "Free",
