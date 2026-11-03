@@ -1,10 +1,38 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+	isVideoEventTimeout,
 	runVideoGenerationV1,
 	type VideoDurableSteps,
 	type VideoWorkflowServices,
 } from "./video-orchestrator";
+
+describe("isVideoEventTimeout", () => {
+	it.each([
+		"Execution timed out after 4000ms",
+		"WorkflowTimeoutError: Execution timed out after 4000ms",
+	])("recognizes the exact RPC timeout message: %s", (message) => {
+		expect(isVideoEventTimeout(new Error(message), 4000)).toBe(true);
+	});
+	it.each([
+		"Execution timed out after 5000ms",
+		"WorkflowTimeoutError: Execution timed out after 5000ms",
+	])("rejects a timeout for a different duration: %s", (message) => {
+		expect(isVideoEventTimeout(new Error(message), 4000)).toBe(false);
+	});
+	it.each([
+		"Execution timed out after 4000ms",
+		"WorkflowTimeoutError: Execution timed out after 4000ms",
+	])("requires the expected duration for RPC timeout messages: %s", (message) => {
+		expect(isVideoEventTimeout(new Error(message))).toBe(false);
+	});
+	it.each([
+		"OtherError: Execution timed out after 4000ms",
+		"WorkflowTimeoutError: Execution timed out after 4000ms (RPC failure)",
+	])("rejects other messages containing timeout text: %s", (message) => {
+		expect(isVideoEventTimeout(new Error(message), 4000)).toBe(false);
+	});
+});
 
 function fixture(template?: boolean) {
 	const names: string[] = [];
@@ -439,6 +467,7 @@ describe("direct video V1 workflow", () => {
 	it.each([
 		Object.assign(new Error("expired"), { name: "WorkflowTimeoutError" }),
 		new Error("Execution timed out after 1800000ms"),
+		new Error("WorkflowTimeoutError: Execution timed out after 1800000ms"),
 	])(
 		"parks callback timeout without a confirmation query, finalization or credit release",
 		async (error) => {

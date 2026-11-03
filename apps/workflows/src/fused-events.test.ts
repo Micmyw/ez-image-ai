@@ -200,16 +200,21 @@ describe("one durable phase waiter", () => {
 			clock.mockRestore();
 		}
 	});
-	it("recovers a missing signal through the durable timeout without another Workflow", async () => {
-		const step = steps();
-		step.waitForEvent.mockRejectedValueOnce(
-			Object.assign(new Error("deadline"), { name: "WorkflowTimeoutError" }),
-		);
-		const invoke = vi.fn<InvokeTask>().mockResolvedValue(complete);
-		await runPolling(review, "workflow", step, invoke, "review", { initialResult: pending });
-		expect(invoke).toHaveBeenCalledOnce();
-		expect(step.sleep).not.toHaveBeenCalled();
-	});
+	it.each([
+		Object.assign(new Error("deadline"), { name: "WorkflowTimeoutError" }),
+		new Error("Execution timed out after 5000ms"),
+		new Error("WorkflowTimeoutError: Execution timed out after 5000ms"),
+	])(
+		"recovers a missing signal through the durable timeout without another Workflow: %s",
+		async (error) => {
+			const step = steps();
+			step.waitForEvent.mockRejectedValueOnce(error);
+			const invoke = vi.fn<InvokeTask>().mockResolvedValue(complete);
+			await runPolling(review, "workflow", step, invoke, "review", { initialResult: pending });
+			expect(invoke).toHaveBeenCalledOnce();
+			expect(step.sleep).not.toHaveBeenCalled();
+		},
+	);
 	it("uses distinct event types for parallel assets and epochs, including signals already queued before wait", async () => {
 		const step = steps();
 		const owners = [owner, { ...owner, phaseKey: "second-asset" }, { ...owner, epoch: 2 }];

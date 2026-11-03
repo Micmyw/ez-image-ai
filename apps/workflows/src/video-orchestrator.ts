@@ -59,14 +59,15 @@ const SINGLE_ATTEMPT = { ...STANDARD, retries: { ...STANDARD.retries, limit: 0 }
 export function isVideoEventTimeout(error: unknown, timeoutMs?: number): boolean {
 	if (!error || typeof error !== "object" || !("name" in error)) return false;
 	if (error.name === "WorkflowTimeoutError") return true;
-	// The pinned workerd RPC bridge currently serializes WorkflowTimeoutError
-	// as Error. Match the exact platform message AND this wait's own duration;
+	// The workerd RPC bridge serializes WorkflowTimeoutError as Error, with or
+	// without the original name prefix. Match the exact message AND this wait's own duration;
 	// never treat arbitrary errors containing "timeout" as recoverable events.
 	return (
 		error.name === "Error" &&
 		"message" in error &&
 		timeoutMs !== undefined &&
-		error.message === `Execution timed out after ${timeoutMs}ms`
+		(error.message === `Execution timed out after ${timeoutMs}ms` ||
+			error.message === `WorkflowTimeoutError: Execution timed out after ${timeoutMs}ms`)
 	);
 }
 
