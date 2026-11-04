@@ -296,6 +296,52 @@ describe("Better Auth registration attribution hooks with an isolated memory ada
 		).toBe(true);
 	});
 
+	it("rejects legacy cross-purpose verification records as magic links without creating a session", async () => {
+		const token = "legacy-oauth-state-cannot-authorize-magic-link";
+		const context = await auth.$context;
+		await context.internalAdapter.createVerificationValue({
+			identifier: token,
+			value: JSON.stringify({
+				email: "unproven-identity@example.test",
+				name: "Unproven identity",
+				codeVerifier: "oauth-only-proof",
+				callbackURL: `${origin}/dashboard`,
+			}),
+			expiresAt: new Date(Date.now() + 60_000),
+		});
+		const response = await auth.handler(
+			new Request(`${origin}/api/auth/magic-link/verify?token=${token}&callbackURL=/dashboard`),
+		);
+		expect(response.status).toBe(302);
+		expect(new URL(response.headers.get("location")!, origin).searchParams.get("error")).toBe(
+			"INVALID_TOKEN",
+		);
+		expect(sessionCookie(response)).toBe("");
+		expect(state.memory.session).toHaveLength(0);
+		expect(state.memory.user).toHaveLength(0);
+		expect(state.loginBonus).not.toHaveBeenCalled();
+		expect(await context.internalAdapter.findVerificationValue(token)).not.toBeNull();
+	});
+
+	it("consumes a valid magic link only once", async () => {
+		const requested = await post("/sign-in/magic-link", {
+			email: "one-use-magic@example.test",
+			callbackURL: "/dashboard",
+		});
+		expect(requested.status).toBe(200);
+		const url = latestMailUrl();
+		const first = await auth.handler(new Request(url));
+		expect(first.status).toBe(302);
+		expect(sessionCookie(first)).not.toBe("");
+		const sessionCount = state.memory.session.length;
+		const replay = await auth.handler(new Request(url));
+		expect(new URL(replay.headers.get("location")!, origin).searchParams.get("error")).toBe(
+			"INVALID_TOKEN",
+		);
+		expect(sessionCookie(replay)).toBe("");
+		expect(state.memory.session).toHaveLength(sessionCount);
+	});
+
 	it("preserves the first touch across the actual OAuth redirect and snapshots its callback", async () => {
 		const cookie = sourceCookie("/blog/oauth-entry");
 		const requested = await post(

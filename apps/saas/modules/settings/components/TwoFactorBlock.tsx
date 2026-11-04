@@ -68,6 +68,9 @@ export function TwoFactorBlock() {
 				throw error;
 			}
 
+			if (data.method !== "totp") {
+				throw new Error("TOTP_ENROLLMENT_UNAVAILABLE");
+			}
 			setTotpURI(data.totpURI);
 			setDialogView("totp-url");
 		},
