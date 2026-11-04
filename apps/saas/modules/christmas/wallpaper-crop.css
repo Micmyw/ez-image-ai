@@ -1,0 +1,145 @@
+.wallpaper-crop-dialog {
+	max-width: 850px;
+	width: calc(100vw - 24px);
+	max-height: 94dvh;
+	overflow-y: auto;
+	color: #173e34;
+	background: #f8faf7;
+}
+.wallpaper-crop-description {
+	color: #4e665b;
+}
+.wallpaper-crop-layout {
+	display: grid;
+	grid-template-columns: 1fr 260px;
+	gap: 28px;
+	min-width: 0;
+}
+.wallpaper-crop-stage {
+	display: grid;
+	place-items: center;
+	min-height: 260px;
+	padding: 16px;
+	border-radius: 16px;
+	background: #e5ece7;
+}
+.wallpaper-crop-frame {
+	position: relative;
+	overflow: hidden;
+	width: 100%;
+}
+.wallpaper-crop-frame.is-phone {
+	max-width: 230px;
+	border: 5px solid #16372e;
+	border-radius: 25px;
+}
+.wallpaper-crop-frame.is-desktop {
+	border: 5px solid #16372e;
+	border-radius: 8px;
+}
+.wallpaper-crop-frame canvas {
+	display: block;
+	width: 100%;
+	height: 100%;
+}
+.wallpaper-screen-overlay {
+	position: absolute;
+	inset: 0;
+	padding-top: 15%;
+	color: white;
+	text-shadow: 0 1px 8px #0005;
+	text-align: center;
+	pointer-events: none;
+}
+.wallpaper-screen-overlay > span {
+	display: block;
+	font-size: 10px;
+}
+.wallpaper-screen-overlay > strong {
+	display: block;
+	font-size: clamp(35px, 7vw, 56px);
+	font-weight: 500;
+	line-height: 1.1;
+	letter-spacing: -3px;
+}
+.wallpaper-screen-overlay.dark-clock {
+	color: #243c32;
+	text-shadow: none;
+}
+.wallpaper-phone-controls {
+	position: absolute;
+	bottom: 5%;
+	left: 10%;
+	right: 10%;
+	display: flex;
+	justify-content: space-between;
+}
+.wallpaper-phone-controls i {
+	width: 26px;
+	height: 26px;
+	border: 1px solid #fff7;
+	border-radius: 50%;
+	background: #0003;
+}
+.wallpaper-desktop-icons {
+	position: absolute;
+	inset: 10% auto auto 5%;
+	display: grid;
+	gap: 12px;
+}
+.wallpaper-desktop-icons i {
+	width: 20px;
+	height: 23px;
+	border: 1px solid #fff8;
+	border-radius: 3px;
+	background: #fff5;
+}
+.wallpaper-crop-controls {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	font-size: 14px;
+}
+.wallpaper-crop-controls label:not(.wallpaper-check) {
+	display: grid;
+	gap: 6px;
+}
+.wallpaper-crop-controls select {
+	background: white;
+	padding: 10px;
+	border: 1px solid #acbfb3;
+	border-radius: 8px;
+}
+.wallpaper-crop-controls input[type="range"] {
+	width: 100%;
+	accent-color: #1e6a4d;
+}
+.wallpaper-check {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.wallpaper-check input {
+	accent-color: #1e6a4d;
+}
+.wallpaper-crop-controls p {
+	font-size: 12px;
+	line-height: 1.6;
+	color: #4e665b;
+}
+.wallpaper-crop-controls output {
+	font-size: 14px;
+	font-weight: 600;
+}
+@media (max-width: 600px) {
+	.wallpaper-crop-layout {
+		grid-template-columns: 1fr;
+		gap: 18px;
+	}
+	.wallpaper-crop-frame.is-phone {
+		max-width: 160px;
+	}
+	.wallpaper-crop-stage {
+		min-height: 150px;
+	}
+}

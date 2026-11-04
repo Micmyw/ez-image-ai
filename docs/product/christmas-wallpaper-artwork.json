@@ -1,0 +1,37 @@
+{
+	"createdAt": "2026-11-04",
+	"generator": "Codex built-in image_gen",
+	"purpose": "Editorial style artwork; not product generation acceptance evidence",
+	"assets": [
+		{
+			"id": "fireplace",
+			"source": "exec-cb371121-d4cc-4541-850e-5371799fc2cd.png",
+			"prompt": "Use case: photorealistic-natural. Create one finished portrait-oriented Christmas phone wallpaper, 9:16 composition. A fictional adult woman with natural freckles and shoulder-length dark brown hair wearing a simple cream knit sweater, relaxed closed-mouth smile, seated in a warm Christmas living room. Her face and shoulders are in the lower middle of the image, below the top 40 percent. A glowing fireplace on one side and a restrained pine Christmas tree with tiny warm lights on the other, soft amber light, realistic skin and wool texture, elegant editorial photograph. Keep the top third calm and dark with softly lit plaster wall and subtle distant bokeh so a phone clock could be legible. The subject is fully within the central 60 percent width to permit tall cropping. No text, no letters, no watermark, no logos, no phone frame, no UI, no collage. Single full-bleed finished image. Style name: Cozy Christmas Fireplace."
+		},
+		{
+			"id": "street",
+			"source": "exec-d53b34d5-00bf-47a1-af4d-679d78714775.png",
+			"prompt": "Use case: photorealistic-natural. Create one finished Christmas phone wallpaper in tall 9:16 composition. A fictional adult man with short curly black hair, light stubble, tan wool coat and ordinary cream scarf, walking toward the camera on a charming snowy Christmas street at blue hour. Head and shoulders at roughly 58 percent down the image; show waist up in lower middle. Warm golden shop windows and subtle pine garlands along narrow historic buildings, delicate snowflakes, blue twilight, cinematic but natural editorial photography, convincing skin texture, no exaggerated fashion. Top third is a quiet dark-blue evening sky and subdued architecture, suitable for readable lock-screen clock. Keep subject central and all key details inside central 60 percent width. Rich blue and amber colors. No text, readable signage, logos, watermark, phone frame, UI or collage. One full-bleed image. Style name: Snowy Christmas Street."
+		},
+		{
+			"id": "globe",
+			"source": "exec-c15d7a46-c43b-436f-bc53-90235ae9eb92.png",
+			"prompt": "Use case: stylized-concept. Create one premium Christmas snow globe phone wallpaper, portrait 9:16 composition. A large beautiful clear glass snow globe with a matte walnut base sitting on snow in the lower half. Inside the globe is one miniature fictional adult woman in an ordinary ivory sweater and dark trousers, beside a tiny Christmas tree and charming cottage, gentle falling snow. Warm golden light inside the globe contrasts with deep evergreen and midnight teal softly blurred background. Photoreal glass, delicate reflections, editorial holiday still-life, elegant magical realism, not a cartoon. Globe top begins about 40 percent down; keep the globe within central 65 percent width, plenty of calm uncluttered dark space across top third for clock. A few soft golden bokeh lights at far edges. No text, no brand, no watermark, no phone frame, no interface, no collage. One full-bleed finished image. Style name: Christmas Snow Globe."
+		},
+		{
+			"id": "pet",
+			"source": "exec-337465a0-4ee8-49b8-943c-58f4454cc00b.png",
+			"prompt": "Use case: photorealistic-natural. A premium Christmas phone wallpaper, tall 9:16. One beautiful golden retriever sitting naturally on a soft cream rug in the lower half of the frame, looking at the camera, realistic golden fur, warm friendly eyes, no clothes or costume. A lush pine Christmas tree behind and to the right with warm tiny fairy lights and restrained red ornaments. A few kraft-paper wrapped gifts beside the tree. Cozy elegant living room at night, soft golden photographic light. The dog's head is about 58 percent down the image. The top third is calm deep forest-green wall with a sparse subtle glow, leaving clear space for phone clock. Entire dog fits within central 60 percent width, paws natural. Editorial pet photography, high detail, natural anatomy. No text, logo, watermark, phone frame, interface or collage. Single full-bleed image. Style name: Pet Under the Christmas Tree."
+		},
+		{
+			"id": "pink",
+			"source": "exec-cb91d380-79f2-467b-b7c4-0797a3fe600c.png",
+			"prompt": "Use case: stylized-concept. Make a refined minimal pink Christmas wallpaper, tall portrait 9:16. A small sculptural blush-pink Christmas tree with soft velvety branches and a handful of pearl-white and brushed gold ornaments sits centered in the lower half on a smooth pale rose snow-like surface. Very pale powder-pink background, understated soft lighting, beautiful shadows, restrained festive editorial still life, tactile matte materials, elegant rather than sugary. A few tiny warm sparkles far from the center. Top 40 percent remains almost empty soft blush-pink for a dark lock-screen clock; tree does not reach the top third. Clean silhouette fits within central 50 percent width, sophisticated pastel palette and calm generous space. No people, text, logo, watermark, UI, phone frame, collage or border. One full-bleed finished image. Style name: Pink Christmas."
+		},
+		{
+			"id": "dark",
+			"source": "exec-c8ccc26a-10a0-4720-88d0-3d054cbc671d.png",
+			"prompt": "Use case: photorealistic-natural. Create one sophisticated dark Christmas phone wallpaper in portrait 9:16. A natural evergreen Christmas tree softly illuminated by a sparse strand of warm golden pin lights, with a few small deep-red glass ornaments, in a nearly black forest-green room. Tree stands in lower middle and right of frame, top of tree below top 35 percent. Black-green negative space in upper third and upper left for readable white phone clock, subtle dark floor reflection below, a small wrapped gift at base. Beautiful restrained chiaroscuro, real pine needles, elegant warm highlights, rich blacks, no excessive bokeh or glitter. The tree silhouette fits central 65 percent for tall cropping. No people, text, words, logo, watermark, phone frame, interface, border or collage. Single full-bleed image. Style name: Dark Christmas Lights."
+		}
+	]
+}

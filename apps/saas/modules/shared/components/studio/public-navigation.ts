@@ -52,6 +52,12 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 		labelKey: "studio.tools.imageTools",
 		links: [
 			{
+				href: "/christmas-wallpaper",
+				labelKey: "christmas.name",
+				descriptionKey: "christmas.navigationDescription",
+				icon: "image",
+			},
+			{
 				href: "/photo-to-coloring-page",
 				labelKey: "coloring.name",
 				descriptionKey: "coloring.navigationDescription",

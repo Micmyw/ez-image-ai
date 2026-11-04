@@ -476,6 +476,15 @@ describe("GenerationForm product copy", () => {
 				.requiresUpgrade,
 		).toBe(false);
 	});
+	it("hides the reference uploader for a tool's scene mode", () => {
+		const markup = renderToStaticMarkup(
+			<ToolPromptProvider initialPrompt="A Christmas scene" allowReference={false}>
+				<GenerationForm onCreated={vi.fn()} />
+			</ToolPromptProvider>,
+		);
+		expect(markup).not.toContain("Localized source image");
+		expect(markup).toContain("A Christmas scene");
+	});
 	it("uses a tool instruction but does not replace a recovered user's prompt", () => {
 		mocks.useGeneration.mockReturnValue(generationState());
 		const fresh = renderToStaticMarkup(

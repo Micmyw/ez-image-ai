@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+
 import { expect, test, type Locator } from "@playwright/test";
 
 const indexableRoutes = [
@@ -77,14 +80,17 @@ test("Vidu Q4 guide separates official access from other EzImageAI models", asyn
 	await expect(page.locator('link[rel="alternate"][hreflang]')).toHaveCount(0);
 });
 
-async function mockPublicImageAvailability(page: import("@playwright/test").Page) {
+async function mockPublicImageAvailability(
+	page: import("@playwright/test").Page,
+	aspectRatios = ["auto", "1:1"],
+) {
 	const product = {
 		key: "image-nano-banana-2-lite",
 		label: "Nano Banana 2 Lite",
 		description: "Fast private image editing",
 		credits: "5",
 		accessHint: "guest-trial",
-		aspectRatios: ["auto", "1:1"],
+		aspectRatios,
 		skuMatrix: {
 			defaultSkuKey: "nano-banana-2-lite-1k",
 			dimensions: [
@@ -96,7 +102,7 @@ async function mockPublicImageAvailability(page: import("@playwright/test").Page
 					label: "1K",
 					parameterValues: { resolution: "1k" },
 					credits: 5,
-					aspectRatios: ["auto", "1:1"],
+					aspectRatios,
 					controls: [],
 				},
 			],
@@ -129,6 +135,131 @@ async function mockPublicImageAvailability(page: import("@playwright/test").Page
 		}),
 	);
 }
+
+test("Christmas wallpaper homepage entry works on desktop and mobile", async ({
+	page,
+}, testInfo) => {
+	test.setTimeout(120_000);
+	await mockPublicImageAvailability(page);
+	await page.goto("/");
+	await expect(page.getByRole("heading", { level: 1 })).toContainText(
+		/AI Image Editor No Restrictions/i,
+	);
+	const entry = page.locator(".christmas-entry");
+	await expect(page.locator(".christmas-quick-entry")).toHaveAttribute(
+		"href",
+		"/christmas-wallpaper",
+	);
+	await expect(page.locator("footer a[href='/christmas-wallpaper']")).toBeAttached();
+	for (const width of [1440, 390, 320]) {
+		await page.setViewportSize({ width, height: 900 });
+		await entry.scrollIntoViewIfNeeded();
+		await expect(entry.locator("img")).toHaveCount(3);
+		await expect
+			.poll(() =>
+				entry
+					.locator("img")
+					.evaluateAll((images) =>
+						images.every((image) => (image as HTMLImageElement).naturalWidth > 0),
+					),
+			)
+			.toBe(true);
+		expect(await entry.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+		await entry.screenshot({ path: testInfo.outputPath(`christmas-home-${width}.png`) });
+	}
+	await entry.getByRole("link").focus();
+	await page.keyboard.press("Enter");
+	await expect(page).toHaveURL(/\/christmas-wallpaper$/, { timeout: 30_000 });
+	await expect(page.locator(".christmas-style-grid article")).toHaveCount(6);
+});
+
+test("Christmas wallpaper presets preserve photos and export clean crops at actual resolution", async ({
+	page,
+}, testInfo) => {
+	test.setTimeout(120_000);
+	await mockPublicImageAvailability(page, ["auto", "1:1", "9:16", "16:9"]);
+	await page.goto("/christmas-wallpaper");
+	await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+		"href",
+		new URL("/christmas-wallpaper", baseUrl).href,
+	);
+	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /index, follow/);
+	await expect(page.locator(".christmas-style-grid article")).toHaveCount(6);
+	const prompt = page.locator("#landing-edit-prompt");
+	await expect(prompt).toHaveValue(/tall 9:16 composition/);
+	await expect(page.locator('[data-test="landing-output-settings-trigger"]')).toContainText("9:16");
+	const editor = page.locator(".christmas-editor");
+	await editor.getByRole("button", { name: "Desktop", exact: true }).click();
+	await expect(prompt).toHaveValue(/main subject in the right half/);
+	await expect(page.locator('[data-test="landing-output-settings-trigger"]')).toContainText("16:9");
+	await editor.getByRole("button", { name: "Phone", exact: true }).click();
+	await page
+		.locator('input[type="file"]')
+		.first()
+		.setInputFiles(path.resolve(__dirname, "../public/images/christmas/pet.webp"));
+	await expect(page.locator('[data-test="landing-source-panel"] img')).toBeVisible();
+	await page.locator(".christmas-style-grid article").nth(2).getByRole("button").click();
+	await expect(prompt).toHaveValue(/clear glass snow globe/);
+	await expect(page.locator('[data-test="landing-source-panel"] img')).toBeVisible();
+	await prompt.fill("My own Christmas instruction");
+	page.once("dialog", (dialog) => dialog.dismiss());
+	await page.locator(".christmas-style-grid article").nth(4).getByRole("button").click();
+	await expect(prompt).toHaveValue("My own Christmas instruction");
+	page.once("dialog", (dialog) => dialog.accept());
+	await editor.getByRole("button", { name: "Create a scene", exact: true }).click();
+	await expect(prompt).toHaveValue(/Create the scene without people/);
+	await expect(page.locator('[data-test="landing-source-panel"] img')).toHaveCount(0);
+	await expect(page.locator("#landing-source-image")).toHaveCount(0);
+	await editor.getByRole("button", { name: "Use my photo", exact: true }).click();
+	await expect(page.locator("#landing-source-image")).toHaveCount(1);
+	for (const width of [1440, 390, 320]) {
+		await page.setViewportSize({ width, height: 900 });
+		await page.evaluate(() => window.scrollTo(0, 0));
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+			true,
+		);
+		await page.screenshot({ path: testInfo.outputPath(`christmas-${width}.png`), fullPage: true });
+	}
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await page.getByRole("button", { name: "Try preview & crop" }).click();
+	const dialog = page.getByRole("dialog");
+	await expect(dialog.getByRole("button", { name: "Download wallpaper" })).toBeEnabled();
+	await expect(dialog.locator("canvas")).toBeVisible();
+	await page.screenshot({ path: testInfo.outputPath("christmas-crop.png") });
+	const firstDownload = page.waitForEvent("download");
+	await dialog.getByRole("button", { name: "Download wallpaper" }).click();
+	const first = await firstDownload;
+	const firstBytes = await readFile((await first.path())!);
+	const dimensions = `${firstBytes.readUInt32BE(16)} × ${firstBytes.readUInt32BE(20)} px · PNG`;
+	await expect(dialog.locator("output")).toHaveText(dimensions);
+	expect(firstBytes.readUInt32BE(16)).toBeLessThanOrEqual(941);
+	await dialog.getByRole("checkbox", { name: "Show screen controls" }).uncheck();
+	const secondDownload = page.waitForEvent("download");
+	await dialog.getByRole("button", { name: "Download wallpaper" }).click();
+	const secondBytes = await readFile((await (await secondDownload).path())!);
+	expect(secondBytes.equals(firstBytes)).toBe(true); // DOM clock never enters exported pixels.
+	await dialog.getByLabel("Screen shape").selectOption("desktop");
+	await expect(dialog.locator("output")).toContainText("941 × 529");
+	await page.setViewportSize({ width: 320, height: 800 });
+	await dialog.getByLabel("Screen shape").selectOption("tall");
+	expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+	await dialog.screenshot({ path: testInfo.outputPath("christmas-crop-mobile.png") });
+	await page.keyboard.press("Escape");
+	await expect(dialog).toHaveCount(0);
+	await page.goto("/christmas-wallpaper?lang=de");
+	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+	await page.goto("/christmas-wallpaper?job=private-example");
+	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+	await mockPublicImageAvailability(page, ["auto", "1:1"]);
+	await page.goto("/christmas-wallpaper");
+	await page
+		.locator(".christmas-editor")
+		.getByRole("button", { name: "Desktop", exact: true })
+		.click();
+	await expect(page.locator(".christmas-editor [role='alert']")).toContainText("does not support");
+	await expect(prompt).toHaveValue(/tall 9:16 composition/);
+});
 
 test("editing examples open the create page with an editable prompt", async ({ page }) => {
 	await mockPublicImageAvailability(page);

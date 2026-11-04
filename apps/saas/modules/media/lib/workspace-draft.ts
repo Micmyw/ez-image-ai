@@ -148,7 +148,13 @@ function safeWorkspaceReturnPath(value: string): string | null {
 	const url = new URL(value, "https://workspace-return.invalid");
 	if (url.origin !== "https://workspace-return.invalid" || url.hash) return null;
 	if (
-		!["/", "/create", "/image-to-image", "/photo-to-coloring-page"].includes(url.pathname) &&
+		![
+			"/",
+			"/create",
+			"/image-to-image",
+			"/photo-to-coloring-page",
+			"/christmas-wallpaper",
+		].includes(url.pathname) &&
 		!/^\/models\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(url.pathname)
 	)
 		return null;

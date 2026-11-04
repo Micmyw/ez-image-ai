@@ -234,6 +234,11 @@ const publicRoutes = [
 	{ modulePath: "./page", path: "/", robots: "index" },
 	{ modulePath: "./(public)/examples/page", path: "/examples", robots: "index" },
 	{ modulePath: "./(public)/image-to-image/page", path: "/image-to-image", robots: "index" },
+	{
+		modulePath: "./(public)/christmas-wallpaper/page",
+		path: "/christmas-wallpaper",
+		robots: "index",
+	},
 	{ modulePath: "./(public)/pricing/page", path: "/pricing", robots: "index" },
 	{ modulePath: "./(public)/privacy/page", path: "/privacy", robots: "index" },
 	{ modulePath: "./(public)/terms/page", path: "/terms", robots: "index" },
@@ -475,9 +480,12 @@ describe("consolidated public route contract", () => {
 		}
 	});
 
-	it.each(["docs", "examples", "image-to-image"])("reserves %s from organization slugs", (slug) => {
-		expect(authConfig.organizations.forbiddenOrganizationSlugs).toContain(slug);
-	});
+	it.each(["docs", "examples", "image-to-image", "christmas-wallpaper"])(
+		"reserves %s from organization slugs",
+		(slug) => {
+			expect(authConfig.organizations.forbiddenOrganizationSlugs).toContain(slug);
+		},
+	);
 });
 
 async function resolveMetadata(

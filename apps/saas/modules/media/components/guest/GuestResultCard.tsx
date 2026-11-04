@@ -2,6 +2,7 @@ import { Button } from "@repo/ui/components/button";
 import { ImageIcon, LockKeyholeIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { WallpaperButton } from "../../../christmas/components/WallpaperButton";
 import { ColoringPageLink } from "../../../coloring/components/ColoringPageLink";
 import type { GuestTrialView } from "../../lib/guest-trial-state";
 
@@ -59,6 +60,7 @@ export function GuestResultCard({
 					{view.resultAssetId && view.jobId && (
 						<ColoringPageLink assetId={view.resultAssetId} guestJobId={view.jobId} />
 					)}
+					{resultUrl && <WallpaperButton key={view.resultAssetId} imageUrl={resultUrl} />}
 				</div>
 			)}
 		</section>

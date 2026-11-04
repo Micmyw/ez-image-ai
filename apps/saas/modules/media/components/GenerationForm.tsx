@@ -244,7 +244,10 @@ export function GenerationForm({
 				toolPrompt?.initialPrompt ??
 				examplePrompt,
 			sourceAssetId: initialDraft?.input.sourceAssetId ?? "",
-			aspectRatio: initialSelection?.aspectRatio ?? initialContract.defaultAspectRatio,
+			aspectRatio:
+				initialSelection?.aspectRatio ??
+				toolPrompt?.initialAspectRatio ??
+				initialContract.defaultAspectRatio,
 			outputFormat: initialSelection?.outputFormat,
 			background: initialSelection?.background,
 		},
@@ -398,7 +401,18 @@ export function GenerationForm({
 	useToolPromptBinding({
 		prompt: values.prompt,
 		busy: !ready || generation.createGeneration.isPending || sourcePending,
-		applyPrompt: updatePrompt,
+		applyPrompt: (prompt, options) => {
+			if (options?.aspectRatio && !selectedCell?.aspectRatios.includes(options.aspectRatio))
+				return false;
+			updatePrompt(prompt);
+			if (options?.aspectRatio)
+				form.setValue("aspectRatio", options.aspectRatio, {
+					shouldDirty: true,
+					shouldValidate: true,
+				});
+			if (options?.clearReference) updateSourceAsset("");
+			return true;
+		},
 	});
 
 	useEffect(() => {
@@ -701,26 +715,28 @@ export function GenerationForm({
 					referenceFirst
 					disabled={generation.createGeneration.isPending}
 					referencePanel={
-						<ImageSourcePanel
-							ownerId={ownerId}
-							compact
-							presentation="composer"
-							label={requireReference ? imageToImage("referenceLabel") : undefined}
-							uploadLabel={
-								requireReference ? imageToImage("referenceLabel") : composer("addReference")
-							}
-							sourceAssetId={values.sourceAssetId}
-							temporaryReference={temporaryReference}
-							maximumImageBytes={Math.min(
-								generation.creditAccount.data?.maximumInputBytes ??
-									getPlanEntitlement("free").maximumInputBytes,
-								getImageProductSelectionContract(values.productKey)?.maximumInputBytes ??
-									Number.MAX_SAFE_INTEGER,
-							)}
-							onReadyChange={setSourceReady}
-							onPendingChange={updateSourcePending}
-							onChange={updateSourceAsset}
-						/>
+						toolPrompt?.allowReference !== false && (
+							<ImageSourcePanel
+								ownerId={ownerId}
+								compact
+								presentation="composer"
+								label={requireReference ? imageToImage("referenceLabel") : undefined}
+								uploadLabel={
+									requireReference ? imageToImage("referenceLabel") : composer("addReference")
+								}
+								sourceAssetId={values.sourceAssetId}
+								temporaryReference={temporaryReference}
+								maximumImageBytes={Math.min(
+									generation.creditAccount.data?.maximumInputBytes ??
+										getPlanEntitlement("free").maximumInputBytes,
+									getImageProductSelectionContract(values.productKey)?.maximumInputBytes ??
+										Number.MAX_SAFE_INTEGER,
+								)}
+								onReadyChange={setSourceReady}
+								onPendingChange={updateSourcePending}
+								onChange={updateSourceAsset}
+							/>
+						)
 					}
 					maxLength={getImageProductSelectionContract(values.productKey)?.maximumPromptLength}
 					label={isImageEdit ? t("fields.prompt") : studio("generation.promptLabel")}
