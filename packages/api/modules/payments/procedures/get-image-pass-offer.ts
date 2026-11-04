@@ -1,4 +1,8 @@
-import { isImagePassBillingPlan, IMAGE_PASS_PAYPAL_SKU } from "@repo/config/image-pass.server";
+import { getImagePassOfferSnapshot } from "@repo/config/image-pass";
+import {
+	imagePassBillingPlanMatchesOffer,
+	IMAGE_PASS_PAYPAL_SKU,
+} from "@repo/config/image-pass.server";
 import { db } from "@repo/database/client";
 import { isPaymentProviderCheckoutAvailable } from "@repo/payments";
 import { z } from "zod";
@@ -10,7 +14,8 @@ import { isBillingPlanEnvironmentCompatible } from "../provider-availability";
 interface OfferAvailabilityDependencies {
 	isBillingEnabled(): boolean;
 	findPlan(): Promise<
-		(NonNullable<Parameters<typeof isImagePassBillingPlan>[0]> & { active: boolean }) | null
+		| (NonNullable<Parameters<typeof imagePassBillingPlanMatchesOffer>[0]> & { active: boolean })
+		| null
 	>;
 	isCheckoutAvailable(): Promise<boolean>;
 	assertEnvironmentReady(): Promise<void>;
@@ -24,7 +29,7 @@ export async function resolveImagePassOfferAvailability(
 		const plan = await dependencies.findPlan();
 		if (
 			!plan?.active ||
-			!isImagePassBillingPlan(plan) ||
+			!imagePassBillingPlanMatchesOffer(plan, getImagePassOfferSnapshot()) ||
 			!isBillingPlanEnvironmentCompatible(plan.metadata, "paypal")
 		)
 			return { available: false };

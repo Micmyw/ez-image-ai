@@ -1,5 +1,17 @@
 # PayPal three-image purchase
 
+The current offer is **USD 2.99 for three successful images**, including all current models and
+resolutions without an additional subscription when using the pack. See
+[the current offer and release procedure](image-pass-299-rollout.md) and its
+[separate merchant SKU provision](image-pass-299-paypal-provision.sql). PayPal Orders accepts the
+amount and SKU inline, so no remote PayPal product or subscription-plan change is required.
+
+## Historical USD 1 implementation and original rollout record
+
+The remaining description records the original offer and its launch boundaries. It does not
+override the current offer or establish current production deployment/activation state. Original
+pending purchases and grants keep their frozen USD 1 terms.
+
 The offer `image-pass-3`, version `2026-10-19.1`, costs exactly USD 1.00 and grants three successful single-image outputs across the 29 image SKUs frozen in its offer snapshot. It grants no general credits, subscription permissions, video quota, or recurring payment. A user can purchase again using a fresh checkout idempotency key. An existing pending command reuses its existing order.
 
 The authenticated checkout is always owned by `user.id`; an active organization does not receive this offer. Creation accepts PayPal, an idempotency key and checkout attribution. Amount, currency, merchant SKU and offer snapshot are server-owned. The dedicated PayPal Orders SKU is `EZIMAGE-IMAGE-PASS-3-USD-1-20261019`; this is a merchant line-item identifier, not a remotely provisioned subscription plan.

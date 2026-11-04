@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 
 import { ORPCError } from "@orpc/server";
 import { isImagePassOfferSnapshot } from "@repo/config/image-pass";
-import { isImagePassBillingPlan, IMAGE_PASS_AMOUNT_MICROS } from "@repo/config/image-pass.server";
+import { imagePassBillingPlanMatchesOffer } from "@repo/config/image-pass.server";
 import {
 	getPaymentCheckoutIntentForOwner,
 	getImagePassPurchaseForCheckoutIntent,
@@ -48,8 +48,8 @@ export const capturePayPalImagePassCheckout = protectedProcedure
 			!intent ||
 			intent.provider !== "paypal" ||
 			intent.productKind !== "IMAGE_PASS" ||
-			!isImagePassBillingPlan(intent.billingPlan) ||
-			!isImagePassOfferSnapshot(intent.imagePassOfferSnapshot)
+			!isImagePassOfferSnapshot(intent.imagePassOfferSnapshot) ||
+			!imagePassBillingPlanMatchesOffer(intent.billingPlan, intent.imagePassOfferSnapshot)
 		) {
 			throw new ORPCError("NOT_FOUND");
 		}
@@ -77,7 +77,14 @@ export const capturePayPalImagePassCheckout = protectedProcedure
 						providerOrderId: trustedOrderId,
 						idempotencyKey: payPalCaptureIdempotencyKey(intent.id, trustedOrderId),
 					});
-					if (!isCorrelatedPayPalImagePassCapture(captured, intent.id, trustedOrderId)) {
+					if (
+						!isCorrelatedPayPalImagePassCapture(
+							captured,
+							intent.id,
+							trustedOrderId,
+							intent.billingPlan.priceMicros,
+						)
+					) {
 						throw new Error("PAYPAL_CAPTURE_CORRELATION_INVALID");
 					}
 					return captured;
@@ -125,6 +132,7 @@ export function isCorrelatedPayPalImagePassCapture(
 	captured: CapturedCheckoutEvent,
 	intentId: string,
 	providerOrderId: string,
+	expectedAmountMicros: bigint,
 ): boolean {
 	const envelope = recordValue(captured.envelope);
 	const resource = recordValue(envelope?.resource);
@@ -138,7 +146,7 @@ export function isCorrelatedPayPalImagePassCapture(
 	}
 	return Boolean(
 		normalized.kind === "CREDIT_PACK_PAID" &&
-		normalized.fact.amountMicros === IMAGE_PASS_AMOUNT_MICROS &&
+		normalized.fact.amountMicros === expectedAmountMicros &&
 		normalized.fact.currency === "USD" &&
 		captured.normalizedTransactionId &&
 		captured.providerEventId === `capture-response:${captured.normalizedTransactionId}` &&

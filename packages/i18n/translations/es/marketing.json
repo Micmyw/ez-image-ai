@@ -95,7 +95,7 @@
 			},
 			"free": {
 				"question": "¿Puedo usar la IA de imagen a imagen gratis?",
-				"answer": "Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Los demás modelos y HD requieren una suscripción de pago activa."
+				"answer": "Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Usar créditos con otros modelos y HD requiere una suscripción de pago activa. El paquete de 2,99 USD incluye 3 imágenes correctas con todos los modelos y tamaños de imagen disponibles actualmente, sin suscripción."
 			},
 			"control": {
 				"question": "¿Se conservarán todos los detalles de la imagen original?",
@@ -153,7 +153,7 @@
 			},
 			"guestVsFree": {
 				"question": "¿Qué diferencia hay entre Invitado y Free?",
-				"answer": "Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Los demás modelos y HD requieren una suscripción de pago activa. Las imágenes generadas con créditos de cuenta no llevan marca de agua de invitado y tienen un plazo objetivo de conservación de 30 días. Descarga los resultados que quieras conservar."
+				"answer": "Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Usar créditos con otros modelos y HD requiere una suscripción de pago activa. El paquete de 2,99 USD incluye 3 imágenes correctas con todos los modelos y tamaños de imagen disponibles actualmente, sin suscripción. Las imágenes generadas con créditos de cuenta no llevan marca de agua de invitado y tienen un plazo objetivo de conservación de 30 días. Descarga los resultados que quieras conservar."
 			},
 			"editTiers": {
 				"question": "¿Qué modelos de imagen y ajustes de salida están disponibles?",
@@ -666,7 +666,7 @@
 		},
 		"pricing": {
 			"title": "Edición de imágenes con IA gratis y planes de pago",
-			"description": "Las cuentas elegibles reciben 10 EzImageAI Credits una sola vez para dos generaciones con Nano Banana 2 Lite 1K a 5 créditos cada una. No hay recarga mensual. Las suscripciones de pago activas habilitan otros modelos y opciones HD."
+			"description": "Las cuentas elegibles reciben 10 EzImageAI Credits una sola vez para dos generaciones con Nano Banana 2 Lite 1K a 5 créditos cada una. No hay recarga mensual. Las suscripciones de pago activas habilitan otros modelos y opciones HD. El paquete de 2,99 USD también ofrece 3 imágenes correctas con todos los modelos y tamaños de imagen disponibles actualmente, sin suscripción."
 		},
 		"guides": {
 			"quickStart": "Empieza tu primera edición",
@@ -683,7 +683,7 @@
 				},
 				"guestVsFree": {
 					"question": "¿Puedo usar EzImageAI como editor de imágenes con IA gratis?",
-					"answer": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Los demás modelos y HD requieren una suscripción de pago activa. Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. «No Restrictions» significa editar mediante instrucciones más allá de plantillas fijas; siguen aplicándose los límites de seguridad, legales, del modelo y de uso."
+					"answer": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Usar créditos con otros modelos y HD requiere una suscripción de pago activa. El paquete de 2,99 USD incluye 3 imágenes correctas con todos los modelos y tamaños de imagen disponibles actualmente, sin suscripción. Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. «No Restrictions» significa editar mediante instrucciones más allá de plantillas fijas; siguen aplicándose los límites de seguridad, legales, del modelo y de uso."
 				}
 			}
 		},

@@ -1,5 +1,13 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-11-04",
+		title: "Three images with any available image model for USD 2.99",
+		changes: [
+			"The new one-time image pack covers 3 successful images with all currently available image models, resolutions and quality options, including Pro and 4K. No subscription is required when paying with these passes.",
+			"Earlier USD 1 packs keep their original coverage and subscription requirements. Account credits remain a separate payment choice, and existing content review and storage limits still apply.",
+		],
+	},
+	{
 		date: "2026-10-24",
 		title: "Two free trial images and clearer generation limits",
 		changes: [

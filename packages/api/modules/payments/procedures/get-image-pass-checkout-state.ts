@@ -1,4 +1,6 @@
 import { ORPCError } from "@orpc/server";
+import { isImagePassOfferSnapshot } from "@repo/config/image-pass";
+import { imagePassBillingPlanMatchesOffer } from "@repo/config/image-pass.server";
 import {
 	getPaymentCheckoutIntentForOwner,
 	getImagePassPurchaseForCheckoutIntent,
@@ -25,7 +27,17 @@ export const getImagePassCheckoutState = protectedProcedure
 		description: "Reads owner-scoped processing state without exposing provider product IDs",
 	})
 	.input(z.object({ intentId: z.string().trim().min(1).max(128) }).strict())
-	.output(z.object({ status: imagePassCheckoutStateSchema }))
+	.output(
+		z.object({
+			status: imagePassCheckoutStateSchema,
+			offer: z.object({
+				offerVersion: z.string(),
+				amount: z.string(),
+				currency: z.literal("USD"),
+				units: z.literal(3),
+			}),
+		}),
+	)
 	.handler(async ({ input, context: { session, user } }) => {
 		const owner = await resolveStateOwner(user.id, session.activeOrganizationId);
 		const intent = await getPaymentCheckoutIntentForOwner(
@@ -36,7 +48,8 @@ export const getImagePassCheckoutState = protectedProcedure
 			!intent ||
 			intent.provider !== "paypal" ||
 			intent.productKind !== "IMAGE_PASS" ||
-			intent.billingPlan.productKind !== "IMAGE_PASS"
+			!isImagePassOfferSnapshot(intent.imagePassOfferSnapshot) ||
+			!imagePassBillingPlanMatchesOffer(intent.billingPlan, intent.imagePassOfferSnapshot)
 		) {
 			throw new ORPCError("NOT_FOUND");
 		}
@@ -44,7 +57,11 @@ export const getImagePassCheckoutState = protectedProcedure
 			{ checkoutIntentId: intent.id, ...owner },
 			db,
 		);
-		return resolveImagePassCheckoutState({ ...intent, imagePassGrant: grant });
+		const { offerVersion, amount, currency, units } = intent.imagePassOfferSnapshot;
+		return {
+			...resolveImagePassCheckoutState({ ...intent, imagePassGrant: grant }),
+			offer: { offerVersion, amount, currency, units },
+		};
 	});
 
 export function resolveImagePassCheckoutState(

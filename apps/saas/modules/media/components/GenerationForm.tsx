@@ -53,7 +53,7 @@ import {
 	generationFormValuesSchema,
 } from "../lib/form-schema";
 import { useGenerationMode } from "../lib/generation-mode-context";
-import { imagePassCoversSku } from "../lib/image-pass-eligibility";
+import { imagePassCoversSku, imagePassIncludesSkuAccess } from "../lib/image-pass-eligibility";
 import {
 	getDefaultImageSpecCell,
 	getImageSpecCell,
@@ -253,11 +253,20 @@ export function GenerationForm({
 	const product = products.find((candidate) => candidate.key === values.productKey);
 	const passSelected = fundingSource === "IMAGE_PASS";
 	const passAvailable = generation.imagePass?.data?.available;
-	// Each grant keeps the sizes it was sold with; new passes cover 1K/2K only.
+	// Coverage and independent model access come from the owner's frozen grants.
 	const passSkuAllowed = imagePassCoversSku(generation.imagePass?.data, values.skuKey);
 	const passReady =
 		passSelected && passSkuAllowed && !generation.imagePass?.isError && (passAvailable ?? 0) >= 1;
-	const upgradeRequired = Boolean(product && !allowedProductKeys.includes(values.productKey));
+	function modelAccessAllowed(productKey: EditorProductKey, skuKey: unknown) {
+		return (
+			allowedProductKeys.includes(productKey) ||
+			(passSelected &&
+				!generation.imagePass?.isError &&
+				(passAvailable ?? 0) >= 1 &&
+				imagePassIncludesSkuAccess(generation.imagePass?.data, skuKey))
+		);
+	}
+	const upgradeRequired = Boolean(product && !modelAccessAllowed(values.productKey, values.skuKey));
 	const selectedCell = getImageSpecCell(product?.skuMatrix, values.skuKey);
 	const effectSelectionUnavailable = Boolean(
 		ready &&
@@ -638,7 +647,7 @@ export function GenerationForm({
 					textLength: textLengthBucket(validated.prompt.trim().length),
 					inputCount: validated.sourceAssetId ? 1 : 0,
 				});
-				if (!allowedProductKeys.includes(validated.productKey)) {
+				if (!modelAccessAllowed(validated.productKey, validated.skuKey)) {
 					setUpgradeOpen(true);
 					return;
 				}
@@ -741,7 +750,12 @@ export function GenerationForm({
 											skuMatrix: candidate.skuMatrix,
 											requiresUpgrade:
 												isEditorProductKey(candidate.key) &&
-												!allowedProductKeys.includes(candidate.key),
+												!modelAccessAllowed(
+													candidate.key,
+													candidate.key === values.productKey
+														? values.skuKey
+														: candidate.skuMatrix.defaultSkuKey,
+												),
 										},
 									]
 								: [],

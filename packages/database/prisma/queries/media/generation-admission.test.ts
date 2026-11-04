@@ -1,4 +1,5 @@
 import { EZPIC_PRODUCT_KEYS } from "@repo/config";
+import { getImagePassOfferSnapshot, IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../client", () => ({
@@ -11,6 +12,7 @@ import { loadCurrentGenerationAdmission } from "./generation-admission";
 
 function transaction(overrides: string[] = [], planId = "free") {
 	return {
+		$queryRaw: vi.fn(async () => [] as Array<{ id: string; offerSnapshot: unknown }>),
 		runtimeConfigOverride: {
 			findMany: vi.fn(async () => overrides.map((configKey) => ({ configKey }))),
 		},
@@ -86,7 +88,9 @@ describe("transaction-current admission", () => {
 			).resolves.toMatchObject({ maximumInputBytes: expect.any(Number) });
 		},
 	);
-	it("does not let image passes unlock premium models without an effective subscription", async () => {
+	it("does not let historical image passes unlock premium models without a subscription", async () => {
+		const tx = transaction();
+		tx.$queryRaw.mockResolvedValue([{ id: "legacy-unit", offerSnapshot: IMAGE_PASS_LEGACY_OFFER }]);
 		await expect(
 			loadCurrentGenerationAdmission(
 				{
@@ -97,9 +101,51 @@ describe("transaction-current admission", () => {
 					costMicros: 120_000n,
 					now: new Date(),
 				},
-				transaction() as never,
+				tx as never,
 			),
-		).rejects.toThrow("ENTITLEMENT_REQUIRED");
+		).rejects.toThrow("IMAGE_PASS_INSUFFICIENT");
+	});
+	it("admits a premium 4K product only with a validated subscription-free available pass", async () => {
+		const tx = transaction();
+		tx.$queryRaw.mockResolvedValue([
+			{ id: "new-unit", offerSnapshot: getImagePassOfferSnapshot() },
+		]);
+		await expect(
+			loadCurrentGenerationAdmission(
+				{
+					ownerId: "owner",
+					productKey: "image-nano-banana-pro",
+					skuKey: "nano-banana-pro-4k",
+					fundingSource: "IMAGE_PASS",
+					costMicros: 120_000n,
+					now: new Date(),
+				},
+				tx as never,
+			),
+		).resolves.toMatchObject({ maximumInputBytes: expect.any(Number) });
+		const [parts, ...parameters] = tx.$queryRaw.mock.calls[0] as unknown as [
+			TemplateStringsArray,
+			...unknown[],
+		];
+		expect(parts.join("?")).toContain("subscriptionPolicy");
+		expect(parameters).toContain(false);
+	});
+	it("keeps an allowed historical pass usable with a paid subscription", async () => {
+		const tx = transaction([], "creator");
+		tx.$queryRaw.mockResolvedValue([{ id: "legacy-unit", offerSnapshot: IMAGE_PASS_LEGACY_OFFER }]);
+		await expect(
+			loadCurrentGenerationAdmission(
+				{
+					ownerId: "owner",
+					productKey: "image-nano-banana-pro",
+					skuKey: "nano-banana-pro-4k",
+					fundingSource: "IMAGE_PASS",
+					costMicros: 120_000n,
+					now: new Date(),
+				},
+				tx as never,
+			),
+		).resolves.toMatchObject({ maximumInputBytes: expect.any(Number) });
 	});
 	it("derives the tighter product size limit without limiting unfinished task counts", async () => {
 		const tx = transaction([], "studio");

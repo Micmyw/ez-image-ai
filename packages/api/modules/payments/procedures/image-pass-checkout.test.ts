@@ -1,7 +1,16 @@
 import { call } from "@orpc/server";
 import type { Session } from "@repo/auth";
-import { getImagePassOfferSnapshot } from "@repo/config/image-pass";
-import { IMAGE_PASS_PAYPAL_SKU } from "@repo/config/image-pass.server";
+import {
+	getImagePassOfferSnapshot,
+	IMAGE_PASS_LEGACY_OFFER,
+	IMAGE_PASS_STANDARD_OFFER,
+} from "@repo/config/image-pass";
+import {
+	IMAGE_PASS_PAYPAL_SKU,
+	IMAGE_PASS_AMOUNT_MICROS,
+	LEGACY_IMAGE_PASS_PAYPAL_SKU,
+	LEGACY_IMAGE_PASS_AMOUNT_MICROS,
+} from "@repo/config/image-pass.server";
 import { recordCheckoutDiagnostic } from "@repo/database";
 import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
@@ -102,7 +111,7 @@ const plan = {
 	active: true,
 	name: "image-pass-3",
 	creditsPerPeriod: 0n,
-	priceMicros: 1000000n,
+	priceMicros: IMAGE_PASS_AMOUNT_MICROS,
 	currency: "USD",
 	metadata: { imagePassOfferSnapshot: getImagePassOfferSnapshot() },
 };
@@ -125,6 +134,21 @@ const intent = {
 };
 const input = { provider: "paypal" as const, idempotencyKey: "image-pass-attempt-1" };
 const context = { context: { headers: new Headers() } };
+const legacyPlan = {
+	...plan,
+	id: "legacy-image-pass-plan",
+	providerPriceId: LEGACY_IMAGE_PASS_PAYPAL_SKU,
+	priceMicros: LEGACY_IMAGE_PASS_AMOUNT_MICROS,
+	metadata: { imagePassOfferSnapshot: IMAGE_PASS_LEGACY_OFFER },
+};
+function legacyIntent(snapshot: typeof IMAGE_PASS_LEGACY_OFFER | typeof IMAGE_PASS_STANDARD_OFFER) {
+	return {
+		...intent,
+		billingPlanId: legacyPlan.id,
+		billingPlan: legacyPlan,
+		imagePassOfferSnapshot: snapshot,
+	};
+}
 function captured(patch: Record<string, unknown> = {}) {
 	return {
 		providerEventId: "capture-response:CAPTURE-1",
@@ -137,7 +161,7 @@ function captured(patch: Record<string, unknown> = {}) {
 				status: "COMPLETED",
 				final_capture: true,
 				custom_id: intent.id,
-				amount: { value: "1.00", currency_code: "USD" },
+				amount: { value: "2.99", currency_code: "USD" },
 				create_time: "2026-10-19T12:00:00.000Z",
 				supplementary_data: { related_ids: { order_id: "ORDER-1" } },
 				...patch,
@@ -180,7 +204,7 @@ describe("PayPal image-pass checkout", () => {
 	])("rejects provider and client price overrides %j", (patch) =>
 		expect(imagePassCheckoutInputSchema.safeParse({ ...input, ...patch }).success).toBe(false),
 	);
-	it("creates only the server priced one-dollar order and frozen three-image snapshot", async () => {
+	it("creates only the server priced $2.99 order and frozen three-image snapshot", async () => {
 		await expect(call(createImagePassCheckout, input, context)).resolves.toEqual({
 			checkoutLink: "https://www.sandbox.paypal.com/approve",
 			intentId: intent.id,
@@ -199,7 +223,7 @@ describe("PayPal image-pass checkout", () => {
 			expect.objectContaining({
 				priceId: IMAGE_PASS_PAYPAL_SKU,
 				currency: "USD",
-				amountMicros: 1000000n,
+				amountMicros: 2_990_000n,
 				redirectUrl: `https://app.ezpic.test/image-pass-checkout-return?intentId=${intent.id}&approved=1`,
 				cancelUrl: `https://app.ezpic.test/image-pass?canceled=1&intentId=${intent.id}`,
 			}),
@@ -304,6 +328,115 @@ describe("PayPal image-pass checkout", () => {
 		expect(mocks.createIntent).not.toHaveBeenCalled();
 		expect(mocks.checkout).not.toHaveBeenCalled();
 	});
+	it.each([IMAGE_PASS_LEGACY_OFFER, IMAGE_PASS_STANDARD_OFFER])(
+		"resumes a $offerVersion pending $1 order after the price changes",
+		async (snapshot) => {
+			mocks.byKey.mockResolvedValue({
+				...legacyIntent(snapshot),
+				status: "PROVIDER_PENDING",
+				providerCheckoutUrl: "https://www.sandbox.paypal.com/legacy",
+			});
+			await expect(call(createImagePassCheckout, input, context)).resolves.toEqual({
+				checkoutLink: "https://www.sandbox.paypal.com/legacy",
+				intentId: intent.id,
+			});
+			expect(mocks.plan).not.toHaveBeenCalled();
+			expect(mocks.createIntent).not.toHaveBeenCalled();
+			expect(mocks.checkout).not.toHaveBeenCalled();
+		},
+	);
+	it.each([IMAGE_PASS_LEGACY_OFFER, IMAGE_PASS_STANDARD_OFFER])(
+		"recovers $offerVersion creation using its frozen $1 plan",
+		async (snapshot) => {
+			mocks.byKey.mockResolvedValue({ ...legacyIntent(snapshot), status: "PROVIDER_CREATING" });
+			mocks.recover.mockResolvedValue({
+				kind: "RECOVERED",
+				checkout: {
+					checkoutUrl: "https://www.sandbox.paypal.com/legacy",
+					providerSessionId: "ORDER-1",
+				},
+			});
+			await call(createImagePassCheckout, input, context);
+			expect(mocks.recover).toHaveBeenCalledWith(
+				expect.objectContaining({
+					checkoutOptions: expect.objectContaining({
+						priceId: LEGACY_IMAGE_PASS_PAYPAL_SKU,
+						amountMicros: 1_000_000n,
+						billingPlanId: legacyPlan.id,
+						idempotencyKey: intent.idempotencyKey,
+					}),
+				}),
+				expect.anything(),
+			);
+			expect(mocks.checkout).not.toHaveBeenCalled();
+		},
+	);
+	it.each([IMAGE_PASS_LEGACY_OFFER, IMAGE_PASS_STANDARD_OFFER])(
+		"captures $offerVersion at $1 and displays its frozen terms",
+		async (snapshot) => {
+			mocks.intent.mockResolvedValue({ ...legacyIntent(snapshot), status: "PROVIDER_PENDING" });
+			mocks.capture.mockResolvedValue(
+				captured({ amount: { value: "1.00", currency_code: "USD" } }),
+			);
+			await expect(
+				call(
+					capturePayPalImagePassCheckout,
+					{ intentId: intent.id, providerOrderId: "ORDER-1" },
+					context,
+				),
+			).resolves.toEqual({ accepted: true, replayed: false });
+			await expect(
+				call(getImagePassCheckoutState, { intentId: intent.id }, context),
+			).resolves.toEqual({
+				status: "PENDING",
+				offer: { offerVersion: snapshot.offerVersion, amount: "1.00", currency: "USD", units: 3 },
+			});
+		},
+	);
+	it("rejects a $2.99 capture for a historical $1 order", async () => {
+		mocks.intent.mockResolvedValue({
+			...legacyIntent(IMAGE_PASS_LEGACY_OFFER),
+			status: "PROVIDER_PENDING",
+		});
+		await expect(
+			call(
+				capturePayPalImagePassCheckout,
+				{ intentId: intent.id, providerOrderId: "ORDER-1" },
+				context,
+			),
+		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+		expect(mocks.ingest).not.toHaveBeenCalled();
+	});
+	it.each([
+		{ ...intent, imagePassOfferSnapshot: IMAGE_PASS_LEGACY_OFFER },
+		{
+			...legacyIntent(IMAGE_PASS_STANDARD_OFFER),
+			imagePassOfferSnapshot: getImagePassOfferSnapshot(),
+		},
+	])("rejects mixing a trusted offer with another price cohort", async (mismatched) => {
+		mocks.intent.mockResolvedValue({ ...mismatched, status: "PROVIDER_PENDING" });
+		mocks.byKey.mockResolvedValue({
+			...mismatched,
+			status: "PROVIDER_PENDING",
+			providerCheckoutUrl: "https://www.sandbox.paypal.com/legacy",
+		});
+		await expect(call(createImagePassCheckout, input, context)).rejects.toMatchObject({
+			code: "CONFLICT",
+		});
+		await expect(
+			call(
+				capturePayPalImagePassCheckout,
+				{ intentId: intent.id, providerOrderId: "ORDER-1" },
+				context,
+			),
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
+		await expect(
+			call(getImagePassCheckoutState, { intentId: intent.id }, context),
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
+		expect(mocks.capture).not.toHaveBeenCalled();
+		expect(mocks.ingest).not.toHaveBeenCalled();
+		expect(mocks.checkout).not.toHaveBeenCalled();
+	});
 	it("accepts a new purchase key after a prior checkout, without subscriber eligibility", async () => {
 		await call(
 			createImagePassCheckout,
@@ -345,7 +478,8 @@ describe("PayPal image-pass checkout", () => {
 	});
 	it.each([
 		{ amount: { value: "0.01", currency_code: "USD" } },
-		{ amount: { value: "1.00", currency_code: "EUR" } },
+		{ amount: { value: "1.00", currency_code: "USD" } },
+		{ amount: { value: "2.99", currency_code: "EUR" } },
 		{ final_capture: false },
 		{ custom_id: "somebody-else" },
 		{ supplementary_data: { related_ids: { order_id: "another" } } },
@@ -393,11 +527,17 @@ describe("PayPal image-pass checkout", () => {
 		mocks.intent.mockResolvedValue({ ...intent, status: "COMPLETED" });
 		await expect(
 			call(getImagePassCheckoutState, { intentId: intent.id }, context),
-		).resolves.toEqual({ status: "PENDING" });
+		).resolves.toEqual({
+			status: "PENDING",
+			offer: { offerVersion: "2026-11-04.2", amount: "2.99", currency: "USD", units: 3 },
+		});
 		mocks.grant.mockResolvedValue({ id: "grant-1", status: "ACTIVE" });
 		await expect(
 			call(getImagePassCheckoutState, { intentId: intent.id }, context),
-		).resolves.toEqual({ status: "COMPLETED" });
+		).resolves.toEqual({
+			status: "COMPLETED",
+			offer: { offerVersion: "2026-11-04.2", amount: "2.99", currency: "USD", units: 3 },
+		});
 		expect(
 			resolveImagePassCheckoutState({
 				status: "COMPLETED",

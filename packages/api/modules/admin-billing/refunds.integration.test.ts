@@ -1,5 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { getImagePassOfferSnapshot } from "@repo/config/image-pass";
+import { IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
 import {
 	adjustAdminCredits,
 	createCreditGrant,
@@ -87,7 +87,7 @@ async function baseFixture(kind: "CREDIT_PACK" | "PLAN" | "IMAGE_PASS" = "CREDIT
 						creditPackEligibilityEvaluatedAt: paidAt,
 					}
 				: {}),
-			...(kind === "IMAGE_PASS" ? { imagePassOfferSnapshot: getImagePassOfferSnapshot() } : {}),
+			...(kind === "IMAGE_PASS" ? { imagePassOfferSnapshot: IMAGE_PASS_LEGACY_OFFER } : {}),
 		},
 	});
 	return {
@@ -415,7 +415,7 @@ describe("administrator billing with real PostgreSQL transactions and mocked pro
 				providerPaymentId: fixture.providerPaymentId,
 				paidAmountMicros: 1_000_000n,
 				currency: "USD",
-				offerSnapshot: getImagePassOfferSnapshot(),
+				offerSnapshot: IMAGE_PASS_LEGACY_OFFER,
 				paidAt: fixture.paidAt,
 				units: { create: [{ ordinal: 1 }, { ordinal: 2 }, { ordinal: 3, status: "CONSUMED" }] },
 			},

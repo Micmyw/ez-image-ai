@@ -2,7 +2,6 @@
 
 import { useSessionQuery } from "@auth/lib/api";
 import { imagePassBalanceQueryKey } from "@media/lib/image-pass-query";
-import { IMAGE_PASS_PUBLIC_OFFER } from "@repo/config/client";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2Icon } from "lucide-react";
@@ -76,6 +75,7 @@ export function ImagePassCheckoutReturnContent({
 		[ownerId, polling, refreshState],
 	);
 	const status = state.data?.status;
+	const checkoutOffer = state.data?.offer;
 	const mayCapture = Boolean(key && !canceled && state.isSuccess && status === "PENDING");
 	async function capturePayment() {
 		if (
@@ -141,7 +141,9 @@ export function ImagePassCheckoutReturnContent({
 					: canceled || !providerOrderId
 						? "checkoutUnconfirmed"
 						: !approved
-							? "returnAwaitingConfirmation"
+							? checkoutOffer
+								? "returnAwaitingConfirmation"
+								: "returnAwaitingConfirmationUnknownAmount"
 							: "returnPending";
 	return (
 		<section
@@ -161,8 +163,8 @@ export function ImagePassCheckoutReturnContent({
 			)}
 			<p className="mt-4 text-sm leading-6 text-muted-foreground" aria-live="polite">
 				{t(message, {
-					currency: IMAGE_PASS_PUBLIC_OFFER.currency,
-					amount: IMAGE_PASS_PUBLIC_OFFER.amount,
+					currency: checkoutOffer?.currency ?? "",
+					amount: checkoutOffer?.amount ?? "",
 				})}
 			</p>
 			<div className="mt-6 gap-3 flex flex-wrap justify-center">
@@ -173,9 +175,9 @@ export function ImagePassCheckoutReturnContent({
 						onClick={() => void capturePayment()}
 						className="min-h-11 px-5 text-sm font-semibold rounded-xl bg-primary text-primary-foreground"
 					>
-						{t("returnConfirmPayment", {
-							currency: IMAGE_PASS_PUBLIC_OFFER.currency,
-							amount: IMAGE_PASS_PUBLIC_OFFER.amount,
+						{t(checkoutOffer ? "returnConfirmPayment" : "returnConfirmPaymentUnknownAmount", {
+							currency: checkoutOffer?.currency ?? "",
+							amount: checkoutOffer?.amount ?? "",
 						})}
 					</button>
 				)}

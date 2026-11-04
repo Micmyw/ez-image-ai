@@ -1,7 +1,9 @@
+import { getImagePassOfferSnapshot, IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fixture = vi.hoisted(() => ({
 	db: {
+		$queryRaw: vi.fn(),
 		runtimeConfigOverride: { findFirst: vi.fn() },
 		creditAccount: { findUnique: vi.fn() },
 		creditLot: { aggregate: vi.fn() },
@@ -82,6 +84,27 @@ describe("generation subscription preflight", () => {
 	it("reads the effective subscription once for both plan and storage eligibility", async () => {
 		await expect(assertGenerationAllowed(request)).resolves.toBeUndefined();
 		expect(fixture.db.subscription.findMany).toHaveBeenCalledTimes(1);
+	});
+	it("authorizes the exact premium selection from a new pass through real preflight", async () => {
+		fixture.db.subscription.findMany.mockResolvedValue([]);
+		fixture.db.creditLot.aggregate.mockResolvedValue({ _sum: { remainingAmount: 0n } });
+		fixture.db.$queryRaw.mockResolvedValue([
+			{ id: "pass-unit", offerSnapshot: getImagePassOfferSnapshot() },
+		]);
+		const premium = {
+			...request,
+			productKey: "image-nano-banana-pro" as const,
+			fundingSource: "IMAGE_PASS" as const,
+			credits: 25n,
+			costMicros: 120_000n,
+			input: { ...request.input, skuKey: "nano-banana-pro-4k" as const },
+		};
+		await expect(assertGenerationAllowed(premium)).resolves.toBeUndefined();
+		expect(fixture.db.$queryRaw.mock.calls[0].slice(1)).toContain("nano-banana-pro-4k");
+		fixture.db.$queryRaw.mockResolvedValue([
+			{ id: "legacy-unit", offerSnapshot: IMAGE_PASS_LEGACY_OFFER },
+		]);
+		await expect(assertGenerationAllowed(premium)).rejects.toThrow("IMAGE_PASS_INSUFFICIENT");
 	});
 
 	it("uses the same request time for subscription, credits, storage and source expiry", async () => {

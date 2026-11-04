@@ -4,7 +4,10 @@ import {
 	isImagePassOfferSnapshot,
 	IMAGE_PASS_PUBLIC_OFFER,
 } from "@repo/config/image-pass";
-import { isImagePassBillingPlan, IMAGE_PASS_PAYPAL_SKU } from "@repo/config/image-pass.server";
+import {
+	imagePassBillingPlanMatchesOffer,
+	IMAGE_PASS_PAYPAL_SKU,
+} from "@repo/config/image-pass.server";
 import {
 	bindPaymentCheckoutIntentSession,
 	createPaymentCheckoutIntent,
@@ -90,7 +93,10 @@ export const createImagePassCheckout = protectedProcedure
 					provider_providerPriceId: { provider, providerPriceId: providerProductId },
 				},
 			});
-			if (!billingPlan?.active || !isImagePassBillingPlan(billingPlan))
+			if (
+				!billingPlan?.active ||
+				!imagePassBillingPlanMatchesOffer(billingPlan, getImagePassOfferSnapshot())
+			)
 				throw new ORPCError("NOT_FOUND");
 			const now = new Date();
 			let checkoutIntent;
@@ -257,7 +263,7 @@ function isTrustedImagePassIntent(
 		intent.interval === "one-time" &&
 		isImagePassOfferSnapshot(intent.imagePassOfferSnapshot) &&
 		intent.billingPlanId === intent.billingPlan.id &&
-		isImagePassBillingPlan(intent.billingPlan),
+		imagePassBillingPlanMatchesOffer(intent.billingPlan, intent.imagePassOfferSnapshot),
 	);
 }
 
