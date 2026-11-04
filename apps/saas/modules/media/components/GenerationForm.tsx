@@ -16,7 +16,6 @@ import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { captureCheckoutTrigger } from "@shared/lib/purchase-attribution";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 
@@ -500,7 +499,7 @@ export function GenerationForm({
 		beginNewAction();
 	}
 
-	function continueToUpgrade() {
+	function saveDraftForPurchase(): boolean {
 		const current = form.getValues();
 		const currentProduct = products.find((candidate) => candidate.key === current.productKey);
 		const currentCell = getImageSpecCell(currentProduct?.skuMatrix, current.skuKey);
@@ -527,8 +526,20 @@ export function GenerationForm({
 		if (!saved) {
 			setUpgradeStorageUnavailable(true);
 			setUpgradeOpen(true);
-			return;
 		}
+		return saved;
+	}
+
+	function continueToImagePass() {
+		// Same sessionStorage draft as the subscription upgrade path. The purchase
+		// and PayPal return pages link back to the editor's resume path while it exists.
+		if (!saveDraftForPurchase()) return;
+		captureCheckoutTrigger();
+		router.push("/image-pass");
+	}
+
+	function continueToUpgrade() {
+		if (!saveDraftForPurchase()) return;
 		captureCheckoutTrigger();
 		router.push(
 			createChoosePlanPath(effectEditor?.getReturnPath("upgrade") ?? "/create?upgrade=complete"),
@@ -834,9 +845,14 @@ export function GenerationForm({
 					<AlertDescription>
 						{t(`errors.${errorKey}`)}
 						{errorKey === "insufficientImagePasses" && (
-							<Link href="/image-pass" className="mt-2 block underline underline-offset-4">
+							<button
+								type="button"
+								data-testid="image-pass-buy-more"
+								onClick={continueToImagePass}
+								className="mt-2 block underline underline-offset-4"
+							>
 								{pass("buyMore")}
-							</Link>
+							</button>
 						)}
 						{errorKey === "insufficientCredits" && product && (
 							<CreditBalanceSummary

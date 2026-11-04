@@ -13,7 +13,7 @@ vi.mock("@payments/components/ImagePassCheckoutReturnContent", () => ({
 	ImagePassCheckoutReturnContent: () => null,
 }));
 import ImagePassReturnPage from "../../../app/(authenticated)/image-pass-checkout-return/page";
-import ImagePassPage from "../../../app/(authenticated)/image-pass/page";
+import ImagePassPage from "../../../app/(public)/image-pass/page";
 
 function contentProps(element: ReactElement) {
 	return (element.props as { children: ReactElement }).children.props as Record<string, unknown>;

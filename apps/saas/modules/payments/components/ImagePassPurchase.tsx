@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { useCheckoutStatePolling } from "../hooks/use-checkout-state-polling";
+import { useEditorContinuePath } from "../hooks/use-editor-continue-path";
 import { usePaymentAction } from "../hooks/use-payment-action";
 import { reportCheckoutDiagnostic, redirectCheckout } from "../lib/checkout-diagnostics";
 import { subscribeToCheckoutForeground } from "../lib/checkout-state-polling";
@@ -32,6 +33,7 @@ export function ImagePassPurchase({
 	canceled = false,
 }: { intentId?: string; canceled?: boolean } = {}) {
 	const t = useTranslations("imagePass");
+	const continuePath = useEditorContinuePath();
 	const session = useSessionQuery();
 	const user = session.data?.user;
 	const ownerId = user && user.isAnonymous !== true ? user.id : null;
@@ -247,7 +249,7 @@ export function ImagePassPurchase({
 							</button>
 						)}
 						<Link
-							href="/create"
+							href={continuePath}
 							className="min-h-10 text-sm text-violet-200 inline-flex items-center underline underline-offset-4"
 						>
 							{t("continueGenerating")}
@@ -296,7 +298,7 @@ export function ImagePassPurchase({
 			)}
 			<p className="mt-4 text-xs leading-5 text-[#ad9ebc]">{t("fundingPolicy")}</p>
 			<Link
-				href="/create"
+				href={continuePath}
 				className="mt-6 min-h-10 text-sm text-violet-200 inline-flex items-center underline underline-offset-4"
 			>
 				{t("back")}

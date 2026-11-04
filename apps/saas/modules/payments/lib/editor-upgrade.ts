@@ -233,3 +233,39 @@ function normalizeStoredEditorDraft(
 function skuKeyMatchesProduct(productKey: EditorDraftInput["productKey"], skuKey: string): boolean {
 	return (IMAGE_SKU_KEYS_BY_PRODUCT[productKey] as readonly string[]).includes(skuKey);
 }
+
+/** Editor path that restores a saved draft without the subscription-upgrade confirmation. */
+export const EDITOR_DRAFT_RESUME_PATH = "/create?resume=text";
+
+/**
+ * Non-destructive check used by purchase pages that do not own the editor. A
+ * stale, oversized or malformed draft is treated as absent so the plain editor
+ * path never forces an empty "recovery" state.
+ */
+export function hasPendingEditorUpgradeDraft(
+	storage: Pick<BrowserStorage, "getItem">,
+	now = Date.now(),
+): boolean {
+	let serialized: string | null = null;
+	try {
+		serialized = storage.getItem(EDITOR_UPGRADE_STORAGE_KEY);
+	} catch {
+		return false;
+	}
+	if (!serialized || serialized.length > MAXIMUM_STORED_DRAFT_BYTES) return false;
+	try {
+		const parsed = storedEditorUpgradeDraftSchema.safeParse(JSON.parse(serialized));
+		return (
+			parsed.success &&
+			now - parsed.data.savedAt <= EDITOR_UPGRADE_TTL_MS &&
+			parsed.data.savedAt <= now + 5 * 60_000
+		);
+	} catch {
+		return false;
+	}
+}
+
+/** Where "continue generating" should lead after an Image Pass purchase or sign-in. */
+export function editorContinuePath(storage: Pick<BrowserStorage, "getItem"> | null): string {
+	return storage && hasPendingEditorUpgradeDraft(storage) ? EDITOR_DRAFT_RESUME_PATH : "/create";
+}
