@@ -78,7 +78,7 @@ describe("unconfirmed submissions without a provider task id", () => {
 
 	it("retries every 10 minutes while inside the bounded window", async () => {
 		const now = new Date("2026-11-04T08:00:00.000Z");
-		const s = store({ ...base, repairCount: 4 });
+		const s = store({ ...base, repairCount: UNCONFIRMED_SUBMISSION_MAX_REPAIRS - 1 });
 		await reconcileGenerations({}, { store: s.store, getProvider: vi.fn(), now: () => now });
 		expect(s.releaseReconciliationLease).toHaveBeenCalledWith(
 			expect.objectContaining({ attemptId: "attempt-2" }),
@@ -86,6 +86,7 @@ describe("unconfirmed submissions without a provider task id", () => {
 			new Date(now.getTime() + UNCONFIRMED_SUBMISSION_RETRY_MS),
 		);
 		expect(UNCONFIRMED_SUBMISSION_RETRY_MS).toBe(600_000);
+		expect(UNCONFIRMED_SUBMISSION_MAX_REPAIRS * UNCONFIRMED_SUBMISSION_RETRY_MS).toBe(30 * 60_000);
 		expect(s.failUnconfirmedSubmission).not.toHaveBeenCalled();
 	});
 

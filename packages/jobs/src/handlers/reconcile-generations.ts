@@ -1,7 +1,7 @@
 import type { ReconciliationDependencies } from "../contracts";
 
 /** About 5 × 10 minutes before an unconfirmed submission is failed and refunded. */
-export const UNCONFIRMED_SUBMISSION_MAX_REPAIRS = 5;
+export const UNCONFIRMED_SUBMISSION_MAX_REPAIRS = 3; // 3 x 10 min ≈ 30 min total before release
 export const UNCONFIRMED_SUBMISSION_RETRY_MS = 10 * 60_000;
 
 export async function reconcileGenerations(
