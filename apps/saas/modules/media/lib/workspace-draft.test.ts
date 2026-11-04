@@ -4,6 +4,7 @@ import {
 	loadWorkspaceDraft,
 	saveWorkspaceDraft,
 	WORKSPACE_DRAFT_KEY,
+	workspaceDraftReturnPath,
 	type WorkspaceDraft,
 } from "./workspace-draft";
 
@@ -27,6 +28,18 @@ const draft: WorkspaceDraft = {
 };
 
 describe("workspace continuity across account and checkout navigation", () => {
+	it("keeps Christmas drafts scoped to their owner and tool route", () => {
+		const store = storage();
+		expect(saveWorkspaceDraft(store, "owner-a", draft, 1000, "/christmas-wallpaper")).toBe(true);
+		expect(workspaceDraftReturnPath(store, "owner-a", 2000)).toBe(
+			"/christmas-wallpaper?resume=workspace",
+		);
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, "/christmas-wallpaper")).toEqual(draft);
+		expect(loadWorkspaceDraft(store, "owner-b", 2000, "/christmas-wallpaper")).toBeNull();
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, "/create")).toBeNull();
+		saveWorkspaceDraft(store, "owner-a", draft, 1000, "/christmas-wallpaper?prompt=private");
+		expect(workspaceDraftReturnPath(store, "owner-a", 2000)).toBe("/create");
+	});
 	it("restores a legacy preset draft on its canonical article without renewing its expiry", () => {
 		const store = storage();
 		const legacy = "/effects/1980s-ai-photo?preset=studio-portrait";

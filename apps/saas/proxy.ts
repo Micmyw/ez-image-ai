@@ -48,6 +48,7 @@ export const config = {
 		"/image-to-image",
 		"/image-pass",
 		"/photo-to-coloring-page",
+		"/christmas-wallpaper",
 		"/models/:path*",
 		"/pricing",
 		"/privacy",

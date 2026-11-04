@@ -13,6 +13,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { WallpaperButton } from "../../../christmas/components/WallpaperButton";
 import { ColoringPageLink } from "../../../coloring/components/ColoringPageLink";
 import { useJob } from "../../hooks/use-job";
 import { isEditorProductKey, type EditorProductKey } from "../../lib/editor-recovery";
@@ -213,6 +214,19 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 				)}
 				{presentation.stage === "ready" && output && (
 					<DownloadButton assetId={output.id} productKey={productKey} />
+				)}
+				{presentation.stage === "ready" && output && (
+					<WallpaperButton
+						key={output.id}
+						getImageUrl={async () =>
+							(
+								await orpcClient.media.getAssetAccessUrl({
+									assetId: output.id,
+									disposition: "inline",
+								})
+							).url
+						}
+					/>
 				)}
 				{presentation.stage === "ready" && output && !allowPrinting && (
 					<ColoringPageLink assetId={output.id} />

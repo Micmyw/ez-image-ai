@@ -1,6 +1,14 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-11-04",
+		title: "Make a Christmas wallpaper from your photo",
+		changes: [
+			"Choose from six Christmas styles and create a wallpaper from your own photo or a festive scene. Phone and desktop presets request different compositions.",
+			"Preview ready images, move and crop them on your device, and download the wallpaper without another generation charge. Downloads show their actual pixel dimensions.",
+		],
+	},
+	{
+		date: "2026-11-04",
 		title: "Three images with any available image model for USD 2.99",
 		changes: [
 			"The new one-time image pack covers 3 successful images with all currently available image models, resolutions and quality options, including Pro and 4K. No subscription is required when paying with these passes.",

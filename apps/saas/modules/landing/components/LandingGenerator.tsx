@@ -198,7 +198,7 @@ function LandingGeneratorWorkspace({
 		effectPreset?.prompt ?? toolPrompt?.initialPrompt ?? (startEmpty ? "" : examplePrompt),
 	);
 	const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>(
-		effectPreset?.parameters.aspectRatio ?? "auto",
+		effectPreset?.parameters.aspectRatio ?? toolPrompt?.initialAspectRatio ?? "auto",
 	);
 	const [controlValues, setControlValues] = useState<ImageSpecControlValues>({
 		outputFormat: effectPreset?.parameters.outputFormat,
@@ -502,6 +502,7 @@ function LandingGeneratorWorkspace({
 	}, [selectedProduct, isEffectEditor]);
 	useEffect(() => {
 		if (isEffectEditor) return;
+		if (toolPrompt?.initialAspectRatio && !selectedSku) return;
 		setAspectRatio(
 			(current) =>
 				resolveLandingAspectRatioSelection(
@@ -511,7 +512,7 @@ function LandingGeneratorWorkspace({
 					current,
 				) ?? "auto",
 		);
-	}, [selectedProduct, selectedSku, isEffectEditor]);
+	}, [selectedProduct, selectedSku, isEffectEditor, toolPrompt?.initialAspectRatio]);
 	useEffect(() => {
 		if (isEffectEditor) return;
 		setControlValues(resolveImageSpecControlValues(selectedSku, {}));
@@ -567,7 +568,19 @@ function LandingGeneratorWorkspace({
 			setSubmitError(undefined);
 		},
 	});
-	useToolPromptBinding({ prompt, busy: isBusy, applyPrompt: setPrompt });
+	useToolPromptBinding({
+		prompt,
+		busy: isBusy,
+		applyPrompt: (nextPrompt, options) => {
+			if (options?.aspectRatio && !selectedSku?.aspectRatios.includes(options.aspectRatio))
+				return false;
+			setPrompt(nextPrompt);
+			if (options?.aspectRatio) setAspectRatio(options.aspectRatio);
+			if (options?.clearReference) clearFile();
+			setSubmitError(undefined);
+			return true;
+		},
+	});
 	const modelNavigation = useModelNavigation({
 		products: localizedProducts,
 		value: selectedProductKey,
@@ -748,7 +761,7 @@ function LandingGeneratorWorkspace({
 				}
 				const redirectTo =
 					effectEditor?.getReturnPath("resume") ??
-					`/create?resume=text&model=${encodeURIComponent(selectedProduct.key)}`;
+					`${toolPrompt?.returnPath ?? "/create"}?resume=text&model=${encodeURIComponent(selectedProduct.key)}`;
 				window.location.assign(
 					`/login?${new URLSearchParams({ redirectTo: (await workspace?.prepareSignIn(redirectTo)) ?? redirectTo })}`,
 				);
@@ -1069,10 +1082,11 @@ function LandingGeneratorWorkspace({
 						data-test="landing-composer-inputs"
 						className="gap-1.5 sm:gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] md:grid-cols-[8.5rem_minmax(0,1fr)] bg-black/10 p-1.5 grid grid-cols-[4.75rem_minmax(0,1fr)] rounded-[1.3rem]"
 					>
-						{referencePanel}
+						{toolPrompt?.allowReference !== false && referencePanel}
 
 						<section
 							data-test="landing-prompt-panel"
+							style={toolPrompt?.allowReference === false ? { gridColumn: "1 / -1" } : undefined}
 							className="min-w-0 focus-within:bg-white/[0.025] relative overflow-hidden rounded-[1rem] transition-colors focus-within:ring-1 focus-within:ring-[#b79cff]/30 focus-within:ring-inset motion-reduce:transition-none"
 						>
 							<label htmlFor="landing-edit-prompt" className="landing-prompt-label sr-only">

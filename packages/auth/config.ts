@@ -54,6 +54,7 @@ export const config = {
 			"organization-invitation",
 			"pricing",
 			"photo-to-coloring-page",
+			"christmas-wallpaper",
 			"privacy",
 			"reset-password",
 			"robots.txt",

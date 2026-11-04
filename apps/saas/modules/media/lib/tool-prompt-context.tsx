@@ -1,5 +1,6 @@
 "use client";
 
+import type { ImageAspectRatio } from "@repo/config/client";
 import {
 	createContext,
 	useCallback,
@@ -11,14 +12,22 @@ import {
 	type ReactNode,
 } from "react";
 
-type Binding = { prompt: string; busy: boolean; applyPrompt: (prompt: string) => void };
+export type ToolPromptOptions = { aspectRatio?: ImageAspectRatio; clearReference?: boolean };
+type Binding = {
+	prompt: string;
+	busy: boolean;
+	applyPrompt: (prompt: string, options?: ToolPromptOptions) => boolean | void;
+};
 type ToolPrompt = {
 	initialPrompt: string;
+	initialAspectRatio?: ImageAspectRatio;
+	returnPath?: "/christmas-wallpaper";
 	allowPrinting: boolean;
+	allowReference: boolean;
 	prompt: string;
 	busy: boolean;
 	ready: boolean;
-	apply: (prompt: string) => boolean;
+	apply: (prompt: string, options?: ToolPromptOptions) => boolean;
 	bind: (binding: React.RefObject<Binding>) => () => void;
 	report: (prompt: string, busy: boolean) => void;
 };
@@ -28,11 +37,17 @@ const ToolPromptContext = createContext<ToolPrompt | null>(null);
 /** Tools supply public editing instructions; uploads, model selection and submission stay in the editor. */
 export function ToolPromptProvider({
 	initialPrompt,
+	initialAspectRatio,
+	returnPath,
 	allowPrinting = false,
+	allowReference = true,
 	children,
 }: {
 	initialPrompt: string;
+	initialAspectRatio?: ImageAspectRatio;
+	returnPath?: "/christmas-wallpaper";
 	allowPrinting?: boolean;
+	allowReference?: boolean;
 	children: ReactNode;
 }) {
 	const binding = useRef<React.RefObject<Binding> | null>(null);
@@ -52,15 +67,34 @@ export function ToolPromptProvider({
 			current.prompt === prompt && current.busy === busy ? current : { ...current, prompt, busy },
 		);
 	}, []);
-	const apply = useCallback((prompt: string) => {
+	const apply = useCallback((prompt: string, options?: ToolPromptOptions) => {
 		const current = binding.current?.current;
 		if (!current || current.busy || !prompt.trim() || prompt.length > 10_000) return false;
-		current.applyPrompt(prompt);
-		return true;
+		return current.applyPrompt(prompt, options) !== false;
 	}, []);
 	const value = useMemo(
-		() => ({ initialPrompt, allowPrinting, ...state, bind, report, apply }),
-		[initialPrompt, allowPrinting, state, bind, report, apply],
+		() => ({
+			initialPrompt,
+			initialAspectRatio,
+			returnPath,
+			allowPrinting,
+			allowReference,
+			...state,
+			bind,
+			report,
+			apply,
+		}),
+		[
+			initialPrompt,
+			initialAspectRatio,
+			returnPath,
+			allowPrinting,
+			allowReference,
+			state,
+			bind,
+			report,
+			apply,
+		],
 	);
 	return <ToolPromptContext.Provider value={value}>{children}</ToolPromptContext.Provider>;
 }

@@ -35,6 +35,7 @@ describe("consolidated SaaS sitemap", () => {
 				"/docs/video-beta",
 				"/image-to-image",
 				"/photo-to-coloring-page",
+				"/christmas-wallpaper",
 				"/pricing",
 				"/privacy",
 				"/terms",
@@ -84,9 +85,10 @@ describe("consolidated SaaS sitemap", () => {
 			entries.map((entry) => [new URL(entry.url).pathname, entry.lastModified]),
 		);
 		expect(dates).toMatchObject({
-			"/": "2026-09-21",
+			"/": "2026-11-04",
 			"/image-to-image": "2026-09-21",
 			"/photo-to-coloring-page": "2026-10-04",
+			"/christmas-wallpaper": "2026-11-04",
 			"/pricing": "2026-09-16",
 			"/changelog": "2026-11-04",
 			"/privacy": "2026-11-02",

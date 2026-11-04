@@ -170,6 +170,9 @@ async function bundle() {
 		},
 		bundle: true,
 		write: false,
+		// This component-boundary fixture supplies its own CSS below. Next/Playwright
+		// covers the lazy crop dialog's stylesheet and responsive presentation.
+		loader: { ".css": "empty" },
 		format: "esm",
 		platform: "browser",
 		jsx: "automatic",

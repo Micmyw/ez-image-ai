@@ -32,6 +32,7 @@ const state = vi.hoisted(() => ({
 	mutateAsync: vi.fn(),
 	beginNewAction: vi.fn(),
 	visibility: vi.fn(),
+	toolBinding: vi.fn(),
 }));
 vi.mock("react", async (importOriginal) => ({
 	...(await importOriginal<typeof import("react")>()),
@@ -70,7 +71,7 @@ vi.mock("../../effects/lib/editor-context", () => ({
 }));
 vi.mock("../lib/tool-prompt-context", () => ({
 	useToolPrompt: () => null,
-	useToolPromptBinding: () => {},
+	useToolPromptBinding: state.toolBinding,
 }));
 vi.mock("../../landing/lib/use-showcase-prompt", () => ({
 	useShowcasePrompt: () => "A paper landscape",
@@ -226,6 +227,7 @@ beforeEach(() => {
 	state.mutateAsync.mockReset().mockResolvedValue(accepted);
 	state.beginNewAction.mockClear();
 	state.visibility.mockReset();
+	state.toolBinding.mockReset();
 	vi.stubGlobal("window", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
 	vi.stubGlobal("document", {
 		getElementById: vi.fn().mockReturnValue({ id: "current-editor-result" }),
@@ -247,6 +249,30 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it("applies a supported tool ratio without losing the photo and rejects an unsupported ratio atomically", () => {
+		state.values.sourceAssetId = "owned-photo";
+		render();
+		const binding = state.toolBinding.mock.calls.at(-1)![0];
+		expect(binding.applyPrompt("A Christmas scene", { aspectRatio: "1:1" })).toBe(true);
+		expect(state.values).toMatchObject({
+			prompt: "A Christmas scene",
+			aspectRatio: "1:1",
+			sourceAssetId: "owned-photo",
+		});
+		expect(binding.applyPrompt("Do not apply", { aspectRatio: "9:16", clearReference: true })).toBe(
+			false,
+		);
+		expect(state.values).toMatchObject({
+			prompt: "A Christmas scene",
+			aspectRatio: "1:1",
+			sourceAssetId: "owned-photo",
+		});
+		expect(
+			binding.applyPrompt("Scene without a photo", { aspectRatio: "1:1", clearReference: true }),
+		).toBe(true);
+		expect(state.values.sourceAssetId).toBe("");
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
 	it("restores the explicit pass funding choice only for the current mounted owner", () => {
 		const form = GenerationForm({ onCreated: vi.fn(), initialFundingSource: "IMAGE_PASS" });
 		expect(find(form, ImageFundingSelector).props.value).toBe("IMAGE_PASS");

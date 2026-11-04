@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-04 — Christmas wallpaper maker
+
+- Add six Christmas styles, photo and scene modes, and phone/desktop composition presets to the shared image editor.
+- Preview ready images on a phone or desktop, adjust the crop locally and download a PNG without another generation charge. Show actual pixel dimensions without upscaling.
+- Add the public Christmas wallpaper page, homepage entry with wallpaper previews, navigation, sitemap entry and generated style artwork.
+
 ## 2026-11-04 — USD 2.99 image pack with all current models
 
 - Price new three-image packs at USD 2.99 and include all current image models and resolutions, including Pro and 4K, without an additional subscription when using the pack.
