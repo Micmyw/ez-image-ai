@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { providerSupportsCancellation } from "@repo/ai";
 import { db } from "@repo/database/client";
 
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -46,6 +47,18 @@ export const cancelGeneration = protectedProcedure
 				throw new ORPCError("CONFLICT", {
 					message: "This generation can no longer be canceled safely",
 				});
+			}
+			if (canRequestProviderCancellation) {
+				const attempt = await tx.generationAttempt.findFirst({
+					where: { jobId: job.id },
+					orderBy: { attemptNumber: "desc" },
+					select: { provider: true, providerTaskId: true },
+				});
+				if (!attempt?.providerTaskId || !providerSupportsCancellation(attempt.provider)) {
+					throw new ORPCError("CONFLICT", {
+						message: "This submitted generation does not support cancellation",
+					});
+				}
 			}
 			const canceled = await tx.generationJob.updateMany({
 				where: {

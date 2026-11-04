@@ -225,6 +225,12 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it("restores the explicit pass funding choice only for the current mounted owner", () => {
+		const form = GenerationForm({ onCreated: vi.fn(), initialFundingSource: "IMAGE_PASS" });
+		expect(find(form, ImageFundingSelector).props.value).toBe("IMAGE_PASS");
+		state.ownerId = "owner-b";
+		expect(find(render(), ImageFundingSelector).props.value).toBe("CREDITS");
+	});
 	it.each(["PENDING", "NOT_STARTED", "REJECTED", "UNAVAILABLE"] as const)(
 		"uses the upload pre-review %s result to admit or block a new Generate submission",
 		async (status) => {

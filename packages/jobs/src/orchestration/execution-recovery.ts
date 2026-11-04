@@ -75,12 +75,31 @@ export interface ExecutionFailureEvidence {
 	phase: string;
 	/** Constructor name such as TypeError or StripeAuthenticationError. */
 	errorName?: string;
-	/** Constant-style message codes (e.g. PAYMENT_RECONCILIATION_FAILED), never free text. */
+	/** Explicitly allowlisted internal diagnostic codes, never arbitrary messages. */
 	messageCodes?: string[];
 }
 
-const SAFE_NAME = /^[A-Za-z][A-Za-z0-9_]{1,63}$/;
-const SAFE_MESSAGE_CODE = /^[A-Z][A-Z0-9_]{2,79}$/;
+const SAFE_ERROR_NAMES = new Set([
+	"Error",
+	"AggregateError",
+	"TypeError",
+	"RangeError",
+	"SyntaxError",
+	"AbortError",
+	"PrismaClientKnownRequestError",
+	"PrismaClientUnknownRequestError",
+	"PrismaClientInitializationError",
+	"PrismaClientRustPanicError",
+	"StripeAuthenticationError",
+]);
+const SAFE_MESSAGE_CODES = new Set([
+	"PAYMENT_RECONCILIATION_FAILED",
+	"PAYPAL_EVENTS_UNAVAILABLE",
+	"STRIPE_LEGACY_LIFECYCLE_INCOMPLETE",
+	"MAINTENANCE_FAILED",
+	"PROVIDER_RECOVERY_UNAVAILABLE",
+	"OUTBOX_RECOVERY_REQUIRED",
+]);
 
 /**
  * Logs only identifiers that cannot carry prompts, URLs, tokens or customer data,
@@ -104,11 +123,11 @@ function safeFailureIdentifiers(
 		if (
 			errorName === undefined &&
 			typeof candidate.name === "string" &&
-			SAFE_NAME.test(candidate.name)
+			SAFE_ERROR_NAMES.has(candidate.name)
 		)
 			errorName = candidate.name;
 		for (const text of [candidate.message, candidate.code])
-			if (typeof text === "string" && SAFE_MESSAGE_CODE.test(text)) codes.add(text);
+			if (typeof text === "string" && SAFE_MESSAGE_CODES.has(text)) codes.add(text);
 		if (Array.isArray(candidate.errors))
 			for (const inner of candidate.errors.slice(0, 8)) visit(inner, depth + 1);
 		visit(candidate.cause, depth + 1);

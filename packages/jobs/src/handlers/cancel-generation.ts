@@ -22,11 +22,10 @@ export async function cancelProviderGeneration(
 		return releaseAndRetry(dependencies, claim, "PROVIDER_CANCELLATION_ADAPTER_UNAVAILABLE");
 	}
 	if (!adapter.cancel) {
-		const handedOff = await dependencies.store.markProviderCancellationManualRecovery(
-			claim,
-			"PROVIDER_CANCELLATION_UNSUPPORTED",
-		);
-		return { outcome: handedOff ? "MANUAL_RECOVERY" : "SKIPPED" };
+		// Old queued requests may predate API capability gating. Unsupported
+		// cancellation must not interrupt the accepted task's normal recovery.
+		await dependencies.store.releaseProviderCancellation(claim);
+		return { outcome: "SKIPPED" };
 	}
 
 	let result;

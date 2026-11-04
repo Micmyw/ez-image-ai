@@ -30,7 +30,7 @@ export async function LandingPage({
 	const publicConfig = getPublicConfig();
 	return (
 		<StudioShell>
-			<ImagePassBanner registered={Boolean(editor)} />
+			<ImagePassBanner />
 			<main className="studio-home relative bg-[radial-gradient(circle_at_50%_-8rem,rgba(169,139,255,0.17),transparent_34rem),radial-gradient(circle_at_94%_42%,rgba(255,183,124,0.08),transparent_32rem),radial-gradient(circle_at_4%_72%,rgba(108,77,255,0.08),transparent_34rem)]">
 				<section id="image-editor" className="studio-hero scroll-mt-16">
 					<div className="container">

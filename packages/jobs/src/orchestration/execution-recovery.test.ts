@@ -181,6 +181,11 @@ describe("closed execution failure evidence", () => {
 });
 
 describe("unknown failure identifiers", () => {
+	it("does not mistake uppercase customer data for an internal diagnostic code", () => {
+		const error = new Error("JOHN_SMITH");
+		error.name = "PRIVATE_CUSTOMER_TOKEN";
+		expect(executionFailureEvidence(error)).toEqual({ errorCode: "UNKNOWN", phase: "UNKNOWN" });
+	});
 	it("names an AggregateError and its constant-style inner codes without free text", () => {
 		const error = new AggregateError(
 			[new Error("PAYPAL_EVENTS_UNAVAILABLE"), new TypeError("fetch failed for https://x?token=1")],

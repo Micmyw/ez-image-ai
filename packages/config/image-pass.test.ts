@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 import {
 	getImagePassOfferSnapshot,
@@ -74,6 +74,22 @@ describe("one-dollar three-image offer", () => {
 				allowedSkuKeys: [...IMAGE_SKU_KEYS],
 			}),
 		).toBe(false);
+	});
+	it("keeps paid historical snapshots valid when the current product catalog grows", async () => {
+		const paidSnapshot = JSON.parse(JSON.stringify(IMAGE_PASS_LEGACY_OFFER));
+		vi.resetModules();
+		vi.doMock("./product", async (importOriginal) => ({
+			...(await importOriginal<typeof import("./product")>()),
+			IMAGE_SKU_KEYS: [...IMAGE_SKU_KEYS, "future-image-2k"],
+		}));
+		try {
+			const futureCatalog = await import("./image-pass");
+			expect(futureCatalog.isImagePassOfferSnapshot(paidSnapshot)).toBe(true);
+			expect(futureCatalog.IMAGE_PASS_LEGACY_OFFER.allowedSkuKeys).not.toContain("future-image-2k");
+		} finally {
+			vi.doUnmock("./product");
+			vi.resetModules();
+		}
 	});
 	it.each([
 		{ amount: "0.01" },

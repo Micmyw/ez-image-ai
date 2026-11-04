@@ -33,10 +33,10 @@ export function ImagePassPurchase({
 	canceled = false,
 }: { intentId?: string; canceled?: boolean } = {}) {
 	const t = useTranslations("imagePass");
-	const continuePath = useEditorContinuePath();
 	const session = useSessionQuery();
 	const user = session.data?.user;
 	const ownerId = user && user.isAnonymous !== true ? user.id : null;
+	const continuePath = useEditorContinuePath(ownerId);
 	useEffect(() => {
 		if (ownerId && intentId && canceled)
 			reportCheckoutDiagnostic({ intentId, event: "return_canceled" });
@@ -305,6 +305,7 @@ export function ImagePassPurchase({
 			<p className="mt-4 text-xs leading-5 text-[#ad9ebc]">{t("fundingPolicy")}</p>
 			<Link
 				href={continuePath}
+				data-testid="image-pass-editor-return"
 				className="mt-6 min-h-10 text-sm text-violet-200 inline-flex items-center underline underline-offset-4"
 			>
 				{t("back")}

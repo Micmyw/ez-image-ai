@@ -13,7 +13,7 @@ import styles from "./ImagePassBanner.module.css";
 
 const dismissalKey = `ezpic:image-pass-banner:${IMAGE_PASS_OFFER_SUMMARY.offerVersion}`;
 
-export function ImagePassBanner({ registered = false }: { registered?: boolean }) {
+export function ImagePassBanner() {
 	const t = useTranslations("imagePass");
 	const offer = IMAGE_PASS_OFFER_SUMMARY;
 	const [dismissed, setDismissed] = useState(false);
@@ -52,10 +52,7 @@ export function ImagePassBanner({ registered = false }: { registered?: boolean }
 					</strong>
 					<span className={styles.detail}>{t("bannerDetail")}</span>
 				</p>
-				<Link
-					href={registered ? "/image-pass" : "/signup?redirectTo=%2Fimage-pass"}
-					className={styles.cta}
-				>
+				<Link href="/image-pass" className={styles.cta}>
 					{t("buy")}
 					<span aria-hidden="true">↗</span>
 				</Link>

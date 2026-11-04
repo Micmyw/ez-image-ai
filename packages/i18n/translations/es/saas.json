@@ -2579,8 +2579,8 @@
 		"retryBalance": "Comprobar saldo de nuevo",
 		"availabilityLoading": "Comprobando la disponibilidad…",
 		"unavailable": "Esta oferta no está disponible actualmente. Inténtalo de nuevo más tarde.",
-		"sizeRule": "Solo cubre tamaños 1K y 2K. No válido para 4K, modelos Pro ni otros tamaños de alto coste. Los pases comprados antes del 4 de noviembre de 2026 conservan los tamaños con los que se vendieron.",
-		"fundingSizeNotEligible": "Los pases de imagen solo cubren 1K y 2K. Elige un tamaño 1K o 2K, o paga con créditos."
+		"sizeRule": "Cubre las opciones estándar elegibles de 1K y 2K. No incluye 4K, modelos Pro ni otras opciones de mayor coste. Los pases de la oferta anterior conservan su cobertura original.",
+		"fundingSizeNotEligible": "Elige un modelo estándar y una opción de calidad elegibles de 1K o 2K, o paga con créditos."
 	},
 	"support": {
 		"title": "Solicitudes de soporte",

@@ -65,6 +65,7 @@ import {
 import { observeGenerationJobVisibility } from "../lib/preview-timing";
 import type { TemporaryReferenceReceipt } from "../lib/temporary-reference-upload";
 import { useToolPrompt, useToolPromptBinding } from "../lib/tool-prompt-context";
+import { saveWorkspaceDraft } from "../lib/workspace-draft";
 import { ContentSafetyNotice } from "./ContentSafetyNotice";
 import { ComposerHeader } from "./editor/ComposerHeader";
 import { ImageSourcePanel } from "./editor/ImageSourcePanel";
@@ -84,6 +85,8 @@ export function GenerationForm({
 	jobId = null,
 	initialDraft,
 	initialTemporaryReference,
+	initialFundingSource,
+	workspaceDraftPath = "/create",
 	initialProductKey,
 	allowedProductKeys = [...EZPIC_PRODUCT_KEYS],
 	initialSourceReady = false,
@@ -92,8 +95,14 @@ export function GenerationForm({
 	layout = "default",
 }: {
 	onCreated: (jobId: string) => void;
-	onDraftChange?: (values: GenerationFormValues, reference?: TemporaryReferenceReceipt) => void;
+	onDraftChange?: (
+		values: GenerationFormValues,
+		reference?: TemporaryReferenceReceipt,
+		fundingSource?: ImageFundingSource,
+	) => void;
 	initialTemporaryReference?: TemporaryReferenceReceipt;
+	initialFundingSource?: ImageFundingSource;
+	workspaceDraftPath?: string;
 	onSourceChanged?: () => void;
 	ready?: boolean;
 	jobId?: string | null;
@@ -141,7 +150,7 @@ export function GenerationForm({
 	const [ownedFunding, setOwnedFunding] = useState<{
 		ownerId: string | null;
 		source: ImageFundingSource;
-	} | null>(null);
+	} | null>(ownerId && initialFundingSource ? { ownerId, source: initialFundingSource } : null);
 	const fundingSource = ownedFunding?.ownerId === ownerId ? ownedFunding.source : "CREDITS";
 	const studio = useTranslations("studio");
 	const composer = useTranslations("studio.composer");
@@ -405,10 +414,12 @@ export function GenerationForm({
 
 	useEffect(() => {
 		if (!onDraftChange) return;
-		onDraftChange(form.getValues(), temporaryReference);
-		const subscription = form.watch(() => onDraftChange(form.getValues(), temporaryReference));
+		onDraftChange(form.getValues(), temporaryReference, fundingSource);
+		const subscription = form.watch(() =>
+			onDraftChange(form.getValues(), temporaryReference, fundingSource),
+		);
 		return () => subscription.unsubscribe();
-	}, [form, onDraftChange, temporaryReference]);
+	}, [form, onDraftChange, temporaryReference, fundingSource]);
 
 	function replaceControlValues(cell: PublicImageSpecCell) {
 		const next = resolveImageSpecControlValues(cell, {});
@@ -533,9 +544,29 @@ export function GenerationForm({
 	}
 
 	function continueToImagePass() {
-		// Same sessionStorage draft as the subscription upgrade path. The purchase
-		// and PayPal return pages link back to the editor's resume path while it exists.
-		if (!saveDraftForPurchase()) return;
+		if (!ownerId) return;
+		let saved = false;
+		try {
+			saved = saveWorkspaceDraft(
+				window.sessionStorage,
+				ownerId,
+				{
+					values: form.getValues(),
+					parentJobId: temporaryReference ? null : (parentJobId ?? null),
+					temporaryReference,
+					fundingSource,
+				},
+				Date.now(),
+				workspaceDraftPath,
+			);
+		} catch {
+			// Keep the draft in place when browser storage is unavailable.
+		}
+		if (!saved) {
+			setUpgradeStorageUnavailable(true);
+			setUpgradeOpen(true);
+			return;
+		}
 		captureCheckoutTrigger();
 		router.push("/image-pass");
 	}

@@ -1,5 +1,5 @@
 import { IMAGE_PASS_LEGACY_OFFER_VERSION, IMAGE_PASS_OFFER_SUMMARY } from "./image-pass-summary";
-import { IMAGE_SKU_KEYS } from "./product";
+import type { ImageSkuKey } from "./product";
 
 /**
  * Sizes a $1 Image Pass purchased from offer 2026-11-04.1 onward can pay for:
@@ -22,12 +22,12 @@ export const IMAGE_PASS_ALLOWED_SKU_KEYS = /* @__PURE__ */ Object.freeze([
 	"seedream-4-2k",
 	"seedream-4-5-basic-2k",
 	"seedream-5-lite-basic-2k",
-] as const satisfies readonly (typeof IMAGE_SKU_KEYS)[number][]);
+] as const satisfies readonly ImageSkuKey[]);
 
 /** This purchase grants successful images, never general-purpose credits. */
 export const IMAGE_PASS_PUBLIC_OFFER = /* @__PURE__ */ Object.freeze({
 	...IMAGE_PASS_OFFER_SUMMARY,
-	allowedSkuKeys: IMAGE_PASS_ALLOWED_SKU_KEYS as readonly (typeof IMAGE_SKU_KEYS)[number][],
+	allowedSkuKeys: IMAGE_PASS_ALLOWED_SKU_KEYS as readonly ImageSkuKey[],
 } as const);
 
 /**
@@ -36,11 +36,43 @@ export const IMAGE_PASS_PUBLIC_OFFER = /* @__PURE__ */ Object.freeze({
  * buyers keep every size; checkout intents opened under it can still settle.
  */
 export const IMAGE_PASS_LEGACY_OFFER = /* @__PURE__ */ Object.freeze({
-	...IMAGE_PASS_OFFER_SUMMARY,
+	offerKey: "image-pass-3",
 	offerVersion: IMAGE_PASS_LEGACY_OFFER_VERSION,
+	provider: "paypal",
+	amount: "1.00",
+	currency: "USD",
+	units: 3,
 	allowedSkuKeys: /* @__PURE__ */ Object.freeze([
-		...IMAGE_SKU_KEYS,
-	]) as readonly (typeof IMAGE_SKU_KEYS)[number][],
+		"nano-banana-2-lite-1k",
+		"nano-banana-default",
+		"nano-banana-2-1k",
+		"nano-banana-2-2k",
+		"nano-banana-2-4k",
+		"nano-banana-pro-1k",
+		"nano-banana-pro-2k",
+		"nano-banana-pro-4k",
+		"gpt-image-1-5-medium",
+		"gpt-image-1-5-high",
+		"gpt-image-2-1k",
+		"gpt-image-2-2k",
+		"gpt-image-2-4k",
+		"gpt-image-2-5-flare-1k",
+		"gpt-image-2-5-flare-2k",
+		"gpt-image-2-5-flare-4k",
+		"gpt-image-2-5-sunburst-1k",
+		"gpt-image-2-5-sunburst-2k",
+		"gpt-image-2-5-sunburst-4k",
+		"seedream-4-1k",
+		"seedream-4-2k",
+		"seedream-4-4k",
+		"seedream-4-5-basic-2k",
+		"seedream-4-5-high-4k",
+		"seedream-5-lite-basic-2k",
+		"seedream-5-lite-high-3k",
+		"seedream-5-lite-ultra-4k",
+		"seedream-5-pro-basic-1k",
+		"seedream-5-pro-high-2k",
+	] as const),
 } as const);
 
 const KNOWN_IMAGE_PASS_OFFERS = [IMAGE_PASS_PUBLIC_OFFER, IMAGE_PASS_LEGACY_OFFER] as const;
@@ -52,7 +84,10 @@ export function isImagePassSkuAllowed(skuKey: unknown): boolean {
 	);
 }
 
-export type ImagePassOfferSnapshot = ReturnType<typeof getImagePassOfferSnapshot>;
+export type ImagePassOfferSnapshot = Omit<
+	(typeof KNOWN_IMAGE_PASS_OFFERS)[number],
+	"allowedSkuKeys"
+> & { allowedSkuKeys: readonly string[] };
 
 export function getImagePassOfferSnapshot() {
 	return {

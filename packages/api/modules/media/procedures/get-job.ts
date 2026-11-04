@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { ORPCError } from "@orpc/server";
+import { providerSupportsCancellation } from "@repo/ai";
 import { generationFailureCategory, isTechnicalGenerationFailureCode } from "@repo/config";
 import { db } from "@repo/database/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "@repo/database/media-assets";
@@ -95,9 +96,10 @@ export const getJob = protectedProcedure
 		);
 		const attempt = job.attempts[0];
 		const canCancel =
-			["RESERVED", "DISPATCH_QUEUED", "PROVIDER_PENDING", "PROVIDER_RUNNING"].includes(
-				job.status,
-			) &&
+			(["RESERVED", "DISPATCH_QUEUED"].includes(job.status) ||
+				(["PROVIDER_PENDING", "PROVIDER_RUNNING"].includes(job.status) &&
+					Boolean(attempt?.providerTaskId) &&
+					providerSupportsCancellation(attempt?.provider))) &&
 			job._count.attempts === 0 &&
 			!attempt?.uncertainSubmission &&
 			attempt?.status !== "SUBMISSION_UNCERTAIN" &&

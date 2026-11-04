@@ -52,8 +52,8 @@
 		"retryBalance": "Guthaben erneut prüfen",
 		"availabilityLoading": "Verfügbarkeit wird geprüft…",
 		"unavailable": "Dieses Angebot ist derzeit nicht verfügbar. Bitte versuche es später erneut.",
-		"sizeRule": "Gilt nur für 1K und 2K. Nicht für 4K, Pro-Modelle oder andere teure Größen. Vor dem 4. November 2026 gekaufte Pässe behalten ihre ursprünglichen Größen.",
-		"fundingSizeNotEligible": "Bildpässe gelten nur für 1K und 2K. Wähle 1K oder 2K oder bezahle mit Credits."
+		"sizeRule": "Gilt für berechtigte Standardoptionen in 1K und 2K. Nicht für 4K, Pro-Modelle oder andere kostenintensive Optionen. Pässe aus dem früheren Angebot behalten ihren ursprünglichen Leistungsumfang.",
+		"fundingSizeNotEligible": "Wähle ein berechtigtes Standardmodell und eine Qualitätsoption in 1K oder 2K oder bezahle mit Credits."
 	},
 	"media": {
 		"assets": {

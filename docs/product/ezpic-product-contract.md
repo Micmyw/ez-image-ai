@@ -34,7 +34,19 @@ Image-pass size rule (offer `2026-11-04.1`): a pass pays only for the 1K/2K SKUs
 `IMAGE_PASS_ALLOWED_SKU_KEYS` (`packages/config/image-pass.ts`). 4K/3K tiers, Pro models and
 GPT Image 1.5 high use credits. Each `image_pass_grant` stores the offer snapshot it was paid
 under and unit reservation filters on that snapshot, so grants from offer `2026-10-19.1`
-(all sizes) are grandfathered without a data migration.
+(the original, explicitly frozen 29 SKUs) retain that coverage. Deploy the additive checkout
+constraint migration `20261104010000_image_pass_offer_1k_2k` before activating producers of
+the new offer; existing grants do not need rewriting.
+
+`/image-pass` is a public, translated route. Signed-in purchase navigation uses the existing
+owner-scoped session workspace draft, validates the return route and preserves its funding
+selection; purchase success does not silently select image-pass funding or broaden model access.
+
+Image submissions without a confirmed provider task escalate to manual recovery after 30 minutes
+measured against database time, keeping the same attempt and reserved funding. A repair count or
+missing callback is not proof of non-acceptance. Accepted tasks retain polling; late Kie callback
+identities in manual recovery are evidence only. Post-submission cancellation requires a confirmed
+task and a cancellable adapter (currently Replicate). See the [rollout note](../operations/pr56-hardening-rollout.md).
 
 EzImageAI exposes twelve image products backed by one `EzImageAI Credit` balance. Credit use is selected
 by the exact legal SKU, not by a universal per-image rate:

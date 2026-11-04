@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => {
 	const tx = {
 		generationJob: { findFirst: vi.fn(), updateMany: vi.fn(), findUniqueOrThrow: vi.fn() },
+		generationAttempt: { findFirst: vi.fn() },
 		outboxEvent: { upsert: vi.fn() },
 	};
 	return {
@@ -36,9 +37,39 @@ beforeEach(() => {
 		session: { id: "session-1" },
 	});
 	mocks.tx.generationJob.updateMany.mockResolvedValue({ count: 1 });
+	mocks.tx.generationAttempt.findFirst.mockResolvedValue({
+		provider: "replicate",
+		providerTaskId: "task-1",
+	});
 });
 
 describe("cancelGeneration after provider submission", () => {
+	it.each(["PROVIDER_PENDING", "PROVIDER_RUNNING"])(
+		"rejects unsupported Kie %s cancellation without changing the job",
+		async (status) => {
+			mocks.tx.generationJob.findFirst.mockResolvedValueOnce(job(status));
+			mocks.tx.generationAttempt.findFirst.mockResolvedValueOnce({
+				provider: "kie",
+				providerTaskId: "kie-task-1",
+			});
+			await expect(call(cancelGeneration, { jobId: "job-1" }, context)).rejects.toMatchObject({
+				code: "CONFLICT",
+			});
+			expect(mocks.tx.generationJob.updateMany).not.toHaveBeenCalled();
+			expect(mocks.tx.outboxEvent.upsert).not.toHaveBeenCalled();
+		},
+	);
+	it("refuses a submitted task without a confirmed provider identity", async () => {
+		mocks.tx.generationJob.findFirst.mockResolvedValueOnce(job("PROVIDER_PENDING"));
+		mocks.tx.generationAttempt.findFirst.mockResolvedValueOnce({
+			provider: "replicate",
+			providerTaskId: null,
+		});
+		await expect(call(cancelGeneration, { jobId: "job-1" }, context)).rejects.toMatchObject({
+			code: "CONFLICT",
+		});
+		expect(mocks.tx.outboxEvent.upsert).not.toHaveBeenCalled();
+	});
 	it.each(["PROVIDER_PENDING", "PROVIDER_RUNNING"])(
 		"requests provider cancellation for a confirmed %s submission",
 		async (status) => {

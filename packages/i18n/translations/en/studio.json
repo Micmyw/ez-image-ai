@@ -52,8 +52,8 @@
 		"retryBalance": "Check balance again",
 		"availabilityLoading": "Checking offer availability…",
 		"unavailable": "This offer is currently unavailable. Please try again later.",
-		"sizeRule": "Covers 1K and 2K sizes only. Not valid for 4K, Pro models or other high-cost sizes. Passes bought before November 4, 2026 keep the sizes they were sold with.",
-		"fundingSizeNotEligible": "Image passes cover 1K and 2K sizes only. Choose a 1K or 2K size, or pay with credits."
+		"sizeRule": "Covers eligible standard 1K and 2K options. Not valid for 4K, Pro models or other high-cost options. Passes from the earlier offer keep the coverage they were sold with.",
+		"fundingSizeNotEligible": "Choose an eligible standard 1K or 2K model and quality option, or pay with credits."
 	},
 	"media": {
 		"assets": {

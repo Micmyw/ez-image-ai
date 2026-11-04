@@ -103,6 +103,7 @@ vi.mock("next-intl", () => ({
 	useTranslations: () => (key: string, values?: { count?: number }) =>
 		key === "balance" || key === "fundingReserved" ? `${key} ${values?.count}` : key,
 }));
+import { saveWorkspaceDraft } from "../../media/lib/workspace-draft";
 import { ImagePassPurchase } from "./ImagePassPurchase";
 function render(options: { intentId?: string; canceled?: boolean } = {}) {
 	state.cursor = 0;
@@ -196,6 +197,31 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("image pass checkout UI", () => {
+	it("resumes the current owner's homepage and immediately hides it on account change", () => {
+		saveWorkspaceDraft(
+			window.sessionStorage,
+			"owner-a",
+			{
+				values: {
+					productKey: "image-nano-banana-2-lite",
+					skuKey: "nano-banana-2-lite-1k",
+					prompt: "Keep my homepage draft",
+					sourceAssetId: "",
+					aspectRatio: "1:1",
+				},
+				parentJobId: null,
+			},
+			Date.now(),
+			"/",
+		);
+		render();
+		expect(find(render(), "image-pass-editor-return").props).toMatchObject({
+			href: "/?resume=workspace",
+		});
+		state.ownerId = "owner-b";
+		expect(find(render(), "image-pass-editor-return").props).toMatchObject({ href: "/create" });
+		expect(find(render(), "image-pass-editor-return").props).toMatchObject({ href: "/create" });
+	});
 	it("records the image-pass cancellation return as a client flag only", () => {
 		const fetch = vi.fn().mockResolvedValue({ ok: true });
 		vi.stubGlobal("fetch", fetch);

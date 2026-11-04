@@ -98,9 +98,12 @@ async function persistKieGenerationWake(
 				return result("invalid");
 			const statuses = ["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"] as const;
 			const jobStatuses = ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] as const;
+			const manualRecovery =
+				attempt.status === "NEEDS_RECONCILIATION" && attempt.jobStatus === "NEEDS_RECONCILIATION";
 			if (
-				!(statuses as readonly string[]).includes(attempt.status) ||
-				!(jobStatuses as readonly string[]).includes(attempt.jobStatus)
+				!manualRecovery &&
+				(!(statuses as readonly string[]).includes(attempt.status) ||
+					!(jobStatuses as readonly string[]).includes(attempt.jobStatus))
 			)
 				return result("terminal");
 			return timing.measure("persist", async () => {
@@ -120,8 +123,9 @@ async function persistKieGenerationWake(
 						},
 					},
 				});
-				// Early notices remain bound to their claimed task ID, not to an accepted task.
-				if (!attempt.providerTaskId) return result("recorded");
+				// Early and late manual-recovery notices retain claimed identities for
+				// investigation, never acceptance, an approved result or a new execution.
+				if (manualRecovery || !attempt.providerTaskId) return result("recorded");
 				if (inserted.count !== 1) {
 					// Retry an unconsumed wake after a lost transport response. Never reset
 					// the due time; once a query consumes the notice, provider backoff wins.

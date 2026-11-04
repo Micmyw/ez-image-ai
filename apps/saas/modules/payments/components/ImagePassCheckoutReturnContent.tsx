@@ -31,9 +31,9 @@ export function ImagePassCheckoutReturnContent({
 	approved?: boolean;
 }) {
 	const t = useTranslations("imagePass");
-	const continuePath = useEditorContinuePath();
 	const session = useSessionQuery();
 	const ownerId = session.data?.user?.isAnonymous !== true ? session.data?.user?.id : undefined;
+	const continuePath = useEditorContinuePath(ownerId);
 	const queryClient = useQueryClient();
 	useEffect(() => {
 		if (ownerId)

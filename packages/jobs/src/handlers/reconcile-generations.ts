@@ -1,7 +1,7 @@
 import type { ReconciliationDependencies } from "../contracts";
 
-/** About 5 × 10 minutes before an unconfirmed submission is failed and refunded. */
-export const UNCONFIRMED_SUBMISSION_MAX_REPAIRS = 3; // 3 x 10 min ≈ 30 min total before release
+/** A recovery deadline is not evidence that the supplier rejected the request. */
+export const UNCONFIRMED_SUBMISSION_RECOVERY_MS = 30 * 60_000;
 export const UNCONFIRMED_SUBMISSION_RETRY_MS = 10 * 60_000;
 
 export async function reconcileGenerations(
@@ -28,12 +28,14 @@ export async function reconcileGenerations(
 	let outboxCommitted: boolean | undefined = false;
 	for (const lease of leases) {
 		if (!lease.providerTaskId) {
-			if (lease.repairCount >= UNCONFIRMED_SUBMISSION_MAX_REPAIRS) {
-				// Never leave the customer's reservation held indefinitely: after the
-				// bounded window the job fails as a timeout and settles with no charge.
-				if (dependencies.store.failUnconfirmedSubmission)
-					await dependencies.store.failUnconfirmedSubmission(lease);
-				else await dependencies.store.markUncertainForManualReconciliation(lease);
+			if (
+				typeof lease.submissionAgeMs === "number" &&
+				Number.isFinite(lease.submissionAgeMs) &&
+				lease.submissionAgeMs >= UNCONFIRMED_SUBMISSION_RECOVERY_MS
+			) {
+				// Preserve the same attempt and its reservation until authenticated
+				// recovery or an audited administrator decision resolves acceptance.
+				await dependencies.store.markUncertainForManualReconciliation(lease);
 				continue;
 			}
 			await dependencies.store.releaseReconciliationLease(

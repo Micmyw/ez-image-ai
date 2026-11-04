@@ -2579,8 +2579,8 @@
 		"retryBalance": "Vérifier à nouveau le solde",
 		"availabilityLoading": "Vérification de la disponibilité…",
 		"unavailable": "Cette offre est actuellement indisponible. Réessayez plus tard.",
-		"sizeRule": "Valable uniquement en 1K et 2K. Non valable pour la 4K, les modèles Pro ou d'autres tailles coûteuses. Les pass achetés avant le 4 novembre 2026 conservent les tailles avec lesquelles ils ont été vendus.",
-		"fundingSizeNotEligible": "Les pass image couvrent uniquement la 1K et la 2K. Choisissez une taille 1K ou 2K, ou payez avec des crédits."
+		"sizeRule": "Couvre les options standard admissibles en 1K et 2K. Exclut la 4K, les modèles Pro et les autres options coûteuses. Les pass de l’offre précédente conservent leur couverture d’origine.",
+		"fundingSizeNotEligible": "Choisissez un modèle standard et une qualité admissibles en 1K ou 2K, ou payez avec des crédits."
 	},
 	"support": {
 		"title": "Demandes d’assistance",

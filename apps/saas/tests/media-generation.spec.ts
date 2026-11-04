@@ -948,10 +948,11 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await createScenario(page, prompt);
 		const job = await waitForJob(prompt, "FAILED");
 		const reservation = await reservationFor(job.id);
-		expect(job.failureCode).toBe("NO_USABLE_OUTPUT");
+		expect(job.failureCode).toBe("PROVIDER_UNAVAILABLE");
 		expect(reservation.settledAmount).toBe("0");
 		expect(reservation.releasedAmount).toBe(job.creditsReserved);
 		await expect(page.getByRole("heading", { name: /could not finish/i })).toBeVisible();
+		await expect(page.getByText(/generation service was temporarily unavailable/i)).toBeVisible();
 		await expect(
 			page.getByText(
 				new RegExp(
