@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary";
 import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
 import { createChoosePlanPath, writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
-import { getImageProductSelectionContract, IMAGE_PASS_PUBLIC_OFFER } from "@repo/config/client";
+import { getImageProductSelectionContract } from "@repo/config/client";
 import { EZPIC_PRODUCT_KEYS, getPlanEntitlement, type ImageAspectRatio } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
@@ -53,6 +53,7 @@ import {
 	generationFormValuesSchema,
 } from "../lib/form-schema";
 import { useGenerationMode } from "../lib/generation-mode-context";
+import { imagePassCoversSku } from "../lib/image-pass-eligibility";
 import {
 	getDefaultImageSpecCell,
 	getImageSpecCell,
@@ -243,7 +244,8 @@ export function GenerationForm({
 	const product = products.find((candidate) => candidate.key === values.productKey);
 	const passSelected = fundingSource === "IMAGE_PASS";
 	const passAvailable = generation.imagePass?.data?.available;
-	const passSkuAllowed = IMAGE_PASS_PUBLIC_OFFER.allowedSkuKeys.includes(values.skuKey);
+	// Each grant keeps the sizes it was sold with; new passes cover 1K/2K only.
+	const passSkuAllowed = imagePassCoversSku(generation.imagePass?.data, values.skuKey);
 	const passReady =
 		passSelected && passSkuAllowed && !generation.imagePass?.isError && (passAvailable ?? 0) >= 1;
 	const upgradeRequired = Boolean(product && !allowedProductKeys.includes(values.productKey));
@@ -638,6 +640,14 @@ export function GenerationForm({
 					beginNewAction();
 				}}
 			/>
+			{passSelected && !passSkuAllowed && (
+				<output
+					data-testid="image-pass-size-not-eligible"
+					className="text-xs leading-5 text-amber-600 dark:text-amber-300 block"
+				>
+					{pass("fundingSizeNotEligible")}
+				</output>
+			)}
 			{modelNavigation.unavailable && (
 				<output className="mb-3 text-sm text-amber-200 block">
 					{studio("tools.modelUnavailable")}

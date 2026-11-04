@@ -2528,13 +2528,13 @@
 		"bannerLabel": "Paquete de imágenes de pago único",
 		"dismissBanner": "Cerrar oferta del paquete de imágenes",
 		"bannerTitle": "{units} imágenes por ${amount}",
-		"bannerDetail": "Nano Banana 2 Lite 1K · los modelos prémium y HD requieren suscripción",
+		"bannerDetail": "Nano Banana 2 Lite 1K · solo 1K/2K · 4K y modelos Pro usan créditos",
 		"buy": "Comprar paquete",
 		"oneTime": "Compra de pago único",
 		"title": "{units} imágenes generadas con éxito",
 		"pageTitle": "Paquete de imágenes — 3 imágenes por 1 USD",
-		"description": "Usa pases de imagen con Nano Banana 2 Lite 1K. Una suscripción de pago activa habilita otros modelos y opciones HD compatibles de hasta 4K. Cada tarea genera una imagen.",
-		"models": "Nano Banana 2 Lite 1K; modelos prémium y HD con una suscripción de pago activa",
+		"description": "Los pases de imagen pagan imágenes estándar de 1K y 2K. 4K y otras resoluciones altas, los modelos Pro y GPT Image 1.5 en alta calidad no están incluidos y usan créditos. Las cuentas gratuitas usan pases con Nano Banana 2 Lite 1K; otros modelos aptos requieren una suscripción de pago activa. Cada tarea produce una imagen.",
+		"models": "Solo tamaños estándar 1K y 2K. 4K, modelos Pro y otros tamaños de alto coste usan créditos.",
 		"singleOutput": "Cada imagen generada con éxito usa un pase. Solo imágenes, sin vídeo.",
 		"separate": "Los pases de imagen son independientes de los créditos y las suscripciones.",
 		"repeat": "Puedes comprar otro paquete cuando lo necesites.",
@@ -2576,7 +2576,9 @@
 		"balanceError": "Saldo de pases no disponible",
 		"retryBalance": "Comprobar saldo de nuevo",
 		"availabilityLoading": "Comprobando la disponibilidad…",
-		"unavailable": "Esta oferta no está disponible actualmente. Inténtalo de nuevo más tarde."
+		"unavailable": "Esta oferta no está disponible actualmente. Inténtalo de nuevo más tarde.",
+		"sizeRule": "Solo cubre tamaños 1K y 2K. No válido para 4K, modelos Pro ni otros tamaños de alto coste. Los pases comprados antes del 4 de noviembre de 2026 conservan los tamaños con los que se vendieron.",
+		"fundingSizeNotEligible": "Los pases de imagen solo cubren 1K y 2K. Elige un tamaño 1K o 2K, o paga con créditos."
 	},
 	"support": {
 		"title": "Solicitudes de soporte",

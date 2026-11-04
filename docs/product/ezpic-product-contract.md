@@ -30,6 +30,12 @@ Accepted orders retain their frozen funding policies. Shared credits do not cert
 revenue or realized margin. The USD1 image-pass offer remains a separate explicit choice and
 cannot fund video.
 
+Image-pass size rule (offer `2026-11-04.1`): a pass pays only for the 1K/2K SKUs listed in
+`IMAGE_PASS_ALLOWED_SKU_KEYS` (`packages/config/image-pass.ts`). 4K/3K tiers, Pro models and
+GPT Image 1.5 high use credits. Each `image_pass_grant` stores the offer snapshot it was paid
+under and unit reservation filters on that snapshot, so grants from offer `2026-10-19.1`
+(all sizes) are grandfathered without a data migration.
+
 EzImageAI exposes twelve image products backed by one `EzImageAI Credit` balance. Credit use is selected
 by the exact legal SKU, not by a universal per-image rate:
 

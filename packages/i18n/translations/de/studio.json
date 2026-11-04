@@ -3,13 +3,13 @@
 		"bannerLabel": "Einmaliges Bildpaket",
 		"dismissBanner": "Bildpaket-Angebot schließen",
 		"bannerTitle": "{units} Bilder für ${amount}",
-		"bannerDetail": "Nano Banana 2 Lite 1K · Premium-Modelle und HD erfordern ein Abo",
+		"bannerDetail": "Nano Banana 2 Lite 1K · nur 1K/2K · 4K und Pro-Modelle nutzen Credits",
 		"buy": "Bildpaket kaufen",
 		"oneTime": "Einmaliger Kauf",
 		"title": "{units} erfolgreiche Bilder",
 		"pageTitle": "Bildpaket — 3 Bilder für 1 USD",
-		"description": "Nutze Bildpässe mit Nano Banana 2 Lite 1K. Ein aktives kostenpflichtiges Abo schaltet weitere Bildmodelle und unterstützte HD-Optionen bis 4K frei. Jeder Auftrag erzeugt ein Bild.",
-		"models": "Nano Banana 2 Lite 1K; Premium-Modelle und HD mit aktivem kostenpflichtigem Abo",
+		"description": "Bildpässe bezahlen Standardbilder in 1K und 2K. 4K und andere hohe Auflösungen, Pro-Modelle und GPT Image 1.5 in hoher Qualität sind ausgeschlossen und nutzen Credits. Kostenlose Konten nutzen Pässe mit Nano Banana 2 Lite 1K; andere berechtigte Modelle benötigen ein aktives kostenpflichtiges Abo. Jede Aufgabe erzeugt ein Bild.",
+		"models": "Nur Standardgrößen 1K und 2K. 4K, Pro-Modelle und andere teure Größen nutzen Credits.",
 		"singleOutput": "Ein erfolgreiches Bild verbraucht einen Bildpass. Nur Bilder, keine Videos.",
 		"separate": "Bildpässe sind von Credits und Abonnements getrennt.",
 		"repeat": "Kaufe bei Bedarf jederzeit ein weiteres Paket.",
@@ -51,7 +51,9 @@
 		"balanceError": "Bildpass-Guthaben nicht verfügbar",
 		"retryBalance": "Guthaben erneut prüfen",
 		"availabilityLoading": "Verfügbarkeit wird geprüft…",
-		"unavailable": "Dieses Angebot ist derzeit nicht verfügbar. Bitte versuche es später erneut."
+		"unavailable": "Dieses Angebot ist derzeit nicht verfügbar. Bitte versuche es später erneut.",
+		"sizeRule": "Gilt nur für 1K und 2K. Nicht für 4K, Pro-Modelle oder andere teure Größen. Vor dem 4. November 2026 gekaufte Pässe behalten ihre ursprünglichen Größen.",
+		"fundingSizeNotEligible": "Bildpässe gelten nur für 1K und 2K. Wähle 1K oder 2K oder bezahle mit Credits."
 	},
 	"media": {
 		"assets": {

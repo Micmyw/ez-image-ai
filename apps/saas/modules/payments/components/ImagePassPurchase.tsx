@@ -211,6 +211,12 @@ export function ImagePassPurchase({
 					<li key={key}>✓ {t(key)}</li>
 				))}
 			</ul>
+			<p
+				data-testid="image-pass-size-rule"
+				className="mt-5 border-amber-300/30 bg-amber-300/10 p-3 text-sm leading-6 text-amber-100 rounded-xl border"
+			>
+				{t("sizeRule")}
+			</p>
 			{balance.data && (
 				<div
 					className="mt-5 gap-x-4 gap-y-1 text-sm text-violet-200 flex flex-wrap"
