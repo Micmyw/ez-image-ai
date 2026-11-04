@@ -284,4 +284,39 @@ describe.sequential("public edge health and anonymous homepage", () => {
 		expect(hit.headers.get("x-edge-cache")).toBe("HIT");
 		expect(await hit.text()).toContain("late-home");
 	});
+
+	it("serves a 50-minute-old anonymous copy immediately while refreshing it", async () => {
+		expect(homepageCachePolicy.staleWhileRevalidateSeconds).toBe(3_600);
+		const cache = memoryCache();
+		let renders = 0;
+		const render = async () => {
+			renders += 1;
+			return html(`<html>render-${renders}</html>`);
+		};
+		let now = 5_000_000;
+		const ctx = context();
+		await serveAnonymousHomepage(
+			new Request("https://ezimageai.com/"),
+			ctx.execution,
+			cache,
+			render,
+			{
+				clock: () => now,
+			},
+		);
+		await ctx.flush();
+		now += 50 * 60_000;
+		const later = context();
+		const stale = await serveAnonymousHomepage(
+			new Request("https://ezimageai.com/"),
+			later.execution,
+			cache,
+			render,
+			{ clock: () => now },
+		);
+		expect(stale.headers.get("x-edge-cache")).toBe("STALE");
+		expect(await stale.text()).toContain("render-1");
+		await later.flush();
+		expect(renders).toBe(2);
+	});
 });

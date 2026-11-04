@@ -2,10 +2,15 @@ import { config as i18nConfig, isLocale, type Locale } from "@repo/i18n/config";
 
 import type { WorkerExecutionContext } from "./request-scope";
 
-/** Anonymous homepage entries stay fresh for one minute, then refresh in the background. */
+/**
+ * Anonymous homepage entries stay fresh for one minute, then refresh in the
+ * background. A one-hour stale window keeps low-traffic colos from falling back
+ * to a cold 1.3-2.4 s SSR render after five idle minutes (measured 2026-11-04);
+ * a stale copy is replaced by the first background refresh.
+ */
 export const homepageCachePolicy = {
 	freshSeconds: 60,
-	staleWhileRevalidateSeconds: 300,
+	staleWhileRevalidateSeconds: 3_600,
 	ssrTimeoutMs: 8_000,
 	maxCachedBytes: 2_000_000,
 } as const;
