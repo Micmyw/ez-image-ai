@@ -45,7 +45,10 @@ export type PreservedGenerationFailureCode = keyof typeof PRESERVED_FAILURE_CATE
 export function isPreservedGenerationFailureCode(
 	code: unknown,
 ): code is PreservedGenerationFailureCode {
-	return typeof code === "string" && Object.hasOwn(PRESERVED_FAILURE_CATEGORIES, code);
+	return (
+		typeof code === "string" &&
+		Object.prototype.hasOwnProperty.call(PRESERVED_FAILURE_CATEGORIES, code)
+	);
 }
 
 export function generationFailureCategory(code: unknown): GenerationFailureCategory {
