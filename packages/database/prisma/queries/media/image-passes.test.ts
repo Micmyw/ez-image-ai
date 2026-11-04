@@ -5,11 +5,124 @@ vi.mock("../../client", () => ({
 	},
 }));
 import { KIE_SENSITIVE_REJECTION_MESSAGE } from "@repo/config";
+import { getImagePassOfferSnapshot, IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
 
-import { assertImagePassSelection, generationFundingSource } from "./image-passes";
+import {
+	assertImagePassAvailable,
+	assertImagePassSelection,
+	generationFundingSource,
+	reserveImagePassForJobInTransaction,
+} from "./image-passes";
 import { canSettleKieZeroCostRejection } from "./kie-zero-cost-rejection";
 
 describe("image-pass funding contract", () => {
+	it.each([
+		{ snapshot: getImagePassOfferSnapshot(), allowed: true },
+		{ snapshot: IMAGE_PASS_LEGACY_OFFER, allowed: false },
+		{
+			snapshot: { ...IMAGE_PASS_LEGACY_OFFER, subscriptionPolicy: "not-required" },
+			allowed: false,
+		},
+		{
+			snapshot: { ...getImagePassOfferSnapshot(), allowedSkuKeys: ["nano-banana-pro-4k"] },
+			allowed: false,
+		},
+	])(
+		"requires the complete trusted new offer for subscription-free access ($allowed)",
+		async ({ snapshot, allowed }) => {
+			const result = assertImagePassAvailable(
+				{
+					ownerId: "owner",
+					productKey: "image-nano-banana-pro",
+					skuKey: "nano-banana-pro-4k",
+					requireModelAccess: true,
+				},
+				{
+					$queryRaw: vi.fn(async () => [{ id: "unit", offerSnapshot: snapshot }]),
+				} as never,
+			);
+			if (allowed) await expect(result).resolves.toBeUndefined();
+			else await expect(result).rejects.toThrow("IMAGE_PASS_INSUFFICIENT");
+		},
+	);
+	it("preserves an accepted reservation before subscription rechecks or grant selection", async () => {
+		const reservation = {
+			id: "reservation",
+			amount: 1n,
+			status: "ACTIVE",
+			fundingSource: "IMAGE_PASS",
+		};
+		const tx = {
+			$executeRaw: vi.fn(async () => 1),
+			$queryRaw: vi
+				.fn()
+				.mockResolvedValueOnce([
+					{
+						ownerId: "owner",
+						ownerType: "USER",
+						fundingSource: "IMAGE_PASS",
+						creditsReserved: 0n,
+						productKey: "image-nano-banana-pro",
+						pricingSnapshot: {
+							fundingSource: "IMAGE_PASS",
+							skuKey: "nano-banana-pro-4k",
+							settlementPolicy: { requestedOutputCount: 1 },
+						},
+						status: "RUNNING",
+					},
+				])
+				.mockResolvedValueOnce([reservation]),
+			subscription: { findMany: vi.fn() },
+		};
+		await expect(
+			reserveImagePassForJobInTransaction({ ownerId: "owner", jobId: "job" }, tx as never),
+		).resolves.toEqual(reservation);
+		expect(tx.subscription.findMany).not.toHaveBeenCalled();
+		expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+	});
+	it("uses post-lock database time to resolve the subscription before choosing a pass", async () => {
+		const databaseNow = new Date("2099-01-01T00:00:00Z");
+		const tx = {
+			$executeRaw: vi.fn(async () => 1),
+			$queryRaw: vi
+				.fn()
+				.mockResolvedValueOnce([
+					{
+						ownerId: "owner",
+						ownerType: "USER",
+						fundingSource: "IMAGE_PASS",
+						creditsReserved: 0n,
+						productKey: "image-nano-banana-pro",
+						pricingSnapshot: {
+							fundingSource: "IMAGE_PASS",
+							skuKey: "nano-banana-pro-4k",
+							settlementPolicy: { requestedOutputCount: 1 },
+						},
+						status: "RESERVED",
+					},
+				])
+				.mockResolvedValueOnce([])
+				.mockResolvedValueOnce([{ now: databaseNow }])
+				.mockResolvedValueOnce([
+					{ id: "unit", grantId: "grant", offerSnapshot: getImagePassOfferSnapshot() },
+				]),
+			subscription: { findMany: vi.fn(async () => []) },
+			billingPeriod: { fields: { paidAmount: "paidAmount" } },
+		};
+		await expect(
+			reserveImagePassForJobInTransaction({ ownerId: "owner", jobId: "job" }, tx as never),
+		).resolves.toMatchObject({ fundingSource: "IMAGE_PASS" });
+		expect(tx.subscription.findMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					OR: expect.arrayContaining([
+						expect.objectContaining({ currentPeriodEnd: { gt: databaseNow } }),
+					]),
+				}),
+			}),
+		);
+		expect(tx.$queryRaw.mock.calls[3].slice(1)).toContain(false);
+	});
 	it("supports the highest current image SKU as exactly one successful output", () => {
 		expect(() =>
 			assertImagePassSelection({

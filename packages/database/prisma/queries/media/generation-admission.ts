@@ -37,10 +37,17 @@ export async function loadCurrentGenerationAdmission(
 		tx,
 	);
 	const entitlement = resolvePlanEntitlement(subscription?.plan.metadata, subscription?.plan.name);
-	if (!entitlement.allowedProducts.includes(productKey)) throw new Error("ENTITLEMENT_REQUIRED");
+	const planIncludesProduct = entitlement.allowedProducts.includes(productKey);
+	if (!planIncludesProduct && input.fundingSource !== "IMAGE_PASS")
+		throw new Error("ENTITLEMENT_REQUIRED");
 	if (input.fundingSource === "IMAGE_PASS")
 		await assertImagePassAvailable(
-			{ ownerId: input.ownerId, productKey, skuKey: input.skuKey },
+			{
+				ownerId: input.ownerId,
+				productKey,
+				skuKey: input.skuKey,
+				requireModelAccess: !planIncludesProduct,
+			},
 			tx,
 		);
 	if (input.costMicros > BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumJobCostMicros))

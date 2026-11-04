@@ -1,5 +1,11 @@
 # Image trial, subscription access and provider rejection billing
 
+On 2026-11-04 the owner approved a narrow exception: the new USD 2.99 three-image offer
+`2026-11-04.2` includes access to its frozen image models and sizes without a subscription when
+an eligible unit is explicitly selected and reserved. Ordinary credits and both historical USD 1
+offers keep the subscription rules below. It grants no storage, video or other subscription benefits.
+See [the new offer rollout](image-pass-299-rollout.md).
+
 The owner selected these rules on 2026-10-24:
 
 - A registered account receives one lifetime 10-credit sign-in allowance, enough for two

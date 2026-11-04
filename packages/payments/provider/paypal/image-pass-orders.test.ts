@@ -1,4 +1,9 @@
-import { IMAGE_PASS_PAYPAL_SKU, IMAGE_PASS_AMOUNT_MICROS } from "@repo/config/image-pass.server";
+import {
+	IMAGE_PASS_PAYPAL_SKU,
+	IMAGE_PASS_AMOUNT_MICROS,
+	LEGACY_IMAGE_PASS_PAYPAL_SKU,
+	LEGACY_IMAGE_PASS_AMOUNT_MICROS,
+} from "@repo/config/image-pass.server";
 import { describe, it, expect, vi } from "vitest";
 
 import {
@@ -30,7 +35,7 @@ describe("image-pass PayPal order boundary", () => {
 			cancelUrl: "https://app.test/image-pass?canceled=1&intentId=intent-1",
 		},
 		{ destination: "the legacy return URL fallback", cancelUrl: undefined },
-	])("sends the exact one-dollar order with $destination", async ({ cancelUrl }) => {
+	])("sends the exact $2.99 order with $destination", async ({ cancelUrl }) => {
 		const request = vi.fn<PayPalHttpBoundary["request"]>().mockResolvedValue({
 			status: 201,
 			body: {
@@ -72,12 +77,12 @@ describe("image-pass PayPal order boundary", () => {
 						expect.objectContaining({
 							custom_id: "intent-1",
 							reference_id: "image-pass-3",
-							amount: expect.objectContaining({ value: "1.00", currency_code: "USD" }),
+							amount: expect.objectContaining({ value: "2.99", currency_code: "USD" }),
 							items: [
 								expect.objectContaining({
 									sku: IMAGE_PASS_PAYPAL_SKU,
 									quantity: "1",
-									unit_amount: { value: "1.00", currency_code: "USD" },
+									unit_amount: { value: "2.99", currency_code: "USD" },
 								}),
 							],
 						}),
@@ -86,53 +91,74 @@ describe("image-pass PayPal order boundary", () => {
 			}),
 		);
 	});
-	it("replays the same order key and distinct URLs during safe creation recovery", async () => {
-		const request = vi.fn<PayPalHttpBoundary["request"]>().mockResolvedValue({
-			status: 201,
-			body: {
-				id: "ORDER-1",
-				create_time: "2026-10-19T12:00:00Z",
-				links: [{ rel: "approve", href: "https://www.sandbox.paypal.com/order" }],
-			},
-		});
-		await expect(
-			recoverPayPalCheckout({ request }, configuration, {
-				type: "one-time",
-				priceId: IMAGE_PASS_PAYPAL_SKU,
-				currency: "USD",
-				amountMicros: IMAGE_PASS_AMOUNT_MICROS,
-				description: "3 successful images",
-				billingPlanId: "plan-1",
-				checkoutIntentId: "intent-1",
-				idempotencyKey: "attempt-1",
-				planKey: "image-pass-3",
-				ownerType: "USER",
-				ownerId: "buyer",
-				submittedByUserId: "buyer",
-				redirectUrl: "https://app.test/image-pass-checkout-return?intentId=intent-1",
-				cancelUrl: "https://app.test/image-pass?canceled=1&intentId=intent-1",
-				providerCreatingAt: new Date("2026-10-19T12:00:00Z"),
-				now: new Date("2026-10-19T12:01:00Z"),
-			}),
-		).resolves.toMatchObject({ status: "FOUND", providerOrderId: "ORDER-1" });
-		expect(request).toHaveBeenCalledExactlyOnceWith(
-			expect.objectContaining({
-				method: "POST",
-				url: "https://api-m.sandbox.paypal.com/v2/checkout/orders",
-				headers: expect.objectContaining({ "PayPal-Request-Id": "attempt-1" }),
-				body: expect.objectContaining({
-					payment_source: {
-						paypal: {
-							experience_context: expect.objectContaining({
-								return_url: "https://app.test/image-pass-checkout-return?intentId=intent-1",
-								cancel_url: "https://app.test/image-pass?canceled=1&intentId=intent-1",
-							}),
-						},
-					},
+	it.each([
+		{ priceId: IMAGE_PASS_PAYPAL_SKU, amountMicros: IMAGE_PASS_AMOUNT_MICROS, amount: "2.99" },
+		{
+			priceId: LEGACY_IMAGE_PASS_PAYPAL_SKU,
+			amountMicros: LEGACY_IMAGE_PASS_AMOUNT_MICROS,
+			amount: "1.00",
+		},
+	])(
+		"replays the same order key and frozen $amount during safe creation recovery",
+		async ({ priceId, amountMicros, amount }) => {
+			const request = vi.fn<PayPalHttpBoundary["request"]>().mockResolvedValue({
+				status: 201,
+				body: {
+					id: "ORDER-1",
+					create_time: "2026-10-19T12:00:00Z",
+					links: [{ rel: "approve", href: "https://www.sandbox.paypal.com/order" }],
+				},
+			});
+			await expect(
+				recoverPayPalCheckout({ request }, configuration, {
+					type: "one-time",
+					priceId,
+					currency: "USD",
+					amountMicros,
+					description: "3 successful images",
+					billingPlanId: "plan-1",
+					checkoutIntentId: "intent-1",
+					idempotencyKey: "attempt-1",
+					planKey: "image-pass-3",
+					ownerType: "USER",
+					ownerId: "buyer",
+					submittedByUserId: "buyer",
+					redirectUrl: "https://app.test/image-pass-checkout-return?intentId=intent-1",
+					cancelUrl: "https://app.test/image-pass?canceled=1&intentId=intent-1",
+					providerCreatingAt: new Date("2026-10-19T12:00:00Z"),
+					now: new Date("2026-10-19T12:01:00Z"),
 				}),
-			}),
-		);
-	});
+			).resolves.toMatchObject({ status: "FOUND", providerOrderId: "ORDER-1" });
+			expect(request).toHaveBeenCalledExactlyOnceWith(
+				expect.objectContaining({
+					method: "POST",
+					url: "https://api-m.sandbox.paypal.com/v2/checkout/orders",
+					headers: expect.objectContaining({ "PayPal-Request-Id": "attempt-1" }),
+					body: expect.objectContaining({
+						purchase_units: [
+							expect.objectContaining({
+								amount: expect.objectContaining({ value: amount, currency_code: "USD" }),
+								items: [
+									expect.objectContaining({
+										sku: priceId,
+										unit_amount: { value: amount, currency_code: "USD" },
+									}),
+								],
+							}),
+						],
+						payment_source: {
+							paypal: {
+								experience_context: expect.objectContaining({
+									return_url: "https://app.test/image-pass-checkout-return?intentId=intent-1",
+									cancel_url: "https://app.test/image-pass?canceled=1&intentId=intent-1",
+								}),
+							},
+						},
+					}),
+				}),
+			);
+		},
+	);
 	it("recovers an already-captured return by retrieving only the same authenticated order", async () => {
 		const request = vi
 			.fn<PayPalHttpBoundary["request"]>()

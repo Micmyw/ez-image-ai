@@ -1,5 +1,14 @@
-import { getImagePassOfferSnapshot, IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
-import { IMAGE_PASS_PAYPAL_SKU } from "@repo/config/image-pass.server";
+import { IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config";
+import {
+	getImagePassOfferSnapshot,
+	IMAGE_PASS_LEGACY_OFFER,
+	IMAGE_PASS_STANDARD_OFFER,
+} from "@repo/config/image-pass";
+import {
+	IMAGE_PASS_PAYPAL_SKU,
+	LEGACY_IMAGE_PASS_PAYPAL_SKU,
+	imagePassOfferAmountMicros,
+} from "@repo/config/image-pass.server";
 import { Pool, types } from "pg";
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
 
@@ -215,23 +224,42 @@ function legacyOfferSnapshot() {
 	};
 }
 
-/** Defaults to a grandfathered 2026-10-19.1 pass, which still covers every size (incl. 4K). */
-async function paymentFixture(existingOwnerId?: string, offer: "legacy" | "current" = "legacy") {
+/** Frozen historical offers keep their original money and model-access terms. */
+async function paymentFixture(
+	existingOwnerId?: string,
+	offer: "legacy" | "standard" | "current" = "current",
+) {
 	const suffix = crypto.randomUUID();
 	const ownerId = existingOwnerId ?? `image-pass-owner-${suffix}`;
 	let billingPlanId = `image-pass-plan-${suffix}`;
 	const checkoutIntentId = `image-pass-checkout-${suffix}`;
 	const providerOrderId = `order-${suffix}`;
 	const providerPaymentId = `capture-${suffix}`;
-	const snapshot = offer === "legacy" ? legacyOfferSnapshot() : getImagePassOfferSnapshot();
+	const snapshot =
+		offer === "legacy"
+			? legacyOfferSnapshot()
+			: offer === "standard"
+				? {
+						...IMAGE_PASS_STANDARD_OFFER,
+						allowedSkuKeys: [...IMAGE_PASS_STANDARD_OFFER.allowedSkuKeys],
+					}
+				: getImagePassOfferSnapshot();
+	const amountMicros = imagePassOfferAmountMicros(snapshot)!;
+	const providerPriceId =
+		offer === "current" ? IMAGE_PASS_PAYPAL_SKU : LEGACY_IMAGE_PASS_PAYPAL_SKU;
 	if (!existingOwnerId)
 		await pool!.query(
 			`INSERT INTO "user" (id,name,email,"emailVerified","createdAt","updatedAt") VALUES ($1,'pass fixture',$2,true,NOW(),NOW())`,
 			[ownerId, `${suffix}@test.invalid`],
 		);
 	const plan = await pool!.query(
-		`INSERT INTO billing_plan (id,provider,"providerPriceId","productKind",name,"creditsPerPeriod","priceMicros",currency,metadata,"updatedAt") VALUES ($1,'paypal',$2,'IMAGE_PASS','image-pass-3',0,1000000,'USD',$3,NOW()) ON CONFLICT (provider,"providerPriceId") DO UPDATE SET metadata=EXCLUDED.metadata RETURNING id`,
-		[billingPlanId, IMAGE_PASS_PAYPAL_SKU, JSON.stringify({ imagePassOfferSnapshot: snapshot })],
+		`INSERT INTO billing_plan (id,provider,"providerPriceId","productKind",name,"creditsPerPeriod","priceMicros",currency,metadata,"updatedAt") VALUES ($1,'paypal',$2,'IMAGE_PASS','image-pass-3',0,$4,'USD',$3,NOW()) ON CONFLICT (provider,"providerPriceId") DO UPDATE SET metadata=EXCLUDED.metadata RETURNING id`,
+		[
+			billingPlanId,
+			providerPriceId,
+			JSON.stringify({ imagePassOfferSnapshot: snapshot }),
+			amountMicros,
+		],
 	);
 	billingPlanId = plan.rows[0].id;
 	await pool!.query(
@@ -245,7 +273,7 @@ async function paymentFixture(existingOwnerId?: string, offer: "legacy" | "curre
 		provider: "paypal" as const,
 		providerOrderId,
 		providerPaymentId,
-		amountMicros: 1_000_000n,
+		amountMicros,
 		currency: "USD",
 		occurredAt: new Date(),
 	};
@@ -253,9 +281,10 @@ async function paymentFixture(existingOwnerId?: string, offer: "legacy" | "curre
 
 async function jobFixture(ownerId: string, status = "RESERVED", skuKey = "nano-banana-pro-4k") {
 	const id = `pass-job-${crypto.randomUUID()}`;
-	const productKey = skuKey.startsWith("nano-banana-2-")
-		? "image-nano-banana-2"
-		: "image-nano-banana-pro";
+	const productKey = Object.entries(IMAGE_SKU_KEYS_BY_PRODUCT).find(([, skus]) =>
+		(skus as readonly string[]).includes(skuKey),
+	)?.[0];
+	if (!productKey) throw new Error("INVALID_TEST_SKU");
 	const snapshot = {
 		fundingSource: "IMAGE_PASS",
 		skuKey,
@@ -270,6 +299,24 @@ async function jobFixture(ownerId: string, status = "RESERVED", skuKey = "nano-b
 		[id, ownerId, `${id}-quote`, JSON.stringify(snapshot), status, productKey],
 	);
 	return id;
+}
+
+async function paidSubscriptionFixture(ownerId: string) {
+	const planId = "paid-plan-" + crypto.randomUUID();
+	const subscriptionId = "paid-sub-" + crypto.randomUUID();
+	await pool!.query(
+		`INSERT INTO billing_plan (id,provider,"providerPriceId","productKind",name,"creditsPerPeriod","priceMicros",currency,metadata,"updatedAt") VALUES ($1,'paypal',$1,'PLAN','creator',1,1000000,'USD','{}',now())`,
+		[planId],
+	);
+	await pool!.query(
+		`INSERT INTO subscription (id,"ownerType","ownerId",provider,"providerSubscriptionId","planId",status,"currentPeriodStart","currentPeriodEnd","updatedAt") VALUES ($1,'USER',$2,'paypal',$1,$3,'ACTIVE',now()-interval '1 day',now()+interval '1 day',now())`,
+		[subscriptionId, ownerId, planId],
+	);
+	await pool!.query(
+		`INSERT INTO billing_period (id,"subscriptionId","startsAt","endsAt",status,"creditAmount","paidAmount","updatedAt") VALUES ($1,$2,now()-interval '1 day',now()+interval '1 day','ACTIVE',0,1000000,now())`,
+		["period-" + crypto.randomUUID(), subscriptionId],
+	);
+	return subscriptionId;
 }
 
 async function readyOutput(
@@ -302,24 +349,27 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 	afterAll(async () => {
 		await pool?.end();
 	});
-	it("fulfills one verified dollar as exactly three independent units and no ordinary credits", async () => {
-		const f = await paymentFixture();
-		const result = await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
-		expect(result.created).toBe(true);
-		expect(
-			await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
-		).toMatchObject({
-			available: 3,
-			reserved: 0,
-			consumed: 0,
-			revoked: 0,
-		});
-		const credits = await pool!.query(
-			`SELECT count(*) FROM credit_account WHERE "ownerType"='USER' AND "ownerId"=$1`,
-			[f.ownerId],
-		);
-		expect(credits.rows[0].count).toBe(0n);
-	});
+	it.each(["legacy", "standard", "current"] as const)(
+		"fulfills the frozen %s price as exactly three independent units and no ordinary credits",
+		async (offer) => {
+			const f = await paymentFixture(undefined, offer);
+			const result = await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
+			expect(result.created).toBe(true);
+			expect(
+				await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+			).toMatchObject({
+				available: 3,
+				reserved: 0,
+				consumed: 0,
+				revoked: 0,
+			});
+			const credits = await pool!.query(
+				`SELECT count(*) FROM credit_account WHERE "ownerType"='USER' AND "ownerId"=$1`,
+				[f.ownerId],
+			);
+			expect(credits.rows[0].count).toBe(0n);
+		},
+	);
 	it("keeps all new financial tables private even if an unrelated role receives DML grants", async () => {
 		const tables = [
 			"image_pass_grant",
@@ -404,8 +454,9 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 		},
 	);
 	it("limits a 2026-11-04.1 pass to 1K/2K sizes while a legacy pass keeps 4K", async () => {
-		const current = await paymentFixture(undefined, "current");
+		const current = await paymentFixture(undefined, "standard");
 		await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(current, tx));
+		await paidSubscriptionFixture(current.ownerId);
 		const fourK = await jobFixture(current.ownerId);
 		await expect(
 			sqlTransaction((tx) =>
@@ -443,6 +494,151 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 		);
 		expect(after).toMatchObject({ available: 4, reserved: 2 });
 		expect(after.availableSkuKeys).toContain("nano-banana-pro-4k");
+		expect(after.subscriptionFreeSkuKeys).toEqual([]);
+	});
+	it("selects only new grants for a free owner's premium job even when older units are first", async () => {
+		const legacy = await paymentFixture(undefined, "legacy");
+		const oldGrant = await sqlTransaction((tx) =>
+			fulfillImagePassPurchaseInTransaction(legacy, tx),
+		);
+		const jobId = await jobFixture(legacy.ownerId);
+		await expect(
+			sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: legacy.ownerId, jobId }, tx),
+			),
+		).rejects.toThrow("IMAGE_PASS_INSUFFICIENT");
+		const current = await paymentFixture(legacy.ownerId, "current");
+		const newGrant = await sqlTransaction((tx) =>
+			fulfillImagePassPurchaseInTransaction(current, tx),
+		);
+		const jobs = [jobId, await jobFixture(legacy.ownerId), await jobFixture(legacy.ownerId)];
+		for (const id of jobs)
+			await sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: legacy.ownerId, jobId: id }, tx),
+			);
+		const reserved = await pool!.query(
+			`SELECT u."grantId" FROM image_pass_reservation r JOIN image_pass_unit u ON u.id=r."unitId" WHERE r."jobId"=ANY($1::text[])`,
+			[jobs],
+		);
+		expect(reserved.rows).toEqual(jobs.map(() => ({ grantId: newGrant.grantId })));
+		const extraJob = await jobFixture(legacy.ownerId);
+		await expect(
+			sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: legacy.ownerId, jobId: extraJob }, tx),
+			),
+		).rejects.toThrow("IMAGE_PASS_INSUFFICIENT");
+		const balance = await sqlTransaction((tx) =>
+			getImagePassBalance({ ownerId: legacy.ownerId }, tx),
+		);
+		expect(balance).toMatchObject({ available: 3, reserved: 3, subscriptionFreeSkuKeys: [] });
+		expect(
+			(
+				await pool!.query(
+					`SELECT count(*) FROM image_pass_unit WHERE "grantId"=$1 AND status='AVAILABLE'`,
+					[oldGrant.grantId],
+				)
+			).rows[0].count,
+		).toBe(3n);
+		await paidSubscriptionFixture(legacy.ownerId);
+		await sqlTransaction((tx) =>
+			reserveImagePassForJobInTransaction({ ownerId: legacy.ownerId, jobId: extraJob }, tx),
+		);
+		expect(
+			(
+				await pool!.query(
+					`SELECT u."grantId" FROM image_pass_reservation r JOIN image_pass_unit u ON u.id=r."unitId" WHERE r."jobId"=$1`,
+					[extraJob],
+				)
+			).rows[0].grantId,
+		).toBe(oldGrant.grantId);
+	});
+	it("rechecks a lost subscription before spending old units and preserves accepted replay", async () => {
+		const legacy = await paymentFixture(undefined, "legacy");
+		await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(legacy, tx));
+		const subscriptionId = await paidSubscriptionFixture(legacy.ownerId);
+		const acceptedJob = await jobFixture(legacy.ownerId);
+		const first = await sqlTransaction((tx) =>
+			reserveImagePassForJobInTransaction({ ownerId: legacy.ownerId, jobId: acceptedJob }, tx),
+		);
+		await pool!.query(
+			`UPDATE subscription SET status='EXPIRED',"currentPeriodEnd"=now()-interval '1 second' WHERE id=$1`,
+			[subscriptionId],
+		);
+		const unusedJob = await jobFixture(legacy.ownerId);
+		await expect(
+			sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: legacy.ownerId, jobId: unusedJob }, tx),
+			),
+		).rejects.toThrow("IMAGE_PASS_INSUFFICIENT");
+		await expect(
+			sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: legacy.ownerId, jobId: acceptedJob }, tx),
+			),
+		).resolves.toEqual(first);
+	});
+	it.each(["legacy", "standard", "current"] as const)(
+		"caps refunds at the frozen %s purchase amount",
+		async (offer) => {
+			const f = await paymentFixture(undefined, offer);
+			await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
+			const refund = {
+				provider: "paypal" as const,
+				providerPaymentId: f.providerPaymentId,
+				providerAdjustmentId: "refund-" + crypto.randomUUID(),
+				amountMicros: f.amountMicros + 1n,
+				currency: "USD",
+				occurredAt: new Date(),
+				kind: "REFUND" as const,
+			};
+			await expect(
+				sqlTransaction((tx) => revokeImagePassPurchaseInTransaction(refund, tx)),
+			).rejects.toThrow("IMAGE_PASS_ADJUSTMENT_INVALID");
+			await sqlTransaction((tx) =>
+				revokeImagePassPurchaseInTransaction({ ...refund, amountMicros: f.amountMicros }, tx),
+			);
+			expect(
+				await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+			).toMatchObject({ available: 0, revoked: 3, subscriptionFreeSkuKeys: [] });
+		},
+	);
+	it.each(["legacy", "current"] as const)(
+		"rejects a directly inserted %s grant with the other offer's amount",
+		async (offer) => {
+			const f = await paymentFixture(undefined, offer);
+			const snapshot = offer === "legacy" ? legacyOfferSnapshot() : getImagePassOfferSnapshot();
+			const wrongAmount = offer === "legacy" ? 2_990_000n : 1_000_000n;
+			await expect(
+				pool!.query(
+					`INSERT INTO image_pass_grant (id,"checkoutIntentId","ownerId",provider,"providerOrderId","providerPaymentId","paidAmountMicros",currency,"offerSnapshot","paidAt") VALUES ($1,$2,$3,'paypal',$4,$5,$6,'USD',$7,now())`,
+					[
+						"invalid-grant-" + crypto.randomUUID(),
+						f.checkoutIntentId,
+						f.ownerId,
+						f.providerOrderId,
+						f.providerPaymentId,
+						wrongAmount,
+						JSON.stringify(snapshot),
+					],
+				),
+			).rejects.toThrow("image_pass_grant_paid_offer_check");
+		},
+	);
+	it("rejects a direct adjustment above the historical grant's paid amount", async () => {
+		const f = await paymentFixture(undefined, "legacy");
+		const grant = await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
+		await expect(
+			pool!.query(
+				`INSERT INTO image_pass_adjustment (id,"grantId",provider,"providerAdjustmentId",kind,"amountMicros",currency,"occurredAt") VALUES ($1,$2,'paypal',$1,'REFUND',1000001,'USD',now())`,
+				["over-refund-" + crypto.randomUUID(), grant.grantId],
+			),
+		).rejects.toThrow("IMAGE_PASS_ADJUSTMENT_INVALID");
+		expect(
+			(
+				await pool!.query(`SELECT count(*) FROM image_pass_adjustment WHERE "grantId"=$1`, [
+					grant.grantId,
+				])
+			).rows[0].count,
+		).toBe(0n);
 	});
 	it("atomically admits only three of four concurrent jobs, without a credit reservation", async () => {
 		const f = await paymentFixture();
@@ -748,32 +944,53 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 		).rejects.toThrow("IMAGE_PASS_LEDGER_IMMUTABLE");
 	});
 	it.each([
-		{ paid: false, premium: false, usage: 0n, admitted: true },
-		{ paid: false, premium: false, usage: 3n * 1024n * 1024n * 1024n, admitted: false },
-		{ paid: false, premium: true, usage: 0n, admitted: false },
-		{ paid: false, premium: true, usage: 3n * 1024n * 1024n * 1024n, admitted: false },
-		{ paid: true, premium: true, usage: 3n * 1024n * 1024n * 1024n, admitted: true },
+		{ offer: "legacy" as const, paid: false, premium: false, usage: 0n, debt: 0n, admitted: true },
+		{
+			offer: "legacy" as const,
+			paid: false,
+			premium: false,
+			usage: 3n * 1024n * 1024n * 1024n,
+			debt: 0n,
+			admitted: false,
+		},
+		{ offer: "legacy" as const, paid: false, premium: true, usage: 0n, debt: 0n, admitted: false },
+		{
+			offer: "legacy" as const,
+			paid: false,
+			premium: true,
+			usage: 3n * 1024n * 1024n * 1024n,
+			debt: 0n,
+			admitted: false,
+		},
+		{
+			offer: "legacy" as const,
+			paid: true,
+			premium: true,
+			usage: 3n * 1024n * 1024n * 1024n,
+			debt: 0n,
+			admitted: true,
+		},
+		{ offer: "current" as const, paid: false, premium: true, usage: 0n, debt: 0n, admitted: true },
+		{
+			offer: "current" as const,
+			paid: false,
+			premium: true,
+			usage: 3n * 1024n * 1024n * 1024n,
+			debt: 0n,
+			admitted: false,
+		},
+		{ offer: "current" as const, paid: false, premium: true, usage: 0n, debt: 1n, admitted: false },
 	])(
-		"retains subscription and storage policy for passes: paid=$paid premium=$premium admitted=$admitted",
-		async ({ paid, premium, usage, admitted }) => {
-			const f = await paymentFixture();
+		"retains funding, debt and storage policy for $offer passes: paid=$paid premium=$premium debt=$debt admitted=$admitted",
+		async ({ offer, paid, premium, usage, debt, admitted }) => {
+			const f = await paymentFixture(undefined, offer);
 			await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
-			if (paid) {
-				const planId = "paid-plan-" + crypto.randomUUID();
-				const subscriptionId = "paid-sub-" + crypto.randomUUID();
+			if (paid) await paidSubscriptionFixture(f.ownerId);
+			if (debt)
 				await pool!.query(
-					`INSERT INTO billing_plan (id,provider,"providerPriceId","productKind",name,"creditsPerPeriod","priceMicros",currency,metadata,"updatedAt") VALUES ($1,'paypal',$1,'PLAN','creator',1,1000000,'USD','{}',now())`,
-					[planId],
+					`INSERT INTO credit_account (id,"ownerType","ownerId","creditDebt","updatedAt") VALUES ($1,'USER',$2,$3,now())`,
+					["debt-account-" + crypto.randomUUID(), f.ownerId, debt],
 				);
-				await pool!.query(
-					`INSERT INTO subscription (id,"ownerType","ownerId",provider,"providerSubscriptionId","planId",status,"currentPeriodStart","currentPeriodEnd","updatedAt") VALUES ($1,'USER',$2,'paypal',$1,$3,'ACTIVE',now()-interval '1 day',now()+interval '1 day',now())`,
-					[subscriptionId, f.ownerId, planId],
-				);
-				await pool!.query(
-					`INSERT INTO billing_period (id,"subscriptionId","startsAt","endsAt",status,"creditAmount","paidAmount","updatedAt") VALUES ($1,$2,now()-interval '1 day',now()+interval '1 day','ACTIVE',0,1000000,now())`,
-					["period-" + crypto.randomUUID(), subscriptionId],
-				);
-			}
 			if (usage)
 				await pool!.query(
 					`INSERT INTO storage_usage_reservation (id,"ownerType","ownerId",bytes,status,"referenceKey","expiresAt") VALUES ($1,'USER',$2,$3,'COMMITTED',$1,now()+interval '1 day')`,
@@ -856,7 +1073,11 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 			);
 			if (!admitted) {
 				await expect(result).rejects.toThrow(
-					premium && !paid ? "ENTITLEMENT_REQUIRED" : "STORAGE_QUOTA_EXCEEDED",
+					premium && !paid && offer === "legacy"
+						? "IMAGE_PASS_INSUFFICIENT"
+						: debt
+							? "CREDIT_DEBT_OUTSTANDING"
+							: "STORAGE_QUOTA_EXCEEDED",
 				);
 				expect(
 					await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),

@@ -95,7 +95,7 @@
 			},
 			"free": {
 				"question": "Puis-je utiliser l’IA image à image gratuitement ?",
-				"answer": "Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel. Les autres modèles et la HD nécessitent un abonnement payant actif."
+				"answer": "Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel. Utiliser des crédits pour les autres modèles et la HD nécessite un abonnement payant actif. Le pack à 2,99 USD comprend 3 images réussies avec tous les modèles et formats d’image actuellement disponibles, sans abonnement."
 			},
 			"control": {
 				"question": "Tous les détails de mon image originale seront-ils conservés ?",
@@ -153,7 +153,7 @@
 			},
 			"guestVsFree": {
 				"question": "Quelle est la différence entre l’accès invité et Free ?",
-				"answer": "Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel. Les autres modèles et la HD nécessitent un abonnement payant actif. Les images générées avec les crédits du compte n’ont pas de filigrane invité et ont un objectif de conservation de 30 jours. Téléchargez les résultats à conserver."
+				"answer": "Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel. Utiliser des crédits pour les autres modèles et la HD nécessite un abonnement payant actif. Le pack à 2,99 USD comprend 3 images réussies avec tous les modèles et formats d’image actuellement disponibles, sans abonnement. Les images générées avec les crédits du compte n’ont pas de filigrane invité et ont un objectif de conservation de 30 jours. Téléchargez les résultats à conserver."
 			},
 			"editTiers": {
 				"question": "Quels modèles d’image et réglages de sortie sont disponibles ?",
@@ -666,7 +666,7 @@
 		},
 		"pricing": {
 			"title": "Retouche d’images IA gratuite et forfaits payants",
-			"description": "Les comptes éligibles reçoivent 10 EzImageAI Credits une seule fois pour deux générations Nano Banana 2 Lite 1K à 5 crédits chacune. Aucun renouvellement mensuel. Les abonnements payants actifs donnent accès aux autres modèles et aux options HD."
+			"description": "Les comptes éligibles reçoivent 10 EzImageAI Credits une seule fois pour deux générations Nano Banana 2 Lite 1K à 5 crédits chacune. Aucun renouvellement mensuel. Les abonnements payants actifs donnent accès aux autres modèles et aux options HD. Le pack à 2,99 USD propose aussi 3 images réussies avec tous les modèles et formats d’image actuellement disponibles, sans abonnement."
 		},
 		"guides": {
 			"quickStart": "Commencer votre première retouche",
@@ -683,7 +683,7 @@
 				},
 				"guestVsFree": {
 					"question": "Puis-je utiliser EzImageAI comme éditeur d’images IA gratuit ?",
-					"answer": "Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel. Les autres modèles et la HD nécessitent un abonnement payant actif. Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. « No Restrictions » désigne la retouche flexible par prompt au-delà des modèles fixes ; les limites de sécurité, légales, du modèle et d’usage restent applicables."
+					"answer": "Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel. Utiliser des crédits pour les autres modèles et la HD nécessite un abonnement payant actif. Le pack à 2,99 USD comprend 3 images réussies avec tous les modèles et formats d’image actuellement disponibles, sans abonnement. Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. « No Restrictions » désigne la retouche flexible par prompt au-delà des modèles fixes ; les limites de sécurité, légales, du modèle et d’usage restent applicables."
 				}
 			}
 		},

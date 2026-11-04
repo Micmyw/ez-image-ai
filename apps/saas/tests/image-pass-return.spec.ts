@@ -1,4 +1,5 @@
 import { expect, test as base, type Page } from "@playwright/test";
+import { IMAGE_SKU_KEYS } from "@repo/config/client";
 
 import {
 	mockCheckoutDiagnostic,
@@ -69,7 +70,14 @@ const test = base.extend<{ paymentMock: PaymentMock }>({
 				mock.balanceReads++;
 				await route.fulfill({
 					json: {
-						json: { available: mock.available, reserved: mock.reserved, consumed: 0, revoked: 0 },
+						json: {
+							available: mock.available,
+							reserved: mock.reserved,
+							consumed: 0,
+							revoked: 0,
+							availableSkuKeys: mock.available > 0 ? IMAGE_SKU_KEYS : [],
+							subscriptionFreeSkuKeys: mock.available > 0 ? IMAGE_SKU_KEYS : [],
+						},
 					},
 				});
 				return;
@@ -85,7 +93,14 @@ const test = base.extend<{ paymentMock: PaymentMock }>({
 			}
 			if (path === "/api/rpc/payments/getImagePassCheckoutState") {
 				mock.stateReads++;
-				await route.fulfill({ json: { json: { status: mock.status } } });
+				await route.fulfill({
+					json: {
+						json: {
+							status: mock.status,
+							offer: { offerVersion: "2026-11-04.1", currency: "USD", amount: "1.00", units: 3 },
+						},
+					},
+				});
 				return;
 			}
 			if (path === "/api/rpc/payments/createImagePassCheckout") {
@@ -155,7 +170,9 @@ for (const viewport of [
 			await expect(page).toHaveURL(/\/image-pass$/);
 			await expect(page.getByRole("heading", { name: "3 successful images" })).toBeVisible();
 			await expect(page.getByRole("link", { name: "Create an account or sign in" })).toBeVisible();
-			await expect(page.getByTestId("image-pass-size-rule")).toContainText("1K and 2K");
+			await expect(page.getByTestId("image-pass-size-rule")).toContainText("4K");
+			await expect(page.locator("main")).toContainText("USD 2.99");
+			await expect(page.locator("main")).toContainText("No subscription is required");
 			await expect(page.locator("main")).not.toContainText("imagePass.");
 			expect(paymentMock.checkouts).toBe(0);
 			expect(paymentMock.captures).toBe(0);

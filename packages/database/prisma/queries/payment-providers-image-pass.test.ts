@@ -6,7 +6,11 @@ vi.mock("../client", () => ({
 		throw new Error("UNEXPECTED_DEFAULT_DATABASE");
 	}),
 }));
-import { getImagePassOfferSnapshot } from "@repo/config/image-pass";
+import {
+	getImagePassOfferSnapshot,
+	IMAGE_PASS_LEGACY_OFFER,
+	IMAGE_PASS_STANDARD_OFFER,
+} from "@repo/config/image-pass";
 
 import { createPaymentCheckoutIntent } from "./payment-providers";
 
@@ -56,6 +60,19 @@ describe("image-pass checkout persistence", () => {
 			}),
 		});
 	});
+	it.each([IMAGE_PASS_LEGACY_OFFER, IMAGE_PASS_STANDARD_OFFER])(
+		"preserves supplied $offerVersion terms instead of substituting current pricing",
+		async (snapshot) => {
+			const { client, create } = fixture();
+			await createPaymentCheckoutIntent(
+				{ ...command, imagePassOfferSnapshot: snapshot },
+				client as never,
+			);
+			expect(create).toHaveBeenCalledWith({
+				data: expect.objectContaining({ imagePassOfferSnapshot: snapshot }),
+			});
+		},
+	);
 	it.each([
 		{ provider: "waffo" },
 		{ ownerType: "ORGANIZATION" },
@@ -88,6 +105,8 @@ describe("image-pass checkout persistence", () => {
 		for (const patch of [
 			{ billingPlanId: "another" },
 			{ imagePassOfferSnapshot: { ...getImagePassOfferSnapshot(), units: 4 } },
+			{ imagePassOfferSnapshot: IMAGE_PASS_LEGACY_OFFER },
+			{ imagePassOfferSnapshot: IMAGE_PASS_STANDARD_OFFER },
 		]) {
 			const { client } = fixture({ ...command, ...patch, status: "CREATED" });
 			await expect(createPaymentCheckoutIntent(command, client as never)).rejects.toThrow(

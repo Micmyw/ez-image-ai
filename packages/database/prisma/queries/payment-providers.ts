@@ -1,8 +1,4 @@
-import {
-	getImagePassOfferSnapshot,
-	isImagePassOfferSnapshot,
-	type ImagePassOfferSnapshot,
-} from "@repo/config/image-pass";
+import { isImagePassOfferSnapshot, type ImagePassOfferSnapshot } from "@repo/config/image-pass";
 
 import { readCheckoutRecovery } from "../../shared/checkout-recovery";
 import type { Prisma } from "../generated/client";
@@ -243,7 +239,7 @@ export async function createPaymentCheckoutIntent(
 				attribution: input.attribution,
 				...creditPackSnapshot,
 				...(input.productKind === "IMAGE_PASS"
-					? { imagePassOfferSnapshot: getImagePassOfferSnapshot() }
+					? { imagePassOfferSnapshot: input.imagePassOfferSnapshot as Prisma.InputJsonValue }
 					: {}),
 			},
 		});
@@ -669,7 +665,9 @@ function matchesTrustedCheckoutCommand(
 	if (expectedProductKind === "IMAGE_PASS")
 		return (
 			intent.billingPlanId === input.billingPlanId &&
-			isImagePassOfferSnapshot(intent.imagePassOfferSnapshot)
+			isImagePassOfferSnapshot(intent.imagePassOfferSnapshot) &&
+			input.productKind === "IMAGE_PASS" &&
+			intent.imagePassOfferSnapshot.offerVersion === input.imagePassOfferSnapshot.offerVersion
 		);
 
 	// Subscriber eligibility and catalog pricing are evaluated only for the first

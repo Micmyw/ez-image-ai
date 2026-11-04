@@ -1,8 +1,16 @@
-import { IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config";
-import { isImagePassOfferSnapshot } from "@repo/config/image-pass";
-import { IMAGE_PASS_AMOUNT_MICROS, isImagePassBillingPlan } from "@repo/config/image-pass.server";
+import { IMAGE_SKU_KEYS_BY_PRODUCT, resolvePlanEntitlement } from "@repo/config";
+import {
+	IMAGE_PASS_PUBLIC_OFFER,
+	imagePassIncludesModelAccess,
+	isImagePassOfferSnapshot,
+} from "@repo/config/image-pass";
+import {
+	imagePassBillingPlanMatchesOffer,
+	imagePassOfferAmountMicros,
+} from "@repo/config/image-pass.server";
 
 import type { Prisma } from "../../generated/client";
+import { findEffectivePaidSubscription } from "./billing";
 
 export type GenerationFundingSource = "CREDITS" | "IMAGE_PASS";
 type ImagePassReadClient = Pick<Prisma.TransactionClient, "$queryRaw">;
@@ -39,14 +47,22 @@ export async function getGenerationFundingReservation(
 	return pass ?? null;
 }
 export async function assertImagePassAvailable(
-	input: { ownerId: string; productKey: string; skuKey: unknown; requestedOutputCount?: unknown },
+	input: {
+		ownerId: string;
+		productKey: string;
+		skuKey: unknown;
+		requestedOutputCount?: unknown;
+		/** Server-derived: the current plan does not include this product. */
+		requireModelAccess?: boolean;
+	},
 	tx: ImagePassReadClient,
 ): Promise<void> {
 	assertImagePassSelection({ ...input, requestedOutputCount: input.requestedOutputCount ?? 1 });
 	const [unit] = await tx.$queryRaw<
-		Array<{ id: string }>
-	>`SELECT unit."id" FROM "image_pass_unit" unit JOIN "image_pass_grant" g ON g."id"=unit."grantId" WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE' AND unit."status"='AVAILABLE' AND (g."offerSnapshot"->'allowedSkuKeys') ? ${String(input.skuKey)} LIMIT 1`;
-	if (!unit) throw new Error("IMAGE_PASS_INSUFFICIENT");
+		Array<{ id: string; offerSnapshot: unknown }>
+	>`SELECT unit."id",g."offerSnapshot" FROM "image_pass_unit" unit JOIN "image_pass_grant" g ON g."id"=unit."grantId" WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE' AND unit."status"='AVAILABLE' AND (g."offerSnapshot"->'allowedSkuKeys') ? ${String(input.skuKey)} AND (${!input.requireModelAccess} OR (g."offerSnapshot"->>'offerVersion'=${IMAGE_PASS_PUBLIC_OFFER.offerVersion} AND g."offerSnapshot"->>'subscriptionPolicy'='not-required')) LIMIT 1`;
+	if (!unit || (input.requireModelAccess && !imagePassIncludesModelAccess(unit.offerSnapshot)))
+		throw new Error("IMAGE_PASS_INSUFFICIENT");
 }
 export async function reserveImagePassForJobInTransaction(
 	input: { ownerId: string; jobId: string },
@@ -83,10 +99,22 @@ export async function reserveImagePassForJobInTransaction(
 	if (replay) return replay;
 	if (!["RESERVED", "DISPATCH_QUEUED"].includes(job.status))
 		throw new Error("IMAGE_PASS_UNAVAILABLE");
+	// The selected unit itself must authorize the product. An earlier quote can
+	// observe a new pass while an older FIFO pass still requires a subscription.
+	// Recheck after owner/job lock waits using database time, preserving replay above.
+	const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS "now"`;
+	if (!clock) throw new Error("IMAGE_PASS_UNAVAILABLE");
+	const subscription = await findEffectivePaidSubscription(
+		{ ownerType: "USER", ownerId: input.ownerId, now: clock.now },
+		tx,
+	);
+	const entitlement = resolvePlanEntitlement(subscription?.plan.metadata, subscription?.plan.name);
+	const requireModelAccess = !entitlement.allowedProducts.some((key) => key === job.productKey);
 	const [unit] = await tx.$queryRaw<
-		Array<{ id: string; grantId: string }>
-	>`SELECT unit."id",unit."grantId" FROM "image_pass_unit" unit JOIN "image_pass_grant" g ON g."id"=unit."grantId" WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE' AND unit."status"='AVAILABLE' AND (g."offerSnapshot"->'allowedSkuKeys') ? ${String(snapshot?.skuKey)} ORDER BY g."paidAt",g."id",unit."ordinal" LIMIT 1 FOR UPDATE OF unit,g`;
-	if (!unit) throw new Error("IMAGE_PASS_INSUFFICIENT");
+		Array<{ id: string; grantId: string; offerSnapshot: unknown }>
+	>`SELECT unit."id",unit."grantId",g."offerSnapshot" FROM "image_pass_unit" unit JOIN "image_pass_grant" g ON g."id"=unit."grantId" WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE' AND unit."status"='AVAILABLE' AND (g."offerSnapshot"->'allowedSkuKeys') ? ${String(snapshot?.skuKey)} AND (${!requireModelAccess} OR (g."offerSnapshot"->>'offerVersion'=${IMAGE_PASS_PUBLIC_OFFER.offerVersion} AND g."offerSnapshot"->>'subscriptionPolicy'='not-required')) ORDER BY g."paidAt",g."id",unit."ordinal" LIMIT 1 FOR UPDATE OF unit,g`;
+	if (!unit || (requireModelAccess && !imagePassIncludesModelAccess(unit.offerSnapshot)))
+		throw new Error("IMAGE_PASS_INSUFFICIENT");
 	const id = crypto.randomUUID();
 	await tx.$executeRaw`UPDATE "image_pass_unit" SET "status"='RESERVED' WHERE "id"=${unit.id} AND "status"='AVAILABLE'`;
 	await tx.$executeRaw`INSERT INTO "image_pass_reservation" ("id","unitId","jobId","ownerId") VALUES (${id},${unit.id},${input.jobId},${input.ownerId})`;
@@ -198,7 +226,6 @@ export async function revokeImagePassPurchaseInTransaction(
 		!input.providerPaymentId ||
 		!input.providerAdjustmentId ||
 		input.amountMicros <= 0n ||
-		input.amountMicros > IMAGE_PASS_AMOUNT_MICROS ||
 		input.currency !== "USD" ||
 		!["REFUND", "DISPUTE"].includes(input.kind) ||
 		!Number.isFinite(input.occurredAt.getTime())
@@ -207,6 +234,7 @@ export async function revokeImagePassPurchaseInTransaction(
 	await lockImagePassPayment(input.providerPaymentId, tx);
 	const grant = await getImagePassPurchaseByProviderPayment(input, tx);
 	if (!grant) throw new Error("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING");
+	if (input.amountMicros > grant.paidAmountMicros) throw new Error("IMAGE_PASS_ADJUSTMENT_INVALID");
 	await lockImagePassOwner(grant.ownerId, tx);
 	const [existing] = await tx.$queryRaw<
 		Array<{ grantId: string; kind: string; amountMicros: bigint; currency: string }>
@@ -264,7 +292,7 @@ export async function fulfillImagePassPurchaseInTransaction(
 ): Promise<{ created: boolean; grantId: string }> {
 	if (
 		input.provider !== "paypal" ||
-		input.amountMicros !== IMAGE_PASS_AMOUNT_MICROS ||
+		input.amountMicros <= 0n ||
 		input.currency !== "USD" ||
 		!input.providerPaymentId ||
 		!input.providerOrderId ||
@@ -325,6 +353,8 @@ export async function fulfillImagePassPurchaseInTransaction(
 		FROM "payment_checkout_intent" intent JOIN "billing_plan" plan ON plan."id"=intent."billingPlanId"
 		WHERE intent."id"=${input.checkoutIntentId} FOR UPDATE OF intent`;
 	if (!intent) throw new Error("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING");
+	if (imagePassOfferAmountMicros(intent.imagePassOfferSnapshot) !== input.amountMicros)
+		throw new Error("IMAGE_PASS_PAYMENT_INVALID");
 	if (
 		intent.provider !== "paypal" ||
 		intent.ownerType !== "USER" ||
@@ -335,16 +365,19 @@ export async function fulfillImagePassPurchaseInTransaction(
 		intent.providerOrderId !== input.providerOrderId ||
 		intent.status !== "PROVIDER_PENDING" ||
 		!isImagePassOfferSnapshot(intent.imagePassOfferSnapshot) ||
-		!isImagePassBillingPlan({
-			provider: intent.planProvider,
-			providerPriceId: intent.providerPriceId,
-			productKind: intent.planProductKind,
-			name: intent.planName,
-			priceMicros: intent.priceMicros,
-			currency: intent.currency,
-			creditsPerPeriod: intent.creditsPerPeriod,
-			metadata: intent.metadata,
-		})
+		!imagePassBillingPlanMatchesOffer(
+			{
+				provider: intent.planProvider,
+				providerPriceId: intent.providerPriceId,
+				productKind: intent.planProductKind,
+				name: intent.planName,
+				priceMicros: intent.priceMicros,
+				currency: intent.currency,
+				creditsPerPeriod: intent.creditsPerPeriod,
+				metadata: intent.metadata,
+			},
+			intent.imagePassOfferSnapshot,
+		)
 	)
 		throw new Error("IMAGE_PASS_PAYMENT_BINDING_CONFLICT");
 	await lockImagePassOwner(intent.ownerId, tx);
@@ -391,6 +424,7 @@ export async function getImagePassBalance(
 		// Sizes the available units can pay for, from each grant's frozen offer
 		// snapshot. Pre-restriction grants keep every size (grandfathered).
 		availableSkuKeys: await getImagePassAvailableSkuKeys(input, tx),
+		subscriptionFreeSkuKeys: await getImagePassSubscriptionFreeSkuKeys(input, tx),
 	};
 }
 export async function getImagePassAvailableSkuKeys(
@@ -405,12 +439,34 @@ export async function getImagePassAvailableSkuKeys(
 	return rows.map((row) => row.skuKey).sort();
 }
 
+async function getImagePassSubscriptionFreeSkuKeys(
+	input: { ownerId: string },
+	tx: ImagePassReadClient,
+): Promise<string[]> {
+	const rows = await tx.$queryRaw<Array<{ offerSnapshot: unknown }>>`
+		SELECT DISTINCT g."offerSnapshot" FROM "image_pass_grant" g
+		WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE'
+		AND g."offerSnapshot"->>'offerVersion'=${IMAGE_PASS_PUBLIC_OFFER.offerVersion}
+		AND g."offerSnapshot"->>'subscriptionPolicy'='not-required'
+		AND EXISTS (SELECT 1 FROM "image_pass_unit" unit WHERE unit."grantId"=g."id" AND unit."status"='AVAILABLE')`;
+	return [
+		...new Set(
+			rows.flatMap(({ offerSnapshot }) =>
+				imagePassIncludesModelAccess(offerSnapshot) && isImagePassOfferSnapshot(offerSnapshot)
+					? offerSnapshot.allowedSkuKeys
+					: [],
+			),
+		),
+	].sort();
+}
+
 export interface ImagePassPurchase {
 	id: string;
 	checkoutIntentId: string;
 	providerOrderId: string;
 	ownerId: string;
 	status: "ACTIVE" | "FROZEN";
+	paidAmountMicros: bigint;
 }
 export async function getImagePassPurchaseByProviderPayment(
 	input: { provider: "paypal"; providerPaymentId: string },
@@ -418,7 +474,7 @@ export async function getImagePassPurchaseByProviderPayment(
 ): Promise<ImagePassPurchase | null> {
 	const [row] = await tx.$queryRaw<
 		ImagePassPurchase[]
-	>`SELECT "id","checkoutIntentId","providerOrderId","ownerId","status" FROM "image_pass_grant" WHERE "provider"=${input.provider} AND "providerPaymentId"=${input.providerPaymentId}`;
+	>`SELECT "id","checkoutIntentId","providerOrderId","ownerId","status","paidAmountMicros" FROM "image_pass_grant" WHERE "provider"=${input.provider} AND "providerPaymentId"=${input.providerPaymentId}`;
 	return row ?? null;
 }
 export async function getImagePassPurchaseForCheckoutIntent(
@@ -428,7 +484,7 @@ export async function getImagePassPurchaseForCheckoutIntent(
 	if (input.ownerType !== "USER") throw new Error("IMAGE_PASS_OWNER_INVALID");
 	const [row] = await tx.$queryRaw<
 		ImagePassPurchase[]
-	>`SELECT "id","checkoutIntentId","providerOrderId","ownerId","status" FROM "image_pass_grant" WHERE "checkoutIntentId"=${input.checkoutIntentId} AND "ownerId"=${input.ownerId}`;
+	>`SELECT "id","checkoutIntentId","providerOrderId","ownerId","status","paidAmountMicros" FROM "image_pass_grant" WHERE "checkoutIntentId"=${input.checkoutIntentId} AND "ownerId"=${input.ownerId}`;
 	return row ?? null;
 }
 

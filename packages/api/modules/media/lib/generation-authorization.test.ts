@@ -162,7 +162,7 @@ describe("generation authorization", () => {
 			).rejects.toThrow("INSUFFICIENT_CREDITS");
 		},
 	);
-	it("does not let an available image pass unlock a premium model for a free owner", async () => {
+	it("does not let an available historical image pass unlock a premium model for a free owner", async () => {
 		await expect(
 			assertGenerationAllowed(
 				{
@@ -191,6 +191,90 @@ describe("generation authorization", () => {
 				},
 			),
 		).rejects.toThrow("ENTITLEMENT_REQUIRED");
+	});
+	it.each(
+		EZPIC_PRODUCT_KEYS.flatMap((productKey) =>
+			IMAGE_SKU_KEYS_BY_PRODUCT[productKey].map((skuKey) => ({ productKey, skuKey })),
+		),
+	)(
+		"allows a verified new pass for $productKey / $skuKey without a subscription",
+		async ({ productKey, skuKey }) => {
+			const input = {
+				kind: "text-to-image" as const,
+				prompt: "A ceramic vase",
+				skuKey,
+				aspectRatio: skuKey === "gpt-image-2-4k" ? ("3:2" as const) : ("1:1" as const),
+			};
+			const quote = buildMediaQuote(
+				{ productKey, input, fundingSource: "IMAGE_PASS" },
+				KIE_IMAGE_ROUTE_GRAPH,
+			);
+			await expect(
+				assertGenerationAllowed(
+					{
+						userId: "pass-owner",
+						productKey,
+						input,
+						credits: quote.credits,
+						costMicros: quote.costMicros,
+						fundingSource: "IMAGE_PASS",
+						routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+					},
+					{
+						enforceRateLimit: async () => {},
+						isEnvironmentGenerationEnabled: () => true,
+						loadAccess: async () => ({
+							...BASE_SNAPSHOT,
+							planId: "free",
+							spendableCredits: 0n,
+							imagePassAvailable: true,
+							imagePassIncludesModelAccess: true,
+						}),
+					},
+				),
+			).resolves.toBeUndefined();
+		},
+	);
+	it.each([
+		{ override: { creditDebt: 1n }, error: "CREDIT_DEBT_OUTSTANDING" },
+		{
+			override: { storageUsageBytes: 3n * 1024n * 1024n * 1024n },
+			error: "STORAGE_QUOTA_EXCEEDED",
+		},
+		{ override: { sourceAssetReady: false }, error: "ASSET_NOT_READY" },
+		{ override: { imagePassAvailable: false }, error: "IMAGE_PASS_INSUFFICIENT" },
+		{ override: { modelDisabled: true }, error: "MODEL_DISABLED" },
+	])("retains $error protection with a subscription-free pass", async ({ override, error }) => {
+		await expect(
+			assertGenerationAllowed(
+				{
+					userId: "pass-owner",
+					productKey: "image-nano-banana-pro",
+					credits: 25n,
+					costMicros: 120_000n,
+					fundingSource: "IMAGE_PASS",
+					input: {
+						kind: "text-to-image",
+						prompt: "A vase",
+						skuKey: "nano-banana-pro-4k",
+						aspectRatio: "1:1",
+					},
+					routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+				},
+				{
+					enforceRateLimit: async () => {},
+					isEnvironmentGenerationEnabled: () => true,
+					loadAccess: async () => ({
+						...BASE_SNAPSHOT,
+						planId: "free",
+						spendableCredits: 0n,
+						imagePassAvailable: true,
+						imagePassIncludesModelAccess: true,
+						...override,
+					}),
+				},
+			),
+		).rejects.toThrow(error);
 	});
 	it("allows a subscribed owner to use an image pass without ordinary credits", async () => {
 		await expect(

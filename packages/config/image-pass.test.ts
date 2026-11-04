@@ -4,131 +4,148 @@ import {
 	getImagePassOfferSnapshot,
 	isImagePassOfferSnapshot,
 	isImagePassSkuAllowed,
+	imagePassIncludesModelAccess,
 	IMAGE_PASS_ALLOWED_SKU_KEYS,
 	IMAGE_PASS_LEGACY_OFFER,
+	IMAGE_PASS_STANDARD_OFFER,
 } from "./image-pass";
 import { IMAGE_PASS_OFFER_SUMMARY } from "./image-pass-summary";
 import {
 	isImagePassBillingPlan,
+	imagePassBillingPlanMatchesOffer,
+	imagePassOfferAmountMicros,
 	IMAGE_PASS_AMOUNT_MICROS,
 	IMAGE_PASS_PAYPAL_SKU,
+	LEGACY_IMAGE_PASS_AMOUNT_MICROS,
+	LEGACY_IMAGE_PASS_PAYPAL_SKU,
 } from "./image-pass.server";
 import { IMAGE_SKU_KEYS } from "./product";
 
-describe("one-dollar three-image offer", () => {
-	it("keeps display metadata separate from the unchanged authorization snapshot", () => {
-		const { allowedSkuKeys, ...summary } = getImagePassOfferSnapshot();
-		expect(IMAGE_PASS_OFFER_SUMMARY).toEqual(summary);
-		expect(IMAGE_PASS_OFFER_SUMMARY).not.toHaveProperty("allowedSkuKeys");
+const oldOffers = [IMAGE_PASS_LEGACY_OFFER, IMAGE_PASS_STANDARD_OFFER];
+const currentPlan = {
+	provider: "paypal",
+	providerPriceId: IMAGE_PASS_PAYPAL_SKU,
+	productKind: "IMAGE_PASS",
+	name: "image-pass-3",
+	priceMicros: IMAGE_PASS_AMOUNT_MICROS,
+	currency: "USD",
+	creditsPerPeriod: 0n,
+	metadata: { imagePassOfferSnapshot: getImagePassOfferSnapshot() },
+};
+const oldPlan = {
+	...currentPlan,
+	providerPriceId: LEGACY_IMAGE_PASS_PAYPAL_SKU,
+	priceMicros: LEGACY_IMAGE_PASS_AMOUNT_MICROS,
+	metadata: { imagePassOfferSnapshot: IMAGE_PASS_LEGACY_OFFER },
+};
+
+describe("USD 2.99 three-image offer and immutable historical purchases", () => {
+	it("separates public display metadata from the model-access authorization snapshot", () => {
+		const { allowedSkuKeys, subscriptionPolicy, ...summary } = getImagePassOfferSnapshot();
+		expect(summary).toEqual(IMAGE_PASS_OFFER_SUMMARY);
 		expect(allowedSkuKeys).toEqual(IMAGE_PASS_ALLOWED_SKU_KEYS);
+		expect(subscriptionPolicy).toBe("not-required");
 	});
-	it("freezes the 1K/2K image SKUs as three successful images, using JSON-safe public data", () => {
+	it("covers all current models and resolutions for exactly USD 2.99 without subscription", () => {
 		const offer = getImagePassOfferSnapshot();
 		expect(offer).toMatchObject({
 			provider: "paypal",
-			amount: "1.00",
+			amount: "2.99",
 			currency: "USD",
 			units: 3,
-			offerVersion: "2026-11-04.1",
+			offerVersion: "2026-11-04.2",
 		});
-		expect(offer.allowedSkuKeys).toEqual(IMAGE_PASS_ALLOWED_SKU_KEYS);
-		expect(offer.allowedSkuKeys).toHaveLength(15);
-		expect(isImagePassOfferSnapshot(JSON.parse(JSON.stringify(offer)))).toBe(true);
-		offer.allowedSkuKeys.pop();
-		expect(getImagePassOfferSnapshot().allowedSkuKeys).toHaveLength(15);
-	});
-	it("excludes every 4K/3K size, every Pro model and GPT Image 1.5 high", () => {
-		const excluded = IMAGE_SKU_KEYS.filter((key) => !isImagePassSkuAllowed(key));
-		for (const key of IMAGE_SKU_KEYS) {
-			const highCost = /-(4k|3k)$/.test(key) || /pro/.test(key) || key === "gpt-image-1-5-high";
-			expect(isImagePassSkuAllowed(key), key).toBe(!highCost);
-		}
-		expect(excluded).toEqual(
-			expect.arrayContaining([
-				"nano-banana-2-4k",
-				"nano-banana-pro-1k",
-				"nano-banana-pro-2k",
-				"nano-banana-pro-4k",
-				"gpt-image-2-4k",
-				"seedream-5-lite-high-3k",
-				"seedream-5-pro-basic-1k",
-				"gpt-image-1-5-high",
-			]),
-		);
-		for (const key of IMAGE_PASS_ALLOWED_SKU_KEYS) expect(key).not.toMatch(/4k|3k|pro/);
-		expect(isImagePassSkuAllowed("nano-banana-2-2k")).toBe(true);
+		expect(offer.allowedSkuKeys).toEqual(IMAGE_SKU_KEYS);
+		expect(imagePassIncludesModelAccess(JSON.parse(JSON.stringify(offer)))).toBe(true);
+		for (const key of IMAGE_SKU_KEYS) expect(isImagePassSkuAllowed(key), key).toBe(true);
+		expect(isImagePassSkuAllowed("future-model-8k")).toBe(false);
 		expect(isImagePassSkuAllowed(undefined)).toBe(false);
+		offer.allowedSkuKeys.pop();
+		expect(getImagePassOfferSnapshot().allowedSkuKeys).toHaveLength(29);
 	});
-	it("still accepts the pre-restriction snapshot so earlier buyers keep every size", () => {
-		const legacy = JSON.parse(JSON.stringify(IMAGE_PASS_LEGACY_OFFER));
-		expect(legacy.offerVersion).toBe("2026-10-19.1");
-		expect(legacy.allowedSkuKeys).toEqual(IMAGE_SKU_KEYS);
-		expect(isImagePassOfferSnapshot(legacy)).toBe(true);
-		// A legacy version cannot be combined with the new list or vice versa.
+	it.each(oldOffers)("retains old $offerVersion price and access requirements", (offer) => {
+		const snapshot = JSON.parse(JSON.stringify(offer));
+		expect(isImagePassOfferSnapshot(snapshot)).toBe(true);
+		expect(imagePassIncludesModelAccess(snapshot)).toBe(false);
+		expect(imagePassOfferAmountMicros(snapshot)).toBe(1_000_000n);
+		expect(isImagePassOfferSnapshot({ ...snapshot, subscriptionPolicy: "not-required" })).toBe(
+			false,
+		);
+		expect(isImagePassOfferSnapshot({ ...snapshot, amount: "2.99" })).toBe(false);
+	});
+	it("freezes each historical list independently", () => {
+		expect(IMAGE_PASS_LEGACY_OFFER.allowedSkuKeys).toHaveLength(29);
+		expect(IMAGE_PASS_STANDARD_OFFER.allowedSkuKeys).toHaveLength(15);
+		expect(IMAGE_PASS_STANDARD_OFFER.allowedSkuKeys).not.toContain("nano-banana-pro-4k");
 		expect(
-			isImagePassOfferSnapshot({ ...legacy, allowedSkuKeys: [...IMAGE_PASS_ALLOWED_SKU_KEYS] }),
+			isImagePassOfferSnapshot({
+				...IMAGE_PASS_STANDARD_OFFER,
+				allowedSkuKeys: [...IMAGE_SKU_KEYS],
+			}),
 		).toBe(false);
 		expect(
 			isImagePassOfferSnapshot({
 				...getImagePassOfferSnapshot(),
-				allowedSkuKeys: [...IMAGE_SKU_KEYS],
+				allowedSkuKeys: IMAGE_PASS_STANDARD_OFFER.allowedSkuKeys,
 			}),
 		).toBe(false);
 	});
-	it("keeps paid historical snapshots valid when the current product catalog grows", async () => {
-		const paidSnapshot = JSON.parse(JSON.stringify(IMAGE_PASS_LEGACY_OFFER));
+	it("keeps purchased snapshots valid without silently adding a future catalog model", async () => {
+		const paid = [...oldOffers, getImagePassOfferSnapshot()].map((x) =>
+			JSON.parse(JSON.stringify(x)),
+		);
 		vi.resetModules();
-		vi.doMock("./product", async (importOriginal) => ({
-			...(await importOriginal<typeof import("./product")>()),
-			IMAGE_SKU_KEYS: [...IMAGE_SKU_KEYS, "future-image-2k"],
+		vi.doMock("./product", async (original) => ({
+			...(await original<typeof import("./product")>()),
+			IMAGE_SKU_KEYS: [...IMAGE_SKU_KEYS, "future-image-8k"],
 		}));
 		try {
-			const futureCatalog = await import("./image-pass");
-			expect(futureCatalog.isImagePassOfferSnapshot(paidSnapshot)).toBe(true);
-			expect(futureCatalog.IMAGE_PASS_LEGACY_OFFER.allowedSkuKeys).not.toContain("future-image-2k");
+			const future = await import("./image-pass");
+			for (const offer of paid) expect(future.isImagePassOfferSnapshot(offer)).toBe(true);
+			expect(future.IMAGE_PASS_ALLOWED_SKU_KEYS).not.toContain("future-image-8k");
 		} finally {
 			vi.doUnmock("./product");
 			vi.resetModules();
 		}
 	});
 	it.each([
-		{ amount: "0.01" },
+		{ amount: "1.00" },
 		{ currency: "EUR" },
 		{ units: 75 },
 		{ provider: "waffo" },
 		{ offerVersion: "future" },
 		{ allowedSkuKeys: [] },
-	])("rejects a mutated snapshot %j", (patch) => {
-		expect(isImagePassOfferSnapshot({ ...getImagePassOfferSnapshot(), ...patch })).toBe(false);
+		{ subscriptionPolicy: undefined },
+		{ subscriptionPolicy: "required" },
+	])("rejects forged current offer %j", (patch) => {
+		const snapshot = { ...getImagePassOfferSnapshot(), ...patch };
+		expect(isImagePassOfferSnapshot(snapshot)).toBe(false);
+		expect(imagePassIncludesModelAccess(snapshot)).toBe(false);
+		expect(imagePassOfferAmountMicros(snapshot)).toBeNull();
 	});
-	const plan = {
-		provider: "paypal",
-		providerPriceId: IMAGE_PASS_PAYPAL_SKU,
-		productKind: "IMAGE_PASS",
-		name: "image-pass-3",
-		priceMicros: IMAGE_PASS_AMOUNT_MICROS,
-		currency: "USD",
-		creditsPerPeriod: 0n,
-		metadata: { imagePassOfferSnapshot: getImagePassOfferSnapshot() },
-	};
-	it("uses a dedicated merchant SKU and grants zero ordinary credits", () =>
-		expect(isImagePassBillingPlan(plan)).toBe(true));
-	it("keeps the provisioned billing plan valid while its metadata holds the legacy snapshot", () =>
-		expect(
-			isImagePassBillingPlan({
-				...plan,
-				metadata: { imagePassOfferSnapshot: JSON.parse(JSON.stringify(IMAGE_PASS_LEGACY_OFFER)) },
-			}),
-		).toBe(true));
+	it("matches new billing plan to new offer only, granting no credits", () => {
+		expect(isImagePassBillingPlan(currentPlan)).toBe(true);
+		expect(imagePassBillingPlanMatchesOffer(currentPlan, getImagePassOfferSnapshot())).toBe(true);
+		expect(imagePassOfferAmountMicros(getImagePassOfferSnapshot())).toBe(2_990_000n);
+		for (const offer of oldOffers)
+			expect(imagePassBillingPlanMatchesOffer(currentPlan, offer)).toBe(false);
+	});
+	it("supports both historical $1 offers sharing the original provisioned plan", () => {
+		expect(isImagePassBillingPlan(oldPlan)).toBe(true);
+		for (const offer of oldOffers)
+			expect(imagePassBillingPlanMatchesOffer(oldPlan, offer)).toBe(true);
+		expect(imagePassBillingPlanMatchesOffer(oldPlan, getImagePassOfferSnapshot())).toBe(false);
+	});
 	it.each([
 		{ provider: "waffo" },
-		{ providerPriceId: "other" },
-		{ priceMicros: 100n },
+		{ providerPriceId: LEGACY_IMAGE_PASS_PAYPAL_SKU },
+		{ priceMicros: 1_000_000n },
 		{ currency: "EUR" },
 		{ creditsPerPeriod: 75n },
 		{ productKind: "CREDIT_PACK" },
 		{ metadata: {} },
-	])("rejects a mismatched billing plan %s", (patch) => {
-		expect(isImagePassBillingPlan({ ...plan, ...patch })).toBe(false);
+		{ metadata: { imagePassOfferSnapshot: IMAGE_PASS_LEGACY_OFFER } },
+	])("rejects mixed price/identity plan %s", (patch) => {
+		expect(isImagePassBillingPlan({ ...currentPlan, ...patch })).toBe(false);
 	});
 });

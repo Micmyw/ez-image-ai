@@ -5,8 +5,12 @@ import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { call, type RouterClient } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
-import { getImagePassOfferSnapshot } from "@repo/config/image-pass";
-import { IMAGE_PASS_PAYPAL_SKU } from "@repo/config/image-pass.server";
+import { getImagePassOfferSnapshot, IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
+import {
+	IMAGE_PASS_PAYPAL_SKU,
+	IMAGE_PASS_AMOUNT_MICROS,
+	LEGACY_IMAGE_PASS_PAYPAL_SKU,
+} from "@repo/config/image-pass.server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const transport = vi.hoisted(() => ({
@@ -33,7 +37,7 @@ const plan = {
 	productKind: "IMAGE_PASS",
 	name: "image-pass-3",
 	active: true,
-	priceMicros: 1_000_000n,
+	priceMicros: IMAGE_PASS_AMOUNT_MICROS,
 	currency: "USD",
 	creditsPerPeriod: 0n,
 	metadata: { imagePassOfferSnapshot: getImagePassOfferSnapshot() },
@@ -165,6 +169,12 @@ describe("public image-pass offer availability", () => {
 		{ ...plan, currency: "EUR" },
 		{ ...plan, priceMicros: 2_000_000n },
 		{ ...plan, providerPriceId: "other-offer" },
+		{
+			...plan,
+			providerPriceId: LEGACY_IMAGE_PASS_PAYPAL_SKU,
+			priceMicros: 1_000_000n,
+			metadata: { imagePassOfferSnapshot: IMAGE_PASS_LEGACY_OFFER },
+		},
 	])("hides absent, inactive or mismatched metadata", async (candidate) => {
 		const deps = { ...dependencies(), findPlan: async () => candidate };
 		await expect(resolveImagePassOfferAvailability(deps)).resolves.toEqual({ available: false });

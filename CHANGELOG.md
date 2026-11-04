@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-04 — USD 2.99 image pack with all current models
+
+- Price new three-image packs at USD 2.99 and include all current image models and resolutions, including Pro and 4K, without an additional subscription when using the pack.
+- Keep both USD 1 offer versions, pending PayPal orders and paid grants on their original frozen terms. Confirm the actual order price and cap refunds against the original payment.
+- Recheck eligible pack ownership and reserve a matching unit atomically. Credits keep their subscription requirements; content review, storage limits and uncertain-generation reservations remain in force.
+
 ## 2026-11-04 — Image-pack purchase and generation recovery
 
 - Make the image-pack page public with complete translated copy. Signed-in editors retain their account-scoped draft, input, funding choice and original editor route through purchase and return.

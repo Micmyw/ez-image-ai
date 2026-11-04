@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { PrismaPg } from "@prisma/adapter-pg";
+import { IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { isExplicitVideoVerificationTarget } from "../../../../../tests/load/video-verification-target";
@@ -687,7 +688,10 @@ describe("single-statement job status equivalence", () => {
 					providerPaymentId: job.ownerId,
 					paidAmountMicros: 1_000_000n,
 					currency: "USD",
-					offerSnapshot: {},
+					offerSnapshot: {
+						...IMAGE_PASS_LEGACY_OFFER,
+						allowedSkuKeys: [...IMAGE_PASS_LEGACY_OFFER.allowedSkuKeys],
+					},
 					paidAt: new Date(),
 					units: { create: [1, 2, 3].map((ordinal) => ({ ordinal })) },
 				},

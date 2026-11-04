@@ -1,5 +1,14 @@
-import { getImagePassOfferSnapshot } from "@repo/config/image-pass";
-import { IMAGE_PASS_PAYPAL_SKU } from "@repo/config/image-pass.server";
+import {
+	getImagePassOfferSnapshot,
+	IMAGE_PASS_LEGACY_OFFER,
+	IMAGE_PASS_STANDARD_OFFER,
+	type ImagePassOfferSnapshot,
+} from "@repo/config/image-pass";
+import {
+	IMAGE_PASS_PAYPAL_SKU,
+	LEGACY_IMAGE_PASS_PAYPAL_SKU,
+	imagePassOfferAmountMicros,
+} from "@repo/config/image-pass.server";
 import { Pool, types } from "pg";
 import { describe, it, expect, afterAll, vi } from "vitest";
 // The barrel's default Prisma runtime is not loaded. Every entitlement helper
@@ -102,21 +111,35 @@ async function transaction<T>(operation: (tx: never) => Promise<T>) {
 		c.release();
 	}
 }
-async function paymentFixture() {
+async function paymentFixture(snapshot: ImagePassOfferSnapshot = getImagePassOfferSnapshot()) {
 	const suffix = crypto.randomUUID();
 	const ownerId = `image-pass-owner-${suffix}`;
 	let billingPlanId = `image-pass-plan-${suffix}`;
 	const checkoutIntentId = `image-pass-checkout-${suffix}`;
 	const providerOrderId = `order-${suffix}`;
 	const providerPaymentId = `capture-${suffix}`;
-	const snapshot = getImagePassOfferSnapshot();
+	const amountMicros = imagePassOfferAmountMicros(snapshot);
+	if (amountMicros === null) throw new Error("INVALID_TEST_OFFER");
+	const legacy = amountMicros === 1_000_000n;
+	const merchantSku = legacy ? LEGACY_IMAGE_PASS_PAYPAL_SKU : IMAGE_PASS_PAYPAL_SKU;
+	// Historical restricted offers use the original already-provisioned USD 1 plan.
+	const planSnapshot = legacy ? IMAGE_PASS_LEGACY_OFFER : snapshot;
 	await pool!.query(
 		`INSERT INTO "user" (id,name,email,"emailVerified","createdAt","updatedAt") VALUES ($1,'pass fixture',$2,true,NOW(),NOW())`,
 		[ownerId, `${suffix}@test.invalid`],
 	);
+	await pool!.query(
+		`INSERT INTO billing_plan (id,provider,"providerPriceId","productKind",name,"creditsPerPeriod","priceMicros",currency,metadata,"updatedAt") VALUES ($1,'paypal',$2,'IMAGE_PASS','image-pass-3',0,$3,'USD',$4,NOW()) ON CONFLICT (provider,"providerPriceId") DO NOTHING`,
+		[
+			billingPlanId,
+			merchantSku,
+			amountMicros,
+			JSON.stringify({ imagePassOfferSnapshot: planSnapshot }),
+		],
+	);
 	const plan = await pool!.query(
-		`INSERT INTO billing_plan (id,provider,"providerPriceId","productKind",name,"creditsPerPeriod","priceMicros",currency,metadata,"updatedAt") VALUES ($1,'paypal',$2,'IMAGE_PASS','image-pass-3',0,1000000,'USD',$3,NOW()) ON CONFLICT (provider,"providerPriceId") DO UPDATE SET metadata=EXCLUDED.metadata RETURNING id`,
-		[billingPlanId, IMAGE_PASS_PAYPAL_SKU, JSON.stringify({ imagePassOfferSnapshot: snapshot })],
+		`SELECT id FROM billing_plan WHERE provider='paypal' AND "providerPriceId"=$1`,
+		[merchantSku],
 	);
 	billingPlanId = plan.rows[0].id;
 	await pool!.query(
@@ -130,7 +153,8 @@ async function paymentFixture() {
 		provider: "paypal" as const,
 		providerOrderId,
 		providerPaymentId,
-		amountMicros: 1_000_000n,
+		amountMicros,
+		snapshot,
 		currency: "USD",
 		occurredAt: new Date(),
 	};
@@ -163,24 +187,104 @@ describe.skipIf(!enabled)("image-pass payment reducer real SQL", () => {
 	afterAll(async () => {
 		await pool?.end();
 	});
-	it("concurrent verified capture/webhook delivery grants three units exactly once", async () => {
-		const f = await paymentFixture();
-		const results = await Promise.all([
-			transaction((tx) => applyImagePassPaymentFact(paymentFact(f), tx)),
-			transaction((tx) =>
-				applyImagePassPaymentFact({ ...paymentFact(f), providerEventId: "webhook-duplicate" }, tx),
-			),
-		]);
-		expect(results.reduce((sum, result) => sum + result.grantsCreated, 0)).toBe(1);
-		expect(
-			await transaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
-		).toMatchObject({
-			available: 3,
-			reserved: 0,
-			consumed: 0,
-			revoked: 0,
-		});
-	});
+	it.each([getImagePassOfferSnapshot(), IMAGE_PASS_LEGACY_OFFER, IMAGE_PASS_STANDARD_OFFER])(
+		"concurrent verified $offerVersion capture/webhook delivery grants three units exactly once",
+		async (snapshot) => {
+			const f = await paymentFixture(snapshot);
+			const results = await Promise.all([
+				transaction((tx) => applyImagePassPaymentFact(paymentFact(f), tx)),
+				transaction((tx) =>
+					applyImagePassPaymentFact(
+						{ ...paymentFact(f), providerEventId: "webhook-duplicate" },
+						tx,
+					),
+				),
+			]);
+			expect(results.reduce((sum, result) => sum + result.grantsCreated, 0)).toBe(1);
+			expect(
+				await transaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+			).toMatchObject({
+				available: 3,
+				reserved: 0,
+				consumed: 0,
+				revoked: 0,
+			});
+			const grant = await pool!.query(
+				`SELECT "paidAmountMicros","offerSnapshot" FROM image_pass_grant WHERE "checkoutIntentId"=$1`,
+				[f.checkoutIntentId],
+			);
+			expect(grant.rows).toEqual([{ paidAmountMicros: f.amountMicros, offerSnapshot: snapshot }]);
+		},
+	);
+	it.each([getImagePassOfferSnapshot(), IMAGE_PASS_LEGACY_OFFER, IMAGE_PASS_STANDARD_OFFER])(
+		"rejects a capture from the wrong price cohort for $offerVersion",
+		async (snapshot) => {
+			const f = await paymentFixture(snapshot);
+			const wrongAmount = f.amountMicros === 1_000_000n ? 2_990_000n : 1_000_000n;
+			await expect(
+				transaction((tx) =>
+					applyImagePassPaymentFact({ ...paymentFact(f), amountMicros: wrongAmount }, tx),
+				),
+			).rejects.toThrow("IMAGE_PASS_PAYMENT_INVALID");
+			const rows = await pool!.query(
+				`SELECT count(*) FROM image_pass_grant WHERE "checkoutIntentId"=$1`,
+				[f.checkoutIntentId],
+			);
+			expect(rows.rows[0].count).toBe(0n);
+		},
+	);
+	it.each([getImagePassOfferSnapshot(), IMAGE_PASS_LEGACY_OFFER, IMAGE_PASS_STANDARD_OFFER])(
+		"accepts and replays a full refund at frozen $offerVersion price",
+		async (snapshot) => {
+			const f = await paymentFixture(snapshot);
+			await transaction((tx) => applyImagePassPaymentFact(paymentFact(f), tx));
+			const refund = {
+				provider: "paypal" as const,
+				providerEventId: `refund-${f.providerPaymentId}`,
+				providerPaymentId: f.providerPaymentId,
+				providerRefundId: `refund-${f.providerPaymentId}`,
+				amountMicros: f.amountMicros,
+				currency: "USD",
+				occurredAt: new Date(),
+			};
+			await transaction((tx) => tryApplyImagePassAdjustment(refund, tx));
+			await transaction((tx) => tryApplyImagePassAdjustment(refund, tx));
+			const rows = await pool!.query(
+				`SELECT adjustment."amountMicros" FROM image_pass_adjustment adjustment JOIN image_pass_grant g ON g.id=adjustment."grantId" WHERE g."checkoutIntentId"=$1`,
+				[f.checkoutIntentId],
+			);
+			expect(rows.rows).toEqual([{ amountMicros: f.amountMicros }]);
+			expect(
+				await transaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+			).toMatchObject({ available: 0, revoked: 3 });
+		},
+	);
+	it.each([IMAGE_PASS_LEGACY_OFFER, IMAGE_PASS_STANDARD_OFFER])(
+		"does not raise the $offerVersion refund ceiling to the new price",
+		async (snapshot) => {
+			const f = await paymentFixture(snapshot);
+			await transaction((tx) => applyImagePassPaymentFact(paymentFact(f), tx));
+			await expect(
+				transaction((tx) =>
+					tryApplyImagePassAdjustment(
+						{
+							provider: "paypal",
+							providerEventId: `refund-${f.providerPaymentId}`,
+							providerPaymentId: f.providerPaymentId,
+							providerRefundId: `refund-${f.providerPaymentId}`,
+							amountMicros: 2_990_000n,
+							currency: "USD",
+							occurredAt: new Date(),
+						},
+						tx,
+					),
+				),
+			).rejects.toThrow("IMAGE_PASS_ADJUSTMENT_INVALID");
+			expect(
+				await transaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+			).toMatchObject({ available: 3, revoked: 0 });
+		},
+	);
 	it("requeues only the exact capture's early failed dispute, idempotently", async () => {
 		const f = await paymentFixture();
 		const related = await persistFailed(dispute(f));

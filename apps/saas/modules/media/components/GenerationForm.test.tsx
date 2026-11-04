@@ -405,6 +405,77 @@ function withEffectEditor(child: React.ReactNode) {
 }
 
 describe("GenerationForm product copy", () => {
+	it.each(["new-pass", "legacy-pass", "credits"])(
+		"keeps premium controls and the submit action aligned for %s funding",
+		(funding) => {
+			mocks.useGeneration.mockReturnValue({
+				...generationState(),
+				imagePass: {
+					data: {
+						available: 3,
+						availableSkuKeys: ["gpt-image-2-2k", "gpt-image-2-4k"],
+						subscriptionFreeSkuKeys:
+							funding === "legacy-pass" ? [] : ["gpt-image-2-2k", "gpt-image-2-4k"],
+					},
+					isError: false,
+				},
+			});
+			const markup = renderToStaticMarkup(
+				<GenerationForm
+					onCreated={vi.fn()}
+					initialFundingSource={funding === "credits" ? "CREDITS" : "IMAGE_PASS"}
+					allowedProductKeys={resolveEditorAllowedProductKeys(undefined, undefined)}
+					initialDraft={{
+						productKey: "image-gpt-image-2",
+						input: {
+							kind: "text-to-image",
+							prompt: "A precise 4K product photo",
+							skuKey: "gpt-image-2-4k",
+							aspectRatio: "4:3",
+						},
+					}}
+				/>,
+			);
+			const options = mocks.modelOptions.mock.calls.at(-1)?.[0].products;
+			expect(
+				options.find((product: { key: string }) => product.key === "image-gpt-image-2")
+					.requiresUpgrade,
+			).toBe(funding !== "new-pass");
+			if (funding === "new-pass") {
+				expect(markup).not.toContain("View plans");
+				expect(markup).toContain("onePass");
+				expect(markup.match(/<button(?=[^>]*type="submit")[^>]*>/)?.[0]).not.toContain("disabled");
+			} else {
+				expect(markup).toContain("View plans");
+				expect(markup).not.toContain('type="submit"');
+			}
+		},
+	);
+	it("unlocks a premium model's default SKU from a selected Lite model only with explicit new-pass funding", () => {
+		mocks.useGeneration.mockReturnValue({
+			...generationState(),
+			imagePass: {
+				data: {
+					available: 3,
+					availableSkuKeys: ["nano-banana-2-lite-1k", "gpt-image-2-1k"],
+					subscriptionFreeSkuKeys: ["nano-banana-2-lite-1k", "gpt-image-2-1k"],
+				},
+				isError: false,
+			},
+		});
+		renderToStaticMarkup(
+			<GenerationForm
+				onCreated={vi.fn()}
+				initialFundingSource="IMAGE_PASS"
+				allowedProductKeys={resolveEditorAllowedProductKeys(undefined, undefined)}
+			/>,
+		);
+		const options = mocks.modelOptions.mock.calls.at(-1)?.[0].products;
+		expect(
+			options.find((product: { key: string }) => product.key === "image-gpt-image-2")
+				.requiresUpgrade,
+		).toBe(false);
+	});
 	it("uses a tool instruction but does not replace a recovered user's prompt", () => {
 		mocks.useGeneration.mockReturnValue(generationState());
 		const fresh = renderToStaticMarkup(

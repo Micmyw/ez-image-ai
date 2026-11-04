@@ -47,6 +47,8 @@ export async function createGenerationRateLimitReceipt(
 
 export interface GenerationAccessSnapshot {
 	imagePassAvailable?: boolean;
+	/** Server-verified available new paid pass covering this exact selection. */
+	imagePassIncludesModelAccess?: boolean;
 	generationEnabled: boolean;
 	modelDisabled: boolean;
 	spendableCredits: bigint;
@@ -201,9 +203,15 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 								productKey: input.productKey,
 								skuKey: "skuKey" in input.input ? input.input.skuKey : undefined,
 								requestedOutputCount: 1,
+								requireModelAccess: !planAccess.entitlement.allowedProducts.includes(
+									input.productKey,
+								),
 							},
 							db,
 						).then(() => true),
+						imagePassIncludesModelAccess: !planAccess.entitlement.allowedProducts.includes(
+							input.productKey,
+						),
 					}
 				: {}),
 			generationEnabled: !blocked,
@@ -268,8 +276,13 @@ export async function assertGenerationAllowed(
 	const entitlement = PLAN_ENTITLEMENTS.find((plan) => plan.id === access.planId);
 	if (fundingSource === "IMAGE_PASS" && !access.imagePassAvailable)
 		throw new Error("IMAGE_PASS_INSUFFICIENT");
-	// Funding selects what is reserved; it never grants subscription-only model access.
-	if (!entitlement || !entitlement.allowedProducts.includes(input.productKey)) {
+	// Only a verified new offer grants model access; historical passes retain
+	// their original subscription requirement. Transactional reservation repeats it.
+	if (
+		!entitlement ||
+		(!entitlement.allowedProducts.includes(input.productKey) &&
+			!(fundingSource === "IMAGE_PASS" && access.imagePassIncludesModelAccess))
+	) {
 		throw new Error("ENTITLEMENT_REQUIRED");
 	}
 	if (!access.sourceAssetReady) throw new Error("ASSET_NOT_READY");

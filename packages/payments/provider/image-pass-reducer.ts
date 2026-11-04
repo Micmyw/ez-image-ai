@@ -1,4 +1,3 @@
-import { IMAGE_PASS_AMOUNT_MICROS } from "@repo/config/image-pass.server";
 import {
 	fulfillImagePassPurchaseInTransaction,
 	revokeImagePassPurchaseInTransaction,
@@ -25,14 +24,12 @@ export async function applyImagePassPaymentFact(
 	tx: Tx,
 	options: { paymentEventId?: string } = {},
 ): Promise<{ grantsCreated: number }> {
-	if (
-		fact.provider !== "paypal" ||
-		fact.amountMicros !== IMAGE_PASS_AMOUNT_MICROS ||
-		fact.currency !== "USD"
-	)
+	if (fact.provider !== "paypal" || fact.amountMicros <= 0n || fact.currency !== "USD")
 		throw new Error("IMAGE_PASS_PAYMENT_AMOUNT_INVALID");
 	if (!fact.checkoutIntentId) throw new Error(PAYMENT_PROVIDER_CORRELATION_MISSING);
 	await lockImagePassPayment(fact.providerPaymentId, tx);
+	// Fulfillment validates the amount against this locked intent's frozen offer,
+	// so a late historical capture retains its original price after an offer change.
 	const result = await fulfillImagePassPurchaseInTransaction(
 		{
 			checkoutIntentId: fact.checkoutIntentId,

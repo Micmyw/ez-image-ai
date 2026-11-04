@@ -53,9 +53,9 @@ describe("image pass offer banner", () => {
 					<ImagePassBanner />
 				</NextIntlClientProvider>,
 			);
-			expect(markup).toContain("$1.00");
+			expect(markup).toContain("$2.99");
 			expect(markup).not.toContain("USD");
-			expect(markup).toContain("Nano Banana 2 Lite 1K");
+			expect(markup).toContain("4K");
 			expect(markup).toContain(bannerDetail);
 			expect(markup).toContain('href="/image-pass"');
 			expect(markup).toContain(`aria-label="${dismissBanner}"`);

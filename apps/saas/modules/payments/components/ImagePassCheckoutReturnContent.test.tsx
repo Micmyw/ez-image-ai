@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
 	ownerId: "owner-a",
 	status: "PENDING" as string | undefined,
+	offer: undefined as
+		| { offerVersion: string; amount: string; currency: string; units: number }
+		| undefined,
 	isError: false,
 	isPending: false,
 	cursor: 0,
@@ -57,7 +60,7 @@ vi.mock("@tanstack/react-query", async (original) => ({
 	useQuery: (options: unknown) => {
 		state.queryOptions(options);
 		return {
-			data: state.status ? { status: state.status } : undefined,
+			data: state.status ? { status: state.status, offer: state.offer } : undefined,
 			isPending: state.isPending,
 			isError: state.isError,
 			isSuccess: !state.isPending && !state.isError && Boolean(state.status),
@@ -66,7 +69,10 @@ vi.mock("@tanstack/react-query", async (original) => ({
 	},
 	useQueryClient: () => ({ invalidateQueries: state.invalidate }),
 }));
-vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", () => ({
+	useTranslations: () => (key: string, values?: { currency?: string; amount?: string }) =>
+		key + (values?.amount ? ` ${values.currency} ${values.amount}` : ""),
+}));
 import { ImagePassCheckoutReturnContent } from "./ImagePassCheckoutReturnContent";
 function render(
 	options: { providerOrderId?: string; canceled?: boolean; approved?: boolean } = {
@@ -105,6 +111,7 @@ beforeEach(() => {
 	state.cursor = 0;
 	state.ownerId = "owner-a";
 	state.status = "PENDING";
+	state.offer = { offerVersion: "2026-11-04.1", currency: "USD", amount: "1.00", units: 3 };
 	state.isError = false;
 	state.isPending = false;
 	state.capture.mockReset().mockResolvedValue({ accepted: true, replayed: false });
@@ -125,6 +132,26 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 describe("trusted image pass payment return", () => {
+	it.each([
+		["2026-10-19.1", "1.00"],
+		["2026-11-04.1", "1.00"],
+		["2026-11-04.2", "2.99"],
+	])("confirms the frozen %s checkout amount", (offerVersion, amount) => {
+		state.offer = { offerVersion, amount, currency: "USD", units: 3 };
+		const text = texts(render({ providerOrderId: "paypal-token" }));
+		expect(text).toContain(`returnAwaitingConfirmation USD ${amount}`);
+		expect(text).toContain(`returnConfirmPayment USD ${amount}`);
+		expect(text).not.toContain(amount === "1.00" ? "2.99" : "1.00");
+		expect(state.capture).not.toHaveBeenCalled();
+	});
+	it("uses an amount-free confirmation while an older receiver omits the frozen offer", () => {
+		state.offer = undefined;
+		const text = texts(render({ providerOrderId: "paypal-token" }));
+		expect(text).toContain("returnAwaitingConfirmationUnknownAmount");
+		expect(text).toContain("returnConfirmPaymentUnknownAmount");
+		expect(text).not.toContain("USD");
+		expect(state.capture).not.toHaveBeenCalled();
+	});
 	it("slows long-pending reads, stops on GET errors and resumes read-only checks on return", async () => {
 		vi.useFakeTimers();
 		const element = render({ canceled: true });

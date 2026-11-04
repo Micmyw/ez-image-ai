@@ -8,6 +8,10 @@ const state = vi.hoisted(() => ({
 	passAvailable: 3 as number | undefined,
 	passReserved: 0,
 	passFailed: false,
+	passSkuKeys: ["nano-banana-2-lite-1k", "gpt-image-2-5-sunburst-1k", "nano-banana-pro-4k"] as
+		| string[]
+		| undefined,
+	subscriptionFreeSkuKeys: undefined as string[] | undefined,
 	creditFailed: false,
 	spendableCredits: "100",
 	generationPending: false,
@@ -100,6 +104,17 @@ vi.mock("../hooks/use-generation", () => ({
 						},
 					},
 					{
+						key: "image-nano-banana-pro",
+						label: "Nano Banana Pro",
+						credits: 40,
+						skuMatrix: {
+							defaultSkuKey: "nano-banana-pro-4k",
+							cells: [
+								{ skuKey: "nano-banana-pro-4k", credits: 40, aspectRatios: ["1:1"], controls: [] },
+							],
+						},
+					},
+					{
 						key: "image-gpt-image-2-5-sunburst",
 						label: "GPT Image 2.5 Sunburst",
 						credits: 7,
@@ -123,7 +138,12 @@ vi.mock("../hooks/use-generation", () => ({
 			isError: state.creditFailed,
 		},
 		imagePass: {
-			data: { available: state.passAvailable, reserved: state.passReserved },
+			data: {
+				available: state.passAvailable,
+				reserved: state.passReserved,
+				availableSkuKeys: state.passSkuKeys,
+				subscriptionFreeSkuKeys: state.subscriptionFreeSkuKeys,
+			},
 			isError: state.passFailed,
 		},
 		quote: null,
@@ -189,6 +209,8 @@ beforeEach(() => {
 	state.passAvailable = 3;
 	state.passReserved = 0;
 	state.passFailed = false;
+	state.passSkuKeys = ["nano-banana-2-lite-1k", "gpt-image-2-5-sunburst-1k", "nano-banana-pro-4k"];
+	state.subscriptionFreeSkuKeys = undefined;
 	state.creditFailed = false;
 	state.spendableCredits = "100";
 	state.generationPending = false;
@@ -287,7 +309,7 @@ describe("GenerationForm submission callbacks", () => {
 			expect.objectContaining({ fundingSource: "CREDITS" }),
 		);
 	});
-	it("does not let image passes bypass subscription model access", async () => {
+	it("preserves subscription requirements for historical image passes", async () => {
 		state.values.productKey = "image-gpt-image-2-5-sunburst";
 		state.values.skuKey = "gpt-image-2-5-sunburst-1k";
 		const allowedProductKeys = resolveEditorAllowedProductKeys(undefined, undefined);
@@ -300,6 +322,58 @@ describe("GenerationForm submission callbacks", () => {
 		expect(state.mutateAsync).not.toHaveBeenCalled();
 		expect(state.beginNewAction).toHaveBeenCalled();
 	});
+	it.each([
+		["image-gpt-image-2-5-sunburst", "gpt-image-2-5-sunburst-1k"],
+		["image-nano-banana-pro", "nano-banana-pro-4k"],
+	])(
+		"allows an explicit new pass to fund %s without a subscription",
+		async (productKey, skuKey) => {
+			state.values = { ...state.values, productKey, skuKey, aspectRatio: "1:1" };
+			state.subscriptionFreeSkuKeys = [skuKey];
+			const allowedProductKeys = resolveEditorAllowedProductKeys(undefined, undefined);
+			(
+				find(render(vi.fn(), null, allowedProductKeys), ImageFundingSelector).props.onChange as (
+					source: ImageFundingSource,
+				) => void
+			)("IMAGE_PASS");
+			submit(render(vi.fn(), null, allowedProductKeys));
+			await flush();
+			expect(state.mutateAsync).toHaveBeenCalledWith(
+				expect.objectContaining({
+					fundingSource: "IMAGE_PASS",
+					productKey,
+					input: expect.objectContaining({ skuKey }),
+				}),
+			);
+		},
+	);
+	it.each(["credits", "empty", "failed", "missing-coverage", "empty-coverage", "wrong-sku"])(
+		"does not use independent passes to bypass admission when %s",
+		async (reason) => {
+			state.values = {
+				...state.values,
+				productKey: "image-nano-banana-pro",
+				skuKey: "nano-banana-pro-4k",
+				aspectRatio: "1:1",
+			};
+			state.subscriptionFreeSkuKeys = ["nano-banana-pro-4k"];
+			const allowedProductKeys = resolveEditorAllowedProductKeys(undefined, undefined);
+			if (reason !== "credits")
+				(
+					find(render(vi.fn(), null, allowedProductKeys), ImageFundingSelector).props.onChange as (
+						source: ImageFundingSource,
+					) => void
+				)("IMAGE_PASS");
+			if (reason === "empty") state.passAvailable = 0;
+			if (reason === "failed") state.passFailed = true;
+			if (reason === "missing-coverage") state.passSkuKeys = undefined;
+			if (reason === "empty-coverage") state.passSkuKeys = [];
+			if (reason === "wrong-sku") state.subscriptionFreeSkuKeys = ["nano-banana-2-lite-1k"];
+			submit(render(vi.fn(), null, allowedProductKeys));
+			await flush();
+			expect(state.mutateAsync).not.toHaveBeenCalled();
+		},
+	);
 	it("accepts an explicit image pass choice for an entitled model", async () => {
 		const allowedProductKeys = resolveEditorAllowedProductKeys(undefined, undefined);
 		const element = render(vi.fn(), null, allowedProductKeys);

@@ -46,21 +46,26 @@ describe("verified image-pass reducers", () => {
 		helpers.lookup.mockResolvedValue({ id: "grant-1" });
 		helpers.revoke.mockResolvedValue({ replayed: false });
 	});
-	it("grants only via the dedicated entitlement helper", async () => {
-		const tx = transaction();
-		await expect(
-			applyImagePassPaymentFact(paid, tx as never, { paymentEventId: "event-1" }),
-		).resolves.toEqual({ grantsCreated: 1 });
-		expect(helpers.fulfill).toHaveBeenCalledWith(
-			expect.objectContaining({
-				provider: "paypal",
-				providerPaymentId: "CAP-1",
-				amountMicros: 1000000n,
-				paymentEventId: "event-1",
-			}),
-			tx,
-		);
-	});
+	it.each([1_000_000n, 2_990_000n])(
+		"settles frozen historical/current amount %s via the entitlement helper",
+		async (amountMicros) => {
+			const tx = transaction();
+			await expect(
+				applyImagePassPaymentFact({ ...paid, amountMicros }, tx as never, {
+					paymentEventId: "event-1",
+				}),
+			).resolves.toEqual({ grantsCreated: 1 });
+			expect(helpers.fulfill).toHaveBeenCalledWith(
+				expect.objectContaining({
+					provider: "paypal",
+					providerPaymentId: "CAP-1",
+					amountMicros,
+					paymentEventId: "event-1",
+				}),
+				tx,
+			);
+		},
+	);
 	it("capture and webhook replays do not create a second grant", async () => {
 		helpers.fulfill.mockResolvedValue({ created: false, grantId: "grant-1" });
 		await expect(applyImagePassPaymentFact(paid, transaction() as never)).resolves.toEqual({
@@ -68,8 +73,8 @@ describe("verified image-pass reducers", () => {
 		});
 	});
 	it.each([
-		{ amountMicros: 1n },
-		{ amountMicros: 1000001n },
+		{ amountMicros: 0n },
+		{ amountMicros: -1n },
 		{ currency: "EUR" },
 		{ provider: "waffo" },
 	])("rejects a verified but incorrect offer payment %s", async (patch) => {
@@ -77,6 +82,14 @@ describe("verified image-pass reducers", () => {
 			applyImagePassPaymentFact({ ...paid, ...patch } as never, transaction() as never),
 		).rejects.toThrow("IMAGE_PASS_PAYMENT_AMOUNT_INVALID");
 		expect(helpers.fulfill).not.toHaveBeenCalled();
+	});
+	it("propagates a frozen-price mismatch without acknowledging or requeueing adjustments", async () => {
+		const tx = transaction();
+		helpers.fulfill.mockRejectedValue(new Error("IMAGE_PASS_PAYMENT_AMOUNT_INVALID"));
+		await expect(
+			applyImagePassPaymentFact({ ...paid, amountMicros: 1n }, tx as never),
+		).rejects.toThrow("IMAGE_PASS_PAYMENT_AMOUNT_INVALID");
+		expect(tx.outboxEvent.upsert).not.toHaveBeenCalled();
 	});
 	it("partial refunds revoke through the pass ledger, without normal-credit debt", async () => {
 		const tx = transaction();
