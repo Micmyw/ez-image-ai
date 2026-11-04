@@ -1438,7 +1438,7 @@ describe("production media runtime stores", () => {
 			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
 			client.creditAccount.findUniqueOrThrow({ where: { id: seeded.accountId } }),
 		]);
-		expect(job).toMatchObject({ status: "FAILED", failureCode: "NO_USABLE_OUTPUT" });
+		expect(job).toMatchObject({ status: "FAILED", failureCode: "PROVIDER_UNAVAILABLE" });
 		expect(reservation.releasedAmount).toBe(reservation.amount);
 		expect(account.reservedCredits).toBe(0n);
 		expect(
@@ -1474,7 +1474,7 @@ describe("production media runtime stores", () => {
 			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
 			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
 		]);
-		expect(job).toMatchObject({ status: "FAILED", failureCode: "NO_USABLE_OUTPUT" });
+		expect(job).toMatchObject({ status: "FAILED", failureCode: "PROVIDER_UNAVAILABLE" });
 		expect(reservation).toMatchObject({
 			status: "SETTLED",
 			settledAmount: 0n,
@@ -1482,7 +1482,7 @@ describe("production media runtime stores", () => {
 		});
 	});
 
-	it("freezes Gemini transport uncertainty for manual reconciliation without settling credits", async () => {
+	it("times out Gemini transport uncertainty after the bounded window and hands it to settlement", async () => {
 		const seeded = await seedReservedJob("image-quality");
 		const outcome = await dispatchGeneration(
 			{ jobId: seeded.jobId, version: 0 },
@@ -1526,36 +1526,31 @@ describe("production media runtime stores", () => {
 				now: () => new Date(),
 			},
 		);
-		const needsReconciliation = await client.generationJob.findUniqueOrThrow({
+		// After the bounded window (~30 min) the unconfirmed submission is failed as
+		// a timeout and handed to normal settlement, which releases the reservation.
+		const timedOut = await client.generationJob.findUniqueOrThrow({
 			where: { id: seeded.jobId },
 			include: { attempts: true },
 		});
-		expect(needsReconciliation).toMatchObject({
-			status: "NEEDS_RECONCILIATION",
-			failureCode: "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
+		expect(timedOut).toMatchObject({
+			status: "FINALIZING",
+			failureCode: "GENERATION_TIMEOUT",
 		});
-		expect(needsReconciliation.attempts[0]).toMatchObject({
-			status: "NEEDS_RECONCILIATION",
-			uncertainSubmission: true,
+		expect(timedOut.attempts[0]).toMatchObject({
+			status: "FAILED",
+			uncertainSubmission: false,
 			nextReconcileAt: null,
-		});
-		expect(
-			await client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
-		).toMatchObject({
-			status: "ACTIVE",
-			settledAmount: 0n,
-			releasedAmount: 0n,
 		});
 		expect(
 			await client.outboxEvent.count({
 				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
 			}),
-		).toBe(0);
+		).toBe(1);
 		expect(
 			await client.auditLog.count({
 				where: {
-					targetId: needsReconciliation.attempts[0]!.id,
-					action: "MEDIA_SUBMISSION_NEEDS_RECONCILIATION",
+					targetId: timedOut.attempts[0]!.id,
+					action: "MEDIA_SUBMISSION_TIMED_OUT_RELEASED",
 				},
 			}),
 		).toBe(1);
