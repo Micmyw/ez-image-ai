@@ -3,13 +3,8 @@ import { writeFile } from "node:fs/promises";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
 import { OUTPUT_MODERATION_BILLING_POLICY } from "@repo/config";
-import { IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
-
-// Grandfathered 2026-10-19.1 pass: these jobs use nano-banana-pro-4k.
-const legacyImagePassSnapshot = () => ({
-	...IMAGE_PASS_LEGACY_OFFER,
-	allowedSkuKeys: [...IMAGE_PASS_LEGACY_OFFER.allowedSkuKeys],
-});
+import { getImagePassOfferSnapshot } from "@repo/config/image-pass";
+import { IMAGE_PASS_AMOUNT_MICROS } from "@repo/config/image-pass.server";
 import {
 	createCreditGrant,
 	createGenerationOutputAssetBindingTransaction,
@@ -113,6 +108,9 @@ async function fixture(
 			)
 		).id;
 	} else {
+		// These settlement cases have no subscription and use Pro 4K, so reserve
+		// a current paid pass whose frozen offer explicitly includes model access.
+		const passOffer = getImagePassOfferSnapshot();
 		const plan = await client.billingPlan.create({
 			data: {
 				provider: "paypal",
@@ -120,9 +118,9 @@ async function fixture(
 				productKind: "IMAGE_PASS",
 				name: "image-pass-3",
 				creditsPerPeriod: 0n,
-				priceMicros: 1_000_000n,
+				priceMicros: IMAGE_PASS_AMOUNT_MICROS,
 				currency: "USD",
-				metadata: {},
+				metadata: { imagePassOfferSnapshot: passOffer },
 			},
 		});
 		const checkout = await client.paymentCheckoutIntent.create({
@@ -137,7 +135,7 @@ async function fixture(
 				interval: "one-time",
 				idempotencyKey: ownerId,
 				status: "COMPLETED",
-				imagePassOfferSnapshot: legacyImagePassSnapshot(),
+				imagePassOfferSnapshot: passOffer,
 			},
 		});
 		await client.imagePassGrant.create({
@@ -147,9 +145,9 @@ async function fixture(
 				provider: "paypal",
 				providerOrderId: ownerId,
 				providerPaymentId: ownerId,
-				paidAmountMicros: 1_000_000n,
+				paidAmountMicros: IMAGE_PASS_AMOUNT_MICROS,
 				currency: "USD",
-				offerSnapshot: legacyImagePassSnapshot(),
+				offerSnapshot: passOffer,
 				paidAt: new Date(),
 				units: { create: [1, 2, 3].map((ordinal) => ({ ordinal })) },
 			},
