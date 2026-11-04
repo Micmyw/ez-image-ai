@@ -477,6 +477,13 @@ export interface ReconciliationStore {
 		retryAt: Date,
 	): Promise<void>;
 	markUncertainForManualReconciliation(lease: ReconciliationLease, code?: string): Promise<void>;
+	/**
+	 * Bounded deadline for a submission that never produced a provider task id.
+	 * Fails the job as GENERATION_TIMEOUT and settles it (no output, so nothing is
+	 * charged and the reservation/image pass is released). Optional so test doubles
+	 * and older stores keep the manual-reconciliation behaviour.
+	 */
+	failUnconfirmedSubmission?(lease: ReconciliationLease): Promise<void>;
 }
 
 /** Internal proof returned only after the verification transaction has committed. */

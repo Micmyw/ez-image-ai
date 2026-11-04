@@ -6670,6 +6670,76 @@ export function createDatabaseReconciliationStore(
 				}
 			});
 		},
+		async failUnconfirmedSubmission(lease) {
+			await database.$transaction(async (tx) => {
+				await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${lease.attemptId} AND "reconcileLeaseToken" = ${lease.leaseToken} FOR UPDATE`;
+				if (!(await generationPhaseIsCurrent(lease.attemptId, lease.phaseOwner, tx))) return;
+				const changed = await tx.generationAttempt.updateMany({
+					where: {
+						AND: { job: { executionEngine: "legacy" } },
+						id: lease.attemptId,
+						reconcileLeaseToken: lease.leaseToken,
+						providerTaskId: null,
+						status: { in: ["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"] },
+					},
+					data: {
+						status: "FAILED",
+						errorSnapshot: { code: "GENERATION_TIMEOUT", retryable: false },
+						uncertainSubmission: false,
+						reconcileLeaseToken: null,
+						reconcileLeasedUntil: null,
+						nextReconcileAt: null,
+						completedAt: new Date(),
+					},
+				});
+				if (changed.count !== 1) return;
+				const job = await tx.generationJob.findFirst({
+					where: {
+						executionEngine: "legacy",
+						id: lease.jobId,
+						status: {
+							in: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING", "NEEDS_RECONCILIATION"],
+						},
+					},
+					select: { version: true },
+				});
+				if (!job) throw new Error("UNCERTAIN_JOB_STATE_CONFLICT");
+				const jobChanged = await tx.generationJob.updateMany({
+					where: { executionEngine: "legacy", id: lease.jobId, version: job.version },
+					data: {
+						status: "FINALIZING",
+						failureCode: "GENERATION_TIMEOUT",
+						version: { increment: 1 },
+					},
+				});
+				if (jobChanged.count !== 1) throw new Error("UNCERTAIN_JOB_STATE_CONFLICT");
+				await tx.outboxEvent.upsert({
+					where: { dedupeKey: `generation-settle:${lease.jobId}` },
+					create: {
+						eventType: "GENERATION_SETTLE",
+						aggregateType: "GENERATION_JOB",
+						aggregateId: lease.jobId,
+						dedupeKey: `generation-settle:${lease.jobId}`,
+						payload: { jobId: lease.jobId, version: job.version + 1 },
+					},
+					update: {},
+				});
+				// The provider may still have accepted the request; keep the admin trail.
+				await tx.auditLog.create({
+					data: {
+						action: "MEDIA_SUBMISSION_TIMED_OUT_RELEASED",
+						targetType: "GENERATION_ATTEMPT",
+						targetId: lease.attemptId,
+						metadata: {
+							jobId: lease.jobId,
+							repairCount: lease.repairCount,
+							code: "GENERATION_TIMEOUT",
+							pageAdmin: true,
+						},
+					},
+				});
+			});
+		},
 		async markUncertainForManualReconciliation(
 			lease,
 			code = "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",

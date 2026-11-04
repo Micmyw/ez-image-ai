@@ -179,3 +179,28 @@ describe("closed execution failure evidence", () => {
 		).toEqual({ errorCode: "UNKNOWN", phase: "UNKNOWN" });
 	});
 });
+
+describe("unknown failure identifiers", () => {
+	it("names an AggregateError and its constant-style inner codes without free text", () => {
+		const error = new AggregateError(
+			[new Error("PAYPAL_EVENTS_UNAVAILABLE"), new TypeError("fetch failed for https://x?token=1")],
+			"PAYMENT_RECONCILIATION_FAILED",
+		);
+		expect(executionFailureEvidence(error)).toEqual({
+			errorCode: "UNKNOWN",
+			phase: "UNKNOWN",
+			errorName: "AggregateError",
+			messageCodes: ["PAYMENT_RECONCILIATION_FAILED", "PAYPAL_EVENTS_UNAVAILABLE"],
+		});
+	});
+	it("keeps only the error name for sentence messages", () => {
+		const evidence = executionFailureEvidence(new Error("user prompt: a cat in a hat"));
+		expect(evidence).toEqual({ errorCode: "UNKNOWN", phase: "UNKNOWN", errorName: "Error" });
+		expect(JSON.stringify(evidence)).not.toContain("prompt");
+	});
+	it("reports STRIPE_LEGACY_LIFECYCLE_INCOMPLETE style maintenance failures", () => {
+		expect(
+			executionFailureEvidence(new Error("STRIPE_LEGACY_LIFECYCLE_INCOMPLETE")).messageCodes,
+		).toEqual(["STRIPE_LEGACY_LIFECYCLE_INCOMPLETE"]);
+	});
+});
