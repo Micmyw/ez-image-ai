@@ -10,7 +10,8 @@ import { createPublicPageMetadata } from "../../../modules/public-content/lib/me
 
 export { ChristmasWallpaperPage as default } from "../../../modules/christmas/components/ChristmasWallpaperPage";
 
-export async function generateMetadata({ searchParams }: PublicMetadataProps = {}) {
+export async function generateMetadata(props: PublicMetadataProps) {
+	const { searchParams } = props ?? {};
 	const base = createPublicPageMetadata({
 		searchParams: await searchParams,
 		path: CHRISTMAS_PATH,
