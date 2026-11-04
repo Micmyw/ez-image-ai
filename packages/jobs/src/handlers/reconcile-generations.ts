@@ -1,5 +1,9 @@
 import type { ReconciliationDependencies } from "../contracts";
 
+/** A recovery deadline is not evidence that the supplier rejected the request. */
+export const UNCONFIRMED_SUBMISSION_RECOVERY_MS = 30 * 60_000;
+export const UNCONFIRMED_SUBMISSION_RETRY_MS = 10 * 60_000;
+
 export async function reconcileGenerations(
 	input: { limit?: number; leaseSeconds?: number; attemptId?: string },
 	dependencies: ReconciliationDependencies,
@@ -24,14 +28,20 @@ export async function reconcileGenerations(
 	let outboxCommitted: boolean | undefined = false;
 	for (const lease of leases) {
 		if (!lease.providerTaskId) {
-			if (lease.repairCount >= 5) {
+			if (
+				typeof lease.submissionAgeMs === "number" &&
+				Number.isFinite(lease.submissionAgeMs) &&
+				lease.submissionAgeMs >= UNCONFIRMED_SUBMISSION_RECOVERY_MS
+			) {
+				// Preserve the same attempt and its reservation until authenticated
+				// recovery or an audited administrator decision resolves acceptance.
 				await dependencies.store.markUncertainForManualReconciliation(lease);
 				continue;
 			}
 			await dependencies.store.releaseReconciliationLease(
 				lease,
 				"SUBMISSION_UNCERTAIN_MANUAL_REPAIR",
-				new Date(now.getTime() + 60 * 60_000),
+				new Date(now.getTime() + UNCONFIRMED_SUBMISSION_RETRY_MS),
 			);
 			continue;
 		}

@@ -11,6 +11,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { useCheckoutStatePolling } from "../hooks/use-checkout-state-polling";
+import { useEditorContinuePath } from "../hooks/use-editor-continue-path";
 import { reportCheckoutDiagnostic, checkoutReturnEvent } from "../lib/checkout-diagnostics";
 import { subscribeToCheckoutForeground } from "../lib/checkout-state-polling";
 import {
@@ -32,6 +33,7 @@ export function ImagePassCheckoutReturnContent({
 	const t = useTranslations("imagePass");
 	const session = useSessionQuery();
 	const ownerId = session.data?.user?.isAnonymous !== true ? session.data?.user?.id : undefined;
+	const continuePath = useEditorContinuePath(ownerId);
 	const queryClient = useQueryClient();
 	useEffect(() => {
 		if (ownerId)
@@ -180,7 +182,7 @@ export function ImagePassCheckoutReturnContent({
 				<Link
 					href={
 						completed
-							? "/create"
+							? continuePath
 							: `/image-pass?${canceled ? "canceled=1&" : ""}intentId=${encodeURIComponent(intentId)}`
 					}
 					className="min-h-11 px-5 text-sm font-semibold inline-flex items-center rounded-xl bg-primary text-primary-foreground"

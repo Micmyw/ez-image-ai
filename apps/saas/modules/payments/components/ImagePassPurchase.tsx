@@ -16,6 +16,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { useCheckoutStatePolling } from "../hooks/use-checkout-state-polling";
+import { useEditorContinuePath } from "../hooks/use-editor-continue-path";
 import { usePaymentAction } from "../hooks/use-payment-action";
 import { reportCheckoutDiagnostic, redirectCheckout } from "../lib/checkout-diagnostics";
 import { subscribeToCheckoutForeground } from "../lib/checkout-state-polling";
@@ -35,6 +36,7 @@ export function ImagePassPurchase({
 	const session = useSessionQuery();
 	const user = session.data?.user;
 	const ownerId = user && user.isAnonymous !== true ? user.id : null;
+	const continuePath = useEditorContinuePath(ownerId);
 	useEffect(() => {
 		if (ownerId && intentId && canceled)
 			reportCheckoutDiagnostic({ intentId, event: "return_canceled" });
@@ -209,6 +211,12 @@ export function ImagePassPurchase({
 					<li key={key}>✓ {t(key)}</li>
 				))}
 			</ul>
+			<p
+				data-testid="image-pass-size-rule"
+				className="mt-5 border-amber-300/30 bg-amber-300/10 p-3 text-sm leading-6 text-amber-100 rounded-xl border"
+			>
+				{t("sizeRule")}
+			</p>
 			{balance.data && (
 				<div
 					className="mt-5 gap-x-4 gap-y-1 text-sm text-violet-200 flex flex-wrap"
@@ -247,7 +255,7 @@ export function ImagePassPurchase({
 							</button>
 						)}
 						<Link
-							href="/create"
+							href={continuePath}
 							className="min-h-10 text-sm text-violet-200 inline-flex items-center underline underline-offset-4"
 						>
 							{t("continueGenerating")}
@@ -296,7 +304,8 @@ export function ImagePassPurchase({
 			)}
 			<p className="mt-4 text-xs leading-5 text-[#ad9ebc]">{t("fundingPolicy")}</p>
 			<Link
-				href="/create"
+				href={continuePath}
+				data-testid="image-pass-editor-return"
 				className="mt-6 min-h-10 text-sm text-violet-200 inline-flex items-center underline underline-offset-4"
 			>
 				{t("back")}

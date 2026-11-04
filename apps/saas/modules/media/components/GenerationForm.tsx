@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary";
 import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
 import { createChoosePlanPath, writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
-import { getImageProductSelectionContract, IMAGE_PASS_PUBLIC_OFFER } from "@repo/config/client";
+import { getImageProductSelectionContract } from "@repo/config/client";
 import { EZPIC_PRODUCT_KEYS, getPlanEntitlement, type ImageAspectRatio } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
@@ -16,7 +16,6 @@ import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { captureCheckoutTrigger } from "@shared/lib/purchase-attribution";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 
@@ -54,6 +53,7 @@ import {
 	generationFormValuesSchema,
 } from "../lib/form-schema";
 import { useGenerationMode } from "../lib/generation-mode-context";
+import { imagePassCoversSku } from "../lib/image-pass-eligibility";
 import {
 	getDefaultImageSpecCell,
 	getImageSpecCell,
@@ -65,6 +65,7 @@ import {
 import { observeGenerationJobVisibility } from "../lib/preview-timing";
 import type { TemporaryReferenceReceipt } from "../lib/temporary-reference-upload";
 import { useToolPrompt, useToolPromptBinding } from "../lib/tool-prompt-context";
+import { saveWorkspaceDraft } from "../lib/workspace-draft";
 import { ContentSafetyNotice } from "./ContentSafetyNotice";
 import { ComposerHeader } from "./editor/ComposerHeader";
 import { ImageSourcePanel } from "./editor/ImageSourcePanel";
@@ -84,6 +85,8 @@ export function GenerationForm({
 	jobId = null,
 	initialDraft,
 	initialTemporaryReference,
+	initialFundingSource,
+	workspaceDraftPath = "/create",
 	initialProductKey,
 	allowedProductKeys = [...EZPIC_PRODUCT_KEYS],
 	initialSourceReady = false,
@@ -92,8 +95,14 @@ export function GenerationForm({
 	layout = "default",
 }: {
 	onCreated: (jobId: string) => void;
-	onDraftChange?: (values: GenerationFormValues, reference?: TemporaryReferenceReceipt) => void;
+	onDraftChange?: (
+		values: GenerationFormValues,
+		reference?: TemporaryReferenceReceipt,
+		fundingSource?: ImageFundingSource,
+	) => void;
 	initialTemporaryReference?: TemporaryReferenceReceipt;
+	initialFundingSource?: ImageFundingSource;
+	workspaceDraftPath?: string;
 	onSourceChanged?: () => void;
 	ready?: boolean;
 	jobId?: string | null;
@@ -141,7 +150,7 @@ export function GenerationForm({
 	const [ownedFunding, setOwnedFunding] = useState<{
 		ownerId: string | null;
 		source: ImageFundingSource;
-	} | null>(null);
+	} | null>(ownerId && initialFundingSource ? { ownerId, source: initialFundingSource } : null);
 	const fundingSource = ownedFunding?.ownerId === ownerId ? ownedFunding.source : "CREDITS";
 	const studio = useTranslations("studio");
 	const composer = useTranslations("studio.composer");
@@ -244,7 +253,8 @@ export function GenerationForm({
 	const product = products.find((candidate) => candidate.key === values.productKey);
 	const passSelected = fundingSource === "IMAGE_PASS";
 	const passAvailable = generation.imagePass?.data?.available;
-	const passSkuAllowed = IMAGE_PASS_PUBLIC_OFFER.allowedSkuKeys.includes(values.skuKey);
+	// Each grant keeps the sizes it was sold with; new passes cover 1K/2K only.
+	const passSkuAllowed = imagePassCoversSku(generation.imagePass?.data, values.skuKey);
 	const passReady =
 		passSelected && passSkuAllowed && !generation.imagePass?.isError && (passAvailable ?? 0) >= 1;
 	const upgradeRequired = Boolean(product && !allowedProductKeys.includes(values.productKey));
@@ -404,10 +414,12 @@ export function GenerationForm({
 
 	useEffect(() => {
 		if (!onDraftChange) return;
-		onDraftChange(form.getValues(), temporaryReference);
-		const subscription = form.watch(() => onDraftChange(form.getValues(), temporaryReference));
+		onDraftChange(form.getValues(), temporaryReference, fundingSource);
+		const subscription = form.watch(() =>
+			onDraftChange(form.getValues(), temporaryReference, fundingSource),
+		);
 		return () => subscription.unsubscribe();
-	}, [form, onDraftChange, temporaryReference]);
+	}, [form, onDraftChange, temporaryReference, fundingSource]);
 
 	function replaceControlValues(cell: PublicImageSpecCell) {
 		const next = resolveImageSpecControlValues(cell, {});
@@ -500,7 +512,7 @@ export function GenerationForm({
 		beginNewAction();
 	}
 
-	function continueToUpgrade() {
+	function saveDraftForPurchase(): boolean {
 		const current = form.getValues();
 		const currentProduct = products.find((candidate) => candidate.key === current.productKey);
 		const currentCell = getImageSpecCell(currentProduct?.skuMatrix, current.skuKey);
@@ -527,8 +539,40 @@ export function GenerationForm({
 		if (!saved) {
 			setUpgradeStorageUnavailable(true);
 			setUpgradeOpen(true);
+		}
+		return saved;
+	}
+
+	function continueToImagePass() {
+		if (!ownerId) return;
+		let saved = false;
+		try {
+			saved = saveWorkspaceDraft(
+				window.sessionStorage,
+				ownerId,
+				{
+					values: form.getValues(),
+					parentJobId: temporaryReference ? null : (parentJobId ?? null),
+					temporaryReference,
+					fundingSource,
+				},
+				Date.now(),
+				workspaceDraftPath,
+			);
+		} catch {
+			// Keep the draft in place when browser storage is unavailable.
+		}
+		if (!saved) {
+			setUpgradeStorageUnavailable(true);
+			setUpgradeOpen(true);
 			return;
 		}
+		captureCheckoutTrigger();
+		router.push("/image-pass");
+	}
+
+	function continueToUpgrade() {
+		if (!saveDraftForPurchase()) return;
 		captureCheckoutTrigger();
 		router.push(
 			createChoosePlanPath(effectEditor?.getReturnPath("upgrade") ?? "/create?upgrade=complete"),
@@ -627,6 +671,14 @@ export function GenerationForm({
 					beginNewAction();
 				}}
 			/>
+			{passSelected && !passSkuAllowed && (
+				<output
+					data-testid="image-pass-size-not-eligible"
+					className="text-xs leading-5 text-amber-600 dark:text-amber-300 block"
+				>
+					{pass("fundingSizeNotEligible")}
+				</output>
+			)}
 			{modelNavigation.unavailable && (
 				<output className="mb-3 text-sm text-amber-200 block">
 					{studio("tools.modelUnavailable")}
@@ -834,9 +886,14 @@ export function GenerationForm({
 					<AlertDescription>
 						{t(`errors.${errorKey}`)}
 						{errorKey === "insufficientImagePasses" && (
-							<Link href="/image-pass" className="mt-2 block underline underline-offset-4">
+							<button
+								type="button"
+								data-testid="image-pass-buy-more"
+								onClick={continueToImagePass}
+								className="mt-2 block underline underline-offset-4"
+							>
 								{pass("buyMore")}
-							</Link>
+							</button>
 						)}
 						{errorKey === "insufficientCredits" && product && (
 							<CreditBalanceSummary

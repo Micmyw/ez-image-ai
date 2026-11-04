@@ -35,3 +35,7 @@ void test("the local provider confirms an idempotent no-charge cancellation", as
 		},
 	);
 });
+
+void test("the local Kie fixture does not invent provider cancellation support", () => {
+	assert.equal(new LocalMediaE2EProvider("kie").cancel, undefined);
+});

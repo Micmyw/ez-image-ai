@@ -50,7 +50,7 @@ describe("image pass offer banner", () => {
 					timeZone="UTC"
 					messages={{ imagePass: { bannerLabel, bannerTitle, bannerDetail, dismissBanner, buy } }}
 				>
-					<ImagePassBanner registered />
+					<ImagePassBanner />
 				</NextIntlClientProvider>,
 			);
 			expect(markup).toContain("$1.00");
@@ -63,18 +63,19 @@ describe("image pass offer banner", () => {
 			expect(markup).not.toContain("75 credits");
 		},
 	);
-	it("keeps the offer destination through registration", () => {
+	it("lets visitors read the public offer before registration", () => {
 		const markup = renderToStaticMarkup(
 			<NextIntlClientProvider locale="en" messages={en}>
 				<ImagePassBanner />
 			</NextIntlClientProvider>,
 		);
-		expect(markup).toContain("/signup?redirectTo=%2Fimage-pass");
+		expect(markup).toContain('href="/image-pass"');
+		expect(markup).not.toContain("/signup");
 	});
 	it("provides an accessible dismissal button beside the purchase link", () => {
 		const markup = renderToStaticMarkup(
 			<NextIntlClientProvider locale="en" messages={en}>
-				<ImagePassBanner registered />
+				<ImagePassBanner />
 			</NextIntlClientProvider>,
 		);
 		expect(markup).toContain('aria-label="Dismiss image pack offer"');

@@ -94,13 +94,16 @@ export function ImageEditorWorkspace({
 	useEffect(() => {
 		if (initialized.current || !user?.id) return;
 		initialized.current = true;
-		const explicitRecovery = Boolean(
-			initialDraft ||
-			restoreState !== "idle" ||
-			["asset", "reuseJob", "parentJob", "draftError", "upgrade", "resume"].some((key) =>
-				searchParams.has(key),
-			),
-		);
+		const resumeWorkspace = searchParams.get("resume") === "workspace";
+		const explicitRecovery =
+			!resumeWorkspace &&
+			Boolean(
+				initialDraft ||
+				restoreState !== "idle" ||
+				["asset", "reuseJob", "parentJob", "draftError", "upgrade", "resume"].some((key) =>
+					searchParams.has(key),
+				),
+			);
 		try {
 			if (!explicitRecovery) {
 				const saved = loadWorkspaceDraft(window.sessionStorage, user.id, Date.now(), draftPath);
@@ -120,16 +123,22 @@ export function ImageEditorWorkspace({
 						},
 						parentJobId: saved.parentJobId,
 						temporaryReference: saved.temporaryReference,
+						fundingSource: saved.fundingSource,
 						formKey: current.formKey + 1,
 					}));
 					setSourceReady(false);
+				}
+				if (resumeWorkspace) {
+					const returnUrl = new URL(window.location.href);
+					returnUrl.searchParams.delete("resume");
+					router.replace(returnUrl.pathname + returnUrl.search + returnUrl.hash, { scroll: false });
 				}
 			}
 		} catch {
 			setStorageUnavailable(true);
 		}
 		setDraftReady(true);
-	}, [draftPath, initialDraft, restoreState, searchParams, user?.id]);
+	}, [draftPath, initialDraft, restoreState, router, searchParams, user?.id]);
 	useEffect(() => {
 		function resetWorkspace(event: Event) {
 			const productKey = (event as CustomEvent<StudioWorkspaceResetDetail>).detail?.productKey;
@@ -143,7 +152,11 @@ export function ImageEditorWorkspace({
 		return () => window.removeEventListener(STUDIO_WORKSPACE_RESET_EVENT, resetWorkspace);
 	}, []);
 	const persistDraft = useCallback(
-		(values: GenerationFormValues, temporaryReference?: TemporaryReferenceReceipt) => {
+		(
+			values: GenerationFormValues,
+			temporaryReference?: TemporaryReferenceReceipt,
+			fundingSource?: "CREDITS" | "IMAGE_PASS",
+		) => {
 			if (!user?.id) return;
 			try {
 				setStorageUnavailable(
@@ -154,6 +167,7 @@ export function ImageEditorWorkspace({
 							values,
 							parentJobId: workspace.parentJobId,
 							temporaryReference,
+							fundingSource,
 						},
 						Date.now(),
 						draftPath,
@@ -281,10 +295,12 @@ export function ImageEditorWorkspace({
 					}
 					onSourceChanged={unlinkSource}
 					onDraftChange={draftReady ? persistDraft : undefined}
+					workspaceDraftPath={draftPath}
 					jobId={jobId}
 					key={workspace.formKey}
 					initialDraft={workspace.initialDraft}
 					initialTemporaryReference={workspace.temporaryReference}
+					initialFundingSource={workspace.fundingSource}
 					initialProductKey={freshProductKey}
 					allowedProductKeys={allowedProductKeys}
 					initialSourceReady={sourceReady}

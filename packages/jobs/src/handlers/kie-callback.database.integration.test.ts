@@ -603,6 +603,40 @@ describe("Kie completion notices with real PostgreSQL leases", () => {
 		await claim(f, false);
 	});
 
+	it.each([false, true])(
+		"retains a late manual-recovery notice without changing identity or funding (bound: %s)",
+		async (bound) => {
+			const f = await fixture({ bound });
+			await client.$transaction([
+				client.generationAttempt.update({
+					where: { id: f.attemptId },
+					data: {
+						status: "NEEDS_RECONCILIATION",
+						uncertainSubmission: true,
+						nextReconcileAt: null,
+					},
+				}),
+				client.generationJob.update({
+					where: { id: f.job.id },
+					data: { status: "NEEDS_RECONCILIATION" },
+				}),
+			]);
+			const before = await f.read();
+			expect(await f.wake()).toBe("recorded");
+			expect(await f.wake()).toBe("recorded");
+			expect(await f.read()).toEqual(before);
+			expect(await f.notices()).toHaveLength(1);
+			expect((await f.notices())[0]).toMatchObject({
+				status: "RECEIVED",
+				providerTaskId: f.providerTaskId,
+			});
+			expect(
+				await client.creditReservation.findUnique({ where: { id: f.job.reservation!.id } }),
+			).toEqual(f.job.reservation);
+			expect(await client.outboxEvent.count({ where: { aggregateId: f.job.id } })).toBe(0);
+		},
+	);
+
 	it("does not resurrect terminal attempts or create completion evidence", async () => {
 		const f = await fixture();
 		await client.generationAttempt.update({

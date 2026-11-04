@@ -388,7 +388,21 @@ export async function getImagePassBalance(
 		reserved: Number(row?.reserved ?? 0),
 		consumed: Number(row?.consumed ?? 0),
 		revoked: Number(row?.revoked ?? 0),
+		// Sizes the available units can pay for, from each grant's frozen offer
+		// snapshot. Pre-restriction grants keep every size (grandfathered).
+		availableSkuKeys: await getImagePassAvailableSkuKeys(input, tx),
 	};
+}
+export async function getImagePassAvailableSkuKeys(
+	input: { ownerId: string },
+	tx: Prisma.TransactionClient,
+): Promise<string[]> {
+	const rows = await tx.$queryRaw<Array<{ skuKey: string }>>`
+		SELECT DISTINCT sku."skuKey" FROM "image_pass_grant" g
+		CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(g."offerSnapshot"->'allowedSkuKeys')='array' THEN g."offerSnapshot"->'allowedSkuKeys' ELSE '[]'::jsonb END) AS sku("skuKey")
+		WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE'
+		AND EXISTS (SELECT 1 FROM "image_pass_unit" unit WHERE unit."grantId"=g."id" AND unit."status"='AVAILABLE')`;
+	return rows.map((row) => row.skuKey).sort();
 }
 
 export interface ImagePassPurchase {

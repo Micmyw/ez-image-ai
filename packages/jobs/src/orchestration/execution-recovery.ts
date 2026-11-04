@@ -70,7 +70,81 @@ export function parseDatabaseConflictRetry(
 }
 
 /** Logs carry closed diagnostic codes only; they are never retry authorization. */
-export function executionFailureEvidence(error: unknown): { errorCode: string; phase: string } {
+export interface ExecutionFailureEvidence {
+	errorCode: string;
+	phase: string;
+	/** Constructor name such as TypeError or StripeAuthenticationError. */
+	errorName?: string;
+	/** Explicitly allowlisted internal diagnostic codes, never arbitrary messages. */
+	messageCodes?: string[];
+}
+
+const SAFE_ERROR_NAMES = new Set([
+	"Error",
+	"AggregateError",
+	"TypeError",
+	"RangeError",
+	"SyntaxError",
+	"AbortError",
+	"PrismaClientKnownRequestError",
+	"PrismaClientUnknownRequestError",
+	"PrismaClientInitializationError",
+	"PrismaClientRustPanicError",
+	"StripeAuthenticationError",
+]);
+const SAFE_MESSAGE_CODES = new Set([
+	"PAYMENT_RECONCILIATION_FAILED",
+	"PAYPAL_EVENTS_UNAVAILABLE",
+	"STRIPE_LEGACY_LIFECYCLE_INCOMPLETE",
+	"MAINTENANCE_FAILED",
+	"PROVIDER_RECOVERY_UNAVAILABLE",
+	"OUTBOX_RECOVERY_REQUIRED",
+]);
+
+/**
+ * Logs only identifiers that cannot carry prompts, URLs, tokens or customer data,
+ * so an UNKNOWN failure (for example the hourly media-reconcile-subscriptions
+ * MAINTENANCE_FAILED) can still be attributed from the job_execution_failed line.
+ */
+function safeFailureIdentifiers(
+	error: unknown,
+): Pick<ExecutionFailureEvidence, "errorName" | "messageCodes"> {
+	const codes = new Set<string>();
+	let errorName: string | undefined;
+	const visit = (value: unknown, depth: number) => {
+		if (!value || typeof value !== "object" || depth > 3 || codes.size >= 8) return;
+		const candidate = value as {
+			name?: unknown;
+			message?: unknown;
+			code?: unknown;
+			cause?: unknown;
+			errors?: unknown;
+		};
+		if (
+			errorName === undefined &&
+			typeof candidate.name === "string" &&
+			SAFE_ERROR_NAMES.has(candidate.name)
+		)
+			errorName = candidate.name;
+		for (const text of [candidate.message, candidate.code])
+			if (typeof text === "string" && SAFE_MESSAGE_CODES.has(text)) codes.add(text);
+		if (Array.isArray(candidate.errors))
+			for (const inner of candidate.errors.slice(0, 8)) visit(inner, depth + 1);
+		visit(candidate.cause, depth + 1);
+	};
+	try {
+		visit(error, 0);
+	} catch {
+		// Untrusted getters never replace the original failure.
+	}
+	return {
+		...(errorName ? { errorName } : {}),
+		...(codes.size ? { messageCodes: [...codes] } : {}),
+	};
+}
+
+export function executionFailureEvidence(error: unknown): ExecutionFailureEvidence {
+	const original = error;
 	if (error instanceof OutputTransferClaimConflictError)
 		return { errorCode: "OUTPUT_TRANSFER_CLAIM_CONFLICT", phase: "BEFORE_TRANSFER_LEASE" };
 	if (error instanceof SettlementTransactionConflictError)
@@ -116,5 +190,5 @@ export function executionFailureEvidence(error: unknown): { errorCode: string; p
 	} catch {
 		// Untrusted error properties cannot replace the original failure.
 	}
-	return { errorCode: "UNKNOWN", phase: "UNKNOWN" };
+	return { errorCode: "UNKNOWN", phase: "UNKNOWN", ...safeFailureIdentifiers(original) };
 }

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { proxy } from "../../../proxy";
+import { config as proxyConfig, proxy } from "../../../proxy";
 import { PUBLIC_PAGE_LANGUAGES, publicPagePath } from "./indexing";
 import { createPublicPageMetadata } from "./metadata";
 
@@ -24,6 +24,19 @@ function inspect(path: string, query = "") {
 }
 
 describe("public HTML and HTTP indexing agree", () => {
+	it.each(["en", "de", "es", "fr"])(
+		"keeps the public purchase page private to crawlers while setting its %s URL locale",
+		(locale) => {
+			expect(proxyConfig.matcher).toContain("/image-pass");
+			const response = proxy(
+				new NextRequest(`https://example.com/image-pass?lang=${locale}&intentId=private`, {
+					headers: { cookie: "NEXT_LOCALE=de" },
+				}),
+			);
+			expect(response.headers.get("x-middleware-request-x-next-intl-locale")).toBe(locale);
+			expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+		},
+	);
 	it.each(
 		Object.entries(PUBLIC_PAGE_LANGUAGES).flatMap(([path, languages]) =>
 			languages.map((locale) => [path, locale]),

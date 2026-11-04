@@ -3,6 +3,31 @@ import { describe, expect, it, vi } from "vitest";
 import { cancelProviderGeneration } from "./cancel-generation";
 
 describe("cancelProviderGeneration", () => {
+	it("ignores an old unsupported cancellation intent while preserving normal provider recovery", async () => {
+		const claim = {
+			jobId: "job_1",
+			attemptId: "attempt_1",
+			provider: "kie" as const,
+			providerTaskId: "kie-task_1",
+			leaseToken: "lease_1",
+			idempotencyKey: "cancel_1",
+		};
+		const store = {
+			claimProviderCancellation: vi.fn().mockResolvedValue(claim),
+			confirmProviderCancellation: vi.fn(),
+			markProviderCancellationManualRecovery: vi.fn(),
+			releaseProviderCancellation: vi.fn(),
+		};
+		await expect(
+			cancelProviderGeneration(
+				{ jobId: "job_1", version: 5 },
+				{ store, getProvider: () => ({ provider: "kie" }) as never },
+			),
+		).resolves.toEqual({ outcome: "SKIPPED" });
+		expect(store.releaseProviderCancellation).toHaveBeenCalledWith(claim);
+		expect(store.markProviderCancellationManualRecovery).not.toHaveBeenCalled();
+		expect(store.confirmProviderCancellation).not.toHaveBeenCalled();
+	});
 	it("confirms one no-charge provider cancellation for a durable accepted-job intent", async () => {
 		const claim = {
 			jobId: "job_1",

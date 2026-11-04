@@ -36,6 +36,7 @@ import {
 	recoveryProviderKeysFromEnvironment,
 } from "@repo/ai";
 import {
+	isPreservedGenerationFailureCode,
 	isTechnicalGenerationFailureCode,
 	KIE_ZERO_COST_REJECTION_CODE,
 	KIE_CHARGED_POLICY_REJECTION_CODE,
@@ -3742,7 +3743,10 @@ function confirmedTechnicalFailureCode(snapshot: ProviderTaskSnapshot, result: N
 }
 
 function settlementFailureCode(failureCode: string | null): string {
+	// Keep classified causes (provider, timeout, input, transfer) for diagnosis and
+	// the customer-facing category; anything else stays NO_USABLE_OUTPUT.
 	return isTechnicalGenerationFailureCode(failureCode) ||
+		isPreservedGenerationFailureCode(failureCode) ||
 		failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
 		failureCode === KIE_ZERO_COST_REJECTION_CODE ||
 		failureCode === KIE_CHARGED_POLICY_REJECTION_CODE ||
@@ -6243,6 +6247,7 @@ export function createDatabaseReconciliationStore(
 			          attempt."providerResultUrl" AS "resultUrl",
 			          attempt."reconcileLeaseToken" AS "leaseToken",
 			          GREATEST(1, FLOOR(EXTRACT(EPOCH FROM (${now} - attempt."updatedAt")) / 60))::int AS "staleAgeMinutes",
+			          (EXTRACT(EPOCH FROM (clock_timestamp() - attempt."submittedAt")) * 1000)::double precision AS "submissionAgeMs",
 			          attempt."reconciliationCount" AS "repairCount", attempt."responseSnapshot"
 			), consumed AS (
 				UPDATE "provider_webhook_event" notice
@@ -6675,7 +6680,14 @@ export function createDatabaseReconciliationStore(
 			code = "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
 		) {
 			await database.$transaction(async (tx) => {
-				await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${lease.attemptId} AND "reconcileLeaseToken" = ${lease.leaseToken} FOR UPDATE`;
+				// The no-task-ID deadline is checked again after acquiring the row lock.
+				// A concurrent accepted identity or application clock skew must not escalate it.
+				const locked = await tx.$queryRaw<Array<{ id: string }>>`
+					SELECT "id" FROM "generation_attempt"
+					WHERE "id" = ${lease.attemptId} AND "reconcileLeaseToken" = ${lease.leaseToken}
+					AND (${Boolean(lease.providerTaskId)} OR ("providerTaskId" IS NULL
+					 AND "submittedAt" <= clock_timestamp() - INTERVAL '30 minutes')) FOR UPDATE`;
+				if (locked.length !== 1) return;
 				if (!(await generationPhaseIsCurrent(lease.attemptId, lease.phaseOwner, tx))) return;
 				const attempt = await tx.generationAttempt.findFirst({
 					where: {

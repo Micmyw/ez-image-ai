@@ -336,7 +336,15 @@ describe("getJob", () => {
 		mocks.getStatus.mockResolvedValue({
 			...baseJob,
 			status: "PROVIDER_RUNNING",
-			attempts: [{ progress: 42, status: "RUNNING", uncertainSubmission: false }],
+			attempts: [
+				{
+					progress: 42,
+					status: "RUNNING",
+					uncertainSubmission: false,
+					provider: "replicate",
+					providerTaskId: "task-1",
+				},
+			],
 		} as never);
 
 		await expect(
@@ -353,11 +361,55 @@ describe("getJob", () => {
 		).resolves.toMatchObject({ canCancel: false });
 	});
 
+	it.each(["kie", "gemini", "fal", "openrouter"])(
+		"does not expose cancellation for the unsupported %s adapter",
+		async (provider) => {
+			mocks.getStatus.mockResolvedValue({
+				...baseJob,
+				status: "PROVIDER_RUNNING",
+				attempts: [
+					{
+						progress: 42,
+						status: "RUNNING",
+						uncertainSubmission: false,
+						provider,
+						providerTaskId: "private-task",
+					},
+				],
+			});
+			const result = await call(
+				getJob,
+				{ jobId: "job-1" },
+				{ context: { headers: new Headers() } },
+			);
+			expect(result.canCancel).toBe(false);
+			expect(JSON.stringify(result)).not.toContain("private-task");
+			expect(result).not.toHaveProperty("provider");
+		},
+	);
+	it.each(["RESERVED", "DISPATCH_QUEUED"])(
+		"allows %s cancellation before any supplier submission",
+		async (status) => {
+			mocks.getStatus.mockResolvedValue({ ...baseJob, status, attempts: [] });
+			await expect(
+				call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } }),
+			).resolves.toMatchObject({ canCancel: true });
+		},
+	);
+
 	it("disables cancellation when any attempt still requires reconciliation", async () => {
 		mocks.getStatus.mockResolvedValue({
 			...baseJob,
 			status: "PROVIDER_RUNNING",
-			attempts: [{ progress: 42, status: "RUNNING", uncertainSubmission: false }],
+			attempts: [
+				{
+					progress: 42,
+					status: "RUNNING",
+					uncertainSubmission: false,
+					provider: "replicate",
+					providerTaskId: "task-1",
+				},
+			],
 			_count: { attempts: 1 },
 		} as never);
 

@@ -33,7 +33,14 @@ export const MEDIA_JOB_STATUS_SELECT = {
 	attempts: {
 		orderBy: { attemptNumber: "desc" },
 		take: 1,
-		select: { id: true, progress: true, status: true, uncertainSubmission: true },
+		select: {
+			id: true,
+			progress: true,
+			status: true,
+			uncertainSubmission: true,
+			provider: true,
+			providerTaskId: true,
+		},
 	},
 	assets: {
 		orderBy: [{ role: "asc" }, { position: "asc" }, { id: "asc" }],
@@ -137,7 +144,7 @@ export async function getOwnedGenerationJobStatus(
 		LEFT JOIN "credit_reservation" credit ON credit."jobId" = job."id"
 		LEFT JOIN "image_pass_reservation" pass ON pass."jobId" = job."id"
 		LEFT JOIN LATERAL (
-			SELECT attempt."id", attempt."progress", attempt."status", attempt."uncertainSubmission"
+			SELECT attempt."id", attempt."progress", attempt."status", attempt."uncertainSubmission", attempt."provider", attempt."providerTaskId"
 			FROM "generation_attempt" attempt WHERE attempt."jobId" = job."id"
 			ORDER BY attempt."attemptNumber" DESC LIMIT 1
 		) latest ON TRUE

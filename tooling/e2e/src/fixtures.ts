@@ -1,12 +1,13 @@
-import type {
-	MediaProviderAdapter,
-	NormalizedResult,
-	ProviderCancelInput,
-	ProviderCancelResult,
-	ProviderSubmitInput,
-	ProviderSubmission,
-	ProviderTaskSnapshot,
-	ProviderKey,
+import {
+	providerSupportsCancellation,
+	type MediaProviderAdapter,
+	type NormalizedResult,
+	type ProviderCancelInput,
+	type ProviderCancelResult,
+	type ProviderSubmitInput,
+	type ProviderSubmission,
+	type ProviderTaskSnapshot,
+	type ProviderKey,
 } from "@repo/ai";
 
 export const E2E_PASSWORD = "LocalMediaE2E!2026";
@@ -47,7 +48,18 @@ export type MediaE2EScenario =
 	| "delayed-success";
 
 export class LocalMediaE2EProvider implements MediaProviderAdapter {
-	constructor(readonly provider: ProviderKey) {}
+	readonly cancel?: (input: ProviderCancelInput) => Promise<ProviderCancelResult>;
+
+	constructor(readonly provider: ProviderKey) {
+		if (providerSupportsCancellation(provider)) {
+			this.cancel = async () => ({
+				status: "CANCELED",
+				canceled: true,
+				noCharge: true,
+				retryable: false,
+			});
+		}
+	}
 
 	async submit(input: ProviderSubmitInput): Promise<ProviderSubmission> {
 		const scenario = scenarioFromPrompt(input.input.prompt);
@@ -87,10 +99,6 @@ export class LocalMediaE2EProvider implements MediaProviderAdapter {
 
 	async retrieve(input: { providerTaskId: string }): Promise<ProviderTaskSnapshot> {
 		return successSnapshot(input.providerTaskId);
-	}
-
-	async cancel(_input: ProviderCancelInput): Promise<ProviderCancelResult> {
-		return { status: "CANCELED", canceled: true, noCharge: true, retryable: false };
 	}
 
 	async normalizeResult(snapshot: ProviderTaskSnapshot): Promise<NormalizedResult> {

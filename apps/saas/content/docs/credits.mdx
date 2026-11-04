@@ -1,5 +1,5 @@
 ---
-updatedAt: 2026-10-24
+updatedAt: 2026-11-04
 indexable: true
 title: Credits
 description: Check the cost before generating and understand reserved, charged, and returned credits, subscriptions, and Credit Packs.
@@ -14,7 +14,18 @@ on [Pricing](/pricing) and in **Credits & billing**.
 
 The **3 images for $1.00** offer is a separate, one-time image pack. You can close its banner;
 it stays hidden in the current browser tab for the rest of the session. The pack remains
-available on the [image pack page](/image-pass).
+available on the [image pack page](/image-pass), which you can view without signing in;
+you only sign in when you buy.
+
+Image passes cover **standard 1K and 2K sizes only**. 4K and other high-resolution sizes,
+Pro models (Nano Banana Pro, Seedream 5 Pro), and GPT Image 1.5 high quality are not covered
+and use credits instead. The server checks this when a pass is reserved for a generation, so a
+pass is never spent on an ineligible size. Passes from the earlier offer keep the model and size
+coverage they were sold with, including 4K. Buying a pack does not change subscription access.
+
+When you buy from a signed-in editor, **Continue editing** returns to your saved draft in the
+same browser tab, including the original reference and payment choice. Uploaded references
+still need to be valid when you generate; buying a pack does not extend their expiry.
 
 ## Before you generate
 
@@ -59,6 +70,12 @@ A slow response or lost connection does not prove a generation failed. If the pa
 **Checking result**, wait for that existing attempt to be resolved instead of submitting another
 copy. Confirmed temporary generation failures with no output return their reserved credits;
 the panel shows the returned amount after settlement.
+
+If submission cannot be confirmed for 30 minutes, the attempt moves to manual recovery and
+its funding remains reserved until the outcome is established. This deadline does not mean
+the provider rejected the request. A confirmed provider task continues through normal recovery.
+Cancellation is available before submission, or after submission only when the provider supports
+it and the task can still be canceled safely; requesting cancellation is not a confirmed refund.
 
 ## If a safety check stops an image
 

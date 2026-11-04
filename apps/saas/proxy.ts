@@ -25,6 +25,10 @@ export function proxy(request: NextRequest) {
 		]),
 	);
 	const policy = publicPageIndexing(request.nextUrl.pathname, search);
+	if (request.nextUrl.pathname === "/image-pass") {
+		response.headers.set("X-Robots-Tag", "noindex, nofollow");
+		return response;
+	}
 	if (!policy.index)
 		response.headers.set("X-Robots-Tag", `noindex, ${policy.follow ? "follow" : "nofollow"}`);
 	if (request.nextUrl.pathname.startsWith("/effects-preview/"))
@@ -42,6 +46,7 @@ export const config = {
 		"/effects/:path*",
 		"/effects-preview/:path*",
 		"/image-to-image",
+		"/image-pass",
 		"/photo-to-coloring-page",
 		"/models/:path*",
 		"/pricing",

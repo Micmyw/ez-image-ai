@@ -81,7 +81,7 @@ catalog:
   "@types/uuid": ^11.0.0
   "@vitest/coverage-v8": 4.1.11
   autoprefixer: 10.5.2
-  better-auth: 1.6.27
+  better-auth: 1.7.7
   boring-avatars: ^2.0.4
   class-variance-authority: ^0.7.1
   clsx: ^2.1.1
@@ -132,6 +132,7 @@ catalog:
   uuid: ^14.0.1
   vitest: 4.1.11
   zod: ^4.6.7
+  "@better-auth/passkey": 1.7.7
 
 patchedDependencies:
   "@aws-sdk/xml-builder@3.972.40": patches/@aws-sdk__xml-builder@3.972.40.patch

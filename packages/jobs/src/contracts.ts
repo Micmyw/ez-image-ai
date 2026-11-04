@@ -456,6 +456,8 @@ export interface ReconciliationLease {
 	resultUrl?: string;
 	leaseToken: string;
 	staleAgeMinutes: number;
+	/** Elapsed time since the persisted submission, measured by the database clock. */
+	submissionAgeMs?: number | null;
 	repairCount: number;
 }
 

@@ -3,6 +3,7 @@ import type { TemporaryReferenceReceipt } from "./temporary-reference-upload";
 
 export interface EditorWorkspaceState {
 	temporaryReference?: TemporaryReferenceReceipt;
+	fundingSource?: "CREDITS" | "IMAGE_PASS";
 	parentJobId: string | null;
 	initialDraft: EditorDraftInput | null;
 	formKey: number;

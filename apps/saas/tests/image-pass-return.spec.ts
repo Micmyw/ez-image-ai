@@ -145,6 +145,21 @@ for (const viewport of [
 	test.describe(`image-pass cancellation and funding (${viewport.name})`, () => {
 		test.use({ viewport: { width: viewport.width, height: viewport.height } });
 		test.describe.configure({ timeout: 120_000 });
+		test("shows the translated offer before asking a visitor to sign in", async ({
+			page,
+			context,
+			paymentMock,
+		}) => {
+			await context.clearCookies();
+			await page.goto("/image-pass");
+			await expect(page).toHaveURL(/\/image-pass$/);
+			await expect(page.getByRole("heading", { name: "3 successful images" })).toBeVisible();
+			await expect(page.getByRole("link", { name: "Create an account or sign in" })).toBeVisible();
+			await expect(page.getByTestId("image-pass-size-rule")).toContainText("1K and 2K");
+			await expect(page.locator("main")).not.toContainText("imagePass.");
+			expect(paymentMock.checkouts).toBe(0);
+			expect(paymentMock.captures).toBe(0);
+		});
 
 		test("hides empty funding choices, preserves the banner and fits available or reserved passes", async ({
 			page,
@@ -282,51 +297,63 @@ for (const viewport of [
 			expect(paymentMock.submissions).toEqual([]);
 		});
 
-		test("restores pending purchase after browser Back and preserves the editor draft", async ({
-			page,
-			paymentMock,
-		}, testInfo) => {
-			const draft = `Image-pass browser Back draft (${viewport.name})`;
-			await openCreator(page);
-			await page.getByLabel(/edit instruction|image prompt/i).fill(draft);
-			await page.locator('[data-test="image-pass-banner"] a[href="/image-pass"]').click();
-			const buy = page.getByTestId("image-pass-buy");
-			await expect(buy).toBeEnabled();
-			await buy.click();
-			await expect(page).toHaveURL(/\/__e2e__\/paypal\/mock$/);
-			await expect(page.getByRole("heading", { name: "Mock PayPal checkout" })).toBeVisible();
-			expect(paymentMock.checkouts).toBe(1);
-			await expect
-				.poll(() => paymentMock.diagnostics)
-				.toEqual(
-					expect.arrayContaining([
-						{ intentId: "mock", event: "link_received" },
-						{ intentId: "mock", event: "redirect_requested" },
-					]),
-				);
+		for (const editorPath of ["/", "/create", "/create?example=mediterranean"]) {
+			test(`restores pending purchase and the ${editorPath} draft after browser Back`, async ({
+				page,
+				paymentMock,
+			}, testInfo) => {
+				const draft = `Image-pass browser Back draft (${viewport.name}, ${editorPath})`;
+				paymentMock.available = 2;
+				await openCreator(page, editorPath);
+				await page.locator('[data-test="registered-generator"] input[value="IMAGE_PASS"]').check();
+				await page.getByLabel(/edit instruction|image prompt/i).fill(draft);
+				await page.locator('[data-test="image-pass-banner"] a[href="/image-pass"]').click();
+				const buy = page.getByTestId("image-pass-buy");
+				await expect(buy).toBeEnabled();
+				await buy.click();
+				await expect(page).toHaveURL(/\/__e2e__\/paypal\/mock$/);
+				await expect(page.getByRole("heading", { name: "Mock PayPal checkout" })).toBeVisible();
+				expect(paymentMock.checkouts).toBe(1);
+				await expect
+					.poll(() => paymentMock.diagnostics)
+					.toEqual(
+						expect.arrayContaining([
+							{ intentId: "mock", event: "link_received" },
+							{ intentId: "mock", event: "redirect_requested" },
+						]),
+					);
 
-			await page.goBack();
-			await expect(page).toHaveURL(/\/image-pass$/);
-			const status = page.getByTestId("image-pass-checkout-status");
-			await expect(status).toHaveAttribute("data-status", "PENDING");
-			await expect(status).not.toContainText("Payment confirmed");
-			await expect(buy).toBeEnabled();
-			await expect(buy).not.toContainText("Opening PayPal");
-			await expectNoHorizontalOverflow(page);
-			await status.screenshot({ path: testInfo.outputPath("browser-back-pending.png") });
-			await page.reload();
-			await expect(status).toHaveAttribute("data-status", "PENDING");
-			await page.getByRole("link", { name: "Return to editor", exact: true }).click();
-			await expect(page).toHaveURL(/\/create$/);
-			await expect(page.getByLabel(/edit instruction|image prompt/i)).toHaveValue(draft);
-			expect(paymentMock.checkouts).toBe(1);
-			expect(paymentMock.submissions).toEqual([]);
-		});
+				await page.goBack();
+				await expect(page).toHaveURL(/\/image-pass$/);
+				const status = page.getByTestId("image-pass-checkout-status");
+				await expect(status).toHaveAttribute("data-status", "PENDING");
+				await expect(status).not.toContainText("Payment confirmed");
+				await expect(buy).toBeEnabled();
+				await expect(buy).not.toContainText("Opening PayPal");
+				await expectNoHorizontalOverflow(page);
+				await status.screenshot({ path: testInfo.outputPath("browser-back-pending.png") });
+				await page.reload();
+				await expect(status).toHaveAttribute("data-status", "PENDING");
+				await page.getByRole("link", { name: "Return to editor", exact: true }).click();
+				const expectedEditorUrl = new URL(editorPath, page.url());
+				await expect.poll(() => new URL(page.url()).pathname).toBe(expectedEditorUrl.pathname);
+				await expect
+					.poll(() => new URL(page.url()).searchParams.get("example"))
+					.toBe(expectedEditorUrl.searchParams.get("example"));
+				await expect.poll(() => new URL(page.url()).searchParams.has("resume")).toBe(false);
+				await expect(page.getByLabel(/edit instruction|image prompt/i)).toHaveValue(draft);
+				await expect(
+					page.locator('[data-test="registered-generator"] input[value="IMAGE_PASS"]'),
+				).toBeChecked();
+				expect(paymentMock.checkouts).toBe(1);
+				expect(paymentMock.submissions).toEqual([]);
+			});
+		}
 	});
 }
 
-async function openCreator(page: Page) {
-	await page.goto("/create");
+async function openCreator(page: Page, path = "/create") {
+	await page.goto(path);
 	await expect(page.locator('[data-test="registered-generator"]')).toBeVisible({ timeout: 60_000 });
 	await expect(page.getByRole("button", { name: /^Model: / })).toBeEnabled({ timeout: 60_000 });
 	await expect(page.locator('[data-test="generation-submit"]')).toContainText("credits", {

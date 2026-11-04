@@ -100,7 +100,7 @@ describe("consolidated SaaS sitemap", () => {
 			"/blog/private-image-editing-workflow": "2026-09-22",
 			"/models": "2026-09-16",
 			"/docs": "2026-10-04",
-			"/docs/credits": "2026-10-24",
+			"/docs/credits": "2026-11-04",
 			"/docs/image-editing": "2026-10-23",
 			"/docs/privacy": "2026-11-02",
 			"/docs/quick-start": "2026-09-29",

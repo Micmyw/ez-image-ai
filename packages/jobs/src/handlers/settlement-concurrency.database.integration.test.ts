@@ -3,7 +3,13 @@ import { writeFile } from "node:fs/promises";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
 import { OUTPUT_MODERATION_BILLING_POLICY } from "@repo/config";
-import { getImagePassOfferSnapshot } from "@repo/config/image-pass";
+import { IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
+
+// Grandfathered 2026-10-19.1 pass: these jobs use nano-banana-pro-4k.
+const legacyImagePassSnapshot = () => ({
+	...IMAGE_PASS_LEGACY_OFFER,
+	allowedSkuKeys: [...IMAGE_PASS_LEGACY_OFFER.allowedSkuKeys],
+});
 import {
 	createCreditGrant,
 	createGenerationOutputAssetBindingTransaction,
@@ -131,7 +137,7 @@ async function fixture(
 				interval: "one-time",
 				idempotencyKey: ownerId,
 				status: "COMPLETED",
-				imagePassOfferSnapshot: getImagePassOfferSnapshot(),
+				imagePassOfferSnapshot: legacyImagePassSnapshot(),
 			},
 		});
 		await client.imagePassGrant.create({
@@ -143,7 +149,7 @@ async function fixture(
 				providerPaymentId: ownerId,
 				paidAmountMicros: 1_000_000n,
 				currency: "USD",
-				offerSnapshot: getImagePassOfferSnapshot(),
+				offerSnapshot: legacyImagePassSnapshot(),
 				paidAt: new Date(),
 				units: { create: [1, 2, 3].map((ordinal) => ({ ordinal })) },
 			},

@@ -1438,7 +1438,7 @@ describe("production media runtime stores", () => {
 			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
 			client.creditAccount.findUniqueOrThrow({ where: { id: seeded.accountId } }),
 		]);
-		expect(job).toMatchObject({ status: "FAILED", failureCode: "NO_USABLE_OUTPUT" });
+		expect(job).toMatchObject({ status: "FAILED", failureCode: "PROVIDER_UNAVAILABLE" });
 		expect(reservation.releasedAmount).toBe(reservation.amount);
 		expect(account.reservedCredits).toBe(0n);
 		expect(
@@ -1474,7 +1474,7 @@ describe("production media runtime stores", () => {
 			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
 			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
 		]);
-		expect(job).toMatchObject({ status: "FAILED", failureCode: "NO_USABLE_OUTPUT" });
+		expect(job).toMatchObject({ status: "FAILED", failureCode: "PROVIDER_UNAVAILABLE" });
 		expect(reservation).toMatchObject({
 			status: "SETTLED",
 			settledAmount: 0n,
@@ -1482,7 +1482,7 @@ describe("production media runtime stores", () => {
 		});
 	});
 
-	it("freezes Gemini transport uncertainty for manual reconciliation without settling credits", async () => {
+	it("uses database elapsed time to preserve unconfirmed Gemini funding for recovery", async () => {
 		const seeded = await seedReservedJob("image-quality");
 		const outcome = await dispatchGeneration(
 			{ jobId: seeded.jobId, version: 0 },
@@ -1515,7 +1515,7 @@ describe("production media runtime stores", () => {
 
 		await client.generationAttempt.update({
 			where: { id: uncertain.attempts[0]!.id },
-			data: { reconciliationCount: 4, nextReconcileAt: new Date(0) },
+			data: { reconciliationCount: 100, nextReconcileAt: new Date(0) },
 		});
 		await reconcileGenerations(
 			{ limit: 100 },
@@ -1523,29 +1523,42 @@ describe("production media runtime stores", () => {
 				store: createDatabaseReconciliationStore(client),
 				getProvider: () =>
 					new GeminiProviderAdapter({ apiKey: "unused", fetch: responseFetch(200, {}) }),
-				now: () => new Date(),
+				now: () => new Date("2099-01-01T00:00:00.000Z"),
 			},
 		);
-		const needsReconciliation = await client.generationJob.findUniqueOrThrow({
+		// Neither retry count nor an application clock far ahead is an elapsed database deadline.
+		expect(
+			(
+				await client.generationAttempt.findUniqueOrThrow({
+					where: { id: uncertain.attempts[0]!.id },
+				})
+			).status,
+		).toBe("SUBMISSION_UNCERTAIN");
+		await client.$executeRaw`UPDATE "generation_attempt" SET "submittedAt" = clock_timestamp() - INTERVAL '31 minutes', "nextReconcileAt" = '1970-01-01' WHERE "id" = ${uncertain.attempts[0]!.id}`;
+		await reconcileGenerations(
+			{ limit: 100 },
+			{
+				store: createDatabaseReconciliationStore(client),
+				getProvider: () =>
+					new GeminiProviderAdapter({ apiKey: "unused", fetch: responseFetch(200, {}) }),
+			},
+		);
+		const held = await client.generationJob.findUniqueOrThrow({
 			where: { id: seeded.jobId },
 			include: { attempts: true },
 		});
-		expect(needsReconciliation).toMatchObject({
+		expect(held).toMatchObject({
 			status: "NEEDS_RECONCILIATION",
 			failureCode: "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
 		});
-		expect(needsReconciliation.attempts[0]).toMatchObject({
+		expect(held.attempts[0]).toMatchObject({
 			status: "NEEDS_RECONCILIATION",
 			uncertainSubmission: true,
 			nextReconcileAt: null,
 		});
 		expect(
 			await client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
-		).toMatchObject({
-			status: "ACTIVE",
-			settledAmount: 0n,
-			releasedAmount: 0n,
-		});
+		).toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
 		expect(
 			await client.outboxEvent.count({
 				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
@@ -1553,10 +1566,7 @@ describe("production media runtime stores", () => {
 		).toBe(0);
 		expect(
 			await client.auditLog.count({
-				where: {
-					targetId: needsReconciliation.attempts[0]!.id,
-					action: "MEDIA_SUBMISSION_NEEDS_RECONCILIATION",
-				},
+				where: { targetId: held.attempts[0]!.id, action: "MEDIA_SUBMISSION_NEEDS_RECONCILIATION" },
 			}),
 		).toBe(1);
 	});

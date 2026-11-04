@@ -948,10 +948,11 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await createScenario(page, prompt);
 		const job = await waitForJob(prompt, "FAILED");
 		const reservation = await reservationFor(job.id);
-		expect(job.failureCode).toBe("NO_USABLE_OUTPUT");
+		expect(job.failureCode).toBe("PROVIDER_UNAVAILABLE");
 		expect(reservation.settledAmount).toBe("0");
 		expect(reservation.releasedAmount).toBe(job.creditsReserved);
 		await expect(page.getByRole("heading", { name: /could not finish/i })).toBeVisible();
+		await expect(page.getByText(/generation service was temporarily unavailable/i)).toBeVisible();
 		await expect(
 			page.getByText(
 				new RegExp(
@@ -1015,7 +1016,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		});
 	});
 
-	test("cancellation releases all reserved credits for the exact job", async ({
+	test("an accepted non-cancellable provider task keeps its reservation and rejects cancellation", async ({
 		page,
 	}, testInfo) => {
 		const prompt = marker("cancel-pending", "Cancel this generation", testInfo.retry);
@@ -1025,37 +1026,37 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect
 			.poll(() => providerCancellationReadiness(jobId), { timeout: 30_000 })
 			.toBe("PROVIDER_PENDING:SUBMITTED:false:task-bound");
-		await page.getByRole("button", { name: "Cancel", exact: true }).click();
-		await expect
-			.poll(
-				async () =>
-					(
-						await rows<{ status: string }>(`SELECT status FROM generation_job WHERE id=$1`, [jobId])
-					)[0]?.status,
-			)
-			.toBe("CANCELED");
-		await expect
-			.poll(async () => {
-				const reservation = (
-					await rows<Reservation>(
-						`SELECT status, "settledAmount", "releasedAmount" FROM credit_reservation WHERE "jobId"=$1`,
-						[jobId],
-					)
-				)[0];
-				return reservation
-					? `${reservation.status}:${reservation.settledAmount}:${reservation.releasedAmount}`
-					: "missing";
-			})
-			.toBe(`SETTLED:0:${job.creditsReserved}`);
-		await expect(page.getByRole("heading", { name: /edit was canceled/i })).toBeVisible();
-		await expect(
-			page.getByText(
-				new RegExp(
-					`all ${job.creditsReserved} of ${job.creditsReserved} reserved credits were returned`,
-					"i",
-				),
-			),
-		).toBeVisible();
+		expect(
+			(
+				await rows<{ provider: string }>(
+					`SELECT provider FROM generation_attempt WHERE "jobId"=$1`,
+					[jobId],
+				)
+			)[0]?.provider,
+		).toBe("kie");
+		// Reload after the accepted state so the assertion cannot observe the
+		// earlier pre-submission Cancel button while the next status poll is pending.
+		await page.reload();
+		await expect(page.getByText(jobId)).toBeVisible();
+		await expect(page.getByRole("button", { name: "Cancel", exact: true })).toHaveCount(0);
+		const cancellation = await page.request.post("/api/rpc/media/cancelGeneration", {
+			data: { json: { jobId } },
+		});
+		expect(cancellation.status()).toBe(409);
+		expect(await reservationFor(jobId)).toEqual({
+			status: "ACTIVE",
+			settledAmount: "0",
+			releasedAmount: "0",
+		});
+		expect(await providerCancellationReadiness(jobId)).toBe(
+			"PROVIDER_PENDING:SUBMITTED:false:task-bound",
+		);
+		expect(
+			await count(`SELECT count(*) FROM outbox_event WHERE "dedupeKey"=$1`, [
+				`generation-cancel:${jobId}`,
+			]),
+		).toBe(0);
+		await expect(page.getByRole("heading", { name: /edit was canceled/i })).toHaveCount(0);
 	});
 
 	test("reuse binds the seeded READY asset into the new job", async ({ page }, testInfo) => {

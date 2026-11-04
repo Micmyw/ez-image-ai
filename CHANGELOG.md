@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-04 — Image-pack purchase and generation recovery
+
+- Make the image-pack page public with complete translated copy. Signed-in editors retain their account-scoped draft, input, funding choice and original editor route through purchase and return.
+- Limit the new USD1 image pack to eligible standard 1K/2K options. Freeze the original offer's exact coverage for earlier purchases and pending checkouts.
+- Escalate submissions without a confirmed provider task after 30 minutes to manual recovery while preserving their reserved funding. Show cancellation only where the provider supports it, retain late callback evidence and show specific generation failure categories.
+- Extend anonymous public-page stale cache reuse to one hour while retaining authenticated cache bypass.
+- Upgrade Better Auth and Passkey to 1.7.7, enforce magic-link purpose separation and adapt two-factor enrollment to the current response contract.
+
 ## 2026-11-02 — Checkout diagnostic evidence
 
 - Add order-correlated diagnostics for image-pass and credit-pack checkout creation, local order binding, PayPal capture and verified payment-event ingestion. Preserve safe PayPal error codes and support debug IDs without storing raw responses or payment links in diagnostics.

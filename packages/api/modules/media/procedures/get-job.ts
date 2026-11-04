@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 
 import { ORPCError } from "@orpc/server";
-import { isTechnicalGenerationFailureCode } from "@repo/config";
+import { providerSupportsCancellation } from "@repo/ai";
+import { generationFailureCategory, isTechnicalGenerationFailureCode } from "@repo/config";
 import { db } from "@repo/database/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "@repo/database/media-assets";
 import { getOwnedGenerationJobStatus } from "@repo/database/media-job-status";
@@ -95,9 +96,10 @@ export const getJob = protectedProcedure
 		);
 		const attempt = job.attempts[0];
 		const canCancel =
-			["RESERVED", "DISPATCH_QUEUED", "PROVIDER_PENDING", "PROVIDER_RUNNING"].includes(
-				job.status,
-			) &&
+			(["RESERVED", "DISPATCH_QUEUED"].includes(job.status) ||
+				(["PROVIDER_PENDING", "PROVIDER_RUNNING"].includes(job.status) &&
+					Boolean(attempt?.providerTaskId) &&
+					providerSupportsCancellation(attempt?.provider))) &&
 			job._count.attempts === 0 &&
 			!attempt?.uncertainSubmission &&
 			attempt?.status !== "SUBMISSION_UNCERTAIN" &&
@@ -205,6 +207,11 @@ export const getJob = protectedProcedure
 							? job.failureCode
 							: ("GENERATION_FAILED" as const)
 						: null,
+			// Additive: input | provider | timeout | transfer | unknown for FAILED jobs.
+			failureCategory:
+				job.status === "FAILED" && !moderationRejected && !safetyUnavailable
+					? generationFailureCategory(job.failureCode)
+					: null,
 			canCancel,
 			canRetry,
 			createdAt: job.createdAt.toISOString(),

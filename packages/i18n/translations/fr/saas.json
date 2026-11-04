@@ -2114,7 +2114,9 @@
 			"creditsReturned": "Aucun crédit n’a été facturé. Vos {credits} crédits réservés ont été restitués.",
 			"retryHint": "Votre description et vos réglages sont enregistrés. Vous pouvez réessayer.",
 			"referenceExpired": "Votre description et vos réglages sont enregistrés. Sélectionnez une image de référence avant de réessayer.",
-			"recoveryHelp": "Consulter les étapes de récupération ou contacter l’assistance"
+			"recoveryHelp": "Consulter les étapes de récupération ou contacter l’assistance",
+			"inputUnavailable": "Nous n'avons pas pu utiliser votre image de référence ou votre saisie pour cette génération. Vérifiez-la et réessayez.",
+			"deliveryFailed": "Votre image a été générée mais n'a pas pu être livrée. Veuillez réessayer."
 		}
 	},
 	"common": {
@@ -2528,13 +2530,13 @@
 		"bannerLabel": "Pack d’images à paiement unique",
 		"dismissBanner": "Fermer l’offre du pack d’images",
 		"bannerTitle": "{units} images pour ${amount}",
-		"bannerDetail": "Nano Banana 2 Lite 1K · abonnement requis pour les modèles premium et la HD",
+		"bannerDetail": "Nano Banana 2 Lite 1K · 1K/2K uniquement · 4K et modèles Pro en crédits",
 		"buy": "Acheter le pack",
 		"oneTime": "Achat à paiement unique",
 		"title": "{units} images réussies",
 		"pageTitle": "Pack d’images — 3 images pour 1 USD",
-		"description": "Utilisez les pass image avec Nano Banana 2 Lite 1K. Un abonnement payant actif donne accès aux autres modèles et aux options HD compatibles jusqu’à la 4K. Chaque tâche produit une image.",
-		"models": "Nano Banana 2 Lite 1K ; modèles premium et HD avec un abonnement payant actif",
+		"description": "Les pass image paient des images standard 1K et 2K. La 4K et les autres hautes résolutions, les modèles Pro et GPT Image 1.5 haute qualité ne sont pas couverts et utilisent des crédits. Les comptes gratuits utilisent les pass avec Nano Banana 2 Lite 1K ; les autres modèles éligibles nécessitent un abonnement payant actif. Chaque tâche produit une image.",
+		"models": "Tailles standard 1K et 2K uniquement. La 4K, les modèles Pro et les autres tailles coûteuses utilisent des crédits.",
 		"singleOutput": "Chaque image réussie utilise un pass. Images uniquement, sans vidéo.",
 		"separate": "Les pass image sont distincts des crédits et des abonnements.",
 		"repeat": "Achetez un autre pack quand vous en avez besoin.",
@@ -2576,7 +2578,9 @@
 		"balanceError": "Solde de pass indisponible",
 		"retryBalance": "Vérifier à nouveau le solde",
 		"availabilityLoading": "Vérification de la disponibilité…",
-		"unavailable": "Cette offre est actuellement indisponible. Réessayez plus tard."
+		"unavailable": "Cette offre est actuellement indisponible. Réessayez plus tard.",
+		"sizeRule": "Couvre les options standard admissibles en 1K et 2K. Exclut la 4K, les modèles Pro et les autres options coûteuses. Les pass de l’offre précédente conservent leur couverture d’origine.",
+		"fundingSizeNotEligible": "Choisissez un modèle standard et une qualité admissibles en 1K ou 2K, ou payez avec des crédits."
 	},
 	"support": {
 		"title": "Demandes d’assistance",
