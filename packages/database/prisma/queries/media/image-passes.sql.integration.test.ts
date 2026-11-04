@@ -1,4 +1,4 @@
-import { getImagePassOfferSnapshot } from "@repo/config/image-pass";
+import { getImagePassOfferSnapshot, IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
 import { IMAGE_PASS_PAYPAL_SKU } from "@repo/config/image-pass.server";
 import { Pool, types } from "pg";
 import { beforeAll, afterAll, describe, expect, it, vi } from "vitest";
@@ -208,14 +208,22 @@ export async function sqlTransaction<T>(
 	}
 }
 
-async function paymentFixture(existingOwnerId?: string) {
+function legacyOfferSnapshot() {
+	return {
+		...IMAGE_PASS_LEGACY_OFFER,
+		allowedSkuKeys: [...IMAGE_PASS_LEGACY_OFFER.allowedSkuKeys],
+	};
+}
+
+/** Defaults to a grandfathered 2026-10-19.1 pass, which still covers every size (incl. 4K). */
+async function paymentFixture(existingOwnerId?: string, offer: "legacy" | "current" = "legacy") {
 	const suffix = crypto.randomUUID();
 	const ownerId = existingOwnerId ?? `image-pass-owner-${suffix}`;
 	let billingPlanId = `image-pass-plan-${suffix}`;
 	const checkoutIntentId = `image-pass-checkout-${suffix}`;
 	const providerOrderId = `order-${suffix}`;
 	const providerPaymentId = `capture-${suffix}`;
-	const snapshot = getImagePassOfferSnapshot();
+	const snapshot = offer === "legacy" ? legacyOfferSnapshot() : getImagePassOfferSnapshot();
 	if (!existingOwnerId)
 		await pool!.query(
 			`INSERT INTO "user" (id,name,email,"emailVerified","createdAt","updatedAt") VALUES ($1,'pass fixture',$2,true,NOW(),NOW())`,
@@ -243,20 +251,23 @@ async function paymentFixture(existingOwnerId?: string) {
 	};
 }
 
-async function jobFixture(ownerId: string, status = "RESERVED") {
+async function jobFixture(ownerId: string, status = "RESERVED", skuKey = "nano-banana-pro-4k") {
 	const id = `pass-job-${crypto.randomUUID()}`;
+	const productKey = skuKey.startsWith("nano-banana-2-")
+		? "image-nano-banana-2"
+		: "image-nano-banana-pro";
 	const snapshot = {
 		fundingSource: "IMAGE_PASS",
-		skuKey: "nano-banana-pro-4k",
+		skuKey,
 		settlementPolicy: { unitCredits: "25", requestedOutputCount: 1, maxCharge: "25" },
 	};
 	await pool!.query(
-		`INSERT INTO generation_quote (id,"ownerType","ownerId","submittedByUserId","productKey","catalogVersion","pricingVersion",credits,"costMicros","inputSnapshot","pricingSnapshot","expiresAt") VALUES ($1,'USER',$2,$2,'image-nano-banana-pro','2026-09-14.1','2026-09-13.2',25,120000,'{}',$3,NOW()+INTERVAL '1 hour')`,
-		[`${id}-quote`, ownerId, JSON.stringify(snapshot)],
+		`INSERT INTO generation_quote (id,"ownerType","ownerId","submittedByUserId","productKey","catalogVersion","pricingVersion",credits,"costMicros","inputSnapshot","pricingSnapshot","expiresAt") VALUES ($1,'USER',$2,$2,$4,'2026-09-14.1','2026-09-13.2',25,120000,'{}',$3,NOW()+INTERVAL '1 hour')`,
+		[`${id}-quote`, ownerId, JSON.stringify(snapshot), productKey],
 	);
 	await pool!.query(
-		`INSERT INTO generation_job (id,"ownerType","ownerId","submittedByUserId","quoteId","idempotencyKey","productKey","catalogVersion","pricingVersion","creditsReserved","fundingSource","inputSnapshot","pricingSnapshot",status,"updatedAt") VALUES ($1,'USER',$2,$2,$3,$1,'image-nano-banana-pro','2026-09-14.1','2026-09-13.2',0,'IMAGE_PASS','{}',$4,$5,NOW())`,
-		[id, ownerId, `${id}-quote`, JSON.stringify(snapshot), status],
+		`INSERT INTO generation_job (id,"ownerType","ownerId","submittedByUserId","quoteId","idempotencyKey","productKey","catalogVersion","pricingVersion","creditsReserved","fundingSource","inputSnapshot","pricingSnapshot",status,"updatedAt") VALUES ($1,'USER',$2,$2,$3,$1,$6,'2026-09-14.1','2026-09-13.2',0,'IMAGE_PASS','{}',$4,$5,NOW())`,
+		[id, ownerId, `${id}-quote`, JSON.stringify(snapshot), status, productKey],
 	);
 	return id;
 }
@@ -295,7 +306,9 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 		const f = await paymentFixture();
 		const result = await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
 		expect(result.created).toBe(true);
-		expect(await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx))).toEqual({
+		expect(
+			await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+		).toMatchObject({
 			available: 3,
 			reserved: 0,
 			consumed: 0,
@@ -361,7 +374,7 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 		await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(second, tx));
 		expect(
 			await sqlTransaction((tx) => getImagePassBalance({ ownerId: first.ownerId }, tx)),
-		).toEqual({ available: 6, reserved: 0, consumed: 0, revoked: 0 });
+		).toMatchObject({ available: 6, reserved: 0, consumed: 0, revoked: 0 });
 	});
 	it("preserves the paid ledger while allowing account and purchase deletion", async () => {
 		const f = await paymentFixture();
@@ -390,6 +403,47 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 			).toBe(0);
 		},
 	);
+	it("limits a 2026-11-04.1 pass to 1K/2K sizes while a legacy pass keeps 4K", async () => {
+		const current = await paymentFixture(undefined, "current");
+		await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(current, tx));
+		const fourK = await jobFixture(current.ownerId);
+		await expect(
+			sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: current.ownerId, jobId: fourK }, tx),
+			),
+		).rejects.toThrow("IMAGE_PASS_INSUFFICIENT");
+		const proTwoK = await jobFixture(current.ownerId, "RESERVED", "nano-banana-pro-2k");
+		await expect(
+			sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: current.ownerId, jobId: proTwoK }, tx),
+			),
+		).rejects.toThrow("IMAGE_PASS_INSUFFICIENT");
+		const twoK = await jobFixture(current.ownerId, "RESERVED", "nano-banana-2-2k");
+		await expect(
+			sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: current.ownerId, jobId: twoK }, tx),
+			),
+		).resolves.toMatchObject({ fundingSource: "IMAGE_PASS" });
+		const balance = await sqlTransaction((tx) =>
+			getImagePassBalance({ ownerId: current.ownerId }, tx),
+		);
+		expect(balance).toMatchObject({ available: 2, reserved: 1 });
+		expect(balance.availableSkuKeys).not.toContain("nano-banana-pro-4k");
+		expect(balance.availableSkuKeys).toContain("nano-banana-2-2k");
+
+		const legacy = await paymentFixture(current.ownerId, "legacy");
+		await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(legacy, tx));
+		await expect(
+			sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: current.ownerId, jobId: fourK }, tx),
+			),
+		).resolves.toMatchObject({ fundingSource: "IMAGE_PASS" });
+		const after = await sqlTransaction((tx) =>
+			getImagePassBalance({ ownerId: current.ownerId }, tx),
+		);
+		expect(after).toMatchObject({ available: 4, reserved: 2 });
+		expect(after.availableSkuKeys).toContain("nano-banana-pro-4k");
+	});
 	it("atomically admits only three of four concurrent jobs, without a credit reservation", async () => {
 		const f = await paymentFixture();
 		await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
@@ -406,7 +460,9 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 			(results.find((result) => result.status === "rejected") as PromiseRejectedResult).reason
 				.message,
 		).toBe("IMAGE_PASS_INSUFFICIENT");
-		expect(await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx))).toEqual({
+		expect(
+			await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+		).toMatchObject({
 			available: 0,
 			reserved: 3,
 			consumed: 0,
@@ -493,13 +549,19 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 			occurredAt: new Date(),
 			kind: "REFUND" as const,
 		};
-		expect(await sqlTransaction((tx) => revokeImagePassPurchaseInTransaction(refund, tx))).toEqual({
+		expect(
+			await sqlTransaction((tx) => revokeImagePassPurchaseInTransaction(refund, tx)),
+		).toMatchObject({
 			replayed: false,
 		});
-		expect(await sqlTransaction((tx) => revokeImagePassPurchaseInTransaction(refund, tx))).toEqual({
+		expect(
+			await sqlTransaction((tx) => revokeImagePassPurchaseInTransaction(refund, tx)),
+		).toMatchObject({
 			replayed: true,
 		});
-		expect(await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx))).toEqual({
+		expect(
+			await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+		).toMatchObject({
 			available: 0,
 			reserved: 1,
 			consumed: 0,
@@ -512,7 +574,9 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 				tx,
 			),
 		);
-		expect(await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx))).toEqual({
+		expect(
+			await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+		).toMatchObject({
 			available: 0,
 			reserved: 0,
 			consumed: 0,
@@ -544,7 +608,9 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 				),
 			),
 		).toEqual({ status: "SETTLED", replayed: true });
-		expect(await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx))).toEqual({
+		expect(
+			await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+		).toMatchObject({
 			available: 2,
 			reserved: 0,
 			consumed: 1,
@@ -589,7 +655,9 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 				tx,
 			),
 		);
-		expect(await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx))).toEqual({
+		expect(
+			await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+		).toMatchObject({
 			available: 0,
 			reserved: 0,
 			consumed: 1,
@@ -792,7 +860,7 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 				);
 				expect(
 					await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
-				).toEqual({ available: 3, reserved: 0, consumed: 0, revoked: 0 });
+				).toMatchObject({ available: 3, reserved: 0, consumed: 0, revoked: 0 });
 				return;
 			}
 			const created = await result;
@@ -825,14 +893,14 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 					)
 				).rows[0].n,
 			).toBe(0);
-			expect(await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx))).toEqual(
-				{
-					available: 2,
-					reserved: 1,
-					consumed: 0,
-					revoked: 0,
-				},
-			);
+			expect(
+				await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+			).toMatchObject({
+				available: 2,
+				reserved: 1,
+				consumed: 0,
+				revoked: 0,
+			});
 		},
 	);
 });

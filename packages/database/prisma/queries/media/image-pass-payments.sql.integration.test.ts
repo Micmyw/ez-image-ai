@@ -172,7 +172,9 @@ describe.skipIf(!enabled)("image-pass payment reducer real SQL", () => {
 			),
 		]);
 		expect(results.reduce((sum, result) => sum + result.grantsCreated, 0)).toBe(1);
-		expect(await transaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx))).toEqual({
+		expect(
+			await transaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+		).toMatchObject({
 			available: 3,
 			reserved: 0,
 			consumed: 0,
@@ -217,7 +219,9 @@ describe.skipIf(!enabled)("image-pass payment reducer real SQL", () => {
 		const normalized = normalizeProviderPaymentEvent("paypal", dispute(f));
 		if (normalized.kind !== "PAYMENT_DISPUTED") throw new Error("UNEXPECTED_FACT");
 		await transaction((tx) => tryApplyImagePassAdjustment(normalized.fact, tx, "DISPUTE"));
-		expect(await transaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx))).toEqual({
+		expect(
+			await transaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+		).toMatchObject({
 			available: 0,
 			reserved: 0,
 			consumed: 0,
