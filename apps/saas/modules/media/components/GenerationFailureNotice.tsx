@@ -11,6 +11,7 @@ export function GenerationFailureNotice({
 		status: string;
 		fundingSource?: "CREDITS" | "IMAGE_PASS";
 		failureReason?: string | null;
+		failureCategory?: string | null;
 		inputReferenceState?: string | null;
 		creditsReserved: string;
 		creditsCharged: string;
@@ -30,11 +31,15 @@ export function GenerationFailureNotice({
 	const pending = hasUnsettledJobCredits(job);
 	const refunded = !pending && job.creditsCharged === "0";
 	const reason =
-		job.failureReason === "GENERATION_TIMEOUT"
+		job.failureReason === "GENERATION_TIMEOUT" || job.failureCategory === "timeout"
 			? "timeout"
-			: job.failureReason === "GENERATION_SERVICE_UNAVAILABLE"
+			: job.failureReason === "GENERATION_SERVICE_UNAVAILABLE" || job.failureCategory === "provider"
 				? "serviceUnavailable"
-				: "generic";
+				: job.failureCategory === "input"
+					? "inputUnavailable"
+					: job.failureCategory === "transfer"
+						? "deliveryFailed"
+						: "generic";
 	return (
 		<div className="mt-4 space-y-2 text-sm text-muted-foreground" aria-live="polite">
 			<p>{t(reason)}</p>

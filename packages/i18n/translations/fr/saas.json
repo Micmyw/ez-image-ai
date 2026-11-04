@@ -2114,7 +2114,9 @@
 			"creditsReturned": "Aucun crédit n’a été facturé. Vos {credits} crédits réservés ont été restitués.",
 			"retryHint": "Votre description et vos réglages sont enregistrés. Vous pouvez réessayer.",
 			"referenceExpired": "Votre description et vos réglages sont enregistrés. Sélectionnez une image de référence avant de réessayer.",
-			"recoveryHelp": "Consulter les étapes de récupération ou contacter l’assistance"
+			"recoveryHelp": "Consulter les étapes de récupération ou contacter l’assistance",
+			"inputUnavailable": "Nous n'avons pas pu utiliser votre image de référence ou votre saisie pour cette génération. Vérifiez-la et réessayez.",
+			"deliveryFailed": "Votre image a été générée mais n'a pas pu être livrée. Veuillez réessayer."
 		}
 	},
 	"common": {

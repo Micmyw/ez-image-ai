@@ -2114,7 +2114,9 @@
 			"creditsReturned": "No credits were charged. Your {credits} reserved credits have been returned.",
 			"retryHint": "Your prompt and settings are saved. You can try again.",
 			"referenceExpired": "Your prompt and settings are saved. Please select a reference image again before retrying.",
-			"recoveryHelp": "Read the recovery steps or contact support"
+			"recoveryHelp": "Read the recovery steps or contact support",
+			"inputUnavailable": "Sorry, we could not use your reference image or input for this generation. Check it and try again.",
+			"deliveryFailed": "Your image was generated but could not be delivered. Please try again."
 		}
 	},
 	"common": {

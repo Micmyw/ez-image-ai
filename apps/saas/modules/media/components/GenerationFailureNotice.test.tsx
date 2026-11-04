@@ -70,3 +70,20 @@ describe("GenerationFailureNotice", () => {
 		).toContain("select a reference image again");
 	});
 });
+
+describe("GenerationFailureNotice failure categories", () => {
+	const generic = { ...job, failureReason: "GENERATION_FAILED" };
+	it.each([
+		["provider", "temporarily unavailable"],
+		["timeout", "timed out"],
+		["input", "could not use your reference image"],
+		["transfer", "could not be delivered"],
+		["unknown", "this image could not be completed"],
+	])("shows the %s category", (failureCategory, copy) => {
+		const text = renderToStaticMarkup(
+			<GenerationFailureNotice job={{ ...generic, failureCategory }} />,
+		);
+		expect(text).toContain(copy);
+		expect(text).toContain("5 reserved credits have been returned");
+	});
+});

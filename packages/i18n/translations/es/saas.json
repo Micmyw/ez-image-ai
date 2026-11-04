@@ -2114,7 +2114,9 @@
 			"creditsReturned": "No se cobró ningún crédito. Se han devuelto tus {credits} créditos reservados.",
 			"retryHint": "Tu descripción y ajustes están guardados. Puedes volver a intentarlo.",
 			"referenceExpired": "Tu descripción y ajustes están guardados. Selecciona una imagen de referencia antes de volver a intentarlo.",
-			"recoveryHelp": "Consulta los pasos de recuperación o contacta con soporte"
+			"recoveryHelp": "Consulta los pasos de recuperación o contacta con soporte",
+			"inputUnavailable": "No pudimos usar tu imagen de referencia o tu entrada para esta generación. Revísala e inténtalo de nuevo.",
+			"deliveryFailed": "Tu imagen se generó, pero no se pudo entregar. Inténtalo de nuevo."
 		}
 	},
 	"common": {

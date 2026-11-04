@@ -2114,7 +2114,9 @@
 			"creditsReturned": "Es wurden keine Credits berechnet. Deine {credits} reservierten Credits wurden zurückgegeben.",
 			"retryHint": "Dein Prompt und deine Einstellungen sind gespeichert. Du kannst es erneut versuchen.",
 			"referenceExpired": "Dein Prompt und deine Einstellungen sind gespeichert. Bitte wähle vor dem erneuten Versuch ein Referenzbild aus.",
-			"recoveryHelp": "Wiederherstellungsschritte lesen oder Support kontaktieren"
+			"recoveryHelp": "Wiederherstellungsschritte lesen oder Support kontaktieren",
+			"inputUnavailable": "Dein Referenzbild oder deine Eingabe konnte für diese Generierung nicht verwendet werden. Prüfe sie und versuche es erneut.",
+			"deliveryFailed": "Dein Bild wurde erzeugt, konnte aber nicht ausgeliefert werden. Bitte versuche es erneut."
 		}
 	},
 	"common": {

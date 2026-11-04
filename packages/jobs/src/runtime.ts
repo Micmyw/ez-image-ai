@@ -36,6 +36,7 @@ import {
 	recoveryProviderKeysFromEnvironment,
 } from "@repo/ai";
 import {
+	isPreservedGenerationFailureCode,
 	isTechnicalGenerationFailureCode,
 	KIE_ZERO_COST_REJECTION_CODE,
 	KIE_CHARGED_POLICY_REJECTION_CODE,
@@ -3742,7 +3743,10 @@ function confirmedTechnicalFailureCode(snapshot: ProviderTaskSnapshot, result: N
 }
 
 function settlementFailureCode(failureCode: string | null): string {
+	// Keep classified causes (provider, timeout, input, transfer) for diagnosis and
+	// the customer-facing category; anything else stays NO_USABLE_OUTPUT.
 	return isTechnicalGenerationFailureCode(failureCode) ||
+		isPreservedGenerationFailureCode(failureCode) ||
 		failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
 		failureCode === KIE_ZERO_COST_REJECTION_CODE ||
 		failureCode === KIE_CHARGED_POLICY_REJECTION_CODE ||

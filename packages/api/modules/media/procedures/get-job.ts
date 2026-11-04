@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { ORPCError } from "@orpc/server";
-import { isTechnicalGenerationFailureCode } from "@repo/config";
+import { generationFailureCategory, isTechnicalGenerationFailureCode } from "@repo/config";
 import { db } from "@repo/database/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "@repo/database/media-assets";
 import { getOwnedGenerationJobStatus } from "@repo/database/media-job-status";
@@ -205,6 +205,11 @@ export const getJob = protectedProcedure
 							? job.failureCode
 							: ("GENERATION_FAILED" as const)
 						: null,
+			// Additive: input | provider | timeout | transfer | unknown for FAILED jobs.
+			failureCategory:
+				job.status === "FAILED" && !moderationRejected && !safetyUnavailable
+					? generationFailureCategory(job.failureCode)
+					: null,
 			canCancel,
 			canRetry,
 			createdAt: job.createdAt.toISOString(),

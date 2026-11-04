@@ -41,4 +41,8 @@ export {
 	type ImagePassOfferSnapshot,
 } from "./image-pass";
 export { isPublicModerationReason, type PublicModerationReason } from "./content-safety";
-export { isTechnicalGenerationFailureCode } from "./generation-failures";
+export {
+	generationFailureCategory,
+	isTechnicalGenerationFailureCode,
+	type GenerationFailureCategory,
+} from "./generation-failures";
