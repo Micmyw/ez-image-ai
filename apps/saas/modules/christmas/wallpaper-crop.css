@@ -1,6 +1,11 @@
 .wallpaper-crop-dialog {
+	--wallpaper-preview-height: min(60dvh, 640px);
 	max-width: 960px;
-	width: calc(100vw - 24px);
+	width: min(
+		calc(100vw - 24px),
+		calc(var(--wallpaper-preview-height) * var(--wallpaper-ratio, 1) + 338px)
+	);
+	padding: 24px;
 	max-height: 94dvh;
 	overflow-y: auto;
 	color-scheme: dark;
@@ -21,25 +26,14 @@
 	min-width: 0;
 }
 .wallpaper-crop-stage {
-	--wallpaper-preview-height: min(60dvh, 640px);
 	display: grid;
 	place-items: center;
-	min-height: var(--wallpaper-preview-height);
-	padding: 16px;
-	border-radius: 16px;
-	background: #17161d;
+	align-self: start;
 }
 .wallpaper-crop-frame {
 	position: relative;
 	overflow: hidden;
 	width: 100%;
-}
-.wallpaper-crop-frame.is-phone {
-	border: 5px solid #100f14;
-	border-radius: 25px;
-}
-.wallpaper-crop-frame.is-desktop {
-	border: 5px solid #100f14;
 	border-radius: 8px;
 }
 .wallpaper-crop-frame canvas {
@@ -151,6 +145,9 @@
 	font-weight: 600;
 }
 @media (max-width: 600px) {
+	.wallpaper-crop-dialog {
+		width: calc(100vw - 24px);
+	}
 	.wallpaper-crop-layout {
 		grid-template-columns: 1fr;
 		gap: 18px;

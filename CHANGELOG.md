@@ -2,6 +2,7 @@
 
 ## 2026-11-05 — Adaptive wallpaper cropping
 
+- Fit the crop dialog around the image and controls, with a borderless canvas and compact spacing.
 - Start the crop editor and screen preview at the image's original aspect ratio. Size the editor canvas to the image and available screen space, with optional phone, tall-phone and desktop crops.
 - Label screen controls and clock color as preview-only settings. Download the cropped wallpaper pixels and disable clock-color controls when the clock is hidden.
 

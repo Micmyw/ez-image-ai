@@ -3,7 +3,7 @@
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { useTranslations } from "next-intl";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type CSSProperties } from "react";
 
 import { wallpaperCrop, type WallpaperTarget, type WallpaperCropSettings } from "../lib/wallpaper";
 
@@ -168,6 +168,7 @@ export function WallpaperCropDialog({
 			<DialogContent
 				className="wallpaper-crop-dialog"
 				data-orientation={landscape ? "landscape" : "portrait"}
+				style={{ "--wallpaper-ratio": crop ? crop.width / crop.height : 1 } as CSSProperties}
 				closeLabel={t("close")}
 			>
 				<DialogTitle>{t("title")}</DialogTitle>
@@ -178,11 +179,11 @@ export function WallpaperCropDialog({
 					<div className="wallpaper-crop-stage">
 						{!picture && !failed && <output>{t("loading")}</output>}
 						<div
-							className={`wallpaper-crop-frame ${landscape ? "is-desktop" : "is-phone"}`}
+							className="wallpaper-crop-frame"
 							style={{
 								visibility: picture ? "visible" : "hidden",
 								width: crop
-									? `min(100%, calc(var(--wallpaper-preview-height) * ${crop.width / crop.height} + 10px))`
+									? `min(100%, calc(var(--wallpaper-preview-height) * ${crop.width / crop.height}))`
 									: undefined,
 							}}
 						>
