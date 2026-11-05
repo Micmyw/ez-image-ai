@@ -1978,6 +1978,8 @@
 				"afterAlt": "Edited result image",
 				"control": "Compare original and edited image",
 				"showOriginal": "Show original",
+				"sideBySide": "Side by side",
+				"slider": "Slider",
 				"showResult": "Show result",
 				"before": "Original",
 				"after": "Result"

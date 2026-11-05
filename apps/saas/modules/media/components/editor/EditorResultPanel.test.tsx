@@ -162,7 +162,7 @@ describe("EditorResultPanel", () => {
 		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
 		expect(markup).toContain('src="https://private.test/inline"');
 		expect(markup).toContain('src="https://private.test/original"');
-		expect(markup).toContain('type="range"');
+		expect(markup).toContain('data-comparison-view="side-by-side"');
 	});
 	it.each(["text-to-image", "image-to-image"])(
 		"scopes legacy %s preview requests to the account and forwards cancellation",
@@ -223,7 +223,7 @@ describe("EditorResultPanel", () => {
 		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
 		expect(markup).toContain('src="https://private.test/asset-input"');
 		expect(markup).toContain('src="https://private.test/asset-output"');
-		expect(markup).toContain('type="range"');
+		expect(markup).toContain('data-comparison-view="side-by-side"');
 	});
 	it("offers retry for a settled technical failure and not an unsettled one", () => {
 		const data = {

@@ -689,6 +689,7 @@ async function comparisonStability() {
 				await page.waitForFunction(() => window.__benchmark.readOriginalStatus() === "error");
 				assert.equal(await page.getByRole("slider").count(), 0);
 			} else {
+				await page.getByRole("button", { name: "compare.slider", exact: true }).click();
 				await page.getByRole("slider", { name: "compare.control" }).waitFor({ state: "visible" });
 				await page.getByRole("button", { name: "compare.showOriginal", exact: true }).click();
 				assert.equal(await page.getByRole("slider").inputValue(), "100");
@@ -812,6 +813,7 @@ async function originalAuthorizationRegressions() {
 		);
 		const { page, context } = await newPage();
 		try {
+			await page.getByRole("button", { name: "compare.slider", exact: true }).click();
 			await page.getByRole("slider", { name: "compare.control" }).waitFor({ state: "visible" });
 			const firstOutput = await outputImage(page).elementHandle();
 			const firstSrc = await firstOutput.getAttribute("src");
@@ -869,6 +871,7 @@ async function originalAuthorizationRegressions() {
 		try {
 			await visibleOutput(page);
 			if (!textOnly) {
+				await page.getByRole("button", { name: "compare.slider", exact: true }).click();
 				await page.getByRole("slider", { name: "compare.control" }).waitFor({ state: "visible" });
 			}
 			scenario.outputAccessDenied = true;

@@ -376,7 +376,8 @@ test("Christmas screen preview follows ready results and preserves applied crops
 	await expect(preview).toHaveAttribute("data-wallpaper-source", "result");
 	await expect(picture).toHaveAttribute("src", "/images/christmas/street.webp");
 	await expect(preview).toContainText("Your result");
-	const comparison = fixture.locator(".christmas-editor input[type=range]").locator("..");
+	const comparison = fixture.locator(".christmas-editor [data-comparison-view]");
+	await expect(comparison).toHaveAttribute("data-comparison-view", "side-by-side");
 	await expect(comparison.locator("img")).toHaveCount(2);
 	await expect
 		.poll(() =>
@@ -390,6 +391,21 @@ test("Christmas screen preview follows ready results and preserves applied crops
 				),
 		)
 		.toBe(true);
+	for (const width of [1440, 390]) {
+		await page.setViewportSize({ width, height: 900 });
+		const original = comparison.getByAltText("Original source image");
+		const result = comparison.getByAltText("Edited result image");
+		await expect(original).toHaveCSS("object-fit", "contain");
+		await expect(result).toHaveCSS("object-fit", "contain");
+		await expect(original.locator("..")).toHaveCSS("clip-path", "none");
+		const originalBounds = (await original.boundingBox())!;
+		const resultBounds = (await result.boundingBox())!;
+		if (width === 1440)
+			expect(originalBounds.x + originalBounds.width).toBeLessThan(resultBounds.x);
+		else expect(originalBounds.y + originalBounds.height).toBeLessThan(resultBounds.y);
+		await comparison.screenshot({ path: testInfo.outputPath(`comparison-complete-${width}.png`) });
+	}
+	await fixture.getByRole("button", { name: "Slider", exact: true }).click();
 	const originalLayer = comparison.locator("div[style*='clip-path']");
 	await expect(originalLayer).toHaveCSS(
 		"background-color",

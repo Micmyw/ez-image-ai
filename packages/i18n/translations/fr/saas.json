@@ -1978,6 +1978,8 @@
 				"afterAlt": "Image du résultat retouché",
 				"control": "Comparer l’image originale et l’image retouchée",
 				"showOriginal": "Afficher l’original",
+				"sideBySide": "Côte à côte",
+				"slider": "Curseur",
 				"showResult": "Afficher le résultat",
 				"before": "Original",
 				"after": "Résultat"

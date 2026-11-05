@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const sliderState = vi.hoisted(() => ({
 	position: 50,
 	setPosition: vi.fn(),
+	view: "side-by-side" as "side-by-side" | "slider",
+	setView: vi.fn(),
 	failedBeforeUrl: undefined as string | undefined,
 	setFailedBeforeUrl: vi.fn(),
 }));
@@ -16,7 +18,9 @@ vi.mock("react", async (importOriginal) => {
 		useState: (initial: unknown) =>
 			initial === 50
 				? [sliderState.position, sliderState.setPosition]
-				: [sliderState.failedBeforeUrl, sliderState.setFailedBeforeUrl],
+				: initial === "side-by-side"
+					? [sliderState.view, sliderState.setView]
+					: [sliderState.failedBeforeUrl, sliderState.setFailedBeforeUrl],
 	};
 });
 
@@ -25,6 +29,10 @@ import { BeforeAfterSlider } from "./BeforeAfterSlider";
 describe("BeforeAfterSlider", () => {
 	beforeEach(() => {
 		sliderState.position = 50;
+		sliderState.view = "side-by-side";
+		sliderState.setView.mockImplementation((view) => {
+			sliderState.view = view;
+		});
 		sliderState.failedBeforeUrl = undefined;
 		sliderState.setPosition.mockReset();
 		sliderState.setFailedBeforeUrl.mockReset();
@@ -37,6 +45,7 @@ describe("BeforeAfterSlider", () => {
 	});
 
 	it("provides a keyboard slider and explicit original/result alternatives", () => {
+		buttonNamed(findElements(BeforeAfterSlider(sliderProps), "button"), "Slider").props.onClick();
 		const markup = renderSlider();
 
 		expect(markup).toContain('type="range"');
@@ -46,6 +55,20 @@ describe("BeforeAfterSlider", () => {
 		expect(markup).toContain('alt="Original source image"');
 		expect(markup).toContain('alt="Edited result image"');
 		expect(markup).not.toMatch(/aria-hidden="true"[^>]*>\s*<img[^>]+alt="Edited result image"/);
+	});
+
+	it("defaults to complete independent images and can return from the slider", () => {
+		expect(renderSlider()).toContain('data-comparison-view="side-by-side"');
+		expect(renderSlider()).not.toContain("clip-path");
+		expect(renderSlider()).not.toContain('type="range"');
+		buttonNamed(findElements(BeforeAfterSlider(sliderProps), "button"), "Slider").props.onClick();
+		expect(renderSlider()).toContain('data-comparison-view="slider"');
+		buttonNamed(
+			findElements(BeforeAfterSlider(sliderProps), "button"),
+			"Side by side",
+		).props.onClick();
+		expect(renderSlider()).toContain('data-comparison-view="side-by-side"');
+		expect(renderSlider()).not.toContain("clip-path");
 	});
 
 	it("displays the output while the optional original is unavailable", () => {
@@ -65,6 +88,7 @@ describe("BeforeAfterSlider", () => {
 	});
 
 	it("shows the input on the left and the approved output on the right at the midpoint", () => {
+		sliderState.view = "slider";
 		const markup = renderSlider();
 		const overlay = clippedLayer(markup);
 		const overlayStart = markup.indexOf('style="clip-path:inset(0 50% 0 0)"');
@@ -79,6 +103,7 @@ describe("BeforeAfterSlider", () => {
 	});
 
 	it("gives the original an opaque canvas so mismatched image ratios cannot bleed through", () => {
+		sliderState.view = "slider";
 		const overlay = clippedLayer(renderSlider());
 		expect(overlay).toContain("bg-muted");
 		expect(overlay).toContain("object-contain");
@@ -100,11 +125,12 @@ describe("BeforeAfterSlider", () => {
 		const renewed = renderToStaticMarkup(
 			<BeforeAfterSlider {...sliderProps} beforeUrl="https://signed.test/renewed-input" />,
 		);
-		expect(renewed).toContain('type="range"');
+		expect(renewed).toContain('data-comparison-view="side-by-side"');
 		expect(renewed).toContain('src="https://signed.test/renewed-input"');
 	});
 
 	it("shows the correct full image from the original and result alternatives", () => {
+		sliderState.view = "slider";
 		const tree = BeforeAfterSlider(sliderProps);
 		const buttons = findElements(tree, "button");
 		const showOriginal = buttonNamed(buttons, "Show original");
@@ -130,6 +156,8 @@ const sliderProps = {
 	beforeAlt: "Original source image",
 	afterAlt: "Edited result image",
 	controlLabel: "Compare original and edited image",
+	sideBySideLabel: "Side by side",
+	sliderLabel: "Slider",
 	showOriginalLabel: "Show original",
 	showResultLabel: "Show result",
 	beforeLabel: "Original",

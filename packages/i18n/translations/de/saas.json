@@ -1978,6 +1978,8 @@
 				"afterAlt": "Bearbeitetes Ergebnisbild",
 				"control": "Original und bearbeitetes Bild vergleichen",
 				"showOriginal": "Original anzeigen",
+				"sideBySide": "Nebeneinander",
+				"slider": "Schieberegler",
 				"showResult": "Ergebnis anzeigen",
 				"before": "Original",
 				"after": "Ergebnis"

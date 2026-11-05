@@ -395,6 +395,8 @@ function SignedComparison({
 			afterAlt={t("compare.afterAlt")}
 			outputOnlyAlt={t("generatedAlt")}
 			controlLabel={t("compare.control")}
+			sideBySideLabel={t("compare.sideBySide")}
+			sliderLabel={t("compare.slider")}
 			showOriginalLabel={t("compare.showOriginal")}
 			showResultLabel={t("compare.showResult")}
 			beforeLabel={t("compare.before")}
