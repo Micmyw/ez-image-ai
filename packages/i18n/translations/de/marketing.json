@@ -206,8 +206,8 @@
 		"title": "Häufig gestellte Fragen",
 		"items": {
 			"restrictions": {
-				"question": "Was bedeutet „No Restrictions“ bei EzImageAI?",
-				"answer": "Gemeint ist flexible Bearbeitung mit Prompts statt einer festen Vorlagenliste. Beschreibe, was erhalten bleiben und was sich ändern soll, halte deine Bilder privat und prüfe die Credits vor der Bestätigung. Inhaltsprüfungen, gesetzliche Anforderungen, Modellfähigkeiten und Tariflimits gelten weiterhin. Es bedeutet weder unzensierte noch unbegrenzt kostenlose Generierung."
+				"question": "Wie funktioniert die Fotobearbeitung mit Prompts?",
+				"answer": "Beschreibe mit eigenen Prompts, was erhalten bleiben und was sich ändern soll. Deine Bilder bleiben privat, und du kannst die Credits vor der Bestätigung prüfen. Inhaltsprüfungen, gesetzliche Anforderungen, Modellfähigkeiten und Tariflimits gelten weiterhin."
 			},
 			"guestAvailability": {
 				"question": "Wann ist die Gastbearbeitung verfügbar?",
@@ -473,7 +473,7 @@
 		},
 		"imageEditorHero": {
 			"eyebrow": "Bildbearbeitung mit Prompts",
-			"title": "KI-Bildeditor <accent>ohne starre Vorlagen</accent>",
+			"title": "KI-Bildeditor <accent>mit eigenen Prompts</accent>",
 			"subtitle": "Lade ein Bild hoch und beschreibe die gewünschte Änderung.",
 			"private": "Private Quellbilder",
 			"draftOnly": "Eine Nano Banana 2 Lite-Gastbearbeitung"
@@ -607,8 +607,8 @@
 		},
 		"noRestrictions": {
 			"eyebrow": "Kontrolle in Alltagssprache",
-			"title": "Was „No Restrictions“ wirklich bedeutet",
-			"description": "„No Restrictions“ bedeutet flexible Bearbeitung mit Prompts statt starrer Vorlagen. Sicherheits-, Rechts-, Modell- und Nutzungslimits gelten weiterhin.",
+			"title": "Fotos mit eigenen Prompts bearbeiten",
+			"description": "Beschreibe, was in deinem Foto erhalten bleiben und was sich ändern soll. Sicherheits-, Rechts-, Modell- und Nutzungslimits gelten.",
 			"limits": "Übliche Sicherheits-, Rechts-, Produkt- und Nutzungslimits gelten weiterhin.",
 			"items": {
 				"prompts": {
@@ -736,7 +736,7 @@
 			"privacy": "Private Bildbearbeitung verstehen"
 		},
 		"faq": {
-			"title": "KI-Bildeditor ohne feste Vorlagen: Fragen und Antworten",
+			"title": "Fragen und Antworten zum KI-Bildeditor",
 			"description": "So funktioniert die Bearbeitung per Prompt, so bleiben Bilder privat, und diese Sicherheits- und Nutzungslimits gelten.",
 			"items": {
 				"guestAvailability": {
@@ -745,7 +745,7 @@
 				},
 				"guestVsFree": {
 					"question": "Kann ich EzImageAI als kostenlosen KI-Bildeditor nutzen?",
-					"answer": "Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K, ohne monatliche Auffüllung. Andere Bildmodelle und HD erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit allen aktuell verfügbaren Bildmodellen und Größen, ohne Abo. Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. „No Restrictions“ bedeutet flexible Prompt-Bearbeitung über feste Vorlagen hinaus; Inhalts-, Rechts-, Modell- und Nutzungslimits gelten weiterhin."
+					"answer": "Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K, ohne monatliche Auffüllung. Andere Bildmodelle und HD erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit allen aktuell verfügbaren Bildmodellen und Größen, ohne Abo. Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. Inhalts-, Rechts-, Modell- und Nutzungslimits gelten."
 				}
 			}
 		},

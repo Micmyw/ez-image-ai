@@ -41,10 +41,10 @@ Root checks: `pnpm format`, `pnpm format:check`, `pnpm lint`, `pnpm type-check`,
 
 The homepage and `/create` share a mounted Image / Video composer through the `mode=video` query. Keep image `job` and video `videoJob`, account-scoped drafts and pending confirmations separate. `/video` retains its authenticated boundary before redirecting into the shared composer. Mode switches must preserve in-flight work and close hidden portals; model/property changes invalidate only unsubmitted quotes.
 
-The homepage owns `ai image editor no restrictions`, with `ai image editor with prompt no restrictions`
-as the secondary query and `ai image editor with prompt` as the broader topic. Preserve this keyword
-focus during feature work unless the user explicitly changes it. Explain "No Restrictions" as flexible
-prompt editing; normal content safety, legal, model and usage limits remain applicable.
+The homepage owns `ai image editor`, with `prompt photo editor` and `ai image editor with prompt`
+supporting the same prompt-editing intent. Public marketing copy describes prompt-based editing
+and its content safety, legal, model and usage limits. Keep the historical "No Restrictions"
+explanation in the terms and the visible adult/NSFW prohibition reminder beside the composer.
 
 Public SEO URLs are unprefixed. `apps/saas/proxy.ts` keeps bare public URLs in English; actual translated content uses explicit `?lang=de|es|fr` self-canonical URLs and reciprocal hreflang, governed by `modules/public-content/lib/indexing.ts`. English fallback bodies remain noindex with an English canonical. Account routes keep the locale cookie. Public content and tool landing pages, including Create, Examples, Contact, Changelog, Hotel Lobby beta and the video guide, are indexable; private job/upload/payment query states are not. New public HTML routes belong in the proxy matcher. Only reviewed published Blog posts and Docs marked `indexable: true` enter the sitemap. Beta page discovery does not publish unreviewed samples or draft articles. Docs API/Markdown/image artifacts remain noindex. Public unknown paths use root 404; single-segment organization URLs stay protected. See `docs/product/public-page-indexing.md`.
 

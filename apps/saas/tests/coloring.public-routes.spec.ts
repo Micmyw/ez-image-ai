@@ -321,7 +321,7 @@ test("fits desktop and small phones and keeps homepage/editor headings intact", 
 		await page.screenshot({ path: testInfo.outputPath(`coloring-${width}.png`), fullPage: true });
 	}
 	for (const [url, heading] of [
-		["/", /AI Image Editor No Restrictions/i],
+		["/", /AI Image Editor &(?:amp;)? Prompt Photo Editor/i],
 		["/image-to-image", /Image to Image/i],
 	] as const) {
 		await page.goto(url);

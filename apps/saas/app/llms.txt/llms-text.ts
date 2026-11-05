@@ -54,7 +54,7 @@ export function buildLlmsText(origin = getBaseUrl()): string {
 		"",
 		"## Product facts",
 		"",
-		'- Product: EzImageAI edits and generates images from prompts. "No Restrictions" means flexible prompt editing. It is not an exemption from content safety, the law, model capabilities, or plan and usage limits.',
+		"- Product: EzImageAI edits and generates images through flexible prompt editing. Content safety, legal requirements, model capabilities, and plan and usage limits apply.",
 		`- Uploads: JPEG, PNG, or WebP. A reference image is optional. Guest trials accept up to ${megabytes(10 * 1024 * 1024)}. The Free plan accepts up to ${megabytes(free.maximumInputBytes)}. ${paidPlanNames()} accept up to ${paidUploadLimit(paid)}. Signed-in text-to-image does not require a source image. An uploaded reference must belong to the account.`,
 		"- Guest trial: when the sponsored queue is available, a visitor can create a private, watermarked Nano Banana 2 Lite 1K result in a temporary anonymous session. The trial does not create a subscription or charge a payment. Guest trial media is scheduled for deletion no later than 24 hours after the trial job is created.",
 		`- Credits and plans: eligible accounts receive ${FREE_ACCOUNT_SIGN_IN_CREDITS} sign-in credits. Free includes ${free.monthlyCredits} monthly credits and Nano Banana 2 Lite. ${paidPlanSummary(paid)} Current prices and the credit cost of a generation are shown on the pricing page and in the editor.`,

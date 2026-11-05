@@ -206,8 +206,8 @@
 		"title": "Preguntas frecuentes",
 		"items": {
 			"restrictions": {
-				"question": "¿Qué significa «No Restrictions» en EzImageAI?",
-				"answer": "Significa edición flexible mediante instrucciones en lugar de una lista fija de plantillas. Describe qué conservar y qué cambiar, mantén tus imágenes privadas y revisa los créditos antes de confirmar. Siguen vigentes los controles de contenido, los requisitos legales, las capacidades del modelo y los límites del plan. No significa generación sin censura ni generación gratuita ilimitada."
+				"question": "¿Cómo funciona la edición de fotos mediante instrucciones?",
+				"answer": "Describe con tus propias palabras qué conservar y qué cambiar. Tus imágenes permanecen privadas y puedes revisar los créditos antes de confirmar. Siguen vigentes los controles de contenido, los requisitos legales, las capacidades del modelo y los límites del plan."
 			},
 			"guestAvailability": {
 				"question": "¿Cuándo está disponible la edición como invitado?",
@@ -473,7 +473,7 @@
 		},
 		"imageEditorHero": {
 			"eyebrow": "Edición de imágenes mediante instrucciones",
-			"title": "Editor de imágenes con IA <accent>sin plantillas rígidas</accent>",
+			"title": "Editor de imágenes con IA <accent>mediante instrucciones</accent>",
 			"subtitle": "Sube una imagen y describe el cambio que quieres.",
 			"private": "Imágenes de origen privadas",
 			"draftOnly": "Una edición Nano Banana 2 Lite de invitado"
@@ -607,8 +607,8 @@
 		},
 		"noRestrictions": {
 			"eyebrow": "Control en lenguaje natural",
-			"title": "Qué significa realmente “No Restrictions”",
-			"description": "«No Restrictions» significa edición flexible mediante instrucciones, sin limitarte a plantillas fijas. Siguen vigentes los límites de seguridad, legales, del modelo y de uso.",
+			"title": "Edita fotos con tus propias instrucciones",
+			"description": "Describe qué conservar y qué cambiar en tu foto. Se aplican los límites de seguridad, legales, del modelo y de uso.",
 			"limits": "Siguen aplicándose los límites normales de seguridad, legales, del producto y de uso.",
 			"items": {
 				"prompts": {
@@ -736,7 +736,7 @@
 			"privacy": "Comprende la edición privada de imágenes"
 		},
 		"faq": {
-			"title": "Editor de imágenes con IA sin plantillas fijas: preguntas frecuentes",
+			"title": "Preguntas frecuentes sobre el editor de imágenes con IA",
 			"description": "Cómo funciona la edición con instrucciones, qué se mantiene privado y qué límites de seguridad y uso se aplican.",
 			"items": {
 				"guestAvailability": {
@@ -745,7 +745,7 @@
 				},
 				"guestVsFree": {
 					"question": "¿Puedo usar EzImageAI como editor de imágenes con IA gratis?",
-					"answer": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Usar créditos con otros modelos y HD requiere una suscripción de pago activa. El paquete de 2,99 USD incluye 3 imágenes correctas con todos los modelos y tamaños de imagen disponibles actualmente, sin suscripción. Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. «No Restrictions» significa editar mediante instrucciones más allá de plantillas fijas; siguen aplicándose los límites de seguridad, legales, del modelo y de uso."
+					"answer": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Usar créditos con otros modelos y HD requiere una suscripción de pago activa. El paquete de 2,99 USD incluye 3 imágenes correctas con todos los modelos y tamaños de imagen disponibles actualmente, sin suscripción. Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Se aplican los límites de seguridad, legales, del modelo y de uso."
 				}
 			}
 		},

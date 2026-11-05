@@ -146,7 +146,7 @@ test("Christmas wallpaper homepage entry works on desktop and mobile", async ({
 	await mockPublicImageAvailability(page);
 	await page.goto("/");
 	await expect(page.getByRole("heading", { level: 1 })).toContainText(
-		/AI Image Editor No Restrictions/i,
+		/AI Image Editor &(?:amp;)? Prompt Photo Editor/i,
 	);
 	const entry = page.locator(".christmas-entry");
 	await expect(page.locator(".christmas-quick-entry")).toHaveAttribute(
@@ -651,20 +651,22 @@ test.describe("consolidated public routes", () => {
 			if (path === "/") {
 				const html = await response!.text();
 				const initialHeading = html.match(/<h1(?:\s|>)[\s\S]*?<\/h1>/)?.[0] ?? "";
-				expect(initialHeading.replace(/<[^>]*>/g, "")).toMatch(/ai image editor no restrictions/i);
+				expect(initialHeading.replace(/<[^>]*>/g, "")).toMatch(
+					/ai image editor &(?:amp;)? prompt photo editor/i,
+				);
 				expect(html).toContain("flexible prompt editing");
-				expect(html).toContain("AI image editor with prompt no restrictions");
-				await expect(page).toHaveTitle(/AI Image Editor No Restrictions/);
+				expect(html).toContain("How does prompt-based photo editing work?");
+				await expect(page).toHaveTitle(/AI Image Editor &(?:amp;)? Prompt Photo Editor/);
 				await expect(page.locator('meta[name="description"]')).toHaveAttribute(
 					"content",
-					"AI image editor no restrictions: edit photos with prompts beyond fixed templates. Private images and clear credits; safety and usage limits apply.",
+					"Edit photos with your own prompt. Describe what to change, keep images private, and review credits before generating. Safety and usage limits apply.",
 				);
 				await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
 					"content",
 					await page.title(),
 				);
 				const explanation = page.locator("#faq details").filter({
-					hasText: "What does “AI image editor with prompt no restrictions” mean on EzImageAI?",
+					hasText: "How does prompt-based photo editing work?",
 				});
 				await explanation.locator("summary").click();
 				await expect(explanation.locator("p")).toBeVisible();

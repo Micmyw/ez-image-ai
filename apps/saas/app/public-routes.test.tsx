@@ -277,10 +277,17 @@ describe("consolidated public route contract", () => {
 		if (!metadata) return;
 		expectMetadata(metadata, route.path, route.robots);
 		if (route.path === "/") {
-			expect(JSON.stringify(metadata.title)).toMatch(/ai image editor no restrictions/i);
-			expect(metadata.description).toMatch(/ai image editor no restrictions/i);
+			expect(metadata.title).toEqual({
+				absolute: "AI Image Editor & Prompt Photo Editor | EzImageAI",
+			});
+			expect(metadata.description).toBe(
+				"Edit photos with your own prompt. Describe what to change, keep images private, and review credits before generating. Safety and usage limits apply.",
+			);
 			expect(metadata.openGraph?.title).toEqual((metadata.title as { absolute: string }).absolute);
 			expect(metadata.twitter?.title).toEqual(metadata.openGraph?.title);
+			expect(metadata.openGraph?.description).toBe(metadata.description);
+			expect(metadata.twitter?.description).toBe(metadata.description);
+			expect(JSON.stringify(metadata)).not.toMatch(/no restrictions|unrestricted|uncensored/i);
 		}
 
 		const page = route.path === "/" ? await LandingPage() : await pageModule.default({});
@@ -420,6 +427,8 @@ describe("consolidated public route contract", () => {
 				"@type": "WebSite",
 				name: "EzImageAI",
 				alternateName: "EzImage AI",
+				description:
+					"Edit photos with your own prompt. Describe what to change, keep images private, and review credits before generating. Safety and usage limits apply.",
 				url: `${canonicalOrigin}/`,
 				publisher: { "@id": `${canonicalOrigin}/#organization` },
 			}),

@@ -414,7 +414,7 @@ Provider, or storage system.
 
 ## Unified creation surface
 
-The homepage owns `ai image editor no restrictions`, with prompt-editing variants supporting the
+The homepage owns `ai image editor`, with `prompt photo editor` and `ai image editor with prompt` supporting the
 same canonical URL. Its hero keeps one short introductory sentence. The description, example
 headings, instructions, and FAQ explain prompt control beyond fixed templates while preserving
 content-safety, legal, model, and usage limits. English is the indexable public version; translated

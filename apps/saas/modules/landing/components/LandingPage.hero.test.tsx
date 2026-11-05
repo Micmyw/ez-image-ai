@@ -2,11 +2,23 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import germanMessages from "../../../../../packages/i18n/translations/de/marketing.json";
 import englishMessages from "../../../../../packages/i18n/translations/en/marketing.json";
 import saasMessages from "../../../../../packages/i18n/translations/en/saas.json";
 import videoMessages from "../../../../../packages/i18n/translations/en/video.json";
+import spanishMessages from "../../../../../packages/i18n/translations/es/marketing.json";
+import frenchMessages from "../../../../../packages/i18n/translations/fr/marketing.json";
 
-const navigation = vi.hoisted(() => ({ search: "" }));
+const navigation = vi.hoisted(() => ({
+	search: "",
+	locale: "en" as "en" | "de" | "es" | "fr",
+}));
+const marketingMessages = {
+	en: englishMessages,
+	de: germanMessages,
+	es: spanishMessages,
+	fr: frenchMessages,
+};
 vi.mock("@payments/components/ImagePassBanner", () => ({
 	ImagePassBanner: () => <aside data-image-pass-banner="" />,
 }));
@@ -68,7 +80,7 @@ vi.mock("@repo/config/client", () => ({
 }));
 
 vi.mock("next-intl/server", () => ({
-	getLocale: async () => "en",
+	getLocale: async () => navigation.locale,
 	getMessages: async () => ({ videoV1: {} }),
 	getTranslations: async () => createTranslator(),
 }));
@@ -105,6 +117,7 @@ import { LandingPage } from "./LandingPage";
 describe("LandingPage hero hierarchy", () => {
 	beforeEach(() => {
 		navigation.search = "";
+		navigation.locale = "en";
 	});
 	it.each(["", "mode=video"])(
 		"keeps one feedback reward entry beside either generator (%s)",
@@ -124,22 +137,42 @@ describe("LandingPage hero hierarchy", () => {
 		expect(heading).toContain(videoMessages.videoV1.title);
 		expect(markup).toContain(videoMessages.videoV1.description);
 	});
-	it("keeps the keyword heading and concise intro while explaining the meaning in the FAQ", async () => {
+	it("describes prompt photo editing in the heading and explains its limits in the FAQ", async () => {
 		const markup = renderToStaticMarkup(await LandingPage());
 		const heading = markup.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
 		const headingText = heading.replace(/<[^>]*>/g, "");
 		const hero = markup.match(/<section id="image-editor"[\s\S]*?<\/section>/)?.[0] ?? "";
 		const faq = markup.match(/<section id="faq"[\s\S]*?<\/section>/)?.[0] ?? "";
 
-		expect(headingText).toMatch(/ai image editor no restrictions/i);
+		expect(headingText).toBe("AI Image Editor &amp; Prompt Photo Editor");
 		expect(heading).toContain('class="text-[#b79cff]"');
 		expect(heading.match(/text-\[#b79cff\]/g)).toHaveLength(1);
 		expect(hero).toContain("Upload an image and describe the change you want.");
 		expect(hero.match(/<p(?:\s|>)/g)).toHaveLength(1);
-		expect(faq).toMatch(/ai image editor with prompt no restrictions/i);
+		expect(faq).toContain("How does prompt-based photo editing work?");
 		expect(faq).toContain("flexible prompt editing");
 		expect(faq).toContain("model capabilities, and plan limits still apply");
 	});
+	it.each(["en", "de", "es", "fr"] as const)(
+		"renders prompt-editing copy and the content-policy reminder in %s",
+		async (locale) => {
+			navigation.locale = locale;
+			const messages = marketingMessages[locale];
+			const markup = renderToStaticMarkup(await LandingPage());
+			const heading = markup.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
+			const title = messages.home.imageEditorHero.title.replace(/<\/?accent>/g, "");
+			expect(heading.replace(/<[^>]*>/g, "")).toBe(renderToStaticMarkup(<>{title}</>));
+			expect(markup).toContain(
+				renderToStaticMarkup(<>{messages.faq.items.restrictions.question}</>),
+			);
+			expect(markup).toContain(
+				renderToStaticMarkup(<>{messages.home.contentPolicyNotice.label}</>),
+			);
+			expect(markup).toContain('href="/terms#prohibited-content"');
+			expect(JSON.stringify(messages)).not.toMatch(/no restrictions|unrestricted|uncensored/i);
+			expect(markup).not.toMatch(/no restrictions|unrestricted|uncensored/i);
+		},
+	);
 	it("restores model discovery and original artwork before the editing guides", async () => {
 		const markup = renderToStaticMarkup(await LandingPage());
 		const heroEnd = markup.indexOf("</section>");
@@ -165,7 +198,7 @@ function createTranslator() {
 			for (const [key, child] of Object.entries(value))
 				collect(child, path ? `${path}.${key}` : key);
 	}
-	collect(englishMessages);
+	collect(marketingMessages[navigation.locale]);
 	collect(saasMessages);
 	collect(videoMessages);
 	const translate = (key: string) => messages[key] ?? key;

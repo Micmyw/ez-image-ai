@@ -206,8 +206,8 @@
 		"title": "Frequently asked questions",
 		"items": {
 			"restrictions": {
-				"question": "What does “AI image editor with prompt no restrictions” mean on EzImageAI?",
-				"answer": "It means flexible prompt editing instead of a fixed template list. Describe what to preserve and what to change, keep your images private, and review credits before confirming. Content safety checks, legal requirements, model capabilities, and plan limits still apply; it does not mean uncensored or unlimited free generation."
+				"question": "How does prompt-based photo editing work?",
+				"answer": "Use flexible prompt editing to describe what to preserve and what to change. Keep your images private and review credits before confirming. Content safety checks, legal requirements, model capabilities, and plan limits still apply."
 			},
 			"guestAvailability": {
 				"question": "When is the guest edit available?",
@@ -473,7 +473,7 @@
 		},
 		"imageEditorHero": {
 			"eyebrow": "Prompt-based image editing",
-			"title": "AI Image Editor <accent>No Restrictions</accent>",
+			"title": "AI Image Editor & <accent>Prompt Photo Editor</accent>",
 			"subtitle": "Upload an image and describe the change you want.",
 			"private": "Private source images",
 			"draftOnly": "Create from text or an image"
@@ -607,8 +607,8 @@
 		},
 		"noRestrictions": {
 			"eyebrow": "Plain-language control",
-			"title": "What “No Restrictions” actually means",
-			"description": "“No Restrictions” means flexible prompt editing beyond fixed templates. Content safety, legal, model, and usage limits still apply.",
+			"title": "Edit photos with your own prompt",
+			"description": "Describe what to preserve and what to change in your photo. Content safety, legal, model, and usage limits apply.",
 			"limits": "Standard safety, legal, product, and usage limits still apply.",
 			"items": {
 				"prompts": {
@@ -736,7 +736,7 @@
 			"privacy": "Understand private image editing"
 		},
 		"faq": {
-			"title": "AI image editor no restrictions: questions answered",
+			"title": "AI image editor questions answered",
 			"description": "How prompt editing works, what stays private, and which safety and usage limits apply.",
 			"items": {
 				"guestAvailability": {
@@ -745,7 +745,7 @@
 				},
 				"guestVsFree": {
 					"question": "Can I use EzImageAI as a free AI image editor?",
-					"answer": "Eligible registered accounts receive 10 credits once for two Nano Banana 2 Lite 1K generations, with no monthly refill. Using credits for other image models and HD requires an active paid subscription. The USD 2.99 image pack includes 3 successful images with all currently available image models and sizes, without a subscription. Eligible guests can make two sponsored Nano Banana 2 Lite 1K edits per day when the queue is available. Guest results are watermarked and available for up to 24 hours. “No Restrictions” means flexible prompt editing beyond fixed templates; content safety, legal, model, and usage limits still apply."
+					"answer": "Eligible registered accounts receive 10 credits once for two Nano Banana 2 Lite 1K generations, with no monthly refill. Using credits for other image models and HD requires an active paid subscription. The USD 2.99 image pack includes 3 successful images with all currently available image models and sizes, without a subscription. Eligible guests can make two sponsored Nano Banana 2 Lite 1K edits per day when the queue is available. Guest results are watermarked and available for up to 24 hours. Content safety, legal, model, and usage limits apply."
 				}
 			}
 		},

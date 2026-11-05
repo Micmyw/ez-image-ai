@@ -22,7 +22,7 @@ describe("EzImageAI llms.txt", () => {
 		expect(body).toContain("AI image editor");
 		expect(body).toContain("flexible prompt editing");
 		expect(body).toContain("中文：");
-		expect(body).not.toMatch(/rap video|uncensored|unlimited/i);
+		expect(body).not.toMatch(/rap video|no restrictions|unrestricted|uncensored|unlimited/i);
 		expect(body).not.toContain("/zh");
 		expect(body).not.toContain("/refund");
 		expect(body).not.toContain("/acceptable-use");

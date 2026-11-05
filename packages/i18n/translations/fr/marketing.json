@@ -206,8 +206,8 @@
 		"title": "Questions fréquemment posées",
 		"items": {
 			"restrictions": {
-				"question": "Que signifie « No Restrictions » sur EzImageAI ?",
-				"answer": "Il s’agit d’une retouche flexible par instructions plutôt que d’une liste fixe de modèles prédéfinis. Décrivez ce qu’il faut conserver et modifier, gardez vos images privées et vérifiez les crédits avant confirmation. Les contrôles de contenu, les obligations légales, les capacités du modèle et les limites du forfait restent applicables. Cela ne signifie ni génération sans modération ni génération gratuite illimitée."
+				"question": "Comment fonctionne la retouche photo par instructions ?",
+				"answer": "Décrivez avec vos propres mots ce qu’il faut conserver et modifier. Vos images restent privées et vous pouvez vérifier les crédits avant confirmation. Les contrôles de contenu, les obligations légales, les capacités du modèle et les limites du forfait restent applicables."
 			},
 			"guestAvailability": {
 				"question": "Quand la retouche invitée est-elle disponible ?",
@@ -473,7 +473,7 @@
 		},
 		"imageEditorHero": {
 			"eyebrow": "Retouche d’images par instructions",
-			"title": "Éditeur d’images IA <accent>sans modèles imposés</accent>",
+			"title": "Éditeur d’images IA <accent>par instructions</accent>",
 			"subtitle": "Importez une image et décrivez le changement souhaité.",
 			"private": "Images source privées",
 			"draftOnly": "Une retouche Nano Banana 2 Lite invitée"
@@ -607,8 +607,8 @@
 		},
 		"noRestrictions": {
 			"eyebrow": "Contrôle en langage naturel",
-			"title": "Ce que « No Restrictions » signifie vraiment",
-			"description": "« No Restrictions » signifie une retouche flexible par instructions, au-delà des modèles prédéfinis. Les limites de sécurité, légales, du modèle et d’utilisation restent applicables.",
+			"title": "Retouchez vos photos avec vos propres instructions",
+			"description": "Décrivez ce qu’il faut conserver et modifier dans votre photo. Les limites de sécurité, légales, du modèle et d’utilisation s’appliquent.",
 			"limits": "Les limites habituelles de sécurité, légales, du produit et d’usage s’appliquent toujours.",
 			"items": {
 				"prompts": {
@@ -736,7 +736,7 @@
 			"privacy": "Comprendre la retouche privée"
 		},
 		"faq": {
-			"title": "Éditeur d’images IA sans modèles prédéfinis : vos questions",
+			"title": "Questions sur l’éditeur d’images IA",
 			"description": "Le fonctionnement de la retouche par instructions, la confidentialité et les limites de sécurité et d’utilisation.",
 			"items": {
 				"guestAvailability": {
@@ -745,7 +745,7 @@
 				},
 				"guestVsFree": {
 					"question": "Puis-je utiliser EzImageAI comme éditeur d’images IA gratuit ?",
-					"answer": "Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel. Utiliser des crédits pour les autres modèles et la HD nécessite un abonnement payant actif. Le pack à 2,99 USD comprend 3 images réussies avec tous les modèles et formats d’image actuellement disponibles, sans abonnement. Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. « No Restrictions » désigne la retouche flexible par prompt au-delà des modèles fixes ; les limites de sécurité, légales, du modèle et d’usage restent applicables."
+					"answer": "Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel. Utiliser des crédits pour les autres modèles et la HD nécessite un abonnement payant actif. Le pack à 2,99 USD comprend 3 images réussies avec tous les modèles et formats d’image actuellement disponibles, sans abonnement. Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les limites de sécurité, légales, du modèle et d’usage s’appliquent."
 				}
 			}
 		},

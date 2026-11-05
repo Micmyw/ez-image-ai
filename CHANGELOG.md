@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-05 — Prompt-based image editor wording
+
+- Describe the homepage as an AI image editor and prompt photo editor across its title, sharing metadata, structured data and highlighted heading.
+- Update the English, German, Spanish and French FAQ and product descriptions, plus the public AI-readable summary, to explain prompt editing and applicable safety and usage limits.
+
 ## 2026-11-05 — Media operations diagnostics
 
 - Split media health, guest statistics and storage/credit totals into independent administrator-only reads with 30, 60 and 120 second refresh intervals. Display unavailable or stale data and the last successful refresh, with manual retry.
