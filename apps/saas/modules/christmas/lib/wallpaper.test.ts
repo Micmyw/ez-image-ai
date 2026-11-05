@@ -90,6 +90,30 @@ describe("Christmas wallpaper composition", () => {
 });
 
 describe("crop pixels and output resolution", () => {
+	it.each([
+		[941, 1672],
+		[1600, 900],
+		[1024, 1024],
+	])("preserves the complete %i × %i image with the automatic original ratio", (width, height) => {
+		expect(wallpaperCrop(width, height, "original")).toEqual({
+			sx: 0,
+			sy: 0,
+			sw: width,
+			sh: height,
+			width,
+			height,
+		});
+	});
+	it("applies zoom and position in original-ratio source pixels", () => {
+		expect(wallpaperCrop(1600, 900, "original", 100, 0, 2)).toEqual({
+			sx: 800,
+			sy: 0,
+			sw: 800,
+			sh: 450,
+			width: 800,
+			height: 450,
+		});
+	});
 	it("does not lose a source pixel to floating-point rounding", () => {
 		expect(wallpaperCrop(941, 1672, "desktop")).toMatchObject({ width: 941, height: 529 });
 	});

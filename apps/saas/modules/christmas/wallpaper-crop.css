@@ -1,5 +1,5 @@
 .wallpaper-crop-dialog {
-	max-width: 850px;
+	max-width: 960px;
 	width: calc(100vw - 24px);
 	max-height: 94dvh;
 	overflow-y: auto;
@@ -8,19 +8,23 @@
 	background: linear-gradient(140deg, #232b27, #28202b);
 	border-color: #e6d3bb33;
 }
+.wallpaper-crop-dialog[data-orientation="landscape"] {
+	max-width: 1240px;
+}
 .wallpaper-crop-description {
 	color: #c1b7bf;
 }
 .wallpaper-crop-layout {
 	display: grid;
-	grid-template-columns: 1fr 260px;
+	grid-template-columns: minmax(0, 1fr) 260px;
 	gap: 28px;
 	min-width: 0;
 }
 .wallpaper-crop-stage {
+	--wallpaper-preview-height: min(60dvh, 640px);
 	display: grid;
 	place-items: center;
-	min-height: 260px;
+	min-height: var(--wallpaper-preview-height);
 	padding: 16px;
 	border-radius: 16px;
 	background: #17161d;
@@ -31,7 +35,6 @@
 	width: 100%;
 }
 .wallpaper-crop-frame.is-phone {
-	max-width: 230px;
 	border: 5px solid #100f14;
 	border-radius: 25px;
 }
@@ -47,6 +50,7 @@
 .wallpaper-crop-viewport {
 	position: relative;
 	width: 100%;
+	overflow: hidden;
 	container-type: inline-size;
 }
 .wallpaper-screen-overlay {
@@ -151,10 +155,7 @@
 		grid-template-columns: 1fr;
 		gap: 18px;
 	}
-	.wallpaper-crop-frame.is-phone {
-		max-width: 160px;
-	}
 	.wallpaper-crop-stage {
-		min-height: 150px;
+		--wallpaper-preview-height: min(46dvh, 420px);
 	}
 }

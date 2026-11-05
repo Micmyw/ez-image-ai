@@ -33,7 +33,7 @@ export function WallpaperCropDialog({
 	const [failed, setFailed] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [retry, setRetry] = useState(0);
-	const [target, setTarget] = useState<WallpaperTarget>(initialCrop?.target ?? "phone");
+	const [target, setTarget] = useState<WallpaperTarget>(initialCrop?.target ?? "original");
 	const [position, setPosition] = useState({
 		x: initialCrop?.x ?? 50,
 		y: initialCrop?.y ?? 50,
@@ -119,6 +119,7 @@ export function WallpaperCropDialog({
 				position.zoom,
 			)
 		: null;
+	const landscape = crop ? crop.width > crop.height : target === "desktop";
 	useEffect(() => {
 		const node = canvas.current;
 		if (!node || !picture) return;
@@ -164,7 +165,11 @@ export function WallpaperCropDialog({
 	}
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="wallpaper-crop-dialog" closeLabel={t("close")}>
+			<DialogContent
+				className="wallpaper-crop-dialog"
+				data-orientation={landscape ? "landscape" : "portrait"}
+				closeLabel={t("close")}
+			>
 				<DialogTitle>{t("title")}</DialogTitle>
 				<DialogDescription className="wallpaper-crop-description">
 					{t("description")}
@@ -173,16 +178,18 @@ export function WallpaperCropDialog({
 					<div className="wallpaper-crop-stage">
 						{!picture && !failed && <output>{t("loading")}</output>}
 						<div
-							className={`wallpaper-crop-frame ${target === "desktop" ? "is-desktop" : "is-phone"}`}
+							className={`wallpaper-crop-frame ${landscape ? "is-desktop" : "is-phone"}`}
 							style={{
 								visibility: picture ? "visible" : "hidden",
+								width: crop
+									? `min(100%, calc(var(--wallpaper-preview-height) * ${crop.width / crop.height} + 10px))`
+									: undefined,
 							}}
 						>
 							<div
 								className="wallpaper-crop-viewport"
 								style={{
-									aspectRatio:
-										target === "desktop" ? "16/9" : target === "tall" ? "1170/2532" : "9/16",
+									aspectRatio: crop ? `${crop.width}/${crop.height}` : undefined,
 								}}
 							>
 								<canvas ref={canvas} aria-label={t("preview")} />
@@ -191,7 +198,7 @@ export function WallpaperCropDialog({
 										className={`wallpaper-screen-overlay ${darkClock ? "dark-clock" : ""}`}
 										aria-hidden="true"
 									>
-										{target === "desktop" ? (
+										{landscape ? (
 											<div className="wallpaper-desktop-icons">
 												<i />
 												<i />
@@ -222,6 +229,7 @@ export function WallpaperCropDialog({
 								setPosition({ x: 50, y: 50, zoom: 1 });
 							}}
 						>
+							<option value="original">{t("original")}</option>
 							<option value="phone">{t("phone")}</option>
 							<option value="tall">{t("tall")}</option>
 							<option value="desktop">{t("desktop")}</option>
@@ -255,6 +263,7 @@ export function WallpaperCropDialog({
 							<input
 								type="checkbox"
 								checked={darkClock}
+								disabled={!overlay || landscape}
 								onChange={(event) => setDarkClock(event.target.checked)}
 							/>
 							{t("darkClock")}

@@ -136,7 +136,7 @@ function ScreenPreview({
 	const t = useTranslations("christmas");
 	const [crop, setCrop] = useState<WallpaperCropSettings>(
 		initialCrop ?? {
-			target: settings.screen,
+			target: "original",
 			x: 50,
 			y: 50,
 			zoom: 1,
@@ -151,8 +151,8 @@ function ScreenPreview({
 	const pixels = size
 		? wallpaperCrop(size.width, size.height, crop.target, crop.x, crop.y, crop.zoom)
 		: null;
-	const desktop = crop.target === "desktop";
-	const target = WALLPAPER_TARGETS[crop.target];
+	const target = pixels ?? WALLPAPER_TARGETS[settings.screen];
+	const desktop = target.width > target.height;
 	return (
 		<aside
 			className={`christmas-preview ${desktop ? "is-desktop" : ""}`}

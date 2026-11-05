@@ -115,7 +115,7 @@ export const WALLPAPER_TARGETS = {
 	tall: { width: 1170, height: 2532 },
 	desktop: { width: 1920, height: 1080 },
 } as const;
-export type WallpaperTarget = keyof typeof WALLPAPER_TARGETS;
+export type WallpaperTarget = keyof typeof WALLPAPER_TARGETS | "original";
 
 export type WallpaperCropSettings = {
 	target: WallpaperTarget;
@@ -137,7 +137,7 @@ export function wallpaperCrop(
 ) {
 	if (![width, height, x, y, zoom].every(Number.isFinite) || width <= 0 || height <= 0)
 		throw new Error("Invalid image dimensions");
-	const output = WALLPAPER_TARGETS[target];
+	const output = target === "original" ? { width, height } : WALLPAPER_TARGETS[target];
 	const scale =
 		Math.max(output.width / width, output.height / height) * Math.min(3, Math.max(1, zoom));
 	const sw = output.width / scale;

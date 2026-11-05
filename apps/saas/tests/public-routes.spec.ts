@@ -297,7 +297,15 @@ test("Christmas wallpaper presets preserve photos and export clean crops at actu
 	await page.getByRole("button", { name: "Try preview & crop" }).click();
 	const dialog = page.getByRole("dialog");
 	await expect(dialog.getByRole("button", { name: "Download wallpaper" })).toBeEnabled();
+	await expect(dialog.getByLabel("Screen shape")).toHaveValue("original");
+	await expect(dialog.locator("output")).toHaveText("941 × 1672 px · PNG");
 	await expect(dialog.locator("canvas")).toBeVisible();
+	expect(
+		await dialog.locator("canvas").evaluate((node: HTMLCanvasElement) => {
+			const bounds = node.getBoundingClientRect();
+			return bounds.width / bounds.height / (node.width / node.height);
+		}),
+	).toBeCloseTo(1, 2);
 	await page.screenshot({ path: testInfo.outputPath("christmas-crop.png") });
 	const firstDownload = page.waitForEvent("download");
 	await dialog.getByRole("button", { name: "Download wallpaper" }).click();
@@ -306,13 +314,27 @@ test("Christmas wallpaper presets preserve photos and export clean crops at actu
 	const dimensions = `${firstBytes.readUInt32BE(16)} × ${firstBytes.readUInt32BE(20)} px · PNG`;
 	await expect(dialog.locator("output")).toHaveText(dimensions);
 	expect(firstBytes.readUInt32BE(16)).toBeLessThanOrEqual(941);
+	await dialog.getByRole("checkbox", { name: "Dark clock text" }).check();
+	await expect(dialog.locator(".wallpaper-screen-overlay")).toHaveCSS("color", "rgb(36, 60, 50)");
+	const darkClockDownload = page.waitForEvent("download");
+	await dialog.getByRole("button", { name: "Download wallpaper" }).click();
+	const darkClockBytes = await readFile((await (await darkClockDownload).path())!);
+	expect(darkClockBytes.equals(firstBytes)).toBe(true);
 	await dialog.getByRole("checkbox", { name: "Show screen controls" }).uncheck();
+	await expect(dialog.locator(".wallpaper-screen-overlay")).toHaveCount(0);
+	await expect(dialog.getByRole("checkbox", { name: "Dark clock text" })).toBeDisabled();
 	const secondDownload = page.waitForEvent("download");
 	await dialog.getByRole("button", { name: "Download wallpaper" }).click();
 	const secondBytes = await readFile((await (await secondDownload).path())!);
 	expect(secondBytes.equals(firstBytes)).toBe(true); // DOM clock never enters exported pixels.
 	await dialog.getByLabel("Screen shape").selectOption("desktop");
 	await expect(dialog.locator("output")).toContainText("941 × 529");
+	const croppedDownload = page.waitForEvent("download");
+	await dialog.getByRole("button", { name: "Download wallpaper" }).click();
+	const croppedBytes = await readFile((await (await croppedDownload).path())!);
+	expect(croppedBytes.readUInt32BE(16)).toBe(941);
+	expect(croppedBytes.readUInt32BE(20)).toBe(529);
+	expect(croppedBytes.equals(firstBytes)).toBe(false);
 	await page.setViewportSize({ width: 320, height: 800 });
 	await dialog.getByLabel("Screen shape").selectOption("tall");
 	expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
@@ -460,16 +482,17 @@ test("Christmas screen preview follows ready results and preserves applied crops
 	await preview.getByRole("button", { name: "Preview & crop" }).click();
 	const dialog = page.getByRole("dialog");
 	await expect(dialog.getByRole("button", { name: "Apply to preview" })).toBeEnabled();
+	await expect(dialog.getByLabel("Screen shape")).toHaveValue("original");
+	await expect(dialog).toHaveAttribute("data-orientation", "landscape");
+	await expect(dialog.locator("output")).toHaveText("960 × 720 px · PNG");
+	await dialog.screenshot({ path: testInfo.outputPath("christmas-crop-original-landscape.png") });
 	await dialog.getByLabel("Screen shape").selectOption("desktop");
 	await dialog.getByLabel("Zoom", { exact: true }).fill("1.5");
 	await dialog.getByLabel("Move vertically").fill("75");
 	await dialog.getByRole("checkbox", { name: "Show screen controls" }).uncheck();
 	await dialog.getByRole("button", { name: "Apply to preview" }).click();
 	await expect(dialog).toHaveCount(0);
-	await expect(preview.locator(".christmas-device-screen")).toHaveCSS(
-		"aspect-ratio",
-		"1920 / 1080",
-	);
+	await expect(preview.locator(".christmas-device-screen")).toHaveCSS("aspect-ratio", "640 / 360");
 	await expect(preview.locator(".christmas-desktop-icons")).toHaveCount(0);
 	await expect(picture).toHaveCSS("position", "absolute");
 	await preview.getByRole("button", { name: "Style example", exact: true }).click();
@@ -499,10 +522,7 @@ test("Christmas screen preview follows ready results and preserves applied crops
 	await preview.getByRole("button", { name: "Style example", exact: true }).click();
 	await setState({ asset: "globe" });
 	await expect(picture).toHaveAttribute("src", "/images/christmas/globe.webp");
-	await expect(preview.locator(".christmas-device-screen")).toHaveCSS(
-		"aspect-ratio",
-		"1080 / 1920",
-	);
+	await expect(preview.locator(".christmas-device-screen")).toHaveCSS("aspect-ratio", "941 / 1672");
 	await comparison.getByRole("button", { name: "Enlarge original", exact: true }).last().click();
 	await expect(page.getByRole("dialog")).toBeVisible();
 	await setState({ denied: true });

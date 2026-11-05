@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-11-05 — Adaptive wallpaper cropping
+
+- Start the crop editor and screen preview at the image's original aspect ratio. Size the editor canvas to the image and available screen space, with optional phone, tall-phone and desktop crops.
+- Label screen controls and clock color as preview-only settings. Download the cropped wallpaper pixels and disable clock-color controls when the clock is hidden.
+
 ## 2026-11-05 — Christmas preview controls and comparison fixes
 
 - Default image comparisons to complete images in separate panels, side by side on desktop and stacked on phones. Offer the slider as an optional view for aligned images.
