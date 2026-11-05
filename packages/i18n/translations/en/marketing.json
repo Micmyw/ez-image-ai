@@ -25,6 +25,9 @@
 		"costNote": "Check the editor’s current quote before generating. Previewing and cropping use no generation credits.",
 		"preview": "Screen preview",
 		"stylePreview": "Style example",
+		"yourResult": "Your result",
+		"yourWallpaper": "Your Christmas wallpaper",
+		"resultPreviewNote": "Adjust the crop and clock preview, then download your wallpaper.",
 		"previewNote": "An illustrative screen preview. Your device’s crop and controls may differ.",
 		"tryCrop": "Try preview & crop",
 		"photoStyle": "Photo-friendly",
@@ -36,6 +39,7 @@
 		"loading": "Loading the editor…",
 		"crop": {
 			"action": "Preview & crop",
+			"apply": "Apply to preview",
 			"title": "Make it fit your screen",
 			"description": "Move and crop locally. No generation credits are used.",
 			"close": "Close",

@@ -25,6 +25,9 @@
 		"costNote": "Revisa el precio actual en el editor antes de generar. La vista previa y el recorte no consumen créditos de generación.",
 		"preview": "Vista de pantalla",
 		"stylePreview": "Ejemplo de estilo",
+		"yourResult": "Tu resultado",
+		"yourWallpaper": "Tu fondo de Navidad",
+		"resultPreviewNote": "Ajusta el recorte y la vista del reloj y descarga tu fondo.",
 		"previewNote": "Vista ilustrativa. El recorte y los controles pueden variar en tu dispositivo.",
 		"tryCrop": "Probar vista previa y recorte",
 		"photoStyle": "Para fotos",
@@ -36,6 +39,7 @@
 		"loading": "Cargando el editor…",
 		"crop": {
 			"action": "Vista previa y recorte",
+			"apply": "Aplicar a la vista previa",
 			"title": "Adáptalo a tu pantalla",
 			"description": "Mueve y recorta en tu dispositivo, sin créditos de generación.",
 			"close": "Cerrar",

@@ -154,7 +154,18 @@
 					"moderationErrors": "Moderation errors",
 					"watermarkFailure": "Watermark failure",
 					"billedSpendMismatch": "Billed spend mismatch",
-					"cleanupOverdue": "Cleanup overdue"
+					"cleanupOverdue": "Cleanup overdue",
+					"guestEnvironmentInvalid": "Invalid environment configuration",
+					"guestEnvironmentDisabled": "Guest environment gate disabled",
+					"guestRuntimeDisabled": "Guest runtime gate disabled",
+					"guestPromotionPeriodRequired": "Promotion period missing",
+					"guestConfigurationInvalid": "Guest configuration incomplete",
+					"guestProductionEvidenceRequired": "Production approval missing",
+					"guestProductionTurnstileRequired": "Human verification configuration missing",
+					"guestProductionTrustedProxyRequired": "Trusted proxy configuration missing",
+					"guestProductsUnavailable": "Generation products unavailable",
+					"guestCapabilityDisabled": "Guest capability unavailable",
+					"unknown": "Unknown reason"
 				},
 				"metrics": {
 					"risk": "Sponsored risk utilization",
@@ -168,13 +179,15 @@
 				},
 				"details": {
 					"risk": "held {held} · committed {committed} · budget {budget} micros",
-					"queue": "oldest {age}s · p50 {p50}ms · p95 {p95}ms",
+					"queue": "oldest {age}s · first attempt p50 {p50}ms / p95 {p95}ms · {samples} samples · {invalid} invalid",
 					"attempts": "reported cost {covered} · missing cost {missing}",
 					"errorRate": "error rate {rate}",
 					"expiredGrants": "expired grants {count}",
 					"credits": "reserved {reserved} · released {released}",
 					"cleanup": "dead letters {deadLetters} · oldest overdue {seconds}s"
-				}
+				},
+				"unavailable": "Data unavailable",
+				"unavailableReason": "Guest entry unavailable · {reason}"
 			},
 			"metrics": {
 				"queue": "Queue depth",
@@ -390,6 +403,17 @@
 				"invalidEvidence": "The evidence is incomplete or does not describe a confirmed zero-cost policy rejection.",
 				"error": "Recovery was not confirmed. Check the error and retry the same evidence if the network response was lost.",
 				"queued": "Recovery recorded for the task below. Settlement of its {credits} reserved credits is queued; verify the ledger before reporting a release."
+			},
+			"diagnostics": {
+				"health": "Queue and event health",
+				"totals": "Storage and credit totals",
+				"loading": "Loading…",
+				"unavailable": "Data unavailable",
+				"refreshFailed": "Refresh failed · showing previous data",
+				"stale": "Data is out of date",
+				"updated": "Up to date",
+				"lastSuccess": "Last successful update {time}",
+				"refresh": "Refresh"
 			}
 		},
 		"title": "Administration",

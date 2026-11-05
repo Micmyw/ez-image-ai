@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/
 import { useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";
 
-import { wallpaperCrop, type WallpaperTarget } from "../lib/wallpaper";
+import { wallpaperCrop, type WallpaperTarget, type WallpaperCropSettings } from "../lib/wallpaper";
 
 import "../wallpaper-crop.css";
 
@@ -14,11 +14,15 @@ export function WallpaperCropDialog({
 	onOpenChange,
 	imageUrl,
 	getImageUrl,
+	initialCrop,
+	onApply,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	imageUrl?: string;
 	getImageUrl?: () => Promise<string>;
+	initialCrop?: WallpaperCropSettings;
+	onApply?: (settings: WallpaperCropSettings) => void;
 }) {
 	const t = useTranslations("christmas.crop");
 	const id = useId();
@@ -29,10 +33,14 @@ export function WallpaperCropDialog({
 	const [failed, setFailed] = useState(false);
 	const [saving, setSaving] = useState(false);
 	const [retry, setRetry] = useState(0);
-	const [target, setTarget] = useState<WallpaperTarget>("phone");
-	const [position, setPosition] = useState({ x: 50, y: 50, zoom: 1 });
-	const [overlay, setOverlay] = useState(true);
-	const [darkClock, setDarkClock] = useState(false);
+	const [target, setTarget] = useState<WallpaperTarget>(initialCrop?.target ?? "phone");
+	const [position, setPosition] = useState({
+		x: initialCrop?.x ?? 50,
+		y: initialCrop?.y ?? 50,
+		zoom: initialCrop?.zoom ?? 1,
+	});
+	const [overlay, setOverlay] = useState(initialCrop?.overlay ?? true);
+	const [darkClock, setDarkClock] = useState(initialCrop?.darkClock ?? false);
 	const mounted = useRef(false);
 	useEffect(() => {
 		mounted.current = true;
@@ -139,6 +147,7 @@ export function WallpaperCropDialog({
 				),
 			);
 			if (!mounted.current) return;
+			onApply?.({ target, ...position, overlay, darkClock });
 			const url = URL.createObjectURL(blob);
 			const link = document.createElement("a");
 			link.href = url;
@@ -166,35 +175,41 @@ export function WallpaperCropDialog({
 						<div
 							className={`wallpaper-crop-frame ${target === "desktop" ? "is-desktop" : "is-phone"}`}
 							style={{
-								aspectRatio:
-									target === "desktop" ? "16/9" : target === "tall" ? "1170/2532" : "9/16",
 								visibility: picture ? "visible" : "hidden",
 							}}
 						>
-							<canvas ref={canvas} aria-label={t("preview")} />
-							{overlay && (
-								<div
-									className={`wallpaper-screen-overlay ${darkClock ? "dark-clock" : ""}`}
-									aria-hidden="true"
-								>
-									{target === "desktop" ? (
-										<div className="wallpaper-desktop-icons">
-											<i />
-											<i />
-											<i />
-										</div>
-									) : (
-										<>
-											<span>Thursday, December 24</span>
-											<strong>09:41</strong>
-											<div className="wallpaper-phone-controls">
+							<div
+								className="wallpaper-crop-viewport"
+								style={{
+									aspectRatio:
+										target === "desktop" ? "16/9" : target === "tall" ? "1170/2532" : "9/16",
+								}}
+							>
+								<canvas ref={canvas} aria-label={t("preview")} />
+								{overlay && (
+									<div
+										className={`wallpaper-screen-overlay ${darkClock ? "dark-clock" : ""}`}
+										aria-hidden="true"
+									>
+										{target === "desktop" ? (
+											<div className="wallpaper-desktop-icons">
+												<i />
 												<i />
 												<i />
 											</div>
-										</>
-									)}
-								</div>
-							)}
+										) : (
+											<>
+												<span>Thursday, December 24</span>
+												<strong>09:41</strong>
+												<div className="wallpaper-phone-controls">
+													<i />
+													<i />
+												</div>
+											</>
+										)}
+									</div>
+								)}
+							</div>
 						</div>
 					</div>
 					<div className="wallpaper-crop-controls">
@@ -247,6 +262,19 @@ export function WallpaperCropDialog({
 						<p>{t("deviceNote")}</p>
 						<output>{crop ? `${crop.width} × ${crop.height} px · PNG` : ""}</output>
 						<p>{t("resolutionNote")}</p>
+						{onApply && (
+							<Button
+								type="button"
+								variant="secondary"
+								disabled={!picture || saving}
+								onClick={() => {
+									onApply({ target, ...position, overlay, darkClock });
+									onOpenChange(false);
+								}}
+							>
+								{t("apply")}
+							</Button>
+						)}
 						<Button
 							type="button"
 							onClick={() => void download()}

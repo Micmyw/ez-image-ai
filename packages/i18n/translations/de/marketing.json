@@ -25,6 +25,9 @@
 		"costNote": "Prüfe vor der Erstellung das aktuelle Angebot im Editor. Vorschau und Zuschnitt verbrauchen keine Generierungsguthaben.",
 		"preview": "Bildschirmvorschau",
 		"stylePreview": "Stilbeispiel",
+		"yourResult": "Dein Ergebnis",
+		"yourWallpaper": "Dein Weihnachtshintergrund",
+		"resultPreviewNote": "Passe den Ausschnitt und die Uhrvorschau an und lade deinen Hintergrund herunter.",
 		"previewNote": "Beispielvorschau. Zuschnitt und Bedienelemente können auf deinem Gerät abweichen.",
 		"tryCrop": "Vorschau und Zuschnitt testen",
 		"photoStyle": "Für Fotos",
@@ -36,6 +39,7 @@
 		"loading": "Editor wird geladen…",
 		"crop": {
 			"action": "Vorschau & Zuschnitt",
+			"apply": "Für die Vorschau übernehmen",
 			"title": "An deinen Bildschirm anpassen",
 			"description": "Lokal verschieben und zuschneiden, ohne Generierungsguthaben.",
 			"close": "Schließen",

@@ -13,16 +13,22 @@ describe("Christmas wallpaper composition", () => {
 		const phone = buildChristmasPrompt(DEFAULT_WALLPAPER_SETTINGS);
 		const desktop = buildChristmasPrompt({ ...DEFAULT_WALLPAPER_SETTINGS, screen: "desktop" });
 		expect(phone).toContain("upper third");
+		expect(phone).toContain("top of the head below this clear area");
+		expect(phone.indexOf("tall 9:16")).toBeLessThan(phone.indexOf(CHRISTMAS_STYLES[0].scene));
 		expect(desktop).toContain("right half");
 		expect(desktop).toContain("left for desktop icons");
 		expect(desktop).not.toContain("tall 9:16");
 	});
 	it("preserves identity and clothing by default across all six styles", () => {
 		expect(new Set(CHRISTMAS_STYLES.map((style) => style.id)).size).toBe(6);
-		for (const { id } of CHRISTMAS_STYLES) {
+		for (const { id, scene, photoDirection } of CHRISTMAS_STYLES) {
 			const prompt = buildChristmasPrompt({ ...DEFAULT_WALLPAPER_SETTINGS, style: id });
+			expect(prompt).toContain(scene);
+			expect(prompt).toContain(photoDirection);
 			expect(prompt).toContain("Keep any reference subject's original clothing");
 			expect(prompt).toContain("do not add or merge people");
+			expect(prompt).toContain("Replace the original background completely");
+			expect(prompt).toContain("light direction, color temperature, perspective and scale");
 			expect(prompt).toContain("No text");
 		}
 	});
@@ -33,12 +39,53 @@ describe("Christmas wallpaper composition", () => {
 			festiveOutfit: true,
 		});
 		expect(prompt).toContain("Create the scene without people");
-		expect(prompt).not.toContain("Use the uploaded photo as the reference");
+		expect(prompt).not.toContain("Use the uploaded photo");
+		expect(prompt).not.toContain("original clothing");
 		expect(prompt).not.toContain("add a simple festive knit sweater");
 		expect(prompt).not.toContain("golden retriever");
 		expect(
 			buildChristmasPrompt({ ...DEFAULT_WALLPAPER_SETTINGS, mode: "scene", style: "pet" }),
 		).toContain("golden retriever");
+	});
+	it.each(CHRISTMAS_STYLES.map((style) => style.id))(
+		"keeps scene-only %s prompts free of clothing instructions",
+		(style) => {
+			const prompt = buildChristmasPrompt({
+				...DEFAULT_WALLPAPER_SETTINGS,
+				style,
+				mode: "scene",
+				festiveOutfit: true,
+			});
+			const template = CHRISTMAS_STYLES.find((item) => item.id === style)!;
+			expect(prompt).toContain(template.scene);
+			expect(prompt).not.toContain(template.photoDirection);
+			expect(prompt).not.toContain("original clothing");
+			expect(prompt).not.toContain("knit sweater");
+			expect(prompt).not.toContain("bandana");
+		},
+	);
+	it("allows an explicit festive outfit in the pet style without a conflicting costume instruction", () => {
+		const prompt = buildChristmasPrompt({
+			...DEFAULT_WALLPAPER_SETTINGS,
+			style: "pet",
+			festiveOutfit: true,
+		});
+		expect(prompt).toContain("small festive bandana");
+		expect(prompt).not.toContain("no costume");
+		expect(prompt).not.toContain("original clothing");
+		expect(prompt).toContain("pet's species");
+	});
+	it("keeps the entire snow globe together in both screen compositions", () => {
+		for (const screen of ["phone", "desktop"] as const) {
+			const prompt = buildChristmasPrompt({
+				...DEFAULT_WALLPAPER_SETTINGS,
+				style: "globe",
+				screen,
+			});
+			expect(prompt).toContain("complete round globe and its base together");
+			expect(prompt).toContain("same subject fully inside the globe");
+			expect(prompt).toContain("focal arrangement");
+		}
 	});
 });
 

@@ -3,6 +3,7 @@ import { ImageIcon, LockKeyholeIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { WallpaperButton } from "../../../christmas/components/WallpaperButton";
+import { WallpaperResultPublisher } from "../../../christmas/lib/wallpaper-result-context";
 import { ColoringPageLink } from "../../../coloring/components/ColoringPageLink";
 import type { GuestTrialView } from "../../lib/guest-trial-state";
 
@@ -26,6 +27,13 @@ export function GuestResultCard({
 			aria-busy={busy}
 			className="border-slate-800 bg-slate-950 p-4 text-white focus-visible:ring-violet-400 sm:p-5 rounded-2xl border shadow-[0_24px_70px_-32px_rgba(30,27,75,0.9)] outline-none focus-visible:ring-2"
 		>
+			{view.state === "ready" && resultUrl && view.resultAssetId && (
+				<WallpaperResultPublisher
+					assetId={view.resultAssetId}
+					imageUrl={resultUrl}
+					expiresAt={view.resultExpiresAt ?? undefined}
+				/>
+			)}
 			<div className="mb-3 gap-2 font-semibold text-slate-300 sm:text-xs flex items-center justify-between text-[0.6875rem] tracking-[0.1em] uppercase">
 				<span className="shrink-0">{t("oneOutput")}</span>
 				<span className="min-w-0 gap-1.5 bg-white/10 px-2 py-1 tracking-normal flex items-center rounded-full whitespace-nowrap normal-case">

@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
 	disconnect: vi.fn(),
 	callback: vi.fn(),
 	observeConstruction: vi.fn((_observe: unknown, operation: () => unknown) => operation()),
+	createDatabase: vi.fn(),
+	lazyDatabase: vi.fn((_create: () => unknown) => ({ $disconnect: async () => {} })),
 }));
 
 // Vitest resolves this alias even before OpenNext generates its Worker artifact.
@@ -20,8 +22,11 @@ vi.mock("./.open-next/worker.js", () => ({
 	DOShardedTagCache: class {},
 }));
 vi.mock("@repo/database/client", () => ({
-	createLazyDatabaseClient: () => ({ $disconnect: mocks.disconnect }),
-	createRuntimeDatabaseClient: vi.fn(),
+	createLazyDatabaseClient: (create: () => unknown) => {
+		mocks.lazyDatabase(create);
+		return { $disconnect: mocks.disconnect };
+	},
+	createRuntimeDatabaseClient: mocks.createDatabase,
 	runWithDatabaseClient: (_client: unknown, operation: () => unknown) => operation(),
 	runWithDatabaseClientConstructionObserver: mocks.observeConstruction,
 }));
@@ -79,6 +84,21 @@ describe("website video runtime environment", () => {
 
 	afterEach(() => {
 		vi.unstubAllEnvs();
+	});
+
+	it("selects the two-connection pool on the normal admin diagnostics RPC entry", async () => {
+		const pending: Promise<unknown>[] = [];
+		const response = await worker.fetch(
+			new Request("https://ezpic.example/api/rpc/media/adminMediaHealth", { method: "POST" }),
+			environment(),
+			{ waitUntil: (promise) => pending.push(promise), passThroughOnException: vi.fn() },
+		);
+		mocks.lazyDatabase.mock.calls[0]![0]();
+		expect(mocks.createDatabase).toHaveBeenCalledWith("test-only", undefined, {
+			maxConnections: 2,
+		});
+		await response.text();
+		await Promise.all(pending);
 	});
 
 	it("hydrates packed video values before consumers and passes the expanded snapshot to OpenNext", async () => {

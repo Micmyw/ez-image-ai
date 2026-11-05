@@ -92,6 +92,34 @@ Operational interpretation:
 - Repeat-edit rate is the share of filtered edit sessions containing more than one job.
 - Controls combine the configured global generation switch with active runtime overrides.
 
+## Media health diagnostics
+
+The media page reads three independent administrator-only endpoints. `/admin/media/health`
+refreshes every 30 seconds, `/admin/media/guest-diagnostics` every 60 seconds, and
+`/admin/media/totals` every 120 seconds. Hidden tabs suspend interval polling. The growth panel
+refreshes every 60 seconds and the moderation panel every 30 seconds. Each diagnostic section
+reports loading, failure, last successful refresh and staleness after two refresh intervals.
+Failed initial reads show unavailable values. Failed refreshes identify retained data.
+
+The complete `/admin/media/diagnostics` endpoint preserves its existing sections, including
+UTC-day attempt counts and historical Stripe reconciliation. Routine page polling uses the
+section endpoints so those historical aggregates run only for explicit full-endpoint callers.
+All API paths are relative to `/api`, with equivalent named procedures under `/api/rpc/media`.
+
+Guest wait percentiles cover the configured promotion period and measure job creation to
+the earliest recorded execution attempt. Each dispatched job contributes at most one sample.
+Jobs awaiting their first attempt remain in queue depth and age. Negative intervals are excluded
+and counted in `invalidSampleCount`, and empty samples return null percentiles. Display ages
+are bounded at zero. This read does not modify jobs, scheduling timestamps or financial state.
+
+Guest entry availability combines operational safety with the same configuration and executable
+product capability used by the public entry. The response includes a safe closure reason.
+The independent operational monitor retains its existing authority to close admission.
+
+Exact diagnostics requests use a request-owned pool with `max: 2`; the runtime default is `1`.
+Both REST GET and normal RPC POST paths select this policy. Public requests and job executors
+use the default. Clients remain request-scoped and disconnect through the existing lifetime.
+
 ## Verification, rollback, and external status
 
 The change is application-only and adds no database schema or migration. Rollback is the previous

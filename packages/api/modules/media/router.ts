@@ -3,6 +3,9 @@ import { listMediaAuditLog } from "./procedures/admin-audit-log";
 import {
 	adminGrowthOperations,
 	adminMediaDiagnostics,
+	adminMediaHealth,
+	adminMediaTotals,
+	adminGuestDiagnostics,
 	listUncertainGenerationAttempts,
 } from "./procedures/admin-diagnostics";
 import {
@@ -86,6 +89,9 @@ export const mediaRouter = {
 	listAssets,
 	getCreditAccount,
 	adminMediaDiagnostics,
+	adminMediaHealth,
+	adminMediaTotals,
+	adminGuestDiagnostics,
 	adminGrowthOperations,
 	listUncertainGenerationAttempts,
 	listMediaAuditLog,

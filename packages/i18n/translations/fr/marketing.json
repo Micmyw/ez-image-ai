@@ -25,6 +25,9 @@
 		"costNote": "Vérifiez le devis actuel dans l’éditeur avant de générer. L’aperçu et le recadrage ne consomment pas de crédits de génération.",
 		"preview": "Aperçu de l’écran",
 		"stylePreview": "Exemple de style",
+		"yourResult": "Votre résultat",
+		"yourWallpaper": "Votre fond d’écran de Noël",
+		"resultPreviewNote": "Ajustez le cadrage et l’aperçu de l’horloge, puis téléchargez votre fond d’écran.",
 		"previewNote": "Aperçu illustratif. Le cadrage et les commandes peuvent varier selon votre appareil.",
 		"tryCrop": "Essayer l’aperçu et le recadrage",
 		"photoStyle": "Pour les photos",
@@ -36,6 +39,7 @@
 		"loading": "Chargement de l’éditeur…",
 		"crop": {
 			"action": "Aperçu et recadrage",
+			"apply": "Appliquer à l’aperçu",
 			"title": "Adaptez-le à votre écran",
 			"description": "Déplacez et recadrez localement, sans crédits de génération.",
 			"close": "Fermer",

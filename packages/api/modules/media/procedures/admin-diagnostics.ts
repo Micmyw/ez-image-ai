@@ -5,12 +5,16 @@ import {
 	type AdminSafeImageProductDefinition,
 	getAdminGrowthOperations,
 	getAdminMediaDiagnostics,
+	getAdminMediaHealth,
+	getAdminMediaTotals,
+	getAdminGuestDiagnostics,
 	listAdminUncertainGenerationAttempts,
 } from "@repo/database";
 import { db } from "@repo/database/client";
 import { z } from "zod";
 
 import { adminProcedure } from "../../../orpc/procedures";
+import { loadGuestCapability } from "../lib/guest-capability";
 
 function createAdminSafeImageProductDefinitions(): readonly AdminSafeImageProductDefinition[] {
 	return EZPIC_PRODUCT_KEYS.map((productKey) => {
@@ -154,6 +158,8 @@ const guestDiagnosticsSchema = z.object({
 		waitMs: z.object({
 			p50: aggregateCountSchema.nullable(),
 			p95: aggregateCountSchema.nullable(),
+			sampleCount: aggregateCountSchema,
+			invalidSampleCount: aggregateCountSchema,
 		}),
 		expiredBeforeDispatch: aggregateCountSchema,
 	}),
@@ -198,6 +204,10 @@ const guestDiagnosticsSchema = z.object({
 		environmentEnabled: z.boolean(),
 		runtimeEnabled: z.boolean(),
 		admissionOpen: z.boolean(),
+		unavailableReason: z
+			.string()
+			.regex(/^[A-Z][A-Z0-9_]{0,127}$/)
+			.nullable(),
 		automaticClosureReasons: z.array(z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/)),
 	}),
 });
@@ -370,12 +380,82 @@ export const adminMediaDiagnostics = adminProcedure
 	.route({ method: "GET", path: "/admin/media/diagnostics", tags: ["Admin", "Media"] })
 	.output(adminMediaDiagnosticsOutputSchema)
 	.handler(async () => {
-		const diagnostics = await getAdminMediaDiagnostics(db, {
-			guestEnvironmentEnabled: process.env.GUEST_MEDIA_ENABLED === "true",
-			guestPromotionPeriod: process.env.GUEST_PROMOTION_PERIOD ?? "",
-			guestRiskBudgetMicros: getGuestRiskBudgetMicros(process.env),
+		const diagnostics = await getAdminMediaDiagnostics(db, guestDiagnosticOptions());
+		return adminMediaDiagnosticsOutputSchema.parse({
+			...diagnostics,
+			guest: await withEffectiveGuestAvailability(diagnostics.guest),
 		});
-		return adminMediaDiagnosticsOutputSchema.parse(diagnostics);
+	});
+
+function guestDiagnosticOptions() {
+	return {
+		guestEnvironmentEnabled: process.env.GUEST_MEDIA_ENABLED === "true",
+		guestPromotionPeriod: process.env.GUEST_PROMOTION_PERIOD ?? "",
+		guestRiskBudgetMicros: getGuestRiskBudgetMicros(process.env),
+	};
+}
+
+async function withEffectiveGuestAvailability(
+	guest: Awaited<ReturnType<typeof getAdminGuestDiagnostics>>,
+) {
+	const { config, snapshot } = await loadGuestCapability();
+	const available =
+		snapshot.enabled &&
+		snapshot.products.some(
+			(product) => product.key === config.productKey && product.accessHint === "guest-trial",
+		);
+	return {
+		...guest,
+		controls: {
+			...guest.controls,
+			admissionOpen: guest.controls.admissionOpen && available,
+			unavailableReason: available ? null : (snapshot.reason ?? "GUEST_PRODUCTS_UNAVAILABLE"),
+		},
+	};
+}
+
+const mediaHealthOutputSchema = adminMediaDiagnosticsOutputSchema.pick({
+	generatedAt: true,
+	queue: true,
+	outbox: true,
+	events: true,
+	overrides: true,
+});
+
+export const adminMediaHealth = adminProcedure
+	.route({
+		method: "GET",
+		path: "/admin/media/health",
+		tags: ["Admin", "Media"],
+		summary: "Read media queue and event health",
+	})
+	.output(mediaHealthOutputSchema)
+	.handler(async () => mediaHealthOutputSchema.parse(await getAdminMediaHealth(db)));
+
+export const adminMediaTotals = adminProcedure
+	.route({
+		method: "GET",
+		path: "/admin/media/totals",
+		tags: ["Admin", "Media"],
+		summary: "Read media storage and credit totals",
+	})
+	.output(
+		adminMediaDiagnosticsOutputSchema.pick({ generatedAt: true, storage: true, credits: true }),
+	)
+	.handler(() => getAdminMediaTotals(db));
+
+export const adminGuestDiagnostics = adminProcedure
+	.route({
+		method: "GET",
+		path: "/admin/media/guest-diagnostics",
+		tags: ["Admin", "Media"],
+		summary: "Read guest trial health and effective admission availability",
+	})
+	.output(z.object({ generatedAt: z.string().datetime(), guest: guestDiagnosticsSchema }))
+	.handler(async () => {
+		const now = new Date();
+		const guest = await getAdminGuestDiagnostics(db, now, guestDiagnosticOptions());
+		return { generatedAt: now.toISOString(), guest: await withEffectiveGuestAvailability(guest) };
 	});
 
 export const adminGrowthOperations = adminProcedure

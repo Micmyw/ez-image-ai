@@ -28,32 +28,53 @@
 		linear-gradient(125deg, #151c1b 0%, #1b1921 48%, #2d1b2699 100%), #1b1921;
 	min-height: 100vh;
 }
-.christmas-page::before {
-	content: "";
+.christmas-snow {
 	position: absolute;
 	inset: 0 0 auto;
-	height: 620px;
+	height: min(1600px, 100%);
+	overflow: hidden;
 	z-index: -1;
 	pointer-events: none;
-	background-image:
-		radial-gradient(circle at 8% 18%, #f7e9d5 0 1px, transparent 2px),
-		radial-gradient(circle at 29% 8%, #dfbb85 0 1px, transparent 2px),
-		radial-gradient(circle at 48% 30%, #f7e9d5 0 1px, transparent 2px),
-		radial-gradient(circle at 72% 12%, #dfbb85 0 1.5px, transparent 3px),
-		radial-gradient(circle at 88% 36%, #f7e9d5 0 1px, transparent 2px),
-		radial-gradient(circle at 95% 70%, #dfbb85 0 1px, transparent 2px),
-		radial-gradient(circle at 15% 80%, #f7e9d5 0 1px, transparent 2px);
-	opacity: 0.45;
-	animation: christmas-snow-drift 14s ease-in-out infinite alternate;
+	mask-image: linear-gradient(#000 0 75%, transparent);
 }
-@keyframes christmas-snow-drift {
+.christmas-snow::before,
+.christmas-snow::after {
+	content: "";
+	position: absolute;
+	inset: -480px -24px 0;
+	pointer-events: none;
+	background-size: 480px 480px;
+	animation: christmas-snow-fall 24s linear infinite;
+}
+.christmas-snow::before {
+	background-image:
+		radial-gradient(circle at 36px 48px, #fff9eb 0 1.5px, #fff9eb33 2px, transparent 3px),
+		radial-gradient(circle at 132px 132px, #f5f7ff 0 1px, transparent 2px),
+		radial-gradient(circle at 238px 42px, #fff9eb 0 2px, #fff9eb22 3px, transparent 4px),
+		radial-gradient(circle at 390px 104px, #fff 0 1px, transparent 2px),
+		radial-gradient(circle at 74px 276px, #fff 0 1px, transparent 2px),
+		radial-gradient(circle at 304px 224px, #f5f7ff 0 1.5px, transparent 3px),
+		radial-gradient(circle at 450px 320px, #fff9eb 0 2px, #fff9eb22 3px, transparent 4px),
+		radial-gradient(circle at 186px 366px, #fff 0 1px, transparent 2px),
+		radial-gradient(circle at 330px 438px, #fff9eb 0 1.5px, transparent 3px);
+	opacity: 0.72;
+	animation-delay: -12s;
+}
+.christmas-snow::after {
+	background-image: url("/images/christmas/snowflakes.svg");
+	opacity: 0.65;
+	animation-duration: 18s;
+	animation-delay: -6s;
+}
+@keyframes christmas-snow-fall {
 	from {
-		transform: translateY(0);
-		opacity: 0.3;
+		transform: translate3d(0, 0, 0);
+	}
+	50% {
+		transform: translate3d(14px, 240px, 0);
 	}
 	to {
-		transform: translateY(18px);
-		opacity: 0.65;
+		transform: translate3d(0, 480px, 0);
 	}
 }
 .christmas-container {
@@ -286,11 +307,15 @@
 	border: 6px solid #100f14;
 	border-radius: 29px;
 	width: 220px;
-	aspect-ratio: 9/19.5;
+}
+.christmas-device-screen {
+	position: relative;
+	width: 100%;
+	overflow: hidden;
+	container-type: inline-size;
 }
 .christmas-device.desktop {
 	width: 100%;
-	aspect-ratio: 16/9;
 	border: 6px solid #100f14;
 	border-bottom-width: 14px;
 	border-radius: 8px;
@@ -300,41 +325,6 @@
 	width: 100%;
 	height: 100%;
 	object-fit: cover;
-}
-.christmas-clock {
-	position: absolute;
-	inset: 0;
-	padding-top: 21%;
-	color: #fff;
-	text-shadow: 0 1px 5px #0003;
-}
-.christmas-clock.dark {
-	color: #402931;
-	text-shadow: none;
-}
-.christmas-clock > span {
-	font-size: 10px;
-}
-.christmas-clock > strong {
-	display: block;
-	font-size: 56px;
-	line-height: 1.1;
-	letter-spacing: -3px;
-	font-weight: 500;
-}
-.christmas-clock > div {
-	position: absolute;
-	bottom: 6%;
-	inset-inline: 12%;
-	display: flex;
-	justify-content: space-between;
-}
-.christmas-clock i {
-	border-radius: 50%;
-	border: 1px solid #fff5;
-	background: #0003;
-	width: 25px;
-	height: 25px;
 }
 .christmas-desktop-icons {
 	position: absolute;
@@ -572,7 +562,8 @@
 	background: #151219;
 }
 @media (prefers-reduced-motion: reduce) {
-	.christmas-page::before {
+	.christmas-snow::before,
+	.christmas-snow::after {
 		animation: none;
 	}
 }
@@ -631,17 +622,6 @@
 	.christmas-device.phone {
 		width: 140px;
 		grid-row: 2/5;
-	}
-	.christmas-clock > span {
-		font-size: 7px;
-	}
-	.christmas-clock > strong {
-		font-size: 36px;
-		letter-spacing: -2px;
-	}
-	.christmas-clock i {
-		width: 19px;
-		height: 19px;
 	}
 	.christmas-device.desktop {
 		margin: 10px auto;
@@ -709,9 +689,6 @@
 		width: 120px;
 		border-width: 4px;
 		border-radius: 20px;
-	}
-	.christmas-clock > strong {
-		font-size: 32px;
 	}
 	.christmas-current-style a {
 		margin-left: 0;

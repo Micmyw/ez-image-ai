@@ -154,7 +154,18 @@
 					"moderationErrors": "Errores de moderación",
 					"watermarkFailure": "Fallo de marca de agua",
 					"billedSpendMismatch": "Diferencia en el gasto facturado",
-					"cleanupOverdue": "Limpieza atrasada"
+					"cleanupOverdue": "Limpieza atrasada",
+					"guestEnvironmentInvalid": "Configuración de entorno no válida",
+					"guestEnvironmentDisabled": "Acceso de invitados desactivado en el entorno",
+					"guestRuntimeDisabled": "Acceso de invitados desactivado en ejecución",
+					"guestPromotionPeriodRequired": "Falta el período promocional",
+					"guestConfigurationInvalid": "Configuración de invitados incompleta",
+					"guestProductionEvidenceRequired": "Falta la aprobación de producción",
+					"guestProductionTurnstileRequired": "Falta la configuración de verificación humana",
+					"guestProductionTrustedProxyRequired": "Falta la configuración del proxy de confianza",
+					"guestProductsUnavailable": "Productos de generación no disponibles",
+					"guestCapabilityDisabled": "Función de invitados no disponible",
+					"unknown": "Motivo desconocido"
 				},
 				"metrics": {
 					"risk": "Uso del riesgo patrocinado",
@@ -168,13 +179,15 @@
 				},
 				"details": {
 					"risk": "retenido {held} · comprometido {committed} · presupuesto {budget} micros",
-					"queue": "más antiguo {age}s · p50 {p50}ms · p95 {p95}ms",
+					"queue": "más antigua {age}s · primer intento p50 {p50}ms / p95 {p95}ms · {samples} muestras · {invalid} no válidas",
 					"attempts": "coste informado {covered} · coste ausente {missing}",
 					"errorRate": "tasa de error {rate}",
 					"expiredGrants": "accesos vencidos {count}",
 					"credits": "reservados {reserved} · liberados {released}",
 					"cleanup": "fallos finales {deadLetters} · atraso máximo {seconds}s"
-				}
+				},
+				"unavailable": "Datos no disponibles",
+				"unavailableReason": "Entrada de invitados no disponible · {reason}"
 			},
 			"metrics": {
 				"queue": "Cola",
@@ -390,6 +403,17 @@
 				"invalidEvidence": "Las pruebas están incompletas o no confirman un rechazo de políticas sin coste.",
 				"error": "No se confirmó la resolución. Revise el error y vuelva a enviar las mismas pruebas si se perdió la respuesta de red.",
 				"queued": "Resolución registrada. La liquidación de sus {credits} créditos reservados está programada; compruebe el registro contable antes de confirmar la liberación."
+			},
+			"diagnostics": {
+				"health": "Cola y eventos",
+				"totals": "Almacenamiento y créditos",
+				"loading": "Cargando…",
+				"unavailable": "Datos no disponibles",
+				"refreshFailed": "Error al actualizar · se muestran datos anteriores",
+				"stale": "Los datos están desactualizados",
+				"updated": "Actualizado",
+				"lastSuccess": "Última actualización correcta {time}",
+				"refresh": "Actualizar"
 			}
 		},
 		"title": "Administración",

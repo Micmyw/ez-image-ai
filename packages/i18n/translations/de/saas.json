@@ -154,7 +154,18 @@
 					"moderationErrors": "Moderationsfehler",
 					"watermarkFailure": "Wasserzeichenfehler",
 					"billedSpendMismatch": "Abweichung bei abgerechneten Kosten",
-					"cleanupOverdue": "Bereinigung überfällig"
+					"cleanupOverdue": "Bereinigung überfällig",
+					"guestEnvironmentInvalid": "Ungültige Umgebungskonfiguration",
+					"guestEnvironmentDisabled": "Gastzugang in der Umgebung deaktiviert",
+					"guestRuntimeDisabled": "Gastzugang zur Laufzeit deaktiviert",
+					"guestPromotionPeriodRequired": "Aktionszeitraum fehlt",
+					"guestConfigurationInvalid": "Gastkonfiguration unvollständig",
+					"guestProductionEvidenceRequired": "Produktionsfreigabe fehlt",
+					"guestProductionTurnstileRequired": "Konfiguration der Mensch-Verifizierung fehlt",
+					"guestProductionTrustedProxyRequired": "Konfiguration des vertrauenswürdigen Proxys fehlt",
+					"guestProductsUnavailable": "Generierungsprodukte nicht verfügbar",
+					"guestCapabilityDisabled": "Gastfunktion nicht verfügbar",
+					"unknown": "Unbekannter Grund"
 				},
 				"metrics": {
 					"risk": "Nutzung des Sponsoring-Risikos",
@@ -168,13 +179,15 @@
 				},
 				"details": {
 					"risk": "gehalten {held} · gebunden {committed} · Budget {budget} Mikro",
-					"queue": "älteste {age}s · p50 {p50}ms · p95 {p95}ms",
+					"queue": "älteste {age}s · erster Versuch p50 {p50}ms / p95 {p95}ms · {samples} Werte · {invalid} ungültig",
 					"attempts": "Kosten gemeldet {covered} · Kosten fehlen {missing}",
 					"errorRate": "Fehlerrate {rate}",
 					"expiredGrants": "abgelaufene Zugriffe {count}",
 					"credits": "reserviert {reserved} · freigegeben {released}",
 					"cleanup": "Dead Letters {deadLetters} · älteste Überfälligkeit {seconds}s"
-				}
+				},
+				"unavailable": "Daten nicht verfügbar",
+				"unavailableReason": "Gastzugang nicht verfügbar · {reason}"
 			},
 			"metrics": {
 				"queue": "Warteschlange",
@@ -390,6 +403,17 @@
 				"invalidEvidence": "Der Beleg ist unvollständig oder bestätigt keine kostenfreie Richtlinienablehnung.",
 				"error": "Die Bearbeitung wurde nicht bestätigt. Prüfen Sie den Fehler und wiederholen Sie bei verlorener Netzwerkantwort denselben Beleg.",
 				"queued": "Bearbeitung protokolliert. Die Abrechnung der {credits} reservierten Credits ist eingereiht; prüfen Sie das Kontobuch, bevor Sie eine Freigabe bestätigen."
+			},
+			"diagnostics": {
+				"health": "Warteschlange und Ereignisse",
+				"totals": "Speicher und Guthaben",
+				"loading": "Wird geladen…",
+				"unavailable": "Daten nicht verfügbar",
+				"refreshFailed": "Aktualisierung fehlgeschlagen · vorherige Daten",
+				"stale": "Daten sind veraltet",
+				"updated": "Aktuell",
+				"lastSuccess": "Letzte erfolgreiche Aktualisierung {time}",
+				"refresh": "Aktualisieren"
 			}
 		},
 		"title": "Administration",

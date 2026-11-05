@@ -20,6 +20,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { CheckoutReviewPanel } from "./CheckoutReviewPanel";
+import { DiagnosticsStatus } from "./DiagnosticsStatus";
 import { GrowthOperationsPanel } from "./GrowthOperationsPanel";
 import { KieRejectionRecoveryPanel } from "./KieRejectionRecoveryPanel";
 import { ModerationOperationsPanel } from "./ModerationOperationsPanel";
@@ -32,7 +33,12 @@ interface GuestDiagnostics {
 	queue: {
 		depth: number;
 		oldestAgeSeconds: number;
-		waitMs: { p50: number | null; p95: number | null };
+		waitMs: {
+			p50: number | null;
+			p95: number | null;
+			sampleCount: number;
+			invalidSampleCount: number;
+		};
 		expiredBeforeDispatch: number;
 	};
 	risk: {
@@ -62,6 +68,7 @@ interface GuestDiagnostics {
 		environmentEnabled: boolean;
 		runtimeEnabled: boolean;
 		admissionOpen: boolean;
+		unavailableReason: string | null;
 		automaticClosureReasons: string[];
 	};
 }
@@ -83,7 +90,28 @@ export function MediaOperations() {
 	);
 	const [reason, setReason] = useState("");
 	const diagnostics = useQuery(
-		orpc.media.adminMediaDiagnostics.queryOptions({ refetchInterval: 15_000 }),
+		orpc.media.adminMediaHealth.queryOptions({
+			refetchInterval: 30_000,
+			staleTime: 30_000,
+			retry: false,
+			refetchIntervalInBackground: false,
+		}),
+	);
+	const totals = useQuery(
+		orpc.media.adminMediaTotals.queryOptions({
+			refetchInterval: 120_000,
+			staleTime: 120_000,
+			retry: false,
+			refetchIntervalInBackground: false,
+		}),
+	);
+	const guestDiagnostics = useQuery(
+		orpc.media.adminGuestDiagnostics.queryOptions({
+			refetchInterval: 60_000,
+			staleTime: 60_000,
+			retry: false,
+			refetchIntervalInBackground: false,
+		}),
 	);
 	const audit = useQuery(
 		orpc.media.listMediaAuditLog.queryOptions({ input: { limit: AUDIT_PAGE_SIZE } }),
@@ -97,6 +125,9 @@ export function MediaOperations() {
 		await Promise.all([
 			queryClient.invalidateQueries({ queryKey: orpc.media.adminGrowthOperations.key() }),
 			queryClient.invalidateQueries({ queryKey: orpc.media.adminMediaDiagnostics.key() }),
+			queryClient.invalidateQueries({ queryKey: orpc.media.adminMediaHealth.key() }),
+			queryClient.invalidateQueries({ queryKey: orpc.media.adminMediaTotals.key() }),
+			queryClient.invalidateQueries({ queryKey: orpc.media.adminGuestDiagnostics.key() }),
 			queryClient.invalidateQueries({ queryKey: orpc.media.listMediaAuditLog.key() }),
 		]);
 	};
@@ -123,40 +154,49 @@ export function MediaOperations() {
 			<ModerationOperationsPanel />
 			<KieRejectionRecoveryPanel />
 			<GrowthOperationsPanel />
-			<GuestOperationsPanel data={data?.guest} />
+			<DiagnosticsStatus title={t("guest.title")} query={guestDiagnostics} intervalMs={60_000} />
+			<GuestOperationsPanel
+				data={guestDiagnostics.data?.guest}
+				fresh={!guestDiagnostics.isError && !guestDiagnostics.isStale}
+				unavailable={guestDiagnostics.isError}
+			/>
+			<DiagnosticsStatus title={t("diagnostics.health")} query={diagnostics} intervalMs={30_000} />
 			<div className="gap-4 md:grid-cols-2 xl:grid-cols-4 grid">
 				<Metric
 					title={t("metrics.queue")}
-					value={data?.queue.depth ?? 0}
-					detail={t("metrics.oldest", { seconds: data?.queue.oldestAgeSeconds ?? 0 })}
+					value={data?.queue.depth ?? "—"}
+					detail={data ? t("metrics.oldest", { seconds: data.queue.oldestAgeSeconds }) : undefined}
 					alert={(data?.queue.oldestAgeSeconds ?? 0) > 5}
 				/>
 				<Metric
 					title={t("metrics.stalled")}
-					value={(data?.queue.stalledJobs ?? 0) + (data?.queue.needsReconciliation ?? 0)}
+					value={data ? data.queue.stalledJobs + data.queue.needsReconciliation : "—"}
 					alert={(data?.queue.stalledJobs ?? 0) > 0 || (data?.queue.needsReconciliation ?? 0) > 0}
 				/>
 				<Metric
 					title={t("metrics.outbox")}
-					value={data?.outbox.pending ?? 0}
-					detail={t("metrics.deadLetter", { count: data?.outbox.deadLetter ?? 0 })}
+					value={data?.outbox.pending ?? "—"}
+					detail={data ? t("metrics.deadLetter", { count: data.outbox.deadLetter }) : undefined}
 					alert={(data?.outbox.deadLetter ?? 0) > 0}
 				/>
 				<Metric
+					title={t("metrics.eventFailures")}
+					value={data ? data.events.generationFailed + paymentEventFailureCount : "—"}
+					alert={(data?.events.generationFailed ?? 0) + paymentEventFailureCount > 0}
+				/>
+			</div>
+			<DiagnosticsStatus title={t("diagnostics.totals")} query={totals} intervalMs={120_000} />
+			<div className="gap-4 md:grid-cols-2 grid">
+				<Metric
 					title={t("metrics.storage")}
-					value={data?.storage.readyBytes ?? "0"}
-					detail={t("metrics.bytes")}
+					value={totals.data?.storage.readyBytes ?? "—"}
+					detail={totals.data ? t("metrics.bytes") : undefined}
 				/>
 				<Metric
 					title={t("metrics.credits")}
-					value={data?.credits.spendable ?? "0"}
-					detail={t("metrics.debt", { amount: data?.credits.debt ?? "0" })}
-					alert={BigInt(data?.credits.debt ?? "0") > 0n}
-				/>
-				<Metric
-					title={t("metrics.eventFailures")}
-					value={(data?.events.generationFailed ?? 0) + paymentEventFailureCount}
-					alert={(data?.events.generationFailed ?? 0) + paymentEventFailureCount > 0}
+					value={totals.data?.credits.spendable ?? "—"}
+					detail={totals.data ? t("metrics.debt", { amount: totals.data.credits.debt }) : undefined}
+					alert={BigInt(totals.data?.credits.debt ?? "0") > 0n}
 				/>
 			</div>
 
@@ -388,10 +428,20 @@ export function MediaOperations() {
 	);
 }
 
-function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
+function GuestOperationsPanel({
+	data,
+	fresh,
+	unavailable,
+}: {
+	data?: GuestDiagnostics;
+	fresh: boolean;
+	unavailable: boolean;
+}) {
 	const t = useTranslations("admin.media.guest");
 	const diagnosticLabel = (kind: GuestDiagnosticKind, value: string) =>
-		formatGuestDiagnosticLabel(kind, value, (key) => t(key as never));
+		formatGuestDiagnosticLabel(kind, value, (key) =>
+			t.has(key as never) ? t(key as never) : t("reasons.unknown"),
+		);
 	const unsafe = Boolean(
 		data &&
 		(!data.controls.admissionOpen ||
@@ -406,7 +456,7 @@ function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 					<h2 className="font-semibold text-xl">{t("title")}</h2>
 					<p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("description")}</p>
 				</div>
-				{data && (
+				{data && fresh && (
 					<Badge status={unsafe ? "error" : "success"}>{t(unsafe ? "attention" : "healthy")}</Badge>
 				)}
 			</div>
@@ -427,6 +477,13 @@ function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 							enabled={data.controls.admissionOpen}
 						/>
 					</div>
+					{data.controls.unavailableReason && (
+						<p className="mt-3 text-sm">
+							{t("unavailableReason", {
+								reason: diagnosticLabel("reason", data.controls.unavailableReason),
+							})}
+						</p>
+					)}
 					<div className="mt-5 gap-3 sm:grid-cols-2 xl:grid-cols-4 grid">
 						<SummaryCard
 							title={t("metrics.risk")}
@@ -444,8 +501,14 @@ function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 								age: data.queue.oldestAgeSeconds,
 								p50: data.queue.waitMs.p50 ?? "-",
 								p95: data.queue.waitMs.p95 ?? "-",
+								samples: data.queue.waitMs.sampleCount,
+								invalid: data.queue.waitMs.invalidSampleCount,
 							})}
-							alert={data.queue.depth > 20 || data.queue.oldestAgeSeconds > 300}
+							alert={
+								data.queue.depth > 20 ||
+								data.queue.oldestAgeSeconds > 300 ||
+								data.queue.waitMs.invalidSampleCount > 0
+							}
 						/>
 						<SummaryCard
 							title={t("metrics.attempts")}
@@ -518,7 +581,9 @@ function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 					</div>
 				</>
 			) : (
-				<p className="mt-5 text-sm text-muted-foreground">{t("loading")}</p>
+				<p className="mt-5 text-sm text-muted-foreground">
+					{t(unavailable ? "unavailable" : "loading")}
+				</p>
 			)}
 		</Card>
 	);

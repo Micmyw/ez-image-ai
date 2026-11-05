@@ -373,7 +373,18 @@
 				"moderationErrors": "内容审查错误",
 				"watermarkFailure": "水印处理失败",
 				"billedSpendMismatch": "实际计费与支出记录不符",
-				"cleanupOverdue": "清理逾期"
+				"cleanupOverdue": "清理逾期",
+				"guestEnvironmentInvalid": "环境配置无效",
+				"guestEnvironmentDisabled": "环境中的游客开关已关闭",
+				"guestRuntimeDisabled": "游客运行时开关已关闭",
+				"guestPromotionPeriodRequired": "缺少活动周期",
+				"guestConfigurationInvalid": "游客配置不完整",
+				"guestProductionEvidenceRequired": "缺少生产准入依据",
+				"guestProductionTurnstileRequired": "人机验证配置缺失",
+				"guestProductionTrustedProxyRequired": "可信代理配置缺失",
+				"guestProductsUnavailable": "生成产品暂不可用",
+				"guestCapabilityDisabled": "游客能力暂不可用",
+				"unknown": "未知原因"
 			},
 			"metrics": {
 				"risk": "赞助风险预算使用率",
@@ -387,13 +398,15 @@
 			},
 			"details": {
 				"risk": "预留 {held} · 已承诺 {committed} · 预算 {budget}（百万分之一货币单位）",
-				"queue": "最长等待 {age} 秒 · 中位耗时 {p50} 毫秒 · 第 95 百分位 {p95} 毫秒",
+				"queue": "最久等待 {age} 秒 · 首次执行 p50 {p50} 毫秒 / p95 {p95} 毫秒 · 有效样本 {samples} · 异常样本 {invalid}",
 				"attempts": "有费用记录 {covered} · 费用记录缺失 {missing}",
 				"errorRate": "错误率 {rate}",
 				"expiredGrants": "过期授权 {count}",
 				"credits": "预留 {reserved} · 释放 {released}",
 				"cleanup": "死信 {deadLetters} · 最长逾期 {seconds} 秒"
-			}
+			},
+			"unavailable": "游客统计暂不可用",
+			"unavailableReason": "游客入口不可用 · {reason}"
 		},
 		"metrics": {
 			"queue": "队列深度",
@@ -609,6 +622,17 @@
 			"invalidEvidence": "证据不完整，或无法证明这是已确认的零费用政策拒绝。",
 			"error": "恢复结果尚未确认。请检查错误；如果网络响应丢失，使用相同证据重试。",
 			"queued": "已记录下方任务的恢复操作。其 {credits} 个预留积分已进入结算队列，请先核对账本再确认积分已释放。"
+		},
+		"diagnostics": {
+			"health": "队列与事件健康",
+			"totals": "存储与积分汇总",
+			"loading": "正在加载…",
+			"unavailable": "数据暂不可用",
+			"refreshFailed": "刷新失败，当前显示上次数据",
+			"stale": "数据已过期",
+			"updated": "已更新",
+			"lastSuccess": "最近成功更新于 {time}",
+			"refresh": "刷新"
 		}
 	}
 }

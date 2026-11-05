@@ -6,6 +6,8 @@ import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
 import { useState } from "react";
 
+import type { WallpaperCropSettings } from "../lib/wallpaper";
+
 const WallpaperCropDialog = dynamic(() =>
 	import("./WallpaperCropDialog").then((module) => module.WallpaperCropDialog),
 );
@@ -14,10 +16,14 @@ export function WallpaperButton({
 	imageUrl,
 	getImageUrl,
 	label,
+	initialCrop,
+	onApply,
 }: {
 	imageUrl?: string;
 	getImageUrl?: () => Promise<string>;
 	label?: string;
+	initialCrop?: WallpaperCropSettings;
+	onApply?: (settings: WallpaperCropSettings) => void;
 }) {
 	const t = useTranslations("christmas");
 	const [open, setOpen] = useState(false);
@@ -33,6 +39,8 @@ export function WallpaperButton({
 					onOpenChange={setOpen}
 					imageUrl={imageUrl}
 					getImageUrl={getImageUrl}
+					initialCrop={initialCrop}
+					onApply={onApply}
 				/>
 			)}
 		</>

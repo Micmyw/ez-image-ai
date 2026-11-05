@@ -9,6 +9,11 @@ vi.mock("../../client", () => ({
 import {
 	evaluateGuestOperationalSafety,
 	listAdminUncertainGenerationAttempts,
+	monitorGuestOperationalSafety,
+	getAdminMediaHealth,
+	getAdminMediaTotals,
+	getAdminMediaDiagnostics,
+	getAdminGuestDiagnostics,
 } from "./admin-diagnostics";
 
 const safeMetrics = {
@@ -23,6 +28,113 @@ const safeMetrics = {
 	billedSpendMismatch: 0,
 	overdueCleanupAssets: 0,
 };
+
+describe("guest diagnostic time regression", () => {
+	it("returns null percentiles for an empty promotion and performs no writes", async () => {
+		const client = {
+			$queryRaw: vi.fn(async () => []),
+			runtimeConfigOverride: { findFirst: vi.fn(async () => null) },
+		};
+		const result = await getAdminGuestDiagnostics(client as never, new Date(), {
+			guestEnvironmentEnabled: true,
+			guestRiskBudgetMicros: null,
+		});
+		expect(result.queue.waitMs).toEqual({
+			p50: null,
+			p95: null,
+			sampleCount: 0,
+			invalidSampleCount: 0,
+		});
+		expect(result.controls.admissionOpen).toBe(false);
+	});
+	it("isolates invalid wait samples and clamps displayed ages", async () => {
+		const values: Record<string, bigint | number | null> = {
+			waitP50Ms: -250n,
+			waitP95Ms: 500n,
+			oldestQueueAgeSeconds: -2,
+			oldestOverdueSeconds: -3,
+			waitSampleCount: 1n,
+			invalidWaitSampleCount: 1n,
+		};
+		const row = new Proxy(values, {
+			get: (target, key: string) => (key in target ? target[key] : 0n),
+		});
+		const query = vi.fn(async (strings: TemplateStringsArray) =>
+			strings.join("").includes("WITH guest_trial") ? [row] : [],
+		);
+		const client = {
+			$queryRaw: query,
+			runtimeConfigOverride: { findFirst: vi.fn(async () => null) },
+		};
+		const result = await monitorGuestOperationalSafety(client as never, {
+			guestEnvironmentEnabled: false,
+			guestRiskBudgetMicros: null,
+		});
+		expect(result.queue.waitMs).toMatchObject({ p50: null, p95: 500 });
+		expect(result.queue.oldestAgeSeconds).toBe(0);
+		expect(result.cleanup.oldestOverdueSeconds).toBe(0);
+		const sql = query.mock.calls[0]![0].join("");
+		expect(sql).not.toContain('job."dispatchEligibleAt"');
+		expect(sql).toContain('"firstAttemptAt"');
+		expect(sql).toContain('"invalidWaitSampleCount"');
+	});
+});
+
+describe("independent diagnostic sections", () => {
+	function client() {
+		return {
+			$queryRaw: vi.fn(async () => []),
+			generationJob: { count: vi.fn(async () => 0) },
+			paymentEvent: { findMany: vi.fn(async () => []) },
+			runtimeConfigOverride: {
+				findMany: vi.fn(async () => []),
+				findFirst: vi.fn(async () => null),
+			},
+			storageUsageReservation: { aggregate: vi.fn(async () => ({ _sum: { bytes: 0n } })) },
+			creditLedgerEntry: { aggregate: vi.fn(async () => ({ _sum: { amount: 0n } })) },
+			stripeReconciliationIssue: { count: vi.fn(async () => 0), findMany: vi.fn(async () => []) },
+		};
+	}
+	it("reads health without running historical, guest, or resource aggregates", async () => {
+		const database = client();
+		const result = await getAdminMediaHealth(database as never);
+		expect(Object.keys(result).sort()).toEqual([
+			"events",
+			"generatedAt",
+			"outbox",
+			"overrides",
+			"queue",
+		]);
+		expect(database.$queryRaw).toHaveBeenCalledTimes(3);
+		expect(database.creditLedgerEntry.aggregate).not.toHaveBeenCalled();
+		expect(database.stripeReconciliationIssue.count).not.toHaveBeenCalled();
+		expect(database.runtimeConfigOverride.findFirst).not.toHaveBeenCalled();
+	});
+	it("reads totals independently of failing health and guest sources", async () => {
+		const database = client();
+		database.generationJob.count.mockRejectedValue(new Error("health unavailable"));
+		const result = await getAdminMediaTotals(database as never);
+		expect(result.storage.readyBytes).toBe("0");
+		expect(result.credits.spendable).toBe("0");
+		expect(database.generationJob.count).not.toHaveBeenCalled();
+	});
+	it("preserves all sections of the legacy full response", async () => {
+		const result = await getAdminMediaDiagnostics(client() as never);
+		expect(Object.keys(result).sort()).toEqual([
+			"credits",
+			"events",
+			"generatedAt",
+			"generation",
+			"guest",
+			"outbox",
+			"overrides",
+			"queue",
+			"storage",
+			"stripeReconciliation",
+		]);
+		expect(result.stripeReconciliation.historicalRefunds.needsReviewCount).toBe(0);
+	});
+});
 
 describe("guest operational safety thresholds", () => {
 	it("keeps uncapped spend observable without budget throttling or automatic closure", () => {

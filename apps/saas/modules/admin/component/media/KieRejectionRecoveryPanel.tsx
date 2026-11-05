@@ -63,6 +63,9 @@ export function KieRejectionRecoveryPanel() {
 						});
 						await Promise.all([
 							queryClient.invalidateQueries({ queryKey: orpc.media.adminMediaDiagnostics.key() }),
+							queryClient.invalidateQueries({ queryKey: orpc.media.adminMediaHealth.key() }),
+							queryClient.invalidateQueries({ queryKey: orpc.media.adminMediaTotals.key() }),
+							queryClient.invalidateQueries({ queryKey: orpc.media.adminGuestDiagnostics.key() }),
 							queryClient.invalidateQueries({ queryKey: orpc.media.listMediaAuditLog.key() }),
 						]);
 					} catch {

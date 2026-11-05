@@ -14,7 +14,8 @@ import {
 	wallpaperImage,
 	type WallpaperSettings,
 } from "../lib/wallpaper";
-import { WallpaperButton } from "./WallpaperButton";
+import { WallpaperResultProvider } from "../lib/wallpaper-result-context";
+import { WallpaperScreenPreview } from "./WallpaperScreenPreview";
 
 export function ChristmasWorkbench({ children }: { children: ReactNode }) {
 	const [settings, setSettings] = useState(DEFAULT_WALLPAPER_SETTINGS);
@@ -25,9 +26,11 @@ export function ChristmasWorkbench({ children }: { children: ReactNode }) {
 			returnPath="/christmas-wallpaper"
 			allowReference={settings.mode === "photo"}
 		>
-			<Workbench settings={settings} setSettings={setSettings}>
-				{children}
-			</Workbench>
+			<WallpaperResultProvider>
+				<Workbench settings={settings} setSettings={setSettings}>
+					{children}
+				</Workbench>
+			</WallpaperResultProvider>
 		</ToolPromptProvider>
 	);
 }
@@ -132,49 +135,7 @@ function Workbench({
 					{children}
 					<p className="christmas-cost-note">{t("costNote")}</p>
 				</section>
-				<aside
-					className={`christmas-preview ${settings.screen === "desktop" ? "is-desktop" : ""}`}
-					aria-label={t("preview")}
-				>
-					<div className="christmas-preview-heading">
-						<span>{t("preview")}</span>
-						<span>{t("stylePreview")}</span>
-					</div>
-					<div
-						className={`christmas-device ${settings.screen === "desktop" ? "desktop" : "phone"}`}
-					>
-						<Image
-							src={wallpaperImage(settings.style)}
-							alt={`${selected.name} Christmas wallpaper`}
-							width={941}
-							height={1672}
-							sizes="(max-width: 700px) 260px, 320px"
-							priority
-						/>
-						{settings.screen === "phone" ? (
-							<div
-								className={`christmas-clock ${settings.style === "pink" ? "dark" : ""}`}
-								aria-hidden="true"
-							>
-								<span>Thursday, December 24</span>
-								<strong>09:41</strong>
-								<div>
-									<i />
-									<i />
-								</div>
-							</div>
-						) : (
-							<div className="christmas-desktop-icons" aria-hidden="true">
-								<i />
-								<i />
-								<i />
-							</div>
-						)}
-					</div>
-					<strong className="christmas-preview-name">{selected.name}</strong>
-					<p>{t("previewNote")}</p>
-					<WallpaperButton imageUrl={wallpaperImage(settings.style)} label={t("tryCrop")} />
-				</aside>
+				<WallpaperScreenPreview settings={settings} styleName={selected.name} />
 			</div>
 			<section
 				className="christmas-styles"

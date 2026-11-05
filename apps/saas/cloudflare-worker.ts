@@ -23,6 +23,7 @@ import { runWithRequestDefer } from "@repo/utils/request-lifecycle";
 import { forwardToWebsite } from "../web-host/src/forward";
 // @ts-ignore OpenNext generates this module after Next's application type check.
 import generatedWorker from "./.open-next/worker.js";
+import { databasePoolSizeForRequest } from "./cloudflare/database-pool";
 import { createImageCallbackIngress } from "./cloudflare/image-callback";
 import {
 	publicHealthResponse,
@@ -76,7 +77,13 @@ export default {
 						// Most requests (prefetches, public pages) never query the
 						// database; allocate the client only on first actual access.
 						const client = createLazyDatabaseClient(() =>
-							createRuntimeDatabaseClient(runtimeEnvironment.HYPERDRIVE.connectionString),
+							createRuntimeDatabaseClient(
+								runtimeEnvironment.HYPERDRIVE.connectionString,
+								undefined,
+								{
+									maxConnections: databasePoolSizeForRequest(documentRequest),
+								},
+							),
 						);
 						return runScopedWorkerRequest(
 							documentRequest,

@@ -154,7 +154,18 @@
 					"moderationErrors": "Erreurs de modération",
 					"watermarkFailure": "Échec du filigrane",
 					"billedSpendMismatch": "Écart de dépenses facturées",
-					"cleanupOverdue": "Nettoyage en retard"
+					"cleanupOverdue": "Nettoyage en retard",
+					"guestEnvironmentInvalid": "Configuration de l’environnement invalide",
+					"guestEnvironmentDisabled": "Accès invité désactivé dans l’environnement",
+					"guestRuntimeDisabled": "Accès invité désactivé à l’exécution",
+					"guestPromotionPeriodRequired": "Période promotionnelle manquante",
+					"guestConfigurationInvalid": "Configuration invité incomplète",
+					"guestProductionEvidenceRequired": "Approbation de production manquante",
+					"guestProductionTurnstileRequired": "Configuration de vérification humaine manquante",
+					"guestProductionTrustedProxyRequired": "Configuration du proxy de confiance manquante",
+					"guestProductsUnavailable": "Produits de génération indisponibles",
+					"guestCapabilityDisabled": "Fonction invité indisponible",
+					"unknown": "Motif inconnu"
 				},
 				"metrics": {
 					"risk": "Utilisation du risque sponsorisé",
@@ -168,13 +179,15 @@
 				},
 				"details": {
 					"risk": "retenu {held} · engagé {committed} · budget {budget} micros",
-					"queue": "plus ancienne {age}s · p50 {p50}ms · p95 {p95}ms",
+					"queue": "plus ancienne {age}s · première tentative p50 {p50}ms / p95 {p95}ms · {samples} mesures · {invalid} invalides",
 					"attempts": "coût indiqué {covered} · coût absent {missing}",
 					"errorRate": "taux d’erreur {rate}",
 					"expiredGrants": "accès expirés {count}",
 					"credits": "réservés {reserved} · libérés {released}",
 					"cleanup": "échecs finaux {deadLetters} · retard maximal {seconds}s"
-				}
+				},
+				"unavailable": "Données indisponibles",
+				"unavailableReason": "Accès invité indisponible · {reason}"
 			},
 			"metrics": {
 				"queue": "File d'attente",
@@ -390,6 +403,17 @@
 				"invalidEvidence": "Les preuves sont incomplètes ou ne confirment pas un refus de sécurité sans frais.",
 				"error": "La résolution n’est pas confirmée. Vérifiez l’erreur et renvoyez les mêmes preuves si la réponse réseau a été perdue.",
 				"queued": "Résolution enregistrée. Le règlement des {credits} crédits réservés est en attente ; vérifiez le registre avant de confirmer leur libération."
+			},
+			"diagnostics": {
+				"health": "File d’attente et événements",
+				"totals": "Stockage et crédits",
+				"loading": "Chargement…",
+				"unavailable": "Données indisponibles",
+				"refreshFailed": "Échec de l’actualisation · données précédentes affichées",
+				"stale": "Les données sont périmées",
+				"updated": "À jour",
+				"lastSuccess": "Dernière actualisation réussie {time}",
+				"refresh": "Actualiser"
 			}
 		},
 		"title": "Administration",

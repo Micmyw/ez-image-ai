@@ -4,6 +4,7 @@ import path from "node:path";
 import { expect, test, type Locator } from "@playwright/test";
 
 import { buildChristmasResultPreview } from "./fixtures/christmas-result-preview.mjs";
+import { buildWallpaperResultInteraction } from "./fixtures/wallpaper-result-interaction.mjs";
 
 const indexableRoutes = [
 	"/",
@@ -226,6 +227,29 @@ test("Christmas wallpaper presets preserve photos and export clean crops at actu
 	await expect(page.locator(".christmas-style-grid article")).toHaveCount(6);
 	const prompt = page.locator("#landing-edit-prompt");
 	await expect(prompt).toHaveValue(/tall 9:16 composition/);
+	const snow = page.locator(".christmas-snow");
+	await expect(snow).toHaveAttribute("aria-hidden", "true");
+	await expect(snow).toHaveCSS("pointer-events", "none");
+	const snowLayers = await snow.evaluate((node) =>
+		["::before", "::after"].map((pseudo) => {
+			const style = getComputedStyle(node, pseudo);
+			return {
+				animation: style.animationName,
+				opacity: Number(style.opacity),
+				transform: style.transform,
+			};
+		}),
+	);
+	expect(snowLayers.map((layer) => layer.animation)).toEqual([
+		"christmas-snow-fall",
+		"christmas-snow-fall",
+	]);
+	for (const layer of snowLayers) expect(layer.opacity).toBeGreaterThanOrEqual(0.6);
+	await expect
+		.poll(() => snow.evaluate((node) => getComputedStyle(node, "::before").transform))
+		.not.toBe(snowLayers[0].transform);
+	const snowTexture = await page.request.get("/images/christmas/snowflakes.svg");
+	expect(snowTexture.ok()).toBe(true);
 	await expect(page.locator('[data-test="landing-output-settings-trigger"]')).toContainText("9:16");
 	const editor = page.locator(".christmas-editor");
 	await editor.getByRole("button", { name: "Desktop", exact: true }).click();
@@ -251,13 +275,15 @@ test("Christmas wallpaper presets preserve photos and export clean crops at actu
 	await expect(page.locator("#landing-source-image")).toHaveCount(0);
 	await editor.getByRole("button", { name: "Use my photo", exact: true }).click();
 	await expect(page.locator("#landing-source-image")).toHaveCount(1);
-	for (const width of [1440, 390, 320]) {
+	for (const width of [1920, 1440, 390, 320]) {
 		await page.setViewportSize({ width, height: 900 });
 		await page.evaluate(() => window.scrollTo(0, 0));
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
 			true,
 		);
 		await page.screenshot({ path: testInfo.outputPath(`christmas-${width}.png`), fullPage: true });
+		if (width === 1920)
+			await page.screenshot({ path: testInfo.outputPath("christmas-snow-desktop.png") });
 	}
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.getByRole("button", { name: "Try preview & crop" }).click();
@@ -299,12 +325,125 @@ test("Christmas wallpaper presets preserve photos and export clean crops at actu
 	await expect(prompt).toHaveValue(/tall 9:16 composition/);
 });
 
+test("Christmas screen preview follows ready results and preserves applied crops", async ({
+	page,
+}, testInfo) => {
+	test.setTimeout(120_000);
+	await mockPublicImageAvailability(page, ["auto", "1:1", "9:16", "16:9"]);
+	await page.goto("/christmas-wallpaper");
+	await expect(
+		page.locator(".christmas-editor").getByRole("button", { name: "Desktop", exact: true }),
+	).toBeEnabled();
+	await page.locator(".christmas-page").evaluate((node) => {
+		for (const child of Array.from(node.children)) (child as HTMLElement).style.display = "none";
+		const fixture = document.createElement("div");
+		fixture.id = "wallpaper-interaction-fixture";
+		node.append(fixture);
+	});
+	await page.addStyleTag({
+		content: await readFile(
+			path.resolve(__dirname, "../modules/christmas/wallpaper-crop.css"),
+			"utf8",
+		),
+	});
+	await page.addScriptTag({
+		content: await buildWallpaperResultInteraction(path.resolve(__dirname, "..")),
+	});
+	await page.addStyleTag({ content: "nextjs-portal { display: none; }" });
+	const fixture = page.locator("#wallpaper-interaction-fixture");
+	const preview = fixture.locator(".christmas-preview");
+	const picture = preview.locator(".christmas-device img");
+	const setState = (next: Record<string, unknown>) =>
+		page.evaluate((next) => (window as any).wallpaperFixture.set(next), next);
+	await expect(preview).toHaveAttribute("data-wallpaper-source", "result");
+	await expect(picture).toHaveAttribute("src", "/images/christmas/street.webp");
+	await expect(preview).toContainText("Your result");
+	await fixture.locator(".christmas-style-grid article").nth(4).getByRole("button").click();
+	await expect(picture).toHaveAttribute("src", "/images/christmas/street.webp");
+	await expect(preview).not.toContainText("Pink Christmas");
+	await preview.getByRole("button", { name: "Preview & crop" }).click();
+	const dialog = page.getByRole("dialog");
+	await expect(dialog.getByRole("button", { name: "Apply to preview" })).toBeEnabled();
+	await dialog.getByLabel("Screen shape").selectOption("desktop");
+	await dialog.getByLabel("Zoom", { exact: true }).fill("1.5");
+	await dialog.getByLabel("Move vertically").fill("75");
+	await dialog.getByRole("checkbox", { name: "Show screen controls" }).uncheck();
+	await dialog.getByRole("button", { name: "Apply to preview" }).click();
+	await expect(dialog).toHaveCount(0);
+	await expect(preview.locator(".christmas-device-screen")).toHaveCSS(
+		"aspect-ratio",
+		"1920 / 1080",
+	);
+	await expect(preview.locator(".christmas-desktop-icons")).toHaveCount(0);
+	await expect(picture).toHaveCSS("position", "absolute");
+	expect(
+		await picture.evaluate((node: HTMLImageElement) => {
+			const bounds = node.getBoundingClientRect();
+			return bounds.width / bounds.height / (node.naturalWidth / node.naturalHeight);
+		}),
+	).toBeCloseTo(1, 2);
+	await preview.getByRole("button", { name: "Preview & crop" }).click();
+	await expect(dialog.getByLabel("Screen shape")).toHaveValue("desktop");
+	await expect(dialog.getByLabel("Zoom", { exact: true })).toHaveValue("1.5");
+	await expect(dialog.getByLabel("Move vertically")).toHaveValue("75");
+	await expect(dialog.getByRole("checkbox", { name: "Show screen controls" })).not.toBeChecked();
+	const download = page.waitForEvent("download");
+	await dialog.getByRole("button", { name: "Download wallpaper" }).click();
+	const bytes = await readFile((await (await download).path())!);
+	await expect(dialog.locator("output")).toHaveText(
+		`${bytes.readUInt32BE(16)} × ${bytes.readUInt32BE(20)} px · PNG`,
+	);
+	await page.keyboard.press("Escape");
+	await setState({ asset: "globe" });
+	await expect(picture).toHaveAttribute("src", "/images/christmas/globe.webp");
+	await expect(preview.locator(".christmas-device-screen")).toHaveCSS(
+		"aspect-ratio",
+		"1080 / 1920",
+	);
+	await setState({ denied: true });
+	await page.evaluate(() => (window as any).wallpaperFixture.invalidate());
+	await expect(preview.locator("[role=alert]")).toBeVisible();
+	await expect(picture).toHaveCount(0);
+	await setState({ denied: false, owner: "owner-2" });
+	await expect(picture).toHaveCount(0);
+	await setState({ owner: null, asset: "pet" });
+	await expect(picture).toHaveAttribute("src", "/images/christmas/pet.webp");
+	await preview.getByRole("button", { name: "Preview & crop" }).click();
+	await expect(dialog.getByRole("button", { name: "Apply to preview" })).toBeEnabled();
+	await dialog.getByLabel("Zoom", { exact: true }).fill("1.25");
+	await dialog.getByRole("button", { name: "Apply to preview" }).click();
+	for (const width of [1440, 390, 320]) {
+		await page.setViewportSize({ width, height: 900 });
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+			true,
+		);
+		await preview.evaluate((node) => window.scrollBy(0, node.getBoundingClientRect().top - 120));
+		await preview.screenshot({
+			path: testInfo.outputPath(`christmas-result-preview-${width}.png`),
+		});
+	}
+	await setState({ expiresAt: new Date(Date.now() + 1200).toISOString() });
+	await expect(preview).toHaveAttribute("data-wallpaper-source", "example");
+	await expect(picture).toHaveAttribute("src", "/images/christmas/pink.webp");
+	await setState({ expiresAt: "2099-01-01T00:00:00Z", phase: "ready" });
+	await expect(preview).toHaveAttribute("data-wallpaper-source", "result");
+	await setState({ phase: "waiting" });
+	await expect(preview).toHaveAttribute("data-wallpaper-source", "example");
+	await setState({ phase: "ready" });
+	await expect(preview).toHaveAttribute("data-wallpaper-source", "result");
+	await setState({ phase: "closed" });
+	await expect(preview).toHaveAttribute("data-wallpaper-source", "example");
+});
+
 test("Christmas wallpaper account status and history stay readable in the seasonal theme", async ({
 	page,
 }, testInfo) => {
 	test.setTimeout(120_000);
 	await mockPublicImageAvailability(page, ["auto", "1:1", "9:16", "16:9"]);
 	await page.goto("/christmas-wallpaper");
+	await expect(
+		page.locator(".christmas-editor").getByRole("button", { name: "Desktop", exact: true }),
+	).toBeEnabled();
 	await page.locator(".christmas-editor").evaluate((editor) => {
 		const fixture = document.createElement("div");
 		fixture.id = "christmas-account-fixture";
@@ -350,10 +489,12 @@ test("Christmas wallpaper account status and history stay readable in the season
 	await expect
 		.poll(() =>
 			page
-				.locator(".christmas-page")
-				.evaluate((node) => getComputedStyle(node, "::before").animationName),
+				.locator(".christmas-snow")
+				.evaluate((node) =>
+					["::before", "::after"].map((pseudo) => getComputedStyle(node, pseudo).animationName),
+				),
 		)
-		.toBe("none");
+		.toEqual(["none", "none"]);
 });
 
 test("editing examples open the create page with an editable prompt", async ({ page }) => {

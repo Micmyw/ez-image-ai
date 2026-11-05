@@ -1,9 +1,23 @@
 # Changelog
 
+## 2026-11-05 — Media operations diagnostics
+
+- Split media health, guest statistics and storage/credit totals into independent administrator-only reads with 30, 60 and 120 second refresh intervals. Display unavailable or stale data and the last successful refresh, with manual retry.
+- Measure guest queue waits from job creation to the first execution attempt, exclude and count negative samples, and use the public guest capability for effective entry availability.
+- Allow two request-owned database connections on the exact diagnostics REST/RPC routes. Retain the complete diagnostics endpoint for existing callers.
+
+## 2026-11-05 — Christmas result preview
+
+- Show the selected generated image in the Christmas screen preview for account and guest results. Clear it when the result closes, expires or loses access.
+- Apply crop, zoom, screen shape and clock settings back to the preview and restore them when reopening the crop editor. Preview and export use the same crop geometry.
+- Clarify phone clock space, subject placement, background replacement and matching light in Christmas prompts. Remove clothing instructions from scene-only mode and conflicting pet costume instructions.
+
 ## 2026-11-05 — Christmas wallpaper presentation
 
 - Keep the shared editor header visible while scrolling. Make each homepage wallpaper preview respond to its own hover target and respect reduced motion.
 - Give the wallpaper editor and crop dialog dark evergreen/burgundy gradients, warm gold controls and subtle seasonal animation. Improve generation-status and recent-history text contrast.
+- Make background snow more visible with layered flakes and continuous falling motion, with static snow for reduced-motion preferences.
+- Refine all six style prompts with scene-specific lighting, subject placement and material detail, including contained snow-globe subjects and readable faces in dark scenes.
 
 ## 2026-11-05 — SeeAPI image moderation 2.0
 

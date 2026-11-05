@@ -41,6 +41,8 @@ Read for job/runtime/database packaging or deployment changes. Operational cutov
 
 ## Website and database runtime
 
+- Exact administrator media diagnostics REST GET and RPC GET/POST paths use a request-owned two-connection pool selected by `apps/saas/cloudflare/database-pool.ts`. The runtime default is one connection. Preserve exact path/method matching, administrator procedure authorization, lazy construction and disposal through the original request lifetime. The media page polls independent health, guest and resource sections rather than the complete historical diagnostics read.
+
 - Immutable translation JSON uses a shared server Webpack layer so RSC/SSR
   imports do not duplicate dictionaries in the single Worker. Mail uses its
   scoped loader, and locale config consumers import `@repo/i18n/config`.

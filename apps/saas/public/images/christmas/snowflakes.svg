@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="480" viewBox="0 0 480 480" fill="none">
+  <defs>
+    <path id="flake" d="M0-8V8M-7-4L7 4M-7 4L7-4M-2-6L0-4L2-6M-2 6L0 4L2 6M-6-1L-4-2L-4-5M6 1L4 2L4 5M-6 1L-4 2L-4 5M6-1L4-2L4-5" stroke="#fff5e8" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </defs>
+  <use href="#flake" transform="translate(82 116) rotate(15)" opacity=".8"/>
+  <use href="#flake" transform="translate(360 62) rotate(40) scale(.7)" opacity=".6"/>
+  <use href="#flake" transform="translate(264 302) rotate(-12) scale(1.1)" opacity=".85"/>
+  <use href="#flake" transform="translate(426 424) rotate(30) scale(.6)" opacity=".65"/>
+  <circle cx="186" cy="42" r="2.4" fill="#fff9ed" opacity=".75"/>
+  <circle cx="34" cy="390" r="2" fill="#f5f7ff" opacity=".55"/>
+  <circle cx="420" cy="216" r="2.8" fill="#fff9ed" opacity=".6"/>
+</svg>

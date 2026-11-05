@@ -102,7 +102,9 @@ export function GrowthOperationsPanel() {
 	const operations = useQuery(
 		orpc.media.adminGrowthOperations.queryOptions({
 			input: queryInput(filters),
-			refetchInterval: 15_000,
+			refetchInterval: 60_000,
+			staleTime: 60_000,
+			refetchIntervalInBackground: false,
 		}),
 	);
 

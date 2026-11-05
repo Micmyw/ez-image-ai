@@ -32,7 +32,9 @@ export function ModerationOperationsPanel() {
 		...orpc.media.adminModerationOperations.queryOptions({
 			input: { limit: 25, ...cursor, ...(status ? { status } : {}) },
 		}),
-		refetchInterval: 15_000,
+		refetchInterval: 30_000,
+		staleTime: 30_000,
+		refetchIntervalInBackground: false,
 	});
 	const details = useQuery({
 		...orpc.media.adminModerationDetail.queryOptions({ input: { reviewId: selectedId ?? "" } }),

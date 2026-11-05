@@ -92,6 +92,7 @@ export async function ChristmasWallpaperPage({
 	return (
 		<StudioShell>
 			<main className="christmas-page">
+				<div className="christmas-snow" aria-hidden="true" />
 				<script
 					type="application/ld+json"
 					dangerouslySetInnerHTML={{

@@ -320,28 +320,27 @@ export async function getAdminMediaDiagnostics(
 	options: AdminMediaDiagnosticsOptions = {},
 ) {
 	const now = new Date();
+	const [health, totals, generation, reconciliation, guest] = await Promise.all([
+		getAdminMediaHealth(client, now),
+		getAdminMediaTotals(client, now),
+		getAdminMediaGenerationCounts(client, now),
+		getAdminStripeReconciliationDiagnostics(client, now),
+		getAdminGuestDiagnostics(client, now, options),
+	]);
+	return { ...health, ...totals, ...generation, ...reconciliation, guest };
+}
+
+export async function getAdminMediaHealth(client: MediaTransactionClient, now = new Date()) {
 	const stalledBefore = new Date(now.getTime() - 15 * 60_000);
-	const dayStart = new Date(now);
-	dayStart.setUTCHours(0, 0, 0, 0);
 	const [
 		queueRows,
 		stalledJobs,
 		needsReconciliation,
 		outboxRows,
-		generationRows,
-		storageRows,
-		reservedStorage,
-		creditRows,
-		settledRows,
 		eventRows,
 		failedPaymentEvents,
 		deadLetterPaymentEvents,
 		ignoredPaymentEvents,
-		stripeReconciliationCheckpoints,
-		openStripeReconciliationIssueCount,
-		openStripeReconciliationIssues,
-		historicalStripeRefundCountRows,
-		historicalStripeRefundRows,
 		overrides,
 	] = await Promise.all([
 		client.$queryRaw<Array<AggregateCountAge>>`
@@ -359,29 +358,6 @@ export async function getAdminMediaDiagnostics(
 			SELECT "status"::text AS status, COUNT(*)::bigint AS count,
 			       EXTRACT(EPOCH FROM (now() - MIN("createdAt")))::double precision AS "oldestAgeSeconds"
 			FROM "outbox_event" WHERE "status" IN ('PENDING', 'LEASED', 'DEAD_LETTER') GROUP BY "status"`,
-		client.$queryRaw<
-			Array<{
-				succeeded: bigint;
-				failed: bigint;
-				running: bigint;
-			}>
-		>`
-			SELECT COUNT(*) FILTER (WHERE "status" = 'SUCCEEDED')::bigint AS succeeded,
-			 COUNT(*) FILTER (WHERE "status" = 'FAILED')::bigint AS failed,
-			 COUNT(*) FILTER (WHERE "status" IN ('CREATED','SUBMISSION_UNCERTAIN','SUBMITTED','RUNNING'))::bigint AS running
-			FROM "generation_attempt" WHERE "createdAt" >= ${dayStart}`,
-		client.$queryRaw<Array<{ readyAssets: bigint; readyBytes: bigint }>>`
-			SELECT COUNT(*)::bigint AS "readyAssets", COALESCE(SUM("byteSize"),0)::bigint AS "readyBytes"
-			FROM "media_asset" WHERE "status" = 'READY'`,
-		client.storageUsageReservation.aggregate({
-			where: { status: "ACTIVE" },
-			_sum: { bytes: true },
-		}),
-		client.$queryRaw<Array<{ spendable: bigint; reserved: bigint; debt: bigint }>>`
-			SELECT COALESCE(SUM("spendableCredits"),0)::bigint AS spendable,
-			 COALESCE(SUM("reservedCredits"),0)::bigint AS reserved,
-			 COALESCE(SUM("creditDebt"),0)::bigint AS debt FROM "credit_account"`,
-		client.creditLedgerEntry.aggregate({ where: { type: "SETTLE" }, _sum: { amount: true } }),
 		client.$queryRaw<
 			Array<{
 				generationFailed: bigint;
@@ -413,6 +389,148 @@ export async function getAdminMediaDiagnostics(
 			orderBy: [{ lastAttemptAt: { sort: "desc", nulls: "last" } }, { receivedAt: "desc" }],
 			take: PAYMENT_EVENT_DIAGNOSTIC_LIMIT,
 		}),
+		client.runtimeConfigOverride.findMany({
+			where: {
+				active: true,
+				configKey: {
+					in: [
+						"media.generation.enabled",
+						GUEST_RUNTIME_CONFIG_KEY,
+						...EZPIC_PRODUCT_KEYS.map((productKey) => `media.model.${productKey}.enabled`),
+					],
+				},
+			},
+			select: {
+				id: true,
+				configKey: true,
+				version: true,
+				value: true,
+				createdAt: true,
+			},
+			orderBy: { version: "desc" },
+		}),
+	]);
+	const queue = queueRows[0] ?? { count: 0n, oldestAgeSeconds: null };
+	const pendingOutbox = outboxRows.find((row) => row.status === "PENDING");
+	const leasedOutbox = outboxRows.find((row) => row.status === "LEASED");
+	const deadOutbox = outboxRows.find((row) => row.status === "DEAD_LETTER");
+	const oldestOutbox = Math.max(0, ...outboxRows.map((row) => row.oldestAgeSeconds ?? 0));
+	const events = eventRows[0] ?? {
+		generationFailed: 0n,
+		paymentFailed: 0n,
+		paymentDeadLetter: 0n,
+		paymentIgnored: 0n,
+	};
+	return {
+		generatedAt: now.toISOString(),
+		queue: {
+			depth: Number(queue.count),
+			oldestAgeSeconds: Math.max(0, Math.round(queue.oldestAgeSeconds ?? 0)),
+			stalledJobs,
+			needsReconciliation,
+		},
+		outbox: {
+			pending: Number((pendingOutbox?.count ?? 0n) + (leasedOutbox?.count ?? 0n)),
+			deadLetter: Number(deadOutbox?.count ?? 0n),
+			oldestAgeSeconds: Math.round(oldestOutbox),
+		},
+		events: {
+			generationFailed: Number(events.generationFailed),
+			payment: {
+				failed: paymentEventDiagnosticBucket(events.paymentFailed, failedPaymentEvents),
+				deadLetter: paymentEventDiagnosticBucket(events.paymentDeadLetter, deadLetterPaymentEvents),
+				ignored: paymentEventDiagnosticBucket(events.paymentIgnored, ignoredPaymentEvents),
+			},
+		},
+		overrides: overrides.flatMap((item) => {
+			const target = safeRuntimeOverrideTarget(item.configKey);
+			return target
+				? [
+						{
+							id: item.id,
+							...target,
+							version: item.version,
+							enabled: item.value === true,
+							createdAt: item.createdAt.toISOString(),
+						},
+					]
+				: [];
+		}),
+	};
+}
+
+export async function getAdminMediaTotals(client: MediaTransactionClient, now = new Date()) {
+	const [storageRows, reservedStorage, creditRows, settledRows] = await Promise.all([
+		client.$queryRaw<Array<{ readyAssets: bigint; readyBytes: bigint }>>`
+			SELECT COUNT(*)::bigint AS "readyAssets", COALESCE(SUM("byteSize"),0)::bigint AS "readyBytes"
+			FROM "media_asset" WHERE "status" = 'READY'`,
+		client.storageUsageReservation.aggregate({
+			where: { status: "ACTIVE" },
+			_sum: { bytes: true },
+		}),
+		client.$queryRaw<Array<{ spendable: bigint; reserved: bigint; debt: bigint }>>`
+			SELECT COALESCE(SUM("spendableCredits"),0)::bigint AS spendable,
+			 COALESCE(SUM("reservedCredits"),0)::bigint AS reserved,
+			 COALESCE(SUM("creditDebt"),0)::bigint AS debt FROM "credit_account"`,
+		client.creditLedgerEntry.aggregate({ where: { type: "SETTLE" }, _sum: { amount: true } }),
+	]);
+	const storage = storageRows[0] ?? { readyAssets: 0n, readyBytes: 0n };
+	const credits = creditRows[0] ?? { spendable: 0n, reserved: 0n, debt: 0n };
+	return {
+		generatedAt: now.toISOString(),
+		storage: {
+			readyAssets: Number(storage.readyAssets),
+			readyBytes: storage.readyBytes.toString(),
+			reservedBytes: (reservedStorage._sum.bytes ?? 0n).toString(),
+		},
+		credits: {
+			spendable: credits.spendable.toString(),
+			reserved: credits.reserved.toString(),
+			debt: credits.debt.toString(),
+			settled: (settledRows._sum.amount ?? 0n).toString(),
+		},
+	};
+}
+
+async function getAdminMediaGenerationCounts(client: MediaTransactionClient, now = new Date()) {
+	const dayStart = new Date(now);
+	dayStart.setUTCHours(0, 0, 0, 0);
+
+	const [generationRows] = await Promise.all([
+		client.$queryRaw<
+			Array<{
+				succeeded: bigint;
+				failed: bigint;
+				running: bigint;
+			}>
+		>`
+			SELECT COUNT(*) FILTER (WHERE "status" = 'SUCCEEDED')::bigint AS succeeded,
+			 COUNT(*) FILTER (WHERE "status" = 'FAILED')::bigint AS failed,
+			 COUNT(*) FILTER (WHERE "status" IN ('CREATED','SUBMISSION_UNCERTAIN','SUBMITTED','RUNNING'))::bigint AS running
+			FROM "generation_attempt" WHERE "createdAt" >= ${dayStart}`,
+	]);
+	const generation = generationRows[0] ?? { succeeded: 0n, failed: 0n, running: 0n };
+	return {
+		generatedAt: now.toISOString(),
+		generation: {
+			succeeded: Number(generation.succeeded),
+			failed: Number(generation.failed),
+			running: Number(generation.running),
+		},
+	};
+}
+
+async function getAdminStripeReconciliationDiagnostics(
+	client: MediaTransactionClient,
+	now = new Date(),
+) {
+	const [
+		stripeReconciliationCheckpoints,
+		openStripeReconciliationIssueCount,
+		openStripeReconciliationIssues,
+		historicalStripeRefundCountRows,
+		historicalStripeRefundRows,
+	] = await Promise.all([
 		client.$queryRaw<Array<StripeReconciliationCheckpointDiagnosticRow>>`
 			SELECT "id", "status"::text AS status,
 			       "stage"::text AS stage,
@@ -566,84 +684,14 @@ export async function getAdminMediaDiagnostics(
 			  )
 			ORDER BY legacy."lastLedgerAt" DESC, legacy."providerRefundId" DESC
 			LIMIT ${STRIPE_RECONCILIATION_DIAGNOSTIC_LIMIT}`,
-		client.runtimeConfigOverride.findMany({
-			where: {
-				active: true,
-				configKey: {
-					in: [
-						"media.generation.enabled",
-						GUEST_RUNTIME_CONFIG_KEY,
-						...EZPIC_PRODUCT_KEYS.map((productKey) => `media.model.${productKey}.enabled`),
-					],
-				},
-			},
-			select: {
-				id: true,
-				configKey: true,
-				version: true,
-				value: true,
-				createdAt: true,
-			},
-			orderBy: { version: "desc" },
-		}),
 	]);
-	const queue = queueRows[0] ?? { count: 0n, oldestAgeSeconds: null };
-	const pendingOutbox = outboxRows.find((row) => row.status === "PENDING");
-	const leasedOutbox = outboxRows.find((row) => row.status === "LEASED");
-	const deadOutbox = outboxRows.find((row) => row.status === "DEAD_LETTER");
-	const oldestOutbox = Math.max(0, ...outboxRows.map((row) => row.oldestAgeSeconds ?? 0));
-	const storage = storageRows[0] ?? { readyAssets: 0n, readyBytes: 0n };
-	const credits = creditRows[0] ?? { spendable: 0n, reserved: 0n, debt: 0n };
-	const generation = generationRows[0] ?? { succeeded: 0n, failed: 0n, running: 0n };
-	const events = eventRows[0] ?? {
-		generationFailed: 0n,
-		paymentFailed: 0n,
-		paymentDeadLetter: 0n,
-		paymentIgnored: 0n,
-	};
 	const stripeReconciliationCheckpoint = stripeReconciliationCheckpoints[0];
 	const historicalStripeRefundCounts = historicalStripeRefundCountRows[0] ?? {
 		needsReviewCount: 0n,
 		missingLifecycleCount: 0n,
 	};
-	const guest = await getAdminGuestDiagnostics(client, now, options);
 	return {
 		generatedAt: now.toISOString(),
-		queue: {
-			depth: Number(queue.count),
-			oldestAgeSeconds: Math.round(queue.oldestAgeSeconds ?? 0),
-			stalledJobs,
-			needsReconciliation,
-		},
-		outbox: {
-			pending: Number((pendingOutbox?.count ?? 0n) + (leasedOutbox?.count ?? 0n)),
-			deadLetter: Number(deadOutbox?.count ?? 0n),
-			oldestAgeSeconds: Math.round(oldestOutbox),
-		},
-		generation: {
-			succeeded: Number(generation.succeeded),
-			failed: Number(generation.failed),
-			running: Number(generation.running),
-		},
-		storage: {
-			readyAssets: Number(storage.readyAssets),
-			readyBytes: storage.readyBytes.toString(),
-			reservedBytes: (reservedStorage._sum.bytes ?? 0n).toString(),
-		},
-		credits: {
-			spendable: credits.spendable.toString(),
-			reserved: credits.reserved.toString(),
-			debt: credits.debt.toString(),
-			settled: (settledRows._sum.amount ?? 0n).toString(),
-		},
-		events: {
-			generationFailed: Number(events.generationFailed),
-			payment: {
-				failed: paymentEventDiagnosticBucket(events.paymentFailed, failedPaymentEvents),
-				deadLetter: paymentEventDiagnosticBucket(events.paymentDeadLetter, deadLetterPaymentEvents),
-				ignored: paymentEventDiagnosticBucket(events.paymentIgnored, ignoredPaymentEvents),
-			},
-		},
 		stripeReconciliation: {
 			checkpoint: stripeReconciliationCheckpoint
 				? {
@@ -688,21 +736,6 @@ export async function getAdminMediaDiagnostics(
 				})),
 			},
 		},
-		overrides: overrides.flatMap((item) => {
-			const target = safeRuntimeOverrideTarget(item.configKey);
-			return target
-				? [
-						{
-							id: item.id,
-							...target,
-							version: item.version,
-							enabled: item.value === true,
-							createdAt: item.createdAt.toISOString(),
-						},
-					]
-				: [];
-		}),
-		guest,
 	};
 }
 
@@ -712,6 +745,8 @@ interface GuestDiagnosticRow {
 	oldestQueueAgeSeconds: number | null;
 	waitP50Ms: bigint | null;
 	waitP95Ms: bigint | null;
+	waitSampleCount: bigint;
+	invalidWaitSampleCount: bigint;
 	expiredBeforeDispatch: bigint;
 	heldRiskMicros: bigint;
 	committedRiskMicros: bigint;
@@ -747,7 +782,7 @@ interface GuestDenialRow {
 	count: bigint;
 }
 
-async function getAdminGuestDiagnostics(
+export async function getAdminGuestDiagnostics(
 	client: MediaTransactionClient,
 	now: Date,
 	options: AdminMediaDiagnosticsOptions,
@@ -760,18 +795,24 @@ async function getAdminGuestDiagnostics(
 	const [rows, denialRows, runtimeOverride] = await Promise.all([
 		client.$queryRaw<Array<GuestDiagnosticRow>>`
 			WITH guest_trial AS (
-				SELECT * FROM "guest_media_trial" WHERE "promotionPeriod" = ${promotionPeriod}
+				SELECT "id", "frozenQuotedRiskMicros", "riskState"
+				FROM "guest_media_trial" WHERE "promotionPeriod" = ${promotionPeriod}
 			), guest_job AS (
-				SELECT job.*, trial."frozenQuotedRiskMicros", trial."riskState"::text AS "trialRiskState"
+				SELECT job."id", job."status", job."createdAt", job."failureCode", trial."frozenQuotedRiskMicros"
 				FROM "generation_job" job
 				JOIN guest_trial trial ON trial."id" = job."guestTrialId"
 				WHERE job."serviceClass" = 'GUEST_SLOW'::"GenerationServiceClass"
 			), guest_attempt AS (
-				SELECT attempt.*, job."frozenQuotedRiskMicros"
+				SELECT attempt."jobId", attempt."status", attempt."createdAt", attempt."uncertainSubmission",
+				       attempt."providerCostMicros", job."frozenQuotedRiskMicros"
 				FROM "generation_attempt" attempt
 				JOIN guest_job job ON job."id" = attempt."jobId"
+			), first_attempt AS (
+				SELECT "jobId", MIN("createdAt") AS "firstAttemptAt"
+				FROM guest_attempt GROUP BY "jobId"
 			), guest_asset AS (
-				SELECT DISTINCT asset.*
+				SELECT DISTINCT asset."id", asset."kind", asset."status", asset."watermarkVersion",
+				       asset."watermarkedAt", asset."cleanStagingDeletedAt", asset."deleteAfter", asset."deletedAt"
 				FROM "media_asset" asset
 				JOIN "generation_job_asset" binding ON binding."assetId" = asset."id"
 				JOIN guest_job job ON job."id" = binding."jobId"
@@ -789,11 +830,13 @@ async function getAdminGuestDiagnostics(
 			 EXTRACT(EPOCH FROM (${now} - MIN(job."createdAt") FILTER
 			   (WHERE job."status" IN ('RESERVED','DISPATCH_QUEUED'))))::double precision AS "oldestQueueAgeSeconds",
 			 ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY
-			   EXTRACT(EPOCH FROM (job."dispatchEligibleAt" - job."createdAt")) * 1000)
-			   FILTER (WHERE job."dispatchEligibleAt" IS NOT NULL))::numeric)::bigint AS "waitP50Ms",
+			   EXTRACT(EPOCH FROM (first_attempt."firstAttemptAt" - job."createdAt")) * 1000)
+			   FILTER (WHERE first_attempt."firstAttemptAt" >= job."createdAt"))::numeric)::bigint AS "waitP50Ms",
 			 ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY
-			   EXTRACT(EPOCH FROM (job."dispatchEligibleAt" - job."createdAt")) * 1000)
-			   FILTER (WHERE job."dispatchEligibleAt" IS NOT NULL))::numeric)::bigint AS "waitP95Ms",
+			   EXTRACT(EPOCH FROM (first_attempt."firstAttemptAt" - job."createdAt")) * 1000)
+			   FILTER (WHERE first_attempt."firstAttemptAt" >= job."createdAt"))::numeric)::bigint AS "waitP95Ms",
+			 COUNT(*) FILTER (WHERE first_attempt."firstAttemptAt" >= job."createdAt")::bigint AS "waitSampleCount",
+			 COUNT(*) FILTER (WHERE first_attempt."firstAttemptAt" < job."createdAt")::bigint AS "invalidWaitSampleCount",
 			 COUNT(*) FILTER (WHERE job."failureCode" = 'GUEST_QUEUE_EXPIRED')::bigint AS "expiredBeforeDispatch",
 			 COALESCE((SELECT SUM(trial."frozenQuotedRiskMicros") FROM guest_trial trial
 			   WHERE trial."riskState" = 'HELD'::"GuestRiskState"), 0)::bigint AS "heldRiskMicros",
@@ -849,6 +892,7 @@ async function getAdminGuestDiagnostics(
 			 EXTRACT(EPOCH FROM (${now} - (SELECT MIN(asset."deleteAfter") FROM guest_asset asset
 			   WHERE asset."deleteAfter" <= ${cleanupOverdueBefore} AND asset."deletedAt" IS NULL)))::double precision AS "oldestOverdueSeconds"
 			FROM guest_job job
+			LEFT JOIN first_attempt ON first_attempt."jobId" = job."id"
 			LEFT JOIN "credit_reservation" reservation ON reservation."jobId" = job."id"`,
 		client.$queryRaw<Array<GuestDenialRow>>`
 			SELECT substr("scope", char_length(${denialScopePrefix}) + 1) AS reason,
@@ -872,7 +916,7 @@ async function getAdminGuestDiagnostics(
 		riskBudgetMicros:
 			options.guestRiskBudgetMicros === undefined ? 0n : options.guestRiskBudgetMicros,
 		queueDepth: Number(row.queueDepth),
-		oldestQueueAgeSeconds: Math.round(row.oldestQueueAgeSeconds ?? 0),
+		oldestQueueAgeSeconds: Math.max(0, Math.round(row.oldestQueueAgeSeconds ?? 0)),
 		uncertainOlderThanTenMinutes: Number(row.uncertainOlderThanTenMinutes),
 		moderationErrorRate,
 		watermarkFailures: Number(row.watermarkFailed),
@@ -901,10 +945,12 @@ async function getAdminGuestDiagnostics(
 		},
 		queue: {
 			depth: Number(row.queueDepth),
-			oldestAgeSeconds: Math.round(row.oldestQueueAgeSeconds ?? 0),
+			oldestAgeSeconds: Math.max(0, Math.round(row.oldestQueueAgeSeconds ?? 0)),
 			waitMs: {
-				p50: row.waitP50Ms === null ? null : Number(row.waitP50Ms),
-				p95: row.waitP95Ms === null ? null : Number(row.waitP95Ms),
+				p50: row.waitP50Ms === null || row.waitP50Ms < 0n ? null : Number(row.waitP50Ms),
+				p95: row.waitP95Ms === null || row.waitP95Ms < 0n ? null : Number(row.waitP95Ms),
+				sampleCount: Number(row.waitSampleCount),
+				invalidSampleCount: Number(row.invalidWaitSampleCount),
 			},
 			expiredBeforeDispatch: Number(row.expiredBeforeDispatch),
 		},
@@ -946,7 +992,7 @@ async function getAdminGuestDiagnostics(
 			expiredAssets: Number(row.expiredAssets),
 			overdueAssets: Number(row.overdueAssets),
 			deadLetterEvents: Number(row.cleanupDeadLetterEvents),
-			oldestOverdueSeconds: Math.round(row.oldestOverdueSeconds ?? 0),
+			oldestOverdueSeconds: Math.max(0, Math.round(row.oldestOverdueSeconds ?? 0)),
 		},
 		controls: {
 			environmentEnabled: options.guestEnvironmentEnabled === true,
@@ -1011,6 +1057,8 @@ function emptyGuestDiagnosticRow(): GuestDiagnosticRow {
 		oldestQueueAgeSeconds: null,
 		waitP50Ms: null,
 		waitP95Ms: null,
+		waitSampleCount: 0n,
+		invalidWaitSampleCount: 0n,
 		expiredBeforeDispatch: 0n,
 		heldRiskMicros: 0n,
 		committedRiskMicros: 0n,

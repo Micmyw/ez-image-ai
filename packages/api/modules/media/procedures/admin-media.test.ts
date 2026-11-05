@@ -4,6 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
 	getAdminMediaDiagnostics: vi.fn(),
+	getAdminMediaHealth: vi.fn(),
+	getAdminMediaTotals: vi.fn(),
+	getAdminGuestDiagnostics: vi.fn(),
 	listAdminUncertainGenerationAttempts: vi.fn(),
 	listAdminMediaAudit: vi.fn(),
 	replayPersistedMediaEvent: vi.fn(),
@@ -14,6 +17,16 @@ vi.mock("@repo/database", () => ({
 	rollbackAdminMediaRuntimeOverride: vi.fn(),
 }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
+vi.mock("../lib/guest-capability", () => ({
+	loadGuestCapability: vi.fn(async () => ({
+		config: { productKey: "image-nano-banana-2-lite" },
+		snapshot: {
+			enabled: true,
+			reason: null,
+			products: [{ key: "image-nano-banana-2-lite", accessHint: "guest-trial" }],
+		},
+	})),
+}));
 
 import { auth } from "@repo/auth";
 import {
@@ -127,7 +140,7 @@ describe("media administration authorization and safe DTOs", () => {
 					queue: {
 						depth: 4,
 						oldestAgeSeconds: 301,
-						waitMs: { p50: 80_000, p95: 140_000 },
+						waitMs: { p50: 80_000, p95: 140_000, sampleCount: 3, invalidSampleCount: 0 },
 						expiredBeforeDispatch: 1,
 					},
 					risk: {
@@ -157,6 +170,7 @@ describe("media administration authorization and safe DTOs", () => {
 						environmentEnabled: false,
 						runtimeEnabled: false,
 						admissionOpen: false,
+						unavailableReason: null,
 						automaticClosureReasons: ["QUEUE_AGE"],
 					},
 					rawIp: "203.0.113.8",
@@ -203,7 +217,7 @@ describe("media administration authorization and safe DTOs", () => {
 				queue: {
 					depth: 4,
 					oldestAgeSeconds: 301,
-					waitMs: { p50: 80_000, p95: 140_000 },
+					waitMs: { p50: 80_000, p95: 140_000, sampleCount: 3, invalidSampleCount: 0 },
 					expiredBeforeDispatch: 1,
 				},
 				risk: {
@@ -233,6 +247,7 @@ describe("media administration authorization and safe DTOs", () => {
 					environmentEnabled: false,
 					runtimeEnabled: false,
 					admissionOpen: false,
+					unavailableReason: null,
 					automaticClosureReasons: ["QUEUE_AGE"],
 				},
 			});

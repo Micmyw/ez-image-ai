@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { WallpaperButton } from "../../../christmas/components/WallpaperButton";
+import { WallpaperResultPublisher } from "../../../christmas/lib/wallpaper-result-context";
 import { ColoringPageLink } from "../../../coloring/components/ColoringPageLink";
 import { useJob } from "../../hooks/use-job";
 import { isEditorProductKey, type EditorProductKey } from "../../lib/editor-recovery";
@@ -160,6 +161,13 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 			</p>
 			<ModerationNotice job={job.data} />
 			<GenerationFailureNotice job={job.data} />
+			{presentation.stage === "ready" && output && (
+				<WallpaperResultPublisher
+					key={`${jobId}:${output.id}`}
+					assetId={output.id}
+					expiresAt={output.visibleUntil}
+				/>
+			)}
 			{presentation.stage === "ready" && output && hasInlinePreview && (
 				<div className="mt-6">
 					<InlineOutputPreview
