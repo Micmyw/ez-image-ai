@@ -11,6 +11,21 @@ import type { ImageProcessor, ImageWatermarkOptions } from "./types";
 export function createSharpImageProcessor(): ImageProcessor {
 	return {
 		key: "sharp",
+		async moderationJpeg(source) {
+			const readable = Readable.fromWeb(source as unknown as NodeReadableStream<Uint8Array>);
+			const transform = sharp({
+				sequentialRead: true,
+				failOn: "error",
+				limitInputPixels: 100_000_000,
+			})
+				.rotate()
+				.resize(1568, 1568, { fit: "contain", background: "#ffffff" })
+				.flatten({ background: "#ffffff" })
+				.jpeg({ quality: 85 });
+			readable.once("error", (error) => transform.destroy(error));
+			transform.once("close", () => readable.destroy());
+			return Readable.toWeb(readable.pipe(transform)) as unknown as ReadableStream<Uint8Array>;
+		},
 		async validateDecoded(source) {
 			const readable = Readable.fromWeb(source as unknown as NodeReadableStream<Uint8Array>);
 			const decoder = sharp({

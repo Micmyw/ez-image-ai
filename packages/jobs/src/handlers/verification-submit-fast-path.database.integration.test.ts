@@ -123,7 +123,7 @@ describe("verification submission fast path with real PostgreSQL", () => {
 			return Response.json({
 				id: taskId,
 				object: "inference",
-				model: "nsfw-filter",
+				model: "nsfw-filter-2",
 				endpoint: "image-moderation",
 				provider: "seeapi",
 				status,
@@ -185,6 +185,55 @@ describe("verification submission fast path with real PostgreSQL", () => {
 		if (!owner) throw new Error("MISSING_FIXTURE_PHASE_OWNER");
 		return owner;
 	}
+
+	it("prepares 2.0 input before submission and queries the same task without preparing again", async () => {
+		const f = await fixture({ callback: false });
+		f.options.safety!.imageInputProfile = "seeapi-nsfw-filter-2";
+		const prepareImageModeration = vi.fn(async () => {
+			expect((await f.read()).verificationSubmissionUncertain).toBe(false);
+			return "data:image/jpeg;base64,cHJlcGFyZWQ=";
+		});
+		const deps = f.dependencies({ prepareImageModeration });
+		await deps.verify(f.assetId);
+		f.completeOnGet();
+		await client.mediaAsset.update({
+			where: { id: f.assetId },
+			data: { verificationNextAttemptAt: null },
+		});
+		await deps.verify(f.assetId);
+		expect(prepareImageModeration).toHaveBeenCalledOnce();
+		expect(f.submit).toHaveBeenCalledOnce();
+		expect(f.submit.mock.calls[0]![0].assetUrl).toMatch(/^data:image\/jpeg;base64,/);
+		expect((await f.read()).status).toBe("READY");
+	});
+	it("records preparation failure before the provider uncertainty fence", async () => {
+		const f = await fixture();
+		f.options.safety!.imageInputProfile = "seeapi-nsfw-filter-2";
+		await f
+			.dependencies({
+				prepareImageModeration: async () => {
+					throw new Error("local preparation failed");
+				},
+			})
+			.verify(f.assetId);
+		expect(f.submit).not.toHaveBeenCalled();
+		expect((await f.read()).verificationSubmissionUncertain).toBe(false);
+	});
+	it("does not prepare or submit again while the first request is uncertain", async () => {
+		const f = await fixture({ status: "unknown" });
+		await f.dependencies().verify(f.assetId);
+		expect((await f.read()).verificationSubmissionUncertain).toBe(true);
+		f.options.safety!.imageInputProfile = "seeapi-nsfw-filter-2";
+		const prepareImageModeration = vi.fn();
+		await client.mediaAsset.update({
+			where: { id: f.assetId },
+			data: { verificationNextAttemptAt: null },
+		});
+		await f.dependencies({ prepareImageModeration }).verify(f.assetId);
+		expect(prepareImageModeration).not.toHaveBeenCalled();
+		expect(f.submit).toHaveBeenCalledOnce();
+		expect((await f.read()).verificationSubmissionUncertain).toBe(true);
+	});
 
 	async function inputContinuationFixture() {
 		const f = await fixture({ kind: "INPUT", status: "succeeded" });

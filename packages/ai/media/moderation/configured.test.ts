@@ -43,7 +43,7 @@ function responses(
 			: Response.json({
 					id: input.moderationTaskId,
 					object: "inference",
-					model: "nsfw-filter",
+					model: "nsfw-filter-2",
 					endpoint: "image-moderation",
 					provider: "seeapi",
 					status: "succeeded",
@@ -114,7 +114,7 @@ describe("configured image moderation", () => {
 
 		expect(await adapter.retrieveImage!(input)).toMatchObject({
 			decision: "ALLOW",
-			evidence: { seeapi: { flagged: false }, models: ["nsfw-filter"], operations: 1 },
+			evidence: { seeapi: { flagged: false }, models: ["nsfw-filter-2"], operations: 1 },
 		});
 		expect(fetcher).toHaveBeenCalledTimes(1);
 		expect(fetcher.mock.calls[0]![0]).toEqual(expect.stringContaining("api.seeapi.com"));
@@ -128,10 +128,10 @@ describe("configured image moderation", () => {
 		expect(fetcher).toHaveBeenCalledTimes(1);
 		expect(fetcher.mock.calls[0]![0]).toBe("https://api.seeapi.com/v1/inferences");
 		expect(JSON.parse(fetcher.mock.calls[0]![1]!.body as string)).toMatchObject({
-			model: "nsfw-filter",
+			model: "nsfw-filter-2",
 			endpoint: "image-moderation",
 			provider: "seeapi",
-			input: { image_url: input.assetUrl, threshold_offset: 0, strict_special_care: true },
+			input: { image_url: input.assetUrl, threshold: 0.5, strict_special_care: true },
 		});
 	});
 

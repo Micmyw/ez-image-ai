@@ -58,6 +58,62 @@ function bindingDouble(
 }
 
 describe("Cloudflare Images processor", () => {
+	it("prepares a padded static JPEG for SeeAPI 2.0", async () => {
+		const fake = bindingDouble();
+		const output = await createCloudflareImagesProcessor(fake.binding).moderationJpeg!(stream(), {
+			contentLength: 3,
+		});
+		await new Response(output).arrayBuffer();
+		expect(fake.transforms).toEqual([
+			{ width: 1568, height: 1568, fit: "pad", background: "#ffffff" },
+		]);
+		expect(fake.outputs).toEqual([{ format: "image/jpeg", quality: 85, anim: false }]);
+	});
+	it("uses a remote transform above the binding limit after the source is validated", async () => {
+		let validated = false;
+		const source = stream().pipeThrough(
+			new TransformStream({
+				flush() {
+					validated = true;
+				},
+			}),
+		);
+		const fetcher = vi.spyOn(globalThis, "fetch").mockImplementation(async () => {
+			expect(validated).toBe(true);
+			return new Response(new Uint8Array([255, 216, 255]), {
+				headers: { "content-type": "image/jpeg" },
+			});
+		});
+		try {
+			const fake = bindingDouble();
+			const output = await createCloudflareImagesProcessor(fake.binding).moderationJpeg!(source, {
+				contentLength: 20_000_001,
+				sourceUrl: "https://private.test/immutable",
+			});
+			await new Response(output).arrayBuffer();
+			expect(fetcher).toHaveBeenCalledWith(
+				"https://private.test/immutable",
+				expect.objectContaining({
+					redirect: "manual",
+					cf: {
+						image: {
+							width: 1568,
+							height: 1568,
+							fit: "pad",
+							background: "#ffffff",
+							format: "jpeg",
+							quality: 85,
+							anim: false,
+							metadata: "none",
+						},
+					},
+				}),
+			);
+			expect(fake.inputBytes).toEqual([]);
+		} finally {
+			fetcher.mockRestore();
+		}
+	});
 	it("keeps EzImageAI lettering proportional on an extreme panoramic image", async () => {
 		const bytes = await sharp({
 			create: { width: 12_000, height: 64, channels: 3, background: "#202020" },

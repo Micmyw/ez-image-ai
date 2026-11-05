@@ -165,6 +165,19 @@ function deferred<T>() {
 }
 
 describe("video V1 paid submission fence", () => {
+	it("prepares image review bytes before claiming a SeeAPI 2.0 submission", async () => {
+		const f = fixture("image-to-video");
+		f.deps.safety.imageInputProfile = "seeapi-nsfw-filter-2";
+		const submitImage = vi.fn();
+		f.deps.safety.submitImage = submitImage;
+		f.deps.safety.retrieveImage = vi.fn();
+		f.deps.prepareImageModeration = vi.fn(async () => {
+			throw new Error("preparation failed");
+		});
+		await expect(reviewVideoInput("job-1", f.deps)).rejects.toThrow("preparation failed");
+		expect(f.store.claimVideoImageReview).not.toHaveBeenCalled();
+		expect(submitImage).not.toHaveBeenCalled();
+	});
 	it("does not renew an expired visual approval with only a fresh text review", async () => {
 		const f = fixture("image-to-video");
 		expect(await reviewVideoInput("job-1", f.deps)).toEqual({ status: "ALLOW" });

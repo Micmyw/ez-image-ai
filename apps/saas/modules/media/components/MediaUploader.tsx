@@ -49,14 +49,15 @@ export function MediaUploader({
 	presentation = "default",
 }: MediaUploaderProps) {
 	const t = useTranslations("media.uploader");
+	const fileErrors = useTranslations("home.generator.fileErrors");
 	const studio = useTranslations("studio");
-	const uploader = useMediaUpload(onChange, temporaryReference);
+	const imageByteLimit = Math.min(maximumImageBytes, publicProductConfig.uploadLimits.imageBytes);
+	const uploader = useMediaUpload(onChange, temporaryReference, imageByteLimit);
 	const addFiles = uploader.addFiles;
 	const pending = uploader.items.some((item) => item.status !== "uploaded");
 	useEffect(() => onPendingChange?.(pending), [onPendingChange, pending]);
 	const selectedUpload = uploader.items[0] ?? null;
 	useEffect(() => onUploadChange?.(selectedUpload), [onUploadChange, selectedUpload]);
-	const imageByteLimit = Math.min(maximumImageBytes, publicProductConfig.uploadLimits.imageBytes);
 	const addImageFiles = useCallback(
 		(files: File[]) => {
 			const acceptedFiles = filterEzPicImageFiles(files, imageByteLimit);
@@ -147,7 +148,13 @@ export function MediaUploader({
 								</p>
 								{item.error && (
 									<p role="alert" className="text-sm break-words text-destructive">
-										{item.error}
+										{item.error === "SOURCE_IMAGE_UNREADABLE"
+											? fileErrors("read")
+											: item.error === "SOURCE_IMAGE_TOO_LARGE"
+												? fileErrors("size", {
+														megabytes: Math.round(imageByteLimit / 1024 / 1024),
+													})
+												: item.error}
 									</p>
 								)}
 							</div>

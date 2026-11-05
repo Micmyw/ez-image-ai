@@ -386,7 +386,7 @@ describe("protected Veo quote, receipt and dispatch", () => {
 					Response.json({
 						id: imageTaskId,
 						object: "inference",
-						model: "nsfw-filter",
+						model: "nsfw-filter-2",
 						endpoint: "image-moderation",
 						provider: "seeapi",
 						status: "succeeded",
@@ -405,6 +405,7 @@ describe("protected Veo quote, receipt and dispatch", () => {
 					env: environment,
 					moderateText: vi.fn(async () => textDecision),
 					safety: createConfiguredVideoSafetyAdapter(environment, { fetch: moderationFetch }),
+					prepareImageModeration: vi.fn(async () => "data:image/jpeg;base64,bG9jYWwtZml4dHVyZQ=="),
 					provider: {
 						submit: adapter.submit.bind(adapter),
 						retrieve: adapter.retrieve.bind(adapter),
@@ -442,9 +443,7 @@ describe("protected Veo quote, receipt and dispatch", () => {
 							imageDecision: { decision: "ALLOW", evidence: { seeapi: { taskId: imageTaskId } } },
 						},
 					});
-					expect(overrides.signRead).toHaveBeenCalledWith(
-						(identity as Record<string, unknown>).objectKey,
-					);
+					expect(overrides.prepareImageModeration).toHaveBeenCalledWith(identity);
 				}
 				await expect(submitVideoAttempt(job.id, overrides)).resolves.toMatchObject({
 					status: "ACCEPTED",

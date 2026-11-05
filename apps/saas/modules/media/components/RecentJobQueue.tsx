@@ -29,7 +29,7 @@ export function RecentJobQueue({
 			.slice(0, 3) ?? [];
 	if (!jobs.length) return null;
 	return (
-		<div className="studio-recent" aria-label={t("recent")}>
+		<div className="studio-recent text-foreground" aria-label={t("recent")}>
 			<div className="min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-4 grid">
 				{jobs.map((job) => {
 					const stage = getJobPresentation({ ...job, hasReadyOutput: job.outputCount > 0 }).stage;

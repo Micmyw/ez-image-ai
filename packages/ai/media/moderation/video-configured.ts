@@ -64,6 +64,7 @@ export function createConfiguredVideoSafetyAdapter(
 		},
 		...(image
 			? {
+					imageInputProfile: "seeapi-nsfw-filter-2" as const,
 					submitImage: image.submitImage.bind(image),
 					retrieveImage: image.retrieveImage.bind(image),
 				}

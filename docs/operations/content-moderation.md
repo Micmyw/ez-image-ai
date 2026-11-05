@@ -54,13 +54,37 @@ uses `locale=en`, `semantic=enforce`. Only a complete `allow` with semantic stat
 matched categories or warnings authorizes generation. Neither service availability nor a free
 quota is guaranteed by this integration.
 
-SeeAPI uses `POST https://api.seeapi.com/v1/inferences`, with model `nsfw-filter`, endpoint
-`image-moderation`, provider `seeapi`, `threshold_offset=0`, and `strict_special_care=true`.
+New SeeAPI checks use `POST https://api.seeapi.com/v1/inferences`, with model `nsfw-filter-2`, endpoint
+`image-moderation`, provider `seeapi`, `threshold=0.5`, and `strict_special_care=true`.
 Its bearer credential and the image's short-lived private access URL stay server-side. HTTP 202
 and task status `succeeded` do not mean approval: the worker polls `GET /v1/inferences/{id}` and
 requires a complete successful result with `flagged=false` and empty category lists. A definite
 flag rejects; unexpected labels without a flag require review. Invalid, incomplete, timed-out,
-or unavailable checks never approve an image. The existing 20 MiB image limit is preserved.
+or unavailable checks never approve an image.
+
+The shared adapter serves ordinary image inputs, generated image outputs, and video reference-image
+checks. Existing `nsfw-filter` tasks remain queryable by their saved IDs. Evidence records the returned
+model, so a historical 1.0 result retains its original identity. This upgrade retains
+the existing application review policy and historical approvals.
+
+The 2.0 service contract accepts static PNG/JPEG up to 16 MiB, each dimension 256–8192 pixels, and
+78,400–32,000,000 total pixels. Its recommended range is 256–1568 per dimension and up to 2,458,624
+total pixels. The shared jobs preparation path converts the immutable original to a static
+1568×1568 JPEG at quality 85, fitting the entire image with white padding and flattening transparency.
+This supports PNG, JPEG and WebP originals, including small images and large generation outputs.
+The prepared JPEG is bounded to 8 MiB and sent as a data URL. Source byte count, SHA-256 and available
+ETag are checked before submission, and the actual JPEG dimensions are checked after conversion.
+The original asset retains its own bytes, checksum, generation and moderation evidence identity.
+
+Preparation runs before the provider uncertainty fence in both ordinary-image and video-reference
+review. Existing task retrieval and uncertain submissions skip preparation. A preparation failure
+does not create a detector task or establish approval. Native Node uses Sharp. Workers uses its
+request-owned Images binding up to 20,000,000 source bytes, then uses Cloudflare remote image
+transformations for the existing 25 MiB storage limit. That larger-source path verifies the complete
+source before fetching its short-lived immutable URL, and verifies the transformed response before
+SeeAPI submission. Cloudflare remote image transformations must be available on the deployed Worker.
+Remote transform availability and real SeeAPI acceptance require live verification after deployment.
+Contract source, reviewed 2026-11-05, [SeeAPI NSFW Filter 2.0](https://www.seeapi.com/docs/nsfw-filter-2/image-moderation/).
 
 Task binding, verification leases, checksum, rule/policy versions, retries, and uncertainty gates
 use the existing private-media path. Recovery polls the same bound task; an uncertain submission

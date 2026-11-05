@@ -325,7 +325,7 @@ const mockHttp: typeof fetch = async (input, init) => {
 			return Response.json({
 				id: taskId,
 				object: "inference",
-				model: "nsfw-filter",
+				model: "nsfw-filter-2",
 				endpoint: "image-moderation",
 				provider: "seeapi",
 				status: "queued",
@@ -363,7 +363,7 @@ const mockHttp: typeof fetch = async (input, init) => {
 			return Response.json({
 				id: taskId,
 				object: "inference",
-				model: "nsfw-filter",
+				model: "nsfw-filter-2",
 				endpoint: "image-moderation",
 				provider: "seeapi",
 				status: "succeeded",
@@ -663,6 +663,7 @@ describe("Hotel Lobby template real SQL and mocked external lifecycle", () => {
 		const safety = createConfiguredVideoSafetyAdapter(env, { fetch: mockHttp });
 		const shared = {
 			safety,
+			prepareImageModeration: async () => "data:image/jpeg;base64,bG9jYWwtZml4dHVyZQ==",
 			env,
 			signRead: async (key: string) => `https://private.video.test/${encodeURIComponent(key)}`,
 		};

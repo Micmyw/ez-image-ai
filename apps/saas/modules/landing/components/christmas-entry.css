@@ -43,6 +43,7 @@
 	background: #193a2e;
 	color: #f5f7ed;
 	padding: 32px 40px;
+	cursor: pointer;
 }
 .christmas-entry-link:focus-visible {
 	outline: 3px solid #d8ebca;
@@ -89,6 +90,7 @@
 	color: #203d2e;
 	font-size: 13px;
 	font-weight: 600;
+	transition: background-color 0.2s ease;
 }
 .christmas-entry-action svg {
 	width: 17px;
@@ -117,7 +119,9 @@
 	border: 4px solid #0c231b;
 	border-radius: 22px;
 	box-shadow: 0 12px 20px #071a2350;
-	transition: transform 0.25s ease;
+	transition:
+		translate 0.25s ease,
+		box-shadow 0.25s ease;
 }
 .christmas-entry-phone img {
 	width: 100%;
@@ -146,12 +150,20 @@
 	letter-spacing: -2px;
 	text-shadow: 0 1px 8px #0005;
 }
-@media (hover: hover) {
-	.christmas-entry-link:hover .christmas-entry-phone.fireplace {
-		transform: translateY(-13px);
+@media (hover: hover) and (pointer: fine) {
+	.christmas-entry-phone:hover {
+		box-shadow: 0 18px 26px #071a2380;
 	}
-	.christmas-entry-link:hover .christmas-entry-action svg {
+	.christmas-entry-action:hover {
+		background: #f1f6e7;
+	}
+	.christmas-entry-action:hover svg {
 		transform: translate(2px, -2px);
+	}
+}
+@media (hover: hover) and (pointer: fine) and (prefers-reduced-motion: no-preference) {
+	.christmas-entry-phone:hover {
+		translate: 0 -6px;
 	}
 }
 @media (max-width: 760px) {
@@ -197,7 +209,11 @@
 }
 @media (prefers-reduced-motion: reduce) {
 	.christmas-entry-phone,
+	.christmas-entry-action,
 	.christmas-entry-action svg {
 		transition: none;
+	}
+	.christmas-entry-action:hover svg {
+		transform: none;
 	}
 }

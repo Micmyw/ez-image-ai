@@ -313,7 +313,7 @@ const mockHttp: typeof fetch = async (input, init) => {
 			return Response.json({
 				id: taskId,
 				object: "inference",
-				model: "nsfw-filter",
+				model: "nsfw-filter-2",
 				endpoint: "image-moderation",
 				provider: "seeapi",
 				status: "queued",
@@ -351,7 +351,7 @@ const mockHttp: typeof fetch = async (input, init) => {
 			return Response.json({
 				id: taskId,
 				object: "inference",
-				model: "nsfw-filter",
+				model: "nsfw-filter-2",
 				endpoint: "image-moderation",
 				provider: "seeapi",
 				status: "succeeded",
@@ -610,6 +610,7 @@ describe("video V1 actual-domain Mock end-to-end and measured concurrency", () =
 			const safety = createConfiguredVideoSafetyAdapter(env, { fetch: mockHttp });
 			const provider = new KieVideoV1Adapter({ apiKey: "mock-only", fetch: mockHttp });
 			const deps = {
+				prepareImageModeration: async () => "data:image/jpeg;base64,bG9jYWwtZml4dHVyZQ==",
 				safety,
 				provider,
 				env,

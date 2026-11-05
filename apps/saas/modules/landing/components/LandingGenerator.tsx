@@ -803,6 +803,7 @@ function LandingGeneratorWorkspace({
 				: `${LOCAL_TURNSTILE_EVIDENCE}-${crypto.randomUUID()}`;
 			if (GUEST_TURNSTILE_SITE_KEY) resetChallenge();
 			const handoff = await uploadGuestDraft({
+				maximumBytes,
 				checkpoint: guestUploadCheckpoint.current,
 				onCheckpoint: (checkpoint) => {
 					guestUploadCheckpoint.current = checkpoint;

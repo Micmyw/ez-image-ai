@@ -37,6 +37,7 @@ export function createConfiguredImageSafetyAdapter(
 		const seeapi = new SeeapiSafetyAdapter({ apiKey: environment.SEEAPI_API_KEY });
 		return {
 			...closed,
+			imageInputProfile: "seeapi-nsfw-filter-2",
 			submitImage: seeapi.submitImage.bind(seeapi),
 			retrieveImage: seeapi.retrieveImage.bind(seeapi),
 		};

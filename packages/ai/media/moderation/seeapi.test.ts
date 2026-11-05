@@ -10,7 +10,7 @@ const input = {
 const task = (status = "succeeded", flagged = false) => ({
 	id: "task_test",
 	object: "inference",
-	model: "nsfw-filter",
+	model: "nsfw-filter-2",
 	endpoint: "image-moderation",
 	provider: "seeapi",
 	status,
@@ -38,6 +38,25 @@ function fixture(body: unknown, status = 200) {
 	};
 }
 describe("SeeAPI image moderation", () => {
+	it("retrieves an existing 1.0 task and preserves its recorded model", async () => {
+		const { adapter, fetcher } = fixture({ ...task(), model: "nsfw-filter" });
+		expect(await adapter.retrieveImage({ ...input, moderationTaskId: "task_test" })).toMatchObject({
+			decision: "ALLOW",
+			evidence: { models: ["nsfw-filter"] },
+		});
+		expect(fetcher.mock.calls[0]![1]!.method).toBe("GET");
+	});
+	it("rejects a legacy model response to a new 2.0 submission", async () => {
+		const { adapter } = fixture({ ...task(), model: "nsfw-filter" });
+		await expect(adapter.submitImage(input)).rejects.toThrow("MODERATION_INVALID_RESPONSE");
+	});
+	it.each(["canceled", "refunded", "expired"])("keeps terminal %s tasks closed", async (status) => {
+		const { adapter } = fixture(task(status));
+		expect(await adapter.submitImage(input)).toMatchObject({ moderationTaskId: "task_test" });
+		expect(await adapter.retrieveImage({ ...input, moderationTaskId: "task_test" })).toMatchObject({
+			decision: "ERROR",
+		});
+	});
 	it("returns the complete authenticated POST decision without requiring another request", async () => {
 		const { adapter, fetcher } = fixture(task());
 		const submitted = await adapter.submitImage({
@@ -46,7 +65,11 @@ describe("SeeAPI image moderation", () => {
 		});
 		expect(submitted.completedDecision).toMatchObject({
 			decision: "ALLOW",
-			evidence: { requestId: "task_test", seeapi: { taskId: "task_test" } },
+			evidence: {
+				requestId: "task_test",
+				models: ["nsfw-filter-2"],
+				seeapi: { taskId: "task_test" },
+			},
 		});
 		expect(submitted.nonterminalState).toBeUndefined();
 		expect(fetcher).toHaveBeenCalledTimes(1);
@@ -79,10 +102,10 @@ describe("SeeAPI image moderation", () => {
 		expect(new Headers(request?.headers).get("Idempotency-Key")).toBe(input.idempotencyKey);
 		expect(new Headers(request?.headers).get("Authorization")).toBe("Bearer fixture-secret");
 		expect(JSON.parse(request?.body as string)).toMatchObject({
-			model: "nsfw-filter",
+			model: "nsfw-filter-2",
 			endpoint: "image-moderation",
 			provider: "seeapi",
-			input: { image_url: input.assetUrl, threshold_offset: 0, strict_special_care: true },
+			input: { image_url: input.assetUrl, threshold: 0.5, strict_special_care: true },
 		});
 	});
 	it.each(["queued", "processing"] as const)(

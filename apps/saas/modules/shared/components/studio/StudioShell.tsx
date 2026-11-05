@@ -312,66 +312,68 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 					</aside>
 				)}
 				<div className="studio-main" inert={mobile && Boolean(panel)}>
-					<header className="studio-topbar">
-						<div className="studio-header-identity">
-							{showSidebar && (
-								<span className="studio-workspace-title">
-									{pathname.startsWith("/video") ? accountMenu("video") : t("create")}
-								</span>
-							)}
-							<Link
-								href="/"
-								prefetch={false}
-								aria-label={brandName}
-								className={showSidebar ? "studio-compact-brand" : undefined}
-							>
-								<Logo className="studio-header-brand" label={brandName} />
-							</Link>
-						</div>
-						<nav className="studio-toplinks" aria-label={t("pageNavigation")}>
-							<StudioToolNavigation />
-							<a href={sectionHref("#pricing")}>{common("pricing")}</a>
-							{registered && !showSidebar && (
-								<Link href="/create" className="studio-create-link" prefetch={false}>
-									{t("create")}
+					<div className="studio-topbar-shell">
+						<header className="studio-topbar">
+							<div className="studio-header-identity">
+								{showSidebar && (
+									<span className="studio-workspace-title">
+										{pathname.startsWith("/video") ? accountMenu("video") : t("create")}
+									</span>
+								)}
+								<Link
+									href="/"
+									prefetch={false}
+									aria-label={brandName}
+									className={showSidebar ? "studio-compact-brand" : undefined}
+								>
+									<Logo className="studio-header-brand" label={brandName} />
 								</Link>
-							)}
-						</nav>
-						<div className="studio-header-account">
-							<HeaderPurchaseActions registered={registered} />
-							{registered ? (
-								<div className="studio-header-user-controls gap-2 flex items-center">
-									<div className="studio-header-notifications">
-										<NotificationCenter />
+							</div>
+							<nav className="studio-toplinks" aria-label={t("pageNavigation")}>
+								<StudioToolNavigation />
+								<a href={sectionHref("#pricing")}>{common("pricing")}</a>
+								{registered && !showSidebar && (
+									<Link href="/create" className="studio-create-link" prefetch={false}>
+										{t("create")}
+									</Link>
+								)}
+							</nav>
+							<div className="studio-header-account">
+								<HeaderPurchaseActions registered={registered} />
+								{registered ? (
+									<div className="studio-header-user-controls gap-2 flex items-center">
+										<div className="studio-header-notifications">
+											<NotificationCenter />
+										</div>
+										<div className={showSidebar ? "studio-mobile-only" : undefined}>
+											<UserMenu studio />
+										</div>
 									</div>
-									<div className={showSidebar ? "studio-mobile-only" : undefined}>
-										<UserMenu studio />
-									</div>
-								</div>
-							) : (
-								<StudioSignInLink className="text-sm text-violet-200">
-									{/* Reload the root locale provider when entering account routes. */}
-									{common("login")}
-								</StudioSignInLink>
-							)}
-							<HeaderNavigationMenu
-								registered={registered}
-								admin={user?.role === "admin"}
-								pricingHref={sectionHref("#pricing")}
-								open={navigationOpen}
-								onOpenChange={setNavigationOpen}
-								triggerRef={navigationTrigger}
-								restoreFocus={!panel}
-								prefetchWorkspaceLinks={!editing}
-								account={
-									<>
-										<UserMenu showUserName studio />
-										<NotificationCenter />
-									</>
-								}
-							/>
-						</div>
-					</header>
+								) : (
+									<StudioSignInLink className="text-sm text-violet-200">
+										{/* Reload the root locale provider when entering account routes. */}
+										{common("login")}
+									</StudioSignInLink>
+								)}
+								<HeaderNavigationMenu
+									registered={registered}
+									admin={user?.role === "admin"}
+									pricingHref={sectionHref("#pricing")}
+									open={navigationOpen}
+									onOpenChange={setNavigationOpen}
+									triggerRef={navigationTrigger}
+									restoreFocus={!panel}
+									prefetchWorkspaceLinks={!editing}
+									account={
+										<>
+											<UserMenu showUserName studio />
+											<NotificationCenter />
+										</>
+									}
+								/>
+							</div>
+						</header>
+					</div>
 					{children}
 				</div>
 				{panel && registered && (

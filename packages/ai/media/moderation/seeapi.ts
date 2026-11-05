@@ -10,6 +10,7 @@ import type {
 } from "./types";
 
 const label = z.string().min(1).max(128);
+const SEEAPI_IMAGE_MODEL = "nsfw-filter-2";
 const taskIdSchema = z
 	.string()
 	.min(1)
@@ -18,10 +19,18 @@ const taskIdSchema = z
 const taskSchema = z.object({
 	id: taskIdSchema,
 	object: z.literal("inference"),
-	model: z.literal("nsfw-filter"),
+	model: z.enum(["nsfw-filter", SEEAPI_IMAGE_MODEL]),
 	endpoint: z.literal("image-moderation"),
 	provider: z.literal("seeapi"),
-	status: z.enum(["queued", "processing", "succeeded", "failed", "canceled"]),
+	status: z.enum([
+		"queued",
+		"processing",
+		"succeeded",
+		"failed",
+		"canceled",
+		"refunded",
+		"expired",
+	]),
 	result: z
 		.object({
 			type: z.literal("json"),
@@ -60,15 +69,14 @@ export class SeeapiSafetyAdapter {
 			method: "POST",
 			headers: { "Idempotency-Key": input.idempotencyKey },
 			body: JSON.stringify({
-				model: "nsfw-filter",
+				model: SEEAPI_IMAGE_MODEL,
 				endpoint: "image-moderation",
 				provider: "seeapi",
 				...(input.callbackUrl ? { callback_url: input.callbackUrl } : {}),
-				input: { image_url: input.assetUrl, threshold_offset: 0, strict_special_care: true },
+				input: { image_url: input.assetUrl, threshold: 0.5, strict_special_care: true },
 			}),
 		});
-		if (!["queued", "processing", "succeeded", "failed"].includes(task.status))
-			throw new Error("MODERATION_UNAVAILABLE");
+		if (task.model !== SEEAPI_IMAGE_MODEL) throw new Error("MODERATION_INVALID_RESPONSE");
 		return {
 			// A failed POST still identifies an accepted task. Preserve its binding
 			// and require authenticated retrieval instead of losing it or resubmitting.
@@ -96,7 +104,7 @@ export class SeeapiSafetyAdapter {
 				method: "GET",
 			});
 			if (task.id !== input.moderationTaskId) return result("ERROR", "MODERATION_INVALID_RESPONSE");
-			if (task.status === "failed") {
+			if (["failed", "canceled", "refunded", "expired"].includes(task.status)) {
 				// Classify only validated machine codes; provider messages may contain
 				// private media URLs and must never become diagnostics or policy verdicts.
 				const reasonCode =
@@ -123,7 +131,7 @@ export class SeeapiSafetyAdapter {
 				...verdict,
 				evidence: {
 					requestId: task.id,
-					models: ["nsfw-filter"],
+					models: [task.model],
 					operations: 1,
 					scores: {},
 					seeapi: {
@@ -155,10 +163,8 @@ export class SeeapiSafetyAdapter {
 		);
 		if (!response.ok) throw new Error(moderationHttpErrorCode(response.status));
 		const task = taskSchema.parse(response.data);
-		if (
-			(task.status === "failed" && task.result !== null) ||
-			(task.status !== "failed" && task.error !== null)
-		)
+		const failed = ["failed", "canceled", "refunded", "expired"].includes(task.status);
+		if ((failed && task.result !== null) || (!failed && task.error !== null))
 			throw new Error("MODERATION_INVALID_RESPONSE");
 		return task;
 	}
@@ -187,7 +193,7 @@ function completedTaskDecision(
 		ruleVersion,
 		evidence: {
 			requestId: task.id,
-			models: ["nsfw-filter"],
+			models: [task.model],
 			operations: 1,
 			scores: {},
 			seeapi: {

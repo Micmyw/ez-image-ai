@@ -18,6 +18,11 @@ export interface ImageWatermarkOptions extends ImageDimensions, ImageSourceOptio
 /** Private image bytes cross this boundary; object keys and access policy stay in storage. */
 export interface ImageProcessor {
 	readonly key: string;
+	/** SeeAPI 2.0 accepts a static, padded 1568px JPEG of the complete source image. */
+	moderationJpeg?(
+		source: ReadableStream<Uint8Array>,
+		options: ImageSourceOptions & { sourceUrl?: string },
+	): Promise<ReadableStream<Uint8Array>>;
 	/** Bounded video reference normalization; preserves geometry, never transcodes video. */
 	normalizePng?(
 		source: ReadableStream<Uint8Array>,

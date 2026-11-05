@@ -3,11 +3,13 @@
 	width: calc(100vw - 24px);
 	max-height: 94dvh;
 	overflow-y: auto;
-	color: #173e34;
-	background: #f8faf7;
+	color-scheme: dark;
+	color: #f5eee6;
+	background: linear-gradient(140deg, #232b27, #28202b);
+	border-color: #e6d3bb33;
 }
 .wallpaper-crop-description {
-	color: #4e665b;
+	color: #c1b7bf;
 }
 .wallpaper-crop-layout {
 	display: grid;
@@ -21,7 +23,7 @@
 	min-height: 260px;
 	padding: 16px;
 	border-radius: 16px;
-	background: #e5ece7;
+	background: #17161d;
 }
 .wallpaper-crop-frame {
 	position: relative;
@@ -30,11 +32,11 @@
 }
 .wallpaper-crop-frame.is-phone {
 	max-width: 230px;
-	border: 5px solid #16372e;
+	border: 5px solid #100f14;
 	border-radius: 25px;
 }
 .wallpaper-crop-frame.is-desktop {
-	border: 5px solid #16372e;
+	border: 5px solid #100f14;
 	border-radius: 8px;
 }
 .wallpaper-crop-frame canvas {
@@ -105,14 +107,14 @@
 	gap: 6px;
 }
 .wallpaper-crop-controls select {
-	background: white;
+	background: #1b1921;
 	padding: 10px;
-	border: 1px solid #acbfb3;
+	border: 1px solid #e6d3bb33;
 	border-radius: 8px;
 }
 .wallpaper-crop-controls input[type="range"] {
 	width: 100%;
-	accent-color: #1e6a4d;
+	accent-color: #dfbb85;
 }
 .wallpaper-check {
 	display: flex;
@@ -120,12 +122,20 @@
 	gap: 8px;
 }
 .wallpaper-check input {
-	accent-color: #1e6a4d;
+	accent-color: #dfbb85;
 }
 .wallpaper-crop-controls p {
 	font-size: 12px;
 	line-height: 1.6;
-	color: #4e665b;
+	color: #c1b7bf;
+}
+.wallpaper-crop-controls > button {
+	background: linear-gradient(110deg, #ead0a4, #d4aa70);
+	color: #261b12;
+}
+.wallpaper-crop-dialog :is(button, input, select):focus-visible {
+	outline: 2px solid #dfbb85;
+	outline-offset: 3px;
 }
 .wallpaper-crop-controls output {
 	font-size: 14px;

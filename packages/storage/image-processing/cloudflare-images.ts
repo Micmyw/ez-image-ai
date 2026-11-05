@@ -12,7 +12,8 @@ export interface CloudflareImagesTransformer {
 	transform(options: {
 		width: number;
 		height: number;
-		fit: "squeeze";
+		fit: "squeeze" | "pad";
+		background?: string;
 	}): CloudflareImagesTransformer;
 	draw(
 		image: ReadableStream<Uint8Array> | CloudflareImagesTransformer,
@@ -34,6 +35,65 @@ export interface CloudflareImagesBinding {
 export function createCloudflareImagesProcessor(binding: CloudflareImagesBinding): ImageProcessor {
 	return {
 		key: "cloudflare-images",
+		async moderationJpeg(source, options) {
+			const geometry = { width: 1568, height: 1568, fit: "pad" as const, background: "#ffffff" };
+			// The binding accepts 20 MB. Remote transformations accept the existing
+			// 25 MiB media limit, using a signed URL for the same immutable object.
+			if ((options.contentLength ?? 0) > CLOUDFLARE_IMAGES_MAX_INPUT_BYTES) {
+				if (!options.sourceUrl) throw new ImageProcessingError("IMAGE_MODERATION_SOURCE_INVALID");
+				const reader = source.getReader();
+				try {
+					while (!(await reader.read()).done) {
+						// Finish the caller's byte-count and checksum validation before fetching.
+					}
+				} finally {
+					await reader.cancel().catch(() => undefined);
+					reader.releaseLock();
+				}
+				const request: RequestInit & {
+					cf: {
+						image: typeof geometry & {
+							format: "jpeg";
+							quality: number;
+							anim: false;
+							metadata: "none";
+						};
+					};
+				} = {
+					redirect: "manual",
+					signal: AbortSignal.timeout(30_000),
+					cf: {
+						image: { ...geometry, format: "jpeg", quality: 85, anim: false, metadata: "none" },
+					},
+				};
+				const response = await fetch(options.sourceUrl, request);
+				if (
+					!response.ok ||
+					!response.body ||
+					response.headers.get("content-type") !== "image/jpeg"
+				) {
+					await response.body?.cancel().catch(() => undefined);
+					throw new ImageProcessingError("IMAGE_MODERATION_PREPARATION_FAILED");
+				}
+				return response.body;
+			}
+			const bounded = boundedImageSource(source, options.contentLength);
+			try {
+				const output = await binding
+					.input(bounded)
+					.transform(geometry)
+					.output({ format: "image/jpeg", quality: 85, anim: false });
+				const image = output.image();
+				if (output.contentType() !== "image/jpeg") {
+					await image.cancel().catch(() => undefined);
+					throw new ImageProcessingError("OUTPUT_MEDIA_TYPE_MISMATCH");
+				}
+				return image;
+			} catch (error) {
+				if (!bounded.locked) await bounded.cancel().catch(() => undefined);
+				throw error;
+			}
+		},
 		async validateDecoded(source, contentType, options) {
 			const bounded = boundedImageSource(source, options.contentLength);
 			try {

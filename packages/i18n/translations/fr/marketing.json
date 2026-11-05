@@ -404,7 +404,7 @@
 				"empty": "Choisissez une image source non vide.",
 				"type": "Choisissez une image JPEG, PNG ou WebP.",
 				"size": "Choisissez une image de {megabytes, number} Mo maximum.",
-				"read": "Cette image n’a pas pu être lue. Choisissez un autre fichier."
+				"read": "Cette image n’a pas pu être lue. Exportez un nouveau PNG ou JPG depuis votre application photo, ou choisissez un autre fichier."
 			},
 			"help": {
 				"promptGuide": "Lire le guide des consignes",

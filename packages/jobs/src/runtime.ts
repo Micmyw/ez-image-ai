@@ -174,6 +174,7 @@ import {
 	watermarkStagedGuestImage,
 } from "@repo/storage";
 import type { MediaObjectMetadata } from "@repo/storage";
+import { preparePrivateImageModeration } from "@repo/storage/lib/image-moderation-input";
 
 import {
 	DispatchAdmissionBlockedError,
@@ -1541,6 +1542,7 @@ export function createDatabaseAccountInputCopyRecoveryDependencies(
 }
 
 interface VerifyUploadRuntimeOptions {
+	prepareImageModeration?: typeof preparePrivateImageModeration;
 	environment?: NodeJS.ProcessEnv;
 	headObject?: (location: { bucket: "media"; key: string }) => Promise<MediaObjectMetadata>;
 	readMediaHeader?: (location: { bucket: "media"; key: string }) => Promise<Uint8Array>;
@@ -1808,19 +1810,36 @@ export function createDatabaseVerifyUploadDependencies(
 				}
 
 				// SeeAPI's existing-task GET ignores the adapter interface's assetUrl.
-				// New submissions and other adapters still receive a signed private URL.
+				// Fresh 2.0 submissions prepare a bounded image before recording uncertainty.
 				const retrieveExistingSeeapiTask =
 					claim.provider === "seeapi" &&
 					claim.mimeType.startsWith("image/") &&
 					claim.providerTaskId !== null &&
 					(verificationOptions.queryOnly === true || typeof safety.submitImage === "function") &&
 					typeof safety.retrieveImage === "function";
-				const assetUrl = retrieveExistingSeeapiTask
-					? ""
-					: await (options.createSignedReadUrl ?? createSignedReadUrl)({
-							...location,
-							expiresIn: 300,
-						});
+				let assetUrl = "";
+				if (
+					!retrieveExistingSeeapiTask &&
+					!(
+						claim.mimeType.startsWith("image/") &&
+						claim.submissionUncertain &&
+						!claim.providerTaskId
+					)
+				) {
+					assetUrl =
+						safety.imageInputProfile === "seeapi-nsfw-filter-2" &&
+						!claim.providerTaskId &&
+						claim.mimeType.startsWith("image/")
+							? await (options.prepareImageModeration ?? preparePrivateImageModeration)({
+									objectKey: claim.objectKey,
+									checksum: checksum!,
+									storageEtag,
+								})
+							: await (options.createSignedReadUrl ?? createSignedReadUrl)({
+									...location,
+									expiresIn: 300,
+								});
+				}
 				if (!verifiedImmutableObject) {
 					const persistedInspection = await database.mediaAsset.updateMany({
 						where: {

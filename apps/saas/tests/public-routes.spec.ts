@@ -3,6 +3,8 @@ import path from "node:path";
 
 import { expect, test, type Locator } from "@playwright/test";
 
+import { buildChristmasResultPreview } from "./fixtures/christmas-result-preview.mjs";
+
 const indexableRoutes = [
 	"/",
 	"/pricing",
@@ -151,9 +153,41 @@ test("Christmas wallpaper homepage entry works on desktop and mobile", async ({
 		"/christmas-wallpaper",
 	);
 	await expect(page.locator("footer a[href='/christmas-wallpaper']")).toBeAttached();
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await entry.scrollIntoViewIfNeeded();
+	await page.mouse.move(0, 850);
+	const phones = entry.locator(".christmas-entry-phone");
+	const initialTransforms = await phones.evaluateAll((nodes) =>
+		nodes.map((node) => getComputedStyle(node).transform),
+	);
+	await entry.getByRole("heading").hover();
+	await expect
+		.poll(() =>
+			phones.evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).transform)),
+		)
+		.toEqual(initialTransforms);
+	for (const style of ["street", "fireplace", "pet"]) {
+		const phone = entry.locator(`.christmas-entry-phone.${style}`);
+		await phone.hover();
+		await expect(phone).toHaveCSS("translate", "0px -6px");
+		for (const other of ["street", "fireplace", "pet"].filter((value) => value !== style)) {
+			await expect(entry.locator(`.christmas-entry-phone.${other}`)).toHaveCSS("translate", "none");
+		}
+	}
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await entry.locator(".christmas-entry-phone.fireplace").hover();
+	await expect(entry.locator(".christmas-entry-phone.fireplace")).toHaveCSS("translate", "none");
+	await page.emulateMedia({ reducedMotion: "no-preference" });
 	for (const width of [1440, 390, 320]) {
 		await page.setViewportSize({ width, height: 900 });
 		await entry.scrollIntoViewIfNeeded();
+		await expect
+			.poll(() =>
+				page
+					.locator(".studio-topbar")
+					.evaluate((node) => Math.round(node.getBoundingClientRect().top)),
+			)
+			.toBe(0);
 		await expect(entry.locator("img")).toHaveCount(3);
 		await expect
 			.poll(() =>
@@ -166,7 +200,11 @@ test("Christmas wallpaper homepage entry works on desktop and mobile", async ({
 			.toBe(true);
 		expect(await entry.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
 		await entry.screenshot({ path: testInfo.outputPath(`christmas-home-${width}.png`) });
+		await page.screenshot({ path: testInfo.outputPath(`christmas-sticky-${width}.png`) });
 	}
+	await page.locator('[data-test="header-navigation-trigger"]').click();
+	await expect(page.locator(".studio-header-drawer")).toBeVisible();
+	await page.keyboard.press("Escape");
 	await entry.getByRole("link").focus();
 	await page.keyboard.press("Enter");
 	await expect(page).toHaveURL(/\/christmas-wallpaper$/, { timeout: 30_000 });
@@ -259,6 +297,63 @@ test("Christmas wallpaper presets preserve photos and export clean crops at actu
 		.click();
 	await expect(page.locator(".christmas-editor [role='alert']")).toContainText("does not support");
 	await expect(prompt).toHaveValue(/tall 9:16 composition/);
+});
+
+test("Christmas wallpaper account status and history stay readable in the seasonal theme", async ({
+	page,
+}, testInfo) => {
+	test.setTimeout(120_000);
+	await mockPublicImageAvailability(page, ["auto", "1:1", "9:16", "16:9"]);
+	await page.goto("/christmas-wallpaper");
+	await page.locator(".christmas-editor").evaluate((editor) => {
+		const fixture = document.createElement("div");
+		fixture.id = "christmas-account-fixture";
+		fixture.style.marginTop = "24px";
+		editor.append(fixture);
+	});
+	await page.addScriptTag({
+		content: await buildChristmasResultPreview(path.resolve(__dirname, "..")),
+	});
+	const fixture = page.locator("#christmas-account-fixture");
+	await expect(
+		fixture.getByRole("heading", { name: "Checking your reference image" }),
+	).toBeVisible();
+	await expect(fixture.locator(".studio-recent button")).toHaveCount(2);
+	// Measure inherited text against the actual opaque surface in the loaded app CSS.
+	const contrasts = await fixture.evaluate((node) => {
+		const luminance = (color: string) => {
+			const values = color
+				.match(/[\d.]+/g)!
+				.slice(0, 3)
+				.map(Number)
+				.map((value) => {
+					const channel = value / 255;
+					return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+				});
+			return values[0] * 0.2126 + values[1] * 0.7152 + values[2] * 0.0722;
+		};
+		return [...node.querySelectorAll("h2, .studio-recent button.bg-background .font-medium")].map(
+			(element) => {
+				const foreground = luminance(getComputedStyle(element).color);
+				const surface = element.closest("section, button")!;
+				const background = luminance(getComputedStyle(surface).backgroundColor);
+				return (
+					(Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05)
+				);
+			},
+		);
+	});
+	expect(contrasts).toHaveLength(2);
+	for (const contrast of contrasts) expect(contrast).toBeGreaterThan(4.5);
+	await fixture.screenshot({ path: testInfo.outputPath("christmas-account-components.png") });
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await expect
+		.poll(() =>
+			page
+				.locator(".christmas-page")
+				.evaluate((node) => getComputedStyle(node, "::before").animationName),
+		)
+		.toBe("none");
 });
 
 test("editing examples open the create page with an editable prompt", async ({ page }) => {

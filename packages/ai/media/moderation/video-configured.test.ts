@@ -60,16 +60,17 @@ describe("SeeAPI-only video safety composition", () => {
 	it("provides asynchronous SeeAPI image review with strict existing image settings", async () => {
 		const fetch = vi.fn<typeof globalThis.fetch>(async () =>
 			Response.json(
-				{ ...task, model: "nsfw-filter", endpoint: "image-moderation" },
+				{ ...task, model: "nsfw-filter-2", endpoint: "image-moderation" },
 				{ status: 202 },
 			),
 		);
 		const adapter = createConfiguredVideoSafetyAdapter(environment, { fetch }, profile);
 		expect(typeof adapter.submitImage).toBe("function");
+		expect(adapter.imageInputProfile).toBe("seeapi-nsfw-filter-2");
 		expect(await adapter.submitImage!(input)).toMatchObject({ moderationTaskId: "task_fixture" });
 		expect(JSON.parse(fetch.mock.calls[0]![1]!.body as string)).toMatchObject({
-			model: "nsfw-filter",
-			input: { image_url: input.assetUrl, threshold_offset: 0, strict_special_care: true },
+			model: "nsfw-filter-2",
+			input: { image_url: input.assetUrl, threshold: 0.5, strict_special_care: true },
 		});
 	});
 	it("submits video only to the SeeAPI inference endpoint with the frozen profile", async () => {

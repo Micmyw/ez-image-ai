@@ -187,6 +187,13 @@ body:has(.studio-shell) [data-consent-banner] button {
 	min-width: 0;
 	margin-left: var(--studio-sidebar-width);
 }
+.studio-topbar-shell {
+	position: sticky;
+	top: 0;
+	z-index: 40;
+	background: #19131ff5;
+	backdrop-filter: blur(16px);
+}
 .studio-topbar {
 	display: flex;
 	min-height: 76px;

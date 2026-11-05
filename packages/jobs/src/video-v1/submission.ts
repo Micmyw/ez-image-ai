@@ -34,6 +34,7 @@ import {
 import { getVideoEffectiveInputSnapshot } from "@repo/database/video-template-execution";
 import * as database from "@repo/database/video-v1-execution";
 import { createSignedReadUrl } from "@repo/storage";
+import { preparePrivateImageModeration } from "@repo/storage/lib/image-moderation-input";
 
 import type {
 	ProviderResult,
@@ -65,6 +66,7 @@ type Store = Pick<
 	| "consumeVideoProviderEvents"
 >;
 export interface VideoSubmissionDependencies {
+	prepareImageModeration: typeof preparePrivateImageModeration;
 	store: Store;
 	safety: MediaSafetyAdapter;
 	moderateText: MediaSafetyAdapter["moderateText"];
@@ -92,6 +94,7 @@ function dependencies(
 	const referenceProvider = new KieSeedanceReferenceAdapter({ apiKey: env.KIE_API_KEY ?? "" });
 	return {
 		store: database,
+		prepareImageModeration: preparePrivateImageModeration,
 		safety: createConfiguredVideoSafetyAdapter(env),
 		moderateText: (input) => moderateVideoText(input, env),
 		provider: {
@@ -296,7 +299,10 @@ export async function reviewVideoInput(
 	};
 	if (needsImage && deps.safety.submitImage && deps.safety.retrieveImage && !taskId) {
 		if (review.imageSubmissionUncertain) return uncertainImage;
-		preparedAssetUrl = await deps.signRead(identity!.objectKey);
+		preparedAssetUrl =
+			deps.safety.imageInputProfile === "seeapi-nsfw-filter-2"
+				? await deps.prepareImageModeration(identity!)
+				: await deps.signRead(identity!.objectKey);
 		const callbackToken = readVideoSeeapiCallbackConfig(deps.env).ready
 			? crypto.randomUUID()
 			: undefined;

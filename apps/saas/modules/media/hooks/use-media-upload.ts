@@ -3,6 +3,7 @@
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { prepareImageUpload } from "../lib/prepare-image-upload";
 import {
 	uploadTemporaryReferenceFile,
 	type TemporaryReferenceReceipt,
@@ -38,6 +39,7 @@ const STORAGE_PREFIX = "media-upload:";
 export function useMediaUpload(
 	onChange?: (assetIds: string[], reference?: TemporaryReferenceReceipt) => void,
 	temporaryReference = false,
+	maximumImageBytes?: number,
 ) {
 	const [items, setItems] = useState<MediaUploadItem[]>([]);
 	const abortControllers = useRef(new Map<string, AbortController>());
@@ -86,8 +88,10 @@ export function useMediaUpload(
 			};
 			update(fingerprint, { status: "uploading", error: null });
 			try {
+				const preparedFile = await prepareImageUpload(file, maximumImageBytes);
+				assertActive();
 				if (temporaryReference) {
-					const receipt = await uploadTemporaryReferenceFile(file, controller.signal);
+					const receipt = await uploadTemporaryReferenceFile(preparedFile, controller.signal);
 					assertActive();
 					update(fingerprint, {
 						status: "uploaded",
@@ -103,15 +107,15 @@ export function useMediaUpload(
 				const session =
 					saved ??
 					(await orpcClient.media.createUploadSession({
-						contentType: file.type,
-						byteSize: file.size,
+						contentType: preparedFile.type,
+						byteSize: preparedFile.size,
 					}));
 				assertActive();
 				if ("method" in session && session.method === "PUT") {
 					const response = await fetch(session.uploadUrl, {
 						method: "PUT",
-						body: file,
-						headers: { "Content-Type": file.type },
+						body: preparedFile,
+						headers: { "Content-Type": preparedFile.type },
 						signal: controller.signal,
 					});
 					if (!response.ok) throw new Error("The image upload failed");
@@ -175,7 +179,7 @@ export function useMediaUpload(
 				if (isCurrent()) abortControllers.current.delete(fingerprint);
 			}
 		},
-		[update, temporaryReference],
+		[update, temporaryReference, maximumImageBytes],
 	);
 
 	const addFiles = useCallback(

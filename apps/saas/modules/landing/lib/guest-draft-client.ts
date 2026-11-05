@@ -104,6 +104,7 @@ export interface GuestDraftUploadInput {
 	productKey: GuestProductKey;
 	skuKey: ImageSkuKey;
 	file: File;
+	maximumBytes?: number;
 	prompt: string;
 	aspectRatio: ImageAspectRatio;
 	outputFormat?: ImageOutputFormat;

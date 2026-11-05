@@ -1,5 +1,21 @@
 # Changelog
 
+## 2026-11-05 — Christmas wallpaper presentation
+
+- Keep the shared editor header visible while scrolling. Make each homepage wallpaper preview respond to its own hover target and respect reduced motion.
+- Give the wallpaper editor and crop dialog dark evergreen/burgundy gradients, warm gold controls and subtle seasonal animation. Improve generation-status and recent-history text contrast.
+
+## 2026-11-05 — SeeAPI image moderation 2.0
+
+- Send new checks through the shared image moderation adapter using `nsfw-filter-2`, `threshold=0.5` and strict special-care checks.
+- Prepare a bounded static JPEG from PNG, JPEG and WebP originals before image review, fitting the entire image into SeeAPI 2.0's recommended size. Check source identity and prepared dimensions before submitting.
+- Read existing 1.0 tasks by their saved IDs and record the model actually returned in review evidence. Handle canceled, refunded and expired task responses as technical terminal outcomes.
+
+## 2026-11-05 — Truncated PNG uploads
+
+- Re-encode truncated PNG references that the browser can decode before creating guest or account upload requests. Recheck the resulting file size and keep the prepared bytes stable across retries.
+- Explain how to export a fresh image when browser decoding fails.
+
 ## 2026-11-04 — Christmas wallpaper maker
 
 - Add six Christmas styles, photo and scene modes, and phone/desktop composition presets to the shared image editor.

@@ -404,7 +404,7 @@
 				"empty": "Wähle ein nicht leeres Quellbild.",
 				"type": "Wähle ein JPEG-, PNG- oder WebP-Bild.",
 				"size": "Wähle ein Bild mit höchstens {megabytes, number} MB.",
-				"read": "Dieses Bild konnte nicht gelesen werden. Wähle eine andere Datei."
+				"read": "Dieses Bild konnte nicht gelesen werden. Exportiere in deiner Foto-App eine neue PNG- oder JPG-Datei oder wähle eine andere Datei."
 			},
 			"help": {
 				"promptGuide": "Prompt-Anleitung lesen",

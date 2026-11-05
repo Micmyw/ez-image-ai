@@ -53,7 +53,7 @@ describe("claimed draft asset verification", () => {
 				Response.json({
 					id: `review_${assetId}`,
 					object: "inference",
-					model: "nsfw-filter",
+					model: "nsfw-filter-2",
 					endpoint: "image-moderation",
 					provider: "seeapi",
 					status: "succeeded",
@@ -1263,7 +1263,7 @@ async function completedImageFixture() {
 		return Response.json({
 			id: taskId,
 			object: "inference",
-			model: "nsfw-filter",
+			model: "nsfw-filter-2",
 			endpoint: "image-moderation",
 			provider: "seeapi",
 			status: "succeeded",

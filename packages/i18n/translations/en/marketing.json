@@ -404,7 +404,7 @@
 				"empty": "Choose a non-empty source image.",
 				"type": "Choose a JPEG, PNG, or WebP image.",
 				"size": "Choose an image that is {megabytes, number} MB or smaller.",
-				"read": "We could not read that image. Choose another file."
+				"read": "We could not read that image. Export a new PNG or JPG from your photo app, or choose another file."
 			},
 			"help": {
 				"promptGuide": "Read the prompt guide",

@@ -105,7 +105,7 @@ describe("image moderation callbacks through real PostgreSQL and Workflow pollin
 			return Response.json({
 				id: taskId,
 				object: "inference",
-				model: "nsfw-filter",
+				model: "nsfw-filter-2",
 				endpoint: "image-moderation",
 				provider: "seeapi",
 				status,

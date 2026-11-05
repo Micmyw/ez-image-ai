@@ -404,7 +404,7 @@
 				"empty": "Elige una imagen de origen que no esté vacía.",
 				"type": "Elige una imagen JPEG, PNG o WebP.",
 				"size": "Elige una imagen de {megabytes, number} MB o menos.",
-				"read": "No pudimos leer esa imagen. Elige otro archivo."
+				"read": "No pudimos leer esa imagen. Exporta un nuevo PNG o JPG desde tu aplicación de fotos, o elige otro archivo."
 			},
 			"help": {
 				"promptGuide": "Leer la guía de instrucciones",

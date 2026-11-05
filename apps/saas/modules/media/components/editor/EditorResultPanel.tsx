@@ -132,7 +132,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 
 	return (
 		<section
-			className="min-h-80 border-slate-200 p-5 shadow-sm md:p-6 rounded-2xl border bg-background"
+			className="min-h-80 border-slate-200 p-5 shadow-sm md:p-6 rounded-2xl border bg-background text-foreground"
 			aria-live="polite"
 		>
 			<div className="gap-3 flex flex-wrap items-center justify-between">

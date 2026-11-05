@@ -107,6 +107,7 @@ export interface ModerationSubmission {
 	};
 }
 export interface MediaSafetyAdapter {
+	imageInputProfile?: "seeapi-nsfw-filter-2";
 	moderateText(input: ModerateTextInput): Promise<ModerationDecision>;
 	moderateImage(input: ModerateAssetInput): Promise<ModerationDecision>;
 	submitImage?(input: SubmitVideoInput): Promise<ModerationSubmission>;

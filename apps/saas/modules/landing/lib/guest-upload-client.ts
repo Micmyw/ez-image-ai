@@ -5,6 +5,7 @@ import type {
 	ImageSkuKey,
 } from "@repo/config/client";
 
+import { prepareImageUpload } from "../../media/lib/prepare-image-upload";
 import type {
 	GuestDraftHandoff,
 	GuestDraftUploadInput,
@@ -51,14 +52,15 @@ export async function uploadGuestDraft(
 ): Promise<GuestDraftHandoff> {
 	const prompt = input.prompt.trim();
 	if (!prompt) throw new Error("PROMPT_REQUIRED");
-	const sha256 = await sha256File(input.file);
+	const file = await prepareImageUpload(input.file, input.maximumBytes);
+	const sha256 = await sha256File(file);
 	const requestFingerprint = JSON.stringify([
 		input.capabilityVersion,
 		input.productKey,
 		input.skuKey,
 		sha256,
-		input.file.type,
-		input.file.size,
+		file.type,
+		file.size,
 		prompt,
 		input.aspectRatio,
 		input.outputFormat ?? null,
@@ -73,8 +75,8 @@ export async function uploadGuestDraft(
 			{
 				capabilityVersion: input.capabilityVersion,
 				productKey: input.productKey,
-				contentType: input.file.type as LandingImageContentType,
-				bytes: input.file.size,
+				contentType: file.type as LandingImageContentType,
+				bytes: file.size,
 				sha256,
 				turnstileToken: input.turnstileToken,
 			},
@@ -87,7 +89,7 @@ export async function uploadGuestDraft(
 	if (checkpoint.handoff) return checkpoint.handoff;
 	if (!checkpoint.uploaded) {
 		input.onStage?.("uploading");
-		await (options.uploadFile ?? uploadGuestFile)(intent.uploadUrl, input.file, input.onProgress);
+		await (options.uploadFile ?? uploadGuestFile)(intent.uploadUrl, file, input.onProgress);
 		checkpoint = { ...checkpoint, uploaded: true };
 		input.onCheckpoint?.(checkpoint);
 	}
