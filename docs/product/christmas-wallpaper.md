@@ -22,6 +22,8 @@ The right screen preview automatically opens each newly selected ready account o
 
 Original/result comparison defaults to two independent panels that fit each complete image at its own proportions. Desktop places the original on the left and the result on the right, while phones stack them vertically. The optional Slider view retains the opaque original canvas, visible divider handle, keyboard control and full-original/full-result buttons. Switching views preserves the loaded output image.
 
+Clicking an image opens its complete preview in a screen-sized dialog. Slider mode exposes the same action through the Original and Result magnifier buttons. Escape, the close button, the backdrop or clicking the enlarged preview closes it. The dialog follows the current authorized image source and disappears when that source becomes unavailable.
+
 Local result-preview verification on 2026-11-05: 48 focused unit checks, two Christmas browser checks and the 11 existing result-preview stability cases passed. The browser checks use real workbench/result/crop components with local account, guest and network fixtures; they cover crop persistence, PNG dimensions, unstretched preview geometry, account access denial, expiry and 1440/390/320px layouts. These checks do not submit a real generation or certify deployment.
 
 The page is a distinct wallpaper output workflow, not a parallel Photo Ideas/Effects catalog. Its URL remains stable after the holiday. Publication, deployment and live generation acceptance are separate from local implementation checks.

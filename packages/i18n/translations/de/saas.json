@@ -1980,6 +1980,9 @@
 				"showOriginal": "Original anzeigen",
 				"sideBySide": "Nebeneinander",
 				"slider": "Schieberegler",
+				"enlargeOriginal": "Original vergrößern",
+				"enlargeResult": "Ergebnis vergrößern",
+				"close": "Vergrößertes Bild schließen",
 				"showResult": "Ergebnis anzeigen",
 				"before": "Original",
 				"after": "Ergebnis"

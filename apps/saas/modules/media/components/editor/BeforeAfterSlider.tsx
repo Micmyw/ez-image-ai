@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronsLeftRightIcon } from "lucide-react";
+import { Dialog, DialogContent, DialogTitle } from "@repo/ui/components/dialog";
+import { ChevronsLeftRightIcon, ZoomInIcon } from "lucide-react";
 import { useState, type ReactEventHandler } from "react";
 
 export function BeforeAfterSlider({
@@ -12,6 +13,9 @@ export function BeforeAfterSlider({
 	controlLabel,
 	sideBySideLabel,
 	sliderLabel,
+	enlargeOriginalLabel,
+	enlargeResultLabel,
+	closeLabel,
 	showOriginalLabel,
 	showResultLabel,
 	beforeLabel,
@@ -28,6 +32,9 @@ export function BeforeAfterSlider({
 	controlLabel: string;
 	sideBySideLabel: string;
 	sliderLabel: string;
+	enlargeOriginalLabel: string;
+	enlargeResultLabel: string;
+	closeLabel: string;
 	showOriginalLabel: string;
 	showResultLabel: string;
 	beforeLabel: string;
@@ -39,9 +46,12 @@ export function BeforeAfterSlider({
 	const [position, setPosition] = useState(50);
 	const [view, setView] = useState<"side-by-side" | "slider">("side-by-side");
 	const [failedBeforeUrl, setFailedBeforeUrl] = useState<string>();
+	const [enlarged, setEnlarged] = useState<"before" | "after" | null>(null);
 	const canCompare = Boolean(beforeUrl && beforeUrl !== failedBeforeUrl);
 	const sideBySide = canCompare && view === "side-by-side";
 	const sliding = canCompare && view === "slider";
+	const enlargedUrl =
+		enlarged === "before" && canCompare ? beforeUrl : enlarged === "after" ? afterUrl : undefined;
 
 	return (
 		<div className={canCompare ? "space-y-3" : undefined}>
@@ -56,13 +66,18 @@ export function BeforeAfterSlider({
 				}
 			>
 				{/* Keep the output and its parent mounted through loading and view changes. */}
-				<div
+				<button
+					type="button"
+					aria-label={enlargeResultLabel}
+					aria-haspopup="dialog"
+					tabIndex={sliding ? -1 : 0}
+					onClick={() => setEnlarged("after")}
 					className={
 						sideBySide
-							? "min-w-0 sm:h-[min(70vh,32rem)] relative order-2 overflow-hidden rounded-2xl border bg-muted"
+							? "min-w-0 sm:h-[min(70vh,32rem)] relative order-2 cursor-zoom-in overflow-hidden rounded-2xl border bg-muted focus-visible:ring-2 focus-visible:ring-ring"
 							: sliding
 								? "inset-0 absolute"
-								: undefined
+								: "block w-full cursor-zoom-in rounded-xl focus-visible:ring-2 focus-visible:ring-ring"
 					}
 				>
 					<img
@@ -79,18 +94,24 @@ export function BeforeAfterSlider({
 									: "mx-auto max-h-[42rem] w-full rounded-xl object-contain"
 						}
 					/>
-					{canCompare && (
-						<span className="top-3 right-3 px-2 py-1 text-xs absolute rounded-full bg-background/90">
+					{sideBySide && (
+						<span className="top-3 right-3 px-2 py-1 text-xs gap-1 absolute inline-flex items-center rounded-full bg-background/90">
 							{afterLabel}
+							<ZoomInIcon className="size-3" aria-hidden="true" />
 						</span>
 					)}
-				</div>
+				</button>
 				{canCompare && (
 					<>
-						<div
+						<button
+							type="button"
+							aria-label={enlargeOriginalLabel}
+							aria-haspopup="dialog"
+							tabIndex={sliding ? -1 : 0}
+							onClick={() => setEnlarged("before")}
 							className={
 								sideBySide
-									? "min-w-0 sm:h-[min(70vh,32rem)] relative order-1 overflow-hidden rounded-2xl border bg-muted"
+									? "min-w-0 sm:h-[min(70vh,32rem)] relative order-1 cursor-zoom-in overflow-hidden rounded-2xl border bg-muted focus-visible:ring-2 focus-visible:ring-ring"
 									: "inset-0 absolute overflow-hidden bg-muted"
 							}
 							style={sliding ? { clipPath: `inset(0 ${100 - position}% 0 0)` } : undefined}
@@ -106,12 +127,35 @@ export function BeforeAfterSlider({
 										: "size-full object-contain"
 								}
 							/>
-							<span className="top-3 left-3 px-2 py-1 text-xs absolute rounded-full bg-background/90">
-								{beforeLabel}
-							</span>
-						</div>
+							{sideBySide && (
+								<span className="top-3 left-3 px-2 py-1 text-xs gap-1 absolute inline-flex items-center rounded-full bg-background/90">
+									{beforeLabel}
+									<ZoomInIcon className="size-3" aria-hidden="true" />
+								</span>
+							)}
+						</button>
 						{sliding && (
 							<>
+								<button
+									type="button"
+									aria-label={enlargeOriginalLabel}
+									aria-haspopup="dialog"
+									onClick={() => setEnlarged("before")}
+									className="left-3 top-3 gap-1 px-2 py-1 text-xs absolute z-10 inline-flex items-center rounded-full bg-background/90 focus-visible:ring-2 focus-visible:ring-ring"
+								>
+									{beforeLabel}
+									<ZoomInIcon className="size-3" aria-hidden="true" />
+								</button>
+								<button
+									type="button"
+									aria-label={enlargeResultLabel}
+									aria-haspopup="dialog"
+									onClick={() => setEnlarged("after")}
+									className="right-3 top-3 gap-1 px-2 py-1 text-xs absolute z-10 inline-flex items-center rounded-full bg-background/90 focus-visible:ring-2 focus-visible:ring-ring"
+								>
+									{afterLabel}
+									<ZoomInIcon className="size-3" aria-hidden="true" />
+								</button>
 								<div
 									className="inset-y-0 w-0.5 bg-white shadow pointer-events-none absolute"
 									style={{ left: `${position}%` }}
@@ -191,6 +235,38 @@ export function BeforeAfterSlider({
 					)}
 				</fieldset>
 			)}
+			<Dialog
+				open={Boolean(enlargedUrl)}
+				onOpenChange={(open) => {
+					if (!open) setEnlarged(null);
+				}}
+			>
+				{enlargedUrl && (
+					<DialogContent
+						className="border-white/15 bg-black/95 p-4 text-white md:w-[calc(100vw-2rem)] h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] max-w-none grid-rows-[auto_minmax(0,1fr)]"
+						overlayProps={{ className: "bg-black/80" }}
+						closeLabel={closeLabel}
+						aria-describedby={undefined}
+					>
+						<DialogTitle>{enlarged === "before" ? beforeLabel : afterLabel}</DialogTitle>
+						<button
+							type="button"
+							className="min-h-0 w-full cursor-zoom-out"
+							aria-label={closeLabel}
+							onClick={() => setEnlarged(null)}
+						>
+							<img
+								data-clarity-mask="true"
+								src={enlargedUrl}
+								alt={enlarged === "before" ? beforeAlt : (outputOnlyAlt ?? afterAlt)}
+								className="size-full object-contain"
+								referrerPolicy="no-referrer"
+								onError={() => setEnlarged(null)}
+							/>
+						</button>
+					</DialogContent>
+				)}
+			</Dialog>
 		</div>
 	);
 }

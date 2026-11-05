@@ -404,9 +404,23 @@ test("Christmas screen preview follows ready results and preserves applied crops
 			expect(originalBounds.x + originalBounds.width).toBeLessThan(resultBounds.x);
 		else expect(originalBounds.y + originalBounds.height).toBeLessThan(resultBounds.y);
 		await comparison.screenshot({ path: testInfo.outputPath(`comparison-complete-${width}.png`) });
+		await comparison.getByRole("button", { name: "Enlarge original", exact: true }).click();
+		const enlarged = page.getByRole("dialog");
+		await expect(enlarged.locator("img")).toHaveAttribute(
+			"src",
+			"/images/christmas/fireplace.webp",
+		);
+		await expect(enlarged.locator("img")).toHaveCSS("object-fit", "contain");
+		await enlarged.screenshot({ path: testInfo.outputPath(`comparison-enlarged-${width}.png`) });
+		await page.keyboard.press("Escape");
+		await expect(enlarged).toHaveCount(0);
+		await comparison.getByRole("button", { name: "Enlarge result", exact: true }).click();
+		await expect(enlarged.locator("img")).toHaveAttribute("src", "/images/christmas/street.webp");
+		await enlarged.locator("img").click();
+		await expect(enlarged).toHaveCount(0);
 	}
 	await fixture.getByRole("button", { name: "Slider", exact: true }).click();
-	const originalLayer = comparison.locator("div[style*='clip-path']");
+	const originalLayer = comparison.locator("[style*='clip-path']");
 	await expect(originalLayer).toHaveCSS(
 		"background-color",
 		await comparison.evaluate((node) => getComputedStyle(node).backgroundColor),
@@ -462,12 +476,14 @@ test("Christmas screen preview follows ready results and preserves applied crops
 	await expect(picture).toHaveAttribute("src", "/images/christmas/pink.webp");
 	await preview.getByRole("button", { name: "Your result", exact: true }).click();
 	await expect(picture).toHaveAttribute("src", "/images/christmas/street.webp");
-	expect(
-		await picture.evaluate((node: HTMLImageElement) => {
-			const bounds = node.getBoundingClientRect();
-			return bounds.width / bounds.height / (node.naturalWidth / node.naturalHeight);
-		}),
-	).toBeCloseTo(1, 2);
+	await expect
+		.poll(() =>
+			picture.evaluate((node: HTMLImageElement) => {
+				const bounds = node.getBoundingClientRect();
+				return bounds.width / bounds.height / (node.naturalWidth / node.naturalHeight);
+			}),
+		)
+		.toBeCloseTo(1, 2);
 	await preview.getByRole("button", { name: "Preview & crop" }).click();
 	await expect(dialog.getByLabel("Screen shape")).toHaveValue("desktop");
 	await expect(dialog.getByLabel("Zoom", { exact: true })).toHaveValue("1.5");
@@ -487,8 +503,11 @@ test("Christmas screen preview follows ready results and preserves applied crops
 		"aspect-ratio",
 		"1080 / 1920",
 	);
+	await comparison.getByRole("button", { name: "Enlarge original", exact: true }).last().click();
+	await expect(page.getByRole("dialog")).toBeVisible();
 	await setState({ denied: true });
 	await page.evaluate(() => (window as any).wallpaperFixture.invalidate());
+	await expect(page.getByRole("dialog")).toHaveCount(0);
 	await expect(preview.locator("[role=alert]")).toBeVisible();
 	await expect(picture).toHaveCount(0);
 	await setState({ denied: false, owner: "owner-2" });

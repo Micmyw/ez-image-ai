@@ -3,6 +3,7 @@
 ## 2026-11-05 — Christmas preview controls and comparison fixes
 
 - Default image comparisons to complete images in separate panels, side by side on desktop and stacked on phones. Offer the slider as an optional view for aligned images.
+- Open original and result images in a screen-sized viewer by clicking the image or its magnifier. Close with Escape, the close button or a click on the expanded preview.
 - Give the original image an opaque comparison canvas and a visible drag handle so portrait and landscape images display cleanly at their own proportions.
 - Add Your result and Style example preview controls. Selecting a style opens its example, and returning to the generated result restores its applied crop.
 - Extend the background snow through the full Christmas page, including the style gallery and FAQ.

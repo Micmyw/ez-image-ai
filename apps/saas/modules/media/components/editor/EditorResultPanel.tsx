@@ -397,6 +397,9 @@ function SignedComparison({
 			controlLabel={t("compare.control")}
 			sideBySideLabel={t("compare.sideBySide")}
 			sliderLabel={t("compare.slider")}
+			enlargeOriginalLabel={t("compare.enlargeOriginal")}
+			enlargeResultLabel={t("compare.enlargeResult")}
+			closeLabel={t("compare.close")}
 			showOriginalLabel={t("compare.showOriginal")}
 			showResultLabel={t("compare.showResult")}
 			beforeLabel={t("compare.before")}

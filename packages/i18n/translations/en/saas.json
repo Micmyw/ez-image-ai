@@ -1980,6 +1980,9 @@
 				"showOriginal": "Show original",
 				"sideBySide": "Side by side",
 				"slider": "Slider",
+				"enlargeOriginal": "Enlarge original",
+				"enlargeResult": "Enlarge result",
+				"close": "Close enlarged image",
 				"showResult": "Show result",
 				"before": "Original",
 				"after": "Result"

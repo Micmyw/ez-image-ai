@@ -1980,6 +1980,9 @@
 				"showOriginal": "Mostrar original",
 				"sideBySide": "Lado a lado",
 				"slider": "Deslizador",
+				"enlargeOriginal": "Ampliar original",
+				"enlargeResult": "Ampliar resultado",
+				"close": "Cerrar imagen ampliada",
 				"showResult": "Mostrar resultado",
 				"before": "Original",
 				"after": "Resultado"

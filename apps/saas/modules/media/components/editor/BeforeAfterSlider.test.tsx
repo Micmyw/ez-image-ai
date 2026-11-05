@@ -7,6 +7,8 @@ const sliderState = vi.hoisted(() => ({
 	setPosition: vi.fn(),
 	view: "side-by-side" as "side-by-side" | "slider",
 	setView: vi.fn(),
+	enlarged: null as "before" | "after" | null,
+	setEnlarged: vi.fn(),
 	failedBeforeUrl: undefined as string | undefined,
 	setFailedBeforeUrl: vi.fn(),
 }));
@@ -20,9 +22,18 @@ vi.mock("react", async (importOriginal) => {
 				? [sliderState.position, sliderState.setPosition]
 				: initial === "side-by-side"
 					? [sliderState.view, sliderState.setView]
-					: [sliderState.failedBeforeUrl, sliderState.setFailedBeforeUrl],
+					: initial === null
+						? [sliderState.enlarged, sliderState.setEnlarged]
+						: [sliderState.failedBeforeUrl, sliderState.setFailedBeforeUrl],
 	};
 });
+
+vi.mock("@repo/ui/components/dialog", () => ({
+	Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
+		open ? children : null,
+	DialogContent: ({ children }: { children: React.ReactNode }) => <dialog open>{children}</dialog>,
+	DialogTitle: ({ children }: { children: React.ReactNode }) => <h2>{children}</h2>,
+}));
 
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
 
@@ -30,6 +41,10 @@ describe("BeforeAfterSlider", () => {
 	beforeEach(() => {
 		sliderState.position = 50;
 		sliderState.view = "side-by-side";
+		sliderState.enlarged = null;
+		sliderState.setEnlarged.mockImplementation((value) => {
+			sliderState.enlarged = value;
+		});
 		sliderState.setView.mockImplementation((view) => {
 			sliderState.view = view;
 		});
@@ -42,6 +57,17 @@ describe("BeforeAfterSlider", () => {
 		sliderState.setPosition.mockImplementation((next: number | ((current: number) => number)) => {
 			sliderState.position = typeof next === "function" ? next(sliderState.position) : next;
 		});
+	});
+
+	it("opens the selected image and removes an unavailable original from the enlarged view", () => {
+		const original = findElements(BeforeAfterSlider(sliderProps), "button").find(
+			(button) => (button.props as { "aria-label"?: string })["aria-label"] === "Enlarge original",
+		) as React.ReactElement<{ onClick(): void }>;
+		original.props.onClick();
+		expect(renderSlider()).toContain("<dialog");
+		expect(sliderState.enlarged).toBe("before");
+		sliderState.failedBeforeUrl = sliderProps.beforeUrl;
+		expect(renderSlider()).not.toContain("<dialog");
 	});
 
 	it("provides a keyboard slider and explicit original/result alternatives", () => {
@@ -95,9 +121,9 @@ describe("BeforeAfterSlider", () => {
 
 		expect(overlayStart).toBeGreaterThan(-1);
 		expect(markup.indexOf('alt="Edited result image"')).toBeLessThan(overlayStart);
-		expect(markup.indexOf(">Result</span>")).toBeLessThan(overlayStart);
 		expect(overlay).toContain('alt="Original source image"');
-		expect(overlay).toContain(">Original</span>");
+		expect(markup).toContain('aria-label="Enlarge original"');
+		expect(markup).toContain('aria-label="Enlarge result"');
 		expect(overlay).not.toContain('alt="Edited result image"');
 		expect(overlay).not.toContain(">Result</span>");
 	});
@@ -158,6 +184,9 @@ const sliderProps = {
 	controlLabel: "Compare original and edited image",
 	sideBySideLabel: "Side by side",
 	sliderLabel: "Slider",
+	enlargeOriginalLabel: "Enlarge original",
+	enlargeResultLabel: "Enlarge result",
+	closeLabel: "Close enlarged image",
 	showOriginalLabel: "Show original",
 	showResultLabel: "Show result",
 	beforeLabel: "Original",
@@ -170,9 +199,9 @@ function renderSlider() {
 
 function clippedLayer(markup: string) {
 	const styleStart = markup.indexOf('style="clip-path:');
-	const layerStart = markup.lastIndexOf("<div", styleStart);
+	const layerStart = markup.lastIndexOf("<button", styleStart);
 	const contentStart = markup.indexOf(">", styleStart) + 1;
-	const layerEnd = markup.indexOf("</div>", contentStart);
+	const layerEnd = markup.indexOf("</button>", contentStart);
 	return markup.slice(layerStart, layerEnd);
 }
 
