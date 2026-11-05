@@ -314,3 +314,13 @@ describe("uncertain generation attempt diagnostics", () => {
 		);
 	});
 });
+
+describe("toNonNegativeDurationMs", () => {
+	it("clamps clock-skew negative waits to zero and preserves null", async () => {
+		const { toNonNegativeDurationMs } = await import("./admin-diagnostics");
+		expect(toNonNegativeDurationMs(-3n)).toBe(0);
+		expect(toNonNegativeDurationMs(-12)).toBe(0);
+		expect(toNonNegativeDurationMs(80_000n)).toBe(80_000);
+		expect(toNonNegativeDurationMs(null)).toBeNull();
+	});
+});
