@@ -643,6 +643,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		const originalPreviewUrl = await page
 			.getByRole("img", { name: /original source image/i })
 			.getAttribute("src");
+		await page.getByRole("button", { name: "Slider", exact: true }).click();
 		const comparison = page.getByRole("slider", {
 			name: /compare original and edited image/i,
 		});
