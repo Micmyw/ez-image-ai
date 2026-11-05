@@ -14,7 +14,7 @@ import {
 	wallpaperImage,
 	type WallpaperSettings,
 } from "../lib/wallpaper";
-import { WallpaperResultProvider } from "../lib/wallpaper-result-context";
+import { useWallpaperPreview, WallpaperResultProvider } from "../lib/wallpaper-result-context";
 import { WallpaperScreenPreview } from "./WallpaperScreenPreview";
 
 export function ChristmasWorkbench({ children }: { children: ReactNode }) {
@@ -46,6 +46,7 @@ function Workbench({
 }) {
 	const t = useTranslations("christmas");
 	const editor = useToolPrompt();
+	const { selectSource } = useWallpaperPreview();
 	const [error, setError] = useState(false);
 	const lastApplied = useRef(buildChristmasPrompt(DEFAULT_WALLPAPER_SETTINGS));
 	const selected = CHRISTMAS_STYLES.find((style) => style.id === settings.style)!;
@@ -171,6 +172,7 @@ function Workbench({
 								aria-pressed={settings.style === style.id}
 								onClick={() => {
 									if (apply({ ...settings, style: style.id })) {
+										selectSource("example");
 										document.getElementById("image-editor")?.scrollIntoView({
 											behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
 												? "instant"

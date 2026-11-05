@@ -78,6 +78,12 @@ describe("BeforeAfterSlider", () => {
 		expect(overlay).not.toContain(">Result</span>");
 	});
 
+	it("gives the original an opaque canvas so mismatched image ratios cannot bleed through", () => {
+		const overlay = clippedLayer(renderSlider());
+		expect(overlay).toContain("bg-muted");
+		expect(overlay).toContain("object-contain");
+	});
+
 	it("falls back to the output when the original image fails and accepts a fresh original URL", () => {
 		const tree = BeforeAfterSlider(sliderProps);
 		const original = findElements(tree, "img").find(

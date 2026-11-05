@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-05 — Christmas preview controls and comparison fixes
+
+- Give the original image an opaque comparison canvas and a visible drag handle so portrait and landscape images display cleanly at their own proportions.
+- Add Your result and Style example preview controls. Selecting a style opens its example, and returning to the generated result restores its applied crop.
+- Extend the background snow through the full Christmas page, including the style gallery and FAQ.
+
 ## 2026-11-05 — Prompt-based image editor wording
 
 - Describe the homepage as an AI image editor and prompt photo editor across its title, sharing metadata, structured data and highlighted heading.

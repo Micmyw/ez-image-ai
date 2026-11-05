@@ -30,12 +30,10 @@
 }
 .christmas-snow {
 	position: absolute;
-	inset: 0 0 auto;
-	height: min(1600px, 100%);
+	inset: 0;
 	overflow: hidden;
 	z-index: -1;
 	pointer-events: none;
-	mask-image: linear-gradient(#000 0 75%, transparent);
 }
 .christmas-snow::before,
 .christmas-snow::after {
@@ -293,6 +291,33 @@
 }
 .christmas-preview-heading span:last-child {
 	color: var(--xmas-muted);
+}
+.christmas-preview-sources {
+	display: flex;
+	width: 100%;
+	min-width: 0;
+	gap: 4px;
+	margin-top: 8px;
+	padding: 4px;
+	border: 1px solid var(--xmas-line);
+	border-radius: 10px;
+	background: #17151d66;
+}
+.christmas-preview-sources button {
+	flex: 1;
+	padding: 8px;
+	border-radius: 6px;
+	color: var(--xmas-muted);
+	font-size: 12px;
+	cursor: pointer;
+}
+.christmas-preview-sources button[aria-pressed="true"] {
+	background: var(--xmas-accent);
+	color: #261b12;
+}
+.christmas-preview-sources button:focus-visible {
+	outline: 2px solid var(--xmas-accent);
+	outline-offset: 2px;
 }
 .christmas-device {
 	position: relative;

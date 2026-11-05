@@ -18,7 +18,7 @@ export const useFixture = () => useSyncExternalStore((cb) => { listeners.add(cb)
 window.wallpaperFixture = { set(next) { state = { ...state, ...next }; listeners.forEach(cb => cb()); } };
 export function job(s) { return {
   id: s.asset, productKey: "image-nano-banana-2-lite", skuKey: "nano-banana-2-lite-1k", aspectRatio: "9:16",
-  status: s.phase === "ready" ? "SUCCEEDED" : "RUNNING", input: { kind: "text-to-image" }, inputAssets: [],
+  status: s.phase === "ready" ? "SUCCEEDED" : "RUNNING", input: { kind: "image-to-image" }, inputAssets: [{ id: "fireplace", mimeType: "image/webp" }],
   assets: s.phase === "ready" ? [{ id: s.asset, mimeType: "image/webp", contentVersion: "1", visibleUntil: s.expiresAt, preview: { url: "/images/christmas/" + s.asset + ".webp", expiresAt: s.expiresAt } }] : [],
   creditsReserved: "5", creditsCharged: "5", creditsReleased: "0", canCancel: false, canRetry: false,
   createdAt: "2026-11-05T00:00:00Z", updatedAt: "2026-11-05T00:00:01Z"

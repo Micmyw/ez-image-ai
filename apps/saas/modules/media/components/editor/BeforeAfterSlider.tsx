@@ -1,5 +1,6 @@
 "use client";
 
+import { ChevronsLeftRightIcon } from "lucide-react";
 import { useState, type ReactEventHandler } from "react";
 
 export function BeforeAfterSlider({
@@ -40,7 +41,7 @@ export function BeforeAfterSlider({
 			<div
 				className={
 					canCompare
-						? "sm:aspect-[4/3] relative aspect-square overflow-hidden rounded-2xl border bg-muted"
+						? "sm:aspect-[4/3] relative aspect-square overflow-hidden rounded-2xl border bg-muted focus-within:ring-2 focus-within:ring-ring"
 						: undefined
 				}
 			>
@@ -63,7 +64,7 @@ export function BeforeAfterSlider({
 							{afterLabel}
 						</span>
 						<div
-							className="inset-0 absolute overflow-hidden"
+							className="inset-0 absolute overflow-hidden bg-muted"
 							style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
 						>
 							<img
@@ -81,7 +82,11 @@ export function BeforeAfterSlider({
 							className="inset-y-0 w-0.5 bg-white shadow pointer-events-none absolute"
 							style={{ left: `${position}%` }}
 							aria-hidden="true"
-						/>
+						>
+							<span className="size-8 shadow absolute top-1/2 left-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-background text-foreground">
+								<ChevronsLeftRightIcon className="size-4" />
+							</span>
+						</div>
 						<input
 							type="range"
 							min={0}
@@ -101,6 +106,7 @@ export function BeforeAfterSlider({
 				<div className="gap-2 flex flex-wrap">
 					<button
 						type="button"
+						aria-pressed={position === 100}
 						onClick={() => {
 							setPosition(100);
 							onCompared?.();
@@ -111,6 +117,7 @@ export function BeforeAfterSlider({
 					</button>
 					<button
 						type="button"
+						aria-pressed={position === 0}
 						onClick={() => {
 							setPosition(0);
 							onCompared?.();

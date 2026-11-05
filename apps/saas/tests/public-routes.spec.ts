@@ -230,6 +230,11 @@ test("Christmas wallpaper presets preserve photos and export clean crops at actu
 	const snow = page.locator(".christmas-snow");
 	await expect(snow).toHaveAttribute("aria-hidden", "true");
 	await expect(snow).toHaveCSS("pointer-events", "none");
+	await expect(snow).toHaveCSS("mask-image", "none");
+	expect(await snow.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(
+		await page.locator(".christmas-page").evaluate((node) => node.getBoundingClientRect().height),
+		0,
+	);
 	const snowLayers = await snow.evaluate((node) =>
 		["::before", "::after"].map((pseudo) => {
 			const style = getComputedStyle(node, pseudo);
@@ -285,6 +290,9 @@ test("Christmas wallpaper presets preserve photos and export clean crops at actu
 		if (width === 1920)
 			await page.screenshot({ path: testInfo.outputPath("christmas-snow-desktop.png") });
 	}
+	await page.locator(".christmas-faq").scrollIntoViewIfNeeded();
+	expect(await snow.evaluate((node) => node.getBoundingClientRect().bottom)).toBeGreaterThan(0);
+	await page.screenshot({ path: testInfo.outputPath("christmas-snow-bottom-mobile.png") });
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await page.getByRole("button", { name: "Try preview & crop" }).click();
 	const dialog = page.getByRole("dialog");
@@ -330,6 +338,16 @@ test("Christmas screen preview follows ready results and preserves applied crops
 }, testInfo) => {
 	test.setTimeout(120_000);
 	await mockPublicImageAvailability(page, ["auto", "1:1", "9:16", "16:9"]);
+	// Exercise portrait/landscape comparison with local, pre-existing artwork.
+	await page.route("**/images/christmas/street.webp", (route) =>
+		route.fulfill({
+			path: path.resolve(
+				__dirname,
+				"../public/images/landing/variants/case-mediterranean-room-960.5746aa7c4de00985.webp",
+			),
+			contentType: "image/webp",
+		}),
+	);
 	await page.goto("/christmas-wallpaper");
 	await expect(
 		page.locator(".christmas-editor").getByRole("button", { name: "Desktop", exact: true }),
@@ -358,9 +376,57 @@ test("Christmas screen preview follows ready results and preserves applied crops
 	await expect(preview).toHaveAttribute("data-wallpaper-source", "result");
 	await expect(picture).toHaveAttribute("src", "/images/christmas/street.webp");
 	await expect(preview).toContainText("Your result");
+	const comparison = fixture.locator(".christmas-editor input[type=range]").locator("..");
+	await expect(comparison.locator("img")).toHaveCount(2);
+	await expect
+		.poll(() =>
+			comparison
+				.locator("img")
+				.evaluateAll((images) =>
+					images.every(
+						(image) =>
+							(image as HTMLImageElement).complete && (image as HTMLImageElement).naturalWidth > 0,
+					),
+				),
+		)
+		.toBe(true);
+	const originalLayer = comparison.locator("div[style*='clip-path']");
+	await expect(originalLayer).toHaveCSS(
+		"background-color",
+		await comparison.evaluate((node) => getComputedStyle(node).backgroundColor),
+	);
+	for (const width of [1440, 390, 320]) {
+		await page.setViewportSize({ width, height: 900 });
+		const handle = comparison.locator("div[aria-hidden=true] > span");
+		const frameBounds = await comparison.boundingBox();
+		const handleBounds = await handle.boundingBox();
+		expect(handleBounds!.y + handleBounds!.height / 2).toBeCloseTo(
+			frameBounds!.y + frameBounds!.height / 2,
+			0,
+		);
+		await comparison.screenshot({
+			path: testInfo.outputPath(`comparison-mixed-ratios-${width}.png`),
+		});
+	}
+	await page.setViewportSize({ width: 1440, height: 900 });
+	await fixture.getByRole("button", { name: "Show original", exact: true }).click();
+	await expect(originalLayer).toHaveCSS("clip-path", "inset(0px 0% 0px 0px)");
+	await comparison.screenshot({ path: testInfo.outputPath("comparison-full-original.png") });
+	await fixture.getByRole("button", { name: "Show result", exact: true }).click();
+	await expect(originalLayer).toHaveCSS("clip-path", "inset(0px 100% 0px 0px)");
+	await comparison.screenshot({ path: testInfo.outputPath("comparison-full-result.png") });
 	await fixture.locator(".christmas-style-grid article").nth(4).getByRole("button").click();
+	await expect(preview).toHaveAttribute("data-wallpaper-source", "example");
+	await expect(picture).toHaveAttribute("src", "/images/christmas/pink.webp");
+	await expect(preview).toContainText("Pink Christmas");
+	await preview.screenshot({ path: testInfo.outputPath("christmas-selected-example.png") });
+	await preview.getByRole("button", { name: "Your result", exact: true }).click();
 	await expect(picture).toHaveAttribute("src", "/images/christmas/street.webp");
 	await expect(preview).not.toContainText("Pink Christmas");
+	// Reselecting the already active style must also open its example.
+	await fixture.locator(".christmas-style-grid article").nth(4).getByRole("button").click();
+	await expect(picture).toHaveAttribute("src", "/images/christmas/pink.webp");
+	await preview.getByRole("button", { name: "Your result", exact: true }).click();
 	await preview.getByRole("button", { name: "Preview & crop" }).click();
 	const dialog = page.getByRole("dialog");
 	await expect(dialog.getByRole("button", { name: "Apply to preview" })).toBeEnabled();
@@ -376,6 +442,10 @@ test("Christmas screen preview follows ready results and preserves applied crops
 	);
 	await expect(preview.locator(".christmas-desktop-icons")).toHaveCount(0);
 	await expect(picture).toHaveCSS("position", "absolute");
+	await preview.getByRole("button", { name: "Style example", exact: true }).click();
+	await expect(picture).toHaveAttribute("src", "/images/christmas/pink.webp");
+	await preview.getByRole("button", { name: "Your result", exact: true }).click();
+	await expect(picture).toHaveAttribute("src", "/images/christmas/street.webp");
 	expect(
 		await picture.evaluate((node: HTMLImageElement) => {
 			const bounds = node.getBoundingClientRect();
@@ -394,6 +464,7 @@ test("Christmas screen preview follows ready results and preserves applied crops
 		`${bytes.readUInt32BE(16)} × ${bytes.readUInt32BE(20)} px · PNG`,
 	);
 	await page.keyboard.press("Escape");
+	await preview.getByRole("button", { name: "Style example", exact: true }).click();
 	await setState({ asset: "globe" });
 	await expect(picture).toHaveAttribute("src", "/images/christmas/globe.webp");
 	await expect(preview.locator(".christmas-device-screen")).toHaveCSS(

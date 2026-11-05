@@ -17,9 +17,13 @@ export type WallpaperResult = {
 	expiresAt?: string;
 };
 
+type PreviewSource = "result" | "example";
+
 const WallpaperResultContext = createContext<{
 	result: WallpaperResult | null;
 	publish: (result: WallpaperResult) => () => void;
+	source: PreviewSource;
+	selectSource: (source: PreviewSource) => void;
 } | null>(null);
 
 export function WallpaperResultProvider({ children }: { children: ReactNode }) {
@@ -28,6 +32,11 @@ export function WallpaperResultProvider({ children }: { children: ReactNode }) {
 	const [published, setPublished] = useState<{
 		owner: string | null;
 		result: WallpaperResult;
+	} | null>(null);
+	const [selection, setSelection] = useState<{
+		owner: string | null;
+		assetId: string;
+		source: PreviewSource;
 	} | null>(null);
 	const publish = useCallback(
 		(result: WallpaperResult) => {
@@ -38,14 +47,30 @@ export function WallpaperResultProvider({ children }: { children: ReactNode }) {
 		[owner],
 	);
 	const result = published?.owner === owner ? published.result : null;
-	const value = useMemo(() => ({ result, publish }), [result, publish]);
+	const source = result
+		? selection?.owner === owner && selection.assetId === result.assetId
+			? selection.source
+			: "result"
+		: "example";
+	const selectSource = useCallback(
+		(source: PreviewSource) => {
+			if (result) setSelection({ owner, assetId: result.assetId, source });
+		},
+		[owner, result],
+	);
+	const value = useMemo(
+		() => ({ result, publish, source, selectSource }),
+		[result, publish, source, selectSource],
+	);
 	return (
 		<WallpaperResultContext.Provider value={value}>{children}</WallpaperResultContext.Provider>
 	);
 }
 
-export function useWallpaperResult() {
-	return useContext(WallpaperResultContext)?.result ?? null;
+export function useWallpaperPreview() {
+	const context = useContext(WallpaperResultContext);
+	if (!context) throw new Error("Wallpaper preview requires WallpaperResultProvider");
+	return context;
 }
 
 /** The selected ready result owns the preview; changing jobs or losing access clears it. */

@@ -5,9 +5,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import de from "../../../../../packages/i18n/translations/de/marketing.json";
 import en from "../../../../../packages/i18n/translations/en/marketing.json";
 
-const mocks = vi.hoisted(() => ({ query: {} as Record<string, unknown> }));
+const mocks = vi.hoisted(() => ({
+	query: {} as Record<string, unknown>,
+	source: "result" as "result" | "example",
+}));
 vi.mock("../lib/wallpaper-result-context", () => ({
-	useWallpaperResult: () => ({ assetId: "output-1" }),
+	useWallpaperPreview: () => ({
+		result: { assetId: "output-1" },
+		source: mocks.source,
+		selectSource: vi.fn(),
+	}),
 }));
 vi.mock("@auth/hooks/use-session", () => ({ useSession: () => ({ user: { id: "owner-1" } }) }));
 vi.mock("@tanstack/react-query", async (original) => ({
@@ -29,6 +36,16 @@ function render(locale: "en" | "de" = "en") {
 describe("generated wallpaper screen preview", () => {
 	beforeEach(() => {
 		mocks.query = { data: { url: "https://private.test/output" }, isError: false };
+		mocks.source = "result";
+	});
+	it("shows a selected example even when a generated result exists", () => {
+		mocks.source = "example";
+		const markup = render();
+		expect(markup).toContain("/images/christmas/fireplace.webp");
+		expect(markup).toContain("Cozy fireplace");
+		expect(markup).not.toContain("https://private.test/output");
+		expect(markup).toContain('aria-pressed="true">Style example</button>');
+		expect(markup).toContain('aria-pressed="false">Your result</button>');
 	});
 	it("uses the authorized result and labels it independently of the selected style", () => {
 		const markup = render();
