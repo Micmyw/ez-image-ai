@@ -315,6 +315,19 @@ interface HistoricalStripeRefundCountRow {
 	missingLifecycleCount: bigint;
 }
 
+/**
+ * Guest jobs stamp dispatchEligibleAt from the application clock while createdAt
+ * defaults to the database clock, so tiny negative skews are possible. Clamp them
+ * so diagnostics output never violates its non-negative contract.
+ */
+export function toNonNegativeDurationMs(value: bigint | number | null | undefined): number | null {
+	if (value === null || value === undefined) {
+		return null;
+	}
+	const ms = Number(value);
+	return Number.isFinite(ms) ? Math.max(0, Math.round(ms)) : null;
+}
+
 export async function getAdminMediaDiagnostics(
 	client: MediaTransactionClient,
 	options: AdminMediaDiagnosticsOptions = {},
@@ -789,10 +802,10 @@ async function getAdminGuestDiagnostics(
 			 EXTRACT(EPOCH FROM (${now} - MIN(job."createdAt") FILTER
 			   (WHERE job."status" IN ('RESERVED','DISPATCH_QUEUED'))))::double precision AS "oldestQueueAgeSeconds",
 			 ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY
-			   EXTRACT(EPOCH FROM (job."dispatchEligibleAt" - job."createdAt")) * 1000)
+			   GREATEST(EXTRACT(EPOCH FROM (job."dispatchEligibleAt" - job."createdAt")), 0) * 1000)
 			   FILTER (WHERE job."dispatchEligibleAt" IS NOT NULL))::numeric)::bigint AS "waitP50Ms",
 			 ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY
-			   EXTRACT(EPOCH FROM (job."dispatchEligibleAt" - job."createdAt")) * 1000)
+			   GREATEST(EXTRACT(EPOCH FROM (job."dispatchEligibleAt" - job."createdAt")), 0) * 1000)
 			   FILTER (WHERE job."dispatchEligibleAt" IS NOT NULL))::numeric)::bigint AS "waitP95Ms",
 			 COUNT(*) FILTER (WHERE job."failureCode" = 'GUEST_QUEUE_EXPIRED')::bigint AS "expiredBeforeDispatch",
 			 COALESCE((SELECT SUM(trial."frozenQuotedRiskMicros") FROM guest_trial trial
@@ -903,8 +916,8 @@ async function getAdminGuestDiagnostics(
 			depth: Number(row.queueDepth),
 			oldestAgeSeconds: Math.round(row.oldestQueueAgeSeconds ?? 0),
 			waitMs: {
-				p50: row.waitP50Ms === null ? null : Number(row.waitP50Ms),
-				p95: row.waitP95Ms === null ? null : Number(row.waitP95Ms),
+				p50: toNonNegativeDurationMs(row.waitP50Ms),
+				p95: toNonNegativeDurationMs(row.waitP95Ms),
 			},
 			expiredBeforeDispatch: Number(row.expiredBeforeDispatch),
 		},
