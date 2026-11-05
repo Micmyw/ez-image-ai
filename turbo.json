@@ -10,6 +10,9 @@
 		"type-check": {
 			"dependsOn": ["^generate", "generate"]
 		},
+		"@repo/storage#type-check": {
+			"dependsOn": ["^generate", "generate", "@repo/database#generate"]
+		},
 		"clean": {
 			"cache": false
 		},

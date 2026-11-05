@@ -21,6 +21,11 @@ const jobsPackage = JSON.parse(
 const storagePackage = JSON.parse(
 	readFileSync(resolve(process.cwd(), "packages/storage/package.json"), "utf8"),
 );
+const turbo = JSON.parse(readFileSync(resolve(process.cwd(), "turbo.json"), "utf8"));
+// Storage's account-copy tests import jobs and their generated database types.
+if (!turbo.tasks?.["@repo/storage#type-check"]?.dependsOn?.includes("@repo/database#generate")) {
+	throw new Error("Storage type-check must wait for Prisma generation");
+}
 const jobsDatabaseIntegrationTests = ["handlers", "video-v1"]
 	.flatMap((directory) =>
 		readdirSync(resolve(process.cwd(), "packages/jobs/src", directory))
