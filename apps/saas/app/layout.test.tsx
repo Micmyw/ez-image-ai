@@ -174,6 +174,7 @@ describe("SaaS root layout", () => {
 			expect(clientMessages).not.toHaveProperty("faq");
 			expect(clientMessages).not.toHaveProperty("publicContent");
 			expect(clientMessages).not.toHaveProperty("videoV1");
+			expect(clientMessages).not.toHaveProperty("videoTemplates");
 			expect(clientMessages.settings).toEqual({
 				menu: fullMessages.settings.menu,
 				billing: { title: fullMessages.settings.billing.title },
@@ -250,6 +251,7 @@ describe("SaaS root layout", () => {
 						"publicContent",
 						"home",
 						"videoV1",
+						"videoTemplates",
 						"videoEffects",
 						"imagePass",
 						"media",

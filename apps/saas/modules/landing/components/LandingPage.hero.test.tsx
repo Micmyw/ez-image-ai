@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import germanMessages from "../../../../../packages/i18n/translations/de/marketing.json";
@@ -91,6 +91,11 @@ vi.mock("next/link", () => ({
 	),
 }));
 
+// Vitest does not load Next's image configuration; browser checks cover optimization.
+vi.mock("next/image", () => ({
+	default: ({ src, alt }: { src: string; alt: string }) => <img src={src} alt={alt} />,
+}));
+
 vi.mock("@repo/ui/components/logo", () => ({
 	Logo: ({ label }: { label?: string }) => <span>{label}</span>,
 }));
@@ -114,6 +119,12 @@ vi.mock("../../public-content/components/PublicFooterLinks", () => ({
 
 import { LandingPage } from "./LandingPage";
 
+async function renderLandingPage(options?: Parameters<typeof LandingPage>[0]) {
+	const stream = await renderToReadableStream(await LandingPage(options));
+	await stream.allReady;
+	return new Response(stream).text();
+}
+
 describe("LandingPage hero hierarchy", () => {
 	beforeEach(() => {
 		navigation.search = "";
@@ -123,7 +134,7 @@ describe("LandingPage hero hierarchy", () => {
 		"keeps one feedback reward entry beside either generator (%s)",
 		async (search) => {
 			navigation.search = search;
-			const markup = renderToStaticMarkup(await LandingPage({ workspace: true }));
+			const markup = await renderLandingPage({ workspace: true });
 			expect(markup.match(/data-feedback-reward-entry/g)).toHaveLength(1);
 			expect(markup.indexOf("data-feedback-reward-entry")).toBeLessThan(
 				markup.indexOf('id="explore-models"'),
@@ -132,13 +143,13 @@ describe("LandingPage hero hierarchy", () => {
 	);
 	it("uses video copy when the same generator is in video mode", async () => {
 		navigation.search = "mode=video";
-		const markup = renderToStaticMarkup(await LandingPage({ workspace: true }));
+		const markup = await renderLandingPage({ workspace: true });
 		const heading = markup.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
 		expect(heading).toContain(videoMessages.videoV1.title);
 		expect(markup).toContain(videoMessages.videoV1.description);
 	});
 	it("describes prompt photo editing in the heading and explains its limits in the FAQ", async () => {
-		const markup = renderToStaticMarkup(await LandingPage());
+		const markup = await renderLandingPage();
 		const heading = markup.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
 		const headingText = heading.replace(/<[^>]*>/g, "");
 		const hero = markup.match(/<section id="image-editor"[\s\S]*?<\/section>/)?.[0] ?? "";
@@ -158,7 +169,7 @@ describe("LandingPage hero hierarchy", () => {
 		async (locale) => {
 			navigation.locale = locale;
 			const messages = marketingMessages[locale];
-			const markup = renderToStaticMarkup(await LandingPage());
+			const markup = await renderLandingPage();
 			const heading = markup.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
 			const title = messages.home.imageEditorHero.title.replace(/<\/?accent>/g, "");
 			expect(heading.replace(/<[^>]*>/g, "")).toBe(renderToStaticMarkup(<>{title}</>));
@@ -174,7 +185,7 @@ describe("LandingPage hero hierarchy", () => {
 		},
 	);
 	it("restores model discovery and original artwork before the editing guides", async () => {
-		const markup = renderToStaticMarkup(await LandingPage());
+		const markup = await renderLandingPage();
 		const heroEnd = markup.indexOf("</section>");
 		const models = markup.indexOf('id="explore-models"');
 		const examples = markup.indexOf('id="examples"');
@@ -186,6 +197,11 @@ describe("LandingPage hero hierarchy", () => {
 		expect(comparison).toBeGreaterThan(examples);
 		expect(uses).toBeGreaterThan(comparison);
 		expect(photoIdeas).toBeGreaterThan(uses);
+		expect(markup.indexOf('id="video-template-heading"')).toBeGreaterThan(photoIdeas);
+		for (const key of ["bulin-47", "spin-me-round", "58th-floor", "kung-fu-cat"]) {
+			expect(markup).toContain(`href="/video-templates/${key}"`);
+		}
+		expect(markup).not.toContain("<video");
 		expect(markup.match(/id="examples"/g)).toHaveLength(1);
 	});
 });

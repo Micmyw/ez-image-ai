@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactElement, ReactNode } from "react";
-import {
-	renderToReadableStream as renderStream,
-	renderToStaticMarkup as renderStatic,
-} from "react-dom/server";
+import { renderToReadableStream as renderStream } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 const sessionMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
@@ -158,6 +155,11 @@ vi.mock("next/link", () => ({
 	),
 }));
 
+// Vitest does not load Next's image configuration; browser checks cover optimization.
+vi.mock("next/image", () => ({
+	default: ({ src, alt }: { src: string; alt: string }) => <img src={src} alt={alt} />,
+}));
+
 vi.mock("@repo/ui/components/logo", () => ({
 	Logo: ({ label }: { label?: string }) => <span>{label}</span>,
 }));
@@ -198,8 +200,10 @@ import CreatePage, { generateMetadata as createMetadata } from "./create/page";
 import HomePage from "./page";
 
 // Pages are rendered without RootLayout here; preserve its real query context.
-function renderToStaticMarkup(page: ReactNode) {
-	return renderStatic(<ApiClientProvider>{page}</ApiClientProvider>);
+async function renderToStaticMarkup(page: ReactNode) {
+	const stream = await renderToReadableStream(page);
+	await stream.allReady;
+	return new Response(stream).text();
 }
 function renderToReadableStream(page: ReactNode) {
 	return renderStream(<ApiClientProvider>{page}</ApiClientProvider>);
@@ -291,7 +295,7 @@ describe("consolidated public route contract", () => {
 		}
 
 		const page = route.path === "/" ? await LandingPage() : await pageModule.default({});
-		const markup = renderToStaticMarkup(page);
+		const markup = await renderToStaticMarkup(page);
 		expect(markup.match(/<h1(?:\s|>)/g) ?? []).toHaveLength(1);
 		expect(markup).not.toMatch(
 			/acme|lorem ipsum|favorite things|awesome second post|picsum\.photos/i,
@@ -327,7 +331,7 @@ describe("consolidated public route contract", () => {
 		if (!metadata) return;
 		expectMetadata(metadata, path, "index");
 
-		const markup = renderToStaticMarkup(await pageModule.default(props));
+		const markup = await renderToStaticMarkup(await pageModule.default(props));
 		expect(markup.match(/<h1(?:\s|>)/g) ?? []).toHaveLength(1);
 		expect(`${JSON.stringify(metadata)} ${markup}`).not.toMatch(
 			/acme|lorem ipsum|favorite things|awesome second post|picsum\.photos/i,
@@ -344,7 +348,7 @@ describe("consolidated public route contract", () => {
 		expect(metadata?.title).toEqual({
 			absolute: "Vidu Q4 Preview: Features, Pricing & API Guide | EzImageAI",
 		});
-		const markup = renderToStaticMarkup(await pageModule.default(props));
+		const markup = await renderToStaticMarkup(await pageModule.default(props));
 		expect(markup.match(/<h1(?:\s|>)/g) ?? []).toHaveLength(1);
 		expect(markup).toContain("EzImageAI does not currently offer Vidu Q4 Preview");
 		expect(markup).toContain('href="https://www.vidu.com/vidu-q4"');
@@ -392,7 +396,7 @@ describe("consolidated public route contract", () => {
 	);
 
 	it("shows every required public destination in the landing footer", async () => {
-		const markup = renderToStaticMarkup(await LandingPage());
+		const markup = await renderToStaticMarkup(await LandingPage());
 		const footerMarkup = markup.match(/<footer(?:\s|>)[\s\S]*?<\/footer>/)?.[0];
 		expect(footerMarkup, "the landing page must render a footer").toBeDefined();
 		if (!footerMarkup) return;
@@ -450,8 +454,8 @@ describe("consolidated public route contract", () => {
 	});
 
 	it("shares a yearly-default pricing switch with three plans and four credit packs", async () => {
-		const markup = renderToStaticMarkup(await PricingPage({}));
-		const landingMarkup = renderToStaticMarkup(await LandingPage());
+		const markup = await renderToStaticMarkup(await PricingPage({}));
+		const landingMarkup = await renderToStaticMarkup(await LandingPage());
 
 		for (const messageKey of [
 			"pricing.maximumInputSize",
