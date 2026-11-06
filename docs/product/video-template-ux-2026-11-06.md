@@ -72,6 +72,9 @@ remain unchanged. Example labels never claim EzPic generated the displayed sourc
 - Preview images have no Preview badge or source corner label. Clicking or tapping the
   picture enables sound and native controls; only the close icon overlays manual playback.
   Source attribution remains in the surrounding page copy.
+- Homepage template discovery stays static and keeps the existing 64 KiB gzip HTML budget.
+  Shared client translations include only the image-to-image composer/navigation fields;
+  its introductions, examples and FAQs remain server-rendered in all four locales.
 
 ## Verification boundary
 

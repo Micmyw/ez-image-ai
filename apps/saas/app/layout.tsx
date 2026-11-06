@@ -64,6 +64,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		home,
 		videoEffects,
 		videoTemplates: _videoTemplates,
+		imageToImage,
 		imagePass,
 		media,
 		feedback,
@@ -75,6 +76,20 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 	// Video workspaces supply their detailed copy locally; public navigation needs only its labels.
 	const clientMessages = {
 		...Object.fromEntries(Object.entries(messages).filter(([key]) => key !== "videoV1")),
+		// Image-to-image marketing, examples and FAQs render on the server. Keep only
+		// the shared composer and navigation copy in every page's hydration payload.
+		...(imageToImage
+			? {
+					imageToImage: {
+						name: imageToImage.name,
+						navigationDescription: imageToImage.navigationDescription,
+						referenceLabel: imageToImage.referenceLabel,
+						referenceNotice: imageToImage.referenceNotice,
+						loading: imageToImage.loading,
+						composer: imageToImage.composer,
+					},
+				}
+			: {}),
 		// Account panels and routes restore their forms locally; public menus need only labels.
 		...(settings
 			? { settings: { menu: settings.menu, billing: { title: settings.billing.title } } }

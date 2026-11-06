@@ -8,6 +8,7 @@
 - Put the complete reference preview beside a photo-first creator. Show fixed format values as facts, keep optional quality controls collapsible, and show the required photo slots before sign-in. Tools without a published sample remain compact links.
 - Remove Preview badges and source corner labels from template images; click or tap the picture for sound and playback controls.
 - Keep the homepage focused on image editing, with a static template recommendation section and an image-result action that carries an authorized image into a video template.
+- Keep server-rendered image-to-image guides, examples and FAQs out of the shared client translation payload so template discovery fits the existing homepage transfer budget.
 - Preserve source prompts, original scene/audio materials, choreography and provider request construction. Reuse the existing video Workflow, private media, shared credits and uncertain-request recovery.
 - Drive source-template generation and per-photo review from authenticated completion callbacks. Remove scheduled provider-status polling for these templates; missing callbacks or unresolved confirmations retain the original task for operational review without another generation or credit release.
 - Show source Hotel Lobby's duration as determined by its original template, without inventing a numeric duration or replacement prompt. Preserve Bulin 47's original generation flow without adding post-processing requirements. Target configuration, approved references and prices remain server-authoritative.

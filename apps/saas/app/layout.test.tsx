@@ -158,6 +158,7 @@ describe("SaaS root layout", () => {
 					<p>{fullMessages.faq.items.restrictions.answer}</p>
 					<h2>{fullMessages.home.howItWorks.title}</h2>
 					<p>{fullMessages.home.faq.items.guestAvailability.answer}</p>
+					<p>{fullMessages.imageToImage.faq.definition.answer}</p>
 					<a href="#image-editor">{fullMessages.home.finalCta.button}</a>
 					<a href="/contact#report-content">
 						{fullMessages.publicContent.contact.reporting.footerLabel}
@@ -175,6 +176,14 @@ describe("SaaS root layout", () => {
 			expect(clientMessages).not.toHaveProperty("publicContent");
 			expect(clientMessages).not.toHaveProperty("videoV1");
 			expect(clientMessages).not.toHaveProperty("videoTemplates");
+			expect(clientMessages.imageToImage).toEqual({
+				name: fullMessages.imageToImage.name,
+				navigationDescription: fullMessages.imageToImage.navigationDescription,
+				referenceLabel: fullMessages.imageToImage.referenceLabel,
+				referenceNotice: fullMessages.imageToImage.referenceNotice,
+				loading: fullMessages.imageToImage.loading,
+				composer: fullMessages.imageToImage.composer,
+			});
 			expect(clientMessages.settings).toEqual({
 				menu: fullMessages.settings.menu,
 				billing: { title: fullMessages.settings.billing.title },
@@ -252,6 +261,7 @@ describe("SaaS root layout", () => {
 						"home",
 						"videoV1",
 						"videoTemplates",
+						"imageToImage",
 						"videoEffects",
 						"imagePass",
 						"media",
