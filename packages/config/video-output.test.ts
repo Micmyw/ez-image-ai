@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { sourceHotelTemplateFixture } from "./test-support/source-hotel-template";
 import { createVideoEffectTemplateSnapshot } from "./video-effects.server";
 import {
 	createVideoAudioSafetyPolicy,
+	createVideoOutputReport,
 	readVideoAudioSafetyPolicy,
 	videoOutputConstraints,
 	videoOutputSpecificationFailure,
@@ -25,6 +27,17 @@ const expected = {
 	aspectRatio: "16:9",
 };
 describe("immutable video output contract", () => {
+	it("reports the measured hosted-template duration without inventing a requested duration", () => {
+		const constraints = videoOutputConstraints(sourceHotelTemplateFixture());
+		const output = { ...metadata, durationMillis: 18340, width: 720, height: 1280 };
+		expect(constraints.durationSeconds).toBeNull();
+		expect(videoOutputSpecificationFailure(output, constraints)).toBeNull();
+		expect(createVideoOutputReport(output, constraints)).toMatchObject({
+			actual: { durationMillis: 18340 },
+			requested: { durationSeconds: null },
+			warnings: [],
+		});
+	});
 	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
 		"validates ten-second %s against its frozen duration, pixels and silence",
 		(effectId) => {

@@ -14,7 +14,7 @@ export const videoOutputReportSchema = z
 			.strict(),
 		requested: z
 			.object({
-				durationSeconds: z.number().int().min(2).max(30),
+				durationSeconds: z.number().int().min(2).max(30).nullable(),
 				resolution: z.string().max(20),
 				aspectRatio: z.string().max(20),
 				sound: z.boolean(),

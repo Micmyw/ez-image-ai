@@ -9,6 +9,48 @@ const video = (env as unknown as { VIDEO_WORKFLOW: Workflow<VideoWorkflowParams>
 // Paid providers, database and storage stage bodies are substituted, while the
 // real Workflow class/binding, checkpoints and durable event waits run in workerd.
 describe("video V1 local workerd runtime", () => {
+	it.each(["event", "timeout"])(
+		"source provider waits for a callback: %s never becomes timer polling",
+		async (scenario) => {
+			const jobId = crypto.randomUUID();
+			const id = `video-v1-${jobId}`;
+			const inspection = await introspectWorkflowInstance(video, id);
+			try {
+				await inspection.modify(async (m) => {
+					const deadlineAt = new Date(Date.now() + 1800_000).toISOString();
+					const results: Record<string, unknown> = {
+						"video-v1-start": { stage: "GENERATING", terminal: false },
+						"video-v1-provider-window": { round: 0, remainingSeconds: 1800, deadlineAt },
+						"video-v1-confirm-provider-0": { status: "PENDING", waitFor: "callback", deadlineAt },
+						"video-v1-provider-window-0": { round: 1, remainingSeconds: 1800, deadlineAt },
+					};
+					if (scenario === "event")
+						Object.assign(results, {
+							"video-v1-confirm-provider-1": { status: "SUCCEEDED", attemptId: "a" },
+							"video-v1-store-output": { assetId: "asset", checksum: "checksum", byteSize: "100" },
+							"video-v1-output-window": { round: 0, remainingSeconds: 1800 },
+							"video-v1-review-output-0": { status: "ALLOW" },
+							"video-v1-finalize": { stage: "READY" },
+						});
+					else results["video-v1-needs-review-provider-callback-deadline"] = { changed: true };
+					for (const [name, result] of Object.entries(results))
+						await m.mockStepResult({ name }, result);
+					if (scenario === "event")
+						await m.mockEvent({ type: "provider-result", payload: { arbitraryUrl: "ignored" } });
+					else await m.forceEventTimeout({ name: "video-v1-provider-event-0" });
+				});
+				await video.create({ id, params: { jobId, schemaVersion: 1 } });
+				await inspection.waitForStatus("complete");
+				expect(await inspection.getOutput()).toEqual(
+					scenario === "event"
+						? { completed: true, stage: "READY" }
+						: { completed: false, stage: "NEEDS_REVIEW" },
+				);
+			} finally {
+				await inspection.dispose();
+			}
+		},
+	);
 	it.each(["early-event", "timeout-query", "template-event"])(
 		"resumes %s into a fresh confirmation round without a second submit",
 		async (scenario) => {

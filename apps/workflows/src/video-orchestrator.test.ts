@@ -86,6 +86,50 @@ function fixture(template?: boolean) {
 }
 
 describe("direct video V1 workflow", () => {
+	it("parks source generation on callback timeout without a second query, timer poll or resubmission", async () => {
+		const f = fixture();
+		vi.mocked(f.services.confirm).mockResolvedValue({
+			status: "PENDING",
+			waitFor: "callback",
+			deadlineAt: new Date(Date.now() + 1800_000).toISOString(),
+		});
+		vi.mocked(f.steps.waitForEvent).mockRejectedValue({ name: "WorkflowTimeoutError" });
+		expect(await f.run()).toMatchObject({ stage: "NEEDS_REVIEW" });
+		expect(f.services.confirm).toHaveBeenCalledOnce();
+		expect(f.services.submit).toHaveBeenCalledOnce();
+		expect(f.steps.waitForEvent).toHaveBeenCalledExactlyOnceWith(expect.any(String), {
+			type: "provider-result",
+			timeout: "1800 seconds",
+		});
+		expect(f.steps.sleep).not.toHaveBeenCalled();
+		expect(f.services.fail).not.toHaveBeenCalled();
+		expect(f.services.store).not.toHaveBeenCalled();
+	});
+	it("a source callback wakes one confirmation and a still-pending read returns to event waiting", async () => {
+		const f = fixture();
+		const deadlineAt = new Date(Date.now() + 1800_000).toISOString();
+		vi.mocked(f.services.confirm)
+			.mockResolvedValueOnce({ status: "PENDING", waitFor: "callback", deadlineAt })
+			.mockResolvedValueOnce({ status: "PENDING", waitFor: "callback", deadlineAt });
+		vi.mocked(f.steps.waitForEvent)
+			.mockResolvedValueOnce({})
+			.mockRejectedValueOnce({ name: "WorkflowTimeoutError" });
+		expect(await f.run()).toMatchObject({ stage: "NEEDS_REVIEW" });
+		expect(f.services.confirm).toHaveBeenCalledTimes(2);
+		expect(f.steps.sleep).not.toHaveBeenCalled();
+		expect(f.services.submit).toHaveBeenCalledOnce();
+	});
+	it("parks a source confirmation failure without refunding or retrying generation", async () => {
+		const f = fixture();
+		vi.mocked(f.services.confirm).mockResolvedValue({
+			status: "ERROR",
+			reasonCode: "SOURCE_CALLBACK_CONFIRMATION_FAILED",
+		});
+		expect(await f.run()).toMatchObject({ stage: "NEEDS_REVIEW" });
+		expect(f.services.confirm).toHaveBeenCalledOnce();
+		expect(f.services.fail).not.toHaveBeenCalled();
+		expect(f.steps.waitForEvent).not.toHaveBeenCalled();
+	});
 	it("refreshes expired ordinary input approval after capacity waiting before sending", async () => {
 		const f = fixture();
 		let elapsed = 0;

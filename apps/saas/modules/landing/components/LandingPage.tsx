@@ -27,6 +27,7 @@ import { ChristmasWallpaperEntry } from "./ChristmasWallpaperEntry";
 import { EditingUseCases } from "./EditingUseCases";
 import { LandingGenerator } from "./LandingGenerator";
 import { ShowcaseSection } from "./ShowcaseSection";
+import { VideoTemplateRecommendations } from "./VideoTemplateRecommendations";
 
 export async function LandingPage({
 	editor,
@@ -97,6 +98,7 @@ export async function LandingPage({
 				<BeforeAfterDemo />
 				<EditingUseCases />
 				{!workspace && <PhotoIdeaRecommendations featured />}
+				{!workspace && <VideoTemplateRecommendations />}
 
 				<section id="how-it-works" className="scroll-mt-20 py-20 text-white sm:py-28">
 					<div className="container">

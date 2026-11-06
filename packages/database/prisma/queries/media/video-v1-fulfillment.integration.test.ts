@@ -3,14 +3,26 @@ import { createHash } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { createVideoEffectTemplateSnapshot } from "@repo/config/video-effects.server";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
+import {
+	isSourceTemplateRequest,
+	readSourceTemplateInternalRequest,
+	sourceTemplateInternalRequestSchema,
+} from "@repo/config/video-template-execution.server";
 import { VIDEO_V1_POLICY_VERSION, VIDEO_V1_RULE_VERSION } from "@repo/config/video-v1";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { resolveSourceTemplateRequest } from "../../../../ai/media/rap-templates/contracts";
+import { sourceHotelTemplateFixture } from "../../../../config/test-support/source-hotel-template";
 import { runWithDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { PrismaClient } from "../../generated/client";
 import { markMediaAssetDeletedTransaction } from "./assets";
-import { createCreditGrant, releaseCredits, reserveCredits } from "./credits";
+import {
+	createCreditGrant,
+	getCreditInvariantReport,
+	releaseCredits,
+	reserveCredits,
+} from "./credits";
 import {
 	authorizeVideoPlayback,
 	beginVideoReviewSubmission,
@@ -109,6 +121,10 @@ describe("video V1 fulfillment isolated database", () => {
 	});
 	const scoped = <T>(fn: () => Promise<T>) => runWithDatabaseClient(client, fn);
 	async function fixture(inputSnapshot: Prisma.InputJsonObject = { duration: 5 }) {
+		const sourceRequest = isSourceTemplateRequest(inputSnapshot)
+			? readSourceTemplateInternalRequest(inputSnapshot)
+			: null;
+		const productKey = sourceRequest?.productKey ?? "video-kling-2-6-v1";
 		const ownerId = `video-fulfillment-test-${crypto.randomUUID()}`;
 		fixtureOwners.push(ownerId);
 		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
@@ -121,7 +137,7 @@ describe("video V1 fulfillment isolated database", () => {
 				ownerType: "USER",
 				ownerId,
 				submittedByUserId: ownerId,
-				productKey: "video-kling-2-6-v1",
+				productKey,
 				catalogVersion: "TEST",
 				pricingVersion: "TEST_ONLY",
 				credits: 7n,
@@ -138,7 +154,7 @@ describe("video V1 fulfillment isolated database", () => {
 				submittedByUserId: ownerId,
 				quoteId: quote.id,
 				idempotencyKey: crypto.randomUUID(),
-				productKey: "video-kling-2-6-v1",
+				productKey,
 				catalogVersion: "TEST",
 				pricingVersion: "TEST_ONLY",
 				creditsReserved: 7n,
@@ -164,8 +180,9 @@ describe("video V1 fulfillment isolated database", () => {
 			data: {
 				jobId: job.id,
 				attemptNumber: 1,
-				provider: "kie",
-				providerModelId: "kling-2.6/text-to-video",
+				provider: sourceRequest?.sourceTemplate.transport.provider ?? "kie",
+				providerModelId:
+					sourceRequest?.sourceTemplate.transport.modelId ?? "kling-2.6/text-to-video",
 				providerTaskId: crypto.randomUUID(),
 				status: "SUCCEEDED",
 				providerCostMicros: 100n,
@@ -298,36 +315,86 @@ describe("video V1 fulfillment isolated database", () => {
 			}),
 		);
 	}
-	it.each(["ordinary", "hotel-lobby-duo", "raindance-solo"] as const)(
+	function sourceOutputFixture() {
+		const options = {
+			preset: "text",
+			tier: "pro",
+			durationSeconds: 5,
+			resolution: "1080p",
+			aspectRatio: "9:16",
+		} as const;
+		const transport = resolveSourceTemplateRequest({
+			templateKey: "original-rap",
+			options,
+			userImageUrls: [],
+			configs: {},
+		});
+		return {
+			...sourceTemplateInternalRequestSchema.parse({
+				requestKind: "source-template-video",
+				productKey: "source-template:original-rap",
+				mode: "text-to-video",
+				prompt: transport.prompt,
+				duration: transport.output.durationSeconds,
+				resolution: transport.output.resolution,
+				aspectRatio: transport.output.aspectRatio,
+				sound: transport.output.sound,
+				sourceTemplate: {
+					templateKey: "original-rap",
+					version: "ISOLATED_TEST_ONLY",
+					provision: { id: "fixture-only-source-provision", version: 1 },
+					request: { templateKey: "original-rap", options, inputs: [] },
+					transport,
+					references: [],
+				},
+			}),
+			roleInputIdentities: [],
+			inputIdentity: null,
+		};
+	}
+	it.each([
+		"ordinary",
+		"hotel-lobby-duo",
+		"raindance-solo",
+		"source-original-rap",
+		"source-hotel-lobby",
+	] as const)(
 		"records quality differences for %s but requires actual-duration NSFW evidence and settles once",
 		async (kind) => {
+			const hosted = kind === "source-hotel-lobby";
+			const source = hosted
+				? sourceHotelTemplateFixture()
+				: kind === "source-original-rap"
+					? sourceOutputFixture()
+					: null;
 			const template =
-				kind === "ordinary"
-					? null
-					: createVideoEffectTemplateSnapshot({
+				kind === "hotel-lobby-duo" || kind === "raindance-solo"
+					? createVideoEffectTemplateSnapshot({
 							effectId: kind,
 							presetKey: "standard",
 							inputs: {
 								leftAssetId: "left",
 								rightAssetId: kind === "raindance-solo" ? "left" : "right",
 							},
-						});
+						})
+					: null;
 			const item = await fixture({
-				...(template
-					? {
-							...template.video,
-							requestKind: "template-video",
-							videoEffectTemplate: template,
-							roleInputIdentities: [{ role: "left" }, { role: "right" }],
-						}
-					: {
-							productKey: "video-kling-3",
-							duration: 5,
-							sound: false,
-							resolution: "1080p",
-							aspectRatio: "9:16",
-						}),
-				visualSafetyProfile: createVideoVisualSafetyProfile("seeapi", 5),
+				...(source ??
+					(template
+						? {
+								...template.video,
+								requestKind: "template-video",
+								videoEffectTemplate: template,
+								roleInputIdentities: [{ role: "left" }, { role: "right" }],
+							}
+						: {
+								productKey: "video-kling-3",
+								duration: 5,
+								sound: false,
+								resolution: "1080p",
+								aspectRatio: "9:16",
+							})),
+				visualSafetyProfile: createVideoVisualSafetyProfile("seeapi", hosted ? 30 : 5),
 				audioSafetyPolicy: { schemaVersion: 1, mode: "not_requested" },
 			});
 			if (template)
@@ -354,11 +421,17 @@ describe("video V1 fulfillment isolated database", () => {
 					etag: output.etag,
 					report: {
 						actual: { durationMillis: 6000, width: 1280, height: 720, audioTracks: 1 },
-						requested: { durationSeconds: 5, sound: false, aspectRatio: "9:16" },
+						requested: {
+							durationSeconds: hosted ? null : 5,
+							sound: Boolean(source),
+							aspectRatio: "9:16",
+							...(source ? { resolution: hosted ? "768P" : "1080p" } : {}),
+						},
 						warnings: [
-							"DURATION_MISMATCH",
-							"UNEXPECTED_AUDIO",
-							"RESOLUTION_MISMATCH",
+							...(!hosted ? ["DURATION_MISMATCH"] : []),
+							...(!source ? ["UNEXPECTED_AUDIO"] : []),
+							// Source resolution labels retain no invented exact-pixel contract.
+							...(!source ? ["RESOLUTION_MISMATCH"] : []),
 							"ASPECT_RATIO_MISMATCH",
 						],
 					},
@@ -368,10 +441,27 @@ describe("video V1 fulfillment isolated database", () => {
 			await expect(
 				scoped(() => finalizeVideoDelivery(item.jobId, { ...output, checkedAt: new Date() })),
 			).rejects.toThrow("VIDEO_DELIVERY_PRECONDITION_FAILED");
+			if (hosted) {
+				await client.mediaAsset.update({
+					where: { id: output.assetId },
+					data: { durationMillis: null },
+				});
+				await expect(scoped(() => claimVideoOutputReview(item.jobId, 1800))).rejects.toThrow(
+					"VIDEO_STORED_OUTPUT_REQUIRED",
+				);
+				await client.mediaAsset.update({
+					where: { id: output.assetId },
+					data: { durationMillis: 6000n },
+				});
+			}
 			const submit = await scoped(() => claimVideoOutputReview(item.jobId, 1800));
 			expect(submit.reviewContext).toMatchObject({
 				durationMillis: 6000,
-				constraints: { durationSeconds: 5, sound: false, aspectRatio: "9:16" },
+				constraints: {
+					durationSeconds: hosted ? null : 5,
+					sound: Boolean(source),
+					aspectRatio: "9:16",
+				},
 				outputSpec: { audioTracks: 1, audioTrackIds: [2], durationMillis: 6000 },
 			});
 			expect(submit.asset).toMatchObject({
@@ -388,6 +478,11 @@ describe("video V1 fulfillment isolated database", () => {
 			evidence.video.durationMillis = 6000;
 			evidence.video.lastFrameSeconds = 5.9;
 			evidence.seeapiVideo.maxFrameGapSeconds = 0.9;
+			if (hosted) {
+				evidence.video.frameCount = 32;
+				evidence.seeapiVideo.requestedFrames = 32;
+				evidence.seeapiVideo.checkedFrames = 32;
+			}
 			await confirmed(item.jobId, output.assetId, taskId, evidence);
 			const query = await scoped(() => claimVideoOutputReview(item.jobId, 1800));
 			const review = {
@@ -438,6 +533,11 @@ describe("video V1 fulfillment isolated database", () => {
 				}),
 			).toBe(0);
 			expect(await client.generationAttempt.count({ where: { jobId: item.jobId } })).toBe(1);
+			expect(await getCreditInvariantReport(item.accountId, client)).toMatchObject({
+				valid: true,
+				account: { spendable: 93n, reserved: 0n, debt: 0n },
+				ledger: { settled: 7n, released: 0n },
+			});
 			expect(await scoped(() => authorizeVideoPlayback(item.ownerId, item.jobId))).toMatchObject({
 				id: output.assetId,
 				checksum: output.checksum,

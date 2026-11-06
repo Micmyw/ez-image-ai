@@ -63,6 +63,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		publicContent: _publicContent,
 		home,
 		videoEffects,
+		videoTemplates: _videoTemplates,
 		imagePass,
 		media,
 		feedback,

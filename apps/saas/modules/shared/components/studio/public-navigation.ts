@@ -23,6 +23,12 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 		labelKey: "studio.tools.videos",
 		links: [
 			{
+				href: "/video-templates",
+				labelKey: "studio.tools.videoTemplates",
+				descriptionKey: "studio.tools.videoTemplatesDescription",
+				icon: "examples",
+			},
+			{
 				href: "/create?mode=video",
 				labelKey: "studio.tools.videoGenerator",
 				descriptionKey: "studio.tools.videoGeneratorDescription",

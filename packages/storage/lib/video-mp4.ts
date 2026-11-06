@@ -69,7 +69,7 @@ function duration(bytes: Uint8Array): number {
 		invalid("VIDEO_DURATION_INVALID");
 	return Math.round(millis);
 }
-export type VideoMp4Expectation = { durationSeconds: number; sound: boolean };
+export type VideoMp4Expectation = { durationSeconds: number | null; sound: boolean };
 function inspectMoov(bytes: Uint8Array): VideoMp4Metadata {
 	const movie = children(bytes);
 	let durationMillis = duration(one(movie, "mvhd"));
@@ -159,9 +159,10 @@ export class VideoMp4Inspector {
 		expected: VideoMp4Expectation = { durationSeconds: 5, sound: false },
 	) {
 		if (
-			!Number.isInteger(expected.durationSeconds) ||
-			expected.durationSeconds < 2 ||
-			expected.durationSeconds > 30 ||
+			(expected.durationSeconds !== null &&
+				(!Number.isInteger(expected.durationSeconds) ||
+					expected.durationSeconds < 2 ||
+					expected.durationSeconds > 30)) ||
 			typeof expected.sound !== "boolean"
 		)
 			invalid("VIDEO_OUTPUT_CONSTRAINTS_INVALID");

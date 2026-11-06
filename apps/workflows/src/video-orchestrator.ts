@@ -322,15 +322,34 @@ export async function runVideoGenerationV1(
 	}
 	if (!["STORING", "OUTPUT_REVIEW", "FINALIZING"].includes(checkpoint.stage)) {
 		const initial = await step("provider-window", () => services.window(jobId, "provider"));
+		let callbackOnly = false;
+		let callbackDeadline: number | undefined;
 		for (let round = initial.round; ; round++) {
+			if (callbackOnly && callbackDeadline !== undefined && Date.now() >= callbackDeadline)
+				return reviewRequired("PROVIDER_CALLBACK_DEADLINE");
 			const result = await step(`confirm-provider-${round}`, () => services.confirm(jobId));
 			if (result.status === "SUCCEEDED") break;
 			if (result.status === "FAILED") return fail("provider", result.reasonCode);
+			if (result.status === "ERROR") return reviewRequired(result.reasonCode);
+			if (result.waitFor === "callback") {
+				callbackOnly = true;
+				const date = Date.parse(initial.deadlineAt ?? result.deadlineAt ?? "");
+				if (!Number.isFinite(date)) return reviewRequired("PROVIDER_CALLBACK_DEADLINE_INVALID");
+				callbackDeadline = callbackDeadline === undefined ? date : Math.min(callbackDeadline, date);
+			}
 			const window = await step(`provider-window-${round}`, () =>
 				services.window(jobId, "provider", round + 1),
 			);
 			if (window.remainingSeconds <= 0) return reviewRequired("PROVIDER_DEADLINE");
-			await wait("provider", round, window.remainingSeconds, result.retryAfterSeconds);
+			const waited = await wait(
+				"provider",
+				round,
+				window.remainingSeconds,
+				result.retryAfterSeconds,
+				callbackOnly,
+				callbackDeadline,
+			);
+			if (callbackOnly && waited === "timeout") return reviewRequired("PROVIDER_CALLBACK_DEADLINE");
 		}
 	}
 	if (checkpoint.stage !== "FINALIZING") {

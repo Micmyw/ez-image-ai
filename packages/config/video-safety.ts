@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { isProviderOwnedSourceTemplate } from "./video-template-execution.server";
+
 // Historical identifiers remain readable for audit; retired providers cannot run.
 const coverage = {
 	maxFirstFrameMillis: z.literal(250),
@@ -89,8 +91,27 @@ export function configuredVideoVisualSafetyProfile(
 	return createVideoVisualSafetyProfile(provider, durationSeconds);
 }
 
+/** Maximum complete-coverage sampling; this is not a requested generation duration. */
+export function configuredProviderOwnedVideoVisualSafetyProfile(
+	environment: Record<string, string | undefined>,
+): VideoVisualSafetyProfile {
+	return configuredVideoVisualSafetyProfile(environment, 30);
+}
+
 /** Only absent historical profiles resolve to the frozen legacy contract, never current env. */
 export function readVideoVisualSafetyProfile(snapshot: unknown): VideoVisualSafetyProfile {
+	if (isProviderOwnedSourceTemplate(snapshot)) {
+		const profile = videoVisualSafetyProfileSchema.safeParse(
+			(snapshot as Record<string, unknown>).visualSafetyProfile,
+		);
+		if (
+			!profile.success ||
+			profile.data.provider !== "seeapi" ||
+			profile.data.sampling.numFrames !== 32
+		)
+			throw new Error("VIDEO_SAFETY_PROFILE_INVALID");
+		return profile.data;
+	}
 	const parsed = z
 		.object({
 			duration: z.number().int().min(2).max(30),

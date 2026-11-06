@@ -1,0 +1,49 @@
+subject_definitions:
+Numbering follows reference_image_urls order.
+<Subject 1> is the uploaded foreground subject in <Picture 1>. It alone defines identity, face, clothes, colors, shape, anatomy and parts. Rider and mount stay connected. A bicycle keeps two spoked wheels and an open frame, hands on handlebars, feet on pedals. Add no vehicle to a person alone or rider to an object.
+<Subject 2> is the night venue from Pictures 2-7: the same tall inward-curving gray ramp, red longitudinal edge lights, supports, ground and fixed lights. Preserve its full geometry and upper terminal edge; never shorten or retract it to fake reaching the end.
+Pictures 2-7 show the source stunt car. Transfer ONLY its path, surface contact, successive orientations, ramp geometry and vapor staging to Subject 1. The car is never a platform or part of the uploaded subject. Omit all reference-derived cars; if Picture 1 is itself a car, keep only that customer's car design.
+<Audio 1> provides sound texture and approximate pacing.
+
+summary:
+[reference generation + audio reference] One continuous 15-second, 16:9 night shot. Subject 1 follows the ENTIRE ramp centerline, crosses the true upper terminal edge front-first and rear-last, clears the structure, rights itself, descends on blue-white jets and lands. Only then close in on the same uploaded person, or object if no person is present.
+
+retention_analysis:
+<Subject 1>: fully_preserved - identity, structure and rider-to-mount relationship.
+<Subject 2>: fully_preserved - rigid ramp and venue.
+<Picture 1>: identity only. Pictures 2-7: attribute_transfer - in order, ramp-foot start, steep contact, upper terminal crossing, detached tilted righting, upright descent, ground departure. Picture 4 identifies the true upper end; Picture 5 is an intermediate orientation, not a new shot. Transfer no source car geometry.
+Reproject all action references into ONE camera view. Their crops, shot sizes and poses are not edit points or independent scenes.
+<Audio 1>: reference - continuous sound texture.
+
+detailed_description:
+[Shot 1: 0.00-15.00s, ONE uninterrupted take]
+
+PATH AND EXIT:
+The long red-lit side edges run ALONG the track; neither is the takeoff edge. The takeoff edge is the short CROSSWISE terminal edge at the very end of the upper curve, spanning the track width where both longitudinal sides terminate and the gray riding surface ends. The screen boundary is not the ramp end.
+Follow the centerline; keep surface contact until each contact point reaches the terminal edge. For a bicycle, stay centered: front tire crosses the terminal edge first while the rear tire remains supported; rear tire then reaches and passes that SAME crosswise edge. Only then is the pair fully airborne. The subject never slides across a long side edge, peels off halfway around the bend or falls through the surface. No airborne roll starts while the trailing contact point is still on the ramp.
+
+CAMERA CONTINUITY:
+Use one ground-based three-quarter wide view from the source camera side. Keep camera position, focal length and roll fixed until landing. Frame the full ramp, its true top, headroom and the open landing corridor to screen-left from the start. Accept a smaller subject on the climb rather than a close-up. Keep the subject AND terminal edge visible together during approach, exit and righting. No overhead view, orbit, sudden pullback, snap zoom, cutaway or dissolve. Subject scale, position, orientation and ramp perspective remain continuous. Only after landing may the ending camera move begin.
+
+ACTION ORDER AND APPROXIMATE PACING:
+Times are approximate pacing targets. Complete each stage before the next: reach the real edge, release trailing contact, clear the structure, right the subject, then start long downward jets. If timing drifts, shorten the opening or ending hold; never skip an intermediate state or cut.
+
+0.00-1.00s: Begin close to the ramp foot in the established wide view. The uploaded subject advances on its own tires, feet or natural contact region. No carrier underneath.
+
+1.00-5.50s: Traverse the lower curve and steep middle continuously along the centerline. Keep forward motion and surface contact through the inward upper bend, with orientation following the surface. A steep or inverted pose does not trigger detachment. No long braking jets.
+
+5.50-7.30s: Complete the remaining upper curve to its actual crosswise end. Show three successive states clearly: still supported just before the end; front beyond the end with the rear still supported; rear passing over that same end. Show these states in the unchanged wide view; never exit over a long side edge.
+
+7.30-9.00s: Once fully clear, preserve forward momentum along the exit tangent before the trajectory curves naturally into the open space beside the ramp. From that SAME exit orientation, right the subject smoothly sideways, with only the pitch adjustment needed to become upright. Show every intermediate orientation: exit tilt, underside-visible tilt, partial recovery, upright. Maintain one rolling direction and the rider-mount connection. No orientation snap, position reset, extra revolution, forward somersault or replacement performer. Short stabilization puffs may follow the changing attitude; no long descent jets yet.
+
+9.00-11.50s: Now upright and still airborne, descend with two separate narrow pale blue-white jets pointing toward the WORLD GROUND, not along travel. Use fixed existing roots: bicycle lower front fork and lower rear frame near the axles; person's existing soles; or two separated underside points of another object. Clear tires and limbs. Add no car, board, shell or spinning jet roots. As they reach the ground, spread white vapor outward, tinted pink by the red lights. No orange fire, black smoke or explosion.
+
+11.50-12.50s: Land once inside low vapor, stop the long jets and continue left and slightly toward the camera. Establish visible ground motion on the subject's own contact points before closing in. No car emerges from the mist.
+
+12.50-15.00s: From the same camera side, smoothly pan and optically zoom closer as the subject continues moving. No cut or camera-side reversal. With a person, finish on that same person's face and shoulders while preserving their clothes, glasses and headwear. A cyclist remains riding below the crop. Without a person, reveal the uploaded object's recognizable details; invent no face. Keep venue lights and mist behind. Shorten the ending hold if needed, never the edge crossing or righting.
+
+overall_soundscape:
+Use Audio 1 for continuous demonstration texture. Jet sounds accompany the visible puffs and braking jets. Do not force an early takeoff to hit an audio cue. No narration, dialogue or invented combustion-engine roar.
+
+non_diegetic_music:
+Follow the supplied mix without adding competing music.

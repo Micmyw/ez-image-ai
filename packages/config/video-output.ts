@@ -13,6 +13,10 @@ import {
 } from "./video-effects";
 import { VIDEO_VEO_TIER_CONTRACT_VERSION, videoVeoTierSchema } from "./video-models";
 import { videoOutputReportSchema, type VideoOutputReport } from "./video-output-report";
+import {
+	isSourceTemplateRequest,
+	readSourceTemplateInternalRequest,
+} from "./video-template-execution.server";
 
 /** Immutable request-derived output requirements. Legacy snapshots remain five-second/silent. */
 export const VIDEO_AUDIO_POLICY_VERSION = "video-spoken-content-2026-10-04.1";
@@ -94,7 +98,7 @@ export type VideoOutputConstraints = {
 	/** Missing historical constraints retain the spoken-review size limit. */
 	audioSafetyPolicy?: VideoAudioSafetyPolicy;
 	productKey?: string;
-	durationSeconds: number;
+	durationSeconds: number | null;
 	sound: boolean;
 	resolution: string;
 	aspectRatio: string;
@@ -113,6 +117,17 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 			? (value as Record<string, unknown>)
 			: {};
 	const minimumShortEdge = readMinimumShortEdge(snapshot);
+	if (isSourceTemplateRequest(snapshot)) {
+		const request = readSourceTemplateInternalRequest(snapshot);
+		return {
+			audioSafetyPolicy: readVideoAudioSafetyPolicy(snapshot),
+			productKey: request.productKey,
+			durationSeconds: request.duration,
+			sound: request.sound,
+			resolution: request.resolution,
+			aspectRatio: request.aspectRatio,
+		};
+	}
 	if (snapshot.requestKind === "template-video" || snapshot.videoEffectTemplate !== undefined) {
 		const template = snapshot.videoEffectTemplate;
 		if (!template || typeof template !== "object" || Array.isArray(template))
@@ -277,7 +292,10 @@ export function createVideoOutputReport(
 	const failure = videoOutputSpecificationFailure(output, expected);
 	if (failure) throw new Error(failure);
 	const warnings: VideoOutputReport["warnings"] = [];
-	if (Math.abs(output.durationMillis - expected.durationSeconds * 1000) > 250)
+	if (
+		expected.durationSeconds !== null &&
+		Math.abs(output.durationMillis - expected.durationSeconds * 1000) > 250
+	)
 		warnings.push("DURATION_MISMATCH");
 	if (!expected.sound && output.audioTracks > 0) warnings.push("UNEXPECTED_AUDIO");
 	if (expected.sound && output.audioTracks === 0) warnings.push("MISSING_AUDIO");

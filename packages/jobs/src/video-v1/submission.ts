@@ -19,8 +19,18 @@ import {
 	type KieVideoV1Result,
 	type KieVideoV1Submission,
 } from "@repo/ai/media/providers/kie-video-v1";
+import {
+	submitSourceTemplateRequest,
+	retrieveSourceTemplateRequest,
+	type SourceTemplateTransportRequest,
+} from "@repo/ai/media/rap-templates/transport";
 import { VIDEO_VEO_TIER_CONTRACT_VERSION } from "@repo/config/video-models";
 import { readVideoSeeapiCallbackConfig } from "@repo/config/video-seeapi-callback";
+import {
+	isSourceTemplateRequest,
+	readSourceTemplateInternalRequest,
+	sourceTemplateIdentitySchema,
+} from "@repo/config/video-template-execution.server";
 import {
 	isApprovedVideoTextDecision,
 	readVideoTextSafetyProfile,
@@ -31,6 +41,7 @@ import {
 	resolveVideoV1CallbackBaseUrl,
 	VIDEO_V1_RULE_VERSION,
 } from "@repo/config/video-v1";
+import * as sourceCallbacks from "@repo/database/video-source-template-events";
 import { getVideoEffectiveInputSnapshot } from "@repo/database/video-template-execution";
 import * as database from "@repo/database/video-v1-execution";
 import { createSignedReadUrl } from "@repo/storage";
@@ -43,6 +54,9 @@ import type {
 	VideoInputSnapshot,
 } from "./contracts";
 import { createSeeapiVideoInputCallbackUrl } from "./seeapi-callback-url";
+import { createSourceTemplateCallbackUrl } from "./source-template-callback-url";
+import { reviewSourceTemplateInputs } from "./source-template-review";
+import { replaceSourceTemplateUrls } from "./source-template-urls";
 import { requireVideoTemplateRuntimeEnabled } from "./template-runtime-gates";
 import { moderateVideoText } from "./text-moderation";
 
@@ -66,6 +80,10 @@ type Store = Pick<
 	| "consumeVideoProviderEvents"
 >;
 export interface VideoSubmissionDependencies {
+	callbacks: Pick<
+		typeof sourceCallbacks,
+		"claimSourceTemplateCallback" | "finishSourceTemplateCallback"
+	>;
 	prepareImageModeration: typeof preparePrivateImageModeration;
 	store: Store;
 	safety: MediaSafetyAdapter;
@@ -80,6 +98,10 @@ export interface VideoSubmissionDependencies {
 			context?: KieVideoResultContext,
 		): Promise<KieVideoV1Result>;
 	};
+	sourceProvider: {
+		submit: typeof submitSourceTemplateRequest;
+		retrieve: typeof retrieveSourceTemplateRequest;
+	};
 	signRead: (objectKey: string) => Promise<string>;
 	env: Record<string, string | undefined>;
 	now: () => Date;
@@ -93,6 +115,7 @@ function dependencies(
 	const modelProvider = new KieVideoModelsAdapter({ apiKey: env.KIE_API_KEY ?? "" });
 	const referenceProvider = new KieSeedanceReferenceAdapter({ apiKey: env.KIE_API_KEY ?? "" });
 	return {
+		callbacks: sourceCallbacks,
 		store: database,
 		prepareImageModeration: preparePrivateImageModeration,
 		safety: createConfiguredVideoSafetyAdapter(env),
@@ -108,6 +131,10 @@ function dependencies(
 				productKey
 					? modelProvider.retrieve(taskId, productKey, context)
 					: legacyProvider.retrieve(taskId),
+		},
+		sourceProvider: {
+			submit: submitSourceTemplateRequest,
+			retrieve: retrieveSourceTemplateRequest,
 		},
 		signRead: (objectKey) =>
 			createSignedReadUrl({ bucket: "media", key: objectKey, expiresIn: 3600 }),
@@ -222,6 +249,15 @@ export async function reviewVideoInput(
 	if (job.attempts.length) return { status: "ALLOW" }; // Already submitted only after durable approval.
 	if (["FAILED", "REJECTED"].includes(job.videoExecution.stage))
 		return { status: "REJECT", reasonCode: job.failureCode ?? "VIDEO_INPUT_REJECTED" };
+	if (isSourceTemplateRequest(job.inputSnapshot))
+		return reviewSourceTemplateInputs(jobId, {
+			safety: deps.safety,
+			moderateText: deps.moderateText,
+			prepareImageModeration: deps.prepareImageModeration,
+			signRead: deps.signRead,
+			env: deps.env,
+			now: deps.now,
+		});
 	try {
 		deps.store.assertVideoInputIdentity(job);
 	} catch {
@@ -421,20 +457,23 @@ export async function submitVideoAttempt(
 	if (!job?.videoExecution) throw new Error("VIDEO_JOB_NOT_FOUND");
 	const existing = job.attempts[0];
 	if (existing) return replaySubmission(existing);
+	const source = isSourceTemplateRequest(job.inputSnapshot)
+		? readSourceTemplateInternalRequest(job.inputSnapshot)
+		: undefined;
 	const snapshot = (object(job.inputSnapshot).videoEffectTemplate
 		? getVideoEffectiveInputSnapshot(job)
 		: job.inputSnapshot) as unknown as VideoInputSnapshot;
 	readVideoTextSafetyProfile(snapshot);
 	// Finish all deterministic preparation before creating the irrevocable send fence.
 	const callbackBase = resolveVideoV1CallbackBaseUrl(deps.env);
-	if (!callbackBase || !deps.env.KIE_WEBHOOK_SECRET)
+	if (!source && (!callbackBase || !deps.env.KIE_WEBHOOK_SECRET))
 		throw new Error("VIDEO_CALLBACK_CONFIGURATION_INVALID");
 	const token = Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) =>
 		byte.toString(16).padStart(2, "0"),
 	).join("");
-	const callbackUrl = new URL(`/api/webhooks/video/kie/${token}`, callbackBase).href;
+	const callbackUrl = source ? "" : new URL(`/api/webhooks/video/kie/${token}`, callbackBase!).href;
 	const imageUrl =
-		snapshot.mode === "image-to-video" && snapshot.inputIdentity
+		!source && snapshot.mode === "image-to-video" && snapshot.inputIdentity
 			? await deps.signRead(snapshot.inputIdentity.objectKey)
 			: undefined;
 	const reference =
@@ -444,7 +483,22 @@ export async function submitVideoAttempt(
 			: undefined;
 	// Only the immutable backend-approved private key is signed. No user or callback URL is accepted.
 	const motionUrl = reference ? await deps.signRead(reference.objectKey) : undefined;
-	const prepared = prepareVideoProviderRequest(snapshot, callbackUrl, imageUrl, motionUrl);
+	const sourceRequest = source
+		? await prepareFrozenSourceTemplateRequest(job.inputSnapshot, deps.signRead)
+		: undefined;
+	if (sourceRequest) {
+		const callback = createSourceTemplateCallbackUrl(
+			{ provider: sourceRequest.provider, token },
+			deps.env,
+		);
+		sourceRequest.body = {
+			...sourceRequest.body,
+			[sourceRequest.provider === "kie" ? "callBackUrl" : "callback_url"]: callback,
+		};
+	}
+	const prepared = sourceRequest
+		? { input: undefined, providerModelId: sourceRequest.modelId }
+		: prepareVideoProviderRequest(snapshot, callbackUrl, imageUrl, motionUrl);
 	if (snapshot.videoEffectTemplate)
 		await requireVideoTemplateRuntimeEnabled(snapshot.videoEffectTemplate, deps.env);
 	let claim: Awaited<ReturnType<Store["claimVideoProviderSubmission"]>>;
@@ -487,7 +541,13 @@ export async function submitVideoAttempt(
 	if (!claim.claimed) return replaySubmission(claim.attempt);
 	const attemptId = claim.attempt.id;
 	try {
-		const result = await deps.provider.submit(prepared.input);
+		const result = sourceRequest
+			? await deps.sourceProvider.submit(sourceRequest, {
+					apiKey:
+						deps.env[sourceRequest.provider === "seeapi" ? "SEEAPI_API_KEY" : "KIE_API_KEY"] ?? "",
+					idempotencyKey: attemptId,
+				})
+			: await deps.provider.submit(prepared.input!);
 		if (result.status === "ACCEPTED") {
 			await deps.store.recordVideoSubmissionAccepted(jobId, attemptId, result.providerTaskId);
 			return { status: "ACCEPTED", attemptId, providerTaskId: result.providerTaskId };
@@ -545,25 +605,72 @@ export async function confirmVideoProviderResult(
 			config.providerDeadlineSeconds * 1000,
 	).toISOString();
 	if (!attempt?.providerTaskId)
-		return { status: "PENDING", retryAfterSeconds: config.providerPollSeconds, deadlineAt };
+		return isSourceTemplateRequest(job.inputSnapshot)
+			? { status: "PENDING", waitFor: "callback", deadlineAt }
+			: { status: "PENDING", retryAfterSeconds: config.providerPollSeconds, deadlineAt };
 	const snapshot = job.inputSnapshot as unknown as VideoInputSnapshot;
+	const source = isSourceTemplateRequest(job.inputSnapshot)
+		? readSourceTemplateInternalRequest(job.inputSnapshot)
+		: undefined;
 	// Query routing comes from the immutable request and persisted attempt,
 	// never from callback/client fields or an unsigned result URL.
 	const productKey = "productKey" in snapshot ? snapshot.productKey : undefined;
-	const providerModelId = resolveKieVideoModelId(productKey ?? "video-kling-2-6-v1", snapshot.mode);
-	if (attempt.providerModelId !== providerModelId)
+	const providerModelId =
+		source?.sourceTemplate.transport.modelId ??
+		resolveKieVideoModelId(productKey ?? "video-kling-2-6-v1", snapshot.mode);
+	if (
+		attempt.providerModelId !== providerModelId ||
+		(source && attempt.provider !== source.sourceTemplate.transport.provider)
+	)
 		throw new Error("VIDEO_PROVIDER_MODEL_IDENTITY_MISMATCH");
 	const queriedAt = deps.now();
-	const result = productKey
-		? "veoTier" in snapshot && snapshot.veoTier !== undefined
-			? await deps.provider.retrieve(attempt.providerTaskId, productKey, {
-					resolution: snapshot.resolution,
-					veoTier: snapshot.veoTier,
-					modelContractVersion: snapshot.modelContractVersion,
-				})
-			: await deps.provider.retrieve(attempt.providerTaskId, productKey)
-		: await deps.provider.retrieve(attempt.providerTaskId);
+	let sourceEvent: string | null = null;
+	if (source) {
+		try {
+			sourceEvent = await deps.callbacks.claimSourceTemplateCallback({
+				phase: "generation",
+				jobId,
+				attemptId: attempt.id,
+			});
+		} catch {
+			return { status: "ERROR", reasonCode: "SOURCE_CALLBACK_CONFIRMATION_HELD" };
+		}
+		if (!sourceEvent) return { status: "PENDING", waitFor: "callback", deadlineAt };
+	}
+	let result: KieVideoV1Result;
+	try {
+		result = source
+			? await deps.sourceProvider.retrieve(
+					source.sourceTemplate.transport as unknown as SourceTemplateTransportRequest,
+					attempt.providerTaskId,
+					{
+						apiKey:
+							deps.env[
+								source.sourceTemplate.transport.provider === "seeapi"
+									? "SEEAPI_API_KEY"
+									: "KIE_API_KEY"
+							] ?? "",
+					},
+				)
+			: productKey
+				? "veoTier" in snapshot && snapshot.veoTier !== undefined
+					? await deps.provider.retrieve(attempt.providerTaskId, productKey, {
+							resolution: snapshot.resolution,
+							veoTier: snapshot.veoTier,
+							modelContractVersion: snapshot.modelContractVersion,
+						})
+					: await deps.provider.retrieve(attempt.providerTaskId, productKey)
+				: await deps.provider.retrieve(attempt.providerTaskId);
+	} catch (error) {
+		if (!sourceEvent) throw error;
+		await deps.callbacks.finishSourceTemplateCallback(sourceEvent, true);
+		return { status: "ERROR", reasonCode: "SOURCE_CALLBACK_CONFIRMATION_FAILED" };
+	}
 	if (result.status === "PENDING") {
+		if (sourceEvent) {
+			await deps.callbacks.finishSourceTemplateCallback(sourceEvent);
+			return { status: "PENDING", waitFor: "callback", deadlineAt };
+		}
 		await deps.store.consumeVideoProviderEvents(jobId, attempt.id, queriedAt);
 		return { status: "PENDING", retryAfterSeconds: config.providerPollSeconds, deadlineAt };
 	}
@@ -574,7 +681,8 @@ export async function confirmVideoProviderResult(
 			result.providerCreditsConsumed,
 		);
 		const changed = await deps.store.failVideoExecution(jobId, result.reasonCode);
-		await deps.store.consumeVideoProviderEvents(jobId, attempt.id, queriedAt);
+		if (sourceEvent) await deps.callbacks.finishSourceTemplateCallback(sourceEvent);
+		else await deps.store.consumeVideoProviderEvents(jobId, attempt.id, queriedAt);
 		if (!changed) {
 			const latest = await deps.store.getVideoExecutionContext(jobId);
 			if (latest?.attempts[0]?.status === "SUCCEEDED")
@@ -591,9 +699,52 @@ export async function confirmVideoProviderResult(
 		providerCreditsConsumed: result.providerCreditsConsumed,
 		providerCompletedAt: result.providerCompletedAt,
 	});
-	await deps.store.consumeVideoProviderEvents(jobId, attempt.id, queriedAt);
+	if (sourceEvent) await deps.callbacks.finishSourceTemplateCallback(sourceEvent);
+	else await deps.store.consumeVideoProviderEvents(jobId, attempt.id, queriedAt);
 	const latest = await deps.store.getVideoExecutionContext(jobId);
 	if (latest?.videoExecution && ["FAILED", "REJECTED"].includes(latest.videoExecution.stage))
 		return { status: "FAILED", reasonCode: latest.failureCode ?? "VIDEO_GENERATION_FAILED" };
 	return { status: "SUCCEEDED", attemptId: attempt.id };
+}
+
+/** Sign only the immutable user and approved administrator identities frozen in this order. */
+export async function prepareFrozenSourceTemplateRequest(
+	snapshot: unknown,
+	signRead: (key: string) => Promise<string>,
+): Promise<SourceTemplateTransportRequest> {
+	const source = readSourceTemplateInternalRequest(snapshot).sourceTemplate;
+	const roles = object(snapshot).roleInputIdentities;
+	if (!Array.isArray(roles) || roles.length !== source.request.inputs.length)
+		throw new Error("VIDEO_INPUT_IDENTITY_CHANGED");
+	const replacements = new Map<string, string>();
+	for (const [index, role] of source.request.inputs.entries()) {
+		const value = object(roles[index]);
+		const identity = sourceTemplateIdentitySchema.parse(
+			Object.fromEntries(
+				[
+					"assetId",
+					"checksum",
+					"objectKey",
+					"storageEtag",
+					"storageVersionId",
+					"verificationGeneration",
+				].map((key) => [key, value[key]]),
+			),
+		);
+		if (value.role !== role.role || identity.assetId !== role.assetId)
+			throw new Error("VIDEO_INPUT_IDENTITY_CHANGED");
+		replacements.set(
+			`https://ezpic-template.example/user/${role.role}`,
+			await signRead(identity.objectKey),
+		);
+	}
+	for (const [index, reference] of source.references.entries())
+		replacements.set(
+			`https://ezpic-template.example/reference/${index}`,
+			await signRead(reference.objectKey),
+		);
+	return {
+		...source.transport,
+		body: replaceSourceTemplateUrls(source.transport.body, replacements),
+	} as SourceTemplateTransportRequest;
 }

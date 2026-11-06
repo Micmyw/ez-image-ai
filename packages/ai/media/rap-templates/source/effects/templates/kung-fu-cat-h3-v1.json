@@ -1,0 +1,17 @@
+{
+  "templateId": "kung-fu-cat-ai",
+  "revision": "kung-fu-cat-h3-v1",
+  "provider": "kie",
+  "model": "minimax-h3/reference-to-video",
+  "preset": "pet",
+  "settings": { "duration": 9, "aspectRatio": "9:16", "resolution": "768P" },
+  "identitySlots": ["pet"],
+  "referenceImages": [
+    "__REPLACE_WITH_APPROVED_SCENE_IMAGE_PATH__",
+    "__REPLACE_WITH_APPROVED_PAW_POSE_IMAGE_PATH__"
+  ],
+  "referenceAudio": "__REPLACE_WITH_APPROVED_ORIGINAL_PERCUSSION_PATH__",
+  "prompt": "__REPLACE_WITH_APPROVED_KUNG_FU_CAT_PROMPT_AND_TIMELINE__",
+  "rightsManifest": "__REPLACE_WITH_VERIFIED_RIGHTS_MANIFEST_PATH__",
+  "assetsVerified": false
+}

@@ -2278,7 +2278,10 @@
 			"videos": "AI Video",
 			"videoGenerator": "AI Video Generator",
 			"videoGeneratorDescription": "Animate a prompt or one reference image.",
-			"videoGuide": "Video generation guide"
+			"videoGuide": "Video generation guide",
+			"videoTemplates": "Video templates",
+			"videoTemplatesDescription": "Rap, dance and pet videos from your photos",
+			"videoTemplateHandoff": "Make a video with this image"
 		},
 		"generation": {
 			"referencePending": "Finish uploading your reference, retry it, or remove it to generate from text.",

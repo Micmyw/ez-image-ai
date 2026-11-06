@@ -24,6 +24,17 @@ function inspect(path: string, query = "") {
 }
 
 describe("public HTML and HTTP indexing agree", () => {
+	it("keeps imported template discovery unindexed until target acceptance is reviewed", () => {
+		expect(proxyConfig.matcher).toContain("/video-templates/:path*");
+		for (const path of ["/video-templates", "/video-templates/bulin-47"]) {
+			const { metadata, header } = inspect(path);
+			expect(metadata.robots).toEqual({ index: false, follow: true });
+			expect(header).toBe("noindex, follow");
+			const privateView = inspect(path, "asset=owned-photo");
+			expect(privateView.metadata.robots).toEqual({ index: false, follow: false });
+			expect(privateView.header).toBe("noindex, nofollow");
+		}
+	});
 	it.each(["en", "de", "es", "fr"])(
 		"keeps the public purchase page private to crawlers while setting its %s URL locale",
 		(locale) => {
@@ -38,9 +49,9 @@ describe("public HTML and HTTP indexing agree", () => {
 		},
 	);
 	it.each(
-		Object.entries(PUBLIC_PAGE_LANGUAGES).flatMap(([path, languages]) =>
-			languages.map((locale) => [path, locale]),
-		),
+		Object.entries(PUBLIC_PAGE_LANGUAGES)
+			.filter(([path]) => !path.startsWith("/video-templates"))
+			.flatMap(([path, languages]) => languages.map((locale) => [path, locale])),
 	)("indexes real translated content at %s in %s with reciprocal alternatives", (path, locale) => {
 		const { metadata, header } = inspect(path!, `lang=${locale}`);
 		expect(metadata.robots).toEqual({ index: true, follow: true });

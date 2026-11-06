@@ -19,12 +19,18 @@ export function VideoOutputDetails({ output }: { output: VideoOutputReport }) {
 				})}
 			</p>
 			<p className="text-muted-foreground">
-				{t("requested", {
-					seconds: requested.durationSeconds,
-					resolution: requested.resolution,
-					ratio: requested.aspectRatio,
-					audio: t(requested.sound ? "withAudio" : "withoutAudio"),
-				})}
+				{requested.durationSeconds === null
+					? t("requestedTemplate", {
+							resolution: requested.resolution,
+							ratio: requested.aspectRatio,
+							audio: t(requested.sound ? "withAudio" : "withoutAudio"),
+						})
+					: t("requested", {
+							seconds: requested.durationSeconds,
+							resolution: requested.resolution,
+							ratio: requested.aspectRatio,
+							audio: t(requested.sound ? "withAudio" : "withoutAudio"),
+						})}
 			</p>
 			{output.warnings.length > 0 && (
 				<aside

@@ -2278,7 +2278,10 @@
 			"videos": "KI-Video",
 			"videoGenerator": "KI-Videogenerator",
 			"videoGeneratorDescription": "Animiere einen Prompt oder ein Referenzbild.",
-			"videoGuide": "Anleitung zur Videoerstellung"
+			"videoGuide": "Anleitung zur Videoerstellung",
+			"videoTemplates": "Videovorlagen",
+			"videoTemplatesDescription": "Rap-, Tanz- und Tiervideos aus deinen Fotos",
+			"videoTemplateHandoff": "Mit diesem Bild ein Video erstellen"
 		},
 		"generation": {
 			"referencePending": "Schließe den Referenz-Upload ab, versuche ihn erneut oder entferne ihn für ein Bild aus Text.",

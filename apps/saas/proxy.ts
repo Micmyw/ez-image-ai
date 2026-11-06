@@ -42,6 +42,7 @@ export const config = {
 		"/create",
 		"/video/:path*",
 		"/video-effects/:path*",
+		"/video-templates/:path*",
 		"/examples",
 		"/effects/:path*",
 		"/effects-preview/:path*",

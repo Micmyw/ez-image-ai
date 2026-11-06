@@ -7,6 +7,24 @@ export const PUBLIC_PAGE_LANGUAGES: Record<string, readonly string[]> = {
 	"/pricing": ["en", "de", "es", "fr"],
 	"/contact": ["en", "de", "es", "fr"],
 	"/privacy": ["en", "de"],
+	"/video-templates": ["en", "de", "es", "fr"],
+	"/video-templates/original-rap": ["en", "de", "es", "fr"],
+	"/video-templates/rap-orange-studio": ["en", "de", "es", "fr"],
+	"/video-templates/rap-street-cypher": ["en", "de", "es", "fr"],
+	"/video-templates/rap-neon-rap": ["en", "de", "es", "fr"],
+	"/video-templates/rap-funny-rap": ["en", "de", "es", "fr"],
+	"/video-templates/bulin-47": ["en", "de", "es", "fr"],
+	"/video-templates/spin-me-round": ["en", "de", "es", "fr"],
+	"/video-templates/58th-floor": ["en", "de", "es", "fr"],
+	"/video-templates/green-booth-freestyle": ["en", "de", "es", "fr"],
+	"/video-templates/kung-fu-cat": ["en", "de", "es", "fr"],
+	"/video-templates/paws-at-you": ["en", "de", "es", "fr"],
+	"/video-templates/source-hotel-lobby": ["en", "de", "es", "fr"],
+	"/video-templates/flying-car": ["en", "de", "es", "fr"],
+	"/video-templates/flying-car-curved-ramp-showcase": ["en", "de", "es", "fr"],
+	"/video-templates/flying-car-curved-ramp": ["en", "de", "es", "fr"],
+	"/video-templates/flying-car-fleet-side": ["en", "de", "es", "fr"],
+	"/video-templates/flying-car-fleet-front": ["en", "de", "es", "fr"],
 };
 
 export type PublicSearchParams = Record<string, string | string[] | undefined>;
@@ -46,11 +64,14 @@ export function publicPageIndexing(path: string, search: PublicSearchParams = {}
 			Boolean(Array.isArray(search[key]) ? search[key][0] : search[key]),
 		);
 	const effectMode = pathname === "/blog/raindance-ai-trend" && search.mode !== undefined;
+	// Discovery can precede release; imported templates have no target acceptance evidence yet.
+	const pendingTemplates =
+		pathname === "/video-templates" || pathname.startsWith("/video-templates/");
 	return {
 		locale,
 		languages,
 		canonicalPath: translated ? publicPagePath(path, locale) : path,
-		index: translated && !privateView && !filteredBlog && !effectMode,
+		index: translated && !privateView && !filteredBlog && !effectMode && !pendingTemplates,
 		follow: !privateView,
 	};
 }

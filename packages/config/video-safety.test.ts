@@ -1,12 +1,36 @@
 import { describe, expect, it } from "vitest";
 
+import { sourceHotelTemplateFixture } from "./test-support/source-hotel-template";
 import {
 	configuredVideoVisualSafetyProfile,
+	configuredProviderOwnedVideoVisualSafetyProfile,
 	createVideoVisualSafetyProfile,
 	readVideoVisualSafetyProfile,
 } from "./video-safety";
 
 describe("immutable video visual safety profiles", () => {
+	it("freezes maximum coverage without claiming a hosted-template requested duration", () => {
+		const request = sourceHotelTemplateFixture();
+		const visualSafetyProfile = configuredProviderOwnedVideoVisualSafetyProfile({
+			VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
+		});
+		expect(readVideoVisualSafetyProfile({ ...request, visualSafetyProfile })).toEqual(
+			visualSafetyProfile,
+		);
+		expect(request.duration).toBeNull();
+		expect(visualSafetyProfile.sampling).toMatchObject({ numFrames: 32 });
+		for (const profile of [
+			undefined,
+			createVideoVisualSafetyProfile("seeapi", 15),
+			createVideoVisualSafetyProfile("sightengine", 30),
+		])
+			expect(() =>
+				readVideoVisualSafetyProfile({ ...request, visualSafetyProfile: profile }),
+			).toThrow("VIDEO_SAFETY_PROFILE_INVALID");
+		expect(() => readVideoVisualSafetyProfile({ duration: null, visualSafetyProfile })).toThrow(
+			"VIDEO_SAFETY_PROFILE_INVALID",
+		);
+	});
 	it.each([2, 5, 8, 10, 15, 30])("freezes all settings for %i requested seconds", (duration) => {
 		const visualSafetyProfile = createVideoVisualSafetyProfile("seeapi", duration);
 		expect(readVideoVisualSafetyProfile({ duration, visualSafetyProfile })).toEqual(

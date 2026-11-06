@@ -1,0 +1,17 @@
+{
+  "templateId": "green-booth-freestyle-ai",
+  "revision": "green-booth-h3-v2",
+  "provider": "kie",
+  "model": "minimax-h3/reference-to-video",
+  "preset": "duo",
+  "settings": { "duration": 12, "aspectRatio": "9:16", "resolution": "768P" },
+  "identitySlots": ["left", "right"],
+  "referenceImages": [
+    "__REPLACE_WITH_APPROVED_EMPTY_BOOTH_IMAGE_PATH__",
+    "__REPLACE_WITH_APPROVED_DUO_POSE_IMAGE_PATH__"
+  ],
+  "referenceAudio": "__REPLACE_WITH_APPROVED_ORIGINAL_BEAT_AND_VOCALS_PATH__",
+  "prompt": "__REPLACE_WITH_APPROVED_GREEN_BOOTH_PROMPT_AND_TIMELINE__",
+  "rightsManifest": "__REPLACE_WITH_VERIFIED_RIGHTS_MANIFEST_PATH__",
+  "assetsVerified": false
+}

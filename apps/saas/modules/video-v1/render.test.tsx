@@ -250,6 +250,22 @@ describe("truthful video delivery UI", () => {
 				</NextIntlClientProvider>,
 			);
 			expect(clean).not.toContain('role="note"');
+			const errors = vi.fn();
+			const templateDefined = renderToStaticMarkup(
+				<NextIntlClientProvider locale={locale} messages={messages} onError={errors}>
+					<VideoOutputDetails
+						output={{
+							...output,
+							requested: { ...output.requested, durationSeconds: null },
+							warnings: [],
+						}}
+					/>
+				</NextIntlClientProvider>,
+			);
+			expect(templateDefined).toContain(messages.videoV1.output.requestedTemplate.split(" · ")[0]);
+			expect(templateDefined).toContain("496 × 864 px");
+			expect(templateDefined).not.toContain("0 s ·");
+			expect(errors).not.toHaveBeenCalled();
 		},
 	);
 	it.each(["standard", "annual"] as const)(

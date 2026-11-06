@@ -67,7 +67,7 @@ describe("public navigation taxonomy", () => {
 		]);
 	});
 
-	it("gives mobile readers a video group containing only existing generators and guides", async () => {
+	it("gives mobile readers the template directory alongside existing generators and guides", async () => {
 		const markup = await renderNavigation(<StudioToolNavigation drawer />);
 		const groups = [...markup.matchAll(/data-navigation-group="([^"]+)"/g)].map(
 			(match) => match[1],
@@ -81,6 +81,7 @@ describe("public navigation taxonomy", () => {
 			/<details[^>]*data-navigation-group="video"[\s\S]*?<\/details>/,
 		)?.[0];
 		expect(videoGroup).toContain('href="/create?mode=video"');
+		expect(videoGroup).toContain('href="/video-templates"');
 		expect(videoGroup).toContain('href="/video-effects/hotel-lobby-ai"');
 		expect(videoGroup).toContain('href="/blog/raindance-ai-trend"');
 		expect(videoGroup).toContain('href="/docs/video-beta"');

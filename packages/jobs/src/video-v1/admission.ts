@@ -17,6 +17,11 @@ import {
 import { configuredVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { applyVideoSharedFunding } from "@repo/config/video-shared-funding";
 import type { VideoSubmissionInput } from "@repo/config/video-submission";
+import {
+	isSourceTemplateRequest,
+	readSourceTemplateInternalRequest,
+} from "@repo/config/video-template-execution.server";
+import { getVideoTemplate } from "@repo/config/video-template-library";
 import { configuredVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import {
 	canAccessVideoV1,
@@ -338,6 +343,18 @@ export function toVideoPublicState(job: PublicRecord): VideoPublicState {
 	const pricing = readVideoRetailDisplay(pricingSnapshot?.pricingDetails);
 	return {
 		jobId: job.id,
+		...(isSourceTemplateRequest(snapshot)
+			? {
+					template: (() => {
+						const source = readSourceTemplateInternalRequest(snapshot).sourceTemplate;
+						return {
+							templateKey: source.templateKey,
+							name: getVideoTemplate(source.templateKey)?.name ?? "Original Rap",
+							version: source.version,
+						};
+					})(),
+				}
+			: {}),
 		stage: job.videoExecution.stage,
 		creditState: job.reservation.status === "ACTIVE" ? "RESERVED" : job.reservation.status,
 		credits: job.creditsReserved.toString(),

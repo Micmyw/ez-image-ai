@@ -9,12 +9,19 @@ import {
 
 import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
+import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { releaseCreditsInTransaction } from "./credits";
 import { runReadCommitted } from "./types";
 import {
 	clearVideoProviderDispatch,
 	type DeferredVideoProviderDispatch,
 } from "./video-provider-dispatch";
+import {
+	assertSourceTemplateInputIdentities,
+	assertSourceTemplateInputReview,
+	findApprovedSourceTemplateReferences,
+	readSourceTemplateRoleIdentities,
+} from "./video-source-template-review";
 import { recordVideoTemplateBusinessEvent } from "./video-template-events";
 import {
 	assertVideoTemplateRoleIdentities,
@@ -148,6 +155,10 @@ export function assertVideoInputIdentity(
 	},
 ) {
 	const original = object(job.inputSnapshot);
+	if (original.requestKind === "source-template-video") {
+		assertSourceTemplateInputIdentities(job);
+		return;
+	}
 	if (original.videoEffectTemplate) {
 		assertVideoTemplateRoleIdentities(job);
 		if (!job.videoTemplateExecution?.resolvedInputIdentity) return;
@@ -203,6 +214,8 @@ export function assertVideoInputIdentity(
 export async function recordVideoInputReview(jobId: string, patch: Record<string, unknown>) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
 		const job = await lockedInputReviewContext(tx, jobId);
+		if (object(job.inputSnapshot).requestKind === "source-template-video")
+			throw new Error("VIDEO_SOURCE_TEMPLATE_ROLE_REVIEW_REQUIRED");
 		if (
 			terminal.has(job.videoExecution!.stage) ||
 			job.videoExecution!.stage === "NEEDS_REVIEW" ||
@@ -271,6 +284,8 @@ export async function claimVideoImageReview(
 ) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
 		const job = await lockedInputReviewContext(tx, jobId);
+		if (object(job.inputSnapshot).requestKind === "source-template-video")
+			throw new Error("VIDEO_SOURCE_TEMPLATE_ROLE_REVIEW_REQUIRED");
 		assertVideoInputIdentity(job);
 		await findApprovedVideoTemplateMotionReference(
 			object(job.inputSnapshot).videoEffectTemplate,
@@ -358,12 +373,28 @@ export async function claimVideoProviderSubmission(input: {
 		// The retired project cap has no cross-job claim invariant. Owner storage
 		// and job locks below still protect capacity, immutable attempts and may-have-sent state.
 		await lockVideoOwnerStorage(tx, input.jobId);
-		const job = await lockedContext(tx, input.jobId);
+		let job = await lockedContext(tx, input.jobId);
 		const existing = job.attempts[0];
 		if (existing) return { attempt: existing, claimed: false };
 		if (terminal.has(job.videoExecution!.stage) || job.videoExecution!.stage === "NEEDS_REVIEW")
 			throw new Error("VIDEO_JOB_TERMINAL");
 		// Retain per-job funding, review and send fences; the old project cap is retired.
+		const sourceTemplate =
+			object(job.inputSnapshot).requestKind === "source-template-video"
+				? object(object(job.inputSnapshot).sourceTemplate)
+				: null;
+		if (sourceTemplate) {
+			const roles = readSourceTemplateRoleIdentities(job.inputSnapshot);
+			const references = Array.isArray(sourceTemplate.references) ? sourceTemplate.references : [];
+			await lockMediaAssetGenerationBindings(
+				[
+					...roles.map((identity) => identity.assetId),
+					...references.map((reference) => String(object(reference).assetId)),
+				],
+				tx,
+			);
+			job = await lockedContext(tx, input.jobId);
+		}
 		assertVideoInputIdentity(job);
 		const effectiveSnapshot = getVideoEffectiveInputSnapshot(job);
 		const textSafetyProfile = readVideoTextSafetyProfile(job.inputSnapshot);
@@ -372,8 +403,9 @@ export async function claimVideoProviderSubmission(input: {
 			review.status !== "ALLOW" ||
 			review.ruleVersion !== input.ruleVersion ||
 			!videoTextSafetyProfilesMatch(review.textSafetyProfile, textSafetyProfile) ||
-			!isApprovedVideoTextDecision(review.textDecision, textSafetyProfile) ||
-			(effectiveSnapshot.mode === "image-to-video" &&
+			(!sourceTemplate && !isApprovedVideoTextDecision(review.textDecision, textSafetyProfile)) ||
+			(!sourceTemplate &&
+				effectiveSnapshot.mode === "image-to-video" &&
 				object(review.imageDecision).decision !== "ALLOW") ||
 			review.requestFingerprint !== object(job.inputSnapshot).requestFingerprint ||
 			typeof review.validUntil !== "string" ||
@@ -398,6 +430,13 @@ export async function claimVideoProviderSubmission(input: {
 			SELECT clock_timestamp() AS "now"`;
 		if (!clock || !Number.isFinite(clock.now.getTime()))
 			throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+		if (sourceTemplate) {
+			assertSourceTemplateInputIdentities(job, clock.now);
+			assertSourceTemplateInputReview(job.inputSnapshot, review, clock.now);
+			await findApprovedSourceTemplateReferences(sourceTemplate, tx, clock.now);
+			if (object(sourceTemplate.transport).modelId !== input.providerModelId)
+				throw new Error("VIDEO_SOURCE_TEMPLATE_PROVIDER_CHANGED");
+		}
 		await findApprovedVideoTemplateMotionReference(
 			object(job.inputSnapshot).videoEffectTemplate,
 			tx,
@@ -420,7 +459,7 @@ export async function claimVideoProviderSubmission(input: {
 			data: {
 				jobId: job.id,
 				attemptNumber: 1,
-				provider: "kie",
+				provider: sourceTemplate ? String(object(sourceTemplate.transport).provider) : "kie",
 				providerModelId: input.providerModelId,
 				callbackTokenHash: input.callbackTokenHash,
 				requestSnapshot: effectiveSnapshot as Prisma.InputJsonValue,

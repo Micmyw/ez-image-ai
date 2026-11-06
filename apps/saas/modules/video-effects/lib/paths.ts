@@ -1,4 +1,6 @@
 /** Shared navigation must not load the template's draft validation or execution contract. */
+import { isSourceVideoTemplatePath } from "../../video-templates/lib/paths";
+
 export const VIDEO_EFFECT_PATH = "/video-effects/hotel-lobby-ai";
 export const RAINDANCE_PATH = "/blog/raindance-ai-trend";
 export const RUMPELSTILTSKIN_PATH = "/video/effects/rumpelstiltskin";
@@ -23,6 +25,7 @@ export function sanitizeVideoEffectReturnPath(value: string | null | undefined):
 	try {
 		const url = new URL(value, "https://video-effect-return.invalid");
 		if (url.origin !== "https://video-effect-return.invalid" || url.hash) return null;
+		if (isSourceVideoTemplatePath(url.pathname) && !url.search) return url.pathname;
 		if (isVideoEffectPath(url.pathname) && !url.search) return url.pathname;
 		const mode = url.searchParams.get("mode");
 		return url.pathname === RAINDANCE_PATH &&

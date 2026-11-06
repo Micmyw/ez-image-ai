@@ -39,6 +39,7 @@ export type VideoPublicState = {
 	failureCode: string | null;
 	updatedAt: string;
 	effect?: { effectId: VideoEffectId; name: string; templateVersion: string };
+	template?: { templateKey: string; name: string; version: string };
 };
 export interface VideoWorkflowInstance {
 	status(): Promise<{ status: string }>;
@@ -71,7 +72,8 @@ export type SubmissionStepResult =
 	| { status: "UNCERTAIN"; attemptId: string; reasonCode: string }
 	| { status: "DEFINITELY_REJECTED"; attemptId?: string; reasonCode: string };
 export type ProviderResult =
-	| { status: "PENDING"; retryAfterSeconds?: number; deadlineAt?: string }
+	| { status: "PENDING"; retryAfterSeconds?: number; deadlineAt?: string; waitFor?: "callback" }
+	| { status: "ERROR"; reasonCode: string }
 	| { status: "SUCCEEDED"; attemptId: string }
 	| { status: "FAILED"; reasonCode: string };
 export type StoredOutputRef = { assetId: string; checksum: string; byteSize: string };

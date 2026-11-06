@@ -60,7 +60,14 @@ const nextConfig: NextConfig = {
 		? { serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg"] }
 		: {}),
 	images: {
+		// Local proxies may resolve public image hosts to private synthetic addresses.
+		unoptimized: !isProduction && process.env.EZPIC_LOCAL_ORIGINAL_IMAGE_PREVIEW === "true",
 		remotePatterns: [
+			{ protocol: "https", hostname: "ezairapvideo.com", pathname: "/rap/styles/**" },
+			{ protocol: "https", hostname: "ezairapvideo.com", pathname: "/effects/**" },
+			{ protocol: "https", hostname: "ezairapvideo.com", pathname: "/flyingcar/templates/v1/**" },
+			{ protocol: "https", hostname: "media.ezairapvideo.com", pathname: "/rap/styles/**" },
+			{ protocol: "https", hostname: "media.ezairapvideo.com", pathname: "/effects/**" },
 			{
 				// google profile images
 				protocol: "https",

@@ -1,3 +1,4 @@
+import { isSourceVideoTemplatePath } from "../../video-templates/lib/paths";
 import {
 	VIDEO_EFFECT_PATH,
 	RAINDANCE_PATH,
@@ -61,6 +62,7 @@ function paymentOriginReturnPath(path: string): string | null {
 			return url.searchParams.getAll("returnTo").length === 1
 				? sanitizeVideoEffectReturnPath(url.searchParams.get("returnTo"))
 				: null;
+		if (isSourceVideoTemplatePath(url.pathname)) return url.pathname;
 		if (!isVideoEffectPath(url.pathname)) return null;
 		if (url.pathname !== RAINDANCE_PATH) return url.pathname;
 		const modes = url.searchParams.getAll("mode");

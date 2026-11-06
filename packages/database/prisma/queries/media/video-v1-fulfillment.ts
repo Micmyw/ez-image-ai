@@ -479,11 +479,16 @@ export async function claimVideoOutputReview(jobId: string, deadlineSeconds: num
 		const constraints = videoOutputConstraints(job.inputSnapshot);
 		const audioSafetyPolicy = readVideoAudioSafetyPolicy(job.inputSnapshot);
 		const outputSpec = json(json(job.videoExecution.stageData).outputSpec);
+		if (
+			constraints.durationSeconds === null &&
+			(!asset.durationMillis || asset.durationMillis <= 0n)
+		)
+			throw new Error("VIDEO_STORED_OUTPUT_REQUIRED");
 		const reviewContext = {
 			visualSafetyProfile: profile,
 			audioSafetyPolicy,
 			constraints,
-			durationMillis: Number(asset.durationMillis ?? constraints.durationSeconds * 1000),
+			durationMillis: Number(asset.durationMillis ?? (constraints.durationSeconds ?? 0) * 1000),
 			outputSpec,
 		};
 		if (

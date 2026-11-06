@@ -33,6 +33,7 @@ import { usePrivateAssetPreview } from "./use-private-asset-preview";
 
 export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNew: () => void }) {
 	const t = useTranslations("media.status");
+	const tools = useTranslations("studio.tools");
 	const pass = useTranslations("imagePass");
 	const allowPrinting = useToolPrompt()?.allowPrinting ?? false;
 	const job = useJob(jobId);
@@ -238,6 +239,20 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 				)}
 				{presentation.stage === "ready" && output && !allowPrinting && (
 					<ColoringPageLink assetId={output.id} />
+				)}
+				{presentation.stage === "ready" && output && (
+					<Button
+						variant="secondary"
+						render={(props) => (
+							<Link
+								{...props}
+								href={`/video-templates?asset=${encodeURIComponent(output.id)}`}
+								prefetch={false}
+							/>
+						)}
+					>
+						{tools("videoTemplateHandoff")}
+					</Button>
 				)}
 				{presentation.stage === "ready" && output && allowPrinting && (
 					<ImagePrintButton

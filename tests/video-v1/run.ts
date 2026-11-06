@@ -43,6 +43,7 @@ const commands = integration
 				"vitest",
 				"run",
 				hotelLobby ? "video" : "video-v1",
+				...(!hotelLobby ? ["video-source-template"] : []),
 				"--config",
 				"vitest.integration.config.ts",
 				"--configLoader",
@@ -72,6 +73,7 @@ const commands = integration
 				"run",
 				"video",
 				"kie-veo-fast",
+				"rap-templates",
 				...(hotelLobby ? ["template-scene"] : []),
 			],
 			[
@@ -101,6 +103,7 @@ const commands = integration
 				"vitest",
 				"run",
 				"video-v1",
+				"video-templates",
 				...(hotelLobby ? ["video-effects"] : []),
 				...(hotelLobby ? ["create-checkout-link", "create-credit-pack-checkout"] : []),
 				"--exclude",
@@ -143,6 +146,7 @@ const commands = integration
 				"vitest",
 				"run",
 				"video-v1",
+				"video-templates",
 				...(hotelLobby
 					? [
 							"video-effects",

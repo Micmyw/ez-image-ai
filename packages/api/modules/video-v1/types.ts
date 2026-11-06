@@ -35,6 +35,10 @@ export const videoPublicStateSchema = z
 			.object({ effectId: videoEffectIdSchema, name: z.string(), templateVersion: z.string() })
 			.strict()
 			.optional(),
+		template: z
+			.object({ templateKey: z.string(), name: z.string(), version: z.string() })
+			.strict()
+			.optional(),
 	})
 	.strict();
 

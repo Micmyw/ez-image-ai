@@ -17,6 +17,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 	const baseUrl = getBaseUrl();
 	const posts = getAllPublishedBlogPosts("en");
 	const pages = [
+		// /video-templates remains out until target content and generation acceptance are reviewed.
 		...publicPageUpdates,
 		// No invented dates for pages without a maintained editorial timestamp.
 		{ path: "/create", lastModified: undefined },

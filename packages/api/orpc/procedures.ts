@@ -16,7 +16,7 @@ export const publicProcedure = os.$context<{
 
 export const protectedProcedure = publicProcedure.use(async ({ context, next, path }) => {
 	// Template quotes, owned inputs and state must stay private even on auth or validation failures.
-	if (path[0] === "videoEffects") {
+	if (path[0] === "videoEffects" || path[0] === "videoTemplates") {
 		context.responseHeaders?.set("Cache-Control", "private, no-store");
 		context.responseHeaders?.set("X-Robots-Tag", "noindex, nofollow");
 	}

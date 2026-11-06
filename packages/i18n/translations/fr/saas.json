@@ -2278,7 +2278,10 @@
 			"videos": "Vidéo IA",
 			"videoGenerator": "Générateur de vidéo IA",
 			"videoGeneratorDescription": "Animez un prompt ou une image de référence.",
-			"videoGuide": "Guide de création vidéo"
+			"videoGuide": "Guide de création vidéo",
+			"videoTemplates": "Modèles vidéo",
+			"videoTemplatesDescription": "Rap, danse et animaux à partir de vos photos",
+			"videoTemplateHandoff": "Créer une vidéo avec cette image"
 		},
 		"generation": {
 			"referencePending": "Terminez l’envoi de la référence, réessayez ou retirez-la pour générer à partir du texte.",

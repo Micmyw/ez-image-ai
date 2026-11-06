@@ -1,0 +1,56 @@
+subject_definitions:
+Numbering follows reference_image_urls order.
+
+<Subject 1> is the customer's foreground subject in <Picture 1>, including the person and any object they are riding as one connected action unit. Picture 1 alone defines identity, face, clothing, anatomy, shape, colors and original parts. Exclude its background and unrelated bystanders.
+
+For a rider and bicycle, preserve that exact pair: two spoked wheels, narrow open frame, original handlebars, saddle and pedals. Hands stay on handlebars, feet on pedals; both tilt and recover together. Keep air visible through the frame; no solid automotive underside.
+For a person alone, add no bicycle or vehicle. For any other subject, retain its actual anatomy, structure and part count. Do not invent a rider.
+
+Pictures 2-7 supply ONLY ramp geometry, camera relationships, motion, orientation and vapor staging. Completely replace the white source car with the customer subject itself. The car is never a carrier or support. Map the path to the uploaded subject's own front, upright direction and contact points; adapt poses without changing its structure.
+
+<Subject 2> is the night venue: tall gray inward-curving ramp, red edge lights, supports, asphalt, fixed lights and dark surroundings. Retain these elements. Exclude every reference-derived car, including parked cars and the departure car. If the uploaded subject itself is a car, retain only that customer's car design.
+
+<Audio 1> is the supplied demonstration mix for sound texture and timing.
+
+summary:
+[reference generation + audio reference] One continuous 15-second, 16:9 night stunt. The uploaded subject ascends the curved ramp, leaves its upper lip, rights itself once, descends upright on blue-white jets, lands and moves out of the mist. End with a clear close-up of the SAME uploaded person if the subject includes a person; otherwise finish close to the uploaded subject itself. The customer subject remains the sole stunt performer throughout.
+
+retention_analysis:
+<Subject 1>: fully_preserved - same identity and structure throughout; cropping does not remove parts.
+<Subject 2>: fully_preserved - specified venue only.
+Pictures 2-7: attribute_transfer - successive ramp-foot, steep-contact, upper-lip, detached-righting, upright-descent and ground-departure states. Transfer no car geometry or car-mounted jet roots. Picture 7 guides ground movement, not final shot size.
+<Audio 1>: reference - pacing and texture.
+
+detailed_description:
+[Shot 1: 0.00-15.00s]
+
+0.00-1.25s: Begin near the ramp foot as in Picture 2. The customer subject approaches the curve on its own contact points. For a rider and bicycle, show the complete pair with two tires on the asphalt.
+
+1.25-6.50s: Follow the ramp surface continuously through Picture 3's steep contact state. The subject's forward axis follows the local tangent. For a bicycle with an uploaded rider, that rider pedals; both tires follow the curve while the pair tilts together. No long braking jets.
+
+6.50-7.50s: Follow the inward-curving upper section and pass across the lip once. The leading contact region leaves before the trailing region. For a bicycle, the front wheel leaves before the rear wheel. Do not cut, teleport or switch identity at the lip.
+
+7.50-8.50s: Move into open air to screen-left and complete one controlled righting transition from the exit tilt to the subject's natural upright orientation. Show the same uploaded subject clearly, surrounded by empty air, with no additional object underneath. For a bicycle, retain its open frame and two wheels, plus only the rider already present in Picture 1. No reference-derived car body, underside or hidden support may appear during or after righting. Only short, oblique stabilization puffs may occur during the tilt. Do not add another full roll or somersault.
+
+8.50-10.80s: Once upright and still airborne, descend smoothly with two separate narrow blue-white main jets directed toward the scene's GROUND PLANE. The visible streams point down, not along the direction of travel. Keep their roots attached to the same existing lower regions of the customer subject:
+- Bicycle: the outer lower front fork near the front axle, and the outer lower rear frame near the rear axle. Use non-rotating frame locations; streams clear the tires.
+- Person alone: beneath the two existing feet or shoe soles.
+- Other subject: two separated locations on its existing underside, without adding a vehicle shell, board or support platform.
+Do not emit the jets from empty space or another object. Start sustained long jets only after righting. Where they reach the ground, spread pale white vapor outward at ground level, with some pink tint from venue lights. No orange fire, black smoke or explosion.
+
+10.80-12.00s: Land on the uploaded subject's own tires, feet or natural contact region inside partial low mist. Absorb the landing once and continue moving. Shorten and stop the main jets as contact is established. Keep the subject unchanged through the occlusion; the mist never hides or reveals an extra car.
+
+12.00-13.00s: Emerge from the mist and move left along the ground. Show enough of the full subject to establish the completed landing and continued movement. For a rider and bicycle, clearly show the rider still riding the same bicycle on its own two tires. Leave the residual cloud behind. Begin a smooth tracking move closer from the subject's front-side quarter.
+
+13.00-15.00s: Continue smoothly into the ending close-up.
+If the uploaded subject includes a person, focus on that SAME person's visible face and upper body. Reach a head-and-shoulders close view by 14.00s and hold it clearly to the end. Match Picture 1's face, hairstyle, clothing and headwear; keep any helmet, glasses or face covering. Use a natural expression. A cyclist keeps riding, with hands or handlebars at the lower edge; the bicycle continues below the crop. No dismount, standing pose, face replacement or studio portrait.
+Without a person, show the uploaded subject's recognizable front or main details closely. Invent no human face or rider.
+Maintain the night venue and movement, with soft red lights and residual mist behind. Jets have stopped. No source white car may reappear underneath, behind, beside or reflected as an extra vehicle.
+
+Camera: Tilt up with the climb, then pan left and tilt down with descent. Show the complete action until landing; then track closer from the front-side quarter. Final cropping is intentional. No hard cut, replay, duplicate, added vehicle or text.
+
+overall_soundscape:
+Use Audio 1 for continuous demonstration rhythm, jet bursts and dispersing vapor. Add no dialogue, narration or new engine roar.
+
+non_diegetic_music:
+Follow the supplied mix without adding a competing music cue.

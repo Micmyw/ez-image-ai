@@ -1,0 +1,926 @@
+{
+	"sourceRepository": "ez-airapvideo",
+	"sourceCommit": "75c06e3b5f8141ac45a3bd37fe494b44cc8f7769",
+	"files": [
+		{
+			"sourcePath": "src/lib/rap-catalog.ts",
+			"targetPath": "source/rap-catalog.ts",
+			"sourceSha256": "d80333c2ff10c9e75549db928d628399619a2db00eb7e91e3f8f7a2962d7c777",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/rap-composition.ts",
+			"targetPath": "source/rap-composition.ts",
+			"sourceSha256": "1a4ee340118f1755dad236138bf4e2da7225497d2264a4ad04169f2a7a598a15",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/rap-composer.ts",
+			"targetPath": "source/rap-composer.ts",
+			"sourceSha256": "d5b151d4f42b61f853d04335e7b98aadc8e5284dbba542df85024d437970fe56",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/rap-draft.ts",
+			"targetPath": "source/rap-draft.ts",
+			"sourceSha256": "a8ef5851e18d6a7151bb7c59dc519df5ae0efe8223f047ddace1753e4e9c6584",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/rap-generation.ts",
+			"targetPath": "source/rap-generation.ts",
+			"sourceSha256": "7988ed40fe9efc0d288d02aded893812bf162b0d8798bd2e2d6a7c704a621702",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/rap-lyrics.ts",
+			"targetPath": "source/rap-lyrics.ts",
+			"sourceSha256": "cefeacaa9b723d5ef06f7a43315ddc4e93e8b3443fa21bd6a9b388977d181286",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/rap-prompt.server.ts",
+			"targetPath": "source/rap-prompt.server.ts",
+			"sourceSha256": "54c152106b55fc106739af4dded98373b5a7bdaa63b211ceea706979b8f459ec",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/effects.ts",
+			"targetPath": "source/effects.ts",
+			"sourceSha256": "f4cf4832e45e1264fc0f7c1f3e06353abe59b48425405271f04dc53f4fddc16c",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/hotel-lobby.ts",
+			"targetPath": "source/hotel-lobby.ts",
+			"sourceSha256": "ed2ed5a753dcb881628a0f6145ee2e25b413b568c39877a6fb819efef11ea260",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/spin-dance.ts",
+			"targetPath": "source/spin-dance.ts",
+			"sourceSha256": "1faa81d893656aa69c2593f70fc7d9d6f2bb0a841b14596e9d9aaf70fc70daf6",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/fifty-eighth-floor.ts",
+			"targetPath": "source/fifty-eighth-floor.ts",
+			"sourceSha256": "10256ff13e4cf6a9de270ee4a52a18eefdffafb358b4d3f384bf25d5e3d0ff32",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/floor58-template.ts",
+			"targetPath": "source/floor58-template.ts",
+			"sourceSha256": "c9f1fd4f305f08aeb3125dbb534e70e701fba8578b65cc8ea145a94726b092dc",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/green-booth-template.ts",
+			"targetPath": "source/green-booth-template.ts",
+			"sourceSha256": "5b7b6a8270981d94b0f588203523b90f5f158a3346938ecd17687b9bb09c49b0",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/pet-effect-template.ts",
+			"targetPath": "source/pet-effect-template.ts",
+			"sourceSha256": "00f888672ada530fbfe1383bdfba51c69dc294555057ed6b365f7aae6a77bd1a",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/short-effects.ts",
+			"targetPath": "source/short-effects.ts",
+			"sourceSha256": "c8c9dee070ce744c2cc0bcc892ea062aacd01cb4433455d7fa146b002d7b7e3a",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/video-templates.ts",
+			"targetPath": "source/video-templates.ts",
+			"sourceSha256": "7d5e339dc8217b769a828204911d622a1b074920b141202437f2d4a927932003",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/effects/bulin47-template.server.ts",
+			"targetPath": "source/effects/bulin47-template.server.ts",
+			"sourceSha256": "4a20353a13925313736d375a97938d92c34289e46a3244add85316ea4378efb1",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/effects/spin-dance-template.server.ts",
+			"targetPath": "source/effects/spin-dance-template.server.ts",
+			"sourceSha256": "d94ac7aed9c58ab47c80d90d3bf396bfdefd4d11a9b483b8941f3f99bc528ad5",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/effects/fifty-eighth-floor-template.server.ts",
+			"targetPath": "source/effects/fifty-eighth-floor-template.server.ts",
+			"sourceSha256": "1baeb1c6ee64dfe99390f0a45dbd9343741bb3c6cde89f61dbdc4887bf72ac0d",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/effects/short-effects-template.server.ts",
+			"targetPath": "source/effects/short-effects-template.server.ts",
+			"sourceSha256": "ebd6e6b39794256e3051cb237e364895a0a021c16723cdfd2e228783b92ff080",
+			"copyMode": "imports-only"
+		},
+		{
+			"sourcePath": "src/lib/effects/templates/bulin-h3-v1.json",
+			"targetPath": "source/effects/templates/bulin-h3-v1.json",
+			"sourceSha256": "bd05b12a278a7891c9306fec6b2afb2eb438dff8e268d6542a80bb7a540b60c4",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/lib/effects/templates/floor58-h3-v1.json",
+			"targetPath": "source/effects/templates/floor58-h3-v1.json",
+			"sourceSha256": "af1f34944dce357f869c5fbac0e017e4ed234aad4f2d2c0ae9af436f1f4f5c24",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/lib/effects/templates/green-booth-h3-v2.json",
+			"targetPath": "source/effects/templates/green-booth-h3-v2.json",
+			"sourceSha256": "43a1e10fc9133c3365f71e0e0bddeffa0e3d1b3efeafd469e6079c47e6261396",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/lib/effects/templates/kung-fu-cat-h3-v1.json",
+			"targetPath": "source/effects/templates/kung-fu-cat-h3-v1.json",
+			"sourceSha256": "6feaa2722d2fdc28924dce3232b04253139c16be7926e281acd0e561676d604f",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/lib/effects/templates/paws-at-you-h3-v1.json",
+			"targetPath": "source/effects/templates/paws-at-you-h3-v1.json",
+			"sourceSha256": "17dc490b11274fc9b5588075f85ba944f070ded987af92805abc1f3f90ae2631",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/lib/effects/templates/spin-me-round-v2.json",
+			"targetPath": "source/effects/templates/spin-me-round-v2.json",
+			"sourceSha256": "078c1b62a4427c33a1dcd378cdcbfb9c8702a3f65474cddc05bc6223ed045a3c",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/lib/rap-prompts/en.json",
+			"targetPath": "source/rap-prompts/en.json",
+			"sourceSha256": "c37f61a1005edf99cb20c82bc711019d8e0b2eba870bd659ee02a9c36168da16",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/lib/rap-prompts/zh.json",
+			"targetPath": "source/rap-prompts/zh.json",
+			"sourceSha256": "663fca1d749819809300e99c85db75945ab9f7508a9d845b38c0bb97a41c7b15",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/core/ai/seeapi-video.ts",
+			"targetPath": "source/seeapi-video.ts",
+			"sourceSha256": "7aafc8ada444dcbb1db1e1e92870e1282de2d48f081d16f96c6cc05b7a56c751",
+			"copyMode": "imports-and-abort-boundary"
+		},
+		{
+			"sourcePath": "src/lib/rap-prompt.server.test.ts",
+			"targetPath": "source/rap-prompt.server.test.ts",
+			"sourceSha256": "64e2e42eddb20d502927f1691faeaffa375746aa0cef6dcef5ae6cd9dbc844cc",
+			"copyMode": "test-import-adaptation"
+		},
+		{
+			"sourcePath": "src/lib/spin-dance.test.ts",
+			"targetPath": "source/spin-dance.test.ts",
+			"sourceSha256": "dc05ce9f632db66dbb13d03c530be945a88131d6c909cf7bbb05abc1af27e152",
+			"copyMode": "test-import-adaptation"
+		},
+		{
+			"sourcePath": "src/lib/effects/fifty-eighth-floor-template.test.ts",
+			"targetPath": "source/effects/fifty-eighth-floor-template.test.ts",
+			"sourceSha256": "ae61620f5301243b444de7b5aef24d2b15eb2bd5b4f691211e00439918879dc8",
+			"copyMode": "test-import-adaptation"
+		},
+		{
+			"sourcePath": "src/lib/effects/short-effects-template.test.ts",
+			"targetPath": "source/effects/short-effects-template.test.ts",
+			"sourceSha256": "c9a7ab9f063d4c6590e47c75e403622179146870aabb75714d399f75b3c6645b",
+			"copyMode": "test-import-adaptation"
+		},
+		{
+			"sourcePath": "src/core/ai/seeapi-video.test.ts",
+			"targetPath": "source/seeapi-video.test.ts",
+			"sourceSha256": "e250a9fd6160d891bdb5e5ca736e9f3be90297ea5d6f7da2dd2b186f603e2b92",
+			"copyMode": "test-import-adaptation"
+		},
+		{
+			"sourcePath": "src/lib/effects/__fixtures__/floor58.ts",
+			"targetPath": "source/effects/__fixtures__/floor58.ts",
+			"sourceSha256": "0a127c201b561f14d78004cd34152cf449894aa8470a99cad8a915bf9ab6a837",
+			"copyMode": "test-import-adaptation"
+		},
+		{
+			"sourcePath": "src/lib/effects/__fixtures__/green-booth.ts",
+			"targetPath": "source/effects/__fixtures__/green-booth.ts",
+			"sourceSha256": "a5ad870510743065fcce0910915caec6d9359c1e5f4a602695e3ed10725fa297",
+			"copyMode": "test-import-adaptation"
+		},
+		{
+			"sourcePath": "src/lib/effects/__fixtures__/pet.ts",
+			"targetPath": "source/effects/__fixtures__/pet.ts",
+			"sourceSha256": "afc7b5fc5364621f77733b5b21ee8dfa420c8ee03a8ec2e931d1f1892f7a221c",
+			"copyMode": "test-import-adaptation"
+		},
+		{
+			"sourcePath": "docs/creative/spin-me-round-dance-v2.md",
+			"targetPath": "original-source/spin-me-round-dance-v2.md",
+			"sourceSha256": "1b9a60b0f4f917a57fb79fdb381c0518d7dbb03f05f37e0d52eb9e3caf2eff9b",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/modules/ai-tasks/templates/flyingcar-curved-ramp-v1.txt",
+			"targetPath": "source/flyingcar/templates/flyingcar-curved-ramp-v1.txt",
+			"sourceSha256": "926e1b329f7b15bb3c98d12e5743d74524c744401137d5ff024e764725aef563",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/modules/ai-tasks/templates/flyingcar-curved-ramp-v5.txt",
+			"targetPath": "source/flyingcar/templates/flyingcar-curved-ramp-v5.txt",
+			"sourceSha256": "4d5460c1e39757b5e90c0e2920f33604d350b0c81e49a5d321b3e9a43ec62a14",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/modules/ai-tasks/templates/flyingcar-curved-ramp-v6.txt",
+			"targetPath": "source/flyingcar/templates/flyingcar-curved-ramp-v6.txt",
+			"sourceSha256": "8b4f994c5dac0fefe23136f40128ccff25bd7077ddb0ef8a4928dbbe45b821d6",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/modules/ai-tasks/templates/flyingcar-fleet-side-v1.txt",
+			"targetPath": "source/flyingcar/templates/flyingcar-fleet-side-v1.txt",
+			"sourceSha256": "91ddc9443280033d9953d16219c8496d6b6ba75762b8902a22335a4d0c6dd366",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/modules/ai-tasks/templates/flyingcar-fleet-front-v1.txt",
+			"targetPath": "source/flyingcar/templates/flyingcar-fleet-front-v1.txt",
+			"sourceSha256": "e53784d3379de1f33f3b49bbeaf52f5e7580c6eed613e779df14289e5a311a53",
+			"copyMode": "verbatim"
+		},
+		{
+			"sourcePath": "src/modules/ai-tasks/video-prompt.ts",
+			"targetPath": "source/flyingcar/video-prompt.ts",
+			"sourceSha256": "443752cc9090c743a2e9113a0188a99b736d5e349bd381036d48f6234b00d477",
+			"copyMode": "imports-and-raw-text-json-container-only"
+		},
+		{
+			"sourcePath": "src/modules/ai-tasks/video-prompt.test.ts",
+			"targetPath": "source/flyingcar/video-prompt.test.ts",
+			"sourceSha256": "fd45f2d872da19ffbc10085b3eedb6d61b2c554d5146bca750fee1d28acd22b1",
+			"copyMode": "test-import-adaptation"
+		}
+	],
+	"assets": [
+		{
+			"sourcePath": "public/effects/bulin-47/freestyle-v1/pose_left_arm_optional.png",
+			"targetPath": "private-assets/effects/bulin-47/freestyle-v1/pose_left_arm_optional.png",
+			"sha256": "ae34e6c3a83ac6f6876ffab3e83d3ecb00fd13608110c1686b3b727b2856bcea",
+			"bytes": 1542836,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/effects/bulin-47/freestyle-v1/reference_00-15s.wav",
+			"targetPath": "private-assets/effects/bulin-47/freestyle-v1/reference_00-15s.wav",
+			"sha256": "436866dff91d5b49eb1ff2f5b184a8c5331197bd2db8a9831e0741d7bf55c539",
+			"bytes": 2646078,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/effects/bulin-47/freestyle-v1/scene_clean.png",
+			"targetPath": "private-assets/effects/bulin-47/freestyle-v1/scene_clean.png",
+			"sha256": "80dbdeae3eac489523e35cc801e89d0034e05214d537f1fa05ab78c5e6f73649",
+			"bytes": 1518271,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/effects/spin-me-round/retro-neon-v1.png",
+			"targetPath": "private-assets/effects/spin-me-round/retro-neon-v1.png",
+			"sha256": "6c9d39c4cd6036fab1d590c3a90229a0269e4f07bbd3bc93a07365e00304aec0",
+			"bytes": 2813064,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/effects/spin-me-round/scene-v1.png",
+			"targetPath": "private-assets/effects/spin-me-round/scene-v1.png",
+			"sha256": "17ea2cea4bf9463cdd6077eb8f28b860bd82b5b71df51fb961d628315ca359a7",
+			"bytes": 1930609,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/curved-ramp/audio.wav",
+			"targetPath": "private-assets/flyingcar/templates/v1/curved-ramp/audio.wav",
+			"sha256": "1c0d1991882f7f9ec4e8365eae35053f0271fb148a83521249cd156c448fc0dc",
+			"bytes": 2646078,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/curved-ramp/reference-01.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/curved-ramp/reference-01.jpg",
+			"sha256": "839a4fbb7354a28a9108fdb66164bff5c4b10b65e831056971e8d2fb99fce146",
+			"bytes": 40024,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/curved-ramp/reference-02.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/curved-ramp/reference-02.jpg",
+			"sha256": "e0a52906706561f020ded64f521e2afe0a303f9a643dc133d0b28db28659b345",
+			"bytes": 51013,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/curved-ramp/reference-03.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/curved-ramp/reference-03.jpg",
+			"sha256": "d3a96c1250f3fb6b8b1d07e962bff5571279ac95916b695258c1b700603b0b91",
+			"bytes": 63604,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/curved-ramp/reference-04.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/curved-ramp/reference-04.jpg",
+			"sha256": "15ce82c4bcf46444419e575d72c1fd75891901288cc87ebf85b3aa326c75d9cc",
+			"bytes": 57507,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/curved-ramp/reference-05.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/curved-ramp/reference-05.jpg",
+			"sha256": "9b6f85975a5d180edd5174631c7e4a19c33c5261d853be3f83de3323afd89eef",
+			"bytes": 64789,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/curved-ramp/reference-06.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/curved-ramp/reference-06.jpg",
+			"sha256": "3ec9a454cfafbfb2561b072fc5d8731b0ddb4761c0d47e4068d47b125866afef",
+			"bytes": 36917,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/fleet-front/audio.wav",
+			"targetPath": "private-assets/flyingcar/templates/v1/fleet-front/audio.wav",
+			"sha256": "6d25bdfb99b5b83c808e125f3fb5d4146eb7477c9fb7cc717f742c21e1a617b2",
+			"bytes": 1234878,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/fleet-front/reference-01.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/fleet-front/reference-01.jpg",
+			"sha256": "20cc5da272d37f89c1a54db0e1ef878c7b9cb3d7edb03fb4950721ee765859be",
+			"bytes": 93910,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/fleet-front/reference-02.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/fleet-front/reference-02.jpg",
+			"sha256": "758e2dc455bb1eec879e1893fed309d7b1ae3573f53c24c1c01948e18b20c6b4",
+			"bytes": 87983,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/fleet-front/reference-03.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/fleet-front/reference-03.jpg",
+			"sha256": "9b590b7ab2d91956454d3a76f34c49a4aa0977ca6d83727c0b03da0e221f4914",
+			"bytes": 86441,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/fleet-front/reference-04.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/fleet-front/reference-04.jpg",
+			"sha256": "31260553165e22a22d0808bf54da975e30725efbf69971d45554f59c46c7303e",
+			"bytes": 89130,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/fleet-front/reference-05.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/fleet-front/reference-05.jpg",
+			"sha256": "b57e636bcfdcc984e29bea5a25cfcaa6dd942ee560a53d34bde2bca0a948ccfa",
+			"bytes": 62269,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/fleet-side/audio.wav",
+			"targetPath": "private-assets/flyingcar/templates/v1/fleet-side/audio.wav",
+			"sha256": "d46547db8a2c87f0ece0802e7ee907ff84133bb55b343198c710270f3eaa6162",
+			"bytes": 1234878,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/fleet-side/reference-01.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/fleet-side/reference-01.jpg",
+			"sha256": "9039bc653055c029c93e0a2b8b5fc58192d25d450c9d3772be353ffe32589cb4",
+			"bytes": 20744,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/fleet-side/reference-02.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/fleet-side/reference-02.jpg",
+			"sha256": "5135cad6c9d7db99861ba6d63e43dea9dfa1e89b8d14d5a7fd28dae61daa4f1e",
+			"bytes": 40153,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/fleet-side/reference-03.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/fleet-side/reference-03.jpg",
+			"sha256": "c1a680900d49ca54656e108246fbfc43592743a08b18f1240215db3a0e865f88",
+			"bytes": 36897,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/fleet-side/reference-04.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/fleet-side/reference-04.jpg",
+			"sha256": "a29f02ae010f2c78d1d8e276cc6a69f0ae4a713ebdadcbdf91f101e1cbbb840b",
+			"bytes": 61499,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "public/flyingcar/templates/v1/fleet-side/reference-05.jpg",
+			"targetPath": "private-assets/flyingcar/templates/v1/fleet-side/reference-05.jpg",
+			"sha256": "dada07c44d1059253591113537e716366c7b28bd21ad275b1aa8d8251a60dc3a",
+			"bytes": 18675,
+			"status": "original-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/floor58_template_private_key/sceneImageUrl",
+			"targetPath": "private-assets/effective/1a6507c82ee31d8b2ad908cef9ca87a5774ab2cd300ee1485873cf0190cdb463.png",
+			"sha256": "1a6507c82ee31d8b2ad908cef9ca87a5774ab2cd300ee1485873cf0190cdb463",
+			"bytes": 1566596,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/floor58_template_private_key/poseImageUrl",
+			"targetPath": "private-assets/effective/acaa776d1c8dc3c364159e060586eb7188552b01282529c98eadaf31a378737d.png",
+			"sha256": "acaa776d1c8dc3c364159e060586eb7188552b01282529c98eadaf31a378737d",
+			"bytes": 1661031,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/floor58_template_private_key/closeupImageUrl",
+			"targetPath": "private-assets/effective/e9909e4120aaaf307541f90c13df6854e58ce640fb385704700f2d958a2fe218.png",
+			"sha256": "e9909e4120aaaf307541f90c13df6854e58ce640fb385704700f2d958a2fe218",
+			"bytes": 1698082,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/floor58_template_private_key/referenceAudioUrl",
+			"targetPath": "private-assets/effective/476b82ef9e1ba22ab1f75b92bd5e1aaa0edbcb3df8d1930b2e6d78f062ba61e7.wav",
+			"sha256": "476b82ef9e1ba22ab1f75b92bd5e1aaa0edbcb3df8d1930b2e6d78f062ba61e7",
+			"bytes": 2646078,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/green_booth_template_private_key/sceneImageUrl",
+			"targetPath": "private-assets/effective/11846f193fec629865fa625a8dd428bf2acfe01834fce3a3b0580c5501a74bd9.png",
+			"sha256": "11846f193fec629865fa625a8dd428bf2acfe01834fce3a3b0580c5501a74bd9",
+			"bytes": 1605055,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/green_booth_template_private_key/poseImageUrl",
+			"targetPath": "private-assets/effective/cb6d7b56395d708017684b390b2f4b649894ecab8c18711504527e4eaddcf6d2.png",
+			"sha256": "cb6d7b56395d708017684b390b2f4b649894ecab8c18711504527e4eaddcf6d2",
+			"bytes": 1662493,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/green_booth_template_private_key/endPoseImageUrl",
+			"targetPath": "private-assets/effective/fad975fb3ccb1c9e3275fbbcbc6b36bb02af392c4f8b7d9b186cc6df70efaca6.png",
+			"sha256": "fad975fb3ccb1c9e3275fbbcbc6b36bb02af392c4f8b7d9b186cc6df70efaca6",
+			"bytes": 1637040,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/green_booth_template_private_key/referenceAudioUrl",
+			"targetPath": "private-assets/effective/7be5cf8a511d248e3b7d3c54c706cf256cf37622ec3f0a3fb7f823033fa6cf83.wav",
+			"sha256": "7be5cf8a511d248e3b7d3c54c706cf256cf37622ec3f0a3fb7f823033fa6cf83",
+			"bytes": 1764078,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/kung_fu_cat_template_private_key/sceneImageUrl",
+			"targetPath": "private-assets/effective/5e7398ce3d49ce16567ec22084fd0271de475fb45286fbfce1057dabe44c7697.png",
+			"sha256": "5e7398ce3d49ce16567ec22084fd0271de475fb45286fbfce1057dabe44c7697",
+			"bytes": 3271465,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/kung_fu_cat_template_private_key/poseImageUrl",
+			"targetPath": "private-assets/effective/777e0f571ce9648164cf682ff1e92d8722bdf55e1c76642ab41fd46ce73a7167.png",
+			"sha256": "777e0f571ce9648164cf682ff1e92d8722bdf55e1c76642ab41fd46ce73a7167",
+			"bytes": 1947375,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/kung_fu_cat_template_private_key/referenceAudioUrl",
+			"targetPath": "private-assets/effective/d931f53165626d27ef0b64d947436e22b15d1d5257a65943d8701ffeec8a20be.wav",
+			"sha256": "d931f53165626d27ef0b64d947436e22b15d1d5257a65943d8701ffeec8a20be",
+			"bytes": 1587644,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/paws_at_you_template_private_key/sceneImageUrl",
+			"targetPath": "private-assets/effective/98712e0c1c98d75bad0b950e9c25b0e015f329fe6d80e754f44ca26abe163705.png",
+			"sha256": "98712e0c1c98d75bad0b950e9c25b0e015f329fe6d80e754f44ca26abe163705",
+			"bytes": 3141351,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/paws_at_you_template_private_key/poseImageUrl",
+			"targetPath": "private-assets/effective/25f84bb6aa4f70d839246b384622bd9615da21f29080fbf2c7a73956c1917585.png",
+			"sha256": "25f84bb6aa4f70d839246b384622bd9615da21f29080fbf2c7a73956c1917585",
+			"bytes": 2320167,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		},
+		{
+			"sourcePath": "effective-source-config/paws_at_you_template_private_key/referenceAudioUrl",
+			"targetPath": "private-assets/effective/3cc989aa4a8071c3600ebcc25bf681983885361f1f03abecace8973a16102061.wav",
+			"sha256": "3cc989aa4a8071c3600ebcc25bf681983885361f1f03abecace8973a16102061",
+			"bytes": 1058444,
+			"status": "original-effective-source-bytes-staged-private",
+			"targetMediaAssetId": null,
+			"rightsEvidence": null,
+			"verifiedAt": null
+		}
+	],
+	"missingSourceAssets": [],
+	"legacyFlyingCar": {
+		"ids": ["curved-ramp-showcase", "curved-ramp", "fleet-side", "fleet-front"],
+		"status": "four source template contracts executable; target material/price/admission provision remains independently configured",
+		"rawPromptContainer": "source/flyingcar/templates/prompts.json",
+		"promptVersions": {
+			"curved-ramp-showcase": "flyingcar-h3-curved-ramp-v5",
+			"curved-ramp": "flyingcar-h3-curved-ramp-v6",
+			"fleet-side": "flyingcar-h3-v1",
+			"fleet-front": "flyingcar-h3-v1"
+		},
+		"unusedHistoricalPrompt": "flyingcar-curved-ramp-v1.txt",
+		"requestAssemblySources": [
+			{
+				"sourcePath": "src/modules/ai-tasks/video.ts",
+				"sourceSha256": "7ef6c622ffe74a37203eed7349e7f867e83920f9f0c75cb2d0bdcff76bd2b560"
+			},
+			{
+				"sourcePath": "src/core/ai/kie.ts",
+				"sourceSha256": "d3755db6f7553f463b363a25b75ea5d66d621ff74ca6490dff5a9bd6736d5921"
+			},
+			{
+				"sourcePath": "src/config/pricing.ts",
+				"sourceSha256": "f2e130b04c15f0b31a5c6f95e4240552df7f23301aa5bf9e75cb65606c189e6a"
+			}
+		]
+	},
+	"effectiveConfiguration": {
+		"sourceObservedAt": "2026-11-06T05:47:51.499Z",
+		"promptBundle": "effective-source-prompts.json",
+		"status": "effective source prompts preserved; target asset bindings and admission remain independent",
+		"sourceKeys": [
+			"floor58_template_private_key",
+			"green_booth_template_private_key",
+			"kung_fu_cat_template_private_key",
+			"paws_at_you_template_private_key"
+		],
+		"materialBindings": [
+			{
+				"sourceConfigKey": "floor58_template_private_key",
+				"revision": "floor58-h3-reference-v1",
+				"role": "sceneImageUrl",
+				"sourceUrlSha256": "f613f5e557405fc560387e6055123672652afeb004709f7622eb3d33a250735b",
+				"sha256": "1a6507c82ee31d8b2ad908cef9ca87a5774ab2cd300ee1485873cf0190cdb463",
+				"bytes": 1566596,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effective/1a6507c82ee31d8b2ad908cef9ca87a5774ab2cd300ee1485873cf0190cdb463.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "floor58_template_private_key",
+				"revision": "floor58-h3-reference-v1",
+				"role": "poseImageUrl",
+				"sourceUrlSha256": "eeba002060c82185ee460b6efffd02fdd86b0498b726821f7ab54310dfc3f970",
+				"sha256": "acaa776d1c8dc3c364159e060586eb7188552b01282529c98eadaf31a378737d",
+				"bytes": 1661031,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effective/acaa776d1c8dc3c364159e060586eb7188552b01282529c98eadaf31a378737d.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "floor58_template_private_key",
+				"revision": "floor58-h3-reference-v1",
+				"role": "closeupImageUrl",
+				"sourceUrlSha256": "46154b67338256e6aa73b9661765653c570dea037895a357b89149fcdd9ae6bb",
+				"sha256": "e9909e4120aaaf307541f90c13df6854e58ce640fb385704700f2d958a2fe218",
+				"bytes": 1698082,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effective/e9909e4120aaaf307541f90c13df6854e58ce640fb385704700f2d958a2fe218.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "floor58_template_private_key",
+				"revision": "floor58-h3-reference-v1",
+				"role": "referenceAudioUrl",
+				"sourceUrlSha256": "567bc413c85a7c9e085e6104d23d52a0991876e817cf60c4a88bc8a696d574bd",
+				"sha256": "476b82ef9e1ba22ab1f75b92bd5e1aaa0edbcb3df8d1930b2e6d78f062ba61e7",
+				"bytes": 2646078,
+				"mimeType": "audio/wav",
+				"targetPath": "private-assets/effective/476b82ef9e1ba22ab1f75b92bd5e1aaa0edbcb3df8d1930b2e6d78f062ba61e7.wav",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "green_booth_template_private_key",
+				"revision": "green-booth-h3-v3-b6ed3c7d6ba7",
+				"role": "sceneImageUrl",
+				"sourceUrlSha256": "30f130108d3907303d703085b402690d036a89c3660d8ca3c815c7fd0c01d857",
+				"sha256": "11846f193fec629865fa625a8dd428bf2acfe01834fce3a3b0580c5501a74bd9",
+				"bytes": 1605055,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effective/11846f193fec629865fa625a8dd428bf2acfe01834fce3a3b0580c5501a74bd9.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "green_booth_template_private_key",
+				"revision": "green-booth-h3-v3-b6ed3c7d6ba7",
+				"role": "poseImageUrl",
+				"sourceUrlSha256": "c415528c332a6d43cc4bf40e96bcf57ac927f0030519692fb92a895ff7dac27d",
+				"sha256": "cb6d7b56395d708017684b390b2f4b649894ecab8c18711504527e4eaddcf6d2",
+				"bytes": 1662493,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effective/cb6d7b56395d708017684b390b2f4b649894ecab8c18711504527e4eaddcf6d2.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "green_booth_template_private_key",
+				"revision": "green-booth-h3-v3-b6ed3c7d6ba7",
+				"role": "endPoseImageUrl",
+				"sourceUrlSha256": "9ff3194161701e99cb1c8729a61cdfff08b7ba943328187d8b9d722b089e5a90",
+				"sha256": "fad975fb3ccb1c9e3275fbbcbc6b36bb02af392c4f8b7d9b186cc6df70efaca6",
+				"bytes": 1637040,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effective/fad975fb3ccb1c9e3275fbbcbc6b36bb02af392c4f8b7d9b186cc6df70efaca6.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "green_booth_template_private_key",
+				"revision": "green-booth-h3-v3-b6ed3c7d6ba7",
+				"role": "referenceAudioUrl",
+				"sourceUrlSha256": "57632d928dc079b8c17bc80182acba4fdf993154c100f55c8efa583096f32e72",
+				"sha256": "7be5cf8a511d248e3b7d3c54c706cf256cf37622ec3f0a3fb7f823033fa6cf83",
+				"bytes": 1764078,
+				"mimeType": "audio/wav",
+				"targetPath": "private-assets/effective/7be5cf8a511d248e3b7d3c54c706cf256cf37622ec3f0a3fb7f823033fa6cf83.wav",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "kung_fu_cat_template_private_key",
+				"revision": "kung-fu-cat-h3-v2-3aef2179cf84",
+				"role": "sceneImageUrl",
+				"sourceUrlSha256": "36f94103b82bbbddf5c584f96d4ffc37683bc30adb3079c4fd112379709a6287",
+				"sha256": "5e7398ce3d49ce16567ec22084fd0271de475fb45286fbfce1057dabe44c7697",
+				"bytes": 3271465,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effective/5e7398ce3d49ce16567ec22084fd0271de475fb45286fbfce1057dabe44c7697.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "kung_fu_cat_template_private_key",
+				"revision": "kung-fu-cat-h3-v2-3aef2179cf84",
+				"role": "poseImageUrl",
+				"sourceUrlSha256": "a1ded6b0edfa22f5f0950674ce683739f708e19ed73d938dd34244c31e4cee39",
+				"sha256": "777e0f571ce9648164cf682ff1e92d8722bdf55e1c76642ab41fd46ce73a7167",
+				"bytes": 1947375,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effective/777e0f571ce9648164cf682ff1e92d8722bdf55e1c76642ab41fd46ce73a7167.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "kung_fu_cat_template_private_key",
+				"revision": "kung-fu-cat-h3-v2-3aef2179cf84",
+				"role": "referenceAudioUrl",
+				"sourceUrlSha256": "5a44982acdec2140f59d97e864ae2a19f45397ec8e90212d463bbe6037243db3",
+				"sha256": "d931f53165626d27ef0b64d947436e22b15d1d5257a65943d8701ffeec8a20be",
+				"bytes": 1587644,
+				"mimeType": "audio/wav",
+				"targetPath": "private-assets/effective/d931f53165626d27ef0b64d947436e22b15d1d5257a65943d8701ffeec8a20be.wav",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "paws_at_you_template_private_key",
+				"revision": "paws-at-you-h3-v2-c39ec8065676",
+				"role": "sceneImageUrl",
+				"sourceUrlSha256": "31a81ed292db42b5b692770b933783a8ce69124d1e32f0a8079b45e794d41d1c",
+				"sha256": "98712e0c1c98d75bad0b950e9c25b0e015f329fe6d80e754f44ca26abe163705",
+				"bytes": 3141351,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effective/98712e0c1c98d75bad0b950e9c25b0e015f329fe6d80e754f44ca26abe163705.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "paws_at_you_template_private_key",
+				"revision": "paws-at-you-h3-v2-c39ec8065676",
+				"role": "poseImageUrl",
+				"sourceUrlSha256": "4e15b26fd5e26f44d693bc089c248a34019b26c9e6b3588f41bebbe6553abb2c",
+				"sha256": "25f84bb6aa4f70d839246b384622bd9615da21f29080fbf2c7a73956c1917585",
+				"bytes": 2320167,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effective/25f84bb6aa4f70d839246b384622bd9615da21f29080fbf2c7a73956c1917585.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "paws_at_you_template_private_key",
+				"revision": "paws-at-you-h3-v2-c39ec8065676",
+				"role": "referenceAudioUrl",
+				"sourceUrlSha256": "820bfd1e2fa9c7f8ca5b8c29b8b74d7e2d8bcf312ac68bb3ce9b5e4f15bb4020",
+				"sha256": "3cc989aa4a8071c3600ebcc25bf681983885361f1f03abecace8973a16102061",
+				"bytes": 1058444,
+				"mimeType": "audio/wav",
+				"targetPath": "private-assets/effective/3cc989aa4a8071c3600ebcc25bf681983885361f1f03abecace8973a16102061.wav",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "bulin47_template_private_key",
+				"revision": "bulin47-freestyle-v1",
+				"role": "sceneImageUrl",
+				"sourceUrlSha256": "e46cc9a0a05ab37c054fab0309923794e84c6344956aa59825dc580739754488",
+				"sha256": "80dbdeae3eac489523e35cc801e89d0034e05214d537f1fa05ab78c5e6f73649",
+				"bytes": 1518271,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effects/bulin-47/freestyle-v1/scene_clean.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "bulin47_template_private_key",
+				"revision": "bulin47-freestyle-v1",
+				"role": "poseImageUrl",
+				"sourceUrlSha256": "55c76961de0f566b11a547cc64a7a9485ddd04713c2bdc26168c256f92097b4d",
+				"sha256": "ae34e6c3a83ac6f6876ffab3e83d3ecb00fd13608110c1686b3b727b2856bcea",
+				"bytes": 1542836,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effects/bulin-47/freestyle-v1/pose_left_arm_optional.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "bulin47_template_private_key",
+				"revision": "bulin47-freestyle-v1",
+				"role": "referenceAudioUrl",
+				"sourceUrlSha256": "92202e038a7dc14c7b55a7834712e9b965d32f613b256c40ca02ab4eb2baa0d5",
+				"sha256": "436866dff91d5b49eb1ff2f5b184a8c5331197bd2db8a9831e0741d7bf55c539",
+				"bytes": 2646078,
+				"mimeType": "audio/wav",
+				"targetPath": "private-assets/effects/bulin-47/freestyle-v1/reference_00-15s.wav",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "spin-me-round",
+				"revision": "spin-v3-flexible-settings",
+				"role": "empty-room",
+				"sourceUrlSha256": "f7b4295dd028ad0ef40a4dd8d2c7010c6f908dace8b9ad3ef7e014c2ba32aff8",
+				"sha256": "17ea2cea4bf9463cdd6077eb8f28b860bd82b5b71df51fb961d628315ca359a7",
+				"bytes": 1930609,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effects/spin-me-round/scene-v1.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			},
+			{
+				"sourceConfigKey": "spin-me-round",
+				"revision": "spin-v3-flexible-settings",
+				"role": "retro-neon",
+				"sourceUrlSha256": "a040dfd7033ad4215fa9e9776b43dd570a1a095ae412765142f30aab547e292c",
+				"sha256": "6c9d39c4cd6036fab1d590c3a90229a0269e4f07bbd3bc93a07365e00304aec0",
+				"bytes": 2813064,
+				"mimeType": "image/png",
+				"targetPath": "private-assets/effects/spin-me-round/retro-neon-v1.png",
+				"targetMediaAssetId": null,
+				"targetVerifiedAt": null
+			}
+		]
+	}
+}

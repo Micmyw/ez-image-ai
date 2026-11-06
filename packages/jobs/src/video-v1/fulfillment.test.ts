@@ -100,7 +100,7 @@ function setReviewContext(fixture: {
 		audioSafetyPolicy: readVideoAudioSafetyPolicy(fixture.inputSnapshot),
 		constraints,
 		durationMillis: Number(
-			fixture.assets[0]?.asset.durationMillis ?? constraints.durationSeconds * 1000,
+			fixture.assets[0]?.asset.durationMillis ?? (constraints.durationSeconds ?? 0) * 1000,
 		),
 		outputSpec: fixture.videoExecution.stageData.outputSpec ?? {},
 	};

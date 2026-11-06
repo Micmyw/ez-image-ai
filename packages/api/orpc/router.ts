@@ -11,6 +11,7 @@ import { paymentsRouter } from "../modules/payments/router";
 import { supportRouter } from "../modules/support/router";
 import { usersRouter } from "../modules/users/router";
 import { videoEffectsRouter } from "../modules/video-effects/router";
+import { videoTemplatesRouter } from "../modules/video-templates/router";
 import { videoV1Router } from "../modules/video-v1/router";
 import { publicProcedure } from "./procedures";
 
@@ -29,6 +30,7 @@ export const router = publicProcedure.router({
 	media: mediaRouter,
 	videoV1: videoV1Router,
 	videoEffects: videoEffectsRouter,
+	videoTemplates: videoTemplatesRouter,
 });
 
 export type ApiRouterClient = RouterClient<typeof router>;

@@ -19,6 +19,12 @@ import {
 	type VideoSubmissionInput,
 } from "@repo/config/video-submission";
 import {
+	isSourceTemplateRequest,
+	readSourceTemplateInternalRequest,
+	SOURCE_TEMPLATE_CONTRACT_VERSION,
+	type SourceTemplateInternalRequest,
+} from "@repo/config/video-template-execution.server";
+import {
 	readVideoTextSafetyProfile,
 	type VideoTextSafetyProfile,
 } from "@repo/config/video-text-safety";
@@ -44,6 +50,10 @@ import {
 } from "./types";
 import { assertVideoRetailEligibility } from "./video-retail-eligibility";
 import {
+	sourceTemplateAdmissionData,
+	findSourceTemplateRoleInputs,
+} from "./video-source-template-admission";
+import {
 	canonicalVideoTemplateJson,
 	templateAdmissionData,
 	assertTemplateAdmissionSnapshot,
@@ -64,7 +74,22 @@ import {
 } from "./video-v1-storage";
 
 const ENGINE = "video-workflow-v1";
-type VideoRequest = ReturnType<typeof videoV1InputSchema.parse>;
+type VideoRequest = ReturnType<typeof videoV1InputSchema.parse> | SourceTemplateInternalRequest;
+function parseVideoRequest(value: unknown, receipt = false): VideoRequest {
+	return isSourceTemplateRequest(value)
+		? readSourceTemplateInternalRequest(value)
+		: (receipt ? videoV1ReceiptInputSchema : videoV1InputSchema).parse(value);
+}
+function videoInputAssetIds(request: VideoRequest) {
+	return isSourceTemplateRequest(request)
+		? [
+				...request.sourceTemplate.request.inputs.map((input) => input.assetId),
+				...request.sourceTemplate.references.map((reference) => reference.assetId),
+			]
+		: request.mode === "image-to-video"
+			? [request.inputAssetId!]
+			: [];
+}
 export interface VideoPrice {
 	credits: bigint;
 	pricingVersion: string;
@@ -86,14 +111,19 @@ export type VideoAdmissionLimits = {
 };
 
 export function fingerprintVideoRequest(ownerId: string, request: VideoRequest): string {
-	const parsed = videoV1ReceiptInputSchema.parse(request);
+	const parsed = parseVideoRequest(request, true);
 	// Schema parsing determines key order; no client checksum or signed URL is accepted.
 	return createHash("sha256")
-		.update(JSON.stringify({ ownerId, request: parsed }))
+		.update(
+			isSourceTemplateRequest(parsed)
+				? canonicalVideoTemplateJson({ ownerId, request: parsed })
+				: JSON.stringify({ ownerId, request: parsed }),
+		)
 		.digest("hex");
 }
 
 function snapshotRequest(value: Prisma.JsonValue): VideoRequest {
+	if (isSourceTemplateRequest(value)) return readSourceTemplateInternalRequest(value);
 	if (!value || typeof value !== "object" || Array.isArray(value))
 		throw new Error("INVALID_VIDEO_QUOTE");
 	const { mode, prompt, duration, sound } = value;
@@ -140,6 +170,7 @@ function requiredAudioSafetyPolicy(policy: VideoAudioSafetyPolicy): VideoAudioSa
 	return parsed;
 }
 function requestContract(request: VideoRequest) {
+	if (isSourceTemplateRequest(request)) return SOURCE_TEMPLATE_CONTRACT_VERSION;
 	return "productKey" in request ? VIDEO_MODEL_CATALOG_VERSION : VIDEO_V1_MODEL_CONTRACT_VERSION;
 }
 function videoPricingSnapshot(price: VideoPrice) {
@@ -237,7 +268,7 @@ async function createVideoQuoteInTransaction(
 	tx: MediaDatabaseClient,
 	submission?: { id: string; fingerprint: string; admitting: boolean },
 ) {
-	const request = videoV1InputSchema.parse(input.request);
+	const request = parseVideoRequest(input.request);
 	const visualSafetyProfile = requiredVisualSafetyProfile(input.visualSafetyProfile, request);
 	const textSafetyProfile = requiredTextSafetyProfile(input.textSafetyProfile);
 	const audioSafetyPolicy = requiredAudioSafetyPolicy(input.audioSafetyPolicy);
@@ -259,27 +290,30 @@ async function createVideoQuoteInTransaction(
 		await lockMediaAssetGenerationBindings(
 			input.template
 				? [input.template.request.inputs.leftAssetId, input.template.request.inputs.rightAssetId]
-				: [request.inputAssetId!],
+				: videoInputAssetIds(request),
 			tx,
 		);
 	const asset = await findSealedInput(input.ownerId, request, input.maximumInputBytes, tx, now);
-	const templateData = input.template
-		? await templateAdmissionData(input.ownerId, input.template, input.maximumInputBytes, tx, now)
-		: {};
-	const requestFingerprint = input.template
-		? createHash("sha256")
-				.update(
-					canonicalVideoTemplateJson({
-						ownerId: input.ownerId,
-						request,
-						...templateData,
-						visualSafetyProfile,
-						textSafetyProfile,
-						audioSafetyPolicy,
-					}),
-				)
-				.digest("hex")
-		: fingerprintVideoRequest(input.ownerId, request);
+	const templateData = isSourceTemplateRequest(request)
+		? await sourceTemplateAdmissionData(input.ownerId, request, input.maximumInputBytes, tx, now)
+		: input.template
+			? await templateAdmissionData(input.ownerId, input.template, input.maximumInputBytes, tx, now)
+			: {};
+	const requestFingerprint =
+		input.template || isSourceTemplateRequest(request)
+			? createHash("sha256")
+					.update(
+						canonicalVideoTemplateJson({
+							ownerId: input.ownerId,
+							request,
+							...templateData,
+							visualSafetyProfile,
+							textSafetyProfile,
+							audioSafetyPolicy,
+						}),
+					)
+					.digest("hex")
+			: fingerprintVideoRequest(input.ownerId, request);
 	const quote = {
 		ownerType: "USER" as const,
 		ownerId: input.ownerId,
@@ -501,7 +535,7 @@ async function createVideoJobInTransaction(
 	tx: MediaDatabaseClient,
 	prepared?: Awaited<ReturnType<typeof createVideoQuoteInTransaction>>,
 ) {
-	const request = videoV1ReceiptInputSchema.parse(input.request);
+	const request = parseVideoRequest(input.request, true);
 	if (!input.idempotencyKey.trim() || input.idempotencyKey.length > 128)
 		throw new Error("INVALID_IDEMPOTENCY_KEY");
 	const requiresScene =
@@ -532,7 +566,7 @@ async function createVideoJobInTransaction(
 	}
 	// Accepted receipts retain their exact historical framing. Only new
 	// admissions must satisfy today's narrower model capabilities.
-	videoV1InputSchema.parse(request);
+	parseVideoRequest(request);
 	if (
 		!quote ||
 		quote.productKey !== requestProduct(request) ||
@@ -625,7 +659,7 @@ async function createVideoJobInTransaction(
 		await lockMediaAssetGenerationBindings(
 			input.template
 				? [input.template.request.inputs.leftAssetId, input.template.request.inputs.rightAssetId]
-				: [request.inputAssetId!],
+				: videoInputAssetIds(request),
 			tx,
 		);
 	const asset = prepared
@@ -633,15 +667,37 @@ async function createVideoJobInTransaction(
 			? assertSealedInput(prepared.asset, input.limits.maximumInputBytes, now)
 			: null
 		: await findSealedInput(input.ownerId, request, input.limits.maximumInputBytes, tx, now);
-	const roleInputs = input.template
-		? await findTemplateRoleInputs(
+	const roleInputs = isSourceTemplateRequest(request)
+		? await findSourceTemplateRoleInputs(
 				input.ownerId,
-				input.template.request,
+				request,
 				input.limits.maximumInputBytes,
 				tx,
 				now,
 			)
-		: [];
+		: input.template
+			? await findTemplateRoleInputs(
+					input.ownerId,
+					input.template.request,
+					input.limits.maximumInputBytes,
+					tx,
+					now,
+				)
+			: [];
+	if (isSourceTemplateRequest(request)) {
+		const currentData = await sourceTemplateAdmissionData(
+			input.ownerId,
+			request,
+			input.limits.maximumInputBytes,
+			tx,
+			now,
+		);
+		if (
+			canonicalVideoTemplateJson(currentData.roleInputIdentities) !==
+			canonicalVideoTemplateJson(snap.roleInputIdentities)
+		)
+			throw new Error("ASSET_CONTENT_CHANGED");
+	}
 	if (input.template) {
 		const currentData = await templateAdmissionData(
 			input.ownerId,
@@ -677,6 +733,14 @@ async function createVideoJobInTransaction(
 	await tx.$queryRaw`SELECT "id" FROM "credit_account" WHERE "id" = ${account.id} FOR UPDATE`;
 	const admissionNow = await databaseNow(tx);
 	if (quote.expiresAt <= admissionNow) throw new Error("QUOTE_EXPIRED");
+	if (isSourceTemplateRequest(request))
+		await sourceTemplateAdmissionData(
+			input.ownerId,
+			request,
+			input.limits.maximumInputBytes,
+			tx,
+			admissionNow,
+		);
 	await assertVideoRetailEligibility(input.ownerId, input.price.pricingDetails, tx, admissionNow);
 	const maximumStorageBytes = await effectiveMediaStorageLimit(
 		{ ownerType: "USER", ownerId: input.ownerId },
@@ -823,13 +887,29 @@ export async function getVideoJobRecord(ownerId: string, jobId: string, tx: Medi
 
 export async function listVideoJobRecords(
 	ownerId: string,
-	input: { cursor?: string; limit?: number },
+	input: {
+		cursor?: string;
+		limit?: number;
+		sourceTemplateKey?: string;
+		sourceTemplatesOnly?: boolean;
+	},
 	tx: MediaDatabaseClient,
 ) {
 	const limit = Math.min(20, Math.max(1, input.limit ?? 20));
+	const sourceFilter = input.sourceTemplateKey
+		? { productKey: `source-template:${input.sourceTemplateKey}` }
+		: input.sourceTemplatesOnly
+			? { productKey: { startsWith: "source-template:" } }
+			: {};
 	if (input.cursor) {
 		const cursor = await tx.generationJob.findFirst({
-			where: { id: input.cursor, ownerType: "USER", ownerId, executionEngine: ENGINE },
+			where: {
+				id: input.cursor,
+				ownerType: "USER",
+				ownerId,
+				executionEngine: ENGINE,
+				...sourceFilter,
+			},
 			select: {
 				id: true,
 				videoExecution: { select: { jobId: true } },
@@ -839,7 +919,7 @@ export async function listVideoJobRecords(
 		if (!cursor?.videoExecution || !cursor.reservation) throw new Error("NOT_FOUND");
 	}
 	const rows = await tx.generationJob.findMany({
-		where: { ownerType: "USER", ownerId, executionEngine: ENGINE },
+		where: { ownerType: "USER", ownerId, executionEngine: ENGINE, ...sourceFilter },
 		select: {
 			...videoPlaybackSelect,
 			creditsReserved: true,

@@ -4,6 +4,11 @@ import { mp4Fixture } from "../test-support/video-fixture";
 import { VideoMp4Inspector } from "./video-mp4";
 
 describe("bounded video V1 MP4 specification", () => {
+	it("measures hosted-template output without a fabricated requested duration", () => {
+		const probe = new VideoMp4Inspector(undefined, { durationSeconds: null, sound: true });
+		probe.write(mp4Fixture({ durationMillis: 18340, audio: true }));
+		expect(probe.finish()).toMatchObject({ durationMillis: 18340, audioTracks: 1 });
+	});
 	it.each([1, 3, 7, 8, 16, 67, 4096])(
 		"accepts split %i-byte headers without retaining media bytes",
 		(chunkSize) => {
