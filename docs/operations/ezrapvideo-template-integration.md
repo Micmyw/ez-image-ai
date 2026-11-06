@@ -140,6 +140,10 @@ source-based explanatory content, and preserves the original prompt-to-reference
 
 ## Validation and release
 
+The [production activation follow-up](source-template-production-activation-2026-11-06.md)
+records the missing production-provision incident and the explicit material/configuration
+application. A successful application deployment does not itself activate these templates.
+
 The [completion follow-up](ezrapvideo-template-completion-2026-11-06.md) supersedes the initial
 audit's three migration limitations. It records real local material import and provision checks,
 without a paid generation or production release.

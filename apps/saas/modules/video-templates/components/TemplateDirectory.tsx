@@ -64,7 +64,6 @@ export function TemplateDirectory({ initialAssetId = null }: { initialAssetId?: 
 							<div className="vt-card-body">
 								<div className="vt-card-meta">
 									<span>{t(`categories.${template.category}`)}</span>
-									<span>{t(`availability.${template.availability}`)}</span>
 								</div>
 								<h2>
 									<Link
@@ -96,7 +95,6 @@ export function TemplateDirectory({ initialAssetId = null }: { initialAssetId?: 
 								<li key={template.key}>
 									<div className="vt-card-meta">
 										<span>{t(`categories.${template.category}`)}</span>
-										<span>{t(`availability.${template.availability}`)}</span>
 									</div>
 									<h3>
 										<Link href={template.canonicalPath} prefetch={false}>

@@ -7,6 +7,7 @@
 - Play one muted example on mouse hover and unload it on exit; keep explicit sound, touch and keyboard controls, reduced-motion behavior and offscreen cleanup. Show template introductions, photo-role guidance, steps and FAQs adapted from the original pages in English, German, Spanish and French.
 - Put the complete reference preview beside a photo-first creator. Show fixed format values as facts, keep optional quality controls collapsible, and show the required photo slots before sign-in. Tools without a published sample remain compact links.
 - Remove Preview badges and source corner labels from template images; click or tap the picture for sound and playback controls.
+- Remove static preparation labels from the template directory; each creator uses current server availability. Describe temporary outages without promising a separate output-approval launch gate.
 - Keep the homepage focused on image editing, with a static template recommendation section and an image-result action that carries an authorized image into a video template.
 - Keep server-rendered image-to-image guides, examples and FAQs out of the shared client translation payload so template discovery fits the existing homepage transfer budget.
 - Preserve source prompts, original scene/audio materials, choreography and provider request construction. Reuse the existing video Workflow, private media, shared credits and uncertain-request recovery.
