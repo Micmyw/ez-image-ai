@@ -50,7 +50,9 @@ function validOverride(base: JsonValue, override: JsonValue): boolean {
 			object(override) &&
 			Object.entries(override).every(
 				([key, value]) =>
-					safeKey(key) && Object.hasOwn(base, key) && validOverride(base[key]!, value),
+					safeKey(key) &&
+					Object.prototype.hasOwnProperty.call(base, key) &&
+					validOverride(base[key]!, value),
 			)
 		);
 	return base === null ? override === null : typeof base === typeof override && !object(override);
@@ -101,7 +103,7 @@ function applyOverride(base: JsonValue, patch: JsonValue): JsonValue {
 	return Object.fromEntries(
 		Object.entries(base).map(([key, value]) => [
 			key,
-			Object.hasOwn(patch, key) ? applyOverride(value, patch[key]!) : value,
+			Object.prototype.hasOwnProperty.call(patch, key) ? applyOverride(value, patch[key]!) : value,
 		]),
 	);
 }
