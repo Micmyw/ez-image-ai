@@ -3,10 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { VIDEO_EFFECT_MAX_INPUT_BYTES, type VideoEffectId } from "@repo/config/video-effects";
 import { db } from "@repo/database/client";
 import { createMediaUploadSessionTransaction } from "@repo/database/media-assets";
-import {
-	getVideoTemplateInputRecord,
-	getVideoTemplateInputReadAuthorization,
-} from "@repo/database/video-template";
+import { getVideoTemplateInputRecord } from "@repo/database/video-template";
 import {
 	getVideoUploadSession,
 	recordVideoInputIdentity,
@@ -26,11 +23,11 @@ import {
 	normalizeVideoReferenceToPng,
 } from "@repo/storage";
 
-import { signAuthorizedAssetReadUrl } from "../media/lib/asset-read-url";
 import { loadUserPlanEntitlement } from "../media/lib/plan-entitlement";
 import { enforceMediaRateLimit } from "../media/lib/rate-limit";
 import { mediaUploadLimits } from "../media/lib/storage-limits";
 import { completeOwnedUploadSession } from "../media/procedures/complete-upload-session";
+import { signOwnedVideoInputPreview } from "../video-v1/input-preview";
 import { validateVideoUpload } from "../video-v1/uploads";
 
 export async function createVideoEffectUpload(
@@ -106,15 +103,9 @@ export async function completeVideoEffectUpload(
 	user: { id: string },
 	input: { sessionId: string },
 ) {
-	const session = await getVideoUploadSession(user.id, input.sessionId);
-	if (
-		!session ||
-		(!session.asset.objectKey.endsWith(".template-source") &&
-			!session.asset.objectKey.endsWith(".template-source.template-input.png"))
-	)
-		throw new Error("VIDEO_UPLOAD_NOT_FOUND");
 	await completeOwnedUploadSession(input, user.id, {
 		expectedVerificationEngine: "video-workflow-v1",
+		expectedInputKind: "video-template",
 	});
 	const completed = await getVideoUploadSession(user.id, input.sessionId);
 	if (!completed?.asset.checksum || !completed.asset.storageEtag || !completed.asset.finalizedAt)
@@ -191,15 +182,7 @@ function sealedInputDto(asset: {
 export async function getVideoEffectInput(ownerId: string, assetId: string) {
 	const asset = await getVideoTemplateInputRecord(ownerId, assetId, db);
 	if (!asset) throw new Error("NOT_FOUND");
-	let preview: { url: string; expiresAt: string } | null = null;
-	// Pending photographs can restore their IDs, but no unchecked storage URL is returned.
-	// Template evidence binds owner, both role identities and the frozen safety policy.
-	try {
-		const approved = await getVideoTemplateInputReadAuthorization(ownerId, assetId, db);
-		if (approved) preview = await signAuthorizedAssetReadUrl(approved);
-	} catch {
-		// Recovery metadata is useful before input review; unavailable previews remain private.
-	}
+	const preview = await signOwnedVideoInputPreview(asset);
 	return {
 		assetId: asset.id,
 		mimeType: asset.mimeType,
@@ -207,7 +190,7 @@ export async function getVideoEffectInput(ownerId: string, assetId: string) {
 		width: asset.width!,
 		height: asset.height!,
 		sealed: true as const,
-		previewUrl: preview?.url ?? null,
-		previewExpiresAt: preview?.expiresAt ?? null,
+		previewUrl: preview.url,
+		previewExpiresAt: preview.expiresAt,
 	};
 }

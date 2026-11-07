@@ -2556,7 +2556,11 @@
 		"duration": "Durée",
 		"planPrices": "Standard : {standard} crédits · Abonnement annuel : {annual} crédits",
 		"annualSavingApplied": "Tarif annuel appliqué — vous économisez {credits} crédits.",
-		"annualSavingAvailable": "Les abonnements annuels éligibles économisent {credits} crédits sur cette option."
+		"annualSavingAvailable": "Les abonnements annuels éligibles économisent {credits} crédits sur cette option.",
+		"uploadProgress": "Importation… {progress} %",
+		"previewUnavailable": "Photo sélectionnée · aperçu indisponible",
+		"retryPreview": "Recharger l’aperçu",
+		"retryAvailability": "Vérifier à nouveau"
 	},
 	"imagePass": {
 		"bannerLabel": "Pack d’images à paiement unique",

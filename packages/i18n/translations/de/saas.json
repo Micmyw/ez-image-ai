@@ -2556,7 +2556,11 @@
 		"duration": "Dauer",
 		"planPrices": "Standard: {standard} Credits · Jahresabo: {annual} Credits",
 		"annualSavingApplied": "Jahresabo-Preis angewendet — du sparst {credits} Credits.",
-		"annualSavingAvailable": "Berechtigte Jahresabos sparen bei dieser Option {credits} Credits."
+		"annualSavingAvailable": "Berechtigte Jahresabos sparen bei dieser Option {credits} Credits.",
+		"uploadProgress": "Wird hochgeladen… {progress} %",
+		"previewUnavailable": "Foto ausgewählt · Vorschau nicht verfügbar",
+		"retryPreview": "Vorschau neu laden",
+		"retryAvailability": "Erneut prüfen"
 	},
 	"imagePass": {
 		"bannerLabel": "Einmaliges Bildpaket",

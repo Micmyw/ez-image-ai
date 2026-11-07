@@ -4,7 +4,6 @@ vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/database/media-assets", () => ({ createMediaUploadSessionTransaction: vi.fn() }));
 vi.mock("@repo/database/video-template", () => ({
 	getVideoTemplateInputRecord: vi.fn(),
-	getVideoTemplateInputReadAuthorization: vi.fn(),
 }));
 vi.mock("@repo/database/video-v1-uploads", () => ({
 	getVideoUploadSession: vi.fn(),
@@ -23,6 +22,7 @@ vi.mock("@repo/storage", () => ({
 	createFinalAssetObjectKey: () => "owner/final/photo.jpg",
 	createStagingObjectKey: () => "owner/staging/photo.jpg",
 	createSignedUpload: vi.fn(async () => "https://fixture.test/upload"),
+	createSignedReadUrl: vi.fn(async () => "https://fixture.test/private-original"),
 	deleteObject: vi.fn(),
 	inspectPrivateImage: vi.fn(async () => ({ width: 720, height: 1280 })),
 	normalizeVideoReferenceToPng: vi.fn(async () => ({
@@ -34,7 +34,6 @@ vi.mock("@repo/storage", () => ({
 		height: 1280,
 	})),
 }));
-vi.mock("../media/lib/asset-read-url", () => ({ signAuthorizedAssetReadUrl: vi.fn() }));
 vi.mock("../media/lib/plan-entitlement", () => ({
 	loadUserPlanEntitlement: vi.fn(async () => ({ maximumInputBytes: 8_000_000 })),
 }));
@@ -48,18 +47,19 @@ vi.mock("../media/procedures/complete-upload-session", () => ({
 vi.mock("../video-v1/uploads", () => ({ validateVideoUpload: vi.fn() }));
 
 import { createMediaUploadSessionTransaction } from "@repo/database/media-assets";
-import {
-	getVideoTemplateInputRecord,
-	getVideoTemplateInputReadAuthorization,
-} from "@repo/database/video-template";
+import { getVideoTemplateInputRecord } from "@repo/database/video-template";
 import {
 	getVideoUploadSession,
 	recordVideoInputIdentity,
 	releaseNormalizedSourceStorage,
 } from "@repo/database/video-v1-uploads";
-import { deleteObject, inspectPrivateImage, normalizeVideoReferenceToPng } from "@repo/storage";
+import {
+	createSignedReadUrl,
+	deleteObject,
+	inspectPrivateImage,
+	normalizeVideoReferenceToPng,
+} from "@repo/storage";
 
-import { signAuthorizedAssetReadUrl } from "../media/lib/asset-read-url";
 import { completeOwnedUploadSession } from "../media/procedures/complete-upload-session";
 import { completeVideoEffectUpload, createVideoEffectUpload, getVideoEffectInput } from "./uploads";
 
@@ -75,6 +75,7 @@ const source = {
 	width: null,
 	height: null,
 	status: "VERIFYING",
+	deleteAfter: null,
 };
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -107,6 +108,11 @@ describe("template canonical immutable photo boundary", () => {
 				asset: { ...source, mimeType },
 			} as never);
 			const result = await completeVideoEffectUpload({ id: "owner" }, { sessionId: "session" });
+			expect(getVideoUploadSession).toHaveBeenCalledExactlyOnceWith("owner", "session");
+			expect(completeOwnedUploadSession).toHaveBeenCalledWith({ sessionId: "session" }, "owner", {
+				expectedVerificationEngine: "video-workflow-v1",
+				expectedInputKind: "video-template",
+			});
 			expect(inspectPrivateImage).not.toHaveBeenCalled();
 			expect(normalizeVideoReferenceToPng).toHaveBeenCalledWith(
 				expect.objectContaining({
@@ -146,13 +152,14 @@ describe("template canonical immutable photo boundary", () => {
 		expect(deleteObject).not.toHaveBeenCalled();
 	});
 	it("rejects ordinary upload sessions as template canonical uploads", async () => {
-		vi.mocked(getVideoUploadSession).mockResolvedValue({
-			asset: { ...source, objectKey: "ordinary/photo.png" },
-		} as never);
+		vi.mocked(completeOwnedUploadSession).mockRejectedValueOnce(
+			new Error("VIDEO_UPLOAD_NOT_FOUND"),
+		);
 		await expect(
 			completeVideoEffectUpload({ id: "owner" }, { sessionId: "session" }),
 		).rejects.toThrow("VIDEO_UPLOAD_NOT_FOUND");
-		expect(completeOwnedUploadSession).not.toHaveBeenCalled();
+		expect(getVideoUploadSession).not.toHaveBeenCalled();
+		expect(normalizeVideoReferenceToPng).not.toHaveBeenCalled();
 	});
 	it("retains capacity when physical source deletion fails", async () => {
 		vi.mocked(deleteObject).mockRejectedValueOnce(new Error("delete failed"));
@@ -174,39 +181,43 @@ describe("template canonical immutable photo boundary", () => {
 		expect(recordVideoInputIdentity).not.toHaveBeenCalled();
 		expect(deleteObject).toHaveBeenCalledWith({ bucket: "media", key: source.objectKey });
 	});
-	it("restores owned input metadata without signing unchecked content", async () => {
+	it("restores the owner's original before generation review without a history lookup", async () => {
 		vi.mocked(getVideoTemplateInputRecord).mockResolvedValue({
 			...source,
 			width: 720,
 			height: 1280,
 		} as never);
 		const result = await getVideoEffectInput("owner", "asset");
-		expect(getVideoTemplateInputRecord).toHaveBeenCalledWith("owner", "asset", expect.anything());
-		expect(result.previewUrl).toBeNull();
-		expect(signAuthorizedAssetReadUrl).not.toHaveBeenCalled();
+		expect(getVideoTemplateInputRecord).toHaveBeenCalledExactlyOnceWith(
+			"owner",
+			"asset",
+			expect.anything(),
+		);
+		expect(result.previewUrl).toBe("https://fixture.test/private-original");
+		expect(createSignedReadUrl).toHaveBeenCalledWith(
+			expect.objectContaining({ expiresIn: 300, responseContentDisposition: "inline" }),
+		);
 	});
-	it("reissues preview only after current owned template approval", async () => {
+	it("bounds the preview by original expiry", async () => {
 		vi.mocked(getVideoTemplateInputRecord).mockResolvedValue({
 			...source,
 			width: 720,
 			height: 1280,
+			deleteAfter: new Date(Date.now() + 60_000),
 		} as never);
-		const authorization = {
-			id: source.id,
-			objectKey: source.objectKey,
-			verificationValidUntil: new Date(Date.now() + 60000),
-			deleteAfter: null,
-		};
-		vi.mocked(getVideoTemplateInputReadAuthorization).mockResolvedValueOnce(authorization);
-		vi.mocked(signAuthorizedAssetReadUrl).mockResolvedValueOnce({
-			assetId: source.id,
-			url: "https://fixture.test/approved",
-			expiresAt: "2100-01-01T00:00:00Z",
-			expiresIn: 60,
-		});
-		expect((await getVideoEffectInput("owner", "asset")).previewUrl).toBe(
-			"https://fixture.test/approved",
+		await getVideoEffectInput("owner", "asset");
+		expect(vi.mocked(createSignedReadUrl).mock.calls[0]![0].expiresIn).toBeLessThanOrEqual(60);
+	});
+	it("does not sign an inaccessible or expired original", async () => {
+		vi.mocked(getVideoTemplateInputRecord).mockResolvedValueOnce(null);
+		await expect(getVideoEffectInput("another-owner", "asset")).rejects.toThrow("NOT_FOUND");
+		vi.mocked(getVideoTemplateInputRecord).mockResolvedValueOnce({
+			...source,
+			deleteAfter: new Date(Date.now() - 1000),
+		} as never);
+		await expect(getVideoEffectInput("owner", "asset")).rejects.toThrow(
+			"VIDEO_INPUT_NOT_AVAILABLE",
 		);
-		expect(signAuthorizedAssetReadUrl).toHaveBeenCalledWith(authorization);
+		expect(createSignedReadUrl).not.toHaveBeenCalled();
 	});
 });

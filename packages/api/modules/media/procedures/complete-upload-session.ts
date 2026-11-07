@@ -54,7 +54,10 @@ export async function completeOwnedUploadSession(
 		expectedSha256?: string;
 	},
 	ownerId: string,
-	options?: { expectedVerificationEngine: "video-workflow-v1" },
+	options?: {
+		expectedVerificationEngine: "video-workflow-v1";
+		expectedInputKind?: "video-template";
+	},
 ) {
 	const session = await requireOwnedUploadSession(input.sessionId, ownerId);
 	if (
@@ -62,6 +65,14 @@ export async function completeOwnedUploadSession(
 		(options?.expectedVerificationEngine ?? "legacy")
 	)
 		throw new Error("UPLOAD_ENGINE_MISMATCH");
+	// Template callers reuse this owner/session read instead of fetching the same session first.
+	if (
+		options?.expectedInputKind === "video-template" &&
+		(session.asset.kind !== "INPUT" ||
+			(!session.asset.objectKey.endsWith(".template-source") &&
+				!session.asset.objectKey.endsWith(".template-source.template-input.png")))
+	)
+		throw new Error("VIDEO_UPLOAD_NOT_FOUND");
 	if (session.status === "COMPLETED") return toMediaAssetDto(session.asset);
 	if (!["PENDING", "FINALIZING"].includes(session.status)) {
 		throw new Error("Upload session is not pending");

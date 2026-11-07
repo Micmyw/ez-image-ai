@@ -8,7 +8,10 @@ vi.mock("../../client", () => ({
 
 import type { Prisma } from "../../generated/client";
 import type { MediaDatabaseClient } from "./types";
-import { listVideoTemplateJobRecords } from "./video-template-admission";
+import {
+	getVideoTemplateInputRecord,
+	listVideoTemplateJobRecords,
+} from "./video-template-admission";
 import { getVideoJobRecord, listVideoJobRecords } from "./video-v1";
 import {
 	authorizeVideoPlayback,
@@ -19,6 +22,32 @@ import {
 
 const now = new Date("2026-10-20T12:00:00.000Z");
 const expiry = new Date("2026-10-21T12:00:00.000Z");
+
+it("selects only owned sealed native-video originals for template preview in one read", async () => {
+	const findFirst = vi.fn(async () => ({ id: "photo", checksum: "a".repeat(64) }));
+	await getVideoTemplateInputRecord("owner", "photo", {
+		mediaAsset: { findFirst },
+	} as unknown as MediaDatabaseClient);
+	expect(findFirst).toHaveBeenCalledExactlyOnceWith({
+		where: expect.objectContaining({
+			id: "photo",
+			ownerId: "owner",
+			ownerType: "USER",
+			kind: "INPUT",
+			verificationEngine: "video-workflow-v1",
+			mimeType: "image/png",
+			deletedAt: null,
+			finalizedAt: { not: null },
+			storageEtag: { not: null },
+			checksum: { not: null },
+			status: { in: ["VERIFYING", "READY"] },
+			objectKey: { endsWith: ".template-source.template-input.png" },
+			width: { gt: 0 },
+			height: { gt: 0 },
+			OR: [{ deleteAfter: null }, { deleteAfter: { gt: expect.any(Date) } }],
+		}),
+	});
+});
 
 function reviewedJob(): VideoPlaybackSnapshot {
 	const profile = createVideoVisualSafetyProfile("seeapi", 5);

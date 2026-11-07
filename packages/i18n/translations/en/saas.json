@@ -2556,7 +2556,11 @@
 		"duration": "Duration",
 		"planPrices": "Standard: {standard} credits · Annual plan: {annual} credits",
 		"annualSavingApplied": "Annual price applied — you save {credits} credits.",
-		"annualSavingAvailable": "Eligible annual plans save {credits} credits on this option."
+		"annualSavingAvailable": "Eligible annual plans save {credits} credits on this option.",
+		"uploadProgress": "Uploading… {progress}%",
+		"previewUnavailable": "Photo selected · preview unavailable",
+		"retryPreview": "Reload preview",
+		"retryAvailability": "Check again"
 	},
 	"imagePass": {
 		"bannerLabel": "One-time image pack",

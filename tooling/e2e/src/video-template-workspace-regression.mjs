@@ -6,6 +6,9 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { runEffectScenarios } from "./video-effect-workspace-scenarios.mjs";
+
+const effects = process.argv.includes("--effects");
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const app = path.join(repo, "apps/saas");
 const appRequire = createRequire(path.join(app, "package.json"));
@@ -14,7 +17,12 @@ const viteRequire = createRequire(
 );
 const { build, stop } = viteRequire("esbuild");
 const { chromium, expect } = appRequire("@playwright/test");
-const directory = path.join(repo, ".cache/video-template-workspace-regression");
+const directory = path.join(
+	repo,
+	effects
+		? ".cache/video-effect-workspace-regression"
+		: ".cache/video-template-workspace-regression",
+);
 await mkdir(directory, { recursive: true });
 await writeFile(
 	path.join(directory, "process.json"),
@@ -25,15 +33,27 @@ await writeFile(
 	}),
 );
 const messages = JSON.parse(
-	await readFile(path.join(repo, "packages/i18n/translations/en/video.json"), "utf8"),
-).videoTemplates;
+	await readFile(
+		path.join(
+			repo,
+			effects
+				? "packages/i18n/translations/en/saas.json"
+				: "packages/i18n/translations/en/video.json",
+		),
+		"utf8",
+	),
+)[effects ? "videoEffects" : "videoTemplates"];
 const mocks = {
 	"@auth/hooks/use-session":
 		'export const useSession = () => ({ user: { id: "fixture-owner", isAnonymous: false } });',
 	"@payments/components/upgrade-context": "export const useUpgrade = () => null;",
 	"@payments/lib/upgrade-selection":
 		'export const defaultUpgradeSelection = {}; export const upgradeHref = () => "/unused";',
-	"@shared/lib/orpc-client": "export const orpcClient = { videoTemplates: window.fixture.api };",
+	"@shared/lib/orpc-client": `export const orpcClient = { ${effects ? "videoEffects" : "videoTemplates"}: window.fixture.api };`,
+	"next/navigation": "export const useRouter = () => ({replace() {}});",
+	analytics: "export const recordVideoEffectEvent = async () => {};",
+	VideoEffectJob: "export const VideoEffectJob = () => <div>Fixture job accepted</div>;",
+	VideoEffectHistory: "export const VideoEffectHistory = () => null;",
 	"payment-return": "export const saveVideoEffectPaymentReturn = () => {};",
 	"next-intl": `const messages = ${JSON.stringify(messages)}; export const useTranslations = () => (key, values = {}) => { const text = key.split('.').reduce((value, part) => value?.[part], messages) ?? key; return Object.entries(values).reduce((text, [key, value]) => text.replaceAll("{" + key + "}", String(value)), text); };`,
 	"next/link": "export default function Link(props) { return <a {...props} />; }",
@@ -49,7 +69,14 @@ let server;
 try {
 	const bundle = await build({
 		stdin: {
-			contents: `
+			contents: effects
+				? `
+import { createRoot } from "react-dom/client";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { RaindanceWorkbench } from "./modules/video-effects/components/RaindanceWorkbench";
+createRoot(document.getElementById("root")).render(<QueryClientProvider client={new QueryClient()}><RaindanceWorkbench initialJobId={null} initialMode="duo" /></QueryClientProvider>);
+`
+				: `
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TemplateWorkspace } from "./modules/video-templates/components/TemplateWorkspace";
@@ -90,12 +117,22 @@ createRoot(document.getElementById("root")).render(<QueryClientProvider client={
 		"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=",
 		"base64",
 	);
-	const css = await readFile(path.join(app, "modules/video-templates/video-templates.css"), "utf8");
+	const css =
+		(await readFile(
+			path.join(
+				app,
+				effects
+					? "modules/video-effects/video-effects.css"
+					: "modules/video-templates/video-templates.css",
+			),
+			"utf8",
+		)) +
+		(effects ? await readFile(path.join(app, "modules/video-effects/raindance.css"), "utf8") : "");
 	server = createServer((request, response) => {
 		if (request.url === "/app.js") {
 			response.setHeader("Content-Type", "text/javascript");
 			response.end(bundle.outputFiles[0].text);
-		} else if (request.url === "/photo.png") {
+		} else if (request.url === "/photo.png" || request.url === "/images/blog/raindance-pier.webp") {
 			response.setHeader("Content-Type", "image/png");
 			response.end(png);
 		} else if (request.method === "PUT") {
@@ -117,116 +154,126 @@ createRoot(document.getElementById("root")).render(<QueryClientProvider client={
 	await page.route("**/*", (route) =>
 		route.request().url().startsWith(origin) ? route.continue() : route.abort(),
 	);
-	await page.addInitScript(() => {
-		const calls = { access: 0, previews: [], quotes: [], creates: [], uploads: 0 };
-		const pending = {};
-		window.fixture = { calls, pending, prices: {}, changedPrice: null, failCreate: false };
-		window.fixture.api = {
-			access: async () => {
-				calls.access++;
-				return {
-					available: true,
-					maximumInputBytes: 10000000,
-					pricing: { version: 1, creditsByOptions: window.fixture.prices },
-				};
-			},
-			uploads: {
-				create: async () => {
-					const sessionId = `session-${++calls.uploads}`;
-					return { sessionId, uploadUrl: `/upload/${sessionId}` };
-				},
-				complete: ({ sessionId }) =>
-					new Promise((resolve) => {
-						pending[sessionId] = () => resolve({ assetId: `photo-${sessionId}` });
-					}),
-			},
-			inputs: {
-				get: async ({ assetId }) => {
-					calls.previews.push(assetId);
+	let effectChecks;
+	if (effects) {
+		effectChecks = await runEffectScenarios({ page, expect, origin, png, messages, directory });
+	} else {
+		await page.addInitScript(() => {
+			const calls = { access: 0, previews: [], quotes: [], creates: [], uploads: 0 };
+			const pending = {};
+			window.fixture = { calls, pending, prices: {}, changedPrice: null, failCreate: false };
+			window.fixture.api = {
+				access: async () => {
+					calls.access++;
 					return {
-						assetId,
-						previewUrl: "/photo.png",
-						previewExpiresAt: new Date(Date.now() + 300000).toISOString(),
+						available: true,
+						maximumInputBytes: 10000000,
+						pricing: { version: 1, creditsByOptions: window.fixture.prices },
 					};
 				},
-			},
-			quote: async (request) => {
-				calls.quotes.push(request);
-				return {
-					quoteId: "fixture-quote",
-					credits:
-						window.fixture.changedPrice ?? (request.options.resolution === "2K" ? "246" : "123"),
-					expiresAt: new Date(Date.now() + 600000).toISOString(),
-				};
-			},
-			jobs: {
-				create: async (input) => {
-					calls.creates.push(input);
-					if (window.fixture.failCreate) throw new Error("NETWORK_UNKNOWN");
-					return { jobId: "fixture-job" };
+				uploads: {
+					create: async () => {
+						const sessionId = `session-${++calls.uploads}`;
+						return { sessionId, uploadUrl: `/upload/${sessionId}` };
+					},
+					complete: ({ sessionId }) =>
+						new Promise((resolve) => {
+							pending[sessionId] = () => resolve({ assetId: `photo-${sessionId}` });
+						}),
 				},
-			},
-		};
-	});
-	await page.goto(origin);
-	await expect(page.locator(".vt-credit-price")).toHaveText("123 credits");
-	await page.locator("#vt-resolution").selectOption("2K");
-	await expect(page.locator(".vt-credit-price")).toHaveText("246 credits");
-	await page.locator("#vt-resolution").selectOption("768P");
-	assert.deepEqual(
-		await page.evaluate(() => [window.fixture.calls.access, window.fixture.calls.quotes.length]),
-		[1, 0],
-	);
-	const upload = (index) =>
-		page
-			.locator('input[type="file"]')
-			.nth(index)
-			.setInputFiles({ name: "fixture.png", mimeType: "image/png", buffer: png });
-	await upload(0);
-	await expect(page.locator(".vt-upload img").first()).toHaveAttribute("src", /^blob:/);
-	await expect(page.locator('input[type="file"]').nth(1)).toBeEnabled();
-	await upload(1);
-	await page.waitForFunction(() => Object.keys(window.fixture.pending).length === 2);
-	await page.evaluate(() => Object.values(window.fixture.pending).forEach((resolve) => resolve()));
-	await expect(page.getByRole("button", { name: "Create for 123 credits" })).toBeEnabled();
-	assert.equal(await page.locator('.vt-upload img[src^="blob:"]').count(), 2);
-	assert.equal(await page.evaluate(() => window.fixture.calls.previews.length), 0);
-	await page.screenshot({ path: path.join(directory, "ready.png"), fullPage: true });
-	await page.getByRole("button", { name: "Create for 123 credits" }).click();
-	await expect(page.getByText("Fixture job accepted")).toBeVisible();
-	assert.deepEqual(
-		await page.evaluate(() => [
-			window.fixture.calls.quotes.length,
-			window.fixture.calls.creates.length,
-		]),
-		[1, 1],
-	);
-	// Restored private originals load once; a price change requires deliberate confirmation.
-	await page.reload();
-	await expect(page.locator(".vt-upload img")).toHaveCount(2);
-	assert.equal(await page.evaluate(() => window.fixture.calls.previews.length), 2);
-	await page.evaluate(() => {
-		window.fixture.changedPrice = "150";
-		window.fixture.failCreate = true;
-	});
-	await page.getByRole("button", { name: "Create for 123 credits" }).click();
-	await expect(page.getByRole("alert")).toContainText("The price has changed");
-	assert.equal(await page.evaluate(() => window.fixture.calls.creates.length), 0);
-	await page.getByRole("button", { name: "Create for 150 credits" }).click();
-	await expect(page.getByRole("button", { name: messages.recover })).toBeEnabled();
-	const firstKey = await page.evaluate(() => window.fixture.calls.creates[0].idempotencyKey);
-	await page.reload();
-	await page.evaluate(() => {
-		window.fixture.failCreate = false;
-	});
-	await page.getByRole("button", { name: messages.recover }).click();
-	await expect(page.getByText("Fixture job accepted")).toBeVisible();
-	assert.equal(await page.evaluate(() => window.fixture.calls.creates[0].idempotencyKey), firstKey);
-	assert.equal(await page.evaluate(() => window.fixture.calls.quotes.length), 0);
+				inputs: {
+					get: async ({ assetId }) => {
+						calls.previews.push(assetId);
+						return {
+							assetId,
+							previewUrl: "/photo.png",
+							previewExpiresAt: new Date(Date.now() + 300000).toISOString(),
+						};
+					},
+				},
+				quote: async (request) => {
+					calls.quotes.push(request);
+					return {
+						quoteId: "fixture-quote",
+						credits:
+							window.fixture.changedPrice ?? (request.options.resolution === "2K" ? "246" : "123"),
+						expiresAt: new Date(Date.now() + 600000).toISOString(),
+					};
+				},
+				jobs: {
+					create: async (input) => {
+						calls.creates.push(input);
+						if (window.fixture.failCreate) throw new Error("NETWORK_UNKNOWN");
+						return { jobId: "fixture-job" };
+					},
+				},
+			};
+		});
+		await page.goto(origin);
+		await expect(page.locator(".vt-credit-price")).toHaveText("123 credits");
+		await page.locator("#vt-resolution").selectOption("2K");
+		await expect(page.locator(".vt-credit-price")).toHaveText("246 credits");
+		await page.locator("#vt-resolution").selectOption("768P");
+		assert.deepEqual(
+			await page.evaluate(() => [window.fixture.calls.access, window.fixture.calls.quotes.length]),
+			[1, 0],
+		);
+		const upload = (index) =>
+			page
+				.locator('input[type="file"]')
+				.nth(index)
+				.setInputFiles({ name: "fixture.png", mimeType: "image/png", buffer: png });
+		await upload(0);
+		await expect(page.locator(".vt-upload img").first()).toHaveAttribute("src", /^blob:/);
+		await expect(page.locator('input[type="file"]').nth(1)).toBeEnabled();
+		await upload(1);
+		await page.waitForFunction(() => Object.keys(window.fixture.pending).length === 2);
+		await page.evaluate(() =>
+			Object.values(window.fixture.pending).forEach((resolve) => resolve()),
+		);
+		await expect(page.getByRole("button", { name: "Create for 123 credits" })).toBeEnabled();
+		assert.equal(await page.locator('.vt-upload img[src^="blob:"]').count(), 2);
+		assert.equal(await page.evaluate(() => window.fixture.calls.previews.length), 0);
+		await page.screenshot({ path: path.join(directory, "ready.png"), fullPage: true });
+		await page.getByRole("button", { name: "Create for 123 credits" }).click();
+		await expect(page.getByText("Fixture job accepted")).toBeVisible();
+		assert.deepEqual(
+			await page.evaluate(() => [
+				window.fixture.calls.quotes.length,
+				window.fixture.calls.creates.length,
+			]),
+			[1, 1],
+		);
+		// Restored private originals load once; a price change requires deliberate confirmation.
+		await page.reload();
+		await expect(page.locator(".vt-upload img")).toHaveCount(2);
+		assert.equal(await page.evaluate(() => window.fixture.calls.previews.length), 2);
+		await page.evaluate(() => {
+			window.fixture.changedPrice = "150";
+			window.fixture.failCreate = true;
+		});
+		await page.getByRole("button", { name: "Create for 123 credits" }).click();
+		await expect(page.getByRole("alert")).toContainText("The price has changed");
+		assert.equal(await page.evaluate(() => window.fixture.calls.creates.length), 0);
+		await page.getByRole("button", { name: "Create for 150 credits" }).click();
+		await expect(page.getByRole("button", { name: messages.recover })).toBeEnabled();
+		const firstKey = await page.evaluate(() => window.fixture.calls.creates[0].idempotencyKey);
+		await page.reload();
+		await page.evaluate(() => {
+			window.fixture.failCreate = false;
+		});
+		await page.getByRole("button", { name: messages.recover }).click();
+		await expect(page.getByText("Fixture job accepted")).toBeVisible();
+		assert.equal(
+			await page.evaluate(() => window.fixture.calls.creates[0].idempotencyKey),
+			firstKey,
+		);
+		assert.equal(await page.evaluate(() => window.fixture.calls.quotes.length), 0);
+	}
 	assert.deepEqual(errors, []);
 	const report = {
 		passed: true,
-		checks: [
+		checks: effectChecks ?? [
 			"instant cached price",
 			"parallel upload slots",
 			"local thumbnails survive upload without preview reads",

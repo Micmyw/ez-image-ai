@@ -290,6 +290,8 @@ export async function getVideoTemplateInputRecord(
 			deletedAt: null,
 			finalizedAt: { not: null },
 			objectKey: { endsWith: ".template-source.template-input.png" },
+			verificationEngine: "video-workflow-v1",
+			mimeType: "image/png",
 			storageEtag: { not: null },
 			checksum: { not: null },
 			width: { gt: 0 },
@@ -314,45 +316,4 @@ export async function getVideoTemplateAdminRecord(jobId: string, db: MediaDataba
 			reservation: true,
 		},
 	});
-}
-/** Reissue preview capability only from checksum-bound template input evidence. */
-export async function getVideoTemplateInputReadAuthorization(
-	ownerId: string,
-	assetId: string,
-	db: MediaDatabaseClient,
-) {
-	const asset = await getVideoTemplateInputRecord(ownerId, assetId, db);
-	if (!asset) return null;
-	const executions = await db.videoTemplateExecution.findMany({
-		where: { job: { ownerType: "USER", ownerId, assets: { some: { assetId, role: "INPUT" } } } },
-		orderBy: { createdAt: "desc" },
-		take: 20,
-	});
-	for (const execution of executions) {
-		const reviews = object(execution.inputReview);
-		const policy = object(execution.templateSnapshot).safetyPolicyVersion;
-		for (const role of ["left", "right"]) {
-			const r = object(reviews[role]);
-			const validUntil = typeof r.validUntil === "string" ? new Date(r.validUntil) : null;
-			if (
-				object(r.decision).decision === "ALLOW" &&
-				r.assetId === asset.id &&
-				r.checksum === asset.checksum &&
-				r.objectKey === asset.objectKey &&
-				r.storageEtag === asset.storageEtag &&
-				r.storageVersionId === asset.storageVersionId &&
-				r.verificationGeneration === asset.verificationGeneration &&
-				r.safetyPolicyVersion === policy &&
-				validUntil &&
-				validUntil > new Date()
-			)
-				return {
-					id: asset.id,
-					objectKey: asset.objectKey,
-					verificationValidUntil: validUntil,
-					deleteAfter: asset.deleteAfter,
-				};
-		}
-	}
-	return null;
 }

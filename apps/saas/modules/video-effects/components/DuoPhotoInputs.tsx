@@ -9,7 +9,8 @@ import type { EffectRole } from "../lib/model";
 export type PhotoSlot = {
 	assetId: string | null;
 	preview: string | null;
-	previewExpiresAt?: string | null;
+	previewFailed?: boolean;
+	progress?: number;
 	status: "empty" | "uploading" | "sealing" | "sealed" | "error";
 };
 export const emptyPhotoSlot: PhotoSlot = { assetId: null, preview: null, status: "empty" };
@@ -22,6 +23,7 @@ export function DuoPhotoInputs({
 	onClear,
 	onSwap,
 	onPreviewError,
+	onRetryPreview,
 	solo = false,
 }: {
 	solo?: boolean;
@@ -32,6 +34,7 @@ export function DuoPhotoInputs({
 	onClear: (role: EffectRole) => void;
 	onSwap: () => void;
 	onPreviewError?: (role: EffectRole) => void;
+	onRetryPreview?: (role: EffectRole) => void;
 }) {
 	const t = useTranslations("videoEffects");
 	return (
@@ -55,7 +58,7 @@ export function DuoPhotoInputs({
 								) : (
 									<span className="ve-upload-empty">
 										<ImagePlusIcon aria-hidden />
-										<strong>{t("choosePhoto")}</strong>
+										<strong>{t(slot.assetId ? "previewUnavailable" : "choosePhoto")}</strong>
 										<small>{t("photoHint")}</small>
 									</span>
 								)}
@@ -75,8 +78,15 @@ export function DuoPhotoInputs({
 							<div className="ve-slot-status" aria-live="polite">
 								<span>
 									{slot.status === "sealed" && <CheckCircle2Icon aria-hidden />}
-									{t(`upload.${slot.status}`)}
+									{slot.status === "uploading" && slot.progress !== undefined
+										? t("uploadProgress", { progress: slot.progress })
+										: t(`upload.${slot.status}`)}
 								</span>
+								{slot.previewFailed && slot.assetId && onRetryPreview && (
+									<button type="button" onClick={() => onRetryPreview(role)}>
+										{t("retryPreview")}
+									</button>
+								)}
 								{slot.status !== "empty" && (
 									<button
 										type="button"

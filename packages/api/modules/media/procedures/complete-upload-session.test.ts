@@ -60,7 +60,7 @@ import {
 } from "@repo/storage";
 
 import { requireOwnedUploadSession } from "../lib/asset-authorization";
-import { completeUploadSession } from "./complete-upload-session";
+import { completeUploadSession, completeOwnedUploadSession } from "./complete-upload-session";
 
 const context = { context: { headers: new Headers() } };
 
@@ -101,6 +101,57 @@ function finalizationClaim(overrides: Record<string, unknown> = {}) {
 }
 
 describe("completeUploadSession", () => {
+	it("reuses the shared owned session read for a completed canonical template input", async () => {
+		vi.mocked(requireOwnedUploadSession).mockResolvedValueOnce(
+			uploadSession({
+				status: "COMPLETED",
+				asset: {
+					id: "asset_1",
+					kind: "INPUT",
+					status: "VERIFYING",
+					mimeType: "image/png",
+					byteSize: 16n,
+					verificationEngine: "video-workflow-v1",
+					objectKey: "original.png.template-source.template-input.png",
+				},
+			}) as never,
+		);
+		await expect(
+			completeOwnedUploadSession({ sessionId: "session_1" }, "user_1", {
+				expectedVerificationEngine: "video-workflow-v1",
+				expectedInputKind: "video-template",
+			}),
+		).resolves.toMatchObject({ id: "asset_1" });
+		expect(requireOwnedUploadSession).toHaveBeenCalledExactlyOnceWith("session_1", "user_1");
+		expect(promoteStagedObject).not.toHaveBeenCalled();
+		expect(dispatchJob).not.toHaveBeenCalled();
+	});
+	it.each(["ordinary", "output", "engine", "foreign-owner"])(
+		"rejects %s at the shared template session boundary before storage work",
+		async (kind) => {
+			if (kind === "foreign-owner")
+				vi.mocked(requireOwnedUploadSession).mockRejectedValueOnce(new Error("NOT_FOUND"));
+			else
+				vi.mocked(requireOwnedUploadSession).mockResolvedValueOnce(
+					uploadSession({
+						asset: {
+							kind: kind === "output" ? "OUTPUT" : "INPUT",
+							verificationEngine: kind === "engine" ? "legacy" : "video-workflow-v1",
+							objectKey: kind === "ordinary" ? "original.png" : "original.png.template-source",
+						},
+					}) as never,
+				);
+			await expect(
+				completeOwnedUploadSession({ sessionId: "session_1" }, "user_1", {
+					expectedVerificationEngine: "video-workflow-v1",
+					expectedInputKind: "video-template",
+				}),
+			).rejects.toThrow();
+			expect(requireOwnedUploadSession).toHaveBeenCalledExactlyOnceWith("session_1", "user_1");
+			expect(claimMediaUploadSessionFinalizationTransaction).not.toHaveBeenCalled();
+			expect(promoteStagedObject).not.toHaveBeenCalled();
+		},
+	);
 	it("dispatches verification after durable completion without waiting for verification", async () => {
 		await expect(
 			call(completeUploadSession, { sessionId: "session_1" }, context),

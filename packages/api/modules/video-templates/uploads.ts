@@ -10,7 +10,6 @@ import {
 	createFinalAssetObjectKey,
 	createStagingObjectKey,
 	createSignedUpload,
-	createSignedReadUrl,
 } from "@repo/storage";
 
 import { requireReadyOwnedMediaAsset } from "../media/lib/asset-authorization";
@@ -18,6 +17,7 @@ import { signAuthorizedAssetReadUrl } from "../media/lib/asset-read-url";
 import { loadUserPlanEntitlement } from "../media/lib/plan-entitlement";
 import { enforceMediaRateLimit } from "../media/lib/rate-limit";
 import { mediaUploadLimits } from "../media/lib/storage-limits";
+import { signOwnedVideoInputPreview } from "../video-v1/input-preview";
 import { validateVideoUpload } from "../video-v1/uploads";
 export { completeVideoUpload as completeSourceTemplateUpload } from "../video-v1/uploads";
 
@@ -96,23 +96,7 @@ export async function getSourceTemplateInput(ownerId: string, assetId: string) {
 		// An owner may preview their own sealed, decoded upload while review is pending.
 		// This is not approved evidence and cannot authorize provider use or output playback.
 		// The owner-scoped query excludes deleted, expired, quarantined and rejected assets.
-		const now = Date.now();
-		const expiresIn = Math.min(
-			300,
-			asset.deleteAfter ? Math.floor((asset.deleteAfter.getTime() - now) / 1000) : 300,
-		);
-		if (expiresIn <= 0) throw new Error("VIDEO_INPUT_NOT_AVAILABLE");
-		preview = {
-			assetId: asset.id,
-			expiresIn,
-			expiresAt: new Date(now + expiresIn * 1000).toISOString(),
-			url: await createSignedReadUrl({
-				bucket: "media",
-				key: asset.objectKey,
-				expiresIn,
-				responseContentDisposition: "inline",
-			}),
-		};
+		preview = await signOwnedVideoInputPreview(asset);
 	} else {
 		try {
 			preview = await signAuthorizedAssetReadUrl(

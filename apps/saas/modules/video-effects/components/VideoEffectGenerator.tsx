@@ -17,7 +17,6 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 
-import { usePageVisible } from "../../video-v1/use-video";
 import { recordVideoEffectEvent } from "../lib/analytics";
 import { videoEffectsApi } from "../lib/api";
 import type { PublicVideoEffectSample } from "../lib/content";
@@ -144,32 +143,18 @@ function SignedInGenerator({
 	const lifecycle = useRef(0);
 	const operation = useRef<{ lifecycle: number } | null>(null);
 	const mounted = useRef(false);
-	const visible = usePageVisible();
 	const previewRetries = useRef<Record<EffectRole, string | null>>({ left: null, right: null });
 	const uploads = useRef<
-		Record<EffectRole, { revision: number; controller?: AbortController; objectUrl?: string }>
+		Record<EffectRole, { revision: number; transfer?: XMLHttpRequest; objectUrl?: string }>
 	>({ left: { revision: 0 }, right: { revision: 0 } });
 	const access = useQuery({
 		queryKey: ["video-effects", "access", ownerId, effectId],
 		queryFn: () => videoEffectsApi.access({ effectId }),
 		retry: false,
-		staleTime: 15_000,
-		refetchInterval: visible ? 30_000 : false,
-		refetchIntervalInBackground: false,
+		staleTime: 5 * 60_000,
+		gcTime: 30 * 60_000,
+		refetchOnWindowFocus: false,
 	});
-	const refreshAccess = access.refetch;
-	useEffect(() => {
-		if (!visible || !access.data?.pricingValidUntil) return;
-		const expiresAt = Date.parse(access.data.pricingValidUntil);
-		if (!Number.isFinite(expiresAt)) return;
-		const timer = setTimeout(
-			() => {
-				void refreshAccess();
-			},
-			Math.max(1000, Math.min(expiresAt - Date.now(), 2_147_483_647)),
-		);
-		return () => clearTimeout(timer);
-	}, [visible, access.data?.pricingValidUntil, refreshAccess]);
 	const maxBytes = Math.min(
 		access.data?.maxInputBytes ?? VIDEO_EFFECT_MAX_BYTES,
 		VIDEO_EFFECT_MAX_BYTES,
@@ -283,16 +268,29 @@ function SignedInGenerator({
 						[role]: {
 							assetId,
 							preview: asset.previewUrl,
-							previewExpiresAt: asset.previewExpiresAt,
+							previewFailed: !asset.previewUrl,
 							status: "sealed",
 						},
 					}));
 				})
-				.catch(() => {
+				.catch((failure: unknown) => {
 					if (canceled || uploads.current[role].revision !== revision) return;
-					setSlots((value) => ({ ...value, [role]: { ...emptyPhotoSlot, status: "error" } }));
-					setError(t("assetExpired"));
-					store(changeEffectInputs(current.current, { [`${role}AssetId`]: null }));
+					if (
+						failure &&
+						typeof failure === "object" &&
+						"code" in failure &&
+						failure.code === "NOT_FOUND"
+					) {
+						setSlots((value) => ({ ...value, [role]: { ...emptyPhotoSlot, status: "error" } }));
+						setError(t("assetExpired"));
+						store(changeEffectInputs(current.current, { [`${role}AssetId`]: null }));
+						return;
+					}
+					// Preview transport failure does not invalidate the saved photo identity.
+					setSlots((value) => ({
+						...value,
+						[role]: { assetId, preview: null, status: "sealed", previewFailed: true },
+					}));
 				});
 		}
 		return () => {
@@ -301,7 +299,7 @@ function SignedInGenerator({
 			canceled = true;
 			for (const item of Object.values(uploads.current)) {
 				item.revision++;
-				item.controller?.abort();
+				item.transfer?.abort();
 				if (item.objectUrl) URL.revokeObjectURL(item.objectUrl);
 			}
 		};
@@ -311,41 +309,38 @@ function SignedInGenerator({
 	async function refreshPreview(role: EffectRole) {
 		const assetId = current.current[`${role}AssetId`];
 		if (!assetId || slots[role].preview?.startsWith("blob:")) return;
+		const revision = uploads.current[role].revision;
+		const view = lifecycle.current;
 		try {
 			const asset = await videoEffectsApi.inputs.get({ assetId });
-			if (current.current[`${role}AssetId`] !== assetId) return;
+			if (
+				!mounted.current ||
+				lifecycle.current !== view ||
+				uploads.current[role].revision !== revision ||
+				current.current[`${role}AssetId`] !== assetId
+			)
+				return;
 			setSlots((value) => ({
 				...value,
 				[role]: {
 					...value[role],
 					preview: asset.previewUrl,
-					previewExpiresAt: asset.previewExpiresAt,
+					previewFailed: !asset.previewUrl,
 				},
 			}));
 		} catch {
-			if (current.current[`${role}AssetId`] === assetId)
+			if (
+				mounted.current &&
+				lifecycle.current === view &&
+				uploads.current[role].revision === revision &&
+				current.current[`${role}AssetId`] === assetId
+			)
 				setSlots((value) => ({
 					...value,
-					[role]: { ...value[role], preview: null, previewExpiresAt: null },
+					[role]: { ...value[role], previewFailed: true },
 				}));
 		}
 	}
-	useEffect(() => {
-		if (!visible) return;
-		const timers = (["left", "right"] as const).flatMap((role) => {
-			const expires = slots[role].previewExpiresAt;
-			if (!expires || !slots[role].preview || slots[role].preview?.startsWith("blob:")) return [];
-			return [
-				setTimeout(
-					() => void refreshPreview(role),
-					Math.min(2_147_483_647, Math.max(1000, Date.parse(expires) - Date.now())),
-				),
-			];
-		});
-		return () => timers.forEach(clearTimeout);
-		// Refresh follows only server-issued expiry changes and visible-page transitions.
-		// oxlint-disable-next-line react-hooks/exhaustive-deps
-	}, [slots.left.previewExpiresAt, slots.right.previewExpiresAt, visible]);
 	useEffect(() => {
 		if (!quote) {
 			setExpired(false);
@@ -360,7 +355,7 @@ function SignedInGenerator({
 	function clear(role: EffectRole) {
 		const active = uploads.current[role];
 		active.revision++;
-		active.controller?.abort();
+		active.transfer?.abort();
 		if (active.objectUrl) URL.revokeObjectURL(active.objectUrl);
 		active.objectUrl = undefined;
 		setQuote(null);
@@ -371,18 +366,22 @@ function SignedInGenerator({
 	}
 	async function select(role: EffectRole, file: File) {
 		if (!enabled || operation.current) return;
-		clear(role);
 		if (!validEffectFile(file, maxBytes)) {
 			setError(t("invalidFile", { bytes: maxBytes.toLocaleString("en-US") }));
 			return;
 		}
+		clear(role);
 		const active = uploads.current[role];
 		const revision = active.revision;
-		active.controller = new AbortController();
 		active.objectUrl = URL.createObjectURL(file);
 		setSlots((value) => ({
 			...value,
-			[role]: { assetId: null, preview: active.objectUrl ?? null, status: "uploading" },
+			[role]: {
+				assetId: null,
+				preview: active.objectUrl ?? null,
+				status: "uploading",
+				progress: 0,
+			},
 		}));
 		try {
 			const upload = await videoEffectsApi.uploads.create({
@@ -391,13 +390,25 @@ function SignedInGenerator({
 				byteSize: file.size,
 			});
 			if (active.revision !== revision) return;
-			const transfer = await fetch(upload.uploadUrl, {
-				method: "PUT",
-				headers: { "Content-Type": file.type },
-				body: file,
-				signal: active.controller.signal,
+			await new Promise<void>((resolve, reject) => {
+				const transfer = new XMLHttpRequest();
+				active.transfer = transfer;
+				transfer.open("PUT", upload.uploadUrl);
+				transfer.setRequestHeader("Content-Type", file.type);
+				transfer.upload.onprogress = (event) => {
+					if (active.revision === revision && event.lengthComputable)
+						setSlots((value) => ({
+							...value,
+							[role]: { ...value[role], progress: Math.round((event.loaded / event.total) * 100) },
+						}));
+				};
+				transfer.onload = () =>
+					transfer.status >= 200 && transfer.status < 300
+						? resolve()
+						: reject(new Error("UPLOAD_FAILED"));
+				transfer.onerror = transfer.onabort = () => reject(new Error("UPLOAD_FAILED"));
+				transfer.send(file);
 			});
-			if (!transfer.ok) throw new Error("UPLOAD_FAILED");
 			if (active.revision !== revision) return;
 			setSlots((value) => ({ ...value, [role]: { ...value[role], status: "sealing" } }));
 			const sealed = await videoEffectsApi.uploads.complete({ sessionId: upload.sessionId });
@@ -487,13 +498,17 @@ function SignedInGenerator({
 			setError(null);
 			return;
 		}
-		if (insufficientBalance) return buyCredits();
+		// Cached balance is a hint; quote/admission checks current funds at submission.
 		if (!inputsReady) {
 			const role = !draft.leftAssetId || slots.left.status !== "sealed" ? "left" : "right";
 			document.querySelector<HTMLInputElement>(`#ve-upload-${role}`)?.click();
 			return;
 		}
 		if (!totalCredits) return;
+		if (priceChanged && quote && !expired) {
+			await confirm();
+			return;
+		}
 		const shownCredits = totalCredits;
 		const quotedDraft = current.current;
 		const active = beginOperation("quote");
@@ -526,7 +541,8 @@ function SignedInGenerator({
 	async function confirm() {
 		if (
 			operation.current ||
-			(!current.current.confirmation && (!enabled || !quote || expired || insufficientBalance))
+			(!current.current.confirmation &&
+				(!enabled || !quote || expired || (internalTest && insufficientBalance)))
 		)
 			return;
 		const active = beginOperation("submit");
@@ -558,8 +574,7 @@ function SignedInGenerator({
 	}
 	const pending = draft.confirmation;
 	const totalCredits =
-		pending?.quote.credits ??
-		(quote && (!internalTest || !expired) ? quote.credits : selectedOption?.credits);
+		pending?.quote.credits ?? (quote && !expired ? quote.credits : selectedOption?.credits);
 	const pricing = pending?.quote.pricing ?? quote?.pricing ?? selectedOption?.pricing;
 	const creditBalance = access.data?.creditBalance;
 	const shortfall =
@@ -613,6 +628,11 @@ function SignedInGenerator({
 										<p key={`${reason}:${index}`}>{t(effectReadinessMessage(reason))}</p>
 									))
 								: t("unavailable")}
+						{!access.isPending && (
+							<button type="button" onClick={() => void access.refetch()}>
+								{t("retryAvailability")}
+							</button>
+						)}
 					</output>
 				)}
 				<DuoPhotoInputs
@@ -622,6 +642,7 @@ function SignedInGenerator({
 					disabled={!enabled || busy !== null}
 					onSelect={(role, file) => void select(role, file)}
 					onClear={clear}
+					onRetryPreview={(role) => void refreshPreview(role)}
 					onPreviewError={(role) => {
 						const assetId = current.current[`${role}AssetId`];
 						if (assetId && previewRetries.current[role] !== assetId) {
@@ -784,13 +805,11 @@ function SignedInGenerator({
 								? t(busy === "quote" ? "quoting" : "submitting")
 								: draft.jobId
 									? t("newVideo")
-									: insufficientBalance
-										? t("addCredits")
-										: !inputsReady
-											? t(solo ? "uploadPhoto" : !draft.leftAssetId ? "uploadLeft" : "uploadRight")
-											: t(priceChanged ? "confirmNewPrice" : "generate", {
-													credits: totalCredits ?? "",
-												})}
+									: !inputsReady
+										? t(solo ? "uploadPhoto" : !draft.leftAssetId ? "uploadLeft" : "uploadRight")
+										: t(priceChanged ? "confirmNewPrice" : "generate", {
+												credits: totalCredits ?? "",
+											})}
 						</button>
 					</>
 				) : quote && !expired ? (
@@ -824,7 +843,7 @@ function SignedInGenerator({
 					</>
 				)}
 				<div className="ve-actions">
-					{!internalTest && !insufficientBalance && (
+					{!internalTest && (
 						<button type="button" className="ve-text-button" onClick={buyCredits}>
 							{t("addCredits")}
 						</button>

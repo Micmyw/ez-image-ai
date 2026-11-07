@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Raindance and shared effect creator
+
+- Cache displayed prices and remove periodic availability/balance reads and still-image URL renewal. Keep authoritative pricing and funds checks at submission; cached insufficient balance does not block a new request.
+- Restore owners' private uploaded originals before generation review without searching past jobs. Keep uploaded thumbnails, show transfer progress, preserve saved photos after transient preview errors, and provide a preview retry.
+- Reuse a changed-price quote on confirmation and consolidate template upload identity checks into the existing session read. Hotel Lobby and portrait dance share the upload/preview improvements; their prompts, provider contracts and output review remain unchanged.
+
 ## Unreleased — Source video templates
 
 - Show template credit prices immediately and update them locally with settings. Create with one click; ask again only if the authoritative price changed. Keep uncertain submissions on their original receipt.

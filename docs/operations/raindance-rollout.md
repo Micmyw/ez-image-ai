@@ -8,6 +8,35 @@ its existing sample-quality publication gate.
 
 ## Product contract
 
+### Creator request cleanup — 2026-11-07
+
+Raindance and the shared effect creator cache account/effect availability and display
+prices for five minutes. There is no periodic access/balance query, eligibility-expiry
+timer or still-image preview renewal. Generation still obtains an authoritative quote,
+checks current eligibility/funds at admission and saves the original confirmation for
+uncertain-response recovery. Changed prices require a click that reuses the valid quote.
+Cached balance is presentation data rather than an admission gate for Raindance/Hotel.
+Accepted submissions and definite price/balance failures invalidate the existing cache.
+
+Private original previews use one owner-scoped query for canonical PNG INPUTs with the
+native video engine, sealed identity, dimensions, allowed status and unexpired lifetime.
+They receive an inline signed URL bounded by 300 seconds and deletion expiry. No past
+generation or moderation receipt is required to view one's own original; generation
+review and generated-output playback authorization remain unchanged. A transient preview
+failure preserves the saved input and offers retry; a confirmed missing input is cleared.
+
+The shared upload completion owner/session read now also validates the effect input kind
+and canonical object-key suffix. This replaces the duplicate preliminary session read,
+without removing engine/ownership checks or changing normalization and quota accounting.
+The browser shows upload progress, retains local thumbnails and permits independent slots.
+
+Focused component regression: `node tooling/e2e/src/video-template-workspace-regression.mjs --effects`.
+All API/storage boundaries are loopback fixtures; no real generation or production upload
+latency is certified by this test. The historical rollout details below remain historical;
+current Mini/shared-credit contracts are governed by the later rollout documents.
+
+### Original rollout
+
 - `raindance-solo` accepts one adult photo, bound to both existing internal roles;
   `raindance-duo` accepts two photos with fixed left/right roles. Both use immutable
   `raindance-2026-10-07.1` scene and motion snapshots.
