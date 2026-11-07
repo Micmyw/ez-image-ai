@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
 import { videoTemplatesApi } from "../lib/api";
+import { prepareTemplatePhoto } from "../lib/prepare-template-photo";
 import { TemplateRoleLabel } from "./TemplateSetup";
 
 export function TemplateInput({
@@ -30,7 +31,10 @@ export function TemplateInput({
 	const t = useTranslations("videoTemplates");
 	const subject = role === "subject";
 	const [preview, setPreview] = useState<string | null>(null);
-	const [status, setStatus] = useState<"idle" | "uploading" | "sealing" | "error">("idle");
+	const [status, setStatus] = useState<"idle" | "preparing" | "uploading" | "sealing" | "error">(
+		"idle",
+	);
+	const [errorMessage, setErrorMessage] = useState("uploadFailed");
 	const [progress, setProgress] = useState(0);
 	const [previewFailed, setPreviewFailed] = useState(false);
 	const lifecycle = useRef(0);
@@ -97,27 +101,23 @@ export function TemplateInput({
 		}
 	}
 	// A decoded still image needs no timer-based URL renewal. Renew only on load failure.
-	async function select(file: File) {
+	async function select(source: File) {
 		const revision = ++lifecycle.current;
-		if (
-			!["image/jpeg", "image/png", "image/webp"].includes(file.type) ||
-			file.size <= 0 ||
-			file.size > maximumBytes
-		) {
-			setStatus("error");
-			return;
-		}
 		xhr.current?.abort();
-		previewRequest.current++;
-		if (localPreview.current) URL.revokeObjectURL(localPreview.current.url);
-		localPreview.current = { url: URL.createObjectURL(file), assetId: null };
-		onChange(null);
-		setPreview(localPreview.current.url);
-		setPreviewFailed(false);
 		setProgress(0);
-		setStatus("uploading");
+		setStatus("preparing");
+		setErrorMessage("uploadFailed");
 		onBusy(true);
 		try {
+			const file = await prepareTemplatePhoto(source, maximumBytes);
+			if (lifecycle.current !== revision) return;
+			previewRequest.current++;
+			if (localPreview.current) URL.revokeObjectURL(localPreview.current.url);
+			localPreview.current = { url: URL.createObjectURL(file), assetId: null };
+			onChange(null);
+			setPreview(localPreview.current.url);
+			setPreviewFailed(false);
+			setStatus("uploading");
 			const session = await videoTemplatesApi.uploads.create({
 				templateKey,
 				contentType: file.type as "image/jpeg" | "image/png" | "image/webp",
@@ -147,8 +147,20 @@ export function TemplateInput({
 			if (localPreview.current) localPreview.current.assetId = result.assetId;
 			onChange(result.assetId);
 			setStatus("idle");
-		} catch {
-			if (lifecycle.current === revision) setStatus("error");
+		} catch (error) {
+			if (lifecycle.current === revision) {
+				const code = error instanceof Error ? error.message : "";
+				setErrorMessage(
+					code === "PHOTO_SOURCE_TOO_LARGE"
+						? "photoTooLarge"
+						: code === "PHOTO_FORMAT_UNSUPPORTED"
+							? "photoUnsupported"
+							: code === "PHOTO_PREPARATION_FAILED"
+								? "photoPreparationFailed"
+								: "uploadFailed",
+				);
+				setStatus("error");
+			}
 		} finally {
 			if (lifecycle.current === revision) onBusy(false);
 		}
@@ -156,7 +168,9 @@ export function TemplateInput({
 	return (
 		<fieldset
 			className="vt-input"
-			disabled={disabled || status === "uploading" || status === "sealing"}
+			disabled={
+				disabled || status === "preparing" || status === "uploading" || status === "sealing"
+			}
 		>
 			<legend>
 				<TemplateRoleLabel templateKey={templateKey} role={role} preset={preset} />
@@ -207,37 +221,39 @@ export function TemplateInput({
 					<span className="vt-replace">{t(subject ? "replaceImage" : "replacePhoto")}</span>
 				)}
 			</label>
-			<div className="vt-input-status" aria-live="polite">
-				<span>
-					{status === "idle"
-						? assetId
-							? t("photoReady")
-							: ""
-						: status === "uploading"
-							? t("uploadProgress", { progress })
-							: t(status === "error" ? "uploadFailed" : status)}
-				</span>
-				{previewFailed && assetId && (
-					<button type="button" onClick={() => void refreshPreview()}>
-						{t("retryPreview")}
-					</button>
-				)}
-				{assetId && (
-					<button
-						type="button"
-						aria-label={t(subject ? "removeImage" : "removePhoto", { role: t(`roles.${role}`) })}
-						onClick={() => {
-							previewRequest.current++;
-							if (localPreview.current) URL.revokeObjectURL(localPreview.current.url);
-							localPreview.current = null;
-							onChange(null);
-							setPreview(null);
-						}}
-					>
-						<XIcon aria-hidden />
-					</button>
-				)}
-			</div>
+			{(status !== "idle" || assetId) && (
+				<div className="vt-input-status" aria-live="polite">
+					<span>
+						{status === "idle"
+							? assetId
+								? t("photoReady")
+								: ""
+							: status === "uploading"
+								? t("uploadProgress", { progress })
+								: t(status === "error" ? (errorMessage as "uploadFailed") : status)}
+					</span>
+					{previewFailed && assetId && (
+						<button type="button" onClick={() => void refreshPreview()}>
+							{t("retryPreview")}
+						</button>
+					)}
+					{assetId && (
+						<button
+							type="button"
+							aria-label={t(subject ? "removeImage" : "removePhoto", { role: t(`roles.${role}`) })}
+							onClick={() => {
+								previewRequest.current++;
+								if (localPreview.current) URL.revokeObjectURL(localPreview.current.url);
+								localPreview.current = null;
+								onChange(null);
+								setPreview(null);
+							}}
+						>
+							<XIcon aria-hidden />
+						</button>
+					)}
+				</div>
+			)}
 		</fieldset>
 	);
 }

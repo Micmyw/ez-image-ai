@@ -267,7 +267,7 @@
 		"sealing": "Preparing photo…",
 		"uploadFailed": "Photo upload failed. Select the photo to try again.",
 		"photoFormats": "JPG, PNG or WebP · up to {megabytes} MB per photo",
-		"photoRights": "Use photos you have permission to animate. Adult and NSFW content is not allowed.",
+		"photoRights": "Use photos you have permission to animate. No adult or NSFW content.",
 		"swap": "Swap the first two photos",
 		"style": "Original scene",
 		"styles": {
@@ -298,7 +298,7 @@
 			"en": "English",
 			"zh": "Chinese"
 		},
-		"direction": "Lyrics or performance direction",
+		"direction": "Your lyrics or ideas (optional)",
 		"directionHint": "Leave blank to use the original preset at 12 seconds, or freestyle for other settings.",
 		"customStage": "Scene details (optional)",
 		"occasion": "Occasion (optional)",
@@ -384,7 +384,7 @@
 		"readyPhotos": "Add the required photos to check your credit price.",
 		"previewHeading": "See the performance",
 		"hoverHint": "Hover to preview · click for sound",
-		"referenceNote": "Reference example from ezairapvideo.com. It shows the intended scene, not an EzPic generation result. Your result can vary.",
+		"referenceNote": "Reference example · ezairapvideo.com. Results may vary.",
 		"flyingVariant": "Stunt sequence",
 		"flyingVariantHint": "One Flying Car creator, with the original ramp and fleet sequences.",
 		"variants": {
@@ -410,7 +410,9 @@
 			"sampleA": "The example demonstrates the scene and movement. Your photos guide the subjects, and AI can change details, timing and sound. Review your result before sharing.",
 			"related": "Try another performance",
 			"cta": "Ready to choose your photos?",
-			"ctaLink": "Back to the creator"
+			"ctaLink": "Back to the creator",
+			"uploadQ": "Can I upload a large photo?",
+			"uploadA": "Yes. Choose a JPG, PNG or WebP up to 40 MB. Photos above the template’s upload limit are resized and compressed in your browser before uploading; smaller photos stay unchanged. If optimization fails, choose a smaller file."
 		},
 		"details": {
 			"original-rap": {
@@ -501,6 +503,17 @@
 		"photoReady": "Photo ready",
 		"creditPrice": "{credits} credits",
 		"priceLoading": "Loading price…",
-		"priceChanged": "The price has changed. Review the updated amount and click Create to continue."
+		"priceChanged": "The price has changed. Review the updated amount and click Create to continue.",
+		"model": "Video model",
+		"directionPlaceholder": "Use the original performance, or add your lyrics, language or scene ideas…",
+		"photoFormatsAuto": "JPG / PNG / WebP · Auto optimize",
+		"preparing": "Optimizing photo…",
+		"photoTooLarge": "Choose a photo smaller than 40 MB.",
+		"photoUnsupported": "Choose a JPG, PNG or WebP image.",
+		"photoPreparationFailed": "This photo could not be optimized. Try a smaller JPG, PNG or WebP.",
+		"photoTips": "Photo tips",
+		"sampleDetails": "About this example",
+		"savedDetails": "Saved customization",
+		"clearSavedDetails": "Use the original scene"
 	}
 }

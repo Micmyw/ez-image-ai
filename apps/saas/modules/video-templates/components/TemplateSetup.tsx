@@ -9,6 +9,8 @@ import {
 } from "@repo/config/video-template-library";
 import { useTranslations } from "next-intl";
 
+import { TemplateSelect } from "./TemplateSelect";
+
 export function TemplateRoleLabel({
 	templateKey,
 	role,
@@ -43,25 +45,18 @@ export function FlyingCarVariants({
 	if (!isFlyingCarTemplate(templateKey)) return null;
 	return (
 		<div className="vt-field vt-variant-picker">
-			<label htmlFor="vt-stunt">{t("flyingVariant")}</label>
-			<select
+			<TemplateSelect
 				id="vt-stunt"
+				label={t("flyingVariant")}
 				value={templateKey}
 				disabled={disabled}
-				onChange={(event) => {
-					if (!isFlyingCarTemplate(event.target.value)) return;
+				items={FLYING_CAR_TEMPLATE_KEYS.map((key) => ({ value: key, label: t(`variants.${key}`) }))}
+				onChange={(key) => {
 					window.location.assign(
-						`/video-templates/${event.target.value}${assetId ? `?asset=${encodeURIComponent(assetId)}` : ""}`,
+						`/video-templates/${key}${assetId ? `?asset=${encodeURIComponent(assetId)}` : ""}`,
 					);
 				}}
-			>
-				{FLYING_CAR_TEMPLATE_KEYS.map((key) => (
-					<option key={key} value={key}>
-						{t(`variants.${key}`)}
-					</option>
-				))}
-			</select>
-			<p className="vt-help">{t("flyingVariantHint")}</p>
+			/>
 		</div>
 	);
 }

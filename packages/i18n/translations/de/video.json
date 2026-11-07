@@ -267,7 +267,7 @@
 		"sealing": "Foto wird vorbereitet…",
 		"uploadFailed": "Der Upload ist fehlgeschlagen. Wähle das Foto erneut aus.",
 		"photoFormats": "JPG, PNG oder WebP · bis zu {megabytes} MB pro Foto",
-		"photoRights": "Verwende nur Fotos, die du animieren darfst. Inhalte für Erwachsene und NSFW-Inhalte sind nicht erlaubt.",
+		"photoRights": "Verwende Fotos, die du animieren darfst. Keine Inhalte für Erwachsene oder NSFW.",
 		"swap": "Die ersten beiden Fotos tauschen",
 		"style": "Originalszene",
 		"styles": {
@@ -298,7 +298,7 @@
 			"en": "Englisch",
 			"zh": "Chinesisch"
 		},
-		"direction": "Songtext oder Regieanweisung",
+		"direction": "Dein Text oder deine Ideen (optional)",
 		"directionHint": "Leer lassen, um bei 12 Sekunden die Originalvorlage zu verwenden. Andere Einstellungen erzeugen einen Freestyle.",
 		"customStage": "Szenendetails (optional)",
 		"occasion": "Anlass (optional)",
@@ -384,7 +384,7 @@
 		"readyPhotos": "Füge die benötigten Fotos hinzu, um den Credit-Preis zu prüfen.",
 		"previewHeading": "So sieht die Performance aus",
 		"hoverHint": "Maus darüber: Vorschau · Klick: Ton",
-		"referenceNote": "Referenzbeispiel von ezairapvideo.com. Es zeigt die geplante Szene, kein in EzPic erstelltes Ergebnis. Dein Video kann abweichen.",
+		"referenceNote": "Referenzbeispiel · ezairapvideo.com. Ergebnisse können abweichen.",
 		"flyingVariant": "Stunt-Sequenz",
 		"flyingVariantHint": "Ein Flying-Car-Generator mit den ursprünglichen Rampen- und Flotten-Sequenzen.",
 		"variants": {
@@ -410,7 +410,9 @@
 			"sampleA": "Das Beispiel zeigt Szene und Bewegung. Deine Fotos bestimmen die Motive; KI kann Details, Timing und Ton verändern. Prüfe das Ergebnis vor dem Teilen.",
 			"related": "Weitere Performances",
 			"cta": "Bereit, deine Fotos auszuwählen?",
-			"ctaLink": "Zurück zum Generator"
+			"ctaLink": "Zurück zum Generator",
+			"uploadQ": "Kann ich ein großes Foto hochladen?",
+			"uploadA": "Ja. Wähle ein JPG, PNG oder WebP bis 40 MB. Fotos über dem Upload-Limit der Vorlage werden vor dem Hochladen im Browser verkleinert und komprimiert; kleinere Fotos bleiben unverändert. Falls das nicht gelingt, wähle eine kleinere Datei."
 		},
 		"details": {
 			"original-rap": {
@@ -501,6 +503,17 @@
 		"photoReady": "Foto bereit",
 		"creditPrice": "{credits} Credits",
 		"priceLoading": "Preis wird geladen…",
-		"priceChanged": "Der Preis hat sich geändert. Prüfe den neuen Betrag und klicke zum Fortfahren auf Erstellen."
+		"priceChanged": "Der Preis hat sich geändert. Prüfe den neuen Betrag und klicke zum Fortfahren auf Erstellen.",
+		"model": "Videomodell",
+		"directionPlaceholder": "Original verwenden oder Text, Sprache und Szenenideen beschreiben…",
+		"photoFormatsAuto": "JPG / PNG / WebP · Automatisch optimieren",
+		"preparing": "Foto wird optimiert…",
+		"photoTooLarge": "Wähle ein Foto unter 40 MB.",
+		"photoUnsupported": "Wähle ein Bild im Format JPG, PNG oder WebP.",
+		"photoPreparationFailed": "Dieses Foto konnte nicht optimiert werden. Versuche ein kleineres JPG, PNG oder WebP.",
+		"photoTips": "Tipps für Fotos",
+		"sampleDetails": "Über dieses Beispiel",
+		"savedDetails": "Gespeicherte Anpassung",
+		"clearSavedDetails": "Originalszene verwenden"
 	}
 }

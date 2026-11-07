@@ -58,6 +58,10 @@ export async function TemplateGuide({ template }: { template: PublicVideoTemplat
 						<p>{t(`details.${key}.faqA`)}</p>
 					</details>
 					<details>
+						<summary>{t("guide.uploadQ")}</summary>
+						<p>{t("guide.uploadA")}</p>
+					</details>
+					<details>
 						<summary>{t("guide.costQ")}</summary>
 						<p>{t("guide.costA")}</p>
 					</details>

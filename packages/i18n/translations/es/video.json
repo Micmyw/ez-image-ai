@@ -267,7 +267,7 @@
 		"sealing": "Preparando foto…",
 		"uploadFailed": "No se pudo subir la foto. Selecciónala de nuevo para reintentarlo.",
 		"photoFormats": "JPG, PNG o WebP · hasta {megabytes} MB por foto",
-		"photoRights": "Usa fotos que tengas permiso para animar. No se permite contenido para adultos ni NSFW.",
+		"photoRights": "Usa fotos que tengas permiso para animar. Sin contenido para adultos ni NSFW.",
 		"swap": "Intercambiar las dos primeras fotos",
 		"style": "Escena original",
 		"styles": {
@@ -298,7 +298,7 @@
 			"en": "Inglés",
 			"zh": "Chino"
 		},
-		"direction": "Letra o indicaciones de actuación",
+		"direction": "Tu letra o tus ideas (opcional)",
 		"directionHint": "Déjalo vacío para usar el preset original a 12 segundos, o freestyle con otros ajustes.",
 		"customStage": "Detalles de escena (opcional)",
 		"occasion": "Ocasión (opcional)",
@@ -384,7 +384,7 @@
 		"readyPhotos": "Añade las fotos necesarias para consultar el precio en créditos.",
 		"previewHeading": "Mira la actuación",
 		"hoverHint": "Pasa el cursor para ver · pulsa para oír",
-		"referenceNote": "Ejemplo de referencia de ezairapvideo.com. Muestra la escena prevista, no un resultado generado en EzPic. Tu resultado puede variar.",
+		"referenceNote": "Ejemplo de referencia · ezairapvideo.com. Los resultados pueden variar.",
 		"flyingVariant": "Secuencia de acrobacias",
 		"flyingVariantHint": "Un creador Flying Car con las secuencias originales de rampa y flota.",
 		"variants": {
@@ -410,7 +410,9 @@
 			"sampleA": "El ejemplo muestra la escena y el movimiento. Tus fotos guían a los protagonistas; la IA puede cambiar detalles, ritmo y sonido. Revisa el resultado antes de compartirlo.",
 			"related": "Prueba otra actuación",
 			"cta": "¿Listo para elegir tus fotos?",
-			"ctaLink": "Volver al creador"
+			"ctaLink": "Volver al creador",
+			"uploadQ": "¿Puedo subir una foto grande?",
+			"uploadA": "Sí. Elige un JPG, PNG o WebP de hasta 40 MB. Las fotos que superan el límite de la plantilla se redimensionan y comprimen en tu navegador antes de subirlas; las pequeñas no se modifican. Si falla la optimización, elige un archivo más pequeño."
 		},
 		"details": {
 			"original-rap": {
@@ -501,6 +503,17 @@
 		"photoReady": "Foto lista",
 		"creditPrice": "{credits} créditos",
 		"priceLoading": "Cargando precio…",
-		"priceChanged": "El precio ha cambiado. Revisa el nuevo importe y pulsa Crear para continuar."
+		"priceChanged": "El precio ha cambiado. Revisa el nuevo importe y pulsa Crear para continuar.",
+		"model": "Modelo de vídeo",
+		"directionPlaceholder": "Usa la actuación original o añade letra, idioma o ideas para la escena…",
+		"photoFormatsAuto": "JPG / PNG / WebP · Optimización automática",
+		"preparing": "Optimizando foto…",
+		"photoTooLarge": "Elige una foto de menos de 40 MB.",
+		"photoUnsupported": "Elige una imagen JPG, PNG o WebP.",
+		"photoPreparationFailed": "No se pudo optimizar esta foto. Prueba con un JPG, PNG o WebP más pequeño.",
+		"photoTips": "Consejos para las fotos",
+		"sampleDetails": "Acerca de este ejemplo",
+		"savedDetails": "Personalización guardada",
+		"clearSavedDetails": "Usar la escena original"
 	}
 }

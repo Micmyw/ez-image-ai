@@ -63,13 +63,32 @@ describe("original source template controls", () => {
 			const seconds = templateKey.includes("curved-ramp") ? 15 : 7;
 			expect(html).toContain(`${seconds} seconds`);
 			expect(html).toContain('value="768P"');
-			expect(html).toContain('value="2K"');
 			expect(html).toContain("16:9</output>");
-			expect(html.match(/<select/g)).toHaveLength(1);
+			expect(html.match(/role="combobox"/g)).toHaveLength(1);
 			expect(html).not.toContain('id="vt-duration"');
 			expect(html).not.toMatch(/id="vt-(mode|tier|stage|scene|direction)"|<textarea/);
 		},
 	);
+	it.each([
+		{ locale: "en", messages: en },
+		{ locale: "de", messages: de },
+		{ locale: "es", messages: es },
+		{ locale: "fr", messages: fr },
+	])("uses named models and one optional creative field in $locale", ({ locale, messages }) => {
+		const html = render(
+			<TemplateOptions
+				templateKey="original-rap"
+				value={sourceTemplateDefaults("original-rap")}
+				onChange={vi.fn()}
+			/>,
+			messages,
+			locale,
+		);
+		expect(html).toContain("Seedance 2 Mini");
+		expect(html).toContain(messages.videoTemplates.model);
+		expect(html.match(/<textarea/g)).toHaveLength(1);
+		expect(html).not.toMatch(/id="vt-(language|occasion|custom-stage|tier)"|<select/);
+	});
 	it("shows Green Booth's fixed format without fake choices and names the actual roles", () => {
 		const html = render(
 			<TemplateOptions

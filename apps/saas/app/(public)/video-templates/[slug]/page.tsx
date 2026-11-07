@@ -62,7 +62,7 @@ export default async function VideoTemplatePage({ params, searchParams }: Props)
 					</nav>
 					<span className="vt-eyebrow">{t(`categories.${template.category}`)}</span>
 					<h1>{t(`details.${key}.title`)}</h1>
-					<p>{t(`details.${key}.lead`)}</p>
+					<p>{t(`descriptions.${key}`)}</p>
 				</header>
 				<NextIntlClientProvider
 					messages={{

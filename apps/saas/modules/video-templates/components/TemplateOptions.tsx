@@ -11,6 +11,16 @@ import {
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 
+import { TemplateSelect } from "./TemplateSelect";
+
+// Display names only; provider routes and prices remain server-owned.
+const modelLabels = {
+	standard: "Seedance 2 Mini",
+	fast: "Seedance 2 Fast",
+	pro: "Seedance 2",
+	ultra: "Seedance 2.5",
+};
+
 export function TemplateOptions({
 	templateKey,
 	value,
@@ -38,152 +48,83 @@ export function TemplateOptions({
 			next.aspectRatio = allowed.ratios[0];
 		onChange(next);
 	}
-	const settings = (
+	const formatSettings = (
 		<>
-			{options.tiers.length > 0 && (
-				<div className="vt-field">
-					<label htmlFor="vt-tier">{t("tier")}</label>
-					<select
-						id="vt-tier"
-						value={value.tier}
-						onChange={(event) =>
-							patch({ tier: event.target.value as SourceTemplateChoices["tier"] })
-						}
-					>
-						{options.tiers.map((tier) => (
-							<option value={tier} key={tier}>
-								{t(`tiers.${tier}`)}
-							</option>
-						))}
-					</select>
-				</div>
+			{options.tiers.length > 1 && (
+				<TemplateSelect
+					id="vt-model"
+					label={t("model")}
+					value={value.tier}
+					disabled={disabled}
+					items={options.tiers.map((tier) => ({ value: tier, label: modelLabels[tier] }))}
+					onChange={(tier) => patch({ tier })}
+				/>
 			)}
 			<div className="vt-settings-grid">
-				<div className="vt-field">
-					<label
-						id="vt-duration-label"
-						htmlFor={options.durations.length > 1 ? "vt-duration" : undefined}
-					>
-						{t("duration")}
-					</label>
-					{options.durations.length > 1 ? (
-						<select
-							id="vt-duration"
-							value={value.durationSeconds}
-							onChange={(event) =>
-								patch({
-									durationSeconds: Number(
-										event.target.value,
-									) as SourceTemplateChoices["durationSeconds"],
-								})
-							}
-						>
-							{options.durations.map((duration) => (
-								<option value={duration} key={duration}>
-									{t("seconds", { count: duration })}
-								</option>
-							))}
-						</select>
-					) : (
+				{options.durations.length > 1 ? (
+					<TemplateSelect
+						id="vt-duration"
+						label={t("duration")}
+						value={value.durationSeconds}
+						disabled={disabled}
+						items={options.durations.map((duration) => ({
+							value: duration,
+							label: t("seconds", { count: duration }),
+						}))}
+						onChange={(durationSeconds) => patch({ durationSeconds })}
+					/>
+				) : (
+					<div className="vt-field">
+						<span id="vt-duration-label">{t("duration")}</span>
 						<output className="vt-static-option" aria-labelledby="vt-duration-label">
 							{value.durationSeconds
 								? t("seconds", { count: value.durationSeconds })
 								: t("templateDuration")}
 						</output>
-					)}
-				</div>
-				{options.resolutions.length > 0 && (
-					<div className="vt-field">
-						<label
-							id="vt-resolution-label"
-							htmlFor={options.resolutions.length > 1 ? "vt-resolution" : undefined}
-						>
-							{t("resolution")}
-						</label>
-						{options.resolutions.length > 1 ? (
-							<select
-								id="vt-resolution"
-								value={value.resolution}
-								onChange={(event) =>
-									patch({ resolution: event.target.value as SourceTemplateChoices["resolution"] })
-								}
-							>
-								{options.resolutions.map((resolution) => (
-									<option value={resolution} key={resolution}>
-										{resolution}
-									</option>
-								))}
-							</select>
-						) : (
+					</div>
+				)}
+				{options.resolutions.length > 0 &&
+					(options.resolutions.length > 1 ? (
+						<TemplateSelect
+							id="vt-resolution"
+							label={t("resolution")}
+							value={value.resolution}
+							disabled={disabled}
+							items={options.resolutions.map((resolution) => ({
+								value: resolution,
+								label: resolution,
+							}))}
+							onChange={(resolution) => patch({ resolution })}
+						/>
+					) : (
+						<div className="vt-field">
+							<span id="vt-resolution-label">{t("resolution")}</span>
 							<output className="vt-static-option" aria-labelledby="vt-resolution-label">
 								{value.resolution}
 							</output>
-						)}
-					</div>
-				)}
-				<div className="vt-field">
-					<label id="vt-ratio-label" htmlFor={options.ratios.length > 1 ? "vt-ratio" : undefined}>
-						{t("ratio")}
-					</label>
-					{options.ratios.length > 1 ? (
-						<select
-							id="vt-ratio"
-							value={value.aspectRatio}
-							onChange={(event) =>
-								patch({ aspectRatio: event.target.value as SourceTemplateChoices["aspectRatio"] })
-							}
-						>
-							{options.ratios.map((ratio) => (
-								<option value={ratio} key={ratio}>
-									{ratio === "adaptive" ? t("adaptive") : ratio}
-								</option>
-							))}
-						</select>
-					) : (
+						</div>
+					))}
+				{options.ratios.length > 1 ? (
+					<TemplateSelect
+						id="vt-ratio"
+						label={t("ratio")}
+						value={value.aspectRatio}
+						disabled={disabled}
+						items={options.ratios.map((ratio) => ({
+							value: ratio,
+							label: ratio === "adaptive" ? t("adaptive") : ratio,
+						}))}
+						onChange={(aspectRatio) => patch({ aspectRatio })}
+					/>
+				) : (
+					<div className="vt-field">
+						<span id="vt-ratio-label">{t("ratio")}</span>
 						<output className="vt-static-option" aria-labelledby="vt-ratio-label">
 							{value.aspectRatio === "adaptive" ? t("adaptive") : value.aspectRatio}
 						</output>
-					)}
-				</div>
+					</div>
+				)}
 			</div>
-			{rap && (
-				<>
-					<div className="vt-field">
-						<label htmlFor="vt-language">{t("language")}</label>
-						<select
-							id="vt-language"
-							value={value.locale}
-							onChange={(event) =>
-								patch({ locale: event.target.value as SourceTemplateChoices["locale"] })
-							}
-						>
-							<option value="en">{t("languages.en")}</option>
-							<option value="zh">{t("languages.zh")}</option>
-						</select>
-					</div>
-					<div className="vt-field">
-						<label htmlFor="vt-occasion">{t("occasion")}</label>
-						<input
-							id="vt-occasion"
-							value={value.occasion ?? ""}
-							maxLength={500}
-							onChange={(event) => patch({ occasion: event.target.value })}
-							data-clarity-mask="true"
-						/>
-					</div>
-					<div className="vt-field">
-						<label htmlFor="vt-custom-stage">{t("customStage")}</label>
-						<textarea
-							id="vt-custom-stage"
-							value={value.customStage ?? ""}
-							maxLength={2000}
-							rows={2}
-							onChange={(event) => patch({ customStage: event.target.value })}
-							data-clarity-mask="true"
-						/>
-					</div>
-				</>
-			)}
 		</>
 	);
 	return (
@@ -207,7 +148,7 @@ export function TemplateOptions({
 											src={getVideoTemplate(`rap-${style}`)!.sample!.poster}
 											alt=""
 											width={160}
-											height={90}
+											height={120}
 										/>
 										<span>{t(`styles.${style}`)}</span>
 									</button>
@@ -260,28 +201,46 @@ export function TemplateOptions({
 								id="vt-direction"
 								value={value.direction ?? ""}
 								maxLength={2000}
-								rows={3}
+								rows={2}
 								onChange={(event) => patch({ direction: event.target.value })}
-								aria-describedby="vt-direction-hint"
+								placeholder={t("directionPlaceholder")}
 								data-clarity-mask="true"
 							/>
-							<p id="vt-direction-hint" className="vt-help">
-								{t("directionHint")}
-							</p>
 						</div>
 					)}
-					{options.tiers.length > 0 ? (
+					{rap && (value.occasion || value.customStage) && (
 						<details className="vt-settings-details">
-							<summary>
-								{t("moreSettings")}
+							<summary>{t("savedDetails")}</summary>
+							<div>
+								<p className="vt-help" data-clarity-mask="true">
+									{[value.occasion, value.customStage].filter(Boolean).join(" · ")}
+								</p>
+								<button
+									type="button"
+									className="vt-text-button"
+									onClick={() => patch({ occasion: "", customStage: "" })}
+								>
+									{t("clearSavedDetails")}
+								</button>
+							</div>
+						</details>
+					)}
+					{options.tiers.length > 1 ? (
+						<details className="vt-settings-details vt-video-settings">
+							<summary aria-label={t("settingsSummary")}>
+								<strong>{value.tier ? modelLabels[value.tier] : t("model")}</strong>
 								<span>
-									{value.resolution} · {value.durationSeconds}s · {value.aspectRatio}
+									{value.durationSeconds
+										? t("seconds", { count: value.durationSeconds })
+										: t("templateDuration")}{" "}
+									· {value.resolution} ·{" "}
+									{value.aspectRatio === "adaptive" ? t("adaptive") : value.aspectRatio}
 								</span>
 							</summary>
-							<div>{settings}</div>
+							<div>{formatSettings}</div>
 						</details>
 					) : (
-						settings
+						formatSettings
 					)}
 				</>
 			)}

@@ -267,7 +267,7 @@
 		"sealing": "Préparation de la photo…",
 		"uploadFailed": "L’importation a échoué. Sélectionnez à nouveau la photo.",
 		"photoFormats": "JPG, PNG ou WebP · jusqu’à {megabytes} Mo par photo",
-		"photoRights": "Utilisez des photos que vous avez le droit d’animer. Les contenus pour adultes et NSFW sont interdits.",
+		"photoRights": "Utilisez des photos que vous avez le droit d’animer. Aucun contenu pour adultes ou NSFW.",
 		"swap": "Intervertir les deux premières photos",
 		"style": "Scène originale",
 		"styles": {
@@ -298,7 +298,7 @@
 			"en": "Anglais",
 			"zh": "Chinois"
 		},
-		"direction": "Paroles ou indications de performance",
+		"direction": "Vos paroles ou idées (facultatif)",
 		"directionHint": "Laissez vide pour utiliser le préréglage original à 12 secondes, ou un freestyle avec d’autres réglages.",
 		"customStage": "Détails de scène (facultatif)",
 		"occasion": "Occasion (facultatif)",
@@ -384,7 +384,7 @@
 		"readyPhotos": "Ajoutez les photos nécessaires pour connaître le prix en crédits.",
 		"previewHeading": "Découvrez la performance",
 		"hoverHint": "Survolez pour voir · cliquez pour écouter",
-		"referenceNote": "Exemple de référence provenant de ezairapvideo.com. Il illustre la scène prévue, pas un résultat généré dans EzPic. Votre résultat peut varier.",
+		"referenceNote": "Exemple de référence · ezairapvideo.com. Les résultats peuvent varier.",
 		"flyingVariant": "Séquence de cascade",
 		"flyingVariantHint": "Un seul créateur Flying Car avec les séquences originales de rampe et de flotte.",
 		"variants": {
@@ -410,7 +410,9 @@
 			"sampleA": "L’exemple montre la scène et les mouvements. Vos photos guident les sujets ; l’IA peut modifier les détails, le rythme et le son. Vérifiez le résultat avant de le partager.",
 			"related": "Essayez une autre performance",
 			"cta": "Prêt à choisir vos photos ?",
-			"ctaLink": "Retour au créateur"
+			"ctaLink": "Retour au créateur",
+			"uploadQ": "Puis-je importer une grande photo ?",
+			"uploadA": "Oui. Choisissez un JPG, PNG ou WebP jusqu’à 40 Mo. Au-delà de la limite du modèle, les photos sont redimensionnées et compressées dans votre navigateur avant l’importation ; les plus petites restent inchangées. Si l’optimisation échoue, choisissez un fichier plus petit."
 		},
 		"details": {
 			"original-rap": {
@@ -501,6 +503,17 @@
 		"photoReady": "Photo prête",
 		"creditPrice": "{credits} crédits",
 		"priceLoading": "Chargement du prix…",
-		"priceChanged": "Le prix a changé. Vérifiez le nouveau montant et cliquez sur Créer pour continuer."
+		"priceChanged": "Le prix a changé. Vérifiez le nouveau montant et cliquez sur Créer pour continuer.",
+		"model": "Modèle vidéo",
+		"directionPlaceholder": "Gardez la performance originale ou ajoutez vos paroles, une langue ou des idées de scène…",
+		"photoFormatsAuto": "JPG / PNG / WebP · Optimisation automatique",
+		"preparing": "Optimisation de la photo…",
+		"photoTooLarge": "Choisissez une photo de moins de 40 Mo.",
+		"photoUnsupported": "Choisissez une image JPG, PNG ou WebP.",
+		"photoPreparationFailed": "Cette photo ne peut pas être optimisée. Essayez un fichier JPG, PNG ou WebP plus petit.",
+		"photoTips": "Conseils photo",
+		"sampleDetails": "À propos de cet exemple",
+		"savedDetails": "Personnalisation enregistrée",
+		"clearSavedDetails": "Utiliser la scène d’origine"
 	}
 }

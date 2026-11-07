@@ -38,7 +38,7 @@ import {
 import { TemplateInput } from "./TemplateInput";
 import { TemplateJob, TemplateHistory } from "./TemplateJob";
 import { TemplateOptions } from "./TemplateOptions";
-import { TemplatePreview, TemplatePreviewProvider } from "./TemplatePreview";
+import { TemplatePreview, TemplatePreviewProvider, TemplateSample } from "./TemplatePreview";
 import { FlyingCarVariants, TemplateFormat, TemplateRoleLabel } from "./TemplateSetup";
 
 export function TemplateWorkspace({
@@ -85,10 +85,8 @@ export function TemplateWorkspace({
 						<div className="vt-section-heading">
 							<h2>{t("workspace")}</h2>
 						</div>
-						<p className="vt-help">{t("presetIncluded")}</p>
 						<FlyingCarVariants templateKey={templateKey} assetId={initialAssetId} />
 						<div className="vt-step-heading">
-							<span>1</span>
 							<h3>{t("photoStep")}</h3>
 						</div>
 						<div className="vt-inputs vt-guest-inputs" data-count={roles.length}>
@@ -111,15 +109,7 @@ export function TemplateWorkspace({
 							))}
 						</div>
 						<p className="vt-help">{t(`details.${contentKey as "original-rap"}.photoHint`)}</p>
-						<div className="vt-step-heading">
-							<span>2</span>
-							<h3>{t("settingsStep")}</h3>
-						</div>
 						<TemplateFormat options={options} />
-						<div className="vt-step-heading">
-							<span>3</span>
-							<h3>{t("reviewStep")}</h3>
-						</div>
 						<p className="vt-help">{t("signInHint")}</p>
 						<Link className="vt-primary" href={loginHref} prefetch={false}>
 							{t("signIn")}
@@ -130,16 +120,7 @@ export function TemplateWorkspace({
 						</p>
 					</section>
 					<aside className="vt-preview-panel">
-						<div className="vt-preview-heading">
-							<h2>{t("previewHeading")}</h2>
-							<span>{t("hoverHint")}</span>
-						</div>
-						<TemplatePreview template={template} layout="detail" priority />
-						<p>{t("referenceNote")}</p>
-						<div className="vt-preview-story">
-							<h3>{t("guide.audio")}</h3>
-							<p>{t(`details.${contentKey as "original-rap"}.sound`)}</p>
-						</div>
+						<TemplateSample template={template} priority />
 					</aside>
 				</div>
 			</TemplatePreviewProvider>
@@ -415,12 +396,6 @@ function OwnedTemplateWorkspace({
 						onChange={(options) => changed(updateTemplateChoices(current.current, options))}
 						disabled={locked}
 					/>
-					{roles.length > 0 && (
-						<div className="vt-step-heading">
-							<span>1</span>
-							<h3>{t("photoStep")}</h3>
-						</div>
-					)}
 					<div className="vt-inputs" data-count={roles.length}>
 						{roles.map((role) => (
 							<TemplateInput
@@ -443,7 +418,7 @@ function OwnedTemplateWorkspace({
 							/>
 						))}
 					</div>
-					{roles.length >= 2 && (
+					{roles.length >= 2 && complete && (
 						<button
 							type="button"
 							className="vt-text-button"
@@ -466,20 +441,11 @@ function OwnedTemplateWorkspace({
 						</button>
 					)}
 					{roles.length > 0 && (
-						<p className="vt-help">
-							{t("photoFormats", {
-								megabytes: Math.floor(
-									(access.data?.maximumInputBytes ?? 10 * 1024 * 1024) / 1024 / 1024,
-								),
-							})}
-						</p>
+						<details className="vt-upload-tips">
+							<summary>{t("photoFormatsAuto")}</summary>
+							<p className="vt-help">{t(`details.${contentKey as "original-rap"}.photoHint`)}</p>
+						</details>
 					)}
-					<p className="vt-help">{t("photoRights")}</p>
-					<p className="vt-help">{t(`details.${contentKey as "original-rap"}.photoHint`)}</p>
-					<div className="vt-step-heading">
-						<span>2</span>
-						<h3>{t("settingsStep")}</h3>
-					</div>
 					<TemplateOptions
 						section="settings"
 						templateKey={templateKey}
@@ -487,54 +453,48 @@ function OwnedTemplateWorkspace({
 						onChange={(options) => changed(updateTemplateChoices(current.current, options))}
 						disabled={locked}
 					/>
-					<div className="vt-step-heading">
-						<span>3</span>
-						<h3>{t("reviewStep")}</h3>
-					</div>
-					<p className="vt-credit-price" aria-live="polite">
-						{displayCredits ? t("creditPrice", { credits: displayCredits }) : t("priceLoading")}
-					</p>
-					{!complete && <p className="vt-help">{t("readyPhotos")}</p>}
-					{error && (
-						<p className="vt-error" role="alert">
-							{t(error as "requestFailed")}
-						</p>
-					)}
-					{draft.confirmation ? (
-						<div className="vt-notice">
-							<p>{t("confirmationPending")}</p>
+					<div className="vt-create-footer">
+						{error && (
+							<p className="vt-error" role="alert">
+								{t(error as "requestFailed")}
+							</p>
+						)}
+						{draft.confirmation ? (
+							<div className="vt-notice">
+								<p>{t("confirmationPending")}</p>
+								<button
+									type="button"
+									className="vt-primary"
+									disabled={busy !== null}
+									onClick={() => void submit(draft.confirmation!)}
+								>
+									{t(busy === "submit" ? "submitting" : "recover")}
+								</button>
+							</div>
+						) : (
 							<button
 								type="button"
 								className="vt-primary"
-								disabled={busy !== null}
-								onClick={() => void submit(draft.confirmation!)}
+								disabled={locked || !available || !complete || !displayCredits}
+								onClick={() => void generate()}
 							>
-								{t(busy === "submit" ? "submitting" : "recover")}
+								{t(busy === "submit" ? "submitting" : busy === "quote" ? "quoting" : "generate", {
+									credits: displayCredits ?? "…",
+								})}
 							</button>
+						)}
+						{expired && (
+							<p aria-live="polite" className="vt-help">
+								{t("quoteExpired")}
+							</p>
+						)}
+						<p className="vt-help vt-rights">{t("photoRights")}</p>
+						<div className="vt-actions">
+							<button type="button" onClick={buyCredits}>
+								{t("addCredits")}
+							</button>
+							<a href="#template-history">{t("history")}</a>
 						</div>
-					) : (
-						<button
-							type="button"
-							className="vt-primary"
-							disabled={locked || !available || !complete || !displayCredits}
-							onClick={() => void generate()}
-						>
-							{t(busy === "submit" ? "submitting" : busy === "quote" ? "quoting" : "generate", {
-								credits: displayCredits ?? "…",
-							})}
-						</button>
-					)}
-					{expired && (
-						<p aria-live="polite" className="vt-help">
-							{t("quoteExpired")}
-						</p>
-					)}
-					<p className="vt-help">{t("quoteHint")}</p>
-					<div className="vt-actions">
-						<button type="button" onClick={buyCredits}>
-							{t("addCredits")}
-						</button>
-						<a href="#template-history">{t("history")}</a>
 					</div>
 				</section>
 				<aside className="vt-preview-panel">
@@ -542,16 +502,7 @@ function OwnedTemplateWorkspace({
 						<TemplateJob key={draft.jobId} ownerId={ownerId} jobId={draft.jobId} />
 					) : (
 						<>
-							<div className="vt-preview-heading">
-								<h2>{t("previewHeading")}</h2>
-								<span>{t("hoverHint")}</span>
-							</div>
-							<TemplatePreview template={previewTemplate} layout="detail" />
-							<p>{t("referenceNote")}</p>
-							<div className="vt-preview-story">
-								<h3>{t("guide.audio")}</h3>
-								<p>{t(`details.${contentKey as "original-rap"}.sound`)}</p>
-							</div>
+							<TemplateSample template={previewTemplate} priority />
 						</>
 					)}
 				</aside>

@@ -1,8 +1,17 @@
+import { randomBytes } from "node:crypto";
 import { readFile } from "node:fs/promises";
 
 import { expect, test, type Page } from "@playwright/test";
+import sharp from "sharp";
 
 async function publicSession(page: Page) {
+	// Keep unrelated account/navigation reads out of this fixture-only UI suite.
+	await page.route("**/api/rpc/**", (route) =>
+		route.fulfill({
+			status: 401,
+			json: { code: "UNAUTHORIZED", message: "Fixture-only navigation" },
+		}),
+	);
 	// Optional original-byte fixtures avoid local proxy DNS affecting image-optimizer QA.
 	// Production image security and source sample URLs remain unchanged.
 	if (process.env.VIDEO_TEMPLATE_POSTER_FIXTURE_MANIFEST) {
@@ -143,10 +152,10 @@ test("Flying Car has one entry, original sequence choices and a clear sign-in wo
 		"/login?redirectTo=%2Fvideo-templates%2Fflying-car",
 	);
 	await expect(page.getByRole("definition").filter({ hasText: "15 seconds" })).toBeVisible();
-	await expect(page.getByLabel("Stunt sequence", { exact: true })).toHaveValue(
-		"flying-car-curved-ramp-showcase",
-	);
-	await expect(page.locator("#vt-stunt option")).toHaveCount(4);
+	await expect(page.getByRole("combobox", { name: "Stunt sequence" })).toContainText("Curved Ramp");
+	await page.getByRole("combobox", { name: "Stunt sequence" }).click();
+	await expect(page.getByRole("option")).toHaveCount(4);
+	await page.keyboard.press("Escape");
 	await expect(page.locator("link[rel=canonical]")).toHaveAttribute(
 		"href",
 		/\/video-templates\/flying-car$/,
@@ -272,10 +281,31 @@ test("reduced-motion visitors retain an explicit keyboard preview without hover 
 	}
 });
 
-test("signed-in controls change the cast and keep optional quality settings collapsed", async ({
-	page,
-}) => {
+async function templateSession(page: Page) {
 	await publicSession(page);
+	await page.route("**/api/rpc/payments/listPurchases", (route) =>
+		route.fulfill({ json: { json: [] } }),
+	);
+	await page.route("**/api/rpc/media/getCreditAccount", (route) =>
+		route.fulfill({
+			json: {
+				json: {
+					spendableCredits: "1000",
+					reservedCredits: "0",
+					creditDebt: "0",
+					version: 1,
+					activeJobs: 0,
+					maximumInputBytes: 10_000_000,
+				},
+			},
+		}),
+	);
+	await page.route("**/api/rpc/videoV1/availability", (route) =>
+		route.fulfill({ json: { json: { available: true } } }),
+	);
+	await page.route("**/api/rpc/notifications/unreadCount", (route) =>
+		route.fulfill({ json: { json: { count: 0 } } }),
+	);
 	const now = new Date().toISOString();
 	await page.route("**/api/auth/get-session**", (route) =>
 		route.fulfill({
@@ -304,24 +334,210 @@ test("signed-in controls change the cast and keep optional quality settings coll
 	await page.route("**/api/rpc/videoTemplates/**", (route) => {
 		const url = route.request().url();
 		if (url.includes("/access"))
-			return route.fulfill({ json: { json: { available: true, maximumInputBytes: 10485760 } } });
+			return route.fulfill({
+				json: {
+					json: {
+						available: true,
+						maximumInputBytes: 10_000_000,
+						pricing: {
+							version: 1,
+							creditsByOptions: {
+								'["standard","duo",12,"720p","9:16"]': "300",
+								'["standard","solo",12,"720p","9:16"]': "200",
+								'["standard","trio",15,"720p","9:16"]': "400",
+								'["pro","solo",12,"1080p","9:16"]': "500",
+							},
+						},
+					},
+				},
+			});
 		if (url.includes("/jobs/list"))
 			return route.fulfill({ json: { json: { items: [], nextCursor: null } } });
 		mutations.push(url);
 		return route.abort();
 	});
+	return mutations;
+}
+
+test("signed-in controls use named models and constrain dependent choices", async ({ page }) => {
+	const mutations = await templateSession(page);
 	await page.goto("/video-templates/spin-me-round", { waitUntil: "domcontentloaded" });
-	const trio = page.getByRole("button", { name: "Trio", exact: true });
-	await expect(trio).toBeEnabled();
-	await trio.click();
+	await page.getByRole("button", { name: "Trio", exact: true }).click();
 	await expect(page.locator("#template-creator input[type=file]")).toHaveCount(3);
-	await expect(page.locator(".vt-settings-details")).not.toHaveAttribute("open", "");
-	await page.getByText("More video settings", { exact: false }).click();
-	await expect(page.getByLabel("Duration", { exact: true })).toHaveValue("15");
+	await page.locator(".vt-video-settings > summary").click();
+	await expect(page.getByRole("combobox", { name: "Duration", exact: true })).toContainText(
+		"15 seconds",
+	);
 	await page.getByRole("button", { name: "Solo", exact: true }).click();
 	await expect(page.locator("#template-creator input[type=file]")).toHaveCount(1);
-	await expect(page.getByLabel("Duration", { exact: true })).toHaveValue("12");
-	await expect(page.getByRole("button", { name: "Get credit quote", exact: true })).toBeDisabled();
+	await expect(page.getByRole("combobox", { name: "Duration", exact: true })).toContainText(
+		"12 seconds",
+	);
+	const model = page.getByRole("combobox", { name: "Video model" });
+	await model.click();
+	await page.getByRole("option", { name: "Seedance 2", exact: true }).click();
+	await page.getByRole("combobox", { name: "Resolution" }).click();
+	await page.getByRole("option", { name: "1080p", exact: true }).click();
+	await expect(page.getByRole("button", { name: "Create for 500 credits" })).toBeDisabled();
+	await model.click();
+	await page.getByRole("option", { name: "Seedance 2 Mini", exact: true }).click();
+	await page.getByRole("combobox", { name: "Resolution" }).click();
+	await expect(page.getByRole("option", { name: "1080p", exact: true })).toHaveCount(0);
+	await page.keyboard.press("Escape");
+	await expect(page.locator("#template-creator select")).toHaveCount(0);
+	expect(mutations).toEqual([]);
+});
+
+test("Rap keeps one creative field and compact uploads, with adaptive portrait and landscape previews", async ({
+	page,
+}) => {
+	await templateSession(page);
+	await page.setViewportSize({ width: 1440, height: 1000 });
+	for (const path of ["original-rap", "flying-car"]) {
+		await page.goto(`/video-templates/${path}`, { waitUntil: "domcontentloaded" });
+		await expect(page.locator(".vt-preview-action")).toBeEnabled();
+		await expect(page.locator('#template-creator input[type="file"]').first()).toBeEnabled();
+		const preview = page.locator('.vt-preview[data-layout="detail"]');
+		const poster = preview.locator("img");
+		await expect
+			.poll(() =>
+				poster.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0),
+			)
+			.toBe(true);
+		const geometry = () =>
+			preview.evaluate((element) => {
+				const image = element.querySelector("img")!;
+				const bounds = element.getBoundingClientRect();
+				return {
+					ratio: bounds.width / bounds.height,
+					naturalRatio: image.naturalWidth / image.naturalHeight,
+					width: bounds.width,
+					height: bounds.height,
+				};
+			});
+		await expect
+			.poll(async () => {
+				const value = await geometry();
+				return Math.abs(value.ratio - value.naturalRatio);
+			})
+			.toBeLessThan(0.015);
+		expect((await geometry()).height).toBeLessThanOrEqual(722);
+		if (path === "original-rap") {
+			await expect(page.locator("#template-creator textarea")).toHaveCount(1);
+			await expect(
+				page.locator("#vt-language, #vt-occasion, #vt-custom-stage, #vt-tier"),
+			).toHaveCount(0);
+			const box = await page.locator(".vt-upload").first().boundingBox();
+			expect(box!.height).toBeLessThanOrEqual(150);
+			await page.getByRole("button", { name: "Neon Rap", exact: true }).click();
+			await expect(page.locator(".vt-inputs input[type=file]")).toHaveCount(1);
+			await expect(page.locator(".vt-preview img")).toHaveAttribute(
+				"alt",
+				"Original Rap · Neon Rap source example",
+			);
+			await expect
+				.poll(() =>
+					poster.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0),
+				)
+				.toBe(true);
+			await page
+				.getByRole("button", { name: "Play Original Rap · Neon Rap example", exact: true })
+				.click();
+			await expect
+				.poll(
+					() =>
+						preview.locator("video").evaluate((video: HTMLVideoElement) => video.videoWidth > 0),
+					{ timeout: 20000 },
+				)
+				.toBe(true);
+			await expect
+				.poll(() =>
+					preview.evaluate((element) => {
+						const video = element.querySelector("video")!;
+						const box = element.getBoundingClientRect();
+						return Math.abs(box.width / box.height - video.videoWidth / video.videoHeight);
+					}),
+				)
+				.toBeLessThan(0.015);
+			await page
+				.getByRole("button", { name: "Close Original Rap · Neon Rap example", exact: true })
+				.click();
+			await expect(preview.locator("video")).toHaveCount(0);
+			await expect
+				.poll(async () => {
+					const value = await geometry();
+					return Math.abs(value.ratio - value.naturalRatio);
+				})
+				.toBeLessThan(0.015);
+		}
+		await page.screenshot({ path: test.info().outputPath(`${path}-desktop.png`), fullPage: false });
+		await page
+			.locator(".vt-workspace")
+			.screenshot({ path: test.info().outputPath(`${path}-workspace.png`) });
+	}
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/video-templates/original-rap", { waitUntil: "domcontentloaded" });
+	await expect(page.locator(".vt-video-settings > summary")).toBeVisible();
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+		true,
+	);
+	await page.screenshot({ path: test.info().outputPath("rap-mobile.png"), fullPage: true });
+});
+
+test("oversized photos are compressed before the upload session and invalid photos never upload", async ({
+	page,
+}) => {
+	const mutations = await templateSession(page);
+	const sessions: { contentType: string; byteSize: number }[] = [];
+	let uploaded: Buffer | null = null;
+	await page.route("**/api/rpc/videoTemplates/uploads/create", async (route) => {
+		const request = route.request().postDataJSON();
+		sessions.push(request.json);
+		await route.fulfill({
+			json: {
+				json: {
+					sessionId: "compressed-session",
+					uploadUrl: `${test.info().project.use.baseURL}/template-upload-fixture`,
+				},
+			},
+		});
+	});
+	await page.route("**/template-upload-fixture", async (route) => {
+		uploaded = route.request().postDataBuffer();
+		await route.fulfill({ status: 200, body: "" });
+	});
+	await page.route("**/api/rpc/videoTemplates/uploads/complete", (route) =>
+		route.fulfill({ json: { json: { assetId: "compressed-photo" } } }),
+	);
+	await page.goto("/video-templates/rap-neon-rap", { waitUntil: "domcontentloaded" });
+	const input = page.locator('input[type="file"]').first();
+	await expect(input).toBeEnabled();
+	const original = await sharp(randomBytes(3200 * 2400 * 3), {
+		raw: { width: 3200, height: 2400, channels: 3 },
+	})
+		.png()
+		.toBuffer();
+	expect(original.length).toBeGreaterThan(10_000_000);
+	await input.setInputFiles({ name: "large-photo.png", mimeType: "image/png", buffer: original });
+	await expect(page.getByText("Photo ready", { exact: true })).toBeVisible({ timeout: 30000 });
+	expect(sessions).toHaveLength(1);
+	expect(sessions[0]!.contentType).toBe("image/webp");
+	expect(sessions[0]!.byteSize).toBeLessThanOrEqual(10_000_000);
+	expect(uploaded!.length).toBe(sessions[0]!.byteSize);
+	const metadata = await sharp(uploaded!).metadata();
+	expect(metadata.width).toBe(2560);
+	expect(metadata.height).toBe(1920);
+	await expect(page.locator(".vt-upload img")).toHaveAttribute("src", /^blob:/);
+	await input.setInputFiles({
+		name: "broken.png",
+		mimeType: "image/png",
+		buffer: Buffer.alloc(10_000_001),
+	});
+	await expect(
+		page.getByText("This photo could not be optimized.", { exact: false }),
+	).toBeVisible();
+	expect(sessions).toHaveLength(1);
+	await expect(page.locator(".vt-upload img")).toHaveAttribute("src", /^blob:/);
 	expect(mutations).toEqual([]);
 });
 

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — Compact video template workspace
+
+- Fit detail previews to the actual poster or video proportions, with viewport-bounded portrait playback and full-width landscape playback. Restore the poster's proportions when playback closes.
+- Shorten photo slots, scene choices and the creator header. Keep photo guidance and example details expandable, with one visible content-rights reminder beside Create.
+- Replace native template dropdowns with the shared accessible selector. Name the actual video models instead of quality tiers, and use one optional Rap text field instead of separate language, occasion and scene fields. Existing saved customization remains visible and removable.
+- Optimize oversized JPG, PNG and WebP photos in the browser before creating an upload session. Keep smaller files unchanged; retain server upload, quota and review checks.
+
 ## Unreleased — Raindance and shared effect creator
 
 - Cache displayed prices and remove periodic availability/balance reads and still-image URL renewal. Keep authoritative pricing and funds checks at submission; cached insufficient balance does not block a new request.
