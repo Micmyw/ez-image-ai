@@ -18,6 +18,7 @@
 		"./video-submission": "./video-submission.ts",
 		"./video-effects": "./video-effects.ts",
 		"./video-template-library": "./video-template-library.ts",
+		"./video-template-display-pricing": "./video-template-display-pricing.ts",
 		"./video-effects.server": "./video-effects.server.ts",
 		"./video-template-execution.server": "./video-template-execution.server.ts",
 		"./source-template-pricing.server": "./source-template-pricing.server.ts",

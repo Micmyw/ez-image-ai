@@ -429,6 +429,13 @@
 	color: var(--muted-foreground);
 	line-height: 1.8;
 }
+.vt-credit-price {
+	margin: 0;
+	font-size: 18px;
+	font-weight: 600;
+	color: var(--foreground);
+	font-variant-numeric: tabular-nums;
+}
 .vt-primary {
 	display: inline-flex;
 	min-height: 46px;

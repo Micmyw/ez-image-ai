@@ -10,6 +10,7 @@ import {
 	createFinalAssetObjectKey,
 	createStagingObjectKey,
 	createSignedUpload,
+	createSignedReadUrl,
 } from "@repo/storage";
 
 import { requireReadyOwnedMediaAsset } from "../media/lib/asset-authorization";
@@ -32,6 +33,8 @@ export async function createSourceTemplateUpload(
 		{ userId: user.id, role: user.role },
 		input.templateKey,
 		getVideoWorkflowReadinessBindings(),
+		process.env,
+		{ forUpload: true },
 	);
 	if (!access.available) throw new Error(access.reasons[0] ?? "VIDEO_TEMPLATE_NOT_READY");
 	const entitlement = await loadUserPlanEntitlement(user.id);
@@ -89,10 +92,35 @@ export async function getSourceTemplateInput(ownerId: string, assetId: string) {
 	const asset = await getSourceTemplateInputRecord(ownerId, assetId, db);
 	if (!asset || (asset.kind === "OUTPUT" && asset.status !== "READY")) throw new Error("NOT_FOUND");
 	let preview: Awaited<ReturnType<typeof signAuthorizedAssetReadUrl>> | null = null;
-	try {
-		preview = await signAuthorizedAssetReadUrl(await requireReadyOwnedMediaAsset(assetId, ownerId));
-	} catch {
-		/* Metadata remains private; review is required before any provider use. */
+	if (asset.kind === "INPUT" && asset.verificationEngine === "video-workflow-v1") {
+		// An owner may preview their own sealed, decoded upload while review is pending.
+		// This is not approved evidence and cannot authorize provider use or output playback.
+		// The owner-scoped query excludes deleted, expired, quarantined and rejected assets.
+		const now = Date.now();
+		const expiresIn = Math.min(
+			300,
+			asset.deleteAfter ? Math.floor((asset.deleteAfter.getTime() - now) / 1000) : 300,
+		);
+		if (expiresIn <= 0) throw new Error("VIDEO_INPUT_NOT_AVAILABLE");
+		preview = {
+			assetId: asset.id,
+			expiresIn,
+			expiresAt: new Date(now + expiresIn * 1000).toISOString(),
+			url: await createSignedReadUrl({
+				bucket: "media",
+				key: asset.objectKey,
+				expiresIn,
+				responseContentDisposition: "inline",
+			}),
+		};
+	} else {
+		try {
+			preview = await signAuthorizedAssetReadUrl(
+				await requireReadyOwnedMediaAsset(assetId, ownerId),
+			);
+		} catch {
+			/* Generated outputs and legacy uploads retain their complete approval boundary. */
+		}
 	}
 	if (asset.kind === "OUTPUT" && !preview) throw new Error("VIDEO_INPUT_NOT_AVAILABLE");
 	return {

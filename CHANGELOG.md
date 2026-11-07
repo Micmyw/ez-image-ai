@@ -2,6 +2,8 @@
 
 ## Unreleased — Source video templates
 
+- Show template credit prices immediately and update them locally with settings. Create with one click; ask again only if the authoritative price changed. Keep uncertain submissions on their original receipt.
+- Keep uploaded photo thumbnails visible, restore private originals before generation review, show upload progress and allow separate photo slots to upload together. Remove redundant upload-session and reference-pack reads and periodic still-image preview renewal.
 - Add a Video templates library alongside image tools, with original Ezrapvideo sample previews, template-specific photo roles and settings, account drafts, quotes, progress and private results.
 - Present Flying Car once in the library, with its original four sequences inside the creator. Preserve their separate prompts, reference packs, 768P/2K choices and 15-second ramp or 7-second fleet durations, including historical task identities.
 - Play one muted example on mouse hover and unload it on exit; keep explicit sound, touch and keyboard controls, reduced-motion behavior and offscreen cleanup. Show template introductions, photo-role guidance, steps and FAQs adapted from the original pages in English, German, Spanish and French.

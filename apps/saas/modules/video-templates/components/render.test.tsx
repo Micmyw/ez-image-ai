@@ -110,7 +110,7 @@ describe("original source template controls", () => {
 			expect(html).toContain(en.videoTemplates.chooseImage);
 			expect(html).not.toMatch(/portrait|Choose photo|private-object-image/);
 			expect(html.match(/type="file"/g)).toHaveLength(1);
-			if (assetId) expect(html).toContain(en.videoTemplates.privateImage);
+			if (assetId) expect(html).toContain(en.videoTemplates.loadingPhoto);
 		},
 	);
 });

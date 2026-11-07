@@ -5,6 +5,7 @@ import {
 	configuredProviderOwnedVideoVisualSafetyProfile,
 } from "@repo/config/video-safety";
 import { VIDEO_SHARED_FUNDING_VERSION } from "@repo/config/video-shared-funding";
+import { sourceTemplatePriceKey } from "@repo/config/video-template-display-pricing";
 import {
 	canonicalSourceTemplateJson,
 	decodeSourceTemplatePrice,
@@ -112,13 +113,6 @@ export function normalizeSourceTemplateRequest(
 		throw new Error("VIDEO_TEMPLATE_INPUT_ROLES_INVALID");
 	return { ...parsed, options };
 }
-const priceOptions = (options: SourceTemplateChoices) =>
-	Object.fromEntries(
-		["tier", "preset", "durationSeconds", "resolution", "aspectRatio"]
-			.filter((key) => options[key as keyof SourceTemplateChoices] !== undefined)
-			.map((key) => [key, options[key as keyof SourceTemplateChoices]]),
-	);
-
 export async function loadSourceTemplateProvision(
 	templateKey: SourceTemplatePublicRequest["templateKey"],
 ) {
@@ -187,8 +181,8 @@ export function resolveSourceTemplateAdmission(
 	});
 	const matchingPrices = provision.prices.filter(
 		(price) =>
-			canonicalSourceTemplateJson(priceOptions(price.options as SourceTemplateChoices)) ===
-			canonicalSourceTemplateJson(priceOptions(request.options as SourceTemplateChoices)),
+			sourceTemplatePriceKey(price.options as SourceTemplateChoices) ===
+			sourceTemplatePriceKey(request.options as SourceTemplateChoices),
 	);
 	if (matchingPrices.length !== 1) throw new Error("VIDEO_TEMPLATE_PRICE_REQUIRED");
 	const configuredPrice = decodeSourceTemplatePrice(provision, matchingPrices[0]!);
@@ -248,6 +242,7 @@ export async function sourceTemplateAccess(
 	templateKey: SourceTemplatePublicRequest["templateKey"],
 	bindings: VideoV1Bindings,
 	environment = process.env,
+	options: { forUpload?: boolean } = {},
 ) {
 	try {
 		const choices = sourceTemplateDefaults(templateKey);
@@ -259,17 +254,36 @@ export async function sourceTemplateAccess(
 				assetId: `capability-${index}`,
 			})),
 		};
+		const configuration = await loadSourceTemplateProvision(templateKey);
 		const admitted = resolveSourceTemplateAdmission(
 			context,
 			request,
 			environment,
 			bindings,
-			await loadSourceTemplateProvision(templateKey),
+			configuration,
 		);
-		await db.$transaction((tx) =>
-			findApprovedSourceTemplateReferences(admitted.request.sourceTemplate, tx, new Date()),
-		);
-		return { available: true, reasons: [] as string[], maximumInputBytes: 10000000 };
+		// Uploading reserves storage only. Current reference evidence is still checked by
+		// access, quote and job admission; uploading another photo need not reread the pack.
+		if (!options.forUpload)
+			await db.$transaction((tx) =>
+				findApprovedSourceTemplateReferences(admitted.request.sourceTemplate, tx, new Date()),
+			);
+		return {
+			available: true,
+			reasons: [] as string[],
+			maximumInputBytes: 10000000,
+			pricing: options.forUpload
+				? null
+				: {
+						version: configuration.receipt.version,
+						creditsByOptions: Object.fromEntries(
+							configuration.provision.prices.map((price) => [
+								sourceTemplatePriceKey(price.options as SourceTemplateChoices),
+								price.credits,
+							]),
+						),
+					},
+		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "VIDEO_TEMPLATE_NOT_READY";
 		return {
@@ -278,6 +292,7 @@ export async function sourceTemplateAccess(
 				/^[A-Z][A-Z0-9_]+$/.test(message) ? message : "VIDEO_TEMPLATE_CONFIGURATION_INVALID",
 			],
 			maximumInputBytes: 10000000,
+			pricing: null,
 		};
 	}
 }

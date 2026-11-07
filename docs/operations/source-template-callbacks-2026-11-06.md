@@ -5,6 +5,32 @@ URLs. Source generation and per-role input moderation therefore depended on the 
 Workflow's timed reads. The user explicitly rejected that design. This local repair makes
 those source-template paths callback driven without adding an Outbox producer or scanner.
 
+## Creator upload and price display — 2026-11-07
+
+The access response includes only the provision revision and public option-to-credit
+prices. The account/template-scoped browser query stays fresh for five minutes;
+settings changes use this table locally. Create obtains one authoritative quote and
+submits with its stable saved confirmation. A changed price requires another explicit
+click. Display prices never replace current admission, ownership or credit checks.
+
+Source upload admission skips the full built-in reference evidence query. Access,
+quote and job admission retain their existing reference checks. Upload completion
+uses the common owner/session/engine check instead of a duplicate preliminary query;
+the post-completion immutable identity read and image inspection remain.
+
+The creator retains local blob thumbnails after upload and allows independent slots
+to upload together. Restored original INPUT images from `video-workflow-v1` can receive
+an owner-scoped inline URL before generation review, bounded by 300 seconds and the
+asset expiry. The query requires sealed, decoded JPG/PNG bytes and excludes deleted,
+expired, rejected and quarantined assets. This preview grants no approval or provider
+access. Generated OUTPUTs and legacy assets retain full review authorization. Loaded
+still images do not renew URLs on a timer; a load failure can request a fresh URL.
+
+Focused component regression: `node tooling/e2e/src/video-template-workspace-regression.mjs`.
+It uses actual React components with loopback fixtures, covering local prices, parallel
+slots, thumbnail continuity, restored photos, changed-price confirmation and same-key
+recovery after reload. It neither generates media nor measures production latency.
+
 ## Preserved source contracts
 
 The original `ez-airapvideo` SeeAPI generation callback uses the documented raw-body

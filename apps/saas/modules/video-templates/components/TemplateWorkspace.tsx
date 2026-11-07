@@ -4,6 +4,7 @@ import { useSession } from "@auth/hooks/use-session";
 import { creditAccountQueryKey } from "@media/lib/credit-account-query";
 import { useUpgrade } from "@payments/components/upgrade-context";
 import { defaultUpgradeSelection, upgradeHref } from "@payments/lib/upgrade-selection";
+import { sourceTemplateDisplayCredits } from "@repo/config/video-template-display-pricing";
 import {
 	getVideoTemplate,
 	isRapTemplate,
@@ -178,7 +179,7 @@ function OwnedTemplateWorkspace({
 	const [restored, setRestored] = useState(false);
 	const [quote, setQuote] = useState<TemplateQuote | null>(null);
 	const [busy, setBusy] = useState<"quote" | "submit" | null>(null);
-	const [uploading, setUploading] = useState(false);
+	const [uploadingRoles, setUploadingRoles] = useState<ReadonlySet<string>>(() => new Set());
 	const [error, setError] = useState<string | null>(null);
 	const [expired, setExpired] = useState(false);
 	const active = useRef(true);
@@ -187,6 +188,9 @@ function OwnedTemplateWorkspace({
 		queryKey: ["video-templates", "access", ownerId, templateKey],
 		queryFn: () => videoTemplatesApi.access({ templateKey }),
 		retry: false,
+		staleTime: 5 * 60_000,
+		gcTime: 30 * 60_000,
+		refetchOnWindowFocus: false,
 	});
 	const storageKey = templateDraftKey(ownerId, templateKey);
 	const update = (next: TemplateDraft) => {
@@ -257,7 +261,13 @@ function OwnedTemplateWorkspace({
 			: template;
 	const complete = roles.every((role) => draft.inputs.some((input) => input.role === role));
 	const available = access.data?.available === true;
-	const locked = busy !== null || uploading || Boolean(draft.confirmation) || !restored;
+	const uploading = uploadingRoles.size > 0;
+	const inputLocked = busy !== null || Boolean(draft.confirmation) || !restored;
+	const locked = inputLocked || uploading;
+	const displayCredits =
+		quote && !expired
+			? quote.credits
+			: sourceTemplateDisplayCredits(access.data?.pricing, draft.options);
 	function changed(next: TemplateDraft) {
 		update(next);
 		setQuote(null);
@@ -275,25 +285,36 @@ function OwnedTemplateWorkspace({
 					? "unavailable"
 					: "requestFailed";
 	}
-	async function getQuote() {
-		if (operation.current || !complete || !available) return;
+	async function generate() {
+		if (operation.current || locked || !complete || !available || !displayCredits) return;
+		if (quote && !expired) {
+			confirm(quote);
+			return;
+		}
 		operation.current = true;
 		setBusy("quote");
 		setError(null);
 		const request = templateRequest(current.current);
+		let confirmedQuote: TemplateQuote | null = null;
 		try {
 			const next = await videoTemplatesApi.quote(request);
 			if (
 				active.current &&
 				JSON.stringify(templateRequest(current.current)) === JSON.stringify(request)
-			)
-				setQuote(next);
+			) {
+				if (next.credits !== displayCredits) {
+					// Never silently charge a price different from the displayed button.
+					setQuote(next);
+					setError("priceChanged");
+				} else confirmedQuote = next;
+			}
 		} catch (caught) {
 			if (active.current) setError(errorKey(caught));
 		} finally {
 			operation.current = false;
 			if (active.current) setBusy(null);
 		}
+		if (confirmedQuote && active.current) confirm(confirmedQuote);
 	}
 	async function submit(confirmation: TemplateConfirmation) {
 		if (operation.current) return;
@@ -330,9 +351,10 @@ function OwnedTemplateWorkspace({
 			if (active.current) setBusy(null);
 		}
 	}
-	function confirm() {
-		if (!quote || expired || !available || locked) return;
-		const confirmation = createTemplateConfirmation(current.current, quote);
+	function confirm(value: TemplateQuote) {
+		if (operation.current || Date.parse(value.expiresAt) <= Date.now() || !available || locked)
+			return;
+		const confirmation = createTemplateConfirmation(current.current, value);
 		const next = { ...current.current, confirmation };
 		try {
 			localStorage.setItem(storageKey, JSON.stringify(next));
@@ -408,8 +430,15 @@ function OwnedTemplateWorkspace({
 								preset={draft.options.preset}
 								assetId={draft.inputs.find((input) => input.role === role)?.assetId}
 								maximumBytes={access.data?.maximumInputBytes ?? 10_000_000}
-								disabled={locked || !available}
-								onBusy={setUploading}
+								disabled={inputLocked || !available}
+								onBusy={(isBusy) =>
+									setUploadingRoles((previous) => {
+										const next = new Set(previous);
+										if (isBusy) next.add(role);
+										else next.delete(role);
+										return next;
+									})
+								}
 								onChange={(assetId) => changed(setTemplateInput(current.current, role, assetId))}
 							/>
 						))}
@@ -462,6 +491,9 @@ function OwnedTemplateWorkspace({
 						<span>3</span>
 						<h3>{t("reviewStep")}</h3>
 					</div>
+					<p className="vt-credit-price" aria-live="polite">
+						{displayCredits ? t("creditPrice", { credits: displayCredits }) : t("priceLoading")}
+					</p>
 					{!complete && <p className="vt-help">{t("readyPhotos")}</p>}
 					{error && (
 						<p className="vt-error" role="alert">
@@ -480,23 +512,16 @@ function OwnedTemplateWorkspace({
 								{t(busy === "submit" ? "submitting" : "recover")}
 							</button>
 						</div>
-					) : quote && !expired ? (
-						<button
-							className="vt-primary"
-							type="button"
-							disabled={locked || !available}
-							onClick={confirm}
-						>
-							{t(busy === "submit" ? "submitting" : "generate", { credits: quote.credits })}
-						</button>
 					) : (
 						<button
 							type="button"
 							className="vt-primary"
-							disabled={locked || !available || !complete}
-							onClick={() => void getQuote()}
+							disabled={locked || !available || !complete || !displayCredits}
+							onClick={() => void generate()}
 						>
-							{t(busy === "quote" ? "quoting" : "quote")}
+							{t(busy === "submit" ? "submitting" : busy === "quote" ? "quoting" : "generate", {
+								credits: displayCredits ?? "…",
+							})}
 						</button>
 					)}
 					{expired && (

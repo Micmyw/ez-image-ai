@@ -1,4 +1,5 @@
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
+import { sourceTemplatePriceKey } from "@repo/config/video-template-display-pricing";
 import {
 	encodeSourceTemplatePrices,
 	sourceTemplateProvisionSchema,
@@ -12,12 +13,17 @@ const store = vi.hoisted(() => ({
 	configuration: vi.fn(),
 	create: vi.fn(),
 	replay: vi.fn(),
+	references: vi.fn(),
 }));
 vi.mock("@repo/database/client", () => ({
 	db: {
 		generationJob: { findUnique: store.findUnique },
 		runtimeConfigOverride: { findFirst: store.configuration },
+		$transaction: (run: (tx: unknown) => unknown) => run({}),
 	},
+}));
+vi.mock("@repo/database/video-source-template-review", () => ({
+	findApprovedSourceTemplateReferences: store.references,
 }));
 vi.mock("@repo/database/video-v1", () => ({
 	createVideoQuoteRecord: vi.fn(),
@@ -33,6 +39,7 @@ import {
 	createSourceTemplateJob,
 	SourceTemplateNotAdmittedError,
 	findExistingSourceTemplateAdmission,
+	sourceTemplateAccess,
 } from "./source-template-admission";
 
 const environment = {
@@ -84,6 +91,47 @@ function configuration() {
 	};
 }
 describe("source template frozen admission", () => {
+	it("returns only public prices from one provision read and skips reference reads for uploads", async () => {
+		vi.clearAllMocks();
+		const config = configuration();
+		store.configuration.mockResolvedValue({ id: "config", version: 1, value: config.provision });
+		const access = await sourceTemplateAccess(
+			{ userId: "owner" },
+			"original-rap",
+			bindings,
+			environment,
+		);
+		expect(access.available).toBe(true);
+		expect(access.pricing).toEqual({
+			version: 1,
+			creditsByOptions: { [sourceTemplatePriceKey(request.options)]: "123" },
+		});
+		expect(store.configuration).toHaveBeenCalledTimes(1);
+		expect(store.references).toHaveBeenCalledTimes(1);
+		store.references.mockClear();
+		const upload = await sourceTemplateAccess(
+			{ userId: "owner" },
+			"original-rap",
+			bindings,
+			environment,
+			{ forUpload: true },
+		);
+		expect(upload.available).toBe(true);
+		expect(upload.pricing).toBeNull();
+		expect(store.references).not.toHaveBeenCalled();
+		store.configuration.mockResolvedValueOnce({
+			id: "config",
+			version: 1,
+			value: { ...config.provision, enabled: false },
+		});
+		expect(
+			(
+				await sourceTemplateAccess({ userId: "owner" }, "original-rap", bindings, environment, {
+					forUpload: true,
+				})
+			).available,
+		).toBe(false);
+	});
 	it("freezes the same complete quote from legacy or compact provision and expands only the chosen price", () => {
 		const legacy = configuration();
 		const shared = "Local immutable price evidence. ".repeat(80);

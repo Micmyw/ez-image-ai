@@ -66,6 +66,7 @@ beforeEach(() => {
 		available: false,
 		reasons: ["VIDEO_TEMPLATE_DISABLED"],
 		maximumInputBytes: 10000000,
+		pricing: null,
 	});
 	vi.mocked(createSourceTemplateQuote).mockResolvedValue({
 		quoteId: "quote",

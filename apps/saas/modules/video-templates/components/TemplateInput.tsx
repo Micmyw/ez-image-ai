@@ -1,6 +1,5 @@
 "use client";
 
-import { schedulePrivatePlaybackRefresh } from "@media/lib/private-playback-refresh";
 import type { SourceTemplateKey, SourceTemplateRole } from "@repo/config/video-template-library";
 import { ImagePlusIcon, XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -31,64 +30,73 @@ export function TemplateInput({
 	const t = useTranslations("videoTemplates");
 	const subject = role === "subject";
 	const [preview, setPreview] = useState<string | null>(null);
-	const [expiresAt, setExpiresAt] = useState<string | null>(null);
 	const [status, setStatus] = useState<"idle" | "uploading" | "sealing" | "error">("idle");
+	const [progress, setProgress] = useState(0);
+	const [previewFailed, setPreviewFailed] = useState(false);
 	const lifecycle = useRef(0);
+	const previewRequest = useRef(0);
+	const currentAsset = useRef(assetId);
+	currentAsset.current = assetId;
 	const xhr = useRef<XMLHttpRequest | null>(null);
-	const localPreview = useRef<string | null>(null);
+	const localPreview = useRef<{ url: string; assetId: string | null } | null>(null);
 	const previewRetry = useRef(false);
 	useEffect(
 		() => () => {
 			lifecycle.current++;
+			previewRequest.current++;
 			xhr.current?.abort();
-			if (localPreview.current) URL.revokeObjectURL(localPreview.current);
+			if (localPreview.current) URL.revokeObjectURL(localPreview.current.url);
 		},
 		[],
 	);
 	useEffect(() => {
 		let active = true;
+		const requestRevision = ++previewRequest.current;
 		previewRetry.current = false;
-		setExpiresAt(null);
+		setPreviewFailed(false);
+		// Upload start clears the previous asset ID, and completion supplies the new ID.
+		// Neither transition should replace the owner's immediate local thumbnail.
+		if (localPreview.current?.assetId === (assetId ?? null)) {
+			setPreview(localPreview.current!.url);
+			return;
+		}
+		if (localPreview.current) {
+			URL.revokeObjectURL(localPreview.current.url);
+			localPreview.current = null;
+		}
+		setPreview(null);
 		if (!assetId) {
-			setPreview(null);
 			return;
 		}
 		void videoTemplatesApi.inputs
 			.get({ assetId })
 			.then((result) => {
-				if (active) {
+				if (active && requestRevision === previewRequest.current) {
 					setPreview(result.previewUrl);
-					setExpiresAt(result.previewExpiresAt);
+					setPreviewFailed(!result.previewUrl);
 				}
 			})
 			.catch(() => {
-				if (active) setPreview(null);
+				if (active && requestRevision === previewRequest.current) setPreviewFailed(true);
 			});
 		return () => {
 			active = false;
 		};
 	}, [assetId]);
-	useEffect(() => {
-		let active = true;
-		const cancel = schedulePrivatePlaybackRefresh(expiresAt ?? undefined, true, () => {
-			if (assetId)
-				void videoTemplatesApi.inputs
-					.get({ assetId })
-					.then((result) => {
-						if (active) {
-							setPreview(result.previewUrl);
-							setExpiresAt(result.previewExpiresAt);
-						}
-					})
-					.catch(() => {
-						if (active) setPreview(null);
-					});
-		});
-		return () => {
-			active = false;
-			cancel();
-		};
-	}, [assetId, expiresAt]);
+	async function refreshPreview() {
+		if (!assetId) return;
+		const revision = ++previewRequest.current;
+		setPreviewFailed(false);
+		try {
+			const result = await videoTemplatesApi.inputs.get({ assetId });
+			if (revision !== previewRequest.current || currentAsset.current !== assetId) return;
+			setPreview(result.previewUrl);
+			setPreviewFailed(!result.previewUrl);
+		} catch {
+			if (revision === previewRequest.current) setPreviewFailed(true);
+		}
+	}
+	// A decoded still image needs no timer-based URL renewal. Renew only on load failure.
 	async function select(file: File) {
 		const revision = ++lifecycle.current;
 		if (
@@ -100,10 +108,13 @@ export function TemplateInput({
 			return;
 		}
 		xhr.current?.abort();
-		if (localPreview.current) URL.revokeObjectURL(localPreview.current);
+		previewRequest.current++;
+		if (localPreview.current) URL.revokeObjectURL(localPreview.current.url);
+		localPreview.current = { url: URL.createObjectURL(file), assetId: null };
 		onChange(null);
-		localPreview.current = URL.createObjectURL(file);
-		setPreview(localPreview.current);
+		setPreview(localPreview.current.url);
+		setPreviewFailed(false);
+		setProgress(0);
 		setStatus("uploading");
 		onBusy(true);
 		try {
@@ -118,6 +129,10 @@ export function TemplateInput({
 				xhr.current = transfer;
 				transfer.open("PUT", session.uploadUrl);
 				transfer.setRequestHeader("Content-Type", file.type);
+				transfer.upload.onprogress = (event) => {
+					if (lifecycle.current === revision && event.lengthComputable)
+						setProgress(Math.round((event.loaded / event.total) * 100));
+				};
 				transfer.onload = () =>
 					transfer.status >= 200 && transfer.status < 300
 						? resolve()
@@ -129,6 +144,7 @@ export function TemplateInput({
 			setStatus("sealing");
 			const result = await videoTemplatesApi.uploads.complete({ sessionId: session.sessionId });
 			if (lifecycle.current !== revision) return;
+			if (localPreview.current) localPreview.current.assetId = result.assetId;
 			onChange(result.assetId);
 			setStatus("idle");
 		} catch {
@@ -138,7 +154,10 @@ export function TemplateInput({
 		}
 	}
 	return (
-		<fieldset className="vt-input" disabled={disabled}>
+		<fieldset
+			className="vt-input"
+			disabled={disabled || status === "uploading" || status === "sealing"}
+		>
 			<legend>
 				<TemplateRoleLabel templateKey={templateKey} role={role} preset={preset} />
 			</legend>
@@ -150,15 +169,10 @@ export function TemplateInput({
 						data-clarity-mask="true"
 						onError={() => {
 							setPreview(null);
+							setPreviewFailed(true);
 							if (assetId && !previewRetry.current) {
 								previewRetry.current = true;
-								void videoTemplatesApi.inputs
-									.get({ assetId })
-									.then((result) => {
-										setPreview(result.previewUrl);
-										setExpiresAt(result.previewExpiresAt);
-									})
-									.catch(() => undefined);
+								void refreshPreview();
 							}
 						}}
 					/>
@@ -168,9 +182,9 @@ export function TemplateInput({
 						<strong>
 							{t(
 								assetId
-									? subject
-										? "privateImage"
-										: "privatePhoto"
+									? previewFailed
+										? "previewFailed"
+										: "loadingPhoto"
 									: subject
 										? "chooseImage"
 										: "choosePhoto",
@@ -197,15 +211,25 @@ export function TemplateInput({
 				<span>
 					{status === "idle"
 						? assetId
-							? t(subject ? "privateImage" : "privatePhoto")
+							? t("photoReady")
 							: ""
-						: t(status === "error" ? "uploadFailed" : status)}
+						: status === "uploading"
+							? t("uploadProgress", { progress })
+							: t(status === "error" ? "uploadFailed" : status)}
 				</span>
+				{previewFailed && assetId && (
+					<button type="button" onClick={() => void refreshPreview()}>
+						{t("retryPreview")}
+					</button>
+				)}
 				{assetId && (
 					<button
 						type="button"
 						aria-label={t(subject ? "removeImage" : "removePhoto", { role: t(`roles.${role}`) })}
 						onClick={() => {
+							previewRequest.current++;
+							if (localPreview.current) URL.revokeObjectURL(localPreview.current.url);
+							localPreview.current = null;
 							onChange(null);
 							setPreview(null);
 						}}

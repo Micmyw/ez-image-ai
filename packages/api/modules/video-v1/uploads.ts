@@ -136,8 +136,7 @@ export async function createVideoUpload(
 	};
 }
 export async function completeVideoUpload(user: User, input: { sessionId: string }) {
-	const session = await getVideoUploadSession(user.id, input.sessionId);
-	if (!session) throw new Error("VIDEO_UPLOAD_NOT_FOUND");
+	// Completion already checks owner, session and engine before any storage work.
 	// Disabling new admissions never strands already admitted uploads.
 	await completeOwnedUploadSession(input, user.id, {
 		expectedVerificationEngine: "video-workflow-v1",

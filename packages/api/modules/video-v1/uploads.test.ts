@@ -100,6 +100,7 @@ describe("video V1 immutable upload boundary", () => {
 		expect(completeOwnedUploadSession).toHaveBeenCalledWith({ sessionId: "session" }, "owner", {
 			expectedVerificationEngine: "video-workflow-v1",
 		});
+		expect(getVideoUploadSession).toHaveBeenCalledExactlyOnceWith("owner", "session");
 		expect(normalizeVideoReferenceToPng).toHaveBeenCalledWith(
 			expect.objectContaining({
 				source: { bucket: "media", key: asset.objectKey },
@@ -124,11 +125,14 @@ describe("video V1 immutable upload boundary", () => {
 		});
 	});
 	it("refuses unknown owner/session without storage work", async () => {
-		vi.mocked(getVideoUploadSession).mockResolvedValueOnce(null);
+		vi.mocked(completeOwnedUploadSession).mockRejectedValueOnce(
+			new Error("VIDEO_UPLOAD_NOT_FOUND"),
+		);
 		await expect(completeVideoUpload(user, { sessionId: "foreign" })).rejects.toThrow(
 			"VIDEO_UPLOAD_NOT_FOUND",
 		);
-		expect(completeOwnedUploadSession).not.toHaveBeenCalled();
+		expect(getVideoUploadSession).not.toHaveBeenCalled();
+		expect(normalizeVideoReferenceToPng).not.toHaveBeenCalled();
 	});
 	it("does not make invalid image bytes eligible for quote", async () => {
 		vi.mocked(normalizeVideoReferenceToPng).mockRejectedValueOnce(new Error("INVALID_IMAGE"));

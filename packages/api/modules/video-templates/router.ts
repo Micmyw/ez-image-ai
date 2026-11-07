@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { sourceTemplateDisplayPricingSchema } from "@repo/config/video-template-display-pricing";
 import {
 	sourceTemplateKeySchema,
 	sourceTemplatePublicRequestSchema,
@@ -64,6 +65,7 @@ const access = protectedProcedure
 				available: z.boolean(),
 				reasons: z.array(z.string()),
 				maximumInputBytes: z.number().int().positive(),
+				pricing: sourceTemplateDisplayPricingSchema.nullable().optional(),
 			})
 			.strict(),
 	)
