@@ -1,5 +1,6 @@
 import { parseRouteGraphSnapshot, type ExecutableRouteGraphOptions } from "@repo/ai";
 import {
+	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
 	IMAGE_PASS_LEGACY_OFFER,
 	IMAGE_PASS_PUBLIC_OFFER,
 	IMAGE_PASS_STANDARD_OFFER,
@@ -164,6 +165,40 @@ describe("GPT Image 2.6 fixed credit quotes", () => {
 });
 
 describe("GPT Image 2.6 preserves historical funding contracts", () => {
+	it.each(["flare", "sunburst"] as const)(
+		"extends %s static 2K/4K through a separate policy",
+		(variant) => {
+			for (const size of ["2k", "4k"]) {
+				const result = quote(variant, { skuKey: `gpt-image-2-6-${variant}-${size}` }, "IMAGE_PASS");
+				expect(result.pricingSnapshot.imagePassBenefitPolicy).toEqual(
+					IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+				);
+				expect(result.pricingSnapshot.imagePassUnits).toBe(1);
+			}
+		},
+	);
+	it.each([undefined, null, { version: "unknown" }])(
+		"does not upgrade a missing/forged frozen pass policy %j",
+		(imagePassBenefitPolicy) => {
+			expect(() =>
+				buildMediaQuote(
+					{
+						productKey: "image-gpt-image-2-6-flare",
+						fundingSource: "IMAGE_PASS",
+						imagePassBenefitPolicy,
+						input: {
+							kind: "text-to-image",
+							prompt: "A vase",
+							skuKey: "gpt-image-2-6-flare-1k",
+							aspectRatio: "1:1",
+						},
+					},
+					routes,
+				),
+			).toThrow("IMAGE_PASS_SELECTION_INVALID");
+		},
+	);
+
 	it.each(["flare", "sunburst"] as const)("does not add %s to any frozen image pass", (variant) => {
 		for (const offer of [
 			IMAGE_PASS_LEGACY_OFFER,
@@ -175,9 +210,12 @@ describe("GPT Image 2.6 preserves historical funding contracts", () => {
 			).toBe(false);
 		}
 		for (const outputFormat of ["png", "jpeg", "svg", "gif"] as const) {
-			expect(() => quote(variant, { outputFormat }, "IMAGE_PASS")).toThrow(
-				"IMAGE_PASS_SELECTION_INVALID",
-			);
+			expect(quote(variant, { outputFormat }, "IMAGE_PASS").pricingSnapshot).toMatchObject({
+				fundingSource: "IMAGE_PASS",
+				imagePassUnits: 1,
+				imagePassBenefitPolicy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+				settlementPolicy: { requestedOutputCount: 1 },
+			});
 		}
 	});
 

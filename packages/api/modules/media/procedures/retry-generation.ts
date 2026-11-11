@@ -62,7 +62,7 @@ interface RetryGenerationSource {
 	id: string;
 	productKey: string;
 	serviceClass: "STANDARD" | "GUEST_SLOW";
-	quote: { inputSnapshot: unknown };
+	quote: { inputSnapshot: unknown; pricingSnapshot?: unknown };
 	assets: Array<{ assetId: string; assetChecksum: string }>;
 	editSessionId: string | null;
 	parentJobId: string | null;
@@ -209,6 +209,12 @@ export async function retryGenerationForUser(
 			productKey,
 			input: normalizedInput,
 			fundingSource: input.fundingSource,
+			// Rebuilding prices must not silently upgrade an older pass quote's coverage.
+			...(source.fundingSource === "IMAGE_PASS"
+				? {
+						imagePassBenefitPolicy: quoteImagePassBenefitPolicy(source.quote.pricingSnapshot),
+					}
+				: {}),
 		});
 		selection = dependencies.createAdapter();
 		const operation: GenerationRetryOperation = {
@@ -263,6 +269,7 @@ export async function retryGenerationForUser(
 		await dependencies.assertAllowed({
 			userId,
 			fundingSource,
+			imagePassBenefitPolicy: quoteImagePassBenefitPolicy(operation.pricingSnapshot),
 			productKey,
 			credits: BigInt(operation.credits),
 			costMicros: BigInt(operation.costMicros),
@@ -535,6 +542,10 @@ function retryQuoteInputSnapshot(
 	editContext: GenerationRetryEditContext | undefined,
 ) {
 	return editContext ? { ...normalizedInput, editContext } : normalizedInput;
+}
+
+function quoteImagePassBenefitPolicy(snapshot: unknown): unknown {
+	return isRecord(snapshot) ? snapshot.imagePassBenefitPolicy : undefined;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

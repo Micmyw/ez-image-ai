@@ -1,4 +1,4 @@
-import { EZPIC_PRODUCT_KEYS, IMAGE_SKU_KEYS_BY_PRODUCT, isImagePassSkuAllowed } from "@repo/config";
+import { EZPIC_PRODUCT_KEYS, IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config";
 import { describe, expect, it, vi } from "vitest";
 
 const production = vi.hoisted(() => ({
@@ -194,9 +194,7 @@ describe("generation authorization", () => {
 	});
 	it.each(
 		EZPIC_PRODUCT_KEYS.flatMap((productKey) =>
-			IMAGE_SKU_KEYS_BY_PRODUCT[productKey]
-				.filter(isImagePassSkuAllowed)
-				.map((skuKey) => ({ productKey, skuKey })),
+			IMAGE_SKU_KEYS_BY_PRODUCT[productKey].map((skuKey) => ({ productKey, skuKey })),
 		),
 	)(
 		"allows a verified new pass for $productKey / $skuKey without a subscription",
@@ -220,6 +218,7 @@ describe("generation authorization", () => {
 						credits: quote.credits,
 						costMicros: quote.costMicros,
 						fundingSource: "IMAGE_PASS",
+						imagePassBenefitPolicy: quote.pricingSnapshot.imagePassBenefitPolicy,
 						routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
 					},
 					{

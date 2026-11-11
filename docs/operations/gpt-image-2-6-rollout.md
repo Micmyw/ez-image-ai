@@ -8,8 +8,10 @@ and [product/SEO scope](../product/gpt-image-2-6-tools.md).
 The two products use the existing Kie asynchronous image task adapter, durable
 job/input/reservation/Outbox transaction, callback wake and authenticated task
 retrieval. No additional provider credentials or payment merchant SKUs are needed.
-The global generation switch and the existing subscription/credit/storage checks
-still apply. The default first-image model is unchanged.
+The global generation switch, selected funding source's access rules and existing
+storage checks still apply. Credit-funded requests retain their subscription
+requirements; the eligible USD 2.99 pass benefit below grants independent image
+access only when explicitly selected. The default first-image model is unchanged.
 
 Both new model switches are opt-in, including in development:
 
@@ -54,10 +56,30 @@ multiplier. Actual `creditsConsumed` is retained by the existing adapter. Real
 usage and margins must be measured before relying on these allowances for a
 production cost forecast; the provider exposes no hard per-request token cap.
 
-All three historical/current image-pass snapshots retain their original price,
-SKU list and subscription policy. None covers 2.6, SVG or GIF. The current pass
-remains its frozen 29 SKUs; the USD 1 standard-size snapshot stays 15 SKUs.
-Adding new products to a pass requires a new offer, not editing these lists.
+### USD 2.99 image-pack benefit extension
+
+The approved extension covers new purchases and remaining available units from
+existing USD 2.99 grants with offer version `2026-11-04.2`. Both Flare and
+Sunburst PNG/JPEG at 1K, 2K and 4K, static SVG and 2–16-frame GIF are eligible.
+One successful result consumes one pass, including a complete GIF regardless of
+its frame count. Explicit pass funding needs no additional subscription; it
+does not grant general subscription, storage or video permissions.
+
+`IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY` is the separate
+`image-pass-gpt-image-2-6-v1` policy. New quotes freeze it as
+`imagePassBenefitPolicy`; reservation rechecks the eligible grant under the
+existing owner lock. Historical accepted tasks and reservations retain their
+original contracts. The offer's original 29-SKU list, order/payment/grant
+snapshots, price and merchant SKU are unchanged. No database migration or
+merchant provisioning is required for this benefit.
+
+Both USD 1 offer versions retain their original coverage and subscription rules
+and do not receive this extension. Never rewrite an old offer list or count the
+frames of a GIF as separate pass units. Deploy compatible admission, reservation
+and settlement consumers before new benefit-bearing quotes; accepted quotes and
+reserved jobs must remain readable and settleable during rollback. See the
+[pack rollout](image-pass-299-rollout.md) for the historical contracts and
+extension boundary.
 
 ## Outputs and safe recovery
 
@@ -100,7 +122,7 @@ Flare/Sunburst support 2–16 frames in Kie's current schema. Economy's distinct
 64-frame text-only contract is not enabled in this version; its image-to-image
 endpoint supports PNG only and its GIF billing has not been separately verified.
 
-### Verification recorded on 2026-11-11
+### Initial local verification on 2026-11-11
 
 - Focused config/catalog/provider/quote/pass, drafts/recovery, private output,
   moderation and source-eligibility regressions passed. Database checks used
@@ -113,10 +135,28 @@ endpoint supports PNG only and its GIF billing has not been separately verified.
 - Generated SVG/GIF Workerd rendering, the jobs Worker bundle and its final
   artifact smoke passed. Website build-tool regressions passed all 21 tests,
   including the real Next Webpack compilation of the SVG WASM import.
-- Full `pnpm --filter saas cloudflare:build` did **not** complete. The isolated
+- The initial local `pnpm --filter saas cloudflare:build` did **not** complete. The isolated
   builder stopped at `docker version` before snapshot compilation. Starting the
   installed Docker Desktop failed in its Inference manager with an inaccessible
-  `dockerInference` local socket. No website Worker artifact was certified;
-  rerun the supported build and final artifact smoke after Docker is repaired.
-- Temporary test/build processes exited. No paid provider task, remote flag,
-  payment change, Git publication or deployment was performed.
+  `dockerInference` local socket. That local attempt certified no website Worker
+  artifact. This is historical local evidence, superseded for release readiness
+  by the successful Cloudflare Linux build recorded below.
+- Temporary local test/build processes exited. That local verification stage
+  performed no paid provider task, remote flag change, payment change, Git
+  publication or deployment.
+
+### Subsequent production release on 2026-11-11
+
+The GPT Image 2.6 release at `dbbc801e` completed the Cloudflare Linux website
+build and final Worker artifact smoke. Compatible production consumers and the
+website were released, and Flare and Sunburst were enabled in production through
+the dedicated build override. The earlier local Docker startup failure did not
+block this cloud release.
+
+No paid real PNG, reference edit, SVG or GIF was submitted during that release
+verification. Build/smoke success and enabled catalog entries do not establish
+provider completion, customer success rate, settlement or actual generation cost.
+
+The USD 2.99 benefit extension described above is a subsequent change. Its local
+tests, CI, deployment and live funding verification must be recorded separately;
+the `dbbc801e` release evidence does not certify the extension as deployed.

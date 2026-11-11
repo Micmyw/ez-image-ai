@@ -172,11 +172,16 @@ for (const viewport of [
 			await expect(page.getByRole("link", { name: "Create an account or sign in" })).toBeVisible();
 			await expect(page.getByTestId("image-pass-size-rule")).toContainText("4K");
 			await expect(page.getByTestId("image-pass-size-rule")).toContainText(
-				"GPT Image 2.6, SVG and GIF use credits separately",
+				"New and previously purchased USD 2.99 packs cover GPT Image 2.6 Flare and Sunburst",
 			);
 			await expect(page.getByTestId("image-pass-size-rule")).toContainText(
-				"Earlier USD 1 packs keep their original terms",
+				"Each successful result uses one pass, regardless of GIF frame count",
 			);
+			await expect(page.getByTestId("image-pass-size-rule")).toContainText(
+				"static SVG and animated GIF",
+			);
+			await expect(page.locator("main")).not.toContainText("USD 1");
+			await expect(page.locator("main")).not.toContainText("credits separately");
 			await expect(page.locator("main")).toContainText("USD 2.99");
 			await expect(page.locator("main")).toContainText("No subscription is required");
 			await expect(page.locator("main")).not.toContainText("imagePass.");

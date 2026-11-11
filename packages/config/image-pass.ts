@@ -84,7 +84,7 @@ export const IMAGE_PASS_STANDARD_OFFER = /* @__PURE__ */ Object.freeze({
 	allowedSkuKeys: IMAGE_PASS_STANDARD_ALLOWED_SKU_KEYS,
 } as const);
 
-/** Explicit current catalog at purchase time; future catalog additions need a new offer. */
+/** Frozen catalog at purchase time; later benefits must be versioned separately. */
 export const IMAGE_PASS_ALLOWED_SKU_KEYS = /* @__PURE__ */ Object.freeze([
 	"nano-banana-2-lite-1k",
 	"nano-banana-default",
@@ -123,6 +123,86 @@ export const IMAGE_PASS_PUBLIC_OFFER = /* @__PURE__ */ Object.freeze({
 	subscriptionPolicy: "not-required",
 	allowedSkuKeys: IMAGE_PASS_ALLOWED_SKU_KEYS,
 } as const);
+
+/** Additive benefit for both existing unused and newly purchased USD 2.99 passes.
+ * Never rewrite a purchase/grant snapshot; each new quote freezes this policy.
+ */
+export const IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY = /* @__PURE__ */ Object.freeze({
+	version: "image-pass-gpt-image-2-6-v1",
+	eligibleOfferVersion: "2026-11-04.2",
+	addedSkuKeys: /* @__PURE__ */ Object.freeze([
+		"gpt-image-2-6-flare-1k",
+		"gpt-image-2-6-flare-2k",
+		"gpt-image-2-6-flare-4k",
+		"gpt-image-2-6-sunburst-1k",
+		"gpt-image-2-6-sunburst-2k",
+		"gpt-image-2-6-sunburst-4k",
+	] as const satisfies readonly ImageSkuKey[]),
+	outputFormats: /* @__PURE__ */ Object.freeze(["png", "jpeg", "svg", "gif"] as const),
+	unitsPerSuccessfulOutput: 1,
+} as const);
+
+export function isImagePassBenefitPolicy(
+	value: unknown,
+): value is typeof IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+	const policy = value as Record<string, unknown>;
+	const expected = IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY;
+	const addedSkuKeys = policy.addedSkuKeys;
+	const outputFormats = policy.outputFormats;
+	return (
+		Object.keys(policy).length === Object.keys(expected).length &&
+		policy.version === expected.version &&
+		policy.eligibleOfferVersion === expected.eligibleOfferVersion &&
+		policy.unitsPerSuccessfulOutput === expected.unitsPerSuccessfulOutput &&
+		Array.isArray(addedSkuKeys) &&
+		addedSkuKeys.length === expected.addedSkuKeys.length &&
+		expected.addedSkuKeys.every((key, index) => addedSkuKeys[index] === key) &&
+		Array.isArray(outputFormats) &&
+		outputFormats.length === expected.outputFormats.length &&
+		expected.outputFormats.every((format, index) => outputFormats[index] === format)
+	);
+}
+
+/** Absence preserves historical coverage; malformed/unknown policies fail closed. */
+export function imagePassEffectiveSkuKeys(
+	offerSnapshot: unknown,
+	benefitPolicy?: unknown,
+): readonly string[] {
+	if (
+		!isImagePassOfferSnapshot(offerSnapshot) ||
+		(benefitPolicy !== undefined && !isImagePassBenefitPolicy(benefitPolicy))
+	)
+		return [];
+	return benefitPolicy !== undefined && imagePassIncludesModelAccess(offerSnapshot)
+		? [...offerSnapshot.allowedSkuKeys, ...IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY.addedSkuKeys]
+		: [...offerSnapshot.allowedSkuKeys];
+}
+
+export function imagePassCoversSelection(input: {
+	offerSnapshot: unknown;
+	skuKey: unknown;
+	benefitPolicy?: unknown;
+	outputFormat?: unknown;
+}): boolean {
+	if (
+		typeof input.skuKey !== "string" ||
+		!imagePassEffectiveSkuKeys(input.offerSnapshot, input.benefitPolicy).includes(input.skuKey)
+	)
+		return false;
+	if (
+		!(IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY.addedSkuKeys as readonly string[]).includes(
+			input.skuKey,
+		)
+	)
+		return true;
+	const format = input.outputFormat === undefined ? "png" : input.outputFormat;
+	return (
+		typeof format === "string" &&
+		(IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY.outputFormats as readonly string[]).includes(format) &&
+		(!["svg", "gif"].includes(format) || input.skuKey.endsWith("-1k"))
+	);
+}
 
 const KNOWN_IMAGE_PASS_OFFERS = [
 	IMAGE_PASS_PUBLIC_OFFER,

@@ -1,5 +1,9 @@
 import { EZPIC_PRODUCT_KEYS } from "@repo/config";
-import { getImagePassOfferSnapshot, IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
+import {
+	getImagePassOfferSnapshot,
+	IMAGE_PASS_LEGACY_OFFER,
+	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+} from "@repo/config/image-pass";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("../../client", () => ({
@@ -147,6 +151,33 @@ describe("transaction-current admission", () => {
 			),
 		).resolves.toMatchObject({ maximumInputBytes: expect.any(Number) });
 	});
+	it.each(["png", "jpeg", "svg", "gif"])(
+		"passes the exact frozen policy and %s format to current admission",
+		async (outputFormat) => {
+			const tx = transaction();
+			tx.$queryRaw.mockResolvedValue([
+				{ id: "new-unit", offerSnapshot: getImagePassOfferSnapshot() },
+			]);
+			const input = {
+				ownerId: "owner",
+				productKey: "image-gpt-image-2-6-sunburst",
+				skuKey: "gpt-image-2-6-sunburst-1k",
+				fundingSource: "IMAGE_PASS" as const,
+				costMicros: 460_000n,
+				now: new Date(),
+				outputFormat,
+			};
+			await expect(loadCurrentGenerationAdmission(input, tx as never)).rejects.toThrow(
+				"IMAGE_PASS_SELECTION_INVALID",
+			);
+			await expect(
+				loadCurrentGenerationAdmission(
+					{ ...input, imagePassBenefitPolicy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY },
+					tx as never,
+				),
+			).resolves.toMatchObject({ maximumInputBytes: expect.any(Number) });
+		},
+	);
 	it("derives the tighter product size limit without limiting unfinished task counts", async () => {
 		const tx = transaction([], "studio");
 		const admission = await loadCurrentGenerationAdmission(

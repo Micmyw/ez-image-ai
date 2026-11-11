@@ -1,5 +1,6 @@
 /* oxlint-disable typescript/unbound-method -- assertions target dependency-injected Vitest mocks */
 import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
+import { IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY } from "@repo/config/image-pass";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({
@@ -194,6 +195,49 @@ describe("retryGenerationForUser", () => {
 			}),
 		);
 	});
+	it.each([undefined, IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY])(
+		"preserves the source pass benefit policy when rebuilding a retry %j",
+		async (imagePassBenefitPolicy) => {
+			vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
+			vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
+			const deps = dependencies({
+				findSource: vi.fn(async () => ({
+					...source,
+					fundingSource: "IMAGE_PASS",
+					imagePassReservation: { status: "RELEASED" },
+					quote: {
+						...source.quote,
+						pricingSnapshot: {
+							fundingSource: "IMAGE_PASS",
+							...(imagePassBenefitPolicy === undefined ? {} : { imagePassBenefitPolicy }),
+						},
+					},
+				})),
+				claimRequest: vi.fn(async ({ operation }) => ({
+					outcome: "CLAIMED" as const,
+					requestId: "pass-retry",
+					leaseToken: "pass-lease",
+					operation,
+				})),
+			});
+			await retryGenerationForUser(
+				"user-1",
+				{ jobId: source.id, idempotencyKey: "pass-retry", fundingSource: "IMAGE_PASS" },
+				deps,
+			);
+			const operation = vi.mocked(deps.claimRequest).mock.calls[0]![0].operation;
+			if (imagePassBenefitPolicy === undefined)
+				expect(operation.pricingSnapshot).not.toHaveProperty("imagePassBenefitPolicy");
+			else
+				expect(operation.pricingSnapshot).toHaveProperty(
+					"imagePassBenefitPolicy",
+					imagePassBenefitPolicy,
+				);
+			expect(deps.assertAllowed).toHaveBeenCalledWith(
+				expect.objectContaining({ imagePassBenefitPolicy }),
+			);
+		},
+	);
 	it("does not retry a pass job whose previous unit is still held", async () => {
 		const deps = dependencies({
 			findSource: vi.fn(async () => ({

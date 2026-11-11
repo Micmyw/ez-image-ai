@@ -5,9 +5,9 @@ interface ImagePassBalanceSkus {
 
 /**
  * Whether the signed-in owner's available passes can pay for this size. The
- * server returns the union of sizes frozen on each grant, so passes bought
- * before the 1K/2K restriction keep their original coverage. Missing or empty
- * lists do not infer ownership from the currently advertised offer.
+ * server returns effective grant coverage, including versioned benefits for
+ * eligible USD 2.99 purchases and the unchanged terms of older grants.
+ * Missing or empty lists never infer ownership from the advertised offer.
  */
 export function imagePassCoversSku(
 	balance: ImagePassBalanceSkus | undefined | null,

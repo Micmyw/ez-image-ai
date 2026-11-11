@@ -56,6 +56,9 @@ describe("image pass offer banner", () => {
 			expect(markup).toContain("$2.99");
 			expect(markup).not.toContain("USD");
 			expect(markup).toContain("4K");
+			expect(markup).toContain("GPT Image 2.6");
+			expect(markup).toContain("SVG");
+			expect(markup).toContain("GIF");
 			expect(markup).toContain(bannerDetail);
 			expect(markup).toContain('href="/image-pass"');
 			expect(markup).toContain(`aria-label="${dismissBanner}"`);

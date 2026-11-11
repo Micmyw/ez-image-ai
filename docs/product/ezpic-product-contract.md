@@ -27,16 +27,22 @@ account credits, including gifted and discounted credits. Individual credit lots
 paid-receipt floor to fund new generation. Complete server quotes, access and content review,
 credit expiry, refunds, debt, account locks, atomic reservation and idempotency still apply.
 Accepted orders retain their frozen funding policies. Shared credits do not certify paid
-revenue or realized margin. The USD1 image-pass offer remains a separate explicit choice and
+revenue or realized margin. The USD 2.99 image-pass offer remains a separate explicit choice and
 cannot fund video.
 
-Image-pass size rule (offer `2026-11-04.1`): a pass pays only for the 1K/2K SKUs listed in
-`IMAGE_PASS_ALLOWED_SKU_KEYS` (`packages/config/image-pass.ts`). 4K/3K tiers, Pro models and
-GPT Image 1.5 high use credits. Each `image_pass_grant` stores the offer snapshot it was paid
-under and unit reservation filters on that snapshot, so grants from offer `2026-10-19.1`
-(the original, explicitly frozen 29 SKUs) retain that coverage. Deploy the additive checkout
-constraint migration `20261104010000_image_pass_offer_1k_2k` before activating producers of
-the new offer; existing grants do not need rewriting.
+Current image packs cost USD 2.99 for three successful results, with no additional subscription
+when explicitly paying with a valid pass. Offer `2026-11-04.2` keeps its original 29-SKU snapshot.
+The separate `image-pass-gpt-image-2-6-v1` benefit extends remaining available units on existing
+USD 2.99 grants and new purchases to Flare/Sunburst PNG/JPEG at 1K, 2K and 4K, static SVG and
+2–16-frame GIF. One successful result consumes one unit, including an entire GIF. New quotes
+freeze the policy and reservation rechecks the eligible original grant; payment, grant and
+historical accepted-job snapshots are not rewritten.
+
+Historical USD 1 offers retain their original scope: `2026-11-04.1` covers its frozen 15 standard
+1K/2K SKUs, while `2026-10-19.1` retains its original 29 SKUs. Both preserve their subscription
+requirements and receive no GPT Image 2.6 benefit. See the
+[USD 2.99 rollout](../operations/image-pass-299-rollout.md) for the immutable original offer,
+versioned extension and consumer compatibility requirements.
 
 `/image-pass` is a public, translated route. Signed-in purchase navigation uses the existing
 owner-scoped session workspace draft, validates the return route and preserves its funding

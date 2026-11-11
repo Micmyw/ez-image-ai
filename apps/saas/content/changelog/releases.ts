@@ -1,5 +1,14 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-11-11",
+		title: "GPT Image 2.6, SVG and GIF with the USD 2.99 pack",
+		changes: [
+			"Create with GPT Image 2.6 Flare or Sunburst in the existing editor, or open the dedicated AI SVG Generator and AI GIF Generator. Static SVG and 2–16-frame GIF results use your private workspace for preview and download.",
+			"New purchases and remaining uses from existing USD 2.99 packs cover Flare and Sunburst PNG/JPEG at 1K, 2K and 4K, static SVG and GIF. Each successful result uses one pass, including a complete GIF, with no subscription required when paying with these passes.",
+			"Choose account credits or Image pass before generating. Earlier USD 1 packs retain their original coverage and subscription requirements; private uploads, content review, storage limits and interrupted-generation recovery remain in place.",
+		],
+	},
+	{
 		date: "2026-11-04",
 		title: "Make a Christmas wallpaper from your photo",
 		changes: [

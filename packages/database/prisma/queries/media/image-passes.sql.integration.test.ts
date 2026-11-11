@@ -1,6 +1,7 @@
 import { IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config";
 import {
 	getImagePassOfferSnapshot,
+	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
 	IMAGE_PASS_LEGACY_OFFER,
 	IMAGE_PASS_STANDARD_OFFER,
 } from "@repo/config/image-pass";
@@ -279,7 +280,12 @@ async function paymentFixture(
 	};
 }
 
-async function jobFixture(ownerId: string, status = "RESERVED", skuKey = "nano-banana-pro-4k") {
+async function jobFixture(
+	ownerId: string,
+	status = "RESERVED",
+	skuKey = "nano-banana-pro-4k",
+	benefits?: { policy: unknown; outputFormat?: string },
+) {
 	const id = `pass-job-${crypto.randomUUID()}`;
 	const productKey = Object.entries(IMAGE_SKU_KEYS_BY_PRODUCT).find(([, skus]) =>
 		(skus as readonly string[]).includes(skuKey),
@@ -288,15 +294,30 @@ async function jobFixture(ownerId: string, status = "RESERVED", skuKey = "nano-b
 	const snapshot = {
 		fundingSource: "IMAGE_PASS",
 		skuKey,
+		...(benefits?.policy === undefined ? {} : { imagePassBenefitPolicy: benefits.policy }),
 		settlementPolicy: { unitCredits: "25", requestedOutputCount: 1, maxCharge: "25" },
 	};
 	await pool!.query(
-		`INSERT INTO generation_quote (id,"ownerType","ownerId","submittedByUserId","productKey","catalogVersion","pricingVersion",credits,"costMicros","inputSnapshot","pricingSnapshot","expiresAt") VALUES ($1,'USER',$2,$2,$4,'2026-09-14.1','2026-09-13.2',25,120000,'{}',$3,NOW()+INTERVAL '1 hour')`,
-		[`${id}-quote`, ownerId, JSON.stringify(snapshot), productKey],
+		`INSERT INTO generation_quote (id,"ownerType","ownerId","submittedByUserId","productKey","catalogVersion","pricingVersion",credits,"costMicros","inputSnapshot","pricingSnapshot","expiresAt") VALUES ($1,'USER',$2,$2,$4,'2026-09-14.1','2026-09-13.2',25,120000,$5,$3,NOW()+INTERVAL '1 hour')`,
+		[
+			`${id}-quote`,
+			ownerId,
+			JSON.stringify(snapshot),
+			productKey,
+			JSON.stringify(benefits?.outputFormat ? { outputFormat: benefits.outputFormat } : {}),
+		],
 	);
 	await pool!.query(
-		`INSERT INTO generation_job (id,"ownerType","ownerId","submittedByUserId","quoteId","idempotencyKey","productKey","catalogVersion","pricingVersion","creditsReserved","fundingSource","inputSnapshot","pricingSnapshot",status,"updatedAt") VALUES ($1,'USER',$2,$2,$3,$1,$6,'2026-09-14.1','2026-09-13.2',0,'IMAGE_PASS','{}',$4,$5,NOW())`,
-		[id, ownerId, `${id}-quote`, JSON.stringify(snapshot), status, productKey],
+		`INSERT INTO generation_job (id,"ownerType","ownerId","submittedByUserId","quoteId","idempotencyKey","productKey","catalogVersion","pricingVersion","creditsReserved","fundingSource","inputSnapshot","pricingSnapshot",status,"updatedAt") VALUES ($1,'USER',$2,$2,$3,$1,$6,'2026-09-14.1','2026-09-13.2',0,'IMAGE_PASS',$7,$4,$5,NOW())`,
+		[
+			id,
+			ownerId,
+			`${id}-quote`,
+			JSON.stringify(snapshot),
+			status,
+			productKey,
+			JSON.stringify(benefits?.outputFormat ? { outputFormat: benefits.outputFormat } : {}),
+		],
 	);
 	return id;
 }
@@ -323,12 +344,13 @@ async function readyOutput(
 	jobId: string,
 	ownerId: string,
 	validUntil = new Date(Date.now() + 3_600_000),
+	mimeType = "image/png",
 ) {
 	const id = `pass-output-${crypto.randomUUID()}`;
 	const checksum = "a".repeat(64);
 	await pool!.query(
-		`INSERT INTO media_asset (id,"ownerType","ownerId",kind,status,"objectKey","mimeType","byteSize",checksum,"finalizedAt","verificationGeneration","verificationAttemptCount","verificationProvider","verificationRuleVersion","verificationPolicyVersion","verificationProviderTaskId","verificationValidUntil","updatedAt") VALUES ($1,'USER',$2,'OUTPUT','VERIFYING',$1,'image/png',100,$3,NOW(),1,1,'seeapi','image-pass-test-rule','image-pass-test-policy',$1,$4,NOW())`,
-		[id, ownerId, checksum, validUntil],
+		`INSERT INTO media_asset (id,"ownerType","ownerId",kind,status,"objectKey","mimeType","byteSize",checksum,"finalizedAt","verificationGeneration","verificationAttemptCount","verificationProvider","verificationRuleVersion","verificationPolicyVersion","verificationProviderTaskId","verificationValidUntil","updatedAt") VALUES ($1,'USER',$2,'OUTPUT','VERIFYING',$1,$5,100,$3,NOW(),1,1,'seeapi','image-pass-test-rule','image-pass-test-policy',$1,$4,NOW())`,
+		[id, ownerId, checksum, validUntil, mimeType],
 	);
 	await pool!.query(
 		`INSERT INTO asset_moderation_result (id,"assetId","assetChecksum","verificationGeneration","attemptNumber","evidenceKind",provider,"providerTaskId","ruleVersion","policyVersion",status,"reasonCode",categories,"rawEnvelope","validUntil") VALUES ($1,$1,$2,1,1,'OUTPUT','seeapi',$1,'image-pass-test-rule','image-pass-test-policy','APPROVED','NO_POLICY_MATCH','{}','{}',$3)`,
@@ -370,6 +392,228 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 			expect(credits.rows[0].count).toBe(0n);
 		},
 	);
+	it.each([
+		...["flare", "sunburst"].flatMap((variant) =>
+			["1k", "2k", "4k"].map((size) => [`gpt-image-2-6-${variant}-${size}`, "png"]),
+		),
+		["gpt-image-2-6-flare-1k", "jpeg"],
+		["gpt-image-2-6-sunburst-1k", "svg"],
+		["gpt-image-2-6-flare-1k", "gif"],
+	])(
+		"charges one old USD 2.99 grant unit for one successful %s %s and preserves purchase snapshots",
+		async (skuKey, outputFormat) => {
+			const f = await paymentFixture();
+			const grant = await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
+			const paidBefore = (
+				await pool!.query(
+					`SELECT "offerSnapshot","paidAmountMicros" FROM image_pass_grant WHERE id=$1`,
+					[grant.grantId],
+				)
+			).rows[0];
+			// Existing purchases gain the benefit without rewriting their frozen paid terms.
+			await pool!.query(
+				`UPDATE image_pass_grant SET "paidAt"=now()-interval '5 days' WHERE id=$1`,
+				[grant.grantId],
+			);
+			const balance = await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx));
+			expect(balance.availableSkuKeys).toHaveLength(35);
+			expect(balance.subscriptionFreeSkuKeys).toHaveLength(35);
+			const jobId = await jobFixture(f.ownerId, "RESERVED", skuKey, {
+				policy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+				outputFormat,
+			});
+			const reserved = await sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: f.ownerId, jobId }, tx),
+			);
+			await pool!.query(`UPDATE generation_job SET status='FINALIZING' WHERE id=$1`, [jobId]);
+			await readyOutput(
+				jobId,
+				f.ownerId,
+				undefined,
+				outputFormat === "svg" ? "image/svg+xml" : `image/${outputFormat}`,
+			);
+			await expect(
+				sqlTransaction((tx) =>
+					finalizeImagePassReservationInTransaction(
+						{ ownerId: f.ownerId, jobId, hasUsableOutput: true },
+						tx,
+					),
+				),
+			).resolves.toEqual({ status: "SETTLED", replayed: false });
+			await expect(
+				sqlTransaction((tx) =>
+					finalizeImagePassReservationInTransaction(
+						{ ownerId: f.ownerId, jobId, hasUsableOutput: true },
+						tx,
+					),
+				),
+			).resolves.toEqual({ status: "SETTLED", replayed: true });
+			expect(reserved).toMatchObject({ amount: 1n, fundingSource: "IMAGE_PASS" });
+			expect(
+				await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+			).toMatchObject({ available: 2, consumed: 1, reserved: 0 });
+			expect(
+				(
+					await pool!.query(
+						`SELECT "offerSnapshot","paidAmountMicros" FROM image_pass_grant WHERE id=$1`,
+						[grant.grantId],
+					)
+				).rows[0],
+			).toEqual(paidBefore);
+			expect(paidBefore.offerSnapshot.allowedSkuKeys).toHaveLength(29);
+			expect(
+				(
+					await pool!.query(
+						`SELECT count(*) FROM image_pass_ledger_entry WHERE "jobId"=$1 AND operation='CONSUME'`,
+						[jobId],
+					)
+				).rows[0].count,
+			).toBe(1n);
+		},
+	);
+	it.each([false, true])(
+		"selects only USD 2.99 expansion from mixed wallets (paid subscription %s)",
+		async (paid) => {
+			const old = await paymentFixture(undefined, "legacy");
+			const oldGrant = await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(old, tx));
+			if (paid) await paidSubscriptionFixture(old.ownerId);
+			const jobId = await jobFixture(old.ownerId, "RESERVED", "gpt-image-2-6-flare-1k", {
+				policy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+				outputFormat: "gif",
+			});
+			await expect(
+				sqlTransaction((tx) =>
+					reserveImagePassForJobInTransaction({ ownerId: old.ownerId, jobId }, tx),
+				),
+			).rejects.toThrow("IMAGE_PASS_INSUFFICIENT");
+			const current = await paymentFixture(old.ownerId);
+			const currentGrant = await sqlTransaction((tx) =>
+				fulfillImagePassPurchaseInTransaction(current, tx),
+			);
+			await sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: old.ownerId, jobId }, tx),
+			);
+			expect(
+				(
+					await pool!.query(
+						`SELECT u."grantId" FROM image_pass_reservation r JOIN image_pass_unit u ON u.id=r."unitId" WHERE r."jobId"=$1`,
+						[jobId],
+					)
+				).rows[0].grantId,
+			).toBe(currentGrant.grantId);
+			expect(
+				(
+					await pool!.query(
+						`SELECT count(*) FROM image_pass_unit WHERE "grantId"=$1 AND status='AVAILABLE'`,
+						[oldGrant.grantId],
+					)
+				).rows[0].count,
+			).toBe(3n);
+		},
+	);
+	it.each([undefined, null, { ...IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY, version: "unknown" }])(
+		"does not apply today's benefit to a historical/forged quote %j",
+		async (policy) => {
+			const f = await paymentFixture();
+			await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
+			const jobId = await jobFixture(f.ownerId, "RESERVED", "gpt-image-2-6-flare-1k", {
+				policy,
+				outputFormat: "gif",
+			});
+			await expect(
+				sqlTransaction((tx) =>
+					reserveImagePassForJobInTransaction({ ownerId: f.ownerId, jobId }, tx),
+				),
+			).rejects.toThrow("IMAGE_PASS_SELECTION_INVALID");
+			expect(
+				await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+			).toMatchObject({ available: 3, reserved: 0 });
+		},
+	);
+	it("reserves the last remaining old USD 2.99 use once under concurrent new-format requests", async () => {
+		const f = await paymentFixture();
+		const grant = await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
+		// Consume two ordinary images through the real ledger, leaving an existing unused benefit.
+		for (let index = 0; index < 2; index++) {
+			const oldJob = await jobFixture(f.ownerId);
+			await sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: f.ownerId, jobId: oldJob }, tx),
+			);
+			await pool!.query(`UPDATE generation_job SET status='FINALIZING' WHERE id=$1`, [oldJob]);
+			await readyOutput(oldJob, f.ownerId);
+			await sqlTransaction((tx) =>
+				finalizeImagePassReservationInTransaction(
+					{ ownerId: f.ownerId, jobId: oldJob, hasUsableOutput: true },
+					tx,
+				),
+			);
+		}
+		const jobs = await Promise.all(
+			["svg", "gif"].map((outputFormat) =>
+				jobFixture(f.ownerId, "RESERVED", "gpt-image-2-6-sunburst-1k", {
+					policy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+					outputFormat,
+				}),
+			),
+		);
+		const results = await Promise.allSettled(
+			jobs.map((jobId) =>
+				sqlTransaction((tx) =>
+					reserveImagePassForJobInTransaction({ ownerId: f.ownerId, jobId }, tx),
+				),
+			),
+		);
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		const failure = results.find((result) => result.status === "rejected") as PromiseRejectedResult;
+		expect(failure.reason.message).toBe("IMAGE_PASS_INSUFFICIENT");
+		expect(
+			await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+		).toMatchObject({ available: 0, reserved: 1, consumed: 2 });
+		const successfulIndex = results.findIndex((result) => result.status === "fulfilled");
+		await expect(
+			sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction(
+					{ ownerId: f.ownerId, jobId: jobs[successfulIndex]! },
+					tx,
+				),
+			),
+		).resolves.toEqual((results[successfulIndex] as PromiseFulfilledResult<unknown>).value);
+		expect(
+			(
+				await pool!.query(`SELECT "offerSnapshot" FROM image_pass_grant WHERE id=$1`, [
+					grant.grantId,
+				])
+			).rows[0].offerSnapshot,
+		).toEqual(getImagePassOfferSnapshot());
+	});
+	it("releases a definitively failed GIF use and retains accepted reservation replay", async () => {
+		const f = await paymentFixture();
+		await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
+		const jobId = await jobFixture(f.ownerId, "RESERVED", "gpt-image-2-6-sunburst-1k", {
+			policy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+			outputFormat: "gif",
+		});
+		const accepted = await sqlTransaction((tx) =>
+			reserveImagePassForJobInTransaction({ ownerId: f.ownerId, jobId }, tx),
+		);
+		await pool!.query(`UPDATE generation_job SET status='FINALIZING' WHERE id=$1`, [jobId]);
+		await expect(
+			sqlTransaction((tx) =>
+				reserveImagePassForJobInTransaction({ ownerId: f.ownerId, jobId }, tx),
+			),
+		).resolves.toEqual(accepted);
+		await expect(
+			sqlTransaction((tx) =>
+				finalizeImagePassReservationInTransaction(
+					{ ownerId: f.ownerId, jobId, hasUsableOutput: false },
+					tx,
+				),
+			),
+		).resolves.toEqual({ status: "RELEASED", replayed: false });
+		expect(
+			await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx)),
+		).toMatchObject({ available: 3, reserved: 0, consumed: 0 });
+	});
 	it("keeps all new financial tables private even if an unrelated role receives DML grants", async () => {
 		const tables = [
 			"image_pass_grant",

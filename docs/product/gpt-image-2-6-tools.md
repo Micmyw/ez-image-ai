@@ -18,8 +18,15 @@ has been enabled in a deployed environment.
   paths, not font-dependent text elements; scripts, external references,
   animation and embedded raster images are not accepted.
 - The 64-frame Economy contract is separate and is not advertised by this
-  version. Generation pricing follows the displayed quote; existing pass offer
-  snapshots are not expanded.
+  version. Credit-funded generation follows the displayed quote.
+- New purchases and remaining uses from existing USD 2.99 three-result packs
+  cover Flare and Sunburst PNG/JPEG at 1K, 2K and 4K, static SVG and GIF. One
+  successful result consumes one pass; a whole GIF consumes one pass regardless
+  of its frame count. No subscription is required when explicitly paying with
+  these passes. Account-credit eligibility remains separate.
+- A versioned benefit policy extends eligible USD 2.99 grants without rewriting
+  their original offer, order, payment or grant snapshots. Earlier USD 1 packs
+  retain their original coverage and subscription policy.
 - Prompt examples are ideas, not verified model samples. No local speed,
   fidelity, print-readiness or seamless-loop guarantee is made.
 
@@ -48,3 +55,10 @@ metadata, visible FAQ/schema agreement and sitemap discovery. Browser checks
 cover desktop and narrow layouts, route format defaults and prompt entry with a
 mocked public catalog. These do not prove paid Kie generation, private output
 processing, deployment, crawling or search performance.
+
+The GPT Image 2.6 production release at `dbbc801e` was subsequently built by the
+Cloudflare Linux builder and passed its final website Worker artifact smoke on
+2026-11-11. Both model switches were enabled in production. These release facts
+do not establish a paid end-to-end generation or deployment of the later image
+pack benefit extension; see the separate release evidence in the
+[rollout document](../operations/gpt-image-2-6-rollout.md).

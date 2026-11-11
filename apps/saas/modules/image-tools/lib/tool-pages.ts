@@ -17,7 +17,12 @@ export interface ImageToolPageContent {
 const creditFaq = {
 	question: "How are generations charged?",
 	answer:
-		"Use your existing EzImageAI account credits and check the quote shown before generating. Account and subscription eligibility still applies. Each new generation or edit has its own quote. Image passes retain their listed model and size coverage; these new tools do not expand an existing pass.",
+		"Choose account credits or an eligible image pass, then check the cost before generating. The $2.99 pack includes 3 successful results, with no subscription required when paying with these passes. Credit-funded requests retain their account and subscription requirements. Each new generation or edit has its own quote.",
+};
+const imagePassFaq = {
+	question: "Does the $2.99 pack cover GPT Image 2.6, SVG and GIF?",
+	answer:
+		"Yes. Both new purchases and remaining uses from existing $2.99 packs cover GPT Image 2.6 Flare and Sunburst: PNG or JPEG at 1K, 2K or 4K, static SVG, and GIF with 2–16 frames. One successful result uses one pass, including a whole GIF regardless of its frame count. Choose Image pass as the payment source; buying a pack does not automatically switch your selection. Earlier packs sold for a different price keep their original terms.",
 };
 const privacyFaq = {
 	question: "Are my uploads and results public?",
@@ -62,7 +67,7 @@ export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = 
 			},
 			{
 				title: "Review and download",
-				body: "Check the settings and credit quote, generate, then preview and download your result.",
+				body: "Check the settings and your selected credit or pass cost, generate, then preview and download your result.",
 			},
 		],
 		prompts: [
@@ -99,6 +104,7 @@ export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = 
 					"Yes. Choose SVG for a static illustration or GIF for an animation with 2–16 frames. This version uses 512 × 512 pixels per GIF frame. Select the 1K output tier to access these formats; the separate SVG and GIF pages open the same workspace with the relevant format selected.",
 			},
 			creditFaq,
+			imagePassFaq,
 			privacyFaq,
 		],
 	},
@@ -142,7 +148,7 @@ export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = 
 			},
 			{
 				title: "Generate an SVG",
-				body: "Keep SVG selected, review the credit quote and generate with Flare or Sunburst.",
+				body: "Keep SVG selected, review the credit or pass cost and generate with Flare or Sunburst.",
 			},
 			{
 				title: "Preview and download",
@@ -193,6 +199,7 @@ export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = 
 					"This tool generates static SVG only. For a short animation, use the AI GIF Generator, which offers 2–16 frames with GPT Image 2.6.",
 			},
 			creditFaq,
+			imagePassFaq,
 			privacyFaq,
 		],
 	},
@@ -206,7 +213,7 @@ export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = 
 			"Turn an idea or a reference photo into a short animated GIF. Describe one clear movement, choose the frame count, and preview the finished animation in your workspace.",
 		facts: ["Text or photo to GIF", "2–16 frames", "512 × 512 pixels per frame"],
 		settingsNote:
-			"GIF is selected for you. Choose 2–16 frames and a frame duration from 20 to 2,000 milliseconds. More frames change the motion and credit quote. This version does not offer 64-frame GIFs.",
+			"GIF is selected for you. Choose 2–16 frames and a frame duration from 20 to 2,000 milliseconds. More frames change the motion and credit quote; with an eligible $2.99 pack, one successful GIF uses one pass. This version does not offer 64-frame GIFs.",
 		sections: [
 			{
 				id: "text-to-gif",
@@ -231,7 +238,7 @@ export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = 
 			},
 			{
 				title: "Set frames and timing",
-				body: "Choose 2–16 frames, set the frame duration and review the credit quote.",
+				body: "Choose 2–16 frames, set the frame duration and review the credit or pass cost.",
 			},
 			{
 				title: "Play and download",
@@ -277,6 +284,7 @@ export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = 
 					"A prompt can request a loop, but a seamless transition is not guaranteed. Keep the movement simple and the camera fixed, and inspect the last-to-first-frame transition before sharing.",
 			},
 			creditFaq,
+			imagePassFaq,
 			privacyFaq,
 		],
 	},

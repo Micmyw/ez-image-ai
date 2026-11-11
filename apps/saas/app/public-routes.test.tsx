@@ -302,6 +302,16 @@ describe("consolidated public route contract", () => {
 			}
 			for (const related of Object.values(IMAGE_TOOL_PAGES))
 				expect(markup).toContain(`href="${related.path}"`);
+			expect(markup).toContain('href="/image-pass"');
+			const passFaq = faq.mainEntity.find(
+				(item: { name: string }) =>
+					item.name === "Does the $2.99 pack cover GPT Image 2.6, SVG and GIF?",
+			);
+			expect(passFaq?.acceptedAnswer.text).toContain("remaining uses from existing $2.99 packs");
+			expect(passFaq?.acceptedAnswer.text).toContain("PNG or JPEG at 1K, 2K or 4K, static SVG");
+			expect(passFaq?.acceptedAnswer.text).toContain("One successful result uses one pass");
+			expect(passFaq?.acceptedAnswer.text).toContain("a whole GIF regardless of its frame count");
+			expect(markup).not.toContain("these new tools do not expand an existing pass");
 			const privateMetadata = await resolveMetadata(pageModule, {
 				searchParams: Promise.resolve({ job: "private-job" }),
 			});

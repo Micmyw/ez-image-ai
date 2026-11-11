@@ -1,3 +1,5 @@
+import { gzipSync } from "node:zlib";
+
 import { getUnifiedMessagesForLocale } from "@repo/i18n";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -190,9 +192,32 @@ describe("SaaS root layout", () => {
 			});
 			expect(clientMessages.home).toEqual({
 				generator: fullMessages.home.generator,
-				creatorWorkflows: fullMessages.home.creatorWorkflows,
 				beforeAfter: fullMessages.home.beforeAfter,
 				showcase: fullMessages.home.showcase,
+			});
+			expect(clientMessages.home).not.toHaveProperty("creatorWorkflows");
+			// The removed module remains available to server rendering and isolated consumers.
+			expect(fullMessages.home.creatorWorkflows.title).not.toBe("");
+			const withRetiredSection = {
+				...clientMessages,
+				home: {
+					generator: clientMessages.home.generator,
+					creatorWorkflows: fullMessages.home.creatorWorkflows,
+					beforeAfter: clientMessages.home.beforeAfter,
+					showcase: clientMessages.home.showcase,
+				},
+			};
+			const before = JSON.stringify(withRetiredSection);
+			const after = JSON.stringify(clientMessages);
+			const beforeGzipBytes = gzipSync(before).byteLength;
+			const afterGzipBytes = gzipSync(after).byteLength;
+			expect(afterGzipBytes).toBeLessThan(beforeGzipBytes);
+			console.info("Root client messages payload", {
+				locale,
+				beforeBytes: Buffer.byteLength(before),
+				afterBytes: Buffer.byteLength(after),
+				beforeGzipBytes,
+				afterGzipBytes,
 			});
 			expect(clientMessages.videoEffects).toEqual({
 				name: fullMessages.videoEffects.name,

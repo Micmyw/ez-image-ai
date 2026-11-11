@@ -1,4 +1,5 @@
 import { createRouteGraphSnapshot } from "@repo/ai";
+import { IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY } from "@repo/config/image-pass";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const dispatchOrder = vi.hoisted(() => [] as string[]);
@@ -191,6 +192,66 @@ describe("durable provider dispatch waiting", () => {
 			fixtures.map((f) => `lock:generation-dispatch:${f.job.id}`),
 		);
 	});
+	it.each([
+		["flare", "png", "4k", 360_000],
+		["sunburst", "jpeg", "4k", 490_000],
+		["sunburst", "svg", "1k", 215_000],
+		["sunburst", "gif", "1k", 460_000],
+	] as const)(
+		"dispatches a frozen $2.99 pass %s %s %s quote at its full provider allowance",
+		async (variant, outputFormat, size, providerCostMicros) => {
+			const f = fixture();
+			const productKey = `image-gpt-image-2-6-${variant}` as const;
+			const providerModelId = `gpt-image-2-6/${variant}-text-to-image`;
+			Object.assign(f.options.environment, {
+				MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED: "true",
+				MEDIA_GPT_IMAGE_2_6_SUNBURST_ENABLED: "true",
+			});
+			Object.assign(f.job, {
+				productKey,
+				fundingSource: "IMAGE_PASS",
+				creditsReserved: 0n,
+				inputSnapshot: {
+					...f.job.inputSnapshot,
+					skuKey: `gpt-image-2-6-${variant}-${size}`,
+					outputFormat,
+					...(outputFormat === "gif" ? { frameCount: 16, frameDurationMs: 200 } : {}),
+				},
+				pricingSnapshot: {
+					fundingSource: "IMAGE_PASS",
+					imagePassUnits: 1,
+					imagePassBenefitPolicy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+					routeGraph: createRouteGraphSnapshot({
+						productKey,
+						catalogVersion: f.job.catalogVersion,
+						pricingVersion: f.job.pricingVersion,
+						routes: [{ provider: "kie", providerModelId, providerCostMicros, weight: 100 }],
+					}),
+				},
+				quote: { costMicros: BigInt(providerCostMicros), moderationDecision: "ALLOW" },
+			});
+			const frozenInput = structuredClone(f.job.inputSnapshot);
+			const frozenPricing = structuredClone(f.job.pricingSnapshot);
+			await expect(f.store.claimDispatch({ jobId: f.job.id, version: 4 })).resolves.toMatchObject({
+				attemptId: "attempt-1",
+				provider: "kie",
+				providerModelId,
+				input: frozenInput,
+			});
+			expect(f.tx.generationAttempt.create).toHaveBeenCalledExactlyOnceWith({
+				data: expect.objectContaining({ jobId: f.job.id, attemptNumber: 1, providerModelId }),
+			});
+			const preparation = f.tx.$queryRaw.mock.calls.find(([sql]) =>
+				sql.join("?").includes('UPDATE "generation_attempt" AS attempt'),
+			);
+			expect(JSON.parse(preparation?.[8] as string)).toEqual(frozenInput);
+			expect(JSON.parse(preparation?.[9] as string)).toEqual(frozenPricing);
+			expect(f.job.inputSnapshot).toEqual(frozenInput);
+			expect(f.job.pricingSnapshot).toEqual(frozenPricing);
+			expect(f.tx.guestRiskBudgetBucket.updateMany).not.toHaveBeenCalled();
+			expect(f.tx.guestMediaTrial.updateMany).not.toHaveBeenCalled();
+		},
+	);
 
 	it("preserves an already persisted due time without crossing the provider send fence", async () => {
 		const f = fixture();

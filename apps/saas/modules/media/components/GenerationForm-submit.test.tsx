@@ -28,11 +28,21 @@ const state = vi.hoisted(() => ({
 		prompt: "A paper landscape",
 		aspectRatio: "auto",
 		sourceAssetId: "",
+	} as {
+		productKey: string;
+		skuKey: string;
+		prompt: string;
+		aspectRatio: string;
+		sourceAssetId: string;
+		outputFormat?: "png" | "svg" | "gif";
+		frameCount?: number;
+		frameDurationMs?: number;
 	},
 	mutateAsync: vi.fn(),
 	beginNewAction: vi.fn(),
 	visibility: vi.fn(),
 	toolBinding: vi.fn(),
+	requestedOutputFormat: undefined as "svg" | "gif" | undefined,
 }));
 vi.mock("react", async (importOriginal) => ({
 	...(await importOriginal<typeof import("react")>()),
@@ -81,7 +91,7 @@ vi.mock("../lib/preview-timing", () => ({ observeGenerationJobVisibility: state.
 vi.mock("../hooks/use-model-navigation", () => ({
 	useModelNavigation: () => ({ unavailable: false }),
 	useRequestedImageModel: () => null,
-	useRequestedImageOutputFormat: () => undefined,
+	useRequestedImageOutputFormat: () => state.requestedOutputFormat,
 	replaceImageModelInUrl: vi.fn(),
 }));
 vi.mock("../hooks/use-generation", () => ({
@@ -89,12 +99,38 @@ vi.mock("../hooks/use-generation", () => ({
 		catalog: {
 			data: {
 				products: [
+					...(["flare", "sunburst"] as const).map((model) => ({
+						key: `image-gpt-image-2-6-${model}`,
+						label: `GPT Image 2.6 ${model}`,
+						credits: model === "flare" ? 20 : 25,
+						skuMatrix: {
+							defaultSkuKey: `gpt-image-2-6-${model}-1k`,
+							dimensions: [],
+							cells: ["1k", "2k", "4k"].map((size, index) => ({
+								skuKey: `gpt-image-2-6-${model}-${size}`,
+								credits: (model === "flare" ? 20 : 25) * 2 ** index,
+								aspectRatios: ["1:1"],
+								controls: [
+									{
+										key: "outputFormat",
+										label: "Format",
+										defaultValue: "png",
+										options: (size === "1k" ? ["png", "svg", "gif"] : ["png"]).map((key) => ({
+											key,
+											label: key,
+										})),
+									},
+								],
+							})),
+						},
+					})),
 					{
 						key: "image-nano-banana-2-lite",
 						label: "Nano",
 						credits: 5,
 						skuMatrix: {
 							defaultSkuKey: "nano-banana-2-lite-1k",
+							dimensions: [],
 							cells: [
 								{
 									skuKey: "nano-banana-2-lite-1k",
@@ -111,6 +147,7 @@ vi.mock("../hooks/use-generation", () => ({
 						credits: 40,
 						skuMatrix: {
 							defaultSkuKey: "nano-banana-pro-4k",
+							dimensions: [],
 							cells: [
 								{ skuKey: "nano-banana-pro-4k", credits: 40, aspectRatios: ["1:1"], controls: [] },
 							],
@@ -122,6 +159,7 @@ vi.mock("../hooks/use-generation", () => ({
 						credits: 7,
 						skuMatrix: {
 							defaultSkuKey: "gpt-image-2-5-sunburst-1k",
+							dimensions: [],
 							cells: [
 								{
 									skuKey: "gpt-image-2-5-sunburst-1k",
@@ -229,6 +267,7 @@ beforeEach(() => {
 	state.beginNewAction.mockClear();
 	state.visibility.mockReset();
 	state.toolBinding.mockReset();
+	state.requestedOutputFormat = undefined;
 	vi.stubGlobal("window", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
 	vi.stubGlobal("document", {
 		getElementById: vi.fn().mockReturnValue({ id: "current-editor-result" }),
@@ -250,6 +289,75 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it.each(["flare", "sunburst"] as const)(
+		"funds every supported GPT 2.6 %s result with one explicitly selected pass",
+		async (model) => {
+			for (const selection of [
+				{ size: "1k", outputFormat: "png" },
+				{ size: "2k", outputFormat: "png" },
+				{ size: "4k", outputFormat: "png" },
+				{ size: "1k", outputFormat: "svg" },
+				{ size: "1k", outputFormat: "gif" },
+			] as const) {
+				const productKey = `image-gpt-image-2-6-${model}`;
+				const skuKey = `gpt-image-2-6-${model}-${selection.size}`;
+				state.values = {
+					...state.values,
+					productKey,
+					skuKey,
+					aspectRatio: "1:1",
+					outputFormat: selection.outputFormat,
+					...(selection.outputFormat === "gif" ? { frameCount: 16, frameDurationMs: 120 } : {}),
+				};
+				state.passSkuKeys = [skuKey];
+				state.subscriptionFreeSkuKeys = [skuKey];
+				state.requestedOutputFormat =
+					selection.outputFormat === "png" ? undefined : selection.outputFormat;
+				state.mutateAsync.mockClear();
+				const allowed = resolveEditorAllowedProductKeys(undefined, undefined);
+				(
+					find(render(vi.fn(), null, allowed), ImageFundingSelector).props.onChange as (
+						source: ImageFundingSource,
+					) => void
+				)("IMAGE_PASS");
+				const element = render(vi.fn(), null, allowed);
+				expect(find(element, ImageFundingSelector).props.value).toBe("IMAGE_PASS");
+				expect(find(element, ImageOutputSettings).props.fundingCostLabel).toBe("onePass");
+				submit(element);
+				await flush();
+				expect(state.mutateAsync).toHaveBeenCalledExactlyOnceWith(
+					expect.objectContaining({
+						fundingSource: "IMAGE_PASS",
+						productKey,
+						input: expect.objectContaining({
+							skuKey,
+							outputFormat: selection.outputFormat,
+							...(selection.outputFormat === "gif" ? { frameCount: 16, frameDurationMs: 120 } : {}),
+						}),
+					}),
+				);
+			}
+		},
+	);
+	it("does not infer GPT 2.6 entitlement from historical passes without expanded server coverage", async () => {
+		state.values = {
+			...state.values,
+			productKey: "image-gpt-image-2-6-flare",
+			skuKey: "gpt-image-2-6-flare-1k",
+			aspectRatio: "1:1",
+			outputFormat: "svg",
+		};
+		state.subscriptionFreeSkuKeys = [];
+		const allowed = resolveEditorAllowedProductKeys(undefined, undefined);
+		(
+			find(render(vi.fn(), null, allowed), ImageFundingSelector).props.onChange as (
+				source: ImageFundingSource,
+			) => void
+		)("IMAGE_PASS");
+		submit(render(vi.fn(), null, allowed));
+		await flush();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
 	it("applies a supported tool ratio without losing the photo and rejects an unsupported ratio atomically", () => {
 		state.values.sourceAssetId = "owned-photo";
 		render();

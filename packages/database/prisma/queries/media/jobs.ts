@@ -455,6 +455,12 @@ export async function createGenerationJobTransaction(
 								skuKey: isJsonObject(quote.pricingSnapshot)
 									? quote.pricingSnapshot.skuKey
 									: undefined,
+								imagePassBenefitPolicy: isJsonObject(quote.pricingSnapshot)
+									? quote.pricingSnapshot.imagePassBenefitPolicy
+									: undefined,
+								outputFormat: isJsonObject(quote.inputSnapshot)
+									? quote.inputSnapshot.outputFormat
+									: undefined,
 								productKey: quote.productKey,
 								costMicros: quote.costMicros,
 								now: operationNow,

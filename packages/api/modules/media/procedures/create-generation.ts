@@ -380,6 +380,7 @@ async function createGenerationFromQuote(
 				rateLimitReceipt,
 				userId,
 				fundingSource,
+				imagePassBenefitPolicy: objectRecord(quote.pricingSnapshot).imagePassBenefitPolicy,
 				productKey: quote.productKey as Parameters<typeof assertGenerationAllowed>[0]["productKey"],
 				credits: quote.credits,
 				costMicros: quote.costMicros,

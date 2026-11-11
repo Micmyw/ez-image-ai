@@ -1,3 +1,4 @@
+import { IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY } from "@repo/config/image-pass";
 import { readProviderTerminalEvidence } from "@repo/config/provider-terminal-evidence";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -100,6 +101,132 @@ function passClaim() {
 		providerCostMicros: 20_000n,
 	};
 }
+
+const gptPassFormats = [
+	{ format: "png", mimeType: "image/png", skuKey: "gpt-image-2-6-flare-4k" },
+	{ format: "jpeg", mimeType: "image/jpeg", skuKey: "gpt-image-2-6-flare-2k" },
+	{ format: "svg", mimeType: "image/svg+xml", skuKey: "gpt-image-2-6-flare-1k" },
+	{ format: "gif", mimeType: "image/gif", skuKey: "gpt-image-2-6-flare-1k" },
+] as const;
+
+describe.each(gptPassFormats)("GPT 2.6 $format pass consumers", ({ format, mimeType, skuKey }) => {
+	function gptFixture(output: Parameters<typeof fixture>[0] = "ready") {
+		const f = fixture(output);
+		Object.assign(f.job, {
+			productKey: "image-gpt-image-2-6-flare",
+			inputSnapshot: {
+				kind: "text-to-image",
+				skuKey,
+				outputFormat: format,
+				...(format === "gif" ? { frameCount: 16 } : {}),
+			},
+			pricingSnapshot: {
+				fundingSource: "IMAGE_PASS",
+				imagePassUnits: 1,
+				imagePassBenefitPolicy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+				// Retail credits and provider cost must never become pass quantities.
+				settlementPolicy: { unitCredits: "80", requestedOutputCount: 1, maxCharge: "80" },
+			},
+			attempts: [{ providerCostMicros: 490_000n }],
+		});
+		for (const binding of f.job.assets) binding.asset.mimeType = mimeType;
+		return f;
+	}
+
+	it("settles one successful file once and preserves the accepted pricing snapshot on replay", async () => {
+		const f = gptFixture();
+		const acceptedPricing = structuredClone(f.job.pricingSnapshot);
+		const claim = await f.store.claimSettlement(payload);
+		expect(claim).toMatchObject({
+			fundingSource: "IMAGE_PASS",
+			reservedCredits: 0n,
+			chargeCredits: 0n,
+			readyOutputCount: 1,
+			providerCostMicros: 490_000n,
+		});
+		await f.store.settle(claim!);
+		expect(funding.finalize).toHaveBeenCalledExactlyOnceWith(
+			{ jobId: "job", ownerId: "owner", hasUsableOutput: true },
+			f.tx,
+		);
+		funding.lookup.mockResolvedValue({ ...reservation, status: "SETTLED" });
+		await f.store.settle(claim!);
+		expect(funding.finalize).toHaveBeenCalledOnce();
+		expect(funding.creditSettle).not.toHaveBeenCalled();
+		expect(funding.grace).not.toHaveBeenCalled();
+		expect(f.job.pricingSnapshot).toEqual(acceptedPricing);
+	});
+
+	it.each(["blocked", "none"] as const)(
+		"releases a confirmed %s result without consuming a pass or charging credits",
+		async (output) => {
+			const f = gptFixture(output);
+			const claim = await f.store.claimSettlement(payload);
+			expect(claim).toMatchObject({ chargeCredits: 0n, readyOutputCount: 0 });
+			await f.store.settle(claim!);
+			expect(funding.finalize).toHaveBeenCalledExactlyOnceWith(
+				{ jobId: "job", ownerId: "owner", hasUsableOutput: false },
+				f.tx,
+			);
+			expect(funding.creditSettle).not.toHaveBeenCalled();
+			expect(funding.grace).not.toHaveBeenCalled();
+		},
+	);
+
+	it("holds the same unit through asynchronous review and only consumes it after approval", async () => {
+		const f = gptFixture("pending");
+		await expect(f.store.claimSettlement(payload)).resolves.toBeNull();
+		await f.store.settle(passClaim());
+		expect(funding.finalize).not.toHaveBeenCalled();
+		Object.assign(f.job.assets[0]!.asset, { status: "READY", approved: true });
+		const claim = await f.store.claimSettlement(payload);
+		await f.store.settle(claim!);
+		expect(funding.finalize).toHaveBeenCalledExactlyOnceWith(
+			{ jobId: "job", ownerId: "owner", hasUsableOutput: true },
+			f.tx,
+		);
+		expect(funding.creditSettle).not.toHaveBeenCalled();
+	});
+
+	it("treats the single provider file as one output regardless of animation frame count", async () => {
+		const outputs = [
+			{
+				kind: "remote-url" as const,
+				trust: "untrusted-transfer-candidate" as const,
+				url: `https://provider.example/result.${format}`,
+				mimeType,
+			},
+		];
+		const tx = {
+			generationJob: {
+				findFirst: async () => ({
+					id: "job",
+					ownerId: "owner",
+					fundingSource: "IMAGE_PASS",
+					serviceClass: "STANDARD",
+					productKey: "image-gpt-image-2-6-flare",
+					inputSnapshot: { outputFormat: format, frameCount: 16 },
+					attempts: [
+						{
+							id: "attempt",
+							transferEnvelope: { payload: createOutputTransferEnvelope("image", outputs) },
+						},
+					],
+				}),
+			},
+		};
+		const database = {
+			$transaction: async (operation: (client: typeof tx) => Promise<unknown>) => operation(tx),
+		};
+		const claim = await createDatabaseFinalizationStore(database as never).claimFinalization(
+			payload,
+		);
+		expect(claim).toMatchObject({ jobId: "job", ownerId: "owner", mediaKind: "image" });
+		expect(claim?.candidates).toHaveLength(1);
+		expect(claim?.candidates[0]?.output).toMatchObject({ url: outputs[0]!.url });
+		expect(funding.finalize).not.toHaveBeenCalled();
+	});
+});
 
 describe("image pass job consumers", () => {
 	it("reads settlement evidence once after acquiring the complete output lock set", async () => {

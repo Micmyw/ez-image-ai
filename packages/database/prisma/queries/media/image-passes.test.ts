@@ -5,12 +5,18 @@ vi.mock("../../client", () => ({
 	},
 }));
 import { KIE_SENSITIVE_REJECTION_MESSAGE } from "@repo/config";
-import { getImagePassOfferSnapshot, IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
+import {
+	getImagePassOfferSnapshot,
+	IMAGE_PASS_LEGACY_OFFER,
+	IMAGE_PASS_STANDARD_OFFER,
+	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+} from "@repo/config/image-pass";
 
 import {
 	assertImagePassAvailable,
 	assertImagePassSelection,
 	generationFundingSource,
+	getImagePassBalance,
 	reserveImagePassForJobInTransaction,
 } from "./image-passes";
 import { canSettleKieZeroCostRejection } from "./kie-zero-cost-rejection";
@@ -207,5 +213,159 @@ describe("image-pass funding contract", () => {
 				tx as never,
 			),
 		).toBe(true);
+	});
+});
+
+describe("GPT Image 2.6 pass admission", () => {
+	const policy = IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY;
+	const selection = {
+		ownerId: "owner",
+		productKey: "image-gpt-image-2-6-flare",
+		skuKey: "gpt-image-2-6-flare-1k",
+		imagePassBenefitPolicy: policy,
+		outputFormat: "gif",
+		requireModelAccess: true,
+	};
+	it.each([
+		getImagePassOfferSnapshot(),
+		IMAGE_PASS_LEGACY_OFFER,
+		IMAGE_PASS_STANDARD_OFFER,
+		{ ...getImagePassOfferSnapshot(), allowedSkuKeys: [...policy.addedSkuKeys] },
+		{ ...getImagePassOfferSnapshot(), amount: "1.00" },
+	])(
+		"requires the complete USD 2.99 offer, even with a paid subscription: %j",
+		async (offerSnapshot) => {
+			for (const requireModelAccess of [true, false]) {
+				const tx = { $queryRaw: vi.fn(async () => [{ id: "unit", offerSnapshot }]) };
+				const result = assertImagePassAvailable({ ...selection, requireModelAccess }, tx as never);
+				if (JSON.stringify(offerSnapshot) === JSON.stringify(getImagePassOfferSnapshot()))
+					await expect(result).resolves.toBeUndefined();
+				else await expect(result).rejects.toThrow("IMAGE_PASS_INSUFFICIENT");
+			}
+		},
+	);
+	it.each([
+		undefined,
+		null,
+		{ ...policy, version: "unreviewed-v2" },
+		{ ...policy, unitsPerSuccessfulOutput: 0 },
+	])(
+		"rejects missing/forged policy before looking up a grant %j",
+		async (imagePassBenefitPolicy) => {
+			const tx = { $queryRaw: vi.fn() };
+			await expect(
+				assertImagePassAvailable({ ...selection, imagePassBenefitPolicy }, tx as never),
+			).rejects.toThrow("IMAGE_PASS_SELECTION_INVALID");
+			expect(tx.$queryRaw).not.toHaveBeenCalled();
+		},
+	);
+	it.each(["png", "jpeg", "svg", "gif"])(
+		"rechecks frozen %s coverage under owner and job locks before reserving one unit",
+		async (outputFormat) => {
+			const events: string[] = [];
+			const tx = {
+				$executeRaw: vi.fn(async (parts: TemplateStringsArray) => {
+					events.push(parts.join("?"));
+					return 1;
+				}),
+				$queryRaw: vi
+					.fn()
+					.mockImplementationOnce(async (parts: TemplateStringsArray) => {
+						events.push(parts.join("?"));
+						return [
+							{
+								ownerId: "owner",
+								ownerType: "USER",
+								fundingSource: "IMAGE_PASS",
+								creditsReserved: 0n,
+								productKey: selection.productKey,
+								status: "RESERVED",
+								inputSnapshot: { outputFormat },
+								pricingSnapshot: {
+									fundingSource: "IMAGE_PASS",
+									skuKey: selection.skuKey,
+									imagePassBenefitPolicy: policy,
+									settlementPolicy: { requestedOutputCount: 1 },
+								},
+							},
+						];
+					})
+					.mockResolvedValueOnce([])
+					.mockResolvedValueOnce([{ now: new Date("2099-01-01T00:00:00Z") }])
+					.mockResolvedValueOnce([
+						{ id: "unit", grantId: "grant", offerSnapshot: getImagePassOfferSnapshot() },
+					]),
+				subscription: { findMany: vi.fn(async () => []) },
+				billingPeriod: { fields: { paidAmount: "paidAmount" } },
+			};
+			await expect(
+				reserveImagePassForJobInTransaction({ ownerId: "owner", jobId: "job" }, tx as never),
+			).resolves.toMatchObject({ fundingSource: "IMAGE_PASS", amount: 1n });
+			expect(events[0]).toContain("pg_advisory_xact_lock");
+			expect(events[1]).toContain("FOR UPDATE");
+			const [parts, ...parameters] = tx.$queryRaw.mock.calls[3] as unknown as [
+				TemplateStringsArray,
+				...unknown[],
+			];
+			expect(parts.join("?")).toContain("FOR UPDATE OF unit,g");
+			expect(parameters).toContain(JSON.stringify(getImagePassOfferSnapshot()));
+			expect(parameters).toContain(true);
+			expect(tx.$executeRaw).toHaveBeenCalledTimes(4);
+		},
+	);
+	it.each([undefined, { ...policy, version: "unknown" }])(
+		"never upgrades unreserved historical/unknown snapshots %j",
+		async (imagePassBenefitPolicy) => {
+			const tx = {
+				$executeRaw: vi.fn(async () => 1),
+				$queryRaw: vi
+					.fn()
+					.mockResolvedValueOnce([
+						{
+							ownerId: "owner",
+							ownerType: "USER",
+							fundingSource: "IMAGE_PASS",
+							creditsReserved: 0n,
+							productKey: selection.productKey,
+							status: "RESERVED",
+							inputSnapshot: { outputFormat: "gif" },
+							pricingSnapshot: {
+								fundingSource: "IMAGE_PASS",
+								skuKey: selection.skuKey,
+								imagePassBenefitPolicy,
+								settlementPolicy: { requestedOutputCount: 1 },
+							},
+						},
+					])
+					.mockResolvedValueOnce([]),
+			};
+			await expect(
+				reserveImagePassForJobInTransaction({ ownerId: "owner", jobId: "job" }, tx as never),
+			).rejects.toThrow("IMAGE_PASS_SELECTION_INVALID");
+			expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+		},
+	);
+	it("projects 35 effective SKUs only for current grants and never mutates a frozen grant", async () => {
+		for (const offerSnapshot of [
+			getImagePassOfferSnapshot(),
+			IMAGE_PASS_LEGACY_OFFER,
+			IMAGE_PASS_STANDARD_OFFER,
+		]) {
+			const original = JSON.stringify(offerSnapshot);
+			const tx = {
+				$queryRaw: vi
+					.fn()
+					.mockResolvedValueOnce([{ available: 2n, reserved: 0n, consumed: 1n, revoked: 0n }])
+					.mockResolvedValue([{ offerSnapshot }]),
+			};
+			const balance = await getImagePassBalance({ ownerId: "owner" }, tx as never);
+			const current = offerSnapshot.offerVersion === "2026-11-04.2";
+			expect(balance.availableSkuKeys).toHaveLength(
+				current ? 35 : offerSnapshot.allowedSkuKeys.length,
+			);
+			expect(balance.subscriptionFreeSkuKeys).toHaveLength(current ? 35 : 0);
+			expect(balance.available).toBe(2);
+			expect(JSON.stringify(offerSnapshot)).toBe(original);
+		}
 	});
 });

@@ -16,12 +16,13 @@ import {
 	KIE_POLICY_REJECTION_BILLING_POLICY,
 	OUTPUT_MODERATION_BILLING_POLICY,
 	isGptImage26Sku,
-	isImagePassSkuAllowed,
 	type ProductModelKey,
 } from "@repo/config";
+import { IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY } from "@repo/config/image-pass";
 import type { Prisma } from "@repo/database";
 import {
 	assertImagePassSelection,
+	assertImagePassBenefitSelection,
 	generationFundingSource,
 	type GenerationFundingSource,
 } from "@repo/database/media-image-passes";
@@ -31,14 +32,23 @@ export function buildMediaQuote(
 		productKey: ProductModelKey;
 		input: MediaModelInput;
 		fundingSource?: GenerationFundingSource;
+		/** Server-only retry input; an explicit undefined preserves an unmarked historical policy. */
+		imagePassBenefitPolicy?: unknown;
 	},
 	routeGraphOptions: ExecutableRouteGraphOptions = executableRouteGraphOptionsFromEnvironment(),
 ) {
 	if (!DEFAULT_PRODUCT_CONFIG.features.mediaGeneration) throw new Error("MODEL_DISABLED");
 	const quote = quoteCatalogInput(input);
 	const fundingSource = generationFundingSource({ fundingSource: input.fundingSource });
+	const imagePassBenefitPolicy = Object.hasOwn(input, "imagePassBenefitPolicy")
+		? input.imagePassBenefitPolicy
+		: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY;
 	if (fundingSource === "IMAGE_PASS") {
-		if (!isImagePassSkuAllowed(quote.skuKey)) throw new Error("IMAGE_PASS_SELECTION_INVALID");
+		assertImagePassBenefitSelection({
+			skuKey: quote.skuKey,
+			imagePassBenefitPolicy,
+			outputFormat: "outputFormat" in input.input ? input.input.outputFormat : undefined,
+		});
 		assertImagePassSelection({
 			productKey: input.productKey,
 			skuKey: quote.skuKey,
@@ -91,7 +101,15 @@ export function buildMediaQuote(
 					retailPolicy: "fixed-image-format-credits-v1",
 				}
 			: {}),
-		...(fundingSource === "IMAGE_PASS" ? { fundingSource, imagePassUnits: 1 } : {}),
+		...(fundingSource === "IMAGE_PASS"
+			? {
+					fundingSource,
+					imagePassUnits: 1,
+					...(imagePassBenefitPolicy === undefined
+						? {}
+						: { imagePassBenefitPolicy: imagePassBenefitPolicy as Prisma.InputJsonObject }),
+				}
+			: {}),
 		...(fundingSource === "CREDITS"
 			? { kiePolicyRejectionBillingPolicy: KIE_POLICY_REJECTION_BILLING_POLICY }
 			: {}),

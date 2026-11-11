@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { EffectEditorContext } from "../../effects/lib/editor-context";
 import type { EffectPageContent, PublicEffectPreset } from "../../effects/lib/types";
 import { resolveEditorAllowedProductKeys } from "../lib/editor-recovery";
+import type { PublicImageSpecMatrix } from "../lib/image-sku-selection";
 import { ToolPromptProvider } from "../lib/tool-prompt-context";
 
 const mocks = vi.hoisted(() => ({ useGeneration: vi.fn(), modelOptions: vi.fn() }));
@@ -405,6 +406,82 @@ function withEffectEditor(child: React.ReactNode) {
 }
 
 describe("GenerationForm product copy", () => {
+	it.each([
+		{ path: "/gpt-image-2-6", outputFormat: "png" as const, size: "4k" as const, credits: 100 },
+		{ path: "/ai-svg-generator", outputFormat: "svg" as const, size: "1k" as const, credits: 25 },
+		{ path: "/ai-gif-generator", outputFormat: "gif" as const, size: "1k" as const, credits: 25 },
+	])(
+		"shows one-pass funding without a subscription gate at $path",
+		({ path, outputFormat, size, credits }) => {
+			navigation.pathname = path;
+			navigation.search = "model=image-gpt-image-2-6-sunburst";
+			const skuKey = `gpt-image-2-6-sunburst-${size}` as const;
+			const state = generationState();
+			const products = [
+				{
+					key: "image-gpt-image-2-6-sunburst",
+					label: "GPT Image 2.6 Sunburst",
+					description: "Detailed images",
+					credits,
+					fields: [],
+					skuMatrix: {
+						...gptMatrix,
+						defaultSkuKey: skuKey,
+						cells: [
+							{
+								...gptMatrix.cells[0],
+								skuKey,
+								credits,
+								parameterValues: { resolution: size },
+								aspectRatios: ["1:1"],
+								controls: [
+									{
+										key: "outputFormat",
+										label: "Output format",
+										defaultValue: "png",
+										options: ["png", "svg", "gif"].map((key) => ({
+											key,
+											label: key.toUpperCase(),
+										})),
+									},
+								],
+							},
+						],
+					} satisfies PublicImageSpecMatrix,
+				},
+			];
+			mocks.useGeneration.mockReturnValue({
+				...state,
+				catalog: { data: { products } },
+				imagePass: {
+					data: { available: 2, availableSkuKeys: [skuKey], subscriptionFreeSkuKeys: [skuKey] },
+					isError: false,
+				},
+			});
+			const markup = renderToStaticMarkup(
+				<GenerationForm
+					onCreated={vi.fn()}
+					initialFundingSource="IMAGE_PASS"
+					allowedProductKeys={resolveEditorAllowedProductKeys(undefined, undefined)}
+					initialDraft={{
+						productKey: "image-gpt-image-2-6-sunburst",
+						input: {
+							kind: "text-to-image",
+							prompt: "A paper forest",
+							skuKey,
+							aspectRatio: "1:1",
+							outputFormat,
+							...(outputFormat === "gif" ? { frameCount: 16, frameDurationMs: 120 } : {}),
+						},
+					}}
+				/>,
+			);
+			expect(markup).toContain("onePass");
+			expect(markup).not.toContain("View plans");
+			expect(markup).not.toContain("fundingSizeNotEligible");
+			expect(markup.match(/<button(?=[^>]*type="submit")[^>]*>/)?.[0]).not.toContain("disabled");
+		},
+	);
 	it.each(["new-pass", "legacy-pass", "credits"])(
 		"keeps premium controls and the submit action aligned for %s funding",
 		(funding) => {

@@ -19,6 +19,7 @@ import { db } from "@repo/database/client";
 import {
 	assertImagePassAvailable,
 	assertImagePassSelection,
+	assertImagePassBenefitSelection,
 	generationFundingSource,
 	type GenerationFundingSource,
 } from "@repo/database/media-image-passes";
@@ -65,6 +66,8 @@ export interface GenerationAccessSnapshot {
 
 export interface GenerationAuthorizationInput {
 	fundingSource?: GenerationFundingSource;
+	/** Frozen server quote benefit policy; never read directly from the request. */
+	imagePassBenefitPolicy?: unknown;
 	/** Server-selected HTTP flood bucket; never a customer credit or trial counter. */
 	rateLimitAction?: "media:quote" | "media:generation";
 	/** Request-local capability; a client object or another owner cannot satisfy it. */
@@ -202,6 +205,8 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 								ownerId: input.userId,
 								productKey: input.productKey,
 								skuKey: "skuKey" in input.input ? input.input.skuKey : undefined,
+								imagePassBenefitPolicy: input.imagePassBenefitPolicy,
+								outputFormat: "outputFormat" in input.input ? input.input.outputFormat : undefined,
 								requestedOutputCount: 1,
 								requireModelAccess: !planAccess.entitlement.allowedProducts.includes(
 									input.productKey,
@@ -243,12 +248,18 @@ export async function assertGenerationAllowed(
 		throw new Error("MODEL_DISABLED");
 	}
 	const fundingSource = generationFundingSource({ fundingSource: input.fundingSource });
-	if (fundingSource === "IMAGE_PASS")
+	if (fundingSource === "IMAGE_PASS") {
+		assertImagePassBenefitSelection({
+			skuKey: "skuKey" in input.input ? input.input.skuKey : undefined,
+			imagePassBenefitPolicy: input.imagePassBenefitPolicy,
+			outputFormat: "outputFormat" in input.input ? input.input.outputFormat : undefined,
+		});
 		assertImagePassSelection({
 			productKey: input.productKey,
 			skuKey: "skuKey" in input.input ? input.input.skuKey : undefined,
 			requestedOutputCount: 1,
 		});
+	}
 	if (input.rateLimitReceipt !== undefined) {
 		if (
 			rateLimitReceiptOwners.get(input.rateLimitReceipt) !== input.userId ||

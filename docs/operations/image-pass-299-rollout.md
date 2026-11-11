@@ -3,7 +3,8 @@
 The owner approved USD 2.99 for any three successful images using all currently available image
 models and resolutions, including Pro and 4K, without an additional subscription. Offer
 `2026-11-04.2` freezes the current 29 SKU keys and `subscriptionPolicy=not-required`.
-Future catalog additions require a new reviewed offer version. Standard content, readiness,
+The approved GPT Image 2.6 extension below uses a separate reviewed benefit policy; it does not
+edit those 29 keys. Further catalog additions need their own reviewed, versioned contract. Standard content, readiness,
 storage, ownership, debt and provider-cost safeguards still apply. One successful output consumes
 one unit. Unknown provider acceptance retains the original unit reservation.
 
@@ -14,6 +15,35 @@ one unit. Unknown provider acceptance retains the original unit reservation.
 | `2026-10-19.1` | USD 1.00 | Original frozen 29 SKUs                  | Existing subscription rules        |
 | `2026-11-04.1` | USD 1.00 | Frozen 15 standard 1K/2K SKUs            | Existing subscription rules        |
 | `2026-11-04.2` | USD 2.99 | Frozen current 29 SKUs, including Pro/4K | Included only when using this pack |
+
+### GPT Image 2.6 benefit approved on 2026-11-11
+
+The separate `IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY`, version
+`image-pass-gpt-image-2-6-v1`, applies only to grants paid under `2026-11-04.2`.
+Both remaining available units on existing USD 2.99 grants and new purchases
+can fund Flare and Sunburst PNG/JPEG at 1K, 2K and 4K, static SVG, and GIF with
+2–16 frames. Each successful result consumes one unit. A GIF is one result,
+not one unit per frame. Failed and uncertain attempts retain the existing
+reservation, recovery and settlement rules.
+
+New quotes freeze `imagePassBenefitPolicy`; admission and reservation verify the
+matching eligible grant using the existing account/owner lock. No subscription
+is required when this valid funding source is explicitly selected. It never
+authorizes a credit-funded premium request or a video request. Already accepted
+tasks and reservations remain on their original frozen contracts.
+
+The original 29-SKU offer, order, payment and grant snapshots remain unchanged,
+as do the USD 2.99 price, merchant SKU and BillingPlan. No database migration or
+new PayPal product provisioning is required. Both USD 1 offers remain outside
+this extension. Do not infer coverage from price alone: the validated original
+offer and the versioned benefit policy establish eligibility.
+
+Deploy compatible quote, admission, reservation and settlement readers before
+new benefit-bearing quotes. Rollback must retain consumers capable of honoring
+accepted extension quotes and reserved jobs. The following original provisioning
+procedure remains historical context; do not rerun its migration or provisioning
+SQL as part of this benefit-only release. Record new CI, deployment and live
+funding evidence independently of the prior GPT Image 2.6 model release.
 
 Do not rewrite historical intent snapshots, grants, prices or plan metadata. The two USD 1 offers
 legitimately share their original BillingPlan. New sales use the distinct local merchant SKU

@@ -62,6 +62,14 @@ export function ImageToolPage({
 						</section>
 						<p className="ai-tool-settings-note">{content.settingsNote}</p>
 						<p className="ai-tool-settings-note">
+							<Link href="/image-pass" prefetch={false}>
+								3 successful results for $2.99
+							</Link>
+							{
+								": use new or remaining $2.99 pack passes for Flare, Sunburst, SVG or GIF. One successful result uses one pass, with no subscription required."
+							}
+						</p>
+						<p className="ai-tool-settings-note">
 							Generation is available only when the selected model is available in the editor. If it
 							is unavailable, you can prepare a prompt and return later.
 						</p>

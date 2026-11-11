@@ -40,6 +40,9 @@ describe("Image Pass workspace continuity", () => {
 		"/create?example=cat-watercolor",
 		"/models/nano-banana-2",
 		"/image-to-image",
+		"/gpt-image-2-6",
+		"/ai-svg-generator",
+		"/ai-gif-generator",
 		"/photo-to-coloring-page",
 		"/blog/1980s-ai-photo?preset=studio-portrait",
 	])("returns to and restores the same owner's draft at %s", (path) => {
@@ -53,6 +56,43 @@ describe("Image Pass workspace continuity", () => {
 		expect(loadWorkspaceDraft(storage, "owner-a", now + 25 * 60_000, path)).toEqual(imagePassDraft);
 		expect(JSON.parse(storage.getItem(WORKSPACE_DRAFT_KEY)!).savedAt).toBe(now);
 	});
+	it.each([
+		{
+			path: "/gpt-image-2-6",
+			outputFormat: "png" as const,
+			skuKey: "gpt-image-2-6-sunburst-4k" as const,
+		},
+		{
+			path: "/ai-svg-generator",
+			outputFormat: "svg" as const,
+			skuKey: "gpt-image-2-6-sunburst-1k" as const,
+		},
+		{
+			path: "/ai-gif-generator",
+			outputFormat: "gif" as const,
+			skuKey: "gpt-image-2-6-sunburst-1k" as const,
+		},
+	])(
+		"preserves one-pass funding and exact GPT 2.6 controls after purchase at $path",
+		({ path, outputFormat, skuKey }) => {
+			const storage = memoryStorage();
+			const draft: WorkspaceDraft = {
+				...imagePassDraft,
+				values: {
+					...imagePassDraft.values,
+					productKey: "image-gpt-image-2-6-sunburst",
+					skuKey,
+					outputFormat,
+					...(outputFormat === "gif" ? { frameCount: 16, frameDurationMs: 120 } : {}),
+				},
+			};
+			expect(saveWorkspaceDraft(storage, "owner-a", draft, now, path)).toBe(true);
+			expect(workspaceDraftReturnPath(storage, "owner-a", now + 1)).toBe(
+				`${path}?resume=workspace`,
+			);
+			expect(loadWorkspaceDraft(storage, "owner-a", now + 1, path)).toEqual(draft);
+		},
+	);
 
 	it("keeps the temporary input receipt intact without treating it as fresh authorization", () => {
 		const storage = memoryStorage();

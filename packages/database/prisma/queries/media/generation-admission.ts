@@ -18,6 +18,8 @@ export async function loadCurrentGenerationAdmission(
 		now: Date;
 		fundingSource?: GenerationFundingSource;
 		skuKey?: unknown;
+		imagePassBenefitPolicy?: unknown;
+		outputFormat?: unknown;
 	},
 	tx: MediaDatabaseClient,
 ) {
@@ -46,6 +48,8 @@ export async function loadCurrentGenerationAdmission(
 				ownerId: input.ownerId,
 				productKey,
 				skuKey: input.skuKey,
+				imagePassBenefitPolicy: input.imagePassBenefitPolicy,
+				outputFormat: input.outputFormat,
 				requireModelAccess: !planIncludesProduct,
 			},
 			tx,

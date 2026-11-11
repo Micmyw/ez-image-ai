@@ -2,6 +2,10 @@ import { describe, it, expect, vi } from "vitest";
 
 import {
 	getImagePassOfferSnapshot,
+	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+	imagePassEffectiveSkuKeys,
+	imagePassCoversSelection,
+	isImagePassBenefitPolicy,
 	isImagePassOfferSnapshot,
 	isImagePassSkuAllowed,
 	imagePassIncludesModelAccess,
@@ -153,5 +157,67 @@ describe("USD 2.99 three-image offer and immutable historical purchases", () => 
 		{ metadata: { imagePassOfferSnapshot: IMAGE_PASS_LEGACY_OFFER } },
 	])("rejects mixed price/identity plan %s", (patch) => {
 		expect(isImagePassBillingPlan({ ...currentPlan, ...patch })).toBe(false);
+	});
+});
+
+describe("versioned GPT Image 2.6 image-pass benefit", () => {
+	const policy = IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY;
+	it("extends only valid USD 2.99 grants without changing their 29-SKU purchase", () => {
+		const paidSnapshot = getImagePassOfferSnapshot();
+		const before = JSON.stringify(paidSnapshot);
+		expect(imagePassEffectiveSkuKeys(paidSnapshot, policy)).toHaveLength(35);
+		expect(imagePassEffectiveSkuKeys(paidSnapshot)).toHaveLength(29);
+		expect(JSON.stringify(paidSnapshot)).toBe(before);
+		for (const old of oldOffers) {
+			expect(imagePassEffectiveSkuKeys(old, policy)).toEqual(old.allowedSkuKeys);
+			for (const skuKey of policy.addedSkuKeys)
+				expect(
+					imagePassCoversSelection({ offerSnapshot: old, skuKey, benefitPolicy: policy }),
+				).toBe(false);
+		}
+	});
+	it.each([
+		{ version: "unknown" },
+		{ eligibleOfferVersion: "2026-10-19.1" },
+		{ addedSkuKeys: [...policy.addedSkuKeys, "future-model"] },
+		{ addedSkuKeys: [...policy.addedSkuKeys].reverse() },
+		{ outputFormats: ["png", "jpeg", "svg", "gif", "mp4"] },
+		{ unitsPerSuccessfulOutput: 0 },
+		{ unexpected: true },
+	])("fails closed on forged benefit %j", (patch) => {
+		const forged = { ...policy, ...patch };
+		expect(isImagePassBenefitPolicy(forged)).toBe(false);
+		expect(imagePassEffectiveSkuKeys(getImagePassOfferSnapshot(), forged)).toEqual([]);
+	});
+	it.each([
+		{ amount: "1.00" },
+		{ allowedSkuKeys: [...policy.addedSkuKeys] },
+		{ units: 10 },
+		{ subscriptionPolicy: "required" },
+	])("requires the complete original offer %j", (patch) => {
+		expect(imagePassEffectiveSkuKeys({ ...getImagePassOfferSnapshot(), ...patch }, policy)).toEqual(
+			[],
+		);
+	});
+	it("accepts exactly static 1K/2K/4K and supported 1K SVG/GIF results", () => {
+		for (const skuKey of policy.addedSkuKeys) {
+			for (const outputFormat of ["png", "jpeg", "svg", "gif", "mp4"]) {
+				expect(
+					imagePassCoversSelection({
+						offerSnapshot: getImagePassOfferSnapshot(),
+						skuKey,
+						benefitPolicy: policy,
+						outputFormat,
+					}),
+				).toBe(
+					["png", "jpeg"].includes(outputFormat) ||
+						(skuKey.endsWith("-1k") && ["svg", "gif"].includes(outputFormat)),
+				);
+			}
+			expect(imagePassCoversSelection({ offerSnapshot: getImagePassOfferSnapshot(), skuKey })).toBe(
+				false,
+			);
+		}
+		expect(isImagePassBenefitPolicy(JSON.parse(JSON.stringify(policy)))).toBe(true);
 	});
 });

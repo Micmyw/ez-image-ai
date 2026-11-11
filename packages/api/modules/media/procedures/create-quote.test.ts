@@ -1,3 +1,4 @@
+import { IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY } from "@repo/config/image-pass";
 import { fingerprintGenerationQuoteSecurityPayload } from "@repo/database/media-quotes";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -71,6 +72,67 @@ describe("createQuoteForUser", () => {
 		});
 		expect(prepared!.moderation.inputFingerprint).toBe(
 			fingerprintGenerationQuoteSecurityPayload(prepared!),
+		);
+	});
+	it("freezes server-selected pass expansion in moderation and sends the same policy to authorization", async () => {
+		const assertAllowed = vi.fn(async () => undefined);
+		const persistApproved = vi.fn(async (quote) => ({ id: "pass-quote", ...quote }));
+		const input = createQuoteInputSchema.parse({
+			productKey: "image-gpt-image-2-6-flare",
+			fundingSource: "IMAGE_PASS",
+			imagePassBenefitPolicy: { version: "client-forged" },
+			input: {
+				kind: "text-to-image",
+				prompt: "A looping paper boat",
+				skuKey: "gpt-image-2-6-flare-1k",
+				aspectRatio: "1:1",
+				outputFormat: "gif",
+				frameCount: 16,
+			},
+		});
+		expect(input).not.toHaveProperty("imagePassBenefitPolicy");
+		await createQuoteForUser("user_1", input, {
+			now: () => new Date(),
+			assertAllowed,
+			persistApproved,
+			recordDenied: vi.fn(),
+			getRouteGraphOptions: async () => ({
+				enabledProviders: new Set(["kie" as const]),
+				generationEnabled: true,
+			}),
+			createAdapter: () => ({
+				provider: "waffo",
+				adapter: {
+					moderateText: async ({ ruleVersion }) => ({
+						decision: "ALLOW",
+						reasonCode: "NO_POLICY_MATCH",
+						ruleVersion,
+					}),
+				},
+			}),
+		});
+		expect(assertAllowed).toHaveBeenCalledWith(
+			expect.objectContaining({
+				fundingSource: "IMAGE_PASS",
+				imagePassBenefitPolicy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+			}),
+		);
+		const frozen = persistApproved.mock.calls[0]![0];
+		expect(frozen.pricingSnapshot).toMatchObject({
+			imagePassBenefitPolicy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+			imagePassUnits: 1,
+		});
+		expect(frozen.moderation.inputFingerprint).toBe(
+			fingerprintGenerationQuoteSecurityPayload(frozen),
+		);
+		expect(frozen.moderation.inputFingerprint).not.toBe(
+			fingerprintGenerationQuoteSecurityPayload({
+				...frozen,
+				pricingSnapshot: {
+					...frozen.pricingSnapshot,
+					imagePassBenefitPolicy: { ...IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY, version: "forged" },
+				},
+			}),
 		);
 	});
 	it("rejects a changed displayed price before moderation or persistence", async () => {

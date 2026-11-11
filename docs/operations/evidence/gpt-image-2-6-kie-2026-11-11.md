@@ -125,8 +125,10 @@ Recommended application contract: freeze a fixed retail credit quote before
 admission using explicit quality/size/format/frame choices; keep an explicitly
 labelled internal provider-cost estimate separate from that retail charge;
 record actual Kie consumption after authenticated retrieval; preserve existing
-settlement and uncertainty rules. Historical image-pass coverage and retail
-prices must remain frozen. Do not copy GPT 2.5's fixed route costs as verified
+settlement and uncertainty rules. Historical image-pass offer/payment snapshots
+and accepted retail quotes remain frozen. The separately approved USD 2.99
+benefit extension is an application funding decision, not a Kie price claim;
+see [the rollout](../gpt-image-2-6-rollout.md). Do not copy GPT 2.5's fixed route costs as verified
 2.6 prices, or treat an internal estimate as a provider-enforced spending cap.
 
 ### Initial application pricing choices

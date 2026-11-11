@@ -1,6 +1,10 @@
 import { IMAGE_SKU_KEYS_BY_PRODUCT, resolvePlanEntitlement } from "@repo/config";
 import {
 	IMAGE_PASS_PUBLIC_OFFER,
+	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+	imagePassCoversSelection,
+	imagePassEffectiveSkuKeys,
+	isImagePassBenefitPolicy,
 	imagePassIncludesModelAccess,
 	isImagePassOfferSnapshot,
 } from "@repo/config/image-pass";
@@ -52,16 +56,29 @@ export async function assertImagePassAvailable(
 		productKey: string;
 		skuKey: unknown;
 		requestedOutputCount?: unknown;
+		imagePassBenefitPolicy?: unknown;
+		outputFormat?: unknown;
 		/** Server-derived: the current plan does not include this product. */
 		requireModelAccess?: boolean;
 	},
 	tx: ImagePassReadClient,
 ): Promise<void> {
 	assertImagePassSelection({ ...input, requestedOutputCount: input.requestedOutputCount ?? 1 });
+	assertImagePassBenefitSelection(input);
+	const expanded = isExpandedImagePassSelection(input.skuKey, input.imagePassBenefitPolicy);
 	const [unit] = await tx.$queryRaw<
 		Array<{ id: string; offerSnapshot: unknown }>
-	>`SELECT unit."id",g."offerSnapshot" FROM "image_pass_unit" unit JOIN "image_pass_grant" g ON g."id"=unit."grantId" WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE' AND unit."status"='AVAILABLE' AND (g."offerSnapshot"->'allowedSkuKeys') ? ${String(input.skuKey)} AND (${!input.requireModelAccess} OR (g."offerSnapshot"->>'offerVersion'=${IMAGE_PASS_PUBLIC_OFFER.offerVersion} AND g."offerSnapshot"->>'subscriptionPolicy'='not-required')) LIMIT 1`;
-	if (!unit || (input.requireModelAccess && !imagePassIncludesModelAccess(unit.offerSnapshot)))
+	>`SELECT unit."id",g."offerSnapshot" FROM "image_pass_unit" unit JOIN "image_pass_grant" g ON g."id"=unit."grantId" WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE' AND unit."status"='AVAILABLE' AND ((g."offerSnapshot"->'allowedSkuKeys') ? ${String(input.skuKey)} OR (${expanded} AND g."offerSnapshot" @> ${JSON.stringify(IMAGE_PASS_PUBLIC_OFFER)}::jsonb AND g."offerSnapshot"->'allowedSkuKeys'=${JSON.stringify(IMAGE_PASS_PUBLIC_OFFER.allowedSkuKeys)}::jsonb)) AND (${!input.requireModelAccess} OR (g."offerSnapshot"->>'offerVersion'=${IMAGE_PASS_PUBLIC_OFFER.offerVersion} AND g."offerSnapshot"->>'subscriptionPolicy'='not-required')) LIMIT 1`;
+	if (
+		!unit ||
+		!imagePassCoversSelection({
+			offerSnapshot: unit.offerSnapshot,
+			skuKey: input.skuKey,
+			benefitPolicy: input.imagePassBenefitPolicy,
+			outputFormat: input.outputFormat,
+		}) ||
+		(input.requireModelAccess && !imagePassIncludesModelAccess(unit.offerSnapshot))
+	)
 		throw new Error("IMAGE_PASS_INSUFFICIENT");
 }
 export async function reserveImagePassForJobInTransaction(
@@ -77,9 +94,10 @@ export async function reserveImagePassForJobInTransaction(
 			creditsReserved: bigint;
 			productKey: string;
 			pricingSnapshot: unknown;
+			inputSnapshot: unknown;
 			status: string;
 		}>
-	>`SELECT "ownerId","ownerType","fundingSource","creditsReserved","productKey","pricingSnapshot","status" FROM "generation_job" WHERE "id"=${input.jobId} FOR UPDATE`;
+	>`SELECT "ownerId","ownerType","fundingSource","creditsReserved","productKey","pricingSnapshot","inputSnapshot","status" FROM "generation_job" WHERE "id"=${input.jobId} FOR UPDATE`;
 	if (!job || job.ownerType !== "USER" || job.ownerId !== input.ownerId)
 		throw new Error("IMAGE_PASS_OWNER_INVALID");
 	if (
@@ -97,6 +115,16 @@ export async function reserveImagePassForJobInTransaction(
 	});
 	const replay = await getGenerationFundingReservation(input.jobId, tx, null);
 	if (replay) return replay;
+	const benefitSelection = {
+		skuKey: snapshot?.skuKey,
+		imagePassBenefitPolicy: snapshot?.imagePassBenefitPolicy,
+		outputFormat: record(job.inputSnapshot)?.outputFormat,
+	};
+	assertImagePassBenefitSelection(benefitSelection);
+	const expanded = isExpandedImagePassSelection(
+		benefitSelection.skuKey,
+		benefitSelection.imagePassBenefitPolicy,
+	);
 	if (!["RESERVED", "DISPATCH_QUEUED"].includes(job.status))
 		throw new Error("IMAGE_PASS_UNAVAILABLE");
 	// The selected unit itself must authorize the product. An earlier quote can
@@ -112,8 +140,17 @@ export async function reserveImagePassForJobInTransaction(
 	const requireModelAccess = !entitlement.allowedProducts.some((key) => key === job.productKey);
 	const [unit] = await tx.$queryRaw<
 		Array<{ id: string; grantId: string; offerSnapshot: unknown }>
-	>`SELECT unit."id",unit."grantId",g."offerSnapshot" FROM "image_pass_unit" unit JOIN "image_pass_grant" g ON g."id"=unit."grantId" WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE' AND unit."status"='AVAILABLE' AND (g."offerSnapshot"->'allowedSkuKeys') ? ${String(snapshot?.skuKey)} AND (${!requireModelAccess} OR (g."offerSnapshot"->>'offerVersion'=${IMAGE_PASS_PUBLIC_OFFER.offerVersion} AND g."offerSnapshot"->>'subscriptionPolicy'='not-required')) ORDER BY g."paidAt",g."id",unit."ordinal" LIMIT 1 FOR UPDATE OF unit,g`;
-	if (!unit || (requireModelAccess && !imagePassIncludesModelAccess(unit.offerSnapshot)))
+	>`SELECT unit."id",unit."grantId",g."offerSnapshot" FROM "image_pass_unit" unit JOIN "image_pass_grant" g ON g."id"=unit."grantId" WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE' AND unit."status"='AVAILABLE' AND ((g."offerSnapshot"->'allowedSkuKeys') ? ${String(snapshot?.skuKey)} OR (${expanded} AND g."offerSnapshot" @> ${JSON.stringify(IMAGE_PASS_PUBLIC_OFFER)}::jsonb AND g."offerSnapshot"->'allowedSkuKeys'=${JSON.stringify(IMAGE_PASS_PUBLIC_OFFER.allowedSkuKeys)}::jsonb)) AND (${!requireModelAccess} OR (g."offerSnapshot"->>'offerVersion'=${IMAGE_PASS_PUBLIC_OFFER.offerVersion} AND g."offerSnapshot"->>'subscriptionPolicy'='not-required')) ORDER BY g."paidAt",g."id",unit."ordinal" LIMIT 1 FOR UPDATE OF unit,g`;
+	if (
+		!unit ||
+		!imagePassCoversSelection({
+			offerSnapshot: unit.offerSnapshot,
+			skuKey: benefitSelection.skuKey,
+			benefitPolicy: benefitSelection.imagePassBenefitPolicy,
+			outputFormat: benefitSelection.outputFormat,
+		}) ||
+		(requireModelAccess && !imagePassIncludesModelAccess(unit.offerSnapshot))
+	)
 		throw new Error("IMAGE_PASS_INSUFFICIENT");
 	const id = crypto.randomUUID();
 	await tx.$executeRaw`UPDATE "image_pass_unit" SET "status"='RESERVED' WHERE "id"=${unit.id} AND "status"='AVAILABLE'`;
@@ -421,8 +458,8 @@ export async function getImagePassBalance(
 		reserved: Number(row?.reserved ?? 0),
 		consumed: Number(row?.consumed ?? 0),
 		revoked: Number(row?.revoked ?? 0),
-		// Sizes the available units can pay for, from each grant's frozen offer
-		// snapshot. Pre-restriction grants keep every size (grandfathered).
+		// Frozen purchase terms plus the explicit current additive benefit.
+		// Historical USD 1 grants retain their own sizes and subscription policy.
 		availableSkuKeys: await getImagePassAvailableSkuKeys(input, tx),
 		subscriptionFreeSkuKeys: await getImagePassSubscriptionFreeSkuKeys(input, tx),
 	};
@@ -431,12 +468,17 @@ export async function getImagePassAvailableSkuKeys(
 	input: { ownerId: string },
 	tx: Prisma.TransactionClient,
 ): Promise<string[]> {
-	const rows = await tx.$queryRaw<Array<{ skuKey: string }>>`
-		SELECT DISTINCT sku."skuKey" FROM "image_pass_grant" g
-		CROSS JOIN LATERAL jsonb_array_elements_text(CASE WHEN jsonb_typeof(g."offerSnapshot"->'allowedSkuKeys')='array' THEN g."offerSnapshot"->'allowedSkuKeys' ELSE '[]'::jsonb END) AS sku("skuKey")
+	const rows = await tx.$queryRaw<Array<{ offerSnapshot: unknown }>>`
+		SELECT DISTINCT g."offerSnapshot" FROM "image_pass_grant" g
 		WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE'
 		AND EXISTS (SELECT 1 FROM "image_pass_unit" unit WHERE unit."grantId"=g."id" AND unit."status"='AVAILABLE')`;
-	return rows.map((row) => row.skuKey).sort();
+	return [
+		...new Set(
+			rows.flatMap(({ offerSnapshot }) =>
+				imagePassEffectiveSkuKeys(offerSnapshot, IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY),
+			),
+		),
+	].sort();
 }
 
 async function getImagePassSubscriptionFreeSkuKeys(
@@ -453,7 +495,7 @@ async function getImagePassSubscriptionFreeSkuKeys(
 		...new Set(
 			rows.flatMap(({ offerSnapshot }) =>
 				imagePassIncludesModelAccess(offerSnapshot) && isImagePassOfferSnapshot(offerSnapshot)
-					? offerSnapshot.allowedSkuKeys
+					? imagePassEffectiveSkuKeys(offerSnapshot, IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY)
 					: [],
 			),
 		),
@@ -527,6 +569,31 @@ export function assertImagePassSelection(input: {
 	] as readonly string[] | undefined;
 	if (typeof input.skuKey !== "string" || !skus?.includes(input.skuKey))
 		throw new Error("IMAGE_PASS_SELECTION_INVALID");
+}
+
+/** Validate the frozen quote policy, never substitute today's policy for an old quote. */
+export function assertImagePassBenefitSelection(input: {
+	skuKey: unknown;
+	imagePassBenefitPolicy?: unknown;
+	outputFormat?: unknown;
+}): void {
+	if (
+		!imagePassCoversSelection({
+			offerSnapshot: IMAGE_PASS_PUBLIC_OFFER,
+			skuKey: input.skuKey,
+			benefitPolicy: input.imagePassBenefitPolicy,
+			outputFormat: input.outputFormat,
+		})
+	)
+		throw new Error("IMAGE_PASS_SELECTION_INVALID");
+}
+
+function isExpandedImagePassSelection(skuKey: unknown, policy: unknown): boolean {
+	return (
+		isImagePassBenefitPolicy(policy) &&
+		typeof skuKey === "string" &&
+		(policy.addedSkuKeys as readonly string[]).includes(skuKey)
+	);
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {

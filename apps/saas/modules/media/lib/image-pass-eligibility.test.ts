@@ -8,7 +8,7 @@ describe("image pass size eligibility in the generation form", () => {
 		expect(imagePassCoversSku(undefined, "nano-banana-2-4k")).toBe(false);
 		expect(imagePassCoversSku({ availableSkuKeys: [] }, "nano-banana-pro-1k")).toBe(false);
 	});
-	it("grants independent model access only from the server's available frozen grants", () => {
+	it("grants independent model access only from the server's effective available grants", () => {
 		const current = {
 			availableSkuKeys: ["nano-banana-pro-4k", "gpt-image-1-5-high"],
 			subscriptionFreeSkuKeys: ["nano-banana-pro-4k", "gpt-image-1-5-high"],
@@ -23,6 +23,17 @@ describe("image pass size eligibility in the generation form", () => {
 			expect(imagePassIncludesSkuAccess({ ...current, subscriptionFreeSkuKeys: [] }, sku)).toBe(
 				false,
 			);
+		}
+	});
+	it("uses the server's expanded coverage for existing or new USD 2.99 passes", () => {
+		const expanded = ["flare", "sunburst"].flatMap((model) =>
+			["1k", "2k", "4k"].map((size) => `gpt-image-2-6-${model}-${size}`),
+		);
+		const balance = { availableSkuKeys: expanded, subscriptionFreeSkuKeys: expanded };
+		for (const sku of expanded) {
+			expect(imagePassCoversSku(balance, sku)).toBe(true);
+			expect(imagePassIncludesSkuAccess(balance, sku)).toBe(true);
+			expect(imagePassCoversSku({ availableSkuKeys: ["gpt-image-2-1k"] }, sku)).toBe(false);
 		}
 	});
 	it("follows the sizes frozen on the owner's available grants", () => {

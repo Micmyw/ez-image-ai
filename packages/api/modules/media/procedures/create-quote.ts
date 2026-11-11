@@ -152,6 +152,7 @@ export async function createQuoteForUser(
 			rateLimitReceipt: submission?.rateLimitReceipt,
 			userId,
 			fundingSource: input.fundingSource,
+			imagePassBenefitPolicy: quote.pricingSnapshot.imagePassBenefitPolicy,
 			productKey: input.productKey,
 			credits: quote.credits,
 			costMicros: quote.costMicros,
