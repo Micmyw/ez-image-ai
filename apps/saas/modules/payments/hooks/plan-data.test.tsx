@@ -45,21 +45,21 @@ describe("SaaS plan data", () => {
 		]);
 		expect(planData?.creator?.features.slice(0, 5)).toEqual([
 			"Localized credits 700",
-			"Localized images 28-140 at 5-25",
+			"Localized images 7-140 at 5-100",
 			"Localized monthly expiry",
 			"Localized size 20",
 			"Localized pricing.products.creator.features.contract",
 		]);
 		expect(planData?.ultimate?.features.slice(0, 5)).toEqual([
 			"Localized credits 1800",
-			"Localized images 72-360 at 5-25",
+			"Localized images 18-360 at 5-100",
 			"Localized monthly expiry",
 			"Localized size 20",
 			"Localized pricing.products.ultimate.features.contract",
 		]);
 		expect(planData?.studio?.features.slice(0, 5)).toEqual([
 			"Localized credits 3000",
-			"Localized images 120-600 at 5-25",
+			"Localized images 30-600 at 5-100",
 			"Localized monthly expiry",
 			"Localized size 20",
 			"Localized pricing.products.studio.features.contract",

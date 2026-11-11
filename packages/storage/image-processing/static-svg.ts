@@ -113,7 +113,7 @@ export function validateStaticSvg(bytes: Uint8Array): {
 	if (!bytes.length || bytes.length > 2 * 1024 * 1024) invalid();
 	let source: string;
 	try {
-		source = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+		source = new TextDecoder("utf-8", { fatal: true, ignoreBOM: false }).decode(bytes);
 	} catch {
 		return invalid();
 	}

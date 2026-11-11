@@ -4,7 +4,7 @@ import type { CreatePageFilters } from "../../../modules/media/components/editor
 import type { PublicMetadataProps } from "../../../modules/public-content/lib/indexing";
 import { createPublicPageMetadata } from "../../../modules/public-content/lib/metadata";
 
-export async function generateMetadata(props: PublicMetadataProps = {}) {
+export async function generateMetadata(props: PublicMetadataProps) {
 	const content = IMAGE_TOOL_PAGES["gpt-image-2-6"];
 	return createPublicPageMetadata({
 		...content,
@@ -14,6 +14,6 @@ export async function generateMetadata(props: PublicMetadataProps = {}) {
 	});
 }
 
-export default function Page({ searchParams }: { searchParams?: Promise<CreatePageFilters> } = {}) {
+export default function Page({ searchParams }: { searchParams?: Promise<CreatePageFilters> }) {
 	return <ImageToolPage tool="gpt-image-2-6" searchParams={searchParams} />;
 }

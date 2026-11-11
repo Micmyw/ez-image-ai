@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactElement, ReactNode } from "react";
 import { renderToReadableStream as renderStream } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 const sessionMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@auth/lib/server", () => ({ getSession: sessionMock }));
@@ -216,6 +216,11 @@ type PublicPageModule = {
 	metadata?: Metadata;
 };
 
+type ImageToolPageModule =
+	| typeof import("./(public)/gpt-image-2-6/page")
+	| typeof import("./(public)/ai-svg-generator/page")
+	| typeof import("./(public)/ai-gif-generator/page");
+
 type BlogPageModule = PublicPageModule & {
 	generateStaticParams?: () =>
 		| Array<{ path: string | string[] }>
@@ -264,6 +269,12 @@ const legalFallbackCases = [
 ] as const;
 
 describe("consolidated public route contract", () => {
+	it("requires the image tool props object for Next production page validation", () => {
+		// Next accepts optional searchParams, but its production FirstArg check rejects undefined props.
+		expectTypeOf<Parameters<ImageToolPageModule["default"]>[0]>().toBeObject();
+		expectTypeOf<Parameters<ImageToolPageModule["generateMetadata"]>[0]>().toBeObject();
+	});
+
 	it.each(Object.entries(IMAGE_TOOL_PAGES))(
 		"mounts the working editor before guides and keeps visible FAQs aligned for %s",
 		async (key, content) => {
@@ -557,7 +568,7 @@ describe("consolidated public route contract", () => {
 
 async function resolveMetadata(
 	pageModule: PublicPageModule,
-	props?: unknown,
+	props: unknown = {},
 ): Promise<Metadata | undefined> {
 	if (pageModule.generateMetadata) return pageModule.generateMetadata(props);
 	return pageModule.metadata;
