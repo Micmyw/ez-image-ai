@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 import en from "../../../packages/i18n/translations/en/saas.json";
+import shared from "../../../packages/i18n/translations/en/shared.json";
 
 const path = "/blog/raindance-ai-trend";
 const t = en.videoEffects;
@@ -124,6 +125,12 @@ async function setup(page: Page, state: Scenario) {
 			return reply({ spendableCredits: "240", reservedCredits: "0" });
 		if (endpoint === "media/getPublicCatalog") return reply({ products: [] });
 		if (endpoint === "payments/listPurchases") return reply([]);
+		if (endpoint === "payments/getPendingSubscriptionCheckout") return reply(null);
+		if (
+			endpoint === "payments/getProviderAvailability" ||
+			endpoint === "payments/getCreditPackProviderAvailability"
+		)
+			return reply({ providers: [] });
 		if (endpoint === "videoV1/availability") return reply({ available: false });
 		if (endpoint === "videoV1/catalog")
 			return reply({ available: false, accessAllowed: false, models: [], reasons: [] });
@@ -547,10 +554,10 @@ test("Raindance: integrated stored Duet preference reaches the header login retu
 	);
 });
 
-test("Raindance: insufficient balance opens credit packs and preserves duet photos, mode and duration", async ({
+test("Raindance: a server balance rejection opens credit packs and preserves duet photos, mode and duration", async ({
 	page,
 }) => {
-	const state = scenario({ eligibleCredits: "0", durations: true });
+	const state = scenario({ eligibleCredits: "0", insufficient: true, durations: true });
 	await setup(page, state);
 	await page.getByRole("button", { name: "Duet · 2 photos", exact: true }).click();
 	await page
@@ -559,6 +566,17 @@ test("Raindance: insufficient balance opens credit packs and preserves duet phot
 		.click();
 	await uploadBoth(page);
 	await page.locator(".ve-creator .ve-primary").click();
+	await expect(page.locator(".ve-creator .ve-error")).toHaveText(t.insufficient);
+	await expect(page.locator(".ve-result")).toHaveCount(0);
+	await expect(page.getByRole("button", { name: t.recover, exact: true })).toHaveCount(0);
+	expect(state.quotes).toHaveLength(1);
+	expect(state.creates).toHaveLength(1);
+	const rejectedRequest = state.creates[0];
+	await page.getByRole("button", { name: t.addCredits, exact: true }).click();
+	await expect(page.getByRole("dialog")).toBeVisible();
+	await expect(
+		page.getByRole("dialog").getByRole("button", { name: shared.pricing.creditPacks, exact: true }),
+	).toHaveAttribute("aria-pressed", "true");
 	const stored = await page.evaluate(() => ({
 		marker: JSON.parse(sessionStorage.getItem("ezpic.video-effect.payment-return.v1")!),
 		draft: JSON.parse(sessionStorage.getItem("ezpic.video-effect.v1:raindance-duo:mock-owner")!),
@@ -575,9 +593,10 @@ test("Raindance: insufficient balance opens credit packs and preserves duet phot
 		rightAssetId: "asset-2",
 	});
 	expect(JSON.stringify(stored)).not.toMatch(/blob:|base64|uploadUrl|signed/);
-	expect(state.quotes).toHaveLength(0);
-	expect(state.creates).toHaveLength(0);
+	expect(stored.draft.confirmation).toBeNull();
+	expect(stored.draft.jobId).toBeNull();
 	state.eligibleCredits = "240";
+	state.insufficient = false;
 	await page.goto(`${path}?mode=duo`);
 	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
 	await expect(
@@ -588,6 +607,15 @@ test("Raindance: insufficient balance opens credit packs and preserves duet phot
 	await expect(
 		page.getByRole("button", { name: t.generate.replace("{credits}", "178"), exact: true }),
 	).toBeEnabled();
+	await page
+		.getByRole("button", { name: t.generate.replace("{credits}", "178"), exact: true })
+		.click();
+	await expect(page.locator(".ve-result")).toContainText(t.raindance.creatingScene);
+	expect(state.quotes).toHaveLength(2);
+	expect(state.creates).toHaveLength(2);
+	expect(state.creates[1]?.request).toEqual(rejectedRequest?.request);
+	expect(state.creates[1]?.quoteId).toBe("quote-2");
+	expect(state.creates[1]?.idempotencyKey).not.toBe(rejectedRequest?.idempotencyKey);
 });
 
 test("Raindance: private order and localized views stay out of indexing", async ({ page }) => {

@@ -33,6 +33,7 @@ type Scenario = {
 	ordinaryCatalogRequests: number;
 	eligibleCredits: string;
 	quoteCredits: string;
+	quoteFailure?: string;
 	waitForQuote?: Promise<void>;
 	history?: boolean;
 	jobPatch?: Record<string, unknown>;
@@ -127,6 +128,12 @@ async function setup(page: Page, state: Scenario) {
 			return reply({ spendableCredits: "240", reservedCredits: "0" });
 		if (endpoint === "media/getPublicCatalog") return reply({ products: [] });
 		if (endpoint === "payments/listPurchases") return reply([]);
+		if (endpoint === "payments/getPendingSubscriptionCheckout") return reply(null);
+		if (
+			endpoint === "payments/getProviderAvailability" ||
+			endpoint === "payments/getCreditPackProviderAvailability"
+		)
+			return reply({ providers: [] });
 		if (endpoint === "videoV1/availability") {
 			state.navigationAvailabilityRequests++;
 			return reply({ available: Boolean(state.navigationAvailable) });
@@ -194,6 +201,7 @@ async function setup(page: Page, state: Scenario) {
 		if (endpoint === "videoEffects/quote") {
 			state.quotes.push(body);
 			if (state.waitForQuote) await state.waitForQuote;
+			if (state.quoteFailure) return failure(state.quoteFailure);
 			return reply({
 				quoteId: `quote-${state.quotes.length}`,
 				credits: state.durations
@@ -557,18 +565,21 @@ for (const credits of ["93", "91"])
 			.click();
 		await expect(page.locator(".ve-price strong")).toHaveText(`${credits} credits`);
 		await expect(page.locator("#ve-price-change")).toContainText(`${credits} credits`);
+		expect(state.quotes).toHaveLength(1);
 		expect(state.creates).toHaveLength(0);
 		await page
 			.getByRole("button", { name: `Confirm new total · ${credits} credits`, exact: true })
 			.click();
 		await expect(page.locator(".ve-result")).toContainText(t.stages.CREATING_SCENE);
-		expect(state.quotes).toHaveLength(2);
+		// Confirm the exact quote the user reviewed; another quote could change the price again.
+		expect(state.quotes).toHaveLength(1);
 		expect(state.creates).toHaveLength(1);
-		expect(state.creates[0]?.quoteId).toBe("quote-2");
+		expect(state.creates[0]?.quoteId).toBe("quote-1");
+		expect(state.creates[0]?.request).toEqual(state.quotes[0]);
 	});
 
 for (const width of [1440, 390, 320])
-	test(`UI Mock: ${width}px shows the price and actual video balance before uploads`, async ({
+	test(`UI Mock: ${width}px shows cached price and balance without blocking uploads`, async ({
 		page,
 	}, testInfo) => {
 		await page.setViewportSize({ width, height: 1000 });
@@ -584,12 +595,13 @@ for (const width of [1440, 390, 320])
 			t.creditShortfall.replace("{credits}", "92"),
 		);
 		await expect(page.getByRole("button", { name: t.getQuote, exact: true })).toHaveCount(0);
-		const purchase = page.locator(".ve-creator .ve-primary");
-		await expect(purchase).toHaveText(t.addCredits);
-		await expect(purchase).toBeEnabled();
-		await expect(purchase).toHaveAccessibleDescription(
+		const upload = page.locator(".ve-creator .ve-primary");
+		await expect(upload).toHaveText(t.uploadLeft);
+		await expect(upload).toBeEnabled();
+		await expect(upload).toHaveAccessibleDescription(
 			new RegExp(t.creditShortfall.replace("{credits}", "92")),
 		);
+		await expect(page.getByRole("button", { name: t.addCredits, exact: true })).toBeEnabled();
 		await expect
 			.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
 			.toBe(true);
@@ -601,10 +613,14 @@ for (const width of [1440, 390, 320])
 		});
 	});
 
-test("UI Mock: upload guidance, eligible-credit shortfall and a refreshed balance explain each next action", async ({
+test("UI Mock: upload guidance and a server quote rejection preserve the draft until funds are refreshed", async ({
 	page,
 }) => {
-	const state = scenario({ eligibleCredits: "0", slowUpload: true });
+	const state = scenario({
+		eligibleCredits: "0",
+		slowUpload: true,
+		quoteFailure: "INSUFFICIENT_ELIGIBLE_CREDITS",
+	});
 	await setup(page, state);
 	await expect(page.locator("#ve-upload-left")).toBeEnabled();
 	await page.locator("#ve-upload-left").setInputFiles(source);
@@ -617,17 +633,32 @@ test("UI Mock: upload guidance, eligible-credit shortfall and a refreshed balanc
 		name: t.generate.replace("{credits}", "92"),
 		exact: true,
 	});
-	await expect(generate).toHaveCount(0);
+	await expect(generate).toBeEnabled();
 	await expect(page.locator(".ve-creator .ve-primary")).toHaveAccessibleDescription(
 		new RegExp(t.creditShortfall.replace("{credits}", "92")),
 	);
 	await expect(page.getByRole("button", { name: t.addCredits, exact: true })).toBeEnabled();
+	await generate.click();
+	await expect(page.locator(".ve-creator .ve-error")).toHaveText(t.insufficient);
+	await expect(page.locator(".ve-result")).toHaveCount(0);
+	await expect(page.getByRole("button", { name: t.recover, exact: true })).toHaveCount(0);
+	const rejectedRequest = state.quotes[0];
+	expect(state.quotes).toHaveLength(1);
 	expect(state.creates).toHaveLength(0);
 	state.eligibleCredits = "240";
+	state.quoteFailure = undefined;
 	await page.reload();
+	await expect(page.locator(".ve-slot-status").first()).toContainText(t.upload.sealed);
+	await expect(page.locator(".ve-slot-status").last()).toContainText(t.upload.sealed);
 	await expect(generate).toBeEnabled();
 	await expect(page.locator("#ve-funding-hint")).not.toContainText("You need");
 	expect(state.creates).toHaveLength(0);
+	await generate.click();
+	await expect(page.locator(".ve-result")).toContainText(t.stages.CREATING_SCENE);
+	expect(state.quotes).toHaveLength(2);
+	expect(state.quotes[1]).toEqual(rejectedRequest);
+	expect(state.creates).toHaveLength(1);
+	expect(state.creates[0]).toMatchObject({ quoteId: "quote-2", request: rejectedRequest });
 });
 
 test("UI Mock: price guidance renders in German with the same dynamic amounts", async ({
