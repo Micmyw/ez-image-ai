@@ -2650,7 +2650,7 @@
 		"retryBalance": "Check balance again",
 		"availabilityLoading": "Checking offer availability…",
 		"unavailable": "This offer is currently unavailable. Please try again later.",
-		"sizeRule": "This USD 2.99 pack covers the models and sizes listed in the offer without a subscription. GPT Image 2.6, SVG and GIF use credits separately. Earlier USD 1 packs keep their original terms.",
+		"sizeRule": "This USD 2.99 pack covers the models and sizes listed in the offer, including the listed Pro and 4K options, without a subscription. GPT Image 2.6, SVG and GIF use credits separately. Earlier USD 1 packs keep their original terms.",
 		"fundingSizeNotEligible": "Your available passes do not cover this option. Choose an option covered by your pack, buy a current pack, or explicitly pay with credits.",
 		"returnAwaitingConfirmationUnknownAmount": "If you approved this payment in PayPal, confirm below to finish. Otherwise, return to checkout.",
 		"returnConfirmPaymentUnknownAmount": "Confirm PayPal payment"
