@@ -96,6 +96,9 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 		pathname.startsWith("/effects-preview/") ||
 		pathname === "/photo-to-coloring-page" ||
 		pathname === "/christmas-wallpaper" ||
+		pathname === "/gpt-image-2-6" ||
+		pathname === "/ai-svg-generator" ||
+		pathname === "/ai-gif-generator" ||
 		pathname.startsWith("/models/");
 	const [panel, setPanel] = useState<StudioPanel | null>(null);
 	const [navigationOpen, setNavigationOpen] = useState(false);

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { parseEnv } from "node:util";
 
+import { packEzPicImageModelFlags, parseEzPicImageModelFlags } from "@repo/config/server";
 import {
 	VIDEO_EFFECT_RETAIL_PRICE_VERSION,
 	HOTEL_LOBBY_LONG_TEMPLATE_VERSION,
@@ -104,9 +105,58 @@ export function readCloudflareBuildEnvironment(
 		environment,
 	);
 	return withAnnualPlanBindings(
-		withAccountInputCopyBuildOverride(source, environment),
+		withGptImage26BuildOverride(
+			withAccountInputCopyBuildOverride(source, environment),
+			environment,
+		),
 		environment.ANNUAL_PLAN_BINDINGS,
 	);
+}
+
+function withGptImage26BuildOverride(
+	source: string,
+	environment: Record<string, string | undefined>,
+) {
+	const enabled = environment.MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED;
+	if (enabled === undefined) return source;
+	const invalid = () => new Error("CLOUDFLARE_GPT_IMAGE_2_6_OVERRIDE_INVALID");
+	if (enabled !== "true" && enabled !== "false") throw invalid();
+	const keys = ["MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED", "MEDIA_GPT_IMAGE_2_6_SUNBURST_ENABLED"];
+	try {
+		const previous = Object.fromEntries(
+			Object.entries(parseEnv(source)).filter(
+				(entry): entry is [string, string] => typeof entry[1] === "string",
+			),
+		);
+		// Validate the original authoritative flags before applying the override.
+		// Compaction rejects invalid flat values and existing flat/packed conflicts.
+		packEzPicImageModelFlags(previous);
+		const overrides = Object.fromEntries(keys.map((key) => [key, enabled]));
+		if (previous.MEDIA_IMAGE_MODEL_FLAGS !== undefined) {
+			overrides.MEDIA_IMAGE_MODEL_FLAGS = JSON.stringify({
+				...parseEzPicImageModelFlags(previous.MEDIA_IMAGE_MODEL_FLAGS),
+				...overrides,
+			});
+		}
+		const assignments = Object.entries(overrides).map(([key, value]) =>
+			key === "MEDIA_IMAGE_MODEL_FLAGS" ? `${key}='${value}'` : `${key}=${value}`,
+		);
+		const merged = `${source}\n${assignments.join("\n")}\n`;
+		const next = parseEnv(merged);
+		if (
+			Object.entries(overrides).some(([key, value]) => next[key] !== value) ||
+			Object.entries(previous).some(
+				([key, value]) => !Object.hasOwn(overrides, key) && next[key] !== value,
+			) ||
+			Object.keys(next).length !==
+				new Set([...Object.keys(previous), ...Object.keys(overrides)]).size
+		)
+			throw invalid();
+		packEzPicImageModelFlags({ ...previous, ...overrides });
+		return merged;
+	} catch {
+		throw invalid();
+	}
 }
 
 function withAccountInputCopyBuildOverride(
@@ -567,6 +617,7 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key.startsWith(partPrefix) ||
 			key === "SEEAPI_API_KEY" ||
 			key === "ACCOUNT_INPUT_COPY_BUILD_ENABLED" ||
+			key === "MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED" ||
 			key === "ANNUAL_PLAN_BINDINGS" ||
 			key === "ACCOUNT_INPUT_COPY_ENABLED" ||
 			key === "VIDEO_RUNTIME_CONFIG" ||

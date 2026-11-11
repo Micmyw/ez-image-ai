@@ -72,6 +72,9 @@ describe("public HTML and HTTP indexing agree", () => {
 		"/changelog",
 		"/terms",
 		"/photo-to-coloring-page",
+		"/gpt-image-2-6",
+		"/ai-svg-generator",
+		"/ai-gif-generator",
 		"/video-effects/hotel-lobby-ai",
 		"/privacy",
 	])("keeps untranslated main content at %s canonical to English", (path) => {
@@ -98,6 +101,9 @@ describe("public HTML and HTTP indexing agree", () => {
 			"/create",
 			"/image-to-image",
 			"/photo-to-coloring-page",
+			"/gpt-image-2-6",
+			"/ai-svg-generator",
+			"/ai-gif-generator",
 			"/video-effects/hotel-lobby-ai",
 			"/blog/1980s-ai-photo",
 		]) {

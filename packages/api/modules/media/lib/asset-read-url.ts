@@ -20,6 +20,9 @@ export async function signAuthorizedAssetReadUrl(
 		asset.resultExpiresAt ? Math.floor((asset.resultExpiresAt.getTime() - now) / 1_000) : 300,
 	);
 	if (expiresIn <= 0) throw new ORPCError("PRECONDITION_FAILED");
+	// Only an allowlisted suffix from the authorized immutable object key enters
+	// the download name. This preserves real GIF/SVG files instead of extensionless downloads.
+	const extension = /\.(png|jpe?g|webp|gif|svg|mp4|webm|mov)$/.exec(asset.objectKey)?.[1];
 	return {
 		assetId: asset.id,
 		expiresIn,
@@ -29,7 +32,9 @@ export async function signAuthorizedAssetReadUrl(
 			key: asset.objectKey,
 			expiresIn,
 			responseContentDisposition:
-				disposition === "inline" ? "inline" : `attachment; filename="${asset.id}"`,
+				disposition === "inline"
+					? "inline"
+					: `attachment; filename="${asset.id}${extension ? `.${extension}` : ""}"`,
 		}),
 	};
 }

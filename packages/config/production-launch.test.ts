@@ -95,6 +95,8 @@ describe("packed image model environment flags", () => {
 	const optionalKeys = new Set([
 		"MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED",
 		"MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED",
+		"MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED",
+		"MEDIA_GPT_IMAGE_2_6_SUNBURST_ENABLED",
 		"MEDIA_SEEDREAM_4_ENABLED",
 	]);
 

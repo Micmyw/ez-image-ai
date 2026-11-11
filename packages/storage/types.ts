@@ -27,6 +27,8 @@ export type MediaContentType =
 	| "image/jpeg"
 	| "image/png"
 	| "image/webp"
+	| "image/gif"
+	| "image/svg+xml"
 	| "video/mp4"
 	| "video/webm"
 	| "video/quicktime";

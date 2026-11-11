@@ -63,10 +63,13 @@ export async function listVerificationRecoveryCandidates(
 		},
 		orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
 		take: limit,
-		select: { id: true, status: true, verificationLastErrorCode: true },
+		select: { id: true, status: true, verificationLastErrorCode: true, mimeType: true },
 	});
 	return assets.map((asset) => ({
 		assetId: asset.id,
+		...(["image/gif", "image/svg+xml"].includes(asset.mimeType)
+			? { requiresGeneratedImageProcessing: true }
+			: {}),
 		allowQuarantinedReverification:
 			asset.status === "QUARANTINED" &&
 			asset.verificationLastErrorCode === "LEGACY_EVIDENCE_UNTRUSTED",

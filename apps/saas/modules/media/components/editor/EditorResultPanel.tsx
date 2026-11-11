@@ -111,6 +111,9 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 	const productKey = job.data.productKey;
 	const source = job.data.inputAssets[0];
 	const output = job.data.assets[0];
+	const reusableRasterOutput = Boolean(
+		output && ["image/png", "image/jpeg", "image/webp"].includes(output.mimeType),
+	);
 	// Older cached responses can omit preview even though the current API always supplies it.
 	const hasInlinePreview = Boolean(output && output.preview !== undefined);
 	const onOutputLoaded = (image: HTMLImageElement) =>
@@ -224,7 +227,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 				{presentation.stage === "ready" && output && (
 					<DownloadButton assetId={output.id} productKey={productKey} />
 				)}
-				{presentation.stage === "ready" && output && (
+				{presentation.stage === "ready" && output && reusableRasterOutput && (
 					<WallpaperButton
 						key={output.id}
 						getImageUrl={async () =>
@@ -237,10 +240,10 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 						}
 					/>
 				)}
-				{presentation.stage === "ready" && output && !allowPrinting && (
+				{presentation.stage === "ready" && output && reusableRasterOutput && !allowPrinting && (
 					<ColoringPageLink assetId={output.id} />
 				)}
-				{presentation.stage === "ready" && output && (
+				{presentation.stage === "ready" && output && reusableRasterOutput && (
 					<Button
 						variant="secondary"
 						render={(props) => (
@@ -266,7 +269,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 						}
 					/>
 				)}
-				{job.data.status === "SUCCEEDED" && output && (
+				{job.data.status === "SUCCEEDED" && output && reusableRasterOutput && (
 					<Button
 						variant="secondary"
 						render={(props) => (

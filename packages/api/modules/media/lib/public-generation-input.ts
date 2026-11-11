@@ -21,6 +21,8 @@ export interface PublicImageGenerationInput {
 	aspectRatio: ImageAspectRatio | null;
 	outputFormat: ImageOutputFormat | null;
 	background: ImageBackground | null;
+	frameCount?: number;
+	frameDurationMs?: number;
 }
 
 export function isCurrentEzPicProductKey(value: string): value is CurrentEzPicProductKey {
@@ -65,5 +67,9 @@ export function publicImageGenerationInput(
 		aspectRatio: selection?.aspectRatio ?? null,
 		outputFormat: selection?.outputFormat ?? null,
 		background: selection?.background ?? null,
+		...(selection?.frameCount !== undefined ? { frameCount: selection.frameCount } : {}),
+		...(selection?.frameDurationMs !== undefined
+			? { frameDurationMs: selection.frameDurationMs }
+			: {}),
 	};
 }

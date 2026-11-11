@@ -86,7 +86,7 @@ describe("getAssetAccessUrl", () => {
 		expect(requireReadyOwnedMediaAsset).toHaveBeenCalledWith("asset-1", "user-1");
 		expect(createSignedReadUrl).toHaveBeenCalledWith(
 			expect.objectContaining({
-				responseContentDisposition: 'attachment; filename="asset-1"',
+				responseContentDisposition: 'attachment; filename="asset-1.png"',
 			}),
 		);
 	});

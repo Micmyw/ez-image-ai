@@ -14,16 +14,22 @@ import {
 	replaceImageModelInUrl,
 	useModelNavigation,
 	useRequestedImageModel,
+	useRequestedImageOutputFormat,
 } from "@media/hooks/use-model-navigation";
 import { isEditorProductKey } from "@media/lib/editor-recovery";
 import {
-	type ImageSpecControlKey,
+	constrainImageSpecMatrixToOutputFormat,
+	type ImageSpecControlChangeKey,
 	type ImageSpecControlValues,
 	resolveImageSpecControlValues,
 } from "@media/lib/image-sku-selection";
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
 import { useToolPrompt, useToolPromptBinding } from "@media/lib/tool-prompt-context";
-import { getImageProductSelectionContract, getPlanEntitlement } from "@repo/config/client";
+import {
+	getImageGenerationCredits,
+	getImageProductSelectionContract,
+	getPlanEntitlement,
+} from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
@@ -177,6 +183,7 @@ function LandingGeneratorWorkspace({
 	const [textProducts, setTextProducts] = useState<GuestCapabilityProduct[]>([]);
 	const [textDraftError, setTextDraftError] = useState(false);
 	const requestedModel = useRequestedImageModel();
+	const requestedOutputFormat = useRequestedImageOutputFormat();
 	const [selectedProductKey, setSelectedProductKey] = useState<GuestProductKey | null>(
 		effectPreset?.productKey ??
 			initialProductKey ??
@@ -198,10 +205,12 @@ function LandingGeneratorWorkspace({
 		effectPreset?.prompt ?? toolPrompt?.initialPrompt ?? (startEmpty ? "" : examplePrompt),
 	);
 	const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>(
-		effectPreset?.parameters.aspectRatio ?? toolPrompt?.initialAspectRatio ?? "auto",
+		effectPreset?.parameters.aspectRatio ??
+			toolPrompt?.initialAspectRatio ??
+			(requestedOutputFormat === "gif" ? "1:1" : "auto"),
 	);
 	const [controlValues, setControlValues] = useState<ImageSpecControlValues>({
-		outputFormat: effectPreset?.parameters.outputFormat,
+		outputFormat: effectPreset?.parameters.outputFormat ?? requestedOutputFormat,
 		background: effectPreset?.parameters.background,
 	});
 	const [effectDraftReady, setEffectDraftReady] = useState(false);
@@ -247,6 +256,8 @@ function LandingGeneratorWorkspace({
 		aspectRatio,
 		controlValues.outputFormat,
 		controlValues.background,
+		controlValues.frameCount,
+		controlValues.frameDurationMs,
 		capability?.version,
 	]);
 
@@ -330,6 +341,8 @@ function LandingGeneratorWorkspace({
 				setControlValues({
 					outputFormat: saved.values.outputFormat,
 					background: saved.values.background,
+					frameCount: saved.values.frameCount,
+					frameDurationMs: saved.values.frameDurationMs,
 				});
 				setReselectReference(saved.hadReference);
 			}
@@ -470,16 +483,43 @@ function LandingGeneratorWorkspace({
 	);
 	useEffect(() => {
 		if (isEffectEditor) return;
-		setSelectedProductKey((current) => resolveLandingProductSelection(availableProducts, current));
-	}, [availableProducts, isEffectEditor]);
+		setSelectedProductKey((current) =>
+			resolveLandingProductSelection(availableProducts, current, current === requestedModel),
+		);
+	}, [availableProducts, isEffectEditor, requestedModel]);
 	const localizedProducts = useMemo(
 		() =>
-			localizeLandingProducts(availableProducts, {
-				productLabel: (productKey) => tCreate(`products.${productKey}.label`),
-				productDescription: (productKey) => tCreate(`products.${productKey}.description`),
-				skuLabel: (skuKey) => tCreate(`skus.${skuKey}.label`),
-			}),
-		[availableProducts, tCreate],
+			localizeLandingProducts(
+				availableProducts
+					.map((product) =>
+						requestedOutputFormat
+							? {
+									...product,
+									skuMatrix: constrainImageSpecMatrixToOutputFormat(
+										product.skuMatrix,
+										requestedOutputFormat,
+									),
+								}
+							: product,
+					)
+					.filter(
+						(product) =>
+							!requestedOutputFormat ||
+							product.skuMatrix.cells.some((cell) =>
+								cell.controls.some(
+									(control) =>
+										control.key === "outputFormat" &&
+										control.options.some((option) => option.key === requestedOutputFormat),
+								),
+							),
+					),
+				{
+					productLabel: (productKey) => tCreate(`products.${productKey}.label`),
+					productDescription: (productKey) => tCreate(`products.${productKey}.description`),
+					skuLabel: (skuKey) => tCreate(`skus.${skuKey}.label`),
+				},
+			),
+		[availableProducts, tCreate, requestedOutputFormat],
 	);
 	const selectedProduct =
 		localizedProducts.find((product) => product.key === selectedProductKey) ?? null;
@@ -492,6 +532,9 @@ function LandingGeneratorWorkspace({
 	}));
 	const selectedSku =
 		selectedProduct?.skuMatrix.cells.find((cell) => cell.skuKey === selectedSkuKey) ?? null;
+	const displayedCredits = selectedSku
+		? getImageGenerationCredits({ skuKey: selectedSku.skuKey, ...controlValues })
+		: undefined;
 	const capabilityUsable =
 		file || requireReference
 			? Boolean(capability?.enabled && capability.products.length > 0)
@@ -501,21 +544,19 @@ function LandingGeneratorWorkspace({
 		setSelectedSkuKey((current) => resolveLandingSkuSelection(selectedProduct, current));
 	}, [selectedProduct, isEffectEditor]);
 	useEffect(() => {
-		if (isEffectEditor) return;
-		if (toolPrompt?.initialAspectRatio && !selectedSku) return;
-		setAspectRatio(
-			(current) =>
-				resolveLandingAspectRatioSelection(
-					selectedProduct && selectedSku
-						? { ...selectedProduct, aspectRatios: selectedSku.aspectRatios }
-						: null,
-					current,
-				) ?? "auto",
+		if (isEffectEditor || !selectedProduct || !selectedSku) return;
+		setAspectRatio((current) =>
+			controlValues.outputFormat === "gif"
+				? "1:1"
+				: (resolveLandingAspectRatioSelection(
+						{ ...selectedProduct, aspectRatios: selectedSku.aspectRatios },
+						current,
+					) ?? current),
 		);
-	}, [selectedProduct, selectedSku, isEffectEditor, toolPrompt?.initialAspectRatio]);
+	}, [selectedProduct, selectedSku, isEffectEditor, controlValues.outputFormat]);
 	useEffect(() => {
-		if (isEffectEditor) return;
-		setControlValues(resolveImageSpecControlValues(selectedSku, {}));
+		if (isEffectEditor || !selectedSku) return;
+		setControlValues((current) => resolveImageSpecControlValues(selectedSku, current));
 	}, [selectedSku, isEffectEditor]);
 	const effectSelectionUnavailable = Boolean(
 		effectEditor &&
@@ -572,7 +613,12 @@ function LandingGeneratorWorkspace({
 		prompt,
 		busy: isBusy,
 		applyPrompt: (nextPrompt, options) => {
-			if (options?.aspectRatio && !selectedSku?.aspectRatios.includes(options.aspectRatio))
+			if (
+				options?.aspectRatio &&
+				(controlValues.outputFormat === "gif"
+					? options.aspectRatio !== "1:1"
+					: !selectedSku?.aspectRatios.includes(options.aspectRatio))
+			)
 				return false;
 			setPrompt(nextPrompt);
 			if (options?.aspectRatio) setAspectRatio(options.aspectRatio);
@@ -689,7 +735,7 @@ function LandingGeneratorWorkspace({
 		const nextSku = selectedProduct.skuMatrix.cells.find((cell) => cell.skuKey === nextSkuKey);
 		if (!nextSku) return;
 		setSelectedSkuKey(nextSku.skuKey);
-		setControlValues(resolveImageSpecControlValues(nextSku, {}));
+		setControlValues((current) => resolveImageSpecControlValues(nextSku, current));
 		setAspectRatio(
 			(current) =>
 				resolveLandingAspectRatioSelection(
@@ -700,11 +746,12 @@ function LandingGeneratorWorkspace({
 		setSubmitError(undefined);
 	}
 
-	function changeControl(key: ImageSpecControlKey, value: string) {
+	function changeControl(key: ImageSpecControlChangeKey, value: string) {
 		setControlValues((current) => {
 			const next = resolveImageSpecControlValues(selectedSku, { ...current, [key]: value });
-			return next[key] === value ? next : current;
+			return String(next[key]) === value ? next : current;
 		});
+		if (key === "outputFormat" && value === "gif") setAspectRatio("1:1");
 		setSubmitError(undefined);
 	}
 
@@ -931,6 +978,9 @@ function LandingGeneratorWorkspace({
 		quality: t("settings.quality"),
 		outputFormat: t("settings.outputFormat"),
 		background: t("settings.background"),
+		frameCount: tCreate("outputSettings.frameCount"),
+		frameDurationMs: tCreate("outputSettings.frameDurationMs"),
+		gifCanvas: tCreate("outputSettings.gifCanvas"),
 		modeControlsQuality: t("settings.modeControlsQuality"),
 		credits: t("settings.credits"),
 		coupledHint: t("settings.coupledHint"),
@@ -945,6 +995,8 @@ function LandingGeneratorWorkspace({
 			ultra: t("settings.optionLabels.ultra"),
 			png: t("settings.optionLabels.png"),
 			jpeg: t("settings.optionLabels.jpeg"),
+			gif: "GIF",
+			svg: "SVG",
 			auto: t("settings.optionLabels.auto"),
 			opaque: t("settings.optionLabels.opaque"),
 			transparent: t("settings.optionLabels.transparent"),
@@ -1152,8 +1204,15 @@ function LandingGeneratorWorkspace({
 										const cell = next.skuMatrix.cells.find(
 											(candidate) => candidate.skuKey === next.skuMatrix.defaultSkuKey,
 										);
-										setAspectRatio(cell?.aspectRatios[0] ?? "auto");
-										setControlValues(resolveImageSpecControlValues(cell ?? null, {}));
+										setAspectRatio(
+											resolveImageSpecControlValues(cell ?? null, controlValues).outputFormat ===
+												"gif"
+												? "1:1"
+												: (cell?.aspectRatios[0] ?? "auto"),
+										);
+										setControlValues((current) =>
+											resolveImageSpecControlValues(cell ?? null, current),
+										);
 									}
 									setSubmitError(undefined);
 								}}
@@ -1163,7 +1222,9 @@ function LandingGeneratorWorkspace({
 							<ImageOutputSettings
 								idPrefix="landing"
 								presentation="composer"
-								aspectRatios={selectedSku?.aspectRatios ?? []}
+								aspectRatios={
+									controlValues.outputFormat === "gif" ? ["1:1"] : (selectedSku?.aspectRatios ?? [])
+								}
 								value={aspectRatio}
 								onChange={(nextAspectRatio) => {
 									setAspectRatio(nextAspectRatio);
@@ -1199,10 +1260,12 @@ function LandingGeneratorWorkspace({
 									<span
 										data-test="generation-credit-amount"
 										className="gap-1 border-white/20 pl-2 text-xs inline-flex items-center border-l tabular-nums"
-										aria-label={t("modes.credits", { credits: selectedSku.credits })}
+										aria-label={t("modes.credits", {
+											credits: displayedCredits ?? selectedSku.credits,
+										})}
 									>
 										<CoinsIcon className="size-3.5" aria-hidden="true" />
-										{selectedSku.credits}
+										{displayedCredits ?? selectedSku.credits}
 									</span>
 								)}
 						</Button>
@@ -1400,7 +1463,11 @@ function LandingGeneratorWorkspace({
 									<div className="min-w-0 max-w-full">
 										<ImageOutputSettings
 											idPrefix="floating"
-											aspectRatios={selectedSku?.aspectRatios ?? []}
+											aspectRatios={
+												controlValues.outputFormat === "gif"
+													? ["1:1"]
+													: (selectedSku?.aspectRatios ?? [])
+											}
 											value={aspectRatio}
 											onChange={(nextAspectRatio) => {
 												setAspectRatio(nextAspectRatio);
@@ -1437,10 +1504,12 @@ function LandingGeneratorWorkspace({
 												<span
 													data-test="generation-credit-amount"
 													className="gap-1 border-white/20 pl-2 text-xs inline-flex items-center border-l tabular-nums"
-													aria-label={t("modes.credits", { credits: selectedSku.credits })}
+													aria-label={t("modes.credits", {
+														credits: displayedCredits ?? selectedSku.credits,
+													})}
 												>
 													<CoinsIcon className="size-3.5" aria-hidden="true" />
-													{selectedSku.credits}
+													{displayedCredits ?? selectedSku.credits}
 												</span>
 											)}
 									</Button>

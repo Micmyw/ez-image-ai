@@ -473,7 +473,7 @@ describe("retryGenerationForUser", () => {
 				operation: expect.objectContaining({
 					assetModerationPolicyVersion: expect.any(String),
 					assetModerationRuleVersion: expect.any(String),
-					catalogVersion: "2026-09-14.1",
+					catalogVersion: "2026-11-11.1",
 					costMicros: "20000",
 					credits: "5",
 					inputAssets: [{ assetChecksum: "1".repeat(64), assetId: SOURCE_ASSET_ID }],
@@ -500,7 +500,7 @@ describe("retryGenerationForUser", () => {
 						},
 						skuKey: "nano-banana-2-lite-1k",
 					}),
-					pricingVersion: "2026-09-13.2",
+					pricingVersion: "2026-11-11.1",
 					productKey: "image-nano-banana-2-lite",
 					sourceJobId: "source-job-1",
 				}),

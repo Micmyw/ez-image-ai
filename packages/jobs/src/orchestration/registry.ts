@@ -119,6 +119,7 @@ const payloadParsers = {
 		assetId: text,
 		allowQuarantinedReverification: optional(boolean),
 		queryOnly: optional(boolean),
+		requiresGeneratedImageProcessing: optional(boolean),
 	}),
 	"media-delete-object": strictObject(cleanup),
 	"media-abort-multipart": strictObject({ ...cleanup, multipartUploadId: text }),

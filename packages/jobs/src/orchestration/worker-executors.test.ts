@@ -10,6 +10,17 @@ import {
 } from "./worker-executors";
 
 describe("Worker executor workload boundaries", () => {
+	it("routes generated SVG/GIF preparation through heavy while queries retain control", () => {
+		const task = {
+			taskId: "media-verify-upload",
+			payload: { assetId: "asset", requiresGeneratedImageProcessing: true },
+		};
+		expect(workerExecutorLane(task)).toBe("heavy");
+		expect(workerServiceForTask(task)).toBeNull();
+		expect(workerExecutorLane({ ...task, payload: { ...task.payload, queryOnly: true } })).toBe(
+			"control",
+		);
+	});
 	it("keeps callback normalization inside either original Outbox parent", () => {
 		const child = {
 			taskId: "media-process-provider-webhook",

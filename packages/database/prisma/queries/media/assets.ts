@@ -2264,7 +2264,13 @@ async function queueInitialGenerationOutputReview(
 			aggregateType: "MEDIA_ASSET",
 			aggregateId: asset.id,
 			dedupeKey,
-			payload: { assetId: asset.id, originalDueAt: now.getTime() },
+			payload: {
+				assetId: asset.id,
+				originalDueAt: now.getTime(),
+				...(["image/gif", "image/svg+xml"].includes(asset.mimeType)
+					? { requiresGeneratedImageProcessing: true }
+					: {}),
+			},
 			availableAt: now,
 		},
 		skipDuplicates: true,

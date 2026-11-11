@@ -81,6 +81,7 @@ vi.mock("../lib/preview-timing", () => ({ observeGenerationJobVisibility: state.
 vi.mock("../hooks/use-model-navigation", () => ({
 	useModelNavigation: () => ({ unavailable: false }),
 	useRequestedImageModel: () => null,
+	useRequestedImageOutputFormat: () => undefined,
 	replaceImageModelInUrl: vi.fn(),
 }));
 vi.mock("../hooks/use-generation", () => ({

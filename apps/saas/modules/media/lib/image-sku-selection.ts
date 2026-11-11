@@ -3,6 +3,8 @@ import {
 	IMAGE_BACKGROUNDS,
 	IMAGE_OUTPUT_FORMATS,
 	IMAGE_SKU_KEYS,
+	imageGifFrameCountSchema,
+	imageGifFrameDurationMsSchema,
 	type ImageAspectRatio,
 	type ImageBackground,
 	type ImageOutputFormat,
@@ -11,6 +13,7 @@ import {
 
 export type ImageSpecDimensionKey = "resolution" | "quality";
 export type ImageSpecControlKey = "outputFormat" | "background";
+export type ImageSpecControlChangeKey = ImageSpecControlKey | "frameCount" | "frameDurationMs";
 
 export interface PublicImageSpecControl {
 	key: ImageSpecControlKey;
@@ -22,6 +25,8 @@ export interface PublicImageSpecControl {
 export interface ImageSpecControlValues {
 	outputFormat?: ImageOutputFormat;
 	background?: ImageBackground;
+	frameCount?: number;
+	frameDurationMs?: number;
 }
 
 export interface PublicImageSpecCell {
@@ -41,6 +46,45 @@ export interface PublicImageSpecMatrix {
 		options: ReadonlyArray<{ key: string; label: string }>;
 	}>;
 	cells: readonly PublicImageSpecCell[];
+}
+
+export function constrainImageSpecMatrixToOutputFormat<T extends PublicImageSpecMatrix>(
+	matrix: T,
+	outputFormat: ImageOutputFormat,
+): T {
+	const cells = matrix.cells
+		.filter((cell) =>
+			cell.controls.some(
+				(control) =>
+					control.key === "outputFormat" &&
+					control.options.some((option) => option.key === outputFormat),
+			),
+		)
+		.map((cell) => ({
+			...cell,
+			controls: cell.controls.map((control) =>
+				control.key === "outputFormat"
+					? {
+							...control,
+							defaultValue: outputFormat,
+							options: control.options.filter((option) => option.key === outputFormat),
+						}
+					: control,
+			),
+		}));
+	return {
+		...matrix,
+		defaultSkuKey: cells.some((cell) => cell.skuKey === matrix.defaultSkuKey)
+			? matrix.defaultSkuKey
+			: (cells[0]?.skuKey ?? matrix.defaultSkuKey),
+		cells,
+		dimensions: matrix.dimensions.map((dimension) => ({
+			...dimension,
+			options: dimension.options.filter((option) =>
+				cells.some((cell) => cell.parameterValues[dimension.key] === option.key),
+			),
+		})),
+	};
 }
 
 export function getImageSpecCell(
@@ -92,7 +136,7 @@ export function publicImageAspectRatios(cell: PublicImageSpecCell | null): Image
 
 export function resolveImageSpecControlValues(
 	cell: PublicImageSpecCell | null,
-	current: Partial<Record<ImageSpecControlKey, string | undefined>>,
+	current: Partial<Record<ImageSpecControlChangeKey, string | number | undefined>>,
 ): ImageSpecControlValues {
 	const next: ImageSpecControlValues = {};
 	for (const control of cell?.controls ?? []) {
@@ -115,5 +159,19 @@ export function resolveImageSpecControlValues(
 			next.background = value as ImageBackground;
 		}
 	}
+	if (next.outputFormat === "gif") {
+		const frameCount = imageGifFrameCountSchema.safeParse(Number(current.frameCount ?? 9));
+		const frameDuration = imageGifFrameDurationMsSchema.safeParse(
+			Number(current.frameDurationMs ?? 200),
+		);
+		next.frameCount = frameCount.success ? frameCount.data : 9;
+		next.frameDurationMs = frameDuration.success ? frameDuration.data : 200;
+	}
+	if (
+		cell?.skuKey.startsWith("gpt-image-2-6-") &&
+		next.background === "transparent" &&
+		next.outputFormat !== "png"
+	)
+		next.background = "opaque";
 	return next;
 }

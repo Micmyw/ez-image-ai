@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 
+import sharp from "sharp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
@@ -23,7 +24,11 @@ vi.mock("@aws-sdk/client-s3", async (original) => ({
 }));
 
 import { openInspectedRemoteMedia } from "../../lib/stream-copy";
-import { streamRemoteObjectToStorage, tryWriteImmutableGenerationImage } from "./index";
+import {
+	promoteStagedObject,
+	streamRemoteObjectToStorage,
+	tryWriteImmutableGenerationImage,
+} from "./index";
 
 const png = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
 const sourceUrl = "https://cdn.provider.test/result.png";
@@ -87,6 +92,82 @@ beforeEach(() => {
 });
 
 describe("one supplier stream across direct and staged image storage", () => {
+	it.each([2, 3])(
+		"checks the requested %s-frame count when recovering an immutable GIF",
+		async (expectedGifFrameCount) => {
+			const bytes = await sharp(Buffer.from([255, 0, 0, 0, 0, 255]), {
+				raw: { width: 1, height: 2, channels: 3, pageHeight: 1 },
+			})
+				.gif({ loop: 0, delay: [200, 200] })
+				.toBuffer();
+			mocks.send.mockResolvedValueOnce({
+				Body: Readable.from([bytes]),
+				ContentLength: bytes.length,
+				ContentType: "image/gif",
+				ETag: "immutable",
+			});
+			const result = promoteStagedObject({
+				staging: { ...location, key: "users/owner/assets/staging.gif" },
+				final: { ...location, key: "users/owner/assets/final.gif" },
+				contentType: "image/gif",
+				contentLength: bytes.length,
+				expectedGifFrameCount,
+				acceptExistingFinalIdentity: true,
+			});
+			if (expectedGifFrameCount === 2)
+				await expect(result).resolves.toMatchObject({
+					bytes: bytes.length,
+					sha256: createHash("sha256").update(bytes).digest("hex"),
+				});
+			else await expect(result).rejects.toMatchObject({ code: "OUTPUT_MEDIA_TYPE_MISMATCH" });
+			expect(mocks.send.mock.calls.map(([command]) => command.constructor.name)).toEqual([
+				"GetObjectCommand",
+			]);
+		},
+	);
+	it("never treats an existing active SVG as an acceptable immutable winner", async () => {
+		const bytes = Buffer.from(
+			'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><script>alert(1)</script></svg>',
+		);
+		mocks.send.mockResolvedValueOnce({
+			Body: Readable.from([bytes]),
+			ContentLength: bytes.length,
+			ContentType: "image/svg+xml",
+			ETag: "immutable",
+		});
+		await expect(
+			promoteStagedObject({
+				staging: { ...location, key: "users/owner/assets/staging.svg" },
+				final: { ...location, key: "users/owner/assets/final.svg" },
+				contentType: "image/svg+xml",
+				contentLength: bytes.length,
+				acceptExistingFinalIdentity: true,
+			}),
+		).rejects.toMatchObject({ code: "OUTPUT_MEDIA_TYPE_UNSUPPORTED" });
+	});
+	it("enforces the SVG-specific byte limit even when an image kind is supplied", async () => {
+		const body = Buffer.concat([
+			Buffer.from('<svg xmlns="http://www.w3.org/2000/svg">'),
+			Buffer.alloc(2 * 1024 * 1024, 32),
+		]);
+		const fixture = await openDownload(body);
+		const storage = storageFixture();
+		try {
+			await expect(
+				streamRemoteObjectToStorage({
+					...location,
+					sourceUrl,
+					allowedHosts,
+					expectedContentType: "image/svg+xml",
+					expectedMediaKind: "image",
+					openedSource: fixture.opened,
+				}),
+			).rejects.toThrow();
+			expect(storage.parts).toHaveLength(0);
+		} finally {
+			fixture.opened.stream.destroy();
+		}
+	});
 	it.each([undefined, true])(
 		"writes the exact inspected response once with freshClaim=%s",
 		async (freshClaim) => {

@@ -109,6 +109,8 @@ export interface GuestDraftUploadInput {
 	aspectRatio: ImageAspectRatio;
 	outputFormat?: ImageOutputFormat;
 	background?: ImageBackground;
+	frameCount?: number;
+	frameDurationMs?: number;
 	turnstileToken: string;
 	onStage?: (stage: "uploading" | "verifying") => void;
 	onProgress?: (progress: { loaded: number; total: number; percentage: number }) => void;
@@ -171,6 +173,8 @@ export async function completeGuestDraftUpload(
 		aspectRatio?: ImageAspectRatio;
 		outputFormat?: ImageOutputFormat;
 		background?: ImageBackground;
+		frameCount?: number;
+		frameDurationMs?: number;
 	},
 	options: {
 		maximumAttempts?: number;

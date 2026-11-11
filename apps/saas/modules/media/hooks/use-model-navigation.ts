@@ -6,7 +6,21 @@ import { useEffect, useRef } from "react";
 import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
 
 export function imageModelHref(productKey: string) {
+	if (productKey === "image-gpt-image-2-6-flare" || productKey === "image-gpt-image-2-6-sunburst")
+		return `/gpt-image-2-6?model=${encodeURIComponent(productKey)}`;
 	return `/models/${encodeURIComponent(productKey.replace(/^image-/, ""))}`;
+}
+
+export function resolveRequestedImageOutputFormat(pathname: string) {
+	return pathname === "/ai-svg-generator"
+		? "svg"
+		: pathname === "/ai-gif-generator"
+			? "gif"
+			: undefined;
+}
+
+export function useRequestedImageOutputFormat() {
+	return resolveRequestedImageOutputFormat(usePathname());
 }
 
 export function useRequestedImageModel() {
@@ -16,7 +30,17 @@ export function useRequestedImageModel() {
 
 export function resolveRequestedImageModel(pathname: string, queryModel: string | null) {
 	const slug = pathname.startsWith("/models/") ? pathname.slice("/models/".length) : null;
-	const routeModel = slug ? `image-${slug}` : null;
+	const routeModel = slug
+		? `image-${slug}`
+		: ["/gpt-image-2-6", "/ai-svg-generator", "/ai-gif-generator"].includes(pathname)
+			? "image-gpt-image-2-6-flare"
+			: null;
+	if (
+		resolveRequestedImageOutputFormat(pathname) &&
+		queryModel &&
+		!["image-gpt-image-2-6-flare", "image-gpt-image-2-6-sunburst"].includes(queryModel)
+	)
+		return routeModel;
 	if (queryModel && (isEditorProductKey(queryModel) || !routeModel)) return queryModel;
 	return routeModel;
 }

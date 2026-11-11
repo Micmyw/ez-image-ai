@@ -26,6 +26,8 @@ export interface EditorDraftInput {
 		aspectRatio?: ImageAspectRatio;
 		outputFormat?: ImageOutputFormat;
 		background?: ImageBackground;
+		frameCount?: number;
+		frameDurationMs?: number;
 	};
 }
 

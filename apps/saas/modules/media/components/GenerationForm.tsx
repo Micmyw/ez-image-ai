@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary";
 import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
 import { createChoosePlanPath, writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
-import { getImageProductSelectionContract } from "@repo/config/client";
+import { getImageGenerationCredits, getImageProductSelectionContract } from "@repo/config/client";
 import { EZPIC_PRODUCT_KEYS, getPlanEntitlement, type ImageAspectRatio } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
@@ -35,6 +35,7 @@ import {
 	replaceImageModelInUrl,
 	useModelNavigation,
 	useRequestedImageModel,
+	useRequestedImageOutputFormat,
 } from "../hooks/use-model-navigation";
 import { creditAccountOwnerId } from "../lib/credit-account-query";
 import {
@@ -55,9 +56,10 @@ import {
 import { useGenerationMode } from "../lib/generation-mode-context";
 import { imagePassCoversSku, imagePassIncludesSkuAccess } from "../lib/image-pass-eligibility";
 import {
+	constrainImageSpecMatrixToOutputFormat,
 	getDefaultImageSpecCell,
 	getImageSpecCell,
-	type ImageSpecControlKey,
+	type ImageSpecControlChangeKey,
 	publicImageAspectRatios,
 	resolveImageSpecControlValues,
 	type PublicImageSpecCell,
@@ -155,6 +157,7 @@ export function GenerationForm({
 	const studio = useTranslations("studio");
 	const composer = useTranslations("studio.composer");
 	const imageToImage = useTranslations("imageToImage");
+	const requestedOutputFormat = useRequestedImageOutputFormat();
 	const router = useRouter();
 	const [hasSource, setHasSource] = useState(Boolean(initialDraft?.input.sourceAssetId));
 	const [temporaryReference, setTemporaryReference] = useState<
@@ -172,27 +175,50 @@ export function GenerationForm({
 	// Keep its recovery markup identical until the workspace is ready for input.
 	const products = useMemo(
 		() =>
-			(ready ? (generation.catalog.data?.products ?? []) : []).map((product) =>
-				isEditorProductKey(product.key)
-					? {
-							...product,
-							label: t(`products.${product.key}.label`),
-							description: t(`products.${product.key}.description`),
-							...(product.skuMatrix
-								? {
-										skuMatrix: {
-											...product.skuMatrix,
-											cells: product.skuMatrix.cells.map((cell) => ({
-												...cell,
-												label: t(`skus.${cell.skuKey}.label`),
-											})),
-										},
-									}
-								: {}),
-						}
-					: product,
-			),
-		[ready, generation.catalog.data?.products, t],
+			(ready ? (generation.catalog.data?.products ?? []) : [])
+				.map((product) =>
+					requestedOutputFormat && product.skuMatrix
+						? {
+								...product,
+								skuMatrix: constrainImageSpecMatrixToOutputFormat(
+									product.skuMatrix,
+									requestedOutputFormat,
+								),
+							}
+						: product,
+				)
+				.filter(
+					(product) =>
+						!requestedOutputFormat ||
+						product.skuMatrix?.cells.some((cell) =>
+							cell.controls.some(
+								(control) =>
+									control.key === "outputFormat" &&
+									control.options.some((option) => option.key === requestedOutputFormat),
+							),
+						),
+				)
+				.map((product) =>
+					isEditorProductKey(product.key)
+						? {
+								...product,
+								label: t(`products.${product.key}.label`),
+								description: t(`products.${product.key}.description`),
+								...(product.skuMatrix
+									? {
+											skuMatrix: {
+												...product.skuMatrix,
+												cells: product.skuMatrix.cells.map((cell) => ({
+													...cell,
+													label: t(`skus.${cell.skuKey}.label`),
+												})),
+											},
+										}
+									: {}),
+							}
+						: product,
+				),
+		[ready, generation.catalog.data?.products, t, requestedOutputFormat],
 	);
 	const [sourceReady, setSourceReady] = useState(initialSourceReady);
 	const [sourcePending, setSourcePending] = useState(false);
@@ -224,9 +250,10 @@ export function GenerationForm({
 	const resolvedInitialProductKey =
 		initialProductKey ??
 		(effectPreset ? (initialDraft?.productKey ?? effectPreset.productKey) : undefined) ??
+		initialDraft?.productKey ??
 		(requestedModel && isEditorProductKey(requestedModel)
 			? requestedModel
-			: (initialDraft?.productKey ?? "image-nano-banana-2-lite"));
+			: "image-nano-banana-2-lite");
 	const initialContract = getImageProductSelectionContract(resolvedInitialProductKey)!;
 	const initialSelection =
 		initialDraft?.productKey === resolvedInitialProductKey
@@ -247,8 +274,13 @@ export function GenerationForm({
 			aspectRatio:
 				initialSelection?.aspectRatio ??
 				toolPrompt?.initialAspectRatio ??
-				initialContract.defaultAspectRatio,
-			outputFormat: initialSelection?.outputFormat,
+				(requestedOutputFormat === "gif" && !initialDraft
+					? "1:1"
+					: initialContract.defaultAspectRatio),
+			outputFormat:
+				initialSelection?.outputFormat ?? (!initialDraft ? requestedOutputFormat : undefined),
+			frameCount: initialDraft?.input.frameCount,
+			frameDurationMs: initialDraft?.input.frameDurationMs,
 			background: initialSelection?.background,
 		},
 	});
@@ -277,14 +309,26 @@ export function GenerationForm({
 		(generation.catalog.isError ||
 			(generation.catalog.data && !isEffectSelectionAvailable(values, products))),
 	);
-	const supportedAspectRatios = publicImageAspectRatios(selectedCell);
+	const supportedAspectRatios = useMemo(
+		() =>
+			values.outputFormat === "gif" ? ["1:1" as const] : publicImageAspectRatios(selectedCell),
+		[values.outputFormat, selectedCell],
+	);
 	const controlValues = useMemo(
 		() =>
 			resolveImageSpecControlValues(selectedCell, {
 				outputFormat: values.outputFormat,
 				background: values.background,
+				frameCount: values.frameCount,
+				frameDurationMs: values.frameDurationMs,
 			}),
-		[selectedCell, values.background, values.outputFormat],
+		[
+			selectedCell,
+			values.background,
+			values.outputFormat,
+			values.frameCount,
+			values.frameDurationMs,
+		],
 	);
 	const input = useMemo(() => {
 		if (
@@ -339,7 +383,10 @@ export function GenerationForm({
 		active,
 	);
 	const safetyOutcome = getPromptSafetyOutcome(error);
-	const displayedCredits = generation.quote?.credits ?? selectedCell?.credits ?? product?.credits;
+	const selectionCredits = selectedCell
+		? getImageGenerationCredits({ skuKey: values.skuKey, ...controlValues })
+		: product?.credits;
+	const displayedCredits = generation.quote?.credits ?? selectionCredits;
 	const isImageEdit = requireReference || sourcePending || Boolean(values.sourceAssetId);
 	const suggestionKeys = isImageEdit
 		? ["background", "object", "lighting", "style"]
@@ -402,7 +449,7 @@ export function GenerationForm({
 		prompt: values.prompt,
 		busy: !ready || generation.createGeneration.isPending || sourcePending,
 		applyPrompt: (prompt, options) => {
-			if (options?.aspectRatio && !selectedCell?.aspectRatios.includes(options.aspectRatio))
+			if (options?.aspectRatio && !supportedAspectRatios.includes(options.aspectRatio))
 				return false;
 			updatePrompt(prompt);
 			if (options?.aspectRatio)
@@ -445,8 +492,8 @@ export function GenerationForm({
 	}, [form, onDraftChange, temporaryReference, fundingSource]);
 
 	function replaceControlValues(cell: PublicImageSpecCell) {
-		const next = resolveImageSpecControlValues(cell, {});
-		form.unregister(["outputFormat", "background"]);
+		const next = resolveImageSpecControlValues(cell, form.getValues());
+		form.unregister(["outputFormat", "background", "frameCount", "frameDurationMs"]);
 		if (next.outputFormat) {
 			form.setValue("outputFormat", next.outputFormat, {
 				shouldDirty: true,
@@ -459,6 +506,8 @@ export function GenerationForm({
 				shouldValidate: true,
 			});
 		}
+		form.setValue("frameCount", next.frameCount);
+		form.setValue("frameDurationMs", next.frameDurationMs);
 	}
 
 	function updateProduct(productKey: EditorProductKey) {
@@ -474,7 +523,8 @@ export function GenerationForm({
 			shouldValidate: true,
 		});
 		replaceControlValues(defaultCell);
-		const nextAspectRatio = publicImageAspectRatios(defaultCell)[0];
+		const nextAspectRatio =
+			form.getValues("outputFormat") === "gif" ? "1:1" : publicImageAspectRatios(defaultCell)[0];
 		if (nextAspectRatio) {
 			form.setValue("aspectRatio", nextAspectRatio, {
 				shouldDirty: true,
@@ -517,21 +567,14 @@ export function GenerationForm({
 		beginNewAction();
 	}
 
-	function updateControl(key: ImageSpecControlKey, value: string) {
+	function updateControl(key: ImageSpecControlChangeKey, value: string) {
 		const next = resolveImageSpecControlValues(selectedCell, { ...controlValues, [key]: value });
-		if (key === "outputFormat" && next.outputFormat === value) {
-			form.setValue("outputFormat", next.outputFormat, {
-				shouldDirty: true,
-				shouldValidate: true,
-			});
-		} else if (key === "background" && next.background === value) {
-			form.setValue("background", next.background, {
-				shouldDirty: true,
-				shouldValidate: true,
-			});
-		} else {
-			return;
+		if (String(next[key]) !== value) return;
+		for (const field of ["outputFormat", "background", "frameCount", "frameDurationMs"] as const) {
+			form.setValue(field, next[field], { shouldDirty: true, shouldValidate: true });
 		}
+		if (next.outputFormat === "gif")
+			form.setValue("aspectRatio", "1:1", { shouldDirty: true, shouldValidate: true });
 		beginNewAction();
 	}
 
@@ -542,6 +585,8 @@ export function GenerationForm({
 		const currentControls = resolveImageSpecControlValues(currentCell, {
 			outputFormat: current.outputFormat,
 			background: current.background,
+			frameCount: current.frameCount,
+			frameDurationMs: current.frameDurationMs,
 		});
 		const saved = writeEditorUpgradeDraft(window.sessionStorage, {
 			draft: {
@@ -817,6 +862,9 @@ export function GenerationForm({
 							quality: t("outputSettings.quality"),
 							outputFormat: t("outputSettings.outputFormat"),
 							background: t("outputSettings.background"),
+							frameCount: t("outputSettings.frameCount"),
+							frameDurationMs: t("outputSettings.frameDurationMs"),
+							gifCanvas: t("outputSettings.gifCanvas"),
 							modeControlsQuality: t("outputSettings.modeControlsQuality"),
 							credits: t("outputSettings.credits"),
 							optionLabels: {
@@ -830,6 +878,8 @@ export function GenerationForm({
 								ultra: t("outputSettings.optionLabels.ultra"),
 								png: t("outputSettings.optionLabels.png"),
 								jpeg: t("outputSettings.optionLabels.jpeg"),
+								svg: "SVG",
+								gif: "GIF",
 								auto: t("outputSettings.optionLabels.auto"),
 								opaque: t("outputSettings.optionLabels.opaque"),
 								transparent: t("outputSettings.optionLabels.transparent"),
@@ -927,7 +977,7 @@ export function GenerationForm({
 						)}
 						{errorKey === "insufficientCredits" && product && (
 							<CreditBalanceSummary
-								requiredCredits={selectedCell?.credits ?? product.credits}
+								requiredCredits={selectionCredits ?? product.credits}
 								availableCredits={generation.creditAccount.data?.spendableCredits ?? "0"}
 								onUpgrade={continueToUpgrade}
 							/>

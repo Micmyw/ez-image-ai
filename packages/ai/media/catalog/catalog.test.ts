@@ -205,7 +205,7 @@ describe("media product catalog", () => {
 		]);
 	});
 
-	it("publishes all twelve current image products and their twenty-nine legal SKUs", () => {
+	it("publishes all fourteen current image products and their thirty-five legal SKUs", () => {
 		const products = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
@@ -220,12 +220,14 @@ describe("media product catalog", () => {
 			"image-gpt-image-2",
 			"image-gpt-image-2-5-flare",
 			"image-gpt-image-2-5-sunburst",
+			"image-gpt-image-2-6-flare",
+			"image-gpt-image-2-6-sunburst",
 			"image-seedream-4",
 			"image-seedream-4-5",
 			"image-seedream-5-lite",
 			"image-seedream-5-pro",
 		]);
-		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(29);
+		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(35);
 		for (const product of products) {
 			expect(product).toEqual(
 				expect.objectContaining({
@@ -312,6 +314,8 @@ describe("media product catalog", () => {
 			MEDIA_GPT_IMAGE_2_ENABLED: "false",
 			MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED: "true",
 			MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED: "true",
+			MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED: "true",
+			MEDIA_GPT_IMAGE_2_6_SUNBURST_ENABLED: "true",
 			MEDIA_SEEDREAM_4_ENABLED: "true",
 			MEDIA_SEEDREAM_5_PRO_ENABLED: "true",
 		});
@@ -324,6 +328,8 @@ describe("media product catalog", () => {
 			"image-gpt-image-1-5",
 			"image-gpt-image-2-5-flare",
 			"image-gpt-image-2-5-sunburst",
+			"image-gpt-image-2-6-flare",
+			"image-gpt-image-2-6-sunburst",
 			"image-seedream-4",
 			"image-seedream-4-5",
 			"image-seedream-5-lite",
@@ -331,7 +337,7 @@ describe("media product catalog", () => {
 		]);
 	});
 
-	it("fails closed when production omits all twelve Kie product switches", () => {
+	it("fails closed when production omits all fourteen Kie product switches", () => {
 		const options = configuredRouteGraphOptionsFromEnvironment({
 			NODE_ENV: "production",
 			EZPIC_DEPLOYMENT_ENVIRONMENT: "production",
@@ -349,6 +355,8 @@ describe("media product catalog", () => {
 				"image-gpt-image-2",
 				"image-gpt-image-2-5-flare",
 				"image-gpt-image-2-5-sunburst",
+				"image-gpt-image-2-6-flare",
+				"image-gpt-image-2-6-sunburst",
 				"image-seedream-4",
 				"image-seedream-4-5",
 				"image-seedream-5-lite",
@@ -367,7 +375,13 @@ describe("media product catalog", () => {
 			});
 
 			expect(options.disabledProductKeys, nodeEnvironment).toEqual(
-				new Set(["image-gpt-image-2-5-flare", "image-gpt-image-2-5-sunburst", "image-seedream-4"]),
+				new Set([
+					"image-gpt-image-2-5-flare",
+					"image-gpt-image-2-5-sunburst",
+					"image-gpt-image-2-6-flare",
+					"image-gpt-image-2-6-sunburst",
+					"image-seedream-4",
+				]),
 			);
 		}
 	});

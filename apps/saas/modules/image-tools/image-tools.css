@@ -1,0 +1,248 @@
+.ai-tool-page {
+	background: #19131f;
+	color: #f3edf8;
+	min-height: 100vh;
+}
+
+.ai-tool-container {
+	width: min(100% - 2rem, 72rem);
+	margin-inline: auto;
+}
+
+.ai-tool-hero {
+	max-width: 54rem;
+	padding-top: clamp(1.5rem, 4vw, 3rem);
+	margin-inline: auto;
+	text-align: center;
+}
+
+.ai-tool-eyebrow {
+	color: #c4b5e1;
+	font-size: 0.72rem;
+	font-weight: 650;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+
+.ai-tool-hero h1 {
+	margin-block: 0.6rem;
+	font-size: clamp(2.1rem, 5vw, 3.4rem);
+	font-weight: 650;
+	letter-spacing: -0.045em;
+	line-height: 1.1;
+}
+
+.ai-tool-intro {
+	max-width: 43rem;
+	margin-inline: auto;
+	color: #c3b8cc;
+	font-size: 1rem;
+	line-height: 1.65;
+}
+
+.ai-tool-facts {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 0.5rem 1.25rem;
+	margin-block: 1rem;
+	padding: 0;
+	list-style: none;
+	color: #d9ccea;
+	font-size: 0.75rem;
+}
+
+.ai-tool-workspace {
+	max-width: 65rem;
+	margin: 1.25rem auto 0;
+	scroll-margin-top: 6rem;
+}
+
+.ai-tool-settings-note {
+	max-width: 50rem;
+	margin: 1rem auto 0;
+	color: #afa2ba;
+	font-size: 0.78rem;
+	line-height: 1.7;
+	text-align: center;
+}
+
+.ai-tool-related {
+	display: flex;
+	justify-content: center;
+	flex-wrap: wrap;
+	gap: 0.6rem;
+	margin-block: 1.25rem 3rem;
+}
+
+.ai-tool-related a {
+	padding: 0.65rem 1rem;
+	border: 1px solid #ffffff16;
+	border-radius: 999px;
+	color: #d9ccea;
+	font-size: 0.8rem;
+}
+
+.ai-tool-related a[aria-current="page"],
+.ai-tool-related a:hover {
+	background: #ffffff0a;
+	border-color: #b8a1d850;
+	color: #fff;
+}
+
+.ai-tool-page a:focus-visible,
+.ai-tool-page summary:focus-visible,
+.ai-tool-page button:focus-visible {
+	outline: 2px solid #c4b5fd;
+	outline-offset: 4px;
+}
+
+.ai-tool-section {
+	padding-block: 2.5rem;
+	border-top: 1px solid #ffffff12;
+}
+
+.ai-tool-section h2,
+.ai-tool-guides h2 {
+	font-size: clamp(1.45rem, 3vw, 2rem);
+	font-weight: 600;
+	letter-spacing: -0.025em;
+	line-height: 1.3;
+}
+
+.ai-tool-section p,
+.ai-tool-guides p {
+	color: #b9adc4;
+	font-size: 0.95rem;
+	line-height: 1.8;
+}
+
+.ai-tool-section-intro {
+	margin-top: 0.75rem;
+}
+
+.ai-tool-steps {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 2rem;
+	margin-top: 1.75rem;
+	padding: 0;
+	list-style: none;
+}
+
+.ai-tool-step-number {
+	color: #b69bd8;
+	font-size: 0.75rem;
+	font-variant-numeric: tabular-nums;
+}
+
+.ai-tool-steps h3,
+.ai-tool-prompts h3 {
+	margin-block: 0.6rem;
+	font-size: 1rem;
+	font-weight: 600;
+}
+
+.ai-tool-guides {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 2.5rem 3rem;
+	padding-block: 2.5rem 3rem;
+	border-top: 1px solid #ffffff12;
+}
+
+.ai-tool-guides section {
+	scroll-margin-top: 6rem;
+}
+
+.ai-tool-guides p {
+	margin-top: 1rem;
+}
+
+.ai-tool-prompts {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+	gap: 1rem;
+	margin-top: 1.5rem;
+}
+
+.ai-tool-prompts article {
+	display: flex;
+	flex-direction: column;
+	padding: 1.35rem;
+	border: 1px solid #ffffff12;
+	border-radius: 1rem;
+	background: #ffffff03;
+}
+
+.ai-tool-prompts p {
+	flex: 1;
+	font-size: 0.85rem;
+}
+
+.ai-tool-page .model-prompt-button {
+	align-self: flex-start;
+	margin-top: 1rem;
+	padding: 0.65rem 0;
+	color: #dcc7f5;
+	font-size: 0.8rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.ai-tool-faq {
+	max-width: 56rem;
+	margin-inline: auto;
+}
+
+.ai-tool-faq h2 {
+	margin-bottom: 1.5rem;
+}
+
+.ai-tool-faq details {
+	padding-block: 1rem;
+	border-bottom: 1px solid #ffffff12;
+}
+
+.ai-tool-faq summary {
+	font-size: 0.95rem;
+	font-weight: 550;
+	line-height: 1.6;
+	cursor: pointer;
+}
+
+.ai-tool-faq details p {
+	margin-top: 0.8rem;
+}
+
+.ai-tool-footer {
+	padding-block: 3rem;
+	border-top: 1px solid #ffffff12;
+}
+
+.ai-tool-footer > a {
+	display: block;
+	margin-bottom: 1.5rem;
+	font-weight: 650;
+}
+
+@media (max-width: 640px) {
+	.ai-tool-hero {
+		text-align: left;
+	}
+	.ai-tool-facts {
+		justify-content: flex-start;
+		gap: 0.4rem 0.9rem;
+	}
+	.ai-tool-settings-note {
+		text-align: left;
+	}
+	.ai-tool-steps,
+	.ai-tool-guides {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 1.5rem;
+	}
+	.ai-tool-related {
+		justify-content: flex-start;
+	}
+}

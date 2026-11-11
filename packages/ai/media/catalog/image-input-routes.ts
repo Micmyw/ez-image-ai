@@ -2,6 +2,8 @@ import type { CatalogRoute } from "./routing";
 
 // Kie's published text endpoints, reviewed against independent OpenAPI snapshots.
 const TEXT_IMAGE_MODELS: Readonly<Record<string, string>> = {
+	"gpt-image-2-6/flare-image-to-image": "gpt-image-2-6/flare-text-to-image",
+	"gpt-image-2-6/sunburst-image-to-image": "gpt-image-2-6/sunburst-text-to-image",
 	"nano-banana-2-lite": "nano-banana-2-lite",
 	"google/nano-banana-edit": "google/nano-banana",
 	"nano-banana-2": "nano-banana-2",

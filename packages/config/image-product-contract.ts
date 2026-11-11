@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { isGptImage26Sku } from "./image-generation-pricing";
 import {
 	EZPIC_PRODUCT_KEYS,
 	IMAGE_ASPECT_RATIOS,
@@ -41,11 +42,59 @@ export interface ParsedImageSelection {
 	aspectRatio: ImageAspectRatio;
 	outputFormat?: ImageOutputFormat;
 	background?: ImageBackground;
+	frameCount?: number;
+	frameDurationMs?: number;
 }
 
 export const imageAspectRatioSchema = z.enum(IMAGE_ASPECT_RATIOS);
 export const imageOutputFormatSchema = z.enum(IMAGE_OUTPUT_FORMATS);
 export const imageBackgroundSchema = z.enum(IMAGE_BACKGROUNDS);
+export const imageGifFrameCountSchema = z.number().int().min(2).max(16);
+export const imageGifFrameDurationMsSchema = z.number().int().min(20).max(2000).multipleOf(10);
+
+function gptImage26Selection(variant: "flare" | "sunburst"): ImageProductSelectionContract {
+	return {
+		maximumPromptLength: 4000,
+		defaultSkuKey: `gpt-image-2-6-${variant}-1k`,
+		defaultAspectRatio: "1:1",
+		cells: (["1k", "2k", "4k"] as const).map((size) => ({
+			skuKey: `gpt-image-2-6-${variant}-${size}`,
+			aspectRatios: [
+				"1:1",
+				"3:2",
+				"2:3",
+				"4:3",
+				"3:4",
+				"5:4",
+				"4:5",
+				"16:9",
+				"9:16",
+				"2:1",
+				"1:2",
+				"21:9",
+				"9:21",
+				"3:1",
+				"1:3",
+			],
+			controls: [
+				{
+					key: "outputFormat",
+					defaultValue: "png",
+					options: size === "1k" ? ["png", "jpeg", "svg", "gif"] : ["png", "jpeg"],
+				},
+				...(size === "1k"
+					? [
+							{
+								key: "background" as const,
+								defaultValue: "opaque",
+								options: ["auto", "opaque", "transparent"],
+							},
+						]
+					: []),
+			],
+		})),
+	};
+}
 
 /**
  * Browser-safe product selection rules. Provider routes, model identifiers,
@@ -54,6 +103,8 @@ export const imageBackgroundSchema = z.enum(IMAGE_BACKGROUNDS);
 export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 	Record<EzPicProductKey, ImageProductSelectionContract>
 > = {
+	"image-gpt-image-2-6-flare": gptImage26Selection("flare"),
+	"image-gpt-image-2-6-sunburst": gptImage26Selection("sunburst"),
 	"image-nano-banana-2-lite": {
 		maximumPromptLength: 10_000,
 		defaultSkuKey: "nano-banana-2-lite-1k",
@@ -430,6 +481,18 @@ export function parseImageSelection(
 		if (!background.success || !control?.options.includes(background.data)) return null;
 		selection.background = background.data;
 	}
+	if (isGptImage26Sku(selection.skuKey)) {
+		const format = selection.outputFormat ?? "png";
+		if (selection.background === "transparent" && format !== "png") return null;
+		if (format === "gif") {
+			if (selection.aspectRatio !== "1:1") return null;
+			const frames = imageGifFrameCountSchema.safeParse(input.frameCount ?? 9);
+			const duration = imageGifFrameDurationMsSchema.safeParse(input.frameDurationMs ?? 200);
+			if (!frames.success || !duration.success) return null;
+			selection.frameCount = frames.data;
+			selection.frameDurationMs = duration.data;
+		} else if (input.frameCount !== undefined || input.frameDurationMs !== undefined) return null;
+	} else if (input.frameCount !== undefined || input.frameDurationMs !== undefined) return null;
 	return selection;
 }
 

@@ -45,8 +45,10 @@ export function localizeLandingProducts(
 export function resolveLandingProductSelection(
 	products: readonly GuestCapabilityProduct[],
 	selectedProductKey: GuestProductKey | null,
+	preserveRequestedSelection = false,
 ): GuestProductKey | null {
-	if (!products.length) return selectedProductKey;
+	if (!products.length || (preserveRequestedSelection && selectedProductKey))
+		return selectedProductKey;
 	if (selectedProductKey && products.some((product) => product.key === selectedProductKey)) {
 		return selectedProductKey;
 	}

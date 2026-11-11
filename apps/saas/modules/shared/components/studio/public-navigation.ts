@@ -58,6 +58,18 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 		labelKey: "studio.tools.imageTools",
 		links: [
 			{
+				href: "/ai-svg-generator",
+				labelKey: "studio.tools.svgGenerator",
+				descriptionKey: "studio.tools.svgGeneratorDescription",
+				icon: "image",
+			},
+			{
+				href: "/ai-gif-generator",
+				labelKey: "studio.tools.gifGenerator",
+				descriptionKey: "studio.tools.gifGeneratorDescription",
+				icon: "image",
+			},
+			{
 				href: "/christmas-wallpaper",
 				labelKey: "christmas.name",
 				descriptionKey: "christmas.navigationDescription",
@@ -75,6 +87,12 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 		id: "models",
 		labelKey: "studio.tools.models",
 		links: [
+			{
+				href: "/gpt-image-2-6",
+				labelKey: "studio.tools.gptImage26",
+				descriptionKey: "studio.tools.gptImage26Description",
+				icon: "models",
+			},
 			{
 				href: "/models",
 				labelKey: "studio.tools.allModels",

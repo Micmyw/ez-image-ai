@@ -146,4 +146,43 @@ describe("getEditSession", () => {
 			),
 		).rejects.toMatchObject({ code: "NOT_FOUND" } satisfies Partial<ORPCError<string, unknown>>);
 	});
+	it.each(["image/gif", "image/svg+xml"])(
+		"keeps %s visible in history without allowing an incompatible edit input",
+		async (mimeType) => {
+			mocks.getImageEditSessionForOwner.mockResolvedValue({
+				id: "session-1",
+				rootAssetId: "asset-root",
+				title: "New output",
+				createdAt: new Date(),
+				updatedAt: new Date(),
+				jobs: [
+					{
+						id: "job-root",
+						parentJobId: null,
+						productKey: "image-gpt-image-2-6-flare",
+						status: "SUCCEEDED",
+						creditsReserved: 80n,
+						inputSnapshot: {
+							kind: "image-to-image",
+							prompt: "Animate a leaf",
+							sourceAssetId: "asset-root",
+							skuKey: "gpt-image-2-6-flare-1k",
+							aspectRatio: "1:1",
+						},
+						createdAt: new Date(),
+						assets: [{ role: "OUTPUT", position: 0, asset: { ...readyOutput, mimeType } }],
+					},
+				],
+			});
+			const result = await call(
+				getEditSession,
+				{ sessionId: "session-1" },
+				{ context: { headers: new Headers() } },
+			);
+			expect(result.versions[0]).toMatchObject({
+				output: { state: "READY", assetId: readyOutput.id },
+				canEditAgain: false,
+			});
+		},
+	);
 });

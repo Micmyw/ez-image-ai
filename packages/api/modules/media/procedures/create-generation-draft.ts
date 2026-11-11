@@ -8,6 +8,8 @@ import {
 	imageBackgroundSchema,
 	imageOutputFormatSchema,
 	imageSkuKeySchema,
+	imageGifFrameCountSchema,
+	imageGifFrameDurationMsSchema,
 	isValidImageSelection,
 } from "@repo/config";
 import { createGenerationDraftTransaction } from "@repo/database";
@@ -48,6 +50,8 @@ export const marketingGenerationDraftInputSchema = z
 				aspectRatio: imageAspectRatioSchema,
 				outputFormat: imageOutputFormatSchema.optional(),
 				background: imageBackgroundSchema.optional(),
+				frameCount: imageGifFrameCountSchema.optional(),
+				frameDurationMs: imageGifFrameDurationMsSchema.optional(),
 			})
 			.strict(),
 		upload: draftUploadSchema,

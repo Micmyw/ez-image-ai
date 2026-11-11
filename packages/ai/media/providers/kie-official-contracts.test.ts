@@ -47,10 +47,16 @@ function quotedInput(skuKey: string, aspectRatio: string, text = prompt) {
 }
 
 describe("Kie official image API contracts reviewed 2026-09-14", () => {
-	it("covers every public image model with a distinct official model identifier", () => {
-		expect(officialContracts.products.map((p) => p.productKey).sort()).toEqual(
-			[...EZPIC_PRODUCT_KEYS].sort(),
-		);
+	it("covers the original models alongside the separately reviewed 2.6 contracts", () => {
+		// Keep the September provider snapshot frozen. The November routes and
+		// their GIF/SVG fields are covered by kie-gpt-image-26.test.ts.
+		expect(
+			[
+				...officialContracts.products.map((p) => p.productKey),
+				"image-gpt-image-2-6-flare",
+				"image-gpt-image-2-6-sunburst",
+			].sort(),
+		).toEqual([...EZPIC_PRODUCT_KEYS].sort());
 		expect(new Set(officialContracts.products.map((p) => p.providerModelId)).size).toBe(12);
 	});
 

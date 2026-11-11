@@ -11,6 +11,92 @@ vi.mock("@repo/ui/components/popover", () => ({
 import { ImageOutputSettings } from "./ImageOutputSettings";
 
 describe("ImageOutputSettings", () => {
+	it.each([
+		{ outputFormat: "gif" as const, credits: 80 },
+		{ outputFormat: "svg" as const, credits: 40 },
+	])(
+		"shows the complete $outputFormat price and only applicable controls",
+		({ outputFormat, credits }) => {
+			const markup = renderToStaticMarkup(
+				<ImageOutputSettings
+					idPrefix="gpt26"
+					aspectRatios={["1:1"]}
+					value="1:1"
+					onChange={vi.fn()}
+					modeLabel="GPT Image 2.6 Flare"
+					skuKey="gpt-image-2-6-flare-1k"
+					skuMatrix={{
+						defaultSkuKey: "gpt-image-2-6-flare-1k",
+						dimensions: [
+							{ key: "resolution", label: "Resolution", options: [{ key: "1k", label: "1K" }] },
+						],
+						cells: [
+							{
+								skuKey: "gpt-image-2-6-flare-1k",
+								label: "1K",
+								parameterValues: { resolution: "1k" },
+								credits: 20,
+								aspectRatios: ["1:1"],
+								controls: [
+									{
+										key: "outputFormat",
+										label: "Output format",
+										defaultValue: "png",
+										options: [
+											{ key: "png", label: "PNG" },
+											{ key: "gif", label: "GIF" },
+											{ key: "svg", label: "SVG" },
+										],
+									},
+									{
+										key: "background",
+										label: "Background",
+										defaultValue: "opaque",
+										options: [
+											{ key: "opaque", label: "Opaque" },
+											{ key: "transparent", label: "Transparent" },
+										],
+									},
+								],
+							},
+						],
+					}}
+					controlValues={{
+						outputFormat,
+						background: "opaque",
+						...(outputFormat === "gif" ? { frameCount: 16, frameDurationMs: 120 } : {}),
+					}}
+					onControlChange={vi.fn()}
+					labels={{
+						title: "Output settings",
+						trigger: "Open settings",
+						aspectRatio: "Aspect ratio",
+						automatic: "Automatic",
+						outputNumber: "Output number",
+						oneOutput: "One image",
+						resolution: "Resolution",
+						quality: "Quality",
+						outputFormat: "Output format",
+						background: "Background",
+						modeControlsQuality: "Model-specific",
+						credits: "Credits",
+						frameCount: "Frames (2–16)",
+						frameDurationMs: "Frame duration (ms)",
+					}}
+				/>,
+			);
+			expect(markup).toContain(`1K · ${credits} Credits`);
+			expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>Transparent<\/button>/);
+			if (outputFormat === "gif") {
+				expect(markup).toContain("512 × 512");
+				expect(markup).toContain("Frames (2–16)");
+				expect(markup).toContain('<option value="16" selected="">16</option>');
+				expect(markup).toContain('<option value="120" selected="">120</option>');
+				expect(markup).not.toContain('<option value="64"');
+			} else expect(markup).not.toContain("Frame duration");
+		},
+	);
+
 	it.each(["compact", "composer"] as const)(
 		"keeps all supported settings in one panel without count controls (%s)",
 		(presentation) => {

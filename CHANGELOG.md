@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — GPT Image 2.6, SVG and GIF tools
+
+- Add GPT Image 2.6 Flare and Sunburst to the existing image workspace, with a shared model landing page at `/gpt-image-2-6` and dedicated `/ai-svg-generator` and `/ai-gif-generator` tools. Generation remains subject to current model availability and account eligibility.
+- Keep the generation composer above the guides, with prompt examples, format guidance and visible FAQs. Add clean canonical URLs, FAQ structured data, navigation and sitemap discovery; English fallback language views and personal task states retain their existing indexing exclusions.
+- Offer static SVG and 2–16-frame GIF workflows through the existing private media and credit system. The GIF page describes the current 512 × 512 per-frame limit; it does not advertise an unsupported 64-frame option. Existing image pass coverage stays frozen.
+
 ## Unreleased — Compact video template workspace
 
 - Fit detail previews to the actual poster or video proportions, with viewport-bounded portrait playback and full-width landscape playback. Restore the poster's proportions when playback closes.

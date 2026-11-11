@@ -1,12 +1,13 @@
 import { assertGuestImageDimensions } from "../image-processing/geometry";
-import type { MediaContentType, MediaObjectLocation } from "../types";
+import type { ImageContentType } from "../image-processing/types";
+import type { MediaObjectLocation } from "../types";
 
 export const GUEST_WATERMARK_VERSION = "ezpic-guest-v1";
 
 export interface GuestWatermarkInput {
 	staging: MediaObjectLocation;
 	final: MediaObjectLocation;
-	contentType: Extract<MediaContentType, `image/${string}`>;
+	contentType: ImageContentType;
 	deleteAfter: Date;
 	now?: () => Date;
 }

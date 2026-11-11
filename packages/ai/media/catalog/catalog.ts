@@ -1,6 +1,9 @@
 import {
 	DEFAULT_PRODUCT_CONFIG,
 	getImageProductSelectionContract,
+	parseImageSelection,
+	getImageGenerationCredits,
+	isGptImage26Sku,
 	PRODUCT_CREDIT_COSTS,
 	productModelKeySchema,
 	type ImageSkuKey,
@@ -13,6 +16,7 @@ import {
 	GPT_IMAGE_2_5_SUNBURST_MATRIX,
 	SEEDREAM_4_MATRIX,
 } from "./expanded-image-spec-matrices";
+import { gptImage26Matrix } from "./gpt-image-26";
 import { withTextImageRoutes } from "./image-input-routes";
 import {
 	getImageSpecCell,
@@ -164,6 +168,28 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 		credits: PRODUCT_CREDIT_COSTS["image-gpt-image-2-5-sunburst"],
 		routes: matrixRoutes(GPT_IMAGE_2_5_SUNBURST_MATRIX),
 		imageSpecMatrix: GPT_IMAGE_2_5_SUNBURST_MATRIX,
+	},
+	"image-gpt-image-2-6-flare": {
+		key: "image-gpt-image-2-6-flare",
+		label: "GPT Image 2.6 Flare",
+		description:
+			"Speed-focused image creation and editing at medium quality, with SVG and GIF output.",
+		mediaKind: "image",
+		inputKinds: ["text-to-image", "image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-gpt-image-2-6-flare"],
+		routes: matrixRoutes(gptImage26Matrix("flare")),
+		imageSpecMatrix: gptImage26Matrix("flare"),
+	},
+	"image-gpt-image-2-6-sunburst": {
+		key: "image-gpt-image-2-6-sunburst",
+		label: "GPT Image 2.6 Sunburst",
+		description:
+			"Detail-focused image creation and consistent reference edits at high quality, with SVG and GIF output.",
+		mediaKind: "image",
+		inputKinds: ["text-to-image", "image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-gpt-image-2-6-sunburst"],
+		routes: matrixRoutes(gptImage26Matrix("sunburst")),
+		imageSpecMatrix: gptImage26Matrix("sunburst"),
 	},
 	"image-seedream-4": {
 		key: "image-seedream-4",
@@ -319,6 +345,8 @@ export function quoteCatalogInput(input: unknown): {
 	if (cell) {
 		assertImageSpecAspectRatio(cell, parsed.input);
 		assertImageSpecControls(cell, parsed.input);
+		if (isGptImage26Sku(cell.skuKey) && !parseImageSelection(parsed.productKey, parsed.input))
+			throw new Error(`Invalid image selection for ${parsed.productKey}`);
 	}
 	if (
 		parsed.productKey === "video-quality" &&
@@ -331,7 +359,10 @@ export function quoteCatalogInput(input: unknown): {
 	return {
 		productKey: parsed.productKey,
 		...(cell ? { skuKey: cell.skuKey } : {}),
-		credits: cell?.credits ?? entry.credits,
+		credits:
+			cell && (parsed.input.kind === "text-to-image" || parsed.input.kind === "image-to-image")
+				? getImageGenerationCredits({ ...parsed.input, skuKey: cell.skuKey })
+				: entry.credits,
 		catalogVersion: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 		pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
 	};
@@ -365,6 +396,11 @@ function assertImageSpecAspectRatio(cell: ImageSpecCell, input: MediaModelInput)
 
 function assertImageSpecControls(cell: ImageSpecCell, input: MediaModelInput): void {
 	if (input.kind !== "image-to-image" && input.kind !== "text-to-image") return;
+	if (
+		!isGptImage26Sku(cell.skuKey) &&
+		(input.frameCount !== undefined || input.frameDurationMs !== undefined)
+	)
+		throw new Error(`GIF settings are not supported by SKU ${cell.skuKey}`);
 	if ("strength" in input && input.strength !== undefined) {
 		throw new Error(`Invalid strength for SKU ${cell.skuKey}`);
 	}

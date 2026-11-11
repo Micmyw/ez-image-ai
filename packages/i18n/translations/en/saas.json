@@ -1593,6 +1593,14 @@
 				"image-seedream-4": {
 					"label": "Seedream 4.0",
 					"description": "Flexible image editing with 1K, 2K, and 4K output options."
+				},
+				"image-gpt-image-2-6-flare": {
+					"label": "GPT Image 2.6 Flare",
+					"description": "Faster image creation with medium quality and clear layouts."
+				},
+				"image-gpt-image-2-6-sunburst": {
+					"label": "GPT Image 2.6 Sunburst",
+					"description": "High-quality detail and consistent reference editing."
 				}
 			},
 			"skus": {
@@ -1682,6 +1690,24 @@
 				},
 				"seedream-4-4k": {
 					"label": "4K"
+				},
+				"gpt-image-2-6-flare-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-6-flare-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-6-flare-4k": {
+					"label": "4K"
+				},
+				"gpt-image-2-6-sunburst-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-6-sunburst-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-6-sunburst-4k": {
+					"label": "4K"
 				}
 			},
 			"fields": {
@@ -1715,7 +1741,10 @@
 					"auto": "Automatic",
 					"opaque": "Opaque",
 					"transparent": "Transparent"
-				}
+				},
+				"frameCount": "Frames (2–16)",
+				"frameDurationMs": "Frame duration (ms)",
+				"gifCanvas": "GIF frames use a 512 × 512 canvas."
 			},
 			"promptHint": "Describe only the change you want. Your source image remains private.",
 			"suggestions": {
@@ -2281,7 +2310,13 @@
 			"videoGuide": "Video generation guide",
 			"videoTemplates": "Video templates",
 			"videoTemplatesDescription": "Rap, dance and pet videos from your photos",
-			"videoTemplateHandoff": "Make a video with this image"
+			"videoTemplateHandoff": "Make a video with this image",
+			"gptImage26": "GPT Image 2.6",
+			"gptImage26Description": "Flare for speed, Sunburst for detail",
+			"svgGenerator": "AI SVG Generator",
+			"svgGeneratorDescription": "Create static SVG illustrations from a prompt",
+			"gifGenerator": "AI GIF Generator",
+			"gifGeneratorDescription": "Create short animated GIFs from text or a photo"
 		},
 		"generation": {
 			"referencePending": "Finish uploading your reference, retry it, or remove it to generate from text.",
@@ -2566,13 +2601,13 @@
 		"bannerLabel": "One-time image pack",
 		"dismissBanner": "Dismiss image pack offer",
 		"bannerTitle": "{units} images for ${amount}",
-		"bannerDetail": "All available image models and sizes, including Pro and 4K · No subscription required",
+		"bannerDetail": "Models and sizes listed in this pack, including Pro and 4K · No subscription required",
 		"buy": "Get image pack",
 		"oneTime": "One-time purchase",
 		"title": "{units} successful images",
 		"pageTitle": "Image pack — 3 images for USD 2.99",
-		"description": "Get 3 successful images for USD 2.99 using any currently available image model and resolution, including Pro, 4K and high-quality options. No subscription is required. Each task produces one image.",
-		"models": "All currently available image models, resolutions and quality options, including Pro and 4K.",
+		"description": "Get 3 successful images for USD 2.99 using the models and sizes listed in this pack, including Pro, 4K and high-quality options. No subscription is required. GPT Image 2.6, SVG and GIF use credits separately.",
+		"models": "The models and sizes listed in this pack, including Pro and 4K. GPT Image 2.6, SVG and GIF use credits separately.",
 		"singleOutput": "One successful image uses one pass. Images only, no video.",
 		"separate": "Image passes are separate from credits and subscriptions.",
 		"repeat": "Buy another pack whenever you need it.",
@@ -2615,7 +2650,7 @@
 		"retryBalance": "Check balance again",
 		"availabilityLoading": "Checking offer availability…",
 		"unavailable": "This offer is currently unavailable. Please try again later.",
-		"sizeRule": "This USD 2.99 pack covers all currently available image models and sizes, including Pro and 4K, without a subscription. Earlier USD 1 packs keep their original terms.",
+		"sizeRule": "This USD 2.99 pack covers the models and sizes listed in the offer without a subscription. GPT Image 2.6, SVG and GIF use credits separately. Earlier USD 1 packs keep their original terms.",
 		"fundingSizeNotEligible": "Your available passes do not cover this option. Choose an option covered by your pack, buy a current pack, or explicitly pay with credits.",
 		"returnAwaitingConfirmationUnknownAmount": "If you approved this payment in PayPal, confirm below to finish. Otherwise, return to checkout.",
 		"returnConfirmPaymentUnknownAmount": "Confirm PayPal payment"

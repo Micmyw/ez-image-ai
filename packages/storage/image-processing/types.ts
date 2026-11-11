@@ -1,6 +1,5 @@
-import type { MediaContentType } from "../types";
-
-export type ImageContentType = Extract<MediaContentType, `image/${string}`>;
+/** Existing raster processor contract. SVG/GIF are validated and rasterized separately. */
+export type ImageContentType = "image/jpeg" | "image/png" | "image/webp";
 
 export interface ImageDimensions {
 	width: number;

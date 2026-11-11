@@ -30,7 +30,7 @@ export function ExploreModels() {
 					prefetch={false}
 					className="text-sm text-violet-200 hover:text-white underline underline-offset-4"
 				>
-					Explore all 12 models <span aria-hidden="true">↗</span>
+					Explore image models <span aria-hidden="true">↗</span>
 				</Link>
 			</div>
 			<div className="gap-6 md:grid-cols-3 grid">

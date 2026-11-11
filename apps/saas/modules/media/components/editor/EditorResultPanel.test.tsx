@@ -69,6 +69,27 @@ import { ToolPromptProvider } from "../../lib/tool-prompt-context";
 import { EditorResultPanel } from "./EditorResultPanel";
 
 describe("EditorResultPanel", () => {
+	it.each(["image/gif", "image/svg+xml"])(
+		"previews and downloads %s without offering incompatible raster-input actions",
+		(mimeType) => {
+			mocks.jobQuery = {
+				data: imageJob({
+					productKey: "image-gpt-image-2-6-flare",
+					skuKey: "gpt-image-2-6-flare-1k",
+					aspectRatio: "1:1",
+					outputMimeType: mimeType,
+				}),
+				isError: false,
+			};
+			mocks.useQuery.mockReturnValue({ data: { url: "https://private.example.test/output" } });
+			const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+			expect(markup).toContain('src="https://private.example.test/output"');
+			expect(markup).toContain("Download");
+			expect(markup).not.toContain("Edit again");
+			expect(markup).not.toContain("/photo-to-coloring-page?");
+			expect(markup).not.toContain("/video-templates?asset=");
+		},
+	);
 	it("offers only a coloring-page entry with the selected output outside the tool", () => {
 		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
 		expect(markup).toContain('href="/photo-to-coloring-page?asset=asset-output#image-editor"');

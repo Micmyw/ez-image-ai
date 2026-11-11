@@ -7,6 +7,8 @@ import {
 	imageBackgroundSchema,
 	imageOutputFormatSchema,
 	imageSkuKeySchema,
+	imageGifFrameCountSchema,
+	imageGifFrameDurationMsSchema,
 	parseImageSelection,
 } from "@repo/config";
 import {
@@ -55,6 +57,8 @@ export const completeGuestDraftUpload = publicProcedure
 				aspectRatio: imageAspectRatioSchema.default("auto"),
 				outputFormat: imageOutputFormatSchema.optional(),
 				background: imageBackgroundSchema.optional(),
+				frameCount: imageGifFrameCountSchema.optional(),
+				frameDurationMs: imageGifFrameDurationMsSchema.optional(),
 			})
 			.strict(),
 	)
@@ -169,6 +173,10 @@ export const completeGuestDraftUpload = publicProcedure
 					aspectRatio: selection.aspectRatio,
 					...(selection.outputFormat === undefined ? {} : { outputFormat: selection.outputFormat }),
 					...(selection.background === undefined ? {} : { background: selection.background }),
+					...(selection.frameCount === undefined ? {} : { frameCount: selection.frameCount }),
+					...(selection.frameDurationMs === undefined
+						? {}
+						: { frameDurationMs: selection.frameDurationMs }),
 					expiresAt: new Date(Date.now() + loaded.config.bootstrapTtlMs),
 					verification: currentMediaAssetVerificationBoundary(),
 				},

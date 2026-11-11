@@ -3,6 +3,8 @@ import {
 	IMAGE_ASPECT_RATIOS,
 	IMAGE_BACKGROUNDS,
 	IMAGE_OUTPUT_FORMATS,
+	imageGifFrameCountSchema,
+	imageGifFrameDurationMsSchema,
 	IMAGE_SKU_KEYS_BY_PRODUCT,
 	IMAGE_SKU_KEYS,
 	LEGACY_EZPIC_PRODUCT_KEYS,
@@ -41,6 +43,8 @@ const storedEditorUpgradeDraftSchema = z
 						aspectRatio: z.enum(IMAGE_ASPECT_RATIOS).optional(),
 						outputFormat: z.enum(IMAGE_OUTPUT_FORMATS).optional(),
 						background: z.enum(IMAGE_BACKGROUNDS).optional(),
+						frameCount: imageGifFrameCountSchema.optional(),
+						frameDurationMs: imageGifFrameDurationMsSchema.optional(),
 					})
 					.strict(),
 			})
@@ -226,6 +230,12 @@ function normalizeStoredEditorDraft(
 			aspectRatio,
 			...(draft.input.outputFormat ? { outputFormat: draft.input.outputFormat } : {}),
 			...(draft.input.background ? { background: draft.input.background } : {}),
+			...(draft.input.outputFormat === "gif"
+				? {
+						frameCount: draft.input.frameCount ?? 9,
+						frameDurationMs: draft.input.frameDurationMs ?? 200,
+					}
+				: {}),
 		},
 	};
 }

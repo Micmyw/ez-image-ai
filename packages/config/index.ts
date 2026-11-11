@@ -10,6 +10,7 @@ export * from "./image-pass";
 export * from "./plans";
 export * from "./product";
 export * from "./image-product-contract";
+export * from "./image-generation-pricing";
 export * from "./public";
 export * from "./launch-evidence";
 export * from "./production-launch";

@@ -5,7 +5,14 @@ import {
 	imageBackgroundSchema,
 	imageOutputFormatSchema,
 } from "@repo/ai";
-import { imageSkuKeySchema, type ImageAspectRatio, type ImageSkuKey } from "@repo/config";
+import {
+	parseImageSelection,
+	imageGifFrameCountSchema,
+	imageGifFrameDurationMsSchema,
+	imageSkuKeySchema,
+	type ImageAspectRatio,
+	type ImageSkuKey,
+} from "@repo/config";
 
 import {
 	type EditorDraftInput,
@@ -57,6 +64,10 @@ export function buildEditAgainRecoveryCandidate(
 			...(typeof input?.aspectRatio === "string" ? { aspectRatio: input.aspectRatio } : {}),
 			...(typeof input?.outputFormat === "string" ? { outputFormat: input.outputFormat } : {}),
 			...(typeof input?.background === "string" ? { background: input.background } : {}),
+			...(typeof input?.frameCount === "number" ? { frameCount: input.frameCount } : {}),
+			...(typeof input?.frameDurationMs === "number"
+				? { frameDurationMs: input.frameDurationMs }
+				: {}),
 		},
 	};
 }
@@ -84,7 +95,7 @@ export function resolveEditorRecovery(input: {
 	if (!input.sourceAsset) return unavailableRecovery();
 	if (
 		input.sourceAsset.deletedAt ||
-		!input.sourceAsset.mimeType.startsWith("image/") ||
+		!["image/jpeg", "image/png", "image/webp"].includes(input.sourceAsset.mimeType) ||
 		!(["READY", "VERIFYING"] as const).includes(input.sourceAsset.status as "READY" | "VERIFYING")
 	) {
 		return unavailableRecovery();
@@ -133,6 +144,11 @@ function normalizedDraft(candidate: RecoveryCandidate): EditorDraftInput | null 
 				? fallbackAspectRatio
 				: null;
 	if (!aspectRatio) return null;
+	if (
+		productKey.startsWith("image-gpt-image-2-6-") &&
+		!parseImageSelection(productKey, candidate.input)
+	)
+		return null;
 
 	return {
 		productKey,
@@ -150,13 +166,25 @@ function normalizedDraft(candidate: RecoveryCandidate): EditorDraftInput | null 
 function normalizedCellControls(
 	input: Record<string, unknown>,
 	controls: NonNullable<ReturnType<typeof getCatalogImageSpecCell>>["controls"],
-): Pick<EditorDraftInput["input"], "outputFormat" | "background"> {
+): Pick<
+	EditorDraftInput["input"],
+	"outputFormat" | "background" | "frameCount" | "frameDurationMs"
+> {
 	const outputFormat = imageOutputFormatSchema.safeParse(input.outputFormat);
 	const outputFormatControl = controls?.find((control) => control.key === "outputFormat");
 	const background = imageBackgroundSchema.safeParse(input.background);
 	const backgroundControl = controls?.find((control) => control.key === "background");
+	const frameCount = imageGifFrameCountSchema.safeParse(input.frameCount ?? 9);
+	const frameDuration = imageGifFrameDurationMsSchema.safeParse(input.frameDurationMs ?? 200);
+	const isGif =
+		outputFormat.success &&
+		outputFormat.data === "gif" &&
+		outputFormatControl?.options.some((option) => option.key === "gif");
 
 	return {
+		...(isGif && frameCount.success && frameDuration.success
+			? { frameCount: frameCount.data, frameDurationMs: frameDuration.data }
+			: {}),
 		...(outputFormat.success &&
 		outputFormatControl?.options.some((option) => option.key === outputFormat.data)
 			? { outputFormat: outputFormat.data }

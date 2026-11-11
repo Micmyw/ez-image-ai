@@ -154,6 +154,9 @@ function safeWorkspaceReturnPath(value: string): string | null {
 			"/image-to-image",
 			"/photo-to-coloring-page",
 			"/christmas-wallpaper",
+			"/gpt-image-2-6",
+			"/ai-svg-generator",
+			"/ai-gif-generator",
 		].includes(url.pathname) &&
 		!/^\/models\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(url.pathname)
 	)

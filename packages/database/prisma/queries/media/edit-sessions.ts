@@ -156,7 +156,7 @@ export async function findEligibleImageEditParentForOwner(
 		output.ownerId !== input.ownerId ||
 		output.status !== "READY" ||
 		output.deletedAt !== null ||
-		!output.mimeType.startsWith("image/") ||
+		!["image/jpeg", "image/png", "image/webp"].includes(output.mimeType) ||
 		!isPermittedModerationEvidence(output.moderationResults[0])
 	) {
 		return null;

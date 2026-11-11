@@ -65,6 +65,8 @@ export async function uploadGuestDraft(
 		input.aspectRatio,
 		input.outputFormat ?? null,
 		input.background ?? null,
+		input.frameCount ?? null,
+		input.frameDurationMs ?? null,
 	]);
 	let checkpoint = input.checkpoint;
 	if (checkpoint && checkpoint.requestFingerprint !== requestFingerprint)
@@ -106,6 +108,8 @@ export async function uploadGuestDraft(
 			aspectRatio: input.aspectRatio,
 			...(input.outputFormat ? { outputFormat: input.outputFormat } : {}),
 			...(input.background ? { background: input.background } : {}),
+			...(input.frameCount !== undefined ? { frameCount: input.frameCount } : {}),
+			...(input.frameDurationMs !== undefined ? { frameDurationMs: input.frameDurationMs } : {}),
 		},
 		{ ...options.completion, fetcher: options.completion?.fetcher ?? options.fetcher },
 	);
@@ -151,6 +155,8 @@ export async function completeGuestDraftUpload(
 		aspectRatio?: ImageAspectRatio;
 		outputFormat?: ImageOutputFormat;
 		background?: ImageBackground;
+		frameCount?: number;
+		frameDurationMs?: number;
 	},
 	options: {
 		maximumAttempts?: number;

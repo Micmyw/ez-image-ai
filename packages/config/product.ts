@@ -12,6 +12,8 @@ export const PRODUCT_MODEL_KEYS = [
 	"image-gpt-image-2",
 	"image-gpt-image-2-5-flare",
 	"image-gpt-image-2-5-sunburst",
+	"image-gpt-image-2-6-flare",
+	"image-gpt-image-2-6-sunburst",
 	"image-seedream-4",
 	"image-seedream-4-5",
 	"image-seedream-5-lite",
@@ -28,6 +30,8 @@ export const EZPIC_PRODUCT_KEYS = [
 	"image-gpt-image-2",
 	"image-gpt-image-2-5-flare",
 	"image-gpt-image-2-5-sunburst",
+	"image-gpt-image-2-6-flare",
+	"image-gpt-image-2-6-sunburst",
 	"image-seedream-4",
 	"image-seedream-4-5",
 	"image-seedream-5-lite",
@@ -54,6 +58,12 @@ export const IMAGE_SKU_KEYS = [
 	"gpt-image-2-5-sunburst-1k",
 	"gpt-image-2-5-sunburst-2k",
 	"gpt-image-2-5-sunburst-4k",
+	"gpt-image-2-6-flare-1k",
+	"gpt-image-2-6-flare-2k",
+	"gpt-image-2-6-flare-4k",
+	"gpt-image-2-6-sunburst-1k",
+	"gpt-image-2-6-sunburst-2k",
+	"gpt-image-2-6-sunburst-4k",
 	"seedream-4-1k",
 	"seedream-4-2k",
 	"seedream-4-4k",
@@ -91,7 +101,7 @@ export const IMAGE_ASPECT_RATIOS = [
 	"9:8",
 	"8:9",
 ] as const;
-export const IMAGE_OUTPUT_FORMATS = ["png", "jpeg"] as const;
+export const IMAGE_OUTPUT_FORMATS = ["png", "jpeg", "gif", "svg"] as const;
 export const IMAGE_BACKGROUNDS = ["auto", "opaque", "transparent"] as const;
 export const PRODUCT_CREDIT_COSTS = {
 	"image-fast": 5,
@@ -104,6 +114,8 @@ export const PRODUCT_CREDIT_COSTS = {
 	"image-gpt-image-2": 7,
 	"image-gpt-image-2-5-flare": 7,
 	"image-gpt-image-2-5-sunburst": 7,
+	"image-gpt-image-2-6-flare": 20,
+	"image-gpt-image-2-6-sunburst": 25,
 	"image-seedream-4": 6,
 	"image-seedream-4-5": 8,
 	"image-seedream-5-lite": 7,
@@ -132,6 +144,12 @@ export const IMAGE_SKU_CREDIT_COSTS = {
 	"gpt-image-2-5-sunburst-1k": 7,
 	"gpt-image-2-5-sunburst-2k": 11,
 	"gpt-image-2-5-sunburst-4k": 17,
+	"gpt-image-2-6-flare-1k": 20,
+	"gpt-image-2-6-flare-2k": 40,
+	"gpt-image-2-6-flare-4k": 80,
+	"gpt-image-2-6-sunburst-1k": 25,
+	"gpt-image-2-6-sunburst-2k": 50,
+	"gpt-image-2-6-sunburst-4k": 100,
 	"seedream-4-1k": 6,
 	"seedream-4-2k": 8,
 	"seedream-4-4k": 10,
@@ -162,6 +180,16 @@ export const IMAGE_SKU_KEYS_BY_PRODUCT = {
 		"gpt-image-2-5-sunburst-4k",
 	],
 	"image-seedream-4": ["seedream-4-1k", "seedream-4-2k", "seedream-4-4k"],
+	"image-gpt-image-2-6-flare": [
+		"gpt-image-2-6-flare-1k",
+		"gpt-image-2-6-flare-2k",
+		"gpt-image-2-6-flare-4k",
+	],
+	"image-gpt-image-2-6-sunburst": [
+		"gpt-image-2-6-sunburst-1k",
+		"gpt-image-2-6-sunburst-2k",
+		"gpt-image-2-6-sunburst-4k",
+	],
 	"image-seedream-4-5": ["seedream-4-5-basic-2k", "seedream-4-5-high-4k"],
 	"image-seedream-5-lite": [
 		"seedream-5-lite-basic-2k",
@@ -234,8 +262,8 @@ export type PricingVersion = z.infer<typeof pricingVersionSchema>;
 export const DEFAULT_PRODUCT_CONFIG = productConfigSchema.parse({
 	planIds: PLAN_IDS,
 	productKeys: EZPIC_PRODUCT_KEYS,
-	catalogVersion: "2026-09-14.1",
-	pricingVersion: "2026-09-13.2",
+	catalogVersion: "2026-11-11.1",
+	pricingVersion: "2026-11-11.1",
 	brand: {
 		siteName: "EzImageAI",
 		siteDescription: "Private prompt-based AI image editing with transparent credits.",

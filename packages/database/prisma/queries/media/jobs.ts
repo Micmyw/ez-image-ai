@@ -578,7 +578,12 @@ export async function createGenerationJobTransaction(
 				)
 			)
 				throw new Error("INPUT_TOO_LARGE");
-			if (admission && inputAssets.some((asset) => !asset.mimeType.startsWith("image/")))
+			if (
+				admission &&
+				inputAssets.some(
+					(asset) => !["image/jpeg", "image/png", "image/webp"].includes(asset.mimeType),
+				)
+			)
 				throw new Error("ASSET_NOT_READY");
 			const moderationEvidence = inputAssets.length
 				? await tx.assetModerationResult.findMany({
@@ -943,7 +948,7 @@ async function resolveImageEditBinding(
 					quote.inputSnapshot.temporaryReference
 				)) ||
 			rootAsset.deletedAt !== null ||
-			!rootAsset.mimeType.startsWith("image/")
+			!["image/jpeg", "image/png", "image/webp"].includes(rootAsset.mimeType)
 		) {
 			throw new Error("ASSET_NOT_READY");
 		}
@@ -1007,7 +1012,7 @@ async function resolveImageEditBinding(
 		output.ownerId !== input.ownerId ||
 		output.status !== "READY" ||
 		output.deletedAt !== null ||
-		!output.mimeType.startsWith("image/") ||
+		!["image/jpeg", "image/png", "image/webp"].includes(output.mimeType) ||
 		!isPermittedModerationEvidence(output.moderationResults[0])
 	) {
 		throw new Error("NOT_FOUND");

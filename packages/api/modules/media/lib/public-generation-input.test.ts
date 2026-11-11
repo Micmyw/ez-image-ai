@@ -21,6 +21,22 @@ describe("isValidCurrentEzPicImageSelection", () => {
 });
 
 describe("publicImageGenerationInput", () => {
+	it("projects validated GIF timing for retry without exposing provider settings", () => {
+		const result = publicImageGenerationInput("image-gpt-image-2-6-flare", {
+			kind: "text-to-image",
+			prompt: "A waving leaf",
+			skuKey: "gpt-image-2-6-flare-1k",
+			aspectRatio: "1:1",
+			outputFormat: "gif",
+			frameCount: 16,
+			frameDurationMs: 120,
+			provider: "kie",
+			svg: { model: "private" },
+		});
+		expect(result).toMatchObject({ outputFormat: "gif", frameCount: 16, frameDurationMs: 120 });
+		expect(result).not.toHaveProperty("provider");
+		expect(result).not.toHaveProperty("svg");
+	});
 	it("projects the current GPT Image 2 1K default selection", () => {
 		expect(
 			publicImageGenerationInput("image-gpt-image-2", {

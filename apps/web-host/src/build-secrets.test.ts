@@ -1,5 +1,6 @@
 import { parseEnv } from "node:util";
 
+import { packEzPicImageModelFlags, parseEzPicImageModelFlags } from "@repo/config/server";
 import {
 	HOTEL_LOBBY_PRICE_VERSION,
 	HOTEL_LOBBY_SAFETY_POLICY_VERSION,
@@ -24,6 +25,166 @@ import { assessOptionalVideoEffectOptions } from "./optional-video-effect-readin
 
 const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironment>) =>
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
+
+describe("GPT Image 2.6 build control", () => {
+	const flare = "MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED";
+	const sunburst = "MEDIA_GPT_IMAGE_2_6_SUNBURST_ENABLED";
+	const originalFlags = {
+		[flare]: "false",
+		[sunburst]: "true",
+		MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
+		MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED: "false",
+	};
+	const packedAssignment = (flags: unknown) => `MEDIA_IMAGE_MODEL_FLAGS='${JSON.stringify(flags)}'`;
+
+	it.each([false, true])(
+		"preserves exact source without the dedicated control (split=%s)",
+		(split) => {
+			const source = `# preserve bytes\r\n${packedAssignment(originalFlags)}\r\nPRIVATE_VALUE='fixture # 中文'\n${split ? `PADDING=${"x".repeat(6000)}` : ""}`;
+			expect(
+				readCloudflareBuildEnvironment({
+					...unpackValues(packCloudflareBuildEnvironment(source)),
+					[flare]: "true",
+					[sunburst]: "false",
+					MEDIA_IMAGE_MODEL_FLAGS: "invalid-ambient-pack",
+					MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED_EXTRA: "true",
+				}),
+			).toBe(source);
+		},
+	);
+
+	for (const enabled of ["true", "false"] as const) {
+		it.each(["absent", "flat", "packed", "both"] as const)(
+			`sets both models to ${enabled} from %s authoritative flags and preserves unrelated values`,
+			(representation) => {
+				const source = [
+					"# retain original formatting\r",
+					"PRIVATE_VALUE='fixture # 中文 \\\\ literal'\r",
+					"MULTILINE='first\nsecond'",
+					"MEDIA_GENERATION_ENABLED=false",
+					"BILLING_ENABLED=true",
+					"ACCOUNT_INPUT_COPY_ENABLED=false",
+					"VIDEO_V1_ENABLED=false",
+					...(representation === "flat" || representation === "both"
+						? Object.entries(originalFlags).map(([key, value]) => `${key}=${value}`)
+						: []),
+					...(representation === "packed" || representation === "both"
+						? [packedAssignment(originalFlags)]
+						: []),
+					`PADDING=${"x".repeat(6000)}`,
+				].join("\n");
+				const input = {
+					...unpackValues(packCloudflareBuildEnvironment(source)),
+					MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED: enabled,
+					[flare]: enabled === "true" ? "false" : "true",
+					[sunburst]: "invalid-ambient-value",
+					MEDIA_IMAGE_MODEL_FLAGS: "invalid-ambient-pack",
+				};
+				const snapshot = { ...input };
+				const output = readCloudflareBuildEnvironment(input);
+				const parsed = Object.fromEntries(
+					Object.entries(parseEnv(output)).filter(
+						(entry): entry is [string, string] => typeof entry[1] === "string",
+					),
+				);
+				const expectedFlags = { ...originalFlags, [flare]: enabled, [sunburst]: enabled };
+				expect(output.startsWith(`${source}\n`)).toBe(true);
+				expect(parsed).toEqual({
+					...parseEnv(source),
+					[flare]: enabled,
+					[sunburst]: enabled,
+					...(representation === "packed" || representation === "both"
+						? { MEDIA_IMAGE_MODEL_FLAGS: JSON.stringify(expectedFlags) }
+						: {}),
+				});
+				expect(
+					parseEzPicImageModelFlags(packEzPicImageModelFlags(parsed).MEDIA_IMAGE_MODEL_FLAGS),
+				).toEqual(
+					representation === "absent" ? { [flare]: enabled, [sunburst]: enabled } : expectedFlags,
+				);
+				expect(parsed).not.toHaveProperty("MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED");
+				expect(publicBuildVariables(parsed)).toEqual({});
+				expect(input).toEqual(snapshot);
+			},
+		);
+	}
+
+	it("adds missing target flags inside an existing model pack", () => {
+		const source = `${packedAssignment({ MEDIA_NANO_BANANA_2_LITE_ENABLED: "true" })}\nPRIVATE_VALUE=unchanged`;
+		const parsed = parseEnv(
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: source,
+				MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED: "true",
+			}),
+		);
+		expect(parsed).toMatchObject({
+			[flare]: "true",
+			[sunburst]: "true",
+			PRIVATE_VALUE: "unchanged",
+		});
+		expect(parseEzPicImageModelFlags(parsed.MEDIA_IMAGE_MODEL_FLAGS)).toEqual({
+			MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
+			[flare]: "true",
+			[sunburst]: "true",
+		});
+	});
+
+	it.each([
+		"",
+		"TRUE",
+		"False",
+		" true",
+		"true ",
+		"1",
+		"0",
+		"true\n",
+		"false\nINJECTED=true",
+		"true\0",
+	])("rejects invalid dedicated control %j without exposing its value", (value) => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: `${packedAssignment(originalFlags)}\nPRIVATE_VALUE=unchanged`,
+				MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED: value,
+			}),
+		).toThrow(new Error("CLOUDFLARE_GPT_IMAGE_2_6_OVERRIDE_INVALID"));
+	});
+
+	it.each([
+		"MEDIA_IMAGE_MODEL_FLAGS=not-json-sensitive-fixture",
+		packedAssignment(null),
+		packedAssignment([]),
+		packedAssignment({ [flare]: true }),
+		packedAssignment({ [flare]: "yes" }),
+		packedAssignment({ UNRELATED_SECRET: "private-fixture" }),
+		`${packedAssignment(originalFlags)}\n${flare}=true`,
+		`${packedAssignment(originalFlags)}\nMEDIA_NANO_BANANA_2_LITE_ENABLED=false`,
+		`${packedAssignment({})}\n${flare}=false`,
+		`${flare}=invalid-flat-value`,
+		"MEDIA_NANO_BANANA_2_LITE_ENABLED=invalid-flat-value",
+	])("rejects an invalid or conflicting authoritative base before overriding %j", (source) => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: source,
+				MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED: "true",
+			}),
+		).toThrow(new Error("CLOUDFLARE_GPT_IMAGE_2_6_OVERRIDE_INVALID"));
+	});
+
+	it("removes the exact dedicated control from subprocesses and preserves other variables", () => {
+		const input = {
+			MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED: "true",
+			MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED_EXTRA: "unchanged",
+			CLOUDFLARE_API_TOKEN: "dummy-deployment-token",
+			PATH: "tools",
+		};
+		expect(withoutCloudflareBuildSecrets(input)).toEqual({
+			MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED_EXTRA: "unchanged",
+			CLOUDFLARE_API_TOKEN: "dummy-deployment-token",
+			PATH: "tools",
+		});
+		expect(input.MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED).toBe("true");
+	});
+});
 
 describe("private account input copy build control", () => {
 	it.each([false, true])(

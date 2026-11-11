@@ -5,6 +5,8 @@ import {
 	getCatalogImageSpecCell,
 	parseRouteGraphSnapshot,
 	quoteCatalogInput,
+	imageFormatCostAllowance,
+	GPT_IMAGE_26_COST_BASIS,
 	textImageRoutes,
 	type ExecutableRouteGraphOptions,
 	type MediaModelInput,
@@ -13,6 +15,8 @@ import {
 	DEFAULT_PRODUCT_CONFIG,
 	KIE_POLICY_REJECTION_BILLING_POLICY,
 	OUTPUT_MODERATION_BILLING_POLICY,
+	isGptImage26Sku,
+	isImagePassSkuAllowed,
 	type ProductModelKey,
 } from "@repo/config";
 import type { Prisma } from "@repo/database";
@@ -33,16 +37,21 @@ export function buildMediaQuote(
 	if (!DEFAULT_PRODUCT_CONFIG.features.mediaGeneration) throw new Error("MODEL_DISABLED");
 	const quote = quoteCatalogInput(input);
 	const fundingSource = generationFundingSource({ fundingSource: input.fundingSource });
-	if (fundingSource === "IMAGE_PASS")
+	if (fundingSource === "IMAGE_PASS") {
+		if (!isImagePassSkuAllowed(quote.skuKey)) throw new Error("IMAGE_PASS_SELECTION_INVALID");
 		assertImagePassSelection({
 			productKey: input.productKey,
 			skuKey: quote.skuKey,
 			requestedOutputCount: 1,
 		});
+	}
 	const entry = createExecutableRouteGraph(routeGraphOptions).getEntry(input.productKey);
 	if (!entry) throw new Error("PROVIDER_UNAVAILABLE");
 	const selectedCell = getCatalogImageSpecCell(entry, quote.skuKey);
-	const selectedRoutes = selectedCell?.routes ?? entry.routes;
+	const selectedRoutes = (selectedCell?.routes ?? entry.routes).map((route) => ({
+		...route,
+		providerCostMicros: imageFormatCostAllowance(route.providerCostMicros, input.input),
+	}));
 	const routes =
 		input.input.kind === "text-to-image"
 			? textImageRoutes(selectedRoutes).filter((route) =>
@@ -76,6 +85,12 @@ export function buildMediaQuote(
 		maximumRouteCostMicros: routeGraph.maximumRouteCostMicros,
 	};
 	const pricingSnapshot: Prisma.InputJsonObject = {
+		...(quote.skuKey && isGptImage26Sku(quote.skuKey)
+			? {
+					providerCostBasis: GPT_IMAGE_26_COST_BASIS,
+					retailPolicy: "fixed-image-format-credits-v1",
+				}
+			: {}),
 		...(fundingSource === "IMAGE_PASS" ? { fundingSource, imagePassUnits: 1 } : {}),
 		...(fundingSource === "CREDITS"
 			? { kiePolicyRejectionBillingPolicy: KIE_POLICY_REJECTION_BILLING_POLICY }

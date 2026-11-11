@@ -65,6 +65,7 @@ vi.mock("@media/components/ImageModelSelector", () => ({
 vi.mock("@media/components/ImageOutputSettings", () => ({ ImageOutputSettings: () => null }));
 vi.mock("@media/hooks/use-model-navigation", () => ({
 	useRequestedImageModel: () => "image-nano-banana-2-lite",
+	useRequestedImageOutputFormat: () => undefined,
 	useModelNavigation: () => ({ unavailable: false }),
 	replaceImageModelInUrl: vi.fn(),
 }));

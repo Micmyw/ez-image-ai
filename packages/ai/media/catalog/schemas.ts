@@ -3,6 +3,8 @@ import {
 	IMAGE_BACKGROUNDS,
 	IMAGE_OUTPUT_FORMATS,
 	imageSkuKeySchema,
+	imageGifFrameCountSchema,
+	imageGifFrameDurationMsSchema,
 } from "@repo/config";
 import { z } from "zod";
 
@@ -36,6 +38,8 @@ export const mediaModelInputSchema = z.discriminatedUnion("kind", [
 			aspectRatio: imageAspectRatioSchema.optional(),
 			outputFormat: imageOutputFormatSchema.optional(),
 			background: imageBackgroundSchema.optional(),
+			frameCount: imageGifFrameCountSchema.optional(),
+			frameDurationMs: imageGifFrameDurationMsSchema.optional(),
 			width: z.number().int().min(256).max(2048).optional(),
 			height: z.number().int().min(256).max(2048).optional(),
 		})
@@ -49,6 +53,8 @@ export const mediaModelInputSchema = z.discriminatedUnion("kind", [
 			aspectRatio: imageAspectRatioSchema.optional(),
 			outputFormat: imageOutputFormatSchema.optional(),
 			background: imageBackgroundSchema.optional(),
+			frameCount: imageGifFrameCountSchema.optional(),
+			frameDurationMs: imageGifFrameDurationMsSchema.optional(),
 			strength: z.number().min(0).max(1).optional(),
 		})
 		.strict(),

@@ -3,7 +3,11 @@ import { getBaseUrl } from "@shared/lib/base-url";
 import type { MetadataRoute } from "next";
 
 import { publicPageUpdates } from "../content/page-updates";
-import { MODEL_PAGES, modelPath } from "../modules/models/lib/model-pages";
+import {
+	MODEL_DIRECTORY_UPDATED_AT,
+	MODEL_PAGES,
+	modelPath,
+} from "../modules/models/lib/model-pages";
 import {
 	getAllPublishedBlogPosts,
 	getLegalPageByPath,
@@ -58,7 +62,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 		},
 		{
 			path: "/models",
-			lastModified: MODEL_PAGES.map((model) => model.updatedAt)
+			lastModified: [MODEL_DIRECTORY_UPDATED_AT, ...MODEL_PAGES.map((model) => model.updatedAt)]
 				.sort()
 				.at(-1),
 		},

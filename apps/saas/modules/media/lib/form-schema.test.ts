@@ -7,6 +7,27 @@ import {
 } from "./form-schema";
 
 describe("generation form schema", () => {
+	it("preserves GIF controls and rejects unsupported frame counts and mixed formats", () => {
+		const gif = {
+			kind: "text-to-image",
+			prompt: "A gently waving leaf",
+			skuKey: "gpt-image-2-6-flare-1k",
+			aspectRatio: "1:1",
+			outputFormat: "gif",
+			frameCount: 16,
+			frameDurationMs: 120,
+		};
+		expect(buildGenerationInput(gif)).toEqual(gif);
+		for (const changed of [
+			{ frameCount: 64 },
+			{ frameCount: 1 },
+			{ frameDurationMs: 25 },
+			{ aspectRatio: "16:9" },
+			{ outputFormat: "svg" },
+		]) {
+			expect(() => buildGenerationInput({ ...gif, ...changed })).toThrow();
+		}
+	});
 	it.each(["text", "select", "slider", "aspect-ratio", "count", "image-asset", "video-asset"])(
 		"accepts the supported %s field",
 		(type) =>

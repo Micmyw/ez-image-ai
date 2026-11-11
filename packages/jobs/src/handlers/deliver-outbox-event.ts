@@ -107,6 +107,9 @@ export async function deliverOutboxEvent(
 		case "MEDIA_ASSET_MODERATION_REQUESTED":
 			return dependencies.trigger("media-verify-upload", {
 				assetId: requiredString(payload.assetId, event.aggregateId),
+				...(payload.requiresGeneratedImageProcessing === true
+					? { requiresGeneratedImageProcessing: true }
+					: {}),
 				...(payload.allowQuarantinedReverification === true
 					? { allowQuarantinedReverification: true }
 					: {}),

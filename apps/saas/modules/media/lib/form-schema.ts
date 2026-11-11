@@ -4,6 +4,8 @@ import {
 	IMAGE_BACKGROUNDS,
 	IMAGE_OUTPUT_FORMATS,
 	imageSkuKeySchema,
+	imageGifFrameCountSchema,
+	imageGifFrameDurationMsSchema,
 } from "@repo/config/client";
 import { z } from "zod";
 
@@ -26,6 +28,8 @@ export const generationFormValuesSchema = z.object({
 	aspectRatio: z.enum(IMAGE_ASPECT_RATIOS),
 	outputFormat: z.enum(IMAGE_OUTPUT_FORMATS).optional(),
 	background: z.enum(IMAGE_BACKGROUNDS).optional(),
+	frameCount: imageGifFrameCountSchema.optional(),
+	frameDurationMs: imageGifFrameDurationMsSchema.optional(),
 });
 
 export type GenerationFormValues = z.infer<typeof generationFormValuesSchema>;
@@ -39,6 +43,8 @@ const editInputSchema = z
 		aspectRatio: z.enum(IMAGE_ASPECT_RATIOS).default("auto"),
 		outputFormat: z.enum(IMAGE_OUTPUT_FORMATS).optional(),
 		background: z.enum(IMAGE_BACKGROUNDS).optional(),
+		frameCount: imageGifFrameCountSchema.optional(),
+		frameDurationMs: imageGifFrameDurationMsSchema.optional(),
 		strength: z.number().min(0).max(1).optional(),
 	})
 	.strict();
@@ -47,7 +53,25 @@ const textInputSchema = editInputSchema
 	.omit({ sourceAssetId: true, strength: true })
 	.extend({ kind: z.literal("text-to-image") })
 	.strict();
-const inputSchema = z.discriminatedUnion("kind", [editInputSchema, textInputSchema]);
+const inputSchema = z
+	.discriminatedUnion("kind", [editInputSchema, textInputSchema])
+	.superRefine((input, context) => {
+		if (
+			input.outputFormat !== "gif" &&
+			(input.frameCount !== undefined || input.frameDurationMs !== undefined)
+		)
+			context.addIssue({
+				code: "custom",
+				path: ["outputFormat"],
+				message: "GIF settings require GIF output",
+			});
+		if (input.outputFormat === "gif" && input.aspectRatio !== "1:1")
+			context.addIssue({
+				code: "custom",
+				path: ["aspectRatio"],
+				message: "GIF frames use a square canvas",
+			});
+	});
 
 export type GenerationInput = z.infer<typeof inputSchema>;
 

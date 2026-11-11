@@ -31,7 +31,12 @@ export {
 	type ImageSkuKey,
 } from "./product";
 export { getPublicConfig, type PublicConfig } from "./public";
-export { getImageProductSelectionContract } from "./image-product-contract";
+export {
+	getImageProductSelectionContract,
+	imageGifFrameCountSchema,
+	imageGifFrameDurationMsSchema,
+} from "./image-product-contract";
+export { getImageGenerationCredits, isGptImage26Sku } from "./image-generation-pricing";
 export { WAFFO_PRODUCT_ID_PATTERN } from "./payment-identifiers";
 export {
 	IMAGE_PASS_ALLOWED_SKU_KEYS,

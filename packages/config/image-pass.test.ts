@@ -46,7 +46,7 @@ describe("USD 2.99 three-image offer and immutable historical purchases", () => 
 		expect(allowedSkuKeys).toEqual(IMAGE_PASS_ALLOWED_SKU_KEYS);
 		expect(subscriptionPolicy).toBe("not-required");
 	});
-	it("covers all current models and resolutions for exactly USD 2.99 without subscription", () => {
+	it("retains its frozen 29 SKUs for USD 2.99 and excludes newer models", () => {
 		const offer = getImagePassOfferSnapshot();
 		expect(offer).toMatchObject({
 			provider: "paypal",
@@ -55,9 +55,15 @@ describe("USD 2.99 three-image offer and immutable historical purchases", () => 
 			units: 3,
 			offerVersion: "2026-11-04.2",
 		});
-		expect(offer.allowedSkuKeys).toEqual(IMAGE_SKU_KEYS);
+		expect(offer.allowedSkuKeys).toEqual(IMAGE_PASS_LEGACY_OFFER.allowedSkuKeys);
 		expect(imagePassIncludesModelAccess(JSON.parse(JSON.stringify(offer)))).toBe(true);
-		for (const key of IMAGE_SKU_KEYS) expect(isImagePassSkuAllowed(key), key).toBe(true);
+		for (const key of offer.allowedSkuKeys) expect(isImagePassSkuAllowed(key), key).toBe(true);
+		const newSkus = IMAGE_SKU_KEYS.filter((key) => key.startsWith("gpt-image-2-6-"));
+		expect(newSkus).toHaveLength(6);
+		for (const key of newSkus) {
+			expect(isImagePassSkuAllowed(key), key).toBe(false);
+			for (const historical of oldOffers) expect(historical.allowedSkuKeys).not.toContain(key);
+		}
 		expect(isImagePassSkuAllowed("future-model-8k")).toBe(false);
 		expect(isImagePassSkuAllowed(undefined)).toBe(false);
 		offer.allowedSkuKeys.pop();

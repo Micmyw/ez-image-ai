@@ -529,6 +529,7 @@ export async function promoteStagedObject(input: {
 	contentType: MediaContentType;
 	contentLength: number;
 	expectedSha256?: string;
+	expectedGifFrameCount?: number;
 	/**
 	 * Allows a recovery caller that owns a deterministic final key to commit the
 	 * already-immutable final object's observed identity, even when a mutable
@@ -663,6 +664,7 @@ export async function promoteStagedObject(input: {
 			input.contentType,
 			input.acceptExistingFinalIdentity ? undefined : input.contentLength,
 			input.expectedSha256,
+			input.expectedGifFrameCount,
 		);
 	}
 	if (copied.bytes !== input.contentLength)
@@ -675,6 +677,7 @@ export async function promoteStagedObject(input: {
 		input.contentType,
 		input.contentLength,
 		input.expectedSha256 ?? copied.sha256,
+		input.expectedGifFrameCount,
 	);
 }
 
@@ -683,6 +686,7 @@ async function inspectExistingFinalObject(input: {
 	contentType: MediaContentType;
 	contentLength: number;
 	expectedSha256?: string;
+	expectedGifFrameCount?: number;
 	acceptExistingFinalIdentity?: boolean;
 }): Promise<{
 	bytes: number;
@@ -696,6 +700,7 @@ async function inspectExistingFinalObject(input: {
 			input.contentType,
 			input.acceptExistingFinalIdentity ? undefined : input.contentLength,
 			input.expectedSha256,
+			input.expectedGifFrameCount,
 		);
 	} catch (error) {
 		if (isExplicitObjectNotFound(error)) return null;
@@ -744,6 +749,7 @@ async function inspectStoredMediaObject(
 	contentType: MediaContentType,
 	contentLength: number | undefined,
 	expectedSha256?: string,
+	expectedGifFrameCount?: number,
 ): Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }> {
 	const result = await getS3Client().send(new GetObjectCommand(mediaLocation(location)));
 	const body = result.Body;
@@ -771,6 +777,10 @@ async function inspectStoredMediaObject(
 		}
 		const hash = createHash("sha256");
 		const headerChunks: Buffer[] = [];
+		const generatedImage =
+			contentType === "image/gif" || contentType === "image/svg+xml"
+				? Buffer.alloc(storedContentLength)
+				: undefined;
 		let headerBytes = 0;
 		let bytes = 0;
 		for await (const value of body as AsyncIterable<Uint8Array>) {
@@ -782,6 +792,7 @@ async function inspectStoredMediaObject(
 					"Stored object exceeds the expected provider output size",
 				);
 			hash.update(chunk);
+			generatedImage?.set(chunk, bytes - chunk.byteLength);
 			if (headerBytes < 64) {
 				const slice = chunk.subarray(0, 64 - headerBytes);
 				headerChunks.push(slice);
@@ -795,6 +806,20 @@ async function inspectStoredMediaObject(
 			);
 		}
 		assertDetectedMediaType(Buffer.concat(headerChunks), contentType);
+		if (generatedImage) {
+			if (contentType === "image/svg+xml") {
+				const { validateStaticSvg } = await import("../../image-processing/static-svg");
+				validateStaticSvg(generatedImage);
+			} else {
+				const { inspectGeneratedGif } = await import("../../image-processing/generated-gif");
+				const inspected = inspectGeneratedGif(generatedImage);
+				if (expectedGifFrameCount !== undefined && inspected.frames !== expectedGifFrameCount)
+					throw new MediaValidationError(
+						"OUTPUT_MEDIA_TYPE_MISMATCH",
+						"GIF frame count does not match the requested animation",
+					);
+			}
+		}
 		const sha256 = hash.digest("hex");
 		if (expectedSha256 && sha256 !== expectedSha256)
 			throw new MediaValidationError(
@@ -1205,7 +1230,7 @@ export const watermarkStagedGuestImage = createWatermarkStagedGuestImage({
 
 async function inspectStagedGuestImage(
 	location: MediaObjectLocation,
-	contentType: Extract<MediaContentType, `image/${string}`>,
+	contentType: ImageContentType,
 ): Promise<{ width: number; height: number }> {
 	const result = await getS3Client().send(new GetObjectCommand(mediaLocation(location)));
 	if (!result.Body || result.ContentType !== contentType) {
@@ -1227,7 +1252,7 @@ async function inspectStagedGuestImage(
 async function transformAndStoreGuestImage(input: {
 	staging: MediaObjectLocation;
 	final: MediaObjectLocation;
-	contentType: Extract<MediaContentType, `image/${string}`>;
+	contentType: ImageContentType;
 	deleteAfter: Date;
 	width: number;
 	height: number;
@@ -1356,6 +1381,7 @@ export async function streamRemoteObjectToStorage(
 		{
 			maxBytes: Math.min(
 				input.maxBytes ?? Number.MAX_SAFE_INTEGER,
+				getMediaByteLimit(input.expectedContentType),
 				input.expectedMediaKind
 					? getMediaKindByteLimit(input.expectedMediaKind)
 					: getMediaByteLimit(input.expectedContentType),

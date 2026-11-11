@@ -5,5 +5,8 @@ export const publicPageUpdates = [
 	{ path: "/image-to-image", lastModified: "2026-09-21" },
 	{ path: "/photo-to-coloring-page", lastModified: "2026-10-04" },
 	{ path: "/christmas-wallpaper", lastModified: "2026-11-04" },
+	{ path: "/gpt-image-2-6", lastModified: "2026-11-11" },
+	{ path: "/ai-svg-generator", lastModified: "2026-11-11" },
+	{ path: "/ai-gif-generator", lastModified: "2026-11-11" },
 	{ path: "/pricing", lastModified: "2026-09-16" },
 ] as const;

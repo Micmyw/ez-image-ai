@@ -48,6 +48,140 @@ describe("provider output format detection", () => {
 		expect(boundary.claim).not.toHaveBeenCalled();
 		expect(inspect).not.toHaveBeenCalled();
 	});
+	it.each([
+		["image-gpt-image-2-6-flare", {}, "image/png", true],
+		["image-gpt-image-2-6-flare", {}, "image/gif", false],
+		["image-gpt-image-2-6-flare", {}, "image/svg+xml", false],
+		["image-gpt-image-2-6-flare", { outputFormat: "jpeg" }, "image/jpeg", true],
+		["image-gpt-image-2-6-flare", { outputFormat: "svg" }, "image/svg+xml", true],
+		["image-gpt-image-2-6-flare", { outputFormat: "svg" }, "image/png", false],
+		["image-gpt-image-2-6-flare", { outputFormat: "gif", frameCount: 2 }, "image/gif", true],
+		[
+			"image-gpt-image-2-6-flare",
+			{ outputFormat: "gif", skuKey: "gpt-image-2-6-sunburst-1k" },
+			"image/gif",
+			false,
+		],
+		["image-nano-banana", { outputFormat: "gif" }, "image/gif", false],
+		["image-nano-banana", { outputFormat: "svg" }, "image/svg+xml", false],
+		["image-nano-banana", { outputFormat: "png" }, "image/jpeg", true],
+	] as const)(
+		"binds %s output selection %j to %s (accepted=%s)",
+		async (productKey, selection, mimeType, accepted) => {
+			const readJob = vi.fn(async () => ({
+				id: "test-job",
+				productKey,
+				inputSnapshot: { skuKey: "gpt-image-2-6-flare-1k", aspectRatio: "1:1", ...selection },
+			}));
+			const inspect = vi.fn();
+			const dependencies = createFinalizationDependencies(process.env, {
+				database: {
+					generationJob: { findUnique: readJob },
+					mediaAsset: {
+						findUnique: async () => ({
+							ownerType: "USER",
+							ownerId: "test-owner",
+							kind: "OUTPUT",
+							sourceUrl: "provider-output:candidate",
+							mimeType,
+							status: "VERIFYING",
+						}),
+					},
+				} as never,
+				store: { findPersistedCandidate: async () => null } as unknown as FinalizationStore,
+				safety: new TestMediaSafetyAdapter("ALLOW"),
+				storage: { openInspectedRemoteMedia: inspect },
+			});
+			const result = dependencies.persistCandidate(
+				{ jobId: "test-job", ownerId: "test-owner", mediaKind: "image" } as FinalizationClaim,
+				{
+					key: "candidate",
+					output: {
+						kind: "remote-url",
+						url: "https://replicate.delivery/expired.png",
+						trust: "untrusted-transfer-candidate",
+					},
+				},
+			);
+			if (accepted) await expect(result).resolves.toMatchObject({ approved: true });
+			else {
+				await expect(result).rejects.toMatchObject({
+					code: "OUTPUT_MEDIA_TYPE_MISMATCH",
+					retryable: false,
+				});
+				expect(boundary.claim).not.toHaveBeenCalled();
+			}
+			expect(inspect).not.toHaveBeenCalled();
+			expect(readJob).toHaveBeenNthCalledWith(
+				1,
+				expect.objectContaining({ select: { id: true, productKey: true } }),
+			);
+			expect(readJob).toHaveBeenCalledTimes(productKey === "image-nano-banana" ? 1 : 2);
+		},
+	);
+	it("passes the frozen requested GIF count into immutable promotion and recovery", async () => {
+		boundary.claim.mockResolvedValue({
+			outcome: "CLAIMED",
+			asset: { status: "VERIFYING" },
+			transferToken: "lease",
+			stagingObjectKey: "users/test/staging.gif",
+		});
+		boundary.reserve.mockResolvedValue({ outcome: "RESERVED" });
+		boundary.complete.mockResolvedValue({ outcome: "COMPLETED", asset: { status: "READY" } });
+		const persisted = { bytes: 32, sha256: "a".repeat(64), etag: "etag", versionId: null };
+		const promote = vi.fn(async () => persisted);
+		const dependencies = createFinalizationDependencies(process.env, {
+			database: {
+				generationJob: {
+					findUnique: async () => ({
+						id: "job",
+						productKey: "image-gpt-image-2-6-sunburst",
+						inputSnapshot: {
+							skuKey: "gpt-image-2-6-sunburst-1k",
+							aspectRatio: "1:1",
+							outputFormat: "gif",
+							frameCount: 4,
+						},
+					}),
+				},
+				mediaAsset: { findUnique: async () => null },
+			} as never,
+			store: { findPersistedCandidate: async () => null } as unknown as FinalizationStore,
+			verification: { verify: vi.fn() },
+			storage: {
+				openInspectedRemoteMedia: async () => ({
+					contentType: "image/gif",
+					url: new URL("https://replicate.delivery/output.gif"),
+					status: 200,
+					headers: {},
+					stream: Readable.from([Buffer.from("GIF89a")]),
+				}),
+				tryWriteImmutableGenerationImage: async () => null,
+				streamRemoteObjectToStorage: async () => persisted,
+				promoteStagedObject: promote,
+			},
+		});
+		await expect(
+			dependencies.persistCandidate(
+				{ jobId: "job", ownerId: "test-owner", mediaKind: "image" } as FinalizationClaim,
+				{
+					key: "candidate",
+					output: {
+						kind: "remote-url",
+						url: "https://replicate.delivery/output.gif",
+						trust: "untrusted-transfer-candidate",
+					},
+				},
+			),
+		).resolves.toMatchObject({ approved: true });
+		expect(promote).toHaveBeenCalledWith(
+			expect.objectContaining({
+				contentType: "image/gif",
+				expectedGifFrameCount: 4,
+				acceptExistingFinalIdentity: true,
+			}),
+		);
+	});
 
 	it("uses the stored format for an active transfer without reading an expired provider URL", async () => {
 		boundary.claim.mockResolvedValue({ outcome: "IN_PROGRESS", asset: { id: "stored-output" } });

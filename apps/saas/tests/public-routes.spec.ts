@@ -16,6 +16,9 @@ const indexableRoutes = [
 	"/contact",
 	"/create",
 	"/examples",
+	"/gpt-image-2-6",
+	"/ai-svg-generator",
+	"/ai-gif-generator",
 ] as const;
 const requiredFooterRoutes = [
 	"/image-to-image",
@@ -38,6 +41,127 @@ const legacyRedirects: ReadonlyArray<{ from: string; to: string }> = [
 ];
 
 test.use({ storageState: { cookies: [], origins: [] } });
+
+test("GPT Image 2.6 tools put a usable composer first at desktop and phone widths", async ({
+	page,
+}, testInfo) => {
+	test.setTimeout(180_000);
+	await mockPublicImageAvailability(page);
+	const product = {
+		key: "image-gpt-image-2-6-flare",
+		label: "GPT Image 2.6 Flare",
+		description: "Speed-focused creation",
+		mediaKind: "image",
+		inputKinds: ["text-to-image", "image-to-image"],
+		credits: 20,
+		skuMatrix: {
+			defaultSkuKey: "gpt-image-2-6-flare-1k",
+			dimensions: [
+				{ key: "resolution", label: "Resolution", options: [{ key: "1k", label: "1K" }] },
+			],
+			cells: [
+				{
+					skuKey: "gpt-image-2-6-flare-1k",
+					label: "1K",
+					parameterValues: { resolution: "1k" },
+					credits: 20,
+					aspectRatios: ["auto", "1:1"],
+					controls: [
+						{
+							key: "outputFormat",
+							label: "Format",
+							defaultValue: "png",
+							options: ["png", "jpeg", "gif", "svg"].map((key) => ({
+								key,
+								label: key.toUpperCase(),
+							})),
+						},
+					],
+				},
+			],
+		},
+	};
+	await page.route("**/api/rpc/media/getPublicCatalog**", (route) =>
+		route.fulfill({
+			json: {
+				json: {
+					catalogVersion: "2026-11-11.1",
+					pricingVersion: "2026-11-11.1",
+					products: [product],
+				},
+			},
+		}),
+	);
+	for (const width of [1440, 390]) {
+		await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+		for (const [path, heading, format] of [
+			["/gpt-image-2-6", "GPT Image 2.6", "PNG"],
+			["/ai-svg-generator", "AI SVG Generator", "SVG"],
+			["/ai-gif-generator", "AI GIF Generator", "GIF"],
+		]) {
+			await expectPublicPage(page, path!, "index");
+			await expect(
+				page.getByRole("heading", { level: 1, name: heading, exact: true }),
+			).toBeVisible();
+			const editor = page.locator('[data-test="landing-generator"]');
+			await expect(editor).toBeVisible();
+			const prompt = editor.locator("textarea").first();
+			await expect(prompt).toBeInViewport();
+			await expect(editor.locator('[data-test="landing-generate"]')).toBeInViewport();
+			await prompt.fill("A simple green plant with clear shapes");
+			await expect(prompt).toHaveValue("A simple green plant with clear shapes");
+			await expect(editor.locator('[data-test$="output-settings-trigger"]')).toContainText(format!);
+			if (format === "SVG")
+				await expect(editor.locator('[data-test="generation-credit-amount"]')).toContainText("40");
+			if (format === "GIF") {
+				await expect(editor.locator('[data-test$="output-settings-trigger"]')).toContainText("1:1");
+				await editor.locator('[data-test$="output-settings-trigger"]').click();
+				await expect(page.getByRole("radio", { name: "1:1", exact: true })).toBeChecked();
+				await expect(page.getByRole("button", { name: "PNG", exact: true })).toHaveCount(0);
+				const frames = page.getByRole("combobox", { name: "Frames (2–16)", exact: true });
+				await expect(frames).toHaveValue("9");
+				await expect(frames.locator("option")).toHaveCount(15);
+				await expect(frames.locator('option[value="64"]')).toHaveCount(0);
+				await frames.selectOption("16");
+				await page
+					.getByRole("combobox", { name: "Frame duration (ms)", exact: true })
+					.selectOption("100");
+				await expect(page.locator('[data-test="landing-settings-credits"]')).toContainText("80");
+				await expect
+					.poll(() =>
+						page
+							.locator('[data-test="landing-output-settings-panel"]')
+							.evaluate((panel) => getComputedStyle(panel).opacity),
+					)
+					.toBe("1");
+				await page.screenshot({
+					path: testInfo.outputPath(`gif-settings-${width}.png`),
+					animations: "disabled",
+				});
+				await page.keyboard.press("Escape");
+				await expect(page.locator('[data-test$="output-settings-panel"]')).toHaveCount(0);
+				await expect(editor.locator('[data-test="generation-credit-amount"]')).toContainText("80");
+			}
+			await expect(page.locator("#tool-steps-title")).toHaveCount(1);
+			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+				true,
+			);
+			const structuredFaq = await page
+				.locator('script[type="application/ld+json"]')
+				.evaluateAll((scripts) =>
+					scripts
+						.flatMap((script) => JSON.parse(script.textContent ?? "{}")["@graph"] ?? [])
+						.find((node) => node["@type"] === "FAQPage"),
+				);
+			expect(structuredFaq.mainEntity.length).toBeGreaterThan(3);
+			await page.screenshot({
+				path: testInfo.outputPath(`${path!.slice(1)}-${width}.png`),
+				fullPage: true,
+				animations: "disabled",
+			});
+		}
+	}
+});
 
 test("Vidu Q4 guide separates official access from other EzImageAI models", async ({
 	page,

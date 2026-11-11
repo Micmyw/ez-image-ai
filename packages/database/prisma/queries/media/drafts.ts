@@ -127,6 +127,8 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 		aspectRatio?: ImageAspectRatio;
 		outputFormat?: ImageOutputFormat;
 		background?: ImageBackground;
+		frameCount?: number;
+		frameDurationMs?: number;
 		expiresAt: Date;
 		verification: {
 			provider: string;
@@ -144,6 +146,8 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 		aspectRatio: input.aspectRatio ?? "auto",
 		...(input.outputFormat === undefined ? {} : { outputFormat: input.outputFormat }),
 		...(input.background === undefined ? {} : { background: input.background }),
+		...(input.frameCount === undefined ? {} : { frameCount: input.frameCount }),
+		...(input.frameDurationMs === undefined ? {} : { frameDurationMs: input.frameDurationMs }),
 	});
 	if (!normalized) {
 		throw new Error("GUEST_PRODUCT_UNAVAILABLE");
@@ -631,6 +635,8 @@ const CURRENT_DRAFT_INPUT_KEYS = new Set([
 	"aspectRatio",
 	"outputFormat",
 	"background",
+	"frameCount",
+	"frameDurationMs",
 ]);
 
 function normalizeNewGenerationDraft(
@@ -695,6 +701,10 @@ function normalizeImageDraftInput(
 		aspectRatio: selection.aspectRatio,
 		...(selection.outputFormat === undefined ? {} : { outputFormat: selection.outputFormat }),
 		...(selection.background === undefined ? {} : { background: selection.background }),
+		...(selection.frameCount === undefined ? {} : { frameCount: selection.frameCount }),
+		...(selection.frameDurationMs === undefined
+			? {}
+			: { frameDurationMs: selection.frameDurationMs }),
 	};
 }
 

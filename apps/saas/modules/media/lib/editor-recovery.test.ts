@@ -13,6 +13,36 @@ const sourceAsset = {
 };
 
 describe("resolveEditorRecovery", () => {
+	it("restores exact GIF options and rejects invalid persisted GIF input", () => {
+		const candidate = {
+			productKey: "image-gpt-image-2-6-flare",
+			input: {
+				kind: "text-to-image",
+				prompt: "A waving leaf",
+				skuKey: "gpt-image-2-6-flare-1k",
+				aspectRatio: "1:1",
+				outputFormat: "gif",
+				frameCount: 16,
+				frameDurationMs: 120,
+			},
+		};
+		expect(
+			resolveEditorRecovery({
+				requested: true,
+				candidate,
+				sourceAsset: null,
+				allowedProductKeys: ["image-gpt-image-2-6-flare"],
+			}).initialDraft,
+		).toEqual(candidate);
+		expect(
+			resolveEditorRecovery({
+				requested: true,
+				candidate: { ...candidate, input: { ...candidate.input, frameCount: 64 } },
+				sourceAsset: null,
+				allowedProductKeys: ["image-gpt-image-2-6-flare"],
+			}).restoreState,
+		).toBe("error");
+	});
 	it("treats a parent-only branch URL as a recovery request that must fail closed", () => {
 		expect(hasEditorRecoveryRequest({ parentJob: "job-parent" }, null)).toBe(true);
 		expect(hasEditorRecoveryRequest({}, null)).toBe(false);

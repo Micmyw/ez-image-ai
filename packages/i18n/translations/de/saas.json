@@ -1593,6 +1593,14 @@
 				"image-seedream-4": {
 					"label": "Seedream 4.0",
 					"description": "Flexible Bildbearbeitung mit 1K-, 2K- und 4K-Ausgabe."
+				},
+				"image-gpt-image-2-6-flare": {
+					"label": "GPT Image 2.6 Flare",
+					"description": "Schnellere Bilderstellung mit mittlerer Qualität und klaren Layouts."
+				},
+				"image-gpt-image-2-6-sunburst": {
+					"label": "GPT Image 2.6 Sunburst",
+					"description": "Hohe Detailqualität und konsistente Bearbeitung von Referenzbildern."
 				}
 			},
 			"skus": {
@@ -1682,6 +1690,24 @@
 				},
 				"seedream-4-4k": {
 					"label": "4K"
+				},
+				"gpt-image-2-6-flare-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-6-flare-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-6-flare-4k": {
+					"label": "4K"
+				},
+				"gpt-image-2-6-sunburst-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-6-sunburst-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-6-sunburst-4k": {
+					"label": "4K"
 				}
 			},
 			"fields": {
@@ -1715,7 +1741,10 @@
 					"auto": "Automatisch",
 					"opaque": "Deckend",
 					"transparent": "Transparent"
-				}
+				},
+				"frameCount": "Bilder (2–16)",
+				"frameDurationMs": "Bilddauer (ms)",
+				"gifCanvas": "GIF-Einzelbilder verwenden eine Fläche von 512 × 512 Pixeln."
 			},
 			"promptHint": "Beschreiben Sie nur die gewünschte Änderung. Ihr Quellbild bleibt privat.",
 			"suggestions": {
@@ -2281,7 +2310,13 @@
 			"videoGuide": "Anleitung zur Videoerstellung",
 			"videoTemplates": "Videovorlagen",
 			"videoTemplatesDescription": "Rap-, Tanz- und Tiervideos aus deinen Fotos",
-			"videoTemplateHandoff": "Mit diesem Bild ein Video erstellen"
+			"videoTemplateHandoff": "Mit diesem Bild ein Video erstellen",
+			"gptImage26": "GPT Image 2.6",
+			"gptImage26Description": "Flare für Tempo, Sunburst für Details",
+			"svgGenerator": "KI-SVG-Generator",
+			"svgGeneratorDescription": "Statische SVG-Illustrationen aus einer Beschreibung erstellen",
+			"gifGenerator": "KI-GIF-Generator",
+			"gifGeneratorDescription": "Kurze animierte GIFs aus Text oder einem Foto erstellen"
 		},
 		"generation": {
 			"referencePending": "Schließe den Referenz-Upload ab, versuche ihn erneut oder entferne ihn für ein Bild aus Text.",
@@ -2566,13 +2601,13 @@
 		"bannerLabel": "Einmaliges Bildpaket",
 		"dismissBanner": "Bildpaket-Angebot schließen",
 		"bannerTitle": "{units} Bilder für ${amount}",
-		"bannerDetail": "Alle verfügbaren Bildmodelle und Größen, inklusive Pro und 4K · Kein Abo erforderlich",
+		"bannerDetail": "Im Paket aufgeführte Modelle und Größen, inklusive Pro und 4K · Kein Abo erforderlich",
 		"buy": "Bildpaket kaufen",
 		"oneTime": "Einmaliger Kauf",
 		"title": "{units} erfolgreiche Bilder",
 		"pageTitle": "Bildpaket — 3 Bilder für 2,99 USD",
-		"description": "Erhalte 3 erfolgreiche Bilder für 2,99 USD mit jedem aktuell verfügbaren Bildmodell und jeder Auflösung, inklusive Pro, 4K und hoher Qualität. Kein Abo erforderlich. Jede Aufgabe erzeugt ein Bild.",
-		"models": "Alle aktuell verfügbaren Bildmodelle, Auflösungen und Qualitätsoptionen, inklusive Pro und 4K.",
+		"description": "Erhalte 3 erfolgreiche Bilder für 2,99 USD mit den im Paket aufgeführten Modellen und Größen, inklusive Pro, 4K und hoher Qualität. Kein Abo erforderlich. GPT Image 2.6, SVG und GIF werden separat mit Credits bezahlt.",
+		"models": "Die im Paket aufgeführten Modelle und Größen, inklusive Pro und 4K. GPT Image 2.6, SVG und GIF werden separat mit Credits bezahlt.",
 		"singleOutput": "Ein erfolgreiches Bild verbraucht einen Bildpass. Nur Bilder, keine Videos.",
 		"separate": "Bildpässe sind von Credits und Abonnements getrennt.",
 		"repeat": "Kaufe bei Bedarf jederzeit ein weiteres Paket.",
@@ -2615,7 +2650,7 @@
 		"retryBalance": "Guthaben erneut prüfen",
 		"availabilityLoading": "Verfügbarkeit wird geprüft…",
 		"unavailable": "Dieses Angebot ist derzeit nicht verfügbar. Bitte versuche es später erneut.",
-		"sizeRule": "Dieses Paket für 2,99 USD deckt alle aktuell verfügbaren Bildmodelle und Größen ab, inklusive Pro und 4K, ohne Abo. Frühere Pakete für 1 USD behalten ihre ursprünglichen Bedingungen.",
+		"sizeRule": "Dieses Paket für 2,99 USD umfasst die im Angebot aufgeführten Modelle und Größen ohne Abo. GPT Image 2.6, SVG und GIF werden separat mit Credits bezahlt. Frühere Pakete für 1 USD behalten ihre ursprünglichen Bedingungen.",
 		"fundingSizeNotEligible": "Deine verfügbaren Bildpässe decken diese Option nicht ab. Wähle eine abgedeckte Option, kaufe ein aktuelles Paket oder zahle ausdrücklich mit Credits.",
 		"returnAwaitingConfirmationUnknownAmount": "Wenn du diese Zahlung in PayPal genehmigt hast, bestätige sie unten zum Abschluss. Kehre andernfalls zur Kasse zurück.",
 		"returnConfirmPaymentUnknownAmount": "PayPal-Zahlung bestätigen"

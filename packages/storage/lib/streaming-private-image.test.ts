@@ -54,6 +54,12 @@ function receive(options: { beforeRead?: () => Promise<void> } = {}) {
 }
 
 describe("bounded private image stream", () => {
+	it.each(["image/svg+xml", "image/gif"])(
+		"keeps %s on the guarded validated path",
+		(contentType) => {
+			expect(canStreamImmutableGenerationImage({ contentType, contentLength: 1024 })).toBe(false);
+		},
+	);
 	it("hashes all bytes, preserves the exact object and uses one conditional request", async () => {
 		const body = Buffer.concat([png, Buffer.alloc(256 * 1024, 19)]);
 		const chunks = receive();

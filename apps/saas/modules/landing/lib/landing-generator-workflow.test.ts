@@ -76,6 +76,11 @@ const products = [
 ] satisfies GuestCapabilityProduct[];
 
 describe("landing generator workflow", () => {
+	it("does not silently substitute a requested unavailable model", () => {
+		expect(resolveLandingProductSelection(products, "image-gpt-image-2-6-flare", true)).toBe(
+			"image-gpt-image-2-6-flare",
+		);
+	});
 	it("replaces server-owned English product and SKU labels before rendering", () => {
 		const localized = localizeLandingProducts(products, {
 			productLabel: (key) => `Localized product: ${key}`,

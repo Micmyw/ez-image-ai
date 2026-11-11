@@ -192,6 +192,7 @@ vi.mock("../modules/payments/components/CreditPackCheckoutActions", () => ({
 }));
 
 import { config as authConfig } from "../../../packages/auth/config";
+import { IMAGE_TOOL_PAGES } from "../modules/image-tools/lib/tool-pages";
 import { LandingPage } from "../modules/landing/components/LandingPage";
 import { HOME_FAQ_KEYS, PRICING_FAQ_KEYS } from "../modules/landing/lib/faq";
 import { ApiClientProvider } from "../modules/shared/components/ApiClientProvider";
@@ -238,6 +239,9 @@ const publicRoutes = [
 	{ modulePath: "./page", path: "/", robots: "index" },
 	{ modulePath: "./(public)/examples/page", path: "/examples", robots: "index" },
 	{ modulePath: "./(public)/image-to-image/page", path: "/image-to-image", robots: "index" },
+	{ modulePath: "./(public)/gpt-image-2-6/page", path: "/gpt-image-2-6", robots: "index" },
+	{ modulePath: "./(public)/ai-svg-generator/page", path: "/ai-svg-generator", robots: "index" },
+	{ modulePath: "./(public)/ai-gif-generator/page", path: "/ai-gif-generator", robots: "index" },
 	{
 		modulePath: "./(public)/christmas-wallpaper/page",
 		path: "/christmas-wallpaper",
@@ -260,6 +264,56 @@ const legalFallbackCases = [
 ] as const;
 
 describe("consolidated public route contract", () => {
+	it.each(Object.entries(IMAGE_TOOL_PAGES))(
+		"mounts the working editor before guides and keeps visible FAQs aligned for %s",
+		async (key, content) => {
+			const pageModule = await loadOptionalModule<PublicPageModule>(`./(public)/${key}/page`);
+			expect(pageModule).not.toBeNull();
+			if (!pageModule) return;
+			sessionMock.mockResolvedValueOnce(null);
+			const markup = await renderToStaticMarkup(await pageModule.default({}));
+			expect(markup).toContain('data-test="landing-generator"');
+			expect(markup.indexOf('data-test="landing-generator"')).toBeLessThan(
+				markup.indexOf('id="tool-steps-title"'),
+			);
+			expect(markup.match(/<h1\b/g)).toHaveLength(1);
+			const script = markup.match(/<script type="application\/ld\+json">([\s\S]+?)<\/script>/)?.[1];
+			expect(script).toBeDefined();
+			const faq = JSON.parse(script!)["@graph"].find(
+				(node: { "@type": string }) => node["@type"] === "FAQPage",
+			);
+			expect(faq.mainEntity).toHaveLength(content.faq.length);
+			for (const item of faq.mainEntity) {
+				expect(markup).toContain(`<summary>${item.name}</summary>`);
+				expect(item.acceptedAnswer.text).toBe(
+					content.faq.find((visible) => visible.question === item.name)?.answer,
+				);
+			}
+			for (const related of Object.values(IMAGE_TOOL_PAGES))
+				expect(markup).toContain(`href="${related.path}"`);
+			const privateMetadata = await resolveMetadata(pageModule, {
+				searchParams: Promise.resolve({ job: "private-job" }),
+			});
+			expect(privateMetadata?.robots).toEqual({ index: false, follow: false });
+			expect(privateMetadata?.alternates?.canonical).toBe(`${canonicalOrigin}${content.path}`);
+			const fallbackMetadata = await resolveMetadata(pageModule, {
+				searchParams: Promise.resolve({ lang: "fr" }),
+			});
+			expect(fallbackMetadata?.robots).toEqual({ index: false, follow: true });
+			expect(fallbackMetadata?.alternates?.languages).toBeUndefined();
+		},
+	);
+
+	it("keeps GPT Image 2.6 tools inside the existing registered account gates", async () => {
+		const { default: Page } = await import("./(public)/gpt-image-2-6/page");
+		sessionMock.mockResolvedValueOnce({ user: { id: "registered", isAnonymous: false } });
+		const html = await renderToStaticMarkup(<Page />);
+		expect(html).toContain('data-test="registered-generator"');
+		expect(html).toContain("data-account-gates");
+		expect(html).toContain("data-registered-boundary");
+		expect(html).not.toContain('data-test="landing-generator"');
+	});
+
 	it("gives image-to-image its own EzImageAI title and canonical", async () => {
 		const pageModule = await loadOptionalModule<PublicPageModule>("./(public)/image-to-image/page");
 		expect(pageModule).not.toBeNull();

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ImageAspectRatio } from "@repo/config/client";
+import { getImageGenerationCredits, type ImageAspectRatio } from "@repo/config/client";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { ChevronDownIcon, ScanIcon } from "lucide-react";
 import { useEffect, useId, useState } from "react";
@@ -8,7 +8,8 @@ import { useEffect, useId, useState } from "react";
 import { useGenerationMode } from "../lib/generation-mode-context";
 import {
 	getImageSpecCell,
-	type ImageSpecControlKey,
+	type ImageSpecControlChangeKey,
+	isPublicImageSkuKey,
 	type ImageSpecControlValues,
 	type PublicImageSpecMatrix,
 	selectImageSkuForDimension,
@@ -25,6 +26,9 @@ export interface ImageOutputSettingsLabels {
 	quality: string;
 	outputFormat: string;
 	background: string;
+	frameCount?: string;
+	frameDurationMs?: string;
+	gifCanvas?: string;
 	modeControlsQuality: string;
 	credits?: string;
 	coupledHint?: string;
@@ -60,7 +64,7 @@ export function ImageOutputSettings({
 	skuKey?: string;
 	onSkuChange?: (skuKey: string) => void;
 	controlValues?: ImageSpecControlValues;
-	onControlChange?: (key: ImageSpecControlKey, value: string) => void;
+	onControlChange?: (key: ImageSpecControlChangeKey, value: string) => void;
 	labels: ImageOutputSettingsLabels;
 	disabled?: boolean;
 	tone?: "dark" | "light";
@@ -73,6 +77,10 @@ export function ImageOutputSettings({
 		if (!active) setOpen(false);
 	}, [active]);
 	const selectedCell = getImageSpecCell(skuMatrix, skuKey);
+	const selectedCredits =
+		selectedCell && isPublicImageSkuKey(selectedCell.skuKey)
+			? getImageGenerationCredits({ skuKey: selectedCell.skuKey, ...controlValues })
+			: selectedCell?.credits;
 	const selectedOptions = (skuMatrix?.dimensions ?? []).flatMap((dimension) => {
 		const option = dimension.options.find(
 			(candidate) => candidate.key === selectedCell?.parameterValues[dimension.key],
@@ -111,9 +119,16 @@ export function ImageOutputSettings({
 						</span>
 						{selectedOptions.map((option) => (
 							<span key={option.key} className="pl-2 border-l border-current/15">
-								{option.label}
+								{controlValues.outputFormat === "gif" && option.key === "resolution"
+									? "512 × 512"
+									: option.label}
 							</span>
 						))}
+						{controlValues.outputFormat && (
+							<span className="pl-2 border-l border-current/15">
+								{controlValues.outputFormat.toUpperCase()}
+							</span>
+						)}
 						<ChevronDownIcon className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
 					</button>
 				}
@@ -227,7 +242,14 @@ export function ImageOutputSettings({
 									key={option.key}
 									type="button"
 									aria-pressed={(controlValues[control.key] ?? control.defaultValue) === option.key}
-									disabled={disabled || !onControlChange}
+									disabled={
+										disabled ||
+										!onControlChange ||
+										(selectedCell?.skuKey.startsWith("gpt-image-2-6-") &&
+											control.key === "background" &&
+											option.key === "transparent" &&
+											controlValues.outputFormat !== "png")
+									}
 									className={optionStyle(
 										(controlValues[control.key] ?? control.defaultValue) === option.key,
 									)}
@@ -239,6 +261,58 @@ export function ImageOutputSettings({
 						</div>
 					</fieldset>
 				))}
+				{controlValues.outputFormat === "gif" && (
+					<div className="mt-3 gap-3 grid grid-cols-2">
+						<label className={`text-xs font-semibold ${muted}`}>
+							{labels.frameCount ?? "Frames (2–16)"}
+							<select
+								value={controlValues.frameCount ?? 9}
+								disabled={disabled || !onControlChange}
+								className="mt-1 min-h-11 p-2 block w-full rounded-lg border bg-background text-foreground"
+								onChange={(event) => onControlChange?.("frameCount", event.target.value)}
+							>
+								{Array.from({ length: 15 }, (_, index) => index + 2).map((count) => (
+									<option key={count} value={count}>
+										{count}
+									</option>
+								))}
+							</select>
+						</label>
+						<label className={`text-xs font-semibold ${muted}`}>
+							{labels.frameDurationMs ?? "Frame duration (ms)"}
+							<select
+								value={controlValues.frameDurationMs ?? 200}
+								disabled={disabled || !onControlChange}
+								className="mt-1 min-h-11 p-2 block w-full rounded-lg border bg-background text-foreground"
+								onChange={(event) => onControlChange?.("frameDurationMs", event.target.value)}
+							>
+								{[
+									...new Set([
+										20,
+										50,
+										100,
+										150,
+										200,
+										250,
+										500,
+										1000,
+										2000,
+										controlValues.frameDurationMs ?? 200,
+									]),
+								]
+									.sort((a, b) => a - b)
+									.map((duration) => (
+										<option key={duration} value={duration}>
+											{duration}
+										</option>
+									))}
+							</select>
+						</label>
+						<p className={`text-xs col-span-2 ${muted}`}>
+							{labels.gifCanvas ?? "GIF frames use a 512 × 512 canvas."}
+						</p>
+					</div>
+				)}
 				<div
 					className={`mt-3 gap-2 pt-2 text-xs flex flex-wrap items-center justify-between border-t ${dark ? "border-white/10" : "border-foreground/10"}`}
 				>
@@ -248,7 +322,7 @@ export function ImageOutputSettings({
 						data-test={`${idPrefix}-settings-credits`}
 					>
 						{selectedCell
-							? `${selectedCell.label} · ${fundingCostLabel ?? `${selectedCell.credits} ${labels.credits ?? "Credits"}`}`
+							? `${selectedCell.label} · ${fundingCostLabel ?? `${selectedCredits} ${labels.credits ?? "Credits"}`}`
 							: modeLabel}
 					</output>
 				</div>

@@ -46,6 +46,7 @@ import {
 	isRetryableModerationError,
 	MODERATION_RETRYABLE_ERROR_CODES,
 	moderationServiceErrorCode,
+	parseImageSelection,
 } from "@repo/config";
 import {
 	imageModerationProviderForEnvironment,
@@ -3465,6 +3466,9 @@ async function recordMediaVerificationWaitOrFailure(
 					dedupeKey,
 					payload: {
 						assetId: asset.id,
+						...(["image/gif", "image/svg+xml"].includes(asset.mimeType)
+							? { requiresGeneratedImageProcessing: true }
+							: {}),
 						...(pendingImage && asset.kind === "OUTPUT" ? { originalDueAt: now.getTime() } : {}),
 					},
 					// The same event supports targeted delivery and scheduled recovery.
@@ -5315,12 +5319,33 @@ export function createFinalizationDependencies(
 			}
 			const managed = await database.generationJob.findUnique({
 				where: { id: claim.jobId, executionEngine: "legacy" },
-				select: { id: true },
+				select: { id: true, productKey: true },
 			});
 			if (!managed) throw new Error("LEGACY_EXECUTOR_NOT_MANAGED");
 			if (!context?.persistedCandidateChecked) {
 				const existing = await store.findPersistedCandidate(claim.jobId, candidate.key);
 				if (existing) return existing;
+			}
+			// Legacy raster finalization keeps its bounded identity read and tolerant
+			// JPEG/PNG behavior. Only the new products have an exact output contract.
+			let expectedFormat: "png" | "jpeg" | "svg" | "gif" | undefined;
+			let expectedGifFrameCount: number | undefined;
+			if (
+				managed.productKey === "image-gpt-image-2-6-flare" ||
+				managed.productKey === "image-gpt-image-2-6-sunburst"
+			) {
+				const snapshot = await database.generationJob.findUnique({
+					where: { id: claim.jobId, executionEngine: "legacy" },
+					select: { inputSnapshot: true },
+				});
+				const selection = parseImageSelection(managed.productKey, snapshot?.inputSnapshot);
+				if (!selection)
+					throw new MediaValidationError(
+						"OUTPUT_MEDIA_TYPE_MISMATCH",
+						"Generated output selection is invalid",
+					);
+				expectedFormat = selection.outputFormat ?? "png";
+				expectedGifFrameCount = selection.frameCount;
 			}
 			const deferOutputReview =
 				(options.deferOutputReview === true || streamingTransfersOnly) &&
@@ -5428,6 +5453,17 @@ export function createFinalizationDependencies(
 								expectedKind: claim.mediaKind,
 							})).contentType);
 				assertMediaKind(mimeType, claim.mediaKind);
+				if (
+					(expectedFormat !== undefined &&
+						mimeType !==
+							(expectedFormat === "svg" ? "image/svg+xml" : `image/${expectedFormat}`)) ||
+					(expectedFormat === undefined &&
+						(mimeType === "image/svg+xml" || mimeType === "image/gif"))
+				)
+					throw new MediaValidationError(
+						"OUTPUT_MEDIA_TYPE_MISMATCH",
+						"Generated output does not match the requested format",
+					);
 				const objectKey = createAssetObjectKey(claim.ownerId, assetId, mimeType);
 				// The streaming preflight has already checked the real response length.
 				// Reserve those bytes with the transfer claim, before opening a private write.
@@ -5571,6 +5607,7 @@ export function createFinalizationDependencies(
 											final: { bucket: "media", key: objectKey },
 											contentType: mimeType,
 											contentLength: staged.bytes,
+											...(mimeType === "image/gif" ? { expectedGifFrameCount } : {}),
 											acceptExistingFinalIdentity: true,
 											preferSinglePut: true,
 											promotion: {

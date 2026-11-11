@@ -15,6 +15,18 @@ import {
 
 const currentDraftSelections = [
 	{
+		productKey: "image-gpt-image-2-6-flare",
+		skuKey: "gpt-image-2-6-flare-1k",
+		aspectRatio: "1:1",
+		controls: { outputFormat: "gif", frameCount: 16, frameDurationMs: 120 },
+	},
+	{
+		productKey: "image-gpt-image-2-6-sunburst",
+		skuKey: "gpt-image-2-6-sunburst-1k",
+		aspectRatio: "3:2",
+		controls: { outputFormat: "svg" },
+	},
+	{
 		productKey: "image-nano-banana-2-lite",
 		skuKey: "nano-banana-2-lite-1k",
 		aspectRatio: "auto",

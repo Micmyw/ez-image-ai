@@ -4,6 +4,10 @@
 	"main": "./index.ts",
 	"types": "./**/.ts",
 	"imports": {
+		"#svg-rasterizer": {
+			"workerd": "./image-processing/svg-rasterizer-worker.ts",
+			"default": "./image-processing/svg-rasterizer-node.ts"
+		},
 		"#remote-media-node-transport": {
 			"workerd": "./lib/remote-media-node-unavailable.ts",
 			"default": "./lib/remote-media-node.ts"
@@ -18,6 +22,7 @@
 		"test": "vitest run --exclude \"**/*.integration.test.ts\"",
 		"test:remote-media:workerd": "node test-support/remote-media-workerd-smoke.mjs",
 		"test:streaming-images:workerd": "node test-support/streaming-private-image-workerd-smoke.mjs",
+		"test:generated-images:workerd": "node test-support/generated-image-workerd-smoke.mjs",
 		"test:minio": "vitest run provider/s3/immutable-upload.minio.integration.test.ts provider/s3/avatar-upload.minio.integration.test.ts provider/s3/account-input-copy.minio.integration.test.ts",
 		"test:minio:video": "vitest run provider/s3/video-input.minio.integration.test.ts",
 		"test:integration": "pnpm run test:minio",
@@ -27,6 +32,10 @@
 		"@aws-sdk/client-s3": "catalog:",
 		"@aws-sdk/s3-request-presigner": "catalog:",
 		"@repo/logs": "workspace:*",
+		"@resvg/resvg-wasm": "^2.6.2",
+		"fast-png": "^8.0.0",
+		"gifuct-js": "^2.1.2",
+		"saxes": "^6.0.0",
 		"sharp": "catalog:"
 	},
 	"devDependencies": {

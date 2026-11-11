@@ -6,6 +6,7 @@ import { createMDX } from "fumadocs-mdx/next";
 import type { NextConfig } from "next";
 import nextIntlPlugin from "next-intl/plugin";
 
+import { resolvePrecompiledWasmExternal } from "./cloudflare/wasm-external.mjs";
 import { resolveMediaCspTransportPolicy } from "./storage-connect-origin";
 
 const withNextIntl = nextIntlPlugin("./modules/i18n/request.ts");
@@ -144,7 +145,7 @@ const nextConfig: NextConfig = {
 		if (isServer && isWorkersBuild) {
 			// Select worker-safe package implementations before Next bundles shared code.
 			config.resolve.conditionNames = ["workerd", ...(config.resolve.conditionNames ?? ["..."])];
-			// Keep Prisma's precompiled module import for OpenNext/Wrangler. Webpack's
+			// Keep Prisma/SVG precompiled module imports for OpenNext/Wrangler. Webpack's
 			// WASM loader would compile bytes at runtime, which Workers does not permit.
 			config.plugins.push(
 				new webpack.ExternalsPlugin(
@@ -153,11 +154,7 @@ const nextConfig: NextConfig = {
 						{ context, request }: { context?: string; request?: string },
 						callback: (error?: Error, result?: string) => void,
 					) => {
-						if (context && request?.startsWith(".") && /\.wasm\?module$/.test(request)) {
-							callback(undefined, path.resolve(context, request));
-							return;
-						}
-						callback();
+						callback(undefined, resolvePrecompiledWasmExternal({ context, request }));
 					},
 				),
 			);

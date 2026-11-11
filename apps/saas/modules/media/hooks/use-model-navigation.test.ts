@@ -1,10 +1,32 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { replaceImageModelInUrl, resolveRequestedImageModel } from "./use-model-navigation";
+import {
+	imageModelHref,
+	replaceImageModelInUrl,
+	resolveRequestedImageModel,
+	resolveRequestedImageOutputFormat,
+} from "./use-model-navigation";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("image model URL selection", () => {
+	it("defaults the dedicated tools to a compatible model and output format", () => {
+		for (const path of ["/gpt-image-2-6", "/ai-svg-generator", "/ai-gif-generator"]) {
+			expect(resolveRequestedImageModel(path, null)).toBe("image-gpt-image-2-6-flare");
+			expect(resolveRequestedImageModel(path, "image-gpt-image-2-6-sunburst")).toBe(
+				"image-gpt-image-2-6-sunburst",
+			);
+		}
+		expect(resolveRequestedImageOutputFormat("/ai-svg-generator")).toBe("svg");
+		expect(resolveRequestedImageOutputFormat("/ai-gif-generator")).toBe("gif");
+		expect(resolveRequestedImageOutputFormat("/create")).toBeUndefined();
+		expect(resolveRequestedImageModel("/ai-svg-generator", "image-nano-banana-2-lite")).toBe(
+			"image-gpt-image-2-6-flare",
+		);
+		expect(imageModelHref("image-gpt-image-2-6-sunburst")).toBe(
+			"/gpt-image-2-6?model=image-gpt-image-2-6-sunburst",
+		);
+	});
 	it("uses a valid model-page slug when an invalid query value tries to mask it", () => {
 		expect(resolveRequestedImageModel("/models/nano-banana-2", "unknown-model")).toBe(
 			"image-nano-banana-2",

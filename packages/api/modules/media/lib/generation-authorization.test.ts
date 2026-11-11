@@ -1,4 +1,4 @@
-import { EZPIC_PRODUCT_KEYS, IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config";
+import { EZPIC_PRODUCT_KEYS, IMAGE_SKU_KEYS_BY_PRODUCT, isImagePassSkuAllowed } from "@repo/config";
 import { describe, expect, it, vi } from "vitest";
 
 const production = vi.hoisted(() => ({
@@ -194,7 +194,9 @@ describe("generation authorization", () => {
 	});
 	it.each(
 		EZPIC_PRODUCT_KEYS.flatMap((productKey) =>
-			IMAGE_SKU_KEYS_BY_PRODUCT[productKey].map((skuKey) => ({ productKey, skuKey })),
+			IMAGE_SKU_KEYS_BY_PRODUCT[productKey]
+				.filter(isImagePassSkuAllowed)
+				.map((skuKey) => ({ productKey, skuKey })),
 		),
 	)(
 		"allows a verified new pass for $productKey / $skuKey without a subscription",
@@ -494,6 +496,12 @@ describe("generation authorization", () => {
 		expect(isUsableGenerationSourceAsset(IMAGE_EDIT_INPUT, { mimeType: "video/mp4" })).toBe(false);
 		expect(isUsableGenerationSourceAsset(IMAGE_EDIT_INPUT, null)).toBe(false);
 	});
+	it.each(["image/gif", "image/svg+xml"])(
+		"rejects %s outputs as provider reference input before quoting",
+		(mimeType) => {
+			expect(isUsableGenerationSourceAsset(IMAGE_EDIT_INPUT, { mimeType })).toBe(false);
+		},
+	);
 
 	it.each([
 		["free", 10 * 1024 * 1024, true],

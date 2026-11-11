@@ -34,6 +34,8 @@ describe("loadUserPlanEntitlement", () => {
 				"image-gpt-image-2",
 				"image-gpt-image-2-5-flare",
 				"image-gpt-image-2-5-sunburst",
+				"image-gpt-image-2-6-flare",
+				"image-gpt-image-2-6-sunburst",
 				"image-seedream-4",
 				"image-seedream-4-5",
 				"image-seedream-5-lite",

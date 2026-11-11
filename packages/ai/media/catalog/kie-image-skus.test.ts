@@ -12,6 +12,7 @@ import {
 	GPT_IMAGE_2_5_SUNBURST_MATRIX,
 	SEEDREAM_4_MATRIX,
 } from "./expanded-image-spec-matrices";
+import { gptImage26Matrix } from "./gpt-image-26";
 import {
 	GPT_IMAGE_1_5_MATRIX,
 	GPT_IMAGE_2_MATRIX,
@@ -51,6 +52,8 @@ const expectedSkus = [
 ] as const;
 
 const matricesByProduct: Record<EzPicProductKey, ImageSpecMatrix> = {
+	"image-gpt-image-2-6-flare": gptImage26Matrix("flare"),
+	"image-gpt-image-2-6-sunburst": gptImage26Matrix("sunburst"),
 	"image-nano-banana-2-lite": NANO_BANANA_2_LITE_MATRIX,
 	"image-nano-banana": NANO_BANANA_MATRIX,
 	"image-nano-banana-2": NANO_BANANA_2_MATRIX,
@@ -135,8 +138,8 @@ describe("Kie image SKU catalog", () => {
 				productKey,
 				skuKey,
 				credits,
-				catalogVersion: "2026-09-14.1",
-				pricingVersion: "2026-09-13.2",
+				catalogVersion: "2026-11-11.1",
+				pricingVersion: "2026-11-11.1",
 			});
 		}
 	});
@@ -302,7 +305,7 @@ describe("Kie image SKU catalog", () => {
 		]);
 	});
 
-	it("publishes twelve independent model matrices with twenty-nine priced SKUs", () => {
+	it("publishes fourteen independent model matrices with thirty-five priced SKUs", () => {
 		const products = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
@@ -388,6 +391,26 @@ describe("Kie image SKU catalog", () => {
 				],
 			},
 			{
+				key: "image-gpt-image-2-6-flare",
+				defaultSkuKey: "gpt-image-2-6-flare-1k",
+				dimensions: ["resolution"],
+				skus: [
+					["gpt-image-2-6-flare-1k", 20],
+					["gpt-image-2-6-flare-2k", 40],
+					["gpt-image-2-6-flare-4k", 80],
+				],
+			},
+			{
+				key: "image-gpt-image-2-6-sunburst",
+				defaultSkuKey: "gpt-image-2-6-sunburst-1k",
+				dimensions: ["resolution"],
+				skus: [
+					["gpt-image-2-6-sunburst-1k", 25],
+					["gpt-image-2-6-sunburst-2k", 50],
+					["gpt-image-2-6-sunburst-4k", 100],
+				],
+			},
+			{
 				key: "image-seedream-4",
 				defaultSkuKey: "seedream-4-1k",
 				dimensions: ["resolution"],
@@ -426,7 +449,7 @@ describe("Kie image SKU catalog", () => {
 				],
 			},
 		]);
-		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(29);
+		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(35);
 	});
 
 	it("publishes only the non-priced controls supported by each selected SKU", () => {

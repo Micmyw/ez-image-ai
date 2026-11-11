@@ -60,6 +60,33 @@ export default function ModelsPage() {
 										: "Atmosphere, light, and spatial storytelling"}
 							</span>
 						</div>
+						{family === "GPT Image" && (
+							<div className="mb-6 gap-4 sm:grid-cols-2 grid">
+								{[
+									["flare", "Flare", "Speed-focused creation with medium quality."],
+									[
+										"sunburst",
+										"Sunburst",
+										"Detailed output and consistent edits with high quality.",
+									],
+								].map(([key, label, description]) => (
+									<Link
+										key={key}
+										href={`/gpt-image-2-6?model=image-gpt-image-2-6-${key}`}
+										prefetch={false}
+										className="border-white/10 bg-white/[0.025] p-5 hover:border-violet-300/40 rounded-xl border transition"
+									>
+										<h3 className="font-semibold text-white">
+											GPT Image 2.6 {label} <span aria-hidden="true">↗</span>
+										</h3>
+										<p className="mt-2 text-sm leading-6 text-[#b7acbf]">{description}</p>
+										<p className="mt-2 text-xs text-violet-200">
+											Explore images, static SVG and GIF
+										</p>
+									</Link>
+								))}
+							</div>
+						)}
 						<div className="model-directory-grid">
 							{MODEL_PAGES.filter((model) => model.family === family).map((model) => (
 								<Link href={modelPath(model.key)} className="model-directory-card" key={model.key}>

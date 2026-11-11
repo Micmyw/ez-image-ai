@@ -29,7 +29,11 @@ export function workerExecutorLane(input: TaskRequest): WorkerExecutorLane {
 		case "media-verify-upload":
 			// Ordinary checks use bounded headers and streaming checksum validation.
 			// Explicit legacy reinspection stays with the heavy transfers.
-			return request.payload.allowQuarantinedReverification === true ? "heavy" : "control";
+			return request.payload.allowQuarantinedReverification === true ||
+				(request.payload.requiresGeneratedImageProcessing === true &&
+					request.payload.queryOnly !== true)
+				? "heavy"
+				: "control";
 		case "media-poll-generation":
 		case "media-deliver-output-review":
 		case "media-deliver-events":

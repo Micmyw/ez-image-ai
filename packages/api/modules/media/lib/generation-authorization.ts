@@ -334,5 +334,5 @@ export function isUsableGenerationSourceAsset(
 	asset: { mimeType: string } | null,
 ): boolean {
 	if (!("sourceAssetId" in input)) return true;
-	return asset?.mimeType.startsWith("image/") ?? false;
+	return Boolean(asset && ["image/jpeg", "image/png", "image/webp"].includes(asset.mimeType));
 }

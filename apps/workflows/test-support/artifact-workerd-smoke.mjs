@@ -42,7 +42,7 @@ assert(
 	"Worker bot transport must survive final bundling",
 );
 const wasmFiles = (await readdir(output)).filter((file) => file.endsWith(".wasm"));
-assert.equal(wasmFiles.length, 1, "Expected the generated Prisma query compiler");
+assert.equal(wasmFiles.length, 2, "Expected Prisma query compiler and SVG renderer");
 const secret = "artifact-smoke-only-32-character-secret";
 const compatibility = {
 	compatibilityDate: "2026-09-10",

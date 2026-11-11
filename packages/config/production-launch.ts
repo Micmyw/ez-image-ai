@@ -102,6 +102,8 @@ export interface EzPicLaunchEnvironment {
 		gptImage2Enabled: boolean;
 		gptImage25FlareEnabled: boolean;
 		gptImage25SunburstEnabled: boolean;
+		gptImage26FlareEnabled: boolean;
+		gptImage26SunburstEnabled: boolean;
 		seedream4Enabled: boolean;
 		seedream45Enabled: boolean;
 		seedream5LiteEnabled: boolean;
@@ -211,6 +213,10 @@ export function validateEzPicLaunchEnvironment(
 	const gptImage25SunburstEnabled =
 		optionalBoolean(input, "MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED") ?? false;
 	const seedream4Enabled = optionalBoolean(input, "MEDIA_SEEDREAM_4_ENABLED") ?? false;
+	const gptImage26FlareEnabled =
+		optionalBoolean(input, "MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED") ?? false;
+	const gptImage26SunburstEnabled =
+		optionalBoolean(input, "MEDIA_GPT_IMAGE_2_6_SUNBURST_ENABLED") ?? false;
 	const seedream45Enabled = requiredBoolean(input, "MEDIA_SEEDREAM_4_5_ENABLED");
 	const seedream5LiteEnabled = requiredBoolean(input, "MEDIA_SEEDREAM_5_LITE_ENABLED");
 	const seedream5ProEnabled = requiredBoolean(input, "MEDIA_SEEDREAM_5_PRO_ENABLED");
@@ -243,6 +249,8 @@ export function validateEzPicLaunchEnvironment(
 		["MEDIA_GPT_IMAGE_2_ENABLED", gptImage2Enabled],
 		["MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED", gptImage25FlareEnabled],
 		["MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED", gptImage25SunburstEnabled],
+		["MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED", gptImage26FlareEnabled],
+		["MEDIA_GPT_IMAGE_2_6_SUNBURST_ENABLED", gptImage26SunburstEnabled],
 		["MEDIA_SEEDREAM_4_ENABLED", seedream4Enabled],
 		["MEDIA_SEEDREAM_4_5_ENABLED", seedream45Enabled],
 		["MEDIA_SEEDREAM_5_LITE_ENABLED", seedream5LiteEnabled],
@@ -315,6 +323,8 @@ export function validateEzPicLaunchEnvironment(
 			gptImage2Enabled,
 			gptImage25FlareEnabled,
 			gptImage25SunburstEnabled,
+			gptImage26FlareEnabled,
+			gptImage26SunburstEnabled,
 			seedream4Enabled,
 			seedream45Enabled,
 			seedream5LiteEnabled,
@@ -376,9 +386,13 @@ export function isEzPicProductEnvironmentEnabled(
 			return false;
 		}
 		return failClosed ||
-			["image-gpt-image-2-5-flare", "image-gpt-image-2-5-sunburst", "image-seedream-4"].includes(
-				productKey,
-			)
+			[
+				"image-gpt-image-2-5-flare",
+				"image-gpt-image-2-5-sunburst",
+				"image-gpt-image-2-6-flare",
+				"image-gpt-image-2-6-sunburst",
+				"image-seedream-4",
+			].includes(productKey)
 			? input[environmentKey] === "true"
 			: input[environmentKey] !== "false";
 	}
@@ -395,6 +409,8 @@ export const EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS: Readonly<Record<string, strin
 		"image-gpt-image-2": "MEDIA_GPT_IMAGE_2_ENABLED",
 		"image-gpt-image-2-5-flare": "MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED",
 		"image-gpt-image-2-5-sunburst": "MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED",
+		"image-gpt-image-2-6-flare": "MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED",
+		"image-gpt-image-2-6-sunburst": "MEDIA_GPT_IMAGE_2_6_SUNBURST_ENABLED",
 		"image-seedream-4": "MEDIA_SEEDREAM_4_ENABLED",
 		"image-seedream-4-5": "MEDIA_SEEDREAM_4_5_ENABLED",
 		"image-seedream-5-lite": "MEDIA_SEEDREAM_5_LITE_ENABLED",

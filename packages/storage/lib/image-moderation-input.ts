@@ -29,7 +29,9 @@ export async function preparePrivateImageModeration(input: ImageModerationSource
 	try {
 		if (
 			stored.contentLength > 25 * 1024 * 1024 ||
-			!["image/png", "image/jpeg", "image/webp"].includes(stored.contentType ?? "") ||
+			!["image/png", "image/jpeg", "image/webp", "image/gif", "image/svg+xml"].includes(
+				stored.contentType ?? "",
+			) ||
 			(input.storageEtag && stored.etag !== input.storageEtag)
 		)
 			throw new ImageProcessingError("IMAGE_MODERATION_SOURCE_INVALID");
@@ -55,13 +57,27 @@ export async function preparePrivateImageModeration(input: ImageModerationSource
 				},
 			}),
 		);
+		let preparationSource = source;
+		let preparationLength = stored.contentLength;
+		if (stored.contentType === "image/svg+xml" || stored.contentType === "image/gif") {
+			// The original is fully identity-checked before rendering. Never review only
+			// the first frame of an animation, or pass active XML to an image service.
+			const bytes = new Uint8Array(await new Response(source).arrayBuffer());
+			const { gifReviewPng, svgReviewPng } =
+				await import("../image-processing/generated-image-review");
+			const png =
+				stored.contentType === "image/gif" ? gifReviewPng(bytes) : await svgReviewPng(bytes);
+			preparationSource = new Blob([png as Uint8Array<ArrayBuffer>]).stream();
+			preparationLength = png.byteLength;
+		}
 		const sourceUrl =
 			processor.key === "cloudflare-images" &&
+			preparationSource === source &&
 			stored.contentLength > CLOUDFLARE_IMAGES_MAX_INPUT_BYTES
 				? await createSignedReadUrl({ bucket: "media", key: input.objectKey, expiresIn: 300 })
 				: undefined;
-		output = await processor.moderationJpeg(source, {
-			contentLength: stored.contentLength,
+		output = await processor.moderationJpeg(preparationSource, {
+			contentLength: preparationLength,
 			sourceUrl,
 		});
 		let outputBytes = 0;

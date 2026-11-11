@@ -22,6 +22,7 @@ export interface AssetCardProps {
 
 export function AssetCard({ asset, onDeleted, onSelect }: AssetCardProps) {
 	const t = useTranslations("media.assets");
+	const canReuse = ["image/jpeg", "image/png", "image/webp"].includes(asset.mimeType);
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	async function access(disposition: "inline" | "attachment") {
 		const result = await orpcClient.media.getAssetAccessUrl({ assetId: asset.id, disposition });
@@ -58,8 +59,8 @@ export function AssetCard({ asset, onDeleted, onSelect }: AssetCardProps) {
 					{new Date(asset.createdAt).toLocaleString()}
 				</p>
 				<div className="mt-4 gap-2 flex flex-wrap">
-					{asset.mimeType.startsWith("image/") && <ColoringPageLink assetId={asset.id} />}
-					{asset.mimeType.startsWith("image/") &&
+					{canReuse && <ColoringPageLink assetId={asset.id} />}
+					{canReuse &&
 						(onSelect ? (
 							<Button size="sm" onClick={() => onSelect(asset.id)}>
 								{t("reuse")}

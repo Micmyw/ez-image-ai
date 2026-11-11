@@ -28,6 +28,28 @@ const draft: WorkspaceDraft = {
 };
 
 describe("workspace continuity across account and checkout navigation", () => {
+	it("returns to the same GIF tool with exact controls and owner scope", () => {
+		const store = storage();
+		const gifDraft: WorkspaceDraft = {
+			values: {
+				productKey: "image-gpt-image-2-6-flare",
+				skuKey: "gpt-image-2-6-flare-1k",
+				prompt: "Animate a leaf",
+				sourceAssetId: "",
+				aspectRatio: "1:1",
+				outputFormat: "gif",
+				frameCount: 16,
+				frameDurationMs: 120,
+			},
+			parentJobId: null,
+		};
+		expect(saveWorkspaceDraft(store, "owner-a", gifDraft, 1000, "/ai-gif-generator")).toBe(true);
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, "/ai-gif-generator")).toEqual(gifDraft);
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, "/ai-svg-generator")).toBeNull();
+		expect(workspaceDraftReturnPath(store, "owner-a", 2000)).toBe(
+			"/ai-gif-generator?resume=workspace",
+		);
+	});
 	it("keeps Christmas drafts scoped to their owner and tool route", () => {
 		const store = storage();
 		expect(saveWorkspaceDraft(store, "owner-a", draft, 1000, "/christmas-wallpaper")).toBe(true);

@@ -3,6 +3,7 @@ import {
 	isKieRejectionWithoutOutput,
 	kieZeroCostRejectionEvidenceSchema,
 	parseImageSelection,
+	isGptImage26Sku,
 	type ImageBackground,
 	type ImageOutputFormat,
 	type ImageSkuKey,
@@ -298,8 +299,8 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 	)
 		throw unsupportedKieInput();
 	const selection = imageSelectionBySku.get(skuKey);
-	if (!selection || !parseImageSelection(selection.productKey, input.input))
-		throw unsupportedKieInput();
+	const parsedSelection = selection && parseImageSelection(selection.productKey, input.input);
+	if (!selection || !parsedSelection) throw unsupportedKieInput();
 	const prompt = input.input.prompt.trim();
 	if (
 		("strength" in input.input && input.input.strength !== undefined) ||
@@ -308,10 +309,15 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 	)
 		throw unsupportedKieInput();
 	if (spec.imageSizes && !spec.imageSizes[aspectRatio]) throw unsupportedKieInput();
-	const ratioParameters = spec.imageSizes
-		? { image_size: spec.imageSizes[aspectRatio] }
-		: { aspect_ratio: aspectRatio };
-	const parameters: Record<string, string | boolean | number> = { ...spec.parameters };
+	const ratioParameters =
+		isGptImage26Sku(skuKey) && input.input.outputFormat === "gif"
+			? isText
+				? { size: "512x512" }
+				: {}
+			: spec.imageSizes
+				? { image_size: spec.imageSizes[aspectRatio] }
+				: { aspect_ratio: aspectRatio };
+	const parameters: Record<string, unknown> = { ...spec.parameters };
 	if (input.input.outputFormat !== undefined) {
 		const outputFormat = spec.outputFormats?.[input.input.outputFormat];
 		if (!outputFormat) throw unsupportedKieInput();
@@ -322,6 +328,15 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 		if (!background) throw unsupportedKieInput();
 		parameters.background = background;
 	}
+	if (isGptImage26Sku(skuKey)) {
+		if (input.input.outputFormat === "gif") {
+			delete parameters.resolution;
+			parameters.frame_count = parsedSelection.frameCount;
+			parameters.frame_duration_ms = parsedSelection.frameDurationMs;
+		} else if (input.input.outputFormat === "svg") {
+			parameters.svg = { model: "gpt-5.6-luna" };
+		}
+	}
 	return {
 		model: input.providerModelId,
 		...(input.webhookUrl ? { callBackUrl: input.webhookUrl } : {}),
@@ -330,9 +345,11 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 				? { [spec.sourceField]: [input.input.sourceAsset.transferUrl] }
 				: {}),
 			prompt:
-				input.input.background === "transparent" && spec.transparentPromptSuffix
-					? `${prompt}\n\n${spec.transparentPromptSuffix}`
-					: prompt,
+				isGptImage26Sku(skuKey) && input.input.outputFormat === "svg"
+					? `${prompt}\n\nCreate a static, self-contained SVG using vector shapes and paths. Convert all lettering to outline paths; do not use text or tspan elements, embedded images, external resources, scripts, animation, or stylesheets.`
+					: input.input.background === "transparent" && spec.transparentPromptSuffix
+						? `${prompt}\n\n${spec.transparentPromptSuffix}`
+						: prompt,
 			...ratioParameters,
 			...parameters,
 		},
@@ -361,6 +378,12 @@ const SEEDREAM_4_IMAGE_SIZES: Readonly<Record<string, string>> = {
 };
 
 const KIE_IMAGE_REQUEST_SPECS = {
+	"gpt-image-2-6-flare-1k": gptImage26RequestSpec("flare", "1K"),
+	"gpt-image-2-6-flare-2k": gptImage26RequestSpec("flare", "2K"),
+	"gpt-image-2-6-flare-4k": gptImage26RequestSpec("flare", "4K"),
+	"gpt-image-2-6-sunburst-1k": gptImage26RequestSpec("sunburst", "1K"),
+	"gpt-image-2-6-sunburst-2k": gptImage26RequestSpec("sunburst", "2K"),
+	"gpt-image-2-6-sunburst-4k": gptImage26RequestSpec("sunburst", "4K"),
 	"nano-banana-2-lite-1k": {
 		providerModelId: "nano-banana-2-lite",
 		sourceField: "image_urls",
@@ -533,6 +556,31 @@ const KIE_IMAGE_REQUEST_SPECS = {
 		outputFormats: { png: "png", jpeg: "jpeg" },
 	},
 } as const satisfies Record<ImageSkuKey, KieImageRequestSpec>;
+
+function gptImage26RequestSpec(
+	variant: "flare" | "sunburst",
+	resolution: "1K" | "2K" | "4K",
+): KieImageRequestSpec {
+	return {
+		providerModelId: `gpt-image-2-6/${variant}-image-to-image`,
+		sourceField: "input_urls",
+		parameters: {
+			resolution,
+			quality: variant === "flare" ? "medium" : "high",
+			complexity: "high",
+			moderation: "auto",
+			output_format: "png",
+			...(resolution === "1K" ? { background: "opaque" } : {}),
+		},
+		outputFormats:
+			resolution === "1K"
+				? { png: "png", jpeg: "jpeg", svg: "svg", gif: "gif" }
+				: { png: "png", jpeg: "jpeg" },
+		...(resolution === "1K"
+			? { backgrounds: { auto: "auto", opaque: "opaque", transparent: "transparent" } }
+			: {}),
+	};
+}
 
 function buildKieVeoRequest(input: ProviderSubmitInput): Record<string, unknown> {
 	if (

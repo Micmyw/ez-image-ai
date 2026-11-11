@@ -2,6 +2,7 @@ export * from "./catalog/catalog";
 export * from "./catalog/public";
 export * from "./catalog/routing";
 export * from "./catalog/schemas";
+export { GPT_IMAGE_26_COST_BASIS, imageFormatCostAllowance } from "./catalog/gpt-image-26";
 export * from "./errors";
 export * from "./moderation";
 export * from "./providers";

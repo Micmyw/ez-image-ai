@@ -485,13 +485,15 @@ describe("product configuration", () => {
 			"image-gpt-image-2",
 			"image-gpt-image-2-5-flare",
 			"image-gpt-image-2-5-sunburst",
+			"image-gpt-image-2-6-flare",
+			"image-gpt-image-2-6-sunburst",
 			"image-seedream-4",
 			"image-seedream-4-5",
 			"image-seedream-5-lite",
 			"image-seedream-5-pro",
 		]);
-		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-09-14.1");
-		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-09-13.2");
+		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-11-11.1");
+		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-11-11.1");
 		expect(publicConfig.brand).toMatchObject({
 			siteName: "EzImageAI",
 			siteDescription: expect.stringMatching(/image edit/i),
@@ -532,6 +534,8 @@ describe("product configuration", () => {
 					"image-gpt-image-2",
 					"image-gpt-image-2-5-flare",
 					"image-gpt-image-2-5-sunburst",
+					"image-gpt-image-2-6-flare",
+					"image-gpt-image-2-6-sunburst",
 					"image-seedream-4",
 					"image-seedream-4-5",
 					"image-seedream-5-lite",
@@ -555,6 +559,8 @@ describe("product configuration", () => {
 					"image-gpt-image-2",
 					"image-gpt-image-2-5-flare",
 					"image-gpt-image-2-5-sunburst",
+					"image-gpt-image-2-6-flare",
+					"image-gpt-image-2-6-sunburst",
 					"image-seedream-4",
 					"image-seedream-4-5",
 					"image-seedream-5-lite",
@@ -578,6 +584,8 @@ describe("product configuration", () => {
 					"image-gpt-image-2",
 					"image-gpt-image-2-5-flare",
 					"image-gpt-image-2-5-sunburst",
+					"image-gpt-image-2-6-flare",
+					"image-gpt-image-2-6-sunburst",
 					"image-seedream-4",
 					"image-seedream-4-5",
 					"image-seedream-5-lite",
@@ -600,22 +608,22 @@ describe("product configuration", () => {
 			maximumCreditsPerImage: 5,
 		});
 		expect(getPlanUsageEstimate("creator")).toEqual({
-			minimumImageEdits: 28,
+			minimumImageEdits: 7,
 			maximumImageEdits: 140,
 			minimumCreditsPerImage: 5,
-			maximumCreditsPerImage: 25,
+			maximumCreditsPerImage: 100,
 		});
 		expect(getPlanUsageEstimate("ultimate")).toEqual({
-			minimumImageEdits: 72,
+			minimumImageEdits: 18,
 			maximumImageEdits: 360,
 			minimumCreditsPerImage: 5,
-			maximumCreditsPerImage: 25,
+			maximumCreditsPerImage: 100,
 		});
 		expect(getPlanUsageEstimate("studio")).toEqual({
-			minimumImageEdits: 120,
+			minimumImageEdits: 30,
 			maximumImageEdits: 600,
 			minimumCreditsPerImage: 5,
-			maximumCreditsPerImage: 25,
+			maximumCreditsPerImage: 100,
 		});
 	});
 

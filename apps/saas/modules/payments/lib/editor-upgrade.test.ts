@@ -37,6 +37,27 @@ const draft = {
 };
 
 describe("editor upgrade navigation", () => {
+	it("preserves the exact GIF format and timing across sign-in or upgrade", () => {
+		const store = memoryStorage();
+		const gifDraft = {
+			draft: {
+				productKey: "image-gpt-image-2-6-flare" as const,
+				input: {
+					kind: "text-to-image" as const,
+					prompt: "Loop a waving leaf",
+					skuKey: "gpt-image-2-6-flare-1k" as const,
+					aspectRatio: "1:1" as const,
+					outputFormat: "gif" as const,
+					frameCount: 16,
+					frameDurationMs: 120,
+				},
+			},
+			parentJobId: null,
+			sourceReady: false,
+		};
+		expect(writeEditorUpgradeDraft(store, gifDraft, 1000)).toBe(true);
+		expect(readEditorUpgradeDraft(store, 2000)).toEqual(gifDraft);
+	});
 	it("retains the temporary upload receipt across upgrade navigation", () => {
 		const store = memoryStorage();
 		const receipt = {

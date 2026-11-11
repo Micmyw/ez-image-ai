@@ -32,6 +32,16 @@ No robots directive substitutes for access control. Draft previews, draft
 articles, authentication/account/payment pages, 404s and non-HTML Docs artifacts
 retain their restrictions.
 
+The 2026-11-11 tool pages `/gpt-image-2-6`, `/ai-svg-generator` and
+`/ai-gif-generator` reuse the working image composer and share discovery through
+the tool navigation and footer. Their editorial copy is English, so untranslated
+`?lang=de|es|fr` views remain noindex with an English canonical. Model query
+selection deduplicates to the tool's clean URL; private job/draft/payment state
+keeps the same noindex/nofollow policy. The model comparison has one canonical
+page with Flare and Sunburst sections instead of duplicate model articles.
+Visible FAQs and FAQPage JSON-LD use the same content. Structured data does not
+promise search rich results, indexing or ranking.
+
 Hotel Lobby remains `beta`; making its landing page discoverable does not publish
 the draft companion article, certify generation quality or create public samples.
 Reviewed sample publication still requires the existing real-job, rights and

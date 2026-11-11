@@ -4,6 +4,8 @@ const EXTENSIONS: Record<MediaContentType, string> = {
 	"image/jpeg": "jpg",
 	"image/png": "png",
 	"image/webp": "webp",
+	"image/gif": "gif",
+	"image/svg+xml": "svg",
 	"video/mp4": "mp4",
 	"video/webm": "webm",
 	"video/quicktime": "mov",

@@ -1,6 +1,7 @@
 export interface RecoverMediaVerificationCandidate {
 	assetId: string;
 	allowQuarantinedReverification: boolean;
+	requiresGeneratedImageProcessing?: boolean;
 }
 
 export interface RecoverMediaVerificationsDependencies {

@@ -34,6 +34,8 @@ const ALLOWED_MEDIA_TYPES = new Set<MediaContentType>([
 	"image/jpeg",
 	"image/png",
 	"image/webp",
+	"image/gif",
+	"image/svg+xml",
 	"video/mp4",
 	"video/webm",
 	"video/quicktime",
@@ -60,6 +62,10 @@ export function detectMediaType(bytes: Uint8Array): MediaContentType | null {
 		const brand = String.fromCharCode(...bytes.slice(8, 12));
 		return brand === "qt  " ? "video/quicktime" : "video/mp4";
 	}
+	const prefix = new TextDecoder().decode(bytes.subarray(0, 64));
+	if (/^GIF8[79]a/.test(prefix)) return "image/gif";
+	// This is only a routing hint. The complete XML is validated before review/READY.
+	if (/^\uFEFF?\s*(?:<\?xml[^>]*\?>\s*)?<svg(?:\s|>)/.test(prefix)) return "image/svg+xml";
 	return null;
 }
 
@@ -97,6 +103,7 @@ export function assertDetectedMediaType(
 }
 
 export function getMediaByteLimit(contentType: MediaContentType): number {
+	if (contentType === "image/svg+xml") return 2 * 1024 * 1024;
 	return contentType.startsWith("image/") ? IMAGE_MAX_BYTES : VIDEO_MAX_BYTES;
 }
 
@@ -109,7 +116,12 @@ export function validateMediaUpload(
 	header: Uint8Array,
 	byteSize: number,
 ): asserts declaredType is MediaContentType {
-	if (!ALLOWED_MEDIA_TYPES.has(declaredType as MediaContentType)) {
+	// Output support must not silently widen the user-upload contract.
+	if (
+		!ALLOWED_MEDIA_TYPES.has(declaredType as MediaContentType) ||
+		declaredType === "image/gif" ||
+		declaredType === "image/svg+xml"
+	) {
 		throw new MediaValidationError(
 			"OUTPUT_MEDIA_TYPE_UNSUPPORTED",
 			"Media content type is not allowed",

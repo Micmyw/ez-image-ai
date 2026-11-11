@@ -82,7 +82,13 @@ function versionDto(
 		status: job.status,
 		createdAt: job.createdAt.toISOString(),
 		output,
-		canEditAgain: job.status === "SUCCEEDED" && output.state === "READY",
+		canEditAgain:
+			job.status === "SUCCEEDED" &&
+			output.state === "READY" &&
+			Boolean(
+				outputBinding &&
+				["image/jpeg", "image/png", "image/webp"].includes(outputBinding.asset.mimeType),
+			),
 	};
 }
 
