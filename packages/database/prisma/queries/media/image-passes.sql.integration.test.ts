@@ -402,19 +402,19 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 	])(
 		"charges one old USD 2.99 grant unit for one successful %s %s and preserves purchase snapshots",
 		async (skuKey, outputFormat) => {
-			const f = await paymentFixture();
+			const f = {
+				...(await paymentFixture()),
+				occurredAt: new Date(Date.now() - 5 * 86_400_000),
+			};
 			const grant = await sqlTransaction((tx) => fulfillImagePassPurchaseInTransaction(f, tx));
 			const paidBefore = (
 				await pool!.query(
-					`SELECT "offerSnapshot","paidAmountMicros" FROM image_pass_grant WHERE id=$1`,
+					`SELECT "offerSnapshot","paidAmountMicros","paidAt" FROM image_pass_grant WHERE id=$1`,
 					[grant.grantId],
 				)
 			).rows[0];
-			// Existing purchases gain the benefit without rewriting their frozen paid terms.
-			await pool!.query(
-				`UPDATE image_pass_grant SET "paidAt"=now()-interval '5 days' WHERE id=$1`,
-				[grant.grantId],
-			);
+			// Fulfillment creates the historical grant with its immutable payment timestamp.
+			expect(paidBefore.paidAt).toEqual(f.occurredAt);
 			const balance = await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx));
 			expect(balance.availableSkuKeys).toHaveLength(35);
 			expect(balance.subscriptionFreeSkuKeys).toHaveLength(35);
@@ -455,7 +455,7 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 			expect(
 				(
 					await pool!.query(
-						`SELECT "offerSnapshot","paidAmountMicros" FROM image_pass_grant WHERE id=$1`,
+						`SELECT "offerSnapshot","paidAmountMicros","paidAt" FROM image_pass_grant WHERE id=$1`,
 						[grant.grantId],
 					)
 				).rows[0],
