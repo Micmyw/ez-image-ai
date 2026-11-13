@@ -46,8 +46,9 @@ describe("public image sitemap", () => {
 	it("covers the homepage recipes and both stages of the coloring example", () => {
 		const entries = getPublicImageSitemapEntries(baseUrl);
 		const home = entries.find(({ url }) => url === `${baseUrl}/`)!;
-		expect(home.images).toHaveLength(15);
-		expect(home.images.filter((image) => image.includes("/case-"))).toHaveLength(12);
+		expect(home.images).toHaveLength(16);
+		expect(home.images.filter((image) => image.includes("/case-"))).toHaveLength(13);
+		expect(home.images.some((image) => image.includes("case-birthday-portrait-"))).toBe(true);
 		expect(home.images.some((image) => image.includes("case-mediterranean-room-"))).toBe(true);
 		const coloring = entries.find(({ url }) => url.endsWith("/models/nano-banana-2"))!;
 		expect(coloring.images).toHaveLength(6);
