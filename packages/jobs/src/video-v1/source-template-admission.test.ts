@@ -91,7 +91,41 @@ function configuration() {
 	};
 }
 describe("source template frozen admission", () => {
-	it("returns only public prices from one provision read and skips reference reads for uploads", async () => {
+	it("keeps configured credits when generation is disabled", async () => {
+		const config = configuration();
+		store.configuration.mockResolvedValue({ id: "config", version: 1, value: config.provision });
+		const access = await sourceTemplateAccess({ userId: "owner" }, "original-rap", bindings, {
+			...environment,
+			MEDIA_GENERATION_ENABLED: "false",
+		});
+		expect(access.available).toBe(false);
+		expect(access.pricing).toEqual({
+			version: 1,
+			creditsByOptions: { [sourceTemplatePriceKey(request.options)]: "123" },
+		});
+	});
+	it("uses the published reference snapshot without querying mutable material approval rows", async () => {
+		vi.clearAllMocks();
+		const config = configuration();
+		store.configuration.mockResolvedValue({ id: "config", version: 1, value: config.provision });
+		store.references.mockRejectedValue(
+			new Error("VIDEO_SOURCE_TEMPLATE_REFERENCE_IDENTITY_CHANGED"),
+		);
+		try {
+			const access = await sourceTemplateAccess(
+				{ userId: "owner" },
+				"original-rap",
+				bindings,
+				environment,
+			);
+			expect(access.available).toBe(true);
+			expect(access.pricing?.creditsByOptions[sourceTemplatePriceKey(request.options)]).toBe("123");
+			expect(store.references).not.toHaveBeenCalled();
+		} finally {
+			store.references.mockReset();
+		}
+	});
+	it("returns only public prices from one provision read without querying fixed references", async () => {
 		vi.clearAllMocks();
 		const config = configuration();
 		store.configuration.mockResolvedValue({ id: "config", version: 1, value: config.provision });
@@ -107,7 +141,7 @@ describe("source template frozen admission", () => {
 			creditsByOptions: { [sourceTemplatePriceKey(request.options)]: "123" },
 		});
 		expect(store.configuration).toHaveBeenCalledTimes(1);
-		expect(store.references).toHaveBeenCalledTimes(1);
+		expect(store.references).not.toHaveBeenCalled();
 		store.references.mockClear();
 		const upload = await sourceTemplateAccess(
 			{ userId: "owner" },

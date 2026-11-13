@@ -26,7 +26,9 @@ apply procedures are used with the production database and private R2 bucket
 - Reuse authorization is the user's current-chat instruction, not independent
   copyright ownership verification. Frozen built-in references have no scheduled
   expiry; the required timestamp field uses `9999-12-31T23:59:59.999Z`. Explicit
-  revocation, object identity and current evidence checks remain authoritative.
+  revocation, object identity and current evidence checks applied at activation.
+  The [November 13 change](source-template-runtime-pricing-2026-11-13.md) moves
+  material checks to publication and protects imported objects from orphan cleanup.
 - Prepare all 16 execution configurations for `authenticated` access, covering
   2,342 existing price combinations. Reuse the recorded provider prices and
   conservative complete-cost budgets; do not invent EzPic prices from source-site

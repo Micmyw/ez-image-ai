@@ -7,11 +7,12 @@ import {
 	videoEffectIdSchema,
 	RUMPELSTILTSKIN_SOLO_EFFECT_ID,
 } from "@repo/config/video-effects";
-import { canAccessVideoEffect } from "@repo/config/video-effects-access.server";
 import {
-	isVideoEffectRetailPricingApproved,
-	readVideoEffectPricingDisplay,
-} from "@repo/config/video-effects.server";
+	canAccessVideoEffect,
+	readVideoEffectAccessScope,
+} from "@repo/config/video-effects-access.server";
+import { isVideoEffectRetailPricingApproved } from "@repo/config/video-effects.server";
+import type { VideoRetailPricingContext } from "@repo/config/video-pricing.server";
 import { readVideoV1Config } from "@repo/config/video-v1";
 import { db } from "@repo/database/client";
 import {
@@ -28,6 +29,7 @@ import {
 	requireVideoTemplateRuntimeEnabled,
 	VIDEO_EFFECT_CAPABILITY_REQUEST,
 	resolveVideoEffectPricingContext,
+	resolveVideoEffectDisplayPrice,
 } from "@repo/jobs/video-v1/template-admission";
 import { videoTemplateDiagnosticsTimings } from "@repo/jobs/video-v1/template-telemetry";
 import { getVideoWorkflowReadinessBindings } from "@repo/jobs/video-v1/workflow-binding";
@@ -137,28 +139,64 @@ const access = protectedProcedure
 	.handler(async ({ context: { user }, input }) => {
 		const config = readVideoV1Config(process.env);
 		const accessAllowed = canAccessVideoEffect(process.env, user, input.effectId);
-		const base = {
+		const base: z.infer<typeof videoEffectAccessSchema> = {
 			effectId: input.effectId,
 			accessAllowed,
 			maxInputBytes: Math.min(VIDEO_EFFECT_MAX_INPUT_BYTES, config.maxInputBytes),
+			available: false,
+			reasons: ["ACCESS_DENIED"],
+			credits: null,
+			creditBalance: await getVideoTemplateCreditBalance(user.id, undefined, db).catch(() => null),
 		};
+		// A public template keeps its retail display when an operational switch closes generation.
+		// Internal audiences remain private; the independent balance always belongs to this owner.
+		if (
+			!accessAllowed &&
+			readVideoEffectAccessScope(process.env, input.effectId) !== "authenticated"
+		)
+			return base;
+		let pricingContext: VideoRetailPricingContext = {};
+		let pricingFailure = "TEMPLATE_UNAVAILABLE";
+		try {
+			pricingContext = await resolveVideoEffectPricingContext(user.id, input.effectId, process.env);
+			const request = { ...VIDEO_EFFECT_CAPABILITY_REQUEST, effectId: input.effectId };
+			const display = resolveVideoEffectDisplayPrice(request, process.env, pricingContext);
+			Object.assign(base, display, {
+				pricingValidUntil: pricingContext.eligibility?.validUntil ?? null,
+				durationOptions: [{ duration: 5, ...display }],
+			});
+			if (
+				input.effectId !== RUMPELSTILTSKIN_SOLO_EFFECT_ID &&
+				isVideoEffectRetailPricingApproved(process.env)
+			) {
+				try {
+					base.durationOptions!.push({
+						duration: 10,
+						...resolveVideoEffectDisplayPrice(
+							{ ...request, duration: 10 },
+							process.env,
+							pricingContext,
+						),
+					});
+				} catch {
+					/* An unpriced duration does not hide the other approved prices. */
+				}
+			}
+		} catch (error) {
+			pricingFailure = publicVideoEffectError(error instanceof Error ? error.message : "");
+		}
 		const readiness = readVideoEffectTestReadiness(input.effectId, process.env);
 		if (readiness.length > 0)
 			return {
 				...base,
 				available: false,
 				reasons: accessAllowed ? readiness : ["ACCESS_DENIED"],
-				credits: null,
-				creditBalance: null,
 			};
-		const entitlement = await loadUserPlanEntitlement(user.id);
-		base.maxInputBytes = Math.min(base.maxInputBytes, entitlement.maximumInputBytes);
+		if (base.credits === null)
+			return { ...base, reasons: [accessAllowed ? pricingFailure : "ACCESS_DENIED"] };
 		try {
-			const pricingContext = await resolveVideoEffectPricingContext(
-				user.id,
-				input.effectId,
-				process.env,
-			);
+			const entitlement = await loadUserPlanEntitlement(user.id);
+			base.maxInputBytes = Math.min(base.maxInputBytes, entitlement.maximumInputBytes);
 			const admitted = requireVideoTemplateAdmission(
 				{ userId: user.id, role: user.role },
 				process.env,
@@ -171,56 +209,11 @@ const access = protectedProcedure
 				pricingContext,
 			);
 			await requireVideoTemplateRuntimeEnabled(admitted.template);
-			const pricing = readVideoEffectPricingDisplay(admitted.price.pricingDetails);
-			const durationOptions: Array<{
-				duration: 5 | 10;
-				credits: string;
-				pricing?: NonNullable<typeof pricing>;
-			}> = [
-				{
-					duration: 5,
-					credits: admitted.price.credits.toString(),
-					...(pricing ? { pricing } : {}),
-				},
-			];
-			if (
-				input.effectId !== RUMPELSTILTSKIN_SOLO_EFFECT_ID &&
-				isVideoEffectRetailPricingApproved(process.env)
-			) {
-				try {
-					const longer = requireVideoTemplateAdmission(
-						{ userId: user.id, role: user.role },
-						process.env,
-						getVideoWorkflowReadinessBindings(),
-						{
-							...VIDEO_EFFECT_CAPABILITY_REQUEST,
-							effectId: input.effectId,
-							duration: 10,
-							inputs: { leftAssetId: "capability", rightAssetId: "capability" },
-						},
-						pricingContext,
-					);
-					await requireVideoTemplateRuntimeEnabled(longer.template);
-					const longPricing = readVideoEffectPricingDisplay(longer.price.pricingDetails);
-					durationOptions.push({
-						duration: 10,
-						credits: longer.price.credits.toString(),
-						...(longPricing ? { pricing: longPricing } : {}),
-					});
-				} catch {
-					/* A closed long option must not close approved five-second orders. */
-				}
-			}
 			return {
 				...base,
 				maxInputBytes: Math.min(base.maxInputBytes, admitted.maximumInputBytes),
 				available: true,
 				reasons: [],
-				credits: admitted.price.credits.toString(),
-				durationOptions,
-				pricingValidUntil: pricingContext.eligibility?.validUntil ?? null,
-				...(pricing ? { pricing } : {}),
-				creditBalance: await getVideoTemplateCreditBalance(user.id, undefined, db),
 			};
 		} catch (error) {
 			return {
@@ -231,8 +224,6 @@ const access = protectedProcedure
 						? publicVideoEffectError(error instanceof Error ? error.message : "")
 						: "ACCESS_DENIED",
 				],
-				credits: null,
-				creditBalance: null,
 			};
 		}
 	});

@@ -90,6 +90,28 @@ describe("homepage quick-start handoff", () => {
 		expect(browser.history.pushState).not.toHaveBeenCalled();
 		expect(focus).not.toHaveBeenCalled();
 	});
+	it("opens the paid Sheru page without applying its prompt to the free homepage editor", () => {
+		const received = vi.fn((event: Event) => event.preventDefault());
+		browser.addEventListener(LANDING_PROMPT_SELECTED_EVENT, received);
+		const event = { preventDefault: vi.fn() };
+		const link = QuickStartAction({
+			idea: "sheru-bhai",
+			href: "/blog/sheru-bhai-ai-photo",
+			children: "Sheru",
+		});
+		link.props.onClick(event as unknown as MouseEvent<HTMLAnchorElement>);
+		expect(event.preventDefault).not.toHaveBeenCalled();
+		expect(received).not.toHaveBeenCalled();
+		expect(browser.history.pushState).not.toHaveBeenCalled();
+		expect(tracker).toHaveBeenCalledWith({
+			name: "homepage_idea_selected",
+			properties: {
+				homepageIdea: "sheru-bhai",
+				homepagePlacement: "quick-start",
+				status: "selected",
+			},
+		});
+	});
 	it.each(["ctrlKey", "metaKey", "shiftKey", "altKey"])("preserves native %s navigation", (key) => {
 		const received = vi.fn((event: Event) => event.preventDefault());
 		browser.addEventListener(LANDING_PROMPT_SELECTED_EVENT, received);

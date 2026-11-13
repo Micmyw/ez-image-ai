@@ -220,6 +220,20 @@ afterEach(() => {
 });
 
 describe("video workspace request lifetimes", () => {
+	it("keeps the selected price visible while unavailable generation stays disabled", async () => {
+		const data = fixture.catalog.data!;
+		data.available = false;
+		for (const model of data.models) {
+			model.available = false;
+			for (const option of model.options) option.available = false;
+		}
+		render();
+		expect(view.previewCredits).toBe("23");
+		expect(view.enabled).toBe(false);
+		await view.onGenerate();
+		expect(fixture.submit).not.toHaveBeenCalled();
+		expect(fixture.quote).not.toHaveBeenCalled();
+	});
 	it.each([
 		["VIDEO_OWNER_BUSY", "ownerBusy"],
 		["VIDEO_GLOBAL_BUSY", "globalBusy"],

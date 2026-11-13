@@ -39,6 +39,31 @@ function transaction(overrides: string[] = [], planId = "free") {
 }
 
 describe("transaction-current admission", () => {
+	it("rechecks administrator test access at admission and rejects a revoked grant", async () => {
+		const tx = transaction();
+		const now = new Date("2026-11-13T15:00:00Z");
+		const input = {
+			ownerId: "owner",
+			productKey: "image-gpt-image-2-6-sunburst",
+			skuKey: "gpt-image-2-6-sunburst-1k",
+			costMicros: 100_000n,
+			now,
+		};
+		tx.$queryRaw.mockResolvedValue([
+			{ now, value: { version: 1, expiresAt: "2026-11-14T15:00:00Z", skuKeys: [input.skuKey] } },
+		] as never);
+		await expect(loadCurrentGenerationAdmission(input, tx as never)).resolves.toBeDefined();
+		await expect(
+			loadCurrentGenerationAdmission(
+				{ ...input, skuKey: "gpt-image-2-6-sunburst-4k" },
+				tx as never,
+			),
+		).rejects.toThrow("ENTITLEMENT_REQUIRED");
+		tx.$queryRaw.mockResolvedValue([]);
+		await expect(loadCurrentGenerationAdmission(input, tx as never)).rejects.toThrow(
+			"ENTITLEMENT_REQUIRED",
+		);
+	});
 	it.each(["seedream-5-5-1k", "seedream-5-5-1-5k", "seedream-5-5-2k"])(
 		"rechecks Seedream 5.5 subscription and its 10 MB input limit for %s",
 		async (skuKey) => {

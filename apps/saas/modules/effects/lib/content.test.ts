@@ -84,6 +84,165 @@ function publishedEffect(overrides: Partial<Effect> = {}): Effect {
 	};
 }
 
+function illustratedEffect(overrides: Partial<Effect> = {}): Effect {
+	const effect = publishedEffect();
+	const preset = effect.presets[0]!;
+	const image = authorizedAsset("editorial-style");
+	return {
+		...effect,
+		presentation: "illustrations",
+		generationAccess: "paid",
+		cover: image,
+		examples: [],
+		lastTestedAt: undefined,
+		presets: [
+			{
+				...preset,
+				productKey: "image-nano-banana-2",
+				parameters: { skuKey: "nano-banana-2-1k", aspectRatio: "4:5" },
+				exampleIds: [],
+				tests: [],
+			},
+		],
+		illustrations: [
+			{
+				id: "editorial-style",
+				presetId: preset.id,
+				presetVersion: preset.version,
+				image,
+				caption: "Separately created style illustration; not a product result.",
+				provenance: {
+					kind: "editorial-generation",
+					evidence: "__PRIVATE_EVIDENCE__: original editorial generation and review record",
+				},
+			},
+		],
+		...overrides,
+	};
+}
+
+describe("Editorial illustration provenance", () => {
+	it("publishes explicit style illustrations without inventing product tests or leaking evidence", () => {
+		const authored = illustratedEffect();
+		expect(validateEffects([authored])).toEqual([]);
+		const reader = createEffectContentReader([authored]);
+		const effect = reader.getPublishedEffectById(authored.id);
+		expect(effect?.generationAccess).toBe("paid");
+		expect(effect?.presentation).toBe("illustrations");
+		expect(effect?.lastTestedAt).toBeUndefined();
+		expect(effect?.examples).toEqual([]);
+		expect(effect?.illustrations?.[0]?.image.credit).toBe("Test fixture author");
+		for (const serialized of [
+			JSON.stringify(effect),
+			JSON.stringify(reader.getEffectPreviewContent(authored.slug)),
+		]) {
+			for (const excluded of [
+				"__PRIVATE_EVIDENCE__",
+				"provenance",
+				"verifiedAt",
+				'"tests"',
+				'"rights"',
+			]) {
+				expect(serialized).not.toContain(excluded);
+			}
+		}
+	});
+
+	it("requires explicit opt-in and artwork covering every published preset", () => {
+		expect(() =>
+			createEffectContentReader([illustratedEffect({ presentation: undefined })]),
+		).toThrow("explicit illustration presentation");
+		expect(() => createEffectContentReader([illustratedEffect({ illustrations: [] })])).toThrow(
+			"authorized editorial artwork",
+		);
+		expect(() =>
+			createEffectContentReader([illustratedEffect({ cover: authorizedAsset("unrelated-cover") })]),
+		).toThrow("cover must use authorized editorial artwork");
+		const effect = illustratedEffect();
+		const extraPreset = { ...effect.presets[0]!, id: "unillustrated-preset" };
+		expect(() =>
+			createEffectContentReader([{ ...effect, presets: [...effect.presets, extraPreset] }]),
+		).toThrow("authorized editorial artwork");
+	});
+
+	it.each([
+		["unknown preset", { presetId: "unknown-preset" }],
+		["outdated version", { presetVersion: 987 }],
+	])("rejects %s artwork", (_label, change) => {
+		const effect = illustratedEffect();
+		expect(() =>
+			createEffectContentReader([
+				{
+					...effect,
+					illustrations: [{ ...effect.illustrations![0]!, ...change }],
+				},
+			]),
+		).toThrow("exact current preset version");
+	});
+
+	it("requires rights, source evidence and a local public image", () => {
+		const effect = illustratedEffect();
+		const illustration = effect.illustrations![0]!;
+		for (const invalid of [
+			{ ...illustration, provenance: { kind: "editorial-generation", evidence: " " } },
+			{ ...illustration, provenance: { kind: "product-generation", evidence: "other source" } },
+			{ ...illustration, image: { ...illustration.image, rights: undefined } },
+			{
+				...illustration,
+				image: { ...illustration.image, src: "https://private.example/image?token=secret" },
+			},
+		]) {
+			expect(validateEffects([{ ...effect, illustrations: [invalid] }]).length).toBeGreaterThan(0);
+		}
+		expect(() =>
+			createEffectContentReader([{ ...effect, illustrations: [illustration, illustration] }]),
+		).toThrow("Values must be unique");
+	});
+
+	it("cannot relabel product examples, tests or test dates as editorial artwork", () => {
+		const product = publishedEffect();
+		expect(() =>
+			createEffectContentReader([illustratedEffect({ examples: product.examples })]),
+		).toThrow("cannot contain product generation examples");
+		expect(() =>
+			createEffectContentReader([illustratedEffect({ lastTestedAt: product.lastTestedAt })]),
+		).toThrow("do not establish a product test date");
+		expect(() =>
+			createEffectContentReader([illustratedEffect({ presets: product.presets })]),
+		).toThrow("cannot claim product tests or example IDs");
+	});
+
+	it("still rejects unsupported model and SKU combinations in the illustrated path", () => {
+		const effect = illustratedEffect();
+		const preset = effect.presets[0]!;
+		expect(() =>
+			createEffectContentReader([
+				{
+					...effect,
+					presets: [{ ...preset, parameters: { ...preset.parameters, skuKey: "gpt-image-2-1k" } }],
+				},
+			]),
+		).toThrow("SKU must belong");
+	});
+
+	it.each([
+		["image-nano-banana-2-lite", "nano-banana-2-lite-1k"],
+		["image-minimax-h3", "minimax-h3-1k"],
+	] as const)("rejects the free %s preset on a paid template", (productKey, skuKey) => {
+		const effect = illustratedEffect();
+		expect(() =>
+			createEffectContentReader([
+				{
+					...effect,
+					presets: [
+						{ ...effect.presets[0]!, productKey, parameters: { skuKey, aspectRatio: "4:5" } },
+					],
+				},
+			]),
+		).toThrow("requiring paid access");
+	});
+});
+
 describe("Effects publication boundary", () => {
 	it("keeps an untested draft out of all public lookups", () => {
 		const draft: Effect = {

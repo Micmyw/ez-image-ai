@@ -1,10 +1,12 @@
 import {
 	EZPIC_PRODUCT_KEYS,
 	getImageProductSelectionContract,
+	getPlanEntitlement,
 	IMAGE_ASPECT_RATIOS,
 	IMAGE_BACKGROUNDS,
 	IMAGE_OUTPUT_FORMATS,
 	IMAGE_SKU_KEYS,
+	planIncludesImageSelection,
 } from "@repo/config/client";
 import { z } from "zod";
 
@@ -92,6 +94,18 @@ const exampleSchema = z.strictObject({
 	}),
 });
 
+const illustrationSchema = z.strictObject({
+	id: idSchema,
+	presetId: idSchema,
+	presetVersion: z.number().int().positive(),
+	image: assetSchema,
+	caption: textSchema,
+	provenance: z.strictObject({
+		kind: z.literal("editorial-generation"),
+		evidence: textSchema,
+	}),
+});
+
 export const effectSchema = z.strictObject({
 	id: idSchema,
 	slug: idSchema.refine(
@@ -109,6 +123,9 @@ export const effectSchema = z.strictObject({
 	),
 	tags: z.array(z.enum(EFFECT_TAGS)),
 	status: z.enum(["draft", "published", "retired"]),
+	generationAccess: z.literal("paid").optional(),
+	presentation: z.literal("illustrations").optional(),
+	illustrations: z.array(illustrationSchema).optional(),
 	trendStage: z.enum(["none", "rising", "trending", "cooling", "evergreen"]),
 	trendReviewedAt: dateSchema.optional(),
 	trendEvidence: textSchema.optional(),
@@ -194,6 +211,7 @@ export function validateEffects(records: readonly unknown[]): EffectValidationIs
 			add("updatedAt", "The update date must not precede publication.");
 		}
 		for (const preset of effect.presets) validatePreset(effect, preset, add);
+		validateIllustrations(effect, add);
 		for (const example of effect.examples) {
 			const preset = effect.presets.find((candidate) => candidate.id === example.presetId);
 			if (!preset) add("examples", `Example ${example.id} references an unknown preset.`);
@@ -205,30 +223,32 @@ export function validateEffects(records: readonly unknown[]): EffectValidationIs
 			if (!effect.cover) add("cover", "Published effects require an authorized cover.");
 			if (!effect.publishedAt)
 				add("publishedAt", "Published effects require their real publication date.");
-			if (!effect.lastTestedAt)
-				add("lastTestedAt", "Published effects require their real last test date.");
-			if (!effect.examples.length)
-				add("examples", "Published effects require real product examples.");
-			if (
-				effect.cover &&
-				!effect.examples.some((example) => example.output.src === effect.cover?.src)
-			) {
-				add("cover", "The cover must use a verified example output.");
-			}
-			for (const example of effect.examples) {
-				const preset = effect.presets.find((candidate) => candidate.id === example.presetId);
-				if (!preset || !isCurrentVerifiedExample(example, preset)) {
-					add(
-						"examples",
-						`Example ${example.id} has no passing test for the exact current preset.`,
-					);
+			if (effect.presentation !== "illustrations") {
+				if (!effect.lastTestedAt)
+					add("lastTestedAt", "Published effects require their real last test date.");
+				if (!effect.examples.length)
+					add("examples", "Published effects require real product examples.");
+				if (
+					effect.cover &&
+					!effect.examples.some((example) => example.output.src === effect.cover?.src)
+				) {
+					add("cover", "The cover must use a verified example output.");
 				}
-			}
-			const latestTest = Math.max(
-				...effect.examples.map((example) => Date.parse(example.testedAt)),
-			);
-			if (effect.lastTestedAt && Date.parse(effect.lastTestedAt) !== latestTest) {
-				add("lastTestedAt", "The last test date must match the most recent published example.");
+				for (const example of effect.examples) {
+					const preset = effect.presets.find((candidate) => candidate.id === example.presetId);
+					if (!preset || !isCurrentVerifiedExample(example, preset)) {
+						add(
+							"examples",
+							`Example ${example.id} has no passing test for the exact current preset.`,
+						);
+					}
+				}
+				const latestTest = Math.max(
+					...effect.examples.map((example) => Date.parse(example.testedAt)),
+				);
+				if (effect.lastTestedAt && Date.parse(effect.lastTestedAt) !== latestTest) {
+					add("lastTestedAt", "The last test date must match the most recent published example.");
+				}
 			}
 		}
 		if (effect.status === "retired") {
@@ -278,6 +298,16 @@ function validatePreset(
 ): void {
 	const path = `presets.${preset.id}`;
 	const contract = getImageProductSelectionContract(preset.productKey);
+	if (
+		effect.generationAccess === "paid" &&
+		planIncludesImageSelection(
+			getPlanEntitlement("free"),
+			preset.productKey,
+			preset.parameters.skuKey,
+		)
+	) {
+		add(path, "Paid presets must use a model and SKU requiring paid access.");
+	}
 	const cell = contract?.cells.find((candidate) => candidate.skuKey === preset.parameters.skuKey);
 	if (!cell) add(path, "Preset SKU must belong to its public product.");
 	else {
@@ -317,6 +347,7 @@ function validatePreset(
 	}
 	if (
 		effect.status === "published" &&
+		effect.presentation !== "illustrations" &&
 		!effect.examples.some(
 			(example) =>
 				preset.exampleIds.includes(example.id) && isCurrentVerifiedExample(example, preset),
@@ -326,6 +357,64 @@ function validatePreset(
 			path,
 			"Every published preset needs an authorized input/output pair tested with its exact current prompt, version, model and parameters.",
 		);
+	}
+}
+
+function validateIllustrations(effect: Effect, add: (path: string, message: string) => void): void {
+	const illustrations = effect.illustrations ?? [];
+	if (effect.presentation !== "illustrations") {
+		if (illustrations.length) {
+			add(
+				"illustrations",
+				"Editorial illustrations require an explicit illustration presentation.",
+			);
+		}
+		return;
+	}
+	if (effect.examples.length) {
+		add("examples", "Illustration presentation cannot contain product generation examples.");
+	}
+	if (effect.lastTestedAt) {
+		add("lastTestedAt", "Editorial illustrations do not establish a product test date.");
+	}
+	for (const preset of effect.presets) {
+		if (preset.tests.length || preset.exampleIds.length) {
+			add(`presets.${preset.id}`, "Illustrated presets cannot claim product tests or example IDs.");
+		}
+	}
+	validateUnique(
+		illustrations.map((illustration) => illustration.id),
+		"illustrations",
+		add,
+	);
+	for (const illustration of illustrations) {
+		const preset = effect.presets.find((candidate) => candidate.id === illustration.presetId);
+		if (!preset || preset.version !== illustration.presetVersion) {
+			add(
+				"illustrations",
+				`Illustration ${illustration.id} must reference the exact current preset version.`,
+			);
+		}
+	}
+	if (effect.status !== "published") return;
+	for (const preset of effect.presets) {
+		if (
+			!illustrations.some(
+				(illustration) =>
+					illustration.presetId === preset.id && illustration.presetVersion === preset.version,
+			)
+		) {
+			add(
+				`presets.${preset.id}`,
+				"Every published illustrated preset needs authorized editorial artwork for its current version.",
+			);
+		}
+	}
+	if (
+		effect.cover &&
+		!illustrations.some((illustration) => illustration.image.src === effect.cover?.src)
+	) {
+		add("cover", "The cover must use authorized editorial artwork from this effect.");
 	}
 }
 

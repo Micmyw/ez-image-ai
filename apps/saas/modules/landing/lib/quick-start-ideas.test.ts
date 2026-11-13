@@ -48,7 +48,13 @@ describe("quick-start preset URLs", () => {
 		},
 	);
 	it("accepts bounded idea click measurements without photo or prompt payloads", () => {
-		for (const homepageIdea of ["christmas", "restore-photo", "birthday-card", "kung-fu-cat"]) {
+		for (const homepageIdea of [
+			"sheru-bhai",
+			"christmas",
+			"restore-photo",
+			"birthday-card",
+			"kung-fu-cat",
+		]) {
 			expect(
 				growthAnalyticsEventSchema.safeParse({
 					name: "homepage_idea_selected",

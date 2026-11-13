@@ -17,6 +17,7 @@ vi.mock("@repo/jobs/video-v1/template-admission", () => ({
 	requireVideoTemplateRuntimeEnabled: vi.fn(),
 	readVideoEffectTestReadiness: vi.fn(),
 	resolveVideoEffectPricingContext: vi.fn(async () => ({})),
+	resolveVideoEffectDisplayPrice: vi.fn(),
 	VIDEO_EFFECT_CAPABILITY_REQUEST: {
 		effectId: "hotel-lobby-duo",
 		presetKey: "standard",
@@ -56,6 +57,7 @@ import {
 	requireVideoTemplateAdmission,
 	requireVideoTemplateRuntimeEnabled,
 	readVideoEffectTestReadiness,
+	resolveVideoEffectDisplayPrice,
 } from "@repo/jobs/video-v1/template-admission";
 
 import { loadUserPlanEntitlement } from "../media/lib/plan-entitlement";
@@ -85,6 +87,7 @@ const state = {
 };
 beforeEach(() => {
 	vi.clearAllMocks();
+	vi.mocked(resolveVideoEffectDisplayPrice).mockReset().mockReturnValue({ credits: "69" });
 	vi.mocked(readVideoEffectTestReadiness).mockReturnValue([]);
 	vi.mocked(getVideoTemplateCreditBalance).mockResolvedValue({
 		totalCredits: "391",
@@ -102,6 +105,25 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("template API authorization and strict public contracts", () => {
+	it.each(["hotel-lobby-duo", "raindance-solo", "raindance-duo"] as const)(
+		"retains %s pricing and account balance when its generation runtime is unavailable",
+		async (effectId) => {
+			vi.stubEnv("VIDEO_V1_ENABLED", "true");
+			vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "true");
+			vi.stubEnv("HOTEL_LOBBY_DUO_ACCESS", "authenticated");
+			vi.stubEnv("RAINDANCE_ENABLED", "true");
+			vi.stubEnv("RAINDANCE_ACCESS", "authenticated");
+			vi.mocked(requireVideoTemplateAdmission).mockImplementationOnce(() => {
+				throw new Error("VIDEO_EFFECT_DISABLED");
+			});
+			expect(await call(videoEffectsRouter.access, { effectId }, ctx)).toMatchObject({
+				available: false,
+				credits: "69",
+				creditBalance: { totalCredits: "391", eligibleCredits: "0" },
+			});
+			expect(createVideoTemplateJob).not.toHaveBeenCalled();
+		},
+	);
 	it.each(["hotel-lobby", "raindance", "rumpelstiltskin"] as const)(
 		"passes the optional %s history family to the owner-scoped reader",
 		async (templateFamily) => {
@@ -133,7 +155,7 @@ describe("template API authorization and strict public contracts", () => {
 		vi.stubEnv("VIDEO_V1_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "true");
 		vi.stubEnv("HOTEL_LOBBY_DUO_ACCESS", "authenticated");
-		vi.mocked(requireVideoTemplateAdmission).mockImplementationOnce(() => {
+		vi.mocked(resolveVideoEffectDisplayPrice).mockImplementationOnce(() => {
 			throw new Error(reason);
 		});
 		expect(await call(videoEffectsRouter.access, undefined, ctx)).toMatchObject({
@@ -141,11 +163,29 @@ describe("template API authorization and strict public contracts", () => {
 			available: false,
 			reasons: ["TEMPLATE_UNAVAILABLE"],
 			credits: null,
-			creditBalance: null,
+			creditBalance: { totalCredits: "391", eligibleCredits: "0" },
 		});
 		expect(createVideoTemplateJob).not.toHaveBeenCalled();
 	});
-	it("shows material readiness to an authenticated customer before entitlement or billing", async () => {
+	it("does not advertise generation as available when the independent price lookup fails", async () => {
+		vi.stubEnv("VIDEO_V1_ENABLED", "true");
+		vi.stubEnv("HOTEL_LOBBY_DUO_ENABLED", "true");
+		vi.stubEnv("HOTEL_LOBBY_DUO_ACCESS", "authenticated");
+		vi.mocked(resolveVideoEffectDisplayPrice).mockImplementationOnce(() => {
+			throw new Error("PRICE_LOOKUP_FAILED");
+		});
+		vi.mocked(requireVideoTemplateAdmission).mockReturnValue({
+			maximumInputBytes: 7_000_000,
+			template: {},
+		} as never);
+		expect(await call(videoEffectsRouter.access, undefined, ctx)).toMatchObject({
+			available: false,
+			credits: null,
+			reasons: ["TEMPLATE_UNAVAILABLE"],
+		});
+		expect(requireVideoTemplateAdmission).not.toHaveBeenCalled();
+	});
+	it("keeps independent display pricing and balance when material readiness blocks generation", async () => {
 		vi.stubEnv("VIDEO_V1_ENABLED", "true");
 		vi.stubEnv("RUMPELSTILTSKIN_ENABLED", "true");
 		vi.stubEnv("RUMPELSTILTSKIN_ACCESS", "authenticated");
@@ -155,14 +195,14 @@ describe("template API authorization and strict public contracts", () => {
 			accessAllowed: true,
 			available: false,
 			reasons: ["MOTION_REFERENCE_REQUIRED"],
-			credits: null,
-			creditBalance: null,
+			credits: "69",
+			creditBalance: { totalCredits: "391", eligibleCredits: "0" },
 		});
 		expect(loadUserPlanEntitlement).not.toHaveBeenCalled();
 		expect(requireVideoTemplateAdmission).not.toHaveBeenCalled();
-		expect(getVideoTemplateCreditBalance).not.toHaveBeenCalled();
+		expect(getVideoTemplateCreditBalance).toHaveBeenCalledOnce();
 		expect(createVideoTemplateQuote).not.toHaveBeenCalled();
-		expect(JSON.stringify(result)).not.toMatch(/69|seedance|kie|assetId|https:/i);
+		expect(JSON.stringify(result)).not.toMatch(/seedance|kie|assetId|https:/i);
 	});
 	it("does not reveal internal test readiness to a non-whitelisted account", async () => {
 		vi.stubEnv("VIDEO_V1_ENABLED", "true");

@@ -46,6 +46,45 @@ function store(patch: Record<string, unknown> = {}) {
 describe("physical cleanup ownership fence", () => {
 	beforeEach(() => vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "true"));
 	afterEach(() => vi.unstubAllEnvs());
+	it.each(["READY", "DELETED"])(
+		"retains a fixed source material for a stale %s cleanup event",
+		async (status) => {
+			const objectKey = "users/owner/source-templates/frozen-fingerprint";
+			const { tx, client } = store({
+				objectKey,
+				status,
+				deletedAt: status === "DELETED" ? now : null,
+				verificationEngine: "video-workflow-v1",
+			});
+			await expect(
+				claimMediaStorageCleanupTransaction(
+					{ assetId: "asset", objectKeys: [objectKey], releasesReservation: true },
+					client as never,
+				),
+			).resolves.toEqual({ outcome: "DEFER", retainedObjectKey: objectKey });
+			expect(tx.mediaAsset.update).not.toHaveBeenCalled();
+		},
+	);
+	it("allows staging cleanup without releasing a retained built-in material's capacity", async () => {
+		const objectKey = "users/owner/source-templates/frozen-fingerprint";
+		const { client } = store({
+			objectKey,
+			retentionClass: "ACCOUNT",
+			verificationEngine: "video-workflow-v1",
+		});
+		await expect(
+			claimMediaStorageCleanupTransaction(
+				{ assetId: "asset", objectKeys: ["stage"] },
+				client as never,
+			),
+		).resolves.toBe("DELETE");
+		await expect(
+			claimMediaStorageCleanupTransaction(
+				{ assetId: "asset", objectKeys: ["stage"], releasesReservation: true },
+				client as never,
+			),
+		).resolves.toEqual({ outcome: "DEFER", retainedObjectKey: objectKey });
+	});
 	it("durably tombstones a due guest final key before authorizing physical deletion", async () => {
 		const { asset, client, tx } = store();
 		await expect(

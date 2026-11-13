@@ -121,6 +121,9 @@ describe("customer conversion cohort", () => {
 			create("other-source", { source: "google" }),
 			create("other-device", { device: "desktop" }),
 			create("legacy", { diagnostics: { homepageIdea: "christmas" } }),
+			create("sheru-visitor", {
+				diagnostics: { homepageIdea: "sheru-bhai", homepagePlacement: "quick-start" },
+			}),
 			create("popup", {
 				diagnostics: { homepageIdea: "christmas", homepagePlacement: "showcase" },
 			}),
@@ -138,7 +141,13 @@ describe("customer conversion cohort", () => {
 				device: "mobile",
 			},
 		).homepageIdeas;
-		expect(report).toHaveLength(8);
+		expect(report).toHaveLength(9);
+		expect(report.find((row) => row.idea === "sheru-bhai")).toMatchObject({
+			placement: "quick-start",
+			createClicks: 1,
+			createVisitors: 1,
+			previewClicks: 0,
+		});
 		expect(report.find((row) => row.idea === "watercolor")).toEqual({
 			idea: "watercolor",
 			placement: "showcase",

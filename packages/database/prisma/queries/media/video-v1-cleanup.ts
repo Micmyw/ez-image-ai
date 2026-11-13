@@ -3,6 +3,10 @@ import {
 	lockMediaAssetGenerationBindings,
 	LIVE_GENERATION_JOB_STATUSES,
 } from "./asset-binding-locks";
+import {
+	isSourceTemplateMaterialObjectKey,
+	sourceTemplateMaterialFilter,
+} from "./source-template-material-retention";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import { runSerializable, type MediaTransactionClient } from "./types";
 
@@ -49,6 +53,7 @@ export async function listVideoResourceCleanupCandidates(
 		where: {
 			verificationEngine: ENGINE,
 			videoCleanupCompletedAt: null,
+			NOT: sourceTemplateMaterialFilter,
 			templateScenes: {
 				none: {
 					OR: [
@@ -148,6 +153,8 @@ export async function claimVideoResourceCleanup(
 			},
 		});
 		if (!asset) return null;
+		// Recheck stale candidates under the same lock, including old tombstones.
+		if (asset.kind === "INPUT" && isSourceTemplateMaterialObjectKey(asset.objectKey)) return null;
 		if (
 			asset.templateScenes.some(
 				(scene) =>

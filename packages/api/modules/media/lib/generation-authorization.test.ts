@@ -5,6 +5,7 @@ const production = vi.hoisted(() => ({
 	budget: vi.fn(),
 	freeCredits: vi.fn(),
 	planAccess: vi.fn(),
+	adminTestSkus: vi.fn(async () => [] as string[]),
 	rateLimit: vi.fn(),
 	db: {
 		runtimeConfigOverride: { findFirst: vi.fn() },
@@ -31,6 +32,9 @@ vi.mock("./free-plan-credits", () => ({
 	ensureFreePlanCreditsForGeneration: production.freeCredits,
 }));
 vi.mock("./plan-entitlement", () => ({ loadUserPlanAccess: production.planAccess }));
+vi.mock("@repo/database/media-image-admin-test-access", () => ({
+	loadImageAdminTestSkuKeys: production.adminTestSkus,
+}));
 vi.mock("./rate-limit", () => ({ enforceMediaRateLimit: production.rateLimit }));
 
 import {
@@ -412,7 +416,7 @@ describe("generation authorization", () => {
 			production.db.generationQuote.aggregate.mockResolvedValue({ _sum: { costMicros: 0n } });
 			production.db.storageUsageReservation.aggregate.mockResolvedValue({ _sum: { bytes: 0n } });
 			production.planAccess.mockResolvedValue({
-				entitlement: { id: "free" },
+				entitlement: { id: "free", allowedProducts: [FREE_IMAGE_PRODUCT] },
 				hasEffectivePaidSubscription: false,
 			});
 			const check = assertGenerationAllowed({

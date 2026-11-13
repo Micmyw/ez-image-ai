@@ -1,11 +1,13 @@
 import { getVideoTemplate } from "@repo/config/video-template-library";
 import { ArrowUpRightIcon } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
+import Image from "next/image";
 import Link from "next/link";
 
 import { publicPagePath } from "../../public-content/lib/indexing";
 import { type HomepageShowcaseSlide } from "../lib/homepage-showcase";
 import { HomepageShowcase } from "./HomepageShowcase";
+import { QuickStartAction } from "./QuickStartAction";
 import { QuickStartCard, type QuickStartCardData } from "./QuickStartCard";
 
 import "./quick-start-ideas.css";
@@ -154,6 +156,36 @@ export async function QuickStartIdeas() {
 						{t("home.quickStart.more")} <ArrowUpRightIcon size={16} aria-hidden="true" />
 					</Link>
 				</div>
+			</div>
+			<div className="quick-start-feature">
+				<QuickStartAction
+					idea="sheru-bhai"
+					href={publicPagePath("/blog/sheru-bhai-ai-photo", locale)}
+				>
+					<div className="quick-start-feature-art" aria-hidden="true">
+						{(["with-sheru", "become-sheru"] as const).map((look) => (
+							<div key={look}>
+								<Image
+									src={`/images/effects/sheru-bhai-ai-photo/${look}.webp`}
+									alt=""
+									width={896}
+									height={1120}
+									sizes="(max-width: 600px) 45vw, 190px"
+								/>
+								<span>{t(`home.quickStart.sheru.${look}`)}</span>
+							</div>
+						))}
+					</div>
+					<div className="quick-start-feature-copy">
+						<p className="quick-start-eyebrow">{t("home.quickStart.sheru.eyebrow")}</p>
+						<h3>{t("home.quickStart.sheru.title")}</h3>
+						<p>{t("home.quickStart.sheru.description")}</p>
+						<span className="quick-start-feature-action">
+							{t("home.quickStart.sheru.action")} <ArrowUpRightIcon size={18} aria-hidden="true" />
+						</span>
+						<small>{t("home.quickStart.sheru.preview")}</small>
+					</div>
+				</QuickStartAction>
 			</div>
 			<div className="quick-start-grid">
 				{localizedCards.map((card) => (

@@ -89,6 +89,19 @@ export interface EffectExample {
 	};
 }
 
+/** Editorial artwork illustrates a preset; it is never evidence of a product generation. */
+export interface EffectIllustration {
+	id: string;
+	presetId: string;
+	presetVersion: number;
+	image: EffectAsset;
+	caption: string;
+	provenance: {
+		kind: "editorial-generation";
+		evidence: string;
+	};
+}
+
 export interface EffectRetirement {
 	reason: string;
 	retiredAt: string;
@@ -107,6 +120,11 @@ export interface Effect {
 	primaryCategoryId: EffectCategoryId;
 	tags: readonly EffectTag[];
 	status: EffectStatus;
+	/** Fixed paid model presets retain the ordinary server subscription/Image Pass gates. */
+	generationAccess?: "paid";
+	/** Explicit alternative to product examples, with separate public labeling and evidence. */
+	presentation?: "illustrations";
+	illustrations?: readonly EffectIllustration[];
 	trendStage: EffectTrendStage;
 	trendReviewedAt?: string;
 	trendEvidence?: string;
@@ -131,6 +149,9 @@ export type PublicEffectExample = Omit<EffectExample, "input" | "output" | "prov
 	input: PublicEffectAsset;
 	output: PublicEffectAsset;
 };
+export type PublicEffectIllustration = Omit<EffectIllustration, "image" | "provenance"> & {
+	image: PublicEffectAsset;
+};
 
 /** Safe to serialize only after the server has authorized preview or selected published content. */
 export type EffectPageContent = Omit<
@@ -142,19 +163,21 @@ export type EffectPageContent = Omit<
 	| "cover"
 	| "presets"
 	| "examples"
+	| "illustrations"
 	| "retirement"
 > & {
 	status: "draft" | "published";
 	cover?: PublicEffectAsset;
 	presets: readonly PublicEffectPreset[];
 	examples: readonly PublicEffectExample[];
+	illustrations?: readonly PublicEffectIllustration[];
 };
 
 export type PublicEffect = EffectPageContent & {
 	status: "published";
 	cover: PublicEffectAsset;
 	publishedAt: string;
-	lastTestedAt: string;
+	lastTestedAt?: string;
 };
 
 export type RetiredEffect = Pick<Effect, "id" | "slug"> & {

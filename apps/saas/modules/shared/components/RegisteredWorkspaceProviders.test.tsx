@@ -24,7 +24,7 @@ function PaymentCopy({
 	checkoutReturn,
 	creditPackCheckoutReturn,
 }: {
-	expected: Record<string, string>;
+	expected: AbstractIntlMessages;
 	media: AbstractIntlMessages;
 	checkoutReturn: Record<string, string>;
 	creditPackCheckoutReturn: Record<string, string>;
@@ -41,7 +41,7 @@ function PaymentCopy({
 	return (
 		<p>
 			{t("title", { units: 3 })} {t("returnPending")} {common("menu.login")} {preparation("title")}{" "}
-			{subscription("completed")} {credits("loading")}
+			{subscription("completed")} {credits("loading")} {t("paidTemplate.title")}
 		</p>
 	);
 }
@@ -92,7 +92,8 @@ describe("registered image pass translations", () => {
 					<p>
 						{messages.imagePass.title.replace("{units}", "3")} {messages.imagePass.returnPending}{" "}
 						{messages.common.menu.login} {messages.media.create.preparation.title}{" "}
-						{messages.checkoutReturn.completed} {messages.creditPackCheckoutReturn.loading}
+						{messages.checkoutReturn.completed} {messages.creditPackCheckoutReturn.loading}{" "}
+						{messages.imagePass.paidTemplate.title}
 					</p>,
 				),
 			);

@@ -305,6 +305,8 @@
 		"quote": "Get credit quote",
 		"quoting": "Preparing your video…",
 		"generate": "Create for {credits} credits",
+		"loadingPrice": "Loading price…",
+		"priceUnavailable": "Price unavailable",
 		"submitting": "Submitting…",
 		"quoteExpired": "This quote expired. Get a new quote before creating.",
 		"quoteChanged": "The settings changed. Get a new quote.",

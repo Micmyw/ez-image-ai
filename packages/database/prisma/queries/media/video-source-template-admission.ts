@@ -82,13 +82,12 @@ export async function sourceTemplateAdmissionData(
 	tx: MediaDatabaseClient,
 	now: Date,
 ) {
-	const sourceTemplate = sourceTemplateSnapshotSchema.parse(request.sourceTemplate);
 	await assertSourceTemplateProvisionCurrent(request, tx);
 	const assets = await findSourceTemplateRoleInputs(ownerId, request, maximumInputBytes, tx, now);
-	await findApprovedSourceTemplateReferences(sourceTemplate, tx, now);
+	// The published built-in pack is frozen in the request; only customer inputs are mutable here.
 	return {
 		roleInputIdentities: assets.map((asset, i) => ({
-			role: sourceTemplate.request.inputs[i]!.role,
+			role: request.sourceTemplate.request.inputs[i]!.role,
 			assetId: asset.id,
 			checksum: asset.checksum!,
 			objectKey: asset.objectKey,

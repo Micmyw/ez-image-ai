@@ -24,7 +24,7 @@ export function ImageFundingSelector({
 	onChange: (value: ImageFundingSource) => void;
 }) {
 	const t = useTranslations("imagePass");
-	if (value === "CREDITS" && (available ?? 0) < 1 && reserved < 1) return null;
+	if (!failed && value === "CREDITS" && (available ?? 0) < 1 && reserved < 1) return null;
 
 	return (
 		<fieldset className="my-2 min-w-0" data-test="image-funding-selector" disabled={disabled}>
@@ -50,7 +50,7 @@ export function ImageFundingSelector({
 						name="image-funding"
 						value="IMAGE_PASS"
 						checked={value === "IMAGE_PASS"}
-						disabled={failed || available === undefined || available < 1}
+						disabled={!failed && (available === undefined || available < 1)}
 						onChange={() => onChange("IMAGE_PASS")}
 						className="accent-violet-400"
 					/>

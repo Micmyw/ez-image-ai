@@ -36,8 +36,19 @@ describe("model artwork", () => {
 		expect(html).not.toContain("/_next/image");
 		expect(html).toContain('srcSet="/images/landing/variants/');
 		expect(html).toContain('media="(min-width: 768px)"');
-		expect(html.match(/width="1536" height="1024"/g)).toHaveLength(3);
-		expect(html.match(/<img /g)).toHaveLength(3);
+		expect(html.match(/width="1536" height="1024"/g)).toHaveLength(4);
+		expect(html.match(/<img /g)).toHaveLength(6);
+		const cards = [...html.matchAll(/<a[^>]*href="([^"]+)"[^>]*>[\s\S]*?<\/a>/g)].filter((card) =>
+			card[0].includes("<h3"),
+		);
+		expect(cards.map((card) => card[1])).toEqual([
+			"/seedream-5-5",
+			"/minimax-h3-image",
+			"/gpt-image-2-6",
+			"/models/gpt-image-2",
+			"/models/nano-banana-pro",
+			"/models/seedream-5-lite",
+		]);
 	});
 
 	it("ships complete responsive artwork with accurate dimensions and immutable URLs", async () => {

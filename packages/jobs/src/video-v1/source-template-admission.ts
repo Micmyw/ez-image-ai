@@ -5,7 +5,10 @@ import {
 	configuredProviderOwnedVideoVisualSafetyProfile,
 } from "@repo/config/video-safety";
 import { VIDEO_SHARED_FUNDING_VERSION } from "@repo/config/video-shared-funding";
-import { sourceTemplatePriceKey } from "@repo/config/video-template-display-pricing";
+import {
+	sourceTemplatePriceKey,
+	type SourceTemplateDisplayPricing,
+} from "@repo/config/video-template-display-pricing";
 import {
 	canonicalSourceTemplateJson,
 	decodeSourceTemplatePrice,
@@ -29,7 +32,6 @@ import {
 } from "@repo/config/video-text-safety";
 import { videoV1Readiness, readVideoV1Config, type VideoV1Bindings } from "@repo/config/video-v1";
 import { db } from "@repo/database/client";
-import { findApprovedSourceTemplateReferences } from "@repo/database/video-source-template-review";
 import {
 	createVideoQuoteRecord,
 	createVideoJobRecord,
@@ -147,8 +149,7 @@ export function resolveSourceTemplateAdmission(
 	});
 	const refs = transport.requiredAssetUrls.map((sourceUrl) => {
 		const matches = provision.references.filter((reference) => reference.sourceUrl === sourceUrl);
-		if (matches.length !== 1 || Date.parse(matches[0]!.validUntil) <= Date.now())
-			throw new Error("VIDEO_TEMPLATE_REFERENCE_APPROVAL_REQUIRED");
+		if (matches.length !== 1) throw new Error("VIDEO_TEMPLATE_REFERENCE_APPROVAL_REQUIRED");
 		return matches[0]!;
 	});
 	const replacements = new Map(
@@ -244,6 +245,7 @@ export async function sourceTemplateAccess(
 	environment = process.env,
 	options: { forUpload?: boolean } = {},
 ) {
+	let pricing: SourceTemplateDisplayPricing | null = null;
 	try {
 		const choices = sourceTemplateDefaults(templateKey);
 		const request = {
@@ -255,34 +257,29 @@ export async function sourceTemplateAccess(
 			})),
 		};
 		const configuration = await loadSourceTemplateProvision(templateKey);
-		const admitted = resolveSourceTemplateAdmission(
-			context,
-			request,
-			environment,
-			bindings,
-			configuration,
-		);
-		// Uploading reserves storage only. Current reference evidence is still checked by
-		// access, quote and job admission; uploading another photo need not reread the pack.
-		if (!options.forUpload)
-			await db.$transaction((tx) =>
-				findApprovedSourceTemplateReferences(admitted.request.sourceTemplate, tx, new Date()),
-			);
+		// Retail display comes from the published configuration, independently of runtime readiness.
+		if (
+			!options.forUpload &&
+			context.userId &&
+			(configuration.provision.access === "authenticated" || context.role === "admin")
+		) {
+			pricing = {
+				version: configuration.receipt.version,
+				creditsByOptions: Object.fromEntries(
+					configuration.provision.prices.map((price) => [
+						sourceTemplatePriceKey(price.options as SourceTemplateChoices),
+						price.credits,
+					]),
+				),
+			};
+		}
+		resolveSourceTemplateAdmission(context, request, environment, bindings, configuration);
+		// Built-in materials are validated on publication. Runtime uses that immutable pack.
 		return {
 			available: true,
 			reasons: [] as string[],
 			maximumInputBytes: 10000000,
-			pricing: options.forUpload
-				? null
-				: {
-						version: configuration.receipt.version,
-						creditsByOptions: Object.fromEntries(
-							configuration.provision.prices.map((price) => [
-								sourceTemplatePriceKey(price.options as SourceTemplateChoices),
-								price.credits,
-							]),
-						),
-					},
+			pricing,
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "VIDEO_TEMPLATE_NOT_READY";
@@ -292,7 +289,7 @@ export async function sourceTemplateAccess(
 				/^[A-Z][A-Z0-9_]+$/.test(message) ? message : "VIDEO_TEMPLATE_CONFIGURATION_INVALID",
 			],
 			maximumInputBytes: 10000000,
-			pricing: null,
+			pricing,
 		};
 	}
 }

@@ -29,7 +29,7 @@ export function RegisteredWorkspaceProviders({
 	settingsMessages,
 	supportMessages,
 }: PropsWithChildren<{
-	imagePassMessages: Record<string, string>;
+	imagePassMessages: AbstractIntlMessages;
 	mediaMessages: AbstractIntlMessages;
 	checkoutReturnMessages: AbstractIntlMessages;
 	creditPackCheckoutReturnMessages: AbstractIntlMessages;

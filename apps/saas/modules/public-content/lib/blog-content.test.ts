@@ -31,6 +31,7 @@ describe("Blog publication and editorial relationships", () => {
 			"ai-image-editing-prompts",
 			"private-image-editing-workflow",
 			"raindance-ai-trend",
+			"sheru-bhai-ai-photo",
 			"tesco-ai-meal-planning-assistant",
 			"vidu-q4-preview",
 		]);
@@ -53,6 +54,7 @@ describe("Blog publication and editorial relationships", () => {
 		expect(promptPost?.primaryEffectId).toBe("1980s-ai-photo");
 		expect(promptPost?.contentBlocks).toContainEqual(promptEditingDocuments[0].contentBlocks[0]);
 		expect(getBlogPostsForEffect("1980s-ai-photo", "en").map((post) => post.id)).toEqual([
+			"sheru-bhai-ai-photo",
 			"1980s-ai-photo",
 			"ai-image-editing-prompts",
 		]);
@@ -69,7 +71,10 @@ describe("Blog publication and editorial relationships", () => {
 		expect(idea.recipe.presets).toHaveLength(3);
 		expect(idea.recipe.lastTestedAt).toBe("2026-09-29");
 		expect(idea.post.updatedAt).toBe("2026-10-04");
-		expect(getFeaturedPhotoIdeas("en").map((post) => post.id)).toEqual([idea.post.id]);
+		expect(getFeaturedPhotoIdeas("en").map((post) => post.id)).toEqual([
+			"sheru-bhai-ai-photo",
+			idea.post.id,
+		]);
 		expect(getPhotoIdeasForProduct("image-nano-banana-2-lite", "en")).toEqual([idea.post]);
 		expect(getPhotoIdeasForProduct("unavailable", "en")).toEqual([]);
 	});

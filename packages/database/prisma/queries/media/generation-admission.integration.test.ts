@@ -207,6 +207,46 @@ async function subscribeOwner(ownerId: string) {
 	});
 }
 
+async function grantAdminImageTestAccess(ownerId: string) {
+	await client.user.create({
+		data: {
+			id: ownerId,
+			name: "Isolated image test administrator",
+			email: `${ownerId}@example.test`,
+			emailVerified: true,
+			role: "admin",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		},
+	});
+	return client.runtimeConfigOverride.create({
+		data: {
+			configKey: `media.image-admin-test.${ownerId}`,
+			version: ++overrideVersion,
+			value: {
+				version: 1,
+				skuKeys: ["gpt-image-2-6-sunburst-1k"],
+				expiresAt: new Date(Date.now() + 60_000).toISOString(),
+			},
+			reason: prefix,
+			createdByUserId: ownerId,
+		},
+	});
+}
+
+const adminGifSelection = {
+	productKey: "image-gpt-image-2-6-sunburst",
+	input: {
+		kind: "text-to-image",
+		prompt: "An origami hummingbird hovering in place",
+		skuKey: "gpt-image-2-6-sunburst-1k",
+		aspectRatio: "1:1",
+		outputFormat: "gif",
+		frameCount: 9,
+		frameDurationMs: 200,
+	},
+} as const;
+
 describe("combined generation final atomic qualification", () => {
 	beforeAll(() => {
 		client = new PrismaClient({ adapter: new PrismaPg({ connectionString: isolatedUrl() }) });
@@ -216,6 +256,62 @@ describe("combined generation final atomic qualification", () => {
 		await client.runtimeConfigOverride.deleteMany({ where: { reason: prefix } });
 		await client.$disconnect();
 	});
+
+	it("reserves normal GIF credits for a granted admin and preserves accepted replay after revocation", async () => {
+		const f = await fixture({ amount: 100n, catalogSelection: adminGifSelection });
+		const grant = await grantAdminImageTestAccess(f.ownerId);
+		const created = await createGenerationJobTransaction(f.input, client);
+		expect(created).toMatchObject({
+			replayed: false,
+			job: { creditsReserved: 57n },
+			reservation: { amount: 57n, status: "ACTIVE" },
+		});
+		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({
+			valid: true,
+			account: { spendable: 43n, reserved: 57n, debt: 0n },
+		});
+		await client.runtimeConfigOverride.update({ where: { id: grant.id }, data: { active: false } });
+		await expect(createGenerationJobTransaction(f.input, client)).resolves.toMatchObject({
+			replayed: true,
+			job: { id: created.job.id },
+			reservation: { id: created.reservation.id },
+		});
+		await expect(createGenerationJobTransaction(await f.makeInput(), client)).rejects.toThrow(
+			"ENTITLEMENT_REQUIRED",
+		);
+	});
+	it.each(["non-admin", "banned", "anonymous", "expired"] as const)(
+		"rejects %s administrator test access without reserving credits",
+		async (reason) => {
+			const f = await fixture({ catalogSelection: adminGifSelection });
+			const grant = await grantAdminImageTestAccess(f.ownerId);
+			if (reason === "expired")
+				await client.runtimeConfigOverride.update({
+					where: { id: grant.id },
+					data: {
+						value: {
+							version: 1,
+							skuKeys: ["gpt-image-2-6-sunburst-1k"],
+							expiresAt: new Date(Date.now() - 1_000).toISOString(),
+						},
+					},
+				});
+			else
+				await client.user.update({
+					where: { id: f.ownerId },
+					data:
+						reason === "non-admin"
+							? { role: "user" }
+							: reason === "banned"
+								? { banned: true }
+								: { isAnonymous: true },
+				});
+			await expect(createGenerationJobTransaction(f.input, client)).rejects.toThrow(
+				"ENTITLEMENT_REQUIRED",
+			);
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+		},
+	);
 
 	it.each(["media.generation.enabled", "media.model.image-nano-banana-2-lite.enabled"])(
 		"rejects %s changed after the approved quote, without job/reservation/outbox",

@@ -943,7 +943,8 @@
 					"green-booth-freestyle": "Green Booth Freestyle",
 					"restore-photo": "Photo restoration",
 					"birthday-card": "Birthday card",
-					"kung-fu-cat": "Kung Fu Cat"
+					"kung-fu-cat": "Kung Fu Cat",
+					"sheru-bhai": "Sheru Bhai"
 				}
 			}
 		}
@@ -2465,7 +2466,8 @@
 			"modelUnavailable": "This preset’s model or output settings are currently unavailable. You can still copy the prompt. Choose another model explicitly in the editor to continue.",
 			"reselectReference": "Your prompt has been restored. Select your photo again; local files are not saved after leaving this page.",
 			"returnToEffect": "Return to this photo idea"
-		}
+		},
+		"illustrationNotice": "AI-created style preview, made separately from the editor. Results vary."
 	},
 	"guides": {
 		"title": "AI Photo Ideas, Prompts & Editing Guides",
@@ -2671,6 +2673,16 @@
 		"retryAvailability": "Check again"
 	},
 	"imagePass": {
+		"paidTemplate": {
+			"title": "Create your Sheru Bhai photo",
+			"description": "This template requires a paid image pack or an eligible subscription with enough credits.",
+			"images": "{count} successful images",
+			"oneTime": "One-time purchase in USD. No subscription required.",
+			"storageUnavailable": "We could not save your draft in this browser. Enable browser storage and try again; your photo and prompt remain here.",
+			"buy": "Get the ${amount} image pack",
+			"plans": "View subscription plans",
+			"keepEditing": "Keep editing"
+		},
 		"bannerLabel": "One-time image pack",
 		"dismissBanner": "Dismiss image pack offer",
 		"bannerTitle": "{units} images for ${amount}",

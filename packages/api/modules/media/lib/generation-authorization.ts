@@ -17,6 +17,7 @@ import {
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import { unexpiredStorageReservations } from "@repo/database";
 import { db } from "@repo/database/client";
+import { loadImageAdminTestSkuKeys } from "@repo/database/media-image-admin-test-access";
 import {
 	assertImagePassAvailable,
 	assertImagePassSelection,
@@ -48,6 +49,8 @@ export async function createGenerationRateLimitReceipt(
 }
 
 export interface GenerationAccessSnapshot {
+	/** Current server-owned grant for this exact image SKU; credits are still charged. */
+	adminTestIncludesSelection?: boolean;
 	imagePassAvailable?: boolean;
 	/** Server-verified available new paid pass covering this exact selection. */
 	imagePassIncludesModelAccess?: boolean;
@@ -198,7 +201,18 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 						})
 					: Promise.resolve(null),
 		]);
+		const skuKey = "skuKey" in input.input ? input.input.skuKey : undefined;
+		const planIncludesSelection = planIncludesImageSelection(
+			planAccess.entitlement,
+			input.productKey,
+			skuKey,
+		);
+		const adminTestIncludesSelection =
+			input.fundingSource !== "IMAGE_PASS" &&
+			!planIncludesSelection &&
+			(await loadImageAdminTestSkuKeys(input.userId, db)).some((sku) => sku === skuKey);
 		return {
+			adminTestIncludesSelection,
 			...(input.fundingSource === "IMAGE_PASS"
 				? {
 						imagePassAvailable: await assertImagePassAvailable(
@@ -209,15 +223,11 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 								imagePassBenefitPolicy: input.imagePassBenefitPolicy,
 								outputFormat: "outputFormat" in input.input ? input.input.outputFormat : undefined,
 								requestedOutputCount: 1,
-								requireModelAccess: !planAccess.entitlement.allowedProducts.includes(
-									input.productKey,
-								),
+								requireModelAccess: !planIncludesSelection,
 							},
 							db,
 						).then(() => true),
-						imagePassIncludesModelAccess: !planAccess.entitlement.allowedProducts.includes(
-							input.productKey,
-						),
+						imagePassIncludesModelAccess: !planIncludesSelection,
 					}
 				: {}),
 			generationEnabled: !blocked,
@@ -297,7 +307,8 @@ export async function assertGenerationAllowed(
 			input.productKey,
 			"skuKey" in input.input ? input.input.skuKey : undefined,
 		) &&
-			!(fundingSource === "IMAGE_PASS" && access.imagePassIncludesModelAccess))
+			!(fundingSource === "IMAGE_PASS" && access.imagePassIncludesModelAccess) &&
+			!(fundingSource === "CREDITS" && access.adminTestIncludesSelection))
 	) {
 		throw new Error("ENTITLEMENT_REQUIRED");
 	}

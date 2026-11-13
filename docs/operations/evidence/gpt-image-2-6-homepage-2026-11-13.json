@@ -1,0 +1,39 @@
+{
+	"observedAt": "2026-11-13T14:05:07.042Z",
+	"provenance": "Authenticated Kie playground and task log; not an EzImageAI end-to-end generation",
+	"provider": "Kie",
+	"model": "gpt-image-2-6/sunburst-text-to-image",
+	"taskId": "0587f7c30c709e47bf04eed8429d6e82",
+	"status": "success",
+	"submittedAtDisplayed": "2026-11-13 21:59:47",
+	"displayTimezone": "Asia/Shanghai",
+	"durationSecondsDisplayed": 56,
+	"providerCreditsConsumed": 7.59,
+	"submissions": 1,
+	"input": {
+		"aspect_ratio": "3:2",
+		"complexity": "high",
+		"output_format": "png",
+		"background": "opaque",
+		"moderation": "low",
+		"prompt": "Create a premium botanical exhibition poster, horizontal 3:2 composition. On warm ivory textured paper, set the exact words \"GROW WILD\" in enormous dark forest-green elegant condensed serif letters on two stacked lines across the left half. On the right, a sculptural arrangement of one orange bird-of-paradise flower, unfurling fern fronds, deep green monstera leaves and tiny white blossoms emerges from a matte terracotta vessel. A few leaves overlap the edges of the letters without obscuring their legibility. Warm late-afternoon sunlight from the upper left creates crisp botanical shadows, subtle paper grain and beautiful tactile detail. A small vermilion circular sun shape in the upper right balances the layout. High-end editorial art direction combining precise typography and realistic botanical still life, restrained ivory, forest green and burnt orange palette. Keep generous margins and all lettering fully inside the frame. No extra words, no brand logos, no watermark, no border.",
+		"resolution": "1K",
+		"quality": "high"
+	},
+	"original": {
+		"fileName": "e1314a5e-a667-4fa6-a2c7-a1108117c7e5.png",
+		"width": 1536,
+		"height": 1024,
+		"bytes": 3173465,
+		"sha256": "2849750b12fca30f87568cb337ef8de3f169bbddfa32b00ddc8f59ff6d01a640"
+	},
+	"display": {
+		"src": "/images/models/gpt-image-2-6/grow-wild.webp",
+		"width": 1536,
+		"height": 1024,
+		"bytes": 314250,
+		"sha256": "e93af4d21212ffccc58931fe178c20af85906af3f57076f657d0dfaec08f68e2"
+	},
+	"visualReview": "GROW WILD lettering is legible; botanical still life fits the 3:2 homepage card. No new generation or retouching after the first output.",
+	"screenshot": "output/homepage-models-2026-11-13/kie-generation.png"
+}

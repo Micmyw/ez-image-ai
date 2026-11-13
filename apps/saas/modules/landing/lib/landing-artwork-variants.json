@@ -1,4 +1,109 @@
 {
+	"/images/models/seedream-5-5/still-life.webp": {
+		"sourceHash": "16c922a9803b12814f46843cb311d0ef2a458787d6809368f6b3720a9b97c935",
+		"width": 1440,
+		"height": 810,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/still-life-240.4569b30d90879b5d.webp"
+			},
+			{
+				"width": 288,
+				"src": "/images/landing/variants/still-life-288.059b7b72fe7f002e.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/still-life-384.72d169f410ce5f17.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/still-life-480.753c73910ed84a9d.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/still-life-640.225a84e7bb6f9b6a.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/still-life-768.c4f9fdc1e6ed9095.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/still-life-960.ceb70e6a25138975.webp"
+			}
+		]
+	},
+	"/images/models/minimax-h3/cloud-sanctuary-ezpic-1k.webp": {
+		"sourceHash": "1c54d2a1a2b183e49e1ff690f89419fada467aaf4835a6c65987169d6e8ff9a5",
+		"width": 1360,
+		"height": 768,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/cloud-sanctuary-ezpic-1k-240.75c6dd3e0af80130.webp"
+			},
+			{
+				"width": 288,
+				"src": "/images/landing/variants/cloud-sanctuary-ezpic-1k-288.b3066d96f994dc84.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/cloud-sanctuary-ezpic-1k-384.4a815ce8d9547274.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/cloud-sanctuary-ezpic-1k-480.c496a2f68ad8a882.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/cloud-sanctuary-ezpic-1k-640.83d25b989819e45b.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/cloud-sanctuary-ezpic-1k-768.40f1d96608eeb95a.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/cloud-sanctuary-ezpic-1k-960.c7d816118447a12c.webp"
+			}
+		]
+	},
+	"/images/models/gpt-image-2-6/grow-wild.webp": {
+		"sourceHash": "e93af4d21212ffccc58931fe178c20af85906af3f57076f657d0dfaec08f68e2",
+		"width": 1536,
+		"height": 1024,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/grow-wild-240.0f48165dadf994ad.webp"
+			},
+			{
+				"width": 288,
+				"src": "/images/landing/variants/grow-wild-288.39f76a858d10ed42.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/grow-wild-384.b302ac76ef69dfdc.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/grow-wild-480.c0f3e1d5f7a373f6.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/grow-wild-640.68fce4f9d1aff136.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/grow-wild-768.cb079888a89b5ab0.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/grow-wild-960.91b078a5c6eb9197.webp"
+			}
+		]
+	},
 	"/images/models/gpt-2-moon-cinema.webp": {
 		"sourceHash": "15a9869f02ce770ad327dfc78fd31b92270aa57c449a75c2a2eb41e3deffd2c2",
 		"width": 1536,

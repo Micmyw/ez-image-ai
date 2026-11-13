@@ -307,6 +307,15 @@
 				"dog": "Hunde-Geburtstagskarte anzeigen",
 				"pause": "Geburtstagsvorschau pausieren",
 				"play": "Geburtstagsvorschau abspielen"
+			},
+			"sheru": {
+				"eyebrow": "Fotoidee im Fokus",
+				"title": "Sheru Bhai AI Photo",
+				"description": "Steh neben dem weißen Löwenboss oder werde selbst zu ihm. Starte mit deinem eigenen Foto.",
+				"action": "Dein Sheru-Foto erstellen",
+				"preview": "KI-generierte Stilvorschau",
+				"with-sheru": "Foto mit Sheru",
+				"become-sheru": "Werde Sheru"
 			}
 		},
 		"quickStartPrompts": {

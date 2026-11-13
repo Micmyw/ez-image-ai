@@ -120,6 +120,7 @@ function baseVariant(draft: VideoDraft, catalog?: SelectionCatalog) {
 			),
 		);
 	const available = candidates.flatMap((entry) => {
+		if (!videoSelectionAvailable(entry.draft, catalog)) return [];
 		const credits = videoSelectionCredits(entry.draft, catalog);
 		return credits ? [{ ...entry, credits: BigInt(credits) }] : [];
 	});
@@ -180,6 +181,7 @@ export function videoVariantControls(draft: VideoDraft, catalog?: SelectionCatal
 					...variant,
 					pressed: current?.id === variant.id,
 					credits: videoSelectionCredits(next, catalog),
+					available: videoSelectionAvailable(next, catalog),
 					patch: {
 						...next,
 						variantSelections: {
@@ -242,6 +244,12 @@ export function videoSelectionPricing(
 	return videoSelectionOption(draft, catalog)?.pricing ?? null;
 }
 
+/** Availability authorizes the control, independently of the displayed retail price. */
+export function videoSelectionAvailable(draft: VideoDraft, catalog?: SelectionCatalog): boolean {
+	const model = catalog?.models.find((entry) => entry.productKey === draft.productKey);
+	return Boolean(model?.available && videoSelectionOption(draft, catalog)?.available);
+}
+
 function videoSelectionOption(draft: VideoDraft, catalog?: SelectionCatalog) {
 	if (
 		!catalog?.accessAllowed ||
@@ -250,8 +258,7 @@ function videoSelectionOption(draft: VideoDraft, catalog?: SelectionCatalog) {
 	)
 		return null;
 	const model = catalog.models.find((entry) => entry.productKey === draft.productKey);
-	if (!model?.available) return null;
-	const option = model.options.find(
+	const option = model?.options.find(
 		(entry) =>
 			entry.mode === draft.mode &&
 			entry.duration === draft.duration &&
@@ -259,7 +266,7 @@ function videoSelectionOption(draft: VideoDraft, catalog?: SelectionCatalog) {
 			entry.sound === draft.sound &&
 			entry.veoTier === draft.veoTier,
 	);
-	return option?.available && option.credits && /^[1-9]\d*$/.test(option.credits) ? option : null;
+	return option?.credits && /^[1-9]\d*$/.test(option.credits) ? option : null;
 }
 
 export function summarizeVideoDurations(durations: readonly number[]) {

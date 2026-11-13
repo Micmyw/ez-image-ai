@@ -13,8 +13,10 @@ settings changes use this table locally. Create obtains one authoritative quote 
 submits with its stable saved confirmation. A changed price requires another explicit
 click. Display prices never replace current admission, ownership or credit checks.
 
-Source upload admission skips the full built-in reference evidence query. Access,
-quote and job admission retain their existing reference checks. Upload completion
+Source upload admission skips the full built-in reference evidence query. As of
+[the November 13 runtime change](source-template-runtime-pricing-2026-11-13.md),
+access, quote and job admission also consume the published reference snapshot;
+the full built-in material checks run at publication. Upload completion
 uses the common owner/session/engine check instead of a duplicate preliminary query;
 the post-completion immutable identity read and image inspection remain.
 

@@ -233,6 +233,7 @@ describe("SaaS root layout", () => {
 				bannerTitle: fullMessages.imagePass.bannerTitle,
 				bannerDetail: fullMessages.imagePass.bannerDetail,
 				buy: fullMessages.imagePass.buy,
+				paidTemplate: fullMessages.imagePass.paidTemplate,
 			});
 			expect(clientMessages.checkoutReturn).toEqual({
 				finishApproved: fullMessages.checkoutReturn.finishApproved,

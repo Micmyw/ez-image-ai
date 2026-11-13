@@ -943,7 +943,8 @@
 					"green-booth-freestyle": "Green Booth Freestyle",
 					"restore-photo": "Fotorestaurierung",
 					"birthday-card": "Geburtstagskarte",
-					"kung-fu-cat": "Kung-Fu-Katze"
+					"kung-fu-cat": "Kung-Fu-Katze",
+					"sheru-bhai": "Sheru Bhai"
 				}
 			}
 		}
@@ -2465,7 +2466,8 @@
 			"modelUnavailable": "Das Modell oder die Ausgabeeinstellungen dieser Vorlage sind derzeit nicht verfügbar. Du kannst den Prompt weiterhin kopieren. Wähle im Editor selbst ein anderes Modell aus, um fortzufahren.",
 			"reselectReference": "Dein Prompt wurde wiederhergestellt. Wähle dein Foto erneut aus; lokale Dateien werden nach dem Verlassen dieser Seite nicht gespeichert.",
 			"returnToEffect": "Zurück zu dieser Fotoidee"
-		}
+		},
+		"illustrationNotice": "KI-generierte Stilvorschau, separat vom Editor erstellt. Ergebnisse können abweichen."
 	},
 	"guides": {
 		"title": "KI-Fotoideen, Prompts & Bildbearbeitungs-Anleitungen",
@@ -2671,6 +2673,16 @@
 		"retryAvailability": "Erneut prüfen"
 	},
 	"imagePass": {
+		"paidTemplate": {
+			"title": "Dein Sheru-Bhai-Foto erstellen",
+			"description": "Diese Vorlage erfordert ein kostenpflichtiges Bildpaket oder ein berechtigtes Abonnement mit ausreichend Credits.",
+			"images": "{count} erfolgreich erstellte Bilder",
+			"oneTime": "Einmaliger Kauf in USD. Kein Abonnement erforderlich.",
+			"storageUnavailable": "Dein Entwurf konnte nicht gespeichert werden. Aktiviere den Browserspeicher und versuche es erneut. Foto und Prompt bleiben hier.",
+			"buy": "Bildpaket für ${amount} kaufen",
+			"plans": "Abonnements ansehen",
+			"keepEditing": "Weiter bearbeiten"
+		},
 		"bannerLabel": "Einmaliges Bildpaket",
 		"dismissBanner": "Bildpaket-Angebot schließen",
 		"bannerTitle": "{units} Bilder für ${amount}",

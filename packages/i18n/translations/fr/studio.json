@@ -1,5 +1,15 @@
 {
 	"imagePass": {
+		"paidTemplate": {
+			"title": "Créez votre photo Sheru Bhai",
+			"description": "Ce modèle nécessite un pack d’images payant ou un abonnement éligible avec suffisamment de crédits.",
+			"images": "{count} images générées avec succès",
+			"oneTime": "Achat unique en USD. Aucun abonnement requis.",
+			"storageUnavailable": "Votre brouillon n’a pas pu être enregistré. Activez le stockage du navigateur et réessayez. Votre photo et votre prompt restent ici.",
+			"buy": "Obtenir le pack à ${amount}",
+			"plans": "Voir les abonnements",
+			"keepEditing": "Continuer la modification"
+		},
 		"bannerLabel": "Pack d’images à paiement unique",
 		"dismissBanner": "Fermer l’offre du pack d’images",
 		"bannerTitle": "{units} images pour ${amount}",

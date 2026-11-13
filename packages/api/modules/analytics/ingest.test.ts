@@ -65,7 +65,7 @@ describe("consented first-party ingestion", () => {
 			);
 		},
 	);
-	it.each(["christmas", "restore-photo", "birthday-card", "kung-fu-cat"])(
+	it.each(["sheru-bhai", "christmas", "restore-photo", "birthday-card", "kung-fu-cat"])(
 		"keeps the selected homepage idea %s in stored click diagnostics",
 		async (homepageIdea) => {
 			await invoke({

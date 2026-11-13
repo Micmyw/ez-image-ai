@@ -26,6 +26,7 @@ import {
 	videoRequestFor,
 	videoSelectionCredits,
 	videoSelectionPricing,
+	videoSelectionAvailable,
 	type VideoConfirmation,
 	type VideoDraft,
 	type VideoErrorKey,
@@ -322,7 +323,7 @@ export function VideoWorkspace({ initialJobId }: { initialJobId: string | null }
 	const selectedModel = getVideoModel(draft.productKey)!;
 	const previewCredits =
 		registered && !catalog.isError ? videoSelectionCredits(draft, catalog.data) : null;
-	const enabled = registered && previewCredits !== null;
+	const enabled = registered && !catalog.isError && videoSelectionAvailable(draft, catalog.data);
 	const previewPricing =
 		registered && !catalog.isError ? videoSelectionPricing(draft, catalog.data) : null;
 

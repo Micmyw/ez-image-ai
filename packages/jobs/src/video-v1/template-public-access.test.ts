@@ -50,7 +50,10 @@ import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 
 import { requireVideoAdmission } from "./admission";
-import { requireVideoTemplateAdmission } from "./template-admission";
+import {
+	requireVideoTemplateAdmission,
+	resolveVideoEffectDisplayPrice,
+} from "./template-admission";
 
 // Real authorization, model contracts and safety/readiness; only prices/storage are local fixtures.
 const base = {
@@ -91,6 +94,11 @@ const request = {
 beforeEach(() => vi.clearAllMocks());
 
 describe("authenticated template admission remains scoped and uses shared credits", () => {
+	it("reads approved display prices without requiring runtime availability", () => {
+		const environment = { ...base, MEDIA_GENERATION_ENABLED: "false", KIE_API_KEY: "" };
+		expect(resolveVideoEffectDisplayPrice(request, environment)).toEqual({ credits: "69" });
+		expect(() => requireVideoTemplateAdmission(customer, environment, bindings, request)).toThrow();
+	});
 	it.each(["raindance-solo", "raindance-duo"] as const)(
 		"opens %s independently without borrowing administrator funding",
 		(effectId) => {

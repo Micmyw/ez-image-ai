@@ -45,6 +45,7 @@ describe("Image Pass workspace continuity", () => {
 		"/ai-gif-generator",
 		"/photo-to-coloring-page",
 		"/blog/1980s-ai-photo?preset=studio-portrait",
+		"/blog/sheru-bhai-ai-photo?preset=with-sheru",
 	])("returns to and restores the same owner's draft at %s", (path) => {
 		const storage = memoryStorage();
 		expect(saveWorkspaceDraft(storage, "owner-a", imagePassDraft, now, path)).toBe(true);

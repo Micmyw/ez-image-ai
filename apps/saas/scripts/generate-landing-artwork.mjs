@@ -6,7 +6,14 @@ import sharp from "sharp";
 const app = new URL("../", import.meta.url);
 const prefix = "/images/landing/variants/";
 const directory = new URL(`public${prefix}`, app);
-const featured = ["gpt-2-moon-cinema", "nano-pro-glass-perfume", "seedream-lite-kingfisher"];
+const featured = [
+	"seedream-5-5/still-life",
+	"minimax-h3/cloud-sanctuary-ezpic-1k",
+	"gpt-image-2-6/grow-wild",
+	"gpt-2-moon-cinema",
+	"nano-pro-glass-perfume",
+	"seedream-lite-kingfisher",
+];
 const examples = (await readdir(new URL("public/examples/", app)))
 	.filter((name) => /^case-[a-z-]+\.webp$/.test(name))
 	.sort();

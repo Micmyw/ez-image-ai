@@ -6,6 +6,7 @@ export const HOMEPAGE_SHOWCASE_IDEAS = [
 	"green-booth-freestyle",
 ] as const;
 export const HOMEPAGE_QUICK_START_IDEAS = [
+	"sheru-bhai",
 	"christmas",
 	"restore-photo",
 	"birthday-card",
@@ -13,6 +14,7 @@ export const HOMEPAGE_QUICK_START_IDEAS = [
 ] as const;
 export const HOMEPAGE_IDEA_KEYS = [
 	...HOMEPAGE_SHOWCASE_IDEAS,
+	"sheru-bhai",
 	"restore-photo",
 	"birthday-card",
 	"kung-fu-cat",

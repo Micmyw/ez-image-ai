@@ -1,10 +1,50 @@
 import Link from "next/link";
 
+import { MINIMAX_H3_FEATURED_EXAMPLE } from "../../image-tools/lib/minimax-h3-examples";
+import { SEEDREAM_5_5_EXAMPLES } from "../../image-tools/lib/seedream-5-5-examples";
 import { LandingArtwork } from "../../landing/components/LandingArtwork";
 import { INSPIRATION } from "../lib/model-artwork";
 import { MODEL_PAGES, modelPath } from "../lib/model-pages";
 
-const featured = ["image-gpt-image-2", "image-nano-banana-pro", "image-seedream-5-lite"];
+const featured = [
+	{
+		href: "/seedream-5-5",
+		name: "Seedream 5.5",
+		tag: "Photorealism & precise edits",
+		lead: "Bring texture, light and detail into focus.",
+		image: SEEDREAM_5_5_EXAMPLES[1].image,
+	},
+	{
+		href: "/minimax-h3-image",
+		name: "MiniMax H3 Image",
+		tag: "Imaginative scenes",
+		lead: "Give your imagination room to grow.",
+		image: MINIMAX_H3_FEATURED_EXAMPLE.image,
+	},
+	{
+		href: "/gpt-image-2-6",
+		name: "GPT Image 2.6",
+		tag: "Typography & visual design",
+		lead: "Shape your ideas with Flare and Sunburst.",
+		image: {
+			src: "/images/models/gpt-image-2-6/grow-wild.webp",
+			alt: "GROW WILD botanical poster with forest-green lettering and orange flowers",
+		},
+	},
+	...["image-gpt-image-2", "image-nano-banana-pro", "image-seedream-5-lite"].map((key) => {
+		const model = MODEL_PAGES.find((model) => model.key === key)!;
+		return {
+			href: modelPath(model.key),
+			name: model.name,
+			tag: model.tags[0],
+			lead: model.lead,
+			image: {
+				src: `/images/models/${model.exampleArtwork}.webp`,
+				alt: INSPIRATION[model.exampleArtwork].alt,
+			},
+		};
+	}),
+];
 
 export function ExploreModels() {
 	return (
@@ -33,36 +73,34 @@ export function ExploreModels() {
 					Explore image models <span aria-hidden="true">↗</span>
 				</Link>
 			</div>
-			<div className="gap-6 md:grid-cols-3 grid">
-				{featured
-					.map((key) => MODEL_PAGES.find((model) => model.key === key)!)
-					.map((model) => (
-						<Link
-							key={model.key}
-							href={modelPath(model.key)}
-							prefetch={false}
-							className="group min-w-0 focus-visible:outline-violet-300 block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4"
-						>
-							<div className="bg-white/5 overflow-hidden rounded-xl">
-								<LandingArtwork
-									src={`/images/models/${model.exampleArtwork}.webp`}
-									alt={INSPIRATION[model.exampleArtwork].alt}
-									sizes="(min-width: 1280px) 380px, (min-width: 768px) 30vw, calc(100vw - 32px)"
-									desktopPreload={model.key === "image-nano-banana-pro"}
-									className="h-auto w-full"
-								/>
-							</div>
-							<div className="pt-5">
-								<p className="text-xs text-violet-300">{model.tags[0]}</p>
-								<h3 className="mt-2 text-xl font-semibold text-white">{model.name}</h3>
-								<p className="mt-2 text-sm leading-6 text-[#b7acbf]">{model.lead}</p>
-							</div>
-						</Link>
-					))}
+			<div className="gap-x-6 gap-y-10 md:grid-cols-3 grid">
+				{featured.map((model) => (
+					<Link
+						key={model.href}
+						href={model.href}
+						prefetch={false}
+						className="group min-w-0 focus-visible:outline-violet-300 block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4"
+					>
+						<div className="bg-white/5 aspect-[3/2] overflow-hidden rounded-xl">
+							<LandingArtwork
+								src={model.image.src}
+								alt={model.image.alt}
+								sizes="(min-width: 1280px) 380px, (min-width: 768px) 30vw, calc(100vw - 32px)"
+								desktopPreload={model.href === "/minimax-h3-image"}
+								className="h-full w-full object-cover"
+							/>
+						</div>
+						<div className="pt-5">
+							<p className="text-xs text-violet-300">{model.tag}</p>
+							<h3 className="mt-2 text-xl font-semibold text-white">{model.name}</h3>
+							<p className="mt-2 text-sm leading-6 text-[#b7acbf]">{model.lead}</p>
+						</div>
+					</Link>
+				))}
 			</div>
 			<p className="mt-6 text-xs leading-6 text-[#a99db2]">
-				Original EzImageAI concept artwork for inspiration. These images are not verified outputs
-				from the named models.
+				Seedream sample from Kie. MiniMax H3 and GPT Image 2.6 show generated examples. The second
+				row uses concept artwork for inspiration, not verified outputs from the named models.
 			</p>
 		</section>
 	);

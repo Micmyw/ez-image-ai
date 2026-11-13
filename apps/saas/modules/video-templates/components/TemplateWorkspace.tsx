@@ -478,9 +478,11 @@ function OwnedTemplateWorkspace({
 								disabled={locked || !available || !complete || !displayCredits}
 								onClick={() => void generate()}
 							>
-								{t(busy === "submit" ? "submitting" : busy === "quote" ? "quoting" : "generate", {
-									credits: displayCredits ?? "…",
-								})}
+								{busy
+									? t(busy === "submit" ? "submitting" : "quoting")
+									: displayCredits
+										? t("generate", { credits: displayCredits })
+										: t(access.isPending ? "loadingPrice" : "priceUnavailable")}
 							</button>
 						)}
 						{expired && (

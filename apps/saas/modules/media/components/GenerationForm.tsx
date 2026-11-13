@@ -4,7 +4,12 @@ import { useSession } from "@auth/hooks/use-session";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary";
 import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
+import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
 import { createChoosePlanPath, writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
+import {
+	clearPaidTemplatePurchase,
+	readPaidTemplatePurchase,
+} from "@payments/lib/paid-template-purchase";
 import { getImageGenerationCredits, getImageProductSelectionContract } from "@repo/config/client";
 import {
 	EZPIC_PRODUCT_KEYS,
@@ -73,6 +78,7 @@ import {
 	resolveImageSpecControlValues,
 	type PublicImageSpecCell,
 } from "../lib/image-sku-selection";
+import { isPaidTemplateSelection, paidTemplateSpecMatrix } from "../lib/paid-template-selection";
 import { observeGenerationJobVisibility } from "../lib/preview-timing";
 import type { TemporaryReferenceReceipt } from "../lib/temporary-reference-upload";
 import { useToolPrompt, useToolPromptBinding } from "../lib/tool-prompt-context";
@@ -151,6 +157,7 @@ export function GenerationForm({
 	}, []);
 	const effectEditor = useEffectEditor();
 	const effectPreset = effectEditor?.selectedPreset;
+	const paidTemplate = effectEditor?.effect.generationAccess === "paid";
 	// A guest reference cannot cross sign-in as a browser File. Keep its intent until reselected.
 	const requireReference =
 		referenceRequired ||
@@ -187,6 +194,18 @@ export function GenerationForm({
 	const products = useMemo(
 		() =>
 			(ready ? (generation.catalog.data?.products ?? []) : [])
+				.filter((product) => !paidTemplate || product.key === effectPreset?.productKey)
+				.map((product) =>
+					paidTemplate && product.skuMatrix && effectPreset
+						? {
+								...product,
+								skuMatrix: paidTemplateSpecMatrix(
+									product.skuMatrix,
+									effectPreset.parameters.skuKey,
+								),
+							}
+						: product,
+				)
 				.map((product) =>
 					requestedOutputFormat && product.skuMatrix
 						? {
@@ -229,7 +248,14 @@ export function GenerationForm({
 							}
 						: product,
 				),
-		[ready, generation.catalog.data?.products, t, requestedOutputFormat],
+		[
+			ready,
+			generation.catalog.data?.products,
+			t,
+			requestedOutputFormat,
+			paidTemplate,
+			effectPreset,
+		],
 	);
 	const [sourceReady, setSourceReady] = useState(initialSourceReady);
 	const [sourcePending, setSourcePending] = useState(false);
@@ -259,6 +285,7 @@ export function GenerationForm({
 	const requestedModel = useRequestedImageModel();
 	const examplePrompt = useShowcasePrompt();
 	const resolvedInitialProductKey =
+		(paidTemplate ? effectPreset?.productKey : undefined) ??
 		initialProductKey ??
 		(effectPreset ? (initialDraft?.productKey ?? effectPreset.productKey) : undefined) ??
 		initialDraft?.productKey ??
@@ -267,7 +294,8 @@ export function GenerationForm({
 			: DEFAULT_EDITOR_PRODUCT_KEY);
 	const initialContract = getImageProductSelectionContract(resolvedInitialProductKey)!;
 	const initialSelection =
-		initialDraft?.productKey === resolvedInitialProductKey
+		initialDraft?.productKey === resolvedInitialProductKey &&
+		(!paidTemplate || initialDraft.input.skuKey === effectPreset?.parameters.skuKey)
 			? initialDraft.input
 			: effectPreset?.parameters;
 	const form = useForm<GenerationFormValues>({
@@ -306,18 +334,32 @@ export function GenerationForm({
 	const product = products.find((candidate) => candidate.key === values.productKey);
 	const passSelected = fundingSource === "IMAGE_PASS";
 	const passAvailable = generation.imagePass?.data?.available;
+	// A balance-read outage is not an admission verdict. Submit the selected funding
+	// source once and let the authoritative quote/reservation validate current funds.
+	const passAccessUnknown = Boolean(generation.imagePass?.isError || !generation.imagePass?.data);
 	// Coverage and independent model access come from the owner's frozen grants.
 	const passSkuAllowed = imagePassCoversSku(generation.imagePass?.data, values.skuKey);
 	const passReady =
-		passSelected && passSkuAllowed && !generation.imagePass?.isError && (passAvailable ?? 0) >= 1;
+		passSelected && (passAccessUnknown || (passSkuAllowed && (passAvailable ?? 0) >= 1));
+	const paidSelectionValid = !paidTemplate || isPaidTemplateSelection(values, effectPreset);
 	function modelAccessAllowed(productKey: EditorProductKey, skuKey: unknown) {
+		if (
+			paidTemplate &&
+			!isPaidTemplateSelection(
+				{ productKey, skuKey: typeof skuKey === "string" ? skuKey : null },
+				effectPreset,
+			)
+		)
+			return false;
 		return (
 			(allowedProductKeys.includes(productKey) &&
 				allowedImageSkuKeys.includes(skuKey as ImageSkuKey)) ||
+			(!passSelected &&
+				generation.creditAccount.data?.adminTestSkuKeys?.includes(skuKey as ImageSkuKey)) ||
 			(passSelected &&
-				!generation.imagePass?.isError &&
-				(passAvailable ?? 0) >= 1 &&
-				imagePassIncludesSkuAccess(generation.imagePass?.data, skuKey))
+				(passAccessUnknown ||
+					((passAvailable ?? 0) >= 1 &&
+						imagePassIncludesSkuAccess(generation.imagePass?.data, skuKey))))
 		);
 	}
 	const upgradeRequired = Boolean(product && !modelAccessAllowed(values.productKey, values.skuKey));
@@ -325,7 +367,8 @@ export function GenerationForm({
 	const effectSelectionUnavailable = Boolean(
 		ready &&
 		effectEditor &&
-		(generation.catalog.isError ||
+		(!paidSelectionValid ||
+			generation.catalog.isError ||
 			(generation.catalog.data && !isEffectSelectionAvailable(values, products))),
 	);
 	const supportedAspectRatios = useMemo(
@@ -406,6 +449,45 @@ export function GenerationForm({
 		? getImageGenerationCredits({ skuKey: values.skuKey, ...controlValues })
 		: product?.credits;
 	const displayedCredits = generation.quote?.credits ?? selectionCredits;
+	const paidCreditBalance = generation.creditAccount.isError
+		? undefined
+		: generation.creditAccount.data?.spendableCredits;
+	const paidCreditsInsufficient =
+		displayedCredits !== undefined &&
+		paidCreditBalance !== undefined &&
+		Number(paidCreditBalance) < Number(displayedCredits);
+	// Use an owned eligible pass when credits cannot access the model, including GIF/SVG pages.
+	// The selected pass and one-pass cost remain visible; never replace an explicit choice.
+	useEffect(() => {
+		if (
+			ownerId &&
+			ownedFunding?.ownerId !== ownerId &&
+			!generation.imagePass?.isError &&
+			(passAvailable ?? 0) > 0 &&
+			imagePassIncludesSkuAccess(generation.imagePass?.data, values.skuKey) &&
+			((paidTemplate && paidCreditsInsufficient) ||
+				!(
+					(allowedProductKeys.includes(values.productKey) &&
+						allowedImageSkuKeys.includes(values.skuKey)) ||
+					generation.creditAccount.data?.adminTestSkuKeys?.includes(values.skuKey)
+				))
+		) {
+			setOwnedFunding({ ownerId, source: "IMAGE_PASS" });
+		}
+	}, [
+		paidTemplate,
+		ownerId,
+		ownedFunding,
+		generation.imagePass?.isError,
+		generation.imagePass?.data,
+		passAvailable,
+		values.productKey,
+		values.skuKey,
+		allowedProductKeys,
+		allowedImageSkuKeys,
+		paidCreditsInsufficient,
+		generation.creditAccount.data?.adminTestSkuKeys,
+	]);
 	const isImageEdit = requireReference || sourcePending || Boolean(values.sourceAssetId);
 	const suggestionKeys = isImageEdit
 		? ["background", "object", "lighting", "style"]
@@ -489,7 +571,7 @@ export function GenerationForm({
 				updatePrompt(detail.prompt.slice(0, 10000));
 				const selection = detail.selection;
 				const parsed = selection && parseImageSelection(selection.productKey, selection);
-				if (selection && parsed && isEditorProductKey(selection.productKey)) {
+				if (selection && parsed && isEditorProductKey(selection.productKey) && !paidTemplate) {
 					form.setValue("productKey", selection.productKey, {
 						shouldDirty: true,
 						shouldValidate: true,
@@ -520,7 +602,7 @@ export function GenerationForm({
 			window.removeEventListener(LANDING_PROMPT_SELECTED_EVENT, selectPrompt);
 			window.removeEventListener(STUDIO_ASSET_SELECTED_EVENT, selectAsset);
 		};
-	}, [updatePrompt, updateSourceAsset, form]);
+	}, [updatePrompt, updateSourceAsset, form, paidTemplate]);
 
 	useEffect(() => {
 		if (!onDraftChange) return;
@@ -551,6 +633,14 @@ export function GenerationForm({
 	}
 
 	function updateProduct(productKey: EditorProductKey, skuKey?: string) {
+		if (
+			paidTemplate &&
+			!isPaidTemplateSelection(
+				{ productKey, skuKey: skuKey ?? effectPreset?.parameters.skuKey },
+				effectPreset,
+			)
+		)
+			return;
 		if (skuKey && productKey === values.productKey) {
 			updateSku(skuKey);
 			return;
@@ -591,6 +681,11 @@ export function GenerationForm({
 	});
 
 	function updateSku(skuKey: string) {
+		if (
+			paidTemplate &&
+			!isPaidTemplateSelection({ productKey: values.productKey, skuKey }, effectPreset)
+		)
+			return;
 		const cell = getImageSpecCell(product?.skuMatrix, skuKey);
 		if (!cell) return;
 		form.setValue("skuKey", cell.skuKey as GenerationFormValues["skuKey"], {
@@ -628,7 +723,7 @@ export function GenerationForm({
 		beginNewAction();
 	}
 
-	function saveDraftForPurchase(): boolean {
+	const saveDraftForPurchase = useCallback((): boolean => {
 		const current = form.getValues();
 		const currentProduct = products.find((candidate) => candidate.key === current.productKey);
 		const currentCell = getImageSpecCell(currentProduct?.skuMatrix, current.skuKey);
@@ -659,10 +754,10 @@ export function GenerationForm({
 			setUpgradeOpen(true);
 		}
 		return saved;
-	}
+	}, [form, products, temporaryReference, parentJobId, sourceReady]);
 
-	function continueToImagePass() {
-		if (!ownerId) return;
+	const continueToImagePass = useCallback(() => {
+		if (!ownerId) return false;
 		let saved = false;
 		try {
 			saved = saveWorkspaceDraft(
@@ -672,7 +767,7 @@ export function GenerationForm({
 					values: form.getValues(),
 					parentJobId: temporaryReference ? null : (parentJobId ?? null),
 					temporaryReference,
-					fundingSource,
+					fundingSource: paidTemplate ? "IMAGE_PASS" : fundingSource,
 				},
 				Date.now(),
 				workspaceDraftPath,
@@ -683,26 +778,38 @@ export function GenerationForm({
 		if (!saved) {
 			setUpgradeStorageUnavailable(true);
 			setUpgradeOpen(true);
-			return;
+			return false;
 		}
 		captureCheckoutTrigger();
 		router.push("/image-pass");
-	}
+		return true;
+	}, [
+		ownerId,
+		form,
+		temporaryReference,
+		parentJobId,
+		paidTemplate,
+		fundingSource,
+		workspaceDraftPath,
+		router,
+	]);
 
-	function continueToUpgrade() {
-		if (!saveDraftForPurchase()) return;
+	const continueToUpgrade = useCallback(() => {
+		if (!saveDraftForPurchase()) return false;
 		void saasGrowthFunnel.upgradePromptViewed(values.productKey);
 		captureCheckoutTrigger();
 		router.push(
 			createChoosePlanPath(effectEditor?.getReturnPath("upgrade") ?? "/create?upgrade=complete"),
 		);
-	}
+		return true;
+	}, [saveDraftForPurchase, values.productKey, router, effectEditor]);
 
 	async function confirmGeneration() {
 		if (
 			!ownerId ||
 			!ready ||
 			!input ||
+			!paidSelectionValid ||
 			displayedCredits === undefined ||
 			(passSelected && !passReady) ||
 			sourcePendingRef.current ||
@@ -736,6 +843,65 @@ export function GenerationForm({
 			if (submittingRef.current === operation) submittingRef.current = null;
 		}
 	}
+	useEffect(() => {
+		if (
+			!paidTemplate ||
+			!effectEditor ||
+			!ownerId ||
+			!ready ||
+			!sourceReady ||
+			!values.sourceAssetId ||
+			sourcePending ||
+			!paidSelectionValid
+		)
+			return;
+		try {
+			const pending = readPaidTemplatePurchase(window.sessionStorage, {
+				effectId: effectEditor.effect.id,
+				presetId: effectEditor.selectedPreset.id,
+			});
+			if (!pending) return;
+			// Sign-in may reveal an existing purchase. Let that owner continue in the editor.
+			if (!generation.imagePass?.isError && passAvailable === undefined) return;
+			const subscriptionEligible =
+				allowedProductKeys.includes(values.productKey) &&
+				allowedImageSkuKeys.includes(values.skuKey);
+			if (subscriptionEligible && paidCreditBalance === undefined) return;
+			if (
+				(subscriptionEligible && !paidCreditsInsufficient) ||
+				(!generation.imagePass?.isError &&
+					(passAvailable ?? 0) > 0 &&
+					imagePassIncludesSkuAccess(generation.imagePass?.data, values.skuKey))
+			) {
+				clearPaidTemplatePurchase(window.sessionStorage);
+				return;
+			}
+			const saved = pending === "image-pass" ? continueToImagePass() : continueToUpgrade();
+			if (saved) clearPaidTemplatePurchase(window.sessionStorage);
+		} catch {
+			setUpgradeStorageUnavailable(true);
+		}
+	}, [
+		paidTemplate,
+		effectEditor,
+		ownerId,
+		ready,
+		sourceReady,
+		values.sourceAssetId,
+		sourcePending,
+		paidSelectionValid,
+		continueToImagePass,
+		continueToUpgrade,
+		generation.imagePass?.isError,
+		generation.imagePass?.data,
+		passAvailable,
+		allowedProductKeys,
+		allowedImageSkuKeys,
+		values.productKey,
+		values.skuKey,
+		paidCreditBalance,
+		paidCreditsInsufficient,
+	]);
 
 	return (
 		<form
@@ -757,7 +923,10 @@ export function GenerationForm({
 					textLength: textLengthBucket(validated.prompt.trim().length),
 					inputCount: validated.sourceAssetId ? 1 : 0,
 				});
-				if (!modelAccessAllowed(validated.productKey, validated.skuKey)) {
+				if (
+					!modelAccessAllowed(validated.productKey, validated.skuKey) ||
+					(paidTemplate && passSelected && !passReady)
+				) {
 					setUpgradeOpen(true);
 					return;
 				}
@@ -790,7 +959,7 @@ export function GenerationForm({
 					beginNewAction();
 				}}
 			/>
-			{passSelected && !passSkuAllowed && (
+			{passSelected && !passAccessUnknown && !passSkuAllowed && (
 				<output
 					data-testid="image-pass-size-not-eligible"
 					className="text-xs leading-5 text-amber-600 dark:text-amber-300 block"
@@ -889,7 +1058,7 @@ export function GenerationForm({
 								if (!effectEditor) replaceImageModelInUrl(key);
 							}
 						}}
-						disabled={generation.createGeneration.isPending}
+						disabled={paidTemplate || generation.createGeneration.isPending}
 					/>
 				</div>
 				<div className="image-edit-control-field composer-output-field">
@@ -947,7 +1116,7 @@ export function GenerationForm({
 						}}
 					/>
 				</div>
-				{upgradeRequired ? (
+				{upgradeRequired && !paidTemplate ? (
 					<Button
 						type="button"
 						variant="primary"
@@ -969,7 +1138,7 @@ export function GenerationForm({
 						className="studio-submit"
 						disabled={
 							!input ||
-							(passSelected && !passReady) ||
+							(!paidTemplate && passSelected && !passReady) ||
 							generation.createQuote.isPending ||
 							generation.createGeneration.isPending
 						}
@@ -997,7 +1166,7 @@ export function GenerationForm({
 					{studio("generation.referencePending")}
 				</output>
 			)}
-			{upgradeRequired && product && (
+			{upgradeRequired && product && !paidTemplate && (
 				<output
 					data-test="editor-model-access-notice"
 					className="mt-3 text-xs leading-5 text-violet-200 block"
@@ -1050,17 +1219,27 @@ export function GenerationForm({
 					</AlertDescription>
 				</Alert>
 			) : null}
-			<EditorUpgradeDialog
-				modelLabel={product?.label}
-				modelProductKey={values.productKey}
-				open={upgradeOpen && active}
-				onOpenChange={(open) => {
-					setUpgradeOpen(open);
-					if (!open) setUpgradeStorageUnavailable(false);
-				}}
-				onContinue={continueToUpgrade}
-				storageUnavailable={upgradeStorageUnavailable}
-			/>
+			{paidTemplate ? (
+				<PaidTemplateDialog
+					open={upgradeOpen && active}
+					onOpenChange={setUpgradeOpen}
+					onImagePass={continueToImagePass}
+					onPlans={continueToUpgrade}
+					storageUnavailable={upgradeStorageUnavailable}
+				/>
+			) : (
+				<EditorUpgradeDialog
+					modelLabel={product?.label}
+					modelProductKey={values.productKey}
+					open={upgradeOpen && active}
+					onOpenChange={(open) => {
+						setUpgradeOpen(open);
+						if (!open) setUpgradeStorageUnavailable(false);
+					}}
+					onContinue={continueToUpgrade}
+					storageUnavailable={upgradeStorageUnavailable}
+				/>
+			)}
 			<RegisteredEditorDock prompt={values.prompt} jobId={jobId} />
 		</form>
 	);

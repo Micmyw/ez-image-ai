@@ -181,6 +181,35 @@ function fixture(count = 2) {
 }
 
 describe("source template durable role review", () => {
+	it("reviews customer inputs and claims once without rechecking published built-in material rows", async () => {
+		const f = fixture(1);
+		f.template.references.push({
+			assetId: "published-reference",
+			checksum: "a".repeat(64),
+			objectKey: "users/admin/source-templates/fixed-version",
+			storageEtag: "fixed-etag",
+			storageVersionId: null,
+			verificationGeneration: 1,
+			ownerId: "admin",
+			sourceUrl: "https://ezpic-template.example/scene",
+			rightsEvidence: "release-receipt",
+			validUntil: "2020-01-01T00:00:00.000Z",
+		});
+		await recordSourceTemplateInputReview("job", f.metadata);
+		await f.allowRole("performer-1");
+		await recordSourceTemplateInputReview("job", { status: "ALLOW" });
+		const input = {
+			jobId: "job",
+			providerModelId: "source-exact-model",
+			callbackTokenHash: "hash",
+			ruleVersion: VIDEO_V1_RULE_VERSION,
+		};
+		expect(await claimVideoProviderSubmission(input)).toMatchObject({ claimed: true });
+		expect(await claimVideoProviderSubmission(input)).toMatchObject({ claimed: false });
+		expect(f.tx.mediaAsset.findFirst).not.toHaveBeenCalled();
+		expect(f.tx.assetModerationResult.findFirst).not.toHaveBeenCalled();
+		expect(f.tx.user.findFirst).not.toHaveBeenCalled();
+	});
 	it("requires both Hotel role approvals and exact no-prompt proof before one provider claim", async () => {
 		const f = fixture(2);
 		Object.assign(f.snapshot, sourceHotelTemplateFixture());

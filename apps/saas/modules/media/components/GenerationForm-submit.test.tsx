@@ -14,6 +14,7 @@ const state = vi.hoisted(() => ({
 	subscriptionFreeSkuKeys: undefined as string[] | undefined,
 	creditFailed: false,
 	spendableCredits: "100",
+	adminTestSkuKeys: [] as string[],
 	generationPending: false,
 	cursor: 0,
 	slots: [] as {
@@ -43,6 +44,8 @@ const state = vi.hoisted(() => ({
 	visibility: vi.fn(),
 	toolBinding: vi.fn(),
 	requestedOutputFormat: undefined as "svg" | "gif" | undefined,
+	effectEditor: null as import("../../effects/lib/editor-context").EffectEditorContextValue | null,
+	push: vi.fn(),
 }));
 vi.mock("react", async (importOriginal) => ({
 	...(await importOriginal<typeof import("react")>()),
@@ -70,13 +73,14 @@ vi.mock("@auth/hooks/use-session", () => ({
 	useSession: () => ({ loaded: state.loaded, user: { id: state.ownerId } }),
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
-vi.mock("@shared/hooks/router", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("@shared/hooks/router", () => ({ useRouter: () => ({ push: state.push }) }));
+vi.mock("@shared/lib/purchase-attribution", () => ({ captureCheckoutTrigger: vi.fn() }));
 vi.mock("@shared/hooks/generation-analytics", () => ({
 	useGenerationAnalytics: vi.fn(),
 	trackGenerationAction: vi.fn(),
 }));
 vi.mock("../../effects/lib/editor-context", () => ({
-	useEffectEditor: () => null,
+	useEffectEditor: () => state.effectEditor,
 	useEffectEditorBinding: () => {},
 }));
 vi.mock("../lib/tool-prompt-context", () => ({
@@ -99,6 +103,19 @@ vi.mock("../hooks/use-generation", () => ({
 		catalog: {
 			data: {
 				products: [
+					{
+						key: "image-nano-banana-2",
+						label: "Nano Banana 2",
+						credits: 9,
+						skuMatrix: {
+							defaultSkuKey: "nano-banana-2-1k",
+							dimensions: [],
+							cells: [
+								{ skuKey: "nano-banana-2-1k", credits: 9, aspectRatios: ["4:5"], controls: [] },
+								{ skuKey: "nano-banana-2-2k", credits: 13, aspectRatios: ["4:5"], controls: [] },
+							],
+						},
+					},
 					...(["flare", "sunburst"] as const).map((model) => ({
 						key: `image-gpt-image-2-6-${model}`,
 						label: `GPT Image 2.6 ${model}`,
@@ -174,7 +191,7 @@ vi.mock("../hooks/use-generation", () => ({
 			},
 		},
 		creditAccount: {
-			data: { spendableCredits: state.spendableCredits },
+			data: { spendableCredits: state.spendableCredits, adminTestSkuKeys: state.adminTestSkuKeys },
 			isError: state.creditFailed,
 		},
 		imagePass: {
@@ -197,8 +214,16 @@ vi.mock("../hooks/use-generation", () => ({
 	}),
 }));
 
+import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
+import { readEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
+import {
+	savePaidTemplatePurchase,
+	readPaidTemplatePurchase,
+} from "@payments/lib/paid-template-purchase";
+
 import { resolveEditorAllowedProductKeys } from "../lib/editor-recovery";
 import { temporaryReferenceReviewPresentation } from "../lib/temporary-reference-review";
+import { loadWorkspaceDraft } from "../lib/workspace-draft";
 import type { ImageSourcePanel } from "./editor/ImageSourcePanel";
 import { PromptPanel } from "./editor/PromptPanel";
 import { GenerationForm } from "./GenerationForm";
@@ -211,9 +236,10 @@ function render(
 	onCreated = vi.fn(),
 	jobId: string | null = null,
 	allowedProductKeys?: Parameters<typeof GenerationForm>[0]["allowedProductKeys"],
+	options: Partial<Parameters<typeof GenerationForm>[0]> = {},
 ) {
 	state.cursor = 0;
-	return GenerationForm({ onCreated, jobId, allowedProductKeys });
+	return GenerationForm({ onCreated, jobId, allowedProductKeys, ...options });
 }
 function unmount() {
 	for (const slot of state.slots) slot.cleanup?.();
@@ -244,6 +270,43 @@ function submit(element: ReturnType<typeof render>) {
 function fundingMarkup(element: ReturnType<typeof render>) {
 	return renderToStaticMarkup(find(element, ImageFundingSelector));
 }
+function paidTemplate() {
+	state.effectEditor = {
+		effect: { id: "sheru-bhai-ai-photo", generationAccess: "paid" },
+		selectedPreset: {
+			id: "with-sheru",
+			productKey: "image-nano-banana-2",
+			inputRequirement: "required",
+			parameters: { skuKey: "nano-banana-2-1k", aspectRatio: "4:5" },
+		},
+		getReturnPath: () => "/blog/sheru-bhai-ai-photo?preset=with-sheru&upgrade=complete",
+		getAnalyticsContext: () => undefined,
+	} as unknown as NonNullable<typeof state.effectEditor>;
+	state.passAvailable = 0;
+	state.values = {
+		productKey: "image-nano-banana-2",
+		skuKey: "nano-banana-2-1k",
+		aspectRatio: "4:5",
+		prompt: "My custom lion selfie",
+		sourceAssetId: "owned-photo",
+	};
+	const entries = new Map<string, string>();
+	vi.stubGlobal("window", {
+		addEventListener: vi.fn(),
+		removeEventListener: vi.fn(),
+		sessionStorage: {
+			getItem: (key: string) => entries.get(key) ?? null,
+			setItem: (key: string, value: string) => entries.set(key, value),
+			removeItem: (key: string) => entries.delete(key),
+		},
+	});
+}
+function renderPaid() {
+	return render(vi.fn(), null, ["image-nano-banana-2-lite"], {
+		initialSourceReady: true,
+		workspaceDraftPath: "/blog/sheru-bhai-ai-photo?preset=with-sheru",
+	});
+}
 beforeEach(() => {
 	state.ownerId = "owner-a";
 	state.loaded = true;
@@ -254,6 +317,7 @@ beforeEach(() => {
 	state.subscriptionFreeSkuKeys = undefined;
 	state.creditFailed = false;
 	state.spendableCredits = "100";
+	state.adminTestSkuKeys = [];
 	state.generationPending = false;
 	state.slots = [];
 	state.cursor = 0;
@@ -269,6 +333,8 @@ beforeEach(() => {
 	state.visibility.mockReset();
 	state.toolBinding.mockReset();
 	state.requestedOutputFormat = undefined;
+	state.effectEditor = null;
+	state.push.mockReset();
 	vi.stubGlobal("window", { addEventListener: vi.fn(), removeEventListener: vi.fn() });
 	vi.stubGlobal("document", {
 		getElementById: vi.fn().mockReturnValue({ id: "current-editor-result" }),
@@ -290,6 +356,245 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it.each(["png", "svg", "gif"] as const)(
+		"defaults an owned subscription-free pass for GPT 2.6 %s without credits or a subscription",
+		async (outputFormat) => {
+			state.values = {
+				...state.values,
+				productKey: "image-gpt-image-2-6-sunburst",
+				skuKey: "gpt-image-2-6-sunburst-1k",
+				aspectRatio: "1:1",
+				outputFormat,
+				...(outputFormat === "gif" ? { frameCount: 9, frameDurationMs: 200 } : {}),
+			};
+			state.requestedOutputFormat = outputFormat === "png" ? undefined : outputFormat;
+			state.passSkuKeys = [state.values.skuKey];
+			state.subscriptionFreeSkuKeys = [state.values.skuKey];
+			state.spendableCredits = "0";
+			const allowed = resolveEditorAllowedProductKeys(undefined, undefined);
+			render(vi.fn(), null, allowed);
+			const tree = render(vi.fn(), null, allowed);
+			expect(find(tree, ImageFundingSelector).props.value).toBe("IMAGE_PASS");
+			expect(find(tree, ImageOutputSettings).props.fundingCostLabel).toBe("onePass");
+			submit(tree);
+			await flush();
+			expect(state.mutateAsync).toHaveBeenCalledWith(
+				expect.objectContaining({
+					fundingSource: "IMAGE_PASS",
+					input: expect.objectContaining({ outputFormat }),
+				}),
+			);
+		},
+	);
+	it("lets an explicitly selected pass reach server validation after a balance refresh failure", async () => {
+		state.values = {
+			...state.values,
+			productKey: "image-gpt-image-2-6-sunburst",
+			skuKey: "gpt-image-2-6-sunburst-1k",
+			aspectRatio: "1:1",
+			outputFormat: "gif",
+			frameCount: 9,
+			frameDurationMs: 200,
+		};
+		state.passFailed = true;
+		state.passAvailable = undefined;
+		state.passSkuKeys = undefined;
+		const allowed = resolveEditorAllowedProductKeys(undefined, undefined);
+		(
+			find(render(vi.fn(), null, allowed), ImageFundingSelector).props.onChange as (
+				source: ImageFundingSource,
+			) => void
+		)("IMAGE_PASS");
+		submit(render(vi.fn(), null, allowed));
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledWith(
+			expect.objectContaining({ fundingSource: "IMAGE_PASS" }),
+		);
+	});
+	it("uses an account-scoped administrator test grant with the normal credit funding", async () => {
+		state.values = {
+			...state.values,
+			productKey: "image-gpt-image-2-6-sunburst",
+			skuKey: "gpt-image-2-6-sunburst-1k",
+			aspectRatio: "1:1",
+			outputFormat: "gif",
+			frameCount: 9,
+			frameDurationMs: 200,
+		};
+		state.adminTestSkuKeys = [state.values.skuKey];
+		submit(render(vi.fn(), null, resolveEditorAllowedProductKeys(undefined, undefined)));
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledWith(
+			expect.objectContaining({ fundingSource: "CREDITS", expectedCredits: "57" }),
+		);
+	});
+	it("opens the paid template pack offer after Generate without using free credits", () => {
+		paidTemplate();
+		submit(renderPaid());
+		expect(find(renderPaid(), PaidTemplateDialog).props.open).toBe(true);
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("uses a qualifying existing pass for the paid template without another purchase", async () => {
+		paidTemplate();
+		state.passAvailable = 3;
+		state.passSkuKeys = ["nano-banana-2-1k"];
+		state.subscriptionFreeSkuKeys = ["nano-banana-2-1k"];
+		renderPaid();
+		const tree = renderPaid();
+		expect(find(tree, ImageFundingSelector).props.value).toBe("IMAGE_PASS");
+		submit(tree);
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledWith(
+			expect.objectContaining({
+				fundingSource: "IMAGE_PASS",
+				productKey: "image-nano-banana-2",
+				input: expect.objectContaining({
+					sourceAssetId: "owned-photo",
+					skuKey: "nano-banana-2-1k",
+				}),
+			}),
+		);
+	});
+	it("allows an eligible subscriber to generate using credits", async () => {
+		paidTemplate();
+		submit(render(vi.fn(), null, ["image-nano-banana-2"], { initialSourceReady: true }));
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledWith(
+			expect.objectContaining({ fundingSource: "CREDITS", productKey: "image-nano-banana-2" }),
+		);
+	});
+	it("checks a subscriber's current credits on submission instead of blocking on a cached balance", async () => {
+		paidTemplate();
+		state.spendableCredits = "8";
+		submit(render(vi.fn(), null, ["image-nano-banana-2"], { initialSourceReady: true }));
+		await flush();
+		expect(
+			find(
+				render(vi.fn(), null, ["image-nano-banana-2"], { initialSourceReady: true }),
+				PaidTemplateDialog,
+			).props.open,
+		).toBe(false);
+		expect(state.mutateAsync).toHaveBeenCalledWith(
+			expect.objectContaining({ fundingSource: "CREDITS", expectedCredits: "9" }),
+		);
+	});
+	it("keeps other plans available and preserves the photo without charging or generating", () => {
+		paidTemplate();
+		(find(renderPaid(), PaidTemplateDialog).props.onPlans as () => void)();
+		expect(state.push).toHaveBeenCalledWith(
+			"/pricing?returnTo=%2Fblog%2Fsheru-bhai-ai-photo%3Fpreset%3Dwith-sheru%26upgrade%3Dcomplete",
+		);
+		expect(readEditorUpgradeDraft(window.sessionStorage)).toMatchObject({
+			draft: {
+				productKey: "image-nano-banana-2",
+				input: { sourceAssetId: "owned-photo", prompt: "My custom lion selfie" },
+			},
+			sourceReady: true,
+		});
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("opens the pack offer for a subscriber who selected an exhausted pass", () => {
+		paidTemplate();
+		const options = { initialSourceReady: true, initialFundingSource: "IMAGE_PASS" as const };
+		submit(render(vi.fn(), null, ["image-nano-banana-2"], options));
+		expect(
+			find(render(vi.fn(), null, ["image-nano-banana-2"], options), PaidTemplateDialog).props.open,
+		).toBe(true);
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("keeps the premium model and tier fixed and blocks a mismatched restored selection", () => {
+		paidTemplate();
+		const tree = renderPaid();
+		const selector = find(tree, ImageModelSelector);
+		expect(selector.props.disabled).toBe(true);
+		(selector.props.onChange as (key: string, sku: string) => void)(
+			"image-nano-banana-2-lite",
+			"nano-banana-2-lite-1k",
+		);
+		expect(state.values.productKey).toBe("image-nano-banana-2");
+		(find(tree, ImageOutputSettings).props.onSkuChange as (sku: string) => void)(
+			"nano-banana-2-2k",
+		);
+		expect(state.values.skuKey).toBe("nano-banana-2-1k");
+		state.values.productKey = "image-nano-banana-2-lite";
+		state.values.skuKey = "nano-banana-2-lite-1k";
+		submit(renderPaid());
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("preserves the owned photo, prompt and pack funding before checkout", () => {
+		paidTemplate();
+		(find(renderPaid(), PaidTemplateDialog).props.onImagePass as () => void)();
+		expect(state.push).toHaveBeenCalledWith("/image-pass");
+		expect(
+			loadWorkspaceDraft(
+				window.sessionStorage,
+				"owner-a",
+				Date.now(),
+				"/blog/sheru-bhai-ai-photo?preset=with-sheru",
+			),
+		).toMatchObject({ fundingSource: "IMAGE_PASS", values: { ...state.values } });
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("continues a guest purchase only after the claimed photo is ready", () => {
+		paidTemplate();
+		savePaidTemplatePurchase(window.sessionStorage, {
+			effectId: "sheru-bhai-ai-photo",
+			presetId: "with-sheru",
+			purchase: "image-pass",
+		});
+		render(vi.fn(), null, ["image-nano-banana-2-lite"], { initialSourceReady: false });
+		expect(state.push).not.toHaveBeenCalled();
+		const source = find(renderPaid(), PromptPanel).props.referencePanel as unknown as ReactElement<
+			React.ComponentProps<typeof ImageSourcePanel>
+		>;
+		source.props.onReadyChange(true);
+		renderPaid();
+		expect(state.push).toHaveBeenCalledWith("/image-pass");
+		expect(
+			readPaidTemplatePurchase(window.sessionStorage, {
+				effectId: "sheru-bhai-ai-photo",
+				presetId: "with-sheru",
+			}),
+		).toBeNull();
+	});
+	it("checks existing passes after sign-in before continuing to a new purchase", () => {
+		paidTemplate();
+		savePaidTemplatePurchase(window.sessionStorage, {
+			effectId: "sheru-bhai-ai-photo",
+			presetId: "with-sheru",
+			purchase: "image-pass",
+		});
+		state.passAvailable = undefined;
+		renderPaid();
+		expect(state.push).not.toHaveBeenCalled();
+		state.passAvailable = 2;
+		state.passSkuKeys = ["nano-banana-2-1k"];
+		state.subscriptionFreeSkuKeys = ["nano-banana-2-1k"];
+		renderPaid();
+		expect(state.push).not.toHaveBeenCalled();
+		expect(find(renderPaid(), ImageFundingSelector).props.value).toBe("IMAGE_PASS");
+		expect(
+			readPaidTemplatePurchase(window.sessionStorage, {
+				effectId: "sheru-bhai-ai-photo",
+				presetId: "with-sheru",
+			}),
+		).toBeNull();
+	});
+	it("uses an existing qualifying pass when a subscriber's credits cannot cover the template", () => {
+		paidTemplate();
+		state.spendableCredits = "8";
+		state.passAvailable = 2;
+		state.passSkuKeys = ["nano-banana-2-1k"];
+		state.subscriptionFreeSkuKeys = ["nano-banana-2-1k"];
+		render(vi.fn(), null, ["image-nano-banana-2"], { initialSourceReady: true });
+		expect(
+			find(
+				render(vi.fn(), null, ["image-nano-banana-2"], { initialSourceReady: true }),
+				ImageFundingSelector,
+			).props.value,
+		).toBe("IMAGE_PASS");
+		expect(state.push).not.toHaveBeenCalled();
+	});
 	it("preserves a supported aspect ratio when selecting a tier in the same model", () => {
 		state.values.aspectRatio = "1:1";
 		const element = render();
@@ -538,7 +843,7 @@ describe("GenerationForm submission callbacks", () => {
 			);
 		},
 	);
-	it.each(["credits", "empty", "failed", "missing-coverage", "empty-coverage", "wrong-sku"])(
+	it.each(["credits", "empty", "missing-coverage", "empty-coverage", "wrong-sku"])(
 		"does not use independent passes to bypass admission when %s",
 		async (reason) => {
 			state.values = {
@@ -549,14 +854,19 @@ describe("GenerationForm submission callbacks", () => {
 			};
 			state.subscriptionFreeSkuKeys = ["nano-banana-pro-4k"];
 			const allowedProductKeys = resolveEditorAllowedProductKeys(undefined, undefined);
-			if (reason !== "credits")
+			if (reason === "credits")
+				(
+					find(render(vi.fn(), null, allowedProductKeys), ImageFundingSelector).props.onChange as (
+						source: ImageFundingSource,
+					) => void
+				)("CREDITS");
+			else
 				(
 					find(render(vi.fn(), null, allowedProductKeys), ImageFundingSelector).props.onChange as (
 						source: ImageFundingSource,
 					) => void
 				)("IMAGE_PASS");
 			if (reason === "empty") state.passAvailable = 0;
-			if (reason === "failed") state.passFailed = true;
 			if (reason === "missing-coverage") state.passSkuKeys = undefined;
 			if (reason === "empty-coverage") state.passSkuKeys = [];
 			if (reason === "wrong-sku") state.subscriptionFreeSkuKeys = ["nano-banana-2-lite-1k"];
@@ -612,7 +922,7 @@ describe("GenerationForm submission callbacks", () => {
 		expect(state.values.aspectRatio).toBe("1:1");
 		expect(find(element, ImageFundingSelector).props.value).toBe("CREDITS");
 	});
-	it("blocks a failed pass choice until credits are explicitly selected without losing the prompt", async () => {
+	it("preserves the selected funding and prompt when the balance refresh fails", async () => {
 		let element = render();
 		(find(element, PromptPanel).props.onChange as (prompt: string) => void)("Keep this draft");
 		(find(element, ImageFundingSelector).props.onChange as (source: ImageFundingSource) => void)(
@@ -624,7 +934,9 @@ describe("GenerationForm submission callbacks", () => {
 		expect(fundingMarkup(element)).toContain("balanceError");
 		submit(element);
 		await flush();
-		expect(state.mutateAsync).not.toHaveBeenCalled();
+		expect(state.mutateAsync).toHaveBeenCalledWith(
+			expect.objectContaining({ fundingSource: "IMAGE_PASS" }),
+		);
 		(find(element, ImageFundingSelector).props.onChange as (source: ImageFundingSource) => void)(
 			"CREDITS",
 		);

@@ -1,4 +1,8 @@
-import { getImagePassOfferSnapshot, IMAGE_PASS_LEGACY_OFFER } from "@repo/config/image-pass";
+import {
+	getImagePassOfferSnapshot,
+	IMAGE_PASS_LEGACY_OFFER,
+	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+} from "@repo/config/image-pass";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const fixture = vi.hoisted(() => ({
@@ -78,8 +82,64 @@ describe("generation subscription preflight", () => {
 		fixture.db.storageUsageReservation.aggregate.mockResolvedValue({ _sum: { bytes: 0n } });
 		fixture.db.mediaAsset.findFirst.mockResolvedValue({ mimeType: "image/png", byteSize: 1n });
 		fixture.db.subscription.findMany.mockResolvedValue([paidSubscription]);
+		fixture.db.$queryRaw.mockResolvedValue([]);
 	});
 	afterEach(() => vi.useRealTimers());
+	it.each(["flare", "sunburst"] as const)(
+		"lets a $2.99 pass fund %s GIF without subscription or credits",
+		async (model) => {
+			fixture.db.subscription.findMany.mockResolvedValue([]);
+			fixture.db.creditLot.aggregate.mockResolvedValue({ _sum: { remainingAmount: 0n } });
+			fixture.db.$queryRaw.mockResolvedValue([
+				{ id: "pass-unit", offerSnapshot: getImagePassOfferSnapshot() },
+			]);
+			await expect(
+				assertGenerationAllowed({
+					...request,
+					productKey: `image-gpt-image-2-6-${model}`,
+					fundingSource: "IMAGE_PASS",
+					imagePassBenefitPolicy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+					input: {
+						...request.input,
+						skuKey: `gpt-image-2-6-${model}-1k`,
+						outputFormat: "gif",
+						frameCount: 9,
+						frameDurationMs: 200,
+					},
+				}),
+			).resolves.toBeUndefined();
+		},
+	);
+	it("allows the administrator's granted SKU on credits and still enforces the balance", async () => {
+		fixture.db.subscription.findMany.mockResolvedValue([]);
+		fixture.db.$queryRaw.mockResolvedValue([
+			{
+				now: NOW,
+				value: {
+					version: 1,
+					expiresAt: "2026-11-14T00:00:00Z",
+					skuKeys: ["gpt-image-2-6-sunburst-1k"],
+				},
+			},
+		]);
+		const input = {
+			...request,
+			productKey: "image-gpt-image-2-6-sunburst" as const,
+			credits: 57n,
+			input: {
+				...request.input,
+				skuKey: "gpt-image-2-6-sunburst-1k" as const,
+				outputFormat: "gif" as const,
+				frameCount: 9,
+				frameDurationMs: 200,
+			},
+		};
+		await expect(assertGenerationAllowed(input)).resolves.toBeUndefined();
+		fixture.db.creditLot.aggregate.mockResolvedValue({ _sum: { remainingAmount: 56n } });
+		await expect(assertGenerationAllowed(input)).rejects.toThrow("INSUFFICIENT_CREDITS");
+		fixture.db.$queryRaw.mockResolvedValue([]);
+		await expect(assertGenerationAllowed(input)).rejects.toThrow("ENTITLEMENT_REQUIRED");
+	});
 
 	it("reads the effective subscription once for both plan and storage eligibility", async () => {
 		await expect(assertGenerationAllowed(request)).resolves.toBeUndefined();

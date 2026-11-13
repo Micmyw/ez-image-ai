@@ -19,7 +19,6 @@ import {
 import {
 	assertSourceTemplateInputIdentities,
 	assertSourceTemplateInputReview,
-	findApprovedSourceTemplateReferences,
 	readSourceTemplateRoleIdentities,
 } from "./video-source-template-review";
 import { recordVideoTemplateBusinessEvent } from "./video-template-events";
@@ -385,12 +384,8 @@ export async function claimVideoProviderSubmission(input: {
 				: null;
 		if (sourceTemplate) {
 			const roles = readSourceTemplateRoleIdentities(job.inputSnapshot);
-			const references = Array.isArray(sourceTemplate.references) ? sourceTemplate.references : [];
 			await lockMediaAssetGenerationBindings(
-				[
-					...roles.map((identity) => identity.assetId),
-					...references.map((reference) => String(object(reference).assetId)),
-				],
+				roles.map((identity) => identity.assetId),
 				tx,
 			);
 			job = await lockedContext(tx, input.jobId);
@@ -433,7 +428,6 @@ export async function claimVideoProviderSubmission(input: {
 		if (sourceTemplate) {
 			assertSourceTemplateInputIdentities(job, clock.now);
 			assertSourceTemplateInputReview(job.inputSnapshot, review, clock.now);
-			await findApprovedSourceTemplateReferences(sourceTemplate, tx, clock.now);
 			if (object(sourceTemplate.transport).modelId !== input.providerModelId)
 				throw new Error("VIDEO_SOURCE_TEMPLATE_PROVIDER_CHANGED");
 		}

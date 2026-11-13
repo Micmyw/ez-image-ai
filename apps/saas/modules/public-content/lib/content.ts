@@ -6,6 +6,7 @@ import { promptEditingDocuments } from "../../../content/posts/ai-image-editing-
 import { hotelLobbyVideoDocuments } from "../../../content/posts/hotel-lobby-ai-video";
 import { blogDocuments } from "../../../content/posts/private-image-editing-workflow";
 import { raindanceDocuments } from "../../../content/posts/raindance-ai-trend";
+import { sheruBhaiPhotoDocuments } from "../../../content/posts/sheru-bhai-ai-photo";
 import { tescoMealPlanningDocuments } from "../../../content/posts/tesco-ai-meal-planning-assistant";
 import { viduQ4PreviewDocuments } from "../../../content/posts/vidu-q4-preview";
 import { getEffectRecordsForValidation, getPublishedEffectById } from "../../effects/lib/content";
@@ -34,6 +35,7 @@ const posts: readonly BlogPost[] = [
 	...blogDocuments,
 	...promptEditingDocuments,
 	...eightiesPhotoDocuments,
+	...sheruBhaiPhotoDocuments,
 	...hotelLobbyVideoDocuments,
 	...raindanceDocuments,
 	...tescoMealPlanningDocuments,

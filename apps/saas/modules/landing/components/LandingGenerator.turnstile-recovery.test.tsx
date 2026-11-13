@@ -15,6 +15,10 @@ const harness = vi.hoisted(() => {
 		upload: vi.fn(),
 		turnstile: vi.fn(() => null),
 		modelSelector: vi.fn(() => null),
+		effectEditor: null as
+			| import("../../effects/lib/editor-context").EffectEditorContextValue
+			| null,
+		handoff: vi.fn(),
 	};
 });
 
@@ -75,7 +79,7 @@ vi.mock("@media/lib/tool-prompt-context", () => ({
 	useToolPromptBinding: vi.fn(),
 }));
 vi.mock("../../effects/lib/editor-context", () => ({
-	useEffectEditor: () => null,
+	useEffectEditor: () => harness.effectEditor,
 	useEffectEditorBinding: vi.fn(),
 }));
 vi.mock("../../media/lib/generation-mode-context", () => ({
@@ -89,9 +93,12 @@ vi.mock("../lib/guest-draft-client", async (importOriginal) => ({
 	...(await importOriginal<typeof import("../lib/guest-draft-client")>()),
 	getGuestCapability: harness.getCapability,
 	uploadGuestDraft: harness.upload,
+	submitGuestDraftHandoff: harness.handoff,
 }));
 
+import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
 import { readEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
+import { readPaidTemplatePurchase } from "@payments/lib/paid-template-purchase";
 import { Turnstile } from "@repo/ui/components/turnstile";
 
 import { LandingGenerator } from "./LandingGenerator";
@@ -131,6 +138,7 @@ describe("LandingGenerator verification feedback", () => {
 		harness.refCursor = 0;
 		harness.refs = [];
 		harness.capabilityEffect = undefined;
+		harness.effectEditor = null;
 		harness.getCapability.mockResolvedValue({
 			version: "capability-v1",
 			enabled: true,
@@ -139,6 +147,63 @@ describe("LandingGenerator verification feedback", () => {
 			products: [product],
 			queueEstimate: { kind: "capacity" },
 		});
+	});
+	it("shows the paid offer after Generate and uploads only after a purchase choice", async () => {
+		const premium = setupPaidTemplate();
+		let tree = await readyWorkspace();
+		callback<(token: string) => void>(tree, Turnstile, "onToken")("paid-token");
+		tree = renderWorkspace();
+		expect(findElement(tree, harness.modelSelector)?.props.disabled).toBe(true);
+		callback<(event: { preventDefault: () => void }) => void>(
+			tree,
+			"form",
+			"onSubmit",
+		)({ preventDefault() {} });
+		expect(findElement(renderWorkspace(), PaidTemplateDialog)?.props.open).toBe(true);
+		expect(harness.upload).not.toHaveBeenCalled();
+		const handoff = { accessHint: "paid-account", action: "/auth/handoff", claimToken: "claimed" };
+		harness.upload.mockResolvedValueOnce(handoff);
+		callback<() => void>(renderWorkspace(), PaidTemplateDialog, "onImagePass")();
+		await vi.waitFor(() => expect(harness.handoff).toHaveBeenCalledOnce());
+		expect(harness.upload).toHaveBeenCalledWith(
+			expect.objectContaining({
+				file: source,
+				productKey: premium.key,
+				prompt: "Preserve this guest edit",
+				skuKey: "nano-banana-2-1k",
+			}),
+		);
+		expect(
+			readPaidTemplatePurchase(window.sessionStorage, {
+				effectId: "sheru-bhai-ai-photo",
+				presetId: "with-sheru",
+			}),
+		).toBe("image-pass");
+		expect(harness.handoff).toHaveBeenCalledWith(
+			handoff,
+			document,
+			"/blog/sheru-bhai-ai-photo?preset=with-sheru",
+		);
+	});
+	it("never hands a paid template to sponsored guest generation", async () => {
+		setupPaidTemplate();
+		let tree = await readyWorkspace();
+		callback<(token: string) => void>(tree, Turnstile, "onToken")("paid-token");
+		tree = renderWorkspace();
+		harness.upload.mockResolvedValueOnce({
+			accessHint: "guest-trial",
+			action: "/auth/handoff",
+			claimToken: "wrong",
+		});
+		callback<() => void>(tree, PaidTemplateDialog, "onPlans")();
+		await vi.waitFor(() => expect(visibleText(renderWorkspace())).toContain("errors.upload"));
+		expect(harness.handoff).not.toHaveBeenCalled();
+		expect(
+			readPaidTemplatePurchase(window.sessionStorage, {
+				effectId: "sheru-bhai-ai-photo",
+				presetId: "with-sheru",
+			}),
+		).toBeNull();
 	});
 
 	it("makes reference editing ready while the unrelated text catalog is still pending", async () => {
@@ -374,6 +439,51 @@ async function readyWorkspace() {
 	const tree = renderWorkspace();
 	callback<(key: string) => void>(tree, harness.modelSelector, "onChange")(product.key);
 	return renderWorkspace();
+}
+
+function setupPaidTemplate() {
+	const premium = {
+		...product,
+		key: "image-nano-banana-2",
+		accessHint: "paid-account",
+		aspectRatios: ["4:5"],
+		skuMatrix: {
+			...product.skuMatrix,
+			defaultSkuKey: "nano-banana-2-1k",
+			cells: [{ ...product.skuMatrix.cells[0], skuKey: "nano-banana-2-1k", aspectRatios: ["4:5"] }],
+		},
+	};
+	harness.effectEditor = {
+		effect: { id: "sheru-bhai-ai-photo", generationAccess: "paid" },
+		selectedPreset: {
+			id: "with-sheru",
+			productKey: "image-nano-banana-2",
+			parameters: { skuKey: "nano-banana-2-1k", aspectRatio: "4:5" },
+			inputRequirement: "required",
+		},
+		getReturnPath: () => "/blog/sheru-bhai-ai-photo?preset=with-sheru",
+		getAnalyticsContext: () => undefined,
+	} as unknown as NonNullable<typeof harness.effectEditor>;
+	harness.getCapability.mockResolvedValue({
+		version: "capability-v1",
+		enabled: true,
+		reason: null,
+		upload: { maximumBytes: 10 * 1024 * 1024, mimeTypes: ["image/png"] },
+		products: [product, premium],
+		queueEstimate: { kind: "capacity" },
+	});
+	const entries = new Map<string, string>();
+	vi.stubGlobal("window", {
+		sessionStorage: {
+			getItem: (key: string) => entries.get(key) ?? null,
+			setItem: (key: string, value: string) => entries.set(key, value),
+			removeItem: (key: string) => entries.delete(key),
+		},
+		requestAnimationFrame: (callback: () => void) => callback(),
+	});
+	vi.stubGlobal("document", {});
+	vi.stubGlobal("requestAnimationFrame", (callback: () => void) => callback());
+	return premium;
 }
 
 function renderWorkspace(withSource = true): ReactElement {

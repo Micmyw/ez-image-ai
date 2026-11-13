@@ -7,6 +7,7 @@ import {
 } from "@repo/config";
 
 import { findEffectivePaidSubscription } from "./billing";
+import { loadImageAdminTestSkuKeys } from "./image-admin-test-access";
 import { assertImagePassAvailable, type GenerationFundingSource } from "./image-passes";
 import type { MediaDatabaseClient } from "./types";
 
@@ -41,8 +42,10 @@ export async function loadCurrentGenerationAdmission(
 	);
 	const entitlement = resolvePlanEntitlement(subscription?.plan.metadata, subscription?.plan.name);
 	const planIncludesProduct = planIncludesImageSelection(entitlement, productKey, input.skuKey);
-	if (!planIncludesProduct && input.fundingSource !== "IMAGE_PASS")
-		throw new Error("ENTITLEMENT_REQUIRED");
+	if (!planIncludesProduct && input.fundingSource !== "IMAGE_PASS") {
+		const testSkus = await loadImageAdminTestSkuKeys(input.ownerId, tx);
+		if (!testSkus.some((sku) => sku === input.skuKey)) throw new Error("ENTITLEMENT_REQUIRED");
+	}
 	if (input.fundingSource === "IMAGE_PASS")
 		await assertImagePassAvailable(
 			{

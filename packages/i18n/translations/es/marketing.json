@@ -307,6 +307,15 @@
 				"dog": "Ver tarjeta de cumpleaños del perro",
 				"pause": "Pausar vistas de cumpleaños",
 				"play": "Reproducir vistas de cumpleaños"
+			},
+			"sheru": {
+				"eyebrow": "Idea de foto destacada",
+				"title": "Sheru Bhai AI Photo",
+				"description": "Posa junto al jefe león blanco o conviértete en él. Empieza con tu propia foto.",
+				"action": "Crear tu foto con Sheru",
+				"preview": "Vistas de estilo creadas con IA",
+				"with-sheru": "Foto con Sheru",
+				"become-sheru": "Conviértete en Sheru"
 			}
 		},
 		"quickStartPrompts": {

@@ -4,8 +4,6 @@ import { config } from "@config";
 import { ComposerHeader } from "@media/components/editor/ComposerHeader";
 import { PromptIdeas } from "@media/components/editor/PromptIdeas";
 import { ImageModelSelector } from "@media/components/ImageModelSelector";
-
-import "@media/components/editor/generation-composer.css";
 import {
 	ImageOutputSettings,
 	type ImageOutputSettingsLabels,
@@ -17,14 +15,25 @@ import {
 	useRequestedImageOutputFormat,
 } from "@media/hooks/use-model-navigation";
 import { isEditorProductKey } from "@media/lib/editor-recovery";
+
+import "@media/components/editor/generation-composer.css";
 import {
 	constrainImageSpecMatrixToOutputFormat,
 	type ImageSpecControlChangeKey,
 	type ImageSpecControlValues,
 	resolveImageSpecControlValues,
 } from "@media/lib/image-sku-selection";
+import {
+	isPaidTemplateSelection,
+	paidTemplateSpecMatrix,
+} from "@media/lib/paid-template-selection";
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
 import { useToolPrompt, useToolPromptBinding } from "@media/lib/tool-prompt-context";
+import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
+import {
+	savePaidTemplatePurchase,
+	type PaidTemplatePurchase,
+} from "@payments/lib/paid-template-purchase";
 import {
 	getImageGenerationCredits,
 	getImageProductSelectionContract,
@@ -162,6 +171,11 @@ function LandingGeneratorWorkspace({
 	useGeneratorSignInDraft(saveSignInDraft);
 	const isEffectEditor = Boolean(effectEditor);
 	const effectPreset = effectEditor?.selectedPreset;
+	const paidTemplate = effectEditor?.effect.generationAccess === "paid";
+	const [paidDialogOpen, setPaidDialogOpen] = useState(false);
+	useEffect(() => {
+		if (workspace?.mode === "video") setPaidDialogOpen(false);
+	}, [workspace?.mode]);
 	const requireReference = referenceRequired || effectPreset?.inputRequirement === "required";
 	const effects = useTranslations("effects.editor");
 	const toolPrompt = useToolPrompt();
@@ -337,8 +351,12 @@ function LandingGeneratorWorkspace({
 			);
 			if (saved) {
 				setPrompt(saved.values.prompt);
-				setSelectedProductKey(saved.values.productKey);
-				setSelectedSkuKey(saved.values.skuKey);
+				setSelectedProductKey(
+					paidTemplate ? effectEditor.selectedPreset.productKey : saved.values.productKey,
+				);
+				setSelectedSkuKey(
+					paidTemplate ? effectEditor.selectedPreset.parameters.skuKey : saved.values.skuKey,
+				);
 				setAspectRatio(saved.values.aspectRatio);
 				setControlValues({
 					outputFormat: saved.values.outputFormat,
@@ -352,7 +370,7 @@ function LandingGeneratorWorkspace({
 			setTextDraftError(true);
 		}
 		setEffectDraftReady(true);
-	}, [effectEditor]);
+	}, [effectEditor, paidTemplate]);
 	useEffect(() => {
 		if (!effectEditor || !effectDraftReady || !selectedProductKey || !selectedSkuKey) return;
 		try {
@@ -450,7 +468,7 @@ function LandingGeneratorWorkspace({
 			setPrompt(detail.prompt);
 			const selection = detail.selection;
 			const parsed = selection && parseImageSelection(selection.productKey, selection);
-			if (selection && parsed && isEditorProductKey(selection.productKey)) {
+			if (selection && parsed && isEditorProductKey(selection.productKey) && !paidTemplate) {
 				setSelectedProductKey(selection.productKey);
 				setSelectedSkuKey(parsed.skuKey);
 				setAspectRatio(parsed.aspectRatio);
@@ -474,7 +492,7 @@ function LandingGeneratorWorkspace({
 
 		window.addEventListener(LANDING_PROMPT_SELECTED_EVENT, selectExamplePrompt);
 		return () => window.removeEventListener(LANDING_PROMPT_SELECTED_EVENT, selectExamplePrompt);
-	}, []);
+	}, [paidTemplate]);
 
 	useEffect(
 		() => () => {
@@ -491,8 +509,21 @@ function LandingGeneratorWorkspace({
 	const maximumMegabytes = Math.round(maximumBytes / 1024 / 1024);
 	const supportedMimeTypes = capability?.upload.mimeTypes ?? LANDING_IMAGE_CONTENT_TYPES;
 	const availableProducts = useMemo(
-		() => (file || requireReference ? (capability?.products ?? []) : textProducts),
-		[file, requireReference, capability?.products, textProducts],
+		() =>
+			(file || requireReference ? (capability?.products ?? []) : textProducts)
+				.filter((product) => !paidTemplate || product.key === effectPreset?.productKey)
+				.map((product) =>
+					paidTemplate && effectPreset
+						? {
+								...product,
+								skuMatrix: paidTemplateSpecMatrix(
+									product.skuMatrix,
+									effectPreset.parameters.skuKey,
+								),
+							}
+						: product,
+				),
+		[file, requireReference, capability?.products, textProducts, paidTemplate, effectPreset],
 	);
 	useEffect(() => {
 		if (isEffectEditor) return;
@@ -587,6 +618,11 @@ function LandingGeneratorWorkspace({
 		stage !== "checking" &&
 		(!selectedProductKey ||
 			!selectedSkuKey ||
+			(paidTemplate &&
+				!isPaidTemplateSelection(
+					{ productKey: selectedProductKey, skuKey: selectedSkuKey },
+					effectPreset,
+				)) ||
 			!isEffectSelectionAvailable(
 				{ productKey: selectedProductKey, skuKey: selectedSkuKey, aspectRatio, ...controlValues },
 				availableProducts,
@@ -755,6 +791,11 @@ function LandingGeneratorWorkspace({
 	}
 
 	function changeSku(nextSkuKey: string) {
+		if (
+			paidTemplate &&
+			!isPaidTemplateSelection({ productKey: selectedProductKey, skuKey: nextSkuKey }, effectPreset)
+		)
+			return;
 		if (!selectedProduct) return;
 		const nextSku = selectedProduct.skuMatrix.cells.find((cell) => cell.skuKey === nextSkuKey);
 		if (!nextSku) return;
@@ -796,12 +837,30 @@ function LandingGeneratorWorkspace({
 		}
 	}
 
-	async function submit(event: FormEvent<HTMLFormElement>) {
+	async function submit(
+		event: Pick<FormEvent<HTMLFormElement>, "preventDefault">,
+		purchase?: PaidTemplatePurchase,
+	) {
 		event.preventDefault();
 		if (effectSelectionUnavailable || submissionInFlight.current) return;
 		if (requireReference && !file) {
 			setFileError(t("fileErrors.required"));
 			return;
+		}
+		if (paidTemplate) {
+			if (
+				!canSubmit ||
+				!isPaidTemplateSelection(
+					{ productKey: selectedProductKey, skuKey: selectedSkuKey },
+					effectPreset,
+				)
+			)
+				return;
+			if (!purchase) {
+				setPaidDialogOpen(true);
+				return;
+			}
+			setPaidDialogOpen(false);
 		}
 		if (!file) {
 			if (!canSubmit || !selectedProduct || !selectedSku) return;
@@ -893,6 +952,24 @@ function LandingGeneratorWorkspace({
 				},
 				onProgress: ({ percentage }) => setUploadPercentage(percentage),
 			});
+			if (paidTemplate && effectEditor && purchase) {
+				// Paid models use the account draft path; this must never trigger a sponsored guest run.
+				if (handoff.accessHint !== "paid-account")
+					throw new Error("PAID_TEMPLATE_HANDOFF_REQUIRED");
+				if (
+					!savePaidTemplatePurchase(window.sessionStorage, {
+						effectId: effectEditor.effect.id,
+						presetId: effectEditor.selectedPreset.id,
+						purchase,
+					})
+				) {
+					setTextDraftError(true);
+					setPaidDialogOpen(true);
+					submissionInFlight.current = false;
+					setStage("ready");
+					return;
+				}
+			}
 			setStage("handoff");
 			await trackBrowserGrowthEvent(
 				{
@@ -957,9 +1034,11 @@ function LandingGeneratorWorkspace({
 					? t("actions.retry")
 					: !file && !requireReference
 						? studio("generation.signIn")
-						: selectedProduct?.accessHint === "paid-account"
-							? t("actions.quality")
-							: t("actions.standard");
+						: paidTemplate
+							? composer("generate")
+							: selectedProduct?.accessHint === "paid-account"
+								? t("actions.quality")
+								: t("actions.standard");
 	const stageLabel =
 		stage === "uploading"
 			? t("states.uploading", { percentage: uploadPercentage ?? 0 })
@@ -1218,8 +1297,9 @@ function LandingGeneratorWorkspace({
 								value={selectedProductKey}
 								skuKey={selectedSkuKey}
 								valueLabel={selectedProductFallbackLabel}
-								disabled={isBusy || !capabilityUsable}
+								disabled={paidTemplate || isBusy || !capabilityUsable}
 								onChange={(key, skuKey) => {
+									if (paidTemplate) return;
 									const next = localizedProducts.find((product) => product.key === key);
 									if (!next) return;
 									setSelectedProductKey(next.key);
@@ -1364,7 +1444,7 @@ function LandingGeneratorWorkspace({
 				>
 					{statusLabel}
 				</output>
-				{selectedProduct && capabilityUsable && (
+				{!paidTemplate && selectedProduct && capabilityUsable && (
 					<span className="gap-1.5 inline-flex items-center" data-generation-guidance="">
 						<SparklesIcon className="size-3.5 text-[#b79cff]" aria-hidden="true" />
 						{!file && !requireReference
@@ -1479,8 +1559,9 @@ function LandingGeneratorWorkspace({
 										value={selectedProductKey}
 										skuKey={selectedSkuKey}
 										valueLabel={selectedProductFallbackLabel}
-										disabled={isBusy || !capabilityUsable}
+										disabled={paidTemplate || isBusy || !capabilityUsable}
 										onChange={(key, skuKey) => {
+											if (paidTemplate) return;
 											const next = localizedProducts.find((product) => product.key === key);
 											if (!next) return;
 											setSelectedProductKey(next.key);
@@ -1651,6 +1732,16 @@ function LandingGeneratorWorkspace({
 						)}
 					</div>
 				</aside>
+			)}
+			{paidTemplate && (
+				<PaidTemplateDialog
+					open={paidDialogOpen && workspace?.mode !== "video"}
+					onOpenChange={setPaidDialogOpen}
+					onImagePass={() => void submit({ preventDefault() {} }, "image-pass")}
+					onPlans={() => void submit({ preventDefault() {} }, "plans")}
+					busy={isBusy}
+					storageUnavailable={textDraftError}
+				/>
 			)}
 		</>
 	);

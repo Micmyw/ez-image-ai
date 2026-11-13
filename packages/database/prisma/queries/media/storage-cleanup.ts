@@ -2,6 +2,7 @@ import { isImageAutomaticDeletionPaused } from "@repo/config";
 
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { queueGuestAssetCleanup } from "./guest-asset-cleanup";
+import { isSourceTemplateMaterialObjectKey } from "./source-template-material-retention";
 import type { MediaTransactionClient } from "./types";
 
 export interface MediaStorageCleanupClaim {
@@ -26,6 +27,9 @@ export async function claimMediaStorageCleanupTransaction(
 	input: MediaStorageCleanupClaim,
 	client: MediaTransactionClient,
 ): Promise<MediaStorageCleanupDecision> {
+	// Protect already queued deletes even if their old asset row is unavailable.
+	const retainedMaterialKey = input.objectKeys.find(isSourceTemplateMaterialObjectKey);
+	if (retainedMaterialKey) return { outcome: "DEFER", retainedObjectKey: retainedMaterialKey };
 	return client.$transaction(
 		async (tx) => {
 			await lockMediaAssetGenerationBindings([input.assetId], tx);
@@ -37,6 +41,8 @@ export async function claimMediaStorageCleanupTransaction(
 				include: { uploadSessions: { orderBy: { createdAt: "asc" } } },
 			});
 			if (!asset) return "DELETE";
+			if (input.releasesReservation && isSourceTemplateMaterialObjectKey(asset.objectKey))
+				return { outcome: "DEFER", retainedObjectKey: asset.objectKey };
 			const touchesFinal = input.objectKeys.includes(asset.objectKey);
 			if (!touchesFinal) {
 				if (input.releasesReservation && (await imageCleanupPaused(asset, tx)))

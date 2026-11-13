@@ -60,6 +60,21 @@ const catalog = {
 	],
 };
 describe("real model variants and editable draft memory", () => {
+	it("keeps a closed variant's price visible without making it selectable", () => {
+		const draft = changeVideoDraft(initialVideoDraft, { productKey: "video-veo-3-1" }, catalog);
+		const closedCatalog = {
+			...catalog,
+			models: catalog.models.map((model) => ({
+				...model,
+				options: model.options.map((option) => ({ ...option, available: false })),
+			})),
+		};
+		const controls = videoVariantControls(draft, closedCatalog)!;
+		expect(controls.alternatives.find((variant) => variant.id === "quality")).toMatchObject({
+			credits: "124",
+			available: false,
+		});
+	});
 	it("defaults a new Veo selection to explicit Lite / 8 seconds and reads its exact catalog price before a prompt", () => {
 		const draft = changeVideoDraft(initialVideoDraft, { productKey: "video-veo-3-1" }, catalog);
 		expect(draft).toMatchObject({ duration: 8, resolution: "720p", veoTier: "lite", prompt: "" });

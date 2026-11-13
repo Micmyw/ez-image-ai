@@ -1,5 +1,15 @@
 {
 	"imagePass": {
+		"paidTemplate": {
+			"title": "Dein Sheru-Bhai-Foto erstellen",
+			"description": "Diese Vorlage erfordert ein kostenpflichtiges Bildpaket oder ein berechtigtes Abonnement mit ausreichend Credits.",
+			"images": "{count} erfolgreich erstellte Bilder",
+			"oneTime": "Einmaliger Kauf in USD. Kein Abonnement erforderlich.",
+			"storageUnavailable": "Dein Entwurf konnte nicht gespeichert werden. Aktiviere den Browserspeicher und versuche es erneut. Foto und Prompt bleiben hier.",
+			"buy": "Bildpaket für ${amount} kaufen",
+			"plans": "Abonnements ansehen",
+			"keepEditing": "Weiter bearbeiten"
+		},
 		"bannerLabel": "Einmaliges Bildpaket",
 		"dismissBanner": "Bildpaket-Angebot schließen",
 		"bannerTitle": "{units} Bilder für ${amount}",

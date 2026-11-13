@@ -943,7 +943,8 @@
 					"green-booth-freestyle": "Green Booth Freestyle",
 					"restore-photo": "Restauración de fotos",
 					"birthday-card": "Tarjeta de cumpleaños",
-					"kung-fu-cat": "Gato kung fu"
+					"kung-fu-cat": "Gato kung fu",
+					"sheru-bhai": "Sheru Bhai"
 				}
 			}
 		}
@@ -2465,7 +2466,8 @@
 			"modelUnavailable": "El modelo o los ajustes de salida de este preajuste no están disponibles en este momento. Aún puedes copiar el prompt. Elige otro modelo expresamente en el editor para continuar.",
 			"reselectReference": "Tu prompt se ha restaurado. Vuelve a seleccionar tu foto; los archivos locales no se guardan al salir de esta página.",
 			"returnToEffect": "Volver a esta idea fotográfica"
-		}
+		},
+		"illustrationNotice": "Vista de estilo creada con IA por separado del editor. Los resultados pueden variar."
 	},
 	"guides": {
 		"title": "Ideas fotográficas con IA, prompts y guías de edición",
@@ -2671,6 +2673,16 @@
 		"retryAvailability": "Volver a comprobar"
 	},
 	"imagePass": {
+		"paidTemplate": {
+			"title": "Crea tu foto de Sheru Bhai",
+			"description": "Esta plantilla requiere un paquete de imágenes de pago o una suscripción válida con suficientes créditos.",
+			"images": "{count} imágenes generadas correctamente",
+			"oneTime": "Compra única en USD. No requiere suscripción.",
+			"storageUnavailable": "No pudimos guardar tu borrador. Activa el almacenamiento del navegador e inténtalo de nuevo. Tu foto y tu prompt siguen aquí.",
+			"buy": "Obtener el paquete de ${amount}",
+			"plans": "Ver planes de suscripción",
+			"keepEditing": "Seguir editando"
+		},
 		"bannerLabel": "Paquete de imágenes de pago único",
 		"dismissBanner": "Cerrar oferta del paquete de imágenes",
 		"bannerTitle": "{units} imágenes por ${amount}",

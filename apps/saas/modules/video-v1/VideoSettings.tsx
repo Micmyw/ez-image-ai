@@ -374,7 +374,7 @@ export function VideoSettings({
 							className="video-tool video-variant"
 							aria-label={variant.label}
 							aria-pressed={variant.pressed}
-							disabled={disabled || (!preview && variant.credits === null)}
+							disabled={disabled || (!preview && !variant.available)}
 							onClick={() => onChange(variant.patch)}
 						>
 							{variant.label}

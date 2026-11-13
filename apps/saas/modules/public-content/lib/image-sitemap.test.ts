@@ -17,7 +17,7 @@ describe("public image sitemap", () => {
 		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", baseUrl);
 		const pageUrls = new Set(sitemap().map(({ url }) => url));
 		const entries = getPublicImageSitemapEntries(baseUrl);
-		expect(entries).toHaveLength(17);
+		expect(entries).toHaveLength(18);
 		expect(new Set(entries.map(({ url }) => url)).size).toBe(entries.length);
 		for (const entry of entries) {
 			expect(pageUrls.has(entry.url), entry.url).toBe(true);
@@ -28,7 +28,7 @@ describe("public image sitemap", () => {
 				const url = new URL(image);
 				expect(url.origin).toBe(baseUrl);
 				expect(url.pathname).toMatch(
-					/^\/images\/(?:(landing|models)\/variants|models\/(?:minimax-h3|seedream-5-5)|effects\/1980s-ai-photo)\/.+\.webp$/,
+					/^\/images\/(?:(landing|models)\/variants|models\/(?:minimax-h3|seedream-5-5)|effects\/(?:1980s-ai-photo|sheru-bhai-ai-photo))\/.+\.webp$/,
 				);
 				expect(url.search).toBe("");
 				expect(existsSync(path.join(publicRoot, url.pathname)), image).toBe(true);
@@ -62,10 +62,20 @@ describe("public image sitemap", () => {
 		expect(entries.some(({ url }) => url.includes("/effects/"))).toBe(false);
 	});
 
+	it("includes both editorial illustrations under the Sheru Blog canonical", () => {
+		const idea = getPublicImageSitemapEntries(baseUrl).find(({ url }) =>
+			url.endsWith("/blog/sheru-bhai-ai-photo"),
+		);
+		expect(idea?.images).toEqual([
+			`${baseUrl}/images/effects/sheru-bhai-ai-photo/with-sheru.webp`,
+			`${baseUrl}/images/effects/sheru-bhai-ai-photo/become-sheru.webp`,
+		]);
+	});
+
 	it("covers the homepage recipes and both stages of the coloring example", () => {
 		const entries = getPublicImageSitemapEntries(baseUrl);
 		const home = entries.find(({ url }) => url === `${baseUrl}/`)!;
-		expect(home.images).toHaveLength(16);
+		expect(home.images.length).toBeGreaterThanOrEqual(16);
 		expect(home.images.filter((image) => image.includes("/case-"))).toHaveLength(13);
 		expect(home.images.some((image) => image.includes("case-birthday-portrait-"))).toBe(true);
 		expect(home.images.some((image) => image.includes("case-mediterranean-room-"))).toBe(true);

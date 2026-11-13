@@ -1,5 +1,15 @@
 {
 	"imagePass": {
+		"paidTemplate": {
+			"title": "Crea tu foto de Sheru Bhai",
+			"description": "Esta plantilla requiere un paquete de imágenes de pago o una suscripción válida con suficientes créditos.",
+			"images": "{count} imágenes generadas correctamente",
+			"oneTime": "Compra única en USD. No requiere suscripción.",
+			"storageUnavailable": "No pudimos guardar tu borrador. Activa el almacenamiento del navegador e inténtalo de nuevo. Tu foto y tu prompt siguen aquí.",
+			"buy": "Obtener el paquete de ${amount}",
+			"plans": "Ver planes de suscripción",
+			"keepEditing": "Seguir editando"
+		},
 		"bannerLabel": "Paquete de imágenes de pago único",
 		"dismissBanner": "Cerrar oferta del paquete de imágenes",
 		"bannerTitle": "{units} imágenes por ${amount}",

@@ -13,6 +13,9 @@ vi.mock("next/navigation", () => ({
 vi.mock("../modules/public-content/components/PhotoIdeaArticle", () => ({
 	PhotoIdeaArticle: () => null,
 }));
+vi.mock("../modules/public-content/components/IllustratedPhotoIdeaArticle", () => ({
+	IllustratedPhotoIdeaArticle: () => null,
+}));
 
 import * as recipes from "../modules/effects/lib/content";
 import { blogStructuredData } from "../modules/public-content/lib/blog-presentation";
@@ -27,6 +30,31 @@ afterEach(() => {
 });
 
 describe("canonical Blog Photo Idea", () => {
+	it("publishes the paid Sheru idea with honest illustrations and an indexable canonical", async () => {
+		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://ezimageai.test");
+		const params = Promise.resolve({ path: ["sheru-bhai-ai-photo"] });
+		const metadata = await generateMetadata({ params });
+		expect(metadata.robots).toEqual({ index: true, follow: true });
+		expect(metadata.alternates?.canonical).toBe("https://ezimageai.test/blog/sheru-bhai-ai-photo");
+		expect(generateStaticParams()).toContainEqual({ path: ["sheru-bhai-ai-photo"] });
+		const page = await BlogArticlePage({ params });
+		expect(page.props.recipe.generationAccess).toBe("paid");
+		expect(page.props.recipe.presentation).toBe("illustrations");
+		expect(page.props.recipe.examples).toHaveLength(0);
+		expect(page.props.recipe.lastTestedAt).toBeUndefined();
+		expect(page.props.recipe.illustrations).toHaveLength(2);
+		expect(JSON.stringify(page.props.recipe)).not.toMatch(/provenance|verifiedAt|docs\/product/);
+		for (const preset of page.props.recipe.presets) {
+			expect(preset.productKey).toBe("image-nano-banana-2");
+			expect(preset.parameters.skuKey).toBe("nano-banana-2-1k");
+			expect(preset).not.toHaveProperty("tests");
+		}
+		const privateMetadata = await generateMetadata({
+			params,
+			searchParams: Promise.resolve({ job: "owned-job" }),
+		});
+		expect(privateMetadata.robots).toEqual({ index: false, follow: false });
+	});
 	it("owns article metadata and one canonical, independent of preset selection", async () => {
 		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://ezimageai.test");
 		const metadata = await generateMetadata({

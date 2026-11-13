@@ -305,6 +305,8 @@
 		"quote": "Consultar precio en créditos",
 		"quoting": "Preparando tu vídeo…",
 		"generate": "Crear por {credits} créditos",
+		"loadingPrice": "Cargando precio…",
+		"priceUnavailable": "Precio no disponible",
 		"submitting": "Enviando…",
 		"quoteExpired": "Este precio ha caducado. Solicita uno nuevo.",
 		"quoteChanged": "Los ajustes han cambiado. Solicita un precio nuevo.",

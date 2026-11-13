@@ -29,6 +29,7 @@ Preserve the existing server-only recipe/evidence reader and editor adapter. Its
 - Stable recipe and preset IDs survive the public URL migration.
 - Displayed, copied and applied prompts come from the same preset version.
 - Each published preset keeps matching real output evidence, authorized source assets, a tested product/parameter combination and truthful limitations.
+- An explicitly selected `presentation: illustrations` recipe instead carries authorized, version-matched `editorial-generation` artwork and a visible style-preview label. It must not contain product examples, generation test records or `lastTestedAt`. This user-authorized mode was introduced for Sheru on 2026-11-13; it does not relax the verified product-example path.
 - Internal evidence references and unpublished copy remain server-side. Public serialization strips private evidence and rights records.
 - Both the Blog article and its attached recipe must be publishable before the Photo Idea is discoverable.
 - Preview remains administrator-only and noindex; it does not satisfy public content acceptance.
@@ -38,6 +39,7 @@ The editor remains responsible for uploads, current model availability, quotes, 
 ## Adding a Photo Idea
 
 1. Create or reuse a shared recipe with stable IDs, tested prompts, supported settings and reviewed source/output assets. Retain rights and exact generation evidence.
+   For an explicitly commissioned illustration-led recipe, retain the artwork prompt/provenance and reviewed asset identity instead; do not claim the production model was tested. The same public SKU/settings validation still applies.
 2. Add a factual Blog record in `apps/saas/content/posts`, with the Photo Ideas category/type and an optional recipe attachment. Write useful context, differences between the looks, practical instructions and observed limitations.
 3. Register the route identity used for safe draft/checkout returns. It contains only public IDs/slugs, never prompt text, assets, provider routes or credentials.
 4. Keep the article and recipe private until their validation checks pass. Do not bypass the evidence gate to populate a directory.

@@ -1,3 +1,5 @@
+import type { HOMEPAGE_QUICK_START_IDEAS } from "@repo/config/homepage-ideas";
+
 export const QUICK_START_PROMPTS = {
 	"restore-photo": "restorePhoto",
 	"birthday-card": "birthdayCard",
@@ -11,4 +13,4 @@ export function quickStartPromptKey(value: string | null) {
 		: null;
 }
 
-export type QuickStartIdea = "christmas" | "restore-photo" | "birthday-card" | "kung-fu-cat";
+export type QuickStartIdea = (typeof HOMEPAGE_QUICK_START_IDEAS)[number];

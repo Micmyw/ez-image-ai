@@ -305,6 +305,8 @@
 		"quote": "Credit-Angebot abrufen",
 		"quoting": "Dein Video wird vorbereitet…",
 		"generate": "Für {credits} Credits erstellen",
+		"loadingPrice": "Preis wird geladen…",
+		"priceUnavailable": "Preis nicht verfügbar",
 		"submitting": "Wird gesendet…",
 		"quoteExpired": "Dieses Angebot ist abgelaufen. Fordere ein neues Angebot an.",
 		"quoteChanged": "Die Einstellungen wurden geändert. Fordere ein neues Angebot an.",

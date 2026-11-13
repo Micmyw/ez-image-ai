@@ -126,6 +126,13 @@ export default async function BlogArticlePage({
 	if (post.recipeId) {
 		const recipe = getPublishedEffectById(post.recipeId);
 		if (!recipe) notFound();
+		if (recipe.presentation === "illustrations") {
+			const { IllustratedPhotoIdeaArticle } =
+				await import("../../../../modules/public-content/components/IllustratedPhotoIdeaArticle");
+			return (
+				<IllustratedPhotoIdeaArticle post={post} recipe={recipe} searchParams={searchParams} />
+			);
+		}
 		const { PhotoIdeaArticle } =
 			await import("../../../../modules/public-content/components/PhotoIdeaArticle");
 		return <PhotoIdeaArticle post={post} recipe={recipe} searchParams={searchParams} />;

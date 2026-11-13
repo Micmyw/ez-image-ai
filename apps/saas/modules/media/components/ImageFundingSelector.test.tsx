@@ -37,8 +37,6 @@ describe("explicit image funding choice", () => {
 	it.each([
 		{ available: 0, reserved: 0 },
 		{ available: undefined, reserved: undefined },
-		{ available: 0, reserved: 0, failed: true },
-		{ available: undefined, reserved: undefined, failed: true },
 	])("hides the selector without known passes while credits are selected: %o", (balance) => {
 		const onChange = vi.fn();
 		expect(
@@ -119,7 +117,7 @@ describe("explicit image funding choice", () => {
 		expect(input(markup, "IMAGE_PASS")).toContain('disabled=""');
 		expect(onChange).not.toHaveBeenCalled();
 	});
-	it("keeps a failed pass choice visible with a retry and manual credits exit", () => {
+	it("keeps a failed pass choice usable with a retry and manual credits exit", () => {
 		const onChange = vi.fn();
 		const markup = renderToStaticMarkup(
 			<ImageFundingSelector value="IMAGE_PASS" failed onChange={onChange} onRefresh={vi.fn()} />,
@@ -127,9 +125,16 @@ describe("explicit image funding choice", () => {
 		expect(markup).toContain("balanceError");
 		expect(markup).toContain("retryBalance");
 		expect(input(markup, "IMAGE_PASS")).toContain('checked=""');
-		expect(input(markup, "IMAGE_PASS")).toContain('disabled=""');
+		expect(input(markup, "IMAGE_PASS")).not.toContain('disabled=""');
 		expect(input(markup, "CREDITS")).not.toContain('disabled=""');
 		expect(onChange).not.toHaveBeenCalled();
+	});
+	it("keeps the pass choice and refresh visible when its first balance read fails", () => {
+		const markup = renderToStaticMarkup(
+			<ImageFundingSelector value="CREDITS" failed onChange={vi.fn()} onRefresh={vi.fn()} />,
+		);
+		expect(markup).toContain("retryBalance");
+		expect(input(markup, "IMAGE_PASS")).not.toContain('disabled=""');
 	});
 	it("disables the funding controls while generation is pending", () => {
 		const markup = renderToStaticMarkup(

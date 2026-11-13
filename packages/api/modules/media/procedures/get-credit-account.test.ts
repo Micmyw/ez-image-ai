@@ -6,10 +6,14 @@ const database = vi.hoisted(() => ({
 	aggregateLots: vi.fn(),
 	findSubscription: vi.fn(),
 	countActiveJobs: vi.fn(),
+	adminTestSkuKeys: vi.fn(),
 }));
 const freeCredits = vi.hoisted(() => ({ ensure: vi.fn() }));
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
+vi.mock("@repo/database/media-image-admin-test-access", () => ({
+	loadImageAdminTestSkuKeys: database.adminTestSkuKeys,
+}));
 vi.mock("@repo/database/client", () => ({
 	db: {
 		creditAccount: { findUnique: database.findAccount },
@@ -50,6 +54,7 @@ describe("getCreditAccount", () => {
 			plan: { metadata: { planId: "creator" }, name: "ignored" },
 		});
 		database.countActiveJobs.mockResolvedValue(2);
+		database.adminTestSkuKeys.mockResolvedValue(["gpt-image-2-6-sunburst-1k"]);
 		freeCredits.ensure.mockResolvedValue({ status: "GRANTED" });
 	});
 
@@ -57,6 +62,7 @@ describe("getCreditAccount", () => {
 		await expect(
 			call(getCreditAccount, undefined, { context: { headers: new Headers() } }),
 		).resolves.toEqual({
+			adminTestSkuKeys: [],
 			spendableCredits: "6",
 			reservedCredits: "4",
 			creditDebt: "0",
@@ -65,5 +71,19 @@ describe("getCreditAccount", () => {
 			maximumInputBytes: 20 * 1024 * 1024,
 		});
 		expect(freeCredits.ensure).toHaveBeenCalledWith("user-1");
+		expect(database.adminTestSkuKeys).not.toHaveBeenCalled();
+	});
+	it("returns only the current administrator's server-owned image test selections", async () => {
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			user: { id: "admin-1", role: "admin" },
+			session: { id: "admin-session" },
+		} as never);
+		await expect(
+			call(getCreditAccount, undefined, { context: { headers: new Headers() } }),
+		).resolves.toMatchObject({
+			adminTestSkuKeys: ["gpt-image-2-6-sunburst-1k"],
+			spendableCredits: "6",
+		});
+		expect(database.adminTestSkuKeys).toHaveBeenCalledWith("admin-1", expect.anything());
 	});
 });

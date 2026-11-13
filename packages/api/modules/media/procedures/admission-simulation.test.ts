@@ -74,10 +74,11 @@ vi.mock("../lib/free-plan-credits", () => ({
 	ensureFreePlanCreditsForUser: () => harness.active.operation("freeGrant"),
 	ensureFreePlanCreditsForGeneration: () => harness.active.operation("freeGrant"),
 }));
-vi.mock("../lib/plan-entitlement", () => {
+vi.mock("../lib/plan-entitlement", async () => {
+	const { getPlanEntitlement } = await import("@repo/config");
 	const loadUserPlanEntitlement = async () => {
 		await harness.active.operation("entitlement");
-		return { id: "free", maximumConcurrentJobs: 1 };
+		return { ...getPlanEntitlement("free"), maximumConcurrentJobs: 1 };
 	};
 	return {
 		loadUserPlanEntitlement,

@@ -1,6 +1,24 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-11-13",
+		title: "Use your image pack in the editor",
+		changes: [
+			"An eligible image pack is selected when your account needs it to use the chosen model, including GPT Image 2.6 SVG and GIF. Your explicit payment choice stays selected.",
+			"If the pack balance cannot load, you can still select Image pass and submit. Generation checks your current available passes, and a successful GIF uses one pass.",
+			"Photo templates check subscribers' current credits when they generate, so an old balance does not send them back to purchase again.",
+		],
+	},
+	{
+		date: "2026-11-13",
+		title: "Make your Sheru Bhai portrait",
+		changes: [
+			"Find both Sheru looks in the homepage recommendations and open the template to prepare your photo.",
+			"Upload your photo to appear beside the white-lion boss or become a lion-headed character. Both looks include editable prompts and AI-created style previews.",
+			"Prepare your photo first. Generate offers an image pack or subscription when needed; this template requires paid access. The $2.99 pack includes three successful images without a subscription.",
+		],
+	},
+	{
+		date: "2026-11-13",
 		title: "Extra credits after a technical interruption",
 		changes: [
 			"Eligible accounts offered compensation can get 10% extra credits in the first month of their first subscription. The offer lasts seven days and applies automatically after confirmed payment, at the regular subscription price. Annual plans receive the bonus in month one only.",

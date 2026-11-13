@@ -55,10 +55,13 @@ export function getPublicImageSitemapEntries(baseUrl: string) {
 				? [
 						{
 							path: `/blog/${post.slug}`,
-							images: idea.recipe.examples.flatMap((example) => [
-								example.input.src,
-								example.output.src,
-							]),
+							images: [
+								...idea.recipe.examples.flatMap((example) => [
+									example.input.src,
+									example.output.src,
+								]),
+								...(idea.recipe.illustrations ?? []).map((illustration) => illustration.image.src),
+							],
 						},
 					]
 				: [];

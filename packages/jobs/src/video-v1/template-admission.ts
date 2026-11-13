@@ -90,6 +90,18 @@ export function readVideoEffectTestReadiness(
 	return reasons;
 }
 
+/** Read-only retail display, independent of generation readiness; never authorizes a job. */
+export function resolveVideoEffectDisplayPrice(
+	request: VideoEffectRequest,
+	environment: Record<string, string | undefined>,
+	pricingContext: VideoRetailPricingContext = {},
+) {
+	const price = resolveVideoEffectPrice(request, environment, pricingContext);
+	assertApprovedVideoEffectRetailPrice(request, environment, price, pricingContext);
+	const pricing = readVideoEffectPricingDisplay(price.pricingDetails);
+	return { credits: price.credits.toString(), ...(pricing ? { pricing } : {}) };
+}
+
 export function requireVideoTemplateAdmission(
 	context: VideoOwnerContext,
 	environment: Record<string, string | undefined>,

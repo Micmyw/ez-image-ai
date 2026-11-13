@@ -112,6 +112,7 @@ function toPageContent(effect: Effect, publishedIds: ReadonlySet<string>): Effec
 		cover,
 		presets,
 		examples,
+		illustrations,
 		retirement: _retirement,
 		...content
 	} = effect;
@@ -126,6 +127,16 @@ function toPageContent(effect: Effect, publishedIds: ReadonlySet<string>): Effec
 			input: publicAsset(input),
 			output: publicAsset(output),
 		})),
+		...(illustrations
+			? {
+					illustrations: illustrations.map(
+						({ provenance: _provenance, image, ...illustration }) => ({
+							...illustration,
+							image: publicAsset(image),
+						}),
+					),
+				}
+			: {}),
 	};
 }
 

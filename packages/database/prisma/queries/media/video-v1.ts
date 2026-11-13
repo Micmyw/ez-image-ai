@@ -82,10 +82,7 @@ function parseVideoRequest(value: unknown, receipt = false): VideoRequest {
 }
 function videoInputAssetIds(request: VideoRequest) {
 	return isSourceTemplateRequest(request)
-		? [
-				...request.sourceTemplate.request.inputs.map((input) => input.assetId),
-				...request.sourceTemplate.references.map((reference) => reference.assetId),
-			]
+		? request.sourceTemplate.request.inputs.map((input) => input.assetId)
 		: request.mode === "image-to-video"
 			? [request.inputAssetId!]
 			: [];

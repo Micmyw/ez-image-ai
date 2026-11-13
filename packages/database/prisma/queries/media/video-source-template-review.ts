@@ -103,7 +103,7 @@ export function assertSourceTemplateInputIdentities(job: InputJob, now = new Dat
 	return identities;
 }
 
-/** Existing durable approval and rights evidence, never an environment/UI ALLOW flag. */
+/** Publication-time validation of built-in materials. Runtime consumes the published snapshot. */
 export async function findApprovedSourceTemplateReferences(
 	template: unknown,
 	tx: Prisma.TransactionClient,
@@ -259,12 +259,8 @@ export async function lockSourceTemplateReviewContext(tx: Prisma.TransactionClie
 	const job = await getSourceTemplateReviewContext(jobId, tx);
 	if (!job?.videoExecution) throw new Error("VIDEO_JOB_NOT_FOUND");
 	const identities = readSourceTemplateRoleIdentities(job.inputSnapshot);
-	const source = readSourceTemplateInternalRequest(job.inputSnapshot).sourceTemplate;
 	await lockMediaAssetGenerationBindings(
-		[
-			...identities.map((identity) => identity.assetId),
-			...source.references.map((reference) => reference.assetId),
-		],
+		identities.map((identity) => identity.assetId),
 		tx,
 	);
 	// Read again after asset binding locks, since a concurrent deletion may have finished while waiting.
@@ -274,11 +270,6 @@ export async function lockSourceTemplateReviewContext(tx: Prisma.TransactionClie
 	if (!clock || !Number.isFinite(clock.now.getTime()))
 		throw new Error("DATABASE_CLOCK_UNAVAILABLE");
 	assertSourceTemplateInputIdentities(fresh, clock.now);
-	await findApprovedSourceTemplateReferences(
-		object(fresh.inputSnapshot).sourceTemplate,
-		tx,
-		clock.now,
-	);
 	return { job: fresh, now: clock.now, identities };
 }
 

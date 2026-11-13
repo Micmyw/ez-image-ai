@@ -209,12 +209,20 @@ describe("LandingPage hero hierarchy", () => {
 		expect(markup.match(/id="examples"/g)).toHaveLength(1);
 	});
 	it.each(["en", "de", "es", "fr"] as const)(
-		"renders four actionable quick starts in %s",
+		"renders the Sheru feature and four actionable quick starts in %s",
 		async (locale) => {
 			navigation.locale = locale;
 			const markup = await renderLandingPage();
 			const copy = marketingMessages[locale].home.quickStart;
 			expect(markup).toContain(renderToStaticMarkup(<>{copy.title}</>));
+			expect(markup).toContain(renderToStaticMarkup(<>{copy.sheru.description}</>));
+			expect(markup).toContain(renderToStaticMarkup(<>{copy.sheru.action}</>));
+			expect(markup).toContain(
+				`href="/blog/sheru-bhai-ai-photo${locale === "en" ? "" : `?lang=${locale}`}"`,
+			);
+			expect(markup.indexOf('class="quick-start-feature"')).toBeLessThan(
+				markup.indexOf('class="quick-start-grid"'),
+			);
 			for (const item of Object.values(copy.items)) {
 				expect(markup).toContain(renderToStaticMarkup(<>{item.title}</>));
 				expect(markup).toContain(renderToStaticMarkup(<>{item.action}</>));

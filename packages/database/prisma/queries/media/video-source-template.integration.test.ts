@@ -800,7 +800,7 @@ describe("source templates atomic admission in isolated PostgreSQL", () => {
 		expect(await getCreditInvariantReport(f.account.id, client)).toMatchObject({ valid: true });
 	});
 	it.each(["replaced-object", "expired-material"] as const)(
-		"rechecks the private scene before dispatch: %s cannot create an attempt",
+		"keeps the published private scene snapshot across mutable asset metadata: %s",
 		async (mutation) => {
 			const f = await preparedSpinJob();
 			const reference = f.request.sourceTemplate.references[0]!;
@@ -823,10 +823,9 @@ describe("source templates atomic admission in isolated PostgreSQL", () => {
 					data: { deleteAfter: new Date(Date.now() - 60_000) },
 				});
 			}
-			await expect(claimFixtureSubmission(f.jobId, f)).rejects.toThrow(
-				"VIDEO_SOURCE_TEMPLATE_REFERENCE_IDENTITY_CHANGED",
-			);
-			expect(await client.generationAttempt.count({ where: { jobId: f.jobId } })).toBe(0);
+			expect(await claimFixtureSubmission(f.jobId, f)).toMatchObject({ claimed: true });
+			expect(await claimFixtureSubmission(f.jobId, f)).toMatchObject({ claimed: false });
+			expect(await client.generationAttempt.count({ where: { jobId: f.jobId } })).toBe(1);
 			expect(
 				await client.creditReservation.findUniqueOrThrow({ where: { jobId: f.jobId } }),
 			).toMatchObject({ status: "ACTIVE", amount: 7n });

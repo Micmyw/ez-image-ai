@@ -1,5 +1,14 @@
 # Homepage photo quick starts
 
+The November 13 Sheru follow-up adds a featured horizontal recommendation above the four
+existing cards. Its two labeled editorial illustrations show the co-star and transformation
+looks. The complete card opens `/blog/sheru-bhai-ai-photo` through a normal link, including
+keyboard/new-tab navigation. It does not apply the paid recipe to the general homepage
+editor. Purchase choices remain on Generate inside the template. The existing popup and
+four cards are retained. English, German, Spanish and French recommendation copy is provided.
+The bounded `sheru-bhai` idea uses the existing `quick-start` click/report contract; viewing
+the card does not count as a click. No conversion or revenue is inferred from entry clicks.
+
 The homepage presents four outcome-led cards immediately below the composer: Christmas
 wallpaper, old-photo restoration, birthday card and Kung Fu Cat video. This replaces the
 large Christmas-only promotion. The existing image gallery and deeper video recommendations

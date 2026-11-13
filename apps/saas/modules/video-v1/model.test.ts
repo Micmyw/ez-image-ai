@@ -261,7 +261,10 @@ describe("video form and observable state", () => {
 			videoModel.videoSelectionCredits?.(initialVideoDraft, { ...catalog, accessAllowed: false }),
 		).toBeNull();
 		catalog.models[0]!.options[0]!.available = false;
-		expect(videoModel.videoSelectionCredits?.(initialVideoDraft, catalog)).toBeNull();
+		expect(videoModel.videoSelectionCredits(initialVideoDraft, catalog)).toBe(
+			"98765432101234567890",
+		);
+		expect(videoModel.videoSelectionAvailable(initialVideoDraft, catalog)).toBe(false);
 	});
 	it("summarizes continuous durations as a range and discrete durations without invented values", () => {
 		expect(videoModel.summarizeVideoDurations?.([5, 10, 5])).toEqual({

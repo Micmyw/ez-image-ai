@@ -160,6 +160,26 @@ describe("video orphan resource isolation", () => {
 		await db.$disconnect();
 	});
 	it.each(["candidate scan", "transaction claim"] as const)(
+		"retains an unbound permanent built-in material in the %s",
+		async (entry) => {
+			const material = await asset();
+			await db.mediaAsset.update({
+				where: { id: material.id },
+				data: {
+					objectKey: `users/${ownerId}/source-templates/${randomUUID()}`,
+					status: "READY",
+					deleteAfter: null,
+				},
+			});
+			if (entry === "candidate scan") expect(await isCleanupCandidate(material.id)).toBe(false);
+			else expect(await claimVideoResourceCleanup(material.id, now, db)).toBeNull();
+			expect(await db.mediaAsset.findUniqueOrThrow({ where: { id: material.id } })).toMatchObject({
+				status: "READY",
+				deletedAt: null,
+			});
+		},
+	);
+	it.each(["candidate scan", "transaction claim"] as const)(
 		"preserves old delivered output until explicit retention expires in the %s",
 		async (entry) => {
 			const { output } = await deliveredOutput(new Date(now.getTime() + 7 * 86_400_000));

@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { recordEffectPromptCopied } from "../lib/analytics";
 import { useEffectEditor } from "./EffectEditorProvider";
 import { EffectExample } from "./EffectExample";
+import { EffectIllustration } from "./EffectIllustration";
 
 export function EffectControls() {
 	const editor = useEffectEditor();
@@ -139,7 +140,14 @@ export function EffectExampleStage({ mobile = false }: { mobile?: boolean }) {
 			item.presetId === editor.selectedPreset.id &&
 			item.presetVersion === editor.selectedPreset.version,
 	);
-	const sample = example ? (
+	const illustration = editor.effect.illustrations?.find(
+		(item) =>
+			item.presetId === editor.selectedPreset.id &&
+			item.presetVersion === editor.selectedPreset.version,
+	);
+	const sample = illustration ? (
+		<EffectIllustration key={illustration.id} illustration={illustration} />
+	) : example ? (
 		<EffectExample key={example.id} example={example} compact={mobile} />
 	) : (
 		<div className="effect-example-pending">

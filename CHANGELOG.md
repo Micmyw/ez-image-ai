@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased — Image-pack generation access
+
+- Select an owned, eligible image pass when the selected image model requires access the account does not have. This also applies to the SVG and GIF generators; retain explicit funding choices.
+- Keep image-pass selection and generation available when a balance lookup fails. The server checks the selected pack during submission and reservation.
+- Let eligible subscribers submit paid photo templates when a cached credit balance appears low; use the server's current balance check instead of opening another purchase dialog prematurely.
+
+## Unreleased — Homepage model recommendations
+
+- Feature Seedream 5.5, MiniMax H3 Image and GPT Image 2.6 in the first homepage model row. Keep GPT Image 2, Nano Banana Pro and Seedream 5 Lite in the second row.
+- Use credited model examples, including a new GPT Image 2.6 Sunburst botanical poster, with responsive thumbnails and links to each model's existing page.
+
+## Unreleased — Sheru Bhai photo idea
+
+- Feature both Sheru looks in a homepage recommendation that opens the paid template and records the existing consent-aware idea click.
+- Add an indexable Sheru Bhai Photo Idea with two editable portrait prompts: appear beside a white-lion character or become a lion-headed character in your own outfit.
+- Let visitors prepare a photo first. Generate offers the existing $2.99 image pack or paid subscriptions when access is needed, while eligible customers use the normal editor and recovery flow.
+- Keep this template on Nano Banana 2 1K with existing server-side premium access checks. Free sign-in credits alone do not unlock it.
+- Show separately generated, clearly labeled style illustrations without representing them as product outputs or creating product test timestamps.
+
 ## 2026-11-13 — Seedream 5.5
 
 - Add Seedream 5.5 text-to-image and reference-image editing at 1K / 1.5K / 2K for 8 / 12 / 20 credits, with PNG/JPEG and native transparent backgrounds.

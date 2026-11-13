@@ -305,6 +305,8 @@
 		"quote": "Obtenir le prix en crédits",
 		"quoting": "Préparation de votre vidéo…",
 		"generate": "Créer pour {credits} crédits",
+		"loadingPrice": "Chargement du prix…",
+		"priceUnavailable": "Prix indisponible",
 		"submitting": "Envoi…",
 		"quoteExpired": "Ce devis a expiré. Demandez-en un nouveau.",
 		"quoteChanged": "Les réglages ont changé. Demandez un nouveau devis.",
