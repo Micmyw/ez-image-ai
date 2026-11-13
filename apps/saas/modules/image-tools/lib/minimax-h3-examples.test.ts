@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 
-import { MINIMAX_H3_EXAMPLES } from "./minimax-h3-examples";
+import { MINIMAX_H3_EXAMPLES, MINIMAX_H3_FEATURED_EXAMPLE } from "./minimax-h3-examples";
 import { IMAGE_TOOL_PAGES } from "./tool-pages";
 
 const evidence = JSON.parse(
@@ -22,7 +22,7 @@ const evidence = JSON.parse(
 	}>;
 };
 
-describe("MiniMax H3 supplied examples", () => {
+describe("MiniMax H3 showcase", () => {
 	it("keeps the supplied prompts verbatim and uses only supported single-reference edits", () => {
 		expect(MINIMAX_H3_EXAMPLES).toHaveLength(4);
 		for (const [index, example] of MINIMAX_H3_EXAMPLES.entries()) {
@@ -42,6 +42,54 @@ describe("MiniMax H3 supplied examples", () => {
 			const image = await sharp(bytes).metadata();
 			expect(image.format).toBe("webp");
 			expect([image.width, image.height]).toEqual([file.output.width, file.output.height]);
+		}
+	});
+	it("displays the four successful 1K product generations with matching receipts", async () => {
+		const live = JSON.parse(
+			readFileSync(
+				new URL(
+					"../../../../../docs/operations/evidence/minimax-h3-live-generation-2026-11-13.json",
+					import.meta.url,
+				),
+				"utf8",
+			),
+		);
+		expect(live.totalCreditsCharged).toBe(25);
+		expect(live.featured).toMatchObject({
+			...MINIMAX_H3_FEATURED_EXAMPLE,
+			kind: "text-to-image",
+			referenceImages: 0,
+			submissionCount: 1,
+			providerAttempts: 1,
+			creditsCharged: 5,
+			moderation: "APPROVED",
+		});
+		const featuredBytes = readFileSync(
+			new URL(`../../../public${MINIMAX_H3_FEATURED_EXAMPLE.image.src}`, import.meta.url),
+		);
+		expect(createHash("sha256").update(featuredBytes).digest("hex")).toBe(
+			MINIMAX_H3_FEATURED_EXAMPLE.image.sha256,
+		);
+		expect(live.examples).toHaveLength(4);
+		for (const [index, example] of MINIMAX_H3_EXAMPLES.entries()) {
+			const receipt = live.examples[index];
+			expect(receipt).toMatchObject({
+				prompt: example.prompt,
+				resolution: "1K",
+				creditsCharged: 5,
+				creditsReturned: 0,
+				providerAttempts: 1,
+				moderation: "APPROVED",
+				display: example.image,
+			});
+			expect(example.resolution).toBe("1K");
+			const bytes = readFileSync(new URL(`../../../public${example.image.src}`, import.meta.url));
+			expect(createHash("sha256").update(bytes).digest("hex")).toBe(example.image.sha256);
+			const metadata = await sharp(bytes).metadata();
+			expect([metadata.width, metadata.height]).toEqual([
+				example.image.width,
+				example.image.height,
+			]);
 		}
 	});
 });

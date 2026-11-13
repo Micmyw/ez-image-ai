@@ -321,7 +321,8 @@ describe("consolidated public route contract", () => {
 				expect(markup.indexOf('id="tool-prompts-title"')).toBeLessThan(
 					markup.indexOf('id="tool-steps-title"'),
 				);
-				expect(markup).toContain("Examples and prompts from");
+				expect(markup).toContain("Made with MiniMax H3 on EzImageAI.");
+				expect(markup).toContain("cloud-sanctuary-ezpic-1k.webp");
 				expect(markup).toContain('href="https://kie.ai/minimax-h3-image"');
 				expect(markup).toContain("1K: 5 credits · 2K: 10 credits · 4K: 20 credits");
 				expect(markup).not.toContain("use new or remaining $2.99 pack passes");
@@ -547,6 +548,8 @@ describe("consolidated public route contract", () => {
 
 	it("shares a yearly-default pricing switch with three plans and four credit packs", async () => {
 		const markup = await renderToStaticMarkup(await PricingPage({}));
+		expect(markup).toContain('data-test="pricing-image-pass"');
+		expect(markup).toContain('href="/image-pass"');
 		const landingMarkup = await renderToStaticMarkup(await LandingPage());
 
 		for (const messageKey of [

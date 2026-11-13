@@ -7,9 +7,11 @@ import type { ImageToolExampleImage } from "../lib/tool-pages";
 export function MiniMaxImageComparison({
 	before,
 	after,
+	resolution,
 }: {
 	before: ImageToolExampleImage;
 	after: ImageToolExampleImage;
+	resolution: string;
 }) {
 	const [position, setPosition] = useState(48);
 	const id = useId();
@@ -35,7 +37,7 @@ export function MiniMaxImageComparison({
 			</div>
 			<div className="minimax-comparison-labels" aria-hidden="true">
 				<span>Original</span>
-				<span>After · 4K</span>
+				<span>After · {resolution}</span>
 			</div>
 			<div
 				className="minimax-comparison-divider"

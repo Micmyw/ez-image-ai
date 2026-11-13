@@ -6,7 +6,7 @@ import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
 import { useGenerationMode } from "../lib/generation-mode-context";
-import type { PublicImageSpecMatrix } from "../lib/image-sku-selection";
+import type { PublicImageSpecCell, PublicImageSpecMatrix } from "../lib/image-sku-selection";
 import { ImageModelIcon } from "./ImageModelIcon";
 
 const modelGroups = [
@@ -38,6 +38,7 @@ interface ImageModelOption {
 	description: string;
 	skuMatrix: PublicImageSpecMatrix;
 	requiresUpgrade?: boolean;
+	requiresUpgradeSkuKeys?: readonly string[];
 }
 
 export function ImageModelSelector({
@@ -45,6 +46,7 @@ export function ImageModelSelector({
 	products,
 	value,
 	valueLabel,
+	skuKey,
 	fundingCostLabel,
 	onChange,
 	disabled = false,
@@ -53,8 +55,9 @@ export function ImageModelSelector({
 	products: readonly ImageModelOption[];
 	value: string | null;
 	valueLabel?: string;
+	skuKey?: string | null;
 	fundingCostLabel?: string;
-	onChange: (key: string) => void;
+	onChange: (key: string, skuKey?: string) => void;
 	disabled?: boolean;
 }) {
 	const t = useTranslations("media.create.modelMenu");
@@ -142,12 +145,20 @@ export function ImageModelSelector({
 					>
 						{products
 							.filter((product) => activeGroup && product.key.startsWith(activeGroup.prefix))
-							.map((product) => {
-								const chosen = product.key === value;
-								const credits = Math.min(...product.skuMatrix.cells.map((cell) => cell.credits));
-								const variedPrice = product.skuMatrix.cells.some(
-									(cell) => cell.credits !== credits,
-								);
+							.flatMap(
+								(product): Array<{ product: ImageModelOption; cell?: PublicImageSpecCell }> =>
+									product.key === "image-minimax-h3"
+										? product.skuMatrix.cells.map((cell) => ({ product, cell }))
+										: [{ product }],
+							)
+							.map(({ product, cell }) => {
+								const chosen =
+									product.key === value &&
+									(!cell || cell.skuKey === (skuKey ?? product.skuMatrix.defaultSkuKey));
+								const credits =
+									cell?.credits ?? Math.min(...product.skuMatrix.cells.map((cell) => cell.credits));
+								const variedPrice =
+									!cell && product.skuMatrix.cells.some((cell) => cell.credits !== credits);
 								const maxResolution = product.skuMatrix.dimensions
 									.find((dimension) => dimension.key === "resolution")
 									?.options.filter((option) =>
@@ -158,12 +169,12 @@ export function ImageModelSelector({
 									.at(-1)?.label;
 								return (
 									<button
-										key={product.key}
+										key={cell?.skuKey ?? product.key}
 										type="button"
-										data-test={`${idPrefix}-model-${product.key}`}
+										data-test={`${idPrefix}-model-${cell?.skuKey ?? product.key}`}
 										aria-pressed={chosen}
 										onClick={() => {
-											onChange(product.key);
+											onChange(product.key, cell?.skuKey);
 											setOpen(false);
 										}}
 										className={`gap-3 p-3 focus-visible:outline-violet-300 flex w-full items-start rounded-xl text-left transition focus-visible:outline-2 ${chosen ? "bg-[#4b3a64]" : "hover:bg-white/5"}`}
@@ -176,10 +187,14 @@ export function ImageModelSelector({
 												{product.label}
 												{maxResolution && (
 													<span className="rounded bg-white/10 px-1.5 py-0.5 font-medium text-[0.6rem] text-[#c9b9df]">
-														{t("upToResolution", { resolution: maxResolution })}
+														{cell
+															? cell.parameterValues.resolution?.toUpperCase()
+															: t("upToResolution", { resolution: maxResolution })}
 													</span>
 												)}
-												{product.requiresUpgrade && (
+												{(cell
+													? product.requiresUpgradeSkuKeys?.includes(cell.skuKey)
+													: product.requiresUpgrade) && (
 													<span className="rounded bg-amber-300/10 px-1.5 py-0.5 font-medium text-amber-200 text-[0.6rem]">
 														{t("paidPlan")}
 													</span>

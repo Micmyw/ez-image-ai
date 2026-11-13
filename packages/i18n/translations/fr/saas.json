@@ -1887,6 +1887,7 @@
 				"paidPlan": "Forfait payant",
 				"viewPlans": "Voir les forfaits",
 				"upToResolution": "Jusqu’à {resolution}",
+				"minimaxUpgradeNotice": "MiniMax H3 Image en 2K et 4K nécessite un abonnement payant actif.",
 				"upgradeNotice": "{model} nécessite Pro, Ultimate ou Max pour payer avec des crédits. Vous pouvez aussi choisir un pass éligible incluant l’accès au modèle."
 			},
 			"moderationBillingPolicy": "Sécurité du contenu : si le fournisseur refuse un contenu sensible après l’envoi, tous les crédits annoncés sont facturés, même au premier refus, sans utiliser l’exonération unique. Chaque compte ou équipe conserve une exonération pour les images retournées puis bloquées par notre vérification ; les blocages suivants sont facturés. Les instructions ou images arrêtées avant l’envoi et les erreurs techniques de vérification ne consomment pas de crédits.",

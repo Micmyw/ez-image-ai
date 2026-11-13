@@ -15,7 +15,9 @@
 - Add MiniMax H3 Image for text-to-image and reference-image editing at 1K / 2K / 4K for 5 / 10 / 20 credits.
 - Default registered workspaces to H3 1K. Free accounts retain their lifetime 10-credit allowance and existing Nano Banana 2 Lite 1K access; H3 2K / 4K use paid-plan access.
 - Read missing reference dimensions from the approved private image before dispatch, so existing uploads can be edited while retaining the 64 MP limit.
-- Add a dedicated model page with Kie's example images and prompts, a prominent gallery directly below the editor, and a draggable day/night photo comparison.
+- Add a dedicated model page with a prominent gallery directly below the editor and a draggable day/night photo comparison. Publish five verified H3 outputs from EzImageAI, led by a new cloud sanctuary artwork from one original-prompt generation; retain Kie prompt attribution for the four supplied examples.
+- Show the selected image's credit price beside View plans even when the account needs a subscription.
+- Show H3 1K, 2K and 4K as directly selectable model-menu entries with their credit prices. Open the shared Pricing page from editor upgrades, with subscriptions, credit packs, a $2.99 image-pack entry and a return-to-editor link.
 
 ## Unreleased — Private prompt context for moderation support
 

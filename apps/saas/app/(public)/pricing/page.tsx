@@ -1,8 +1,11 @@
-import { ChevronDownIcon } from "lucide-react";
+import { IMAGE_PASS_OFFER_SUMMARY } from "@repo/config/image-pass-summary";
+import { ArrowRightIcon, ChevronDownIcon, SparklesIcon } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
+import Link from "next/link";
 
 import { PRICING_FAQ_KEYS } from "../../../modules/landing/lib/faq";
 import { PublicPricingPlans } from "../../../modules/payments/components/PublicPricingPlans";
+import { sanitizeEditorReturnPath } from "../../../modules/payments/lib/editor-upgrade";
 import { PublicPageShell } from "../../../modules/public-content/components/PublicPageShell";
 import type { PublicMetadataProps } from "../../../modules/public-content/lib/indexing";
 import { createPublicPageMetadata } from "../../../modules/public-content/lib/metadata";
@@ -24,9 +27,41 @@ export default async function PricingPage({ searchParams }: PublicMetadataProps)
 	const t = await getTranslations();
 	const params = await searchParams;
 	const interval = params?.interval;
+	const returnTo =
+		typeof params?.returnTo === "string" ? sanitizeEditorReturnPath(params.returnTo) : null;
+	const offer = IMAGE_PASS_OFFER_SUMMARY;
 
 	return (
 		<PublicPageShell title={t("pricing.title")} description={t("pricing.description")}>
+			{returnTo && (
+				<div className="mb-6 text-center">
+					<Link className="text-sm text-violet-200 underline underline-offset-4" href={returnTo}>
+						{t("media.upgradeDialog.cancel")}
+					</Link>
+				</div>
+			)}
+			<section
+				aria-label={t("imagePass.bannerLabel")}
+				data-test="pricing-image-pass"
+				className="mb-6 gap-5 border-violet-300/20 from-violet-400/10 to-white/[0.03] p-6 sm:p-7 flex flex-wrap items-center justify-between rounded-3xl border bg-gradient-to-r"
+			>
+				<div className="gap-4 flex items-start">
+					<SparklesIcon className="mt-1 size-6 text-violet-200 shrink-0" aria-hidden />
+					<div>
+						<h2 className="text-xl font-semibold text-white">
+							{t("imagePass.bannerTitle", { units: offer.units, amount: offer.amount })}
+						</h2>
+						<p className="mt-2 text-sm leading-6 text-slate-300">{t("imagePass.bannerDetail")}</p>
+					</div>
+				</div>
+				<Link
+					href="/image-pass"
+					className="min-h-11 gap-2 bg-violet-500 px-5 text-sm font-semibold text-white hover:bg-violet-400 inline-flex items-center rounded-xl transition"
+				>
+					{t("imagePass.buy")}
+					<ArrowRightIcon className="size-4" aria-hidden />
+				</Link>
+			</section>
 			<PublicPricingPlans
 				locale={locale}
 				initialView={interval === "month" || interval === "year" ? interval : undefined}

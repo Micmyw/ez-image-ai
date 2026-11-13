@@ -13,6 +13,13 @@ runtime, storage, review and payment reserves, the Max annual full-use contribut
 rates are approximately 65.9% / 76.1% / 77.0%, before tax and fixed overhead.
 See [the calculation and implementation record](../operations/minimax-h3-image-2026-11-13.md).
 
+The image model menu exposes all three H3 tiers and their credit prices. Free-account
+upgrade buttons continue to display the selected price. Editor upgrades and the old
+`/choose-plan` entry lead to the shared `/pricing` page, which offers subscriptions,
+credit packs and the USD 2.99 image-pack entry. Drafts stay in browser storage and a
+sanitized return link leads back to the editor. The image pack retains its frozen
+coverage; displaying it does not add H3 coverage or subscription permissions.
+
 ## Decision snapshot
 
 Image pricing version `2026-09-13.2` uses one `EzImageAI Credit` balance and 29 legal image-edit SKU

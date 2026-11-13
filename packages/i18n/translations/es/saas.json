@@ -1887,6 +1887,7 @@
 				"paidPlan": "Plan de pago",
 				"viewPlans": "Ver planes",
 				"upToResolution": "Hasta {resolution}",
+				"minimaxUpgradeNotice": "MiniMax H3 Image en 2K y 4K requiere una suscripción de pago activa.",
 				"upgradeNotice": "{model} requiere Pro, Ultimate o Max al pagar con créditos. También puedes elegir un pase apto que incluya acceso al modelo."
 			},
 			"moderationBillingPolicy": "Seguridad de contenido: si el proveedor rechaza contenido sensible después del envío, se cobran todos los créditos indicados, incluso la primera vez, sin usar la exención única. Cada cuenta o equipo conserva una exención para las imágenes devueltas y bloqueadas por nuestra revisión; los bloqueos posteriores se cobran. Las instrucciones o imágenes detenidas antes del envío y los fallos técnicos de revisión no consumen créditos.",

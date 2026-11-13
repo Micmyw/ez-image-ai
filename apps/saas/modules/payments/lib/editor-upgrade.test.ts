@@ -131,7 +131,7 @@ describe("editor upgrade navigation", () => {
 			returnTo: "/create?upgrade=complete",
 		});
 
-		expect(choosePlanPath).toBe("/choose-plan?returnTo=%2Fcreate%3Fupgrade%3Dcomplete");
+		expect(choosePlanPath).toBe("/pricing?returnTo=%2Fcreate%3Fupgrade%3Dcomplete");
 		expect(checkoutReturnUrl).toBe(
 			"https://app.example.com/checkout-return?expectedPlanId=creator&returnTo=%2Fcreate%3Fupgrade%3Dcomplete",
 		);

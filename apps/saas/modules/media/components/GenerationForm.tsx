@@ -530,9 +530,11 @@ export function GenerationForm({
 		form.setValue("frameDurationMs", next.frameDurationMs);
 	}
 
-	function updateProduct(productKey: EditorProductKey) {
+	function updateProduct(productKey: EditorProductKey, skuKey?: string) {
 		const nextProduct = products.find((candidate) => candidate.key === productKey);
-		const defaultCell = getDefaultImageSpecCell(nextProduct?.skuMatrix);
+		const defaultCell =
+			(skuKey ? getImageSpecCell(nextProduct?.skuMatrix, skuKey) : undefined) ??
+			getDefaultImageSpecCell(nextProduct?.skuMatrix);
 		if (!defaultCell) return;
 		form.setValue("productKey", productKey, {
 			shouldDirty: true,
@@ -830,6 +832,13 @@ export function GenerationForm({
 										{
 											...candidate,
 											skuMatrix: candidate.skuMatrix,
+											requiresUpgradeSkuKeys: candidate.skuMatrix.cells
+												.filter(
+													(cell) =>
+														isEditorProductKey(candidate.key) &&
+														!modelAccessAllowed(candidate.key, cell.skuKey),
+												)
+												.map((cell) => cell.skuKey),
 											requiresUpgrade:
 												isEditorProductKey(candidate.key) &&
 												!modelAccessAllowed(
@@ -843,10 +852,11 @@ export function GenerationForm({
 								: [],
 						)}
 						value={values.productKey}
+						skuKey={values.skuKey}
 						valueLabel={t(`products.${values.productKey}.label`)}
-						onChange={(key) => {
+						onChange={(key, skuKey) => {
 							if (isEditorProductKey(key)) {
-								updateProduct(key);
+								updateProduct(key, skuKey);
 								if (!effectEditor) replaceImageModelInUrl(key);
 							}
 						}}
@@ -915,9 +925,12 @@ export function GenerationForm({
 						className="studio-submit"
 						data-test="editor-model-upgrade"
 						disabled={generation.createGeneration.isPending}
-						onClick={() => setUpgradeOpen(true)}
+						onClick={continueToUpgrade}
 					>
-						{t("modelMenu.viewPlans")}
+						<span>{t("modelMenu.viewPlans")}</span>
+						<span className="composer-submit-cost">
+							{composer("creditAmount", { credits: displayedCredits ?? "—" })}
+						</span>
 					</Button>
 				) : (
 					<Button
@@ -960,7 +973,9 @@ export function GenerationForm({
 					data-test="editor-model-access-notice"
 					className="mt-3 text-xs leading-5 text-violet-200 block"
 				>
-					{t("modelMenu.upgradeNotice", { model: product.label })}
+					{product.key === "image-minimax-h3"
+						? t("modelMenu.minimaxUpgradeNotice")
+						: t("modelMenu.upgradeNotice", { model: product.label })}
 				</output>
 			)}
 			<div className="image-edit-composer-meta composer-meta">

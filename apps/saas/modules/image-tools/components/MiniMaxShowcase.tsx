@@ -1,11 +1,12 @@
 import { InspirationPrompt } from "../../models/components/InspirationPrompt";
-import { MINIMAX_H3_EXAMPLES } from "../lib/minimax-h3-examples";
+import { MINIMAX_H3_EXAMPLES, MINIMAX_H3_FEATURED_EXAMPLE } from "../lib/minimax-h3-examples";
 import { MiniMaxImageComparison } from "./MiniMaxImageComparison";
 
 const categories = ["Texture & detail", "Typography & design", "Illustration & ideas"];
 
 export function MiniMaxShowcase() {
 	const edit = MINIMAX_H3_EXAMPLES[3];
+	const featured = MINIMAX_H3_FEATURED_EXAMPLE;
 	return (
 		<section className="minimax-showcase" aria-labelledby="tool-prompts-title">
 			<div className="minimax-section-heading">
@@ -14,13 +15,39 @@ export function MiniMaxShowcase() {
 					<h2 id="tool-prompts-title">From prompt to picture.</h2>
 				</div>
 				<p>
-					Examples and prompts from{" "}
+					Made with MiniMax H3 on EzImageAI.
+					<br /> More prompt inspiration from{" "}
 					<a href="https://kie.ai/minimax-h3-image" target="_blank" rel="noreferrer">
 						Kie
 					</a>
-					.<br /> Find a direction. Make it your own.
+					. Find a direction. Make it your own.
 				</p>
 			</div>
+			<article className="minimax-featured-work">
+				<div className="minimax-featured-image">
+					<img
+						src={featured.image.src}
+						alt={featured.image.alt}
+						width={featured.image.width}
+						height={featured.image.height}
+						loading="lazy"
+						decoding="async"
+					/>
+					<span>MiniMax H3 · {featured.resolution}</span>
+				</div>
+				<div className="minimax-featured-caption">
+					<div>
+						<p className="minimax-kicker">An original vision</p>
+						<h3>{featured.title}</h3>
+						<p>A glass sanctuary. An ocean of clouds. A moment beyond the ordinary.</p>
+					</div>
+					<InspirationPrompt prompt={featured.prompt} />
+				</div>
+				<details className="minimax-prompt">
+					<summary>View prompt</summary>
+					<p>{featured.prompt}</p>
+				</details>
+			</article>
 			<div className="ai-tool-prompts minimax-gallery">
 				{MINIMAX_H3_EXAMPLES.slice(0, 3).map((example, index) => (
 					<article key={example.title} className="minimax-work">
@@ -67,7 +94,11 @@ export function MiniMaxShowcase() {
 						</details>
 					</div>
 					<div className="minimax-edit-preview">
-						<MiniMaxImageComparison before={edit.referenceImage} after={edit.image} />
+						<MiniMaxImageComparison
+							before={edit.referenceImage}
+							after={edit.image}
+							resolution={edit.resolution}
+						/>
 						<p className="minimax-comparison-hint">
 							Slide to explore the edit <span aria-hidden="true">↔</span>
 						</p>

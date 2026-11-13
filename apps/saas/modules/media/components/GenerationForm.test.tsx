@@ -620,7 +620,10 @@ describe("GenerationForm product copy", () => {
 		);
 		expect(html).toContain("MiniMax H3 Image");
 		expect(html).toContain('data-model-icon="minimax"');
-		expect(html).toContain('data-test="editor-model-image-minimax-h3"');
+		expect(html).toContain('data-test="editor-model-minimax-h3-1k"');
+		expect(html).toContain('data-test="editor-model-minimax-h3-2k"');
+		expect(html).toContain('data-test="editor-model-minimax-h3-4k"');
+		expect(mocks.modelOptions.mock.lastCall?.[0].skuKey).toBe("minimax-h3-1k");
 		expect(mocks.modelOptions.mock.lastCall?.[0].value).toBe("image-minimax-h3");
 		expect(html).toContain("5 credits");
 	});
@@ -628,7 +631,7 @@ describe("GenerationForm product copy", () => {
 	it.each(["minimax-h3-2k", "minimax-h3-4k"] as const)(
 		"requires an upgrade for recovered free-account %s",
 		(skuKey) => {
-			renderToStaticMarkup(
+			const html = renderToStaticMarkup(
 				<GenerationForm
 					onCreated={vi.fn()}
 					initialDraft={{
@@ -643,6 +646,10 @@ describe("GenerationForm product copy", () => {
 				(product: { key: string }) => product.key === "image-minimax-h3",
 			);
 			expect(h3.requiresUpgrade).toBe(true);
+			expect(h3.requiresUpgradeSkuKeys).toEqual(["minimax-h3-2k", "minimax-h3-4k"]);
+			expect(html).toContain(
+				`<span>View plans</span><span class="composer-submit-cost">${skuKey === "minimax-h3-2k" ? 10 : 20} credits</span>`,
+			);
 		},
 	);
 

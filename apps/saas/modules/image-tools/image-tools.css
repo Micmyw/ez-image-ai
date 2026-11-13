@@ -408,6 +408,59 @@
 	margin-top: 0;
 }
 
+.minimax-featured-work {
+	margin-bottom: 3.5rem;
+}
+
+.minimax-featured-image {
+	position: relative;
+	overflow: hidden;
+	border-radius: 1rem;
+	background: #d9dcd2;
+}
+
+.minimax-featured-image img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+.minimax-featured-image > span {
+	position: absolute;
+	right: 1rem;
+	bottom: 1rem;
+	padding: 0.4rem 0.65rem;
+	border: 1px solid #ffffff38;
+	border-radius: 0.4rem;
+	background: #19131fba;
+	color: #fff;
+	font-size: 0.7rem;
+	backdrop-filter: blur(8px);
+}
+
+.minimax-featured-caption {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding-block: 1.4rem 0.8rem;
+}
+
+.minimax-featured-caption h3 {
+	margin: 0.45rem 0;
+	font-size: clamp(1.5rem, 3vw, 2.3rem);
+	font-weight: 500;
+	letter-spacing: -0.035em;
+}
+
+.minimax-featured-caption p:last-child,
+.minimax-featured-work .minimax-prompt p {
+	color: var(--minimax-muted);
+	font-size: 0.8rem;
+	line-height: 1.7;
+}
+
 .minimax-gallery article {
 	min-width: 0;
 	padding: 0;

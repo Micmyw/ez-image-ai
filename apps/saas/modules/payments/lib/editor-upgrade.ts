@@ -100,7 +100,7 @@ export function sanitizeEditorReturnPath(value: string | null | undefined): stri
 
 export function createChoosePlanPath(returnTo: string): string {
 	const query = new URLSearchParams({ returnTo: sanitizeEditorReturnPath(returnTo) });
-	return `/choose-plan?${query.toString()}`;
+	return `/pricing?${query.toString()}`;
 }
 
 export function checkoutReturnDestination(

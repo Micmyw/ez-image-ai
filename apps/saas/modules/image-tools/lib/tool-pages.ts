@@ -58,7 +58,7 @@ export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = 
 		path: "/minimax-h3-image",
 		title: "MiniMax H3 Image — AI Image Generator & Photo Editor",
 		description:
-			"Create detailed images and edit photos with MiniMax H3 Image. Try supplied example prompts, choose 1K, 2K or 4K, and download PNG or JPEG images.",
+			"Create detailed images and edit photos with MiniMax H3 Image. Explore real examples, try their prompts, choose 1K, 2K or 4K, and download PNG or JPEG images.",
 		heading: "MiniMax H3 Image",
 		modelName: "MiniMax H3 Image",
 		intro:

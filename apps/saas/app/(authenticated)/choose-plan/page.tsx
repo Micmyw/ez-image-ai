@@ -1,15 +1,12 @@
 import { getOrganizationList, getSession } from "@auth/lib/server";
-import { PricingTable } from "@payments/components/PricingTable";
 import {
 	activePlanChoosePlanDestination,
-	sanitizeEditorReturnPath,
+	createChoosePlanPath,
 } from "@payments/lib/editor-upgrade";
 import { listPurchases } from "@payments/lib/server";
 import { config as authConfig } from "@repo/auth/config";
 import { config as paymentsConfig } from "@repo/payments/config";
 import { createPurchasesHelper } from "@repo/payments/lib/helper";
-import { Footer } from "@shared/components/Footer";
-import { StudioShell } from "@shared/components/studio/StudioShell";
 import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 
@@ -29,7 +26,6 @@ export default async function ChoosePlanPage({
 }: {
 	searchParams: Promise<{ returnTo?: string }>;
 }) {
-	const t = await getTranslations("choosePlan");
 	const [session, { returnTo }] = await Promise.all([getSession(), searchParams]);
 
 	if (!session) {
@@ -49,36 +45,12 @@ export default async function ChoosePlanPage({
 
 	const purchases = await listPurchases(organizationId);
 
-	const { activePlan, activeSubscriptions, hasBlockingSubscription } =
-		createPurchasesHelper(purchases);
+	const { activePlan } = createPurchasesHelper(purchases);
 	const activePlanDestination = activePlanChoosePlanDestination(activePlan?.id, returnTo);
 
 	if (activePlanDestination) {
 		redirect(activePlanDestination);
 	}
 
-	return (
-		<StudioShell>
-			<main className="max-w-6xl py-8 lg:py-12 container">
-				<div className="mb-8 text-center">
-					<h1 className="font-bold text-2xl lg:text-3xl text-center">{t("title")}</h1>
-					<p className="text-sm lg:text-base text-muted-foreground">{t("description")}</p>
-				</div>
-
-				<PricingTable
-					subscriptionBlocked={hasBlockingSubscription}
-					subscriptionBlockers={activeSubscriptions}
-					returnTo={sanitizeEditorReturnPath(returnTo)}
-					{...(organizationId
-						? {
-								organizationId,
-							}
-						: {
-								userId: session.user.id,
-							})}
-				/>
-			</main>
-			<Footer />
-		</StudioShell>
-	);
+	redirect(createChoosePlanPath(returnTo ?? "/create?upgrade=complete"));
 }

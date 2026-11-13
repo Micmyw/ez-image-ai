@@ -1887,6 +1887,7 @@
 				"paidPlan": "Bezahlter Tarif",
 				"viewPlans": "Tarife ansehen",
 				"upToResolution": "Bis zu {resolution}",
+				"minimaxUpgradeNotice": "MiniMax H3 Image in 2K und 4K erfordert ein aktives kostenpflichtiges Abo.",
 				"upgradeNotice": "{model} erfordert bei Zahlung mit Credits Pro, Ultimate oder Max. Alternativ kannst du einen geeigneten Bildpass mit enthaltenem Modellzugang auswählen."
 			},
 			"moderationBillingPolicy": "Inhaltssicherheit: Lehnt der Generierungsanbieter nach der Übermittlung sensible Inhalte ab, werden alle angezeigten Credits berechnet, auch beim ersten Mal. Der einmalige Gebührenerlass wird dabei nicht genutzt. Für zurückgegebene Bilder, die unsere Sicherheitsprüfung sperrt, erhält jedes Konto oder Team einen einmaligen Gebührenerlass; spätere Sperrungen werden berechnet. Vor der Übermittlung gestoppte Anweisungen oder Uploads und technische Prüffehler kosten keine Credits.",

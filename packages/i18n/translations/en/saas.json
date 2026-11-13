@@ -1887,6 +1887,7 @@
 				"paidPlan": "Paid plan",
 				"viewPlans": "View plans",
 				"upToResolution": "Up to {resolution}",
+				"minimaxUpgradeNotice": "MiniMax H3 Image 2K and 4K require an active paid subscription.",
 				"upgradeNotice": "{model} requires Pro, Ultimate, or Max when paying with credits. You can also select an eligible image pass that includes model access."
 			},
 			"moderationBillingPolicy": "Content safety: sensitive-content rejections by the generation provider after submission use the full quoted credits, including the first rejection, without using the one-time output waiver. For images returned and then blocked by our safety check, your account or team gets one lifetime credit waiver; later blocked results use the quoted credits. Prompts or uploads stopped before submission and technical safety-check failures cost no credits.",

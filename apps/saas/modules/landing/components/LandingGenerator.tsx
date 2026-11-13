@@ -1206,17 +1206,20 @@ function LandingGeneratorWorkspace({
 								idPrefix="landing"
 								products={modelOptions}
 								value={selectedProductKey}
+								skuKey={selectedSkuKey}
 								valueLabel={selectedProductFallbackLabel}
 								disabled={isBusy || !capabilityUsable}
-								onChange={(key) => {
+								onChange={(key, skuKey) => {
 									const next = localizedProducts.find((product) => product.key === key);
 									if (!next) return;
 									setSelectedProductKey(next.key);
 									if (!effectEditor) replaceImageModelInUrl(next.key);
-									setSelectedSkuKey(resolveLandingSkuSelection(next, null));
+									setSelectedSkuKey(
+										resolveLandingSkuSelection(next, (skuKey as ImageSkuKey) ?? null),
+									);
 									if (effectEditor) {
 										const cell = next.skuMatrix.cells.find(
-											(candidate) => candidate.skuKey === next.skuMatrix.defaultSkuKey,
+											(candidate) => candidate.skuKey === (skuKey ?? next.skuMatrix.defaultSkuKey),
 										);
 										setAspectRatio(
 											resolveImageSpecControlValues(cell ?? null, controlValues).outputFormat ===
@@ -1464,14 +1467,17 @@ function LandingGeneratorWorkspace({
 										idPrefix="floating"
 										products={modelOptions}
 										value={selectedProductKey}
+										skuKey={selectedSkuKey}
 										valueLabel={selectedProductFallbackLabel}
 										disabled={isBusy || !capabilityUsable}
-										onChange={(key) => {
+										onChange={(key, skuKey) => {
 											const next = localizedProducts.find((product) => product.key === key);
 											if (!next) return;
 											setSelectedProductKey(next.key);
 											replaceImageModelInUrl(next.key);
-											setSelectedSkuKey(resolveLandingSkuSelection(next, null));
+											setSelectedSkuKey(
+												resolveLandingSkuSelection(next, (skuKey as ImageSkuKey) ?? null),
+											);
 											setSubmitError(undefined);
 										}}
 									/>

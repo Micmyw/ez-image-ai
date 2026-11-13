@@ -131,3 +131,14 @@ The metadata reader is independent of raster decoding and Cloudflare Images tran
 H3 retains its 20,000,000-byte contract. Focused checks cover PNG/JPEG/WebP, checksum mismatch,
 inputs above 10 MB, missing dimensions, expired review, pending review, storage failure and
 the 64 MP boundary.
+
+## Production generation and gallery evidence
+
+- All accumulated session changes were pushed to `main` in `dcc399f`, followed by test-expectation corrections `70f5991` and `4123be0`. Both website and jobs deployed `4123be0` with the three authorized controls enabled. The independent SeeAPI migration was applied; 80 migrations matched with no pending entries or checksum drift.
+- Reference inspection correction `a7ce6ac71872f9d403eb1f6f4e583622d3e581da` deployed successfully to both Workers. Jobs deployment `89e77183-9455-4fbf-8871-25c285473b10` runs version `2b36935b-cecd-40f3-ad9a-ca876c069c78` at 100%.
+- Five actual 1K outputs completed through the authenticated production editor, Kie generation, output review, private storage, and credit settlement. Each successful job had one accepted provider attempt and charged five credits. One earlier reference request failed locally before provider submission and returned its five credits.
+- Following the user's request for a single new-prompt test, the featured cloud sanctuary used exactly one text-to-image submission, no reference image, and five credits. The earlier reference test had already been submitted before that instruction arrived. No further generation was submitted.
+- Original downloads were checked against private output SHA-256 identities before WebP display conversion. The featured image is 1360 × 768; all gallery badges now accurately say 1K. Prompts from Kie remain verbatim for the original four examples; the featured prompt is original.
+- Public receipts: [live generation evidence](evidence/minimax-h3-live-generation-2026-11-13.json). All five are successful output evidence; this does not claim a 2K/4K generation test or invoice reconciliation.
+- Free-account UI showed 1K at five credits and gated 2K/4K at ten/twenty. The upgrade button now retains the selected credit amount. The H3 upgrade note describes its paid-subscription requirement directly.
+- A separate attempt through the failed-job Try again control returned `PROVIDER_UNAVAILABLE` before a new job was accepted; a fresh ordinary edit then succeeded. This receipt does not certify that failed-job retry path.
