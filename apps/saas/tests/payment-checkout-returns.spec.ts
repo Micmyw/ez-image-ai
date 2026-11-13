@@ -478,6 +478,14 @@ for (const viewport of [
 			paymentMock.pendingVisible = true;
 			paymentMock.provider = "waffo";
 			await page.goto("/choose-plan?returnTo=%2Fcreate");
+			await expect(page).toHaveURL(/\/pricing\?returnTo=/);
+			const planLink = page
+				.locator('[data-test="public-pricing-plan"][data-plan-id="creator"]')
+				.getByRole("link");
+			const planHref = await planLink.getAttribute("href");
+			expect(planHref).toBeTruthy();
+			// The public plan URL keeps the selected checkout open across reload/back.
+			await page.goto(planHref!);
 			const pending = page.getByTestId("pending-subscription-checkout");
 			await expect(pending).toBeVisible();
 			await wakeBrowser(page);

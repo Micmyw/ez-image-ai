@@ -111,38 +111,22 @@ for (const width of [1440, 390]) {
 		});
 		const upgrade = page.locator('[data-test="editor-model-upgrade"]');
 		await expect(upgrade).toBeEnabled();
+		await expect(upgrade).toContainText(/\d+ credits/);
 		await upgrade.click();
-		await expect(dialog).toBeVisible();
-		const dialogBox = await dialog.boundingBox();
-		expect(dialogBox).not.toBeNull();
-		expect(dialogBox!.width).toBeLessThanOrEqual(600);
-		expect(dialogBox!.x).toBeGreaterThanOrEqual(12);
-		expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(width - 12);
-		await expect(dialog).toContainText("Seedream 5 Pro");
-		await expect(dialog).not.toContainText("SKU");
+		await expect(page).toHaveURL(/\/pricing\?returnTo=/);
 		await expect(page.getByRole("dialog", { name: "Image models", exact: true })).toBeHidden();
-		const backdrop = page.locator('[data-test="editor-upgrade-backdrop"]');
-		await expect(backdrop).toBeVisible();
-		expect(
-			await backdrop.evaluate((element) => {
-				const color = getComputedStyle(element).backgroundColor;
-				return color.startsWith("rgba(") || color.includes("/");
-			}),
-		).toBe(true);
+		await expect(page.locator('[data-test="pricing-image-pass"]')).toContainText("$2.99");
+		await expect(page.locator('[data-test="public-pricing-plan"]')).toHaveCount(3);
+		await page.locator('[data-test="public-pricing-credit-packs-tab"]').click();
+		await expect(page.locator('[data-test="public-pricing-credit-packs"]')).toBeVisible();
+		await expect(page.locator('[data-test="public-credit-pack"]')).toHaveCount(4);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+			true,
+		);
 		await page.screenshot({
-			path: testInfo.outputPath("upgrade-dialog.png"),
+			path: testInfo.outputPath("shared-pricing.png"),
 			animations: "disabled",
 		});
-		await page.keyboard.press("Escape");
-		await expect(dialog).toBeHidden();
-		await expect(upgrade).toBeFocused();
-		await expect(prompt).toHaveValue("Keep this instruction while I compare image models.");
-		await upgrade.click();
-		await dialog.getByRole("button", { name: "Keep editing", exact: true }).click();
-		await expect(dialog).toBeHidden();
-		await upgrade.click();
-		await dialog.getByRole("button", { name: "Choose a plan", exact: true }).click();
-		await expect(page).toHaveURL(/\/choose-plan\?returnTo=/);
 		const saved = await page.evaluate(() =>
 			JSON.parse(sessionStorage.getItem("ezpic.editor-upgrade.v1") ?? "null"),
 		);
@@ -151,7 +135,7 @@ for (const width of [1440, 390]) {
 		expect(saved.draft.input.kind).toBe("text-to-image");
 		expect(saved.draft.input).not.toHaveProperty("sourceAssetId");
 		expect(saved.sourceReady).toBe(false);
-		await page.goBack();
+		await page.getByRole("link", { name: "Keep editing", exact: true }).click();
 		await expect(modelTrigger).toContainText("Seedream 5 Pro");
 		await expect(prompt).toHaveValue("Keep this instruction while I compare image models.");
 		await expect(dialog).toBeHidden();

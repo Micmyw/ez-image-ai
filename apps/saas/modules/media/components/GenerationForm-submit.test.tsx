@@ -203,6 +203,7 @@ import type { ImageSourcePanel } from "./editor/ImageSourcePanel";
 import { PromptPanel } from "./editor/PromptPanel";
 import { GenerationForm } from "./GenerationForm";
 import { ImageFundingSelector, type ImageFundingSource } from "./ImageFundingSelector";
+import { ImageModelSelector } from "./ImageModelSelector";
 import { ImageOutputSettings } from "./ImageOutputSettings";
 
 const accepted = { job: { id: "accepted-job" }, replayed: false };
@@ -289,6 +290,17 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it("preserves a supported aspect ratio when selecting a tier in the same model", () => {
+		state.values.aspectRatio = "1:1";
+		const element = render();
+		(find(element, ImageModelSelector).props.onChange as (key: string, sku: string) => void)(
+			"image-nano-banana-2-lite",
+			"nano-banana-2-lite-1k",
+		);
+		expect(state.values.aspectRatio).toBe("1:1");
+		expect(state.beginNewAction).toHaveBeenCalled();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
 	it("accepts a homepage idea without removing the uploaded photo or starting generation", () => {
 		vi.stubGlobal("window", new EventTarget());
 		state.values.sourceAssetId = "owned-photo";

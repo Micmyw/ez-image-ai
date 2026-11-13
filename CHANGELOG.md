@@ -18,6 +18,7 @@
 - Add a dedicated model page with a prominent gallery directly below the editor and a draggable day/night photo comparison. Publish five verified H3 outputs from EzImageAI, led by a new cloud sanctuary artwork from one original-prompt generation; retain Kie prompt attribution for the four supplied examples.
 - Show the selected image's credit price beside View plans even when the account needs a subscription.
 - Show H3 1K, 2K and 4K as directly selectable model-menu entries with their credit prices. Open the shared Pricing page from editor upgrades, with subscriptions, credit packs, a $2.99 image-pack entry and a return-to-editor link.
+- Preserve supported aspect ratios when switching tiers within the selected model.
 
 ## Unreleased — Private prompt context for moderation support
 

@@ -84,6 +84,11 @@ test.describe("subscription upgrade checkout recovery", () => {
 				await expect(page.getByText("Renewal canceled", { exact: true })).toHaveCount(0);
 				await expect(page.locator('[data-test="price-table-plan"]')).toHaveCount(0);
 				await page.goto("/choose-plan");
+				await expect(page).toHaveURL(/\/pricing\?returnTo=/);
+				await page
+					.locator('[data-test="public-pricing-plan"][data-plan-id="creator"]')
+					.getByRole("link")
+					.click();
 				await expect(
 					page.getByText(/new monthly or yearly subscriptions are blocked/i),
 				).toBeVisible();
@@ -127,14 +132,17 @@ test.describe("subscription upgrade checkout recovery", () => {
 		const user = await userByEmail(freeEmail);
 		const before = await checkoutFixtureCounts(user.id);
 		await page.goto("/choose-plan?returnTo=%2Fcreate");
-		const creator = page.locator('[data-test="price-table-plan"]').filter({
-			has: page.getByRole("heading", { name: "Pro", exact: true }),
-		});
-		await expect(creator).toHaveCount(1);
+		await expect(page).toHaveURL(/\/pricing\?returnTo=/);
+		await page
+			.locator('[data-test="public-pricing-plan"][data-plan-id="creator"]')
+			.getByRole("link")
+			.click();
+		const creator = page.locator('[data-test="upgrade-plan-picker"]');
+		await expect(creator.locator('input[value="creator"]')).toBeChecked();
 		await expect(
 			creator.getByRole("alert").filter({ hasText: /no payment method is currently available/i }),
 		).toBeVisible();
-		await expect(creator.getByRole("button", { name: /choose plan/i })).toBeDisabled();
+		await expect(creator.locator('[data-test="subscription-checkout"]')).toBeDisabled();
 		await expect.poll(() => checkoutFixtureCounts(user.id)).toEqual(before);
 		expect(growthEvents.map(({ name }) => name)).not.toContain("checkout_started");
 	});
@@ -172,10 +180,9 @@ test.describe("subscription upgrade checkout recovery", () => {
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("GPT Image 2");
 		await expect(promptInput).toHaveValue(prompt);
 		await page.locator('[data-test="editor-model-upgrade"]').click();
-		await expect(dialog).toContainText(/image, instruction, and model settings stay saved/i);
-		await dialog.getByRole("button", { name: /choose a plan/i }).click();
 
-		await expect(page).toHaveURL(/\/choose-plan\?returnTo=/);
+		await expect(page).toHaveURL(/\/pricing\?returnTo=/);
+		await expect(page.locator('[data-test="pricing-image-pass"]')).toContainText("$2.99");
 		await expect
 			.poll(() =>
 				page.evaluate((key) => window.sessionStorage.getItem(key), EDITOR_UPGRADE_STORAGE_KEY),

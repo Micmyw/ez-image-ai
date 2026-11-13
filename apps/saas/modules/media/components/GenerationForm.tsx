@@ -531,6 +531,10 @@ export function GenerationForm({
 	}
 
 	function updateProduct(productKey: EditorProductKey, skuKey?: string) {
+		if (skuKey && productKey === values.productKey) {
+			updateSku(skuKey);
+			return;
+		}
 		const nextProduct = products.find((candidate) => candidate.key === productKey);
 		const defaultCell =
 			(skuKey ? getImageSpecCell(nextProduct?.skuMatrix, skuKey) : undefined) ??
@@ -663,6 +667,7 @@ export function GenerationForm({
 
 	function continueToUpgrade() {
 		if (!saveDraftForPurchase()) return;
+		void saasGrowthFunnel.upgradePromptViewed(values.productKey);
 		captureCheckoutTrigger();
 		router.push(
 			createChoosePlanPath(effectEditor?.getReturnPath("upgrade") ?? "/create?upgrade=complete"),
