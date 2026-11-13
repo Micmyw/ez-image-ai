@@ -220,6 +220,7 @@ type PublicPageModule = {
 };
 
 type ImageToolPageModule =
+	| typeof import("./(public)/minimax-h3-image/page")
 	| typeof import("./(public)/gpt-image-2-6/page")
 	| typeof import("./(public)/ai-svg-generator/page")
 	| typeof import("./(public)/ai-gif-generator/page");
@@ -248,6 +249,7 @@ const publicRoutes = [
 	{ modulePath: "./(public)/examples/page", path: "/examples", robots: "index" },
 	{ modulePath: "./(public)/image-to-image/page", path: "/image-to-image", robots: "index" },
 	{ modulePath: "./(public)/gpt-image-2-6/page", path: "/gpt-image-2-6", robots: "index" },
+	{ modulePath: "./(public)/minimax-h3-image/page", path: "/minimax-h3-image", robots: "index" },
 	{ modulePath: "./(public)/ai-svg-generator/page", path: "/ai-svg-generator", robots: "index" },
 	{ modulePath: "./(public)/ai-gif-generator/page", path: "/ai-gif-generator", robots: "index" },
 	{
@@ -305,15 +307,27 @@ describe("consolidated public route contract", () => {
 			}
 			for (const related of Object.values(IMAGE_TOOL_PAGES))
 				expect(markup).toContain(`href="${related.path}"`);
-			expect(markup).toContain('href="/image-pass"');
-			const passFaq = faq.mainEntity.find(
-				(item: { name: string }) =>
-					item.name === "Does the $2.99 pack cover GPT Image 2.6, SVG and GIF?",
-			);
-			expect(passFaq?.acceptedAnswer.text).toContain("remaining uses from existing $2.99 packs");
-			expect(passFaq?.acceptedAnswer.text).toContain("PNG or JPEG at 1K, 2K or 4K, static SVG");
-			expect(passFaq?.acceptedAnswer.text).toContain("One successful result uses one pass");
-			expect(passFaq?.acceptedAnswer.text).toContain("a whole GIF regardless of its frame count");
+			if (content.showPassOffer !== false) {
+				expect(markup).toContain('href="/image-pass"');
+				const passFaq = faq.mainEntity.find(
+					(item: { name: string }) =>
+						item.name === "Does the $2.99 pack cover GPT Image 2.6, SVG and GIF?",
+				);
+				expect(passFaq?.acceptedAnswer.text).toContain("remaining uses from existing $2.99 packs");
+				expect(passFaq?.acceptedAnswer.text).toContain("PNG or JPEG at 1K, 2K or 4K, static SVG");
+				expect(passFaq?.acceptedAnswer.text).toContain("One successful result uses one pass");
+				expect(passFaq?.acceptedAnswer.text).toContain("a whole GIF regardless of its frame count");
+			} else {
+				expect(markup.indexOf('id="tool-prompts-title"')).toBeLessThan(
+					markup.indexOf('id="tool-steps-title"'),
+				);
+				expect(markup).toContain("Examples and prompts from");
+				expect(markup).toContain('href="https://kie.ai/minimax-h3-image"');
+				expect(markup).toContain("1K: 5 credits · 2K: 10 credits · 4K: 20 credits");
+				expect(markup).not.toContain("use new or remaining $2.99 pack passes");
+				expect(markup).not.toContain("not verified output examples");
+				expect(markup).toContain('href="/images/models/minimax-h3/cafe-night-reference.webp"');
+			}
 			expect(markup).not.toContain("these new tools do not expand an existing pass");
 			const privateMetadata = await resolveMetadata(pageModule, {
 				searchParams: Promise.resolve({ job: "private-job" }),

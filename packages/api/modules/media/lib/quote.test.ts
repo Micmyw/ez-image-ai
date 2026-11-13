@@ -22,6 +22,45 @@ const KIE_ROUTE_OPTIONS = {
 };
 
 describe("buildMediaQuote", () => {
+	it.each([
+		["minimax-h3-1k", 5n, 9_000n, 11_500n],
+		["minimax-h3-2k", 10n, 9_000n, 11_500n],
+		["minimax-h3-4k", 20n, 27_500n, 30_000n],
+	] as const)(
+		"freezes %s retail and the exact text/reference cost",
+		(skuKey, credits, textCost, editCost) => {
+			for (const kind of ["text-to-image", "image-to-image"] as const) {
+				const input =
+					kind === "text-to-image"
+						? { kind, prompt: "A ceramic vase", skuKey, aspectRatio: "1:1" as const }
+						: {
+								kind,
+								prompt: "A ceramic vase",
+								skuKey,
+								aspectRatio: "1:1" as const,
+								sourceAssetId: SOURCE_ASSET_ID,
+							};
+				const quote = buildMediaQuote({ productKey: "image-minimax-h3", input }, KIE_ROUTE_OPTIONS);
+				expect(quote).toMatchObject({
+					credits,
+					costMicros: kind === "text-to-image" ? textCost : editCost,
+				});
+				expect(quote.pricingSnapshot).toMatchObject({
+					skuKey,
+					credits: Number(credits),
+					routeGraph: {
+						allowedRoutes: [
+							{
+								provider: "kie",
+								providerModelId:
+									kind === "text-to-image" ? "minimax-h3/text-to-image" : "minimax-h3/image-edit",
+							},
+						],
+					},
+				});
+			}
+		},
+	);
 	it("freezes explicit image-pass funding without replacing the ordinary catalog price", () => {
 		const quote = buildMediaQuote(
 			{ ...NANO_QUOTE_INPUT, fundingSource: "IMAGE_PASS" },

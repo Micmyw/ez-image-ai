@@ -1,7 +1,12 @@
 import { EZPIC_PRODUCT_KEYS, resolvePlanEntitlement } from "@repo/config/client";
 import { describe, expect, it } from "vitest";
 
-import { hasEditorRecoveryRequest, resolveEditorAllowedProductKeys } from "./editor-recovery";
+import {
+	DEFAULT_EDITOR_PRODUCT_KEY,
+	hasEditorRecoveryRequest,
+	resolveEditorAllowedProductKeys,
+	resolveEditorAllowedImageSkuKeys,
+} from "./editor-recovery";
 import { buildEditAgainRecoveryCandidate, resolveEditorRecovery } from "./editor-recovery.server";
 
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
@@ -48,14 +53,21 @@ describe("resolveEditorRecovery", () => {
 		expect(hasEditorRecoveryRequest({}, null)).toBe(false);
 	});
 
-	it("requires paid plan access for every image model except Nano Banana 2 Lite 1K", () => {
+	it("defaults to H3 with only its 1K tier and Lite available to free accounts", () => {
+		expect(DEFAULT_EDITOR_PRODUCT_KEY).toBe("image-minimax-h3");
+		expect(resolveEditorAllowedImageSkuKeys(undefined, undefined)).toEqual([
+			"minimax-h3-1k",
+			"nano-banana-2-lite-1k",
+		]);
 		expect(resolveEditorAllowedProductKeys({ planId: "creator" }, "ignored")).toEqual([
 			...EZPIC_PRODUCT_KEYS,
 		]);
 		expect(resolveEditorAllowedProductKeys(undefined, undefined)).toEqual([
+			"image-minimax-h3",
 			"image-nano-banana-2-lite",
 		]);
 		expect(resolveEditorAllowedProductKeys({}, "unknown-plan")).toEqual([
+			"image-minimax-h3",
 			"image-nano-banana-2-lite",
 		]);
 		expect(resolvePlanEntitlement(undefined, undefined)).toMatchObject({

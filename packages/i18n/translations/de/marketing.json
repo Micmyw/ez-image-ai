@@ -158,7 +158,7 @@
 			},
 			"free": {
 				"question": "Kann ich die Bild-zu-Bild-KI kostenlos nutzen?",
-				"answer": "Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K, ohne monatliche Auffüllung. Andere Bildmodelle und HD erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit allen aktuell verfügbaren Bildmodellen und Größen, ohne Abo."
+				"answer": "Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit MiniMax H3 Image 1K, ohne monatliche Auffüllung. Premium-Bildmodelle und höhere Auflösungen erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit den enthaltenen Bildmodellen und Größen, ohne Abo."
 			},
 			"control": {
 				"question": "Bleibt jedes Detail meines Originalbilds erhalten?",
@@ -216,7 +216,7 @@
 			},
 			"guestVsFree": {
 				"question": "Worin unterscheiden sich Gastzugang und Free?",
-				"answer": "Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K, ohne monatliche Auffüllung. Andere Bildmodelle und HD erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit allen aktuell verfügbaren Bildmodellen und Größen, ohne Abo. Mit Kontocredits erzeugte Bilder haben kein Gastwasserzeichen und eine angestrebte Aufbewahrung von 30 Tagen. Lade Ergebnisse herunter, die du behalten möchtest."
+				"answer": "Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit MiniMax H3 Image 1K, ohne monatliche Auffüllung. Premium-Bildmodelle und höhere Auflösungen erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit den enthaltenen Bildmodellen und Größen, ohne Abo. Mit Kontocredits erzeugte Bilder haben kein Gastwasserzeichen und eine angestrebte Aufbewahrung von 30 Tagen. Lade Ergebnisse herunter, die du behalten möchtest."
 			},
 			"editTiers": {
 				"question": "Welche Bildmodelle und Ausgabeeinstellungen sind verfügbar?",
@@ -329,6 +329,7 @@
 			"oneOutput": "Ein Ergebnis",
 			"freeQueue": "2 kostenlose Bearbeitungen täglich · Wasserzeichen · bis zu 24 Stunden verfügbar",
 			"qualityAccess": "{model} erfordert eine Anmeldung und einen Pro-, Ultimate- oder Max-Tarif.",
+			"freeAccountAccess": "Melde dich an, um {model} mit deinen kostenlosen Credits auszuprobieren.",
 			"temporaryResult": "Deine Vorschau bleibt privat und vorübergehend.",
 			"temporarySessionDisclosure": "EzImageAI erstellt für diesen Test eine temporäre Sitzung, bewahrt Gastmedien bis zu 24 Stunden auf und nutzt pseudonyme Missbrauchssignale für den in unserer Datenschutzerklärung beschriebenen Zeitraum.",
 			"qualityCta": "Bildmodelle entdecken · Konto-Credits",
@@ -789,7 +790,7 @@
 		},
 		"pricing": {
 			"title": "Kostenlose KI-Bildbearbeitung und kostenpflichtige Tarife",
-			"description": "Berechtigte Konten erhalten einmalig 10 EzImageAI Credits für zwei Generierungen mit Nano Banana 2 Lite 1K zu je 5 Credits. Keine monatliche Auffüllung. Aktive kostenpflichtige Abos schalten andere Bildmodelle und HD-Optionen frei. Das Bildpaket für 2,99 USD bietet außerdem 3 erfolgreiche Bilder mit allen aktuell verfügbaren Bildmodellen und Größen, ohne Abo."
+			"description": "Berechtigte Konten erhalten einmalig 10 EzImageAI Credits für zwei Generierungen mit MiniMax H3 Image 1K zu je 5 Credits. Keine monatliche Auffüllung. Aktive kostenpflichtige Abos schalten andere Bildmodelle und HD-Optionen frei. Das Bildpaket für 2,99 USD bietet außerdem 3 erfolgreiche Bilder mit den enthaltenen Bildmodellen und Größen, ohne Abo."
 		},
 		"guides": {
 			"quickStart": "Erste Bearbeitung starten",
@@ -806,7 +807,7 @@
 				},
 				"guestVsFree": {
 					"question": "Kann ich EzImageAI als kostenlosen KI-Bildeditor nutzen?",
-					"answer": "Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K, ohne monatliche Auffüllung. Andere Bildmodelle und HD erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit allen aktuell verfügbaren Bildmodellen und Größen, ohne Abo. Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. Inhalts-, Rechts-, Modell- und Nutzungslimits gelten."
+					"answer": "Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit MiniMax H3 Image 1K, ohne monatliche Auffüllung. Premium-Bildmodelle und höhere Auflösungen erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit den enthaltenen Bildmodellen und Größen, ohne Abo. Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. Inhalts-, Rechts-, Modell- und Nutzungslimits gelten."
 				}
 			}
 		},

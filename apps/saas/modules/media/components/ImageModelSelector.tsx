@@ -11,6 +11,11 @@ import { ImageModelIcon } from "./ImageModelIcon";
 
 const modelGroups = [
 	{
+		key: "minimax",
+		label: "MiniMax",
+		prefix: "image-minimax",
+	},
+	{
 		key: "nano",
 		label: "Nano Banana",
 		prefix: "image-nano-banana",

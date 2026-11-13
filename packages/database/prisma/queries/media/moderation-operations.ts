@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { MODERATION_MAX_FAILURES } from "@repo/config";
 
 import type { Prisma } from "../../generated/client";
+import { getAssetPromptRecords, getBlockedPromptRecords } from "./prompt-records";
 import type { MediaDatabaseClient, MediaTransactionClient } from "./types";
 import { getMediaDatabaseClient } from "./types";
 
@@ -389,6 +390,12 @@ export async function getAdminModerationReviewDetail(
 		},
 	});
 	const snapshot = quote?.inputSnapshot;
+	const promptRecords =
+		review.targetType === "ASSET"
+			? await getAssetPromptRecords(review.targetId, client)
+			: review.targetType === "TEXT_ATTEMPT"
+				? await getBlockedPromptRecords(review.targetId, client)
+				: [];
 	const prompt =
 		snapshot &&
 		typeof snapshot === "object" &&
@@ -433,6 +440,7 @@ export async function getAdminModerationReviewDetail(
 					}
 				: null,
 		prompt,
+		promptRecords,
 		asset: asset && contentAvailability === "AVAILABLE" ? asset : null,
 	};
 }

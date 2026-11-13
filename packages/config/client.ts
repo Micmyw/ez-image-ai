@@ -1,6 +1,8 @@
 export {
 	FREE_ACCOUNT_SIGN_IN_CREDITS,
 	getPlanEntitlement,
+	getPlanAllowedImageSkuKeys,
+	planIncludesImageSelection,
 	getPlanUsageEstimate,
 	PLAN_ENTITLEMENTS,
 	resolvePlanEntitlement,

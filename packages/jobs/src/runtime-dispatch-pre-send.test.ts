@@ -1,4 +1,10 @@
-import { createRouteGraphSnapshot, type MediaProviderAdapter } from "@repo/ai";
+import {
+	createRouteGraphSnapshot,
+	KieProviderAdapter,
+	MEDIA_VERIFICATION_POLICY_VERSION,
+	MEDIA_VERIFICATION_RULE_VERSION,
+	type MediaProviderAdapter,
+} from "@repo/ai";
 import type { GenerationSubmissionPreparation, ImagePhaseOwner } from "@repo/database";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -248,6 +254,178 @@ function fixture() {
 		recordUncertainSubmission,
 	};
 }
+
+function minimaxReferenceFixture() {
+	const f = fixture();
+	const validUntil = new Date(now.getTime() + 60_000);
+	const asset = {
+		id: "asset_01J5ABCD1234EFGH5678JKLMNP",
+		width: 8000 as number | null,
+		height: 8000 as number | null,
+		status: "READY",
+		kind: "INPUT",
+		mimeType: "image/png",
+		objectKey: "users/temporary-references/v1/owner/asset_01J5ABCD1234EFGH5678JKLMNP",
+		checksum: "a".repeat(64),
+		deletedAt: null,
+		deleteAfter: validUntil,
+		verificationValidUntil: validUntil,
+		verificationProvider: "test",
+		verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+		verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+		verificationGeneration: 1,
+		verificationAttemptCount: 1,
+		verificationProviderTaskId: "verification-task",
+		moderationResults: [
+			{
+				status: "APPROVED",
+				verificationGeneration: 1,
+				attemptNumber: 1,
+				assetChecksum: "a".repeat(64),
+				evidenceKind: "INPUT",
+				provider: "test",
+				providerTaskId: "verification-task",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				validUntil,
+			},
+		],
+	};
+	const h3Route = {
+		...route,
+		providerModelId: "minimax-h3/image-edit",
+		providerCostMicros: 11_500,
+	};
+	Object.assign(f.job, {
+		productKey: "image-minimax-h3",
+		catalogVersion: "2026-11-13.1",
+		pricingVersion: "2026-11-13.1",
+		inputSnapshot: {
+			kind: "image-to-image",
+			prompt: "A calm lake",
+			skuKey: "minimax-h3-1k",
+			aspectRatio: "auto",
+			sourceAssetId: asset.id,
+		},
+		pricingSnapshot: {
+			routeGraph: createRouteGraphSnapshot({
+				productKey: "image-minimax-h3",
+				catalogVersion: "2026-11-13.1",
+				pricingVersion: "2026-11-13.1",
+				routes: [h3Route],
+			}),
+		},
+		quote: { costMicros: 11_500n, moderationDecision: "ALLOW" },
+	});
+	Object.assign(f.attempt, { providerModelId: h3Route.providerModelId });
+	Object.assign(f.tx, {
+		generationJobAsset: {
+			findFirst: vi.fn(async () => ({ assetChecksum: asset.checksum, asset })),
+		},
+	});
+	const createSignedReadUrl = vi.fn(async () => "https://private.test/input.png");
+	const store = createDatabaseDispatchStore(f.database as never, {
+		...f.options,
+		environment: {
+			...f.options.environment,
+			MEDIA_MINIMAX_H3_IMAGE_ENABLED: "true",
+			MEDIA_SAFETY_ADAPTER: "test",
+			MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
+		},
+		createSignedReadUrl,
+	});
+	const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+		Response.json({ code: 200, data: { taskId: "h3-task" } }),
+	);
+	const recordRejectedSubmission = vi.fn(async () => undefined);
+	return {
+		...f,
+		asset,
+		store,
+		fetch,
+		createSignedReadUrl,
+		recordRejectedSubmission,
+		dependencies: {
+			...f.dependencies,
+			store: {
+				...store,
+				recordSubmission: f.dependencies.store.recordSubmission,
+				recordUncertainSubmission: f.recordUncertainSubmission,
+				recordRejectedSubmission,
+			},
+			getProvider: () => new KieProviderAdapter({ apiKey: "test", fetch }),
+		},
+	};
+}
+
+describe("MiniMax reference dispatch inspection", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+		vi.setSystemTime(now);
+	});
+	afterEach(() => vi.useRealTimers());
+
+	it("resolves dimensions from the checksum-bound inspected asset", async () => {
+		const f = minimaxReferenceFixture();
+		const claim = await f.store.claimDispatch({ jobId: "job", version: 4 });
+		expect(claim).toMatchObject({
+			input: {
+				sourceAsset: {
+					assetId: f.asset.id,
+					transferUrl: "https://private.test/input.png",
+					width: 8000,
+					height: 8000,
+				},
+			},
+		});
+	});
+
+	it.each([8001, null])(
+		"records %s height as a definite rejection without provider work",
+		async (height) => {
+			const f = minimaxReferenceFixture();
+			f.asset.height = height;
+			await expect(
+				dispatchGeneration({ jobId: "job", version: 4 }, f.dependencies),
+			).resolves.toEqual({ outcome: "REJECTED" });
+			expect(f.recordRejectedSubmission).toHaveBeenCalledWith(
+				"attempt",
+				{
+					code: "UNSUPPORTED_INPUT",
+					message: expect.any(String),
+					retryable: false,
+				},
+				{ workflowId: "workflow", phaseKey: f.state.owner?.phaseKey, epoch: 1 },
+			);
+			expect(f.fetch).not.toHaveBeenCalled();
+			expect(f.recordUncertainSubmission).not.toHaveBeenCalled();
+		},
+	);
+
+	it("submits the inspected 64 MP boundary once", async () => {
+		const f = minimaxReferenceFixture();
+		await expect(
+			dispatchGeneration({ jobId: "job", version: 4 }, f.dependencies),
+		).resolves.toMatchObject({ outcome: "SUBMITTED" });
+		expect(f.fetch).toHaveBeenCalledOnce();
+		expect(f.recordRejectedSubmission).not.toHaveBeenCalled();
+		expect(f.recordUncertainSubmission).not.toHaveBeenCalled();
+	});
+
+	it("leaves a pending temporary inspection waiting before creating an attempt", async () => {
+		const f = minimaxReferenceFixture();
+		f.asset.status = "VERIFYING";
+		f.asset.width = null;
+		f.asset.height = null;
+		await expect(dispatchGeneration({ jobId: "job", version: 4 }, f.dependencies)).resolves.toEqual(
+			{ outcome: "SKIPPED" },
+		);
+		expect(f.tx.generationAttempt.create).not.toHaveBeenCalled();
+		expect(f.createSignedReadUrl).not.toHaveBeenCalled();
+		expect(f.fetch).not.toHaveBeenCalled();
+		expect(f.recordRejectedSubmission).not.toHaveBeenCalled();
+	});
+});
 
 describe("same-request committed dispatch preparation", () => {
 	beforeEach(() => {

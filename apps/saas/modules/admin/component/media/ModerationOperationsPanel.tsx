@@ -10,6 +10,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 
+import { ModerationPromptRecords } from "./ModerationPromptRecords";
 import { ModerationReviewEvidence } from "./ModerationReviewEvidence";
 
 type ReviewFilter = "PENDING_REVIEW" | "RECHECKING" | "BLOCKED" | "APPROVED" | "REJECTED";
@@ -338,6 +339,9 @@ export function ModerationOperationsPanel() {
 								<pre className="p-4 text-sm rounded-lg bg-muted break-words whitespace-pre-wrap">
 									{details.data.prompt}
 								</pre>
+							)}
+							{details.data.review.targetType !== "QUOTE" && (
+								<ModerationPromptRecords records={details.data.promptRecords} />
 							)}
 							{details.data.imageUrl && (
 								<img

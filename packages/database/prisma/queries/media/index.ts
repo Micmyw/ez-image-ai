@@ -45,6 +45,8 @@ export * from "./stripe-refund-repairs";
 export * from "./types";
 export * from "./webhooks";
 export * from "./moderation-operations";
+export * from "./prompt-records";
+export * from "./blocked-prompt";
 export * from "./video-v1-recovery";
 
 export * from "./video-template-admission";
@@ -52,3 +54,4 @@ export * from "./video-template-execution";
 export * from "./image-passes";
 
 export { PROVIDER_DISPATCH_RETRY_MS } from "./provider-dispatch-capacity";
+export * from "./subscription-compensation";

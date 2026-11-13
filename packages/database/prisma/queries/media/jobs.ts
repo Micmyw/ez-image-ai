@@ -1,5 +1,6 @@
 import {
 	isPermittedModerationEvidence,
+	isDelegatedImageInputEvidence,
 	MODERATION_BYPASS_REASON,
 	temporaryReferenceObjectKey,
 	temporaryReferenceSchema,
@@ -622,7 +623,9 @@ export async function createGenerationJobTransaction(
 					return (
 						asset.verificationValidUntil === null ||
 						asset.verificationValidUntil <= operationNow ||
-						!isPermittedModerationEvidence(evidence) ||
+						!evidence ||
+						(!isPermittedModerationEvidence(evidence) &&
+							!isDelegatedImageInputEvidence(evidence, asset)) ||
 						evidence.attemptNumber !== asset.verificationAttemptCount ||
 						evidence.assetChecksum !== asset.checksum ||
 						evidence.evidenceKind !== asset.kind ||

@@ -155,6 +155,8 @@ describe("SeeAPI image moderation", () => {
 	it.each([
 		["MEDIA_INVALID", "MODERATION_MEDIA_INVALID"],
 		["PROVIDER_TIMEOUT", "MODERATION_TIMEOUT"],
+		["RATE_LIMITED", "MODERATION_RATE_LIMITED"],
+		["DETECTION_REPORT_FAILED", "MODERATION_DETECTION_REPORT_FAILED"],
 		["UNSUPPORTED_PROVIDER_ERROR", "MODERATION_UNAVAILABLE"],
 	])(
 		"classifies an authenticated failed task with %s without exposing diagnostics",
@@ -164,7 +166,19 @@ describe("SeeAPI image moderation", () => {
 				error: { code, message: `Private diagnostic for ${input.assetUrl}` },
 			});
 			const result = await adapter.retrieveImage({ ...input, moderationTaskId: "task_test" });
-			expect(result).toEqual({ decision: "ERROR", reasonCode, ruleVersion: input.ruleVersion });
+			expect(result).toMatchObject({
+				decision: "ERROR",
+				reasonCode,
+				ruleVersion: input.ruleVersion,
+				evidence: {
+					requestId: "task_test",
+					seeapiFailure: {
+						taskId: "task_test",
+						status: "failed",
+						code: code === "UNSUPPORTED_PROVIDER_ERROR" ? "UNKNOWN" : code,
+					},
+				},
+			});
 			expect(fetcher).toHaveBeenCalledOnce();
 			expect(fetcher.mock.calls[0]![1]!.method).toBe("GET");
 			expect(JSON.stringify(result)).not.toMatch(

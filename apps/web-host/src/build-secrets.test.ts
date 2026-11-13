@@ -26,6 +26,55 @@ import { assessOptionalVideoEffectOptions } from "./optional-video-effect-readin
 const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironment>) =>
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
 
+describe("MiniMax and recovery release controls", () => {
+	const controls = [
+		"MEDIA_MINIMAX_H3_IMAGE",
+		"MEDIA_SEEAPI_INPUT_FAILURE_DELEGATION",
+		"MEDIA_TECHNICAL_FAILURE_SUBSCRIPTION_BONUS",
+	];
+	for (const prefix of controls) {
+		it.each(["true", "false"])(`${prefix} applies only its dedicated control: %s`, (enabled) => {
+			const source = `PRIVATE_VALUE='original # 中文'\n${prefix}_ENABLED=false\nMEDIA_IMAGE_MODEL_FLAGS='{"MEDIA_MINIMAX_H3_IMAGE_ENABLED":"false","MEDIA_NANO_BANANA_2_LITE_ENABLED":"true"}'`;
+			const input = {
+				...unpackValues(packCloudflareBuildEnvironment(source)),
+				[`${prefix}_BUILD_ENABLED`]: enabled,
+			};
+			const parsed = parseEnv(readCloudflareBuildEnvironment(input));
+			expect(parsed[`${prefix}_ENABLED`]).toBe(enabled);
+			expect(parsed.PRIVATE_VALUE).toBe("original # 中文");
+			expect(parseEzPicImageModelFlags(parsed.MEDIA_IMAGE_MODEL_FLAGS)).toEqual({
+				MEDIA_MINIMAX_H3_IMAGE_ENABLED: prefix === "MEDIA_MINIMAX_H3_IMAGE" ? enabled : "false",
+				MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
+			});
+			expect(
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: source,
+					[`${prefix}_ENABLED`]: "true",
+				}),
+			).toBe(source);
+			expect(
+				withoutCloudflareBuildSecrets({ ...input, [`${prefix}_ENABLED`]: enabled, KEEP: "yes" }),
+			).toEqual({ KEEP: "yes" });
+		});
+		it.each(["TRUE", "true\nINJECTED=true", ""])(`${prefix} rejects invalid overrides`, (value) => {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_VALUE=unchanged",
+					[`${prefix}_BUILD_ENABLED`]: value,
+				}),
+			).toThrow(/OVERRIDE_INVALID/);
+		});
+	}
+	it("rejects conflicting H3 flags before applying the override", () => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: `MEDIA_MINIMAX_H3_IMAGE_ENABLED=false\nMEDIA_IMAGE_MODEL_FLAGS='{"MEDIA_MINIMAX_H3_IMAGE_ENABLED":"true"}'`,
+				MEDIA_MINIMAX_H3_IMAGE_BUILD_ENABLED: "true",
+			}),
+		).toThrow("CLOUDFLARE_MINIMAX_H3_OVERRIDE_INVALID");
+	});
+});
+
 describe("GPT Image 2.6 build control", () => {
 	const flare = "MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED";
 	const sunburst = "MEDIA_GPT_IMAGE_2_6_SUNBURST_ENABLED";

@@ -17,6 +17,7 @@ const indexableRoutes = [
 	"/create",
 	"/examples",
 	"/gpt-image-2-6",
+	"/minimax-h3-image",
 	"/ai-svg-generator",
 	"/ai-gif-generator",
 ] as const;
@@ -41,6 +42,114 @@ const legacyRedirects: ReadonlyArray<{ from: string; to: string }> = [
 ];
 
 // The public project supplies a signed-out returning visitor state.
+
+test("MiniMax H3 page opens the right model and supplied prompts on desktop and mobile", async ({
+	page,
+}, testInfo) => {
+	test.setTimeout(150_000);
+	await mockPublicImageAvailability(page);
+	await page.route("**/api/rpc/media/getPublicCatalog**", (route) =>
+		route.fulfill({
+			json: {
+				json: {
+					catalogVersion: "2026-11-13.1",
+					pricingVersion: "2026-11-13.1",
+					products: [
+						{
+							key: "image-minimax-h3",
+							label: "MiniMax H3 Image",
+							description: "Create and edit images",
+							mediaKind: "image",
+							inputKinds: ["text-to-image", "image-to-image"],
+							credits: 5,
+							skuMatrix: {
+								defaultSkuKey: "minimax-h3-1k",
+								dimensions: [
+									{
+										key: "resolution",
+										label: "Resolution",
+										options: ["1k", "2k", "4k"].map((key) => ({ key, label: key.toUpperCase() })),
+									},
+								],
+								cells: ["1k", "2k", "4k"].map((key, index) => ({
+									skuKey: `minimax-h3-${key}`,
+									label: key.toUpperCase(),
+									parameterValues: { resolution: key },
+									credits: [5, 10, 20][index],
+									aspectRatios: ["auto", "1:1", "3:2"],
+									controls: [
+										{
+											key: "outputFormat",
+											label: "Format",
+											defaultValue: "png",
+											options: ["png", "jpeg"].map((format) => ({
+												key: format,
+												label: format.toUpperCase(),
+											})),
+										},
+									],
+								})),
+							},
+						},
+					],
+				},
+			},
+		}),
+	);
+	for (const width of [1440, 390]) {
+		await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+		await expectPublicPage(page, "/minimax-h3-image", "index");
+		await expect(
+			page.getByRole("heading", { level: 1, name: "MiniMax H3 Image", exact: true }),
+		).toBeVisible();
+		const editor = page.locator('[data-test="landing-generator"]');
+		await expect(editor).toBeVisible();
+		await expect(editor.locator('[data-test="generation-credit-amount"]')).toContainText("5");
+		await expect(page.locator(".ai-tool-settings-note").first()).toContainText(
+			"2K: 10 credits · 4K: 20 credits",
+		);
+		const examples = page.locator(".ai-tool-prompts article");
+		await expect(examples).toHaveCount(4);
+		expect(
+			await page
+				.locator("#tool-prompts-title")
+				.evaluate((heading) =>
+					Boolean(
+						heading.compareDocumentPosition(document.getElementById("tool-steps-title")!) &
+						Node.DOCUMENT_POSITION_FOLLOWING,
+					),
+				),
+		).toBe(true);
+		for (const exampleImage of await examples.locator("img").all()) {
+			await exampleImage.scrollIntoViewIfNeeded();
+			await expect
+				.poll(() => exampleImage.evaluate((image: HTMLImageElement) => image.naturalWidth))
+				.toBeGreaterThan(0);
+		}
+		const comparison = page.getByRole("slider", { name: "Compare the original and edited photo" });
+		await comparison.focus();
+		await comparison.press("ArrowRight");
+		await expect(comparison).toHaveValue("49");
+		await expect(page.locator(".minimax-comparison-after")).toHaveAttribute("style", /49%/);
+		await comparison.press("ArrowLeft");
+		await examples.first().getByRole("button", { name: "Use this prompt" }).click();
+		await expect(editor.locator("textarea").first()).toHaveValue(/^Overhead knolling photograph/);
+		await expect(page.getByRole("link", { name: "Download reference" })).toHaveAttribute(
+			"href",
+			"/images/models/minimax-h3/cafe-night-reference.webp",
+		);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+			true,
+		);
+		await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+		await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+		await page.screenshot({
+			path: testInfo.outputPath(`minimax-h3-${width}.png`),
+			fullPage: true,
+			animations: "disabled",
+		});
+	}
+});
 
 test("GPT Image 2.6 tools put a usable composer first at desktop and phone widths", async ({
 	page,

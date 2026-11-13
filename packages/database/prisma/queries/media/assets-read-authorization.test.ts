@@ -1,7 +1,9 @@
+import { SEEAPI_INPUT_DELEGATION_REASON } from "@repo/config";
 import { describe, expect, it, vi } from "vitest";
 
 import {
 	hasCurrentApprovedMediaAssetEvidence,
+	hasCurrentImageInputEvidence,
 	listReadableMediaAssets,
 	type MediaAssetReadRecord,
 } from "./assets";
@@ -89,6 +91,32 @@ function readableAsset(id = "asset-readable"): MediaAssetReadRecord {
 }
 
 describe("media asset read authorization", () => {
+	it("accepts input delegation only with the complete current immutable identity", () => {
+		const asset = readableAsset();
+		asset.verificationProvider = "seeapi";
+		Object.assign(asset.moderationResults[0]!, {
+			provider: "seeapi",
+			status: "BYPASSED",
+			reasonCode: SEEAPI_INPUT_DELEGATION_REASON,
+		});
+		const boundary = { ...verification, provider: "seeapi" };
+		expect(hasCurrentImageInputEvidence(asset, boundary)).toBe(true);
+		expect(hasCurrentApprovedMediaAssetEvidence(asset, boundary)).toBe(false);
+		for (const change of [
+			{ kind: "OUTPUT" },
+			{ retentionClass: "GUEST" },
+			{ verificationEngine: "video-workflow-v1" },
+			{ checksum: "b".repeat(64) },
+			{ verificationProviderTaskId: "different-task" },
+			{ verificationAttemptCount: 4 },
+			{ verificationGeneration: 3 },
+			{ verificationValidUntil: now },
+		]) {
+			expect(
+				hasCurrentImageInputEvidence({ ...asset, ...change } as MediaAssetReadRecord, boundary),
+			).toBe(false);
+		}
+	});
 	it.each(["sightengine", "seeapi+sightengine", "sightengine+seeapi"])(
 		"preserves complete historical %s approval after retirement without rewriting it",
 		(provider) => {

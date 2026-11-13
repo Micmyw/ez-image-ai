@@ -22,13 +22,14 @@ Preparing a local production environment file does not activate it on the deploy
 
 ## Current runtime behavior
 
-| Check or condition                     | Behavior                                                                     |
-| -------------------------------------- | ---------------------------------------------------------------------------- |
-| Waffo text                             | Merchant-signed prompt scan; only complete approval can authorize generation |
-| SeeAPI images                          | One asynchronous task per verified image, then query the persisted task ID   |
-| Missing required check                 | Configuration error; that content cannot pass                                |
-| Retired Sightengine request            | No external call; unfinished work requiring it remains held                  |
-| Technical failure or incomplete review | Bounded recovery may run, but exhaustion never authorizes bypass             |
+| Check or condition                           | Behavior                                                                                                  |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Waffo text                                   | Merchant-signed prompt scan; only complete approval can authorize generation                              |
+| SeeAPI images                                | One asynchronous task per verified image, then query the persisted task ID                                |
+| Missing required check                       | Configuration error; that content cannot pass                                                             |
+| Retired Sightengine request                  | No external call; unfinished work requiring it remains held                                               |
+| Confirmed SeeAPI input technical failure     | Versioned input delegation may continue to generation-provider checks when enabled; see the rollout below |
+| Other technical failure or incomplete review | Bounded recovery may run; exhausted retries alone do not authorize bypass                                 |
 
 Sightengine switches and the old `MEDIA_SAFETY_ADAPTER=sightengine` value do not restore
 outbound checks. No Sightengine credentials are needed for current execution or old-job
@@ -36,10 +37,12 @@ draining. Keep historical evidence unchanged: unfinished work requiring retired 
 is held, and previously completed private results remain subject to existing ownership,
 expiry, evidence and settlement checks. The test adapter remains forbidden in production.
 
-The earlier technical-outage `BYPASS`/`BYPASSED` policy is superseded. A detector outage,
-exhausted retry budget, unknown acceptance or still-processing result cannot authorize
-generation or result access. Historical incident/review records remain available for audit;
-neither service recovery nor an old bypass marker supplies a positive content verdict.
+The earlier broad technical-outage `BYPASS`/`BYPASSED` policy remains superseded. The
+[2026-11-13 input delegation](seeapi-input-technical-delegation-2026-11-13.md) is a distinct,
+versioned permission for specific authenticated terminal SeeAPI failures on ordinary account
+image inputs. It is not approval and does not permit output delivery. Exhausted retries,
+unknown acceptance, malformed results, still-processing tasks and historical bypass records
+do not qualify. Incident/review records remain available for audit.
 
 Video uses a separately frozen Waffo text profile and SeeAPI visual policy. Its output
 confirmation is triggered by a verified, persisted callback with bounded transient GET
@@ -94,7 +97,10 @@ combination. Text quotes also bind their approved detector combination before cr
 
 Validated SeeAPI failed-task codes are technical results: `MEDIA_INVALID` maps to
 `MODERATION_MEDIA_INVALID` (terminal for that immutable image); `PROVIDER_TIMEOUT` maps to
-`MODERATION_TIMEOUT`. Neither means a content rejection. A valid failed POST response still binds
+`MODERATION_TIMEOUT`. `RATE_LIMITED` maps to `MODERATION_RATE_LIMITED`, and
+`DETECTION_REPORT_FAILED` maps to `MODERATION_DETECTION_REPORT_FAILED`. None means a
+content rejection. Authenticated terminal failures stop polling immediately; only the narrowly
+specified input delegation above can continue without detector approval. A valid failed POST still binds
 its task ID and proceeds through authenticated retrieval; it does not authorize another POST.
 Conflicting status/result/error fields remain invalid responses, and raw provider messages are
 not exposed because they may contain private URLs.

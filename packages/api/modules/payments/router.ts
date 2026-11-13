@@ -31,8 +31,16 @@ import {
 	cancelPendingSubscriptionCheckout,
 	resumePendingSubscriptionCheckout,
 } from "./procedures/pending-subscription-checkout";
+import {
+	claimSubscriptionCompensation,
+	dismissSubscriptionCompensation,
+	getSubscriptionCompensation,
+} from "./procedures/subscription-compensation";
 
 export const paymentsRouter = {
+	claimSubscriptionCompensation,
+	dismissSubscriptionCompensation,
+	getSubscriptionCompensation,
 	getAdminCheckoutDiagnostics,
 	reportCheckoutDiagnostic,
 	listAdminPaymentAttribution: listAdminPaymentAttributionProcedure,

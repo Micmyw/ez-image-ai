@@ -295,6 +295,7 @@
 					"MODERATION_TIMEOUT": "The detection service timed out.",
 					"MODERATION_NETWORK_ERROR": "The detection service could not be reached.",
 					"MODERATION_RATE_LIMITED": "The detection service is rate limited.",
+					"MODERATION_DETECTION_REPORT_FAILED": "SeeAPI could not process the detection result (technical error).",
 					"MODERATION_SERVICE_ERROR": "The detection service returned a server error.",
 					"MODERATION_INVALID_RESPONSE": "The detection service returned an incomplete or invalid response.",
 					"MODERATION_SUBMISSION_UNCERTAIN": "The detector may have accepted a request, but its task ID was not returned.",
@@ -326,6 +327,14 @@
 					"REJECT": "Content flagged",
 					"REVIEW": "Pending or manual review required",
 					"ERROR": "Technical failure"
+				},
+				"prompts": {
+					"title": "Customer prompts",
+					"note": "Recent saved context. Reference drafts may never have been submitted and are not moderation verdicts.",
+					"missing": "No saved prompt is linked to this record. Older missing drafts cannot be reconstructed.",
+					"REFERENCE_DRAFT": "Reference draft · not submitted",
+					"GENERATION_JOB": "Submitted generation prompt",
+					"BLOCKED_REQUEST": "Request stopped during text review"
 				}
 			},
 			"paymentAttribution": {
@@ -1111,6 +1120,15 @@
 		"title": "Set up your account"
 	},
 	"payments": {
+		"technicalCompensation": {
+			"title": "A little extra for the interruption",
+			"description": "We encountered a technical issue. Your account now has a one-time subscription bonus.",
+			"terms": "Get 10% extra credits in your first monthly allocation when you subscribe for the first time. Annual plans receive the bonus in month one only. Regular prices apply. One bonus per account; credits expire with that month and are reclaimed if the payment is refunded or reversed.",
+			"expires": "Start checkout by {date}. Applied automatically after confirmed payment.",
+			"later": "Continue creating",
+			"viewPlans": "See subscription plans",
+			"banner": "Your first subscription includes 10% extra credits for month one"
+		},
 		"providerSelector": {
 			"label": "Payment method",
 			"providers": {
@@ -1569,6 +1587,10 @@
 			"draftRestored": "Your saved edit draft is ready to continue.",
 			"product": "Image model",
 			"products": {
+				"image-minimax-h3": {
+					"label": "MiniMax H3 Image",
+					"description": "Detailed images, typography and photo edits, up to 4K."
+				},
 				"image-nano-banana-2-lite": {
 					"label": "Nano Banana 2 Lite",
 					"description": "Portraits and everyday retouching at 1K."
@@ -1627,6 +1649,15 @@
 				}
 			},
 			"skus": {
+				"minimax-h3-1k": {
+					"label": "1K"
+				},
+				"minimax-h3-2k": {
+					"label": "2K"
+				},
+				"minimax-h3-4k": {
+					"label": "4K"
+				},
 				"nano-banana-2-lite-1k": {
 					"label": "1K"
 				},
@@ -1822,7 +1853,7 @@
 			},
 			"errors": {
 				"insufficientCredits": "You do not have enough credits for this edit. No job or reservation was created.",
-				"qualityUnavailable": "This image model is not included in your current plan. Choose Nano Banana 2 Lite or review your plan.",
+				"qualityUnavailable": "This image model is not included in your current plan. Choose MiniMax H3 Image 1K or review your plan.",
 				"assetNotReady": "The source image is not ready. Wait for its private safety check or choose another image.",
 				"quoteExpired": "This price has expired. Update your instruction or settings to request a fresh price before generating.",
 				"contentNotAllowed": "We cannot use this instruction under our content policy. Please revise it. No credits were charged, and your one-time output waiver was not used.",
@@ -1848,6 +1879,7 @@
 				"credits": "{credits, number} credits",
 				"fromCredits": "From {credits, number} credits",
 				"groupDescriptions": {
+					"minimax": "Create detailed images and edit photos.",
 					"nano": "Natural edits",
 					"gpt": "Text and fine detail",
 					"seedream": "Cinematic imagery"
@@ -1924,7 +1956,7 @@
 			"dailyReset": "Resets daily at 00:00 UTC. Unused edits do not roll over.",
 			"dailyLimitReached": "You have used today’s two free edits. Come back after 00:00 UTC for two more.",
 			"editAnother": "Edit another image",
-			"loginBonus": "Eligible registered accounts receive 10 credits once for two Nano Banana 2 Lite 1K generations, with no monthly refill. Using credits for other image models and HD requires an active paid subscription. The USD 2.99 image pack includes 3 successful images with all currently available image models and sizes, without a subscription."
+			"loginBonus": "Eligible registered accounts receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill. Premium image models and higher resolutions require an active paid subscription when using credits. The USD 2.99 image pack includes 3 successful images with the covered image models and sizes, without a subscription."
 		},
 		"upgradeDialog": {
 			"title": "Unlock more image models",
@@ -1965,7 +1997,7 @@
 			},
 			"mode": {
 				"label": "Image model",
-				"standard": "Nano Banana 2 Lite",
+				"standard": "MiniMax H3 Image",
 				"standardDescription": "Private 1K image editing.",
 				"quality": "More image models",
 				"qualityDescription": "Private image editing with model-specific output settings.",
@@ -2334,6 +2366,8 @@
 			"videoTemplates": "Video templates",
 			"videoTemplatesDescription": "Rap, dance and pet videos from your photos",
 			"videoTemplateHandoff": "Make a video with this image",
+			"minimaxH3Image": "MiniMax H3 Image",
+			"minimaxH3ImageDescription": "Create and edit images in 1K, 2K or 4K",
 			"gptImage26": "GPT Image 2.6",
 			"gptImage26Description": "Flare for speed, Sunburst for detail",
 			"svgGenerator": "AI SVG Generator",

@@ -34,7 +34,8 @@ describe("administrator moderation original availability", () => {
 					findUnique: vi.fn(async () => ({ id: "review", targetType: "ASSET", targetId: "asset" })),
 				},
 				mediaAsset: { findUnique: vi.fn(async () => asset) },
-				auditLog: { create: audit },
+				auditLog: { create: audit, findMany: vi.fn(async () => []) },
+				generationJobAsset: { findMany: vi.fn(async () => []) },
 			} as unknown as MediaTransactionClient;
 			const result = await getAdminModerationReviewDetail("review", "admin", client);
 			expect(result.contentAvailability).toBe(state);

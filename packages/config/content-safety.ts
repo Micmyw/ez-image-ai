@@ -15,6 +15,46 @@ export type PublicModerationReason = (typeof PUBLIC_MODERATION_REASONS)[number];
 /** Historical audit identifier. Technical failure is never approval. */
 export const MODERATION_BYPASS_REASON = "MODERATION_TECHNICAL_FAILURE_BYPASS";
 export const MODERATION_MAX_FAILURES = 4;
+/** Input-only permission; never a detector approval or permission to serve an output. */
+export const SEEAPI_INPUT_DELEGATION_REASON = "SEEAPI_INPUT_TECHNICAL_FAILURE_DELEGATED_V1";
+export const SEEAPI_INPUT_DELEGATION_CODES = [
+	"RATE_LIMITED",
+	"DETECTION_REPORT_FAILED",
+	"PROVIDER_TIMEOUT",
+] as const;
+
+export function isDelegatedImageInputEvidence(
+	evidence:
+		| {
+				status: string;
+				reasonCode?: string | null;
+				provider?: string;
+				evidenceKind?: string | null;
+				providerTaskId?: string | null;
+		  }
+		| null
+		| undefined,
+	asset: {
+		kind: string;
+		mimeType: string;
+		ownerType?: string;
+		retentionClass?: string;
+		verificationEngine?: string;
+	},
+): boolean {
+	return (
+		evidence?.status === "BYPASSED" &&
+		evidence.reasonCode === SEEAPI_INPUT_DELEGATION_REASON &&
+		evidence.provider === "seeapi" &&
+		evidence.evidenceKind === "INPUT" &&
+		Boolean(evidence.providerTaskId) &&
+		asset.kind === "INPUT" &&
+		asset.ownerType === "USER" &&
+		asset.retentionClass === "ACCOUNT" &&
+		asset.verificationEngine === "legacy" &&
+		["image/jpeg", "image/png", "image/webp"].includes(asset.mimeType)
+	);
+}
 export function isPermittedModerationEvidence<T extends { status: string; reasonCode?: string }>(
 	evidence: T | undefined | null,
 ): evidence is T {

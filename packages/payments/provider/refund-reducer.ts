@@ -1,6 +1,7 @@
 import {
 	PAYMENT_PROVIDER_CORRELATION_MISSING,
 	refundCreditGrant,
+	revokeSubscriptionCompensation,
 	type Prisma,
 } from "@repo/database";
 
@@ -187,6 +188,11 @@ export async function applyProviderRefundFact(
 		});
 	}
 	if (remaining !== 0n) throw new Error("PAYMENT_PROVIDER_REFUND_PROJECTION_CONFLICT");
+	if (account && subscription.ownerType === "USER")
+		await revokeSubscriptionCompensation(
+			{ ownerId: subscription.ownerId, paymentKey, accountId: account.id },
+			client,
+		);
 	await client.subscriptionPaymentAdjustment.update({
 		where: { id: adjustment.id },
 		data: { finalizedCredits, creditsFinalizedAt: options.now ?? new Date() },

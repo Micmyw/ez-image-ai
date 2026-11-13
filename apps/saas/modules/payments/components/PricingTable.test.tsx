@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./PendingSubscriptionCheckout", () => ({ PendingSubscriptionCheckout: () => null }));
+vi.mock("./SubscriptionCompensation", () => ({ SubscriptionCompensationBanner: () => null }));
 
 const testState = vi.hoisted(() => ({
 	availabilityInputs: [] as Array<{ interval: "month" | "year"; planId: string }>,

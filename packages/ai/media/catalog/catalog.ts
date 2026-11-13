@@ -32,6 +32,7 @@ import {
 	SEEDREAM_5_LITE_MATRIX,
 	SEEDREAM_5_PRO_MATRIX,
 } from "./image-spec-matrices";
+import { MINIMAX_H3_IMAGE_MATRIX } from "./minimax-h3-image";
 import {
 	executableRouteGraph,
 	type CatalogRoute,
@@ -57,6 +58,16 @@ function matrixRoutes(matrix: ImageSpecMatrix): readonly CatalogRoute[] {
 }
 
 const CATALOG: Record<ProductModelKey, CatalogEntry> = {
+	"image-minimax-h3": {
+		key: "image-minimax-h3",
+		label: "MiniMax H3 Image",
+		description: "Create images and edit a reference with 1K, 2K, and 4K outputs",
+		mediaKind: "image",
+		inputKinds: ["text-to-image", "image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-minimax-h3"],
+		routes: matrixRoutes(MINIMAX_H3_IMAGE_MATRIX),
+		imageSpecMatrix: MINIMAX_H3_IMAGE_MATRIX,
+	},
 	"image-fast": {
 		key: "image-fast",
 		label: "Standard Edit",

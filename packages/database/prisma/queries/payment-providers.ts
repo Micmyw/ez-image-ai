@@ -2,6 +2,7 @@ import { isImagePassOfferSnapshot, type ImagePassOfferSnapshot } from "@repo/con
 
 import { readCheckoutRecovery } from "../../shared/checkout-recovery";
 import type { Prisma } from "../generated/client";
+import { bindSubscriptionCompensationCheckout } from "./media/subscription-compensation";
 import { runSerializable, type MediaTransactionClient } from "./media/types";
 
 export type PaymentProviderName = "stripe" | "paypal" | "waffo";
@@ -243,6 +244,7 @@ export async function createPaymentCheckoutIntent(
 					: {}),
 			},
 		});
+		await bindSubscriptionCompensationCheckout(intent, tx);
 		return { intent, replayed: false };
 	});
 	if ("unsafeReplay" in result) {

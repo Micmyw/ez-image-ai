@@ -6,6 +6,7 @@ import { useEffect, useRef } from "react";
 import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
 
 export function imageModelHref(productKey: string) {
+	if (productKey === "image-minimax-h3") return "/minimax-h3-image";
 	if (productKey === "image-gpt-image-2-6-flare" || productKey === "image-gpt-image-2-6-sunburst")
 		return `/gpt-image-2-6?model=${encodeURIComponent(productKey)}`;
 	return `/models/${encodeURIComponent(productKey.replace(/^image-/, ""))}`;
@@ -34,7 +35,9 @@ export function resolveRequestedImageModel(pathname: string, queryModel: string 
 		? `image-${slug}`
 		: ["/gpt-image-2-6", "/ai-svg-generator", "/ai-gif-generator"].includes(pathname)
 			? "image-gpt-image-2-6-flare"
-			: null;
+			: pathname === "/minimax-h3-image"
+				? "image-minimax-h3"
+				: null;
 	if (
 		resolveRequestedImageOutputFormat(pathname) &&
 		queryModel &&

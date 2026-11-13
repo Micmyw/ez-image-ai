@@ -105,23 +105,25 @@ export function readCloudflareBuildEnvironment(
 		environment,
 	);
 	return withAnnualPlanBindings(
-		withGptImage26BuildOverride(
-			withAccountInputCopyBuildOverride(source, environment),
+		withReleaseFeatureBuildOverrides(
+			withImageModelBuildOverride(withBooleanBuildOverride(source, environment), environment),
 			environment,
 		),
 		environment.ANNUAL_PLAN_BINDINGS,
 	);
 }
 
-function withGptImage26BuildOverride(
+function withImageModelBuildOverride(
 	source: string,
 	environment: Record<string, string | undefined>,
+	control = "MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED",
+	keys = ["MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED", "MEDIA_GPT_IMAGE_2_6_SUNBURST_ENABLED"],
+	errorCode = "CLOUDFLARE_GPT_IMAGE_2_6_OVERRIDE_INVALID",
 ) {
-	const enabled = environment.MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED;
+	const enabled = environment[control];
 	if (enabled === undefined) return source;
-	const invalid = () => new Error("CLOUDFLARE_GPT_IMAGE_2_6_OVERRIDE_INVALID");
+	const invalid = () => new Error(errorCode);
 	if (enabled !== "true" && enabled !== "false") throw invalid();
-	const keys = ["MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED", "MEDIA_GPT_IMAGE_2_6_SUNBURST_ENABLED"];
 	try {
 		const previous = Object.fromEntries(
 			Object.entries(parseEnv(source)).filter(
@@ -159,17 +161,19 @@ function withGptImage26BuildOverride(
 	}
 }
 
-function withAccountInputCopyBuildOverride(
+function withBooleanBuildOverride(
 	source: string,
 	environment: Record<string, string | undefined>,
+	control = "ACCOUNT_INPUT_COPY_BUILD_ENABLED",
+	key = "ACCOUNT_INPUT_COPY_ENABLED",
+	errorCode = "CLOUDFLARE_ACCOUNT_INPUT_COPY_OVERRIDE_INVALID",
 ) {
-	const enabled = environment.ACCOUNT_INPUT_COPY_BUILD_ENABLED;
+	const enabled = environment[control];
 	if (enabled === undefined) return source;
-	const invalid = () => new Error("CLOUDFLARE_ACCOUNT_INPUT_COPY_OVERRIDE_INVALID");
+	const invalid = () => new Error(errorCode);
 	if (enabled !== "true" && enabled !== "false") throw invalid();
 	// Only the dedicated build input may change this private producer switch.
 	// Preserve the authoritative bundle verbatim and verify its other values.
-	const key = "ACCOUNT_INPUT_COPY_ENABLED";
 	const merged = `${source}\n${key}=${enabled}\n`;
 	try {
 		const previous = parseEnv(source);
@@ -184,6 +188,35 @@ function withAccountInputCopyBuildOverride(
 		throw invalid();
 	}
 	return merged;
+}
+
+const releaseFeatureControls = [
+	"MEDIA_MINIMAX_H3_IMAGE_BUILD_ENABLED",
+	"MEDIA_SEEAPI_INPUT_FAILURE_DELEGATION_BUILD_ENABLED",
+	"MEDIA_TECHNICAL_FAILURE_SUBSCRIPTION_BONUS_BUILD_ENABLED",
+] as const;
+
+function withReleaseFeatureBuildOverrides(
+	source: string,
+	environment: Record<string, string | undefined>,
+) {
+	source = withImageModelBuildOverride(
+		source,
+		environment,
+		releaseFeatureControls[0],
+		["MEDIA_MINIMAX_H3_IMAGE_ENABLED"],
+		"CLOUDFLARE_MINIMAX_H3_OVERRIDE_INVALID",
+	);
+	for (const control of releaseFeatureControls.slice(1)) {
+		source = withBooleanBuildOverride(
+			source,
+			environment,
+			control,
+			control.replace("_BUILD_ENABLED", "_ENABLED"),
+			"CLOUDFLARE_RELEASE_FEATURE_OVERRIDE_INVALID",
+		);
+	}
+	return source;
 }
 
 function withVideoRuntimeOverrides(
@@ -618,6 +651,9 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key === "SEEAPI_API_KEY" ||
 			key === "ACCOUNT_INPUT_COPY_BUILD_ENABLED" ||
 			key === "MEDIA_GPT_IMAGE_2_6_BUILD_ENABLED" ||
+			releaseFeatureControls.some(
+				(control) => control === key || control.replace("_BUILD_ENABLED", "_ENABLED") === key,
+			) ||
 			key === "ANNUAL_PLAN_BINDINGS" ||
 			key === "ACCOUNT_INPUT_COPY_ENABLED" ||
 			key === "VIDEO_RUNTIME_CONFIG" ||

@@ -3,6 +3,7 @@ import { CreatorWorkspace } from "@media/components/CreatorWorkspace";
 import {
 	hasEditorRecoveryRequest,
 	resolveEditorAllowedProductKeys,
+	resolveEditorAllowedImageSkuKeys,
 } from "@media/lib/editor-recovery";
 import {
 	buildEditAgainRecoveryCandidate,
@@ -73,6 +74,10 @@ export async function RegisteredEditor({
 		subscription?.plan.metadata,
 		subscription?.plan.name,
 	);
+	const allowedImageSkuKeys = resolveEditorAllowedImageSkuKeys(
+		subscription?.plan.metadata,
+		subscription?.plan.name,
+	);
 
 	if (session && !filters.draftError) {
 		if (filters.asset) {
@@ -93,12 +98,12 @@ export async function RegisteredEditor({
 				candidate = parent
 					? buildEditAgainRecoveryCandidate(parent, filters.asset)
 					: {
-							productKey: "image-nano-banana-2-lite",
+							productKey: "image-minimax-h3",
 							input: {
 								kind: "image-to-image",
 								prompt: sourceOnlyPrompt,
 								sourceAssetId: filters.asset,
-								skuKey: "nano-banana-2-lite-1k",
+								skuKey: "minimax-h3-1k",
 								aspectRatio: "auto",
 							},
 						};
@@ -152,6 +157,7 @@ export async function RegisteredEditor({
 		candidate,
 		sourceAsset,
 		allowedProductKeys,
+		allowedImageSkuKeys,
 	});
 
 	return (
@@ -162,6 +168,7 @@ export async function RegisteredEditor({
 				initialDraft={recovery.initialDraft}
 				parentJobId={parentJobId}
 				allowedProductKeys={allowedProductKeys}
+				allowedImageSkuKeys={allowedImageSkuKeys}
 				restoreState={recovery.restoreState}
 				restoreNotice={recovery.notice}
 			/>

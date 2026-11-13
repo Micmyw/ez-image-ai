@@ -155,6 +155,7 @@ function safeWorkspaceReturnPath(value: string): string | null {
 			"/photo-to-coloring-page",
 			"/christmas-wallpaper",
 			"/gpt-image-2-6",
+			"/minimax-h3-image",
 			"/ai-svg-generator",
 			"/ai-gif-generator",
 		].includes(url.pathname) &&

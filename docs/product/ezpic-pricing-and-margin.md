@@ -1,5 +1,18 @@
 # EzImageAI pricing and margin record
 
+## MiniMax H3 addition — 2026-11-13
+
+MiniMax H3 Image uses 5 / 10 / 20 credits for 1K / 2K / 4K. Registered workspaces
+default to H3 1K; the lifetime free allowance remains 10 credits, with H3 1K and
+the existing Nano Banana 2 Lite 1K available. Free monthly grants remain disabled.
+H3 2K/4K require a paid plan. The historical tables below are not the current
+free-grant or complete model catalog.
+
+At one reference per edit, Kie charges USD 0.0115 / 0.0115 / 0.0300. With provider,
+runtime, storage, review and payment reserves, the Max annual full-use contribution
+rates are approximately 65.9% / 76.1% / 77.0%, before tax and fixed overhead.
+See [the calculation and implementation record](../operations/minimax-h3-image-2026-11-13.md).
+
 ## Decision snapshot
 
 Image pricing version `2026-09-13.2` uses one `EzImageAI Credit` balance and 29 legal image-edit SKU

@@ -4,6 +4,7 @@ export const PLAN_IDS = ["free", "creator", "ultimate", "studio"] as const;
 export const PRODUCT_MODEL_KEYS = [
 	"image-fast",
 	"image-quality",
+	"image-minimax-h3",
 	"image-nano-banana-2-lite",
 	"image-nano-banana",
 	"image-nano-banana-2",
@@ -22,6 +23,7 @@ export const PRODUCT_MODEL_KEYS = [
 	"video-quality",
 ] as const;
 export const EZPIC_PRODUCT_KEYS = [
+	"image-minimax-h3",
 	"image-nano-banana-2-lite",
 	"image-nano-banana",
 	"image-nano-banana-2",
@@ -39,6 +41,9 @@ export const EZPIC_PRODUCT_KEYS = [
 ] as const;
 export const LEGACY_EZPIC_PRODUCT_KEYS = ["image-fast", "image-quality"] as const;
 export const IMAGE_SKU_KEYS = [
+	"minimax-h3-1k",
+	"minimax-h3-2k",
+	"minimax-h3-4k",
 	"nano-banana-2-lite-1k",
 	"nano-banana-default",
 	"nano-banana-2-1k",
@@ -106,6 +111,7 @@ export const IMAGE_BACKGROUNDS = ["auto", "opaque", "transparent"] as const;
 export const PRODUCT_CREDIT_COSTS = {
 	"image-fast": 5,
 	"image-quality": 40,
+	"image-minimax-h3": 5,
 	"image-nano-banana-2-lite": 5,
 	"image-nano-banana": 5,
 	"image-nano-banana-2": 9,
@@ -125,6 +131,9 @@ export const PRODUCT_CREDIT_COSTS = {
 } as const satisfies Record<(typeof PRODUCT_MODEL_KEYS)[number], number>;
 // Retail output tiers; provider route costs are tracked separately in the server catalog.
 export const IMAGE_SKU_CREDIT_COSTS = {
+	"minimax-h3-1k": 5,
+	"minimax-h3-2k": 10,
+	"minimax-h3-4k": 20,
 	"nano-banana-2-lite-1k": 5,
 	"nano-banana-default": 5,
 	"nano-banana-2-1k": 9,
@@ -163,6 +172,7 @@ export const IMAGE_SKU_CREDIT_COSTS = {
 } as const satisfies Record<(typeof IMAGE_SKU_KEYS)[number], number>;
 
 export const IMAGE_SKU_KEYS_BY_PRODUCT = {
+	"image-minimax-h3": ["minimax-h3-1k", "minimax-h3-2k", "minimax-h3-4k"],
 	"image-nano-banana-2-lite": ["nano-banana-2-lite-1k"],
 	"image-nano-banana": ["nano-banana-default"],
 	"image-nano-banana-2": ["nano-banana-2-1k", "nano-banana-2-2k", "nano-banana-2-4k"],
@@ -262,8 +272,8 @@ export type PricingVersion = z.infer<typeof pricingVersionSchema>;
 export const DEFAULT_PRODUCT_CONFIG = productConfigSchema.parse({
 	planIds: PLAN_IDS,
 	productKeys: EZPIC_PRODUCT_KEYS,
-	catalogVersion: "2026-11-11.1",
-	pricingVersion: "2026-11-11.1",
+	catalogVersion: "2026-11-13.1",
+	pricingVersion: "2026-11-13.1",
 	brand: {
 		siteName: "EzImageAI",
 		siteDescription: "Private prompt-based AI image editing with transparent credits.",

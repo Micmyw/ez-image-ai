@@ -56,18 +56,19 @@ describe("transaction-current admission", () => {
 			).rejects.toThrow("MODEL_DISABLED");
 		},
 	);
-	it.each(EZPIC_PRODUCT_KEYS.filter((key) => key !== "image-nano-banana-2-lite"))(
-		"rejects %s without an effective paid subscription",
-		async (productKey) => {
-			await expect(
-				loadCurrentGenerationAdmission(
-					{ ownerId: "owner", productKey, costMicros: 30_000n, now: new Date() },
-					transaction() as never,
-				),
-			).rejects.toThrow("ENTITLEMENT_REQUIRED");
-		},
-	);
-	it("admits only Nano Banana 2 Lite 1K without an effective paid subscription", async () => {
+	it.each(
+		EZPIC_PRODUCT_KEYS.filter(
+			(key) => key !== "image-nano-banana-2-lite" && key !== "image-minimax-h3",
+		),
+	)("rejects %s without an effective paid subscription", async (productKey) => {
+		await expect(
+			loadCurrentGenerationAdmission(
+				{ ownerId: "owner", productKey, costMicros: 30_000n, now: new Date() },
+				transaction() as never,
+			),
+		).rejects.toThrow("ENTITLEMENT_REQUIRED");
+	});
+	it("retains Nano Banana 2 Lite 1K access without an effective paid subscription", async () => {
 		await expect(
 			loadCurrentGenerationAdmission(
 				{
@@ -80,6 +81,40 @@ describe("transaction-current admission", () => {
 				transaction() as never,
 			),
 		).resolves.toMatchObject({ maximumInputBytes: expect.any(Number) });
+	});
+	it.each(["minimax-h3-1k", "minimax-h3-2k", "minimax-h3-4k"])(
+		"rechecks H3 tier access for %s inside reservation",
+		async (skuKey) => {
+			const input = {
+				ownerId: "owner",
+				productKey: "image-minimax-h3",
+				skuKey,
+				costMicros: 30_000n,
+				now: new Date(),
+			};
+			const free = loadCurrentGenerationAdmission(input, transaction() as never);
+			if (skuKey === "minimax-h3-1k")
+				await expect(free).resolves.toMatchObject({ maximumInputBytes: 10 * 1024 * 1024 });
+			else await expect(free).rejects.toThrow("ENTITLEMENT_REQUIRED");
+			await expect(
+				loadCurrentGenerationAdmission(input, transaction([], "creator") as never),
+			).resolves.toMatchObject({ maximumInputBytes: 20_000_000 });
+		},
+	);
+	it("rejects a previously quoted H3 premium tier after subscription expiry", async () => {
+		const input = {
+			ownerId: "owner",
+			productKey: "image-minimax-h3",
+			skuKey: "minimax-h3-4k",
+			costMicros: 30_000n,
+			now: new Date(),
+		};
+		const tx = transaction([], "creator");
+		await expect(loadCurrentGenerationAdmission(input, tx as never)).resolves.toBeDefined();
+		tx.subscription.findMany.mockResolvedValue([]);
+		await expect(loadCurrentGenerationAdmission(input, tx as never)).rejects.toThrow(
+			"ENTITLEMENT_REQUIRED",
+		);
 	});
 	it.each(EZPIC_PRODUCT_KEYS)(
 		"admits %s with an effective paid subscription",

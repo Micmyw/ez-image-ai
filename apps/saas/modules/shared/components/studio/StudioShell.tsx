@@ -97,6 +97,7 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 		pathname === "/photo-to-coloring-page" ||
 		pathname === "/christmas-wallpaper" ||
 		pathname === "/gpt-image-2-6" ||
+		pathname === "/minimax-h3-image" ||
 		pathname === "/ai-svg-generator" ||
 		pathname === "/ai-gif-generator" ||
 		pathname.startsWith("/models/");

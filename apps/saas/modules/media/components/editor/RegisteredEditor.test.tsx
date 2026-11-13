@@ -58,10 +58,13 @@ describe("selected-image tool recovery", () => {
 		});
 		mocks.cookies.mockResolvedValue({ get: () => undefined });
 	});
-	it("offers only Nano Banana 2 Lite 1K access to an owner without a subscription", async () => {
+	it("offers H3 1K and existing Lite access to an owner without a subscription", async () => {
 		renderToStaticMarkup(await RegisteredEditor({ searchParams: Promise.resolve({}) }));
 		expect(mocks.workspace).toHaveBeenCalledWith(
-			expect.objectContaining({ allowedProductKeys: ["image-nano-banana-2-lite"] }),
+			expect.objectContaining({
+				allowedProductKeys: ["image-minimax-h3", "image-nano-banana-2-lite"],
+				allowedImageSkuKeys: ["minimax-h3-1k", "nano-banana-2-lite-1k"],
+			}),
 		);
 	});
 	it("restores the selected output and tool instruction without claiming an old draft or submitting", async () => {
@@ -82,7 +85,9 @@ describe("selected-image tool recovery", () => {
 				restoreState: "ready",
 				parentJobId: null,
 				initialDraft: expect.objectContaining({
+					productKey: "image-minimax-h3",
 					input: expect.objectContaining({
+						skuKey: "minimax-h3-1k",
 						kind: "image-to-image",
 						sourceAssetId: "output",
 						prompt: buildColoringPrompt(),

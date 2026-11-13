@@ -54,6 +54,7 @@ export function resolveLandingProductSelection(
 	}
 
 	return (
+		products.find((product) => product.key === "image-minimax-h3")?.key ??
 		products.find((product) => product.accessHint === "guest-trial")?.key ??
 		products.at(0)?.key ??
 		null

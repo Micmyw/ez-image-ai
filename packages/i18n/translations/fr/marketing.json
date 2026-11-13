@@ -158,7 +158,7 @@
 			},
 			"free": {
 				"question": "Puis-je utiliser l’IA image à image gratuitement ?",
-				"answer": "Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel. Utiliser des crédits pour les autres modèles et la HD nécessite un abonnement payant actif. Le pack à 2,99 USD comprend 3 images réussies avec tous les modèles et formats d’image actuellement disponibles, sans abonnement."
+				"answer": "Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations MiniMax H3 Image 1K, sans renouvellement mensuel. Les modèles premium et les résolutions supérieures nécessitent un abonnement payant actif pour utiliser des crédits. Le pack à 2,99 USD comprend 3 images réussies avec les modèles et formats d’image inclus, sans abonnement."
 			},
 			"control": {
 				"question": "Tous les détails de mon image originale seront-ils conservés ?",
@@ -216,7 +216,7 @@
 			},
 			"guestVsFree": {
 				"question": "Quelle est la différence entre l’accès invité et Free ?",
-				"answer": "Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel. Utiliser des crédits pour les autres modèles et la HD nécessite un abonnement payant actif. Le pack à 2,99 USD comprend 3 images réussies avec tous les modèles et formats d’image actuellement disponibles, sans abonnement. Les images générées avec les crédits du compte n’ont pas de filigrane invité et ont un objectif de conservation de 30 jours. Téléchargez les résultats à conserver."
+				"answer": "Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations MiniMax H3 Image 1K, sans renouvellement mensuel. Les modèles premium et les résolutions supérieures nécessitent un abonnement payant actif pour utiliser des crédits. Le pack à 2,99 USD comprend 3 images réussies avec les modèles et formats d’image inclus, sans abonnement. Les images générées avec les crédits du compte n’ont pas de filigrane invité et ont un objectif de conservation de 30 jours. Téléchargez les résultats à conserver."
 			},
 			"editTiers": {
 				"question": "Quels modèles d’image et réglages de sortie sont disponibles ?",
@@ -329,6 +329,7 @@
 			"oneOutput": "Un résultat",
 			"freeQueue": "2 retouches gratuites par jour · filigrane · disponibles jusqu’à 24 heures",
 			"qualityAccess": "{model} nécessite une connexion et un forfait Pro, Ultimate ou Max.",
+			"freeAccountAccess": "Connectez-vous pour essayer {model} avec vos crédits gratuits.",
 			"temporaryResult": "Votre aperçu reste privé et temporaire.",
 			"temporarySessionDisclosure": "EzImageAI crée une session temporaire pour cet essai, conserve les médias invités jusqu’à 24 heures et utilise des signaux pseudonymes contre les abus pendant la période décrite dans notre Politique de confidentialité.",
 			"qualityCta": "Découvrir les modèles d’image · crédits du compte",
@@ -789,7 +790,7 @@
 		},
 		"pricing": {
 			"title": "Retouche d’images IA gratuite et forfaits payants",
-			"description": "Les comptes éligibles reçoivent 10 EzImageAI Credits une seule fois pour deux générations Nano Banana 2 Lite 1K à 5 crédits chacune. Aucun renouvellement mensuel. Les abonnements payants actifs donnent accès aux autres modèles et aux options HD. Le pack à 2,99 USD propose aussi 3 images réussies avec tous les modèles et formats d’image actuellement disponibles, sans abonnement."
+			"description": "Les comptes éligibles reçoivent 10 EzImageAI Credits une seule fois pour deux générations MiniMax H3 Image 1K à 5 crédits chacune. Aucun renouvellement mensuel. Les abonnements payants actifs donnent accès aux autres modèles et aux options HD. Le pack à 2,99 USD propose aussi 3 images réussies avec les modèles et formats d’image inclus, sans abonnement."
 		},
 		"guides": {
 			"quickStart": "Commencer votre première retouche",
@@ -806,7 +807,7 @@
 				},
 				"guestVsFree": {
 					"question": "Puis-je utiliser EzImageAI comme éditeur d’images IA gratuit ?",
-					"answer": "Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel. Utiliser des crédits pour les autres modèles et la HD nécessite un abonnement payant actif. Le pack à 2,99 USD comprend 3 images réussies avec tous les modèles et formats d’image actuellement disponibles, sans abonnement. Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les limites de sécurité, légales, du modèle et d’usage s’appliquent."
+					"answer": "Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations MiniMax H3 Image 1K, sans renouvellement mensuel. Les modèles premium et les résolutions supérieures nécessitent un abonnement payant actif pour utiliser des crédits. Le pack à 2,99 USD comprend 3 images réussies avec les modèles et formats d’image inclus, sans abonnement. Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les limites de sécurité, légales, du modèle et d’usage s’appliquent."
 				}
 			}
 		},

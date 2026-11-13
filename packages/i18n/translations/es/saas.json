@@ -295,6 +295,7 @@
 					"MODERATION_TIMEOUT": "El servicio de detección agotó el tiempo de espera.",
 					"MODERATION_NETWORK_ERROR": "No se pudo conectar con el servicio.",
 					"MODERATION_RATE_LIMITED": "Se alcanzó el límite de solicitudes del servicio.",
+					"MODERATION_DETECTION_REPORT_FAILED": "SeeAPI no pudo procesar el resultado de la revisión (error técnico).",
 					"MODERATION_SERVICE_ERROR": "El servicio devolvió un error de servidor.",
 					"MODERATION_INVALID_RESPONSE": "El servicio devolvió una respuesta incompleta o inválida.",
 					"MODERATION_SUBMISSION_UNCERTAIN": "La solicitud pudo aceptarse, pero no se devolvió su ID.",
@@ -326,6 +327,14 @@
 					"REJECT": "Contenido señalado",
 					"REVIEW": "Pendiente o requiere revisión manual",
 					"ERROR": "Fallo técnico"
+				},
+				"prompts": {
+					"title": "Instrucciones del cliente",
+					"note": "Contexto guardado recientemente. Los borradores de referencia pueden no haberse enviado y no son decisiones de moderación.",
+					"missing": "No hay una instrucción guardada vinculada a este registro. No se pueden reconstruir los borradores antiguos que faltan.",
+					"REFERENCE_DRAFT": "Borrador de referencia · sin enviar",
+					"GENERATION_JOB": "Instrucción enviada para generar",
+					"BLOCKED_REQUEST": "Solicitud detenida en la revisión de texto"
 				}
 			},
 			"paymentAttribution": {
@@ -1111,6 +1120,15 @@
 		"title": "Configura tu cuenta"
 	},
 	"payments": {
+		"technicalCompensation": {
+			"title": "Un extra por la interrupción",
+			"description": "Se produjo un problema técnico. Tu cuenta tiene una bonificación de suscripción única.",
+			"terms": "Recibe un 10 % más de créditos en la primera asignación mensual de tu primera suscripción. En los planes anuales, solo se aplica al primer mes. Precios habituales. Una bonificación por cuenta; los créditos caducan al terminar ese mes y se retiran si se reembolsa o revierte el pago.",
+			"expires": "Inicia la compra antes del {date}. Se aplica automáticamente tras confirmar el pago.",
+			"later": "Seguir creando",
+			"viewPlans": "Ver suscripciones",
+			"banner": "Tu primera suscripción incluye un 10 % más de créditos el primer mes"
+		},
 		"providerSelector": {
 			"label": "Método de pago",
 			"providers": {
@@ -1569,6 +1587,10 @@
 			"draftRestored": "Tu borrador de edición guardado está listo para continuar.",
 			"product": "Modelo de imagen",
 			"products": {
+				"image-minimax-h3": {
+					"label": "MiniMax H3 Image",
+					"description": "Imágenes detalladas, tipografía y edición de fotos hasta 4K."
+				},
 				"image-nano-banana-2-lite": {
 					"label": "Nano Banana 2 Lite",
 					"description": "Retratos y retoques cotidianos en 1K."
@@ -1627,6 +1649,15 @@
 				}
 			},
 			"skus": {
+				"minimax-h3-1k": {
+					"label": "1K"
+				},
+				"minimax-h3-2k": {
+					"label": "2K"
+				},
+				"minimax-h3-4k": {
+					"label": "4K"
+				},
 				"nano-banana-2-lite-1k": {
 					"label": "1K"
 				},
@@ -1822,7 +1853,7 @@
 			},
 			"errors": {
 				"insufficientCredits": "No tienes créditos suficientes para esta edición. No se creó ningún trabajo ni reserva.",
-				"qualityUnavailable": "Este modelo de imagen no está incluido en tu plan. Elige Nano Banana 2 Lite o revisa tu plan.",
+				"qualityUnavailable": "Este modelo de imagen no está incluido en tu plan. Elige MiniMax H3 Image 1K o revisa tu plan.",
 				"assetNotReady": "La imagen de origen no está lista. Espera la revisión privada o elige otra imagen.",
 				"quoteExpired": "Este precio ha caducado. Actualiza la instrucción o los ajustes para obtener un precio nuevo antes de generar.",
 				"contentNotAllowed": "Esta instrucción no cumple nuestra política de contenido. Modifícala. No se han cobrado créditos ni usado tu exención única.",
@@ -1848,6 +1879,7 @@
 				"credits": "{credits, number} créditos",
 				"fromCredits": "Desde {credits, number} créditos",
 				"groupDescriptions": {
+					"minimax": "Crea imágenes detalladas y edita fotos.",
 					"nano": "Ediciones naturales",
 					"gpt": "Texto y detalle fino",
 					"seedream": "Imágenes de cine"
@@ -1924,7 +1956,7 @@
 			"dailyReset": "Se restablecen cada día a las 00:00 UTC. Las ediciones no utilizadas no se acumulan.",
 			"dailyLimitReached": "Has usado las dos ediciones gratuitas de hoy. Vuelve después de las 00:00 UTC para disponer de dos más.",
 			"editAnother": "Editar otra imagen",
-			"loginBonus": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Usar créditos con otros modelos y HD requiere una suscripción de pago activa. El paquete de 2,99 USD incluye 3 imágenes correctas con todos los modelos y tamaños de imagen disponibles actualmente, sin suscripción."
+			"loginBonus": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción."
 		},
 		"upgradeDialog": {
 			"title": "Desbloquea más modelos de imagen",
@@ -1965,7 +1997,7 @@
 			},
 			"mode": {
 				"label": "Modelo de imagen",
-				"standard": "Nano Banana 2 Lite",
+				"standard": "MiniMax H3 Image",
 				"standardDescription": "Edición privada de imágenes en 1K.",
 				"quality": "Más modelos de imagen",
 				"qualityDescription": "Edición privada de imágenes con ajustes de salida específicos del modelo.",
@@ -2334,6 +2366,8 @@
 			"videoTemplates": "Plantillas de vídeo",
 			"videoTemplatesDescription": "Vídeos de rap, baile y mascotas con tus fotos",
 			"videoTemplateHandoff": "Crear un vídeo con esta imagen",
+			"minimaxH3Image": "MiniMax H3 Image",
+			"minimaxH3ImageDescription": "Crea y edita imágenes en 1K, 2K o 4K",
 			"gptImage26": "GPT Image 2.6",
 			"gptImage26Description": "Flare para velocidad, Sunburst para detalle",
 			"svgGenerator": "Generador de SVG con IA",

@@ -1,5 +1,6 @@
 import {
 	assertTemporaryReferenceUsable,
+	SEEAPI_INPUT_DELEGATION_REASON,
 	TEMPORARY_REFERENCE_RESERVATION_PREFIX,
 	temporaryReferenceObjectKey,
 	type TemporaryReference,
@@ -8,7 +9,7 @@ import {
 import type { MediaDatabaseClient } from "./types";
 
 interface TemporaryReferenceStatusRow {
-	status: "NOT_STARTED" | "PENDING" | "APPROVED" | "UNAVAILABLE";
+	status: "NOT_STARTED" | "PENDING" | "APPROVED" | "AVAILABLE" | "UNAVAILABLE";
 	moderationStatus: string | null;
 	reasonCode: string | null;
 }
@@ -37,9 +38,14 @@ export async function getTemporaryReferenceStatus(
 				AND asset."verificationRuleVersion" = ${verification.ruleVersion}
 				AND asset."verificationPolicyVersion" = ${verification.policyVersion}
 				AND asset."verificationValidUntil" > clock_timestamp()
-				AND evidence."status" = 'APPROVED'
+				AND (evidence."status" = 'APPROVED' OR (
+					evidence."status" = 'BYPASSED'
+					AND evidence."reasonCode" = ${SEEAPI_INPUT_DELEGATION_REASON}
+					AND evidence."provider" = 'seeapi' AND evidence."providerTaskId" IS NOT NULL
+					AND asset."mimeType" IN ('image/jpeg', 'image/png', 'image/webp')
+				))
 				AND evidence."validUntil" = asset."verificationValidUntil"
-				THEN 'APPROVED'
+				THEN CASE WHEN evidence."status" = 'APPROVED' THEN 'APPROVED' ELSE 'AVAILABLE' END
 			ELSE 'UNAVAILABLE' END AS "status",
 			evidence."status"::text AS "moderationStatus", evidence."reasonCode"
 		FROM "storage_usage_reservation" reservation

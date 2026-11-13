@@ -2,6 +2,8 @@
 	"name": "supastarter-nextjs",
 	"private": true,
 	"scripts": {
+		"gsc": "node tooling/gsc/src/cli.mjs",
+		"gsc:test": "pnpm --filter @repo/gsc test",
 		"build": "dotenv -c -- turbo build --filter=saas...",
 		"dev": "dotenv -c -- turbo dev --filter=saas... --concurrency 15",
 		"type-check": "dotenv -c -- turbo type-check",

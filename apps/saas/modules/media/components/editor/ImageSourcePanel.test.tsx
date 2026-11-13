@@ -6,6 +6,9 @@ import messages from "../../../../../../packages/i18n/translations/en/saas.json"
 import frenchMessages from "../../../../../../packages/i18n/translations/fr/saas.json";
 
 let activeMessages = messages;
+vi.mock("@payments/components/SubscriptionCompensation", () => ({
+	SubscriptionCompensationDialog: () => null,
+}));
 
 const mocks = vi.hoisted(() => ({ useQuery: vi.fn(), temporaryStatus: vi.fn() }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: mocks.useQuery }));

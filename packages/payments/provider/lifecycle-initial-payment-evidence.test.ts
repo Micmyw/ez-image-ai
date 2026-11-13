@@ -7,6 +7,7 @@ vi.mock("@repo/database", async () => ({
 	...(await import("../../database/shared/admin-analytics-payment-evidence")),
 	...(await import("../../database/prisma/queries/media/credit-accounts")),
 	createCreditGrant: vi.fn(),
+	grantSubscriptionCompensation: vi.fn(),
 	isDatabaseUniqueConflict: () => false,
 	PAYMENT_PROVIDER_CORRELATION_MISSING: "PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING",
 	requeuePaymentEventsMissingCheckoutCorrelation: vi.fn(),

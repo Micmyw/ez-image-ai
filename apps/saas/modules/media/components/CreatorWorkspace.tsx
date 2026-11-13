@@ -1,5 +1,6 @@
 "use client";
 
+import type { ImageSkuKey } from "@repo/config/client";
 import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
 
@@ -20,6 +21,7 @@ export function CreatorWorkspace(props: {
 	claimedDraft?: boolean;
 	initialDraft?: EditorDraftInput | null;
 	allowedProductKeys: EditorProductKey[];
+	allowedImageSkuKeys?: ImageSkuKey[];
 	restoreState: EditorRestoreState;
 	restoreNotice: EditorRestoreNotice;
 	parentJobId?: string | null;

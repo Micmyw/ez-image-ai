@@ -477,6 +477,7 @@ describe("product configuration", () => {
 		const publicConfig = getPublicConfig();
 
 		expect(DEFAULT_PRODUCT_CONFIG.productKeys).toEqual([
+			"image-minimax-h3",
 			"image-nano-banana-2-lite",
 			"image-nano-banana",
 			"image-nano-banana-2",
@@ -492,8 +493,8 @@ describe("product configuration", () => {
 			"image-seedream-5-lite",
 			"image-seedream-5-pro",
 		]);
-		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-11-11.1");
-		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-11-11.1");
+		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-11-13.1");
+		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-11-13.1");
 		expect(publicConfig.brand).toMatchObject({
 			siteName: "EzImageAI",
 			siteDescription: expect.stringMatching(/image edit/i),
@@ -518,7 +519,7 @@ describe("product configuration", () => {
 				id: "free",
 				monthlyCredits: 0,
 				maximumInputBytes: 10 * 1024 * 1024,
-				allowedProducts: ["image-nano-banana-2-lite"],
+				allowedProducts: ["image-minimax-h3", "image-nano-banana-2-lite"],
 				prices: [],
 			},
 			{
@@ -526,6 +527,7 @@ describe("product configuration", () => {
 				monthlyCredits: 700,
 				maximumInputBytes: 20 * 1024 * 1024,
 				allowedProducts: [
+					"image-minimax-h3",
 					"image-nano-banana-2-lite",
 					"image-nano-banana",
 					"image-nano-banana-2",
@@ -551,6 +553,7 @@ describe("product configuration", () => {
 				monthlyCredits: 1_800,
 				maximumInputBytes: 20 * 1024 * 1024,
 				allowedProducts: [
+					"image-minimax-h3",
 					"image-nano-banana-2-lite",
 					"image-nano-banana",
 					"image-nano-banana-2",
@@ -576,6 +579,7 @@ describe("product configuration", () => {
 				monthlyCredits: 3_000,
 				maximumInputBytes: 20 * 1024 * 1024,
 				allowedProducts: [
+					"image-minimax-h3",
 					"image-nano-banana-2-lite",
 					"image-nano-banana",
 					"image-nano-banana-2",

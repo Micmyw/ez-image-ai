@@ -93,6 +93,7 @@ const productionEnvironment = {
 describe("packed image model environment flags", () => {
 	const modelEntries = Object.entries(EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS);
 	const optionalKeys = new Set([
+		"MEDIA_MINIMAX_H3_IMAGE_ENABLED",
 		"MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED",
 		"MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED",
 		"MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED",

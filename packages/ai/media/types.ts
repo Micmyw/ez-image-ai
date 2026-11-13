@@ -15,6 +15,9 @@ export type SubmissionOutcome = "accepted" | "rejected" | "uncertain";
 export interface ResolvedMediaAsset {
 	assetId: string;
 	transferUrl: string;
+	/** Inspection metadata from the checksum-bound private asset, never browser input. */
+	width?: number | null;
+	height?: number | null;
 }
 export type ProviderExecutionInput =
 	| Extract<MediaModelInput, { kind: "text-to-image" | "text-to-video" }>

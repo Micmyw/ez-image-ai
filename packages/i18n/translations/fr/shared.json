@@ -77,9 +77,9 @@
 				"title": "Entreprise"
 			},
 			"free": {
-				"description": "10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K. Aucun renouvellement mensuel.",
+				"description": "10 crédits une seule fois pour deux générations MiniMax H3 Image 1K. Aucun renouvellement mensuel.",
 				"features": {
-					"standardEdit": "Accès à Nano Banana 2 Lite 1K",
+					"standardEdit": "MiniMax H3 Image + Nano Banana 2 Lite · 1K",
 					"privateAssets": "Images source et ressources retouchées privées",
 					"editHistory": "Sessions et historique de retouche privés"
 				},
@@ -117,13 +117,13 @@
 		"purchase": "Acheter",
 		"recommended": "Recommandé",
 		"allImageModels": "Tous les modèles d’image disponibles",
-		"nanoModel": "Nano Banana 2 Lite 1K",
+		"nanoModel": "MiniMax H3 Image 1K",
 		"subscribe": "S'abonner",
 		"subscriberBonus": "Les abonnés reçoivent +{percent}% de crédits au même prix",
 		"subscriberBonusAmount": "Bonus abonné : {credits}",
 		"subscriberReceives": "Les abonnés reçoivent {credits} crédits",
 		"title": "Tarifs",
-		"tierAccessStandard": "Accès à Nano Banana 2 Lite 1K",
+		"tierAccessStandard": "MiniMax H3 Image + Nano Banana 2 Lite · 1K",
 		"tierAccessAll": "Tous les modèles d’image disponibles et leurs options SKU propres",
 		"trialPeriod": "{days} {days, plural, one {jour} other {jours}} d'essai gratuit",
 		"year": "{count, plural, one {an} other {{count} ans}}",

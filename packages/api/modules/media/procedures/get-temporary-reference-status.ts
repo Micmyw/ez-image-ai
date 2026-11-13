@@ -21,7 +21,14 @@ export const getTemporaryReferenceStatus = protectedProcedure
 	.input(z.object({ assetId: z.uuid(), token: z.string().min(1).max(2048) }).strict())
 	.output(
 		z.object({
-			status: z.enum(["NOT_STARTED", "PENDING", "APPROVED", "REJECTED", "UNAVAILABLE"]),
+			status: z.enum([
+				"NOT_STARTED",
+				"PENDING",
+				"APPROVED",
+				"AVAILABLE",
+				"REJECTED",
+				"UNAVAILABLE",
+			]),
 			moderationReason: z.enum(PUBLIC_MODERATION_REASONS).nullable(),
 		}),
 	)

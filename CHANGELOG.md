@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased — Technical-failure subscription bonus
+
+- Eligible first-time subscribers can receive a one-time 10% credit bonus for their first monthly allocation after a confirmed image-check technical failure. Offers expire after seven days; annual plans receive the bonus in month one only.
+- Keep subscription prices unchanged and apply the gift after verified payment. Repeated callbacks cannot duplicate it; refunds revoke the gift. Dismissible feedback leaves generation running.
+
+## Unreleased — Reference-image review reliability
+
+- Stop querying SeeAPI tasks after a confirmed terminal failure. Preserve the failure category for administrator diagnostics.
+- Allow ordinary account image references with specified, confirmed SeeAPI technical failures to continue to generation-provider checks after rollout activation. Keep content rejection, uncertain submissions and output review separate; preserve the same job, reservation and submission identity.
+
+## Unreleased — MiniMax H3 Image
+
+- Add MiniMax H3 Image for text-to-image and reference-image editing at 1K / 2K / 4K for 5 / 10 / 20 credits.
+- Default registered workspaces to H3 1K. Free accounts retain their lifetime 10-credit allowance and existing Nano Banana 2 Lite 1K access; H3 2K / 4K use paid-plan access.
+- Add a dedicated model page with Kie's example images and prompts, a prominent gallery directly below the editor, and a draggable day/night photo comparison.
+
+## Unreleased — Private prompt context for moderation support
+
+- Save signed-in reference-image prompt drafts before generation, including drafts blocked by image review, and retain original prompts for rejected or incomplete text checks.
+- Show recent reference drafts and submitted job prompts separately in administrator review details. Keep capture owner-scoped, bounded and idempotent; preserve all generation, moderation and credit gates.
+- Historical unsaved prompts cannot be reconstructed.
+
 ## Unreleased — Photo quick starts
 
 - Publish the verified birthday portrait in the example gallery and alternate it with the dog birthday card on the homepage every eight visible seconds. Pause on hover/focus, provide manual selection, and report clicks by the displayed artwork.

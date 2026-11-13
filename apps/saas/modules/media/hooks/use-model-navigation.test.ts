@@ -10,6 +10,14 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("image model URL selection", () => {
+	it("opens MiniMax H3 with its dedicated image model", () => {
+		expect(imageModelHref("image-minimax-h3")).toBe("/minimax-h3-image");
+		expect(resolveRequestedImageModel("/minimax-h3-image", null)).toBe("image-minimax-h3");
+		expect(resolveRequestedImageModel("/minimax-h3-image", "unknown-model")).toBe(
+			"image-minimax-h3",
+		);
+		expect(resolveRequestedImageOutputFormat("/minimax-h3-image")).toBeUndefined();
+	});
 	it("defaults the dedicated tools to a compatible model and output format", () => {
 		for (const path of ["/gpt-image-2-6", "/ai-svg-generator", "/ai-gif-generator"]) {
 			expect(resolveRequestedImageModel(path, null)).toBe("image-gpt-image-2-6-flare");

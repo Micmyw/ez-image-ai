@@ -28,6 +28,22 @@ const draft: WorkspaceDraft = {
 };
 
 describe("workspace continuity across account and checkout navigation", () => {
+	it("returns an owned MiniMax draft to its dedicated workspace", () => {
+		const store = storage();
+		const minimaxDraft: WorkspaceDraft = {
+			values: { ...draft.values, productKey: "image-minimax-h3", skuKey: "minimax-h3-1k" },
+			parentJobId: null,
+		};
+		expect(saveWorkspaceDraft(store, "owner-a", minimaxDraft, 1000, "/minimax-h3-image")).toBe(
+			true,
+		);
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, "/minimax-h3-image")).toEqual(minimaxDraft);
+		expect(workspaceDraftReturnPath(store, "owner-a", 2000)).toBe(
+			"/minimax-h3-image?resume=workspace",
+		);
+		expect(loadWorkspaceDraft(store, "owner-b", 2000, "/minimax-h3-image")).toBeNull();
+		expect(store.getItem(WORKSPACE_DRAFT_KEY)).toBeNull();
+	});
 	it("returns to the same GIF tool with exact controls and owner scope", () => {
 		const store = storage();
 		const gifDraft: WorkspaceDraft = {

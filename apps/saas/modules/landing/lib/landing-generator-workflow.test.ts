@@ -76,6 +76,18 @@ const products = [
 ] satisfies GuestCapabilityProduct[];
 
 describe("landing generator workflow", () => {
+	it("prefers H3 for a new workspace without replacing an explicit selection", () => {
+		const minimax = {
+			...products[0],
+			key: "image-minimax-h3",
+			accessHint: "paid-account",
+		} as GuestCapabilityProduct;
+		const available = [...products, minimax];
+		expect(resolveLandingProductSelection(available, null)).toBe("image-minimax-h3");
+		expect(resolveLandingProductSelection(available, "image-nano-banana-2-lite")).toBe(
+			"image-nano-banana-2-lite",
+		);
+	});
 	it("does not silently substitute a requested unavailable model", () => {
 		expect(resolveLandingProductSelection(products, "image-gpt-image-2-6-flare", true)).toBe(
 			"image-gpt-image-2-6-flare",

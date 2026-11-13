@@ -88,6 +88,7 @@ describe("public navigation taxonomy", () => {
 		expect(videoGroup).not.toMatch(/rumpelstiltskin|lip-sync|upscal|text-to-video|image-to-video/);
 		expect(toolGroup).not.toContain('href="/blog"');
 		expect(toolGroup).not.toContain("/effects");
+		expect(markup).toContain('href="/minimax-h3-image"');
 		const resourceGroup = markup.match(
 			/<details[^>]*data-navigation-group="resources"[\s\S]*?<\/details>/,
 		)?.[0];

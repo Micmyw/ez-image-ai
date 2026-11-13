@@ -6,7 +6,13 @@ import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary"
 import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
 import { createChoosePlanPath, writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import { getImageGenerationCredits, getImageProductSelectionContract } from "@repo/config/client";
-import { EZPIC_PRODUCT_KEYS, getPlanEntitlement, type ImageAspectRatio } from "@repo/config/client";
+import {
+	EZPIC_PRODUCT_KEYS,
+	IMAGE_SKU_KEYS,
+	getPlanEntitlement,
+	type ImageAspectRatio,
+	type ImageSkuKey,
+} from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import { textLengthBucket, generationErrorCategory } from "@repo/utils/lib/generation-diagnostics";
@@ -37,6 +43,7 @@ import {
 	useRequestedImageModel,
 	useRequestedImageOutputFormat,
 } from "../hooks/use-model-navigation";
+import { useReferencePromptCapture } from "../hooks/use-reference-prompt-capture";
 import { creditAccountOwnerId } from "../lib/credit-account-query";
 import {
 	getEditorErrorKey,
@@ -45,6 +52,7 @@ import {
 } from "../lib/editor-error";
 import {
 	isEditorProductKey,
+	DEFAULT_EDITOR_PRODUCT_KEY,
 	type EditorDraftInput,
 	type EditorProductKey,
 } from "../lib/editor-recovery";
@@ -91,6 +99,7 @@ export function GenerationForm({
 	workspaceDraftPath = "/create",
 	initialProductKey,
 	allowedProductKeys = [...EZPIC_PRODUCT_KEYS],
+	allowedImageSkuKeys = [...IMAGE_SKU_KEYS],
 	initialSourceReady = false,
 	parentJobId,
 	requireReference: referenceRequired = false,
@@ -111,6 +120,7 @@ export function GenerationForm({
 	initialDraft?: EditorDraftInput | null;
 	initialProductKey?: EditorProductKey;
 	allowedProductKeys?: EditorProductKey[];
+	allowedImageSkuKeys?: ImageSkuKey[];
 	initialSourceReady?: boolean;
 	parentJobId?: string | null;
 	requireReference?: boolean;
@@ -253,7 +263,7 @@ export function GenerationForm({
 		initialDraft?.productKey ??
 		(requestedModel && isEditorProductKey(requestedModel)
 			? requestedModel
-			: "image-nano-banana-2-lite");
+			: DEFAULT_EDITOR_PRODUCT_KEY);
 	const initialContract = getImageProductSelectionContract(resolvedInitialProductKey)!;
 	const initialSelection =
 		initialDraft?.productKey === resolvedInitialProductKey
@@ -285,6 +295,13 @@ export function GenerationForm({
 		},
 	});
 	const values = form.watch();
+	useReferencePromptCapture({
+		ownerId,
+		assetId: values.sourceAssetId,
+		productKey: values.productKey,
+		prompt: values.prompt,
+		enabled: ready,
+	});
 	const product = products.find((candidate) => candidate.key === values.productKey);
 	const passSelected = fundingSource === "IMAGE_PASS";
 	const passAvailable = generation.imagePass?.data?.available;
@@ -294,7 +311,8 @@ export function GenerationForm({
 		passSelected && passSkuAllowed && !generation.imagePass?.isError && (passAvailable ?? 0) >= 1;
 	function modelAccessAllowed(productKey: EditorProductKey, skuKey: unknown) {
 		return (
-			allowedProductKeys.includes(productKey) ||
+			(allowedProductKeys.includes(productKey) &&
+				allowedImageSkuKeys.includes(skuKey as ImageSkuKey)) ||
 			(passSelected &&
 				!generation.imagePass?.isError &&
 				(passAvailable ?? 0) >= 1 &&
@@ -764,6 +782,7 @@ export function GenerationForm({
 					referencePanel={
 						toolPrompt?.allowReference !== false && (
 							<ImageSourcePanel
+								active={active}
 								ownerId={ownerId}
 								compact
 								presentation="composer"

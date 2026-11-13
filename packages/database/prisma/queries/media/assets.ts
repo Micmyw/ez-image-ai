@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
 	isPermittedModerationEvidence,
+	isDelegatedImageInputEvidence,
 	TEMPORARY_REFERENCE_PREFIX,
 	TEMPORARY_REFERENCE_RESERVATION_PREFIX,
 } from "@repo/config";
@@ -63,7 +64,7 @@ export function isHistoricalImageModerationProvider(provider: string | null): bo
 	return HISTORICAL_IMAGE_PROVIDERS.includes(provider ?? "");
 }
 
-export function hasCurrentApprovedMediaAssetEvidence(
+function hasCurrentMediaAssetEvidence(
 	asset: Pick<
 		MediaAssetReadRecord,
 		| "status"
@@ -80,6 +81,8 @@ export function hasCurrentApprovedMediaAssetEvidence(
 		| "verificationValidUntil"
 	> & {
 		verificationEngine?: string;
+		ownerType?: string;
+		retentionClass?: string;
 		moderationResults: Array<
 			Pick<
 				MediaAssetReadRecord["moderationResults"][number],
@@ -98,6 +101,7 @@ export function hasCurrentApprovedMediaAssetEvidence(
 		>;
 	},
 	verification: MediaAssetVerificationBoundary,
+	allowInputDelegation = false,
 ): boolean {
 	const evidence = asset.moderationResults[0];
 	// Retiring a provider does not erase an already completed approval. This
@@ -126,7 +130,9 @@ export function hasCurrentApprovedMediaAssetEvidence(
 	}
 
 	return (
-		isPermittedModerationEvidence(evidence) &&
+		!!evidence &&
+		(isPermittedModerationEvidence(evidence) ||
+			(allowInputDelegation && isDelegatedImageInputEvidence(evidence, asset))) &&
 		evidence.assetChecksum === asset.checksum &&
 		evidence.verificationGeneration === asset.verificationGeneration &&
 		evidence.attemptNumber === asset.verificationAttemptCount &&
@@ -139,6 +145,22 @@ export function hasCurrentApprovedMediaAssetEvidence(
 		evidence.validUntil.getTime() === asset.verificationValidUntil.getTime() &&
 		evidence.validUntil > verification.now
 	);
+}
+
+/** Detector approval only: outputs, guest uploads and video keep this boundary. */
+export function hasCurrentApprovedMediaAssetEvidence(
+	asset: Parameters<typeof hasCurrentMediaAssetEvidence>[0],
+	verification: MediaAssetVerificationBoundary,
+): boolean {
+	return hasCurrentMediaAssetEvidence(asset, verification);
+}
+
+/** Ordinary image inputs may carry an explicit, immutable technical-failure delegation. */
+export function hasCurrentImageInputEvidence(
+	asset: Parameters<typeof hasCurrentMediaAssetEvidence>[0],
+	verification: MediaAssetVerificationBoundary,
+): boolean {
+	return hasCurrentMediaAssetEvidence(asset, verification, true);
 }
 
 type CleanupReservationStatus = "EXPIRED" | "RELEASED";
@@ -2464,7 +2486,7 @@ export async function getOwnedMediaAssetReadState(
 	if (!asset) return null;
 	return {
 		asset,
-		readable: hasCurrentApprovedMediaAssetEvidence(asset, input.verification),
+		readable: hasCurrentImageInputEvidence(asset, input.verification),
 	};
 }
 

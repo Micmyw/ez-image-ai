@@ -4,8 +4,8 @@ import type { InspirationKey } from "./model-artwork";
 
 export type ModelProductKey = (typeof EZPIC_PRODUCT_KEYS)[number];
 export { INSPIRATION } from "./model-artwork";
-// Includes the GPT Image 2.6 comparison entry, which has its own canonical tool page.
-export const MODEL_DIRECTORY_UPDATED_AT = "2026-11-11";
+// Includes models with dedicated canonical tool pages outside the illustration collection.
+export const MODEL_DIRECTORY_UPDATED_AT = "2026-11-13";
 
 export interface ModelPageContent {
 	key: ModelProductKey;

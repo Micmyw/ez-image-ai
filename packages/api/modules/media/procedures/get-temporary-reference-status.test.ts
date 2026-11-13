@@ -37,7 +37,7 @@ describe("temporary reference review status", () => {
 	});
 	afterEach(() => vi.unstubAllEnvs());
 
-	it.each(["NOT_STARTED", "PENDING", "APPROVED", "UNAVAILABLE"])(
+	it.each(["NOT_STARTED", "PENDING", "APPROVED", "AVAILABLE", "UNAVAILABLE"])(
 		"returns only the public %s state with private cache headers",
 		async (status) => {
 			mocks.status.mockResolvedValue({

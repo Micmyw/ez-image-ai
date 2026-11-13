@@ -301,6 +301,20 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 	const selection = imageSelectionBySku.get(skuKey);
 	const parsedSelection = selection && parseImageSelection(selection.productKey, input.input);
 	if (!selection || !parsedSelection) throw unsupportedKieInput();
+	const maximumInputPixels = selection.contract.maximumInputPixels;
+	if (input.input.kind === "image-to-image" && maximumInputPixels !== undefined) {
+		const { width, height } = input.input.sourceAsset;
+		if (
+			typeof width !== "number" ||
+			typeof height !== "number" ||
+			!Number.isSafeInteger(width) ||
+			!Number.isSafeInteger(height) ||
+			width <= 0 ||
+			height <= 0 ||
+			width * height > maximumInputPixels
+		)
+			throw unsupportedKieInput();
+	}
 	const prompt = input.input.prompt.trim();
 	if (
 		("strength" in input.input && input.input.strength !== undefined) ||
@@ -378,6 +392,9 @@ const SEEDREAM_4_IMAGE_SIZES: Readonly<Record<string, string>> = {
 };
 
 const KIE_IMAGE_REQUEST_SPECS = {
+	"minimax-h3-1k": minimaxH3RequestSpec("1K"),
+	"minimax-h3-2k": minimaxH3RequestSpec("2K"),
+	"minimax-h3-4k": minimaxH3RequestSpec("4K"),
 	"gpt-image-2-6-flare-1k": gptImage26RequestSpec("flare", "1K"),
 	"gpt-image-2-6-flare-2k": gptImage26RequestSpec("flare", "2K"),
 	"gpt-image-2-6-flare-4k": gptImage26RequestSpec("flare", "4K"),
@@ -556,6 +573,19 @@ const KIE_IMAGE_REQUEST_SPECS = {
 		outputFormats: { png: "png", jpeg: "jpeg" },
 	},
 } as const satisfies Record<ImageSkuKey, KieImageRequestSpec>;
+
+function minimaxH3RequestSpec(resolution: "1K" | "2K" | "4K"): KieImageRequestSpec {
+	return {
+		providerModelId: "minimax-h3/image-edit",
+		sourceField: "image_urls",
+		parameters: {
+			resolution,
+			expand_prompt: true,
+			output_format: resolution === "4K" ? "jpeg" : "png",
+		},
+		outputFormats: { png: "png", jpeg: "jpeg" },
+	};
+}
 
 function gptImage26RequestSpec(
 	variant: "flare" | "sunburst",

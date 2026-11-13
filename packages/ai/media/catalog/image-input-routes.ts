@@ -1,7 +1,9 @@
+import { MINIMAX_H3_REFERENCE_COST_MICROS } from "./minimax-h3-image";
 import type { CatalogRoute } from "./routing";
 
 // Kie's published text endpoints, reviewed against independent OpenAPI snapshots.
 const TEXT_IMAGE_MODELS: Readonly<Record<string, string>> = {
+	"minimax-h3/image-edit": "minimax-h3/text-to-image",
 	"gpt-image-2-6/flare-image-to-image": "gpt-image-2-6/flare-text-to-image",
 	"gpt-image-2-6/sunburst-image-to-image": "gpt-image-2-6/sunburst-text-to-image",
 	"nano-banana-2-lite": "nano-banana-2-lite",
@@ -26,7 +28,18 @@ export function textImageRoutes(routes: readonly CatalogRoute[]): CatalogRoute[]
 	return routes.flatMap((route) => {
 		const providerModelId =
 			route.provider === "kie" ? kieTextImageModel(route.providerModelId) : undefined;
-		return providerModelId ? [{ ...route, providerModelId }] : [];
+		return providerModelId
+			? [
+					{
+						...route,
+						providerModelId,
+						providerCostMicros:
+							route.providerModelId === "minimax-h3/image-edit"
+								? route.providerCostMicros - MINIMAX_H3_REFERENCE_COST_MICROS
+								: route.providerCostMicros,
+					},
+				]
+			: [];
 	});
 }
 

@@ -1,0 +1,431 @@
+{
+	"checkedDate": "2026-11-13",
+	"evidence": "Public OpenAPI request schemas; no paid execution.",
+	"contracts": [
+		{
+			"sourceUrl": "https://docs.kie.ai/market/minimax-h3/image-edit.md",
+			"sourceSha256": "dda36ef82dc4c2ba180c31bbef62e6ca9604973e7bd84816ac50949cc7c5a609",
+			"model": "minimax-h3/image-edit",
+			"requestSchema": {
+				"properties": {
+					"model": {
+						"default": "minimax-h3/image-edit",
+						"description": "The model name to use for generation. Required field.\n\n- Must be `minimax-h3/image-edit` for this endpoint",
+						"enum": ["minimax-h3/image-edit"],
+						"examples": ["minimax-h3/image-edit"],
+						"type": "string",
+						"x-apidog-enum": [
+							{
+								"value": "minimax-h3/image-edit",
+								"name": "",
+								"description": ""
+							}
+						]
+					},
+					"callBackUrl": {
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation",
+						"examples": ["https://your-domain.com/api/callback"],
+						"format": "uri",
+						"type": "string"
+					},
+					"input": {
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 5000,
+								"examples": [
+									"Place the skincare products from <Picture 1> on a sunlit white marble bathroom counter. Keep the product shapes, colors and label text unchanged."
+								],
+								"description": "Required. Editing instruction, 1–5000 characters; Chinese and English are both supported. Refer to reference images as `<Picture 1>`, `<Picture 2>`, … (in `image_urls` order)."
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": [
+									"auto",
+									"1:1",
+									"5:4",
+									"4:3",
+									"3:2",
+									"16:9",
+									"21:9",
+									"4:5",
+									"3:4",
+									"2:3",
+									"9:16"
+								],
+								"examples": ["auto"],
+								"x-apidog-enum": [
+									{
+										"value": "auto",
+										"name": "",
+										"description": "Automatic"
+									},
+									{
+										"value": "1:1",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "5:4",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "4:3",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "3:2",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "16:9",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "21:9",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "4:5",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "3:4",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "2:3",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "9:16",
+										"name": "",
+										"description": ""
+									}
+								],
+								"description": "Aspect ratio of the output image. Optional, defaults to `auto`.\n\n- `auto`: follows the aspect ratio of the first reference image (any ratio between 1:3 and 3:1)\n- Output sizes for each ratio and tier are listed in the description above\n- Do not pass together with `width`/`height`"
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["1K", "2K", "4K"],
+								"default": "2K",
+								"examples": ["2K"],
+								"x-apidog-enum": [
+									{
+										"value": "1K",
+										"name": "",
+										"description": "About 1 MP"
+									},
+									{
+										"value": "2K",
+										"name": "",
+										"description": "About 4 MP"
+									},
+									{
+										"value": "4K",
+										"name": "",
+										"description": "About 16 MP"
+									}
+								],
+								"description": "Output size tier. Optional, default `2K`; case-insensitive.\n\n- `1K`: about 1 MP\n- `2K`: about 4 MP\n- `4K`: about 16 MP, the officially recommended quality tier\n- Each image is billed by this tier, plus a charge for each reference image\n- Do not pass together with `width`/`height`; with a custom size, billing follows its total pixels"
+							},
+							"seed": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 2147483647,
+								"examples": [7],
+								"description": "Random seed, 0–2147483647. Optional; a random seed is used when omitted, and the actual seed is returned with the result. With prompt expansion on, the rewritten prompt differs each time, so results are only reproducible when `expand_prompt` is `false`."
+							},
+							"expand_prompt": {
+								"type": "boolean",
+								"default": true,
+								"examples": [true],
+								"description": "Whether to rewrite the prompt into a detailed English description before generating. Optional. Prompt expansion is on by default; we recommend keeping it on for better image quality.\n\n- `true` (default, recommended): the prompt is rewritten into a detailed English description\n- `false`: the prompt is used as-is"
+							},
+							"output_format": {
+								"type": "string",
+								"enum": ["png", "jpeg"],
+								"default": "png",
+								"examples": ["png"],
+								"x-apidog-enum": [
+									{
+										"value": "png",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "jpeg",
+										"name": "",
+										"description": ""
+									}
+								],
+								"description": "Output image format. Optional, default `png`. JPEG uses quality 95 and is much smaller; 4K PNG files are very large, so use JPEG when you need smaller files."
+							},
+							"image_urls": {
+								"type": "array",
+								"minItems": 1,
+								"maxItems": 16,
+								"items": {
+									"type": "string",
+									"minLength": 1,
+									"pattern": "^https?://.+"
+								},
+								"examples": [
+									["https://static.aiquickdraw.com/tools/example/1794319554733_LhkHjUSS.png"]
+								],
+								"description": "Required. Reference image URLs (publicly accessible URLs, not file content).\n\n- 1–16 images, publicly accessible `http(s)://` URLs; the order defines `<Picture 1>`, `<Picture 2>`, …\n- Each image ≤ 20 MB and ≤ 64 MP\n- Supported formats: JPG, PNG, WEBP, HEIC, BMP (transparent backgrounds are filled with white)"
+							},
+							"width": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 8192,
+								"examples": [1920],
+								"description": "Custom output width in pixels, 1–8192. Optional. **`width` and `height` must be set together** (if one is set, the other is required). When they are set, **do not pass `resolution` or `aspect_ratio`** — this combination is not accepted.\n\n- Total pixels (width × height) must be between 655,360 and 20,000,000, and width : height between 1:3 and 3:1\n- The output is exactly this size\n- Billing tier by total pixels: up to 1,200,000 → `1K`, up to 4,500,000 → `2K`, above → `4K` (e.g. 1920 × 1080 → `2K`, 3840 × 2160 → `4K`)"
+							},
+							"height": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 8192,
+								"examples": [1080],
+								"description": "Custom output height in pixels, 1–8192. Optional, but must be set together with `width`. See `width` for limits, priority and billing."
+							}
+						},
+						"required": ["prompt", "image_urls"],
+						"type": "object",
+						"x-apidog-orders": [
+							"prompt",
+							"aspect_ratio",
+							"resolution",
+							"seed",
+							"expand_prompt",
+							"output_format",
+							"image_urls",
+							"width",
+							"height"
+						],
+						"x-apidog-ignore-properties": []
+					}
+				},
+				"required": ["model", "input"],
+				"type": "object",
+				"x-apidog-orders": ["model", "callBackUrl", "input"],
+				"x-apidog-ignore-properties": []
+			}
+		},
+		{
+			"sourceUrl": "https://docs.kie.ai/market/minimax-h3/text-to-image.md",
+			"sourceSha256": "bb6123bd95e698f90c730b268d0650ff7796d27f9ff4d3989bfd8e2d6a3afe4b",
+			"model": "minimax-h3/text-to-image",
+			"requestSchema": {
+				"properties": {
+					"model": {
+						"default": "minimax-h3/text-to-image",
+						"description": "The model name to use for generation. Required field.\n\n- Must be `minimax-h3/text-to-image` for this endpoint",
+						"enum": ["minimax-h3/text-to-image"],
+						"examples": ["minimax-h3/text-to-image"],
+						"type": "string",
+						"x-apidog-enum": [
+							{
+								"value": "minimax-h3/text-to-image",
+								"name": "",
+								"description": ""
+							}
+						]
+					},
+					"callBackUrl": {
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation",
+						"examples": ["https://your-domain.com/api/callback"],
+						"format": "uri",
+						"type": "string"
+					},
+					"input": {
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"minLength": 1,
+								"maxLength": 5000,
+								"examples": [
+									"A cozy bookstore cafe on a rainy evening, warm lights glowing through the window, a ginger cat sleeping on a stack of books"
+								],
+								"description": "Required. Text prompt, 1–5000 characters; Chinese and English are both supported."
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"enum": [
+									"auto",
+									"1:1",
+									"5:4",
+									"4:3",
+									"3:2",
+									"16:9",
+									"21:9",
+									"4:5",
+									"3:4",
+									"2:3",
+									"9:16"
+								],
+								"examples": ["auto"],
+								"x-apidog-enum": [
+									{
+										"value": "auto",
+										"name": "",
+										"description": "Automatic"
+									},
+									{
+										"value": "1:1",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "5:4",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "4:3",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "3:2",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "16:9",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "21:9",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "4:5",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "3:4",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "2:3",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "9:16",
+										"name": "",
+										"description": ""
+									}
+								],
+								"description": "Aspect ratio of the output image. Optional, defaults to `auto`.\n\n- `auto`: the prompt rewriter chooses a ratio based on the content; when `expand_prompt` is `false`, `auto` uses `1:1`\n- Output sizes for each ratio and tier are listed in the description above\n- Do not pass together with `width`/`height`"
+							},
+							"resolution": {
+								"type": "string",
+								"enum": ["1K", "2K", "4K"],
+								"default": "2K",
+								"examples": ["2K"],
+								"x-apidog-enum": [
+									{
+										"value": "1K",
+										"name": "",
+										"description": "About 1 MP"
+									},
+									{
+										"value": "2K",
+										"name": "",
+										"description": "About 4 MP"
+									},
+									{
+										"value": "4K",
+										"name": "",
+										"description": "About 16 MP"
+									}
+								],
+								"description": "Output size tier. Optional, default `2K`; case-insensitive.\n\n- `1K`: about 1 MP\n- `2K`: about 4 MP\n- `4K`: about 16 MP, the officially recommended quality tier\n- Each image is billed by this tier\n- Do not pass together with `width`/`height`; with a custom size, billing follows its total pixels"
+							},
+							"seed": {
+								"type": "integer",
+								"minimum": 0,
+								"maximum": 2147483647,
+								"examples": [7],
+								"description": "Random seed, 0–2147483647. Optional; a random seed is used when omitted, and the actual seed is returned with the result. With prompt expansion on, the rewritten prompt differs each time, so results are only reproducible when `expand_prompt` is `false`."
+							},
+							"expand_prompt": {
+								"type": "boolean",
+								"default": true,
+								"examples": [true],
+								"description": "Whether to rewrite the prompt into a detailed English description before generating. Optional. Prompt expansion is on by default; we recommend keeping it on for better image quality.\n\n- `true` (default, recommended): the prompt is rewritten into a detailed English description; with `aspect_ratio: auto`, the rewriter also chooses the ratio\n- `false`: the prompt is used as-is"
+							},
+							"output_format": {
+								"type": "string",
+								"enum": ["png", "jpeg"],
+								"default": "png",
+								"examples": ["png"],
+								"x-apidog-enum": [
+									{
+										"value": "png",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "jpeg",
+										"name": "",
+										"description": ""
+									}
+								],
+								"description": "Output image format. Optional, default `png`. JPEG uses quality 95 and is much smaller; 4K PNG files are very large, so use JPEG when you need smaller files."
+							},
+							"width": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 8192,
+								"examples": [1920],
+								"description": "Custom output width in pixels, 1–8192. Optional. **`width` and `height` must be set together** (if one is set, the other is required). When they are set, **do not pass `resolution` or `aspect_ratio`** — this combination is not accepted.\n\n- Total pixels (width × height) must be between 655,360 and 20,000,000, and width : height between 1:3 and 3:1\n- The output is exactly this size\n- Billing tier by total pixels: up to 1,200,000 → `1K`, up to 4,500,000 → `2K`, above → `4K` (e.g. 1920 × 1080 → `2K`, 3840 × 2160 → `4K`)"
+							},
+							"height": {
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 8192,
+								"examples": [1080],
+								"description": "Custom output height in pixels, 1–8192. Optional, but must be set together with `width`. See `width` for limits, priority and billing."
+							}
+						},
+						"required": ["prompt"],
+						"type": "object",
+						"x-apidog-orders": [
+							"prompt",
+							"aspect_ratio",
+							"resolution",
+							"seed",
+							"expand_prompt",
+							"output_format",
+							"width",
+							"height"
+						],
+						"x-apidog-ignore-properties": []
+					}
+				},
+				"required": ["model", "input"],
+				"type": "object",
+				"x-apidog-orders": ["model", "callBackUrl", "input"],
+				"x-apidog-ignore-properties": []
+			}
+		}
+	]
+}

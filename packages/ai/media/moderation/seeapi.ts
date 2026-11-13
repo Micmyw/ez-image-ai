@@ -107,13 +107,38 @@ export class SeeapiSafetyAdapter {
 			if (["failed", "canceled", "refunded", "expired"].includes(task.status)) {
 				// Classify only validated machine codes; provider messages may contain
 				// private media URLs and must never become diagnostics or policy verdicts.
+				const code = task.error?.code ?? "UNKNOWN";
 				const reasonCode =
-					task.error?.code === "MEDIA_INVALID"
+					code === "MEDIA_INVALID"
 						? "MODERATION_MEDIA_INVALID"
-						: task.error?.code === "PROVIDER_TIMEOUT"
+						: code === "PROVIDER_TIMEOUT"
 							? "MODERATION_TIMEOUT"
-							: "MODERATION_UNAVAILABLE";
-				return result("ERROR", reasonCode);
+							: code === "RATE_LIMITED"
+								? "MODERATION_RATE_LIMITED"
+								: code === "DETECTION_REPORT_FAILED"
+									? "MODERATION_DETECTION_REPORT_FAILED"
+									: "MODERATION_UNAVAILABLE";
+				return {
+					...result("ERROR", reasonCode),
+					evidence: {
+						requestId: task.id,
+						models: [task.model],
+						operations: 1,
+						scores: {},
+						seeapiFailure: {
+							taskId: task.id,
+							status: task.status as "failed" | "canceled" | "refunded" | "expired",
+							code: [
+								"MEDIA_INVALID",
+								"PROVIDER_TIMEOUT",
+								"RATE_LIMITED",
+								"DETECTION_REPORT_FAILED",
+							].includes(code)
+								? code
+								: "UNKNOWN",
+						},
+					},
+				};
 			}
 			if (task.status === "queued" || task.status === "processing")
 				return task.result === null

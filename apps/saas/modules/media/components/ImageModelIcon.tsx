@@ -10,11 +10,13 @@ export function ImageModelIcon({
 }) {
 	const family = productKey?.startsWith("image-nano-banana")
 		? "nano-banana"
-		: productKey?.startsWith("image-seedream")
-			? "seedream"
-			: productKey?.startsWith("image-gpt-image")
-				? "openai"
-				: null;
+		: productKey?.startsWith("image-minimax")
+			? "minimax"
+			: productKey?.startsWith("image-seedream")
+				? "seedream"
+				: productKey?.startsWith("image-gpt-image")
+					? "openai"
+					: null;
 	if (!family) return null;
 	return <ModelBrandIcon brand={family} size={size} />;
 }

@@ -77,6 +77,7 @@ export function resolveEditorRecovery(input: {
 	candidate: RecoveryCandidate | null;
 	sourceAsset: RecoverySourceAsset | null;
 	allowedProductKeys: EditorProductKey[];
+	allowedImageSkuKeys?: ImageSkuKey[];
 }): EditorRecoveryResult {
 	if (!input.requested) return { initialDraft: null, restoreState: "idle", notice: null };
 	if (!input.candidate) return unavailableRecovery();
@@ -86,9 +87,11 @@ export function resolveEditorRecovery(input: {
 			? {
 					initialDraft: draft,
 					restoreState: "ready",
-					notice: input.allowedProductKeys.includes(draft.productKey)
-						? null
-						: "quality-upgrade-required",
+					notice:
+						input.allowedProductKeys.includes(draft.productKey) &&
+						(!input.allowedImageSkuKeys || input.allowedImageSkuKeys.includes(draft.input.skuKey))
+							? null
+							: "quality-upgrade-required",
 				}
 			: unavailableRecovery();
 	}
@@ -107,7 +110,11 @@ export function resolveEditorRecovery(input: {
 	return {
 		initialDraft: draft,
 		restoreState: input.sourceAsset.status === "READY" ? "ready" : "verifying",
-		notice: input.allowedProductKeys.includes(draft.productKey) ? null : "quality-upgrade-required",
+		notice:
+			input.allowedProductKeys.includes(draft.productKey) &&
+			(!input.allowedImageSkuKeys || input.allowedImageSkuKeys.includes(draft.input.skuKey))
+				? null
+				: "quality-upgrade-required",
 	};
 }
 

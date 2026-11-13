@@ -1,5 +1,6 @@
 "use client";
 
+import { SubscriptionCompensationDialog } from "@payments/components/SubscriptionCompensation";
 import { Button } from "@repo/ui/components/button";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useQuery } from "@tanstack/react-query";
@@ -35,6 +36,7 @@ const uploadStatusLabels = {
 
 export function ImageSourcePanel({
 	ownerId = null,
+	active = true,
 	sourceAssetId,
 	temporaryReference,
 	onChange,
@@ -47,6 +49,7 @@ export function ImageSourcePanel({
 	presentation = "default",
 }: {
 	ownerId?: string | null;
+	active?: boolean;
 	sourceAssetId: string;
 	temporaryReference?: TemporaryReferenceReceipt;
 	onChange: (assetId: string, reference?: TemporaryReferenceReceipt) => void;
@@ -281,6 +284,17 @@ export function ImageSourcePanel({
 					onRevise={removeSource}
 				/>
 			)}
+			<SubscriptionCompensationDialog
+				ownerId={ownerId}
+				assetId={sourceAssetId}
+				enabled={
+					active &&
+					!pending &&
+					(temporaryStatus.data?.status === "AVAILABLE" ||
+						temporaryStatus.data?.status === "UNAVAILABLE" ||
+						safetyMessage === "safetyUnavailable")
+				}
+			/>
 			<div hidden={compact && Boolean(sourceAssetId) && !pending}>
 				<MediaUploader
 					temporaryReference

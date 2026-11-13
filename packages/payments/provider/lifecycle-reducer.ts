@@ -1,5 +1,6 @@
 import {
 	createCreditGrant,
+	grantSubscriptionCompensation,
 	ensureCreditAccountInTransaction,
 	freezeInitialSubscriptionPaymentEvidence,
 	isDatabaseUniqueConflict,
@@ -719,6 +720,15 @@ async function applyProviderPayment(
 			client,
 		);
 		if (!existingGrant) grantsCreated += 1;
+		if (index === 0)
+			await grantSubscriptionCompensation(
+				{
+					subscriptionId: subscription.id,
+					periodId: saved.id,
+					accountId: account.id,
+				},
+				client,
+			);
 	}
 	return grantsCreated;
 }

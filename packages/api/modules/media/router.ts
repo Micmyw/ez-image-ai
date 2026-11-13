@@ -48,6 +48,7 @@ import { listJobs } from "./procedures/list-jobs";
 import { renameEditSession } from "./procedures/rename-edit-session";
 import { resolveKieZeroCostRejection } from "./procedures/resolve-kie-zero-cost-rejection";
 import { retryGeneration } from "./procedures/retry-generation";
+import { saveReferencePrompt } from "./procedures/save-reference-prompt";
 import { submitGeneration } from "./procedures/submit-generation";
 import { submitGuestGeneration } from "./procedures/submit-guest-generation";
 
@@ -61,6 +62,7 @@ export const mediaRouter = {
 	adminModerationAcknowledge,
 	getPublicCatalog,
 	getTemporaryReferenceStatus,
+	saveReferencePrompt,
 	createQuote,
 	createGeneration,
 	submitGeneration,

@@ -1,6 +1,6 @@
 import type { ExecutableRouteGraphOptions, MediaModelInput, ModerationDecision } from "@repo/ai";
 import { EZPIC_PRODUCT_KEYS } from "@repo/config";
-import { recordTextModerationOutcome } from "@repo/database";
+import { recordBlockedPromptAttempt, type BlockedPromptContext } from "@repo/database";
 import { findEligibleImageEditParentForOwner } from "@repo/database";
 import { db } from "@repo/database/client";
 import { type GenerationFundingSource } from "@repo/database/media-image-passes";
@@ -67,7 +67,10 @@ interface CreateQuoteDependencies {
 		credits: bigint;
 		expiresAt: Date;
 	}>;
-	recordDenied(evidence: TextModerationEvidence): Promise<void> | void;
+	recordDenied(
+		evidence: TextModerationEvidence,
+		context: BlockedPromptContext,
+	): Promise<void> | void;
 }
 
 type CurrentEzPicProductKey = (typeof EZPIC_PRODUCT_KEYS)[number];
@@ -88,23 +91,7 @@ const defaultDependencies: CreateQuoteDependencies = {
 	getRouteGraphOptions: () => getCurrentExecutableRouteGraphOptions(),
 	createAdapter: () => createTextModerationAdapter(process.env),
 	persistApproved: (input) => createModeratedGenerationQuoteTransaction(input, db),
-	recordDenied: async (evidence) => {
-		await db.$transaction((tx) =>
-			recordTextModerationOutcome(
-				{ targetType: "TEXT_ATTEMPT", targetId: evidence.inputFingerprint, moderation: evidence },
-				tx,
-			),
-		);
-		await db.auditLog.create({
-			data: {
-				action: "MEDIA_TEXT_MODERATION_BLOCKED",
-				targetType: "GENERATION_QUOTE_REQUEST",
-				targetId: evidence.inputFingerprint,
-				after: { ...evidence },
-				metadata: {},
-			},
-		});
-	},
+	recordDenied: (evidence, context) => recordBlockedPromptAttempt(evidence, context, db),
 };
 
 export async function createQuoteForUser(
@@ -195,7 +182,13 @@ export async function createQuoteForUser(
 				dependencies.persistApproved({ ...quoteInput, moderation }),
 			);
 		},
-		recordDenied: (evidence) => dependencies.recordDenied(evidence),
+		recordDenied: (evidence) =>
+			dependencies.recordDenied(evidence, {
+				userId,
+				prompt: input.input.prompt,
+				productKey: input.productKey,
+				sourceAssetId: imageEditSourceAssetId(input.input),
+			}),
 	});
 	return {
 		...created,

@@ -1,16 +1,39 @@
-export type ImageToolPageKey = "gpt-image-2-6" | "ai-svg-generator" | "ai-gif-generator";
+import { MINIMAX_H3_EXAMPLES } from "./minimax-h3-examples";
+
+export type ImageToolPageKey =
+	| "minimax-h3-image"
+	| "gpt-image-2-6"
+	| "ai-svg-generator"
+	| "ai-gif-generator";
+
+export interface ImageToolExampleImage {
+	src: string;
+	alt: string;
+	width: number;
+	height: number;
+}
 
 export interface ImageToolPageContent {
 	path: `/${ImageToolPageKey}`;
 	title: string;
 	description: string;
 	heading: string;
+	modelName?: string;
 	intro: string;
 	facts: readonly string[];
 	settingsNote: string;
 	sections: readonly { id: string; title: string; body: string }[];
 	steps: readonly { title: string; body: string }[];
-	prompts: readonly { title: string; prompt: string }[];
+	showPassOffer?: boolean;
+	showAvailabilityNote?: boolean;
+	promptSource?: { label: string; href: string };
+	prompts: readonly {
+		title: string;
+		prompt: string;
+		resolution?: string;
+		image?: ImageToolExampleImage;
+		referenceImage?: ImageToolExampleImage;
+	}[];
 	faq: readonly { question: string; answer: string }[];
 }
 
@@ -31,6 +54,80 @@ const privacyFaq = {
 };
 
 export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = {
+	"minimax-h3-image": {
+		path: "/minimax-h3-image",
+		title: "MiniMax H3 Image — AI Image Generator & Photo Editor",
+		description:
+			"Create detailed images and edit photos with MiniMax H3 Image. Try supplied example prompts, choose 1K, 2K or 4K, and download PNG or JPEG images.",
+		heading: "MiniMax H3 Image",
+		modelName: "MiniMax H3 Image",
+		intro:
+			"Turn a prompt into a detailed image, or give a photo a new look. Create product shots, posters and illustrated guides in one workspace.",
+		facts: ["Text to image & photo editing", "1K · 2K · 4K", "From 5 credits"],
+		settingsNote: "1K: 5 credits · 2K: 10 credits · 4K: 20 credits. Download as PNG or JPEG.",
+		showPassOffer: false,
+		showAvailabilityNote: false,
+		sections: [
+			{
+				id: "detailed-images",
+				title: "Give texture and detail room to shine",
+				body: "Describe the materials, lighting and arrangement for product photography, still life or a scene of your own. Choose 4K when you want a larger image with room for fine detail.",
+			},
+			{
+				id: "posters-and-guides",
+				title: "Build a poster or explain an idea",
+				body: "Combine illustration, a clear layout and exact lettering in one prompt. Make a festival poster, an editorial graphic or a step-by-step visual guide.",
+			},
+			{
+				id: "photo-editing",
+				title: "Change the light, the look or the atmosphere",
+				body: "Add a reference photo and describe your edit. Turn afternoon into evening, change an outfit or explore a new setting while specifying the details you want to keep.",
+			},
+		],
+		steps: [
+			{
+				title: "Describe your image",
+				body: "Write a prompt, or use one of the examples above as your starting point.",
+			},
+			{
+				title: "Choose your settings",
+				body: "Add an optional reference photo, then choose 1K, 2K or 4K and PNG or JPEG.",
+			},
+			{
+				title: "Create and download",
+				body: "Check the credit cost, generate your image and download it from your workspace.",
+			},
+		],
+		promptSource: { label: "Kie", href: "https://kie.ai/minimax-h3-image" },
+		prompts: MINIMAX_H3_EXAMPLES,
+		faq: [
+			{
+				question: "What can I create with MiniMax H3 Image?",
+				answer:
+					"Create images from text or edit a reference photo. MiniMax H3 Image works with product shots, posters, illustrations, infographics and realistic scenes, with 1K, 2K and 4K output options.",
+			},
+			{
+				question: "Can I try MiniMax H3 Image for free?",
+				answer:
+					"Eligible registered accounts receive 10 one-time credits, enough for two MiniMax H3 Image 1K generations at 5 credits each. MiniMax H3 Image 1K is the default model for the free plan. There is no monthly refill; 2K and 4K require a paid subscription.",
+			},
+			{
+				question: "How many credits does each image use?",
+				answer:
+					"A 1K image uses 5 credits, 2K uses 10 and 4K uses 20. These prices apply to text-to-image generation and an edit with one reference photo.",
+			},
+			{
+				question: "How do I edit a photo?",
+				answer:
+					"Upload one reference image and describe what you want to change. You can use PNG, JPEG or WebP. Keep the file within the upload limit shown in your workspace, up to 20 MB for this model.",
+			},
+			{
+				question: "Which image formats can I download?",
+				answer:
+					"Choose PNG or JPEG before generating. Each request produces one image, available in your private workspace and history.",
+			},
+		],
+	},
 	"gpt-image-2-6": {
 		path: "/gpt-image-2-6",
 		title: "GPT Image 2.6 — Flare & Sunburst AI Image Generator",

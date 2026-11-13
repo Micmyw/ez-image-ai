@@ -452,7 +452,7 @@ describe("createQuoteForUser", () => {
 			(["image-to-image", "text-to-image"] as const).map((kind) => ({ decision, kind })),
 		),
 	)(
-		"records prompt-free $decision evidence for $kind and creates no quote",
+		"keeps $decision evidence separate from private $kind prompt context and creates no quote",
 		async ({ decision, kind }) => {
 			const request =
 				kind === "image-to-image"
@@ -488,7 +488,15 @@ describe("createQuoteForUser", () => {
 			).rejects.toThrow(`TEXT_MODERATION_${decision}`);
 			expect(persistApproved).not.toHaveBeenCalled();
 			expect(recordDenied).toHaveBeenCalledOnce();
-			expect(JSON.stringify(recordDenied.mock.calls)).not.toContain("private prompt");
+			expect(recordDenied).toHaveBeenCalledWith(
+				expect.not.objectContaining({ prompt: expect.anything() }),
+				{
+					userId: "user_1",
+					prompt: INPUT.input.prompt,
+					productKey: INPUT.productKey,
+					sourceAssetId: kind === "image-to-image" ? SOURCE_ASSET_ID : null,
+				},
+			);
 		},
 	);
 });

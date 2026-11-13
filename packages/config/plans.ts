@@ -13,6 +13,7 @@ import {
 	PLAN_IDS,
 	planIdSchema,
 	productModelKeySchema,
+	type ImageSkuKey,
 	type ProductModelKey,
 } from "./product";
 
@@ -40,7 +41,7 @@ export const PLAN_ENTITLEMENTS = z
 			id: "free",
 			monthlyCredits: 0,
 			maximumInputBytes: 10 * 1024 * 1024,
-			allowedProducts: ["image-nano-banana-2-lite"],
+			allowedProducts: ["image-minimax-h3", "image-nano-banana-2-lite"],
 			prices: [],
 		},
 		{
@@ -81,6 +82,30 @@ export function getPlanEntitlement(planId: PlanEntitlement["id"]): PlanEntitleme
 	return entitlement;
 }
 
+/** Model access does not include the paid output tiers of the free default model. */
+export function planIncludesImageSelection(
+	entitlement: PlanEntitlement,
+	productKey: ProductModelKey,
+	skuKey?: unknown,
+): boolean {
+	return (
+		entitlement.allowedProducts.includes(productKey) &&
+		(entitlement.id !== "free" ||
+			productKey !== "image-minimax-h3" ||
+			skuKey === undefined ||
+			skuKey === "minimax-h3-1k")
+	);
+}
+
+export function getPlanAllowedImageSkuKeys(entitlement: PlanEntitlement): ImageSkuKey[] {
+	return entitlement.allowedProducts.flatMap((productKey) => {
+		const keys = IMAGE_SKU_KEYS_BY_PRODUCT[productKey as keyof typeof IMAGE_SKU_KEYS_BY_PRODUCT];
+		return (
+			keys?.filter((skuKey) => planIncludesImageSelection(entitlement, productKey, skuKey)) ?? []
+		);
+	});
+}
+
 export function getPlanUsageEstimate(planId: PlanEntitlement["id"]): {
 	minimumImageEdits: number;
 	maximumImageEdits: number;
@@ -88,7 +113,9 @@ export function getPlanUsageEstimate(planId: PlanEntitlement["id"]): {
 	maximumCreditsPerImage: number;
 } {
 	const entitlement = getPlanEntitlement(planId);
-	const creditCosts = entitlement.allowedProducts.flatMap(imageSkuCreditCostsForProduct);
+	const creditCosts = getPlanAllowedImageSkuKeys(entitlement).map(
+		(skuKey) => IMAGE_SKU_CREDIT_COSTS[skuKey],
+	);
 	if (creditCosts.length === 0) {
 		throw new Error(`Plan ${planId} does not include an image SKU`);
 	}
@@ -100,11 +127,6 @@ export function getPlanUsageEstimate(planId: PlanEntitlement["id"]): {
 		minimumCreditsPerImage,
 		maximumCreditsPerImage,
 	};
-}
-
-function imageSkuCreditCostsForProduct(productKey: ProductModelKey): number[] {
-	const skuKeys = IMAGE_SKU_KEYS_BY_PRODUCT[productKey as keyof typeof IMAGE_SKU_KEYS_BY_PRODUCT];
-	return skuKeys?.map((skuKey) => IMAGE_SKU_CREDIT_COSTS[skuKey]) ?? [];
 }
 
 export function resolvePlanEntitlement(

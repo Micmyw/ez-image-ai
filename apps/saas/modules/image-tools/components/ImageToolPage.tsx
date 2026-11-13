@@ -20,6 +20,7 @@ import {
 	imageToolStructuredData,
 	type ImageToolPageKey,
 } from "../lib/tool-pages";
+import { MiniMaxShowcase } from "./MiniMaxShowcase";
 
 import "../image-tools.css";
 
@@ -31,10 +32,25 @@ export function ImageToolPage({
 	searchParams?: Promise<CreatePageFilters>;
 }) {
 	const content = IMAGE_TOOL_PAGES[tool];
+	const isMiniMax = tool === "minimax-h3-image";
+	const relatedTools = (
+		<nav className="ai-tool-related" aria-label="Image generation tools">
+			{Object.values(IMAGE_TOOL_PAGES).map((page) => (
+				<Link
+					key={page.path}
+					href={page.path}
+					prefetch={false}
+					aria-current={page.path === content.path ? "page" : undefined}
+				>
+					{page.heading}
+				</Link>
+			))}
+		</nav>
+	);
 	return (
 		<StudioShell>
 			<ToolPromptProvider initialPrompt="">
-				<main className="ai-tool-page" lang="en">
+				<main className={`ai-tool-page${isMiniMax ? " minimax-page" : ""}`} lang="en">
 					<script
 						type="application/ld+json"
 						dangerouslySetInnerHTML={{
@@ -46,14 +62,28 @@ export function ImageToolPage({
 					/>
 					<div className="ai-tool-container">
 						<header className="ai-tool-hero">
-							<p className="ai-tool-eyebrow">Create with GPT Image 2.6</p>
-							<h1>{content.heading}</h1>
-							<p className="ai-tool-intro">{content.intro}</p>
-							<ul className="ai-tool-facts" aria-label="Tool features">
-								{content.facts.map((fact) => (
-									<li key={fact}>{fact}</li>
-								))}
-							</ul>
+							<div>
+								<p className="ai-tool-eyebrow">
+									Create with {content.modelName ?? "GPT Image 2.6"}
+								</p>
+								<h1>
+									{isMiniMax ? (
+										<>
+											MiniMax H3 <em>Image</em>
+										</>
+									) : (
+										content.heading
+									)}
+								</h1>
+							</div>
+							<div>
+								<p className="ai-tool-intro">{content.intro}</p>
+								<ul className="ai-tool-facts" aria-label="Tool features">
+									{content.facts.map((fact) => (
+										<li key={fact}>{fact}</li>
+									))}
+								</ul>
+							</div>
 						</header>
 						<section id="image-editor" className="ai-tool-workspace" aria-label={content.heading}>
 							<Suspense fallback={<output aria-live="polite">Loading your workspace…</output>}>
@@ -61,30 +91,23 @@ export function ImageToolPage({
 							</Suspense>
 						</section>
 						<p className="ai-tool-settings-note">{content.settingsNote}</p>
-						<p className="ai-tool-settings-note">
-							<Link href="/image-pass" prefetch={false}>
-								3 successful results for $2.99
-							</Link>
-							{
-								": use new or remaining $2.99 pack passes for Flare, Sunburst, SVG or GIF. One successful result uses one pass, with no subscription required."
-							}
-						</p>
-						<p className="ai-tool-settings-note">
-							Generation is available only when the selected model is available in the editor. If it
-							is unavailable, you can prepare a prompt and return later.
-						</p>
-						<nav className="ai-tool-related" aria-label="Image generation tools">
-							{Object.values(IMAGE_TOOL_PAGES).map((page) => (
-								<Link
-									key={page.path}
-									href={page.path}
-									prefetch={false}
-									aria-current={page.path === content.path ? "page" : undefined}
-								>
-									{page.heading}
+						{content.showPassOffer !== false && (
+							<p className="ai-tool-settings-note">
+								<Link href="/image-pass" prefetch={false}>
+									3 successful results for $2.99
 								</Link>
-							))}
-						</nav>
+								{
+									": use new or remaining $2.99 pack passes for Flare, Sunburst, SVG or GIF. One successful result uses one pass, with no subscription required."
+								}
+							</p>
+						)}
+						{content.showAvailabilityNote !== false && (
+							<p className="ai-tool-settings-note">
+								Generation is available only when the selected model is available in the editor. If
+								it is unavailable, you can prepare a prompt and return later.
+							</p>
+						)}
+						{isMiniMax ? <MiniMaxShowcase /> : relatedTools}
 						<section className="ai-tool-section" aria-labelledby="tool-steps-title">
 							<h2 id="tool-steps-title">From your idea to a download</h2>
 							<ol className="ai-tool-steps">
@@ -107,22 +130,85 @@ export function ImageToolPage({
 								</section>
 							))}
 						</div>
-						<section className="ai-tool-section" aria-labelledby="tool-prompts-title">
-							<h2 id="tool-prompts-title">A starting point for your prompt</h2>
-							<p className="ai-tool-section-intro">
-								Adapt these prompt ideas to your own project. They are starting points, not verified
-								output examples.
-							</p>
-							<div className="ai-tool-prompts">
-								{content.prompts.map((example) => (
-									<article key={example.title}>
-										<h3>{example.title}</h3>
-										<p>{example.prompt}</p>
-										<InspirationPrompt prompt={example.prompt} />
-									</article>
-								))}
-							</div>
-						</section>
+						{!isMiniMax && (
+							<section className="ai-tool-section" aria-labelledby="tool-prompts-title">
+								<h2 id="tool-prompts-title">
+									{content.promptSource
+										? "See what you can create"
+										: "A starting point for your prompt"}
+								</h2>
+								<p className="ai-tool-section-intro">
+									{content.promptSource ? (
+										<>
+											Examples and prompts from{" "}
+											<a href={content.promptSource.href} target="_blank" rel="noreferrer">
+												{content.promptSource.label}
+											</a>
+											. Try a prompt or make it your own.
+										</>
+									) : (
+										<>
+											Adapt these prompt ideas to your own project. They are starting points, not
+											verified output examples.
+										</>
+									)}
+								</p>
+								<div
+									className={`ai-tool-prompts${content.promptSource ? " ai-tool-prompts-with-images" : ""}`}
+								>
+									{content.prompts.map((example) => (
+										<article key={example.title}>
+											{example.image && (
+												<div className="ai-tool-example-images">
+													{example.referenceImage && (
+														<figure>
+															<img
+																src={example.referenceImage.src}
+																alt={example.referenceImage.alt}
+																width={example.referenceImage.width}
+																height={example.referenceImage.height}
+																loading="lazy"
+																decoding="async"
+															/>
+															<figcaption>
+																<span>Before</span>
+																<a href={example.referenceImage.src} download>
+																	Download reference ↓
+																</a>
+															</figcaption>
+														</figure>
+													)}
+													<figure>
+														<img
+															src={example.image.src}
+															alt={example.image.alt}
+															width={example.image.width}
+															height={example.image.height}
+															loading="lazy"
+															decoding="async"
+														/>
+														<figcaption>
+															{example.referenceImage ? "After" : "Text to image"} ·{" "}
+															{example.resolution}
+														</figcaption>
+													</figure>
+												</div>
+											)}
+											<h3>{example.title}</h3>
+											{example.image ? (
+												<details className="ai-tool-example-prompt">
+													<summary>View prompt</summary>
+													<p>{example.prompt}</p>
+												</details>
+											) : (
+												<p>{example.prompt}</p>
+											)}
+											<InspirationPrompt prompt={example.prompt} />
+										</article>
+									))}
+								</div>
+							</section>
+						)}
 						<section className="ai-tool-section ai-tool-faq" aria-labelledby="tool-faq-title">
 							<h2 id="tool-faq-title">{content.heading} FAQ</h2>
 							{content.faq.map(({ question, answer }) => (
@@ -132,6 +218,7 @@ export function ImageToolPage({
 								</details>
 							))}
 						</section>
+						{isMiniMax && relatedTools}
 						<footer className="ai-tool-footer">
 							<Link href="/">EzImageAI</Link>
 							<PublicFooterLinks />

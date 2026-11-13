@@ -295,6 +295,7 @@
 					"MODERATION_TIMEOUT": "Zeitüberschreitung beim Prüfdienst.",
 					"MODERATION_NETWORK_ERROR": "Der Prüfdienst ist nicht erreichbar.",
 					"MODERATION_RATE_LIMITED": "Das Anfragelimit des Prüfdiensts wurde erreicht.",
+					"MODERATION_DETECTION_REPORT_FAILED": "SeeAPI konnte das Prüfergebnis nicht verarbeiten (technischer Fehler).",
 					"MODERATION_SERVICE_ERROR": "Der Prüfdienst meldet einen Serverfehler.",
 					"MODERATION_INVALID_RESPONSE": "Die Antwort des Prüfdiensts ist unvollständig oder ungültig.",
 					"MODERATION_SUBMISSION_UNCERTAIN": "Die Anfrage wurde möglicherweise angenommen, aber die Auftrags-ID fehlt.",
@@ -326,6 +327,14 @@
 					"REJECT": "Inhalt beanstandet",
 					"REVIEW": "Ausstehend oder manuelle Prüfung erforderlich",
 					"ERROR": "Technischer Fehler"
+				},
+				"prompts": {
+					"title": "Kundenanweisungen",
+					"note": "Zuletzt gespeicherter Kontext. Referenzentwürfe wurden möglicherweise nie abgeschickt und sind keine Prüfentscheidungen.",
+					"missing": "Mit diesem Eintrag ist keine gespeicherte Anweisung verknüpft. Fehlende ältere Entwürfe können nicht rekonstruiert werden.",
+					"REFERENCE_DRAFT": "Referenzentwurf · nicht abgeschickt",
+					"GENERATION_JOB": "Abgeschickte Generierungsanweisung",
+					"BLOCKED_REQUEST": "Bei der Textprüfung gestoppte Anfrage"
 				}
 			},
 			"paymentAttribution": {
@@ -1111,6 +1120,15 @@
 		"title": "Richte dein Konto ein"
 	},
 	"payments": {
+		"technicalCompensation": {
+			"title": "Ein Extra für die Unterbrechung",
+			"description": "Es gab ein technisches Problem. Dein Konto erhält einen einmaligen Abonnementbonus.",
+			"terms": "Bei deinem ersten Abonnement erhältst du 10 % zusätzliche Credits für den ersten Monat. Bei Jahresplänen gilt der Bonus nur im ersten Monat. Reguläre Preise. Ein Bonus pro Konto; die Credits verfallen mit diesem Monat und werden bei Erstattung oder Zahlungsrücknahme zurückgebucht.",
+			"expires": "Beginne den Checkout bis {date}. Der Bonus wird nach bestätigter Zahlung automatisch gutgeschrieben.",
+			"later": "Weiter erstellen",
+			"viewPlans": "Abonnements ansehen",
+			"banner": "Dein erstes Abonnement: 10 % zusätzliche Credits im ersten Monat"
+		},
 		"providerSelector": {
 			"label": "Zahlungsmethode",
 			"providers": {
@@ -1569,6 +1587,10 @@
 			"draftRestored": "Ihr gespeicherter Bearbeitungsentwurf kann jetzt fortgesetzt werden.",
 			"product": "Bildmodell",
 			"products": {
+				"image-minimax-h3": {
+					"label": "MiniMax H3 Image",
+					"description": "Detailreiche Bilder, Typografie und Fotobearbeitung bis 4K."
+				},
 				"image-nano-banana-2-lite": {
 					"label": "Nano Banana 2 Lite",
 					"description": "Porträts und alltägliche Retuschen in 1K."
@@ -1627,6 +1649,15 @@
 				}
 			},
 			"skus": {
+				"minimax-h3-1k": {
+					"label": "1K"
+				},
+				"minimax-h3-2k": {
+					"label": "2K"
+				},
+				"minimax-h3-4k": {
+					"label": "4K"
+				},
 				"nano-banana-2-lite-1k": {
 					"label": "1K"
 				},
@@ -1822,7 +1853,7 @@
 			},
 			"errors": {
 				"insufficientCredits": "Für diese Bearbeitung sind nicht genügend Credits vorhanden. Es wurden weder Auftrag noch Reservierung erstellt.",
-				"qualityUnavailable": "Dieses Bildmodell ist in Ihrem Tarif nicht enthalten. Wählen Sie Nano Banana 2 Lite oder prüfen Sie Ihren Tarif.",
+				"qualityUnavailable": "Dieses Bildmodell ist in Ihrem Tarif nicht enthalten. Wählen Sie MiniMax H3 Image 1K oder prüfen Sie Ihren Tarif.",
 				"assetNotReady": "Das Quellbild ist noch nicht bereit. Warten Sie auf die private Sicherheitsprüfung oder wählen Sie ein anderes Bild.",
 				"quoteExpired": "Dieser Preis ist abgelaufen. Ändere die Anweisung oder Einstellungen, um vor der Generierung einen aktuellen Preis anzufordern.",
 				"contentNotAllowed": "Diese Anweisung entspricht nicht unseren Inhaltsregeln. Bitte ändere sie. Es wurden keine Credits berechnet; die einmalige Ausnahme bleibt erhalten.",
@@ -1848,6 +1879,7 @@
 				"credits": "{credits, number} Credits",
 				"fromCredits": "Ab {credits, number} Credits",
 				"groupDescriptions": {
+					"minimax": "Detailreiche Bilder erstellen und Fotos bearbeiten.",
 					"nano": "Natürliche Bearbeitung",
 					"gpt": "Text und feine Details",
 					"seedream": "Filmische Bildwelten"
@@ -1924,7 +1956,7 @@
 			"dailyReset": "Täglich um 00:00 UTC zurückgesetzt. Ungenutzte Bearbeitungen werden nicht übertragen.",
 			"dailyLimitReached": "Deine zwei kostenlosen Bearbeitungen für heute sind aufgebraucht. Ab 00:00 UTC stehen dir zwei neue zur Verfügung.",
 			"editAnother": "Ein weiteres Bild bearbeiten",
-			"loginBonus": "Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K, ohne monatliche Auffüllung. Andere Bildmodelle und HD erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit allen aktuell verfügbaren Bildmodellen und Größen, ohne Abo."
+			"loginBonus": "Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit MiniMax H3 Image 1K, ohne monatliche Auffüllung. Premium-Bildmodelle und höhere Auflösungen erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit den enthaltenen Bildmodellen und Größen, ohne Abo."
 		},
 		"upgradeDialog": {
 			"title": "Weitere Bildmodelle freischalten",
@@ -1965,7 +1997,7 @@
 			},
 			"mode": {
 				"label": "Bildmodell",
-				"standard": "Nano Banana 2 Lite",
+				"standard": "MiniMax H3 Image",
 				"standardDescription": "Private 1K-Bildbearbeitung.",
 				"quality": "Weitere Bildmodelle",
 				"qualityDescription": "Private Bildbearbeitung mit modellspezifischen Ausgabeeinstellungen.",
@@ -2334,6 +2366,8 @@
 			"videoTemplates": "Videovorlagen",
 			"videoTemplatesDescription": "Rap-, Tanz- und Tiervideos aus deinen Fotos",
 			"videoTemplateHandoff": "Mit diesem Bild ein Video erstellen",
+			"minimaxH3Image": "MiniMax H3 Image",
+			"minimaxH3ImageDescription": "Bilder in 1K, 2K oder 4K erstellen und bearbeiten",
 			"gptImage26": "GPT Image 2.6",
 			"gptImage26Description": "Flare für Tempo, Sunburst für Details",
 			"svgGenerator": "KI-SVG-Generator",

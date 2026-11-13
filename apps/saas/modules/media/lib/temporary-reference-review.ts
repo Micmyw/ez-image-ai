@@ -32,7 +32,7 @@ export function temporaryReferenceReviewPresentation(
 				? ("unavailable" as const)
 				: error
 					? ("reviewStatusUnavailable" as const)
-					: data?.status === "APPROVED"
+					: data?.status === "APPROVED" || data?.status === "AVAILABLE"
 						? ("ready" as const)
 						: data?.status === "NOT_STARTED"
 							? ("uploadedForGeneration" as const)

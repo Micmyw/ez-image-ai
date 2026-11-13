@@ -1,5 +1,11 @@
 # Image trial, subscription access and provider rejection billing
 
+On 2026-11-13 the free default changes to MiniMax H3 Image 1K at 5 credits.
+Existing Nano Banana 2 Lite 1K access remains. The lifetime 10-credit allowance,
+historical receipts and recurring-grant policy below are unchanged. H3 2K/4K
+cost 10/20 credits and require a paid subscription; preflight and reservation
+check the exact SKU. See [MiniMax H3 pricing and rollout](minimax-h3-image-2026-11-13.md).
+
 On 2026-11-04 the owner approved a narrow exception: the new USD 2.99 three-image offer
 `2026-11-04.2` includes access to its frozen image models and sizes without a subscription when
 an eligible unit is explicitly selected and reserved. Ordinary credits and both historical USD 1

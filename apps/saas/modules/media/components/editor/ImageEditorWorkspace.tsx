@@ -2,6 +2,7 @@
 
 import { useSession } from "@auth/hooks/use-session";
 import { readEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
+import type { ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import { clearBrowserGrowthActiveContentAttribution } from "@repo/utils";
@@ -41,6 +42,7 @@ export function ImageEditorWorkspace({
 	claimedDraft = false,
 	initialDraft,
 	allowedProductKeys,
+	allowedImageSkuKeys,
 	restoreState,
 	restoreNotice,
 	parentJobId,
@@ -49,6 +51,7 @@ export function ImageEditorWorkspace({
 	claimedDraft?: boolean;
 	initialDraft?: EditorDraftInput | null;
 	allowedProductKeys: EditorProductKey[];
+	allowedImageSkuKeys?: ImageSkuKey[];
 	restoreState: EditorRestoreState;
 	restoreNotice: EditorRestoreNotice;
 	parentJobId?: string | null;
@@ -303,6 +306,7 @@ export function ImageEditorWorkspace({
 					initialFundingSource={workspace.fundingSource}
 					initialProductKey={freshProductKey}
 					allowedProductKeys={allowedProductKeys}
+					allowedImageSkuKeys={allowedImageSkuKeys}
 					initialSourceReady={sourceReady}
 					parentJobId={workspace.parentJobId}
 					onCreated={selectJob}

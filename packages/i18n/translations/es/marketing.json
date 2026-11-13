@@ -158,7 +158,7 @@
 			},
 			"free": {
 				"question": "¿Puedo usar la IA de imagen a imagen gratis?",
-				"answer": "Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Usar créditos con otros modelos y HD requiere una suscripción de pago activa. El paquete de 2,99 USD incluye 3 imágenes correctas con todos los modelos y tamaños de imagen disponibles actualmente, sin suscripción."
+				"answer": "Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción."
 			},
 			"control": {
 				"question": "¿Se conservarán todos los detalles de la imagen original?",
@@ -216,7 +216,7 @@
 			},
 			"guestVsFree": {
 				"question": "¿Qué diferencia hay entre Invitado y Free?",
-				"answer": "Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Usar créditos con otros modelos y HD requiere una suscripción de pago activa. El paquete de 2,99 USD incluye 3 imágenes correctas con todos los modelos y tamaños de imagen disponibles actualmente, sin suscripción. Las imágenes generadas con créditos de cuenta no llevan marca de agua de invitado y tienen un plazo objetivo de conservación de 30 días. Descarga los resultados que quieras conservar."
+				"answer": "Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción. Las imágenes generadas con créditos de cuenta no llevan marca de agua de invitado y tienen un plazo objetivo de conservación de 30 días. Descarga los resultados que quieras conservar."
 			},
 			"editTiers": {
 				"question": "¿Qué modelos de imagen y ajustes de salida están disponibles?",
@@ -329,6 +329,7 @@
 			"oneOutput": "Un resultado",
 			"freeQueue": "2 ediciones gratis al día · marca de agua · disponibles hasta 24 horas",
 			"qualityAccess": "{model} requiere iniciar sesión y un plan Pro, Ultimate o Max.",
+			"freeAccountAccess": "Inicia sesión para probar {model} con tus créditos gratuitos.",
 			"temporaryResult": "Tu vista previa permanece privada y temporal.",
 			"temporarySessionDisclosure": "EzImageAI crea una sesión temporal para esta prueba, conserva los archivos del invitado hasta 24 horas y usa señales seudónimas contra abusos durante el periodo descrito en nuestra Política de privacidad.",
 			"qualityCta": "Explora modelos de imagen · créditos de cuenta",
@@ -789,7 +790,7 @@
 		},
 		"pricing": {
 			"title": "Edición de imágenes con IA gratis y planes de pago",
-			"description": "Las cuentas elegibles reciben 10 EzImageAI Credits una sola vez para dos generaciones con Nano Banana 2 Lite 1K a 5 créditos cada una. No hay recarga mensual. Las suscripciones de pago activas habilitan otros modelos y opciones HD. El paquete de 2,99 USD también ofrece 3 imágenes correctas con todos los modelos y tamaños de imagen disponibles actualmente, sin suscripción."
+			"description": "Las cuentas elegibles reciben 10 EzImageAI Credits una sola vez para dos generaciones con MiniMax H3 Image 1K a 5 créditos cada una. No hay recarga mensual. Las suscripciones de pago activas habilitan otros modelos y opciones HD. El paquete de 2,99 USD también ofrece 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción."
 		},
 		"guides": {
 			"quickStart": "Empieza tu primera edición",
@@ -806,7 +807,7 @@
 				},
 				"guestVsFree": {
 					"question": "¿Puedo usar EzImageAI como editor de imágenes con IA gratis?",
-					"answer": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual. Usar créditos con otros modelos y HD requiere una suscripción de pago activa. El paquete de 2,99 USD incluye 3 imágenes correctas con todos los modelos y tamaños de imagen disponibles actualmente, sin suscripción. Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Se aplican los límites de seguridad, legales, del modelo y de uso."
+					"answer": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción. Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Se aplican los límites de seguridad, legales, del modelo y de uso."
 				}
 			}
 		},

@@ -7,7 +7,7 @@ import {
 } from "./temporary-reference-review";
 
 describe("temporary reference pre-review presentation", () => {
-	it.each(["PENDING", "APPROVED", "NOT_STARTED"] as const)(
+	it.each(["PENDING", "APPROVED", "AVAILABLE", "NOT_STARTED"] as const)(
 		"allows %s to use the existing Generate admission and review",
 		(status) => {
 			expect(

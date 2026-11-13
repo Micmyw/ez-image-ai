@@ -1,6 +1,37 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-11-13",
+		title: "Extra credits after a technical interruption",
+		changes: [
+			"Eligible accounts offered compensation can get 10% extra credits in the first month of their first subscription. The offer lasts seven days and applies automatically after confirmed payment, at the regular subscription price. Annual plans receive the bonus in month one only.",
+		],
+	},
+	{
+		date: "2026-11-13",
+		title: "More reliable reference-image checks",
+		changes: [
+			"Completed review errors stop repeating. Supported reference-image service failures can continue to the generation provider's checks when this recovery option is enabled.",
+		],
+	},
+	{
+		date: "2026-11-13",
+		title: "Create and edit with MiniMax H3 Image",
+		changes: [
+			"MiniMax H3 Image joins the editor with 1K, 2K and 4K outputs for 5, 10 and 20 credits. Start from a prompt or edit a reference photo.",
+			"Free accounts start with H3 1K and receive 10 lifetime trial credits for two images. Nano Banana 2 Lite 1K remains available; 2K and 4K require a paid plan.",
+			"Explore Kie's example images directly below the MiniMax H3 editor, slide between the original and edited photo, and try any supplied prompt.",
+		],
+	},
+	{
+		date: "2026-11-13",
+		title: "Clearer support context for interrupted image edits",
+		changes: [
+			"Signed-in reference-image editing now saves prompt drafts for private support review, including edits stopped before submission. Prompts stopped during text review are also retained.",
+			"Administrators can distinguish unsubmitted reference drafts from submitted generation prompts. These records are not sent to analytics and do not change content review or credits.",
+		],
+	},
+	{
+		date: "2026-11-13",
 		title: "Four ways to start with your photo",
 		changes: [
 			"A birthday portrait created with EzImageAI now joins Editing Examples. The homepage birthday card alternates between portrait and pet previews, with controls to pause or choose either image.",

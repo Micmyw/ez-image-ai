@@ -1,0 +1,20 @@
+{
+	"name": "@repo/gsc",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Local read-only Google Search Console collection, SEO reports and MCP tools",
+	"type": "module",
+	"scripts": {
+		"gsc": "node src/cli.mjs",
+		"mcp": "node src/mcp.mjs",
+		"test": "node --test test/*.test.mjs"
+	},
+	"dependencies": {
+		"@modelcontextprotocol/sdk": "^1.32.2",
+		"google-auth-library": "^11.3.4",
+		"zod": "catalog:"
+	},
+	"engines": {
+		"node": ">=22"
+	}
+}

@@ -375,22 +375,27 @@ describe("prepared deployment artifacts", () => {
 		},
 	);
 	it.each(["workers", "hybrid"] as const)(
-		"keeps first-login ReadCommitted opt-in and transports its independent switch in %s",
+		"keeps login, moderation recovery and compensation switches private and opt-in in %s",
 		(profile) => {
-			const key = "MEDIA_LOGIN_BONUS_READ_COMMITTED_ENABLED";
-			const disabled = artifacts(profile);
-			for (const name of ["website", "workflows"] as const)
-				expect(disabled[`${name}.secrets`]).not.toHaveProperty(key);
-			for (const value of ["true", "false"]) {
-				const result = artifacts(profile, { [key]: value });
-				for (const name of ["website", "workflows"] as const) {
-					expect(result[`${name}.secrets`][key]).toBe(value);
-					expect(result[name].vars).not.toHaveProperty(key);
-					expect(result[`${name}.secrets`]).not.toHaveProperty(`NEXT_PUBLIC_${key}`);
-					expect(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG ?? "").not.toContain(key);
+			for (const key of [
+				"MEDIA_LOGIN_BONUS_READ_COMMITTED_ENABLED",
+				"MEDIA_SEEAPI_INPUT_FAILURE_DELEGATION_ENABLED",
+				"MEDIA_TECHNICAL_FAILURE_SUBSCRIPTION_BONUS_ENABLED",
+			]) {
+				const disabled = artifacts(profile);
+				for (const name of ["website", "workflows"] as const)
+					expect(disabled[`${name}.secrets`]).not.toHaveProperty(key);
+				for (const value of ["true", "false"]) {
+					const result = artifacts(profile, { [key]: value });
+					for (const name of ["website", "workflows"] as const) {
+						expect(result[`${name}.secrets`][key]).toBe(value);
+						expect(result[name].vars).not.toHaveProperty(key);
+						expect(result[`${name}.secrets`]).not.toHaveProperty(`NEXT_PUBLIC_${key}`);
+						expect(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG ?? "").not.toContain(key);
+					}
+					if (profile === "hybrid")
+						expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV!)[key]).toBe(value);
 				}
-				if (profile === "hybrid")
-					expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV!)[key]).toBe(value);
 			}
 		},
 	);

@@ -16,7 +16,7 @@ export async function generateMetadata(props: PublicMetadataProps) {
 		path: "/models",
 		title: "AI Image Models — Find Your Creative Direction",
 		description:
-			"Explore GPT Image, Nano Banana, and Seedream in EzImageAI. Find creative directions, original inspiration, and a workspace for text to image and reference editing.",
+			"Explore MiniMax H3 Image, GPT Image, Nano Banana, and Seedream in EzImageAI. Find examples, prompts, and a workspace for text to image and photo editing.",
 		index: true,
 	});
 }
@@ -37,14 +37,14 @@ export default function ModelsPage() {
 						story. Choose a model and make it yours.
 					</p>
 					<nav className="model-family-nav" aria-label="Model families">
-						{["GPT Image", "Nano Banana", "Seedream"].map((family) => (
+						{["MiniMax", "GPT Image", "Nano Banana", "Seedream"].map((family) => (
 							<a key={family} href={`#${family.toLowerCase().replaceAll(" ", "-")}`}>
 								{family}
 							</a>
 						))}
 					</nav>
 				</section>
-				{["GPT Image", "Nano Banana", "Seedream"].map((family) => (
+				{["MiniMax", "GPT Image", "Nano Banana", "Seedream"].map((family) => (
 					<section
 						className="model-collection"
 						key={family}
@@ -53,11 +53,13 @@ export default function ModelsPage() {
 						<div className="model-section-heading">
 							<h2>{family}</h2>
 							<span>
-								{family === "GPT Image"
-									? "Prompts, composition, and visual detail"
-									: family === "Nano Banana"
-										? "Characters, products, and style exploration"
-										: "Atmosphere, light, and spatial storytelling"}
+								{family === "MiniMax"
+									? "Product detail, typography and photo editing"
+									: family === "GPT Image"
+										? "Prompts, composition, and visual detail"
+										: family === "Nano Banana"
+											? "Characters, products, and style exploration"
+											: "Atmosphere, light, and spatial storytelling"}
 							</span>
 						</div>
 						{family === "GPT Image" && (
@@ -88,6 +90,27 @@ export default function ModelsPage() {
 							</div>
 						)}
 						<div className="model-directory-grid">
+							{family === "MiniMax" && (
+								<Link href="/minimax-h3-image" className="model-directory-card">
+									<div className="model-directory-image">
+										<img
+											src="/images/models/minimax-h3/ferry-poster.webp"
+											width={1200}
+											height={1200}
+											alt="Lantern Ferry festival poster example supplied by Kie"
+											loading="lazy"
+											decoding="async"
+										/>
+									</div>
+									<div className="model-directory-card-copy">
+										<h3>
+											MiniMax H3 Image <span aria-hidden="true">↗</span>
+										</h3>
+										<p>Detailed images and a new look for your photos.</p>
+										<span>1K / 2K / 4K · Example from Kie</span>
+									</div>
+								</Link>
+							)}
 							{MODEL_PAGES.filter((model) => model.family === family).map((model) => (
 								<Link href={modelPath(model.key)} className="model-directory-card" key={model.key}>
 									<div className="model-directory-image">
@@ -110,8 +133,8 @@ export default function ModelsPage() {
 					</section>
 				))}
 				<p className="model-artwork-note">
-					Original concept artwork for creative inspiration. These images are not model benchmarks.
-					Open a model page to explore prompts and check current workspace availability.
+					Explore original EzImageAI concepts and credited model examples. Open a model page to try
+					a prompt.
 				</p>
 				<footer className="model-footer">
 					<Link href="/">EzImageAI</Link>

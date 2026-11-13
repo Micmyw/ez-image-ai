@@ -158,7 +158,7 @@
 			},
 			"free": {
 				"question": "Can I use image to image AI for free?",
-				"answer": "Eligible guests can make two sponsored Nano Banana 2 Lite 1K edits per day when the queue is available. Guest results are watermarked and available for up to 24 hours. Eligible registered accounts receive 10 credits once for two Nano Banana 2 Lite 1K generations, with no monthly refill. Using credits for other image models and HD requires an active paid subscription. The USD 2.99 image pack includes 3 successful images with all currently available image models and sizes, without a subscription."
+				"answer": "Eligible guests can make two sponsored Nano Banana 2 Lite 1K edits per day when the queue is available. Guest results are watermarked and available for up to 24 hours. Eligible registered accounts receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill. Premium image models and higher resolutions require an active paid subscription when using credits. The USD 2.99 image pack includes 3 successful images with the covered image models and sizes, without a subscription."
 			},
 			"control": {
 				"question": "Will the result keep every detail of my original image?",
@@ -216,7 +216,7 @@
 			},
 			"guestVsFree": {
 				"question": "What is the difference between Guest and Free?",
-				"answer": "Eligible guests can make two sponsored Nano Banana 2 Lite 1K edits per day when the queue is available. Guest results are watermarked and available for up to 24 hours. Eligible registered accounts receive 10 credits once for two Nano Banana 2 Lite 1K generations, with no monthly refill. Using credits for other image models and HD requires an active paid subscription. The USD 2.99 image pack includes 3 successful images with all currently available image models and sizes, without a subscription. Images generated with account credits have no guest watermark and a 30-day retention target. Download results you want to keep."
+				"answer": "Eligible guests can make two sponsored Nano Banana 2 Lite 1K edits per day when the queue is available. Guest results are watermarked and available for up to 24 hours. Eligible registered accounts receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill. Premium image models and higher resolutions require an active paid subscription when using credits. The USD 2.99 image pack includes 3 successful images with the covered image models and sizes, without a subscription. Images generated with account credits have no guest watermark and a 30-day retention target. Download results you want to keep."
 			},
 			"editTiers": {
 				"question": "Which image models and output settings are available?",
@@ -329,6 +329,7 @@
 			"oneOutput": "One output",
 			"freeQueue": "2 free edits daily · watermarked · available for up to 24 hours",
 			"qualityAccess": "{model} requires sign-in and a Pro, Ultimate, or Max plan.",
+			"freeAccountAccess": "Sign in to try {model} with your free credits.",
 			"temporaryResult": "Your preview stays private and temporary.",
 			"temporarySessionDisclosure": "EzImageAI creates a temporary session for this trial, keeps guest media for up to 24 hours, and uses pseudonymous abuse signals for the policy period described in our Privacy Policy.",
 			"qualityCta": "Explore image models · account credits",
@@ -789,7 +790,7 @@
 		},
 		"pricing": {
 			"title": "Free AI image editing and paid plans",
-			"description": "Eligible accounts receive 10 EzImageAI Credits once for two Nano Banana 2 Lite 1K generations at 5 credits each. There is no monthly refill. Active paid subscriptions unlock other image models and HD options. The USD 2.99 image pack also offers 3 successful images with all currently available image models and sizes, without a subscription."
+			"description": "Eligible accounts receive 10 EzImageAI Credits once for two MiniMax H3 Image 1K generations at 5 credits each. There is no monthly refill. Active paid subscriptions unlock other image models and HD options. The USD 2.99 image pack also offers 3 successful images with the covered image models and sizes, without a subscription."
 		},
 		"guides": {
 			"quickStart": "Start your first edit",
@@ -806,7 +807,7 @@
 				},
 				"guestVsFree": {
 					"question": "Can I use EzImageAI as a free AI image editor?",
-					"answer": "Eligible registered accounts receive 10 credits once for two Nano Banana 2 Lite 1K generations, with no monthly refill. Using credits for other image models and HD requires an active paid subscription. The USD 2.99 image pack includes 3 successful images with all currently available image models and sizes, without a subscription. Eligible guests can make two sponsored Nano Banana 2 Lite 1K edits per day when the queue is available. Guest results are watermarked and available for up to 24 hours. Content safety, legal, model, and usage limits apply."
+					"answer": "Eligible registered accounts receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill. Premium image models and higher resolutions require an active paid subscription when using credits. The USD 2.99 image pack includes 3 successful images with the covered image models and sizes, without a subscription. Eligible guests can make two sponsored Nano Banana 2 Lite 1K edits per day when the queue is available. Guest results are watermarked and available for up to 24 hours. Content safety, legal, model, and usage limits apply."
 				}
 			}
 		},

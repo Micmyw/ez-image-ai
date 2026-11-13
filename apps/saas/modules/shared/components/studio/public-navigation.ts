@@ -88,6 +88,12 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 		labelKey: "studio.tools.models",
 		links: [
 			{
+				href: "/minimax-h3-image",
+				labelKey: "studio.tools.minimaxH3Image",
+				descriptionKey: "studio.tools.minimaxH3ImageDescription",
+				icon: "models",
+			},
+			{
 				href: "/gpt-image-2-6",
 				labelKey: "studio.tools.gptImage26",
 				descriptionKey: "studio.tools.gptImage26Description",

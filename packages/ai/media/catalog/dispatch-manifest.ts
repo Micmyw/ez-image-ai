@@ -16,6 +16,20 @@ export const STATIC_DISPATCH_ROUTE_MANIFEST = [
 	{
 		mediaKind: "image",
 		provider: "kie",
+		providerModelId: "minimax-h3/text-to-image",
+		taskId: "media-dispatch-image-kie-minimax-h3_text-to-image",
+		queueName: "media-image-kie-minimax-h3_text-to-image",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "minimax-h3/image-edit",
+		taskId: "media-dispatch-image-kie-minimax-h3_image-edit",
+		queueName: "media-image-kie-minimax-h3_image-edit",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
 		providerModelId: "gpt-image-2-6/flare-text-to-image",
 		taskId: "media-dispatch-image-kie-gpt-image-2-6_flare-text-to-image",
 		queueName: "media-image-kie-gpt-image-2-6_flare-text-to-image",

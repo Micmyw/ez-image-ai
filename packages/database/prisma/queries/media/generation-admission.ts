@@ -3,6 +3,7 @@ import {
 	EZPIC_PRODUCT_KEYS,
 	getImageProductSelectionContract,
 	resolvePlanEntitlement,
+	planIncludesImageSelection,
 } from "@repo/config";
 
 import { findEffectivePaidSubscription } from "./billing";
@@ -39,7 +40,7 @@ export async function loadCurrentGenerationAdmission(
 		tx,
 	);
 	const entitlement = resolvePlanEntitlement(subscription?.plan.metadata, subscription?.plan.name);
-	const planIncludesProduct = entitlement.allowedProducts.includes(productKey);
+	const planIncludesProduct = planIncludesImageSelection(entitlement, productKey, input.skuKey);
 	if (!planIncludesProduct && input.fundingSource !== "IMAGE_PASS")
 		throw new Error("ENTITLEMENT_REQUIRED");
 	if (input.fundingSource === "IMAGE_PASS")

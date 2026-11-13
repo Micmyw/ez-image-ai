@@ -101,6 +101,16 @@ export const adminModerationDetail = adminProcedure
 		z.object({
 			review: reviewSchema,
 			prompt: z.string().nullable(),
+			promptRecords: z.array(
+				z.object({
+					id,
+					prompt: z.string().max(10_000),
+					productKey: z.string(),
+					source: z.enum(["REFERENCE_DRAFT", "GENERATION_JOB", "BLOCKED_REQUEST"]),
+					createdAt: z.date(),
+					jobId: z.string().nullable(),
+				}),
+			),
 			imageUrl: z.string().nullable(),
 			uncertainSubmission: z.boolean(),
 			contentAvailability: z.enum(["AVAILABLE", "DELETED", "MISSING", "UNSUPPORTED"]),
@@ -113,6 +123,7 @@ export const adminModerationDetail = adminProcedure
 		return {
 			review: reviewSchema.parse(detail.review),
 			prompt: detail.prompt,
+			promptRecords: detail.promptRecords ?? [],
 			contentAvailability: detail.contentAvailability,
 			canReviewContent: detail.canReviewContent,
 			canQueryProvider: Boolean(detail.providerTask),

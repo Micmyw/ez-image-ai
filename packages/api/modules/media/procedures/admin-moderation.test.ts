@@ -191,6 +191,16 @@ describe("moderation administrator boundary", () => {
 			asset: null,
 			contentAvailability: "DELETED",
 			canReviewContent: false,
+			promptRecords: [
+				{
+					id: "capture",
+					prompt: "private draft",
+					productKey: "model",
+					source: "REFERENCE_DRAFT",
+					createdAt: new Date(),
+					jobId: null,
+				},
+			],
 			providerTask: { id: "task-existing", ruleVersion: "rule-v1", generation: 1 },
 		} as never);
 		const result = await call(adminModerationDetail, { reviewId: review.id }, context);
@@ -201,6 +211,12 @@ describe("moderation administrator boundary", () => {
 			canQueryProvider: true,
 		});
 		expect(createSignedReadUrl).not.toHaveBeenCalled();
+		expect(result.promptRecords[0]).toMatchObject({
+			prompt: "private draft",
+			source: "REFERENCE_DRAFT",
+			jobId: null,
+		});
+		expect(result.prompt).toBeNull();
 		expect(JSON.stringify(result)).not.toContain("task-existing");
 	});
 	it("queries the original task after expiry without resubmission, asset authorization, or review writes", async () => {

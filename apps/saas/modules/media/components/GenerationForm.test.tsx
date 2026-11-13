@@ -1,10 +1,14 @@
+import { getPublicProductCatalog } from "@repo/ai";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EffectEditorContext } from "../../effects/lib/editor-context";
 import type { EffectPageContent, PublicEffectPreset } from "../../effects/lib/types";
-import { resolveEditorAllowedProductKeys } from "../lib/editor-recovery";
+import {
+	resolveEditorAllowedProductKeys,
+	resolveEditorAllowedImageSkuKeys,
+} from "../lib/editor-recovery";
 import type { PublicImageSpecMatrix } from "../lib/image-sku-selection";
 import { ToolPromptProvider } from "../lib/tool-prompt-context";
 
@@ -77,6 +81,11 @@ vi.mock("next-intl", () => ({
 			generate: "Generate image",
 			creditAmount: `${typeof values?.credits === "number" || typeof values?.credits === "string" ? values.credits : "—"} credits`,
 			"products.image-nano-banana-2-lite.label": "Localized Nano Banana 2 Lite",
+			"products.image-minimax-h3.label": "MiniMax H3 Image",
+			"products.image-minimax-h3.description": "Create and edit images",
+			"skus.minimax-h3-1k.label": "H3 1K",
+			"skus.minimax-h3-2k.label": "H3 2K",
+			"skus.minimax-h3-4k.label": "H3 4K",
 			"products.image-nano-banana-2-lite.description": "Localized fast 1K edits",
 			"products.image-gpt-image-2.label": "Localized GPT Image 2",
 			"products.image-gpt-image-2.description": "Localized detailed 1K, 2K, and 4K edits",
@@ -274,6 +283,10 @@ function generationState() {
 		catalog: {
 			data: {
 				products: [
+					...getPublicProductCatalog({
+						enabledProviders: new Set(["kie"]),
+						generationEnabled: true,
+					}).products.filter((product) => product.key === "image-minimax-h3"),
 					{
 						key: "image-nano-banana-2-lite",
 						label: "Catalog Nano Banana 2 Lite",
@@ -597,6 +610,42 @@ describe("GenerationForm product copy", () => {
 		mocks.useGeneration.mockReturnValue(generationState());
 	});
 
+	it("starts a fresh free workspace on H3 1K at five credits", () => {
+		const html = renderToStaticMarkup(
+			<GenerationForm
+				onCreated={vi.fn()}
+				allowedProductKeys={resolveEditorAllowedProductKeys(undefined, undefined)}
+				allowedImageSkuKeys={resolveEditorAllowedImageSkuKeys(undefined, undefined)}
+			/>,
+		);
+		expect(html).toContain("MiniMax H3 Image");
+		expect(html).toContain('data-model-icon="minimax"');
+		expect(html).toContain('data-test="editor-model-image-minimax-h3"');
+		expect(mocks.modelOptions.mock.lastCall?.[0].value).toBe("image-minimax-h3");
+		expect(html).toContain("5 credits");
+	});
+
+	it.each(["minimax-h3-2k", "minimax-h3-4k"] as const)(
+		"requires an upgrade for recovered free-account %s",
+		(skuKey) => {
+			renderToStaticMarkup(
+				<GenerationForm
+					onCreated={vi.fn()}
+					initialDraft={{
+						productKey: "image-minimax-h3",
+						input: { kind: "text-to-image", prompt: "A ceramic vase", skuKey, aspectRatio: "1:1" },
+					}}
+					allowedProductKeys={resolveEditorAllowedProductKeys(undefined, undefined)}
+					allowedImageSkuKeys={resolveEditorAllowedImageSkuKeys(undefined, undefined)}
+				/>,
+			);
+			const h3 = mocks.modelOptions.mock.lastCall?.[0].products.find(
+				(product: { key: string }) => product.key === "image-minimax-h3",
+			);
+			expect(h3.requiresUpgrade).toBe(true);
+		},
+	);
+
 	it("fills the article preset without accepting a conflicting model query or creating a task", () => {
 		navigation.pathname = "/blog/1980s-ai-photo";
 		navigation.search = "model=image-gpt-image-2";
@@ -769,7 +818,9 @@ describe("GenerationForm product copy", () => {
 	});
 
 	it("renders localized product and field copy instead of catalog English", () => {
-		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
+		const markup = renderToStaticMarkup(
+			<GenerationForm onCreated={vi.fn()} initialProductKey="image-nano-banana-2-lite" />,
+		);
 
 		for (const copy of [
 			"Localized Nano Banana 2 Lite",
@@ -849,7 +900,9 @@ describe("GenerationForm product copy", () => {
 	});
 
 	it("does not offer adjustable count or resolution for a fixed-output model", () => {
-		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
+		const markup = renderToStaticMarkup(
+			<GenerationForm onCreated={vi.fn()} initialProductKey="image-nano-banana-2-lite" />,
+		);
 		expect(markup).not.toContain('data-output-count="1"');
 		expect(markup).toContain('data-test="editor-output-settings-trigger"');
 		expect(markup).toContain('data-fixed-setting="resolution"');

@@ -30,6 +30,7 @@ export interface ImageSkuSelectionContract {
 
 export interface ImageProductSelectionContract {
 	maximumInputBytes?: number;
+	maximumInputPixels?: number;
 	minimumPromptLength?: number;
 	maximumPromptLength?: number;
 	defaultSkuKey: ImageSkuKey;
@@ -103,6 +104,36 @@ function gptImage26Selection(variant: "flare" | "sunburst"): ImageProductSelecti
 export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 	Record<EzPicProductKey, ImageProductSelectionContract>
 > = {
+	"image-minimax-h3": {
+		maximumInputBytes: 20_000_000,
+		maximumInputPixels: 64_000_000,
+		maximumPromptLength: 5000,
+		defaultSkuKey: "minimax-h3-1k",
+		defaultAspectRatio: "auto",
+		cells: (["1k", "2k", "4k"] as const).map((resolution) => ({
+			skuKey: `minimax-h3-${resolution}`,
+			aspectRatios: [
+				"auto",
+				"1:1",
+				"5:4",
+				"4:3",
+				"3:2",
+				"16:9",
+				"21:9",
+				"4:5",
+				"3:4",
+				"2:3",
+				"9:16",
+			],
+			controls: [
+				{
+					key: "outputFormat",
+					defaultValue: resolution === "4k" ? "jpeg" : "png",
+					options: ["png", "jpeg"],
+				},
+			],
+		})),
+	},
 	"image-gpt-image-2-6-flare": gptImage26Selection("flare"),
 	"image-gpt-image-2-6-sunburst": gptImage26Selection("sunburst"),
 	"image-nano-banana-2-lite": {

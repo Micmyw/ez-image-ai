@@ -10,6 +10,7 @@ import {
 	type TemporaryReference,
 	getImageProductSelectionContract,
 	PLAN_ENTITLEMENTS,
+	planIncludesImageSelection,
 	type PlanId,
 	type ProductModelKey,
 } from "@repo/config";
@@ -291,7 +292,11 @@ export async function assertGenerationAllowed(
 	// their original subscription requirement. Transactional reservation repeats it.
 	if (
 		!entitlement ||
-		(!entitlement.allowedProducts.includes(input.productKey) &&
+		(!planIncludesImageSelection(
+			entitlement,
+			input.productKey,
+			"skuKey" in input.input ? input.input.skuKey : undefined,
+		) &&
 			!(fundingSource === "IMAGE_PASS" && access.imagePassIncludesModelAccess))
 	) {
 		throw new Error("ENTITLEMENT_REQUIRED");

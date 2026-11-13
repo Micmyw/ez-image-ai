@@ -44,6 +44,7 @@ import {
 	SubscriptionCheckoutNotice,
 	type SubscriptionCheckoutBlocker,
 } from "./SubscriptionCheckoutNotice";
+import { SubscriptionCompensationBanner } from "./SubscriptionCompensation";
 
 const plans = paymentsConfig.plans;
 
@@ -305,6 +306,9 @@ export function PricingTable({
 		)!;
 		return (
 			<div className={cn("studio-upgrade-picker", className)} data-test="upgrade-plan-picker">
+				{ownerId && !organizationId && !hasSubscription && (
+					<SubscriptionCompensationBanner ownerId={ownerId} />
+				)}
 				<fieldset
 					disabled={Boolean(payment.action)}
 					className="mb-3 border-white/10 bg-white/5 p-1 flex shrink-0 rounded-full border"
@@ -443,6 +447,9 @@ export function PricingTable({
 
 	return (
 		<div className={cn("@container", className)}>
+			{ownerId && !organizationId && !hasSubscription && (
+				<SubscriptionCompensationBanner ownerId={ownerId} />
+			)}
 			{(userId || organizationId) && <PendingSubscriptionCheckout />}
 			{checkoutConflict && (
 				<p className="mb-4 text-sm text-center text-destructive" role="alert">

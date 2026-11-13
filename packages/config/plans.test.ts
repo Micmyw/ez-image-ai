@@ -1,10 +1,28 @@
 import { describe, expect, it } from "vitest";
 
-import { getPlanEntitlement, PLAN_ENTITLEMENTS, resolvePlanEntitlement } from "./plans";
+import {
+	getPlanEntitlement,
+	getPlanAllowedImageSkuKeys,
+	planIncludesImageSelection,
+	PLAN_ENTITLEMENTS,
+	resolvePlanEntitlement,
+} from "./plans";
 import { DEFAULT_PRODUCT_CONFIG } from "./product";
 import { getPublicConfig } from "./public";
 
 describe("subscription plan catalog", () => {
+	it("includes only H3 1K and the existing Lite tier in free image access", () => {
+		const free = getPlanEntitlement("free");
+		expect(free.allowedProducts).toEqual(["image-minimax-h3", "image-nano-banana-2-lite"]);
+		expect(getPlanAllowedImageSkuKeys(free)).toEqual(["minimax-h3-1k", "nano-banana-2-lite-1k"]);
+		expect(planIncludesImageSelection(free, "image-minimax-h3", "minimax-h3-1k")).toBe(true);
+		for (const sku of ["minimax-h3-2k", "minimax-h3-4k"]) {
+			expect(planIncludesImageSelection(free, "image-minimax-h3", sku)).toBe(false);
+			expect(
+				planIncludesImageSelection(getPlanEntitlement("creator"), "image-minimax-h3", sku),
+			).toBe(true);
+		}
+	});
 	it("does not advertise an unfinished-job quota in account or public plans", () => {
 		for (const plan of [...PLAN_ENTITLEMENTS, ...getPublicConfig().plans]) {
 			expect(plan).not.toHaveProperty("maximumConcurrentJobs");

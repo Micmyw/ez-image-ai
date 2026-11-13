@@ -72,6 +72,12 @@ export type ModerationEvidence = {
 		matchedCategories: string[];
 	};
 	seeapi?: { taskId: string; flagged: boolean; nsfw: string[]; specialCare: string[] };
+	/** Authenticated terminal task failure, distinct from a classifier verdict or GET failure. */
+	seeapiFailure?: {
+		taskId: string;
+		status: "failed" | "canceled" | "refunded" | "expired";
+		code: string;
+	};
 	seeapiVideo?: {
 		taskId: string;
 		model: "video-nsfw-filter";

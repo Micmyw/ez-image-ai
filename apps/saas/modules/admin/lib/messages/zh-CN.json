@@ -537,6 +537,7 @@
 				"MODERATION_TIMEOUT": "检测服务响应超时。",
 				"MODERATION_NETWORK_ERROR": "无法连接检测服务。",
 				"MODERATION_RATE_LIMITED": "检测服务触发请求频率限制。",
+				"MODERATION_DETECTION_REPORT_FAILED": "SeeAPI 无法处理检测结果，属于技术错误。",
 				"MODERATION_SERVICE_ERROR": "检测服务返回服务端错误。",
 				"MODERATION_INVALID_RESPONSE": "检测服务返回的结果不完整或格式无效。",
 				"MODERATION_SUBMISSION_UNCERTAIN": "检测服务可能已接受请求，但未返回任务 ID。",
@@ -568,6 +569,14 @@
 				"REJECT": "检测标记了受限内容",
 				"REVIEW": "尚未完成或需要人工复核",
 				"ERROR": "技术错误"
+			},
+			"prompts": {
+				"title": "客户提示词",
+				"note": "这里显示近期保存的原文。参考图草稿可能尚未提交，不能作为审核结论。",
+				"missing": "这条记录没有关联的已保存提示词。历史未保存的草稿无法补回。",
+				"REFERENCE_DRAFT": "参考图草稿 · 未提交",
+				"GENERATION_JOB": "已提交生成的提示词",
+				"BLOCKED_REQUEST": "文字审核阶段停止的请求"
 			}
 		},
 		"paymentAttribution": {

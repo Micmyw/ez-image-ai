@@ -1,6 +1,7 @@
 import {
 	EZPIC_PRODUCT_KEYS,
 	resolvePlanEntitlement,
+	getPlanAllowedImageSkuKeys,
 	type ImageAspectRatio,
 	type ImageBackground,
 	type ImageOutputFormat,
@@ -8,7 +9,7 @@ import {
 } from "@repo/config/client";
 
 export type EditorProductKey = (typeof EZPIC_PRODUCT_KEYS)[number];
-export const DEFAULT_EDITOR_PRODUCT_KEY: EditorProductKey = EZPIC_PRODUCT_KEYS[0];
+export const DEFAULT_EDITOR_PRODUCT_KEY: EditorProductKey = "image-minimax-h3";
 
 export function isEditorProductKey(
 	productKey: string | null | undefined,
@@ -61,4 +62,11 @@ export function resolveEditorAllowedProductKeys(
 	return resolvePlanEntitlement(metadata, planName).allowedProducts.filter(
 		(productKey): productKey is EditorProductKey => isEditorProductKey(productKey),
 	);
+}
+
+export function resolveEditorAllowedImageSkuKeys(
+	metadata: unknown,
+	planName: string | undefined,
+): ImageSkuKey[] {
+	return getPlanAllowedImageSkuKeys(resolvePlanEntitlement(metadata, planName));
 }

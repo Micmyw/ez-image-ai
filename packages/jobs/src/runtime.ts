@@ -44,9 +44,13 @@ import {
 	kieZeroCostRejectionEvidenceSchema,
 	isTemporaryReferenceObjectKey,
 	isRetryableModerationError,
+	isDelegatedImageInputEvidence,
+	SEEAPI_INPUT_DELEGATION_REASON,
+	SEEAPI_INPUT_DELEGATION_CODES,
 	MODERATION_RETRYABLE_ERROR_CODES,
 	moderationServiceErrorCode,
 	parseImageSelection,
+	getImageProductSelectionContract,
 } from "@repo/config";
 import {
 	imageModerationProviderForEnvironment,
@@ -69,6 +73,7 @@ import {
 	recordLockedAssetModerationOutcome,
 	lockAssetPromptReview,
 	hasCurrentApprovedMediaAssetEvidence,
+	hasCurrentImageInputEvidence,
 	isHistoricalImageModerationProvider,
 	imageModerationRetryAt,
 	kieGenerationCallbackRetryAt,
@@ -735,7 +740,10 @@ export function createDatabaseDispatchStore(
 						}
 						// The durable verification event will wake this same job. No model attempt yet.
 						if (binding.asset.status === "VERIFYING") return null;
-						if (binding.asset.moderationResults[0]?.status !== "APPROVED") {
+						if (
+							binding.asset.moderationResults[0]?.status !== "APPROVED" &&
+							!isDelegatedImageInputEvidence(binding.asset.moderationResults[0], binding.asset)
+						) {
 							await resolveJobsWaitingForMediaVerification(tx, {
 								assetId: binding.asset.id,
 								verificationGeneration: binding.asset.verificationGeneration,
@@ -754,7 +762,7 @@ export function createDatabaseDispatchStore(
 					const currentProvider = imageModerationProviderForEnvironment(environment);
 					const now = new Date();
 					if (
-						!hasCurrentApprovedMediaAssetEvidence(binding.asset, {
+						!hasCurrentImageInputEvidence(binding.asset, {
 							provider: currentProvider,
 							ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 							policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
@@ -771,7 +779,13 @@ export function createDatabaseDispatchStore(
 					const { sourceAssetId: _, ...withoutId } = rawInput;
 					input = {
 						...withoutId,
-						sourceAsset: { assetId: binding.asset.id, transferUrl },
+						sourceAsset: {
+							assetId: binding.asset.id,
+							transferUrl,
+							...(getImageProductSelectionContract(job.productKey)?.maximumInputPixels !== undefined
+								? { width: binding.asset.width, height: binding.asset.height }
+								: {}),
+						},
 					} as ProviderExecutionInput;
 					await options.afterInputAuthorization?.();
 				}
@@ -2027,14 +2041,19 @@ export function createDatabaseVerifyUploadDependencies(
 					}
 				}
 				if (decision.decision === "ERROR") {
-					outboxCommitted = await failMediaVerification(
+					const failure = await recordMediaVerificationWaitOrFailure(
 						database,
 						claim,
 						decision.reasonCode,
 						"ERROR",
 						checksum,
+						{
+							decision,
+							allowInputDelegation:
+								environment.MEDIA_SEEAPI_INPUT_FAILURE_DELEGATION_ENABLED === "true",
+						},
 					);
-					return withPhase({ outboxCommitted });
+					return withPhase(failure);
 				}
 				const completed = await completeMediaVerification(database, claim, {
 					...decision,
@@ -3277,9 +3296,10 @@ async function recordMediaVerificationWaitOrFailure(
 	reasonCode: string,
 	status: "PENDING" | "ERROR",
 	checksum: string | null,
+	options: { decision?: ModerationDecision; allowInputDelegation?: boolean } = {},
 ): Promise<OutboxCommitResult> {
 	return database.$transaction(async (tx) => {
-		await lockAssetPromptReview(claim.assetId, tx);
+		const promptRejected = await lockAssetPromptReview(claim.assetId, tx);
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
 		if (!(await verificationPhaseIsCurrent(claim, tx)))
 			return { outboxCommitted: false, phaseOwnershipLost: true };
@@ -3300,6 +3320,66 @@ async function recordMediaVerificationWaitOrFailure(
 			(await reconcileAccountInputCopyTargetInTransaction({ assetId: asset.id }, tx)).terminal
 		)
 			return { outboxCommitted: true };
+		const failure = options.decision?.evidence?.seeapiFailure;
+		const terminal =
+			status === "ERROR" &&
+			claim.provider === "seeapi" &&
+			options.decision?.ruleVersion === claim.ruleVersion &&
+			failure?.taskId === asset.verificationProviderTaskId &&
+			Boolean(asset.verificationProviderTaskId) &&
+			options.decision?.evidence?.requestId === asset.verificationProviderTaskId &&
+			["failed", "canceled", "refunded", "expired"].includes(failure?.status ?? "");
+		const delegationEvidence = {
+			status: "BYPASSED",
+			reasonCode: SEEAPI_INPUT_DELEGATION_REASON,
+			provider: claim.provider,
+			evidenceKind: asset.kind,
+			providerTaskId: asset.verificationProviderTaskId,
+		};
+		// Use database time for the new permission's deadlines without changing the
+		// existing callback/backoff and incident timestamp protocol.
+		const [delegationClock] =
+			options.allowInputDelegation && terminal
+				? await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS "now"`
+				: [{ now }];
+		if (!delegationClock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+		const delegationNow = delegationClock.now;
+		const delegated =
+			options.allowInputDelegation === true &&
+			terminal &&
+			failure?.status === "failed" &&
+			SEEAPI_INPUT_DELEGATION_CODES.some((code) => code === failure.code) &&
+			options.decision?.evidence?.models.length === 1 &&
+			options.decision.evidence.models[0] === "nsfw-filter-2" &&
+			isDelegatedImageInputEvidence(delegationEvidence, asset) &&
+			!promptRejected &&
+			claim.generation === 1 &&
+			!asset.verificationSubmissionUncertain &&
+			asset.deletedAt === null &&
+			!!asset.finalizedAt &&
+			!!checksum &&
+			/^[a-f0-9]{64}$/i.test(checksum) &&
+			checksum === asset.checksum &&
+			(!asset.deleteAfter || asset.deleteAfter > delegationNow) &&
+			claim.deadlineAt > delegationNow &&
+			asset.verificationLeasedUntil !== null &&
+			asset.verificationLeasedUntil > delegationNow &&
+			(await tx.user.findUnique({ where: { id: asset.ownerId }, select: { isAnonymous: true } }))
+				?.isAnonymous === false &&
+			!(await tx.moderationReview.findFirst({
+				where: { targetType: "ASSET", targetId: asset.id, resolvedBy: { not: null } },
+			})) &&
+			!(await tx.assetModerationResult.findFirst({
+				where: { assetId: asset.id, status: { in: ["REJECTED", "REVIEW", "BYPASSED"] } },
+			}));
+		const delegatedUntil = delegated
+			? new Date(
+					Math.min(
+						delegationNow.getTime() + MEDIA_VERIFICATION_RETRY_POLICY.evidenceTtlMs,
+						asset.deleteAfter?.getTime() ?? Infinity,
+					),
+				)
+			: null;
 		await appendVerificationEvidence(tx, {
 			assetId: asset.id,
 			assetChecksum: checksum,
@@ -3310,9 +3390,13 @@ async function recordMediaVerificationWaitOrFailure(
 			providerTaskId: asset.verificationProviderTaskId,
 			ruleVersion: claim.ruleVersion,
 			policyVersion: claim.policyVersion,
-			status,
-			reasonCode,
-			rawEnvelope: { decision: status },
+			status: delegated ? "BYPASSED" : status,
+			reasonCode: delegated ? SEEAPI_INPUT_DELEGATION_REASON : reasonCode,
+			rawEnvelope: {
+				decision: status,
+				...(options.decision?.evidence ? { evidence: options.decision.evidence } : {}),
+			},
+			validUntil: delegatedUntil,
 		});
 		const totalFailureCount =
 			status === "ERROR"
@@ -3348,6 +3432,7 @@ async function recordMediaVerificationWaitOrFailure(
 			asset.mimeType.startsWith("image/") &&
 			(reasonCode === "IMAGE_PROCESSING" || isRetryableModerationError(reasonCode));
 		const exhausted =
+			terminal ||
 			(isTemporaryReferenceObjectKey(asset.objectKey) && claim.deadlineAt <= now) ||
 			(status === "ERROR" &&
 				[
@@ -3362,7 +3447,8 @@ async function recordMediaVerificationWaitOrFailure(
 		if (
 			status === "ERROR" &&
 			asset.mimeType.startsWith("image/") &&
-			(isRetryableModerationError(reasonCode) ||
+			(terminal ||
+				isRetryableModerationError(reasonCode) ||
 				[
 					"MODERATION_CONFIGURATION_ERROR",
 					"MODERATION_INVALID_INPUT",
@@ -3376,12 +3462,12 @@ async function recordMediaVerificationWaitOrFailure(
 					provider: claim.provider,
 					stage: "IMAGE",
 					epoch: String(claim.generation),
-					failures: imageRecovery ? failureCount : totalFailureCount,
+					failures: (imageRecovery ? failureCount : totalFailureCount) + (delegated ? 1 : 0),
 					lastErrorCode: reasonCode,
 					startedAt: now,
 					lastFailureAt: now,
-					status: exhausted ? "BLOCKED" : "RETRYING",
-					bypassed: false,
+					status: delegated ? "PENDING_REVIEW" : exhausted ? "BLOCKED" : "RETRYING",
+					bypassed: delegated,
 				},
 				tx,
 			);
@@ -3408,7 +3494,8 @@ async function recordMediaVerificationWaitOrFailure(
 		await tx.mediaAsset.update({
 			where: { verificationEngine: "legacy", id: asset.id },
 			data: {
-				status: exhausted ? "VERIFICATION_FAILED" : "VERIFYING",
+				status: delegated ? "READY" : exhausted ? "VERIFICATION_FAILED" : "VERIFYING",
+				...(delegated ? { verificationValidUntil: delegatedUntil } : {}),
 				...([
 					"MODERATION_CONFIGURATION_ERROR",
 					"MODERATION_INVALID_INPUT",
@@ -3423,11 +3510,29 @@ async function recordMediaVerificationWaitOrFailure(
 				verificationLeaseToken: null,
 				verificationLeasedUntil: null,
 				verificationNextAttemptAt: retryAt,
-				verificationExhaustedAt: exhausted ? now : null,
+				verificationExhaustedAt: exhausted && !delegated ? now : null,
 				verificationLastErrorCode: reasonCode,
 			},
 		});
 		let outboxCommitted = false;
+		if (delegated) {
+			const continuationEvents: Array<{ id: string; availableAt: Date }> = [];
+			outboxCommitted = await resolveJobsWaitingForMediaVerification(tx, {
+				assetId: asset.id,
+				verificationGeneration: claim.generation,
+				approved: true,
+				continuationEvents,
+			});
+			return {
+				outboxCommitted,
+				verificationCommit: {
+					assetId: asset.id,
+					generation: claim.generation,
+					status: "READY",
+					eventIds: [...new Set(continuationEvents.map(({ id }) => id))].slice(0, 100),
+				},
+			};
+		}
 		if (exhausted) {
 			if (asset.kind === "INPUT")
 				outboxCommitted = (

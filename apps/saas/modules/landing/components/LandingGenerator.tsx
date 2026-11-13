@@ -29,6 +29,7 @@ import {
 	getImageGenerationCredits,
 	getImageProductSelectionContract,
 	getPlanEntitlement,
+	planIncludesImageSelection,
 } from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
@@ -527,13 +528,24 @@ function LandingGeneratorWorkspace({
 		localizedProducts.find((product) => product.key === selectedProductKey) ?? null;
 	const modelOptions = localizedProducts.map((product) => ({
 		...product,
-		requiresUpgrade:
-			file || requireReference
-				? product.accessHint === "paid-account"
-				: !getPlanEntitlement("free").allowedProducts.includes(product.key),
+		requiresUpgrade: !planIncludesImageSelection(
+			getPlanEntitlement("free"),
+			product.key,
+			product.key === selectedProductKey
+				? (selectedSkuKey ?? product.skuMatrix.defaultSkuKey)
+				: product.skuMatrix.defaultSkuKey,
+		),
 	}));
 	const selectedSku =
 		selectedProduct?.skuMatrix.cells.find((cell) => cell.skuKey === selectedSkuKey) ?? null;
+	const freeAccountSelection = Boolean(
+		selectedProduct &&
+		planIncludesImageSelection(
+			getPlanEntitlement("free"),
+			selectedProduct.key,
+			selectedSkuKey ?? selectedProduct.skuMatrix.defaultSkuKey,
+		),
+	);
 	const displayedCredits = selectedSku
 		? getImageGenerationCredits({ skuKey: selectedSku.skuKey, ...controlValues })
 		: undefined;
@@ -1345,7 +1357,9 @@ function LandingGeneratorWorkspace({
 						{!file && !requireReference
 							? studio("generation.textHint")
 							: selectedProduct.accessHint === "paid-account"
-								? t("qualityAccess", { model: selectedProduct.label })
+								? t(freeAccountSelection ? "freeAccountAccess" : "qualityAccess", {
+										model: selectedProduct.label,
+									})
 								: t("freeQueue")}
 					</span>
 				)}

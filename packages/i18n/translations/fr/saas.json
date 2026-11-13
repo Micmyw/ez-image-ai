@@ -295,6 +295,7 @@
 					"MODERATION_TIMEOUT": "Le délai du service de détection a expiré.",
 					"MODERATION_NETWORK_ERROR": "Le service de détection est injoignable.",
 					"MODERATION_RATE_LIMITED": "La limite de requêtes du service est atteinte.",
+					"MODERATION_DETECTION_REPORT_FAILED": "SeeAPI n’a pas pu traiter le résultat du contrôle (erreur technique).",
 					"MODERATION_SERVICE_ERROR": "Le service a renvoyé une erreur serveur.",
 					"MODERATION_INVALID_RESPONSE": "Le service a renvoyé une réponse incomplète ou invalide.",
 					"MODERATION_SUBMISSION_UNCERTAIN": "La demande a peut-être été acceptée, mais son identifiant manque.",
@@ -326,6 +327,14 @@
 					"REJECT": "Contenu signalé",
 					"REVIEW": "En attente ou révision manuelle requise",
 					"ERROR": "Erreur technique"
+				},
+				"prompts": {
+					"title": "Instructions du client",
+					"note": "Contexte récemment enregistré. Les brouillons de référence peuvent ne jamais avoir été envoyés et ne sont pas des décisions de modération.",
+					"missing": "Aucune instruction enregistrée n’est liée à cette entrée. Les anciens brouillons manquants ne peuvent pas être reconstitués.",
+					"REFERENCE_DRAFT": "Brouillon de référence · non envoyé",
+					"GENERATION_JOB": "Instruction envoyée pour génération",
+					"BLOCKED_REQUEST": "Demande arrêtée lors du contrôle du texte"
 				}
 			},
 			"paymentAttribution": {
@@ -1111,6 +1120,15 @@
 		"title": "Configurez votre compte"
 	},
 	"payments": {
+		"technicalCompensation": {
+			"title": "Un bonus pour cette interruption",
+			"description": "Un problème technique est survenu. Votre compte bénéficie d’un bonus d’abonnement unique.",
+			"terms": "Recevez 10 % de crédits supplémentaires lors de la première allocation mensuelle de votre premier abonnement. Pour les forfaits annuels, le bonus s’applique uniquement au premier mois. Tarifs habituels. Un bonus par compte ; les crédits expirent à la fin du mois et sont retirés en cas de remboursement ou d’annulation du paiement.",
+			"expires": "Commencez le paiement avant le {date}. Bonus appliqué automatiquement après confirmation du paiement.",
+			"later": "Continuer à créer",
+			"viewPlans": "Voir les abonnements",
+			"banner": "Votre premier abonnement : 10 % de crédits en plus le premier mois"
+		},
 		"providerSelector": {
 			"label": "Mode de paiement",
 			"providers": {
@@ -1569,6 +1587,10 @@
 			"draftRestored": "Votre brouillon de retouche enregistré est prêt à être poursuivi.",
 			"product": "Modèle d’image",
 			"products": {
+				"image-minimax-h3": {
+					"label": "MiniMax H3 Image",
+					"description": "Images détaillées, typographie et retouche photo jusqu’en 4K."
+				},
 				"image-nano-banana-2-lite": {
 					"label": "Nano Banana 2 Lite",
 					"description": "Portraits et retouches du quotidien en 1K."
@@ -1627,6 +1649,15 @@
 				}
 			},
 			"skus": {
+				"minimax-h3-1k": {
+					"label": "1K"
+				},
+				"minimax-h3-2k": {
+					"label": "2K"
+				},
+				"minimax-h3-4k": {
+					"label": "4K"
+				},
 				"nano-banana-2-lite-1k": {
 					"label": "1K"
 				},
@@ -1822,7 +1853,7 @@
 			},
 			"errors": {
 				"insufficientCredits": "Vous n’avez pas assez de crédits pour cette retouche. Aucune tâche ni réservation n’a été créée.",
-				"qualityUnavailable": "Ce modèle d’image n’est pas inclus dans votre offre. Choisissez Nano Banana 2 Lite ou consultez votre offre.",
+				"qualityUnavailable": "Ce modèle d’image n’est pas inclus dans votre offre. Choisissez MiniMax H3 Image 1K ou consultez votre offre.",
 				"assetNotReady": "L’image source n’est pas prête. Attendez son contrôle privé ou choisissez une autre image.",
 				"quoteExpired": "Ce prix a expiré. Modifiez l’instruction ou les réglages pour obtenir un nouveau prix avant de générer.",
 				"contentNotAllowed": "Cette instruction ne respecte pas notre politique de contenu. Veuillez la modifier. Aucun crédit n’a été facturé et votre exonération unique reste disponible.",
@@ -1848,6 +1879,7 @@
 				"credits": "{credits, number} crédits",
 				"fromCredits": "Dès {credits, number} crédits",
 				"groupDescriptions": {
+					"minimax": "Créez des images détaillées et retouchez vos photos.",
 					"nano": "Retouches naturelles",
 					"gpt": "Texte et détails fins",
 					"seedream": "Images de cinéma"
@@ -1924,7 +1956,7 @@
 			"dailyReset": "Renouvellement chaque jour à 00:00 UTC. Les retouches inutilisées ne sont pas reportées.",
 			"dailyLimitReached": "Vous avez utilisé vos deux retouches gratuites du jour. Revenez après 00:00 UTC pour en obtenir deux autres.",
 			"editAnother": "Modifier une autre image",
-			"loginBonus": "Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel. Utiliser des crédits pour les autres modèles et la HD nécessite un abonnement payant actif. Le pack à 2,99 USD comprend 3 images réussies avec tous les modèles et formats d’image actuellement disponibles, sans abonnement."
+			"loginBonus": "Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations MiniMax H3 Image 1K, sans renouvellement mensuel. Les modèles premium et les résolutions supérieures nécessitent un abonnement payant actif pour utiliser des crédits. Le pack à 2,99 USD comprend 3 images réussies avec les modèles et formats d’image inclus, sans abonnement."
 		},
 		"upgradeDialog": {
 			"title": "Débloquer plus de modèles d’image",
@@ -1965,7 +1997,7 @@
 			},
 			"mode": {
 				"label": "Modèle d’image",
-				"standard": "Nano Banana 2 Lite",
+				"standard": "MiniMax H3 Image",
 				"standardDescription": "Retouche d’image privée en 1K.",
 				"quality": "Plus de modèles d’image",
 				"qualityDescription": "Retouche d’image privée avec des réglages de sortie propres au modèle.",
@@ -2334,6 +2366,8 @@
 			"videoTemplates": "Modèles vidéo",
 			"videoTemplatesDescription": "Rap, danse et animaux à partir de vos photos",
 			"videoTemplateHandoff": "Créer une vidéo avec cette image",
+			"minimaxH3Image": "MiniMax H3 Image",
+			"minimaxH3ImageDescription": "Créez et retouchez des images en 1K, 2K ou 4K",
 			"gptImage26": "GPT Image 2.6",
 			"gptImage26Description": "Flare pour la vitesse, Sunburst pour le détail",
 			"svgGenerator": "Générateur SVG par IA",
