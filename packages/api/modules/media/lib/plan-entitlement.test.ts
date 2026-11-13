@@ -26,6 +26,7 @@ describe("loadUserPlanEntitlement", () => {
 			id: "creator",
 			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: [
+				"image-minimax-h3",
 				"image-nano-banana-2-lite",
 				"image-nano-banana",
 				"image-nano-banana-2",
@@ -54,7 +55,7 @@ describe("loadUserPlanEntitlement", () => {
 		await expect(loadUserPlanEntitlement("user-2")).resolves.toMatchObject({
 			id: "free",
 			maximumInputBytes: 10 * 1024 * 1024,
-			allowedProducts: ["image-nano-banana-2-lite"],
+			allowedProducts: ["image-minimax-h3", "image-nano-banana-2-lite"],
 		});
 	});
 });
