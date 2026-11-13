@@ -234,7 +234,7 @@ for (const viewport of [
 			paymentMock,
 		}) => {
 			paymentMock.available = 1;
-			await openCreator(page);
+			await openCreator(page, "/create?model=image-nano-banana-2-lite");
 			const form = page.locator('[data-test="registered-generator"]');
 			const pass = form.locator('input[name="image-funding"][value="IMAGE_PASS"]');
 			await pass.check();

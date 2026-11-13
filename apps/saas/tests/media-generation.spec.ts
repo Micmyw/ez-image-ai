@@ -1007,7 +1007,9 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	test("refresh follows the same in-flight job through success", async ({ page }, testInfo) => {
 		const prompt = marker("delayed-success", "Refresh recovery", testInfo.retry);
 		const jobId = await createScenario(page, prompt);
-		await expect(page).toHaveURL(new RegExp(`/create\\?job=${jobId}`));
+		await expect(page).toHaveURL(
+			(url) => url.pathname === "/create" && url.searchParams.get("job") === jobId,
+		);
 		await page.reload();
 		await expect(page.getByText(jobId)).toBeVisible({ timeout: 30_000 });
 		const job = await waitForJob(prompt, "SUCCEEDED");
@@ -1072,6 +1074,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		const card = page.locator(`[data-asset-id="${asset.id}"]`);
 		await card.getByRole("link", { name: /reuse/i }).click();
 		await expect(page).toHaveURL(new RegExp(`/create\\?asset=${asset.id}`));
+		await selectLiteFixtureModel(page);
 		const prompt = marker("reuse", "Turn the reference into a watercolor scene", testInfo.retry);
 		await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
 		await page.locator('[data-test="generation-submit"]').click();
@@ -1190,6 +1193,11 @@ async function openCreator(page: import("@playwright/test").Page, prompt: string
 	)[0];
 	if (!source) throw new Error(`Seed source image missing for ${email}`);
 	await page.goto(`/create?asset=${source.id}`);
+	await selectLiteFixtureModel(page);
+	await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
+}
+
+async function selectLiteFixtureModel(page: import("@playwright/test").Page) {
 	await expect(page.getByRole("button", { name: /^Model: / })).toContainText("MiniMax H3 Image", {
 		timeout: 30_000,
 	});
@@ -1203,7 +1211,6 @@ async function openCreator(page: import("@playwright/test").Page, prompt: string
 	await expect(page.locator('[data-test="generation-submit"]')).toContainText("5 credits", {
 		timeout: 30_000,
 	});
-	await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
 }
 
 async function replaceTextLikeBrowserTranslation(target: import("@playwright/test").Locator) {

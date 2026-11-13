@@ -196,6 +196,10 @@ const test = base.extend<{ paymentMock: PaymentMock }>({
 				await route.fulfill({ json: { json: { available: false } } });
 				return;
 			}
+			if (path === "/api/rpc/payments/getSubscriptionCompensation") {
+				await route.fulfill({ json: { json: { offer: null } } });
+				return;
+			}
 			if (localReads.has(path)) {
 				await route.continue();
 				return;
