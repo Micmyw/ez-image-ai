@@ -37,12 +37,13 @@ const imageInput = (skuKey: string, aspectRatio = "16:9") => ({
 });
 
 describe("expanded image model catalog", () => {
-	it("lists fifteen real image products with the expanded families and no provider data", () => {
+	it("lists sixteen real image products with the expanded families and no provider data", () => {
 		const catalog = getPublicProductCatalog({
 			generationEnabled: true,
 			enabledProviders: new Set(["kie"]),
 		});
-		expect(catalog.products).toHaveLength(15);
+		expect(catalog.products).toHaveLength(16);
+		expect(catalog.products.some((product) => product.key === "image-seedream-5-5")).toBe(true);
 		for (const [key] of newModels)
 			expect(catalog.products.some((product) => product.key === key)).toBe(true);
 		expect(JSON.stringify(catalog)).not.toMatch(

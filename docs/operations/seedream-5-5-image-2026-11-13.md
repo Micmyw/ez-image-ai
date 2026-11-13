@@ -119,6 +119,31 @@ The owner authorized Git publication and production deployment on 2026-11-13.
 Release proceeds with the jobs consumer first, then website model admission.
 Local checks below do not establish a live deployment or paid generation result.
 
+### Production activation — 2026-11-13
+
+The initial integration was published as `bcf4dccd`. Its compatible jobs Worker
+was deployed before the website build override was enabled. Follow-up
+`07286f4f` corrected shared CSS type declarations for consuming packages and
+deployed successfully to both Workers with Seedream enabled:
+
+- Website version: `0f5464d3-a1cf-4c9e-9a85-c13211280cea`, 100% traffic.
+- Jobs version: `f65a92c6-be95-4ce9-9266-c28710879ceb`, 100% traffic.
+- Public catalog returns the three Seedream SKUs at 8 / 12 / 20 credits,
+  with 1.5K selected by default. The live output settings reflect these prices.
+- Both model pages were checked in the production browser at 1440px and 390px.
+  Prompt previews, copy feedback, application/focus, Escape/focus return and
+  bounded mobile layout worked. Captures are under
+  `output/playwright/seedream-release-2026-11-13/`.
+
+CI exposed an old expanded-catalog assertion that still expected 15 products;
+the follow-up expects 16 and explicitly checks Seedream membership. The full AI
+package passed all 1,197 tests after that correction. The full local
+`pnpm test:unit:contracts` command also passed. The homepage layout regression
+now checks the intentionally elevated Prompt ideas row and the prompt below it;
+its browser journey passed at 1440px, 390px and 320px. Deployment and public UI
+checks do not establish paid Seedream output quality; no paid generation was
+submitted during this release.
+
 ## Local verification
 
 ### Shared lighting and Seedream typography

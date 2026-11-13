@@ -1717,12 +1717,13 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 			await expect(drawer).toBeHidden();
 			await expect(page.locator('[data-test="landing-model-trigger"]')).toBeVisible();
 		}
-		const [sourceRect, promptRect, tierRect] = await Promise.all([
+		const [sourceRect, ideasRect, promptRect, tierRect] = await Promise.all([
 			box(
 				page
 					.locator('[data-test="landing-generator"]')
 					.getByRole("button", { name: /add a reference image/i }),
 			),
+			box(page.getByRole("button", { name: "Prompt ideas", exact: true })),
 			box(page.getByRole("textbox", { name: /^(?:Image prompt|Edit instruction)$/ })),
 			box(page.locator('[data-test="landing-model-trigger"]')),
 		]);
@@ -1739,7 +1740,8 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 			).toBeGreaterThan(20);
 		}
 		expect(sourceRect.x + sourceRect.width).toBeLessThanOrEqual(promptRect.x);
-		expect(Math.abs(sourceRect.y - promptRect.y)).toBeLessThan(2);
+		expect(Math.abs(sourceRect.y - ideasRect.y)).toBeLessThan(2);
+		expect(ideasRect.y + ideasRect.height).toBeLessThanOrEqual(promptRect.y);
 		expect(controls.y).toBeGreaterThan(
 			Math.max(sourceRect.y + sourceRect.height, promptRect.y + promptRect.height),
 		);

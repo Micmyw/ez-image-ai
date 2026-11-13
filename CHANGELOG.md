@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — Seedream 5.5
+## 2026-11-13 — Seedream 5.5
 
 - Add Seedream 5.5 text-to-image and reference-image editing at 1K / 1.5K / 2K for 8 / 12 / 20 credits, with PNG/JPEG and native transparent backgrounds.
 - Add a dedicated model page with Kie-provided image examples, a room-edit comparison and a transparent product showcase. Apply prompts with their matching output settings directly to the editor.
