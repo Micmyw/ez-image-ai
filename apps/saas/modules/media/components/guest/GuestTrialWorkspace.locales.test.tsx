@@ -17,7 +17,7 @@ const expectations = {
 		compact: "Watermarked · temporary",
 		count: "1,234 / 10,000",
 		bonus:
-			"receive 10 credits once for two Nano Banana 2 Lite 1K generations, with no monthly refill",
+			"receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill",
 	},
 	de: {
 		source: "Privat für diese Bearbeitung übergeben",
@@ -25,7 +25,7 @@ const expectations = {
 		compact: "Mit Wasserzeichen · temporär",
 		count: "1.234 / 10.000",
 		bonus:
-			"einmalig 10 Credits für zwei Generierungen mit Nano Banana 2 Lite 1K, ohne monatliche Auffüllung",
+			"einmalig 10 Credits für zwei Generierungen mit MiniMax H3 Image 1K, ohne monatliche Auffüllung",
 	},
 	es: {
 		source: "Transferido de forma privada para esta edición",
@@ -33,7 +33,7 @@ const expectations = {
 		compact: "Con marca de agua · temporal",
 		count: "1234 / 10.000",
 		bonus:
-			"10 créditos una sola vez para dos generaciones con Nano Banana 2 Lite 1K, sin recarga mensual",
+			"10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual",
 	},
 	fr: {
 		source: "Transférée en privé pour cette retouche",
@@ -41,7 +41,7 @@ const expectations = {
 		compact: "Filigrané · temporaire",
 		count: "1 234 / 10 000",
 		bonus:
-			"10 crédits une seule fois pour deux générations Nano Banana 2 Lite 1K, sans renouvellement mensuel",
+			"10 crédits une seule fois pour deux générations MiniMax H3 Image 1K, sans renouvellement mensuel",
 	},
 } as const;
 
