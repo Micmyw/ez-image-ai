@@ -265,6 +265,9 @@ function minimaxReferenceFixture() {
 		status: "READY",
 		kind: "INPUT",
 		mimeType: "image/png",
+		byteSize: 230066n,
+		storageEtag: "sealed-etag",
+		storageVersionId: null,
 		objectKey: "users/temporary-references/v1/owner/asset_01J5ABCD1234EFGH5678JKLMNP",
 		checksum: "a".repeat(64),
 		deletedAt: null,
@@ -324,6 +327,7 @@ function minimaxReferenceFixture() {
 		},
 	});
 	const createSignedReadUrl = vi.fn(async () => "https://private.test/input.png");
+	const inspectPrivateImageDimensions = vi.fn(async () => ({ width: 1200, height: 678 }));
 	const store = createDatabaseDispatchStore(f.database as never, {
 		...f.options,
 		environment: {
@@ -333,6 +337,7 @@ function minimaxReferenceFixture() {
 			MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
 		},
 		createSignedReadUrl,
+		inspectPrivateImageDimensions,
 	});
 	const fetch = vi.fn<typeof globalThis.fetch>(async () =>
 		Response.json({ code: 200, data: { taskId: "h3-task" } }),
@@ -344,6 +349,7 @@ function minimaxReferenceFixture() {
 		store,
 		fetch,
 		createSignedReadUrl,
+		inspectPrivateImageDimensions,
 		recordRejectedSubmission,
 		dependencies: {
 			...f.dependencies,
@@ -380,7 +386,7 @@ describe("MiniMax reference dispatch inspection", () => {
 		});
 	});
 
-	it.each([8001, null])(
+	it.each([8001])(
 		"records %s height as a definite rejection without provider work",
 		async (height) => {
 			const f = minimaxReferenceFixture();
@@ -401,6 +407,65 @@ describe("MiniMax reference dispatch inspection", () => {
 			expect(f.recordUncertainSubmission).not.toHaveBeenCalled();
 		},
 	);
+
+	it("inspects approved references with missing dimensions before any attempt, then submits once", async () => {
+		const f = minimaxReferenceFixture();
+		f.asset.width = null;
+		f.asset.height = null;
+		f.inspectPrivateImageDimensions.mockImplementation(async () => {
+			expect(f.tx.generationAttempt.create).not.toHaveBeenCalled();
+			expect(f.job.status).toBe("DISPATCH_QUEUED");
+			expect(f.state.transactionCount).toBe(1);
+			return { width: 1200, height: 678 };
+		});
+		await expect(
+			dispatchGeneration({ jobId: "job", version: 4 }, f.dependencies),
+		).resolves.toMatchObject({ outcome: "SUBMITTED" });
+		expect(f.inspectPrivateImageDimensions).toHaveBeenCalledExactlyOnceWith({
+			bucket: "media",
+			key: f.asset.objectKey,
+			contentType: "image/png",
+			contentLength: 230066,
+			ifMatch: "sealed-etag",
+			expectedSha256: f.asset.checksum,
+			maximumBytes: 20_000_000,
+		});
+		expect(f.tx.generationAttempt.create).toHaveBeenCalledOnce();
+		expect(f.fetch).toHaveBeenCalledOnce();
+	});
+
+	it.each(["checksum", "expired", "pending", "read-failed"])(
+		"does not submit after inspection becomes %s",
+		async (change) => {
+			const f = minimaxReferenceFixture();
+			f.asset.width = null;
+			f.asset.height = null;
+			f.inspectPrivateImageDimensions.mockImplementation(async () => {
+				if (change === "checksum") f.asset.checksum = "b".repeat(64);
+				if (change === "expired") f.asset.verificationValidUntil = new Date(now.getTime() - 1);
+				if (change === "pending") f.asset.status = "VERIFYING";
+				if (change === "read-failed") throw new Error("storage read failed");
+				return { width: 1200, height: 678 };
+			});
+			const result = dispatchGeneration({ jobId: "job", version: 4 }, f.dependencies);
+			if (change === "pending") await expect(result).resolves.toEqual({ outcome: "SKIPPED" });
+			else await expect(result).rejects.toThrow();
+			expect(f.tx.generationAttempt.create).not.toHaveBeenCalled();
+			expect(f.fetch).not.toHaveBeenCalled();
+			expect(f.attempt.uncertainSubmission).toBe(false);
+		},
+	);
+
+	it("keeps the 64 MP guard after reading previously missing dimensions", async () => {
+		const f = minimaxReferenceFixture();
+		f.asset.width = null;
+		f.asset.height = null;
+		f.inspectPrivateImageDimensions.mockResolvedValue({ width: 8001, height: 8000 });
+		await expect(dispatchGeneration({ jobId: "job", version: 4 }, f.dependencies)).resolves.toEqual(
+			{ outcome: "REJECTED" },
+		);
+		expect(f.fetch).not.toHaveBeenCalled();
+	});
 
 	it("submits the inspected 64 MP boundary once", async () => {
 		const f = minimaxReferenceFixture();

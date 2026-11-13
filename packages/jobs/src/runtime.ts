@@ -166,6 +166,7 @@ import {
 	detectMediaType,
 	headObject,
 	inspectPrivateMediaObject,
+	inspectPrivateImageDimensions,
 	openInspectedRemoteMedia,
 	listMultipartUploads,
 	MediaValidationError,
@@ -357,6 +358,7 @@ export interface DispatchRuntimeOptions {
 	beforeSynchronousCommit?: () => Promise<void>;
 	afterInputAuthorization?: () => Promise<void>;
 	createSignedReadUrl?: typeof createSignedReadUrl;
+	inspectPrivateImageDimensions?: typeof inspectPrivateImageDimensions;
 	database?: PrismaClient;
 	enabledProviders?: ReadonlySet<ProviderKey>;
 	environment?: Record<string, string | undefined>;
@@ -571,343 +573,409 @@ export function createDatabaseDispatchStore(
 				throw new DispatchAdmissionBlockedError();
 			}
 			let preparation: GenerationSubmissionPreparation | undefined;
-			const claim = await runReadCommitted(database, async (tx) => {
-				// Serialize the same job only. Frozen routes are read after this lock;
-				// unrelated owners do not share a retired provider-capacity lock.
-				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`generation-dispatch:${payload.jobId}`}, 0))`;
-				const job = await tx.generationJob.findFirst({
-					where: {
-						executionEngine: "legacy",
-						id: payload.jobId,
-						version: payload.version,
-						status: { in: ["RESERVED", "DISPATCH_QUEUED"] },
-					},
-					include: {
-						attempts: { orderBy: { attemptNumber: "desc" }, take: 1 },
-						assets: true,
-						quote: { select: { costMicros: true, moderationDecision: true } },
-						guestTrial: { include: { linkIntents: { select: { state: true } } } },
-					},
-				});
-				if (!job) return null;
-				// Historical bypass quotes remain recorded, but cannot start paid work.
-				if (job.quote.moderationDecision === "BYPASS") return null;
-				const isGuest = job.serviceClass === "GUEST_SLOW";
-				if (isGuest && job.status !== "DISPATCH_QUEUED") return null;
-				if (await isMediaGenerationDisabled(tx, job.productKey, environment)) {
-					if (isGuest) {
-						await expireGuestJobBeforeProvider(
-							{ jobId: job.id, now: new Date(), createReplacement: false },
-							tx,
-						);
-						return null;
-					}
-					const requeued = await requeueDispatchBlockedByKillSwitch(tx, job);
-					if (!requeued) return null;
-					return dispatchAdmissionBlocked;
-				}
-				const existing = job.attempts[0];
-				if (existing) {
-					await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${existing.id} FOR UPDATE`;
-					const owner = await getImagePhaseOwner(
-						{ kind: "generation", attemptId: existing.id },
-						tx,
-					);
-					if (
-						(owner && owner.workflowId !== options.workflowId) ||
-						(options.phaseOwner && (!owner || !sameImagePhaseOwner(owner, options.phaseOwner)))
-					)
-						return { phaseOwnershipLost: true as const, ...(owner ? { phaseOwner: owner } : {}) };
-				}
-				if (isGuest && existing) return null;
-				if (
-					existing &&
-					(existing.status !== "CREATED" ||
-						existing.uncertainSubmission ||
-						existing.submittedAt != null ||
-						existing.providerTaskId != null)
-				)
-					return null;
-				const dispatchNow = new Date();
-				if (job.dispatchEligibleAt && job.dispatchEligibleAt > dispatchNow) {
-					return deferProviderDispatch(tx, job, job.dispatchEligibleAt, dispatchNow);
-				}
-				if (isGuest) {
-					const trial = job.guestTrial;
-					if (!trial || trial.ownerId === null) return null;
-					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`guest-owner-promotion:${job.ownerId}:${trial.promotionPeriod}`}, 0))`;
-					await tx.$queryRaw`SELECT "id" FROM "guest_media_trial" WHERE "id" = ${trial.id} FOR UPDATE`;
-					if (!(await guestDispatchChecksPass(tx, job, trial, environment, new Date()))) {
-						await expireGuestJobBeforeProvider(
-							{ jobId: job.id, now: new Date(), createReplacement: false },
-							tx,
-						);
-						return null;
-					}
-				}
-				const resolution = quotedExecutableRoutes(job, enabledProviders, environment);
-				if (resolution.kind === "UNAVAILABLE") {
-					await markQuotedRouteUnavailable(tx, {
-						jobId: job.id,
-						code: resolution.code,
-						diagnosticRoute: resolution.diagnosticRoute,
-					});
-					return null;
-				}
-				const route = existing
-					? resolution.routes.find(
-							(candidate) =>
-								candidate.provider === existing.provider &&
-								candidate.providerModelId === existing.providerModelId,
-						)
-					: chooseCatalogRoute(resolution.routes, deterministicFraction(job.id));
-				if (!route) {
-					await markQuotedRouteUnavailable(tx, {
-						jobId: job.id,
-						code: resolution.code,
-						diagnosticRoute: existing
-							? {
-									provider: existing.provider as ProviderKey,
-									providerModelId: existing.providerModelId,
-									providerCostMicros: 0,
-									weight: 1,
-								}
-							: resolution.diagnosticRoute,
-					});
-					return null;
-				}
-				const hasPinnedRoute =
-					payload.provider !== undefined || payload.providerModelId !== undefined;
-				if (
-					hasPinnedRoute &&
-					(payload.provider !== route.provider || payload.providerModelId !== route.providerModelId)
-				) {
-					await markQuotedRouteUnavailable(tx, {
-						jobId: job.id,
-						code: "DISPATCH_ROUTE_MISMATCH",
-						diagnosticRoute: route,
-					});
-					return null;
-				}
-				// The legacy project concurrency setting is not a verified provider quota.
-				// Keep the atomic job claim and pre-send fence without limiting other jobs.
-				const rawInput = job.inputSnapshot as unknown as ProviderExecutionInput & {
-					sourceAssetId?: string;
-				};
-				let input: ProviderExecutionInput = rawInput;
-				if (rawInput.sourceAssetId) {
-					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${rawInput.sourceAssetId}`}, 0))`;
-					const binding = await tx.generationJobAsset.findFirst({
+			let inspectedInput:
+				| {
+						identity: string;
+						width: number;
+						height: number;
+				  }
+				| undefined;
+			const claimOnce = () =>
+				runReadCommitted(database, async (tx) => {
+					// Serialize the same job only. Frozen routes are read after this lock;
+					// unrelated owners do not share a retired provider-capacity lock.
+					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`generation-dispatch:${payload.jobId}`}, 0))`;
+					const job = await tx.generationJob.findFirst({
 						where: {
-							AND: { job: { executionEngine: "legacy" } },
-							jobId: job.id,
-							assetId: rawInput.sourceAssetId,
-							role: "INPUT",
+							executionEngine: "legacy",
+							id: payload.jobId,
+							version: payload.version,
+							status: { in: ["RESERVED", "DISPATCH_QUEUED"] },
 						},
 						include: {
-							asset: {
-								include: {
-									moderationResults: {
-										orderBy: [
-											{ verificationGeneration: "desc" },
-											{ attemptNumber: "desc" },
-											{ createdAt: "desc" },
-											{ id: "desc" },
-										],
-										take: 1,
+							attempts: { orderBy: { attemptNumber: "desc" }, take: 1 },
+							assets: true,
+							quote: { select: { costMicros: true, moderationDecision: true } },
+							guestTrial: { include: { linkIntents: { select: { state: true } } } },
+						},
+					});
+					if (!job) return null;
+					// Historical bypass quotes remain recorded, but cannot start paid work.
+					if (job.quote.moderationDecision === "BYPASS") return null;
+					const isGuest = job.serviceClass === "GUEST_SLOW";
+					if (isGuest && job.status !== "DISPATCH_QUEUED") return null;
+					if (await isMediaGenerationDisabled(tx, job.productKey, environment)) {
+						if (isGuest) {
+							await expireGuestJobBeforeProvider(
+								{ jobId: job.id, now: new Date(), createReplacement: false },
+								tx,
+							);
+							return null;
+						}
+						const requeued = await requeueDispatchBlockedByKillSwitch(tx, job);
+						if (!requeued) return null;
+						return dispatchAdmissionBlocked;
+					}
+					const existing = job.attempts[0];
+					if (existing) {
+						await tx.$queryRaw`SELECT "id" FROM "generation_attempt" WHERE "id" = ${existing.id} FOR UPDATE`;
+						const owner = await getImagePhaseOwner(
+							{ kind: "generation", attemptId: existing.id },
+							tx,
+						);
+						if (
+							(owner && owner.workflowId !== options.workflowId) ||
+							(options.phaseOwner && (!owner || !sameImagePhaseOwner(owner, options.phaseOwner)))
+						)
+							return { phaseOwnershipLost: true as const, ...(owner ? { phaseOwner: owner } : {}) };
+					}
+					if (isGuest && existing) return null;
+					if (
+						existing &&
+						(existing.status !== "CREATED" ||
+							existing.uncertainSubmission ||
+							existing.submittedAt != null ||
+							existing.providerTaskId != null)
+					)
+						return null;
+					const dispatchNow = new Date();
+					if (job.dispatchEligibleAt && job.dispatchEligibleAt > dispatchNow) {
+						return deferProviderDispatch(tx, job, job.dispatchEligibleAt, dispatchNow);
+					}
+					if (isGuest) {
+						const trial = job.guestTrial;
+						if (!trial || trial.ownerId === null) return null;
+						await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`guest-owner-promotion:${job.ownerId}:${trial.promotionPeriod}`}, 0))`;
+						await tx.$queryRaw`SELECT "id" FROM "guest_media_trial" WHERE "id" = ${trial.id} FOR UPDATE`;
+						if (!(await guestDispatchChecksPass(tx, job, trial, environment, new Date()))) {
+							await expireGuestJobBeforeProvider(
+								{ jobId: job.id, now: new Date(), createReplacement: false },
+								tx,
+							);
+							return null;
+						}
+					}
+					const resolution = quotedExecutableRoutes(job, enabledProviders, environment);
+					if (resolution.kind === "UNAVAILABLE") {
+						await markQuotedRouteUnavailable(tx, {
+							jobId: job.id,
+							code: resolution.code,
+							diagnosticRoute: resolution.diagnosticRoute,
+						});
+						return null;
+					}
+					const route = existing
+						? resolution.routes.find(
+								(candidate) =>
+									candidate.provider === existing.provider &&
+									candidate.providerModelId === existing.providerModelId,
+							)
+						: chooseCatalogRoute(resolution.routes, deterministicFraction(job.id));
+					if (!route) {
+						await markQuotedRouteUnavailable(tx, {
+							jobId: job.id,
+							code: resolution.code,
+							diagnosticRoute: existing
+								? {
+										provider: existing.provider as ProviderKey,
+										providerModelId: existing.providerModelId,
+										providerCostMicros: 0,
+										weight: 1,
+									}
+								: resolution.diagnosticRoute,
+						});
+						return null;
+					}
+					const hasPinnedRoute =
+						payload.provider !== undefined || payload.providerModelId !== undefined;
+					if (
+						hasPinnedRoute &&
+						(payload.provider !== route.provider ||
+							payload.providerModelId !== route.providerModelId)
+					) {
+						await markQuotedRouteUnavailable(tx, {
+							jobId: job.id,
+							code: "DISPATCH_ROUTE_MISMATCH",
+							diagnosticRoute: route,
+						});
+						return null;
+					}
+					// The legacy project concurrency setting is not a verified provider quota.
+					// Keep the atomic job claim and pre-send fence without limiting other jobs.
+					const rawInput = job.inputSnapshot as unknown as ProviderExecutionInput & {
+						sourceAssetId?: string;
+					};
+					let input: ProviderExecutionInput = rawInput;
+					if (rawInput.sourceAssetId) {
+						await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${rawInput.sourceAssetId}`}, 0))`;
+						const binding = await tx.generationJobAsset.findFirst({
+							where: {
+								AND: { job: { executionEngine: "legacy" } },
+								jobId: job.id,
+								assetId: rawInput.sourceAssetId,
+								role: "INPUT",
+							},
+							include: {
+								asset: {
+									include: {
+										moderationResults: {
+											orderBy: [
+												{ verificationGeneration: "desc" },
+												{ attemptNumber: "desc" },
+												{ createdAt: "desc" },
+												{ id: "desc" },
+											],
+											take: 1,
+										},
 									},
 								},
 							},
+						});
+						if (binding && isTemporaryReferenceObjectKey(binding.asset.objectKey)) {
+							if (
+								!binding.asset.deleteAfter ||
+								binding.asset.deleteAfter.getTime() <= Date.now() ||
+								binding.asset.deletedAt ||
+								["QUARANTINED", "VERIFICATION_FAILED", "DELETED"].includes(binding.asset.status)
+							) {
+								await resolveJobsWaitingForMediaVerification(tx, {
+									assetId: binding.asset.id,
+									verificationGeneration: binding.asset.verificationGeneration,
+									approved: false,
+									failureCode:
+										binding.asset.deleteAfter && binding.asset.deleteAfter.getTime() > Date.now()
+											? "ASSET_VERIFICATION_FAILED"
+											: "TEMPORARY_REFERENCE_EXPIRED",
+								});
+								return null;
+							}
+							// The durable verification event will wake this same job. No model attempt yet.
+							if (binding.asset.status === "VERIFYING") return null;
+							if (
+								binding.asset.moderationResults[0]?.status !== "APPROVED" &&
+								!isDelegatedImageInputEvidence(binding.asset.moderationResults[0], binding.asset)
+							) {
+								await resolveJobsWaitingForMediaVerification(tx, {
+									assetId: binding.asset.id,
+									verificationGeneration: binding.asset.verificationGeneration,
+									approved: false,
+									failureCode: "ASSET_VERIFICATION_FAILED",
+								});
+								return null;
+							}
+						}
+						if (!binding || binding.asset.status !== "READY") {
+							throw new Error("Input asset is not ready");
+						}
+						if (!binding.asset.checksum || binding.assetChecksum !== binding.asset.checksum) {
+							throw new Error("Input asset checksum no longer matches job binding");
+						}
+						const currentProvider = imageModerationProviderForEnvironment(environment);
+						const now = new Date();
+						if (
+							!hasCurrentImageInputEvidence(binding.asset, {
+								provider: currentProvider,
+								ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+								policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+								now,
+							})
+						) {
+							throw new Error("Input asset moderation evidence is stale");
+						}
+						const contract = getImageProductSelectionContract(job.productKey);
+						let dimensions = { width: binding.asset.width, height: binding.asset.height };
+						if (
+							contract?.maximumInputPixels !== undefined &&
+							(dimensions.width == null || dimensions.height == null)
+						) {
+							const identity = JSON.stringify([
+								binding.asset.id,
+								binding.asset.objectKey,
+								binding.asset.checksum,
+								binding.asset.storageEtag,
+								binding.asset.storageVersionId,
+								binding.asset.byteSize.toString(),
+								binding.asset.mimeType,
+							]);
+							if (inspectedInput) {
+								if (inspectedInput.identity !== identity)
+									throw new Error("IMAGE_INPUT_IDENTITY_MISMATCH");
+								dimensions = inspectedInput;
+							} else {
+								const contentType = binding.asset.mimeType;
+								if (
+									contentType !== "image/png" &&
+									contentType !== "image/jpeg" &&
+									contentType !== "image/webp"
+								)
+									throw new Error("IMAGE_INPUT_TYPE_UNSUPPORTED");
+								return {
+									inspectInput: {
+										identity,
+										request: {
+											bucket: "media" as const,
+											key: binding.asset.objectKey,
+											contentType,
+											contentLength: Number(binding.asset.byteSize),
+											...(binding.asset.storageEtag ? { ifMatch: binding.asset.storageEtag } : {}),
+											expectedSha256: binding.asset.checksum,
+											maximumBytes: contract.maximumInputBytes!,
+										} satisfies Parameters<typeof inspectPrivateImageDimensions>[0],
+									},
+								};
+							}
+						}
+						const transferUrl = await (options.createSignedReadUrl ?? createSignedReadUrl)({
+							bucket: "media",
+							key: binding.asset.objectKey,
+							expiresIn: 600,
+						});
+						const { sourceAssetId: _, ...withoutId } = rawInput;
+						input = {
+							...withoutId,
+							sourceAsset: {
+								assetId: binding.asset.id,
+								transferUrl,
+								...(contract?.maximumInputPixels !== undefined
+									? { width: dimensions.width, height: dimensions.height }
+									: {}),
+							},
+						} as ProviderExecutionInput;
+						await options.afterInputAuthorization?.();
+					}
+					const changed = await tx.generationJob.updateMany({
+						where: {
+							executionEngine: "legacy",
+							id: job.id,
+							version: job.version,
+							status: job.status,
 						},
+						data: { status: "SUBMITTING", version: { increment: 1 } },
 					});
-					if (binding && isTemporaryReferenceObjectKey(binding.asset.objectKey)) {
-						if (
-							!binding.asset.deleteAfter ||
-							binding.asset.deleteAfter.getTime() <= Date.now() ||
-							binding.asset.deletedAt ||
-							["QUARANTINED", "VERIFICATION_FAILED", "DELETED"].includes(binding.asset.status)
-						) {
-							await resolveJobsWaitingForMediaVerification(tx, {
-								assetId: binding.asset.id,
-								verificationGeneration: binding.asset.verificationGeneration,
-								approved: false,
-								failureCode:
-									binding.asset.deleteAfter && binding.asset.deleteAfter.getTime() > Date.now()
-										? "ASSET_VERIFICATION_FAILED"
-										: "TEMPORARY_REFERENCE_EXPIRED",
-							});
-							return null;
-						}
-						// The durable verification event will wake this same job. No model attempt yet.
-						if (binding.asset.status === "VERIFYING") return null;
-						if (
-							binding.asset.moderationResults[0]?.status !== "APPROVED" &&
-							!isDelegatedImageInputEvidence(binding.asset.moderationResults[0], binding.asset)
-						) {
-							await resolveJobsWaitingForMediaVerification(tx, {
-								assetId: binding.asset.id,
-								verificationGeneration: binding.asset.verificationGeneration,
-								approved: false,
-								failureCode: "ASSET_VERIFICATION_FAILED",
-							});
-							return null;
-						}
-					}
-					if (!binding || binding.asset.status !== "READY") {
-						throw new Error("Input asset is not ready");
-					}
-					if (!binding.asset.checksum || binding.assetChecksum !== binding.asset.checksum) {
-						throw new Error("Input asset checksum no longer matches job binding");
-					}
-					const currentProvider = imageModerationProviderForEnvironment(environment);
+					if (changed.count !== 1) return null;
 					const now = new Date();
-					if (
-						!hasCurrentImageInputEvidence(binding.asset, {
-							provider: currentProvider,
-							ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
-							policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
-							now,
-						})
-					) {
-						throw new Error("Input asset moderation evidence is stale");
+					const attempt =
+						existing ??
+						(await tx.generationAttempt.create({
+							data: {
+								jobId: job.id,
+								attemptNumber: 1,
+								provider: route.provider,
+								providerModelId: route.providerModelId,
+								requestSnapshot: { catalogRoute: route.provider } as Prisma.InputJsonValue,
+							},
+						}));
+					let phaseOwner: ImagePhaseOwner | undefined;
+					if (options.workflowId) {
+						const ownership = await claimImagePhaseOwnerInTransaction(
+							{
+								phase: { kind: "generation", attemptId: attempt.id },
+								workflowId: options.workflowId,
+								expectedOwner: options.phaseOwner,
+								businessLeasedUntil: attempt.reconcileLeasedUntil,
+							},
+							tx,
+						);
+						if (!ownership.owned) throw new ImagePhaseOwnershipLostError(ownership.phaseOwner);
+						phaseOwner = ownership.phaseOwner;
 					}
-					const transferUrl = await (options.createSignedReadUrl ?? createSignedReadUrl)({
-						bucket: "media",
-						key: binding.asset.objectKey,
-						expiresIn: 600,
-					});
-					const { sourceAssetId: _, ...withoutId } = rawInput;
-					input = {
-						...withoutId,
-						sourceAsset: {
-							assetId: binding.asset.id,
-							transferUrl,
-							...(getImageProductSelectionContract(job.productKey)?.maximumInputPixels !== undefined
-								? { width: binding.asset.width, height: binding.asset.height }
-								: {}),
-						},
-					} as ProviderExecutionInput;
-					await options.afterInputAuthorization?.();
-				}
-				const changed = await tx.generationJob.updateMany({
-					where: {
-						executionEngine: "legacy",
-						id: job.id,
-						version: job.version,
-						status: job.status,
-					},
-					data: { status: "SUBMITTING", version: { increment: 1 } },
-				});
-				if (changed.count !== 1) return null;
-				const now = new Date();
-				const attempt =
-					existing ??
-					(await tx.generationAttempt.create({
-						data: {
+					const preSend = preSendAttemptState(
+						{
+							attemptId: attempt.id,
+							attemptNumber: attempt.attemptNumber,
 							jobId: job.id,
-							attemptNumber: 1,
 							provider: route.provider,
 							providerModelId: route.providerModelId,
-							requestSnapshot: { catalogRoute: route.provider } as Prisma.InputJsonValue,
+							inputSnapshot: job.inputSnapshot,
 						},
-					}));
-				let phaseOwner: ImagePhaseOwner | undefined;
-				if (options.workflowId) {
-					const ownership = await claimImagePhaseOwnerInTransaction(
+						now,
+					);
+					preparation = await prepareGenerationSubmissionInTransaction(
 						{
-							phase: { kind: "generation", attemptId: attempt.id },
-							workflowId: options.workflowId,
-							expectedOwner: options.phaseOwner,
-							businessLeasedUntil: attempt.reconcileLeasedUntil,
+							attemptId: attempt.id,
+							attemptNumber: attempt.attemptNumber,
+							jobId: job.id,
+							jobVersion: job.version + 1,
+							provider: route.provider,
+							providerModelId: route.providerModelId,
+							inputSnapshot: job.inputSnapshot,
+							pricingSnapshot: job.pricingSnapshot,
+							requestSnapshot: preSend.requestSnapshot as Prisma.InputJsonValue,
+							now,
+							nextReconcileAt: preSend.nextReconcileAt as Date,
 						},
 						tx,
 					);
-					if (!ownership.owned) throw new ImagePhaseOwnershipLostError(ownership.phaseOwner);
-					phaseOwner = ownership.phaseOwner;
-				}
-				const preSend = preSendAttemptState(
-					{
+					if (isGuest) {
+						const trial = job.guestTrial!;
+						const committedRisk = await tx.guestRiskBudgetBucket.updateMany({
+							where: {
+								promotionPeriod: trial.promotionPeriod,
+								subjectHash: "global",
+								reservedMicros: { gte: trial.frozenQuotedRiskMicros },
+							},
+							data: {
+								reservedMicros: { decrement: trial.frozenQuotedRiskMicros },
+								consumedMicros: { increment: trial.frozenQuotedRiskMicros },
+								version: { increment: 1 },
+							},
+						});
+						if (committedRisk.count !== 1) throw new Error("GUEST_RISK_COMMIT_FAILED");
+						const consumed = await tx.guestMediaTrial.updateMany({
+							where: {
+								id: trial.id,
+								currentJobId: job.id,
+								consumedJobId: null,
+								eligibility: "IN_FLIGHT",
+								riskState: "HELD",
+								providerBoundaryAt: null,
+							},
+							data: {
+								currentJobId: null,
+								consumedJobId: job.id,
+								eligibility: "CONSUMED",
+								riskState: "COMMITTED",
+								providerBoundaryAt: now,
+								consumedAt: now,
+							},
+						});
+						if (consumed.count !== 1) throw new Error("GUEST_TRIAL_CONSUME_FAILED");
+					}
+					return {
+						...(phaseOwner ? { phaseOwner } : {}),
 						attemptId: attempt.id,
 						attemptNumber: attempt.attemptNumber,
-						jobId: job.id,
+						serviceClass: job.serviceClass,
 						provider: route.provider,
 						providerModelId: route.providerModelId,
-						inputSnapshot: job.inputSnapshot,
-					},
-					now,
-				);
-				preparation = await prepareGenerationSubmissionInTransaction(
-					{
-						attemptId: attempt.id,
-						attemptNumber: attempt.attemptNumber,
-						jobId: job.id,
-						jobVersion: job.version + 1,
-						provider: route.provider,
-						providerModelId: route.providerModelId,
-						inputSnapshot: job.inputSnapshot,
-						pricingSnapshot: job.pricingSnapshot,
-						requestSnapshot: preSend.requestSnapshot as Prisma.InputJsonValue,
-						now,
-						nextReconcileAt: preSend.nextReconcileAt as Date,
-					},
-					tx,
-				);
-				if (isGuest) {
-					const trial = job.guestTrial!;
-					const committedRisk = await tx.guestRiskBudgetBucket.updateMany({
-						where: {
-							promotionPeriod: trial.promotionPeriod,
-							subjectHash: "global",
-							reservedMicros: { gte: trial.frozenQuotedRiskMicros },
-						},
-						data: {
-							reservedMicros: { decrement: trial.frozenQuotedRiskMicros },
-							consumedMicros: { increment: trial.frozenQuotedRiskMicros },
-							version: { increment: 1 },
-						},
-					});
-					if (committedRisk.count !== 1) throw new Error("GUEST_RISK_COMMIT_FAILED");
-					const consumed = await tx.guestMediaTrial.updateMany({
-						where: {
-							id: trial.id,
-							currentJobId: job.id,
-							consumedJobId: null,
-							eligibility: "IN_FLIGHT",
-							riskState: "HELD",
-							providerBoundaryAt: null,
-						},
-						data: {
-							currentJobId: null,
-							consumedJobId: job.id,
-							eligibility: "CONSUMED",
-							riskState: "COMMITTED",
-							providerBoundaryAt: now,
-							consumedAt: now,
-						},
-					});
-					if (consumed.count !== 1) throw new Error("GUEST_TRIAL_CONSUME_FAILED");
-				}
-				return {
-					...(phaseOwner ? { phaseOwner } : {}),
-					attemptId: attempt.id,
-					attemptNumber: attempt.attemptNumber,
-					serviceClass: job.serviceClass,
-					provider: route.provider,
-					providerModelId: route.providerModelId,
-					mediaKind: resolution.entry.mediaKind,
-					queueKey: providerQueueKey(route.provider, route.providerModelId),
-					input,
-					webhookUrl:
-						route.provider === "replicate" && process.env.NEXT_PUBLIC_SAAS_URL
-							? `${process.env.NEXT_PUBLIC_SAAS_URL}/api/webhooks/ai/replicate`
-							: route.provider === "kie" && resolution.entry.mediaKind === "image"
-								? kieCompletionCallbackUrl(attempt.id, environment)
-								: undefined,
+						mediaKind: resolution.entry.mediaKind,
+						queueKey: providerQueueKey(route.provider, route.providerModelId),
+						input,
+						webhookUrl:
+							route.provider === "replicate" && process.env.NEXT_PUBLIC_SAAS_URL
+								? `${process.env.NEXT_PUBLIC_SAAS_URL}/api/webhooks/ai/replicate`
+								: route.provider === "kie" && resolution.entry.mediaKind === "image"
+									? kieCompletionCallbackUrl(attempt.id, environment)
+									: undefined,
+					};
+				}).catch((error: unknown) => {
+					if (error instanceof ImagePhaseOwnershipLostError) return error.result;
+					throw error;
+				});
+			let claim = await claimOnce();
+			if (claim && typeof claim === "object" && "inspectInput" in claim && claim.inspectInput) {
+				// No attempt/fence is written until storage inspection completes outside
+				// the transaction. Re-read authorization and immutable identity afterwards.
+				inspectedInput = {
+					identity: claim.inspectInput.identity,
+					...(await (options.inspectPrivateImageDimensions ?? inspectPrivateImageDimensions)(
+						claim.inspectInput.request,
+					)),
 				};
-			}).catch((error: unknown) => {
-				if (error instanceof ImagePhaseOwnershipLostError) return error.result;
-				throw error;
-			});
+				claim = await claimOnce();
+			}
+			if (claim && typeof claim === "object" && "inspectInput" in claim && claim.inspectInput)
+				throw new Error("IMAGE_INPUT_DIMENSIONS_MISSING");
 			if (claim === dispatchAdmissionBlocked) throw new DispatchAdmissionBlockedError();
 			if (claim && "attemptId" in claim) {
 				if (!preparation) throw new Error("GENERATION_SUBMISSION_PREPARATION_MISSING");

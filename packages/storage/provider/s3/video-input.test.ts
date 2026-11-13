@@ -20,7 +20,11 @@ vi.mock("@aws-sdk/client-s3", async (original) => ({
 import { runWithImageProcessor } from "../../image-processing/context";
 import { createSharpImageProcessor } from "../../image-processing/sharp";
 import type { ImageContentType } from "../../image-processing/types";
-import { inspectPrivateImage, normalizeVideoReferenceToPng } from "./index";
+import {
+	inspectPrivateImage,
+	inspectPrivateImageDimensions,
+	normalizeVideoReferenceToPng,
+} from "./index";
 
 const source = { bucket: "media" as const, key: "users/owner/final/reference" };
 const final = { bucket: "media" as const, key: `${source.key}.png` };
@@ -66,6 +70,55 @@ async function photo(format: "jpeg" | "png" | "webp" = "png", orientation?: numb
 	if (orientation) image = image.withMetadata({ orientation });
 	return image.toFormat(format).toBuffer();
 }
+
+describe("checksum-bound image dimension inspection", () => {
+	it.each(["jpeg", "png", "webp"] as const)(
+		"reads %s dimensions from approved bytes",
+		async (format) => {
+			const body = await photo(format);
+			const contentType = `image/${format}` as ImageContentType;
+			mocks.send.mockResolvedValue(objectResponse(body, { contentType }).response);
+			await expect(
+				inspectPrivateImageDimensions({
+					...source,
+					contentType,
+					contentLength: body.length,
+					ifMatch: "sealed-etag",
+					expectedSha256: createHash("sha256").update(body).digest("hex"),
+					maximumBytes: 20_000_000,
+				}),
+			).resolves.toEqual({ width: 160, height: 90 });
+		},
+	);
+	it("rejects a different checksum even with the same ETag and dimensions", async () => {
+		const body = await photo("png");
+		mocks.send.mockResolvedValue(objectResponse(body).response);
+		await expect(
+			inspectPrivateImageDimensions({
+				...source,
+				contentType: "image/png",
+				contentLength: body.length,
+				ifMatch: "sealed-etag",
+				expectedSha256: "0".repeat(64),
+				maximumBytes: 20_000_000,
+			}),
+		).rejects.toThrow("IMAGE_INPUT_IDENTITY_MISMATCH");
+	});
+	it("supports approved input above the video 10 MB limit, within the image limit", async () => {
+		const body = Buffer.concat([await photo("png"), Buffer.alloc(10_000_000)]);
+		mocks.send.mockResolvedValue(objectResponse(body).response);
+		await expect(
+			inspectPrivateImageDimensions({
+				...source,
+				contentType: "image/png",
+				contentLength: body.length,
+				ifMatch: "sealed-etag",
+				expectedSha256: createHash("sha256").update(body).digest("hex"),
+				maximumBytes: 20_000_000,
+			}),
+		).resolves.toEqual({ width: 160, height: 90 });
+	});
+});
 
 function fixture(body: Buffer, contentType: ImageContentType = "image/webp") {
 	const objects = new Map<string, { body: Buffer; contentType: ImageContentType; etag: string }>([

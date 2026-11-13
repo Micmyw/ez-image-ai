@@ -116,3 +116,18 @@ Cloudflare builds use dedicated exact-boolean overlays over the current authorit
 - `MEDIA_TECHNICAL_FAILURE_SUBSCRIPTION_BONUS_BUILD_ENABLED` controls new offer issuance.
 
 They preserve unrelated variables and are removed from child environments. Ambient runtime flags cannot override the authoritative bundle. Deployment and actual generation evidence will be recorded after completion.
+
+### Reference dimension correction
+
+The production reference-edit test found an approved, immutable input with null stored
+width/height. The provider adapter correctly rejected the missing metadata before contacting
+Kie, and the job returned all five credits. Dispatch now reads missing dimensions outside
+the database transaction, from MIME/length/ETag/checksum-bound private bytes. It then
+re-enters admission and validates current authorization, review evidence and the exact
+object identity before creating the attempt or submission fence. Existing stored dimensions
+retain their fast path. No historical asset or quote is rewritten, and the 64 MP guard remains.
+
+The metadata reader is independent of raster decoding and Cloudflare Images transform limits;
+H3 retains its 20,000,000-byte contract. Focused checks cover PNG/JPEG/WebP, checksum mismatch,
+inputs above 10 MB, missing dimensions, expired review, pending review, storage failure and
+the 64 MP boundary.

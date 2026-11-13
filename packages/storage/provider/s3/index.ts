@@ -16,6 +16,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl as getS3SignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "@repo/logs";
+import { imageSize } from "image-size";
 
 import { config, MAX_AVATAR_UPLOAD_BYTES } from "../../config";
 import { getImageProcessor } from "../../image-processing/context";
@@ -320,7 +321,7 @@ async function readPrivateReferenceImage(
 	if (
 		!Number.isSafeInteger(input.maximumBytes) ||
 		input.maximumBytes < 1 ||
-		input.maximumBytes > MAX_PRIVATE_REFERENCE_BYTES ||
+		input.maximumBytes > 25 * 1024 * 1024 ||
 		(input.contentLength !== undefined &&
 			(!Number.isSafeInteger(input.contentLength) ||
 				input.contentLength < 1 ||
@@ -396,6 +397,25 @@ export async function inspectPrivateImage(
 		maximumBytes: MAX_PRIVATE_REFERENCE_BYTES,
 	});
 	return inspectReferenceBytes(body, input.contentType);
+}
+
+/** Read metadata from the exact approved bytes without decoding a large raster. */
+export async function inspectPrivateImageDimensions(
+	input: MediaObjectLocation & {
+		contentType: ImageContentType;
+		contentLength: number;
+		ifMatch?: string;
+		expectedSha256: string;
+		maximumBytes: number;
+	},
+): Promise<{ width: number; height: number }> {
+	const { body } = await readPrivateReferenceImage(input);
+	if (createHash("sha256").update(body).digest("hex") !== input.expectedSha256)
+		throw new Error("IMAGE_INPUT_IDENTITY_MISMATCH");
+	const { width, height } = imageSize(body);
+	if (!Number.isSafeInteger(width) || !Number.isSafeInteger(height) || width < 1 || height < 1)
+		throw new Error("IMAGE_INPUT_DIMENSIONS_INVALID");
+	return { width, height };
 }
 
 /** Only small reference images use this bounded buffer; generated video stays streamed. */
