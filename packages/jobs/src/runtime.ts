@@ -66,7 +66,6 @@ import {
 	getGuestMediaConfig,
 	isEzPicProductEnvironmentEnabled,
 	maximumMediaStorageBytes,
-	mediaDailyProviderCostBudgetMicros,
 } from "@repo/config/server";
 import {
 	recordModerationOutcome,
@@ -105,7 +104,6 @@ import {
 	expireGuestMediaTransaction,
 	failGenerationOutputTransferTransaction,
 	GenerationOutputStorageError,
-	getCommittedGlobalDailyGenerationCost,
 	getGenerationFundingReservation,
 	finalizeImagePassReservationInTransaction,
 	recordGenerationOutputPromotionMultipartTransaction,
@@ -7342,22 +7340,6 @@ async function guestDispatchChecksPass(
 			risk.reservedMicros + risk.consumedMicros > config.riskBudgetMicros)
 	) {
 		return false;
-	}
-	const globalBudget = mediaDailyProviderCostBudgetMicros(environment);
-	// An explicitly uncapped guest promotion has no aggregate spend gate. Registered
-	// generation retains its own daily budget; quotes and guest cost accounting remain intact.
-	if (
-		globalBudget !== undefined &&
-		(config.riskBudgetMicros !== null || risk.hardLimitMicros !== null)
-	) {
-		const utcDay = now.toISOString().slice(0, 10);
-		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media:global-daily-provider-budget:${utcDay}`}, 0))`;
-		if (
-			(await getCommittedGlobalDailyGenerationCost({ now }, tx)) + trial.frozenQuotedRiskMicros >
-			globalBudget
-		) {
-			return false;
-		}
 	}
 	return true;
 }

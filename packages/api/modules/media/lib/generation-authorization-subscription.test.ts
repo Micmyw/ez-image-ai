@@ -38,7 +38,6 @@ vi.mock("@repo/database", async () => ({
 }));
 vi.mock("@repo/config/server", async (original) => ({
 	...(await original<typeof import("@repo/config/server")>()),
-	mediaDailyProviderCostBudgetMicros: () => undefined,
 	maximumMediaStorageBytes: () => 100n,
 }));
 vi.mock("./free-plan-credits", () => ({ ensureFreePlanCreditsForGeneration: vi.fn() }));

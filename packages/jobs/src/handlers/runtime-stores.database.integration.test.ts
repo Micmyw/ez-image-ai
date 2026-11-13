@@ -833,14 +833,16 @@ describe("production media runtime stores", () => {
 		expect(JSON.stringify(after.requestSnapshot)).not.toContain(signedUrl);
 	});
 
-	it("keeps the daily provider budget enforced for a bounded guest promotion", async () => {
+	it("ignores the retired daily provider budget for a funded bounded guest promotion", async () => {
 		const guest = await seedGuestDispatchJob();
 		const store = createTestDispatchStore({
 			environment: { ...guest.environment, MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS: "1" },
 		});
 		try {
-			await expect(store.claimDispatch({ jobId: guest.jobId, version: 0 })).resolves.toBeNull();
-			expect(await client.generationAttempt.count({ where: { jobId: guest.jobId } })).toBe(0);
+			await expect(store.claimDispatch({ jobId: guest.jobId, version: 0 })).resolves.toMatchObject({
+				attemptId: expect.any(String),
+			});
+			expect(await client.generationAttempt.count({ where: { jobId: guest.jobId } })).toBe(1);
 			expect(
 				await client.guestRiskBudgetBucket.findUniqueOrThrow({
 					where: {
@@ -850,7 +852,7 @@ describe("production media runtime stores", () => {
 						},
 					},
 				}),
-			).toMatchObject({ reservedMicros: 0n, consumedMicros: 0n });
+			).toMatchObject({ reservedMicros: 0n, consumedMicros: 20_000n });
 		} finally {
 			await client.generationJob.update({
 				where: { id: guest.jobId },

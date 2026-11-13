@@ -17,6 +17,7 @@ export type EditorErrorKey =
 	| "concurrentLimit"
 	| "providerBusy"
 	| "rateLimited"
+	| "budgetExceeded"
 	| "inputTooLarge"
 	| "safeError";
 
@@ -39,6 +40,7 @@ export function getEditorErrorKey(error: unknown): EditorErrorKey {
 		return "imagePassUnavailable";
 	if (codes.includes("PROVIDER_CONCURRENT_JOB_LIMIT_REACHED")) return "providerBusy";
 	if (codes.includes("CONCURRENT_JOB_LIMIT_REACHED")) return "concurrentLimit";
+	if (codes.includes("BUDGET_EXCEEDED")) return "budgetExceeded";
 	if (codes.includes("RATE_LIMITED") || codes.includes("TOO_MANY_REQUESTS")) return "rateLimited";
 	const message = error instanceof Error ? error.message : "";
 	if (message.includes("INSUFFICIENT_CREDITS")) return "insufficientCredits";

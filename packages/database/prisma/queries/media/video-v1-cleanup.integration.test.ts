@@ -169,7 +169,6 @@ describe("video orphan resource isolation", () => {
 		"retains an unbound permanent built-in material in the %s",
 		async (entry) => {
 			const material = await asset();
-			await approveAsset(material.id, "INPUT");
 			await db.mediaAsset.update({
 				where: { id: material.id },
 				data: {
@@ -177,6 +176,7 @@ describe("video orphan resource isolation", () => {
 					deleteAfter: null,
 				},
 			});
+			await approveAsset(material.id, "INPUT");
 			if (entry === "candidate scan") expect(await isCleanupCandidate(material.id)).toBe(false);
 			else expect(await claimVideoResourceCleanup(material.id, now, db)).toBeNull();
 			expect(await db.mediaAsset.findUniqueOrThrow({ where: { id: material.id } })).toMatchObject({

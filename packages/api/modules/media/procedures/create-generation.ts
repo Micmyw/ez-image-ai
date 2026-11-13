@@ -4,7 +4,6 @@ import {
 	type ExecutableRouteGraphOptions,
 } from "@repo/ai";
 import { DEFAULT_PRODUCT_CONFIG, EZPIC_PRODUCT_KEYS, temporaryReferenceSchema } from "@repo/config";
-import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import { createGenerationJobTransaction, getInitialGenerationEventIds } from "@repo/database";
 import { db } from "@repo/database/client";
 import {
@@ -212,7 +211,6 @@ interface CreateGenerationDependencies {
 		expectedAssetModerationRuleVersion: string;
 		expectedAssetModerationPolicyVersion: string;
 		maximumDailyCostMicros: bigint;
-		maximumGlobalDailyCostMicros?: bigint;
 		maximumStorageBytes: bigint;
 		validateCurrentEligibility?: boolean;
 		edit?:
@@ -392,7 +390,7 @@ async function createGenerationFromQuote(
 				routeGraphOptions,
 			}),
 		);
-	const maximumGlobalDailyCostMicros = mediaDailyProviderCostBudgetMicros(process.env);
+
 	const created = await timing.measure("admission.job.transaction", () =>
 		dependencies.createGenerationJob({
 			ownerType: "USER",
@@ -407,7 +405,7 @@ async function createGenerationFromQuote(
 			expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 			expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 			maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
-			...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
+
 			maximumStorageBytes: maximumMediaStorageBytes(),
 			validateCurrentEligibility: true,
 			...imageEditBinding(quote.productKey, inputSnapshot, input.parentJobId),

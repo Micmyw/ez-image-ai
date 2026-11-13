@@ -76,7 +76,7 @@ describe("admission isolation preserves existing asset binding protocol", () => 
 		["unset rollout flag", undefined, "Serializable"],
 		["noncanonical rollout flag", "1", "Serializable"],
 		["image pass", "true", "Serializable"],
-		["global daily budget", "true", "Serializable"],
+		["retired global daily budget", "true", "ReadCommitted"],
 		["without current eligibility", "true", "Serializable"],
 		["root retry", "true", "Serializable"],
 		["child edit", "true", "Serializable"],
@@ -91,7 +91,7 @@ describe("admission isolation preserves existing asset binding protocol", () => 
 		const prepared = input.preparedQuote!;
 		const snapshot = prepared.inputSnapshot as Record<string, any>;
 		if (name === "image pass") prepared.pricingSnapshot = { fundingSource: "IMAGE_PASS" };
-		if (name === "global daily budget") input.maximumGlobalDailyCostMicros = 1000n;
+		if (name === "retired global daily budget") input.maximumGlobalDailyCostMicros = 1000n;
 		if (name === "without current eligibility") input.validateCurrentEligibility = false;
 		if (name === "root retry")
 			input.edit = {

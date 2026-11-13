@@ -15,7 +15,6 @@ import {
 	type ImageSkuKey,
 	type ProductModelKey,
 } from "@repo/config";
-import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import { recordTextModerationOutcome } from "@repo/database";
 import {
 	claimGenerationRetryRequest,
@@ -278,7 +277,7 @@ export async function retryGenerationForUser(
 			pricingVersion: operation.pricingVersion,
 			enforceProspectiveDailyBudget: false,
 		});
-		const maximumGlobalDailyCostMicros = mediaDailyProviderCostBudgetMicros(process.env);
+
 		const quoteInput = {
 			ownerType: "USER" as const,
 			ownerId: userId,
@@ -338,7 +337,7 @@ export async function retryGenerationForUser(
 			expectedAssetModerationRuleVersion: operation.assetModerationRuleVersion,
 			expectedAssetModerationPolicyVersion: operation.assetModerationPolicyVersion,
 			maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
-			...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
+
 			maximumStorageBytes: maximumMediaStorageBytes(),
 			...(operation.editContext ? { edit: operation.editContext } : {}),
 		});

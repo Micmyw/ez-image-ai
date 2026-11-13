@@ -457,7 +457,7 @@ describe("media PostgreSQL transactions", () => {
 		).toBe(60n);
 	});
 
-	it("atomically enforces the global daily Provider budget across different owners", async () => {
+	it("admits independent funded owners despite the retired global daily budget", async () => {
 		const firstFixture = await createBudgetFixture(client, [60n]);
 		const secondFixture = await createBudgetFixture(client, [60n]);
 		const alreadyCommitted = await getCommittedGlobalDailyGenerationCost({}, client);
@@ -477,11 +477,10 @@ describe("media PostgreSQL transactions", () => {
 		const results = await Promise.allSettled(
 			candidates.map((input) => createGenerationJobTransaction(input, client)),
 		);
-		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(2);
 		const rejected = results.filter((result) => result.status === "rejected");
-		expect(rejected).toHaveLength(1);
-		expect(rejected[0]!.reason).toMatchObject({ message: "GLOBAL_DAILY_BUDGET_EXCEEDED" });
-		expect(await getCommittedGlobalDailyGenerationCost({}, client)).toBe(alreadyCommitted + 60n);
+		expect(rejected).toHaveLength(0);
+		expect(await getCommittedGlobalDailyGenerationCost({}, client)).toBe(alreadyCommitted + 120n);
 	});
 
 	it("admits funded requests despite legacy plan concurrency fields and preserves both replays", async () => {

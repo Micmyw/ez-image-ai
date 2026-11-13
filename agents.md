@@ -24,6 +24,8 @@ Root checks: `pnpm format`, `pnpm format:check`, `pnpm lint`, `pnpm type-check`,
 
 ## AI media invariants
 
+- Site-wide daily provider-cost admission is retired by owner authorization on 2026-11-13. Ignore legacy `MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS` and `maximumGlobalDailyCostMicros`; do not reintroduce their global aggregation or lock. Preserve cost accounting, single-job/account limits and independent guest campaign funding.
+
 - PostgreSQL alone owns business state; orchestration, Stripe, providers, storage, moderation, and browsers deliver work/events.
 - Create job, input bindings, credit reservation, and durable execution intent in one transaction: legacy uses its initial Outbox event; video uses `VideoExecution` start intent. Later ledger mutations remain immutable and idempotent with stable reference keys.
 - Clients submit stable public product keys only. Provider routes/model IDs/credentials/prices/raw payloads and arbitrary remote URLs remain server-only.

@@ -171,7 +171,7 @@ describe("API request security", () => {
 		vi.stubEnv("WORKFLOWS_DISPATCH_URL", "https://jobs.ezpic.ai/internal/dispatch");
 		vi.stubEnv("WORKFLOWS_DISPATCH_SECRET", "workflows-dispatch-test-secret-32-characters");
 		vi.mocked(validateEzPicLaunchEnvironment).mockImplementationOnce(() => {
-			throw new Error("MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS is required");
+			throw new Error("MEDIA_ALERT_CHANNEL_ID is required");
 		});
 
 		const response = await app.request("/api/ready");

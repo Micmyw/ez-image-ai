@@ -53,6 +53,7 @@ export interface CreateGenerationJobInput {
 	expectedAssetModerationRuleVersion?: string;
 	expectedAssetModerationPolicyVersion?: string;
 	maximumDailyCostMicros?: bigint;
+	/** @deprecated Ignored: site-wide daily cost admission was retired. */
 	maximumGlobalDailyCostMicros?: bigint;
 	maximumStorageBytes?: bigint;
 	/** @deprecated Accepted for older callers; unfinished task counts do not limit funded admission. */

@@ -433,7 +433,6 @@ describe("createGenerationForUser", () => {
 			expect.objectContaining({
 				inputAssetIds: [SOURCE_ASSET_ID],
 				edit: { kind: "ROOT", rootAssetId: SOURCE_ASSET_ID },
-				maximumGlobalDailyCostMicros: 250_000_000n,
 			}),
 		);
 	});

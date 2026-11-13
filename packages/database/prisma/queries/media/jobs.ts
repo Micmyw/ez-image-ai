@@ -376,16 +376,12 @@ export async function createGenerationJobTransaction(
 		input.validateCurrentEligibility &&
 		isImageEditProduct(input.preparedQuote.productKey) &&
 		generationFundingSource(input.preparedQuote.pricingSnapshot) === "CREDITS" &&
-		input.maximumGlobalDailyCostMicros === undefined &&
 		isInitialTemporaryImageInput(input, input.preparedQuote.inputSnapshot),
 	);
-	// Global budget readers/writers must also share SSI predicate protection;
-	// their advisory lock alone cannot refresh a waiting Serializable snapshot.
 	let serializable =
 		!initialTemporaryAdmission &&
 		(input.inputAssetIds.length > 0 ||
 			Boolean(input.edit) ||
-			input.maximumGlobalDailyCostMicros !== undefined ||
 			Boolean(
 				input.preparedQuote &&
 				(generationFundingSource(input.preparedQuote.pricingSnapshot) === "IMAGE_PASS" ||
@@ -497,21 +493,6 @@ export async function createGenerationJobTransaction(
 				);
 				if (committed + quote.costMicros > input.maximumDailyCostMicros) {
 					throw new Error("BUDGET_EXCEEDED");
-				}
-			}
-			if (input.maximumGlobalDailyCostMicros !== undefined) {
-				if (input.maximumGlobalDailyCostMicros <= 0n) {
-					throw new Error("Global daily Provider budget must be positive");
-				}
-				const budgetNow = operationNow;
-				const utcDay = budgetNow.toISOString().slice(0, 10);
-				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media:global-daily-provider-budget:${utcDay}`}, 0))`;
-				const globallyCommitted = await getCommittedGlobalDailyGenerationCost(
-					{ now: budgetNow },
-					tx,
-				);
-				if (globallyCommitted + quote.costMicros > input.maximumGlobalDailyCostMicros) {
-					throw new Error("GLOBAL_DAILY_BUDGET_EXCEEDED");
 				}
 			}
 			await lockMediaAssetGenerationBindings(input.inputAssetIds, tx);

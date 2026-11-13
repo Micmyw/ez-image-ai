@@ -103,6 +103,7 @@ export default defineConfig({
 		url: `${saasBaseUrl}/login`,
 		reuseExistingServer: false,
 		stdout: "pipe",
-		timeout: 180 * 1000,
+		// Production mode also compiles the app before the readiness URL can respond.
+		timeout: (process.env.E2E_USE_PRODUCTION_BUILD === "true" ? 600 : 180) * 1000,
 	},
 });

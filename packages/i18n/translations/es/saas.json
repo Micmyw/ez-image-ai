@@ -1874,6 +1874,7 @@
 				"concurrentLimit": "Tu plan ya tiene el máximo de ediciones en curso. No se creó ningún trabajo ni reserva de créditos.",
 				"providerBusy": "El servicio de generación de imágenes ha alcanzado temporalmente su capacidad. Inténtalo más tarde.",
 				"rateLimited": "Demasiadas solicitudes. Espera un momento antes de volver a intentarlo.",
+				"budgetExceeded": "Esta solicitud supera un límite de coste de generación de tu cuenta. No se han cobrado créditos. Contacta con soporte si necesitas ayuda.",
 				"inputTooLarge": "Esta imagen supera el límite de entrada de tu plan. Elige una imagen más pequeña o compara planes.",
 				"safeError": "No pudimos iniciar la edición. Comprueba el formulario o inténtalo de nuevo en unos minutos.",
 				"safetyUnavailable": "No pudimos completar la revisión de seguridad. Modifica la instrucción o inténtalo más tarde. No se han cobrado créditos ni usado tu exención única.",

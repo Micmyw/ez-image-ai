@@ -2,7 +2,6 @@ import { EZPIC_PRODUCT_KEYS, IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config";
 import { describe, expect, it, vi } from "vitest";
 
 const production = vi.hoisted(() => ({
-	budget: vi.fn(),
 	freeCredits: vi.fn(),
 	planAccess: vi.fn(),
 	adminTestSkus: vi.fn(async () => [] as string[]),
@@ -23,10 +22,6 @@ vi.mock("@repo/database", async () => ({
 		await import("../../../../database/prisma/queries/media/temporary-references")
 	).unexpiredStorageReservations,
 	effectiveMediaStorageLimit: async (_owner: unknown, maximum: bigint) => maximum,
-}));
-vi.mock("@repo/config/server", async (importOriginal) => ({
-	...(await importOriginal<typeof import("@repo/config/server")>()),
-	mediaDailyProviderCostBudgetMicros: production.budget,
 }));
 vi.mock("./free-plan-credits", () => ({
 	ensureFreePlanCreditsForGeneration: production.freeCredits,
@@ -406,11 +401,11 @@ describe("generation authorization", () => {
 			),
 		).resolves.toBeUndefined();
 	});
-	it.each([undefined, 0n, 100_000n])(
-		"only aggregates global costs for a configured budget (%s)",
+	it.each([undefined, "0", "200000"])(
+		"ignores retired global budget %s and only reads owner costs",
 		async (budget) => {
 			vi.clearAllMocks();
-			production.budget.mockReturnValue(budget);
+			vi.stubEnv("MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS", budget);
 			production.db.creditAccount.findUnique.mockResolvedValue({ creditDebt: 0n });
 			production.db.creditLot.aggregate.mockResolvedValue({ _sum: { remainingAmount: 100n } });
 			production.db.generationQuote.aggregate.mockResolvedValue({ _sum: { costMicros: 0n } });
@@ -432,16 +427,14 @@ describe("generation authorization", () => {
 				},
 				routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
 			});
-			if (budget === 0n) await expect(check).rejects.toThrow("BUDGET_EXCEEDED");
-			else await expect(check).resolves.toBeUndefined();
+			await expect(check).resolves.toBeUndefined();
 			expect(production.freeCredits).toHaveBeenCalledWith("user-1");
-			expect(production.db.generationQuote.aggregate).toHaveBeenCalledTimes(
-				budget === undefined ? 1 : 2,
-			);
+			expect(production.db.generationQuote.aggregate).toHaveBeenCalledTimes(1);
 			const globalCalls = production.db.generationQuote.aggregate.mock.calls.filter(
 				([input]) => input.where.ownerId === undefined,
 			);
-			expect(globalCalls).toHaveLength(budget === undefined ? 0 : 1);
+			expect(globalCalls).toHaveLength(0);
+			vi.unstubAllEnvs();
 		},
 	);
 	it("requires the same account credit checks for a source-free request", async () => {
@@ -591,11 +584,6 @@ describe("generation authorization", () => {
 		["kill switch", { generationEnabled: false }, "MODEL_DISABLED"],
 		["disabled model", { modelDisabled: true }, "MODEL_DISABLED"],
 		["daily budget", { dailyCostMicros: 25_000_000n }, "BUDGET_EXCEEDED"],
-		[
-			"global daily Provider budget",
-			{ globalDailyCostMicros: 249_999_000n, maximumGlobalDailyCostMicros: 250_000_000n },
-			"BUDGET_EXCEEDED",
-		],
 		[
 			"storage quota",
 			{ storageUsageBytes: 100n, maximumStorageBytes: 100n },

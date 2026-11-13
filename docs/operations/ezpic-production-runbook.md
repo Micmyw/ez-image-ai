@@ -172,14 +172,13 @@ New work requires all applicable layers to allow it:
   `MEDIA_SEEDREAM_5_PRO_ENABLED`;
 - no active `media.model.<selected-product-key>.enabled=false` runtime override for the selected
   product;
-- `kie` in `MEDIA_ENABLED_PROVIDERS` and `KIE_API_KEY` in the worker environment;
-- a positive `MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS`.
+- `kie` in `MEDIA_ENABLED_PROVIDERS` and `KIE_API_KEY` in the worker environment.
 
-The API checks the global UTC-day spend prospectively, and the job-creation transaction takes a
-global day-scoped PostgreSQL advisory lock before summing frozen Quote cost and reserving credits.
-Concurrent users therefore cannot jointly cross the configured ceiling. An idempotent replay does
-not consume the budget twice. Budget exhaustion rejects new jobs; it does not rewrite existing jobs,
-release an uncertain Provider acceptance, or bypass normal recovery.
+The site-wide daily provider-cost ceiling was retired on the owner's instruction on 2026-11-13.
+`MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS` is ignored and no longer required for readiness.
+Admission retains single-job and per-account daily limits, normal credit/pass reservation,
+immutable cost snapshots and idempotent replay. Guest campaign funding remains independent.
+See [generation access](image-generation-access-2026-11-13.md) for the triggering production test.
 
 ## Analytics, search, and privacy gate
 

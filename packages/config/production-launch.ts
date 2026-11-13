@@ -110,7 +110,6 @@ export interface EzPicLaunchEnvironment {
 		seedream45Enabled: boolean;
 		seedream5LiteEnabled: boolean;
 		seedream5ProEnabled: boolean;
-		dailyProviderCostBudgetMicros: bigint;
 		alerts: {
 			errorRateBasisPoints: number;
 			p95LatencyMs: number;
@@ -298,10 +297,6 @@ export function validateEzPicLaunchEnvironment(
 
 	const deploymentVersion = requiredString(input, "DEPLOYMENT_VERSION");
 	assertNonPlaceholderToken(deploymentVersion, "DEPLOYMENT_VERSION");
-	const dailyProviderCostBudgetMicros = mediaDailyProviderCostBudgetMicros(input);
-	if (dailyProviderCostBudgetMicros === undefined) {
-		throw new Error("MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS is required");
-	}
 
 	return {
 		environment,
@@ -338,7 +333,6 @@ export function validateEzPicLaunchEnvironment(
 			seedream45Enabled,
 			seedream5LiteEnabled,
 			seedream5ProEnabled,
-			dailyProviderCostBudgetMicros,
 			alerts: {
 				errorRateBasisPoints: requiredInteger(input, "MEDIA_ALERT_ERROR_RATE_BPS", 1, 10_000),
 				p95LatencyMs: requiredInteger(input, "MEDIA_ALERT_P95_LATENCY_MS", 1, 900_000),
@@ -366,17 +360,6 @@ function assertProductionSupportEmail(value: string): void {
 	) {
 		throw new Error("NEXT_PUBLIC_SUPPORT_EMAIL must be a real public support address");
 	}
-}
-
-export function mediaDailyProviderCostBudgetMicros(
-	input: Record<string, unknown>,
-): bigint | undefined {
-	const raw = input.MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS;
-	if (raw === undefined) return undefined;
-	if (typeof raw !== "string" || !/^[1-9]\d*$/.test(raw)) {
-		throw new Error("MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS must be a positive integer");
-	}
-	return BigInt(raw);
 }
 
 export function isEzPicProductEnvironmentEnabled(

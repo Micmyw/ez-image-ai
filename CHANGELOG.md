@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — Generation cost access
+
+- Remove the site-wide daily provider-cost ceiling from image generation, retries and guest dispatch. Valid requests retain normal credit or image-pass billing and individual account cost limits.
+- Show a specific account cost-limit message instead of a generic form error when an individual cost limit is reached.
+
 ## Unreleased — Image-pack generation access
 
 - Select an owned, eligible image pass when the selected image model requires access the account does not have. This also applies to the SVG and GIF generators; retain explicit funding choices.

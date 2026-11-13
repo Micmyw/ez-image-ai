@@ -65,6 +65,26 @@ migration, billing-plan change, payment or historical grant rewrite is involved.
 
 ## Evidence and release status
 
+### Site-wide daily cost ceiling retirement
+
+The first production GIF submission returned `BUDGET_EXCEEDED` before a quote,
+job or credit reservation was created. The release environment carried a USD 0.20
+site-wide daily ceiling; accepted quotes that day already totaled USD 0.1535.
+The test account retained 327 spendable credits and zero reserved credits.
+
+The owner explicitly chose to remove the site-wide daily cost ceiling. New code
+no longer reads `MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS`, aggregates all owners
+for admission, or acquires its global budget lock. Old configuration values and
+the deprecated internal admission field are ignored. Launch validation no longer
+requires that variable. Existing cost snapshots and accounting remain intact.
+Single-job and per-account cost limits, guest campaign funding, credit/pass
+reservation, access and moderation contracts remain unchanged. No migration is
+needed. Deploy both website and jobs consumers before retesting; older running
+code can still enforce its historical ceiling during rollout.
+
+Account cost-limit errors now have dedicated English, German, Spanish and French
+messages. The frontend regression reproduced the previous generic-error fallback.
+
 - On 2026-11-13, the production public offer endpoint
   `GET /api/payments/image-pass-offer` returned `available: true`. Local receipt:
   `output/homepage-gif-2026-11-13/live-image-pass-offer.json`.

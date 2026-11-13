@@ -1874,6 +1874,7 @@
 				"concurrentLimit": "Votre forfait a déjà atteint son maximum de retouches en cours. Aucune nouvelle tâche ni réservation de crédits n’a été créée.",
 				"providerBusy": "Le service de génération d’images a temporairement atteint sa capacité. Veuillez réessayer plus tard.",
 				"rateLimited": "Trop de requêtes. Patientez un instant avant de réessayer.",
+				"budgetExceeded": "Cette demande dépasse une limite de coût de génération de votre compte. Aucun crédit n’a été facturé. Contactez l’assistance si nécessaire.",
 				"inputTooLarge": "Cette image dépasse la limite d’entrée de votre forfait. Choisissez une image plus petite ou comparez les forfaits.",
 				"safeError": "La retouche n’a pas pu démarrer. Vérifiez le formulaire ou réessayez dans quelques instants.",
 				"safetyUnavailable": "La vérification de sécurité n’a pas pu aboutir. Modifiez l’instruction ou réessayez plus tard. Aucun crédit n’a été facturé et votre exonération unique reste disponible.",

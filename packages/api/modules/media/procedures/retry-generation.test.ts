@@ -559,7 +559,6 @@ describe("retryGenerationForUser", () => {
 		expect(deps.createJob).toHaveBeenCalledWith(
 			expect.objectContaining({
 				expectedInputAssets: [{ assetId: SOURCE_ASSET_ID, assetChecksum: "1".repeat(64) }],
-				maximumGlobalDailyCostMicros: 250_000_000n,
 				maximumStorageBytes: maximumMediaStorageBytes(),
 			}),
 		);

@@ -1874,6 +1874,7 @@
 				"concurrentLimit": "In Ihrem Tarif läuft bereits die maximale Anzahl an Bearbeitungen. Es wurden weder neuer Auftrag noch Credit-Reservierung erstellt.",
 				"providerBusy": "Der Bildgenerierungsdienst ist vorübergehend ausgelastet. Bitte versuchen Sie es später erneut.",
 				"rateLimited": "Zu viele Anfragen. Bitte warten Sie kurz, bevor Sie es erneut versuchen.",
+				"budgetExceeded": "Diese Anfrage überschreitet ein Generierungskostenlimit für dein Konto. Es wurden keine Credits berechnet. Wende dich bei Fragen an den Support.",
 				"inputTooLarge": "Dieses Quellbild überschreitet das Eingabelimit Ihres Tarifs. Wählen Sie ein kleineres Bild oder vergleichen Sie Tarife.",
 				"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie das Formular oder versuchen Sie es später erneut.",
 				"safetyUnavailable": "Die Sicherheitsprüfung konnte nicht abgeschlossen werden. Bitte ändere die Anweisung oder versuche es später erneut. Keine Credits wurden berechnet; die einmalige Ausnahme bleibt erhalten.",

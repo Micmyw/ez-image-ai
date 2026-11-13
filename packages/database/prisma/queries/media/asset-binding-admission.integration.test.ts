@@ -376,7 +376,7 @@ describe("input bindings and deletion preserve the original SSI protocol", () =>
 		).toMatchObject({ spendableCredits: 20n, reservedCredits: 0n });
 	});
 
-	it("keeps a text winner and a queued asset admission within the same global cost budget", async () => {
+	it("admits text and asset requests from different owners despite retired global budget fields", async () => {
 		const input = await seed();
 		const quoted = await fixture
 			.client()
@@ -413,9 +413,7 @@ describe("input bindings and deletion preserve the original SSI protocol", () =>
 			{ ...input, maximumGlobalDailyCostMicros: 100n },
 			client({ afterQuote: barrier }) as never,
 		);
-		// The asset transaction has a snapshot before the other owner's text job
-		// commits. The actual selector must keep both budget writers on SSI so its
-		// first stale attempt aborts, then its retry sees the winning cost.
+		// One owner committing a text job must not block another owner's asset job.
 		await barrier.entered;
 		try {
 			const text = await createGenerationJobTransaction(
@@ -433,47 +431,47 @@ describe("input bindings and deletion preserve the original SSI protocol", () =>
 		} finally {
 			barrier.resume();
 		}
-		await expect(assetAdmission).rejects.toThrow("GLOBAL_DAILY_BUDGET_EXCEEDED");
+		await expect(assetAdmission).resolves.toMatchObject({ replayed: false });
 		expect(
 			(
 				await fixture.rows(
 					`SELECT COALESCE(SUM(q."costMicros"),0)::text AS total FROM ${fixture.table("generation_job")} j JOIN ${fixture.table("generation_quote")} q ON q.id=j."quoteId"`,
 				)
 			)[0]?.total,
-		).toBe(60n);
-		expect(await fixture.rows(`SELECT id FROM ${fixture.table("generation_job")}`)).toHaveLength(1);
+		).toBe(120n);
+		expect(await fixture.rows(`SELECT id FROM ${fixture.table("generation_job")}`)).toHaveLength(2);
 		expect(
 			await fixture.rows(`SELECT id FROM ${fixture.table("credit_reservation")}`),
-		).toHaveLength(1);
-		expect(await fixture.rows(`SELECT id FROM ${fixture.table("outbox_event")}`)).toHaveLength(1);
+		).toHaveLength(2);
+		expect(await fixture.rows(`SELECT id FROM ${fixture.table("outbox_event")}`)).toHaveLength(2);
 		expect(
 			await fixture.rows(`SELECT * FROM ${fixture.table("generation_job_asset")}`),
-		).toHaveLength(0);
+		).toHaveLength(1);
 		expect(
 			(
 				await fixture.rows(
 					`SELECT "spendableCredits","reservedCredits" FROM ${fixture.table("credit_account")} WHERE id='owner'`,
 				)
 			)[0],
-		).toMatchObject({ spendableCredits: 20n, reservedCredits: 0n });
+		).toMatchObject({ spendableCredits: 15n, reservedCredits: 5n });
 	});
 
 	it.each([0n, -1n])(
-		"rejects the invalid global budget %s without job or reservation writes",
+		"ignores legacy global budget %s while reserving normal credits",
 		async (maximumGlobalDailyCostMicros) => {
 			const input = await seed();
 			await expect(
 				createGenerationJobTransaction(
-					{ ...input, inputAssetIds: [], maximumGlobalDailyCostMicros },
+					{ ...input, maximumGlobalDailyCostMicros },
 					client() as never,
 				),
-			).rejects.toThrow("Global daily Provider budget must be positive");
+			).resolves.toMatchObject({ replayed: false });
 			expect(await fixture.rows(`SELECT id FROM ${fixture.table("generation_job")}`)).toHaveLength(
-				0,
+				1,
 			);
 			expect(
 				await fixture.rows(`SELECT id FROM ${fixture.table("credit_reservation")}`),
-			).toHaveLength(0);
+			).toHaveLength(1);
 		},
 	);
 

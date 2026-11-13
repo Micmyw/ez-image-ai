@@ -4,7 +4,6 @@ import {
 	assertEzPicEnvironmentMatrixConfigured,
 	EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS,
 	isEzPicProductEnvironmentEnabled,
-	mediaDailyProviderCostBudgetMicros,
 	packEzPicImageModelFlags,
 	parseEzPicImageModelFlags,
 	validateEzPicEnvironmentMatrix,
@@ -334,7 +333,6 @@ describe("EzPic production launch environment", () => {
 				seedream45Enabled: false,
 				seedream5LiteEnabled: false,
 				seedream5ProEnabled: false,
-				dailyProviderCostBudgetMicros: 250_000_000n,
 			},
 		});
 		const serialized = JSON.stringify(result, (_key, value) =>
@@ -670,7 +668,6 @@ describe("EzPic production launch environment", () => {
 		"MEDIA_SEEDREAM_4_5_ENABLED",
 		"MEDIA_SEEDREAM_5_LITE_ENABLED",
 		"MEDIA_SEEDREAM_5_PRO_ENABLED",
-		"MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS",
 		"MEDIA_ALERT_ERROR_RATE_BPS",
 		"MEDIA_ALERT_P95_LATENCY_MS",
 		"MEDIA_ALERT_MODERATION_REJECTION_RATE_BPS",
@@ -702,15 +699,17 @@ describe("EzPic production launch environment", () => {
 		}
 	});
 
-	it("parses the enforced global daily Provider budget only when explicitly positive", () => {
-		expect(mediaDailyProviderCostBudgetMicros(productionEnvironment)).toBe(250_000_000n);
-		expect(mediaDailyProviderCostBudgetMicros({})).toBeUndefined();
-		expect(() =>
-			mediaDailyProviderCostBudgetMicros({
-				MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS: "0",
-			}),
-		).toThrow(/MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS/);
-	});
+	it.each([undefined, "", "0", "200000", "invalid"])(
+		"ignores retired global daily budget %s",
+		(legacyBudget) => {
+			expect(() =>
+				validateEzPicLaunchEnvironment({
+					...productionEnvironment,
+					MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS: legacyBudget,
+				}),
+			).not.toThrow();
+		},
+	);
 });
 
 describe("EzPic environment isolation matrix", () => {

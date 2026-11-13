@@ -20,6 +20,7 @@ describe("getEditorErrorKey", () => {
 		["CONCURRENT_JOB_LIMIT_REACHED", "concurrentLimit"],
 		["PROVIDER_CONCURRENT_JOB_LIMIT_REACHED", "providerBusy"],
 		["RATE_LIMITED", "rateLimited"],
+		["BUDGET_EXCEEDED", "budgetExceeded"],
 		["INPUT_TOO_LARGE", "inputTooLarge"],
 		["MEDIA_REQUEST_CONFLICT", "safeError"],
 	] as const)("maps %s to safe editor copy", (code, key) => {
@@ -29,6 +30,7 @@ describe("getEditorErrorKey", () => {
 		["CONCURRENT_JOB_LIMIT_REACHED", "concurrentLimit"],
 		["PROVIDER_CONCURRENT_JOB_LIMIT_REACHED", "providerBusy"],
 		["RATE_LIMITED", "rateLimited"],
+		["BUDGET_EXCEEDED", "budgetExceeded"],
 	] as const)(
 		"reads the structured public code %s without relying on the transport message",
 		(code, key) => {
