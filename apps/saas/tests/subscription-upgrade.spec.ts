@@ -160,10 +160,12 @@ test.describe("subscription upgrade checkout recovery", () => {
 			"data-editor-ready",
 			"true",
 		);
-		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
-			"Nano Banana 2 Lite",
-			{ timeout: 30_000 },
-		);
+		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("MiniMax H3 Image", {
+			timeout: 30_000,
+		});
+		await page.getByRole("button", { name: /^Model: / }).click();
+		await page.getByRole("button", { name: "Nano Banana", exact: true }).click();
+		await page.locator('[data-test="editor-model-image-nano-banana-2-lite"]').click();
 		await expect(page.locator('[data-test="registered-generator"]')).toHaveAttribute(
 			"aria-busy",
 			"false",

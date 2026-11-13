@@ -1190,6 +1190,13 @@ async function openCreator(page: import("@playwright/test").Page, prompt: string
 	)[0];
 	if (!source) throw new Error(`Seed source image missing for ${email}`);
 	await page.goto(`/create?asset=${source.id}`);
+	await expect(page.getByRole("button", { name: /^Model: / })).toContainText("MiniMax H3 Image", {
+		timeout: 30_000,
+	});
+	// Source-only recovery uses the public default; these fixtures exercise Lite.
+	await page.getByRole("button", { name: /^Model: / }).click();
+	await page.getByRole("button", { name: "Nano Banana", exact: true }).click();
+	await page.locator('[data-test="editor-model-image-nano-banana-2-lite"]').click();
 	await expect(page.getByRole("button", { name: /^Model: / })).toContainText("Nano Banana 2 Lite", {
 		timeout: 30_000,
 	});
