@@ -2,6 +2,7 @@
 
 ## Unreleased — Photo quick starts
 
+- Publish the verified birthday portrait in the example gallery and alternate it with the dog birthday card on the homepage every eight visible seconds. Pause on hover/focus, provide manual selection, and report clicks by the displayed artwork.
 - Add an image-first homepage showcase with a draggable watercolor comparison, a vintage portrait pair, Christmas wallpaper inspiration and one native landscape video. Use smooth fade/scale transitions, retain media during dismissal and apply photo prompts after closing. Show it once per preview release and retain an "Explore new ideas" entry.
 - Give photo previews time to read: reveal the vintage result after an original-photo pause, unfold Christmas images over 3.8 seconds, and keep each idea visible until the visitor switches. Start these effects after their images load.
 - Measure explicit preview selections and Create clicks by homepage idea and entry. Add a private analytics table with click totals and distinct browser counts, using the existing time/source/device filters and analytics preferences.

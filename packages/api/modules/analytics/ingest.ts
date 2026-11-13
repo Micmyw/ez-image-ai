@@ -97,6 +97,10 @@ export const ingestGrowthEvent = publicProcedure
 					? {
 							homepageIdea: input.event.properties.homepageIdea,
 							homepagePlacement: input.event.properties.homepagePlacement ?? "quick-start",
+							...(input.event.properties.homepageIdea === "birthday-card" &&
+							input.event.properties.homepageVariant
+								? { homepageVariant: input.event.properties.homepageVariant }
+								: {}),
 						}
 					: (experiment ?? input.event.properties.generation ?? null),
 		});

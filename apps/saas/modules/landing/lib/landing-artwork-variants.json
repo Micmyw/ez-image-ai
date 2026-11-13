@@ -104,6 +104,37 @@
 			}
 		]
 	},
+	"/examples/case-birthday-portrait.webp": {
+		"sourceHash": "8741a05fbad35676bd2807d74ed8ec72c33a65c6656e30cc702a09dfac908a4d",
+		"width": 820,
+		"height": 1024,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-birthday-portrait-240.b3d931adb25f58bb.webp"
+			},
+			{
+				"width": 288,
+				"src": "/images/landing/variants/case-birthday-portrait-288.f63f167359d3162e.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-birthday-portrait-384.79d0f642a7fcfb70.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-birthday-portrait-480.c53511d78e753215.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-birthday-portrait-640.6780e529c0dff571.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-birthday-portrait-768.3356bb802aed7a9b.webp"
+			}
+		]
+	},
 	"/examples/case-blue-hour.webp": {
 		"sourceHash": "3385f67461813eae83da4578ba93d06ccda55e0817212ad12673ead07b25bf56",
 		"width": 1200,

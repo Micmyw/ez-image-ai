@@ -7,7 +7,10 @@ const sessionMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@auth/lib/server", () => ({ getSession: sessionMock }));
 vi.mock("@auth/hooks/use-session", () => ({ useSession: () => ({ user: null }) }));
 vi.mock("@auth/lib/api", () => ({ useSessionQuery: () => ({ isPending: true }) }));
-vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
+vi.mock("next/navigation", () => ({
+	useSearchParams: () => new URLSearchParams(),
+	useRouter: () => ({ push: vi.fn() }),
+}));
 vi.mock("@shared/components/studio/PublicHeaderAccount", () => ({
 	PublicHeaderAccount: () => <div data-public-account-controls="" />,
 }));

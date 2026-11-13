@@ -301,6 +301,12 @@
 					"action": "Crear un vídeo de mascota",
 					"alt": "Un corgi con una cinta blanca levantando la pata en una escena de kung fu"
 				}
+			},
+			"birthdayPreview": {
+				"portrait": "Ver retrato de cumpleaños",
+				"dog": "Ver tarjeta de cumpleaños del perro",
+				"pause": "Pausar vistas de cumpleaños",
+				"play": "Reproducir vistas de cumpleaños"
 			}
 		},
 		"quickStartPrompts": {
@@ -543,7 +549,7 @@
 			"usePrompt": "Usar este prompt",
 			"promptAdded": "Prompt añadido",
 			"usePromptLabel": "Usar el prompt {title}",
-			"provenanceNote": "Imágenes originales creadas por separado como inspiración visual. No se presentan como resultados de EzImageAI; los resultados reales dependen de tu imagen y tu prompt.",
+			"provenanceNote": "El retrato de cumpleaños se generó con EzImageAI. Las demás imágenes ilustran ideas de prompts.",
 			"items": {
 				"mediterranean": {
 					"tag": "Interior",
@@ -616,7 +622,17 @@
 					"title": "Primera luz del desierto",
 					"prompt": "Reilumina la piscina con la primera luz del día, un cielo rosa empolvado, sombras largas y suaves y reflejos turquesa. Conserva la casa modernista, la geometría de la piscina, las montañas y la única tumbona.",
 					"alt": "Casa moderna del desierto y piscina turquesa bajo un amanecer rosa empolvado"
+				},
+				"birthdayPortrait": {
+					"tag": "Creado con EzImageAI",
+					"title": "Un cumpleaños muy personal",
+					"alt": "Una mujer sonriente con gorro de fiesta, pastel rosa y el texto Happy Birthday",
+					"prompt": "Crea una divertida tarjeta fotográfica de cumpleaños protagonizada por la persona o mascota de la foto de referencia. Conserva su rostro reconocible y sus rasgos. Añade un pequeño gorro de fiesta, una tarta rosa con tres velas, confeti lavanda y amarillo cálido y un fondo pastel suave. Usa un estilo de fotografía editorial alegre con luz natural y un protagonista bien definido. Añade el texto «¡Feliz cumpleaños!» con letras claras y fáciles de leer. Deja espacio alrededor del protagonista."
 				}
+			},
+			"birthdayVariants": {
+				"birthday-portrait": "A · Retrato de cumpleaños",
+				"birthday-dog": "B · Cumpleaños del perro"
 			}
 		},
 		"supportedEdits": {

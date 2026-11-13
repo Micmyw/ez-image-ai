@@ -1,13 +1,12 @@
 import { getVideoTemplate } from "@repo/config/video-template-library";
-import { ArrowUpRightIcon, ImageIcon, PlayIcon } from "lucide-react";
+import { ArrowUpRightIcon } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
-import Image from "next/image";
 import Link from "next/link";
 
 import { publicPagePath } from "../../public-content/lib/indexing";
 import { type HomepageShowcaseSlide } from "../lib/homepage-showcase";
 import { HomepageShowcase } from "./HomepageShowcase";
-import { QuickStartAction } from "./QuickStartAction";
+import { QuickStartCard, type QuickStartCardData } from "./QuickStartCard";
 
 import "./quick-start-ideas.css";
 
@@ -112,6 +111,26 @@ export async function QuickStartIdeas() {
 			video: true,
 		},
 	] as const;
+	const localizedCards: QuickStartCardData[] = cards.map((card) => ({
+		...card,
+		title: t(`home.quickStart.items.${card.copy}.title`),
+		description: t(`home.quickStart.items.${card.copy}.description`),
+		input: t(`home.quickStart.items.${card.copy}.input`),
+		action: t(`home.quickStart.items.${card.copy}.action`),
+		alt: t(`home.quickStart.items.${card.copy}.alt`),
+		kind: t(card.video ? "home.quickStart.video" : "home.quickStart.image"),
+		...(card.key === "birthday-card"
+			? {
+					birthday: {
+						portraitAlt: t("home.showcase.items.birthdayPortrait.alt"),
+						portraitLabel: t("home.quickStart.birthdayPreview.portrait"),
+						dogLabel: t("home.quickStart.birthdayPreview.dog"),
+						pause: t("home.quickStart.birthdayPreview.pause"),
+						play: t("home.quickStart.birthdayPreview.play"),
+					},
+				}
+			: {}),
+	}));
 	return (
 		<section
 			id="quick-start"
@@ -137,42 +156,8 @@ export async function QuickStartIdeas() {
 				</div>
 			</div>
 			<div className="quick-start-grid">
-				{cards.map((card) => (
-					<QuickStartAction
-						key={card.key}
-						idea={card.key}
-						href={card.href}
-						prompt={"prompt" in card ? card.prompt : undefined}
-					>
-						<div className={`quick-start-art quick-start-art--${card.key}`}>
-							<Image
-								src={card.image}
-								alt={t(`home.quickStart.items.${card.copy}.alt`)}
-								fill
-								sizes="(min-width: 1280px) 23vw, (min-width: 768px) 35vw, 46vw"
-								loading="lazy"
-							/>
-							<span className="quick-start-kind">
-								{card.video ? (
-									<PlayIcon size={12} aria-hidden="true" />
-								) : (
-									<ImageIcon size={12} aria-hidden="true" />
-								)}
-								{t(card.video ? "home.quickStart.video" : "home.quickStart.image")}
-							</span>
-							<span className="quick-start-input">
-								{t(`home.quickStart.items.${card.copy}.input`)}
-							</span>
-						</div>
-						<div className="quick-start-copy">
-							<h3>{t(`home.quickStart.items.${card.copy}.title`)}</h3>
-							<p>{t(`home.quickStart.items.${card.copy}.description`)}</p>
-							<span className="quick-start-cta">
-								{t(`home.quickStart.items.${card.copy}.action`)}
-								<ArrowUpRightIcon size={17} aria-hidden="true" />
-							</span>
-						</div>
-					</QuickStartAction>
+				{localizedCards.map((card) => (
+					<QuickStartCard key={card.key} card={card} />
 				))}
 			</div>
 		</section>

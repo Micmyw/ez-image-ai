@@ -184,3 +184,47 @@ represented by this local design iteration.
   transport. It verifies all four popup identifiers, separate card/CTA/preview events, no
   automatic-display clicks, and continued creation when the analytics request fails.
   API storage is mocked in unit coverage; this is not production ingestion evidence.
+
+### Production generation and birthday artwork follow-up — November 13
+
+Revision `2727fdd50983c2a847578f79b7e1aedbfc6641d7` was pushed to `main` and deployed
+successfully by both Cloudflare Git builds. A signed-in production journey selected the
+homepage birthday card after uploading the existing fictional adult reference. Nano Banana
+2 Lite returned a READY 820 × 1024 image; the result was viewed and downloaded, with five
+credits charged. The observed result contains the recognizable subject, party hat, pink
+cake with three candles, confetti and legible “Happy Birthday!” text. See
+`evidence/birthday-card-2026-11-13.json` for the recorded verification and asset hash.
+
+The user subsequently authorized publishing that result. The example gallery now includes
+it as `birthdayPortrait`, with the actual English generation prompt and four-language copy.
+Its label identifies it as made with EzImageAI. The prior dog image remains illustrative.
+
+The homepage birthday card starts with the portrait (A) and alternates with the dog (B)
+after eight visible seconds, with a 700ms crossfade. It waits for both images to load and
+pauses offscreen, in a hidden tab, on hover/focus, or via the pause button. Selecting either
+dot holds that image. Reduced-motion visitors can choose images manually without automatic
+rotation. Both images keep their original proportions in the existing 4:5 card.
+
+Create clicks carry the bounded `homepageVariant` value `birthday-portrait` or `birthday-dog`
+into existing event diagnostics. The administrator's birthday row retains the overall count
+and adds both artwork breakdowns; historical untagged events stay in the total. Preview
+rotation and its controls do not count as Create clicks. These are counts for a rotating
+display, not a randomized conversion-rate experiment or exposure-normalized CTR.
+
+The new cards pass compact localized data to their interactive component instead of
+serializing the full card element trees, keeping initial document transfer smaller.
+
+The first local production measurement with the added gallery image was 68,445 bytes gzip
+for HTML and 546,896 for initial HTML/scripts/styles, versus the previous CI baseline of
+64,721 and 535,152. The November 13 feature therefore adds about 11.5 KiB of compressed text
+resources. The resource regression limits are updated to 70 KiB HTML and 540 KiB total for
+this expanded homepage; the previous 64/526 KiB limits were exceeded. Other resource
+isolation assertions remain, including no account tools, chart library or documentation CSS.
+
+Follow-up local verification: 164 affected unit tests passed across public routes, preset
+handoff, four-language messages, asset variants, ingestion, report aggregation and response
+serialization. Eight Playwright checks passed against a production build: the birthday
+rotation/pause/manual controls and both click variants, mobile/reduced-motion behavior,
+German gallery rendering, existing quick-start handoffs, the updated resource budgets and
+public editor access. These browser checks use local catalog fixtures; the real provider
+generation evidence is the separate production journey above.

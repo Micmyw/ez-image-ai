@@ -3,6 +3,7 @@ export const publicChangelogEntries = [
 		date: "2026-11-13",
 		title: "Four ways to start with your photo",
 		changes: [
+			"A birthday portrait created with EzImageAI now joins Editing Examples. The homepage birthday card alternates between portrait and pet previews, with controls to pause or choose either image.",
 			"Explore watercolor edits, vintage portraits and Christmas wallpapers in a wide homepage showcase, plus one landscape music-video preview. Compare the images and try an idea with your own photo. Reopen it from Explore new ideas.",
 			"Take your time with each photo idea: the vintage result appears after the original, Christmas images unfold one by one, and previews stay on screen until you choose another.",
 			"Homepage idea clicks now appear by idea and entry in the administrator analytics report, with separate preview and Create counts.",

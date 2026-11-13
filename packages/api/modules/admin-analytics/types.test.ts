@@ -4,9 +4,25 @@ import {
 } from "@repo/utils/lib/acquisition-attribution";
 import { describe, expect, it } from "vitest";
 
+import { conversionOutputSchema } from "./conversion-types";
 import { adminAnalyticsFunnelInputSchema, adminAnalyticsReportInputSchema } from "./types";
 
 describe("admin analytics operation contracts", () => {
+	it("preserves birthday artwork counts through the response schema", () => {
+		const row = {
+			idea: "birthday-card",
+			placement: "quick-start",
+			previewClicks: 0,
+			previewVisitors: 0,
+			createClicks: 3,
+			createVisitors: 2,
+			variants: [
+				{ variant: "birthday-portrait", createClicks: 2, createVisitors: 1 },
+				{ variant: "birthday-dog", createClicks: 1, createVisitors: 1 },
+			],
+		};
+		expect(conversionOutputSchema.shape.homepageIdeas.parse([row])).toEqual([row]);
+	});
 	it("accepts detected acquisition-source grouping and exact ChatGPT filters", () => {
 		expect(
 			adminAnalyticsFunnelInputSchema.parse({

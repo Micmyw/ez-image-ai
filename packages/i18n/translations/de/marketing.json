@@ -301,6 +301,12 @@
 					"action": "Tiervideo erstellen",
 					"alt": "Ein Corgi mit weißem Stirnband hebt die Pfote für eine Kung-Fu-Szene"
 				}
+			},
+			"birthdayPreview": {
+				"portrait": "Geburtstagsporträt anzeigen",
+				"dog": "Hunde-Geburtstagskarte anzeigen",
+				"pause": "Geburtstagsvorschau pausieren",
+				"play": "Geburtstagsvorschau abspielen"
 			}
 		},
 		"quickStartPrompts": {
@@ -543,7 +549,7 @@
 			"usePrompt": "Prompt verwenden",
 			"promptAdded": "Prompt übernommen",
 			"usePromptLabel": "Prompt {title} verwenden",
-			"provenanceNote": "Originalbilder, die separat als visuelle Inspiration erstellt wurden. Sie werden nicht als EzImageAI-Ergebnisse dargestellt; tatsächliche Ergebnisse hängen von Quellbild und Prompt ab.",
+			"provenanceNote": "Das Geburtstagsporträt wurde mit EzImageAI erstellt. Die anderen Bilder veranschaulichen Prompt-Ideen.",
 			"items": {
 				"mediterranean": {
 					"tag": "Interieur",
@@ -616,7 +622,17 @@
 					"title": "Erstes Licht in der Wüste",
 					"prompt": "Beleuchte die Poolszene im ersten Morgenlicht mit staubrosa Himmel, langen weichen Schatten und türkisfarbenen Spiegelungen. Bewahre das modernistische Haus, die Poolgeometrie, die Berge und den einzelnen Liegestuhl.",
 					"alt": "Modernes Wüstenhaus mit türkisfarbenem Pool bei staubrosa Sonnenaufgang"
+				},
+				"birthdayPortrait": {
+					"tag": "Mit EzImageAI erstellt",
+					"title": "Ein persönlicher Geburtstagsgruß",
+					"alt": "Eine lächelnde Frau mit Partyhut, rosa Torte und dem Schriftzug Happy Birthday",
+					"prompt": "Gestalte eine fröhliche Geburtstagsfotokarte mit der Person oder dem Haustier aus dem Referenzfoto. Bewahre das erkennbare Gesicht und die charakteristischen Merkmale. Ergänze einen kleinen Partyhut, eine rosa Geburtstagstorte mit drei Kerzen, lavendelfarbenes und warmgelbes Konfetti und einen sanften Pastellhintergrund. Verwende einen lebendigen redaktionellen Fotostil mit natürlichem Licht und einem klaren Hauptmotiv. Füge den Text „Alles Gute zum Geburtstag!“ in gut lesbarer Schrift hinzu. Lass um das Motiv herum ausreichend Platz."
 				}
+			},
+			"birthdayVariants": {
+				"birthday-portrait": "A · Geburtstagsporträt",
+				"birthday-dog": "B · Hundegeburtstag"
 			}
 		},
 		"supportedEdits": {

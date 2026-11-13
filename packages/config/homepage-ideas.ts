@@ -18,5 +18,7 @@ export const HOMEPAGE_IDEA_KEYS = [
 	"kung-fu-cat",
 ] as const;
 export const HOMEPAGE_IDEA_PLACEMENTS = ["showcase", "quick-start"] as const;
+export const HOMEPAGE_BIRTHDAY_VARIANTS = ["birthday-portrait", "birthday-dog"] as const;
+export type HomepageBirthdayVariant = (typeof HOMEPAGE_BIRTHDAY_VARIANTS)[number];
 export type HomepageIdeaKey = (typeof HOMEPAGE_IDEA_KEYS)[number];
 export type HomepageIdeaPlacement = (typeof HOMEPAGE_IDEA_PLACEMENTS)[number];

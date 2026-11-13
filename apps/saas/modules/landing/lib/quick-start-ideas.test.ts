@@ -28,6 +28,8 @@ describe("quick-start preset URLs", () => {
 			expect(useShowcasePrompt()).toBe(translations[locale].home.quickStartPrompts.restorePhoto);
 			state.example = "birthday-card";
 			expect(useShowcasePrompt()).toBe(translations[locale].home.quickStartPrompts.birthdayCard);
+			state.example = "birthdayPortrait";
+			expect(useShowcasePrompt()).toBe(translations[locale].home.quickStartPrompts.birthdayCard);
 			state.example = "watercolor";
 			expect(useShowcasePrompt()).toBe(translations[locale].home.quickStartPrompts.watercolor);
 			state.example = "vintage-photo";

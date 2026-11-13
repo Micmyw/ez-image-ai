@@ -1,0 +1,21 @@
+{
+	"verifiedAt": "2026-11-13T08:58:51.864Z",
+	"environment": "production",
+	"generationRevision": "2727fdd50983c2a847578f79b7e1aedbfc6641d7",
+	"entry": "Homepage birthday-card quick start",
+	"model": "Nano Banana 2 Lite",
+	"source": "/images/effects/1980s-ai-photo/input-adult-v1.webp",
+	"sourceKind": "existing fictional adult sample",
+	"prompt": "English home.quickStartPrompts.birthdayCard",
+	"result": {
+		"status": "READY",
+		"width": 820,
+		"height": 1024,
+		"creditsCharged": 5,
+		"downloadVerified": true,
+		"publicFile": "/examples/case-birthday-portrait.webp",
+		"sha256": "8741a05fbad35676bd2807d74ed8ec72c33a65c6656e30cc702a09dfac908a4d"
+	},
+	"visualObservation": "Recognizable source subject, party hat, pink cake with three candles, confetti and legible Happy Birthday lettering.",
+	"publication": "User explicitly requested publishing this result in the example gallery and alternating it with the existing dog birthday card."
+}

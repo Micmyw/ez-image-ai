@@ -301,6 +301,12 @@
 					"action": "Créer une vidéo d’animal",
 					"alt": "Un corgi avec un bandeau blanc levant la patte pour une scène de kung-fu"
 				}
+			},
+			"birthdayPreview": {
+				"portrait": "Voir le portrait d’anniversaire",
+				"dog": "Voir la carte d’anniversaire du chien",
+				"pause": "Mettre les aperçus en pause",
+				"play": "Lire les aperçus d’anniversaire"
 			}
 		},
 		"quickStartPrompts": {
@@ -543,7 +549,7 @@
 			"usePrompt": "Utiliser ce prompt",
 			"promptAdded": "Prompt ajouté",
 			"usePromptLabel": "Utiliser le prompt {title}",
-			"provenanceNote": "Images originales créées séparément à titre d’inspiration visuelle. Elles ne sont pas présentées comme des résultats EzImageAI ; les résultats réels dépendent de votre image source et de votre prompt.",
+			"provenanceNote": "Le portrait d’anniversaire a été généré avec EzImageAI. Les autres images illustrent des idées de prompts.",
 			"items": {
 				"mediterranean": {
 					"tag": "Intérieur",
@@ -616,7 +622,17 @@
 					"title": "Première lumière du désert",
 					"prompt": "Rééclairez la piscine aux premières lueurs du jour, avec ciel rose poudré, longues ombres douces et reflets turquoise. Préservez la maison moderniste, la géométrie du bassin, les montagnes et l’unique chaise longue.",
 					"alt": "Maison moderniste du désert et piscine turquoise sous un lever de soleil rose poudré"
+				},
+				"birthdayPortrait": {
+					"tag": "Créé avec EzImageAI",
+					"title": "Un anniversaire qui lui ressemble",
+					"alt": "Une femme souriante avec un chapeau de fête, un gâteau rose et le texte Happy Birthday",
+					"prompt": "Crée une carte photo d’anniversaire amusante avec la personne ou l’animal de la photo de référence. Préserve son visage reconnaissable et ses traits distinctifs. Ajoute un petit chapeau de fête, un gâteau rose avec trois bougies, des confettis lavande et jaune chaud et un fond pastel doux. Adopte un style photographique éditorial joyeux, avec une lumière naturelle et un sujet bien mis en valeur. Ajoute le texte « Joyeux anniversaire ! » dans une typographie claire et lisible. Laisse de l’espace autour du sujet."
 				}
+			},
+			"birthdayVariants": {
+				"birthday-portrait": "A · Portrait d’anniversaire",
+				"birthday-dog": "B · Anniversaire du chien"
 			}
 		},
 		"supportedEdits": {

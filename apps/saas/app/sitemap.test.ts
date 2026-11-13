@@ -96,7 +96,7 @@ describe("consolidated SaaS sitemap", () => {
 			"/ai-svg-generator": "2026-11-11",
 			"/ai-gif-generator": "2026-11-11",
 			"/pricing": "2026-09-16",
-			"/changelog": "2026-11-11",
+			"/changelog": "2026-11-13",
 			"/privacy": "2026-11-02",
 			"/terms": "2026-10-24",
 			"/blog": "2026-10-23",

@@ -38,6 +38,33 @@ beforeEach(() => {
 	mocks.record.mockReset().mockResolvedValue({ accepted: true });
 });
 describe("consented first-party ingestion", () => {
+	it.each(["birthday-portrait", "birthday-dog"])(
+		"stores the displayed birthday variant %s",
+		async (homepageVariant) => {
+			await invoke({
+				...input,
+				path: "/",
+				event: {
+					name: "homepage_idea_selected",
+					properties: {
+						anonymousSessionHash: hash,
+						homepageIdea: "birthday-card",
+						homepagePlacement: "quick-start",
+						homepageVariant,
+					},
+				},
+			});
+			expect(mocks.record).toHaveBeenCalledWith(
+				expect.objectContaining({
+					diagnostics: {
+						homepageIdea: "birthday-card",
+						homepagePlacement: "quick-start",
+						homepageVariant,
+					},
+				}),
+			);
+		},
+	);
 	it.each(["christmas", "restore-photo", "birthday-card", "kung-fu-cat"])(
 		"keeps the selected homepage idea %s in stored click diagnostics",
 		async (homepageIdea) => {

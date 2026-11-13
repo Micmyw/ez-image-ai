@@ -1,5 +1,11 @@
 export const SHOWCASE_ITEMS = [
 	{
+		key: "birthdayPortrait",
+		image: "/examples/case-birthday-portrait.webp",
+		width: 820,
+		height: 1024,
+	},
+	{
 		key: "mediterranean",
 		image: "/examples/case-mediterranean-room.webp",
 		width: 1200,

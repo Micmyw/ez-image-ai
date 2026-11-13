@@ -1,4 +1,8 @@
-import { HOMEPAGE_IDEA_KEYS, HOMEPAGE_IDEA_PLACEMENTS } from "@repo/config/homepage-ideas";
+import {
+	HOMEPAGE_BIRTHDAY_VARIANTS,
+	HOMEPAGE_IDEA_KEYS,
+	HOMEPAGE_IDEA_PLACEMENTS,
+} from "@repo/config/homepage-ideas";
 import { z } from "zod";
 
 export const conversionInputSchema = z
@@ -29,6 +33,15 @@ export const conversionOutputSchema = z.object({
 				previewVisitors: count,
 				createClicks: count,
 				createVisitors: count,
+				variants: z
+					.array(
+						z.object({
+							variant: z.enum(HOMEPAGE_BIRTHDAY_VARIANTS),
+							createClicks: count,
+							createVisitors: count,
+						}),
+					)
+					.optional(),
 			}),
 		)
 		.default([]),

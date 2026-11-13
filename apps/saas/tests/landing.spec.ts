@@ -880,15 +880,18 @@ test("the production homepage excludes account tools, charts, and documentation 
 		body: JSON.stringify(resourceDetails, null, 2),
 		contentType: "application/json",
 	});
-	expect(summary.htmlGzipBytes, "Keep the initial document below 64 KiB gzip").toBeLessThan(
-		64 * 1024,
+	// November 13 adds four quick starts, the image-first showcase and a verified birthday
+	// example. Measured: 68,445 HTML bytes and 546,896 total gzip bytes (previously
+	// 64,721 / 535,152). Keep bounded headroom for that added public content.
+	expect(summary.htmlGzipBytes, "Keep the initial document below 70 KiB gzip").toBeLessThan(
+		70 * 1024,
 	);
 	// Count inline styles inside HTML only. Moving CSS into HTML must not conceal
 	// a transfer regression behind a smaller number of stylesheet requests.
 	expect(
 		initialTextGzipBytes,
 		"Initial HTML, scripts, and external CSS exceed the budget",
-	).toBeLessThan(526 * 1024);
+	).toBeLessThan(540 * 1024);
 	await page.evaluate(() => document.fonts.ready.then(() => undefined));
 	await page.screenshot({ path: testInfo.outputPath("homepage-desktop.png") });
 	await page.setViewportSize({ width: 390, height: 844 });
@@ -1107,7 +1110,7 @@ test("the public root exposes the image editor before authentication", async ({ 
 	await expect(
 		page.getByRole("heading", {
 			level: 1,
-			name: /ai image editor &(?:amp;)? prompt photo editor/i,
+			name: /ai image editor no restrictions/i,
 		}),
 	).toBeVisible();
 	await expect(page.locator("#landing-source-image")).toBeAttached();
@@ -1133,6 +1136,7 @@ test("the public root exposes the image editor before authentication", async ({ 
 			.evaluateAll((sections) => sections.map((section) => section.id)),
 	).toEqual([
 		"image-editor",
+		"quick-start",
 		"models",
 		"examples",
 		"before-after",
@@ -1581,9 +1585,9 @@ test("the landing page shows the original artwork and interactive illustration",
 
 	const gallery = page.locator("#examples");
 	await gallery.scrollIntoViewIfNeeded();
-	await expect(gallery.locator("article")).toHaveCount(12);
+	await expect(gallery.locator("article")).toHaveCount(13);
 	const artworks = gallery.locator("img");
-	await expect(artworks).toHaveCount(12);
+	await expect(artworks).toHaveCount(13);
 	await expect
 		.poll(() =>
 			artworks.evaluateAll((elements) =>

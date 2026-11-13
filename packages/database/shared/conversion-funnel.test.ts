@@ -70,6 +70,39 @@ function job(id: string, status: string): ConversionJob {
 	};
 }
 describe("customer conversion cohort", () => {
+	it("breaks down birthday clicks by displayed artwork while retaining legacy clicks in the total", () => {
+		const click = (session: string, variant?: string): ConversionEvent => ({
+			...event("homepage_idea_selected", null, session),
+			diagnostics: {
+				homepageIdea: "birthday-card",
+				homepagePlacement: "quick-start",
+				...(variant ? { homepageVariant: variant } : {}),
+			},
+		});
+		const result = buildConversionFunnel(
+			facts(),
+			{
+				events: [
+					click("one", "birthday-portrait"),
+					click("one", "birthday-portrait"),
+					click("two", "birthday-dog"),
+					click("one", "birthday-dog"),
+					click("legacy"),
+					{ ...click("staff", "birthday-dog"), internal: true },
+				],
+				jobs: [],
+			},
+			{ range: "7d", now },
+		).homepageIdeas.find((row) => row.idea === "birthday-card");
+		expect(result).toMatchObject({
+			createClicks: 5,
+			createVisitors: 3,
+			variants: [
+				{ variant: "birthday-portrait", createClicks: 2, createVisitors: 1 },
+				{ variant: "birthday-dog", createClicks: 2, createVisitors: 2 },
+			],
+		});
+	});
 	it("counts homepage clicks and distinct browsers by idea and placement with report filters", () => {
 		const create = (session = "one", extra: Partial<ConversionEvent> = {}): ConversionEvent => ({
 			...event("homepage_idea_selected", null, session),

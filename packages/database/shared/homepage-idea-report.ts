@@ -1,4 +1,5 @@
 import {
+	HOMEPAGE_BIRTHDAY_VARIANTS,
 	HOMEPAGE_QUICK_START_IDEAS,
 	HOMEPAGE_SHOWCASE_IDEAS,
 	type HomepageIdeaKey,
@@ -29,6 +30,20 @@ export function buildHomepageIdeaReport(events: ConversionEvent[]) {
 				previewVisitors: new Set(previews.map((event) => event.sessionHash)).size,
 				createClicks: creates.length,
 				createVisitors: new Set(creates.map((event) => event.sessionHash)).size,
+				...(idea === "birthday-card"
+					? {
+							variants: HOMEPAGE_BIRTHDAY_VARIANTS.map((variant) => {
+								const clicks = creates.filter(
+									(event) => event.diagnostics?.homepageVariant === variant,
+								);
+								return {
+									variant,
+									createClicks: clicks.length,
+									createVisitors: new Set(clicks.map((event) => event.sessionHash)).size,
+								};
+							}),
+						}
+					: {}),
 			};
 		},
 	);

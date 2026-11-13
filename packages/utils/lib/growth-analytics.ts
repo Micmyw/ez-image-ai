@@ -1,6 +1,10 @@
 import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 import { GROWTH_EXPERIMENTS } from "@repo/config/growth-experiments";
-import { HOMEPAGE_IDEA_KEYS, HOMEPAGE_IDEA_PLACEMENTS } from "@repo/config/homepage-ideas";
+import {
+	HOMEPAGE_BIRTHDAY_VARIANTS,
+	HOMEPAGE_IDEA_KEYS,
+	HOMEPAGE_IDEA_PLACEMENTS,
+} from "@repo/config/homepage-ideas";
 import { z } from "zod";
 
 import { sendFirstPartyGrowthEvent } from "./conversion-transport";
@@ -130,6 +134,7 @@ export const growthAnalyticsPropertiesSchema = z
 		...contentAttributionShape,
 		homepageIdea: z.enum(HOMEPAGE_IDEA_KEYS).optional(),
 		homepagePlacement: z.enum(HOMEPAGE_IDEA_PLACEMENTS).optional(),
+		homepageVariant: z.enum(HOMEPAGE_BIRTHDAY_VARIANTS).optional(),
 		experiment: z
 			.object({
 				experimentId: z.enum(["pricing-default-v1", "result-purchase-v1"]),

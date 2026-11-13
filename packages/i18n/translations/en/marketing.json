@@ -301,6 +301,12 @@
 					"action": "Make a pet video",
 					"alt": "A corgi in a white headband raising a paw for a kung fu scene"
 				}
+			},
+			"birthdayPreview": {
+				"portrait": "Show birthday portrait",
+				"dog": "Show dog birthday card",
+				"pause": "Pause birthday previews",
+				"play": "Play birthday previews"
 			}
 		},
 		"quickStartPrompts": {
@@ -543,7 +549,7 @@
 			"usePrompt": "Use this prompt",
 			"promptAdded": "Prompt added",
 			"usePromptLabel": "Use the {title} prompt",
-			"provenanceNote": "Original images created separately for visual inspiration. They are not presented as EzImageAI outputs; actual results depend on your source image and prompt.",
+			"provenanceNote": "The birthday portrait was generated with EzImageAI. Other images illustrate prompt ideas.",
 			"items": {
 				"mediterranean": {
 					"tag": "Interior",
@@ -616,7 +622,17 @@
 					"title": "Desert first light",
 					"prompt": "Relight the pool scene at first light with a dusty rose sky, long soft shadows, and turquoise reflections. Preserve the modernist house, pool geometry, mountains, and lone lounge chair.",
 					"alt": "Modern desert home and turquoise pool at a dusty rose sunrise"
+				},
+				"birthdayPortrait": {
+					"tag": "Made with EzImageAI",
+					"title": "A birthday, made personal",
+					"alt": "A smiling woman wearing a party hat with a pink cake and Happy Birthday lettering",
+					"prompt": "Create a playful birthday photo card starring the person or pet in the reference photo. Preserve their recognizable face and features. Add a small party hat, a pink birthday cake with three candles, lavender and warm yellow confetti, and a soft pastel background. Use a joyful editorial photography style with natural light and a clear focal subject. Add the words \"Happy Birthday!\" in clean, easy-to-read lettering. Leave comfortable space around the subject."
 				}
+			},
+			"birthdayVariants": {
+				"birthday-portrait": "A · Birthday portrait",
+				"birthday-dog": "B · Dog birthday"
 			}
 		},
 		"supportedEdits": {

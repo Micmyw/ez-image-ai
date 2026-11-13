@@ -70,6 +70,7 @@ export function ShowcaseSectionClient({
 					{SHOWCASE_ITEMS.map((item) => (
 						<article
 							key={item.key}
+							data-example={item.key}
 							className="showcase-card"
 							data-orientation={item.width > item.height ? "landscape" : "portrait"}
 							data-selected={selectedKey === item.key || undefined}

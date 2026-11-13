@@ -298,6 +298,95 @@ test("entrance stays centered and the picture survives the closing transition", 
 	await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
+test("birthday artwork rotates slowly, pauses, tracks the displayed variant and opens the real example", async ({
+	page,
+}) => {
+	test.setTimeout(90_000);
+	await page.addInitScript((key) => localStorage.setItem(key, "seen"), HOMEPAGE_SHOWCASE_SEEN_KEY);
+	const received = await captureConsentedGrowthEvents(page);
+	await page.route("**/api/analytics/events", (route) =>
+		route.fulfill({ json: { accepted: true } }),
+	);
+	await page.goto("/");
+	const card = page.locator('[data-quick-start="birthday-card"]');
+	await card.scrollIntoViewIfNeeded();
+	await page.mouse.move(0, 0);
+	await expect
+		.poll(() =>
+			card
+				.locator("img")
+				.evaluateAll((images) => images.every((img) => (img as HTMLImageElement).naturalWidth > 0)),
+		)
+		.toBe(true);
+	await expect(card).toHaveAttribute("data-homepage-variant", "birthday-portrait");
+	await expect(card.locator('[data-active="true"] img')).toHaveAttribute("alt", /smiling woman/);
+	// A full reading beat before the eight-second change.
+	await page.waitForTimeout(4000);
+	await expect(card).toHaveAttribute("data-homepage-variant", "birthday-portrait");
+	await expect(card).toHaveAttribute("data-homepage-variant", "birthday-dog", { timeout: 10000 });
+	await card.hover();
+	await page.waitForTimeout(8500);
+	await expect(card).toHaveAttribute("data-homepage-variant", "birthday-dog");
+	await card.click();
+	await expect
+		.poll(() =>
+			received.some(
+				(event) =>
+					event.name === "homepage_idea_selected" &&
+					event.properties.homepageVariant === "birthday-dog",
+			),
+		)
+		.toBe(true);
+	await page.getByRole("button", { name: "Show birthday portrait", exact: true }).click();
+	await expect(card).toHaveAttribute("data-homepage-variant", "birthday-portrait");
+	await card.click();
+	await expect
+		.poll(() =>
+			received.some(
+				(event) =>
+					event.name === "homepage_idea_selected" &&
+					event.properties.homepageVariant === "birthday-portrait",
+			),
+		)
+		.toBe(true);
+	await expect(page.getByRole("textbox", { name: "Image prompt", exact: true })).toHaveValue(
+		/^Create a playful birthday photo card/,
+	);
+	const example = page.locator('[data-example="birthdayPortrait"]');
+	await example.scrollIntoViewIfNeeded();
+	await expect(example).toContainText("Made with EzImageAI");
+	await expect(example.locator("img")).toHaveAttribute("src", /case-birthday-portrait/);
+	await example.getByRole("button").click();
+	await expect(page.getByRole("textbox", { name: "Image prompt", exact: true })).toHaveValue(
+		/^Create a playful birthday photo card/,
+	);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await page.getByRole("button", { name: "Show dog birthday card", exact: true }).click();
+	await expect(card).toHaveAttribute("data-homepage-variant", "birthday-dog");
+	await page.getByRole("button", { name: "Play birthday previews", exact: true }).click();
+	await page.mouse.move(0, 0);
+	await page.getByRole("button", { name: "Pause birthday previews", exact: true }).blur();
+	await page.waitForTimeout(8500);
+	await expect(card).toHaveAttribute("data-homepage-variant", "birthday-dog");
+	expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+	await card.screenshot({
+		path: path.resolve(
+			"../../output/playwright/birthday-card-live-2026-11-13/birthday-dog-mobile.png",
+		),
+	});
+	await page.getByRole("button", { name: "Show birthday portrait", exact: true }).click();
+	await card.screenshot({
+		path: path.resolve(
+			"../../output/playwright/birthday-card-live-2026-11-13/birthday-portrait-mobile.png",
+		),
+	});
+	await page.goto("/examples?lang=de");
+	await expect(page.locator('[data-example="birthdayPortrait"]')).toContainText(
+		"Mit EzImageAI erstellt",
+	);
+});
+
 test("homepage idea clicks reach analytics separately from automatic previews and keep creation usable", async ({
 	page,
 }) => {

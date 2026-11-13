@@ -19,6 +19,7 @@ const vectorAssets = [
 ] as const;
 
 const generatedAssets = [
+	"examples/case-birthday-portrait.webp",
 	"examples/case-mediterranean-room.webp",
 	"examples/case-cobalt-product.webp",
 	"examples/case-emerald-fashion.webp",
