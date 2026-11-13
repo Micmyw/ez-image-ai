@@ -10,6 +10,7 @@ import { readAggregateTraffic, aggregateTrafficSince } from "./aggregate-traffic
 import { buildConversionActivity } from "./conversion-activity";
 import { buildConversionExperiments } from "./conversion-experiments";
 import type { GrowthEventInput } from "./growth-events";
+import { buildHomepageIdeaReport } from "./homepage-idea-report";
 
 export interface ConversionInput {
 	range: AdminAnalyticsRange;
@@ -311,6 +312,7 @@ export function buildConversionFunnel(
 	return {
 		since: from.toISOString(),
 		asOf: to.toISOString(),
+		homepageIdeas: buildHomepageIdeaReport(productEvents),
 		experiments: buildConversionExperiments(facts, observations.events, from, to, input),
 		activity: buildConversionActivity(facts, events, observations.jobs, from, to, input),
 		aggregateTraffic: observations.aggregateTraffic ?? {

@@ -7,13 +7,7 @@ import { PublicPricingPlans } from "@payments/components/PublicPricingPlans";
 import { getPublicConfig } from "@repo/config/client";
 import { Logo } from "@repo/ui/components/logo";
 import { StudioShell } from "@shared/components/studio/StudioShell";
-import {
-	ArrowRightIcon,
-	ChevronDownIcon,
-	LockKeyholeIcon,
-	ShieldBanIcon,
-	SnowflakeIcon,
-} from "lucide-react";
+import { ArrowRightIcon, ChevronDownIcon, LockKeyholeIcon, ShieldBanIcon } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -23,9 +17,9 @@ import { PhotoIdeaRecommendations } from "../../public-content/components/PhotoI
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
 import { HOME_FAQ_KEYS } from "../lib/faq";
 import { BeforeAfterDemo } from "./BeforeAfterDemo";
-import { ChristmasWallpaperEntry } from "./ChristmasWallpaperEntry";
 import { EditingUseCases } from "./EditingUseCases";
 import { LandingGenerator } from "./LandingGenerator";
+import { QuickStartIdeas } from "./QuickStartIdeas";
 import { ShowcaseSection } from "./ShowcaseSection";
 import { VideoTemplateRecommendations } from "./VideoTemplateRecommendations";
 
@@ -57,13 +51,6 @@ export async function LandingPage({
 							videoDescription={t("videoV1.description")}
 						/>
 
-						{!workspace && (
-							<Link href="/christmas-wallpaper" className="christmas-quick-entry">
-								<SnowflakeIcon aria-hidden="true" />
-								<span>{t("christmas.entry.quick")}</span>
-								<ArrowRightIcon aria-hidden="true" />
-							</Link>
-						)}
 						<GenerationWorkspace>{editor ?? <LandingGenerator />}</GenerationWorkspace>
 						<div className="mt-4 flex justify-center">
 							<a
@@ -82,17 +69,7 @@ export async function LandingPage({
 					</div>
 				</section>
 
-				{!workspace && (
-					<ChristmasWallpaperEntry
-						copy={{
-							eyebrow: t("christmas.entry.eyebrow"),
-							title: t("christmas.entry.title"),
-							description: t("christmas.entry.description"),
-							action: t("christmas.entry.action"),
-							detail: t("christmas.entry.detail"),
-						}}
-					/>
-				)}
+				{!workspace && <QuickStartIdeas />}
 				<ExploreModels />
 				<ShowcaseSection />
 				<BeforeAfterDemo />

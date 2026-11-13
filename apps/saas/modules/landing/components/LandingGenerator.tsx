@@ -389,7 +389,7 @@ function LandingGeneratorWorkspace({
 		if (!generator) return;
 		const page = generator.closest(".studio-home, [data-image-to-image-page]");
 		const pageEnd = page?.querySelector("[data-editor-end]");
-		const examples = page?.querySelector("[data-editor-dock-clear]");
+		const examples = [...(page?.querySelectorAll("[data-editor-dock-clear]") ?? [])];
 
 		const observer = new IntersectionObserver(
 			() => {
@@ -397,9 +397,10 @@ function LandingGeneratorWorkspace({
 				const beforePageEnd = !pageEnd || pageEnd.getBoundingClientRect().top >= window.innerHeight;
 				const dockContainsFocus =
 					floatingDockRef.current?.contains(document.activeElement) ?? false;
-				const examplesRect = examples?.getBoundingClientRect();
-				const readingExamples =
-					examplesRect && examplesRect.bottom > 72 && examplesRect.top < window.innerHeight;
+				const readingExamples = examples.some((example) => {
+					const rect = example.getBoundingClientRect();
+					return rect.bottom > 72 && rect.top < window.innerHeight;
+				});
 				setIsDockVisible(
 					hasPassedEditor && beforePageEnd && (!readingExamples || dockContainsFocus),
 				);
@@ -414,7 +415,7 @@ function LandingGeneratorWorkspace({
 		);
 		observer.observe(generator);
 		if (pageEnd) observer.observe(pageEnd);
-		if (examples) observer.observe(examples);
+		for (const example of examples) observer.observe(example);
 
 		return () => observer.disconnect();
 	}, [isEffectEditor]);
@@ -442,6 +443,7 @@ function LandingGeneratorWorkspace({
 		function selectExamplePrompt(event: Event) {
 			const detail = (event as CustomEvent<LandingPromptSelectedDetail>).detail;
 			if (!detail?.prompt.trim()) return;
+			event.preventDefault();
 
 			setPrompt(detail.prompt);
 			setSubmitError(undefined);

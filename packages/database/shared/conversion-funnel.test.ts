@@ -70,6 +70,55 @@ function job(id: string, status: string): ConversionJob {
 	};
 }
 describe("customer conversion cohort", () => {
+	it("counts homepage clicks and distinct browsers by idea and placement with report filters", () => {
+		const create = (session = "one", extra: Partial<ConversionEvent> = {}): ConversionEvent => ({
+			...event("homepage_idea_selected", null, session),
+			diagnostics: { homepageIdea: "watercolor", homepagePlacement: "showcase" },
+			...extra,
+		});
+		const events = [
+			create(),
+			create(),
+			create("two"),
+			create("one", { name: "homepage_idea_preview_selected" }),
+			create("one", { name: "homepage_idea_preview_selected" }),
+			create("internal", { internal: true }),
+			create("staff", { userId: "admin" }),
+			create("old", { createdAt: new Date("2026-09-01Z") }),
+			create("other-source", { source: "google" }),
+			create("other-device", { device: "desktop" }),
+			create("legacy", { diagnostics: { homepageIdea: "christmas" } }),
+			create("popup", {
+				diagnostics: { homepageIdea: "christmas", homepagePlacement: "showcase" },
+			}),
+			create("invalid", {
+				diagnostics: { homepageIdea: "unknown", homepagePlacement: "showcase" },
+			}),
+		];
+		const report = buildConversionFunnel(
+			facts(),
+			{ events, jobs: [] },
+			{
+				range: "7d",
+				now,
+				source: "chatgpt.com",
+				device: "mobile",
+			},
+		).homepageIdeas;
+		expect(report).toHaveLength(8);
+		expect(report.find((row) => row.idea === "watercolor")).toEqual({
+			idea: "watercolor",
+			placement: "showcase",
+			previewClicks: 2,
+			previewVisitors: 1,
+			createClicks: 3,
+			createVisitors: 2,
+		});
+		expect(
+			report.filter((row) => row.idea === "christmas").map((row) => row.createVisitors),
+		).toEqual([1, 1]);
+		expect(report.find((row) => row.idea === "vintage-photo")?.createVisitors).toBe(0);
+	});
 	it("separates existing customer activity and completed-job latency from browser observations", () => {
 		const data = facts();
 		data.users.push({ ...data.users[0]!, id: "returning", createdAt: new Date("2026-08-01Z") });

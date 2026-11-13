@@ -465,8 +465,10 @@ export function GenerationForm({
 	useEffect(() => {
 		function selectPrompt(event: Event) {
 			const detail = (event as CustomEvent<LandingPromptSelectedDetail>).detail;
-			if (typeof detail?.prompt === "string" && detail.prompt.trim())
+			if (typeof detail?.prompt === "string" && detail.prompt.trim()) {
+				event.preventDefault();
 				updatePrompt(detail.prompt.slice(0, 10000));
+			}
 		}
 		function selectAsset(event: Event) {
 			const detail = (event as CustomEvent<{ assetId?: string }>).detail;

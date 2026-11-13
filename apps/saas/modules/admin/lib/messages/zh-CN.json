@@ -178,6 +178,29 @@
 				"return_conflicting": "同时上报批准和取消标记",
 				"capture_request_failed": "浏览器未收到成功扣款响应，服务端结果可能不同"
 			}
+		},
+		"homepageIdeas": {
+			"title": "首页玩法点击",
+			"basis": "分别统计选择预览和点击去创作。访客按所选时间内的浏览器去重，重复点击计入次数；沿用现有统计偏好，排除管理员等内部流量。",
+			"idea": "玩法",
+			"placement": "入口",
+			"previewVisitors": "预览访客数",
+			"previewClicks": "预览点击次数",
+			"createVisitors": "去创作访客数",
+			"createClicks": "去创作点击次数",
+			"placements": {
+				"showcase": "首页弹窗",
+				"quick-start": "首页卡片"
+			},
+			"ideas": {
+				"watercolor": "水彩画",
+				"vintage-photo": "复古人像",
+				"christmas": "圣诞壁纸",
+				"green-booth-freestyle": "录音棚音乐视频",
+				"restore-photo": "老照片修复",
+				"birthday-card": "生日贺卡",
+				"kung-fu-cat": "功夫猫"
+			}
 		}
 	},
 	"capabilities": {

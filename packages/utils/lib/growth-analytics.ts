@@ -1,5 +1,6 @@
 import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 import { GROWTH_EXPERIMENTS } from "@repo/config/growth-experiments";
+import { HOMEPAGE_IDEA_KEYS, HOMEPAGE_IDEA_PLACEMENTS } from "@repo/config/homepage-ideas";
 import { z } from "zod";
 
 import { sendFirstPartyGrowthEvent } from "./conversion-transport";
@@ -47,6 +48,8 @@ export const EZPIC_GROWTH_EVENT_NAMES = [
 	"prompt_copied",
 	"preset_selected",
 	"example_prompt_selected",
+	"homepage_idea_selected",
+	"homepage_idea_preview_selected",
 	"source_upload_started",
 	"source_upload_completed",
 	"marketing_draft_created",
@@ -125,6 +128,8 @@ export type GrowthContentAttribution = z.infer<typeof growthContentAttributionSc
 export const growthAnalyticsPropertiesSchema = z
 	.object({
 		...contentAttributionShape,
+		homepageIdea: z.enum(HOMEPAGE_IDEA_KEYS).optional(),
+		homepagePlacement: z.enum(HOMEPAGE_IDEA_PLACEMENTS).optional(),
 		experiment: z
 			.object({
 				experimentId: z.enum(["pricing-default-v1", "result-purchase-v1"]),

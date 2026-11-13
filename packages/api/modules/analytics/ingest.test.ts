@@ -38,6 +38,69 @@ beforeEach(() => {
 	mocks.record.mockReset().mockResolvedValue({ accepted: true });
 });
 describe("consented first-party ingestion", () => {
+	it.each(["christmas", "restore-photo", "birthday-card", "kung-fu-cat"])(
+		"keeps the selected homepage idea %s in stored click diagnostics",
+		async (homepageIdea) => {
+			await invoke({
+				...input,
+				path: "/",
+				event: {
+					name: "homepage_idea_selected",
+					properties: { anonymousSessionHash: hash, homepageIdea, status: "selected" },
+				},
+			});
+			expect(mocks.record).toHaveBeenCalledWith(
+				expect.objectContaining({
+					name: "homepage_idea_selected",
+					path: "/",
+					diagnostics: { homepageIdea, homepagePlacement: "quick-start" },
+				}),
+			);
+		},
+	);
+	it.each(["watercolor", "vintage-photo", "christmas", "green-booth-freestyle"])(
+		"stores separate preview and create clicks for showcase idea %s",
+		async (homepageIdea) => {
+			for (const name of ["homepage_idea_preview_selected", "homepage_idea_selected"]) {
+				await invoke({
+					...input,
+					path: "/",
+					event: {
+						name,
+						properties: {
+							anonymousSessionHash: hash,
+							homepageIdea,
+							homepagePlacement: "showcase",
+							status: "selected",
+						},
+					},
+				});
+				expect(mocks.record).toHaveBeenLastCalledWith(
+					expect.objectContaining({
+						name,
+						path: "/",
+						diagnostics: { homepageIdea, homepagePlacement: "showcase" },
+					}),
+				);
+			}
+		},
+	);
+	it("rejects unknown homepage identifiers before storage", async () => {
+		await expect(
+			invoke({
+				...input,
+				event: {
+					name: "homepage_idea_selected",
+					properties: {
+						anonymousSessionHash: hash,
+						homepageIdea: "unregistered-effect",
+						homepagePlacement: "showcase",
+					},
+				},
+			}),
+		).rejects.toThrow();
+		expect(mocks.record).not.toHaveBeenCalled();
+	});
 	it("validates the browser's assigned arm and stores only bounded experiment diagnostics", async () => {
 		const variant = growthExperimentVariant("pricing-default-v1", hash);
 		const experiment = { experimentId: "pricing-default-v1", variant };

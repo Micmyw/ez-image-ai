@@ -265,6 +265,50 @@
 		}
 	},
 	"home": {
+		"quickStart": {
+			"eyebrow": "Mach etwas Persönliches",
+			"title": "Dein Foto. So viele Möglichkeiten.",
+			"description": "Frische Erinnerungen auf, gestalte Geburtstagsgrüße oder mach dein Haustier zum Star.",
+			"more": "Videovorlagen entdecken",
+			"image": "Bild",
+			"video": "Video",
+			"items": {
+				"christmas": {
+					"title": "Dein Weihnachtshintergrund",
+					"description": "Ab in die Schneekugel oder mitten in eine gemütliche Winterszene.",
+					"input": "Dein Foto oder eine Weihnachtsszene",
+					"action": "Hintergrund gestalten",
+					"alt": "Ein beleuchtetes Weihnachtshaus in einer gläsernen Schneekugel"
+				},
+				"restorePhoto": {
+					"title": "Alte Fotos auffrischen",
+					"description": "Kratzer entfernen, Details hervorholen und natürliche Farben zurückbringen.",
+					"input": "Ein altes Foto",
+					"action": "Mein Foto restaurieren",
+					"alt": "Ein altes Familienporträt in einem Fotoalbum"
+				},
+				"birthdayCard": {
+					"title": "Geburtstagsgrüße mit Gesicht",
+					"description": "Ein Freund, dein Hund, ein kleiner Kuchen. Eine Karte, die zu ihnen passt.",
+					"input": "Ein Personen- oder Tierfoto",
+					"action": "Geburtstagskarte gestalten",
+					"alt": "Ein Golden Retriever mit Partyhut hinter einer rosa Geburtstagstorte"
+				},
+				"kungFuCat": {
+					"title": "Dein Tier kann Kung Fu.",
+					"description": "Mach aus ihrem unschuldigsten Foto einen kleinen Actionfilm.",
+					"input": "Ein Katzen- oder Hundefoto",
+					"action": "Tiervideo erstellen",
+					"alt": "Ein Corgi mit weißem Stirnband hebt die Pfote für eine Kung-Fu-Szene"
+				}
+			}
+		},
+		"quickStartPrompts": {
+			"restorePhoto": "Restauriere dieses alte Foto. Entferne Kratzer, Staub, Knicke und Verblassungen, stelle natürliche Details wieder her und koloriere Schwarz-Weiß-Bereiche behutsam mit realistischen Hauttönen und zeitgemäßen Farben. Bewahre Identität, Alter, Ausdruck und Kleidung jeder Person sowie die ursprüngliche Bildkomposition. Erhalte eine natürliche fotografische Textur.",
+			"birthdayCard": "Gestalte eine fröhliche Geburtstagsfotokarte mit der Person oder dem Haustier aus dem Referenzfoto. Bewahre das erkennbare Gesicht und die charakteristischen Merkmale. Ergänze einen kleinen Partyhut, eine rosa Geburtstagstorte mit drei Kerzen, lavendelfarbenes und warmgelbes Konfetti und einen sanften Pastellhintergrund. Verwende einen lebendigen redaktionellen Fotostil mit natürlichem Licht und einem klaren Hauptmotiv. Füge den Text „Alles Gute zum Geburtstag!“ in gut lesbarer Schrift hinzu. Lass um das Motiv herum ausreichend Platz.",
+			"watercolor": "Interpretiere dieses Bild als weiche Aquarellillustration. Behalte Hauptmotiv, Komposition und Farbpalette bei und ergänze eine dezente Papierstruktur.",
+			"vintagePhoto": "Gestalte das hochgeladene Porträt als Familienalbum-Foto im Stil der 1980er Jahre. Behalte Gesichtszüge, Hautton, Alter und den entspannten Gesichtsausdruck mit geschlossenem Mund bei. Zeige die Person in einem einfachen Strickpullover in einem schlichten Wohnzimmer. Verwende sanftes indirektes Blitzlicht, warme Innentöne, leicht verblasste Farben und feine Filmkörnung. Erhalte natürliche Augen und Hautstruktur, ohne rote Augen, Kratzer, Text oder Wasserzeichen."
+		},
 		"contentPolicyNotice": {
 			"label": "Inhalte für Erwachsene / NSFW sind verboten",
 			"details": "Inhaltsrichtlinie lesen (öffnet in einem neuen Tab)"
@@ -764,6 +808,50 @@
 				"title": "Foto in eine Malvorlage verwandeln",
 				"description": "Konturen und Hintergrund wählen, dann herunterladen oder auf A4 beziehungsweise US Letter drucken."
 			}
+		},
+		"showcasePopup": {
+			"trigger": "Neue Ideen entdecken",
+			"eyebrow": "Neue kreative Möglichkeiten",
+			"close": "Vorschau schließen",
+			"previous": "Vorherige Vorschau",
+			"next": "Nächste Vorschau",
+			"play": "Vorschau abspielen",
+			"pause": "Vorschau pausieren",
+			"mute": "Ton ausschalten",
+			"unmute": "Ton einschalten",
+			"retry": "Vorschau erneut abspielen",
+			"progress": "Wiedergabefortschritt",
+			"items": {
+				"watercolor": {
+					"title": "Dein Foto, neu gemalt.",
+					"label": "Aquarell",
+					"description": "Zieh den Regler und entdecke den Aquarell-Look. Probiere den Prompt mit deinem eigenen Foto aus.",
+					"action": "Fotobearbeitung ausprobieren"
+				},
+				"vintage-photo": {
+					"title": "Ein Porträt mit Geschichte.",
+					"label": "Retro-Porträt",
+					"description": "Warme Töne, feine Körnung und ein Hauch Familienalbum. Gib deinem Porträt einen Achtziger-Look.",
+					"action": "Mein Porträt umgestalten"
+				},
+				"christmas": {
+					"title": "Jeden Tag ein wenig Weihnachtszauber.",
+					"label": "Weihnachten",
+					"description": "Verschneite Straßen, leuchtende Schneekugeln und festliche Haustiere. Gestalte deinen eigenen Hintergrund.",
+					"action": "Hintergrund erstellen"
+				},
+				"green-booth-freestyle": {
+					"title": "Zwei Fotos. Eine Bühne.",
+					"label": "Musikvideo",
+					"description": "Bring zwei Personen in einen Freestyle-Auftritt. Sieh dir das Breitbild-Beispiel an und gestalte deine Version.",
+					"action": "Dieses Video erstellen"
+				}
+			},
+			"image": "Fotoidee",
+			"video": "Videovorlage",
+			"before": "Original",
+			"after": "Ergebnis",
+			"compare": "Zum Vergleichen ziehen"
 		}
 	},
 	"newsletter": {

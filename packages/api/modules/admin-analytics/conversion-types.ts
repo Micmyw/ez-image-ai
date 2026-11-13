@@ -1,3 +1,4 @@
+import { HOMEPAGE_IDEA_KEYS, HOMEPAGE_IDEA_PLACEMENTS } from "@repo/config/homepage-ideas";
 import { z } from "zod";
 
 export const conversionInputSchema = z
@@ -19,6 +20,18 @@ const steps = z.object({
 export const conversionOutputSchema = z.object({
 	since: z.string(),
 	asOf: z.string(),
+	homepageIdeas: z
+		.array(
+			z.object({
+				idea: z.enum(HOMEPAGE_IDEA_KEYS),
+				placement: z.enum(HOMEPAGE_IDEA_PLACEMENTS),
+				previewClicks: count,
+				previewVisitors: count,
+				createClicks: count,
+				createVisitors: count,
+			}),
+		)
+		.default([]),
 	experiments: z.array(
 		z.object({
 			experimentId: z.enum(["pricing-default-v1", "result-purchase-v1"]),

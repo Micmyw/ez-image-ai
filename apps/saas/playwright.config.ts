@@ -3,6 +3,7 @@ import path from "node:path";
 import { defineConfig, devices } from "@playwright/test";
 import dotenv from "dotenv";
 
+import { HOMEPAGE_SHOWCASE_SEEN_KEY } from "./modules/landing/lib/homepage-showcase";
 import { localMediaE2EChromiumLaunchOptions } from "./playwright-local-media";
 
 dotenv.config({ path: path.resolve(__dirname, "../../.env.local") });
@@ -13,6 +14,16 @@ const saasHostname = new URL(saasBaseUrl).hostname.replace(/^\[|\]$/g, "");
 const localMediaE2ELaunchOptions = localMediaE2EChromiumLaunchOptions(process.env);
 const guestOnlySpecs = /(?:guest-trial|landing|originality)\.spec\.ts/;
 const publicOnlySpecs = /(?:public-routes|public-seo|models|docs)\.spec\.ts/;
+// Ordinary journeys represent returning visitors. The showcase spec uses a fresh state.
+const returningVisitorState = {
+	cookies: [],
+	origins: [
+		{
+			origin: new URL(saasBaseUrl).origin,
+			localStorage: [{ name: HOMEPAGE_SHOWCASE_SEEN_KEY, value: "seen" }],
+		},
+	],
+};
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -72,7 +83,7 @@ export default defineConfig({
 			testMatch: publicOnlySpecs,
 			use: {
 				...devices["Desktop Chrome"],
-				storageState: { cookies: [], origins: [] },
+				storageState: returningVisitorState,
 			},
 		},
 		{
@@ -80,7 +91,7 @@ export default defineConfig({
 			testMatch: guestOnlySpecs,
 			use: {
 				...devices["Desktop Chrome"],
-				storageState: undefined,
+				storageState: returningVisitorState,
 			},
 		},
 	],

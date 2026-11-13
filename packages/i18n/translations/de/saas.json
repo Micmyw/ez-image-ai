@@ -913,6 +913,29 @@
 					"return_conflicting": "Widersprüchliche Freigabe- und Abbruchmarkierungen",
 					"capture_request_failed": "Browser erhielt keine erfolgreiche Abbuchungsantwort; Serverergebnis kann abweichen"
 				}
+			},
+			"homepageIdeas": {
+				"title": "Klicks auf Startseiten-Ideen",
+				"basis": "Vorschau- und Erstellen-Klicks werden getrennt gezählt. Besucher werden im gewählten Zeitraum pro Browser einmal gezählt; wiederholte Klicks bleiben in den Gesamtsummen. Bestehende Analyseeinstellungen gelten; interne Zugriffe sind ausgeschlossen.",
+				"idea": "Idee",
+				"placement": "Einstieg",
+				"previewVisitors": "Vorschau-Besucher",
+				"previewClicks": "Vorschau-Klicks",
+				"createVisitors": "Erstellen-Besucher",
+				"createClicks": "Erstellen-Klicks",
+				"placements": {
+					"showcase": "Startseiten-Popup",
+					"quick-start": "Startseiten-Karte"
+				},
+				"ideas": {
+					"watercolor": "Aquarell",
+					"vintage-photo": "Vintage-Porträt",
+					"christmas": "Weihnachtshintergrund",
+					"green-booth-freestyle": "Green Booth Freestyle",
+					"restore-photo": "Fotorestaurierung",
+					"birthday-card": "Geburtstagskarte",
+					"kung-fu-cat": "Kung-Fu-Katze"
+				}
 			}
 		}
 	},

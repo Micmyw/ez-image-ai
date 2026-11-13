@@ -265,6 +265,50 @@
 		}
 	},
 	"home": {
+		"quickStart": {
+			"eyebrow": "Créez quelque chose de personnel",
+			"title": "Votre photo. De nouvelles possibilités.",
+			"description": "Ravivez un souvenir, fêtez un anniversaire ou donnez le premier rôle à votre animal.",
+			"more": "Voir les modèles vidéo",
+			"image": "Image",
+			"video": "Vidéo",
+			"items": {
+				"christmas": {
+					"title": "Votre fond d’écran de Noël",
+					"description": "Entrez dans une boule à neige ou une douce scène d’hiver.",
+					"input": "Votre photo ou une scène de Noël",
+					"action": "Créer un fond d’écran",
+					"alt": "Une maison de Noël illuminée dans une boule à neige en verre"
+				},
+				"restorePhoto": {
+					"title": "Ravivez vos anciennes photos",
+					"description": "Effacez les rayures, retrouvez les détails et les couleurs naturelles.",
+					"input": "Une ancienne photo",
+					"action": "Restaurer ma photo",
+					"alt": "Un ancien portrait de famille dans un album photo"
+				},
+				"birthdayCard": {
+					"title": "Un anniversaire à leur image",
+					"description": "Un ami, votre chien, un petit gâteau. Une carte qui leur ressemble.",
+					"input": "Une photo de personne ou d’animal",
+					"action": "Créer une carte",
+					"alt": "Un golden retriever avec un chapeau de fête derrière un gâteau rose"
+				},
+				"kungFuCat": {
+					"title": "Votre animal, star du kung-fu",
+					"description": "Transformez sa photo la plus sage en un petit film d’action.",
+					"input": "Une photo de chat ou de chien",
+					"action": "Créer une vidéo d’animal",
+					"alt": "Un corgi avec un bandeau blanc levant la patte pour une scène de kung-fu"
+				}
+			}
+		},
+		"quickStartPrompts": {
+			"restorePhoto": "Restaure cette ancienne photographie. Élimine les rayures, la poussière, les plis et la décoloration, retrouve des détails naturels et colorise délicatement les zones en noir et blanc avec des tons de peau réalistes et des couleurs adaptées à l’époque. Préserve l’identité, l’âge, l’expression et les vêtements de chaque personne ainsi que la composition d’origine. Conserve une texture photographique naturelle.",
+			"birthdayCard": "Crée une carte photo d’anniversaire amusante avec la personne ou l’animal de la photo de référence. Préserve son visage reconnaissable et ses traits distinctifs. Ajoute un petit chapeau de fête, un gâteau rose avec trois bougies, des confettis lavande et jaune chaud et un fond pastel doux. Adopte un style photographique éditorial joyeux, avec une lumière naturelle et un sujet bien mis en valeur. Ajoute le texte « Joyeux anniversaire ! » dans une typographie claire et lisible. Laisse de l’espace autour du sujet.",
+			"watercolor": "Réinterprétez cette image en une illustration à l’aquarelle douce. Conservez le sujet principal, la composition et la palette de couleurs, puis ajoutez une légère texture de papier.",
+			"vintagePhoto": "Transformez le portrait importé en photo d’album de famille inspirée des années 1980. Conservez les traits du visage, le teint, l’âge apparent et l’expression détendue, bouche fermée. Habillez la personne d’un pull simple dans un salon modeste. Utilisez un flash indirect doux, des tons chauds, des couleurs légèrement passées et un grain fin. Gardez des yeux et une peau naturels, sans yeux rouges, rayures, texte ni filigrane."
+		},
 		"contentPolicyNotice": {
 			"label": "Contenu pour adultes / NSFW interdit",
 			"details": "Lire la politique de contenu (s’ouvre dans un nouvel onglet)"
@@ -764,6 +808,50 @@
 				"title": "Transformer une photo en coloriage",
 				"description": "Choisissez les contours et le fond, puis téléchargez ou imprimez au format A4 ou US Letter."
 			}
+		},
+		"showcasePopup": {
+			"trigger": "Explorer les nouvelles idées",
+			"eyebrow": "De nouvelles façons de créer",
+			"close": "Fermer les aperçus",
+			"previous": "Aperçu précédent",
+			"next": "Aperçu suivant",
+			"play": "Lire la vidéo",
+			"pause": "Mettre en pause",
+			"mute": "Couper le son",
+			"unmute": "Activer le son",
+			"retry": "Relancer la vidéo",
+			"progress": "Progression de la vidéo",
+			"items": {
+				"watercolor": {
+					"title": "Votre photo prend des couleurs.",
+					"label": "Aquarelle",
+					"description": "Glissez pour révéler le style aquarelle. Essayez cette instruction avec votre propre photo.",
+					"action": "Essayer cette retouche"
+				},
+				"vintage-photo": {
+					"title": "Un portrait qui a une histoire.",
+					"label": "Portrait rétro",
+					"description": "Des tons chauds, un grain doux, un air d’album de famille. Donnez à votre portrait un style années 80.",
+					"action": "Transformer mon portrait"
+				},
+				"christmas": {
+					"title": "Un peu de magie de Noël au quotidien.",
+					"label": "Noël",
+					"description": "Rues enneigées, boules à neige lumineuses et animaux festifs. Créez un fond d’écran à votre image.",
+					"action": "Créer mon fond d’écran"
+				},
+				"green-booth-freestyle": {
+					"title": "Deux photos. Une scène.",
+					"label": "Clip musical",
+					"description": "Mettez deux personnes en scène dans un freestyle. Regardez l’aperçu panoramique, puis créez votre version.",
+					"action": "Créer cette vidéo"
+				}
+			},
+			"image": "Idée photo",
+			"video": "Modèle vidéo",
+			"before": "Original",
+			"after": "Résultat",
+			"compare": "Glissez pour comparer"
 		}
 	},
 	"newsletter": {

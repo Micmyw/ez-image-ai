@@ -27,6 +27,7 @@ vi.mock("@shared/components/FeedbackRewardEntry", () => ({
 }));
 vi.mock("next/navigation", () => ({
 	useSearchParams: () => new URLSearchParams(navigation.search),
+	useRouter: () => ({ push: vi.fn() }),
 }));
 vi.mock("@auth/hooks/use-session", () => ({ useSession: () => ({ user: null }) }));
 vi.mock("@auth/lib/api", () => ({ useSessionQuery: () => ({ isPending: true }) }));
@@ -194,6 +195,8 @@ describe("LandingPage hero hierarchy", () => {
 		const uses = markup.indexOf('id="editing-use-cases"');
 		const photoIdeas = markup.indexOf('id="photo-idea-recommendations"');
 		expect(models).toBeGreaterThan(heroEnd);
+		expect(markup.indexOf('id="quick-start"')).toBeGreaterThan(heroEnd);
+		expect(markup.indexOf('id="quick-start"')).toBeLessThan(models);
 		expect(examples).toBeGreaterThan(models);
 		expect(comparison).toBeGreaterThan(examples);
 		expect(uses).toBeGreaterThan(comparison);
@@ -204,6 +207,27 @@ describe("LandingPage hero hierarchy", () => {
 		}
 		expect(markup).not.toContain("<video");
 		expect(markup.match(/id="examples"/g)).toHaveLength(1);
+	});
+	it.each(["en", "de", "es", "fr"] as const)(
+		"renders four actionable quick starts in %s",
+		async (locale) => {
+			navigation.locale = locale;
+			const markup = await renderLandingPage();
+			const copy = marketingMessages[locale].home.quickStart;
+			expect(markup).toContain(renderToStaticMarkup(<>{copy.title}</>));
+			for (const item of Object.values(copy.items)) {
+				expect(markup).toContain(renderToStaticMarkup(<>{item.title}</>));
+				expect(markup).toContain(renderToStaticMarkup(<>{item.action}</>));
+			}
+			const query = locale === "en" ? "?" : `?lang=${locale}&amp;`;
+			expect(markup).toContain(`href="/create${query}example=restore-photo"`);
+			expect(markup).toContain(`href="/create${query}example=birthday-card"`);
+			expect(markup).not.toContain("<video");
+			expect(markup).not.toContain("christmas-entry-link");
+		},
+	);
+	it("keeps the create workspace focused on the editor", async () => {
+		expect(await renderLandingPage({ workspace: true })).not.toContain('id="quick-start"');
 	});
 });
 

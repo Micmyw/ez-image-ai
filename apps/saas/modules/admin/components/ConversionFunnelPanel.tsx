@@ -14,6 +14,7 @@ import {
 } from "./CapabilityUi";
 import { CheckoutDiagnosticsPanel } from "./CheckoutDiagnosticsPanel";
 import { ConversionExperimentsPanel } from "./ConversionExperimentsPanel";
+import { HomepageIdeaAnalytics } from "./HomepageIdeaAnalytics";
 
 const steps = [
 	"signups",
@@ -92,6 +93,7 @@ export function ConversionFunnelPanel() {
 						</div>
 					</div>
 					<p className="text-sm">{t("traffic", data.traffic)}</p>
+					<HomepageIdeaAnalytics rows={data.homepageIdeas ?? []} />
 					<p className="text-sm">
 						{t("linkedVisitors", {
 							registeredBrowsers: data.visitorCohort.registeredBrowsers,

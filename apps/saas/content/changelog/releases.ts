@@ -1,5 +1,16 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-11-13",
+		title: "Four ways to start with your photo",
+		changes: [
+			"Explore watercolor edits, vintage portraits and Christmas wallpapers in a wide homepage showcase, plus one landscape music-video preview. Compare the images and try an idea with your own photo. Reopen it from Explore new ideas.",
+			"Take your time with each photo idea: the vintage result appears after the original, Christmas images unfold one by one, and previews stay on screen until you choose another.",
+			"Homepage idea clicks now appear by idea and entry in the administrator analytics report, with separate preview and Create counts.",
+			"Find Christmas wallpapers, old-photo restoration, birthday cards and Kung Fu Cat videos right below the homepage editor.",
+			"Choose a photo idea to fill the editor with a ready-to-edit prompt. Your uploaded photo and selected model stay with you. Restoration and birthday presets are available in English, German, Spanish and French.",
+		],
+	},
+	{
 		date: "2026-11-11",
 		title: "GPT Image 2.6, SVG and GIF with the USD 2.99 pack",
 		changes: [

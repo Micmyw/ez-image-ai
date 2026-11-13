@@ -265,6 +265,50 @@
 		}
 	},
 	"home": {
+		"quickStart": {
+			"eyebrow": "Crea algo personal",
+			"title": "Tu foto. Muchas más posibilidades.",
+			"description": "Recupera un recuerdo, celebra su cumpleaños o convierte a tu mascota en protagonista.",
+			"more": "Explorar plantillas de vídeo",
+			"image": "Imagen",
+			"video": "Vídeo",
+			"items": {
+				"christmas": {
+					"title": "Tu fondo de Navidad",
+					"description": "Entra en una bola de nieve o ilumina una acogedora escena invernal.",
+					"input": "Tu foto o una escena navideña",
+					"action": "Crear un fondo",
+					"alt": "Una casa navideña iluminada dentro de una bola de nieve de cristal"
+				},
+				"restorePhoto": {
+					"title": "Revive tus fotos antiguas",
+					"description": "Elimina arañazos, recupera detalles y devuelve el color natural.",
+					"input": "Una foto antigua",
+					"action": "Restaurar mi foto",
+					"alt": "Un retrato familiar antiguo en un álbum de fotos"
+				},
+				"birthdayCard": {
+					"title": "Un cumpleaños muy suyo",
+					"description": "Un amigo, tu perro, una tarta. Crea una tarjeta con su personalidad.",
+					"input": "Una foto de persona o mascota",
+					"action": "Crear una tarjeta",
+					"alt": "Un golden retriever con gorro de fiesta detrás de una tarta rosa"
+				},
+				"kungFuCat": {
+					"title": "Tu mascota sabe kung fu",
+					"description": "Convierte su foto más inocente en una pequeña película de acción.",
+					"input": "Una foto de gato o perro",
+					"action": "Crear un vídeo de mascota",
+					"alt": "Un corgi con una cinta blanca levantando la pata en una escena de kung fu"
+				}
+			}
+		},
+		"quickStartPrompts": {
+			"restorePhoto": "Restaura esta fotografía antigua. Elimina arañazos, polvo, pliegues y decoloración, recupera detalles naturales y colorea suavemente las zonas en blanco y negro con tonos de piel realistas y colores propios de la época. Conserva la identidad, edad, expresión y ropa de cada persona y la composición original. Mantén una textura fotográfica natural.",
+			"birthdayCard": "Crea una divertida tarjeta fotográfica de cumpleaños protagonizada por la persona o mascota de la foto de referencia. Conserva su rostro reconocible y sus rasgos. Añade un pequeño gorro de fiesta, una tarta rosa con tres velas, confeti lavanda y amarillo cálido y un fondo pastel suave. Usa un estilo de fotografía editorial alegre con luz natural y un protagonista bien definido. Añade el texto «¡Feliz cumpleaños!» con letras claras y fáciles de leer. Deja espacio alrededor del protagonista.",
+			"watercolor": "Reinterpreta esta imagen como una ilustración de acuarela suave. Conserva el sujeto principal, la composición y la paleta de colores, y añade una textura sutil de papel.",
+			"vintagePhoto": "Transforma el retrato subido en una fotografía de álbum familiar inspirada en los años ochenta. Conserva la estructura facial, el tono de piel, la edad aparente y la expresión relajada con la boca cerrada. Viste a la persona con un jersey sencillo en una sala de estar modesta. Usa luz de flash rebotada suave, tonos cálidos, colores ligeramente desvaídos y grano fino. Mantén los ojos y la piel naturales, sin ojos rojos, arañazos, texto ni marcas de agua."
+		},
 		"contentPolicyNotice": {
 			"label": "Contenido para adultos / NSFW prohibido",
 			"details": "Leer la política de contenido (se abre en una pestaña nueva)"
@@ -764,6 +808,50 @@
 				"title": "Convertir una foto en dibujo para colorear",
 				"description": "Elige contornos y fondo; descarga o imprime en A4 o US Letter."
 			}
+		},
+		"showcasePopup": {
+			"trigger": "Explorar nuevas ideas",
+			"eyebrow": "Nuevas formas de crear",
+			"close": "Cerrar vistas previas",
+			"previous": "Vista previa anterior",
+			"next": "Siguiente vista previa",
+			"play": "Reproducir vista previa",
+			"pause": "Pausar vista previa",
+			"mute": "Silenciar",
+			"unmute": "Activar sonido",
+			"retry": "Reintentar reproducción",
+			"progress": "Progreso de reproducción",
+			"items": {
+				"watercolor": {
+					"title": "Tu foto, pintada de otra forma.",
+					"label": "Acuarela",
+					"description": "Desliza para descubrir el estilo acuarela. Prueba la instrucción con una foto tuya.",
+					"action": "Probar esta edición"
+				},
+				"vintage-photo": {
+					"title": "Un retrato con historia.",
+					"label": "Retrato retro",
+					"description": "Tonos cálidos, grano suave y aire de álbum familiar. Dale a tu retrato un estilo de los ochenta.",
+					"action": "Transformar mi retrato"
+				},
+				"christmas": {
+					"title": "Un poco de magia navideña cada día.",
+					"label": "Navidad",
+					"description": "Calles nevadas, bolas de nieve luminosas y mascotas festivas. Crea un fondo a tu estilo.",
+					"action": "Crear mi fondo"
+				},
+				"green-booth-freestyle": {
+					"title": "Dos fotos. Un escenario.",
+					"label": "Vídeo musical",
+					"description": "Lleva a dos personas a una actuación de freestyle. Mira el ejemplo panorámico y crea tu versión.",
+					"action": "Crear este vídeo"
+				}
+			},
+			"image": "Idea para fotos",
+			"video": "Plantilla de vídeo",
+			"before": "Original",
+			"after": "Resultado",
+			"compare": "Desliza para comparar"
 		}
 	},
 	"newsletter": {

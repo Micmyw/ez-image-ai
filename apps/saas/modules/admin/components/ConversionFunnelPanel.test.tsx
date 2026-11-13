@@ -49,6 +49,24 @@ describe("conversion panel evidence labels", () => {
 		"separates missing observations from authoritative zero payments in %s",
 		(locale, messages) => {
 			state.data = {
+				homepageIdeas: [
+					{
+						idea: "watercolor",
+						placement: "showcase",
+						previewVisitors: 3,
+						previewClicks: 7,
+						createVisitors: 2,
+						createClicks: 4,
+					},
+					{
+						idea: "christmas",
+						placement: "quick-start",
+						previewVisitors: 0,
+						previewClicks: 0,
+						createVisitors: 1,
+						createClicks: 2,
+					},
+				],
 				experiments: [],
 				activity: [],
 				totals: {
@@ -128,6 +146,12 @@ describe("conversion panel evidence labels", () => {
 			expect(markup).toContain(labels.INPUT_CONTENT_REJECTED);
 			expect(markup).toContain(labels.checkoutErrors.network);
 			expect(markup).toContain(labels.IMAGE_PASS);
+			expect(markup).toContain(labels.homepageIdeas.title);
+			expect(markup).toContain(labels.homepageIdeas.createVisitors);
+			expect(markup).toContain(labels.homepageIdeas.previewClicks);
+			expect(markup).toContain(labels.homepageIdeas.ideas.watercolor);
+			expect(markup).toContain(labels.homepageIdeas.placements.showcase);
+			expect(markup).toContain(labels.homepageIdeas.placements["quick-start"]);
 			expect(markup).toContain(messages.admin.capabilities.analytics.ranges["30d"]);
 			expect(markup).toContain(`aria-label="${labels.paid}" min="0" max="2" value="0"`);
 			expect(state.selections.slice(1).every((s) => s.options[0]?.value === "__all__")).toBe(true);

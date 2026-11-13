@@ -265,6 +265,50 @@
 		}
 	},
 	"home": {
+		"quickStart": {
+			"eyebrow": "Make something personal",
+			"title": "Your photo. A little more possibility.",
+			"description": "Bring back a memory, make their birthday, or give your pet the starring role.",
+			"more": "Explore video templates",
+			"image": "Image",
+			"video": "Video",
+			"items": {
+				"christmas": {
+					"title": "Your Christmas wallpaper",
+					"description": "Step inside a snow globe, or light up a cozy winter scene.",
+					"input": "Your photo or a festive scene",
+					"action": "Make a wallpaper",
+					"alt": "A glowing Christmas cottage inside a glass snow globe"
+				},
+				"restorePhoto": {
+					"title": "Bring old photos back",
+					"description": "Clean up scratches, refresh the detail, and bring back natural color.",
+					"input": "One old photo",
+					"action": "Restore my photo",
+					"alt": "A vintage family portrait in a paper photo album"
+				},
+				"birthdayCard": {
+					"title": "Make their birthday",
+					"description": "A friend, your dog, a little cake. Make a card that feels like them.",
+					"input": "A person or pet photo",
+					"action": "Create a birthday card",
+					"alt": "A golden retriever in a party hat behind a pink birthday cake"
+				},
+				"kungFuCat": {
+					"title": "Your pet. Kung fu star.",
+					"description": "Turn their most innocent photo into an action-packed little movie.",
+					"input": "One cat or dog photo",
+					"action": "Make a pet video",
+					"alt": "A corgi in a white headband raising a paw for a kung fu scene"
+				}
+			}
+		},
+		"quickStartPrompts": {
+			"restorePhoto": "Restore this old photograph. Remove scratches, dust, creases and fading, recover clear natural detail, and gently colorize black-and-white areas with realistic skin tones and period-appropriate colors. Preserve every person's identity, age, expression, clothing and the original composition. Keep a natural photographic texture.",
+			"birthdayCard": "Create a playful birthday photo card starring the person or pet in the reference photo. Preserve their recognizable face and features. Add a small party hat, a pink birthday cake with three candles, lavender and warm yellow confetti, and a soft pastel background. Use a joyful editorial photography style with natural light and a clear focal subject. Add the words \"Happy Birthday!\" in clean, easy-to-read lettering. Leave comfortable space around the subject.",
+			"watercolor": "Reinterpret this image as a soft watercolor illustration. Keep the main subject, composition, and color palette, and add subtle paper texture.",
+			"vintagePhoto": "Restyle the uploaded portrait as a family-album photograph inspired by the 1980s. Preserve the facial structure, skin tone, apparent age and relaxed closed-mouth expression. Dress the person in a simple knit sweater in a modest living room. Use gentle bounced-flash lighting, warm indoor tones, mild print fading and fine film grain. Keep natural eyes and skin texture, without red-eye, scratches, text or watermarks."
+		},
 		"contentPolicyNotice": {
 			"label": "Adult / NSFW content is prohibited",
 			"details": "Read our content policy (opens in a new tab)"
@@ -764,6 +808,50 @@
 				"title": "Turn a photo into a coloring page",
 				"description": "Choose outlines and background settings, then download or print on A4 or US Letter."
 			}
+		},
+		"showcasePopup": {
+			"trigger": "Explore new ideas",
+			"eyebrow": "New ways to create",
+			"close": "Close previews",
+			"previous": "Previous preview",
+			"next": "Next preview",
+			"play": "Play preview",
+			"pause": "Pause preview",
+			"mute": "Mute preview",
+			"unmute": "Turn sound on",
+			"retry": "Replay preview",
+			"progress": "Preview progress",
+			"items": {
+				"watercolor": {
+					"title": "Your photo, painted differently.",
+					"label": "Watercolor",
+					"description": "Slide to reveal the watercolor look. Try the prompt with a photo of your own.",
+					"action": "Try this photo edit"
+				},
+				"vintage-photo": {
+					"title": "A portrait with a little history.",
+					"label": "Vintage portrait",
+					"description": "Warm tones, soft grain, an old family-album feel. Give your portrait an eighties look.",
+					"action": "Restyle my portrait"
+				},
+				"christmas": {
+					"title": "A little holiday magic, every day.",
+					"label": "Christmas",
+					"description": "Snowy streets, glowing snow globes and festive pets. Make a wallpaper that feels like you.",
+					"action": "Make my wallpaper"
+				},
+				"green-booth-freestyle": {
+					"title": "Two photos. One stage.",
+					"label": "Music video",
+					"description": "Bring two people into a freestyle performance. Watch the wide-screen preview, then make your version.",
+					"action": "Make this video"
+				}
+			},
+			"image": "Photo idea",
+			"video": "Video template",
+			"before": "Original",
+			"after": "Result",
+			"compare": "Drag to compare"
 		}
 	},
 	"newsletter": {

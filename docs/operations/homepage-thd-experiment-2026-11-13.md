@@ -34,3 +34,11 @@ not a controlled causal test; if final post-change data is unavailable, report t
 Record the actual deployment time, revision and verification evidence in the private local
 GSC analysis directory after publication. Do not infer production deployment from a local test
 or automatically change copy at the review deadline.
+
+## Subsequently authorized homepage discovery work
+
+The user subsequently requested the complete design and implementation of homepage photo
+quick starts, followed by a dynamic homepage template-preview popup. These separately
+authorized body changes retain the experiment's THD values. See
+`docs/product/homepage-quick-starts.md`; record its actual deployment time separately and
+account for the additional change when interpreting traffic or conversion observations.

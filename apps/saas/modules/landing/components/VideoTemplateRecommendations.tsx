@@ -8,7 +8,7 @@ import { publicPagePath } from "../../public-content/lib/indexing";
 
 const featuredKeys = ["bulin-47", "spin-me-round", "58th-floor", "kung-fu-cat"];
 
-/** Static discovery only: the homepage never mounts a template player or workspace. */
+/** Static discovery cards; the homepage's separate showcase owns its active preview player. */
 export async function VideoTemplateRecommendations() {
 	const locale = await getLocale();
 	const t = await getTranslations("videoTemplates.home");

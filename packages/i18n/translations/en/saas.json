@@ -913,6 +913,29 @@
 					"return_conflicting": "Conflicting approval and cancel flags reported",
 					"capture_request_failed": "Browser did not receive a successful capture response; server outcome may differ"
 				}
+			},
+			"homepageIdeas": {
+				"title": "Homepage idea clicks",
+				"basis": "Preview clicks and Create clicks are counted separately. Visitors are deduplicated by browser within the selected period; repeat clicks remain in totals. Uses existing analytics preferences and excludes internal traffic.",
+				"idea": "Idea",
+				"placement": "Entry",
+				"previewVisitors": "Preview visitors",
+				"previewClicks": "Preview clicks",
+				"createVisitors": "Create visitors",
+				"createClicks": "Create clicks",
+				"placements": {
+					"showcase": "Homepage popup",
+					"quick-start": "Homepage card"
+				},
+				"ideas": {
+					"watercolor": "Watercolor",
+					"vintage-photo": "Vintage portrait",
+					"christmas": "Christmas wallpaper",
+					"green-booth-freestyle": "Green Booth Freestyle",
+					"restore-photo": "Photo restoration",
+					"birthday-card": "Birthday card",
+					"kung-fu-cat": "Kung Fu Cat"
+				}
 			}
 		}
 	},

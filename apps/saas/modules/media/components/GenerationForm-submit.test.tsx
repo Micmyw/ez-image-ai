@@ -289,6 +289,20 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it("accepts a homepage idea without removing the uploaded photo or starting generation", () => {
+		vi.stubGlobal("window", new EventTarget());
+		state.values.sourceAssetId = "owned-photo";
+		render();
+		const previous = { ...state.values };
+		const selection = new CustomEvent("ezpic:landing-prompt-selected", {
+			cancelable: true,
+			detail: { prompt: "Restore this old photograph." },
+		});
+		expect(window.dispatchEvent(selection)).toBe(false);
+		expect(state.values).toEqual({ ...previous, prompt: "Restore this old photograph." });
+		expect(state.beginNewAction).toHaveBeenCalled();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
 	it.each(["flare", "sunburst"] as const)(
 		"funds every supported GPT 2.6 %s result with one explicitly selected pass",
 		async (model) => {

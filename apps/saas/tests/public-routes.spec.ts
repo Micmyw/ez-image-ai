@@ -40,7 +40,7 @@ const legacyRedirects: ReadonlyArray<{ from: string; to: string }> = [
 	]),
 ];
 
-test.use({ storageState: { cookies: [], origins: [] } });
+// The public project supplies a signed-out returning visitor state.
 
 test("GPT Image 2.6 tools put a usable composer first at desktop and phone widths", async ({
 	page,
@@ -272,36 +272,16 @@ test("Christmas wallpaper homepage entry works on desktop and mobile", async ({
 	await expect(page.getByRole("heading", { level: 1 })).toContainText(
 		/AI Image Editor No Restrictions/i,
 	);
-	const entry = page.locator(".christmas-entry");
-	await expect(page.locator(".christmas-quick-entry")).toHaveAttribute(
-		"href",
-		"/christmas-wallpaper",
-	);
+	const entry = page.locator('[data-quick-start="christmas"]');
+	await expect(entry).toHaveAttribute("href", "/christmas-wallpaper");
 	await expect(page.locator("footer a[href='/christmas-wallpaper']")).toBeAttached();
 	await page.setViewportSize({ width: 1440, height: 900 });
 	await entry.scrollIntoViewIfNeeded();
 	await page.mouse.move(0, 850);
-	const phones = entry.locator(".christmas-entry-phone");
-	const initialTransforms = await phones.evaluateAll((nodes) =>
-		nodes.map((node) => getComputedStyle(node).transform),
-	);
-	await entry.getByRole("heading").hover();
-	await expect
-		.poll(() =>
-			phones.evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).transform)),
-		)
-		.toEqual(initialTransforms);
-	for (const style of ["street", "fireplace", "pet"]) {
-		const phone = entry.locator(`.christmas-entry-phone.${style}`);
-		await phone.hover();
-		await expect(phone).toHaveCSS("translate", "0px -6px");
-		for (const other of ["street", "fireplace", "pet"].filter((value) => value !== style)) {
-			await expect(entry.locator(`.christmas-entry-phone.${other}`)).toHaveCSS("translate", "none");
-		}
-	}
 	await page.emulateMedia({ reducedMotion: "reduce" });
-	await entry.locator(".christmas-entry-phone.fireplace").hover();
-	await expect(entry.locator(".christmas-entry-phone.fireplace")).toHaveCSS("translate", "none");
+	await entry.hover();
+	await expect(entry).toHaveCSS("transform", "none");
+	await expect(entry.locator("img")).toHaveCSS("transform", "none");
 	await page.emulateMedia({ reducedMotion: "no-preference" });
 	for (const width of [1440, 390, 320]) {
 		await page.setViewportSize({ width, height: 900 });
@@ -313,7 +293,7 @@ test("Christmas wallpaper homepage entry works on desktop and mobile", async ({
 					.evaluate((node) => Math.round(node.getBoundingClientRect().top)),
 			)
 			.toBe(0);
-		await expect(entry.locator("img")).toHaveCount(3);
+		await expect(entry.locator("img")).toHaveCount(1);
 		await expect
 			.poll(() =>
 				entry
@@ -330,7 +310,7 @@ test("Christmas wallpaper homepage entry works on desktop and mobile", async ({
 	await page.locator('[data-test="header-navigation-trigger"]').click();
 	await expect(page.locator(".studio-header-drawer")).toBeVisible();
 	await page.keyboard.press("Escape");
-	await entry.getByRole("link").focus();
+	await entry.focus();
 	await page.keyboard.press("Enter");
 	await expect(page).toHaveURL(/\/christmas-wallpaper$/, { timeout: 30_000 });
 	await expect(page.locator(".christmas-style-grid article")).toHaveCount(6);

@@ -913,6 +913,29 @@
 					"return_conflicting": "Indicadores contradictorios de aprobación y cancelación",
 					"capture_request_failed": "El navegador no recibió una respuesta de captura correcta; el resultado del servidor puede diferir"
 				}
+			},
+			"homepageIdeas": {
+				"title": "Clics en las ideas de inicio",
+				"basis": "Los clics de vista previa y de creación se cuentan por separado. Los visitantes se cuentan una vez por navegador en el período seleccionado; los clics repetidos permanecen en los totales. Se respetan las preferencias de análisis existentes y se excluye el tráfico interno.",
+				"idea": "Idea",
+				"placement": "Entrada",
+				"previewVisitors": "Visitantes de vista previa",
+				"previewClicks": "Clics de vista previa",
+				"createVisitors": "Visitantes de creación",
+				"createClicks": "Clics de creación",
+				"placements": {
+					"showcase": "Ventana de inicio",
+					"quick-start": "Tarjeta de inicio"
+				},
+				"ideas": {
+					"watercolor": "Acuarela",
+					"vintage-photo": "Retrato vintage",
+					"christmas": "Fondo navideño",
+					"green-booth-freestyle": "Green Booth Freestyle",
+					"restore-photo": "Restauración de fotos",
+					"birthday-card": "Tarjeta de cumpleaños",
+					"kung-fu-cat": "Gato kung fu"
+				}
 			}
 		}
 	},

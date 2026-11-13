@@ -91,6 +91,13 @@ export const ingestGrowthEvent = publicProcedure
 			device: analyticsDevice(agent),
 			productKind: input.event.properties.productKind ?? null,
 			errorCategory: input.event.properties.errorCategory ?? null,
-			diagnostics: experiment ?? input.event.properties.generation ?? null,
+			diagnostics:
+				["homepage_idea_selected", "homepage_idea_preview_selected"].includes(input.event.name) &&
+				input.event.properties.homepageIdea
+					? {
+							homepageIdea: input.event.properties.homepageIdea,
+							homepagePlacement: input.event.properties.homepagePlacement ?? "quick-start",
+						}
+					: (experiment ?? input.event.properties.generation ?? null),
 		});
 	});

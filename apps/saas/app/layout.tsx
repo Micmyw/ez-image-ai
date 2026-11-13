@@ -112,12 +112,13 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 				}
 			: {}),
 		// LandingPage renders the remaining home copy on the server; its interactive
-		// sections need only these three namespaces during hydration and navigation.
+		// sections need only these namespaces during hydration and navigation.
 		// The retired creator-workflows section has no routed client consumer.
 		home: {
 			generator: home.generator,
 			beforeAfter: home.beforeAfter,
 			showcase: home.showcase,
+			quickStartPrompts: home.quickStartPrompts,
 		},
 		videoEffects: {
 			name: videoEffects.name,

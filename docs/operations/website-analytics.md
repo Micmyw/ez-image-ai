@@ -31,6 +31,19 @@ Official references: [masking](https://learn.microsoft.com/en-us/clarity/setup-a
 
 ## Database and verification
 
+### Homepage idea click report (2026-11-13)
+
+`homepage_idea_preview_selected` records explicit popup thumbnail/arrow selections;
+`homepage_idea_selected` records popup Create and homepage-card clicks. Their bounded public
+`homepageIdea` and `homepagePlacement` dimensions are retained in `growth_event.diagnostics`.
+Automatic opening/reveals are not clicks. `/admin/analytics` groups both totals and distinct
+browser session hashes by idea and placement using its existing range/source/device filters
+and internal-session exclusions. Historical card events default to `quick-start`.
+Existing consent, transport, retention and administrator access apply. There is no new table,
+migration, external tracker or customer interaction. This implementation is local until release.
+
+### Existing storage checks
+
 Apply `20261021100000_growth_event_funnel` followed by `20261021120000_anonymous_traffic_diagnostics` before deploying the consumers. Both tables use the existing private application-role/RLS boundary. Counters and detailed observations older than 90 days are removed in bounded batches on new activity; idle sites purge on subsequent activity. The aggregate endpoint has a global 12,000-request/minute ceiling; it is coarse protection, not a human-traffic guarantee. Client page deduplication is memory-only.
 
 Focused tests cover region trust, explicit refusal/version renewal, source sanitization, anonymous credentials, immutable registration attribution, SDK start/revoke, generation payload limits and private Chinese labels. The migration and atomic SQL were exercised on an isolated local PGlite PostgreSQL engine. Browser tests intercept external vendors and business APIs; this validates local integration behavior, not actual Microsoft/Google ingestion, payment, generation or dashboard visibility. Production migration, deployment and authenticated vendor-dashboard verification are NOT_RUN.

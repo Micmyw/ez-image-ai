@@ -194,6 +194,7 @@ describe("SaaS root layout", () => {
 				generator: fullMessages.home.generator,
 				beforeAfter: fullMessages.home.beforeAfter,
 				showcase: fullMessages.home.showcase,
+				quickStartPrompts: fullMessages.home.quickStartPrompts,
 			});
 			expect(clientMessages.home).not.toHaveProperty("creatorWorkflows");
 			// The removed module remains available to server rendering and isolated consumers.
@@ -205,6 +206,7 @@ describe("SaaS root layout", () => {
 					creatorWorkflows: fullMessages.home.creatorWorkflows,
 					beforeAfter: clientMessages.home.beforeAfter,
 					showcase: clientMessages.home.showcase,
+					quickStartPrompts: clientMessages.home.quickStartPrompts,
 				},
 			};
 			const before = JSON.stringify(withRetiredSection);

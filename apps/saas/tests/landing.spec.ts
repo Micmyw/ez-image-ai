@@ -1,3 +1,4 @@
+import path from "node:path";
 import { gzipSync } from "node:zlib";
 
 import { expect, type Locator, type Page, test } from "@playwright/test";
@@ -6,6 +7,112 @@ import { expectNoAdvertising, watchAdFreeBrowsing } from "./helpers/ad-free-brow
 
 const ONE_PIXEL_PNG =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
+
+for (const width of [1440, 390, 320]) {
+	test(`homepage quick starts keep photos and apply ideas at ${width}px`, async ({ page }) => {
+		test.setTimeout(60_000);
+		await page.route("**/api/analytics/traffic", (route) => route.fulfill({ status: 204 }));
+		await page.setViewportSize({ width, height: 1000 });
+		await page.goto("/");
+		await page.addStyleTag({ content: "nextjs-portal { visibility: hidden; }" });
+		const ideas = page.locator("#quick-start");
+		await ideas.scrollIntoViewIfNeeded();
+		await expect(ideas.getByRole("link")).toHaveCount(5);
+		await expect(ideas.locator("video")).toHaveCount(0);
+		await expect
+			.poll(() =>
+				ideas
+					.locator("img")
+					.evaluateAll((images) =>
+						images.every(
+							(image) =>
+								image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0,
+						),
+					),
+			)
+			.toBe(true);
+		expect(await ideas.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+			true,
+		);
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+		).toBe(true);
+		await page.screenshot({
+			path: path.resolve("../../output/playwright/homepage-quick-starts", `home-${width}.png`),
+		});
+		await ideas.screenshot({
+			path: path.resolve("../../output/playwright/homepage-quick-starts", `cards-${width}.png`),
+		});
+		await page.locator("#landing-source-image").setInputFiles(pngFile("my-old-photo.png"));
+		await ideas.getByRole("link", { name: /restore my photo/i }).click();
+		const prompt = page.getByRole("textbox", { name: "Edit instruction", exact: true });
+		await expect(prompt).toHaveValue(/^Restore this old photograph/);
+		await expect(prompt).toBeFocused();
+		await expect(page.getByRole("img", { name: /preview of my-old-photo/i })).toBeVisible();
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
+			"Nano Banana 2 Lite",
+		);
+		await ideas.getByRole("link", { name: /create a birthday card/i }).click();
+		await expect(prompt).toHaveValue(/^Create a playful birthday photo card/);
+		await expect(page.getByRole("img", { name: /preview of my-old-photo/i })).toBeVisible();
+		await expect(page).toHaveURL(/\/$/);
+		await expect(ideas.locator('[data-quick-start="kung-fu-cat"]')).toHaveAttribute(
+			"href",
+			"/video-templates/kung-fu-cat",
+		);
+		await expect(ideas.locator('[data-quick-start="christmas"]')).toHaveAttribute(
+			"href",
+			"/christmas-wallpaper",
+		);
+	});
+}
+
+test("homepage quick starts open translated presets directly in Create", async ({ page }) => {
+	await page.route("**/api/analytics/traffic", (route) => route.fulfill({ status: 204 }));
+	await page.setViewportSize({ width: 390, height: 1000 });
+	await page.goto("/create?example=birthday-card&lang=de");
+	const prompt = page.locator('[data-test="landing-prompt-panel"] textarea');
+	await expect(prompt).toHaveValue(/^Gestalte eine fröhliche Geburtstagsfotokarte/);
+	await expect(page.locator("#quick-start")).toHaveCount(0);
+	await page.goto("/?lang=de");
+	await page.addStyleTag({ content: "nextjs-portal { visibility: hidden; }" });
+	await expect(page.locator("#quick-start")).toContainText("Dein Foto. So viele Möglichkeiten.");
+	await expect(page.locator('[data-quick-start="restore-photo"]')).toHaveAttribute(
+		"href",
+		"/create?lang=de&example=restore-photo",
+	);
+	await page.locator("#quick-start").scrollIntoViewIfNeeded();
+	expect(
+		await page
+			.locator("#quick-start h3")
+			.evaluateAll((titles) => titles.every((title) => title.scrollWidth <= title.clientWidth)),
+	).toBe(true);
+	await page.locator("#quick-start").screenshot({
+		path: path.resolve("../../output/playwright/homepage-quick-starts", "cards-de-390.png"),
+	});
+});
+
+test("homepage quick starts return from video mode without losing the image upload", async ({
+	page,
+}) => {
+	test.setTimeout(60_000);
+	await page.route("**/api/analytics/traffic", (route) => route.fulfill({ status: 204 }));
+	await page.goto("/");
+	await page.locator("#landing-source-image").setInputFiles(pngFile("keep-my-photo.png"));
+	await page.locator('[data-generator-panel="image"] [data-generator-mode="video"]').click();
+	await expect(page.locator('[data-generator-panel="video"]')).toBeVisible();
+	await expect(page).toHaveURL(/mode=video/);
+	const card = page.locator('[data-quick-start="birthday-card"]');
+	await card.focus();
+	await page.keyboard.press("Enter");
+	await expect(page.locator('[data-generator-panel="image"]')).toBeVisible();
+	await expect(page.getByRole("textbox", { name: "Edit instruction", exact: true })).toHaveValue(
+		/^Create a playful birthday photo card/,
+	);
+	await expect(page.getByRole("textbox", { name: "Edit instruction", exact: true })).toBeFocused();
+	await expect(page.getByRole("img", { name: /preview of keep-my-photo/i })).toBeVisible();
+	await expect(page).toHaveURL(/\/$/);
+});
 
 const capability = {
 	version: "landing-e2e-v2",

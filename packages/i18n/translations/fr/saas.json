@@ -913,6 +913,29 @@
 					"return_conflicting": "Indicateurs d’approbation et d’annulation contradictoires",
 					"capture_request_failed": "Le navigateur n’a pas reçu de réponse de capture réussie ; le résultat serveur peut différer"
 				}
+			},
+			"homepageIdeas": {
+				"title": "Clics sur les idées de l’accueil",
+				"basis": "Les clics d’aperçu et de création sont comptés séparément. Chaque navigateur est compté une fois sur la période choisie ; les clics répétés restent dans les totaux. Les préférences d’analyse existantes sont respectées et le trafic interne est exclu.",
+				"idea": "Idée",
+				"placement": "Entrée",
+				"previewVisitors": "Visiteurs de l’aperçu",
+				"previewClicks": "Clics d’aperçu",
+				"createVisitors": "Visiteurs de création",
+				"createClicks": "Clics de création",
+				"placements": {
+					"showcase": "Fenêtre d’accueil",
+					"quick-start": "Carte d’accueil"
+				},
+				"ideas": {
+					"watercolor": "Aquarelle",
+					"vintage-photo": "Portrait vintage",
+					"christmas": "Fond de Noël",
+					"green-booth-freestyle": "Green Booth Freestyle",
+					"restore-photo": "Restauration de photos",
+					"birthday-card": "Carte d’anniversaire",
+					"kung-fu-cat": "Chat kung-fu"
+				}
 			}
 		}
 	},
