@@ -51,6 +51,8 @@ jobs:
         run: pnpm exec tsx --test tests/load/run-integration.test.ts
       - name: Verify local video production-build opt-in
         run: node --test tests/video-v1/local-command.test.mjs
+      - name: Verify IndexNow submission and retry behavior
+        run: node --test tooling/indexnow/sync.test.mjs
       - run: pnpm lint --deny-warnings
       - run: pnpm format:check
       - run: pnpm type-check

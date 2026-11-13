@@ -1,0 +1,45 @@
+name: Bing IndexNow
+
+on:
+  workflow_run:
+    workflows: [Validate PRs]
+    types: [completed]
+    branches: [main]
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: indexnow-production
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check submission and retry behavior
+        run: node --test tooling/indexnow/sync.test.mjs
+      - uses: actions/cache/restore@v4
+        with:
+          path: .cache/indexnow
+          key: indexnow-production-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: indexnow-production-v1-
+      - name: Submit new and updated live pages
+        run: node tooling/indexnow/sync.mjs
+      - uses: actions/cache/save@v4
+        if: always() && hashFiles('.cache/indexnow/state.json') != ''
+        with:
+          path: .cache/indexnow
+          key: indexnow-production-v1-${{ github.run_id }}-${{ github.run_attempt }}

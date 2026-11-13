@@ -43,6 +43,7 @@ yarn-error.log*
 
 # turbo
 .turbo
+.cache/indexnow/
 
 # isolated agent worktrees
 .worktrees/
