@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { expect, test, type Locator } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import { buildChristmasResultPreview } from "./fixtures/christmas-result-preview.mjs";
 import { buildWallpaperResultInteraction } from "./fixtures/wallpaper-result-interaction.mjs";
@@ -18,6 +18,7 @@ const indexableRoutes = [
 	"/examples",
 	"/gpt-image-2-6",
 	"/minimax-h3-image",
+	"/seedream-5-5",
 	"/ai-svg-generator",
 	"/ai-gif-generator",
 ] as const;
@@ -42,6 +43,297 @@ const legacyRedirects: ReadonlyArray<{ from: string; to: string }> = [
 ];
 
 // The public project supplies a signed-out returning visitor state.
+
+async function expectWordmarkLight(heading: Locator) {
+	await heading.hover({ position: { x: 20, y: 20 } });
+	const accent = heading.locator(".display-title-accent");
+	const initial = await accent.evaluate((element) => getComputedStyle(element).backgroundPositionX);
+	await heading.hover({ position: { x: 180, y: 20 } });
+	await expect
+		.poll(() => accent.evaluate((element) => getComputedStyle(element).backgroundPositionX))
+		.not.toBe(initial);
+}
+
+async function expectPromptIdeasAboveInput(page: Page, editor: Locator) {
+	const ideas = editor.getByRole("button", { name: "Prompt ideas", exact: true });
+	const prompt = editor.locator("textarea").first();
+	const ideasBounds = await ideas.boundingBox();
+	const promptBounds = await prompt.boundingBox();
+	expect(ideasBounds!.y + ideasBounds!.height).toBeLessThanOrEqual(promptBounds!.y);
+	await expect(prompt).toHaveCSS("resize", "none");
+	await ideas.click();
+	await page
+		.locator('[aria-labelledby="editor-suggested-prompts"]')
+		.getByRole("button")
+		.first()
+		.click();
+	await expect(prompt).not.toHaveValue("");
+	await prompt.fill("A scene with detailed lighting and textures.\n".repeat(30));
+	expect(
+		await prompt.evaluate(
+			(element: HTMLTextAreaElement) => element.scrollHeight > element.clientHeight,
+		),
+	).toBe(true);
+	expect((await prompt.boundingBox())!.height).toBeLessThanOrEqual(320);
+	await prompt.fill("");
+}
+
+async function exerciseExamplePrompt(page: Page, card: Locator, screenshotPath: string) {
+	const directUse = card.getByRole("button", { name: "Use this prompt", exact: true });
+	await expect(directUse).toHaveCSS("margin-top", "0px");
+	expect(
+		await directUse.evaluate((element) => Number.parseFloat(getComputedStyle(element).paddingLeft)),
+	).toBeGreaterThanOrEqual(12);
+	const trigger = card.getByRole("button", { name: "View prompt", exact: true });
+	await trigger.scrollIntoViewIfNeeded();
+	const height = await card.evaluate((element) => element.clientHeight);
+	await trigger.click();
+	const dialog = page.getByRole("dialog");
+	await expect(dialog).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(dialog).not.toBeVisible();
+	await expect(trigger).toBeFocused();
+	expect(await card.evaluate((element) => element.clientHeight)).toBe(height);
+	await trigger.click();
+	const reading = dialog.getByRole("region", { name: "Full prompt" });
+	const fullPrompt = await reading.innerText();
+	expect(fullPrompt.length).toBeGreaterThan(500);
+	await expect
+		.poll(() => dialog.locator("img").evaluate((element: HTMLImageElement) => element.naturalWidth))
+		.toBeGreaterThan(0);
+	await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+	await dialog.getByRole("button", { name: "Copy prompt", exact: true }).click();
+	await expect(dialog.getByRole("button", { name: "Copied", exact: true })).toBeVisible();
+	expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(fullPrompt);
+	await reading.evaluate((element) => {
+		element.scrollTop = element.scrollHeight;
+	});
+	await expect(dialog.getByRole("button", { name: "Use this prompt", exact: true })).toBeVisible();
+	const bounds = await dialog.boundingBox();
+	expect(bounds!.y).toBeGreaterThanOrEqual(0);
+	expect(bounds!.y + bounds!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
+	await reading.evaluate((element) => {
+		element.scrollTop = 0;
+	});
+	await page.screenshot({ path: screenshotPath, animations: "disabled" });
+	await dialog.getByRole("button", { name: "Use this prompt", exact: true }).click();
+	await expect(dialog).not.toBeVisible();
+	const prompt = page.locator('[data-test="landing-generator"] textarea').first();
+	await expect(prompt).toHaveValue(fullPrompt);
+	await expect(prompt).toBeFocused();
+}
+
+test("Seedream 5.5 examples apply their settings and transparency works on desktop and mobile", async ({
+	page,
+}, testInfo) => {
+	test.setTimeout(150_000);
+	await mockPublicImageAvailability(page);
+	await page.route("**/api/rpc/media/getPublicCatalog**", (route) =>
+		route.fulfill({
+			json: {
+				json: {
+					catalogVersion: "2026-11-13.2",
+					pricingVersion: "2026-11-13.2",
+					products: [
+						{
+							key: "image-seedream-5-5",
+							label: "Seedream 5.5",
+							description: "Precise edits and transparent PNGs",
+							mediaKind: "image",
+							inputKinds: ["text-to-image", "image-to-image"],
+							credits: 12,
+							skuMatrix: {
+								defaultSkuKey: "seedream-5-5-1-5k",
+								dimensions: [
+									{
+										key: "resolution",
+										label: "Resolution",
+										options: ["1k", "1.5k", "2k"].map((key) => ({ key, label: key.toUpperCase() })),
+									},
+								],
+								cells: ["1k", "1.5k", "2k"].map((key, index) => ({
+									skuKey: `seedream-5-5-${key.replace(".", "-")}`,
+									label: key.toUpperCase(),
+									parameterValues: { resolution: key },
+									credits: [8, 12, 20][index],
+									aspectRatios: ["auto", "1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+									controls: [
+										{
+											key: "outputFormat",
+											label: "Format",
+											defaultValue: "png",
+											options: ["png", "jpeg"].map((format) => ({
+												key: format,
+												label: format.toUpperCase(),
+											})),
+										},
+										{
+											key: "background",
+											label: "Background",
+											defaultValue: "auto",
+											options: ["auto", "transparent", "opaque"].map((value) => ({
+												key: value,
+												label: value,
+											})),
+										},
+									],
+								})),
+							},
+						},
+					],
+				},
+			},
+		}),
+	);
+	for (const width of [1440, 390]) {
+		await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
+		await expectPublicPage(page, "/seedream-5-5", "index");
+		await expect(
+			page.getByRole("heading", { level: 1, name: "Seedream 5.5", exact: true }),
+		).toBeVisible();
+		const editor = page.locator('[data-test="landing-generator"]');
+		await expect(editor.locator('[data-test="generation-credit-amount"]')).toContainText("12");
+		await expect(editor.locator('[data-test$="output-settings-trigger"]')).toContainText("1.5K");
+		const stage = page.locator(".seedream-stage");
+		const heading = page.getByRole("heading", { level: 1, name: "Seedream 5.5", exact: true });
+		await expectWordmarkLight(heading);
+		await expectPromptIdeasAboveInput(page, editor);
+		await heading.hover();
+		await expect(stage).toHaveAttribute("data-glow-active", "true");
+		expect(await stage.evaluate((element) => element.style.getPropertyValue("--glow-x"))).toMatch(
+			/px$/,
+		);
+		const prompt = editor.locator("textarea").first();
+		await prompt.fill("A glass sculpture catching the morning light.");
+		await expect(prompt).toBeFocused();
+		const stableBounds = await editor.boundingBox();
+		await prompt.hover();
+		expect(await editor.boundingBox()).toEqual(stableBounds);
+		await expect(prompt).toHaveValue("A glass sculpture catching the morning light.");
+		await prompt.press("Tab");
+		await expect(prompt).not.toBeFocused();
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		await heading.hover();
+		await expect(stage).not.toHaveAttribute("data-glow-active");
+		expect(await stage.evaluate((element) => element.style.getPropertyValue("--glow-x"))).toBe("");
+		await expect(stage.locator(":scope > .glow-surface-spot")).toHaveCSS(
+			"transition-duration",
+			"0s",
+		);
+		await page.emulateMedia({ reducedMotion: "no-preference" });
+		await stage.dispatchEvent("pointerleave");
+		await stage.dispatchEvent("pointermove", { pointerType: "touch", clientX: 100, clientY: 100 });
+		await expect(stage).not.toHaveAttribute("data-glow-active");
+		await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+		await heading.click();
+		await heading.hover();
+		await page.screenshot({
+			path: testInfo.outputPath(`seedream-hero-${width}.png`),
+			animations: "disabled",
+		});
+		const demo = page.locator("[data-seedream-demo] video");
+		await demo.scrollIntoViewIfNeeded();
+		await demo.hover();
+		await expect(page.locator(".seedream-demo-frame")).toHaveAttribute("data-glow-active", "true");
+		await expect
+			.poll(() => demo.evaluate((video: HTMLVideoElement) => video.currentTime))
+			.toBeGreaterThan(0);
+		await expect.poll(() => demo.evaluate((video: HTMLVideoElement) => video.paused)).toBe(false);
+		expect(
+			await demo.evaluate((video: HTMLVideoElement) => [
+				video.muted,
+				video.loop,
+				video.controls,
+				video.playsInline,
+			]),
+		).toEqual([true, true, true, true]);
+		await demo.evaluate((video: HTMLVideoElement) => video.pause());
+		await expect.poll(() => demo.evaluate((video: HTMLVideoElement) => video.paused)).toBe(true);
+		await page.locator(".seedream-gallery").scrollIntoViewIfNeeded();
+		await demo.scrollIntoViewIfNeeded();
+		await expect.poll(() => demo.evaluate((video: HTMLVideoElement) => video.paused)).toBe(true);
+		await demo.evaluate((video: HTMLVideoElement) => video.play());
+		await page.locator("#tool-steps-title").scrollIntoViewIfNeeded();
+		await expect.poll(() => demo.evaluate((video: HTMLVideoElement) => video.paused)).toBe(true);
+		await demo.scrollIntoViewIfNeeded();
+		await expect.poll(() => demo.evaluate((video: HTMLVideoElement) => video.paused)).toBe(false);
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		await expect.poll(() => demo.evaluate((video: HTMLVideoElement) => video.paused)).toBe(true);
+		await page.emulateMedia({ reducedMotion: "no-preference" });
+		const examples = page.locator("[data-seedream-example]");
+		await expect(examples).toHaveCount(5);
+		expect(
+			await page
+				.locator("#tool-prompts-title")
+				.evaluate((heading) =>
+					Boolean(
+						heading.compareDocumentPosition(document.getElementById("tool-steps-title")!) &
+						Node.DOCUMENT_POSITION_FOLLOWING,
+					),
+				),
+		).toBe(true);
+		for (const image of await examples.locator("img").all()) {
+			await image.scrollIntoViewIfNeeded();
+			await expect
+				.poll(() => image.evaluate((element: HTMLImageElement) => element.naturalWidth))
+				.toBeGreaterThan(0);
+		}
+		const comparison = page.getByRole("slider", { name: "Compare the original and edited photo" });
+		await comparison.focus();
+		await comparison.press("ArrowRight");
+		await expect(comparison).toHaveValue("49");
+		await comparison.press("ArrowLeft");
+		await exerciseExamplePrompt(
+			page,
+			page.locator('[data-seedream-example="poster"]'),
+			testInfo.outputPath(`seedream-prompt-preview-${width}.png`),
+		);
+		await expect(editor.locator("textarea").first()).toHaveValue(
+			/^Design a vertical Swiss-style typographic poster/,
+		);
+		await expect(editor.locator('[data-test$="output-settings-trigger"]')).toContainText("2K");
+		await expect(editor.locator('[data-test$="output-settings-trigger"]')).toContainText("2:3");
+		await expect(editor.locator('[data-test="generation-credit-amount"]')).toContainText("20");
+		await page
+			.locator('[data-seedream-example="transparent-product"]')
+			.getByRole("button", { name: "Use this prompt" })
+			.click();
+		await expect(editor.locator('[data-test="generation-credit-amount"]')).toContainText("8");
+		await editor.locator('[data-test$="output-settings-trigger"]').click();
+		const settings = page.locator('[data-test="landing-output-settings-panel"]');
+		await expect(
+			settings.getByRole("button", { name: "Transparent", exact: true }),
+		).toHaveAttribute("aria-pressed", "true");
+		await expect(settings.getByRole("button", { name: "PNG", exact: true })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
+		await settings.getByRole("button", { name: "JPEG", exact: true }).click();
+		await expect(settings.getByRole("button", { name: "Opaque", exact: true })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
+		await settings.getByRole("button", { name: "Transparent", exact: true }).click();
+		await expect(settings.getByRole("button", { name: "PNG", exact: true })).toHaveAttribute(
+			"aria-pressed",
+			"true",
+		);
+		await expect(
+			settings.getByRole("button", { name: "Transparent", exact: true }),
+		).toHaveAttribute("aria-pressed", "true");
+		await page.keyboard.press("Escape");
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+			true,
+		);
+		await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+		await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+		await page.screenshot({
+			path: testInfo.outputPath(`seedream-5-5-${width}.png`),
+			fullPage: true,
+			animations: "disabled",
+		});
+	}
+});
 
 test("MiniMax H3 page opens the right model and supplied prompts on desktop and mobile", async ({
 	page,
@@ -105,6 +397,11 @@ test("MiniMax H3 page opens the right model and supplied prompts on desktop and 
 		const editor = page.locator('[data-test="landing-generator"]');
 		await expect(editor).toBeVisible();
 		await expect(editor.locator('[data-test="generation-credit-amount"]')).toContainText("5");
+		const heading = page.getByRole("heading", { level: 1, name: "MiniMax H3 Image", exact: true });
+		await expectWordmarkLight(heading);
+		await expectPromptIdeasAboveInput(page, editor);
+		await heading.click();
+		await heading.hover();
 		await expect(page.locator(".ai-tool-settings-note").first()).toContainText(
 			"2K: 10 credits · 4K: 20 credits",
 		);
@@ -132,12 +429,29 @@ test("MiniMax H3 page opens the right model and supplied prompts on desktop and 
 		await expect(comparison).toHaveValue("49");
 		await expect(page.locator(".minimax-comparison-after")).toHaveAttribute("style", /49%/);
 		await comparison.press("ArrowLeft");
+		await exerciseExamplePrompt(
+			page,
+			examples.nth(1),
+			testInfo.outputPath(`minimax-prompt-preview-${width}.png`),
+		);
 		await examples.first().getByRole("button", { name: "Use this prompt" }).click();
 		await expect(editor.locator("textarea").first()).toHaveValue(/^Overhead knolling photograph/);
-		await expect(page.getByRole("link", { name: "Download reference" })).toHaveAttribute(
-			"href",
-			"/images/models/minimax-h3/cafe-night-reference.webp",
+		await page.locator(".minimax-edit-work").getByRole("button", { name: "View prompt" }).click();
+		await expect(
+			page.getByRole("dialog").getByRole("link", { name: "Download reference" }),
+		).toHaveAttribute("href", "/images/models/minimax-h3/cafe-night-reference.webp");
+		await page.keyboard.press("Escape");
+		await expect(page.getByRole("dialog")).not.toBeVisible();
+		await page.locator(".minimax-gallery").evaluate((element) =>
+			window.scrollTo({
+				top: element.getBoundingClientRect().top + scrollY - 100,
+				behavior: "instant",
+			}),
 		);
+		await page.screenshot({
+			path: testInfo.outputPath(`minimax-gallery-${width}.png`),
+			animations: "disabled",
+		});
 		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
 			true,
 		);
@@ -146,6 +460,12 @@ test("MiniMax H3 page opens the right model and supplied prompts on desktop and 
 		await page.screenshot({
 			path: testInfo.outputPath(`minimax-h3-${width}.png`),
 			fullPage: true,
+			animations: "disabled",
+		});
+		await heading.click();
+		await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }));
+		await page.screenshot({
+			path: testInfo.outputPath(`minimax-hero-${width}.png`),
 			animations: "disabled",
 		});
 	}

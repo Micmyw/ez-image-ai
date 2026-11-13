@@ -1,6 +1,7 @@
 import { StudioShell } from "@shared/components/studio/StudioShell";
 import Link from "next/link";
 
+import { SEEDREAM_5_5_EXAMPLES } from "../../../modules/image-tools/lib/seedream-5-5-examples";
 import { ModelArtwork } from "../../../modules/models/components/ModelArtwork";
 import { MODEL_PAGES, modelPath } from "../../../modules/models/lib/model-pages";
 import { PublicFooterLinks } from "../../../modules/public-content/components/PublicFooterLinks";
@@ -90,6 +91,27 @@ export default function ModelsPage() {
 							</div>
 						)}
 						<div className="model-directory-grid">
+							{family === "Seedream" && (
+								<Link href="/seedream-5-5" className="model-directory-card">
+									<div className="model-directory-image">
+										<img
+											src={SEEDREAM_5_5_EXAMPLES[0].image.src}
+											width={SEEDREAM_5_5_EXAMPLES[0].image.width}
+											height={SEEDREAM_5_5_EXAMPLES[0].image.height}
+											alt={SEEDREAM_5_5_EXAMPLES[0].image.alt}
+											loading="lazy"
+											decoding="async"
+										/>
+									</div>
+									<div className="model-directory-card-copy">
+										<h3>
+											Seedream 5.5 <span aria-hidden="true">↗</span>
+										</h3>
+										<p>Precise edits, realistic images and transparent design assets.</p>
+										<span>1K / 1.5K / 2K · Example from Kie</span>
+									</div>
+								</Link>
+							)}
 							{family === "MiniMax" && (
 								<Link href="/minimax-h3-image" className="model-directory-card">
 									<div className="model-directory-image">

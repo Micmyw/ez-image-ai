@@ -1,5 +1,17 @@
 # MiniMax H3 Image: pricing and integration
 
+Local visual follow-up (not deployed): MiniMax now shares `ModelHero` and the
+`DisplayTitle` UI primitive with Seedream, using the metallic `alloy` variant and
+an H3 / Image edition mark. The shared main composer puts Prompt ideas above the
+text field and supports bounded long-text scrolling without a resize handle.
+Both model journeys passed desktop/mobile browser checks; captures and component
+details are recorded in [the Seedream implementation notes](seedream-5-5-image-2026-11-13.md).
+
+The gallery now also shares `ExamplePromptActions`: View prompt opens an artwork
+and prompt dialog, with copy/apply controls and reference downloads. Direct use
+stays on each card, and opening long prompts no longer changes gallery row height.
+Publication remains paused while these local design revisions are reviewed.
+
 Reviewed 2026-11-13. The owner selected **5 / 10 / 20 EzPic credits for 1K / 2K / 4K**.
 Registered workspaces default to H3 1K. Free accounts retain 10 lifetime sign-in credits,
 H3 1K access and their existing Nano Banana 2 Lite 1K access. H3 2K/4K require a paid plan.

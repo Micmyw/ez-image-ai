@@ -192,6 +192,7 @@ function withBooleanBuildOverride(
 
 const releaseFeatureControls = [
 	"MEDIA_MINIMAX_H3_IMAGE_BUILD_ENABLED",
+	"MEDIA_SEEDREAM_5_5_IMAGE_BUILD_ENABLED",
 	"MEDIA_SEEAPI_INPUT_FAILURE_DELEGATION_BUILD_ENABLED",
 	"MEDIA_TECHNICAL_FAILURE_SUBSCRIPTION_BONUS_BUILD_ENABLED",
 ] as const;
@@ -207,7 +208,14 @@ function withReleaseFeatureBuildOverrides(
 		["MEDIA_MINIMAX_H3_IMAGE_ENABLED"],
 		"CLOUDFLARE_MINIMAX_H3_OVERRIDE_INVALID",
 	);
-	for (const control of releaseFeatureControls.slice(1)) {
+	source = withImageModelBuildOverride(
+		source,
+		environment,
+		releaseFeatureControls[1],
+		["MEDIA_SEEDREAM_5_5_IMAGE_ENABLED"],
+		"CLOUDFLARE_SEEDREAM_5_5_OVERRIDE_INVALID",
+	);
+	for (const control of releaseFeatureControls.slice(2)) {
 		source = withBooleanBuildOverride(
 			source,
 			environment,

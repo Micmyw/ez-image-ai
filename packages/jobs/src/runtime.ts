@@ -783,6 +783,17 @@ export function createDatabaseDispatchStore(
 							throw new Error("Input asset moderation evidence is stale");
 						}
 						const contract = getImageProductSelectionContract(job.productKey);
+						if (
+							job.productKey === "image-seedream-5-5" &&
+							contract?.maximumInputBytes !== undefined &&
+							binding.asset.byteSize > BigInt(contract.maximumInputBytes)
+						)
+							throw new Error("INPUT_TOO_LARGE");
+						if (
+							job.productKey === "image-seedream-5-5" &&
+							!["image/png", "image/jpeg", "image/webp"].includes(binding.asset.mimeType)
+						)
+							throw new Error("IMAGE_INPUT_TYPE_UNSUPPORTED");
 						let dimensions = { width: binding.asset.width, height: binding.asset.height };
 						if (
 							contract?.maximumInputPixels !== undefined &&

@@ -119,6 +119,47 @@ describe("image SKU selection", () => {
 		});
 		expect(resolveImageSpecControlValues(matrix.cells[0], gif)).toEqual({});
 	});
+	it("switches Seedream 5.5 to PNG for transparency and back to opaque for JPEG", () => {
+		const cell = {
+			...matrix.cells[0],
+			skuKey: "seedream-5-5-1-5k",
+			controls: [
+				{
+					key: "outputFormat" as const,
+					label: "Format",
+					defaultValue: "png",
+					options: ["png", "jpeg"].map((key) => ({ key, label: key })),
+				},
+				{
+					key: "background" as const,
+					label: "Background",
+					defaultValue: "auto",
+					options: ["auto", "opaque", "transparent"].map((key) => ({ key, label: key })),
+				},
+			],
+		};
+		expect(
+			resolveImageSpecControlValues(
+				cell,
+				{ outputFormat: "jpeg", background: "transparent" },
+				"background",
+			),
+		).toEqual({ outputFormat: "png", background: "transparent" });
+		expect(
+			resolveImageSpecControlValues(
+				cell,
+				{ outputFormat: "jpeg", background: "transparent" },
+				"outputFormat",
+			),
+		).toEqual({ outputFormat: "jpeg", background: "opaque" });
+		expect(
+			resolveImageSpecControlValues(cell, { outputFormat: "png", background: "transparent" }),
+		).toEqual({ outputFormat: "png", background: "transparent" });
+		expect(resolveImageSpecControlValues(cell, {})).toEqual({
+			outputFormat: "png",
+			background: "auto",
+		});
+	});
 	it("selects the exact legal cell when one exists", () => {
 		expect(selectImageSkuForDimension(matrix, "seedream-basic", "resolution", "1k")?.skuKey).toBe(
 			"seedream-basic",

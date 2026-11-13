@@ -39,6 +39,7 @@ import {
 	type ExecutableRouteGraphOptions,
 } from "./routing";
 import { mediaModelInputSchema, type MediaModelInput } from "./schemas";
+import { SEEDREAM_5_5_IMAGE_MATRIX } from "./seedream-5-5";
 
 export { getPublicProductCatalog } from "./public";
 
@@ -58,6 +59,17 @@ function matrixRoutes(matrix: ImageSpecMatrix): readonly CatalogRoute[] {
 }
 
 const CATALOG: Record<ProductModelKey, CatalogEntry> = {
+	"image-seedream-5-5": {
+		key: "image-seedream-5-5",
+		label: "Seedream 5.5",
+		description:
+			"Precise image editing, realistic textures, clear text and transparent PNGs up to 2K",
+		mediaKind: "image",
+		inputKinds: ["text-to-image", "image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-seedream-5-5"],
+		routes: matrixRoutes(SEEDREAM_5_5_IMAGE_MATRIX),
+		imageSpecMatrix: SEEDREAM_5_5_IMAGE_MATRIX,
+	},
 	"image-minimax-h3": {
 		key: "image-minimax-h3",
 		label: "MiniMax H3 Image",

@@ -39,6 +39,24 @@ function transaction(overrides: string[] = [], planId = "free") {
 }
 
 describe("transaction-current admission", () => {
+	it.each(["seedream-5-5-1k", "seedream-5-5-1-5k", "seedream-5-5-2k"])(
+		"rechecks Seedream 5.5 subscription and its 10 MB input limit for %s",
+		async (skuKey) => {
+			const input = {
+				ownerId: "owner",
+				productKey: "image-seedream-5-5",
+				skuKey,
+				costMicros: 38_700n,
+				now: new Date(),
+			};
+			await expect(loadCurrentGenerationAdmission(input, transaction() as never)).rejects.toThrow(
+				"ENTITLEMENT_REQUIRED",
+			);
+			await expect(
+				loadCurrentGenerationAdmission(input, transaction([], "creator") as never),
+			).resolves.toMatchObject({ maximumInputBytes: 10_000_000 });
+		},
+	);
 	it.each(["media.generation.enabled", "media.model.image-nano-banana-2-lite.enabled"])(
 		"rejects the %s switch changed while Waffo was running",
 		async (key) => {

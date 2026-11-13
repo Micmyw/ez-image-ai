@@ -69,6 +69,41 @@ const BASE_SNAPSHOT = {
 } satisfies GenerationAccessSnapshot;
 
 describe("generation authorization", () => {
+	it.each([10_000_000n, 10_000_001n])(
+		"enforces Seedream's reference byte boundary at %s",
+		async (sourceAssetBytes) => {
+			const input = {
+				...IMAGE_EDIT_INPUT,
+				prompt: "A ceramic vase",
+				skuKey: "seedream-5-5-1-5k" as const,
+				aspectRatio: "1:1" as const,
+			};
+			const productKey = "image-seedream-5-5" as const;
+			const quote = buildMediaQuote({ productKey, input }, KIE_IMAGE_ROUTE_GRAPH);
+			const result = assertGenerationAllowed(
+				{
+					userId: "credit-owner",
+					productKey,
+					input,
+					credits: quote.credits,
+					costMicros: quote.costMicros,
+					routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+				},
+				{
+					enforceRateLimit: async () => {},
+					isEnvironmentGenerationEnabled: () => true,
+					loadAccess: async () => ({
+						...BASE_SNAPSHOT,
+						planId: "creator",
+						spendableCredits: 377n,
+						sourceAssetBytes,
+					}),
+				},
+			);
+			if (sourceAssetBytes === 10_000_000n) await expect(result).resolves.toBeUndefined();
+			else await expect(result).rejects.toThrow("INPUT_TOO_LARGE");
+		},
+	);
 	it.each(
 		EZPIC_PRODUCT_KEYS.flatMap((productKey) =>
 			IMAGE_SKU_KEYS_BY_PRODUCT[productKey].map((skuKey) => ({ productKey, skuKey })),
@@ -207,7 +242,7 @@ describe("generation authorization", () => {
 			skuKey,
 			aspectRatio: skuKey === "gpt-image-2-4k" ? ("3:2" as const) : ("1:1" as const),
 		};
-		if (productKey === "image-minimax-h3") {
+		if (productKey === "image-minimax-h3" || productKey === "image-seedream-5-5") {
 			expect(() =>
 				buildMediaQuote({ productKey, input, fundingSource: "IMAGE_PASS" }, KIE_IMAGE_ROUTE_GRAPH),
 			).toThrow("IMAGE_PASS_SELECTION_INVALID");

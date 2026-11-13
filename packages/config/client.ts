@@ -35,6 +35,7 @@ export {
 export { getPublicConfig, type PublicConfig } from "./public";
 export {
 	getImageProductSelectionContract,
+	parseImageSelection,
 	imageGifFrameCountSchema,
 	imageGifFrameDurationMsSchema,
 } from "./image-product-contract";

@@ -205,13 +205,14 @@ describe("media product catalog", () => {
 		]);
 	});
 
-	it("publishes all fifteen current image products and their thirty-eight legal SKUs", () => {
+	it("publishes all sixteen current image products and their forty-one legal SKUs", () => {
 		const products = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
 		}).products;
 
 		expect(products.map((product) => product.key)).toEqual([
+			"image-seedream-5-5",
 			"image-minimax-h3",
 			"image-nano-banana-2-lite",
 			"image-nano-banana",
@@ -228,7 +229,7 @@ describe("media product catalog", () => {
 			"image-seedream-5-lite",
 			"image-seedream-5-pro",
 		]);
-		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(38);
+		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(41);
 		for (const product of products) {
 			expect(product).toEqual(
 				expect.objectContaining({
@@ -310,6 +311,7 @@ describe("media product catalog", () => {
 	it("layers each Kie image product switch onto the executable route graph", () => {
 		const options = configuredRouteGraphOptionsFromEnvironment({
 			MEDIA_MINIMAX_H3_IMAGE_ENABLED: "true",
+			MEDIA_SEEDREAM_5_5_IMAGE_ENABLED: "true",
 			MEDIA_GENERATION_ENABLED: "true",
 			MEDIA_ENABLED_PROVIDERS: "kie",
 			MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
@@ -323,6 +325,7 @@ describe("media product catalog", () => {
 		});
 		expect(options.disabledProductKeys).toEqual(new Set(["image-gpt-image-2"]));
 		expect(getPublicProductCatalog(options).products.map((product) => product.key)).toEqual([
+			"image-seedream-5-5",
 			"image-minimax-h3",
 			"image-nano-banana-2-lite",
 			"image-nano-banana",
@@ -340,7 +343,7 @@ describe("media product catalog", () => {
 		]);
 	});
 
-	it("fails closed when production omits all fifteen Kie product switches", () => {
+	it("fails closed when production omits all sixteen Kie product switches", () => {
 		const options = configuredRouteGraphOptionsFromEnvironment({
 			NODE_ENV: "production",
 			EZPIC_DEPLOYMENT_ENVIRONMENT: "production",
@@ -350,6 +353,7 @@ describe("media product catalog", () => {
 
 		expect(options.disabledProductKeys).toEqual(
 			new Set([
+				"image-seedream-5-5",
 				"image-minimax-h3",
 				"image-nano-banana-2-lite",
 				"image-nano-banana",
@@ -380,6 +384,7 @@ describe("media product catalog", () => {
 
 			expect(options.disabledProductKeys, nodeEnvironment).toEqual(
 				new Set([
+					"image-seedream-5-5",
 					"image-minimax-h3",
 					"image-gpt-image-2-5-flare",
 					"image-gpt-image-2-5-sunburst",

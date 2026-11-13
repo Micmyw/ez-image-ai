@@ -1,8 +1,10 @@
 import { MINIMAX_H3_REFERENCE_COST_MICROS } from "./minimax-h3-image";
 import type { CatalogRoute } from "./routing";
+import { SEEDREAM_5_5_REFERENCE_COST_MICROS } from "./seedream-5-5";
 
 // Kie's published text endpoints, reviewed against independent OpenAPI snapshots.
 const TEXT_IMAGE_MODELS: Readonly<Record<string, string>> = {
+	"seedream/5-5-image-to-image": "seedream/5-5-text-to-image",
 	"minimax-h3/image-edit": "minimax-h3/text-to-image",
 	"gpt-image-2-6/flare-image-to-image": "gpt-image-2-6/flare-text-to-image",
 	"gpt-image-2-6/sunburst-image-to-image": "gpt-image-2-6/sunburst-text-to-image",
@@ -36,7 +38,9 @@ export function textImageRoutes(routes: readonly CatalogRoute[]): CatalogRoute[]
 						providerCostMicros:
 							route.providerModelId === "minimax-h3/image-edit"
 								? route.providerCostMicros - MINIMAX_H3_REFERENCE_COST_MICROS
-								: route.providerCostMicros,
+								: route.providerModelId === "seedream/5-5-image-to-image"
+									? route.providerCostMicros - SEEDREAM_5_5_REFERENCE_COST_MICROS
+									: route.providerCostMicros,
 					},
 				]
 			: [];

@@ -1,5 +1,5 @@
-import { InspirationPrompt } from "../../models/components/InspirationPrompt";
 import { MINIMAX_H3_EXAMPLES, MINIMAX_H3_FEATURED_EXAMPLE } from "../lib/minimax-h3-examples";
+import { ExamplePromptActions } from "./ExamplePromptActions";
 import { MiniMaxImageComparison } from "./MiniMaxImageComparison";
 
 const categories = ["Texture & detail", "Typography & design", "Illustration & ideas"];
@@ -41,12 +41,8 @@ export function MiniMaxShowcase() {
 						<h3>{featured.title}</h3>
 						<p>A glass sanctuary. An ocean of clouds. A moment beyond the ordinary.</p>
 					</div>
-					<InspirationPrompt prompt={featured.prompt} />
+					<ExamplePromptActions {...featured} model="MiniMax H3" />
 				</div>
-				<details className="minimax-prompt">
-					<summary>View prompt</summary>
-					<p>{featured.prompt}</p>
-				</details>
 			</article>
 			<div className="ai-tool-prompts minimax-gallery">
 				{MINIMAX_H3_EXAMPLES.slice(0, 3).map((example, index) => (
@@ -65,11 +61,7 @@ export function MiniMaxShowcase() {
 						<div className="minimax-work-caption">
 							<p className="minimax-kicker">{categories[index]}</p>
 							<h3>{example.title}</h3>
-							<details className="minimax-prompt">
-								<summary>View prompt</summary>
-								<p>{example.prompt}</p>
-							</details>
-							<InspirationPrompt prompt={example.prompt} />
+							<ExamplePromptActions {...example} model="MiniMax H3" />
 						</div>
 					</article>
 				))}
@@ -82,16 +74,7 @@ export function MiniMaxShowcase() {
 							<em>Different light.</em>
 						</h3>
 						<p>Turn an afternoon café into a rainy evening. Keep the scene, change the mood.</p>
-						<div className="minimax-edit-actions">
-							<InspirationPrompt prompt={edit.prompt} />
-							<a href={edit.referenceImage.src} download>
-								Download reference <span aria-hidden="true">↓</span>
-							</a>
-						</div>
-						<details className="minimax-prompt">
-							<summary>View prompt</summary>
-							<p>{edit.prompt}</p>
-						</details>
+						<ExamplePromptActions {...edit} model="MiniMax H3" />
 					</div>
 					<div className="minimax-edit-preview">
 						<MiniMaxImageComparison

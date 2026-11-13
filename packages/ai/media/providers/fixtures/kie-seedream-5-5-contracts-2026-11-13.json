@@ -1,0 +1,390 @@
+{
+	"checkedDate": "2026-11-13",
+	"evidence": "Public OpenAPI request schemas; no paid execution.",
+	"contracts": [
+		{
+			"sourceUrl": "https://docs.kie.ai/market/seedream/5-5-text-to-image.md",
+			"sourceSha256": "72643cde09be6064b4c931d8beddbec496f38a080c1da4957d88d00127da7a29",
+			"model": "seedream/5-5-text-to-image",
+			"requestSchema": {
+				"properties": {
+					"model": {
+						"default": "seedream/5-5-text-to-image",
+						"description": "The model name to use for generation. Required field.\n\n- Must be `seedream/5-5-text-to-image` for this endpoint",
+						"enum": ["seedream/5-5-text-to-image"],
+						"examples": ["seedream/5-5-text-to-image"],
+						"type": "string",
+						"x-apidog-enum": [
+							{
+								"description": "",
+								"name": "",
+								"value": "seedream/5-5-text-to-image"
+							}
+						]
+					},
+					"callBackUrl": {
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation",
+						"examples": ["https://your-domain.com/api/callback"],
+						"format": "uri",
+						"type": "string"
+					},
+					"input": {
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "Required. Text prompt, 5–5000 characters.",
+								"minLength": 5,
+								"maxLength": 5000,
+								"examples": [
+									"A premium skincare e-commerce hero image: a glass serum bottle on a pure white display stand under soft light, commercial photorealistic photography"
+								]
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"description": "Required. Aspect ratio of the output image.",
+								"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+								"examples": ["1:1"],
+								"x-apidog-enum": [
+									{
+										"value": "1:1",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "4:3",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "3:4",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "16:9",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "9:16",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "2:3",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "3:2",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "21:9",
+										"name": "",
+										"description": ""
+									}
+								]
+							},
+							"size": {
+								"type": "string",
+								"description": "Resolution tier of the output image. Affects the credit cost. Defaults to `2K`.",
+								"enum": ["1K", "1.5K", "2K"],
+								"examples": ["2K"],
+								"x-apidog-enum": [
+									{
+										"value": "1K",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "1.5K",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "2K",
+										"name": "",
+										"description": ""
+									}
+								],
+								"default": "2K"
+							},
+							"output_format": {
+								"type": "string",
+								"description": "Output image format. Defaults to `png`.",
+								"enum": ["png", "jpeg"],
+								"examples": ["png"],
+								"x-apidog-enum": [
+									{
+										"value": "png",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "jpeg",
+										"name": "",
+										"description": ""
+									}
+								],
+								"default": "png"
+							},
+							"background": {
+								"type": "string",
+								"description": "Background of the output image. Defaults to `auto`.\n\n- `auto`: decided by the model\n- `transparent`: transparent background\n- `opaque`: opaque background\n\n`transparent` is available only when `output_format` is `png`.",
+								"enum": ["auto", "transparent", "opaque"],
+								"examples": ["auto"],
+								"x-apidog-enum": [
+									{
+										"value": "auto",
+										"name": "",
+										"description": "Decided by the model"
+									},
+									{
+										"value": "transparent",
+										"name": "",
+										"description": "Transparent background"
+									},
+									{
+										"value": "opaque",
+										"name": "",
+										"description": "Opaque background"
+									}
+								],
+								"default": "auto"
+							},
+							"nsfw_checker": {
+								"type": "boolean",
+								"description": "Defaults to false. When false, no additional content filtering is applied and results are returned directly by the model."
+							}
+						},
+						"required": ["prompt", "aspect_ratio"],
+						"type": "object",
+						"x-apidog-orders": [
+							"prompt",
+							"aspect_ratio",
+							"size",
+							"output_format",
+							"background",
+							"01MQX46KPFX1BVWAQT5CF9VADT"
+						],
+						"x-apidog-refs": {
+							"01MQX46KPFX1BVWAQT5CF9VADT": {
+								"$ref": "#/components/schemas/nsfw_checker"
+							}
+						},
+						"x-apidog-ignore-properties": ["nsfw_checker"]
+					}
+				},
+				"required": ["model", "input"],
+				"type": "object",
+				"x-apidog-orders": ["model", "callBackUrl", "input"],
+				"x-apidog-ignore-properties": []
+			}
+		},
+		{
+			"sourceUrl": "https://docs.kie.ai/market/seedream/5-5-image-to-image.md",
+			"sourceSha256": "087999e505ca95d0d6d20f05adb134807b6c98a51d97a6405f454e323dda400e",
+			"model": "seedream/5-5-image-to-image",
+			"requestSchema": {
+				"properties": {
+					"model": {
+						"default": "seedream/5-5-image-to-image",
+						"description": "The model name to use for generation. Required field.\n\n- Must be `seedream/5-5-image-to-image` for this endpoint",
+						"enum": ["seedream/5-5-image-to-image"],
+						"examples": ["seedream/5-5-image-to-image"],
+						"type": "string",
+						"x-apidog-enum": [
+							{
+								"description": "",
+								"name": "",
+								"value": "seedream/5-5-image-to-image"
+							}
+						]
+					},
+					"callBackUrl": {
+						"description": "The URL to receive generation task completion updates. Optional but recommended for production use.\n\n- System will POST task status and results to this URL when generation completes\n- Callback includes generated content URLs and task information\n- Your callback endpoint should accept POST requests with JSON payload containing results\n- Alternatively, use the Get Task Details endpoint to poll task status\n- To ensure callback security, see [Webhook Verification Guide](/common-api/webhook-verification) for signature verification implementation",
+						"examples": ["https://your-domain.com/api/callback"],
+						"format": "uri",
+						"type": "string"
+					},
+					"input": {
+						"description": "Input parameters for the generation task",
+						"properties": {
+							"prompt": {
+								"type": "string",
+								"description": "Required. Editing instruction, 5–5000 characters.",
+								"minLength": 5,
+								"maxLength": 5000,
+								"examples": [
+									"Keep the model's pose and the flowing shape of the liquid dress unchanged. Change the clothing material from silver metal to completely transparent clear water (or glass). Through the liquid water, the model's skin details are visible. Lighting changes from reflection to refraction."
+								]
+							},
+							"image_urls": {
+								"type": "array",
+								"minItems": 1,
+								"maxItems": 10,
+								"items": {
+									"type": "string",
+									"format": "uri"
+								},
+								"examples": [
+									["https://static.aiquickdraw.com/tools/example/1764851484363_ScV1s2aq.webp"]
+								],
+								"description": "Required. Input image URLs (publicly accessible URLs, not file content).\n\n- 1–10 images\n- Supported formats: JPEG, PNG, WEBP\n- Max 10 MB per image\n- Each input image is billed separately; see [kie.ai/pricing](https://kie.ai/pricing)"
+							},
+							"aspect_ratio": {
+								"type": "string",
+								"description": "Aspect ratio of the output image. Defaults to `auto` (decided by the model).",
+								"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9", "auto"],
+								"examples": ["auto"],
+								"x-apidog-enum": [
+									{
+										"value": "1:1",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "4:3",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "3:4",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "16:9",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "9:16",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "2:3",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "3:2",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "21:9",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "auto",
+										"name": "",
+										"description": ""
+									}
+								],
+								"default": "auto"
+							},
+							"size": {
+								"type": "string",
+								"description": "Resolution tier of the output image. Affects the credit cost. Defaults to `2K`.",
+								"enum": ["1K", "1.5K", "2K"],
+								"examples": ["2K"],
+								"x-apidog-enum": [
+									{
+										"value": "1K",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "1.5K",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "2K",
+										"name": "",
+										"description": ""
+									}
+								],
+								"default": "2K"
+							},
+							"output_format": {
+								"type": "string",
+								"description": "Output image format. Defaults to `png`.",
+								"enum": ["png", "jpeg"],
+								"examples": ["png"],
+								"x-apidog-enum": [
+									{
+										"value": "png",
+										"name": "",
+										"description": ""
+									},
+									{
+										"value": "jpeg",
+										"name": "",
+										"description": ""
+									}
+								],
+								"default": "png"
+							},
+							"background": {
+								"type": "string",
+								"description": "Background of the output image. Defaults to `auto`.\n\n- `auto`: decided by the model\n- `transparent`: transparent background\n- `opaque`: opaque background\n\n`transparent` is available only when `output_format` is `png`.",
+								"enum": ["auto", "transparent", "opaque"],
+								"examples": ["auto"],
+								"x-apidog-enum": [
+									{
+										"value": "auto",
+										"name": "",
+										"description": "Decided by the model"
+									},
+									{
+										"value": "transparent",
+										"name": "",
+										"description": "Transparent background"
+									},
+									{
+										"value": "opaque",
+										"name": "",
+										"description": "Opaque background"
+									}
+								],
+								"default": "auto"
+							},
+							"nsfw_checker": {
+								"type": "boolean",
+								"description": "Defaults to false. When false, no additional content filtering is applied and results are returned directly by the model."
+							}
+						},
+						"required": ["prompt", "image_urls"],
+						"type": "object",
+						"x-apidog-orders": [
+							"prompt",
+							"image_urls",
+							"aspect_ratio",
+							"size",
+							"output_format",
+							"background",
+							"01M4D3FDJTMCMQ1MHQNYJW6ZPT"
+						],
+						"x-apidog-refs": {
+							"01M4D3FDJTMCMQ1MHQNYJW6ZPT": {
+								"$ref": "#/components/schemas/nsfw_checker"
+							}
+						},
+						"x-apidog-ignore-properties": ["nsfw_checker"]
+					}
+				},
+				"required": ["model", "input"],
+				"type": "object",
+				"x-apidog-orders": ["model", "callBackUrl", "input"],
+				"x-apidog-ignore-properties": []
+			}
+		}
+	]
+}

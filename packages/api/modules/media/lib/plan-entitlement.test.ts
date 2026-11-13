@@ -41,6 +41,7 @@ describe("loadUserPlanEntitlement", () => {
 				"image-seedream-4-5",
 				"image-seedream-5-lite",
 				"image-seedream-5-pro",
+				"image-seedream-5-5",
 			],
 		});
 		expect(database.findEffectiveSubscription).toHaveBeenCalledWith(

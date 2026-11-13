@@ -315,6 +315,36 @@ describe("GenerationForm submission callbacks", () => {
 		expect(state.beginNewAction).toHaveBeenCalled();
 		expect(state.mutateAsync).not.toHaveBeenCalled();
 	});
+	it("applies a Seedream example's model and transparent PNG settings while keeping the owned reference", () => {
+		vi.stubGlobal("window", new EventTarget());
+		state.values.sourceAssetId = "owned-photo";
+		render();
+		window.dispatchEvent(
+			new CustomEvent("ezpic:landing-prompt-selected", {
+				detail: {
+					prompt: "Keep the backpack and remove the background.",
+					selection: {
+						productKey: "image-seedream-5-5",
+						skuKey: "seedream-5-5-1k",
+						aspectRatio: "1:1",
+						outputFormat: "png",
+						background: "transparent",
+					},
+				},
+			}),
+		);
+		expect(state.values).toMatchObject({
+			productKey: "image-seedream-5-5",
+			skuKey: "seedream-5-5-1k",
+			aspectRatio: "1:1",
+			outputFormat: "png",
+			background: "transparent",
+			sourceAssetId: "owned-photo",
+			prompt: "Keep the backpack and remove the background.",
+		});
+		expect(state.beginNewAction).toHaveBeenCalled();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
 	it.each(["flare", "sunburst"] as const)(
 		"funds every supported GPT 2.6 %s result with one explicitly selected pass",
 		async (model) => {

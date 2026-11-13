@@ -137,6 +137,7 @@ export function publicImageAspectRatios(cell: PublicImageSpecCell | null): Image
 export function resolveImageSpecControlValues(
 	cell: PublicImageSpecCell | null,
 	current: Partial<Record<ImageSpecControlChangeKey, string | number | undefined>>,
+	changedControl?: ImageSpecControlChangeKey,
 ): ImageSpecControlValues {
 	const next: ImageSpecControlValues = {};
 	for (const control of cell?.controls ?? []) {
@@ -173,5 +174,13 @@ export function resolveImageSpecControlValues(
 		next.outputFormat !== "png"
 	)
 		next.background = "opaque";
+	if (
+		cell?.skuKey.startsWith("seedream-5-5-") &&
+		next.background === "transparent" &&
+		next.outputFormat !== "png"
+	) {
+		if (changedControl === "background") next.outputFormat = "png";
+		else next.background = "opaque";
+	}
 	return next;
 }

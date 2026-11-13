@@ -1,5 +1,18 @@
 # EzImageAI pricing and margin record
 
+## Seedream 5.5 addition — 2026-11-13
+
+Seedream 5.5 uses 8 / 12 / 20 credits for 1K / 1.5K / 2K. The owner requested
+increased usage above the lowest resolution; the default is 1.5K at 12 credits.
+Text generation and one-reference editing share the retail price, while their
+supplier cost snapshots remain separate. It follows existing premium subscription
+access and does not change free-model access or historical Image Pass coverage.
+
+Kie output charges are $0.018 / $0.018 / $0.0315 plus $0.0072 for the reference.
+Budgeted Max annual full-use contribution rates for a one-reference edit are
+61.5% / 70.7% / 73.2%, before taxes, fixed costs and acquisition spend. See
+[the sources, assumptions and integration record](../operations/seedream-5-5-image-2026-11-13.md).
+
 ## MiniMax H3 addition — 2026-11-13
 
 MiniMax H3 Image uses 5 / 10 / 20 credits for 1K / 2K / 4K. Registered workspaces

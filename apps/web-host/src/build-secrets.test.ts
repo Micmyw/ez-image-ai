@@ -26,15 +26,16 @@ import { assessOptionalVideoEffectOptions } from "./optional-video-effect-readin
 const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironment>) =>
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
 
-describe("MiniMax and recovery release controls", () => {
+describe("Image models and recovery release controls", () => {
 	const controls = [
 		"MEDIA_MINIMAX_H3_IMAGE",
+		"MEDIA_SEEDREAM_5_5_IMAGE",
 		"MEDIA_SEEAPI_INPUT_FAILURE_DELEGATION",
 		"MEDIA_TECHNICAL_FAILURE_SUBSCRIPTION_BONUS",
 	];
 	for (const prefix of controls) {
 		it.each(["true", "false"])(`${prefix} applies only its dedicated control: %s`, (enabled) => {
-			const source = `PRIVATE_VALUE='original # 中文'\n${prefix}_ENABLED=false\nMEDIA_IMAGE_MODEL_FLAGS='{"MEDIA_MINIMAX_H3_IMAGE_ENABLED":"false","MEDIA_NANO_BANANA_2_LITE_ENABLED":"true"}'`;
+			const source = `PRIVATE_VALUE='original # 中文'\n${prefix}_ENABLED=false\nMEDIA_IMAGE_MODEL_FLAGS='{"MEDIA_MINIMAX_H3_IMAGE_ENABLED":"false","MEDIA_SEEDREAM_5_5_IMAGE_ENABLED":"false","MEDIA_NANO_BANANA_2_LITE_ENABLED":"true"}'`;
 			const input = {
 				...unpackValues(packCloudflareBuildEnvironment(source)),
 				[`${prefix}_BUILD_ENABLED`]: enabled,
@@ -45,6 +46,7 @@ describe("MiniMax and recovery release controls", () => {
 			expect(parseEzPicImageModelFlags(parsed.MEDIA_IMAGE_MODEL_FLAGS)).toEqual({
 				MEDIA_MINIMAX_H3_IMAGE_ENABLED: prefix === "MEDIA_MINIMAX_H3_IMAGE" ? enabled : "false",
 				MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
+				MEDIA_SEEDREAM_5_5_IMAGE_ENABLED: prefix === "MEDIA_SEEDREAM_5_5_IMAGE" ? enabled : "false",
 			});
 			expect(
 				readCloudflareBuildEnvironment({

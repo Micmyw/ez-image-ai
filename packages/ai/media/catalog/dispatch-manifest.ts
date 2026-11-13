@@ -16,6 +16,20 @@ export const STATIC_DISPATCH_ROUTE_MANIFEST = [
 	{
 		mediaKind: "image",
 		provider: "kie",
+		providerModelId: "seedream/5-5-text-to-image",
+		taskId: "media-dispatch-image-kie-seedream_5-5-text-to-image",
+		queueName: "media-image-kie-seedream_5-5-text-to-image",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "seedream/5-5-image-to-image",
+		taskId: "media-dispatch-image-kie-seedream_5-5-image-to-image",
+		queueName: "media-image-kie-seedream_5-5-image-to-image",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
 		providerModelId: "minimax-h3/text-to-image",
 		taskId: "media-dispatch-image-kie-minimax-h3_text-to-image",
 		queueName: "media-image-kie-minimax-h3_text-to-image",

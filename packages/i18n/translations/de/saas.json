@@ -1646,6 +1646,10 @@
 				"image-gpt-image-2-6-sunburst": {
 					"label": "GPT Image 2.6 Sunburst",
 					"description": "Hohe Detailqualität und konsistente Bearbeitung von Referenzbildern."
+				},
+				"image-seedream-5-5": {
+					"label": "Seedream 5.5",
+					"description": "Präzise Bearbeitung, realistische Details und transparente PNGs bis 2K."
 				}
 			},
 			"skus": {
@@ -1762,6 +1766,15 @@
 				},
 				"gpt-image-2-6-sunburst-4k": {
 					"label": "4K"
+				},
+				"seedream-5-5-1k": {
+					"label": "1K"
+				},
+				"seedream-5-5-1-5k": {
+					"label": "1.5K"
+				},
+				"seedream-5-5-2k": {
+					"label": "2K"
 				}
 			},
 			"fields": {
@@ -2374,7 +2387,9 @@
 			"svgGenerator": "KI-SVG-Generator",
 			"svgGeneratorDescription": "Statische SVG-Illustrationen aus einer Beschreibung erstellen",
 			"gifGenerator": "KI-GIF-Generator",
-			"gifGeneratorDescription": "Kurze animierte GIFs aus Text oder einem Foto erstellen"
+			"gifGeneratorDescription": "Kurze animierte GIFs aus Text oder einem Foto erstellen",
+			"seedream55": "Seedream 5.5",
+			"seedream55Description": "Präzise Bearbeitung, transparente Elemente und realistische Bilder."
 		},
 		"generation": {
 			"referencePending": "Schließe den Referenz-Upload ab, versuche ihn erneut oder entferne ihn für ein Bild aus Text.",

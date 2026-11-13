@@ -10,6 +10,7 @@ import {
 	EZPIC_PRODUCT_KEYS,
 	IMAGE_SKU_KEYS,
 	getPlanEntitlement,
+	parseImageSelection,
 	type ImageAspectRatio,
 	type ImageSkuKey,
 } from "@repo/config/client";
@@ -486,6 +487,25 @@ export function GenerationForm({
 			if (typeof detail?.prompt === "string" && detail.prompt.trim()) {
 				event.preventDefault();
 				updatePrompt(detail.prompt.slice(0, 10000));
+				const selection = detail.selection;
+				const parsed = selection && parseImageSelection(selection.productKey, selection);
+				if (selection && parsed && isEditorProductKey(selection.productKey)) {
+					form.setValue("productKey", selection.productKey, {
+						shouldDirty: true,
+						shouldValidate: true,
+					});
+					for (const field of [
+						"skuKey",
+						"aspectRatio",
+						"outputFormat",
+						"background",
+						"frameCount",
+						"frameDurationMs",
+					] as const) {
+						form.setValue(field, parsed[field], { shouldDirty: true, shouldValidate: true });
+					}
+					replaceImageModelInUrl(selection.productKey);
+				}
 			}
 		}
 		function selectAsset(event: Event) {
@@ -500,7 +520,7 @@ export function GenerationForm({
 			window.removeEventListener(LANDING_PROMPT_SELECTED_EVENT, selectPrompt);
 			window.removeEventListener(STUDIO_ASSET_SELECTED_EVENT, selectAsset);
 		};
-	}, [updatePrompt, updateSourceAsset]);
+	}, [updatePrompt, updateSourceAsset, form]);
 
 	useEffect(() => {
 		if (!onDraftChange) return;
@@ -594,7 +614,11 @@ export function GenerationForm({
 	}
 
 	function updateControl(key: ImageSpecControlChangeKey, value: string) {
-		const next = resolveImageSpecControlValues(selectedCell, { ...controlValues, [key]: value });
+		const next = resolveImageSpecControlValues(
+			selectedCell,
+			{ ...controlValues, [key]: value },
+			key,
+		);
 		if (String(next[key]) !== value) return;
 		for (const field of ["outputFormat", "background", "frameCount", "frameDurationMs"] as const) {
 			form.setValue(field, next[field], { shouldDirty: true, shouldValidate: true });

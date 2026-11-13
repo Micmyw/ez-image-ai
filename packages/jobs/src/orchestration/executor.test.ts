@@ -970,6 +970,8 @@ describe("Node task executor", () => {
 				"media-dispatch-image-openrouter-sourceful_riverflow-v2.5-fast",
 				"media-dispatch-image-openrouter-sourceful_riverflow-v2.5-pro",
 				"media-dispatch-image-kie-nano-banana-2-lite",
+				"media-dispatch-image-kie-seedream_5-5-image-to-image",
+				"media-dispatch-image-kie-seedream_5-5-text-to-image",
 				"media-dispatch-image-kie-minimax-h3_image-edit",
 				"media-dispatch-image-kie-minimax-h3_text-to-image",
 				"media-dispatch-image-kie-google_nano-banana-edit",

@@ -1,7 +1,9 @@
 import { MINIMAX_H3_EXAMPLES } from "./minimax-h3-examples";
+import { SEEDREAM_5_5_EXAMPLES } from "./seedream-5-5-examples";
 
 export type ImageToolPageKey =
 	| "minimax-h3-image"
+	| "seedream-5-5"
 	| "gpt-image-2-6"
 	| "ai-svg-generator"
 	| "ai-gif-generator";
@@ -54,6 +56,81 @@ const privacyFaq = {
 };
 
 export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = {
+	"seedream-5-5": {
+		path: "/seedream-5-5",
+		title: "Seedream 5.5 — AI Image Generator & Precise Photo Editor",
+		description:
+			"Create realistic images, crisp poster text and transparent PNGs with Seedream 5.5. Edit a reference photo, explore examples and try their prompts at 1K, 1.5K or 2K.",
+		heading: "Seedream 5.5",
+		modelName: "Seedream 5.5",
+		intro:
+			"Create lifelike scenes, expressive typography and transparent design assets. Or take a photo in a new direction.",
+		facts: ["Precise photo editing", "Native transparent PNG", "1K · 1.5K · 2K"],
+		settingsNote:
+			"1K: 8 credits · 1.5K: 12 credits · 2K: 20 credits. PNG or JPEG, with one optional reference photo.",
+		showPassOffer: false,
+		showAvailabilityNote: false,
+		sections: [
+			{
+				id: "precise-photo-edits",
+				title: "Keep refining the same image",
+				body: "Change the setting, adjust a small detail or try a different material. Seedream 5.5 is designed to keep the surrounding image consistent across edits. Continue with your result to build on the last version.",
+			},
+			{
+				id: "transparent-design-assets",
+				title: "Make room for your design",
+				body: "Choose Transparent to create a PNG with an alpha channel. Make cutout products, stickers, characters and lettering that can sit naturally in your next layout.",
+			},
+			{
+				id: "realism-and-lettering",
+				title: "Bring texture and type together",
+				body: "Describe the light, surface and composition for a believable scene. For posters and infographics, include the exact words and a clear hierarchy to guide the layout.",
+			},
+		],
+		steps: [
+			{
+				title: "Start with an idea",
+				body: "Write a prompt or choose an example. Add a reference photo when you want to edit an existing image.",
+			},
+			{
+				title: "Choose the finish",
+				body: "Select 1K, 1.5K or 2K. Use PNG for transparency, or JPEG for a photograph with a solid background.",
+			},
+			{
+				title: "Create, refine, download",
+				body: "Generate your image, continue editing from the result, and download the version you like.",
+			},
+		],
+		promptSource: { label: "Kie", href: "https://kie.ai/seedream-5-5" },
+		prompts: SEEDREAM_5_5_EXAMPLES,
+		faq: [
+			{
+				question: "What is new in Seedream 5.5?",
+				answer:
+					"Seedream 5.5 focuses on more consistent edits, native transparent backgrounds, realistic lighting and materials, and clearer written text. Use it for photography, product images, posters, infographics and reusable design assets.",
+			},
+			{
+				question: "Can I edit the same photo again?",
+				answer:
+					"Yes. Upload a reference photo and describe what to change. You can then continue editing from your result, keeping each version in your workspace.",
+			},
+			{
+				question: "How do I make a transparent image?",
+				answer:
+					"Choose Transparent in the background settings. PNG is selected automatically so the downloaded image can retain its transparency.",
+			},
+			{
+				question: "How many credits does an image use?",
+				answer:
+					"1K uses 8 credits, 1.5K uses 12, and 2K uses 20. The same prices cover text-to-image generation and editing with one reference photo. Seedream 5.5 uses account credits with an active paid subscription.",
+			},
+			{
+				question: "Which reference files can I use?",
+				answer:
+					"Upload one PNG, JPEG or WebP image up to 10 MB. Each generation produces one image, downloadable as PNG or JPEG from your private workspace.",
+			},
+		],
+	},
 	"minimax-h3-image": {
 		path: "/minimax-h3-image",
 		title: "MiniMax H3 Image — AI Image Generator & Photo Editor",

@@ -1,5 +1,10 @@
 # Public page indexing
 
+The 2026-11-13 `/seedream-5-5` model tool page is indexable, appears in public
+navigation and the sitemap, and uses the shared image composer. Its English
+editorial copy follows the existing English-canonical/noindex rule for
+untranslated locale views; private query states retain noindex/nofollow.
+
 The owner approved indexing all public content and tool pages on 2026-10-08, while
 retaining account, personal job, payment and private-state exclusions. This policy
 supersedes the initial English-only and public-beta noindex rollout rules.

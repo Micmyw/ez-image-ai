@@ -7,6 +7,7 @@ export const publicPageUpdates = [
 	{ path: "/christmas-wallpaper", lastModified: "2026-11-04" },
 	{ path: "/gpt-image-2-6", lastModified: "2026-11-11" },
 	{ path: "/minimax-h3-image", lastModified: "2026-11-13" },
+	{ path: "/seedream-5-5", lastModified: "2026-11-13" },
 	{ path: "/ai-svg-generator", lastModified: "2026-11-11" },
 	{ path: "/ai-gif-generator", lastModified: "2026-11-11" },
 	{ path: "/pricing", lastModified: "2026-09-16" },

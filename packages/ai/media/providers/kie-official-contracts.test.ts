@@ -47,7 +47,7 @@ function quotedInput(skuKey: string, aspectRatio: string, text = prompt) {
 }
 
 describe("Kie official image API contracts reviewed 2026-09-14", () => {
-	it("covers the original models alongside the separately reviewed 2.6 and H3 contracts", () => {
+	it("covers the original models alongside the separately reviewed 2.6, H3 and Seedream 5.5 contracts", () => {
 		// Keep the September provider snapshot frozen. The November routes and
 		// their GIF/SVG fields are covered by kie-gpt-image-26.test.ts;
 		// H3 text/edit contracts are covered by kie-minimax-h3-image.test.ts.
@@ -57,6 +57,7 @@ describe("Kie official image API contracts reviewed 2026-09-14", () => {
 				"image-gpt-image-2-6-flare",
 				"image-gpt-image-2-6-sunburst",
 				"image-minimax-h3",
+				"image-seedream-5-5",
 			].sort(),
 		).toEqual([...EZPIC_PRODUCT_KEYS].sort());
 		expect(new Set(officialContracts.products.map((p) => p.providerModelId)).size).toBe(12);

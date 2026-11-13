@@ -74,6 +74,7 @@ describe("public HTML and HTTP indexing agree", () => {
 		"/photo-to-coloring-page",
 		"/gpt-image-2-6",
 		"/minimax-h3-image",
+		"/seedream-5-5",
 		"/ai-svg-generator",
 		"/ai-gif-generator",
 		"/video-effects/hotel-lobby-ai",

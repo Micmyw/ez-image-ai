@@ -5,6 +5,7 @@ import {
 } from "@media/components/editor/RegisteredEditor";
 import { ToolPromptProvider } from "@media/lib/tool-prompt-context";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
+import { GlowSurface } from "@repo/ui/components/glow-surface";
 import { MainAccountBoundary } from "@shared/components/MainAccountBoundary";
 import { RegisteredWorkspaceBoundary } from "@shared/components/RegisteredWorkspaceBoundary";
 import { StudioShell } from "@shared/components/studio/StudioShell";
@@ -21,6 +22,8 @@ import {
 	type ImageToolPageKey,
 } from "../lib/tool-pages";
 import { MiniMaxShowcase } from "./MiniMaxShowcase";
+import { ModelHero } from "./ModelHero";
+import { SeedreamShowcase } from "./SeedreamShowcase";
 
 import "../image-tools.css";
 
@@ -33,6 +36,15 @@ export function ImageToolPage({
 }) {
 	const content = IMAGE_TOOL_PAGES[tool];
 	const isMiniMax = tool === "minimax-h3-image";
+	const isSeedream = tool === "seedream-5-5";
+	const hasShowcase = isMiniMax || isSeedream;
+	const workspace = (
+		<section id="image-editor" className="ai-tool-workspace" aria-label={content.heading}>
+			<Suspense fallback={<output aria-live="polite">Loading your workspace…</output>}>
+				<ImageToolWorkspace searchParams={searchParams} />
+			</Suspense>
+		</section>
+	);
 	const relatedTools = (
 		<nav className="ai-tool-related" aria-label="Image generation tools">
 			{Object.values(IMAGE_TOOL_PAGES).map((page) => (
@@ -50,7 +62,10 @@ export function ImageToolPage({
 	return (
 		<StudioShell>
 			<ToolPromptProvider initialPrompt="">
-				<main className={`ai-tool-page${isMiniMax ? " minimax-page" : ""}`} lang="en">
+				<main
+					className={`ai-tool-page${hasShowcase ? " minimax-page" : ""}${isSeedream ? " seedream-page" : ""}`}
+					lang="en"
+				>
 					<script
 						type="application/ld+json"
 						dangerouslySetInnerHTML={{
@@ -61,35 +76,41 @@ export function ImageToolPage({
 						}}
 					/>
 					<div className="ai-tool-container">
-						<header className="ai-tool-hero">
-							<div>
-								<p className="ai-tool-eyebrow">
-									Create with {content.modelName ?? "GPT Image 2.6"}
-								</p>
-								<h1>
-									{isMiniMax ? (
-										<>
-											MiniMax H3 <em>Image</em>
-										</>
-									) : (
-										content.heading
-									)}
-								</h1>
-							</div>
-							<div>
-								<p className="ai-tool-intro">{content.intro}</p>
-								<ul className="ai-tool-facts" aria-label="Tool features">
-									{content.facts.map((fact) => (
-										<li key={fact}>{fact}</li>
-									))}
-								</ul>
-							</div>
-						</header>
-						<section id="image-editor" className="ai-tool-workspace" aria-label={content.heading}>
-							<Suspense fallback={<output aria-live="polite">Loading your workspace…</output>}>
-								<ImageToolWorkspace searchParams={searchParams} />
-							</Suspense>
-						</section>
+						{hasShowcase ? (
+							<GlowSurface
+								className={`model-stage ${isSeedream ? "seedream-stage" : "minimax-stage"}`}
+								tone={isSeedream ? "aurora" : "violet"}
+								intensity={isSeedream ? "strong" : "subtle"}
+								radius="0"
+							>
+								<ModelHero
+									model={isSeedream ? "seedream" : "minimax"}
+									intro={content.intro}
+									facts={content.facts}
+								/>
+								{workspace}
+							</GlowSurface>
+						) : (
+							<>
+								<header className="ai-tool-hero">
+									<div>
+										<p className="ai-tool-eyebrow">
+											Create with {content.modelName ?? "GPT Image 2.6"}
+										</p>
+										<h1>{content.heading}</h1>
+									</div>
+									<div>
+										<p className="ai-tool-intro">{content.intro}</p>
+										<ul className="ai-tool-facts" aria-label="Tool features">
+											{content.facts.map((fact) => (
+												<li key={fact}>{fact}</li>
+											))}
+										</ul>
+									</div>
+								</header>
+								{workspace}
+							</>
+						)}
 						<p className="ai-tool-settings-note">{content.settingsNote}</p>
 						{content.showPassOffer !== false && (
 							<p className="ai-tool-settings-note">
@@ -107,7 +128,7 @@ export function ImageToolPage({
 								it is unavailable, you can prepare a prompt and return later.
 							</p>
 						)}
-						{isMiniMax ? <MiniMaxShowcase /> : relatedTools}
+						{isMiniMax ? <MiniMaxShowcase /> : isSeedream ? <SeedreamShowcase /> : relatedTools}
 						<section className="ai-tool-section" aria-labelledby="tool-steps-title">
 							<h2 id="tool-steps-title">From your idea to a download</h2>
 							<ol className="ai-tool-steps">
@@ -130,7 +151,7 @@ export function ImageToolPage({
 								</section>
 							))}
 						</div>
-						{!isMiniMax && (
+						{!hasShowcase && (
 							<section className="ai-tool-section" aria-labelledby="tool-prompts-title">
 								<h2 id="tool-prompts-title">
 									{content.promptSource
@@ -218,7 +239,7 @@ export function ImageToolPage({
 								</details>
 							))}
 						</section>
-						{isMiniMax && relatedTools}
+						{hasShowcase && relatedTools}
 						<footer className="ai-tool-footer">
 							<Link href="/">EzImageAI</Link>
 							<PublicFooterLinks />

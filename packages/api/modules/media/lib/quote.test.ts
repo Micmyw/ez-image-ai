@@ -23,6 +23,9 @@ const KIE_ROUTE_OPTIONS = {
 
 describe("buildMediaQuote", () => {
 	it.each([
+		["seedream-5-5-1k", 8n, 18_000n, 25_200n],
+		["seedream-5-5-1-5k", 12n, 18_000n, 25_200n],
+		["seedream-5-5-2k", 20n, 31_500n, 38_700n],
 		["minimax-h3-1k", 5n, 9_000n, 11_500n],
 		["minimax-h3-2k", 10n, 9_000n, 11_500n],
 		["minimax-h3-4k", 20n, 27_500n, 30_000n],
@@ -40,7 +43,11 @@ describe("buildMediaQuote", () => {
 								aspectRatio: "1:1" as const,
 								sourceAssetId: SOURCE_ASSET_ID,
 							};
-				const quote = buildMediaQuote({ productKey: "image-minimax-h3", input }, KIE_ROUTE_OPTIONS);
+				const isSeedream55 = skuKey.startsWith("seedream-5-5-");
+				const quote = buildMediaQuote(
+					{ productKey: isSeedream55 ? "image-seedream-5-5" : "image-minimax-h3", input },
+					KIE_ROUTE_OPTIONS,
+				);
 				expect(quote).toMatchObject({
 					credits,
 					costMicros: kind === "text-to-image" ? textCost : editCost,
@@ -52,8 +59,13 @@ describe("buildMediaQuote", () => {
 						allowedRoutes: [
 							{
 								provider: "kie",
-								providerModelId:
-									kind === "text-to-image" ? "minimax-h3/text-to-image" : "minimax-h3/image-edit",
+								providerModelId: isSeedream55
+									? kind === "text-to-image"
+										? "seedream/5-5-text-to-image"
+										: "seedream/5-5-image-to-image"
+									: kind === "text-to-image"
+										? "minimax-h3/text-to-image"
+										: "minimax-h3/image-edit",
 							},
 						],
 					},

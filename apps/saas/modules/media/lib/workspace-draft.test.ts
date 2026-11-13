@@ -28,6 +28,23 @@ const draft: WorkspaceDraft = {
 };
 
 describe("workspace continuity across account and checkout navigation", () => {
+	it("restores a Seedream transparent image draft on its dedicated page", () => {
+		const store = storage();
+		const seedreamDraft: WorkspaceDraft = {
+			values: {
+				...draft.values,
+				productKey: "image-seedream-5-5",
+				skuKey: "seedream-5-5-1-5k",
+				outputFormat: "png",
+				background: "transparent",
+			},
+			parentJobId: null,
+		};
+		expect(saveWorkspaceDraft(store, "owner-a", seedreamDraft, 1000, "/seedream-5-5")).toBe(true);
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, "/seedream-5-5")).toEqual(seedreamDraft);
+		expect(workspaceDraftReturnPath(store, "owner-a", 2000)).toBe("/seedream-5-5?resume=workspace");
+		expect(loadWorkspaceDraft(store, "owner-b", 2000, "/seedream-5-5")).toBeNull();
+	});
 	it("returns an owned MiniMax draft to its dedicated workspace", () => {
 		const store = storage();
 		const minimaxDraft: WorkspaceDraft = {

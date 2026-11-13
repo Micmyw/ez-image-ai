@@ -232,7 +232,7 @@
 	font-size: 0.85rem;
 }
 
-.ai-tool-page .model-prompt-button {
+:where(.ai-tool-page) .model-prompt-button {
 	align-self: flex-start;
 	margin-top: 1rem;
 	padding: 0.65rem 0;
@@ -403,7 +403,7 @@
 
 .ai-tool-prompts.minimax-gallery {
 	grid-template-columns: repeat(3, minmax(0, 1fr));
-	align-items: start;
+	align-items: stretch;
 	gap: 2rem 1.5rem;
 	margin-top: 0;
 }
@@ -454,8 +454,7 @@
 	letter-spacing: -0.035em;
 }
 
-.minimax-featured-caption p:last-child,
-.minimax-featured-work .minimax-prompt p {
+.minimax-featured-caption p:last-child {
 	color: var(--minimax-muted);
 	font-size: 0.8rem;
 	line-height: 1.7;
@@ -524,35 +523,18 @@
 	letter-spacing: -0.02em;
 }
 
-.minimax-prompt summary {
-	width: fit-content;
-	color: var(--minimax-muted);
-	font-size: 0.75rem;
-	cursor: pointer;
+.minimax-gallery .minimax-work,
+.minimax-gallery .minimax-work-caption {
+	display: flex;
+	flex-direction: column;
 }
 
-.minimax-gallery .minimax-prompt p {
-	margin-block: 0.85rem;
-	color: var(--minimax-muted);
-	font-size: 0.8rem;
-	line-height: 1.8;
+.minimax-gallery .minimax-work-caption {
+	flex: 1;
 }
 
-.minimax-page .model-prompt-button {
-	display: inline-flex;
-	align-items: center;
-	gap: 1rem;
-	margin-top: 0.75rem;
-	padding: 0.5rem 0;
-	border-bottom: 1px solid #c5b4ed60;
-	color: var(--minimax-ink);
-	font-size: 0.75rem;
-	font-weight: 500;
-}
-
-.minimax-page .model-prompt-button:hover {
-	color: var(--minimax-accent);
-	border-color: var(--minimax-accent);
+.minimax-gallery .example-prompt-actions {
+	margin-top: auto;
 }
 
 .minimax-gallery .minimax-edit-work {
@@ -755,5 +737,346 @@
 @media (prefers-reduced-motion: reduce) {
 	.minimax-work-image img {
 		transition: none;
+	}
+}
+
+/* Seedream puts typography, photographic detail and real alpha side by side. */
+.seedream-page {
+	--minimax-accent: #a9dbe5;
+	--minimax-surface: #211e2d;
+	background: #15111f;
+}
+
+.model-stage {
+	margin-inline: -2rem;
+	padding: 3.75rem 2rem 0.75rem;
+}
+
+.model-stage > .glow-surface-light,
+.model-stage > .glow-surface-spot {
+	mask-image: linear-gradient(transparent, #000 22%, #000 72%, transparent);
+}
+
+.model-hero {
+	padding-inline: 0.5rem;
+}
+
+.model-hero-eyebrow {
+	display: flex;
+	align-items: center;
+	gap: 0.7rem;
+	color: #c3b6d8;
+	font-size: 0.65rem;
+	font-weight: 600;
+	letter-spacing: 0.16em;
+	text-transform: uppercase;
+}
+
+.model-hero-eyebrow::before {
+	content: "";
+	width: 0.4rem;
+	height: 0.4rem;
+	border-radius: 50%;
+	background: #78d5ed;
+	box-shadow: 0 0 14px #78d5ed99;
+}
+
+.model-hero .display-title {
+	margin: 1.25rem 0 1.75rem;
+}
+
+.minimax-stage .model-hero-eyebrow::before {
+	background: #e4c6aa;
+	box-shadow: 0 0 14px #e4c6aa66;
+}
+
+.model-hero-details {
+	display: grid;
+	grid-template-columns: 1fr 1fr;
+	align-items: end;
+	gap: 2rem;
+	margin-bottom: 2rem;
+}
+
+.model-hero-statement {
+	margin: 0;
+	font-family: Georgia, "Times New Roman", serif;
+	font-size: clamp(1.4rem, 2.5vw, 2rem);
+	font-weight: 400;
+	font-style: italic;
+	letter-spacing: -0.035em;
+	line-height: 1.2;
+	color: #ddd2ef;
+}
+
+.model-hero-description > p {
+	max-width: 32rem;
+	margin: 0;
+	color: #baafca;
+	font-size: 0.88rem;
+	line-height: 1.7;
+}
+
+.model-hero-description ul {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5rem 1.15rem;
+	margin: 0.85rem 0 0;
+	padding: 0;
+	list-style: none;
+	color: #d7c9ed;
+	font-size: 0.64rem;
+}
+
+.model-hero-description li::before {
+	content: "";
+	display: inline-block;
+	width: 0.25rem;
+	height: 0.25rem;
+	margin: 0 0.45rem 0.1rem 0;
+	border-radius: 50%;
+	background: #78d5ed;
+}
+
+.model-stage :is([data-test="landing-generator"], .studio-composer) {
+	border-color: #b6a0ed60;
+	background: linear-gradient(115deg, #2b2239f5, #211e2df5);
+	box-shadow:
+		0 20px 70px -35px #a78bfa50,
+		inset 0 1px 0 #e0d3ff20;
+	transition:
+		border-color 220ms ease,
+		box-shadow 220ms ease;
+}
+
+.model-stage :is([data-test="landing-generator"], .studio-composer):focus-within {
+	border-color: #bca8f1b3;
+	box-shadow:
+		0 0 0 1px #a78bfa33,
+		0 18px 80px -30px #a78bfa75,
+		0 -8px 40px -25px #78d5ed80;
+}
+
+.seedream-demo-frame {
+	padding: 1px;
+}
+
+@media (max-width: 640px) {
+	.model-stage {
+		margin-inline: -1rem;
+		padding: 2.5rem 1rem 0.25rem;
+	}
+	.model-hero {
+		padding-inline: 0;
+	}
+	.model-hero .display-title {
+		margin-block: 1.2rem 1.4rem;
+	}
+	.model-hero-eyebrow {
+		font-size: 0.57rem;
+		letter-spacing: 0.12em;
+	}
+	.model-hero-details {
+		grid-template-columns: 1fr;
+		gap: 1rem;
+		margin-bottom: 1.5rem;
+	}
+	.model-hero-statement br {
+		display: none;
+	}
+	.model-hero-description > p {
+		font-size: 0.8rem;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.model-stage :is([data-test="landing-generator"], .studio-composer) {
+		transition: none;
+	}
+}
+
+.seedream-gallery {
+	display: grid;
+	grid-template-columns: 1fr 1.1fr;
+	align-items: start;
+	gap: 2.5rem 2rem;
+}
+
+.seedream-demo {
+	margin: 0 0 3.5rem;
+}
+
+.seedream-demo video {
+	display: block;
+	width: 100%;
+	height: auto;
+	border: 1px solid var(--minimax-rule);
+	border-radius: 1rem;
+	background: #0c0a10;
+}
+
+.seedream-demo figcaption {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	align-items: center;
+	gap: 1rem;
+	padding-block: 1.2rem;
+}
+
+.seedream-demo h3 {
+	margin: 0 0 0.5rem;
+	font-size: clamp(1.1rem, 2vw, 1.5rem);
+}
+
+.seedream-demo p,
+.seedream-demo a {
+	margin: 0;
+	color: var(--minimax-muted);
+	font-size: 0.8rem;
+	line-height: 1.7;
+}
+
+.seedream-demo a {
+	text-underline-offset: 0.3em;
+	text-decoration: underline;
+}
+
+.seedream-gallery-source {
+	margin-block: 0 1rem;
+	color: var(--minimax-muted);
+	font-size: 0.8rem;
+	text-align: right;
+}
+
+.seedream-work {
+	min-width: 0;
+}
+
+.seedream-work-poster {
+	grid-row: span 2;
+}
+
+.seedream-work-image {
+	position: relative;
+	overflow: hidden;
+	border-radius: 0.8rem;
+	background: #e5e4de;
+}
+
+.seedream-work-image img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+.seedream-work-image > span,
+.seedream-alpha-badge {
+	position: absolute;
+	right: 0.85rem;
+	bottom: 0.85rem;
+	padding: 0.3rem 0.6rem;
+	border: 1px solid #ffffff38;
+	border-radius: 0.3rem;
+	background: #19131fce;
+	color: #f6f0fb;
+	font-size: 0.65rem;
+}
+
+.seedream-edit-work,
+.seedream-transparent-work {
+	display: grid;
+	grid-template-columns: 0.8fr 1.2fr;
+	align-items: center;
+	gap: 3rem;
+	margin-top: 3.5rem;
+	padding: 2rem;
+	border: 1px solid var(--minimax-rule);
+	border-radius: 1rem;
+	background: var(--minimax-surface);
+}
+
+.seedream-transparent-work {
+	grid-template-columns: 1.2fr 0.8fr;
+}
+
+.seedream-transparent-preview {
+	position: relative;
+	min-width: 0;
+}
+
+.seedream-cutout-checkerboard {
+	position: relative;
+	overflow: hidden;
+	border-radius: 0.75rem;
+	background-color: #e8e6ea;
+	background-image:
+		linear-gradient(45deg, #d5d2d9 25%, transparent 25%),
+		linear-gradient(-45deg, #d5d2d9 25%, transparent 25%),
+		linear-gradient(45deg, transparent 75%, #d5d2d9 75%),
+		linear-gradient(-45deg, transparent 75%, #d5d2d9 75%);
+	background-size: 24px 24px;
+	background-position:
+		0 0,
+		0 12px,
+		12px -12px,
+		-12px 0;
+}
+
+.seedream-cutout-checkerboard img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+.seedream-cutout-reference {
+	position: absolute;
+	top: 1rem;
+	left: 1rem;
+	width: 23%;
+	overflow: hidden;
+	border: 3px solid #f7f5f9;
+	border-radius: 0.5rem;
+	background: #f7f5f9;
+	box-shadow: 0 4px 20px #15102135;
+}
+
+.seedream-cutout-reference img {
+	display: block;
+	width: 100%;
+	height: auto;
+	border-radius: 0.25rem;
+}
+
+.seedream-cutout-reference figcaption {
+	padding: 0.25rem;
+	color: #413749;
+	font-size: 0.6rem;
+	text-align: center;
+}
+
+@media (max-width: 900px) {
+	.seedream-edit-work,
+	.seedream-transparent-work {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 1.5rem;
+	}
+	.seedream-transparent-work .minimax-edit-copy {
+		grid-row: 1;
+	}
+}
+
+@media (max-width: 640px) {
+	.seedream-gallery {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 2rem;
+	}
+	.seedream-work-poster {
+		grid-row: auto;
+	}
+	.seedream-edit-work,
+	.seedream-transparent-work {
+		margin-top: 2.5rem;
+		padding: 1.25rem;
 	}
 }

@@ -35,6 +35,16 @@ export function PromptPanel({
 	return (
 		<div className="studio-prompt space-y-3 min-w-0">
 			{referenceFirst && <Fragment key="reference">{referencePanel}</Fragment>}
+			<PromptIdeas
+				disabled={disabled}
+				label={suggestionsLabel}
+				suggestions={suggestions}
+				labels={suggestionLabels}
+				onSelect={(prompt) => {
+					onChange(prompt);
+					promptRef.current?.focus({ preventScroll: true });
+				}}
+			/>
 			<div key="prompt" className="composer-prompt-field">
 				<div className="composer-prompt-label gap-3 flex items-end justify-between">
 					<Label htmlFor="generation-prompt">{label}</Label>
@@ -59,16 +69,6 @@ export function PromptPanel({
 				/>
 			</div>
 			{!referenceFirst && <Fragment key="reference">{referencePanel}</Fragment>}
-			<PromptIdeas
-				disabled={disabled}
-				label={suggestionsLabel}
-				suggestions={suggestions}
-				labels={suggestionLabels}
-				onSelect={(prompt) => {
-					onChange(prompt);
-					promptRef.current?.focus({ preventScroll: true });
-				}}
-			/>
 		</div>
 	);
 }

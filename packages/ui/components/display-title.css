@@ -1,0 +1,132 @@
+.display-title {
+	margin: 0;
+	color: #f4edff;
+	font-size: clamp(3rem, 8.7vw, 7.8rem);
+	font-weight: 650;
+	letter-spacing: -0.065em;
+	line-height: 1.1;
+}
+
+.display-title-lockup {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.2em;
+	max-width: 100%;
+}
+
+.display-title-name {
+	white-space: nowrap;
+}
+
+.display-title-accent {
+	display: inline-block;
+	padding-right: 0.06em;
+	background-size: 200% 100%;
+	background-position: var(--glow-progress, 50%) center;
+	background-clip: text;
+	color: transparent;
+	-webkit-text-stroke: 0.5px #f4edff40;
+}
+
+.display-title[data-display-title="refract"] .display-title-accent {
+	margin-left: -0.015em;
+	font-family: Georgia, "Times New Roman", serif;
+	font-size: 1.08em;
+	font-weight: 400;
+	font-style: italic;
+	letter-spacing: -0.075em;
+	background-image: linear-gradient(
+		112deg,
+		#f7ecff 12%,
+		#dbcdff 28%,
+		#a9daef 39%,
+		#f7ecff 49%,
+		#b2a0ef 58%,
+		#b3eaf1 70%,
+		#f7ecff 86%
+	);
+	text-shadow: 0 8px 32px #b4a1ec18;
+}
+
+.display-title-edition {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.12em;
+	margin-top: -0.7em;
+	padding: 0.44em 0.5em;
+	border: 1px solid #c8b8e66b;
+	border-radius: 0.2em;
+	background: linear-gradient(135deg, #d2bbff14, #78d5ed08);
+	color: #e1d4f6;
+	font-family: "Courier New", monospace;
+	font-size: 0.26em;
+	font-weight: 400;
+	letter-spacing: -0.06em;
+	line-height: 1;
+	transform: rotate(-7deg);
+}
+
+.display-title-edition::before {
+	position: absolute;
+	top: -1px;
+	right: -1px;
+	width: 0.28em;
+	height: 0.28em;
+	border-top: 1px solid #e2d8f7;
+	border-right: 1px solid #e2d8f7;
+	content: "";
+}
+
+.display-title-edition small {
+	font-family: sans-serif;
+	font-size: max(0.28em, 8px);
+	font-weight: 600;
+	letter-spacing: 0.2em;
+}
+
+.display-title[data-display-title="alloy"] .display-title-lead {
+	font-weight: 450;
+	letter-spacing: -0.08em;
+}
+
+.display-title[data-display-title="alloy"] .display-title-accent {
+	padding-right: 0.1em;
+	font-weight: 850;
+	font-style: italic;
+	letter-spacing: -0.085em;
+	background-image: linear-gradient(
+		170deg,
+		#fff5e8 18%,
+		#f0e4f8 32%,
+		#b4a0d0 47%,
+		#756587 49%,
+		#f9f2ff 51%,
+		#e4c6aa 67%,
+		#fff5e8 82%
+	);
+	text-shadow: 0 3px 0 #b8a2cc15;
+}
+
+.display-title[data-display-title="alloy"] .display-title-edition {
+	border-color: #d4bca675;
+	border-radius: 0;
+	background: linear-gradient(130deg, #e4c6aa17, #a78bfa08);
+	color: #e8d2bc;
+	transform: skewY(-5deg);
+}
+
+@media (max-width: 640px) {
+	.display-title {
+		font-size: clamp(2.5rem, 12.8vw, 4.8rem);
+	}
+}
+
+@media (forced-colors: active) {
+	.display-title-accent {
+		color: CanvasText;
+		background: none;
+		-webkit-text-stroke: 0;
+	}
+}

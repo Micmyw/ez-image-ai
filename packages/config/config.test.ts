@@ -492,9 +492,10 @@ describe("product configuration", () => {
 			"image-seedream-4-5",
 			"image-seedream-5-lite",
 			"image-seedream-5-pro",
+			"image-seedream-5-5",
 		]);
-		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-11-13.1");
-		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-11-13.1");
+		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-11-13.2");
+		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-11-13.2");
 		expect(publicConfig.brand).toMatchObject({
 			siteName: "EzImageAI",
 			siteDescription: expect.stringMatching(/image edit/i),
@@ -542,6 +543,7 @@ describe("product configuration", () => {
 					"image-seedream-4-5",
 					"image-seedream-5-lite",
 					"image-seedream-5-pro",
+					"image-seedream-5-5",
 				],
 				prices: [
 					{ interval: "month", amount: 19, currency: "USD" },
@@ -568,6 +570,7 @@ describe("product configuration", () => {
 					"image-seedream-4-5",
 					"image-seedream-5-lite",
 					"image-seedream-5-pro",
+					"image-seedream-5-5",
 				],
 				prices: [
 					{ interval: "month", amount: 49, currency: "USD" },
@@ -594,6 +597,7 @@ describe("product configuration", () => {
 					"image-seedream-4-5",
 					"image-seedream-5-lite",
 					"image-seedream-5-pro",
+					"image-seedream-5-5",
 				],
 				prices: [
 					{ interval: "month", amount: 79, currency: "USD" },

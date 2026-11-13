@@ -104,6 +104,21 @@ function gptImage26Selection(variant: "flare" | "sunburst"): ImageProductSelecti
 export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 	Record<EzPicProductKey, ImageProductSelectionContract>
 > = {
+	"image-seedream-5-5": {
+		maximumInputBytes: 10_000_000,
+		minimumPromptLength: 5,
+		maximumPromptLength: 5000,
+		defaultSkuKey: "seedream-5-5-1-5k",
+		defaultAspectRatio: "1:1",
+		cells: (["1k", "1-5k", "2k"] as const).map((resolution) => ({
+			skuKey: `seedream-5-5-${resolution}`,
+			aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9", "auto"],
+			controls: [
+				{ key: "outputFormat", defaultValue: "png", options: ["png", "jpeg"] },
+				{ key: "background", defaultValue: "auto", options: ["auto", "transparent", "opaque"] },
+			],
+		})),
+	},
 	"image-minimax-h3": {
 		maximumInputBytes: 20_000_000,
 		maximumInputPixels: 64_000_000,
@@ -512,6 +527,12 @@ export function parseImageSelection(
 		if (!background.success || !control?.options.includes(background.data)) return null;
 		selection.background = background.data;
 	}
+	if (
+		productKey === "image-seedream-5-5" &&
+		selection.background === "transparent" &&
+		(selection.outputFormat ?? "png") !== "png"
+	)
+		return null;
 	if (isGptImage26Sku(selection.skuKey)) {
 		const format = selection.outputFormat ?? "png";
 		if (selection.background === "transparent" && format !== "png") return null;

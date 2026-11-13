@@ -26,10 +26,14 @@ import {
 	SEEDREAM_5_PRO_MATRIX,
 } from "./image-spec-matrices";
 import { MINIMAX_H3_IMAGE_MATRIX } from "./minimax-h3-image";
+import { SEEDREAM_5_5_IMAGE_MATRIX } from "./seedream-5-5";
 
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
 
 const expectedSkus = [
+	["image-seedream-5-5", "seedream-5-5-1k", 8],
+	["image-seedream-5-5", "seedream-5-5-1-5k", 12],
+	["image-seedream-5-5", "seedream-5-5-2k", 20],
 	["image-minimax-h3", "minimax-h3-1k", 5],
 	["image-minimax-h3", "minimax-h3-2k", 10],
 	["image-minimax-h3", "minimax-h3-4k", 20],
@@ -56,6 +60,7 @@ const expectedSkus = [
 ] as const;
 
 const matricesByProduct: Record<EzPicProductKey, ImageSpecMatrix> = {
+	"image-seedream-5-5": SEEDREAM_5_5_IMAGE_MATRIX,
 	"image-minimax-h3": MINIMAX_H3_IMAGE_MATRIX,
 	"image-gpt-image-2-6-flare": gptImage26Matrix("flare"),
 	"image-gpt-image-2-6-sunburst": gptImage26Matrix("sunburst"),
@@ -143,8 +148,8 @@ describe("Kie image SKU catalog", () => {
 				productKey,
 				skuKey,
 				credits,
-				catalogVersion: "2026-11-13.1",
-				pricingVersion: "2026-11-13.1",
+				catalogVersion: "2026-11-13.2",
+				pricingVersion: "2026-11-13.2",
 			});
 		}
 	});
@@ -310,7 +315,7 @@ describe("Kie image SKU catalog", () => {
 		]);
 	});
 
-	it("publishes fifteen independent model matrices with thirty-eight priced SKUs", () => {
+	it("publishes sixteen independent model matrices with forty-one priced SKUs", () => {
 		const products = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
@@ -324,6 +329,16 @@ describe("Kie image SKU catalog", () => {
 				skus: product.skuMatrix?.cells.map(({ skuKey, credits }) => [skuKey, credits]),
 			})),
 		).toEqual([
+			{
+				key: "image-seedream-5-5",
+				defaultSkuKey: "seedream-5-5-1-5k",
+				dimensions: ["resolution"],
+				skus: [
+					["seedream-5-5-1k", 8],
+					["seedream-5-5-1-5k", 12],
+					["seedream-5-5-2k", 20],
+				],
+			},
 			{
 				key: "image-minimax-h3",
 				defaultSkuKey: "minimax-h3-1k",
@@ -464,7 +479,7 @@ describe("Kie image SKU catalog", () => {
 				],
 			},
 		]);
-		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(38);
+		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(41);
 	});
 
 	it("publishes only the non-priced controls supported by each selected SKU", () => {

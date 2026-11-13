@@ -10,6 +10,12 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("image model URL selection", () => {
+	it("opens Seedream 5.5 with its dedicated image model", () => {
+		expect(imageModelHref("image-seedream-5-5")).toBe("/seedream-5-5");
+		expect(resolveRequestedImageModel("/seedream-5-5", null)).toBe("image-seedream-5-5");
+		expect(resolveRequestedImageModel("/seedream-5-5", "unknown-model")).toBe("image-seedream-5-5");
+		expect(resolveRequestedImageOutputFormat("/seedream-5-5")).toBeUndefined();
+	});
 	it("opens MiniMax H3 with its dedicated image model", () => {
 		expect(imageModelHref("image-minimax-h3")).toBe("/minimax-h3-image");
 		expect(resolveRequestedImageModel("/minimax-h3-image", null)).toBe("image-minimax-h3");

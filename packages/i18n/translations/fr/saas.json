@@ -1646,6 +1646,10 @@
 				"image-gpt-image-2-6-sunburst": {
 					"label": "GPT Image 2.6 Sunburst",
 					"description": "Détails de haute qualité et retouches cohérentes avec la référence."
+				},
+				"image-seedream-5-5": {
+					"label": "Seedream 5.5",
+					"description": "Retouches précises, détails réalistes et PNG transparents, jusqu’à 2K."
 				}
 			},
 			"skus": {
@@ -1762,6 +1766,15 @@
 				},
 				"gpt-image-2-6-sunburst-4k": {
 					"label": "4K"
+				},
+				"seedream-5-5-1k": {
+					"label": "1K"
+				},
+				"seedream-5-5-1-5k": {
+					"label": "1.5K"
+				},
+				"seedream-5-5-2k": {
+					"label": "2K"
 				}
 			},
 			"fields": {
@@ -2374,7 +2387,9 @@
 			"svgGenerator": "Générateur SVG par IA",
 			"svgGeneratorDescription": "Créez des illustrations SVG statiques à partir d’une description",
 			"gifGenerator": "Générateur GIF par IA",
-			"gifGeneratorDescription": "Créez de courts GIF animés à partir de texte ou d’une photo"
+			"gifGeneratorDescription": "Créez de courts GIF animés à partir de texte ou d’une photo",
+			"seedream55": "Seedream 5.5",
+			"seedream55Description": "Retouches précises, éléments transparents et images réalistes."
 		},
 		"generation": {
 			"referencePending": "Terminez l’envoi de la référence, réessayez ou retirez-la pour générer à partir du texte.",

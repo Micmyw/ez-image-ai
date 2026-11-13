@@ -30,6 +30,7 @@ import {
 	getImageProductSelectionContract,
 	getPlanEntitlement,
 	planIncludesImageSelection,
+	parseImageSelection,
 } from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
@@ -447,6 +448,15 @@ function LandingGeneratorWorkspace({
 			event.preventDefault();
 
 			setPrompt(detail.prompt);
+			const selection = detail.selection;
+			const parsed = selection && parseImageSelection(selection.productKey, selection);
+			if (selection && parsed && isEditorProductKey(selection.productKey)) {
+				setSelectedProductKey(selection.productKey);
+				setSelectedSkuKey(parsed.skuKey);
+				setAspectRatio(parsed.aspectRatio);
+				setControlValues({ outputFormat: parsed.outputFormat, background: parsed.background });
+				replaceImageModelInUrl(selection.productKey);
+			}
 			setSubmitError(undefined);
 			requestAnimationFrame(() => {
 				promptRef.current?.focus({ preventScroll: true });
@@ -762,7 +772,7 @@ function LandingGeneratorWorkspace({
 
 	function changeControl(key: ImageSpecControlChangeKey, value: string) {
 		setControlValues((current) => {
-			const next = resolveImageSpecControlValues(selectedSku, { ...current, [key]: value });
+			const next = resolveImageSpecControlValues(selectedSku, { ...current, [key]: value }, key);
 			return String(next[key]) === value ? next : current;
 		});
 		if (key === "outputFormat" && value === "gif") setAspectRatio("1:1");
@@ -1151,6 +1161,20 @@ function LandingGeneratorWorkspace({
 					>
 						{toolPrompt?.allowReference !== false && referencePanel}
 
+						<PromptIdeas
+							disabled={isBusy}
+							label={isImageEdit ? tCreate("suggestions.label") : composer("promptIdeas")}
+							suggestions={composerSuggestionKeys.map((key) =>
+								isImageEdit ? tCreate(`suggestions.${key}`) : composer(`ideas.${key}.prompt`),
+							)}
+							labels={composerSuggestionKeys.map((key) =>
+								isImageEdit ? studio(`promptSuggestions.${key}`) : composer(`ideas.${key}.label`),
+							)}
+							onSelect={(suggestion) => {
+								setPrompt(suggestion);
+								promptRef.current?.focus({ preventScroll: true });
+							}}
+						/>
 						<section
 							data-test="landing-prompt-panel"
 							style={toolPrompt?.allowReference === false ? { gridColumn: "1 / -1" } : undefined}
@@ -1178,20 +1202,6 @@ function LandingGeneratorWorkspace({
 								</span>
 							) : null}
 						</section>
-						<PromptIdeas
-							disabled={isBusy}
-							label={isImageEdit ? tCreate("suggestions.label") : composer("promptIdeas")}
-							suggestions={composerSuggestionKeys.map((key) =>
-								isImageEdit ? tCreate(`suggestions.${key}`) : composer(`ideas.${key}.prompt`),
-							)}
-							labels={composerSuggestionKeys.map((key) =>
-								isImageEdit ? studio(`promptSuggestions.${key}`) : composer(`ideas.${key}.label`),
-							)}
-							onSelect={(suggestion) => {
-								setPrompt(suggestion);
-								promptRef.current?.focus({ preventScroll: true });
-							}}
-						/>
 					</div>
 
 					<div

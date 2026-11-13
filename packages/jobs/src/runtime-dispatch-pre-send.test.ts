@@ -255,7 +255,7 @@ function fixture() {
 	};
 }
 
-function minimaxReferenceFixture() {
+function minimaxReferenceFixture(seedream55 = false) {
 	const f = fixture();
 	const validUntil = new Date(now.getTime() + 60_000);
 	const asset = {
@@ -296,29 +296,29 @@ function minimaxReferenceFixture() {
 	};
 	const h3Route = {
 		...route,
-		providerModelId: "minimax-h3/image-edit",
-		providerCostMicros: 11_500,
+		providerModelId: seedream55 ? "seedream/5-5-image-to-image" : "minimax-h3/image-edit",
+		providerCostMicros: seedream55 ? 25_200 : 11_500,
 	};
 	Object.assign(f.job, {
-		productKey: "image-minimax-h3",
+		productKey: seedream55 ? "image-seedream-5-5" : "image-minimax-h3",
 		catalogVersion: "2026-11-13.1",
 		pricingVersion: "2026-11-13.1",
 		inputSnapshot: {
 			kind: "image-to-image",
 			prompt: "A calm lake",
-			skuKey: "minimax-h3-1k",
+			skuKey: seedream55 ? "seedream-5-5-1-5k" : "minimax-h3-1k",
 			aspectRatio: "auto",
 			sourceAssetId: asset.id,
 		},
 		pricingSnapshot: {
 			routeGraph: createRouteGraphSnapshot({
-				productKey: "image-minimax-h3",
+				productKey: seedream55 ? "image-seedream-5-5" : "image-minimax-h3",
 				catalogVersion: "2026-11-13.1",
 				pricingVersion: "2026-11-13.1",
 				routes: [h3Route],
 			}),
 		},
-		quote: { costMicros: 11_500n, moderationDecision: "ALLOW" },
+		quote: { costMicros: seedream55 ? 25_200n : 11_500n, moderationDecision: "ALLOW" },
 	});
 	Object.assign(f.attempt, { providerModelId: h3Route.providerModelId });
 	Object.assign(f.tx, {
@@ -333,6 +333,7 @@ function minimaxReferenceFixture() {
 		environment: {
 			...f.options.environment,
 			MEDIA_MINIMAX_H3_IMAGE_ENABLED: "true",
+			MEDIA_SEEDREAM_5_5_IMAGE_ENABLED: "true",
 			MEDIA_SAFETY_ADAPTER: "test",
 			MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
 		},
@@ -370,6 +371,39 @@ describe("MiniMax reference dispatch inspection", () => {
 		vi.setSystemTime(now);
 	});
 	afterEach(() => vi.useRealTimers());
+
+	it.each([10_000_000n, 10_000_001n])(
+		"checks Seedream reference bytes before an attempt: %s",
+		async (byteSize) => {
+			const f = minimaxReferenceFixture(true);
+			f.asset.byteSize = byteSize;
+			const result = dispatchGeneration({ jobId: "job", version: 4 }, f.dependencies);
+			if (byteSize === 10_000_000n) {
+				await expect(result).resolves.toMatchObject({ outcome: "SUBMITTED" });
+				expect(f.fetch).toHaveBeenCalledOnce();
+				expect(JSON.parse(f.fetch.mock.calls[0]![1]!.body as string)).toMatchObject({
+					model: "seedream/5-5-image-to-image",
+					input: { size: "1.5K", image_urls: ["https://private.test/input.png"] },
+				});
+			} else {
+				await expect(result).rejects.toThrow("INPUT_TOO_LARGE");
+				expect(f.tx.generationAttempt.create).not.toHaveBeenCalled();
+				expect(f.createSignedReadUrl).not.toHaveBeenCalled();
+				expect(f.fetch).not.toHaveBeenCalled();
+				expect(f.attempt.uncertainSubmission).toBe(false);
+			}
+		},
+	);
+	it("rejects an unsupported Seedream reference MIME before signing or provider work", async () => {
+		const f = minimaxReferenceFixture(true);
+		f.asset.mimeType = "image/svg+xml";
+		await expect(dispatchGeneration({ jobId: "job", version: 4 }, f.dependencies)).rejects.toThrow(
+			"IMAGE_INPUT_TYPE_UNSUPPORTED",
+		);
+		expect(f.tx.generationAttempt.create).not.toHaveBeenCalled();
+		expect(f.createSignedReadUrl).not.toHaveBeenCalled();
+		expect(f.fetch).not.toHaveBeenCalled();
+	});
 
 	it("resolves dimensions from the checksum-bound inspected asset", async () => {
 		const f = minimaxReferenceFixture();

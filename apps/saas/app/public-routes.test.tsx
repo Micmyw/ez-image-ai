@@ -221,6 +221,7 @@ type PublicPageModule = {
 
 type ImageToolPageModule =
 	| typeof import("./(public)/minimax-h3-image/page")
+	| typeof import("./(public)/seedream-5-5/page")
 	| typeof import("./(public)/gpt-image-2-6/page")
 	| typeof import("./(public)/ai-svg-generator/page")
 	| typeof import("./(public)/ai-gif-generator/page");
@@ -250,6 +251,7 @@ const publicRoutes = [
 	{ modulePath: "./(public)/image-to-image/page", path: "/image-to-image", robots: "index" },
 	{ modulePath: "./(public)/gpt-image-2-6/page", path: "/gpt-image-2-6", robots: "index" },
 	{ modulePath: "./(public)/minimax-h3-image/page", path: "/minimax-h3-image", robots: "index" },
+	{ modulePath: "./(public)/seedream-5-5/page", path: "/seedream-5-5", robots: "index" },
 	{ modulePath: "./(public)/ai-svg-generator/page", path: "/ai-svg-generator", robots: "index" },
 	{ modulePath: "./(public)/ai-gif-generator/page", path: "/ai-gif-generator", robots: "index" },
 	{
@@ -317,7 +319,7 @@ describe("consolidated public route contract", () => {
 				expect(passFaq?.acceptedAnswer.text).toContain("PNG or JPEG at 1K, 2K or 4K, static SVG");
 				expect(passFaq?.acceptedAnswer.text).toContain("One successful result uses one pass");
 				expect(passFaq?.acceptedAnswer.text).toContain("a whole GIF regardless of its frame count");
-			} else {
+			} else if (key === "minimax-h3-image") {
 				expect(markup.indexOf('id="tool-prompts-title"')).toBeLessThan(
 					markup.indexOf('id="tool-steps-title"'),
 				);
@@ -327,7 +329,25 @@ describe("consolidated public route contract", () => {
 				expect(markup).toContain("1K: 5 credits · 2K: 10 credits · 4K: 20 credits");
 				expect(markup).not.toContain("use new or remaining $2.99 pack passes");
 				expect(markup).not.toContain("not verified output examples");
-				expect(markup).toContain('href="/images/models/minimax-h3/cafe-night-reference.webp"');
+				expect(markup).toContain('src="/images/models/minimax-h3/cafe-night-reference.webp"');
+			} else if (key === "seedream-5-5") {
+				expect(markup).toContain('data-seedream-demo=""');
+				expect(markup).toContain("/images/models/seedream-5-5/media-io-demo-poster.jpg");
+				expect(markup).toContain("Demo: Media.io");
+				expect(markup.indexOf('id="tool-prompts-title"')).toBeLessThan(
+					markup.indexOf('id="tool-steps-title"'),
+				);
+				expect(markup).toContain("Examples from");
+				expect(markup).toContain('href="https://kie.ai/seedream-5-5"');
+				expect(markup).toContain("1K: 8 credits · 1.5K: 12 credits · 2K: 20 credits");
+				expect(markup).toContain('class="seedream-cutout-checkerboard"');
+				expect(markup).toContain('src="/images/models/seedream-5-5/room-edit-reference.webp"');
+				expect(markup).toContain(
+					'src="/images/models/seedream-5-5/transparent-product-reference.webp"',
+				);
+				expect(markup).not.toContain("Made with MiniMax H3");
+				expect(markup).not.toContain("use new or remaining $2.99 pack passes");
+				expect(markup).not.toContain("not verified output examples");
 			}
 			expect(markup).not.toContain("these new tools do not expand an existing pass");
 			const privateMetadata = await resolveMetadata(pageModule, {

@@ -95,6 +95,7 @@ export interface EzPicLaunchEnvironment {
 	controls: {
 		generationEnabled: boolean;
 		minimaxH3ImageEnabled: boolean;
+		seedream55ImageEnabled: boolean;
 		nanoBanana2LiteEnabled: boolean;
 		nanoBananaEnabled: boolean;
 		nanoBanana2Enabled: boolean;
@@ -215,6 +216,8 @@ export function validateEzPicLaunchEnvironment(
 		optionalBoolean(input, "MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED") ?? false;
 	const seedream4Enabled = optionalBoolean(input, "MEDIA_SEEDREAM_4_ENABLED") ?? false;
 	const minimaxH3ImageEnabled = optionalBoolean(input, "MEDIA_MINIMAX_H3_IMAGE_ENABLED") ?? false;
+	const seedream55ImageEnabled =
+		optionalBoolean(input, "MEDIA_SEEDREAM_5_5_IMAGE_ENABLED") ?? false;
 	const gptImage26FlareEnabled =
 		optionalBoolean(input, "MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED") ?? false;
 	const gptImage26SunburstEnabled =
@@ -254,6 +257,7 @@ export function validateEzPicLaunchEnvironment(
 		["MEDIA_GPT_IMAGE_2_6_FLARE_ENABLED", gptImage26FlareEnabled],
 		["MEDIA_GPT_IMAGE_2_6_SUNBURST_ENABLED", gptImage26SunburstEnabled],
 		["MEDIA_MINIMAX_H3_IMAGE_ENABLED", minimaxH3ImageEnabled],
+		["MEDIA_SEEDREAM_5_5_IMAGE_ENABLED", seedream55ImageEnabled],
 		["MEDIA_SEEDREAM_4_ENABLED", seedream4Enabled],
 		["MEDIA_SEEDREAM_4_5_ENABLED", seedream45Enabled],
 		["MEDIA_SEEDREAM_5_LITE_ENABLED", seedream5LiteEnabled],
@@ -329,6 +333,7 @@ export function validateEzPicLaunchEnvironment(
 			gptImage26FlareEnabled,
 			gptImage26SunburstEnabled,
 			minimaxH3ImageEnabled,
+			seedream55ImageEnabled,
 			seedream4Enabled,
 			seedream45Enabled,
 			seedream5LiteEnabled,
@@ -392,6 +397,7 @@ export function isEzPicProductEnvironmentEnabled(
 		return failClosed ||
 			[
 				"image-minimax-h3",
+				"image-seedream-5-5",
 				"image-gpt-image-2-5-flare",
 				"image-gpt-image-2-5-sunburst",
 				"image-gpt-image-2-6-flare",
@@ -407,6 +413,7 @@ export function isEzPicProductEnvironmentEnabled(
 export const EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS: Readonly<Record<string, string>> = Object.freeze(
 	{
 		"image-minimax-h3": "MEDIA_MINIMAX_H3_IMAGE_ENABLED",
+		"image-seedream-5-5": "MEDIA_SEEDREAM_5_5_IMAGE_ENABLED",
 		"image-nano-banana-2-lite": "MEDIA_NANO_BANANA_2_LITE_ENABLED",
 		"image-nano-banana": "MEDIA_NANO_BANANA_ENABLED",
 		"image-nano-banana-2": "MEDIA_NANO_BANANA_2_ENABLED",

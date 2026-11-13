@@ -330,7 +330,12 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 				: {}
 			: spec.imageSizes
 				? { image_size: spec.imageSizes[aspectRatio] }
-				: { aspect_ratio: aspectRatio };
+				: {
+						aspect_ratio:
+							isText && spec.textAutoAspectRatio && aspectRatio === "auto"
+								? spec.textAutoAspectRatio
+								: aspectRatio,
+					};
 	const parameters: Record<string, unknown> = { ...spec.parameters };
 	if (input.input.outputFormat !== undefined) {
 		const outputFormat = spec.outputFormats?.[input.input.outputFormat];
@@ -375,6 +380,7 @@ interface KieImageRequestSpec {
 	sourceField: "image_urls" | "image_input" | "input_urls";
 	parameters: Readonly<Record<string, string | boolean | number>>;
 	imageSizes?: Readonly<Record<string, string>>;
+	textAutoAspectRatio?: string;
 	transparentPromptSuffix?: string;
 	outputFormats?: Readonly<Partial<Record<ImageOutputFormat, string>>>;
 	backgrounds?: Readonly<Partial<Record<ImageBackground, string>>>;
@@ -392,6 +398,9 @@ const SEEDREAM_4_IMAGE_SIZES: Readonly<Record<string, string>> = {
 };
 
 const KIE_IMAGE_REQUEST_SPECS = {
+	"seedream-5-5-1k": seedream55RequestSpec("1K"),
+	"seedream-5-5-1-5k": seedream55RequestSpec("1.5K"),
+	"seedream-5-5-2k": seedream55RequestSpec("2K"),
 	"minimax-h3-1k": minimaxH3RequestSpec("1K"),
 	"minimax-h3-2k": minimaxH3RequestSpec("2K"),
 	"minimax-h3-4k": minimaxH3RequestSpec("4K"),
@@ -573,6 +582,17 @@ const KIE_IMAGE_REQUEST_SPECS = {
 		outputFormats: { png: "png", jpeg: "jpeg" },
 	},
 } as const satisfies Record<ImageSkuKey, KieImageRequestSpec>;
+
+function seedream55RequestSpec(size: "1K" | "1.5K" | "2K"): KieImageRequestSpec {
+	return {
+		providerModelId: "seedream/5-5-image-to-image",
+		sourceField: "image_urls",
+		parameters: { size, output_format: "png", background: "auto", nsfw_checker: true },
+		textAutoAspectRatio: "1:1",
+		outputFormats: { png: "png", jpeg: "jpeg" },
+		backgrounds: { auto: "auto", transparent: "transparent", opaque: "opaque" },
+	};
+}
 
 function minimaxH3RequestSpec(resolution: "1K" | "2K" | "4K"): KieImageRequestSpec {
 	return {

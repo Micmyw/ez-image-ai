@@ -1,0 +1,30 @@
+{
+	"observedOn": "2026-11-13",
+	"sourcePage": "https://www.media.io/",
+	"reuse": "Owner requested this exact Media.io Seedream demonstration for the model page.",
+	"transformation": "Unmodified copies of the MP4 and JPEG poster.",
+	"video": {
+		"width": 1200,
+		"height": 676,
+		"durationSeconds": 7.018685,
+		"framesPerSecond": 25,
+		"codec": "h264",
+		"audioCodec": "aac"
+	},
+	"files": [
+		{
+			"kind": "video",
+			"sourceUrl": "https://www.media.io/videos/homepage/seedream5-5.mp4",
+			"src": "/images/models/seedream-5-5/media-io-demo.mp4",
+			"bytes": 773035,
+			"sha256": "2f68d7849ed82805d27370f97454b50803aff052c7e1f25131be3a7467d00e99"
+		},
+		{
+			"kind": "poster",
+			"sourceUrl": "https://images.media.io/homepage/seedream5-5-poster.jpg",
+			"src": "/images/models/seedream-5-5/media-io-demo-poster.jpg",
+			"bytes": 68632,
+			"sha256": "4a3da1cd6b14bd1c002bdbe74371d7f6f613c54917d5aa9a878e7d70be4560d0"
+		}
+	]
+}

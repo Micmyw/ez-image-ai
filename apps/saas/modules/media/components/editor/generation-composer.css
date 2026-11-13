@@ -91,8 +91,8 @@
 	:is(.studio-prompt, [data-test="landing-composer-inputs"]) {
 		display: grid;
 		grid-template-columns: var(--composer-source-size) minmax(0, 1fr);
-		grid-template-rows: minmax(128px, 1fr) auto;
-		grid-template-areas: "source prompt" "source ideas";
+		grid-template-rows: auto minmax(128px, 1fr);
+		grid-template-areas: "source ideas" "source prompt";
 		align-items: start;
 		gap: 4px 20px;
 		width: 100%;
@@ -148,7 +148,10 @@
 		color: #f6f2fb;
 		font-size: 16px;
 		line-height: 1.7;
-		resize: vertical;
+		resize: none;
+		field-sizing: content;
+		max-height: 320px;
+		overflow-y: auto;
 		box-shadow: none;
 	}
 	textarea::placeholder {
@@ -305,7 +308,7 @@
 	}
 	.composer-prompt-ideas {
 		grid-area: ideas;
-		justify-self: end;
+		justify-self: start;
 		margin: 0;
 		border: 0;
 		background: none;
@@ -317,14 +320,15 @@
 		min-height: 28px;
 		padding: 4px 8px;
 		border: 0;
-		border-radius: 6px;
+		border-radius: 3px;
 		background: none;
 		color: #b8adbf;
 		font-size: 11px;
 	}
 	.composer-ideas-trigger:hover {
-		background: #ffffff08;
 		color: #e5dbea;
+		text-decoration: underline;
+		text-underline-offset: 4px;
 	}
 	:is(.studio-composer-controls, [data-test="landing-controls-panel"]) {
 		display: grid;
@@ -405,6 +409,10 @@
 	:is(button, summary, a):focus-visible {
 		outline: 2px solid #b79cff;
 		outline-offset: 3px;
+	}
+	.composer-ideas-trigger:focus-visible {
+		outline-width: 1px;
+		outline-offset: 1px;
 	}
 }
 @container (max-width: 600px) {

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — Seedream 5.5
+
+- Add Seedream 5.5 text-to-image and reference-image editing at 1K / 1.5K / 2K for 8 / 12 / 20 credits, with PNG/JPEG and native transparent backgrounds.
+- Add a dedicated model page with Kie-provided image examples, a room-edit comparison and a transparent product showcase. Apply prompts with their matching output settings directly to the editor.
+- Add the supplied seven-second Media.io editing demo above the gallery, with muted viewport playback, native controls and a source link.
+- Give the Seedream workspace a larger typographic header, pointer-following ambient light and focused-input glow. Share the configurable light component with the demo frame and other future surfaces; keep touch and reduced-motion views static.
+- Introduce shared display titles: a refracted italic wordmark for Seedream and a metallic type treatment for MiniMax, with separate edition marks and pointer-responsive highlights.
+- Move Prompt ideas above the prompt as a quiet text action in guest and registered composers. Let long prompts grow within a scrollable field without a resize handle beside Generate.
+- Replace expanded gallery prompts on Seedream and MiniMax with a shared image-and-prompt preview. Keep cards compact, retain direct prompt use, and provide copy, reference download and apply actions in the preview without changing the gallery layout.
+- Keep existing subscription access and historical image-pack coverage unchanged.
+
 ## Unreleased — Technical-failure subscription bonus
 
 - Eligible first-time subscribers can receive a one-time 10% credit bonus for their first monthly allocation after a confirmed image-check technical failure. Offers expire after seven days; annual plans receive the bonus in month one only.

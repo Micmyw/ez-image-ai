@@ -1,4 +1,5 @@
 import { MINIMAX_H3_EXAMPLES } from "../../image-tools/lib/minimax-h3-examples";
+import { SEEDREAM_5_5_EXAMPLES } from "../../image-tools/lib/seedream-5-5-examples";
 import landingVariants from "../../landing/lib/landing-artwork-variants.json";
 import type { InspirationKey } from "../../models/lib/model-artwork";
 import modelVariants from "../../models/lib/model-artwork-variants.json";
@@ -22,11 +23,19 @@ export function getPublicImageSitemapEntries(baseUrl: string) {
 			images: [
 				...MODEL_PAGES.map((model) => modelImage(model.artwork)),
 				MINIMAX_H3_EXAMPLES[1].image.src,
+				SEEDREAM_5_5_EXAMPLES[0].image.src,
 			],
 		},
 		{
 			path: "/minimax-h3-image",
 			images: MINIMAX_H3_EXAMPLES.flatMap((example) => [
+				example.image.src,
+				...("referenceImage" in example ? [example.referenceImage.src] : []),
+			]),
+		},
+		{
+			path: "/seedream-5-5",
+			images: SEEDREAM_5_5_EXAMPLES.flatMap((example) => [
 				example.image.src,
 				...("referenceImage" in example ? [example.referenceImage.src] : []),
 			]),

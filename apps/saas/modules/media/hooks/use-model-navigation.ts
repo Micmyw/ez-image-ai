@@ -7,6 +7,7 @@ import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recover
 
 export function imageModelHref(productKey: string) {
 	if (productKey === "image-minimax-h3") return "/minimax-h3-image";
+	if (productKey === "image-seedream-5-5") return "/seedream-5-5";
 	if (productKey === "image-gpt-image-2-6-flare" || productKey === "image-gpt-image-2-6-sunburst")
 		return `/gpt-image-2-6?model=${encodeURIComponent(productKey)}`;
 	return `/models/${encodeURIComponent(productKey.replace(/^image-/, ""))}`;
@@ -37,7 +38,9 @@ export function resolveRequestedImageModel(pathname: string, queryModel: string 
 			? "image-gpt-image-2-6-flare"
 			: pathname === "/minimax-h3-image"
 				? "image-minimax-h3"
-				: null;
+				: pathname === "/seedream-5-5"
+					? "image-seedream-5-5"
+					: null;
 	if (
 		resolveRequestedImageOutputFormat(pathname) &&
 		queryModel &&

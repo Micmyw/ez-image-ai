@@ -1,0 +1,101 @@
+.glow-surface {
+	--glow-primary: #a78bfa;
+	--glow-secondary: #78d5ed;
+	--glow-strength: 0.75;
+	position: relative;
+	isolation: isolate;
+	border-radius: var(--glow-radius);
+}
+
+.glow-surface[data-glow-tone="violet"] {
+	--glow-primary: #a78bfa;
+	--glow-secondary: #f28edb;
+}
+
+.glow-surface[data-glow-tone="cyan"] {
+	--glow-primary: #78d5ed;
+	--glow-secondary: #9de1d0;
+}
+
+.glow-surface[data-glow-intensity="subtle"] {
+	--glow-strength: 0.4;
+}
+
+.glow-surface[data-glow-intensity="strong"] {
+	--glow-strength: 1;
+}
+
+.glow-surface-light,
+.glow-surface-spot {
+	position: absolute;
+	z-index: -1;
+	inset: 0;
+	border-radius: inherit;
+	pointer-events: none;
+	clip-path: inset(0 round var(--glow-radius));
+}
+
+.glow-surface-light {
+	background:
+		radial-gradient(
+			ellipse at 16% 62%,
+			color-mix(in srgb, var(--glow-primary) 22%, transparent),
+			transparent 56%
+		),
+		radial-gradient(
+			ellipse at 85% 35%,
+			color-mix(in srgb, var(--glow-secondary) 15%, transparent),
+			transparent 52%
+		);
+	opacity: var(--glow-strength);
+}
+
+.glow-surface-spot {
+	background: radial-gradient(
+		420px circle at var(--glow-x, 50%) var(--glow-y, 40%),
+		color-mix(in srgb, var(--glow-primary) 20%, transparent),
+		transparent 80%
+	);
+	opacity: 0;
+	transition: opacity 350ms ease;
+}
+
+.glow-surface[data-glow-active="true"] > .glow-surface-spot,
+.glow-surface:focus-within > .glow-surface-spot {
+	opacity: var(--glow-strength);
+}
+
+.glow-surface[data-glow-variant="frame"] > .glow-surface-light {
+	background: linear-gradient(
+		125deg,
+		var(--glow-primary),
+		#ffffff18 35%,
+		#ffffff10 65%,
+		var(--glow-secondary)
+	);
+}
+
+.glow-surface[data-glow-variant="frame"] > .glow-surface-spot {
+	background: radial-gradient(
+		320px circle at var(--glow-x, 50%) var(--glow-y, 0%),
+		#ffffff,
+		var(--glow-secondary) 30%,
+		transparent 75%
+	);
+}
+
+.glow-surface[data-glow-variant="frame"] > .glow-surface-light,
+.glow-surface[data-glow-variant="frame"] > .glow-surface-spot {
+	z-index: 1;
+	padding: 1px;
+	mask:
+		linear-gradient(#fff 0 0) content-box,
+		linear-gradient(#fff 0 0);
+	mask-composite: exclude;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.glow-surface-spot {
+		transition: none;
+	}
+}

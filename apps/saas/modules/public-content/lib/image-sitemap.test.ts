@@ -17,7 +17,7 @@ describe("public image sitemap", () => {
 		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", baseUrl);
 		const pageUrls = new Set(sitemap().map(({ url }) => url));
 		const entries = getPublicImageSitemapEntries(baseUrl);
-		expect(entries).toHaveLength(16);
+		expect(entries).toHaveLength(17);
 		expect(new Set(entries.map(({ url }) => url)).size).toBe(entries.length);
 		for (const entry of entries) {
 			expect(pageUrls.has(entry.url), entry.url).toBe(true);
@@ -28,7 +28,7 @@ describe("public image sitemap", () => {
 				const url = new URL(image);
 				expect(url.origin).toBe(baseUrl);
 				expect(url.pathname).toMatch(
-					/^\/images\/(?:(landing|models)\/variants|models\/minimax-h3|effects\/1980s-ai-photo)\/.+\.webp$/,
+					/^\/images\/(?:(landing|models)\/variants|models\/(?:minimax-h3|seedream-5-5)|effects\/1980s-ai-photo)\/.+\.webp$/,
 				);
 				expect(url.search).toBe("");
 				expect(existsSync(path.join(publicRoot, url.pathname)), image).toBe(true);
@@ -41,6 +41,18 @@ describe("public image sitemap", () => {
 		);
 		expect(page?.images).toHaveLength(5);
 		expect(page?.images).toContain(`${baseUrl}/images/models/minimax-h3/cafe-night-reference.webp`);
+	});
+	it("includes Seedream examples and both original references on the canonical tool page", () => {
+		const page = getPublicImageSitemapEntries(baseUrl).find(({ url }) =>
+			url.endsWith("/seedream-5-5"),
+		);
+		expect(page?.images).toHaveLength(7);
+		expect(page?.images).toContain(
+			`${baseUrl}/images/models/seedream-5-5/transparent-product.webp`,
+		);
+		expect(page?.images).toContain(
+			`${baseUrl}/images/models/seedream-5-5/room-edit-reference.webp`,
+		);
 	});
 	it("indexes all three real outputs and the common original on the Blog canonical only", () => {
 		const entries = getPublicImageSitemapEntries(baseUrl);

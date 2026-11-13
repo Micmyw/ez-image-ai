@@ -19,6 +19,7 @@ export const PRODUCT_MODEL_KEYS = [
 	"image-seedream-4-5",
 	"image-seedream-5-lite",
 	"image-seedream-5-pro",
+	"image-seedream-5-5",
 	"video-fast",
 	"video-quality",
 ] as const;
@@ -38,6 +39,7 @@ export const EZPIC_PRODUCT_KEYS = [
 	"image-seedream-4-5",
 	"image-seedream-5-lite",
 	"image-seedream-5-pro",
+	"image-seedream-5-5",
 ] as const;
 export const LEGACY_EZPIC_PRODUCT_KEYS = ["image-fast", "image-quality"] as const;
 export const IMAGE_SKU_KEYS = [
@@ -79,6 +81,9 @@ export const IMAGE_SKU_KEYS = [
 	"seedream-5-lite-ultra-4k",
 	"seedream-5-pro-basic-1k",
 	"seedream-5-pro-high-2k",
+	"seedream-5-5-1k",
+	"seedream-5-5-1-5k",
+	"seedream-5-5-2k",
 ] as const;
 export const IMAGE_ASPECT_RATIOS = [
 	"auto",
@@ -126,6 +131,7 @@ export const PRODUCT_CREDIT_COSTS = {
 	"image-seedream-4-5": 8,
 	"image-seedream-5-lite": 7,
 	"image-seedream-5-pro": 8,
+	"image-seedream-5-5": 12,
 	"video-fast": 25,
 	"video-quality": 60,
 } as const satisfies Record<(typeof PRODUCT_MODEL_KEYS)[number], number>;
@@ -169,6 +175,9 @@ export const IMAGE_SKU_CREDIT_COSTS = {
 	"seedream-5-lite-ultra-4k": 14,
 	"seedream-5-pro-basic-1k": 8,
 	"seedream-5-pro-high-2k": 15,
+	"seedream-5-5-1k": 8,
+	"seedream-5-5-1-5k": 12,
+	"seedream-5-5-2k": 20,
 } as const satisfies Record<(typeof IMAGE_SKU_KEYS)[number], number>;
 
 export const IMAGE_SKU_KEYS_BY_PRODUCT = {
@@ -207,6 +216,7 @@ export const IMAGE_SKU_KEYS_BY_PRODUCT = {
 		"seedream-5-lite-ultra-4k",
 	],
 	"image-seedream-5-pro": ["seedream-5-pro-basic-1k", "seedream-5-pro-high-2k"],
+	"image-seedream-5-5": ["seedream-5-5-1k", "seedream-5-5-1-5k", "seedream-5-5-2k"],
 } as const satisfies Record<
 	(typeof EZPIC_PRODUCT_KEYS)[number],
 	readonly (typeof IMAGE_SKU_KEYS)[number][]
@@ -272,8 +282,8 @@ export type PricingVersion = z.infer<typeof pricingVersionSchema>;
 export const DEFAULT_PRODUCT_CONFIG = productConfigSchema.parse({
 	planIds: PLAN_IDS,
 	productKeys: EZPIC_PRODUCT_KEYS,
-	catalogVersion: "2026-11-13.1",
-	pricingVersion: "2026-11-13.1",
+	catalogVersion: "2026-11-13.2",
+	pricingVersion: "2026-11-13.2",
 	brand: {
 		siteName: "EzImageAI",
 		siteDescription: "Private prompt-based AI image editing with transparent credits.",
