@@ -98,15 +98,34 @@ messages. The frontend regression reproduced the previous generic-error fallback
   database 3 files / 91 tests passed. Database, API and SaaS type checks, affected
   TypeScript lint, formatting and `git diff --check` passed. These are local
   component/unit checks, not a production browser or provider-generation test.
-- PostgreSQL admission regressions cover normal 57-credit GIF reservation,
-  accepted replay after revocation and rejected expired/non-admin/banned/anonymous
-  grants. They are included in the existing integration suite; they have not run
-  locally because no disposable PostgreSQL instance is available.
-- The scoped grant script has only been dry-run. The grant is not active and this
-  change has not been pushed or deployed. No real GIF generation, payment or final
-  output settlement has been performed for this showcase.
-
-The planned real test is Sunburst, 512×512, nine frames at 200 ms, displayed at
-57 credits. After submission, retain the same job through recovery. Inspect the
-original output bytes, frames, timing and visual loop before using it on the
-homepage or claiming an EzPic-generated animated showcase.
+- PostgreSQL admission regressions passed in GitHub CI for `59962928`, including
+  normal 57-credit GIF reservation, replay after revocation and rejected
+  expired/non-admin/banned/anonymous grants. The same run exposed unrelated
+  video-cleanup fixture errors, subsequently corrected.
+- Website and jobs deployed `59962928` at 100% traffic. The authorized scoped
+  administrator grant was activated at 15:16 UTC. The production editor displayed
+  Generate with the 57-credit quote; its first submission hit the site-wide cost
+  ceiling before creating a job or reservation.
+- Ceiling retirement is published in `4cee4de6`. Local verification passed:
+  config 169, API 204, database 1292 (3 skipped), editor-error 32 tests; all 22
+  type-check tasks, lint and formatting passed. After a Cloudflare Workers API
+  incident delayed publication, both production Workers deployed this SHA at
+  100% traffic: website version `ae40381a-f438-4d42-a374-c7fc020d695f` at
+  15:37 UTC; jobs version `017e05f4-5ebc-4352-af73-500e89a8eb07` at 15:40 UTC.
+- The production editor accepted job `cmwf592m10001psp7ol3otdp4` at 15:40:58 UTC.
+  Its sole Kie attempt succeeded; a transient transfer error recovered through
+  the same task. All-frame output review approved the private asset. The job
+  reached `SUCCEEDED` at 15:48 UTC with one 57-credit reserve and one 57-credit
+  settlement, no second generation or charge. The UI showed READY and downloaded
+  the original GIF. The scoped administrator test grant was revoked at 15:49 UTC.
+- Downloaded bytes match the stored asset SHA-256. Inspection confirms 512×512,
+  nine distinct frames, nine 200 ms delays, and an infinite loop. The bird stays
+  consistent while its wings move. The homepage uses the unchanged GIF and an
+  extracted first-frame WebP. See `evidence/gpt-image-2-6-gif-2026-11-13.json`.
+- This test used existing account credits, not an actual $2.99 purchase. Pack
+  eligibility and one-unit GIF charging remain covered by the contract and tests.
+- CI exposed a real solo-template preview bug: pricing used two different
+  placeholder references, violating the single-subject request schema. The access
+  read now uses the same placeholder identity. Applying the real schema to the
+  router test reproduced the failure; all 40 router tests passed after the fix.
+  This changes no actual-upload review or financial authorization.

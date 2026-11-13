@@ -1,8 +1,17 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-11-13",
+		title: "See GPT Image 2.6 in motion",
+		changes: [
+			"The homepage now features Seedream 5.5, MiniMax H3 Image and GPT Image 2.6. Watch an origami hummingbird GIF made in EzImageAI, with controls to pause and play.",
+			"Raindance solo now shows its available prices before you upload a photo.",
+		],
+	},
+	{
+		date: "2026-11-13",
 		title: "Use your image pack in the editor",
 		changes: [
+			"Generation no longer stops because other accounts have reached a site-wide daily cost ceiling. Your account's credits, image passes and individual limits still apply.",
 			"An eligible image pack is selected when your account needs it to use the chosen model, including GPT Image 2.6 SVG and GIF. Your explicit payment choice stays selected.",
 			"If the pack balance cannot load, you can still select Image pass and submit. Generation checks your current available passes, and a successful GIF uses one pass.",
 			"Photo templates check subscribers' current credits when they generate, so an old balance does not send them back to purchase again.",

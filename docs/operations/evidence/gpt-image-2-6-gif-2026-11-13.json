@@ -1,0 +1,52 @@
+{
+	"observedAt": "2026-11-13T15:49:42.716Z",
+	"source": "EzImageAI production editor and authenticated private-result download",
+	"release": "4cee4de6de82c4fc85cc0c65151f765617d13dfa",
+	"productKey": "image-gpt-image-2-6-sunburst",
+	"prompt": "Create a polished looping animated GIF for an AI creative tool showcase. A single small origami hummingbird made of folded iridescent paper hovers in place against a clean deep violet studio background. Its wings beat through one gentle, readable motion cycle and return to the starting pose, with a subtle moving highlight across the folded paper. Keep the bird centered, its body and paper folds consistent, and the entire silhouette inside the middle two-thirds of the frame so it also reads well in a landscape card. Fixed camera, steady lighting, uncluttered background, no camera zoom, no text, no logo, no watermark. Aim for a smooth seamless loop.",
+	"requested": {
+		"outputFormat": "gif",
+		"width": 512,
+		"height": 512,
+		"frameCount": 9,
+		"frameDurationMs": 200
+	},
+	"jobId": "cmwf592m10001psp7ol3otdp4",
+	"jobStatus": "SUCCEEDED",
+	"submittedAt": "2026-11-13T15:40:58.873Z",
+	"completedAt": "2026-11-13T15:48:50.401Z",
+	"provider": {
+		"name": "kie",
+		"model": "gpt-image-2-6/sunburst-text-to-image",
+		"attemptCount": 1,
+		"status": "SUCCEEDED"
+	},
+	"output": {
+		"assetId": "asset_2Yl3y11tFq7c1aeq4lDUV9K2oUqsZOOM",
+		"status": "READY",
+		"mimeType": "image/gif",
+		"sha256": "97736b1794aa084d7250aa08d0182f5b9bf900a786587a87c9dfcc862143034d",
+		"bytes": 364946,
+		"width": 512,
+		"height": 512,
+		"frames": 9,
+		"delayMs": [200, 200, 200, 200, 200, 200, 200, 200, 200],
+		"loop": 0,
+		"uniqueFramePatches": 9,
+		"posterBytes": 14498,
+		"path": "apps/saas/public/images/models/gpt-image-2-6/origami-hummingbird.gif",
+		"poster": "apps/saas/public/images/models/gpt-image-2-6/origami-hummingbird.webp"
+	},
+	"billing": {
+		"source": "CREDITS",
+		"reserved": "57",
+		"settled": "57",
+		"reserveEntries": 1,
+		"settleEntries": 1
+	},
+	"visualReview": "All nine frames show the same iridescent origami hummingbird with changing wing positions against a stable violet background. The card contains the square image so moving wings are not cropped.",
+	"processing": "Original downloaded GIF bytes unchanged. Static poster extracted from frame one.",
+	"recovery": "First submission was rejected by the former global budget before a job existed. After deployment, one accepted job recovered a transient storage transfer failure without a second provider generation.",
+	"access": "Scoped administrator test access revoked after completion; no subscription or credits granted.",
+	"limits": "One real Sunburst GIF generation with account credits; no new image-pass purchase, Flare generation or SVG generation in this test."
+}

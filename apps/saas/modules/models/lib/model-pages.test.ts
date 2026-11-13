@@ -36,7 +36,10 @@ describe("model artwork", () => {
 		expect(html).not.toContain("/_next/image");
 		expect(html).toContain('srcSet="/images/landing/variants/');
 		expect(html).toContain('media="(min-width: 768px)"');
-		expect(html.match(/width="1536" height="1024"/g)).toHaveLength(4);
+		expect(html.match(/width="1536" height="1024"/g)).toHaveLength(3);
+		expect(html).toContain('width="512" height="512"');
+		expect(html).toContain("/images/models/gpt-image-2-6/origami-hummingbird.webp");
+		expect(html).not.toContain('src="/images/models/gpt-image-2-6/origami-hummingbird.gif"');
 		expect(html.match(/<img /g)).toHaveLength(6);
 		const cards = [...html.matchAll(/<a[^>]*href="([^"]+)"[^>]*>[\s\S]*?<\/a>/g)].filter((card) =>
 			card[0].includes("<h3"),

@@ -14,7 +14,8 @@
 ## Unreleased — Homepage model recommendations
 
 - Feature Seedream 5.5, MiniMax H3 Image and GPT Image 2.6 in the first homepage model row. Keep GPT Image 2, Nano Banana Pro and Seedream 5 Lite in the second row.
-- Use credited model examples, including a new GPT Image 2.6 Sunburst botanical poster, with responsive thumbnails and links to each model's existing page.
+- Show a real GPT Image 2.6 Sunburst GIF generated in EzImageAI: a nine-frame origami hummingbird loop, with viewport playback, pause/play controls and a static reduced-motion preview.
+- Fix Raindance solo price previews using two placeholder references, which incorrectly hid template availability before an upload.
 
 ## Unreleased — Sheru Bhai photo idea
 

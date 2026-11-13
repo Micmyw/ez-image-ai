@@ -5,6 +5,7 @@ import { SEEDREAM_5_5_EXAMPLES } from "../../image-tools/lib/seedream-5-5-exampl
 import { LandingArtwork } from "../../landing/components/LandingArtwork";
 import { INSPIRATION } from "../lib/model-artwork";
 import { MODEL_PAGES, modelPath } from "../lib/model-pages";
+import { AnimatedModelCard } from "./AnimatedModelCard";
 
 const featured = [
 	{
@@ -24,11 +25,11 @@ const featured = [
 	{
 		href: "/gpt-image-2-6",
 		name: "GPT Image 2.6",
-		tag: "Typography & visual design",
-		lead: "Shape your ideas with Flare and Sunburst.",
+		tag: "Animated GIFs",
+		lead: "From one prompt to a looping animation.",
 		image: {
-			src: "/images/models/gpt-image-2-6/grow-wild.webp",
-			alt: "GROW WILD botanical poster with forest-green lettering and orange flowers",
+			src: "/images/models/gpt-image-2-6/origami-hummingbird.webp",
+			alt: "Iridescent origami hummingbird flapping its wings on a violet background, generated with GPT Image 2.6 in EzImageAI",
 		},
 	},
 	...["image-gpt-image-2", "image-nano-banana-pro", "image-seedream-5-lite"].map((key) => {
@@ -74,33 +75,47 @@ export function ExploreModels() {
 				</Link>
 			</div>
 			<div className="gap-x-6 gap-y-10 md:grid-cols-3 grid">
-				{featured.map((model) => (
-					<Link
-						key={model.href}
-						href={model.href}
-						prefetch={false}
-						className="group min-w-0 focus-visible:outline-violet-300 block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4"
-					>
-						<div className="bg-white/5 aspect-[3/2] overflow-hidden rounded-xl">
-							<LandingArtwork
-								src={model.image.src}
-								alt={model.image.alt}
-								sizes="(min-width: 1280px) 380px, (min-width: 768px) 30vw, calc(100vw - 32px)"
-								desktopPreload={model.href === "/minimax-h3-image"}
-								className="h-full w-full object-cover"
-							/>
-						</div>
-						<div className="pt-5">
-							<p className="text-xs text-violet-300">{model.tag}</p>
-							<h3 className="mt-2 text-xl font-semibold text-white">{model.name}</h3>
-							<p className="mt-2 text-sm leading-6 text-[#b7acbf]">{model.lead}</p>
-						</div>
-					</Link>
-				))}
+				{featured.map((model) =>
+					model.href === "/gpt-image-2-6" ? (
+						<AnimatedModelCard
+							key={model.href}
+							href={model.href}
+							name={model.name}
+							tag={model.tag}
+							lead={model.lead}
+							poster={model.image.src}
+							animation="/images/models/gpt-image-2-6/origami-hummingbird.gif"
+							alt={model.image.alt}
+						/>
+					) : (
+						<Link
+							key={model.href}
+							href={model.href}
+							prefetch={false}
+							className="group min-w-0 focus-visible:outline-violet-300 block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4"
+						>
+							<div className="bg-white/5 aspect-[3/2] overflow-hidden rounded-xl">
+								<LandingArtwork
+									src={model.image.src}
+									alt={model.image.alt}
+									sizes="(min-width: 1280px) 380px, (min-width: 768px) 30vw, calc(100vw - 32px)"
+									desktopPreload={model.href === "/minimax-h3-image"}
+									className="h-full w-full object-cover"
+								/>
+							</div>
+							<div className="pt-5">
+								<p className="text-xs text-violet-300">{model.tag}</p>
+								<h3 className="mt-2 text-xl font-semibold text-white">{model.name}</h3>
+								<p className="mt-2 text-sm leading-6 text-[#b7acbf]">{model.lead}</p>
+							</div>
+						</Link>
+					),
+				)}
 			</div>
 			<p className="mt-6 text-xs leading-6 text-[#a99db2]">
-				Seedream sample from Kie. MiniMax H3 and GPT Image 2.6 show generated examples. The second
-				row uses concept artwork for inspiration, not verified outputs from the named models.
+				Seedream sample from Kie. MiniMax H3 and the GPT Image 2.6 GIF were generated in EzImageAI.
+				The second row uses concept artwork for inspiration, not verified outputs from the named
+				models.
 			</p>
 		</section>
 	);

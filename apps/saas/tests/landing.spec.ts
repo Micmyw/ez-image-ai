@@ -17,7 +17,11 @@ for (const width of [1440, 390, 320]) {
 		await page.addStyleTag({ content: "nextjs-portal { visibility: hidden; }" });
 		const ideas = page.locator("#quick-start");
 		await ideas.scrollIntoViewIfNeeded();
-		await expect(ideas.getByRole("link")).toHaveCount(5);
+		await expect(ideas.getByRole("link")).toHaveCount(6);
+		await expect(ideas.locator('[data-quick-start="sheru-bhai"]')).toHaveAttribute(
+			"href",
+			"/blog/sheru-bhai-ai-photo",
+		);
 		await expect(ideas.locator("video")).toHaveCount(0);
 		await expect
 			.poll(() =>
@@ -880,18 +884,18 @@ test("the production homepage excludes account tools, charts, and documentation 
 		body: JSON.stringify(resourceDetails, null, 2),
 		contentType: "application/json",
 	});
-	// November 13 adds four quick starts, the image-first showcase and a verified birthday
-	// example. Measured: 68,445 HTML bytes and 546,896 total gzip bytes (previously
-	// 64,721 / 535,152). Keep bounded headroom for that added public content.
-	expect(summary.htmlGzipBytes, "Keep the initial document below 70 KiB gzip").toBeLessThan(
-		70 * 1024,
+	// The November 13 model row and Sheru feature bring the CI HTML measurement
+	// to 72,418 HTML / 552,690 total gzip bytes. Allow bounded room for this content
+	// and the viewport-loaded GIF controller; the animation itself is not an initial request.
+	expect(summary.htmlGzipBytes, "Keep the initial document below 75 KiB gzip").toBeLessThan(
+		75 * 1024,
 	);
 	// Count inline styles inside HTML only. Moving CSS into HTML must not conceal
 	// a transfer regression behind a smaller number of stylesheet requests.
 	expect(
 		initialTextGzipBytes,
 		"Initial HTML, scripts, and external CSS exceed the budget",
-	).toBeLessThan(540 * 1024);
+	).toBeLessThan(550 * 1024);
 	await page.evaluate(() => document.fonts.ready.then(() => undefined));
 	await page.screenshot({ path: testInfo.outputPath("homepage-desktop.png") });
 	await page.setViewportSize({ width: 390, height: 844 });

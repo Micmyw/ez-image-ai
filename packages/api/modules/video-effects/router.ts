@@ -159,7 +159,12 @@ const access = protectedProcedure
 		let pricingFailure = "TEMPLATE_UNAVAILABLE";
 		try {
 			pricingContext = await resolveVideoEffectPricingContext(user.id, input.effectId, process.env);
-			const request = { ...VIDEO_EFFECT_CAPABILITY_REQUEST, effectId: input.effectId };
+			const request = {
+				...VIDEO_EFFECT_CAPABILITY_REQUEST,
+				effectId: input.effectId,
+				// A price preview has no uploads; use one identity so solo templates also validate.
+				inputs: { leftAssetId: "capability", rightAssetId: "capability" },
+			};
 			const display = resolveVideoEffectDisplayPrice(request, process.env, pricingContext);
 			Object.assign(base, display, {
 				pricingValidUntil: pricingContext.eligibility?.validUntil ?? null,

@@ -1,5 +1,6 @@
 import { call } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
+import { videoEffectRequestSchema } from "@repo/config/video-effects";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
@@ -21,7 +22,7 @@ vi.mock("@repo/jobs/video-v1/template-admission", () => ({
 	VIDEO_EFFECT_CAPABILITY_REQUEST: {
 		effectId: "hotel-lobby-duo",
 		presetKey: "standard",
-		inputs: { leftAssetId: "left", rightAssetId: "right" },
+		inputs: { leftAssetId: "capability-left", rightAssetId: "capability-right" },
 	},
 }));
 vi.mock("@repo/jobs/video-v1/workflow-binding", () => ({
@@ -87,7 +88,12 @@ const state = {
 };
 beforeEach(() => {
 	vi.clearAllMocks();
-	vi.mocked(resolveVideoEffectDisplayPrice).mockReset().mockReturnValue({ credits: "69" });
+	vi.mocked(resolveVideoEffectDisplayPrice)
+		.mockReset()
+		.mockImplementation((request) => {
+			videoEffectRequestSchema.parse(request);
+			return { credits: "69" };
+		});
 	vi.mocked(readVideoEffectTestReadiness).mockReturnValue([]);
 	vi.mocked(getVideoTemplateCreditBalance).mockResolvedValue({
 		totalCredits: "391",
