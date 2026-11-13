@@ -201,7 +201,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	});
 
 	test("upload preview blocks generation during pending and failed uploads", async ({ page }) => {
-		await page.goto("/create");
+		await page.goto("/create?model=image-nano-banana-2-lite");
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
 			"Nano Banana 2 Lite",
 			{ timeout: 30_000 },
@@ -261,7 +261,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	test("upload preview ignores removed completions and observes only the replacement review", async ({
 		page,
 	}) => {
-		await page.goto("/create");
+		await page.goto("/create?model=image-nano-banana-2-lite");
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
 			"Nano Banana 2 Lite",
 			{ timeout: 30_000 },
@@ -348,7 +348,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	test("upload preview restores readiness when switching cached library sources", async ({
 		page,
 	}) => {
-		await page.goto("/create");
+		await page.goto("/create?model=image-nano-banana-2-lite");
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
 			"Nano Banana 2 Lite",
 			{ timeout: 30_000 },
@@ -393,7 +393,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			page,
 		}, testInfo) => {
 			await page.setViewportSize({ width, height: 900 });
-			await page.goto("/create");
+			await page.goto("/create?model=image-nano-banana-2-lite");
 			await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
 				"Nano Banana 2 Lite",
 				{ timeout: 30_000 },
@@ -517,7 +517,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			`SELECT count(*) FROM credit_reservation r JOIN credit_account a ON a.id=r."accountId" WHERE a."ownerId"=$1`,
 			[user.id],
 		);
-		await page.goto("/create");
+		await page.goto("/create?model=image-nano-banana-2-lite");
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
 			"Nano Banana 2 Lite",
 			{ timeout: 30_000 },
