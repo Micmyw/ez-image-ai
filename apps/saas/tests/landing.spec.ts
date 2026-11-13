@@ -993,7 +993,7 @@ test("the public root exposes the image editor before authentication", async ({ 
 	await page.goto("/");
 
 	await expect(page).toHaveURL(/\/$/);
-	await expect(page).toHaveTitle(/AI Image Editor &(?:amp;)? Prompt Photo Editor/i);
+	await expect(page).toHaveTitle(/AI Image Editor No Restrictions/i);
 	const canonical = await page.locator('link[rel="canonical"]').getAttribute("href");
 	expect(canonical).not.toBeNull();
 	expect(new URL(canonical!).origin).toBe(new URL(page.url()).origin);

@@ -46,6 +46,11 @@ supporting the same prompt-editing intent. Public marketing copy describes promp
 and its content safety, legal, model and usage limits. Keep the historical "No Restrictions"
 explanation in the terms and the visible adult/NSFW prohibition reminder beside the composer.
 
+The 2026-11-13 THD experiment restores only the pre-November-5 English homepage title and
+description and the four locale H1 translations for observation after two days. FAQ, safety
+reminders, indexing, routing and model access stay unchanged. See
+`docs/operations/homepage-thd-experiment-2026-11-13.md` before changing this copy again.
+
 Public SEO URLs are unprefixed. `apps/saas/proxy.ts` keeps bare public URLs in English; actual translated content uses explicit `?lang=de|es|fr` self-canonical URLs and reciprocal hreflang, governed by `modules/public-content/lib/indexing.ts`. English fallback bodies remain noindex with an English canonical. Account routes keep the locale cookie. Public content and tool landing pages, including Create, Examples, Contact, Changelog, Hotel Lobby beta and the video guide, are indexable; private job/upload/payment query states are not. New public HTML routes belong in the proxy matcher. Only reviewed published Blog posts and Docs marked `indexable: true` enter the sitemap. Beta page discovery does not publish unreviewed samples or draft articles. Docs API/Markdown/image artifacts remain noindex. Public unknown paths use root 404; single-segment organization URLs stay protected. See `docs/product/public-page-indexing.md`.
 
 Resources groups Blog, Editing Examples and Docs. Photo Ideas are Blog articles with optional validated shared generation presets; the Blog owns their canonical/publication identity. Legacy `/effects` routes only redirect to published Blog destinations. Keep recipe evidence, draft isolation and safe editor-return validation when adding or migrating a Photo Idea; do not introduce a parallel public Effects catalog.

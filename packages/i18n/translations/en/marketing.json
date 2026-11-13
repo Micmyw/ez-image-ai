@@ -474,7 +474,7 @@
 		},
 		"imageEditorHero": {
 			"eyebrow": "Prompt-based image editing",
-			"title": "AI Image Editor & <accent>Prompt Photo Editor</accent>",
+			"title": "AI Image Editor <accent>No Restrictions</accent>",
 			"subtitle": "Upload an image and describe the change you want.",
 			"private": "Private source images",
 			"draftOnly": "Create from text or an image"

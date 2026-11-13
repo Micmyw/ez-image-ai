@@ -270,7 +270,7 @@ test("Christmas wallpaper homepage entry works on desktop and mobile", async ({
 	await mockPublicImageAvailability(page);
 	await page.goto("/");
 	await expect(page.getByRole("heading", { level: 1 })).toContainText(
-		/AI Image Editor &(?:amp;)? Prompt Photo Editor/i,
+		/AI Image Editor No Restrictions/i,
 	);
 	const entry = page.locator(".christmas-entry");
 	await expect(page.locator(".christmas-quick-entry")).toHaveAttribute(
@@ -906,10 +906,10 @@ test.describe("consolidated public routes", () => {
 				);
 				expect(html).toContain("flexible prompt editing");
 				expect(html).toContain("How does prompt-based photo editing work?");
-				await expect(page).toHaveTitle(/AI Image Editor &(?:amp;)? Prompt Photo Editor/);
+				await expect(page).toHaveTitle(/AI Image Editor No Restrictions/);
 				await expect(page.locator('meta[name="description"]')).toHaveAttribute(
 					"content",
-					"Edit photos with your own prompt. Describe what to change, keep images private, and review credits before generating. Safety and usage limits apply.",
+					"AI image editor no restrictions: edit photos with prompts beyond fixed templates. Private images and clear credits; safety and usage limits apply.",
 				);
 				await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
 					"content",

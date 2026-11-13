@@ -357,16 +357,16 @@ describe("consolidated public route contract", () => {
 		expectMetadata(metadata, route.path, route.robots);
 		if (route.path === "/") {
 			expect(metadata.title).toEqual({
-				absolute: "AI Image Editor & Prompt Photo Editor | EzImageAI",
+				absolute: "AI Image Editor No Restrictions — Prompt Editing | EzImageAI",
 			});
 			expect(metadata.description).toBe(
-				"Edit photos with your own prompt. Describe what to change, keep images private, and review credits before generating. Safety and usage limits apply.",
+				"AI image editor no restrictions: edit photos with prompts beyond fixed templates. Private images and clear credits; safety and usage limits apply.",
 			);
 			expect(metadata.openGraph?.title).toEqual((metadata.title as { absolute: string }).absolute);
 			expect(metadata.twitter?.title).toEqual(metadata.openGraph?.title);
 			expect(metadata.openGraph?.description).toBe(metadata.description);
 			expect(metadata.twitter?.description).toBe(metadata.description);
-			expect(JSON.stringify(metadata)).not.toMatch(/no restrictions|unrestricted|uncensored/i);
+			expect(JSON.stringify(metadata)).not.toMatch(/unrestricted|uncensored/i);
 		}
 
 		const page = route.path === "/" ? await LandingPage() : await pageModule.default({});
@@ -507,7 +507,7 @@ describe("consolidated public route contract", () => {
 				name: "EzImageAI",
 				alternateName: "EzImage AI",
 				description:
-					"Edit photos with your own prompt. Describe what to change, keep images private, and review credits before generating. Safety and usage limits apply.",
+					"AI image editor no restrictions: edit photos with prompts beyond fixed templates. Private images and clear credits; safety and usage limits apply.",
 				url: `${canonicalOrigin}/`,
 				publisher: { "@id": `${canonicalOrigin}/#organization` },
 			}),

@@ -474,7 +474,7 @@
 		},
 		"imageEditorHero": {
 			"eyebrow": "Bildbearbeitung mit Prompts",
-			"title": "KI-Bildeditor <accent>mit eigenen Prompts</accent>",
+			"title": "KI-Bildeditor <accent>ohne starre Vorlagen</accent>",
 			"subtitle": "Lade ein Bild hoch und beschreibe die gewünschte Änderung.",
 			"private": "Private Quellbilder",
 			"draftOnly": "Eine Nano Banana 2 Lite-Gastbearbeitung"

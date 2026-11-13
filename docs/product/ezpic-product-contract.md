@@ -426,6 +426,13 @@ headings, instructions, and FAQ explain prompt control beyond fixed templates wh
 content-safety, legal, model, and usage limits. English is the indexable public version; translated
 interface views follow the main-content translation policy in `public-page-indexing.md`.
 
+The 2026-11-13 THD experiment temporarily restores the pre-November-5 English title and
+description and the English, German, Spanish and French H1 translations. The English heading
+is "AI Image Editor No Restrictions"; its description still explicitly states safety and usage
+limits. FAQ, body copy, policy reminders, routing and indexing are unchanged. Review after two
+days of live exposure; elapsed time alone does not authorize another copy change. See
+[the experiment record](../operations/homepage-thd-experiment-2026-11-13.md).
+
 The homepage and `/create` show a centered adult/NSFW prohibition reminder beneath the shared
 image/video generator in both modes and for visitors and registered users. The shield-and-arrow
 link opens `/terms#prohibited-content` in a new tab to preserve the current editor. The reminder

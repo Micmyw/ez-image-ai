@@ -90,7 +90,7 @@ test.describe("Photo Ideas publication and legacy boundaries", () => {
 		const noGeneration = await mockMediaUi(page);
 		await page.goto("/");
 		await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-			/AI Image Editor &(?:amp;)? Prompt Photo Editor/i,
+			/AI Image Editor No Restrictions/i,
 		);
 		await expect(page.locator('a[href="/effects"]')).toHaveCount(0);
 		await page.locator('[data-test="studio-resources-menu"]').click();

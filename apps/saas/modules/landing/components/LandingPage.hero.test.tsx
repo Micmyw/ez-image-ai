@@ -148,14 +148,14 @@ describe("LandingPage hero hierarchy", () => {
 		expect(heading).toContain(videoMessages.videoV1.title);
 		expect(markup).toContain(videoMessages.videoV1.description);
 	});
-	it("describes prompt photo editing in the heading and explains its limits in the FAQ", async () => {
+	it("restores the experiment heading and retains prompt-editing limits in the FAQ", async () => {
 		const markup = await renderLandingPage();
 		const heading = markup.match(/<h1[\s\S]*?<\/h1>/)?.[0] ?? "";
 		const headingText = heading.replace(/<[^>]*>/g, "");
 		const hero = markup.match(/<section id="image-editor"[\s\S]*?<\/section>/)?.[0] ?? "";
 		const faq = markup.match(/<section id="faq"[\s\S]*?<\/section>/)?.[0] ?? "";
 
-		expect(headingText).toBe("AI Image Editor &amp; Prompt Photo Editor");
+		expect(headingText).toBe("AI Image Editor No Restrictions");
 		expect(heading).toContain('class="text-[#b79cff]"');
 		expect(heading.match(/text-\[#b79cff\]/g)).toHaveLength(1);
 		expect(hero).toContain("Upload an image and describe the change you want.");
@@ -163,9 +163,10 @@ describe("LandingPage hero hierarchy", () => {
 		expect(faq).toContain("How does prompt-based photo editing work?");
 		expect(faq).toContain("flexible prompt editing");
 		expect(faq).toContain("model capabilities, and plan limits still apply");
+		expect(faq).not.toMatch(/no restrictions|unrestricted|uncensored/i);
 	});
 	it.each(["en", "de", "es", "fr"] as const)(
-		"renders prompt-editing copy and the content-policy reminder in %s",
+		"renders the experiment heading and the content-policy reminder in %s",
 		async (locale) => {
 			navigation.locale = locale;
 			const messages = marketingMessages[locale];
@@ -180,8 +181,8 @@ describe("LandingPage hero hierarchy", () => {
 				renderToStaticMarkup(<>{messages.home.contentPolicyNotice.label}</>),
 			);
 			expect(markup).toContain('href="/terms#prohibited-content"');
-			expect(JSON.stringify(messages)).not.toMatch(/no restrictions|unrestricted|uncensored/i);
-			expect(markup).not.toMatch(/no restrictions|unrestricted|uncensored/i);
+			expect(JSON.stringify(messages)).not.toMatch(/unrestricted|uncensored/i);
+			expect(markup).not.toMatch(/unrestricted|uncensored/i);
 		},
 	);
 	it("restores model discovery and original artwork before the editing guides", async () => {

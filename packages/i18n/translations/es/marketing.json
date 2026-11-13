@@ -474,7 +474,7 @@
 		},
 		"imageEditorHero": {
 			"eyebrow": "Edición de imágenes mediante instrucciones",
-			"title": "Editor de imágenes con IA <accent>mediante instrucciones</accent>",
+			"title": "Editor de imágenes con IA <accent>sin plantillas rígidas</accent>",
 			"subtitle": "Sube una imagen y describe el cambio que quieres.",
 			"private": "Imágenes de origen privadas",
 			"draftOnly": "Una edición Nano Banana 2 Lite de invitado"

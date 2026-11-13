@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-13 — Homepage THD observation
+
+- Restore the pre-November-5 homepage title, H1 and description for a two-day SEO observation. Keep the current FAQ, content-policy reminder and safety/usage limits.
+
 ## Unreleased — GPT Image 2.6 image-pack coverage
 
 - Extend new purchases and remaining uses from existing USD 2.99 packs to GPT Image 2.6 Flare and Sunburst PNG/JPEG at 1K, 2K and 4K, static SVG and GIF. Each successful result uses one pass, including a complete GIF, without a subscription when paying with the pack. A separate versioned benefit policy preserves the original 29-SKU offer, order and grant snapshots; both USD 1 offers retain their original terms.

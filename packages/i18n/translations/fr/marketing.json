@@ -474,7 +474,7 @@
 		},
 		"imageEditorHero": {
 			"eyebrow": "Retouche d’images par instructions",
-			"title": "Éditeur d’images IA <accent>par instructions</accent>",
+			"title": "Éditeur d’images IA <accent>sans modèles imposés</accent>",
 			"subtitle": "Importez une image et décrivez le changement souhaité.",
 			"private": "Images source privées",
 			"draftOnly": "Une retouche Nano Banana 2 Lite invitée"

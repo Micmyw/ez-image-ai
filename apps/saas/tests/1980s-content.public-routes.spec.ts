@@ -215,7 +215,7 @@ test.describe("1980s real published content — local public-route acceptance", 
 	}) => {
 		await page.goto("/");
 		await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-			/AI Image Editor &(?:amp;)? Prompt Photo Editor/i,
+			/AI Image Editor No Restrictions/i,
 		);
 		const featured = page
 			.locator("[data-photo-ideas-recommendations] .blog-card")

@@ -14,9 +14,9 @@ import { LandingPage } from "../modules/landing/components/LandingPage";
 import { publicPagePath, type PublicMetadataProps } from "../modules/public-content/lib/indexing";
 import { createPublicPageMetadata } from "../modules/public-content/lib/metadata";
 
-const title = `AI Image Editor & Prompt Photo Editor | ${config.appName}`;
+const title = `AI Image Editor No Restrictions — Prompt Editing | ${config.appName}`;
 const description =
-	"Edit photos with your own prompt. Describe what to change, keep images private, and review credits before generating. Safety and usage limits apply.";
+	"AI image editor no restrictions: edit photos with prompts beyond fixed templates. Private images and clear credits; safety and usage limits apply.";
 
 export async function generateMetadata(props: PublicMetadataProps) {
 	const { searchParams } = props ?? {};
