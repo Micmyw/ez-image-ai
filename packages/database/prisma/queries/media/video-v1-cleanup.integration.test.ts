@@ -83,17 +83,15 @@ async function bind(assetId: string, stage: "NEEDS_REVIEW" | "READY" | "FAILED" 
 	return job;
 }
 
-async function deliveredOutput(deleteAfter: Date | null, createdAt = old) {
-	const output = await asset("OUTPUT");
-	const job = await bind(output.id, "READY");
+async function approveAsset(assetId: string, kind: "INPUT" | "OUTPUT") {
 	const validUntil = new Date(now.getTime() + 40 * 86_400_000);
 	await db.assetModerationResult.create({
 		data: {
-			assetId: output.id,
+			assetId,
 			assetChecksum: "a".repeat(64),
 			verificationGeneration: 1,
 			attemptNumber: 1,
-			evidenceKind: "OUTPUT",
+			evidenceKind: kind,
 			provider: "retention-test",
 			ruleVersion: "test",
 			policyVersion: "test",
@@ -105,11 +103,9 @@ async function deliveredOutput(deleteAfter: Date | null, createdAt = old) {
 		},
 	});
 	await db.mediaAsset.update({
-		where: { id: output.id },
+		where: { id: assetId },
 		data: {
 			status: "READY",
-			deleteAfter,
-			createdAt,
 			checksum: "a".repeat(64),
 			verificationGeneration: 1,
 			verificationAttemptCount: 1,
@@ -118,6 +114,16 @@ async function deliveredOutput(deleteAfter: Date | null, createdAt = old) {
 			verificationPolicyVersion: "test",
 			verificationValidUntil: validUntil,
 		},
+	});
+}
+
+async function deliveredOutput(deleteAfter: Date | null, createdAt = old) {
+	const output = await asset("OUTPUT");
+	const job = await bind(output.id, "READY");
+	await approveAsset(output.id, "OUTPUT");
+	await db.mediaAsset.update({
+		where: { id: output.id },
+		data: { deleteAfter, createdAt },
 	});
 	return { output, job };
 }
@@ -163,11 +169,11 @@ describe("video orphan resource isolation", () => {
 		"retains an unbound permanent built-in material in the %s",
 		async (entry) => {
 			const material = await asset();
+			await approveAsset(material.id, "INPUT");
 			await db.mediaAsset.update({
 				where: { id: material.id },
 				data: {
 					objectKey: `users/${ownerId}/source-templates/${randomUUID()}`,
-					status: "READY",
 					deleteAfter: null,
 				},
 			});
