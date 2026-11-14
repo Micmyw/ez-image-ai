@@ -1,5 +1,6 @@
 "use client";
 
+import { hasAuthDraftPointer } from "@auth/lib/auth-draft-pointer";
 import { config } from "@config";
 import { ComposerHeader } from "@media/components/editor/ComposerHeader";
 import { PromptIdeas } from "@media/components/editor/PromptIdeas";
@@ -294,6 +295,7 @@ function LandingGeneratorWorkspace({
 		authDraftRestored.current = true;
 		const destination = new URL(window.location.href);
 		const id = destination.searchParams.get("authDraft");
+		if (!id && !hasAuthDraftPointer()) return;
 		const revision = draftInteractionRevision.current;
 		let active = true;
 		let finished = false;

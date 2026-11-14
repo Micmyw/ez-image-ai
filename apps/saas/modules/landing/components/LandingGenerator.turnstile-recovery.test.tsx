@@ -257,42 +257,60 @@ describe("LandingGenerator verification feedback", () => {
 			}),
 		);
 	});
-	it("restores the original file and parameters when returning from login", async () => {
+	it.each(["url", "pointer"])(
+		"restores the original file and parameters from the %s after login",
+		async (sourceKind) => {
+			vi.stubGlobal("window", {
+				location: {
+					href:
+						sourceKind === "url"
+							? "https://app.ezpic.test/?authDraft=10000000-0000-4000-8000-000000000001"
+							: "https://app.ezpic.test/",
+				},
+				sessionStorage: { getItem: () => "10000000-0000-4000-8000-000000000001" },
+			});
+			harness.readAuthDraft.mockResolvedValue({
+				file: source,
+				values: {
+					productKey: product.key,
+					skuKey: "nano-banana-2-lite-1k",
+					prompt: "Recovered original edit",
+					sourceAssetId: "",
+					aspectRatio: "auto",
+				},
+			});
+			renderWorkspace(false);
+			harness.capabilityEffect?.();
+			renderWorkspace(false);
+			harness.authRestoreEffect?.();
+			await vi.waitFor(() =>
+				expect(findElement(renderWorkspace(false), Textarea)?.props.value).toBe(
+					"Recovered original edit",
+				),
+			);
+			callback<(token: string) => void>(
+				renderWorkspace(false),
+				Turnstile,
+				"onToken",
+			)("restored-token");
+			await vi.waitFor(() => {
+				renderWorkspace(false);
+				harness.preparationEffect?.();
+				expect(harness.prepare).toHaveBeenCalledWith(
+					expect.objectContaining({ file: source, productKey: product.key }),
+				);
+			});
+			expect(harness.upload).not.toHaveBeenCalled();
+		},
+	);
+	it("does not read authentication drafts for a new visitor without a pointer", () => {
 		vi.stubGlobal("window", {
-			location: { href: "https://app.ezpic.test/?authDraft=10000000-0000-4000-8000-000000000001" },
+			location: { href: "https://app.ezpic.test/" },
+			sessionStorage: { getItem: () => null },
 		});
-		harness.readAuthDraft.mockResolvedValue({
-			file: source,
-			values: {
-				productKey: product.key,
-				skuKey: "nano-banana-2-lite-1k",
-				prompt: "Recovered original edit",
-				sourceAssetId: "",
-				aspectRatio: "auto",
-			},
-		});
-		renderWorkspace(false);
-		harness.capabilityEffect?.();
 		renderWorkspace(false);
 		harness.authRestoreEffect?.();
-		await vi.waitFor(() =>
-			expect(findElement(renderWorkspace(false), Textarea)?.props.value).toBe(
-				"Recovered original edit",
-			),
-		);
-		callback<(token: string) => void>(
-			renderWorkspace(false),
-			Turnstile,
-			"onToken",
-		)("restored-token");
-		await vi.waitFor(() => {
-			renderWorkspace(false);
-			harness.preparationEffect?.();
-			expect(harness.prepare).toHaveBeenCalledWith(
-				expect.objectContaining({ file: source, productKey: product.key }),
-			);
-		});
-		expect(harness.upload).not.toHaveBeenCalled();
+		expect(harness.readAuthDraft).not.toHaveBeenCalled();
 	});
 	it("does not overwrite a new edit with a late authentication draft", async () => {
 		vi.stubGlobal("window", {

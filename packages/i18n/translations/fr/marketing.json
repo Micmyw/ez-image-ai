@@ -228,7 +228,7 @@
 			},
 			"failedEdits": {
 				"question": "Que deviennent les crédits si une retouche échoue ?",
-				"answer": "Les échecs techniques sans résultat utilisable libèrent les crédits réservés. Si le fournisseur refuse un contenu sensible après l’envoi, tous les crédits annoncés sont facturés, même au premier refus, sans utiliser l’exonération. Chaque compte ou équipe conserve une exonération pour les images retournées puis bloquées par notre vérification ; les blocages suivants sont facturés. Les instructions ou images arrêtées avant l’envoi ne consomment pas de crédits de génération. Les crédits restent réservés tant qu’une issue incertaine n’est pas résolue."
+				"answer": "Les échecs techniques sans résultat utilisable libèrent les crédits réservés. Les refus de contenu sensible du fournisseur après envoi et les images générées bloquées par notre contrôle utilisent tous les crédits du devis, dès le premier refus. Les instructions ou fichiers bloqués avant envoi ne coûtent aucun crédit de génération. Si le résultat est incertain, les crédits restent réservés jusqu’à sa résolution."
 			},
 			"privateUploads": {
 				"question": "Les images importées sont-elles publiques ?",

@@ -32,7 +32,7 @@ describe("GuestResultCard", () => {
 		);
 		expect(markup).not.toMatch(/US Letter|<select|<a[^>]*href="[^"]*signature/);
 	});
-	it("keeps the mobile result header compact while preserving result meaning", () => {
+	it("leaves the empty canvas uncluttered and describes where the result appears", () => {
 		const markup = renderToStaticMarkup(
 			<GuestResultCard
 				view={{ state: "preparingSession" }}
@@ -42,8 +42,8 @@ describe("GuestResultCard", () => {
 		);
 		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
 
-		expect(visibleText).toContain("One output");
-		expect(visibleText).toContain("Watermarked · temporary");
+		expect(visibleText).not.toContain("One output");
+		expect(visibleText).not.toContain("Watermarked · temporary");
 		expect(visibleText).toContain("Your watermarked result will appear here.");
 		expect(visibleText).not.toContain("available for up to 24 hours");
 	});

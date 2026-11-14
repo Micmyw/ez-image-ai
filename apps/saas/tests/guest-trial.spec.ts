@@ -58,24 +58,26 @@ test("anonymous MiniMax H3 lifetime trial is private, accessible, responsive, an
 	const resultRegion = page.locator("#guest-result-region");
 	await expect(resultRegion.getByRole("img")).toBeVisible({ timeout: 60_000 });
 	await expect(resultRegion).not.toBeFocused();
-	await page.getByRole("button", { name: /view result/i }).click();
-	await expect(resultRegion).toBeFocused();
+	await expect(page.getByRole("button", { name: /view result/i })).toHaveCount(0);
 	await expect(resultRegion).toContainText(/available until|expires/i);
 	const resultUrl = await resultRegion.getByRole("img").getAttribute("src");
 	expect(resultUrl).toMatch(/^https?:\/\//);
 	expect(resultUrl).toMatch(/X-Amz-|Signature=/i);
 
 	const download = page.waitForEvent("download");
-	await resultRegion.getByRole("button", { name: /download watermarked preview/i }).click();
+	await resultRegion.getByRole("button", { name: /download image/i }).click();
 	expect((await download).suggestedFilename()).toBeTruthy();
 	const main = page.getByRole("main");
 	await expect(main.getByRole("button", { name: /sign in/i })).toBeVisible();
 	await expect(main.getByRole("button", { name: /create account/i })).toBeVisible();
 	await expect(page.getByRole("link", { name: /history|assets|edits/i })).toHaveCount(0);
 	await expect(page.getByText(/edit again/i)).toHaveCount(0);
-	await expect(page.getByRole("status").filter({ hasText: /^Free trials left:/ })).toContainText(
-		"Free trials left: 0/1",
-	);
+	await expect(page.locator("#guest-edit-prompt")).toHaveCount(0);
+	await expect(
+		main.locator("details").filter({ hasText: /Trial & account details/ }),
+	).not.toHaveAttribute("open");
+	await assertGuestLayouts(page, [1440, 800, 320]);
+	await captureReviewScreenshots(page, testInfo);
 	await expect
 		.poll(
 			async () => {
@@ -89,13 +91,10 @@ test("anonymous MiniMax H3 lifetime trial is private, accessible, responsive, an
 		)
 		.toBe("SUCCEEDED");
 	await page.reload();
-	await expect(page.getByRole("status").filter({ hasText: /^Free trials left:/ })).toContainText(
-		"Free trials left: 0/1",
-	);
+	await expect(resultRegion.getByRole("img")).toBeVisible();
+	await expect(page.locator("#guest-edit-prompt")).toHaveCount(0);
 	await expect(page.getByRole("link", { name: "Edit another image", exact: true })).toHaveCount(0);
-	await expect(
-		page.getByText("Your free trial has been used. Sign in to continue.", { exact: true }),
-	).toBeVisible();
+	await expect(page.getByRole("heading", { name: "Keep creating", exact: true })).toBeVisible();
 
 	const expiredTrial = await pool.query(
 		`UPDATE guest_media_trial SET "projectedDispatchAt"="createdAt" + interval '1 millisecond', "estimateExpiresAt"="createdAt" + interval '2 milliseconds', "expiresAt"="createdAt" + interval '3 milliseconds' WHERE COALESCE("currentJobId", "consumedJobId")=(SELECT id FROM generation_job WHERE "inputSnapshot"->>'prompt'=$1 ORDER BY "createdAt" DESC LIMIT 1)`,
@@ -185,6 +184,7 @@ async function assertFourHundredPercentReflow(page: Page): Promise<void> {
 			page.getByRole("button", { name: /start my image edit/i }),
 			page.locator("#guest-result-region"),
 		]) {
+			if (!(await target.count())) continue;
 			await target.scrollIntoViewIfNeeded();
 			await expect(target).toBeVisible();
 			const box = await target.boundingBox();

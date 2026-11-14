@@ -1,13 +1,15 @@
 import { IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config/client";
 import { z } from "zod";
 
+import { AUTH_DRAFT_POINTER_KEY } from "./auth-draft-pointer";
+export { AUTH_DRAFT_POINTER_KEY } from "./auth-draft-pointer";
+
 import { generationFormValuesSchema, type GenerationFormValues } from "../../media/lib/form-schema";
 import {
 	temporaryReferenceReceiptSchema,
 	type TemporaryReferenceReceipt,
 } from "../../media/lib/temporary-reference-upload";
 
-export const AUTH_DRAFT_POINTER_KEY = "ezpic.auth-draft.v1";
 export const AUTH_DRAFT_TTL_MS = 60 * 60_000;
 export const AUTH_DRAFT_MAX_FILE_BYTES = 25 * 1024 * 1024;
 export const AUTH_DRAFT_MAX_ENTRIES = 3;

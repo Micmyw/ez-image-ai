@@ -60,12 +60,16 @@ export function HeaderNavigationMenu({
 	const trigger = triggerRef ?? localTrigger;
 	const open = controlledOpen ?? localOpen;
 	const setOpen = onOpenChange ?? setLocalOpen;
+	const previousPathname = useRef(pathname);
+	const previouslyCompact = useRef(false);
 
 	useEffect(() => {
-		setOpen(false);
+		if (previousPathname.current !== pathname) setOpen(false);
+		previousPathname.current = pathname;
 	}, [pathname, setOpen]);
 	useEffect(() => {
-		if (!compact) setOpen(false);
+		if (previouslyCompact.current && !compact) setOpen(false);
+		previouslyCompact.current = compact;
 	}, [compact, setOpen]);
 
 	function navigate(event: MouseEvent<HTMLDivElement>) {

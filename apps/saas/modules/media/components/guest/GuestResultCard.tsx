@@ -1,7 +1,7 @@
 import { Button } from "@repo/ui/components/button";
 import { trackJourneyResultVisible } from "@shared/lib/generation-journey";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
-import { ImageIcon, LockKeyholeIcon } from "lucide-react";
+import { DownloadIcon, ImageIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
@@ -65,7 +65,7 @@ export function GuestResultCard({
 			id="guest-result-region"
 			tabIndex={-1}
 			aria-busy={busy}
-			className="border-slate-800 bg-slate-950 p-4 text-white focus-visible:ring-violet-400 sm:p-5 rounded-2xl border shadow-[0_24px_70px_-32px_rgba(30,27,75,0.9)] outline-none focus-visible:ring-2"
+			className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring"
 		>
 			{view.state === "ready" && resultUrl && view.resultAssetId && (
 				<WallpaperResultPublisher
@@ -74,14 +74,7 @@ export function GuestResultCard({
 					expiresAt={view.resultExpiresAt ?? undefined}
 				/>
 			)}
-			<div className="mb-3 gap-2 font-semibold text-slate-300 sm:text-xs flex items-center justify-between text-[0.6875rem] tracking-[0.1em] uppercase">
-				<span className="shrink-0">{t("oneOutput")}</span>
-				<span className="min-w-0 gap-1.5 bg-white/10 px-2 py-1 tracking-normal flex items-center rounded-full whitespace-nowrap normal-case">
-					<LockKeyholeIcon className="size-3" aria-hidden="true" />
-					{t("temporaryCompact")}
-				</span>
-			</div>
-			<div className="border-white/10 bg-slate-900 relative aspect-[4/3] overflow-hidden rounded-xl border">
+			<div className="min-h-48 relative aspect-[4/3] max-h-[65vh] overflow-hidden bg-background">
 				{view.state === "ready" && resultUrl ? (
 					<img
 						key={resultUrl}
@@ -99,7 +92,7 @@ export function GuestResultCard({
 						}}
 					/>
 				) : (
-					<div className="gap-3 p-6 text-slate-400 flex size-full flex-col items-center justify-center text-center">
+					<div className="gap-3 p-6 flex size-full flex-col items-center justify-center text-center text-muted-foreground">
 						<ImageIcon className="size-8" aria-hidden="true" />
 						<p className="text-sm">{t("resultPlaceholder")}</p>
 					</div>
@@ -111,18 +104,30 @@ export function GuestResultCard({
 					/>
 				)}
 			</div>
-			{view.state === "ready" && view.resultExpiresAt && (
-				<div className="mt-4 gap-3 flex flex-wrap items-center justify-between">
-					<p className="text-sm text-slate-300">
-						{t("resultExpires", { date: new Date(view.resultExpiresAt).toLocaleString() })}
-					</p>
-					<Button type="button" variant="primary" className="min-h-11" onClick={onDownload}>
-						{t("download")}
-					</Button>
-					{view.resultAssetId && view.jobId && (
-						<ColoringPageLink assetId={view.resultAssetId} guestJobId={view.jobId} />
+			{view.state === "ready" && resultUrl && (
+				<div className="p-4 sm:px-5 border-t border-border">
+					<div className="gap-3 flex flex-wrap items-start justify-between">
+						<Button type="button" variant="primary" className="min-h-11" onClick={onDownload}>
+							<DownloadIcon className="size-4" aria-hidden="true" />
+							{t("download")}
+						</Button>
+						<details className="text-sm max-w-full text-muted-foreground">
+							<summary className="min-h-11 px-2 content-center rounded-lg">
+								{t("moreActions")}
+							</summary>
+							<div className="gap-2 pt-2 flex flex-wrap">
+								{view.resultAssetId && view.jobId && (
+									<ColoringPageLink assetId={view.resultAssetId} guestJobId={view.jobId} />
+								)}
+								{resultUrl && <WallpaperButton key={view.resultAssetId} imageUrl={resultUrl} />}
+							</div>
+						</details>
+					</div>
+					{view.resultExpiresAt && (
+						<p className="mt-3 text-xs text-muted-foreground">
+							{t("resultExpires", { date: new Date(view.resultExpiresAt).toLocaleString() })}
+						</p>
 					)}
-					{resultUrl && <WallpaperButton key={view.resultAssetId} imageUrl={resultUrl} />}
 				</div>
 			)}
 		</section>

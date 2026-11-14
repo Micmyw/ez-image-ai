@@ -30,6 +30,18 @@ export function publicImageModerationReason(
 
 function publicTextModerationReason(result: ModerationDecision): PublicModerationReason | null {
 	if (result.decision !== "REJECT") return null;
+	if (
+		result.reasonCode === "SEEAPI_TEXT_CONTENT_NOT_ALLOWED" &&
+		result.evidence?.seeapiText?.flagged
+	) {
+		const categories = result.evidence.seeapiText.categories;
+		if (categories.sexual_explicit?.flagged || categories.sexual_suggestive?.flagged)
+			return "sexualContent";
+		if (categories.sexual_minors?.flagged) return "minorSafety";
+		if (categories.violence?.flagged) return "violence";
+		if (categories.self_harm?.flagged) return "selfHarm";
+		if (categories.hate?.flagged) return "hate";
+	}
 	const waffo = result.evidence?.waffo;
 	if (result.reasonCode === "WAFFO_RESTRICTED_CONTENT" && waffo?.action === "block") {
 		const categories = new Set(waffo.matchedCategories);

@@ -153,11 +153,19 @@ export function GenerationForm({
 	const journeyActionRef = useRef<string | undefined>(undefined);
 	const journeyStartedAt = useRef<number | undefined>(undefined);
 	const acceptedJob = useRef<{ id: string; ownerId: string } | null>(null);
+	const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+	const [duplicateWarning, setDuplicateWarning] = useState<{
+		ownerId: string;
+		version: number;
+		jobId: string | null;
+	} | null>(null);
 	if (currentOwner.current !== ownerId) {
 		currentOwner.current = ownerId;
 		actionVersion.current += 1;
 		submittingRef.current = null;
 		acceptedJob.current = null;
+		setCheckingDuplicate(false);
+		setDuplicateWarning(null);
 	}
 	useEffect(() => {
 		mounted.current = true;
@@ -274,6 +282,8 @@ export function GenerationForm({
 	const sourcePendingRef = useRef(false);
 	const [upgradeOpen, setUpgradeOpen] = useState(false);
 	const active = useGenerationMode()?.mode !== "video";
+	const activeRef = useRef(active);
+	activeRef.current = active;
 	useEffect(() => {
 		if (
 			!jobId ||
@@ -516,6 +526,7 @@ export function GenerationForm({
 	const invalidateGenerationAction = generation.beginNewAction;
 	const beginNewAction = useCallback(() => {
 		actionVersion.current += 1;
+		setDuplicateWarning(null);
 		invalidateGenerationAction();
 	}, [invalidateGenerationAction]);
 	useEffectEditorBinding({
@@ -818,8 +829,10 @@ export function GenerationForm({
 		return true;
 	}, [saveDraftForPurchase, values.productKey, router, effectEditor]);
 
-	async function confirmGeneration() {
+	async function confirmGeneration(confirmedWarning?: typeof duplicateWarning) {
 		if (
+			!mounted.current ||
+			!activeRef.current ||
 			!ownerId ||
 			!ready ||
 			!input ||
@@ -830,12 +843,41 @@ export function GenerationForm({
 			submittingRef.current
 		)
 			return;
+		if (
+			confirmedWarning &&
+			(confirmedWarning.ownerId !== currentOwner.current ||
+				confirmedWarning.version !== actionVersion.current ||
+				confirmedWarning !== duplicateWarning)
+		)
+			return;
 		const operation = {};
 		const version = actionVersion.current;
 		const actionRef = journeyActionRef.current;
 		const startedAt = journeyStartedAt.current;
 		submittingRef.current = operation;
 		try {
+			if (!confirmedWarning) {
+				setCheckingDuplicate(true);
+				let match: { jobId: string } | null = null;
+				let unavailable = false;
+				try {
+					({ match } = await generation.checkDuplicatePrompt(input.prompt));
+				} catch {
+					unavailable = true;
+				}
+				if (
+					!mounted.current ||
+					!activeRef.current ||
+					currentOwner.current !== ownerId ||
+					actionVersion.current !== version
+				)
+					return;
+				if (match || unavailable) {
+					setDuplicateWarning({ ownerId, version, jobId: match?.jobId ?? null });
+					return;
+				}
+			}
+			setDuplicateWarning(null);
 			const result = await generation.createGeneration.mutateAsync({
 				productKey: values.productKey,
 				input,
@@ -863,7 +905,10 @@ export function GenerationForm({
 		} catch {
 			// The mutation exposes only a stable, translated public error below.
 		} finally {
-			if (submittingRef.current === operation) submittingRef.current = null;
+			if (submittingRef.current === operation) {
+				submittingRef.current = null;
+				setCheckingDuplicate(false);
+			}
 		}
 	}
 	useEffect(() => {
@@ -1183,6 +1228,7 @@ export function GenerationForm({
 						variant="primary"
 						className="studio-submit"
 						disabled={
+							checkingDuplicate ||
 							!input ||
 							(!paidTemplate && passSelected && !passReady) ||
 							generation.createQuote.isPending ||
@@ -1190,7 +1236,7 @@ export function GenerationForm({
 						}
 						loading={generation.createGeneration.isPending}
 					>
-						{generation.createQuote.isPending ? (
+						{checkingDuplicate || generation.createQuote.isPending ? (
 							t("checking")
 						) : generation.createGeneration.isPending ? (
 							t("starting")
@@ -1207,6 +1253,51 @@ export function GenerationForm({
 					</Button>
 				)}
 			</div>
+			{active &&
+				duplicateWarning &&
+				duplicateWarning.ownerId === ownerId &&
+				duplicateWarning.version === actionVersion.current && (
+					<Alert className="mt-3" data-testid="duplicate-prompt-warning">
+						<AlertDescription>
+							<p>
+								{t(
+									duplicateWarning.jobId
+										? "duplicatePrompt.message"
+										: "duplicatePrompt.unavailable",
+								)}
+							</p>
+							<div className="mt-3 gap-3 flex flex-wrap">
+								{duplicateWarning.jobId && (
+									<a
+										className="underline underline-offset-4"
+										href={`/create?job=${encodeURIComponent(duplicateWarning.jobId)}`}
+									>
+										{t("duplicatePrompt.view")}
+									</a>
+								)}
+								<Button
+									type="button"
+									data-testid="duplicate-prompt-revise"
+									variant="secondary"
+									onClick={() => {
+										actionVersion.current += 1;
+										setDuplicateWarning(null);
+										document.getElementById("generation-prompt")?.focus();
+									}}
+								>
+									{t("duplicatePrompt.revise")}
+								</Button>
+								<Button
+									type="button"
+									data-testid="duplicate-prompt-confirm"
+									onClick={() => void confirmGeneration(duplicateWarning)}
+								>
+									{t("duplicatePrompt.continue")}
+								</Button>
+							</div>
+						</AlertDescription>
+					</Alert>
+				)}
 			{sourcePending && (
 				<output className="mt-3 text-xs text-amber-200 block">
 					{studio("generation.referencePending")}

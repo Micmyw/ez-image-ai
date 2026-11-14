@@ -3,6 +3,32 @@ import { createHash } from "node:crypto";
 import type { Prisma } from "../../generated/client";
 import type { MediaDatabaseClient } from "./types";
 
+/** Bounded, owner-scoped advisory check; never authorizes or submits a generation. */
+export async function findRecentGenerationPromptMatch(
+	input: { ownerId: string; prompt: string },
+	client: MediaDatabaseClient,
+): Promise<{ jobId: string } | null> {
+	const normalize = (value: string) => value.normalize("NFC").trim().replace(/\s+/gu, " ");
+	const prompt = normalize(input.prompt);
+	if (!prompt) return null;
+	const jobs = await client.generationJob.findMany({
+		where: { ownerType: "USER", ownerId: input.ownerId, executionEngine: "legacy" },
+		orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+		take: 20,
+		select: { id: true, inputSnapshot: true },
+	});
+	const match = jobs.find(({ inputSnapshot }) => {
+		if (!inputSnapshot || typeof inputSnapshot !== "object" || Array.isArray(inputSnapshot))
+			return false;
+		return (
+			(inputSnapshot.kind === "text-to-image" || inputSnapshot.kind === "image-to-image") &&
+			typeof inputSnapshot.prompt === "string" &&
+			normalize(inputSnapshot.prompt) === prompt
+		);
+	});
+	return match ? { jobId: match.id } : null;
+}
+
 export interface MediaPromptRecord {
 	id: string;
 	prompt: string;

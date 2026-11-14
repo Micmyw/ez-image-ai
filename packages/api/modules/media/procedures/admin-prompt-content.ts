@@ -44,7 +44,7 @@ export const adminPromptContentDetail = privateAdmin
 		tags: ["Admin", "Media"],
 		summary: "Inspect a persisted prompt, text review and model diagnostics",
 		description:
-			"Administrator-only audited detail with bounded redacted saved text, exact quote-linked Waffo evidence and persisted attempt messages with their actual provenance. Makes no provider request.",
+			"Administrator-only audited detail with bounded redacted saved text, exact quote-linked text moderation evidence and persisted attempt messages with their actual provenance. Makes no provider request.",
 	})
 	.input(adminPromptDetailInputSchema)
 	.output(adminPromptDetailOutputSchema)

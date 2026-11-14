@@ -32,9 +32,8 @@ import {
 	useState,
 } from "react";
 
-import { HeaderNavigationMenu } from "./HeaderNavigationMenu";
+import { DeferredHeaderNavigationMenu as HeaderNavigationMenu } from "./DeferredHeaderNavigationMenu";
 import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
-import { LocalizedStudioPanels } from "./LocalizedStudioPanels";
 import {
 	resetStudioWorkspace,
 	StudioContext,
@@ -47,6 +46,10 @@ import { StudioSignInLink } from "./StudioSignInLink";
 import { StudioToolNavigation } from "./StudioToolNavigation";
 
 import "./studio.css";
+
+const LocalizedStudioPanels = dynamic(() =>
+	import("./LocalizedStudioPanels").then((module) => module.LocalizedStudioPanels),
+);
 
 const OrganzationSelect = dynamic(() =>
 	import("@organizations/components/OrganizationSelect").then((module) => module.OrganzationSelect),

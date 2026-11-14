@@ -57,11 +57,11 @@ describe("customer moderation feedback", () => {
 		expect(markup).toContain("job-support-reference");
 		expect(markup).not.toMatch(/waffo|seeapi|NSFW|CONTENT_NOT_ALLOWED|No credits were charged/i);
 	});
-	it("explains the one-time waiver and subsequent charges", () => {
+	it("explains the preserved historical waiver without offering it to new jobs", () => {
 		const markup = render({ creditsCharged: "0", moderationBilling: "WAIVED" });
 		expect(markup).toContain("No credits were charged");
-		expect(markup).toContain("one-time waiver was used");
-		expect(markup).toContain("Future blocked results use the quoted credits");
+		expect(markup).toContain("one-time waiver in this generation");
+		expect(markup).toContain("saved pricing policy was used");
 	});
 	it("never turns an unavailable review into a violation or prompts another paid attempt", () => {
 		const markup = render({
@@ -72,7 +72,8 @@ describe("customer moderation feedback", () => {
 		expect(markup).toContain("complete the safety check");
 		expect(markup).toContain("not a confirmed content violation");
 		expect(markup).toContain("automated safety check");
-		expect(markup).toContain("one-time waiver was not used");
+		expect(markup).toContain("No credits were charged");
+		expect(markup).not.toContain("waiver");
 		expect(markup).toContain("Try again later");
 		expect(markup).not.toContain("sexually explicit content");
 		expect(markup).not.toContain("charged for this generation");

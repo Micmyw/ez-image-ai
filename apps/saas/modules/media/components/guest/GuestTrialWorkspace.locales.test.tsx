@@ -12,32 +12,32 @@ import { GuestTrialWorkspace } from "./GuestTrialWorkspace";
 
 const expectations = {
 	en: {
-		source: "Transferred privately for this edit",
-		placeholder: "Your watermarked result will appear here.",
+		source: "Ready for this edit",
+		placeholder: "Your image will appear here",
 		compact: "Watermarked · temporary",
 		count: "1,234 / 10,000",
 		bonus:
 			"receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill",
 	},
 	de: {
-		source: "Privat für diese Bearbeitung übergeben",
-		placeholder: "Dein Ergebnis mit Wasserzeichen erscheint hier.",
+		source: "Bereit für diese Bearbeitung",
+		placeholder: "Dein Bild erscheint hier",
 		compact: "Mit Wasserzeichen · temporär",
 		count: "1.234 / 10.000",
 		bonus:
 			"einmalig 10 Credits für zwei Generierungen mit MiniMax H3 Image 1K, ohne monatliche Auffüllung",
 	},
 	es: {
-		source: "Transferido de forma privada para esta edición",
-		placeholder: "Tu resultado con marca de agua aparecerá aquí.",
+		source: "Lista para esta edición",
+		placeholder: "Tu imagen aparecerá aquí",
 		compact: "Con marca de agua · temporal",
 		count: "1234 / 10.000",
 		bonus:
 			"10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual",
 	},
 	fr: {
-		source: "Transférée en privé pour cette retouche",
-		placeholder: "Votre résultat filigrané apparaîtra ici.",
+		source: "Prête pour cette retouche",
+		placeholder: "Votre image apparaîtra ici",
 		compact: "Filigrané · temporaire",
 		count: "1 234 / 10 000",
 		bonus:
@@ -86,7 +86,8 @@ describe("GuestTrialWorkspace locales", () => {
 
 			expect(visibleText).toContain(expected.source);
 			expect(visibleText).toContain(expected.placeholder);
-			expect(visibleText).toContain(expected.compact);
+			expect(markup).toContain("<details");
+			expect(markup).not.toContain("<details open");
 			expect(visibleText).toContain(expected.count);
 			expect(visibleText).toContain(expected.bonus);
 		},

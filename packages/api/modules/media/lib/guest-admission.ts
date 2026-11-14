@@ -417,15 +417,23 @@ export async function submitGuestGenerationForGuest(
 			quote.pricingSnapshot as CreateGuestGenerationTransactionInput["quote"]["pricingSnapshot"],
 		expiresAt: new Date(now.getTime() + GUEST_QUOTE_TTL_MS),
 	};
+	// Keep one scanner per admission so retries query the same accepted SeeAPI task.
+	const promptSelection =
+		dependencySelection === "default" ? createTextModerationAdapter(process.env) : undefined;
 	const moderation = await moderateTextWithRetry(
 		{
 			text: modelInput.prompt,
 			ruleVersion: TEXT_MODERATION_RULE_VERSION,
 		},
-		(value) => dependencies.moderatePrompt(value),
+		(value) =>
+			promptSelection
+				? promptSelection.adapter.moderateText(value)
+				: dependencies.moderatePrompt(value),
 	);
 	const moderationProvider =
-		dependencies.moderationProvider ?? textModerationProviderForEnvironment(process.env);
+		promptSelection?.provider ??
+		dependencies.moderationProvider ??
+		textModerationProviderForEnvironment(process.env);
 	if (moderation.decision !== "ALLOW") {
 		try {
 			await dependencies.recordModerationDenial?.(

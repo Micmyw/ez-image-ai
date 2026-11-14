@@ -228,7 +228,7 @@
 			},
 			"failedEdits": {
 				"question": "Was passiert mit Credits, wenn eine Bearbeitung fehlschlägt?",
-				"answer": "Technische Fehler ohne nutzbares Ergebnis geben reservierte Credits frei. Lehnt der Generierungsanbieter nach der Übermittlung sensible Inhalte ab, werden alle angezeigten Credits berechnet, auch beim ersten Mal und ohne den Gebührenerlass zu nutzen. Für zurückgegebene Bilder, die unsere Sicherheitsprüfung sperrt, erhält jedes Konto oder Team einen einmaligen Gebührenerlass; spätere Sperrungen werden berechnet. Vor der Übermittlung gestoppte Anweisungen oder Uploads kosten keine Generierungs-Credits. Bei unklarem Ausgang bleiben Credits bis zur Klärung reserviert."
+				"answer": "Bei technischen Fehlern ohne nutzbares Ergebnis werden reservierte Credits freigegeben. Ablehnungen sensibler Inhalte durch den Generierungsanbieter nach dem Absenden und von unserer Sicherheitsprüfung gesperrte generierte Bilder kosten die gesamten angebotenen Credits, auch beim ersten Mal. Vor dem Absenden gestoppte Prompts oder Uploads kosten keine Generierungs-Credits. Bei unklarem Ausgang bleiben Credits bis zur Klärung reserviert."
 			},
 			"privateUploads": {
 				"question": "Sind hochgeladene Bilder öffentlich?",

@@ -1,5 +1,5 @@
 import { getSession } from "@auth/lib/server";
-import { CreatorWorkspace } from "@media/components/CreatorWorkspace";
+import { AccountInputPreparation, CreatorWorkspace } from "@media/components/CreatorWorkspace";
 import {
 	hasEditorRecoveryRequest,
 	resolveEditorAllowedProductKeys,
@@ -22,8 +22,6 @@ import { getServerQueryClient } from "@shared/lib/server";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { cookies } from "next/headers";
 import type { ReactNode } from "react";
-
-import { AccountInputPreparation } from "./AccountInputPreparation";
 
 export interface CreatePageFilters {
 	model?: string;

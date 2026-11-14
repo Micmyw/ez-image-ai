@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { SEEAPI_TEXT_CATEGORIES } from "@repo/config";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/payments/waffo-content-safety", () => ({
 	createWaffoPromptScanner: vi.fn(),
@@ -17,10 +18,17 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 	vi.clearAllMocks();
 });
+beforeEach(() => {
+	// Existing Waffo decision cases exercise the real technical-fallback boundary.
+	vi.stubGlobal(
+		"fetch",
+		vi.fn(async () => Response.json({}, { status: 429 })),
+	);
+});
 
 describe("generation text moderation", () => {
 	it.each(["A mountain landscape", "画一只坐在窗边的猫"])(
-		"sends %s only to the configured Waffo scanner",
+		"sends %s to SeeAPI first without invoking Waffo after success",
 		async (prompt) => {
 			const scan = vi.fn(async () => ({
 				decision: "ALLOW" as const,
@@ -33,23 +41,46 @@ describe("generation text moderation", () => {
 				},
 			}));
 			vi.mocked(createWaffoPromptScanner).mockReturnValue(scan);
-			const fetcher = vi.fn<typeof fetch>();
+			const fetcher = vi.fn<typeof fetch>(async () =>
+				Response.json({
+					id: "task-1",
+					object: "inference",
+					model: "text-nsfw-filter",
+					endpoint: "text-moderation",
+					provider: "seeapi",
+					status: "succeeded",
+					error: null,
+					result: {
+						type: "json",
+						data: {
+							flagged: false,
+							threshold: 0.3,
+							categories: Object.fromEntries(
+								SEEAPI_TEXT_CATEGORIES.map((category) => [
+									category,
+									{ flagged: false, score: 0.01 },
+								]),
+							),
+						},
+					},
+				}),
+			);
 			vi.stubGlobal("fetch", fetcher);
 			const selected = createTextModerationAdapter({
 				NODE_ENV: "test",
 				MEDIA_SAFETY_ADAPTER: "configured",
 				MODERATION_TEXT_WAFFO_ENABLED: "true",
+				SEEAPI_API_KEY: "fixture-secret",
 			});
-			expect(selected.provider).toBe("waffo");
+			expect(selected.provider).toBe("seeapi");
 			expect(
 				await selected.adapter.moderateText({
 					text: prompt,
 					ruleVersion: TEXT_MODERATION_RULE_VERSION,
 				}),
-			).toMatchObject({ decision: "ALLOW", evidence: { waffo: { requestId: "request-1" } } });
-			expect(scan).toHaveBeenCalledOnce();
-			expect(scan).toHaveBeenCalledWith(prompt);
-			expect(fetcher).not.toHaveBeenCalled();
+			).toMatchObject({ decision: "ALLOW", evidence: { seeapiText: { taskId: "task-1" } } });
+			expect(scan).not.toHaveBeenCalled();
+			expect(fetcher).toHaveBeenCalledOnce();
 		},
 	);
 	const quote = {
@@ -65,6 +96,58 @@ describe("generation text moderation", () => {
 		pricingSnapshot: {},
 		expiresAt: new Date("2026-08-14T01:00:00.000Z"),
 	};
+	it("blocks a SeeAPI-rejected quote before reservation without consulting Waffo", async () => {
+		const scan = vi.fn();
+		vi.mocked(createWaffoPromptScanner).mockReturnValue(scan);
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () =>
+				Response.json({
+					id: "task-blocked",
+					object: "inference",
+					model: "text-nsfw-filter",
+					endpoint: "text-moderation",
+					provider: "seeapi",
+					status: "succeeded",
+					error: null,
+					result: {
+						type: "json",
+						data: {
+							flagged: true,
+							threshold: 0.3,
+							categories: Object.fromEntries(
+								SEEAPI_TEXT_CATEGORIES.map((category) => [
+									category,
+									{
+										flagged: category === "sexual_explicit",
+										score: category === "sexual_explicit" ? 0.9 : 0.01,
+									},
+								]),
+							),
+						},
+					},
+				}),
+			),
+		);
+		const selection = createTextModerationAdapter(liveModerationEnvironment());
+		const persistApproved = vi.fn();
+		const recordDenied = vi.fn();
+		const error = await moderateQuoteInput(quote, {
+			provider: selection.provider,
+			moderateText: selection.adapter.moderateText,
+			persistApproved,
+			recordDenied,
+		}).catch((error: unknown) => error);
+		expect(toMediaOrpcError(error).data).toEqual({
+			code: "CONTENT_NOT_ALLOWED",
+			moderationReason: "sexualContent",
+		});
+		expect(scan).not.toHaveBeenCalled();
+		expect(persistApproved).not.toHaveBeenCalled();
+		expect(recordDenied).toHaveBeenCalledWith(
+			expect.objectContaining({ provider: "seeapi", decision: "REJECT" }),
+		);
+	});
 	it.each([
 		["adult_nsfw", "sexualContent"],
 		["csam_minor", "minorSafety"],
@@ -270,7 +353,7 @@ describe("generation text moderation", () => {
 			expect(scan).toHaveBeenCalledExactlyOnceWith("private prompt");
 			expect(persistApproved).not.toHaveBeenCalled();
 			expect(recordDenied).toHaveBeenCalledWith(
-				expect.objectContaining({ decision, provider: "waffo" }),
+				expect.objectContaining({ decision, provider: "seeapi" }),
 			);
 		},
 	);
@@ -289,7 +372,7 @@ describe("generation text moderation", () => {
 		}));
 		vi.mocked(createWaffoPromptScanner).mockReturnValue(scan);
 		const { adapter, provider } = createTextModerationAdapter(liveModerationEnvironment());
-		expect(provider).toBe("waffo");
+		expect(provider).toBe("seeapi");
 		const result = await adapter.moderateText({
 			text: "private prompt",
 			ruleVersion: TEXT_MODERATION_RULE_VERSION,
@@ -334,6 +417,7 @@ function liveModerationEnvironment(): Record<string, string | undefined> {
 		NODE_ENV: "production",
 		MEDIA_SAFETY_ADAPTER: "configured",
 		MODERATION_TEXT_WAFFO_ENABLED: "true",
+		SEEAPI_API_KEY: "fixture-secret",
 	};
 }
 

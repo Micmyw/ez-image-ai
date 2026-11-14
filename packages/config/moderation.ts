@@ -57,4 +57,6 @@ export function assertModerationConfiguration(environment: Environment): void {
 		if (!environment[key]?.trim()) throw new Error(`Enabled moderation provider requires ${key}`);
 }
 
-export const OUTPUT_MODERATION_BILLING_POLICY = "first-block-free-v1";
+/** Accepted historical quotes retain their lifetime-waiver contract. */
+export const LEGACY_OUTPUT_MODERATION_BILLING_POLICY = "first-block-free-v1";
+export const OUTPUT_MODERATION_BILLING_POLICY = "charge-quoted-credits-v1";

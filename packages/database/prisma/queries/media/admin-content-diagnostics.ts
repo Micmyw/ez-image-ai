@@ -65,7 +65,12 @@ export function diagnosticLabels(value: unknown): string[] {
 
 export function promptReviewProjection(value: unknown, createdAt: Date, id: string) {
 	const data = diagnosticObject(value);
-	const waffo = diagnosticObject(diagnosticObject(data.evidence).waffo);
+	const evidence = diagnosticObject(data.evidence);
+	const waffo = diagnosticObject(evidence.waffo);
+	const seeapi = diagnosticObject(evidence.seeapiText);
+	const seeapiCategories = Object.entries(diagnosticObject(seeapi.categories))
+		.filter(([, category]) => diagnosticObject(category).flagged === true)
+		.map(([category]) => category);
 	return {
 		id,
 		createdAt,
@@ -74,7 +79,7 @@ export function promptReviewProjection(value: unknown, createdAt: Date, id: stri
 		reasonCode: safeDiagnosticCode(data.reasonCode),
 		action: safeDiagnosticText(waffo.action, 80),
 		semanticStatus: safeDiagnosticText(waffo.semanticStatus, 80),
-		categories: diagnosticLabels(waffo.matchedCategories),
+		categories: diagnosticLabels(evidence.seeapiText ? seeapiCategories : waffo.matchedCategories),
 	};
 }
 

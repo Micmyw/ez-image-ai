@@ -21,6 +21,7 @@ export function isImageContentRejection(
 export interface ModerateTextInput {
 	text: string;
 	ruleVersion: string;
+	idempotencyKey?: string;
 }
 export interface ModerateAssetInput {
 	assetUrl: string;
@@ -72,6 +73,19 @@ export type ModerationEvidence = {
 		matchedCategories: string[];
 	};
 	seeapi?: { taskId: string; flagged: boolean; nsfw: string[]; specialCare: string[] };
+	seeapiText?: {
+		taskId: string;
+		model: "text-nsfw-filter";
+		flagged: boolean;
+		threshold: 0.3;
+		categories: Record<string, { score: number; flagged: boolean }>;
+	};
+	textFallback?: {
+		primaryProvider: "seeapi";
+		primaryReasonCode: string;
+		primaryTaskId?: string;
+		fallbackProvider: "waffo";
+	};
 	/** Authenticated terminal task failure, distinct from a classifier verdict or GET failure. */
 	seeapiFailure?: {
 		taskId: string;

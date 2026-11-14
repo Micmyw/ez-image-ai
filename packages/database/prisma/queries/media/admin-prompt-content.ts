@@ -204,11 +204,13 @@ function blockedAudience(
 
 function promptEvidence(row: { id: string; after: unknown; createdAt: Date }) {
 	const data = diagnosticObject(row.after);
-	const waffo = diagnosticObject(diagnosticObject(data.evidence).waffo);
+	const evidence = diagnosticObject(data.evidence);
+	const waffo = diagnosticObject(evidence.waffo);
 	return {
 		...promptReviewProjection(row.after, row.createdAt, row.id),
 		ruleVersion: safeDiagnosticText(data.ruleVersion, 160),
-		requestId: safeDiagnosticIdentifier(waffo.requestId),
+		requestId:
+			safeDiagnosticIdentifier(evidence.requestId) ?? safeDiagnosticIdentifier(waffo.requestId),
 		evidenceSource: "PERSISTED_AUDIT" as const,
 	};
 }

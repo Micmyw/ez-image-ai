@@ -228,7 +228,7 @@
 			},
 			"failedEdits": {
 				"question": "What happens to credits when an edit fails?",
-				"answer": "Technical failures with no usable result release reserved credits. Sensitive-content rejections by the generation provider after submission use the full quoted credits, including the first rejection, without using the output-review waiver. For images returned and then blocked by our safety check, each account or team gets one lifetime waiver; later blocks use the quoted amount. Prompts or uploads stopped before submission cost no generation credits. Uncertain outcomes keep credits reserved until recovery resolves them."
+				"answer": "Technical failures with no usable result release reserved credits. Sensitive-content rejections by the generation provider after submission and generated images blocked by our safety check use the full quoted credits, including the first rejection. Prompts or uploads stopped before submission cost no generation credits. Uncertain outcomes keep credits reserved until recovery resolves them."
 			},
 			"privateUploads": {
 				"question": "Are uploaded images public?",

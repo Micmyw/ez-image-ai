@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
 	ownerId: "owner-a",
+	mode: "image" as "image" | "video",
 	loaded: true,
 	passAvailable: 3 as number | undefined,
 	passReserved: 0,
@@ -40,6 +41,7 @@ const state = vi.hoisted(() => ({
 		frameDurationMs?: number;
 	},
 	mutateAsync: vi.fn(),
+	checkDuplicatePrompt: vi.fn(),
 	beginNewAction: vi.fn(),
 	visibility: vi.fn(),
 	toolBinding: vi.fn(),
@@ -90,7 +92,9 @@ vi.mock("../lib/tool-prompt-context", () => ({
 vi.mock("../../landing/lib/use-showcase-prompt", () => ({
 	useShowcasePrompt: () => "A paper landscape",
 }));
-vi.mock("../lib/generation-mode-context", () => ({ useGenerationMode: () => null }));
+vi.mock("../lib/generation-mode-context", () => ({
+	useGenerationMode: () => ({ mode: state.mode }),
+}));
 vi.mock("../lib/preview-timing", () => ({ observeGenerationJobVisibility: state.visibility }));
 vi.mock("../hooks/use-model-navigation", () => ({
 	useModelNavigation: () => ({ unavailable: false }),
@@ -100,6 +104,7 @@ vi.mock("../hooks/use-model-navigation", () => ({
 }));
 vi.mock("../hooks/use-generation", () => ({
 	useGeneration: () => ({
+		checkDuplicatePrompt: state.checkDuplicatePrompt,
 		catalog: {
 			data: {
 				products: [
@@ -269,6 +274,21 @@ function find(
 function submit(element: ReturnType<typeof render>) {
 	(element.props.onSubmit as () => void)();
 }
+function findTestId(root: ReactElement, testId: string): ReactElement<{ onClick: () => void }> {
+	if ((root.props as Record<string, unknown>)["data-testid"] === testId)
+		return root as ReactElement<{ onClick: () => void }>;
+	for (const child of React.Children.toArray(
+		(root.props as { children?: React.ReactNode }).children,
+	)) {
+		if (!React.isValidElement(child)) continue;
+		try {
+			return findTestId(child, testId);
+		} catch {
+			/* Continue siblings. */
+		}
+	}
+	throw new Error("element missing");
+}
 function fundingMarkup(element: ReturnType<typeof render>) {
 	return renderToStaticMarkup(find(element, ImageFundingSelector));
 }
@@ -311,6 +331,7 @@ function renderPaid() {
 }
 beforeEach(() => {
 	state.ownerId = "owner-a";
+	state.mode = "image";
 	state.loaded = true;
 	state.passAvailable = 3;
 	state.passReserved = 0;
@@ -331,6 +352,7 @@ beforeEach(() => {
 		sourceAssetId: "",
 	};
 	state.mutateAsync.mockReset().mockResolvedValue(accepted);
+	state.checkDuplicatePrompt.mockReset().mockResolvedValue({ match: null });
 	state.beginNewAction.mockClear();
 	state.visibility.mockReset();
 	state.toolBinding.mockReset();
@@ -1072,6 +1094,90 @@ describe("GenerationForm submission callbacks", () => {
 			expect.any(Function),
 		);
 	});
+	it("requires explicit confirmation for a recent identical prompt", async () => {
+		state.checkDuplicatePrompt.mockResolvedValue({ match: { jobId: "previous-job" } });
+		submit(render());
+		await flush();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+		const element = render();
+		expect(find(element, "a").props.href).toBe("/create?job=previous-job");
+		findTestId(element, "duplicate-prompt-confirm").props.onClick();
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledTimes(1);
+		expect(state.checkDuplicatePrompt).toHaveBeenCalledTimes(1);
+	});
+	it("does not silently submit when the history check fails", async () => {
+		state.checkDuplicatePrompt.mockRejectedValue(new Error("network"));
+		submit(render());
+		await flush();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+		findTestId(render(), "duplicate-prompt-confirm").props.onClick();
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledTimes(1);
+	});
+	it("dismisses the warning for revision without resetting submission identity", async () => {
+		state.checkDuplicatePrompt.mockResolvedValue({ match: { jobId: "previous-job" } });
+		const focus = vi.fn();
+		vi.stubGlobal("document", { getElementById: vi.fn(() => ({ focus })) });
+		submit(render());
+		await flush();
+		const element = render();
+		const staleConfirm = findTestId(element, "duplicate-prompt-confirm").props.onClick;
+		state.beginNewAction.mockClear();
+		findTestId(element, "duplicate-prompt-revise").props.onClick();
+		staleConfirm();
+		await flush();
+		expect(focus).toHaveBeenCalledOnce();
+		expect(state.beginNewAction).not.toHaveBeenCalled();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("blocks a stale confirmation after switching to video", async () => {
+		state.checkDuplicatePrompt.mockResolvedValue({ match: { jobId: "previous-job" } });
+		submit(render());
+		await flush();
+		const confirm = findTestId(render(), "duplicate-prompt-confirm").props.onClick;
+		state.mode = "video";
+		render();
+		confirm();
+		await flush();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it.each(["prompt", "owner"])(
+		"rejects a stale duplicate confirmation after %s changes",
+		async (boundary) => {
+			state.checkDuplicatePrompt.mockResolvedValue({ match: { jobId: "previous-job" } });
+			submit(render());
+			await flush();
+			const element = render();
+			const confirm = findTestId(element, "duplicate-prompt-confirm").props.onClick;
+			if (boundary === "prompt")
+				(find(element, PromptPanel).props.onChange as (prompt: string) => void)("Different prompt");
+			else {
+				state.ownerId = "owner-b";
+				render();
+			}
+			confirm();
+			await flush();
+			expect(state.mutateAsync).not.toHaveBeenCalled();
+		},
+	);
+	it("deduplicates clicks during the history check and cancels it after prompt changes", async () => {
+		let resolve!: (value: { match: null }) => void;
+		state.checkDuplicatePrompt.mockReturnValue(
+			new Promise((done) => {
+				resolve = done;
+			}),
+		);
+		const element = render();
+		submit(element);
+		submit(element);
+		expect(state.checkDuplicatePrompt).toHaveBeenCalledTimes(1);
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+		(find(element, PromptPanel).props.onChange as (prompt: string) => void)("Different prompt");
+		resolve({ match: null });
+		await flush();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
 	it("blocks duplicate clicks until the accepted response and ignores null results", async () => {
 		let resolve!: (value: typeof accepted | null) => void;
 		state.mutateAsync.mockReturnValueOnce(
@@ -1083,6 +1189,7 @@ describe("GenerationForm submission callbacks", () => {
 			element = render(onCreated);
 		submit(element);
 		submit(element);
+		await flush();
 		expect(state.mutateAsync).toHaveBeenCalledTimes(1);
 		resolve(null);
 		await flush();
@@ -1117,6 +1224,7 @@ describe("GenerationForm submission callbacks", () => {
 			const onCreated = vi.fn(),
 				element = render(onCreated);
 			submit(element);
+			await flush();
 			if (boundary === "prompt")
 				(find(element, PromptPanel).props.onChange as (prompt: string) => void)("New prompt");
 			else if (boundary === "ratio")

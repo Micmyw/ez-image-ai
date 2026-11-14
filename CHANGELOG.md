@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-15 — Guest workspace and image feedback
+
+- Match the guest workspace to the dark image editor, simplify its copy, and give completed images a larger preview with a clear download action. Keep account benefits and secondary tools available in expandable details.
+- Preserve the uploaded photo and prompt through guest preparation, sign-in and account creation, with responsive layouts down to 320px.
+- Load homepage preview players, account-only providers and the paid-template purchase dialog when needed to keep the public editor's initial download small.
+- Warn signed-in users before repeating a recent image prompt, while allowing an explicit repeat. Use SeeAPI for image-prompt checks with Waffo as a technical-failure fallback; retain Waffo for video prompts.
+- Charge the quoted credits for output-policy blocks on new credit-funded image requests. Preserve frozen historical policies and the separate guest and image-pack contracts.
+
 ## Unreleased — GPT Image 2.6 model pages
 
 - Give GPT Image 2.6 Flare and Sunburst separate pages with shared example cards and prompt controls.

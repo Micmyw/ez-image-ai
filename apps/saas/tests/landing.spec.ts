@@ -8,6 +8,40 @@ import { expectNoAdvertising, watchAdFreeBrowsing } from "./helpers/ad-free-brow
 const ONE_PIXEL_PNG =
 	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
+// These tests exercise the editor. Dismiss the independently tested preview through
+// its real control when it opens, including after a full-page navigation.
+async function dismissHomepagePreview(page: Page) {
+	const preview = page.locator('[data-test="homepage-showcase"]');
+	await page.addLocatorHandler(preview, async () => {
+		await preview.getByRole("button", { name: "Close previews", exact: true }).click();
+	});
+}
+
+test.beforeEach(async ({ page }, testInfo) => {
+	if (
+		!testInfo.title.startsWith("homepage previews") &&
+		!testInfo.title.startsWith("the landing tool stays usable")
+	)
+		await dismissHomepagePreview(page);
+});
+
+test("homepage previews open automatically, reopen on demand and return after refresh", async ({
+	page,
+}) => {
+	await page.goto("/");
+	const preview = page.locator('[data-test="homepage-showcase"]');
+	await expect(preview).toBeVisible();
+	await preview.getByRole("button", { name: "Close previews", exact: true }).click();
+	await expect(preview).toBeHidden();
+	await page.locator("button.homepage-showcase-trigger").click();
+	await expect(preview).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(preview).toBeHidden();
+	await expect(page.locator("button.homepage-showcase-trigger")).toBeFocused();
+	await page.reload();
+	await expect(preview).toBeVisible();
+});
+
 for (const width of [1440, 390, 320]) {
 	test(`homepage quick starts keep photos and apply ideas at ${width}px`, async ({ page }) => {
 		test.setTimeout(60_000);
@@ -574,6 +608,7 @@ test("account controls preserve logout and account switching across document rel
 }) => {
 	let userId: string | null = "first-owner";
 	const peer = await context.newPage();
+	await dismissHomepagePreview(peer);
 	for (const tab of [page, peer]) {
 		await tab.setViewportSize({ width: 1440, height: 900 });
 		await tab.route("**/api/auth/get-session**", (route) =>
@@ -798,6 +833,7 @@ test("the production homepage excludes account tools, charts, and documentation 
 	expect(resources.inlineStyles, "Do not duplicate global CSS inside HTML and RSC").toHaveLength(0);
 	for (const marker of [
 		"current-editor-result",
+		"ezpic-auth-drafts",
 		"notifications.markAllRead",
 		// Analytics uses public keys; detailed video capabilities still belong to the editor.
 		"OFFICIAL_MODEL_CONTRACT_UNAVAILABLE",
@@ -1407,8 +1443,11 @@ test("the selected model and SKU cross each private-upload stage without leaking
 	let intentBody: Record<string, unknown> | undefined;
 	let completionBody: Record<string, unknown> | undefined;
 	let handoffBody = "";
+	let intentCount = 0;
+	let preparationCount = 0;
 
 	await page.route("**/api/media/guest-drafts/upload-intents", async (route) => {
+		intentCount += 1;
 		intentBody = JSON.parse(route.request().postData() ?? "{}") as Record<string, unknown>;
 		intentRequested.resolve();
 		await intentGate.promise;
@@ -1428,6 +1467,10 @@ test("the selected model and SKU cross each private-upload stage without leaking
 		uploadRequested.resolve();
 		await uploadGate.promise;
 		await route.fulfill({ status: 200, body: "" });
+	});
+	await page.route("**/api/media/guest-drafts/upload-preparations", async (route) => {
+		preparationCount += 1;
+		await route.fulfill({ json: { status: "SEALED" } });
 	});
 	await page.route("**/api/media/guest-drafts/upload-completions", async (route) => {
 		completionBody = JSON.parse(route.request().postData() ?? "{}") as Record<string, unknown>;
@@ -1466,22 +1509,25 @@ test("the selected model and SKU cross each private-upload stage without leaking
 	await page.keyboard.press("Escape");
 	await expect(settings).toBeHidden();
 	await page.locator("#landing-source-image").setInputFiles(pngFile("gpt-source.png"));
+	// Upload begins on selection while the visitor can still edit the prompt.
+	await intentRequested.promise;
+	await expect(stage(page, "ready")).toBeVisible();
 	await page
 		.getByRole("textbox", { name: "Edit instruction", exact: true })
 		.fill("Preserve the product details");
-	await page.getByRole("button", { name: /continue/i }).click();
-
-	await intentRequested.promise;
-	await expect(stage(page, "preparing")).toBeVisible();
 	expect(intentBody).toMatchObject({ productKey: "image-gpt-image-2" });
 	intentGate.resolve();
 
 	await uploadRequested.promise;
-	await expect(stage(page, "uploading")).toBeVisible();
+	await expect(page.getByRole("textbox", { name: "Edit instruction", exact: true })).toBeEnabled();
+	await page.getByRole("button", { name: /continue/i }).click();
+	await expect(stage(page, "preparing")).toBeVisible();
 	uploadGate.resolve();
 
 	await verificationRequested.promise;
-	await expect(stage(page, "verifying")).toBeVisible();
+	await expect(stage(page, "preparing")).toBeVisible();
+	expect(intentCount).toBe(1);
+	expect(preparationCount).toBe(1);
 	expect(completionBody).toMatchObject({
 		productKey: "image-gpt-image-2",
 		skuKey: "gpt-image-2-4k",
@@ -1544,9 +1590,6 @@ test("a guest upload limit explains the wait and preserves the draft without aut
 	await page.locator("#landing-source-image").setInputFiles(pngFile("limited-source.png"));
 	const prompt = page.getByRole("textbox", { name: "Edit instruction", exact: true });
 	await prompt.fill("Keep this draft for later");
-	await page.getByRole("button", { name: /continue/i }).click();
-
-	await expect(stage(page, "failed")).toBeVisible();
 	await expect(page.locator('[data-test="landing-generator"]').getByRole("alert")).toContainText(
 		"Guest upload limit reached. Please try again later.",
 	);
@@ -1554,6 +1597,10 @@ test("a guest upload limit explains the wait and preserves the draft without aut
 	await expect(prompt).toHaveValue("Keep this draft for later");
 	await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText("GPT Image 2");
 	expect(attempts).toBe(1);
+	// A user-initiated retry is allowed; rerenders above must not resubmit by themselves.
+	await page.getByRole("button", { name: /continue/i }).click();
+	await expect(stage(page, "failed")).toBeVisible();
+	expect(attempts).toBe(2);
 });
 
 test("the landing page shows the original artwork and interactive illustration", async ({
@@ -1689,6 +1736,7 @@ function deferred<T>() {
 test("the landing tool stays usable at desktop and narrow mobile widths", async ({
 	page,
 }, testInfo) => {
+	test.setTimeout(60_000);
 	for (const viewport of [
 		{ width: 1440, height: 1000 },
 		{ width: 390, height: 844 },
@@ -1696,6 +1744,10 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 	]) {
 		await page.setViewportSize(viewport);
 		await page.goto("/");
+		const preview = page.locator('[data-test="homepage-showcase"]');
+		await expect(preview).toBeVisible();
+		await preview.getByRole("button", { name: "Close previews", exact: true }).click();
+		await expect(preview).toBeHidden();
 		await expect(
 			page.getByRole("textbox", { name: /^(?:Image prompt|Edit instruction)$/ }),
 		).toBeVisible();

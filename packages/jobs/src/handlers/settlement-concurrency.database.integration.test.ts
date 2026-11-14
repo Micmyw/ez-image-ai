@@ -2,7 +2,7 @@ import { writeFile } from "node:fs/promises";
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
-import { OUTPUT_MODERATION_BILLING_POLICY } from "@repo/config";
+import { LEGACY_OUTPUT_MODERATION_BILLING_POLICY } from "@repo/config";
 import { getImagePassOfferSnapshot } from "@repo/config/image-pass";
 import { IMAGE_PASS_AMOUNT_MICROS } from "@repo/config/image-pass.server";
 import {
@@ -646,7 +646,7 @@ async function rejectOutput(f: Fixture) {
 			data: {
 				pricingSnapshot: {
 					...(job.pricingSnapshot as Record<string, Prisma.JsonValue>),
-					outputModerationBillingPolicy: OUTPUT_MODERATION_BILLING_POLICY,
+					outputModerationBillingPolicy: LEGACY_OUTPUT_MODERATION_BILLING_POLICY,
 				},
 			},
 		});

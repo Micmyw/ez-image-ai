@@ -12,7 +12,11 @@ import {
 	createRouteGraphSnapshot,
 	type ProviderKey,
 } from "@repo/ai";
-import { DEFAULT_PRODUCT_CONFIG, OUTPUT_MODERATION_BILLING_POLICY } from "@repo/config";
+import {
+	DEFAULT_PRODUCT_CONFIG,
+	LEGACY_OUTPUT_MODERATION_BILLING_POLICY,
+	OUTPUT_MODERATION_BILLING_POLICY,
+} from "@repo/config";
 import {
 	beginGuestLinkIntentTransaction,
 	claimOutputModerationGraceInTransaction,
@@ -819,11 +823,47 @@ describe("production media runtime stores", () => {
 		).toBe(1);
 	});
 
+	it.each([false, true])(
+		"charges the first output rejection under the new policy, fresh-read %s",
+		async (fresh) => {
+			vi.stubEnv("MEDIA_SETTLEMENT_FRESH_READ_ENABLED", fresh ? "true" : "false");
+			try {
+				const seeded = await seedFinalizingJob("image-quality", {
+					pricingSnapshot: {
+						credits: "10",
+						outputModerationBillingPolicy: OUTPUT_MODERATION_BILLING_POLICY,
+						settlementPolicy: { unitCredits: "10", requestedOutputCount: 1, maxCharge: "10" },
+					},
+				});
+				await seedRejectedOutputAsset(seeded.jobId, "SEEAPI_CONTENT_NOT_ALLOWED");
+				const store = createDatabaseSettlementStore(client);
+				await settleGeneration(seeded, { store });
+				await settleGeneration(seeded, { store });
+				expect(
+					await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+				).toMatchObject({ status: "FAILED", failureCode: "OUTPUT_CONTENT_BLOCKED_CHARGED" });
+				expect(
+					await client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+				).toMatchObject({ settledAmount: 10n, releasedAmount: 0n });
+				expect(
+					await client.creditAccount.findUniqueOrThrow({ where: { id: seeded.accountId } }),
+				).toMatchObject({ outputModerationGraceJobId: null });
+				expect(
+					await client.creditLedgerEntry.count({
+						where: { referenceKey: `settle:${seeded.jobId}` },
+					}),
+				).toBe(1);
+			} finally {
+				vi.unstubAllEnvs();
+			}
+		},
+	);
+
 	it("waives only one lifetime output content rejection across concurrent jobs and settlement replays", async () => {
 		const ownerId = `moderation-grace-${crypto.randomUUID()}`;
 		const pricingSnapshot = {
 			credits: "10",
-			outputModerationBillingPolicy: OUTPUT_MODERATION_BILLING_POLICY,
+			outputModerationBillingPolicy: LEGACY_OUTPUT_MODERATION_BILLING_POLICY,
 			settlementPolicy: { unitCredits: "10", requestedOutputCount: 1, maxCharge: "10" },
 		};
 		const first = await seedFinalizingJob("image-quality", { ownerId, pricingSnapshot });
@@ -3538,7 +3578,7 @@ describe("production media runtime stores", () => {
 				const seeded = await seedFinalizingJob("image-quality", {
 					ownerId,
 					pricingSnapshot: {
-						outputModerationBillingPolicy: OUTPUT_MODERATION_BILLING_POLICY,
+						outputModerationBillingPolicy: LEGACY_OUTPUT_MODERATION_BILLING_POLICY,
 						credits: "10",
 						settlementPolicy: { unitCredits: "10", requestedOutputCount: 1, maxCharge: "10" },
 					},

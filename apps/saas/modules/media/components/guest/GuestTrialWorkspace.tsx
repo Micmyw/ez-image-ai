@@ -72,6 +72,7 @@ export function GuestTrialWorkspace({
 	const error = trial.errorKey ? t(`errors.${trial.errorKey}`) : null;
 	const submissionError = trial.errorKey === "submit" || trial.errorKey === "turnstile";
 	const terminalFailure = ["rejected", "failed"].includes(trial.view.state);
+	const ready = trial.view.state === "ready";
 	const showAccountActions =
 		!registered &&
 		(trial.view.state === "ready" ||
@@ -81,73 +82,69 @@ export function GuestTrialWorkspace({
 					["eligibility", "regionExcluded", "regionUnverified"].includes(trial.errorKey ?? ""))));
 
 	return (
-		<div className="px-4 py-8 sm:px-6 sm:py-10 lg:px-8 mx-auto max-w-[90rem]">
-			<header className="max-w-3xl mx-auto text-center">
-				<p className="text-xs font-bold text-violet-700 tracking-[0.16em] uppercase">
-					{t("eyebrow")}
-				</p>
-				<h1 className="mt-3 text-3xl leading-tight font-semibold text-slate-950 sm:text-4xl lg:text-5xl tracking-[-0.035em] text-balance">
-					{t("title")}
-				</h1>
-				<p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 mx-auto text-balance">
-					{t("subtitle")}
-				</p>
-				{!registered && trial.trialAllowance && (
-					<output className="mt-3 text-sm font-medium text-violet-700 block">
+		<div className="px-4 py-6 sm:px-6 sm:py-8 max-w-6xl mx-auto">
+			<header className="gap-3 flex flex-wrap items-end justify-between">
+				<div>
+					<h1 className="text-2xl leading-tight font-semibold sm:text-3xl tracking-tight text-balance">
+						{ready ? t("states.ready") : t("title")}
+					</h1>
+					{!ready && <p className="mt-2 text-sm text-muted-foreground">{t("subtitle")}</p>}
+				</div>
+				{!ready && !registered && trial.trialAllowance && (
+					<output className="px-3 py-1.5 text-xs rounded-full border border-border text-muted-foreground">
 						{t("trialAllowance", {
 							remaining: trial.trialAllowance.remaining,
 							limit: trial.trialAllowance.limit,
 						})}
-						<span className="mt-1 text-xs font-normal text-slate-500 block">
-							{t("trialIdentityNote")}
-						</span>
 					</output>
 				)}
 			</header>
 
-			<div className="mt-8 gap-5 sm:grid-cols-2 grid min-[1200px]:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.25fr)] min-[1200px]:items-start">
-				<div className="space-y-5">
+			<div
+				className={`mt-6 gap-5 grid ${trial.canSubmit && trial.draft ? "lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start" : ""}`}
+			>
+				<div className={ready && !error ? "sr-only" : "min-w-0 space-y-4"}>
 					{trial.canSubmit && trial.draft && (
 						<form
 							onSubmit={submit}
-							className="space-y-4 border-violet-200 bg-white/85 p-4 shadow-sm backdrop-blur sm:p-5 rounded-2xl border"
+							className="space-y-5 p-4 sm:p-5 rounded-2xl border border-border bg-card"
 						>
-							<div className="border-slate-200 bg-slate-50 p-3 rounded-xl border">
+							<div className="pb-4 border-b border-border">
 								<div className="gap-3 flex items-center">
-									<span className="size-11 bg-violet-100 text-violet-700 grid shrink-0 place-items-center rounded-xl">
+									<span className="size-10 grid shrink-0 place-items-center rounded-xl bg-secondary text-ring">
 										<ImageIcon className="size-5" aria-hidden="true" />
 									</span>
 									<div>
-										<p className="text-sm font-semibold text-slate-950">{t("sourceReady")}</p>
-										<p className="mt-0.5 text-xs text-slate-500">{t("sourceHandoff")}</p>
+										<p className="text-sm font-medium">{t("sourceReady")}</p>
+										<p className="mt-0.5 text-xs text-muted-foreground">{t("sourceHandoff")}</p>
 									</div>
 								</div>
 							</div>
 							<div>
-								<label htmlFor="guest-edit-prompt" className="text-sm font-semibold text-slate-950">
+								<label htmlFor="guest-edit-prompt" className="text-sm font-medium">
 									{t("promptLabel")}
 								</label>
 								<Textarea
 									id="guest-edit-prompt"
-									className="mt-2 min-h-32 border-slate-200 bg-white focus-visible:ring-violet-600 resize-y"
+									className="mt-2 min-h-32 resize-y border-input bg-background focus-visible:ring-ring"
 									maxLength={10_000}
 									required
 									disabled={trial.submissionLocked}
 									value={trial.prompt}
 									onChange={(event) => trial.setPrompt(event.target.value)}
 								/>
-								<p className="mt-1 text-xs text-slate-500 text-right tabular-nums">
+								<p className="mt-1 text-xs text-right text-muted-foreground tabular-nums">
 									{t("characterCount", { count: trial.prompt.length, maximum: 10_000 })}
 								</p>
 							</div>
-							<div className="space-y-2 border-violet-200 bg-violet-50/70 p-3 rounded-xl border">
+							<div className="min-w-0 space-y-2">
 								<div
 									data-test="guest-product-selection"
 									aria-current="true"
-									className="min-h-11 gap-3 bg-white px-3 py-2 flex items-center justify-between rounded-xl"
+									className="min-w-0 gap-2 flex flex-wrap items-center"
 								>
-									<span className="gap-2 text-sm font-semibold text-slate-950 flex items-center">
-										<span className="size-6 bg-violet-600 text-white grid place-items-center rounded-lg">
+									<span className="min-w-0 gap-2 text-sm font-medium flex flex-1 items-center">
+										<span className="size-6 grid shrink-0 place-items-center rounded-lg bg-primary text-primary-foreground">
 											<CheckIcon className="size-3.5" aria-hidden="true" />
 										</span>
 										<label className="sr-only" htmlFor="guest-trial-model">
@@ -162,34 +159,28 @@ export function GuestTrialWorkspace({
 													event.target.value as "image-minimax-h3" | "image-nano-banana-2-lite",
 												)
 											}
-											className="min-h-11 border-violet-200 bg-white px-2 py-1 text-sm max-w-full rounded-md border"
+											className="min-h-11 min-w-0 px-2 py-1 text-sm w-full rounded-lg border border-input bg-background"
 										>
 											<option value="image-minimax-h3">MiniMax H3 Image · 1K</option>
 											<option value="image-nano-banana-2-lite">Nano Banana 2 Lite · 1K</option>
 										</select>
 									</span>
-									<span className="text-xs font-semibold text-violet-700">{t("oneOutput")}</span>
 								</div>
 								<button
 									type="button"
 									aria-label={t("qualityCta")}
-									className="group min-h-11 gap-3 border-violet-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-violet-300 hover:bg-violet-100/70 hover:text-violet-900 focus-visible:outline-violet-600 flex w-full items-center justify-between rounded-xl border text-left transition focus-visible:outline-2 focus-visible:outline-offset-2"
+									className="group min-h-11 gap-3 px-1 py-2 text-xs flex w-full items-center justify-between rounded-lg text-left text-muted-foreground transition hover:text-foreground"
 									onClick={() => void trial.actions.beginLink("signup")}
 								>
 									<span className="min-w-0 gap-2 flex items-center">
-										<LockKeyholeIcon
-											className="size-4 text-violet-700 shrink-0"
-											aria-hidden="true"
-										/>
+										<LockKeyholeIcon className="size-4 shrink-0" aria-hidden="true" />
 										<span>{t("qualityCta")}</span>
 									</span>
 									<ArrowRightIcon
-										className="size-4 text-violet-600 group-hover:translate-x-0.5 shrink-0 transition-transform"
+										className="size-4 group-hover:translate-x-0.5 shrink-0 transition-transform"
 										aria-hidden="true"
 									/>
 								</button>
-								<p className="text-xs leading-5 text-slate-600">{t("freeQueue")}</p>
-								<p className="text-xs leading-5 text-slate-600">{t("temporary")}</p>
 							</div>
 							{GUEST_TURNSTILE_SITE_KEY && (
 								<Turnstile
@@ -205,7 +196,7 @@ export function GuestTrialWorkspace({
 							{challengeFailed && (
 								<button
 									type="button"
-									className="min-h-11 text-sm font-semibold text-violet-700 underline underline-offset-2"
+									className="min-h-11 text-sm font-semibold text-ring underline underline-offset-2"
 									onClick={resetChallenge}
 								>
 									{t("retryChallenge")}
@@ -214,20 +205,25 @@ export function GuestTrialWorkspace({
 							<Button
 								type="submit"
 								variant="primary"
-								className="min-h-12 bg-indigo-600 hover:bg-indigo-700 w-full"
+								className="min-h-12 w-full"
 								disabled={!trial.prompt.trim() || !turnstileToken || trial.isSubmitting}
 								loading={trial.isSubmitting}
 							>
 								{t("submit")}
 							</Button>
+							<p className="text-xs leading-5 text-center text-muted-foreground">
+								{t("temporary")}
+							</p>
 						</form>
 					)}
 
-					<GuestStatusPanel
-						view={trial.view}
-						onViewStatus={trial.actions.viewStatus}
-						onViewResult={trial.actions.viewResult}
-					/>
+					<div className={trial.canSubmit && !trial.isSubmitting ? "sr-only" : undefined}>
+						<GuestStatusPanel
+							view={trial.view}
+							onViewStatus={trial.actions.viewStatus}
+							onViewResult={trial.actions.viewResult}
+						/>
+					</div>
 
 					{(error || terminalFailure) && (
 						<div ref={errorRef} tabIndex={submissionError ? -1 : undefined}>
@@ -281,7 +277,7 @@ export function GuestTrialWorkspace({
 					)}
 				</div>
 
-				<div className="space-y-5">
+				<div className="min-w-0 space-y-4">
 					<GuestResultCard
 						view={trial.view}
 						resultUrl={trial.resultUrl}
@@ -293,12 +289,10 @@ export function GuestTrialWorkspace({
 							{trial.trialAllowance?.remaining ? (
 								<a
 									href="/#image-editor"
-									className="min-h-11 font-semibold text-violet-700 inline-flex items-center underline underline-offset-4"
+									className="min-h-11 font-medium inline-flex items-center text-ring underline underline-offset-4"
 								>
 									{t("editAnother")}
 								</a>
-							) : trial.trialAllowance?.remaining === 0 ? (
-								<p className="text-slate-600">{t("trialLimitReached")}</p>
 							) : null}
 						</div>
 					)}

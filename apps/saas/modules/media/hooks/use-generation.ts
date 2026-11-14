@@ -202,6 +202,7 @@ export function useGeneration({
 		if (!pendingSubmission.current) createGeneration.reset();
 	}
 	return {
+		checkDuplicatePrompt: (prompt: string) => orpcClient.media.checkDuplicatePrompt({ prompt }),
 		catalog,
 		creditAccount,
 		imagePass,

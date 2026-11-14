@@ -33,7 +33,7 @@ vi.mock("next-intl", () => ({
 				download: "Download watermarked preview",
 				signIn: "Sign in",
 				createAccount: "Create account",
-				loginBonus: "One-time 5-credit bonus per account, separate from monthly free credits",
+				loginBonus: "One-time 10-credit bonus per account, separate from monthly free credits",
 				qualityCta: "More image models · paid plan",
 				retryPreview: "Retry private preview",
 				retryChallenge: "Retry verification",
@@ -96,8 +96,6 @@ describe("GuestTrialWorkspace", () => {
 		expect(markup).toContain('aria-busy="true"');
 		expect(markup).toContain("aspect-");
 		expect(markup).toContain("View status");
-		expect(markup).toContain("sm:grid-cols-2");
-		expect(markup).toContain("min-[1200px]:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.25fr)]");
 		expect(markup).not.toContain("lg:grid-cols-");
 		expect(visibleText.match(/Waiting in the free queue/g)).toHaveLength(1);
 		expect(visibleText).toContain("Your watermarked result will appear here.");
@@ -111,11 +109,11 @@ describe("GuestTrialWorkspace", () => {
 			errorKey: "eligibility",
 		});
 		const markup = renderToStaticMarkup(<GuestTrialWorkspace />);
-		expect(markup).toContain("One-time 5-credit bonus per account");
+		expect(markup).toContain("One-time 10-credit bonus per account");
 		expect(markup).toContain("Sign in");
 		expect(markup).toContain("Create account");
 		expect(renderToStaticMarkup(<GuestTrialWorkspace registered />)).not.toContain(
-			"One-time 5-credit bonus",
+			"One-time 10-credit bonus",
 		);
 	});
 
@@ -126,7 +124,7 @@ describe("GuestTrialWorkspace", () => {
 			errorKey: "submit",
 			moderationError: { outcome: "blocked", reason: "restrictedContent" },
 		});
-		expect(renderToStaticMarkup(<GuestTrialWorkspace />)).not.toContain("One-time 5-credit bonus");
+		expect(renderToStaticMarkup(<GuestTrialWorkspace />)).not.toContain("One-time 10-credit bonus");
 	});
 	it("explains a blocked sponsored result without advertising a charged waiver", () => {
 		const current = mocks.useGuestTrial();
@@ -256,7 +254,9 @@ describe("GuestTrialWorkspace", () => {
 		expect(visibleText).toContain("Download watermarked preview");
 		expect(visibleText).toContain("Sign in");
 		expect(visibleText).toContain("Create account");
-		expect(visibleText).toContain("View result");
+		expect(visibleText).not.toContain("View result");
+		expect(markup).toContain("<details");
+		expect(markup).not.toContain("<details open");
 		expect(visibleText).not.toMatch(/history|edit again|cancel|clean original/i);
 	});
 

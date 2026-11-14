@@ -85,9 +85,9 @@ describe("buildMediaQuote", () => {
 			settlementPolicy: { requestedOutputCount: 1 },
 		});
 	});
-	it("freezes the disclosed first-block-free output billing policy for new jobs", () => {
+	it("charges new output content rejections from the first blocked result", () => {
 		expect(buildMediaQuote(NANO_QUOTE_INPUT, KIE_ROUTE_OPTIONS).pricingSnapshot).toMatchObject({
-			outputModerationBillingPolicy: "first-block-free-v1",
+			outputModerationBillingPolicy: "charge-quoted-credits-v1",
 			kiePolicyRejectionBillingPolicy: "charge-quoted-credits-v1",
 		});
 	});

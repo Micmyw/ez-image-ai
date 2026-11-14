@@ -1,5 +1,5 @@
 import { Button } from "@repo/ui/components/button";
-import { Clock3Icon, SparklesIcon } from "lucide-react";
+import { Clock3Icon, LoaderCircleIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import type { GuestTrialView } from "../../lib/guest-trial-state";
@@ -7,7 +7,6 @@ import type { GuestTrialView } from "../../lib/guest-trial-state";
 export function GuestStatusPanel({
 	view,
 	onViewStatus,
-	onViewResult,
 }: {
 	view: GuestTrialView;
 	onViewStatus: () => void;
@@ -23,28 +22,30 @@ export function GuestStatusPanel({
 			tabIndex={-1}
 			aria-busy={busy}
 			aria-live="polite"
-			className="border-violet-200 bg-white/85 p-4 shadow-sm focus-visible:ring-violet-600 sm:p-5 rounded-2xl border outline-none focus-visible:ring-2"
+			className={
+				view.state === "ready"
+					? "sr-only"
+					: "p-4 rounded-2xl border border-border bg-card outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			}
 		>
 			<div className="gap-3 flex items-start">
-				<span className="size-10 bg-violet-100 text-violet-700 grid shrink-0 place-items-center rounded-xl">
-					<SparklesIcon className="size-5" aria-hidden="true" />
+				<span className="size-8 grid shrink-0 place-items-center text-ring">
+					<LoaderCircleIcon
+						className={busy ? "size-5 motion-safe:animate-spin" : "size-5"}
+						aria-hidden="true"
+					/>
 				</span>
 				<div className="min-w-0 flex-1">
-					<h2 className="font-semibold text-slate-950">{t(`states.${view.state}`)}</h2>
+					<h2 className="font-medium">{t(`states.${view.state}`)}</h2>
 					{(view.state === "waiting" || view.state === "delayed") && (
-						<p className="mt-1 gap-2 text-sm text-slate-600 flex items-center">
-							<Clock3Icon className="size-4 text-violet-600 shrink-0" aria-hidden="true" />
+						<p className="mt-1 gap-2 text-sm flex items-center text-muted-foreground">
+							<Clock3Icon className="size-4 shrink-0" aria-hidden="true" />
 							{queueLabel(view, t)}
 						</p>
 					)}
 					{view.jobId && view.state !== "ready" && (
 						<Button type="button" variant="ghost" size="sm" className="mt-3" onClick={onViewStatus}>
 							{t("viewStatus")}
-						</Button>
-					)}
-					{view.state === "ready" && (
-						<Button type="button" variant="ghost" size="sm" className="mt-3" onClick={onViewResult}>
-							{t("viewResult")}
 						</Button>
 					)}
 				</div>

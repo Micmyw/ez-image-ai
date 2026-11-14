@@ -7,6 +7,33 @@ import {
 } from "./admin-content-diagnostics";
 
 describe("private administrator diagnostic projections", () => {
+	it("projects only flagged SeeAPI text categories without exposing raw evidence", () => {
+		const review = promptReviewProjection(
+			{
+				provider: "seeapi",
+				decision: "REJECT",
+				reasonCode: "SEEAPI_TEXT_CONTENT_NOT_ALLOWED",
+				evidence: {
+					seeapiText: {
+						categories: {
+							sexual_explicit: { flagged: true, score: 0.9 },
+							violence: { flagged: false, score: 0.01 },
+						},
+					},
+					raw: "private",
+				},
+			},
+			new Date(),
+			"audit-seeapi",
+		);
+		expect(review).toMatchObject({
+			provider: "seeapi",
+			categories: ["sexual_explicit"],
+			action: null,
+			semanticStatus: null,
+		});
+		expect(JSON.stringify(review)).not.toMatch(/private|score/);
+	});
 	it("decodes Unicode URL separators before redacting signed locations", () => {
 		const text = safeDiagnosticText(
 			String.raw`upstream failed https\u003a\u002f\u002fa.test/p?sig=private`,

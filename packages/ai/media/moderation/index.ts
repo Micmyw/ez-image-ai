@@ -3,6 +3,7 @@ import type { MediaSafetyAdapter } from "./types";
 export * from "./test-adapter";
 export * from "./types";
 export * from "./seeapi";
+export * from "./seeapi-text";
 export * from "./configured";
 export * from "./video-configured";
 export * from "./seeapi-video";

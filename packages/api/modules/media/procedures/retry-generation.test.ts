@@ -509,7 +509,7 @@ describe("retryGenerationForUser", () => {
 		expect(moderateText).toHaveBeenCalledWith(
 			expect.objectContaining({
 				text: "A current prompt",
-				ruleVersion: expect.stringMatching(/^text-safety-/),
+				ruleVersion: TEXT_MODERATION_RULE_VERSION,
 			}),
 		);
 		expect(deps.claimRequest).toHaveBeenCalledWith(
@@ -522,7 +522,7 @@ describe("retryGenerationForUser", () => {
 					credits: "5",
 					inputAssets: [{ assetChecksum: "1".repeat(64), assetId: SOURCE_ASSET_ID }],
 					moderationProvider: "test",
-					moderationRuleVersion: expect.stringMatching(/^text-safety-/),
+					moderationRuleVersion: TEXT_MODERATION_RULE_VERSION,
 					normalizedInput: {
 						aspectRatio: "auto",
 						kind: "image-to-image",

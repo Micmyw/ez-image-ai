@@ -1,5 +1,6 @@
 import {
 	createMediaSafetyAdapter,
+	createSeeapiTextScanner,
 	type MediaSafetyAdapter,
 	type ModerationDecision,
 } from "@repo/ai";
@@ -8,6 +9,7 @@ import {
 	assertTestModerationConfiguration,
 	isRetryableModerationError,
 	MODERATION_MAX_FAILURES,
+	SEEAPI_TEXT_SAFETY_RULE_VERSION,
 } from "@repo/config";
 import {
 	fingerprintGenerationQuoteSecurityPayload,
@@ -17,12 +19,12 @@ import { createWaffoPromptScanner } from "@repo/payments/waffo-content-safety";
 
 import { TextModerationError } from "./public-moderation-reason";
 
-export const TEXT_MODERATION_RULE_VERSION = "text-safety-waffo-2026-10-04.1";
+export const TEXT_MODERATION_RULE_VERSION = SEEAPI_TEXT_SAFETY_RULE_VERSION;
 
 export interface TextModerationEvidence extends Omit<ModerationDecision, "decision"> {
 	decision: ModerationDecision["decision"];
 	retry?: { failures: number; lastErrorCode: string; startedAt: string; lastFailureAt: string };
-	provider: "waffo" | "test";
+	provider: "seeapi" | "waffo" | "test";
 	inputFingerprint: string;
 }
 
@@ -109,33 +111,10 @@ export function createTextModerationAdapter(environment: Record<string, string |
 	return {
 		provider,
 		adapter: {
-			async moderateText(input) {
-				try {
-					const result = await scanWaffo(input.text);
-					return {
-						decision: result.decision,
-						reasonCode: result.reasonCode,
-						ruleVersion: input.ruleVersion,
-						...(result.evidence
-							? {
-									evidence: {
-										requestId: result.evidence.requestId,
-										models: ["waffo-prompt-sift"],
-										operations: 1,
-										scores: {},
-										waffo: result.evidence,
-									},
-								}
-							: {}),
-					};
-				} catch {
-					return {
-						decision: "ERROR",
-						reasonCode: "MODERATION_UNAVAILABLE",
-						ruleVersion: input.ruleVersion,
-					};
-				}
-			},
+			moderateText: createSeeapiTextScanner({
+				apiKey: environment.SEEAPI_API_KEY ?? "",
+				fallbackScan: scanWaffo,
+			}),
 		},
 	};
 }
@@ -149,5 +128,5 @@ export function textModerationProviderForEnvironment(
 	}
 	if (!moderationConfiguration(environment).textWaffo)
 		throw new Error("TEXT_MODERATION_CONFIGURATION_ERROR");
-	return "waffo";
+	return "seeapi";
 }

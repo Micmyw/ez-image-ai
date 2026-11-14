@@ -228,7 +228,7 @@
 			},
 			"failedEdits": {
 				"question": "¿Qué ocurre con los créditos si falla una edición?",
-				"answer": "Los fallos técnicos sin un resultado utilizable liberan los créditos reservados. Si el proveedor rechaza contenido sensible después del envío, se cobran todos los créditos indicados, incluso la primera vez, sin usar la exención. Cada cuenta o equipo conserva una exención para las imágenes devueltas y bloqueadas por nuestra revisión; los bloqueos posteriores se cobran. Las instrucciones o imágenes detenidas antes del envío no consumen créditos de generación. Los resultados inciertos mantienen la reserva hasta resolverse."
+				"answer": "Los fallos técnicos sin un resultado utilizable liberan los créditos reservados. Los rechazos de contenido sensible del proveedor después del envío y las imágenes generadas bloqueadas por nuestra revisión consumen todos los créditos cotizados, incluido el primer rechazo. Las instrucciones o cargas detenidas antes del envío no cuestan créditos de generación. Los resultados inciertos mantienen los créditos reservados hasta su resolución."
 			},
 			"privateUploads": {
 				"question": "¿Las imágenes subidas son públicas?",

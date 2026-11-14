@@ -5,7 +5,7 @@ import { listPurchases } from "@payments/lib/server";
 import { config as authConfig } from "@repo/auth/config";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
 import { config as paymentsConfig } from "@repo/payments/config";
-import { RegisteredWorkspaceProviders } from "@shared/components/RegisteredWorkspaceProviders";
+import { DeferredRegisteredWorkspaceProviders as RegisteredWorkspaceProviders } from "@shared/components/DeferredRegisteredWorkspaceProviders";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { getServerQueryClient } from "@shared/lib/server";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";

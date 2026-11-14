@@ -1,6 +1,5 @@
 "use client";
 import { fetchSession, sessionQueryKey, useSessionQuery } from "@auth/lib/api";
-import { finishAuthJourney } from "@auth/lib/auth-journey";
 import { syncPurchaseAttributionIdentity } from "@shared/lib/purchase-attribution";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useState } from "react";
@@ -20,8 +19,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	}, [isSuccess, loaded]);
 
 	useEffect(() => {
+		let active = true;
 		if (isSuccess) syncPurchaseAttributionIdentity(session?.user ?? null);
-		if (isSuccess && session?.user && !session.user.isAnonymous) finishAuthJourney("observed");
+		if (isSuccess && session?.user && !session.user.isAnonymous) {
+			void import("@auth/lib/auth-journey")
+				.then(({ finishAuthJourney }) => {
+					if (active) finishAuthJourney("observed");
+				})
+				.catch(() => undefined);
+		}
+		return () => {
+			active = false;
+		};
 	}, [session, isSuccess]);
 
 	return (

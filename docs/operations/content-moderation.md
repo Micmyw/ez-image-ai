@@ -13,8 +13,9 @@ and private, non-cacheable responses.
 
 ## Moderation configuration
 
-The API and jobs runtime must receive the same server-only configuration. This selects the initial
-Waffo text + SeeAPI image combination. Sightengine is retired across runtime paths:
+The API and jobs runtime must receive the same server-only configuration. Image prompts use
+SeeAPI text moderation first, with Waffo only on technical failures; image review remains SeeAPI.
+Video retains its separately frozen Waffo text contract. Sightengine is retired across runtime paths:
 
 ```dotenv
 MEDIA_SAFETY_ADAPTER=configured
@@ -35,14 +36,15 @@ Preparing a local production environment file does not activate it on the deploy
 
 ## Current runtime behavior
 
-| Check or condition                           | Behavior                                                                                                  |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| Waffo text                                   | Merchant-signed prompt scan; only complete approval can authorize generation                              |
-| SeeAPI images                                | One asynchronous task per verified image, then query the persisted task ID                                |
-| Missing required check                       | Configuration error; that content cannot pass                                                             |
-| Retired Sightengine request                  | No external call; unfinished work requiring it remains held                                               |
-| Confirmed SeeAPI input technical failure     | Versioned input delegation may continue to generation-provider checks when enabled; see the rollout below |
-| Other technical failure or incomplete review | Bounded recovery may run; exhausted retries alone do not authorize bypass                                 |
+| Check or condition                           | Behavior                                                                                                     |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Image prompt text                            | SeeAPI `text-nsfw-filter` at threshold 0.3, all seven categories; Waffo fallback only for technical failures |
+| Waffo fallback                               | Merchant-signed prompt scan; only complete approval can authorize generation                                 |
+| SeeAPI images                                | One asynchronous task per verified image, then query the persisted task ID                                   |
+| Missing required check                       | Configuration error; that content cannot pass                                                                |
+| Retired Sightengine request                  | No external call; unfinished work requiring it remains held                                                  |
+| Confirmed SeeAPI input technical failure     | Versioned input delegation may continue to generation-provider checks when enabled; see the rollout below    |
+| Other technical failure or incomplete review | Bounded recovery may run; exhausted retries alone do not authorize bypass                                    |
 
 Sightengine switches and the old `MEDIA_SAFETY_ADAPTER=sightengine` value do not restore
 outbound checks. No Sightengine credentials are needed for current execution or old-job
@@ -69,6 +71,16 @@ payment webhook public key; changing moderation does not change `WAFFO_ENVIRONME
 uses `locale=en`, `semantic=enforce`. Only a complete `allow` with semantic status `scored` and no
 matched categories or warnings authorizes generation. Neither service availability nor a free
 quota is guaranteed by this integration.
+
+The image-prompt rule is `seeapi-text-waffo-fallback-2026-11-15.1`. Registered quotes, guest
+admission, retries and administrator prompt rechecks share this adapter. `MODERATION_TEXT_WAFFO_ENABLED`
+must remain `true` for fallback. Complete SeeAPI approval does not call Waffo; rejection, review,
+pending decisions, unknown terminal codes, invalid credentials and invalid input do not switch to Waffo.
+HTTP 429, timeout/network failures, 5xx, unusable responses without restrictive signals, and explicit
+technical task failures may fall back. Restrictive flags or threshold-crossing scores in malformed
+results require review. Both providers failing keeps admission closed. Fallback evidence records its
+primary error and task ID when available. Prompt text, raw responses and credentials are not returned
+in public errors. This text fallback does not authorize image-review bypass or output delivery.
 
 New SeeAPI checks use `POST https://api.seeapi.com/v1/inferences`, with model `nsfw-filter-2`, endpoint
 `image-moderation`, provider `seeapi`, `threshold=0.5`, and `strict_special_care=true`.
@@ -152,7 +164,15 @@ before starting this application/worker version. The migration adds one nullable
 billing account; existing records start with an unused waiver. Generated clients must match the
 schema. Do not reset or migrate an unrelated/production database while running local tests.
 
-New quotes freeze `outputModerationBillingPolicy=first-block-free-v1`. When no approved output is
+From 2026-11-15, new quotes freeze `outputModerationBillingPolicy=charge-quoted-credits-v1`.
+When current immutable output evidence confirms content rejection and no approved output is
+available, ordinary CREDITS settlement charges the frozen quoted maximum from the first rejection.
+It never claims or resets the historical lifetime-waiver field. Deploy compatible settlement
+consumers in every active jobs runtime before enabling these new quote producers; retain them
+until accepted new-policy jobs drain if producers are rolled back. No database migration is needed.
+
+Historical quotes frozen with `outputModerationBillingPolicy=first-block-free-v1` retain their
+original contract. When no approved output is
 available and matching current evidence confirms a content rejection, settlement atomically
 claims the account's lifetime waiver and settles zero credits; later such jobs settle the frozen
 quoted maximum. It uses the existing reservation, immutable ledger, serializable transaction, and
@@ -161,7 +181,7 @@ cannot charge twice. USER and ORGANIZATION credit accounts retain separate lifet
 deleting a job or its media does not reset it. Current generation creation remains USER-scoped;
 this change does not introduce organization generation routes.
 
-Old quotes retain their old billing policy. Input rejection, uncertain/review results, inspection
+Unmarked old quotes retain their old billing policy. Input rejection, uncertain/review results, inspection
 errors, and technical failures do not claim the waiver. Sponsored guest jobs never claim an
 account's waiver. Provider acceptance uncertainty still holds the reservation until resolved.
 Partial usable output keeps the existing per-output settlement policy.

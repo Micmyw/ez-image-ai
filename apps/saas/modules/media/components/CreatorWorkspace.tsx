@@ -17,6 +17,10 @@ const ImageEditorWorkspace = dynamic(() =>
 	import("./editor/ImageEditorWorkspace").then((module) => module.ImageEditorWorkspace),
 );
 
+export const AccountInputPreparation = dynamic(() =>
+	import("./editor/AccountInputPreparation").then((module) => module.AccountInputPreparation),
+);
+
 export function CreatorWorkspace(props: {
 	claimedDraft?: boolean;
 	initialDraft?: EditorDraftInput | null;

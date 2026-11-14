@@ -12,6 +12,8 @@ import {
 	useState,
 } from "react";
 
+import "./guest.css";
+
 type GuestLinkDestination = "login" | "signup";
 type GuestLinkHandler = (destination: GuestLinkDestination) => void;
 
@@ -29,15 +31,19 @@ export function GuestShell({ children }: PropsWithChildren) {
 
 	return (
 		<GuestLinkContext.Provider value={context}>
-			<div className="text-slate-950 min-h-screen bg-[radial-gradient(circle_at_top,#ede9fe_0,transparent_34rem),linear-gradient(180deg,#f8fafc,#fff)]">
-				<header className="border-violet-100 bg-white/80 backdrop-blur-xl border-b">
+			<div className="guest-shell min-h-screen">
+				<header className="border-b border-border">
 					<div className="min-h-16 gap-2 px-4 sm:gap-4 sm:px-6 lg:px-8 mx-auto flex max-w-[90rem] items-center justify-between">
-						<div className="flex shrink-0 items-center">
-							<Logo label="EzImageAI" withLabel={false} decorative className="text-slate-950" />
-							<span className="ml-2 text-base font-semibold text-slate-950 sm:text-lg leading-none">
+						<a
+							href="/#image-editor"
+							aria-label={t("brand")}
+							className="min-h-11 flex shrink-0 items-center rounded-md"
+						>
+							<Logo label="EzImageAI" withLabel={false} decorative />
+							<span className="ml-2 text-base font-semibold sm:text-lg leading-none">
 								EzImageAI
 							</span>
-						</div>
+						</a>
 						<nav aria-label={t("brand")} className="min-w-0 gap-1 sm:gap-2 flex items-center">
 							<Button
 								type="button"
@@ -47,15 +53,6 @@ export function GuestShell({ children }: PropsWithChildren) {
 								onClick={() => linkHandler?.("login")}
 							>
 								{t("signIn")}
-							</Button>
-							<Button
-								type="button"
-								variant="primary"
-								className="min-h-11 bg-indigo-600 px-2 text-xs hover:bg-indigo-700 sm:px-4 sm:text-sm"
-								disabled={!linkHandler}
-								onClick={() => linkHandler?.("signup")}
-							>
-								{t("createAccount")}
 							</Button>
 						</nav>
 					</div>

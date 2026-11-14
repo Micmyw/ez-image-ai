@@ -28,6 +28,7 @@ import {
 } from "./procedures/admin-prompt-content";
 import { beginGuestLinkIntent } from "./procedures/begin-guest-link-intent";
 import { cancelGeneration } from "./procedures/cancel-generation";
+import { checkDuplicatePrompt } from "./procedures/check-duplicate-prompt";
 import { claimGenerationDraft } from "./procedures/claim-generation-draft";
 import { claimGuestDraft } from "./procedures/claim-guest-draft";
 import { completeGuestLinkIntent } from "./procedures/complete-guest-link-intent";
@@ -101,6 +102,7 @@ export const mediaRouter = {
 	claimGenerationDraft,
 	getAccountInputCopyStatus,
 	cancelGeneration,
+	checkDuplicatePrompt,
 	retryGeneration,
 	getJob,
 	getGenerationDuration,

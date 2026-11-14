@@ -5,6 +5,8 @@ import type { PropsWithChildren } from "react";
 import { renderToReadableStream } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DeferredRegisteredWorkspaceProviders } from "./DeferredRegisteredWorkspaceProviders";
+
 const mocks = vi.hoisted(() => ({
 	getSession: vi.fn(),
 	getMessages: vi.fn(),
@@ -149,7 +151,7 @@ describe("registered workspace private media messages", () => {
 		mocks.getMessages.mockResolvedValue(full);
 		const result = await RegisteredWorkspaceBoundary({ children: "Workspace content" });
 		expect(mocks.getMessages).toHaveBeenCalledOnce();
-		expect(result.props.children.type).toBe(RegisteredWorkspaceProviders);
+		expect(result.props.children.type).toBe(DeferredRegisteredWorkspaceProviders);
 		expect(result.props.children.props).toEqual({
 			mediaMessages: full.media,
 			imagePassMessages: full.imagePass,

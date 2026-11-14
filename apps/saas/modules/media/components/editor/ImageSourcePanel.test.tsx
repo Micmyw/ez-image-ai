@@ -84,9 +84,7 @@ describe("private input safety feedback", () => {
 				/>,
 			);
 			expect(markup).toContain('role="alert"');
-			expect(markup).toContain(
-				"No generation credits were charged and your one-time waiver was not used.",
-			);
+			expect(markup).toContain("No generation credits were charged.");
 			expect(markup).not.toContain(code);
 			expect(markup).not.toContain("<img");
 			const options = mocks.useQuery.mock.calls.at(-1)![0];
