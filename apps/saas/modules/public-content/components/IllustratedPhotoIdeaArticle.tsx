@@ -8,7 +8,7 @@ import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { EffectExampleStage, EffectPresetPrompt } from "../../effects/components/EffectControls";
+import { EffectExampleStage } from "../../effects/components/EffectControls";
 import { EffectEditorProvider } from "../../effects/components/EffectEditorProvider";
 import { IllustratedPresetPicker } from "../../effects/components/IllustratedPresetPicker";
 import { resolveEffectPreset, type EffectPageContent } from "../../effects/lib/types";
@@ -97,15 +97,6 @@ export async function IllustratedPhotoIdeaArticle({
 							body={post.body}
 							allowedExternalUrls={post.sources?.map((source) => source.url)}
 						/>
-						<section className="illustrated-prompts" aria-labelledby="sheru-prompts">
-							<h2 id="sheru-prompts">{t("effects.fullPrompt")}</h2>
-							{recipe.presets.map((item) => (
-								<div key={item.id} id={`preset-${item.id}`}>
-									<h3>{item.name}</h3>
-									<EffectPresetPrompt presetId={item.id} />
-								</div>
-							))}
-						</section>
 						<section className="effect-faq" aria-labelledby="sheru-faq">
 							<h2 id="sheru-faq">{t("guides.photoIdeas.faqTitle")}</h2>
 							{recipe.faq.map((item) => (

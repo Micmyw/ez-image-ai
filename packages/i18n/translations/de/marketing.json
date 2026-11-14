@@ -311,11 +311,11 @@
 			"sheru": {
 				"eyebrow": "Fotoidee im Fokus",
 				"title": "Sheru Bhai AI Photo",
-				"description": "Steh neben dem weißen Löwenboss oder werde selbst zu ihm. Starte mit deinem eigenen Foto.",
+				"description": "Wähle „Foto mit Sheru“ oder „Verwandle mich in Sheru“ und lade dein eigenes Foto hoch.",
 				"action": "Dein Sheru-Foto erstellen",
 				"preview": "KI-generierte Stilvorschau",
 				"with-sheru": "Foto mit Sheru",
-				"become-sheru": "Werde Sheru"
+				"become-sheru": "Verwandle mich in Sheru"
 			}
 		},
 		"quickStartPrompts": {

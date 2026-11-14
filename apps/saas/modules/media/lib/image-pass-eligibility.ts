@@ -23,6 +23,7 @@ export function imagePassIncludesSkuAccess(
 ): boolean {
 	return (
 		imagePassCoversSku(balance, skuKey) &&
-		balance?.subscriptionFreeSkuKeys?.includes(skuKey as string) === true
+		(skuKey === "nano-banana-2-1k" ||
+			balance?.subscriptionFreeSkuKeys?.includes(skuKey as string) === true)
 	);
 }

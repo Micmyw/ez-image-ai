@@ -65,10 +65,12 @@ export async function assertImagePassAvailable(
 ): Promise<void> {
 	assertImagePassSelection({ ...input, requestedOutputCount: input.requestedOutputCount ?? 1 });
 	assertImagePassBenefitSelection(input);
+	// Every image-pack cohort can use the 1K model behind the Sheru presets.
+	const requireModelAccess = input.requireModelAccess && input.skuKey !== "nano-banana-2-1k";
 	const expanded = isExpandedImagePassSelection(input.skuKey, input.imagePassBenefitPolicy);
 	const [unit] = await tx.$queryRaw<
 		Array<{ id: string; offerSnapshot: unknown }>
-	>`SELECT unit."id",g."offerSnapshot" FROM "image_pass_unit" unit JOIN "image_pass_grant" g ON g."id"=unit."grantId" WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE' AND unit."status"='AVAILABLE' AND ((g."offerSnapshot"->'allowedSkuKeys') ? ${String(input.skuKey)} OR (${expanded} AND g."offerSnapshot" @> ${JSON.stringify(IMAGE_PASS_PUBLIC_OFFER)}::jsonb AND g."offerSnapshot"->'allowedSkuKeys'=${JSON.stringify(IMAGE_PASS_PUBLIC_OFFER.allowedSkuKeys)}::jsonb)) AND (${!input.requireModelAccess} OR (g."offerSnapshot"->>'offerVersion'=${IMAGE_PASS_PUBLIC_OFFER.offerVersion} AND g."offerSnapshot"->>'subscriptionPolicy'='not-required')) LIMIT 1`;
+	>`SELECT unit."id",g."offerSnapshot" FROM "image_pass_unit" unit JOIN "image_pass_grant" g ON g."id"=unit."grantId" WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE' AND unit."status"='AVAILABLE' AND ((g."offerSnapshot"->'allowedSkuKeys') ? ${String(input.skuKey)} OR (${expanded} AND g."offerSnapshot" @> ${JSON.stringify(IMAGE_PASS_PUBLIC_OFFER)}::jsonb AND g."offerSnapshot"->'allowedSkuKeys'=${JSON.stringify(IMAGE_PASS_PUBLIC_OFFER.allowedSkuKeys)}::jsonb)) AND (${!requireModelAccess} OR (g."offerSnapshot"->>'offerVersion'=${IMAGE_PASS_PUBLIC_OFFER.offerVersion} AND g."offerSnapshot"->>'subscriptionPolicy'='not-required')) LIMIT 1`;
 	if (
 		!unit ||
 		!imagePassCoversSelection({
@@ -77,7 +79,7 @@ export async function assertImagePassAvailable(
 			benefitPolicy: input.imagePassBenefitPolicy,
 			outputFormat: input.outputFormat,
 		}) ||
-		(input.requireModelAccess && !imagePassIncludesModelAccess(unit.offerSnapshot))
+		(requireModelAccess && !imagePassIncludesModelAccess(unit.offerSnapshot))
 	)
 		throw new Error("IMAGE_PASS_INSUFFICIENT");
 }
@@ -137,7 +139,9 @@ export async function reserveImagePassForJobInTransaction(
 		tx,
 	);
 	const entitlement = resolvePlanEntitlement(subscription?.plan.metadata, subscription?.plan.name);
-	const requireModelAccess = !entitlement.allowedProducts.some((key) => key === job.productKey);
+	const requireModelAccess =
+		snapshot?.skuKey !== "nano-banana-2-1k" &&
+		!entitlement.allowedProducts.some((key) => key === job.productKey);
 	const [unit] = await tx.$queryRaw<
 		Array<{ id: string; grantId: string; offerSnapshot: unknown }>
 	>`SELECT unit."id",unit."grantId",g."offerSnapshot" FROM "image_pass_unit" unit JOIN "image_pass_grant" g ON g."id"=unit."grantId" WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE' AND unit."status"='AVAILABLE' AND ((g."offerSnapshot"->'allowedSkuKeys') ? ${String(snapshot?.skuKey)} OR (${expanded} AND g."offerSnapshot" @> ${JSON.stringify(IMAGE_PASS_PUBLIC_OFFER)}::jsonb AND g."offerSnapshot"->'allowedSkuKeys'=${JSON.stringify(IMAGE_PASS_PUBLIC_OFFER.allowedSkuKeys)}::jsonb)) AND (${!requireModelAccess} OR (g."offerSnapshot"->>'offerVersion'=${IMAGE_PASS_PUBLIC_OFFER.offerVersion} AND g."offerSnapshot"->>'subscriptionPolicy'='not-required')) ORDER BY g."paidAt",g."id",unit."ordinal" LIMIT 1 FOR UPDATE OF unit,g`;

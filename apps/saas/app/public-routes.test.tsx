@@ -382,6 +382,18 @@ describe("consolidated public route contract", () => {
 				expect(markup).not.toContain("use new or remaining $2.99 pack passes");
 				expect(markup).not.toContain("not verified output examples");
 			}
+			if (key === "minimax-h3-image" || key.startsWith("gpt-image-2-6-")) {
+				expect(markup).toContain('id="related-photo-ideas-title"');
+				expect(markup).toContain('href="/blog/sheru-bhai-ai-photo"');
+				expect(markup).toContain('href="/blog/sheru-bhai-ai-photo?preset=with-sheru#image-editor"');
+				expect(markup).toContain(
+					'href="/blog/sheru-bhai-ai-photo?preset=become-sheru#image-editor"',
+				);
+				expect(markup).toContain("Turn me into Sheru");
+				expect(markup).toContain("Both Sheru looks use Nano Banana 2.");
+			} else {
+				expect(markup).not.toContain('id="related-photo-ideas-title"');
+			}
 			expect(markup).not.toContain("these new tools do not expand an existing pass");
 			const privateMetadata = await resolveMetadata(pageModule, {
 				searchParams: Promise.resolve({ job: "private-job" }),

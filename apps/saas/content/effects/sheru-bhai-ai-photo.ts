@@ -26,13 +26,15 @@ const parameters = { skuKey: "nano-banana-2-1k", aspectRatio: "4:5", outputForma
 export const sheruBhaiPhotoEffect: Effect = {
 	id: "sheru-bhai-ai-photo",
 	slug: "sheru-bhai-ai-photo",
-	title: "Sheru Bhai AI Photo",
-	summary: "Meet the white-lion boss in your own portrait, or step into the lion-head look.",
-	seoTitle: "Sheru Bhai AI Photo: Create a Photo with the Lion Boss",
+	title: "Sheru Bhai AI Photo Prompts",
+	summary:
+		"Choose Photo with Sheru or Turn me into Sheru, then upload your photo to create a lion-boss portrait.",
+	seoTitle: "Sheru Bhai AI Photo Prompt: 2 Looks to Try",
 	seoDescription:
-		"Upload your photo and choose a Sheru Bhai portrait: stand beside the white-lion boss or become a lion-headed character. Customize the prompt and create your photo.",
+		"Try two Sheru Bhai AI photo prompt presets: Photo with Sheru or Turn me into Sheru. Choose a look, upload your photo and create with Nano Banana 2.",
 	primaryQuery: "sheru bhai ai photo",
 	queryCluster: [
+		"sheru bhai ai photo prompt",
 		"sheru bhai ai photo editing prompt",
 		"sheru bhai ai photo editor",
 		"photo with sheru bhai",
@@ -81,7 +83,7 @@ export const sheruBhaiPhotoEffect: Effect = {
 		{
 			id: "become-sheru",
 			version: 1,
-			name: "Become Sheru",
+			name: "Turn me into Sheru",
 			inputRequirement: "required",
 			inputHint: "Add a standing photo with your outfit visible. Your head becomes a lion's.",
 			productKey: "image-nano-banana-2",
@@ -99,7 +101,7 @@ export const sheruBhaiPhotoEffect: Effect = {
 		},
 		{
 			title: "Add your photo",
-			body: "Use a clear photo of one person that you have permission to edit. You can adjust the prompt before generating.",
+			body: "Upload a clear photo of one person that you have permission to edit. Your selected preset supplies the generation instructions.",
 		},
 		{
 			title: "Create your portrait",
@@ -114,22 +116,22 @@ export const sheruBhaiPhotoEffect: Effect = {
 		{
 			question: "How do I make a photo with Sheru Bhai?",
 			answer:
-				"Choose Photo with Sheru, upload a clear solo portrait and click Generate. The prompt keeps you human and adds a separate white-lion character. You can change the scene or clothing instructions before creating.",
+				"Choose Photo with Sheru, upload a clear solo portrait and click Generate. This preset keeps you human and adds a separate white-lion character beside you.",
 		},
 		{
 			question: "Can I turn myself into the lion?",
 			answer:
-				"Yes. Choose Become Sheru and use a standing photo with your clothes visible. This mode replaces your head with a lion head; it does not preserve your human face.",
+				"Yes. Choose Turn me into Sheru and upload a standing photo with your clothes visible. This mode replaces your head with a lion head; it does not preserve your human face.",
 		},
 		{
 			question: "Is this template free?",
 			answer:
-				"You can prepare your photo and prompt before buying. Generation requires an eligible image pack or an active paid subscription with enough credits. When needed, Generate offers the $2.99 pack for three successful images, with no subscription, or other plans. Free sign-in credits alone do not unlock this template.",
+				"You can select a preset and upload your photo before buying. Generation requires any image pack with remaining uses or an active paid subscription with enough credits. When needed, Generate offers the $2.99 pack for three successful images, with no subscription, or other plans. Free sign-in credits alone do not unlock this template.",
 		},
 		{
-			question: "Do I need to write a prompt?",
+			question: "Do I need to write a Sheru Bhai AI photo editing prompt?",
 			answer:
-				"Both looks include an editable prompt. Start with it, then change a specific detail such as the setting or lighting. Keep the instruction that separates the human from the lion when making a photo together.",
+				"No. Select Photo with Sheru or Turn me into Sheru and upload your photo. The preset supplies the generation instructions automatically; you do not need to write a prompt.",
 		},
 		{
 			question: "Are these pictures actual EzImageAI results?",
@@ -144,5 +146,5 @@ export const sheruBhaiPhotoEffect: Effect = {
 	],
 	relatedEffectIds: ["1980s-ai-photo"],
 	publishedAt: "2026-11-13",
-	updatedAt: "2026-11-13",
+	updatedAt: "2026-11-14",
 };

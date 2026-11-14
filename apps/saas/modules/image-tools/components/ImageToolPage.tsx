@@ -143,6 +143,28 @@ export function ImageToolPage({
 						) : (
 							relatedTools
 						)}
+						{content.relatedPhotoIdeas && (
+							<section className="ai-tool-section" aria-labelledby="related-photo-ideas-title">
+								<h2 id="related-photo-ideas-title">Photo ideas to try</h2>
+								{content.relatedPhotoIdeas.map((idea) => (
+									<article key={idea.href} className="ai-tool-photo-idea">
+										<h3>
+											<Link href={idea.href} prefetch={false}>
+												{idea.title}
+											</Link>
+										</h3>
+										<p>{idea.description}</p>
+										<nav className="ai-tool-related" aria-label={`${idea.title} presets`}>
+											{idea.presets.map((preset) => (
+												<Link key={preset.href} href={preset.href} prefetch={false}>
+													{preset.label}
+												</Link>
+											))}
+										</nav>
+									</article>
+								))}
+							</section>
+						)}
 						<section className="ai-tool-section" aria-labelledby="tool-steps-title">
 							<h2 id="tool-steps-title">From your idea to a download</h2>
 							<ol className="ai-tool-steps">

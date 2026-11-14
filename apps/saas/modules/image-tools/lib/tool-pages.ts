@@ -31,6 +31,12 @@ export interface ImageToolPageContent {
 	showPassOffer?: boolean;
 	showAvailabilityNote?: boolean;
 	promptSource?: { label: string; href: string };
+	relatedPhotoIdeas?: readonly {
+		title: string;
+		href: string;
+		description: string;
+		presets: readonly { label: string; href: string }[];
+	}[];
 	prompts: readonly {
 		title: string;
 		prompt: string;
@@ -62,6 +68,7 @@ function gptImageToolContent(variant: GptImageVariant): ImageToolPageContent {
 	const modelName = `GPT Image 2.6 ${flare ? "Flare" : "Sunburst"}`;
 	return {
 		path: `/gpt-image-2-6-${variant}`,
+		relatedPhotoIdeas: sheruPhotoIdeas,
 		title: `${modelName} — AI Image Generator & Photo Editor`,
 		description: flare
 			? "Create product photos, poster layouts and short GIFs with GPT Image 2.6 Flare. Explore examples, reuse their prompts and edit a reference image."
@@ -143,6 +150,25 @@ function gptImageToolContent(variant: GptImageVariant): ImageToolPageContent {
 	};
 }
 
+const sheruPhotoIdeas: ImageToolPageContent["relatedPhotoIdeas"] = [
+	{
+		title: "Sheru Bhai AI Photo Prompts",
+		href: "/blog/sheru-bhai-ai-photo",
+		description:
+			"Stand beside the white-lion boss or turn yourself into Sheru. Choose a preset and upload your photo in the guide. Both Sheru looks use Nano Banana 2.",
+		presets: [
+			{
+				label: "Photo with Sheru",
+				href: "/blog/sheru-bhai-ai-photo?preset=with-sheru#image-editor",
+			},
+			{
+				label: "Turn me into Sheru",
+				href: "/blog/sheru-bhai-ai-photo?preset=become-sheru#image-editor",
+			},
+		],
+	},
+];
+
 export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = {
 	"seedream-5-5": {
 		path: "/seedream-5-5",
@@ -221,6 +247,7 @@ export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = 
 	},
 	"minimax-h3-image": {
 		path: "/minimax-h3-image",
+		relatedPhotoIdeas: sheruPhotoIdeas,
 		title: "MiniMax H3 Image — AI Image Generator & Photo Editor",
 		description:
 			"Create detailed images and edit photos with MiniMax H3 Image. Explore real examples, try their prompts, choose 1K, 2K or 4K, and download PNG or JPEG images.",

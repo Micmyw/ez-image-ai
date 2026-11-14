@@ -171,6 +171,7 @@ function LandingGeneratorWorkspace({
 	useGeneratorSignInDraft(saveSignInDraft);
 	const isEffectEditor = Boolean(effectEditor);
 	const effectPreset = effectEditor?.selectedPreset;
+	const hidePresetPrompt = effectEditor?.effect.id === "sheru-bhai-ai-photo";
 	const paidTemplate = effectEditor?.effect.generationAccess === "paid";
 	const [paidDialogOpen, setPaidDialogOpen] = useState(false);
 	useEffect(() => {
@@ -1060,7 +1061,7 @@ function LandingGeneratorWorkspace({
 	const maximumPromptLength = promptContract?.maximumPromptLength ?? 10_000;
 	const showCharacterCount = prompt.length >= maximumPromptLength * 0.9;
 	const unavailableHelp =
-		!capabilityUsable && stage !== "checking" ? (
+		!hidePresetPrompt && !capabilityUsable && stage !== "checking" ? (
 			<div className="mt-3 gap-x-5 gap-y-2 text-sm text-violet-200 flex flex-wrap">
 				<a
 					href="/blog/ai-image-editing-prompts"
@@ -1241,51 +1242,63 @@ function LandingGeneratorWorkspace({
 					)}
 					<div
 						data-test="landing-composer-inputs"
-						className="gap-1.5 sm:gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] md:grid-cols-[8.5rem_minmax(0,1fr)] bg-black/10 p-1.5 grid grid-cols-[4.75rem_minmax(0,1fr)] rounded-[1.3rem]"
+						className={
+							hidePresetPrompt
+								? "bg-black/10 p-1.5 rounded-[1.3rem]"
+								: "gap-1.5 sm:gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] md:grid-cols-[8.5rem_minmax(0,1fr)] bg-black/10 p-1.5 grid grid-cols-[4.75rem_minmax(0,1fr)] rounded-[1.3rem]"
+						}
 					>
 						{toolPrompt?.allowReference !== false && referencePanel}
 
-						<PromptIdeas
-							disabled={isBusy}
-							label={isImageEdit ? tCreate("suggestions.label") : composer("promptIdeas")}
-							suggestions={composerSuggestionKeys.map((key) =>
-								isImageEdit ? tCreate(`suggestions.${key}`) : composer(`ideas.${key}.prompt`),
-							)}
-							labels={composerSuggestionKeys.map((key) =>
-								isImageEdit ? studio(`promptSuggestions.${key}`) : composer(`ideas.${key}.label`),
-							)}
-							onSelect={(suggestion) => {
-								setPrompt(suggestion);
-								promptRef.current?.focus({ preventScroll: true });
-							}}
-						/>
-						<section
-							data-test="landing-prompt-panel"
-							style={toolPrompt?.allowReference === false ? { gridColumn: "1 / -1" } : undefined}
-							className="min-w-0 focus-within:bg-white/[0.025] relative overflow-hidden rounded-[1rem] transition-colors focus-within:ring-1 focus-within:ring-[#b79cff]/30 focus-within:ring-inset motion-reduce:transition-none"
-						>
-							<label htmlFor="landing-edit-prompt" className="landing-prompt-label sr-only">
-								{isImageEdit ? tCreate("fields.prompt") : studio("generation.promptLabel")}
-							</label>
-							<Textarea
-								ref={promptRef}
-								id="landing-edit-prompt"
-								rows={4}
-								required
-								minLength={promptContract?.minimumPromptLength ?? 1}
-								maxLength={maximumPromptLength}
-								value={prompt}
-								disabled={isBusy}
-								placeholder={isImageEdit ? composer("editHint") : composer("createHint")}
-								className="min-h-36 p-4 pb-9 sm:p-5 sm:pb-9 md:min-h-[9.5rem] text-base leading-7 resize-none border-0 bg-transparent text-[#f6f2fb] shadow-none placeholder:text-[#a99db2] focus-visible:ring-0"
-								onChange={(event) => setPrompt(event.target.value)}
-							/>
-							{showCharacterCount ? (
-								<span className="right-4 bottom-3 absolute text-[0.68rem] text-[#8f8399] tabular-nums">
-									{t("characterCount", { count: prompt.length, maximum: maximumPromptLength })}
-								</span>
-							) : null}
-						</section>
+						{!hidePresetPrompt && (
+							<>
+								<PromptIdeas
+									disabled={isBusy}
+									label={isImageEdit ? tCreate("suggestions.label") : composer("promptIdeas")}
+									suggestions={composerSuggestionKeys.map((key) =>
+										isImageEdit ? tCreate(`suggestions.${key}`) : composer(`ideas.${key}.prompt`),
+									)}
+									labels={composerSuggestionKeys.map((key) =>
+										isImageEdit
+											? studio(`promptSuggestions.${key}`)
+											: composer(`ideas.${key}.label`),
+									)}
+									onSelect={(suggestion) => {
+										setPrompt(suggestion);
+										promptRef.current?.focus({ preventScroll: true });
+									}}
+								/>
+								<section
+									data-test="landing-prompt-panel"
+									style={
+										toolPrompt?.allowReference === false ? { gridColumn: "1 / -1" } : undefined
+									}
+									className="min-w-0 focus-within:bg-white/[0.025] relative overflow-hidden rounded-[1rem] transition-colors focus-within:ring-1 focus-within:ring-[#b79cff]/30 focus-within:ring-inset motion-reduce:transition-none"
+								>
+									<label htmlFor="landing-edit-prompt" className="landing-prompt-label sr-only">
+										{isImageEdit ? tCreate("fields.prompt") : studio("generation.promptLabel")}
+									</label>
+									<Textarea
+										ref={promptRef}
+										id="landing-edit-prompt"
+										rows={4}
+										required
+										minLength={promptContract?.minimumPromptLength ?? 1}
+										maxLength={maximumPromptLength}
+										value={prompt}
+										disabled={isBusy}
+										placeholder={isImageEdit ? composer("editHint") : composer("createHint")}
+										className="min-h-36 p-4 pb-9 sm:p-5 sm:pb-9 md:min-h-[9.5rem] text-base leading-7 resize-none border-0 bg-transparent text-[#f6f2fb] shadow-none placeholder:text-[#a99db2] focus-visible:ring-0"
+										onChange={(event) => setPrompt(event.target.value)}
+									/>
+									{showCharacterCount ? (
+										<span className="right-4 bottom-3 absolute text-[0.68rem] text-[#8f8399] tabular-nums">
+											{t("characterCount", { count: prompt.length, maximum: maximumPromptLength })}
+										</span>
+									) : null}
+								</section>
+							</>
+						)}
 					</div>
 
 					<div
@@ -1469,7 +1482,7 @@ function LandingGeneratorWorkspace({
 				)}
 			</div>
 
-			{isDockVisible && (
+			{!hidePresetPrompt && isDockVisible && (
 				<aside
 					ref={floatingDockRef}
 					data-test="floating-editor-dock"

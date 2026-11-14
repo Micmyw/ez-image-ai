@@ -109,7 +109,7 @@ for (const width of [1440, 390, 320]) {
 		} else await recommendation.click();
 		// The isolated development server compiles the destination on its first navigation.
 		await expect(page).toHaveURL(/\/blog\/sheru-bhai-ai-photo$/, { timeout: 45_000 });
-		await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sheru Bhai AI Photo");
+		await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sheru Bhai AI Photo Prompts");
 		const rejectOptionalCookies = page.getByRole("button", {
 			name: "Reject non-essential",
 			exact: true,
@@ -123,16 +123,19 @@ for (const width of [1440, 390, 320]) {
 		const coStar = page.getByRole("button", { name: "Photo with Sheru", exact: true });
 		await expect(coStar).toHaveAttribute("aria-pressed", "true");
 		const generator = page.locator('[data-test="landing-generator"]');
-		const prompt = generator.locator("textarea").first();
-		await expect(prompt).toHaveValue(/Keep the person entirely human/);
+		await expect(generator.locator("textarea")).toHaveCount(0);
+		await expect(page.getByRole("button", { name: /copy.*prompt/i })).toHaveCount(0);
+		await expect(page.locator(".illustrated-prompts")).toHaveCount(0);
+		await expect(page.locator("body")).not.toContainText("Keep the person entirely human");
 		await page
 			.locator("#landing-source-image")
 			.setInputFiles(
 				path.resolve(__dirname, "../public/images/effects/sheru-bhai-ai-photo/with-sheru.webp"),
 			);
 		await expect(page.locator('[data-test="landing-source-panel"] img')).toBeVisible();
-		await page.getByRole("button", { name: "Become Sheru", exact: true }).click();
-		await expect(prompt).toHaveValue(/Replace only the person's head/);
+		await page.getByRole("button", { name: "Turn me into Sheru", exact: true }).click();
+		await expect(generator.locator("textarea")).toHaveCount(0);
+		await expect(page.locator("body")).not.toContainText("Replace only the person's head");
 		await expect(page.locator('[data-test="landing-source-panel"] img')).toBeVisible();
 		await expect(page.locator('[data-test="paid-template-dialog"]')).toHaveCount(0);
 		await expect(page.locator(".effect-style-preview img")).toHaveAttribute("src", /become-sheru/);
@@ -171,7 +174,8 @@ for (const width of [1440, 390, 320]) {
 		});
 		await dialog.getByRole("button", { name: "Keep editing" }).click();
 		await expect(dialog).toHaveCount(0);
-		await expect(prompt).toHaveValue(/Replace only the person's head/);
+		await expect(generator.locator("textarea")).toHaveCount(0);
+		await expect(page.locator("body")).not.toContainText("Replace only the person's head");
 		await expect(page.locator('[data-test="landing-source-panel"] img')).toBeVisible();
 		expect(generationRequests).toEqual([]);
 	});

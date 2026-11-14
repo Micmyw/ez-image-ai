@@ -356,6 +356,31 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it("hides Sheru prompt editing while retaining the existing prompt submission", async () => {
+		paidTemplate();
+		const panel = find(renderPaid(), PromptPanel) as unknown as ReactElement<
+			React.ComponentProps<typeof PromptPanel>
+		>;
+		const markup = renderToStaticMarkup(
+			React.cloneElement(panel, {
+				referencePanel: <span>Photo upload</span>,
+			}),
+		);
+		expect(markup).toContain("Photo upload");
+		expect(markup).not.toContain("textarea");
+		expect(markup).not.toContain("My custom lion selfie");
+		state.passAvailable = 1;
+		state.passSkuKeys = ["nano-banana-2-1k"];
+		state.subscriptionFreeSkuKeys = [];
+		renderPaid();
+		submit(renderPaid());
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: expect.objectContaining({ prompt: "My custom lion selfie" }),
+			}),
+		);
+	});
 	it.each(["png", "svg", "gif"] as const)(
 		"defaults an owned subscription-free pass for GPT 2.6 %s without credits or a subscription",
 		async (outputFormat) => {
@@ -438,7 +463,7 @@ describe("GenerationForm submission callbacks", () => {
 		paidTemplate();
 		state.passAvailable = 3;
 		state.passSkuKeys = ["nano-banana-2-1k"];
-		state.subscriptionFreeSkuKeys = ["nano-banana-2-1k"];
+		state.subscriptionFreeSkuKeys = [];
 		renderPaid();
 		const tree = renderPaid();
 		expect(find(tree, ImageFundingSelector).props.value).toBe("IMAGE_PASS");
