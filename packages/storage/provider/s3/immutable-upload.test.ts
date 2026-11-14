@@ -43,6 +43,7 @@ import {
 	inspectPrivateMediaObject,
 	listMultipartUploads,
 	promoteStagedObject,
+	readArchivedMediaStream,
 	tryWriteImmutableGenerationImage,
 	uploadMultipartPart,
 } from "./index";
@@ -57,6 +58,31 @@ describe("stored private object inspection cleanup", () => {
 	};
 	const metadata = { ContentLength: bytes.length, ContentType: "image/png" };
 	beforeEach(() => s3.send.mockReset());
+	it("accepts the exact provider-original archive key for physical private reads", async () => {
+		const key = "provider-original-v1/users/test/assets/a/original.png";
+		s3.send.mockResolvedValueOnce({
+			...metadata,
+			Body: { transformToWebStream: () => new Blob([bytes]).stream() },
+		});
+		const result = await readArchivedMediaStream({ ...input, key });
+		expect(result.contentLength).toBe(bytes.length);
+		expect(Buffer.from(await new Response(result.body).arrayBuffer())).toEqual(bytes);
+		expect(s3.send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: expect.objectContaining({ Bucket: "media-private", Key: key }),
+			}),
+		);
+	});
+	it.each([
+		"provider-original-v1/users/test/../a/original.png",
+		"provider-original-v1/users/test/assets/a/other.png",
+		"provider-original-v1/users/test/assets/a/original.png/extra",
+	])("rejects malformed provider-original archive location %s", async (key) => {
+		await expect(readArchivedMediaStream({ ...input, key })).rejects.toThrow(
+			"Invalid private media object location",
+		);
+		expect(s3.send).not.toHaveBeenCalled();
+	});
 	it.each([
 		{ ContentLength: undefined },
 		{ ContentLength: 0 },
@@ -201,25 +227,31 @@ describe("single private generation image", () => {
 		expect(reserve).not.toHaveBeenCalled();
 		expect(s3.send).not.toHaveBeenCalled();
 	});
-	it("reserves before one conditional final write, without staging or promotion", async () => {
-		const reserve = vi.fn(async () => {
-			expect(s3.send).toHaveBeenCalledTimes(1);
-		});
-		s3.send.mockRejectedValueOnce(missing()).mockResolvedValueOnce({ ETag: "fixed" });
-		const result = await tryWriteImmutableGenerationImage({
-			bucket: "media",
-			key: "users/test/assets/a/original.png",
-			contentType: "image/png",
-			body,
-			reserve,
-		});
-		expect(result?.bytes).toBe(body.length);
-		expect(reserve).toHaveBeenCalledWith(body.length);
-		expect(s3.send.mock.calls[1]![0]).toMatchObject({
-			input: { IfNoneMatch: "*", Body: body, Key: "users/test/assets/a/original.png" },
-		});
-		expect(s3.send).toHaveBeenCalledTimes(2);
-	});
+	it.each([
+		"users/test/assets/a/original.png",
+		"provider-original-v1/users/test/assets/a/original.png",
+	])(
+		"reserves before one conditional final write to %s, without staging or promotion",
+		async (key) => {
+			const reserve = vi.fn(async () => {
+				expect(s3.send).toHaveBeenCalledTimes(1);
+			});
+			s3.send.mockRejectedValueOnce(missing()).mockResolvedValueOnce({ ETag: "fixed" });
+			const result = await tryWriteImmutableGenerationImage({
+				bucket: "media",
+				key,
+				contentType: "image/png",
+				body,
+				reserve,
+			});
+			expect(result?.bytes).toBe(body.length);
+			expect(reserve).toHaveBeenCalledWith(body.length);
+			expect(s3.send.mock.calls[1]![0]).toMatchObject({
+				input: { IfNoneMatch: "*", Body: body, Key: key },
+			});
+			expect(s3.send).toHaveBeenCalledTimes(2);
+		},
+	);
 	it("starts a newly claimed asset with one conditional PUT and no missing-object GET", async () => {
 		const reserve = vi.fn(async () => {
 			expect(s3.send).not.toHaveBeenCalled();
@@ -363,20 +395,26 @@ describe("single private generation image", () => {
 		await expect(tryWriteImmutableGenerationImage({ ...input, body })).rejects.toBe(denied);
 		expect(s3.send).toHaveBeenCalledTimes(1);
 	});
-	it("recovers the same stored content after a DB failure without writing again", async () => {
-		s3.send.mockResolvedValueOnce(stored());
-		const reserve = vi.fn(async () => undefined);
-		const result = await tryWriteImmutableGenerationImage({
-			bucket: "media",
-			key: "users/test/assets/a/original.png",
-			contentType: "image/png",
-			body: Buffer.concat([body, Buffer.from("changed provider")]),
-			reserve,
-		});
-		expect(result?.sha256).toBe(createHash("sha256").update(body).digest("hex"));
-		expect(s3.send).toHaveBeenCalledTimes(1);
-		expect(reserve).toHaveBeenCalledWith(body.length);
-	});
+	it.each([
+		"users/test/assets/a/original.png",
+		"provider-original-v1/users/test/assets/a/original.png",
+	])(
+		"recovers the same physical stored content at %s after a DB failure without writing again",
+		async (key) => {
+			s3.send.mockResolvedValueOnce(stored());
+			const reserve = vi.fn(async () => undefined);
+			const result = await tryWriteImmutableGenerationImage({
+				bucket: "media",
+				key,
+				contentType: "image/png",
+				body: Buffer.concat([body, Buffer.from("changed provider")]),
+				reserve,
+			});
+			expect(result?.sha256).toBe(createHash("sha256").update(body).digest("hex"));
+			expect(s3.send).toHaveBeenCalledTimes(1);
+			expect(reserve).toHaveBeenCalledWith(body.length);
+		},
+	);
 	it("re-reads the immutable winner on a conditional conflict", async () => {
 		s3.send
 			.mockRejectedValueOnce(missing())

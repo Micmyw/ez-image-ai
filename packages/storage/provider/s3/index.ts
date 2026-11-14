@@ -94,7 +94,10 @@ function bucketName(bucket: keyof typeof config.bucketNames): string {
 }
 
 function mediaLocation(location: MediaObjectLocation): { Bucket: string; Key: string } {
-	if (location.bucket !== "media" || !location.key.startsWith("users/")) {
+	if (
+		location.bucket !== "media" ||
+		(!location.key.startsWith("users/") && !isProviderOriginalKey(location.key))
+	) {
 		throw new Error("Invalid private media object location");
 	}
 	return { Bucket: bucketName("media"), Key: location.key };

@@ -38,6 +38,10 @@ for (const width of [1440, 390]) {
 	test(`subscription upgrade keeps model selection in the editor until requested at ${width}px`, async ({
 		page,
 	}, testInfo) => {
+		// Mock checkout has no live PayPal readiness; explicitly exercise the available offer.
+		await page.route("**/api/rpc/payments/getImagePassOffer", (route) =>
+			route.fulfill({ json: { json: { available: true } } }),
+		);
 		await page.setViewportSize({ width, height: 1000 });
 		const businessRequests: string[] = [];
 		page.on("request", (request) => {

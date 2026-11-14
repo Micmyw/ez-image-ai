@@ -23,6 +23,38 @@ describe("immutable staging upload promotion (MinIO)", () => {
 		expect(config.bucketNames.media).toBe(mediaBucket);
 		await storage.checkStorageMetadataAccess();
 	});
+	it("writes and recovers a provider-original archive using physical private storage", async () => {
+		const target = {
+			bucket: "media" as const,
+			key: `provider-original-v1/users/test-${randomUUID()}/assets/test-${randomUUID()}/original.png`,
+		};
+		const body = pngPayload(512);
+		const reserve = vi.fn(async () => undefined);
+		try {
+			const written = await storage.tryWriteImmutableGenerationImage({
+				...target,
+				contentType,
+				body,
+				reserve,
+			});
+			expect(written).toMatchObject({ bytes: body.length, sha256: sha256(body) });
+			const physical = await storage.readArchivedMediaStream(target);
+			expect(Buffer.from(await new Response(physical.body).arrayBuffer())).toEqual(body);
+			const recovered = await storage.tryWriteImmutableGenerationImage({
+				...target,
+				contentType,
+				body: pngPayload(1024),
+				reserve,
+			});
+			expect(recovered).toEqual(written);
+			expect(reserve.mock.calls).toHaveLength(2);
+		} finally {
+			await storage.deleteObject(target);
+		}
+		await expect(storage.readArchivedMediaStream(target)).rejects.toMatchObject({
+			name: "NoSuchKey",
+		});
+	});
 	it.each([
 		{ mode: "legacy", freshClaims: [undefined, undefined] },
 		{ mode: "fresh", freshClaims: [true, true] },

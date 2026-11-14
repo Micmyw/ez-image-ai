@@ -150,6 +150,10 @@ test.describe("subscription upgrade checkout recovery", () => {
 	test("subscription upgrade waits for verified payment and restores the editor", async ({
 		page,
 	}) => {
+		// Mock checkout has no live PayPal readiness; explicitly exercise the available offer.
+		await page.route("**/api/rpc/payments/getImagePassOffer", (route) =>
+			route.fulfill({ json: { json: { available: true } } }),
+		);
 		const growthEvents = await captureConsentedGrowthEvents(page);
 		const user = await userByEmail(freeEmail);
 		const source = await sourceForUser(user.id);
