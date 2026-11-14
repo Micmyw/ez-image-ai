@@ -25,6 +25,7 @@ vi.mock("./procedures/complete-upload-session", () => ({
 	completeOwnedUploadSession: uploadMocks.completeOwnedUploadSession,
 }));
 
+import { ensureGuestBrowserSubject } from "./lib/guest-browser";
 import { loadGuestCapabilitySnapshot } from "./lib/guest-capability";
 import { completeGuestDraftUpload } from "./procedures/complete-guest-upload";
 import { createGuestDraftUploadIntent } from "./procedures/create-guest-upload-intent";
@@ -50,6 +51,7 @@ describe("guest capability database drift fence", () => {
 			'TRUNCATE TABLE "runtime_config_override", "guest_abuse_bucket", "media_upload_session", "media_asset", "generation_draft", "guest_session_bootstrap" CASCADE',
 		);
 		vi.stubEnv("NODE_ENV", "test");
+		vi.stubEnv("BETTER_AUTH_SECRET", "test-only-guest-browser-signing-secret-32-bytes");
 		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "promotion-a");
 		vi.stubEnv("GUEST_RISK_BUDGET_MICROS", "350000");
@@ -86,6 +88,13 @@ describe("guest capability database drift fence", () => {
 
 	it("rejects promotion drift before consuming the upload or creating a Draft/Bootstrap", async () => {
 		const capabilityA = await loadGuestCapabilitySnapshot(process.env);
+		const responseHeaders = new Headers();
+		ensureGuestBrowserSubject(new Headers(), responseHeaders);
+		const headers = new Headers({
+			origin: saasOrigin,
+			"cf-connecting-ip": "203.0.113.9",
+			cookie: responseHeaders.get("set-cookie")!.split(";")[0]!,
+		});
 		const upload = await call(
 			createGuestDraftUploadIntent,
 			{
@@ -98,10 +107,7 @@ describe("guest capability database drift fence", () => {
 			},
 			{
 				context: {
-					headers: new Headers({
-						origin: saasOrigin,
-						"cf-connecting-ip": "203.0.113.9",
-					}),
+					headers,
 					responseHeaders: new Headers(),
 				},
 			},
@@ -129,7 +135,7 @@ describe("guest capability database drift fence", () => {
 				},
 				{
 					context: {
-						headers: new Headers({ origin: saasOrigin }),
+						headers,
 						responseHeaders: new Headers(),
 					},
 				},

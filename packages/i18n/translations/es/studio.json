@@ -65,7 +65,12 @@
 		"sizeRule": "Los paquetes nuevos y ya comprados de 2,99 USD cubren GPT Image 2.6 Flare y Sunburst en 1K, 2K y 4K, además de modelos Pro, SVG estático y GIF animado. Cada resultado generado con éxito consume un pase, independientemente del número de fotogramas del GIF. No se requiere suscripción.",
 		"fundingSizeNotEligible": "Tus pases disponibles no cubren esta opción. Elige una opción cubierta por tu paquete, compra un paquete actual o paga expresamente con créditos.",
 		"returnAwaitingConfirmationUnknownAmount": "Si aprobaste este pago en PayPal, confírmalo abajo para finalizar. De lo contrario, vuelve al pago.",
-		"returnConfirmPaymentUnknownAmount": "Confirmar pago de PayPal"
+		"returnConfirmPaymentUnknownAmount": "Confirmar pago de PayPal",
+		"selectedOffer": {
+			"title": "{amount} US$ por {units} imágenes generadas correctamente",
+			"description": "Incluye este modelo y tamaño. No necesitas suscripción al usar Image Pass. Tu borrador se conserva mientras eliges un paquete.",
+			"action": "Comprar el paquete de imágenes"
+		}
 	},
 	"media": {
 		"assets": {

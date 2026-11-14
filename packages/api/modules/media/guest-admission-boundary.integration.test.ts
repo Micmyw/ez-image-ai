@@ -6,6 +6,7 @@ import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } fr
 import { GUEST_MEDIA_SPONSOR_CREDITS } from "@repo/config/server";
 import { createGuestGenerationTransaction } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
+import { runWithCloudflareFreeEligibility } from "@repo/utils/free-eligibility";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({
@@ -15,6 +16,7 @@ vi.mock("@repo/auth", () => ({
 import { auth } from "@repo/auth";
 
 import { guestAdmissionDependencies } from "./lib/guest-admission";
+import { ensureGuestBrowserSubject } from "./lib/guest-browser";
 import { verifyGuestTurnstileEvidence } from "./lib/turnstile";
 import { submitGuestGeneration } from "./procedures/submit-guest-generation";
 
@@ -26,6 +28,7 @@ const originalDependencies = { ...guestAdmissionDependencies };
 
 describe("guest admission real boundary", () => {
 	beforeAll(async () => {
+		vi.stubEnv("BETTER_AUTH_SECRET", "test-only-guest-browser-signing-secret-32-bytes");
 		client = new PrismaClient({
 			adapter: new PrismaPg({ connectionString: safeTestDatabaseUrl() }),
 		});
@@ -36,105 +39,112 @@ describe("guest admission real boundary", () => {
 	});
 
 	afterAll(async () => {
+		vi.unstubAllEnvs();
 		Object.assign(guestAdmissionDependencies, originalDependencies);
 		await client?.$disconnect();
 	});
 
-	it("canonicalizes a 32-way Turnstile replay through oRPC and the anonymous auth boundary", async () => {
-		const fixture = await createGuestFixture("full-boundary-replay");
-		const siteverify = strictSingleUseSiteverify("app.ezpic.test", fixture.now);
-		vi.mocked(auth.api.getSession).mockResolvedValue({
-			user: { id: fixture.ownerId, isAnonymous: true },
-			session: { id: fixture.sessionId, userId: fixture.ownerId },
-		} as never);
-		configureAdmissionDependencies(fixture, siteverify.verify);
+	it("canonicalizes a 32-way Turnstile replay through oRPC and the anonymous auth boundary", () =>
+		runWithCloudflareFreeEligibility("US", async () => {
+			const fixture = await createGuestFixture("full-boundary-replay");
+			const siteverify = strictSingleUseSiteverify("app.ezpic.test", fixture.now);
+			vi.mocked(auth.api.getSession).mockResolvedValue({
+				user: { id: fixture.ownerId, isAnonymous: true },
+				session: { id: fixture.sessionId, userId: fixture.ownerId },
+			} as never);
+			configureAdmissionDependencies(fixture, siteverify.verify);
 
-		const headers = new Headers({
-			origin: "https://app.ezpic.test",
-			"x-vercel-forwarded-for": "203.0.113.42",
-		});
-		const input = {
-			capabilityVersion: "guest-v7",
-			productKey: "image-nano-banana-2-lite" as const,
-			skuKey: "nano-banana-2-lite-1k" as const,
-			sourceAssetId: fixture.assetId,
-			prompt: "Make the sky violet",
-			aspectRatio: "auto" as const,
-			idempotencyKey: "guest-full-boundary-replay-0001",
-			deviceId: "d4fbf8d2-945a-4f2c-8359-f179f6c734de",
-			turnstileToken: "one-time-turnstile-token",
-		};
-		const results = await concurrentBarrier(32, () =>
-			call(submitGuestGeneration, input, { context: { headers } }),
-		);
+			const responseHeaders = new Headers();
+			ensureGuestBrowserSubject(new Headers(), responseHeaders);
+			const headers = new Headers({
+				origin: "https://app.ezpic.test",
+				"x-vercel-forwarded-for": "203.0.113.42",
+				cookie: responseHeaders.get("set-cookie")!.split(";")[0]!,
+			});
+			const input = {
+				capabilityVersion: "guest-v7",
+				productKey: "image-nano-banana-2-lite" as const,
+				skuKey: "nano-banana-2-lite-1k" as const,
+				sourceAssetId: fixture.assetId,
+				prompt: "Make the sky violet",
+				aspectRatio: "auto" as const,
+				idempotencyKey: "guest-full-boundary-replay-0001",
+				deviceId: "d4fbf8d2-945a-4f2c-8359-f179f6c734de",
+				turnstileToken: "one-time-turnstile-token",
+			};
+			const results = await concurrentBarrier(32, () =>
+				call(submitGuestGeneration, input, { context: { headers } }),
+			);
 
-		expect(new Set(results.map((result) => JSON.stringify(result))).size).toBe(1);
-		expect(siteverify.providerConsumptions()).toBe(1);
-		const idempotencyKeys = siteverify.verify.mock.calls.map(([request]) => request.idempotencyKey);
-		expect(new Set(idempotencyKeys).size).toBe(1);
-		expect(idempotencyKeys[0]).toMatch(
-			/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-		);
-		const jobId = results[0]!.jobId;
-		const account = await client.creditAccount.findUniqueOrThrow({
-			where: { ownerType_ownerId: { ownerType: "USER", ownerId: fixture.ownerId } },
-		});
-		await expect(
-			Promise.all([
-				client.guestAbuseBucket.count({
-					where: {
-						scope: "guest-turnstile-token",
-						subjectHash: sha256(input.turnstileToken),
+			expect(new Set(results.map((result) => JSON.stringify(result))).size).toBe(1);
+			expect(siteverify.providerConsumptions()).toBe(1);
+			const idempotencyKeys = siteverify.verify.mock.calls.map(
+				([request]) => request.idempotencyKey,
+			);
+			expect(new Set(idempotencyKeys).size).toBe(1);
+			expect(idempotencyKeys[0]).toMatch(
+				/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+			);
+			const jobId = results[0]!.jobId;
+			const account = await client.creditAccount.findUniqueOrThrow({
+				where: { ownerType_ownerId: { ownerType: "USER", ownerId: fixture.ownerId } },
+			});
+			await expect(
+				Promise.all([
+					client.guestAbuseBucket.count({
+						where: {
+							scope: "guest-turnstile-token",
+							subjectHash: sha256(input.turnstileToken),
+						},
+					}),
+					client.guestMediaTrial.count({ where: { ownerId: fixture.ownerId } }),
+					client.generationQuote.count({ where: { ownerId: fixture.ownerId } }),
+					client.generationJob.count({ where: { ownerId: fixture.ownerId } }),
+					client.creditLedgerEntry.count({
+						where: { accountId: account.id, type: "GRANT" },
+					}),
+					client.creditReservation.count({ where: { jobId } }),
+					client.creditReservationAllocation.count({ where: { reservation: { jobId } } }),
+					client.generationJobAsset.count({ where: { jobId, role: "INPUT" } }),
+					client.outboxEvent.count({
+						where: { aggregateId: jobId, eventType: "GUEST_GENERATION_ELIGIBLE" },
+					}),
+				]),
+			).resolves.toEqual([1, 1, 1, 1, 1, 1, 1, 1, 1]);
+
+			await expect(
+				call(
+					submitGuestGeneration,
+					{ ...input, idempotencyKey: "guest-different-semantics-0001", prompt: "Make it green" },
+					{ context: { headers } },
+				),
+			).rejects.toThrow("TURNSTILE_REPLAYED");
+
+			const otherFixture = await createGuestFixture("other-owner-replay");
+			vi.mocked(auth.api.getSession).mockResolvedValue({
+				user: { id: otherFixture.ownerId, isAnonymous: true },
+				session: { id: otherFixture.sessionId, userId: otherFixture.ownerId },
+			} as never);
+			configureAdmissionDependencies(otherFixture, siteverify.verify);
+			await expect(
+				call(
+					submitGuestGeneration,
+					{
+						...input,
+						sourceAssetId: otherFixture.assetId,
+						idempotencyKey: "guest-other-owner-replay-0001",
 					},
-				}),
-				client.guestMediaTrial.count({ where: { ownerId: fixture.ownerId } }),
-				client.generationQuote.count({ where: { ownerId: fixture.ownerId } }),
-				client.generationJob.count({ where: { ownerId: fixture.ownerId } }),
-				client.creditLedgerEntry.count({
-					where: { accountId: account.id, type: "GRANT" },
-				}),
-				client.creditReservation.count({ where: { jobId } }),
-				client.creditReservationAllocation.count({ where: { reservation: { jobId } } }),
-				client.generationJobAsset.count({ where: { jobId, role: "INPUT" } }),
-				client.outboxEvent.count({
-					where: { aggregateId: jobId, eventType: "GUEST_GENERATION_ELIGIBLE" },
-				}),
-			]),
-		).resolves.toEqual([1, 1, 1, 1, 1, 1, 1, 1, 1]);
-
-		await expect(
-			call(
-				submitGuestGeneration,
-				{ ...input, idempotencyKey: "guest-different-semantics-0001", prompt: "Make it green" },
-				{ context: { headers } },
-			),
-		).rejects.toThrow("TURNSTILE_REPLAYED");
-
-		const otherFixture = await createGuestFixture("other-owner-replay");
-		vi.mocked(auth.api.getSession).mockResolvedValue({
-			user: { id: otherFixture.ownerId, isAnonymous: true },
-			session: { id: otherFixture.sessionId, userId: otherFixture.ownerId },
-		} as never);
-		configureAdmissionDependencies(otherFixture, siteverify.verify);
-		await expect(
-			call(
-				submitGuestGeneration,
-				{
-					...input,
-					sourceAssetId: otherFixture.assetId,
-					idempotencyKey: "guest-other-owner-replay-0001",
-				},
-				{ context: { headers } },
-			),
-		).rejects.toThrow("TURNSTILE_REPLAYED");
-		expect(siteverify.providerConsumptions()).toBe(1);
-		await expect(
-			Promise.all([
-				client.guestMediaTrial.count({ where: { ownerId: otherFixture.ownerId } }),
-				client.generationJob.count({ where: { ownerId: otherFixture.ownerId } }),
-			]),
-		).resolves.toEqual([0, 0]);
-	});
+					{ context: { headers } },
+				),
+			).rejects.toThrow("TURNSTILE_REPLAYED");
+			expect(siteverify.providerConsumptions()).toBe(1);
+			await expect(
+				Promise.all([
+					client.guestMediaTrial.count({ where: { ownerId: otherFixture.ownerId } }),
+					client.generationJob.count({ where: { ownerId: otherFixture.ownerId } }),
+				]),
+			).resolves.toEqual([0, 0]);
+		}));
 });
 
 function configureAdmissionDependencies(

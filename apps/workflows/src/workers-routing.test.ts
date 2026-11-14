@@ -380,19 +380,22 @@ describe("Workers executor routing", () => {
 			expect(mocks.container).not.toHaveBeenCalled();
 		},
 	);
-	it("reroutes excluded transfers to the original heavy receiver without changing execution identity", async () => {
-		mocks.execute.mockImplementation(async (_task, _context, options) => {
-			if (options.streamingTransfersOnly) throw new GenerationTransferRequiresHeavyError();
-			return { continuation: { eventIds: [] } };
-		});
-		const worker = runtime();
-		await expect(worker.run(heavy)).resolves.toEqual({ completed: true });
-		expect(worker.routed).toEqual(["jobs-transfer-request", "jobs-primary"]);
-		expect(mocks.execute).toHaveBeenCalledTimes(2);
-		expect(mocks.execute.mock.calls[0]!.slice(0, 2)).toEqual(
-			mocks.execute.mock.calls[1]!.slice(0, 2),
-		);
-	});
+	it.each([heavy, { taskId: "media-archive-output", payload: { assetId: "original" } }])(
+		"reroutes excluded $taskId transfers without changing execution identity",
+		async (request) => {
+			mocks.execute.mockImplementation(async (_task, _context, options) => {
+				if (options.streamingTransfersOnly) throw new GenerationTransferRequiresHeavyError();
+				return { continuation: { eventIds: [] } };
+			});
+			const worker = runtime();
+			await expect(worker.run(request)).resolves.toEqual({ completed: true });
+			expect(worker.routed).toEqual(["jobs-transfer-request", "jobs-primary"]);
+			expect(mocks.execute).toHaveBeenCalledTimes(2);
+			expect(mocks.execute.mock.calls[0]!.slice(0, 2)).toEqual(
+				mocks.execute.mock.calls[1]!.slice(0, 2),
+			);
+		},
+	);
 	it.each([5, 10, 50])(
 		"completes %i concurrent light requests while heavy and maintenance work stay occupied",
 		async (count) => {

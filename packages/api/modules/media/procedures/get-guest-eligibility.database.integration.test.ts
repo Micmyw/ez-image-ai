@@ -2,7 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { call } from "@orpc/server";
 import type { PrismaClient } from "@repo/database/generated-client";
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { runWithCloudflareFreeEligibility } from "@repo/utils/free-eligibility";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const testEnvironment = vi.hoisted(() => ({
 	databaseUrl: process.env.DATABASE_URL,
@@ -30,6 +31,7 @@ vi.mock("@repo/database/client", async () => {
 import { auth } from "@repo/auth";
 import { db } from "@repo/database/client";
 
+import { ensureGuestBrowserSubject } from "../lib/guest-browser";
 import { getGuestEligibility } from "./get-guest-eligibility";
 
 const client = db as PrismaClient;
@@ -41,6 +43,7 @@ describe("getGuestEligibility claimed draft database boundary", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
+		vi.stubEnv("BETTER_AUTH_SECRET", "test-only-guest-browser-signing-secret-32-bytes");
 		await client.$executeRawUnsafe('TRUNCATE TABLE "user" CASCADE');
 		vi.mocked(auth.api.getSession).mockResolvedValue({
 			user: { id: "guest-placeholder", isAnonymous: true },
@@ -60,23 +63,29 @@ describe("getGuestEligibility claimed draft database boundary", () => {
 		});
 	});
 
+	afterEach(() => vi.unstubAllEnvs());
 	afterAll(async () => {
 		await client.$disconnect();
 	});
 
 	it("loads only the completed owner's submitted Standard draft relation", async () => {
 		const fixture = await createClaimedDraftFixture();
+		const responseHeaders = new Headers();
+		ensureGuestBrowserSubject(new Headers(), responseHeaders);
+		const headers = new Headers({ cookie: responseHeaders.get("set-cookie")!.split(";")[0]! });
 		vi.mocked(auth.api.getSession).mockResolvedValue({
 			user: { id: fixture.ownerId, isAnonymous: true },
 			session: { id: `session-${fixture.ownerId}`, userId: fixture.ownerId },
 		} as never);
 
 		await expect(
-			call(getGuestEligibility, undefined, { context: { headers: new Headers() } }),
+			runWithCloudflareFreeEligibility("US", () =>
+				call(getGuestEligibility, undefined, { context: { headers } }),
+			),
 		).resolves.toMatchObject({
 			eligible: true,
 			reason: "AVAILABLE",
-			dailyAllowance: { limit: 2, remaining: 2 },
+			trialAllowance: { limit: 1, remaining: 1, resetsAt: null },
 			claimedDraft: {
 				sourceAssetId: fixture.assetId,
 				prompt: "Replace the background with a violet studio",

@@ -676,6 +676,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			"identity_observed",
 			"generation_action_observed",
 			"generation_input_observed",
+			"generation_journey_observed_v1",
 			"result_viewed",
 			"experiment_exposed",
 		]);

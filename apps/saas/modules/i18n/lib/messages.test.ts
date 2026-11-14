@@ -55,7 +55,7 @@ describe("unified application messages", () => {
 		const messages = await getUnifiedMessagesForLocale("en");
 
 		expect(messages.auth).toBeDefined();
-		expect(messages.home.generator.offer).toBe("Try Nano Banana 2 Lite 1K free");
+		expect(messages.home.generator.offer).toBe("Try a free 1K image edit");
 		expect(messages.common.menu.login).toBe("Sign In");
 	});
 

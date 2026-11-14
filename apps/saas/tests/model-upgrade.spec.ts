@@ -113,6 +113,9 @@ for (const width of [1440, 390]) {
 		await expect(upgrade).toBeEnabled();
 		await expect(upgrade).toContainText(/\d+ credits/);
 		await upgrade.click();
+		await expect(dialog).toBeVisible();
+		await expect(dialog.locator('[data-test="selected-image-pass-offer"]')).toContainText("$2.99");
+		await dialog.getByRole("button", { name: "Choose a plan", exact: true }).click();
 		await expect(page).toHaveURL(/\/pricing\?returnTo=/);
 		await expect(page.getByRole("dialog", { name: "Image models", exact: true })).toBeHidden();
 		await expect(page.locator('[data-test="pricing-image-pass"]')).toContainText("$2.99");

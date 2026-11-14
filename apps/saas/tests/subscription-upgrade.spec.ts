@@ -182,6 +182,9 @@ test.describe("subscription upgrade checkout recovery", () => {
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("GPT Image 2");
 		await expect(promptInput).toHaveValue(prompt);
 		await page.locator('[data-test="editor-model-upgrade"]').click();
+		await expect(dialog).toBeVisible();
+		await expect(dialog.locator('[data-test="selected-image-pass-offer"]')).toContainText("$2.99");
+		await dialog.getByRole("button", { name: "Choose a plan", exact: true }).click();
 
 		await expect(page).toHaveURL(/\/pricing\?returnTo=/);
 		await expect(page.locator('[data-test="pricing-image-pass"]')).toContainText("$2.99");

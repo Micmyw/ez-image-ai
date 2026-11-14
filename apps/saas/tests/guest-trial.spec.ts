@@ -12,7 +12,7 @@ const png = Buffer.from(
 	"base64",
 );
 
-test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and temporary", async ({
+test("anonymous MiniMax H3 lifetime trial is private, accessible, responsive, and temporary", async ({
 	page,
 }, testInfo) => {
 	test.setTimeout(180_000);
@@ -42,13 +42,13 @@ test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and
 		}
 		await route.continue();
 	});
-	await page.getByRole("button", { name: /start my nano banana edit/i }).click();
+	await page.getByRole("button", { name: /start my image edit/i }).click();
 	const alert = page.getByRole("alert").filter({ hasText: /we could not submit this edit/i });
 	await expect(alert).toBeVisible();
 	await expect(alert.locator("xpath=..")).toBeFocused();
 	await page.unroute("**/api/**");
 
-	await page.getByRole("button", { name: /start my nano banana edit/i }).click();
+	await page.getByRole("button", { name: /start my image edit/i }).click();
 	const viewStatus = page.getByRole("button", { name: /view status/i });
 	await expect(viewStatus).toBeVisible({ timeout: 30_000 });
 	await assertGuestReducedMotion(page);
@@ -73,8 +73,8 @@ test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and
 	await expect(main.getByRole("button", { name: /create account/i })).toBeVisible();
 	await expect(page.getByRole("link", { name: /history|assets|edits/i })).toHaveCount(0);
 	await expect(page.getByText(/edit again/i)).toHaveCount(0);
-	await expect(page.getByRole("status").filter({ hasText: /^Today:/ })).toContainText(
-		"Today: 1 of 2 free edits remaining",
+	await expect(page.getByRole("status").filter({ hasText: /^Free trials left:/ })).toContainText(
+		"Free trials left: 0/1",
 	);
 	await expect
 		.poll(
@@ -88,25 +88,18 @@ test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and
 			{ timeout: 30_000 },
 		)
 		.toBe("SUCCEEDED");
-	await page.getByRole("link", { name: "Edit another image", exact: true }).click();
-	const secondPrompt = `${prompt} second daily edit`;
-	await enterGuestWorkspace(page, secondPrompt, clientIp);
-	await expect(page.getByRole("status").filter({ hasText: /^Today:/ })).toContainText(
-		"Today: 1 of 2 free edits remaining",
-	);
-	await page.getByRole("button", { name: /start my nano banana edit/i }).click();
-	await expect(page.locator("#guest-result-region").getByRole("img")).toBeVisible({
-		timeout: 60_000,
-	});
-	await expect(page.getByRole("status").filter({ hasText: /^Today:/ })).toContainText(
-		"Today: 0 of 2 free edits remaining",
+	await page.reload();
+	await expect(page.getByRole("status").filter({ hasText: /^Free trials left:/ })).toContainText(
+		"Free trials left: 0/1",
 	);
 	await expect(page.getByRole("link", { name: "Edit another image", exact: true })).toHaveCount(0);
-	await expect(page.getByText(/used today’s two free edits/i)).toBeVisible();
+	await expect(
+		page.getByText("Your free trial has been used. Sign in to continue.", { exact: true }),
+	).toBeVisible();
 
 	const expiredTrial = await pool.query(
 		`UPDATE guest_media_trial SET "projectedDispatchAt"="createdAt" + interval '1 millisecond', "estimateExpiresAt"="createdAt" + interval '2 milliseconds', "expiresAt"="createdAt" + interval '3 milliseconds' WHERE COALESCE("currentJobId", "consumedJobId")=(SELECT id FROM generation_job WHERE "inputSnapshot"->>'prompt'=$1 ORDER BY "createdAt" DESC LIMIT 1)`,
-		[secondPrompt],
+		[`${prompt} retry`],
 	);
 	expect(expiredTrial.rowCount).toBe(1);
 	await page.reload();
@@ -149,7 +142,7 @@ async function enterGuestWorkspace(page: Page, prompt: string, clientIp: string)
 	await trialAction.click();
 	await expect(page).toHaveURL(/\/try(?:\?|$)/, { timeout: 30_000 });
 	await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-	await expect(page.getByRole("button", { name: /start my nano banana edit/i })).toBeVisible();
+	await expect(page.getByRole("button", { name: /start my image edit/i })).toBeVisible();
 }
 
 async function assertGuestLayouts(page: Page, widths: number[]): Promise<void> {
@@ -189,7 +182,7 @@ async function assertFourHundredPercentReflow(page: Page): Promise<void> {
 		for (const target of [
 			page.getByLabel(/edit instruction|image prompt/i),
 			page.getByRole("button", { name: /more image models/i }),
-			page.getByRole("button", { name: /start my nano banana edit/i }),
+			page.getByRole("button", { name: /start my image edit/i }),
 			page.locator("#guest-result-region"),
 		]) {
 			await target.scrollIntoViewIfNeeded();
@@ -209,7 +202,7 @@ async function assertGuestAccessibility(page: Page): Promise<void> {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await expect(page.getByLabel(/edit instruction|image prompt/i)).toBeVisible();
 	await expect(page.locator("#guest-status-region")).toHaveAttribute("aria-live", "polite");
-	const primary = page.getByRole("button", { name: /start my nano banana edit/i });
+	const primary = page.getByRole("button", { name: /start my image edit/i });
 	const primaryBox = await primary.boundingBox();
 	expect(primaryBox?.height ?? 0).toBeGreaterThanOrEqual(48);
 	for (const control of await page
@@ -233,10 +226,14 @@ async function assertGuestAccessibility(page: Page): Promise<void> {
 	await expect(selectedStandard.locator("svg")).toBeVisible();
 	await page.getByLabel(/edit instruction|image prompt/i).focus();
 	await page.keyboard.press("Tab");
+	await expect(page.getByRole("combobox", { name: "Free trial model" })).toBeFocused();
+	await page.keyboard.press("Tab");
 	await expect(page.getByRole("button", { name: /more image models/i })).toBeFocused();
 	await page.keyboard.press("Tab");
 	await expect(primary).toBeFocused();
-	await expect(page.getByText(/nano banana 2 lite/i).first()).toBeVisible();
+	await expect(page.getByRole("combobox", { name: "Free trial model" })).toHaveValue(
+		"image-minimax-h3",
+	);
 }
 
 async function assertGuestReducedMotion(page: Page): Promise<void> {

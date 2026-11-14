@@ -162,7 +162,7 @@ export function GuestTrialWorkspace({
 													event.target.value as "image-minimax-h3" | "image-nano-banana-2-lite",
 												)
 											}
-											className="border-violet-200 bg-white px-2 py-1 text-sm max-w-full rounded-md border"
+											className="min-h-11 border-violet-200 bg-white px-2 py-1 text-sm max-w-full rounded-md border"
 										>
 											<option value="image-minimax-h3">MiniMax H3 Image · 1K</option>
 											<option value="image-nano-banana-2-lite">Nano Banana 2 Lite · 1K</option>

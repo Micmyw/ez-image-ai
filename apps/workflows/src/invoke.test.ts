@@ -87,46 +87,52 @@ describe("executor capacity protocol", () => {
 			).rejects.toThrow();
 		},
 	);
-	it("reroutes an explicit streaming exclusion with the exact request, receipt and attempt", async () => {
-		const transfer = {
-			taskId: "media-finalize-generation",
-			payload: { jobId: "job", version: 0, deferOutputReview: true },
-			outboxReceipt: { eventId: "event", workerId: "worker", leaseToken: "token" },
-		};
-		const bodies: string[] = [];
-		const service = {
-			fetch: vi.fn(async (request: Request) => {
-				bodies.push(await request.text());
-				return Response.json({ status: "reroute", executor: "heavy" }, { status: 409 });
-			}),
-		};
-		const heavy = {
-			fetch: vi.fn(async (request: Request) => {
-				const body = await request.text();
-				bodies.push(body);
-				expect(
-					await verifyRequest(secret, "POST", "/internal/execute", body, request.headers),
-				).toBe(true);
-				return Response.json({
-					status: "ok",
-					deliveryState: "completed",
-					continuation: { eventIds: [] },
-				});
-			}),
-		};
-		await expect(
-			createExecutorInvoker(
-				secret,
-				() => service,
-				() => heavy,
-			)(transfer, context),
-		).resolves.toMatchObject({ status: "ok", deliveryState: "completed" });
-		expect(bodies).toHaveLength(2);
-		expect(bodies[1]).toBe(bodies[0]);
-		expect(JSON.parse(bodies[1]!)).toMatchObject({ request: transfer, context });
-		expect(service.fetch).toHaveBeenCalledOnce();
-		expect(heavy.fetch).toHaveBeenCalledOnce();
-	});
+	it.each(["media-finalize-generation", "media-archive-output"])(
+		"reroutes %s with the exact request, receipt and attempt",
+		async (taskId) => {
+			const transfer = {
+				taskId,
+				payload:
+					taskId === "media-archive-output"
+						? { assetId: "original" }
+						: { jobId: "job", version: 0, deferOutputReview: true },
+				outboxReceipt: { eventId: "event", workerId: "worker", leaseToken: "token" },
+			};
+			const bodies: string[] = [];
+			const service = {
+				fetch: vi.fn(async (request: Request) => {
+					bodies.push(await request.text());
+					return Response.json({ status: "reroute", executor: "heavy" }, { status: 409 });
+				}),
+			};
+			const heavy = {
+				fetch: vi.fn(async (request: Request) => {
+					const body = await request.text();
+					bodies.push(body);
+					expect(
+						await verifyRequest(secret, "POST", "/internal/execute", body, request.headers),
+					).toBe(true);
+					return Response.json({
+						status: "ok",
+						deliveryState: "completed",
+						continuation: { eventIds: [] },
+					});
+				}),
+			};
+			await expect(
+				createExecutorInvoker(
+					secret,
+					() => service,
+					() => heavy,
+				)(transfer, context),
+			).resolves.toMatchObject({ status: "ok", deliveryState: "completed" });
+			expect(bodies).toHaveLength(2);
+			expect(bodies[1]).toBe(bodies[0]);
+			expect(JSON.parse(bodies[1]!)).toMatchObject({ request: transfer, context });
+			expect(service.fetch).toHaveBeenCalledOnce();
+			expect(heavy.fetch).toHaveBeenCalledOnce();
+		},
+	);
 	it.each([
 		new Response("network failure", { status: 502 }),
 		new Response("conflict", { status: 409 }),

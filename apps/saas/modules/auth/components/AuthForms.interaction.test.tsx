@@ -25,6 +25,8 @@ const state = vi.hoisted(() => ({
 	replace: vi.fn(),
 	push: vi.fn(),
 	invalidate: vi.fn(),
+	fetchSession: vi.fn(),
+	setQueryData: vi.fn(),
 	load: vi.fn(),
 	preload: vi.fn(),
 	email: vi.fn(),
@@ -93,7 +95,10 @@ vi.mock("@auth/lib/auth-client", () => ({
 	loadAuthClient: state.load,
 	preloadAuthClient: state.preload,
 }));
-vi.mock("@auth/lib/api", () => ({ sessionQueryKey: ["user", "session"] }));
+vi.mock("@auth/lib/api", () => ({
+	sessionQueryKey: ["user", "session"],
+	fetchSession: state.fetchSession,
+}));
 vi.mock("@auth/hooks/errors-messages", () => ({
 	useAuthErrorMessages: () => ({
 		getAuthErrorMessage: (code?: string) => `auth.error.${code ?? "unknown"}`,
@@ -105,7 +110,7 @@ vi.mock("@auth/hooks/use-session", () => ({
 vi.mock("@config", () => ({ config: { redirectAfterSignIn: "/create" } }));
 vi.mock("@repo/auth/config", () => ({ config: state.config }));
 vi.mock("@tanstack/react-query", () => ({
-	useQueryClient: () => ({ invalidateQueries: state.invalidate }),
+	useQueryClient: () => ({ invalidateQueries: state.invalidate, setQueryData: state.setQueryData }),
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("next/navigation", () => ({
@@ -291,6 +296,10 @@ describe("deferred authentication form interactions", () => {
 		state.replace.mockReset();
 		state.push.mockReset();
 		state.invalidate.mockReset().mockResolvedValue(undefined);
+		state.fetchSession
+			.mockReset()
+			.mockResolvedValue({ user: { id: "customer", isAnonymous: false } });
+		state.setQueryData.mockReset();
 		vi.stubGlobal("window", { location: { origin: "https://ezimageai.com" } });
 	});
 
@@ -355,12 +364,28 @@ describe("deferred authentication form interactions", () => {
 		expect(state.invalidate).not.toHaveBeenCalled();
 	});
 
-	it("retains session invalidation and safe password-login redirects", async () => {
+	it("confirms and caches the registered session before safe password-login redirects", async () => {
 		state.search = new URLSearchParams({ redirectTo: "https://attacker.example/path" });
 		await form(LoginForm).props.onSubmit();
-		expect(state.invalidate).toHaveBeenCalledWith({ queryKey: ["user", "session"] });
+		expect(state.fetchSession).toHaveBeenCalledOnce();
+		expect(state.setQueryData).toHaveBeenCalledWith(["user", "session"], {
+			user: { id: "customer", isAnonymous: false },
+		});
 		expect(state.replace).toHaveBeenCalledWith("/create");
 	});
+
+	it.each([null, { user: { id: "guest", isAnonymous: true } }])(
+		"keeps login recoverable when the registered session is not ready: %s",
+		async (session) => {
+			state.fetchSession.mockResolvedValueOnce(session);
+			await form(LoginForm).props.onSubmit();
+			expect(state.formState.errors.root?.message).toBe("auth.error.unknown");
+			expect(state.replace).not.toHaveBeenCalled();
+			expect(state.setQueryData).not.toHaveBeenCalled();
+			await form(LoginForm).props.onSubmit();
+			expect(state.replace).toHaveBeenCalledWith("/create");
+		},
+	);
 
 	it("retains invitation priority for magic links without navigating before email verification", async () => {
 		state.values.mode = "magic-link";

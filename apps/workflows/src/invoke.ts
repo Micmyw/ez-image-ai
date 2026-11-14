@@ -32,7 +32,10 @@ export function createExecutorInvoker(
 				),
 			});
 		let response = await executorFor(request).fetch(await signed());
-		if (response.status === 409 && request.taskId === "media-finalize-generation") {
+		if (
+			response.status === 409 &&
+			["media-finalize-generation", "media-archive-output"].includes(request.taskId)
+		) {
 			const result = (await response.json().catch(() => null)) as {
 				status?: unknown;
 				executor?: unknown;

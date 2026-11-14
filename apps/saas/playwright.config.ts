@@ -56,6 +56,10 @@ export default defineConfig({
 			use: {
 				...devices["Desktop Chrome"],
 				storageState: "playwright/.auth/user.json",
+				// Distinct loopback clients keep unrelated suites out of one auth rate bucket.
+				...(localMediaE2ELaunchOptions
+					? { extraHTTPHeaders: { "x-forwarded-for": "198.18.0.11" } }
+					: {}),
 			},
 		},
 		{
@@ -66,6 +70,9 @@ export default defineConfig({
 			use: {
 				...devices["Desktop Chrome"],
 				storageState: "playwright/.auth/empty.json",
+				...(localMediaE2ELaunchOptions
+					? { extraHTTPHeaders: { "x-forwarded-for": "198.18.0.12" } }
+					: {}),
 			},
 		},
 		{
@@ -76,6 +83,9 @@ export default defineConfig({
 			use: {
 				...devices["Desktop Chrome"],
 				storageState: "playwright/.auth/free.json",
+				...(localMediaE2ELaunchOptions
+					? { extraHTTPHeaders: { "x-forwarded-for": "198.18.0.13" } }
+					: {}),
 			},
 		},
 		{

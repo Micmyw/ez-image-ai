@@ -32,8 +32,8 @@ describe("EzImageAI llms.txt", () => {
 		expect(guest.maximumBytes).toBe(10 * 1024 * 1024);
 		expect(guest.mimeTypes).toEqual(["image/jpeg", "image/png", "image/webp"]);
 		expect(guest.retentionMs).toBe(24 * 60 * 60 * 1000);
-		expect(guest.productKey).toBe("image-nano-banana-2-lite");
-		expect(guest.skuKey).toBe("nano-banana-2-lite-1k");
+		expect(guest.productKey).toBe("image-minimax-h3");
+		expect(guest.skuKey).toBe("minimax-h3-1k");
 		expect(body).toContain("JPEG, PNG, or WebP");
 		expect(body).toContain("10 MB");
 		expect(body).toContain("24 hours");
