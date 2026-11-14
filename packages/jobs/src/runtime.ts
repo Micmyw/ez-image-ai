@@ -52,10 +52,7 @@ import {
 	parseImageSelection,
 	getImageProductSelectionContract,
 } from "@repo/config";
-import {
-	imageModerationProviderForEnvironment,
-	OUTPUT_MODERATION_BILLING_POLICY,
-} from "@repo/config";
+import { imageModerationProviderForEnvironment } from "@repo/config";
 import type { ProductModelKey } from "@repo/config";
 import {
 	parseProviderDiagnostic,
@@ -4238,12 +4235,17 @@ async function settleLockedGenerationCredits(
 		job.pricingSnapshot &&
 		typeof job.pricingSnapshot === "object" &&
 		!Array.isArray(job.pricingSnapshot) &&
-		job.pricingSnapshot.outputModerationBillingPolicy === OUTPUT_MODERATION_BILLING_POLICY
+		// Read frozen policy identities independently of the current quote producer.
+		// This consumer must ship before producers start writing the charge policy.
+		(job.pricingSnapshot.outputModerationBillingPolicy === "charge-quoted-credits-v1" ||
+			job.pricingSnapshot.outputModerationBillingPolicy === "first-block-free-v1")
 	) {
-		const waived = await claimOutputModerationGraceInTransaction(
-			{ accountId: job.reservation.accountId, jobId: job.id },
-			tx,
-		);
+		const waived =
+			job.pricingSnapshot.outputModerationBillingPolicy === "first-block-free-v1" &&
+			(await claimOutputModerationGraceInTransaction(
+				{ accountId: job.reservation.accountId, jobId: job.id },
+				tx,
+			));
 		chargeCredits = waived
 			? 0n
 			: settlementPolicyFromSnapshot(job.pricingSnapshot, job.creditsReserved).maxCharge;
