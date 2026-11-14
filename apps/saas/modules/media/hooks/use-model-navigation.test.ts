@@ -10,6 +10,16 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("image model URL selection", () => {
+	it.each(["flare", "sunburst"] as const)(
+		"opens GPT Image 2.6 %s on its own model page",
+		(variant) => {
+			const path = `/gpt-image-2-6-${variant}`;
+			const product = `image-gpt-image-2-6-${variant}`;
+			expect(imageModelHref(product)).toBe(path);
+			expect(resolveRequestedImageModel(path, null)).toBe(product);
+			expect(resolveRequestedImageModel(path, "unknown-model")).toBe(product);
+		},
+	);
 	it("opens Seedream 5.5 with its dedicated image model", () => {
 		expect(imageModelHref("image-seedream-5-5")).toBe("/seedream-5-5");
 		expect(resolveRequestedImageModel("/seedream-5-5", null)).toBe("image-seedream-5-5");
@@ -37,9 +47,7 @@ describe("image model URL selection", () => {
 		expect(resolveRequestedImageModel("/ai-svg-generator", "image-nano-banana-2-lite")).toBe(
 			"image-gpt-image-2-6-flare",
 		);
-		expect(imageModelHref("image-gpt-image-2-6-sunburst")).toBe(
-			"/gpt-image-2-6?model=image-gpt-image-2-6-sunburst",
-		);
+		expect(imageModelHref("image-gpt-image-2-6-sunburst")).toBe("/gpt-image-2-6-sunburst");
 	});
 	it("uses a valid model-page slug when an invalid query value tries to mask it", () => {
 		expect(resolveRequestedImageModel("/models/nano-banana-2", "unknown-model")).toBe(

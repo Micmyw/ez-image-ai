@@ -472,7 +472,12 @@ function LandingGeneratorWorkspace({
 				setSelectedProductKey(selection.productKey);
 				setSelectedSkuKey(parsed.skuKey);
 				setAspectRatio(parsed.aspectRatio);
-				setControlValues({ outputFormat: parsed.outputFormat, background: parsed.background });
+				setControlValues({
+					outputFormat: parsed.outputFormat,
+					background: parsed.background,
+					frameCount: parsed.frameCount,
+					frameDurationMs: parsed.frameDurationMs,
+				});
 				replaceImageModelInUrl(selection.productKey);
 			}
 			setSubmitError(undefined);

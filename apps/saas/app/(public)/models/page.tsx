@@ -75,7 +75,7 @@ export default function ModelsPage() {
 								].map(([key, label, description]) => (
 									<Link
 										key={key}
-										href={`/gpt-image-2-6?model=image-gpt-image-2-6-${key}`}
+										href={`/gpt-image-2-6-${key}`}
 										prefetch={false}
 										className="border-white/10 bg-white/[0.025] p-5 hover:border-violet-300/40 rounded-xl border transition"
 									>

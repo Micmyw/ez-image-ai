@@ -70,7 +70,7 @@ export async function LandingPage({
 				</section>
 
 				{!workspace && <QuickStartIdeas />}
-				<ExploreModels />
+				<ExploreModels showFeaturedExample={!workspace} />
 				<ShowcaseSection />
 				<BeforeAfterDemo />
 				<EditingUseCases />

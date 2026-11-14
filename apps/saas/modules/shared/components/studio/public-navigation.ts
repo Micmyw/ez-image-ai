@@ -100,9 +100,15 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 				icon: "models",
 			},
 			{
-				href: "/gpt-image-2-6",
-				labelKey: "studio.tools.gptImage26",
-				descriptionKey: "studio.tools.gptImage26Description",
+				href: "/gpt-image-2-6-flare",
+				labelKey: "media.create.products.image-gpt-image-2-6-flare.label",
+				descriptionKey: "media.create.products.image-gpt-image-2-6-flare.description",
+				icon: "models",
+			},
+			{
+				href: "/gpt-image-2-6-sunburst",
+				labelKey: "media.create.products.image-gpt-image-2-6-sunburst.label",
+				descriptionKey: "media.create.products.image-gpt-image-2-6-sunburst.description",
 				icon: "models",
 			},
 			{

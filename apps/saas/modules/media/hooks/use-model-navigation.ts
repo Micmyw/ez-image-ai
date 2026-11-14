@@ -5,11 +5,21 @@ import { useEffect, useRef } from "react";
 
 import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
 
+const imageToolModels: Record<string, EditorProductKey | undefined> = {
+	"/minimax-h3-image": "image-minimax-h3",
+	"/seedream-5-5": "image-seedream-5-5",
+	"/gpt-image-2-6-flare": "image-gpt-image-2-6-flare",
+	"/gpt-image-2-6-sunburst": "image-gpt-image-2-6-sunburst",
+	"/gpt-image-2-6": "image-gpt-image-2-6-flare",
+	"/ai-svg-generator": "image-gpt-image-2-6-flare",
+	"/ai-gif-generator": "image-gpt-image-2-6-flare",
+};
+
 export function imageModelHref(productKey: string) {
 	if (productKey === "image-minimax-h3") return "/minimax-h3-image";
 	if (productKey === "image-seedream-5-5") return "/seedream-5-5";
 	if (productKey === "image-gpt-image-2-6-flare" || productKey === "image-gpt-image-2-6-sunburst")
-		return `/gpt-image-2-6?model=${encodeURIComponent(productKey)}`;
+		return `/${productKey.slice("image-".length)}`;
 	return `/models/${encodeURIComponent(productKey.replace(/^image-/, ""))}`;
 }
 
@@ -32,15 +42,7 @@ export function useRequestedImageModel() {
 
 export function resolveRequestedImageModel(pathname: string, queryModel: string | null) {
 	const slug = pathname.startsWith("/models/") ? pathname.slice("/models/".length) : null;
-	const routeModel = slug
-		? `image-${slug}`
-		: ["/gpt-image-2-6", "/ai-svg-generator", "/ai-gif-generator"].includes(pathname)
-			? "image-gpt-image-2-6-flare"
-			: pathname === "/minimax-h3-image"
-				? "image-minimax-h3"
-				: pathname === "/seedream-5-5"
-					? "image-seedream-5-5"
-					: null;
+	const routeModel = slug ? `image-${slug}` : (imageToolModels[pathname] ?? null);
 	if (
 		resolveRequestedImageOutputFormat(pathname) &&
 		queryModel &&

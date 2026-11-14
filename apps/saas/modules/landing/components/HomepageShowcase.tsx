@@ -27,7 +27,6 @@ import { useEffect, useRef, useState } from "react";
 
 import {
 	canAutoShowHomepageShowcase,
-	HOMEPAGE_SHOWCASE_SEEN_KEY,
 	type HomepageShowcaseCopy,
 	type HomepageShowcaseSlide,
 } from "../lib/homepage-showcase";
@@ -47,6 +46,7 @@ export function HomepageShowcase({
 	const titleRef = useRef<HTMLHeadingElement>(null);
 	const returnFocus = useRef<HTMLElement | null>(null);
 	const navigating = useRef(false);
+	const autoShown = useRef(false);
 	const pending = useRef<HomepageShowcaseSlide | null>(null);
 	const router = useRouter();
 	const applyPrompt = useLandingPromptSelection();
@@ -56,11 +56,6 @@ export function HomepageShowcase({
 	useEffect(() => {
 		if (!first || !canAutoShowHomepageShowcase(window.location.search, window.location.hash))
 			return;
-		try {
-			if (localStorage.getItem(HOMEPAGE_SHOWCASE_SEEN_KEY)) return;
-		} catch {
-			/* Optional preference. */
-		}
 		let canceled = false;
 		// Decode the first pair before entrance so the reveal never starts on an empty frame.
 		const images = [first.poster, ...("before" in first ? [first.before] : [])];
@@ -71,39 +66,33 @@ export function HomepageShowcase({
 				return img.decode();
 			}),
 		);
-		const timer = window.setTimeout(async () => {
+		let delayElapsed = false;
+		let timer: number;
+		const reveal = async () => {
+			if (!delayElapsed) return;
 			await ready;
-			if (
-				canceled ||
-				document.visibilityState !== "visible" ||
-				document.querySelector('[role="dialog"]')
-			)
-				return;
+			if (canceled || autoShown.current || document.visibilityState !== "visible") return;
 			if (!canAutoShowHomepageShowcase(window.location.search, window.location.hash)) return;
+			if (document.querySelector('[role="dialog"]')) {
+				timer = window.setTimeout(() => void reveal(), 500);
+				return;
+			}
+			autoShown.current = true;
 			returnFocus.current = document.activeElement as HTMLElement | null;
 			setOpen(true);
+		};
+		timer = window.setTimeout(() => {
+			delayElapsed = true;
+			void reveal();
 		}, 1400);
-		const cancel = () => {
+		document.addEventListener("visibilitychange", reveal);
+		return () => {
 			canceled = true;
 			window.clearTimeout(timer);
-		};
-		window.addEventListener("pointerdown", cancel, { once: true });
-		window.addEventListener("keydown", cancel, { once: true });
-		return () => {
-			cancel();
-			window.removeEventListener("pointerdown", cancel);
-			window.removeEventListener("keydown", cancel);
+			document.removeEventListener("visibilitychange", reveal);
 		};
 	}, [first]);
 
-	useEffect(() => {
-		if (!open) return;
-		try {
-			localStorage.setItem(HOMEPAGE_SHOWCASE_SEEN_KEY, "seen");
-		} catch {
-			/* Optional preference. */
-		}
-	}, [open]);
 	if (!slide) return null;
 	const select = (nextIndex: number) => {
 		const selected = slides[nextIndex];
@@ -119,6 +108,7 @@ export function HomepageShowcase({
 			open={open}
 			onOpenChange={(value) => {
 				if (value) {
+					autoShown.current = true;
 					navigating.current = false;
 					returnFocus.current = document.activeElement as HTMLElement | null;
 				}

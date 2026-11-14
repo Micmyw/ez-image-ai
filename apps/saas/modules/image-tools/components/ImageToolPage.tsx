@@ -11,7 +11,7 @@ import { RegisteredWorkspaceBoundary } from "@shared/components/RegisteredWorksp
 import { StudioShell } from "@shared/components/studio/StudioShell";
 import { getBaseUrl } from "@shared/lib/base-url";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, type ComponentProps } from "react";
 
 import { LandingGenerator } from "../../landing/components/LandingGenerator";
 import { InspirationPrompt } from "../../models/components/InspirationPrompt";
@@ -21,11 +21,19 @@ import {
 	imageToolStructuredData,
 	type ImageToolPageKey,
 } from "../lib/tool-pages";
+import { GptImageShowcase } from "./GptImageShowcase";
 import { MiniMaxShowcase } from "./MiniMaxShowcase";
 import { ModelHero } from "./ModelHero";
 import { SeedreamShowcase } from "./SeedreamShowcase";
 
 import "../image-tools.css";
+
+const modelHeroes: Partial<Record<ImageToolPageKey, ComponentProps<typeof ModelHero>["model"]>> = {
+	"minimax-h3-image": "minimax",
+	"seedream-5-5": "seedream",
+	"gpt-image-2-6-flare": "gpt-flare",
+	"gpt-image-2-6-sunburst": "gpt-sunburst",
+};
 
 export function ImageToolPage({
 	tool,
@@ -37,7 +45,9 @@ export function ImageToolPage({
 	const content = IMAGE_TOOL_PAGES[tool];
 	const isMiniMax = tool === "minimax-h3-image";
 	const isSeedream = tool === "seedream-5-5";
-	const hasShowcase = isMiniMax || isSeedream;
+	const heroModel = modelHeroes[tool];
+	const hasShowcase = Boolean(heroModel);
+	const hasPromptImages = content.prompts.some((example) => example.image);
 	const workspace = (
 		<section id="image-editor" className="ai-tool-workspace" aria-label={content.heading}>
 			<Suspense fallback={<output aria-live="polite">Loading your workspace…</output>}>
@@ -63,7 +73,7 @@ export function ImageToolPage({
 		<StudioShell>
 			<ToolPromptProvider initialPrompt="">
 				<main
-					className={`ai-tool-page${hasShowcase ? " minimax-page" : ""}${isSeedream ? " seedream-page" : ""}`}
+					className={`ai-tool-page${hasShowcase ? " model-tool-page" : ""}${heroModel ? ` ${heroModel}-page` : ""}`}
 					lang="en"
 				>
 					<script
@@ -76,18 +86,14 @@ export function ImageToolPage({
 						}}
 					/>
 					<div className="ai-tool-container">
-						{hasShowcase ? (
+						{heroModel ? (
 							<GlowSurface
-								className={`model-stage ${isSeedream ? "seedream-stage" : "minimax-stage"}`}
-								tone={isSeedream ? "aurora" : "violet"}
-								intensity={isSeedream ? "strong" : "subtle"}
+								className={`model-stage ${heroModel}-stage`}
+								tone={isMiniMax ? "violet" : "aurora"}
+								intensity={isMiniMax ? "subtle" : "strong"}
 								radius="0"
 							>
-								<ModelHero
-									model={isSeedream ? "seedream" : "minimax"}
-									intro={content.intro}
-									facts={content.facts}
-								/>
+								<ModelHero model={heroModel} intro={content.intro} facts={content.facts} />
 								{workspace}
 							</GlowSurface>
 						) : (
@@ -128,7 +134,15 @@ export function ImageToolPage({
 								it is unavailable, you can prepare a prompt and return later.
 							</p>
 						)}
-						{isMiniMax ? <MiniMaxShowcase /> : isSeedream ? <SeedreamShowcase /> : relatedTools}
+						{isMiniMax ? (
+							<MiniMaxShowcase />
+						) : isSeedream ? (
+							<SeedreamShowcase />
+						) : heroModel === "gpt-flare" || heroModel === "gpt-sunburst" ? (
+							<GptImageShowcase variant={heroModel === "gpt-flare" ? "flare" : "sunburst"} />
+						) : (
+							relatedTools
+						)}
 						<section className="ai-tool-section" aria-labelledby="tool-steps-title">
 							<h2 id="tool-steps-title">From your idea to a download</h2>
 							<ol className="ai-tool-steps">
@@ -154,28 +168,13 @@ export function ImageToolPage({
 						{!hasShowcase && (
 							<section className="ai-tool-section" aria-labelledby="tool-prompts-title">
 								<h2 id="tool-prompts-title">
-									{content.promptSource
-										? "See what you can create"
-										: "A starting point for your prompt"}
+									{hasPromptImages ? "See what you can create" : "A starting point for your prompt"}
 								</h2>
 								<p className="ai-tool-section-intro">
-									{content.promptSource ? (
-										<>
-											Examples and prompts from{" "}
-											<a href={content.promptSource.href} target="_blank" rel="noreferrer">
-												{content.promptSource.label}
-											</a>
-											. Try a prompt or make it your own.
-										</>
-									) : (
-										<>
-											Adapt these prompt ideas to your own project. They are starting points, not
-											verified output examples.
-										</>
-									)}
+									Adapt a prompt to your own project and try it in the workspace above.
 								</p>
 								<div
-									className={`ai-tool-prompts${content.promptSource ? " ai-tool-prompts-with-images" : ""}`}
+									className={`ai-tool-prompts${hasPromptImages ? " ai-tool-prompts-with-images" : ""}`}
 								>
 									{content.prompts.map((example) => (
 										<article key={example.title}>

@@ -32,7 +32,7 @@ describe("model artwork", () => {
 	});
 
 	it("serves displayed artwork without a runtime image optimizer", () => {
-		const html = renderToStaticMarkup(createElement(ExploreModels));
+		const html = renderToStaticMarkup(createElement(ExploreModels, { showFeaturedExample: true }));
 		expect(html).not.toContain("/_next/image");
 		expect(html).toContain('srcSet="/images/landing/variants/');
 		expect(html).toContain('media="(min-width: 768px)"');
@@ -40,18 +40,28 @@ describe("model artwork", () => {
 		expect(html).toContain('width="512" height="512"');
 		expect(html).toContain("/images/models/gpt-image-2-6/origami-hummingbird.webp");
 		expect(html).not.toContain('src="/images/models/gpt-image-2-6/origami-hummingbird.gif"');
-		expect(html.match(/<img /g)).toHaveLength(6);
+		expect(html.match(/<img /g)).toHaveLength(7);
+		expect(html).toContain('data-model-example="citrus-pool"');
+		expect(html).toContain("A small world in the details");
+		expect(html).toContain("citrus-pool-1440.");
+		expect(html).not.toContain("sample from Kie");
+		expect(html).not.toContain("not verified outputs");
 		const cards = [...html.matchAll(/<a[^>]*href="([^"]+)"[^>]*>[\s\S]*?<\/a>/g)].filter((card) =>
 			card[0].includes("<h3"),
 		);
 		expect(cards.map((card) => card[1])).toEqual([
 			"/seedream-5-5",
 			"/minimax-h3-image",
-			"/gpt-image-2-6",
+			"/gpt-image-2-6-sunburst",
 			"/models/gpt-image-2",
 			"/models/nano-banana-pro",
 			"/models/seedream-5-lite",
 		]);
+	});
+
+	it("keeps the featured homepage example out of ordinary workspace model lists", () => {
+		const html = renderToStaticMarkup(createElement(ExploreModels));
+		expect(html).not.toContain('data-model-example="citrus-pool"');
 	});
 
 	it("ships complete responsive artwork with accurate dimensions and immutable URLs", async () => {

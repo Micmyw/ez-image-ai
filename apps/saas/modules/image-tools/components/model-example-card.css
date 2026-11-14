@@ -1,0 +1,80 @@
+.model-example-card {
+	min-width: 0;
+	color: #f6f0fb;
+}
+
+.model-example-card[data-featured] {
+	margin-bottom: 3.5rem;
+}
+
+.model-example-media {
+	position: relative;
+	overflow: hidden;
+	border-radius: 0.9rem;
+	background: #211a2b;
+}
+
+.model-example-media img {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+
+.model-example-card:not([data-featured]) .model-example-media {
+	aspect-ratio: 3 / 2;
+}
+
+.model-example-card:not([data-featured]) .model-example-media img {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	object-fit: contain;
+}
+
+.model-example-media > span {
+	position: absolute;
+	right: 0.85rem;
+	bottom: 0.85rem;
+	padding: 0.3rem 0.6rem;
+	border: 1px solid #ffffff38;
+	border-radius: 0.3rem;
+	background: #19131fce;
+	color: #f6f0fb;
+	font-size: 0.65rem;
+}
+
+.model-example-caption {
+	padding-top: 1.1rem;
+}
+
+.model-example-category {
+	color: #ada1bb;
+	font-size: 0.64rem;
+	font-weight: 550;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+}
+
+.model-example-caption h3 {
+	margin: 0.45rem 0 0.75rem;
+	font-size: 1.05rem;
+	font-weight: 500;
+	letter-spacing: -0.02em;
+}
+
+.model-example-card[data-featured] .model-example-caption h3 {
+	font-size: clamp(1.5rem, 3vw, 2.3rem);
+	letter-spacing: -0.035em;
+}
+
+.model-example-description {
+	margin-top: 0.6rem;
+	color: #ada1bb;
+	font-size: 0.8rem;
+	line-height: 1.7;
+}
+
+.model-example-card .example-prompt-actions {
+	margin-top: 1.25rem;
+}

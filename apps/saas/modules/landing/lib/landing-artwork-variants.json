@@ -1,4 +1,47 @@
 {
+	"/images/models/gpt-image-2-6-sunburst/citrus-pool.webp": {
+		"sourceHash": "d5ed6c52ac93206a8ebd31c6c1299de7d0844618816a9ec9311bcbc1cd7657a5",
+		"width": 1440,
+		"height": 960,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/citrus-pool-240.df130940319b2970.webp"
+			},
+			{
+				"width": 288,
+				"src": "/images/landing/variants/citrus-pool-288.63b426f0e3b257dd.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/citrus-pool-384.539f3fcaf7f8d1ae.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/citrus-pool-480.0da32c30b713835e.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/citrus-pool-640.9f1dffb2662b5bb1.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/citrus-pool-768.49a885654137f479.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/citrus-pool-960.96d63bb9c8bd963a.webp"
+			},
+			{
+				"width": 1280,
+				"src": "/images/landing/variants/citrus-pool-1280.80cb70df18368b2a.webp"
+			},
+			{
+				"width": 1440,
+				"src": "/images/landing/variants/citrus-pool-1440.3965ae924bd23a71.webp"
+			}
+		]
+	},
 	"/images/models/seedream-5-5/still-life.webp": {
 		"sourceHash": "16c922a9803b12814f46843cb311d0ef2a458787d6809368f6b3720a9b97c935",
 		"width": 1440,

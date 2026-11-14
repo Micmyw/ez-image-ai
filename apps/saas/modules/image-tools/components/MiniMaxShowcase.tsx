@@ -14,14 +14,7 @@ export function MiniMaxShowcase() {
 					<p className="minimax-kicker">The possibilities</p>
 					<h2 id="tool-prompts-title">From prompt to picture.</h2>
 				</div>
-				<p>
-					Made with MiniMax H3 on EzImageAI.
-					<br /> More prompt inspiration from{" "}
-					<a href="https://kie.ai/minimax-h3-image" target="_blank" rel="noreferrer">
-						Kie
-					</a>
-					. Find a direction. Make it your own.
-				</p>
+				<p>Find a direction. Make it your own.</p>
 			</div>
 			<article className="minimax-featured-work">
 				<div className="minimax-featured-image">

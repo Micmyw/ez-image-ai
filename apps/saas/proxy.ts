@@ -51,6 +51,8 @@ export const config = {
 		"/photo-to-coloring-page",
 		"/christmas-wallpaper",
 		"/gpt-image-2-6",
+		"/gpt-image-2-6-flare",
+		"/gpt-image-2-6-sunburst",
 		"/minimax-h3-image",
 		"/seedream-5-5",
 		"/ai-svg-generator",

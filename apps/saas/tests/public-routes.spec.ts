@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
+import { GPT_IMAGE_2_6_EXAMPLES } from "../modules/image-tools/lib/gpt-image-2-6-examples";
 import { buildChristmasResultPreview } from "./fixtures/christmas-result-preview.mjs";
 import { buildWallpaperResultInteraction } from "./fixtures/wallpaper-result-interaction.mjs";
 
@@ -16,7 +17,8 @@ const indexableRoutes = [
 	"/contact",
 	"/create",
 	"/examples",
-	"/gpt-image-2-6",
+	"/gpt-image-2-6-flare",
+	"/gpt-image-2-6-sunburst",
 	"/minimax-h3-image",
 	"/seedream-5-5",
 	"/ai-svg-generator",
@@ -494,7 +496,7 @@ test("GPT Image 2.6 tools put a usable composer first at desktop and phone width
 					label: "1K",
 					parameterValues: { resolution: "1k" },
 					credits: 20,
-					aspectRatios: ["auto", "1:1"],
+					aspectRatios: ["auto", "1:1", "3:2", "4:5"],
 					controls: [
 						{
 							key: "outputFormat",
@@ -516,7 +518,24 @@ test("GPT Image 2.6 tools put a usable composer first at desktop and phone width
 				json: {
 					catalogVersion: "2026-11-11.1",
 					pricingVersion: "2026-11-11.1",
-					products: [product],
+					products: [
+						product,
+						{
+							...product,
+							key: "image-gpt-image-2-6-sunburst",
+							label: "GPT Image 2.6 Sunburst",
+							credits: 25,
+							skuMatrix: {
+								...product.skuMatrix,
+								defaultSkuKey: "gpt-image-2-6-sunburst-1k",
+								cells: product.skuMatrix.cells.map((cell) => ({
+									...cell,
+									skuKey: "gpt-image-2-6-sunburst-1k",
+									credits: 25,
+								})),
+							},
+						},
+					],
 				},
 			},
 		}),
@@ -524,7 +543,8 @@ test("GPT Image 2.6 tools put a usable composer first at desktop and phone width
 	for (const width of [1440, 390]) {
 		await page.setViewportSize({ width, height: width === 390 ? 844 : 900 });
 		for (const [path, heading, format] of [
-			["/gpt-image-2-6", "GPT Image 2.6", "PNG"],
+			["/gpt-image-2-6-flare", "GPT Image 2.6 Flare", "PNG"],
+			["/gpt-image-2-6-sunburst", "GPT Image 2.6 Sunburst", "PNG"],
 			["/ai-svg-generator", "AI SVG Generator", "SVG"],
 			["/ai-gif-generator", "AI GIF Generator", "GIF"],
 		]) {
@@ -540,6 +560,42 @@ test("GPT Image 2.6 tools put a usable composer first at desktop and phone width
 			await prompt.fill("A simple green plant with clear shapes");
 			await expect(prompt).toHaveValue("A simple green plant with clear shapes");
 			await expect(editor.locator('[data-test$="output-settings-trigger"]')).toContainText(format!);
+			if (path === "/gpt-image-2-6-flare" || path === "/gpt-image-2-6-sunburst") {
+				const variant = path === "/gpt-image-2-6-flare" ? "flare" : "sunburst";
+				const examples = GPT_IMAGE_2_6_EXAMPLES[variant];
+				const featured = examples.find(
+					(example) => example.id === (variant === "flare" ? "crossbody-bag" : "citrus-pool"),
+				)!;
+				await expect(page.locator("[data-model-example]")).toHaveCount(examples.length);
+				await page
+					.locator(`[data-model-example="${featured.id}"]`)
+					.getByRole("button", { name: "View prompt", exact: true })
+					.click();
+				const dialog = page.getByRole("dialog");
+				await expect(dialog.getByRole("heading")).toHaveText(featured.title);
+				await dialog.getByRole("button", { name: "Use this prompt", exact: true }).click();
+				await expect(dialog).toHaveCount(0);
+				await expect(prompt).toHaveValue(featured.prompt);
+				await expect(editor.locator('[data-test="landing-model-trigger"]')).toContainText(
+					featured.model,
+				);
+				if (variant === "flare") {
+					const animation = examples.find((example) => example.id === "neon-sign")!;
+					await page
+						.locator('[data-model-example="neon-sign"]')
+						.getByRole("button", { name: "Use this prompt", exact: true })
+						.click();
+					await expect(prompt).toHaveValue(animation.prompt);
+					await editor.locator('[data-test$="output-settings-trigger"]').click();
+					await expect(
+						page.getByRole("combobox", { name: "Frames (2–16)", exact: true }),
+					).toHaveValue("16");
+					await expect(
+						page.getByRole("combobox", { name: "Frame duration (ms)", exact: true }),
+					).toHaveValue("120");
+					await page.keyboard.press("Escape");
+				}
+			}
 			if (format === "SVG")
 				await expect(editor.locator('[data-test="generation-credit-amount"]')).toContainText("40");
 			if (format === "GIF") {
@@ -583,12 +639,67 @@ test("GPT Image 2.6 tools put a usable composer first at desktop and phone width
 						.find((node) => node["@type"] === "FAQPage"),
 				);
 			expect(structuredFaq.mainEntity.length).toBeGreaterThan(3);
+			for (const image of await page.locator(".gpt-showcase img").all()) {
+				await image.scrollIntoViewIfNeeded();
+				await expect
+					.poll(() =>
+						image.evaluate(
+							(element) =>
+								(element as HTMLImageElement).complete &&
+								(element as HTMLImageElement).naturalWidth > 0,
+						),
+					)
+					.toBe(true);
+			}
+			await page.evaluate(() => window.scrollTo(0, 0));
+			expect(
+				await page
+					.locator(".gpt-example-gallery .model-example-media img")
+					.evaluateAll((images) =>
+						images.every(
+							(image) =>
+								image.getBoundingClientRect().height <=
+								image.parentElement!.getBoundingClientRect().height + 1,
+						),
+					),
+			).toBe(true);
 			await page.screenshot({
 				path: testInfo.outputPath(`${path!.slice(1)}-${width}.png`),
 				fullPage: true,
 				animations: "disabled",
 			});
 		}
+		await expectPublicPage(page, "/", "index");
+		await expect(page.locator('[data-test="homepage-showcase"]')).toBeVisible();
+		await page.getByRole("button", { name: "Close previews", exact: true }).click();
+		const homepageExample = page.locator('#models [data-model-example="citrus-pool"]');
+		await homepageExample.scrollIntoViewIfNeeded();
+		const picture = homepageExample.locator(".model-example-media img");
+		await expect
+			.poll(() => picture.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+			.toBeGreaterThan(0);
+		await expect(picture).toHaveAttribute("srcset", /citrus-pool-1440/);
+		await homepageExample.getByRole("button", { name: "View prompt", exact: true }).click();
+		await page
+			.getByRole("dialog")
+			.getByRole("button", { name: "Use this prompt", exact: true })
+			.click();
+		const citrus = GPT_IMAGE_2_6_EXAMPLES.sunburst.find((example) => example.id === "citrus-pool")!;
+		await expect(page.locator("#image-editor textarea").first()).toHaveValue(citrus.prompt);
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
+			"GPT Image 2.6 Sunburst",
+		);
+		await page.locator('[data-generator-panel="image"] [data-generator-mode="video"]').click();
+		await expect(page.locator('[data-generator-panel="video"]')).toBeVisible();
+		await homepageExample.getByRole("button", { name: "Use this prompt", exact: true }).click();
+		await expect(page.locator('[data-generator-panel="image"]')).toBeVisible();
+		await expect(page.locator("#image-editor textarea").first()).toHaveValue(citrus.prompt);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+			true,
+		);
+		await page
+			.locator("#models")
+			.screenshot({ path: testInfo.outputPath("homepage-citrus-" + width + ".png") });
 	}
 });
 

@@ -1,11 +1,15 @@
 import Link from "next/link";
 
+import { ModelExampleCard } from "../../image-tools/components/ModelExampleCard";
+import { GPT_IMAGE_2_6_EXAMPLES } from "../../image-tools/lib/gpt-image-2-6-examples";
 import { MINIMAX_H3_FEATURED_EXAMPLE } from "../../image-tools/lib/minimax-h3-examples";
 import { SEEDREAM_5_5_EXAMPLES } from "../../image-tools/lib/seedream-5-5-examples";
 import { LandingArtwork } from "../../landing/components/LandingArtwork";
 import { INSPIRATION } from "../lib/model-artwork";
 import { MODEL_PAGES, modelPath } from "../lib/model-pages";
 import { AnimatedModelCard } from "./AnimatedModelCard";
+
+const citrusPool = GPT_IMAGE_2_6_EXAMPLES.sunburst.find((example) => example.id === "citrus-pool")!;
 
 const featured = [
 	{
@@ -23,13 +27,13 @@ const featured = [
 		image: MINIMAX_H3_FEATURED_EXAMPLE.image,
 	},
 	{
-		href: "/gpt-image-2-6",
-		name: "GPT Image 2.6",
+		href: "/gpt-image-2-6-sunburst",
+		name: "GPT Image 2.6 Sunburst",
 		tag: "Animated GIFs",
 		lead: "From one prompt to a looping animation.",
 		image: {
 			src: "/images/models/gpt-image-2-6/origami-hummingbird.webp",
-			alt: "Iridescent origami hummingbird flapping its wings on a violet background, generated with GPT Image 2.6 in EzImageAI",
+			alt: "Iridescent origami hummingbird flapping its wings on a violet background",
 		},
 	},
 	...["image-gpt-image-2", "image-nano-banana-pro", "image-seedream-5-lite"].map((key) => {
@@ -47,7 +51,7 @@ const featured = [
 	}),
 ];
 
-export function ExploreModels() {
+export function ExploreModels({ showFeaturedExample = false }: { showFeaturedExample?: boolean }) {
 	return (
 		<section
 			id="models"
@@ -74,9 +78,22 @@ export function ExploreModels() {
 					Explore image models <span aria-hidden="true">↗</span>
 				</Link>
 			</div>
+			{showFeaturedExample && (
+				<ModelExampleCard
+					example={{ ...citrusPool, category: citrusPool.model }}
+					featured
+					artwork={
+						<LandingArtwork
+							src={citrusPool.image.src}
+							alt={citrusPool.image.alt}
+							sizes="(min-width: 1280px) 1248px, calc(100vw - 32px)"
+						/>
+					}
+				/>
+			)}
 			<div className="gap-x-6 gap-y-10 md:grid-cols-3 grid">
 				{featured.map((model) =>
-					model.href === "/gpt-image-2-6" ? (
+					model.href === "/gpt-image-2-6-sunburst" ? (
 						<AnimatedModelCard
 							key={model.href}
 							href={model.href}
@@ -112,11 +129,6 @@ export function ExploreModels() {
 					),
 				)}
 			</div>
-			<p className="mt-6 text-xs leading-6 text-[#a99db2]">
-				Seedream sample from Kie. MiniMax H3 and the GPT Image 2.6 GIF were generated in EzImageAI.
-				The second row uses concept artwork for inspiration, not verified outputs from the named
-				models.
-			</p>
 		</section>
 	);
 }

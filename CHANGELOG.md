@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — GPT Image 2.6 model pages
+
+- Give GPT Image 2.6 Flare and Sunburst separate pages with shared example cards and prompt controls.
+- Feature the citrus-pool scene on the homepage and reopen homepage previews on each entry or refresh.
+- Remove redundant public source explanations and record the copy rule in project instructions.
+
 ## Unreleased — Generation cost access
 
 - Remove the site-wide daily provider-cost ceiling from image generation, retries and guest dispatch. Valid requests retain normal credit or image-pass billing and individual account cost limits.

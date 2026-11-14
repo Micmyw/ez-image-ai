@@ -10,6 +10,9 @@ vi.mock("@auth/lib/api", () => ({ useSessionQuery: () => ({ isPending: true }) }
 vi.mock("next/navigation", () => ({
 	useSearchParams: () => new URLSearchParams(),
 	useRouter: () => ({ push: vi.fn() }),
+	permanentRedirect: (url: string) => {
+		throw new Error(`REDIRECT ${url}`);
+	},
 }));
 vi.mock("@shared/components/studio/PublicHeaderAccount", () => ({
 	PublicHeaderAccount: () => <div data-public-account-controls="" />,
@@ -195,6 +198,10 @@ vi.mock("../modules/payments/components/CreditPackCheckoutActions", () => ({
 }));
 
 import { config as authConfig } from "../../../packages/auth/config";
+import {
+	GPT_IMAGE_2_6_EXAMPLES,
+	type GptImageVariant,
+} from "../modules/image-tools/lib/gpt-image-2-6-examples";
 import { IMAGE_TOOL_PAGES } from "../modules/image-tools/lib/tool-pages";
 import { LandingPage } from "../modules/landing/components/LandingPage";
 import { HOME_FAQ_KEYS, PRICING_FAQ_KEYS } from "../modules/landing/lib/faq";
@@ -222,7 +229,8 @@ type PublicPageModule = {
 type ImageToolPageModule =
 	| typeof import("./(public)/minimax-h3-image/page")
 	| typeof import("./(public)/seedream-5-5/page")
-	| typeof import("./(public)/gpt-image-2-6/page")
+	| typeof import("./(public)/gpt-image-2-6-flare/page")
+	| typeof import("./(public)/gpt-image-2-6-sunburst/page")
 	| typeof import("./(public)/ai-svg-generator/page")
 	| typeof import("./(public)/ai-gif-generator/page");
 
@@ -249,7 +257,16 @@ const publicRoutes = [
 	{ modulePath: "./page", path: "/", robots: "index" },
 	{ modulePath: "./(public)/examples/page", path: "/examples", robots: "index" },
 	{ modulePath: "./(public)/image-to-image/page", path: "/image-to-image", robots: "index" },
-	{ modulePath: "./(public)/gpt-image-2-6/page", path: "/gpt-image-2-6", robots: "index" },
+	{
+		modulePath: "./(public)/gpt-image-2-6-flare/page",
+		path: "/gpt-image-2-6-flare",
+		robots: "index",
+	},
+	{
+		modulePath: "./(public)/gpt-image-2-6-sunburst/page",
+		path: "/gpt-image-2-6-sunburst",
+		robots: "index",
+	},
 	{ modulePath: "./(public)/minimax-h3-image/page", path: "/minimax-h3-image", robots: "index" },
 	{ modulePath: "./(public)/seedream-5-5/page", path: "/seedream-5-5", robots: "index" },
 	{ modulePath: "./(public)/ai-svg-generator/page", path: "/ai-svg-generator", robots: "index" },
@@ -309,6 +326,26 @@ describe("consolidated public route contract", () => {
 			}
 			for (const related of Object.values(IMAGE_TOOL_PAGES))
 				expect(markup).toContain(`href="${related.path}"`);
+			expect(markup).not.toContain('href="https://kie.ai');
+			expect(markup).not.toContain("Where do the examples come from?");
+			expect(markup).not.toContain("verified output examples");
+			if (key.startsWith("gpt-image-2-6-")) {
+				const variant = key.slice("gpt-image-2-6-".length) as GptImageVariant;
+				const examples = GPT_IMAGE_2_6_EXAMPLES[variant];
+				expect(markup).toContain('data-model-hero="gpt-' + variant + '"');
+				expect(markup).toContain('aria-label="' + content.heading + '"');
+				expect(markup.indexOf('id="tool-prompts-title"')).toBeLessThan(
+					markup.indexOf('id="tool-steps-title"'),
+				);
+				expect(markup.match(/data-model-example=/g)).toHaveLength(examples.length);
+				expect(markup.match(/class="example-prompt-view"/g)).toHaveLength(examples.length);
+				for (const example of examples) expect(markup).toContain(example.image.src);
+				const other = variant === "flare" ? "sunburst" : "flare";
+				expect(markup).not.toContain('src="/images/models/gpt-image-2-6-' + other + "/");
+				if (variant === "sunburst")
+					expect(markup).toContain("An iridescent paper hummingbird in a 9-frame loop.");
+				expect(markup).not.toContain('src="/images/models/gpt-image-2-6/origami-hummingbird.gif"');
+			}
 			if (content.showPassOffer !== false) {
 				expect(markup).toContain('href="/image-pass"');
 				const passFaq = faq.mainEntity.find(
@@ -323,9 +360,7 @@ describe("consolidated public route contract", () => {
 				expect(markup.indexOf('id="tool-prompts-title"')).toBeLessThan(
 					markup.indexOf('id="tool-steps-title"'),
 				);
-				expect(markup).toContain("Made with MiniMax H3 on EzImageAI.");
 				expect(markup).toContain("cloud-sanctuary-ezpic-1k.webp");
-				expect(markup).toContain('href="https://kie.ai/minimax-h3-image"');
 				expect(markup).toContain("1K: 5 credits · 2K: 10 credits · 4K: 20 credits");
 				expect(markup).not.toContain("use new or remaining $2.99 pack passes");
 				expect(markup).not.toContain("not verified output examples");
@@ -337,8 +372,6 @@ describe("consolidated public route contract", () => {
 				expect(markup.indexOf('id="tool-prompts-title"')).toBeLessThan(
 					markup.indexOf('id="tool-steps-title"'),
 				);
-				expect(markup).toContain("Examples from");
-				expect(markup).toContain('href="https://kie.ai/seedream-5-5"');
 				expect(markup).toContain("1K: 8 credits · 1.5K: 12 credits · 2K: 20 credits");
 				expect(markup).toContain('class="seedream-cutout-checkerboard"');
 				expect(markup).toContain('src="/images/models/seedream-5-5/room-edit-reference.webp"');
@@ -363,14 +396,36 @@ describe("consolidated public route contract", () => {
 		},
 	);
 
-	it("keeps GPT Image 2.6 tools inside the existing registered account gates", async () => {
+	it.each(["flare", "sunburst"] as const)(
+		"keeps GPT Image 2.6 %s inside the existing registered account gates",
+		async (variant) => {
+			const { default: Page } =
+				variant === "flare"
+					? await import("./(public)/gpt-image-2-6-flare/page")
+					: await import("./(public)/gpt-image-2-6-sunburst/page");
+			sessionMock.mockResolvedValueOnce({ user: { id: "registered", isAnonymous: false } });
+			const html = await renderToStaticMarkup(<Page />);
+			expect(html).toContain('data-test="registered-generator"');
+			expect(html).toContain("data-account-gates");
+			expect(html).toContain("data-registered-boundary");
+			expect(html).not.toContain('data-test="landing-generator"');
+		},
+	);
+
+	it("redirects legacy GPT model links while retaining private continuation parameters", async () => {
 		const { default: Page } = await import("./(public)/gpt-image-2-6/page");
-		sessionMock.mockResolvedValueOnce({ user: { id: "registered", isAnonymous: false } });
-		const html = await renderToStaticMarkup(<Page />);
-		expect(html).toContain('data-test="registered-generator"');
-		expect(html).toContain("data-account-gates");
-		expect(html).toContain("data-registered-boundary");
-		expect(html).not.toContain('data-test="landing-generator"');
+		await expect(
+			Page({
+				searchParams: Promise.resolve({
+					model: "image-gpt-image-2-6-sunburst",
+					job: "private-job",
+					lang: "de",
+				}),
+			}),
+		).rejects.toThrow(
+			"REDIRECT /gpt-image-2-6-sunburst?model=image-gpt-image-2-6-sunburst&job=private-job&lang=de",
+		);
+		await expect(Page({})).rejects.toThrow("REDIRECT /gpt-image-2-6-flare");
 	});
 
 	it("gives image-to-image its own EzImageAI title and canonical", async () => {

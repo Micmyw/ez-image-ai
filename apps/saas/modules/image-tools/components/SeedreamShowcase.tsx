@@ -44,12 +44,6 @@ export function SeedreamShowcase() {
 				<p>See an edit in motion. Choose a direction and make it your own.</p>
 			</div>
 			<SeedreamDemo />
-			<p className="seedream-gallery-source">
-				Examples from{" "}
-				<a href="https://kie.ai/seedream-5-5" target="_blank" rel="noreferrer">
-					Kie
-				</a>
-			</p>
 			<div className="seedream-gallery">
 				{textExamples.map((example) => (
 					<article

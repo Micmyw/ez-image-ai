@@ -1,8 +1,10 @@
 # GPT Image 2.6 tools
 
 The first version reuses the existing image composer, account gates, private
-media history, authoritative quotes and generation recovery. Public tool pages
-are `/gpt-image-2-6`, `/ai-svg-generator` and `/ai-gif-generator`. Availability
+media history, authoritative quotes and generation recovery. Public model pages
+are `/gpt-image-2-6-flare` and `/gpt-image-2-6-sunburst`, alongside
+`/ai-svg-generator` and `/ai-gif-generator`. Legacy `/gpt-image-2-6` links redirect
+to the selected model while carrying their continuation parameters. Availability
 comes from the current model catalog; a public page is not proof that generation
 has been enabled in a deployed environment.
 
@@ -27,8 +29,13 @@ has been enabled in a deployed environment.
 - A versioned benefit policy extends eligible USD 2.99 grants without rewriting
   their original offer, order, payment or grant snapshots. Earlier USD 1 packs
   retain their original coverage and subscription policy.
-- Prompt examples are ideas, not verified model samples. No local speed,
-  fidelity, print-readiness or seamless-loop guarantee is made.
+- The separate model pages reuse ModelHero, DisplayTitle, GlowSurface,
+  ModelExampleCard, ExamplePromptActions and the image-comparison component.
+  Flare has four Kie examples and Sunburst has six Kie examples, with prompts,
+  source request settings and file hashes in the November 14 material receipt.
+  The additional Sunburst hummingbird GIF retains its EzImageAI production
+  receipt. Internal evidence records sample origins and verification. Public
+  copy focuses on capabilities, examples and prompt actions.
 
 ## SVG search intent
 

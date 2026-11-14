@@ -1,0 +1,281 @@
+{
+	"flare": [
+		{
+			"id": "neon-sign",
+			"title": "A neon sign, brought to life",
+			"category": "Animation",
+			"description": "Blue neon flickers against a dark brick wall and reflects on wet pavement.",
+			"model": "GPT Image 2.6 Flare",
+			"prompt": "A seamless looping animation of a glowing blue neon sign on a dark brick wall at night. The sign shows exactly three capital letters, K then I then E, forming one three-letter word with no spaces, and below it the smaller word API. The neon flickers on, glows, and reflects on the wet pavement below. Cinematic, high contrast.",
+			"resolution": "512 × 512 · 16-frame GIF",
+			"image": {
+				"src": "/images/models/gpt-image-2-6-flare/neon-sign.webp",
+				"width": 512,
+				"height": 512,
+				"sha256": "e302aa24ce70f796bd59f5670f6a077801d0e397132d6cfd84502b047c8646a7",
+				"bytes": 44830,
+				"alt": "Blue neon flickers against a dark brick wall and reflects on wet pavement."
+			},
+			"selection": {
+				"productKey": "image-gpt-image-2-6-flare",
+				"skuKey": "gpt-image-2-6-flare-1k",
+				"aspectRatio": "1:1",
+				"outputFormat": "gif",
+				"background": "auto",
+				"frameCount": 16,
+				"frameDurationMs": 120
+			},
+			"animation": "/images/models/gpt-image-2-6-flare/neon-sign.gif"
+		},
+		{
+			"id": "crossbody-bag",
+			"title": "Every pocket has a place",
+			"category": "Product photography",
+			"description": "A cobalt crossbody bag with visible fabric, hardware and carefully arranged contents.",
+			"model": "GPT Image 2.6 Flare",
+			"prompt": "Create a horizontal 3:2 ecommerce hero photograph of a cobalt-blue nylon crossbody bag on a pale gray studio table. Shoot from a high three-quarter angle, close enough to see the fine ripstop weave.\n\nUnzip the main compartment wide. A cream paperback with a plain cover peeks halfway out of the main cavity. Inside, show an ivory earbud case in one slip pocket and a small set of brass keys in a second pocket. Use a light gray lining so the seams and pocket openings read clearly.\n\nLay the attached wide blue shoulder strap in a loose curve across the foreground, with “KIE API” woven in ivory capitals on a flat, sharply focused section facing the camera. Soft window light from the left reveals the fabric texture and brushed metal hardware. Keep the full bag and strap in frame. The strap carries the only text.",
+			"resolution": "1536 × 1024 PNG",
+			"image": {
+				"src": "/images/models/gpt-image-2-6-flare/crossbody-bag.webp",
+				"width": 1440,
+				"height": 960,
+				"sha256": "f3926fa904ec28c65f7d296e08233f25380bf06f401f567aff77e3b5590962a9",
+				"bytes": 296784,
+				"alt": "A cobalt crossbody bag with visible fabric, hardware and carefully arranged contents."
+			},
+			"selection": {
+				"productKey": "image-gpt-image-2-6-flare",
+				"skuKey": "gpt-image-2-6-flare-1k",
+				"aspectRatio": "3:2",
+				"outputFormat": "png",
+				"background": "opaque"
+			}
+		},
+		{
+			"id": "radio-player",
+			"title": "An interface with a point of view",
+			"category": "Typography & interface design",
+			"description": "A midnight-blue radio player with album artwork, track details and a clear visual hierarchy.",
+			"model": "GPT Image 2.6 Flare",
+			"prompt": "Design a landscape 3:2 desktop web player screenshot for “KIE API Radio”. Fill the frame with the interface. Use a slim midnight-navy header with the station name at left and a small amber light beside “On air” at right. Set the page in warm ivory type on deep navy, with generous margins and fine dividers.\n\nOn the left, feature a square jazz record sleeve: a grainy close-up photograph of a brass saxophone on an empty red velvet seat after a show, lit by a single amber stage light. Print “After the Set” in small ivory serif lettering on the sleeve.\n\nOn the right, place “Now playing” above the large title “After the Set” and the artist “Mara Vale Trio”. Show a thin amber progress line just over one-third full, with elapsed time “2:14” and total duration “6:08”. Use a prominent pause button to indicate active playback.\n\nBelow it, set “Up next” above two neatly aligned rows: “Corner Booth” by “Ellis Reed” and “Last Ferry” by “June Bell”. Let the album artwork and current track dominate. Render all UI text sharply.",
+			"resolution": "1536 × 1024 PNG",
+			"image": {
+				"src": "/images/models/gpt-image-2-6-flare/radio-player.webp",
+				"width": 1440,
+				"height": 960,
+				"sha256": "b11b071cec1561a8f62e17493d38b1ec4e0bc8f50e5ab13bd76c3b121487600e",
+				"bytes": 112894,
+				"alt": "A midnight-blue radio player with album artwork, track details and a clear visual hierarchy."
+			},
+			"selection": {
+				"productKey": "image-gpt-image-2-6-flare",
+				"skuKey": "gpt-image-2-6-flare-1k",
+				"aspectRatio": "3:2",
+				"outputFormat": "png",
+				"background": "opaque"
+			}
+		},
+		{
+			"id": "radio-edit",
+			"title": "From a sketch to a product photo",
+			"category": "Reference editing",
+			"description": "Turn a radio drawing into a textured product image while keeping its shape and lettering.",
+			"model": "GPT Image 2.6 Flare",
+			"prompt": "Turn this radio sketch into a realistic product photo. Match the original shape and camera angle. Give the cobalt casing a fine plastic texture, turn the pencil dots into speaker holes, and add grip ridges to the orange knob. Preserve the ivory “KIE AI” nameplate and its lettering.",
+			"resolution": "1K PNG",
+			"image": {
+				"src": "/images/models/gpt-image-2-6-flare/radio-edit.webp",
+				"width": 1440,
+				"height": 960,
+				"sha256": "564e1b41f74777d6a23d4a2e11ed54d3bf623c805fa5984b1371cef52ee685e1",
+				"bytes": 210370,
+				"alt": "Turn a radio drawing into a textured product image while keeping its shape and lettering."
+			},
+			"selection": {
+				"productKey": "image-gpt-image-2-6-flare",
+				"skuKey": "gpt-image-2-6-flare-1k",
+				"aspectRatio": "3:2",
+				"outputFormat": "png",
+				"background": "auto"
+			},
+			"referenceImage": {
+				"src": "/images/models/gpt-image-2-6-flare/radio-edit-reference.webp",
+				"width": 1440,
+				"height": 960,
+				"sha256": "a042c223017eba0d1f7652abcc08cb485a01ded1e6f8b5926cfdf40c99c08d70",
+				"bytes": 422840,
+				"alt": "Original reference for from a sketch to a product photo"
+			}
+		}
+	],
+	"sunburst": [
+		{
+			"id": "ferry-portrait",
+			"title": "Catch the feeling of a moment",
+			"category": "Portrait photography",
+			"description": "Evening sunlight, windblown hair and a woven scarf on the deck of a ferry.",
+			"model": "GPT Image 2.6 Sunburst",
+			"prompt": "Create a horizontal 3:2 editorial portrait of a woman in her early thirties on the open deck of a ferry. Frame her from the chest up, just left of center. She turns toward a friend beside the camera, caught halfway into a laugh. Wind lifts a few strands of her auburn hair. Low evening sun catches her freckles and the edge of her cheek, with a slate-blue sea softly out of focus behind her.\n\nA cobalt wool scarf hangs over her dark peacoat. Weave “KIE API” in bold ivory capitals across the flat end facing the camera. Keep her eyes and the woven letters sharp. The scarf carries the only text.",
+			"resolution": "1536 × 1024 PNG",
+			"image": {
+				"src": "/images/models/gpt-image-2-6-sunburst/ferry-portrait.webp",
+				"width": 1440,
+				"height": 960,
+				"sha256": "7bf7b6517363449aeef9dc03175b153c295622d32c0a5a9c96300f53a23cb86a",
+				"bytes": 165766,
+				"alt": "Evening sunlight, windblown hair and a woven scarf on the deck of a ferry."
+			},
+			"selection": {
+				"productKey": "image-gpt-image-2-6-sunburst",
+				"skuKey": "gpt-image-2-6-sunburst-1k",
+				"aspectRatio": "3:2",
+				"outputFormat": "png",
+				"background": "opaque"
+			}
+		},
+		{
+			"id": "citrus-pool",
+			"title": "A small world in the details",
+			"category": "Imaginative photography",
+			"description": "A miniature turquoise swimming pool inside a blood orange, complete with a ladder and tiny tile lettering.",
+			"model": "GPT Image 2.6 Sunburst",
+			"prompt": "Create a horizontal 3:2 macro photograph of a surreal miniature swimming pool built into the open half of a blood orange. The thick rind forms the pool wall. A tiny stainless-steel ladder hooks over the rim and descends into clear turquoise water. Print “KIE API” in ivory on a cobalt ceramic tile set into the front of the rind. Low afternoon sunlight throws rippling reflections onto a pale peach tabletop. Keep the citrus pulp, ladder and lettering sharply resolved.",
+			"resolution": "1K PNG",
+			"image": {
+				"src": "/images/models/gpt-image-2-6-sunburst/citrus-pool.webp",
+				"width": 1440,
+				"height": 960,
+				"sha256": "d5ed6c52ac93206a8ebd31c6c1299de7d0844618816a9ec9311bcbc1cd7657a5",
+				"bytes": 283346,
+				"alt": "A miniature turquoise swimming pool inside a blood orange, complete with a ladder and tiny tile lettering."
+			},
+			"selection": {
+				"productKey": "image-gpt-image-2-6-sunburst",
+				"skuKey": "gpt-image-2-6-sunburst-1k",
+				"aspectRatio": "3:2",
+				"outputFormat": "png",
+				"background": "auto"
+			}
+		},
+		{
+			"id": "cinema-poster",
+			"title": "Make the lettering part of the scene",
+			"category": "Poster design",
+			"description": "A yellow projector beam and a midnight-blue skyline form an illustrated rooftop cinema poster.",
+			"model": "GPT Image 2.6 Sunburst",
+			"prompt": "Design a vertical 4:5 poster for a rooftop cinema. A single lemon-yellow projector beam cuts diagonally across a midnight-blue skyline. Knock the title “AFTER DARK” out of the beam in tall condensed letters so the blue paper shows through. Set “ROOFTOP CINEMA” beneath it and print “KIE API” on the cream side panel of the illustrated projector. Use coarse screen-print ink and deliver flat, edge-to-edge artwork.",
+			"resolution": "1122 × 1402 PNG",
+			"image": {
+				"src": "/images/models/gpt-image-2-6-sunburst/cinema-poster.webp",
+				"width": 1122,
+				"height": 1402,
+				"sha256": "b9e9a1acb1a1c87bb9331217f5e2e0db30c8627d367721f9c9108e02ef93f6ed",
+				"bytes": 416050,
+				"alt": "A yellow projector beam and a midnight-blue skyline form an illustrated rooftop cinema poster."
+			},
+			"selection": {
+				"productKey": "image-gpt-image-2-6-sunburst",
+				"skuKey": "gpt-image-2-6-sunburst-1k",
+				"aspectRatio": "4:5",
+				"outputFormat": "png",
+				"background": "opaque"
+			}
+		},
+		{
+			"id": "iris-edit",
+			"title": "Let the idea bloom",
+			"category": "Precise editing",
+			"description": "Open a flower bud while retaining the original poster, paper texture and lettering.",
+			"model": "GPT Image 2.6 Sunburst",
+			"prompt": "Open the cobalt-blue bud into a single fully bloomed bearded iris on the same stem. Curl three velvety outer petals toward the viewer, exposing fine indigo veins and golden-orange beards. Let the raised petals cast soft shadows on the ivory paper. Fit the bloom into the open space to the right of the title. Preserve the stem, leaves, both strips of tape, paper texture, layout, and every letter of the original poster, including “KIE API”.",
+			"resolution": "1K PNG",
+			"image": {
+				"src": "/images/models/gpt-image-2-6-sunburst/iris-edit.webp",
+				"width": 1122,
+				"height": 1402,
+				"sha256": "aaa428fd6e78c6bc6b67df50ca1763518c8c1d279fef94547e7481d85518c4ee",
+				"bytes": 210778,
+				"alt": "Open a flower bud while retaining the original poster, paper texture and lettering."
+			},
+			"selection": {
+				"productKey": "image-gpt-image-2-6-sunburst",
+				"skuKey": "gpt-image-2-6-sunburst-1k",
+				"aspectRatio": "4:5",
+				"outputFormat": "png",
+				"background": "auto"
+			},
+			"referenceImage": {
+				"src": "/images/models/gpt-image-2-6-sunburst/iris-edit-reference.webp",
+				"width": 1122,
+				"height": 1402,
+				"sha256": "f790d2f443d7601d0a2faeaebd89eaf1c1b319ee58f9d7387e01ea0c54d89f76",
+				"bytes": 268994,
+				"alt": "Original reference for let the idea bloom"
+			}
+		},
+		{
+			"id": "railway-edit",
+			"title": "A ticket becomes a journey",
+			"category": "Paper & miniature scenes",
+			"description": "Fold a printed railway ticket into a layered coastal railway with a tiny train and seaside station.",
+			"model": "GPT Image 2.6 Sunburst",
+			"prompt": "Fold the right-hand panels of this ticket into a layered paper pop-up of a coastal railway. Let the printed blue route line lift off the page and become rails. Show a vermilion train halfway out of a mountain tunnel, its front carriage crossing an arched stone-paper bridge toward a tiny seaside station. Layer cut-paper pines and distant hills behind it, with folded teal waves beneath the bridge. Expose a few cream paper tabs, cut edges and original creases so the construction is visible. Leave the punched “KIE API” stub flat and readable. Preserve the tabletop, framing and warm window light.",
+			"resolution": "1536 × 1024 PNG",
+			"image": {
+				"src": "/images/models/gpt-image-2-6-sunburst/railway-edit.webp",
+				"width": 1440,
+				"height": 960,
+				"sha256": "d2edfcf55014a5b576f90291ab72ba6a25104318133cc5ddb1aa128bf9483b36",
+				"bytes": 341548,
+				"alt": "Fold a printed railway ticket into a layered coastal railway with a tiny train and seaside station."
+			},
+			"selection": {
+				"productKey": "image-gpt-image-2-6-sunburst",
+				"skuKey": "gpt-image-2-6-sunburst-1k",
+				"aspectRatio": "3:2",
+				"outputFormat": "png",
+				"background": "opaque"
+			},
+			"referenceImage": {
+				"src": "/images/models/gpt-image-2-6-sunburst/railway-edit-reference.webp",
+				"width": 1440,
+				"height": 960,
+				"sha256": "6e20dc516b1c71017edc76f31872310138fd7c328495dcc6ae74996baa7dbf5d",
+				"bytes": 268166,
+				"alt": "Original reference for a ticket becomes a journey"
+			}
+		},
+		{
+			"id": "piano-edit",
+			"title": "A jazz club inside a piano",
+			"category": "Complex reference editing",
+			"description": "Build a miniature music venue inside a grand piano while preserving its keyboard, lid and camera angle.",
+			"model": "GPT Image 2.6 Sunburst",
+			"prompt": "Build a miniature jazz club inside the open grand piano. On a ruby velvet stage at the far end, a saxophonist leans into a solo beside an upright bassist and a drummer. Turn the piano strings into glowing brass railings along a curved staircase leading down to candlelit tables. Seat tiny listeners in teal booths; show a waiter pausing with a tray to hear the solo. Make the stage the brightest point and match the room’s warm window light. Keep the entire club inside the wooden rim. Preserve the keyboard, raised lid, gold “KIE API” lettering and original camera angle.",
+			"resolution": "1536 × 1024 PNG",
+			"image": {
+				"src": "/images/models/gpt-image-2-6-sunburst/piano-edit.webp",
+				"width": 1440,
+				"height": 960,
+				"sha256": "60a38c0dd2465b5e3da1e6052f363eef479e578bd2b6a29231186f3143f16086",
+				"bytes": 385140,
+				"alt": "Build a miniature music venue inside a grand piano while preserving its keyboard, lid and camera angle."
+			},
+			"selection": {
+				"productKey": "image-gpt-image-2-6-sunburst",
+				"skuKey": "gpt-image-2-6-sunburst-1k",
+				"aspectRatio": "3:2",
+				"outputFormat": "png",
+				"background": "opaque"
+			},
+			"referenceImage": {
+				"src": "/images/models/gpt-image-2-6-sunburst/piano-edit-reference.webp",
+				"width": 1440,
+				"height": 960,
+				"sha256": "04dbc61f740b2c912d1acde050a83946add3b918b504fcf7b832713c360e4246",
+				"bytes": 417052,
+				"alt": "Original reference for a jazz club inside a piano"
+			}
+		}
+	]
+}

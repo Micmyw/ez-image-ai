@@ -49,6 +49,11 @@ supporting the same prompt-editing intent. Public marketing copy describes promp
 and its content safety, legal, model and usage limits. Keep the historical "No Restrictions"
 explanation in the terms and the visible adult/NSFW prohibition reminder beside the composer.
 
+Public homepage, model, tool and marketing copy focuses on capabilities, examples and user actions.
+Do not add unsolicited supplier/material-origin explanations such as "samples from Kie", source
+FAQ entries or defensive "not tested here" notices. Record origins, permissions and verification
+details in internal evidence files. Keep generation and testing claims aligned with their receipts.
+
 The 2026-11-13 THD experiment restores only the pre-November-5 English homepage title and
 description and the four locale H1 translations for observation after two days. FAQ, safety
 reminders, indexing, routing and model access stay unchanged. See

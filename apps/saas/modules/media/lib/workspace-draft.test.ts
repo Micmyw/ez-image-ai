@@ -28,6 +28,19 @@ const draft: WorkspaceDraft = {
 };
 
 describe("workspace continuity across account and checkout navigation", () => {
+	it.each([
+		["image-gpt-image-2-6-flare", "gpt-image-2-6-flare-1k", "/gpt-image-2-6-flare"],
+		["image-gpt-image-2-6-sunburst", "gpt-image-2-6-sunburst-1k", "/gpt-image-2-6-sunburst"],
+	] as const)("returns the %s draft to its separate page", (productKey, skuKey, path) => {
+		const store = storage();
+		const modelDraft: WorkspaceDraft = {
+			...draft,
+			values: { ...draft.values, productKey, skuKey },
+		};
+		expect(saveWorkspaceDraft(store, "owner-a", modelDraft, 1000, path)).toBe(true);
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, path)).toEqual(modelDraft);
+		expect(workspaceDraftReturnPath(store, "owner-a", 2000)).toBe(`${path}?resume=workspace`);
+	});
 	it("restores a Seedream transparent image draft on its dedicated page", () => {
 		const store = storage();
 		const seedreamDraft: WorkspaceDraft = {

@@ -90,6 +90,8 @@ describe("public navigation taxonomy", () => {
 		expect(toolGroup).not.toContain("/effects");
 		expect(markup).toContain('href="/minimax-h3-image"');
 		expect(markup).toContain('href="/seedream-5-5"');
+		expect(markup).toContain('href="/gpt-image-2-6-flare"');
+		expect(markup).toContain('href="/gpt-image-2-6-sunburst"');
 		const resourceGroup = markup.match(
 			/<details[^>]*data-navigation-group="resources"[\s\S]*?<\/details>/,
 		)?.[0];

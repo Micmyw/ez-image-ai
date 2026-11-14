@@ -1,6 +1,6 @@
 import { HOMEPAGE_SHOWCASE_IDEAS } from "@repo/config/homepage-ideas";
 
-/** Increment only when publishing a genuinely new set of previews. */
+/** Legacy storage key retained to cover visitors who saw the earlier one-time preview. */
 export const HOMEPAGE_SHOWCASE_SEEN_KEY = "ezpic:homepage-showcase:2026-11-13-v2";
 
 export const HOMEPAGE_SHOWCASE_KEYS = HOMEPAGE_SHOWCASE_IDEAS;

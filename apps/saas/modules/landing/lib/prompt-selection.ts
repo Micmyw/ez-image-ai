@@ -15,5 +15,7 @@ export interface LandingPromptSelectedDetail {
 		aspectRatio: ImageAspectRatio;
 		outputFormat?: ImageOutputFormat;
 		background?: ImageBackground;
+		frameCount?: number;
+		frameDurationMs?: number;
 	};
 }

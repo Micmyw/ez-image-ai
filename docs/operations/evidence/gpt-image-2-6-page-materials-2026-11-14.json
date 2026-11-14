@@ -1,0 +1,508 @@
+{
+	"observedOn": "2026-11-14",
+	"sourcePage": "https://kie.ai/gpt-image-2-6",
+	"reuse": "The owner requested separate Flare and Sunburst pages with their corresponding examples taken directly from Kie.",
+	"provenance": "Kie public example records and paired playground defaults. No new generation.",
+	"transformation": "WebP display copies with maximum 1440px on either side at quality 88. Animated GIF bytes preserved with a static WebP poster. Prompts verbatim. Missing source resolution defaults to 1K for prompt reuse, with displayed pixel dimensions taken from the original file.",
+	"examples": [
+		{
+			"variant": "flare",
+			"id": "neon-sign",
+			"model": "gpt-image-2-6/flare-text-to-image",
+			"origin": "examples",
+			"example": {
+				"exampleTitle": "Looping neon KIE API sign as an animated GIF",
+				"input": {
+					"prompt": "A seamless looping animation of a glowing blue neon sign on a dark brick wall at night. The sign shows exactly three capital letters, K then I then E, forming one three-letter word with no spaces, and below it the smaller word API. The neon flickers on, glows, and reflects on the wet pavement below. Cinematic, high contrast.",
+					"aspect_ratio": "1:1",
+					"resolution": "1K",
+					"background": "auto",
+					"output_format": "gif",
+					"frame_count": "16",
+					"frame_duration_ms": 120
+				},
+				"output": {
+					"outputMediaUrls": [
+						{
+							"mediaUrl": "https://static.aiquickdraw.com/tools/example/1793895078382_Cp4Sxe0y.gif"
+						}
+					],
+					"resultObjectText": ""
+				}
+			},
+			"files": [
+				{
+					"kind": "output",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793895078382_Cp4Sxe0y.gif",
+					"source": {
+						"sha256": "7da3ab3a6995a1e5b12635fc2ea46f828582e2c46a586d33325a08e2eccb2b1f",
+						"bytes": 1375575,
+						"width": 512,
+						"height": 512,
+						"frames": 16,
+						"delay": [
+							120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120, 120
+						],
+						"format": "gif"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-flare/neon-sign.webp",
+						"width": 512,
+						"height": 512,
+						"sha256": "e302aa24ce70f796bd59f5670f6a077801d0e397132d6cfd84502b047c8646a7",
+						"bytes": 44830
+					},
+					"animation": "/images/models/gpt-image-2-6-flare/neon-sign.gif",
+					"posterFrame": 7
+				}
+			]
+		},
+		{
+			"variant": "flare",
+			"id": "crossbody-bag",
+			"model": "gpt-image-2-6/flare-text-to-image",
+			"origin": "examples",
+			"example": {
+				"input": {
+					"prompt": "Create a horizontal 3:2 ecommerce hero photograph of a cobalt-blue nylon crossbody bag on a pale gray studio table. Shoot from a high three-quarter angle, close enough to see the fine ripstop weave.\n\nUnzip the main compartment wide. A cream paperback with a plain cover peeks halfway out of the main cavity. Inside, show an ivory earbud case in one slip pocket and a small set of brass keys in a second pocket. Use a light gray lining so the seams and pocket openings read clearly.\n\nLay the attached wide blue shoulder strap in a loose curve across the foreground, with “KIE API” woven in ivory capitals on a flat, sharply focused section facing the camera. Soft window light from the left reveals the fabric texture and brushed metal hardware. Keep the full bag and strap in frame. The strap carries the only text."
+				},
+				"output": {
+					"outputMediaUrls": [
+						{
+							"mediaUrl": "https://static.aiquickdraw.com/tools/example/1793875484822_5HAMPzkM.png"
+						}
+					]
+				}
+			},
+			"files": [
+				{
+					"kind": "output",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793875484822_5HAMPzkM.png",
+					"source": {
+						"sha256": "b3329db4467fdbc498c45c5c322e9070b764d6ed76ef4df210fd8c33ffb30077",
+						"bytes": 3555449,
+						"width": 1536,
+						"height": 1024,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-flare/crossbody-bag.webp",
+						"width": 1440,
+						"height": 960,
+						"sha256": "f3926fa904ec28c65f7d296e08233f25380bf06f401f567aff77e3b5590962a9",
+						"bytes": 296784
+					}
+				}
+			]
+		},
+		{
+			"variant": "flare",
+			"id": "radio-player",
+			"model": "gpt-image-2-6/flare-text-to-image",
+			"origin": "examples",
+			"example": {
+				"input": {
+					"prompt": "Design a landscape 3:2 desktop web player screenshot for “KIE API Radio”. Fill the frame with the interface. Use a slim midnight-navy header with the station name at left and a small amber light beside “On air” at right. Set the page in warm ivory type on deep navy, with generous margins and fine dividers.\n\nOn the left, feature a square jazz record sleeve: a grainy close-up photograph of a brass saxophone on an empty red velvet seat after a show, lit by a single amber stage light. Print “After the Set” in small ivory serif lettering on the sleeve.\n\nOn the right, place “Now playing” above the large title “After the Set” and the artist “Mara Vale Trio”. Show a thin amber progress line just over one-third full, with elapsed time “2:14” and total duration “6:08”. Use a prominent pause button to indicate active playback.\n\nBelow it, set “Up next” above two neatly aligned rows: “Corner Booth” by “Ellis Reed” and “Last Ferry” by “June Bell”. Let the album artwork and current track dominate. Render all UI text sharply."
+				},
+				"output": {
+					"outputMediaUrls": [
+						{
+							"mediaUrl": "https://static.aiquickdraw.com/tools/example/1793875701878_chmv7FN8.png"
+						}
+					]
+				}
+			},
+			"files": [
+				{
+					"kind": "output",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793875701878_chmv7FN8.png",
+					"source": {
+						"sha256": "d6f507e8f45653b270ed2707f63c060aa947177ec1753da35827e839726b3198",
+						"bytes": 2140345,
+						"width": 1536,
+						"height": 1024,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-flare/radio-player.webp",
+						"width": 1440,
+						"height": 960,
+						"sha256": "b11b071cec1561a8f62e17493d38b1ec4e0bc8f50e5ab13bd76c3b121487600e",
+						"bytes": 112894
+					}
+				}
+			]
+		},
+		{
+			"variant": "flare",
+			"id": "radio-edit",
+			"model": "gpt-image-2-6/flare-image-to-image",
+			"origin": "playground-defaults",
+			"example": {
+				"input": {
+					"prompt": "Turn this radio sketch into a realistic product photo. Match the original shape and camera angle. Give the cobalt casing a fine plastic texture, turn the pencil dots into speaker holes, and add grip ridges to the orange knob. Preserve the ivory “KIE AI” nameplate and its lettering.",
+					"input_urls": ["https://static.aiquickdraw.com/tools/example/1793861350411_YaanPjuO.png"],
+					"aspect_ratio": "auto",
+					"resolution": "1K",
+					"background": "auto",
+					"output_format": "png"
+				},
+				"output": {
+					"type": "image",
+					"outputMediaUrls": [
+						{
+							"mediaUrl": "https://static.aiquickdraw.com/tools/example/1793861469992_rirpmgSr.png"
+						}
+					],
+					"resultObjectText": ""
+				}
+			},
+			"files": [
+				{
+					"kind": "output",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793861469992_rirpmgSr.png",
+					"source": {
+						"sha256": "7faf02577e4aafa9f198a20e4126fe55388e9e192cdf9bf52a807914b9431bad",
+						"bytes": 3281350,
+						"width": 1536,
+						"height": 1024,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-flare/radio-edit.webp",
+						"width": 1440,
+						"height": 960,
+						"sha256": "564e1b41f74777d6a23d4a2e11ed54d3bf623c805fa5984b1371cef52ee685e1",
+						"bytes": 210370
+					}
+				},
+				{
+					"kind": "reference",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793861350411_YaanPjuO.png",
+					"source": {
+						"sha256": "8aa7e65f4ab95f635e664b8bbb00b226866b4b4c9e9f2f5ebbea666ea501653b",
+						"bytes": 3893393,
+						"width": 1536,
+						"height": 1024,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-flare/radio-edit-reference.webp",
+						"width": 1440,
+						"height": 960,
+						"sha256": "a042c223017eba0d1f7652abcc08cb485a01ded1e6f8b5926cfdf40c99c08d70",
+						"bytes": 422840
+					}
+				}
+			]
+		},
+		{
+			"variant": "sunburst",
+			"id": "ferry-portrait",
+			"model": "gpt-image-2-6/sunburst-text-to-image",
+			"origin": "examples",
+			"example": {
+				"input": {
+					"prompt": "Create a horizontal 3:2 editorial portrait of a woman in her early thirties on the open deck of a ferry. Frame her from the chest up, just left of center. She turns toward a friend beside the camera, caught halfway into a laugh. Wind lifts a few strands of her auburn hair. Low evening sun catches her freckles and the edge of her cheek, with a slate-blue sea softly out of focus behind her.\n\nA cobalt wool scarf hangs over her dark peacoat. Weave “KIE API” in bold ivory capitals across the flat end facing the camera. Keep her eyes and the woven letters sharp. The scarf carries the only text."
+				},
+				"output": {
+					"outputMediaUrls": [
+						{
+							"mediaUrl": "https://static.aiquickdraw.com/tools/example/1793871894749_cCDQMlBK.png"
+						}
+					]
+				}
+			},
+			"files": [
+				{
+					"kind": "output",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793871894749_cCDQMlBK.png",
+					"source": {
+						"sha256": "85347ed0b30c2dd75b67cb04ea4cd50e1fa3c58b9414eb5a81a6c0dcc9e7f145",
+						"bytes": 3421634,
+						"width": 1536,
+						"height": 1024,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-sunburst/ferry-portrait.webp",
+						"width": 1440,
+						"height": 960,
+						"sha256": "7bf7b6517363449aeef9dc03175b153c295622d32c0a5a9c96300f53a23cb86a",
+						"bytes": 165766
+					}
+				}
+			]
+		},
+		{
+			"variant": "sunburst",
+			"id": "citrus-pool",
+			"model": "gpt-image-2-6/sunburst-text-to-image",
+			"origin": "examples",
+			"example": {
+				"exampleTitle": "示例 1",
+				"input": {
+					"prompt": "Create a horizontal 3:2 macro photograph of a surreal miniature swimming pool built into the open half of a blood orange. The thick rind forms the pool wall. A tiny stainless-steel ladder hooks over the rim and descends into clear turquoise water. Print “KIE API” in ivory on a cobalt ceramic tile set into the front of the rind. Low afternoon sunlight throws rippling reflections onto a pale peach tabletop. Keep the citrus pulp, ladder and lettering sharply resolved.",
+					"aspect_ratio": "auto",
+					"resolution": "1K",
+					"background": "auto"
+				},
+				"output": {
+					"outputMediaUrls": [
+						{
+							"mediaUrl": "https://static.aiquickdraw.com/tools/example/1793871624167_uR82Behz.png"
+						}
+					],
+					"resultObjectText": ""
+				}
+			},
+			"files": [
+				{
+					"kind": "output",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793871624167_uR82Behz.png",
+					"source": {
+						"sha256": "75fa3ea76ac2883cd60107b914b2e23e9e72f17fa2f8f3f0a833076be4cdac3a",
+						"bytes": 4214000,
+						"width": 1536,
+						"height": 1024,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-sunburst/citrus-pool.webp",
+						"width": 1440,
+						"height": 960,
+						"sha256": "d5ed6c52ac93206a8ebd31c6c1299de7d0844618816a9ec9311bcbc1cd7657a5",
+						"bytes": 283346
+					}
+				}
+			]
+		},
+		{
+			"variant": "sunburst",
+			"id": "cinema-poster",
+			"model": "gpt-image-2-6/sunburst-text-to-image",
+			"origin": "examples",
+			"example": {
+				"input": {
+					"prompt": "Design a vertical 4:5 poster for a rooftop cinema. A single lemon-yellow projector beam cuts diagonally across a midnight-blue skyline. Knock the title “AFTER DARK” out of the beam in tall condensed letters so the blue paper shows through. Set “ROOFTOP CINEMA” beneath it and print “KIE API” on the cream side panel of the illustrated projector. Use coarse screen-print ink and deliver flat, edge-to-edge artwork."
+				},
+				"output": {
+					"outputMediaUrls": [
+						{
+							"mediaUrl": "https://static.aiquickdraw.com/tools/example/1793871718380_hrrcstjM.png"
+						}
+					]
+				}
+			},
+			"files": [
+				{
+					"kind": "output",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793871718380_hrrcstjM.png",
+					"source": {
+						"sha256": "de96646df0ccf2ee0b208139676fc64acb729f30591115dae2b559fc29fd6a2e",
+						"bytes": 3461032,
+						"width": 1122,
+						"height": 1402,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-sunburst/cinema-poster.webp",
+						"width": 1122,
+						"height": 1402,
+						"sha256": "b9e9a1acb1a1c87bb9331217f5e2e0db30c8627d367721f9c9108e02ef93f6ed",
+						"bytes": 416050
+					}
+				}
+			]
+		},
+		{
+			"variant": "sunburst",
+			"id": "iris-edit",
+			"model": "gpt-image-2-6/sunburst-image-to-image",
+			"origin": "examples",
+			"example": {
+				"exampleTitle": "示例 1",
+				"input": {
+					"prompt": "Open the cobalt-blue bud into a single fully bloomed bearded iris on the same stem. Curl three velvety outer petals toward the viewer, exposing fine indigo veins and golden-orange beards. Let the raised petals cast soft shadows on the ivory paper. Fit the bloom into the open space to the right of the title. Preserve the stem, leaves, both strips of tape, paper texture, layout, and every letter of the original poster, including “KIE API”.",
+					"input_urls": ["https://static.aiquickdraw.com/tools/example/1793875154982_OhIhxkZj.png"],
+					"aspect_ratio": "auto",
+					"resolution": "1K",
+					"background": "auto"
+				},
+				"output": {
+					"outputMediaUrls": [
+						{
+							"mediaUrl": "https://static.aiquickdraw.com/tools/example/1793875164148_s1DTquTr.png"
+						}
+					],
+					"resultObjectText": ""
+				}
+			},
+			"files": [
+				{
+					"kind": "output",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793875164148_s1DTquTr.png",
+					"source": {
+						"sha256": "81d9081e18897c88fee4748c2a951857776b0bf29ee2db349c4491e97a386097",
+						"bytes": 3166356,
+						"width": 1122,
+						"height": 1402,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-sunburst/iris-edit.webp",
+						"width": 1122,
+						"height": 1402,
+						"sha256": "aaa428fd6e78c6bc6b67df50ca1763518c8c1d279fef94547e7481d85518c4ee",
+						"bytes": 210778
+					}
+				},
+				{
+					"kind": "reference",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793875154982_OhIhxkZj.png",
+					"source": {
+						"sha256": "1b24c66ff69bc5aab943d257593f7e97e3cc1eaca201a8c054f5f67dd3c9c960",
+						"bytes": 3122251,
+						"width": 1122,
+						"height": 1402,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-sunburst/iris-edit-reference.webp",
+						"width": 1122,
+						"height": 1402,
+						"sha256": "f790d2f443d7601d0a2faeaebd89eaf1c1b319ee58f9d7387e01ea0c54d89f76",
+						"bytes": 268994
+					}
+				}
+			]
+		},
+		{
+			"variant": "sunburst",
+			"id": "railway-edit",
+			"model": "gpt-image-2-6/sunburst-image-to-image",
+			"origin": "examples",
+			"example": {
+				"input": {
+					"prompt": "Fold the right-hand panels of this ticket into a layered paper pop-up of a coastal railway. Let the printed blue route line lift off the page and become rails. Show a vermilion train halfway out of a mountain tunnel, its front carriage crossing an arched stone-paper bridge toward a tiny seaside station. Layer cut-paper pines and distant hills behind it, with folded teal waves beneath the bridge. Expose a few cream paper tabs, cut edges and original creases so the construction is visible. Leave the punched “KIE API” stub flat and readable. Preserve the tabletop, framing and warm window light.",
+					"input_urls": ["https://static.aiquickdraw.com/tools/example/1793874813732_Ov46htHe.png"]
+				},
+				"output": {
+					"outputMediaUrls": [
+						{
+							"mediaUrl": "https://static.aiquickdraw.com/tools/example/1793874804584_KoGLVaMp.png"
+						}
+					]
+				}
+			},
+			"files": [
+				{
+					"kind": "output",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793874804584_KoGLVaMp.png",
+					"source": {
+						"sha256": "e7b84a766dd01ef0725ea3706729b227e78e25cfcad1a1bc862a3b9b024634f2",
+						"bytes": 3860947,
+						"width": 1536,
+						"height": 1024,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-sunburst/railway-edit.webp",
+						"width": 1440,
+						"height": 960,
+						"sha256": "d2edfcf55014a5b576f90291ab72ba6a25104318133cc5ddb1aa128bf9483b36",
+						"bytes": 341548
+					}
+				},
+				{
+					"kind": "reference",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793874813732_Ov46htHe.png",
+					"source": {
+						"sha256": "e590462662011e2d9b7b34ec24324e48a6084062148d02c81e3d5e8001e25e9a",
+						"bytes": 3492974,
+						"width": 1536,
+						"height": 1024,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-sunburst/railway-edit-reference.webp",
+						"width": 1440,
+						"height": 960,
+						"sha256": "6e20dc516b1c71017edc76f31872310138fd7c328495dcc6ae74996baa7dbf5d",
+						"bytes": 268166
+					}
+				}
+			]
+		},
+		{
+			"variant": "sunburst",
+			"id": "piano-edit",
+			"model": "gpt-image-2-6/sunburst-image-to-image",
+			"origin": "examples",
+			"example": {
+				"input": {
+					"prompt": "Build a miniature jazz club inside the open grand piano. On a ruby velvet stage at the far end, a saxophonist leans into a solo beside an upright bassist and a drummer. Turn the piano strings into glowing brass railings along a curved staircase leading down to candlelit tables. Seat tiny listeners in teal booths; show a waiter pausing with a tray to hear the solo. Make the stage the brightest point and match the room’s warm window light. Keep the entire club inside the wooden rim. Preserve the keyboard, raised lid, gold “KIE API” lettering and original camera angle.",
+					"input_urls": ["https://static.aiquickdraw.com/tools/example/1793874881338_ZfLFaoRA.png"]
+				},
+				"output": {
+					"outputMediaUrls": [
+						{
+							"mediaUrl": "https://static.aiquickdraw.com/tools/example/1793874887158_mZdttRLL.png"
+						}
+					]
+				}
+			},
+			"files": [
+				{
+					"kind": "output",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793874887158_mZdttRLL.png",
+					"source": {
+						"sha256": "5e2eaaf10a813d407b0f3d80c51d74585324572281951d14a0808c9bfed4b71e",
+						"bytes": 3998997,
+						"width": 1536,
+						"height": 1024,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-sunburst/piano-edit.webp",
+						"width": 1440,
+						"height": 960,
+						"sha256": "60a38c0dd2465b5e3da1e6052f363eef479e578bd2b6a29231186f3143f16086",
+						"bytes": 385140
+					}
+				},
+				{
+					"kind": "reference",
+					"sourceUrl": "https://static.aiquickdraw.com/tools/example/1793874881338_ZfLFaoRA.png",
+					"source": {
+						"sha256": "773a186af1cbe1370dde32ab4d3a3d6fe478f90917ce68010c63fec8526c6144",
+						"bytes": 4107651,
+						"width": 1536,
+						"height": 1024,
+						"frames": 1,
+						"format": "png"
+					},
+					"output": {
+						"src": "/images/models/gpt-image-2-6-sunburst/piano-edit-reference.webp",
+						"width": 1440,
+						"height": 960,
+						"sha256": "04dbc61f740b2c912d1acde050a83946add3b918b504fcf7b832713c360e4246",
+						"bytes": 417052
+					}
+				}
+			]
+		}
+	]
+}

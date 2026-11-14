@@ -1,19 +1,16 @@
-import { ImageToolPage } from "../../../modules/image-tools/components/ImageToolPage";
-import { IMAGE_TOOL_PAGES } from "../../../modules/image-tools/lib/tool-pages";
-import type { CreatePageFilters } from "../../../modules/media/components/editor/RegisteredEditor";
+import { permanentRedirect } from "next/navigation";
+
 import type { PublicMetadataProps } from "../../../modules/public-content/lib/indexing";
-import { createPublicPageMetadata } from "../../../modules/public-content/lib/metadata";
 
-export async function generateMetadata(props: PublicMetadataProps) {
-	const content = IMAGE_TOOL_PAGES["gpt-image-2-6"];
-	return createPublicPageMetadata({
-		...content,
-		searchParams: await props.searchParams,
-		brandName: "EzImageAI",
-		index: true,
-	});
-}
-
-export default function Page({ searchParams }: { searchParams?: Promise<CreatePageFilters> }) {
-	return <ImageToolPage tool="gpt-image-2-6" searchParams={searchParams} />;
+export default async function Page({ searchParams }: PublicMetadataProps) {
+	const search = (await searchParams) ?? {};
+	const requested = Array.isArray(search.model) ? search.model[0] : search.model;
+	const variant = requested === "image-gpt-image-2-6-sunburst" ? "sunburst" : "flare";
+	const params = new URLSearchParams();
+	for (const [key, values] of Object.entries(search)) {
+		for (const value of Array.isArray(values) ? values : [values]) {
+			if (value !== undefined) params.append(key, value);
+		}
+	}
+	permanentRedirect(`/gpt-image-2-6-${variant}${params.size ? `?${params}` : ""}`);
 }

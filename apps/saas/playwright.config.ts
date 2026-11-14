@@ -14,7 +14,7 @@ const saasHostname = new URL(saasBaseUrl).hostname.replace(/^\[|\]$/g, "");
 const localMediaE2ELaunchOptions = localMediaE2EChromiumLaunchOptions(process.env);
 const guestOnlySpecs = /(?:guest-trial|landing|originality)\.spec\.ts/;
 const publicOnlySpecs = /(?:public-routes|public-seo|models|docs)\.spec\.ts/;
-// Ordinary journeys represent returning visitors. The showcase spec uses a fresh state.
+// Retain legacy visitor storage to exercise homepage re-entry after a previous preview.
 const returningVisitorState = {
 	cookies: [],
 	origins: [

@@ -18,6 +18,11 @@ const examples = (await readdir(new URL("public/examples/", app)))
 	.filter((name) => /^case-[a-z-]+\.webp$/.test(name))
 	.sort();
 const sources = [
+	{
+		src: "/images/models/gpt-image-2-6-sunburst/citrus-pool.webp",
+		crop: false,
+		widths: [240, 288, 384, 480, 640, 768, 960, 1280, 1440],
+	},
 	...featured.map((key) => ({ src: `/images/models/${key}.webp`, crop: false })),
 	...examples.map((name) => ({ src: `/examples/${name}`, crop: false })),
 ];
@@ -25,14 +30,14 @@ const generated = {};
 let totalBytes = 0;
 await mkdir(directory, { recursive: true });
 
-for (const { src, crop } of sources) {
+for (const { src, crop, widths = [240, 288, 384, 480, 640, 768, 960] } of sources) {
 	const source = await readFile(new URL(`public${src}`, app));
 	const metadata = await sharp(source).metadata();
 	if (!metadata.width || !metadata.height) throw new Error(`Missing image dimensions: ${src}`);
 	const width = metadata.width;
 	const height = crop ? Math.round((width * 3) / 4) : metadata.height;
 	const variants = [];
-	for (const targetWidth of [240, 288, 384, 480, 640, 768, 960].filter((size) => size <= width)) {
+	for (const targetWidth of widths.filter((size) => size <= width)) {
 		const bytes = await sharp(source)
 			.resize({
 				width: targetWidth,

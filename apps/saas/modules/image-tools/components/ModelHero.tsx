@@ -1,6 +1,26 @@
 import { DisplayTitle } from "@repo/ui/components/display-title";
 
 const presentations = {
+	"gpt-flare": {
+		label: "GPT Image 2.6 Flare",
+		lead: "GPT ",
+		accent: "Image",
+		edition: "2.6",
+		descriptor: "FLARE",
+		variant: "alloy",
+		eyebrow: "Flare · Your next creative direction",
+		statement: ["Explore the idea.", "Bring it into focus."],
+	},
+	"gpt-sunburst": {
+		label: "GPT Image 2.6 Sunburst",
+		lead: "GPT ",
+		accent: "Image",
+		edition: "2.6",
+		descriptor: "SUNBURST",
+		variant: "refract",
+		eyebrow: "Sunburst · A closer look at every detail",
+		statement: ["Shape the details.", "Keep the feeling."],
+	},
 	seedream: {
 		label: "Seedream 5.5",
 		lead: "See",

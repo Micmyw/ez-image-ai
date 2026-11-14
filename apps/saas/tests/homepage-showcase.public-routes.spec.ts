@@ -229,7 +229,7 @@ for (const width of [1440, 390, 320]) {
 		await expect(dialog).toHaveCount(0);
 		expect(
 			await page.evaluate((key) => localStorage.getItem(key), HOMEPAGE_SHOWCASE_SEEN_KEY),
-		).toBe("seen");
+		).toBeNull();
 	});
 }
 
@@ -302,12 +302,13 @@ test("birthday artwork rotates slowly, pauses, tracks the displayed variant and 
 	page,
 }) => {
 	test.setTimeout(90_000);
-	await page.addInitScript((key) => localStorage.setItem(key, "seen"), HOMEPAGE_SHOWCASE_SEEN_KEY);
 	const received = await captureConsentedGrowthEvents(page);
 	await page.route("**/api/analytics/events", (route) =>
 		route.fulfill({ json: { accepted: true } }),
 	);
 	await page.goto("/");
+	await expect(page.getByRole("dialog")).toBeVisible();
+	await page.getByRole("button", { name: "Close previews" }).click();
 	const card = page.locator('[data-quick-start="birthday-card"]');
 	await card.scrollIntoViewIfNeeded();
 	await page.mouse.move(0, 0);
@@ -475,10 +476,11 @@ test("photo CTA closes smoothly, retains the upload and focuses the image editor
 	await expect(page).toHaveURL(/\/$/);
 });
 
-test("dismissal persists and translated photo presets retain their direct Create links", async ({
+test("homepage refresh reopens previews and translated photo presets retain their direct Create links", async ({
 	page,
 }) => {
 	test.setTimeout(75_000);
+	await page.addInitScript((key) => localStorage.setItem(key, "seen"), HOMEPAGE_SHOWCASE_SEEN_KEY);
 	await page.goto("/?lang=de");
 	const dialog = page.getByRole("dialog");
 	await expect(dialog).toBeVisible();
@@ -486,10 +488,7 @@ test("dismissal persists and translated photo presets retain their direct Create
 	await expect(dialog).toHaveCount(0);
 	await page.reload();
 	await page.getByRole("button", { name: "Neue Ideen entdecken" }).waitFor();
-	await page.clock.install();
-	await page.clock.fastForward(2500);
-	await expect(dialog).toHaveCount(0);
-	await page.getByRole("button", { name: "Neue Ideen entdecken" }).click();
+	await expect(dialog).toBeVisible();
 	await expect(dialog.locator('[data-test="showcase-create"]')).toHaveAttribute(
 		"href",
 		"/create?lang=de&example=watercolor",
@@ -501,6 +500,8 @@ test("dismissal persists and translated photo presets retain their direct Create
 		/^Interpretiere dieses Bild/,
 	);
 	await expect(page.getByRole("button", { name: "Neue Ideen entdecken" })).toHaveCount(0);
+	await page.getByRole("link", { name: "EzImageAI", exact: true }).first().click();
+	await expect(dialog).toBeVisible();
 });
 
 test("reduced motion disables sweeps and keeps the landscape preview playable after a load error", async ({

@@ -1,10 +1,12 @@
+import { GPT_IMAGE_2_6_EXAMPLES, type GptImageVariant } from "./gpt-image-2-6-examples";
 import { MINIMAX_H3_EXAMPLES } from "./minimax-h3-examples";
 import { SEEDREAM_5_5_EXAMPLES } from "./seedream-5-5-examples";
 
 export type ImageToolPageKey =
 	| "minimax-h3-image"
 	| "seedream-5-5"
-	| "gpt-image-2-6"
+	| "gpt-image-2-6-flare"
+	| "gpt-image-2-6-sunburst"
 	| "ai-svg-generator"
 	| "ai-gif-generator";
 
@@ -54,6 +56,92 @@ const privacyFaq = {
 	answer:
 		"Your reference images and results use the private EzImageAI workspace. They are not automatically published in a public gallery. Upload only material you have permission to use, and follow the content safety and usage rules shown in the editor.",
 };
+
+function gptImageToolContent(variant: GptImageVariant): ImageToolPageContent {
+	const flare = variant === "flare";
+	const modelName = `GPT Image 2.6 ${flare ? "Flare" : "Sunburst"}`;
+	return {
+		path: `/gpt-image-2-6-${variant}`,
+		title: `${modelName} — AI Image Generator & Photo Editor`,
+		description: flare
+			? "Create product photos, poster layouts and short GIFs with GPT Image 2.6 Flare. Explore examples, reuse their prompts and edit a reference image."
+			: "Create detailed images and precise photo edits with GPT Image 2.6 Sunburst. Explore portraits, posters and before-and-after examples with reusable prompts.",
+		heading: modelName,
+		modelName,
+		intro: flare
+			? "Explore product photos, visual layouts and animated ideas with Flare. Start with a prompt or a reference image, then make the result your own."
+			: "Bring fine textures, expressive portraits and carefully directed edits into focus with Sunburst. Describe your image or refine a reference in the workspace below.",
+		facts: [
+			"Text to image & photo editing",
+			"1K · 2K · 4K",
+			flare ? "Medium quality" : "High quality",
+		],
+		settingsNote:
+			"PNG or JPEG at 1K, 2K or 4K. Static SVG and 2–16-frame GIFs use the 1K selection, with GIF frames at 512 × 512 pixels.",
+		showAvailabilityNote: false,
+		sections: [
+			{
+				id: "creative-direction",
+				title: flare
+					? "Explore a composition, product or layout"
+					: "Give light, texture and lettering room to shine",
+				body: flare
+					? "Brief the subject, composition, lighting and exact words together. Flare uses medium quality for speed-focused exploration, from a product photograph to a detailed interface concept."
+					: "Describe fine materials, directional light and the details that should stay sharp. Sunburst uses high quality for portraits, product images, posters and imaginative scenes.",
+			},
+			{
+				id: "reference-editing",
+				title: flare
+					? "Turn a reference into a new direction"
+					: "Change the detail and keep the composition",
+				body: flare
+					? "Add one reference image and describe the change. Turn a sketch into a product photo, explore a material or adjust the atmosphere while specifying what to retain."
+					: "Use one reference and make a deliberate edit. The examples show a flower opening on a poster, a ticket becoming a paper railway and a miniature club inside a piano.",
+			},
+			{
+				id: "formats",
+				title: "Choose the file your project needs",
+				body: "Create a PNG or JPEG image, a static SVG illustration or a short looping GIF. Select the format before generating, then review the credit or image-pass cost and download the result from your private workspace.",
+			},
+		],
+		steps: [
+			{
+				title: "Start with your idea",
+				body: "Write a prompt or use one of this model's examples as a starting point.",
+			},
+			{
+				title: "Direct the result",
+				body: "Add an optional reference, then choose the size, aspect ratio and output format.",
+			},
+			{
+				title: "Create and download",
+				body: "Review your settings and quoted cost, generate, then preview and download your result.",
+			},
+		],
+		prompts: GPT_IMAGE_2_6_EXAMPLES[variant],
+		faq: [
+			{
+				question: `What can I create with ${modelName}?`,
+				answer: flare
+					? "Flare supports text-to-image generation and editing with one reference. Use it for product photos, posters, illustrations, interface concepts, static SVG and short GIFs. This workspace uses medium quality for Flare."
+					: "Sunburst supports detailed text-to-image generation and editing with one reference. Use it for portraits, fine textures, poster lettering, consistent edits, static SVG and short GIFs. This workspace uses high quality for Sunburst.",
+			},
+			{
+				question: "How do I edit a reference photo?",
+				answer:
+					"Upload one reference image and describe what to change and what to keep. The comparison examples include a downloadable reference in View prompt. Upload limits and supported file types appear in the workspace.",
+			},
+			{
+				question: "Can I create SVG and GIF files?",
+				answer:
+					"Yes. Select the 1K tier for static SVG or GIF output. GIFs support 2–16 frames at 512 × 512 pixels per frame, with frame count and duration controls in the editor.",
+			},
+			creditFaq,
+			imagePassFaq,
+			privacyFaq,
+		],
+	};
+}
 
 export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = {
 	"seedream-5-5": {
@@ -205,83 +293,8 @@ export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = 
 			},
 		],
 	},
-	"gpt-image-2-6": {
-		path: "/gpt-image-2-6",
-		title: "GPT Image 2.6 — Flare & Sunburst AI Image Generator",
-		description:
-			"Create with GPT Image 2.6: choose Flare for speed or Sunburst for detail. Try gpt-image-2.6 image generation, reference edits, static SVG and short GIFs.",
-		heading: "GPT Image 2.6",
-		intro:
-			"Choose Flare for a quick creative direction or Sunburst for detailed work. Describe your image, add an optional reference, and create in the workspace below.",
-		facts: ["Text or photo input", "Flare & Sunburst", "Images, SVG & GIF"],
-		settingsNote:
-			"Raster images offer 1K, 2K and 4K tiers. SVG and GIF use the 1K selection; GIF frames are 512 × 512 pixels. Flare uses medium quality and Sunburst uses high quality in this first version.",
-		sections: [
-			{
-				id: "flare",
-				title: "GPT Image 2.6 Flare: start with speed",
-				body: "Flare is the speed-focused version of GPT Image 2.6. Use it to explore a composition, draft a poster, or try several product-image directions. Describe the layout, lighting and exact wording you want, then review the result before choosing your next edit.",
-			},
-			{
-				id: "sunburst",
-				title: "GPT Image 2.6 Sunburst: refine the details",
-				body: "Sunburst is designed for detailed output and consistency across edits. Use it when material, composition or reference details need closer attention. Name what should stay the same and make one deliberate change per edit; check faces, lettering and small objects in every result.",
-			},
-			{
-				id: "formats",
-				title: "Choose the file your project needs",
-				body: "Use PNG or JPEG for conventional image workflows, static SVG for scalable illustrations, or GIF for a short animated loop. The format controls show the available choices for your selected model and size. SVG and GIF are generated through the model; renaming a PNG file is not part of this workflow.",
-			},
-		],
-		steps: [
-			{ title: "Choose a model", body: "Start with Flare, or select Sunburst for detailed work." },
-			{
-				title: "Write your brief",
-				body: "Describe the subject and layout. Add a photo when an existing reference matters.",
-			},
-			{
-				title: "Review and download",
-				body: "Check the settings and your selected credit or pass cost, generate, then preview and download your result.",
-			},
-		],
-		prompts: [
-			{
-				title: "A structured product image",
-				prompt:
-					"A studio product image of a matte terracotta ceramic mug on a warm cream surface. Keep the mug in the left third, a soft shadow below, and clean negative space on the right. Soft window light, visible ceramic texture, no text.",
-			},
-			{
-				title: "A considered poster layout",
-				prompt:
-					'Create a minimal botanical exhibition poster. Put the exact headline "GROW SLOW" at the top, a single large fern in the center and the small text "SATURDAY 10 AM" at the bottom. Deep green and warm ivory, clear spacing, restrained typography.',
-			},
-		],
-		faq: [
-			{
-				question: "What is GPT Image 2.6?",
-				answer:
-					"GPT Image 2.6 is OpenAI's image model release with Flare and Sunburst variants. EzImageAI brings these choices into its existing image workspace for prompt-based creation and reference-guided editing, with PNG, JPEG, static SVG and GIF output options.",
-			},
-			{
-				question: "Should I choose Flare or Sunburst?",
-				answer:
-					"Choose Flare for speed-focused exploration and Sunburst for detailed output and consistency across revisions. This version uses medium quality for Flare and high quality for Sunburst. Actual completion time and quality depend on your request and service availability.",
-			},
-			{
-				question: "Can I edit an existing image with gpt-image-2.6?",
-				answer:
-					"Yes. Add a reference photo to the composer and describe what to change and what to keep. Leave the reference empty for text-to-image generation. The editor currently accepts one reference image per request.",
-			},
-			{
-				question: "Can GPT Image 2.6 generate SVG and GIF files?",
-				answer:
-					"Yes. Choose SVG for a static illustration or GIF for an animation with 2–16 frames. This version uses 512 × 512 pixels per GIF frame. Select the 1K output tier to access these formats; the separate SVG and GIF pages open the same workspace with the relevant format selected.",
-			},
-			creditFaq,
-			imagePassFaq,
-			privacyFaq,
-		],
-	},
+	"gpt-image-2-6-flare": gptImageToolContent("flare"),
+	"gpt-image-2-6-sunburst": gptImageToolContent("sunburst"),
 	"ai-svg-generator": {
 		path: "/ai-svg-generator",
 		title: "AI SVG Generator — Create SVG Illustrations from Text",
