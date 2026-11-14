@@ -42,6 +42,7 @@ async function authenticate(
 	await page.goto("/login");
 	await sessionResponse;
 	await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 120_000 });
+	await page.getByRole("tab", { name: "Password", exact: true }).click();
 	await page.getByLabel(/email/i).fill(email);
 	await page.locator('input[type="password"]').fill(password);
 	await submitPasswordSignIn(page);

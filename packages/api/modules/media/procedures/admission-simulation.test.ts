@@ -33,6 +33,7 @@ vi.mock("@repo/database", async () => ({
 		await import("../../../../database/prisma/queries/media/storage-quota")
 	).effectiveMediaStorageLimit,
 	recordTextModerationOutcome: vi.fn(),
+	recordGrowthEvent: vi.fn(),
 	findEligibleImageEditParentForOwner: vi.fn(),
 	findGenerationSubmissionQuote: (owner: string, quoteId: string) =>
 		harness.active.dependencies.findQuote(owner, quoteId),

@@ -7,9 +7,10 @@ import {
 	refundCreditGrant,
 	releaseCredits,
 } from "@repo/database";
-import { runWithDatabaseClient } from "@repo/database/client";
+import { runWithDatabaseClient as runWithDatabaseClientActual } from "@repo/database/client";
 import { PrismaClient } from "@repo/database/generated-client";
 import { getVideoTemplateCreditBalance } from "@repo/database/video-template";
+import { runWithCloudflareFreeEligibility } from "@repo/utils/free-eligibility";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ensureFreePlanCreditsForUser } from "./lib/free-plan-credits";
@@ -63,6 +64,10 @@ const freeInput = {
 } as const;
 let client: PrismaClient;
 const owners: string[] = [];
+
+// Match the trusted ingress context for these eligible-country admission fixtures.
+const runWithDatabaseClient: typeof runWithDatabaseClientActual = (database, operation) =>
+	runWithCloudflareFreeEligibility("US", () => runWithDatabaseClientActual(database, operation));
 
 beforeAll(() => {
 	const raw = process.env.TEST_DATABASE_URL;

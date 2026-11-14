@@ -644,7 +644,9 @@ describe("image pass job consumers", () => {
 			}),
 		);
 		expect(f.tx.outboxEvent.createMany).not.toHaveBeenCalled();
-		expect(f.tx.generationAttempt.update).not.toHaveBeenCalled();
+		expect(
+			f.tx.generationAttempt.update.mock.calls.every(([{ data }]) => !("responseSnapshot" in data)),
+		).toBe(true);
 		expect(f.attempt.responseSnapshot).not.toHaveProperty("providerTerminalEvidence");
 		expect(f.attempt).toMatchObject({ status: "NEEDS_RECONCILIATION", uncertainSubmission: true });
 		expect(funding.finalize).not.toHaveBeenCalled();
@@ -670,7 +672,11 @@ describe("image pass job consumers", () => {
 				}),
 			);
 			expect(f.tx.outboxEvent.createMany).not.toHaveBeenCalled();
-			expect(f.tx.generationAttempt.update).not.toHaveBeenCalled();
+			expect(
+				f.tx.generationAttempt.update.mock.calls.every(
+					([{ data }]) => !("responseSnapshot" in data),
+				),
+			).toBe(true);
 			expect(f.attempt.responseSnapshot).not.toHaveProperty("providerTerminalEvidence");
 			expect(f.attempt.uncertainSubmission).toBe(true);
 			expect(funding.finalize).not.toHaveBeenCalled();
@@ -965,7 +971,22 @@ function expectBoundTerminalEvidence(
 	).toEqual(evidence);
 	expect(f.tx.generationAttempt.update).toHaveBeenCalledWith({
 		where: { id: f.attempt.id },
-		data: { responseSnapshot: expect.objectContaining({ providerTerminalEvidence: evidence }) },
+		data: {
+			responseSnapshot: expect.objectContaining({ providerTerminalEvidence: evidence }),
+			...(status === "SUCCEEDED"
+				? {}
+				: {
+						errorSnapshot: {
+							providerDiagnostic: expect.objectContaining({
+								attemptId: f.attempt.id,
+								providerTaskId: f.attempt.providerTaskId,
+								message: "Rejected",
+								source: "AUTHENTICATED_RETRIEVAL",
+								observedAt,
+							}),
+						},
+					}),
+		},
 	});
 }
 

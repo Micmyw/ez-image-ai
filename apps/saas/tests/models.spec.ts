@@ -117,6 +117,7 @@ test("text prompt and settings survive signing in without an upload", async ({ p
 		skuKey: "gpt-image-2-1k",
 	});
 	expect(draft.draft.input).not.toHaveProperty("sourceAssetId");
+	await page.getByRole("tab", { name: "Password", exact: true }).click();
 	await page.getByLabel(/email/i).fill(`media-e2e-funded-${process.env.E2E_RUN_ID}@example.test`);
 	await page.locator('input[type="password"]').fill(process.env.E2E_USER_PASSWORD!);
 	await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 30_000 });

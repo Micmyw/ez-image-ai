@@ -73,6 +73,7 @@ const mocks = vi.hoisted(() => {
 		finalizationStore,
 		finalizationRecovery: vi.fn(() => finalizationStore),
 		recoverPayments: vi.fn(),
+		recoverOriginalArchives: vi.fn(async () => ({ recovered: 0 })),
 		runtime: {
 			createDatabaseAccountInputCopyDependencies: vi.fn(() => ({ marker: "copy" })),
 			createDatabaseAccountInputCopyOrphanDependencies: vi.fn(() => ({ marker: "orphan" })),
@@ -116,6 +117,7 @@ vi.mock("@repo/database", async () => ({
 	expireGenerationDrafts: vi.fn(),
 	expirePendingMediaUploadSessions: vi.fn(),
 	recoverExpiredPaymentEvents: mocks.recoverPayments,
+	recoverProviderOriginalArchives: mocks.recoverOriginalArchives,
 	monitorGuestOperationalSafety: mocks.monitorGuest,
 	getAssetGenerationContinuation: mocks.continuation,
 	getFinalizationContinuation: mocks.continuation,
@@ -431,12 +433,16 @@ describe("Node task executor", () => {
 		await executeTask(task, context, { streamingTransfersOnly: true });
 		expect(mocks.runtime.createFinalizationDependencies).toHaveBeenLastCalledWith(
 			expect.anything(),
-			{ deferOutputReview: true, streamingTransfersOnly: true },
+			{
+				deferOutputReview: true,
+				streamingTransfersOnly: true,
+				dispatchArchive: expect.any(Function),
+			},
 		);
 		await executeTask(task, context);
 		expect(mocks.runtime.createFinalizationDependencies).toHaveBeenLastCalledWith(
 			expect.anything(),
-			{ deferOutputReview: true },
+			{ deferOutputReview: true, dispatchArchive: expect.any(Function) },
 		);
 		expect(mocks.finalize).toHaveBeenCalledTimes(2);
 	});
@@ -1477,7 +1483,7 @@ describe("Node task executor", () => {
 		);
 	});
 
-	it("recovers only due verification leases, expired policies, and explicitly quarantined legacy evidence", async () => {
+	it("recovers independent archives and due verification leases, policies, and quarantined legacy evidence", async () => {
 		mocks.findAssets.mockResolvedValue([
 			{ id: "asset-1", status: "VERIFYING", verificationLastErrorCode: null },
 			{
@@ -1495,6 +1501,7 @@ describe("Node task executor", () => {
 				},
 			}),
 		).toEqual({ recovered: 1 });
+		expect(mocks.recoverOriginalArchives).toHaveBeenCalledExactlyOnceWith(expect.anything());
 		expect(mocks.findAssets).toHaveBeenCalledWith(
 			expect.objectContaining({
 				where: expect.objectContaining({

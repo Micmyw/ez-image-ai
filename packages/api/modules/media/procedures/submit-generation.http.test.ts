@@ -213,7 +213,8 @@ describe("managed generation HTTP admission", () => {
 				},
 			);
 			expect(result).toMatchObject({ job: { id: "job-http", creditsReserved: "5" } });
-			expect(pending).toHaveLength(1);
+			// The accepted response retains both dispatch and journey-confirmation work.
+			expect(pending).toHaveLength(2);
 			expect(fixture.wake).toHaveBeenCalledWith(
 				"media-deliver-events",
 				{ eventIds: ["committed-http-event"] },

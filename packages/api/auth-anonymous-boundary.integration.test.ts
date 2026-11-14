@@ -215,6 +215,32 @@ describe("anonymous Better Auth wildcard boundary", () => {
 		expect(await response.json()).toEqual({ code: "GUEST_BOOTSTRAP_FAILED" });
 	});
 
+	it("reports exhausted guest principal capacity without creating an auth session", async () => {
+		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
+		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://app.test");
+		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
+		vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
+		databaseMocks.hasDurableGuestBootstrapProof.mockResolvedValue(true);
+		databaseMocks.resolveGuestRuntimeConfigOverride.mockResolvedValue({ enabled: true });
+		databaseMocks.consumeGuestBootstrap.mockRejectedValue(
+			new Error("GUEST_TEMPORARY_PRINCIPAL_CAP_EXCEEDED"),
+		);
+		const response = await app.request("/api/auth/sign-in/anonymous?handoff=1", {
+			method: "POST",
+			headers: {
+				origin: "https://app.test",
+				"cf-connecting-ip": "203.0.113.10",
+				cookie: `media_guest_bootstrap=${"a".repeat(43)}`,
+			},
+		});
+		expect(response.status).toBe(429);
+		expect(await response.json()).toEqual({
+			code: "GUEST_TEMPORARY_PRINCIPAL_CAP_EXCEEDED",
+			message: "Free trials are temporarily at capacity. Please try again later.",
+		});
+		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(auth.handler).not.toHaveBeenCalled();
+	});
 	it("normalizes the proven anonymous HTML form POST to Better Auth JSON", async () => {
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
 		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://app.test");

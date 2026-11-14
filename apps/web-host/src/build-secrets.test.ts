@@ -1636,6 +1636,35 @@ describe("Cloudflare build secret transport", () => {
 			}),
 		).toBe(source);
 	});
+	it("changes only guest principal capacity through the dedicated build control", () => {
+		const source =
+			"PRIVATE_KEY=unchanged\nGUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL=10\nGUEST_HARD_BUDGET_MICROS=1000000\n";
+		expect(
+			parseEnv(
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: source,
+					GUEST_TEMPORARY_PRINCIPAL_BUILD_MAX_TOTAL: "100",
+				}),
+			),
+		).toEqual({ ...parseEnv(source), GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL: "100" });
+		expect(
+			withoutCloudflareBuildSecrets({
+				GUEST_TEMPORARY_PRINCIPAL_BUILD_MAX_TOTAL: "100",
+				NODE_ENV: "production",
+			}),
+		).toEqual({ NODE_ENV: "production" });
+	});
+	it.each(["", "0", "101", "1.5", " 10", "10\nOTHER=1"])(
+		"rejects invalid guest principal capacity %s",
+		(value) => {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged",
+					GUEST_TEMPORARY_PRINCIPAL_BUILD_MAX_TOTAL: value,
+				}),
+			).toThrow("CLOUDFLARE_GUEST_PRINCIPAL_CAPACITY_INVALID");
+		},
+	);
 	it("rejects partial or excessive daily guest overrides", () => {
 		for (const limits of [
 			{ GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2" },

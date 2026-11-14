@@ -590,6 +590,12 @@ function withGuestBudgetOverride(source: string, environment: Record<string, str
 }
 
 function withGuestQuotaOverrides(source: string, environment: Record<string, string | undefined>) {
+	const principalCapacity = environment.GUEST_TEMPORARY_PRINCIPAL_BUILD_MAX_TOTAL;
+	if (principalCapacity !== undefined) {
+		if (!/^(?:[1-9]\d?|100)$/.test(principalCapacity))
+			throw new Error("CLOUDFLARE_GUEST_PRINCIPAL_CAPACITY_INVALID");
+		source = `${source}\nGUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL=${principalCapacity}\n`;
+	}
 	const keys = ["GUEST_SESSION_MAX_ACCEPTED_PER_DAY", "GUEST_DEVICE_MAX_ACCEPTED_PER_DAY"];
 	if (!keys.some((key) => environment[key] !== undefined)) return source;
 	if (keys.some((key) => !["1", "2"].includes(environment[key] ?? "")))
@@ -664,6 +670,7 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 				(control) => control === key || control.replace("_BUILD_ENABLED", "_ENABLED") === key,
 			) ||
 			key === "ANNUAL_PLAN_BINDINGS" ||
+			key === "GUEST_TEMPORARY_PRINCIPAL_BUILD_MAX_TOTAL" ||
 			key === "ACCOUNT_INPUT_COPY_ENABLED" ||
 			key === "VIDEO_RUNTIME_CONFIG" ||
 			key === "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" ||

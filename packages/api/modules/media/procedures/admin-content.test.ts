@@ -7,7 +7,10 @@ vi.mock("@repo/database", () => ({
 	listAdminImageContent: vi.fn(),
 }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
-vi.mock("@repo/storage", () => ({ createSignedReadUrl: vi.fn() }));
+vi.mock("@repo/storage", () => ({
+	createSignedReadUrl: vi.fn(),
+	isProviderOriginalKey: (key: string) => key.startsWith("provider-original-v1/"),
+}));
 
 import { auth } from "@repo/auth";
 import { getAdminImageContent, listAdminImageContent } from "@repo/database";

@@ -9,7 +9,10 @@ vi.mock("@repo/database", () => ({
 	getAdminModerationReviewDetail: vi.fn(),
 }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
-vi.mock("@repo/storage", () => ({ createSignedReadUrl: vi.fn() }));
+vi.mock("@repo/storage", () => ({
+	createSignedReadUrl: vi.fn(),
+	isProviderOriginalKey: (key: string) => key.startsWith("provider-original-v1/"),
+}));
 vi.mock("../lib/text-moderation", () => ({
 	createTextModerationAdapter: vi.fn(),
 	moderateTextWithRetry: vi.fn(),

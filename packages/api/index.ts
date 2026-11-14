@@ -512,6 +512,7 @@ export function stableGuestAuthFailure(error: unknown): {
 		| "GUEST_BOOTSTRAP_IN_PROGRESS"
 		| "GUEST_BOOTSTRAP_LEASE_LOST"
 		| "GUEST_BOOTSTRAP_UNAVAILABLE"
+		| "GUEST_TEMPORARY_PRINCIPAL_CAP_EXCEEDED"
 		| "GUEST_TEMPORARY_USER_CAP_EXCEEDED";
 	status: StatusCode;
 } {
@@ -520,6 +521,7 @@ export function stableGuestAuthFailure(error: unknown): {
 		return { code, status: 409 };
 	}
 	if (code === "GUEST_BOOTSTRAP_UNAVAILABLE") return { code, status: 403 };
+	if (code === "GUEST_TEMPORARY_PRINCIPAL_CAP_EXCEEDED") return { code, status: 429 };
 	if (code === "GUEST_TEMPORARY_USER_CAP_EXCEEDED") return { code, status: 429 };
 	return { code: "GUEST_BOOTSTRAP_FAILED", status: 403 };
 }
@@ -561,7 +563,15 @@ function withExpiredGuestBootstrapCookie(response: Response): Response {
 }
 
 function guestAuthErrorResponse(code: string, status: StatusCode): Response {
-	return Response.json({ code }, { status });
+	return Response.json(
+		{
+			code,
+			...(code === "GUEST_TEMPORARY_PRINCIPAL_CAP_EXCEEDED"
+				? { message: "Free trials are temporarily at capacity. Please try again later." }
+				: {}),
+		},
+		{ status, headers: { "Cache-Control": "no-store" } },
+	);
 }
 
 function readRequestCookie(request: Request, name: string): string | null {

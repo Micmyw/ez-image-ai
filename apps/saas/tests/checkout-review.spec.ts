@@ -54,6 +54,7 @@ test.describe("checkout review browser flow", () => {
 		await page.goto("/login");
 		await session;
 		await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 90_000 });
+		await page.getByRole("tab", { name: "Password", exact: true }).click();
 		await page.getByLabel(/email/i).fill(email);
 		await page.locator('input[type="password"]').fill(password);
 		await submitPasswordSignIn(page);
