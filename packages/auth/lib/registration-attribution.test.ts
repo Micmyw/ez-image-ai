@@ -95,6 +95,7 @@ describe("registration attribution boundary", () => {
 	it.each([
 		"/sign-up/email",
 		"/sign-in/social",
+		"/one-tap/callback",
 		"/callback/google",
 		"/callback/github",
 		"/magic-link/verify",

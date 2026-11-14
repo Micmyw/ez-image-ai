@@ -27,6 +27,8 @@ export type MediaUploadStatus =
 export interface MediaUploadItem {
 	temporaryReference?: TemporaryReferenceReceipt;
 	file: File;
+	/** Exact normalized bytes used for the preview, hash and upload. */
+	preparedFile?: File;
 	previewUrl: string | null;
 	progress: number;
 	status: MediaUploadStatus;
@@ -44,6 +46,7 @@ export function useMediaUpload(
 	const [items, setItems] = useState<MediaUploadItem[]>([]);
 	const abortControllers = useRef(new Map<string, AbortController>());
 	const previewUrls = useRef(new Set<string>());
+	const preparedPreviews = useRef(new Map<string, string>());
 	const emittedAssetIds = useRef<string[]>([]);
 
 	useEffect(
@@ -90,6 +93,13 @@ export function useMediaUpload(
 			try {
 				const preparedFile = await prepareImageUpload(file, maximumImageBytes);
 				assertActive();
+				let previewUrl = preparedPreviews.current.get(fingerprint) ?? null;
+				if (!previewUrl && preparedFile.type.startsWith("image/")) {
+					previewUrl = URL.createObjectURL(preparedFile);
+					preparedPreviews.current.set(fingerprint, previewUrl);
+					previewUrls.current.add(previewUrl);
+				}
+				update(fingerprint, { preparedFile, previewUrl });
 				if (temporaryReference) {
 					const receipt = await uploadTemporaryReferenceFile(preparedFile, controller.signal);
 					assertActive();
@@ -131,7 +141,7 @@ export function useMediaUpload(
 					sessionId: session.sessionId,
 					assetId: session.assetId,
 					fileFingerprint: fingerprint,
-					partCount: Math.ceil(file.size / partSize),
+					partCount: Math.ceil(preparedFile.size / partSize),
 					completedParts: [],
 				};
 				localStorage.setItem(`${STORAGE_PREFIX}${fingerprint}`, createPersistedUploadState(state));
@@ -144,7 +154,7 @@ export function useMediaUpload(
 					const start = (partNumber - 1) * partSize;
 					const response = await fetch(uploadUrl, {
 						method: "PUT",
-						body: file.slice(start, Math.min(start + partSize, file.size)),
+						body: preparedFile.slice(start, Math.min(start + partSize, preparedFile.size)),
 						signal: controller.signal,
 					});
 					const etag = response.headers.get("etag");
@@ -185,11 +195,9 @@ export function useMediaUpload(
 	const addFiles = useCallback(
 		(files: File[]) => {
 			const added = files.map((file) => {
-				const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
-				if (previewUrl) previewUrls.current.add(previewUrl);
 				return {
 					file,
-					previewUrl,
+					previewUrl: null,
 					progress: 0,
 					status: "idle" as const,
 					assetId: null,
@@ -215,6 +223,7 @@ export function useMediaUpload(
 				URL.revokeObjectURL(removed.previewUrl);
 				previewUrls.current.delete(removed.previewUrl);
 			}
+			preparedPreviews.current.delete(fingerprint);
 			setItems((current) => {
 				return current.filter((item) => getFileFingerprint(item.file) !== fingerprint);
 			});

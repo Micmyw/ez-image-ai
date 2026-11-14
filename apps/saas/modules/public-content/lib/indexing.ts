@@ -40,6 +40,7 @@ const PRIVATE_QUERY_KEYS = [
 	"job",
 	"videoJob",
 	"reuseJob",
+	"authDraft",
 	"parentJob",
 	"resume",
 	"draftError",

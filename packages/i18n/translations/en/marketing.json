@@ -158,7 +158,7 @@
 			},
 			"free": {
 				"question": "Can I use image to image AI for free?",
-				"answer": "Eligible guests can make two sponsored Nano Banana 2 Lite 1K edits per day when the queue is available. Guest results are watermarked and available for up to 24 hours. Eligible registered accounts receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill. Premium image models and higher resolutions require an active paid subscription when using credits. The USD 2.99 image pack includes 3 successful images with the covered image models and sizes, without a subscription."
+				"answer": "Eligible guests can try one free image edit with MiniMax H3 1K or Nano Banana 2 Lite 1K when the sponsored queue is available. The result is private, watermarked, and available for up to 24 hours. Eligible registered accounts receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill. Premium image models and higher resolutions require an active paid subscription when using credits. The USD 2.99 image pack includes 3 successful images with the covered image models and sizes, without a subscription."
 			},
 			"control": {
 				"question": "Will the result keep every detail of my original image?",
@@ -212,11 +212,11 @@
 			},
 			"guestAvailability": {
 				"question": "When is the guest edit available?",
-				"answer": "When the sponsored guest queue is available, eligible visitors can make two Nano Banana 2 Lite 1K image edits per day without signing up. Upload a reference image and describe your change. Each result is private, watermarked, and available for up to 24 hours. The allowance resets at 00:00 UTC; unused edits do not roll over. Text-to-image generation requires sign-in."
+				"answer": "Eligible guests can try one free image edit with MiniMax H3 1K or Nano Banana 2 Lite 1K when the sponsored queue is available. The result is private, watermarked, and available for up to 24 hours. Upload a reference image and describe your change. This is a one-time trial in this browser, subject to regional eligibility. Text-to-image generation requires sign-in."
 			},
 			"guestVsFree": {
 				"question": "What is the difference between Guest and Free?",
-				"answer": "Eligible guests can make two sponsored Nano Banana 2 Lite 1K edits per day when the queue is available. Guest results are watermarked and available for up to 24 hours. Eligible registered accounts receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill. Premium image models and higher resolutions require an active paid subscription when using credits. The USD 2.99 image pack includes 3 successful images with the covered image models and sizes, without a subscription. Images generated with account credits have no guest watermark and a 30-day retention target. Download results you want to keep."
+				"answer": "Eligible guests can try one free image edit with MiniMax H3 1K or Nano Banana 2 Lite 1K when the sponsored queue is available. The result is private, watermarked, and available for up to 24 hours. Eligible registered accounts receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill. Premium image models and higher resolutions require an active paid subscription when using credits. The USD 2.99 image pack includes 3 successful images with the covered image models and sizes, without a subscription. Images generated with account credits have no guest watermark and a 30-day retention target. Download results you want to keep."
 			},
 			"editTiers": {
 				"question": "Which image models and output settings are available?",
@@ -332,11 +332,11 @@
 			"eyebrow": "Start creating",
 			"title": "Describe the image you have in mind",
 			"subtitle": "Start with a prompt, or add a reference image for an edit. Sign in and generate in one click, with the credit cost shown on the button.",
-			"offer": "Try Nano Banana 2 Lite 1K free",
+			"offer": "Try a free 1K image edit",
 			"noSignUp": "No sign-up when the guest queue is available",
 			"paidSignIn": "Sign in and use account credits",
 			"oneOutput": "One output",
-			"freeQueue": "2 free edits daily · watermarked · available for up to 24 hours",
+			"freeQueue": "One free trial · watermarked · available for up to 24 hours",
 			"qualityAccess": "{model} requires sign-in and a Pro, Ultimate, or Max plan.",
 			"freeAccountAccess": "Sign in to try {model} with your free credits.",
 			"temporaryResult": "Your preview stays private and temporary.",
@@ -380,7 +380,7 @@
 				"ready": "Choose a model and describe an image. A reference is optional.",
 				"preparing": "Preparing your private upload…",
 				"loadingCapability": "Checking guest availability…",
-				"unavailable": "The guest Nano Banana queue is not accepting new edits right now.",
+				"unavailable": "The guest queue is not accepting new edits right now.",
 				"uploading": "Uploading private source image: {percentage, number}%",
 				"verifying": "Verifying your private source image…",
 				"handoff": "Opening your private workspace…",
@@ -408,9 +408,11 @@
 				"contentRejected": "This reference image did not pass the safety check. Choose a different image.",
 				"reviewRequired": "This reference image needs manual review. No generation has started.",
 				"safetyUnavailable": "The safety check is unavailable. Your image and prompt are kept; try checking this request again later.",
-				"reviewPending": "Your reference image is still being checked. Retry to continue checking the same upload.",
+				"reviewPending": "Your image is still being prepared. Retry to continue the same upload.",
 				"referenceExpired": "This upload can no longer be reused. Choose the image again to start a new upload.",
-				"reviewUnknown": "We could not confirm the safety check. Your upload is kept; retry to check the same request."
+				"reviewUnknown": "We could not confirm the last request. Your upload is kept; retry to continue it.",
+				"previousUploadPending": "Two earlier uploads are still unconfirmed. Wait a moment and retry; your selected photo is kept.",
+				"browserCookie": "We could not restore this browser’s upload session. Retry availability, then continue with the same photo."
 			},
 			"prompt": "Describe your image",
 			"reference": "Reference image · optional",
@@ -442,7 +444,7 @@
 					"label": "Nano Banana 2 Lite",
 					"badge": "Guest trial",
 					"description": "1K source-image editing with one output",
-					"access": "Two sponsored guest edits per day"
+					"access": "One sponsored guest trial"
 				},
 				"quality": {
 					"label": "More image models",
@@ -451,7 +453,7 @@
 					"access": "Pro, Ultimate, or Max plan required"
 				}
 			},
-			"loginNotice": "Sign in to generate from text. The button shows the credit cost before you start. With a reference image, the sponsored Nano Banana 2 Lite guest edit remains available when the guest queue is open.",
+			"loginNotice": "Sign in to generate from text. The button shows the credit cost before you start. With a reference image, eligible guests can try MiniMax H3 1K or Nano Banana 2 Lite 1K once when the guest queue is open.",
 			"previewCaption": "Source preview",
 			"previewPlaceholderAlt": "Original EzImageAI vector illustration of a neutral reading studio",
 			"previewAlt": "Preview of {fileName}",
@@ -469,7 +471,9 @@
 				"empty": "Choose a non-empty source image.",
 				"type": "Choose a JPEG, PNG, or WebP image.",
 				"size": "Choose an image that is {megabytes, number} MB or smaller.",
-				"read": "We could not read that image. Export a new PNG or JPG from your photo app, or choose another file."
+				"read": "We could not read that image. Export a new PNG or JPG from your photo app, or choose another file.",
+				"heic": "This browser cannot open this HEIC photo. Export it as JPEG or PNG and try again.",
+				"dimensions": "This image has too many pixels. Resize it and try again."
 			},
 			"help": {
 				"promptGuide": "Read the prompt guide",
@@ -726,7 +730,7 @@
 		"trust": {
 			"eyebrow": "Clear boundaries",
 			"title": "Private by default, metered by design",
-			"description": "When the sponsored guest queue is available, the homepage can start up to two Nano Banana 2 Lite 1K edits per day. Account edits show the credit cost on the button and check safety and price before reserving EzImageAI Credits.",
+			"description": "Eligible guests can try one 1K image edit with MiniMax H3 or Nano Banana 2 Lite. Account edits show the credit cost on the button and check safety and price before reserving EzImageAI Credits.",
 			"items": {
 				"privacy": {
 					"title": "Private media",
@@ -734,7 +738,7 @@
 				},
 				"credits": {
 					"title": "Controlled usage",
-					"description": "Guest Nano Banana edits use the sponsored queue; account edits show the EzImageAI Credit amount on the button. A price change requires your confirmation before starting."
+					"description": "Guest trials use the sponsored queue; account edits show the EzImageAI Credit amount on the button. A price change requires your confirmation before starting."
 				},
 				"safety": {
 					"title": "Normal safeguards",
@@ -812,11 +816,11 @@
 			"items": {
 				"guestAvailability": {
 					"question": "Can I try the AI image editor without signing up?",
-					"answer": "When the sponsored guest queue is available, eligible visitors can make two Nano Banana 2 Lite 1K image edits per day without signing up. Upload a reference image and describe your change. Each result is private, watermarked, and available for up to 24 hours. The allowance resets at 00:00 UTC; unused edits do not roll over. Text-to-image generation requires sign-in."
+					"answer": "Eligible guests can try one free image edit with MiniMax H3 1K or Nano Banana 2 Lite 1K when the sponsored queue is available. The result is private, watermarked, and available for up to 24 hours. Upload a reference image and describe your change. This is a one-time trial in this browser, subject to regional eligibility. Text-to-image generation requires sign-in."
 				},
 				"guestVsFree": {
 					"question": "Can I use EzImageAI as a free AI image editor?",
-					"answer": "Eligible registered accounts receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill. Premium image models and higher resolutions require an active paid subscription when using credits. The USD 2.99 image pack includes 3 successful images with the covered image models and sizes, without a subscription. Eligible guests can make two sponsored Nano Banana 2 Lite 1K edits per day when the queue is available. Guest results are watermarked and available for up to 24 hours. Content safety, legal, model, and usage limits apply."
+					"answer": "Eligible registered accounts receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill. Premium image models and higher resolutions require an active paid subscription when using credits. The USD 2.99 image pack includes 3 successful images with the covered image models and sizes, without a subscription. Eligible guests can try one free image edit with MiniMax H3 1K or Nano Banana 2 Lite 1K when the sponsored queue is available. The result is private, watermarked, and available for up to 24 hours. Content safety, legal, model, and usage limits apply."
 				}
 			}
 		},

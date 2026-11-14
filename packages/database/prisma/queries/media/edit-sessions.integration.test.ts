@@ -4,6 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { isExplicitVideoVerificationTarget } from "../../../../../tests/load/video-verification-target";
 import { PrismaClient } from "../../generated/client";
 import { createCreditGrant } from "./credits";
+import { findEligibleImageEditParentForOwner } from "./edit-sessions";
 import { createGenerationJobTransaction } from "./jobs";
 import {
 	createModeratedGenerationQuoteTransaction,
@@ -25,6 +26,49 @@ describe("image edit session PostgreSQL transaction", () => {
 	});
 
 	afterAll(async () => client?.$disconnect());
+
+	it("starts another edit from an approved provider original while its parent and R2 archive remain unfinished", async () => {
+		const f = await createRootFixture(client, { credits: 40n });
+		const root = await createRootEdit(client, f);
+		const output = await createReadyImageAsset(client, f.ownerId, "OUTPUT", "image/png", true);
+		await bindOutputToJob(client, root.job.id, output.id, output.checksum!);
+		await client.generationJob.update({
+			where: { id: root.job.id },
+			data: { status: "FINALIZING", terminalAt: null },
+		});
+		await client.mediaOutputOrigin.create({
+			data: { assetId: output.id, url: "https://tempfile.aiquickdraw.com/original.png" },
+		});
+		const parent = await findEligibleImageEditParentForOwner(
+			{ ownerType: "USER", ownerId: f.ownerId, parentJobId: root.job.id, sourceAssetId: output.id },
+			client,
+		);
+		expect(parent).toMatchObject({ parentJobId: root.job.id, sourceAssetId: output.id });
+		const child = await createChildFixture(client, {
+			ownerId: f.ownerId,
+			parentJobId: root.job.id,
+			sourceAssetId: output.id,
+			prompt: "Continue with the approved original",
+		});
+		const created = await createChildEdit(client, child);
+		expect(await client.generationJob.findUnique({ where: { id: created.job.id } })).toMatchObject({
+			parentJobId: root.job.id,
+		});
+		expect(
+			await client.mediaOutputOrigin.findUnique({ where: { assetId: output.id } }),
+		).toMatchObject({ archiveState: "PENDING" });
+		expect(
+			await findEligibleImageEditParentForOwner(
+				{
+					ownerType: "USER",
+					ownerId: "other-owner",
+					parentJobId: root.job.id,
+					sourceAssetId: output.id,
+				},
+				client,
+			),
+		).toBeNull();
+	});
 
 	it("commits the root session with the existing job transaction and rolls it all back on failure", async () => {
 		const successful = await createRootFixture(client, { credits: 20n });
@@ -695,17 +739,21 @@ async function createReadyImageAsset(
 	ownerId: string,
 	kind: "INPUT" | "OUTPUT",
 	mimeType = "image/png",
+	providerOriginal = false,
 ) {
 	const suffix = crypto.randomUUID();
 	const checksum = suffix.replaceAll("-", "").repeat(2);
 	const validUntil = new Date(Date.now() + 60 * 60_000);
 	const asset = await client.mediaAsset.create({
 		data: {
+			...(providerOriginal ? { id: suffix } : {}),
 			ownerType: "USER",
 			ownerId,
 			kind,
 			status: "VERIFYING",
-			objectKey: `users/${ownerId}/pr5/${suffix}`,
+			objectKey: providerOriginal
+				? `provider-original-v1/users/${ownerId}/assets/${suffix}/original.png`
+				: `users/${ownerId}/pr5/${suffix}`,
 			mimeType,
 			byteSize: 128n,
 			checksum,

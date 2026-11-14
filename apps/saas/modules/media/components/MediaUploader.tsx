@@ -4,15 +4,15 @@ import { getPublicConfig } from "@repo/config/client";
 import { Button } from "@repo/ui/components/button";
 import { PlusIcon, UploadCloudIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { type ClipboardEvent, useCallback, useEffect } from "react";
+import { type ClipboardEvent, useCallback, useEffect, useRef } from "react";
 import { useDropzone } from "react-dropzone";
 
 import { type MediaUploadItem, useMediaUpload } from "../hooks/use-media-upload";
+import { IMAGE_UPLOAD_ACCEPT, isSupportedImageUploadSource } from "../lib/prepare-image-upload";
 import type { TemporaryReferenceReceipt } from "../lib/temporary-reference-upload";
 import { getFileFingerprint } from "../lib/upload-state";
 
 const publicProductConfig = getPublicConfig();
-const ezPicImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 export function filterEzPicImageFiles(
 	files: File[],
@@ -20,7 +20,7 @@ export function filterEzPicImageFiles(
 ): File[] {
 	const limit = Math.min(maximumImageBytes, publicProductConfig.uploadLimits.imageBytes);
 	return files.filter(
-		(file) => file.size > 0 && file.size <= limit && ezPicImageTypes.has(file.type),
+		(file) => file.size > 0 && file.size <= limit && isSupportedImageUploadSource(file),
 	);
 }
 
@@ -35,6 +35,7 @@ export interface MediaUploaderProps {
 	compact?: boolean;
 	uploadLabel?: string;
 	presentation?: "default" | "composer";
+	initialReferenceFile?: File;
 }
 
 export function MediaUploader({
@@ -47,6 +48,7 @@ export function MediaUploader({
 	uploadLabel,
 	temporaryReference = false,
 	presentation = "default",
+	initialReferenceFile,
 }: MediaUploaderProps) {
 	const t = useTranslations("media.uploader");
 	const fileErrors = useTranslations("home.generator.fileErrors");
@@ -54,6 +56,30 @@ export function MediaUploader({
 	const imageByteLimit = Math.min(maximumImageBytes, publicProductConfig.uploadLimits.imageBytes);
 	const uploader = useMediaUpload(onChange, temporaryReference, imageByteLimit);
 	const addFiles = uploader.addFiles;
+	const restoredFile = useRef<File | null>(null);
+	const manuallySelected = useRef(false);
+	useEffect(() => {
+		if (
+			!initialReferenceFile ||
+			restoredFile.current === initialReferenceFile ||
+			manuallySelected.current
+		)
+			return;
+		let canceled = false;
+		// Strict-mode effect replay must not abort and then silently lose the restored upload.
+		queueMicrotask(() => {
+			if (canceled || manuallySelected.current || restoredFile.current === initialReferenceFile)
+				return;
+			restoredFile.current = initialReferenceFile;
+			if (uploader.items.length === 0) {
+				onPendingChange?.(true);
+				addFiles([initialReferenceFile]);
+			}
+		});
+		return () => {
+			canceled = true;
+		};
+	}, [initialReferenceFile, addFiles, onPendingChange, uploader.items.length]);
 	const pending = uploader.items.some((item) => item.status !== "uploaded");
 	useEffect(() => onPendingChange?.(pending), [onPendingChange, pending]);
 	const selectedUpload = uploader.items[0] ?? null;
@@ -62,6 +88,7 @@ export function MediaUploader({
 		(files: File[]) => {
 			const acceptedFiles = filterEzPicImageFiles(files, imageByteLimit);
 			if (acceptedFiles.length) {
+				manuallySelected.current = true;
 				onPendingChange?.(true);
 				addFiles(multiple ? acceptedFiles : acceptedFiles.slice(0, 1));
 			}
@@ -72,11 +99,7 @@ export function MediaUploader({
 		onDrop: addImageFiles,
 		multiple,
 		maxSize: imageByteLimit,
-		accept: {
-			"image/jpeg": [".jpg", ".jpeg"],
-			"image/png": [".png"],
-			"image/webp": [".webp"],
-		},
+		accept: IMAGE_UPLOAD_ACCEPT,
 	});
 	const onPaste = useCallback(
 		(event: ClipboardEvent<HTMLDivElement>) => {
@@ -150,11 +173,15 @@ export function MediaUploader({
 									<p role="alert" className="text-sm break-words text-destructive">
 										{item.error === "SOURCE_IMAGE_UNREADABLE"
 											? fileErrors("read")
-											: item.error === "SOURCE_IMAGE_TOO_LARGE"
-												? fileErrors("size", {
-														megabytes: Math.round(imageByteLimit / 1024 / 1024),
-													})
-												: item.error}
+											: item.error === "SOURCE_IMAGE_HEIC_UNSUPPORTED"
+												? fileErrors("heicUnsupported")
+												: item.error === "SOURCE_IMAGE_DIMENSIONS_TOO_LARGE"
+													? fileErrors("dimensions")
+													: item.error === "SOURCE_IMAGE_TOO_LARGE"
+														? fileErrors("size", {
+																megabytes: Math.round(imageByteLimit / 1024 / 1024),
+															})
+														: item.error}
 									</p>
 								)}
 							</div>

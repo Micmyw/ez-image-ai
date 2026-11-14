@@ -179,7 +179,20 @@ describe("authenticated terminal observations release only supplier occupancy", 
 		await f.store.recordReconciled(lease, snapshot, result);
 		expect(f.tx.generationAttempt.update).toHaveBeenCalledWith({
 			where: { id: "attempt" },
-			data: { responseSnapshot: { providerCharged: true, providerTerminalEvidence: evidence } },
+			data: {
+				responseSnapshot: { providerCharged: true, providerTerminalEvidence: evidence },
+				errorSnapshot: {
+					providerDiagnostic: {
+						version: 1,
+						attemptId: "attempt",
+						provider: "kie",
+						providerTaskId: "task",
+						message: "Content rejected",
+						source: "AUTHENTICATED_RETRIEVAL",
+						observedAt: snapshot.retrieval!.observedAt,
+					},
+				},
+			},
 		});
 		expect(f.tx.generationAttempt.updateMany).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -259,7 +272,15 @@ describe("authenticated terminal observations release only supplier occupancy", 
 			{ ...snapshot, retrieval: undefined, raw: { providerTerminalEvidence: evidence } },
 			result,
 		);
-		expect(f.tx.generationAttempt.update).not.toHaveBeenCalled();
+		expect(f.tx.generationAttempt.update).toHaveBeenCalledWith(
+			expect.objectContaining({
+				data: {
+					errorSnapshot: {
+						providerDiagnostic: expect.objectContaining({ source: "INTERNAL_DIAGNOSTIC" }),
+					},
+				},
+			}),
+		);
 		const written = f.tx.generationAttempt.updateMany.mock.calls[0]?.[0];
 		expect(written).not.toHaveProperty("data.responseSnapshot.providerTerminalEvidence");
 	});

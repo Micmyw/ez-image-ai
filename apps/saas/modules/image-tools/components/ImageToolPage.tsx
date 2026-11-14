@@ -18,6 +18,7 @@ import { InspirationPrompt } from "../../models/components/InspirationPrompt";
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
 import {
 	IMAGE_TOOL_PAGES,
+	getImageToolStarterPreset,
 	imageToolStructuredData,
 	type ImageToolPageKey,
 } from "../lib/tool-pages";
@@ -43,6 +44,7 @@ export function ImageToolPage({
 	searchParams?: Promise<CreatePageFilters>;
 }) {
 	const content = IMAGE_TOOL_PAGES[tool];
+	const starter = getImageToolStarterPreset(tool);
 	const isMiniMax = tool === "minimax-h3-image";
 	const isSeedream = tool === "seedream-5-5";
 	const heroModel = modelHeroes[tool];
@@ -71,7 +73,10 @@ export function ImageToolPage({
 	);
 	return (
 		<StudioShell>
-			<ToolPromptProvider initialPrompt="">
+			<ToolPromptProvider
+				initialPrompt={starter?.prompt ?? ""}
+				initialAspectRatio={starter?.aspectRatio}
+			>
 				<main
 					className={`ai-tool-page${hasShowcase ? " model-tool-page" : ""}${heroModel ? ` ${heroModel}-page` : ""}`}
 					lang="en"

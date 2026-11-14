@@ -1,5 +1,5 @@
 import { call } from "@orpc/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const capabilityMocks = vi.hoisted(() => ({ loadGuestCapabilitySnapshot: vi.fn() }));
 
@@ -8,8 +8,10 @@ vi.mock("../lib/guest-capability", () => capabilityMocks);
 import { getGuestCapability } from "./get-guest-capability";
 
 describe("getGuestCapability", () => {
+	afterEach(() => vi.unstubAllEnvs());
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.stubEnv("BETTER_AUTH_SECRET", "capability-handshake-secret-longer-than-32");
 		capabilityMocks.loadGuestCapabilitySnapshot.mockResolvedValue({
 			version: "guest-v1",
 			enabled: true,
@@ -114,5 +116,6 @@ describe("getGuestCapability", () => {
 		]);
 		expect(JSON.stringify(result)).not.toMatch(/provider|modelId|costMicros/i);
 		expect(responseHeaders.get("Cache-Control")).toBe("no-store");
+		expect(responseHeaders.get("set-cookie")).toContain("HttpOnly");
 	});
 });

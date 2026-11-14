@@ -86,8 +86,8 @@ describe("guest media configuration", () => {
 			expect(config).not.toHaveProperty("queueTtlMs");
 			expect(Object.keys(config.limits).some((name) => /PerIp|PerSubnet/.test(name))).toBe(false);
 			expect(config.limits).toMatchObject({
-				maximumAcceptedTrialsPerSessionPerDay: 2,
-				maximumAcceptedTrialsPerDevicePerDay: 2,
+				maximumAcceptedTrialsPerSessionPerDay: 1,
+				maximumAcceptedTrialsPerDevicePerDay: 1,
 				maximumGlobalRequestsPerMinute: 3,
 				maximumGlobalRequestsPerHour: 30,
 			});
@@ -106,8 +106,8 @@ describe("guest media configuration", () => {
 			expect(config.limits).toMatchObject({
 				maximumGlobalRequestsPerMinute: 3,
 				maximumGlobalRequestsPerHour: 30,
-				maximumAcceptedTrialsPerSessionPerDay: 2,
-				maximumAcceptedTrialsPerDevicePerDay: 2,
+				maximumAcceptedTrialsPerSessionPerDay: 1,
+				maximumAcceptedTrialsPerDevicePerDay: 1,
 			});
 		},
 	);
@@ -123,7 +123,7 @@ describe("guest media configuration", () => {
 			enabled: true,
 			riskBudgetMicros: null,
 			productionEvidence: { hardBudgetMicros: null },
-			limits: { maximumAcceptedTrialsPerSessionPerDay: 2 },
+			limits: { maximumAcceptedTrialsPerSessionPerDay: 1 },
 			turnstile: { required: true },
 		});
 		expect(
@@ -150,12 +150,12 @@ describe("guest media configuration", () => {
 		).toMatchObject({ enabled: false, reason: "GUEST_CONFIGURATION_INVALID" });
 	});
 
-	it("gives guests two daily edits with five credits per edit", () => {
+	it("uses one lifetime trial with five sponsor credits", () => {
 		expect(getGuestMediaConfig(developmentEnvironment, true)).toMatchObject({
 			sponsorCredits: 5n,
 			limits: {
-				maximumAcceptedTrialsPerSessionPerDay: 2,
-				maximumAcceptedTrialsPerDevicePerDay: 2,
+				maximumAcceptedTrialsPerSessionPerDay: 1,
+				maximumAcceptedTrialsPerDevicePerDay: 1,
 			},
 		});
 	});
@@ -187,20 +187,20 @@ describe("guest media configuration", () => {
 			).enabled,
 		).toBe(false);
 	});
-	it("exposes the fixed Nano Banana 2 Lite trial envelope in non-production", () => {
+	it("exposes the default H3 1K trial envelope in non-production", () => {
 		expect(getGuestMediaConfig(developmentEnvironment, true)).toMatchObject({
 			enabled: true,
 			reason: null,
 			promotionPeriod: "2026-launch",
-			productKey: "image-nano-banana-2-lite",
+			productKey: "image-minimax-h3",
 			sponsorCredits: 5n,
 			maximumBytes: 10 * 1024 * 1024,
 			mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 			retentionMs: 24 * 60 * 60 * 1_000,
 			riskBudgetMicros: 350_000n,
 			limits: {
-				maximumAcceptedTrialsPerSessionPerDay: 2,
-				maximumAcceptedTrialsPerDevicePerDay: 2,
+				maximumAcceptedTrialsPerSessionPerDay: 1,
+				maximumAcceptedTrialsPerDevicePerDay: 1,
 				maximumGlobalRequestsPerMinute: 3,
 				maximumGlobalRequestsPerHour: 30,
 				maximumOutstandingBootstraps: 25,
@@ -251,8 +251,6 @@ describe("guest media configuration", () => {
 		["GUEST_RISK_BUDGET_MICROS", "350001"],
 		["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "29"],
 		["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "31"],
-		["GUEST_SESSION_MAX_ACCEPTED_PER_DAY", "3"],
-		["GUEST_DEVICE_MAX_ACCEPTED_PER_DAY", "3"],
 		["GUEST_GLOBAL_MAX_PER_MINUTE", "4"],
 		["GUEST_GLOBAL_MAX_PER_HOUR", "31"],
 		["GUEST_BOOTSTRAP_MAX_OUTSTANDING", "26"],

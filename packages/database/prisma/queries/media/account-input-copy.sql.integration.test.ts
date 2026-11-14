@@ -28,6 +28,8 @@ import {
 	recoverAccountInputCopies,
 	registerAccountInputCopyMultipart,
 } from "./account-input-copy";
+import type { AccountInputCopyReadbackProof } from "./account-input-copy-review";
+import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import { unexpiredStorageReservations } from "./temporary-references";
 
@@ -50,6 +52,194 @@ afterAll(async () => {
 // is explicitly called AFTER the exclusive draft claim; this is not evidence of
 // the complete claim/link entrypoints or generated Prisma mappings/storage I/O.
 describe("account input verified copy through a disposable PostgreSQL SQL port", () => {
+	it("commits a current exact-byte source approval once and never reuses the source provider task as a target task", async () => {
+		const f = await reusablePrepared("derived-approval");
+		const claim = (await claimAccountInputCopy(
+			{ promotionId: f.promotionId, reviewPolicy: copyReviewPolicy },
+			fixture.client(),
+		))!;
+		const before = await sourceSnapshot(f.input.assetId);
+		expect(await Promise.all(Array.from({ length: 6 }, () => commitWithProof(claim)))).toEqual(
+			Array(6).fill({ status: "READY" }),
+		);
+		const asset = await target(f.p.target.assetId);
+		const evidence = await fixture.rows(
+			`SELECT * FROM ${fixture.table("asset_moderation_result")} WHERE "assetId"=$1`,
+			[f.p.target.assetId],
+		);
+		expect(evidence).toHaveLength(1);
+		expect(asset).toMatchObject({ status: "READY", verificationProviderTaskId: null });
+		expect(evidence[0]).toMatchObject({
+			status: "APPROVED",
+			providerTaskId: null,
+			reasonCode: "IMMUTABLE_ACCOUNT_INPUT_COPY_V1",
+			rawEnvelope: {
+				provenance: "IMMUTABLE_ACCOUNT_INPUT_COPY_V1",
+				receipt: {
+					transform: "none",
+					sourceAssetId: f.input.assetId,
+					targetAssetId: f.p.target.assetId,
+					sourceEvidence: { providerTaskId: `review-${f.input.assetId}` },
+				},
+			},
+		});
+		expect(
+			hasCurrentApprovedMediaAssetEvidence({ ...asset, moderationResults: evidence } as never, {
+				...copyReviewPolicy,
+				now: new Date(),
+			}),
+		).toBe(true);
+		expect(
+			await fixture.rows(
+				`SELECT id FROM ${fixture.table("outbox_event")} WHERE "eventType"='ACCOUNT_INPUT_COPY_READBACK'`,
+			),
+		).toHaveLength(1);
+		expect(
+			await fixture.rows(
+				`SELECT id FROM ${fixture.table("outbox_event")} WHERE "eventType"='MEDIA_ASSET_VERIFY'`,
+			),
+		).toHaveLength(0);
+		expect(await accountReservations()).toMatchObject([
+			{ status: "COMMITTED", referenceKey: `media-draft:${f.p.target.assetId}` },
+		]);
+		expect(await status(f.input)).toMatchObject({ status: "READY" });
+		expect(await sourceSnapshot(f.input.assetId)).toEqual(before);
+		await noCreditOrJobChanges();
+	});
+
+	it.each([
+		"expired approval",
+		"changed source identity",
+		"changed policy",
+		"unknown copy",
+		"missing readback",
+	])("materializes safely with ordinary review for %s", async (scenario) => {
+		const f = await reusablePrepared(`fallback-${scenario.replaceAll(" ", "-")}`);
+		const claim = (await claimAccountInputCopy(
+			{ promotionId: f.promotionId, reviewPolicy: copyReviewPolicy },
+			fixture.client(),
+		))!;
+		if (scenario === "expired approval") {
+			await fixture.rows(
+				`UPDATE ${fixture.table("media_asset")} SET "verificationValidUntil"='2000-01-01' WHERE id=$1`,
+				[f.input.assetId],
+			);
+			await fixture.rows(
+				`UPDATE ${fixture.table("asset_moderation_result")} SET "validUntil"='2000-01-01' WHERE "assetId"=$1`,
+				[f.input.assetId],
+			);
+		}
+		if (scenario === "changed source identity")
+			await fixture.rows(
+				`UPDATE ${fixture.table("media_asset")} SET "finalizedAt"="finalizedAt"-interval '1 second' WHERE id=$1`,
+				[f.input.assetId],
+			);
+		if (scenario === "unknown copy")
+			await fixture.rows(
+				`UPDATE ${fixture.table("outbox_event")} SET payload=jsonb_set(payload,'{uncertainWriter}','true'::jsonb) WHERE id=$1`,
+				[f.promotionId],
+			);
+		expect(
+			await commitWithProof(claim, {
+				omitProof: scenario === "missing readback",
+				policyVersion: scenario === "changed policy" ? "next-policy" : undefined,
+			}),
+		).toEqual({ status: "VERIFYING" });
+		expect(await target(f.p.target.assetId)).toMatchObject({
+			status: "VERIFYING",
+			verificationProviderTaskId: null,
+		});
+		expect(
+			await fixture.rows(
+				`SELECT id FROM ${fixture.table("asset_moderation_result")} WHERE "assetId"=$1`,
+				[f.p.target.assetId],
+			),
+		).toHaveLength(0);
+		expect(
+			await fixture.rows(
+				`SELECT id FROM ${fixture.table("outbox_event")} WHERE "eventType"='MEDIA_ASSET_VERIFY'`,
+			),
+		).toHaveLength(1);
+		await noCreditOrJobChanges();
+	});
+
+	it("rechecks source review expiry with database time after a real verification-lock wait", async () => {
+		const f = await reusablePrepared("source-lock-expiry");
+		const claim = (await claimAccountInputCopy(
+			{ promotionId: f.promotionId, reviewPolicy: copyReviewPolicy },
+			fixture.client(),
+		))!;
+		let release!: () => void;
+		let locked!: () => void;
+		const lockReady = new Promise<void>((resolve) => {
+			locked = resolve;
+		});
+		const blocker = fixture.transaction(async (_tx, connection) => {
+			await connection.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [
+				`media-verification:${f.input.assetId}`,
+			]);
+			locked();
+			await new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			await connection.query(
+				`UPDATE ${fixture.table("media_asset")} SET "verificationValidUntil"='2000-01-01' WHERE id=$1`,
+				[f.input.assetId],
+			);
+			await connection.query(
+				`UPDATE ${fixture.table("asset_moderation_result")} SET "validUntil"='2000-01-01' WHERE "assetId"=$1`,
+				[f.input.assetId],
+			);
+		});
+		await lockReady;
+		const committed = commitWithProof(claim);
+		try {
+			await waitForAdvisoryWaiters(1);
+		} finally {
+			release();
+		}
+		await blocker;
+		expect(await committed).toEqual({ status: "VERIFYING" });
+		expect(await target(f.p.target.assetId)).toMatchObject({ status: "VERIFYING" });
+	});
+
+	it("copies an already expired READY source for fresh target review while pending sources still wait", async () => {
+		const f = await reusablePrepared("expired-before-claim");
+		await fixture.rows(
+			`UPDATE ${fixture.table("media_asset")} SET "verificationValidUntil"='2000-01-01' WHERE id=$1`,
+			[f.input.assetId],
+		);
+		await fixture.rows(
+			`UPDATE ${fixture.table("asset_moderation_result")} SET "validUntil"='2000-01-01' WHERE "assetId"=$1`,
+			[f.input.assetId],
+		);
+		expect(
+			await claimAccountInputCopy({ promotionId: f.promotionId }, fixture.client()),
+		).toBeNull();
+		const claim = (await claimAccountInputCopy(
+			{ promotionId: f.promotionId, reviewPolicy: copyReviewPolicy },
+			fixture.client(),
+		))!;
+		expect(claim).not.toBeNull();
+		expect(await commitWithProof(claim)).toEqual({ status: "VERIFYING" });
+		expect(
+			await fixture.rows(
+				`SELECT id FROM ${fixture.table("outbox_event")} WHERE "eventType"='ACCOUNT_INPUT_COPY_REVIEW_SOURCE'`,
+			),
+		).toHaveLength(0);
+		const pending = await reusablePrepared("pending-before-claim");
+		await fixture.rows(
+			`UPDATE ${fixture.table("media_asset")} SET status='VERIFYING' WHERE id=$1`,
+			[pending.input.assetId],
+		);
+		expect(
+			await claimAccountInputCopy(
+				{ promotionId: pending.promotionId, reviewPolicy: copyReviewPolicy },
+				fixture.client(),
+			),
+		).toBeNull();
+	});
+
 	it("serializes duplicate creation to one fresh account target without touching guest source or accounting", async () => {
 		const input = await seed("duplicate");
 		const before = await sourceSnapshot(input.assetId);
@@ -917,6 +1107,71 @@ async function prepared(name: string) {
 	)[0]!;
 	return { input, promotionId: String(row.id), p: parseAccountInputCopyIntent(row.payload) };
 }
+const copyReviewPolicy = { provider: "seeapi", ruleVersion: "image-v1", policyVersion: "safe-v1" };
+async function reusablePrepared(name: string) {
+	const f = await prepared(name);
+	await fixture.rows(
+		`UPDATE ${fixture.table("media_asset")} SET "finalizedAt"=clock_timestamp(),"storageEtag"='source-etag',"storageVersionId"='source-version' WHERE id=$1`,
+		[f.input.assetId],
+	);
+	const taskId = `review-${f.input.assetId}`;
+	await fixture.rows(
+		`UPDATE ${fixture.table("asset_moderation_result")} SET "reasonCode"='NO_POLICY_MATCH',"rawEnvelope"=$2::jsonb WHERE "assetId"=$1`,
+		[
+			f.input.assetId,
+			JSON.stringify({
+				decision: "ALLOW",
+				evidence: {
+					requestId: taskId,
+					models: ["nsfw-filter-2"],
+					operations: 1,
+					scores: {},
+					seeapi: { taskId, flagged: false, nsfw: [], specialCare: [] },
+				},
+			}),
+		],
+	);
+	return f;
+}
+async function commitWithProof(
+	claim: NonNullable<Awaited<ReturnType<typeof claimAccountInputCopy>>>,
+	options: { omitProof?: boolean; policyVersion?: string } = {},
+) {
+	// This SQL test supplies the storage boundary's receipt. Actual full-byte
+	// readback is covered separately by the S3 adapter transport tests.
+	const readbackProof: AccountInputCopyReadbackProof = {
+		schemaVersion: 1,
+		method: "immutable-target-full-sha256-v1",
+		transform: "none",
+		promotionId: claim.promotionId,
+		leaseToken: claim.leaseToken,
+		sourceAssetId: claim.source.assetId,
+		sourceObjectKey: claim.source.objectKey,
+		targetAssetId: claim.target.assetId,
+		targetObjectKey: claim.target.objectKey,
+		checksum: claim.source.checksum,
+		bytes: claim.source.bytes,
+		mimeType: claim.source.mimeType,
+		storageEtag: "target-etag",
+		storageVersionId: null,
+	};
+	return commitAccountInputCopy(
+		{
+			promotionId: claim.promotionId,
+			leaseToken: claim.leaseToken,
+			checksum: claim.source.checksum,
+			bytes: claim.source.bytes,
+			mimeType: claim.source.mimeType,
+			storageEtag: "target-etag",
+			readbackProof: options.omitProof ? undefined : readbackProof,
+			reviewPolicy: {
+				...copyReviewPolicy,
+				policyVersion: options.policyVersion ?? copyReviewPolicy.policyVersion,
+			},
+		},
+		fixture.client(),
+	);
+}
 async function intents() {
 	return fixture.rows(
 		`SELECT id,payload FROM ${fixture.table("outbox_event")} WHERE "eventType"='ACCOUNT_INPUT_COPY_INTENT' ORDER BY id`,
@@ -1002,7 +1257,7 @@ async function review(assetId: string, decision = "REVIEW") {
 	);
 }
 async function commit(claim: NonNullable<Awaited<ReturnType<typeof claimAccountInputCopy>>>) {
-	return commitAccountInputCopy(
+	await commitAccountInputCopy(
 		{
 			promotionId: claim.promotionId,
 			leaseToken: claim.leaseToken,

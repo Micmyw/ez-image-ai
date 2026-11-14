@@ -83,6 +83,8 @@ function guestInput(sponsorCredits: bigint) {
 		promotionPeriod: "pricing-v1",
 		capabilityVersion: "capability-v1",
 		sourceSessionHash: hash,
+		browserSubjectHash: hash,
+		freeEligibility: "eligible" as const,
 		deviceHash: hash,
 		ipHash: hash,
 		subnetHash: hash,

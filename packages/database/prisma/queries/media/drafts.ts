@@ -152,82 +152,119 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 	if (!normalized) {
 		throw new Error("GUEST_PRODUCT_UNAVAILABLE");
 	}
-	return client.$transaction(async (tx) => {
-		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${input.completionTokenHash}, 0))`;
-		const session = await tx.mediaUploadSession.findFirst({
-			where: {
-				id: input.sessionId,
-				tokenHash: input.completionTokenHash,
-				guestCompletionConsumedAt: null,
-				guestCapabilityVersion: input.capabilityVersion,
-				status: "COMPLETED",
-				expiresAt: { gt: input.verification.now },
-			},
-			include: {
-				asset: {
-					include: {
-						moderationResults: {
-							orderBy: [
-								{ verificationGeneration: "desc" },
-								{ attemptNumber: "desc" },
-								{ createdAt: "desc" },
-								{ id: "desc" },
-							],
-							take: 1,
+	return client.$transaction(
+		async (tx) => {
+			await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${input.completionTokenHash}, 0))`;
+			// This first read locates locks only; it cannot authorize a claim.
+			const identity = await tx.mediaUploadSession.findFirst({
+				where: {
+					id: input.sessionId,
+					tokenHash: input.completionTokenHash,
+					guestCompletionConsumedAt: null,
+					guestCapabilityVersion: input.capabilityVersion,
+					status: "COMPLETED",
+				},
+				select: { assetId: true },
+			});
+			if (!identity) throw new Error("GUEST_UPLOAD_UNAVAILABLE");
+			// Share cleanup's binding -> verification -> asset row order. No quota mutation
+			// occurs here, so an owner-storage lock is unnecessary.
+			await lockMediaAssetGenerationBindings([identity.assetId], tx);
+			await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${identity.assetId}`}, 0))`;
+			await tx.$executeRaw`SELECT "id" FROM "media_asset" WHERE "id" = ${identity.assetId} FOR UPDATE`;
+			await tx.$executeRaw`SELECT "id" FROM "media_upload_session" WHERE "id" = ${input.sessionId} FOR UPDATE`;
+			const session = await tx.mediaUploadSession.findFirst({
+				where: {
+					id: input.sessionId,
+					assetId: identity.assetId,
+					tokenHash: input.completionTokenHash,
+					guestCompletionConsumedAt: null,
+					guestCapabilityVersion: input.capabilityVersion,
+					status: "COMPLETED",
+				},
+				include: {
+					asset: {
+						include: {
+							moderationResults: {
+								orderBy: [
+									{ verificationGeneration: "desc" },
+									{ attemptNumber: "desc" },
+									{ createdAt: "desc" },
+									{ id: "desc" },
+								],
+								take: 1,
+							},
+							jobBindings: { where: { role: "OUTPUT" }, take: 1, select: { jobId: true } },
 						},
-						jobBindings: { where: { role: "OUTPUT" }, take: 1, select: { jobId: true } },
 					},
 				},
-			},
-		});
-		if (!session) throw new Error("GUEST_UPLOAD_UNAVAILABLE");
-		if (
-			session.asset.deletedAt ||
-			(session.asset.deleteAfter && session.asset.deleteAfter <= input.verification.now)
-		)
-			throw new Error("GUEST_UPLOAD_UNAVAILABLE");
-		if (!hasCurrentApprovedMediaAssetEvidence(session.asset, input.verification)) {
-			throw new Error(guestUploadVerificationError(session.asset, input.verification));
-		}
-		const consumed = await tx.mediaUploadSession.updateMany({
-			where: {
-				id: session.id,
-				tokenHash: input.completionTokenHash,
-				guestCompletionConsumedAt: null,
-			},
-			data: {
-				tokenHash: input.consumedTokenHash,
-				guestCompletionConsumedAt: input.verification.now,
-			},
-		});
-		if (consumed.count !== 1) throw new Error("GUEST_COMPLETION_REPLAYED");
-		const draft = await tx.generationDraft.create({
-			data: {
-				ownerType: "USER",
-				ownerId: session.asset.ownerId,
-				submittedByUserId: session.asset.ownerId,
-				claimTokenHash: input.claimTokenHash,
-				assetId: session.assetId,
-				productKey: normalized.productKey,
-				inputSnapshot: normalized.inputSnapshot,
-				expiresAt: input.expiresAt,
-			},
-		});
-		await createGuestSessionBootstrapWithClaimFence(
-			{
-				promotionPeriod: input.promotionPeriod,
-				claimHash: input.claimTokenHash,
-				idempotencyKey: `guest-bootstrap:${input.sessionId}`,
-				claimedDraftId: draft.id,
-				sourceAssetId: session.assetId,
-				expiresAt: input.expiresAt,
-				maximumOutstandingBootstraps: input.maximumOutstandingBootstraps,
-				now: input.verification.now,
-			},
-			tx,
-		);
-		return { id: draft.id, expiresAt: draft.expiresAt };
-	});
+			});
+			if (!session) throw new Error("GUEST_UPLOAD_UNAVAILABLE");
+			const readDatabaseTime = async () => {
+				const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS "now"`;
+				if (!clock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+				return clock.now;
+			};
+			const assertAvailable = (now: Date) => {
+				if (
+					session.expiresAt <= now ||
+					input.expiresAt <= now ||
+					session.asset.status === "DELETED" ||
+					session.asset.deletedAt ||
+					(session.asset.deleteAfter && session.asset.deleteAfter <= now)
+				)
+					throw new Error("GUEST_UPLOAD_UNAVAILABLE");
+				const verification = { ...input.verification, now };
+				if (!hasCurrentApprovedMediaAssetEvidence(session.asset, verification)) {
+					throw new Error(guestUploadVerificationError(session.asset, verification));
+				}
+			};
+			const now = await readDatabaseTime();
+			assertAvailable(now);
+			const consumed = await tx.mediaUploadSession.updateMany({
+				where: {
+					id: session.id,
+					tokenHash: input.completionTokenHash,
+					guestCompletionConsumedAt: null,
+				},
+				data: {
+					tokenHash: input.consumedTokenHash,
+					guestCompletionConsumedAt: now,
+				},
+			});
+			if (consumed.count !== 1) throw new Error("GUEST_COMPLETION_REPLAYED");
+			const draft = await tx.generationDraft.create({
+				data: {
+					ownerType: "USER",
+					ownerId: session.asset.ownerId,
+					submittedByUserId: session.asset.ownerId,
+					claimTokenHash: input.claimTokenHash,
+					assetId: session.assetId,
+					productKey: normalized.productKey,
+					inputSnapshot: normalized.inputSnapshot,
+					expiresAt: input.expiresAt,
+				},
+			});
+			await createGuestSessionBootstrapWithClaimFence(
+				{
+					promotionPeriod: input.promotionPeriod,
+					claimHash: input.claimTokenHash,
+					idempotencyKey: `guest-bootstrap:${input.sessionId}`,
+					claimedDraftId: draft.id,
+					sourceAssetId: session.assetId,
+					expiresAt: input.expiresAt,
+					maximumOutstandingBootstraps: input.maximumOutstandingBootstraps,
+					now,
+				},
+				tx,
+			);
+			// The bootstrap capacity fence can also wait. Expiry rolls back the token,
+			// draft and bootstrap together instead of returning an already stale claim.
+			assertAvailable(await readDatabaseTime());
+			return { id: draft.id, expiresAt: draft.expiresAt };
+		},
+		{ isolationLevel: "ReadCommitted" },
+	);
 }
 
 /** Presentation only: no failure path can create a draft or authorize an asset. */

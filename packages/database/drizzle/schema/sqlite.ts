@@ -17,6 +17,19 @@ const sqliteBigInt = customType<{ data: bigint; driverData: string }>({
 	toDriver: (value) => value.toString(),
 });
 // Tables
+export const guestTrialEntitlement = sqliteTable(
+	"guest_trial_entitlement",
+	{
+		subjectKey: text("subjectKey").primaryKey(),
+		trialId: text("trialId").notNull(),
+		reservedJobId: text("reservedJobId"),
+		createdAt: integer("createdAt", { mode: "timestamp_ms" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+	},
+	(table) => [index("guest_trial_entitlement_trialId_idx").on(table.trialId)],
+);
+
 export const mediaOwnerStorageFence = sqliteTable(
 	"media_owner_storage_fence",
 	{
@@ -1204,4 +1217,29 @@ export const trafficAggregate = sqliteTable(
 		views: integer("views").notNull().default(0),
 	},
 	(table) => [primaryKey({ columns: [table.hour, table.path, table.source, table.device] })],
+);
+
+export const mediaOutputOrigin = sqliteTable(
+	"media_output_origin",
+	{
+		assetId: text("assetId").primaryKey(),
+		url: text("url").notNull(),
+		archiveState: text("archiveState").notNull().default("PENDING"),
+		archiveChecksum: text("archiveChecksum"),
+		archiveBytes: sqliteBigInt("archiveBytes"),
+		archivedAt: integer("archivedAt", { mode: "timestamp_ms" }),
+		leaseToken: text("leaseToken"),
+		leasedUntil: integer("leasedUntil", { mode: "timestamp_ms" }),
+		attempts: integer("attempts").notNull().default(0),
+		lastErrorCode: text("lastErrorCode"),
+		createdAt: integer("createdAt", { mode: "timestamp_ms" })
+			.notNull()
+			.$defaultFn(() => new Date()),
+	},
+	(table) => [
+		index("media_output_origin_archiveState_leasedUntil_idx").on(
+			table.archiveState,
+			table.leasedUntil,
+		),
+	],
 );

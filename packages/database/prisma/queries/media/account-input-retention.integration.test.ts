@@ -31,7 +31,7 @@ beforeAll(async () => {
 afterEach(() => vi.unstubAllEnvs());
 afterAll(async () => db?.$disconnect());
 
-async function fixture() {
+async function fixture(reusableReview = false) {
 	const id = randomUUID();
 	const guest = `retention-guest-${id}`,
 		account = `retention-account-${id}`;
@@ -62,7 +62,7 @@ async function fixture() {
 			finalizedAt: new Date(),
 			verificationGeneration: 1,
 			verificationAttemptCount: 1,
-			verificationProvider: "test",
+			verificationProvider: reusableReview ? "seeapi" : "test",
 			verificationProviderTaskId: `retention-moderation-${id}`,
 			verificationRuleVersion: "retention-test-rule",
 			verificationPolicyVersion: "retention-test-policy",
@@ -77,14 +77,30 @@ async function fixture() {
 			verificationGeneration: 1,
 			attemptNumber: 1,
 			evidenceKind: "INPUT",
-			provider: "test",
+			provider: reusableReview ? "seeapi" : "test",
 			providerTaskId: `retention-moderation-${id}`,
 			ruleVersion: "retention-test-rule",
 			policyVersion: "retention-test-policy",
 			status: "APPROVED",
-			reasonCode: "ALLOW",
+			reasonCode: reusableReview ? "NO_POLICY_MATCH" : "ALLOW",
 			categories: {},
-			rawEnvelope: {},
+			rawEnvelope: reusableReview
+				? {
+						decision: "ALLOW",
+						evidence: {
+							requestId: `retention-moderation-${id}`,
+							models: ["nsfw-filter-2"],
+							operations: 1,
+							scores: {},
+							seeapi: {
+								taskId: `retention-moderation-${id}`,
+								flagged: false,
+								nsfw: [],
+								specialCare: [],
+							},
+						},
+					}
+				: {},
 			validUntil: expiresAt,
 		},
 	});
@@ -130,6 +146,87 @@ async function fixture() {
 }
 
 describe("registered input retention protocols", () => {
+	it("restores a copied draft directly from derived approval under the real schema and READY trigger", async () => {
+		vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "true");
+		const { asset, input } = await fixture(true);
+		await db.$transaction(async (tx: Prisma.TransactionClient) => {
+			await lockGuestOwnerPromotion(tx, input.anonymousOwnerId, "retention-reuse-test");
+			return transferGuestGenerationDraftToRegisteredUserInTransaction(input, tx);
+		});
+		const event = await db.outboxEvent.findUniqueOrThrow({
+			where: { dedupeKey: `account-input-copy:v1:${input.draftId}` },
+		});
+		const policy = {
+			provider: "seeapi",
+			ruleVersion: "retention-test-rule",
+			policyVersion: "retention-test-policy",
+		};
+		const claim = (await claimAccountInputCopy(
+			{ promotionId: event.id, reviewPolicy: policy },
+			db,
+		))!;
+		// The storage result is an injected boundary here. S3-command tests exercise
+		// byte readback; this case covers the real migrations, triggers and draft DTO.
+		expect(
+			await commitAccountInputCopy(
+				{
+					promotionId: claim.promotionId,
+					leaseToken: claim.leaseToken,
+					checksum: claim.source.checksum,
+					bytes: claim.source.bytes,
+					mimeType: claim.source.mimeType,
+					reviewPolicy: policy,
+					readbackProof: {
+						schemaVersion: 1,
+						method: "immutable-target-full-sha256-v1",
+						transform: "none",
+						promotionId: claim.promotionId,
+						leaseToken: claim.leaseToken,
+						sourceAssetId: claim.source.assetId,
+						sourceObjectKey: claim.source.objectKey,
+						targetAssetId: claim.target.assetId,
+						targetObjectKey: claim.target.objectKey,
+						checksum: claim.source.checksum,
+						bytes: claim.source.bytes,
+						mimeType: claim.source.mimeType,
+						storageEtag: null,
+						storageVersionId: null,
+					},
+				},
+				db,
+			),
+		).toEqual({ status: "READY" });
+		const target = await db.mediaAsset.findUniqueOrThrow({
+			where: { id: claim.target.assetId },
+			include: { moderationResults: true },
+		});
+		expect(target).toMatchObject({
+			status: "READY",
+			ownerId: input.registeredUserId,
+			verificationProviderTaskId: null,
+		});
+		expect(target.moderationResults).toHaveLength(1);
+		expect(target.moderationResults[0]).toMatchObject({
+			providerTaskId: null,
+			reasonCode: "IMMUTABLE_ACCOUNT_INPUT_COPY_V1",
+		});
+		const restored = await getClaimedGenerationDraft(
+			{ draftId: input.draftId, userId: input.registeredUserId },
+			db,
+		);
+		expect(restored?.preparation).toBeUndefined();
+		expect(restored?.input).toMatchObject({ sourceAssetId: claim.target.assetId });
+		expect(
+			await db.outboxEvent.count({
+				where: { aggregateId: claim.target.assetId, eventType: "MEDIA_ASSET_VERIFY" },
+			}),
+		).toBe(0);
+		expect(await db.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } })).toMatchObject({
+			ownerId: input.anonymousOwnerId,
+			objectKey: asset.objectKey,
+			deleteAfter: asset.deleteAfter,
+		});
+	});
 	it("retains a registered draft through a distinct account target using the genuine ORM contract", async () => {
 		vi.stubEnv("ACCOUNT_INPUT_COPY_ENABLED", "true");
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
@@ -324,10 +421,7 @@ describe("registered input retention protocols", () => {
 			deleteAfter: asset.deleteAfter,
 			objectKey: asset.objectKey,
 		});
-		await db.mediaAsset.update({
-			where: { id: asset.id },
-			data: { deleteAfter: new Date(Date.now() - 1) },
-		});
+		await db.$executeRaw`UPDATE "media_asset" SET "deleteAfter"=clock_timestamp()-interval '1 second' WHERE "id"=${asset.id}`;
 		await expect(
 			claimMediaStorageCleanupTransaction({ assetId: asset.id, objectKeys: [asset.objectKey] }, db),
 		).resolves.toBe("DELETE");
@@ -340,10 +434,7 @@ describe("registered input retention protocols", () => {
 		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "true");
 		vi.stubEnv("ACCOUNT_INPUT_PROMOTION_ENABLED", "true");
 		const { asset, input } = await fixture();
-		await db.mediaAsset.update({
-			where: { id: asset.id },
-			data: { deleteAfter: new Date(Date.now() - 1) },
-		});
+		await db.$executeRaw`UPDATE "media_asset" SET "deleteAfter"=clock_timestamp()-interval '1 second' WHERE "id"=${asset.id}`;
 		await expect(
 			claimMediaStorageCleanupTransaction({ assetId: asset.id, objectKeys: [asset.objectKey] }, db),
 		).resolves.toBe("DELETE");

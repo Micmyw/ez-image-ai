@@ -1,5 +1,18 @@
 # Configurable text and image moderation
 
+## Administrator image inspection
+
+The customer image section at `/admin/media#customer-content` reads existing `MediaAsset` and
+`AssetModerationResult` records, including ordinary content refusals without a `ModerationReview`.
+Administrators can filter image state/type or search by exact owner, asset or job ID, then inspect
+the image and its bound job's inputs and outputs. Saved prompts and bounded SeeAPI `nsfw` and
+`specialCare` labels retain their recorded provenance. Historical review attempts are labeled.
+Detail reads are audited and previews use 60-second private URLs. Deleted, unfinalized and
+changed-bound content remains unavailable. The endpoints use the existing administrator role
+and private, non-cacheable responses.
+
+## Moderation configuration
+
 The API and jobs runtime must receive the same server-only configuration. This selects the initial
 Waffo text + SeeAPI image combination. Sightengine is retired across runtime paths:
 

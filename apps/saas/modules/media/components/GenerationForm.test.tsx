@@ -37,6 +37,9 @@ vi.mock("@payments/components/EditorUpgradeDialog", () => ({
 	EditorUpgradeDialog: ({ open }: { open: boolean }) =>
 		open ? <span>Localized upgrade dialog</span> : null,
 }));
+vi.mock("@payments/components/SelectedImagePassOffer", () => ({
+	SelectedImagePassOffer: () => null,
+}));
 
 vi.mock("@repo/ui/components/alert", () => ({
 	Alert: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -603,6 +606,25 @@ describe("GenerationForm product copy", () => {
 		);
 		expect(recovered).toContain("Keep my own customized instruction");
 		expect(recovered).not.toContain("Turn my uploaded photo into coloring outlines");
+	});
+	it("keeps a deliberately empty recovered prompt instead of inserting the tool starter", () => {
+		const html = renderToStaticMarkup(
+			<ToolPromptProvider initialPrompt="A starter image that must not replace a draft">
+				<GenerationForm
+					onCreated={vi.fn()}
+					initialDraft={{
+						productKey: "image-nano-banana-2-lite",
+						input: {
+							kind: "text-to-image",
+							prompt: "",
+							skuKey: "nano-banana-2-lite-1k",
+							aspectRatio: "1:1",
+						},
+					}}
+				/>
+			</ToolPromptProvider>,
+		);
+		expect(html).not.toContain("A starter image that must not replace a draft");
 	});
 	beforeEach(() => {
 		navigation.pathname = "/create";

@@ -58,6 +58,10 @@ import {
 } from "@repo/config";
 import type { ProductModelKey } from "@repo/config";
 import {
+	parseProviderDiagnostic,
+	type ProviderDiagnosticIdentity,
+} from "@repo/config/provider-diagnostics";
+import {
 	createRetrievedProviderTerminalEvidence,
 	readProviderTerminalEvidence,
 	type ProviderAttemptIdentity,
@@ -124,6 +128,7 @@ import type {
 	ImagePhaseOwner,
 	ImagePhaseContext,
 } from "@repo/database";
+import { createProviderOriginal, commitProviderOriginalIdentity } from "@repo/database";
 import { db } from "@repo/database/client";
 import type {
 	PrismaClient,
@@ -179,7 +184,16 @@ import {
 	watermarkStagedGuestImage,
 } from "@repo/storage";
 import type { MediaObjectMetadata } from "@repo/storage";
-import { preparePrivateImageModeration } from "@repo/storage/lib/image-moderation-input";
+import { getImageProcessor } from "@repo/storage/image-processing/context";
+import {
+	preparePrivateImageModeration,
+	prepareProviderImageModeration,
+} from "@repo/storage/lib/image-moderation-input";
+import {
+	isProviderOriginalKey,
+	PROVIDER_ORIGINAL_PREFIX,
+} from "@repo/storage/lib/provider-original-access";
+import { getRequestDefer } from "@repo/utils/request-lifecycle";
 
 import {
 	DispatchAdmissionBlockedError,
@@ -216,6 +230,7 @@ import {
 	canReuseApprovedImageEvidence,
 	IMAGE_APPROVAL_NO_TIME_EXPIRY,
 } from "./media-approval-lifetime";
+import { dispatchJob as dispatchOriginalArchive } from "./orchestration/client";
 import { imageModerationCallbackUrl } from "./orchestration/image-moderation-callback-auth";
 import { kieCompletionCallbackUrl } from "./orchestration/kie-callback-auth";
 import { unmanagedLegacyTask } from "./orchestration/legacy-task-ownership";
@@ -226,6 +241,12 @@ import {
 	providerCostForResult,
 } from "./output-transfer-envelope";
 import type { OutputTransferEnvelope } from "./output-transfer-envelope";
+import {
+	callbackFailureDiagnostic,
+	retrievedFailureDiagnostic,
+	submissionFailureDiagnostic,
+	withProviderDiagnostic,
+} from "./provider-diagnostics";
 import { providerCdnAllowlist } from "./provider-output-policy";
 import { dispatchRouteFor, providerQueueKey } from "./queues";
 import { publishCommittedMediaJobNotifications } from "./realtime/publish";
@@ -1127,7 +1148,7 @@ export function createDatabaseDispatchStore(
 				const existing = await tx.generationAttempt.findUniqueOrThrow({
 					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 				});
-				const recovery = safeUncertainRecoveryEvidence(existing.provider, evidence);
+				const recovery = safeUncertainRecoveryEvidence(existing, evidence);
 				if (!(await generationPhaseIsCurrent(attemptId, phaseOwner, tx))) {
 					// Preserve only an unbound accepted identity. A stale error cannot
 					// overwrite a newer terminal verdict or clear the uncertainty hold.
@@ -1300,10 +1321,14 @@ export function createDatabaseDispatchStore(
 					where: { AND: { job: { executionEngine: "legacy" } }, id: attempt.id },
 					data: {
 						status: "FAILED",
-						errorSnapshot: {
-							code: failure.code,
-							retryable: failure.retryable,
-						},
+						errorSnapshot: withProviderDiagnostic(
+							{
+								code: failure.code,
+								retryable: failure.retryable,
+							},
+							submissionFailureDiagnostic(attempt, failure),
+							attempt,
+						) as Prisma.InputJsonValue,
 						uncertainSubmission: false,
 						nextReconcileAt: null,
 						completedAt: new Date(),
@@ -1604,11 +1629,16 @@ export const databaseStorageCleanupDependencies = createDatabaseStorageCleanupDe
 export function createDatabaseAccountInputCopyDependencies(
 	database: PrismaClient,
 ): AccountInputCopyDependencies {
+	const reviewPolicy = () => ({
+		provider: imageModerationProviderForEnvironment(process.env),
+		ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+		policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+	});
 	return {
-		claim: (input) => claimAccountInputCopy(input, database),
+		claim: (input) => claimAccountInputCopy({ ...input, reviewPolicy: reviewPolicy() }, database),
 		registerMultipart: (input) => registerAccountInputCopyMultipart(input, database),
 		clearMultipart: (input) => clearAccountInputCopyMultipart(input, database),
-		commit: (input) => commitAccountInputCopy(input, database),
+		commit: (input) => commitAccountInputCopy({ ...input, reviewPolicy: reviewPolicy() }, database),
 		fail: (input) => failAccountInputCopy(input, database),
 		copy: promoteStagedObject,
 	};
@@ -1634,6 +1664,7 @@ export function createDatabaseAccountInputCopyRecoveryDependencies(
 }
 
 interface VerifyUploadRuntimeOptions {
+	prepareProviderImageModeration?: typeof prepareProviderImageModeration;
 	prepareImageModeration?: typeof preparePrivateImageModeration;
 	environment?: NodeJS.ProcessEnv;
 	headObject?: (location: { bucket: "media"; key: string }) => Promise<MediaObjectMetadata>;
@@ -1837,7 +1868,50 @@ export function createDatabaseVerifyUploadDependencies(
 			let moderationStarted = false;
 			let detectorRequestInFlight = false;
 			try {
-				if (claim.forceObjectInspection || !checksum || !finalizedAt) {
+				const providerOriginal = isProviderOriginalKey(claim.objectKey);
+				let preparedOriginal:
+					| Awaited<ReturnType<typeof prepareProviderImageModeration>>
+					| undefined;
+				if (providerOriginal && !claim.providerTaskId && !claim.submissionUncertain) {
+					const origin = await database.mediaOutputOrigin.findUniqueOrThrow({
+						where: { assetId: claim.assetId },
+					});
+					const originalAsset = await database.mediaAsset.findUniqueOrThrow({
+						where: { id: claim.assetId },
+						select: { retentionClass: true },
+					});
+					const guestOriginal = originalAsset.retentionClass === "GUEST_TRIAL";
+					preparedOriginal = await (
+						options.prepareProviderImageModeration ?? prepareProviderImageModeration
+					)({
+						url: origin.url,
+						mimeType: claim.mimeType,
+						checksum,
+						allowedHosts: providerCdnAllowlist(environment),
+						...(checksum &&
+						origin.archiveState === "ARCHIVED" &&
+						origin.archiveChecksum === checksum &&
+						origin.archiveBytes === claim.byteSize
+							? { archiveKey: claim.objectKey }
+							: {}),
+						...(guestOriginal ? { watermark: true } : {}),
+					});
+					checksum = preparedOriginal.checksum;
+					finalizedAt ??= new Date();
+					const identityCommitted = await commitProviderOriginalIdentity(
+						{
+							assetId: claim.assetId,
+							leaseToken: claim.leaseToken,
+							generation: claim.generation,
+							checksum,
+							bytes: preparedOriginal.bytes,
+							guest: guestOriginal,
+						},
+						database,
+					);
+					if (!identityCommitted) return withPhase({ outboxCommitted: false });
+				}
+				if (!providerOriginal && (claim.forceObjectInspection || !checksum || !finalizedAt)) {
 					const inspected = await (options.inspectPrivateMediaObject ?? inspectPrivateMediaObject)({
 						bucket: "media",
 						key: claim.objectKey,
@@ -1871,10 +1945,11 @@ export function createDatabaseVerifyUploadDependencies(
 
 				const location = { bucket: "media" as const, key: claim.objectKey };
 				const verifiedImmutableObject =
-					(claim.kind === "OUTPUT" ||
+					providerOriginal ||
+					((claim.kind === "OUTPUT" ||
 						(claim.kind === "INPUT" && isTemporaryReferenceObjectKey(claim.objectKey))) &&
-					Boolean(claim.checksum && claim.finalizedAt) &&
-					!claim.forceObjectInspection;
+						Boolean(claim.checksum && claim.finalizedAt) &&
+						!claim.forceObjectInspection);
 				if (!verifiedImmutableObject) {
 					const [metadata, header] = await Promise.all([
 						(options.headObject ?? headObject)(location),
@@ -1919,7 +1994,8 @@ export function createDatabaseVerifyUploadDependencies(
 					)
 				) {
 					assetUrl =
-						safety.imageInputProfile === "seeapi-nsfw-filter-2" &&
+						preparedOriginal?.assetUrl ??
+						(safety.imageInputProfile === "seeapi-nsfw-filter-2" &&
 						!claim.providerTaskId &&
 						claim.mimeType.startsWith("image/")
 							? await (options.prepareImageModeration ?? preparePrivateImageModeration)({
@@ -1930,7 +2006,7 @@ export function createDatabaseVerifyUploadDependencies(
 							: await (options.createSignedReadUrl ?? createSignedReadUrl)({
 									...location,
 									expiresIn: 300,
-								});
+								}));
 				}
 				if (!verifiedImmutableObject) {
 					const persistedInspection = await database.mediaAsset.updateMany({
@@ -2503,6 +2579,7 @@ async function claimMediaVerification(
 		// retry budget or terminalize a placeholder while storage still owns it.
 		if (
 			asset.kind === "OUTPUT" &&
+			!isProviderOriginalKey(asset.objectKey) &&
 			(asset.outputTransferToken || !asset.finalizedAt || !asset.checksum || asset.byteSize <= 0n)
 		) {
 			return null;
@@ -4898,9 +4975,12 @@ export function createDatabaseFinalizationStore(
 				binding.job.serviceClass === "GUEST_SLOW" &&
 				(!binding.job.guestTrial ||
 					binding.asset.retentionClass !== "GUEST_TRIAL" ||
-					binding.asset.watermarkVersion !== GUEST_WATERMARK_VERSION ||
+					![GUEST_WATERMARK_VERSION, "ezpic-guest-origin-v1"].includes(
+						binding.asset.watermarkVersion ?? "",
+					) ||
 					!binding.asset.watermarkedAt ||
-					!binding.asset.cleanStagingDeletedAt ||
+					(!binding.asset.cleanStagingDeletedAt &&
+						binding.asset.watermarkVersion !== "ezpic-guest-origin-v1") ||
 					!binding.asset.deleteAfter ||
 					binding.asset.deleteAfter.getTime() !== binding.job.guestTrial.expiresAt.getTime())
 			) {
@@ -5458,6 +5538,7 @@ export function createFinalizationDependencies(
 		deferOutputReview?: boolean;
 		/** Stateless URL transfer executor: never loads inline bodies or uses buffered fallback. */
 		streamingTransfersOnly?: boolean;
+		dispatchArchive?: (eventId: string) => Promise<void>;
 		storage?: Partial<{
 			openInspectedRemoteMedia: typeof openInspectedRemoteMedia;
 			putPrivateMediaObject: typeof putPrivateMediaObject;
@@ -5647,6 +5728,60 @@ export function createFinalizationDependencies(
 						"Generated output does not match the requested format",
 					);
 				const objectKey = createAssetObjectKey(claim.ownerId, assetId, mimeType);
+				if (
+					(environment.MEDIA_PROVIDER_ORIGINAL_DELIVERY_ENABLED === "true" ||
+						isProviderOriginalKey(placeholder?.objectKey ?? "")) &&
+					claim.mediaKind === "image" &&
+					candidate.output.kind === "remote-url" &&
+					// Guest derivatives must use the same Images implementation as the website gateway.
+					(!claim.guest ||
+						getImageProcessor().key === "cloudflare-images" ||
+						isProviderOriginalKey(placeholder?.objectKey ?? "")) &&
+					["image/png", "image/jpeg", "image/webp"].includes(mimeType) &&
+					(isProviderOriginalKey(placeholder?.objectKey ?? "") ||
+						(Number(openedSource?.headers["content-length"]) > 0 &&
+							Number(openedSource?.headers["content-length"]) <= 20_000_000)) &&
+					(!placeholder || isProviderOriginalKey(placeholder.objectKey))
+				) {
+					const original = await createProviderOriginal(
+						{
+							jobId: claim.jobId,
+							ownerId: claim.ownerId,
+							assetId,
+							objectKey: PROVIDER_ORIGINAL_PREFIX + objectKey,
+							mimeType,
+							candidateKey: candidate.key,
+							url: candidate.output.url,
+							...(claim.guest ? { guest: claim.guest } : {}),
+						},
+						database,
+					);
+					// Archive has a separate durable Workflow: a slow PUT never holds up the review continuation.
+					const archiveWake = (async () => {
+						try {
+							await (
+								options.dispatchArchive ??
+								((eventId: string) =>
+									dispatchOriginalArchive(
+										"media-deliver-events",
+										{ eventIds: [eventId] },
+										{ idempotencyKey: `original-archive:${eventId}`, timeoutMs: 1_000 },
+									))
+							)(original.archiveEventId);
+						} catch {
+							/* The same committed Outbox intent remains recoverable after an uncertain wake. */
+						}
+					})();
+					const defer = getRequestDefer();
+					if (defer) defer(archiveWake);
+					else await archiveWake;
+					return {
+						assetId,
+						approved: original.asset.status === "READY",
+						moderationPending: original.asset.status === "VERIFYING",
+						outputReviewEventId: original.reviewEventId,
+					};
+				}
 				// The streaming preflight has already checked the real response length.
 				// Reserve those bytes with the transfer claim, before opening a private write.
 				const storageReservation =
@@ -6126,6 +6261,15 @@ export function createDatabaseProviderEventStore(
 					select: { productKey: true, status: true },
 				});
 				const incoming = claim.snapshot.status;
+				const diagnostic =
+					claim.provider === attempt.provider
+						? callbackFailureDiagnostic(attempt, claim.snapshot, result, claim.receivedAt)
+						: null;
+				const diagnosticSnapshot = withProviderDiagnostic(
+					attempt.errorSnapshot,
+					diagnostic,
+					attempt,
+				) as Prisma.InputJsonValue;
 				const technicalFailure = confirmedTechnicalFailureCode(claim.snapshot, result);
 				const canonicalTime = claim.providerOccurredAt ?? claim.receivedAt;
 				const envelope =
@@ -6133,6 +6277,11 @@ export function createDatabaseProviderEventStore(
 						? createOutputTransferEnvelope(mediaKindForJob(job.productKey), result.outputs)
 						: null;
 				if (attempt.status === "NEEDS_RECONCILIATION" || job.status === "NEEDS_RECONCILIATION") {
+					if (diagnostic)
+						await tx.generationAttempt.update({
+							where: { id: attempt.id },
+							data: { errorSnapshot: diagnosticSnapshot },
+						});
 					if (
 						envelope &&
 						attempt.status === "NEEDS_RECONCILIATION" &&
@@ -6190,7 +6339,10 @@ export function createDatabaseProviderEventStore(
 					// A callback only wakes authenticated retrieval; it cannot prove zero consumption.
 					await tx.generationAttempt.update({
 						where: { id: attempt.id },
-						data: { nextReconcileAt: new Date() },
+						data: {
+							nextReconcileAt: new Date(),
+							...(diagnostic ? { errorSnapshot: diagnosticSnapshot } : {}),
+						},
 					});
 					await completeProviderWebhookEvent(tx, claim, "KIE_TERMINAL_REQUIRES_RETRIEVAL");
 					return;
@@ -6251,8 +6403,14 @@ export function createDatabaseProviderEventStore(
 						responseSnapshot: responseSnapshotForResult(result, attempt) as Prisma.InputJsonValue,
 						uncertainSubmission: incomingTerminal ? false : undefined,
 						errorSnapshot: technicalFailure
-							? { code: technicalFailure, retryable: true }
-							: undefined,
+							? {
+									...allowlistedUncertaintyEvidence(diagnosticSnapshot),
+									code: technicalFailure,
+									retryable: true,
+								}
+							: diagnostic
+								? diagnosticSnapshot
+								: undefined,
 						reconcileLeaseToken: incomingTerminal ? null : undefined,
 						reconcileLeasedUntil: incomingTerminal ? null : undefined,
 						nextReconcileAt: incomingTerminal ? null : undefined,
@@ -6590,14 +6748,31 @@ export function createDatabaseReconciliationStore(
 				// Supplier occupancy can end while billing/output reconciliation
 				// still needs frozen credits. Only authenticated retrieval writes this.
 				const providerTerminalEvidence = createRetrievedProviderTerminalEvidence(attempt, snapshot);
+				const diagnostic = retrievedFailureDiagnostic(attempt, snapshot, result);
+				if (diagnostic) {
+					attempt.errorSnapshot = withProviderDiagnostic(
+						attempt.errorSnapshot,
+						diagnostic,
+						attempt,
+					) as Prisma.JsonValue;
+				}
 				if (providerTerminalEvidence) {
 					attempt.responseSnapshot = {
 						...objectRecord(attempt.responseSnapshot),
 						providerTerminalEvidence,
 					} as Prisma.JsonValue;
+				}
+				if (providerTerminalEvidence || diagnostic) {
 					await tx.generationAttempt.update({
 						where: { id: attempt.id },
-						data: { responseSnapshot: attempt.responseSnapshot as Prisma.InputJsonValue },
+						data: {
+							...(providerTerminalEvidence
+								? { responseSnapshot: attempt.responseSnapshot as Prisma.InputJsonValue }
+								: {}),
+							...(diagnostic
+								? { errorSnapshot: attempt.errorSnapshot as Prisma.InputJsonValue }
+								: {}),
+						},
 					});
 				}
 				if (
@@ -6637,7 +6812,11 @@ export function createDatabaseReconciliationStore(
 									result,
 									attempt,
 								) as Prisma.InputJsonValue,
-								errorSnapshot: { code: KIE_ZERO_COST_REJECTION_CODE, retryable: false },
+								errorSnapshot: {
+									...allowlistedUncertaintyEvidence(attempt.errorSnapshot),
+									code: KIE_ZERO_COST_REJECTION_CODE,
+									retryable: false,
+								},
 								reconcileLeaseToken: null,
 								reconcileLeasedUntil: null,
 								nextReconcileAt: null,
@@ -6759,7 +6938,11 @@ export function createDatabaseReconciliationStore(
 								? false
 								: undefined,
 						errorSnapshot: knownFailure
-							? { code: knownFailure, retryable: imagePassFailure === undefined }
+							? {
+									...allowlistedUncertaintyEvidence(attempt.errorSnapshot),
+									code: knownFailure,
+									retryable: imagePassFailure === undefined,
+								}
 							: terminalFailure
 								? manualReconciliationErrorSnapshot(
 										attempt.errorSnapshot,
@@ -7275,6 +7458,7 @@ async function guestDispatchChecksPass(
 		id: string;
 		ownerId: string;
 		productKey: string;
+		inputSnapshot: unknown;
 		serviceClass: string;
 		status: string;
 		guestTrialId: string | null;
@@ -7305,7 +7489,12 @@ async function guestDispatchChecksPass(
 	if (
 		job.serviceClass !== "GUEST_SLOW" ||
 		job.status !== "DISPATCH_QUEUED" ||
-		job.productKey !== config.productKey ||
+		!(
+			(job.productKey === "image-minimax-h3" &&
+				objectRecord(job.inputSnapshot)?.skuKey === "minimax-h3-1k") ||
+			(job.productKey === "image-nano-banana-2-lite" &&
+				objectRecord(job.inputSnapshot)?.skuKey === "nano-banana-2-lite-1k")
+		) ||
 		job.guestTrialId !== trial.id ||
 		job.ownerId !== trial.ownerId ||
 		job.creditsReserved <= 0n ||
@@ -7742,25 +7931,34 @@ function canonicalJson(value: unknown): string {
 }
 
 function safeUncertainRecoveryEvidence(
-	provider: string,
+	attempt: ProviderDiagnosticIdentity,
 	evidence: UncertainSubmissionEvidence,
 ): Prisma.GenerationAttemptUpdateInput {
 	const providerTaskId = boundedString(evidence.providerTaskId, 512);
-	const reconciliationEndpoints = safeReconciliationEndpoints(provider, providerTaskId, evidence);
+	const reconciliationEndpoints = safeReconciliationEndpoints(
+		attempt.provider,
+		providerTaskId,
+		evidence,
+	);
 	const submissionToken = boundedString(evidence.submissionToken, 256);
+	const identity = { ...attempt, providerTaskId: providerTaskId ?? attempt.providerTaskId };
 	return {
 		...(providerTaskId ? { providerTaskId } : {}),
 		...reconciliationEndpoints,
 		...(submissionToken ? { submissionToken } : {}),
-		errorSnapshot: {
-			classification: evidence.classification,
-			phase: evidence.phase,
-			...(evidence.statusCode !== undefined ? { statusCode: evidence.statusCode } : {}),
-			...(evidence.providerStatus ? { providerStatus: evidence.providerStatus } : {}),
-			...(evidence.providerIdempotencySupported !== undefined
-				? { providerIdempotencySupported: evidence.providerIdempotencySupported }
-				: {}),
-		} as Prisma.InputJsonValue,
+		errorSnapshot: withProviderDiagnostic(
+			{
+				classification: evidence.classification,
+				phase: evidence.phase,
+				...(evidence.statusCode !== undefined ? { statusCode: evidence.statusCode } : {}),
+				...(evidence.providerStatus ? { providerStatus: evidence.providerStatus } : {}),
+				...(evidence.providerIdempotencySupported !== undefined
+					? { providerIdempotencySupported: evidence.providerIdempotencySupported }
+					: {}),
+			},
+			evidence.failure ? submissionFailureDiagnostic(identity, evidence.failure) : null,
+			identity,
+		) as Prisma.InputJsonValue,
 	};
 }
 
@@ -7780,12 +7978,12 @@ function manualReconciliationErrorSnapshot(existing: unknown, code: string): Pri
 	};
 }
 
-function allowlistedUncertaintyEvidence(
-	existing: unknown,
-): Record<string, string | number | boolean> {
+function allowlistedUncertaintyEvidence(existing: unknown): Prisma.InputJsonObject {
 	const record = objectRecord(existing);
 	if (!record) return {};
-	const evidence: Record<string, string | number | boolean> = {};
+	const evidence: Record<string, Prisma.InputJsonValue> = {};
+	const diagnostic = parseProviderDiagnostic(record.providerDiagnostic);
+	if (diagnostic) evidence.providerDiagnostic = { ...diagnostic };
 	if (
 		record.classification === "ambiguous_http" ||
 		record.classification === "malformed_2xx" ||

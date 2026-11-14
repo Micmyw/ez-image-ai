@@ -100,6 +100,312 @@ describe("production media runtime stores", () => {
 
 	afterAll(async () => client?.$disconnect());
 
+	it.each(["provider-response", undefined] as const)(
+		"persists provider diagnostic for rejected submission origin %s",
+		async (messageOrigin) => {
+			const seeded = await seedReservedJob("image-nano-banana-2-lite");
+			const store = createTestDispatchStore();
+			const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+			if (!claim || "deferred" in claim || "phaseOwnershipLost" in claim)
+				throw new Error("Expected dispatch claim");
+			await store.recordRejectedSubmission(claim.attemptId, {
+				code: "HTTP_400",
+				retryable: false,
+				messageOrigin,
+				message:
+					'Unsupported image parameters {"authorization":"opaque-secret"} https://private.invalid/input?signature=hidden',
+			});
+			const attempt = await client.generationAttempt.findUniqueOrThrow({
+				where: { id: claim.attemptId },
+			});
+			expect(attempt).toMatchObject({
+				status: "FAILED",
+				uncertainSubmission: false,
+				errorSnapshot: {
+					code: "HTTP_400",
+					retryable: false,
+					providerDiagnostic: {
+						version: 1,
+						attemptId: attempt.id,
+						provider: "kie",
+						source: messageOrigin ? "AUTHENTICATED_SUBMISSION" : "INTERNAL_DIAGNOSTIC",
+						message: expect.stringContaining("Unsupported image parameters"),
+					},
+				},
+			});
+			expect(JSON.stringify(attempt.errorSnapshot)).not.toMatch(
+				/opaque-secret|private\.invalid|signature=hidden/,
+			);
+			expect(
+				await client.generationJob.findUniqueOrThrow({
+					where: { id: seeded.jobId },
+					include: { reservation: true },
+				}),
+			).toMatchObject({
+				status: "FINALIZING",
+				failureCode: "PROVIDER_UNAVAILABLE",
+				reservation: { status: "ACTIVE" },
+			});
+		},
+	);
+
+	it.each(["ACCEPTED", "REJECTED"] as const)(
+		"retains provider diagnostic across uncertain submission retry and manual recovery %s",
+		async (resolution) => {
+			const seeded = await seedReservedJob("image-nano-banana-2-lite");
+			const dispatch = createTestDispatchStore();
+			const claim = await dispatch.claimDispatch({ jobId: seeded.jobId, version: 0 });
+			if (!claim || "deferred" in claim || "phaseOwnershipLost" in claim)
+				throw new Error("Expected dispatch claim");
+			await dispatch.recordUncertainSubmission(claim.attemptId, {
+				classification: "ambiguous_http",
+				phase: "post_send",
+				statusCode: 503,
+				failure: {
+					code: "HTTP_503",
+					message: "Upstream capacity exhausted",
+					retryable: false,
+					messageOrigin: "provider-response",
+				},
+			});
+			await client.generationAttempt.update({
+				where: { id: claim.attemptId },
+				data: { nextReconcileAt: new Date(0), submittedAt: new Date(Date.now() - 40 * 60_000) },
+			});
+			const store = createDatabaseReconciliationStore(client);
+			const [lease] = await store.claimStale({
+				attemptId: claim.attemptId,
+				limit: 1,
+				leaseSeconds: 60,
+				now: new Date(),
+			});
+			expect(lease).toBeDefined();
+			await store.releaseReconciliationLease(lease!, "PROVIDER_QUERY_UNAVAILABLE", new Date(0));
+			const [retry] = await store.claimStale({
+				attemptId: claim.attemptId,
+				limit: 1,
+				leaseSeconds: 60,
+				now: new Date(),
+			});
+			expect(retry).toBeDefined();
+			await store.markUncertainForManualReconciliation(retry!);
+			expect(
+				await client.generationAttempt.findUniqueOrThrow({ where: { id: claim.attemptId } }),
+			).toMatchObject({
+				status: "NEEDS_RECONCILIATION",
+				uncertainSubmission: true,
+				errorSnapshot: {
+					providerDiagnostic: {
+						source: "AUTHENTICATED_SUBMISSION",
+						message: "Upstream capacity exhausted",
+					},
+				},
+			});
+			expect(
+				await client.generationJob.findUniqueOrThrow({
+					where: { id: seeded.jobId },
+					include: { reservation: true },
+				}),
+			).toMatchObject({ status: "NEEDS_RECONCILIATION", reservation: { status: "ACTIVE" } });
+			await resolveAdminUncertainSubmission(
+				{
+					attemptId: claim.attemptId,
+					resolution,
+					...(resolution === "ACCEPTED"
+						? { providerTaskId: `recovered-${crypto.randomUUID()}` }
+						: {}),
+					providerEvidenceReference: "Diagnostic fixture provider dashboard evidence",
+					actorUserId: "diagnostic-test-admin",
+					idempotencyKey: `diagnostic-${crypto.randomUUID()}`,
+					reason: "Authenticated provider dashboard confirms the original task status",
+				},
+				client,
+			);
+			expect(
+				await client.generationAttempt.findUniqueOrThrow({ where: { id: claim.attemptId } }),
+			).toMatchObject({
+				status: resolution === "ACCEPTED" ? "SUBMITTED" : "FAILED",
+				uncertainSubmission: false,
+				errorSnapshot: {
+					providerDiagnostic: {
+						source: "AUTHENTICATED_SUBMISSION",
+						message: "Upstream capacity exhausted",
+					},
+				},
+			});
+		},
+	);
+
+	it.each([false, true])(
+		"persists authenticated provider diagnostic with manual hold already present %s",
+		async (alreadyHeld) => {
+			const seeded = await seedPendingProviderJob("image-nano-banana-2-lite");
+			await client.generationAttempt.update({
+				where: { id: seeded.attemptId },
+				data: { nextReconcileAt: new Date(0) },
+			});
+			const store = createDatabaseReconciliationStore(client);
+			const [lease] = await store.claimStale({
+				attemptId: seeded.attemptId,
+				limit: 1,
+				leaseSeconds: 60,
+				now: new Date(),
+			});
+			expect(lease).toBeDefined();
+			if (alreadyHeld) {
+				await client.generationAttempt.update({
+					where: { id: seeded.attemptId },
+					data: { status: "NEEDS_RECONCILIATION", uncertainSubmission: true },
+				});
+				await client.generationJob.update({
+					where: { id: seeded.jobId },
+					data: { status: "NEEDS_RECONCILIATION" },
+				});
+			}
+			const adapter = new KieProviderAdapter({
+				apiKey: "opaque-provider-secret",
+				fetch: responseFetch(200, {
+					code: 200,
+					data: {
+						taskId: seeded.providerTaskId,
+						state: "fail",
+						failCode: "422",
+						failMsg:
+							"Upstream capacity exhausted opaque-provider-secret https://private.invalid/input?signature=hidden",
+					},
+				}),
+			});
+			const snapshot = await adapter.retrieve({
+				providerTaskId: seeded.providerTaskId,
+				statusUrl: `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${seeded.providerTaskId}`,
+			});
+			await store.recordReconciled(lease!, snapshot, await adapter.normalizeResult(snapshot));
+			const attempt = await client.generationAttempt.findUniqueOrThrow({
+				where: { id: seeded.attemptId },
+			});
+			expect(attempt).toMatchObject({
+				status: "NEEDS_RECONCILIATION",
+				uncertainSubmission: true,
+				errorSnapshot: {
+					providerDiagnostic: {
+						attemptId: seeded.attemptId,
+						provider: "kie",
+						providerTaskId: seeded.providerTaskId,
+						source: "AUTHENTICATED_RETRIEVAL",
+						observedAt: snapshot.retrieval!.observedAt,
+						message: expect.stringContaining("Upstream capacity exhausted"),
+					},
+				},
+			});
+			expect(JSON.stringify(attempt.errorSnapshot)).not.toMatch(
+				/opaque-provider-secret|private\.invalid|signature=hidden/,
+			);
+			expect(
+				await client.generationJob.findUniqueOrThrow({
+					where: { id: seeded.jobId },
+					include: { reservation: true },
+				}),
+			).toMatchObject({ status: "NEEDS_RECONCILIATION", reservation: { status: "ACTIVE" } });
+			expect(
+				await client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+			).toBe(0);
+			const event = await createProviderEvent(
+				"kie",
+				seeded.providerTaskId,
+				"failed",
+				new Date(),
+				1n,
+			);
+			const callbackStore = createDatabaseProviderEventStore(client);
+			const claim = await callbackStore.claimProviderEvent(event.id);
+			expect(claim).toBeDefined();
+			await callbackStore.recordProviderProgress(claim!, {
+				outputs: [],
+				progress: null,
+				providerCostMicros: null,
+				providerCharged: false,
+				retryable: false,
+				failure: { code: "PROVIDER_REJECTED", message: "Later callback text", retryable: false },
+			});
+			expect(
+				(await client.generationAttempt.findUniqueOrThrow({ where: { id: seeded.attemptId } }))
+					.errorSnapshot,
+			).toEqual(attempt.errorSnapshot);
+		},
+	);
+
+	it("stores callback provider diagnostic without authenticating payload source labels or settling", async () => {
+		const seeded = await seedPendingProviderJob("image-nano-banana-2-lite");
+		const event = await createProviderEvent("kie", seeded.providerTaskId, "failed", new Date(), 1n);
+		const store = createDatabaseProviderEventStore(client);
+		const claim = await store.claimProviderEvent(event.id);
+		expect(claim).toBeDefined();
+		claim!.snapshot.retrieval = { source: "kie-record-info", observedAt: new Date().toISOString() };
+		await store.recordProviderProgress(claim!, {
+			outputs: [],
+			progress: null,
+			providerCostMicros: null,
+			providerCharged: false,
+			retryable: false,
+			failure: {
+				code: "PROVIDER_REJECTED",
+				message: 'Callback rendering error {"api_key":"opaque-secret"}',
+				retryable: false,
+			},
+		});
+		const attempt = await client.generationAttempt.findUniqueOrThrow({
+			where: { id: seeded.attemptId },
+		});
+		expect(attempt).toMatchObject({
+			status: "SUBMITTED",
+			uncertainSubmission: false,
+			errorSnapshot: {
+				providerDiagnostic: {
+					source: "CALLBACK_DIAGNOSTIC",
+					attemptId: seeded.attemptId,
+					providerTaskId: seeded.providerTaskId,
+				},
+			},
+		});
+		expect(JSON.stringify(attempt.errorSnapshot)).not.toContain("opaque-secret");
+		expect(JSON.stringify(attempt.responseSnapshot)).not.toContain("providerTerminalEvidence");
+		expect(
+			await client.generationJob.findUniqueOrThrow({
+				where: { id: seeded.jobId },
+				include: { reservation: true },
+			}),
+		).toMatchObject({ status: "PROVIDER_PENDING", reservation: { status: "ACTIVE" } });
+		expect(
+			await client.outboxEvent.count({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+			}),
+		).toBe(0);
+	});
+
+	it("does not persist provider diagnostic from a mismatched authenticated task", async () => {
+		const seeded = await seedPendingProviderJob("image-nano-banana-2-lite");
+		await client.generationAttempt.update({
+			where: { id: seeded.attemptId },
+			data: { nextReconcileAt: new Date(0) },
+		});
+		const store = createDatabaseReconciliationStore(client);
+		const [lease] = await store.claimStale({
+			attemptId: seeded.attemptId,
+			limit: 1,
+			leaseSeconds: 60,
+			now: new Date(),
+		});
+		const { snapshot, result } = await zeroCostRejectionResult("wrong-task");
+		await expect(store.recordReconciled(lease!, snapshot, result)).rejects.toThrow(
+			"RECONCILIATION_TASK_MISMATCH",
+		);
+		const attempt = await client.generationAttempt.findUniqueOrThrow({
+			where: { id: seeded.attemptId },
+		});
+		expect(attempt).toMatchObject({ status: "SUBMITTED", providerTaskId: seeded.providerTaskId });
+		expect(JSON.stringify(attempt.errorSnapshot)).not.toContain("providerDiagnostic");
+	});
+
 	it("recovers a committed verification event after a crash before wake-up, even when duplicate verification is a no-op", async () => {
 		const seeded = await seedFinalizingJob();
 		const output = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
@@ -3884,6 +4190,19 @@ describe("production media runtime stores", () => {
 				settlementPolicy: { unitCredits: "5", requestedOutputCount: 1, maxCharge: "5" },
 			},
 		});
+		const providerDiagnostic = {
+			version: 1,
+			attemptId: fixture.attemptId,
+			provider: "kie",
+			providerTaskId: fixture.providerTaskId,
+			message: "The input or output was flagged as sensitive.",
+			source: "AUTHENTICATED_RETRIEVAL",
+			observedAt: new Date().toISOString(),
+		};
+		await client.generationAttempt.update({
+			where: { id: fixture.attemptId },
+			data: { errorSnapshot: { providerDiagnostic } },
+		});
 		await resolveAdminKieZeroCostRejection(fixture.repair, client);
 		await settleGeneration(
 			{ ...fixture, version: 0 },
@@ -3899,6 +4218,9 @@ describe("production media runtime stores", () => {
 			failureCode: "PROVIDER_POLICY_REJECTED_CHARGED",
 			reservation: { settledAmount: 5n, releasedAmount: 0n },
 		});
+		expect(
+			await client.generationAttempt.findUniqueOrThrow({ where: { id: fixture.attemptId } }),
+		).toMatchObject({ errorSnapshot: { providerDiagnostic } });
 	});
 	it("settles only a proven zero-cost Kie rejection once and preserves its evidence", async () => {
 		const seeded = await seedPendingProviderJob();
@@ -3962,6 +4284,13 @@ describe("production media runtime stores", () => {
 			status: "FAILED",
 			uncertainSubmission: false,
 			responseSnapshot: { confirmedZeroCostRejection: result.confirmedZeroCostRejection },
+			errorSnapshot: {
+				providerDiagnostic: {
+					source: "AUTHENTICATED_RETRIEVAL",
+					message: result.failure!.message,
+					providerTaskId: seeded.providerTaskId,
+				},
+			},
 		});
 		expect(
 			await client.creditLedgerEntry.count({

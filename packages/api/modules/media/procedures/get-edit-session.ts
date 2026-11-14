@@ -83,7 +83,7 @@ function versionDto(
 		createdAt: job.createdAt.toISOString(),
 		output,
 		canEditAgain:
-			job.status === "SUCCEEDED" &&
+			["SUCCEEDED", "FINALIZING"].includes(job.status) &&
 			output.state === "READY" &&
 			Boolean(
 				outputBinding &&

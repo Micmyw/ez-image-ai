@@ -10,7 +10,7 @@ import type {
 export async function copyAccountInput(
 	payload: AccountInputCopyPayload,
 	dependencies: AccountInputCopyDependencies,
-): Promise<{ outcome: "SKIPPED" | "VERIFYING" | "FAILED" }> {
+): Promise<{ outcome: "SKIPPED" | "VERIFYING" | "READY" | "FAILED" }> {
 	const claim = await dependencies.claim(payload);
 	if (!claim) return { outcome: "SKIPPED" };
 	if (!validCopyIdentity(claim, payload)) {
@@ -45,7 +45,7 @@ export async function copyAccountInput(
 		throw error;
 	}
 	try {
-		await dependencies.commit({
+		const committed = await dependencies.commit({
 			...payload,
 			leaseToken: claim.leaseToken,
 			checksum: copied.sha256,
@@ -53,13 +53,29 @@ export async function copyAccountInput(
 			mimeType: claim.source.mimeType,
 			storageEtag: copied.etag ?? undefined,
 			storageVersionId: copied.versionId ?? undefined,
+			readbackProof: {
+				schemaVersion: 1,
+				method: "immutable-target-full-sha256-v1",
+				transform: "none",
+				promotionId: claim.promotionId,
+				leaseToken: claim.leaseToken,
+				sourceAssetId: claim.source.assetId,
+				sourceObjectKey: claim.source.objectKey,
+				targetAssetId: claim.target.assetId,
+				targetObjectKey: claim.target.objectKey,
+				checksum: copied.sha256,
+				bytes: copied.bytes,
+				mimeType: claim.source.mimeType,
+				storageEtag: copied.etag,
+				storageVersionId: copied.versionId,
+			},
 		});
+		return { outcome: committed?.status ?? "VERIFYING" };
 	} catch (error) {
 		// A lost DB response may already have materialized VERIFYING media. Never delete it.
 		await retainForRetry(dependencies, claim, "ACCOUNT_INPUT_COPY_COMMIT_RETRYABLE");
 		throw error;
 	}
-	return { outcome: "VERIFYING" };
 }
 
 async function copyWithMultipartRecovery(

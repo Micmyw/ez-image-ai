@@ -172,6 +172,31 @@ afterEach(() => {
 });
 
 describe("Workers executor routing", () => {
+	it("keeps review runnable during independent archival and routes the archive to transfer", async () => {
+		let finish!: () => void;
+		mocks.execute.mockImplementation(async (task: TaskRequest) => {
+			if (task.taskId === "media-archive-output")
+				await new Promise<void>((resolve) => {
+					finish = resolve;
+				});
+			return { done: true, waitSeconds: 0, continuation: { eventIds: [] } };
+		});
+		const worker = runtime();
+		const archive = worker.run({
+			taskId: "media-archive-output",
+			payload: { assetId: "original" },
+		});
+		try {
+			await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+			await expect(worker.run(light)).resolves.toEqual({ completed: true });
+			expect(worker.routed).toContain("jobs-transfer-request");
+			expect(worker.routed).toContain("jobs-control-request");
+			expect(worker.routed).not.toContain("jobs-primary");
+		} finally {
+			finish?.();
+			await archive;
+		}
+	});
 	it.each(["review", "transfer"])(
 		"admits 50 independent %s requests with no global count queue",
 		async (kind) => {

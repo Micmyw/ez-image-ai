@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import { redactVideoAccessLog } from "./log-redaction";
 
 describe("private video callback access logs", () => {
+	it("redacts signed original-image capabilities", () => {
+		expect(
+			redactVideoAccessLog("GET /api/media/original?key=private&signature=secret&scope=admin 200"),
+		).toBe("GET /api/media/original?[redacted] 200");
+	});
 	it("redacts source generation and role callback capabilities", () => {
 		expect(redactVideoAccessLog("POST /api/webhooks/video-source/seeapi/private-token 202")).toBe(
 			"POST /api/webhooks/video-source/[redacted] 202",

@@ -88,6 +88,7 @@ const dispatchPayload = strictObject({
 });
 
 const payloadParsers = {
+	"media-archive-output": strictObject({ assetId: text }),
 	"media-copy-account-input": strictObject({ promotionId: text }),
 	"media-cleanup-account-input-copy": strictObject({ promotionId: text }),
 	"media-recover-account-input-copies": scheduled,
@@ -239,7 +240,12 @@ export function parseTaskRequest(value: unknown): TaskRequest {
 export function isWorkflowEventTask(taskId: string): boolean {
 	return (
 		dispatchRouteForTask(taskId)?.mediaKind === "image" ||
-		["media-verify-upload", "media-finalize-generation", "media-settle-generation"].includes(taskId)
+		[
+			"media-verify-upload",
+			"media-finalize-generation",
+			"media-settle-generation",
+			"media-archive-output",
+		].includes(taskId)
 	);
 }
 
@@ -357,6 +363,7 @@ const definitions: Record<keyof typeof payloadParsers, TaskDefinition> = {
 	"media-admit-guest-generation": definition("media-guest-admission", 1, 60, 1),
 	"media-cancel-generation": definition("media-provider-cancellation", 4, 60, 5),
 	"media-finalize-generation": definition(QUEUE_NAMES.finalization, 3, 900, 5),
+	"media-archive-output": definition(QUEUE_NAMES.finalization, 3, 900, 5),
 	"media-settle-generation": definition(QUEUE_NAMES.settlementRecovery, 2, 60, 8),
 	"media-process-payment-event": definition("media-payment-events", 5, 60, 8),
 	"media-terminate-refunded-subscription": definition("media-payment-events", 5, 120, 8),

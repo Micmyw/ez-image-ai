@@ -28,6 +28,17 @@ export const notificationTypeEnum = mysqlEnum("NotificationType", [
 export const notificationTargetEnum = mysqlEnum("NotificationTarget", ["IN_APP", "EMAIL"]);
 
 // Tables
+export const guestTrialEntitlement = mysqlTable(
+	"guest_trial_entitlement",
+	{
+		subjectKey: varchar("subjectKey", { length: 255 }).primaryKey(),
+		trialId: varchar("trialId", { length: 255 }).notNull(),
+		reservedJobId: varchar("reservedJobId", { length: 255 }),
+		createdAt: timestamp("createdAt", { fsp: 3 }).notNull().defaultNow(),
+	},
+	(table) => [index("guest_trial_entitlement_trialId_idx").on(table.trialId)],
+);
+
 export const mediaOwnerStorageFence = mysqlTable(
 	"media_owner_storage_fence",
 	{
@@ -1164,4 +1175,27 @@ export const trafficAggregate = mysqlTable(
 		views: int("views").notNull().default(0),
 	},
 	(table) => [primaryKey({ columns: [table.hour, table.path, table.source, table.device] })],
+);
+
+export const mediaOutputOrigin = mysqlTable(
+	"media_output_origin",
+	{
+		assetId: varchar("assetId", { length: 255 }).primaryKey(),
+		url: text("url").notNull(),
+		archiveState: varchar("archiveState", { length: 32 }).notNull().default("PENDING"),
+		archiveChecksum: text("archiveChecksum"),
+		archiveBytes: bigint("archiveBytes", { mode: "bigint" }),
+		archivedAt: timestamp("archivedAt", { fsp: 3 }),
+		leaseToken: text("leaseToken"),
+		leasedUntil: timestamp("leasedUntil", { fsp: 3 }),
+		attempts: int("attempts").notNull().default(0),
+		lastErrorCode: text("lastErrorCode"),
+		createdAt: timestamp("createdAt", { fsp: 3 }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("media_output_origin_archiveState_leasedUntil_idx").on(
+			table.archiveState,
+			table.leasedUntil,
+		),
+	],
 );

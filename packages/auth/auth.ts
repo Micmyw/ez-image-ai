@@ -17,11 +17,20 @@ import { sendEmail } from "@repo/mail";
 import { createWelcomeNotification } from "@repo/notifications";
 import { cancelProviderSubscription } from "@repo/payments";
 import { getBaseUrl } from "@repo/utils";
+import { canReceiveNewFreeAllowance } from "@repo/utils/free-eligibility";
 import { ATTRIBUTION_COOKIE_NAME } from "@repo/utils/lib/acquisition-attribution";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { createAuthMiddleware } from "better-auth/api";
-import { admin, anonymous, magicLink, openAPI, organization, twoFactor } from "better-auth/plugins";
+import { APIError, createAuthMiddleware } from "better-auth/api";
+import {
+	admin,
+	anonymous,
+	magicLink,
+	oneTap,
+	openAPI,
+	organization,
+	twoFactor,
+} from "better-auth/plugins";
 import { parseCookie as parseCookies } from "cookie";
 
 import { config } from "./config";
@@ -29,6 +38,7 @@ import {
 	getAnonymousBootstrapEmail,
 	runRegisteredUserCreatedLifecycle,
 } from "./lib/anonymous-boundary";
+import { finalSessionJourneyPlugin } from "./lib/final-session-journey";
 import { updateSeatsInOrganizationSubscription } from "./lib/organization";
 import { cancelOrganizationSubscriptionsBeforeDeletion } from "./lib/organization-deletion";
 import { validateOrganizationSlugBeforeCreate } from "./lib/organization-slug";
@@ -74,6 +84,7 @@ export const auth = betterAuth({
 					};
 				},
 				after: async (session) => {
+					if (!canReceiveNewFreeAllowance()) return;
 					try {
 						await ensureOneTimeLoginCreditGrant({ ownerId: session.userId }, db);
 					} catch (error) {
@@ -172,6 +183,9 @@ export const auth = betterAuth({
 			}
 		}),
 		before: createAuthMiddleware(async (ctx) => {
+			if (ctx.path === "/one-tap/callback" && !config.enableGoogleOneTap) {
+				throw new APIError("NOT_FOUND", { message: "Google One Tap is disabled" });
+			}
 			if (ctx.path.startsWith("/delete-user")) {
 				const userId = ctx.context.session?.session.userId;
 
@@ -283,6 +297,7 @@ export const auth = betterAuth({
 			generateRandomEmail: getAnonymousBootstrapEmail,
 		}),
 		passkey(),
+		oneTap({ disableSignup: !config.enableSignup }),
 		magicLink({
 			disableSignUp: false,
 			sendMagicLink: async ({ email, url }, ctx) => {
@@ -343,6 +358,7 @@ export const auth = betterAuth({
 		openAPI(),
 		invitationOnlyPlugin(),
 		twoFactor(),
+		finalSessionJourneyPlugin(),
 	],
 	onAPIError: {
 		onError(error, ctx) {

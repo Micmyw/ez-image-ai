@@ -78,6 +78,20 @@ function fixture() {
 				mimeType: "image/png",
 				storageEtag: "etag",
 				storageVersionId: "version",
+				readbackProof: {
+					method: "immutable-target-full-sha256-v1",
+					transform: "none",
+					promotionId: claim.promotionId,
+					leaseToken: claim.leaseToken,
+					sourceAssetId: claim.source.assetId,
+					sourceObjectKey: claim.source.objectKey,
+					targetAssetId: claim.target.assetId,
+					targetObjectKey: claim.target.objectKey,
+					checksum: claim.source.checksum,
+					bytes: 16,
+					storageEtag: "etag",
+					storageVersionId: "version",
+				},
 			});
 			events.push("materialized-verifying");
 			committed = true;
@@ -100,6 +114,18 @@ function fixture() {
 }
 
 describe("account INPUT copy worker", () => {
+	it("reports READY only when the database committed a reusable source review", async () => {
+		const state = fixture();
+		const originalCommit = state.dependencies.commit;
+		state.dependencies.commit = async (input) => {
+			await originalCommit(input);
+			return { status: "READY" };
+		};
+		expect(await copyAccountInput({ promotionId: "promotion" }, state.dependencies)).toEqual({
+			outcome: "READY",
+		});
+		expect(state.committed).toBe(true);
+	});
 	it("persists multipart identity before copying and materializes only verified destination bytes", async () => {
 		const state = fixture();
 		await copyAccountInput({ promotionId: "promotion" }, state.dependencies);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@auth/hooks/use-session";
+import { authDraftId, restoreAuthDraft } from "@auth/lib/auth-draft-storage";
 import { readEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import type { ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
@@ -10,6 +11,7 @@ import {
 	STUDIO_WORKSPACE_RESET_EVENT,
 	type StudioWorkspaceResetDetail,
 } from "@shared/components/studio/studio-context";
+import { trackGenerationJourney } from "@shared/lib/generation-journey";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -63,6 +65,7 @@ export function ImageEditorWorkspace({
 	const studio = useTranslations("studio");
 	const { user } = useSession();
 	const initialized = useRef(false);
+	const activeAuthDraftId = useRef<string | undefined>(undefined);
 	const [draftReady, setDraftReady] = useState(false);
 	const [storageUnavailable, setStorageUnavailable] = useState(false);
 	const router = useRouter();
@@ -97,50 +100,106 @@ export function ImageEditorWorkspace({
 	useEffect(() => {
 		if (initialized.current || !user?.id) return;
 		initialized.current = true;
+		let active = true;
+		let finished = false;
 		const resumeWorkspace = searchParams.get("resume") === "workspace";
+		const requestedAuthDraft = authDraftId(searchParams.get("authDraft"));
 		const explicitRecovery =
 			!resumeWorkspace &&
 			Boolean(
 				initialDraft ||
 				restoreState !== "idle" ||
-				["asset", "reuseJob", "parentJob", "draftError", "upgrade", "resume"].some((key) =>
-					searchParams.has(key),
-				),
+				[
+					"asset",
+					"reuseJob",
+					"parentJob",
+					"draftError",
+					"upgrade",
+					...(requestedAuthDraft ? [] : ["resume"]),
+				].some((key) => searchParams.has(key)),
 			);
-		try {
-			if (!explicitRecovery) {
-				const saved = loadWorkspaceDraft(window.sessionStorage, user.id, Date.now(), draftPath);
-				if (saved) {
-					const { productKey, ...input } = saved.values;
-					setWorkspace((current) => ({
-						...current,
-						initialDraft: {
-							productKey,
-							input: {
-								...input,
-								kind: input.sourceAssetId ? "image-to-image" : "text-to-image",
-								...(input.sourceAssetId
-									? { sourceAssetId: input.sourceAssetId }
-									: { sourceAssetId: undefined }),
+		void (async () => {
+			try {
+				if (!explicitRecovery && !searchParams.has("job")) {
+					let savedWorkspace: ReturnType<typeof loadWorkspaceDraft> = null;
+					try {
+						savedWorkspace = loadWorkspaceDraft(
+							window.sessionStorage,
+							user.id,
+							Date.now(),
+							draftPath,
+						);
+					} catch {
+						setStorageUnavailable(true);
+					}
+					const capsuleId = requestedAuthDraft ?? savedWorkspace?.authDraftId;
+					const capsule = capsuleId
+						? await restoreAuthDraft({
+								id: capsuleId,
+								ownerId: user.id,
+								...(requestedAuthDraft
+									? { returnPath: window.location.pathname + window.location.search }
+									: {}),
+							})
+						: null;
+					if (!active) return;
+					const saved = requestedAuthDraft && capsule ? capsule : savedWorkspace;
+					const initialReferenceFile =
+						saved && !saved.values.sourceAssetId ? (capsule?.file ?? undefined) : undefined;
+					activeAuthDraftId.current = capsule?.id;
+					if (requestedAuthDraft && !capsule) {
+						setStorageUnavailable(true);
+						void trackGenerationJourney({
+							stage: "draft_restore_failed",
+							draftRef: requestedAuthDraft,
+							reason: "unavailable",
+						});
+					}
+					if (saved) {
+						const { productKey, ...input } = saved.values;
+						setWorkspace((current) => ({
+							...current,
+							initialDraft: {
+								productKey,
+								input: {
+									...input,
+									kind: input.sourceAssetId ? "image-to-image" : "text-to-image",
+									...(input.sourceAssetId
+										? { sourceAssetId: input.sourceAssetId }
+										: { sourceAssetId: undefined }),
+								},
 							},
-						},
-						parentJobId: saved.parentJobId,
-						temporaryReference: saved.temporaryReference,
-						fundingSource: saved.fundingSource,
-						formKey: current.formKey + 1,
-					}));
-					setSourceReady(false);
+							parentJobId: saved.parentJobId,
+							temporaryReference: saved.temporaryReference,
+							initialReferenceFile,
+							fundingSource: saved.fundingSource,
+							formKey: current.formKey + 1,
+						}));
+						setSourceReady(false);
+						if (capsule)
+							void trackGenerationJourney({ stage: "draft_restored", draftRef: capsule.id });
+					}
+					if (resumeWorkspace || (requestedAuthDraft && capsule)) {
+						const returnUrl = new URL(window.location.href);
+						returnUrl.searchParams.delete("resume");
+						returnUrl.searchParams.delete("authDraft");
+						router.replace(returnUrl.pathname + returnUrl.search + returnUrl.hash, {
+							scroll: false,
+						});
+					}
 				}
-				if (resumeWorkspace) {
-					const returnUrl = new URL(window.location.href);
-					returnUrl.searchParams.delete("resume");
-					router.replace(returnUrl.pathname + returnUrl.search + returnUrl.hash, { scroll: false });
-				}
+			} catch {
+				if (active) setStorageUnavailable(true);
 			}
-		} catch {
-			setStorageUnavailable(true);
-		}
-		setDraftReady(true);
+			if (active) {
+				finished = true;
+				setDraftReady(true);
+			}
+		})();
+		return () => {
+			active = false;
+			if (!finished) initialized.current = false;
+		};
 	}, [draftPath, initialDraft, restoreState, router, searchParams, user?.id]);
 	useEffect(() => {
 		function resetWorkspace(event: Event) {
@@ -148,6 +207,7 @@ export function ImageEditorWorkspace({
 			if (!isEditorProductKey(productKey)) return;
 			setFreshProductKey(productKey);
 			setWorkspace(beginNewEditorWorkspaceState);
+			activeAuthDraftId.current = undefined;
 			setSourceReady(false);
 			setUpgradeRestored(false);
 		}
@@ -171,6 +231,7 @@ export function ImageEditorWorkspace({
 							parentJobId: workspace.parentJobId,
 							temporaryReference,
 							fundingSource,
+							authDraftId: activeAuthDraftId.current,
 						},
 						Date.now(),
 						draftPath,
@@ -190,6 +251,7 @@ export function ImageEditorWorkspace({
 	}, [claimedDraft, claimedDraftEventKey, initialDraft]);
 
 	useEffect(() => {
+		if (searchParams.has("authDraft")) return;
 		if (searchParams.get("upgrade") !== "complete" && searchParams.get("resume") !== "text") return;
 		const restored = readEditorUpgradeDraft(window.sessionStorage);
 		if (!restored) return;
@@ -217,6 +279,7 @@ export function ImageEditorWorkspace({
 	}, [allowedProductKeys, pathname, router, searchParams, isEffectEditor]);
 
 	const unlinkSource = useCallback(() => {
+		activeAuthDraftId.current = undefined;
 		setWorkspace((current) => (current.parentJobId ? { ...current, parentJobId: null } : current));
 	}, []);
 
@@ -303,6 +366,7 @@ export function ImageEditorWorkspace({
 					key={workspace.formKey}
 					initialDraft={workspace.initialDraft}
 					initialTemporaryReference={workspace.temporaryReference}
+					initialReferenceFile={workspace.initialReferenceFile}
 					initialFundingSource={workspace.fundingSource}
 					initialProductKey={freshProductKey}
 					allowedProductKeys={allowedProductKeys}

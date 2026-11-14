@@ -423,6 +423,212 @@
 				"updated": "Up to date",
 				"lastSuccess": "Last successful update {time}",
 				"refresh": "Refresh"
+			},
+			"content": {
+				"title": "Customer images and moderation",
+				"description": "Inspect uploaded originals, generated images and recorded detector results. Includes content blocks without a recovery review.",
+				"statusLabel": "Image status",
+				"kindLabel": "Image type",
+				"all": "All",
+				"searchLabel": "Find content",
+				"searchPlaceholder": "Customer, image or job ID",
+				"search": "Search",
+				"refresh": "Refresh",
+				"loading": "Loading images…",
+				"loadError": "Could not load customer content. Refresh to try again.",
+				"time": "Created",
+				"owner": "Owner",
+				"provider": "Review provider",
+				"reason": "Recorded reason",
+				"inspect": "View images and review",
+				"empty": "No matching images.",
+				"newest": "Newest",
+				"older": "Older images",
+				"detailTitle": "Customer images and review details",
+				"refreshPreview": "Refresh images and details",
+				"job": "Related generation job",
+				"noJob": "This image has no linked generation job.",
+				"prompt": "Submitted generation prompt",
+				"openImage": "Open full image",
+				"previewError": "The private image could not be loaded. Refresh images and details to renew access.",
+				"historical": "Historical review for a different image version or review attempt.",
+				"providerTask": "Detector task ID",
+				"labels": "Detector NSFW labels",
+				"noLabels": "No category labels recorded",
+				"specialCare": "Detector special-care labels",
+				"noReview": "No completed image review is recorded.",
+				"statuses": {
+					"UPLOADING": "Uploading",
+					"VERIFYING": "Under review",
+					"VERIFICATION_FAILED": "Review failed",
+					"READY": "Ready",
+					"QUARANTINED": "Blocked",
+					"DELETED": "Deleted"
+				},
+				"kinds": {
+					"INPUT": "Customer input image",
+					"OUTPUT": "Generated image"
+				},
+				"availability": {
+					"DELETED": "This image has been deleted.",
+					"UNFINALIZED": "The upload or output has not been finalized.",
+					"UNSUPPORTED": "This preview supports images only.",
+					"CHANGED": "The current image does not match the content bound to this job."
+				},
+				"audienceLabel": "Upload audience",
+				"audiences": {
+					"GUEST": "Guest trial",
+					"ACCOUNT": "Account"
+				},
+				"promptReview": "Waffo prompt review",
+				"modelDiagnostics": "Model provider diagnostics",
+				"uncertainSubmission": "Provider acceptance is uncertain; no retry or cleanup is authorized.",
+				"evidenceSources": {
+					"AUTHENTICATED_RETRIEVAL": "Authenticated provider retrieval",
+					"STORED_DIAGNOSTIC": "Stored application diagnostic; no authenticated provider verdict"
+				},
+				"cleanup": {
+					"title": "Selected content cleanup",
+					"description": "Preview up to 20 selected image objects. Confirmation revokes access and queues R2 deletion; capacity is released only after storage confirms deletion. Financial records, moderation evidence and recovery journals remain.",
+					"selected": "{count} images selected",
+					"reason": "Reason for deletion (at least 5 characters)",
+					"includeLogs": "Also remove up to 100 internal test telemetry records older than 30 days",
+					"preview": "Preview cleanup",
+					"previewError": "Cleanup preview failed. Refresh and try again.",
+					"confirmLabel": "Type the exact confirmation below",
+					"execute": "Confirm deletion",
+					"retry": "Retry the same confirmed plan",
+					"executeError": "The cleanup was not confirmed. Retry the same plan, or preview again if it expired or the data changed.",
+					"queued": "Queued {assets} image deletions and removed {logs} internal test logs. R2 cleanup is asynchronous; refresh the deleted image to inspect physical completion.",
+					"summary": "{assets} image objects / {bytes} bytes; {logs} internal logs / about {logBytes} JSON bytes.",
+					"expiry": "Plan expires at {time}",
+					"eligible": "Eligible for this plan",
+					"select": "Select for cleanup",
+					"blocked": {
+						"NOT_FOUND": "Asset not found",
+						"UNSUPPORTED_ASSET": "Unsupported asset or execution engine",
+						"ALREADY_DELETED": "Deletion already requested",
+						"ASSET_NOT_TERMINAL": "Upload or review is not terminal",
+						"PROTECTED_TEMPLATE_MATERIAL": "Protected template material",
+						"UNCERTAIN_REVIEW": "Review acceptance is uncertain",
+						"ACTIVE_REVIEW": "Review work or retry remains",
+						"ACTIVE_TRANSFER": "Transfer or promotion remains",
+						"ACTIVE_UPLOAD": "Upload is active",
+						"ACTIVE_JOB_OR_RESERVATION": "A job, provider attempt or financial reservation is active",
+						"UNRESOLVED_REVIEW": "Administrator review is unresolved",
+						"ACTIVE_STORAGE_RESERVATION": "An upload storage reservation is active",
+						"ACTIVE_DRAFT": "An active draft uses the asset",
+						"ACTIVE_OR_UNCERTAIN_COPY": "Copy work is active or its writer is uncertain",
+						"UNCONSUMED_GUEST_UPLOAD": "An unexpired guest completion receipt can still create a draft"
+					},
+					"states": {
+						"RETRYING": "R2 cleanup is retrying the same object",
+						"UNKNOWN": "Physical deletion has not been confirmed",
+						"QUEUED": "R2 deletion is queued",
+						"FAILED": "R2 cleanup needs administrator recovery",
+						"COMPLETED": "R2 physical deletion confirmed"
+					},
+					"attempts": "Cleanup attempts: {count}",
+					"retryPhysical": "Retry failed physical cleanup with the same objects",
+					"recentPlans": "Your recent confirmed plans",
+					"chooseRecent": "Choose a confirmed plan to retry",
+					"recentError": "Recent plans could not be loaded. Refresh to retry."
+				},
+				"messageSources": {
+					"AUTHENTICATED_RETRIEVAL": "Message from authenticated retrieval",
+					"AUTHENTICATED_SUBMISSION": "Message from authenticated submission",
+					"CALLBACK_DIAGNOSTIC": "Callback diagnostic; not a verified provider verdict",
+					"INTERNAL_DIAGNOSTIC": "Internal application diagnostic",
+					"ADMIN_ATTESTATION": "Administrator-attested provider dashboard",
+					"STORED_DIAGNOSTIC": "Historical diagnostic with unverified origin"
+				}
+			},
+			"prompts": {
+				"title": "Prompts and failed jobs",
+				"description": "Search saved prompts and generation jobs, including blocked requests and jobs without images. The default view covers failures in the last seven days.",
+				"audience": "Audience",
+				"outcome": "Outcome",
+				"all": "All",
+				"failuresOnly": "Failures and blocked requests",
+				"filters": {
+					"ownerId": "Owner ID",
+					"email": "Account email",
+					"jobId": "Job ID",
+					"text": "Saved prompt contains",
+					"from": "From",
+					"to": "To"
+				},
+				"search": "Search",
+				"refresh": "Refresh",
+				"invalidRange": "Choose an ordered time window of at most 90 days.",
+				"loading": "Loading…",
+				"staleError": "Refresh failed. The previous results are still shown.",
+				"loadError": "Could not load these records.",
+				"range": "Showing {from} to {to}",
+				"time": "Time",
+				"record": "Record",
+				"owner": "Owner",
+				"model": "Model",
+				"status": "Status",
+				"promptSaved": "Prompt saved",
+				"inspect": "Inspect",
+				"unknown": "Unknown",
+				"yes": "Yes",
+				"no": "No",
+				"empty": "No records match these filters.",
+				"firstPage": "First page",
+				"nextPage": "Next page",
+				"close": "Close",
+				"detailTitle": "Prompt and generation details",
+				"systemSummary": "Saved system summary",
+				"promptTitle": "Saved prompt",
+				"redaction": "Links, credentials and private object identifiers are redacted.",
+				"missingPrompt": "No prompt was saved in this record.",
+				"truncated": "The saved prompt is longer than the display limit and has been shortened.",
+				"reviewTitle": "Prompt review",
+				"reviewBasis": "These are saved review records. Job reviews are linked by the exact quote ID.",
+				"missingReview": "No matching review record was saved.",
+				"reviewAction": "Action",
+				"categories": "Matched categories",
+				"rule": "Rule version",
+				"request": "Review request",
+				"messagesTitle": "Model and runtime messages",
+				"messagesBasis": "Only saved diagnostics are shown. Message provenance is separate from terminal-status evidence.",
+				"missingMessages": "No model message was saved.",
+				"messageSource": "Message source",
+				"uncertain": "Provider acceptance is uncertain. This record does not establish failure or authorize another submission.",
+				"terminalEvidence": "Terminal-status evidence",
+				"audiences": {
+					"GUEST": "Guest",
+					"ACCOUNT": "Account",
+					"UNKNOWN": "Unknown"
+				},
+				"audienceBases": {
+					"JOB_RECORD": "From the job record",
+					"RECORDED": "Recorded when the request was made",
+					"CURRENT_ACCOUNT": "From the current account; historical audience is unconfirmed",
+					"UNKNOWN": "No audience evidence is available"
+				},
+				"kinds": {
+					"JOB": "Generation job",
+					"BLOCKED_REQUEST": "Blocked prompt request"
+				},
+				"promptSources": {
+					"JOB_INPUT_SNAPSHOT": "Source: saved job input",
+					"BLOCKED_AUDIT_METADATA": "Source: blocked-request audit"
+				},
+				"messageSources": {
+					"AUTHENTICATED_RETRIEVAL": "Authenticated provider retrieval",
+					"AUTHENTICATED_SUBMISSION": "Authenticated provider submission",
+					"CALLBACK_DIAGNOSTIC": "Callback diagnostic; not an authenticated provider conclusion",
+					"INTERNAL_DIAGNOSTIC": "Internal runtime diagnostic",
+					"ADMIN_ATTESTATION": "Administrator-attested provider record",
+					"STORED_DIAGNOSTIC": "Saved diagnostic with unconfirmed origin"
+				},
+				"terminalSources": {
+					"AUTHENTICATED_RETRIEVAL": "Authenticated provider retrieval",
+					"STORED_DIAGNOSTIC": "No authenticated terminal evidence"
+				}
 			}
 		},
 		"title": "Administration",
@@ -946,6 +1152,52 @@
 					"kung-fu-cat": "Kung Fu Cat",
 					"sheru-bhai": "Sheru Bhai"
 				}
+			},
+			"journey": {
+				"title": "Generation journey · v1",
+				"basis": "Consented browser observations and server confirmations are separate evidence. Missing observations do not establish abandonment. Clicks, drafts and jobs are different identities; this is not a count of natural persons.",
+				"clicks": "Generate clicks",
+				"drafts": "Observed drafts",
+				"admittedJobs": "Server-confirmed jobs",
+				"links": "Clicks linked to one job: {linked}; no matching job observation: {missing}; multiple jobs: {ambiguous}; jobs without a matching click: {jobs}.",
+				"coverage": "Unkeyed observations: {unkeyed}; invalid events: {invalid}; legacy observations excluded from v1: {legacy}.",
+				"stage": "Stage",
+				"evidence": "Evidence",
+				"events": "Events",
+				"identities": "Distinct identities",
+				"unkeyed": "Missing reference",
+				"observed": "Browser observation",
+				"confirmed": "Server confirmation",
+				"empty": "No versioned journey events in this window.",
+				"latency": "Click to visible result: {samples} matched samples; P50 {p50}s / P90 {p90}s. Incomplete or unmatched samples: {excluded}. Refreshes without a click clock remain unknown.",
+				"stages": {
+					"source_selected": "Source selected",
+					"upload_started": "Upload started",
+					"upload_completed": "Upload completion observed",
+					"upload_failed": "Upload failed",
+					"generate_clicked": "Generate clicked",
+					"quote_observed": "Quote observed",
+					"job_admitted_observed": "Job acceptance observed",
+					"generation_failed_observed": "Generation failure observed",
+					"auth_viewed": "Sign-in page visible",
+					"auth_started": "Sign-in started",
+					"auth_cancelled": "Sign-in cancelled",
+					"auth_session_observed": "Signed-in session observed",
+					"draft_saved": "Draft saved",
+					"draft_restored": "Draft restored",
+					"draft_restore_failed": "Draft restoration failed",
+					"result_visible": "Result visible",
+					"refine_started": "Refinement started",
+					"purchase_offer_viewed": "Purchase offer visible",
+					"feedback_opened": "Feedback dialog opened",
+					"feedback_email_opened": "Email draft opened",
+					"feedback_submitted_observed": "Support submission acknowledged",
+					"upload_sealed": "Upload sealed",
+					"draft_claimed": "Draft claimed",
+					"job_admitted": "Job admitted",
+					"auth_session_established": "Signed-in session established",
+					"feedback_received": "Feedback received"
+				}
 			}
 		}
 	},
@@ -1053,7 +1305,10 @@
 			"submit": "Sign in",
 			"subtitle": "Please enter your credentials to sign in.",
 			"title": "Welcome back",
-			"sendMagicLink": "Send magic link"
+			"sendMagicLink": "Send magic link",
+			"continueWithGoogle": "Continue with Google",
+			"orEmail": "Or use your email",
+			"cancelled": "Sign-in was not completed. You can try again or return to your draft."
 		},
 		"resetPassword": {
 			"backToSignin": "Back to signin",
@@ -1086,6 +1341,12 @@
 			"submit": "Verify",
 			"backToSignin": "Back to login",
 			"message": "Enter the one-time password from your authenticator app to continue."
+		},
+		"draft": {
+			"title": "Your draft is saved",
+			"saved": "Your image and settings stay in this browser for one hour.",
+			"imageAlt": "Your selected image",
+			"returnToEdit": "Back to editing"
 		}
 	},
 	"choosePlan": {
@@ -1913,9 +2174,9 @@
 			"creditPolicy": "Credits and content policy"
 		},
 		"guest": {
-			"eyebrow": "Guest Nano Banana 2 Lite trial",
+			"eyebrow": "Free guest image trial",
 			"title": "Make a private image edit",
-			"subtitle": "Get two free Nano Banana 2 Lite 1K edits each day. Each edit creates one temporary, private, watermarked preview.",
+			"subtitle": "Try one free edit with MiniMax H3 1K or Nano Banana 2 Lite 1K in eligible regions. Your preview is temporary, private, and watermarked.",
 			"sourceReady": "Private source ready",
 			"sourceHandoff": "Transferred privately for this edit",
 			"promptLabel": "Edit instruction",
@@ -1925,7 +2186,7 @@
 			"freeQueue": "Free queue",
 			"temporary": "Watermarked · available for up to 24 hours",
 			"temporaryCompact": "Watermarked · temporary",
-			"submit": "Start my Nano Banana edit",
+			"submit": "Start my image edit",
 			"challenge": "Verify this guest edit",
 			"qualityCta": "More image models · paid plan",
 			"retryChallenge": "Retry verification",
@@ -1939,7 +2200,7 @@
 			"signIn": "Sign in",
 			"createAccount": "Create account",
 			"accountDisclosure": "The current preview still expires. Account benefits apply to future registered edits.",
-			"trialConsumed": "This edit used one daily guest slot.",
+			"trialConsumed": "This edit used your one-time guest trial.",
 			"trialNotConsumed": "This trial was not consumed. You can retry the safe recovery step.",
 			"startsWithCapacity": "Starts as free capacity becomes available",
 			"estimatedStart": "Estimated start: {start}",
@@ -1966,13 +2227,19 @@
 				"access": "The private result link is unavailable. Request it again.",
 				"download": "The private download is unavailable right now.",
 				"link": "Account sign-in is not available for this trial right now.",
-				"turnstile": "Complete the verification and try again."
+				"turnstile": "Complete the verification and try again.",
+				"regionExcluded": "Free trials are not available in your current region. Sign in to use your balance or choose a plan.",
+				"regionUnverified": "We could not check free-trial availability. Please try again or sign in."
 			},
-			"dailyAllowance": "Today: {remaining, number} of {limit, number} free edits remaining",
-			"dailyReset": "Resets daily at 00:00 UTC. Unused edits do not roll over.",
-			"dailyLimitReached": "You have used today’s two free edits. Come back after 00:00 UTC for two more.",
+			"dailyAllowance": "Free trials left: {remaining, number} of {limit, number}",
+			"dailyReset": "One free image trial in this browser.",
+			"dailyLimitReached": "Your free trial has been used. Sign in to continue.",
 			"editAnother": "Edit another image",
-			"loginBonus": "Eligible registered accounts receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill. Premium image models and higher resolutions require an active paid subscription when using credits. The USD 2.99 image pack includes 3 successful images with the covered image models and sizes, without a subscription."
+			"loginBonus": "Eligible registered accounts receive 10 credits once for two MiniMax H3 Image 1K generations, with no monthly refill. Premium image models and higher resolutions require an active paid subscription when using credits. The USD 2.99 image pack includes 3 successful images with the covered image models and sizes, without a subscription.",
+			"trialAllowance": "Free trials left: {remaining}/{limit}",
+			"trialIdentityNote": "One free image trial in this browser.",
+			"trialLimitReached": "Your free trial has been used. Sign in to continue.",
+			"modelLabel": "Free trial model"
 		},
 		"upgradeDialog": {
 			"title": "Unlock more image models",
@@ -2246,6 +2513,18 @@
 			"recoveryHelp": "Read the recovery steps or contact support",
 			"inputUnavailable": "Sorry, we could not use your reference image or input for this generation. Check it and try again.",
 			"deliveryFailed": "Your image was generated but could not be delivered. Please try again."
+		},
+		"purposeShortcuts": {
+			"label": "Start with a purpose",
+			"everyday": "Everyday images",
+			"layouts": "Text and layouts",
+			"details": "Photo details",
+			"selection": "{model} · {credits} credits"
+		},
+		"durationEstimate": {
+			"processing": "Your image is processing.",
+			"range": "Recent completed tasks: {minimum}–{maximum} seconds (P50–P90).",
+			"basis": "{count} successful tasks over the last 7 days, from job creation to completion. Marked internal tasks excluded. Updated {asOf}."
 		}
 	},
 	"common": {
@@ -2739,7 +3018,12 @@
 		"sizeRule": "New and previously purchased USD 2.99 packs cover GPT Image 2.6 Flare and Sunburst at 1K, 2K and 4K, plus Pro models, static SVG and animated GIF. Each successful result uses one pass, regardless of GIF frame count. No subscription is required.",
 		"fundingSizeNotEligible": "Your available passes do not cover this option. Choose an option covered by your pack, buy a current pack, or explicitly pay with credits.",
 		"returnAwaitingConfirmationUnknownAmount": "If you approved this payment in PayPal, confirm below to finish. Otherwise, return to checkout.",
-		"returnConfirmPaymentUnknownAmount": "Confirm PayPal payment"
+		"returnConfirmPaymentUnknownAmount": "Confirm PayPal payment",
+		"selectedOffer": {
+			"title": "${amount} for {units} successful images",
+			"description": "Covers this model and size. No subscription required when using Image Pass. Your draft stays saved while you choose a pack.",
+			"action": "Get the image pack"
+		}
 	},
 	"support": {
 		"title": "Support tickets",
@@ -2774,6 +3058,24 @@
 			"CUSTOMER": "Customer",
 			"ADMIN": "Support team",
 			"SERVICE": "Support automation"
+		},
+		"feedbackTopic": "What would you like to improve?",
+		"feedbackTopicOptional": "Choose a topic (optional)",
+		"feedbackTopics": {
+			"result": "Result quality",
+			"waiting": "Waiting time",
+			"upload": "Uploading",
+			"login": "Signing in",
+			"price_credits": "Price or credits",
+			"other": "Other"
+		}
+	},
+	"home": {
+		"generator": {
+			"fileErrors": {
+				"heicUnsupported": "Your browser cannot convert this HEIC photo. Export it as JPEG or PNG and try again.",
+				"dimensions": "This image's dimensions are too large. Export a smaller copy of up to 24 megapixels and try again."
+			}
 		}
 	}
 }

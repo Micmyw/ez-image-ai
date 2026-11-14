@@ -9,6 +9,8 @@ import {
 } from "./temporary-reference-upload";
 
 export interface WorkspaceDraft {
+	/** Browser-local capsule ID only; never a media authorization token. */
+	authDraftId?: string;
 	temporaryReference?: TemporaryReferenceReceipt;
 	fundingSource?: "CREDITS" | "IMAGE_PASS";
 	values: GenerationFormValues;
@@ -40,6 +42,7 @@ const storedDraftSchema = z
 		parentJobId: z.string().min(1).max(128).nullable(),
 		temporaryReference: temporaryReferenceReceiptSchema.optional(),
 		fundingSource: z.enum(["CREDITS", "IMAGE_PASS"]).optional(),
+		authDraftId: z.uuid().optional(),
 	})
 	.strict();
 
@@ -60,6 +63,7 @@ export function saveWorkspaceDraft(
 			parentJobId: draft.parentJobId,
 			temporaryReference: draft.temporaryReference,
 			fundingSource: draft.fundingSource,
+			authDraftId: draft.authDraftId,
 		});
 		if (!parsed.success) return false;
 		storage.setItem(WORKSPACE_DRAFT_KEY, JSON.stringify(parsed.data));
@@ -100,6 +104,7 @@ export function loadWorkspaceDraft(
 		return {
 			values: parsed.data.values,
 			parentJobId: parsed.data.parentJobId,
+			...(parsed.data.authDraftId ? { authDraftId: parsed.data.authDraftId } : {}),
 			...(parsed.data.fundingSource ? { fundingSource: parsed.data.fundingSource } : {}),
 			...(parsed.data.temporaryReference
 				? { temporaryReference: parsed.data.temporaryReference }

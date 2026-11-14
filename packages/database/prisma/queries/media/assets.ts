@@ -1377,7 +1377,7 @@ export interface CreateGenerationOutputAssetBindingInput {
 	};
 }
 
-async function fenceGenerationOutputBindingJob(
+export async function fenceGenerationOutputBindingJob(
 	input: { jobId: string; ownerId: string },
 	tx: Prisma.TransactionClient,
 ): Promise<boolean> {
@@ -1852,7 +1852,7 @@ function assertGenerationOutputStorageInput(input: { bytes: bigint; maximumStora
 }
 
 /** Caller owns the owner fence, asset binding and a live conditional transfer claim. */
-async function reserveGenerationOutputStorage(
+export async function reserveGenerationOutputStorage(
 	input: { bytes: bigint; maximumStorageBytes: bigint },
 	asset: {
 		id: string;

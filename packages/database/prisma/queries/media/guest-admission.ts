@@ -1,11 +1,16 @@
 import { isPermittedModerationEvidence } from "@repo/config";
 import { IMAGE_SKU_CREDIT_COSTS } from "@repo/config";
+import { isGuestTrialModel, type GuestTrialProductKey } from "@repo/config/guest-trial";
 
 import type { Prisma } from "../../generated/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
 import { createCreditGrant, reserveCreditsInTransaction } from "./credits";
 import { consumeGuestTurnstileTokenHash, incrementGuestBucket } from "./guest-bootstrap";
-import { getGuestDailyAllowance } from "./guest-quota";
+import {
+	getGuestLifetimeAllowance,
+	guestEntitlementSubjects,
+	reserveGuestLifetimeEntitlement,
+} from "./guest-entitlement";
 import { deriveGuestQueueEstimate } from "./guest-retention";
 import {
 	createModeratedGenerationQuote,
@@ -19,7 +24,11 @@ export const GUEST_GENERATION_ELIGIBLE_EVENT = "GUEST_GENERATION_ELIGIBLE";
 const CURRENT_GUEST_PRODUCT_KEY = "image-nano-banana-2-lite" as const;
 const CURRENT_GUEST_SKU_KEY = "nano-banana-2-lite-1k" as const;
 const LEGACY_GUEST_PRODUCT_KEY = "image-fast" as const;
-const GUEST_JOB_PRODUCT_KEYS = [CURRENT_GUEST_PRODUCT_KEY, LEGACY_GUEST_PRODUCT_KEY] as const;
+const GUEST_JOB_PRODUCT_KEYS = [
+	CURRENT_GUEST_PRODUCT_KEY,
+	"image-minimax-h3",
+	LEGACY_GUEST_PRODUCT_KEY,
+] as const;
 const CURRENT_GUEST_SPONSOR_CREDITS = BigInt(IMAGE_SKU_CREDIT_COSTS[CURRENT_GUEST_SKU_KEY]);
 
 export type GuestJobStage =
@@ -51,6 +60,8 @@ export interface CreateGuestGenerationTransactionInput {
 	capabilityVersion: string;
 	sourceSessionHash: string;
 	deviceHash: string;
+	browserSubjectHash?: string;
+	freeEligibility?: "eligible" | "excluded" | "unverified";
 	ipHash: string;
 	subnetHash: string;
 	idempotencyKey: string;
@@ -113,7 +124,7 @@ export interface CanonicalGuestGenerationQuote {
 }
 
 export type ResolveCanonicalGuestGenerationQuote = (input: {
-	productKey: typeof CURRENT_GUEST_PRODUCT_KEY;
+	productKey: GuestTrialProductKey;
 	inputSnapshot: Prisma.InputJsonValue;
 }) => CanonicalGuestGenerationQuote | Promise<CanonicalGuestGenerationQuote>;
 
@@ -123,6 +134,57 @@ export interface GuestGrantedAsset {
 	verificationValidUntil: Date;
 	deleteAfter: Date;
 	resultExpiresAt: Date;
+}
+
+/** Recovery of an already admitted identity does not request another free benefit. */
+export async function getGuestSubmissionReplay(
+	input: {
+		ownerId: string;
+		idempotencyKey: string;
+		productKey: string;
+		skuKey: string;
+		sourceAssetId: string;
+		prompt: string;
+		aspectRatio?: string;
+		now: Date;
+		verification: { provider: string; ruleVersion: string; policyVersion: string };
+	},
+	client: MediaTransactionClient,
+): Promise<GuestJobSnapshot | null> {
+	const job = await client.generationJob.findUnique({
+		where: {
+			ownerType_ownerId_idempotencyKey: {
+				ownerType: "USER",
+				ownerId: input.ownerId,
+				idempotencyKey: input.idempotencyKey,
+			},
+		},
+		select: {
+			id: true,
+			productKey: true,
+			inputSnapshot: true,
+			serviceClass: true,
+			guestTrialId: true,
+		},
+	});
+	if (!job) return null;
+	const snapshot = job.inputSnapshot as Record<string, unknown> | null;
+	if (
+		job.serviceClass !== "GUEST_SLOW" ||
+		!job.guestTrialId ||
+		job.productKey !== input.productKey ||
+		!snapshot ||
+		snapshot.kind !== "image-to-image" ||
+		snapshot.sourceAssetId !== input.sourceAssetId ||
+		snapshot.prompt !== input.prompt.trim() ||
+		snapshot.skuKey !== input.skuKey ||
+		(snapshot.aspectRatio ?? "auto") !== (input.aspectRatio ?? "auto")
+	)
+		throw new Error("IDEMPOTENCY_CONFLICT");
+	return getGuestJobSnapshot(
+		{ ownerId: input.ownerId, jobId: job.id, now: input.now, verification: input.verification },
+		client,
+	);
 }
 
 export type GuestAdmissionDenialReason =
@@ -199,6 +261,12 @@ export async function createGuestGenerationTransaction(
 			await acquireGuestAdmissionLocks(input, tx);
 			const replay = await findGuestAdmissionReplay(input, tx);
 			if (replay) return replay;
+			if (!input.browserSubjectHash || !/^[a-f0-9]{64}$/.test(input.browserSubjectHash))
+				throw new Error("GUEST_BROWSER_COOKIE_REQUIRED");
+			if (input.freeEligibility !== "eligible")
+				throw new Error(
+					input.freeEligibility === "excluded" ? "FREE_REGION_EXCLUDED" : "FREE_REGION_UNVERIFIED",
+				);
 			if (!(await consumeGuestTurnstileTokenHash(input.turnstile, tx))) {
 				throw new Error("TURNSTILE_REPLAYED");
 			}
@@ -214,14 +282,7 @@ export async function createGuestGenerationTransaction(
 			});
 			if (linkIntent) throw new Error("GUEST_LINK_IN_PROGRESS");
 
-			const allowance = await getGuestDailyAllowance(
-				{
-					...input,
-					maximumAcceptedTrialsPerSessionPerDay: input.maximumAcceptedTrialsPerSessionPerDay ?? 2,
-					maximumAcceptedTrialsPerDevicePerDay: input.maximumAcceptedTrialsPerDevicePerDay ?? 2,
-				},
-				tx,
-			);
+			const allowance = await getGuestLifetimeAllowance(input, tx);
 			if (allowance.remaining === 0) {
 				throw new Error("GUEST_TRIAL_UNAVAILABLE");
 			}
@@ -314,6 +375,16 @@ export async function createGuestGenerationTransaction(
 					guestTrialId: trial.id,
 				},
 			});
+			await reserveGuestLifetimeEntitlement(
+				{
+					ownerId: input.ownerId,
+					browserSubjectHash: input.browserSubjectHash!,
+					trialId: trial.id,
+					jobId: job.id,
+					now: input.now,
+				},
+				tx,
+			);
 			await reserveCreditsInTransaction(
 				{
 					accountId: account.id,
@@ -388,7 +459,7 @@ async function assertCanonicalGuestQuote(
 	let canonical: CanonicalGuestGenerationQuote;
 	try {
 		canonical = await resolveCanonicalQuote({
-			productKey: CURRENT_GUEST_PRODUCT_KEY,
+			productKey: input.quote.productKey as GuestTrialProductKey,
 			inputSnapshot: input.quote.inputSnapshot,
 		});
 	} catch {
@@ -404,7 +475,7 @@ async function assertCanonicalGuestQuote(
 		pricingSnapshot: canonical.pricingSnapshot,
 	};
 	if (
-		canonical.productKey !== CURRENT_GUEST_PRODUCT_KEY ||
+		canonical.productKey !== input.quote.productKey ||
 		canonical.catalogVersion !== input.quote.catalogVersion ||
 		canonical.pricingVersion !== input.quote.pricingVersion ||
 		canonical.credits !== CURRENT_GUEST_SPONSOR_CREDITS ||
@@ -685,7 +756,7 @@ function guestAccessAsset(
 		asset.checksum !== binding.assetChecksum ||
 		!asset.watermarkVersion ||
 		!asset.watermarkedAt ||
-		!asset.cleanStagingDeletedAt ||
+		(!asset.cleanStagingDeletedAt && asset.watermarkVersion !== "ezpic-guest-origin-v1") ||
 		!asset.deleteAfter ||
 		asset.deleteAfter <= input.now ||
 		asset.deleteAfter > resultExpiresAt ||
@@ -718,6 +789,7 @@ async function acquireGuestAdmissionLocks(
 	for (const key of [
 		`guest-promotion:${input.promotionPeriod}`,
 		`guest-device:${input.deviceHash}`,
+		...guestEntitlementSubjects(input).map((subject) => `guest-entitlement:${subject}`),
 	]) {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))`;
 	}
@@ -767,7 +839,7 @@ async function findGuestAdmissionReplay(
 		trial.ownerId !== input.ownerId ||
 		trial.promotionPeriod !== input.promotionPeriod ||
 		trial.idempotencyFingerprint !== input.idempotencyFingerprint ||
-		existing.productKey !== CURRENT_GUEST_PRODUCT_KEY ||
+		existing.productKey !== input.quote.productKey ||
 		existing.serviceClass !== "GUEST_SLOW" ||
 		existing.quote.inputFingerprint !== input.quote.moderation.inputFingerprint ||
 		binding?.assetId !== input.sourceAssetId ||
@@ -838,7 +910,7 @@ function isGuestWatermarkedOutput(
 		asset.checksum === binding.assetChecksum &&
 		asset.watermarkVersion &&
 		asset.watermarkedAt &&
-		asset.cleanStagingDeletedAt &&
+		(asset.cleanStagingDeletedAt || asset.watermarkVersion === "ezpic-guest-origin-v1") &&
 		asset.verificationValidUntil &&
 		asset.verificationValidUntil > now &&
 		asset.deleteAfter &&
@@ -1077,8 +1149,7 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 		].every((value) => /^[a-f0-9]{64}$/.test(value)) ||
 		input.sponsorCredits !== CURRENT_GUEST_SPONSOR_CREDITS ||
 		input.quote.credits !== input.sponsorCredits ||
-		input.quote.productKey !== CURRENT_GUEST_PRODUCT_KEY ||
-		!isCurrentGuestQuoteInput(input.quote.inputSnapshot) ||
+		!isCurrentGuestQuoteInput(input.quote.productKey, input.quote.inputSnapshot) ||
 		input.quote.ownerType !== "USER" ||
 		input.quote.ownerId !== input.ownerId ||
 		input.quote.submittedByUserId !== input.ownerId
@@ -1111,10 +1182,10 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 	}
 }
 
-function isCurrentGuestQuoteInput(value: Prisma.InputJsonValue): boolean {
+function isCurrentGuestQuoteInput(productKey: string, value: Prisma.InputJsonValue): boolean {
 	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
 	const input = value as Record<string, unknown>;
-	return input.kind === "image-to-image" && input.skuKey === CURRENT_GUEST_SKU_KEY;
+	return input.kind === "image-to-image" && isGuestTrialModel(productKey, input.skuKey);
 }
 
 function guestStage(status: string, expiresAt: Date, now: Date): GuestJobStage {

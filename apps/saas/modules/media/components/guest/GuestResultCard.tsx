@@ -1,6 +1,9 @@
 import { Button } from "@repo/ui/components/button";
+import { trackJourneyResultVisible } from "@shared/lib/generation-journey";
+import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { ImageIcon, LockKeyholeIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
+import { useEffect, useState } from "react";
 
 import { WallpaperButton } from "../../../christmas/components/WallpaperButton";
 import { WallpaperResultPublisher } from "../../../christmas/lib/wallpaper-result-context";
@@ -17,6 +20,43 @@ export function GuestResultCard({
 	onDownload: () => void;
 }) {
 	const t = useTranslations("media.guest");
+	const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
+	useEffect(() => {
+		if (
+			!loadedImage ||
+			!view.jobId ||
+			!view.resultAssetId ||
+			typeof IntersectionObserver === "undefined"
+		)
+			return;
+		let visible = false;
+		let recorded = false;
+		const record = () => {
+			if (
+				recorded ||
+				!visible ||
+				document.visibilityState !== "visible" ||
+				!loadedImage.isConnected ||
+				!loadedImage.naturalWidth ||
+				typeof loadedImage.checkVisibility !== "function" ||
+				!loadedImage.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+			)
+				return;
+			recorded = true;
+			void trackJourneyResultVisible(view.jobId!);
+			void saasGrowthFunnel.guestResultViewed(view.resultAssetId!);
+		};
+		const observer = new IntersectionObserver(([entry]) => {
+			visible = Boolean(entry?.isIntersecting);
+			record();
+		});
+		observer.observe(loadedImage);
+		document.addEventListener("visibilitychange", record);
+		return () => {
+			observer.disconnect();
+			document.removeEventListener("visibilitychange", record);
+		};
+	}, [loadedImage, view.jobId, view.resultAssetId]);
 	const busy = Boolean(
 		view.jobId && !["ready", "rejected", "failed", "expired"].includes(view.state),
 	);
@@ -43,7 +83,21 @@ export function GuestResultCard({
 			</div>
 			<div className="border-white/10 bg-slate-900 relative aspect-[4/3] overflow-hidden rounded-xl border">
 				{view.state === "ready" && resultUrl ? (
-					<img src={resultUrl} alt={t("resultAlt")} className="size-full object-contain" />
+					<img
+						key={resultUrl}
+						src={resultUrl}
+						alt={t("resultAlt")}
+						className="size-full object-contain"
+						onLoad={(event) => {
+							const element = event.currentTarget;
+							void element
+								.decode()
+								.then(() => {
+									if (element.isConnected) setLoadedImage(element);
+								})
+								.catch(() => undefined);
+						}}
+					/>
 				) : (
 					<div className="gap-3 p-6 text-slate-400 flex size-full flex-col items-center justify-center text-center">
 						<ImageIcon className="size-8" aria-hidden="true" />

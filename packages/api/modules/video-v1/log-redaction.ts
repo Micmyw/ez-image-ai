@@ -1,6 +1,7 @@
 /** Callback tokens and private playback grants must never enter access logs. */
 export function redactVideoAccessLog(message: string): string {
 	return message
+		.replace(/(\/media\/original)\?[^\s]*/g, "$1?[redacted]")
 		.replace(/(\/webhooks\/video-source(?:-input)?\/)[^\s?]+(?:\?[^\s]*)?/g, "$1[redacted]")
 		.replace(/(\/webhooks\/moderation\/seeapi-image)(?:\?[^\s]*)?/g, "$1?[redacted]")
 		.replace(/(\/webhooks\/video\/kie\/)[^\s?]+(?:\?[^\s]*)?/g, "$1[redacted]")

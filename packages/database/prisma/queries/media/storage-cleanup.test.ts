@@ -35,7 +35,11 @@ function store(patch: Record<string, unknown> = {}) {
 			update: vi.fn(async ({ data }) => Object.assign(asset, data)),
 		},
 		mediaUploadSession: { findFirst: vi.fn(async () => null) },
-		auditLog: { findFirst: vi.fn(async () => null) },
+		auditLog: {
+			findFirst: vi.fn(async () => null),
+			findMany: vi.fn(async () => []),
+			findUnique: vi.fn(async () => null),
+		},
 		generationDraft: { findFirst: vi.fn(async () => null) },
 		generationJobAsset: { findFirst: vi.fn(async () => null) },
 		outboxEvent: { createMany: vi.fn(async () => ({ count: 1 })) },

@@ -1,3 +1,5 @@
+import { readProviderDiagnostic } from "@repo/config/provider-diagnostics";
+
 import type { Prisma } from "../../generated/client";
 import type { MediaTransactionClient } from "./types";
 
@@ -691,6 +693,14 @@ export async function resolveAdminUncertainSubmission(
 			}
 		}
 
+		const providerDiagnostic = readProviderDiagnostic(
+			(attempt.errorSnapshot as Record<string, unknown> | null)?.providerDiagnostic,
+			{
+				...attempt,
+				providerTaskId:
+					input.resolution === "ACCEPTED" ? input.providerTaskId : attempt.providerTaskId,
+			},
+		);
 		if (input.resolution === "ACCEPTED") {
 			await tx.generationAttempt.update({
 				where: { id: attempt.id },
@@ -703,6 +713,7 @@ export async function resolveAdminUncertainSubmission(
 					errorSnapshot: {
 						code: "SUBMISSION_ACCEPTED_CONFIRMED_BY_ADMIN",
 						providerEvidenceReference: input.providerEvidenceReference,
+						...(providerDiagnostic ? { providerDiagnostic: { ...providerDiagnostic } } : {}),
 					},
 					nextReconcileAt: new Date(),
 				},
@@ -720,6 +731,7 @@ export async function resolveAdminUncertainSubmission(
 					errorSnapshot: {
 						code: "SUBMISSION_REJECTED_CONFIRMED_BY_ADMIN",
 						providerEvidenceReference: input.providerEvidenceReference,
+						...(providerDiagnostic ? { providerDiagnostic: { ...providerDiagnostic } } : {}),
 					},
 					completedAt: new Date(),
 				},

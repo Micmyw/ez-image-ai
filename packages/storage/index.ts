@@ -8,3 +8,4 @@ export * from "./lib/remote-url-policy";
 export * from "./lib/stream-copy";
 export * from "./types";
 export * from "./lib/video-mp4";
+export * from "./lib/provider-original-access";

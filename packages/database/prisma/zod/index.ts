@@ -142,6 +142,12 @@ export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'owner
 
 export type MediaAssetScalarFieldEnum = z.infer<typeof MediaAssetScalarFieldEnumSchema>;
 
+// File: MediaOutputOriginScalarFieldEnum.schema.ts
+
+export const MediaOutputOriginScalarFieldEnumSchema = z.enum(['assetId', 'url', 'archiveState', 'archiveChecksum', 'archiveBytes', 'archivedAt', 'leaseToken', 'leasedUntil', 'attempts', 'lastErrorCode', 'createdAt'])
+
+export type MediaOutputOriginScalarFieldEnum = z.infer<typeof MediaOutputOriginScalarFieldEnumSchema>;
+
 // File: MediaUploadSessionScalarFieldEnum.schema.ts
 
 export const MediaUploadSessionScalarFieldEnumSchema = z.enum(['id', 'assetId', 'tokenHash', 'multipartUploadId', 'stagingObjectKey', 'stagedTerminalizationToken', 'promotionMultipartUploadId', 'promotionToken', 'finalizationToken', 'finalizationLeaseExpiresAt', 'legacyFinalizationToken', 'finalizationParts', 'status', 'expectedBytes', 'createdAt', 'expiresAt', 'completedAt', 'guestCapabilityVersion', 'guestOriginHash', 'guestExpectedSha256', 'guestCompletionConsumedAt'])
@@ -225,6 +231,12 @@ export type MediaWorkflowPhaseOwnerScalarFieldEnum = z.infer<typeof MediaWorkflo
 export const OutboxEventScalarFieldEnumSchema = z.enum(['id', 'eventType', 'aggregateType', 'aggregateId', 'dedupeKey', 'payload', 'status', 'attempts', 'availableAt', 'leaseOwner', 'leaseToken', 'leasedUntil', 'processedAt', 'lastError', 'createdAt'])
 
 export type OutboxEventScalarFieldEnum = z.infer<typeof OutboxEventScalarFieldEnumSchema>;
+
+// File: GuestTrialEntitlementScalarFieldEnum.schema.ts
+
+export const GuestTrialEntitlementScalarFieldEnumSchema = z.enum(['subjectKey', 'trialId', 'reservedJobId', 'createdAt'])
+
+export type GuestTrialEntitlementScalarFieldEnum = z.infer<typeof GuestTrialEntitlementScalarFieldEnumSchema>;
 
 // File: GuestSessionBootstrapScalarFieldEnum.schema.ts
 
@@ -1233,6 +1245,25 @@ export const MediaAssetSchema = z.object({
 export type MediaAssetType = z.infer<typeof MediaAssetSchema>;
 
 
+// File: MediaOutputOrigin.schema.ts
+
+export const MediaOutputOriginSchema = z.object({
+  assetId: z.string(),
+  url: z.string(),
+  archiveState: z.string().default("PENDING"),
+  archiveChecksum: z.string().nullish(),
+  archiveBytes: z.bigint().nullish(),
+  archivedAt: z.date().nullish(),
+  leaseToken: z.string().nullish(),
+  leasedUntil: z.date().nullish(),
+  attempts: z.number().int(),
+  lastErrorCode: z.string().nullish(),
+  createdAt: z.date(),
+});
+
+export type MediaOutputOriginType = z.infer<typeof MediaOutputOriginSchema>;
+
+
 // File: MediaUploadSession.schema.ts
 
 export const MediaUploadSessionSchema = z.object({
@@ -1500,6 +1531,18 @@ export const OutboxEventSchema = z.object({
 });
 
 export type OutboxEventType = z.infer<typeof OutboxEventSchema>;
+
+
+// File: GuestTrialEntitlement.schema.ts
+
+export const GuestTrialEntitlementSchema = z.object({
+  subjectKey: z.string(),
+  trialId: z.string(),
+  reservedJobId: z.string().nullish(),
+  createdAt: z.date(),
+});
+
+export type GuestTrialEntitlementType = z.infer<typeof GuestTrialEntitlementSchema>;
 
 
 // File: GuestSessionBootstrap.schema.ts

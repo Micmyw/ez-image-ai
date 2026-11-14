@@ -5,6 +5,12 @@ import { maximumMediaStorageBytes } from "@repo/config/server";
 import { z } from "zod";
 
 import type { Prisma } from "../../generated/client";
+import {
+	freezeAccountInputCopyReview,
+	inheritAccountInputCopyReview,
+	type AccountInputCopyReadbackProof,
+	type AccountInputCopyReviewPolicy,
+} from "./account-input-copy-review";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
 import { findEffectivePaidSubscription } from "./billing";
@@ -196,6 +202,10 @@ async function lockCopy(id: string, tx: Tx) {
 		[initial.intent.source.assetId, initial.intent.target.assetId],
 		tx,
 	);
+	// Review writers use these locks before asset rows. Freeze/revalidate the
+	// source verdict under the same boundary; never wait for one after row locks.
+	for (const assetId of [initial.intent.source.assetId, initial.intent.target.assetId].sort())
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${assetId}`}, 0))`;
 	await tx.$queryRaw`SELECT "id" FROM "media_asset" WHERE "id"=${initial.intent.source.assetId} OR "id"=${initial.intent.target.assetId} ORDER BY "id" FOR UPDATE`;
 	return readIntent(id, tx, true);
 }
@@ -339,7 +349,7 @@ export async function createAccountInputCopyInTransaction(
 }
 
 export async function claimAccountInputCopy(
-	input: { promotionId: string },
+	input: { promotionId: string; reviewPolicy?: AccountInputCopyReviewPolicy },
 	client: MediaTransactionClient,
 ): Promise<AccountInputCopyClaim | null> {
 	return runReadCommitted(client, async (tx) => {
@@ -374,10 +384,25 @@ export async function claimAccountInputCopy(
 			await tombstone(row.id, p, "ACCOUNT_INPUT_COPY_EXPIRED", tx, true);
 			return null;
 		}
-		if (!approved(source, now)) return null;
+		// A completed source whose review is stale can still be copied for a fresh
+		// target review. Pending/rejected sources keep their existing wait/failure
+		// contract, and old consumers retain the original approval-only behavior.
+		if (!approved(source, now) && !(input.reviewPolicy && source.status === "READY")) return null;
 		p.phase = "COPYING";
 		p.leaseToken = randomUUID();
 		p.leasedUntil = new Date(now.getTime() + 120_000).toISOString();
+		if (!p.uncertainWriter)
+			await freezeAccountInputCopyReview(
+				{
+					promotionId: row.id,
+					leaseToken: p.leaseToken,
+					source,
+					target: p.target,
+					policy: input.reviewPolicy,
+					now,
+				},
+				tx,
+			);
 		await save(row.id, p, tx);
 		return {
 			promotionId: row.id,
@@ -434,14 +459,16 @@ export async function commitAccountInputCopy(
 		mimeType: string;
 		storageEtag?: string;
 		storageVersionId?: string;
+		readbackProof?: AccountInputCopyReadbackProof;
+		reviewPolicy?: AccountInputCopyReviewPolicy;
 	},
 	client: MediaTransactionClient,
 ) {
-	await runReadCommitted(client, async (tx) => {
+	return runReadCommitted(client, async (tx) => {
 		const row = await lockCopy(input.promotionId, tx);
 		if (!row) throw new Error("ACCOUNT_INPUT_COPY_UNAVAILABLE");
-		const p = row.intent,
-			now = await clock(tx);
+		const p = row.intent;
+		let now = await clock(tx);
 		if (
 			input.checksum !== p.source.checksum ||
 			input.bytes !== p.source.bytes ||
@@ -459,7 +486,7 @@ export async function commitAccountInputCopy(
 				["DELETED", "QUARANTINED", "VERIFICATION_FAILED"].includes(target.status)
 			)
 				throw new Error("ACCOUNT_INPUT_COPY_BINDING_CHANGED");
-			return;
+			return { status: approved(target, now) ? ("READY" as const) : ("VERIFYING" as const) };
 		}
 		assertLease(p, input.leaseToken, now);
 		if (Date.parse(p.expiresAt) <= now.getTime()) {
@@ -469,6 +496,12 @@ export async function commitAccountInputCopy(
 		const binding = await hasClaimedDraftBinding(p, now, tx);
 		const target = await asset(p.target.assetId, tx);
 		const source = await asset(p.source.assetId, tx);
+		now = await clock(tx);
+		assertLease(p, input.leaseToken, now);
+		if (Date.parse(p.expiresAt) <= now.getTime()) {
+			await tombstone(row.id, p, "ACCOUNT_INPUT_COPY_EXPIRED", tx, true);
+			return;
+		}
 		if (
 			!binding ||
 			!target ||
@@ -476,7 +509,9 @@ export async function commitAccountInputCopy(
 			source.deletedAt ||
 			!source.deleteAfter ||
 			source.deleteAfter <= now ||
-			!approved(source, now) ||
+			// Expired/changed review evidence cannot be inherited, but unchanged
+			// privately owned bytes can still enter the target's ordinary review.
+			source.status !== "READY" ||
 			!sourceMatches(source, p) ||
 			!targetMatches(target, p) ||
 			target.status !== "UPLOADING" ||
@@ -489,12 +524,34 @@ export async function commitAccountInputCopy(
 			where: { referenceKey: `account-input-copy:${p.target.assetId}`, status: "ACTIVE" },
 			data: { status: "COMMITTED" },
 		});
-		await tx.$executeRaw`INSERT INTO "outbox_event" ("id","eventType","aggregateType","aggregateId","dedupeKey","payload") VALUES (${randomUUID()},'MEDIA_ASSET_VERIFY','MEDIA_ASSET',${p.target.assetId},${`account-input-copy-verify:${p.target.assetId}:g1`},${JSON.stringify({ assetId: p.target.assetId })}::jsonb) ON CONFLICT ("dedupeKey") DO NOTHING`;
-		p.phase = "VERIFYING";
+		const inherited = await inheritAccountInputCopyReview(
+			{
+				promotionId: row.id,
+				leaseToken: input.leaseToken,
+				source,
+				target: p.target,
+				policy: input.reviewPolicy,
+				proof: input.readbackProof,
+				uncertainWriter: p.uncertainWriter,
+				storageEtag: input.storageEtag,
+				storageVersionId: input.storageVersionId,
+				now,
+			},
+			tx,
+		);
+		if (!inherited)
+			await tx.$executeRaw`INSERT INTO "outbox_event" ("id","eventType","aggregateType","aggregateId","dedupeKey","payload") VALUES (${randomUUID()},'MEDIA_ASSET_VERIFY','MEDIA_ASSET',${p.target.assetId},${`account-input-copy-verify:${p.target.assetId}:g1`},${JSON.stringify({ assetId: p.target.assetId })}::jsonb) ON CONFLICT ("dedupeKey") DO NOTHING`;
+		else
+			await tx.storageUsageReservation.updateMany({
+				where: { referenceKey: `account-input-copy:${p.target.assetId}`, status: "COMMITTED" },
+				data: { referenceKey: `media-draft:${p.target.assetId}` },
+			});
+		p.phase = inherited ? "READY" : "VERIFYING";
 		p.committedLeaseToken = input.leaseToken;
 		delete p.leaseToken;
 		delete p.leasedUntil;
 		await save(row.id, p, tx);
+		return { status: p.phase as "READY" | "VERIFYING" };
 	});
 }
 export async function failAccountInputCopy(

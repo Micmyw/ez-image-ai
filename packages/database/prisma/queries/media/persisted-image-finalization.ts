@@ -177,7 +177,10 @@ export async function completePersistedImageFinalizationInTransaction(
 			asset.retentionClass !== "ACCOUNT" ||
 			asset.deleteAfter !== null ||
 			!extension ||
-			asset.objectKey !== `users/${job.ownerId}/assets/${asset.id}/original.${extension}` ||
+			![
+				`users/${job.ownerId}/assets/${asset.id}/original.${extension}`,
+				`provider-original-v1/users/${job.ownerId}/assets/${asset.id}/original.${extension}`,
+			].includes(asset.objectKey) ||
 			asset.byteSize <= 0n ||
 			!asset.finalizedAt ||
 			asset.outputTransferToken !== null ||

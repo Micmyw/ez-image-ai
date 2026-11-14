@@ -64,6 +64,7 @@ vi.mock("next-intl", () => ({
 	},
 }));
 vi.mock("../../hooks/use-job", () => ({ useJob: () => mocks.jobQuery }));
+vi.mock("../GenerationDurationEstimate", () => ({ GenerationDurationEstimate: () => null }));
 
 import { ToolPromptProvider } from "../../lib/tool-prompt-context";
 import { EditorResultPanel } from "./EditorResultPanel";
@@ -135,6 +136,8 @@ describe("EditorResultPanel", () => {
 		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
 		expect(markup).toContain('src="https://private.test/inline"');
 		expect(markup).toContain("stages.ready");
+		expect(markup).toContain("Edit again");
+		expect(markup).toContain("Download");
 		expect(mocks.useQuery).toHaveBeenCalledWith(expect.objectContaining({ queryFn: skipToken }));
 		expect(mocks.getAssetAccessUrl).not.toHaveBeenCalled();
 	});
@@ -301,7 +304,7 @@ describe("EditorResultPanel", () => {
 			expect(markup).toContain("Download");
 			expect(markup).toContain("creditSummaryFinalizing");
 			expect(markup).not.toContain("creditSummarySucceeded");
-			expect(markup).not.toContain("Edit again");
+			expect(markup).toContain("Edit again");
 		},
 	);
 
@@ -435,7 +438,7 @@ describe("EditorResultPanel", () => {
 		});
 		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-text" onNew={vi.fn()} />);
 		expect(markup).toContain('src="https://private.example.test/output"');
-		expect(markup).toContain('href="/create?asset=asset-output&amp;model=image-gpt-image-2"');
+		expect(markup).toContain('href="/create?asset=asset-output&amp;reuseJob=job-text"');
 		expect(markup).toContain("Download");
 		expect(markup).not.toContain("This edit is unavailable");
 		expect(markup).not.toContain("parentJob=");

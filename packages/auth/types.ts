@@ -46,6 +46,8 @@ export interface AuthConfig {
 	 * Enables configured third-party OAuth providers in the sign-in UI.
 	 */
 	enableSocialLogin: boolean;
+	/** Enables One Tap when an explicit public Google client ID is configured. */
+	enableGoogleOneTap: boolean;
 	/**
 	 * Enables passkey registration and sign-in support.
 	 */

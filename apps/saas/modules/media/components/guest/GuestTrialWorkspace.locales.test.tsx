@@ -54,10 +54,11 @@ describe("GuestTrialWorkspace locales", () => {
 				draft: { sourceAssetId: "source-1", prompt: "x".repeat(1234) },
 				prompt: "x".repeat(1234),
 				setPrompt: vi.fn(),
+				setModel: vi.fn(),
 				canSubmit: true,
 				isSubmitting: false,
 				resultUrl: null,
-				dailyAllowance: { remaining: 0, limit: 2 },
+				trialAllowance: { remaining: 0, limit: 1 },
 				actions: {
 					submit: vi.fn(),
 					viewStatus: vi.fn(),

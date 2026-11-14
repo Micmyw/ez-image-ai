@@ -1,3 +1,5 @@
+import { sanitizeProviderDiagnosticMessage } from "@repo/config/provider-diagnostics";
+
 export class MediaProviderError extends Error {
 	readonly originalCause: unknown;
 
@@ -17,9 +19,10 @@ export class MediaProviderError extends Error {
 	}
 }
 
-export function redactProviderError(value: unknown): string {
+export function redactProviderError(
+	value: unknown,
+	sensitiveValues: readonly string[] = [],
+): string {
 	const message = value instanceof Error ? value.message : String(value);
-	return message
-		.replace(/(?:bearer|token|key|secret)\s*[=:]\s*[^\s,]+/gi, "$1=[REDACTED]")
-		.slice(0, 500);
+	return sanitizeProviderDiagnosticMessage(message, sensitiveValues) ?? "Provider request failed";
 }

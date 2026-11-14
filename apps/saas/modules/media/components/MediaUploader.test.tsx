@@ -47,9 +47,18 @@ describe("EzImageAI media uploader", () => {
 			"image/jpeg",
 			"image/png",
 			"image/webp",
+			"image/heic",
+			"image/heif",
 		]);
 		expect(markup).toMatch(/upload images/i);
 		expect(markup).not.toMatch(/video/i);
+	});
+
+	it("permits HEIC selection for the guarded decoder, including mobile files without a MIME", () => {
+		const heic = new File(["fixture"], "camera.heic", { type: "image/heic" });
+		const untyped = new File(["fixture"], "camera.heif");
+		const svg = new File(["fixture"], "camera.svg", { type: "image/svg+xml" });
+		expect(filterEzPicImageFiles([heic, untyped, svg])).toEqual([heic, untyped]);
 	});
 
 	it("filters pasted and dropped files to supported images within 20 MB", () => {

@@ -116,7 +116,7 @@ export async function findEligibleImageEditParentForOwner(
 			id: input.parentJobId,
 			ownerType: input.ownerType,
 			ownerId: input.ownerId,
-			status: "SUCCEEDED",
+			status: { in: ["SUCCEEDED", "FINALIZING"] },
 			productKey: { in: IMAGE_EDIT_PRODUCT_KEYS },
 			editSession: {
 				ownerType: input.ownerType,

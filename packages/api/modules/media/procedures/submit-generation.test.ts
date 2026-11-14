@@ -3,6 +3,7 @@ vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/database", () => ({
 	findGenerationSubmissionQuote: vi.fn(),
+	recordGrowthEvent: vi.fn(),
 	createGenerationJobTransaction: vi.fn(),
 	getInitialGenerationEventIds: vi.fn(),
 	recordTextModerationOutcome: vi.fn(),
@@ -90,6 +91,34 @@ function deferred() {
 	return { promise, resolve, reject };
 }
 describe("combined generation admission", () => {
+	it("keeps diagnostic references outside the accepted submission identity", async () => {
+		const f = fixture();
+		const first = await submitGenerationForUser(
+			"user",
+			{
+				...input,
+				journey: { actionRef: "d1bb1e98-5d0c-4adc-83de-a7024200491b" },
+			},
+			f.dependencies,
+		);
+		const replay = await submitGenerationForUser(
+			"user",
+			{
+				...input,
+				journey: { actionRef: "478d8d53-c4fa-4a88-af0f-bd018b920388" },
+			},
+			f.dependencies,
+		);
+		expect(replay.job.id).toBe(first.job.id);
+		expect(replay.replayed).toBe(true);
+		expect(f.dependencies.createJob).toHaveBeenCalledTimes(1);
+		expect(
+			submitGenerationInputSchema.parse({
+				...input,
+				journey: { actionRef: "478d8d53-c4fa-4a88-af0f-bd018b920388", prompt: "private input" },
+			}).journey,
+		).toBeUndefined();
+	});
 	it.each(["IMAGE_PASS", "unknown"])(
 		"refuses a replay whose durable funding %s conflicts with its quote",
 		async (fundingSource) => {

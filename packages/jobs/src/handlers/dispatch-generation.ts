@@ -1,4 +1,5 @@
 import { MediaProviderError, type ProviderSubmission } from "@repo/ai";
+import { sanitizeProviderDiagnosticMessage } from "@repo/config/provider-diagnostics";
 
 import type {
 	DispatchContinuation,
@@ -134,6 +135,16 @@ export async function dispatchGeneration(
 						? "malformed_2xx"
 						: "transport",
 				phase: "post_send",
+				...(error instanceof MediaProviderError
+					? {
+							failure: {
+								code: error.code,
+								message:
+									sanitizeProviderDiagnosticMessage(error.message) ?? "Provider request failed",
+								retryable: error.retryable,
+							},
+						}
+					: {}),
 			},
 			claim.phaseOwner,
 		);
@@ -158,5 +169,6 @@ function uncertaintyEvidenceFromSubmission(
 			? { submissionToken: submission.reconciliation.submissionToken }
 			: {}),
 		providerIdempotencySupported: submission.idempotency.providerSupported,
+		...(submission.failure ? { failure: submission.failure } : {}),
 	};
 }

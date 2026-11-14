@@ -870,7 +870,8 @@ export async function getAdminGuestDiagnostics(
 			 (SELECT COUNT(*) FROM latest_moderation)::bigint AS "moderationTotal",
 			 (SELECT COUNT(*) FROM guest_asset asset
 			   WHERE asset."kind" = 'OUTPUT' AND asset."watermarkVersion" IS NOT NULL
-			     AND asset."watermarkedAt" IS NOT NULL AND asset."cleanStagingDeletedAt" IS NOT NULL)::bigint AS "watermarkSucceeded",
+			     AND asset."watermarkedAt" IS NOT NULL
+             AND (asset."cleanStagingDeletedAt" IS NOT NULL OR asset."watermarkVersion" = 'ezpic-guest-origin-v1'))::bigint AS "watermarkSucceeded",
 			 COUNT(*) FILTER (WHERE job."failureCode" LIKE 'GUEST%WATERMARK%')::bigint AS "watermarkFailed",
 			 (SELECT COUNT(*) FROM guest_asset asset
 			   WHERE asset."kind" = 'OUTPUT' AND asset."status" = 'READY'

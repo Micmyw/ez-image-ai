@@ -349,6 +349,7 @@ function shouldDeliverNextStage(
 			"media-admit-guest-generation",
 			"media-process-provider-webhook",
 			"media-finalize-generation",
+			"media-archive-output",
 			"media-cancel-generation",
 			"media-settle-generation",
 		].includes(taskId)

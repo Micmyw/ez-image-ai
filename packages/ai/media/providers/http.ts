@@ -1,3 +1,5 @@
+import { sanitizeProviderDiagnosticMessage } from "@repo/config/provider-diagnostics";
+
 import { MediaProviderError, redactProviderError } from "../errors";
 import type { ProviderFailure, ProviderSubmission } from "../types";
 
@@ -15,14 +17,20 @@ export function rejectedHttpSubmission(input: {
 	data: unknown;
 	attemptId: string;
 	providerIdempotencySupported?: boolean;
+	sensitiveValues?: readonly string[];
 }): ProviderSubmission {
 	const uncertain = [408, 409, 425, 429].includes(input.status) || input.status >= 500;
 	const base = {
 		status: "FAILED" as const,
 		failure: {
 			code: `HTTP_${input.status}`,
-			message: providerHttpMessage(input.data, input.status),
+			message:
+				sanitizeProviderDiagnosticMessage(
+					providerHttpMessage(input.data, input.status),
+					input.sensitiveValues,
+				) ?? `Provider rejected submission with HTTP ${input.status}`,
 			retryable: false,
+			messageOrigin: "provider-response" as const,
 		},
 		idempotency:
 			input.providerIdempotencySupported === false
@@ -48,11 +56,11 @@ export function rejectedHttpSubmission(input: {
 }
 
 function providerHttpMessage(data: unknown, status: number): ProviderFailure["message"] {
-	if (typeof data === "string" && data.trim()) return data.trim().slice(0, 500);
+	if (typeof data === "string" && data.trim()) return data.trim();
 	if (data && typeof data === "object" && !Array.isArray(data)) {
 		for (const key of ["detail", "message", "error"] as const) {
 			const value = (data as Record<string, unknown>)[key];
-			if (typeof value === "string" && value.trim()) return value.slice(0, 500);
+			if (typeof value === "string" && value.trim()) return value;
 		}
 	}
 	return `Provider rejected submission with HTTP ${status}`;
@@ -72,7 +80,7 @@ export async function fetchJson(
 		try {
 			data = body ? (JSON.parse(body) as unknown) : null;
 		} catch (error) {
-			if (!response.ok) data = body.slice(0, 500);
+			if (!response.ok) data = body;
 			else {
 				throw new MediaProviderError(
 					"MALFORMED_PROVIDER_RESPONSE",
@@ -85,10 +93,37 @@ export async function fetchJson(
 		return { ok: response.ok, status: response.status, data };
 	} catch (error) {
 		if (error instanceof MediaProviderError) throw error;
-		throw new MediaProviderError("HTTP_ERROR", redactProviderError(error), true, { cause: error });
+		throw new MediaProviderError(
+			"HTTP_ERROR",
+			redactProviderError(error, requestCredentialValues(url, init)),
+			true,
+			{ cause: error },
+		);
 	} finally {
 		clearTimeout(timeout);
 	}
+}
+
+function requestCredentialValues(url: string, init: RequestInit): string[] {
+	const headers = new Headers(init.headers);
+	const authorization = headers.get("authorization");
+	const credentials = [
+		authorization,
+		authorization?.replace(/^(?:Bearer|Basic|Key)\s+/i, ""),
+		headers.get("x-api-key"),
+		headers.get("x-goog-api-key"),
+	];
+	try {
+		const parsed = new URL(url);
+		for (const [key, value] of parsed.searchParams) {
+			if (/^(?:key|api[-_]?key|token|access[-_]?token)$/i.test(key)) credentials.push(value);
+		}
+	} catch {
+		/* Invalid URL diagnostics still receive pattern-based redaction. */
+	}
+	return credentials.filter(
+		(value): value is string => typeof value === "string" && value.length > 0,
+	);
 }
 
 function responseByteLimit(value: number | undefined): number {

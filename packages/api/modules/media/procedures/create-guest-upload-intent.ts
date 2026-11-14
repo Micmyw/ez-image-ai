@@ -1,7 +1,10 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 
 import { ORPCError } from "@orpc/server";
-import { createGuestMediaUploadIntentTransaction } from "@repo/database";
+import {
+	createGuestMediaUploadIntentTransaction,
+	getGuestUploadIntentReplay,
+} from "@repo/database";
 import { db } from "@repo/database/client";
 import {
 	createFinalAssetObjectKey,
@@ -13,6 +16,7 @@ import { z } from "zod";
 import { publicProcedure } from "../../../orpc/procedures";
 import { trustedGuestClientIdentity } from "../lib/draft-client-identity";
 import { resolveGuestPublicOrigin } from "../lib/draft-security";
+import { readGuestBrowserSubject, guestUploadIdentity } from "../lib/guest-browser";
 import {
 	assertGuestCapabilityVersion,
 	assertGuestProductAvailable,
@@ -41,6 +45,7 @@ export const createGuestDraftUploadIntent = publicProcedure
 		z
 			.object({
 				capabilityVersion: z.string().min(1).max(128),
+				requestId: z.string().uuid().optional(),
 				productKey: z.string().min(1).max(64),
 				contentType: imageContentTypeSchema,
 				bytes: z
@@ -88,6 +93,47 @@ export const createGuestDraftUploadIntent = publicProcedure
 
 		const hostname = new URL(publicOrigin).hostname;
 		const now = new Date();
+		const browserSubjectHash = readGuestBrowserSubject(context.headers);
+		if (!browserSubjectHash)
+			throw new ORPCError("PRECONDITION_FAILED", { message: "GUEST_BROWSER_COOKIE_REQUIRED" });
+		const { assetId, sessionId, ownerId, completionToken, objectNonce, stagingNonce } =
+			guestUploadIdentity(browserSubjectHash, input.requestId ?? randomUUID());
+		const originHash = hashGuestAbuseBinding(
+			abuseSecret,
+			abuseKeyVersion,
+			"guest-origin",
+			publicOrigin,
+		);
+		const replay = await getGuestUploadIntentReplay(
+			{
+				sessionId,
+				assetId,
+				completionTokenHash: hashGuestSecret(completionToken),
+				sha256: input.sha256,
+				originHash,
+				capabilityVersion: loaded.snapshot.version,
+				bytes: BigInt(input.bytes),
+				mimeType: input.contentType,
+				now,
+			},
+			db,
+		);
+		if (replay) {
+			const uploadUrl = await createSignedUpload({
+				bucket: "media",
+				key: replay.stagingObjectKey,
+				contentType: input.contentType,
+				contentLength: input.bytes,
+			});
+			context.responseHeaders?.set("Cache-Control", "no-store");
+			return {
+				sessionId,
+				assetId,
+				uploadUrl,
+				completionToken,
+				expiresAt: replay.expiresAt.toISOString(),
+			};
+		}
 		const verify = loaded.config.turnstile.required
 			? cloudflareTurnstileVerifier(requiredTurnstileSecret(loaded.config.turnstile.secretKey))
 			: async () => ({
@@ -107,22 +153,19 @@ export const createGuestDraftUploadIntent = publicProcedure
 			{ verify, consumeTokenHash: databaseTurnstileTokenConsumer },
 		);
 
-		const assetId = `asset_${randomUUID().replaceAll("-", "")}`;
-		const sessionId = randomUUID();
-		const ownerId = `guest_${randomUUID().replaceAll("-", "")}`;
-		const completionToken = randomBytes(32).toString("base64url");
-		const expiresAt = new Date(now.getTime() + 10 * 60_000);
+		const expiresAt = new Date(now.getTime() + loaded.config.bootstrapTtlMs);
 		const deleteAfter = new Date(now.getTime() + loaded.config.retentionMs);
-		const objectKey = createFinalAssetObjectKey(ownerId, assetId, randomUUID(), input.contentType);
+		const objectKey = createFinalAssetObjectKey(ownerId, assetId, objectNonce, input.contentType);
 		const stagingObjectKey = createStagingObjectKey(
 			ownerId,
 			sessionId,
-			randomUUID(),
+			stagingNonce,
 			input.contentType,
 		);
 		await createGuestMediaUploadIntentTransaction(
 			{
 				assetId,
+				browserSubjectHash,
 				sessionId,
 				ownerType: "USER",
 				ownerId,
@@ -157,6 +200,9 @@ export const createGuestDraftUploadIntent = publicProcedure
 			},
 			db,
 		).catch((error: unknown) => {
+			if (error instanceof Error && error.message === "GUEST_UPLOAD_PREVIOUS_PENDING") {
+				throw new ORPCError("CONFLICT", { message: "GUEST_UPLOAD_PREVIOUS_PENDING" });
+			}
 			if (error instanceof Error && error.message === "GUEST_UPLOAD_RATE_LIMITED") {
 				throw new ORPCError("TOO_MANY_REQUESTS", { message: "GUEST_UPLOAD_RATE_LIMITED" });
 			}

@@ -186,6 +186,18 @@
 		"emailFallback": "¿Sin aplicación de correo? Copia esta dirección y envía tus comentarios desde tu servicio habitual.",
 		"subjectIdea": "EzImageAI: sugerencia",
 		"subjectBug": "EzImageAI: informe de error",
-		"close": "Cerrar comentarios"
+		"close": "Cerrar comentarios",
+		"topic": "¿Qué te gustaría mejorar?",
+		"topicOptional": "Elige un tema (opcional)",
+		"topics": {
+			"result": "Calidad del resultado",
+			"waiting": "Tiempo de espera",
+			"upload": "Subida",
+			"login": "Inicio de sesión",
+			"price_credits": "Precio o créditos",
+			"other": "Otro"
+		},
+		"emailObservation": "Abrir un borrador no lo envía. Revísalo y envíalo desde tu aplicación de correo.",
+		"supportInbox": "Usar tu buzón de soporte (requiere iniciar sesión)"
 	}
 }

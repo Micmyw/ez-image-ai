@@ -8,6 +8,13 @@ import { Button } from "@repo/ui/components/button";
 import { Card } from "@repo/ui/components/card";
 import { Input } from "@repo/ui/components/input";
 import { Textarea } from "@repo/ui/components/textarea";
+import {
+	FEEDBACK_TOPICS,
+	feedbackTicketSubject,
+	normalizeFeedbackTopic,
+	type FeedbackTopic,
+} from "@shared/lib/feedback";
+import { trackGenerationJourney } from "@shared/lib/generation-journey";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -113,6 +120,13 @@ function SupportWorkspaceContent({
 	const [organizationScope, setOrganizationScope] = useState(false);
 	const [page, setPage] = useState(1);
 	const [selected, setSelected] = useState<string | null>(null);
+	const [feedbackTopic, setFeedbackTopic] = useState<FeedbackTopic | undefined>();
+	useEffect(() => {
+		if (typeof window !== "undefined")
+			setFeedbackTopic(
+				normalizeFeedbackTopic(new URL(window.location.href).searchParams.get("feedbackTopic")),
+			);
+	}, []);
 	const organizationId = organizationScope ? activeOrganization?.id : undefined;
 	const scope = JSON.stringify([ownerId, organizationId ?? null]);
 	const currentScope = useRef(scope);
@@ -171,6 +185,10 @@ function SupportWorkspaceContent({
 	});
 	const create = useSupportSubmission<TicketForm & { organizationId?: string }>(async (input) => {
 		const result = await orpcClient.support.create(input);
+		void trackGenerationJourney({
+			stage: "feedback_submitted_observed",
+			...(feedbackTopic ? { feedbackTopic } : {}),
+		});
 		if (await publishConfirmedTicket(result.ticket)) setSelected(result.ticket.id);
 	});
 	return (
@@ -200,11 +218,32 @@ function SupportWorkspaceContent({
 				<form
 					className="space-y-4"
 					onSubmit={form.handleSubmit(async (input) => {
-						if (await create.submit({ ...input, ...(organizationId ? { organizationId } : {}) }))
+						if (
+							await create.submit({
+								...input,
+								subject: feedbackTicketSubject(input.subject, feedbackTopic),
+								...(organizationId ? { organizationId } : {}),
+							})
+						)
 							form.reset();
 					})}
 				>
 					<fieldset disabled={create.locked} className="space-y-4">
+						<label className="space-y-1 text-sm block">
+							<span>{t("feedbackTopic")}</span>
+							<select
+								className="p-2 w-full rounded-md border"
+								value={feedbackTopic ?? ""}
+								onChange={(event) => setFeedbackTopic(normalizeFeedbackTopic(event.target.value))}
+							>
+								<option value="">{t("feedbackTopicOptional")}</option>
+								{FEEDBACK_TOPICS.map((topic) => (
+									<option key={topic} value={topic}>
+										{t(`feedbackTopics.${topic}`)}
+									</option>
+								))}
+							</select>
+						</label>
 						<label className="space-y-1 text-sm block">
 							<span>{t("subject")}</span>
 							<Input required maxLength={200} {...form.register("subject")} />

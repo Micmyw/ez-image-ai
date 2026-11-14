@@ -1,7 +1,17 @@
-import { call } from "@orpc/server";
+import { call as callActual } from "@orpc/server";
+import { runWithCloudflareFreeEligibility } from "@repo/utils/free-eligibility";
+function call(
+	procedure: typeof getGuestEligibility,
+	input: { deviceId: string } | undefined,
+	options: { context: { headers: Headers; responseHeaders?: Headers } },
+) {
+	return runWithCloudflareFreeEligibility("US", () => callActual(procedure, input, options));
+}
+vi.mock("../lib/guest-browser", () => ({ readGuestBrowserSubject: () => "b".repeat(64) }));
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const databaseMocks = vi.hoisted(() => ({
+	guestTrialEntitlement: { findFirst: vi.fn() },
 	guestMediaTrial: { findFirst: vi.fn(), count: vi.fn() },
 	generationJob: { findFirst: vi.fn() },
 	guestLinkIntent: { findUnique: vi.fn() },
@@ -23,6 +33,7 @@ import { getGuestEligibility } from "./get-guest-eligibility";
 describe("getGuestEligibility claimed draft recovery", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		databaseMocks.guestTrialEntitlement.findFirst.mockResolvedValue(null);
 		vi.mocked(auth.api.getSession).mockResolvedValue({
 			user: { id: "guest-1", isAnonymous: true },
 			session: { id: "guest-session-1", userId: "guest-1" },
@@ -98,7 +109,7 @@ describe("getGuestEligibility claimed draft recovery", () => {
 		});
 	});
 
-	it("keeps the second edit available and selects only a fresh unused draft", async () => {
+	it("keeps the lifetime trial used while preserving an unused draft for account continuation", async () => {
 		databaseMocks.guestMediaTrial.count.mockResolvedValue(1);
 		databaseMocks.guestMediaTrial.findFirst.mockResolvedValue({
 			currentJobId: null,
@@ -111,9 +122,9 @@ describe("getGuestEligibility claimed draft recovery", () => {
 				{ context: { headers: new Headers() } },
 			),
 		).resolves.toMatchObject({
-			eligible: true,
+			eligible: false,
 			existingJobId: "first-job",
-			dailyAllowance: { limit: 2, remaining: 1 },
+			trialAllowance: { limit: 1, remaining: 0, resetsAt: null },
 		});
 		expect(databaseMocks.guestSessionBootstrap.findFirst).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -130,7 +141,7 @@ describe("getGuestEligibility claimed draft recovery", () => {
 		).resolves.toMatchObject({
 			eligible: false,
 			existingJobId: "active-yesterday",
-			dailyAllowance: { limit: 2, remaining: 2 },
+			trialAllowance: { limit: 1, remaining: 1, resetsAt: null },
 		});
 	});
 

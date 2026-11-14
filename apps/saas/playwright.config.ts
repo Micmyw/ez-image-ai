@@ -12,8 +12,8 @@ const saasBaseUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 const saasPort = new URL(saasBaseUrl).port || (saasBaseUrl.startsWith("https:") ? "443" : "80");
 const saasHostname = new URL(saasBaseUrl).hostname.replace(/^\[|\]$/g, "");
 const localMediaE2ELaunchOptions = localMediaE2EChromiumLaunchOptions(process.env);
-const guestOnlySpecs = /(?:guest-trial|landing|originality)\.spec\.ts/;
-const publicOnlySpecs = /(?:public-routes|public-seo|models|docs)\.spec\.ts/;
+const guestOnlySpecs = /(?:guest-trial|guest-conversion|landing|originality)\.spec\.ts/;
+const publicOnlySpecs = /(?:public-routes|public-seo|models|docs|login)\.spec\.ts/;
 // Retain legacy visitor storage to exercise homepage re-entry after a previous preview.
 const returningVisitorState = {
 	cookies: [],

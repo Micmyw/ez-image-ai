@@ -30,6 +30,8 @@ vi.mock("@tanstack/react-query", () => ({
 vi.mock("./CheckoutReviewPanel", () => ({ CheckoutReviewPanel: () => null }));
 vi.mock("./GrowthOperationsPanel", () => ({ GrowthOperationsPanel: () => null }));
 vi.mock("./ModerationOperationsPanel", () => ({ ModerationOperationsPanel: () => null }));
+vi.mock("./CustomerImageContentPanel", () => ({ CustomerImageContentPanel: () => null }));
+vi.mock("./AdminPromptContentPanel", () => ({ AdminPromptContentPanel: () => null }));
 vi.mock("./KieRejectionRecoveryPanel", () => ({ KieRejectionRecoveryPanel: () => null }));
 vi.mock("./PaymentAttributionPanel", () => ({ PaymentAttributionPanel: () => null }));
 

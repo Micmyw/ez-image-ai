@@ -186,6 +186,18 @@
 		"emailFallback": "Keine E-Mail-App? Kopiere die Adresse und sende dein Feedback über deinen gewohnten E-Mail-Dienst.",
 		"subjectIdea": "EzImageAI: Vorschlag",
 		"subjectBug": "EzImageAI: Fehlermeldung",
-		"close": "Feedback schließen"
+		"close": "Feedback schließen",
+		"topic": "Was möchten Sie verbessern?",
+		"topicOptional": "Thema wählen (optional)",
+		"topics": {
+			"result": "Ergebnisqualität",
+			"waiting": "Wartezeit",
+			"upload": "Hochladen",
+			"login": "Anmeldung",
+			"price_credits": "Preis oder Credits",
+			"other": "Sonstiges"
+		},
+		"emailObservation": "Das Öffnen eines Entwurfs sendet ihn nicht. Prüfen und senden Sie ihn in Ihrer E-Mail-App.",
+		"supportInbox": "Support-Postfach nutzen (Anmeldung erforderlich)"
 	}
 }

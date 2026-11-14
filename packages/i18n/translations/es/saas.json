@@ -423,6 +423,212 @@
 				"updated": "Actualizado",
 				"lastSuccess": "Última actualización correcta {time}",
 				"refresh": "Actualizar"
+			},
+			"content": {
+				"title": "Imágenes de clientes y moderación",
+				"description": "Consulta originales subidos, imágenes generadas y resultados guardados, incluidos bloqueos sin registro de recuperación.",
+				"statusLabel": "Estado de la imagen",
+				"kindLabel": "Tipo de imagen",
+				"all": "Todos",
+				"searchLabel": "Buscar contenido",
+				"searchPlaceholder": "ID de cliente, imagen o tarea",
+				"search": "Buscar",
+				"refresh": "Actualizar",
+				"loading": "Cargando imágenes…",
+				"loadError": "No se pudo cargar el contenido. Actualiza para volver a intentarlo.",
+				"time": "Creación",
+				"owner": "Propietario",
+				"provider": "Servicio de revisión",
+				"reason": "Motivo registrado",
+				"inspect": "Ver imágenes y revisión",
+				"empty": "No hay imágenes coincidentes.",
+				"newest": "Más recientes",
+				"older": "Imágenes anteriores",
+				"detailTitle": "Imágenes y detalles de revisión",
+				"refreshPreview": "Actualizar imágenes y detalles",
+				"job": "Tarea de generación relacionada",
+				"noJob": "Esta imagen no tiene una tarea de generación vinculada.",
+				"prompt": "Prompt enviado para generar",
+				"openImage": "Abrir imagen completa",
+				"previewError": "No se pudo cargar la imagen privada. Actualiza las imágenes y los detalles para renovar el acceso.",
+				"historical": "Revisión histórica de otra versión o intento de revisión.",
+				"providerTask": "ID de tarea de detección",
+				"labels": "Etiquetas NSFW del detector",
+				"noLabels": "No hay etiquetas de categoría registradas",
+				"specialCare": "Etiquetas de atención especial",
+				"noReview": "No hay una revisión de imagen completada.",
+				"statuses": {
+					"UPLOADING": "Subiendo",
+					"VERIFYING": "En revisión",
+					"VERIFICATION_FAILED": "Error de revisión",
+					"READY": "Lista",
+					"QUARANTINED": "Bloqueada",
+					"DELETED": "Eliminada"
+				},
+				"kinds": {
+					"INPUT": "Imagen de entrada del cliente",
+					"OUTPUT": "Imagen generada"
+				},
+				"availability": {
+					"DELETED": "Esta imagen se ha eliminado.",
+					"UNFINALIZED": "La carga o salida aún no ha finalizado.",
+					"UNSUPPORTED": "Esta vista previa solo admite imágenes.",
+					"CHANGED": "La imagen actual no coincide con el contenido vinculado a esta tarea."
+				},
+				"audienceLabel": "Origen de la carga",
+				"audiences": {
+					"GUEST": "Prueba de invitado",
+					"ACCOUNT": "Cuenta"
+				},
+				"promptReview": "Revisión del prompt por Waffo",
+				"modelDiagnostics": "Diagnóstico del proveedor del modelo",
+				"uncertainSubmission": "La aceptación del proveedor es incierta; no se autoriza reintentar ni limpiar.",
+				"evidenceSources": {
+					"AUTHENTICATED_RETRIEVAL": "Consulta autenticada al proveedor",
+					"STORED_DIAGNOSTIC": "Diagnóstico guardado de la aplicación; sin dictamen autenticado"
+				},
+				"cleanup": {
+					"title": "Limpiar contenido seleccionado",
+					"description": "Previsualiza hasta 20 imágenes. La confirmación revoca el acceso y programa la eliminación en R2. La capacidad se libera después de confirmar la eliminación. Se conservan los registros financieros y las pruebas de revisión y recuperación.",
+					"selected": "{count} imágenes seleccionadas",
+					"reason": "Motivo de eliminación (mínimo 5 caracteres)",
+					"includeLogs": "Eliminar también hasta 100 registros internos de prueba con más de 30 días",
+					"preview": "Previsualizar limpieza",
+					"previewError": "No se pudo previsualizar. Actualiza e inténtalo de nuevo.",
+					"confirmLabel": "Escribe exactamente la confirmación siguiente",
+					"execute": "Confirmar eliminación",
+					"retry": "Reintentar el mismo plan confirmado",
+					"executeError": "La limpieza no se confirmó. Reintenta el mismo plan o genera otro si caducó o cambiaron los datos.",
+					"queued": "Se programó eliminar {assets} imágenes y se eliminaron {logs} registros internos. R2 se limpia de forma asíncrona; actualiza la imagen eliminada para comprobarlo.",
+					"summary": "{assets} imágenes / {bytes} bytes; {logs} registros internos / unos {logBytes} bytes JSON.",
+					"expiry": "El plan caduca: {time}",
+					"eligible": "Se puede eliminar con este plan",
+					"select": "Seleccionar para limpiar",
+					"blocked": {
+						"NOT_FOUND": "Imagen no encontrada",
+						"UNSUPPORTED_ASSET": "Imagen o motor no compatible",
+						"ALREADY_DELETED": "Eliminación ya solicitada",
+						"ASSET_NOT_TERMINAL": "Carga o revisión sin finalizar",
+						"PROTECTED_TEMPLATE_MATERIAL": "Material de plantilla protegido",
+						"UNCERTAIN_REVIEW": "Aceptación de revisión incierta",
+						"ACTIVE_REVIEW": "Revisión o reintento pendiente",
+						"ACTIVE_TRANSFER": "Transferencia activa",
+						"ACTIVE_UPLOAD": "Carga activa",
+						"ACTIVE_JOB_OR_RESERVATION": "Trabajo, solicitud o reserva financiera activos",
+						"UNRESOLVED_REVIEW": "Revisión administrativa sin resolver",
+						"ACTIVE_STORAGE_RESERVATION": "Reserva de almacenamiento activa",
+						"ACTIVE_DRAFT": "Un borrador activo usa la imagen",
+						"ACTIVE_OR_UNCERTAIN_COPY": "Copia activa o escritura incierta",
+						"UNCONSUMED_GUEST_UPLOAD": "Un recibo vigente de carga de invitado todavía puede crear un borrador"
+					},
+					"states": {
+						"RETRYING": "R2 vuelve a limpiar el mismo objeto",
+						"UNKNOWN": "Eliminación física sin confirmar",
+						"QUEUED": "Eliminación R2 programada",
+						"FAILED": "R2 requiere recuperación administrativa",
+						"COMPLETED": "Eliminación física R2 confirmada"
+					},
+					"attempts": "Intentos de limpieza: {count}",
+					"retryPhysical": "Reintentar la limpieza fallida de los mismos objetos",
+					"recentPlans": "Tus últimos planes confirmados",
+					"chooseRecent": "Elige un plan confirmado para reintentar",
+					"recentError": "No se pudieron cargar los planes. Actualiza para reintentar."
+				},
+				"messageSources": {
+					"AUTHENTICATED_RETRIEVAL": "Mensaje de consulta autenticada",
+					"AUTHENTICATED_SUBMISSION": "Mensaje de envío autenticado",
+					"CALLBACK_DIAGNOSTIC": "Diagnóstico del callback; no es un dictamen verificado",
+					"INTERNAL_DIAGNOSTIC": "Diagnóstico interno de la aplicación",
+					"ADMIN_ATTESTATION": "Registro del panel del proveedor verificado por un administrador",
+					"STORED_DIAGNOSTIC": "Diagnóstico histórico de origen sin verificar"
+				}
+			},
+			"prompts": {
+				"title": "Prompts y tareas fallidas",
+				"description": "Busca prompts guardados y tareas de generación, incluidas solicitudes bloqueadas y tareas sin imágenes. La vista inicial muestra los fallos de los últimos siete días.",
+				"audience": "Tipo de usuario",
+				"outcome": "Resultado",
+				"all": "Todos",
+				"failuresOnly": "Fallos y solicitudes bloqueadas",
+				"filters": {
+					"ownerId": "ID del propietario",
+					"email": "Correo de la cuenta",
+					"jobId": "ID de tarea",
+					"text": "El prompt guardado contiene",
+					"from": "Desde",
+					"to": "Hasta"
+				},
+				"search": "Buscar",
+				"refresh": "Actualizar",
+				"invalidRange": "Elige un intervalo cronológico de un máximo de 90 días.",
+				"loading": "Cargando…",
+				"staleError": "No se pudo actualizar. Se siguen mostrando los resultados anteriores.",
+				"loadError": "No se pudieron cargar estos registros.",
+				"range": "Mostrando de {from} a {to}",
+				"time": "Fecha",
+				"record": "Registro",
+				"owner": "Propietario",
+				"model": "Modelo",
+				"status": "Estado",
+				"promptSaved": "Prompt guardado",
+				"inspect": "Ver",
+				"unknown": "Desconocido",
+				"yes": "Sí",
+				"no": "No",
+				"empty": "No hay registros que coincidan con estos filtros.",
+				"firstPage": "Primera página",
+				"nextPage": "Página siguiente",
+				"close": "Cerrar",
+				"detailTitle": "Detalles del prompt y la generación",
+				"systemSummary": "Resumen del sistema guardado",
+				"promptTitle": "Prompt guardado",
+				"redaction": "Se ocultan los enlaces, las credenciales y los identificadores de objetos privados.",
+				"missingPrompt": "No se guardó ningún prompt en este registro.",
+				"truncated": "El prompt guardado supera el límite de visualización y se ha acortado.",
+				"reviewTitle": "Revisión del prompt",
+				"reviewBasis": "Estos son registros de revisión guardados. Las revisiones de tareas se vinculan mediante el ID exacto de la cotización.",
+				"missingReview": "No se guardó ningún registro de revisión coincidente.",
+				"reviewAction": "Acción",
+				"categories": "Categorías detectadas",
+				"rule": "Versión de la regla",
+				"request": "Solicitud de revisión",
+				"messagesTitle": "Mensajes del modelo y de ejecución",
+				"messagesBasis": "Solo se muestran diagnósticos guardados. El origen del mensaje es independiente de la evidencia del estado final.",
+				"missingMessages": "No se guardó ningún mensaje del modelo.",
+				"messageSource": "Origen del mensaje",
+				"uncertain": "No se ha confirmado la aceptación del proveedor. Este registro no demuestra un fallo ni autoriza otro envío.",
+				"terminalEvidence": "Evidencia del estado final",
+				"audiences": {
+					"GUEST": "Invitado",
+					"ACCOUNT": "Cuenta",
+					"UNKNOWN": "Desconocido"
+				},
+				"audienceBases": {
+					"JOB_RECORD": "Según el registro de la tarea",
+					"RECORDED": "Registrado al realizar la solicitud",
+					"CURRENT_ACCOUNT": "Según la cuenta actual; el tipo de usuario histórico no está confirmado",
+					"UNKNOWN": "No hay evidencia del tipo de usuario"
+				},
+				"kinds": {
+					"JOB": "Tarea de generación",
+					"BLOCKED_REQUEST": "Solicitud de prompt bloqueada"
+				},
+				"promptSources": {
+					"JOB_INPUT_SNAPSHOT": "Origen: entrada guardada de la tarea",
+					"BLOCKED_AUDIT_METADATA": "Origen: auditoría de la solicitud bloqueada"
+				},
+				"messageSources": {
+					"AUTHENTICATED_RETRIEVAL": "Consulta autenticada al proveedor",
+					"AUTHENTICATED_SUBMISSION": "Envío autenticado al proveedor",
+					"CALLBACK_DIAGNOSTIC": "Diagnóstico de callback; no es una conclusión autenticada del proveedor",
+					"INTERNAL_DIAGNOSTIC": "Diagnóstico interno de ejecución",
+					"ADMIN_ATTESTATION": "Registro del proveedor confirmado por un administrador",
+					"STORED_DIAGNOSTIC": "Diagnóstico guardado con origen sin confirmar"
+				},
+				"terminalSources": {
+					"AUTHENTICATED_RETRIEVAL": "Consulta autenticada al proveedor",
+					"STORED_DIAGNOSTIC": "Sin evidencia autenticada del estado final"
+				}
 			}
 		},
 		"title": "Administración",
@@ -946,6 +1152,52 @@
 					"kung-fu-cat": "Gato kung fu",
 					"sheru-bhai": "Sheru Bhai"
 				}
+			},
+			"journey": {
+				"title": "Recorrido de generación · v1",
+				"basis": "Las observaciones consentidas del navegador y las confirmaciones del servidor son pruebas distintas. La ausencia de observaciones no demuestra abandono. Clics, borradores y tareas tienen identidades diferentes; no cuentan personas.",
+				"clicks": "Clics en Generar",
+				"drafts": "Borradores observados",
+				"admittedJobs": "Tareas confirmadas por servidor",
+				"links": "Clics vinculados a una tarea: {linked}; sin observación coincidente: {missing}; varias tareas: {ambiguous}; tareas sin clic: {jobs}.",
+				"coverage": "Observaciones sin referencia: {unkeyed}; eventos no válidos: {invalid}; observaciones antiguas excluidas de v1: {legacy}.",
+				"stage": "Etapa",
+				"evidence": "Prueba",
+				"events": "Eventos",
+				"identities": "Identidades distintas",
+				"unkeyed": "Sin referencia",
+				"observed": "Observación del navegador",
+				"confirmed": "Confirmación del servidor",
+				"empty": "No hay eventos versionados en este período.",
+				"latency": "Del clic al resultado visible: {samples} muestras vinculadas; P50 {p50}s / P90 {p90}s. Muestras incompletas o sin vínculo: {excluded}. Las recargas sin hora de clic permanecen desconocidas.",
+				"stages": {
+					"source_selected": "Fuente seleccionada",
+					"upload_started": "Subida iniciada",
+					"upload_completed": "Finalización de subida observada",
+					"upload_failed": "Error de subida",
+					"generate_clicked": "Clic en Generar",
+					"quote_observed": "Presupuesto observado",
+					"job_admitted_observed": "Aceptación de tarea observada",
+					"generation_failed_observed": "Error de generación observado",
+					"auth_viewed": "Inicio de sesión visible",
+					"auth_started": "Inicio de sesión iniciado",
+					"auth_cancelled": "Inicio de sesión cancelado",
+					"auth_session_observed": "Sesión autenticada observada",
+					"draft_saved": "Borrador guardado",
+					"draft_restored": "Borrador restaurado",
+					"draft_restore_failed": "Error al restaurar",
+					"result_visible": "Resultado visible",
+					"refine_started": "Refinamiento iniciado",
+					"purchase_offer_viewed": "Oferta de compra visible",
+					"feedback_opened": "Comentarios abiertos",
+					"feedback_email_opened": "Borrador de correo abierto",
+					"feedback_submitted_observed": "Envío a soporte confirmado",
+					"upload_sealed": "Subida sellada",
+					"draft_claimed": "Borrador reclamado",
+					"job_admitted": "Tarea admitida",
+					"auth_session_established": "Sesión autenticada establecida",
+					"feedback_received": "Comentarios recibidos"
+				}
 			}
 		}
 	},
@@ -1053,7 +1305,10 @@
 			"submit": "Iniciar sesión",
 			"subtitle": "Por favor, introduce tus credenciales para iniciar sesión.",
 			"title": "Bienvenido de nuevo",
-			"sendMagicLink": "Enviar enlace mágico"
+			"sendMagicLink": "Enviar enlace mágico",
+			"continueWithGoogle": "Continuar con Google",
+			"orEmail": "O usa tu correo electrónico",
+			"cancelled": "No se completó el inicio de sesión. Puedes volver a intentarlo o regresar a tu borrador."
 		},
 		"resetPassword": {
 			"backToSignin": "Volver a iniciar sesión",
@@ -1086,6 +1341,12 @@
 			"submit": "Verificar",
 			"backToSignin": "Volver a iniciar sesión",
 			"message": "Introduce la contraseña de un solo uso de tu aplicación de autenticación para continuar."
+		},
+		"draft": {
+			"title": "Tu borrador está guardado",
+			"saved": "Tu imagen y ajustes se conservan en este navegador durante una hora.",
+			"imageAlt": "Tu imagen seleccionada",
+			"returnToEdit": "Volver a editar"
 		}
 	},
 	"choosePlan": {
@@ -1913,9 +2174,9 @@
 			"creditPolicy": "Créditos y política de contenido"
 		},
 		"guest": {
-			"eyebrow": "Prueba Nano Banana 2 Lite para invitados",
+			"eyebrow": "Prueba gratuita de imagen para invitados",
 			"title": "Edita una imagen de forma privada",
-			"subtitle": "Disfruta de dos ediciones gratuitas al día con Nano Banana 2 Lite en 1K. Cada edición crea una vista previa temporal, privada y con marca de agua.",
+			"subtitle": "Prueba una edición gratuita con MiniMax H3 1K o Nano Banana 2 Lite 1K en las regiones elegibles. Tu vista previa es temporal, privada y con marca de agua.",
 			"sourceReady": "Origen privado listo",
 			"sourceHandoff": "Transferido de forma privada para esta edición",
 			"promptLabel": "Instrucción de edición",
@@ -1925,7 +2186,7 @@
 			"freeQueue": "Cola gratuita",
 			"temporary": "Con marca de agua · disponible hasta 24 horas",
 			"temporaryCompact": "Con marca de agua · temporal",
-			"submit": "Iniciar mi edición Nano Banana",
+			"submit": "Iniciar mi edición de imagen",
 			"challenge": "Verifica esta edición de invitado",
 			"qualityCta": "Más modelos de imagen · plan de pago",
 			"retryChallenge": "Reintentar la verificación",
@@ -1939,7 +2200,7 @@
 			"signIn": "Iniciar sesión",
 			"createAccount": "Crear cuenta",
 			"accountDisclosure": "La vista previa actual seguirá caducando. Las ventajas de la cuenta se aplican a futuras ediciones registradas.",
-			"trialConsumed": "Esta edición utilizó un turno diario de invitado.",
+			"trialConsumed": "Esta edición utilizó tu prueba única de invitado.",
 			"trialNotConsumed": "Esta prueba no se consumió. Puedes repetir el paso de recuperación seguro.",
 			"startsWithCapacity": "Empieza cuando haya capacidad gratuita",
 			"estimatedStart": "Inicio estimado: {start}",
@@ -1966,13 +2227,19 @@
 				"access": "El enlace privado del resultado no está disponible. Solicítalo de nuevo.",
 				"download": "La descarga privada no está disponible ahora mismo.",
 				"link": "El inicio de sesión no está disponible para esta prueba ahora mismo.",
-				"turnstile": "Completa la verificación y vuelve a intentarlo."
+				"turnstile": "Completa la verificación y vuelve a intentarlo.",
+				"regionExcluded": "Las pruebas gratuitas no están disponibles en tu región actual. Inicia sesión para usar tu saldo o elegir un plan.",
+				"regionUnverified": "No pudimos comprobar la disponibilidad de la prueba gratuita. Inténtalo de nuevo o inicia sesión."
 			},
-			"dailyAllowance": "Hoy: quedan {remaining, number} de {limit, number} ediciones gratuitas",
-			"dailyReset": "Se restablecen cada día a las 00:00 UTC. Las ediciones no utilizadas no se acumulan.",
-			"dailyLimitReached": "Has usado las dos ediciones gratuitas de hoy. Vuelve después de las 00:00 UTC para disponer de dos más.",
+			"dailyAllowance": "Pruebas gratuitas restantes: {remaining, number} de {limit, number}",
+			"dailyReset": "Una prueba de imagen gratis en este navegador.",
+			"dailyLimitReached": "Ya has usado tu prueba gratuita. Inicia sesión para continuar.",
 			"editAnother": "Editar otra imagen",
-			"loginBonus": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción."
+			"loginBonus": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción.",
+			"trialAllowance": "Pruebas gratuitas restantes: {remaining}/{limit}",
+			"trialIdentityNote": "Una prueba de imagen gratis en este navegador.",
+			"trialLimitReached": "Ya has usado tu prueba gratuita. Inicia sesión para continuar.",
+			"modelLabel": "Modelo de prueba gratuita"
 		},
 		"upgradeDialog": {
 			"title": "Desbloquea más modelos de imagen",
@@ -2246,6 +2513,18 @@
 			"recoveryHelp": "Consulta los pasos de recuperación o contacta con soporte",
 			"inputUnavailable": "No pudimos usar tu imagen de referencia o tu entrada para esta generación. Revísala e inténtalo de nuevo.",
 			"deliveryFailed": "Tu imagen se generó, pero no se pudo entregar. Inténtalo de nuevo."
+		},
+		"purposeShortcuts": {
+			"label": "Empieza por un objetivo",
+			"everyday": "Imágenes cotidianas",
+			"layouts": "Texto y composición",
+			"details": "Detalles fotográficos",
+			"selection": "{model} · {credits} créditos"
+		},
+		"durationEstimate": {
+			"processing": "Tu imagen se está procesando.",
+			"range": "Tareas completadas recientemente: {minimum}–{maximum} segundos (P50–P90).",
+			"basis": "{count} tareas completadas con éxito en los últimos 7 días, desde la creación hasta la finalización. Se excluyen las tareas marcadas como internas. Actualizado: {asOf}."
 		}
 	},
 	"common": {
@@ -2739,7 +3018,12 @@
 		"sizeRule": "Los paquetes nuevos y ya comprados de 2,99 USD cubren GPT Image 2.6 Flare y Sunburst en 1K, 2K y 4K, además de modelos Pro, SVG estático y GIF animado. Cada resultado generado con éxito consume un pase, independientemente del número de fotogramas del GIF. No se requiere suscripción.",
 		"fundingSizeNotEligible": "Tus pases disponibles no cubren esta opción. Elige una opción cubierta por tu paquete, compra un paquete actual o paga expresamente con créditos.",
 		"returnAwaitingConfirmationUnknownAmount": "Si aprobaste este pago en PayPal, confírmalo abajo para finalizar. De lo contrario, vuelve al pago.",
-		"returnConfirmPaymentUnknownAmount": "Confirmar pago de PayPal"
+		"returnConfirmPaymentUnknownAmount": "Confirmar pago de PayPal",
+		"selectedOffer": {
+			"title": "{amount} US$ por {units} imágenes generadas correctamente",
+			"description": "Incluye este modelo y tamaño. No necesitas suscripción al usar Image Pass. Tu borrador se conserva mientras eliges un paquete.",
+			"action": "Comprar el paquete de imágenes"
+		}
 	},
 	"support": {
 		"title": "Solicitudes de soporte",
@@ -2774,6 +3058,24 @@
 			"CUSTOMER": "Cliente",
 			"ADMIN": "Equipo de soporte",
 			"SERVICE": "Automatización de soporte"
+		},
+		"feedbackTopic": "¿Qué te gustaría mejorar?",
+		"feedbackTopicOptional": "Elige un tema (opcional)",
+		"feedbackTopics": {
+			"result": "Calidad del resultado",
+			"waiting": "Tiempo de espera",
+			"upload": "Subida",
+			"login": "Inicio de sesión",
+			"price_credits": "Precio o créditos",
+			"other": "Otro"
+		}
+	},
+	"home": {
+		"generator": {
+			"fileErrors": {
+				"heicUnsupported": "Tu navegador no puede convertir esta foto HEIC. Expórtala como JPEG o PNG e inténtalo de nuevo.",
+				"dimensions": "Las dimensiones de esta imagen son demasiado grandes. Exporta una copia más pequeña de hasta 24 megapíxeles e inténtalo de nuevo."
+			}
 		}
 	}
 }

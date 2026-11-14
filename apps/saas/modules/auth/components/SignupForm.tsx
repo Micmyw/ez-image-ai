@@ -71,14 +71,19 @@ export function SignupForm({ prefillEmail }: { prefillEmail?: string }) {
 		: getSafeRedirectPath(redirectTo, config.redirectAfterSignIn);
 
 	useEffect(() => {
-		if (sessionLoaded && user) {
+		if (sessionLoaded && user && !user.isAnonymous) {
 			router.replace(redirectPath);
 		}
 	}, [user, sessionLoaded]); // oxlint-disable-line eslint-plugin-react-hooks/exhaustive-deps
 
 	const submitForm = form.handleSubmit(async ({ email, password, name }) => {
 		try {
-			const [authClient] = await Promise.all([loadAuthClient(), captureRegistrationFirstTouch()]);
+			const [authClient] = await Promise.all([
+				loadAuthClient(),
+				Promise.resolve()
+					.then(captureRegistrationFirstTouch)
+					.catch(() => {}),
+			]);
 			const { error } = await (authConfig.enablePasswordLogin
 				? await authClient.signUp.email({
 						email,

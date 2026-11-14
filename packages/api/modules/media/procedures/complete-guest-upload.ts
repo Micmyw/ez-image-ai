@@ -11,30 +11,21 @@ import {
 	imageGifFrameDurationMsSchema,
 	parseImageSelection,
 } from "@repo/config";
-import {
-	finalizeGuestDraftFromReadyUploadTransaction,
-	loadGuestUploadCompletion,
-} from "@repo/database";
+import { isGuestTrialModel } from "@repo/config/guest-trial";
+import { finalizeGuestDraftFromReadyUploadTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
-import { headObject } from "@repo/storage";
 import { z } from "zod";
 
 import { publicProcedure } from "../../../orpc/procedures";
 import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
-import {
-	createDraftClaimToken,
-	hashDraftClaimToken,
-	resolveGuestPublicOrigin,
-} from "../lib/draft-security";
+import { createDraftClaimToken, hashDraftClaimToken } from "../lib/draft-security";
 import {
 	assertGuestCapabilityVersion,
 	assertGuestProductAvailable,
-	hashGuestAbuseBinding,
 	hashGuestSecret,
 	loadGuestCapability,
-	requireGuestAbuseHmac,
 } from "../lib/guest-capability";
-import { completeOwnedUploadSession } from "./complete-upload-session";
+import { prepareGuestUpload } from "../lib/guest-upload-preparation";
 
 export const completeGuestDraftUpload = publicProcedure
 	.route({
@@ -93,16 +84,11 @@ export const completeGuestDraftUpload = publicProcedure
 		]),
 	)
 	.handler(async ({ context, input }) => {
-		const publicOrigin = resolveGuestPublicOrigin(context.headers.get("origin"), {
-			saasOrigin: process.env.NEXT_PUBLIC_SAAS_URL,
-		});
+		context.responseHeaders?.set("Cache-Control", "no-store");
 		const loaded = await loadGuestCapability();
 		if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
 			throw new Error("GUEST_CAPABILITY_DISABLED");
 		}
-		const { secretKey: abuseSecret, keyVersion: abuseKeyVersion } = requireGuestAbuseHmac(
-			loaded.config,
-		);
 		assertGuestCapabilityVersion(input.capabilityVersion, loaded.snapshot.version);
 		const product = assertGuestProductAvailable(loaded.snapshot, input.productKey);
 		const selection = parseImageSelection(product.key, input);
@@ -119,42 +105,10 @@ export const completeGuestDraftUpload = publicProcedure
 			throw new Error("GUEST_PRODUCT_UNAVAILABLE");
 		}
 		const completionTokenHash = hashGuestSecret(input.completionToken);
-		const completion = await loadGuestUploadCompletion(
-			{
-				sessionId: input.sessionId,
-				completionTokenHash,
-				capabilityVersion: loaded.snapshot.version,
-				originHash: hashGuestAbuseBinding(
-					abuseSecret,
-					abuseKeyVersion,
-					"guest-origin",
-					publicOrigin,
-				),
-				expectedSha256: input.sha256,
-			},
-			db,
-		);
-		assertGuestCapabilityVersion(completion.capabilityVersion, loaded.snapshot.version);
-
-		if (completion.status !== "COMPLETED") {
-			const metadata = await headObject({ bucket: "media", key: completion.stagingObjectKey });
-			if (
-				metadata.contentLength !== completion.expectedBytes ||
-				metadata.contentType !== completion.contentType
-			) {
-				throw new Error("GUEST_UPLOAD_METADATA_MISMATCH");
-			}
-			await completeOwnedUploadSession(
-				{
-					sessionId: input.sessionId,
-					expectedSha256: completion.expectedSha256,
-				},
-				completion.ownerId,
-			);
-		}
+		const preparation = await prepareGuestUpload(input, context.headers, loaded, context.defer);
+		if (preparation.status === "PENDING") return preparation;
 
 		const claimToken = createDraftClaimToken();
-		context.responseHeaders?.set("Cache-Control", "no-store");
 		try {
 			await finalizeGuestDraftFromReadyUploadTransaction(
 				{
@@ -213,7 +167,9 @@ export const completeGuestDraftUpload = publicProcedure
 			continueUrl: "/draft/continue" as const,
 			productKey: product.key,
 			skuKey: selection.skuKey,
-			accessHint: product.accessHint,
+			accessHint: isGuestTrialModel(product.key, selection.skuKey)
+				? ("guest-trial" as const)
+				: ("paid-account" as const),
 		};
 	});
 

@@ -25,6 +25,17 @@ export const paymentProductKindEnum = pgEnum("PaymentProductKind", [
 
 export const ownerTypeEnum = pgEnum("OwnerType", ["USER", "ORGANIZATION"]);
 
+export const guestTrialEntitlement = pgTable(
+	"guest_trial_entitlement",
+	{
+		subjectKey: text("subjectKey").primaryKey(),
+		trialId: text("trialId").notNull(),
+		reservedJobId: text("reservedJobId"),
+		createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+	},
+	(table) => [index("guest_trial_entitlement_trialId_idx").on(table.trialId)],
+);
+
 export const mediaOwnerStorageFence = pgTable(
 	"media_owner_storage_fence",
 	{
@@ -1218,4 +1229,27 @@ export const trafficAggregate = pgTable(
 		views: integer("views").notNull().default(0),
 	},
 	(table) => [primaryKey({ columns: [table.hour, table.path, table.source, table.device] })],
+);
+
+export const mediaOutputOrigin = pgTable(
+	"media_output_origin",
+	{
+		assetId: text("assetId").primaryKey(),
+		url: text("url").notNull(),
+		archiveState: text("archiveState").notNull().default("PENDING"),
+		archiveChecksum: text("archiveChecksum"),
+		archiveBytes: bigint("archiveBytes", { mode: "bigint" }),
+		archivedAt: timestamp("archivedAt", { withTimezone: true, precision: 3 }),
+		leaseToken: text("leaseToken"),
+		leasedUntil: timestamp("leasedUntil", { withTimezone: true, precision: 3 }),
+		attempts: integer("attempts").notNull().default(0),
+		lastErrorCode: text("lastErrorCode"),
+		createdAt: timestamp("createdAt", { withTimezone: true, precision: 3 }).notNull().defaultNow(),
+	},
+	(table) => [
+		index("media_output_origin_archiveState_leasedUntil_idx").on(
+			table.archiveState,
+			table.leasedUntil,
+		),
+	],
 );

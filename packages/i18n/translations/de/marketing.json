@@ -158,7 +158,7 @@
 			},
 			"free": {
 				"question": "Kann ich die Bild-zu-Bild-KI kostenlos nutzen?",
-				"answer": "Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit MiniMax H3 Image 1K, ohne monatliche Auffüllung. Premium-Bildmodelle und höhere Auflösungen erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit den enthaltenen Bildmodellen und Größen, ohne Abo."
+				"answer": "Berechtigte Gäste können einmal kostenlos ein Bild mit MiniMax H3 1K oder Nano Banana 2 Lite 1K bearbeiten, wenn die gesponserte Warteschlange verfügbar ist. Das Ergebnis ist privat, mit Wasserzeichen versehen und bis zu 24 Stunden verfügbar. Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit MiniMax H3 Image 1K, ohne monatliche Auffüllung. Premium-Bildmodelle und höhere Auflösungen erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit den enthaltenen Bildmodellen und Größen, ohne Abo."
 			},
 			"control": {
 				"question": "Bleibt jedes Detail meines Originalbilds erhalten?",
@@ -212,11 +212,11 @@
 			},
 			"guestAvailability": {
 				"question": "Wann ist die Gastbearbeitung verfügbar?",
-				"answer": "Wenn die gesponserte Gastwarteschlange verfügbar ist, können berechtigte Besucher täglich zwei Bilder mit Nano Banana 2 Lite in 1K ohne Registrierung bearbeiten. Lade ein Referenzbild hoch und beschreibe die Änderung. Jedes Ergebnis ist privat, mit Wasserzeichen versehen und bis zu 24 Stunden verfügbar. Das Kontingent wird um 00:00 UTC erneuert; ungenutzte Bearbeitungen verfallen. Text-zu-Bild erfordert eine Anmeldung."
+				"answer": "Berechtigte Gäste können einmal kostenlos ein Bild mit MiniMax H3 1K oder Nano Banana 2 Lite 1K bearbeiten, wenn die gesponserte Warteschlange verfügbar ist. Das Ergebnis ist privat, mit Wasserzeichen versehen und bis zu 24 Stunden verfügbar. Lade ein Referenzbild hoch und beschreibe die Änderung. Der einmalige Test gilt für diesen Browser und hängt von der regionalen Verfügbarkeit ab. Text-zu-Bild erfordert eine Anmeldung."
 			},
 			"guestVsFree": {
 				"question": "Worin unterscheiden sich Gastzugang und Free?",
-				"answer": "Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit MiniMax H3 Image 1K, ohne monatliche Auffüllung. Premium-Bildmodelle und höhere Auflösungen erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit den enthaltenen Bildmodellen und Größen, ohne Abo. Mit Kontocredits erzeugte Bilder haben kein Gastwasserzeichen und eine angestrebte Aufbewahrung von 30 Tagen. Lade Ergebnisse herunter, die du behalten möchtest."
+				"answer": "Berechtigte Gäste können einmal kostenlos ein Bild mit MiniMax H3 1K oder Nano Banana 2 Lite 1K bearbeiten, wenn die gesponserte Warteschlange verfügbar ist. Das Ergebnis ist privat, mit Wasserzeichen versehen und bis zu 24 Stunden verfügbar. Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit MiniMax H3 Image 1K, ohne monatliche Auffüllung. Premium-Bildmodelle und höhere Auflösungen erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit den enthaltenen Bildmodellen und Größen, ohne Abo. Mit Kontocredits erzeugte Bilder haben kein Gastwasserzeichen und eine angestrebte Aufbewahrung von 30 Tagen. Lade Ergebnisse herunter, die du behalten möchtest."
 			},
 			"editTiers": {
 				"question": "Welche Bildmodelle und Ausgabeeinstellungen sind verfügbar?",
@@ -332,11 +332,11 @@
 			"eyebrow": "Bearbeitung planen",
 			"title": "Beschreibe die gewünschte Änderung",
 			"subtitle": "Beginne mit einem Prompt oder füge ein Referenzbild hinzu. Melde dich an und starte mit einem Klick; die Credit-Kosten stehen auf der Schaltfläche.",
-			"offer": "Nano Banana 2 Lite 1K kostenlos testen",
+			"offer": "Eine kostenlose 1K-Bildbearbeitung testen",
 			"noSignUp": "Keine Registrierung, wenn die Gast-Warteschlange verfügbar ist",
 			"paidSignIn": "Anmelden und Konto-Credits nutzen",
 			"oneOutput": "Ein Ergebnis",
-			"freeQueue": "2 kostenlose Bearbeitungen täglich · Wasserzeichen · bis zu 24 Stunden verfügbar",
+			"freeQueue": "Ein kostenloser Test · Wasserzeichen · bis zu 24 Stunden verfügbar",
 			"qualityAccess": "{model} erfordert eine Anmeldung und einen Pro-, Ultimate- oder Max-Tarif.",
 			"freeAccountAccess": "Melde dich an, um {model} mit deinen kostenlosen Credits auszuprobieren.",
 			"temporaryResult": "Deine Vorschau bleibt privat und vorübergehend.",
@@ -380,7 +380,7 @@
 				"ready": "Wähle Bildmodell, Quellbild und Prompt, um fortzufahren.",
 				"preparing": "Privater Upload wird vorbereitet…",
 				"loadingCapability": "Gastverfügbarkeit wird geprüft…",
-				"unavailable": "Die Nano-Banana-Gast-Warteschlange nimmt derzeit keine neuen Bearbeitungen an.",
+				"unavailable": "Die Gastwarteschlange nimmt derzeit keine neuen Bearbeitungen an.",
 				"uploading": "Privates Quellbild wird hochgeladen: {percentage, number}%",
 				"verifying": "Privates Quellbild wird überprüft…",
 				"handoff": "Privater Entwurf wird geöffnet…",
@@ -408,9 +408,11 @@
 				"contentRejected": "Dieses Referenzbild hat die Sicherheitsprüfung nicht bestanden. Wähle ein anderes Bild.",
 				"reviewRequired": "Dieses Referenzbild muss manuell geprüft werden. Es wurde noch keine Generierung gestartet.",
 				"safetyUnavailable": "Die Sicherheitsprüfung ist nicht verfügbar. Bild und Prompt bleiben erhalten; prüfe diese Anfrage später erneut.",
-				"reviewPending": "Dein Referenzbild wird noch geprüft. Wiederholen setzt die Prüfung desselben Uploads fort.",
+				"reviewPending": "Dein Bild wird noch vorbereitet. Versuche es erneut, um denselben Upload fortzusetzen.",
 				"referenceExpired": "Dieser Upload kann nicht mehr verwendet werden. Wähle das Bild erneut für einen neuen Upload.",
-				"reviewUnknown": "Wir konnten die Sicherheitsprüfung nicht bestätigen. Dein Upload bleibt erhalten; wiederhole die Prüfung derselben Anfrage."
+				"reviewUnknown": "Die letzte Anfrage konnte nicht bestätigt werden. Dein Upload bleibt erhalten; versuche es erneut, um fortzufahren.",
+				"previousUploadPending": "Zwei frühere Uploads sind noch unbestätigt. Warte kurz und versuche es erneut; dein ausgewähltes Foto bleibt erhalten.",
+				"browserCookie": "Die Upload-Sitzung dieses Browsers konnte nicht wiederhergestellt werden. Prüfe die Verfügbarkeit erneut und fahre mit demselben Foto fort."
 			},
 			"prompt": "Bearbeitung beschreiben",
 			"reference": "Quellbild",
@@ -442,7 +444,7 @@
 					"label": "Nano Banana 2 Lite",
 					"badge": "Gast-Test",
 					"description": "1K-Quellbildbearbeitung mit einem Ergebnis",
-					"access": "Zwei gesponserte Gastbearbeitungen pro Tag"
+					"access": "Ein gesponserter Gast-Test"
 				},
 				"quality": {
 					"label": "Weitere Bildmodelle",
@@ -451,7 +453,7 @@
 					"access": "Pro, Ultimate oder Max erforderlich"
 				}
 			},
-			"loginNotice": "Melde dich an, um Bilder aus Text zu erstellen. Die Schaltfläche zeigt vor dem Start die Credit-Kosten. Mit Referenzbild bleibt die gesponserte Nano Banana 2 Lite-Gastbearbeitung verfügbar, wenn die Gast-Warteschlange offen ist.",
+			"loginNotice": "Melde dich an, um Bilder aus Text zu erstellen. Die Schaltfläche zeigt vor dem Start die Credit-Kosten. Mit Referenzbild können berechtigte Gäste MiniMax H3 1K oder Nano Banana 2 Lite 1K einmal testen, wenn die Gastwarteschlange offen ist.",
 			"previewCaption": "Quellvorschau",
 			"previewPlaceholderAlt": "Originale EzImageAI-Vektorillustration eines neutralen Lesezimmers",
 			"previewAlt": "Vorschau von {fileName}",
@@ -469,7 +471,9 @@
 				"empty": "Wähle ein nicht leeres Quellbild.",
 				"type": "Wähle ein JPEG-, PNG- oder WebP-Bild.",
 				"size": "Wähle ein Bild mit höchstens {megabytes, number} MB.",
-				"read": "Dieses Bild konnte nicht gelesen werden. Exportiere in deiner Foto-App eine neue PNG- oder JPG-Datei oder wähle eine andere Datei."
+				"read": "Dieses Bild konnte nicht gelesen werden. Exportiere in deiner Foto-App eine neue PNG- oder JPG-Datei oder wähle eine andere Datei.",
+				"heic": "Dieser Browser kann dieses HEIC-Foto nicht öffnen. Exportiere es als JPEG oder PNG und versuche es erneut.",
+				"dimensions": "Dieses Bild hat zu viele Pixel. Verkleinere es und versuche es erneut."
 			},
 			"help": {
 				"promptGuide": "Prompt-Anleitung lesen",
@@ -726,7 +730,7 @@
 		"trust": {
 			"eyebrow": "Klare Grenzen",
 			"title": "Standardmäßig privat, transparent gemessen",
-			"description": "Wenn die Gastwarteschlange verfügbar ist, können über die Startseite täglich bis zu zwei Bearbeitungen mit Nano Banana 2 Lite in 1K gestartet werden. Bei Kontobearbeitungen zeigt die Schaltfläche die Kosten an; Sicherheit und Preis werden vor der Reservierung der EzImageAI Credits geprüft.",
+			"description": "Berechtigte Gäste können einmal ein 1K-Bild mit MiniMax H3 oder Nano Banana 2 Lite bearbeiten. Bei Kontobearbeitungen zeigt die Schaltfläche die Kosten an; Sicherheit und Preis werden vor der Reservierung der EzImageAI Credits geprüft.",
 			"items": {
 				"privacy": {
 					"title": "Private Medien",
@@ -734,7 +738,7 @@
 				},
 				"credits": {
 					"title": "Kontrollierte Nutzung",
-					"description": "Nano-Banana-Gastbearbeitungen verwenden die gesponserte Warteschlange; Kontobearbeitungen zeigen den EzImageAI-Credit-Betrag auf der Schaltfläche. Eine Preisänderung muss vor dem Start bestätigt werden."
+					"description": "Gast-Tests verwenden die gesponserte Warteschlange; Kontobearbeitungen zeigen den EzImageAI-Credit-Betrag auf der Schaltfläche. Eine Preisänderung muss vor dem Start bestätigt werden."
 				},
 				"safety": {
 					"title": "Normale Schutzmaßnahmen",
@@ -812,11 +816,11 @@
 			"items": {
 				"guestAvailability": {
 					"question": "Kann ich den KI-Bildeditor ohne Registrierung ausprobieren?",
-					"answer": "Wenn die gesponserte Gastwarteschlange verfügbar ist, können berechtigte Besucher täglich zwei Bilder mit Nano Banana 2 Lite in 1K ohne Registrierung bearbeiten. Lade ein Referenzbild hoch und beschreibe die Änderung. Jedes Ergebnis ist privat, mit Wasserzeichen versehen und bis zu 24 Stunden verfügbar. Das Kontingent wird um 00:00 UTC erneuert; ungenutzte Bearbeitungen verfallen. Text-zu-Bild erfordert eine Anmeldung."
+					"answer": "Berechtigte Gäste können einmal kostenlos ein Bild mit MiniMax H3 1K oder Nano Banana 2 Lite 1K bearbeiten, wenn die gesponserte Warteschlange verfügbar ist. Das Ergebnis ist privat, mit Wasserzeichen versehen und bis zu 24 Stunden verfügbar. Lade ein Referenzbild hoch und beschreibe die Änderung. Der einmalige Test gilt für diesen Browser und hängt von der regionalen Verfügbarkeit ab. Text-zu-Bild erfordert eine Anmeldung."
 				},
 				"guestVsFree": {
 					"question": "Kann ich EzImageAI als kostenlosen KI-Bildeditor nutzen?",
-					"answer": "Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit MiniMax H3 Image 1K, ohne monatliche Auffüllung. Premium-Bildmodelle und höhere Auflösungen erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit den enthaltenen Bildmodellen und Größen, ohne Abo. Berechtigte Gäste können täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite 1K nutzen, wenn die Warteschlange verfügbar ist. Gastergebnisse haben ein Wasserzeichen und sind bis zu 24 Stunden verfügbar. Inhalts-, Rechts-, Modell- und Nutzungslimits gelten."
+					"answer": "Berechtigte registrierte Konten erhalten einmalig 10 Credits für zwei Generierungen mit MiniMax H3 Image 1K, ohne monatliche Auffüllung. Premium-Bildmodelle und höhere Auflösungen erfordern bei Zahlung mit Credits ein aktives kostenpflichtiges Abo. Das Bildpaket für 2,99 USD enthält 3 erfolgreiche Bilder mit den enthaltenen Bildmodellen und Größen, ohne Abo. Berechtigte Gäste können einmal kostenlos ein Bild mit MiniMax H3 1K oder Nano Banana 2 Lite 1K bearbeiten, wenn die gesponserte Warteschlange verfügbar ist. Das Ergebnis ist privat, mit Wasserzeichen versehen und bis zu 24 Stunden verfügbar. Inhalts-, Rechts-, Modell- und Nutzungslimits gelten."
 				}
 			}
 		},

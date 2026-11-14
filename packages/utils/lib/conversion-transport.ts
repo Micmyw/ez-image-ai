@@ -1,5 +1,5 @@
 import { sanitizeFirstTouchAttribution } from "./acquisition-attribution";
-import { publicAnalyticsPath } from "./analytics-page";
+import { growthAnalyticsPath } from "./analytics-page";
 import { captureConversionEntry } from "./conversion-entry";
 import type { GrowthAnalyticsEvent } from "./growth-analytics";
 import {
@@ -39,7 +39,7 @@ export async function sendFirstPartyGrowthEvent(event: GrowthAnalyticsEvent): Pr
 			id: crypto.randomUUID(),
 			event,
 			firstTouch,
-			path: publicAnalyticsPath(new URL(window.location.href)),
+			path: growthAnalyticsPath(new URL(window.location.href)),
 		}),
 	});
 	if (!response.ok || (await response.json())?.accepted !== true)

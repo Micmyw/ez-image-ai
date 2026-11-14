@@ -50,7 +50,7 @@ export async function readWorkflowOutboxEvent(
 ): Promise<OutboxEvent | null> {
 	const [event] = await client.$queryRaw<OutboxEvent[]>`
 		SELECT event.* FROM "outbox_event" event WHERE event."id" = ${eventId}
-		AND ((event."aggregateType" = 'MEDIA_ASSET' AND event."eventType" IN ('MEDIA_ASSET_VERIFY', 'MEDIA_ASSET_MODERATION_REQUESTED')
+		AND ((event."aggregateType" = 'MEDIA_ASSET' AND event."eventType" IN ('MEDIA_ASSET_VERIFY', 'MEDIA_ASSET_MODERATION_REQUESTED', 'MEDIA_OUTPUT_ARCHIVE')
 		 AND (event."payload"->>'assetId' IS NULL OR event."payload"->>'assetId' = event."aggregateId"))
 		 OR (event."aggregateType" = 'GENERATION_JOB' AND event."eventType" IN ('JOB_CREATED', 'GENERATION_DISPATCH', 'GENERATION_FINALIZE', 'GENERATION_FINALIZE_RETRY', 'GENERATION_SETTLE')
 		 AND (event."payload"->>'jobId' IS NULL OR event."payload"->>'jobId' = event."aggregateId")))`;
@@ -87,7 +87,7 @@ export async function prepareWorkflowOutboxDelivery(
 		SELECT event.*, ${outboxClock(input.now)} AS "observedAt"
 		FROM "outbox_event" event
 		WHERE event."id" = ${input.eventId} AND event."status" IN ('PENDING', 'LEASED')
-		AND ((event."aggregateType" = 'MEDIA_ASSET' AND event."eventType" IN ('MEDIA_ASSET_VERIFY', 'MEDIA_ASSET_MODERATION_REQUESTED')
+		AND ((event."aggregateType" = 'MEDIA_ASSET' AND event."eventType" IN ('MEDIA_ASSET_VERIFY', 'MEDIA_ASSET_MODERATION_REQUESTED', 'MEDIA_OUTPUT_ARCHIVE')
 		 AND (event."payload"->>'assetId' IS NULL OR event."payload"->>'assetId' = event."aggregateId"))
 		 OR (event."aggregateType" = 'GENERATION_JOB' AND event."eventType" IN ('JOB_CREATED', 'GENERATION_DISPATCH', 'GENERATION_FINALIZE', 'GENERATION_FINALIZE_RETRY', 'GENERATION_SETTLE')
 		 AND (event."payload"->>'jobId' IS NULL OR event."payload"->>'jobId' = event."aggregateId")))`;
@@ -136,7 +136,7 @@ export async function beginWorkflowOutboxExecution(
 	const engineProjection =
 		input.observeExecutionEngine === true
 			? Prisma.sql`, CASE
-			WHEN event."aggregateType" = 'MEDIA_ASSET' AND event."eventType" IN ('MEDIA_ASSET_VERIFY', 'MEDIA_ASSET_MODERATION_REQUESTED')
+			WHEN event."aggregateType" = 'MEDIA_ASSET' AND event."eventType" IN ('MEDIA_ASSET_VERIFY', 'MEDIA_ASSET_MODERATION_REQUESTED', 'MEDIA_OUTPUT_ARCHIVE')
 				THEN (SELECT asset."verificationEngine" FROM "media_asset" asset WHERE asset."id" = event."aggregateId")
 			WHEN event."aggregateType" = 'GENERATION_JOB' AND event."eventType" IN ('JOB_CREATED', 'GENERATION_DISPATCH')
 				THEN (SELECT job."executionEngine" FROM "generation_job" job WHERE job."id" = event."aggregateId")
@@ -262,7 +262,7 @@ export async function claimOutboxBatch(
 	const target =
 		input.eventIds !== undefined
 			? Prisma.sql`AND "id" IN (${Prisma.join(input.eventIds)})
-		AND (("aggregateType" = 'MEDIA_ASSET' AND "eventType" IN ('MEDIA_ASSET_VERIFY', 'MEDIA_ASSET_MODERATION_REQUESTED')
+		AND (("aggregateType" = 'MEDIA_ASSET' AND "eventType" IN ('MEDIA_ASSET_VERIFY', 'MEDIA_ASSET_MODERATION_REQUESTED', 'MEDIA_OUTPUT_ARCHIVE')
 		 AND ("payload"->>'assetId' IS NULL OR "payload"->>'assetId' = "aggregateId"))
 		 OR ("aggregateType" = 'GENERATION_JOB' AND "eventType" IN ('JOB_CREATED', 'GENERATION_DISPATCH', 'GENERATION_FINALIZE', 'GENERATION_FINALIZE_RETRY', 'GENERATION_SETTLE')
 		 AND ("payload"->>'jobId' IS NULL OR "payload"->>'jobId' = "aggregateId")))`

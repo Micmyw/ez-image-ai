@@ -57,6 +57,73 @@ describe("selected-image tool recovery", () => {
 			deletedAt: null,
 		});
 		mocks.cookies.mockResolvedValue({ get: () => undefined });
+		mocks.job.mockResolvedValue(null);
+	});
+	it("continues a text result with its original model, size and controls from the owned output job", async () => {
+		mocks.job.mockResolvedValue({
+			productKey: "image-gpt-image-2-6-sunburst",
+			inputSnapshot: {
+				kind: "text-to-image",
+				prompt: "Original prompt",
+				skuKey: "gpt-image-2-6-sunburst-4k",
+				aspectRatio: "16:9",
+				outputFormat: "jpeg",
+			},
+		});
+		renderToStaticMarkup(
+			await RegisteredEditor({
+				searchParams: Promise.resolve({
+					asset: "output",
+					reuseJob: "text-job",
+					model: "image-minimax-h3",
+				}),
+			}),
+		);
+		expect(mocks.job).toHaveBeenCalledWith({
+			where: {
+				id: "text-job",
+				ownerType: "USER",
+				ownerId: "owner",
+				status: "SUCCEEDED",
+				assets: { some: { role: "OUTPUT", assetId: "output" } },
+			},
+			select: { productKey: true, inputSnapshot: true },
+		});
+		expect(mocks.workspace).toHaveBeenCalledWith(
+			expect.objectContaining({
+				parentJobId: null,
+				restoreState: "ready",
+				restoreNotice: "quality-upgrade-required",
+				initialDraft: {
+					productKey: "image-gpt-image-2-6-sunburst",
+					input: {
+						kind: "image-to-image",
+						prompt: "",
+						sourceAssetId: "output",
+						skuKey: "gpt-image-2-6-sunburst-4k",
+						aspectRatio: "16:9",
+						outputFormat: "jpeg",
+					},
+				},
+			}),
+		);
+	});
+	it.each([
+		null,
+		{
+			productKey: "image-gpt-image-2",
+			inputSnapshot: { kind: "image-to-image", skuKey: "gpt-image-2-4k", aspectRatio: "16:9" },
+		},
+	])("does not fall back to a different model for an invalid output origin", async (job) => {
+		mocks.job.mockResolvedValue(job);
+		renderToStaticMarkup(
+			await RegisteredEditor({
+				searchParams: Promise.resolve({ asset: "output", reuseJob: "unavailable-job" }),
+			}),
+		);
+		expect(mocks.workspace).toHaveBeenCalledWith(
+			expect.objectContaining({ restoreState: "error", initialDraft: null }),
+		);
 	});
 	it("offers H3 1K and existing Lite access to an owner without a subscription", async () => {
 		renderToStaticMarkup(await RegisteredEditor({ searchParams: Promise.resolve({}) }));

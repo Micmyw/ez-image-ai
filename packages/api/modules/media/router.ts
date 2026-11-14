@@ -1,5 +1,11 @@
 import { abortUploadSession } from "./procedures/abort-upload-session";
 import { listMediaAuditLog } from "./procedures/admin-audit-log";
+import { adminImageContentDetail, adminImageContentList } from "./procedures/admin-content";
+import {
+	adminContentCleanupPreview,
+	adminContentCleanupExecute,
+	adminContentCleanupRecent,
+} from "./procedures/admin-content-cleanup";
 import {
 	adminGrowthOperations,
 	adminMediaDiagnostics,
@@ -16,6 +22,10 @@ import {
 	rollbackMediaRuntimeOverride,
 	setMediaRuntimeOverride,
 } from "./procedures/admin-operations";
+import {
+	adminPromptContentDetail,
+	adminPromptContentList,
+} from "./procedures/admin-prompt-content";
 import { beginGuestLinkIntent } from "./procedures/begin-guest-link-intent";
 import { cancelGeneration } from "./procedures/cancel-generation";
 import { claimGenerationDraft } from "./procedures/claim-generation-draft";
@@ -34,6 +44,7 @@ import { getAccountInputCopyStatus } from "./procedures/get-account-input-copy-s
 import { getAssetAccessUrl } from "./procedures/get-asset-access-url";
 import { getCreditAccount } from "./procedures/get-credit-account";
 import { getEditSession } from "./procedures/get-edit-session";
+import { getGenerationDuration } from "./procedures/get-generation-duration";
 import { getGuestAssetAccessUrl } from "./procedures/get-guest-asset-access-url";
 import { getGuestCapability } from "./procedures/get-guest-capability";
 import { getGuestEligibility } from "./procedures/get-guest-eligibility";
@@ -45,6 +56,7 @@ import { getTemporaryReferenceStatus } from "./procedures/get-temporary-referenc
 import { listAssets } from "./procedures/list-assets";
 import { listEditSessions } from "./procedures/list-edit-sessions";
 import { listJobs } from "./procedures/list-jobs";
+import { prepareGuestDraftUpload } from "./procedures/prepare-guest-upload";
 import { renameEditSession } from "./procedures/rename-edit-session";
 import { resolveKieZeroCostRejection } from "./procedures/resolve-kie-zero-cost-rejection";
 import { retryGeneration } from "./procedures/retry-generation";
@@ -55,6 +67,13 @@ import { submitGuestGeneration } from "./procedures/submit-guest-generation";
 export { guestMediaProcedure } from "./guest-procedure";
 
 export const mediaRouter = {
+	adminImageContentList,
+	adminImageContentDetail,
+	adminPromptContentList,
+	adminPromptContentDetail,
+	adminContentCleanupPreview,
+	adminContentCleanupExecute,
+	adminContentCleanupRecent,
 	adminModerationOperations,
 	adminModerationDetail,
 	adminModerationProviderResult,
@@ -71,6 +90,7 @@ export const mediaRouter = {
 	getGuestEligibility,
 	createGuestDraftUploadIntent,
 	completeGuestDraftUpload,
+	prepareGuestDraftUpload,
 	claimGuestDraft,
 	submitGuestGeneration,
 	getGuestJob,
@@ -83,6 +103,7 @@ export const mediaRouter = {
 	cancelGeneration,
 	retryGeneration,
 	getJob,
+	getGenerationDuration,
 	getImagePassBalance,
 	getEditSession,
 	listJobs,

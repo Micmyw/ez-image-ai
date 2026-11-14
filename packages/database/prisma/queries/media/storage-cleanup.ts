@@ -1,5 +1,6 @@
 import { isImageAutomaticDeletionPaused } from "@repo/config";
 
+import { hasExactAdminDeletionAuthorization } from "./admin-content-cleanup";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { queueGuestAssetCleanup } from "./guest-asset-cleanup";
 import { isSourceTemplateMaterialObjectKey } from "./source-template-material-retention";
@@ -147,7 +148,7 @@ async function imageCleanupPaused(
 			},
 			select: { id: true },
 		});
-		return !explicitDeletion;
+		return !explicitDeletion && !(await hasExactAdminDeletionAuthorization(asset, tx));
 	}
 	return false;
 }

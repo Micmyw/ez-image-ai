@@ -16,6 +16,7 @@ export type GuestMediaDisabledReason =
 	| "GUEST_PRODUCTION_TRUSTED_PROXY_REQUIRED";
 
 export interface GuestAdmissionLimits {
+	/** Retired compatibility fields; durable lifetime receipts own trial eligibility. */
 	maximumAcceptedTrialsPerSessionPerDay: number;
 	maximumAcceptedTrialsPerDevicePerDay: number;
 	maximumGlobalRequestsPerMinute: number;
@@ -41,8 +42,8 @@ export interface GuestMediaConfig {
 	enabled: boolean;
 	reason: GuestMediaDisabledReason | null;
 	promotionPeriod: string | null;
-	productKey: "image-nano-banana-2-lite";
-	skuKey: "nano-banana-2-lite-1k";
+	productKey: "image-minimax-h3";
+	skuKey: "minimax-h3-1k";
 	sponsorCredits: bigint;
 	maximumBytes: number;
 	mimeTypes: typeof GUEST_MEDIA_MIME_TYPES;
@@ -75,8 +76,8 @@ export interface GuestMediaConfig {
 }
 
 const FIXED_GUEST_MEDIA_CONFIG = {
-	productKey: "image-nano-banana-2-lite",
-	skuKey: "nano-banana-2-lite-1k",
+	productKey: "image-minimax-h3",
+	skuKey: "minimax-h3-1k",
 	sponsorCredits: GUEST_MEDIA_SPONSOR_CREDITS,
 	maximumBytes: 10 * 1024 * 1024,
 	mimeTypes: GUEST_MEDIA_MIME_TYPES,
@@ -86,8 +87,8 @@ const FIXED_GUEST_MEDIA_CONFIG = {
 	linkIntentTtlMs: 15 * 60 * 1_000,
 	resultGrantTtlMs: 15 * 60 * 1_000,
 	limits: Object.freeze({
-		maximumAcceptedTrialsPerSessionPerDay: 2,
-		maximumAcceptedTrialsPerDevicePerDay: 2,
+		maximumAcceptedTrialsPerSessionPerDay: 1,
+		maximumAcceptedTrialsPerDevicePerDay: 1,
 		maximumGlobalRequestsPerMinute: 3,
 		maximumGlobalRequestsPerHour: 30,
 		maximumOutstandingBootstraps: 25,
@@ -264,12 +265,8 @@ function readProductionGuestEnvelope(environment: Record<string, unknown>): {
 } | null {
 	const abuseEvidenceTtlDays = positiveInteger(environment.GUEST_ABUSE_EVIDENCE_TTL_DAYS);
 	const configured = {
-		maximumAcceptedTrialsPerSessionPerDay: positiveInteger(
-			environment.GUEST_SESSION_MAX_ACCEPTED_PER_DAY,
-		),
-		maximumAcceptedTrialsPerDevicePerDay: positiveInteger(
-			environment.GUEST_DEVICE_MAX_ACCEPTED_PER_DAY,
-		),
+		maximumAcceptedTrialsPerSessionPerDay: 1,
+		maximumAcceptedTrialsPerDevicePerDay: 1,
 		maximumGlobalRequestsPerMinute: positiveInteger(environment.GUEST_GLOBAL_MAX_PER_MINUTE),
 		maximumGlobalRequestsPerHour: positiveInteger(environment.GUEST_GLOBAL_MAX_PER_HOUR),
 		maximumOutstandingBootstraps: positiveInteger(environment.GUEST_BOOTSTRAP_MAX_OUTSTANDING),

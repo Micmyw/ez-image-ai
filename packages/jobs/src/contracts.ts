@@ -70,8 +70,24 @@ export interface AccountInputCopyDependencies {
 			mimeType: string;
 			storageEtag?: string;
 			storageVersionId?: string;
+			readbackProof?: {
+				schemaVersion: 1;
+				method: "immutable-target-full-sha256-v1";
+				transform: "none";
+				promotionId: string;
+				leaseToken: string;
+				sourceAssetId: string;
+				sourceObjectKey: string;
+				targetAssetId: string;
+				targetObjectKey: string;
+				checksum: string;
+				bytes: number;
+				mimeType: "image/jpeg" | "image/png" | "image/webp";
+				storageEtag: string | null;
+				storageVersionId: string | null;
+			};
 		},
-	): Promise<void>;
+	): Promise<void | { status: "READY" | "VERIFYING" }>;
 	fail(
 		input: AccountInputCopyPayload & {
 			leaseToken: string;
@@ -221,6 +237,8 @@ export interface UncertainSubmissionEvidence extends SubmissionUncertainty {
 	resultUrl?: string;
 	submissionToken?: string;
 	providerIdempotencySupported?: boolean;
+	/** Bounded selected failure text; not proof of provider acceptance or rejection. */
+	failure?: ProviderFailure;
 }
 
 export interface DispatchDependencies {

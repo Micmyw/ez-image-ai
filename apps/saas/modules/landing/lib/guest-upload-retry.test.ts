@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from "vitest";
 
 import {
 	uploadGuestDraft,
+	prepareGuestDraftUpload,
+	createGuestDraftUploadIntent,
 	completeGuestDraftUpload,
 	type GuestDraftUploadCheckpoint,
 } from "./guest-draft-client";
@@ -41,9 +43,11 @@ function fixture(
 					completionToken: "b".repeat(43),
 					expiresAt: "2035-10-19T12:00:00.000Z",
 				})
-			: ++completionCalls === 1
-				? firstCompletion()
-				: Response.json(ready),
+			: requestUrl(url).endsWith("upload-preparations")
+				? Response.json({ status: "SEALED" })
+				: ++completionCalls === 1
+					? firstCompletion()
+					: Response.json(ready),
 	);
 	const uploadFile = vi.fn().mockResolvedValue(undefined);
 	return {
@@ -63,6 +67,24 @@ function fixture(
 	};
 }
 describe("guest upload retry keeps the immutable upload intent", () => {
+	it.each(["GUEST_UPLOAD_PREVIOUS_PENDING", "GUEST_BROWSER_COOKIE_REQUIRED"])(
+		"preserves the actionable server boundary %s",
+		async (code) => {
+			await expect(
+				createGuestDraftUploadIntent(
+					{
+						capabilityVersion: input.capabilityVersion,
+						productKey: input.productKey,
+						contentType: "image/png",
+						bytes: file.size,
+						sha256: "a".repeat(64),
+						turnstileToken: "challenge",
+					},
+					vi.fn(async () => Response.json({ message: code }, { status: 409 })),
+				),
+			).rejects.toThrow(code);
+		},
+	);
 	it("keeps an unconfirmed consumed-completion response unknown without allocating another intent", async () => {
 		const f = fixture(() => new Response("unconfirmed", { status: 503 }));
 		await expect(
@@ -114,7 +136,7 @@ describe("guest upload retry keeps the immutable upload intent", () => {
 			f.options,
 		);
 		expect(f.uploadFile).toHaveBeenCalledTimes(1);
-		expect(f.fetcher).toHaveBeenCalledTimes(3);
+		expect(f.fetcher).toHaveBeenCalledTimes(4);
 	});
 	it("retries an uncertain PUT against its original staging URL and identical file", async () => {
 		const f = fixture(() => Response.json(ready));
@@ -139,7 +161,7 @@ describe("guest upload retry keeps the immutable upload intent", () => {
 		{ file: new File(["different bytes"], file.name, { type: file.type }) },
 		{ capabilityVersion: "cap-v2" },
 	])("refuses changed immutable input on a retained checkpoint %s", async (patch) => {
-		const f = fixture();
+		const f = fixture(() => new Response("unknown completion", { status: 503 }));
 		await expect(
 			uploadGuestDraft({ ...input, onCheckpoint: f.onCheckpoint }, f.options),
 		).rejects.toThrow();
@@ -149,6 +171,26 @@ describe("guest upload retry keeps the immutable upload intent", () => {
 		).rejects.toThrow("GUEST_UPLOAD_RETRY_INPUT_CHANGED");
 		expect(f.fetcher).toHaveBeenCalledTimes(calls);
 		expect(f.uploadFile).toHaveBeenCalledTimes(1);
+	});
+	it("allows edited instructions after confirmed PENDING without uploading the file again", async () => {
+		const f = fixture();
+		await expect(
+			uploadGuestDraft({ ...input, onCheckpoint: f.onCheckpoint }, f.options),
+		).rejects.toThrow("GUEST_UPLOAD_COMPLETION_TIMEOUT");
+		expect(f.checkpoint?.requestFingerprint).toBeUndefined();
+		await uploadGuestDraft(
+			{
+				...input,
+				prompt: "A revised instruction",
+				checkpoint: f.checkpoint,
+				onCheckpoint: f.onCheckpoint,
+			},
+			f.options,
+		);
+		expect(f.uploadFile).toHaveBeenCalledOnce();
+		expect(
+			f.fetcher.mock.calls.filter(([url]) => requestUrl(url).endsWith("upload-intents")),
+		).toHaveLength(1);
 	});
 	it("refuses an expired session without silently creating a new upload", async () => {
 		const f = fixture();
@@ -170,8 +212,66 @@ describe("guest upload retry keeps the immutable upload intent", () => {
 		expect(await uploadGuestDraft({ ...input, checkpoint: f.checkpoint }, f.options)).toEqual(
 			first,
 		);
-		expect(f.fetcher).toHaveBeenCalledTimes(2);
+		expect(f.fetcher).toHaveBeenCalledTimes(3);
 		expect(f.uploadFile).toHaveBeenCalledTimes(1);
+	});
+	it("starts with an empty prompt, then reuses the same file for a different model and prompt", async () => {
+		const f = fixture(() => Response.json(ready));
+		await prepareGuestDraftUpload({ ...input, onCheckpoint: f.onCheckpoint }, f.options);
+		expect(f.checkpoint?.sealed).toBe(true);
+		expect(f.checkpoint?.requestFingerprint).toBeUndefined();
+		await uploadGuestDraft(
+			{
+				...input,
+				prompt: "A new instruction",
+				checkpoint: f.checkpoint,
+				onCheckpoint: f.onCheckpoint,
+			},
+			f.options,
+		);
+		expect(f.uploadFile).toHaveBeenCalledOnce();
+		expect(
+			f.fetcher.mock.calls.filter(([url]) => requestUrl(url).endsWith("upload-intents")),
+		).toHaveLength(1);
+	});
+	it("keeps one request ID after an unknown intent response", async () => {
+		const f = fixture(() => Response.json(ready));
+		f.fetcher.mockRejectedValueOnce(new Error("unknown intent"));
+		await expect(
+			prepareGuestDraftUpload({ ...input, onCheckpoint: f.onCheckpoint }, f.options),
+		).rejects.toThrow("unknown intent");
+		const requestId = f.checkpoint?.requestId;
+		expect(requestId).toBeTruthy();
+		expect(f.checkpoint?.intent).toBeUndefined();
+		await prepareGuestDraftUpload(
+			{ ...input, checkpoint: f.checkpoint, onCheckpoint: f.onCheckpoint },
+			f.options,
+		);
+		expect(f.checkpoint?.requestId).toBe(requestId);
+		expect(f.uploadFile).toHaveBeenCalledOnce();
+	});
+	it("retries unknown sealing on the original intent without another PUT", async () => {
+		const f = fixture(() => Response.json(ready));
+		const original = f.fetcher.getMockImplementation()!;
+		let rejected = false;
+		f.fetcher.mockImplementation(async (url) => {
+			if (requestUrl(url).endsWith("upload-preparations") && !rejected) {
+				rejected = true;
+				return new Response("unknown", { status: 503 });
+			}
+			return original(url);
+		});
+		await expect(
+			prepareGuestDraftUpload({ ...input, onCheckpoint: f.onCheckpoint }, f.options),
+		).rejects.toThrow("GUEST_UPLOAD_PREPARATION_FAILED");
+		expect(f.checkpoint?.uploaded).toBe(true);
+		expect(f.checkpoint?.sealed).toBe(false);
+		await prepareGuestDraftUpload(
+			{ ...input, checkpoint: f.checkpoint, onCheckpoint: f.onCheckpoint },
+			f.options,
+		);
+		expect(f.uploadFile).toHaveBeenCalledOnce();
+		expect(f.checkpoint?.sealed).toBe(true);
 	});
 	it.each([
 		"GUEST_UPLOAD_CONTENT_REJECTED",

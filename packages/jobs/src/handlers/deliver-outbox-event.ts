@@ -21,6 +21,10 @@ export async function deliverOutboxEvent(
 ): Promise<void> {
 	const payload = objectValue(event.payload);
 	switch (event.eventType) {
+		case "MEDIA_OUTPUT_ARCHIVE":
+			return dependencies.trigger("media-archive-output", {
+				assetId: requiredString(payload.assetId, event.aggregateId),
+			});
 		case "MEDIA_JOB_UPDATED":
 			if (payload.eventId !== event.id || payload.jobId !== event.aggregateId)
 				throw new Error("MEDIA_JOB_NOTIFICATION_IDENTITY_MISMATCH");

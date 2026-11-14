@@ -1,3 +1,4 @@
+import { generationJourneyReportSchema } from "@repo/config/generation-journey";
 import {
 	HOMEPAGE_BIRTHDAY_VARIANTS,
 	HOMEPAGE_IDEA_KEYS,
@@ -22,6 +23,7 @@ const steps = z.object({
 	paid: count,
 });
 export const conversionOutputSchema = z.object({
+	generationJourney: generationJourneyReportSchema.optional(),
 	since: z.string(),
 	asOf: z.string(),
 	homepageIdeas: z

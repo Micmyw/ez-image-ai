@@ -17,3 +17,14 @@ export * from "../../shared/admin-payment-facts";
 export * from "../../shared/admin-analytics-payment-evidence";
 
 export * from "./aggregate-traffic";
+export * from "./guest-entitlement";
+export {
+	executeAdminContentCleanup,
+	previewAdminContentCleanup,
+	listRecentAdminContentCleanupPlans,
+} from "../../prisma/queries/media/admin-content-cleanup";
+export {
+	getAdminPromptContent,
+	listAdminPromptContent,
+} from "../../prisma/queries/media/admin-prompt-content";
+export * from "../../prisma/queries/media/provider-original";

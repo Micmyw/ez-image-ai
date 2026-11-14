@@ -1,3 +1,4 @@
+import { runWithCloudflareFreeEligibility } from "@repo/utils/free-eligibility";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const database = vi.hoisted(() => ({
@@ -13,11 +14,24 @@ vi.mock("@repo/database/client", () => databaseClient);
 vi.mock("@repo/logs", () => ({ logger: logs }));
 
 import {
-	ensureFreePlanCreditsForGeneration,
-	ensureFreePlanCreditsForUser,
+	ensureFreePlanCreditsForGeneration as generationActual,
+	ensureFreePlanCreditsForUser as userActual,
 } from "./free-plan-credits";
 
+const ensureFreePlanCreditsForGeneration = (...args: Parameters<typeof generationActual>) =>
+	runWithCloudflareFreeEligibility("US", () => generationActual(...args));
+const ensureFreePlanCreditsForUser = (...args: Parameters<typeof userActual>) =>
+	runWithCloudflareFreeEligibility("US", () => userActual(...args));
 describe("one lifetime Free sign-in allowance", () => {
+	it.each(["IN", undefined])(
+		"skips both lazy grants for %s without blocking the funded request",
+		async (country) => {
+			await runWithCloudflareFreeEligibility(country, () =>
+				Promise.all([userActual("existing-paid-user"), generationActual("existing-paid-user")]),
+			);
+			expect(database.ensureOneTimeLoginCreditGrant).not.toHaveBeenCalled();
+		},
+	);
 	beforeEach(() => {
 		vi.clearAllMocks();
 		database.ensureOneTimeLoginCreditGrant.mockResolvedValue({ status: "GRANTED" });

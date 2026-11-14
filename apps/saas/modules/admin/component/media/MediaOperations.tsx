@@ -19,7 +19,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
+import { AdminPromptContentPanel } from "./AdminPromptContentPanel";
 import { CheckoutReviewPanel } from "./CheckoutReviewPanel";
+import { CustomerImageContentPanel } from "./CustomerImageContentPanel";
 import { DiagnosticsStatus } from "./DiagnosticsStatus";
 import { GrowthOperationsPanel } from "./GrowthOperationsPanel";
 import { KieRejectionRecoveryPanel } from "./KieRejectionRecoveryPanel";
@@ -149,6 +151,8 @@ export function MediaOperations() {
 
 	return (
 		<div className="space-y-6">
+			<CustomerImageContentPanel />
+			<AdminPromptContentPanel />
 			<PaymentAttributionPanel />
 			<CheckoutReviewPanel />
 			<ModerationOperationsPanel />

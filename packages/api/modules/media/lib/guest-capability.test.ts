@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const databaseMocks = vi.hoisted(() => ({
 	createUpload: vi.fn(),
+	getUploadReplay: vi.fn(),
 	finalizeDraft: vi.fn(),
 	findRuntimeOverrides: vi.fn(),
 	loadCompletion: vi.fn(),
@@ -16,11 +17,18 @@ const storageMocks = vi.hoisted(() => ({
 	headObject: vi.fn(),
 }));
 const uploadMocks = vi.hoisted(() => ({ completeOwnedUploadSession: vi.fn() }));
+const browserMock = vi.hoisted(() => ({ readGuestBrowserSubject: vi.fn(() => "b".repeat(64)) }));
+vi.mock("./guest-browser", async (importOriginal) => ({
+	...(await importOriginal<typeof import("./guest-browser")>()),
+	...browserMock,
+}));
 const turnstileMocks = vi.hoisted(() => ({ verifyGuestTurnstileToken: vi.fn() }));
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
 	createGuestMediaUploadIntentTransaction: databaseMocks.createUpload,
+	getGuestUploadIntentReplay: databaseMocks.getUploadReplay,
+	recordGrowthEvent: vi.fn(),
 	finalizeGuestDraftFromReadyUploadTransaction: databaseMocks.finalizeDraft,
 	loadGuestUploadCompletion: databaseMocks.loadCompletion,
 	resolveGuestRuntimeConfigOverride: databaseMocks.resolveOverride,
@@ -57,7 +65,7 @@ const enabledEnvironment = {
 	KIE_API_KEY: "test-kie-key",
 	GUEST_MEDIA_ENABLED: "true",
 	GUEST_PROMOTION_PERIOD: "2026-launch",
-	BETTER_AUTH_SECRET: "test-secret",
+	BETTER_AUTH_SECRET: "test-browser-signing-secret-at-least-32-chars",
 	GUEST_ABUSE_HMAC_SECRET: "independent-guest-abuse-secret-at-least-32-bytes",
 	GUEST_ABUSE_HMAC_VERSION: "launch-key-v1",
 	MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
@@ -223,6 +231,8 @@ function expectNoPrivateCapabilityData(
 describe("guest capability snapshot", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		browserMock.readGuestBrowserSubject.mockReturnValue("b".repeat(64));
+		databaseMocks.getUploadReplay.mockResolvedValue(null);
 		databaseMocks.resolveOverride.mockResolvedValue(capabilityOverride);
 		databaseMocks.findRuntimeOverrides.mockResolvedValue([]);
 	});
@@ -431,6 +441,8 @@ describe("guest private upload handoff", () => {
 
 	beforeEach(async () => {
 		vi.clearAllMocks();
+		browserMock.readGuestBrowserSubject.mockReturnValue("b".repeat(64));
+		databaseMocks.getUploadReplay.mockResolvedValue(null);
 		vi.stubEnv("NODE_ENV", "development");
 		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://saas.test");
 		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
@@ -439,7 +451,7 @@ describe("guest private upload handoff", () => {
 		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
 		vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-14.1");
 		vi.stubEnv("KIE_API_KEY", "test-kie-key");
-		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
+		vi.stubEnv("BETTER_AUTH_SECRET", "test-browser-signing-secret-at-least-32-chars");
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", enabledEnvironment.GUEST_ABUSE_HMAC_SECRET);
 		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", enabledEnvironment.GUEST_ABUSE_HMAC_VERSION);
 		vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
@@ -622,6 +634,7 @@ describe("guest private upload handoff", () => {
 		await expect(
 			call(createGuestDraftUploadIntent, uploadIntentInput(), {
 				context: {
+					responseHeaders: new Headers(),
 					headers: new Headers({
 						origin: "https://saas.test",
 						"cf-connecting-ip": "203.0.113.9",
@@ -630,6 +643,46 @@ describe("guest private upload handoff", () => {
 			}),
 		).rejects.toBe(failure);
 		expect(storageMocks.createSignedUpload).not.toHaveBeenCalled();
+	});
+
+	it("requires the already received browser handshake before any upload mutation", async () => {
+		browserMock.readGuestBrowserSubject.mockReturnValueOnce(null as never);
+		await expect(
+			call(createGuestDraftUploadIntent, uploadIntentInput(), {
+				context: {
+					headers: new Headers({ origin: "https://saas.test", "cf-connecting-ip": "203.0.113.9" }),
+					responseHeaders: new Headers(),
+				},
+			}),
+		).rejects.toMatchObject({ message: "GUEST_BROWSER_COOKIE_REQUIRED" });
+		expect(databaseMocks.getUploadReplay).not.toHaveBeenCalled();
+		expect(databaseMocks.createUpload).not.toHaveBeenCalled();
+		expect(turnstileMocks.verifyGuestTurnstileToken).not.toHaveBeenCalled();
+	});
+
+	it("recovers an unknown intent response with the same identity before consuming another challenge", async () => {
+		const input = { ...uploadIntentInput(), requestId: "8817a6e7-c2b9-4b57-92c1-8af04684a419" };
+		const context = {
+			headers: new Headers({ origin: "https://saas.test", "cf-connecting-ip": "203.0.113.9" }),
+			responseHeaders: new Headers(),
+		};
+		databaseMocks.createUpload.mockImplementationOnce(async (value) => {
+			databaseMocks.getUploadReplay.mockResolvedValue({
+				sessionId: value.sessionId,
+				assetId: value.assetId,
+				stagingObjectKey: value.stagingObjectKey,
+				expiresAt: value.expiresAt,
+			});
+			throw new Error("RESPONSE_LOST_AFTER_COMMIT");
+		});
+		await expect(call(createGuestDraftUploadIntent, input, { context })).rejects.toThrow(
+			"RESPONSE_LOST_AFTER_COMMIT",
+		);
+		const recovered = await call(createGuestDraftUploadIntent, input, { context });
+		expect(recovered.sessionId).toBe(databaseMocks.createUpload.mock.calls[0]![0].sessionId);
+		expect(recovered.assetId).toBe(databaseMocks.createUpload.mock.calls[0]![0].assetId);
+		expect(databaseMocks.createUpload).toHaveBeenCalledOnce();
+		expect(turnstileMocks.verifyGuestTurnstileToken).toHaveBeenCalledOnce();
 	});
 
 	function uploadIntentInput() {

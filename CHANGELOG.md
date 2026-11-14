@@ -6,6 +6,11 @@
 - Feature the citrus-pool scene on the homepage and reopen homepage previews on each entry or refresh.
 - Remove redundant public source explanations and record the copy rule in project instructions.
 
+## Unreleased — Administrator customer image inspection
+
+- Add an administrator image browser for uploaded originals and generated images, including content blocks without recovery-review records.
+- Show bound input/output images, saved prompts, review provider, recorded reason and available SeeAPI classifier labels in audited private previews.
+
 ## Unreleased — Generation cost access
 
 - Remove the site-wide daily provider-cost ceiling from image generation, retries and guest dispatch. Valid requests retain normal credit or image-pass billing and individual account cost limits.

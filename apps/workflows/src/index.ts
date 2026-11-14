@@ -122,7 +122,8 @@ function containerInvoker(env: Cloudflare.Env) {
 				: getContainer(env.JOBS_RUNTIME, "jobs-primary");
 		},
 		(request) =>
-			request.taskId === "media-finalize-generation" && env.JOBS_TRANSFER
+			["media-finalize-generation", "media-archive-output"].includes(request.taskId) &&
+			env.JOBS_TRANSFER
 				? getContainer(env.JOBS_RUNTIME, "jobs-primary")
 				: undefined,
 	);

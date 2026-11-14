@@ -48,9 +48,15 @@ vi.mock("@repo/ui/components/textarea", () => ({ Textarea: vi.fn(() => null) }))
 vi.mock("../../hooks/use-guest-trial", () => ({
 	useGuestTrial: () => ({
 		view: { state: "preparingSession" },
-		draft: { sourceAssetId: "source-1", prompt: "Keep the subject" },
+		draft: {
+			sourceAssetId: "source-1",
+			prompt: "Keep the subject",
+			productKey: "image-nano-banana-2-lite",
+			skuKey: "nano-banana-2-lite-1k",
+		},
 		prompt: "Keep the subject",
 		setPrompt: vi.fn(),
+		setModel: vi.fn(),
 		canSubmit: true,
 		isSubmitting: false,
 		resultUrl: null,

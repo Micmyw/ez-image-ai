@@ -7,6 +7,11 @@ import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { Progress } from "@repo/ui/components/progress";
 import { trackBrowserGrowthEvent } from "@repo/utils/lib/growth-analytics-browser";
+import {
+	createJourneyReference,
+	trackGenerationJourney,
+	trackJourneyResultVisible,
+} from "@shared/lib/generation-journey";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useTranslations } from "next-intl";
@@ -23,6 +28,7 @@ import { isPublicImageSkuKey } from "../../lib/image-sku-selection";
 import { getJobPresentation, hasUnsettledJobCredits } from "../../lib/job-status";
 import { recordOutputLoaded } from "../../lib/preview-timing";
 import { useToolPrompt } from "../../lib/tool-prompt-context";
+import { GenerationDurationEstimate } from "../GenerationDurationEstimate";
 import { GenerationFailureNotice } from "../GenerationFailureNotice";
 import { ImagePrintButton } from "../ImagePrintButton";
 import { ModerationNotice } from "../ModerationNotice";
@@ -49,9 +55,21 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 		)
 			return;
 		let visible = false;
+		let recorded = false;
 		const record = () => {
-			if (!visible || document.visibilityState !== "visible") return;
+			if (
+				recorded ||
+				!visible ||
+				document.visibilityState !== "visible" ||
+				!loadedOutput.image.isConnected ||
+				!loadedOutput.image.naturalWidth ||
+				typeof loadedOutput.image.checkVisibility !== "function" ||
+				!loadedOutput.image.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true })
+			)
+				return;
+			recorded = true;
 			setSeenJob(loadedOutput.jobId);
+			void trackJourneyResultVisible(loadedOutput.jobId);
 			void trackBrowserGrowthEvent(
 				{ name: "result_viewed" },
 				{ dedupeKey: `result-viewed:${loadedOutput.jobId}` },
@@ -149,6 +167,12 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 					? t("generatedReady")
 					: t(`headings.${presentation.stage}`)}
 			</h2>
+			<GenerationDurationEstimate
+				productKey={productKey}
+				skuKey={job.data.skuKey}
+				active={!presentation.terminal && presentation.stage !== "ready"}
+				className="mt-3"
+			/>
 			{presentation.progress !== null && (
 				<div className="mt-6">
 					<Progress
@@ -212,6 +236,39 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 				</Alert>
 			)}
 			<div className="mt-6 gap-2 flex flex-wrap">
+				{["SUCCEEDED", "FINALIZING"].includes(job.data.status) &&
+					output &&
+					reusableRasterOutput && (
+						<Button
+							variant="primary"
+							data-test="continue-image-edit"
+							render={(props) => (
+								<a
+									{...props}
+									onClick={() => {
+										void saasGrowthFunnel.editAgainStarted(jobId, productKey);
+										void trackGenerationJourney(
+											{
+												stage: "refine_started",
+												actionRef: createJourneyReference(),
+												publicModel: productKey,
+											},
+											{ jobKey: jobId },
+										);
+									}}
+									href={
+										job.data?.input?.kind === "text-to-image"
+											? `/create?asset=${encodeURIComponent(output.id)}&reuseJob=${encodeURIComponent(jobId)}`
+											: `/create?asset=${encodeURIComponent(output.id)}&parentJob=${encodeURIComponent(jobId)}`
+									}
+								>
+									{props.children}
+								</a>
+							)}
+						>
+							{t("editAgain")}
+						</Button>
+					)}
 				{job.data.canRetry && (
 					<RetryGenerationButton
 						key={jobId}
@@ -268,26 +325,6 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 							).url
 						}
 					/>
-				)}
-				{job.data.status === "SUCCEEDED" && output && reusableRasterOutput && (
-					<Button
-						variant="secondary"
-						render={(props) => (
-							<a
-								{...props}
-								onClick={() => void saasGrowthFunnel.editAgainStarted(jobId, productKey)}
-								href={
-									job.data?.input?.kind === "text-to-image"
-										? `/create?asset=${encodeURIComponent(output.id)}&model=${encodeURIComponent(productKey)}`
-										: `/create?asset=${encodeURIComponent(output.id)}&parentJob=${encodeURIComponent(jobId)}`
-								}
-							>
-								{props.children}
-							</a>
-						)}
-					>
-						{t("editAgain")}
-					</Button>
 				)}
 				<Button variant="ghost" onClick={onNew}>
 					{t("new")}
@@ -459,7 +496,7 @@ function DownloadButton({
 	}
 	return (
 		<>
-			<Button variant="primary" loading={downloading} disabled={downloading} onClick={download}>
+			<Button variant="secondary" loading={downloading} disabled={downloading} onClick={download}>
 				{t("download")}
 			</Button>
 			{downloadError && (

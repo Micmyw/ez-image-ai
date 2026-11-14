@@ -8,29 +8,32 @@ const headers = new Headers({
 	"user-agent": "iPhone Mobile",
 });
 describe("server registration observation", () => {
-	it.each(["/sign-up/email", "/callback/google", "/callback/github", "/magic-link/verify"])(
-		"links a newly created account on %s with a stable server-only ID",
-		async (path) => {
-			const save = vi.fn();
-			expect(
-				await persistRegistrationConversion(
-					{ id: "new-user" },
-					{ path, headers },
-					{ origin: "https://ezimageai.com", save },
-				),
-			).toBe(true);
-			expect(save).toHaveBeenCalledWith(
-				expect.objectContaining({
-					id: "registration:new-user",
-					name: "registration_confirmed",
-					userId: "new-user",
-					sessionHash: hash,
-					device: "mobile",
-					source: null,
-				}),
-			);
-		},
-	);
+	it.each([
+		"/sign-up/email",
+		"/callback/google",
+		"/callback/github",
+		"/magic-link/verify",
+		"/one-tap/callback",
+	])("links a newly created account on %s with a stable server-only ID", async (path) => {
+		const save = vi.fn();
+		expect(
+			await persistRegistrationConversion(
+				{ id: "new-user" },
+				{ path, headers },
+				{ origin: "https://ezimageai.com", save },
+			),
+		).toBe(true);
+		expect(save).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "registration:new-user",
+				name: "registration_confirmed",
+				userId: "new-user",
+				sessionHash: hash,
+				device: "mobile",
+				source: null,
+			}),
+		);
+	});
 	it("never backfills ordinary logins, guest accounts or unconsented registrations", async () => {
 		const save = vi.fn();
 		const deps = { origin: "https://ezimageai.com", save };

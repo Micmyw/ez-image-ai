@@ -14,7 +14,8 @@ export class TransferExecutor extends WorkerEntrypoint<RuntimeExecutionEnvironme
 			waitUntil: (work) => this.ctx.waitUntil(work),
 			admission: "request",
 			streamingTransfersOnly: true,
-			acceptsTask: (task) => task.taskId === "media-finalize-generation",
+			acceptsTask: (task) =>
+				["media-finalize-generation", "media-archive-output"].includes(task.taskId),
 			onEvent: (event) =>
 				console.info("job.executor", { executor: "jobs-transfer-request", ...event }),
 		})(request);

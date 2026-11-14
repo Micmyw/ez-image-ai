@@ -15,6 +15,25 @@ import { TextModerationError } from "../lib/public-moderation-reason";
 import { submitGuestGeneration } from "./submit-guest-generation";
 
 describe("submitGuestGeneration", () => {
+	it("keeps an admitted response when optional defer registration throws", async () => {
+		const result = await call(
+			submitGuestGeneration,
+			{ ...validInput(), journey: { actionRef: "malformed" } } as never,
+			{
+				context: {
+					headers: new Headers(),
+					defer: () => {
+						throw new Error("DEFER_UNAVAILABLE");
+					},
+				},
+			},
+		);
+		expect(result.jobId).toBe("job-1");
+		expect(submitGuestGenerationForGuest).toHaveBeenCalledOnce();
+		expect(vi.mocked(submitGuestGenerationForGuest).mock.calls[0]![1]).not.toHaveProperty(
+			"journey",
+		);
+	});
 	it.each(["REJECT", "REVIEW", "ERROR"] as const)(
 		"returns a safe %s prompt outcome to guests",
 		async (decision) => {

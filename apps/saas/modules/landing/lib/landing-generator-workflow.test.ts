@@ -76,6 +76,61 @@ const products = [
 ] satisfies GuestCapabilityProduct[];
 
 describe("landing generator workflow", () => {
+	it("re-evaluates an implicit text default when a real guest reference route arrives", () => {
+		const oldH3 = {
+			...products[0],
+			key: "image-minimax-h3",
+			accessHint: "paid-account",
+		} as GuestCapabilityProduct;
+		expect(
+			resolveLandingProductSelection([...products, oldH3], "image-minimax-h3", false, {
+				hasSource: true,
+				selectionSource: "implicit",
+			}),
+		).toBe("image-nano-banana-2-lite");
+		const trialH3 = {
+			...oldH3,
+			accessHint: "guest-trial",
+			skuMatrix: {
+				...oldH3.skuMatrix,
+				defaultSkuKey: "minimax-h3-1k",
+				cells: [{ ...oldH3.skuMatrix.cells[0], skuKey: "minimax-h3-1k" }],
+			},
+		} as GuestCapabilityProduct;
+		expect(
+			resolveLandingProductSelection([...products, trialH3], "image-gpt-image-2", false, {
+				hasSource: true,
+				selectionSource: "implicit",
+			}),
+		).toBe("image-minimax-h3");
+	});
+	it.each(["image-gpt-image-2", "image-gpt-image-2-6-flare"] as const)(
+		"keeps an explicit model %s through upload and catalog changes",
+		(model) => {
+			expect(
+				resolveLandingProductSelection(products, model, false, {
+					hasSource: true,
+					selectionSource: "explicit",
+				}),
+			).toBe(model);
+		},
+	);
+	it("does not treat a premium H3 SKU as a guest default", () => {
+		const premium = {
+			...products[0],
+			key: "image-minimax-h3",
+			skuMatrix: {
+				...products[0].skuMatrix,
+				cells: [{ ...products[0].skuMatrix.cells[0], skuKey: "minimax-h3-4k" }],
+			},
+		} as GuestCapabilityProduct;
+		expect(
+			resolveLandingProductSelection([...products, premium], "image-minimax-h3", false, {
+				hasSource: true,
+				selectionSource: "implicit",
+			}),
+		).toBe("image-nano-banana-2-lite");
+	});
 	it("prefers H3 for a new workspace without replacing an explicit selection", () => {
 		const minimax = {
 			...products[0],

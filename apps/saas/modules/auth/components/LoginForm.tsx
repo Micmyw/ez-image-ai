@@ -1,8 +1,10 @@
 "use client";
 
 import { useAuthErrorMessages } from "@auth/hooks/errors-messages";
-import { sessionQueryKey } from "@auth/lib/api";
+import { fetchSession, sessionQueryKey } from "@auth/lib/api";
 import { loadAuthClient, preloadAuthClient } from "@auth/lib/auth-client";
+import { beginAuthJourney, finishAuthJourney } from "@auth/lib/auth-journey";
+import { authErrorReturnPath, cancelGoogleOneTap } from "@auth/lib/auth-navigation";
 import { config } from "@config";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { OrganizationInvitationAlert } from "@organizations/components/OrganizationInvitationAlert";
@@ -12,6 +14,7 @@ import { Button } from "@repo/ui/components/button";
 import { Form, FormControl, FormField, FormItem, FormLabel } from "@repo/ui/components/form";
 import { Input } from "@repo/ui/components/input";
 import { useRouter } from "@shared/hooks/router";
+import { createJourneyReference, trackGenerationJourney } from "@shared/lib/generation-journey";
 import { getSafeRedirectPath } from "@shared/lib/redirect";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -33,6 +36,8 @@ import { z } from "zod";
 
 import { type OAuthProvider, oAuthProviders } from "../constants/oauth-providers";
 import { useSession } from "../hooks/use-session";
+import { AuthDraftPreview } from "./AuthDraftPreview";
+import { GoogleOneTap } from "./GoogleOneTap";
 import { LoginModeSwitch } from "./LoginModeSwitch";
 import { SocialSigninButton } from "./SocialSigninButton";
 
@@ -70,21 +75,43 @@ export function LoginForm() {
 		defaultValues: {
 			email: email ?? "",
 			password: "",
-			mode: authConfig.enablePasswordLogin ? "password" : "magic-link",
+			mode: authConfig.enableMagicLink ? "magic-link" : "password",
 		},
 	});
 
 	const redirectPath = invitationId
 		? `/organization-invitation/${invitationId}`
 		: getSafeRedirectPath(redirectTo, config.redirectAfterSignIn);
+	useEffect(() => {
+		let observed = false;
+		const observe = () => {
+			if (observed || document.visibilityState !== "visible") return;
+			observed = true;
+			void trackGenerationJourney({ stage: "auth_viewed", actionRef: createJourneyReference() });
+			if (searchParams.has("authError") || searchParams.has("error"))
+				finishAuthJourney("cancelled");
+		};
+		observe();
+		document.addEventListener("visibilitychange", observe);
+		return () => document.removeEventListener("visibilitychange", observe);
+	}, [searchParams]);
 
 	useEffect(() => {
-		if (sessionLoaded && user) {
+		if (sessionLoaded && user && !user.isAnonymous) {
 			router.replace(redirectPath);
 		}
-	}, [user, sessionLoaded]); // oxlint-disable-line eslint-plugin-react-hooks/exhaustive-deps
+	}, [user, sessionLoaded, redirectPath, router]);
+
+	const finishSignIn = async () => {
+		const session = await fetchSession();
+		if (!session?.user || session.user.isAnonymous) throw new Error("AUTH_SESSION_NOT_READY");
+		queryClient.setQueryData(sessionQueryKey, session);
+		router.replace(redirectPath);
+	};
 
 	const submitForm = form.handleSubmit(async (values) => {
+		cancelGoogleOneTap();
+		beginAuthJourney(values.mode === "magic-link" ? "magic_link" : "email", redirectPath);
 		try {
 			const authClient = await loadAuthClient();
 			if (values.mode === "password") {
@@ -101,15 +128,12 @@ export function LoginForm() {
 					return;
 				}
 
-				await queryClient.invalidateQueries({
-					queryKey: sessionQueryKey,
-				});
-
-				router.replace(redirectPath);
+				await finishSignIn();
 			} else {
 				const { error } = await authClient.signIn.magicLink({
 					...values,
 					callbackURL: redirectPath,
+					errorCallbackURL: authErrorReturnPath(redirectPath, invitationId),
 				});
 
 				if (error) {
@@ -140,6 +164,8 @@ export function LoginForm() {
 		if (submissionInFlight.current) return;
 		submissionInFlight.current = true;
 		setIsPasskeyPending(true);
+		cancelGoogleOneTap();
+		beginAuthJourney("unknown", redirectPath);
 		form.clearErrors("root");
 		try {
 			const authClient = await loadAuthClient();
@@ -149,7 +175,7 @@ export function LoginForm() {
 				throw error;
 			}
 
-			router.replace(redirectPath);
+			await finishSignIn();
 		} catch (e) {
 			form.setError("root", {
 				message: getAuthErrorMessage(
@@ -167,6 +193,11 @@ export function LoginForm() {
 
 	return (
 		<div data-auth-form="login">
+			<GoogleOneTap
+				enabled={sessionLoaded && (!user || Boolean(user.isAnonymous)) && !isSigningIn}
+				redirectPath={redirectPath}
+			/>
+			<AuthDraftPreview returnPath={redirectPath} />
 			<div className="mb-4 gap-2 text-xs font-bold flex items-center tracking-[0.16em] text-[#b79cff] uppercase">
 				<SparklesIcon className="size-4" aria-hidden="true" />
 				<span>{t("media.create.eyebrow")}</span>
@@ -177,6 +208,11 @@ export function LoginForm() {
 			<p className="mb-7 mt-2 text-sm leading-6 text-left text-[#b7acbf]">
 				{t("auth.login.subtitle")}
 			</p>
+			{(searchParams.has("authError") || searchParams.has("error")) && (
+				<Alert className="mb-4">
+					<AlertDescription>{t("auth.login.cancelled")}</AlertDescription>
+				</Alert>
+			)}
 
 			{form.formState.isSubmitSuccessful && signinMode === "magic-link" ? (
 				<Alert variant="success">
@@ -187,6 +223,21 @@ export function LoginForm() {
 			) : (
 				<>
 					{invitationId && <OrganizationInvitationAlert className="mb-6" />}
+					{authConfig.enableSocialLogin && (
+						<div className="mb-6">
+							<SocialSigninButton
+								provider="google"
+								label={t("auth.login.continueWithGoogle")}
+								disabled={!hydrated || isSigningIn}
+								className="min-h-12 border-white/20 bg-white hover:bg-white/90 w-full rounded-xl border text-[#21182c] focus-visible:ring-[#b79cff]"
+							/>
+							<div className="mt-5 gap-3 flex items-center">
+								<hr className="border-white/10 flex-1" />
+								<p className="text-xs text-[#91869b]">{t("auth.login.orEmail")}</p>
+								<hr className="border-white/10 flex-1" />
+							</div>
+						</div>
+					)}
 
 					<Form {...form}>
 						<form
@@ -305,14 +356,16 @@ export function LoginForm() {
 							<div className="gap-2 sm:grid-cols-2 grid grid-cols-1 items-stretch">
 								{authConfig.enableSignup &&
 									authConfig.enableSocialLogin &&
-									Object.keys(oAuthProviders).map((providerId) => (
-										<SocialSigninButton
-											key={providerId}
-											provider={providerId as OAuthProvider}
-											disabled={isSigningIn}
-											className="min-h-11 border-white/10 bg-white/[0.065] text-white hover:bg-white/[0.11] rounded-xl border focus-visible:ring-[#b79cff] focus-visible:ring-offset-[#21182c]"
-										/>
-									))}
+									Object.keys(oAuthProviders)
+										.filter((providerId) => providerId !== "google")
+										.map((providerId) => (
+											<SocialSigninButton
+												key={providerId}
+												provider={providerId as OAuthProvider}
+												disabled={isSigningIn}
+												className="min-h-11 border-white/10 bg-white/[0.065] text-white hover:bg-white/[0.11] rounded-xl border focus-visible:ring-[#b79cff] focus-visible:ring-offset-[#21182c]"
+											/>
+										))}
 
 								{authConfig.enablePasskeys && (
 									<Button

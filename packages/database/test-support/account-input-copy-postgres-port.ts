@@ -68,6 +68,7 @@ export class AccountInputCopyPostgresPort {
 				"objectKey" text NOT NULL UNIQUE, "mimeType" text NOT NULL, "byteSize" bigint NOT NULL,
 				checksum text, "deletedAt" timestamptz, "deleteAfter" timestamptz,
 				"storageEtag" text, "storageVersionId" text, "finalizedAt" timestamptz,
+				"watermarkVersion" text, "watermarkedAt" timestamptz,
 				"verificationGeneration" integer NOT NULL DEFAULT 0,
 				"verificationAttemptCount" integer NOT NULL DEFAULT 0,
 				"verificationEngine" text NOT NULL DEFAULT 'legacy', "verificationProvider" text,
@@ -75,14 +76,17 @@ export class AccountInputCopyPostgresPort {
 				"verificationPolicyVersion" text, "verificationValidUntil" timestamptz,
 				"verificationLeaseToken" text, "verificationLeasedUntil" timestamptz,
 				"verificationNextAttemptAt" timestamptz, "verificationDeadlineAt" timestamptz,
+				"verificationSubmissionUncertain" boolean NOT NULL DEFAULT false,
+				"verificationExhaustedAt" timestamptz, "verificationLastErrorCode" text,
 				"updatedAt" timestamptz NOT NULL DEFAULT now()
 			);
 			CREATE TABLE ${this.table("asset_moderation_result")} (
 				id text PRIMARY KEY, "assetId" text NOT NULL, status text NOT NULL,
 				"reasonCode" text NOT NULL, "assetChecksum" text NOT NULL,
 				"verificationGeneration" integer NOT NULL, "attemptNumber" integer NOT NULL,
-				"evidenceKind" text NOT NULL, provider text NOT NULL, "providerTaskId" text NOT NULL,
+				"evidenceKind" text NOT NULL, provider text NOT NULL, "providerTaskId" text,
 				"ruleVersion" text NOT NULL, "policyVersion" text NOT NULL, "validUntil" timestamptz,
+				categories jsonb NOT NULL DEFAULT '{}', "rawEnvelope" jsonb NOT NULL DEFAULT '{}',
 				"createdAt" timestamptz NOT NULL DEFAULT now()
 			);
 			CREATE TABLE ${this.table("generation_draft")} (

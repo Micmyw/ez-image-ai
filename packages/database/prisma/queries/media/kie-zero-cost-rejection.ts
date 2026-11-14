@@ -6,6 +6,7 @@ import {
 	kieZeroCostRejectionEvidenceSchema,
 	type KieZeroCostRejectionEvidence,
 } from "@repo/config";
+import { readProviderDiagnostic } from "@repo/config/provider-diagnostics";
 
 import type { Prisma } from "../../generated/client";
 import { getGenerationFundingReservation } from "./image-passes";
@@ -145,6 +146,10 @@ export async function resolveAdminKieZeroCostRejection(
 		);
 		if (!reservation || reservation.status !== "ACTIVE")
 			throw new Error("KIE_REJECTION_EVIDENCE_CONFLICT");
+		const providerDiagnostic = readProviderDiagnostic(
+			(attempt.errorSnapshot as Record<string, unknown> | null)?.providerDiagnostic,
+			attempt,
+		);
 		await tx.generationAttempt.update({
 			where: { id: attempt.id },
 			data: {
@@ -164,6 +169,7 @@ export async function resolveAdminKieZeroCostRejection(
 					code: KIE_ZERO_COST_REJECTION_CODE,
 					retryable: false,
 					providerEvidenceReference: input.providerEvidenceReference,
+					...(providerDiagnostic ? { providerDiagnostic: { ...providerDiagnostic } } : {}),
 				},
 			},
 		});

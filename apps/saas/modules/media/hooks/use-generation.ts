@@ -1,5 +1,6 @@
 "use client";
 
+import type { GenerationJourneyRefs } from "@repo/config/generation-journey";
 import {
 	captureBrowserGrowthAnalyticsAttribution,
 	type GrowthAnalyticsAttributionSnapshot,
@@ -24,6 +25,7 @@ type GenerationResult = Pick<
 	"job" | "replayed"
 >;
 type GenerationSubmission = {
+	journey?: GenerationJourneyRefs;
 	productKey: EditorProductKey;
 	input: GenerationInput;
 	expectedCredits: string;

@@ -216,7 +216,7 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 		} catch (error) {
 			if (
 				options.streamingTransfersOnly &&
-				request.taskId === "media-finalize-generation" &&
+				["media-finalize-generation", "media-archive-output"].includes(request.taskId) &&
 				error instanceof GenerationTransferRequiresHeavyError
 			) {
 				outcome = "rerouted";

@@ -10,8 +10,15 @@ const harness = vi.hoisted(() => {
 		refCursor: 0,
 		refs: [] as Array<{ current: unknown }>,
 		capabilityEffect: undefined as (() => unknown) | undefined,
-		queryClient: { fetchQuery: vi.fn(async () => ({ products: [] })) },
+		preparationEffect: undefined as (() => unknown) | undefined,
+		authRestoreEffect: undefined as (() => unknown) | undefined,
+		initialFileEffect: undefined as (() => unknown) | undefined,
+		queryClient: { fetchQuery: vi.fn() },
 		getCapability: vi.fn(),
+		getCatalog: vi.fn(),
+		prepare: vi.fn(),
+		saveAuthDraft: vi.fn(),
+		readAuthDraft: vi.fn(),
 		upload: vi.fn(),
 		turnstile: vi.fn(() => null),
 		modelSelector: vi.fn(() => null),
@@ -29,6 +36,16 @@ vi.mock("react", async (importOriginal) => {
 		// Run the availability effect explicitly; unrelated browser observers stay outside this harness.
 		useEffect: (effect: () => unknown, dependencies?: unknown[]) => {
 			if (dependencies?.includes(harness.queryClient)) harness.capabilityEffect = effect;
+			const first = dependencies?.[0];
+			if (first instanceof File && dependencies?.length === 2) harness.initialFileEffect = effect;
+			if (first && typeof first === "object" && "ensure" in first && "read" in first)
+				harness.preparationEffect = effect;
+			if (
+				dependencies?.length === 3 &&
+				typeof first === "boolean" &&
+				typeof dependencies[1] === "boolean"
+			)
+				harness.authRestoreEffect = effect;
 		},
 		useMemo: <T,>(factory: () => T) => factory(),
 		useRef: <T,>(initial: T) => {
@@ -55,7 +72,10 @@ vi.mock("react", async (importOriginal) => {
 	};
 });
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
-vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => harness.queryClient }));
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@tanstack/react-query")>()),
+	useQueryClient: () => harness.queryClient,
+}));
 vi.mock("@repo/ui/components/turnstile", () => ({ Turnstile: harness.turnstile }));
 vi.mock("@repo/ui/components/alert", () => ({ Alert: () => null, AlertDescription: () => null }));
 vi.mock("@repo/ui/components/button", () => ({ Button: () => null }));
@@ -65,6 +85,13 @@ vi.mock("@media/components/editor/ComposerHeader", () => ({ ComposerHeader: () =
 vi.mock("@media/components/editor/PromptIdeas", () => ({ PromptIdeas: () => null }));
 vi.mock("@media/components/ImageModelSelector", () => ({
 	ImageModelSelector: harness.modelSelector,
+}));
+vi.mock("@media/components/ImagePurposeShortcuts", () => ({ ImagePurposeShortcuts: () => null }));
+vi.mock("@auth/lib/auth-draft-storage", () => ({
+	saveAuthDraft: harness.saveAuthDraft,
+	readAuthDraft: harness.readAuthDraft,
+	applyAuthDraftToDestination: (destination: URL, id: string) =>
+		destination.searchParams.set("authDraft", id),
 }));
 vi.mock("@media/components/ImageOutputSettings", () => ({ ImageOutputSettings: () => null }));
 vi.mock("@media/hooks/use-model-navigation", () => ({
@@ -92,13 +119,14 @@ vi.mock("../lib/use-showcase-prompt", () => ({
 vi.mock("../lib/guest-draft-client", async (importOriginal) => ({
 	...(await importOriginal<typeof import("../lib/guest-draft-client")>()),
 	getGuestCapability: harness.getCapability,
+	prepareGuestDraftUpload: harness.prepare,
 	uploadGuestDraft: harness.upload,
 	submitGuestDraftHandoff: harness.handoff,
 }));
 
 import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
-import { readEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import { readPaidTemplatePurchase } from "@payments/lib/paid-template-purchase";
+import { Textarea } from "@repo/ui/components/textarea";
 import { Turnstile } from "@repo/ui/components/turnstile";
 
 import { LandingGenerator } from "./LandingGenerator";
@@ -131,13 +159,50 @@ describe("LandingGenerator verification feedback", () => {
 	afterEach(() => vi.unstubAllGlobals());
 	beforeEach(() => {
 		vi.clearAllMocks();
-		harness.queryClient.fetchQuery.mockResolvedValue({ products: [] });
+		harness.getCatalog.mockResolvedValue({ products: [] });
+		harness.queryClient.fetchQuery.mockImplementation(
+			(options?: { queryKey?: readonly unknown[] }) =>
+				options?.queryKey?.[0] === "guest-capability"
+					? harness.getCapability()
+					: harness.getCatalog(),
+		);
+		harness.saveAuthDraft.mockResolvedValue({
+			id: "10000000-0000-4000-8000-000000000001",
+			returnPath: "/create",
+		});
+		harness.readAuthDraft.mockResolvedValue(null);
+		harness.prepare.mockImplementation(
+			async (input: import("../lib/guest-draft-client").GuestUploadPreparationInput) => {
+				const checkpoint = input.checkpoint ?? {
+					fileFingerprint: "same-file",
+					preparedFile: input.file,
+					sha256: "a".repeat(64),
+					requestId: "10000000-0000-4000-8000-000000000002",
+					capabilityVersion: input.capabilityVersion,
+					intentProductKey: input.productKey,
+					intent: {
+						sessionId: "same-session",
+						assetId: "same-asset",
+						uploadUrl: "https://storage.test/upload",
+						completionToken: "c".repeat(43),
+						expiresAt: "2035-01-01T00:00:00.000Z",
+					},
+					uploaded: true,
+					sealed: true,
+				};
+				input.onCheckpoint?.(checkpoint);
+				return checkpoint;
+			},
+		);
 		harness.cursor = 0;
 		harness.states = [];
 		harness.initialized = [];
 		harness.refCursor = 0;
 		harness.refs = [];
 		harness.capabilityEffect = undefined;
+		harness.preparationEffect = undefined;
+		harness.authRestoreEffect = undefined;
+		harness.initialFileEffect = undefined;
 		harness.effectEditor = null;
 		harness.getCapability.mockResolvedValue({
 			version: "capability-v1",
@@ -148,7 +213,157 @@ describe("LandingGenerator verification feedback", () => {
 			queueEstimate: { kind: "capacity" },
 		});
 	});
-	it("shows the paid offer after Generate and uploads only after a purchase choice", async () => {
+	it("prepares an empty-prompt reference before Generate and shares it with the changed prompt", async () => {
+		vi.stubGlobal("document", {});
+		vi.stubGlobal("requestAnimationFrame", (callback: () => void) => callback());
+		let tree = await readyWorkspace();
+		callback<(event: { target: { value: string } }) => void>(
+			tree,
+			Textarea,
+			"onChange",
+		)({ target: { value: "" } });
+		callback<(token: string) => void>(tree, Turnstile, "onToken")("early-token");
+		tree = renderWorkspace();
+		harness.preparationEffect?.();
+		await vi.waitFor(() => expect(harness.prepare).toHaveBeenCalledOnce());
+		expect(harness.prepare.mock.calls[0]?.[0]).not.toHaveProperty("prompt");
+		expect(harness.upload).not.toHaveBeenCalled();
+		expect(visibleText(renderWorkspace())).not.toContain("states.verifying");
+		callback<(event: { target: { value: string } }) => void>(
+			renderWorkspace(),
+			Textarea,
+			"onChange",
+		)({ target: { value: "New prompt after upload" } });
+		tree = renderWorkspace();
+		harness.preparationEffect?.();
+		expect(harness.prepare).toHaveBeenCalledOnce();
+		harness.upload.mockResolvedValueOnce({
+			accessHint: "guest-trial",
+			action: "/draft/continue",
+			claimToken: "c".repeat(43),
+		});
+		callback<(event: { preventDefault: () => void }) => void>(
+			tree,
+			"form",
+			"onSubmit",
+		)({ preventDefault() {} });
+		await vi.waitFor(() => expect(harness.handoff).toHaveBeenCalledOnce());
+		expect(harness.upload).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "New prompt after upload",
+				checkpoint: expect.objectContaining({
+					intent: expect.objectContaining({ sessionId: "same-session" }),
+				}),
+			}),
+		);
+	});
+	it("restores the original file and parameters when returning from login", async () => {
+		vi.stubGlobal("window", {
+			location: { href: "https://app.ezpic.test/?authDraft=10000000-0000-4000-8000-000000000001" },
+		});
+		harness.readAuthDraft.mockResolvedValue({
+			file: source,
+			values: {
+				productKey: product.key,
+				skuKey: "nano-banana-2-lite-1k",
+				prompt: "Recovered original edit",
+				sourceAssetId: "",
+				aspectRatio: "auto",
+			},
+		});
+		renderWorkspace(false);
+		harness.capabilityEffect?.();
+		renderWorkspace(false);
+		harness.authRestoreEffect?.();
+		await vi.waitFor(() =>
+			expect(findElement(renderWorkspace(false), Textarea)?.props.value).toBe(
+				"Recovered original edit",
+			),
+		);
+		callback<(token: string) => void>(
+			renderWorkspace(false),
+			Turnstile,
+			"onToken",
+		)("restored-token");
+		await vi.waitFor(() => {
+			renderWorkspace(false);
+			harness.preparationEffect?.();
+			expect(harness.prepare).toHaveBeenCalledWith(
+				expect.objectContaining({ file: source, productKey: product.key }),
+			);
+		});
+		expect(harness.upload).not.toHaveBeenCalled();
+	});
+	it("does not overwrite a new edit with a late authentication draft", async () => {
+		vi.stubGlobal("window", {
+			location: { href: "https://app.ezpic.test/?authDraft=10000000-0000-4000-8000-000000000001" },
+		});
+		let resolve!: (value: unknown) => void;
+		harness.readAuthDraft.mockReturnValueOnce(
+			new Promise((done) => {
+				resolve = done;
+			}),
+		);
+		renderWorkspace(false);
+		harness.authRestoreEffect?.();
+		await vi.waitFor(() => expect(harness.readAuthDraft).toHaveBeenCalledOnce());
+		callback<(event: { target: { value: string } }) => void>(
+			renderWorkspace(false),
+			Textarea,
+			"onChange",
+		)({ target: { value: "My newer edit" } });
+		resolve({
+			file: source,
+			values: {
+				productKey: product.key,
+				skuKey: "nano-banana-2-lite-1k",
+				prompt: "Older saved edit",
+				sourceAssetId: "",
+				aspectRatio: "auto",
+			},
+		});
+		await Promise.resolve();
+		expect(findElement(renderWorkspace(false), Textarea)?.props.value).toBe("My newer edit");
+	});
+	it("restores after StrictMode replays an unfinished authentication effect", async () => {
+		vi.stubGlobal("window", {
+			location: { href: "https://app.ezpic.test/?authDraft=10000000-0000-4000-8000-000000000001" },
+		});
+		let resolveOld!: (value: unknown) => void;
+		harness.readAuthDraft
+			.mockReturnValueOnce(
+				new Promise((resolve) => {
+					resolveOld = resolve;
+				}),
+			)
+			.mockResolvedValueOnce({
+				file: null,
+				values: {
+					productKey: product.key,
+					skuKey: "nano-banana-2-lite-1k",
+					prompt: "Restored after effect replay",
+					sourceAssetId: "",
+					aspectRatio: "auto",
+				},
+			});
+		renderWorkspace(false);
+		const cleanup = harness.authRestoreEffect?.();
+		await vi.waitFor(() => expect(harness.readAuthDraft).toHaveBeenCalledOnce());
+		if (typeof cleanup === "function") cleanup();
+		renderWorkspace(false);
+		harness.authRestoreEffect?.();
+		await vi.waitFor(() =>
+			expect(findElement(renderWorkspace(false), Textarea)?.props.value).toBe(
+				"Restored after effect replay",
+			),
+		);
+		resolveOld(null);
+		await Promise.resolve();
+		expect(findElement(renderWorkspace(false), Textarea)?.props.value).toBe(
+			"Restored after effect replay",
+		);
+	});
+	it("shows the paid offer after Generate and creates a handoff only after a purchase choice", async () => {
 		const premium = setupPaidTemplate();
 		let tree = await readyWorkspace();
 		callback<(token: string) => void>(tree, Turnstile, "onToken")("paid-token");
@@ -207,8 +422,9 @@ describe("LandingGenerator verification feedback", () => {
 	});
 
 	it("makes reference editing ready while the unrelated text catalog is still pending", async () => {
-		harness.queryClient.fetchQuery.mockReturnValueOnce(new Promise(() => {}));
+		harness.getCatalog.mockReturnValueOnce(new Promise(() => {}));
 		renderWorkspace();
+		harness.initialFileEffect?.();
 		harness.capabilityEffect?.();
 		await vi.waitFor(() =>
 			expect(findElement(renderWorkspace(), "output")?.props["data-stage"]).toBe("ready"),
@@ -217,7 +433,7 @@ describe("LandingGenerator verification feedback", () => {
 
 	it("makes text editing ready while the unrelated upload capability is still pending", async () => {
 		harness.getCapability.mockReturnValueOnce(new Promise(() => {}));
-		harness.queryClient.fetchQuery.mockResolvedValueOnce({
+		harness.getCatalog.mockResolvedValueOnce({
 			products: [{ ...product, inputKinds: ["text-to-image"] }],
 		} as never);
 		renderWorkspace(false);
@@ -234,7 +450,7 @@ describe("LandingGenerator verification feedback", () => {
 				resolveCapability = resolve;
 			}),
 		);
-		harness.queryClient.fetchQuery.mockResolvedValueOnce({
+		harness.getCatalog.mockResolvedValueOnce({
 			products: [{ ...product, inputKinds: ["text-to-image"] }],
 		} as never);
 		renderWorkspace(false);
@@ -250,7 +466,14 @@ describe("LandingGenerator verification feedback", () => {
 		)(product.key);
 		vi.stubGlobal("window", {
 			sessionStorage: { setItem: vi.fn(), getItem: () => null, removeItem: vi.fn() },
-			location: { assign: vi.fn() },
+			location: {
+				assign: vi.fn(),
+				origin: "https://app.ezpic.test",
+				href: "https://app.ezpic.test/",
+				pathname: "/",
+				search: "",
+			},
+			history: { state: null, replaceState: vi.fn() },
 		});
 		callback<(event: { preventDefault: () => void }) => void>(
 			renderWorkspace(false),
@@ -327,7 +550,7 @@ describe("LandingGenerator verification feedback", () => {
 			let tree = await readyWorkspace();
 			callback<(token: string) => void>(tree, Turnstile, "onToken")("token-one");
 			tree = renderWorkspace();
-			harness.upload.mockRejectedValueOnce(new Error(failure));
+			harness.prepare.mockRejectedValueOnce(new Error(failure));
 			callback<(event: { preventDefault: () => void }) => void>(
 				tree,
 				"form",
@@ -345,11 +568,10 @@ describe("LandingGenerator verification feedback", () => {
 			tree = renderWorkspace();
 			callback<(token: string) => void>(tree, Turnstile, "onToken")("token-two");
 			expect(visibleText(renderWorkspace())).toContain(errorKey);
-			expect(harness.upload).toHaveBeenCalledOnce();
-			expect(harness.upload).toHaveBeenCalledWith(
+			expect(harness.upload).not.toHaveBeenCalled();
+			expect(harness.prepare).toHaveBeenCalledWith(
 				expect.objectContaining({
 					file: source,
-					prompt: "Preserve this guest edit",
 					productKey: product.key,
 					turnstileToken: "token-one",
 				}),
@@ -361,7 +583,7 @@ describe("LandingGenerator verification feedback", () => {
 		let tree = await readyWorkspace();
 		callback<(token: string) => void>(tree, Turnstile, "onToken")("token-one");
 		tree = renderWorkspace();
-		harness.upload.mockRejectedValueOnce(new Error("GUEST_UPLOAD_RATE_LIMITED"));
+		harness.prepare.mockRejectedValueOnce(new Error("GUEST_UPLOAD_RATE_LIMITED"));
 		callback<(event: { preventDefault: () => void }) => void>(
 			tree,
 			"form",
@@ -384,12 +606,21 @@ describe("LandingGenerator verification feedback", () => {
 			removeItem: (key: string) => values.delete(key),
 		};
 		const assign = vi.fn();
-		vi.stubGlobal("window", { location: { origin: "https://app.ezpic.test", assign } });
+		vi.stubGlobal("window", {
+			location: {
+				origin: "https://app.ezpic.test",
+				href: "https://app.ezpic.test/",
+				pathname: "/",
+				search: "",
+				assign,
+			},
+			history: { state: null, replaceState: vi.fn() },
+		});
 		vi.stubGlobal("sessionStorage", storage);
 		let tree = await readyWorkspace();
 		callback<(token: string) => void>(tree, Turnstile, "onToken")("token-one");
 		tree = renderWorkspace();
-		harness.upload.mockRejectedValueOnce(new Error("GUEST_UPLOAD_RATE_LIMITED"));
+		harness.prepare.mockRejectedValueOnce(new Error("GUEST_UPLOAD_RATE_LIMITED"));
 		callback<(event: { preventDefault: () => void }) => void>(
 			tree,
 			"form",
@@ -403,20 +634,22 @@ describe("LandingGenerator verification feedback", () => {
 		await vi.waitFor(() => expect(assign).toHaveBeenCalledOnce());
 		const destination = new URL(assign.mock.calls[0]![0], "https://app.ezpic.test");
 		expect(destination.pathname).toBe("/login");
-		expect(destination.searchParams.get("redirectTo")).toBe("/create?resume=text");
-		expect(readEditorUpgradeDraft(storage)).toMatchObject({
-			draft: {
-				productKey: product.key,
-				input: {
-					kind: "image-to-image",
+		expect(destination.searchParams.get("redirectTo")).toContain(
+			"authDraft=10000000-0000-4000-8000-000000000001",
+		);
+		expect(harness.saveAuthDraft).toHaveBeenCalledWith(
+			expect.objectContaining({
+				file: source,
+				values: {
+					productKey: product.key,
 					prompt: "Preserve this guest edit",
+					sourceAssetId: "",
 					skuKey: "nano-banana-2-lite-1k",
 					aspectRatio: "auto",
 				},
-			},
-			sourceReady: false,
-		});
-		expect(harness.upload).toHaveBeenCalledOnce();
+			}),
+		);
+		expect(harness.upload).not.toHaveBeenCalled();
 	});
 
 	it("clears a verification error when a fresh token arrives", async () => {
@@ -431,10 +664,11 @@ describe("LandingGenerator verification feedback", () => {
 
 async function readyWorkspace() {
 	void renderWorkspace();
+	harness.initialFileEffect?.();
 	expect(harness.capabilityEffect).toBeTypeOf("function");
 	await harness.capabilityEffect?.();
 	await vi.waitFor(() =>
-		expect(findElement(renderWorkspace(), "output")?.props["data-stage"]).toBe("ready"),
+		expect(findElement(renderWorkspace(), harness.modelSelector)?.props.products).toHaveLength(1),
 	);
 	const tree = renderWorkspace();
 	callback<(key: string) => void>(tree, harness.modelSelector, "onChange")(product.key);

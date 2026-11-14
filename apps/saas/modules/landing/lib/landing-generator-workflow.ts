@@ -46,9 +46,29 @@ export function resolveLandingProductSelection(
 	products: readonly GuestCapabilityProduct[],
 	selectedProductKey: GuestProductKey | null,
 	preserveRequestedSelection = false,
+	context?: { hasSource: boolean; selectionSource: "implicit" | "explicit" },
 ): GuestProductKey | null {
-	if (!products.length || (preserveRequestedSelection && selectedProductKey))
+	if (
+		!products.length ||
+		((preserveRequestedSelection || context?.selectionSource === "explicit") && selectedProductKey)
+	)
 		return selectedProductKey;
+	// An automatically chosen text model is not a user's selection. Re-evaluate
+	// that default when a reference arrives, using only an actual trial SKU.
+	if (context?.hasSource && context.selectionSource === "implicit") {
+		for (const [productKey, skuKey] of [
+			["image-minimax-h3", "minimax-h3-1k"],
+			["image-nano-banana-2-lite", "nano-banana-2-lite-1k"],
+		] as const) {
+			const trial = products.find(
+				(product) =>
+					product.key === productKey &&
+					product.accessHint === "guest-trial" &&
+					product.skuMatrix.cells.some((cell) => cell.skuKey === skuKey),
+			);
+			if (trial) return trial.key;
+		}
+	}
 	if (selectedProductKey && products.some((product) => product.key === selectedProductKey)) {
 		return selectedProductKey;
 	}

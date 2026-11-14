@@ -77,7 +77,8 @@ export function GuestTrialWorkspace({
 		(trial.view.state === "ready" ||
 			(!trial.moderationError &&
 				!trial.view.safety &&
-				(trial.dailyAllowance?.remaining === 0 || trial.errorKey === "eligibility")));
+				(trial.trialAllowance?.remaining === 0 ||
+					["eligibility", "regionExcluded", "regionUnverified"].includes(trial.errorKey ?? ""))));
 
 	return (
 		<div className="px-4 py-8 sm:px-6 sm:py-10 lg:px-8 mx-auto max-w-[90rem]">
@@ -91,13 +92,15 @@ export function GuestTrialWorkspace({
 				<p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 mx-auto text-balance">
 					{t("subtitle")}
 				</p>
-				{!registered && trial.dailyAllowance && (
+				{!registered && trial.trialAllowance && (
 					<output className="mt-3 text-sm font-medium text-violet-700 block">
-						{t("dailyAllowance", {
-							remaining: trial.dailyAllowance.remaining,
-							limit: trial.dailyAllowance.limit,
+						{t("trialAllowance", {
+							remaining: trial.trialAllowance.remaining,
+							limit: trial.trialAllowance.limit,
 						})}
-						<span className="mt-1 text-xs font-normal text-slate-500 block">{t("dailyReset")}</span>
+						<span className="mt-1 text-xs font-normal text-slate-500 block">
+							{t("trialIdentityNote")}
+						</span>
 					</output>
 				)}
 			</header>
@@ -129,6 +132,7 @@ export function GuestTrialWorkspace({
 									className="mt-2 min-h-32 border-slate-200 bg-white focus-visible:ring-violet-600 resize-y"
 									maxLength={10_000}
 									required
+									disabled={trial.submissionLocked}
 									value={trial.prompt}
 									onChange={(event) => trial.setPrompt(event.target.value)}
 								/>
@@ -146,7 +150,23 @@ export function GuestTrialWorkspace({
 										<span className="size-6 bg-violet-600 text-white grid place-items-center rounded-lg">
 											<CheckIcon className="size-3.5" aria-hidden="true" />
 										</span>
-										{t("standard")}
+										<label className="sr-only" htmlFor="guest-trial-model">
+											{t("modelLabel")}
+										</label>
+										<select
+											id="guest-trial-model"
+											value={trial.draft.productKey}
+											disabled={trial.submissionLocked}
+											onChange={(event) =>
+												trial.setModel(
+													event.target.value as "image-minimax-h3" | "image-nano-banana-2-lite",
+												)
+											}
+											className="border-violet-200 bg-white px-2 py-1 text-sm max-w-full rounded-md border"
+										>
+											<option value="image-minimax-h3">MiniMax H3 Image · 1K</option>
+											<option value="image-nano-banana-2-lite">Nano Banana 2 Lite · 1K</option>
+										</select>
 									</span>
 									<span className="text-xs font-semibold text-violet-700">{t("oneOutput")}</span>
 								</div>
@@ -270,15 +290,15 @@ export function GuestTrialWorkspace({
 					{showAccountActions && <GuestConversionActions onBeginLink={trial.actions.beginLink} />}
 					{!registered && ["ready", "rejected", "failed", "expired"].includes(trial.view.state) && (
 						<div className="text-sm text-center">
-							{trial.dailyAllowance?.remaining ? (
+							{trial.trialAllowance?.remaining ? (
 								<a
 									href="/#image-editor"
 									className="min-h-11 font-semibold text-violet-700 inline-flex items-center underline underline-offset-4"
 								>
 									{t("editAnother")}
 								</a>
-							) : trial.dailyAllowance?.remaining === 0 ? (
-								<p className="text-slate-600">{t("dailyLimitReached")}</p>
+							) : trial.trialAllowance?.remaining === 0 ? (
+								<p className="text-slate-600">{t("trialLimitReached")}</p>
 							) : null}
 						</div>
 					)}

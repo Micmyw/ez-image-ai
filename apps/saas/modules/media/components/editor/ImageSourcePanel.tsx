@@ -39,6 +39,7 @@ export function ImageSourcePanel({
 	active = true,
 	sourceAssetId,
 	temporaryReference,
+	initialReferenceFile,
 	onChange,
 	onReadyChange,
 	onPendingChange,
@@ -52,6 +53,7 @@ export function ImageSourcePanel({
 	active?: boolean;
 	sourceAssetId: string;
 	temporaryReference?: TemporaryReferenceReceipt;
+	initialReferenceFile?: File;
 	onChange: (assetId: string, reference?: TemporaryReferenceReceipt) => void;
 	onReadyChange: (ready: boolean) => void;
 	onPendingChange?: (pending: boolean) => void;
@@ -100,9 +102,14 @@ export function ImageSourcePanel({
 				if (current && !current.assetId) updateLocalPreview(null);
 				return;
 			}
+			// Header limits and orientation normalization must finish before a browser preview decodes it.
+			if (!item.preparedFile) return;
 			updateLocalPreview({
-				file: item.file,
-				url: current?.file === item.file ? current.url : URL.createObjectURL(item.file),
+				file: item.preparedFile,
+				url:
+					current?.file === item.preparedFile
+						? current.url
+						: URL.createObjectURL(item.preparedFile),
 				assetId: item.assetId,
 				selectionSourceId: sourceAssetId,
 				status: item.status,
@@ -298,6 +305,9 @@ export function ImageSourcePanel({
 			<div hidden={compact && Boolean(sourceAssetId) && !pending}>
 				<MediaUploader
 					temporaryReference
+					initialReferenceFile={
+						!sourceAssetId && uploadRevision === 0 ? initialReferenceFile : undefined
+					}
 					key={`${sourceAssetId || "new-reference"}:${uploadRevision}`}
 					compact={compact}
 					presentation={presentation}

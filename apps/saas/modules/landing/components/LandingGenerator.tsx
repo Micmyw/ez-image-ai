@@ -8,6 +8,7 @@ import {
 	ImageOutputSettings,
 	type ImageOutputSettingsLabels,
 } from "@media/components/ImageOutputSettings";
+import { ImagePurposeShortcuts } from "@media/components/ImagePurposeShortcuts";
 import {
 	replaceImageModelInUrl,
 	useModelNavigation,
@@ -27,6 +28,7 @@ import {
 	isPaidTemplateSelection,
 	paidTemplateSpecMatrix,
 } from "@media/lib/paid-template-selection";
+import { IMAGE_UPLOAD_ACCEPT, prepareImageUpload } from "@media/lib/prepare-image-upload";
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
 import { useToolPrompt, useToolPromptBinding } from "@media/lib/tool-prompt-context";
 import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
@@ -42,6 +44,7 @@ import {
 	parseImageSelection,
 } from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
+import { isGuestTrialModel } from "@repo/config/guest-trial";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
@@ -52,6 +55,7 @@ import {
 	STUDIO_WORKSPACE_RESET_EVENT,
 	type StudioWorkspaceResetDetail,
 } from "@shared/components/studio/studio-context";
+import { createJourneyReference, trackGenerationJourney } from "@shared/lib/generation-journey";
 import { useQueryClient } from "@tanstack/react-query";
 import {
 	CoinsIcon,
@@ -85,11 +89,10 @@ import {
 	useGenerationMode,
 	useGeneratorSignInDraft,
 } from "../../media/lib/generation-mode-context";
+import { guestCapabilityQueryOptions, refreshGuestCapability } from "../lib/guest-capability-query";
 import {
-	getGuestCapability,
 	type GuestCapabilitySnapshot,
 	type GuestCapabilityProduct,
-	type GuestDraftUploadCheckpoint,
 	type GuestProductKey,
 	LANDING_IMAGE_CONTENT_TYPES,
 	submitGuestDraftHandoff,
@@ -108,6 +111,7 @@ import {
 	LANDING_PROMPT_SELECTED_EVENT,
 	type LandingPromptSelectedDetail,
 } from "../lib/prompt-selection";
+import { useGuestUploadPreparation } from "../lib/use-guest-upload-preparation";
 import { useShowcasePrompt } from "../lib/use-showcase-prompt";
 
 const GUEST_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY ?? null;
@@ -149,24 +153,34 @@ function LandingGeneratorWorkspace({
 	const workspace = useGenerationMode();
 	async function saveSignInDraft(destination: URL) {
 		if (!selectedProduct || !selectedSku || (!prompt.trim() && !file)) return;
-		const { writeEditorUpgradeDraft } = await import("@payments/lib/editor-upgrade");
-		const saved = writeEditorUpgradeDraft(sessionStorage, {
-			draft: {
+		destination.searchParams.set("model", selectedProduct.key);
+		const { saveAuthDraft, applyAuthDraftToDestination } =
+			await import("@auth/lib/auth-draft-storage");
+		const saved = await saveAuthDraft({
+			file: sourceFileRef.current ?? file,
+			values: {
 				productKey: selectedProduct.key,
-				input: {
-					kind: file ? "image-to-image" : "text-to-image",
-					prompt,
-					...(file ? { sourceAssetId: "" } : {}),
-					skuKey: selectedSku.skuKey,
-					aspectRatio,
-					...controlValues,
-				},
+				prompt,
+				sourceAssetId: "",
+				skuKey: selectedSku.skuKey,
+				aspectRatio,
+				...controlValues,
 			},
+			returnPath: `${destination.pathname}${destination.search}`,
+			originPath: `${window.location.pathname}${window.location.search}`,
+			sourceOwnerId: null,
 			parentJobId: null,
-			sourceReady: false,
 		});
 		if (!saved) throw new Error("IMAGE_DRAFT_STORAGE_UNAVAILABLE");
-		destination.searchParams.set("resume", "text");
+		void trackGenerationJourney({
+			stage: "draft_saved",
+			draftRef: saved.id,
+			actionRef: journeyAction.current?.id,
+		});
+		applyAuthDraftToDestination(destination, saved.id);
+		const origin = new URL(window.location.href);
+		applyAuthDraftToDestination(origin, saved.id);
+		window.history.replaceState(window.history.state, "", `${origin.pathname}${origin.search}`);
 	}
 	useGeneratorSignInDraft(saveSignInDraft);
 	const isEffectEditor = Boolean(effectEditor);
@@ -206,17 +220,23 @@ function LandingGeneratorWorkspace({
 			initialProductKey ??
 			(requestedModel && isEditorProductKey(requestedModel) ? requestedModel : null),
 	);
+	const selectionSource = useRef<"implicit" | "explicit">(
+		effectPreset || initialProductKey || requestedModel || requestedOutputFormat
+			? "explicit"
+			: "implicit",
+	);
 	const [selectedSkuKey, setSelectedSkuKey] = useState<ImageSkuKey | null>(
 		effectPreset?.parameters.skuKey ?? null,
 	);
-	const [file, setFile] = useState<File | null>(startEmpty ? null : (initialFile ?? null));
+	const [file, setFile] = useState<File | null>(null);
+	const sourceFileRef = useRef<File | null>(startEmpty ? null : (initialFile ?? null));
+	const draftInteractionRevision = useRef(0);
+	const authDraftRestored = useRef(false);
 	const [fileError, setFileError] = useState<string>();
 	const [previewUrl, setPreviewUrl] = useState<string>();
 	useEffect(() => {
 		if (!initialFile || startEmpty) return;
-		const url = URL.createObjectURL(initialFile);
-		setPreviewUrl(url);
-		return () => URL.revokeObjectURL(url);
+		void chooseFileRef.current(initialFile);
 	}, [initialFile, startEmpty]);
 	const [prompt, setPrompt] = useState(
 		effectPreset?.prompt ?? toolPrompt?.initialPrompt ?? (startEmpty ? "" : examplePrompt),
@@ -243,6 +263,8 @@ function LandingGeneratorWorkspace({
 		| "reviewPending"
 		| "reviewUnknown"
 		| "referenceExpired"
+		| "previousUploadPending"
+		| "browserCookie"
 	>();
 	const [uploadPercentage, setUploadPercentage] = useState<number>();
 	const [operationStage, setStage] = useState<LandingGeneratorStage>("ready");
@@ -262,21 +284,70 @@ function LandingGeneratorWorkspace({
 	const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 	const uploadAttemptKey = useRef<string | null>(null);
 	const submissionInFlight = useRef(false);
-	const guestUploadCheckpoint = useRef<GuestDraftUploadCheckpoint | null>(null);
+	const fileSelectionRevision = useRef(0);
+	const chooseFileRef = useRef<(file: File) => Promise<boolean>>(async () => false);
+	const journeyDraftRef = useRef<string | undefined>(undefined);
+	const journeyAction = useRef<{ fingerprint: string; id?: string } | null>(null);
+	const uploadStartedAt = useRef<number | null>(null);
 	useEffect(() => {
-		guestUploadCheckpoint.current = null;
-	}, [
-		file,
-		prompt,
-		selectedProductKey,
-		selectedSkuKey,
-		aspectRatio,
-		controlValues.outputFormat,
-		controlValues.background,
-		controlValues.frameCount,
-		controlValues.frameDurationMs,
-		capability?.version,
-	]);
+		if (startEmpty || authDraftRestored.current) return;
+		authDraftRestored.current = true;
+		const destination = new URL(window.location.href);
+		const id = destination.searchParams.get("authDraft");
+		const revision = draftInteractionRevision.current;
+		let active = true;
+		let finished = false;
+		void import("@auth/lib/auth-draft-storage")
+			.then(async ({ readAuthDraft }) => {
+				const saved = await readAuthDraft({
+					id,
+					ownerId: null,
+					returnPath: `${destination.pathname}${destination.search}`,
+				});
+				if (!active) return;
+				finished = true;
+				if (revision !== draftInteractionRevision.current) return;
+				if (!saved) {
+					if (id) {
+						setTextDraftError(true);
+						void trackGenerationJourney({ stage: "draft_restore_failed", reason: "unavailable" });
+					}
+					return;
+				}
+				const values = saved.values;
+				if (
+					paidTemplate &&
+					!isPaidTemplateSelection(
+						{ productKey: values.productKey, skuKey: values.skuKey },
+						effectPreset,
+					)
+				)
+					return;
+				selectionSource.current = "explicit";
+				setSelectedProductKey(values.productKey);
+				setSelectedSkuKey(values.skuKey);
+				setPrompt(values.prompt);
+				setAspectRatio(values.aspectRatio);
+				setControlValues({
+					outputFormat: values.outputFormat,
+					background: values.background,
+					frameCount: values.frameCount,
+					frameDurationMs: values.frameDurationMs,
+				});
+				const restored = !saved.file || (await chooseFileRef.current(saved.file));
+				if (restored) void trackGenerationJourney({ stage: "draft_restored", draftRef: saved.id });
+			})
+			.catch(() => {
+				if (active) {
+					finished = true;
+					setTextDraftError(true);
+				}
+			});
+		return () => {
+			active = false;
+			if (!finished) authDraftRestored.current = false;
+		};
+	}, [startEmpty, paidTemplate, effectPreset]);
 
 	useEffect(() => {
 		let active = true;
@@ -289,7 +360,11 @@ function LandingGeneratorWorkspace({
 			);
 		// Each input mode waits only for its own capability. A slow upload check
 		// must not block text editing, and a late response must not reset a handoff.
-		void getGuestCapability().then(
+		void (
+			capabilityRequestKey > 0
+				? refreshGuestCapability(queryClient)
+				: queryClient.fetchQuery(guestCapabilityQueryOptions)
+		).then(
 			(snapshot) => {
 				if (!active) return;
 				setCapability(snapshot);
@@ -351,6 +426,7 @@ function LandingGeneratorWorkspace({
 				effectEditor.selectedPreset,
 			);
 			if (saved) {
+				selectionSource.current = "explicit";
 				setPrompt(saved.values.prompt);
 				setSelectedProductKey(
 					paidTemplate ? effectEditor.selectedPreset.productKey : saved.values.productKey,
@@ -470,6 +546,7 @@ function LandingGeneratorWorkspace({
 			const selection = detail.selection;
 			const parsed = selection && parseImageSelection(selection.productKey, selection);
 			if (selection && parsed && isEditorProductKey(selection.productKey) && !paidTemplate) {
+				selectionSource.current = "explicit";
 				setSelectedProductKey(selection.productKey);
 				setSelectedSkuKey(parsed.skuKey);
 				setAspectRatio(parsed.aspectRatio);
@@ -534,9 +611,12 @@ function LandingGeneratorWorkspace({
 	useEffect(() => {
 		if (isEffectEditor) return;
 		setSelectedProductKey((current) =>
-			resolveLandingProductSelection(availableProducts, current, current === requestedModel),
+			resolveLandingProductSelection(availableProducts, current, current === requestedModel, {
+				hasSource: Boolean(file),
+				selectionSource: selectionSource.current,
+			}),
 		);
-	}, [availableProducts, isEffectEditor, requestedModel]);
+	}, [availableProducts, isEffectEditor, requestedModel, file]);
 	const localizedProducts = useMemo(
 		() =>
 			localizeLandingProducts(
@@ -585,6 +665,9 @@ function LandingGeneratorWorkspace({
 	}));
 	const selectedSku =
 		selectedProduct?.skuMatrix.cells.find((cell) => cell.skuKey === selectedSkuKey) ?? null;
+	const selectedGuestTrial = Boolean(
+		selectedProduct && selectedSku && isGuestTrialModel(selectedProduct.key, selectedSku.skuKey),
+	);
 	const freeAccountSelection = Boolean(
 		selectedProduct &&
 		planIncludesImageSelection(
@@ -600,6 +683,79 @@ function LandingGeneratorWorkspace({
 		file || requireReference
 			? Boolean(capability?.enabled && capability.products.length > 0)
 			: textProducts.length > 0;
+	const guestPreparation = useGuestUploadPreparation({
+		file,
+		enabled: Boolean(capability?.enabled),
+		capabilityVersion: capability?.version,
+		productKey: selectedProduct?.key,
+		maximumBytes,
+		turnstileToken,
+		journey: { draftRef: journeyDraftRef.current },
+		consumeTurnstileToken: () => {
+			if (!GUEST_TURNSTILE_SITE_KEY) return `${LOCAL_TURNSTILE_EVIDENCE}-${crypto.randomUUID()}`;
+			const token = turnstileToken;
+			if (token) resetChallenge();
+			return token;
+		},
+		onUploadStarted: () => {
+			uploadStartedAt.current ??= performance.now();
+			void trackGenerationJourney({
+				stage: "upload_started",
+				draftRef: journeyDraftRef.current,
+				publicModel: selectedProductKey ?? undefined,
+			});
+			const attemptKey = uploadAttemptKey.current ?? createAttemptKey();
+			uploadAttemptKey.current = attemptKey;
+			if (!selectedProductKey) return;
+			void trackBrowserGrowthEvent(
+				{
+					name: "source_upload_started",
+					properties: { productKey: selectedProductKey, status: "started" },
+				},
+				{ dedupeKey: `source-upload-started:${attemptKey}` },
+			);
+		},
+		onSealed: () => {
+			void trackGenerationJourney({
+				stage: "upload_completed",
+				draftRef: journeyDraftRef.current,
+				publicModel: selectedProductKey ?? undefined,
+				elapsedMs:
+					uploadStartedAt.current === null
+						? undefined
+						: Math.round(performance.now() - uploadStartedAt.current),
+				latencyBoundary: "upload",
+			});
+			const attemptKey = uploadAttemptKey.current ?? createAttemptKey();
+			uploadAttemptKey.current = attemptKey;
+			if (!selectedProductKey) return;
+			void trackBrowserGrowthEvent(
+				{
+					name: "source_upload_completed",
+					properties: { productKey: selectedProductKey, status: "completed" },
+				},
+				{ dedupeKey: `source-upload-completed:${attemptKey}` },
+			);
+		},
+		onError: (error) => {
+			void trackGenerationJourney({
+				stage: "upload_failed",
+				draftRef: journeyDraftRef.current,
+				reason: "network",
+			});
+			if (error instanceof Error && error.message.startsWith("SOURCE_IMAGE_"))
+				setFileError(fileErrorMessage(error, t, maximumMegabytes));
+			else if (error instanceof Error && error.message === "GUEST_UPLOAD_RATE_LIMITED")
+				setSubmitError("rateLimit");
+			else if (error instanceof Error && error.message === "GUEST_UPLOAD_SESSION_EXPIRED")
+				setSubmitError("referenceExpired");
+			else if (error instanceof Error && error.message === "GUEST_UPLOAD_PREVIOUS_PENDING")
+				setSubmitError("previousUploadPending");
+			else if (error instanceof Error && error.message === "GUEST_BROWSER_COOKIE_REQUIRED")
+				setSubmitError("browserCookie");
+			else setSubmitError("upload");
+		},
+	});
 	useEffect(() => {
 		if (isEffectEditor) return;
 		setSelectedSkuKey((current) => resolveLandingSkuSelection(selectedProduct, current));
@@ -640,7 +796,11 @@ function LandingGeneratorWorkspace({
 		productSelected: Boolean(selectedProduct && selectedSku),
 		hasSource: Boolean(file),
 		prompt,
-		turnstileReady: !file || Boolean(turnstileToken),
+		turnstileReady:
+			!file ||
+			Boolean(turnstileToken) ||
+			guestPreparation.inFlight ||
+			Boolean(guestPreparation.checkpoint?.intent),
 		requiresSource: requireReference,
 	});
 	const isBusy = disabledReason === "busy";
@@ -664,6 +824,7 @@ function LandingGeneratorWorkspace({
 				),
 			),
 		applyPreset: (preset) => {
+			selectionSource.current = "explicit";
 			setPrompt(preset.prompt);
 			setSelectedProductKey(preset.productKey);
 			setSelectedSkuKey(preset.parameters.skuKey);
@@ -699,13 +860,16 @@ function LandingGeneratorWorkspace({
 		ready: !effectEditor && stage !== "checking" && !isBusy,
 		onSelect: (key) => {
 			if (!isBusy) {
+				selectionSource.current = "explicit";
 				setSelectedProductKey(key);
 				setSubmitError(undefined);
 			}
 		},
 	});
 	const canRetryCapability =
-		availabilityStatus === "failed" || (stage === "ready" && !capabilityUsable);
+		availabilityStatus === "failed" ||
+		submitError === "browserCookie" ||
+		(stage === "ready" && !capabilityUsable);
 
 	function retryCapability() {
 		setSubmitError(undefined);
@@ -715,53 +879,50 @@ function LandingGeneratorWorkspace({
 		setCapabilityRequestKey((current) => current + 1);
 	}
 
-	function beginUpload() {
-		const attemptKey = createAttemptKey();
-		uploadAttemptKey.current = attemptKey;
-		if (!selectedProductKey) return;
-		void trackBrowserGrowthEvent(
-			{
-				name: "source_upload_started",
-				properties: { productKey: selectedProductKey, status: "started" },
-			},
-			{ dedupeKey: `source-upload-started:${attemptKey}` },
-		);
-	}
-
-	function chooseFile(nextFile: File) {
+	async function chooseFile(nextFile: File): Promise<boolean> {
+		draftInteractionRevision.current += 1;
+		const revision = ++fileSelectionRevision.current;
+		guestPreparation.invalidate();
+		sourceFileRef.current = null;
+		setPreviewUrl((current) => {
+			if (current) URL.revokeObjectURL(current);
+			return undefined;
+		});
+		journeyDraftRef.current = createJourneyReference();
+		journeyAction.current = null;
+		uploadStartedAt.current = null;
+		void trackGenerationJourney({ stage: "source_selected", draftRef: journeyDraftRef.current });
+		setFile(null);
 		try {
-			validateLandingImageFile(nextFile, maximumBytes);
-			if (!supportedMimeTypes.includes(nextFile.type)) {
+			const preparedFile = await prepareImageUpload(nextFile, maximumBytes);
+			if (revision !== fileSelectionRevision.current) return false;
+			validateLandingImageFile(preparedFile, maximumBytes);
+			if (!supportedMimeTypes.includes(preparedFile.type)) {
 				throw new Error("SOURCE_IMAGE_TYPE_UNSUPPORTED");
 			}
-			const attemptKey = uploadAttemptKey.current ?? createAttemptKey();
-			uploadAttemptKey.current = attemptKey;
-			setFile(nextFile);
+			uploadAttemptKey.current = createAttemptKey();
+			sourceFileRef.current = nextFile;
+			setFile(preparedFile);
 			setReselectReference(false);
 			setFileError(undefined);
 			setSubmitError(undefined);
 			setUploadPercentage(undefined);
 			setPreviewUrl((current) => {
 				if (current) URL.revokeObjectURL(current);
-				return URL.createObjectURL(nextFile);
+				return URL.createObjectURL(preparedFile);
 			});
-			if (selectedProductKey) {
-				void trackBrowserGrowthEvent(
-					{
-						name: "source_upload_completed",
-						properties: { productKey: selectedProductKey, status: "completed" },
-					},
-					{ dedupeKey: `source-upload-completed:${attemptKey}` },
-				);
-			}
+			return true;
 		} catch (error) {
+			if (revision !== fileSelectionRevision.current) return false;
 			setFileError(fileErrorMessage(error, t, maximumMegabytes));
+			return false;
 		}
 	}
+	chooseFileRef.current = chooseFile;
 
 	function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
 		const nextFile = event.target.files?.[0];
-		if (nextFile) chooseFile(nextFile);
+		if (nextFile) void chooseFile(nextFile);
 		event.target.value = "";
 	}
 
@@ -778,11 +939,17 @@ function LandingGeneratorWorkspace({
 		if (isBusy) return;
 		const nextFile = event.dataTransfer.files.item(0);
 		if (!nextFile) return;
-		beginUpload();
-		chooseFile(nextFile);
+		void chooseFile(nextFile);
 	}
 
 	function clearFile() {
+		guestPreparation.invalidate();
+		draftInteractionRevision.current += 1;
+		fileSelectionRevision.current += 1;
+		sourceFileRef.current = null;
+		journeyDraftRef.current = undefined;
+		journeyAction.current = null;
+		uploadStartedAt.current = null;
 		setFile(null);
 		setReselectReference(false);
 		setFileError(undefined);
@@ -793,10 +960,10 @@ function LandingGeneratorWorkspace({
 		setUploadPercentage(undefined);
 		setSubmitError(undefined);
 		uploadAttemptKey.current = null;
-		guestUploadCheckpoint.current = null;
 	}
 
 	function changeSku(nextSkuKey: string) {
+		draftInteractionRevision.current += 1;
 		if (
 			paidTemplate &&
 			!isPaidTemplateSelection({ productKey: selectedProductKey, skuKey: nextSkuKey }, effectPreset)
@@ -805,6 +972,7 @@ function LandingGeneratorWorkspace({
 		if (!selectedProduct) return;
 		const nextSku = selectedProduct.skuMatrix.cells.find((cell) => cell.skuKey === nextSkuKey);
 		if (!nextSku) return;
+		selectionSource.current = "explicit";
 		setSelectedSkuKey(nextSku.skuKey);
 		setControlValues((current) => resolveImageSpecControlValues(nextSku, current));
 		setAspectRatio(
@@ -818,6 +986,7 @@ function LandingGeneratorWorkspace({
 	}
 
 	function changeControl(key: ImageSpecControlChangeKey, value: string) {
+		draftInteractionRevision.current += 1;
 		setControlValues((current) => {
 			const next = resolveImageSpecControlValues(selectedSku, { ...current, [key]: value }, key);
 			return String(next[key]) === value ? next : current;
@@ -843,12 +1012,50 @@ function LandingGeneratorWorkspace({
 		}
 	}
 
+	function changeModel(key: string, skuKey?: string) {
+		if (paidTemplate) return;
+		const next = localizedProducts.find((product) => product.key === key);
+		if (!next) return;
+		draftInteractionRevision.current += 1;
+		selectionSource.current = "explicit";
+		setSelectedProductKey(next.key);
+		if (!effectEditor) replaceImageModelInUrl(next.key);
+		const resolvedSkuKey = resolveLandingSkuSelection(next, (skuKey as ImageSkuKey) ?? null);
+		setSelectedSkuKey(resolvedSkuKey);
+		if (effectEditor) {
+			const cell = next.skuMatrix.cells.find((candidate) => candidate.skuKey === resolvedSkuKey);
+			setAspectRatio(
+				resolveImageSpecControlValues(cell ?? null, controlValues).outputFormat === "gif"
+					? "1:1"
+					: (cell?.aspectRatios[0] ?? "auto"),
+			);
+			setControlValues((current) => resolveImageSpecControlValues(cell ?? null, current));
+		}
+		setSubmitError(undefined);
+	}
+
 	async function submit(
 		event: Pick<FormEvent<HTMLFormElement>, "preventDefault">,
 		purchase?: PaidTemplatePurchase,
 	) {
 		event.preventDefault();
 		if (effectSelectionUnavailable || submissionInFlight.current) return;
+		const fingerprint = JSON.stringify([
+			selectedProductKey,
+			selectedSkuKey,
+			prompt,
+			aspectRatio,
+			controlValues,
+			journeyDraftRef.current,
+		]);
+		if (journeyAction.current?.fingerprint !== fingerprint)
+			journeyAction.current = { fingerprint, id: createJourneyReference() };
+		void trackGenerationJourney({
+			stage: "generate_clicked",
+			draftRef: journeyDraftRef.current,
+			actionRef: journeyAction.current.id,
+			publicModel: selectedProductKey ?? undefined,
+		});
 		if (requireReference && !file) {
 			setFileError(t("fileErrors.required"));
 			return;
@@ -898,8 +1105,15 @@ function LandingGeneratorWorkspace({
 				const redirectTo =
 					effectEditor?.getReturnPath("resume") ??
 					`${toolPrompt?.returnPath ?? "/create"}?resume=text&model=${encodeURIComponent(selectedProduct.key)}`;
+				let restoredDestination: string;
+				if (workspace) restoredDestination = await workspace.prepareSignIn(redirectTo);
+				else {
+					const destination = new URL(redirectTo, window.location.origin);
+					await saveSignInDraft(destination);
+					restoredDestination = `${destination.pathname}${destination.search}`;
+				}
 				window.location.assign(
-					`/login?${new URLSearchParams({ redirectTo: (await workspace?.prepareSignIn(redirectTo)) ?? redirectTo })}`,
+					`/login?${new URLSearchParams({ redirectTo: restoredDestination })}`,
 				);
 			} catch {
 				submissionInFlight.current = false;
@@ -916,14 +1130,7 @@ function LandingGeneratorWorkspace({
 			setSubmitError("turnstile");
 			return;
 		}
-		if (
-			disabledReason ||
-			!capability?.enabled ||
-			!file ||
-			!selectedProduct ||
-			!selectedSku ||
-			!turnstileToken
-		) {
+		if (disabledReason || !capability?.enabled || !file || !selectedProduct || !selectedSku) {
 			return;
 		}
 
@@ -933,16 +1140,13 @@ function LandingGeneratorWorkspace({
 		setUploadPercentage(undefined);
 		const attemptKey = createAttemptKey();
 		try {
-			validateLandingImageFile(file, maximumBytes);
-			const consumedTurnstileToken = GUEST_TURNSTILE_SITE_KEY
-				? turnstileToken
-				: `${LOCAL_TURNSTILE_EVIDENCE}-${crypto.randomUUID()}`;
-			if (GUEST_TURNSTILE_SITE_KEY) resetChallenge();
+			const checkpoint = await guestPreparation.ensurePrepared();
 			const handoff = await uploadGuestDraft({
+				journey: { draftRef: journeyDraftRef.current, actionRef: journeyAction.current?.id },
 				maximumBytes,
-				checkpoint: guestUploadCheckpoint.current,
+				checkpoint,
 				onCheckpoint: (checkpoint) => {
-					guestUploadCheckpoint.current = checkpoint;
+					guestPreparation.setCheckpoint(checkpoint, file);
 				},
 				capabilityVersion: capability.version,
 				productKey: selectedProduct.key,
@@ -951,9 +1155,9 @@ function LandingGeneratorWorkspace({
 				prompt,
 				aspectRatio,
 				...controlValues,
-				turnstileToken: consumedTurnstileToken,
+				turnstileToken: "",
 				onStage: (nextStage) => {
-					setStage(nextStage);
+					setStage(nextStage === "verifying" ? "preparing" : nextStage);
 					if (nextStage === "uploading") setUploadPercentage(0);
 				},
 				onProgress: ({ percentage }) => setUploadPercentage(percentage),
@@ -977,14 +1181,14 @@ function LandingGeneratorWorkspace({
 				}
 			}
 			setStage("handoff");
-			await trackBrowserGrowthEvent(
+			void trackBrowserGrowthEvent(
 				{
 					name: "marketing_draft_created",
 					properties: { productKey: selectedProduct.key, status: "created" },
 				},
 				{ dedupeKey: `marketing-draft-created:${attemptKey}` },
 			);
-			await trackBrowserGrowthEvent(
+			void trackBrowserGrowthEvent(
 				{
 					name: "auth_handoff_started",
 					properties: { productKey: selectedProduct.key, status: "started" },
@@ -999,6 +1203,10 @@ function LandingGeneratorWorkspace({
 				setFileError(fileErrorMessage(error, t, maximumMegabytes));
 			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_RATE_LIMITED") {
 				setSubmitError("rateLimit");
+			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_PREVIOUS_PENDING") {
+				setSubmitError("previousUploadPending");
+			} else if (error instanceof Error && error.message === "GUEST_BROWSER_COOKIE_REQUIRED") {
+				setSubmitError("browserCookie");
 			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_CONTENT_REJECTED") {
 				setSubmitError("contentRejected");
 			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_REVIEW_REQUIRED") {
@@ -1007,12 +1215,14 @@ function LandingGeneratorWorkspace({
 				setSubmitError("safetyUnavailable");
 			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_COMPLETION_TIMEOUT") {
 				setSubmitError("reviewPending");
+			} else if (error instanceof Error && error.message === "PAID_TEMPLATE_HANDOFF_REQUIRED") {
+				setSubmitError("upload");
 			} else if (
 				error instanceof Error &&
 				["GUEST_UPLOAD_SESSION_EXPIRED", "GUEST_UPLOAD_RETRY_INPUT_CHANGED"].includes(error.message)
 			) {
 				setSubmitError("referenceExpired");
-			} else if (guestUploadCheckpoint.current?.uploaded) {
+			} else if (guestPreparation.getCheckpoint()?.uploaded) {
 				setSubmitError("reviewUnknown");
 			} else {
 				setSubmitError("upload");
@@ -1042,13 +1252,13 @@ function LandingGeneratorWorkspace({
 						? studio("generation.signIn")
 						: paidTemplate
 							? composer("generate")
-							: selectedProduct?.accessHint === "paid-account"
+							: !selectedGuestTrial
 								? t("actions.quality")
 								: t("actions.standard");
 	const stageLabel =
 		stage === "uploading"
 			? t("states.uploading", { percentage: uploadPercentage ?? 0 })
-			: t(`states.${stage}`);
+			: t(`states.${stage === "verifying" ? "preparing" : stage}`);
 	const statusLabel =
 		submitError === "rateLimit"
 			? stageLabel
@@ -1151,7 +1361,6 @@ function LandingGeneratorWorkspace({
 				data-reference-upload=""
 				disabled={isBusy}
 				onClick={() => {
-					beginUpload();
 					inputRef.current?.click();
 				}}
 				onDragEnter={(event) => {
@@ -1193,7 +1402,9 @@ function LandingGeneratorWorkspace({
 				ref={inputRef}
 				id="landing-source-image"
 				type="file"
-				accept={supportedMimeTypes.join(",")}
+				accept={Object.entries(IMAGE_UPLOAD_ACCEPT)
+					.flatMap(([mime, extensions]) => [mime, ...extensions])
+					.join(",")}
 				aria-label={referenceLabel}
 				aria-invalid={Boolean(fileError)}
 				disabled={isBusy}
@@ -1289,7 +1500,10 @@ function LandingGeneratorWorkspace({
 										disabled={isBusy}
 										placeholder={isImageEdit ? composer("editHint") : composer("createHint")}
 										className="min-h-36 p-4 pb-9 sm:p-5 sm:pb-9 md:min-h-[9.5rem] text-base leading-7 resize-none border-0 bg-transparent text-[#f6f2fb] shadow-none placeholder:text-[#a99db2] focus-visible:ring-0"
-										onChange={(event) => setPrompt(event.target.value)}
+										onChange={(event) => {
+											draftInteractionRevision.current += 1;
+											setPrompt(event.target.value);
+										}}
 									/>
 									{showCharacterCount ? (
 										<span className="right-4 bottom-3 absolute text-[0.68rem] text-[#8f8399] tabular-nums">
@@ -1301,6 +1515,17 @@ function LandingGeneratorWorkspace({
 						)}
 					</div>
 
+					{!isEffectEditor && (
+						<ImagePurposeShortcuts
+							products={localizedProducts}
+							value={selectedProductKey}
+							skuKey={selectedSkuKey}
+							outputFormat={controlValues.outputFormat}
+							frameCount={controlValues.frameCount}
+							onSelect={changeModel}
+							disabled={isBusy || !capabilityUsable}
+						/>
+					)}
 					<div
 						data-test="landing-controls-panel"
 						className="mt-4 gap-2 px-1 flex flex-wrap items-center"
@@ -1316,31 +1541,7 @@ function LandingGeneratorWorkspace({
 								skuKey={selectedSkuKey}
 								valueLabel={selectedProductFallbackLabel}
 								disabled={paidTemplate || isBusy || !capabilityUsable}
-								onChange={(key, skuKey) => {
-									if (paidTemplate) return;
-									const next = localizedProducts.find((product) => product.key === key);
-									if (!next) return;
-									setSelectedProductKey(next.key);
-									if (!effectEditor) replaceImageModelInUrl(next.key);
-									setSelectedSkuKey(
-										resolveLandingSkuSelection(next, (skuKey as ImageSkuKey) ?? null),
-									);
-									if (effectEditor) {
-										const cell = next.skuMatrix.cells.find(
-											(candidate) => candidate.skuKey === (skuKey ?? next.skuMatrix.defaultSkuKey),
-										);
-										setAspectRatio(
-											resolveImageSpecControlValues(cell ?? null, controlValues).outputFormat ===
-												"gif"
-												? "1:1"
-												: (cell?.aspectRatios[0] ?? "auto"),
-										);
-										setControlValues((current) =>
-											resolveImageSpecControlValues(cell ?? null, current),
-										);
-									}
-									setSubmitError(undefined);
-								}}
+								onChange={changeModel}
 							/>
 						</div>
 						<div className="image-edit-control-field composer-output-field">
@@ -1380,7 +1581,7 @@ function LandingGeneratorWorkspace({
 						>
 							{actionLabel}
 							{selectedSku &&
-								((!file && !requireReference) || selectedProduct?.accessHint === "paid-account") &&
+								((!file && !requireReference) || !selectedGuestTrial) &&
 								!canRetryCapability && (
 									<span
 										data-test="generation-credit-amount"
@@ -1417,7 +1618,8 @@ function LandingGeneratorWorkspace({
 								setTurnstileToken(token);
 							}}
 							onError={() => {
-								setSubmitError((current) => current ?? "turnstile");
+								if (!guestPreparation.getCheckpoint()?.intent)
+									setSubmitError((current) => current ?? "turnstile");
 								resetChallenge();
 							}}
 							onExpire={resetChallenge}
@@ -1467,7 +1669,7 @@ function LandingGeneratorWorkspace({
 						<SparklesIcon className="size-3.5 text-[#b79cff]" aria-hidden="true" />
 						{!file && !requireReference
 							? studio("generation.textHint")
-							: selectedProduct.accessHint === "paid-account"
+							: !selectedGuestTrial
 								? t(freeAccountSelection ? "freeAccountAccess" : "qualityAccess", {
 										model: selectedProduct.label,
 									})
@@ -1521,7 +1723,6 @@ function LandingGeneratorWorkspace({
 										type="button"
 										className="group min-h-28 sm:min-h-32 border-white/20 bg-black/10 hover:bg-white/[0.035] relative flex items-center justify-center overflow-hidden rounded-xl border border-dashed text-center transition hover:border-[#c9b9ff]/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff] motion-reduce:transition-none"
 										onClick={() => {
-											beginUpload();
 											inputRef.current?.click();
 										}}
 										onDragEnter={(event) => {
@@ -1565,7 +1766,10 @@ function LandingGeneratorWorkspace({
 											disabled={isBusy}
 											placeholder={t("placeholder")}
 											className="min-h-28 p-4 sm:min-h-32 text-base leading-6 text-white resize-none border-0 bg-transparent shadow-none placeholder:text-[#a99db2] focus-visible:ring-0"
-											onChange={(event) => setPrompt(event.target.value)}
+											onChange={(event) => {
+												draftInteractionRevision.current += 1;
+												setPrompt(event.target.value);
+											}}
 										/>
 									</div>
 								</div>
@@ -1578,17 +1782,7 @@ function LandingGeneratorWorkspace({
 										skuKey={selectedSkuKey}
 										valueLabel={selectedProductFallbackLabel}
 										disabled={paidTemplate || isBusy || !capabilityUsable}
-										onChange={(key, skuKey) => {
-											if (paidTemplate) return;
-											const next = localizedProducts.find((product) => product.key === key);
-											if (!next) return;
-											setSelectedProductKey(next.key);
-											replaceImageModelInUrl(next.key);
-											setSelectedSkuKey(
-												resolveLandingSkuSelection(next, (skuKey as ImageSkuKey) ?? null),
-											);
-											setSubmitError(undefined);
-										}}
+										onChange={changeModel}
 									/>
 
 									<div className="min-w-0 max-w-full">
@@ -1629,8 +1823,7 @@ function LandingGeneratorWorkspace({
 									>
 										{actionLabel}
 										{selectedSku &&
-											((!file && !requireReference) ||
-												selectedProduct?.accessHint === "paid-account") &&
+											((!file && !requireReference) || !selectedGuestTrial) &&
 											!canRetryCapability && (
 												<span
 													data-test="generation-credit-amount"
@@ -1667,7 +1860,8 @@ function LandingGeneratorWorkspace({
 											setTurnstileToken(token);
 										}}
 										onError={() => {
-											setSubmitError((current) => current ?? "turnstile");
+											if (!guestPreparation.getCheckpoint()?.intent)
+												setSubmitError((current) => current ?? "turnstile");
 											resetChallenge();
 										}}
 										onExpire={resetChallenge}
@@ -1712,7 +1906,6 @@ function LandingGeneratorWorkspace({
 									className="size-12 border-white/10 relative grid shrink-0 place-items-center overflow-hidden rounded-xl border bg-[#1b1425] text-[#c9b9ff] transition hover:border-[#b79cff]/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff]"
 									disabled={isBusy}
 									onClick={() => {
-										beginUpload();
 										inputRef.current?.click();
 									}}
 									aria-label={t("floating.upload")}
@@ -1773,6 +1966,8 @@ function fileErrorMessage(
 	if (!(error instanceof Error)) return t("fileErrors.read");
 	if (error.message === "SOURCE_IMAGE_EMPTY") return t("fileErrors.empty");
 	if (error.message === "SOURCE_IMAGE_TYPE_UNSUPPORTED") return t("fileErrors.type");
+	if (error.message === "SOURCE_IMAGE_HEIC_UNSUPPORTED") return t("fileErrors.heicUnsupported");
+	if (error.message === "SOURCE_IMAGE_DIMENSIONS_TOO_LARGE") return t("fileErrors.dimensions");
 	if (error.message === "SOURCE_IMAGE_TOO_LARGE") {
 		return t("fileErrors.size", { megabytes: maximumMegabytes });
 	}

@@ -91,6 +91,7 @@ export class OpenRouterProviderAdapter implements MediaProviderAdapter {
 					data: null,
 					attemptId: input.attemptId,
 					providerIdempotencySupported: false,
+					sensitiveValues: [this.options.apiKey],
 				});
 			}
 			throw error;
@@ -102,6 +103,7 @@ export class OpenRouterProviderAdapter implements MediaProviderAdapter {
 				data,
 				attemptId: input.attemptId,
 				providerIdempotencySupported: false,
+				sensitiveValues: [this.options.apiKey],
 			});
 		}
 

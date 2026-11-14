@@ -158,7 +158,7 @@
 			},
 			"free": {
 				"question": "Puis-je utiliser l’IA image à image gratuitement ?",
-				"answer": "Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations MiniMax H3 Image 1K, sans renouvellement mensuel. Les modèles premium et les résolutions supérieures nécessitent un abonnement payant actif pour utiliser des crédits. Le pack à 2,99 USD comprend 3 images réussies avec les modèles et formats d’image inclus, sans abonnement."
+				"answer": "Les invités éligibles peuvent essayer une retouche gratuite avec MiniMax H3 1K ou Nano Banana 2 Lite 1K lorsque la file sponsorisée est disponible. Le résultat est privé, filigrané et disponible jusqu’à 24 heures. Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations MiniMax H3 Image 1K, sans renouvellement mensuel. Les modèles premium et les résolutions supérieures nécessitent un abonnement payant actif pour utiliser des crédits. Le pack à 2,99 USD comprend 3 images réussies avec les modèles et formats d’image inclus, sans abonnement."
 			},
 			"control": {
 				"question": "Tous les détails de mon image originale seront-ils conservés ?",
@@ -212,11 +212,11 @@
 			},
 			"guestAvailability": {
 				"question": "Quand la retouche invitée est-elle disponible ?",
-				"answer": "Lorsque la file sponsorisée est disponible, les visiteurs éligibles peuvent effectuer deux retouches par jour avec Nano Banana 2 Lite en 1K sans inscription. Importez une image de référence et décrivez la modification. Chaque résultat est privé, filigrané et disponible jusqu’à 24 heures. Le quota est renouvelé à 00:00 UTC ; les retouches inutilisées ne sont pas reportées. La génération à partir de texte nécessite une connexion."
+				"answer": "Les invités éligibles peuvent essayer une retouche gratuite avec MiniMax H3 1K ou Nano Banana 2 Lite 1K lorsque la file sponsorisée est disponible. Le résultat est privé, filigrané et disponible jusqu’à 24 heures. Importez une image de référence et décrivez la modification. Cet essai unique dans ce navigateur dépend de votre éligibilité régionale. La génération à partir de texte nécessite une connexion."
 			},
 			"guestVsFree": {
 				"question": "Quelle est la différence entre l’accès invité et Free ?",
-				"answer": "Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations MiniMax H3 Image 1K, sans renouvellement mensuel. Les modèles premium et les résolutions supérieures nécessitent un abonnement payant actif pour utiliser des crédits. Le pack à 2,99 USD comprend 3 images réussies avec les modèles et formats d’image inclus, sans abonnement. Les images générées avec les crédits du compte n’ont pas de filigrane invité et ont un objectif de conservation de 30 jours. Téléchargez les résultats à conserver."
+				"answer": "Les invités éligibles peuvent essayer une retouche gratuite avec MiniMax H3 1K ou Nano Banana 2 Lite 1K lorsque la file sponsorisée est disponible. Le résultat est privé, filigrané et disponible jusqu’à 24 heures. Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations MiniMax H3 Image 1K, sans renouvellement mensuel. Les modèles premium et les résolutions supérieures nécessitent un abonnement payant actif pour utiliser des crédits. Le pack à 2,99 USD comprend 3 images réussies avec les modèles et formats d’image inclus, sans abonnement. Les images générées avec les crédits du compte n’ont pas de filigrane invité et ont un objectif de conservation de 30 jours. Téléchargez les résultats à conserver."
 			},
 			"editTiers": {
 				"question": "Quels modèles d’image et réglages de sortie sont disponibles ?",
@@ -332,11 +332,11 @@
 			"eyebrow": "Planifiez votre retouche",
 			"title": "Décrivez le changement souhaité",
 			"subtitle": "Commencez par une instruction ou ajoutez une image de référence. Connectez-vous et générez en un clic ; le bouton affiche le coût en crédits.",
-			"offer": "Essayez Nano Banana 2 Lite 1K gratuitement",
+			"offer": "Essayez une retouche d’image 1K gratuite",
 			"noSignUp": "Sans inscription lorsque la file invitée est disponible",
 			"paidSignIn": "Connectez-vous et utilisez vos crédits",
 			"oneOutput": "Un résultat",
-			"freeQueue": "2 retouches gratuites par jour · filigrane · disponibles jusqu’à 24 heures",
+			"freeQueue": "Un essai gratuit · filigrane · disponible jusqu’à 24 heures",
 			"qualityAccess": "{model} nécessite une connexion et un forfait Pro, Ultimate ou Max.",
 			"freeAccountAccess": "Connectez-vous pour essayer {model} avec vos crédits gratuits.",
 			"temporaryResult": "Votre aperçu reste privé et temporaire.",
@@ -380,7 +380,7 @@
 				"ready": "Choisissez un modèle d’image, une image source et un prompt pour continuer.",
 				"preparing": "Préparation de votre import privé…",
 				"loadingCapability": "Vérification de la disponibilité invitée…",
-				"unavailable": "La file Nano Banana invitée n’accepte pas de nouvelles retouches pour le moment.",
+				"unavailable": "La file invitée n’accepte pas de nouvelles retouches pour le moment.",
 				"uploading": "Import de l’image source privée : {percentage, number}%",
 				"verifying": "Vérification de votre image source privée…",
 				"handoff": "Ouverture de votre brouillon privé…",
@@ -408,9 +408,11 @@
 				"contentRejected": "Cette image de référence n’a pas passé le contrôle de sécurité. Choisissez une autre image.",
 				"reviewRequired": "Cette image de référence nécessite un examen manuel. Aucune génération n’a commencé.",
 				"safetyUnavailable": "Le contrôle de sécurité est indisponible. Votre image et votre description sont conservées ; vérifiez cette demande plus tard.",
-				"reviewPending": "Votre image de référence est toujours en cours de vérification. Réessayez pour vérifier le même téléversement.",
+				"reviewPending": "Votre image est encore en préparation. Réessayez pour poursuivre le même envoi.",
 				"referenceExpired": "Ce téléversement ne peut plus être réutilisé. Choisissez à nouveau l’image pour en commencer un autre.",
-				"reviewUnknown": "Nous n’avons pas pu confirmer le contrôle de sécurité. Votre téléversement est conservé ; réessayez pour vérifier la même demande."
+				"reviewUnknown": "Nous n’avons pas pu confirmer la dernière demande. Votre envoi est conservé ; réessayez pour continuer.",
+				"previousUploadPending": "Deux envois précédents ne sont pas encore confirmés. Patientez un instant et réessayez ; la photo sélectionnée est conservée.",
+				"browserCookie": "La session d’envoi de ce navigateur n’a pas pu être restaurée. Vérifiez à nouveau la disponibilité, puis continuez avec la même photo."
 			},
 			"prompt": "Décrivez votre retouche",
 			"reference": "Image source",
@@ -442,7 +444,7 @@
 					"label": "Nano Banana 2 Lite",
 					"badge": "Essai invité",
 					"description": "Retouche 1K d’une image source avec un résultat",
-					"access": "Deux retouches invité sponsorisées par jour"
+					"access": "Un essai invité sponsorisé"
 				},
 				"quality": {
 					"label": "Plus de modèles d’image",
@@ -451,7 +453,7 @@
 					"access": "Pro, Ultimate ou Max requis"
 				}
 			},
-			"loginNotice": "Connectez-vous pour générer des images à partir de texte. Le bouton affiche le coût en crédits avant le démarrage. Avec une image de référence, la retouche sponsorisée Nano Banana 2 Lite reste disponible lorsque la file invitée est ouverte.",
+			"loginNotice": "Connectez-vous pour générer des images à partir de texte. Le bouton affiche le coût en crédits avant le démarrage. Avec une image de référence, les invités éligibles peuvent essayer MiniMax H3 1K ou Nano Banana 2 Lite 1K une fois lorsque la file est ouverte.",
 			"previewCaption": "Aperçu de la source",
 			"previewPlaceholderAlt": "Illustration vectorielle EzImageAI originale d’un salon de lecture neutre",
 			"previewAlt": "Aperçu de {fileName}",
@@ -469,7 +471,9 @@
 				"empty": "Choisissez une image source non vide.",
 				"type": "Choisissez une image JPEG, PNG ou WebP.",
 				"size": "Choisissez une image de {megabytes, number} Mo maximum.",
-				"read": "Cette image n’a pas pu être lue. Exportez un nouveau PNG ou JPG depuis votre application photo, ou choisissez un autre fichier."
+				"read": "Cette image n’a pas pu être lue. Exportez un nouveau PNG ou JPG depuis votre application photo, ou choisissez un autre fichier.",
+				"heic": "Ce navigateur ne peut pas ouvrir cette photo HEIC. Exportez-la en JPEG ou PNG et réessayez.",
+				"dimensions": "Cette image contient trop de pixels. Réduisez sa taille et réessayez."
 			},
 			"help": {
 				"promptGuide": "Lire le guide des consignes",
@@ -726,7 +730,7 @@
 		"trust": {
 			"eyebrow": "Limites claires",
 			"title": "Privé par défaut, mesuré clairement",
-			"description": "Lorsque la file sponsorisée est disponible, la page d’accueil permet de lancer jusqu’à deux retouches par jour avec Nano Banana 2 Lite en 1K. Pour les comptes, le bouton indique le coût et la sécurité ainsi que le prix sont vérifiés avant de réserver les EzImageAI Credits.",
+			"description": "Les invités éligibles peuvent essayer une retouche 1K avec MiniMax H3 ou Nano Banana 2 Lite. Pour les comptes, le bouton indique le coût et la sécurité ainsi que le prix sont vérifiés avant de réserver les EzImageAI Credits.",
 			"items": {
 				"privacy": {
 					"title": "Médias privés",
@@ -734,7 +738,7 @@
 				},
 				"credits": {
 					"title": "Usage contrôlé",
-					"description": "Les retouches Nano Banana invitées utilisent la file sponsorisée ; les retouches de compte affichent le montant d’EzImageAI Credits sur le bouton. Tout changement de prix nécessite votre confirmation avant le démarrage."
+					"description": "Les essais invités utilisent la file sponsorisée ; les retouches de compte affichent le montant d’EzImageAI Credits sur le bouton. Tout changement de prix nécessite votre confirmation avant le démarrage."
 				},
 				"safety": {
 					"title": "Protections normales",
@@ -812,11 +816,11 @@
 			"items": {
 				"guestAvailability": {
 					"question": "Puis-je essayer l’éditeur d’images IA sans m’inscrire ?",
-					"answer": "Lorsque la file sponsorisée est disponible, les visiteurs éligibles peuvent effectuer deux retouches par jour avec Nano Banana 2 Lite en 1K sans inscription. Importez une image de référence et décrivez la modification. Chaque résultat est privé, filigrané et disponible jusqu’à 24 heures. Le quota est renouvelé à 00:00 UTC ; les retouches inutilisées ne sont pas reportées. La génération à partir de texte nécessite une connexion."
+					"answer": "Les invités éligibles peuvent essayer une retouche gratuite avec MiniMax H3 1K ou Nano Banana 2 Lite 1K lorsque la file sponsorisée est disponible. Le résultat est privé, filigrané et disponible jusqu’à 24 heures. Importez une image de référence et décrivez la modification. Cet essai unique dans ce navigateur dépend de votre éligibilité régionale. La génération à partir de texte nécessite une connexion."
 				},
 				"guestVsFree": {
 					"question": "Puis-je utiliser EzImageAI comme éditeur d’images IA gratuit ?",
-					"answer": "Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations MiniMax H3 Image 1K, sans renouvellement mensuel. Les modèles premium et les résolutions supérieures nécessitent un abonnement payant actif pour utiliser des crédits. Le pack à 2,99 USD comprend 3 images réussies avec les modèles et formats d’image inclus, sans abonnement. Les invités éligibles peuvent effectuer deux retouches sponsorisées Nano Banana 2 Lite 1K par jour lorsque la file est disponible. Les résultats portent un filigrane et restent disponibles jusqu’à 24 heures. Les limites de sécurité, légales, du modèle et d’usage s’appliquent."
+					"answer": "Les comptes inscrits et éligibles reçoivent 10 crédits une seule fois pour deux générations MiniMax H3 Image 1K, sans renouvellement mensuel. Les modèles premium et les résolutions supérieures nécessitent un abonnement payant actif pour utiliser des crédits. Le pack à 2,99 USD comprend 3 images réussies avec les modèles et formats d’image inclus, sans abonnement. Les invités éligibles peuvent essayer une retouche gratuite avec MiniMax H3 1K ou Nano Banana 2 Lite 1K lorsque la file sponsorisée est disponible. Le résultat est privé, filigrané et disponible jusqu’à 24 heures. Les limites de sécurité, légales, du modèle et d’usage s’appliquent."
 				}
 			}
 		},

@@ -38,6 +38,76 @@ beforeEach(() => {
 	mocks.record.mockReset().mockResolvedValue({ accepted: true });
 });
 describe("consented first-party ingestion", () => {
+	it("preserves hashed task linkage and latency buckets instead of dropping them", async () => {
+		await invoke({
+			...input,
+			event: {
+				name: "editor_generation_succeeded",
+				properties: { anonymousSessionHash: hash, task_hash: hash, latencyBucket: "15-59s" },
+			},
+		});
+		expect(mocks.record).toHaveBeenCalledWith(
+			expect.objectContaining({ diagnostics: { task_hash: hash, latencyBucket: "15-59s" } }),
+		);
+	});
+	it("separates versioned browser observations from server confirmations", async () => {
+		const journey = {
+			version: 1,
+			stage: "generate_clicked",
+			actionRef: "6d4d1ea9-00c7-41e9-891b-be44e97016e1",
+		};
+		await invoke({
+			...input,
+			event: {
+				name: "generation_journey_observed_v1",
+				properties: { anonymousSessionHash: hash, journey },
+			},
+		});
+		expect(mocks.record).toHaveBeenCalledWith(expect.objectContaining({ diagnostics: journey }));
+		mocks.record.mockClear();
+		for (const event of [
+			{
+				name: "generation_journey_confirmed_v1",
+				properties: {
+					anonymousSessionHash: hash,
+					journey: { ...journey, stage: "job_admitted", entityHash: hash },
+				},
+			},
+			{
+				name: "generation_journey_observed_v1",
+				properties: { anonymousSessionHash: hash, journey: { ...journey, prompt: "private" } },
+			},
+			{
+				name: "generation_journey_observed_v1",
+				properties: { anonymousSessionHash: hash, journey: { ...journey, entityHash: hash } },
+			},
+		])
+			await expect(invoke({ ...input, event })).rejects.toThrow();
+		expect(mocks.record).not.toHaveBeenCalled();
+	});
+	it("records only visible-client auth observations on bounded auth paths and rejects prefetch", async () => {
+		const body = {
+			...input,
+			path: "/auth/login?returnTo=private&token=secret",
+			event: {
+				name: "generation_journey_observed_v1",
+				properties: { anonymousSessionHash: hash, journey: { version: 1, stage: "auth_viewed" } },
+			},
+		};
+		await invoke(body);
+		expect(mocks.record).toHaveBeenCalledWith(
+			expect.objectContaining({
+				path: "/auth/login",
+				diagnostics: { version: 1, stage: "auth_viewed" },
+			}),
+		);
+		mocks.record.mockClear();
+		expect(await invoke(body, { "sec-purpose": "prefetch;prerender" })).toEqual({
+			accepted: false,
+		});
+		expect(await invoke({ ...body, path: "/settings/private" })).toEqual({ accepted: false });
+		expect(mocks.record).not.toHaveBeenCalled();
+	});
 	it.each(["birthday-portrait", "birthday-dog"])(
 		"stores the displayed birthday variant %s",
 		async (homepageVariant) => {

@@ -27,6 +27,18 @@
 		"emailFallback": "Pas d’application de messagerie ? Copiez cette adresse et envoyez votre retour depuis votre service habituel.",
 		"subjectIdea": "EzImageAI : suggestion",
 		"subjectBug": "EzImageAI : signalement de bug",
-		"close": "Fermer le formulaire"
+		"close": "Fermer le formulaire",
+		"topic": "Que souhaitez-vous améliorer ?",
+		"topicOptional": "Choisir un sujet (facultatif)",
+		"topics": {
+			"result": "Qualité du résultat",
+			"waiting": "Temps d’attente",
+			"upload": "Envoi de fichiers",
+			"login": "Connexion",
+			"price_credits": "Prix ou crédits",
+			"other": "Autre"
+		},
+		"emailObservation": "Ouvrir un brouillon ne l’envoie pas. Vérifiez-le et envoyez-le depuis votre messagerie.",
+		"supportInbox": "Utiliser votre espace support (connexion requise)"
 	}
 }

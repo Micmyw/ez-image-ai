@@ -27,6 +27,10 @@ import {
 } from "../../lib/image-watermark";
 import { writeImmutableReference } from "../../lib/immutable-reference";
 import {
+	isProviderOriginalKey,
+	createProviderOriginalReadUrl,
+} from "../../lib/provider-original-access";
+import {
 	canStreamImmutableGenerationImage,
 	writeValidatedPrivateImageStream,
 } from "../../lib/streaming-private-image";
@@ -253,6 +257,20 @@ export async function abortIncompleteMultipartUploads(input: MediaObjectLocation
 }
 
 export async function headObject(input: MediaObjectLocation): Promise<MediaObjectMetadata> {
+	if (input.bucket === "media" && isProviderOriginalKey(input.key)) {
+		const response = await fetch(createProviderOriginalReadUrl(input), {
+			method: "HEAD",
+			redirect: "manual",
+			signal: AbortSignal.timeout(60_000),
+		});
+		if (!response.ok) throw new Error("ORIGINAL_ACCESS_UNAVAILABLE");
+		return {
+			contentLength: Number(response.headers.get("content-length")),
+			contentType: response.headers.get("content-type"),
+			etag: response.headers.get("etag"),
+			metadata: {},
+		};
+	}
 	const result = await getS3Client().send(new HeadObjectCommand(mediaLocation(input)));
 	return {
 		contentLength: result.ContentLength ?? 0,
@@ -264,6 +282,40 @@ export async function headObject(input: MediaObjectLocation): Promise<MediaObjec
 
 /** Server-authorized private object read. Never buffers a video or follows a remote URL. */
 export async function readPrivateMediaStream(
+	input: MediaObjectLocation & { range?: { start: number; end: number }; ifMatch?: string },
+) {
+	if (input.bucket === "media" && isProviderOriginalKey(input.key)) {
+		const response = await fetch(createProviderOriginalReadUrl(input), {
+			redirect: "manual",
+			signal: AbortSignal.timeout(60_000),
+			headers: input.ifMatch ? { "If-Match": input.ifMatch } : {},
+		});
+		if (!response.ok || !response.body) throw new Error("ORIGINAL_ACCESS_UNAVAILABLE");
+		// Image readers can safely take a bounded range after the full identity has been verified.
+		if (input.range) {
+			const bytes = new Uint8Array(await response.arrayBuffer()).slice(
+				input.range.start,
+				input.range.end + 1,
+			);
+			return {
+				body: new Blob([bytes]).stream(),
+				contentLength: bytes.length,
+				contentType: response.headers.get("content-type"),
+				etag: response.headers.get("etag"),
+			};
+		}
+		return {
+			body: response.body,
+			contentLength: Number(response.headers.get("content-length")),
+			contentType: response.headers.get("content-type"),
+			etag: response.headers.get("etag"),
+		};
+	}
+	return readArchivedMediaStream(input);
+}
+
+/** Physical private storage read; does not resolve provider originals. */
+export async function readArchivedMediaStream(
 	input: MediaObjectLocation & { range?: { start: number; end: number }; ifMatch?: string },
 ): Promise<{
 	body: ReadableStream<Uint8Array>;
@@ -328,12 +380,24 @@ async function readPrivateReferenceImage(
 				input.contentLength > input.maximumBytes))
 	)
 		throw new Error("INPUT_TOO_LARGE");
-	const stored = await getS3Client().send(
-		new GetObjectCommand({
-			...mediaLocation(input),
-			...(input.ifMatch ? { IfMatch: input.ifMatch } : {}),
-		}),
-	);
+	const resolved =
+		input.bucket === "media" && isProviderOriginalKey(input.key)
+			? await readPrivateMediaStream(input)
+			: null;
+	const stored = resolved
+		? {
+				Body: { transformToWebStream: () => resolved.body },
+				ContentLength: resolved.contentLength,
+				ContentType: resolved.contentType,
+				ETag: resolved.etag,
+				VersionId: undefined,
+			}
+		: await getS3Client().send(
+				new GetObjectCommand({
+					...mediaLocation(input),
+					...(input.ifMatch ? { IfMatch: input.ifMatch } : {}),
+				}),
+			);
 	if (!stored.Body) throw new Error("PRIVATE_MEDIA_BODY_MISSING");
 	const source = stored.Body.transformToWebStream() as ReadableStream<Uint8Array>;
 	const reader = source.getReader();
@@ -567,7 +631,19 @@ export async function promoteStagedObject(input: {
 	const existing = await inspectExistingFinalObject(input);
 	if (existing) return existing;
 
-	const source = await getS3Client().send(new GetObjectCommand(mediaLocation(input.staging)));
+	const resolved =
+		input.staging.bucket === "media" && isProviderOriginalKey(input.staging.key)
+			? await readPrivateMediaStream(input.staging)
+			: null;
+	const source = resolved
+		? {
+				Body: Readable.fromWeb(
+					resolved.body as unknown as import("node:stream/web").ReadableStream<Uint8Array>,
+				),
+				ContentLength: resolved.contentLength,
+				ContentType: resolved.contentType,
+			}
+		: await getS3Client().send(new GetObjectCommand(mediaLocation(input.staging)));
 	if (
 		!source.Body ||
 		typeof (source.Body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] !== "function"
@@ -731,6 +807,21 @@ async function inspectExistingFinalObject(input: {
 export async function inspectPrivateMediaObject(
 	input: MediaObjectLocation & { contentType: MediaContentType; contentLength: number },
 ): Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }> {
+	if (input.bucket === "media" && isProviderOriginalKey(input.key)) {
+		if (!["image/png", "image/jpeg", "image/webp"].includes(input.contentType))
+			throw new Error("ORIGINAL_MEDIA_TYPE_INVALID");
+		const result = await readPrivateReferenceImage({
+			...input,
+			contentType: input.contentType as ImageContentType,
+			maximumBytes: 25 * 1024 * 1024,
+		});
+		return {
+			bytes: result.bytes,
+			sha256: createHash("sha256").update(result.body).digest("hex"),
+			etag: result.etag,
+			versionId: null,
+		};
+	}
 	return inspectStoredMediaObject(input, input.contentType, input.contentLength);
 }
 
@@ -1209,6 +1300,10 @@ export async function putTemporaryReferenceObject(
 }
 
 export async function readMediaHeader(input: MediaObjectLocation): Promise<Buffer> {
+	if (input.bucket === "media" && isProviderOriginalKey(input.key)) {
+		const read = await readPrivateMediaStream({ ...input, range: { start: 0, end: 63 } });
+		return Buffer.from(await new Response(read.body).arrayBuffer());
+	}
 	const result = await getS3Client().send(
 		new GetObjectCommand({
 			...mediaLocation(input),
@@ -1228,6 +1323,13 @@ export async function readMediaHeader(input: MediaObjectLocation): Promise<Buffe
 }
 
 export async function createSignedReadUrl(input: SignedReadInput): Promise<string> {
+	if (input.bucket === "media" && isProviderOriginalKey(input.key))
+		return createProviderOriginalReadUrl(input);
+	return createArchivedReadUrl(input);
+}
+
+/** Physical R2 copy only; callers must authorize its exact completed archive receipt. */
+export async function createArchivedReadUrl(input: SignedReadInput): Promise<string> {
 	return getS3SignedUrl(
 		getS3Client(),
 		new GetObjectCommand({

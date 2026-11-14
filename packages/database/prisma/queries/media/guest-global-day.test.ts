@@ -120,16 +120,19 @@ describe.skipIf(!pgTestUrl)("PostgreSQL guest network boundary regression", () =
 describe("guest admission without a global daily request cap", () => {
 	beforeEach(() => vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", ""));
 	afterEach(() => vi.unstubAllEnvs());
-	it("does not reject a guest's second daily edit when 80 tasks are unfinished", async () => {
+	it("does not reject an unused lifetime trial when 80 tasks are unfinished", async () => {
 		const fixture = boundaryFixture("generate");
 		fixture.tx.generationJob.count.mockResolvedValue(80);
 		fixture.tx.guestMediaTrial.count.mockResolvedValue(1);
 		await expect(fixture.run()).rejects.toBe(fixture.passedRateChecks);
 	});
-	it("keeps the daily free allowance independent from task-count admission", async () => {
+	it("keeps the lifetime receipt independent from task-count admission", async () => {
 		const fixture = boundaryFixture("generate");
 		fixture.tx.generationJob.count.mockResolvedValue(80);
-		fixture.tx.guestMediaTrial.count.mockResolvedValue(2);
+		fixture.tx.guestTrialEntitlement.findFirst.mockResolvedValue({
+			trialId: "used",
+			reservedJobId: "existing",
+		});
 		await expect(fixture.run()).rejects.toThrow("GUEST_TRIAL_UNAVAILABLE");
 		expect(fixture.tx.generationJob.count).not.toHaveBeenCalled();
 	});
@@ -264,7 +267,11 @@ function boundaryFixture(boundary: (typeof boundaries)[number], blockedScope = "
 		}),
 		guestAbuseBucket: { create: vi.fn().mockResolvedValue({}), upsert: vi.fn() },
 		guestLinkIntent: { findUnique: vi.fn().mockResolvedValue(null) },
-		guestMediaTrial: { count: vi.fn().mockResolvedValue(0) },
+		guestMediaTrial: {
+			count: vi.fn().mockResolvedValue(0),
+			findFirst: vi.fn().mockResolvedValue(null),
+		},
+		guestTrialEntitlement: { findFirst: vi.fn().mockResolvedValue(null) },
 		guestRiskBudgetBucket: { findUnique: vi.fn().mockRejectedValue(passedRateChecks) },
 		generationJob: {
 			findUnique: vi.fn().mockResolvedValue(null),
@@ -377,6 +384,8 @@ function boundaryFixture(boundary: (typeof boundaries)[number], blockedScope = "
 				promotionPeriod: "launch",
 				capabilityVersion: "capability-v1",
 				sourceSessionHash: hash,
+				browserSubjectHash: hash,
+				freeEligibility: "eligible",
 				deviceHash: hash,
 				ipHash: hash,
 				subnetHash: hash,

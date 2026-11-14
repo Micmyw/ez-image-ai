@@ -71,6 +71,14 @@ export function UserMenu({
 			fetchOptions: {
 				onSuccess: async () => {
 					clearPurchaseAttributionOnLogout();
+					if (user?.id) {
+						try {
+							const { clearAuthDraftsForOwner } = await import("@auth/lib/auth-draft-storage");
+							await clearAuthDraftsForOwner(user.id);
+						} catch {
+							/* Logout must still finish if local storage or its chunk is unavailable. */
+						}
+					}
 					try {
 						window.sessionStorage.removeItem(WORKSPACE_DRAFT_KEY);
 					} catch {

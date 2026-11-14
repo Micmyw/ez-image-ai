@@ -45,6 +45,9 @@ import {
 	deleteObject,
 	listMultipartUploads,
 	promoteStagedObject,
+	inspectPrivateMediaObject,
+	headObject,
+	readPrivateMediaStream,
 } from "./index";
 
 const original = Buffer.from("89504e470d0a1a0a0000000d494844520000000000000000", "hex");
@@ -179,6 +182,58 @@ beforeEach(() => {
 });
 
 describe("account copy through real immutable S3 command paths with a simulated store", () => {
+	it("reads, inspects and copies an approved provider original before its archive exists", async () => {
+		const storage = storageFixture();
+		const key = "provider-original-v1/users/guest/assets/original/original.png";
+		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://app.test");
+		vi.stubEnv("WORKFLOWS_DISPATCH_SECRET", "fixture-only-secret-at-least-32-characters");
+		const fetcher = vi.fn(
+			async (_url: unknown, init?: RequestInit) =>
+				new Response(init?.method === "HEAD" ? null : original, {
+					headers: {
+						"content-type": "image/png",
+						"content-length": String(original.length),
+						etag: `"${hash}"`,
+					},
+				}),
+		);
+		vi.stubGlobal("fetch", fetcher);
+		try {
+			expect(await headObject({ bucket: "media", key })).toMatchObject({
+				contentLength: original.length,
+			});
+			const range = await readPrivateMediaStream({
+				bucket: "media",
+				key,
+				range: { start: 0, end: 7 },
+			});
+			expect(Buffer.from(await new Response(range.body).arrayBuffer())).toEqual(
+				original.subarray(0, 8),
+			);
+			expect(
+				await inspectPrivateMediaObject({
+					bucket: "media",
+					key,
+					contentType: "image/png",
+					contentLength: original.length,
+				}),
+			).toMatchObject({ sha256: hash, bytes: original.length });
+			const copied = await promoteStagedObject({
+				staging: { bucket: "media", key },
+				final: { bucket: "media", key: claim.target.objectKey },
+				contentType: "image/png",
+				contentLength: original.length,
+				expectedSha256: hash,
+			});
+			expect(copied.sha256).toBe(hash);
+			expect(storage.objects.get(claim.target.objectKey)).toEqual(original);
+			expect(storage.calls.some((call) => call.key === key)).toBe(false);
+			expect(new URL(String(fetcher.mock.calls[0]![0])).pathname).toBe("/api/media/original");
+		} finally {
+			vi.unstubAllGlobals();
+			vi.unstubAllEnvs();
+		}
+	});
 	it("survives an old source deletion and recovers storage success before DB commit on the same target", async () => {
 		const storage = storageFixture(),
 			database = databaseFixture();

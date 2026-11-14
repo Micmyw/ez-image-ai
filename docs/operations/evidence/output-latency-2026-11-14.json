@@ -1,0 +1,457 @@
+{
+	"window": {
+		"from": "2026-11-13T05:36:12Z",
+		"to": "2026-11-14T05:36:12Z",
+		"timezone": "Asia/Shanghai"
+	},
+	"source": "Cloudflare production Workers Observability dry read-only queries",
+	"service": "ezpic-workflows-workers-production",
+	"includesInternalTasks": true,
+	"samplingLevel": 1,
+	"reviewDetails": [
+		{
+			"asset": "asset_LaHVsaVfVX5Wbakad4S3bqTwfUugvMgM",
+			"job": "cmwfbdygt0003psp7ty2bzw6x",
+			"submitToQueryMs": 6509,
+			"queryToResultMs": 384,
+			"resultToVerdictMs": 805,
+			"callbackAfterVerdictMs": 41172,
+			"verdictStatus": "QUARANTINED"
+		},
+		{
+			"asset": "asset_xGWHsoFiRQmwbf9nh6RMuiwsEXQMrzEX",
+			"job": "cmwfao38j000epsp707pbhfws",
+			"submitToQueryMs": 9801,
+			"queryToResultMs": 360,
+			"resultToVerdictMs": 4841,
+			"callbackAfterVerdictMs": 12894,
+			"verdictStatus": "READY"
+		},
+		{
+			"asset": "asset_xX7feKAJvsr9LGCXDwHaSEHvYc-fcVdK",
+			"job": "cmwfakvev0004psp7d99w1b0h",
+			"submitToQueryMs": 9987,
+			"queryToResultMs": 394,
+			"resultToVerdictMs": 5458,
+			"callbackAfterVerdictMs": 51154,
+			"verdictStatus": "READY"
+		},
+		{
+			"asset": "asset_UAt4tJuJiTsGnzWUS9Cqq9YqHptbGE2s",
+			"job": "cmwf7doar0003psp71e81rhjz",
+			"submitToQueryMs": 9196,
+			"queryToResultMs": 468,
+			"resultToVerdictMs": 4052,
+			"callbackAfterVerdictMs": 36011,
+			"verdictStatus": "READY"
+		},
+		{
+			"asset": "asset_lvlS8CRJZEY_rCTYz8losF2VTICNIGDo",
+			"job": "cmwf634ft0002psp7r476mrwn",
+			"submitToQueryMs": 9349,
+			"queryToResultMs": 256,
+			"resultToVerdictMs": 3195,
+			"callbackAfterVerdictMs": 39551,
+			"verdictStatus": "QUARANTINED"
+		},
+		{
+			"asset": "asset_4Zd05MC1C-kwRpkRCKKJvvc-opdaKdhC",
+			"job": "cmwf63dw10002psp7n1wxw2gv",
+			"submitToQueryMs": 5330,
+			"queryToResultMs": 512,
+			"resultToVerdictMs": 203,
+			"callbackAfterVerdictMs": 12429,
+			"verdictStatus": "QUARANTINED"
+		},
+		{
+			"asset": "asset_2Yl3y11tFq7c1aeq4lDUV9K2oUqsZOOM",
+			"job": "cmwf592m10001psp7ol3otdp4",
+			"submitToQueryMs": 8455,
+			"queryToResultMs": 286,
+			"resultToVerdictMs": 4032,
+			"callbackAfterVerdictMs": 19393,
+			"verdictStatus": "READY"
+		},
+		{
+			"asset": "asset_bxu5EVLVdnQ5AsSLQYYh5gIaF2_dbPFn",
+			"job": "cmwf2e7ep0002psp7vmfuby74",
+			"submitToQueryMs": 5234,
+			"queryToResultMs": 408,
+			"resultToVerdictMs": 186,
+			"callbackAfterVerdictMs": 39821,
+			"verdictStatus": "READY"
+		},
+		{
+			"asset": "asset_XAlgjUWvyTwDFvyh0BhVrDkv69LwcITr",
+			"job": "cmwf1ufqv0002psp75accfgii",
+			"submitToQueryMs": 5197,
+			"queryToResultMs": 411,
+			"resultToVerdictMs": 168,
+			"callbackAfterVerdictMs": 9071,
+			"verdictStatus": "READY"
+		},
+		{
+			"asset": "asset_t3Tujx4bk1vQt-_lnucDz23ZGet031bH",
+			"job": "cmwexibz2000gpsp7oi78721g",
+			"submitToQueryMs": 8641,
+			"queryToResultMs": 359,
+			"resultToVerdictMs": 2810,
+			"callbackAfterVerdictMs": 2810,
+			"verdictStatus": "QUARANTINED"
+		},
+		{
+			"asset": "asset_f58nV3rhwu-1YOl3FPFIx59K8w5pP43s",
+			"job": "cmwevzdja0001psp708mwkut1",
+			"submitToQueryMs": 7769,
+			"queryToResultMs": 318,
+			"resultToVerdictMs": 2342,
+			"callbackAfterVerdictMs": 6453,
+			"verdictStatus": "READY"
+		},
+		{
+			"asset": "asset_Dg4B584WVKO9dA7RzYFG4DfZykGmVmZB",
+			"job": "cmwevw7s00002psp7dwskzsnb",
+			"submitToQueryMs": 7163,
+			"queryToResultMs": 318,
+			"resultToVerdictMs": 1805,
+			"callbackAfterVerdictMs": 17700,
+			"verdictStatus": "READY"
+		},
+		{
+			"asset": "asset_8Wto0J7x6ApLy-zt8PAPWxTDoq4vfzRX",
+			"job": "cmwev9rzp0001psp7zgmrbpa1",
+			"submitToQueryMs": 7554,
+			"queryToResultMs": 324,
+			"resultToVerdictMs": 2361,
+			"callbackAfterVerdictMs": 820,
+			"verdictStatus": "READY"
+		},
+		{
+			"asset": "asset_4tb8yFrdjjZcHyH2IsjwVAo6WzPc-Qz1",
+			"job": "cmwev7snb0001psp7fg9x3tgq",
+			"submitToQueryMs": 7741,
+			"queryToResultMs": 312,
+			"resultToVerdictMs": 2323,
+			"callbackAfterVerdictMs": 37959,
+			"verdictStatus": "READY"
+		},
+		{
+			"asset": "asset_rLqNogazKdHOtPIGSsmeoQTsz6MJekgI",
+			"job": "cmwev5n0b0001psp7b10livyl",
+			"submitToQueryMs": 7567,
+			"queryToResultMs": 295,
+			"resultToVerdictMs": 2356,
+			"callbackAfterVerdictMs": 12041,
+			"verdictStatus": "READY"
+		},
+		{
+			"asset": "asset_F3eAH5P9d4g0_aYffNTp-BCpdX_0DXAb",
+			"job": "cmweqtvrx0003psp72tatgifa",
+			"submitToQueryMs": 7306,
+			"queryToResultMs": 350,
+			"resultToVerdictMs": 1867,
+			"callbackAfterVerdictMs": 19851,
+			"verdictStatus": "READY"
+		},
+		{
+			"asset": "asset_oAN-jqUocAJomvgkhgi7uaiYtCJbrbOK",
+			"job": "cmwelg7he0002psp7jkddo2lz",
+			"submitToQueryMs": 5175,
+			"queryToResultMs": 463,
+			"resultToVerdictMs": 119,
+			"callbackAfterVerdictMs": 3602,
+			"verdictStatus": "READY"
+		}
+	],
+	"stats": {
+		"transferEnvelopeMs": {
+			"n": 17,
+			"min": 845,
+			"p50": 5411,
+			"p90": 10391,
+			"max": 15677
+		},
+		"reviewStartMs": {
+			"n": 17,
+			"min": 28,
+			"p50": 317,
+			"p90": 675,
+			"max": 803
+		},
+		"preparationMs": {
+			"n": 17,
+			"min": 490,
+			"p50": 770,
+			"p90": 1173,
+			"max": 2994
+		},
+		"submissionMs": {
+			"n": 17,
+			"min": 2232,
+			"p50": 2793,
+			"p90": 3341,
+			"max": 3713
+		},
+		"resultAfterSubmitMs": {
+			"n": 17,
+			"min": 5757,
+			"p50": 10239,
+			"p90": 14230,
+			"max": 15839
+		},
+		"reviewMs": {
+			"n": 17,
+			"min": 9311,
+			"p50": 14912,
+			"p90": 20984,
+			"max": 23902
+		},
+		"postResultMs": {
+			"n": 17,
+			"min": 10763,
+			"p50": 20391,
+			"p90": 31828,
+			"max": 37149
+		}
+	},
+	"tasks": [
+		{
+			"job": "cmwfbdygt0003psp7ty2bzw6x",
+			"asset": "asset_LaHVsaVfVX5Wbakad4S3bqTwfUugvMgM",
+			"transferDone": 1794594808084,
+			"finalizeStarted": 1794594804865,
+			"transferEnvelopeMs": 3219,
+			"reviewStartMs": 703,
+			"preparationMs": 933,
+			"submissionMs": 2457,
+			"resultAfterSubmitMs": 7698,
+			"reviewMs": 12288,
+			"status": "QUARANTINED",
+			"postResultMs": 15507
+		},
+		{
+			"job": "cmwfao38j000epsp707pbhfws",
+			"asset": "asset_xGWHsoFiRQmwbf9nh6RMuiwsEXQMrzEX",
+			"transferDone": 1794593627898,
+			"finalizeStarted": 1794593612221,
+			"transferEnvelopeMs": 15677,
+			"reviewStartMs": 633,
+			"preparationMs": 1034,
+			"submissionMs": 2713,
+			"resultAfterSubmitMs": 15002,
+			"reviewMs": 21472,
+			"status": "READY",
+			"postResultMs": 37149
+		},
+		{
+			"job": "cmwfakvev0004psp7d99w1b0h",
+			"asset": "asset_xX7feKAJvsr9LGCXDwHaSEHvYc-fcVdK",
+			"transferDone": 1794593471177,
+			"finalizeStarted": 1794593459468,
+			"transferEnvelopeMs": 11709,
+			"reviewStartMs": 656,
+			"preparationMs": 1324,
+			"submissionMs": 3194,
+			"resultAfterSubmitMs": 15839,
+			"reviewMs": 23902,
+			"status": "READY",
+			"postResultMs": 35611
+		},
+		{
+			"job": "cmwf7doar0003psp71e81rhjz",
+			"asset": "asset_UAt4tJuJiTsGnzWUS9Cqq9YqHptbGE2s",
+			"transferDone": 1794588085817,
+			"finalizeStarted": 1794588076771,
+			"transferEnvelopeMs": 9046,
+			"reviewStartMs": 637,
+			"preparationMs": 1073,
+			"submissionMs": 2846,
+			"resultAfterSubmitMs": 13716,
+			"reviewMs": 20260,
+			"status": "READY",
+			"postResultMs": 29306
+		},
+		{
+			"job": "cmwf634ft0002psp7r476mrwn",
+			"asset": "asset_lvlS8CRJZEY_rCTYz8losF2VTICNIGDo",
+			"transferDone": 1794585923466,
+			"finalizeStarted": 1794585913953,
+			"transferEnvelopeMs": 9513,
+			"reviewStartMs": 590,
+			"preparationMs": 760,
+			"submissionMs": 2583,
+			"resultAfterSubmitMs": 12800,
+			"reviewMs": 18739,
+			"status": "QUARANTINED",
+			"postResultMs": 28252
+		},
+		{
+			"job": "cmwf63dw10002psp7n1wxw2gv",
+			"asset": "asset_4Zd05MC1C-kwRpkRCKKJvvc-opdaKdhC",
+			"transferDone": 1794585898583,
+			"finalizeStarted": 1794585897433,
+			"transferEnvelopeMs": 1150,
+			"reviewStartMs": 46,
+			"preparationMs": 602,
+			"submissionMs": 3106,
+			"resultAfterSubmitMs": 6045,
+			"reviewMs": 9902,
+			"status": "QUARANTINED",
+			"postResultMs": 11052
+		},
+		{
+			"job": "cmwf592m10001psp7ol3otdp4",
+			"asset": "asset_2Yl3y11tFq7c1aeq4lDUV9K2oUqsZOOM",
+			"transferDone": 1794584860154,
+			"finalizeStarted": 1794584853908,
+			"transferEnvelopeMs": 6246,
+			"reviewStartMs": 803,
+			"preparationMs": 2994,
+			"submissionMs": 3241,
+			"resultAfterSubmitMs": 12773,
+			"reviewMs": 20659,
+			"status": "READY",
+			"postResultMs": 26905
+		},
+		{
+			"job": "cmwf2e7ep0002psp7vmfuby74",
+			"asset": "asset_bxu5EVLVdnQ5AsSLQYYh5gIaF2_dbPFn",
+			"transferDone": 1794579692102,
+			"finalizeStarted": 1794579690998,
+			"transferEnvelopeMs": 1104,
+			"reviewStartMs": 48,
+			"preparationMs": 728,
+			"submissionMs": 2945,
+			"resultAfterSubmitMs": 5828,
+			"reviewMs": 9659,
+			"status": "READY",
+			"postResultMs": 10763
+		},
+		{
+			"job": "cmwf1ufqv0002psp75accfgii",
+			"asset": "asset_XAlgjUWvyTwDFvyh0BhVrDkv69LwcITr",
+			"transferDone": 1794578763166,
+			"finalizeStarted": 1794578761317,
+			"transferEnvelopeMs": 1849,
+			"reviewStartMs": 44,
+			"preparationMs": 770,
+			"submissionMs": 2636,
+			"resultAfterSubmitMs": 5776,
+			"reviewMs": 9311,
+			"status": "READY",
+			"postResultMs": 11160
+		},
+		{
+			"job": "cmwexibz2000gpsp7oi78721g",
+			"asset": "asset_t3Tujx4bk1vQt-_lnucDz23ZGet031bH",
+			"transferDone": 1794571499954,
+			"finalizeStarted": 1794571490957,
+			"transferEnvelopeMs": 8997,
+			"reviewStartMs": 530,
+			"preparationMs": 862,
+			"submissionMs": 2815,
+			"resultAfterSubmitMs": 11810,
+			"reviewMs": 18174,
+			"status": "QUARANTINED",
+			"postResultMs": 27171
+		},
+		{
+			"job": "cmwevzdja0001psp708mwkut1",
+			"asset": "asset_f58nV3rhwu-1YOl3FPFIx59K8w5pP43s",
+			"transferDone": 1794568916101,
+			"finalizeStarted": 1794568909358,
+			"transferEnvelopeMs": 6743,
+			"reviewStartMs": 336,
+			"preparationMs": 608,
+			"submissionMs": 3491,
+			"resultAfterSubmitMs": 10429,
+			"reviewMs": 17265,
+			"status": "READY",
+			"postResultMs": 24008
+		},
+		{
+			"job": "cmwevw7s00002psp7dwskzsnb",
+			"asset": "asset_Dg4B584WVKO9dA7RzYFG4DfZykGmVmZB",
+			"transferDone": 1794568790241,
+			"finalizeStarted": 1794568785841,
+			"transferEnvelopeMs": 4400,
+			"reviewStartMs": 248,
+			"preparationMs": 849,
+			"submissionMs": 2793,
+			"resultAfterSubmitMs": 9286,
+			"reviewMs": 14010,
+			"status": "READY",
+			"postResultMs": 18410
+		},
+		{
+			"job": "cmwev9rzp0001psp7zgmrbpa1",
+			"asset": "asset_8Wto0J7x6ApLy-zt8PAPWxTDoq4vfzRX",
+			"transferDone": 1794567725758,
+			"finalizeStarted": 1794567720383,
+			"transferEnvelopeMs": 5375,
+			"reviewStartMs": 296,
+			"preparationMs": 758,
+			"submissionMs": 2232,
+			"resultAfterSubmitMs": 10239,
+			"reviewMs": 14473,
+			"status": "READY",
+			"postResultMs": 19848
+		},
+		{
+			"job": "cmwev7snb0001psp7fg9x3tgq",
+			"asset": "asset_4tb8yFrdjjZcHyH2IsjwVAo6WzPc-Qz1",
+			"transferDone": 1794567628612,
+			"finalizeStarted": 1794567623201,
+			"transferEnvelopeMs": 5411,
+			"reviewStartMs": 317,
+			"preparationMs": 770,
+			"submissionMs": 2565,
+			"resultAfterSubmitMs": 10376,
+			"reviewMs": 15112,
+			"status": "READY",
+			"postResultMs": 20523
+		},
+		{
+			"job": "cmwev5n0b0001psp7b10livyl",
+			"asset": "asset_rLqNogazKdHOtPIGSsmeoQTsz6MJekgI",
+			"transferDone": 1794567532881,
+			"finalizeStarted": 1794567527402,
+			"transferEnvelopeMs": 5479,
+			"reviewStartMs": 295,
+			"preparationMs": 641,
+			"submissionMs": 2790,
+			"resultAfterSubmitMs": 10218,
+			"reviewMs": 14912,
+			"status": "READY",
+			"postResultMs": 20391
+		},
+		{
+			"job": "cmweqtvrx0003psp72tatgifa",
+			"asset": "asset_F3eAH5P9d4g0_aYffNTp-BCpdX_0DXAb",
+			"transferDone": 1794560265887,
+			"finalizeStarted": 1794560261368,
+			"transferEnvelopeMs": 4519,
+			"reviewStartMs": 274,
+			"preparationMs": 648,
+			"submissionMs": 2787,
+			"resultAfterSubmitMs": 9523,
+			"reviewMs": 14132,
+			"status": "READY",
+			"postResultMs": 18651
+		},
+		{
+			"job": "cmwelg7he0002psp7jkddo2lz",
+			"asset": "asset_oAN-jqUocAJomvgkhgi7uaiYtCJbrbOK",
+			"transferDone": 1794551227824,
+			"finalizeStarted": 1794551226979,
+			"transferEnvelopeMs": 845,
+			"reviewStartMs": 28,
+			"preparationMs": 490,
+			"submissionMs": 3713,
+			"resultAfterSubmitMs": 5757,
+			"reviewMs": 10056,
+			"status": "READY",
+			"postResultMs": 10901
+		}
+	]
+}

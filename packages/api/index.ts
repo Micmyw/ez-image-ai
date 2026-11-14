@@ -46,6 +46,7 @@ import {
 	hashGuestAbuseBinding,
 	requireGuestAbuseHmac,
 } from "./modules/media/lib/guest-capability";
+import { serveProviderOriginal } from "./modules/media/provider-original";
 import { uploadTemporaryReference } from "./modules/media/temporary-reference-upload";
 import { createImageModerationCallbackHandler } from "./modules/media/webhooks/image-moderation-callback";
 import { createKieCallbackHandler } from "./modules/media/webhooks/kie-callback";
@@ -166,6 +167,7 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 				}),
 			)
 			// Auth handler
+			.on(["GET", "HEAD"], "/media/original", (c) => serveProviderOriginal(c.req.raw))
 			.post("/media/temporary-references", (c) => uploadTemporaryReference(c.req.raw))
 			.on(["POST", "GET"], "/auth/**", async (c) => {
 				const authPath = c.req.path.slice(c.req.path.indexOf("/auth") + "/auth".length);
@@ -622,6 +624,7 @@ const GUEST_LINK_AUTH_ROUTES = new Set([
 	"POST /sign-in/magic-link",
 	"GET /magic-link/verify",
 	"POST /sign-in/social",
+	"POST /one-tap/callback",
 	"GET /callback/google",
 	"GET /callback/github",
 	"GET /verify-email",

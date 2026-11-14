@@ -115,7 +115,10 @@ function workerInvoker(env: WorkersEnvironment) {
 				: env.JOBS_EXECUTOR.get(env.JOBS_EXECUTOR.idFromName(workerExecutorForTask(request).name));
 		},
 		(request) =>
-			request.taskId === "media-finalize-generation" && env.JOBS_TRANSFER ? heavy() : undefined,
+			["media-finalize-generation", "media-archive-output"].includes(request.taskId) &&
+			env.JOBS_TRANSFER
+				? heavy()
+				: undefined,
 	);
 }
 

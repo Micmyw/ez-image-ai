@@ -78,7 +78,8 @@ export function workerExecutorForTask(request: TaskRequest) {
 /** The streaming receiver must validate its DB projection before loading media. */
 export function workerServiceForTask(input: TaskRequest): "JOBS_CONTROL" | "JOBS_TRANSFER" | null {
 	const request = parseTaskRequest(input);
-	if (request.taskId === "media-finalize-generation") return "JOBS_TRANSFER";
+	if (["media-finalize-generation", "media-archive-output"].includes(request.taskId))
+		return "JOBS_TRANSFER";
 	return workerExecutorLane(request) === "control" ? "JOBS_CONTROL" : null;
 }
 

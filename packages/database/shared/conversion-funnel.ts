@@ -9,6 +9,7 @@ import type { AdminAnalyticsQuery } from "./admin-analytics-reader";
 import { readAggregateTraffic, aggregateTrafficSince } from "./aggregate-traffic";
 import { buildConversionActivity } from "./conversion-activity";
 import { buildConversionExperiments } from "./conversion-experiments";
+import { buildGenerationJourney } from "./conversion-journey";
 import type { GrowthEventInput } from "./growth-events";
 import { buildHomepageIdeaReport } from "./homepage-idea-report";
 
@@ -313,6 +314,7 @@ export function buildConversionFunnel(
 		since: from.toISOString(),
 		asOf: to.toISOString(),
 		homepageIdeas: buildHomepageIdeaReport(productEvents),
+		generationJourney: buildGenerationJourney(productEvents, observations.events),
 		experiments: buildConversionExperiments(facts, observations.events, from, to, input),
 		activity: buildConversionActivity(facts, events, observations.jobs, from, to, input),
 		aggregateTraffic: observations.aggregateTraffic ?? {

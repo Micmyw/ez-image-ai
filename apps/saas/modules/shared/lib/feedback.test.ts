@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildFeedbackMailto, copyFeedbackEmail, scheduleFeedbackReveal } from "./feedback";
+import {
+	buildFeedbackMailto,
+	copyFeedbackEmail,
+	feedbackTicketSubject,
+	normalizeFeedbackTopic,
+	scheduleFeedbackReveal,
+} from "./feedback";
 
 const labels = {
 	subjectIdea: "EzImageAI: suggestion",
@@ -10,6 +16,22 @@ const labels = {
 };
 
 describe("feedback email draft", () => {
+	it("accepts only voluntary bounded topics and reuses the support subject limit", () => {
+		expect(normalizeFeedbackTopic("waiting")).toBe("waiting");
+		expect(normalizeFeedbackTopic("https://private.test/image")).toBeUndefined();
+		expect(normalizeFeedbackTopic("prompt: secret")).toBeUndefined();
+		expect(feedbackTicketSubject("A".repeat(200), "price_credits")).toHaveLength(200);
+		expect(feedbackTicketSubject("Question", "waiting")).toBe("[Feedback: waiting] Question");
+		const draft = new URL(
+			buildFeedbackMailto(
+				"help@configured.test",
+				{ kind: "bug", accountEmail: "", description: "My own words", topic: "upload" },
+				labels,
+			),
+		);
+		expect(draft.searchParams.get("subject")).toContain("[Feedback: upload]");
+		expect(draft.searchParams.get("body")).toContain("My own words");
+	});
 	it.each(["idea", "bug"] as const)(
 		"encodes a user-written %s without adding hidden context",
 		(kind) => {

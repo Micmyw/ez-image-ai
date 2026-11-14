@@ -4,9 +4,12 @@
 	"main": "./index.ts",
 	"types": "./**/*.ts",
 	"exports": {
+		"./provider-diagnostics": "./provider-diagnostics.ts",
 		".": "./index.ts",
 		"./client": "./client.ts",
 		"./growth-experiments": "./growth-experiments.ts",
+		"./generation-journey": "./generation-journey.ts",
+		"./guest-trial": "./guest-trial.ts",
 		"./homepage-ideas": "./homepage-ideas.ts",
 		"./image-pass": "./image-pass.ts",
 		"./image-pass-summary": "./image-pass-summary.ts",

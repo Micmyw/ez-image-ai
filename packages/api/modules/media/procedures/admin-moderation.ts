@@ -13,7 +13,11 @@ import {
 	getAdminModerationReviewDetail,
 } from "@repo/database";
 import { db } from "@repo/database/client";
-import { createSignedReadUrl } from "@repo/storage";
+import {
+	createSignedReadUrl,
+	createProviderOriginalReadUrl,
+	isProviderOriginalKey,
+} from "@repo/storage";
 import { z } from "zod";
 
 import { adminProcedure } from "../../../orpc/procedures";
@@ -128,7 +132,17 @@ export const adminModerationDetail = adminProcedure
 			canReviewContent: detail.canReviewContent,
 			canQueryProvider: Boolean(detail.providerTask),
 			imageUrl: detail.asset?.mimeType.startsWith("image/")
-				? await createSignedReadUrl({ bucket: "media", key: detail.asset.objectKey, expiresIn: 60 })
+				? isProviderOriginalKey(detail.asset.objectKey)
+					? createProviderOriginalReadUrl({
+							key: detail.asset.objectKey,
+							expiresIn: 60,
+							scope: "admin",
+						})
+					: await createSignedReadUrl({
+							bucket: "media",
+							key: detail.asset.objectKey,
+							expiresIn: 60,
+						})
 				: null,
 			uncertainSubmission: Boolean(detail.uncertainSubmission),
 		};

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import type { Prisma } from "../../generated/client";
 import {
@@ -129,6 +129,47 @@ export interface CreateGuestMediaUploadIntentTransactionInput extends Omit<
 	};
 	abuseEvidenceTtlMs?: number;
 	completionTokenHash: string;
+	browserSubjectHash?: string;
+}
+
+export async function getGuestUploadIntentReplay(
+	input: {
+		sessionId: string;
+		assetId: string;
+		completionTokenHash: string;
+		sha256: string;
+		originHash: string;
+		capabilityVersion: string;
+		bytes: bigint;
+		mimeType: string;
+		now: Date;
+	},
+	client: Pick<MediaTransactionClient, "mediaUploadSession">,
+) {
+	const session = await client.mediaUploadSession.findUnique({
+		where: { id: input.sessionId },
+		include: { asset: true },
+	});
+	if (!session) return null;
+	if (
+		session.assetId !== input.assetId ||
+		session.tokenHash !== input.completionTokenHash ||
+		session.guestExpectedSha256 !== input.sha256 ||
+		session.guestOriginHash !== input.originHash ||
+		session.guestCapabilityVersion !== input.capabilityVersion ||
+		session.expectedBytes !== input.bytes ||
+		session.asset.mimeType !== input.mimeType ||
+		session.expiresAt <= input.now ||
+		session.status !== "PENDING" ||
+		!session.stagingObjectKey
+	)
+		throw new Error("GUEST_UPLOAD_REQUEST_CONFLICT");
+	return {
+		sessionId: session.id,
+		assetId: session.assetId,
+		stagingObjectKey: session.stagingObjectKey,
+		expiresAt: session.expiresAt,
+	};
 }
 
 export async function createGuestMediaUploadIntentTransaction(
@@ -139,7 +180,68 @@ export async function createGuestMediaUploadIntentTransaction(
 		throw new Error("GUEST_UPLOAD_CONFIGURATION_INVALID");
 	}
 	const now = new Date();
+	const requestScope = `guest-upload-request:${createHash("sha256")
+		.update(
+			JSON.stringify([
+				input.capabilityVersion,
+				input.promotionPeriod,
+				input.originHash,
+				input.expectedSha256,
+				input.expectedBytes.toString(),
+				input.mimeType,
+			]),
+		)
+		.digest("hex")}`;
 	await client.$transaction(async (tx) => {
+		if (input.browserSubjectHash) {
+			await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`guest-upload:${input.browserSubjectHash}`}, 0))`;
+			const replay = await tx.guestAbuseBucket.findFirst({
+				where: {
+					scope: { startsWith: "guest-upload-request:" },
+					subjectHash: input.sessionId,
+					windowStart: new Date(0),
+				},
+			});
+			if (replay) {
+				if (replay.scope !== requestScope) throw new Error("GUEST_UPLOAD_REQUEST_CONFLICT");
+				return;
+			}
+			const active = await tx.guestAbuseBucket.findMany({
+				where: { scope: `guest-upload-active:${input.browserSubjectHash}`, windowEnd: { gt: now } },
+				orderBy: { updatedAt: "desc" },
+				select: { subjectHash: true },
+				take: 17,
+			});
+			if (active.length >= 17) throw new Error("GUEST_UPLOAD_PREVIOUS_PENDING");
+			const sessions = active.length
+				? await tx.mediaUploadSession.findMany({
+						where: { id: { in: active.map((entry) => entry.subjectHash) } },
+						select: { id: true, status: true },
+					})
+				: [];
+			// An unknown creation/PUT keeps its original slot. A sealed upload can
+			// yield the network slot while retaining its own immutable bytes/quota.
+			const unfinished = active.filter((entry) => {
+				const session = sessions.find((candidate) => candidate.id === entry.subjectHash);
+				return !session || session.status === "PENDING" || session.status === "FINALIZING";
+			}).length;
+			// Current selection plus one superseded uncertain upload. Neither may
+			// be deleted or automatically retransmitted merely to admit a third.
+			if (unfinished >= 2) throw new Error("GUEST_UPLOAD_PREVIOUS_PENDING");
+			if (
+				!(await incrementGuestBucket(
+					tx,
+					"guest-upload:browser:hour",
+					input.browserSubjectHash,
+					new Date(Math.floor(now.getTime() / 3_600_000) * 3_600_000),
+					3_600_000,
+					8,
+					input.abuseEvidenceTtlMs,
+				))
+			) {
+				throw new Error("GUEST_UPLOAD_RATE_LIMITED");
+			}
+		}
 		if (
 			!(await enforceGuestBoundaryRateLimits(
 				{
@@ -156,6 +258,28 @@ export async function createGuestMediaUploadIntentTransaction(
 		) {
 			throw new Error("GUEST_UPLOAD_RATE_LIMITED");
 		}
+		if (input.browserSubjectHash)
+			await tx.guestAbuseBucket.create({
+				data: {
+					scope: requestScope,
+					subjectHash: input.sessionId,
+					windowStart: new Date(0),
+					windowEnd: input.expiresAt,
+					expiresAt: new Date(now.getTime() + (input.abuseEvidenceTtlMs ?? 30 * 86_400_000)),
+					requestCount: 1n,
+				},
+			});
+		if (input.browserSubjectHash)
+			await tx.guestAbuseBucket.create({
+				data: {
+					scope: `guest-upload-active:${input.browserSubjectHash}`,
+					subjectHash: input.sessionId,
+					windowStart: new Date(0),
+					windowEnd: input.expiresAt,
+					expiresAt: input.expiresAt,
+					requestCount: 1n,
+				},
+			});
 	});
 	return createMediaUploadSessionTransaction(
 		{

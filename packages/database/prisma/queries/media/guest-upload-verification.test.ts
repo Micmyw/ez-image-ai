@@ -68,10 +68,15 @@ function asset(
 function fixture(value: ReturnType<typeof asset> | null) {
 	const tx = {
 		$executeRaw: vi.fn(),
+		$queryRaw: vi.fn().mockResolvedValue([{ now }]),
 		mediaUploadSession: {
 			findFirst: vi
 				.fn()
-				.mockResolvedValue(value ? { id: "session-1", assetId: value.id, asset: value } : null),
+				.mockResolvedValue(
+					value
+						? { id: "session-1", assetId: value.id, asset: value, expiresAt: validUntil }
+						: null,
+				),
 			updateMany: vi.fn().mockResolvedValue({ count: 1 }),
 		},
 		generationDraft: {
@@ -88,6 +93,57 @@ function fixture(value: ReturnType<typeof asset> | null) {
 	};
 }
 describe("guest upload terminal projection", () => {
+	it("rereads a tombstoned asset after the cleanup binding lock and never consumes the claim", async () => {
+		const value = asset("READY", "APPROVED", "ALLOW");
+		const { tx, client } = fixture(value);
+		tx.mediaUploadSession.findFirst
+			.mockResolvedValueOnce({ assetId: value.id } as never)
+			.mockResolvedValueOnce({
+				id: "session-1",
+				assetId: value.id,
+				asset: { ...value, status: "DELETED", deletedAt: now },
+				expiresAt: validUntil,
+			} as never);
+		await expect(
+			finalizeGuestDraftFromReadyUploadTransaction(request, client as never),
+		).rejects.toThrow("GUEST_UPLOAD_UNAVAILABLE");
+		expect(tx.mediaUploadSession.updateMany).not.toHaveBeenCalled();
+		expect(tx.generationDraft.create).not.toHaveBeenCalled();
+	});
+	it.each(["session", "evidence", "draft"])(
+		"uses the database clock after waiting when the %s deadline has elapsed",
+		async (deadline) => {
+			const value = asset("READY", "APPROVED", "ALLOW");
+			const { tx, client } = fixture(value);
+			const later = new Date(now.getTime() + 1_000);
+			tx.$queryRaw.mockResolvedValue([{ now: later }]);
+			if (deadline === "session")
+				tx.mediaUploadSession.findFirst.mockResolvedValue({
+					id: "session-1",
+					assetId: value.id,
+					asset: value,
+					expiresAt: later,
+				});
+			if (deadline === "evidence") value.verificationValidUntil = later;
+			await expect(
+				finalizeGuestDraftFromReadyUploadTransaction(
+					{ ...request, ...(deadline === "draft" ? { expiresAt: later } : {}) },
+					client as never,
+				),
+			).rejects.toThrow(
+				deadline === "evidence" ? "GUEST_UPLOAD_SAFETY_UNAVAILABLE" : "GUEST_UPLOAD_UNAVAILABLE",
+			);
+			expect(tx.mediaUploadSession.updateMany).not.toHaveBeenCalled();
+			expect(tx.generationDraft.create).not.toHaveBeenCalled();
+		},
+	);
+	it("rechecks deadlines after the bootstrap capacity fence", async () => {
+		const { tx, client } = fixture(asset("READY", "APPROVED", "ALLOW"));
+		tx.$queryRaw.mockResolvedValueOnce([{ now }]).mockResolvedValueOnce([{ now: validUntil }]);
+		await expect(
+			finalizeGuestDraftFromReadyUploadTransaction(request, client as never),
+		).rejects.toThrow("GUEST_UPLOAD_UNAVAILABLE");
+	});
 	it("retains the original current-approved authorization and one-use claim consumption", async () => {
 		const { tx, client } = fixture(asset("READY", "APPROVED", "ALLOW"));
 		await expect(
@@ -185,7 +241,7 @@ describe("guest upload terminal projection", () => {
 			expect(tx.mediaUploadSession.updateMany).not.toHaveBeenCalled();
 		},
 	);
-	it("refuses an expired, consumed or unavailable session before creating a draft", async () => {
+	it("refuses a consumed or unavailable session before creating a draft", async () => {
 		const { tx, client } = fixture(null);
 		await expect(
 			finalizeGuestDraftFromReadyUploadTransaction(request, client as never),
@@ -195,7 +251,6 @@ describe("guest upload terminal projection", () => {
 				where: expect.objectContaining({
 					tokenHash: request.completionTokenHash,
 					guestCompletionConsumedAt: null,
-					expiresAt: { gt: now },
 				}),
 			}),
 		);

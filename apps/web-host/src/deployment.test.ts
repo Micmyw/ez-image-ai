@@ -200,6 +200,19 @@ describe("Cloudflare deployment environment", () => {
 			NEXT_PUBLIC_CLARITY_PROJECT_ID: "testproject1",
 		});
 	});
+	it("builds One Tap with only the explicit public client ID and never the OAuth secret", () => {
+		expect(
+			publicBuildVariables({
+				NEXT_PUBLIC_GOOGLE_CLIENT_ID: "public-client.apps.googleusercontent.com",
+				GOOGLE_CLIENT_ID: "server-client",
+				GOOGLE_CLIENT_SECRET: "server-secret",
+			}),
+		).toEqual({ NEXT_PUBLIC_GOOGLE_CLIENT_ID: "public-client.apps.googleusercontent.com" });
+		expect(publicBuildVariables({ NEXT_PUBLIC_GOOGLE_CLIENT_ID: "" })).toEqual({});
+		expect(() =>
+			publicBuildVariables({ NEXT_PUBLIC_GOOGLE_CLIENT_SECRET: "server-secret" }),
+		).toThrow("UNRECOGNIZED_PUBLIC_VARIABLE");
+	});
 	it("maps the verified public database CA to its container path without changing credentials", () => {
 		const result = deploymentEnvironment(
 			{

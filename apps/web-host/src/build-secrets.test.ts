@@ -32,6 +32,7 @@ describe("Image models and recovery release controls", () => {
 		"MEDIA_SEEDREAM_5_5_IMAGE",
 		"MEDIA_SEEAPI_INPUT_FAILURE_DELEGATION",
 		"MEDIA_TECHNICAL_FAILURE_SUBSCRIPTION_BONUS",
+		"MEDIA_PROVIDER_ORIGINAL_DELIVERY",
 	];
 	for (const prefix of controls) {
 		it.each(["true", "false"])(`${prefix} applies only its dedicated control: %s`, (enabled) => {

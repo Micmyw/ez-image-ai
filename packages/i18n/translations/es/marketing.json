@@ -158,7 +158,7 @@
 			},
 			"free": {
 				"question": "¿Puedo usar la IA de imagen a imagen gratis?",
-				"answer": "Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción."
+				"answer": "Los invitados elegibles pueden probar una edición gratuita con MiniMax H3 1K o Nano Banana 2 Lite 1K cuando la cola patrocinada está disponible. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción."
 			},
 			"control": {
 				"question": "¿Se conservarán todos los detalles de la imagen original?",
@@ -212,11 +212,11 @@
 			},
 			"guestAvailability": {
 				"question": "¿Cuándo está disponible la edición como invitado?",
-				"answer": "Cuando la cola patrocinada está disponible, los visitantes elegibles pueden realizar dos ediciones de imagen al día con Nano Banana 2 Lite en 1K sin registrarse. Sube una imagen de referencia y describe el cambio. Cada resultado es privado, lleva marca de agua y está disponible hasta 24 horas. El cupo se renueva a las 00:00 UTC y no se acumula. La generación de texto a imagen requiere iniciar sesión."
+				"answer": "Los invitados elegibles pueden probar una edición gratuita con MiniMax H3 1K o Nano Banana 2 Lite 1K cuando la cola patrocinada está disponible. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. Sube una imagen de referencia y describe el cambio. Es una prueba única en este navegador, sujeta a disponibilidad regional. La generación de texto a imagen requiere iniciar sesión."
 			},
 			"guestVsFree": {
 				"question": "¿Qué diferencia hay entre Invitado y Free?",
-				"answer": "Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción. Las imágenes generadas con créditos de cuenta no llevan marca de agua de invitado y tienen un plazo objetivo de conservación de 30 días. Descarga los resultados que quieras conservar."
+				"answer": "Los invitados elegibles pueden probar una edición gratuita con MiniMax H3 1K o Nano Banana 2 Lite 1K cuando la cola patrocinada está disponible. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción. Las imágenes generadas con créditos de cuenta no llevan marca de agua de invitado y tienen un plazo objetivo de conservación de 30 días. Descarga los resultados que quieras conservar."
 			},
 			"editTiers": {
 				"question": "¿Qué modelos de imagen y ajustes de salida están disponibles?",
@@ -332,11 +332,11 @@
 			"eyebrow": "Planifica tu edición",
 			"title": "Describe el cambio que quieres",
 			"subtitle": "Empieza con una instrucción o añade una imagen de referencia. Inicia sesión y genera con un clic; el botón muestra el coste en créditos.",
-			"offer": "Prueba Nano Banana 2 Lite 1K gratis",
+			"offer": "Prueba una edición de imagen 1K gratis",
 			"noSignUp": "Sin registro cuando la cola de invitados esté disponible",
 			"paidSignIn": "Inicia sesión y usa los créditos de tu cuenta",
 			"oneOutput": "Un resultado",
-			"freeQueue": "2 ediciones gratis al día · marca de agua · disponibles hasta 24 horas",
+			"freeQueue": "Una prueba gratuita · marca de agua · disponible hasta 24 horas",
 			"qualityAccess": "{model} requiere iniciar sesión y un plan Pro, Ultimate o Max.",
 			"freeAccountAccess": "Inicia sesión para probar {model} con tus créditos gratuitos.",
 			"temporaryResult": "Tu vista previa permanece privada y temporal.",
@@ -380,7 +380,7 @@
 				"ready": "Elige un modelo de imagen, una imagen de origen y un prompt para continuar.",
 				"preparing": "Preparando tu carga privada…",
 				"loadingCapability": "Comprobando la disponibilidad para invitados…",
-				"unavailable": "La cola Nano Banana para invitados no acepta nuevas ediciones en este momento.",
+				"unavailable": "La cola de invitados no acepta nuevas ediciones en este momento.",
 				"uploading": "Subiendo la imagen de origen privada: {percentage, number}%",
 				"verifying": "Verificando tu imagen de origen privada…",
 				"handoff": "Abriendo tu borrador privado…",
@@ -408,9 +408,11 @@
 				"contentRejected": "Esta imagen de referencia no superó la revisión de seguridad. Elige otra imagen.",
 				"reviewRequired": "Esta imagen de referencia necesita una revisión manual. No se ha iniciado ninguna generación.",
 				"safetyUnavailable": "La revisión de seguridad no está disponible. Conservamos tu imagen y descripción; vuelve a comprobar esta solicitud más tarde.",
-				"reviewPending": "Tu imagen de referencia sigue en revisión. Reintenta para seguir comprobando la misma carga.",
+				"reviewPending": "Tu imagen aún se está preparando. Reintenta para continuar con la misma carga.",
 				"referenceExpired": "Esta carga ya no se puede reutilizar. Elige la imagen de nuevo para iniciar otra carga.",
-				"reviewUnknown": "No pudimos confirmar la revisión de seguridad. Conservamos tu carga; reintenta para comprobar la misma solicitud."
+				"reviewUnknown": "No pudimos confirmar la última solicitud. Tu carga se conserva; reintenta para continuar.",
+				"previousUploadPending": "Dos cargas anteriores siguen sin confirmarse. Espera un momento y reintenta; tu foto seleccionada se conserva.",
+				"browserCookie": "No pudimos recuperar la sesión de carga de este navegador. Vuelve a comprobar la disponibilidad y continúa con la misma foto."
 			},
 			"prompt": "Describe tu edición",
 			"reference": "Imagen de origen",
@@ -442,7 +444,7 @@
 					"label": "Nano Banana 2 Lite",
 					"badge": "Prueba de invitado",
 					"description": "Edición 1K de imagen de origen con un resultado",
-					"access": "Dos ediciones patrocinadas al día para invitados"
+					"access": "Una prueba patrocinada para invitados"
 				},
 				"quality": {
 					"label": "Más modelos de imagen",
@@ -451,7 +453,7 @@
 					"access": "Se requiere Pro, Ultimate o Max"
 				}
 			},
-			"loginNotice": "Inicia sesión para generar imágenes a partir de texto. El botón muestra el coste en créditos antes de empezar. Con una imagen de referencia, la edición patrocinada Nano Banana 2 Lite sigue disponible cuando la cola de invitados está abierta.",
+			"loginNotice": "Inicia sesión para generar imágenes a partir de texto. El botón muestra el coste en créditos antes de empezar. Con una imagen de referencia, los invitados elegibles pueden probar MiniMax H3 1K o Nano Banana 2 Lite 1K una vez cuando la cola está abierta.",
 			"previewCaption": "Vista previa de origen",
 			"previewPlaceholderAlt": "Ilustración vectorial original de EzImageAI de una sala de lectura neutra",
 			"previewAlt": "Vista previa de {fileName}",
@@ -469,7 +471,9 @@
 				"empty": "Elige una imagen de origen que no esté vacía.",
 				"type": "Elige una imagen JPEG, PNG o WebP.",
 				"size": "Elige una imagen de {megabytes, number} MB o menos.",
-				"read": "No pudimos leer esa imagen. Exporta un nuevo PNG o JPG desde tu aplicación de fotos, o elige otro archivo."
+				"read": "No pudimos leer esa imagen. Exporta un nuevo PNG o JPG desde tu aplicación de fotos, o elige otro archivo.",
+				"heic": "Este navegador no puede abrir esta foto HEIC. Expórtala como JPEG o PNG e inténtalo de nuevo.",
+				"dimensions": "Esta imagen tiene demasiados píxeles. Reduce su tamaño e inténtalo de nuevo."
 			},
 			"help": {
 				"promptGuide": "Leer la guía de instrucciones",
@@ -726,7 +730,7 @@
 		"trust": {
 			"eyebrow": "Límites claros",
 			"title": "Privado por defecto, medido con claridad",
-			"description": "Cuando la cola patrocinada está disponible, puedes iniciar hasta dos ediciones diarias con Nano Banana 2 Lite en 1K desde la página de inicio. Las ediciones con cuenta muestran el coste en el botón y comprueban la seguridad y el precio antes de reservar EzImageAI Credits.",
+			"description": "Los invitados elegibles pueden probar una edición 1K con MiniMax H3 o Nano Banana 2 Lite. Las ediciones con cuenta muestran el coste en el botón y comprueban la seguridad y el precio antes de reservar EzImageAI Credits.",
 			"items": {
 				"privacy": {
 					"title": "Medios privados",
@@ -734,7 +738,7 @@
 				},
 				"credits": {
 					"title": "Uso controlado",
-					"description": "Las ediciones Nano Banana de invitado usan la cola patrocinada; las ediciones de cuenta muestran la cantidad de EzImageAI Credits en el botón. Si cambia el precio, debes confirmarlo antes de empezar."
+					"description": "Las pruebas de invitado usan la cola patrocinada; las ediciones de cuenta muestran la cantidad de EzImageAI Credits en el botón. Si cambia el precio, debes confirmarlo antes de empezar."
 				},
 				"safety": {
 					"title": "Protecciones normales",
@@ -812,11 +816,11 @@
 			"items": {
 				"guestAvailability": {
 					"question": "¿Puedo probar el editor de imágenes con IA sin registrarme?",
-					"answer": "Cuando la cola patrocinada está disponible, los visitantes elegibles pueden realizar dos ediciones de imagen al día con Nano Banana 2 Lite en 1K sin registrarse. Sube una imagen de referencia y describe el cambio. Cada resultado es privado, lleva marca de agua y está disponible hasta 24 horas. El cupo se renueva a las 00:00 UTC y no se acumula. La generación de texto a imagen requiere iniciar sesión."
+					"answer": "Los invitados elegibles pueden probar una edición gratuita con MiniMax H3 1K o Nano Banana 2 Lite 1K cuando la cola patrocinada está disponible. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. Sube una imagen de referencia y describe el cambio. Es una prueba única en este navegador, sujeta a disponibilidad regional. La generación de texto a imagen requiere iniciar sesión."
 				},
 				"guestVsFree": {
 					"question": "¿Puedo usar EzImageAI como editor de imágenes con IA gratis?",
-					"answer": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción. Los invitados elegibles pueden realizar dos ediciones patrocinadas con Nano Banana 2 Lite 1K al día cuando la cola está disponible. Los resultados llevan marca de agua y están disponibles hasta 24 horas. Se aplican los límites de seguridad, legales, del modelo y de uso."
+					"answer": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción. Los invitados elegibles pueden probar una edición gratuita con MiniMax H3 1K o Nano Banana 2 Lite 1K cuando la cola patrocinada está disponible. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. Se aplican los límites de seguridad, legales, del modelo y de uso."
 				}
 			}
 		},

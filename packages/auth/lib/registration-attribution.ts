@@ -23,6 +23,7 @@ export function isRegistrationCreationPath(
 	return (
 		path === "/sign-up/email" ||
 		path === "/sign-in/social" ||
+		path === "/one-tap/callback" ||
 		path === "/magic-link/verify" ||
 		/^\/callback\/(?:google|github)$/.test(path ?? "") ||
 		(path === "/callback/:id" && (providerId === "google" || providerId === "github"))

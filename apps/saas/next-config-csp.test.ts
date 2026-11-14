@@ -8,6 +8,7 @@ describe("Turnstile content security policy", () => {
 	it.each([
 		"/",
 		"/try",
+		"/login",
 		"/blog/private-image-editing-workflow",
 		"/blog/ai-image-editing-prompts",
 		"/blog/tesco-ai-meal-planning-assistant",
@@ -28,7 +29,12 @@ describe("Turnstile content security policy", () => {
 		expect(directives.get("script-src")).toContain("https://challenges.cloudflare.com");
 		expect(directives.get("script-src")).toContain("https://www.clarity.ms");
 		expect(directives.get("script-src")).toContain("https://www.googletagmanager.com");
-		expect(directives.get("frame-src")).toEqual(["https://challenges.cloudflare.com"]);
+		expect(directives.get("script-src")).toContain("https://accounts.google.com/gsi/client");
+		expect(directives.get("frame-src")).toEqual([
+			"https://challenges.cloudflare.com",
+			"https://accounts.google.com/gsi/",
+		]);
+		expect(directives.get("style-src")).toContain("https://accounts.google.com/gsi/style");
 		expect(directives.get("default-src")).toEqual(["'self'"]);
 		expect(directives.get("frame-ancestors")).toEqual(["'none'"]);
 	});

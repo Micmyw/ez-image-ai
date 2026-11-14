@@ -215,6 +215,7 @@ vi.mock("../hooks/use-generation", () => ({
 }));
 
 import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
+import { SelectedImagePassOffer } from "@payments/components/SelectedImagePassOffer";
 import { readEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import {
 	savePaidTemplatePurchase,
@@ -230,6 +231,7 @@ import { GenerationForm } from "./GenerationForm";
 import { ImageFundingSelector, type ImageFundingSource } from "./ImageFundingSelector";
 import { ImageModelSelector } from "./ImageModelSelector";
 import { ImageOutputSettings } from "./ImageOutputSettings";
+import { ImagePurposeShortcuts } from "./ImagePurposeShortcuts";
 
 const accepted = { job: { id: "accepted-job" }, replayed: false };
 function render(
@@ -356,6 +358,67 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it("uses the purpose shortcut without dropping the prompt or owned reference", () => {
+		state.values.sourceAssetId = "owned-photo";
+		const before = state.values.prompt;
+		(find(render(), ImagePurposeShortcuts).props.onSelect as (key: string, sku: string) => void)(
+			"image-gpt-image-2-6-flare",
+			"gpt-image-2-6-flare-1k",
+		);
+		expect(state.values).toMatchObject({
+			productKey: "image-gpt-image-2-6-flare",
+			skuKey: "gpt-image-2-6-flare-1k",
+			sourceAssetId: "owned-photo",
+			prompt: before,
+		});
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("saves the current draft before a contextual Image Pass purchase", () => {
+		const entries = new Map<string, string>();
+		vi.stubGlobal("window", {
+			addEventListener: vi.fn(),
+			removeEventListener: vi.fn(),
+			sessionStorage: {
+				getItem: (key: string) => entries.get(key) ?? null,
+				setItem: (key: string, value: string) => entries.set(key, value),
+				removeItem: (key: string) => entries.delete(key),
+			},
+		});
+		state.passAvailable = 0;
+		state.values = {
+			productKey: "image-nano-banana-pro",
+			skuKey: "nano-banana-pro-4k",
+			prompt: "Keep this custom instruction",
+			sourceAssetId: "owned-photo",
+			aspectRatio: "1:1",
+		};
+		const element = render(vi.fn(), null, ["image-nano-banana-2-lite"], {
+			initialSourceReady: true,
+		});
+		find(element, SelectedImagePassOffer).props.onContinue();
+		expect(state.push).toHaveBeenCalledWith("/image-pass");
+		expect(loadWorkspaceDraft(window.sessionStorage, "owner-a")?.values).toEqual(state.values);
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("keeps an in-flight reference in the editor instead of navigating to purchase before it can be saved", () => {
+		state.passAvailable = 0;
+		state.values = {
+			productKey: "image-nano-banana-pro",
+			skuKey: "nano-banana-pro-4k",
+			prompt: "Keep this image",
+			sourceAssetId: "",
+			aspectRatio: "1:1",
+		};
+		const allowed = ["image-nano-banana-2-lite"] as const;
+		const source = find(render(vi.fn(), null, [...allowed]), PromptPanel).props
+			.referencePanel as unknown as ReactElement<React.ComponentProps<typeof ImageSourcePanel>>;
+		source.props.onPendingChange?.(true);
+		const offer = find(render(vi.fn(), null, [...allowed]), SelectedImagePassOffer);
+		expect(offer.props.disabled).toBe(true);
+		offer.props.onContinue();
+		expect(state.push).not.toHaveBeenCalled();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
 	it("hides Sheru prompt editing while retaining the existing prompt submission", async () => {
 		paidTemplate();
 		const panel = find(renderPaid(), PromptPanel) as unknown as ReactElement<

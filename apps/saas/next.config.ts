@@ -26,10 +26,10 @@ const contentSecurityPolicy = [
 	"form-action 'self'",
 	"frame-ancestors 'none'",
 	"object-src 'none'",
-	"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com" +
+	"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com https://accounts.google.com/gsi/client" +
 		(isProduction ? "" : " 'unsafe-eval'"),
-	"frame-src https://challenges.cloudflare.com",
-	"style-src 'self' 'unsafe-inline'",
+	"frame-src https://challenges.cloudflare.com https://accounts.google.com/gsi/",
+	"style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
 	`img-src 'self' blob: data: https:${storageConnectSource ? ` ${storageConnectSource}` : ""}`,
 	"media-src 'self' blob: https:",
 	"font-src 'self' data:",

@@ -2,6 +2,8 @@
 
 import { useAuthErrorMessages } from "@auth/hooks/errors-messages";
 import { loadAuthClient, preloadAuthClient } from "@auth/lib/auth-client";
+import { beginAuthJourney } from "@auth/lib/auth-journey";
+import { authErrorReturnPath, cancelGoogleOneTap } from "@auth/lib/auth-navigation";
 import { config } from "@config";
 import { Button } from "@repo/ui/components/button";
 import { captureRegistrationFirstTouch } from "@shared/lib/purchase-attribution";
@@ -15,10 +17,12 @@ export function SocialSigninButton({
 	provider,
 	className,
 	disabled,
+	label,
 }: {
 	provider: keyof typeof oAuthProviders;
 	className?: string;
 	disabled?: boolean;
+	label?: string;
 }) {
 	const [invitationId] = useQueryState("invitationId", parseAsString);
 	const [redirectTo] = useQueryState("redirectTo", parseAsString);
@@ -37,12 +41,23 @@ export function SocialSigninButton({
 		submissionInFlight.current = true;
 		setPending(true);
 		setErrorMessage(null);
+		cancelGoogleOneTap();
+		beginAuthJourney(provider === "google" ? "google" : "unknown", redirectPath);
 		try {
-			const [authClient] = await Promise.all([loadAuthClient(), captureRegistrationFirstTouch()]);
+			const [authClient] = await Promise.all([
+				loadAuthClient(),
+				Promise.resolve()
+					.then(captureRegistrationFirstTouch)
+					.catch(() => {}),
+			]);
 			const callbackURL = new URL(redirectPath, window.location.origin);
 			const { error } = await authClient.signIn.social({
 				provider,
 				callbackURL: callbackURL.toString(),
+				errorCallbackURL: new URL(
+					authErrorReturnPath(redirectPath, invitationId),
+					window.location.origin,
+				).toString(),
 			});
 			if (error) throw error;
 		} catch (error) {
@@ -77,7 +92,7 @@ export function SocialSigninButton({
 						<providerData.icon className="size-4" />
 					</i>
 				)}
-				{providerData.name}
+				{label ?? providerData.name}
 			</Button>
 			{errorMessage && (
 				<p role="alert" className="text-xs text-destructive">

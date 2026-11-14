@@ -6,20 +6,32 @@ import {
 	type ModerationDecision,
 } from "@repo/ai";
 import { imageModerationProviderForEnvironment } from "@repo/config";
+import {
+	isGuestTrialModel,
+	type GuestTrialProductKey,
+	type GuestTrialSkuKey,
+} from "@repo/config/guest-trial";
 import { GUEST_MEDIA_SPONSOR_CREDITS } from "@repo/config/server";
 import {
 	createGuestGenerationTransaction,
+	getGuestSubmissionReplay,
 	fingerprintGenerationQuoteSecurityPayload,
 	type CreateGuestGenerationTransactionInput,
 	type CreateGuestGenerationTransactionResult,
 	type GuestAdmissionDenialReason,
 	type GuestJobSnapshot,
+	type BlockedPromptContext,
 	recordGuestAdmissionDenial,
-	recordTextModerationOutcome,
+	recordBlockedPromptAttempt,
 } from "@repo/database";
 import { db } from "@repo/database/client";
+import {
+	assertRequestFreeEligibility,
+	getRequestFreeEligibility,
+} from "@repo/utils/free-eligibility";
 
 import { trustedGuestClientIdentity } from "./draft-client-identity";
+import { readGuestBrowserSubject } from "./guest-browser";
 import {
 	assertGuestCapabilityVersion,
 	hashGuestAbuseBinding,
@@ -54,8 +66,8 @@ export interface GuestAdmissionBoundary {
 
 export interface SubmitGuestGenerationInput {
 	capabilityVersion: string;
-	productKey: "image-nano-banana-2-lite";
-	skuKey: "nano-banana-2-lite-1k";
+	productKey: GuestTrialProductKey;
+	skuKey: GuestTrialSkuKey;
 	sourceAssetId: string;
 	prompt: string;
 	aspectRatio?: ImageAspectRatio;
@@ -123,6 +135,10 @@ interface GuestAdmissionConfig {
 }
 
 interface GuestAdmissionDependencies {
+	findReplay?(
+		boundary: GuestAdmissionBoundary,
+		input: SubmitGuestGenerationInput,
+	): Promise<GuestJobSnapshot | null>;
 	now(): Date;
 	saasOrigin: string;
 	loadCapability(): Promise<{
@@ -145,19 +161,20 @@ interface GuestAdmissionDependencies {
 		now: Date;
 	}): Promise<GuestSourceBootstrap | null>;
 	buildQuote(input: {
-		productKey: "image-nano-banana-2-lite";
+		productKey: GuestTrialProductKey;
 		input: {
 			kind: "image-to-image";
 			prompt: string;
 			sourceAssetId: string;
-			skuKey: "nano-banana-2-lite-1k";
+			skuKey: GuestTrialSkuKey;
 			aspectRatio: ImageAspectRatio;
 		};
 	}): GuestQuote;
 	moderatePrompt(input: { text: string; ruleVersion: string }): Promise<ModerationDecision>;
 	moderationProvider?: TextModerationEvidence["provider"];
 	recordModerationDenial?(
-		moderation: Omit<TextModerationEvidence, "inputFingerprint">,
+		moderation: TextModerationEvidence,
+		context: BlockedPromptContext,
 	): Promise<void>;
 	transactionRecordsDenials?: boolean;
 	recordDenial(input: {
@@ -173,6 +190,20 @@ interface GuestAdmissionDependencies {
 }
 
 export const guestAdmissionDependencies: GuestAdmissionDependencies = {
+	findReplay: (boundary, input) =>
+		getGuestSubmissionReplay(
+			{
+				...input,
+				ownerId: boundary.ownerId,
+				now: new Date(),
+				verification: {
+					provider: imageModerationProviderForEnvironment(process.env),
+					ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+					policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				},
+			},
+			db,
+		),
 	now: () => new Date(),
 	saasOrigin: process.env.NEXT_PUBLIC_SAAS_URL ?? "",
 	loadCapability: () => loadGuestCapability(),
@@ -225,14 +256,8 @@ export const guestAdmissionDependencies: GuestAdmissionDependencies = {
 		return selection.adapter.moderateText(input);
 	},
 	moderationProvider: undefined,
-	recordModerationDenial: async (moderation) => {
-		await db.$transaction((tx) =>
-			recordTextModerationOutcome(
-				{ targetType: "TEXT_ATTEMPT", targetId: crypto.randomUUID(), moderation },
-				tx,
-			),
-		);
-	},
+	recordModerationDenial: (moderation, context) =>
+		recordBlockedPromptAttempt(moderation, context, db),
 	transactionRecordsDenials: true,
 	recordDenial: (input) => recordGuestAdmissionDenial(input, db),
 	createTransaction: (input) =>
@@ -250,6 +275,8 @@ export async function submitGuestGenerationForGuest(
 		dependencySelection === "default" ? guestAdmissionDependencies : dependencySelection;
 	const now = dependencies.now();
 	assertExactOrigin(boundary.origin, dependencies.saasOrigin);
+	const replay = await dependencies.findReplay?.(boundary, input);
+	if (replay) return replay;
 	const identity = dependencies.resolveIdentity(boundary.headers);
 	if (!identity) throw new Error("GUEST_TRUSTED_CLIENT_REQUIRED");
 	if (!isRandomDeviceId(input.deviceId)) throw new Error("GUEST_DEVICE_INVALID");
@@ -284,9 +311,12 @@ export async function submitGuestGenerationForGuest(
 			error,
 		);
 	}
-	if (input.productKey !== loaded.config.productKey || input.skuKey !== loaded.config.skuKey) {
+	if (!isGuestTrialModel(input.productKey, input.skuKey)) {
 		throw new Error("GUEST_PRODUCT_UNAVAILABLE");
 	}
+	assertRequestFreeEligibility();
+	const browserSubjectHash = readGuestBrowserSubject(boundary.headers);
+	if (!browserSubjectHash) throw new Error("GUEST_BROWSER_COOKIE_REQUIRED");
 	let verifiedTurnstile: VerifiedGuestTurnstileToken;
 	try {
 		verifiedTurnstile = await dependencies.verifyTurnstile({
@@ -348,15 +378,15 @@ export async function submitGuestGenerationForGuest(
 		kind: "image-to-image" as const,
 		prompt: input.prompt.trim(),
 		sourceAssetId: source.id,
-		skuKey: "nano-banana-2-lite-1k" as const,
+		skuKey: input.skuKey,
 		aspectRatio: input.aspectRatio ?? "auto",
 	};
 	const quote = dependencies.buildQuote({
-		productKey: "image-nano-banana-2-lite",
+		productKey: input.productKey,
 		input: modelInput,
 	});
 	if (
-		quote.productKey !== loaded.config.productKey ||
+		quote.productKey !== input.productKey ||
 		quote.credits !== loaded.config.sponsorCredits ||
 		quote.credits !== GUEST_MEDIA_SPONSOR_CREDITS ||
 		quote.costMicros <= 0n
@@ -377,7 +407,7 @@ export async function submitGuestGenerationForGuest(
 		ownerType: "USER" as const,
 		ownerId: boundary.ownerId,
 		submittedByUserId: boundary.ownerId,
-		productKey: "image-nano-banana-2-lite",
+		productKey: input.productKey,
 		catalogVersion: quote.catalogVersion,
 		pricingVersion: quote.pricingVersion,
 		credits: quote.credits,
@@ -397,7 +427,24 @@ export async function submitGuestGenerationForGuest(
 	const moderationProvider =
 		dependencies.moderationProvider ?? textModerationProviderForEnvironment(process.env);
 	if (moderation.decision !== "ALLOW") {
-		await dependencies.recordModerationDenial?.({ ...moderation, provider: moderationProvider });
+		try {
+			await dependencies.recordModerationDenial?.(
+				{
+					...moderation,
+					provider: moderationProvider,
+					inputFingerprint: fingerprintGenerationQuoteSecurityPayload(quoteBase),
+				},
+				{
+					userId: boundary.ownerId,
+					audience: "GUEST",
+					prompt: modelInput.prompt,
+					productKey: input.productKey,
+					sourceAssetId: source.id,
+				},
+			);
+		} catch {
+			// Optional administrator diagnostics cannot replace the safe content decision.
+		}
 		return rejectGuestAdmission(
 			dependencies,
 			boundary,
@@ -439,6 +486,8 @@ export async function submitGuestGenerationForGuest(
 		].join("\n"),
 	);
 	const transactionInput = {
+		browserSubjectHash,
+		freeEligibility: getRequestFreeEligibility().status,
 		ownerId: boundary.ownerId,
 		promotionPeriod: loaded.config.promotionPeriod,
 		capabilityVersion: loaded.snapshot.version,

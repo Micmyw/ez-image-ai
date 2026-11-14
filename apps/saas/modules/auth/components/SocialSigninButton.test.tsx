@@ -50,6 +50,7 @@ vi.mock("nuqs", () => ({
 	useQueryState: (key: string) => [key === "redirectTo" ? state.redirectTo : state.invitationId],
 }));
 
+import { authErrorReturnPath } from "../lib/auth-navigation";
 import { SocialSigninButton } from "./SocialSigninButton";
 
 function renderButton(provider: "google" | "github" = "google", disabled = false) {
@@ -108,6 +109,7 @@ describe("OAuth purchase return", () => {
 		expect(state.signIn).toHaveBeenCalledWith({
 			provider: "google",
 			callbackURL: "https://ezimageai.com/pricing?plan=studio&interval=month",
+			errorCallbackURL: `https://ezimageai.com${authErrorReturnPath("/pricing?plan=studio&interval=month")}`,
 		});
 	});
 	it.each(["https://attacker.com/path", "//attacker.com/path", "/\\attacker.com/path"])(
@@ -118,6 +120,7 @@ describe("OAuth purchase return", () => {
 			expect(state.signIn).toHaveBeenCalledWith({
 				provider: "github",
 				callbackURL: "https://ezimageai.com/create",
+				errorCallbackURL: `https://ezimageai.com${authErrorReturnPath("/create")}`,
 			});
 		},
 	);
@@ -128,6 +131,7 @@ describe("OAuth purchase return", () => {
 		expect(state.signIn).toHaveBeenCalledWith({
 			provider: "google",
 			callbackURL: "https://ezimageai.com/organization-invitation/invitation-a",
+			errorCallbackURL: `https://ezimageai.com${authErrorReturnPath("/organization-invitation/invitation-a", "invitation-a")}`,
 		});
 	});
 
@@ -139,6 +143,17 @@ describe("OAuth purchase return", () => {
 		expect(state.preload).toHaveBeenCalledTimes(2);
 		expect(state.capture).not.toHaveBeenCalled();
 		expect(state.signIn).not.toHaveBeenCalled();
+	});
+	it("does not let unavailable attribution prevent sign-in or drop the draft return ID", async () => {
+		state.redirectTo = "/create?authDraft=10000000-0000-4000-8000-000000000001";
+		state.capture.mockRejectedValueOnce(new Error("analytics unavailable"));
+		await button().props.onClick();
+		expect(state.signIn).toHaveBeenCalledWith(
+			expect.objectContaining({
+				callbackURL: `https://ezimageai.com${state.redirectTo}`,
+				errorCallbackURL: `https://ezimageai.com${authErrorReturnPath(state.redirectTo)}`,
+			}),
+		);
 	});
 
 	it("shows busy feedback immediately and submits once after delayed attribution is ready", async () => {

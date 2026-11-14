@@ -5,6 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary";
 import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
 import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
+import { SelectedImagePassOffer } from "@payments/components/SelectedImagePassOffer";
 import { createChoosePlanPath, writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import {
 	clearPaidTemplatePurchase,
@@ -25,6 +26,11 @@ import { textLengthBucket, generationErrorCategory } from "@repo/utils/lib/gener
 import { STUDIO_ASSET_SELECTED_EVENT } from "@shared/components/studio/studio-context";
 import { useGenerationAnalytics, trackGenerationAction } from "@shared/hooks/generation-analytics";
 import { useRouter } from "@shared/hooks/router";
+import {
+	createJourneyReference,
+	rememberJourneyJob,
+	trackGenerationJourney,
+} from "@shared/lib/generation-journey";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { captureCheckoutTrigger } from "@shared/lib/purchase-attribution";
 import { useTranslations } from "next-intl";
@@ -91,6 +97,7 @@ import { RegisteredEditorDock } from "./editor/RegisteredEditorDock";
 import { ImageFundingSelector, type ImageFundingSource } from "./ImageFundingSelector";
 import { ImageModelSelector } from "./ImageModelSelector";
 import { ImageOutputSettings } from "./ImageOutputSettings";
+import { ImagePurposeShortcuts } from "./ImagePurposeShortcuts";
 
 import "./editor/generation-composer.css";
 
@@ -102,6 +109,7 @@ export function GenerationForm({
 	jobId = null,
 	initialDraft,
 	initialTemporaryReference,
+	initialReferenceFile,
 	initialFundingSource,
 	workspaceDraftPath = "/create",
 	initialProductKey,
@@ -119,6 +127,7 @@ export function GenerationForm({
 		fundingSource?: ImageFundingSource,
 	) => void;
 	initialTemporaryReference?: TemporaryReferenceReceipt;
+	initialReferenceFile?: File;
 	initialFundingSource?: ImageFundingSource;
 	workspaceDraftPath?: string;
 	onSourceChanged?: () => void;
@@ -141,6 +150,8 @@ export function GenerationForm({
 	const actionVersion = useRef(0);
 	const mounted = useRef(true);
 	const submittingRef = useRef<object | null>(null);
+	const journeyActionRef = useRef<string | undefined>(undefined);
+	const journeyStartedAt = useRef<number | undefined>(undefined);
 	const acceptedJob = useRef<{ id: string; ownerId: string } | null>(null);
 	if (currentOwner.current !== ownerId) {
 		currentOwner.current = ownerId;
@@ -159,7 +170,7 @@ export function GenerationForm({
 	const effectPreset = effectEditor?.selectedPreset;
 	const hidePresetPrompt = effectEditor?.effect.id === "sheru-bhai-ai-photo";
 	const paidTemplate = effectEditor?.effect.generationAccess === "paid";
-	// A guest reference cannot cross sign-in as a browser File. Keep its intent until reselected.
+	// Restored local files use the ordinary upload path before they become usable inputs.
 	const requireReference =
 		referenceRequired ||
 		effectPreset?.inputRequirement === "required" ||
@@ -759,7 +770,7 @@ export function GenerationForm({
 	}, [form, products, temporaryReference, parentJobId, sourceReady]);
 
 	const continueToImagePass = useCallback(() => {
-		if (!ownerId) return false;
+		if (!ownerId || sourcePendingRef.current || submittingRef.current) return false;
 		let saved = false;
 		try {
 			saved = saveWorkspaceDraft(
@@ -797,6 +808,7 @@ export function GenerationForm({
 	]);
 
 	const continueToUpgrade = useCallback(() => {
+		if (sourcePendingRef.current || submittingRef.current) return false;
 		if (!saveDraftForPurchase()) return false;
 		void saasGrowthFunnel.upgradePromptViewed(values.productKey);
 		captureCheckoutTrigger();
@@ -820,6 +832,8 @@ export function GenerationForm({
 			return;
 		const operation = {};
 		const version = actionVersion.current;
+		const actionRef = journeyActionRef.current;
+		const startedAt = journeyStartedAt.current;
 		submittingRef.current = operation;
 		try {
 			const result = await generation.createGeneration.mutateAsync({
@@ -828,6 +842,7 @@ export function GenerationForm({
 				expectedCredits: String(displayedCredits),
 				fundingSource,
 				temporaryReferenceToken: temporaryReference?.token,
+				...(actionRef ? { journey: { actionRef } } : {}),
 			});
 			if (
 				!result ||
@@ -837,6 +852,12 @@ export function GenerationForm({
 			)
 				return;
 			acceptedJob.current = { id: result.job.id, ownerId };
+			if (startedAt !== undefined)
+				rememberJourneyJob({ jobKey: result.job.id, actionRef, startedAt });
+			void trackGenerationJourney(
+				{ stage: "job_admitted_observed", actionRef, publicModel: values.productKey },
+				{ jobKey: result.job.id },
+			);
 			onCreated(result.job.id);
 			beginNewAction();
 		} catch {
@@ -918,6 +939,13 @@ export function GenerationForm({
 			inert={!ready}
 			id="registered-generator"
 			onSubmit={form.handleSubmit((validated) => {
+				journeyActionRef.current = createJourneyReference();
+				journeyStartedAt.current = performance.now();
+				void trackGenerationJourney({
+					stage: "generate_clicked",
+					actionRef: journeyActionRef.current,
+					publicModel: validated.productKey,
+				});
 				trackGenerationAction({
 					mediaKind: "image",
 					phase: "confirm",
@@ -942,6 +970,20 @@ export function GenerationForm({
 				<output className="mb-3 text-sm text-amber-200 block">{effects("modelUnavailable")}</output>
 			)}
 			<ComposerHeader />
+			{!effectEditor && (
+				<ImagePurposeShortcuts
+					products={products}
+					value={values.productKey}
+					skuKey={values.skuKey}
+					outputFormat={controlValues.outputFormat}
+					frameCount={controlValues.frameCount}
+					disabled={!ready || generation.createGeneration.isPending}
+					onSelect={(productKey, skuKey) => {
+						updateProduct(productKey, skuKey);
+						replaceImageModelInUrl(productKey);
+					}}
+				/>
+			)}
 			<ImageFundingSelector
 				value={fundingSource}
 				available={passAvailable}
@@ -995,6 +1037,7 @@ export function GenerationForm({
 								}
 								sourceAssetId={values.sourceAssetId}
 								temporaryReference={temporaryReference}
+								initialReferenceFile={initialReferenceFile}
 								maximumImageBytes={Math.min(
 									generation.creditAccount.data?.maximumInputBytes ??
 										getPlanEntitlement("free").maximumInputBytes,
@@ -1125,8 +1168,8 @@ export function GenerationForm({
 						variant="primary"
 						className="studio-submit"
 						data-test="editor-model-upgrade"
-						disabled={generation.createGeneration.isPending}
-						onClick={continueToUpgrade}
+						disabled={sourcePending || generation.createGeneration.isPending}
+						onClick={() => setUpgradeOpen(true)}
 					>
 						<span>{t("modelMenu.viewPlans")}</span>
 						<span className="composer-submit-cost">
@@ -1179,6 +1222,18 @@ export function GenerationForm({
 						: t("modelMenu.upgradeNotice", { model: product.label })}
 				</output>
 			)}
+			{!paidTemplate &&
+				(upgradeRequired ||
+					errorKey === "insufficientCredits" ||
+					errorKey === "insufficientImagePasses") && (
+					<SelectedImagePassOffer
+						productKey={values.productKey}
+						skuKey={values.skuKey}
+						outputFormat={controlValues.outputFormat}
+						onContinue={continueToImagePass}
+						disabled={sourcePending || generation.createGeneration.isPending}
+					/>
+				)}
 			<div className="image-edit-composer-meta composer-meta">
 				<details className="mt-3 text-xs text-muted-foreground">
 					<summary className="py-2 cursor-pointer">
@@ -1234,7 +1289,11 @@ export function GenerationForm({
 				<EditorUpgradeDialog
 					modelLabel={product?.label}
 					modelProductKey={values.productKey}
+					skuKey={values.skuKey}
+					outputFormat={controlValues.outputFormat}
+					onImagePass={continueToImagePass}
 					open={upgradeOpen && active}
+					busy={sourcePending || generation.createGeneration.isPending}
 					onOpenChange={(open) => {
 						setUpgradeOpen(open);
 						if (!open) setUpgradeStorageUnavailable(false);

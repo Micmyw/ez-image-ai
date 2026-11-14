@@ -51,7 +51,13 @@ export class FalProviderAdapter implements MediaProviderAdapter {
 			},
 			this.options,
 		);
-		if (!ok) return rejectedHttpSubmission({ status, data, attemptId: input.attemptId });
+		if (!ok)
+			return rejectedHttpSubmission({
+				status,
+				data,
+				attemptId: input.attemptId,
+				sensitiveValues: [this.options.apiKey],
+			});
 		const parsed = this.parse(data);
 		const statusUrl = optionalFalAuthenticatedUrl(parsed.status_url, authenticatedHostname);
 		const resultUrl = optionalFalAuthenticatedUrl(parsed.response_url, authenticatedHostname);
@@ -108,6 +114,7 @@ export class FalProviderAdapter implements MediaProviderAdapter {
 				parsed.status ?? (parsed.images || parsed.video ? "succeeded" : "unknown"),
 			),
 			raw: parsed,
+			retrieval: { source: "fal-status", observedAt: new Date().toISOString() },
 		};
 	}
 	async normalizeResult(snapshot: ProviderTaskSnapshot): Promise<NormalizedResult> {
@@ -116,7 +123,12 @@ export class FalProviderAdapter implements MediaProviderAdapter {
 			...(parsed.images?.map((image) => image.url) ?? []),
 			...(parsed.video ? [parsed.video.url] : []),
 		];
-		return normalizedResult(snapshot, remoteOutputs(urls), failureFrom(parsed.error), null);
+		return normalizedResult(
+			snapshot,
+			remoteOutputs(urls),
+			failureFrom(parsed.error, [this.options.apiKey]),
+			null,
+		);
 	}
 	private parse(data: unknown): z.infer<typeof falSchema> {
 		const parsed = falSchema.safeParse(data);

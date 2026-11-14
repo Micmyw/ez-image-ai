@@ -69,7 +69,13 @@ export class ReplicateProviderAdapter implements MediaProviderAdapter {
 			},
 			this.options,
 		);
-		if (!ok) return rejectedHttpSubmission({ status, data, attemptId: input.attemptId });
+		if (!ok)
+			return rejectedHttpSubmission({
+				status,
+				data,
+				attemptId: input.attemptId,
+				sensitiveValues: [this.options.apiToken, this.options.webhookSecret ?? ""],
+			});
 		const parsed = responseSchema.safeParse(data);
 		if (!parsed.success)
 			throw new MediaProviderError(
@@ -117,7 +123,10 @@ export class ReplicateProviderAdapter implements MediaProviderAdapter {
 			);
 		const snapshot = toSnapshot(parsed.data);
 		this.snapshots.set(parsed.data.id, snapshot);
-		return snapshot;
+		return {
+			...snapshot,
+			retrieval: { source: "replicate-prediction", observedAt: new Date().toISOString() },
+		};
 	}
 	async cancel(input: ProviderCancelInput): Promise<ProviderCancelResult> {
 		const { ok, status } = await fetchJson(
@@ -166,7 +175,10 @@ export class ReplicateProviderAdapter implements MediaProviderAdapter {
 		return normalizedResult(
 			snapshot,
 			remoteOutputs(values),
-			failureFrom(parsed.data.error ?? undefined),
+			failureFrom(parsed.data.error ?? undefined, [
+				this.options.apiToken,
+				this.options.webhookSecret ?? "",
+			]),
 			cost,
 		);
 	}

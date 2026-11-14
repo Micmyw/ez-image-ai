@@ -93,6 +93,7 @@ describe("public HTML and HTTP indexing agree", () => {
 		"job",
 		"videoJob",
 		"reuseJob",
+		"authDraft",
 		"parentJob",
 		"resume",
 		"draftError",

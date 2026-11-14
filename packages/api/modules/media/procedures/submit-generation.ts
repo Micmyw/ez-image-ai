@@ -1,8 +1,10 @@
 import { createHash } from "node:crypto";
 
-import { findGenerationSubmissionQuote } from "@repo/database";
+import { optionalGenerationJourneyRefsSchema } from "@repo/config/generation-journey";
+import { findGenerationSubmissionQuote, recordGrowthEvent } from "@repo/database";
 import { db } from "@repo/database/client";
 import { generationFundingSource } from "@repo/database/media-image-passes";
+import { persistGenerationJourneyConfirmation } from "@repo/utils/lib/generation-journey-server";
 import type { RequestDefer } from "@repo/utils/request-lifecycle";
 import { z } from "zod";
 
@@ -23,6 +25,7 @@ import { createQuoteForUser } from "./create-quote";
 export const submitGenerationInputSchema = createQuoteInputSchema.safeExtend({
 	idempotencyKey: createGenerationInputSchema.shape.idempotencyKey,
 	expectedCredits: z.string().regex(/^[1-9]\d{0,9}$/),
+	journey: optionalGenerationJourneyRefsSchema,
 });
 type Input = z.infer<typeof submitGenerationInputSchema>;
 interface Dependencies {
@@ -199,15 +202,39 @@ function hash(value: unknown): string {
 export const submitGeneration = protectedProcedure
 	.route({ method: "POST", path: "/media/generations/submit", tags: ["Media"] })
 	.input(submitGenerationInputSchema)
-	.handler(async ({ context: { user, requestId, defer }, input }) => {
+	.handler(async ({ context: { user, session, headers, requestId, defer }, input }) => {
 		try {
-			return await submitGenerationForUser(
+			const result = await submitGenerationForUser(
 				user.id,
 				input,
 				undefined,
 				createFlowTiming({ requestId }),
 				defer,
 			);
+			// This is an observation of the committed job, never part of its quote,
+			// idempotency identity or authority. Managed requests keep their database
+			// lifetime through this write without delaying the accepted response.
+			const confirmation = persistGenerationJourneyConfirmation(
+				{
+					headers,
+					stage: "job_admitted",
+					entityKey: result.job.id,
+					refs: input.journey,
+					user: { ...user, isAnonymous: false },
+					impersonated: Boolean(session.impersonatedBy),
+				},
+				{ save: recordGrowthEvent },
+			);
+			if (defer) {
+				try {
+					defer(confirmation);
+				} catch {
+					await confirmation;
+				}
+			} else {
+				await confirmation;
+			}
+			return result;
 		} catch (error) {
 			throw toMediaOrpcError(error);
 		}

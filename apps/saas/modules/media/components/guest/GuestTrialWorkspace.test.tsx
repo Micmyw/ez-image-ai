@@ -104,10 +104,10 @@ describe("GuestTrialWorkspace", () => {
 		expect(markup).not.toMatch(/\d+%|queue position|history|edit again|cancel/i);
 	});
 
-	it("offers the one-time login gift when guest daily allowance is exhausted", () => {
+	it("offers the one-time login gift when guest lifetime allowance is exhausted", () => {
 		mocks.useGuestTrial.mockReturnValue({
 			...mocks.useGuestTrial(),
-			dailyAllowance: { remaining: 0, limit: 2 },
+			trialAllowance: { remaining: 0, limit: 1 },
 			errorKey: "eligibility",
 		});
 		const markup = renderToStaticMarkup(<GuestTrialWorkspace />);
@@ -122,7 +122,7 @@ describe("GuestTrialWorkspace", () => {
 	it("does not advertise account credits as a way around a moderation rejection", () => {
 		mocks.useGuestTrial.mockReturnValue({
 			...mocks.useGuestTrial(),
-			dailyAllowance: { remaining: 0, limit: 2 },
+			trialAllowance: { remaining: 0, limit: 1 },
 			errorKey: "submit",
 			moderationError: { outcome: "blocked", reason: "restrictedContent" },
 		});
@@ -150,9 +150,15 @@ describe("GuestTrialWorkspace", () => {
 		const beginLink = vi.fn();
 		mocks.useGuestTrial.mockReturnValue({
 			view: { state: "preparingSession" },
-			draft: { sourceAssetId: "source-1", prompt: "Keep the subject" },
+			draft: {
+				sourceAssetId: "source-1",
+				prompt: "Keep the subject",
+				productKey: "image-nano-banana-2-lite",
+				skuKey: "nano-banana-2-lite-1k",
+			},
 			prompt: "Keep the subject",
 			setPrompt: vi.fn(),
+			setModel: vi.fn(),
 			canSubmit: true,
 			isSubmitting: false,
 			resultUrl: null,
@@ -201,6 +207,7 @@ describe("GuestTrialWorkspace", () => {
 			draft: { sourceAssetId: "private-source-id", prompt: "Keep the subject" },
 			prompt: "Keep the subject",
 			setPrompt: vi.fn(),
+			setModel: vi.fn(),
 			canSubmit: true,
 			isSubmitting: false,
 			resultUrl: null,

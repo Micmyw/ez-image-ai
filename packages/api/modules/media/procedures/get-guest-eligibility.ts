@@ -1,14 +1,17 @@
 import { getCatalogEntry, getCatalogImageSpecCell, imageAspectRatioSchema } from "@repo/ai";
-import { ACTIVE_GENERATION_JOB_STATUSES, getGuestDailyAllowance } from "@repo/database";
+import {
+	isGuestTrialModel,
+	type GuestTrialProductKey,
+	type GuestTrialSkuKey,
+} from "@repo/config/guest-trial";
+import { ACTIVE_GENERATION_JOB_STATUSES, getGuestLifetimeAllowance } from "@repo/database";
 import { db } from "@repo/database/client";
+import { getRequestFreeEligibility } from "@repo/utils/free-eligibility";
 import { z } from "zod";
 
 import { guestMediaProcedure } from "../guest-procedure";
-import {
-	hashGuestAbuseBinding,
-	loadGuestCapability,
-	requireGuestAbuseHmac,
-} from "../lib/guest-capability";
+import { readGuestBrowserSubject } from "../lib/guest-browser";
+import { loadGuestCapability } from "../lib/guest-capability";
 
 export const getGuestEligibility = guestMediaProcedure
 	.route({
@@ -16,7 +19,8 @@ export const getGuestEligibility = guestMediaProcedure
 		path: "/media/guest-eligibility",
 		tags: ["Media"],
 		summary: "Get guest image admission eligibility",
-		description: "Returns the daily guest allowance and recoverable edit for this anonymous owner.",
+		description:
+			"Returns the one-time guest allowance and recoverable edit for this anonymous owner.",
 	})
 	.input(z.object({ deviceId: z.string().uuid() }).strict().optional())
 	.output(
@@ -24,20 +28,29 @@ export const getGuestEligibility = guestMediaProcedure
 			.object({
 				capabilityVersion: z.string().min(1),
 				eligible: z.boolean(),
-				reason: z.enum(["AVAILABLE", "EXISTING_TRIAL", "LINK_IN_PROGRESS", "DISABLED"]),
+				reason: z.enum([
+					"AVAILABLE",
+					"EXISTING_TRIAL",
+					"LINK_IN_PROGRESS",
+					"DISABLED",
+					"REGION_EXCLUDED",
+					"REGION_UNVERIFIED",
+					"BROWSER_UNVERIFIED",
+				]),
 				existingJobId: z.string().min(1).nullable(),
-				dailyAllowance: z
+				trialAllowance: z
 					.object({
 						limit: z.number().int(),
 						remaining: z.number().int(),
-						resetsAt: z.string().datetime(),
+						resetsAt: z.null(),
 					})
 					.nullable(),
 				claimedDraft: z
 					.object({
 						sourceAssetId: z.string().min(1),
 						prompt: z.string().min(1),
-						skuKey: z.literal("nano-banana-2-lite-1k"),
+						productKey: z.enum(["image-minimax-h3", "image-nano-banana-2-lite"]),
+						skuKey: z.enum(["minimax-h3-1k", "nano-banana-2-lite-1k"]),
 						aspectRatio: imageAspectRatioSchema,
 					})
 					.strict()
@@ -45,7 +58,7 @@ export const getGuestEligibility = guestMediaProcedure
 			})
 			.strict(),
 	)
-	.handler(async ({ context, input }) => {
+	.handler(async ({ context }) => {
 		context.responseHeaders?.set("Cache-Control", "no-store");
 		const loaded = await loadGuestCapability();
 		if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
@@ -55,13 +68,12 @@ export const getGuestEligibility = guestMediaProcedure
 				reason: "DISABLED" as const,
 				existingJobId: null,
 				claimedDraft: null,
-				dailyAllowance: null,
+				trialAllowance: null,
 			};
 		}
 		const now = new Date();
-		const hmac = requireGuestAbuseHmac(loaded.config);
-		const hash = (purpose: string, value: string) =>
-			hashGuestAbuseBinding(hmac.secretKey, hmac.keyVersion, purpose, value);
+		const freeEligibility = getRequestFreeEligibility();
+		const browserSubjectHash = readGuestBrowserSubject(context.headers);
 		const [trial, linkIntent, bootstrap, allowance, activeJob] = await Promise.all([
 			db.guestMediaTrial.findFirst({
 				where: {
@@ -94,7 +106,7 @@ export const getGuestEligibility = guestMediaProcedure
 							submittedByUserId: context.user.id,
 							status: "SUBMITTED",
 							productKey: {
-								in: ["image-nano-banana-2-lite", "image-fast"],
+								in: ["image-minimax-h3", "image-nano-banana-2-lite", "image-fast"],
 							},
 							expiresAt: { gt: now },
 						},
@@ -120,15 +132,8 @@ export const getGuestEligibility = guestMediaProcedure
 					},
 				},
 			}),
-			getGuestDailyAllowance(
-				{
-					ownerId: context.user.id,
-					promotionPeriod: loaded.config.promotionPeriod,
-					sourceSessionHash: hash("guest-source-session", context.session.id),
-					deviceHash: input?.deviceId ? hash("guest-device", input.deviceId) : undefined,
-					...loaded.config.limits,
-					now,
-				},
+			getGuestLifetimeAllowance(
+				{ ownerId: context.user.id, browserSubjectHash: browserSubjectHash ?? undefined },
 				db,
 			),
 			db.generationJob.findFirst({
@@ -145,15 +150,26 @@ export const getGuestEligibility = guestMediaProcedure
 		context.responseHeaders?.set("Cache-Control", "no-store");
 		return {
 			capabilityVersion: loaded.snapshot.version,
-			eligible: allowance.remaining > 0 && !linkIntent && !activeJob,
+			eligible:
+				freeEligibility.status === "eligible" &&
+				Boolean(browserSubjectHash) &&
+				allowance.remaining > 0 &&
+				!linkIntent &&
+				!activeJob,
 			reason:
-				activeJob || allowance.remaining === 0
-					? ("EXISTING_TRIAL" as const)
-					: linkIntent
-						? ("LINK_IN_PROGRESS" as const)
-						: ("AVAILABLE" as const),
+				freeEligibility.status !== "eligible"
+					? freeEligibility.status === "excluded"
+						? ("REGION_EXCLUDED" as const)
+						: ("REGION_UNVERIFIED" as const)
+					: !browserSubjectHash
+						? ("BROWSER_UNVERIFIED" as const)
+						: activeJob || allowance.remaining === 0
+							? ("EXISTING_TRIAL" as const)
+							: linkIntent
+								? ("LINK_IN_PROGRESS" as const)
+								: ("AVAILABLE" as const),
 			existingJobId: activeJob?.id ?? trial?.currentJobId ?? trial?.consumedJobId ?? null,
-			dailyAllowance: { ...allowance, resetsAt: allowance.resetsAt.toISOString() },
+			trialAllowance: { limit: allowance.limit, remaining: allowance.remaining, resetsAt: null },
 			claimedDraft,
 		};
 	});
@@ -180,7 +196,8 @@ function resolveClaimedDraft(
 ): {
 	sourceAssetId: string;
 	prompt: string;
-	skuKey: "nano-banana-2-lite-1k";
+	productKey: GuestTrialProductKey;
+	skuKey: GuestTrialSkuKey;
 	aspectRatio: z.infer<typeof imageAspectRatioSchema>;
 } | null {
 	const draft = bootstrap?.claimedDraft;
@@ -195,7 +212,9 @@ function resolveClaimedDraft(
 		draft.ownerId !== ownerId ||
 		draft.submittedByUserId !== ownerId ||
 		draft.status !== "SUBMITTED" ||
-		!["image-nano-banana-2-lite", "image-fast"].includes(draft.productKey ?? "") ||
+		!["image-minimax-h3", "image-nano-banana-2-lite", "image-fast"].includes(
+			draft.productKey ?? "",
+		) ||
 		draft.assetId !== bootstrap.sourceAssetId ||
 		draft.expiresAt <= now ||
 		!isRecord(draft.inputSnapshot) ||
@@ -207,23 +226,22 @@ function resolveClaimedDraft(
 	const prompt = draft.inputSnapshot.prompt.trim();
 	const aspectRatio = imageAspectRatioSchema.safeParse(draft.inputSnapshot.aspectRatio ?? "auto");
 	if (!prompt || !aspectRatio.success) return null;
-	if (
-		draft.productKey === "image-nano-banana-2-lite" &&
-		draft.inputSnapshot.skuKey !== "nano-banana-2-lite-1k"
-	) {
-		return null;
-	}
-	const sku = getCatalogImageSpecCell(
-		getCatalogEntry("image-nano-banana-2-lite"),
-		"nano-banana-2-lite-1k",
-	);
+	const productKey = (
+		draft.productKey === "image-fast" ? "image-nano-banana-2-lite" : draft.productKey
+	) as GuestTrialProductKey;
+	const skuKey = (
+		draft.productKey === "image-fast" ? "nano-banana-2-lite-1k" : draft.inputSnapshot.skuKey
+	) as GuestTrialSkuKey;
+	if (!isGuestTrialModel(productKey, skuKey)) return null;
+	const sku = getCatalogImageSpecCell(getCatalogEntry(productKey), skuKey);
 	if (!sku?.aspectRatios.includes(aspectRatio.data)) {
 		return null;
 	}
 	return {
 		sourceAssetId: bootstrap.sourceAssetId,
 		prompt,
-		skuKey: "nano-banana-2-lite-1k",
+		productKey,
+		skuKey,
 		aspectRatio: aspectRatio.data,
 	};
 }

@@ -223,17 +223,22 @@ describe("feedback button loading and retry", () => {
 		vi.mocked(feedbackDialogResource.load).mockReturnValue(new Promise(() => {}));
 		trigger(render({ variant: "report" })).props.onClick();
 		render({ variant: "report" });
-		const cleanup = hooks.effects[1]?.();
-		const escape = addEventListener.mock.calls[0]?.[1] as (event: {
+		// Mount every effect, as React does. Analytics must not make this test depend
+		// on the keyboard effect's position in the component's hook list.
+		const cleanups = hooks.effects.map((effect) => effect());
+		const escape = addEventListener.mock.calls.find(
+			([name]) => name === "keydown",
+		)?.[1] as (event: {
 			key: string;
 			defaultPrevented: boolean;
 			preventDefault: () => void;
 		}) => void;
+		expect(escape).toBeTypeOf("function");
 		const preventDefault = vi.fn();
 		escape({ key: "Escape", defaultPrevented: false, preventDefault });
 		expect(preventDefault).toHaveBeenCalledOnce();
 		expect(renderToStaticMarkup(render({ variant: "report" }))).not.toContain('role="status"');
-		if (typeof cleanup === "function") cleanup();
+		for (const cleanup of cleanups) if (typeof cleanup === "function") cleanup();
 		expect(removeEventListener).toHaveBeenCalledWith("keydown", escape);
 	});
 });

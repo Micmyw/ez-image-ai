@@ -95,18 +95,37 @@ export async function RegisteredEditor({
 				: null;
 			if (!filters.parentJob || parent) {
 				parentJobId = parent?.parentJobId ?? null;
+				// A text result has no edit-session parent. Recover its frozen public
+				// selection only from an owned, successful job bound to this output.
+				const textResult =
+					!parent && filters.reuseJob && sourceAsset
+						? await db.generationJob.findFirst({
+								where: {
+									id: filters.reuseJob,
+									ownerType: "USER",
+									ownerId: session.user.id,
+									status: "SUCCEEDED",
+									assets: { some: { role: "OUTPUT", assetId: filters.asset } },
+								},
+								select: { productKey: true, inputSnapshot: true },
+							})
+						: null;
 				candidate = parent
 					? buildEditAgainRecoveryCandidate(parent, filters.asset)
-					: {
-							productKey: "image-minimax-h3",
-							input: {
-								kind: "image-to-image",
-								prompt: sourceOnlyPrompt,
-								sourceAssetId: filters.asset,
-								skuKey: "minimax-h3-1k",
-								aspectRatio: "auto",
-							},
-						};
+					: filters.reuseJob
+						? textResult && isTextImageSnapshot(textResult.inputSnapshot)
+							? buildEditAgainRecoveryCandidate(textResult, filters.asset)
+							: null
+						: {
+								productKey: "image-minimax-h3",
+								input: {
+									kind: "image-to-image",
+									prompt: sourceOnlyPrompt,
+									sourceAssetId: filters.asset,
+									skuKey: "minimax-h3-1k",
+									aspectRatio: "auto",
+								},
+							};
 			} else {
 				sourceAsset = null;
 			}
@@ -174,6 +193,15 @@ export async function RegisteredEditor({
 			/>
 			{filters.asset && recovery.restoreState === "ready" && sourceActions}
 		</HydrationBoundary>
+	);
+}
+
+function isTextImageSnapshot(value: unknown): boolean {
+	return Boolean(
+		value &&
+		typeof value === "object" &&
+		!Array.isArray(value) &&
+		(value as Record<string, unknown>).kind === "text-to-image",
 	);
 }
 

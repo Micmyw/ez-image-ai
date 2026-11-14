@@ -89,6 +89,8 @@ export interface ProviderFailure {
 	code: string;
 	message: string;
 	retryable: boolean;
+	/** Set by the HTTP submission adapter, never read from response/callback JSON. */
+	messageOrigin?: "provider-response";
 }
 export interface ProviderTaskSnapshot {
 	providerTaskId: string;
@@ -96,7 +98,15 @@ export interface ProviderTaskSnapshot {
 	progress?: number;
 	raw: unknown;
 	/** Attached by authenticated retrieval, never derived from provider callback JSON. */
-	retrieval?: { source: "kie-record-info"; observedAt: string };
+	retrieval?: {
+		source:
+			| "kie-record-info"
+			| "kie-veo-record-info"
+			| "kie-legacy-record-info"
+			| "fal-status"
+			| "replicate-prediction";
+		observedAt: string;
+	};
 }
 export type ProviderOutput =
 	| { kind: "remote-url"; url: string; trust: "untrusted-transfer-candidate" }

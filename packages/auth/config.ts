@@ -5,6 +5,7 @@ export const config = {
 	enableSignup: true,
 	enableMagicLink: true,
 	enableSocialLogin: true,
+	enableGoogleOneTap: true,
 	enablePasskeys: true,
 	enablePasswordLogin: true,
 	enableTwoFactor: true,

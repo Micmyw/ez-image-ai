@@ -991,7 +991,7 @@ async function resolveImageEditBinding(
 	const output = parent?.assets[0]?.asset;
 	if (
 		!parent ||
-		parent.status !== "SUCCEEDED" ||
+		!["SUCCEEDED", "FINALIZING"].includes(parent.status) ||
 		!isImageEditProduct(parent.productKey) ||
 		!parent.editSessionId ||
 		parent.editSessionId !== input.edit.editSessionId ||

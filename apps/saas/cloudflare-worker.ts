@@ -18,6 +18,7 @@ import {
 } from "@repo/storage/image-processing/cloudflare-images";
 import { runWithImageProcessor } from "@repo/storage/image-processing/context";
 import { runWithCloudflareRemoteMedia } from "@repo/storage/lib/cloudflare-remote-media";
+import { runWithCloudflareFreeEligibility } from "@repo/utils/free-eligibility";
 import { runWithRequestDefer } from "@repo/utils/request-lifecycle";
 
 import { forwardToWebsite } from "../web-host/src/forward";
@@ -142,9 +143,13 @@ export default {
 				},
 				runtimeEnvironment.PAYMENT_WEBHOOK_INGRESS_ORIGIN,
 			);
-		return callbackIngress
-			? callbackIngress.timing.measure("callback.ingress.total", forward)
-			: forward();
+		return runWithCloudflareFreeEligibility(
+			(request as Request & { cf?: { country?: unknown } }).cf?.country,
+			() =>
+				callbackIngress
+					? callbackIngress.timing.measure("callback.ingress.total", forward)
+					: forward(),
+		);
 	},
 };
 

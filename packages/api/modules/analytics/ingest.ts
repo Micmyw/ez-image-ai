@@ -5,11 +5,15 @@ import { growthExperimentVariant } from "@repo/config/growth-experiments";
 import { recordGrowthEvent } from "@repo/database";
 import {
 	firstTouchAttributionSchema,
-	sanitizeAttributionPath,
 	sanitizeFirstTouchAttribution,
 } from "@repo/utils/lib/acquisition-attribution";
 import { acquisitionSource, analyticsDevice } from "@repo/utils/lib/analytics-dimensions";
-import { publicAnalyticsPath } from "@repo/utils/lib/analytics-page";
+import {
+	growthAnalyticsPath,
+	isAuthenticationAnalyticsPath,
+	publicAnalyticsPath,
+	sanitizeGrowthAnalyticsPath,
+} from "@repo/utils/lib/analytics-page";
 import { resolveAnalyticsPolicy } from "@repo/utils/lib/analytics-policy";
 import {
 	growthAnalyticsEventSchema,
@@ -22,6 +26,7 @@ import {
 import { z } from "zod";
 
 import { publicProcedure } from "../../orpc/procedures";
+import { growthDiagnosticProjection } from "./diagnostic-projection";
 
 export const ingestGrowthEvent = publicProcedure
 	.route({
@@ -49,6 +54,13 @@ export const ingestGrowthEvent = publicProcedure
 		const origin = new URL(process.env.NEXT_PUBLIC_SAAS_URL || "http://localhost:3000").origin;
 		if (context.headers.get("origin") !== origin) throw new ORPCError("FORBIDDEN");
 		const cookie = context.headers.get("cookie") ?? "";
+		if (
+			/prefetch|prerender/i.test(
+				`${context.headers.get("purpose") ?? ""} ${context.headers.get("sec-purpose") ?? ""}`,
+			) ||
+			context.headers.get("next-router-prefetch") === "1"
+		)
+			return { accepted: false };
 		const sessionHash = readGrowthAnalyticsSessionHash(cookie);
 		if (
 			!resolveAnalyticsPolicy(context.headers).analyticsAllowed ||
@@ -70,7 +82,12 @@ export const ingestGrowthEvent = publicProcedure
 		)
 			throw new ORPCError("BAD_REQUEST");
 		const firstTouch = sanitizeFirstTouchAttribution(input.firstTouch, origin);
-		const path = input.path ? sanitizeAttributionPath(input.path, origin) : null;
+		const path = input.path ? sanitizeGrowthAnalyticsPath(input.path, origin) : null;
+		if (
+			input.event.properties.journey?.stage === "auth_viewed" &&
+			!isAuthenticationAnalyticsPath(path)
+		)
+			return { accepted: false };
 		if (
 			input.event.name === "page_viewed" &&
 			(!path || !publicAnalyticsPath(new URL(path, origin)))
@@ -84,24 +101,13 @@ export const ingestGrowthEvent = publicProcedure
 			userId: user?.id ?? null,
 			internal: user?.role === "admin" || Boolean(session?.session.impersonatedBy),
 			name: input.event.name,
-			path: path ? publicAnalyticsPath(new URL(path, origin)) : null,
+			path: path ? growthAnalyticsPath(new URL(path, origin)) : null,
 			source: acquisitionSource(firstTouch),
 			medium: firstTouch?.utmMedium ?? null,
 			campaign: firstTouch?.utmCampaign ?? null,
 			device: analyticsDevice(agent),
 			productKind: input.event.properties.productKind ?? null,
 			errorCategory: input.event.properties.errorCategory ?? null,
-			diagnostics:
-				["homepage_idea_selected", "homepage_idea_preview_selected"].includes(input.event.name) &&
-				input.event.properties.homepageIdea
-					? {
-							homepageIdea: input.event.properties.homepageIdea,
-							homepagePlacement: input.event.properties.homepagePlacement ?? "quick-start",
-							...(input.event.properties.homepageIdea === "birthday-card" &&
-							input.event.properties.homepageVariant
-								? { homepageVariant: input.event.properties.homepageVariant }
-								: {}),
-						}
-					: (experiment ?? input.event.properties.generation ?? null),
+			diagnostics: growthDiagnosticProjection(input.event),
 		});
 	});

@@ -4,6 +4,7 @@ export * from "./persisted-image-finalization";
 export * from "./streaming-image-finalization";
 export * from "./asset-binding-locks";
 export * from "./admin-diagnostics";
+export * from "./admin-content";
 export * from "./admin-growth-operations";
 export * from "./admin-safe-image-catalog";
 export * from "./admin-operations";
@@ -55,3 +56,7 @@ export * from "./image-passes";
 
 export { PROVIDER_DISPATCH_RETRY_MS } from "./provider-dispatch-capacity";
 export * from "./subscription-compensation";
+export * from "./guest-entitlement";
+export * from "./admin-content-cleanup";
+export * from "./admin-prompt-content";
+export * from "./provider-original";

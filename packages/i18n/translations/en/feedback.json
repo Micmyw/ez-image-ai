@@ -27,6 +27,18 @@
 		"emailFallback": "No email app? Copy this address and send your feedback from your usual email service.",
 		"subjectIdea": "EzImageAI: suggestion",
 		"subjectBug": "EzImageAI: bug report",
-		"close": "Close feedback"
+		"close": "Close feedback",
+		"topic": "What would you like to improve?",
+		"topicOptional": "Choose a topic (optional)",
+		"topics": {
+			"result": "Result quality",
+			"waiting": "Waiting time",
+			"upload": "Uploading",
+			"login": "Signing in",
+			"price_credits": "Price or credits",
+			"other": "Other"
+		},
+		"emailObservation": "Opening a draft does not send it. Review and send it in your email app.",
+		"supportInbox": "Use your support inbox (sign-in required)"
 	}
 }

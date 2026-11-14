@@ -20,6 +20,7 @@ import {
 	getInitialGenerationEventIds,
 } from "@repo/database";
 import type { MediaVerificationAdmission } from "@repo/database";
+import { recoverProviderOriginalArchives } from "@repo/database";
 import { db } from "@repo/database/client";
 import { deliverModerationIncidentNotification } from "@repo/notifications/moderation-incident";
 
@@ -29,6 +30,7 @@ import {
 	recoverAccountInputCopyTasks,
 } from "../handlers/account-input-copy";
 import { admitGuestGeneration } from "../handlers/admit-guest-generation";
+import { archiveProviderOriginal } from "../handlers/archive-provider-original";
 import { cancelProviderGeneration } from "../handlers/cancel-generation";
 import {
 	abortMultipartObject,
@@ -119,6 +121,26 @@ export interface ExecutorDependencies {
 }
 
 async function recoverCompletedEvent(request: TaskRequest): Promise<Record<string, unknown>> {
+	if (request.taskId === "media-archive-output") {
+		const events = await db.outboxEvent.findMany({
+			where: {
+				aggregateType: "MEDIA_ASSET",
+				aggregateId: request.payload.assetId as string,
+				eventType: "MEDIA_OUTPUT_ARCHIVE",
+				status: { in: ["PENDING", "LEASED"] },
+				id: { not: request.outboxReceipt?.eventId },
+			},
+			select: { id: true, availableAt: true },
+			orderBy: { availableAt: "asc" },
+			take: 1,
+		});
+		return {
+			continuation: {
+				eventIds: events.map((event) => event.id),
+				...(events[0] ? { notBefore: events[0].availableAt.getTime() } : {}),
+			},
+		};
+	}
 	if (request.taskId === "media-verify-upload")
 		return {
 			done: true,
@@ -447,12 +469,29 @@ async function executeParsedTask(
 				getProvider: (provider) => getRegisteredProvider(registry, provider),
 			});
 		}
+		case "media-archive-output":
+			return archiveProviderOriginal(
+				parseTaskPayload(taskId, payload).assetId,
+				db,
+				environment,
+				dependencies.streamingTransfersOnly,
+			);
 		case "media-finalize-generation": {
 			const input = parseTaskPayload(taskId, payload);
 			const result = await finalizeMedia(
 				input,
 				createFinalizationDependencies(environment, {
 					deferOutputReview: input.deferOutputReview,
+					dispatchArchive: async (eventId) => {
+						await dispatch(
+							"media-deliver-events",
+							{ eventIds: [eventId] },
+							{
+								idempotencyKey: `original-archive:${eventId}`,
+								timeoutMs: 1_000,
+							},
+						);
+					},
 					...(dependencies.streamingTransfersOnly ? { streamingTransfersOnly: true } : {}),
 				}),
 			);
@@ -710,6 +749,7 @@ async function executeParsedTask(
 				createDatabaseFinalizingGenerationRecoveryStore(db),
 			);
 		case "media-recover-verifications": {
+			await recoverProviderOriginalArchives(db);
 			const result = await recoverMediaVerifications(
 				{ limit: 25 },
 				{

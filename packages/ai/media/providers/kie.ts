@@ -114,6 +114,7 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 				data,
 				attemptId: input.attemptId,
 				providerIdempotencySupported: false,
+				sensitiveValues: [this.options.apiKey],
 			});
 		const envelope = kieCreateEnvelopeSchema.safeParse(data);
 		if (!envelope.success) throw malformedKieResponse();
@@ -123,6 +124,7 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 				data: envelope.data.msg,
 				attemptId: input.attemptId,
 				providerIdempotencySupported: false,
+				sensitiveValues: [this.options.apiKey],
 			});
 		}
 		const successData = kieCreateSuccessDataSchema.safeParse(envelope.data.data);
@@ -178,6 +180,7 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 				providerTaskId: veo.data.data.taskId,
 				status: statusFromSuccessFlag(veo.data.data.successFlag),
 				raw: veo.data,
+				retrieval: { source: "kie-veo-record-info", observedAt: new Date().toISOString() },
 			};
 		}
 		const legacy = kieLegacyRecordSchema.safeParse(data);
@@ -187,6 +190,7 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 			status: legacyStatus(legacy.data.data.state),
 			progress: legacy.data.data.progress,
 			raw: legacy.data,
+			retrieval: { source: "kie-legacy-record-info", observedAt: new Date().toISOString() },
 		};
 	}
 
@@ -202,7 +206,9 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 			const result = normalizedResult(
 				snapshot,
 				remoteOutputs(jobResultUrls(job.data.data.resultJson)),
-				failureFrom(jobFailureMessage(job.data.data.failCode, job.data.data.failMsg)),
+				failureFrom(jobFailureMessage(job.data.data.failCode, job.data.data.failMsg), [
+					this.options.apiKey,
+				]),
 				providerCostMicros,
 			);
 			const data = job.data.data;
@@ -247,7 +253,7 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 			return normalizedResult(
 				snapshot,
 				remoteOutputs(urls),
-				failureFrom(veo.data.data.errorMessage || undefined),
+				failureFrom(veo.data.data.errorMessage || undefined, [this.options.apiKey]),
 				null,
 			);
 		}
@@ -256,7 +262,7 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 		return normalizedResult(
 			snapshot,
 			remoteOutputs(legacy.data.data.resultUrls ?? []),
-			failureFrom(legacy.data.data.failMsg),
+			failureFrom(legacy.data.data.failMsg, [this.options.apiKey]),
 			null,
 		);
 	}

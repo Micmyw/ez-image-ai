@@ -208,6 +208,7 @@ describe("useGuestTrial", () => {
 		expect(trial.draft).toEqual({
 			sourceAssetId: "source-1",
 			prompt: "Keep the subject",
+			productKey: "image-nano-banana-2-lite" as const,
 			skuKey: "nano-banana-2-lite-1k",
 			aspectRatio: "auto",
 		});
@@ -273,18 +274,18 @@ describe("useGuestTrial", () => {
 		},
 	);
 
-	it("opens a fresh second draft instead of restoring the first completed edit", async () => {
+	it("preserves the completed result when a lifetime trial is already used", async () => {
 		api.getGuestEligibility.mockResolvedValue({
 			...eligibleDraft(),
+			eligible: false,
 			existingJobId: "guest-first-job",
-			dailyAllowance: { limit: 2, remaining: 1, resetsAt: "2026-08-29T00:00:00.000Z" },
+			trialAllowance: { limit: 1, remaining: 0, resetsAt: null },
 		});
 		api.getGuestJob.mockResolvedValue(readySnapshot());
 		renderHook();
 		const trial = await settleAndRender();
-		expect(trial.canSubmit).toBe(true);
-		expect(trial.draft?.sourceAssetId).toBe("source-1");
-		expect(api.getGuestJob).not.toHaveBeenCalled();
+		expect(trial.canSubmit).toBe(false);
+		expect(api.getGuestJob).toHaveBeenCalledWith({ jobId: "guest-first-job" });
 	});
 
 	it("polls only while visible and nonterminal, then clears polling on unmount", async () => {
@@ -426,6 +427,7 @@ describe("useGuestTrial", () => {
 		trial = renderHook();
 		expect(trial.errorKey).toBe("submit");
 		expect(trial.submitErrorNonce).toBe(1);
+		expect(trial.submissionLocked).toBe(true);
 
 		await trial.actions.submit("token-two");
 		trial = renderHook();
@@ -448,6 +450,9 @@ describe("useGuestTrial", () => {
 			},
 		]);
 		expect(trial.view.state).toBe("waiting");
+		expect(api.submitGuestGeneration.mock.calls[0]![0].idempotencyKey).toBe(
+			api.submitGuestGeneration.mock.calls[1]![0].idempotencyKey,
+		);
 	});
 	it("captures guest attribution before device lookup and preserves it through a delayed admission", async () => {
 		api.getGuestEligibility.mockResolvedValue(eligibleDraft());
@@ -541,6 +546,7 @@ function eligibleDraft() {
 		claimedDraft: {
 			sourceAssetId: "source-1",
 			prompt: "Keep the subject",
+			productKey: "image-nano-banana-2-lite" as const,
 			skuKey: "nano-banana-2-lite-1k" as const,
 			aspectRatio: "auto" as const,
 		},

@@ -204,7 +204,7 @@ export async function executeTargetedEvent(
 	} catch (error) {
 		if (
 			databaseConflictRetryFor(error, request, true) ||
-			(request.taskId === "media-finalize-generation" &&
+			(["media-finalize-generation", "media-archive-output"].includes(request.taskId) &&
 				error instanceof GenerationTransferRequiresHeavyError)
 		) {
 			try {
@@ -231,6 +231,15 @@ function assertReceiptTask(event: Event, request: TaskRequest): void {
 		throw new Error("OUTBOX_RECEIPT_TASK_MISMATCH");
 	};
 	if (event.id !== request.outboxReceipt?.eventId) return invalid();
+	if (event.aggregateType === "MEDIA_ASSET" && event.eventType === "MEDIA_OUTPUT_ARCHIVE") {
+		if (
+			request.taskId !== "media-archive-output" ||
+			target.assetId !== event.aggregateId ||
+			(payload.assetId !== undefined && payload.assetId !== event.aggregateId)
+		)
+			return invalid();
+		return;
+	}
 	if (
 		event.aggregateType === "MEDIA_ASSET" &&
 		["MEDIA_ASSET_VERIFY", "MEDIA_ASSET_MODERATION_REQUESTED"].includes(event.eventType)

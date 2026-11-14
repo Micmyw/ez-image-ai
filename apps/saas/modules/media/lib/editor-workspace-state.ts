@@ -2,6 +2,7 @@ import type { EditorDraftInput } from "./editor-recovery";
 import type { TemporaryReferenceReceipt } from "./temporary-reference-upload";
 
 export interface EditorWorkspaceState {
+	initialReferenceFile?: File;
 	temporaryReference?: TemporaryReferenceReceipt;
 	fundingSource?: "CREDITS" | "IMAGE_PASS";
 	parentJobId: string | null;

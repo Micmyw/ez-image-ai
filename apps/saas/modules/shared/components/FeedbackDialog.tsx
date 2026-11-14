@@ -12,7 +12,16 @@ import {
 import { NextIntlClientProvider, useLocale, useMessages, useTranslations } from "next-intl";
 import { useEffect, useId, useState } from "react";
 
-import { buildFeedbackMailto, copyFeedbackEmail, type FeedbackKind } from "../lib/feedback";
+import {
+	buildFeedbackMailto,
+	copyFeedbackEmail,
+	feedbackTicketSubject,
+	FEEDBACK_TOPICS,
+	normalizeFeedbackTopic,
+	type FeedbackKind,
+	type FeedbackTopic,
+} from "../lib/feedback";
+import { trackGenerationJourney } from "../lib/generation-journey";
 
 import "./feedback.css";
 
@@ -21,6 +30,7 @@ type FeedbackDialogProps = {
 	onOpenChange: (open: boolean) => void;
 	supportEmail: string;
 	initialKind?: FeedbackKind;
+	initialTopic?: FeedbackTopic;
 };
 type FeedbackMessages = typeof import("@repo/i18n/translations/en/feedback.json").feedback;
 const feedbackImports = {
@@ -121,16 +131,18 @@ function FeedbackDialogContent({
 	onOpenChange,
 	supportEmail,
 	initialKind = "idea",
+	initialTopic,
 }: FeedbackDialogProps) {
 	const t = useTranslations("feedback");
 	const id = useId();
 	const [kind, setKind] = useState<FeedbackKind>(initialKind);
+	const [topic, setTopic] = useState<FeedbackTopic | undefined>(initialTopic);
 	const [accountEmail, setAccountEmail] = useState("");
 	const [description, setDescription] = useState("");
 	const [copyStatus, setCopyStatus] = useState<"copied" | "copyFailed" | null>(null);
 	const draft = buildFeedbackMailto(
 		supportEmail,
-		{ kind, accountEmail, description },
+		{ kind, accountEmail, description, topic },
 		{
 			subjectIdea: t("subjectIdea"),
 			subjectBug: t("subjectBug"),
@@ -151,6 +163,21 @@ function FeedbackDialogContent({
 					<DialogDescription className="feedback-muted">{t("rewardPolicy")}</DialogDescription>
 				</DialogHeader>
 				<p className="feedback-muted">{t("noAutomaticReward")}</p>
+				<label className="feedback-field" htmlFor={`${id}-topic`}>
+					{t("topic")}
+					<select
+						id={`${id}-topic`}
+						value={topic ?? ""}
+						onChange={(event) => setTopic(normalizeFeedbackTopic(event.target.value))}
+					>
+						<option value="">{t("topicOptional")}</option>
+						{FEEDBACK_TOPICS.map((value) => (
+							<option key={value} value={value}>
+								{t(`topics.${value}`)}
+							</option>
+						))}
+					</select>
+				</label>
 				<label className="feedback-field" htmlFor={`${id}-kind`}>
 					{t("kind")}
 					<select
@@ -192,7 +219,7 @@ function FeedbackDialogContent({
 					<p>
 						{t("recipient")}: {supportEmail}
 					</p>
-					<p>{kind === "bug" ? t("subjectBug") : t("subjectIdea")}</p>
+					<p>{feedbackTicketSubject(kind === "bug" ? t("subjectBug") : t("subjectIdea"), topic)}</p>
 					<pre>
 						{t("accountEmail")}: {accountEmail.trim()}
 						{"\n\n"}
@@ -200,8 +227,24 @@ function FeedbackDialogContent({
 						{description}
 					</pre>
 				</details>
-				<a href={draft} className="feedback-email-action">
+				<a
+					href={draft}
+					className="feedback-email-action"
+					onClick={() =>
+						void trackGenerationJourney({
+							stage: "feedback_email_opened",
+							...(topic ? { feedbackTopic: topic } : {}),
+						})
+					}
+				>
 					{t("openEmail")}
+				</a>
+				<p className="feedback-muted">{t("emailObservation")}</p>
+				<a
+					href={`/settings/support${topic ? `?feedbackTopic=${topic}` : ""}`}
+					className="underline"
+				>
+					{t("supportInbox")}
 				</a>
 				<div className="feedback-copy">
 					<span className="feedback-address">{supportEmail}</span>

@@ -1,8 +1,10 @@
 import { ensureOneTimeLoginCreditGrant } from "@repo/database";
 import { db } from "@repo/database/client";
 import { logger } from "@repo/logs";
+import { canReceiveNewFreeAllowance } from "@repo/utils/free-eligibility";
 
 async function attemptOneTimeLoginBonus(userId: string) {
+	if (!canReceiveNewFreeAllowance()) return;
 	try {
 		await ensureOneTimeLoginCreditGrant({ ownerId: userId }, db);
 	} catch (error) {

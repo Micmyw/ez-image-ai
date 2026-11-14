@@ -3,6 +3,8 @@ import type { CreateModeratedGenerationQuoteInput, MediaTransactionClient } from
 
 export interface BlockedPromptContext {
 	userId: string;
+	/** Server-observed at submission; never infer historical audience from today's account. */
+	audience?: "GUEST" | "ACCOUNT";
 	prompt: string;
 	productKey: string;
 	sourceAssetId: string | null;
@@ -27,6 +29,7 @@ export async function recordBlockedPromptAttempt(
 				after: { ...moderation },
 				metadata: {
 					schemaVersion: 1,
+					...(context.audience ? { audience: context.audience } : {}),
 					prompt: context.prompt,
 					productKey: context.productKey,
 					sourceAssetId: context.sourceAssetId,

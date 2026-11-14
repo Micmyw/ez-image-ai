@@ -8,6 +8,7 @@ import {
 import { z } from "zod";
 
 import { publicProcedure } from "../../../orpc/procedures";
+import { ensureGuestBrowserSubject } from "../lib/guest-browser";
 import { loadGuestCapabilitySnapshot } from "../lib/guest-capability";
 
 const guestImageSpecControlSchema = z.discriminatedUnion("key", [
@@ -113,5 +114,10 @@ export const getGuestCapability = publicProcedure
 	.output(guestCapabilitySnapshotSchema)
 	.handler(async ({ context }) => {
 		context.responseHeaders?.set("Cache-Control", "no-store");
-		return guestCapabilitySnapshotSchema.parse(await loadGuestCapabilitySnapshot());
+		const snapshot = guestCapabilitySnapshotSchema.parse(await loadGuestCapabilitySnapshot());
+		// Establish identity before any upload mutation. A lost handshake response
+		// has no business state, while upload retries must use the received cookie.
+		if (snapshot.enabled && context.responseHeaders)
+			ensureGuestBrowserSubject(context.headers, context.responseHeaders);
+		return snapshot;
 	});

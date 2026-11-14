@@ -832,6 +832,24 @@ model MediaAsset {
   @@map("media_asset")
 }
 
+/// Private delivery source for approved provider originals; archival is independent.
+/// Deliberately retained with the asset tombstone for late-write cleanup/recovery.
+model MediaOutputOrigin {
+  assetId String @id
+  url String
+  archiveState String @default("PENDING")
+  archiveChecksum String?
+  archiveBytes BigInt?
+  archivedAt DateTime? @db.Timestamptz(3)
+  leaseToken String?
+  leasedUntil DateTime? @db.Timestamptz(3)
+  attempts Int @default(0)
+  lastErrorCode String?
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  @@index([archiveState, leasedUntil])
+  @@map("media_output_origin")
+}
+
 model MediaUploadSession {
   id                         String              @id @default(cuid())
   assetId                    String
@@ -1128,6 +1146,16 @@ model OutboxEvent {
   @@map("outbox_event")
 }
 
+// Durable one-time issuance receipts. No foreign key: user/asset retention never renews free access.
+model GuestTrialEntitlement {
+  subjectKey    String   @id
+  trialId       String
+  reservedJobId String?
+  createdAt     DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([trialId])
+  @@map("guest_trial_entitlement")
+}
 model GuestSessionBootstrap {
   id                      String           @id @default(cuid())
   ownerId                 String?

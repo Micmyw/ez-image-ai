@@ -13,17 +13,60 @@ vi.mock("@repo/database", async () => {
 		createGuestGenerationTransaction: vi.fn(),
 		fingerprintGenerationQuoteSecurityPayload: quotes.fingerprintGenerationQuoteSecurityPayload,
 		recordGuestAdmissionDenial: vi.fn(),
-		recordTextModerationOutcome: vi.fn(),
+		recordBlockedPromptAttempt: vi.fn(),
 		resolveGuestRuntimeConfigOverride: vi.fn(),
 		consumeGuestTurnstileTokenHash: vi.fn(),
 	};
 });
 
-import { submitGuestGenerationForGuest, type guestAdmissionDependencies } from "./guest-admission";
+import { runWithCloudflareFreeEligibility } from "@repo/utils/free-eligibility";
+
+import {
+	submitGuestGenerationForGuest as submitActual,
+	type guestAdmissionDependencies,
+} from "./guest-admission";
+vi.mock("./guest-browser", () => ({ readGuestBrowserSubject: () => "b".repeat(64) }));
+function submitGuestGenerationForGuest(...args: Parameters<typeof submitActual>) {
+	return runWithCloudflareFreeEligibility("US", () => submitActual(...args));
+}
 
 afterEach(() => vi.unstubAllEnvs());
 
 describe("guest admission pre-transaction boundary", () => {
+	it.each(["IN", undefined])(
+		"rejects a new free trial before moderation or funding for %s",
+		async (country) => {
+			const dependencies = validDependencies();
+			await expect(
+				runWithCloudflareFreeEligibility(country, () =>
+					submitActual(validBoundary(), validInput(), dependencies),
+				),
+			).rejects.toThrow(country === "IN" ? "FREE_REGION_EXCLUDED" : "FREE_REGION_UNVERIFIED");
+			expect(dependencies.moderatePrompt).not.toHaveBeenCalled();
+			expect(dependencies.createTransaction).not.toHaveBeenCalled();
+		},
+	);
+	it("accepts exact H3 1K at five credits and freezes that selected model", async () => {
+		const dependencies = validDependencies();
+		dependencies.buildQuote.mockReturnValue({
+			...dependencies.buildQuote(),
+			productKey: "image-minimax-h3",
+		});
+		await submitGuestGenerationForGuest(
+			validBoundary(),
+			{ ...validInput(), productKey: "image-minimax-h3", skuKey: "minimax-h3-1k" },
+			dependencies,
+		);
+		expect(dependencies.createTransaction).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sponsorCredits: 5n,
+				quote: expect.objectContaining({
+					productKey: "image-minimax-h3",
+					inputSnapshot: expect.objectContaining({ skuKey: "minimax-h3-1k" }),
+				}),
+			}),
+		);
+	});
 	it("identifies the configured Waffo prompt policy on the guest quote", async () => {
 		vi.stubEnv("MEDIA_SAFETY_ADAPTER", "configured");
 		vi.stubEnv("MODERATION_TEXT_WAFFO_ENABLED", "true");
@@ -115,7 +158,7 @@ describe("guest admission pre-transaction boundary", () => {
 	);
 
 	it.each(["REJECT", "REVIEW", "ERROR"] as const)(
-		"persists nothing when prompt moderation returns %s",
+		"records guest prompt evidence without financial admission when moderation returns %s",
 		async (decision) => {
 			const dependencies = validDependencies({ moderationDecision: decision });
 
@@ -123,11 +166,34 @@ describe("guest admission pre-transaction boundary", () => {
 				submitGuestGenerationForGuest(validBoundary(), validInput(), dependencies),
 			).rejects.toThrow(`TEXT_MODERATION_${decision}`);
 			expect(dependencies.createTransaction).not.toHaveBeenCalled();
+			expect(dependencies.recordModerationDenial).toHaveBeenCalledWith(
+				expect.objectContaining({
+					decision,
+					provider: "waffo",
+					inputFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+				}),
+				{
+					userId: "guest-1",
+					audience: "GUEST",
+					prompt: validInput().prompt,
+					productKey: validInput().productKey,
+					sourceAssetId: "asset-1",
+				},
+			);
 			expect(dependencies.recordDenial).toHaveBeenCalledWith(
 				expect.objectContaining({ reason: "CONTENT" }),
 			);
 		},
 	);
+
+	it("retains the safe content rejection when optional prompt diagnostics fail", async () => {
+		const dependencies = validDependencies({ moderationDecision: "REJECT" });
+		dependencies.recordModerationDenial.mockRejectedValue(new Error("DIAGNOSTICS_UNAVAILABLE"));
+		await expect(
+			submitGuestGenerationForGuest(validBoundary(), validInput(), dependencies),
+		).rejects.toThrow("TEXT_MODERATION_REJECT");
+		expect(dependencies.createTransaction).not.toHaveBeenCalled();
+	});
 
 	it("records bounded capability and durable transaction denial reasons", async () => {
 		const disabled = validDependencies({ capabilityEnabled: false });
@@ -395,6 +461,10 @@ function validDependencies(options?: {
 			ruleVersion: "text-safety-2026-08-14.1",
 			reasonCode: options?.moderationDecision ?? "ALLOW",
 		})),
+		moderationProvider: "waffo" as const,
+		recordModerationDenial: vi
+			.fn<NonNullable<(typeof guestAdmissionDependencies)["recordModerationDenial"]>>()
+			.mockResolvedValue(undefined),
 		createTransaction: vi.fn(async (_input: unknown) => {
 			if (options?.createError) throw new Error(options.createError);
 			return {

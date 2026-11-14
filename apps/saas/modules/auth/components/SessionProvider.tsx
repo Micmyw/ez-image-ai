@@ -1,5 +1,6 @@
 "use client";
 import { fetchSession, sessionQueryKey, useSessionQuery } from "@auth/lib/api";
+import { finishAuthJourney } from "@auth/lib/auth-journey";
 import { syncPurchaseAttributionIdentity } from "@shared/lib/purchase-attribution";
 import { useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect, useState } from "react";
@@ -13,13 +14,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 	const [loaded, setLoaded] = useState(!!session);
 
 	useEffect(() => {
-		if (session && !loaded) {
+		if (isSuccess && !loaded) {
 			setLoaded(true);
 		}
-	}, [session]); // oxlint-disable-line eslint-plugin-react-hooks/exhaustive-deps
+	}, [isSuccess, loaded]);
 
 	useEffect(() => {
 		if (isSuccess) syncPurchaseAttributionIdentity(session?.user ?? null);
+		if (isSuccess && session?.user && !session.user.isAnonymous) finishAuthJourney("observed");
 	}, [session, isSuccess]);
 
 	return (

@@ -1,4 +1,8 @@
 import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
+import {
+	GENERATION_JOURNEY_OBSERVED,
+	generationJourneyObservationSchema,
+} from "@repo/config/generation-journey";
 import { GROWTH_EXPERIMENTS } from "@repo/config/growth-experiments";
 import {
 	HOMEPAGE_BIRTHDAY_VARIANTS,
@@ -25,6 +29,7 @@ export {
 } from "./growth-analytics-cookie";
 
 export const EZPIC_GROWTH_EVENT_NAMES = [
+	GENERATION_JOURNEY_OBSERVED,
 	"experiment_exposed",
 	"experiment_clicked",
 	"result_viewed",
@@ -146,6 +151,7 @@ export const growthAnalyticsPropertiesSchema = z
 			)
 			.optional(),
 		generation: generationDiagnosticsSchema.optional(),
+		journey: generationJourneyObservationSchema.optional(),
 		productKind: z.enum(["PLAN", "CREDIT_PACK", "IMAGE_PASS"]).optional(),
 		errorCategory: z
 			.enum(["unavailable", "conflict", "unauthorized", "network", "unknown"])
@@ -203,6 +209,11 @@ export const growthAnalyticsEventSchema = z
 		properties: growthAnalyticsPropertiesSchema.optional().default({}),
 	})
 	.strict()
+	.refine((event) =>
+		event.name === GENERATION_JOURNEY_OBSERVED
+			? Boolean(event.properties.journey) && !event.properties.generation
+			: !event.properties.journey,
+	)
 	.refine((event) =>
 		["experiment_exposed", "experiment_clicked"].includes(event.name)
 			? Boolean(event.properties.experiment) && !event.properties.generation
@@ -523,7 +534,8 @@ export function createBrowserGrowthAnalyticsDispatcher(runtime: {
 				runtime.attribution?.bindTask(taskHash, currentContext);
 			}
 			const task = taskHash ? runtime.attribution?.readTask(taskHash) : undefined;
-			if (task?.delivered.includes(event.name)) throw new GrowthDispatchSkipped("duplicate");
+			if (event.name !== GENERATION_JOURNEY_OBSERVED && task?.delivered.includes(event.name))
+				throw new GrowthDispatchSkipped("duplicate");
 			// A terminal event for an older job must not inherit the currently selected effect.
 			const context = taskKey ? task?.context : currentContext;
 			const enriched = growthAnalyticsEventSchema.parse({
@@ -537,7 +549,8 @@ export function createBrowserGrowthAnalyticsDispatcher(runtime: {
 			});
 			runtime.dispatch(EZPIC_GROWTH_EVENT_FIXTURE, enriched);
 			await runtime.sendExternal?.(enriched);
-			if (taskHash) runtime.attribution?.markDelivered(taskHash, event.name);
+			if (taskHash && event.name !== GENERATION_JOURNEY_OBSERVED)
+				runtime.attribution?.markDelivered(taskHash, event.name);
 		},
 	});
 }
@@ -634,12 +647,15 @@ function taskKeyForGrowthEvent(
 	name: GrowthAnalyticsEventName,
 	options?: GrowthTrackOptions,
 ): string | undefined {
-	if (name === "editor_generation_confirmed") return options?.taskKey;
+	if (name === "editor_generation_confirmed" || name === GENERATION_JOURNEY_OBSERVED)
+		return options?.taskKey;
 	const prefixes: Partial<Record<GrowthAnalyticsEventName, string>> = {
 		editor_generation_succeeded: "editor-generation-succeeded:",
 		editor_generation_failed: "editor-generation-failed:",
 		guest_generation_admitted: "guest-generation-admitted:",
 		guest_result_ready: "guest-result-ready:",
+		guest_result_viewed: "guest-result-viewed:",
+		guest_watermarked_downloaded: "guest-watermarked-downloaded:",
 		guest_registered_session_established: "guest-registered-session-established:",
 		guest_result_grant_completed: "guest-result-grant-completed:",
 	};

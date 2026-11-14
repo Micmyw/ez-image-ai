@@ -1,4 +1,8 @@
-import { TestMediaSafetyAdapter } from "@repo/ai";
+import {
+	TestMediaSafetyAdapter,
+	MEDIA_VERIFICATION_RULE_VERSION,
+	MEDIA_VERIFICATION_POLICY_VERSION,
+} from "@repo/ai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -128,7 +132,17 @@ describe("account-copy production runtime boundaries", () => {
 		const database = {};
 		const dependencies = createDatabaseAccountInputCopyDependencies(database as never);
 		await dependencies.claim({ promotionId: "copy" });
-		expect(mocks.claim).toHaveBeenCalledWith({ promotionId: "copy" }, database);
+		expect(mocks.claim).toHaveBeenCalledWith(
+			{
+				promotionId: "copy",
+				reviewPolicy: {
+					provider: "test",
+					ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+					policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				},
+			},
+			database,
+		);
 		await dependencies.registerMultipart({
 			promotionId: "copy",
 			leaseToken: "lease",
@@ -138,6 +152,34 @@ describe("account-copy production runtime boundaries", () => {
 			{ promotionId: "copy", leaseToken: "lease", multipartUploadId: "mpu" },
 			database,
 		);
+	});
+
+	it("rechecks live moderation policy at materialization instead of freezing runtime configuration at import", async () => {
+		const database = {};
+		const deps = createDatabaseAccountInputCopyDependencies(database as never);
+		try {
+			vi.stubEnv("MEDIA_SAFETY_ADAPTER", "configured");
+			vi.stubEnv("MODERATION_IMAGE_SEEAPI_ENABLED", "true");
+			await deps.commit({
+				promotionId: "copy",
+				leaseToken: "lease",
+				checksum: "a".repeat(64),
+				bytes: 16,
+				mimeType: "image/png",
+			});
+			expect(mocks.commit).toHaveBeenCalledWith(
+				expect.objectContaining({
+					reviewPolicy: {
+						provider: "seeapi",
+						ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+						policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+					},
+				}),
+				database,
+			);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 
 	it("rejects terminal copy targets before explicit legacy re-verification can reset them", async () => {

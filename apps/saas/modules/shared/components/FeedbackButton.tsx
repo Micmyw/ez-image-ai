@@ -3,7 +3,8 @@
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
-import { type FeedbackKind, scheduleFeedbackReveal } from "../lib/feedback";
+import { type FeedbackKind, type FeedbackTopic, scheduleFeedbackReveal } from "../lib/feedback";
+import { trackGenerationJourney } from "../lib/generation-journey";
 
 import "./feedback-trigger.css";
 
@@ -64,10 +65,12 @@ export function FeedbackButton({
 	supportEmail,
 	variant = "inline",
 	kind = "idea",
+	topic,
 }: {
 	supportEmail?: string;
 	variant?: "inline" | "footer" | "report" | "reward";
 	kind?: FeedbackKind;
+	topic?: FeedbackTopic;
 }) {
 	const t = useTranslations("feedback");
 	const studio = useTranslations("studio");
@@ -77,6 +80,13 @@ export function FeedbackButton({
 	const [burst, setBurst] = useState(false);
 	const [Dialog, setDialog] = useState<FeedbackDialogComponent | null>(null);
 	const [loadFailed, setLoadFailed] = useState(false);
+	useEffect(() => {
+		if (open && Dialog)
+			void trackGenerationJourney({
+				stage: "feedback_opened",
+				...(topic ? { feedbackTopic: topic } : {}),
+			});
+	}, [open, Dialog, topic]);
 	const trigger = useRef<HTMLButtonElement>(null);
 	const cancelReveal = useRef<(() => void) | null>(null);
 	const requestVersion = useRef(0);
@@ -215,7 +225,13 @@ export function FeedbackButton({
 				</span>
 			)}
 			{requested && Dialog && (
-				<Dialog open={open} onOpenChange={setOpen} supportEmail={supportEmail} initialKind={kind} />
+				<Dialog
+					open={open}
+					onOpenChange={setOpen}
+					supportEmail={supportEmail}
+					initialKind={kind}
+					initialTopic={topic}
+				/>
 			)}
 		</>
 	);

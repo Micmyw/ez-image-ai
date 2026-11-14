@@ -104,6 +104,7 @@ export function buildIntegrationPlan(phase = "all"): IntegrationCommand[] {
 				"exec",
 				"vitest",
 				"run",
+				"src/handlers/provider-original.database.integration.test.ts",
 				"src/handlers/image-phase-owner.database.integration.test.ts",
 				"src/handlers/fused-admission.database.integration.test.ts",
 				"src/handlers/finalization-transfer.database.integration.test.ts",

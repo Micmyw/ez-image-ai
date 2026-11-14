@@ -51,6 +51,7 @@ export class GeminiProviderAdapter implements MediaProviderAdapter {
 				data,
 				attemptId: input.attemptId,
 				providerIdempotencySupported: false,
+				sensitiveValues: [this.options.apiKey],
 			});
 		const parsed = this.parse(data);
 		const snapshot = {

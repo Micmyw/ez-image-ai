@@ -2,7 +2,81 @@
 
 Implementation branch: `codex/account-input-verified-copy`, based on integrated
 source `4800dfae7905511380d6e0ab96e7e0179a1d85c7`. This change requires no new
-schema or migration. It has not been pushed, deployed, or enabled in production.
+schema or migration. Its original validation below records that implementation's
+boundaries; later local changes are identified separately and do not certify a
+production rollout.
+
+## 2026-11-14: derived review after an immutable input copy
+
+The current local implementation can retain an approved guest input's review
+when authentication requires a fresh account object. It keeps the version-1 copy
+intent unchanged and adds two append-only domain journal records:
+`ACCOUNT_INPUT_COPY_REVIEW_SOURCE` freezes the source review under the current copy
+lease; `ACCOUNT_INPUT_COPY_READBACK` records the successful derivation. These are
+PROCESSED domain records, not delivery events, and must be preserved along with
+the original intent and target pointer by any future Outbox purge.
+
+The source must be a current, first-generation USER/GUEST_TRIAL INPUT with ordinary
+SeeAPI `nsfw-filter-2` approval, exactly one terminal evidence row, no error,
+administrator, delegated, uncertain or active-review state, and no watermark.
+Normal asynchronous polling can use several attempts without adding terminal
+evidence; an earlier verdict of any kind excludes reuse. Source identity includes
+owner, asset ID, key, SHA-256, size, MIME, storage ETag/version and `finalizedAt`.
+The source evidence identity, generation, attempt, provider task, current rule,
+current policy and unexpired validity are frozen before storage work and checked
+again after the copy's verification/asset locks using PostgreSQL time.
+
+The existing storage adapter performs a conditional immutable write and full
+destination GET. The worker submits an internal `immutable-target-full-sha256-v1`
+receipt only after that function has validated actual bytes, MIME and length.
+The receipt binds the promotion/lease, both asset IDs and keys, checksum, metadata,
+and `transform=none`; a browser checksum or HEAD-only result cannot supply it.
+An uncertain previous writer, missing receipt, changed identity/policy, expired
+approval or historical evidence takes the ordinary target-review path. Pending
+sources still wait, rejected/deleted or business-expired sources remain unavailable.
+An already expired READY review can be copied for a fresh target review by a new
+consumer; old callers retain their approval-only claim behavior.
+
+On successful derivation, the same commit writes target `APPROVED` evidence with
+reason/provenance `IMMUTABLE_ACCOUNT_INPUT_COPY_V1`, changes the target and intent
+to READY, commits the existing storage reservation and switches the draft. The
+target's provider task ID remains null: the original task belongs only to the
+source and is retained in the internal provenance. No target `MEDIA_ASSET_VERIFY`
+event is emitted. Repeat commits under the committed lease add no record. Ordinary
+Generate still performs its owner, identity, current-policy and financial checks.
+Guest RESULT grants and transformed output handling are unaffected.
+
+No schema migration, public API DTO, translation or configuration change is needed.
+Old handlers without the new proof and claims without a frozen source journal
+continue to queue normal review; existing strict intent parsers and READY readers
+remain compatible. This local work does not enable the existing producer flag,
+publish code, or establish live R2/SeeAPI behavior.
+
+The final local followup checks passed on 2026-11-14:
+
+| Scope                                                                     | Result    |
+| ------------------------------------------------------------------------- | --------- |
+| DB copy/reuse/draft unit contracts                                        | 124 tests |
+| Real isolated PostgreSQL SQL-port copy transactions                       | 67 tests  |
+| Generated Prisma / original schema, READY trigger and draft restoration   | 6 tests   |
+| Jobs copy handler, runtime wiring and Outbox delivery                     | 51 tests  |
+| S3 adapter with simulated transport, immutable upload/reference contracts | 51 tests  |
+| API copy status, link completion and claim DTO                            | 32 tests  |
+| Database and Jobs TypeScript                                              | Pass      |
+| Changed copy files' lint/format and diff whitespace                       | Pass      |
+
+The PostgreSQL fixtures used a disposable loopback database; the SQL-port cases
+own a random schema and the ORM fixtures use unique test owners. Both inject the
+storage receipt boundary. The storage suite executes the real adapter against a
+simulated transport. These results do not certify live storage, provider calls,
+cloud deployment or sign-in conversion. No test process is retained by this change.
+
+The combined database rerun exposed test-clock drift: application `finalizedAt`
+was briefly later than PostgreSQL time, while an old cleanup fixture used
+`Date.now()-1`. The unnecessary cross-clock identity comparison was removed, a
+regression now covers it, and cleanup deadlines use database time. Final reruns
+passed all 73 SQL-port/ORM cases. Identity still must be unchanged and authorization
+expiry still uses PostgreSQL time after lock waits.
 
 ## Result and boundaries
 
@@ -30,10 +104,12 @@ administrator requeue path for quarantined assets without a review card remains
 available. This independent source correction is commit
 `26ef4d3d541ebee4c809a11fb8c853f70d3b4fc8`.
 
-The current business token and fresh DB bindings authorize materialization:
+In the original protocol, the current business token and fresh DB bindings authorize materialization:
 UPLOADING -> VERIFYING, draft source -> new target, reservation -> COMMITTED and
 standard MEDIA_ASSET_VERIFY. Only the normal current asset approval permits READY.
-No old moderation result is copied and no timeout bypasses moderation. Original
+The 2026-11-14 derivation above is the only added path that skips a separate target
+review. It records derived provenance rather than claiming a second provider task;
+no timeout bypasses moderation. Original
 source/draft authorization must remain valid until materialization commits.
 A physical source missing after a lost response can only be recovered from an
 existing fully verified destination while the DB binding/window still permits it.
@@ -50,7 +126,7 @@ object, claim, RESULT or moderation authorization.
 
 ## Persistence, accounting and recovery
 
-The existing Outbox stores two PROCESSED **domain journal** records: strict
+The original Outbox protocol stores two PROCESSED **domain journal** records: strict
 ACCOUNT_INPUT_COPY_INTENT and an indexed target pointer ACCOUNT_INPUT_COPY_TARGET.
 PROCESSED here is not a delivery or physical-delete completion receipt. Separate
 PENDING events carry copy/orphan work and retain ordinary Outbox ACK semantics.

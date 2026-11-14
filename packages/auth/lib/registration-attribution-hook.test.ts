@@ -1,8 +1,11 @@
+import { generateKeyPairSync, sign } from "node:crypto";
+
 import {
 	ATTRIBUTION_COOKIE_NAME,
 	type RegistrationAttribution,
 } from "@repo/utils/lib/acquisition-attribution";
 import { ANALYTICS_CONSENT_VERSION } from "@repo/utils/lib/analytics-policy";
+import { runWithRequestDefer } from "@repo/utils/request-lifecycle";
 import type { BetterAuthOptions } from "better-auth";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,6 +15,8 @@ const state = vi.hoisted(() => ({
 	save: vi.fn(),
 	sendEmail: vi.fn(),
 	loginBonus: vi.fn(),
+	allowanceAllowed: true,
+	journeySave: vi.fn(),
 	logger: { error: vi.fn() },
 }));
 
@@ -25,7 +30,10 @@ vi.mock("@repo/database", () => ({
 	getUserByEmail: vi.fn(),
 	getUserById: vi.fn(async () => ({ lastActiveOrganizationId: null })),
 	setUserRegistrationAttributionOnce: state.save,
-	recordGrowthEvent: vi.fn(),
+	recordGrowthEvent: state.journeySave,
+}));
+vi.mock("@repo/utils/free-eligibility", () => ({
+	canReceiveNewFreeAllowance: () => state.allowanceAllowed,
 }));
 vi.mock("better-auth/adapters/prisma", async () => {
 	const { memoryAdapter } = await import("better-auth/adapters/memory");
@@ -144,6 +152,7 @@ describe("Better Auth registration attribution hooks with an isolated memory ada
 		});
 		state.sendEmail.mockResolvedValue(undefined);
 		state.loginBonus.mockResolvedValue({ status: "GRANTED" });
+		state.allowanceAllowed = true;
 	});
 	afterAll(() => vi.unstubAllEnvs());
 	afterEach(() => vi.unstubAllGlobals());
@@ -228,6 +237,136 @@ describe("Better Auth registration attribution hooks with an isolated memory ada
 			userId: body.user.id,
 			errorType: "Error",
 		});
+	});
+	it("keeps sign-in available while skipping a new allowance for excluded or unverified requests", async () => {
+		const { body } = await signup("no-free-allowance@example.test");
+		await auth.handler(new Request(latestMailUrl()));
+		state.loginBonus.mockClear();
+		state.allowanceAllowed = false;
+		const login = await post("/sign-in/email", {
+			email: "no-free-allowance@example.test",
+			password,
+		});
+		expect(login.status).toBe(200);
+		expect((await login.json()).user.id).toBe(body.user.id);
+		expect(state.loginBonus).not.toHaveBeenCalled();
+	});
+
+	it("counts only the final session after the two-factor plugin has settled the result", async () => {
+		const { body } = await signup("two-factor-journey@example.test");
+		await auth.handler(new Request(latestMailUrl()));
+		const user = state.memory.user.find((candidate) => candidate.id === body.user.id)!;
+		user.twoFactorEnabled = true;
+		state.journeySave.mockClear();
+		const cookie = `${sourceCookie()}; ezpic_analytics_session=sha256:${"a".repeat(64)}`;
+		const pending = await post(
+			"/sign-in/email",
+			{ email: "two-factor-journey@example.test", password },
+			cookie,
+		);
+		expect(await pending.json()).toMatchObject({ twoFactorRedirect: true });
+		expect(state.journeySave).not.toHaveBeenCalled();
+		user.twoFactorEnabled = false;
+		await post("/sign-in/email", { email: "two-factor-journey@example.test", password }, cookie);
+		expect(state.journeySave).toHaveBeenCalledWith(
+			expect.objectContaining({
+				diagnostics: expect.objectContaining({
+					stage: "auth_session_established",
+					authMethod: "email",
+				}),
+			}),
+		);
+	});
+	it("returns the final session while optional diagnostics remain in the managed request lifetime", async () => {
+		await signup("managed-journey@example.test");
+		await auth.handler(new Request(latestMailUrl()));
+		let release!: () => void;
+		const pendingWrite = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		state.journeySave.mockImplementationOnce(() => pendingWrite);
+		const managed: Promise<unknown>[] = [];
+		const response = await runWithRequestDefer(
+			(work) => {
+				managed.push(work);
+			},
+			() =>
+				post(
+					"/sign-in/email",
+					{ email: "managed-journey@example.test", password },
+					`${sourceCookie()}; ezpic_analytics_session=sha256:${"c".repeat(64)}`,
+				),
+		);
+		expect(response.status).toBe(200);
+		expect(managed).toHaveLength(1);
+		let completed = false;
+		void managed[0]!.then(() => {
+			completed = true;
+		});
+		await Promise.resolve();
+		expect(completed).toBe(false);
+		release();
+		await Promise.all(managed);
+		expect(completed).toBe(true);
+	});
+
+	it("validates One Tap locally, preserves the guest, and attributes the final registered account", async () => {
+		const guest = await runAnonymousBootstrapIdentity("one-tap-guest@anonymous.invalid", () =>
+			post("/sign-in/anonymous", {}),
+		);
+		const guestUser = (await guest.json()).user as { id: string };
+		const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+		const kid = "isolated-one-tap-key";
+		const payload = {
+			iss: "https://accounts.google.com",
+			aud: "isolated-google-client",
+			sub: "one-tap-fixture",
+			email: "one-tap@example.test",
+			email_verified: true,
+			name: "One Tap fixture",
+			iat: Math.floor(Date.now() / 1000),
+			exp: Math.floor(Date.now() / 1000) + 120,
+		};
+		const content = [
+			Buffer.from(JSON.stringify({ alg: "RS256", kid, typ: "JWT" })).toString("base64url"),
+			Buffer.from(JSON.stringify(payload)).toString("base64url"),
+		].join(".");
+		const token = `${content}.${sign("sha256", Buffer.from(content), privateKey).toString("base64url")}`;
+		const fetch = vi.fn(async (input: RequestInfo | URL) => {
+			const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+			expect(url).toBe("https://www.googleapis.com/oauth2/v3/certs");
+			return Response.json({
+				keys: [{ ...publicKey.export({ format: "jwk" }), kid, alg: "RS256", use: "sig" }],
+			});
+		});
+		vi.stubGlobal("fetch", fetch);
+		const cookie = `${sessionCookie(guest)}; ${sourceCookie("/blog/one-tap-entry")}; ezpic_analytics_session=sha256:${"b".repeat(64)}`;
+		const response = await post("/one-tap/callback", { idToken: token }, cookie);
+		expect(response.status).toBe(200);
+		const registered = (await response.json()).user as { id: string; isAnonymous?: boolean };
+		expect(registered.isAnonymous).not.toBe(true);
+		expect(registered.id).not.toBe(guestUser.id);
+		expect(state.memory.user.some((candidate) => candidate.id === guestUser.id)).toBe(true);
+		expect(state.snapshots.get(registered.id)).toMatchObject({
+			landingPath: "/blog/one-tap-entry",
+		});
+		expect(state.journeySave).toHaveBeenCalledWith(
+			expect.objectContaining({
+				diagnostics: expect.objectContaining({
+					stage: "auth_session_established",
+					authMethod: "google_one_tap",
+				}),
+			}),
+		);
+		expect(fetch).toHaveBeenCalledOnce();
+		const session = await auth.handler(
+			new Request(`${origin}/api/auth/get-session`, {
+				headers: { origin, cookie: sessionCookie(response) },
+			}),
+		);
+		expect((await session.json()).user.id).toBe(registered.id);
+		const rejected = await post("/one-tap/callback", { idToken: "not-a-google-id-token" }, cookie);
+		expect(rejected.status).toBe(400);
 	});
 	it("retries the same account benefit on new verified sessions without writing on session reads", async () => {
 		const { body } = await signup("repeat-bonus@example.test");

@@ -14,6 +14,8 @@ import {
 import { SparklesIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { SelectedImagePassOffer } from "./SelectedImagePassOffer";
+
 export function EditorUpgradeDialog({
 	open,
 	onOpenChange,
@@ -21,6 +23,10 @@ export function EditorUpgradeDialog({
 	storageUnavailable = false,
 	modelLabel,
 	modelProductKey,
+	skuKey,
+	outputFormat,
+	onImagePass,
+	busy = false,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -28,6 +34,10 @@ export function EditorUpgradeDialog({
 	storageUnavailable?: boolean;
 	modelLabel?: string;
 	modelProductKey?: string;
+	skuKey?: string;
+	outputFormat?: string;
+	onImagePass?: () => void;
+	busy?: boolean;
 }) {
 	const t = useTranslations("media.upgradeDialog");
 	const creator = planValues("creator");
@@ -57,6 +67,15 @@ export function EditorUpgradeDialog({
 						{modelLabel ? t("modelDescription", { model: modelLabel }) : t("description")}
 					</DialogDescription>
 				</DialogHeader>
+				{open && onImagePass && (
+					<SelectedImagePassOffer
+						productKey={modelProductKey}
+						skuKey={skuKey}
+						outputFormat={outputFormat}
+						onContinue={onImagePass}
+						disabled={busy}
+					/>
+				)}
 				<ul className="gap-2 text-sm sm:grid-cols-3 grid">
 					{(
 						[
@@ -84,7 +103,7 @@ export function EditorUpgradeDialog({
 					<Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
 						{t("cancel")}
 					</Button>
-					<Button type="button" variant="primary" onClick={onContinue}>
+					<Button type="button" variant="primary" onClick={onContinue} disabled={busy}>
 						{t("continue")}
 					</Button>
 				</DialogFooter>

@@ -14,6 +14,7 @@ import {
 } from "./CapabilityUi";
 import { CheckoutDiagnosticsPanel } from "./CheckoutDiagnosticsPanel";
 import { ConversionExperimentsPanel } from "./ConversionExperimentsPanel";
+import { GenerationJourneyPanel } from "./GenerationJourneyPanel";
 import { HomepageIdeaAnalytics } from "./HomepageIdeaAnalytics";
 
 const steps = [
@@ -94,6 +95,7 @@ export function ConversionFunnelPanel() {
 					</div>
 					<p className="text-sm">{t("traffic", data.traffic)}</p>
 					<HomepageIdeaAnalytics rows={data.homepageIdeas ?? []} />
+					<GenerationJourneyPanel data={data.generationJourney} />
 					<p className="text-sm">
 						{t("linkedVisitors", {
 							registeredBrowsers: data.visitorCohort.registeredBrowsers,

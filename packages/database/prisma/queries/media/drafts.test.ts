@@ -313,7 +313,9 @@ describe("finalizeGuestDraftFromReadyUploadTransaction", () => {
 		const tx = {
 			$executeRaw: vi.fn(),
 			mediaUploadSession: {
-				findFirst: vi.fn().mockResolvedValue({ id: "session_1", assetId: asset.id, asset }),
+				findFirst: vi
+					.fn()
+					.mockResolvedValue({ id: "session_1", assetId: asset.id, asset, expiresAt: validUntil }),
 				updateMany: vi.fn().mockResolvedValue({ count: 1 }),
 			},
 			generationDraft: {
@@ -323,6 +325,7 @@ describe("finalizeGuestDraftFromReadyUploadTransaction", () => {
 				count: vi.fn().mockResolvedValue(0),
 				create: vi.fn().mockResolvedValue({ id: "bootstrap_1" }),
 			},
+			$queryRaw: vi.fn().mockResolvedValue([{ now }]),
 		};
 		const client = { $transaction: vi.fn((operation) => operation(tx)) };
 

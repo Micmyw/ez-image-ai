@@ -89,10 +89,11 @@ const mocks = {
     export const orpcClient = { media: {
       getJob: (input, options) => request("/api/job", options),
       getAssetAccessUrl: (input, options) => request("/api/access?asset=" + encodeURIComponent(input.assetId), options),
+      getGenerationDuration: () => Promise.resolve(null),
       cancelGeneration: () => Promise.resolve({}),
     }};`,
 	"@shared/lib/growth-analytics": `export const saasGrowthFunnel = new Proxy({}, { get: () => () => Promise.resolve() });`,
-	"next-intl": `export const useTranslations = () => (key) => key; export const useLocale = () => "en";`,
+	"next-intl": `export const useTranslations = () => (key) => key; export const useLocale = () => "en"; export const useFormatter = () => ({ dateTime: (value) => value.toISOString() });`,
 	"next/link": `import React from "react"; export default function Link(props) { return <a {...props} />; }`,
 	"@repo/ui/components/alert": `export const Alert = ({children}) => <div role="alert">{children}</div>; export const AlertDescription = ({children}) => <p>{children}</p>;`,
 	"@repo/ui/components/badge": `export const Badge = ({children}) => <span>{children}</span>;`,

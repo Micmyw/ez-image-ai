@@ -1,3 +1,5 @@
+import { getImageProductSelectionContract, parseImageSelection } from "@repo/config/client";
+
 import { GPT_IMAGE_2_6_EXAMPLES, type GptImageVariant } from "./gpt-image-2-6-examples";
 import { MINIMAX_H3_EXAMPLES } from "./minimax-h3-examples";
 import { SEEDREAM_5_5_EXAMPLES } from "./seedream-5-5-examples";
@@ -45,6 +47,35 @@ export interface ImageToolPageContent {
 		referenceImage?: ImageToolExampleImage;
 	}[];
 	faq: readonly { question: string; answer: string }[];
+}
+
+const STARTER_MODELS = {
+	"minimax-h3-image": "image-minimax-h3",
+	"seedream-5-5": "image-seedream-5-5",
+	"gpt-image-2-6-flare": "image-gpt-image-2-6-flare",
+	"gpt-image-2-6-sunburst": "image-gpt-image-2-6-sunburst",
+	"ai-svg-generator": "image-gpt-image-2-6-flare",
+	"ai-gif-generator": "image-gpt-image-2-6-flare",
+} as const;
+
+/** A documented text example is a seed for an empty form, never a recovery override. */
+export function getImageToolStarterPreset(tool: ImageToolPageKey) {
+	const productKey = STARTER_MODELS[tool];
+	const contract = getImageProductSelectionContract(productKey);
+	const example = IMAGE_TOOL_PAGES[tool].prompts.find((candidate) => !candidate.referenceImage);
+	if (
+		!contract ||
+		!example?.prompt.trim() ||
+		example.prompt.length > (contract.maximumPromptLength ?? 10_000)
+	)
+		return null;
+	const selection = parseImageSelection(productKey, {
+		skuKey: contract.defaultSkuKey,
+		aspectRatio: tool === "ai-gif-generator" ? "1:1" : contract.defaultAspectRatio,
+		...(tool === "ai-svg-generator" ? { outputFormat: "svg" } : {}),
+		...(tool === "ai-gif-generator" ? { outputFormat: "gif" } : {}),
+	});
+	return selection ? { prompt: example.prompt, ...selection } : null;
 }
 
 const creditFaq = {

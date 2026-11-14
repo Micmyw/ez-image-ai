@@ -1,7 +1,13 @@
 "use client";
 
 import type { ImageAspectRatio, PublicModerationReason } from "@repo/config/client";
+import type { GuestTrialProductKey, GuestTrialSkuKey } from "@repo/config/guest-trial";
 import { captureBrowserGrowthAnalyticsAttribution } from "@repo/utils";
+import {
+	createJourneyReference,
+	rememberJourneyJob,
+	trackGenerationJourney,
+} from "@shared/lib/generation-journey";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -15,10 +21,25 @@ import {
 	type GuestTrialSnapshot,
 } from "../lib/guest-trial-state";
 
-type GuestErrorKey = "eligibility" | "submit" | "access" | "download" | "link" | "turnstile";
+type GuestDraft = {
+	sourceAssetId: string;
+	prompt: string;
+	productKey: GuestTrialProductKey;
+	skuKey: GuestTrialSkuKey;
+	aspectRatio: ImageAspectRatio;
+};
+type GuestErrorKey =
+	| "regionExcluded"
+	| "regionUnverified"
+	| "eligibility"
+	| "submit"
+	| "access"
+	| "download"
+	| "link"
+	| "turnstile";
 type LinkDestination = "login" | "signup";
-type DailyAllowance = { limit: number; remaining: number; resetsAt: string };
-type GuestInitialLoad = { dailyAllowance?: DailyAllowance | null } & (
+type TrialAllowance = { limit: number; remaining: number; resetsAt: null };
+type GuestInitialLoad = { reason?: string; trialAllowance?: TrialAllowance | null } & (
 	| { kind: "redirect" }
 	| { kind: "snapshot"; capabilityVersion?: string; snapshot: GuestTrialSnapshot }
 	| {
@@ -27,11 +48,12 @@ type GuestInitialLoad = { dailyAllowance?: DailyAllowance | null } & (
 			draft: {
 				sourceAssetId: string;
 				prompt: string;
-				skuKey: "nano-banana-2-lite-1k";
+				productKey: GuestTrialProductKey;
+				skuKey: GuestTrialSkuKey;
 				aspectRatio: ImageAspectRatio;
 			};
 	  }
-	| { kind: "unavailable"; capabilityVersion: string }
+	| { kind: "unavailable"; capabilityVersion: string; draft?: GuestDraft | null }
 );
 
 export function useGuestTrial({
@@ -43,7 +65,8 @@ export function useGuestTrial({
 	const [draft, setDraft] = useState<{
 		sourceAssetId: string;
 		prompt: string;
-		skuKey: "nano-banana-2-lite-1k";
+		productKey: GuestTrialProductKey;
+		skuKey: GuestTrialSkuKey;
 		aspectRatio: ImageAspectRatio;
 	}>();
 	const [prompt, setPrompt] = useState("");
@@ -54,11 +77,18 @@ export function useGuestTrial({
 		reason: PublicModerationReason | null;
 	} | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const [submissionLocked, setSubmissionLocked] = useState(false);
+	const submissionAttempt = useRef<{
+		idempotencyKey: string;
+		fingerprint: string;
+		actionRef?: string;
+		startedAt: number;
+	} | null>(null);
 	const [resultUrl, setResultUrl] = useState<string | null>(null);
 	const [accessRetryNonce, setAccessRetryNonce] = useState(0);
 	const [submitErrorNonce, setSubmitErrorNonce] = useState(0);
 	const [clockNow, setClockNow] = useState(() => new Date());
-	const [dailyAllowance, setDailyAllowance] = useState<DailyAllowance | null>(null);
+	const [trialAllowance, setTrialAllowance] = useState<TrialAllowance | null>(null);
 	const initialLoad = useRef<{
 		registered: boolean;
 		request: Promise<GuestInitialLoad>;
@@ -88,7 +118,7 @@ export function useGuestTrial({
 		void initialLoad.current.request
 			.then((result) => {
 				if (!active) return;
-				setDailyAllowance(result.dailyAllowance ?? null);
+				setTrialAllowance(result.trialAllowance ?? null);
 				if (result.kind === "redirect") {
 					window.location.assign(returnAfterDraftLink);
 					return;
@@ -104,7 +134,14 @@ export function useGuestTrial({
 					setPrompt(result.draft.prompt);
 					return;
 				}
-				setErrorKey("eligibility");
+				if (result.draft) setDraft(result.draft);
+				setErrorKey(
+					result.reason === "REGION_EXCLUDED"
+						? "regionExcluded"
+						: result.reason === "REGION_UNVERIFIED"
+							? "regionUnverified"
+							: "eligibility",
+				);
 			})
 			.catch(() => {
 				if (active) setErrorKey("eligibility");
@@ -123,7 +160,7 @@ export function useGuestTrial({
 			try {
 				const eligibility = await loadGuestEligibility();
 				if (!active) return;
-				setDailyAllowance(eligibility.dailyAllowance);
+				setTrialAllowance(eligibility.trialAllowance);
 				if (eligibility.eligible && eligibility.claimedDraft) {
 					setDraft(eligibility.claimedDraft);
 					setPrompt(eligibility.claimedDraft.prompt);
@@ -133,7 +170,7 @@ export function useGuestTrial({
 					setErrorKey(undefined);
 				} else if (
 					!eligibility.eligible &&
-					eligibility.dailyAllowance?.remaining &&
+					eligibility.trialAllowance?.remaining &&
 					eligibility.reason === "EXISTING_TRIAL"
 				) {
 					// Approved output can be visible while the previous job is still settling.
@@ -192,7 +229,7 @@ export function useGuestTrial({
 			.then((result) => {
 				if (active) {
 					setResultUrl(result.url);
-					void saasGrowthFunnel.guestResultViewed(view.resultAssetId!);
+					// Visibility is recorded by the decoded, on-screen image in GuestResultCard.
 					setErrorKey((current) => (current === "access" ? undefined : current));
 				}
 			})
@@ -218,30 +255,58 @@ export function useGuestTrial({
 			setSubmitErrorNonce((value) => value + 1);
 			return;
 		}
+		const fingerprint = JSON.stringify([
+			draft.sourceAssetId,
+			draft.productKey,
+			draft.skuKey,
+			draft.aspectRatio,
+			prompt.trim(),
+		]);
+		if (submissionAttempt.current && submissionAttempt.current.fingerprint !== fingerprint) return;
+		submissionAttempt.current ??= {
+			idempotencyKey: createIdempotencyKey("guest-submit"),
+			fingerprint,
+			actionRef: createJourneyReference(),
+			startedAt: performance.now(),
+		};
+		void trackGenerationJourney({
+			stage: "generate_clicked",
+			actionRef: submissionAttempt.current.actionRef,
+			publicModel: draft.productKey,
+		});
+		setSubmissionLocked(true);
 		setIsSubmitting(true);
 		setErrorKey(undefined);
 		setModerationError(null);
 		const attribution = captureBrowserGrowthAnalyticsAttribution();
 		try {
 			const next = await orpcClient.media.submitGuestGeneration({
+				journey: { actionRef: submissionAttempt.current?.actionRef },
 				capabilityVersion,
-				productKey: "image-nano-banana-2-lite",
+				productKey: draft.productKey,
 				skuKey: draft.skuKey,
 				sourceAssetId: draft.sourceAssetId,
 				prompt: prompt.trim(),
 				aspectRatio: draft.aspectRatio,
-				idempotencyKey: createIdempotencyKey("guest-submit"),
+				idempotencyKey: submissionAttempt.current!.idempotencyKey,
 				deviceId: await getGuestDeviceId(),
 				turnstileToken,
 			});
+			rememberJourneyJob({
+				jobKey: next.jobId,
+				actionRef: submissionAttempt.current?.actionRef,
+				startedAt: submissionAttempt.current!.startedAt,
+			});
 			updateSnapshot(next);
-			setDailyAllowance((current) =>
+			setTrialAllowance((current) =>
 				current ? { ...current, remaining: Math.max(0, current.remaining - 1) } : current,
 			);
 			void saasGrowthFunnel.guestGenerationAdmitted(next.jobId, attribution);
 		} catch (error) {
 			const outcome = getPromptSafetyOutcome(error);
 			if (outcome) {
+				submissionAttempt.current = null;
+				setSubmissionLocked(false);
 				setModerationError({
 					outcome,
 					reason: getModerationErrorReason(error),
@@ -298,11 +363,30 @@ export function useGuestTrial({
 
 	return {
 		view,
-		dailyAllowance,
+		trialAllowance,
 		draft,
 		prompt,
 		setPrompt,
-		canSubmit: Boolean(draft && capabilityVersion && !snapshot),
+		canSubmit: Boolean(
+			draft &&
+			capabilityVersion &&
+			!snapshot &&
+			!["regionExcluded", "regionUnverified", "eligibility"].includes(errorKey ?? "") &&
+			(trialAllowance?.remaining ?? 1) > 0,
+		),
+		submissionLocked,
+		setModel(productKey: GuestTrialProductKey) {
+			if (submissionLocked) return;
+			setDraft((current) =>
+				current
+					? {
+							...current,
+							productKey,
+							skuKey: productKey === "image-minimax-h3" ? "minimax-h3-1k" : "nano-banana-2-lite-1k",
+						}
+					: current,
+			);
+		},
 		isSubmitting,
 		errorKey,
 		moderationError,
@@ -330,7 +414,7 @@ async function loadInitialGuestTrial(
 	if (eligibility.eligible && eligibility.claimedDraft) {
 		return {
 			kind: "draft",
-			dailyAllowance: eligibility.dailyAllowance,
+			trialAllowance: eligibility.trialAllowance,
 			capabilityVersion: eligibility.capabilityVersion,
 			draft: eligibility.claimedDraft,
 		};
@@ -338,15 +422,17 @@ async function loadInitialGuestTrial(
 	if (eligibility.existingJobId) {
 		return {
 			kind: "snapshot",
-			dailyAllowance: eligibility.dailyAllowance,
+			trialAllowance: eligibility.trialAllowance,
 			capabilityVersion: eligibility.capabilityVersion,
 			snapshot: await pollJob(eligibility.existingJobId),
 		};
 	}
 	return {
 		kind: "unavailable",
+		reason: eligibility.reason,
+		draft: eligibility.claimedDraft,
 		capabilityVersion: eligibility.capabilityVersion,
-		dailyAllowance: eligibility.dailyAllowance,
+		trialAllowance: eligibility.trialAllowance,
 	};
 }
 

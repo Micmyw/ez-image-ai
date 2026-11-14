@@ -1,4 +1,8 @@
 import { imageAspectRatioSchema, promptSchema } from "@repo/ai";
+import { optionalGenerationJourneyRefsSchema } from "@repo/config/generation-journey";
+import { isGuestTrialModel } from "@repo/config/guest-trial";
+import { recordGrowthEvent } from "@repo/database";
+import { persistGenerationJourneyConfirmation } from "@repo/utils/lib/generation-journey-server";
 import { z } from "zod";
 
 import { guestMediaProcedure } from "../guest-procedure";
@@ -25,15 +29,16 @@ export const submitGuestGeneration = guestMediaProcedure
 		method: "POST",
 		path: "/media/guest-generations",
 		tags: ["Media"],
-		summary: "Submit one sponsored guest Nano Banana 2 Lite edit",
+		summary: "Submit one sponsored guest image edit",
 		description: "Atomically admits one bounded guest edit without immediate execution.",
 	})
 	.input(
 		z
 			.object({
+				journey: optionalGenerationJourneyRefsSchema,
 				capabilityVersion: z.string().min(1).max(128),
-				productKey: z.literal("image-nano-banana-2-lite"),
-				skuKey: z.literal("nano-banana-2-lite-1k"),
+				productKey: z.enum(["image-minimax-h3", "image-nano-banana-2-lite"]),
+				skuKey: z.enum(["minimax-h3-1k", "nano-banana-2-lite-1k"]),
 				sourceAssetId: z.string().min(1).max(256),
 				prompt: promptSchema,
 				aspectRatio: imageAspectRatioSchema.default("auto"),
@@ -41,10 +46,14 @@ export const submitGuestGeneration = guestMediaProcedure
 				deviceId: z.string().uuid(),
 				turnstileToken: z.string().min(1).max(2_048),
 			})
-			.strict(),
+			.strict()
+			.refine((input) => isGuestTrialModel(input.productKey, input.skuKey), {
+				message: "GUEST_PRODUCT_UNAVAILABLE",
+			}),
 	)
 	.output(guestJobSnapshotSchema)
 	.handler(async ({ context, input }) => {
+		const { journey, ...admissionInput } = input;
 		const snapshot = await submitGuestGenerationForGuest(
 			{
 				ownerId: context.user.id,
@@ -52,13 +61,30 @@ export const submitGuestGeneration = guestMediaProcedure
 				origin: context.headers.get("origin"),
 				headers: context.headers,
 			},
-			input,
+			admissionInput,
 			"default",
 		).catch((error: unknown) => {
 			if (error instanceof TextModerationError) throw toMediaOrpcError(error);
 			throw error;
 		});
 		context.responseHeaders?.set("Cache-Control", "no-store");
+		const confirmation = persistGenerationJourneyConfirmation(
+			{
+				headers: context.headers,
+				stage: "job_admitted",
+				entityKey: snapshot.jobId,
+				refs: journey,
+				user: context.user,
+			},
+			{ save: recordGrowthEvent },
+		);
+		if (context.defer) {
+			try {
+				context.defer(confirmation);
+			} catch {
+				await confirmation.catch(() => false);
+			}
+		} else await confirmation;
 		return {
 			jobId: snapshot.jobId,
 			stage: snapshot.stage,

@@ -1,6 +1,7 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 import { DEFAULT_PRODUCT_CONFIG, EZPIC_PRODUCT_KEYS, type ImageAspectRatio } from "@repo/config";
+import { isGuestTrialModel, GUEST_TRIAL_MODELS } from "@repo/config/guest-trial";
 import { getGuestMediaConfig, type GuestMediaConfig } from "@repo/config/server";
 import { resolveGuestRuntimeConfigOverride } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -85,7 +86,8 @@ function createGuestCapabilityVersion(
 	products: readonly GuestCapabilityProduct[],
 ): string {
 	const canonicalSecurityVector = [
-		"guest-capability-v2",
+		"guest-capability-v3-lifetime",
+		GUEST_TRIAL_MODELS,
 		runtimeVersion,
 		config.enabled,
 		config.reason ?? "",
@@ -144,10 +146,10 @@ function toGuestCapabilityProduct(
 	if (!defaultCell || defaultCell.credits !== input.credits) {
 		throw new Error("GUEST_PRODUCT_CONFIGURATION_INVALID");
 	}
-	const guestProduct = input.key === config.productKey;
+	const guestProduct = isGuestTrialModel(input.key, input.skuMatrix.defaultSkuKey);
 	if (
 		guestProduct &&
-		(input.skuMatrix.defaultSkuKey !== config.skuKey ||
+		(!isGuestTrialModel(input.key, input.skuMatrix.defaultSkuKey) ||
 			BigInt(defaultCell.credits) !== config.sponsorCredits)
 	) {
 		throw new Error("GUEST_PRODUCT_CONFIGURATION_INVALID");

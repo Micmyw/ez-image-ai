@@ -422,6 +422,7 @@ describe("anonymous Better Auth wildcard boundary", () => {
 		["POST", "/api/auth/sign-in/magic-link"],
 		["GET", "/api/auth/magic-link/verify"],
 		["POST", "/api/auth/sign-in/social"],
+		["POST", "/api/auth/one-tap/callback"],
 		["GET", "/api/auth/callback/google"],
 		["GET", "/api/auth/callback/github"],
 		["GET", "/api/auth/verify-email"],
@@ -441,22 +442,25 @@ describe("anonymous Better Auth wildcard boundary", () => {
 		},
 	);
 
-	it("requires durable link intent before a guest reaches a canonical linking route", async () => {
-		vi.mocked(auth.api.getSession).mockResolvedValue({
-			user: { id: "guest", isAnonymous: true },
-			session: { id: "guest-session" },
-		} as never);
-		const dependencies = createOpenBoundaryDependencies();
-		dependencies.hasGuestLinkIntent.mockResolvedValue(false);
+	it.each(["/api/auth/sign-in/email", "/api/auth/one-tap/callback"])(
+		"requires durable link intent before a guest reaches %s",
+		async (path) => {
+			vi.mocked(auth.api.getSession).mockResolvedValue({
+				user: { id: "guest", isAnonymous: true },
+				session: { id: "guest-session" },
+			} as never);
+			const dependencies = createOpenBoundaryDependencies();
+			dependencies.hasGuestLinkIntent.mockResolvedValue(false);
 
-		const response = await createApiApp(dependencies).request("/api/auth/sign-in/email", {
-			method: "POST",
-		});
+			const response = await createApiApp(dependencies).request(path, {
+				method: "POST",
+			});
 
-		expect(response.status).toBe(403);
-		expect(await response.json()).toEqual({ code: "GUEST_LINK_INTENT_REQUIRED" });
-		expect(auth.handler).not.toHaveBeenCalled();
-	});
+			expect(response.status).toBe(403);
+			expect(await response.json()).toEqual({ code: "GUEST_LINK_INTENT_REQUIRED" });
+			expect(auth.handler).not.toHaveBeenCalled();
+		},
+	);
 
 	it("uses the real durable LINKING intent for the exact anonymous owner and session", async () => {
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", "independent-link-secret");

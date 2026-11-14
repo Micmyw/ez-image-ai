@@ -1,3 +1,5 @@
+import { sanitizeProviderDiagnosticMessage } from "@repo/config/provider-diagnostics";
+
 import type {
 	NormalizedResult,
 	ProviderFailure,
@@ -15,12 +17,16 @@ export function normalizeStatus(value: string): ProviderTaskStatus {
 	if (["canceled", "cancelled"].includes(status)) return "CANCELED";
 	return "UNKNOWN";
 }
-export function failureFrom(message: string | undefined): ProviderFailure | null {
+export function failureFrom(
+	message: string | undefined,
+	sensitiveValues: readonly string[] = [],
+): ProviderFailure | null {
 	if (!message) return null;
 	const retryable = /rate|limit|timeout|temporar|unavailable|overload/i.test(message);
 	return {
 		code: retryable ? "PROVIDER_TEMPORARY" : "PROVIDER_REJECTED",
-		message: message.slice(0, 500),
+		message:
+			sanitizeProviderDiagnosticMessage(message, sensitiveValues) ?? "Provider request failed",
 		retryable,
 	};
 }

@@ -305,6 +305,41 @@ describe("same-origin landing guest client", () => {
 			background: "transparent",
 		});
 	});
+	it.each([
+		["minimax-h3-1k", "guest-trial", true],
+		["minimax-h3-2k", "paid-account", true],
+		["minimax-h3-4k", "paid-account", true],
+		["minimax-h3-2k", "guest-trial", false],
+	] as const)(
+		"keeps the exact H3 SKU handoff boundary for %s / %s",
+		async (skuKey, accessHint, accepted) => {
+			const result = completeGuestDraftUpload(
+				{
+					sessionId: "same-session",
+					completionToken: "d".repeat(43),
+					capabilityVersion: "cap-v1",
+					productKey: "image-minimax-h3",
+					skuKey,
+					sha256: "a".repeat(64),
+					prompt: "Preserve details",
+				},
+				{
+					fetcher: vi.fn(async () =>
+						Response.json({
+							status: "READY",
+							claimToken: "c".repeat(43),
+							continueUrl: "/draft/continue",
+							productKey: "image-minimax-h3",
+							skuKey,
+							accessHint,
+						}),
+					),
+				},
+			);
+			if (accepted) await expect(result).resolves.toMatchObject({ skuKey, accessHint });
+			else await expect(result).rejects.toThrow("GUEST_UPLOAD_COMPLETION_INVALID");
+		},
+	);
 });
 
 function handoffDocument() {

@@ -67,6 +67,7 @@ export interface GuestCapabilitySnapshot {
 }
 
 export interface GuestUploadIntentInput {
+	requestId?: string;
 	capabilityVersion: string;
 	productKey: GuestProductKey;
 	contentType: LandingImageContentType;
@@ -85,9 +86,17 @@ export interface GuestUploadIntent {
 
 /** Kept in the mounted composer only; never persisted to browser storage. */
 export interface GuestDraftUploadCheckpoint {
-	requestFingerprint: string;
-	intent: GuestUploadIntent;
+	fileFingerprint: string;
+	preparedFile: File;
+	sha256: string;
+	requestId: string;
+	capabilityVersion: string;
+	intentProductKey: GuestProductKey;
+	intent?: GuestUploadIntent;
 	uploaded: boolean;
+	sealed: boolean;
+	/** Frozen only when Generate begins; an unknown completion cannot change this request. */
+	requestFingerprint?: string;
 	handoff?: GuestDraftHandoff;
 }
 
@@ -100,6 +109,7 @@ export interface GuestDraftHandoff {
 }
 
 export interface GuestDraftUploadInput {
+	journey?: { actionRef?: string; draftRef?: string };
 	capabilityVersion: string;
 	productKey: GuestProductKey;
 	skuKey: ImageSkuKey;
@@ -116,6 +126,33 @@ export interface GuestDraftUploadInput {
 	onProgress?: (progress: { loaded: number; total: number; percentage: number }) => void;
 	checkpoint?: GuestDraftUploadCheckpoint | null;
 	onCheckpoint?: (checkpoint: GuestDraftUploadCheckpoint) => void;
+}
+
+export type GuestUploadPreparationInput = Pick<
+	GuestDraftUploadInput,
+	| "capabilityVersion"
+	| "productKey"
+	| "file"
+	| "maximumBytes"
+	| "turnstileToken"
+	| "onStage"
+	| "onProgress"
+	| "checkpoint"
+	| "onCheckpoint"
+	| "journey"
+>;
+
+export async function prepareGuestDraftUpload(
+	input: GuestUploadPreparationInput,
+	options: {
+		fetcher?: typeof fetch;
+		uploadFile?: typeof uploadGuestFile;
+		preparation?: { maximumAttempts?: number; wait?: (milliseconds: number) => Promise<void> };
+		now?: () => number;
+	} = {},
+): Promise<GuestDraftUploadCheckpoint> {
+	const client = await import("./guest-upload-client");
+	return client.prepareGuestDraftUpload(input, options);
 }
 
 export async function getGuestCapability(
