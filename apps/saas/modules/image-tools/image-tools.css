@@ -1080,3 +1080,31 @@
 		padding: 1.25rem;
 	}
 }
+
+.ai-tool-photo-idea {
+	margin-top: 1.5rem;
+	padding: clamp(1rem, 3vw, 1.75rem);
+	border: 1px solid #ffffff16;
+	border-radius: 1rem;
+	background: #ffffff04;
+}
+
+.ai-tool-photo-idea h3 {
+	font-size: 1.2rem;
+	font-weight: 600;
+}
+
+.ai-tool-photo-idea h3 a {
+	text-decoration: underline;
+	text-underline-offset: 0.2em;
+}
+
+.ai-tool-photo-idea p {
+	margin-top: 0.75rem;
+	max-width: 48rem;
+}
+
+.ai-tool-photo-idea .ai-tool-related {
+	justify-content: flex-start;
+	margin-block: 1rem 0;
+}

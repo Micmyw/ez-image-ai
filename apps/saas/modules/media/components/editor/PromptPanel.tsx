@@ -17,6 +17,7 @@ export function PromptPanel({
 	maxLength = MAX_PROMPT_LENGTH,
 	referencePanel,
 	referenceFirst = false,
+	hidePrompt = false,
 	disabled = false,
 }: {
 	label: string;
@@ -29,9 +30,11 @@ export function PromptPanel({
 	maxLength?: number;
 	referencePanel?: ReactNode;
 	referenceFirst?: boolean;
+	hidePrompt?: boolean;
 	disabled?: boolean;
 }) {
 	const promptRef = useRef<HTMLTextAreaElement>(null);
+	if (hidePrompt) return <div className="studio-prompt min-w-0">{referencePanel}</div>;
 	return (
 		<div className="studio-prompt space-y-3 min-w-0">
 			{referenceFirst && <Fragment key="reference">{referencePanel}</Fragment>}

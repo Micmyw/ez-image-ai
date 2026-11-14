@@ -3,6 +3,15 @@ import { describe, expect, it } from "vitest";
 import { imagePassCoversSku, imagePassIncludesSkuAccess } from "./image-pass-eligibility";
 
 describe("image pass size eligibility in the generation form", () => {
+	it("allows Sheru's 1K model with old image packs and no separate subscription", () => {
+		expect(
+			imagePassIncludesSkuAccess(
+				{ availableSkuKeys: ["nano-banana-2-1k"], subscriptionFreeSkuKeys: [] },
+				"nano-banana-2-1k",
+			),
+		).toBe(true);
+		expect(imagePassIncludesSkuAccess({ availableSkuKeys: [] }, "nano-banana-2-1k")).toBe(false);
+	});
 	it("does not infer purchased coverage from the current public offer", () => {
 		expect(imagePassCoversSku(undefined, "nano-banana-2-2k")).toBe(false);
 		expect(imagePassCoversSku(undefined, "nano-banana-2-4k")).toBe(false);

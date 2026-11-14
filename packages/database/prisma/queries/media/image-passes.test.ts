@@ -22,6 +22,25 @@ import {
 import { canSettleKieZeroCostRejection } from "./kie-zero-cost-rejection";
 
 describe("image-pass funding contract", () => {
+	it.each([IMAGE_PASS_LEGACY_OFFER, IMAGE_PASS_STANDARD_OFFER, getImagePassOfferSnapshot()])(
+		"allows every existing pack cohort for Sheru's 1K model without a subscription",
+		async (offerSnapshot) => {
+			// In-memory transport only; this unit test never connects to a database.
+			const tx = { $queryRaw: vi.fn(async () => [{ id: "unit", offerSnapshot }]) };
+			await expect(
+				assertImagePassAvailable(
+					{
+						ownerId: "owner",
+						productKey: "image-nano-banana-2",
+						skuKey: "nano-banana-2-1k",
+						requireModelAccess: true,
+					},
+					tx as never,
+				),
+			).resolves.toBeUndefined();
+			expect(tx.$queryRaw).toHaveBeenCalledOnce();
+		},
+	);
 	it.each([
 		{ snapshot: getImagePassOfferSnapshot(), allowed: true },
 		{ snapshot: IMAGE_PASS_LEGACY_OFFER, allowed: false },

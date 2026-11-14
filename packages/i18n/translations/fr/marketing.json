@@ -311,11 +311,11 @@
 			"sheru": {
 				"eyebrow": "Idée photo à découvrir",
 				"title": "Sheru Bhai AI Photo",
-				"description": "Posez avec le patron lion blanc ou devenez ce personnage. Partez de votre propre photo.",
+				"description": "Choisissez « Photo avec Sheru » ou « Transformez-moi en Sheru », puis importez votre photo.",
 				"action": "Créer votre photo Sheru",
 				"preview": "Aperçus de style créés par IA",
 				"with-sheru": "Photo avec Sheru",
-				"become-sheru": "Devenez Sheru"
+				"become-sheru": "Transformez-moi en Sheru"
 			}
 		},
 		"quickStartPrompts": {

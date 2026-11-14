@@ -6,11 +6,11 @@ export const sheruBhaiPhotoDocuments: readonly BlogPost[] = [
 		slug: "sheru-bhai-ai-photo",
 		recipeId: "sheru-bhai-ai-photo",
 		locale: "en",
-		title: "Sheru Bhai AI Photo: Create a Photo with the Lion Boss",
+		title: "Sheru Bhai AI Photo Prompt: 2 Looks to Try",
 		description:
-			"Your photo, a white-lion boss, a cinematic portrait. Stand beside Sheru or become the lion-headed character yourself.",
+			"Try two Sheru Bhai AI photo prompt presets: Photo with Sheru or Turn me into Sheru. Choose a look, upload your photo and create with Nano Banana 2.",
 		publishedAt: "2026-11-13",
-		updatedAt: "2026-11-13",
+		updatedAt: "2026-11-14",
 		articleType: "photo-ideas",
 		categoryId: "photo-ideas",
 		tags: ["portrait", "sheru bhai", "photo ideas"],
@@ -19,8 +19,8 @@ export const sheruBhaiPhotoDocuments: readonly BlogPost[] = [
 		primaryEffectId: "sheru-bhai-ai-photo",
 		relatedEffectIds: ["sheru-bhai-ai-photo", "1980s-ai-photo"],
 		recipePlacement: {
-			presetsAfterHeadingId: "choose-the-portrait-you-want",
-			editorAfterHeadingId: "make-the-prompt-your-own",
+			presetsAfterHeadingId: "choose-your-sheru-bhai-ai-photo-preset",
+			editorAfterHeadingId: "how-to-create-your-sheru-bhai-ai-photo",
 		},
 		cover: {
 			src: "/images/effects/sheru-bhai-ai-photo/with-sheru.webp",
@@ -36,28 +36,54 @@ export const sheruBhaiPhotoDocuments: readonly BlogPost[] = [
 				accessedAt: "2026-11-13",
 			},
 		],
-		body: `## What is a Sheru Bhai AI photo?
+		body: `Looking for a Sheru Bhai AI photo prompt? Choose one of two portrait presets and upload your own photo. **Photo with Sheru** places you beside the white-lion boss; **Turn me into Sheru** gives you a lion head while aiming to keep your outfit and pose. Both presets use Nano Banana 2, with no prompt writing required.
+
+## What is a Sheru Bhai AI photo?
 
 Sheru Bhai is a fictional lion-headed character seen in social-media images and short stories. A white mane, tailored suit and gold chain are recognizable parts of the look. In a photo edit, you can appear beside the character or take on the lion-head look yourself.
 
-The photo trend was covered by [Hindustan on November 12, 2026](https://www.livehindustan.com/gadgets/sheru-bhai-ai-photo-editing-prompt-who-is-this-viral-lion-and-how-to-create-your-photo-using-gemini-and-chatgpt-201794462951031.html). The two templates here focus on still portraits, with an editable prompt and your own reference photo.
+The photo trend was covered by [Hindustan on November 12, 2026](https://www.livehindustan.com/gadgets/sheru-bhai-ai-photo-editing-prompt-who-is-this-viral-lion-and-how-to-create-your-photo-using-gemini-and-chatgpt-201794462951031.html). The two presets here focus on still portraits made from your own reference photo.
 
-## Choose the portrait you want
+## Choose your Sheru Bhai AI photo preset
 
-**Photo with Sheru** keeps you as a separate human subject beside a white lion in an ivory suit. A clear front-facing solo portrait gives the model useful facial detail. Start with a simple side-by-side pose and avoid instructions that overlap hands or cover either face.
+**Photo with Sheru** keeps you as a separate human subject beside a white lion in an ivory suit. Use a clear front-facing solo portrait with your face unobstructed.
 
-**Become Sheru** changes your head into a lion's while asking to retain your outfit and stance. A knee-up or full-body standing photo shows more of the clothing you want to keep. This mode intentionally replaces your human face.
+**Turn me into Sheru** changes your head into a lion's while aiming to retain your outfit and stance. A knee-up or full-body standing photo shows more of the clothing you want to keep. This mode intentionally replaces your human face.
 
-## Make the prompt your own
+## How to create your Sheru Bhai AI photo
 
-The prepared prompts describe the subjects separately, set the scene and specify a vertical composition. Change one detail at a time: try softer window light, a plain courtyard or a different background. Keep the two-subject instruction for a photo together and the clothing-preservation instruction for a transformation.
+1. Select **Photo with Sheru** or **Turn me into Sheru** from the presets above.
+2. Upload a clear photo of one person that you have permission to edit.
+3. Review the price and click **Generate** to create your portrait.
 
-The editor uses Nano Banana 2 at 1K for this template. Review the current price before submitting. An eligible image pack or paid subscription is required; preparing the photo does not start a generation or spend credits.
+The editor uses Nano Banana 2 at 1K for both looks. Any image pack with remaining uses or an active paid subscription with enough credits is required; selecting a preset and uploading your photo does not start a generation or spend credits.
 
-## Review and share your photo
+## Review and share your Sheru portrait
 
-Check the human face, the join between the lion head and collar, and any visible hands. If the pose becomes tangled, simplify it by keeping the subjects apart and hands outside the frame. Mark the result as AI-generated when sharing it.
+Check the human face, the join between the lion head and collar, and any visible hands. Facial details, outfits and proportions can change. A clear, unobstructed reference photo helps the model understand the subject. Mark the result as AI-generated when sharing it.
 
-The two images on this page are separately created AI style illustrations. They are not product test results or a promise of identical output. For more editing ideas, read [our prompt-writing guide](/blog/ai-image-editing-prompts) or try an [1980s portrait](/blog/1980s-ai-photo).`,
+The two images on this page are separately created AI style illustrations. They are not product test results or a promise of identical output. For another portrait idea, try an [1980s AI photo](/blog/1980s-ai-photo).
+
+## Sheru Bhai AI photo prompt FAQ
+
+### Do I need to write a Sheru Bhai AI photo editing prompt?
+
+No. Select a preset and upload your photo. The selected look supplies the generation instructions automatically.
+
+### How do I make a photo with Sheru Bhai?
+
+Choose **Photo with Sheru** and upload a clear solo portrait. This look keeps you human and adds a separate white-lion character beside you.
+
+### How do I turn myself into Sheru?
+
+Choose **Turn me into Sheru** and upload a standing photo with your outfit visible. This look replaces your human head with a white lion head while aiming to keep your clothes and pose.
+
+### Which model creates these Sheru Bhai photos?
+
+Both Sheru presets use Nano Banana 2 at 1K. Opening this guide from another model page does not change the model used for these presets.
+
+### Is the Sheru Bhai AI photo editor free?
+
+You can select a preset and upload your photo before buying. Generation requires any image pack with remaining uses or an active paid subscription with enough credits. Check the price shown in the editor before generating; free sign-in credits alone do not unlock these presets.`,
 	},
 ];

@@ -311,11 +311,11 @@
 			"sheru": {
 				"eyebrow": "Featured photo idea",
 				"title": "Sheru Bhai AI Photo",
-				"description": "Stand beside the white-lion boss, or become him. Start with your own photo.",
+				"description": "Choose Photo with Sheru or Turn me into Sheru, then upload your own photo.",
 				"action": "Create your Sheru photo",
 				"preview": "AI-created style previews",
 				"with-sheru": "Photo with Sheru",
-				"become-sheru": "Become Sheru"
+				"become-sheru": "Turn me into Sheru"
 			}
 		},
 		"quickStartPrompts": {

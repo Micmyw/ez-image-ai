@@ -157,6 +157,7 @@ export function GenerationForm({
 	}, []);
 	const effectEditor = useEffectEditor();
 	const effectPreset = effectEditor?.selectedPreset;
+	const hidePresetPrompt = effectEditor?.effect.id === "sheru-bhai-ai-photo";
 	const paidTemplate = effectEditor?.effect.generationAccess === "paid";
 	// A guest reference cannot cross sign-in as a browser File. Keep its intent until reselected.
 	const requireReference =
@@ -305,6 +306,7 @@ export function GenerationForm({
 			productKey: resolvedInitialProductKey,
 			skuKey: initialSelection?.skuKey ?? initialContract.defaultSkuKey,
 			prompt:
+				(hidePresetPrompt ? effectPreset?.prompt : undefined) ??
 				initialDraft?.input.prompt ??
 				effectPreset?.prompt ??
 				toolPrompt?.initialPrompt ??
@@ -977,6 +979,7 @@ export function GenerationForm({
 			)}
 			<div className="studio-composer-inputs">
 				<PromptPanel
+					hidePrompt={hidePresetPrompt}
 					referenceFirst
 					disabled={generation.createGeneration.isPending}
 					referencePanel={
@@ -1240,7 +1243,7 @@ export function GenerationForm({
 					storageUnavailable={upgradeStorageUnavailable}
 				/>
 			)}
-			<RegisteredEditorDock prompt={values.prompt} jobId={jobId} />
+			{!hidePresetPrompt && <RegisteredEditorDock prompt={values.prompt} jobId={jobId} />}
 		</form>
 	);
 }

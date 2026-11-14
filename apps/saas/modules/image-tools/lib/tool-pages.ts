@@ -29,6 +29,12 @@ export interface ImageToolPageContent {
 	showPassOffer?: boolean;
 	showAvailabilityNote?: boolean;
 	promptSource?: { label: string; href: string };
+	relatedPhotoIdeas?: readonly {
+		title: string;
+		href: string;
+		description: string;
+		presets: readonly { label: string; href: string }[];
+	}[];
 	prompts: readonly {
 		title: string;
 		prompt: string;
@@ -54,6 +60,25 @@ const privacyFaq = {
 	answer:
 		"Your reference images and results use the private EzImageAI workspace. They are not automatically published in a public gallery. Upload only material you have permission to use, and follow the content safety and usage rules shown in the editor.",
 };
+
+const sheruPhotoIdeas: ImageToolPageContent["relatedPhotoIdeas"] = [
+	{
+		title: "Sheru Bhai AI Photo Prompts",
+		href: "/blog/sheru-bhai-ai-photo",
+		description:
+			"Stand beside the white-lion boss or turn yourself into Sheru. Choose a preset and upload your photo in the guide. Both Sheru looks use Nano Banana 2.",
+		presets: [
+			{
+				label: "Photo with Sheru",
+				href: "/blog/sheru-bhai-ai-photo?preset=with-sheru#image-editor",
+			},
+			{
+				label: "Turn me into Sheru",
+				href: "/blog/sheru-bhai-ai-photo?preset=become-sheru#image-editor",
+			},
+		],
+	},
+];
 
 export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = {
 	"seedream-5-5": {
@@ -133,6 +158,7 @@ export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = 
 	},
 	"minimax-h3-image": {
 		path: "/minimax-h3-image",
+		relatedPhotoIdeas: sheruPhotoIdeas,
 		title: "MiniMax H3 Image — AI Image Generator & Photo Editor",
 		description:
 			"Create detailed images and edit photos with MiniMax H3 Image. Explore real examples, try their prompts, choose 1K, 2K or 4K, and download PNG or JPEG images.",
@@ -207,6 +233,7 @@ export const IMAGE_TOOL_PAGES: Record<ImageToolPageKey, ImageToolPageContent> = 
 	},
 	"gpt-image-2-6": {
 		path: "/gpt-image-2-6",
+		relatedPhotoIdeas: sheruPhotoIdeas,
 		title: "GPT Image 2.6 — Flare & Sunburst AI Image Generator",
 		description:
 			"Create with GPT Image 2.6: choose Flare for speed or Sunburst for detail. Try gpt-image-2.6 image generation, reference edits, static SVG and short GIFs.",
