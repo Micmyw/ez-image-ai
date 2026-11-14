@@ -9,6 +9,11 @@ import {
 
 const identity = { id: "attempt-1", provider: "kie", providerTaskId: "task-1" };
 const observedAt = "2026-11-14T03:00:00.000Z";
+// Generate the deliberately unsigned fixture instead of embedding a token-shaped literal.
+const syntheticJwt = [{ alg: "HS256" }, { sub: "synthetic-diagnostic-fixture" }]
+	.map((part) => Buffer.from(JSON.stringify(part)).toString("base64url"))
+	.concat("credential123")
+	.join(".");
 const diagnostic = {
 	version: 1,
 	attemptId: identity.id,
@@ -45,7 +50,7 @@ describe("private provider diagnostics", () => {
 		"users/private-owner/secret-object.png",
 		"temporary-references/private-owner/secret-object.png",
 		"-----BEGIN PRIVATE KEY-----credential123-----END PRIVATE KEY-----",
-		"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.credential123",
+		syntheticJwt,
 		"sk-credential123",
 		"data:image/png;base64,credential123",
 	])("redacts sensitive message content: %s", (sensitive) => {

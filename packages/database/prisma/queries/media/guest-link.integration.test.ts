@@ -525,6 +525,8 @@ function admissionInput(fixture: LinkFixture, idempotencyKey: string) {
 		sourceSessionHash: fixture.sourceSessionHash,
 		deviceHash: fixture.deviceHash,
 		ipHash: hashFixture(`ip:${fixture.ownerId}`),
+		browserSubjectHash: hashFixture(`browser:${fixture.ownerId}`),
+		freeEligibility: "eligible" as const,
 		subnetHash: hashFixture(`subnet:${fixture.ownerId}`),
 		idempotencyKey,
 		idempotencyFingerprint: hashFixture(`admission:${idempotencyKey}`),

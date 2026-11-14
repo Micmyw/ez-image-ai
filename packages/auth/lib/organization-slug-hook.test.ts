@@ -93,6 +93,7 @@ vi.mock("better-auth/plugins", () => ({
 	admin: vi.fn(() => ({ id: "admin" })),
 	anonymous: vi.fn(() => ({ id: "anonymous" })),
 	magicLink: vi.fn(() => ({ id: "magic-link" })),
+	oneTap: vi.fn(() => ({ id: "one-tap" })),
 	openAPI: vi.fn(() => ({ id: "open-api" })),
 	organization: vi.fn((options: OrganizationPluginOptions) => {
 		organizationPluginCapture.options = options;
