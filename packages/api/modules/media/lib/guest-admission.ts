@@ -25,10 +25,7 @@ import {
 	recordBlockedPromptAttempt,
 } from "@repo/database";
 import { db } from "@repo/database/client";
-import {
-	assertRequestFreeEligibility,
-	getRequestFreeEligibility,
-} from "@repo/utils/free-eligibility";
+import { getRequestGuestTrialEligibility } from "@repo/utils/free-eligibility";
 
 import { trustedGuestClientIdentity } from "./draft-client-identity";
 import { readGuestBrowserSubject } from "./guest-browser";
@@ -314,7 +311,6 @@ export async function submitGuestGenerationForGuest(
 	if (!isGuestTrialModel(input.productKey, input.skuKey)) {
 		throw new Error("GUEST_PRODUCT_UNAVAILABLE");
 	}
-	assertRequestFreeEligibility();
 	const browserSubjectHash = readGuestBrowserSubject(boundary.headers);
 	if (!browserSubjectHash) throw new Error("GUEST_BROWSER_COOKIE_REQUIRED");
 	let verifiedTurnstile: VerifiedGuestTurnstileToken;
@@ -495,7 +491,7 @@ export async function submitGuestGenerationForGuest(
 	);
 	const transactionInput = {
 		browserSubjectHash,
-		freeEligibility: getRequestFreeEligibility().status,
+		freeEligibility: getRequestGuestTrialEligibility().status,
 		ownerId: boundary.ownerId,
 		promotionPeriod: loaded.config.promotionPeriod,
 		capabilityVersion: loaded.snapshot.version,

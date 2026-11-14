@@ -36,6 +36,72 @@ export function canReceiveNewFreeAllowance(): boolean {
 	return getRequestFreeEligibility().status === "eligible";
 }
 
+// Guest sponsorship is independent of the registered sign-in allowance.
+// US/Canada, EU members and the remaining European countries; no overseas territories.
+const GUEST_TRIAL_COUNTRIES = new Set([
+	"US",
+	"CA",
+	"AT",
+	"BE",
+	"BG",
+	"HR",
+	"CY",
+	"CZ",
+	"DK",
+	"EE",
+	"FI",
+	"FR",
+	"DE",
+	"GR",
+	"HU",
+	"IE",
+	"IT",
+	"LV",
+	"LT",
+	"LU",
+	"MT",
+	"NL",
+	"PL",
+	"PT",
+	"RO",
+	"SK",
+	"SI",
+	"ES",
+	"SE",
+	"AL",
+	"AD",
+	"BY",
+	"BA",
+	"IS",
+	"XK",
+	"LI",
+	"MD",
+	"MC",
+	"ME",
+	"MK",
+	"NO",
+	"RU",
+	"SM",
+	"RS",
+	"CH",
+	"UA",
+	"GB",
+	"VA",
+]);
+
+export function getRequestGuestTrialEligibility(): RequestFreeEligibility {
+	const { countryCode } = getRequestFreeEligibility();
+	return {
+		countryCode,
+		status:
+			countryCode === null
+				? "unverified"
+				: GUEST_TRIAL_COUNTRIES.has(countryCode)
+					? "eligible"
+					: "excluded",
+	};
+}
+
 export function assertRequestFreeEligibility(): void {
 	const eligibility = getRequestFreeEligibility();
 	if (eligibility.status !== "eligible") {

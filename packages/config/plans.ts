@@ -4,7 +4,7 @@ import { z } from "zod";
 // Image SKU repricing must not disable unchanged subscription plans.
 // Annual-only repricing keeps this cohort so unchanged monthly snapshots stay eligible.
 export const BILLING_PRICING_VERSION = "2026-09-15.1";
-export const FREE_ACCOUNT_SIGN_IN_CREDITS = 10;
+export const FREE_ACCOUNT_SIGN_IN_CREDITS = 8;
 
 import {
 	EZPIC_PRODUCT_KEYS,

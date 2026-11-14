@@ -608,7 +608,7 @@ describe("product configuration", () => {
 	});
 
 	it("publishes honest monthly edit estimates for each plan", () => {
-		expect(FREE_ACCOUNT_SIGN_IN_CREDITS).toBe(10);
+		expect(FREE_ACCOUNT_SIGN_IN_CREDITS).toBe(8);
 		expect(getPlanUsageEstimate("free")).toEqual({
 			minimumImageEdits: 0,
 			maximumImageEdits: 0,

@@ -2,6 +2,8 @@
 
 ## 2026-11-15 — Guest workspace and image feedback
 
+- Restrict new guest free trials to the United States, Canada and European countries. Other or unknown regions continue through sign-in with their photo and prompt preserved; accepted guest tasks and results remain recoverable.
+- Set the one-time registered-account allowance to 8 credits. Keep existing 5- and 10-credit receipts and balances unchanged, without issuing a replacement.
 - Match the guest workspace to the dark image editor, simplify its copy, and give completed images a larger preview with a clear download action. Keep account benefits and secondary tools available in expandable details.
 - Preserve the uploaded photo and prompt through guest preparation, sign-in and account creation, with responsive layouts down to 320px.
 - Load homepage preview players, account-only providers and the paid-template purchase dialog when needed to keep the public editor's initial download small.

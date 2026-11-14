@@ -72,7 +72,7 @@ describe("one-time registered-account login credit grant", () => {
 			expect(ledger.grant).toHaveBeenCalledWith(
 				{
 					accountId: "account-1",
-					amount: 10n,
+					amount: 8n,
 					expiresAt: null,
 					referenceKey: `login-bonus:user:${ownerId}:v1`,
 					metadata: { program: "one-time-login-bonus-v1" },
@@ -133,6 +133,7 @@ describe("one-time registered-account login credit grant", () => {
 		ledger.matches
 			.mockResolvedValueOnce(false)
 			.mockResolvedValueOnce(false)
+			.mockResolvedValueOnce(false)
 			.mockResolvedValueOnce(true);
 		await expect(ensureOneTimeLoginCreditGrant({ ownerId: "owner-1" }, client)).resolves.toEqual({
 			status: "ALREADY_GRANTED",
@@ -141,29 +142,32 @@ describe("one-time registered-account login credit grant", () => {
 		expect(tx.creditAccount.findUnique).not.toHaveBeenCalled();
 		expect(ledger.grant).not.toHaveBeenCalled();
 	});
-	it("recognizes an exact historical five-credit lifetime receipt without topping it up", async () => {
-		ledger.matches.mockImplementation(async (input) => input.amount === 5n);
-		const { client, transaction } = fixture();
-		await expect(
-			ensureOneTimeLoginCreditGrant({ ownerId: "legacy-owner" }, client),
-		).resolves.toEqual({
-			status: "ALREADY_GRANTED",
-			referenceKey: "login-bonus:user:legacy-owner:v1",
-		});
-		expect(ledger.matches).toHaveBeenCalledWith(
-			expect.objectContaining({
-				amount: 5n,
-				expiresAt: null,
+	it.each([5n, 10n])(
+		"recognizes an exact historical %s-credit lifetime receipt without replacing it",
+		async (amount) => {
+			ledger.matches.mockImplementation(async (input) => input.amount === amount);
+			const { client, transaction } = fixture();
+			await expect(
+				ensureOneTimeLoginCreditGrant({ ownerId: "legacy-owner" }, client),
+			).resolves.toEqual({
+				status: "ALREADY_GRANTED",
 				referenceKey: "login-bonus:user:legacy-owner:v1",
-				metadata: { program: "one-time-login-bonus-v1" },
-				ownerType: "USER",
-				ownerId: "legacy-owner",
-			}),
-			client,
-		);
-		expect(transaction).not.toHaveBeenCalled();
-		expect(ledger.grant).not.toHaveBeenCalled();
-	});
+			});
+			expect(ledger.matches).toHaveBeenCalledWith(
+				expect.objectContaining({
+					amount,
+					expiresAt: null,
+					referenceKey: "login-bonus:user:legacy-owner:v1",
+					metadata: { program: "one-time-login-bonus-v1" },
+					ownerType: "USER",
+					ownerId: "legacy-owner",
+				}),
+				client,
+			);
+			expect(transaction).not.toHaveBeenCalled();
+			expect(ledger.grant).not.toHaveBeenCalled();
+		},
+	);
 
 	it("creates a missing account without replacing a concurrent creator", async () => {
 		const { tx, client } = fixture();

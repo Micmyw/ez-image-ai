@@ -1,18 +1,13 @@
 import { getPublicConfig } from "@repo/config/client";
 
+import { IMAGE_UPLOAD_ACCEPT } from "./image-upload-formats";
+export { IMAGE_UPLOAD_ACCEPT } from "./image-upload-formats";
+
 const preparedFiles = new WeakMap<File, Promise<File>>();
 const pngSignature = [137, 80, 78, 71, 13, 10, 26, 10];
 // Decode/canvas memory depends on pixels, independently of compressed file size.
 export const MAXIMUM_IMAGE_UPLOAD_PIXELS = 24_000_000;
 const maximumDimension = 16_384;
-export const IMAGE_UPLOAD_ACCEPT = {
-	"image/jpeg": [".jpg", ".jpeg"],
-	"image/png": [".png"],
-	"image/webp": [".webp"],
-	"image/heic": [".heic"],
-	"image/heif": [".heif"],
-};
-
 function isHeic(file: File): boolean {
 	return /^(image\/hei[cf])$/i.test(file.type) || (!file.type && /\.hei[cf]$/i.test(file.name));
 }

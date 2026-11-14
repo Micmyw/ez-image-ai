@@ -17,8 +17,6 @@ vi.mock("@media/components/CreatorWorkspace", () => ({
 		mocks.workspace(props);
 		return <div>Editor</div>;
 	},
-}));
-vi.mock("./AccountInputPreparation", () => ({
 	AccountInputPreparation: (props: unknown) => {
 		mocks.preparation(props);
 		return <div>Preparing private image</div>;

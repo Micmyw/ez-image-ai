@@ -213,6 +213,51 @@ describe("LandingGenerator verification feedback", () => {
 			queueEstimate: { kind: "capacity" },
 		});
 	});
+	it.each(["REGION_EXCLUDED", "REGION_UNVERIFIED"])(
+		"preserves the photo and prompt for sign-in instead of starting a free trial when %s",
+		async (reason) => {
+			const capability = await harness.getCapability();
+			harness.getCapability.mockResolvedValue({ ...capability, reason });
+			const assign = vi.fn();
+			vi.stubGlobal("window", {
+				location: {
+					assign,
+					origin: "https://app.ezpic.test",
+					href: "https://app.ezpic.test/",
+					pathname: "/",
+					search: "",
+				},
+				history: { state: null, replaceState: vi.fn() },
+				sessionStorage: { getItem: () => null },
+			});
+			const tree = await readyWorkspace();
+			harness.preparationEffect?.();
+			expect(visibleText(tree)).toContain("generation.signIn");
+			expect(visibleText(tree)).not.toContain("actions.standard");
+			await callback<(event: { preventDefault: () => void }) => Promise<void>>(
+				tree,
+				"form",
+				"onSubmit",
+			)({ preventDefault() {} });
+			expect(harness.prepare).not.toHaveBeenCalled();
+			expect(harness.upload).not.toHaveBeenCalled();
+			await vi.waitFor(() =>
+				expect(harness.saveAuthDraft).toHaveBeenCalledWith(
+					expect.objectContaining({
+						file: source,
+						values: expect.objectContaining({
+							prompt: "Preserve this guest edit",
+							productKey: product.key,
+						}),
+					}),
+				),
+			);
+			await vi.waitFor(() =>
+				expect(assign).toHaveBeenCalledWith(expect.stringMatching(/^\/login\?.*authDraft/)),
+			);
+		},
+	);
+
 	it("prepares an empty-prompt reference before Generate and shares it with the changed prompt", async () => {
 		vi.stubGlobal("document", {});
 		vi.stubGlobal("requestAnimationFrame", (callback: () => void) => callback());
@@ -687,6 +732,9 @@ async function readyWorkspace() {
 	await harness.capabilityEffect?.();
 	await vi.waitFor(() =>
 		expect(findElement(renderWorkspace(), harness.modelSelector)?.props.products).toHaveLength(1),
+	);
+	await vi.waitFor(() =>
+		expect(findElement(renderWorkspace(), "section")?.props["data-source-selected"]).toBe(true),
 	);
 	const tree = renderWorkspace();
 	callback<(key: string) => void>(tree, harness.modelSelector, "onChange")(product.key);

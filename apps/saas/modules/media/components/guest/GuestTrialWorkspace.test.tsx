@@ -33,7 +33,7 @@ vi.mock("next-intl", () => ({
 				download: "Download watermarked preview",
 				signIn: "Sign in",
 				createAccount: "Create account",
-				loginBonus: "One-time 10-credit bonus per account, separate from monthly free credits",
+				loginBonus: "One-time 8-credit bonus per account, no monthly refill",
 				qualityCta: "More image models · paid plan",
 				retryPreview: "Retry private preview",
 				retryChallenge: "Retry verification",
@@ -109,11 +109,11 @@ describe("GuestTrialWorkspace", () => {
 			errorKey: "eligibility",
 		});
 		const markup = renderToStaticMarkup(<GuestTrialWorkspace />);
-		expect(markup).toContain("One-time 10-credit bonus per account");
+		expect(markup).toContain("One-time 8-credit bonus per account");
 		expect(markup).toContain("Sign in");
 		expect(markup).toContain("Create account");
 		expect(renderToStaticMarkup(<GuestTrialWorkspace registered />)).not.toContain(
-			"One-time 10-credit bonus",
+			"One-time 8-credit bonus",
 		);
 	});
 
@@ -124,7 +124,7 @@ describe("GuestTrialWorkspace", () => {
 			errorKey: "submit",
 			moderationError: { outcome: "blocked", reason: "restrictedContent" },
 		});
-		expect(renderToStaticMarkup(<GuestTrialWorkspace />)).not.toContain("One-time 10-credit bonus");
+		expect(renderToStaticMarkup(<GuestTrialWorkspace />)).not.toContain("One-time 8-credit bonus");
 	});
 	it("explains a blocked sponsored result without advertising a charged waiver", () => {
 		const current = mocks.useGuestTrial();

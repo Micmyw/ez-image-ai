@@ -1,6 +1,7 @@
 import {
 	canReceiveNewFreeAllowance,
 	getRequestFreeEligibility,
+	getRequestGuestTrialEligibility,
 	runWithCloudflareFreeEligibility,
 } from "@repo/utils/free-eligibility";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -44,6 +45,79 @@ describe("trusted free-benefit request scope", () => {
 			["BR", "BR", true],
 		]);
 		expect(getRequestFreeEligibility().status).toBe("unverified");
+	});
+});
+
+describe("guest trial region allowlist", () => {
+	it.each([
+		"US",
+		"CA",
+		"DE",
+		"FR",
+		"ES",
+		"IT",
+		"PL",
+		"GB",
+		"IE",
+		"NO",
+		"CH",
+		"IS",
+		"LI",
+		"CY",
+		"AL",
+		"AD",
+		"BY",
+		"BA",
+		"XK",
+		"MD",
+		"MC",
+		"ME",
+		"MK",
+		"RU",
+		"SM",
+		"RS",
+		"UA",
+		"VA",
+	])("allows a trusted %s request", (countryCode) => {
+		expect(runWithCloudflareFreeEligibility(countryCode, getRequestGuestTrialEligibility)).toEqual({
+			status: "eligible",
+			countryCode,
+		});
+	});
+	it.each([
+		"IN",
+		"CN",
+		"BR",
+		"MX",
+		"AR",
+		"JP",
+		"AU",
+		"NZ",
+		"ZA",
+		"TR",
+		"AE",
+		"SG",
+		"HK",
+		"PR",
+		"GL",
+		"ZZ",
+		undefined,
+	])(
+		"withholds a new guest trial for %s without changing registered allowance policy",
+		(country) => {
+			runWithCloudflareFreeEligibility(country, () => {
+				expect(getRequestGuestTrialEligibility().status).toBe(
+					country === undefined || country === "ZZ" ? "unverified" : "excluded",
+				);
+				expect(canReceiveNewFreeAllowance()).toBe(
+					country !== undefined && country !== "ZZ" && country !== "IN",
+				);
+			});
+		},
+	);
+	it("never treats headers or deployment environment as a trusted guest location", () => {
+		vi.stubEnv("CF_IPCOUNTRY", "US");
+		expect(getRequestGuestTrialEligibility()).toEqual({ status: "unverified", countryCode: null });
 	});
 });
 

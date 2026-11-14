@@ -5,6 +5,7 @@ import {
 	imageOutputFormatSchema,
 	imageSkuKeySchema,
 } from "@repo/config";
+import { getRequestGuestTrialEligibility } from "@repo/utils/free-eligibility";
 import { z } from "zod";
 
 import { publicProcedure } from "../../../orpc/procedures";
@@ -115,6 +116,11 @@ export const getGuestCapability = publicProcedure
 	.handler(async ({ context }) => {
 		context.responseHeaders?.set("Cache-Control", "no-store");
 		const snapshot = guestCapabilitySnapshotSchema.parse(await loadGuestCapabilitySnapshot());
+		const region = getRequestGuestTrialEligibility();
+		// Upload capability also serves account/purchase handoff. Only sponsorship is regional.
+		if (snapshot.enabled && region.status !== "eligible") {
+			snapshot.reason = region.status === "excluded" ? "REGION_EXCLUDED" : "REGION_UNVERIFIED";
+		}
 		// Establish identity before any upload mutation. A lost handshake response
 		// has no business state, while upload retries must use the received cookie.
 		if (snapshot.enabled && context.responseHeaders)

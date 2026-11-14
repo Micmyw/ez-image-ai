@@ -82,6 +82,10 @@ const test = base.extend<{ paymentMock: PaymentMock }>({
 				});
 				return;
 			}
+			if (path === "/api/rpc/media/checkDuplicatePrompt") {
+				await route.fulfill({ json: { json: { match: null } } });
+				return;
+			}
 			if (
 				path === "/api/rpc/payments/getImagePassOffer" ||
 				path === "/api/payments/image-pass-offer"

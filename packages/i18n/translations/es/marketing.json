@@ -158,7 +158,7 @@
 			},
 			"free": {
 				"question": "¿Puedo usar la IA de imagen a imagen gratis?",
-				"answer": "Los invitados elegibles pueden probar una edición gratuita con MiniMax H3 1K o Nano Banana 2 Lite 1K cuando la cola patrocinada está disponible. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción."
+				"answer": "Los invitados elegibles pueden probar una edición gratuita con MiniMax H3 1K o Nano Banana 2 Lite 1K cuando la cola patrocinada está disponible. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. Las cuentas registradas elegibles reciben 8 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción."
 			},
 			"control": {
 				"question": "¿Se conservarán todos los detalles de la imagen original?",
@@ -216,7 +216,7 @@
 			},
 			"guestVsFree": {
 				"question": "¿Qué diferencia hay entre Invitado y Free?",
-				"answer": "Los invitados elegibles pueden probar una edición gratuita con MiniMax H3 1K o Nano Banana 2 Lite 1K cuando la cola patrocinada está disponible. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción. Las imágenes generadas con créditos de cuenta no llevan marca de agua de invitado y tienen un plazo objetivo de conservación de 30 días. Descarga los resultados que quieras conservar."
+				"answer": "Los invitados elegibles pueden probar una edición gratuita con MiniMax H3 1K o Nano Banana 2 Lite 1K cuando la cola patrocinada está disponible. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. Las cuentas registradas elegibles reciben 8 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción. Las imágenes generadas con créditos de cuenta no llevan marca de agua de invitado y tienen un plazo objetivo de conservación de 30 días. Descarga los resultados que quieras conservar."
 			},
 			"editTiers": {
 				"question": "¿Qué modelos de imagen y ajustes de salida están disponibles?",
@@ -399,7 +399,7 @@
 				"quality": "Continuar",
 				"retry": "Reintentar",
 				"retryAvailability": "Ver disponibilidad",
-				"signInBonus": "Iniciar sesión · 10 créditos una vez por cuenta · 2 imágenes básicas"
+				"signInBonus": "Iniciar sesión · 8 créditos una vez por cuenta · 2 imágenes básicas"
 			},
 			"errors": {
 				"rateLimit": "Has alcanzado el límite de subidas para invitados. Inténtalo de nuevo más tarde. Tu imagen y tu instrucción siguen aquí.",
@@ -803,7 +803,7 @@
 		},
 		"pricing": {
 			"title": "Edición de imágenes con IA gratis y planes de pago",
-			"description": "Las cuentas elegibles reciben 10 EzImageAI Credits una sola vez para dos generaciones con MiniMax H3 Image 1K a 5 créditos cada una. No hay recarga mensual. Las suscripciones de pago activas habilitan otros modelos y opciones HD. El paquete de 2,99 USD también ofrece 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción."
+			"description": "Las cuentas elegibles reciben 8 EzImageAI Credits una sola vez para dos generaciones con MiniMax H3 Image 1K a 5 créditos cada una. No hay recarga mensual. Las suscripciones de pago activas habilitan otros modelos y opciones HD. El paquete de 2,99 USD también ofrece 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción."
 		},
 		"guides": {
 			"quickStart": "Empieza tu primera edición",
@@ -820,7 +820,7 @@
 				},
 				"guestVsFree": {
 					"question": "¿Puedo usar EzImageAI como editor de imágenes con IA gratis?",
-					"answer": "Las cuentas registradas elegibles reciben 10 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción. Los invitados elegibles pueden probar una edición gratuita con MiniMax H3 1K o Nano Banana 2 Lite 1K cuando la cola patrocinada está disponible. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. Se aplican los límites de seguridad, legales, del modelo y de uso."
+					"answer": "Las cuentas registradas elegibles reciben 8 créditos una sola vez para dos generaciones con MiniMax H3 Image 1K, sin recarga mensual. Los modelos prémium y las resoluciones superiores requieren una suscripción de pago activa al usar créditos. El paquete de 2,99 USD incluye 3 imágenes correctas con los modelos y tamaños de imagen incluidos, sin suscripción. Los invitados elegibles pueden probar una edición gratuita con MiniMax H3 1K o Nano Banana 2 Lite 1K cuando la cola patrocinada está disponible. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. Se aplican los límites de seguridad, legales, del modelo y de uso."
 				}
 			}
 		},

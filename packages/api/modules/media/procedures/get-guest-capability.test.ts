@@ -1,4 +1,5 @@
 import { call } from "@orpc/server";
+import { runWithCloudflareFreeEligibility } from "@repo/utils/free-eligibility";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const capabilityMocks = vi.hoisted(() => ({ loadGuestCapabilitySnapshot: vi.fn() }));
@@ -99,6 +100,30 @@ describe("getGuestCapability", () => {
 			queueEstimate: { kind: "capacity" },
 		});
 	});
+
+	it.each([
+		["US", null],
+		["CA", null],
+		["GB", null],
+		["FR", null],
+		["CN", "REGION_EXCLUDED"],
+		["BR", "REGION_EXCLUDED"],
+		["IN", "REGION_EXCLUDED"],
+		[undefined, "REGION_UNVERIFIED"],
+	])(
+		"advertises only trusted region eligibility for %s while preserving account uploads",
+		async (country, reason) => {
+			const responseHeaders = new Headers();
+			const result = await runWithCloudflareFreeEligibility(country, () =>
+				call(getGuestCapability, undefined, {
+					context: { headers: new Headers({ "cf-ipcountry": "US" }), responseHeaders },
+				}),
+			);
+			expect(result).toMatchObject({ enabled: true, reason, version: "guest-v1" });
+			expect(result.products).toHaveLength(2);
+			expect(responseHeaders.get("Cache-Control")).toBe("no-store");
+		},
+	);
 
 	it("accepts the canonical credit values and public aspect-ratio contract", async () => {
 		const responseHeaders = new Headers();

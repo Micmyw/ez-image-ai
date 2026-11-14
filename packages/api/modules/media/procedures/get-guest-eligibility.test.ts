@@ -57,6 +57,29 @@ describe("getGuestEligibility claimed draft recovery", () => {
 		databaseMocks.guestSessionBootstrap.findFirst.mockResolvedValue(validBootstrap());
 	});
 
+	it.each(["CN", "BR", "IN", undefined])(
+		"withholds new eligibility in %s but returns the existing result and draft",
+		async (country) => {
+			databaseMocks.guestMediaTrial.findFirst.mockResolvedValue({
+				currentJobId: null,
+				consumedJobId: "existing-result",
+			});
+			await expect(
+				runWithCloudflareFreeEligibility(country, () =>
+					callActual(getGuestEligibility, undefined, {
+						context: { headers: new Headers({ "cf-ipcountry": "US" }) },
+					}),
+				),
+			).resolves.toMatchObject({
+				eligible: false,
+				reason: country ? "REGION_EXCLUDED" : "REGION_UNVERIFIED",
+				existingJobId: "existing-result",
+				trialAllowance: { remaining: 0 },
+				claimedDraft: { sourceAssetId: "guest-source-1" },
+			});
+		},
+	);
+
 	it("returns only the owner-scoped guest source, prompt, SKU, and aspect ratio", async () => {
 		const result = await call(getGuestEligibility, undefined, {
 			context: { headers: new Headers() },

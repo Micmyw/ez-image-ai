@@ -471,9 +471,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 					await expect(notice).toContainText(
 						"The safety check flagged content restricted by our policy.",
 					);
-					await expect(notice).toContainText(
-						"No generation credits were charged and your one-time waiver was not used.",
-					);
+					await expect(notice).toContainText("No generation credits were charged.");
 					await expect(review).toBeDisabled();
 					await expect(preview).toHaveCount(0);
 				}
@@ -994,7 +992,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(
 			page
 				.locator('[data-test="content-safety-notice"]')
-				.filter({ hasText: /one-time waiver was not used/i }),
+				.filter({ hasText: /not a confirmed content violation/i }),
 		).toBeVisible({
 			timeout: 30_000,
 		});

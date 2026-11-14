@@ -33,15 +33,50 @@ function submitGuestGenerationForGuest(...args: Parameters<typeof submitActual>)
 afterEach(() => vi.unstubAllEnvs());
 
 describe("guest admission pre-transaction boundary", () => {
-	it.each(["IN", undefined])(
-		"rejects a new free trial before moderation or funding for %s",
+	it.each(["IN", "CN", "BR", "MX", "JP", "AU", "TR", undefined])(
+		"passes %s to the single grant boundary without a second API country rejection",
 		async (country) => {
-			const dependencies = validDependencies();
+			const dependencies = validDependencies({
+				createError: country ? "FREE_REGION_EXCLUDED" : "FREE_REGION_UNVERIFIED",
+			});
 			await expect(
 				runWithCloudflareFreeEligibility(country, () =>
 					submitActual(validBoundary(), validInput(), dependencies),
 				),
-			).rejects.toThrow(country === "IN" ? "FREE_REGION_EXCLUDED" : "FREE_REGION_UNVERIFIED");
+			).rejects.toThrow(country ? "FREE_REGION_EXCLUDED" : "FREE_REGION_UNVERIFIED");
+			expect(dependencies.createTransaction).toHaveBeenCalledExactlyOnceWith(
+				expect.objectContaining({ freeEligibility: country ? "excluded" : "unverified" }),
+			);
+		},
+	);
+	it.each(["US", "CA", "GB", "DE", "CH", "NO", "PL"])(
+		"passes trusted %s guest eligibility to transactional admission",
+		async (country) => {
+			const dependencies = validDependencies();
+			await runWithCloudflareFreeEligibility(country, () =>
+				submitActual(validBoundary(), validInput(), dependencies),
+			);
+			expect(dependencies.createTransaction).toHaveBeenCalledWith(
+				expect.objectContaining({ freeEligibility: "eligible" }),
+			);
+		},
+	);
+	it.each(["CN", undefined])(
+		"recovers an already accepted request after moving to %s",
+		async (country) => {
+			const dependencies = validDependencies();
+			const accepted = await submitGuestGenerationForGuest(
+				validBoundary(),
+				validInput(),
+				dependencies,
+			);
+			vi.clearAllMocks();
+			const findReplay = vi.fn(async () => accepted);
+			await expect(
+				runWithCloudflareFreeEligibility(country, () =>
+					submitActual(validBoundary(), validInput(), { ...dependencies, findReplay }),
+				),
+			).resolves.toEqual(accepted);
 			expect(dependencies.moderatePrompt).not.toHaveBeenCalled();
 			expect(dependencies.createTransaction).not.toHaveBeenCalled();
 		},

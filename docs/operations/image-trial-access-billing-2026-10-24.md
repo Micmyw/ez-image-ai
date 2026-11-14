@@ -1,5 +1,10 @@
 # Image trial, subscription access and provider rejection billing
 
+On 2026-11-15 the owner changed new lifetime registered sign-in grants to **8 credits**.
+The stable grant identity still recognizes exact historical 5- and 10-credit receipts, with no
+replacement, top-up or balance reduction. Registered country eligibility is unchanged; the separate guest sponsorship
+now uses the US/Canada/Europe allowlist documented in the guest conversion design.
+
 On 2026-11-13 the free default changes to MiniMax H3 Image 1K at 5 credits.
 Existing Nano Banana 2 Lite 1K access remains. The lifetime 10-credit allowance,
 historical receipts and recurring-grant policy below are unchanged. H3 2K/4K
@@ -25,8 +30,8 @@ The owner selected these rules on 2026-10-24:
 
 ## Financial boundaries
 
-The stable `login-bonus:user:<owner>:v1` identity is retained. A valid historical 5-credit sign-in
-receipt or a new 10-credit receipt means the lifetime allowance has already been issued; it does
+The stable `login-bonus:user:<owner>:v1` identity is retained. A valid historical 5- or 10-credit sign-in
+receipt or a new 8-credit receipt means the lifetime allowance has already been issued; it does
 not grant a replacement or top-up. Existing monthly grants, purchased lots and subscription lots
 retain their original balance, expiry and refund/debt protections. No historical balance is
 clawed back. Concurrent login, account bootstrap and generation reuse that same receipt.

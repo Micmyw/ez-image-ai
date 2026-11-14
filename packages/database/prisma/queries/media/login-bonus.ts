@@ -10,7 +10,7 @@ import {
 } from "./types";
 
 const LOGIN_BONUS_CREDITS = BigInt(FREE_ACCOUNT_SIGN_IN_CREDITS);
-const LEGACY_LOGIN_BONUS_CREDITS = 5n;
+const LEGACY_LOGIN_BONUS_CREDITS = [5n, 10n];
 const metadata = { program: "one-time-login-bonus-v1" };
 
 export type OneTimeLoginCreditGrantResult =
@@ -29,20 +29,18 @@ export async function ensureOneTimeLoginCreditGrant(
 		referenceKey,
 		metadata,
 	};
-	const wasAlreadyGranted = async (database: MediaDatabaseClient) =>
-		(await hasMatchingCreditGrant(
-			{ ...grant, ownerType: "USER", ownerId: input.ownerId },
-			database,
-		)) ||
-		(await hasMatchingCreditGrant(
-			{
-				...grant,
-				amount: LEGACY_LOGIN_BONUS_CREDITS,
-				ownerType: "USER",
-				ownerId: input.ownerId,
-			},
-			database,
-		));
+	const wasAlreadyGranted = async (database: MediaDatabaseClient) => {
+		for (const amount of [LOGIN_BONUS_CREDITS, ...LEGACY_LOGIN_BONUS_CREDITS]) {
+			if (
+				await hasMatchingCreditGrant(
+					{ ...grant, amount, ownerType: "USER", ownerId: input.ownerId },
+					database,
+				)
+			)
+				return true;
+		}
+		return false;
+	};
 	const user = await client.user.findUnique({
 		where: { id: input.ownerId },
 		select: { isAnonymous: true },
@@ -51,8 +49,8 @@ export async function ensureOneTimeLoginCreditGrant(
 	if (user.isAnonymous) return { status: "ANONYMOUS_USER" };
 	// This receipt is append-only and validates the complete command and owner.
 	// It proves lifetime issuance, never the current balance or generation access.
-	// The same lifetime identity recognizes the historical 5-credit receipt without
-	// rewriting it, issuing a replacement or topping it up to the new allowance.
+	// The same lifetime identity recognizes historical 5/10-credit receipts without
+	// rewriting them, issuing replacements or changing their balances.
 	if (await wasAlreadyGranted(client)) return { status: "ALREADY_GRANTED", referenceKey };
 	// Enable only after every account creator has the atomic helper and older
 	// writers have drained. The immutable receipt fast path needs no rollout flag.

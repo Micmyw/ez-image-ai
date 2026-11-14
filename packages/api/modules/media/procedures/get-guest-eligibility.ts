@@ -6,7 +6,7 @@ import {
 } from "@repo/config/guest-trial";
 import { ACTIVE_GENERATION_JOB_STATUSES, getGuestLifetimeAllowance } from "@repo/database";
 import { db } from "@repo/database/client";
-import { getRequestFreeEligibility } from "@repo/utils/free-eligibility";
+import { getRequestGuestTrialEligibility } from "@repo/utils/free-eligibility";
 import { z } from "zod";
 
 import { guestMediaProcedure } from "../guest-procedure";
@@ -72,7 +72,7 @@ export const getGuestEligibility = guestMediaProcedure
 			};
 		}
 		const now = new Date();
-		const freeEligibility = getRequestFreeEligibility();
+		const freeEligibility = getRequestGuestTrialEligibility();
 		const browserSubjectHash = readGuestBrowserSubject(context.headers);
 		const [trial, linkIntent, bootstrap, allowance, activeJob] = await Promise.all([
 			db.guestMediaTrial.findFirst({
@@ -169,7 +169,11 @@ export const getGuestEligibility = guestMediaProcedure
 								? ("LINK_IN_PROGRESS" as const)
 								: ("AVAILABLE" as const),
 			existingJobId: activeJob?.id ?? trial?.currentJobId ?? trial?.consumedJobId ?? null,
-			trialAllowance: { limit: allowance.limit, remaining: allowance.remaining, resetsAt: null },
+			trialAllowance: {
+				limit: allowance.limit,
+				remaining: freeEligibility.status === "eligible" ? allowance.remaining : 0,
+				resetsAt: null,
+			},
 			claimedDraft,
 		};
 	});

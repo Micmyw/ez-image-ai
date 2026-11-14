@@ -25,11 +25,11 @@ import {
 	type ImageSpecControlValues,
 	resolveImageSpecControlValues,
 } from "@media/lib/image-sku-selection";
+import { IMAGE_UPLOAD_ACCEPT } from "@media/lib/image-upload-formats";
 import {
 	isPaidTemplateSelection,
 	paidTemplateSpecMatrix,
 } from "@media/lib/paid-template-selection";
-import { IMAGE_UPLOAD_ACCEPT, prepareImageUpload } from "@media/lib/prepare-image-upload";
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
 import { useToolPrompt, useToolPromptBinding } from "@media/lib/tool-prompt-context";
 import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
@@ -667,8 +667,13 @@ function LandingGeneratorWorkspace({
 	}));
 	const selectedSku =
 		selectedProduct?.skuMatrix.cells.find((cell) => cell.skuKey === selectedSkuKey) ?? null;
+	const regionRequiresAccount =
+		capability?.reason === "REGION_EXCLUDED" || capability?.reason === "REGION_UNVERIFIED";
 	const selectedGuestTrial = Boolean(
-		selectedProduct && selectedSku && isGuestTrialModel(selectedProduct.key, selectedSku.skuKey),
+		!regionRequiresAccount &&
+		selectedProduct &&
+		selectedSku &&
+		isGuestTrialModel(selectedProduct.key, selectedSku.skuKey),
 	);
 	const freeAccountSelection = Boolean(
 		selectedProduct &&
@@ -687,7 +692,7 @@ function LandingGeneratorWorkspace({
 			: textProducts.length > 0;
 	const guestPreparation = useGuestUploadPreparation({
 		file,
-		enabled: Boolean(capability?.enabled),
+		enabled: Boolean(capability?.enabled && (!regionRequiresAccount || paidTemplate)),
 		capabilityVersion: capability?.version,
 		productKey: selectedProduct?.key,
 		maximumBytes,
@@ -800,6 +805,7 @@ function LandingGeneratorWorkspace({
 		prompt,
 		turnstileReady:
 			!file ||
+			(regionRequiresAccount && !paidTemplate) ||
 			Boolean(turnstileToken) ||
 			guestPreparation.inFlight ||
 			Boolean(guestPreparation.checkpoint?.intent),
@@ -896,6 +902,7 @@ function LandingGeneratorWorkspace({
 		void trackGenerationJourney({ stage: "source_selected", draftRef: journeyDraftRef.current });
 		setFile(null);
 		try {
+			const { prepareImageUpload } = await import("@media/lib/prepare-image-upload");
 			const preparedFile = await prepareImageUpload(nextFile, maximumBytes);
 			if (revision !== fileSelectionRevision.current) return false;
 			validateLandingImageFile(preparedFile, maximumBytes);
@@ -1060,6 +1067,13 @@ function LandingGeneratorWorkspace({
 		});
 		if (requireReference && !file) {
 			setFileError(t("fileErrors.required"));
+			return;
+		}
+		if (regionRequiresAccount && !paidTemplate) {
+			if (!canSubmit) return;
+			submissionInFlight.current = true;
+			await continueWithAccount();
+			submissionInFlight.current = false;
 			return;
 		}
 		if (paidTemplate) {
@@ -1250,7 +1264,7 @@ function LandingGeneratorWorkspace({
 				? t("actions.retryAvailability")
 				: stage === "failed" && selectedProduct
 					? t("actions.retry")
-					: !file && !requireReference
+					: (!file && !requireReference) || (regionRequiresAccount && !paidTemplate)
 						? studio("generation.signIn")
 						: paidTemplate
 							? composer("generate")

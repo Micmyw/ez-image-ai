@@ -45,7 +45,7 @@ describe("one-time login bonus on disposable PostgreSQL", () => {
 		return ownerId;
 	}
 
-	it("24 concurrent claims create one ten-credit grant, lot and ledger entry", async () => {
+	it("24 concurrent claims create one eight-credit grant, lot and ledger entry", async () => {
 		const ownerId = await user("concurrent");
 		const results = await Promise.all(
 			Array.from({ length: 24 }, () => ensureOneTimeLoginCreditGrant({ ownerId }, client)),
@@ -54,7 +54,7 @@ describe("one-time login bonus on disposable PostgreSQL", () => {
 		const account = await client.creditAccount.findUniqueOrThrow({
 			where: { ownerType_ownerId: { ownerType: "USER", ownerId } },
 		});
-		expect(account).toMatchObject({ spendableCredits: 10n, reservedCredits: 0n, creditDebt: 0n });
+		expect(account).toMatchObject({ spendableCredits: 8n, reservedCredits: 0n, creditDebt: 0n });
 		expect(await client.creditLot.count({ where: { accountId: account.id } })).toBe(1);
 		expect(await client.creditLedgerEntry.count({ where: { accountId: account.id } })).toBe(1);
 		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
@@ -71,7 +71,7 @@ describe("one-time login bonus on disposable PostgreSQL", () => {
 		const account = await client.creditAccount.findUniqueOrThrow({
 			where: { ownerType_ownerId: { ownerType: "USER", ownerId } },
 		});
-		expect(account.spendableCredits).toBe(10n);
+		expect(account.spendableCredits).toBe(8n);
 		const grants = await client.creditLedgerEntry.findMany({
 			where: { accountId: account.id, type: "GRANT" },
 		});
@@ -81,35 +81,38 @@ describe("one-time login bonus on disposable PostgreSQL", () => {
 		);
 		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
 	});
-	it("preserves an exact historical five-credit receipt without topping up or replacing it", async () => {
-		const ownerId = await user("historical-five");
-		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
-		const referenceKey = `login-bonus:user:${ownerId}:v1`;
-		await createCreditGrant(
-			{
-				accountId: account.id,
-				amount: 5n,
-				expiresAt: null,
+	it.each([5n, 10n])(
+		"preserves an exact historical %s-credit receipt and balance",
+		async (amount) => {
+			const ownerId = await user(`historical-${amount}`);
+			const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+			const referenceKey = `login-bonus:user:${ownerId}:v1`;
+			await createCreditGrant(
+				{
+					accountId: account.id,
+					amount,
+					expiresAt: null,
+					referenceKey,
+					metadata: { program: "one-time-login-bonus-v1" },
+				},
+				client,
+			);
+			const ledgerBefore = await client.creditLedgerEntry.findMany({
+				where: { accountId: account.id },
+			});
+			await expect(ensureOneTimeLoginCreditGrant({ ownerId }, client)).resolves.toEqual({
+				status: "ALREADY_GRANTED",
 				referenceKey,
-				metadata: { program: "one-time-login-bonus-v1" },
-			},
-			client,
-		);
-		const ledgerBefore = await client.creditLedgerEntry.findMany({
-			where: { accountId: account.id },
-		});
-		await expect(ensureOneTimeLoginCreditGrant({ ownerId }, client)).resolves.toEqual({
-			status: "ALREADY_GRANTED",
-			referenceKey,
-		});
-		expect(await client.creditLedgerEntry.findMany({ where: { accountId: account.id } })).toEqual(
-			ledgerBefore,
-		);
-		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({
-			valid: true,
-			account: { spendable: 5n, reserved: 0n, debt: 0n },
-		});
-	});
+			});
+			expect(await client.creditLedgerEntry.findMany({ where: { accountId: account.id } })).toEqual(
+				ledgerBefore,
+			);
+			expect(await getCreditInvariantReport(account.id, client)).toMatchObject({
+				valid: true,
+				account: { spendable: amount, reserved: 0n, debt: 0n },
+			});
+		},
+	);
 
 	it("rejects anonymous or absent identities without creating a credit account", async () => {
 		const ownerId = await user("anonymous", true);
