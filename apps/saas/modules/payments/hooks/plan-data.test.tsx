@@ -37,7 +37,7 @@ describe("SaaS plan data", () => {
 		renderToStaticMarkup(<Probe />);
 
 		expect(planData?.free?.features.slice(0, 5)).toEqual([
-			"Localized lifetime credits 10",
+			"Localized lifetime credits 8",
 			"Localized lifetime images 2 at 5",
 			"Localized no monthly refill",
 			"Localized size 10",

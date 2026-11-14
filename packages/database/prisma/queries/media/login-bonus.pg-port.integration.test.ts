@@ -39,7 +39,7 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 		expect(results.filter(({ status }) => status === "GRANTED")).toHaveLength(1);
 		expect(results.filter(({ status }) => status === "ALREADY_GRANTED")).toHaveLength(23);
 		expect(await account("registered")).toMatchObject({
-			spendableCredits: 10n,
+			spendableCredits: 8n,
 			reservedCredits: 0n,
 			creditDebt: 0n,
 		});
@@ -47,12 +47,12 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 			await fixture.rows(
 				`SELECT amount,"referenceKey" FROM ${fixture.table("credit_ledger_entry")}`,
 			),
-		).toEqual([{ amount: 10n, referenceKey: reference("registered") }]);
+		).toEqual([{ amount: 8n, referenceKey: reference("registered") }]);
 		expect(
 			await fixture.rows(
 				`SELECT "remainingAmount","expiresAt" FROM ${fixture.table("credit_lot")}`,
 			),
-		).toEqual([{ remainingAmount: 10n, expiresAt: null }]);
+		).toEqual([{ remainingAmount: 8n, expiresAt: null }]);
 	});
 
 	it("denies missing and anonymous principals while treating legacy non-anonymous null as an account", async () => {
@@ -64,13 +64,13 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 		await expect(claim("legacy")).resolves.toMatchObject({ status: "GRANTED" });
 		await user("other-account");
 		await expect(claim("other-account")).resolves.toMatchObject({ status: "GRANTED" });
-		expect(await account("legacy")).toMatchObject({ spendableCredits: 10n });
-		expect(await account("other-account")).toMatchObject({ spendableCredits: 10n });
+		expect(await account("legacy")).toMatchObject({ spendableCredits: 8n });
+		expect(await account("other-account")).toMatchObject({ spendableCredits: 8n });
 	});
 
 	it.each([
-		{ debt: 7n, remaining: 3n, repaid: 7n, outstanding: 0n },
-		{ debt: 15n, remaining: 0n, repaid: 10n, outstanding: 5n },
+		{ debt: 7n, remaining: 1n, repaid: 7n, outstanding: 0n },
+		{ debt: 15n, remaining: 0n, repaid: 8n, outstanding: 7n },
 	])(
 		"repays $debt debt through the existing ledger rule and consumes the lifetime identity once",
 		async ({ debt, remaining, repaid, outstanding }) => {
@@ -100,7 +100,7 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 		},
 	);
 
-	it("replays a historical five-credit receipt without topping it up to ten", async () => {
+	it("replays a historical five-credit receipt without changing the original grant", async () => {
 		await user("historical-five");
 		await fixture.rows(
 			`INSERT INTO ${fixture.table("credit_account")} (id,"ownerType","ownerId") VALUES ('historical-account','USER','historical-five')`,
@@ -140,7 +140,7 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 				{
 					accountId: String(current?.id),
 					jobId: "spent-gift",
-					amount: 10n,
+					amount: 8n,
 					referenceKey: "test:spent-gift:reserve",
 				},
 				tx,
@@ -148,7 +148,7 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 		);
 		await fixture.transaction((tx) =>
 			settleCreditsInTransaction(
-				{ reservationId: held.id, amount: 10n, referenceKey: "test:spent-gift:settle" },
+				{ reservationId: held.id, amount: 8n, referenceKey: "test:spent-gift:settle" },
 				tx,
 			),
 		);
@@ -196,7 +196,7 @@ describe("one-time login gift over a disposable PostgreSQL row port", () => {
 				`SELECT amount FROM ${fixture.table("credit_ledger_entry")} WHERE "referenceKey"=$1`,
 				[reference("returning")],
 			),
-		).toEqual([{ amount: 10n }]);
+		).toEqual([{ amount: 8n }]);
 		expect(
 			(
 				await fixture.rows(

@@ -28,7 +28,7 @@ export function usePlanData() {
 					: t("pricing.monthlyCredits", { credits: entitlement.monthlyCredits }),
 				entitlement.id === "free"
 					? t("pricing.welcomeImageAllowance", {
-							count: Math.floor(FREE_ACCOUNT_SIGN_IN_CREDITS / usage.minimumCreditsPerImage),
+							count: 2,
 							credits: usage.minimumCreditsPerImage,
 						})
 					: usage.minimumImageEdits === usage.maximumImageEdits
