@@ -238,6 +238,44 @@ function transactionClient(overrides: Record<string, unknown> = {}) {
 }
 
 describe("media upload transactions", () => {
+	it("persists stable browser evidence atomically while retaining each upload's independent ownership", async () => {
+		const { client, tx } = transactionClient();
+		await createMediaUploadSessionTransaction(
+			{
+				assetId: "guest-asset",
+				sessionId: "guest-session",
+				ownerType: "USER",
+				ownerId: "guest_upload_request_a",
+				kind: "INPUT",
+				objectKey: "private/guest.png",
+				stagingObjectKey: "private/staging.png",
+				mimeType: "image/png",
+				expectedBytes: 123n,
+				tokenHash: "token",
+				expiresAt: new Date("2026-11-16T00:00:00Z"),
+				multipartUploadId: null,
+				limits: { maximumActiveSessions: 3, maximumReservedBytes: 1000n },
+				guest: {
+					browserSubjectHash: "a".repeat(64),
+					capabilityVersion: "v1",
+					originHash: "origin",
+					expectedSha256: "b".repeat(64),
+					deleteAfter: new Date("2026-11-17T00:00:00Z"),
+				},
+			},
+			client as never,
+		);
+		expect(tx.auditLog.create).toHaveBeenCalledWith({
+			data: expect.objectContaining({
+				action: "MEDIA_UPLOAD_SESSION_CREATED",
+				after: expect.objectContaining({ assetId: "guest-asset" }),
+				metadata: { guestBrowserIdentityVersion: 1, browserSubjectHash: "a".repeat(64) },
+			}),
+		});
+		expect(tx.mediaAsset.create).toHaveBeenCalledWith({
+			data: expect.objectContaining({ ownerId: "guest_upload_request_a" }),
+		});
+	});
 	it("atomically creates the uploading asset, session, reservation, and audit row", async () => {
 		const { client, tx } = transactionClient();
 		await createMediaUploadSessionTransaction(

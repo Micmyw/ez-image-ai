@@ -19,6 +19,7 @@ import {
 const now = new Date("2026-10-19T12:00:00Z");
 const hash = "a".repeat(64);
 const limits = {
+	maximumTemporaryPrincipals: 100,
 	maximumRequestsPerMinute: 100,
 	maximumRequestsPerIpPerHour: 100,
 	maximumGlobalQueueDepth: 25,
@@ -120,6 +121,26 @@ describe.skipIf(!pgTestUrl)("PostgreSQL guest network boundary regression", () =
 describe("guest admission without a global daily request cap", () => {
 	beforeEach(() => vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", ""));
 	afterEach(() => vi.unstubAllEnvs());
+	it("uses the saved administrator capacity when the deployment default is full", async () => {
+		const fixture = boundaryFixture("bootstrap");
+		fixture.tx.user.count.mockResolvedValue(100);
+		fixture.tx.runtimeConfigOverride.findFirst.mockResolvedValue({ value: 200, version: 2 });
+		await expect(fixture.run()).resolves.toMatchObject({ outcome: "ACQUIRED" });
+	});
+	it("stops creating guest identities at a lowered administrator capacity", async () => {
+		const fixture = boundaryFixture("bootstrap");
+		fixture.tx.user.count.mockResolvedValue(20);
+		fixture.tx.runtimeConfigOverride.findFirst.mockResolvedValue({ value: 10, version: 2 });
+		await expect(fixture.run()).rejects.toThrow("GUEST_TEMPORARY_PRINCIPAL_CAP_EXCEEDED");
+		expect(fixture.tx.guestSessionBootstrap.updateMany).not.toHaveBeenCalled();
+	});
+	it("counts active identity creation leases against the saved capacity", async () => {
+		const fixture = boundaryFixture("bootstrap");
+		fixture.tx.user.count.mockResolvedValue(19);
+		fixture.tx.guestSessionBootstrap.count.mockResolvedValue(1);
+		fixture.tx.runtimeConfigOverride.findFirst.mockResolvedValue({ value: 20, version: 2 });
+		await expect(fixture.run()).rejects.toThrow("GUEST_TEMPORARY_PRINCIPAL_CAP_EXCEEDED");
+	});
 	it("does not reject an unused lifetime trial when 80 tasks are unfinished", async () => {
 		const fixture = boundaryFixture("generate");
 		fixture.tx.generationJob.count.mockResolvedValue(80);
@@ -257,6 +278,7 @@ function boundaryFixture(boundary: (typeof boundaries)[number], blockedScope = "
 		validUntil: expiresAt,
 	};
 	const tx = {
+		runtimeConfigOverride: { findFirst: vi.fn().mockResolvedValue(null) },
 		$executeRaw: vi.fn().mockResolvedValue(1),
 		$queryRaw: vi.fn(async (_sql: TemplateStringsArray, ...values: unknown[]) => {
 			const scope = values[0] as string;
@@ -277,8 +299,12 @@ function boundaryFixture(boundary: (typeof boundaries)[number], blockedScope = "
 			findUnique: vi.fn().mockResolvedValue(null),
 			count: vi.fn().mockRejectedValue(passedRateChecks),
 		},
-		user: { findUnique: vi.fn().mockResolvedValue({ isAnonymous: true }) },
+		user: {
+			findUnique: vi.fn().mockResolvedValue({ isAnonymous: true }),
+			count: vi.fn().mockResolvedValue(0),
+		},
 		guestSessionBootstrap: {
+			count: vi.fn().mockResolvedValue(0),
 			findFirst: vi.fn().mockResolvedValue(
 				boundary === "bootstrap"
 					? {

@@ -1,6 +1,8 @@
 import { call } from "@orpc/server";
 import type { Session } from "@repo/auth";
+import { dispatchJob } from "@repo/jobs/orchestration/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn().mockResolvedValue({}) }));
 
 const { cancelSubscription, getPaymentProvider, requestSubscriptionCancellation } = vi.hoisted(
 	() => ({
@@ -60,6 +62,7 @@ const authenticatedSession = {
 describe("cancelPurchaseSubscription", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		requestSubscriptionCancellation.mockResolvedValue({ subscriptionId: "subscription-db-1" });
 		vi.mocked(auth.api.getSession).mockResolvedValue(authenticatedSession);
 		vi.mocked(getPurchaseById).mockResolvedValue({
 			id: "purchase-paypal",
@@ -100,6 +103,11 @@ describe("cancelPurchaseSubscription", () => {
 			{},
 		);
 		expect(cancelSubscription).not.toHaveBeenCalled();
+		expect(dispatchJob).toHaveBeenCalledWith(
+			"media-confirm-subscription-cancellation",
+			{ subscriptionId: "subscription-db-1" },
+			expect.objectContaining({ idempotencyKey: "subscription-cancel:subscription-db-1" }),
+		);
 	});
 
 	it("fails closed when the provider does not implement cancellation", async () => {

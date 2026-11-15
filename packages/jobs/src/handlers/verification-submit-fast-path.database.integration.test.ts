@@ -7,12 +7,17 @@ import {
 	type ImagePhaseOwner,
 } from "@repo/database";
 import { runWithDatabaseClient } from "@repo/database/client";
-import { PrismaClient } from "@repo/database/generated-client";
+import { PrismaClient, type Prisma } from "@repo/database/generated-client";
+import {
+	recoverImageVerificationPersistence,
+	readImageVerificationQueryRecovery,
+} from "@repo/database/media-verification-persistence-recovery";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { parsePollingTickResult } from "../orchestration/contracts";
 import { executeTask } from "../orchestration/executor";
 import { verifyImageModerationCallbackUrl } from "../orchestration/image-moderation-callback-auth";
+import { parseEventDeliveryResult } from "../orchestration/registry";
 import {
 	createDatabaseVerifyUploadDependencies,
 	databaseVerifyUploadDependencies,
@@ -112,6 +117,7 @@ describe("verification submission fast path with real PostgreSQL", () => {
 		});
 		let onPost: ((callbackUrl: string | undefined) => Promise<void>) | undefined;
 		let getStatus: "processing" | "succeeded" = "processing";
+		let getFlagged = false;
 		const fetcher = vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
 			const post = init?.method === "POST";
 			if (post) {
@@ -130,7 +136,13 @@ describe("verification submission fast path with real PostgreSQL", () => {
 				error: null,
 				result:
 					status === "succeeded"
-						? { type: "json", data: { flagged: false, categories: { nsfw: [], special_care: [] } } }
+						? {
+								type: "json",
+								data: {
+									flagged: post ? false : getFlagged,
+									categories: { nsfw: getFlagged ? ["nudity"] : [], special_care: [] },
+								},
+							}
 						: null,
 			});
 		});
@@ -171,8 +183,9 @@ describe("verification submission fast path with real PostgreSQL", () => {
 			onPost: (callback: NonNullable<typeof onPost>) => {
 				onPost = callback;
 			},
-			completeOnGet: () => {
+			completeOnGet: (flagged = false) => {
 				getStatus = "succeeded";
+				getFlagged = flagged;
 			},
 		};
 	}
@@ -185,6 +198,254 @@ describe("verification submission fast path with real PostgreSQL", () => {
 		if (!owner) throw new Error("MISSING_FIXTURE_PHASE_OWNER");
 		return owner;
 	}
+
+	it.each([false, true])(
+		"recovers a rolled-back pending commit without overriding flagged=%s",
+		async (flagged) => {
+			const f = await inputContinuationFixture("processing");
+			const workflowId = `persistence-${f.assetId}`;
+			const originalTransaction = client.$transaction.bind(client);
+			let injected = false;
+			vi.spyOn(client, "$transaction").mockImplementation((async (
+				body: (tx: Prisma.TransactionClient) => Promise<unknown>,
+				options?: object,
+			) =>
+				originalTransaction(async (tx) => {
+					const createEvidence = tx.assetModerationResult.createMany.bind(tx.assetModerationResult);
+					tx.assetModerationResult.createMany = (async (
+						args: Parameters<typeof createEvidence>[0],
+					) => {
+						if (!injected && args && !Array.isArray(args.data) && args.data.status === "PENDING") {
+							injected = true;
+							// Real transaction rollback after the provider task binding committed.
+							throw Object.assign(new Error("fixture transaction expired"), { code: "P2028" });
+						}
+						return createEvidence(args);
+					}) as typeof tx.assetModerationResult.createMany;
+					return body(tx);
+				}, options)) as typeof client.$transaction);
+			f.onPost(async (callbackUrl) => {
+				const identity = verifyImageModerationCallbackUrl(callbackUrl!, callbackEnvironment)!;
+				expect(await wakeImageModerationWithOwner(identity, client)).toMatchObject({
+					status: "recorded",
+				});
+			});
+			const result = await f.deps.verify(f.assetId, { workflowId });
+			expect(injected).toBe(true);
+			expect(result).toMatchObject({ queryOnly: true, outboxCommitted: true });
+			expect(await f.read()).toMatchObject({
+				status: "VERIFYING",
+				verificationProviderTaskId: f.taskId,
+				verificationSubmissionUncertain: false,
+				verificationLeaseToken: null,
+			});
+			expect(await client.assetModerationResult.count({ where: { assetId: f.assetId } })).toBe(0);
+			f.completeOnGet(flagged);
+			// The production poller waits for the persisted due time across host/DB clocks.
+			const due = (await f.read()).verificationNextAttemptAt!;
+			await new Promise((resolve) =>
+				setTimeout(resolve, Math.max(0, due.getTime() - Date.now()) + 100),
+			);
+			await f.deps.verify(f.assetId, {
+				workflowId,
+				queryOnly: true,
+				phaseOwner: result.phaseOwner,
+			});
+			await f.deps.verify(f.assetId, {
+				workflowId,
+				queryOnly: true,
+				phaseOwner: result.phaseOwner,
+			});
+			expect((await f.read()).status).toBe(flagged ? "QUARANTINED" : "READY");
+			expect(
+				await client.outboxEvent.count({
+					where: { eventType: "GENERATION_DISPATCH", aggregateId: f.job.id },
+				}),
+			).toBe(flagged ? 0 : 1);
+			expect(f.submit).toHaveBeenCalledOnce();
+			expect(f.retrieve).toHaveBeenCalledOnce();
+			expect(f.retrieve.mock.calls[0]![0].moderationTaskId).toBe(f.taskId);
+		},
+	);
+
+	it("recovers a held fused receipt read-only and retains all query and deadline fences", async () => {
+		const f = await fixture();
+		const workflowId = `held-${f.assetId}`;
+		await f.dependencies().verify(f.assetId, { workflowId });
+		const event = await client.outboxEvent.findUniqueOrThrow({
+			where: { dedupeKey: `media-asset-verify:${f.assetId}:g1:poll` },
+		});
+		const workerId = `workflow:${workflowId}:event:${event.id}`;
+		const prepared = await prepareWorkflowOutboxDelivery({ eventId: event.id, workerId }, client);
+		await client.outboxEvent.update({
+			where: { id: event.id },
+			data: { lastError: "RECOVERY_REQUIRED" },
+		});
+		const input = { eventId: event.id, workflowId };
+		expect(await readImageVerificationQueryRecovery(input, client)).toMatchObject({
+			assetId: f.assetId,
+			leaseToken: prepared.event!.leaseToken,
+		});
+		const result = await runWithDatabaseClient(client, () =>
+			executeTask(
+				{ taskId: "media-execute-event", payload: { eventId: event.id, recoverOnly: true } },
+				{ runId: workflowId, workflowId, attempt: 1, maxAttempts: 1 },
+			),
+		);
+		expect(result).toMatchObject({
+			preparedEvent: {
+				taskId: "media-verify-upload",
+				payload: { queryOnly: true },
+				outboxReceipt: { eventId: event.id },
+			},
+		});
+		expect(await client.outboxEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "LEASED",
+			lastError: "RECOVERY_REQUIRED",
+		});
+		for (const override of [
+			{ verificationSubmissionUncertain: true },
+			{ status: "QUARANTINED" as const },
+			{ verificationDeadlineAt: new Date(0) },
+			{ deleteAfter: new Date(0) },
+			{
+				verificationLeaseToken: crypto.randomUUID(),
+				verificationLeasedUntil: new Date(Date.now() + 60_000),
+			},
+		]) {
+			const original = await f.read();
+			await client.mediaAsset.update({ where: { id: f.assetId }, data: override });
+			expect(await readImageVerificationQueryRecovery(input, client)).toBeUndefined();
+			await client.mediaAsset.update({
+				where: { id: f.assetId },
+				data: {
+					verificationSubmissionUncertain: original.verificationSubmissionUncertain,
+					status: original.status,
+					verificationDeadlineAt: original.verificationDeadlineAt,
+					deleteAfter: original.deleteAfter,
+					verificationLeaseToken: original.verificationLeaseToken,
+					verificationLeasedUntil: original.verificationLeasedUntil,
+				},
+			});
+		}
+		expect(
+			await readImageVerificationQueryRecovery({ ...input, workflowId: "other" }, client),
+		).toBeUndefined();
+		await client.outboxEvent.update({
+			where: { id: event.id },
+			data: { lastError: `EXECUTION_IN_PROGRESS:${crypto.randomUUID()}` },
+		});
+		expect(await readImageVerificationQueryRecovery(input, client)).toBeUndefined();
+		expect(f.submit).toHaveBeenCalledOnce();
+		expect(f.retrieve).not.toHaveBeenCalled();
+		await client.outboxEvent.update({
+			where: { id: event.id },
+			data: { lastError: "RECOVERY_REQUIRED" },
+		});
+		const pendingAsset = await f.read();
+		await wakeImageModerationWithOwner(
+			{
+				assetId: f.assetId,
+				generation: 1,
+				submissionToken: pendingAsset.verificationSubmissionToken!,
+			},
+			client,
+		);
+		const due = (await f.read()).verificationNextAttemptAt!;
+		await new Promise((resolve) =>
+			setTimeout(resolve, Math.max(0, due.getTime() - Date.now()) + 20),
+		);
+		f.completeOnGet();
+		vi.spyOn(databaseVerifyUploadDependencies, "verify").mockImplementation(
+			f.dependencies().verify,
+		);
+		const query = parseEventDeliveryResult(
+			{ taskId: "media-execute-event", payload: { eventId: event.id, recoverOnly: true } },
+			result,
+		).preparedEvent!;
+		const context = { runId: workflowId, workflowId, attempt: 1, maxAttempts: 1 };
+		await expect(
+			runWithDatabaseClient(client, () => executeTask(query, context)),
+		).resolves.toMatchObject({ done: true, deliveryState: "completed" });
+		await runWithDatabaseClient(client, () => executeTask(query, context));
+		expect((await f.read()).status).toBe("READY");
+		expect(f.submit).toHaveBeenCalledOnce();
+		expect(f.retrieve).toHaveBeenCalledOnce();
+		expect(await client.outboxEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "PROCESSED",
+		});
+	});
+
+	it("bounds persistence recovery and refuses stale claim, task, epoch, expiry and uncertainty", async () => {
+		const f = await fixture();
+		const workflowId = `fences-${f.assetId}`;
+		await f.dependencies().verify(f.assetId, { workflowId });
+		const asset = await f.read();
+		const leaseToken = crypto.randomUUID();
+		const phaseOwner = await currentOwner(f.assetId);
+		const input = {
+			assetId: f.assetId,
+			generation: 1,
+			leaseToken,
+			providerTaskId: f.taskId,
+			ruleVersion: asset.verificationRuleVersion!,
+			policyVersion: asset.verificationPolicyVersion!,
+			objectKey: asset.objectKey,
+			checksum: asset.checksum,
+			phaseOwner,
+		};
+		await client.mediaAsset.update({
+			where: { id: f.assetId },
+			data: {
+				verificationLeaseToken: leaseToken,
+				verificationLeasedUntil: new Date(Date.now() + 60_000),
+			},
+		});
+		for (const override of [
+			{ leaseToken: "stale" },
+			{ providerTaskId: "other" },
+			{ checksum: "b".repeat(64) },
+			{ phaseOwner: { ...phaseOwner, epoch: 2 } },
+			{ generation: 2 },
+		])
+			expect(await recoverImageVerificationPersistence({ ...input, ...override }, client)).toBe(
+				false,
+			);
+		for (const override of [
+			{ verificationSubmissionUncertain: true },
+			{ verificationDeadlineAt: new Date(0) },
+			{ deleteAfter: new Date(0) },
+			{ status: "QUARANTINED" as const },
+		]) {
+			await client.mediaAsset.update({ where: { id: f.assetId }, data: override });
+			expect(await recoverImageVerificationPersistence(input, client)).toBe(false);
+			await client.mediaAsset.update({
+				where: { id: f.assetId },
+				data: {
+					verificationSubmissionUncertain: false,
+					verificationDeadlineAt: asset.verificationDeadlineAt,
+					deleteAfter: asset.deleteAfter,
+					status: "VERIFYING",
+				},
+			});
+		}
+		for (let attempt = 0; attempt < 4; attempt++) {
+			await client.mediaAsset.update({
+				where: { id: f.assetId },
+				data: {
+					verificationLeaseToken: leaseToken,
+					verificationLeasedUntil: new Date(Date.now() + 60_000),
+				},
+			});
+			expect(await recoverImageVerificationPersistence(input, client)).toBe(attempt < 3);
+			expect(await recoverImageVerificationPersistence(input, client)).toBe(false);
+		}
+		expect(
+			await client.assetModerationResult.count({
+				where: { assetId: f.assetId, status: "APPROVED" },
+			}),
+		).toBe(0);
+	});
 
 	it("prepares 2.0 input before submission and queries the same task without preparing again", async () => {
 		const f = await fixture({ callback: false });
@@ -235,8 +496,8 @@ describe("verification submission fast path with real PostgreSQL", () => {
 		expect((await f.read()).verificationSubmissionUncertain).toBe(true);
 	});
 
-	async function inputContinuationFixture() {
-		const f = await fixture({ kind: "INPUT", status: "succeeded" });
+	async function inputContinuationFixture(status: "succeeded" | "processing" = "succeeded") {
+		const f = await fixture({ kind: "INPUT", status });
 		const asset = await f.read();
 		const identity = {
 			ownerType: "USER" as const,

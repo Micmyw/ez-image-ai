@@ -5,6 +5,7 @@ import {
 	createMediaUploadSessionTransaction,
 	type CreateMediaUploadSessionTransactionInput,
 } from "./assets";
+import { resolveGuestPrincipalCapacity } from "./guest-capacity";
 import type { MediaTransactionClient } from "./types";
 import { isDatabaseUniqueConflict } from "./types";
 
@@ -297,6 +298,7 @@ export async function createGuestMediaUploadIntentTransaction(
 			multipartUploadId: input.multipartUploadId,
 			limits: input.limits,
 			guest: {
+				browserSubjectHash: input.browserSubjectHash,
 				capabilityVersion: input.capabilityVersion,
 				originHash: input.originHash,
 				expectedSha256: input.expectedSha256,
@@ -731,6 +733,10 @@ async function enforceGuestBootstrapCaps(
 ): Promise<void> {
 	if (input.limits.maximumTemporaryPrincipals !== undefined) {
 		await lockGuestBootstrapGlobalCap(tx);
+		const capacity = await resolveGuestPrincipalCapacity(
+			input.limits.maximumTemporaryPrincipals,
+			tx,
+		);
 		const [anonymousPrincipals, activePrincipalLeases] = await Promise.all([
 			tx.user.count({ where: { isAnonymous: true } }),
 			tx.guestSessionBootstrap.count({
@@ -741,7 +747,7 @@ async function enforceGuestBootstrapCaps(
 				},
 			}),
 		]);
-		if (anonymousPrincipals + activePrincipalLeases >= input.limits.maximumTemporaryPrincipals) {
+		if (anonymousPrincipals + activePrincipalLeases >= capacity.maximumTemporaryPrincipals) {
 			throw new Error("GUEST_TEMPORARY_PRINCIPAL_CAP_EXCEEDED");
 		}
 	}

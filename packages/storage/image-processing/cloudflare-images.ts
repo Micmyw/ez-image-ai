@@ -36,7 +36,8 @@ export function createCloudflareImagesProcessor(binding: CloudflareImagesBinding
 	return {
 		key: "cloudflare-images",
 		async moderationJpeg(source, options) {
-			const geometry = { width: 1568, height: 1568, fit: "pad" as const, background: "#ffffff" };
+			const side = options.targetSide ?? 1568;
+			const geometry = { width: side, height: side, fit: "pad" as const, background: "#ffffff" };
 			// The binding accepts 20 MB. Remote transformations accept the existing
 			// 25 MiB media limit, using a signed URL for the same immutable object.
 			if ((options.contentLength ?? 0) > CLOUDFLARE_IMAGES_MAX_INPUT_BYTES) {

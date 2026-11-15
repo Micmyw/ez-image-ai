@@ -1,5 +1,7 @@
 import { call } from "@orpc/server";
+import { dispatchJob } from "@repo/jobs/orchestration/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn().mockResolvedValue({}) }));
 
 vi.mock("@repo/auth", () => ({
 	auth: { api: { getSession: vi.fn() } },
@@ -123,6 +125,14 @@ describe("completeGuestLinkIntent", () => {
 				},
 			),
 		).resolves.toEqual({ mode: "DRAFT", draftId: "draft-1", returnPath: "/create", preparation });
+		expect(dispatchJob).toHaveBeenCalledWith(
+			"media-copy-account-input",
+			{ promotionId: "copy-1" },
+			expect.objectContaining({ idempotencyKey: "account-input-copy:copy-1" }),
+		);
+		expect(vi.mocked(completeGuestLinkIntentTransaction).mock.invocationCallOrder[0]).toBeLessThan(
+			vi.mocked(dispatchJob).mock.invocationCallOrder[0]!,
+		);
 	});
 	it.each(["/blog/1980s-ai-photo", "/effects/1980s-ai-photo"])(
 		"scopes a claimed preset draft from %s to its canonical registered article",

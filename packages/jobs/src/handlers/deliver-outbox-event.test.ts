@@ -6,6 +6,24 @@ import { deliverOutboxEvent } from "./deliver-outbox-event";
 import { dispatchOutbox } from "./dispatch-outbox";
 
 describe("outbox delivery routes", () => {
+	it("preserves query-only recovery intent when scheduled delivery resumes a review", async () => {
+		const trigger = vi.fn();
+		await deliverOutboxEvent(
+			{
+				id: "recovery",
+				eventType: "MEDIA_ASSET_VERIFY",
+				aggregateId: "asset",
+				payload: { assetId: "asset", queryOnly: true },
+				leaseToken: "lease",
+				attempts: 1,
+			},
+			{ trigger, resolveDispatchRoute: vi.fn() },
+		);
+		expect(trigger).toHaveBeenCalledWith("media-verify-upload", {
+			assetId: "asset",
+			queryOnly: true,
+		});
+	});
 	it("returns callback normalization directly to the durable parent before ACK", async () => {
 		const trigger = vi.fn();
 		const triggerAndWait = vi.fn(async () => undefined);

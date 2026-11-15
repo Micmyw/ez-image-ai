@@ -299,6 +299,44 @@ describe("Workers executor routing", () => {
 			await transfer;
 		}
 	});
+	it("runs guest admission and payment processing while cleanup holds its only slot", async () => {
+		let finish!: () => void;
+		mocks.execute.mockImplementation(async (task: TaskRequest) => {
+			if (task.taskId === "media-deliver-cleanup-outbox")
+				await new Promise<void>((resolve) => {
+					finish = resolve;
+				});
+			return { continuation: { eventIds: [] } };
+		});
+		const worker = runtime();
+		const cleanup = worker.send("jobs-cleanup", {
+			taskId: "media-deliver-cleanup-outbox",
+			payload: {},
+		});
+		await vi.waitFor(() => expect(finish).toBeTypeOf("function"));
+		try {
+			await expect(
+				worker.run({
+					taskId: "media-admit-guest-generation",
+					payload: { jobId: "guest", trialId: "trial" },
+				}),
+			).resolves.toEqual({ completed: true });
+			await expect(
+				worker.run({
+					taskId: "media-process-payment-event",
+					payload: { paymentEventId: "payment" },
+				}),
+			).resolves.toEqual({ completed: true });
+			expect(worker.routed).toEqual([
+				"jobs-cleanup",
+				"jobs-control-request",
+				"jobs-control-request",
+			]);
+		} finally {
+			finish();
+			await cleanup;
+		}
+	});
 
 	it("retains the legacy four-slot receiver while heavy and maintenance stay bounded", async () => {
 		const finishes: Array<() => void> = [];
@@ -349,6 +387,12 @@ describe("Workers executor routing", () => {
 		expect((await worker.send("jobs-transfer-request", maintenance)).status).toBe(400);
 		expect((await worker.send("jobs-control", heavy)).status).toBe(400);
 		expect((await worker.send("jobs-maintenance", light)).status).toBe(400);
+		for (const task of [
+			{ taskId: "media-admit-guest-generation", payload: { jobId: "guest", trialId: "trial" } },
+			{ taskId: "media-cancel-generation", payload: { jobId: "job", version: 0 } },
+			{ taskId: "media-delete-object", payload: { assetId: "asset", objectKey: "key" } },
+		])
+			expect((await worker.send("jobs-maintenance", task)).status).toBe(400);
 		expect(mocks.execute).not.toHaveBeenCalled();
 		expect(mocks.disconnect).not.toHaveBeenCalled();
 	});

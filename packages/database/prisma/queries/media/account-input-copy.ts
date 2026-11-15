@@ -67,6 +67,22 @@ export interface AccountInputCopyClaim {
 	target: Intent["target"];
 	multipartUploadId?: string;
 }
+
+/** Resume only the review created for this immutable copy, including a lost commit response. */
+export async function getAccountInputCopyReviewEventIds(
+	promotionId: string,
+	client: MediaTransactionClient,
+): Promise<string[]> {
+	const row = await readIntent(promotionId, client);
+	if (!row || row.intent.phase !== "VERIFYING") return [];
+	return (
+		await client.$queryRaw<Array<{ id: string }>>`
+		SELECT "id" FROM "outbox_event" WHERE "aggregateType"='MEDIA_ASSET'
+		AND "aggregateId"=${row.intent.target.assetId}
+		AND "eventType" IN ('MEDIA_ASSET_VERIFY','MEDIA_ASSET_MODERATION_REQUESTED')
+		AND "status" IN ('PENDING','LEASED') ORDER BY "availableAt","id" LIMIT 100`
+	).map(({ id }) => id);
+}
 export function parseAccountInputCopyIntent(value: unknown): Intent {
 	const result = intentSchema.safeParse(value);
 	if (

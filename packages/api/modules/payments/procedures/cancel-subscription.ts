@@ -5,6 +5,7 @@ import { logger } from "@repo/logs";
 import { getPaymentProvider, requestSubscriptionCancellation } from "@repo/payments";
 import { z } from "zod";
 
+import { dispatchCommittedTask } from "../../../lib/dispatch-committed-task";
 import { protectedProcedure } from "../../../orpc/procedures";
 
 export const cancelPurchaseSubscription = protectedProcedure
@@ -16,7 +17,7 @@ export const cancelPurchaseSubscription = protectedProcedure
 	})
 	.input(z.object({ purchaseId: z.string().min(1) }).strict())
 	.output(z.object({ status: z.literal("CANCEL_REQUESTED") }))
-	.handler(async ({ input, context: { user } }) => {
+	.handler(async ({ input, context: { user, defer } }) => {
 		const purchase = await getPurchaseById(input.purchaseId);
 		if (!purchase?.subscriptionId) throw new ORPCError("NOT_FOUND");
 		await assertPurchaseOwner(purchase, user.id);
@@ -27,7 +28,7 @@ export const cancelPurchaseSubscription = protectedProcedure
 		}
 		try {
 			if (purchase.provider === "paypal" || purchase.provider === "waffo") {
-				await requestSubscriptionCancellation(
+				const cancellation = await requestSubscriptionCancellation(
 					{
 						purchaseId: purchase.id,
 						ownerType: purchase.organizationId ? "ORGANIZATION" : "USER",
@@ -35,6 +36,13 @@ export const cancelPurchaseSubscription = protectedProcedure
 					},
 					db,
 				);
+				if (cancellation)
+					await dispatchCommittedTask(
+						"media-confirm-subscription-cancellation",
+						cancellation,
+						`subscription-cancel:${cancellation.subscriptionId}`,
+						defer,
+					);
 			} else {
 				await provider.cancelSubscription(purchase.subscriptionId);
 			}

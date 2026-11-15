@@ -1,7 +1,9 @@
 import { call } from "@orpc/server";
 import type { Session } from "@repo/auth";
 import { recordCheckoutDiagnostic } from "@repo/database";
+import { dispatchJob } from "@repo/jobs/orchestration/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn().mockResolvedValue({}) }));
 
 const {
 	captureCheckout,
@@ -154,7 +156,7 @@ describe("capturePayPalCreditPackCheckout", () => {
 		expect(captureCheckout).not.toHaveBeenCalled();
 	});
 
-	it("captures the owner-scoped order with a stable bounded key and only ingests its event", async () => {
+	it("captures with a stable key and wakes the persisted event without waiting for a scan", async () => {
 		await expect(
 			call(
 				capturePayPalCreditPackCheckout,
@@ -164,6 +166,14 @@ describe("capturePayPalCreditPackCheckout", () => {
 		).resolves.toEqual({ accepted: true, replayed: false });
 
 		const firstKey = captureCheckout.mock.calls[0]?.[0]?.idempotencyKey as string;
+		expect(dispatchJob).toHaveBeenCalledWith(
+			"media-process-payment-event",
+			{ paymentEventId: "payment-event-1" },
+			expect.objectContaining({ idempotencyKey: "payment-event:payment-event-1" }),
+		);
+		expect(ingestPaymentEvent.mock.invocationCallOrder[0]).toBeLessThan(
+			vi.mocked(dispatchJob).mock.invocationCallOrder[0]!,
+		);
 		expect(firstKey).toMatch(/^cp-[a-f0-9]{35}$/);
 		expect(Buffer.byteLength(firstKey)).toBeLessThanOrEqual(38);
 		await call(

@@ -1,7 +1,14 @@
 import { Readable } from "node:stream";
 
 import { PrismaPg } from "@prisma/adapter-pg";
-import { TestMediaSafetyAdapter, SeeapiSafetyAdapter } from "@repo/ai";
+import {
+	TestMediaSafetyAdapter,
+	SeeapiSafetyAdapter,
+	MEDIA_VERIFICATION_RULE_VERSION,
+	MEDIA_VERIFICATION_POLICY_VERSION,
+	type ModerationDecision,
+	type ModerationSubmission,
+} from "@repo/ai";
 import {
 	createCreditGrant,
 	reserveCredits,
@@ -15,13 +22,19 @@ import {
 	completeWorkflowOutboxExecution,
 	deferWorkflowOutboxExecution,
 	failWorkflowOutboxExecution,
+	getOwnedMediaAssetReadState,
+	getGuestJobSnapshot,
 } from "@repo/database";
+import { runWithDatabaseClient } from "@repo/database/client";
 import { PrismaClient } from "@repo/database/generated-client";
 import { runWithImageProcessor } from "@repo/storage/image-processing/context";
 import { createSharpImageProcessor } from "@repo/storage/image-processing/sharp";
 import { runWithRequestDefer } from "@repo/utils/request-lifecycle";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { parseTaskContinuation } from "../orchestration/contracts";
+import { executeTask } from "../orchestration/executor";
+import { executePollingTick } from "../orchestration/polling";
 import {
 	createFinalizationDependencies,
 	createDatabaseVerifyUploadDependencies,
@@ -29,14 +42,16 @@ import {
 	createDatabaseSettlementStore,
 } from "../runtime";
 import { archiveProviderOriginal } from "./archive-provider-original";
+import { deliverCompletedProviderOriginal } from "./deliver-completed-original";
 import { finalizeMedia } from "./finalize-media";
 import { settleGeneration } from "./settle-generation";
 import { executeTargetedEvent, prepareTargetedEvent } from "./targeted-event-delivery";
 
-const mocks = vi.hoisted(() => ({ write: vi.fn() }));
+const mocks = vi.hoisted(() => ({ write: vi.fn(), open: vi.fn() }));
 vi.mock("@repo/storage", async () => ({
 	...(await vi.importActual<typeof import("@repo/storage")>("@repo/storage")),
 	tryWriteImmutableGenerationImage: mocks.write,
+	openInspectedRemoteMedia: mocks.open,
 }));
 
 let db: PrismaClient;
@@ -47,8 +62,106 @@ beforeAll(() => {
 	db = new PrismaClient({ adapter: new PrismaPg({ connectionString: url.toString(), max: 4 }) });
 });
 afterAll(async () => db?.$disconnect());
+afterEach(() => {
+	vi.unstubAllEnvs();
+	vi.restoreAllMocks();
+});
 
-async function fixture(dispatchOverride?: (eventId: string) => Promise<void>, guest = false) {
+const verificationBoundary = () => ({
+	provider: "test",
+	ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+	policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+	now: new Date(),
+});
+
+const twoFrameGif = () =>
+	Buffer.concat([
+		Buffer.from("GIF89a"),
+		Buffer.from([1, 0, 1, 0, 0x80, 0, 0, 255, 0, 0, 0, 0, 255]),
+		...Array.from({ length: 2 }, (_, color) =>
+			Buffer.from([
+				0x21,
+				0xf9,
+				4,
+				4,
+				20,
+				0,
+				0,
+				0,
+				0x2c,
+				0,
+				0,
+				0,
+				0,
+				1,
+				0,
+				1,
+				0,
+				0,
+				2,
+				2,
+				4 + (color << 3) + 64,
+				1,
+				0,
+			]),
+		),
+		Buffer.from([0x3b]),
+	]);
+
+function continuousReview(
+	assetId: string,
+	retrieveDecision: ModerationDecision["decision"] = "ALLOW",
+	wait = vi.fn(async (_milliseconds: number) => {}),
+) {
+	const taskId = `continuous-${assetId}`;
+	const retrieve = vi.fn(
+		async (input: { ruleVersion: string }): Promise<ModerationDecision> => ({
+			decision: retrieveDecision,
+			reasonCode:
+				retrieveDecision === "REVIEW"
+					? "IMAGE_PROCESSING"
+					: retrieveDecision === "REJECT"
+						? "CONTENT_REJECTED"
+						: "NO_POLICY_MATCH",
+			ruleVersion: input.ruleVersion,
+		}),
+	);
+	const submit = vi.fn(
+		async (input: {
+			idempotencyKey: string;
+			ruleVersion: string;
+		}): Promise<ModerationSubmission> => ({
+			moderationTaskId: taskId,
+			ruleVersion: input.ruleVersion,
+			status: "RUNNING" as const,
+			nonterminalState: "processing" as const,
+			idempotency: { key: input.idempotencyKey, providerSupported: true, replayed: false },
+		}),
+	);
+	const prepare = vi.fn(async () => ({
+		assetUrl: "data:image/jpeg;base64,AA==",
+		bytes: 32,
+		checksum: "a".repeat(64),
+	}));
+	const review = createDatabaseVerifyUploadDependencies(db, {
+		moderationProvider: "seeapi",
+		safety: Object.assign(new TestMediaSafetyAdapter("ERROR"), {
+			submitImage: submit,
+			retrieveImage: retrieve,
+		}),
+		continuousOutputReview: { wait },
+		prepareProviderImageModeration: prepare,
+		environment: {
+			...process.env,
+			NEXT_PUBLIC_SAAS_URL: "https://app.test",
+			WORKFLOWS_DISPATCH_SECRET: "fixture-only-secret-at-least-32-characters",
+			SEEAPI_WEBHOOK_SIGNING_KEYS: JSON.stringify({ whkey_test: `whsec_${"k".repeat(20)}` }),
+		},
+	});
+	return { review, retrieve, submit, prepare, wait, taskId };
+}
+
+async function seedOriginal(guest = false) {
 	const ownerId = `origin-${crypto.randomUUID()}`;
 	const common = {
 		ownerId,
@@ -142,6 +255,11 @@ async function fixture(dispatchOverride?: (eventId: string) => Promise<void>, gu
 	await db.generationAttemptTransferEnvelope.create({
 		data: { attemptId: attempt.id, payload: { version: 1, outputs: [output] } },
 	});
+	return { ownerId, job, attempt, output };
+}
+
+async function fixture(dispatchOverride?: (eventId: string) => Promise<void>, guest = false) {
+	const { job, ownerId, output } = await seedOriginal(guest);
 	const write = vi.fn(async () => {
 		throw new Error("R2 must not gate finalization");
 	});
@@ -213,6 +331,406 @@ function archiveDelivery() {
 }
 
 describe("approved provider originals independent of archival", () => {
+	it.each(["svg", "gif"] as const)(
+		"keeps an invalid %s original private before any detector submission",
+		async (format) => {
+			const f = await seedOriginal();
+			await db.generationJob.update({
+				where: { id: f.job.id },
+				data: {
+					productKey: "image-gpt-image-2-6-flare",
+					inputSnapshot: {
+						skuKey: "gpt-image-2-6-flare-1k",
+						aspectRatio: "1:1",
+						outputFormat: format,
+						...(format === "gif" ? { frameCount: 3, frameDurationMs: 200 } : {}),
+					},
+				},
+			});
+			const bytes =
+				format === "gif"
+					? twoFrameGif()
+					: Buffer.from(
+							'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><script>alert(1)</script></svg>',
+						);
+			const safety = new TestMediaSafetyAdapter("ALLOW");
+			const submitted = vi.spyOn(safety, "moderateImage");
+			const write = vi.fn(async () => {
+				throw new Error("R2 must not gate review");
+			});
+			const dependencies = createFinalizationDependencies(
+				{ ...process.env, MEDIA_PROVIDER_ORIGINAL_DELIVERY_ENABLED: "true" },
+				{
+					database: db,
+					safety,
+					directOriginalReview: true,
+					dispatchArchive: async () => {},
+					storage: {
+						openInspectedRemoteMedia: async () => ({
+							contentType: format === "gif" ? "image/gif" : "image/svg+xml",
+							headers: { "content-length": String(bytes.length) },
+							status: 200,
+							url: new URL(f.output.url),
+							stream: Readable.from([bytes]),
+						}),
+						tryWriteImmutableGenerationImage: write,
+					},
+				},
+			);
+			await finalizeMedia({ jobId: f.job.id, version: f.job.version }, dependencies);
+			const asset = await db.mediaAsset.findFirstOrThrow({
+				where: { ownerId: f.ownerId, kind: "OUTPUT" },
+			});
+			expect(asset.status).not.toBe("READY");
+			expect(asset.verificationLastErrorCode).toBe(
+				format === "gif" ? "OUTPUT_MEDIA_TYPE_MISMATCH" : "OUTPUT_MEDIA_TYPE_UNSUPPORTED",
+			);
+			expect(submitted).not.toHaveBeenCalled();
+			expect(write).not.toHaveBeenCalled();
+			expect(
+				await db.assetModerationResult.count({ where: { assetId: asset.id, status: "APPROVED" } }),
+			).toBe(0);
+		},
+	);
+	it.each([
+		[false, "image-nano-banana-2-lite", "png"],
+		[true, "image-nano-banana-2-lite", "png"],
+		[false, "image-gpt-image-2-6-flare", "png"],
+		[false, "image-gpt-image-2-6-flare", "svg"],
+		[false, "image-gpt-image-2-6-flare", "gif"],
+	] as const)(
+		"delivers the completed model output to READY in the same poll without an R2 write (guest=%s, product=%s, format=%s)",
+		async (guest, productKey, format) => {
+			const f = await seedOriginal(guest);
+			if (productKey === "image-gpt-image-2-6-flare")
+				await db.generationJob.update({
+					where: { id: f.job.id },
+					data: {
+						productKey,
+						inputSnapshot: {
+							skuKey: "gpt-image-2-6-flare-1k",
+							aspectRatio: "1:1",
+							outputFormat: format,
+							...(format === "gif" ? { frameCount: 2, frameDurationMs: 200 } : {}),
+						},
+					},
+				});
+			await db.outboxEvent.create({
+				data: {
+					aggregateType: "GENERATION_JOB",
+					aggregateId: f.job.id,
+					eventType: "GENERATION_FINALIZE",
+					dedupeKey: `generation-finalize:${f.job.id}:${f.attempt.id}`,
+					payload: { jobId: f.job.id, version: 0 },
+				},
+			});
+			const bytes =
+				format === "svg"
+					? Buffer.from(
+							'<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200"><rect width="400" height="200" fill="red"/></svg>',
+						)
+					: format === "gif"
+						? twoFrameGif()
+						: Buffer.from(
+								"iVBORw0KGgoAAAANSUhEUgAAAKAAAACgCAMAAAC8EZcfAAAAA1BMVEUAAP+KeNJXAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAL0lEQVR42u3BAQ0AAADCoPdPbQ8HFAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPBqZKAAAbE2mIIAAAAASUVORK5CYII=",
+								"base64",
+							);
+			mocks.open.mockReset().mockImplementation(async () => ({
+				contentType: format === "svg" ? "image/svg+xml" : `image/${format}`,
+				headers: { "content-length": String(bytes.length) },
+				status: 200,
+				url: new URL(f.output.url),
+				stream: Readable.from([bytes]),
+			}));
+			mocks.write.mockClear();
+			vi.stubEnv("MEDIA_PROVIDER_ORIGINAL_DELIVERY_ENABLED", "true");
+			// Exercise the deployed processor predicate with local deterministic bytes;
+			// the real Cloudflare Images service is not invoked by this database test.
+			const deliver = () =>
+				runWithDatabaseClient(db, () =>
+					runWithImageProcessor(
+						{ ...createSharpImageProcessor(), key: guest ? "cloudflare-images" : "sharp" },
+						() =>
+							executePollingTick({ attemptId: f.attempt.id }, undefined, {
+								workflowId: `workflow-${f.job.id}`,
+							}),
+					),
+				);
+			const delivered = await deliver();
+			expect(delivered).toMatchObject({ done: true });
+			expect(mocks.open).toHaveBeenCalledOnce();
+			expect(mocks.write).not.toHaveBeenCalled();
+			const asset = await db.mediaAsset.findFirstOrThrow({
+				where: { ownerId: f.ownerId, kind: "OUTPUT" },
+			});
+			expect(asset).toMatchObject({ status: "READY", verificationAttemptCount: 1 });
+			expect(await db.mediaOutputOrigin.findUnique({ where: { assetId: asset.id } })).toMatchObject(
+				{ archiveState: "PENDING" },
+			);
+			expect(await db.creditReservation.findUnique({ where: { jobId: f.job.id } })).toMatchObject({
+				status: "ACTIVE",
+			});
+			if (guest)
+				expect(
+					await getGuestJobSnapshot(
+						{
+							jobId: f.job.id,
+							ownerId: f.ownerId,
+							now: new Date(),
+							verification: verificationBoundary(),
+						},
+						db,
+					),
+				).toMatchObject({ stage: "READY", resultAssetId: asset.id });
+			else
+				expect(
+					await getOwnedMediaAssetReadState(
+						{ assetId: asset.id, ownerId: f.ownerId, verification: verificationBoundary() },
+						db,
+					),
+				).toMatchObject({ readable: true });
+			await deliver();
+			expect(mocks.open).toHaveBeenCalledOnce();
+			expect(await db.mediaAsset.count({ where: { ownerId: f.ownerId, kind: "OUTPUT" } })).toBe(1);
+			// Drain the returned exact receipts, including the original review intent.
+			// No scanner or newly dispatched Workflow is used by this test.
+			const events = [...delivered.continuation!.eventIds];
+			const seen = new Set<string>();
+			while (events.length) {
+				const eventId = events.shift()!;
+				if (seen.has(eventId)) continue;
+				seen.add(eventId);
+				expect(seen.size).toBeLessThan(10);
+				const task = await prepareTargetedEvent(
+					{ eventId, workerId: `test:${f.job.id}` },
+					{
+						prepare: (input) => prepareWorkflowOutboxEvent(input, db),
+						resolve: async () => null,
+						complete: (input) => completeWorkflowOutboxExecution(input, db),
+					},
+				);
+				if (!task) continue;
+				const result = (await runWithDatabaseClient(db, () =>
+					executeTask(task, {
+						attempt: 1,
+						maxAttempts: 3,
+						runId: `workflow-${f.job.id}`,
+						workflowId: `workflow-${f.job.id}`,
+					}),
+				)) as { continuation?: unknown };
+				events.push(...(parseTaskContinuation(result.continuation)?.eventIds ?? []));
+			}
+			expect(
+				await db.outboxEvent.count({
+					where: {
+						aggregateId: { in: [f.job.id, asset.id] },
+						eventType: {
+							in: [
+								"GENERATION_FINALIZE",
+								"GENERATION_FINALIZE_RETRY",
+								"GENERATION_SETTLE",
+								"MEDIA_ASSET_VERIFY",
+							],
+						},
+						status: { in: ["PENDING", "LEASED"] },
+					},
+				}),
+			).toBe(0);
+			expect(mocks.open).toHaveBeenCalledOnce();
+			const settlement = { store: createDatabaseSettlementStore(db) };
+			await settleGeneration({ jobId: f.job.id, version: 0 }, settlement);
+			await settleGeneration({ jobId: f.job.id, version: 0 }, settlement);
+			expect(await db.creditReservation.findUnique({ where: { jobId: f.job.id } })).toMatchObject({
+				settledAmount: 5n,
+			});
+		},
+	);
+
+	it("finishes a short accepted SeeAPI review under one lease without writing a PENDING verdict", async () => {
+		const f = await fixture();
+		const { review, submit, retrieve, wait, taskId } = continuousReview(f.asset.id);
+		await review.verify(f.asset.id);
+		expect(submit).toHaveBeenCalledOnce();
+		expect(retrieve).toHaveBeenCalledOnce();
+		expect(wait).toHaveBeenCalledWith(1000);
+		expect(await db.mediaAsset.findUnique({ where: { id: f.asset.id } })).toMatchObject({
+			status: "READY",
+			verificationAttemptCount: 1,
+			verificationProviderTaskId: taskId,
+		});
+		expect(
+			(
+				await db.assetModerationResult.findMany({
+					where: { assetId: f.asset.id },
+					select: { status: true },
+				})
+			).map((row) => row.status),
+		).toEqual(["APPROVED"]);
+		// The approval transaction only queues finalization; it does not prepare settlement.
+		expect(
+			await db.outboxEvent.findUnique({ where: { dedupeKey: `generation-settle:${f.job.id}` } }),
+		).toBeNull();
+		expect(
+			await db.outboxEvent.findFirst({
+				where: { aggregateId: f.job.id, eventType: "GENERATION_FINALIZE_RETRY", status: "PENDING" },
+			}),
+		).not.toBeNull();
+	});
+
+	it("honors the two-second acceptance hint, then queries at one second without a further hint", async () => {
+		const f = await fixture();
+		const c = continuousReview(f.asset.id);
+		const submit = c.submit.getMockImplementation()!;
+		c.submit.mockImplementation(async (input) => ({
+			...(await submit(input)),
+			retryAfterMs: 2_000,
+		}));
+		c.retrieve.mockResolvedValueOnce({
+			decision: "REVIEW",
+			reasonCode: "IMAGE_PROCESSING",
+			ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+		});
+		await c.review.verify(f.asset.id);
+		expect(c.wait.mock.calls.map(([delay]) => delay)).toEqual([2_000, 1_000]);
+		expect(c.submit).toHaveBeenCalledOnce();
+		expect(c.retrieve).toHaveBeenCalledTimes(2);
+		expect(await db.mediaAsset.findUnique({ where: { id: f.asset.id } })).toMatchObject({
+			status: "READY",
+		});
+	});
+	it("persists a provider delay beyond the short-review budget without querying early", async () => {
+		const f = await fixture();
+		const c = continuousReview(f.asset.id);
+		const submit = c.submit.getMockImplementation()!;
+		c.submit.mockImplementation(async (input) => ({
+			...(await submit(input)),
+			retryAfterMs: 30_000,
+		}));
+		const before = Date.now();
+		await c.review.verify(f.asset.id);
+		expect(c.wait).not.toHaveBeenCalled();
+		expect(c.retrieve).not.toHaveBeenCalled();
+		expect(c.submit).toHaveBeenCalledOnce();
+		const asset = await db.mediaAsset.findUniqueOrThrow({ where: { id: f.asset.id } });
+		expect(asset).toMatchObject({
+			status: "VERIFYING",
+			verificationProviderTaskId: c.taskId,
+			verificationLeaseToken: null,
+		});
+		expect(asset.verificationNextAttemptAt!.getTime()).toBeGreaterThanOrEqual(before + 30_000);
+	});
+	it("returns to durable polling when a delayed timer exhausts the fifteen-second budget", async () => {
+		const f = await fixture();
+		const realNow = Date.now.bind(Date);
+		let elapsed = 0;
+		const clock = vi.spyOn(Date, "now").mockImplementation(() => realNow() + elapsed);
+		try {
+			const c = continuousReview(
+				f.asset.id,
+				"ALLOW",
+				vi.fn(async () => {
+					elapsed = 16_000;
+				}),
+			);
+			await c.review.verify(f.asset.id);
+			expect(c.retrieve).not.toHaveBeenCalled();
+			expect(c.submit).toHaveBeenCalledOnce();
+			expect(await db.mediaAsset.findUnique({ where: { id: f.asset.id } })).toMatchObject({
+				status: "VERIFYING",
+				verificationProviderTaskId: c.taskId,
+				verificationLeaseToken: null,
+			});
+		} finally {
+			clock.mockRestore();
+		}
+	});
+	it("returns a slow review to durable polling and never resubmits its accepted task", async () => {
+		const f = await fixture();
+		const c = continuousReview(f.asset.id, "REVIEW");
+		await c.review.verify(f.asset.id);
+		expect(c.submit).toHaveBeenCalledOnce();
+		expect(c.retrieve).toHaveBeenCalledTimes(15);
+		expect(await db.mediaAsset.findUnique({ where: { id: f.asset.id } })).toMatchObject({
+			status: "VERIFYING",
+			verificationProviderTaskId: c.taskId,
+			verificationLeaseToken: null,
+		});
+		c.retrieve.mockImplementationOnce(async ({ ruleVersion }) => ({
+			decision: "ALLOW",
+			reasonCode: "NO_POLICY_MATCH",
+			ruleVersion,
+		}));
+		await db.mediaAsset.update({
+			where: { id: f.asset.id },
+			data: { verificationNextAttemptAt: new Date(0) },
+		});
+		await c.review.verify(f.asset.id, { queryOnly: true });
+		expect(c.submit).toHaveBeenCalledOnce();
+		expect(c.prepare).toHaveBeenCalledOnce();
+		expect(await db.mediaAsset.findUnique({ where: { id: f.asset.id } })).toMatchObject({
+			status: "READY",
+		});
+	});
+
+	it("stops short polling when the verification lease is lost, retaining the task for query-only recovery", async () => {
+		const f = await fixture();
+		const wait = vi.fn(async () => {
+			await db.mediaAsset.update({
+				where: { id: f.asset.id },
+				data: { verificationLeasedUntil: new Date(0) },
+			});
+		});
+		const c = continuousReview(f.asset.id, "ALLOW", wait);
+		expect(await c.review.verify(f.asset.id, { workflowId: `review-${f.job.id}` })).toMatchObject({
+			phaseOwnershipLost: true,
+		});
+		expect(c.submit).toHaveBeenCalledOnce();
+		expect(c.retrieve).not.toHaveBeenCalled();
+		expect(await db.mediaAsset.findUnique({ where: { id: f.asset.id } })).toMatchObject({
+			status: "VERIFYING",
+			verificationProviderTaskId: c.taskId,
+		});
+	});
+
+	it("keeps a rejected continuous review private", async () => {
+		const f = await fixture();
+		const c = continuousReview(f.asset.id, "REJECT");
+		await c.review.verify(f.asset.id);
+		expect(c.retrieve).toHaveBeenCalledOnce();
+		expect(await db.mediaAsset.findUnique({ where: { id: f.asset.id } })).toMatchObject({
+			status: "QUARANTINED",
+		});
+		expect(
+			await getOwnedMediaAssetReadState(
+				{
+					assetId: f.asset.id,
+					ownerId: f.job.ownerId,
+					verification: { ...verificationBoundary(), provider: "seeapi" },
+				},
+				db,
+			),
+		).toMatchObject({ readable: false });
+	});
+
+	it("does not switch to storage transfer after an unknown original-source failure", async () => {
+		const f = await seedOriginal();
+		mocks.open.mockReset().mockRejectedValue(new Error("unknown source transport failure"));
+		mocks.write.mockClear();
+		const continuation = await deliverCompletedProviderOriginal(
+			f.attempt.id,
+			db,
+			{ workflowId: `workflow-${f.job.id}` },
+			{ ...process.env, MEDIA_PROVIDER_ORIGINAL_DELIVERY_ENABLED: "true" },
+		);
+		expect(continuation).not.toBeNull();
+		expect(mocks.open).toHaveBeenCalledOnce();
+		expect(mocks.write).not.toHaveBeenCalled();
+		expect(await db.mediaAsset.count({ where: { ownerId: f.ownerId, kind: "OUTPUT" } })).toBe(0);
+		expect(await db.creditReservation.findUnique({ where: { jobId: f.job.id } })).toMatchObject({
+			status: "ACTIVE",
+		});
+	});
+
 	it("submits SeeAPI before archival and retrieves the same accepted task without preparing or submitting twice", async () => {
 		const f = await fixture();
 		const taskId = `review_${f.asset.id}`;

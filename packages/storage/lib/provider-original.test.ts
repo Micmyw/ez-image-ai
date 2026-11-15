@@ -35,6 +35,48 @@ async function fixture() {
 	return bytes;
 }
 describe("provider original identity and review preparation", () => {
+	it.each([false, true])(
+		"reuses the inspected stream for review (guest watermark=%s) without a second fetch",
+		async (watermark) => {
+			const body = await fixture();
+			const source = {
+				contentType: "image/png" as const,
+				stream: Readable.from([body]),
+				headers: { "content-length": String(body.length) },
+				url: new URL(input.url),
+				status: 200,
+			};
+			mocks.open.mockClear();
+			const prepared = await runWithImageProcessor(createSharpImageProcessor(), () =>
+				prepareProviderImageModeration({ ...input, source, watermark }),
+			);
+			expect(mocks.open).not.toHaveBeenCalled();
+			expect(source.stream.destroyed).toBe(true);
+			expect(
+				await sharp(Buffer.from(prepared.assetUrl.split(",")[1]!, "base64")).metadata(),
+			).toMatchObject({ format: "jpeg", width: 280, height: 280 });
+			const served = await readProviderOriginalBytes({ ...input, ...prepared, watermark });
+			expect(createHash("sha256").update(served).digest("hex")).toBe(prepared.checksum);
+			expect(Buffer.from(served).equals(body)).toBe(!watermark);
+		},
+	);
+	it("still rejects an incomplete reused stream before preparing an approved image", async () => {
+		const body = await fixture();
+		mocks.open.mockClear();
+		await expect(
+			prepareProviderImageModeration({
+				...input,
+				source: {
+					contentType: "image/png",
+					headers: { "content-length": String(body.length + 1) },
+					stream: Readable.from([body]),
+					url: new URL(input.url),
+					status: 200,
+				},
+			}),
+		).rejects.toThrow();
+		expect(mocks.open).not.toHaveBeenCalled();
+	});
 	it("can re-review a matching archived original after the provider URL expires", async () => {
 		const body = await fixture();
 		const checksum = createHash("sha256").update(body).digest("hex");
@@ -61,8 +103,8 @@ describe("provider original identity and review preparation", () => {
 		expect(prepared.bytes).toBe(body.length);
 		const jpeg = Buffer.from(prepared.assetUrl.split(",")[1]!, "base64");
 		expect(await sharp(jpeg).metadata()).toMatchObject({
-			width: 1568,
-			height: 1568,
+			width: 280,
+			height: 280,
 			format: "jpeg",
 		});
 		expect(Buffer.from(await readProviderOriginalBytes({ ...input, ...prepared }))).toEqual(body);

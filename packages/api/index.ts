@@ -32,6 +32,7 @@ import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
 import type { StatusCode } from "hono/utils/http-status";
 
+import { dispatchCommittedTask } from "./lib/dispatch-committed-task";
 import { createAdminAgentRoutes } from "./modules/admin-agent/http";
 import { serveMediaJobEvents } from "./modules/media/job-events";
 import { trustedGuestClientIdentity } from "./modules/media/lib/draft-client-identity";
@@ -215,7 +216,15 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 				return auth.handler(c.req.raw);
 			})
 			// Payments webhook handler
-			.post("/webhooks/payments", (c) => paymentsWebhookHandler(c.req.raw))
+			.post("/webhooks/payments", (c) =>
+				paymentsWebhookHandler(c.req.raw, (paymentEventId) =>
+					dispatchCommittedTask(
+						"media-process-payment-event",
+						{ paymentEventId },
+						`payment-event:${paymentEventId}`,
+					),
+				),
+			)
 			.post("/webhooks/video/kie/:attemptToken", (c) =>
 				createVideoProviderWebhookHandler({ binding: getVideoWorkflowBinding() })(c.req.raw),
 			)

@@ -395,6 +395,22 @@
 				"jobs": "任务数"
 			}
 		},
+		"guestCapacity": {
+			"title": "游客身份名额",
+			"description": "设置网站可保留的游客临时身份总数。达到容量后暂停创建新的游客身份。",
+			"limit": "总容量",
+			"used": "已占用",
+			"remaining": "剩余名额",
+			"leases": "已占用中包含正在创建的 {count} 个身份。",
+			"sourceAdmin": "使用后台设置",
+			"sourceEnvironment": "使用部署默认值",
+			"reason": "修改原因",
+			"reasonHint": "请填写至少 10 个字符。",
+			"save": "保存容量",
+			"saved": "容量已保存。",
+			"saveError": "尚未确认保存结果，请使用相同的值重试。",
+			"belowUsage": "占用数低于新的容量后，可继续创建游客身份。"
+		},
 		"guest": {
 			"title": "匿名标准试用运行情况",
 			"description": "仅展示访客运行汇总，不包含原始网络、设备、令牌、提示词、媒体或服务商路由数据。",
@@ -917,6 +933,64 @@
 			"terminalSources": {
 				"AUTHENTICATED_RETRIEVAL": "已认证的供应商终态查询",
 				"STORED_DIAGNOSTIC": "没有已认证的终态证据"
+			}
+		},
+		"customers": {
+			"title": "用户内容",
+			"description": "按用户集中查看上传图片、生成结果、已保存提示词和失败记录。",
+			"searchLabel": "查找用户",
+			"searchPlaceholder": "邮箱、姓名、用户、图片或任务 ID",
+			"audience": "用户类型",
+			"all": "全部",
+			"search": "查找",
+			"refresh": "刷新",
+			"loading": "正在加载用户内容…",
+			"loadError": "加载失败，请刷新重试。",
+			"staleError": "刷新失败，当前显示的内容可能不是最新的。",
+			"customer": "用户",
+			"uploads": "上传图片",
+			"outputs": "生成结果",
+			"jobs": "生成任务",
+			"blocked": "被拒请求",
+			"issues": "异常记录",
+			"lastActivity": "最近活动",
+			"open": "查看全部内容",
+			"empty": "没有找到匹配的用户。",
+			"newest": "最新记录",
+			"older": "更早记录",
+			"back": "返回用户列表",
+			"history": "全部已保存历史，按时间倒序排列；可筛选内容类型或只看异常。",
+			"kind": "内容类型",
+			"issuesOnly": "只看失败或被拦截记录",
+			"timeline": "用户内容记录",
+			"time": "时间",
+			"model": "模型",
+			"status": "状态",
+			"inspect": "查看",
+			"inspectImage": "查看图片与审核",
+			"inspectPrompt": "查看提示词与任务",
+			"noContent": "没有符合筛选条件的内容。",
+			"audiences": {
+				"ACCOUNT": "注册用户 / 组织",
+				"GUEST": "游客",
+				"UNKNOWN": "未关联 / 未知"
+			},
+			"kinds": {
+				"INPUT": "上传图片",
+				"OUTPUT": "生成图片",
+				"JOB": "生成任务",
+				"BLOCKED_REQUEST": "被拒绝的提示词"
+			},
+			"guestBrowser": "游客浏览器 · {id}",
+			"unlinkedUpload": "未关联上传 · {id}",
+			"guestSession": "游客会话 · {id}",
+			"browserIdentityNote": "已根据签名浏览器标识归组，包含该浏览器下不同上传和游客会话。此标识代表浏览器，不等于一个自然人；清除 Cookie 或更换浏览器后可能无法关联。",
+			"missingBrowserIdentityNote": "这些历史记录缺少可恢复的浏览器关联；当前按已有会话或上传记录展示，不将其认定为独立访客。",
+			"identityTypes": {
+				"USER": "账号 / 会话",
+				"ORGANIZATION": "组织",
+				"GUEST_BROWSER": "同一浏览器",
+				"UNKNOWN": "身份未知"
 			}
 		}
 	}

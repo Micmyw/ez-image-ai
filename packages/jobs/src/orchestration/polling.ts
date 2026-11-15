@@ -132,7 +132,14 @@ async function databasePollingDependencies(
 	const registry = runtime.createReconciliationProviderRegistry(process.env);
 	return {
 		store: runtime.createDatabaseReconciliationStore(db, phaseContext),
-		continuation: (attemptId) => getAttemptGenerationContinuation(attemptId, db),
+		continuation: async (attemptId) => {
+			const { deliverCompletedProviderOriginal } =
+				await import("../handlers/deliver-completed-original");
+			return (
+				(await deliverCompletedProviderOriginal(attemptId, db, phaseContext)) ??
+				getAttemptGenerationContinuation(attemptId, db)
+			);
+		},
 		getProvider: (provider) => runtime.getAnyRegisteredProvider(registry, provider),
 	};
 }

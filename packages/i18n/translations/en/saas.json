@@ -106,6 +106,22 @@
 					"jobs": "Jobs"
 				}
 			},
+			"guestCapacity": {
+				"title": "Guest identity capacity",
+				"description": "Set how many temporary guest identities the site can retain. New guest sign-ins pause when this capacity is reached.",
+				"limit": "Total capacity",
+				"used": "Occupied",
+				"remaining": "Available",
+				"leases": "Includes {count} identities being created.",
+				"sourceAdmin": "Using administrator setting",
+				"sourceEnvironment": "Using deployment default",
+				"reason": "Reason for change",
+				"reasonHint": "Enter at least 10 characters.",
+				"save": "Save capacity",
+				"saved": "Capacity saved.",
+				"saveError": "Could not confirm the change. Retry with the same values.",
+				"belowUsage": "New guest identities can be created after occupancy falls below the new capacity."
+			},
 			"guest": {
 				"title": "Anonymous Standard trial operations",
 				"description": "Aggregate guest health only. Raw network, device, token, prompt, media, and route payloads are excluded.",
@@ -628,6 +644,64 @@
 				"terminalSources": {
 					"AUTHENTICATED_RETRIEVAL": "Authenticated provider retrieval",
 					"STORED_DIAGNOSTIC": "No authenticated terminal evidence"
+				}
+			},
+			"customers": {
+				"title": "Customer content",
+				"description": "Find a customer to review their uploads, generated images, saved prompts and failed requests together.",
+				"searchLabel": "Find a customer",
+				"searchPlaceholder": "Email, name, customer, image or task ID",
+				"audience": "User type",
+				"all": "All",
+				"search": "Search",
+				"refresh": "Refresh",
+				"loading": "Loading customer content…",
+				"loadError": "Could not load content. Try refreshing.",
+				"staleError": "Refresh failed. The displayed content may be out of date.",
+				"customer": "Customer",
+				"uploads": "Uploads",
+				"outputs": "Results",
+				"jobs": "Tasks",
+				"blocked": "Rejected requests",
+				"issues": "Issues",
+				"lastActivity": "Last activity",
+				"open": "View all content",
+				"empty": "No matching customers.",
+				"newest": "Newest",
+				"older": "Older",
+				"back": "Back to customers",
+				"history": "All saved history, newest first. Filter by content type or show only issues.",
+				"kind": "Content type",
+				"issuesOnly": "Only failed or blocked records",
+				"timeline": "Customer activity",
+				"time": "Time",
+				"model": "Model",
+				"status": "Status",
+				"inspect": "View",
+				"inspectImage": "View image and review",
+				"inspectPrompt": "View prompt and task",
+				"noContent": "No content matches these filters.",
+				"audiences": {
+					"ACCOUNT": "Registered / organization",
+					"GUEST": "Guest",
+					"UNKNOWN": "Unlinked / unknown"
+				},
+				"kinds": {
+					"INPUT": "Uploaded image",
+					"OUTPUT": "Generated image",
+					"JOB": "Generation task",
+					"BLOCKED_REQUEST": "Rejected prompt"
+				},
+				"guestBrowser": "Guest browser · {id}",
+				"unlinkedUpload": "Unlinked upload · {id}",
+				"guestSession": "Guest session · {id}",
+				"browserIdentityNote": "Grouped by the signed browser identity across uploads and guest sessions. This identifies a browser, not a person; clearing cookies or changing browsers may break the association.",
+				"missingBrowserIdentityNote": "These historical records have no recoverable browser association. Sessions or uploads shown separately do not establish distinct visitors.",
+				"identityTypes": {
+					"USER": "Account / session",
+					"ORGANIZATION": "Organization",
+					"GUEST_BROWSER": "Same browser",
+					"UNKNOWN": "Unknown identity"
 				}
 			}
 		},

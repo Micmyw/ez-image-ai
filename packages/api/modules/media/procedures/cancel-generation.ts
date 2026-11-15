@@ -2,14 +2,15 @@ import { ORPCError } from "@orpc/server";
 import { providerSupportsCancellation } from "@repo/ai";
 import { db } from "@repo/database/client";
 
+import { dispatchCommittedTask } from "../../../lib/dispatch-committed-task";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { jobIdInputSchema } from "../types";
 
 export const cancelGeneration = protectedProcedure
 	.route({ method: "POST", path: "/media/jobs/{jobId}/cancel", tags: ["Media"] })
 	.input(jobIdInputSchema)
-	.handler(async ({ context: { user }, input }) => {
-		return db.$transaction(async (tx) => {
+	.handler(async ({ context: { user, defer }, input }) => {
+		const result = await db.$transaction(async (tx) => {
 			const job = await tx.generationJob.findFirst({
 				where: { id: input.jobId, executionEngine: "legacy", ownerType: "USER", ownerId: user.id },
 				select: {
@@ -118,6 +119,23 @@ export const cancelGeneration = protectedProcedure
 				},
 				update: {},
 			});
-			return { id: canceledJob.id, status: canceledJob.status };
+			return {
+				id: canceledJob.id,
+				status: canceledJob.status,
+				wake: {
+					taskId: canCancelBeforeProviderSubmission
+						? "media-settle-generation"
+						: "media-cancel-generation",
+					payload: { jobId: canceledJob.id, version: canceledJob.version },
+				},
+			};
 		});
+		if ("wake" in result && result.wake)
+			await dispatchCommittedTask(
+				result.wake.taskId,
+				result.wake.payload,
+				`generation-cancel:${result.id}:${result.wake.payload.version}`,
+				defer,
+			);
+		return { id: result.id, status: result.status };
 	});

@@ -6,6 +6,7 @@ import {
 	adminContentCleanupExecute,
 	adminContentCleanupRecent,
 } from "./procedures/admin-content-cleanup";
+import { adminContentCustomers, adminCustomerContent } from "./procedures/admin-customer-content";
 import {
 	adminGrowthOperations,
 	adminMediaDiagnostics,
@@ -14,6 +15,7 @@ import {
 	adminGuestDiagnostics,
 	listUncertainGenerationAttempts,
 } from "./procedures/admin-diagnostics";
+import { adminGuestCapacity, setGuestPrincipalCapacity } from "./procedures/admin-guest-capacity";
 import {
 	replayMediaEvent,
 	requeueMediaVerification,
@@ -68,6 +70,8 @@ import { submitGuestGeneration } from "./procedures/submit-guest-generation";
 export { guestMediaProcedure } from "./guest-procedure";
 
 export const mediaRouter = {
+	adminContentCustomers,
+	adminCustomerContent,
 	adminImageContentList,
 	adminImageContentDetail,
 	adminPromptContentList,
@@ -118,6 +122,8 @@ export const mediaRouter = {
 	adminMediaTotals,
 	adminGuestDiagnostics,
 	adminGrowthOperations,
+	adminGuestCapacity,
+	setGuestPrincipalCapacity,
 	listUncertainGenerationAttempts,
 	listMediaAuditLog,
 	replayMediaEvent,

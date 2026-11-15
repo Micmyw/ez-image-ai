@@ -26,11 +26,11 @@ const task = (status = "succeeded", flagged = false) => ({
 			: null,
 	error: null,
 });
-function fixture(body: unknown, status = 200) {
+function fixture(body: unknown, status = 200, headers?: HeadersInit) {
 	const fetcher = vi.fn<typeof fetch>(async (_url, request) => {
 		// Match Workers: redirect="error" fails before a request can be sent.
 		if (request?.redirect === "error") throw new TypeError("Invalid redirect value");
-		return Response.json(body, { status });
+		return Response.json(body, { status, headers });
 	});
 	return {
 		fetcher,
@@ -38,6 +38,43 @@ function fixture(body: unknown, status = 200) {
 	};
 }
 describe("SeeAPI image moderation", () => {
+	it("keeps the documented two-second initial delay, then allows one-second queries without a GET hint", async () => {
+		const submitted = await fixture(task("processing"), 202).adapter.submitImage(input);
+		expect(submitted.retryAfterMs).toBe(2_000);
+		const queried = await fixture(task("processing")).adapter.retrieveImage({
+			...input,
+			moderationTaskId: "task_test",
+		});
+		expect(queried.retryAfterMs).toBeUndefined();
+	});
+	it.each([202, 200, 429])(
+		"preserves Retry-After from HTTP %s without submitting another inference",
+		async (status) => {
+			const { adapter, fetcher } = fixture(task("processing"), status, { "Retry-After": "7" });
+			const result =
+				status === 202
+					? await adapter.submitImage(input)
+					: await adapter.retrieveImage({ ...input, moderationTaskId: "task_test" });
+			expect(result.retryAfterMs).toBe(7_000);
+			expect(fetcher).toHaveBeenCalledOnce();
+		},
+	);
+	it("honors an HTTP-date delay and ignores malformed delay headers", async () => {
+		const now = Date.parse("2026-11-15T12:00:00Z");
+		const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+		try {
+			const future = await fixture(task("processing"), 200, {
+				"Retry-After": new Date(now + 3_000).toUTCString(),
+			}).adapter.retrieveImage({ ...input, moderationTaskId: "task_test" });
+			expect(future.retryAfterMs).toBe(3_000);
+			const invalid = await fixture(task("processing"), 202, {
+				"Retry-After": "-1",
+			}).adapter.submitImage(input);
+			expect(invalid.retryAfterMs).toBe(2_000);
+		} finally {
+			clock.mockRestore();
+		}
+	});
 	it("retrieves an existing 1.0 task and preserves its recorded model", async () => {
 		const { adapter, fetcher } = fixture({ ...task(), model: "nsfw-filter" });
 		expect(await adapter.retrieveImage({ ...input, moderationTaskId: "task_test" })).toMatchObject({

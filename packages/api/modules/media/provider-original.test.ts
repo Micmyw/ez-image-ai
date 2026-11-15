@@ -78,6 +78,32 @@ beforeEach(() => {
 	mocks.remote.mockResolvedValue(new Uint8Array([1, 2, 3]));
 });
 describe("provider original access", () => {
+	it.each(["svg", "gif"] as const)(
+		"serves an approved %s original before archival",
+		async (format) => {
+			const originalKey = key.replace(".png", `.${format}`);
+			const mimeType = format === "svg" ? "image/svg+xml" : "image/gif";
+			mocks.asset.mockResolvedValue({ ...asset(), mimeType, objectKey: originalKey });
+			const response = await serveProviderOriginal(
+				new Request(
+					createProviderOriginalReadUrl({
+						key: originalKey,
+						responseContentDisposition: `attachment; filename="asset.${format}"`,
+					}),
+				),
+			);
+			expect(response.status).toBe(200);
+			expect(response.headers.get("content-type")).toBe(mimeType);
+			expect(response.headers.get("content-disposition")).toBe(
+				`attachment; filename="asset.${format}"`,
+			);
+			if (format === "svg")
+				expect(response.headers.get("content-security-policy")).toContain("sandbox");
+			expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([1, 2, 3]);
+			expect(mocks.remote).toHaveBeenCalledWith(expect.objectContaining({ mimeType }));
+			expect(mocks.stored).not.toHaveBeenCalled();
+		},
+	);
 	it("serves the full approved original and attachment before archive without exposing its provider URL", async () => {
 		const response = await serveProviderOriginal(request('attachment; filename="asset.png"'));
 		expect(response.status).toBe(200);

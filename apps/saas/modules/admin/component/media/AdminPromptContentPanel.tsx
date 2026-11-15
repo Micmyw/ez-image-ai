@@ -240,7 +240,7 @@ export function AdminPromptContentPanel() {
 	);
 }
 
-function PromptDetailDialog({ selected, close }: { selected: Selected; close: () => void }) {
+export function PromptDetailDialog({ selected, close }: { selected: Selected; close: () => void }) {
 	const t = useTranslations("admin.media.prompts");
 	const detail = useQuery({
 		...orpc.media.adminPromptContentDetail.queryOptions({ input: selected }),

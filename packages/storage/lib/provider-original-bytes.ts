@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { config } from "../config";
 import { getImageProcessor } from "../image-processing/context";
 import type { ImageContentType } from "../image-processing/types";
-import { openInspectedRemoteMedia } from "./stream-copy";
+import { openInspectedRemoteMedia, type OpenedRemoteMedia } from "./stream-copy";
 
 /** No clean guest original is written to storage. The deterministic derivative is the asset. */
 export async function readProviderCandidateBytes(input: {
@@ -11,15 +11,18 @@ export async function readProviderCandidateBytes(input: {
 	mimeType: string;
 	allowedHosts: string[];
 	watermark?: boolean;
+	source?: OpenedRemoteMedia;
 }) {
-	const source = await openInspectedRemoteMedia(input.url, {
-		allowedHosts: input.allowedHosts,
-		expectedKind: "image",
-		maxRedirects: config.media.remoteMaxRedirects,
-		connectTimeoutMs: config.media.remoteConnectTimeoutMs,
-		firstByteTimeoutMs: config.media.remoteFirstByteTimeoutMs,
-		totalTimeoutMs: 60_000,
-	});
+	const source =
+		input.source ??
+		(await openInspectedRemoteMedia(input.url, {
+			allowedHosts: input.allowedHosts,
+			expectedKind: "image",
+			maxRedirects: config.media.remoteMaxRedirects,
+			connectTimeoutMs: config.media.remoteConnectTimeoutMs,
+			firstByteTimeoutMs: config.media.remoteFirstByteTimeoutMs,
+			totalTimeoutMs: 60_000,
+		}));
 	try {
 		if (source.contentType !== input.mimeType) throw new Error("ORIGINAL_IDENTITY_CHANGED");
 		const chunks: Uint8Array[] = [];

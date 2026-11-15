@@ -58,6 +58,19 @@ function bindingDouble(
 }
 
 describe("Cloudflare Images processor", () => {
+	it("uses the locally selected smaller geometry without a separate Images info request", async () => {
+		const fake = bindingDouble();
+		const info = vi.spyOn(fake.binding, "info");
+		const output = await createCloudflareImagesProcessor(fake.binding).moderationJpeg!(stream(), {
+			contentLength: 3,
+			targetSide: 512,
+		});
+		await new Response(output).arrayBuffer();
+		expect(fake.transforms).toEqual([
+			{ width: 512, height: 512, fit: "pad", background: "#ffffff" },
+		]);
+		expect(info).not.toHaveBeenCalled();
+	});
 	it("prepares a padded static JPEG for SeeAPI 2.0", async () => {
 		const fake = bindingDouble();
 		const output = await createCloudflareImagesProcessor(fake.binding).moderationJpeg!(stream(), {

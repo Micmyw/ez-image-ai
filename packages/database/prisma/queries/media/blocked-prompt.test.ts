@@ -7,6 +7,40 @@ import { recordBlockedPromptAttempt } from "./blocked-prompt";
 import type { MediaTransactionClient } from "./types";
 
 describe("blocked text prompt persistence", () => {
+	it("stores only validated server-observed guest browser identity", async () => {
+		const create = vi.fn();
+		const client = {
+			$transaction: async (work: (tx: unknown) => Promise<unknown>) =>
+				work({ auditLog: { create } }),
+		} as unknown as MediaTransactionClient;
+		for (const audience of ["GUEST", "ACCOUNT"] as const) {
+			await recordBlockedPromptAttempt(
+				{
+					decision: "REJECT",
+					provider: "seeapi",
+					ruleVersion: "v1",
+					reasonCode: "BLOCKED",
+					inputFingerprint: "fingerprint",
+				},
+				{
+					userId: "owner",
+					audience,
+					browserSubjectHash: "a".repeat(64),
+					prompt: "prompt",
+					productKey: "model",
+					sourceAssetId: "asset",
+				},
+				client,
+			);
+			const metadata = create.mock.calls.at(-1)?.[0].data.metadata;
+			if (audience === "GUEST")
+				expect(metadata).toMatchObject({
+					guestBrowserIdentityVersion: 1,
+					browserSubjectHash: "a".repeat(64),
+				});
+			else expect(metadata).not.toHaveProperty("browserSubjectHash");
+		}
+	});
 	it.each([undefined, "GUEST", "ACCOUNT"] as const)(
 		"records original text and actor with audience %s in the same transaction as the moderation outcome",
 		async (audience) => {

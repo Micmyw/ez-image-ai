@@ -1,6 +1,10 @@
 import { readProviderDiagnostic } from "@repo/config/provider-diagnostics";
 
 import type { Prisma } from "../../generated/client";
+import {
+	assertGuestPrincipalCapacity,
+	GUEST_PRINCIPAL_CAPACITY_CONFIG_KEY,
+} from "./guest-capacity";
 import type { MediaTransactionClient } from "./types";
 
 export type PersistedEventKind = "PAYMENT" | "PROVIDER";
@@ -176,7 +180,7 @@ async function findOperationReplay(
 		});
 }
 
-function fingerprint(value: Record<string, string | boolean>): string {
+function fingerprint(value: Record<string, string | boolean | number>): string {
 	return JSON.stringify(
 		Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))),
 	);
@@ -893,6 +897,9 @@ export async function rollbackAdminMediaRuntimeOverride(
 		const override = await tx.runtimeConfigOverride.findUnique({ where: { id: input.overrideId } });
 		if (!override) throw new Error("OVERRIDE_NOT_FOUND");
 		if (!override.active) throw new Error("OVERRIDE_ALREADY_INACTIVE");
+		if (override.configKey === GUEST_PRINCIPAL_CAPACITY_CONFIG_KEY) {
+			await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('guest-bootstrap-cap:global', 0))`;
+		}
 		const changed = await tx.runtimeConfigOverride.updateMany({
 			where: { id: override.id, active: true },
 			data: {
@@ -911,6 +918,79 @@ export async function rollbackAdminMediaRuntimeOverride(
 				targetId: operationAuditId(input.idempotencyKey),
 				after: result,
 				metadata: { reason: input.reason, operationKind: "ROLLBACK_OVERRIDE", requestFingerprint },
+			},
+		});
+		return { ...result, replayed: false };
+	});
+}
+
+export async function setAdminGuestPrincipalCapacity(
+	input: {
+		maximumTemporaryPrincipals: number;
+		actorUserId: string;
+		idempotencyKey: string;
+		reason: string;
+	},
+	client: MediaTransactionClient,
+) {
+	assertGuestPrincipalCapacity(input.maximumTemporaryPrincipals);
+	return client.$transaction(async (tx) => {
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`admin-media:${input.idempotencyKey}`}, 0))`;
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('guest-bootstrap-cap:global', 0))`;
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('runtime_config_override_version'))`;
+		const requestFingerprint = fingerprint({
+			maximumTemporaryPrincipals: input.maximumTemporaryPrincipals,
+			actorUserId: input.actorUserId,
+			reason: input.reason,
+		});
+		const operationKind = "SET_GUEST_PRINCIPAL_CAPACITY";
+		const replay = await findOperationReplay(
+			input.idempotencyKey,
+			operationKind,
+			requestFingerprint,
+			tx,
+		);
+		if (replay) {
+			const stored = replayResult(replay.after);
+			return {
+				maximumTemporaryPrincipals: input.maximumTemporaryPrincipals,
+				version: Number(stored.version),
+				replayed: true,
+			};
+		}
+		const previous = await tx.runtimeConfigOverride.findFirst({
+			where: { configKey: GUEST_PRINCIPAL_CAPACITY_CONFIG_KEY, active: true },
+			orderBy: { version: "desc" },
+			select: { value: true },
+		});
+		await tx.runtimeConfigOverride.updateMany({
+			where: { configKey: GUEST_PRINCIPAL_CAPACITY_CONFIG_KEY, active: true },
+			data: { active: false, revertedAt: new Date(), revertedByUserId: input.actorUserId },
+		});
+		const [next] = await tx.$queryRaw<Array<{ version: number }>>`
+			SELECT COALESCE(MAX("version"), 0)::int + 1 AS "version" FROM "runtime_config_override"`;
+		const created = await tx.runtimeConfigOverride.create({
+			data: {
+				configKey: GUEST_PRINCIPAL_CAPACITY_CONFIG_KEY,
+				version: next!.version,
+				value: input.maximumTemporaryPrincipals,
+				reason: input.reason,
+				createdByUserId: input.actorUserId,
+			},
+		});
+		const result = {
+			maximumTemporaryPrincipals: input.maximumTemporaryPrincipals,
+			version: created.version,
+		};
+		await tx.auditLog.create({
+			data: {
+				actorUserId: input.actorUserId,
+				action: "MEDIA_GUEST_PRINCIPAL_CAPACITY_UPDATED",
+				targetType: "ADMIN_MEDIA_OPERATION",
+				targetId: operationAuditId(input.idempotencyKey),
+				before: { maximumTemporaryPrincipals: previous?.value ?? null },
+				after: result,
+				metadata: { reason: input.reason, operationKind, requestFingerprint },
 			},
 		});
 		return { ...result, replayed: false };

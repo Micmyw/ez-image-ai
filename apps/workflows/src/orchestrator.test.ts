@@ -611,6 +611,19 @@ describe("durable job orchestration", () => {
 		});
 	});
 
+	it("runs cleanup independently without a global recovery scan", async () => {
+		const invoke = vi.fn(async (_request: { taskId: string }) => ({
+			status: "ok" as const,
+			continuation: { eventIds: [] },
+		}));
+		await runMaintenance(Date.UTC(2026, 8, 19, 5, 45), "cleanup", fakeSteps(), invoke, "cleanup");
+		expect(invoke.mock.calls.map(([request]) => request.taskId)).toEqual([
+			"media-expire-guest-media",
+			"media-expire-uploads",
+			"media-deliver-cleanup-outbox",
+		]);
+	});
+
 	it("runs maintenance in order instead of competing for the single executor slot", async () => {
 		let active = 0;
 		let peak = 0;

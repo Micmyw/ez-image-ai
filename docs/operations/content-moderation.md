@@ -97,9 +97,16 @@ the existing application review policy and historical approvals.
 
 The 2.0 service contract accepts static PNG/JPEG up to 16 MiB, each dimension 256–8192 pixels, and
 78,400–32,000,000 total pixels. Its recommended range is 256–1568 per dimension and up to 2,458,624
-total pixels. The shared jobs preparation path converts the immutable original to a static
-1568×1568 JPEG at quality 85, fitting the entire image with white padding and flattening transparency.
-This supports PNG, JPEG and WebP originals, including small images and large generation outputs.
+total pixels. The shared jobs preparation path converts the immutable original to a static square
+JPEG at quality 85, fitting the entire image with white padding and flattening transparency.
+For PNG, JPEG and WebP, a bounded local header read on the same source stream chooses a side of
+`min(1568, max(280, width, height))`. Small images no longer always expand to 1568px; the 280px
+floor satisfies the minimum pixel count. An unavailable/long header retains the 1568px fallback.
+Static SVG is validated and rendered before conversion. GIF uses one 1568px contact sheet with
+up to nine evenly spaced displayed frames, including the first and last. GIF structure, full source
+identity and the requested frame count are still checked; content review covers the sampled
+displays, not every animation frame. Unsampled frames still update the compositing canvas so
+selected displays preserve transparency and disposal. No multi-task moderation is introduced.
 The prepared JPEG is bounded to 8 MiB and sent as a data URL. Source byte count, SHA-256 and available
 ETag are checked before submission, and the actual JPEG dimensions are checked after conversion.
 The original asset retains its own bytes, checksum, generation and moderation evidence identity.

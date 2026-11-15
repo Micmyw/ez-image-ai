@@ -4,6 +4,7 @@ import type { ImagePhaseOwner } from "./image-phase-ownership";
 export const MEDIA_VERIFICATION_CLAIM_SELECT = {
 	id: true,
 	kind: true,
+	retentionClass: true,
 	status: true,
 	deletedAt: true,
 	objectKey: true,
@@ -61,7 +62,7 @@ export async function readMediaVerificationQueryProjection(
 	tx: Prisma.TransactionClient,
 ) {
 	const [row] = await tx.$queryRaw<QueryRow[]>`
-	 SELECT asset."id", asset."kind", asset."status", asset."deletedAt", asset."objectKey",
+	 SELECT asset."id", asset."kind", asset."retentionClass", asset."status", asset."deletedAt", asset."objectKey",
 	  asset."mimeType", asset."byteSize", asset."checksum", asset."storageEtag", asset."storageVersionId",
 	  asset."finalizedAt", asset."outputTransferToken", asset."deleteAfter", asset."verificationEngine",
 	  asset."verificationGeneration", asset."verificationAttemptCount", asset."verificationProvider",

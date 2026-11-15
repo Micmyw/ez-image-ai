@@ -6,7 +6,7 @@ import { isWorkflowEventTask, parseTaskRequest } from "@repo/jobs/orchestration/
 export type JobsParams =
 	| { kind: "task"; request: TaskRequest; executionVersion?: 2 }
 	| { kind: "continuation"; request: TaskRequest; notBefore?: number; executionVersion?: 2 }
-	| { kind: "maintenance"; timestamp: number };
+	| { kind: "maintenance"; timestamp: number; scope?: "cleanup" };
 export interface WorkflowCreator {
 	createBatch(
 		batch: {
@@ -95,7 +95,13 @@ export async function handleDispatch(
 					kind: "task",
 					request: task,
 					...(isWorkflowEventTask(task.taskId) ||
-					["media-deliver-events", "media-poll-generation"].includes(task.taskId)
+					[
+						"media-deliver-events",
+						"media-poll-generation",
+						"media-admit-guest-generation",
+						"media-copy-account-input",
+						"media-cancel-generation",
+					].includes(task.taskId)
 						? { executionVersion: 2 as const }
 						: {}),
 				},

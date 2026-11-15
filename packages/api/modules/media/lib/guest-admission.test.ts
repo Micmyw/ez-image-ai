@@ -210,6 +210,7 @@ describe("guest admission pre-transaction boundary", () => {
 				{
 					userId: "guest-1",
 					audience: "GUEST",
+					browserSubjectHash: "b".repeat(64),
 					prompt: validInput().prompt,
 					productKey: validInput().productKey,
 					sourceAssetId: "asset-1",

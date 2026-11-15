@@ -147,6 +147,7 @@ import {
 	recordMediaJobNotification,
 	type MediaJobNotification,
 } from "@repo/database/media-job-notifications";
+import { recoverImageVerificationPersistence } from "@repo/database/media-verification-persistence-recovery";
 import {
 	MEDIA_VERIFICATION_CLAIM_SELECT,
 	readMediaVerificationQueryProjection,
@@ -228,6 +229,7 @@ import {
 	IMAGE_APPROVAL_NO_TIME_EXPIRY,
 } from "./media-approval-lifetime";
 import { dispatchJob as dispatchOriginalArchive } from "./orchestration/client";
+import { executionFailureEvidence } from "./orchestration/execution-recovery";
 import { imageModerationCallbackUrl } from "./orchestration/image-moderation-callback-auth";
 import { kieCompletionCallbackUrl } from "./orchestration/kie-callback-auth";
 import { unmanagedLegacyTask } from "./orchestration/legacy-task-ownership";
@@ -1690,6 +1692,8 @@ interface VerifyUploadRuntimeOptions {
 		idempotency: { key: string; providerSupported: boolean; replayed: boolean };
 	}) => Promise<void>;
 	onVerificationError?: (error: unknown) => void;
+	/** A request-owned output review may query its bound task without a Workflow handoff. */
+	continuousOutputReview?: { wait(milliseconds: number): Promise<void>; maximumQueries?: number };
 }
 
 export const MEDIA_VERIFICATION_RETRY_POLICY = {
@@ -1699,6 +1703,8 @@ export const MEDIA_VERIFICATION_RETRY_POLICY = {
 	imageDeadlineMs: 2 * 60 * 1_000,
 	evidenceTtlMs: 24 * 60 * 60 * 1_000,
 	imageProcessingPollMs: 5_000,
+	continuousImageProcessingPollMs: 1_000,
+	continuousImageProcessingWindowMs: 15_000,
 	processingPollMs: 15_000,
 } as const;
 
@@ -1710,6 +1716,7 @@ interface MediaVerificationClaim {
 	mimeType: string;
 	byteSize: bigint;
 	kind: "INPUT" | "OUTPUT";
+	retentionClass: MediaVerificationClaimAsset["retentionClass"];
 	checksum: string | null;
 	storageEtag: string | null;
 	storageVersionId: string | null;
@@ -1864,6 +1871,7 @@ export function createDatabaseVerifyUploadDependencies(
 			let finalizedAt = claim.finalizedAt;
 			let moderationStarted = false;
 			let detectorRequestInFlight = false;
+			let acceptedImageTaskId = claim.providerTaskId;
 			try {
 				const providerOriginal = isProviderOriginalKey(claim.objectKey);
 				let preparedOriginal:
@@ -1873,11 +1881,25 @@ export function createDatabaseVerifyUploadDependencies(
 					const origin = await database.mediaOutputOrigin.findUniqueOrThrow({
 						where: { assetId: claim.assetId },
 					});
-					const originalAsset = await database.mediaAsset.findUniqueOrThrow({
-						where: { id: claim.assetId },
-						select: { retentionClass: true },
-					});
-					const guestOriginal = originalAsset.retentionClass === "GUEST_TRIAL";
+					// This immutable asset classification was read under the existing claim lock.
+					const guestOriginal = claim.retentionClass === "GUEST_TRIAL";
+					let expectedGifFrameCount: number | undefined;
+					if (claim.mimeType === "image/gif") {
+						// The old archive-first path checked the frozen generation contract
+						// during promotion. Direct review must enforce it before approval too.
+						const binding = await database.generationJobAsset.findFirst({
+							where: { assetId: claim.assetId, role: "OUTPUT" },
+							select: { job: { select: { productKey: true, inputSnapshot: true } } },
+						});
+						const selection =
+							binding && parseImageSelection(binding.job.productKey, binding.job.inputSnapshot);
+						if (!selection || selection.outputFormat !== "gif" || !selection.frameCount)
+							throw new MediaValidationError(
+								"OUTPUT_MEDIA_TYPE_MISMATCH",
+								"Generated GIF selection is invalid",
+							);
+						expectedGifFrameCount = selection.frameCount;
+					}
 					preparedOriginal = await (
 						options.prepareProviderImageModeration ?? prepareProviderImageModeration
 					)({
@@ -1885,6 +1907,7 @@ export function createDatabaseVerifyUploadDependencies(
 						mimeType: claim.mimeType,
 						checksum,
 						allowedHosts: providerCdnAllowlist(environment),
+						...(expectedGifFrameCount !== undefined ? { expectedGifFrameCount } : {}),
 						...(checksum &&
 						origin.archiveState === "ARCHIVED" &&
 						origin.archiveChecksum === checksum &&
@@ -2062,6 +2085,7 @@ export function createDatabaseVerifyUploadDependencies(
 					let providerTaskId = claim.providerTaskId;
 					let completedDecision: ModerationDecision | undefined;
 					let submittedPending = false;
+					let submissionRetryAfterMs: number | undefined;
 					if (!providerTaskId) {
 						if (verificationOptions.queryOnly)
 							throw new Error("MODERATION_QUERY_ONLY_IDENTITY_MISSING");
@@ -2098,6 +2122,8 @@ export function createDatabaseVerifyUploadDependencies(
 							return withPhase({ outboxCommitted });
 						}
 						providerTaskId = submitted.moderationTaskId;
+						submissionRetryAfterMs = submitted.retryAfterMs;
+						if (asyncImage) acceptedImageTaskId = providerTaskId;
 						const binding = await bindMediaVerificationProviderTask(
 							database,
 							claim,
@@ -2153,6 +2179,9 @@ export function createDatabaseVerifyUploadDependencies(
 							decision: "REVIEW",
 							reasonCode: "IMAGE_PROCESSING",
 							ruleVersion: claim.ruleVersion,
+							...(submissionRetryAfterMs !== undefined
+								? { retryAfterMs: submissionRetryAfterMs }
+								: {}),
 						};
 					} else {
 						const retrieval = { moderationTaskId: providerTaskId, ruleVersion: claim.ruleVersion };
@@ -2179,12 +2208,67 @@ export function createDatabaseVerifyUploadDependencies(
 						decision.decision === "REVIEW" &&
 						["VIDEO_PROCESSING", "IMAGE_PROCESSING"].includes(decision.reasonCode)
 					) {
+						// The task binding is already durable. Keep this short normal review in
+						// its existing lease; only long-running work needs PENDING/reclaim.
+						const continuous = options.continuousOutputReview;
+						if (
+							continuous &&
+							providerOriginal &&
+							claim.kind === "OUTPUT" &&
+							claim.provider === "seeapi"
+						) {
+							const queries = Math.min(15, Math.max(1, continuous.maximumQueries ?? 15));
+							const shortPollDeadline =
+								Date.now() + MEDIA_VERIFICATION_RETRY_POLICY.continuousImageProcessingWindowMs;
+							for (
+								let query = 0;
+								query < queries &&
+								decision.decision === "REVIEW" &&
+								decision.reasonCode === "IMAGE_PROCESSING";
+								query++
+							) {
+								const waitMs = Math.max(
+									MEDIA_VERIFICATION_RETRY_POLICY.continuousImageProcessingPollMs,
+									decision.retryAfterMs ?? 0,
+								);
+								if (
+									Date.now() + waitMs > shortPollDeadline ||
+									Date.now() + waitMs + 10_000 >=
+										Math.min(
+											claim.deadlineAt.getTime(),
+											claim.startedAt.getTime() + MEDIA_VERIFICATION_RETRY_POLICY.leaseMs,
+										)
+								)
+									break;
+								await continuous.wait(waitMs);
+								if (Date.now() > shortPollDeadline) break;
+								if (!(await verificationPhaseMayCallProvider(claim, database)))
+									return withPhase({ outboxCommitted: false, phaseOwnershipLost: true });
+								detectorRequestInFlight = true;
+								decision = await safety.retrieveImage!({
+									moderationTaskId: providerTaskId,
+									ruleVersion: claim.ruleVersion,
+									assetUrl,
+								});
+								detectorRequestInFlight = false;
+								recordStage("continuous_moderation_result", {
+									decision: decision.decision,
+									query: query + 1,
+								});
+							}
+						}
+					}
+					if (
+						decision.decision === "REVIEW" &&
+						["VIDEO_PROCESSING", "IMAGE_PROCESSING"].includes(decision.reasonCode)
+					) {
 						const pending = await recordMediaVerificationWaitOrFailure(
 							database,
 							claim,
 							decision.reasonCode,
 							"PENDING",
 							checksum,
+							{ decision },
 						);
 						recordStage("pending_committed");
 						return withPhase(pending);
@@ -2251,7 +2335,37 @@ export function createDatabaseVerifyUploadDependencies(
 					return withPhase({ outboxCommitted });
 				}
 				// Persistence failures are not detector outages and cannot consume the permission budget.
-				if (moderationStarted && claim.mimeType.startsWith("image/")) throw error;
+				if (moderationStarted && claim.mimeType.startsWith("image/")) {
+					const { errorCode } = executionFailureEvidence(error);
+					if (
+						claim.provider === "seeapi" &&
+						acceptedImageTaskId &&
+						[
+							"P1001",
+							"P1002",
+							"P1017",
+							"P2028",
+							"P2034",
+							"40001",
+							"40P01",
+							"55P03",
+							"57014",
+							"ECONNRESET",
+							"ETIMEDOUT",
+						].includes(errorCode)
+					) {
+						const recovered = await recoverImageVerificationPersistence(
+							{
+								...claim,
+								providerTaskId: acceptedImageTaskId,
+							},
+							database,
+						);
+						recordStage("persistence_recovery", { errorCode, recovered });
+						if (recovered) return withPhase({ outboxCommitted: true, queryOnly: true });
+					}
+					throw error;
+				}
 				outboxCommitted = await failMediaVerificationFromError(
 					database,
 					claim,
@@ -2326,6 +2440,7 @@ async function resolveJobsWaitingForMediaVerification(
 			ownerId: string;
 			notifications: MediaJobNotification[];
 		};
+		deferOutputFinalization?: boolean;
 		continuationEvents?: Array<{ id: string; availableAt: Date }>;
 	},
 ): Promise<boolean> {
@@ -2395,6 +2510,7 @@ async function resolveJobsWaitingForMediaVerification(
 			if (!completedFinalizationScan) {
 				if (
 					input.approved &&
+					!input.deferOutputFinalization &&
 					getCatalogEntry(binding.job.productKey as ProductModelKey)?.mediaKind === "image" &&
 					(await completePersistedImageFinalizationInTransaction(
 						{
@@ -3020,6 +3136,7 @@ async function claimMediaVerification(
 			mimeType: claimed.mimeType,
 			byteSize: claimed.byteSize,
 			kind: claimed.kind,
+			retentionClass: claimed.retentionClass,
 			checksum: claimed.checksum,
 			storageEtag: claimed.storageEtag,
 			storageVersionId: claimed.storageVersionId,
@@ -3363,6 +3480,9 @@ async function completeMediaVerification(
 			verificationGeneration: claim.generation,
 			continuationEvents,
 			approved: input.decision === "ALLOW",
+			// READY must not wait for output-cardinality reconciliation and settlement
+			// preparation. The same transaction records their exact durable continuation.
+			deferOutputFinalization: asset.kind === "OUTPUT" && isProviderOriginalKey(claim.objectKey),
 			...(process.env.MEDIA_JOB_EVENTS_ENABLED === "true" &&
 			asset.kind === "OUTPUT" &&
 			asset.mimeType.startsWith("image/") &&
@@ -3449,9 +3569,16 @@ async function recordMediaVerificationWaitOrFailure(
 	checksum: string | null,
 	options: { decision?: ModerationDecision; allowInputDelegation?: boolean } = {},
 ): Promise<OutboxCommitResult> {
-	return database.$transaction(async (tx) => {
-		const promptRejected = await lockAssetPromptReview(claim.assetId, tx);
+	let transactionStage = "prompt_review";
+	const startedAt = Date.now();
+	const image = claim.mimeType.startsWith("image/");
+	const commitState = async (tx: Prisma.TransactionClient): Promise<OutboxCommitResult> => {
+		// PENDING cannot publish or delegate an asset, so it needs no prompt-publication lock.
+		const promptRejected =
+			image && status === "PENDING" ? false : await lockAssetPromptReview(claim.assetId, tx);
+		transactionStage = "verification_lock";
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
+		transactionStage = "phase_owner";
 		if (!(await verificationPhaseIsCurrent(claim, tx)))
 			return { outboxCommitted: false, phaseOwnershipLost: true };
 		const now = new Date();
@@ -3515,8 +3642,12 @@ async function recordMediaVerificationWaitOrFailure(
 			claim.deadlineAt > delegationNow &&
 			asset.verificationLeasedUntil !== null &&
 			asset.verificationLeasedUntil > delegationNow &&
-			(await tx.user.findUnique({ where: { id: asset.ownerId }, select: { isAnonymous: true } }))
-				?.isAnonymous === false &&
+			(
+				await tx.user.findUnique({
+					where: { id: asset.ownerId },
+					select: { isAnonymous: true },
+				})
+			)?.isAnonymous === false &&
 			!(await tx.moderationReview.findFirst({
 				where: { targetType: "ASSET", targetId: asset.id, resolvedBy: { not: null } },
 			})) &&
@@ -3531,6 +3662,7 @@ async function recordMediaVerificationWaitOrFailure(
 					),
 				)
 			: null;
+		transactionStage = "evidence";
 		await appendVerificationEvidence(tx, {
 			assetId: asset.id,
 			assetChecksum: checksum,
@@ -3633,6 +3765,11 @@ async function recordMediaVerificationWaitOrFailure(
 								: MEDIA_VERIFICATION_RETRY_POLICY.processingPollMs),
 					)
 				: new Date(now.getTime() + Math.min(60_000, 1_000 * 2 ** Math.max(failureCount - 1, 0)));
+		if (normalRetryAt && options.decision?.retryAfterMs !== undefined) {
+			normalRetryAt.setTime(
+				Math.max(normalRetryAt.getTime(), now.getTime() + options.decision.retryAfterMs),
+			);
+		}
 		const retryAt = imageModerationRetryAt({
 			retryAt: normalRetryAt,
 			now,
@@ -3642,6 +3779,7 @@ async function recordMediaVerificationWaitOrFailure(
 			submissionUncertain: asset.verificationSubmissionUncertain,
 			pending: status === "PENDING" && asset.mimeType.startsWith("image/"),
 		});
+		transactionStage = "asset_update";
 		await tx.mediaAsset.update({
 			where: { verificationEngine: "legacy", id: asset.id },
 			data: {
@@ -3701,6 +3839,7 @@ async function recordMediaVerificationWaitOrFailure(
 			outboxCommitted ||= jobsCommitted;
 		}
 		if (retryAt) {
+			transactionStage = "poll_intent";
 			const pendingImage = status === "PENDING" && asset.mimeType.startsWith("image/");
 			const queryOnly =
 				pendingImage && asset.verificationProviderTaskId && !asset.verificationSubmissionUncertain
@@ -3751,7 +3890,22 @@ async function recordMediaVerificationWaitOrFailure(
 			return { outboxCommitted, ...queryOnly };
 		}
 		return { outboxCommitted };
-	});
+	};
+	return database
+		.$transaction(commitState, image ? { maxWait: 5_000, timeout: 20_000 } : undefined)
+		.catch((error: unknown) => {
+			console.warn("media.upload.verification", {
+				assetId: claim.assetId,
+				generation: claim.generation,
+				stage: "verification_state_transaction_failed",
+				transactionStage,
+				status,
+				elapsedMs: Date.now() - startedAt,
+				timeoutMs: image ? 20_000 : 5_000,
+				...executionFailureEvidence(error),
+			});
+			throw error;
+		});
 }
 
 async function failMediaVerificationFromError(
@@ -5535,11 +5689,17 @@ export function createFinalizationDependencies(
 		store?: FinalizationStore;
 		safety?: MediaSafetyAdapter;
 		database?: PrismaClient;
-		verification?: { verify(assetId: string): Promise<OutboxCommitResult | void> };
+		verification?: {
+			verify(assetId: string, phaseContext?: ImagePhaseContext): Promise<OutboxCommitResult | void>;
+		};
 		/** New Workflow adapters release heavy transfer capacity before the first review. */
 		deferOutputReview?: boolean;
 		/** Stateless URL transfer executor: never loads inline bodies or uses buffered fallback. */
 		streamingTransfersOnly?: boolean;
+		/** Control-only direct delivery: a typed decline occurs before any storage write. */
+		providerOriginalOnly?: boolean;
+		directOriginalReview?: boolean;
+		phaseContext?: ImagePhaseContext;
 		dispatchArchive?: (eventId: string) => Promise<void>;
 		storage?: Partial<{
 			openInspectedRemoteMedia: typeof openInspectedRemoteMedia;
@@ -5552,6 +5712,9 @@ export function createFinalizationDependencies(
 	} = {},
 ): FinalizationDependencies {
 	const database = options.database ?? db;
+	let directSource:
+		| { url: string; source: Awaited<ReturnType<typeof openInspectedRemoteMedia>> }
+		| undefined;
 	const store =
 		options.store ??
 		createDatabaseFinalizationStore(database, {
@@ -5562,6 +5725,25 @@ export function createFinalizationDependencies(
 		createDatabaseVerifyUploadDependencies(database, {
 			environment,
 			safety: options.safety,
+			...(options.directOriginalReview
+				? {
+						continuousOutputReview: {
+							wait: (milliseconds: number) =>
+								new Promise<void>((resolve) => setTimeout(resolve, milliseconds)),
+						},
+					}
+				: {}),
+			...(options.directOriginalReview
+				? {
+						prepareProviderImageModeration: (
+							input: Parameters<typeof prepareProviderImageModeration>[0],
+						) =>
+							prepareProviderImageModeration({
+								...input,
+								...(directSource?.url === input.url ? { source: directSource.source } : {}),
+							}),
+					}
+				: {}),
 		});
 	const storage = {
 		openInspectedRemoteMedia,
@@ -5576,6 +5758,14 @@ export function createFinalizationDependencies(
 		store,
 		async persistCandidate(claim, candidate, context) {
 			const streamingTransfersOnly = options.streamingTransfersOnly === true;
+			if (
+				options.providerOriginalOnly &&
+				(environment.MEDIA_PROVIDER_ORIGINAL_DELIVERY_ENABLED !== "true" ||
+					claim.mediaKind !== "image" ||
+					candidate.output.kind !== "remote-url" ||
+					(claim.guest && getImageProcessor().key !== "cloudflare-images"))
+			)
+				throw new GenerationTransferRequiresHeavyError();
 			if (
 				streamingTransfersOnly &&
 				(claim.mediaKind !== "image" || claim.guest || candidate.output.kind !== "remote-url")
@@ -5739,10 +5929,16 @@ export function createFinalizationDependencies(
 					(!claim.guest ||
 						getImageProcessor().key === "cloudflare-images" ||
 						isProviderOriginalKey(placeholder?.objectKey ?? "")) &&
-					["image/png", "image/jpeg", "image/webp"].includes(mimeType) &&
+					["image/png", "image/jpeg", "image/webp", "image/svg+xml", "image/gif"].includes(
+						mimeType,
+					) &&
+					(!claim.guest || ["image/png", "image/jpeg", "image/webp"].includes(mimeType)) &&
 					(isProviderOriginalKey(placeholder?.objectKey ?? "") ||
 						(Number(openedSource?.headers["content-length"]) > 0 &&
-							Number(openedSource?.headers["content-length"]) <= 20_000_000)) &&
+							Number(openedSource?.headers["content-length"]) <=
+								(mimeType === "image/svg+xml" || mimeType === "image/gif"
+									? 25 * 1024 * 1024
+									: 20_000_000))) &&
 					(!placeholder || isProviderOriginalKey(placeholder.objectKey))
 				) {
 					const original = await createProviderOriginal(
@@ -5777,6 +5973,24 @@ export function createFinalizationDependencies(
 					const defer = getRequestDefer();
 					if (defer) defer(archiveWake);
 					else await archiveWake;
+					if (options.directOriginalReview) {
+						directSource = openedSource
+							? { url: candidate.output.url, source: openedSource }
+							: undefined;
+						let progress;
+						try {
+							progress = await verification.verify(assetId, options.phaseContext);
+						} finally {
+							directSource = undefined;
+						}
+						const ready = progress?.verificationCommit?.status === "READY";
+						return {
+							assetId,
+							approved: ready,
+							moderationPending: !progress?.verificationCommit && !ready,
+							outputReviewEventId: original.reviewEventId,
+						};
+					}
 					return {
 						assetId,
 						approved: original.asset.status === "READY",
@@ -5784,6 +5998,7 @@ export function createFinalizationDependencies(
 						outputReviewEventId: original.reviewEventId,
 					};
 				}
+				if (options.providerOriginalOnly) throw new GenerationTransferRequiresHeavyError();
 				// The streaming preflight has already checked the real response length.
 				// Reserve those bytes with the transfer claim, before opening a private write.
 				const storageReservation =

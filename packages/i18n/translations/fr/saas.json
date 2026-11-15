@@ -106,6 +106,22 @@
 					"jobs": "Tâches"
 				}
 			},
+			"guestCapacity": {
+				"title": "Capacité des identités invitées",
+				"description": "Définit le nombre d’identités invitées temporaires que le site peut conserver. Les nouvelles connexions invitées sont suspendues lorsque cette capacité est atteinte.",
+				"limit": "Capacité totale",
+				"used": "Occupées",
+				"remaining": "Disponibles",
+				"leases": "Comprend {count} identités en cours de création.",
+				"sourceAdmin": "Paramètre administrateur actif",
+				"sourceEnvironment": "Valeur de déploiement par défaut active",
+				"reason": "Motif de la modification",
+				"reasonHint": "Saisissez au moins 10 caractères.",
+				"save": "Enregistrer la capacité",
+				"saved": "Capacité enregistrée.",
+				"saveError": "La modification n’a pas pu être confirmée. Réessayez avec les mêmes valeurs.",
+				"belowUsage": "De nouvelles identités invitées pourront être créées lorsque l’occupation sera inférieure à la nouvelle capacité."
+			},
 			"guest": {
 				"title": "Opérations de l’essai Standard anonyme",
 				"description": "Diagnostics invités agrégés uniquement. Les données brutes de réseau, appareil, jeton, instruction, média et route sont exclues.",
@@ -628,6 +644,64 @@
 				"terminalSources": {
 					"AUTHENTICATED_RETRIEVAL": "Requête authentifiée auprès du fournisseur",
 					"STORED_DIAGNOSTIC": "Aucune preuve authentifiée de l’état final"
+				}
+			},
+			"customers": {
+				"title": "Contenu des clients",
+				"description": "Sélectionnez un client pour consulter ensemble ses fichiers, images générées, instructions enregistrées et demandes échouées.",
+				"searchLabel": "Rechercher un client",
+				"searchPlaceholder": "E-mail, nom ou identifiant du client, de l’image ou de la tâche",
+				"audience": "Type d’utilisateur",
+				"all": "Tous",
+				"search": "Rechercher",
+				"refresh": "Actualiser",
+				"loading": "Chargement du contenu…",
+				"loadError": "Impossible de charger le contenu. Réessayez.",
+				"staleError": "Échec de l’actualisation. Le contenu affiché peut être obsolète.",
+				"customer": "Client",
+				"uploads": "Imports",
+				"outputs": "Résultats",
+				"jobs": "Tâches",
+				"blocked": "Demandes refusées",
+				"issues": "Problèmes",
+				"lastActivity": "Dernière activité",
+				"open": "Voir tout le contenu",
+				"empty": "Aucun client correspondant.",
+				"newest": "Plus récents",
+				"older": "Plus anciens",
+				"back": "Retour aux clients",
+				"history": "Tout l’historique enregistré, du plus récent au plus ancien. Filtrez par type de contenu ou problème.",
+				"kind": "Type de contenu",
+				"issuesOnly": "Seulement les échecs ou blocages",
+				"timeline": "Activité du client",
+				"time": "Heure",
+				"model": "Modèle",
+				"status": "Statut",
+				"inspect": "Voir",
+				"inspectImage": "Voir l’image et le contrôle",
+				"inspectPrompt": "Voir les instructions et la tâche",
+				"noContent": "Aucun contenu pour ces filtres.",
+				"audiences": {
+					"ACCOUNT": "Compte / organisation",
+					"GUEST": "Invité",
+					"UNKNOWN": "Non associé / inconnu"
+				},
+				"kinds": {
+					"INPUT": "Image importée",
+					"OUTPUT": "Image générée",
+					"JOB": "Tâche de génération",
+					"BLOCKED_REQUEST": "Instruction refusée"
+				},
+				"guestBrowser": "Navigateur invité · {id}",
+				"unlinkedUpload": "Import non associé · {id}",
+				"guestSession": "Session invitée · {id}",
+				"browserIdentityNote": "Imports et sessions regroupés par identité signée du navigateur. Elle identifie un navigateur, pas une personne ; effacer les cookies ou changer de navigateur peut rompre cette association.",
+				"missingBrowserIdentityNote": "Ces anciens enregistrements ne disposent pas d’une association de navigateur récupérable. Des sessions ou imports distincts ne prouvent pas des visiteurs différents.",
+				"identityTypes": {
+					"USER": "Compte / session",
+					"ORGANIZATION": "Organisation",
+					"GUEST_BROWSER": "Même navigateur",
+					"UNKNOWN": "Identité inconnue"
 				}
 			}
 		},

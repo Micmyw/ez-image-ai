@@ -65,7 +65,7 @@ describe("Worker executor workload boundaries", () => {
 			expect(workerServiceForTask(request)).toBeNull();
 		expect(() => workerServiceForTask({ taskId: "unknown", payload: {} })).toThrow();
 	});
-	it("keeps account-copy byte transfers heavy and durable orphan recovery in maintenance", () => {
+	it("keeps account-copy byte transfers heavy and isolates orphan cleanup", () => {
 		const parent: TaskRequest = { taskId: "media-deliver-outbox", payload: {} };
 		const copy = { taskId: "media-copy-account-input", payload: { promotionId: "copy" } };
 		const cleanup = {
@@ -73,12 +73,15 @@ describe("Worker executor workload boundaries", () => {
 			payload: { promotionId: "copy" },
 		};
 		expect(workerExecutorLane(copy)).toBe("heavy");
-		expect(workerExecutorLane(cleanup)).toBe("maintenance");
+		expect(workerExecutorLane(cleanup)).toBe("cleanup");
 		expect(workerExecutorLane({ taskId: "media-recover-account-input-copies", payload: {} })).toBe(
 			"maintenance",
 		);
 		expect(() => assertWorkerInlineTask(parent, copy)).toThrow("CROSS_EXECUTOR_INLINE_TASK");
-		expect(() => assertWorkerInlineTask(parent, cleanup)).not.toThrow();
+		expect(() => assertWorkerInlineTask(parent, cleanup)).toThrow("CROSS_EXECUTOR_INLINE_TASK");
+		expect(() =>
+			assertWorkerInlineTask({ taskId: "media-deliver-cleanup-outbox", payload: {} }, cleanup),
+		).not.toThrow();
 	});
 	it("keeps the legacy targeted-delivery receiver available during drain", () => {
 		expect(
@@ -154,7 +157,14 @@ describe("Worker executor workload boundaries", () => {
 				payload: { checkoutIntentId: "checkout", sequence: 0 },
 			},
 		];
-		for (const child of children) expect(() => assertWorkerInlineTask(parent, child)).not.toThrow();
+		for (const child of children) {
+			if (workerExecutorLane(child) === "cleanup") {
+				expect(() => assertWorkerInlineTask(parent, child)).toThrow("CROSS_EXECUTOR_INLINE_TASK");
+				expect(() =>
+					assertWorkerInlineTask({ taskId: "media-deliver-cleanup-outbox", payload: {} }, child),
+				).not.toThrow();
+			} else expect(() => assertWorkerInlineTask(parent, child)).not.toThrow();
+		}
 		for (const child of [
 			{ taskId: "media-finalize-generation", payload: { jobId: "job", version: 0 } },
 			{ taskId: "media-verify-upload", payload: { assetId: "asset" } },

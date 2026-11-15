@@ -235,7 +235,13 @@ export function CustomerImageContentPanel() {
 	);
 }
 
-function CustomerImageDialog({ assetId, onClose }: { assetId: string; onClose: () => void }) {
+export function CustomerImageDialog({
+	assetId,
+	onClose,
+}: {
+	assetId: string;
+	onClose: () => void;
+}) {
 	const t = useTranslations("admin.media.content");
 	const [jobId, setJobId] = useState<string>();
 	const detail = useQuery({

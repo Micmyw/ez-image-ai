@@ -19,6 +19,8 @@ export async function finalizeMedia(
 	outcome: "SKIPPED" | "FINALIZED" | "RETRY_SCHEDULED" | "WAITING_MODERATION";
 	readyOutputs: number;
 	outputReviewEventIds?: string[];
+	/** Direct reviews are terminal; drain their durable intents through the usual receipts. */
+	completedOutputReviewEventIds?: string[];
 	retryEvent?: FinalizationRetryEvent;
 }> {
 	const claim = await dependencies.store.claimFinalization(payload);
@@ -113,7 +115,14 @@ export async function finalizeMedia(
 	} else {
 		await dependencies.store.recordFinalization(claim, results);
 	}
-	return { outcome: "FINALIZED", readyOutputs: results.filter((result) => result.approved).length };
+	const completedOutputReviewEventIds = results.flatMap((result) =>
+		result.outputReviewEventId ? [result.outputReviewEventId] : [],
+	);
+	return {
+		outcome: "FINALIZED",
+		readyOutputs: results.filter((result) => result.approved).length,
+		...(completedOutputReviewEventIds.length ? { completedOutputReviewEventIds } : {}),
+	};
 }
 
 function finalizationFailure(error: unknown): FinalizationFailure {

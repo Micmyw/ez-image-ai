@@ -11,7 +11,8 @@ import type { ImageProcessor, ImageWatermarkOptions } from "./types";
 export function createSharpImageProcessor(): ImageProcessor {
 	return {
 		key: "sharp",
-		async moderationJpeg(source) {
+		async moderationJpeg(source, options) {
+			const side = options.targetSide ?? 1568;
 			const readable = Readable.fromWeb(source as unknown as NodeReadableStream<Uint8Array>);
 			const transform = sharp({
 				sequentialRead: true,
@@ -19,7 +20,7 @@ export function createSharpImageProcessor(): ImageProcessor {
 				limitInputPixels: 100_000_000,
 			})
 				.rotate()
-				.resize(1568, 1568, { fit: "contain", background: "#ffffff" })
+				.resize(side, side, { fit: "contain", background: "#ffffff" })
 				.flatten({ background: "#ffffff" })
 				.jpeg({ quality: 85 });
 			readable.once("error", (error) => transform.destroy(error));

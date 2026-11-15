@@ -93,6 +93,7 @@ const payloadParsers = {
 	"media-cleanup-account-input-copy": strictObject({ promotionId: text }),
 	"media-recover-account-input-copies": scheduled,
 	"media-deliver-outbox": scheduled,
+	"media-deliver-cleanup-outbox": scheduled,
 	"media-deliver-output-review": strictObject({ eventId: text }),
 	"media-deliver-events": strictObject({
 		eventIds: (value) => {
@@ -299,8 +300,18 @@ export function parseEventDeliveryResult(
 				!["completed", "held", "missing"].includes(recovery))
 		)
 			return invalid();
-		if (request.payload.recoverOnly === true && (preparedEvent !== null || recovery === undefined))
-			return invalid();
+		if (request.payload.recoverOnly === true) {
+			// Recovery may hand back only a fenced result query, never a fresh provider submission.
+			if (preparedEvent) {
+				if (
+					preparedEvent.taskId !== "media-verify-upload" ||
+					preparedEvent.payload.queryOnly !== true ||
+					preparedEvent.payload.allowQuarantinedReverification === true ||
+					recovery !== undefined
+				)
+					return invalid();
+			} else if (recovery === undefined) return invalid();
+		}
 		const execution = executedEvent ? parseEventDeliveryResult(executedEvent, result) : {};
 		const poll =
 			executedEvent?.taskId === "media-verify-upload"
@@ -355,6 +366,7 @@ const definitions: Record<keyof typeof payloadParsers, TaskDefinition> = {
 	"media-cleanup-account-input-copy": definition("media-account-input-copy-cleanup", 1, 120),
 	"media-recover-account-input-copies": definition("media-account-input-copy-recovery", 1, 120),
 	"media-deliver-outbox": definition("media-outbox", 2, 120),
+	"media-deliver-cleanup-outbox": definition("media-cleanup-outbox", 1, 120),
 	"media-deliver-output-review": definition("media-outbox", 2, 120),
 	"media-deliver-events": definition("media-outbox", 2, 120),
 	"media-prepare-event": definition("media-event-prepare", 4, 120),
@@ -445,9 +457,16 @@ export function maintenanceTasksAt(value: number): string[] {
 		"media-recover-verifications",
 		"media-recover-payment-events",
 	];
-	if (minute % 5 === 0) tasks.push("media-reconcile-generations", "media-expire-guest-media");
-	if (minute % 15 === 0) tasks.push("media-expire-uploads");
+	if (minute % 5 === 0) tasks.push("media-reconcile-generations");
 	if (minute === 5) tasks.push("media-grant-billing-periods");
 	if (minute === 15) tasks.push("media-reconcile-subscriptions");
 	return tasks;
+}
+
+export function cleanupTasksAt(value: number): string[] {
+	const minute = new Date(timestamp(value)).getUTCMinutes();
+	const tasks: string[] = [];
+	if (minute % 5 === 0) tasks.push("media-expire-guest-media");
+	if (minute % 15 === 0) tasks.push("media-expire-uploads");
+	return [...tasks, "media-deliver-cleanup-outbox"];
 }

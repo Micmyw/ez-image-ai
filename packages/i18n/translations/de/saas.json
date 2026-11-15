@@ -106,6 +106,22 @@
 					"jobs": "Aufträge"
 				}
 			},
+			"guestCapacity": {
+				"title": "Kapazität für Gastidentitäten",
+				"description": "Legt fest, wie viele temporäre Gastidentitäten die Website speichern kann. Bei voller Kapazität werden neue Gastanmeldungen pausiert.",
+				"limit": "Gesamtkapazität",
+				"used": "Belegt",
+				"remaining": "Verfügbar",
+				"leases": "Enthält {count} Identitäten, die gerade erstellt werden.",
+				"sourceAdmin": "Administratoreinstellung aktiv",
+				"sourceEnvironment": "Standardwert der Bereitstellung aktiv",
+				"reason": "Grund für die Änderung",
+				"reasonHint": "Mindestens 10 Zeichen eingeben.",
+				"save": "Kapazität speichern",
+				"saved": "Kapazität gespeichert.",
+				"saveError": "Die Änderung konnte nicht bestätigt werden. Mit denselben Werten erneut versuchen.",
+				"belowUsage": "Neue Gastidentitäten können erstellt werden, sobald die Belegung unter die neue Kapazität fällt."
+			},
 			"guest": {
 				"title": "Betrieb des anonymen Standard-Tests",
 				"description": "Nur aggregierte Gastdiagnosen. Rohe Netzwerk-, Geräte-, Token-, Prompt-, Medien- und Routendaten sind ausgeschlossen.",
@@ -628,6 +644,64 @@
 				"terminalSources": {
 					"AUTHENTICATED_RETRIEVAL": "Authentifizierte Anbieterabfrage",
 					"STORED_DIAGNOSTIC": "Kein authentifizierter Endstatusnachweis"
+				}
+			},
+			"customers": {
+				"title": "Kundeninhalte",
+				"description": "Wählen Sie einen Kunden, um Uploads, generierte Bilder, gespeicherte Prompts und fehlgeschlagene Anfragen gemeinsam anzusehen.",
+				"searchLabel": "Kunden suchen",
+				"searchPlaceholder": "E-Mail, Name, Kunden-, Bild- oder Aufgaben-ID",
+				"audience": "Nutzertyp",
+				"all": "Alle",
+				"search": "Suchen",
+				"refresh": "Aktualisieren",
+				"loading": "Kundeninhalte werden geladen…",
+				"loadError": "Inhalte konnten nicht geladen werden. Bitte aktualisieren.",
+				"staleError": "Aktualisierung fehlgeschlagen. Die angezeigten Inhalte können veraltet sein.",
+				"customer": "Kunde",
+				"uploads": "Uploads",
+				"outputs": "Ergebnisse",
+				"jobs": "Aufgaben",
+				"blocked": "Abgelehnte Anfragen",
+				"issues": "Probleme",
+				"lastActivity": "Letzte Aktivität",
+				"open": "Alle Inhalte ansehen",
+				"empty": "Keine passenden Kunden.",
+				"newest": "Neueste",
+				"older": "Ältere",
+				"back": "Zurück zu Kunden",
+				"history": "Gesamter gespeicherter Verlauf, neueste zuerst. Nach Inhaltstyp oder Problemen filtern.",
+				"kind": "Inhaltstyp",
+				"issuesOnly": "Nur fehlgeschlagene oder blockierte Einträge",
+				"timeline": "Kundenaktivität",
+				"time": "Zeit",
+				"model": "Modell",
+				"status": "Status",
+				"inspect": "Ansehen",
+				"inspectImage": "Bild und Prüfung ansehen",
+				"inspectPrompt": "Prompt und Aufgabe ansehen",
+				"noContent": "Keine Inhalte für diese Filter.",
+				"audiences": {
+					"ACCOUNT": "Konto / Organisation",
+					"GUEST": "Gast",
+					"UNKNOWN": "Nicht zugeordnet / unbekannt"
+				},
+				"kinds": {
+					"INPUT": "Hochgeladenes Bild",
+					"OUTPUT": "Generiertes Bild",
+					"JOB": "Generierungsaufgabe",
+					"BLOCKED_REQUEST": "Abgelehnter Prompt"
+				},
+				"guestBrowser": "Gastbrowser · {id}",
+				"unlinkedUpload": "Nicht zugeordneter Upload · {id}",
+				"guestSession": "Gastsitzung · {id}",
+				"browserIdentityNote": "Uploads und Gastsitzungen sind nach signierter Browseridentität gruppiert. Diese kennzeichnet einen Browser, keine Person; gelöschte Cookies oder ein Browserwechsel können die Zuordnung aufheben.",
+				"missingBrowserIdentityNote": "Für diese historischen Einträge fehlt eine wiederherstellbare Browserzuordnung. Getrennte Sitzungen oder Uploads belegen keine verschiedenen Besucher.",
+				"identityTypes": {
+					"USER": "Konto / Sitzung",
+					"ORGANIZATION": "Organisation",
+					"GUEST_BROWSER": "Derselbe Browser",
+					"UNKNOWN": "Unbekannte Identität"
 				}
 			}
 		},

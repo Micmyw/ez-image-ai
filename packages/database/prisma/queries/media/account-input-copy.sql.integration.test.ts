@@ -22,6 +22,7 @@ import {
 	createAccountInputCopyInTransaction,
 	failAccountInputCopy,
 	getAccountInputCopyStatus,
+	getAccountInputCopyReviewEventIds,
 	parseAccountInputCopyIntent,
 	reconcileAccountInputCopyTargetInTransaction,
 	recordAccountInputCopyOrphanPass,
@@ -145,6 +146,11 @@ describe("account input verified copy through a disposable PostgreSQL SQL port",
 				policyVersion: scenario === "changed policy" ? "next-policy" : undefined,
 			}),
 		).toEqual({ status: "VERIFYING" });
+		const nextReview = await getAccountInputCopyReviewEventIds(f.promotionId, fixture.client());
+		expect(nextReview).toHaveLength(1);
+		expect(await getAccountInputCopyReviewEventIds(f.promotionId, fixture.client())).toEqual(
+			nextReview,
+		);
 		expect(await target(f.p.target.assetId)).toMatchObject({
 			status: "VERIFYING",
 			verificationProviderTaskId: null,

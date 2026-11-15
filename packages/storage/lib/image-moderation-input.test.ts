@@ -36,6 +36,45 @@ function fixture(bytes: Buffer, contentType: string, overrides: Record<string, u
 }
 
 describe("SeeAPI 2.0 private image preparation", () => {
+	it("checks the prepared JPEG locally without a second remote inspection", async () => {
+		const bytes = await sharp({
+			create: { width: 1024, height: 1024, channels: 3, background: "#abcdef" },
+		})
+			.png()
+			.toBuffer();
+		const inspect = vi.fn(async () => {
+			throw new Error("A second Images request is unnecessary");
+		});
+		const url = await runWithImageProcessor({ ...createSharpImageProcessor(), inspect }, () =>
+			preparePrivateImageModeration(fixture(bytes, "image/png")),
+		);
+		expect(await sharp(Buffer.from(url.split(",")[1]!, "base64")).metadata()).toMatchObject({
+			format: "jpeg",
+			width: 1024,
+			height: 1024,
+		});
+		expect(inspect).not.toHaveBeenCalled();
+	});
+	it("rejects a malformed transform locally without treating a JPEG signature as a valid result", async () => {
+		const bytes = await sharp({
+			create: { width: 280, height: 280, channels: 3, background: "white" },
+		})
+			.png()
+			.toBuffer();
+		const processor = createSharpImageProcessor();
+		await expect(
+			runWithImageProcessor(
+				{
+					...processor,
+					moderationJpeg: async (source) => {
+						await new Response(source).arrayBuffer();
+						return new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xd9])]).stream();
+					},
+				},
+				() => preparePrivateImageModeration(fixture(bytes, "image/png")),
+			),
+		).rejects.toThrow("IMAGE_MODERATION_PREPARATION_FAILED");
+	});
 	it.each(["svg", "gif"] as const)(
 		"identity-checks the complete %s original and prepares a bounded review JPEG",
 		async (format) => {
@@ -99,7 +138,7 @@ describe("SeeAPI 2.0 private image preparation", () => {
 			.toBuffer();
 		const original = Buffer.alloc(21_000_000);
 		jpeg.copy(original);
-		const prepared = await sharp(jpeg).resize(1568, 1568).jpeg().toBuffer();
+		const prepared = await sharp(jpeg).resize(280, 280).jpeg().toBuffer();
 		const input = fixture(original, "image/jpeg");
 		const fetcher = vi
 			.spyOn(globalThis, "fetch")
@@ -152,9 +191,9 @@ describe("SeeAPI 2.0 private image preparation", () => {
 			expect(url).toMatch(/^data:image\/jpeg;base64,/);
 			const output = Buffer.from(url.split(",")[1]!, "base64");
 			const pixels = await sharp(output).raw().toBuffer({ resolveWithObject: true });
-			expect(pixels.info).toMatchObject({ width: 1568, height: 1568, channels: 3 });
+			expect(pixels.info).toMatchObject({ width: 280, height: 280, channels: 3 });
 			expect(output.length).toBeLessThan(16 * 1024 * 1024);
-			const center = (784 * 1568 + 784) * 3;
+			const center = (140 * 280 + 140) * 3;
 			expect(pixels.data[center]).toBeGreaterThan(240);
 			expect(pixels.data[center + 1]).toBeLessThan(15);
 			expect([...pixels.data.subarray(0, 3)]).toEqual([255, 255, 255]);
@@ -216,9 +255,9 @@ describe("SeeAPI 2.0 private image preparation", () => {
 			),
 		).rejects.toThrow("IMAGE_MODERATION_SOURCE_INVALID");
 	});
-	it("rejects an unavailable transform that returns source dimensions", async () => {
+	it("rejects a transform that skips the required padding", async () => {
 		const bytes = await sharp({
-			create: { width: 280, height: 280, channels: 3, background: "white" },
+			create: { width: 320, height: 200, channels: 3, background: "white" },
 		})
 			.jpeg()
 			.toBuffer();

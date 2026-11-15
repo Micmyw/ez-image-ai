@@ -103,6 +103,24 @@ describe("generated vector and animation review", () => {
 			.toBuffer();
 		expect(() => inspectGeneratedGif(still)).toThrow();
 	});
+	it("samples nine displays including the first and last from a 16-frame GIF into one sheet", async () => {
+		const colors = Array.from({ length: 16 }, (_, index) => [index * 16, 255 - index * 16, 0]);
+		const bytes = await sharp(Buffer.from(colors.flat()), {
+			raw: { width: 1, height: 16, channels: 3, pageHeight: 1 },
+		})
+			.gif({ loop: 0, delay: Array(16).fill(200), colours: 32, dither: 0 })
+			.toBuffer();
+		expect(inspectGeneratedGif(bytes).frames).toBe(16);
+		const output = await sharp(gifReviewPng(bytes, 16)).raw().toBuffer({ resolveWithObject: true });
+		expect(output.info).toMatchObject({ width: 1568, height: 1568 });
+		for (const [cell, frame] of [0, 2, 4, 6, 8, 9, 11, 13, 15].entries()) {
+			const x = (cell % 3) * 522 + 261;
+			const y = Math.floor(cell / 3) * 522 + 261;
+			const offset = (y * 1568 + x) * 4;
+			expect([...output.data.subarray(offset, offset + 3)]).toEqual(colors[frame]);
+		}
+		expect(() => gifReviewPng(bytes, 9)).toThrow("GIF frame count does not match");
+	});
 	it("preserves a nonwhite logical background when disposal 2 clears the previous rectangle", async () => {
 		const frame = (left: number, paletteIndex: number, disposal: number) =>
 			Buffer.from([

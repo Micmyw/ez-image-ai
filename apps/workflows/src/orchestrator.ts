@@ -21,6 +21,7 @@ import {
 	parseEventDeliveryResult,
 	parsePreparedEvent,
 	maintenanceTasksAt,
+	cleanupTasksAt,
 	taskDefinition,
 } from "@repo/jobs/orchestration/registry";
 
@@ -232,7 +233,12 @@ export async function runTask(
 					`${prefix}-recover`,
 					deadline,
 				);
-				if (recovered.status === "ok" && recovered.eventRecoveryState === "completed")
+				if (
+					recovered.status === "ok" &&
+					(recovered.eventRecoveryState === "completed" ||
+						(recovered.preparedEvent?.taskId === "media-verify-upload" &&
+							recovered.preparedEvent.payload.queryOnly === true))
+				)
 					return recovered;
 				throw new Error("TASK_RECOVERY_REQUIRED:media-execute-event");
 			}
@@ -552,28 +558,32 @@ export async function runMaintenance(
 	runId: string,
 	step: DurableSteps,
 	invoke: InvokeTask,
+	scope?: "cleanup",
 ): Promise<void> {
 	let failed = false;
 	// Workers serialize admission. Avoid starting competing maintenance calls
 	// that repeatedly sleep for capacity and crowd out live generation stages.
-	for (const taskId of maintenanceTasksAt(timestamp)) {
+	for (const taskId of scope === "cleanup"
+		? cleanupTasksAt(timestamp)
+		: maintenanceTasksAt(timestamp)) {
 		try {
 			await runTask({ taskId, payload: { timestamp } }, `${runId}:${taskId}`, step, invoke);
 		} catch {
 			failed = true;
 		}
 	}
-	try {
-		// Recovery may itself commit fresh events after the first Outbox pass.
-		await runTask(
-			{ taskId: "media-deliver-outbox", payload: {} },
-			runId,
-			step,
-			invoke,
-			"recovered-outbox",
-		);
-	} catch {
-		failed = true;
-	}
+	if (scope !== "cleanup")
+		try {
+			// Recovery may itself commit fresh events after the first Outbox pass.
+			await runTask(
+				{ taskId: "media-deliver-outbox", payload: {} },
+				runId,
+				step,
+				invoke,
+				"recovered-outbox",
+			);
+		} catch {
+			failed = true;
+		}
 	if (failed) throw new Error("MAINTENANCE_FAILED");
 }

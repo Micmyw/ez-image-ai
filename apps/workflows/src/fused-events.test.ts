@@ -165,6 +165,26 @@ describe("versioned fused control stages", () => {
 		expect(invoke).toHaveBeenCalledTimes(2);
 		expect(invoke.mock.calls[1]?.[0].payload.recoverOnly).toBe(true);
 	});
+	it("continues a relinquished accepted review with its query-only receipt after wrapper failure", async () => {
+		const query = { ...review, payload: { ...review.payload, queryOnly: true } };
+		const invoke = vi
+			.fn<InvokeTask>()
+			.mockResolvedValueOnce({ status: "failed" })
+			.mockResolvedValueOnce({ status: "ok", preparedEvent: query })
+			.mockResolvedValueOnce(complete);
+		const step = steps();
+		const request = { taskId: "media-deliver-events", payload: { eventIds: ["review"] } };
+		await runTask(request, "workflow", step, invoke);
+		await runTask(request, "workflow", step, invoke);
+		expect(invoke.mock.calls.map(([task]) => task)).toEqual([
+			expect.objectContaining({ taskId: "media-execute-event", payload: { eventId: "review" } }),
+			expect.objectContaining({
+				taskId: "media-execute-event",
+				payload: { eventId: "review", recoverOnly: true },
+			}),
+			expect.objectContaining(query),
+		]);
+	});
 	it("keeps historical Workflow params on the prepare protocol", async () => {
 		const step = steps(1);
 		const invoke = vi.fn<InvokeTask>().mockResolvedValue({ status: "ok", preparedEvent: null });

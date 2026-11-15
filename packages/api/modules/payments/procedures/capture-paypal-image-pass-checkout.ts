@@ -18,6 +18,7 @@ import {
 import type { CapturedCheckoutEvent } from "@repo/payments/types";
 import { z } from "zod";
 
+import { dispatchCommittedTask } from "../../../lib/dispatch-committed-task";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { observeCheckoutOperation } from "../checkout-diagnostics";
 
@@ -38,7 +39,7 @@ export const capturePayPalImagePassCheckout = protectedProcedure
 	})
 	.input(capturePayPalImagePassCheckoutInputSchema)
 	.output(z.object({ accepted: z.literal(true), replayed: z.boolean() }))
-	.handler(async ({ input, context: { session, user } }) => {
+	.handler(async ({ input, context: { session, user, defer } }) => {
 		const owner = await resolveCaptureOwner(user.id, session.activeOrganizationId);
 		const intent = await getPaymentCheckoutIntentForOwner(
 			{ intentId: input.intentId, ...owner },
@@ -106,6 +107,12 @@ export const capturePayPalImagePassCheckout = protectedProcedure
 						},
 						db,
 					),
+			);
+			await dispatchCommittedTask(
+				"media-process-payment-event",
+				{ paymentEventId: persisted.event.id },
+				`payment-event:${persisted.event.id}`,
+				defer,
 			);
 			return { accepted: true as const, replayed: persisted.replayed };
 		} catch (error) {

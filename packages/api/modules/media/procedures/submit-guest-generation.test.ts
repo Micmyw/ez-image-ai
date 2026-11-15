@@ -7,8 +7,10 @@ vi.mock("@repo/auth", () => ({
 vi.mock("../lib/guest-admission", () => ({
 	submitGuestGenerationForGuest: vi.fn(),
 }));
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn().mockResolvedValue({}) }));
 
 import { auth } from "@repo/auth";
+import { dispatchJob } from "@repo/jobs/orchestration/client";
 
 import { submitGuestGenerationForGuest } from "../lib/guest-admission";
 import { TextModerationError } from "../lib/public-moderation-reason";
@@ -70,6 +72,7 @@ describe("submitGuestGeneration", () => {
 			session: { id: "anonymous-session-1", userId: "guest-1" },
 		} as never);
 		vi.mocked(submitGuestGenerationForGuest).mockResolvedValue({
+			trialId: "trial-1",
 			jobId: "job-1",
 			stage: "WAITING",
 			projectedDispatchAt: new Date("2026-08-28T00:00:00.000Z"),
@@ -82,12 +85,17 @@ describe("submitGuestGeneration", () => {
 		});
 	});
 
-	it("returns only the safe guest job snapshot and never invokes immediate dispatch", async () => {
+	it("wakes the committed guest trial immediately while returning only the safe snapshot", async () => {
 		const headers = new Headers({
 			origin: "https://app.ezpic.test",
 			"x-vercel-forwarded-for": "203.0.113.42",
 		});
 		const result = await call(submitGuestGeneration, validInput(), { context: { headers } });
+		expect(dispatchJob).toHaveBeenCalledWith(
+			"media-admit-guest-generation",
+			{ jobId: "job-1", trialId: "trial-1" },
+			expect.objectContaining({ idempotencyKey: "guest-admission:trial-1", timeoutMs: 1000 }),
+		);
 
 		expect(result).toEqual({
 			jobId: "job-1",
@@ -120,6 +128,14 @@ describe("submitGuestGeneration", () => {
 			validInput(),
 			expect.anything(),
 		);
+	});
+
+	it("does not dispatch when the guest admission transaction fails", async () => {
+		vi.mocked(submitGuestGenerationForGuest).mockRejectedValueOnce(new Error("ADMISSION_FAILED"));
+		await expect(
+			call(submitGuestGeneration, validInput(), { context: { headers: new Headers() } }),
+		).rejects.toThrow("ADMISSION_FAILED");
+		expect(dispatchJob).not.toHaveBeenCalled();
 	});
 
 	it("rejects a registered session at the anonymous-only boundary", async () => {

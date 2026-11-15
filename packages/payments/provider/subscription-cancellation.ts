@@ -43,6 +43,7 @@ export async function requestSubscriptionCancellation(
 			},
 		});
 		await enqueueCancellation(current.id, tx);
+		return { subscriptionId: current.id };
 	});
 }
 

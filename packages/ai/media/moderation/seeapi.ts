@@ -65,7 +65,7 @@ export class SeeapiSafetyAdapter {
 			)
 				throw new Error("MODERATION_INVALID_INPUT");
 		}
-		const task = await this.call("/v1/inferences", {
+		const { task, retryAfterMs } = await this.call("/v1/inferences", {
 			method: "POST",
 			headers: { "Idempotency-Key": input.idempotencyKey },
 			body: JSON.stringify({
@@ -85,7 +85,7 @@ export class SeeapiSafetyAdapter {
 				? { completedDecision: completedTaskDecision(task, input.ruleVersion) }
 				: {}),
 			...((task.status === "queued" || task.status === "processing") && task.result === null
-				? { nonterminalState: task.status }
+				? { nonterminalState: task.status, ...(retryAfterMs !== undefined ? { retryAfterMs } : {}) }
 				: {}),
 			status: task.status === "queued" ? "QUEUED" : "RUNNING",
 			ruleVersion: input.ruleVersion,
@@ -100,9 +100,12 @@ export class SeeapiSafetyAdapter {
 		try {
 			if (!taskIdSchema.safeParse(input.moderationTaskId).success)
 				return result("ERROR", "MODERATION_INVALID_INPUT");
-			const task = await this.call(`/v1/inferences/${encodeURIComponent(input.moderationTaskId)}`, {
-				method: "GET",
-			});
+			const { task, retryAfterMs } = await this.call(
+				`/v1/inferences/${encodeURIComponent(input.moderationTaskId)}`,
+				{
+					method: "GET",
+				},
+			);
 			if (task.id !== input.moderationTaskId) return result("ERROR", "MODERATION_INVALID_RESPONSE");
 			if (["failed", "canceled", "refunded", "expired"].includes(task.status)) {
 				// Classify only validated machine codes; provider messages may contain
@@ -142,7 +145,10 @@ export class SeeapiSafetyAdapter {
 			}
 			if (task.status === "queued" || task.status === "processing")
 				return task.result === null
-					? result("REVIEW", "IMAGE_PROCESSING")
+					? {
+							...result("REVIEW", "IMAGE_PROCESSING"),
+							...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+						}
 					: result("ERROR", "MODERATION_INVALID_RESPONSE");
 			if (task.status !== "succeeded" || !task.result)
 				return result("ERROR", "MODERATION_UNAVAILABLE");
@@ -168,7 +174,12 @@ export class SeeapiSafetyAdapter {
 				},
 			};
 		} catch (error) {
-			return result("ERROR", moderationServiceErrorCode(error));
+			const retryAfterMs =
+				error instanceof Error && "retryAfterMs" in error ? error.retryAfterMs : undefined;
+			return {
+				...result("ERROR", moderationServiceErrorCode(error)),
+				...(typeof retryAfterMs === "number" ? { retryAfterMs } : {}),
+			};
 		}
 	}
 	private async call(path: string, init: RequestInit) {
@@ -176,6 +187,7 @@ export class SeeapiSafetyAdapter {
 		const headers = new Headers(init.headers);
 		headers.set("Authorization", `Bearer ${this.options.apiKey}`);
 		headers.set("Content-Type", "application/json");
+		let retryAfterMs: number | undefined;
 		const response = await fetchJson(
 			`https://api.seeapi.com${path}`,
 			{
@@ -184,15 +196,37 @@ export class SeeapiSafetyAdapter {
 				redirect: "manual",
 				headers,
 			},
-			{ maxResponseBytes: 64 * 1024, ...this.options },
+			{
+				maxResponseBytes: 64 * 1024,
+				...this.options,
+				fetch: async (...args) => {
+					const response = await (this.options.fetch ?? fetch)(...args);
+					retryAfterMs = parseRetryAfter(response.headers.get("retry-after"));
+					return response;
+				},
+			},
 		);
-		if (!response.ok) throw new Error(moderationHttpErrorCode(response.status));
+		if (!response.ok)
+			throw Object.assign(new Error(moderationHttpErrorCode(response.status)), { retryAfterMs });
 		const task = taskSchema.parse(response.data);
 		const failed = ["failed", "canceled", "refunded", "expired"].includes(task.status);
 		if ((failed && task.result !== null) || (!failed && task.error !== null))
 			throw new Error("MODERATION_INVALID_RESPONSE");
-		return task;
+		// SeeAPI documents a two-second initial delay on HTTP 202, including when
+		// an intermediary has removed that header. Later GETs use their own hint.
+		return { task, retryAfterMs: retryAfterMs ?? (response.status === 202 ? 2_000 : undefined) };
 	}
+}
+
+function parseRetryAfter(value: string | null): number | undefined {
+	if (!value) return undefined;
+	const trimmed = value.trim();
+	const delay = /^\d+$/.test(trimmed)
+		? Number(trimmed) * 1_000
+		: /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), /.test(trimmed)
+			? Math.max(0, Date.parse(trimmed) - Date.now())
+			: NaN;
+	return Number.isSafeInteger(delay) && delay >= 0 ? delay : undefined;
 }
 
 function completedTaskDecision(

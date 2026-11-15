@@ -24,7 +24,7 @@ import { resolveScanlessDatabasePool } from "./scanless-database-pool";
 import { withinScanlessDeadline } from "./scanless-deadline";
 import { observeDatabaseTransactions } from "./scanless-error-evidence";
 import { createScanlessImageModerationWake } from "./scanless-image-callback";
-import { createScanlessOutputFixture, LEGACY_SCANLESS_PNG } from "./scanless-image-fixture";
+import { createScanlessOutputFixture } from "./scanless-image-fixture";
 import {
 	createScanlessRequestDefer,
 	resolveScanlessMeasurementModes,
@@ -135,14 +135,8 @@ const harnessSourceFiles = [
 	"tooling/e2e/src/analyze-generation-budget.mts",
 	"tooling/e2e/src/scanless-postgres-evidence.ts",
 	"tooling/e2e/src/analyze-scanless-postgres.mts",
-	".cache/generation-one-second-20261022/run-scanless.ps1",
-	".cache/generation-one-second-20261022/stop-scanless-tree.ps1",
-	".cache/generation-one-second-20261022/capture-scanless-processes.ps1",
-	".cache/generation-one-second-20261022/run-scanless-v9.ps1",
-	".cache/generation-one-second-20261022/stop-scanless-tree-v9.ps1",
-	".cache/generation-one-second-20261022/capture-scanless-processes-v9.ps1",
-	".cache/generation-one-second-20261022/v9-process-ownership.ps1",
 ];
+// Hash the versioned harness, not machine-local launch scripts from an older run.
 const harnessSources = await Promise.all(
 	harnessSourceFiles.map(async (file) => ({
 		file,
@@ -233,13 +227,23 @@ const mark = (stage: string, data: Record<string, unknown> = {}) => {
 	)
 		journal.write(JSON.stringify(observation) + "\n");
 };
-const reviews = new Map<string, { readyAt: number; role: string; caseIndex: number }>();
+const reviews = new Map<
+	string,
+	{ readyAt: number; role: string; caseIndex: number; model: string }
+>();
+let reviewAssetForToken: (
+	token: string,
+) => Promise<{ ownerId: string; kind: string; checksum: string | null } | null>;
 const generations = new Map<string, { readyAt: number; caseIndex: number }>();
-const png = LEGACY_SCANLESS_PNG;
+// Current moderation decodes the source through Images; the historical one-pixel
+// fixture has an invalid IDAT stream and cannot exercise that real path.
+const png = createScanlessOutputFixture({ profile: "png-512k" }).bytes;
 let callbackHandler: (request: Request) => Promise<Response>;
 let imageCallbackHandler: (request: Request) => Promise<Response>;
 const outputFixture = createScanlessOutputFixture({
-	profile: process.env.SCANLESS_OUTPUT_PROFILE,
+	profile:
+		process.env.SCANLESS_OUTPUT_PROFILE ??
+		(process.env.SCANLESS_OUTPUT_BYTES === undefined ? "png-512k" : "legacy"),
 	legacyBytes: process.env.SCANLESS_OUTPUT_BYTES,
 });
 const outputPng = outputFixture.bytes;
@@ -343,23 +347,56 @@ async function supplier(request: Request): Promise<Response> {
 		if (request.method === "POST") {
 			const requestStartedAt = Date.now();
 			const body = (await request.json()) as {
+				model: string;
 				input: { image_url: string };
 				callback_url?: string;
 			};
 			id = randomUUID();
-			const role = body.input.image_url.includes("temporary") ? "input" : "output";
-			const caseIndex = caseFromUrl(body.input.image_url);
+			const prepared = body.model === "nsfw-filter-2";
+			const reviewedAsset = prepared
+				? await reviewAssetForToken(request.headers.get("Idempotency-Key") ?? "")
+				: null;
+			if (prepared) assert(reviewedAsset, "UNBOUND_PREPARED_REVIEW");
+			const role = prepared
+				? reviewedAsset!.kind === "INPUT"
+					? "input"
+					: "output"
+				: body.input.image_url.includes("temporary")
+					? "input"
+					: "output";
+			const caseIndex = prepared
+				? identityCases.get(reviewedAsset!.ownerId)
+				: caseFromUrl(body.input.image_url);
 			assert.notEqual(caseIndex, undefined, "UNATTRIBUTED_IMAGE_REVIEW");
 			identityCases.set(id, caseIndex!);
 			mark("seeapi.request", { id, role, at: requestStartedAt });
-			// Assert that the review can really read the exact private S3 object.
+			// Historical URL reviews read the private object. Current reviews receive
+			// a JPEG prepared by the real local Images binding after the source hash check.
 			const asset = await nativeFetch(body.input.image_url);
 			assert(asset.ok);
 			const reviewedBytes = Buffer.from(await asset.arrayBuffer());
-			assert.deepEqual(reviewedBytes, role === "input" ? png : outputPng);
+			if (prepared) {
+				assert(body.input.image_url.startsWith("data:image/jpeg;base64,"));
+				assert.equal(
+					reviewedAsset!.checksum,
+					createHash("sha256")
+						.update(role === "input" ? png : outputPng)
+						.digest("hex"),
+				);
+				const sharp = createRequire(path.join(root, "packages/storage/package.json"))("sharp");
+				const metadata = await sharp(reviewedBytes).metadata();
+				assert.equal(metadata.format, "jpeg");
+				assert.equal(metadata.width, 1568);
+				assert.equal(metadata.height, 1568);
+			} else assert.deepEqual(reviewedBytes, role === "input" ? png : outputPng);
 			mark("supplier.review.asset_download", { id, role, responseBytes: reviewedBytes.length });
 			const acceptedAt = Date.now();
-			reviews.set(id, { role, caseIndex: caseIndex!, readyAt: acceptedAt + delay });
+			reviews.set(id, {
+				role,
+				caseIndex: caseIndex!,
+				readyAt: acceptedAt + delay,
+				model: body.model,
+			});
 			mark("seeapi.submit", {
 				id,
 				role,
@@ -381,7 +418,7 @@ async function supplier(request: Request): Promise<Response> {
 		return Response.json({
 			id,
 			object: "inference",
-			model: "nsfw-filter",
+			model: task.model,
 			endpoint: "image-moderation",
 			provider: "seeapi",
 			status: done ? "succeeded" : "processing",
@@ -518,6 +555,7 @@ try {
 						JOBS_TRANSFER: { name: "jobs", entrypoint: "TransferExecutor" },
 					},
 					workflows: { JOBS: { name: "isolated-scanless-jobs", className: "JobsWorkflow" } },
+					images: { binding: "IMAGES" },
 					hyperdrives: { HYPERDRIVE: databasePool.hyperdriveUrl },
 					bindings: {
 						...env,
@@ -583,6 +621,11 @@ try {
 	);
 	cleanup.push(() => runtime.dispose());
 	const { db, getDatabaseClient, runWithDatabaseClient } = await import("@repo/database/client");
+	reviewAssetForToken = (token) =>
+		db.mediaAsset.findUnique({
+			where: { verificationSubmissionToken: token },
+			select: { ownerId: true, kind: true, checksum: true },
+		});
 	cleanup.push(() => db.$disconnect());
 	const sharedNodeDatabase = getDatabaseClient();
 	function admissionDatabase(caseIndex: number) {
@@ -672,18 +715,8 @@ try {
 				pricingSnapshot: {},
 				creditsReserved: 1n,
 				idempotencyKey: randomUUID(),
-				status: "PROVIDER_RUNNING",
-			},
-		});
-		const attempt = await db.generationAttempt.create({
-			data: {
-				jobId: job.id,
-				attemptNumber: 1,
-				provider: "kie",
-				providerModelId: "nano-banana-2-lite",
-				providerTaskId: "contention-only",
-				status: "RUNNING",
-				requestSnapshot: {},
+				status: "CANCELED",
+				nextFinalizeAt: new Date(0),
 			},
 		});
 		const account = await db.creditAccount.create({
@@ -692,27 +725,17 @@ try {
 		await db.creditReservation.create({
 			data: { accountId: account.id, jobId: job.id, amount: 1n },
 		});
-		await db.outboxEvent.create({
-			data: {
-				aggregateType: "GENERATION_JOB",
-				aggregateId: job.id,
-				eventType: "GENERATION_CANCEL_REQUESTED",
-				dedupeKey: `generation-cancel:${job.id}`,
-				payload: { jobId: job.id },
-				status: "PROCESSED",
-			},
-		});
 		occupyMaintenance = async () => {
 			const { Client } = createRequire(path.join(root, "packages/database/package.json"))("pg");
 			const lock = new Client({ connectionString: databaseUrl });
 			await lock.connect();
 			try {
 				await lock.query("BEGIN");
-				await lock.query("SELECT id FROM generation_attempt WHERE id=$1 FOR UPDATE", [attempt.id]);
+				await lock.query("SELECT id FROM generation_job WHERE id=$1 FOR UPDATE", [job.id]);
 				mark("maintenance.locked");
 				const body = JSON.stringify({
-					request: { taskId: "media-cancel-generation", payload: { jobId: job.id, version: 0 } },
-					context: { attempt: 1, maxAttempts: 5, runId: "controlled-maintenance" },
+					request: { taskId: "media-recover-finalizing-generations", payload: {} },
+					context: { attempt: 1, maxAttempts: 3, runId: "controlled-maintenance" },
 				});
 				const timestamp = String(Date.now());
 				const signature = createHmac("sha256", secret)
@@ -728,6 +751,12 @@ try {
 				const response = await execution;
 				mark("maintenance.released", { status: response.status });
 				await response.arrayBuffer();
+				assert.equal(
+					(await db.generationJob.findUniqueOrThrow({ where: { id: job.id } }))
+						.finalizationRetryCount,
+					1,
+					"MAINTENANCE_RECOVERY_NOT_COMMITTED",
+				);
 			} finally {
 				await lock.end();
 			}

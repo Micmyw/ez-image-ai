@@ -275,6 +275,25 @@ export async function claimOutboxBatch(
 		AND EXISTS (SELECT 1 FROM "media_asset" asset
 			WHERE asset."id" = "outbox_event"."aggregateId" AND asset."kind" = 'OUTPUT'
 			AND asset."mimeType" LIKE 'image/%')`;
+	if (
+		input.scope !== undefined &&
+		(!["recovery", "cleanup"].includes(input.scope) ||
+			input.eventIds !== undefined ||
+			input.outputReviewEventId !== undefined)
+	)
+		throw new Error("Invalid Outbox scope");
+	const cleanupTypes = Prisma.join([
+		"MEDIA_OBJECT_DELETE",
+		"MEDIA_MULTIPART_ABORT",
+		"MEDIA_UPLOAD_CLEANUP",
+		"ACCOUNT_INPUT_COPY_ORPHAN_CHECK",
+	]);
+	const scope =
+		input.scope === "cleanup"
+			? Prisma.sql`AND "eventType" IN (${cleanupTypes})`
+			: input.scope === "recovery"
+				? Prisma.sql`AND "eventType" NOT IN (${cleanupTypes})`
+				: Prisma.empty;
 	const claim = (tx: Prisma.TransactionClient) =>
 		tx.$queryRaw<ClaimedOutboxRow[]>`
 			WITH tick AS MATERIALIZED (SELECT ${clock} AS "now"), claimable AS (
@@ -282,6 +301,7 @@ export async function claimOutboxBatch(
 				FROM "outbox_event", tick
 				WHERE "availableAt" <= tick."now"
 				  ${target}
+				  ${scope}
 				  AND (
 					"status" = 'PENDING'
 					OR ("status" = 'LEASED' AND "leasedUntil" <= tick."now")

@@ -19,7 +19,6 @@ import {
 	type CreateGuestGenerationTransactionInput,
 	type CreateGuestGenerationTransactionResult,
 	type GuestAdmissionDenialReason,
-	type GuestJobSnapshot,
 	type BlockedPromptContext,
 	recordGuestAdmissionDenial,
 	recordBlockedPromptAttempt,
@@ -135,7 +134,7 @@ interface GuestAdmissionDependencies {
 	findReplay?(
 		boundary: GuestAdmissionBoundary,
 		input: SubmitGuestGenerationInput,
-	): Promise<GuestJobSnapshot | null>;
+	): Promise<CreateGuestGenerationTransactionResult | null>;
 	now(): Date;
 	saasOrigin: string;
 	loadCapability(): Promise<{
@@ -267,7 +266,7 @@ export async function submitGuestGenerationForGuest(
 	boundary: GuestAdmissionBoundary,
 	input: SubmitGuestGenerationInput,
 	dependencySelection: GuestAdmissionDependencies | "default" = "default",
-): Promise<GuestJobSnapshot> {
+): Promise<CreateGuestGenerationTransactionResult> {
 	const dependencies =
 		dependencySelection === "default" ? guestAdmissionDependencies : dependencySelection;
 	const now = dependencies.now();
@@ -441,6 +440,7 @@ export async function submitGuestGenerationForGuest(
 				{
 					userId: boundary.ownerId,
 					audience: "GUEST",
+					browserSubjectHash,
 					prompt: modelInput.prompt,
 					productKey: input.productKey,
 					sourceAssetId: source.id,

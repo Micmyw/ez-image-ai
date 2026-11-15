@@ -19,11 +19,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
-import { AdminPromptContentPanel } from "./AdminPromptContentPanel";
 import { CheckoutReviewPanel } from "./CheckoutReviewPanel";
-import { CustomerImageContentPanel } from "./CustomerImageContentPanel";
+import { CustomerContentPanel } from "./CustomerContentPanel";
 import { DiagnosticsStatus } from "./DiagnosticsStatus";
 import { GrowthOperationsPanel } from "./GrowthOperationsPanel";
+import { GuestCapacityPanel } from "./GuestCapacityPanel";
 import { KieRejectionRecoveryPanel } from "./KieRejectionRecoveryPanel";
 import { ModerationOperationsPanel } from "./ModerationOperationsPanel";
 import { PaymentAttributionPanel } from "./PaymentAttributionPanel";
@@ -151,13 +151,13 @@ export function MediaOperations() {
 
 	return (
 		<div className="space-y-6">
-			<CustomerImageContentPanel />
-			<AdminPromptContentPanel />
+			<CustomerContentPanel />
 			<PaymentAttributionPanel />
 			<CheckoutReviewPanel />
 			<ModerationOperationsPanel />
 			<KieRejectionRecoveryPanel />
 			<GrowthOperationsPanel />
+			<GuestCapacityPanel />
 			<DiagnosticsStatus title={t("guest.title")} query={guestDiagnostics} intervalMs={60_000} />
 			<GuestOperationsPanel
 				data={guestDiagnostics.data?.guest}

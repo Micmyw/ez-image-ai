@@ -63,7 +63,9 @@ export class WorkerJobs extends DurableObject<WorkersEnvironment> {
 			? "control"
 			: this.ctx.id.equals(this.env.JOBS_EXECUTOR.idFromName(WORKER_EXECUTORS.maintenance.name))
 				? "maintenance"
-				: "heavy";
+				: this.ctx.id.equals(this.env.JOBS_EXECUTOR.idFromName(WORKER_EXECUTORS.cleanup.name))
+					? "cleanup"
+					: "heavy";
 		this.handler ??= createRuntimeExecutionHandler(this.env, {
 			waitUntil: (work) => this.ctx.waitUntil(work),
 			maxActive: WORKER_EXECUTORS[lane].maxActive,
@@ -91,7 +93,13 @@ export class JobsWorkflow extends WorkflowEntrypoint<WorkersEnvironment, JobsPar
 		if (event.payload.kind === "continuation" && event.payload.notBefore !== undefined)
 			await waitForDueTime(steps, "wake-continuation-due", event.payload.notBefore);
 		if (event.payload.kind === "maintenance")
-			await runMaintenance(event.payload.timestamp, event.instanceId, steps, invoke);
+			await runMaintenance(
+				event.payload.timestamp,
+				event.instanceId,
+				steps,
+				invoke,
+				event.payload.scope,
+			);
 		else if (event.payload.kind === "continuation")
 			await runContinuation(event.payload.request, event.instanceId, steps, invoke);
 		else if (
@@ -145,6 +153,15 @@ export default {
 					{
 						id,
 						params: { kind: "maintenance", timestamp },
+						retention: { successRetention: "1 day", errorRetention: "7 days" },
+					},
+				]),
+			),
+			workflowInstanceId({ cleanup: timestamp }).then((id) =>
+				env.JOBS.createBatch([
+					{
+						id,
+						params: { kind: "maintenance", timestamp, scope: "cleanup" },
 						retention: { successRetention: "1 day", errorRetention: "7 days" },
 					},
 				]),

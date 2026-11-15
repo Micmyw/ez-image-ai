@@ -8,6 +8,7 @@ export const WORKER_EXECUTORS = {
 	// Old Workflow deliveries drain here. New control work uses JOBS_CONTROL.
 	control: { name: "jobs-control", maxActive: 4 },
 	maintenance: { name: "jobs-maintenance", maxActive: 1 },
+	cleanup: { name: "jobs-cleanup", maxActive: 1 },
 } as const;
 
 export type WorkerExecutorLane = keyof typeof WORKER_EXECUTORS;
@@ -41,22 +42,15 @@ export function workerExecutorLane(input: TaskRequest): WorkerExecutorLane {
 		case "media-execute-event":
 		case "media-process-provider-webhook":
 		case "media-settle-generation":
-			return "control";
-		case "media-deliver-outbox":
-		case "media-cleanup-account-input-copy":
-		case "media-recover-account-input-copies":
 		case "media-admit-guest-generation":
 		case "media-cancel-generation":
 		case "media-process-payment-event":
 		case "media-terminate-refunded-subscription":
 		case "media-confirm-subscription-cancellation":
 		case "media-recover-subscription-checkout":
-		case "media-delete-object":
-		case "media-abort-multipart":
-		case "media-cleanup-upload-promotion":
-		case "media-abort-promotion-multipart":
-		case "media-expire-guest-media":
-		case "media-expire-uploads":
+			return "control";
+		case "media-deliver-outbox":
+		case "media-recover-account-input-copies":
 		case "media-grant-billing-periods":
 		case "media-reconcile-generations":
 		case "media-reconcile-subscriptions":
@@ -66,6 +60,15 @@ export function workerExecutorLane(input: TaskRequest): WorkerExecutorLane {
 		case "media-recover-verifications":
 		case "media-recover-payment-events":
 			return "maintenance";
+		case "media-deliver-cleanup-outbox":
+		case "media-cleanup-account-input-copy":
+		case "media-delete-object":
+		case "media-abort-multipart":
+		case "media-cleanup-upload-promotion":
+		case "media-abort-promotion-multipart":
+		case "media-expire-guest-media":
+		case "media-expire-uploads":
+			return "cleanup";
 		default:
 			return "heavy";
 	}
@@ -85,6 +88,20 @@ export function workerServiceForTask(input: TaskRequest): "JOBS_CONTROL" | "JOBS
 
 /** Inline Outbox children retain the parent's slot and completion-before-ACK. */
 export function assertWorkerInlineTask(parent: TaskRequest, child: TaskRequest): void {
+	// Recovery can finish exceptional customer work under its existing receipt.
+	if (
+		parent.taskId === "media-deliver-outbox" &&
+		[
+			"media-admit-guest-generation",
+			"media-cancel-generation",
+			"media-terminate-refunded-subscription",
+			"media-confirm-subscription-cancellation",
+			"media-recover-subscription-checkout",
+		].includes(child.taskId)
+	)
+		return;
+	if (parent.taskId === "media-deliver-cleanup-outbox" && workerExecutorLane(child) === "cleanup")
+		return;
 	// Callback normalization is control-only, performs no provider request and must
 	// return its lease wait directly to the original Outbox delivery before ACK.
 	if (

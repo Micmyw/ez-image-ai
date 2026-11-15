@@ -43,6 +43,8 @@ export interface ModerationDecision {
 	decision: ModerationDecisionType;
 	reasonCode: string;
 	ruleVersion: string;
+	/** Provider-requested minimum delay before another query, never an approval. */
+	retryAfterMs?: number;
 	/** Server-only allowlisted diagnostics; never raw provider payloads or input media. */
 	evidence?: ModerationEvidence;
 }
@@ -117,6 +119,8 @@ export interface ModerationSubmission {
 	completedDecision?: ModerationDecision;
 	/** Authenticated submission response explicitly remained nonterminal; absent on old adapters. */
 	nonterminalState?: "queued" | "processing";
+	/** Provider-requested minimum delay before the first query. */
+	retryAfterMs?: number;
 	moderationTaskId: string;
 	status: "QUEUED" | "RUNNING";
 	ruleVersion: string;

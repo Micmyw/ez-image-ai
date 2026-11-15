@@ -18,6 +18,8 @@ export * from "../../shared/admin-analytics-payment-evidence";
 
 export * from "./aggregate-traffic";
 export * from "./guest-entitlement";
+export { getAdminGuestPrincipalCapacity } from "../../prisma/queries/media/guest-capacity";
+export { setAdminGuestPrincipalCapacity } from "../../prisma/queries/media/admin-operations";
 export {
 	executeAdminContentCleanup,
 	previewAdminContentCleanup,
@@ -28,3 +30,7 @@ export {
 	listAdminPromptContent,
 } from "../../prisma/queries/media/admin-prompt-content";
 export * from "../../prisma/queries/media/provider-original";
+export {
+	listAdminContentCustomers,
+	listAdminCustomerContent,
+} from "../../prisma/queries/media/admin-customer-content";

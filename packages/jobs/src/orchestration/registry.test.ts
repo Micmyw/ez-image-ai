@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	maintenanceTasksAt,
+	cleanupTasksAt,
 	parseEventDeliveryResult,
 	parseTaskRequest,
 	taskDefinition,
@@ -11,6 +12,27 @@ import {
 const dispatchTask = "media-dispatch-image-kie-nano-banana-2";
 
 describe("orchestration task admission", () => {
+	it("permits only same-event query-only review receipts from fused read recovery", () => {
+		const request = {
+			taskId: "media-execute-event",
+			payload: { eventId: "event", recoverOnly: true },
+		};
+		const child = {
+			taskId: "media-verify-upload",
+			payload: { assetId: "asset", queryOnly: true },
+			outboxReceipt: { eventId: "event", workerId: "workflow:one", leaseToken: "lease" },
+		};
+		expect(parseEventDeliveryResult(request, { preparedEvent: child })).toEqual({
+			preparedEvent: child,
+		});
+		for (const preparedEvent of [
+			{ ...child, payload: { assetId: "asset" } },
+			{ ...child, payload: { ...child.payload, allowQuarantinedReverification: true } },
+			{ ...child, outboxReceipt: { ...child.outboxReceipt, eventId: "other" } },
+			{ ...child, taskId: "media-settle-generation", payload: { jobId: "job", version: 1 } },
+		])
+			expect(() => parseEventDeliveryResult(request, { preparedEvent })).toThrow();
+	});
 	it("requires exact receipt identity and typed review progress for a fused execution", () => {
 		const request = { taskId: "media-execute-event", payload: { eventId: "event" } };
 		const child = {
@@ -284,23 +306,18 @@ describe("orchestration capacity and maintenance", () => {
 		];
 		expect(at(1).sort()).toEqual(everyMinute.sort());
 		expect(at(5).sort()).toEqual(
-			[
-				...everyMinute,
-				"media-reconcile-generations",
-				"media-expire-guest-media",
-				"media-grant-billing-periods",
-			].sort(),
+			[...everyMinute, "media-reconcile-generations", "media-grant-billing-periods"].sort(),
 		);
 		expect(at(15).sort()).toEqual(
-			[
-				...everyMinute,
-				"media-reconcile-generations",
-				"media-expire-guest-media",
-				"media-expire-uploads",
-				"media-reconcile-subscriptions",
-			].sort(),
+			[...everyMinute, "media-reconcile-generations", "media-reconcile-subscriptions"].sort(),
 		);
-		expect(new Set(Array.from({ length: 60 }, (_, minute) => at(minute)).flat()).size).toBe(10);
+		expect(new Set(Array.from({ length: 60 }, (_, minute) => at(minute)).flat()).size).toBe(8);
+		expect(cleanupTasksAt(Date.UTC(2026, 8, 8, 4, 15))).toEqual([
+			"media-expire-guest-media",
+			"media-expire-uploads",
+			"media-deliver-cleanup-outbox",
+		]);
+		expect(cleanupTasksAt(Date.UTC(2026, 8, 8, 4, 1))).toEqual(["media-deliver-cleanup-outbox"]);
 		expect(() => maintenanceTasksAt(Number.NaN)).toThrow();
 	});
 });

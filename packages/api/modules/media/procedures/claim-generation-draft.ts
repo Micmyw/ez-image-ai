@@ -1,6 +1,7 @@
 import { claimGenerationDraftTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
 
+import { dispatchCommittedTask } from "../../../lib/dispatch-committed-task";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { publicAccountInputCopyStatus } from "../lib/account-input-copy-status";
 import {
@@ -28,6 +29,13 @@ export const claimGenerationDraft = protectedProcedure
 				},
 				db,
 			);
+			if (draft.preparation?.status === "COPYING")
+				await dispatchCommittedTask(
+					"media-copy-account-input",
+					{ promotionId: draft.preparation.promotionId },
+					`account-input-copy:${draft.preparation.promotionId}`,
+					context.defer,
+				);
 			return {
 				id: draft.id,
 				productKey: draft.productKey,

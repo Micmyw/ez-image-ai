@@ -22,6 +22,8 @@ import {
 import type { MediaVerificationAdmission } from "@repo/database";
 import { recoverProviderOriginalArchives } from "@repo/database";
 import { db } from "@repo/database/client";
+import { getAccountInputCopyReviewEventIds } from "@repo/database/media-account-input-copy";
+import { readImageVerificationQueryRecovery } from "@repo/database/media-verification-persistence-recovery";
 import { deliverModerationIncidentNotification } from "@repo/notifications/moderation-incident";
 
 import {
@@ -329,7 +331,36 @@ async function executeParsedTask(
 				recover: async () => {
 					const event = await readWorkflowOutboxEvent(input.eventId, db);
 					if (!event) return { eventRecoveryState: "missing" };
-					if (event.status !== "PROCESSED") return { eventRecoveryState: "held" };
+					if (event.status !== "PROCESSED") {
+						const recovery = context.workflowId
+							? await readImageVerificationQueryRecovery(
+									{
+										eventId: input.eventId,
+										workflowId: context.workflowId,
+									},
+									db,
+								)
+							: undefined;
+						if (recovery)
+							return {
+								preparedEvent: parseTaskRequest({
+									taskId: "media-verify-upload",
+									payload: {
+										assetId: recovery.assetId,
+										queryOnly: true,
+										...(recovery.requiresGeneratedImageProcessing
+											? { requiresGeneratedImageProcessing: true }
+											: {}),
+									},
+									outboxReceipt: {
+										eventId: recovery.eventId,
+										workerId: recovery.workerId,
+										leaseToken: recovery.leaseToken,
+									},
+								}),
+							};
+						return { eventRecoveryState: "held" };
+					}
 					// A completion receipt recovers only committed control state, never its paid body.
 					let continuation;
 					if (event.aggregateType === "MEDIA_ASSET")
@@ -372,11 +403,14 @@ async function executeParsedTask(
 				continuation: { eventIds: [] },
 			};
 		}
-		case "media-copy-account-input":
-			return copyAccountInput(
-				parseTaskPayload(taskId, payload),
-				createDatabaseAccountInputCopyDependencies(db),
-			);
+		case "media-copy-account-input": {
+			const input = parseTaskPayload(taskId, payload);
+			const result = await copyAccountInput(input, createDatabaseAccountInputCopyDependencies(db));
+			return {
+				...result,
+				continuation: { eventIds: await getAccountInputCopyReviewEventIds(input.promotionId, db) },
+			};
+		}
 		case "media-cleanup-account-input-copy":
 			return cleanupAccountInputCopyOrphan(
 				parseTaskPayload(taskId, payload),
@@ -390,17 +424,25 @@ async function executeParsedTask(
 			);
 		}
 		case "media-deliver-outbox":
+		case "media-deliver-cleanup-outbox":
 		case "media-deliver-output-review":
 		case "media-deliver-events":
 			return dispatchOutbox(
 				{
 					workerId: `workflow:${context.runId}`,
+					...(taskId === "media-deliver-outbox"
+						? { scope: "recovery" as const }
+						: taskId === "media-deliver-cleanup-outbox"
+							? { scope: "cleanup" as const }
+							: {}),
 					limit:
 						taskId === "media-deliver-output-review"
 							? 1
 							: taskId === "media-deliver-events"
 								? 100
-								: 50,
+								: taskId === "media-deliver-cleanup-outbox"
+									? 10
+									: 50,
 					leaseSeconds: 90,
 					...(taskId === "media-deliver-events"
 						? { eventIds: parseTaskPayload(taskId, payload).eventIds }
@@ -441,10 +483,9 @@ async function executeParsedTask(
 								};
 								logTaskStarted(child, childContext, now().getTime());
 								const result = await executeTask(child, childContext, dependencies);
-								if (childTaskId === "media-process-provider-webhook")
-									continuation = parseTaskContinuation(
-										(result as { continuation?: unknown } | null)?.continuation,
-									);
+								continuation = parseTaskContinuation(
+									(result as { continuation?: unknown } | null)?.continuation,
+								);
 							},
 							resolveDispatchRoute: resolveDatabaseDispatchRoute,
 						});
@@ -464,10 +505,12 @@ async function executeParsedTask(
 		}
 		case "media-cancel-generation": {
 			const registry = createProviderRegistry(environment, { includeRecoveryProviders: true });
-			return cancelProviderGeneration(parseTaskPayload(taskId, payload), {
+			const input = parseTaskPayload(taskId, payload);
+			const result = await cancelProviderGeneration(input, {
 				store: databaseProviderCancellationStore,
 				getProvider: (provider) => getRegisteredProvider(registry, provider),
 			});
+			return { ...result, continuation: await getFinalizationContinuation(input.jobId, db) };
 		}
 		case "media-archive-output":
 			return archiveProviderOriginal(

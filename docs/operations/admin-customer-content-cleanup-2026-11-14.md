@@ -1,5 +1,7 @@
 # Administrator customer content diagnostics and selected cleanup
 
+The two independent content panels are superseded by the [customer directory and unified timeline](admin-customer-content-2026-11-15.md). The detail and cleanup contracts below remain in use.
+
 This change is a local implementation. No production data was deleted, no live provider was called, and no release or deployment is certified by this document.
 
 ## Private diagnostics

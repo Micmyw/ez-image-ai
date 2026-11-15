@@ -343,6 +343,8 @@ export interface CreateMediaUploadSessionTransactionInput {
 		maximumReservedBytes: bigint;
 	};
 	guest?: {
+		/** Verified signed-browser identity, for private administrative grouping only. */
+		browserSubjectHash?: string;
 		capabilityVersion: string;
 		originHash: string;
 		expectedSha256: string;
@@ -364,6 +366,9 @@ export async function createMediaUploadSessionTransaction(
 	}
 	if (input.guest && input.guest.deleteAfter <= input.expiresAt) {
 		throw new Error("Guest asset deletion deadline must outlive its upload session");
+	}
+	if (input.guest?.browserSubjectHash && !/^[a-f0-9]{64}$/.test(input.guest.browserSubjectHash)) {
+		throw new Error("GUEST_BROWSER_IDENTITY_INVALID");
 	}
 	return runSerializable(client, async (tx) => {
 		await lockOwnerStorageUsage(input, tx);
@@ -450,7 +455,9 @@ export async function createMediaUploadSessionTransaction(
 					mimeType: input.mimeType,
 					expectedBytes: input.expectedBytes.toString(),
 				},
-				metadata: {},
+				metadata: input.guest?.browserSubjectHash
+					? { guestBrowserIdentityVersion: 1, browserSubjectHash: input.guest.browserSubjectHash }
+					: {},
 			},
 		});
 		if (input.guest) {

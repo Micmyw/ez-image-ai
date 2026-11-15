@@ -32,6 +32,8 @@
 
 ## 支持范围
 
+以下是 11 月 14 日初版的已部署范围。11 月 15 日 SVG/GIF 并行审核与单张抽帧拼图的本地扩展见 [连续审核与展示](image-direct-review-delivery-2026-11-15.md)，不代表该扩展已部署。
+
 - 新鲜远程 URL、JPEG/PNG/WebP、响应长度明确且在 20,000,000 字节以内，走新的并行路径。
 - Workers 游客输出使用同一个 Cloudflare Images 实现制备、审核、下载及归档水印图；不写干净的中间原图，因此不伪造 `cleanStagingDeletedAt`。已有游客审核和过期条件保留。
 - 混合 Node/Workers 部署下的新游客输出继续旧链路，避免 Sharp 与 Images 产生不同字节；启用后已有未归档游客原图必须继续使用相同 Images 实现，直到完成归档。

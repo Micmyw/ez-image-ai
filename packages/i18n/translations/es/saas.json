@@ -106,6 +106,22 @@
 					"jobs": "Trabajos"
 				}
 			},
+			"guestCapacity": {
+				"title": "Capacidad de identidades de invitados",
+				"description": "Define cuántas identidades temporales de invitados puede conservar el sitio. Al alcanzar esta capacidad se pausan los nuevos accesos de invitados.",
+				"limit": "Capacidad total",
+				"used": "Ocupadas",
+				"remaining": "Disponibles",
+				"leases": "Incluye {count} identidades que se están creando.",
+				"sourceAdmin": "Configuración del administrador activa",
+				"sourceEnvironment": "Valor predeterminado del despliegue activo",
+				"reason": "Motivo del cambio",
+				"reasonHint": "Introduce al menos 10 caracteres.",
+				"save": "Guardar capacidad",
+				"saved": "Capacidad guardada.",
+				"saveError": "No se pudo confirmar el cambio. Vuelve a intentarlo con los mismos valores.",
+				"belowUsage": "Se podrán crear nuevas identidades de invitados cuando la ocupación sea inferior a la nueva capacidad."
+			},
 			"guest": {
 				"title": "Operaciones de la prueba Estándar anónima",
 				"description": "Solo diagnóstico agregado de invitados. Se excluyen datos sin procesar de red, dispositivo, token, instrucciones, medios y rutas.",
@@ -628,6 +644,64 @@
 				"terminalSources": {
 					"AUTHENTICATED_RETRIEVAL": "Consulta autenticada al proveedor",
 					"STORED_DIAGNOSTIC": "Sin evidencia autenticada del estado final"
+				}
+			},
+			"customers": {
+				"title": "Contenido de clientes",
+				"description": "Selecciona un cliente para ver juntos sus archivos, imágenes generadas, instrucciones guardadas y solicitudes fallidas.",
+				"searchLabel": "Buscar un cliente",
+				"searchPlaceholder": "Correo, nombre o ID de cliente, imagen o tarea",
+				"audience": "Tipo de usuario",
+				"all": "Todos",
+				"search": "Buscar",
+				"refresh": "Actualizar",
+				"loading": "Cargando contenido…",
+				"loadError": "No se pudo cargar el contenido. Intenta actualizar.",
+				"staleError": "Error al actualizar. El contenido mostrado puede estar desactualizado.",
+				"customer": "Cliente",
+				"uploads": "Archivos",
+				"outputs": "Resultados",
+				"jobs": "Tareas",
+				"blocked": "Solicitudes rechazadas",
+				"issues": "Incidencias",
+				"lastActivity": "Última actividad",
+				"open": "Ver todo el contenido",
+				"empty": "No hay clientes coincidentes.",
+				"newest": "Más recientes",
+				"older": "Anteriores",
+				"back": "Volver a clientes",
+				"history": "Todo el historial guardado, del más reciente al más antiguo. Filtra por tipo de contenido o incidencias.",
+				"kind": "Tipo de contenido",
+				"issuesOnly": "Solo registros fallidos o bloqueados",
+				"timeline": "Actividad del cliente",
+				"time": "Hora",
+				"model": "Modelo",
+				"status": "Estado",
+				"inspect": "Ver",
+				"inspectImage": "Ver imagen y revisión",
+				"inspectPrompt": "Ver instrucciones y tarea",
+				"noContent": "No hay contenido con estos filtros.",
+				"audiences": {
+					"ACCOUNT": "Cuenta / organización",
+					"GUEST": "Invitado",
+					"UNKNOWN": "Sin vincular / desconocido"
+				},
+				"kinds": {
+					"INPUT": "Imagen subida",
+					"OUTPUT": "Imagen generada",
+					"JOB": "Tarea de generación",
+					"BLOCKED_REQUEST": "Instrucción rechazada"
+				},
+				"guestBrowser": "Navegador invitado · {id}",
+				"unlinkedUpload": "Archivo sin vincular · {id}",
+				"guestSession": "Sesión invitada · {id}",
+				"browserIdentityNote": "Archivos y sesiones agrupados por la identidad firmada del navegador. Identifica un navegador, no una persona; borrar cookies o cambiar de navegador puede romper la asociación.",
+				"missingBrowserIdentityNote": "Estos registros históricos no tienen una asociación de navegador recuperable. Las sesiones o archivos separados no demuestran visitantes distintos.",
+				"identityTypes": {
+					"USER": "Cuenta / sesión",
+					"ORGANIZATION": "Organización",
+					"GUEST_BROWSER": "Mismo navegador",
+					"UNKNOWN": "Identidad desconocida"
 				}
 			}
 		},

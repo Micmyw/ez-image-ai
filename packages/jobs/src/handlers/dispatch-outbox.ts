@@ -25,6 +25,7 @@ function deliveryErrorCode(error: unknown): string {
 
 export async function dispatchOutbox(
 	input: {
+		scope?: "recovery" | "cleanup";
 		workerId: string;
 		limit?: number;
 		leaseSeconds?: number;
@@ -34,6 +35,7 @@ export async function dispatchOutbox(
 	dependencies: OutboxDependencies,
 ): Promise<{ claimed: number; delivered: number; continuations?: TaskContinuation[] }> {
 	const events = await dependencies.store.claimBatch({
+		...(input.scope === undefined ? {} : { scope: input.scope }),
 		workerId: input.workerId,
 		limit: Math.min(Math.max(input.limit ?? 25, 1), 100),
 		leaseSeconds: Math.min(Math.max(input.leaseSeconds ?? 60, 10), 300),

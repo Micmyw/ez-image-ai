@@ -45,6 +45,8 @@ const mocks = vi.hoisted(() => {
 		dispatch: vi.fn(),
 		cleanup: vi.fn(),
 		copyAccountInput: vi.fn(),
+		copyReviewEvents: vi.fn(async () => ["copy-review"]),
+		initialEvents: vi.fn(async () => [] as string[]),
 		cleanupAccountInputCopyOrphan: vi.fn(),
 		recoverAccountInputCopyTasks: vi.fn(),
 		cancel: vi.fn(),
@@ -102,6 +104,9 @@ vi.mock("../runtime", () => ({
 	resolveDatabaseDispatchRoute: mocks.resolveDispatchRoute,
 }));
 vi.mock("./client", () => ({ dispatchJob: mocks.dispatch }));
+vi.mock("@repo/database/media-account-input-copy", () => ({
+	getAccountInputCopyReviewEventIds: mocks.copyReviewEvents,
+}));
 vi.mock("@repo/database/client", () => ({
 	db: {
 		mediaAsset: { findMany: mocks.findAssets, findUnique: mocks.findAsset },
@@ -123,7 +128,7 @@ vi.mock("@repo/database", async () => ({
 	getFinalizationContinuation: mocks.continuation,
 	getSubmittedGenerationContinuation: mocks.continuation,
 	getProviderEventContinuation: mocks.continuation,
-	getInitialGenerationEventIds: vi.fn(async () => []),
+	getInitialGenerationEventIds: mocks.initialEvents,
 	deleteExpiredImagePhaseOwners: vi.fn(async () => 0),
 	prepareWorkflowOutboxDelivery: mocks.prepareEvent,
 	beginWorkflowOutboxExecution: mocks.beginEvent,
@@ -166,10 +171,11 @@ import { assertWorkerInlineTask } from "./worker-executors";
 const context = { attempt: 2, maxAttempts: 8, runId: "workflow-1" };
 
 it("executes registered account-copy, orphan and recovery tasks with their production stores", async () => {
-	await executeTask(
+	const copied = await executeTask(
 		{ taskId: "media-copy-account-input", payload: { promotionId: "copy" } },
 		context,
 	);
+	expect(copied).toMatchObject({ continuation: { eventIds: ["copy-review"] } });
 	expect(mocks.copyAccountInput).toHaveBeenCalledWith({ promotionId: "copy" }, { marker: "copy" });
 	await executeTask(
 		{ taskId: "media-cleanup-account-input-copy", payload: { promotionId: "copy" } },
@@ -631,7 +637,7 @@ describe("Node task executor", () => {
 			event({ availableAt: new Date(now.getTime() - 2_500) }),
 		]);
 		try {
-			await executeTask({ taskId: "media-deliver-outbox", payload: {} }, context, {
+			await executeTask({ taskId: "media-deliver-cleanup-outbox", payload: {} }, context, {
 				now: () => now,
 				assertInlineTask: assertWorkerInlineTask,
 			});
@@ -1228,9 +1234,13 @@ describe("Node task executor", () => {
 				}),
 		);
 		mocks.outboxStore.claimBatch.mockResolvedValue([event()]);
-		const execution = executeTask({ taskId: "media-deliver-outbox", payload: {} }, context, {
-			assertInlineTask: assertWorkerInlineTask,
-		});
+		const execution = executeTask(
+			{ taskId: "media-deliver-cleanup-outbox", payload: {} },
+			context,
+			{
+				assertInlineTask: assertWorkerInlineTask,
+			},
+		);
 		await didStart;
 		expect(mocks.outboxStore.complete).not.toHaveBeenCalled();
 		expect(mocks.dispatch).not.toHaveBeenCalled();
@@ -1261,7 +1271,8 @@ describe("Node task executor", () => {
 		);
 	});
 
-	it("releases failed cleanup without ACK and awaits cancellation and guest admission", async () => {
+	it("rejects misrouted cleanup without ACK and awaits cancellation and guest admission", async () => {
+		mocks.initialEvents.mockResolvedValueOnce(["guest-dispatch-event"]);
 		mocks.cleanup.mockRejectedValueOnce(new Error("storage unavailable"));
 		mocks.outboxStore.claimBatch.mockResolvedValue([
 			event(),
@@ -1285,6 +1296,7 @@ describe("Node task executor", () => {
 		).toEqual({
 			claimed: 3,
 			delivered: 2,
+			continuations: [{ eventIds: [] }, { eventIds: ["guest-dispatch-event"] }],
 		});
 		expect(mocks.outboxStore.release).toHaveBeenCalledWith(
 			expect.objectContaining({

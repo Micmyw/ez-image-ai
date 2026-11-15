@@ -22,7 +22,7 @@ interface PaymentWebhookDependencies {
 		verifiedAt: Date;
 		receivedAt: Date;
 		envelope: Record<string, unknown>;
-	}): Promise<{ replayed: boolean }>;
+	}): Promise<{ replayed: boolean; paymentEventId?: string }>;
 }
 
 const signatureHeaders: Record<PaymentProviderName, string> = {
@@ -32,7 +32,10 @@ const signatureHeaders: Record<PaymentProviderName, string> = {
 };
 
 export function createPaymentWebhookHandler(dependencies: PaymentWebhookDependencies) {
-	return async (request: Request): Promise<Response> => {
+	return async (
+		request: Request,
+		wake?: (paymentEventId: string) => Promise<void>,
+	): Promise<Response> => {
 		const candidates = (
 			Object.entries(signatureHeaders) as Array<[PaymentProviderName, string]>
 		).filter(([, header]) => Boolean(request.headers.get(header)?.trim()));
@@ -49,7 +52,7 @@ export function createPaymentWebhookHandler(dependencies: PaymentWebhookDependen
 
 		try {
 			const now = new Date();
-			await dependencies.persist({
+			const persisted = await dependencies.persist({
 				provider,
 				providerEventId: verified.providerEventId,
 				normalizedTransactionId: verified.normalizedTransactionId,
@@ -58,6 +61,10 @@ export function createPaymentWebhookHandler(dependencies: PaymentWebhookDependen
 				receivedAt: now,
 				envelope: verified.envelope,
 			});
+			// A wake failure must not turn an already durable verified event into a
+			// failed webhook response. Recovery retains the original payment identity.
+			if (persisted.paymentEventId && wake)
+				await wake(persisted.paymentEventId).catch(() => undefined);
 			return new Response(null, { status: 204 });
 		} catch {
 			return new Response("Webhook persistence failed.", { status: 500 });

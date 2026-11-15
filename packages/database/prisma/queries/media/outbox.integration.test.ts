@@ -63,6 +63,49 @@ describe("durable Outbox completion receipts in PostgreSQL", () => {
 		return event;
 	}
 
+	it("claims customer recovery independently of an older cleanup backlog", async () => {
+		const cleanup = await createEvent();
+		await client.outboxEvent.update({
+			where: { id: cleanup.id },
+			data: { eventType: "MEDIA_OBJECT_DELETE" },
+		});
+		const payment = await createEvent();
+		const recovered = await claimOutboxBatch(
+			{
+				workerId: "recovery-partition",
+				scope: "recovery",
+				limit: 1,
+				leaseSeconds: 60,
+				now: initialTime,
+			},
+			client,
+		);
+		expect(recovered.map((row) => row.id)).toEqual([payment.id]);
+		const cleaning = await claimOutboxBatch(
+			{
+				workerId: "cleanup-partition",
+				scope: "cleanup",
+				limit: 1,
+				leaseSeconds: 60,
+				now: initialTime,
+			},
+			client,
+		);
+		expect(cleaning.map((row) => row.id)).toEqual([cleanup.id]);
+		await expect(
+			claimOutboxBatch(
+				{
+					workerId: "invalid",
+					scope: "cleanup",
+					eventIds: [payment.id],
+					limit: 1,
+					leaseSeconds: 60,
+				},
+				client,
+			),
+		).rejects.toThrow("Invalid Outbox scope");
+	});
+
 	async function claim(id: string, now: Date, workerId = "receipt-worker") {
 		const claims = await claimOutboxBatch({ workerId, limit: 100, leaseSeconds: 60, now }, client);
 		const event = claims.find((entry) => entry.id === id);

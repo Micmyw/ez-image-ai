@@ -567,6 +567,7 @@ export class OutboxDeliveryPendingError extends Error {
 
 export interface OutboxStore {
 	claimBatch(input: {
+		scope?: "recovery" | "cleanup";
 		workerId: string;
 		limit: number;
 		leaseSeconds: number;

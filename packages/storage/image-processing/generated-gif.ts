@@ -4,6 +4,7 @@ import { decompressFrame, parseGIF } from "gifuct-js";
 import { MediaValidationError } from "../lib/media-signatures";
 
 const SIDE = 1568;
+const MAX_REVIEW_FRAMES = 9;
 
 function invalidGif(): never {
 	throw new MediaValidationError(
@@ -89,16 +90,25 @@ export function inspectGeneratedGif(bytes: Uint8Array) {
 	return invalidGif();
 }
 
-/** Every displayed frame is composited (including disposal) into one review image. */
-export function gifReviewPng(bytes: Uint8Array): Uint8Array {
+/** One sheet of up to nine evenly spaced displayed frames, including both endpoints. */
+export function gifReviewPng(bytes: Uint8Array, expectedFrameCount?: number): Uint8Array {
 	const { width, height, frames: count } = inspectGeneratedGif(bytes);
+	if (expectedFrameCount !== undefined && count !== expectedFrameCount)
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_TYPE_MISMATCH",
+			"GIF frame count does not match the requested animation",
+		);
 	const parsed = parseGIF(Uint8Array.from(bytes).buffer);
 	const frames = parsed.frames.filter(
 		(frame): frame is Parameters<typeof decompressFrame>[0] => "image" in frame,
 	);
 	if (frames.length !== count) invalidGif();
-	const columns = Math.ceil(Math.sqrt(count));
-	const rows = Math.ceil(count / columns);
+	const sampleCount = Math.min(count, MAX_REVIEW_FRAMES);
+	const samples = Array.from({ length: sampleCount }, (_, index) =>
+		Math.round((index * (count - 1)) / (sampleCount - 1)),
+	);
+	const columns = Math.ceil(Math.sqrt(sampleCount));
+	const rows = Math.ceil(sampleCount / columns);
 	const cellWidth = Math.floor(SIDE / columns),
 		cellHeight = Math.floor(SIDE / rows);
 	const scale = Math.min(cellWidth / width, cellHeight / height);
@@ -130,17 +140,22 @@ export function gifReviewPng(bytes: Uint8Array): Uint8Array {
 				canvas.set(frame.patch.subarray(source, source + 4), destination);
 			}
 		}
-		const left = (index % columns) * cellWidth + Math.floor((cellWidth - targetWidth) / 2);
-		const top =
-			Math.floor(index / columns) * cellHeight + Math.floor((cellHeight - targetHeight) / 2);
-		for (let y = 0; y < targetHeight; y++) {
-			for (let x = 0; x < targetWidth; x++) {
-				const source =
-					(Math.min(height - 1, Math.floor(y / scale)) * width +
-						Math.min(width - 1, Math.floor(x / scale))) *
-					4;
-				if (canvas[source + 3])
-					sheet.set(canvas.subarray(source, source + 4), ((top + y) * SIDE + left + x) * 4);
+		// Unsampled frames still update the canvas: later GIF patches depend on
+		// their pixels and disposal modes. Only selected displays enter the sheet.
+		const sample = samples.indexOf(index);
+		if (sample !== -1) {
+			const left = (sample % columns) * cellWidth + Math.floor((cellWidth - targetWidth) / 2);
+			const top =
+				Math.floor(sample / columns) * cellHeight + Math.floor((cellHeight - targetHeight) / 2);
+			for (let y = 0; y < targetHeight; y++) {
+				for (let x = 0; x < targetWidth; x++) {
+					const source =
+						(Math.min(height - 1, Math.floor(y / scale)) * width +
+							Math.min(width - 1, Math.floor(x / scale))) *
+						4;
+					if (canvas[source + 3])
+						sheet.set(canvas.subarray(source, source + 4), ((top + y) * SIDE + left + x) * 4);
+				}
 			}
 		}
 		if (previous) canvas.set(previous);

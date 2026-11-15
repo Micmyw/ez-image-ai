@@ -88,10 +88,13 @@ export async function executeFusedTargetedEvent(
 	dependencies: {
 		prepare(): Promise<{ preparedEvent: TaskRequest | null; eventRetryAfterMs?: number }>;
 		execute(request: TaskRequest): Promise<unknown>;
-		recover(): Promise<{
-			eventRecoveryState: "completed" | "held" | "missing";
-			continuation?: TaskContinuation;
-		}>;
+		recover(): Promise<
+			| {
+					eventRecoveryState: "completed" | "held" | "missing";
+					continuation?: TaskContinuation;
+			  }
+			| { preparedEvent: TaskRequest }
+		>;
 	},
 ): Promise<unknown> {
 	if (input.recoverOnly) return { preparedEvent: null, ...(await dependencies.recover()) };

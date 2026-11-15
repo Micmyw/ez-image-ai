@@ -150,7 +150,7 @@ export async function getGuestSubmissionReplay(
 		verification: { provider: string; ruleVersion: string; policyVersion: string };
 	},
 	client: MediaTransactionClient,
-): Promise<GuestJobSnapshot | null> {
+): Promise<CreateGuestGenerationTransactionResult | null> {
 	const job = await client.generationJob.findUnique({
 		where: {
 			ownerType_ownerId_idempotencyKey: {
@@ -181,10 +181,11 @@ export async function getGuestSubmissionReplay(
 		(snapshot.aspectRatio ?? "auto") !== (input.aspectRatio ?? "auto")
 	)
 		throw new Error("IDEMPOTENCY_CONFLICT");
-	return getGuestJobSnapshot(
+	const replay = await getGuestJobSnapshot(
 		{ ownerId: input.ownerId, jobId: job.id, now: input.now, verification: input.verification },
 		client,
 	);
+	return replay ? { ...replay, trialId: job.guestTrialId } : null;
 }
 
 export type GuestAdmissionDenialReason =

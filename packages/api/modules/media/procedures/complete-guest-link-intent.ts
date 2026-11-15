@@ -5,6 +5,7 @@ import { completeGuestLinkIntentTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
 import { z } from "zod";
 
+import { dispatchCommittedTask } from "../../../lib/dispatch-committed-task";
 import { protectedProcedure } from "../../../orpc/procedures";
 import {
 	accountInputCopyStatusSchema,
@@ -63,6 +64,13 @@ export const completeGuestLinkIntent = protectedProcedure
 			guestLinkIntentCookie("", 0, process.env.NODE_ENV === "production"),
 		);
 		if (result.mode === "DRAFT") {
+			if (result.preparation?.status === "COPYING")
+				await dispatchCommittedTask(
+					"media-copy-account-input",
+					{ promotionId: result.preparation.promotionId },
+					`account-input-copy:${result.preparation.promotionId}`,
+					context.defer,
+				);
 			// Reuse the editor's owner-checked draft recovery after the
 			// transfer commits. Preset-based article editors share this same private flow.
 			context.responseHeaders?.append(

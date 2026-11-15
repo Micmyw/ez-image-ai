@@ -54,6 +54,8 @@ export async function serveProviderOriginal(request: Request): Promise<Response>
 		return new Response(null, { status: 412, headers });
 	headers.set("ETag", etag);
 	headers.set("Content-Type", asset.mimeType);
+	if (asset.mimeType === "image/svg+xml")
+		headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
 	headers.set("Content-Disposition", grant.disposition);
 	headers.set("Content-Length", String(asset.byteSize));
 	if (request.method === "HEAD") return new Response(null, { headers });

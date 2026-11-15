@@ -5,6 +5,7 @@ import { recordGrowthEvent } from "@repo/database";
 import { persistGenerationJourneyConfirmation } from "@repo/utils/lib/generation-journey-server";
 import { z } from "zod";
 
+import { dispatchCommittedTask } from "../../../lib/dispatch-committed-task";
 import { guestMediaProcedure } from "../guest-procedure";
 import { toMediaOrpcError } from "../lib/errors";
 import { submitGuestGenerationForGuest } from "../lib/guest-admission";
@@ -30,7 +31,7 @@ export const submitGuestGeneration = guestMediaProcedure
 		path: "/media/guest-generations",
 		tags: ["Media"],
 		summary: "Submit one sponsored guest image edit",
-		description: "Atomically admits one bounded guest edit without immediate execution.",
+		description: "Atomically admits one bounded guest edit and wakes its durable execution intent.",
 	})
 	.input(
 		z
@@ -68,6 +69,12 @@ export const submitGuestGeneration = guestMediaProcedure
 			throw error;
 		});
 		context.responseHeaders?.set("Cache-Control", "no-store");
+		await dispatchCommittedTask(
+			"media-admit-guest-generation",
+			{ jobId: snapshot.jobId, trialId: snapshot.trialId },
+			`guest-admission:${snapshot.trialId}`,
+			context.defer,
+		);
 		const confirmation = persistGenerationJourneyConfirmation(
 			{
 				headers: context.headers,

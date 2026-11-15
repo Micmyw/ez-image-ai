@@ -100,9 +100,28 @@ try {
 		const offset = (784 * 1568 + x) * 4;
 		assert.deepEqual([...pixels.subarray(offset, offset + 3)], color);
 	}
-	console.log(
-		"Workers SVG WASM rendering, active-content rejection and all-frame GIF review passed",
-	);
+	const colors = Array.from({ length: 16 }, (_, index) => [index * 16, 255 - index * 16, 0]);
+	const longer = await sharp(Buffer.from(colors.flat()), {
+		raw: { width: 1, height: 16, channels: 3, pageHeight: 1 },
+	})
+		.gif({ loop: 0, delay: Array(16).fill(200), colours: 32, dither: 0 })
+		.toBuffer();
+	const sampled = await runtime.dispatchFetch("http://fixture.test/gif", {
+		method: "POST",
+		headers: { "content-type": "image/gif" },
+		body: longer,
+	});
+	assert.equal(sampled.status, 200);
+	const sheet = await sharp(Buffer.from(await sampled.arrayBuffer()))
+		.raw()
+		.toBuffer();
+	for (const [cell, frame] of [0, 2, 4, 6, 8, 9, 11, 13, 15].entries()) {
+		const x = (cell % 3) * 522 + 261,
+			y = Math.floor(cell / 3) * 522 + 261;
+		const offset = (y * 1568 + x) * 4;
+		assert.deepEqual([...sheet.subarray(offset, offset + 3)], colors[frame]);
+	}
+	console.log("Workers SVG WASM rendering, active-content rejection and sampled GIF review passed");
 } finally {
 	await runtime.dispose();
 }

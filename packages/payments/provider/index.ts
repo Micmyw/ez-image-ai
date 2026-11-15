@@ -33,7 +33,7 @@ export const webhookHandler = createPaymentWebhookHandler({
 			{ ...input, providerEnvironment, envelope: input.envelope as never },
 			db,
 		);
-		return { replayed: result.replayed };
+		return { replayed: result.replayed, paymentEventId: result.event.id };
 	},
 });
 

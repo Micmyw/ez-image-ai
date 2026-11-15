@@ -1,5 +1,7 @@
 import { call, ORPCError } from "@orpc/server";
+import { dispatchJob } from "@repo/jobs/orchestration/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn().mockResolvedValue({}) }));
 
 const mocks = vi.hoisted(() => {
 	const tx = {
@@ -108,6 +110,11 @@ describe("cancelGeneration after provider submission", () => {
 			version: 5,
 		});
 		await call(cancelGeneration, { jobId: "job-1" }, context);
+		expect(dispatchJob).toHaveBeenCalledWith(
+			"media-settle-generation",
+			{ jobId: "job-1", version: 5 },
+			expect.objectContaining({ idempotencyKey: "generation-cancel:job-1:5" }),
+		);
 		expect(mocks.tx.outboxEvent.upsert).toHaveBeenCalledWith(
 			expect.objectContaining({ where: { dedupeKey: "generation-settle:job-1" } }),
 		);

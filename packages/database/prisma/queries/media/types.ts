@@ -139,6 +139,8 @@ export interface CreditRefundInput {
 }
 
 export interface OutboxClaimInput {
+	/** Omitted keeps legacy scan compatibility; new scheduled receivers partition work. */
+	scope?: "recovery" | "cleanup";
 	/** Bounded committed events for the normal generation chain. */
 	eventIds?: string[];
 	workerId: string;
