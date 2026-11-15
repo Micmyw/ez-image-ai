@@ -176,56 +176,58 @@ try {
 		);
 	}
 	if (checkDatabase) {
-		// Six request-owned Prisma contexts across all three objects. Missing IDs
+		// Five request-owned Prisma contexts across heavy and control objects. Missing IDs
 		// query local Hyperdrive without provider calls or business-state mutations.
 		await Promise.all(
-			[
-				"jobs-primary",
-				"jobs-control",
-				"jobs-control",
-				"jobs-control",
-				"jobs-control",
-				"jobs-maintenance",
-			].map(async (name, index) => {
-				const maintenance = name === "jobs-maintenance";
-				const response = await request(
-					"/internal/execute",
-					JSON.stringify({
-						request: {
-							...(maintenance
-								? {
-										taskId: "media-cancel-generation",
-										payload: { jobId: randomUUID(), version: 0 },
-									}
-								: { taskId: "media-poll-generation", payload: { attemptId: randomUUID() } }),
-							// Both legacy envelopes and traced envelopes must pass final-artifact admission.
-							...(index % 2 === 0
-								? { trace: { outboxEventId: randomUUID(), dueAt: Date.now(), pollTick: 0 } }
-								: {}),
-						},
-						context: { attempt: 1, maxAttempts: maintenance ? 5 : 3, runId: "artifact-smoke" },
-					}),
-					true,
-					name,
-				);
-				const result = await response.json();
-				assert.equal(response.status, 200, `${name}: ${JSON.stringify(result)}`);
-				assert.deepEqual(
-					result,
-					maintenance
-						? { status: "ok" }
-						: {
-								status: "ok",
-								poll: {
-									done: true,
-									waitSeconds: 0,
-									outboxCommitted: false,
-									continuation: { eventIds: [] },
-								},
+			["jobs-primary", "jobs-control", "jobs-control", "jobs-control", "jobs-control"].map(
+				async (name, index) => {
+					const response = await request(
+						"/internal/execute",
+						JSON.stringify({
+							request: {
+								taskId: "media-poll-generation",
+								payload: { attemptId: randomUUID() },
+								// Both legacy envelopes and traced envelopes must pass final-artifact admission.
+								...(index % 2 === 0
+									? { trace: { outboxEventId: randomUUID(), dueAt: Date.now(), pollTick: 0 } }
+									: {}),
 							},
-				);
-			}),
+							context: { attempt: 1, maxAttempts: 3, runId: "artifact-smoke" },
+						}),
+						true,
+						name,
+					);
+					const result = await response.json();
+					assert.equal(response.status, 200, `${name}: ${JSON.stringify(result)}`);
+					assert.deepEqual(result, {
+						status: "ok",
+						poll: {
+							done: true,
+							waitSeconds: 0,
+							outboxCommitted: false,
+							continuation: { eventIds: [] },
+						},
+					});
+				},
+			),
 		);
+		// Cancellation is foreground control work, isolated from global maintenance.
+		// Use a sixth missing-ID query after the four legacy control slots are released.
+		const cancellation = JSON.stringify({
+			request: {
+				taskId: "media-cancel-generation",
+				payload: { jobId: randomUUID(), version: 0 },
+			},
+			context: { attempt: 1, maxAttempts: 5, runId: "artifact-cancellation" },
+		});
+		assert.equal(
+			(await request("/internal/execute", cancellation, true, "jobs-maintenance")).status,
+			400,
+		);
+		const response = await request("/internal/execute", cancellation, true, "jobs-control");
+		const result = await response.json();
+		assert.equal(response.status, 200, JSON.stringify(result));
+		assert.deepEqual(result, { status: "ok", continuation: { eventIds: [] } });
 	}
 	if (checkDatabase) {
 		// A missing targeted event must return without claiming any other live row.
