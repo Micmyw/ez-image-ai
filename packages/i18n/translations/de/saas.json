@@ -1898,6 +1898,12 @@
 		"welcome": "Willkommen {name}!"
 	},
 	"media": {
+		"draftRecovery": {
+			"title": "Bildbearbeitung fortsetzen",
+			"description": "Deine Bearbeitung konnte gerade nicht geöffnet werden. Versuche es erneut, um mit demselben hochgeladenen Bild und Prompt fortzufahren.",
+			"retry": "Erneut versuchen",
+			"back": "Zur Startseite"
+		},
 		"uploader": {
 			"label": "Quellbilder hochladen",
 			"active": "Bilder hier ablegen",

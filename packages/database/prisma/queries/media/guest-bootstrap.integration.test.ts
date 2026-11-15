@@ -3,8 +3,11 @@ import { randomUUID } from "node:crypto";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { PrismaClient } from "../../generated/client";
-import { finalizeGuestDraftFromReadyUploadTransaction } from "./drafts";
+import { PrismaClient, type Prisma } from "../../generated/client";
+import {
+	claimGuestGenerationDraftTransaction,
+	finalizeGuestDraftFromReadyUploadTransaction,
+} from "./drafts";
 import {
 	acquireGuestBootstrapPrincipalLease,
 	bindGuestBootstrapPrincipalLease,
@@ -58,6 +61,66 @@ describe("guest bootstrap consumption", () => {
 			await client.user.deleteMany({ where: { id: { in: createdUserIds } } });
 		}
 		await Promise.all([client?.$disconnect(), principalClient?.$disconnect()]);
+	});
+
+	it("claims a reviewed new upload for an existing guest and replays without transferring twice", async () => {
+		const ownerId = await createPrincipalFixture(`${randomUUID()}@anonymous.invalid`);
+		const otherOwnerId = await createPrincipalFixture(`${randomUUID()}@anonymous.invalid`);
+		for (let upload = 0; upload < 2; upload++) {
+			const fixture = await createReadyGuestUploadFixture(`existing-guest-${randomUUID()}`);
+			const claimTokenHash = randomUUID().replaceAll("-", "").padEnd(64, "0");
+			const draft = await finalizeGuestDraftFromReadyUploadTransaction(
+				{
+					...fixture,
+					maximumOutstandingBootstraps: TEST_MAXIMUM_OUTSTANDING_BOOTSTRAPS,
+					claimTokenHash,
+					consumedTokenHash: randomUUID().replaceAll("-", "").padEnd(64, "0"),
+					productKey: "image-minimax-h3",
+					skuKey: "minimax-h3-1k",
+					prompt: "Change the background to a forest",
+					aspectRatio: "auto",
+					outputFormat: "png",
+					expiresAt: new Date(Date.now() + 30 * 60_000),
+				},
+				client,
+			);
+			const input = {
+				claimTokenHash,
+				userId: ownerId,
+				allowedProductKeys: ["image-minimax-h3"] as const,
+			};
+			if (upload === 1) {
+				const lostCommitResponse = {
+					$transaction: async (operation: (tx: Prisma.TransactionClient) => Promise<unknown>) => {
+						await client.$transaction(operation);
+						throw new Error("SIMULATED_LOST_COMMIT_RESPONSE");
+					},
+				};
+				await expect(
+					claimGuestGenerationDraftTransaction(input, lostCommitResponse as never),
+				).rejects.toThrow("SIMULATED_LOST_COMMIT_RESPONSE");
+			}
+			const claims = await Promise.all([
+				claimGuestGenerationDraftTransaction(input, client),
+				claimGuestGenerationDraftTransaction(input, client),
+			]);
+			await expect(
+				claimGuestGenerationDraftTransaction({ ...input, userId: otherOwnerId }, client),
+			).rejects.toThrow("DRAFT_UNAVAILABLE");
+			expect(claims.map((claim) => claim.id)).toEqual([draft.id, draft.id]);
+			expect(await client.mediaAsset.findUnique({ where: { id: fixture.assetId } })).toMatchObject({
+				ownerId,
+				status: "READY",
+			});
+			expect(await client.generationDraft.findUnique({ where: { id: draft.id } })).toMatchObject({
+				ownerId,
+				status: "SUBMITTED",
+			});
+			expect(
+				await client.guestSessionBootstrap.findUnique({ where: { claimHash: claimTokenHash } }),
+			).toMatchObject({ ownerId, completedAt: expect.any(Date) });
+			expect(await client.generationJob.count({ where: { ownerId } })).toBe(0);
+		}
 	});
 
 	it("creates one anonymous principal when the same bootstrap is claimed concurrently", async () => {

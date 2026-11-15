@@ -46,6 +46,42 @@ const legacyRedirects: ReadonlyArray<{ from: string; to: string }> = [
 
 // The public project supplies a signed-out returning visitor state.
 
+test("draft recovery preserves the original claim and offers a mobile retry", async ({
+	page,
+	context,
+	baseURL,
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	const origin = new URL(baseURL!);
+	await context.addCookies([
+		{
+			name: "media_draft_claim",
+			value: "d".repeat(43),
+			domain: origin.hostname,
+			path: "/draft/continue",
+			httpOnly: true,
+			sameSite: "Lax",
+		},
+	]);
+	await page.goto("/draft/retry");
+	await expect(page.getByRole("heading", { name: "Continue your image edit" })).toBeVisible();
+	await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", /noindex/);
+	await context.addCookies([
+		{ name: "NEXT_LOCALE", value: "de", domain: origin.hostname, path: "/" },
+	]);
+	await page.reload();
+	await expect(page.getByRole("heading", { name: "Bildbearbeitung fortsetzen" })).toBeVisible();
+	await page.screenshot({ path: "test-results/draft-retry-mobile.png", fullPage: true });
+	let retryCookie = "";
+	await page.route("**/draft/continue", async (route) => {
+		retryCookie = (await route.request().allHeaders()).cookie ?? "";
+		await route.fulfill({ contentType: "text/html", body: "<h1>Same draft resumed</h1>" });
+	});
+	await page.getByRole("link", { name: "Erneut versuchen", exact: true }).click();
+	await expect(page.getByRole("heading", { name: "Same draft resumed" })).toBeVisible();
+	expect(retryCookie).toContain(`media_draft_claim=${"d".repeat(43)}`);
+});
+
 async function expectWordmarkLight(heading: Locator) {
 	await heading.hover({ position: { x: 20, y: 20 } });
 	const accent = heading.locator(".display-title-accent");

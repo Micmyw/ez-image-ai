@@ -1898,6 +1898,12 @@
 		"welcome": "Welcome {name}!"
 	},
 	"media": {
+		"draftRecovery": {
+			"title": "Continue your image edit",
+			"description": "We couldn’t open your edit just now. Try again to continue with the same uploaded image and prompt.",
+			"retry": "Try again",
+			"back": "Back to home"
+		},
 		"uploader": {
 			"label": "Upload source images",
 			"active": "Drop images here",

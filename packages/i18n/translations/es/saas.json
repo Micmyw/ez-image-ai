@@ -1898,6 +1898,12 @@
 		"welcome": "¡Bienvenido {name}!"
 	},
 	"media": {
+		"draftRecovery": {
+			"title": "Continúa editando tu imagen",
+			"description": "No pudimos abrir tu edición en este momento. Inténtalo de nuevo para continuar con la misma imagen subida y el mismo texto.",
+			"retry": "Reintentar",
+			"back": "Volver al inicio"
+		},
 		"uploader": {
 			"label": "Subir imágenes de origen",
 			"active": "Suelta las imágenes aquí",

@@ -291,14 +291,14 @@ describe("new annual receipts fund ordinary image admission", () => {
 });
 
 describe("shared-credit image admission without a subscription", () => {
-	it("grants ten lifetime credits once, admits exactly two basic generations and never refills monthly", async () => {
+	it("grants eight lifetime credits once, admits one five-credit generation and never refills monthly", async () => {
 		const ownerId = `welcome-image-${crypto.randomUUID()}`;
 		owners.push(ownerId);
 		authentication.ownerId = ownerId;
 		await client.user.create({
 			data: {
 				id: ownerId,
-				name: "Two-generation welcome allowance",
+				name: "Eight-credit welcome allowance",
 				email: `${ownerId}@example.test`,
 				emailVerified: true,
 				isAnonymous: false,
@@ -310,23 +310,21 @@ describe("shared-credit image admission without a subscription", () => {
 			const readBalance = () =>
 				call(getCreditAccount, undefined, { context: { headers: new Headers() } });
 			await expect(readBalance()).resolves.toMatchObject({
-				spendableCredits: "10",
+				spendableCredits: "8",
 				reservedCredits: "0",
 			});
-			for (let index = 0; index < 2; index++) {
-				const quote = await createQuoteForUser(ownerId, freeInput);
-				await expect(
-					createGenerationForUser(ownerId, {
-						quoteId: quote.id,
-						idempotencyKey: `${ownerId}:${index}`,
-						fundingSource: "CREDITS",
-					}),
-				).resolves.toMatchObject({ replayed: false, job: { creditsReserved: 5n } });
-			}
+			const quote = await createQuoteForUser(ownerId, freeInput);
+			await expect(
+				createGenerationForUser(ownerId, {
+					quoteId: quote.id,
+					idempotencyKey: `${ownerId}:0`,
+					fundingSource: "CREDITS",
+				}),
+			).resolves.toMatchObject({ replayed: false, job: { creditsReserved: 5n } });
 			await ensureFreePlanCreditsForGeneration(ownerId, new Date("2026-11-01T00:00:00Z"));
 			await expect(readBalance()).resolves.toMatchObject({
-				spendableCredits: "0",
-				reservedCredits: "10",
+				spendableCredits: "3",
+				reservedCredits: "5",
 			});
 			await expect(createQuoteForUser(ownerId, freeInput)).rejects.toThrow("INSUFFICIENT_CREDITS");
 			const account = await client.creditAccount.findUniqueOrThrow({
@@ -342,7 +340,7 @@ describe("shared-credit image admission without a subscription", () => {
 			).toBe(0);
 			expect(await getCreditInvariantReport(account.id, client)).toMatchObject({
 				valid: true,
-				account: { spendable: 0n, reserved: 10n, debt: 0n },
+				account: { spendable: 3n, reserved: 5n, debt: 0n },
 			});
 		});
 	});

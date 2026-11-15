@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
 	claimGuest: vi.fn(),
 	headers: vi.fn(async () => new Headers()),
 	effectReturn: vi.fn(),
+	warn: vi.fn(),
 }));
 
 vi.mock("@auth/lib/server", () => ({ getSession: mocks.getSession }));
@@ -16,6 +17,7 @@ vi.mock("@repo/api/modules/media/procedures/claim-guest-draft", () => ({
 	claimGuestDraft: { callable: mocks.claimGuest },
 }));
 vi.mock("next/headers", () => ({ headers: mocks.headers }));
+vi.mock("@repo/logs", () => ({ logger: { warn: mocks.warn } }));
 vi.mock("../../../modules/effects/lib/editor-return.server", () => ({
 	resolvePublishedEffectReturnPath: mocks.effectReturn,
 }));
@@ -133,6 +135,43 @@ describe("draft continuation identity router", () => {
 		expect(response.headers.get("location")).toBe("https://app.test/try");
 		expect(mocks.claimGuest).toHaveBeenCalledOnce();
 		expect(mocks.claimRegistered).not.toHaveBeenCalled();
+	});
+
+	it.each([true, false])(
+		"preserves credentials after a technical claim failure (anonymous=%s) and recovers on retry",
+		async (anonymous) => {
+			mocks.getSession.mockResolvedValue({ user: { id: "owner", isAnonymous: anonymous } });
+			const claim = anonymous ? mocks.claimGuest : mocks.claimRegistered;
+			claim.mockReturnValueOnce(async () => {
+				throw Object.assign(new Error("private SQL"), { code: "P2028" });
+			});
+			const request = new Request("https://app.test/draft/continue", {
+				headers: { cookie: "media_draft_claim=secret" },
+			});
+			const failed = await GET(request);
+			expect(failed.headers.get("location")).toBe("https://app.test/draft/retry");
+			expect(failed.headers.getSetCookie()).toEqual([]);
+			expect(failed.headers.get("cache-control")).toBe("private, no-store");
+			expect(mocks.warn).toHaveBeenCalledWith("media.draft.handoff.failed", {
+				stage: "claim",
+				recoverable: true,
+				code: "P2028",
+			});
+			expect(JSON.stringify(mocks.warn.mock.calls)).not.toMatch(/secret|private SQL/);
+			const recovered = await GET(request);
+			expect(recovered.headers.get("location")).toBe(
+				`https://app.test${anonymous ? "/try" : "/create"}`,
+			);
+			expect(recovered.headers.getSetCookie().join("\n")).toContain("media_draft_claim=;");
+		},
+	);
+
+	it("keeps the handoff recoverable when session storage is temporarily unavailable", async () => {
+		mocks.getSession.mockRejectedValueOnce(new Error("connection interrupted"));
+		const response = await GET(new Request("https://app.test/draft/continue"));
+		expect(response.headers.get("location")).toBe("https://app.test/draft/retry");
+		expect(response.headers.getSetCookie()).toEqual([]);
+		expect(mocks.claimGuest).not.toHaveBeenCalled();
 	});
 
 	it("returns a no-store origin-only anonymous bootstrap POST for a missing session", async () => {

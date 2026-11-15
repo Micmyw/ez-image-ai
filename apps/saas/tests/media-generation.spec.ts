@@ -775,7 +775,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		const prompt = marker("insufficient", "A long cinematic sequence", testInfo.retry);
 		const user = await userByEmail(emptyEmail);
 		await openCreator(page, prompt, emptyEmail);
-		// First sign-in grants ten credits; select an allowed nineteen-credit SKU.
+		// First sign-in grants eight credits; select an allowed nineteen-credit SKU.
 		await page.getByRole("button", { name: /^Model: / }).click();
 		await page.getByRole("button", { name: "Nano Banana", exact: true }).click();
 		await page.locator('[data-test="editor-model-image-nano-banana-pro"]').click();
@@ -789,7 +789,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				[user.id],
 			)
 		)[0]!;
-		expect(account.spendableCredits).toBe("10");
+		expect(account.spendableCredits).toBe("8");
 		const before = await count(
 			`SELECT count(*) FROM credit_ledger_entry l JOIN credit_account a ON a.id=l."accountId" WHERE a."ownerId"=$1`,
 			[user.id],

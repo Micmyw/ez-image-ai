@@ -1,5 +1,6 @@
 import { getSession } from "@auth/lib/server";
 import { createDraftHandoffResponse } from "@media/lib/draft-handoff";
+import { getDraftClaimFailure } from "@repo/api/modules/media/lib/draft-claim-recovery";
 import {
 	getExpiredDraftClaimCookie,
 	getExpiredGuestBootstrapCookie,
@@ -8,6 +9,7 @@ import {
 import { claimGenerationDraft } from "@repo/api/modules/media/procedures/claim-generation-draft";
 import { claimGuestDraft } from "@repo/api/modules/media/procedures/claim-guest-draft";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
+import { logger } from "@repo/logs";
 import { getBaseUrl } from "@shared/lib/base-url";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
@@ -36,21 +38,26 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-	const session = await getSession();
-	if (!session) return anonymousBootstrapPostResponse();
 	const saasOrigin = getBaseUrl();
 	const responseHeaders = new Headers();
-	const effectReturn = resolvePublishedEffectReturnPath(
-		readEffectEditorReturnCookie(request.headers.get("cookie")),
-	);
+	let session: Awaited<ReturnType<typeof getSession>> = null;
+	let effectReturn: string | null = null;
+	let stage = "identity";
 	try {
+		session = await getSession();
+		if (!session) return anonymousBootstrapPostResponse();
+		stage = "return-path";
+		effectReturn = resolvePublishedEffectReturnPath(
+			readEffectEditorReturnCookie(request.headers.get("cookie")),
+		);
+		stage = "claim";
 		const draft = await (
 			isAnonymousUser(session.user) ? claimGuestDraft : claimGenerationDraft
 		).callable({
 			context: { headers: await headers(), responseHeaders },
 		})({});
 		const target = isAnonymousUser(session.user) ? "/try" : (effectReturn ?? "/create");
-		const response = NextResponse.redirect(new URL(target, saasOrigin));
+		const response = draftRedirect(target, saasOrigin);
 		for (const [name, value] of responseHeaders) response.headers.append(name, value);
 		if (!isAnonymousUser(session.user)) {
 			response.cookies.set("media_claimed_draft", draft.id, {
@@ -64,16 +71,32 @@ export async function GET(request: Request) {
 		}
 		expireHandoffCookies(response);
 		return response;
-	} catch {
-		const target = isAnonymousUser(session.user)
-			? "/try?draftError=unavailable"
-			: effectReturn
-				? `${effectReturn}&draftError=unavailable`
-				: "/create?draftError=unavailable";
-		const response = NextResponse.redirect(new URL(target, saasOrigin));
+	} catch (error) {
+		const failure = getDraftClaimFailure(error);
+		logger.warn("media.draft.handoff.failed", { stage, ...failure });
+		if (failure.recoverable) {
+			// Preserve the original HttpOnly claim/bootstrap cookies and their TTL.
+			// Retrying the same owner-bound claim cannot create a generation job.
+			return draftRedirect("/draft/retry", saasOrigin);
+		}
+		const target =
+			session && isAnonymousUser(session.user)
+				? "/try?draftError=unavailable"
+				: effectReturn
+					? `${effectReturn}&draftError=unavailable`
+					: "/create?draftError=unavailable";
+		const response = draftRedirect(target, saasOrigin);
 		expireHandoffCookies(response);
 		return response;
 	}
+}
+
+function draftRedirect(target: string, origin: string): NextResponse {
+	const response = NextResponse.redirect(new URL(target, origin));
+	response.headers.set("Cache-Control", "private, no-store");
+	response.headers.set("Referrer-Policy", "origin");
+	response.headers.set("X-Robots-Tag", "noindex, nofollow");
+	return response;
 }
 
 function anonymousBootstrapPostResponse(): Response {

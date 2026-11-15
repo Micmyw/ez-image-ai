@@ -1898,6 +1898,12 @@
 		"welcome": "Bienvenue {name} !"
 	},
 	"media": {
+		"draftRecovery": {
+			"title": "Reprenez la retouche de votre image",
+			"description": "Nous n’avons pas pu ouvrir votre retouche pour le moment. Réessayez pour continuer avec la même image importée et la même instruction.",
+			"retry": "Réessayer",
+			"back": "Retour à l’accueil"
+		},
 		"uploader": {
 			"label": "Importer des images source",
 			"active": "Déposez les images ici",

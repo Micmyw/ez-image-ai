@@ -72,7 +72,7 @@ for (const width of [1440, 390]) {
 				[freeEmail],
 			)
 		).rows[0];
-		expect(Number(account?.credits ?? "0")).toBeGreaterThanOrEqual(10);
+		expect(Number(account?.credits ?? "0")).toBeGreaterThanOrEqual(8);
 		expect(account?.subscriptions).toBe("0");
 		const modelTrigger = page.locator('[data-test="editor-model-trigger"]');
 		for (const [family, products] of modelFamilies) {

@@ -27,7 +27,9 @@ const mocks = vi.hoisted(() => ({
 	ingest: vi.fn(),
 	grant: vi.fn(),
 	recover: vi.fn(),
+	dispatch: vi.fn(),
 }));
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: mocks.dispatch }));
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
 	recordCheckoutDiagnostic: vi.fn().mockResolvedValue(undefined),
@@ -190,7 +192,8 @@ describe("PayPal image-pass checkout", () => {
 			captureCheckout: mocks.capture,
 		});
 		mocks.capture.mockResolvedValue(captured());
-		mocks.ingest.mockResolvedValue({ replayed: false });
+		mocks.ingest.mockResolvedValue({ event: { id: "payment-event-1" }, replayed: false });
+		mocks.dispatch.mockResolvedValue({ id: "payment-event-wake" });
 		mocks.grant.mockResolvedValue(null);
 		mocks.recover.mockReset();
 	});
@@ -457,6 +460,11 @@ describe("PayPal image-pass checkout", () => {
 				context,
 			),
 		).resolves.toEqual({ accepted: true, replayed: false });
+		expect(mocks.dispatch).toHaveBeenCalledWith(
+			"media-process-payment-event",
+			{ paymentEventId: "payment-event-1" },
+			{ idempotencyKey: "payment-event:payment-event-1", timeoutMs: 1000 },
+		);
 		expect(recordCheckoutDiagnostic).toHaveBeenCalledWith(
 			expect.objectContaining({
 				intentId: intent.id,
