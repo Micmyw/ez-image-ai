@@ -40,6 +40,42 @@ function paidAccountRequest(returnTo?: string) {
 }
 
 describe("draft handoff POST", () => {
+	it.each([false, true])(
+		"prepares an inline guest without redirects (session: %s)",
+		async (hasSession) => {
+			const input = request();
+			input.headers.set("Accept", "application/json");
+			const response = await createDraftHandoffResponse(input, {
+				publicOrigin: "https://app.example.com",
+				saasOrigin: "https://app.example.com",
+				secure: true,
+				isRegistered: false,
+				hasSession,
+			});
+			expect(response.status).toBe(200);
+			expect(response.headers.get("location")).toBeNull();
+			expect(await response.json()).toEqual({
+				status: hasSession ? "SESSION_READY" : "BOOTSTRAP_REQUIRED",
+			});
+			expect(response.headers.getSetCookie().join("\n")).toContain(
+				`media_draft_claim=${claimToken}`,
+			);
+		},
+	);
+
+	it("does not bootstrap a registered account for an inline guest request", async () => {
+		const input = request();
+		input.headers.set("Accept", "application/json");
+		const response = await createDraftHandoffResponse(input, {
+			publicOrigin: "https://app.example.com",
+			saasOrigin: "https://app.example.com",
+			secure: true,
+			isRegistered: true,
+			hasSession: true,
+		});
+		expect(response.status).toBe(409);
+		expect(response.headers.getSetCookie()).toEqual([]);
+	});
 	it.each(["/blog/1980s-ai-photo", "/effects/1980s-ai-photo"])(
 		"stores only the server-resolved article path from %s in a short HttpOnly cookie",
 		async (pathname) => {

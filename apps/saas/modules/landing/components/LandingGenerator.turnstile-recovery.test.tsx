@@ -26,6 +26,7 @@ const harness = vi.hoisted(() => {
 			| import("../../effects/lib/editor-context").EffectEditorContextValue
 			| null,
 		handoff: vi.fn(),
+		prepareInline: vi.fn(async () => undefined),
 	};
 });
 
@@ -83,6 +84,12 @@ vi.mock("@repo/ui/components/textarea", () => ({ Textarea: () => null }));
 vi.mock("@repo/utils/lib/growth-analytics-browser", () => ({ trackBrowserGrowthEvent: vi.fn() }));
 vi.mock("@media/components/editor/ComposerHeader", () => ({ ComposerHeader: () => null }));
 vi.mock("@media/components/editor/PromptIdeas", () => ({ PromptIdeas: () => null }));
+vi.mock("@media/components/guest/GuestTrialWorkspace", () => ({ GuestTrialWorkspace: () => null }));
+vi.mock("../lib/inline-guest-trial", () => ({
+	prepareInlineGuestTrial: harness.prepareInline,
+	rememberInlineGuestTrial: vi.fn(),
+	shouldRestoreInlineGuestTrial: () => false,
+}));
 vi.mock("@media/components/ImageModelSelector", () => ({
 	ImageModelSelector: harness.modelSelector,
 }));
@@ -292,7 +299,8 @@ describe("LandingGenerator verification feedback", () => {
 			"form",
 			"onSubmit",
 		)({ preventDefault() {} });
-		await vi.waitFor(() => expect(harness.handoff).toHaveBeenCalledOnce());
+		await vi.waitFor(() => expect(harness.prepareInline).toHaveBeenCalledOnce());
+		expect(harness.handoff).not.toHaveBeenCalled();
 		expect(harness.upload).toHaveBeenCalledWith(
 			expect.objectContaining({
 				prompt: "New prompt after upload",

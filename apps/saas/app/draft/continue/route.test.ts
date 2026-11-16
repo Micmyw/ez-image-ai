@@ -34,6 +34,33 @@ describe("draft continuation identity router", () => {
 	});
 
 	afterEach(() => vi.unstubAllEnvs());
+	it("claims an inline guest with the same owner boundary and no navigation", async () => {
+		mocks.getSession.mockResolvedValue({ user: { id: "guest_1", isAnonymous: true } });
+		const response = await GET(
+			new Request("https://app.test/draft/continue", {
+				headers: { Accept: "application/json" },
+			}),
+		);
+		expect(response.status).toBe(200);
+		expect(await response.json()).toEqual({ status: "READY" });
+		expect(response.headers.get("location")).toBeNull();
+		expect(mocks.claimGuest).toHaveBeenCalledOnce();
+		expect(response.headers.getSetCookie().join("\n")).toContain("media_draft_claim=;");
+	});
+	it("keeps an inline uncertain claim recoverable without creating a new session or redirecting", async () => {
+		mocks.getSession.mockResolvedValue({ user: { id: "guest_1", isAnonymous: true } });
+		mocks.claimGuest.mockReturnValue(async () => {
+			throw new Error("DRAFT_CLAIM_RETRYABLE");
+		});
+		const response = await GET(
+			new Request("https://app.test/draft/continue", {
+				headers: { Accept: "application/json" },
+			}),
+		);
+		expect(response.headers.get("location")).toBeNull();
+		expect(response.status).toBe(503);
+		expect(response.headers.getSetCookie()).toEqual([]);
+	});
 
 	it.each([
 		{ anonymous: true, failed: false, target: "/try" },

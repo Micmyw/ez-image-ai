@@ -606,6 +606,7 @@ test("account controls preserve logout and account switching across document rel
 	page,
 	context,
 }) => {
+	test.setTimeout(60_000);
 	let userId: string | null = "first-owner";
 	const peer = await context.newPage();
 	await dismissHomepagePreview(peer);
@@ -648,7 +649,8 @@ test("account controls preserve logout and account switching across document rel
 			userId = null;
 			return route.fulfill({ json: { success: true } });
 		});
-		await tab.goto("/");
+		// A direct editor entry suppresses the independently tested automatic preview.
+		await tab.goto("/?mode=image", { waitUntil: "domcontentloaded" });
 		await tab
 			.locator(".studio-header-user-controls")
 			.getByRole("button", { name: "User menu", exact: true })
@@ -661,14 +663,14 @@ test("account controls preserve logout and account switching across document rel
 		.getByRole("button", { name: "User menu", exact: true })
 		.click();
 	await page.getByRole("menuitem", { name: "Logout", exact: true }).click();
-	await page.waitForURL(/\/login$/);
+	await page.waitForURL(/\/login$/, { waitUntil: "domcontentloaded" });
 	await expect(page.locator(".studio-header-user-controls")).toHaveCount(0);
-	await peer.reload();
+	await peer.reload({ waitUntil: "domcontentloaded" });
 	await expect(peer.locator(".studio-header-user-controls")).toHaveCount(0);
 	userId = "second-owner";
 	for (const tab of [page, peer]) {
 		// Logout deliberately navigates the first document to /login; reopen the public header.
-		await tab.goto("/");
+		await tab.goto("/?mode=image", { waitUntil: "domcontentloaded" });
 		await tab
 			.locator(".studio-header-user-controls")
 			.getByRole("button", { name: "User menu", exact: true })

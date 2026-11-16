@@ -30,6 +30,7 @@ export async function POST(request: Request) {
 			saasOrigin,
 			secure: process.env.NODE_ENV === "production",
 			isRegistered: Boolean(session && !isAnonymousUser(session.user)),
+			hasSession: Boolean(session),
 			resolveEffectReturnPath: resolvePublishedEffectReturnPath,
 		});
 	} catch {
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+	const inline = request.headers.get("accept") === "application/json";
 	const saasOrigin = getBaseUrl();
 	const responseHeaders = new Headers();
 	let session: Awaited<ReturnType<typeof getSession>> = null;
@@ -45,7 +47,14 @@ export async function GET(request: Request) {
 	let stage = "identity";
 	try {
 		session = await getSession();
-		if (!session) return anonymousBootstrapPostResponse();
+		if (!session) {
+			return inline
+				? inlineResponse({ code: "GUEST_SESSION_REQUIRED" }, 401)
+				: anonymousBootstrapPostResponse();
+		}
+		if (inline && !isAnonymousUser(session.user)) {
+			return inlineResponse({ code: "ACCOUNT_HANDOFF_REQUIRED" }, 409);
+		}
 		stage = "return-path";
 		effectReturn = resolvePublishedEffectReturnPath(
 			readEffectEditorReturnCookie(request.headers.get("cookie")),
@@ -57,7 +66,9 @@ export async function GET(request: Request) {
 			context: { headers: await headers(), responseHeaders },
 		})({});
 		const target = isAnonymousUser(session.user) ? "/try" : (effectReturn ?? "/create");
-		const response = draftRedirect(target, saasOrigin);
+		const response = inline
+			? inlineResponse({ status: "READY" })
+			: draftRedirect(target, saasOrigin);
 		for (const [name, value] of responseHeaders) response.headers.append(name, value);
 		if (!isAnonymousUser(session.user)) {
 			response.cookies.set("media_claimed_draft", draft.id, {
@@ -74,6 +85,14 @@ export async function GET(request: Request) {
 	} catch (error) {
 		const failure = getDraftClaimFailure(error);
 		logger.warn("media.draft.handoff.failed", { stage, ...failure });
+		if (inline) {
+			const response = inlineResponse(
+				{ code: failure.recoverable ? "DRAFT_RETRY_REQUIRED" : "DRAFT_UNAVAILABLE" },
+				failure.recoverable ? 503 : 410,
+			);
+			if (!failure.recoverable) expireHandoffCookies(response);
+			return response;
+		}
 		if (failure.recoverable) {
 			// Preserve the original HttpOnly claim/bootstrap cookies and their TTL.
 			// Retrying the same owner-bound claim cannot create a generation job.
@@ -89,6 +108,13 @@ export async function GET(request: Request) {
 		expireHandoffCookies(response);
 		return response;
 	}
+}
+
+function inlineResponse(body: { status?: string; code?: string }, status = 200): NextResponse {
+	return NextResponse.json(body, {
+		status,
+		headers: { "Cache-Control": "private, no-store", "X-Robots-Tag": "noindex, nofollow" },
+	});
 }
 
 function draftRedirect(target: string, origin: string): NextResponse {

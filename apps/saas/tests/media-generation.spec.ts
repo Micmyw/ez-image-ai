@@ -281,8 +281,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		const reviewRequests: Array<{ assetId: string; token: string }> = [];
 		const replacementAssetId = "0f447af8-8cf3-4a79-83dd-c9c831e2c732";
 		page.on("request", (request) => {
-			if (/getAssetAccessUrl|createQuote|submitGeneration/.test(request.url()))
-				accesses.push(request.url());
+			// Quote preparation may run before Generate; paid submission and legacy access may not.
+			if (/getAssetAccessUrl|submitGeneration/.test(request.url())) accesses.push(request.url());
 		});
 		await page.route("**/api/rpc/media/getTemporaryReferenceStatus**", async (route) => {
 			reviewRequests.push(route.request().postDataJSON().json);
@@ -419,7 +419,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			};
 			page.on("request", (request) => {
 				if (
-					/createUploadSession|completeUploadSession|getAssetAccessUrl|createQuote|submitGeneration/.test(
+					/createUploadSession|completeUploadSession|getAssetAccessUrl|submitGeneration/.test(
 						request.url(),
 					)
 				)

@@ -4,6 +4,7 @@ import { hasAuthDraftPointer } from "@auth/lib/auth-draft-pointer";
 import { config } from "@config";
 import { ComposerHeader } from "@media/components/editor/ComposerHeader";
 import { PromptIdeas } from "@media/components/editor/PromptIdeas";
+import { GuestTrialWorkspace } from "@media/components/guest/GuestTrialWorkspace";
 import { ImageModelSelector } from "@media/components/ImageModelSelector";
 import {
 	ImageOutputSettings,
@@ -101,6 +102,11 @@ import {
 	validateLandingImageFile,
 } from "../lib/guest-draft-client";
 import {
+	prepareInlineGuestTrial,
+	rememberInlineGuestTrial,
+	shouldRestoreInlineGuestTrial,
+} from "../lib/inline-guest-trial";
+import {
 	localizeLandingProducts,
 	landingDisabledReason,
 	type LandingGeneratorStage,
@@ -152,6 +158,10 @@ function LandingGeneratorWorkspace({
 }) {
 	const effectEditor = useEffectEditor();
 	const workspace = useGenerationMode();
+	const [inlineGuestTrial, setInlineGuestTrial] = useState<"start" | "resume" | null>(null);
+	useEffect(() => {
+		if (!startEmpty && shouldRestoreInlineGuestTrial()) setInlineGuestTrial("resume");
+	}, [startEmpty]);
 	async function saveSignInDraft(destination: URL) {
 		if (!selectedProduct || !selectedSku || (!prompt.trim() && !file)) return;
 		destination.searchParams.set("model", selectedProduct.key);
@@ -1196,7 +1206,6 @@ function LandingGeneratorWorkspace({
 					return;
 				}
 			}
-			setStage("handoff");
 			void trackBrowserGrowthEvent(
 				{
 					name: "marketing_draft_created",
@@ -1204,6 +1213,13 @@ function LandingGeneratorWorkspace({
 				},
 				{ dedupeKey: `marketing-draft-created:${attemptKey}` },
 			);
+			if (handoff.accessHint === "guest-trial" && !paidTemplate) {
+				await prepareInlineGuestTrial(handoff);
+				rememberInlineGuestTrial();
+				setInlineGuestTrial("start");
+				return;
+			}
+			setStage("handoff");
 			void trackBrowserGrowthEvent(
 				{
 					name: "auth_handoff_started",
@@ -1215,6 +1231,11 @@ function LandingGeneratorWorkspace({
 			submitGuestDraftHandoff(handoff, document, effectEditor?.getReturnPath());
 		} catch (error) {
 			submissionInFlight.current = false;
+			if (error instanceof Error && error.message === "ACCOUNT_HANDOFF_REQUIRED") {
+				await continueWithAccount();
+				setStage("ready");
+				return;
+			}
 			if (error instanceof Error && error.message.startsWith("SOURCE_IMAGE_")) {
 				setFileError(fileErrorMessage(error, t, maximumMegabytes));
 			} else if (error instanceof Error && error.message === "GUEST_UPLOAD_RATE_LIMITED") {
@@ -1435,6 +1456,19 @@ function LandingGeneratorWorkspace({
 			<p className="composer-upload-hint">{t("fileHint", { megabytes: maximumMegabytes })}</p>
 		</section>
 	);
+
+	if (inlineGuestTrial) {
+		return (
+			<div ref={generatorRef} data-test="landing-guest-trial" className="mx-auto max-w-[76rem]">
+				<ComposerHeader />
+				<GuestTrialWorkspace
+					embedded
+					autoSubmit={inlineGuestTrial === "start"}
+					effectReturnPath={effectEditor?.getReturnPath()}
+				/>
+			</div>
+		);
+	}
 
 	return (
 		<>

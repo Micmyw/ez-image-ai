@@ -77,6 +77,7 @@ export function useGuestTrial({
 		reason: PublicModerationReason | null;
 	} | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	const submitInFlight = useRef(false);
 	const [submissionLocked, setSubmissionLocked] = useState(false);
 	const submissionAttempt = useRef<{
 		idempotencyKey: string;
@@ -249,7 +250,8 @@ export function useGuestTrial({
 	}
 
 	async function submit(turnstileToken: string) {
-		if (!draft || !capabilityVersion || !prompt.trim()) return;
+		if (submitInFlight.current || snapshot || !draft || !capabilityVersion || !prompt.trim())
+			return;
 		if (!turnstileToken) {
 			setErrorKey("turnstile");
 			setSubmitErrorNonce((value) => value + 1);
@@ -275,6 +277,7 @@ export function useGuestTrial({
 			publicModel: draft.productKey,
 		});
 		setSubmissionLocked(true);
+		submitInFlight.current = true;
 		setIsSubmitting(true);
 		setErrorKey(undefined);
 		setModerationError(null);
@@ -315,6 +318,7 @@ export function useGuestTrial({
 			setErrorKey("submit");
 			setSubmitErrorNonce((value) => value + 1);
 		} finally {
+			submitInFlight.current = false;
 			setIsSubmitting(false);
 		}
 	}

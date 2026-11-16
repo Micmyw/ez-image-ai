@@ -16,6 +16,7 @@ interface DraftHandoffOptions {
 	saasOrigin: string;
 	secure: boolean;
 	isRegistered: boolean;
+	hasSession?: boolean;
 	resolveEffectReturnPath?: (value: unknown) => string | null;
 }
 
@@ -51,7 +52,16 @@ export async function createDraftHandoffResponse(
 		intent === ACCOUNT_DRAFT_HANDOFF_INTENT && !options.isRegistered
 			? "/login?redirectTo=%2Fdraft%2Fcontinue"
 			: "/draft/continue";
-	const response = NextResponse.redirect(new URL(destination, options.saasOrigin), 303);
+	const inline = request.headers.get("accept") === "application/json";
+	if (inline && (options.isRegistered || intent !== DRAFT_HANDOFF_INTENT)) {
+		return NextResponse.json(
+			{ code: "ACCOUNT_HANDOFF_REQUIRED" },
+			{ status: 409, headers: { "Cache-Control": "no-store" } },
+		);
+	}
+	const response = inline
+		? NextResponse.json({ status: options.hasSession ? "SESSION_READY" : "BOOTSTRAP_REQUIRED" })
+		: NextResponse.redirect(new URL(destination, options.saasOrigin), 303);
 	response.headers.set("Cache-Control", "no-store");
 	response.headers.set("Referrer-Policy", "no-referrer");
 	const effectReturn = options.resolveEffectReturnPath?.(form.get("returnTo"));

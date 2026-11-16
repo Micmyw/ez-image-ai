@@ -52,7 +52,7 @@ test("guest selection prepares before Generate and reuses the upload with the ed
 }) => {
 	const fixture = await installGuestBoundaries(page, baseURL, [1]);
 	try {
-		await openComposer(page);
+		await openComposer(page, "/");
 		const prompt = page.locator("#landing-edit-prompt");
 		await prompt.fill("");
 		const file = pngFile("early-reference.png");
@@ -101,7 +101,9 @@ test("guest selection prepares before Generate and reuses the upload with the ed
 		);
 		expect(fixture.completions).toHaveLength(0);
 		fixture.releasePreparation(1);
-		await expect(page.getByRole("heading", { name: "Guest handoff received" })).toBeVisible();
+		await expectInlineResult(page, fixture, "/");
+		await page.reload();
+		await expectInlineResult(page, fixture, "/");
 
 		expect(fixture.completions).toEqual([
 			expect.objectContaining({
@@ -132,6 +134,7 @@ test("replacing a preparing guest photo switches preview immediately and seriali
 }) => {
 	const fixture = await installGuestBoundaries(page, baseURL, [1, 2]);
 	try {
+		await page.setViewportSize({ width: 390, height: 844 });
 		await openComposer(page);
 		const prompt = page.locator("#landing-edit-prompt");
 		await prompt.fill("");
@@ -172,7 +175,7 @@ test("replacing a preparing guest photo switches preview immediately and seriali
 		);
 		expect(fixture.completions).toHaveLength(0);
 		fixture.releasePreparation(2);
-		await expect(page.getByRole("heading", { name: "Guest handoff received" })).toBeVisible();
+		await expectInlineResult(page, fixture, "/create");
 		expect(fixture.completions).toEqual([
 			expect.objectContaining({
 				sessionId: "fixture-session-2",
@@ -193,7 +196,7 @@ test("replacing a preparing guest photo switches preview immediately and seriali
 
 type RequestBody = Record<string, unknown>;
 
-// Real composer, normalization, SHA-256, XHR, and form navigation; only service
+// Real composer, normalization, SHA-256, XHR, inline submission and result; only service
 // boundaries are mocked. SEALED is a durable-review-intent fixture, not approval.
 async function installGuestBoundaries(page: Page, baseURL: string | undefined, held: number[]) {
 	if (!baseURL) throw new Error("GUEST_CONVERSION_LOOPBACK_BASE_URL_REQUIRED");
@@ -206,6 +209,11 @@ async function installGuestBoundaries(page: Page, baseURL: string | undefined, h
 	const preparations: RequestBody[] = [];
 	const completions: RequestBody[] = [];
 	const handoffs: Record<string, string>[] = [];
+	const submissions: RequestBody[] = [];
+	const navigations: string[] = [];
+	page.on("framenavigated", (frame) => {
+		if (frame === page.mainFrame()) navigations.push(new URL(frame.url()).pathname);
+	});
 	const events: string[] = [];
 	const unexpectedMutations: string[] = [];
 	const gates = new Map(held.map((session) => [session, deferred()]));
@@ -317,9 +325,64 @@ async function installGuestBoundaries(page: Page, baseURL: string | undefined, h
 		}
 		if (pathname === "/draft/continue" && method === "POST") {
 			handoffs.push(Object.fromEntries(new URLSearchParams(request.postData() ?? "")));
+			return route.fulfill({ json: { status: "BOOTSTRAP_REQUIRED" } });
+		}
+		if (pathname === "/api/auth/sign-in/anonymous" && method === "POST") {
+			return route.fulfill({ json: { user: { id: "fixture-guest", isAnonymous: true } } });
+		}
+		if (pathname === "/draft/continue" && method === "GET") {
+			return route.fulfill({ json: { status: "READY" } });
+		}
+		if (pathname === "/api/rpc/media/getGuestEligibility") {
 			return route.fulfill({
-				contentType: "text/html",
-				body: "<!doctype html><html lang='en'><body><h1>Guest handoff received</h1></body></html>",
+				json: {
+					json: {
+						capabilityVersion: capability.version,
+						eligible: submissions.length === 0,
+						reason: submissions.length ? "EXISTING_TRIAL" : "AVAILABLE",
+						existingJobId: submissions.length ? "fixture-guest-job" : null,
+						trialAllowance: { limit: 1, remaining: submissions.length ? 0 : 1, resetsAt: null },
+						claimedDraft: submissions.length
+							? null
+							: {
+									sourceAssetId: "fixture-source",
+									prompt: completions.at(-1)?.prompt,
+									productKey: PRODUCT_KEY,
+									skuKey: SKU_KEY,
+									aspectRatio: "auto",
+								},
+					},
+				},
+			});
+		}
+		if (
+			pathname === "/api/rpc/media/submitGuestGeneration" ||
+			pathname === "/api/rpc/media/getGuestJob"
+		) {
+			if (pathname.endsWith("submitGuestGeneration")) submissions.push(request.postDataJSON().json);
+			return route.fulfill({
+				json: {
+					json: {
+						jobId: "fixture-guest-job",
+						stage: "READY",
+						resultAssetId: "fixture-result",
+						projectedDispatchAt: new Date().toISOString(),
+						estimateExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+						resultExpiresAt: new Date(Date.now() + 3600_000).toISOString(),
+						watermarked: true,
+						trialConsumed: true,
+						linkReady: true,
+					},
+				},
+			});
+		}
+		if (pathname === "/api/rpc/media/getGuestAssetAccessUrl") {
+			return route.fulfill({ json: { json: { url: `${origin}/__guest-inline-result.png` } } });
+		}
+		if (pathname === "/__guest-inline-result.png") {
+			return route.fulfill({
+				contentType: "image/png",
+				body: Buffer.from(ONE_PIXEL_PNG, "base64"),
 			});
 		}
 		// The local Next development overlay resolves source frames through this
@@ -339,6 +402,8 @@ async function installGuestBoundaries(page: Page, baseURL: string | undefined, h
 		preparations,
 		completions,
 		handoffs,
+		submissions,
+		navigations,
 		events,
 		unexpectedMutations,
 		releasePreparation: (session: number) => gates.get(session)?.resolve(),
@@ -348,12 +413,31 @@ async function installGuestBoundaries(page: Page, baseURL: string | undefined, h
 	};
 }
 
-async function openComposer(page: Page) {
-	await page.goto(`/create?model=${PRODUCT_KEY}`);
+async function openComposer(page: Page, pathname = "/create") {
+	await page.goto(`${pathname}?mode=image&model=${PRODUCT_KEY}`);
 	await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
 		"Nano Banana 2 Lite",
 	);
 	await expect(page.locator('[data-test="landing-stage"]')).toHaveAttribute("data-stage", "ready");
+}
+
+async function expectInlineResult(
+	page: Page,
+	fixture: Awaited<ReturnType<typeof installGuestBoundaries>>,
+	pathname: string,
+) {
+	await expect(
+		page.locator('[data-test="landing-guest-trial"] #guest-result-region img'),
+	).toBeVisible();
+	expect(new URL(page.url()).pathname).toBe(pathname);
+	expect(fixture.navigations.every((path) => path === pathname)).toBe(true);
+	expect(fixture.submissions).toHaveLength(1);
+	expect(fixture.submissions[0]?.prompt).toBe(fixture.completions.at(-1)?.prompt);
+	await expect(page.getByRole("button", { name: "Start my image edit" })).toHaveCount(0);
+	await test.info().attach(`inline-guest-${pathname === "/" ? "home" : "create"}`, {
+		body: await page.locator('[data-test="landing-guest-trial"]').screenshot(),
+		contentType: "image/png",
+	});
 }
 
 function pngFile(name: string) {

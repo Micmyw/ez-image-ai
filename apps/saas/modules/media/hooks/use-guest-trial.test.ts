@@ -162,6 +162,19 @@ const locationAssign = vi.fn();
 let visibilityState: DocumentVisibilityState = "visible";
 
 describe("useGuestTrial", () => {
+	it("admits only one request for repeated clicks while the first submission is pending", async () => {
+		api.getGuestEligibility.mockResolvedValue(eligibleDraft());
+		renderHook();
+		const trial = await settleAndRender();
+		const admission = deferred<ReturnType<typeof waitingSnapshot>>();
+		api.submitGuestGeneration.mockReturnValueOnce(admission.promise);
+		const first = trial.actions.submit("first-token");
+		const second = trial.actions.submit("second-token");
+		for (let index = 0; index < 8; index++) await Promise.resolve();
+		expect(api.submitGuestGeneration).toHaveBeenCalledTimes(1);
+		admission.resolve(waitingSnapshot());
+		await Promise.all([first, second]);
+	});
 	beforeEach(() => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-08-28T00:00:00.000Z"));

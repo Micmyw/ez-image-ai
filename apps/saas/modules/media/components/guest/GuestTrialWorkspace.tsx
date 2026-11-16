@@ -21,9 +21,14 @@ const LOCAL_TURNSTILE_EVIDENCE = "local-guest-generate";
 export function GuestTrialWorkspace({
 	registered = false,
 	effectReturnPath,
+	embedded = false,
+	autoSubmit = false,
 }: {
 	registered?: boolean;
 	effectReturnPath?: string;
+	embedded?: boolean;
+	/** Set only by the original Generate click, never when restoring a page. */
+	autoSubmit?: boolean;
 }) {
 	const t = useTranslations("media.guest");
 	const trial = useGuestTrial({ registered, effectReturnPath });
@@ -35,6 +40,26 @@ export function GuestTrialWorkspace({
 	const errorRef = useRef<HTMLDivElement>(null);
 	const linkHandler = trial.actions.beginLink;
 	const { setLinkHandler } = useGuestShellLinking(linkHandler);
+	const autoSubmissionStarted = useRef(false);
+
+	useEffect(() => {
+		if (
+			!autoSubmit ||
+			registered ||
+			autoSubmissionStarted.current ||
+			!trial.canSubmit ||
+			!turnstileToken ||
+			trial.errorKey
+		)
+			return;
+		autoSubmissionStarted.current = true;
+		void trial.actions.submit(
+			GUEST_TURNSTILE_SITE_KEY
+				? turnstileToken
+				: `${LOCAL_TURNSTILE_EVIDENCE}-${crypto.randomUUID()}`,
+		);
+		if (GUEST_TURNSTILE_SITE_KEY) resetChallenge();
+	}, [autoSubmit, registered, trial.canSubmit, trial.errorKey, trial.actions, turnstileToken]);
 
 	useEffect(() => {
 		setLinkHandler(linkHandler);
@@ -71,6 +96,18 @@ export function GuestTrialWorkspace({
 
 	const error = trial.errorKey ? t(`errors.${trial.errorKey}`) : null;
 	const submissionError = trial.errorKey === "submit" || trial.errorKey === "turnstile";
+	const showForm = trial.canSubmit && (!autoSubmit || submissionError);
+	const challenge = GUEST_TURNSTILE_SITE_KEY ? (
+		<Turnstile
+			siteKey={GUEST_TURNSTILE_SITE_KEY}
+			action="guest_generate"
+			ariaLabel={t("challenge")}
+			resetKey={turnstileResetKey}
+			onToken={handleChallengeToken}
+			onError={handleChallengeError}
+			onExpire={resetChallenge}
+		/>
+	) : null;
 	const terminalFailure = ["rejected", "failed"].includes(trial.view.state);
 	const ready = trial.view.state === "ready";
 	const showAccountActions =
@@ -82,29 +119,31 @@ export function GuestTrialWorkspace({
 					["eligibility", "regionExcluded", "regionUnverified"].includes(trial.errorKey ?? ""))));
 
 	return (
-		<div className="px-4 py-6 sm:px-6 sm:py-8 max-w-6xl mx-auto">
-			<header className="gap-3 flex flex-wrap items-end justify-between">
-				<div>
-					<h1 className="text-2xl leading-tight font-semibold sm:text-3xl tracking-tight text-balance">
-						{ready ? t("states.ready") : t("title")}
-					</h1>
-					{!ready && <p className="mt-2 text-sm text-muted-foreground">{t("subtitle")}</p>}
-				</div>
-				{!ready && !registered && trial.trialAllowance && (
-					<output className="px-3 py-1.5 text-xs rounded-full border border-border text-muted-foreground">
-						{t("trialAllowance", {
-							remaining: trial.trialAllowance.remaining,
-							limit: trial.trialAllowance.limit,
-						})}
-					</output>
-				)}
-			</header>
+		<div className={embedded ? "py-6 space-y-4" : "px-4 py-6 sm:px-6 sm:py-8 max-w-6xl mx-auto"}>
+			{!embedded && (
+				<header className="gap-3 flex flex-wrap items-end justify-between">
+					<div>
+						<h1 className="text-2xl leading-tight font-semibold sm:text-3xl tracking-tight text-balance">
+							{ready ? t("states.ready") : t("title")}
+						</h1>
+						{!ready && <p className="mt-2 text-sm text-muted-foreground">{t("subtitle")}</p>}
+					</div>
+					{!ready && !registered && trial.trialAllowance && (
+						<output className="px-3 py-1.5 text-xs rounded-full border border-border text-muted-foreground">
+							{t("trialAllowance", {
+								remaining: trial.trialAllowance.remaining,
+								limit: trial.trialAllowance.limit,
+							})}
+						</output>
+					)}
+				</header>
+			)}
 
 			<div
-				className={`mt-6 gap-5 grid ${trial.canSubmit && trial.draft ? "lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start" : ""}`}
+				className={`gap-5 grid ${embedded ? "" : "mt-6"} ${showForm && trial.draft ? "lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)] lg:items-start" : ""}`}
 			>
 				<div className={ready && !error ? "sr-only" : "min-w-0 space-y-4"}>
-					{trial.canSubmit && trial.draft && (
+					{showForm && trial.draft && (
 						<form
 							onSubmit={submit}
 							className="space-y-5 p-4 sm:p-5 rounded-2xl border border-border bg-card"
@@ -182,17 +221,7 @@ export function GuestTrialWorkspace({
 									/>
 								</button>
 							</div>
-							{GUEST_TURNSTILE_SITE_KEY && (
-								<Turnstile
-									siteKey={GUEST_TURNSTILE_SITE_KEY}
-									action="guest_generate"
-									ariaLabel={t("challenge")}
-									resetKey={turnstileResetKey}
-									onToken={handleChallengeToken}
-									onError={handleChallengeError}
-									onExpire={resetChallenge}
-								/>
-							)}
+							{challenge}
 							{challengeFailed && (
 								<button
 									type="button"
@@ -217,7 +246,13 @@ export function GuestTrialWorkspace({
 						</form>
 					)}
 
-					<div className={trial.canSubmit && !trial.isSubmitting ? "sr-only" : undefined}>
+					{!showForm && autoSubmit && !autoSubmissionStarted.current && challenge}
+					{!showForm && challengeFailed && (
+						<Button type="button" variant="ghost" onClick={resetChallenge}>
+							{t("retryChallenge")}
+						</Button>
+					)}
+					<div className={showForm && !trial.isSubmitting ? "sr-only" : undefined}>
 						<GuestStatusPanel
 							view={trial.view}
 							onViewStatus={trial.actions.viewStatus}
