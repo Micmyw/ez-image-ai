@@ -26,7 +26,7 @@ describe.skipIf(!databaseUrl)("guest diagnostics PostgreSQL aggregates", () => {
 			CREATE TEMP TABLE guest_media_trial (id text, "promotionPeriod" text, "frozenQuotedRiskMicros" bigint, "riskState" "GuestRiskState");
 			CREATE TEMP TABLE generation_job (id text, "guestTrialId" text, "serviceClass" "GenerationServiceClass", status text, "createdAt" timestamptz, "failureCode" text);
 			CREATE TEMP TABLE generation_attempt ("jobId" text, status text, "createdAt" timestamptz, "uncertainSubmission" boolean, "providerCostMicros" bigint);
-			CREATE TEMP TABLE media_asset (id text, kind text, status text, "watermarkVersion" text, "watermarkedAt" timestamptz, "cleanStagingDeletedAt" timestamptz, "deleteAfter" timestamptz, "deletedAt" timestamptz, "retentionClass" "MediaRetentionClass");
+			CREATE TEMP TABLE media_asset (id text, kind text, status text, "watermarkVersion" text, "watermarkedAt" timestamptz, "cleanStagingDeletedAt" timestamptz, "deleteAfter" timestamptz, "deletedAt" timestamptz, "retentionClass" "MediaRetentionClass", "verificationEngine" text NOT NULL DEFAULT 'legacy', "mimeType" text NOT NULL);
 			CREATE TEMP TABLE generation_job_asset ("assetId" text, "jobId" text);
 			CREATE TEMP TABLE asset_moderation_result (id text, "assetId" text, status text, "verificationGeneration" int, "attemptNumber" int, "createdAt" timestamptz);
 			CREATE TEMP TABLE credit_ledger_entry (amount bigint, "referenceKey" text, type "CreditLedgerEntryType");
