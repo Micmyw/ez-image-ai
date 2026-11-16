@@ -148,10 +148,11 @@ until accepted tasks and signed URLs drain.
 For the two existing Git build targets, deploy the website receiver/readers first
 while the old jobs Worker continues to produce V1 callbacks. Its missing-receipt
 reads safely use the existing asset path. Then deploy the jobs Worker, which
-updates its delivery-hub receiver and V2 producers together. Hold only the jobs
-Git trigger during the website deployment, restore its original branch filters,
-and launch that same commit after the website version is confirmed. Do not stop
-live generation or alter runtime feature settings for this sequencing.
+updates its delivery-hub receiver and V2 producers together. Cancel the first
+automatically queued jobs build while the website deploys, then launch the jobs
+build for that same commit after the website version is confirmed. Keep the Git
+trigger filters unchanged. Do not stop live generation or alter runtime feature
+settings for this sequencing.
 
 Focused local checks include direct-URL operation order, special-format conversion,
 deterministic replay, approval while database work is blocked, immediate streamed

@@ -398,9 +398,18 @@ async function readEquivalentStatus(
 	// Date and bigint types. Its own queries are excluded from measured samples.
 	const reference = await database.generationJob.findFirst({
 		where: { id: jobId, executionEngine: "legacy", ownerType: "USER", ownerId },
-		select: MEDIA_JOB_STATUS_SELECT,
+		select: { ...MEDIA_JOB_STATUS_SELECT, quoteId: true },
 	});
-	expect(result).toStrictEqual(reference);
+	let expected = null;
+	if (reference) {
+		const { quoteId, ...fields } = reference;
+		const rejectedReview = await database.moderationReview.findFirst({
+			where: { targetType: "QUOTE", targetId: quoteId, status: { in: ["REJECTED", "BLOCKED"] } },
+			select: { id: true },
+		});
+		expected = { ...fields, promptRejected: rejectedReview !== null };
+	}
+	expect(result).toStrictEqual(expected);
 	if (projectionPhase !== "baseline") expect(sample.queryCount).toBe(1);
 	expect(sample.statements.join("\n")).not.toMatch(
 		/"(?:rawEnvelope|sourceUrl|pricingSnapshot|outputTransferToken|verificationLastErrorCode)"/,
@@ -409,6 +418,51 @@ async function readEquivalentStatus(
 }
 
 describe("single-statement job status equivalence", () => {
+	it.each(["REJECTED", "BLOCKED", "APPROVED", "RETRYING"])(
+		"projects the matching quote's %s prompt review in the same status query",
+		async (status) => {
+			const job = await createStatusJob();
+			const now = new Date();
+			await client.moderationReview.create({
+				data: {
+					targetType: "QUOTE",
+					targetId: job.quoteId,
+					provider: "test",
+					stage: "PROMPT",
+					status,
+					attemptEpoch: crypto.randomUUID(),
+					lastErrorCode: "TEST_REVIEW",
+					firstFailureAt: now,
+					lastFailureAt: now,
+				},
+			});
+			const result = await readEquivalentStatus(`prompt-${status}`, job.id, job.ownerId);
+			expect(result?.promptRejected).toBe(status === "REJECTED" || status === "BLOCKED");
+		},
+	);
+
+	it("does not project rejected reviews for a different quote or target type", async () => {
+		const job = await createStatusJob();
+		const now = new Date();
+		await client.moderationReview.createMany({
+			data: [
+				{ targetType: "QUOTE", targetId: crypto.randomUUID() },
+				{ targetType: "ASSET", targetId: job.quoteId },
+			].map((target) => ({
+				...target,
+				provider: "test",
+				stage: "PROMPT",
+				status: "REJECTED",
+				attemptEpoch: crypto.randomUUID(),
+				lastErrorCode: "TEST_REVIEW",
+				firstFailureAt: now,
+				lastFailureAt: now,
+			})),
+		});
+		const result = await readEquivalentStatus("unrelated-prompt-reviews", job.id, job.ownerId);
+		expect(result?.promptRejected).toBe(false);
+	});
+
 	it("preserves empty relations, nullable fields, native dates and bigint precision", async () => {
 		const large = 9_007_199_254_740_993n;
 		const date = new Date("2026-10-22T12:34:56.789Z");
