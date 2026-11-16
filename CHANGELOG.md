@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-11-16 — Guest generation in place
+
+- Start an eligible guest edit with one click on the homepage or Create page, and show progress and the result in the same composer without a handoff page or second submission.
+- Restore the current result after refresh without submitting again; a network retry keeps the original request identity.
+- Load the guest result workspace on demand to preserve the homepage's initial download budget.
+
 ## Unreleased — Guest trial availability
 
 - Keep intentionally retained guest images from triggering an overdue-cleanup shutdown of free trials.

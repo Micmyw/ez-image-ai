@@ -19,7 +19,11 @@ test("anonymous MiniMax H3 lifetime trial is private, accessible, responsive, an
 	const prompt = `[e2e:delayed-success] [run:${runId}] guest browser certification ${testInfo.retry}`;
 	// A retry has a new browser identity and must not inherit the failed attempt's IP budget.
 	const clientIp = `127.0.0.${testInfo.retry + 1}`;
-	await enterGuestWorkspace(page, prompt, clientIp);
+	const submissions = await enterGuestWorkspace(page, prompt, clientIp);
+	const workspace = page.locator('[data-test="landing-guest-trial"]');
+	const alert = page.getByRole("alert").filter({ hasText: /we could not submit this edit/i });
+	await expect(alert).toBeVisible();
+	await expect(alert.locator("xpath=..")).toBeFocused();
 
 	await assertGuestLayouts(page, [1440, 800, 320]);
 	await captureReviewScreenshots(page, testInfo);
@@ -28,29 +32,15 @@ test("anonymous MiniMax H3 lifetime trial is private, accessible, responsive, an
 
 	const promptInput = page.getByLabel(/edit instruction|image prompt/i);
 	await expect(promptInput).toHaveValue(prompt);
-	await promptInput.fill(`${prompt} retry`);
-	let blockedOnce = false;
-	await page.route("**/api/**", async (route) => {
-		if (
-			!blockedOnce &&
-			route.request().method() === "POST" &&
-			new URL(route.request().url()).pathname.endsWith("/api/rpc/media/submitGuestGeneration")
-		) {
-			blockedOnce = true;
-			await route.abort("failed");
-			return;
-		}
-		await route.continue();
-	});
-	await page.getByRole("button", { name: /start my image edit/i }).click();
-	const alert = page.getByRole("alert").filter({ hasText: /we could not submit this edit/i });
-	await expect(alert).toBeVisible();
-	await expect(alert.locator("xpath=..")).toBeFocused();
-	await page.unroute("**/api/**");
+	await expect(promptInput).toBeDisabled();
 
+	// A failed network response permits only an explicit retry of the same frozen request.
 	await page.getByRole("button", { name: /start my image edit/i }).click();
 	const viewStatus = page.getByRole("button", { name: /view status/i });
 	await expect(viewStatus).toBeVisible({ timeout: 30_000 });
+	expect(submissions).toHaveLength(2);
+	expect(submissions[1]?.idempotencyKey).toBe(submissions[0]?.idempotencyKey);
+	expect(submissions[1]?.prompt).toBe(prompt);
 	await assertGuestReducedMotion(page);
 	await viewStatus.click();
 	await expect(page.locator("#guest-status-region")).toBeFocused();
@@ -67,14 +57,13 @@ test("anonymous MiniMax H3 lifetime trial is private, accessible, responsive, an
 	const download = page.waitForEvent("download");
 	await resultRegion.getByRole("button", { name: /download image/i }).click();
 	expect((await download).suggestedFilename()).toBeTruthy();
-	const main = page.getByRole("main");
-	await expect(main.getByRole("button", { name: /sign in/i })).toBeVisible();
-	await expect(main.getByRole("button", { name: /create account/i })).toBeVisible();
-	await expect(page.getByRole("link", { name: /history|assets|edits/i })).toHaveCount(0);
-	await expect(page.getByText(/edit again/i)).toHaveCount(0);
+	await expect(workspace.getByRole("button", { name: /sign in/i })).toBeVisible();
+	await expect(workspace.getByRole("button", { name: /create account/i })).toBeVisible();
+	await expect(workspace.getByRole("link", { name: /history|assets|edits/i })).toHaveCount(0);
+	await expect(workspace.getByText(/edit again/i)).toHaveCount(0);
 	await expect(page.locator("#guest-edit-prompt")).toHaveCount(0);
 	await expect(
-		main.locator("details").filter({ hasText: /Trial & account details/ }),
+		workspace.locator("details").filter({ hasText: /Trial & account details/ }),
 	).not.toHaveAttribute("open");
 	await assertGuestLayouts(page, [1440, 800, 320]);
 	await captureReviewScreenshots(page, testInfo);
@@ -83,29 +72,35 @@ test("anonymous MiniMax H3 lifetime trial is private, accessible, responsive, an
 			async () => {
 				const result = await pool.query(
 					'SELECT status FROM generation_job WHERE "inputSnapshot"->>\'prompt\'=$1 ORDER BY "createdAt" DESC LIMIT 1',
-					[`${prompt} retry`],
+					[prompt],
 				);
 				return result.rows[0]?.status;
 			},
 			{ timeout: 30_000 },
 		)
 		.toBe("SUCCEEDED");
+	const jobs = await pool.query(
+		"SELECT count(*)::int AS count FROM generation_job WHERE \"inputSnapshot\"->>'prompt'=$1",
+		[prompt],
+	);
+	expect(jobs.rows[0]?.count).toBe(1);
 	await page.reload();
 	await expect(resultRegion.getByRole("img")).toBeVisible();
+	expect(submissions).toHaveLength(2);
 	await expect(page.locator("#guest-edit-prompt")).toHaveCount(0);
 	await expect(page.getByRole("link", { name: "Edit another image", exact: true })).toHaveCount(0);
 	await expect(page.getByRole("heading", { name: "Keep creating", exact: true })).toBeVisible();
 
 	const expiredTrial = await pool.query(
 		`UPDATE guest_media_trial SET "projectedDispatchAt"="createdAt" + interval '1 millisecond', "estimateExpiresAt"="createdAt" + interval '2 milliseconds', "expiresAt"="createdAt" + interval '3 milliseconds' WHERE COALESCE("currentJobId", "consumedJobId")=(SELECT id FROM generation_job WHERE "inputSnapshot"->>'prompt'=$1 ORDER BY "createdAt" DESC LIMIT 1)`,
-		[`${prompt} retry`],
+		[prompt],
 	);
 	expect(expiredTrial.rowCount).toBe(1);
 	await page.reload();
 	await expect(page.getByText(/expired/i).first()).toBeVisible({ timeout: 30_000 });
 });
 
-async function enterGuestWorkspace(page: Page, prompt: string, clientIp: string): Promise<void> {
+async function enterGuestWorkspace(page: Page, prompt: string, clientIp: string) {
 	page.on("requestfailed", (request) => {
 		const url = new URL(request.url());
 		console.info("Guest request failed", {
@@ -126,7 +121,7 @@ async function enterGuestWorkspace(page: Page, prompt: string, clientIp: string)
 		{ name: "consent", value: "true", url: saasUrl },
 		{ name: "consent_version", value: "2", url: saasUrl },
 	]);
-	await page.goto("/");
+	await page.goto("/?mode=image");
 	await page.getByLabel(/image prompt|edit instruction/i).fill(prompt);
 	const chooserPromise = page.waitForEvent("filechooser");
 	await page
@@ -138,10 +133,17 @@ async function enterGuestWorkspace(page: Page, prompt: string, clientIp: string)
 	).setFiles({ name: "guest-source.png", mimeType: "image/png", buffer: png });
 	const trialAction = page.locator('[data-test="landing-generate"]');
 	await expect(trialAction).toHaveAccessibleName(/try free/i, { timeout: 30_000 });
+	const submissions: Array<{ idempotencyKey: string; prompt: string }> = [];
+	await page.route("**/api/rpc/media/submitGuestGeneration", async (route) => {
+		submissions.push(route.request().postDataJSON().json);
+		if (submissions.length === 1) return route.abort("failed");
+		return route.fallback();
+	});
 	await trialAction.click();
-	await expect(page).toHaveURL(/\/try(?:\?|$)/, { timeout: 30_000 });
-	await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+	await expect(page.locator('[data-test="landing-guest-trial"]')).toBeVisible({ timeout: 30_000 });
+	expect(new URL(page.url()).pathname).toBe("/");
 	await expect(page.getByRole("button", { name: /start my image edit/i })).toBeVisible();
+	return submissions;
 }
 
 async function assertGuestLayouts(page: Page, widths: number[]): Promise<void> {
@@ -206,7 +208,7 @@ async function assertGuestAccessibility(page: Page): Promise<void> {
 	const primaryBox = await primary.boundingBox();
 	expect(primaryBox?.height ?? 0).toBeGreaterThanOrEqual(48);
 	for (const control of await page
-		.locator("header, main, footer")
+		.locator('[data-test="landing-guest-trial"]')
 		.locator("button:visible, input:visible, textarea:visible, select:visible, a[href]:visible")
 		.all()) {
 		const box = await control.boundingBox();
@@ -218,17 +220,16 @@ async function assertGuestAccessibility(page: Page): Promise<void> {
 				Boolean(element.closest("p, li")),
 		);
 		if (inlineTextLink) continue;
-		expect(box.width, "interactive target width").toBeGreaterThanOrEqual(44);
-		expect(box.height, "interactive target height").toBeGreaterThanOrEqual(44);
+		const name = (await control.getAttribute("aria-label")) ?? (await control.innerText());
+		expect(box.width, `${name}: interactive target width`).toBeGreaterThanOrEqual(44);
+		expect(box.height, `${name}: interactive target height`).toBeGreaterThanOrEqual(44);
 	}
 	const selectedStandard = page.locator('[data-test="guest-product-selection"]');
 	await expect(selectedStandard).toHaveAttribute("aria-current", "true");
 	await expect(selectedStandard.locator("svg")).toBeVisible();
-	await page.getByLabel(/edit instruction|image prompt/i).focus();
-	await page.keyboard.press("Tab");
-	await expect(page.getByRole("combobox", { name: "Free trial model" })).toBeFocused();
-	await page.keyboard.press("Tab");
-	await expect(page.getByRole("button", { name: /more image models/i })).toBeFocused();
+	await expect(page.getByLabel(/edit instruction|image prompt/i)).toBeDisabled();
+	await expect(page.getByRole("combobox", { name: "Free trial model" })).toBeDisabled();
+	await page.getByRole("button", { name: /more image models/i }).focus();
 	await page.keyboard.press("Tab");
 	await expect(primary).toBeFocused();
 	await expect(page.getByRole("combobox", { name: "Free trial model" })).toHaveValue(
@@ -254,14 +255,16 @@ async function assertGuestOriginality(page: Page): Promise<void> {
 	expect(publicText).not.toMatch(
 		/raphael|providerModelId|providerCostMicros|providerTaskId|KIE_API_KEY|OPENROUTER_API_KEY|api\.kie\.ai|openrouter(?:\.ai)?|gpt-image-2-image-to-image|seedream\/5-pro-image-to-image/i,
 	);
-	await expect(page.getByText(/history|edit again/i)).toHaveCount(0);
+	await expect(
+		page.locator('[data-test="landing-guest-trial"]').getByText(/history|edit again/i),
+	).toHaveCount(0);
 }
 
 async function captureReviewScreenshots(page: Page, testInfo: TestInfo): Promise<void> {
 	for (const width of [1440, 390]) {
 		await page.setViewportSize({ width, height: width === 1440 ? 1000 : 844 });
 		const path = testInfo.outputPath(`guest-originality-${width}.png`);
-		await page.screenshot({ path, fullPage: true });
+		await page.locator('[data-test="landing-guest-trial"]').screenshot({ path });
 		await testInfo.attach(`guest-originality-${width}`, { path, contentType: "image/png" });
 	}
 }

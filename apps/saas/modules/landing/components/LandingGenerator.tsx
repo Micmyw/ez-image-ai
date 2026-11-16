@@ -4,7 +4,6 @@ import { hasAuthDraftPointer } from "@auth/lib/auth-draft-pointer";
 import { config } from "@config";
 import { ComposerHeader } from "@media/components/editor/ComposerHeader";
 import { PromptIdeas } from "@media/components/editor/PromptIdeas";
-import { GuestTrialWorkspace } from "@media/components/guest/GuestTrialWorkspace";
 import { ImageModelSelector } from "@media/components/ImageModelSelector";
 import {
 	ImageOutputSettings,
@@ -70,6 +69,7 @@ import {
 	XIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import {
 	type ChangeEvent,
@@ -123,6 +123,11 @@ import { useShowcasePrompt } from "../lib/use-showcase-prompt";
 
 const GUEST_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY ?? null;
 const LOCAL_TURNSTILE_EVIDENCE = "local-guest-upload";
+
+const loadGuestTrialWorkspace = () => import("@media/components/guest/GuestTrialWorkspace");
+const GuestTrialWorkspace = dynamic(() =>
+	loadGuestTrialWorkspace().then((module) => module.GuestTrialWorkspace),
+);
 
 export function LandingGenerator(props: { requireReference?: boolean; initialFile?: File } = {}) {
 	const [reset, setReset] = useState<{ key: number; productKey?: GuestProductKey }>({ key: 0 });
@@ -1172,6 +1177,8 @@ function LandingGeneratorWorkspace({
 		setUploadPercentage(undefined);
 		const attemptKey = createAttemptKey();
 		try {
+			if (selectedGuestTrial && !paidTemplate)
+				void loadGuestTrialWorkspace().catch(() => undefined);
 			const checkpoint = await guestPreparation.ensurePrepared();
 			const handoff = await uploadGuestDraft({
 				journey: { draftRef: journeyDraftRef.current, actionRef: journeyAction.current?.id },
@@ -1465,7 +1472,13 @@ function LandingGeneratorWorkspace({
 
 	if (inlineGuestTrial) {
 		return (
-			<div ref={generatorRef} data-test="landing-guest-trial" className="mx-auto max-w-[76rem]">
+			<div
+				ref={generatorRef}
+				data-test="landing-guest-trial"
+				data-composer-design="compact"
+				data-composer-kind="image-to-image"
+				className="[&_.composer-category]:min-h-11! mt-6 mx-auto max-w-[76rem]"
+			>
 				<ComposerHeader />
 				<GuestTrialWorkspace
 					embedded

@@ -149,7 +149,12 @@ async function main(): Promise<void> {
 				"test",
 				...(avatarLanding || landingRegression
 					? ["tests/landing.spec.ts"]
-					: ["tests/guest-trial.spec.ts", "tests/landing.spec.ts", "tests/originality.spec.ts"]),
+					: [
+							"tests/guest-trial.spec.ts",
+							"tests/guest-conversion.spec.ts",
+							"tests/landing.spec.ts",
+							"tests/originality.spec.ts",
+						]),
 				"--project=guest",
 				"--workers=1",
 				...(landingRegression ? ["--grep", landingRegressionGrep] : []),

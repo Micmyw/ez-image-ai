@@ -8,6 +8,14 @@ The subsequent request prioritizes feasibility and measured timing of proposal 3
 
 ## Decisions
 
+### November 16: generate in the current composer
+
+Eligible guest image edits begin from the original Generate click on `/` or `/create`. The existing signed draft claim and anonymous session setup run in the background; neither `/draft/continue` nor `/try` is a navigation step. Progress, the approved result and download stay in the mounted composer. The guest workspace loads on demand, starting in parallel with preparation after the click.
+
+The original click submits once with its existing journey identity. An uncertain response allows an explicit retry of the same frozen request, not a new generation identity. A non-sensitive, tab-scoped recovery marker restores status/results after refresh without automatically submitting. Region, lifetime entitlement, ownership, private access and moderation checks remain authoritative. Existing login/purchase handoffs and legacy `/try` links remain supported.
+
+### Earlier decisions
+
 1. Start guest upload and input review after file selection, once immutable upload is complete. Keep pending review out of ordinary user-facing progress; failures still explain the required action. The Generate action reuses the same upload and review. Pending is never approval.
 2. Keep transactional job/credit/idempotency admission. Existing ordinary Generate does not read the entire R2 input; do not remove financial or ownership checks in the name of avoiding storage reads. Optimize repeated work rather than creating untracked provider calls.
 3. UI rate feedback is simple; server-side upload and entitlement controls remain authoritative. Never restore retired IP, subnet or site-wide daily cost caps. Repeated preparation/completion of one identity does not count as a new upload.
