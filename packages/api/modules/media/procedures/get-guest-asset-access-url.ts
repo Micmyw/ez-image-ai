@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { guestMediaProcedure } from "../guest-procedure";
 import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
+import { getAuthorizedImageResult, signImageResultReadUrl } from "../lib/image-result";
 
 export const getGuestAssetAccessUrl = guestMediaProcedure
 	.route({
@@ -34,6 +35,12 @@ export const getGuestAssetAccessUrl = guestMediaProcedure
 			.strict(),
 	)
 	.handler(async ({ context, input }) => {
+		const receipt = await getAuthorizedImageResult(input.jobId, context.user.id, input.assetId);
+		if (receipt?.context.guest) {
+			const { assetId, expiresIn, url } = signImageResultReadUrl(receipt, input.disposition);
+			context.responseHeaders?.set("Cache-Control", "no-store");
+			return { assetId, expiresIn, url };
+		}
 		const authorizationNow = new Date();
 		const asset = await getGuestOwnedResultAssetForAccess(
 			{

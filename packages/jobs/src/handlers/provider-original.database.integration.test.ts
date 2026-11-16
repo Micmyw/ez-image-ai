@@ -27,6 +27,8 @@ import {
 } from "@repo/database";
 import { runWithDatabaseClient } from "@repo/database/client";
 import { PrismaClient } from "@repo/database/generated-client";
+import { persistApprovedImageResult } from "@repo/database/media-approved-image-result";
+import { getImageResultAccess } from "@repo/database/media-image-result-access";
 import { runWithImageProcessor } from "@repo/storage/image-processing/context";
 import { createSharpImageProcessor } from "@repo/storage/image-processing/sharp";
 import { runWithRequestDefer } from "@repo/utils/request-lifecycle";
@@ -35,6 +37,9 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { parseTaskContinuation } from "../orchestration/contracts";
 import { executeTask } from "../orchestration/executor";
 import { executePollingTick } from "../orchestration/polling";
+import { runWithMediaJobEvents } from "../realtime/context";
+import { imageResultAssetId, mergeImageResult } from "../realtime/image-result";
+import { imageResultFixture } from "../realtime/image-result.fixture";
 import {
 	createFinalizationDependencies,
 	createDatabaseVerifyUploadDependencies,
@@ -286,6 +291,312 @@ async function fixture(dispatchOverride?: (eventId: string) => Promise<void>, gu
 	const asset = await db.mediaAsset.findFirstOrThrow({ where: { ownerId, kind: "OUTPUT" } });
 	return { job, asset, result, dispatch, write, deps };
 }
+
+describe("approved callback result import", () => {
+	async function reviewed(guest = false) {
+		const seed = await seedOriginal(guest);
+		const receipt = imageResultFixture();
+		receipt.context = {
+			...receipt.context,
+			jobId: seed.job.id,
+			ownerId: seed.ownerId,
+			attemptId: seed.attempt.id,
+			guest,
+		};
+		receipt.assetId = imageResultAssetId(seed.job.id, seed.attempt.id);
+		receipt.completion.outputUrl = seed.output.url;
+		receipt.submission.moderationTaskId = `review-${seed.attempt.id}`;
+		receipt.submission.idempotency.key = `request-${seed.attempt.id}`;
+		receipt.decision!.evidence!.requestId = receipt.submission.moderationTaskId;
+		receipt.decision!.evidence!.seeapi!.taskId = receipt.submission.moderationTaskId;
+		await db.generationAttempt.update({
+			where: { id: seed.attempt.id },
+			data: { providerTaskId: (receipt.completion.providerTaskId = `remote-${seed.attempt.id}`) },
+		});
+		return { ...seed, receipt };
+	}
+	it.each([false, true])(
+		"atomically imports approved metadata and archive intent, keeping credit reservation active (guest=%s)",
+		async (guest) => {
+			const f = await reviewed(guest);
+			const input = {
+				receipt: f.receipt,
+				checksum: "b".repeat(64),
+				bytes: 256,
+				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+			};
+			expect(await persistApprovedImageResult(input, db)).toBe(true);
+			expect(await persistApprovedImageResult(input, db)).toBe(true);
+			const asset = await db.mediaAsset.findUniqueOrThrow({ where: { id: f.receipt.assetId } });
+			expect(asset.status).toBe("READY");
+			expect(await db.assetModerationResult.count({ where: { assetId: asset.id } })).toBe(1);
+			expect(
+				await db.generationJobAsset.count({ where: { jobId: f.job.id, assetId: asset.id } }),
+			).toBe(1);
+			expect(
+				(await db.creditReservation.findUniqueOrThrow({ where: { jobId: f.job.id } })).status,
+			).toBe("ACTIVE");
+			expect(
+				(await db.mediaOutputOrigin.findUniqueOrThrow({ where: { assetId: asset.id } }))
+					.archiveState,
+			).toBe("PENDING");
+			expect(
+				await db.outboxEvent.count({
+					where: { dedupeKey: `provider-original-archive:${asset.id}:0` },
+				}),
+			).toBe(1);
+			expect(
+				(
+					await getOwnedMediaAssetReadState(
+						{
+							assetId: asset.id,
+							ownerId: f.ownerId,
+							verification: { ...verificationBoundary(), provider: "seeapi" },
+						},
+						db,
+					)
+				)?.readable,
+			).toBe(true);
+			expect((await getImageResultAccess(f.job.id, asset.id, db))?.attemptId).toBe(f.attempt.id);
+			if (!guest) {
+				vi.stubEnv("MEDIA_SAFETY_ADAPTER", "configured");
+				vi.stubEnv("MODERATION_IMAGE_SEEAPI_ENABLED", "true");
+				const store = createDatabaseSettlementStore(db);
+				await settleGeneration({ jobId: f.job.id, version: f.job.version }, { store });
+				await settleGeneration({ jobId: f.job.id, version: f.job.version }, { store });
+				expect(
+					(await db.creditReservation.findUniqueOrThrow({ where: { jobId: f.job.id } }))
+						.settledAmount,
+				).toBe(5n);
+			}
+		},
+	);
+	it("refuses altered task identity and cannot resurrect a deleted output", async () => {
+		const f = await reviewed();
+		const input = {
+			receipt: f.receipt,
+			checksum: "c".repeat(64),
+			bytes: 32,
+			policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+		};
+		expect(
+			await persistApprovedImageResult(
+				{
+					...input,
+					receipt: {
+						...f.receipt,
+						completion: { ...f.receipt.completion, providerTaskId: "another-task" },
+					},
+				},
+				db,
+			),
+		).toBe(false);
+		expect(await persistApprovedImageResult(input, db)).toBe(true);
+		await db.mediaAsset.update({
+			where: { id: f.receipt.assetId },
+			data: { status: "DELETED", deletedAt: new Date() },
+		});
+		expect(await persistApprovedImageResult(input, db)).toBe(false);
+	});
+	it("can complete the same pending output after publication without resubmitting review", async () => {
+		const f = await reviewed();
+		const { createProviderOriginal } = await import("@repo/database");
+		await createProviderOriginal(
+			{
+				jobId: f.job.id,
+				ownerId: f.ownerId,
+				assetId: f.receipt.assetId,
+				objectKey: `provider-original-v1/users/${f.ownerId}/assets/${f.receipt.assetId}/original.png`,
+				mimeType: "image/png",
+				candidateKey: `${f.attempt.id}:0`,
+				url: f.output.url,
+			},
+			db,
+		);
+		expect(
+			await persistApprovedImageResult(
+				{
+					receipt: f.receipt,
+					checksum: "d".repeat(64),
+					bytes: 32,
+					policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				},
+				db,
+			),
+		).toBe(true);
+		expect(
+			(await db.mediaAsset.findUniqueOrThrow({ where: { id: f.receipt.assetId } })).status,
+		).toBe("READY");
+	});
+	it.each(["new", "accepted", "interrupted", "converted"])(
+		"recovers a %s direct review using the accepted task without another POST",
+		async (state) => {
+			const f = await reviewed();
+			const { createProviderOriginal } = await import("@repo/database");
+			await createProviderOriginal(
+				{
+					jobId: f.job.id,
+					ownerId: f.ownerId,
+					assetId: f.receipt.assetId,
+					objectKey: `provider-original-v1/users/${f.ownerId}/assets/${f.receipt.assetId}/original.png`,
+					mimeType: "image/png",
+					candidateKey: `${f.attempt.id}:0`,
+					url: f.output.url,
+				},
+				db,
+			);
+			await db.generationAttempt.update({
+				where: { id: f.attempt.id },
+				data: { requestSnapshot: { directOutputReview: true } },
+			});
+			await db.mediaAsset.update({
+				where: { id: f.receipt.assetId },
+				data: {
+					checksum: "a".repeat(64),
+					byteSize: 32n,
+					finalizedAt: new Date(),
+					verificationGeneration: 1,
+					verificationProvider: "seeapi",
+					verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+					verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+					...(state === "new"
+						? {}
+						: {
+								verificationSubmissionToken: f.receipt.submission.idempotency.key,
+								verificationSubmissionUncertain: state === "interrupted",
+								verificationSubmittedAt: new Date(),
+								verificationProviderTaskId:
+									state === "accepted" ? f.receipt.submission.moderationTaskId : null,
+							}),
+				},
+			});
+			const approved = f.receipt.decision!;
+			if (state === "converted") {
+				f.receipt.priorReview = {
+					moderationTaskId: f.receipt.submission.moderationTaskId,
+					idempotencyKey: f.receipt.submission.idempotency.key,
+					decision: {
+						decision: "ERROR",
+						reasonCode: "MODERATION_MEDIA_INVALID",
+						ruleVersion: f.receipt.submission.ruleVersion,
+						evidence: {
+							requestId: f.receipt.submission.moderationTaskId,
+							models: ["nsfw-filter-2"],
+							operations: 1,
+							scores: {},
+							seeapiFailure: {
+								taskId: f.receipt.submission.moderationTaskId,
+								status: "failed",
+								code: "MEDIA_INVALID",
+							},
+						},
+					},
+				};
+				await db.mediaAsset.update({
+					where: { id: f.receipt.assetId },
+					data: { verificationProviderTaskId: f.receipt.submission.moderationTaskId },
+				});
+				f.receipt.submission = {
+					...f.receipt.submission,
+					moderationTaskId: `converted-${f.attempt.id}`,
+					idempotency: {
+						...f.receipt.submission.idempotency,
+						key: `converted-key-${f.attempt.id}`,
+					},
+				};
+				approved.evidence!.requestId = f.receipt.submission.moderationTaskId;
+				approved.evidence!.seeapi!.taskId = f.receipt.submission.moderationTaskId;
+			}
+			let saved = {
+				...f.receipt,
+				reviewInput: "thumbnail" as const,
+				decision: undefined as typeof f.receipt.decision,
+				approvedAt: undefined as number | undefined,
+				preparedIdentity: { checksum: "a".repeat(64), bytes: 32 },
+			};
+			const publishedStates: string[] = [];
+			const submit = vi.fn(async () => {
+				throw new Error("Must adopt the accepted SeeAPI task");
+			});
+			const retrieve = vi.fn(async () => approved);
+			const review = createDatabaseVerifyUploadDependencies(db, {
+				moderationProvider: "seeapi",
+				safety: Object.assign(new TestMediaSafetyAdapter(), {
+					submitImage: submit,
+					retrieveImage: retrieve,
+				}),
+				onVerificationError: (error) => {
+					throw error;
+				},
+			});
+			await runWithMediaJobEvents(
+				{
+					idFromName: (value) => value,
+					get: () => ({
+						fetch: async (request) => {
+							const body = (await request.json()) as { receipt?: typeof f.receipt };
+							if (body.receipt) {
+								saved = mergeImageResult(saved, body.receipt) as typeof saved;
+								if (body.receipt.decision?.decision === "ALLOW")
+									publishedStates.push(
+										(await db.mediaAsset.findUniqueOrThrow({ where: { id: f.receipt.assetId } }))
+											.status,
+									);
+							}
+							return Response.json(saved);
+						},
+					}),
+				},
+				() => review.verify(f.receipt.assetId),
+			);
+			expect(submit).not.toHaveBeenCalled();
+			expect(retrieve).toHaveBeenCalledOnce();
+			expect(publishedStates.length).toBeGreaterThan(0);
+			expect(publishedStates.every((value) => value === "VERIFYING")).toBe(true);
+			expect(await db.mediaAsset.findUnique({ where: { id: f.receipt.assetId } })).toMatchObject({
+				status: "READY",
+				verificationProviderTaskId: f.receipt.submission.moderationTaskId,
+				verificationSubmissionUncertain: false,
+			});
+		},
+	);
+	it("requires the exact registered guest grant and its current trial expiry before import", async () => {
+		const f = await reviewed(true);
+		const trial = await db.guestMediaTrial.findFirstOrThrow({ where: { consumedJobId: f.job.id } });
+		const user = await db.user.create({
+			data: {
+				name: "Registered fixture",
+				emailVerified: true,
+				email: `${crypto.randomUUID()}@example.test`,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		});
+		const grant = await db.guestResultAccessGrant.create({
+			data: {
+				trialId: trial.id,
+				guestJobId: f.job.id,
+				registeredUserId: user.id,
+				grantTokenHash: crypto.randomUUID(),
+				expiresAt: trial.expiresAt,
+			},
+		});
+		expect(
+			(await getImageResultAccess(f.job.id, f.receipt.assetId, db, user.id))?.grantedUserId,
+		).toBe(user.id);
+		expect(
+			(await getImageResultAccess(f.job.id, f.receipt.assetId, db, "other"))?.grantedUserId,
+		).toBeNull();
+		await db.guestResultAccessGrant.update({
+			where: { id: grant.id },
+			data: { expiresAt: new Date(trial.expiresAt.getTime() - 1_000) },
+		});
+		expect(
+			(await getImageResultAccess(f.job.id, f.receipt.assetId, db, user.id))?.grantedUserId,
+		).toBeNull();
+		expect(await db.mediaAsset.findUnique({ where: { id: f.receipt.assetId } })).toBeNull();
+	});
+});
 
 async function approve(assetId: string) {
 	const review = createDatabaseVerifyUploadDependencies(db, {

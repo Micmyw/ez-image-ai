@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-
 import { optionalGenerationJourneyRefsSchema } from "@repo/config/generation-journey";
 import { findGenerationSubmissionQuote, recordGrowthEvent } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -12,6 +10,10 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { toMediaOrpcError } from "../lib/errors";
 import { createFlowTiming, type FlowTiming } from "../lib/flow-timing";
 import { createGenerationRateLimitReceipt } from "../lib/generation-authorization";
+import {
+	assertMatchingSubmission,
+	generationSubmissionIdentity,
+} from "../lib/generation-submission-identity";
 import { enforceMediaRateLimit } from "../lib/rate-limit";
 import { createGenerationInputSchema, createQuoteInputSchema, jsonBigInt } from "../types";
 import {
@@ -57,15 +59,7 @@ export async function submitGenerationForUser(
 	const rateLimitReceipt = await timing.measure("admission.rate-limit", () =>
 		createGenerationRateLimitReceipt(userId, dependencies.enforceRateLimit),
 	);
-	const quoteId = `submit_${hash([userId, input.idempotencyKey])}`;
-	const fingerprint = hash({
-		productKey: input.productKey,
-		...(input.fundingSource === "IMAGE_PASS" ? { fundingSource: "IMAGE_PASS" } : {}),
-		input: input.input,
-		expectedCredits: input.expectedCredits,
-		parentJobId: input.parentJobId ?? null,
-		temporaryReferenceToken: input.temporaryReferenceToken ?? null,
-	});
+	const { quoteId, fingerprint } = generationSubmissionIdentity(userId, input);
 	let existing = await timing.measure("admission.lookup", () =>
 		dependencies.findQuote(userId, quoteId),
 	);
@@ -160,19 +154,6 @@ export async function submitGenerationForUser(
 	};
 }
 
-function assertMatchingSubmission(
-	quote: NonNullable<Awaited<ReturnType<Dependencies["findQuote"]>>>,
-	fingerprint: string,
-	idempotencyKey: string,
-): void {
-	const snapshot = quote.inputSnapshot as { submissionFingerprint?: unknown } | null;
-	if (
-		snapshot?.submissionFingerprint !== fingerprint ||
-		(quote.job && quote.job.idempotencyKey !== idempotencyKey)
-	)
-		throw new Error("IDEMPOTENCY_CONFLICT");
-}
-
 function replayedSubmissionJob(
 	quote: NonNullable<Awaited<ReturnType<Dependencies["findQuote"]>>>,
 ): Awaited<ReturnType<Dependencies["createJob"]>>["job"] {
@@ -185,18 +166,6 @@ function replayedSubmissionJob(
 	)
 		throw new Error("GENERATION_FUNDING_CONFLICT");
 	return { ...job, fundingSource, imagePassUnits: fundingSource === "IMAGE_PASS" ? 1 : 0 };
-}
-
-function hash(value: unknown): string {
-	return createHash("sha256")
-		.update(
-			JSON.stringify(value, (_key, item) =>
-				item && typeof item === "object" && !Array.isArray(item)
-					? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)))
-					: item,
-			),
-		)
-		.digest("hex");
 }
 
 export const submitGeneration = protectedProcedure

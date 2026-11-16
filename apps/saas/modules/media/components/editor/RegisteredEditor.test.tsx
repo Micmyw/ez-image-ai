@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 	cookies: vi.fn(),
 	workspace: vi.fn(),
 	preparation: vi.fn(),
+	materialize: vi.fn(async () => false),
 }));
 vi.mock("@auth/lib/server", () => ({ getSession: async () => ({ user: { id: "owner" } }) }));
 vi.mock("@media/components/CreatorWorkspace", () => ({
@@ -32,6 +33,9 @@ vi.mock("@repo/database/client", () => ({
 }));
 vi.mock("@repo/api/modules/media/lib/executable-route-graph", () => ({
 	getCurrentExecutableRouteGraphOptions: async () => ({}),
+}));
+vi.mock("@repo/api/modules/media/lib/image-result", () => ({
+	materializeImageResultForEdit: mocks.materialize,
 }));
 vi.mock("@shared/lib/server", () => ({
 	getServerQueryClient: () => ({ prefetchQuery: async () => undefined }),
@@ -82,7 +86,7 @@ describe("selected-image tool recovery", () => {
 				id: "text-job",
 				ownerType: "USER",
 				ownerId: "owner",
-				status: "SUCCEEDED",
+				status: { in: ["SUCCEEDED", "FINALIZING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] },
 				assets: { some: { role: "OUTPUT", assetId: "output" } },
 			},
 			select: { productKey: true, inputSnapshot: true },

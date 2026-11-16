@@ -12,6 +12,7 @@ import {
 import { getPublicProductCatalog } from "@repo/ai";
 import { publicAccountInputCopyStatus } from "@repo/api/modules/media/lib/account-input-copy-status";
 import { getCurrentExecutableRouteGraphOptions } from "@repo/api/modules/media/lib/executable-route-graph";
+import { materializeImageResultForEdit } from "@repo/api/modules/media/lib/image-result";
 import {
 	findEffectivePaidSubscription,
 	findEligibleImageEditParentForOwner,
@@ -79,6 +80,9 @@ export async function RegisteredEditor({
 
 	if (session && !filters.draftError) {
 		if (filters.asset) {
+			const resultJobId = filters.parentJob ?? filters.reuseJob;
+			if (resultJobId)
+				await materializeImageResultForEdit(resultJobId, session.user.id, filters.asset);
 			sourceAsset = await findEditorSourceAsset(filters.asset, session.user.id);
 			const parent = filters.parentJob
 				? await findEligibleImageEditParentForOwner(
@@ -102,7 +106,9 @@ export async function RegisteredEditor({
 									id: filters.reuseJob,
 									ownerType: "USER",
 									ownerId: session.user.id,
-									status: "SUCCEEDED",
+									status: {
+										in: ["SUCCEEDED", "FINALIZING", "PROVIDER_PENDING", "PROVIDER_RUNNING"],
+									},
 									assets: { some: { role: "OUTPUT", assetId: filters.asset } },
 								},
 								select: { productKey: true, inputSnapshot: true },

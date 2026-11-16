@@ -20,6 +20,8 @@
 		"./generation-duration-contract": "./shared/generation-duration.ts",
 		"./media-generation-duration": "./prisma/queries/media/generation-duration.ts",
 		"./media-job-status": "./prisma/queries/media/job-status.ts",
+		"./media-image-result-access": "./prisma/queries/media/image-result-access.ts",
+		"./media-approved-image-result": "./prisma/queries/media/approved-image-result.ts",
 		"./media-job-notifications": "./prisma/queries/media/job-notifications.ts",
 		"./media-image-callback": "./prisma/queries/media/image-moderation-callback.ts",
 		"./media-kie-callback": "./prisma/queries/media/kie-callback.ts",

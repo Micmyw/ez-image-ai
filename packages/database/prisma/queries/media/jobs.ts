@@ -255,7 +255,7 @@ async function getDatabaseNow(
 	client: MediaTransactionClient | Prisma.TransactionClient,
 ): Promise<Date> {
 	const [clock] = await client.$queryRaw<Array<{ now: Date }>>`
-		SELECT CURRENT_TIMESTAMP AS "now"`;
+		SELECT clock_timestamp() AS "now"`;
 	if (!clock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
 	return clock.now;
 }
@@ -443,6 +443,9 @@ export async function createGenerationJobTransaction(
 			await assertQuoteModerationPermitted(quote, tx);
 			const replay = await findExistingJob(input, tx);
 			if (replay) return replay;
+			await lockOwnerStorageUsage(input, tx);
+			// Reuse subscription facts only after the storage lock, with fresh DB time.
+			const policyNow = await getDatabaseNow(tx);
 			const admission =
 				input.validateCurrentEligibility || fundingSource === "IMAGE_PASS"
 					? await loadCurrentGenerationAdmission(
@@ -460,17 +463,18 @@ export async function createGenerationJobTransaction(
 									: undefined,
 								productKey: quote.productKey,
 								costMicros: quote.costMicros,
-								now: operationNow,
+								now: policyNow,
 							},
 							tx,
 						)
 					: undefined;
-			await lockOwnerStorageUsage(input, tx);
-			const maximumStorageBytes = await effectiveMediaStorageLimit(
-				input,
-				input.maximumStorageBytes ?? maximumMediaStorageBytes(),
-				tx,
-			);
+			const freeMaximumStorageBytes = input.maximumStorageBytes ?? maximumMediaStorageBytes();
+			if (freeMaximumStorageBytes <= 0n) throw new Error("MEDIA_STORAGE_QUOTA_INVALID");
+			const maximumStorageBytes = admission
+				? admission.hasEffectivePaidSubscription
+					? null
+					: freeMaximumStorageBytes
+				: await effectiveMediaStorageLimit(input, freeMaximumStorageBytes, tx, policyNow);
 			const usage = await tx.storageUsageReservation.aggregate({
 				where: {
 					ownerType: input.ownerType,
@@ -536,25 +540,27 @@ export async function createGenerationJobTransaction(
 				throw new SerializableAdmissionRequired();
 			const edit = input.edit;
 			if (!edit && imageEditContext(quote.inputSnapshot)) throw new Error("NOT_FOUND");
-			const editBinding = edit
-				? await resolveImageEditBinding({ ...input, edit }, quote, tx)
-				: null;
-
 			const inputAssets = input.inputAssetIds.length
 				? await tx.mediaAsset.findMany({
 						where: {
 							id: { in: input.inputAssetIds },
 							ownerType: "USER",
 							ownerId: input.ownerId,
-							status: temporaryReference ? { in: ["READY", "VERIFYING"] } : "READY",
-							deletedAt: null,
-							checksum: { not: null },
 						},
 					})
 				: [];
+			const editBinding = edit
+				? await resolveImageEditBinding({ ...input, edit }, quote, tx, inputAssets)
+				: null;
 			if (
 				inputAssets.length !== new Set(input.inputAssetIds).size ||
-				inputAssets.some((asset) => !asset.checksum || !/^[a-f0-9]{64}$/i.test(asset.checksum))
+				inputAssets.some(
+					(asset) =>
+						asset.deletedAt !== null ||
+						(asset.status !== "READY" && !(temporaryReference && asset.status === "VERIFYING")) ||
+						!asset.checksum ||
+						!/^[a-f0-9]{64}$/i.test(asset.checksum),
+				)
 			) {
 				throw new Error("Every input asset must be READY and owned by the user");
 			}
@@ -883,6 +889,7 @@ async function resolveImageEditBinding(
 	input: CreateGenerationJobInput & { edit: NonNullable<CreateGenerationJobInput["edit"]> },
 	quote: { productKey: string; inputSnapshot: Prisma.JsonValue },
 	tx: Prisma.TransactionClient,
+	inputAssets: Array<{ id: string; status: string; deletedAt: Date | null; mimeType: string }>,
 ): Promise<{ editSessionId: string | null; parentJobId: string | null }> {
 	const sourceAssetId = imageEditSourceAssetId(quote.inputSnapshot);
 	const frozenEditContext = imageEditContext(quote.inputSnapshot);
@@ -921,14 +928,7 @@ async function resolveImageEditBinding(
 			});
 			if (!session) throw new Error("NOT_FOUND");
 		}
-		const rootAsset = await tx.mediaAsset.findFirst({
-			where: {
-				id: input.edit.rootAssetId,
-				ownerType: "USER",
-				ownerId: input.ownerId,
-			},
-			select: { status: true, deletedAt: true, mimeType: true },
-		});
+		const rootAsset = inputAssets.find((asset) => asset.id === expectedSourceAssetId);
 		if (!rootAsset) throw new Error("NOT_FOUND");
 		if (
 			(rootAsset.status !== "READY" &&
@@ -991,7 +991,7 @@ async function resolveImageEditBinding(
 	const output = parent?.assets[0]?.asset;
 	if (
 		!parent ||
-		!["SUCCEEDED", "FINALIZING"].includes(parent.status) ||
+		!["SUCCEEDED", "FINALIZING", "PROVIDER_PENDING", "PROVIDER_RUNNING"].includes(parent.status) ||
 		!isImageEditProduct(parent.productKey) ||
 		!parent.editSessionId ||
 		parent.editSessionId !== input.edit.editSessionId ||

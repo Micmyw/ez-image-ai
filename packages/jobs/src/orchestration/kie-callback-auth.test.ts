@@ -1,12 +1,27 @@
 import { describe, expect, it } from "vitest";
 
-import { kieCompletionCallbackUrl, verifyKieCompletionCallback } from "./kie-callback-auth";
+import { imageResultFixture } from "../realtime/image-result.fixture";
+import {
+	kieCompletionCallbackUrl,
+	verifyKieCompletionCallback,
+	readKieImageResultContext,
+} from "./kie-callback-auth";
 
 const environment = {
 	NEXT_PUBLIC_SAAS_URL: "https://example.test",
 	WORKFLOWS_DISPATCH_SECRET: "x".repeat(32),
 };
 describe("Kie completion capabilities", () => {
+	it("authenticates the output owner, format and expiry without reading the database", () => {
+		const { context } = imageResultFixture();
+		const url = new URL(kieCompletionCallbackUrl(context.attemptId, environment, context)!);
+		expect(readKieImageResultContext(url, environment.WORKFLOWS_DISPATCH_SECRET)).toEqual(context);
+		url.searchParams.set(
+			"context",
+			Buffer.from(JSON.stringify({ ...context, ownerId: "attacker" })).toString("base64url"),
+		);
+		expect(readKieImageResultContext(url, environment.WORKFLOWS_DISPATCH_SECRET)).toBeNull();
+	});
 	it("binds notifications to one attempt without exposing the shared secret", () => {
 		const url = new URL(kieCompletionCallbackUrl("attempt-1", environment)!);
 		expect(url.pathname).toBe("/api/webhooks/ai/kie");

@@ -152,7 +152,7 @@ export function GenerationForm({
 	const submittingRef = useRef<object | null>(null);
 	const journeyActionRef = useRef<string | undefined>(undefined);
 	const journeyStartedAt = useRef<number | undefined>(undefined);
-	const acceptedJob = useRef<{ id: string; ownerId: string } | null>(null);
+	const acceptedJob = useRef<{ id: string; ownerId: string; draftKey: string } | null>(null);
 	const [checkingDuplicate, setCheckingDuplicate] = useState(false);
 	const [duplicateWarning, setDuplicateWarning] = useState<{
 		ownerId: string;
@@ -479,6 +479,69 @@ export function GenerationForm({
 		displayedCredits !== undefined &&
 		paidCreditBalance !== undefined &&
 		Number(paidCreditBalance) < Number(displayedCredits);
+	const preparationActions = useRef(generation);
+	preparationActions.current = generation;
+	const preparationKey = JSON.stringify([
+		ownerId,
+		values.productKey,
+		input,
+		fundingSource,
+		temporaryReference?.token,
+		parentJobId,
+		displayedCredits,
+	]);
+	useEffect(() => {
+		if (
+			!active ||
+			!ready ||
+			!ownerId ||
+			!input ||
+			sourcePending ||
+			upgradeRequired ||
+			!paidSelectionValid ||
+			displayedCredits === undefined ||
+			(passSelected ? !passReady : paidCreditsInsufficient)
+		)
+			return;
+		// One quiet-period preparation for a complete draft. No visible review stage,
+		// no reservation, and no repeated timer after it completes.
+		const timer = setTimeout(() => {
+			if (
+				submittingRef.current ||
+				acceptedJob.current?.draftKey === preparationKey ||
+				!activeRef.current
+			)
+				return;
+			const current = preparationActions.current;
+			void current.checkDuplicatePrompt(input.prompt).catch(() => undefined);
+			void current
+				.prepareGeneration?.({
+					productKey: values.productKey,
+					input,
+					expectedCredits: String(displayedCredits),
+					fundingSource,
+					temporaryReferenceToken: temporaryReference?.token,
+				})
+				.catch(() => undefined);
+		}, 1_200);
+		return () => clearTimeout(timer);
+	}, [
+		active,
+		ready,
+		ownerId,
+		input,
+		sourcePending,
+		upgradeRequired,
+		paidSelectionValid,
+		displayedCredits,
+		passSelected,
+		passReady,
+		paidCreditsInsufficient,
+		values.productKey,
+		fundingSource,
+		temporaryReference?.token,
+		preparationKey,
+	]);
 	// Use an owned eligible pass when credits cannot access the model, including GIF/SVG pages.
 	// The selected pass and one-pass cost remain visible; never replace an explicit choice.
 	useEffect(() => {
@@ -893,7 +956,7 @@ export function GenerationForm({
 				actionVersion.current !== version
 			)
 				return;
-			acceptedJob.current = { id: result.job.id, ownerId };
+			acceptedJob.current = { id: result.job.id, ownerId, draftKey: preparationKey };
 			if (startedAt !== undefined)
 				rememberJourneyJob({ jobKey: result.job.id, actionRef, startedAt });
 			void trackGenerationJourney(

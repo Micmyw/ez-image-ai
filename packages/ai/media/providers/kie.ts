@@ -8,6 +8,7 @@ import {
 	type ImageOutputFormat,
 	type ImageSkuKey,
 } from "@repo/config";
+import { KIE_CREDIT_COST_MICROS } from "@repo/config/kie-image-callback";
 import { z } from "zod";
 
 import { kieTextImageModel } from "../catalog/image-input-routes";
@@ -75,8 +76,6 @@ const kieJobRecordSchema = z.object({
 const kieJobResultSchema = z
 	.object({ resultUrls: z.array(z.string().min(1)).optional() })
 	.passthrough();
-
-const KIE_CREDIT_COST_MICROS = 5_000;
 
 export interface KieProviderOptions extends HttpClientOptions {
 	apiKey: string;

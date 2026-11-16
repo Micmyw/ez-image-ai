@@ -7,6 +7,7 @@ import { z } from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { guestMediaProcedure } from "../guest-procedure";
 import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
+import { getAuthorizedImageResult } from "../lib/image-result";
 import { publicImageModerationReason } from "../lib/public-moderation-reason";
 
 const guestJobInputSchema = z.object({ jobId: z.string().min(1).max(256) }).strict();
@@ -42,18 +43,28 @@ export const getGuestJob = guestMediaProcedure
 	.output(guestJobOutputSchema)
 	.handler(async ({ context, input }) => {
 		const now = new Date();
-		const snapshot = await getGuestJobSnapshot(
-			{
-				ownerId: context.user.id,
-				jobId: input.jobId,
-				now,
-				verification: currentMediaAssetVerificationBoundary(now),
-			},
-			db,
-		);
+		const [snapshot, receipt] = await Promise.all([
+			getGuestJobSnapshot(
+				{
+					ownerId: context.user.id,
+					jobId: input.jobId,
+					now,
+					verification: currentMediaAssetVerificationBoundary(now),
+				},
+				db,
+			),
+			getAuthorizedImageResult(input.jobId, context.user.id),
+		]);
 		if (!snapshot) throw new ORPCError("NOT_FOUND");
 		context.responseHeaders?.set("Cache-Control", "no-store");
-		return serializeGuestJob(snapshot);
+		return receipt?.context.guest && snapshot.resultExpiresAt > now
+			? {
+					...serializeGuestJob(snapshot),
+					stage: "READY" as const,
+					resultAssetId: receipt.assetId,
+					watermarked: true,
+				}
+			: serializeGuestJob(snapshot);
 	});
 
 export const getGrantedGuestJob = protectedProcedure
@@ -68,18 +79,28 @@ export const getGrantedGuestJob = protectedProcedure
 	.output(guestJobOutputSchema)
 	.handler(async ({ context, input }) => {
 		const now = new Date();
-		const snapshot = await getRegisteredGuestJobSnapshot(
-			{
-				registeredUserId: context.user.id,
-				jobId: input.jobId,
-				now,
-				verification: currentMediaAssetVerificationBoundary(now),
-			},
-			db,
-		);
+		const [snapshot, receipt] = await Promise.all([
+			getRegisteredGuestJobSnapshot(
+				{
+					registeredUserId: context.user.id,
+					jobId: input.jobId,
+					now,
+					verification: currentMediaAssetVerificationBoundary(now),
+				},
+				db,
+			),
+			getAuthorizedImageResult(input.jobId, context.user.id),
+		]);
 		if (!snapshot) throw new ORPCError("NOT_FOUND");
 		context.responseHeaders?.set("Cache-Control", "no-store");
-		return serializeGuestJob(snapshot);
+		return receipt?.context.guest && snapshot.resultExpiresAt > now
+			? {
+					...serializeGuestJob(snapshot),
+					stage: "READY" as const,
+					resultAssetId: receipt.assetId,
+					watermarked: true,
+				}
+			: serializeGuestJob(snapshot);
 	});
 
 function serializeGuestJob(snapshot: Awaited<ReturnType<typeof getGuestJobSnapshot>>) {

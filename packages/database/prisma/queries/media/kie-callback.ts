@@ -1,15 +1,26 @@
+import {
+	kieImageCallbackCompletionSchema,
+	type KieImageCallbackCompletion,
+} from "@repo/config/kie-image-callback";
+
 import type { Prisma } from "../../generated/client";
 import {
 	createCallbackDatabaseTiming,
 	type CallbackDatabaseTimingOptions,
 } from "./callback-timing";
-import { getImagePhaseOwner, type ImagePhaseWakeResult } from "./image-phase-ownership";
+import { type ImagePhaseWakeResult } from "./image-phase-ownership";
 import { runReadCommitted, type MediaTransactionClient } from "./types";
 
-// A completion notification is neither an authenticated result nor an acceptance.
-// It has its own namespace and never enters PROVIDER_EVENT_RECEIVED processing.
+// This private inbox retains both legacy wake-only notices and HMAC-authenticated
+// successful image candidates. Neither is a content approval or provider acceptance.
 export const KIE_IMAGE_COMPLETION_NOTICE_PROVIDER = "kie-image-completion-notice";
 export const KIE_IMAGE_COMPLETION_NOTICE_PREFIX = "image-completion-v1:";
+
+export interface KieGenerationCallbackInput {
+	attemptId: string;
+	providerTaskId: string;
+	completion?: KieImageCallbackCompletion;
+}
 
 function noticeId(attemptId: string, providerTaskId: string): string {
 	return `${KIE_IMAGE_COMPLETION_NOTICE_PREFIX}${attemptId}:${providerTaskId}`;
@@ -35,7 +46,7 @@ export async function kieGenerationCallbackRetryAt(
 }
 
 export async function wakeKieGenerationAttempt(
-	input: { attemptId: string; providerTaskId: string },
+	input: KieGenerationCallbackInput,
 	client: MediaTransactionClient,
 	options: CallbackDatabaseTimingOptions = {},
 ): Promise<"ready" | "terminal" | "recorded" | "invalid"> {
@@ -43,7 +54,7 @@ export async function wakeKieGenerationAttempt(
 }
 
 export function wakeKieGenerationAttemptWithOwner(
-	input: { attemptId: string; providerTaskId: string },
+	input: KieGenerationCallbackInput,
 	client: MediaTransactionClient,
 	options: CallbackDatabaseTimingOptions = {},
 ): Promise<ImagePhaseWakeResult> {
@@ -51,7 +62,7 @@ export function wakeKieGenerationAttemptWithOwner(
 }
 
 async function persistKieGenerationWake(
-	input: { attemptId: string; providerTaskId: string },
+	input: KieGenerationCallbackInput,
 	client: MediaTransactionClient,
 	options: CallbackDatabaseTimingOptions,
 	includeOwner: boolean,
@@ -66,36 +77,27 @@ async function persistKieGenerationWake(
 	return timing.transaction<ImagePhaseWakeResult, Prisma.TransactionClient>(
 		(body) => runReadCommitted(client, body),
 		async (tx) => {
-			const result = async (
-				status: ImagePhaseWakeResult["status"],
-			): Promise<ImagePhaseWakeResult> => {
-				const phaseOwner =
-					includeOwner && status === "ready"
-						? await timing.measure("owner", () =>
-								getImagePhaseOwner({ kind: "generation", attemptId: input.attemptId }, tx),
-							)
-						: undefined;
-				return { status, ...(phaseOwner ? { phaseOwner } : {}) };
-			};
 			const [attempt] = await timing.measure(
 				"read",
 				() => tx.$queryRaw<
 					Array<{
 						provider: string;
 						providerTaskId: string | null;
+						providerModelId: string;
+						productKey: string;
 						status: string;
 						jobStatus: string;
 						executionEngine: string;
 					}>
-				>`SELECT attempt."provider", attempt."providerTaskId", attempt."status",
+				>`SELECT attempt."provider", attempt."providerTaskId", attempt."status", attempt."providerModelId", job."productKey",
 			job."status" AS "jobStatus", job."executionEngine"
 			FROM "generation_attempt" attempt JOIN "generation_job" job ON job."id" = attempt."jobId"
 			WHERE attempt."id" = ${input.attemptId} FOR UPDATE OF attempt`,
 			);
 			if (!attempt || attempt.executionEngine !== "legacy" || attempt.provider !== "kie")
-				return result("invalid");
+				return { status: "invalid" };
 			if (attempt.providerTaskId && attempt.providerTaskId !== input.providerTaskId)
-				return result("invalid");
+				return { status: "invalid" };
 			const statuses = ["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"] as const;
 			const jobStatuses = ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] as const;
 			const manualRecovery =
@@ -105,54 +107,70 @@ async function persistKieGenerationWake(
 				(!(statuses as readonly string[]).includes(attempt.status) ||
 					!(jobStatuses as readonly string[]).includes(attempt.jobStatus))
 			)
-				return result("terminal");
-			return timing.measure("persist", async () => {
-				const now = new Date();
-				const inserted = await tx.providerWebhookEvent.createMany({
-					skipDuplicates: true,
-					data: {
-						provider: KIE_IMAGE_COMPLETION_NOTICE_PROVIDER,
-						providerEventId: noticeId(input.attemptId, input.providerTaskId),
-						providerTaskId: input.providerTaskId,
-						verifiedAt: now,
-						receivedAt: now,
-						envelope: {
-							kind: "image-generation-completion-notice-v1",
-							executionEngine: "legacy",
-							attemptId: input.attemptId,
-						},
-					},
-				});
-				// Early and late manual-recovery notices retain claimed identities for
-				// investigation, never acceptance, an approved result or a new execution.
-				if (manualRecovery || !attempt.providerTaskId) return result("recorded");
-				if (inserted.count !== 1) {
-					// Retry an unconsumed wake after a lost transport response. Never reset
-					// the due time; once a query consumes the notice, provider backoff wins.
-					const prior = await tx.providerWebhookEvent.findUnique({
-						where: {
-							provider_providerEventId: {
-								provider: KIE_IMAGE_COMPLETION_NOTICE_PROVIDER,
-								providerEventId: noticeId(input.attemptId, input.providerTaskId),
-							},
-						},
-						select: { status: true },
-					});
-					return result(prior?.status === "RECEIVED" ? "ready" : "recorded");
-				}
-				const updated = await tx.generationAttempt.updateMany({
-					where: {
-						id: input.attemptId,
-						provider: "kie",
-						providerTaskId: input.providerTaskId,
-						status: { in: [...statuses] },
-						job: { executionEngine: "legacy", status: { in: [...jobStatuses] } },
-					},
-					// Never clear a lease, change business state, or settle credits here.
-					data: { nextReconcileAt: now },
-				});
-				return result(updated.count === 1 ? "ready" : "terminal");
+				return { status: "terminal" };
+			const parsed = kieImageCallbackCompletionSchema.safeParse(input.completion);
+			const completion =
+				parsed.success &&
+				parsed.data.providerTaskId === input.providerTaskId &&
+				parsed.data.providerModelId === attempt.providerModelId &&
+				attempt.productKey.startsWith("image-")
+					? parsed.data
+					: undefined;
+			const envelope = JSON.stringify({
+				kind: "image-generation-completion-notice-v1",
+				executionEngine: "legacy",
+				attemptId: input.attemptId,
+				...(completion ? { completion } : {}),
 			});
+			const canWake = !manualRecovery && Boolean(attempt.providerTaskId);
+			// Hold the attempt lock, then persist/upgrade the inbox, advance its due time,
+			// and return the phase owner in one statement. A duplicate cannot replace
+			// the first complete result, steal a lease, or reset a consumed notice.
+			const [stored] = await timing.measure(
+				"persist",
+				() => tx.$queryRaw<
+					Array<{
+						status: string;
+						phaseKey: string | null;
+						workflowId: string | null;
+						epoch: number | null;
+					}>
+				>`
+			 WITH stamp AS MATERIALIZED (SELECT clock_timestamp() AS "now"),
+			 previous AS MATERIALIZED (
+			  SELECT "status" FROM "provider_webhook_event"
+			  WHERE "provider" = ${KIE_IMAGE_COMPLETION_NOTICE_PROVIDER}
+			   AND "providerEventId" = ${noticeId(input.attemptId, input.providerTaskId)}
+			 ), persisted AS (
+			  INSERT INTO "provider_webhook_event" AS notice
+			   ("id", "provider", "providerEventId", "providerTaskId", "verifiedAt", "receivedAt", "envelope", "status")
+			  SELECT gen_random_uuid()::text, ${KIE_IMAGE_COMPLETION_NOTICE_PROVIDER},
+			   ${noticeId(input.attemptId, input.providerTaskId)}, ${input.providerTaskId}, stamp."now", stamp."now", ${envelope}::jsonb, 'RECEIVED'
+			  FROM stamp
+			  ON CONFLICT ("provider", "providerEventId") DO UPDATE
+			   SET "envelope" = EXCLUDED."envelope", "status" = 'RECEIVED', "processedAt" = NULL,
+			       "verifiedAt" = EXCLUDED."verifiedAt"
+			   WHERE NOT (notice."envelope" ? 'completion') AND EXCLUDED."envelope" ? 'completion'
+			  RETURNING "status"
+			 ), advanced AS (
+			  UPDATE "generation_attempt" SET "nextReconcileAt" = 'epoch'::timestamptz, "updatedAt" = stamp."now"
+			  FROM stamp WHERE "id" = ${input.attemptId} AND ${canWake}::boolean AND EXISTS (SELECT 1 FROM persisted)
+			  RETURNING "id"
+			 )
+			 SELECT COALESCE((SELECT "status"::text FROM persisted), (SELECT "status"::text FROM previous)) AS "status",
+			  owner."phaseKey", owner."workflowId", owner."epoch"
+			 FROM stamp LEFT JOIN "media_workflow_phase_owner" owner
+			  ON ${includeOwner && canWake}::boolean AND owner."phaseKind" = 'generation'
+			  AND owner."subjectId" = ${input.attemptId} AND owner."generation" = 0 AND owner."leasedUntil" > stamp."now"
+			`,
+			);
+			if (!stored?.status) throw new Error("KIE_CALLBACK_PERSISTENCE_FAILED");
+			if (!canWake || stored.status !== "RECEIVED") return { status: "recorded" };
+			const phaseOwner =
+				stored.phaseKey && stored.workflowId && stored.epoch
+					? { phaseKey: stored.phaseKey, workflowId: stored.workflowId, epoch: stored.epoch }
+					: undefined;
+			return { status: "ready", ...(phaseOwner ? { phaseOwner } : {}) };
 		},
 	);
 }

@@ -54,6 +54,11 @@ import {
 } from "@repo/config";
 import { imageModerationProviderForEnvironment } from "@repo/config";
 import type { ProductModelKey } from "@repo/config";
+import { imageResultPriorReview, type ImageResultReceipt } from "@repo/config/image-result";
+import {
+	KIE_CREDIT_COST_MICROS,
+	kieImageCallbackCompletionSchema,
+} from "@repo/config/kie-image-callback";
 import {
 	parseProviderDiagnostic,
 	type ProviderDiagnosticIdentity,
@@ -191,6 +196,7 @@ import {
 	isProviderOriginalKey,
 	PROVIDER_ORIGINAL_PREFIX,
 } from "@repo/storage/lib/provider-original-access";
+import { readProviderCandidateBytes } from "@repo/storage/lib/provider-original-bytes";
 import { getRequestDefer } from "@repo/utils/request-lifecycle";
 
 import {
@@ -248,7 +254,9 @@ import {
 } from "./provider-diagnostics";
 import { providerCdnAllowlist } from "./provider-output-policy";
 import { dispatchRouteFor, providerQueueKey } from "./queues";
+import { readImageResult, writeImageResult } from "./realtime/image-result";
 import { publishCommittedMediaJobNotifications } from "./realtime/publish";
+import { submitImageResult, pollImageResult } from "./realtime/review-image-result";
 
 export interface ProviderRegistryOptions {
 	includeRecoveryProviders?: boolean;
@@ -398,8 +406,18 @@ export async function resolveDatabaseDispatchRoute(
 	const database = options.database ?? db;
 	const job = await database.generationJob.findUnique({
 		where: { executionEngine: "legacy", id: jobId },
-		include: {
-			attempts: { orderBy: { attemptNumber: "desc" }, take: 1 },
+		select: {
+			id: true,
+			productKey: true,
+			catalogVersion: true,
+			pricingVersion: true,
+			inputSnapshot: true,
+			pricingSnapshot: true,
+			attempts: {
+				orderBy: { attemptNumber: "desc" },
+				take: 1,
+				select: { provider: true, providerModelId: true },
+			},
 			quote: { select: { costMicros: true } },
 		},
 	});
@@ -408,9 +426,8 @@ export async function resolveDatabaseDispatchRoute(
 	if (environment.MEDIA_GENERATION_ENABLED !== "true") {
 		throw new Error("MEDIA_GENERATION_DISABLED");
 	}
-	if (await isMediaGenerationDisabled(database, job.productKey, environment)) {
-		throw new Error("MEDIA_GENERATION_DISABLED");
-	}
+	// Routing only chooses the executor. Its guarded claim reads current runtime
+	// switches before any attempt or paid submission; do not read them twice.
 	const resolution = quotedExecutableRoutes(
 		job,
 		options.enabledProviders ?? configuredProviderKeysFromEnvironment(environment),
@@ -612,7 +629,6 @@ export function createDatabaseDispatchStore(
 						},
 						include: {
 							attempts: { orderBy: { attemptNumber: "desc" }, take: 1 },
-							assets: true,
 							quote: { select: { costMicros: true, moderationDecision: true } },
 							guestTrial: { include: { linkIntents: { select: { state: true } } } },
 						},
@@ -929,7 +945,15 @@ export function createDatabaseDispatchStore(
 							providerModelId: route.providerModelId,
 							inputSnapshot: job.inputSnapshot,
 							pricingSnapshot: job.pricingSnapshot,
-							requestSnapshot: preSend.requestSnapshot as Prisma.InputJsonValue,
+							requestSnapshot: {
+								...(preSend.requestSnapshot as Record<string, Prisma.InputJsonValue>),
+								...(route.provider === "kie" &&
+								resolution.entry.mediaKind === "image" &&
+								environment.MEDIA_PROVIDER_ORIGINAL_DELIVERY_ENABLED === "true" &&
+								environment.KIE_WEBHOOK_SECRET
+									? { directOutputReview: true }
+									: {}),
+							},
 							now,
 							nextReconcileAt: preSend.nextReconcileAt as Date,
 						},
@@ -984,7 +1008,30 @@ export function createDatabaseDispatchStore(
 							route.provider === "replicate" && process.env.NEXT_PUBLIC_SAAS_URL
 								? `${process.env.NEXT_PUBLIC_SAAS_URL}/api/webhooks/ai/replicate`
 								: route.provider === "kie" && resolution.entry.mediaKind === "image"
-									? kieCompletionCallbackUrl(attempt.id, environment)
+									? kieCompletionCallbackUrl(
+											attempt.id,
+											environment,
+											environment.MEDIA_PROVIDER_ORIGINAL_DELIVERY_ENABLED === "true" &&
+												environment.KIE_WEBHOOK_SECRET
+												? {
+														version: 1,
+														jobId: job.id,
+														ownerId: job.ownerId,
+														attemptId: attempt.id,
+														providerModelId: route.providerModelId,
+														format:
+															parseImageSelection(job.productKey, job.inputSnapshot)
+																?.outputFormat ?? "png",
+														frameCount: parseImageSelection(job.productKey, job.inputSnapshot)
+															?.frameCount,
+														expiresAt: Math.min(
+															Date.now() + 86_400_000,
+															job.guestTrial?.expiresAt.getTime() ?? Infinity,
+														),
+														guest: Boolean(job.guestTrial),
+													}
+												: undefined,
+										)
 									: undefined,
 					};
 				}).catch((error: unknown) => {
@@ -1872,64 +1919,170 @@ export function createDatabaseVerifyUploadDependencies(
 			let moderationStarted = false;
 			let detectorRequestInFlight = false;
 			let acceptedImageTaskId = claim.providerTaskId;
+			let earlyReview: ImageResultReceipt | null = null;
 			try {
 				const providerOriginal = isProviderOriginalKey(claim.objectKey);
 				let preparedOriginal:
 					| Awaited<ReturnType<typeof prepareProviderImageModeration>>
 					| undefined;
-				if (providerOriginal && !claim.providerTaskId && !claim.submissionUncertain) {
+				if (
+					providerOriginal &&
+					((claim.generation === 1 && claim.provider === "seeapi") ||
+						(!claim.providerTaskId && !claim.submissionUncertain))
+				) {
 					const origin = await database.mediaOutputOrigin.findUniqueOrThrow({
 						where: { assetId: claim.assetId },
 					});
-					// This immutable asset classification was read under the existing claim lock.
-					const guestOriginal = claim.retentionClass === "GUEST_TRIAL";
-					let expectedGifFrameCount: number | undefined;
-					if (claim.mimeType === "image/gif") {
-						// The old archive-first path checked the frozen generation contract
-						// during promotion. Direct review must enforce it before approval too.
+					// Recovery of new direct-URL outputs adopts the same SeeAPI task. It
+					// must never submit a legacy random-key review alongside the callback.
+					if (claim.generation === 1 && claim.provider === "seeapi") {
 						const binding = await database.generationJobAsset.findFirst({
 							where: { assetId: claim.assetId, role: "OUTPUT" },
-							select: { job: { select: { productKey: true, inputSnapshot: true } } },
+							select: {
+								job: {
+									select: {
+										id: true,
+										ownerId: true,
+										inputSnapshot: true,
+										productKey: true,
+										guestTrial: { select: { expiresAt: true } },
+										attempts: {
+											orderBy: { attemptNumber: "desc" },
+											take: 1,
+											select: {
+												id: true,
+												provider: true,
+												providerTaskId: true,
+												providerModelId: true,
+												requestSnapshot: true,
+											},
+										},
+									},
+								},
+							},
 						});
-						const selection =
-							binding && parseImageSelection(binding.job.productKey, binding.job.inputSnapshot);
-						if (!selection || selection.outputFormat !== "gif" || !selection.frameCount)
-							throw new MediaValidationError(
-								"OUTPUT_MEDIA_TYPE_MISMATCH",
-								"Generated GIF selection is invalid",
-							);
-						expectedGifFrameCount = selection.frameCount;
+						const job = binding?.job;
+						const attempt = job?.attempts[0];
+						if (
+							job &&
+							attempt?.provider === "kie" &&
+							attempt.providerTaskId &&
+							(attempt.requestSnapshot as Record<string, unknown>)?.directOutputReview === true
+						) {
+							earlyReview = await readImageResult(job.id);
+							if (!earlyReview) {
+								const selection = parseImageSelection(job.productKey, job.inputSnapshot);
+								earlyReview = await submitImageResult(
+									{
+										version: 1,
+										jobId: job.id,
+										ownerId: job.ownerId,
+										attemptId: attempt.id,
+										providerModelId: attempt.providerModelId,
+										format: selection?.outputFormat ?? "png",
+										frameCount: selection?.frameCount,
+										expiresAt: Math.min(
+											Date.now() + 86_400_000,
+											job.guestTrial?.expiresAt.getTime() ?? Infinity,
+										),
+										guest: Boolean(job.guestTrial),
+									},
+									{
+										version: 1,
+										source: "kie-authenticated-retrieval",
+										authentication: "kie-api-key",
+										providerTaskId: attempt.providerTaskId,
+										providerModelId: attempt.providerModelId,
+										outputUrl: origin.url,
+										receivedAt: new Date().toISOString(),
+									},
+									{ environment, safety },
+								);
+							}
+							if (
+								earlyReview.assetId !== claim.assetId ||
+								earlyReview.completion.outputUrl !== origin.url ||
+								earlyReview.context.attemptId !== attempt.id
+							)
+								throw new Error("IMAGE_RESULT_IDENTITY_CONFLICT");
+							earlyReview = await pollImageResult(earlyReview, { environment, safety });
+						}
 					}
-					preparedOriginal = await (
-						options.prepareProviderImageModeration ?? prepareProviderImageModeration
-					)({
-						url: origin.url,
-						mimeType: claim.mimeType,
-						checksum,
-						allowedHosts: providerCdnAllowlist(environment),
-						...(expectedGifFrameCount !== undefined ? { expectedGifFrameCount } : {}),
-						...(checksum &&
-						origin.archiveState === "ARCHIVED" &&
-						origin.archiveChecksum === checksum &&
-						origin.archiveBytes === claim.byteSize
-							? { archiveKey: claim.objectKey }
-							: {}),
-						...(guestOriginal ? { watermark: true } : {}),
-					});
-					checksum = preparedOriginal.checksum;
-					finalizedAt ??= new Date();
-					const identityCommitted = await commitProviderOriginalIdentity(
-						{
-							assetId: claim.assetId,
-							leaseToken: claim.leaseToken,
-							generation: claim.generation,
-							checksum,
-							bytes: preparedOriginal.bytes,
-							guest: guestOriginal,
-						},
-						database,
-					);
-					if (!identityCommitted) return withPhase({ outboxCommitted: false });
+					if ((!claim.providerTaskId && !claim.submissionUncertain) || (earlyReview && !checksum)) {
+						// This immutable asset classification was read under the existing claim lock.
+						const guestOriginal = claim.retentionClass === "GUEST_TRIAL";
+						let expectedGifFrameCount: number | undefined;
+						if (claim.mimeType === "image/gif") {
+							// The old archive-first path checked the frozen generation contract
+							// during promotion. Direct review must enforce it before approval too.
+							const binding = await database.generationJobAsset.findFirst({
+								where: { assetId: claim.assetId, role: "OUTPUT" },
+								select: { job: { select: { productKey: true, inputSnapshot: true } } },
+							});
+							const selection =
+								binding && parseImageSelection(binding.job.productKey, binding.job.inputSnapshot);
+							if (!selection || selection.outputFormat !== "gif" || !selection.frameCount)
+								throw new MediaValidationError(
+									"OUTPUT_MEDIA_TYPE_MISMATCH",
+									"Generated GIF selection is invalid",
+								);
+							expectedGifFrameCount = selection.frameCount;
+						}
+						preparedOriginal = earlyReview
+							? await (async () => {
+									const identity = !guestOriginal && earlyReview!.preparedIdentity;
+									if (identity) return { ...identity, assetUrl: origin.url };
+									const bytes = await readProviderCandidateBytes({
+										url: origin.url,
+										mimeType: claim.mimeType,
+										allowedHosts: providerCdnAllowlist(environment),
+										...(guestOriginal ? { watermark: true } : {}),
+									});
+									return {
+										assetUrl: origin.url,
+										checksum: createHash("sha256").update(bytes).digest("hex"),
+										bytes: bytes.length,
+									};
+								})()
+							: await (options.prepareProviderImageModeration ?? prepareProviderImageModeration)({
+									url: origin.url,
+									mimeType: claim.mimeType,
+									checksum,
+									allowedHosts: providerCdnAllowlist(environment),
+									...(expectedGifFrameCount !== undefined ? { expectedGifFrameCount } : {}),
+									...(checksum &&
+									origin.archiveState === "ARCHIVED" &&
+									origin.archiveChecksum === checksum &&
+									origin.archiveBytes === claim.byteSize
+										? { archiveKey: claim.objectKey }
+										: {}),
+									...(guestOriginal ? { watermark: true } : {}),
+								});
+						checksum = preparedOriginal.checksum;
+						finalizedAt ??= new Date();
+						const identityCommitted = await commitProviderOriginalIdentity(
+							{
+								assetId: claim.assetId,
+								leaseToken: claim.leaseToken,
+								generation: claim.generation,
+								checksum,
+								bytes: preparedOriginal.bytes,
+								guest: guestOriginal,
+							},
+							database,
+						);
+						if (!identityCommitted) return withPhase({ outboxCommitted: false });
+					}
+					if (earlyReview) {
+						// Acceptance is already durable in the delivery hub. Adopt it in one
+						// guarded write, including recovery after an interrupted legacy bind.
+						if (!(await adoptImageResultSubmission(database, claim, earlyReview)))
+							return withPhase({ outboxCommitted: false, phaseOwnershipLost: true });
+						claim.providerTaskId = earlyReview.submission.moderationTaskId;
+						claim.submissionToken = earlyReview.submission.idempotency.key;
+						claim.submissionUncertain = false;
+						acceptedImageTaskId = claim.providerTaskId;
+					}
 				}
 				if (!providerOriginal && (claim.forceObjectInspection || !checksum || !finalizedAt)) {
 					const inspected = await (options.inspectPrivateMediaObject ?? inspectPrivateMediaObject)({
@@ -2083,13 +2236,24 @@ export function createDatabaseVerifyUploadDependencies(
 					recordStage("moderation_result", { decision: decision.decision });
 				} else {
 					let providerTaskId = claim.providerTaskId;
-					let completedDecision: ModerationDecision | undefined;
+					let completedDecision: ModerationDecision | undefined = earlyReview
+						? (earlyReview.decision ?? {
+								decision: "REVIEW",
+								reasonCode: "IMAGE_PROCESSING",
+								ruleVersion: claim.ruleVersion,
+								retryAfterMs: Math.max(1_000, earlyReview.nextQueryAt - Date.now()),
+							})
+						: undefined;
 					let submittedPending = false;
 					let submissionRetryAfterMs: number | undefined;
 					if (!providerTaskId) {
 						if (verificationOptions.queryOnly)
 							throw new Error("MODERATION_QUERY_ONLY_IDENTITY_MISSING");
-						const submissionToken = await beginMediaVerificationSubmission(database, claim);
+						const submissionToken = await beginMediaVerificationSubmission(
+							database,
+							claim,
+							earlyReview?.submission.idempotency.key,
+						);
 						if (!submissionToken) return withPhase({ outboxCommitted, phaseOwnershipLost: true });
 						recordStage("submission_recorded");
 						const callbackUrl =
@@ -2100,14 +2264,16 @@ export function createDatabaseVerifyUploadDependencies(
 									)
 								: undefined;
 						detectorRequestInFlight = true;
-						const submitted = await (
-							asyncImage ? safety.submitImage!.bind(safety) : safety.submitVideo.bind(safety)
-						)({
-							assetUrl,
-							ruleVersion: claim.ruleVersion,
-							idempotencyKey: submissionToken,
-							...(asyncImage && claim.provider === "seeapi" ? { callbackUrl } : {}),
-						});
+						const submitted =
+							earlyReview?.submission ??
+							(await (
+								asyncImage ? safety.submitImage!.bind(safety) : safety.submitVideo.bind(safety)
+							)({
+								assetUrl,
+								ruleVersion: claim.ruleVersion,
+								idempotencyKey: submissionToken,
+								...(asyncImage && claim.provider === "seeapi" ? { callbackUrl } : {}),
+							}));
 						detectorRequestInFlight = false;
 						recordStage("moderation_submitted");
 						await options.afterVideoSubmission?.(submitted);
@@ -2145,7 +2311,14 @@ export function createDatabaseVerifyUploadDependencies(
 						}
 						// An authenticated POST can already contain the complete verdict. Only
 						// consume it after binding that exact task under the existing lease.
-						if (asyncImage && submitted.completedDecision) {
+						if (earlyReview) {
+							completedDecision = earlyReview.decision ?? {
+								decision: "REVIEW",
+								reasonCode: "IMAGE_PROCESSING",
+								ruleVersion: claim.ruleVersion,
+								retryAfterMs: Math.max(1_000, earlyReview.nextQueryAt - Date.now()),
+							};
+						} else if (asyncImage && submitted.completedDecision) {
 							const verdict = submitted.completedDecision;
 							completedDecision =
 								verdict.ruleVersion === claim.ruleVersion &&
@@ -2289,8 +2462,20 @@ export function createDatabaseVerifyUploadDependencies(
 					);
 					return withPhase(failure);
 				}
+				if (earlyReview) {
+					// Publish first. The verdict transaction, notifications ACK, financial
+					// settlement and independent archive must not hold customer visibility.
+					earlyReview = await writeImageResult({
+						...earlyReview,
+						decision,
+						...(decision.decision === "ALLOW"
+							? { approvedAt: earlyReview.approvedAt ?? Date.now() }
+							: {}),
+					});
+				}
 				const completed = await completeMediaVerification(database, claim, {
 					...decision,
+					...(earlyReview ? { imageResult: earlyReview } : {}),
 					detectorCompleted: true,
 					checksum,
 					storageEtag,
@@ -3194,9 +3379,42 @@ async function verificationPhaseMayCallProvider(
 	return result?.current === true;
 }
 
+async function adoptImageResultSubmission(
+	database: PrismaClient,
+	claim: MediaVerificationClaim,
+	receipt: ImageResultReceipt,
+): Promise<boolean> {
+	const prior = imageResultPriorReview(receipt);
+	return database.$transaction(async (tx) => {
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
+		const changed = await tx.$executeRaw`
+			UPDATE "media_asset" AS asset SET
+			 "verificationProviderTaskId"=${receipt.submission.moderationTaskId},
+			 "verificationSubmissionToken"=${receipt.submission.idempotency.key},
+			 "verificationSubmissionUncertain"=FALSE,
+			 "verificationSubmittedAt"=COALESCE("verificationSubmittedAt",clock_timestamp()),
+			 "updatedAt"=clock_timestamp()
+			WHERE asset."id"=${claim.assetId} AND asset."verificationEngine"='legacy'
+			 AND asset."status"='VERIFYING' AND asset."deletedAt" IS NULL AND asset."verificationGeneration"=1
+			 AND asset."verificationLeaseToken"=${claim.leaseToken} AND asset."verificationLeasedUntil">clock_timestamp()
+			 AND (asset."verificationProviderTaskId" IS NULL OR asset."verificationProviderTaskId"=${receipt.submission.moderationTaskId}
+			  OR asset."verificationProviderTaskId"=${prior?.moderationTaskId ?? null})
+			 AND (asset."verificationSubmissionToken" IS NULL OR asset."verificationSubmissionToken"=${receipt.submission.idempotency.key}
+			  OR asset."verificationSubmissionToken"=${prior?.idempotencyKey ?? null})
+			 AND EXISTS (SELECT 1 FROM (SELECT 1) anchor
+			  LEFT JOIN "media_workflow_phase_owner" owner ON owner."phaseKind"='verification'
+			   AND owner."subjectId"=asset."id" AND owner."generation"=1 AND owner."leasedUntil">clock_timestamp()
+			  WHERE ((${claim.phaseOwner?.phaseKey ?? null}::text IS NULL AND owner."phaseKey" IS NULL)
+			   OR (owner."phaseKey"=${claim.phaseOwner?.phaseKey ?? null} AND owner."workflowId"=${claim.phaseOwner?.workflowId ?? null}
+			    AND owner."epoch"=${claim.phaseOwner?.epoch ?? null}::int)))`;
+		return changed === 1;
+	});
+}
+
 async function beginMediaVerificationSubmission(
 	database: PrismaClient,
 	claim: MediaVerificationClaim,
+	acceptedSubmissionToken?: string,
 ): Promise<string | null> {
 	return database.$transaction(async (tx) => {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
@@ -3205,7 +3423,7 @@ async function beginMediaVerificationSubmission(
 		const now = new Date();
 		const [asset] = await tx.$queryRaw<Array<{ verificationSubmissionToken: string }>>`
 			UPDATE "media_asset" AS asset
-			SET "verificationSubmissionToken" = COALESCE("verificationSubmissionToken", ${crypto.randomUUID()}),
+			SET "verificationSubmissionToken" = COALESCE("verificationSubmissionToken", ${acceptedSubmissionToken ?? crypto.randomUUID()}),
 				"verificationCallbackReceivedAt" = CASE
 					WHEN "verificationSubmissionToken" IS NULL THEN NULL
 					ELSE "verificationCallbackReceivedAt"
@@ -3283,6 +3501,7 @@ async function completeMediaVerification(
 	claim: MediaVerificationClaim,
 	input: ModerationDecision & {
 		detectorCompleted?: boolean;
+		imageResult?: ImageResultReceipt;
 		checksum: string | null;
 		storageEtag: string | null;
 		storageVersionId: string | null;
@@ -3447,6 +3666,15 @@ async function completeMediaVerification(
 			rawEnvelope: {
 				decision: input.decision,
 				...(input.evidence ? { evidence: input.evidence } : {}),
+				...(input.imageResult
+					? {
+							reviewInput: input.imageResult.reviewInput,
+							reviewedUrl: input.imageResult.completion.outputUrl,
+							...(input.imageResult.priorReview
+								? { priorReview: input.imageResult.priorReview }
+								: {}),
+						}
+					: {}),
 			},
 			scores: input.evidence?.scores,
 			validUntil: verificationValidUntil,
@@ -6832,6 +7060,8 @@ export function createDatabaseReconciliationStore(
 							responseSnapshot?: unknown;
 							transferEnvelope?: unknown;
 							productKey?: string;
+							providerModelId?: string;
+							callbackEnvelope?: unknown;
 						}
 					>
 				>`
@@ -6856,7 +7086,7 @@ export function createDatabaseReconciliationStore(
 				    "reconciliationCount" = attempt."reconciliationCount" + ${attemptId === undefined ? 1 : 0}
 			FROM claimable WHERE attempt."id" = claimable."id"
 			RETURNING attempt."jobId", attempt."id" AS "attemptId", attempt."provider",
-			          attempt."providerTaskId", attempt."providerStatusUrl" AS "statusUrl",
+			          attempt."providerTaskId", attempt."providerModelId", attempt."providerStatusUrl" AS "statusUrl",
 			          attempt."providerResultUrl" AS "resultUrl",
 			          attempt."reconcileLeaseToken" AS "leaseToken",
 			          GREATEST(1, FLOOR(EXTRACT(EPOCH FROM (${now} - attempt."updatedAt")) / 60))::int AS "staleAgeMinutes",
@@ -6872,43 +7102,93 @@ export function createDatabaseReconciliationStore(
 				  AND notice."status" = 'RECEIVED'
 				RETURNING notice."id"
 			)
-			SELECT leased.*, envelope."payload" AS "transferEnvelope", job."productKey"
+			SELECT leased.*, envelope."payload" AS "transferEnvelope", job."productKey", notice."envelope" AS "callbackEnvelope"
 			FROM leased JOIN "generation_job" job ON job."id" = leased."jobId"
+			LEFT JOIN "provider_webhook_event" notice ON leased."provider" = 'kie'
+			 AND notice."provider" = ${KIE_IMAGE_COMPLETION_NOTICE_PROVIDER}
+			 AND notice."providerEventId" = ${KIE_IMAGE_COMPLETION_NOTICE_PREFIX} || leased."attemptId" || ':' || leased."providerTaskId"
+			 AND notice."providerTaskId" = leased."providerTaskId"
 			LEFT JOIN "generation_attempt_transfer_envelope" envelope ON envelope."attemptId" = leased."attemptId"
 			 AND leased."responseSnapshot" ? 'phaseCompletion'`;
-				return leases.map(({ responseSnapshot, transferEnvelope, productKey, ...lease }) => {
-					const saved = objectRecord(objectRecord(responseSnapshot)?.phaseCompletion);
-					const outputs =
-						saved && productKey
-							? providerOutputsFromTransferEnvelope(mediaKindForJob(productKey), transferEnvelope)
-							: [];
-					const completion =
-						saved && outputs.length > 0 && saved.providerTaskId === lease.providerTaskId
-							? {
-									snapshot: {
-										providerTaskId: lease.providerTaskId!,
-										status: "SUCCEEDED" as const,
-										raw: {},
-									},
-									result: {
-										outputs,
-										progress: typeof saved.progress === "number" ? saved.progress : null,
-										providerCostMicros:
-											typeof saved.providerCostMicros === "number"
-												? saved.providerCostMicros
-												: null,
-										providerCharged: saved.providerCharged === true,
-										failure: null,
-										retryable: false,
-									},
-								}
-							: undefined;
-					return {
-						...lease,
-						...(phaseOwner ? { phaseOwner } : {}),
-						...(completion ? { completion } : {}),
-					};
-				});
+				return leases.map(
+					({
+						responseSnapshot,
+						transferEnvelope,
+						productKey,
+						providerModelId,
+						callbackEnvelope,
+						...lease
+					}) => {
+						const saved = objectRecord(objectRecord(responseSnapshot)?.phaseCompletion);
+						const outputs =
+							saved && productKey
+								? providerOutputsFromTransferEnvelope(mediaKindForJob(productKey), transferEnvelope)
+								: [];
+						const savedCompletion =
+							saved && outputs.length > 0 && saved.providerTaskId === lease.providerTaskId
+								? {
+										snapshot: {
+											providerTaskId: lease.providerTaskId!,
+											status: "SUCCEEDED" as const,
+											raw: {},
+										},
+										result: {
+											outputs,
+											progress: typeof saved.progress === "number" ? saved.progress : null,
+											providerCostMicros:
+												typeof saved.providerCostMicros === "number"
+													? saved.providerCostMicros
+													: null,
+											providerCharged: saved.providerCharged === true,
+											failure: null,
+											retryable: false,
+										},
+									}
+								: undefined;
+						const callback = kieImageCallbackCompletionSchema.safeParse(
+							objectRecord(callbackEnvelope)?.completion,
+						);
+						// The inbox was authenticated at ingress. Reuse it even after a claim
+						// crashed: consuming the wake never discards its complete result.
+						const completion =
+							savedCompletion ??
+							(lease.provider === "kie" &&
+							productKey?.startsWith("image-") &&
+							callback.success &&
+							callback.data.providerTaskId === lease.providerTaskId &&
+							callback.data.providerModelId === providerModelId
+								? {
+										snapshot: {
+											providerTaskId: lease.providerTaskId!,
+											status: "SUCCEEDED" as const,
+											raw: {},
+										},
+										result: {
+											outputs: [
+												{
+													kind: "remote-url" as const,
+													url: callback.data.outputUrl,
+													trust: "untrusted-transfer-candidate" as const,
+												},
+											],
+											progress: 100,
+											providerCostMicros:
+												callback.data.creditsConsumed !== undefined
+													? callback.data.creditsConsumed * KIE_CREDIT_COST_MICROS
+													: null,
+											providerCharged: true,
+											failure: null,
+											retryable: false,
+										},
+									}
+								: undefined);
+						return {
+							...lease,
+							...(phaseOwner ? { phaseOwner } : {}),
+							...(completion ? { completion } : {}),
+						};
+					},
+				);
 			};
 			if (!options.workflowId || !attemptId) return claim(database);
 			return database.$transaction(async (tx) => {

@@ -27,48 +27,58 @@ describe("image edit session PostgreSQL transaction", () => {
 
 	afterAll(async () => client?.$disconnect());
 
-	it("starts another edit from an approved provider original while its parent and R2 archive remain unfinished", async () => {
-		const f = await createRootFixture(client, { credits: 40n });
-		const root = await createRootEdit(client, f);
-		const output = await createReadyImageAsset(client, f.ownerId, "OUTPUT", "image/png", true);
-		await bindOutputToJob(client, root.job.id, output.id, output.checksum!);
-		await client.generationJob.update({
-			where: { id: root.job.id },
-			data: { status: "FINALIZING", terminalAt: null },
-		});
-		await client.mediaOutputOrigin.create({
-			data: { assetId: output.id, url: "https://tempfile.aiquickdraw.com/original.png" },
-		});
-		const parent = await findEligibleImageEditParentForOwner(
-			{ ownerType: "USER", ownerId: f.ownerId, parentJobId: root.job.id, sourceAssetId: output.id },
-			client,
-		);
-		expect(parent).toMatchObject({ parentJobId: root.job.id, sourceAssetId: output.id });
-		const child = await createChildFixture(client, {
-			ownerId: f.ownerId,
-			parentJobId: root.job.id,
-			sourceAssetId: output.id,
-			prompt: "Continue with the approved original",
-		});
-		const created = await createChildEdit(client, child);
-		expect(await client.generationJob.findUnique({ where: { id: created.job.id } })).toMatchObject({
-			parentJobId: root.job.id,
-		});
-		expect(
-			await client.mediaOutputOrigin.findUnique({ where: { assetId: output.id } }),
-		).toMatchObject({ archiveState: "PENDING" });
-		expect(
-			await findEligibleImageEditParentForOwner(
+	it.each(["FINALIZING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] as const)(
+		"starts another edit from an approved provider original while parent %s and R2 archive remain unfinished",
+		async (status) => {
+			const f = await createRootFixture(client, { credits: 40n });
+			const root = await createRootEdit(client, f);
+			const output = await createReadyImageAsset(client, f.ownerId, "OUTPUT", "image/png", true);
+			await bindOutputToJob(client, root.job.id, output.id, output.checksum!);
+			await client.generationJob.update({
+				where: { id: root.job.id },
+				data: { status, terminalAt: null },
+			});
+			await client.mediaOutputOrigin.create({
+				data: { assetId: output.id, url: "https://tempfile.aiquickdraw.com/original.png" },
+			});
+			const parent = await findEligibleImageEditParentForOwner(
 				{
 					ownerType: "USER",
-					ownerId: "other-owner",
+					ownerId: f.ownerId,
 					parentJobId: root.job.id,
 					sourceAssetId: output.id,
 				},
 				client,
-			),
-		).toBeNull();
-	});
+			);
+			expect(parent).toMatchObject({ parentJobId: root.job.id, sourceAssetId: output.id });
+			const child = await createChildFixture(client, {
+				ownerId: f.ownerId,
+				parentJobId: root.job.id,
+				sourceAssetId: output.id,
+				prompt: "Continue with the approved original",
+			});
+			const created = await createChildEdit(client, child);
+			expect(
+				await client.generationJob.findUnique({ where: { id: created.job.id } }),
+			).toMatchObject({
+				parentJobId: root.job.id,
+			});
+			expect(
+				await client.mediaOutputOrigin.findUnique({ where: { assetId: output.id } }),
+			).toMatchObject({ archiveState: "PENDING" });
+			expect(
+				await findEligibleImageEditParentForOwner(
+					{
+						ownerType: "USER",
+						ownerId: "other-owner",
+						parentJobId: root.job.id,
+						sourceAssetId: output.id,
+					},
+					client,
+				),
+			).toBeNull();
+		},
+	);
 
 	it("commits the root session with the existing job transaction and rolls it all back on failure", async () => {
 		const successful = await createRootFixture(client, { credits: 20n });

@@ -16,6 +16,7 @@ const api = vi.hoisted(() => ({
 	createQuote: vi.fn(),
 	createGeneration: vi.fn(),
 	submitGeneration: vi.fn(),
+	checkDuplicatePrompt: vi.fn(),
 }));
 const analytics = vi.hoisted(() => ({ capture: vi.fn() }));
 vi.mock("@repo/utils", async (importOriginal) => ({
@@ -108,6 +109,8 @@ beforeEach(() => {
 	});
 	vi.clearAllMocks();
 	api.submitGeneration.mockReset().mockResolvedValue(response);
+	api.createQuote.mockReset().mockResolvedValue(response.quote);
+	api.checkDuplicatePrompt.mockReset().mockResolvedValue({ match: null });
 	analytics.capture
 		.mockReset()
 		.mockReturnValue({ enabled: false, context: null, capturedAt: Date.now() });
@@ -119,6 +122,85 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 describe("one-request generation", () => {
+	it("shares pending preparation with Generate and preserves the server identity", async () => {
+		let approve!: (value: typeof response.quote) => void;
+		api.createQuote.mockReturnValueOnce(
+			new Promise((resolve) => {
+				approve = resolve;
+			}),
+		);
+		const generation = renderGeneration();
+		const preparing = generation.prepareGeneration(submission);
+		expect(generation.prepareGeneration(submission)).toBe(preparing);
+		const submitting = generation.createGeneration.mutateAsync(submission);
+		await flush();
+		expect(api.submitGeneration).not.toHaveBeenCalled();
+		approve(response.quote);
+		await expect(submitting).resolves.toEqual(result);
+		expect(api.createQuote).toHaveBeenCalledOnce();
+		expect(api.submitGeneration.mock.calls[0]![0].idempotencyKey).toBe(
+			api.createQuote.mock.calls[0]![0].preparation.idempotencyKey,
+		);
+	});
+	it.each(["owner", "draft"])(
+		"does not submit after a pending preparation loses its %s",
+		async (boundary) => {
+			let approve!: (value: typeof response.quote) => void;
+			api.createQuote.mockReturnValueOnce(
+				new Promise((resolve) => {
+					approve = resolve;
+				}),
+			);
+			const generation = renderGeneration();
+			void generation.prepareGeneration(submission);
+			const pending = generation.createGeneration.mutateAsync(submission);
+			await flush();
+			if (boundary === "owner") renderGeneration({ ownerId: "owner-b" });
+			else generation.beginNewAction();
+			approve(response.quote);
+			await expect(pending).resolves.toBeNull();
+			expect(api.submitGeneration).not.toHaveBeenCalled();
+		},
+	);
+	it("refreshes an expired unused preparation but never changes an uncertain submitted identity", async () => {
+		vi.useFakeTimers();
+		api.createQuote.mockResolvedValueOnce({
+			...response.quote,
+			expiresAt: new Date(Date.now() + 1_000).toISOString(),
+		});
+		const generation = renderGeneration();
+		await generation.prepareGeneration(submission);
+		const preparedKey = api.createQuote.mock.calls[0]![0].preparation.idempotencyKey;
+		await vi.advanceTimersByTimeAsync(1_001);
+		api.submitGeneration.mockRejectedValueOnce(new Error("lost response"));
+		await expect(generation.createGeneration.mutateAsync(submission)).rejects.toThrow(
+			"lost response",
+		);
+		const submitted = api.submitGeneration.mock.calls[0]![0];
+		expect(submitted.idempotencyKey).not.toBe(preparedKey);
+		await generation.prepareGeneration(submission);
+		await generation.createGeneration.mutateAsync(submission);
+		expect(api.createQuote).toHaveBeenCalledOnce();
+		expect(api.submitGeneration.mock.calls[1]![0]).toEqual(submitted);
+	});
+	it("recovers a lost preparation response using the same identity on manual Generate", async () => {
+		api.createQuote.mockRejectedValueOnce(new Error("lost response"));
+		const generation = renderGeneration();
+		await expect(generation.prepareGeneration(submission)).rejects.toThrow("lost response");
+		await generation.createGeneration.mutateAsync(submission);
+		expect(api.submitGeneration.mock.calls[0]![0].idempotencyKey).toBe(
+			api.createQuote.mock.calls[0]![0].preparation.idempotencyKey,
+		);
+	});
+	it("shares prompt duplicate lookup and clears it after accepted generation", async () => {
+		const generation = renderGeneration();
+		const first = generation.checkDuplicatePrompt(submission.input.prompt);
+		expect(generation.checkDuplicatePrompt(submission.input.prompt)).toBe(first);
+		await first;
+		await generation.createGeneration.mutateAsync(submission);
+		await generation.checkDuplicatePrompt(submission.input.prompt);
+		expect(api.checkDuplicatePrompt).toHaveBeenCalledTimes(2);
+	});
 	it("preserves explicit pass funding and the same request after an uncertain response", async () => {
 		api.submitGeneration.mockRejectedValueOnce(new Error("Network response lost"));
 		const generation = renderGeneration();

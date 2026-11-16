@@ -52,12 +52,28 @@ export function useGeneration({
 		snapshot: GrowthAnalyticsAttributionSnapshot;
 	} | null>(null);
 	const currentOwner = useRef(ownerId);
+	const preparation = useRef<{
+		key: string;
+		inputKey: string;
+		promise: Promise<void>;
+		expiresAt?: number;
+	} | null>(null);
+	const submittedKey = useRef<string | null>(null);
+	const duplicate = useRef<{
+		ownerId: string | null;
+		prompt: string;
+		validUntil: number;
+		promise: ReturnType<typeof orpcClient.media.checkDuplicatePrompt>;
+	} | null>(null);
 	if (currentOwner.current !== ownerId) {
 		// Invalidate immediately during the owner render, before an old request resumes.
 		currentOwner.current = ownerId;
 		action.current.invalidate();
 		pendingSubmission.current = null;
 		submissionAttribution.current = null;
+		preparation.current = null;
+		submittedKey.current = null;
+		duplicate.current = null;
 	}
 	useEffect(() => {
 		currentOwner.current = ownerId;
@@ -69,6 +85,67 @@ export function useGeneration({
 	const catalog = useQuery(publicCatalogQueryOptions);
 	const creditAccount = useQuery(creditAccountQueryOptions(ownerId));
 	const imagePass = useQuery(imagePassBalanceQueryOptions(ownerId));
+	function preparationInputKey(submission: GenerationSubmission) {
+		const { journey: _, ...input } = submission;
+		return JSON.stringify([ownerId, parentJobId ?? null, input]);
+	}
+	function expireUnusedPreparation() {
+		if (
+			preparation.current?.expiresAt !== undefined &&
+			preparation.current.expiresAt <= Date.now() &&
+			submittedKey.current !== preparation.current.key &&
+			!pendingSubmission.current
+		)
+			beginNewAction();
+	}
+	function prepareGeneration(submission: GenerationSubmission): Promise<void> {
+		if (!ownerId || currentOwner.current !== ownerId || pendingSubmission.current)
+			return Promise.resolve();
+		expireUnusedPreparation();
+		const key = action.current!.idempotencyKeyFor("submission");
+		if (submittedKey.current === key) return Promise.resolve();
+		const inputKey = preparationInputKey(submission);
+		if (preparation.current?.key === key && preparation.current.inputKey === inputKey)
+			return preparation.current.promise;
+		const request = action.current!.beginQuoteRequest();
+		const { journey: _, expectedCredits, ...input } = submission;
+		const prepared = { key, inputKey, promise: Promise.resolve() } as NonNullable<
+			typeof preparation.current
+		>;
+		prepared.promise = orpcClient.media
+			.createQuote({
+				...input,
+				...(parentJobId ? { parentJobId } : {}),
+				preparation: { idempotencyKey: key, expectedCredits },
+			})
+			.then((value) => {
+				if (
+					currentOwner.current === ownerId &&
+					action.current!.acceptQuote(request) &&
+					preparation.current === prepared
+				) {
+					prepared.expiresAt = Date.parse(value.expiresAt);
+				}
+			});
+		preparation.current = prepared;
+		return prepared.promise;
+	}
+	function checkDuplicatePrompt(prompt: string) {
+		const cached = duplicate.current;
+		if (cached?.ownerId === ownerId && cached.prompt === prompt && cached.validUntil > Date.now())
+			return cached.promise;
+		const entry = {
+			ownerId,
+			prompt,
+			validUntil: Date.now() + 15_000,
+			promise: orpcClient.media.checkDuplicatePrompt({ prompt }),
+		};
+		duplicate.current = entry;
+		void entry.promise.catch(() => {
+			if (duplicate.current === entry) duplicate.current = null;
+		});
+		return entry.promise;
+	}
 	const createQuote = useMutation({
 		mutationFn: async (input: {
 			productKey: EditorProductKey;
@@ -123,6 +200,17 @@ export function useGeneration({
 			}
 			const attribution = submissionAttribution.current.snapshot;
 			const submit = async () => {
+				const prepared = preparation.current;
+				if (
+					prepared?.key === idempotencyKey &&
+					prepared.inputKey === preparationInputKey(submission)
+				) {
+					// A failed/unknown preparation is recovered by the same server identity.
+					await prepared.promise.catch(() => undefined);
+				}
+				if (currentOwner.current !== submissionOwner || !action.current!.acceptQuote(request))
+					return null;
+				submittedKey.current = idempotencyKey;
 				// The server owns the frozen quote and price check. Preserve the same key
 				// after a lost response; settings changes explicitly start a new action.
 				const submissionStartedAt = performance.now();
@@ -145,6 +233,7 @@ export function useGeneration({
 						throw error;
 					});
 				const productKey = requireEditorProductKey(result.quote.productKey);
+				if (currentOwner.current === submissionOwner) duplicate.current = null;
 				void saasGrowthFunnel.quoteCreated(
 					result.quote.id,
 					productKey,
@@ -183,12 +272,14 @@ export function useGeneration({
 	});
 	const createGeneration = {
 		...generationMutation,
-		mutateAsync: (submission: GenerationSubmission) =>
-			generationMutation.mutateAsync({
+		mutateAsync: (submission: GenerationSubmission) => {
+			expireUnusedPreparation();
+			return generationMutation.mutateAsync({
 				submission,
 				submissionOwner: ownerId,
 				request: action.current!.beginQuoteRequest(),
-			}),
+			});
+		},
 	};
 	useEffect(() => {
 		setQuote(null);
@@ -197,12 +288,16 @@ export function useGeneration({
 	}, [ownerId]); // oxlint-disable-line eslint-plugin-react-hooks/exhaustive-deps
 	function beginNewAction() {
 		action.current!.invalidate();
+		preparation.current = null;
+		submittedKey.current = null;
+		duplicate.current = null;
 		setQuote(null);
 		createQuote.reset();
 		if (!pendingSubmission.current) createGeneration.reset();
 	}
 	return {
-		checkDuplicatePrompt: (prompt: string) => orpcClient.media.checkDuplicatePrompt({ prompt }),
+		checkDuplicatePrompt,
+		prepareGeneration,
 		catalog,
 		creditAccount,
 		imagePass,

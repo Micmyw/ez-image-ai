@@ -2,7 +2,7 @@ import type { AssetModerationResult, MediaAsset } from "@repo/database/generated
 
 // A finite terminal timestamp represents no calendar expiry while preserving the
 // existing non-null database evidence contract and short-lived signed URL gates.
-export const IMAGE_APPROVAL_NO_TIME_EXPIRY = "9999-12-31T23:59:59.999Z";
+export { IMAGE_APPROVAL_NO_TIME_EXPIRY } from "@repo/config/image-result";
 
 type ApprovalAsset = Pick<
 	MediaAsset,

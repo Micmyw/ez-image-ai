@@ -19,6 +19,22 @@ import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 
 describe("subscriber image job admission storage", () => {
 	it.each([true, false])(
+		"shares one current subscription read between eligibility and quota (paid=%s)",
+		async (paid) => {
+			const f = fixture(paid, paid ? 1_000_000_000_000n : 0n);
+			Object.assign(f.quote.pricingSnapshot, { skuKey: "nano-banana-2-lite-1k" });
+			f.quote.inputFingerprint = fingerprintGenerationQuoteSecurityPayload(f.quote);
+			await createGenerationJobTransaction(
+				{ ...f.input, validateCurrentEligibility: true },
+				f.client as never,
+			);
+			expect(f.tx.subscription.findMany).toHaveBeenCalledTimes(1);
+			expect(f.jobs[0]?.pricingSnapshot).toMatchObject({
+				aggregateStoragePolicy: { maximumBytes: paid ? null : "100" },
+			});
+		},
+	);
+	it.each([true, false])(
 		"rechecks effective subscription inside admission (paid=%s)",
 		async (paid) => {
 			const f = fixture(paid);
@@ -76,18 +92,21 @@ function fixture(paid: boolean, usage = 1_000_000_000_000n) {
 	const tx = {
 		$executeRaw: async () => 1,
 		$queryRaw: async () => [{ now: new Date() }],
+		runtimeConfigOverride: { findMany: async () => [] },
 		subscription: {
-			findMany: async () =>
+			findMany: vi.fn(async () =>
 				paid
 					? [
 							{
 								id: "paid-a",
 								provider: "paypal",
 								status: "ACTIVE",
+								plan: { name: "creator", metadata: { planId: "creator" } },
 								periods: [{ paidAmount: 100n, refundedAmount: 0n }],
 							},
 						]
 					: [],
+			),
 		},
 		billingPeriod: { fields: { paidAmount: "paidAmount" } },
 		generationQuote: { findUnique: async () => quote },
@@ -104,6 +123,7 @@ function fixture(paid: boolean, usage = 1_000_000_000_000n) {
 		outboxEvent: { create: async () => ({}), findMany: async () => [{ id: "outbox-a" }] },
 	};
 	return {
+		tx,
 		quote,
 		jobs,
 		input: {

@@ -130,7 +130,12 @@ export default {
 												? import("@repo/api/modules/media/job-events").then(
 														({ serveMediaJobEvents }) => serveMediaJobEvents(request),
 													)
-												: openNextWorker.fetch(request, environment, context),
+												: ["GET", "HEAD"].includes(request.method) &&
+													  new URL(request.url).pathname === "/api/media/original"
+													? import("@repo/api/modules/media/provider-original").then(
+															({ serveProviderOriginal }) => serveProviderOriginal(request),
+														)
+													: openNextWorker.fetch(request, environment, context),
 								),
 						);
 					};

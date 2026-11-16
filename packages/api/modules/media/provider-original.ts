@@ -1,10 +1,20 @@
+import { Readable } from "node:stream";
+
 import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
 import { imageModerationProviderForEnvironment } from "@repo/config";
+import { isApprovedImageResult } from "@repo/config/image-result";
 import { db } from "@repo/database/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "@repo/database/media-assets";
 import { providerCdnAllowlist } from "@repo/jobs/provider-output-policy";
+import { readImageResult } from "@repo/jobs/realtime/image-result";
 import { verifyProviderOriginalReadUrl, readArchivedMediaStream } from "@repo/storage";
-import { readProviderOriginalBytes } from "@repo/storage/lib/provider-original-bytes";
+import { openInspectedRemoteMedia, config as storageConfig } from "@repo/storage";
+import {
+	readProviderOriginalBytes,
+	readProviderCandidateBytes,
+} from "@repo/storage/lib/provider-original-bytes";
+
+import { authorizeImageResult, verifyImageResultReadUrl } from "./lib/image-result";
 
 const evidence = {
 	moderationResults: {
@@ -24,6 +34,79 @@ export async function serveProviderOriginal(request: Request): Promise<Response>
 		"X-Content-Type-Options": "nosniff",
 		"Referrer-Policy": "no-referrer",
 	});
+	if (new URL(request.url).searchParams.has("result")) {
+		const grant = verifyImageResultReadUrl(new URL(request.url));
+		if (!grant) return new Response(null, { status: 403, headers });
+		const receipt = await readImageResult(grant.jobId).catch(() => null);
+		if (!receipt || receipt.assetId !== grant.assetId || !isApprovedImageResult(receipt))
+			return new Response(null, { status: 404, headers });
+		headers.set(
+			"Content-Disposition",
+			grant.disposition === "inline"
+				? "inline"
+				: `attachment; filename="${receipt.assetId}.${receipt.mimeType === "image/svg+xml" ? "svg" : receipt.mimeType.slice(6)}"`,
+		);
+		let pendingSource: Readable | undefined;
+		try {
+			if (receipt.context.guest) {
+				const bytes = await readProviderCandidateBytes({
+					url: receipt.completion.outputUrl,
+					mimeType: receipt.mimeType,
+					allowedHosts: providerCdnAllowlist(process.env),
+					watermark: true,
+				});
+				if (!(await authorizeImageResult(receipt, grant.ownerId)) || grant.expires <= Date.now())
+					return new Response(null, { status: 404, headers });
+				headers.set("Content-Type", receipt.mimeType);
+				headers.set("Content-Length", String(bytes.length));
+				return new Response(request.method === "HEAD" ? null : bytes, { headers });
+			}
+			const opened = await openInspectedRemoteMedia(receipt.completion.outputUrl, {
+				allowedHosts: providerCdnAllowlist(process.env),
+				expectedKind: "image",
+				maxRedirects: storageConfig.media.remoteMaxRedirects,
+				connectTimeoutMs: storageConfig.media.remoteConnectTimeoutMs,
+				firstByteTimeoutMs: storageConfig.media.remoteFirstByteTimeoutMs,
+				totalTimeoutMs: storageConfig.media.remoteTotalTimeoutMs,
+			});
+			pendingSource = opened.stream;
+			// One fresh authorization after source headers are ready covers deletion
+			// and policy changes during connection setup, without two DB reads.
+			if (!(await authorizeImageResult(receipt, grant.ownerId)) || grant.expires <= Date.now()) {
+				opened.stream.destroy();
+				return new Response(null, { status: 404, headers });
+			}
+			headers.set("Content-Type", opened.contentType);
+			if (opened.contentType === "image/svg+xml")
+				headers.set("Content-Security-Policy", "default-src 'none'; sandbox");
+			const length = Number(opened.headers["content-length"]);
+			if (Number.isSafeInteger(length) && length > 0) headers.set("Content-Length", String(length));
+			if (length > 25 * 1024 * 1024) {
+				opened.stream.destroy();
+				throw new Error("ORIGINAL_SIZE_EXCEEDED");
+			}
+			if (request.method === "HEAD") {
+				opened.stream.destroy();
+				return new Response(null, { headers });
+			}
+			let size = 0;
+			const stream = (Readable.toWeb(opened.stream) as ReadableStream<Uint8Array>).pipeThrough(
+				new TransformStream<Uint8Array, Uint8Array>({
+					transform(chunk, controller) {
+						size += chunk.length;
+						if (size > 25 * 1024 * 1024) throw new Error("ORIGINAL_SIZE_EXCEEDED");
+						controller.enqueue(chunk);
+					},
+				}),
+			);
+			// Stream the approved original. No full-body buffering/hash, R2 lookup,
+			// settlement check or post-download database read is on this path.
+			return new Response(stream, { headers });
+		} catch {
+			pendingSource?.destroy();
+			return new Response(null, { status: 503, headers });
+		}
+	}
 	const grant = verifyProviderOriginalReadUrl(new URL(request.url));
 	if (!grant) return new Response(null, { status: 403, headers });
 	const asset = await db.mediaAsset.findUnique({

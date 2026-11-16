@@ -13,7 +13,7 @@ export async function handleJobEventsRequest(
 	if (request.method !== "POST") return new Response("Method not allowed", { status: 405 });
 	let body: string;
 	try {
-		body = await readBoundedBody(request, 2_048);
+		body = await readBoundedBody(request, 65_536);
 	} catch {
 		return new Response("Invalid body", { status: 400 });
 	}
@@ -29,7 +29,23 @@ export async function handleJobEventsRequest(
 		return new Response("Unauthorized", { status: 401 });
 	let notification;
 	try {
-		notification = readMediaJobNotification(JSON.parse(body));
+		const input = JSON.parse(body);
+		if (
+			input?.type === "image-result" &&
+			typeof input.jobId === "string" &&
+			/^[\w-]{1,128}$/.test(input.jobId)
+		) {
+			if (!environment.MEDIA_JOB_EVENTS) return new Response("Unavailable", { status: 503 });
+			return mediaJobEventsStub(environment.MEDIA_JOB_EVENTS, input.jobId).fetch(
+				new Request("https://media-job-events.internal/image-result", {
+					method: "POST",
+					headers: { "content-type": "application/json" },
+					body,
+				}),
+			);
+		}
+		if (body.length > 2_048) return new Response("Invalid notification", { status: 400 });
+		notification = readMediaJobNotification(input);
 	} catch {
 		return new Response("Invalid notification", { status: 400 });
 	}

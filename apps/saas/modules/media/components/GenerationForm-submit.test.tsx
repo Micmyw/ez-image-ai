@@ -42,6 +42,7 @@ const state = vi.hoisted(() => ({
 	},
 	mutateAsync: vi.fn(),
 	checkDuplicatePrompt: vi.fn(),
+	prepareGeneration: vi.fn(),
 	beginNewAction: vi.fn(),
 	visibility: vi.fn(),
 	toolBinding: vi.fn(),
@@ -105,6 +106,7 @@ vi.mock("../hooks/use-model-navigation", () => ({
 vi.mock("../hooks/use-generation", () => ({
 	useGeneration: () => ({
 		checkDuplicatePrompt: state.checkDuplicatePrompt,
+		prepareGeneration: state.prepareGeneration,
 		catalog: {
 			data: {
 				products: [
@@ -353,6 +355,7 @@ beforeEach(() => {
 	};
 	state.mutateAsync.mockReset().mockResolvedValue(accepted);
 	state.checkDuplicatePrompt.mockReset().mockResolvedValue({ match: null });
+	state.prepareGeneration.mockReset().mockResolvedValue(undefined);
 	state.beginNewAction.mockClear();
 	state.visibility.mockReset();
 	state.toolBinding.mockReset();
@@ -377,9 +380,69 @@ vi.mock("react-hook-form", () => ({
 }));
 afterEach(() => {
 	unmount();
+	vi.useRealTimers();
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it("prepares a complete draft after a quiet period without creating a job", async () => {
+		vi.useFakeTimers();
+		render();
+		await vi.advanceTimersByTimeAsync(1_199);
+		expect(state.prepareGeneration).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(1);
+		expect(state.checkDuplicatePrompt).toHaveBeenCalledWith("A paper landscape");
+		expect(state.prepareGeneration).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({
+				productKey: "image-nano-banana-2-lite",
+				input: expect.objectContaining({ prompt: "A paper landscape" }),
+				fundingSource: "CREDITS",
+			}),
+		);
+		await vi.advanceTimersByTimeAsync(5_000);
+		expect(state.prepareGeneration).toHaveBeenCalledTimes(1);
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("cancels the old timer when the draft changes", async () => {
+		vi.useFakeTimers();
+		render();
+		await vi.advanceTimersByTimeAsync(1_000);
+		state.values.prompt = "A different landscape";
+		render();
+		await vi.advanceTimersByTimeAsync(200);
+		expect(state.prepareGeneration).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(1_000);
+		expect(state.prepareGeneration).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({
+				input: expect.objectContaining({ prompt: "A different landscape" }),
+			}),
+		);
+	});
+	it("prepares a changed draft after an accepted job, without re-preparing that job's draft", async () => {
+		vi.useFakeTimers();
+		submit(render());
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledTimes(1);
+		render(vi.fn(), accepted.job.id);
+		await vi.advanceTimersByTimeAsync(1_200);
+		expect(state.prepareGeneration).not.toHaveBeenCalled();
+		state.values.prompt = "My next landscape";
+		render(vi.fn(), accepted.job.id);
+		await vi.advanceTimersByTimeAsync(1_200);
+		expect(state.prepareGeneration).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({
+				input: expect.objectContaining({ prompt: "My next landscape" }),
+			}),
+		);
+	});
+	it.each(["hidden", "upload"])("does not prepare a %s draft", async (boundary) => {
+		vi.useFakeTimers();
+		if (boundary === "hidden") state.mode = "video";
+		else state.values.sourceAssetId = "not-ready-photo";
+		render();
+		await vi.advanceTimersByTimeAsync(1_200);
+		expect(state.prepareGeneration).not.toHaveBeenCalled();
+		expect(state.checkDuplicatePrompt).not.toHaveBeenCalled();
+	});
 	it("uses the purpose shortcut without dropping the prompt or owned reference", () => {
 		state.values.sourceAssetId = "owned-photo";
 		const before = state.values.prompt;

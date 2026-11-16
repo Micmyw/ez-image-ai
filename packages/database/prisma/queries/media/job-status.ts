@@ -102,7 +102,9 @@ export const MEDIA_JOB_STATUS_SELECT = {
 	},
 } satisfies Prisma.GenerationJobSelect;
 
-type JobStatus = Prisma.GenerationJobGetPayload<{ select: typeof MEDIA_JOB_STATUS_SELECT }>;
+type JobStatus = Prisma.GenerationJobGetPayload<{ select: typeof MEDIA_JOB_STATUS_SELECT }> & {
+	promptRejected: boolean;
+};
 type JsonProjection<T> = T extends Date | bigint
 	? string
 	: T extends Array<infer Item>
@@ -127,6 +129,8 @@ export async function getOwnedGenerationJobStatus(
 		SELECT job."id", job."status", job."version", job."productKey", job."inputSnapshot",
 			job."creditsReserved", job."fundingSource", job."archivedCreditsCharged",
 			job."archivedCreditsReleased", job."failureCode", job."createdAt", job."updatedAt",
+			EXISTS (SELECT 1 FROM "moderation_review" review WHERE review."targetType"='QUOTE'
+			 AND review."targetId"=job."quoteId" AND review."status" IN ('REJECTED','BLOCKED')) AS "promptRejected",
 			CASE WHEN pass."id" IS NULL THEN NULL ELSE
 				jsonb_build_object('status', pass."status") END AS "imagePassReservation",
 			CASE WHEN credit."id" IS NULL THEN NULL ELSE jsonb_build_object(

@@ -10,6 +10,7 @@ import {
 } from "../lib/asset-authorization";
 import { signAuthorizedAssetReadUrl } from "../lib/asset-read-url";
 import { createFlowTiming } from "../lib/flow-timing";
+import { getAuthorizedImageResult, signImageResultReadUrl } from "../lib/image-result";
 
 export const getAssetAccessUrl = protectedProcedure
 	.route({
@@ -21,10 +22,15 @@ export const getAssetAccessUrl = protectedProcedure
 	.input(
 		z.object({
 			assetId: z.string().min(1),
+			jobId: z.string().min(1).max(128).optional(),
 			disposition: z.enum(["inline", "attachment"]).default("inline"),
 		}),
 	)
 	.handler(async ({ context: { user, requestId }, input }) => {
+		if (input.jobId) {
+			const receipt = await getAuthorizedImageResult(input.jobId, user.id, input.assetId);
+			if (receipt) return signImageResultReadUrl(receipt, input.disposition, user.id);
+		}
 		const timing = createFlowTiming({ requestId, assetId: input.assetId });
 		const authorizationStarted = performance.now();
 		let asset: {

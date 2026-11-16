@@ -1,4 +1,6 @@
 import { signRequest } from "@repo/jobs/orchestration/auth";
+import { imageResultAssetId } from "@repo/jobs/realtime/image-result";
+import { imageResultFixture } from "@repo/jobs/realtime/image-result.fixture";
 import {
 	env,
 	SELF,
@@ -69,6 +71,86 @@ afterEach(() => {
 });
 
 describe("real workerd job notifications", () => {
+	it("persists approved output through eviction and publishes only a URL-free hint", async () => {
+		const jobId = `owner-${crypto.randomUUID()}`;
+		const receipt = imageResultFixture();
+		receipt.context.jobId = jobId;
+		receipt.assetId = imageResultAssetId(jobId, receipt.context.attemptId);
+		const socket = await subscribe(jobId, true);
+		const hint = nextMessage(socket);
+		const stub = namespace.get(namespace.idFromName(`media-job:${jobId}`));
+		const put = (value: unknown) =>
+			stub.fetch(
+				new Request("https://internal/image-result", {
+					method: "POST",
+					body: JSON.stringify({ jobId, receipt: value }),
+				}),
+			);
+		const written = await put(receipt);
+		expect(written.status).toBe(200);
+		await written.json();
+		const notification = await hint;
+		expect(notification).toMatchObject({ type: "job-updated", jobId });
+		expect(JSON.stringify(notification)).not.toContain("tempfile.aiquickdraw.com");
+		await evictDurableObject(stub);
+		const get = () =>
+			stub.fetch(
+				new Request("https://internal/image-result", {
+					method: "POST",
+					body: JSON.stringify({ jobId }),
+				}),
+			);
+		expect(await (await get()).json()).toMatchObject({
+			assetId: receipt.assetId,
+			decision: { decision: "ALLOW" },
+		});
+		expect(
+			await (await put({ ...receipt, decision: undefined, approvedAt: undefined })).json(),
+		).toMatchObject({ decision: { decision: "ALLOW" } });
+		expect(
+			(
+				await put({
+					...receipt,
+					completion: {
+						...receipt.completion,
+						outputUrl: "https://tempfile.aiquickdraw.com/other.png",
+					},
+				})
+			).status,
+		).toBe(409);
+	});
+	it("expires private result receipts without extending their access on replay", async () => {
+		const jobId = `owner-${crypto.randomUUID()}`;
+		const receipt = imageResultFixture();
+		receipt.context.jobId = jobId;
+		const stub = namespace.get(namespace.idFromName(`media-job:${jobId}`));
+		await (
+			await stub.fetch(
+				new Request("https://internal/image-result", {
+					method: "POST",
+					body: JSON.stringify({ jobId, receipt }),
+				}),
+			)
+		).json();
+		await runInDurableObject(stub, async (_instance, state) => {
+			await state.storage.put("image-result", {
+				...receipt,
+				context: { ...receipt.context, expiresAt: Date.now() - 1 },
+			});
+			await state.storage.setAlarm(Date.now());
+		});
+		await runDurableObjectAlarm(stub);
+		expect(
+			(
+				await stub.fetch(
+					new Request("https://internal/image-result", {
+						method: "POST",
+						body: JSON.stringify({ jobId }),
+					}),
+				)
+			).status,
+		).toBe(404);
+	});
 	it.each([
 		[1005, 1000],
 		[1006, 1011],

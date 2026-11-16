@@ -237,6 +237,42 @@ describe("generation text moderation", () => {
 		);
 		expect(recordDenied).not.toHaveBeenCalled();
 	});
+	it("reuses a text review identity across retries but never for changed text on the same quote", async () => {
+		const moderateText = vi.fn(
+			async (_input: { text: string; ruleVersion: string; idempotencyKey?: string }) => ({
+				decision: "ALLOW" as const,
+				reasonCode: "NO_POLICY_MATCH",
+				ruleVersion: TEXT_MODERATION_RULE_VERSION,
+			}),
+		);
+		const dependencies = {
+			provider: "test" as const,
+			moderateText,
+			persistApproved: vi.fn(),
+			recordDenied: vi.fn(),
+		};
+		await moderateQuoteInput({ ...quote, quoteId: "same-submission" }, dependencies);
+		await moderateQuoteInput(
+			{
+				...quote,
+				quoteId: "same-submission",
+				expiresAt: new Date(quote.expiresAt.getTime() + 10_000),
+			},
+			dependencies,
+		);
+		await moderateQuoteInput(
+			{
+				...quote,
+				quoteId: "same-submission",
+				inputSnapshot: { ...quote.inputSnapshot, prompt: "changed prompt" },
+			},
+			dependencies,
+		);
+		const keys = moderateText.mock.calls.map(([input]) => input.idempotencyKey);
+		expect(keys[0]).toBeTruthy();
+		expect(keys[1]).toBe(keys[0]);
+		expect(keys[2]).not.toBe(keys[0]);
+	});
 
 	it("requires an explicit test-adapter switch and forbids it in production", () => {
 		expect(() =>

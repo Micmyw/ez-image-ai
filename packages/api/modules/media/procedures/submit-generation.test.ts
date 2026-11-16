@@ -15,6 +15,7 @@ vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn() }));
 vi.mock("@repo/logs", () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
 
 import { createFlowTiming } from "../lib/flow-timing";
+import { prepareGenerationQuoteForUser } from "./create-quote";
 import { submitGenerationForUser, submitGenerationInputSchema } from "./submit-generation";
 
 type Dependencies = NonNullable<Parameters<typeof submitGenerationForUser>[2]>;
@@ -40,6 +41,8 @@ function fixture() {
 			const quote: Quote = {
 				id: submission.quoteId,
 				productKey: input.productKey,
+				catalogVersion: "v1",
+				pricingVersion: "v1",
 				credits: 5n,
 				expiresAt: new Date("2099-01-01"),
 				inputSnapshot: { submissionFingerprint: submission.fingerprint },
@@ -91,6 +94,46 @@ function deferred() {
 	return { promise, resolve, reject };
 }
 describe("combined generation admission", () => {
+	it("prepares once without reserving credits and consumes the exact quote on click", async () => {
+		const f = fixture();
+		const preparedInput = {
+			...input,
+			preparation: { idempotencyKey: input.idempotencyKey, expectedCredits: input.expectedCredits },
+		};
+		const prepared = await prepareGenerationQuoteForUser("user", preparedInput, f.dependencies);
+		const duplicate = await prepareGenerationQuoteForUser("user", preparedInput, f.dependencies);
+		expect(duplicate.id).toBe(prepared.id);
+		expect(f.dependencies.createQuote).toHaveBeenCalledOnce();
+		expect(f.dependencies.createJob).not.toHaveBeenCalled();
+		expect(f.dependencies.dispatch).not.toHaveBeenCalled();
+		const submitted = await submitGenerationForUser("user", input, f.dependencies);
+		expect(submitted.quote.id).toBe(prepared.id);
+		expect(f.dependencies.createQuote).toHaveBeenCalledOnce();
+		expect(f.dependencies.createJob).toHaveBeenCalledOnce();
+		await submitGenerationForUser("user", input, f.dependencies);
+		expect(f.dependencies.createJob).toHaveBeenCalledOnce();
+	});
+	it("rejects changed prepared text and an expired unused preparation", async () => {
+		const f = fixture();
+		const preparedInput = {
+			...input,
+			preparation: { idempotencyKey: input.idempotencyKey, expectedCredits: input.expectedCredits },
+		};
+		const quote = await prepareGenerationQuoteForUser("user", preparedInput, f.dependencies);
+		await expect(
+			prepareGenerationQuoteForUser(
+				"user",
+				{ ...preparedInput, input: { ...input.input, prompt: "different text" } },
+				f.dependencies,
+			),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+		f.quotes.get(quote.id)!.expiresAt = new Date(0);
+		await expect(
+			prepareGenerationQuoteForUser("user", preparedInput, f.dependencies),
+		).rejects.toThrow("QUOTE_EXPIRED");
+		expect(f.dependencies.createQuote).toHaveBeenCalledOnce();
+		expect(f.dependencies.createJob).not.toHaveBeenCalled();
+	});
 	it("keeps diagnostic references outside the accepted submission identity", async () => {
 		const f = fixture();
 		const first = await submitGenerationForUser(

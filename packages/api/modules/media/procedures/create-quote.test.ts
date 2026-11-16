@@ -12,6 +12,7 @@ vi.mock("@repo/database", () => ({
 	unexpiredStorageReservations: () => ({}),
 }));
 
+import { createGenerationRateLimitReceipt } from "../lib/generation-authorization";
 import { signTemporaryReference } from "../lib/temporary-reference-token";
 import { createQuoteInputSchema } from "../types";
 import { createQuoteForUser } from "./create-quote";
@@ -31,6 +32,58 @@ const INPUT = {
 
 describe("createQuoteForUser", () => {
 	afterEach(() => vi.unstubAllEnvs());
+	it.each([true, false])(
+		"runs review and eligibility together, persisting only after both allow (%s)",
+		async (allowed) => {
+			let finishEligibility!: () => void;
+			let failEligibility!: (error: Error) => void;
+			const eligibility = new Promise<void>((resolve, reject) => {
+				finishEligibility = resolve;
+				failEligibility = reject;
+			});
+			const assertAllowed = vi.fn(() => eligibility);
+			const moderateText = vi.fn(async ({ ruleVersion }) => ({
+				decision: "ALLOW" as const,
+				reasonCode: "NO_POLICY_MATCH",
+				ruleVersion,
+			}));
+			const persistApproved = vi.fn(async (quote) => ({ ...quote, id: quote.quoteId }));
+			const receipt = await createGenerationRateLimitReceipt("user_1", async () => undefined);
+			const pending = createQuoteForUser(
+				"user_1",
+				INPUT,
+				{
+					now: () => new Date(),
+					assertAllowed,
+					persistApproved,
+					recordDenied: vi.fn(),
+					createAdapter: () => ({ provider: "waffo", adapter: { moderateText } }),
+				},
+				{
+					quoteId: "submit_parallel",
+					fingerprint: "a".repeat(64),
+					expectedCredits: "5",
+					rateLimitReceipt: receipt,
+				},
+			);
+			for (let n = 0; n < 12; n++) await Promise.resolve();
+			expect(assertAllowed).toHaveBeenCalledOnce();
+			expect(moderateText).toHaveBeenCalledOnce();
+			expect(moderateText.mock.calls[0]![0]).toMatchObject({
+				idempotencyKey: expect.stringContaining("submit_parallel"),
+			});
+			expect(persistApproved).not.toHaveBeenCalled();
+			if (allowed) {
+				finishEligibility();
+				await expect(pending).resolves.toMatchObject({ id: "submit_parallel" });
+				expect(persistApproved).toHaveBeenCalledOnce();
+			} else {
+				failEligibility(new Error("INSUFFICIENT_CREDITS"));
+				await expect(pending).rejects.toThrow("INSUFFICIENT_CREDITS");
+				expect(persistApproved).not.toHaveBeenCalled();
+			}
+		},
+	);
 	it("keeps an approved merged quote in memory for the atomic job transaction", async () => {
 		const persistApproved = vi.fn();
 		const moderateText = vi.fn(async ({ ruleVersion }) => ({

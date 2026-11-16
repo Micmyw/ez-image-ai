@@ -428,7 +428,7 @@ describe("generation authorization", () => {
 				routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
 			});
 			await expect(check).resolves.toBeUndefined();
-			expect(production.freeCredits).toHaveBeenCalledWith("user-1");
+			expect(production.freeCredits).not.toHaveBeenCalled();
 			expect(production.db.generationQuote.aggregate).toHaveBeenCalledTimes(1);
 			const globalCalls = production.db.generationQuote.aggregate.mock.calls.filter(
 				([input]) => input.where.ownerId === undefined,
@@ -499,14 +499,14 @@ describe("generation authorization", () => {
 		},
 	);
 
-	it("initializes the server-side Free grant before reading generation access", async () => {
+	it("recovers a missing Free grant only when the current balance is insufficient", async () => {
 		const callOrder: string[] = [];
 		const ensureFreeCredits = vi.fn(async () => {
 			callOrder.push("grant");
 		});
 		const loadAccess = vi.fn(async () => {
 			callOrder.push("access");
-			return BASE_SNAPSHOT;
+			return { ...BASE_SNAPSHOT, spendableCredits: callOrder.includes("grant") ? 8n : 0n };
 		});
 
 		await assertGenerationAllowed(
@@ -526,7 +526,7 @@ describe("generation authorization", () => {
 		);
 
 		expect(ensureFreeCredits).toHaveBeenCalledWith("user-1");
-		expect(callOrder).toEqual(["grant", "access"]);
+		expect(callOrder).toEqual(["access", "grant", "access"]);
 	});
 
 	it("requires an owned READY image asset for image-to-image input", () => {

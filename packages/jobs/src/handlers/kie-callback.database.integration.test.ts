@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import type { MediaProviderAdapter, NormalizedResult } from "@repo/ai";
+import type { KieImageCallbackCompletion } from "@repo/config/kie-image-callback";
 import { getAttemptGenerationContinuation, wakeKieGenerationAttempt } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -24,6 +25,7 @@ const pendingResult: NormalizedResult = {
 describe("Kie completion notices with real PostgreSQL leases", () => {
 	let client: PrismaClient;
 	let queryCount = 0;
+	const statements: string[] = [];
 	const jobIds: string[] = [];
 	const quoteIds: string[] = [];
 	const accountIds: string[] = [];
@@ -47,7 +49,10 @@ describe("Kie completion notices with real PostgreSQL leases", () => {
 			adapter: new PrismaPg({ connectionString, max: 6 }),
 			log: [{ level: "query", emit: "event" }],
 		});
-		observed.$on("query", () => queryCount++);
+		observed.$on("query", (event) => {
+			queryCount++;
+			statements.push(event.query);
+		});
 		client = observed;
 	});
 	afterAll(async () => {
@@ -136,6 +141,133 @@ describe("Kie completion notices with real PostgreSQL leases", () => {
 		expect(queryCount - before).toBe(1);
 		return result;
 	}
+	function completion(f: Awaited<ReturnType<typeof fixture>>): KieImageCallbackCompletion {
+		return {
+			version: 1,
+			source: "kie-image-success-callback",
+			authentication: "kie-hmac-sha256",
+			providerTaskId: f.providerTaskId,
+			providerModelId: "nano-banana-2-lite",
+			outputUrl: "https://tempfile.aiquickdraw.com/callback-output.png",
+			receivedAt: new Date().toISOString(),
+		};
+	}
+	it("reuses a signed callback result with zero provider GETs and two ingress SQL statements", async () => {
+		const f = await fixture();
+		const result = { ...completion(f), creditsConsumed: 2 };
+		const before = statements.length;
+		expect(
+			await wakeKieGenerationAttempt(
+				{ attemptId: f.attemptId, providerTaskId: f.providerTaskId, completion: result },
+				client,
+			),
+		).toBe("ready");
+		expect(statements.slice(before).filter((sql) => /^\s*(SELECT|WITH)\b/i.test(sql))).toHaveLength(
+			2,
+		);
+		const getProvider = vi.fn(() => {
+			throw new Error("SHOULD_NOT_QUERY_PROVIDER");
+		});
+		const tick = await executePollingTick(
+			{ attemptId: f.attemptId },
+			{
+				store: createDatabaseReconciliationStore(client),
+				getProvider,
+				continuation: (attemptId) => getAttemptGenerationContinuation(attemptId, client),
+			},
+		);
+		expect(getProvider).not.toHaveBeenCalled();
+		expect(tick).toMatchObject({ done: true, outboxCommitted: true });
+		expect((await f.read()).status).toBe("SUCCEEDED");
+		expect((await f.read()).providerCostMicros).toBe(10_000n);
+		expect((await f.read()).responseSnapshot).not.toHaveProperty("providerTerminalEvidence");
+		expect(
+			await client.generationAttemptTransferEnvelope.findUnique({
+				where: { attemptId: f.attemptId },
+			}),
+		).toMatchObject({
+			payload: expect.objectContaining({ outputs: expect.any(Array) }),
+		});
+		// Provider completion is not moderation approval or a second credit settlement.
+		expect(await client.generationJob.findUnique({ where: { id: f.job.id } })).toMatchObject({
+			status: "FINALIZING",
+		});
+		expect(
+			await client.creditReservation.findUnique({ where: { id: f.job.reservation!.id } }),
+		).toEqual(f.job.reservation);
+	});
+	it("recovers the same complete result after a claimed worker crashes and freezes duplicate URLs", async () => {
+		const f = await fixture();
+		const result = completion(f);
+		expect(
+			await wakeKieGenerationAttempt(
+				{ attemptId: f.attemptId, providerTaskId: f.providerTaskId, completion: result },
+				client,
+			),
+		).toBe("ready");
+		const first = await claim(f, false);
+		expect(first.completion?.result.outputs).toMatchObject([{ url: result.outputUrl }]);
+		expect(
+			await wakeKieGenerationAttempt(
+				{
+					attemptId: f.attemptId,
+					providerTaskId: f.providerTaskId,
+					completion: { ...result, outputUrl: "https://tempfile.aiquickdraw.com/changed.png" },
+				},
+				client,
+			),
+		).toBe("recorded");
+		await client.generationAttempt.update({
+			where: { id: f.attemptId },
+			data: { reconcileLeasedUntil: new Date(0) },
+		});
+		const second = await singleRead(() =>
+			createDatabaseReconciliationStore(client).claimStale({
+				attemptId: f.attemptId,
+				limit: 1,
+				leaseSeconds: 60,
+				now: new Date(),
+			}),
+		);
+		expect(second[0]?.completion?.result.outputs).toMatchObject([{ url: result.outputUrl }]);
+	});
+	it("retains an early complete callback until the real submission binds its task", async () => {
+		const f = await fixture({ bound: false });
+		expect(
+			await wakeKieGenerationAttempt(
+				{ attemptId: f.attemptId, providerTaskId: f.providerTaskId, completion: completion(f) },
+				client,
+			),
+		).toBe("recorded");
+		expect((await f.read()).providerTaskId).toBeNull();
+		await recordAccepted(f);
+		expect((await claim(f)).completion?.result.outputs).toHaveLength(1);
+	});
+	it("upgrades an incomplete consumed notice once without overwriting a later complete result", async () => {
+		const f = await fixture();
+		await f.wake();
+		await claim(f, false);
+		expect(
+			await wakeKieGenerationAttempt(
+				{ attemptId: f.attemptId, providerTaskId: f.providerTaskId, completion: completion(f) },
+				client,
+			),
+		).toBe("ready");
+		expect((await f.notices())[0]?.status).toBe("RECEIVED");
+		expect((await f.read()).reconcileLeaseToken).not.toBeNull();
+	});
+	it("does not reuse a callback from a different model or task", async () => {
+		const f = await fixture();
+		await wakeKieGenerationAttempt(
+			{
+				attemptId: f.attemptId,
+				providerTaskId: f.providerTaskId,
+				completion: { ...completion(f), providerModelId: "different-model" },
+			},
+			client,
+		);
+		expect((await claim(f, false)).completion).toBeUndefined();
+	});
 
 	it("reads the active attempt and current job status in one fresh polling statement", async () => {
 		const f = await fixture();

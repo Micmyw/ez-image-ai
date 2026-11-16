@@ -171,6 +171,8 @@ export async function findGenerationSubmissionQuote(
 		select: {
 			id: true,
 			productKey: true,
+			catalogVersion: true,
+			pricingVersion: true,
 			credits: true,
 			pricingSnapshot: true,
 			expiresAt: true,

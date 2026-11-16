@@ -189,7 +189,7 @@ export function useGuestTrial({
 	const requestAccess = useCallback(
 		async (jobId: string, assetId: string, disposition: "inline" | "attachment") => {
 			return registered
-				? await orpcClient.media.getAssetAccessUrl({ assetId, disposition })
+				? await orpcClient.media.getAssetAccessUrl({ jobId, assetId, disposition })
 				: await orpcClient.media.getGuestAssetAccessUrl({ jobId, assetId, disposition });
 		},
 		[registered],

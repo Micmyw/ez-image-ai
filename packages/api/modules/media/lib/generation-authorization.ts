@@ -34,16 +34,20 @@ const rateLimitReceiptBrand: unique symbol = Symbol("generation-rate-limit-recei
 export interface GenerationRateLimitReceipt {
 	readonly [rateLimitReceiptBrand]: true;
 }
-const rateLimitReceiptOwners = new WeakMap<GenerationRateLimitReceipt, string>();
+const rateLimitReceiptOwners = new WeakMap<
+	GenerationRateLimitReceipt,
+	{ userId: string; action: string }
+>();
 
 /** Issued only after this incoming request passes the real flood guard. Never serialized. */
 export async function createGenerationRateLimitReceipt(
 	userId: string,
 	enforceRateLimit: typeof enforceMediaRateLimit = enforceMediaRateLimit,
+	action: "media:generation" | "media:quote" = "media:generation",
 ): Promise<GenerationRateLimitReceipt> {
-	await enforceRateLimit(userId, "media:generation");
+	await enforceRateLimit(userId, action);
 	const receipt = Object.freeze({ [rateLimitReceiptBrand]: true as const });
-	rateLimitReceiptOwners.set(receipt, userId);
+	rateLimitReceiptOwners.set(receipt, { userId, action });
 	return receipt;
 }
 
@@ -256,9 +260,10 @@ export async function assertGenerationAllowed(
 		});
 	}
 	if (input.rateLimitReceipt !== undefined) {
+		const receipt = rateLimitReceiptOwners.get(input.rateLimitReceipt);
 		if (
-			rateLimitReceiptOwners.get(input.rateLimitReceipt) !== input.userId ||
-			(input.rateLimitAction !== undefined && input.rateLimitAction !== "media:generation")
+			receipt?.userId !== input.userId ||
+			receipt.action !== (input.rateLimitAction ?? "media:generation")
 		)
 			throw new Error("NOT_FOUND");
 	} else {
@@ -270,8 +275,17 @@ export async function assertGenerationAllowed(
 	) {
 		throw new Error("PRICE_CHANGED");
 	}
-	await dependencies.ensureFreeCredits?.(input.userId);
-	const access = await dependencies.loadAccess(input);
+	let access = await dependencies.loadAccess(input);
+	// Login and the editor's balance read already issue the lifetime allowance.
+	// Only an unfunded credit request needs the existing issuance-recovery path.
+	if (
+		fundingSource === "CREDITS" &&
+		access.spendableCredits < input.credits &&
+		dependencies.ensureFreeCredits
+	) {
+		await dependencies.ensureFreeCredits(input.userId);
+		access = await dependencies.loadAccess(input);
+	}
 	if (
 		!access.generationEnabled ||
 		access.modelDisabled ||

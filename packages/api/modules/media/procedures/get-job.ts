@@ -6,11 +6,13 @@ import { generationFailureCategory, isTechnicalGenerationFailureCode } from "@re
 import { db } from "@repo/database/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "@repo/database/media-assets";
 import { getOwnedGenerationJobStatus } from "@repo/database/media-job-status";
+import { readImageResult } from "@repo/jobs/realtime/image-result";
 
 import { protectedProcedure } from "../../../orpc/procedures";
 import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
 import { signAuthorizedAssetReadUrl } from "../lib/asset-read-url";
 import { createFlowTiming } from "../lib/flow-timing";
+import { isCurrentImageResult, imageResultDto } from "../lib/image-result";
 import { publicImageGenerationInput } from "../lib/public-generation-input";
 import { publicImageModerationReason } from "../lib/public-moderation-reason";
 import { jobIdInputSchema, jsonBigInt } from "../types";
@@ -22,6 +24,7 @@ export const getJob = protectedProcedure
 		const timing = createFlowTiming({ requestId, jobId: input.jobId });
 		responseHeaders?.set("Cache-Control", "private, no-store");
 		const observedAt = Date.now();
+		const earlyResult = readImageResult(input.jobId).catch(() => null);
 		const job = await timing.measure("status.query", () =>
 			getOwnedGenerationJobStatus(input.jobId, user.id, db),
 		);
@@ -145,6 +148,36 @@ export const getJob = protectedProcedure
 				}),
 			),
 		);
+		const receipt = await earlyResult;
+		if (receipt) {
+			const existing = job.assets.find(({ asset }) => asset.id === receipt.assetId)?.asset;
+			if (
+				isCurrentImageResult(receipt, {
+					ownerId: user.id,
+					status: job.status,
+					attemptId: attempt?.id,
+					providerTaskId: attempt?.providerTaskId,
+					uncertainSubmission: attempt?.uncertainSubmission,
+					attemptStatus: attempt?.status,
+					assetStatus: existing?.status,
+					deletedAt: existing?.deletedAt,
+					deleteAfter: existing?.deleteAfter,
+					verificationGeneration: existing?.verificationGeneration,
+					promptRejected: job.promptRejected,
+				})
+			) {
+				const index = outputs.findIndex((asset) => asset.id === receipt.assetId);
+				const delivered = imageResultDto(receipt);
+				if (index < 0) outputs.push(delivered);
+				else
+					outputs[index] = {
+						...outputs[index]!,
+						contentVersion: delivered.contentVersion,
+						visibleUntil: delivered.visibleUntil,
+						preview: delivered.preview,
+					};
+			}
+		}
 		const displayVersion = createHash("sha256")
 			.update(
 				JSON.stringify([
@@ -173,7 +206,10 @@ export const getJob = protectedProcedure
 			observedAt,
 			displayVersion,
 			id: job.id,
-			status: job.status,
+			status:
+				outputs.length > 0 && ["PROVIDER_PENDING", "PROVIDER_RUNNING"].includes(job.status)
+					? ("FINALIZING" as const)
+					: job.status,
 			version: job.version,
 			creditsReserved: jsonBigInt(job.creditsReserved),
 			fundingSource,

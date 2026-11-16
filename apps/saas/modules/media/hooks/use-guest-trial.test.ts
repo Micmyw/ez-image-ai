@@ -243,6 +243,11 @@ describe("useGuestTrial", () => {
 		expect(trial.view.state).toBe("ready");
 		expect(api.completeGuestLinkIntent).toHaveBeenCalledWith({});
 		expect(api.getGrantedGuestJob).toHaveBeenCalledWith({ jobId: "linked-job-1" });
+		expect(api.getAssetAccessUrl).toHaveBeenCalledWith({
+			jobId: "guest-job-1",
+			assetId: "output-1",
+			disposition: "inline",
+		});
 		expect(api.getGuestEligibility).not.toHaveBeenCalled();
 	});
 

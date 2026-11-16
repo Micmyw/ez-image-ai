@@ -282,7 +282,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 					</Button>
 				)}
 				{presentation.stage === "ready" && output && (
-					<DownloadButton assetId={output.id} productKey={productKey} />
+					<DownloadButton assetId={output.id} jobId={jobId!} productKey={productKey} />
 				)}
 				{presentation.stage === "ready" && output && reusableRasterOutput && (
 					<WallpaperButton
@@ -291,6 +291,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 							(
 								await orpcClient.media.getAssetAccessUrl({
 									assetId: output.id,
+									jobId: jobId!,
 									disposition: "inline",
 								})
 							).url
@@ -320,6 +321,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 							(
 								await orpcClient.media.getAssetAccessUrl({
 									assetId: output.id,
+									jobId: jobId!,
 									disposition: "inline",
 								})
 							).url
@@ -466,9 +468,11 @@ function SignedComparison({
 
 function DownloadButton({
 	assetId,
+	jobId,
 	productKey,
 }: {
 	assetId: string;
+	jobId: string;
 	productKey: EditorProductKey;
 }) {
 	const t = useTranslations("media.status");
@@ -482,6 +486,7 @@ function DownloadButton({
 				getAccessUrl: (requestedAssetId) =>
 					orpcClient.media.getAssetAccessUrl({
 						assetId: requestedAssetId,
+						jobId,
 						disposition: "attachment",
 					}),
 				navigate: (url) => {

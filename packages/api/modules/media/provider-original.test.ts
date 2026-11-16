@@ -1,21 +1,39 @@
+import { Readable } from "node:stream";
+
 import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
+import { imageResultFixture } from "@repo/jobs/realtime/image-result.fixture";
 import { createProviderOriginalReadUrl } from "@repo/storage/lib/provider-original-access";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { signImageResultReadUrl } from "./lib/image-result";
 const mocks = vi.hoisted(() => ({
 	asset: vi.fn(),
 	origin: vi.fn(),
 	remote: vi.fn(),
 	stored: vi.fn(),
+	result: vi.fn(),
+	access: vi.fn(),
+	open: vi.fn(),
+	candidate: vi.fn(),
 }));
 vi.mock("@repo/database/client", () => ({
 	db: { mediaAsset: { findUnique: mocks.asset }, mediaOutputOrigin: { findUnique: mocks.origin } },
 }));
 vi.mock("@repo/storage/lib/provider-original-bytes", () => ({
 	readProviderOriginalBytes: mocks.remote,
+	readProviderCandidateBytes: mocks.candidate,
+}));
+vi.mock("@repo/database/media-image-result-access", () => ({ getImageResultAccess: mocks.access }));
+vi.mock("@repo/jobs/realtime/image-result", async () => ({
+	...(await vi.importActual<typeof import("@repo/jobs/realtime/image-result")>(
+		"@repo/jobs/realtime/image-result",
+	)),
+	readImageResult: mocks.result,
 }));
 vi.mock("@repo/storage", async () => ({
 	...(await vi.importActual<typeof import("@repo/storage")>("@repo/storage")),
 	readArchivedMediaStream: mocks.stored,
+	openInspectedRemoteMedia: mocks.open,
 }));
 import { serveProviderOriginal } from "./provider-original";
 
@@ -78,6 +96,94 @@ beforeEach(() => {
 	mocks.remote.mockResolvedValue(new Uint8Array([1, 2, 3]));
 });
 describe("provider original access", () => {
+	it("streams an approved callback source before bytes finish and without R2 or hash reads", async () => {
+		const receipt = imageResultFixture();
+		mocks.result.mockResolvedValue(receipt);
+		mocks.access.mockResolvedValue({
+			ownerId: "user-1",
+			status: "PROVIDER_RUNNING",
+			attemptId: "attempt-1",
+			providerTaskId: "remote-1",
+			uncertainSubmission: false,
+		});
+		const source = new Readable({ read() {} });
+		mocks.open.mockResolvedValue({ contentType: "image/png", headers: {}, stream: source });
+		const response = await serveProviderOriginal(new Request(signImageResultReadUrl(receipt).url));
+		expect(response.status).toBe(200);
+		expect(source.readableEnded).toBe(false);
+		expect(mocks.remote).not.toHaveBeenCalled();
+		expect(mocks.stored).not.toHaveBeenCalled();
+		expect(mocks.asset).not.toHaveBeenCalled();
+		expect(mocks.origin).not.toHaveBeenCalled();
+		source.push(Buffer.from([1, 2, 3]));
+		source.push(null);
+		expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([1, 2, 3]);
+	});
+	it.each(["DELETED", "QUARANTINED", "REVERIFY"])(
+		"checks %s after source setup using one fresh authorization",
+		async (change) => {
+			const receipt = imageResultFixture();
+			mocks.result.mockResolvedValue(receipt);
+			const access = {
+				ownerId: "user-1",
+				status: "FINALIZING",
+				attemptId: "attempt-1",
+				providerTaskId: "remote-1",
+				assetStatus: "VERIFYING",
+				verificationGeneration: 1,
+			};
+			mocks.access.mockImplementation(async () => access);
+			const source = new Readable({ read() {} });
+			mocks.open.mockImplementationOnce(async () => {
+				expect(mocks.access).not.toHaveBeenCalled();
+				if (change === "REVERIFY") access.verificationGeneration = 2;
+				else access.assetStatus = change;
+				return { contentType: "image/png", headers: {}, stream: source };
+			});
+			expect(
+				(await serveProviderOriginal(new Request(signImageResultReadUrl(receipt).url))).status,
+			).toBe(404);
+			expect(source.destroyed).toBe(true);
+			expect(mocks.access).toHaveBeenCalledOnce();
+		},
+	);
+	it("denies an old policy receipt and keeps registered guest delivery watermarked", async () => {
+		const receipt = imageResultFixture();
+		receipt.context.guest = true;
+		mocks.result.mockResolvedValue(receipt);
+		mocks.candidate.mockResolvedValue(new Uint8Array([1, 2, 3]));
+		mocks.access.mockResolvedValue({
+			ownerId: "user-1",
+			status: "FINALIZING",
+			attemptId: "attempt-1",
+			providerTaskId: "remote-1",
+			grantedUserId: "registered-1",
+			guestExpiresAt: new Date(receipt.context.expiresAt),
+		});
+		const url = signImageResultReadUrl(receipt, "attachment", "registered-1").url;
+		const response = await serveProviderOriginal(new Request(url));
+		expect(response.status).toBe(200);
+		expect(mocks.candidate).toHaveBeenCalledWith(expect.objectContaining({ watermark: true }));
+		expect(mocks.access).toHaveBeenCalledWith(
+			"job-1",
+			receipt.assetId,
+			expect.anything(),
+			"registered-1",
+		);
+		expect([...new Uint8Array(await response.arrayBuffer())]).toEqual([1, 2, 3]);
+		mocks.result.mockResolvedValue({ ...receipt, policyVersion: "obsolete-policy" });
+		expect((await serveProviderOriginal(new Request(url))).status).toBe(404);
+		mocks.result.mockResolvedValue(receipt);
+		mocks.access.mockResolvedValue({
+			ownerId: "user-1",
+			status: "FINALIZING",
+			attemptId: "attempt-1",
+			providerTaskId: "remote-1",
+			guestExpiresAt: new Date(receipt.context.expiresAt),
+			grantedUserId: "different-user",
+		});
+		expect((await serveProviderOriginal(new Request(url))).status).toBe(404);
+	});
 	it.each(["svg", "gif"] as const)(
 		"serves an approved %s original before archival",
 		async (format) => {

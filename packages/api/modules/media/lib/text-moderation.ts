@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
 	createMediaSafetyAdapter,
 	createSeeapiTextScanner,
@@ -30,15 +32,23 @@ export interface TextModerationEvidence extends Omit<ModerationDecision, "decisi
 
 interface ModerateQuoteDependencies<T> {
 	provider: TextModerationEvidence["provider"];
-	moderateText(input: { text: string; ruleVersion: string }): Promise<ModerationDecision>;
+	moderateText(input: {
+		text: string;
+		ruleVersion: string;
+		idempotencyKey?: string;
+	}): Promise<ModerationDecision>;
 	persistApproved(evidence: TextModerationEvidence): Promise<T> | T;
 	recordDenied(evidence: TextModerationEvidence): Promise<void> | void;
 	retryWait?: (milliseconds: number) => Promise<void>;
 }
 
 export async function moderateTextWithRetry(
-	input: { text: string; ruleVersion: string },
-	scan: (input: { text: string; ruleVersion: string }) => Promise<ModerationDecision>,
+	input: { text: string; ruleVersion: string; idempotencyKey?: string },
+	scan: (input: {
+		text: string;
+		ruleVersion: string;
+		idempotencyKey?: string;
+	}) => Promise<ModerationDecision>,
 	wait = (milliseconds: number) =>
 		new Promise<void>((resolve) => setTimeout(resolve, milliseconds)),
 ): Promise<Omit<TextModerationEvidence, "provider" | "inputFingerprint">> {
@@ -70,10 +80,21 @@ export async function moderateQuoteInput<T>(
 	input: Omit<CreateModeratedGenerationQuoteInput, "moderation">,
 	dependencies: ModerateQuoteDependencies<T>,
 ): Promise<T> {
+	const text = (input.inputSnapshot as { prompt: string }).prompt;
+	// Competing first requests may reuse a quote key with different text before
+	// either quote is stored. Bind the provider identity to the reviewed content.
+	const reviewKey = input.quoteId
+		? `quote-text:${input.quoteId}:${createHash("sha256")
+				.update(
+					JSON.stringify([input.ownerType, input.ownerId, TEXT_MODERATION_RULE_VERSION, text]),
+				)
+				.digest("hex")}`
+		: undefined;
 	const result = await moderateTextWithRetry(
 		{
-			text: (input.inputSnapshot as { prompt: string }).prompt,
+			text,
 			ruleVersion: TEXT_MODERATION_RULE_VERSION,
+			...(reviewKey ? { idempotencyKey: reviewKey } : {}),
 		},
 		(value) => dependencies.moderateText(value),
 		dependencies.retryWait,

@@ -1,3 +1,8 @@
+import {
+	imageResultReceiptSchema,
+	isApprovedImageResult,
+	type ImageResultReceipt,
+} from "@repo/config/image-result";
 import { readBoundedBody } from "@repo/jobs/orchestration/auth";
 import {
 	MEDIA_JOB_SUBSCRIPTION_TTL_MS,
@@ -6,6 +11,7 @@ import {
 	readMediaJobNotification,
 	type MediaJobNotification,
 } from "@repo/jobs/realtime/contracts";
+import { imageResultNotification, mergeImageResult } from "@repo/jobs/realtime/image-result";
 import { DurableObject } from "cloudflare:workers";
 
 type HubState = { jobId: string; latest?: MediaJobNotification; recent: string[] };
@@ -31,10 +37,64 @@ function replyCloseCode(code: number): number {
 	return 1011;
 }
 
-/** Identity hints only. Business state and authorization always remain in PostgreSQL. */
+/** Notifications and short-lived provider review receipts. PostgreSQL continues
+ * to own account authorization, revocation, job accounting and financial state. */
 export class MediaJobEvents extends DurableObject {
 	async fetch(request: Request): Promise<Response> {
 		const url = new URL(request.url);
+		if (request.method === "POST" && url.pathname === "/image-result") {
+			try {
+				const input = JSON.parse(await readBoundedBody(request, 65_536)) as {
+					jobId: string;
+					receipt?: unknown;
+				};
+				if (!/^[\w-]{1,128}$/.test(input.jobId)) return new Response(null, { status: 400 });
+				const next = input.receipt ? imageResultReceiptSchema.parse(input.receipt) : undefined;
+				const receipt = await this.ctx.storage.transaction(async (transaction) => {
+					const state = await transaction.get<HubState>(STATE_KEY);
+					if (state && state.jobId !== input.jobId) throw new Error("Job mismatch");
+					const previous = await transaction.get<ImageResultReceipt>("image-result");
+					if (!next) return previous;
+					if (next.context.jobId !== input.jobId || next.context.expiresAt <= Date.now())
+						throw new Error("Invalid receipt");
+					const merged = mergeImageResult(previous, next);
+					await transaction.put("image-result", merged);
+					const notification = isApprovedImageResult(merged)
+						? imageResultNotification(merged)
+						: undefined;
+					await transaction.put<HubState>(STATE_KEY, {
+						jobId: input.jobId,
+						latest: notification ?? state?.latest,
+						recent: notification
+							? [...new Set([...(state?.recent ?? []), notification.eventId])].slice(-64)
+							: (state?.recent ?? []),
+					});
+					const alarm = await transaction.getAlarm();
+					if (alarm === null || alarm > merged.context.expiresAt)
+						await transaction.setAlarm(merged.context.expiresAt);
+					return merged;
+				});
+				if (!receipt || receipt.context.expiresAt <= Date.now())
+					return new Response(null, { status: 404 });
+				if (next && isApprovedImageResult(receipt)) {
+					const message = JSON.stringify({
+						type: "job-updated",
+						...imageResultNotification(receipt),
+					});
+					for (const socket of this.ctx.getWebSockets()) {
+						if (!this.isCurrent(socket)) continue;
+						try {
+							socket.send(message);
+						} catch {
+							socket.close(1011, "Reconnect");
+						}
+					}
+				}
+				return Response.json(receipt, { headers: { "Cache-Control": "private, no-store" } });
+			} catch {
+				return new Response(null, { status: 409 });
+			}
+		}
 		if (request.method === "GET" && url.pathname === "/subscribe")
 			return this.subscribe(request, url);
 		if (request.method === "POST" && url.pathname === "/publish") {
@@ -131,6 +191,11 @@ export class MediaJobEvents extends DurableObject {
 
 	async alarm(): Promise<void> {
 		let nextExpiry = Infinity;
+		const receipt = await this.ctx.storage.get<ImageResultReceipt>("image-result");
+		if (receipt) {
+			if (receipt.context.expiresAt <= Date.now()) await this.ctx.storage.delete("image-result");
+			else nextExpiry = receipt.context.expiresAt;
+		}
 		for (const socket of this.ctx.getWebSockets()) {
 			if (this.isCurrent(socket))
 				nextExpiry = Math.min(

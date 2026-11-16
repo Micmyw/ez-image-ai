@@ -1,9 +1,11 @@
 import { call, ORPCError } from "@orpc/server";
+import { imageResultFixture } from "@repo/jobs/realtime/image-result.fixture";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	getSession: vi.fn(),
 	getStatus: vi.fn(),
+	result: vi.fn(async () => null as ReturnType<typeof imageResultFixture> | null),
 	database: {},
 	sign: vi.fn(async () => "https://private.test/preview"),
 }));
@@ -14,6 +16,12 @@ vi.mock("@repo/database/client", () => ({
 }));
 vi.mock("@repo/database/media-job-status", () => ({
 	getOwnedGenerationJobStatus: mocks.getStatus,
+}));
+vi.mock("@repo/jobs/realtime/image-result", async () => ({
+	...(await vi.importActual<typeof import("@repo/jobs/realtime/image-result")>(
+		"@repo/jobs/realtime/image-result",
+	)),
+	readImageResult: mocks.result,
 }));
 vi.mock("@repo/storage", () => ({ createSignedReadUrl: mocks.sign }));
 
@@ -93,6 +101,32 @@ const baseJob = {
 };
 
 describe("getJob", () => {
+	it("shows approved callback output before asset import or settlement", async () => {
+		const receipt = imageResultFixture();
+		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://app.test");
+		vi.stubEnv("WORKFLOWS_DISPATCH_SECRET", "s".repeat(32));
+		mocks.result.mockResolvedValueOnce(receipt);
+		mocks.getStatus.mockResolvedValue({
+			...baseJob,
+			status: "PROVIDER_RUNNING",
+			assets: [],
+			attempts: [
+				{
+					id: "attempt-1",
+					providerTaskId: "remote-1",
+					status: "RUNNING",
+					uncertainSubmission: false,
+				},
+			],
+			reservation: { settledAmount: 0n, releasedAmount: 0n },
+		});
+		const result = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
+		expect(result.status).toBe("FINALIZING");
+		expect(result.assets[0]?.preview.url).toContain("/api/media/original?result=");
+		expect(JSON.stringify(result)).not.toContain("tempfile.aiquickdraw.com");
+		expect(result.creditsCharged).toBe("0");
+		expect(mocks.sign).not.toHaveBeenCalled();
+	});
 	it("reads owner-scoped state and includes an authorized preview in one response", async () => {
 		mocks.getStatus.mockResolvedValue(baseJob);
 		const responseHeaders = new Headers();

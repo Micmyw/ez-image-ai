@@ -196,42 +196,5 @@ export class KieVideoV1Adapter {
 	}
 }
 
-/** Kie signs the task identity only; callers MUST query recordInfo before trusting any body state or URL. */
-export async function verifyKieVideoWebhook(input: {
-	taskId: string;
-	timestamp: string | null;
-	signature: string | null;
-	secret: string;
-	nowSeconds?: number;
-}): Promise<boolean> {
-	if (
-		!taskIdSchema.safeParse(input.taskId).success ||
-		!input.secret.trim() ||
-		!input.timestamp ||
-		!/^\d{10}$/.test(input.timestamp) ||
-		!input.signature ||
-		!/^[A-Za-z0-9+/]{43}=$/.test(input.signature)
-	)
-		return false;
-	const now = input.nowSeconds ?? Math.floor(Date.now() / 1000);
-	const delta = now - Number(input.timestamp);
-	if (delta > 300 || delta < -30) return false;
-	try {
-		const key = await crypto.subtle.importKey(
-			"raw",
-			new TextEncoder().encode(input.secret),
-			{ name: "HMAC", hash: "SHA-256" },
-			false,
-			["verify"],
-		);
-		const signature = Uint8Array.from(atob(input.signature), (value) => value.charCodeAt(0));
-		return await crypto.subtle.verify(
-			"HMAC",
-			key,
-			signature,
-			new TextEncoder().encode(`${input.taskId}.${input.timestamp}`),
-		);
-	} catch {
-		return false;
-	}
-}
+// Video keeps its existing query-only result policy; share only signature verification.
+export { verifyKieWebhook as verifyKieVideoWebhook } from "./kie-webhook";

@@ -15,6 +15,8 @@
 		"./image-pass-summary": "./image-pass-summary.ts",
 		"./image-pass.server": "./image-pass.server.ts",
 		"./kie-zero-cost-rejection": "./kie-zero-cost-rejection.ts",
+		"./kie-image-callback": "./kie-image-callback.ts",
+		"./image-result": "./image-result.ts",
 		"./provider-terminal-evidence": "./provider-terminal-evidence.ts",
 		"./content-safety": "./content-safety.ts",
 		"./photo-ideas": "./photo-ideas.ts",
