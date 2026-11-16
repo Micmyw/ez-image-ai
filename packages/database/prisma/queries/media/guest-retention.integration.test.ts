@@ -4,8 +4,10 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
+import { getAdminGuestDiagnostics, monitorGuestOperationalSafety } from "./admin-diagnostics";
 import { markMediaAssetDeletedTransaction } from "./assets";
 import { expireGuestMediaTransaction } from "./guest-retention";
+import { claimOutboxBatch, deferOutboxEvent } from "./outbox";
 import { claimMediaStorageCleanupTransaction } from "./storage-cleanup";
 import { unexpiredStorageReservations } from "./temporary-references";
 
@@ -25,7 +27,7 @@ describe("guest absolute media retention", () => {
 	beforeEach(async () => {
 		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "true");
 		await client.$executeRawUnsafe(
-			'TRUNCATE TABLE "user", "guest_abuse_bucket", "guest_risk_budget_bucket", "outbox_event", "generation_quote" CASCADE',
+			'TRUNCATE TABLE "user", "guest_abuse_bucket", "guest_risk_budget_bucket", "outbox_event", "generation_quote", "runtime_config_override", "audit_log" CASCADE',
 		);
 	});
 
@@ -136,7 +138,48 @@ describe("guest absolute media retention", () => {
 				expiresAt: new Date(now.getTime() - 1),
 			},
 		});
-		await markMediaAssetDeletedTransaction({ assetId: current.id, ownerId }, client);
+		const automatic = await client.outboxEvent.create({
+			data: {
+				eventType: "MEDIA_OBJECT_DELETE",
+				aggregateType: "MEDIA_ASSET",
+				aggregateId: current.id,
+				dedupeKey: `expired-temporary-reference:${current.id}`,
+				payload: { assetId: current.id, objectKey: current.objectKey },
+				availableAt: now,
+			},
+		});
+		const [leased] = await claimOutboxBatch(
+			{ workerId: "cleanup", scope: "cleanup", limit: 1, leaseSeconds: 60, now },
+			client,
+		);
+		expect(leased!.id).toBe(automatic.id);
+		await deferOutboxEvent(
+			{
+				id: automatic.id,
+				workerId: "cleanup",
+				leaseToken: leased!.leaseToken,
+				now,
+				retryAt: new Date(now.getTime() + 3_600_000),
+				reason: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED",
+			},
+			client,
+		);
+		await markMediaAssetDeletedTransaction({ assetId: current.id, ownerId, now }, client);
+		const deletions = await claimOutboxBatch(
+			{
+				workerId: "cleanup",
+				scope: "cleanup",
+				limit: 1,
+				leaseSeconds: 60,
+				now: new Date(now.getTime() + 24 * 3_600_000),
+			},
+			client,
+		);
+		expect(deletions).toHaveLength(1);
+		expect(deletions[0]).toMatchObject({ dedupeKey: `media-object-delete:${current.id}` });
+		expect(
+			(await client.outboxEvent.findUniqueOrThrow({ where: { id: automatic.id } })).status,
+		).toBe("PENDING");
 		await expect(
 			claimMediaStorageCleanupTransaction(
 				{ assetId: current.id, objectKeys: [current.objectKey] },
@@ -192,6 +235,198 @@ describe("guest absolute media retention", () => {
 				where: { referenceKey: `media-draft:${asset.id}` },
 			}),
 		).toMatchObject({ status: "COMMITTED", bytes: 128n, releasedAt: null });
+	});
+
+	it.each([undefined, "false", "TRUE"])(
+		"keeps retained guest images out of overdue safety checks when deletion is %s",
+		async (automaticDeletion) => {
+			vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", automaticDeletion);
+			const now = new Date();
+			const { assets, override } = await createGuestCleanupDiagnosticsFixture(now);
+			await client.outboxEvent.create({
+				data: {
+					eventType: "MEDIA_MULTIPART_ABORT",
+					aggregateType: "MEDIA_ASSET",
+					aggregateId: assets[0]!.id,
+					dedupeKey: `diagnostic-abort:${randomUUID()}`,
+					payload: {},
+					status: "DEAD_LETTER",
+				},
+			});
+			const options = {
+				guestEnvironmentEnabled: true,
+				guestPromotionPeriod: "consumed-terminal-period",
+				guestRiskBudgetMicros: null,
+				now,
+			};
+			const read = await getAdminGuestDiagnostics(client, now, options);
+			const monitored = await monitorGuestOperationalSafety(client, options);
+			expect(read.cleanup).toEqual({
+				expiredAssets: 2,
+				overdueAssets: 0,
+				oldestOverdueSeconds: 0,
+				deadLetterEvents: 1,
+			});
+			expect(read.controls).toMatchObject({
+				admissionOpen: true,
+				automaticClosureReasons: [],
+			});
+			expect(monitored).toEqual({ checked: true, admissionOpen: true, closureReasons: [] });
+			expect(await client.runtimeConfigOverride.findMany()).toEqual([override]);
+			expect(await client.auditLog.count()).toBe(0);
+		},
+	);
+
+	it.each([
+		{
+			label: "automatic image deletion enabled",
+			enabled: "true",
+			mimeType: "image/png",
+			engine: "legacy",
+			overdue: 2,
+			oldest: 7_200,
+		},
+		{
+			label: "non-image cleanup",
+			enabled: "false",
+			mimeType: "video/mp4",
+			engine: "legacy",
+			overdue: 1,
+			oldest: 2_700,
+		},
+		{
+			label: "video-engine image cleanup",
+			enabled: "false",
+			mimeType: "image/png",
+			engine: "video-workflow-v1",
+			overdue: 1,
+			oldest: 2_700,
+		},
+	])("still closes guest admission for overdue $label", async (testCase) => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", testCase.enabled);
+		const now = new Date();
+		await createGuestCleanupDiagnosticsFixture(now, {
+			mimeType: testCase.mimeType,
+			verificationEngine: testCase.engine,
+		});
+		const options = {
+			now,
+			guestEnvironmentEnabled: true,
+			guestPromotionPeriod: "consumed-terminal-period",
+			guestRiskBudgetMicros: null,
+		};
+		const report = await getAdminGuestDiagnostics(client, now, options);
+		expect(report.cleanup).toMatchObject({
+			expiredAssets: 2,
+			overdueAssets: testCase.overdue,
+			oldestOverdueSeconds: testCase.oldest,
+		});
+		const result = await monitorGuestOperationalSafety(client, options);
+		expect(result).toEqual({
+			checked: true,
+			admissionOpen: false,
+			closureReasons: report.controls.automaticClosureReasons,
+		});
+		expect(result.closureReasons).toEqual(["CLEANUP_OVERDUE"]);
+		expect(await client.auditLog.findFirst()).toMatchObject({
+			action: "MEDIA_GUEST_ADMISSION_AUTOMATICALLY_DISABLED",
+			metadata: { reasons: ["CLEANUP_OVERDUE"] },
+		});
+	});
+
+	it.each([
+		{ budget: null, reasons: [] },
+		{ budget: 7_778n, reasons: [] },
+		{ budget: 7_777n, reasons: ["RISK_BUDGET"] },
+		{ budget: 0n, reasons: ["RISK_BUDGET_CONFIGURATION"] },
+		{ budget: undefined, reasons: ["RISK_BUDGET_CONFIGURATION"] },
+	])(
+		"keeps scheduled and full-report campaign risk decisions equivalent for $budget",
+		async ({ budget, reasons }) => {
+			vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "false");
+			const now = new Date();
+			await createGuestCleanupDiagnosticsFixture(now);
+			for (const [period, state] of [
+				["consumed-terminal-period", "HELD"],
+				["consumed-terminal-period", "RELEASED"],
+				["another-period", "COMMITTED"],
+			] as const) {
+				await createTrialEvidenceRow({
+					ownerId: await createAnonymousOwner(`${period}-${state}`),
+					promotionPeriod: period,
+					riskState: state,
+					providerBoundaryAt: state === "COMMITTED" ? now : undefined,
+					expiresAt: now,
+					evidenceExpiresAt: now,
+				});
+			}
+			const options = {
+				now,
+				guestEnvironmentEnabled: true,
+				guestPromotionPeriod: "consumed-terminal-period",
+				guestRiskBudgetMicros: budget,
+			};
+			const report = await getAdminGuestDiagnostics(client, now, options);
+			expect(report.controls.automaticClosureReasons).toEqual(reasons);
+			const result = await monitorGuestOperationalSafety(client, options);
+			expect(result).toEqual({
+				checked: true,
+				admissionOpen: reasons.length === 0,
+				closureReasons: reasons,
+			});
+			expect(await client.auditLog.count()).toBe(reasons.length === 0 ? 0 : 1);
+		},
+	);
+
+	it.each([
+		{
+			failureCode: "GUEST_OUTPUT_WATERMARK_FAILED",
+			providerCostMicros: 3500n,
+			reasons: ["WATERMARK_FAILURE"],
+		},
+		{ failureCode: undefined, providerCostMicros: 3501n, reasons: ["BILLED_SPEND_MISMATCH"] },
+		{
+			failureCode: "GUEST_OUTPUT_WATERMARK_FAILED",
+			providerCostMicros: 3501n,
+			reasons: ["WATERMARK_FAILURE", "BILLED_SPEND_MISMATCH"],
+		},
+		{ failureCode: "OTHER_WATERMARK_FAILED", providerCostMicros: null, reasons: [] },
+	])("preserves safety evidence and idempotent closure: $reasons", async (evidence) => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "false");
+		const now = new Date();
+		await createGuestCleanupDiagnosticsFixture(now, undefined, evidence);
+		const options = {
+			now,
+			guestEnvironmentEnabled: true,
+			guestPromotionPeriod: "consumed-terminal-period",
+			guestRiskBudgetMicros: null,
+		};
+		expect(
+			await monitorGuestOperationalSafety(client, {
+				...options,
+				guestPromotionPeriod: "another-period",
+			}),
+		).toEqual({ checked: true, admissionOpen: true, closureReasons: [] });
+		const report = await getAdminGuestDiagnostics(client, now, options);
+		expect(report.controls.automaticClosureReasons).toEqual(evidence.reasons);
+		expect(await monitorGuestOperationalSafety(client, options)).toEqual({
+			checked: true,
+			admissionOpen: evidence.reasons.length === 0,
+			closureReasons: evidence.reasons,
+		});
+		if (evidence.reasons.length) {
+			expect(await monitorGuestOperationalSafety(client, options)).toEqual({
+				checked: false,
+				reason: "RUNTIME_DISABLED",
+			});
+			expect(await client.auditLog.findMany()).toMatchObject([
+				{
+					action: "MEDIA_GUEST_ADMISSION_AUTOMATICALLY_DISABLED",
+					metadata: { reasons: evidence.reasons },
+				},
+			]);
+			expect(await client.runtimeConfigOverride.count()).toBe(2);
+		} else expect(await client.auditLog.count()).toBe(0);
 	});
 
 	it("denies expired guest asset authorization before scheduling every physical object deletion", async () => {
@@ -966,7 +1201,58 @@ interface ConsumedTerminalGraph {
 	resultAssetId: string;
 }
 
-async function createConsumedTerminalTrialGraph(now: Date): Promise<ConsumedTerminalGraph> {
+async function createGuestCleanupDiagnosticsFixture(
+	now: Date,
+	output: { mimeType: string; verificationEngine: string } = {
+		mimeType: "image/png",
+		verificationEngine: "legacy",
+	},
+	evidence?: Parameters<typeof createConsumedTerminalTrialGraph>[1],
+) {
+	const graph = await createConsumedTerminalTrialGraph(now, evidence);
+	const override = await client.runtimeConfigOverride.create({
+		data: {
+			configKey: "media.guestGeneration.enabled",
+			version: 1,
+			value: true,
+			reason: "Guest cleanup diagnostics fixture",
+			createdByUserId: graph.ownerId,
+		},
+	});
+	const assets = [];
+	for (const [index, kind] of (["INPUT", "OUTPUT"] as const).entries()) {
+		const asset = await client.mediaAsset.create({
+			data: {
+				ownerType: "USER",
+				ownerId: graph.ownerId,
+				kind,
+				status: "VERIFYING",
+				retentionClass: "GUEST_TRIAL",
+				deleteAfter: new Date(now.getTime() - (index === 0 ? 120 : 45) * 60_000),
+				objectKey: `users/${graph.ownerId}/retained/${kind}.png`,
+				mimeType: "image/png",
+				byteSize: 128n,
+				checksum: "a".repeat(64),
+				...(index === 1 ? output : {}),
+			},
+		});
+		await client.generationJobAsset.create({
+			data: {
+				jobId: graph.jobId,
+				assetId: asset.id,
+				assetChecksum: asset.checksum!,
+				role: kind,
+			},
+		});
+		assets.push(asset);
+	}
+	return { assets, override };
+}
+
+async function createConsumedTerminalTrialGraph(
+	now: Date,
+	evidence: { failureCode?: string; providerCostMicros?: bigint | null } = {},
+): Promise<ConsumedTerminalGraph> {
 	const ownerId = await createAnonymousOwner("consumed-terminal");
 	const deletedAt = new Date(now.getTime() - 30_000);
 	const source = await client.mediaAsset.create({
@@ -1048,6 +1334,7 @@ async function createConsumedTerminalTrialGraph(now: Date): Promise<ConsumedTerm
 			pricingSnapshot: { settlementPolicy: { maxCharge: "4" } },
 			status: "SUCCEEDED",
 			serviceClass: "GUEST_SLOW",
+			failureCode: evidence.failureCode,
 			dispatchEligibleAt: new Date(now.getTime() - 180_000),
 			guestTrialId: trialId,
 			terminalAt: new Date(now.getTime() - 90_000),
@@ -1077,7 +1364,8 @@ async function createConsumedTerminalTrialGraph(now: Date): Promise<ConsumedTerm
 			providerModelId: "test-retained-model",
 			providerTaskId: `retained-${randomUUID()}`,
 			status: "SUCCEEDED",
-			providerCostMicros: 3500n,
+			providerCostMicros:
+				evidence.providerCostMicros === undefined ? 3500n : evidence.providerCostMicros,
 			requestSnapshot: { prompt: "retained" },
 			responseSnapshot: { outputAssetId: result.id },
 			submittedAt: new Date(now.getTime() - 120_000),

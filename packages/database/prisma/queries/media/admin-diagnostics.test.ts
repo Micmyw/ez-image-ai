@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { Prisma } from "#prisma-runtime-client";
+
 vi.mock("../../client", () => ({
 	getDatabaseClient: () => {
 		throw new Error("Diagnostics unit tests must supply their own database dependencies");
@@ -66,7 +68,7 @@ describe("guest diagnostic time regression", () => {
 			$queryRaw: query,
 			runtimeConfigOverride: { findFirst: vi.fn(async () => null) },
 		};
-		const result = await monitorGuestOperationalSafety(client as never, {
+		const result = await getAdminGuestDiagnostics(client as never, new Date(), {
 			guestEnvironmentEnabled: false,
 			guestRiskBudgetMicros: null,
 		});
@@ -78,6 +80,81 @@ describe("guest diagnostic time regression", () => {
 		expect(sql).toContain('"firstAttemptAt"');
 		expect(sql).toContain('"invalidWaitSampleCount"');
 	});
+});
+
+describe("scheduled guest safety query budget", () => {
+	it.each([null, 100_000n])(
+		"uses one narrow safety query for open admission (budget=%s)",
+		async (guestRiskBudgetMicros) => {
+			let sql = "";
+			const client = {
+				$queryRaw: vi.fn(async (strings: TemplateStringsArray, ...values: unknown[]) => {
+					sql = Prisma.sql(strings, ...values).sql;
+					return [
+						{
+							heldRiskMicros: 0n,
+							committedRiskMicros: 0n,
+							watermarkFailure: false,
+							billedSpendMismatch: false,
+							overdueCleanup: false,
+						},
+					];
+				}),
+				runtimeConfigOverride: { findFirst: vi.fn(async () => ({ value: true })) },
+				$transaction: vi.fn(),
+			};
+			expect(
+				await monitorGuestOperationalSafety(client as never, {
+					guestEnvironmentEnabled: true,
+					guestRiskBudgetMicros,
+				}),
+			).toEqual({ checked: true, admissionOpen: true, closureReasons: [] });
+			expect(client.runtimeConfigOverride.findFirst).toHaveBeenCalledOnce();
+			expect(client.$queryRaw).toHaveBeenCalledOnce();
+			expect(client.$transaction).not.toHaveBeenCalled();
+			expect(sql).not.toMatch(
+				/percentile_cont|credit_ledger_entry|credit_reservation|guest_abuse_bucket|asset_moderation_result|guest_result_access_grant/,
+			);
+			if (guestRiskBudgetMicros === null) expect(sql).not.toMatch(/SUM\(/i);
+		},
+	);
+	it("does not report safety success after a database failure", async () => {
+		const failure = new Error("database unavailable");
+		const client = {
+			$queryRaw: vi.fn().mockRejectedValue(failure),
+			runtimeConfigOverride: { findFirst: vi.fn(async () => ({ value: true })) },
+			$transaction: vi.fn(),
+		};
+		await expect(
+			monitorGuestOperationalSafety(client as never, {
+				guestEnvironmentEnabled: true,
+				guestRiskBudgetMicros: null,
+			}),
+		).rejects.toBe(failure);
+		expect(client.$transaction).not.toHaveBeenCalled();
+	});
+	it("does no database work when guest generation is disabled in the environment", async () => {
+		const client = { $queryRaw: vi.fn(), runtimeConfigOverride: { findFirst: vi.fn() } };
+		expect(
+			await monitorGuestOperationalSafety(client as never, { guestEnvironmentEnabled: false }),
+		).toMatchObject({ checked: false, reason: "ENVIRONMENT_DISABLED" });
+		expect(client.$queryRaw).not.toHaveBeenCalled();
+		expect(client.runtimeConfigOverride.findFirst).not.toHaveBeenCalled();
+	});
+	it.each([null, { value: false }])(
+		"reads only the runtime switch when admission is already closed: %s",
+		async (override) => {
+			const client = {
+				$queryRaw: vi.fn(),
+				runtimeConfigOverride: { findFirst: vi.fn(async () => override) },
+			};
+			expect(
+				await monitorGuestOperationalSafety(client as never, { guestEnvironmentEnabled: true }),
+			).toMatchObject({ checked: false, reason: "RUNTIME_DISABLED" });
+			expect(client.$queryRaw).not.toHaveBeenCalled();
+			expect(client.runtimeConfigOverride.findFirst).toHaveBeenCalledOnce();
+		},
+	);
 });
 
 describe("independent diagnostic sections", () => {

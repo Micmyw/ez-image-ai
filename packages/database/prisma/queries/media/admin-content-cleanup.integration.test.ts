@@ -9,6 +9,7 @@ import {
 	listRecentAdminContentCleanupPlans,
 	previewAdminContentCleanup,
 } from "./admin-content-cleanup";
+import { claimOutboxBatch } from "./outbox";
 import { claimMediaStorageCleanupTransaction } from "./storage-cleanup";
 
 let db: PrismaClient;
@@ -76,6 +77,43 @@ function execute(plan: Awaited<ReturnType<typeof preview>>) {
 }
 
 describe("exact administrator cleanup plans on PostgreSQL", () => {
+	it("admits a newly confirmed administrator delete alongside a parked automatic event", async () => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "false");
+		const item = await asset({ deleteAfter: new Date(0) });
+		expect(
+			await claimMediaStorageCleanupTransaction(
+				{ assetId: item.id, objectKeys: [item.objectKey] },
+				db,
+			),
+		).toEqual({ outcome: "DEFER", retainedObjectKey: item.objectKey });
+		const parked = await db.outboxEvent.create({
+			data: {
+				eventType: "MEDIA_OBJECT_DELETE",
+				aggregateType: "MEDIA_ASSET",
+				aggregateId: item.id,
+				dedupeKey: `guest-retention-delete:${item.id}`,
+				payload: { assetId: item.id, objectKey: item.objectKey },
+				availableAt: new Date(0),
+				lastError: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED",
+			},
+		});
+		const plan = await preview([item.id]);
+		await execute(plan);
+		const claimed = await claimOutboxBatch(
+			{ workerId: "admin-cleanup-test", scope: "cleanup", limit: 100, leaseSeconds: 60 },
+			db,
+		);
+		expect(claimed.some(({ id }) => id === parked.id)).toBe(false);
+		expect(claimed.find(({ aggregateId }) => aggregateId === item.id)).toMatchObject({
+			dedupeKey: `admin-media-object-delete:${plan.planId}:${item.id}`,
+		});
+		expect(
+			await claimMediaStorageCleanupTransaction(
+				{ assetId: item.id, objectKeys: [item.objectKey] },
+				db,
+			),
+		).toBe("DELETE");
+	});
 	it("previews without deleting and queues a durable exact-object tombstone, retaining quota and immutable evidence", async () => {
 		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "false");
 		const item = await asset();

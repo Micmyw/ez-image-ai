@@ -1,4 +1,6 @@
-import { EZPIC_PRODUCT_KEYS } from "@repo/config";
+import { EZPIC_PRODUCT_KEYS, isImageAutomaticDeletionEnabled } from "@repo/config";
+
+import { Prisma } from "#prisma-runtime-client";
 
 import type {
 	CreditReservationStatus,
@@ -812,7 +814,9 @@ export async function getAdminGuestDiagnostics(
 				FROM guest_attempt GROUP BY "jobId"
 			), guest_asset AS (
 				SELECT DISTINCT asset."id", asset."kind", asset."status", asset."watermarkVersion",
-				       asset."watermarkedAt", asset."cleanStagingDeletedAt", asset."deleteAfter", asset."deletedAt"
+				       asset."watermarkedAt", asset."cleanStagingDeletedAt", asset."deleteAfter", asset."deletedAt",
+				       (${isImageAutomaticDeletionEnabled()} OR asset."verificationEngine" <> 'legacy'
+				         OR asset."mimeType" NOT LIKE 'image/%') AS "automaticCleanupAllowed"
 				FROM "media_asset" asset
 				JOIN "generation_job_asset" binding ON binding."assetId" = asset."id"
 				JOIN guest_job job ON job."id" = binding."jobId"
@@ -884,14 +888,17 @@ export async function getAdminGuestDiagnostics(
 			   WHERE grant_row."expiresAt" <= ${now})::bigint AS "expiredGrants",
 			 (SELECT COUNT(*) FROM guest_asset asset
 			   WHERE asset."deleteAfter" <= ${now} AND asset."deletedAt" IS NULL)::bigint AS "expiredAssets",
+			 -- Policy-retained images are still expired, but cannot be overdue for automatic deletion.
 			 (SELECT COUNT(*) FROM guest_asset asset
-			   WHERE asset."deleteAfter" <= ${cleanupOverdueBefore} AND asset."deletedAt" IS NULL)::bigint AS "overdueAssets",
+			   WHERE asset."automaticCleanupAllowed" AND asset."deleteAfter" <= ${cleanupOverdueBefore}
+			     AND asset."deletedAt" IS NULL)::bigint AS "overdueAssets",
 			 (SELECT COUNT(*) FROM "outbox_event" outbox
 			   JOIN guest_asset asset ON asset."id" = outbox."aggregateId"
 			   WHERE outbox."status" = 'DEAD_LETTER' AND outbox."eventType" IN
 			     ('MEDIA_OBJECT_DELETE','MEDIA_UPLOAD_CLEANUP','MEDIA_MULTIPART_ABORT'))::bigint AS "cleanupDeadLetterEvents",
 			 EXTRACT(EPOCH FROM (${now} - (SELECT MIN(asset."deleteAfter") FROM guest_asset asset
-			   WHERE asset."deleteAfter" <= ${cleanupOverdueBefore} AND asset."deletedAt" IS NULL)))::double precision AS "oldestOverdueSeconds"
+			   WHERE asset."automaticCleanupAllowed" AND asset."deleteAfter" <= ${cleanupOverdueBefore}
+			     AND asset."deletedAt" IS NULL)))::double precision AS "oldestOverdueSeconds"
 			FROM guest_job job
 			LEFT JOIN first_attempt ON first_attempt."jobId" = job."id"
 			LEFT JOIN "credit_reservation" reservation ON reservation."jobId" = job."id"`,
@@ -1009,7 +1016,79 @@ export async function monitorGuestOperationalSafety(
 	client: MediaTransactionClient,
 	options: MonitorGuestOperationalSafetyOptions,
 ) {
-	return getAdminGuestDiagnostics(client, options.now ?? new Date(), options, true);
+	if (options.guestEnvironmentEnabled !== true)
+		return { checked: false as const, reason: "ENVIRONMENT_DISABLED" as const };
+	const runtimeOverride = await client.runtimeConfigOverride.findFirst({
+		where: { configKey: GUEST_RUNTIME_CONFIG_KEY, active: true },
+		select: { value: true },
+		orderBy: { version: "desc" },
+	});
+	if (!runtimeOverride || !isGuestRuntimeConfigEnabledValue(runtimeOverride.value))
+		return { checked: false as const, reason: "RUNTIME_DISABLED" as const };
+
+	const promotionPeriod = options.guestPromotionPeriod ?? "";
+	const riskBudgetMicros =
+		options.guestRiskBudgetMicros === undefined ? 0n : options.guestRiskBudgetMicros;
+	// Unlimited/invalid budgets need no historical sum: the policy alone decides
+	// their budget action. This is the guest campaign budget, not a site-wide cap.
+	const riskTotals =
+		riskBudgetMicros !== null && riskBudgetMicros > 0n
+			? Prisma.sql`SELECT
+				COALESCE(SUM("frozenQuotedRiskMicros") FILTER (WHERE "riskState" = 'HELD'), 0)::bigint AS "heldRiskMicros",
+				COALESCE(SUM("frozenQuotedRiskMicros") FILTER (WHERE "riskState" = 'COMMITTED'), 0)::bigint AS "committedRiskMicros"
+				FROM "guest_media_trial" WHERE "promotionPeriod" = ${promotionPeriod}
+				AND "riskState" IN ('HELD', 'COMMITTED')`
+			: Prisma.sql`SELECT 0::bigint AS "heldRiskMicros", 0::bigint AS "committedRiskMicros"`;
+	const cleanupOverdueBefore = new Date((options.now ?? new Date()).getTime() - 30 * 60_000);
+	const [row] = await client.$queryRaw<
+		Array<{
+			heldRiskMicros: bigint;
+			committedRiskMicros: bigint;
+			watermarkFailure: boolean;
+			billedSpendMismatch: boolean;
+			overdueCleanup: boolean;
+		}>
+	>`
+		WITH risk AS (${riskTotals}), guest_job AS NOT MATERIALIZED (
+			SELECT job."id", job."failureCode", trial."frozenQuotedRiskMicros"
+			FROM "generation_job" job
+			JOIN "guest_media_trial" trial ON trial."id" = job."guestTrialId"
+			WHERE trial."promotionPeriod" = ${promotionPeriod}
+			AND job."serviceClass" = 'GUEST_SLOW'::"GenerationServiceClass"
+		)
+		SELECT risk.*,
+			EXISTS (SELECT 1 FROM guest_job WHERE "failureCode" LIKE 'GUEST%WATERMARK%') AS "watermarkFailure",
+			EXISTS (SELECT 1 FROM "generation_attempt" attempt
+				JOIN guest_job job ON job."id" = attempt."jobId"
+				WHERE attempt."providerCostMicros" > job."frozenQuotedRiskMicros") AS "billedSpendMismatch",
+			EXISTS (SELECT 1 FROM "media_asset" asset
+				JOIN "generation_job_asset" binding ON binding."assetId" = asset."id"
+				JOIN guest_job job ON job."id" = binding."jobId"
+				WHERE asset."retentionClass" = 'GUEST_TRIAL'::"MediaRetentionClass"
+				AND asset."deleteAfter" <= ${cleanupOverdueBefore} AND asset."deletedAt" IS NULL
+				AND (${isImageAutomaticDeletionEnabled()} OR asset."verificationEngine" <> 'legacy'
+					OR asset."mimeType" NOT LIKE 'image/%')) AS "overdueCleanup"
+		FROM risk`;
+	if (!row) throw new Error("GUEST_SAFETY_CHECK_UNAVAILABLE");
+	const safety = evaluateGuestOperationalSafety({
+		heldRiskMicros: row.heldRiskMicros,
+		committedRiskMicros: row.committedRiskMicros,
+		riskBudgetMicros,
+		watermarkFailures: Number(row.watermarkFailure),
+		billedSpendMismatch: Number(row.billedSpendMismatch),
+		overdueCleanupAssets: Number(row.overdueCleanup),
+		// Warning-only statistics remain in the read-only administrator report.
+		queueDepth: 0,
+		oldestQueueAgeSeconds: 0,
+		uncertainOlderThanTenMinutes: 0,
+		moderationErrorRate: null,
+	});
+	if (safety.automaticOverride) await closeGuestAdmissionForSafety(safety.closureReasons, client);
+	return {
+		checked: true as const,
+		admissionOpen: !safety.automaticOverride,
+		closureReasons: safety.closureReasons,
+	};
 }
 
 async function closeGuestAdmissionForSafety(

@@ -9,7 +9,7 @@ import {
 } from "../contracts";
 import { dispatchOutbox } from "./dispatch-outbox";
 
-function fixture() {
+function fixture(eventType: OutboxLease["eventType"] = "PAYMENT_EVENT_RECEIVED") {
 	let attempts = 0;
 	let leaseSequence = 0;
 	let processed = false;
@@ -20,7 +20,7 @@ function fixture() {
 			return [
 				{
 					id: "outbox-payment",
-					eventType: "PAYMENT_EVENT_RECEIVED",
+					eventType,
 					aggregateId: "payment-1",
 					payload: { paymentEventId: "payment-1" },
 					attempts,
@@ -61,7 +61,10 @@ describe("Outbox completion receipts", () => {
 		expect(f.store.release).not.toHaveBeenCalled();
 		expect(f.attempts()).toBe(0);
 		expect(f.store.defer).toHaveBeenLastCalledWith(
-			expect.objectContaining({ retryAt: new Date(f.now().getTime() + 3_600_000) }),
+			expect.objectContaining({
+				retryAt: new Date(f.now().getTime() + 3_600_000),
+				reason: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED",
+			}),
 		);
 		deliver.mockResolvedValueOnce(undefined);
 		expect(await dispatchOutbox({ workerId: "worker" }, { ...f, deliver })).toEqual({
@@ -70,6 +73,18 @@ describe("Outbox completion receipts", () => {
 		});
 		expect(f.store.complete).toHaveBeenCalledOnce();
 	});
+	it.each([new Error("staging unavailable"), undefined])(
+		"keeps retrying ancillary cleanup instead of parking a storage failure: %s",
+		async (failure) => {
+			const f = fixture("MEDIA_OBJECT_DELETE");
+			const deliver = vi.fn().mockRejectedValue(new ImageDeletionPausedError(failure));
+			await dispatchOutbox({ workerId: "worker" }, { ...f, deliver });
+			expect(f.store.defer).toHaveBeenCalledOnce();
+			expect(f.store.defer.mock.calls[0]![0]).not.toHaveProperty("reason");
+			expect(f.store.complete).not.toHaveBeenCalled();
+			expect(f.store.release).not.toHaveBeenCalled();
+		},
+	);
 	it.each([false, true])(
 		"persists callback lease waits without consuming failure attempts (targeted=%s)",
 		async (targeted) => {

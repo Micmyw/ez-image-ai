@@ -1,3 +1,5 @@
+import { isImageAutomaticDeletionEnabled } from "@repo/config";
+
 import { Prisma } from "#prisma-runtime-client";
 
 import type { OutboxEvent } from "../../generated/client";
@@ -294,6 +296,18 @@ export async function claimOutboxBatch(
 			: input.scope === "recovery"
 				? Prisma.sql`AND "eventType" NOT IN (${cleanupTypes})`
 				: Prisma.empty;
+	// Only a consumer-confirmed retention wait can be parked. Unmarked intents
+	// still run their first check and ancillary cleanup; owner/admin deletion and
+	// new staging cleanup have separate intents and retain their consumer fences.
+	const retention =
+		isImageAutomaticDeletionEnabled() ||
+		input.eventIds !== undefined ||
+		input.outputReviewEventId !== undefined ||
+		input.scope === "recovery"
+			? Prisma.empty
+			: Prisma.sql`AND NOT ("aggregateType" = 'MEDIA_ASSET'
+				AND "eventType" IN ('MEDIA_OBJECT_DELETE', 'MEDIA_UPLOAD_CLEANUP', 'MEDIA_MULTIPART_ABORT')
+				AND "lastError" IS NOT DISTINCT FROM 'MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED')`;
 	const claim = (tx: Prisma.TransactionClient) =>
 		tx.$queryRaw<ClaimedOutboxRow[]>`
 			WITH tick AS MATERIALIZED (SELECT ${clock} AS "now"), claimable AS (
@@ -302,6 +316,7 @@ export async function claimOutboxBatch(
 				WHERE "availableAt" <= tick."now"
 				  ${target}
 				  ${scope}
+				  ${retention}
 				  AND (
 					"status" = 'PENDING'
 					OR ("status" = 'LEASED' AND "leasedUntil" <= tick."now")
@@ -313,7 +328,7 @@ export async function claimOutboxBatch(
 			UPDATE "outbox_event" event
 			SET "status" = 'LEASED', "leaseOwner" = ${input.workerId},
 			    "leaseToken" = gen_random_uuid()::text,
-			    "lastError" = CASE WHEN split_part(event."lastError", ':', 1) IN ('RECOVERY_REQUIRED', 'EXECUTION_IN_PROGRESS', 'RECOVERY_QUERY_IN_PROGRESS') THEN NULL ELSE event."lastError" END,
+			    "lastError" = CASE WHEN split_part(event."lastError", ':', 1) IN ('RECOVERY_REQUIRED', 'EXECUTION_IN_PROGRESS', 'RECOVERY_QUERY_IN_PROGRESS', 'MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED') THEN NULL ELSE event."lastError" END,
 				    "leasedUntil" = (SELECT "now" FROM tick) + ${input.leaseSeconds} * INTERVAL '1 second',
 				    "attempts" = event."attempts" + 1
 			FROM claimable
@@ -347,7 +362,14 @@ export async function completeOutboxEvent(
 }
 
 export async function deferOutboxEvent(
-	input: { id: string; workerId: string; leaseToken: string; retryAt: Date; now?: Date },
+	input: {
+		id: string;
+		workerId: string;
+		leaseToken: string;
+		retryAt: Date;
+		now?: Date;
+		reason?: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED";
+	},
 	client: MediaTransactionClient,
 ): Promise<{ applied: boolean }> {
 	const applied = await client.outboxEvent.updateMany({
@@ -362,6 +384,7 @@ export async function deferOutboxEvent(
 		data: {
 			status: "PENDING",
 			availableAt: input.retryAt,
+			...(input.reason ? { lastError: input.reason } : {}),
 			// Polling an accepted Workflow is the same delivery, not a failed retry.
 			attempts: { decrement: 1 },
 			leaseOwner: null,

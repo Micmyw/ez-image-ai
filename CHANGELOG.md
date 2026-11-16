@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — Guest trial availability
+
+- Keep intentionally retained guest images from triggering an overdue-cleanup shutdown of free trials.
+- Reduce background database work by parking confirmed retention waits and checking guest safety separately from full administrator reports.
+
 ## 2026-11-15 — Guest workspace and image feedback
 
 - Restrict new guest free trials to the United States, Canada and European countries. Other or unknown regions continue through sign-in with their photo and prompt preserved; accepted guest tasks and results remain recoverable.

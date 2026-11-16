@@ -40,6 +40,7 @@ describe("durable Outbox completion receipts in PostgreSQL", () => {
 
 	afterEach(async () => {
 		vi.useRealTimers();
+		vi.unstubAllEnvs();
 		if (ownedIds.length)
 			await client.outboxEvent.deleteMany({ where: { id: { in: ownedIds.splice(0) } } });
 		if (ownedAssets.length)
@@ -112,6 +113,170 @@ describe("durable Outbox completion receipts in PostgreSQL", () => {
 		expect(event).toBeDefined();
 		return event!;
 	}
+
+	it.each(
+		([undefined, "cleanup"] as const).flatMap((scope) =>
+			["MEDIA_OBJECT_DELETE", "MEDIA_UPLOAD_CLEANUP", "MEDIA_MULTIPART_ABORT"].map((eventType) => ({
+				scope,
+				eventType,
+			})),
+		),
+	)(
+		"parks a confirmed retention wait without repeated claims and resumes the same event ($scope/$eventType)",
+		async ({ scope, eventType }) => {
+			vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "false");
+			const created = await createEvent();
+			await client.outboxEvent.update({
+				where: { id: created.id },
+				data: { eventType, aggregateType: "MEDIA_ASSET" },
+			});
+			const first = await claim(created.id, initialTime);
+			const retryAt = new Date(initialTime.getTime() + 3_600_000);
+			expect(
+				await deferOutboxEvent(
+					{
+						id: created.id,
+						workerId: "receipt-worker",
+						leaseToken: first.leaseToken,
+						retryAt,
+						now: initialTime,
+						reason: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED",
+					},
+					client,
+				),
+			).toEqual({ applied: true });
+			const retained = await client.outboxEvent.findUniqueOrThrow({ where: { id: created.id } });
+			for (const [index, disabled] of [undefined, "false", "TRUE"].entries()) {
+				vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", disabled);
+				expect(
+					await claimOutboxBatch(
+						{
+							workerId: "cleanup",
+							scope,
+							limit: 100,
+							leaseSeconds: 60,
+							now: new Date(initialTime.getTime() + (index + 1) * 24 * 3_600_000),
+						},
+						client,
+					),
+				).toEqual([]);
+			}
+			expect(await client.outboxEvent.findUniqueOrThrow({ where: { id: created.id } })).toEqual(
+				retained,
+			);
+			expect(retained).toMatchObject({
+				status: "PENDING",
+				attempts: 0,
+				processedAt: null,
+				leaseToken: null,
+				lastError: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED",
+			});
+			vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "true");
+			expect(
+				await claimOutboxBatch(
+					{
+						workerId: "cleanup",
+						scope,
+						limit: 100,
+						leaseSeconds: 60,
+						now: new Date(retryAt.getTime() - 1),
+					},
+					client,
+				),
+			).toEqual([]);
+			const resumed = await claim(created.id, retryAt);
+			expect(resumed).toMatchObject({ id: created.id, attempts: 1 });
+			expect(
+				(await client.outboxEvent.findUniqueOrThrow({ where: { id: created.id } })).lastError,
+			).toBeNull();
+			await completeOutboxEvent(resumed.id, "receipt-worker", resumed.leaseToken, client);
+			expect(
+				await claimOutboxBatch(
+					{
+						workerId: "cleanup",
+						limit: 100,
+						leaseSeconds: 60,
+						now: retryAt,
+					},
+					client,
+				),
+			).toEqual([]);
+		},
+	);
+
+	it("does not let parked originals block new staging, explicit deletion or recovery events", async () => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", undefined);
+		const parked = await createEvent();
+		await client.outboxEvent.update({
+			where: { id: parked.id },
+			data: {
+				eventType: "MEDIA_OBJECT_DELETE",
+				aggregateType: "MEDIA_ASSET",
+				lastError: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED",
+			},
+		});
+		const actionable = [];
+		for (const eventType of [
+			"MEDIA_OBJECT_DELETE",
+			"MEDIA_UPLOAD_CLEANUP",
+			"MEDIA_MULTIPART_ABORT",
+			"PAYMENT_EVENT_RECEIVED",
+		]) {
+			const event = await createEvent();
+			await client.outboxEvent.update({
+				where: { id: event.id },
+				data: {
+					eventType,
+					aggregateType: eventType === "PAYMENT_EVENT_RECEIVED" ? "PAYMENT_EVENT" : "MEDIA_ASSET",
+				},
+			});
+			actionable.push(event.id);
+		}
+		const claimedIds = [];
+		for (const _event of actionable) {
+			const [claimed] = await claimOutboxBatch(
+				{ workerId: "cleanup", limit: 1, leaseSeconds: 60, now: initialTime },
+				client,
+			);
+			claimedIds.push(claimed!.id);
+		}
+		expect(claimedIds.sort()).toEqual(actionable.sort());
+	});
+
+	it("clears a reclaimed pause before an ancillary retry and rejects stale pause writes", async () => {
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "true");
+		const event = await createEvent();
+		await client.outboxEvent.update({
+			where: { id: event.id },
+			data: {
+				eventType: "MEDIA_OBJECT_DELETE",
+				aggregateType: "MEDIA_ASSET",
+				lastError: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED",
+			},
+		});
+		const old = await claim(event.id, initialTime, "old");
+		const now = new Date(initialTime.getTime() + 60_000);
+		const current = await claim(event.id, now, "new");
+		expect(
+			await deferOutboxEvent(
+				{
+					id: event.id,
+					workerId: "old",
+					leaseToken: old.leaseToken,
+					now,
+					retryAt: now,
+					reason: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED",
+				},
+				client,
+			),
+		).toEqual({ applied: false });
+		vi.stubEnv("MEDIA_IMAGE_AUTO_DELETE_ENABLED", "false");
+		await deferOutboxEvent(
+			{ id: event.id, workerId: "new", leaseToken: current.leaseToken, now, retryAt: now },
+			client,
+		);
+		expect(await claim(event.id, now)).toMatchObject({ id: event.id });
+	});
 
 	async function createGenerationEvents(count: number) {
 		const ids = Array.from({ length: count }, () => crypto.randomUUID());

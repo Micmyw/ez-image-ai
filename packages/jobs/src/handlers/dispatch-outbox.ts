@@ -78,6 +78,9 @@ export async function dispatchOutbox(
 					id: event.id,
 					workerId: input.workerId,
 					leaseToken: event.leaseToken,
+					...(error instanceof ImageDeletionPausedError && error.ancillaryCleanupComplete
+						? { reason: error.code }
+						: {}),
 					retryAt: new Date(
 						now.getTime() +
 							(error instanceof ProviderEventPhaseHeldError ||

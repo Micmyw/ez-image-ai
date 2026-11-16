@@ -29,7 +29,10 @@ describe("storage cleanup handlers", () => {
 					: kind === "multipart"
 						? abortMultipartObject({ ...payload, multipartUploadId: "multipart" }, dependencies)
 						: cleanupUploadPromotion({ ...payload, promotionObjectKey: "final" }, dependencies);
-			await expect(work).rejects.toThrow("MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED");
+			await expect(work).rejects.toMatchObject({
+				code: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED",
+				ancillaryCleanupComplete: true,
+			});
 			expect(dependencies.deleteObject).not.toHaveBeenCalled();
 			if (kind === "multipart")
 				expect(dependencies.abortMultipartUpload).toHaveBeenCalledWith("final", "multipart");
@@ -61,7 +64,10 @@ describe("storage cleanup handlers", () => {
 				},
 				dependencies,
 			),
-		).rejects.toThrow("MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED");
+		).rejects.toMatchObject({
+			code: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED",
+			ancillaryCleanupComplete: true,
+		});
 		expect(dependencies.deleteObject).toHaveBeenCalledExactlyOnceWith("stage");
 		expect(dependencies.abortMultipartUpload.mock.calls).toEqual([
 			["stage", "stage-upload"],
@@ -99,7 +105,11 @@ describe("storage cleanup handlers", () => {
 				{ assetId: "asset", objectKey: "stage", cleanupObjectKeys: ["final"] },
 				dependencies,
 			),
-		).rejects.toMatchObject({ code: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED", cause: failure });
+		).rejects.toMatchObject({
+			code: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED",
+			cause: failure,
+			ancillaryCleanupComplete: false,
+		});
 		expect(dependencies.deleteObject).toHaveBeenCalledExactlyOnceWith("stage");
 		expect(dependencies.complete).not.toHaveBeenCalled();
 	});

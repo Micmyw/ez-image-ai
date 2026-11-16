@@ -272,9 +272,12 @@ export class ProviderEventPhaseHeldError extends Error {
 export class ImageDeletionPausedError extends Error {
 	readonly code = "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED";
 	readonly retryAfterMs = 60 * 60_000;
-	constructor(cause?: unknown) {
-		super("MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED", { cause });
+	readonly ancillaryCleanupComplete: boolean;
+	constructor(...failure: [] | [cause: unknown]) {
+		super("MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED", { cause: failure[0] });
 		this.name = "ImageDeletionPausedError";
+		// Even `throw undefined` must retry incomplete staging/multipart cleanup.
+		this.ancillaryCleanupComplete = failure.length === 0;
 	}
 }
 
@@ -575,7 +578,13 @@ export interface OutboxStore {
 		eventIds?: string[];
 	}): Promise<OutboxLease[]>;
 	complete(id: string, workerId: string, leaseToken: string): Promise<void>;
-	defer?(input: { id: string; workerId: string; leaseToken: string; retryAt: Date }): Promise<void>;
+	defer?(input: {
+		id: string;
+		workerId: string;
+		leaseToken: string;
+		retryAt: Date;
+		reason?: "MEDIA_IMAGE_AUTOMATIC_DELETION_PAUSED";
+	}): Promise<void>;
 	release(input: {
 		id: string;
 		workerId: string;
