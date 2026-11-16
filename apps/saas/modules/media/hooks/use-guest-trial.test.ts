@@ -162,6 +162,18 @@ const locationAssign = vi.fn();
 let visibilityState: DocumentVisibilityState = "visible";
 
 describe("useGuestTrial", () => {
+	it("continues the original homepage click identity through automatic submission", async () => {
+		api.getGuestEligibility.mockResolvedValue(eligibleDraft());
+		api.submitGuestGeneration.mockResolvedValueOnce(waitingSnapshot());
+		renderHook();
+		const trial = await settleAndRender();
+		await trial.actions.submit("fresh-token", { actionRef: "homepage-action", startedAt: 123 });
+		expect(api.submitGuestGeneration).toHaveBeenCalledWith(
+			expect.objectContaining({
+				journey: { actionRef: "homepage-action" },
+			}),
+		);
+	});
 	it("admits only one request for repeated clicks while the first submission is pending", async () => {
 		api.getGuestEligibility.mockResolvedValue(eligibleDraft());
 		renderHook();

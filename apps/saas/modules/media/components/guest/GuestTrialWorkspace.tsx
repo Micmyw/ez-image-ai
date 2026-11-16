@@ -23,12 +23,14 @@ export function GuestTrialWorkspace({
 	effectReturnPath,
 	embedded = false,
 	autoSubmit = false,
+	originalClick,
 }: {
 	registered?: boolean;
 	effectReturnPath?: string;
 	embedded?: boolean;
 	/** Set only by the original Generate click, never when restoring a page. */
 	autoSubmit?: boolean;
+	originalClick?: { actionRef?: string; startedAt: number };
 }) {
 	const t = useTranslations("media.guest");
 	const trial = useGuestTrial({ registered, effectReturnPath });
@@ -57,9 +59,18 @@ export function GuestTrialWorkspace({
 			GUEST_TURNSTILE_SITE_KEY
 				? turnstileToken
 				: `${LOCAL_TURNSTILE_EVIDENCE}-${crypto.randomUUID()}`,
+			originalClick,
 		);
 		if (GUEST_TURNSTILE_SITE_KEY) resetChallenge();
-	}, [autoSubmit, registered, trial.canSubmit, trial.errorKey, trial.actions, turnstileToken]);
+	}, [
+		autoSubmit,
+		registered,
+		trial.canSubmit,
+		trial.errorKey,
+		trial.actions,
+		turnstileToken,
+		originalClick,
+	]);
 
 	useEffect(() => {
 		setLinkHandler(linkHandler);

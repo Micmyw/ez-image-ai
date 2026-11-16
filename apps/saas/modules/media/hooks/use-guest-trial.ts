@@ -249,7 +249,10 @@ export function useGuestTrial({
 		setAccessRetryNonce((value) => value + 1);
 	}
 
-	async function submit(turnstileToken: string) {
+	async function submit(
+		turnstileToken: string,
+		originalClick?: { actionRef?: string; startedAt: number },
+	) {
 		if (submitInFlight.current || snapshot || !draft || !capabilityVersion || !prompt.trim())
 			return;
 		if (!turnstileToken) {
@@ -268,8 +271,8 @@ export function useGuestTrial({
 		submissionAttempt.current ??= {
 			idempotencyKey: createIdempotencyKey("guest-submit"),
 			fingerprint,
-			actionRef: createJourneyReference(),
-			startedAt: performance.now(),
+			actionRef: originalClick?.actionRef ?? createJourneyReference(),
+			startedAt: originalClick?.startedAt ?? performance.now(),
 		};
 		void trackGenerationJourney({
 			stage: "generate_clicked",

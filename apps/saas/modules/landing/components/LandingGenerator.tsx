@@ -298,7 +298,9 @@ function LandingGeneratorWorkspace({
 	const fileSelectionRevision = useRef(0);
 	const chooseFileRef = useRef<(file: File) => Promise<boolean>>(async () => false);
 	const journeyDraftRef = useRef<string | undefined>(undefined);
-	const journeyAction = useRef<{ fingerprint: string; id?: string } | null>(null);
+	const journeyAction = useRef<{ fingerprint: string; id?: string; startedAt: number } | null>(
+		null,
+	);
 	const uploadStartedAt = useRef<number | null>(null);
 	useEffect(() => {
 		if (startEmpty || authDraftRestored.current) return;
@@ -1068,7 +1070,11 @@ function LandingGeneratorWorkspace({
 			journeyDraftRef.current,
 		]);
 		if (journeyAction.current?.fingerprint !== fingerprint)
-			journeyAction.current = { fingerprint, id: createJourneyReference() };
+			journeyAction.current = {
+				fingerprint,
+				id: createJourneyReference(),
+				startedAt: performance.now(),
+			};
 		void trackGenerationJourney({
 			stage: "generate_clicked",
 			draftRef: journeyDraftRef.current,
@@ -1464,6 +1470,14 @@ function LandingGeneratorWorkspace({
 				<GuestTrialWorkspace
 					embedded
 					autoSubmit={inlineGuestTrial === "start"}
+					originalClick={
+						journeyAction.current
+							? {
+									actionRef: journeyAction.current.id,
+									startedAt: journeyAction.current.startedAt,
+								}
+							: undefined
+					}
 					effectReturnPath={effectEditor?.getReturnPath()}
 				/>
 			</div>
