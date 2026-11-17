@@ -87,6 +87,43 @@ export function constrainImageSpecMatrixToOutputFormat<T extends PublicImageSpec
 	};
 }
 
+/** Keep the catalog's static raster capabilities and prefer PNG only where supported. */
+export function constrainImageSpecMatrixToRaster<T extends PublicImageSpecMatrix>(matrix: T): T {
+	const cells = matrix.cells.flatMap((cell) => {
+		const control = cell.controls.find((item) => item.key === "outputFormat");
+		if (!control) return [cell];
+		const options = control.options.filter((option) =>
+			["png", "jpeg", "webp"].includes(option.key),
+		);
+		if (!options.length) return [];
+		const defaultValue =
+			options.find((option) => option.key === "png")?.key ??
+			options.find((option) => option.key === control.defaultValue)?.key ??
+			options[0]!.key;
+		return [
+			{
+				...cell,
+				controls: cell.controls.map((item) =>
+					item.key === "outputFormat" ? { ...item, options, defaultValue } : item,
+				),
+			},
+		];
+	});
+	return {
+		...matrix,
+		cells,
+		defaultSkuKey: cells.some((cell) => cell.skuKey === matrix.defaultSkuKey)
+			? matrix.defaultSkuKey
+			: (cells[0]?.skuKey ?? matrix.defaultSkuKey),
+		dimensions: matrix.dimensions.map((dimension) => ({
+			...dimension,
+			options: dimension.options.filter((option) =>
+				cells.some((cell) => cell.parameterValues[dimension.key] === option.key),
+			),
+		})),
+	};
+}
+
 export function getImageSpecCell(
 	matrix: PublicImageSpecMatrix | undefined,
 	skuKey: string | undefined,

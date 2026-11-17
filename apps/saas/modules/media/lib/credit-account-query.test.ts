@@ -18,6 +18,7 @@ type CreditQuery = QueryFunction<CreditAccount, ReturnType<typeof creditAccountQ
 function account(spendableCredits: string): CreditAccount {
 	return {
 		adminTestSkuKeys: [],
+		hasPaidImageAccess: false,
 		spendableCredits,
 		reservedCredits: "0",
 		creditDebt: "0",

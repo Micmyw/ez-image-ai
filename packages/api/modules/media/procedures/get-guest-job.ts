@@ -9,6 +9,7 @@ import { guestMediaProcedure } from "../guest-procedure";
 import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
 import { getAuthorizedImageResult } from "../lib/image-result";
 import { publicImageModerationReason } from "../lib/public-moderation-reason";
+import { publicToolPrompt } from "../lib/public-tool-prompt";
 
 const guestJobInputSchema = z.object({ jobId: z.string().min(1).max(256) }).strict();
 const guestJobOutputSchema = z
@@ -22,6 +23,7 @@ const guestJobOutputSchema = z
 		watermarked: z.boolean(),
 		trialConsumed: z.boolean(),
 		linkReady: z.boolean(),
+		toolPrompt: z.string().max(256).optional(),
 		safety: z
 			.object({
 				outcome: z.enum(["blocked", "unavailable"]),
@@ -106,6 +108,7 @@ export const getGrantedGuestJob = protectedProcedure
 function serializeGuestJob(snapshot: Awaited<ReturnType<typeof getGuestJobSnapshot>>) {
 	if (!snapshot) throw new ORPCError("NOT_FOUND");
 	const reason = publicImageModerationReason(snapshot.outputSafety);
+	const toolPrompt = publicToolPrompt(snapshot.inputPrompt);
 	return {
 		jobId: snapshot.jobId,
 		stage: snapshot.stage,
@@ -116,6 +119,7 @@ function serializeGuestJob(snapshot: Awaited<ReturnType<typeof getGuestJobSnapsh
 		watermarked: snapshot.watermarked,
 		trialConsumed: snapshot.trialConsumed,
 		linkReady: snapshot.linkReady,
+		...(toolPrompt ? { toolPrompt } : {}),
 		...(snapshot.stage === "FAILED" && snapshot.outputSafety
 			? { safety: { outcome: reason ? ("blocked" as const) : ("unavailable" as const), reason } }
 			: {}),

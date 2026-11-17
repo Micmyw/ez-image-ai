@@ -4,12 +4,17 @@ vi.mock("../../client", () => ({
 		throw new Error("explicit test transport required");
 	},
 }));
-import { KIE_SENSITIVE_REJECTION_MESSAGE } from "@repo/config";
+import {
+	KIE_SENSITIVE_REJECTION_MESSAGE,
+	EZPIC_PRODUCT_KEYS,
+	IMAGE_SKU_KEYS_BY_PRODUCT,
+} from "@repo/config";
 import {
 	getImagePassOfferSnapshot,
 	IMAGE_PASS_LEGACY_OFFER,
 	IMAGE_PASS_STANDARD_OFFER,
 	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+	IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
 } from "@repo/config/image-pass";
 
 import {
@@ -22,6 +27,30 @@ import {
 import { canSettleKieZeroCostRejection } from "./kie-zero-cost-rejection";
 
 describe("image-pass funding contract", () => {
+	it.each(
+		EZPIC_PRODUCT_KEYS.flatMap((productKey) =>
+			IMAGE_SKU_KEYS_BY_PRODUCT[productKey].map((skuKey) => ({ productKey, skuKey })),
+		),
+	)(
+		"uses the same current pass authorization for $productKey / $skuKey",
+		async ({ productKey, skuKey }) => {
+			const tx = {
+				$queryRaw: vi.fn(async () => [{ id: "unit", offerSnapshot: getImagePassOfferSnapshot() }]),
+			};
+			const input = {
+				ownerId: "owner",
+				productKey,
+				skuKey,
+				imagePassBenefitPolicy: IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
+				requireModelAccess: true,
+			};
+			await expect(assertImagePassAvailable(input, tx as never)).resolves.toBeUndefined();
+			tx.$queryRaw.mockResolvedValue([]);
+			await expect(assertImagePassAvailable(input, tx as never)).rejects.toThrow(
+				"IMAGE_PASS_INSUFFICIENT",
+			);
+		},
+	);
 	it.each([IMAGE_PASS_LEGACY_OFFER, IMAGE_PASS_STANDARD_OFFER, getImagePassOfferSnapshot()])(
 		"allows every existing pack cohort for Sheru's 1K model without a subscription",
 		async (offerSnapshot) => {
@@ -364,7 +393,7 @@ describe("GPT Image 2.6 pass admission", () => {
 			expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
 		},
 	);
-	it("projects 35 effective SKUs only for current grants and never mutates a frozen grant", async () => {
+	it("projects 41 effective SKUs only for current grants and never mutates a frozen grant", async () => {
 		for (const offerSnapshot of [
 			getImagePassOfferSnapshot(),
 			IMAGE_PASS_LEGACY_OFFER,
@@ -380,9 +409,9 @@ describe("GPT Image 2.6 pass admission", () => {
 			const balance = await getImagePassBalance({ ownerId: "owner" }, tx as never);
 			const current = offerSnapshot.offerVersion === "2026-11-04.2";
 			expect(balance.availableSkuKeys).toHaveLength(
-				current ? 35 : offerSnapshot.allowedSkuKeys.length,
+				current ? 41 : offerSnapshot.allowedSkuKeys.length,
 			);
-			expect(balance.subscriptionFreeSkuKeys).toHaveLength(current ? 35 : 0);
+			expect(balance.subscriptionFreeSkuKeys).toHaveLength(current ? 41 : 0);
 			expect(balance.available).toBe(2);
 			expect(JSON.stringify(offerSnapshot)).toBe(original);
 		}

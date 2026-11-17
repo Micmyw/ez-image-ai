@@ -5,13 +5,16 @@ import { orpcClient } from "@shared/lib/orpc-client";
 import { skipToken, useQuery } from "@tanstack/react-query";
 
 /** Share the same private URL boundary across current and legacy result previews. */
-export function usePrivateAssetPreview(assetId?: string) {
+export function usePrivateAssetPreview(assetId?: string, jobId?: string) {
 	const { user } = useSession();
 	const query = useQuery({
-		queryKey: ["media-asset-preview", assetId, user?.id ?? null],
+		queryKey: ["media-asset-preview", assetId, user?.id ?? null, ...(jobId ? [jobId] : [])],
 		queryFn: assetId
 			? ({ signal }) =>
-					orpcClient.media.getAssetAccessUrl({ assetId, disposition: "inline" }, { signal })
+					orpcClient.media.getAssetAccessUrl(
+						{ assetId, disposition: "inline", ...(jobId ? { jobId } : {}) },
+						{ signal },
+					)
 			: skipToken,
 		staleTime: 4 * 60_000,
 	});

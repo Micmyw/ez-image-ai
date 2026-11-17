@@ -1,16 +1,21 @@
-import { getPlanEntitlement, planIncludesImageSelection } from "@repo/config/client";
+import { getImageProductSelectionContract } from "@repo/config/client";
 
-import type { PublicEffectPreset } from "../../effects/lib/types";
+import { isEditorProductKey } from "./editor-recovery";
 import type { PublicImageSpecMatrix } from "./image-sku-selection";
 
 export function paidTemplateSpecMatrix<T extends PublicImageSpecMatrix>(
 	matrix: T,
-	skuKey: string,
+	productKey: string,
 ): T {
-	const cells = matrix.cells.filter((cell) => cell.skuKey === skuKey);
+	const cells = matrix.cells.filter((cell) =>
+		isPaidTemplateSelection({ productKey, skuKey: cell.skuKey }),
+	);
 	return {
 		...matrix,
-		defaultSkuKey: skuKey,
+		defaultSkuKey:
+			cells.find((cell) => cell.skuKey === matrix.defaultSkuKey)?.skuKey ??
+			cells[0]?.skuKey ??
+			matrix.defaultSkuKey,
 		cells,
 		dimensions: matrix.dimensions.map((dimension) => ({
 			...dimension,
@@ -21,19 +26,15 @@ export function paidTemplateSpecMatrix<T extends PublicImageSpecMatrix>(
 	};
 }
 
-/** A paid template never falls back to a free product through model controls or draft recovery. */
-export function isPaidTemplateSelection(
-	selection: { productKey?: string | null; skuKey?: string | null },
-	preset: Pick<PublicEffectPreset, "productKey" | "parameters"> | undefined,
-): boolean {
+/** Validate the model/tier pair. Paid access is checked independently of model choice. */
+export function isPaidTemplateSelection(selection: {
+	productKey?: string | null;
+	skuKey?: string | null;
+}): boolean {
 	return Boolean(
-		preset &&
-		selection.productKey === preset.productKey &&
-		selection.skuKey === preset.parameters.skuKey &&
-		!planIncludesImageSelection(
-			getPlanEntitlement("free"),
-			preset.productKey,
-			preset.parameters.skuKey,
+		isEditorProductKey(selection.productKey) &&
+		getImageProductSelectionContract(selection.productKey)?.cells.some(
+			(cell) => cell.skuKey === selection.skuKey,
 		),
 	);
 }

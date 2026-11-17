@@ -22,14 +22,31 @@ const harness = vi.hoisted(() => {
 		upload: vi.fn(),
 		turnstile: vi.fn(() => null),
 		modelSelector: vi.fn(() => null),
+		toolBinding: vi.fn(),
+		toolComposer: null as null | {
+			beforeReference: ReactNode;
+			afterReference: ReactNode;
+			summary: ReactNode;
+		},
 		effectEditor: null as
 			| import("../../effects/lib/editor-context").EffectEditorContextValue
 			| null,
 		handoff: vi.fn(),
 		prepareInline: vi.fn(async () => undefined),
+		toolPrompt: null as null | {
+			requireReference?: boolean;
+			suspendReference?: boolean;
+			allowReference?: boolean;
+			lockAspectRatio?: boolean;
+			returnPath?: "/gta-6-wallpaper";
+			generationAccess?: "paid";
+		},
 	};
 });
 
+vi.mock("@media/lib/tool-composer-context", () => ({
+	useToolComposer: () => harness.toolComposer,
+}));
 vi.mock("react", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("react")>();
 	return {
@@ -41,11 +58,7 @@ vi.mock("react", async (importOriginal) => {
 			if (first instanceof File && dependencies?.length === 2) harness.initialFileEffect = effect;
 			if (first && typeof first === "object" && "ensure" in first && "read" in first)
 				harness.preparationEffect = effect;
-			if (
-				dependencies?.length === 3 &&
-				typeof first === "boolean" &&
-				typeof dependencies[1] === "boolean"
-			)
+			if (effect.toString().includes("authDraftRestored.current"))
 				harness.authRestoreEffect = effect;
 		},
 		useMemo: <T,>(factory: () => T) => factory(),
@@ -109,8 +122,8 @@ vi.mock("@media/hooks/use-model-navigation", () => ({
 }));
 vi.mock("@media/lib/public-catalog-query", () => ({ publicCatalogQueryOptions: {} }));
 vi.mock("@media/lib/tool-prompt-context", () => ({
-	useToolPrompt: () => null,
-	useToolPromptBinding: vi.fn(),
+	useToolPrompt: () => harness.toolPrompt,
+	useToolPromptBinding: harness.toolBinding,
 }));
 vi.mock("../../effects/lib/editor-context", () => ({
 	useEffectEditor: () => harness.effectEditor,
@@ -131,6 +144,7 @@ vi.mock("../lib/guest-draft-client", async (importOriginal) => ({
 	submitGuestDraftHandoff: harness.handoff,
 }));
 
+import { ImageOutputSettings } from "@media/components/ImageOutputSettings";
 import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
 import { readPaidTemplatePurchase } from "@payments/lib/paid-template-purchase";
 import { Textarea } from "@repo/ui/components/textarea";
@@ -211,6 +225,8 @@ describe("LandingGenerator verification feedback", () => {
 		harness.authRestoreEffect = undefined;
 		harness.initialFileEffect = undefined;
 		harness.effectEditor = null;
+		harness.toolPrompt = null;
+		harness.toolComposer = null;
 		harness.getCapability.mockResolvedValue({
 			version: "capability-v1",
 			enabled: true,
@@ -219,6 +235,93 @@ describe("LandingGenerator verification feedback", () => {
 			products: [product],
 			queueEstimate: { kind: "capacity" },
 		});
+	});
+	it("keeps the guest preset out of generic prompt suggestions without changing its binding", () => {
+		harness.toolComposer = {
+			beforeReference: "Upload first",
+			afterReference: "Choose scene",
+			summary: "Current composition",
+		};
+		const tree = renderWorkspace(false);
+		expect(findElement(tree, Textarea)).toBeUndefined();
+		expect(harness.toolBinding.mock.calls.at(-1)![0].prompt).toBe("Preserve this guest edit");
+	});
+	it("keeps GTA preset edits local while a slow catalog is unresolved", async () => {
+		let resolveCatalog!: (catalog: unknown) => void;
+		harness.getCatalog.mockReturnValueOnce(
+			new Promise((resolve) => {
+				resolveCatalog = resolve;
+			}),
+		);
+		harness.toolPrompt = { lockAspectRatio: true, returnPath: "/gta-6-wallpaper" };
+		void renderWorkspace(false);
+		harness.capabilityEffect?.();
+		const binding = harness.toolBinding.mock.calls.at(-1)![0];
+		expect(binding.busy).toBe(false);
+		expect(binding.applyPrompt("Restored coastal scene", { aspectRatio: "16:9" })).toBe(true);
+		let tree = renderWorkspace(false);
+		expect(findElement(tree, Textarea)?.props.value).toBe("Restored coastal scene");
+		expect(findElement(tree, ImageOutputSettings)?.props.value).toBe("16:9");
+		callback<(event: { preventDefault: () => void }) => void>(
+			tree,
+			"form",
+			"onSubmit",
+		)({ preventDefault() {} });
+		expect(harness.upload).not.toHaveBeenCalled();
+		expect(harness.saveAuthDraft).not.toHaveBeenCalled();
+		expect(harness.prepareInline).not.toHaveBeenCalled();
+		resolveCatalog({ products: [{ ...product, inputKinds: ["text-to-image"] }] });
+		await vi.waitFor(() =>
+			expect(
+				findElement(renderWorkspace(false), harness.modelSelector)?.props.products,
+			).toHaveLength(1),
+		);
+		tree = renderWorkspace(false);
+		callback<(key: string) => void>(tree, harness.modelSelector, "onChange")(product.key);
+		renderWorkspace(false);
+		expect(
+			harness.toolBinding.mock.calls
+				.at(-1)![0]
+				.applyPrompt("Unsupported new scene", { aspectRatio: "16:9" }),
+		).toBe(false);
+		expect(findElement(renderWorkspace(false), Textarea)?.props.value).toBe(
+			"Restored coastal scene",
+		);
+	});
+	it("continues rejecting ratio changes for other tools before their catalog resolves", () => {
+		void renderWorkspace(false);
+		expect(
+			harness.toolBinding.mock.calls.at(-1)![0].applyPrompt("Other tool", { aspectRatio: "16:9" }),
+		).toBe(false);
+		expect(findElement(renderWorkspace(false), Textarea)?.props.value).toBe(
+			"Preserve this guest edit",
+		);
+	});
+	it("retains the same photo upload while a GTA scene draft excludes references", async () => {
+		harness.toolPrompt = { requireReference: true, returnPath: "/gta-6-wallpaper" };
+		harness.getCatalog.mockResolvedValue({
+			products: [{ ...product, inputKinds: ["text-to-image"] }],
+		});
+		let tree = await readyWorkspace();
+		callback<(token: string) => void>(tree, Turnstile, "onToken")("token");
+		renderWorkspace();
+		harness.preparationEffect?.();
+		await vi.waitFor(() => expect(harness.prepare).toHaveBeenCalledOnce());
+		harness.toolPrompt = {
+			suspendReference: true,
+			allowReference: false,
+			returnPath: "/gta-6-wallpaper",
+		};
+		tree = renderWorkspace();
+		harness.preparationEffect?.();
+		expect(findElement(tree, "div")?.props["data-composer-kind"]).toBe("text-to-image");
+		harness.toolPrompt = { requireReference: true, returnPath: "/gta-6-wallpaper" };
+		tree = renderWorkspace();
+		harness.preparationEffect?.();
+		expect(findElement(tree, "section")?.props["data-source-selected"]).toBe(true);
+		expect(harness.prepare).toHaveBeenCalledOnce();
+		expect(harness.upload).not.toHaveBeenCalled();
+		expect(harness.prepareInline).not.toHaveBeenCalled();
 	});
 	it.each(["REGION_EXCLUDED", "REGION_UNVERIFIED"])(
 		"preserves the photo and prompt for sign-in instead of starting a free trial when %s",
@@ -439,7 +542,7 @@ describe("LandingGenerator verification feedback", () => {
 		let tree = await readyWorkspace();
 		callback<(token: string) => void>(tree, Turnstile, "onToken")("paid-token");
 		tree = renderWorkspace();
-		expect(findElement(tree, harness.modelSelector)?.props.disabled).toBe(true);
+		expect(findElement(tree, harness.modelSelector)?.props.disabled).toBe(false);
 		callback<(event: { preventDefault: () => void }) => void>(
 			tree,
 			"form",
@@ -482,14 +585,20 @@ describe("LandingGenerator verification feedback", () => {
 			claimToken: "wrong",
 		});
 		callback<() => void>(tree, PaidTemplateDialog, "onPlans")();
-		await vi.waitFor(() => expect(visibleText(renderWorkspace())).toContain("errors.upload"));
-		expect(harness.handoff).not.toHaveBeenCalled();
+		await vi.waitFor(() =>
+			expect(harness.handoff).toHaveBeenCalledWith(
+				expect.objectContaining({ accessHint: "paid-account" }),
+				document,
+				"/blog/sheru-bhai-ai-photo?preset=with-sheru",
+			),
+		);
+		expect(harness.prepareInline).not.toHaveBeenCalled();
 		expect(
 			readPaidTemplatePurchase(window.sessionStorage, {
 				effectId: "sheru-bhai-ai-photo",
 				presetId: "with-sheru",
 			}),
-		).toBeNull();
+		).toBe("plans");
 	});
 
 	it("makes reference editing ready while the unrelated text catalog is still pending", async () => {
@@ -739,13 +848,16 @@ async function readyWorkspace() {
 	expect(harness.capabilityEffect).toBeTypeOf("function");
 	await harness.capabilityEffect?.();
 	await vi.waitFor(() =>
-		expect(findElement(renderWorkspace(), harness.modelSelector)?.props.products).toHaveLength(1),
+		expect(findElement(renderWorkspace(), harness.modelSelector)?.props.products).toHaveLength(
+			harness.effectEditor ? 2 : 1,
+		),
 	);
 	await vi.waitFor(() =>
 		expect(findElement(renderWorkspace(), "section")?.props["data-source-selected"]).toBe(true),
 	);
 	const tree = renderWorkspace();
-	callback<(key: string) => void>(tree, harness.modelSelector, "onChange")(product.key);
+	if (!harness.effectEditor)
+		callback<(key: string) => void>(tree, harness.modelSelector, "onChange")(product.key);
 	return renderWorkspace();
 }
 

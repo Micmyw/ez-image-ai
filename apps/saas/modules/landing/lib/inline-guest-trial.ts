@@ -1,11 +1,15 @@
+import { sanitizeEffectEditorReturnPath } from "../../effects/lib/editor-selection";
+import { sanitizeToolReturnPath } from "../../media/lib/tool-return-path";
 import type { GuestDraftHandoff } from "./guest-draft-client";
 
 /** Reuse the existing HttpOnly claim and bootstrap boundaries without navigating. */
 export async function prepareInlineGuestTrial(
 	handoff: GuestDraftHandoff,
 	fetcher: typeof fetch = fetch,
+	returnTo?: string,
 ): Promise<void> {
 	if (handoff.accessHint !== "guest-trial") throw new Error("ACCOUNT_HANDOFF_REQUIRED");
+	const returnPath = sanitizeToolReturnPath(returnTo) ?? sanitizeEffectEditorReturnPath(returnTo);
 	const prepared = await fetcher("/draft/continue", {
 		method: "POST",
 		credentials: "same-origin",
@@ -14,6 +18,7 @@ export async function prepareInlineGuestTrial(
 		body: new URLSearchParams({
 			intent: "continue-marketing-draft",
 			claimToken: handoff.claimToken,
+			...(returnPath ? { returnTo: returnPath } : {}),
 		}),
 		signal: AbortSignal.timeout(45_000),
 	});

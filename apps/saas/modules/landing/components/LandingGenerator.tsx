@@ -17,20 +17,22 @@ import {
 	useRequestedImageOutputFormat,
 } from "@media/hooks/use-model-navigation";
 import { isEditorProductKey } from "@media/lib/editor-recovery";
-
-import "@media/components/editor/generation-composer.css";
 import {
 	constrainImageSpecMatrixToOutputFormat,
+	constrainImageSpecMatrixToRaster,
 	type ImageSpecControlChangeKey,
 	type ImageSpecControlValues,
 	resolveImageSpecControlValues,
 } from "@media/lib/image-sku-selection";
+
+import "@media/components/editor/generation-composer.css";
 import { IMAGE_UPLOAD_ACCEPT } from "@media/lib/image-upload-formats";
 import {
 	isPaidTemplateSelection,
 	paidTemplateSpecMatrix,
 } from "@media/lib/paid-template-selection";
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
+import { useToolComposer } from "@media/lib/tool-composer-context";
 import { useToolPrompt, useToolPromptBinding } from "@media/lib/tool-prompt-context";
 import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
 import {
@@ -201,15 +203,27 @@ function LandingGeneratorWorkspace({
 	useGeneratorSignInDraft(saveSignInDraft);
 	const isEffectEditor = Boolean(effectEditor);
 	const effectPreset = effectEditor?.selectedPreset;
-	const hidePresetPrompt = effectEditor?.effect.id === "sheru-bhai-ai-photo";
-	const paidTemplate = effectEditor?.effect.generationAccess === "paid";
+	const toolPrompt = useToolPrompt();
+	const paidTemplate =
+		effectEditor?.effect.generationAccess === "paid" || toolPrompt?.generationAccess === "paid";
+	const purchaseEffectId = effectEditor?.effect.id ?? toolPrompt?.returnPath;
+	const purchasePresetId = effectPreset?.id ?? "paid-tool-v1";
 	const [paidDialogOpen, setPaidDialogOpen] = useState(false);
 	useEffect(() => {
 		if (workspace?.mode === "video") setPaidDialogOpen(false);
 	}, [workspace?.mode]);
-	const requireReference = referenceRequired || effectPreset?.inputRequirement === "required";
 	const effects = useTranslations("effects.editor");
-	const toolPrompt = useToolPrompt();
+	const toolComposer = useToolComposer();
+	const isToolComposer = Boolean(toolComposer);
+	const referenceSuspended = toolPrompt?.suspendReference === true;
+	const rasterOnly = toolPrompt?.rasterOnly === true;
+	const lockAspectRatio = toolPrompt?.lockAspectRatio === true;
+	const screenCopy = useTranslations("christmas");
+	const requireReference =
+		!referenceSuspended &&
+		(referenceRequired ||
+			toolPrompt?.requireReference === true ||
+			effectPreset?.inputRequirement === "required");
 	const queryClient = useQueryClient();
 	const examplePrompt = useShowcasePrompt();
 	const t = useTranslations("home.generator");
@@ -230,7 +244,8 @@ function LandingGeneratorWorkspace({
 	const [textProducts, setTextProducts] = useState<GuestCapabilityProduct[]>([]);
 	const [textDraftError, setTextDraftError] = useState(false);
 	const requestedModel = useRequestedImageModel();
-	const requestedOutputFormat = useRequestedImageOutputFormat();
+	const outputFormatFromUrl = useRequestedImageOutputFormat();
+	const requestedOutputFormat = rasterOnly ? undefined : outputFormatFromUrl;
 	const [selectedProductKey, setSelectedProductKey] = useState<GuestProductKey | null>(
 		effectPreset?.productKey ??
 			initialProductKey ??
@@ -244,7 +259,8 @@ function LandingGeneratorWorkspace({
 	const [selectedSkuKey, setSelectedSkuKey] = useState<ImageSkuKey | null>(
 		effectPreset?.parameters.skuKey ?? null,
 	);
-	const [file, setFile] = useState<File | null>(null);
+	const [retainedFile, setFile] = useState<File | null>(null);
+	const file = referenceSuspended ? null : retainedFile;
 	const sourceFileRef = useRef<File | null>(startEmpty ? null : (initialFile ?? null));
 	const draftInteractionRevision = useRef(0);
 	const authDraftRestored = useRef(false);
@@ -336,12 +352,13 @@ function LandingGeneratorWorkspace({
 				const values = saved.values;
 				if (
 					paidTemplate &&
-					!isPaidTemplateSelection(
-						{ productKey: values.productKey, skuKey: values.skuKey },
-						effectPreset,
-					)
-				)
+					!isPaidTemplateSelection({ productKey: values.productKey, skuKey: values.skuKey })
+				) {
+					setPrompt(values.prompt);
+					setAspectRatio(values.aspectRatio);
+					if (saved.file) await chooseFileRef.current(saved.file);
 					return;
+				}
 				selectionSource.current = "explicit";
 				setSelectedProductKey(values.productKey);
 				setSelectedSkuKey(values.skuKey);
@@ -366,7 +383,7 @@ function LandingGeneratorWorkspace({
 			active = false;
 			if (!finished) authDraftRestored.current = false;
 		};
-	}, [startEmpty, paidTemplate, effectPreset]);
+	}, [startEmpty, paidTemplate]);
 
 	useEffect(() => {
 		let active = true;
@@ -447,11 +464,12 @@ function LandingGeneratorWorkspace({
 			if (saved) {
 				selectionSource.current = "explicit";
 				setPrompt(saved.values.prompt);
+				const valid = !paidTemplate || isPaidTemplateSelection(saved.values);
 				setSelectedProductKey(
-					paidTemplate ? effectEditor.selectedPreset.productKey : saved.values.productKey,
+					valid ? saved.values.productKey : effectEditor.selectedPreset.productKey,
 				);
 				setSelectedSkuKey(
-					paidTemplate ? effectEditor.selectedPreset.parameters.skuKey : saved.values.skuKey,
+					valid ? saved.values.skuKey : effectEditor.selectedPreset.parameters.skuKey,
 				);
 				setAspectRatio(saved.values.aspectRatio);
 				setControlValues({
@@ -500,7 +518,7 @@ function LandingGeneratorWorkspace({
 	]);
 
 	useEffect(() => {
-		if (isEffectEditor) return;
+		if (isEffectEditor || isToolComposer) return;
 		const generator = generatorRef.current;
 		if (!generator) return;
 		const page = generator.closest(".studio-home, [data-image-to-image-page]");
@@ -534,7 +552,7 @@ function LandingGeneratorWorkspace({
 		for (const example of examples) observer.observe(example);
 
 		return () => observer.disconnect();
-	}, [isEffectEditor]);
+	}, [isEffectEditor, isToolComposer]);
 
 	useEffect(() => {
 		if (!isDockExpanded) return;
@@ -613,19 +631,22 @@ function LandingGeneratorWorkspace({
 	const availableProducts = useMemo(
 		() =>
 			(file || requireReference ? (capability?.products ?? []) : textProducts)
-				.filter((product) => !paidTemplate || product.key === effectPreset?.productKey)
 				.map((product) =>
-					paidTemplate && effectPreset
+					rasterOnly
+						? { ...product, skuMatrix: constrainImageSpecMatrixToRaster(product.skuMatrix) }
+						: product,
+				)
+				.filter((product) => !rasterOnly || product.skuMatrix.cells.length > 0)
+				.map((product) =>
+					paidTemplate
 						? {
 								...product,
-								skuMatrix: paidTemplateSpecMatrix(
-									product.skuMatrix,
-									effectPreset.parameters.skuKey,
-								),
+								skuMatrix: paidTemplateSpecMatrix(product.skuMatrix, product.key),
 							}
 						: product,
-				),
-		[file, requireReference, capability?.products, textProducts, paidTemplate, effectPreset],
+				)
+				.filter((product) => !paidTemplate || product.skuMatrix.cells.length > 0),
+		[file, requireReference, capability?.products, textProducts, paidTemplate, rasterOnly],
 	);
 	useEffect(() => {
 		if (isEffectEditor) return;
@@ -708,8 +729,10 @@ function LandingGeneratorWorkspace({
 			? Boolean(capability?.enabled && capability.products.length > 0)
 			: textProducts.length > 0;
 	const guestPreparation = useGuestUploadPreparation({
-		file,
-		enabled: Boolean(capability?.enabled && (!regionRequiresAccount || paidTemplate)),
+		file: retainedFile,
+		enabled: Boolean(
+			!referenceSuspended && capability?.enabled && (!regionRequiresAccount || paidTemplate),
+		),
 		capabilityVersion: capability?.version,
 		productKey: selectedProduct?.key,
 		maximumBytes,
@@ -785,7 +808,7 @@ function LandingGeneratorWorkspace({
 		setSelectedSkuKey((current) => resolveLandingSkuSelection(selectedProduct, current));
 	}, [selectedProduct, isEffectEditor]);
 	useEffect(() => {
-		if (isEffectEditor || !selectedProduct || !selectedSku) return;
+		if (isEffectEditor || lockAspectRatio || !selectedProduct || !selectedSku) return;
 		setAspectRatio((current) =>
 			controlValues.outputFormat === "gif"
 				? "1:1"
@@ -794,21 +817,18 @@ function LandingGeneratorWorkspace({
 						current,
 					) ?? current),
 		);
-	}, [selectedProduct, selectedSku, isEffectEditor, controlValues.outputFormat]);
+	}, [selectedProduct, selectedSku, isEffectEditor, controlValues.outputFormat, lockAspectRatio]);
 	useEffect(() => {
 		if (isEffectEditor || !selectedSku) return;
 		setControlValues((current) => resolveImageSpecControlValues(selectedSku, current));
 	}, [selectedSku, isEffectEditor]);
 	const effectSelectionUnavailable = Boolean(
-		effectEditor &&
+		(effectEditor || paidTemplate) &&
 		stage !== "checking" &&
 		(!selectedProductKey ||
 			!selectedSkuKey ||
 			(paidTemplate &&
-				!isPaidTemplateSelection(
-					{ productKey: selectedProductKey, skuKey: selectedSkuKey },
-					effectPreset,
-				)) ||
+				!isPaidTemplateSelection({ productKey: selectedProductKey, skuKey: selectedSkuKey })) ||
 			!isEffectSelectionAvailable(
 				{ productKey: selectedProductKey, skuKey: selectedSkuKey, aspectRatio, ...controlValues },
 				availableProducts,
@@ -829,7 +849,11 @@ function LandingGeneratorWorkspace({
 		requiresSource: requireReference,
 	});
 	const isBusy = disabledReason === "busy";
-	const canSubmit = disabledReason === null && !effectSelectionUnavailable;
+	const needsReferenceUpload = disabledReason === "source" && requireReference;
+	const screenRatioUnavailable =
+		lockAspectRatio && Boolean(selectedSku) && !selectedSku?.aspectRatios.includes(aspectRatio);
+	const canSubmit =
+		disabledReason === null && !effectSelectionUnavailable && !screenRatioUnavailable;
 	useEffectEditorBinding({
 		prompt,
 		busy: isBusy,
@@ -867,6 +891,7 @@ function LandingGeneratorWorkspace({
 		applyPrompt: (nextPrompt, options) => {
 			if (
 				options?.aspectRatio &&
+				(selectedSku || !lockAspectRatio) &&
 				(controlValues.outputFormat === "gif"
 					? options.aspectRatio !== "1:1"
 					: !selectedSku?.aspectRatios.includes(options.aspectRatio))
@@ -992,7 +1017,7 @@ function LandingGeneratorWorkspace({
 		draftInteractionRevision.current += 1;
 		if (
 			paidTemplate &&
-			!isPaidTemplateSelection({ productKey: selectedProductKey, skuKey: nextSkuKey }, effectPreset)
+			!isPaidTemplateSelection({ productKey: selectedProductKey, skuKey: nextSkuKey })
 		)
 			return;
 		if (!selectedProduct) return;
@@ -1001,13 +1026,14 @@ function LandingGeneratorWorkspace({
 		selectionSource.current = "explicit";
 		setSelectedSkuKey(nextSku.skuKey);
 		setControlValues((current) => resolveImageSpecControlValues(nextSku, current));
-		setAspectRatio(
-			(current) =>
-				resolveLandingAspectRatioSelection(
-					{ ...selectedProduct, aspectRatios: nextSku.aspectRatios },
-					current,
-				) ?? "auto",
-		);
+		if (!lockAspectRatio)
+			setAspectRatio(
+				(current) =>
+					resolveLandingAspectRatioSelection(
+						{ ...selectedProduct, aspectRatios: nextSku.aspectRatios },
+						current,
+					) ?? "auto",
+			);
 		setSubmitError(undefined);
 	}
 
@@ -1017,14 +1043,16 @@ function LandingGeneratorWorkspace({
 			const next = resolveImageSpecControlValues(selectedSku, { ...current, [key]: value }, key);
 			return String(next[key]) === value ? next : current;
 		});
-		if (key === "outputFormat" && value === "gif") setAspectRatio("1:1");
+		if (!lockAspectRatio && key === "outputFormat" && value === "gif") setAspectRatio("1:1");
 		setSubmitError(undefined);
 	}
 
 	async function continueWithAccount() {
 		setTextDraftError(false);
 		try {
-			const returnPath = effectEditor?.getReturnPath("resume") ?? "/create?resume=text";
+			const returnPath =
+				effectEditor?.getReturnPath("resume") ??
+				`${toolPrompt?.returnPath ?? "/create"}?resume=text`;
 			let redirectTo: string;
 			if (workspace) redirectTo = await workspace.prepareSignIn(returnPath);
 			else {
@@ -1039,9 +1067,11 @@ function LandingGeneratorWorkspace({
 	}
 
 	function changeModel(key: string, skuKey?: string) {
-		if (paidTemplate) return;
 		const next = localizedProducts.find((product) => product.key === key);
 		if (!next) return;
+		const nextSkuKey = resolveLandingSkuSelection(next, (skuKey as ImageSkuKey) ?? null);
+		if (paidTemplate && !isPaidTemplateSelection({ productKey: next.key, skuKey: nextSkuKey }))
+			return;
 		draftInteractionRevision.current += 1;
 		selectionSource.current = "explicit";
 		setSelectedProductKey(next.key);
@@ -1086,6 +1116,7 @@ function LandingGeneratorWorkspace({
 			actionRef: journeyAction.current.id,
 			publicModel: selectedProductKey ?? undefined,
 		});
+		if (screenRatioUnavailable) return;
 		if (requireReference && !file) {
 			setFileError(t("fileErrors.required"));
 			return;
@@ -1100,10 +1131,7 @@ function LandingGeneratorWorkspace({
 		if (paidTemplate) {
 			if (
 				!canSubmit ||
-				!isPaidTemplateSelection(
-					{ productKey: selectedProductKey, skuKey: selectedSkuKey },
-					effectPreset,
-				)
+				!isPaidTemplateSelection({ productKey: selectedProductKey, skuKey: selectedSkuKey })
 			)
 				return;
 			if (!purchase) {
@@ -1118,6 +1146,17 @@ function LandingGeneratorWorkspace({
 			setTextDraftError(false);
 			setStage("handoff");
 			try {
+				if (
+					paidTemplate &&
+					purchase &&
+					purchaseEffectId &&
+					!savePaidTemplatePurchase(window.sessionStorage, {
+						effectId: purchaseEffectId,
+						presetId: purchasePresetId,
+						purchase,
+					})
+				)
+					throw new Error("PAID_TEMPLATE_STORAGE_UNAVAILABLE");
 				const { writeEditorUpgradeDraft } = await import("@payments/lib/editor-upgrade");
 				const saved = writeEditorUpgradeDraft(window.sessionStorage, {
 					draft: {
@@ -1201,14 +1240,12 @@ function LandingGeneratorWorkspace({
 				},
 				onProgress: ({ percentage }) => setUploadPercentage(percentage),
 			});
-			if (paidTemplate && effectEditor && purchase) {
-				// Paid models use the account draft path; this must never trigger a sponsored guest run.
-				if (handoff.accessHint !== "paid-account")
-					throw new Error("PAID_TEMPLATE_HANDOFF_REQUIRED");
+			if (paidTemplate && purchaseEffectId && purchase) {
+				// Every template model uses the authenticated purchase handoff, including basic SKUs.
 				if (
 					!savePaidTemplatePurchase(window.sessionStorage, {
-						effectId: effectEditor.effect.id,
-						presetId: effectEditor.selectedPreset.id,
+						effectId: purchaseEffectId,
+						presetId: purchasePresetId,
 						purchase,
 					})
 				) {
@@ -1227,7 +1264,11 @@ function LandingGeneratorWorkspace({
 				{ dedupeKey: `marketing-draft-created:${attemptKey}` },
 			);
 			if (handoff.accessHint === "guest-trial" && !paidTemplate) {
-				await prepareInlineGuestTrial(handoff);
+				await prepareInlineGuestTrial(
+					handoff,
+					fetch,
+					effectEditor?.getReturnPath() ?? toolPrompt?.returnPath,
+				);
 				rememberInlineGuestTrial();
 				setInlineGuestTrial("start");
 				return;
@@ -1241,7 +1282,11 @@ function LandingGeneratorWorkspace({
 				{ dedupeKey: `auth-handoff-started:${attemptKey}` },
 			);
 			await nextAnimationFrame();
-			submitGuestDraftHandoff(handoff, document, effectEditor?.getReturnPath());
+			submitGuestDraftHandoff(
+				paidTemplate ? { ...handoff, accessHint: "paid-account" } : handoff,
+				document,
+				effectEditor?.getReturnPath() ?? toolPrompt?.returnPath,
+			);
 		} catch (error) {
 			submissionInFlight.current = false;
 			if (error instanceof Error && error.message === "ACCOUNT_HANDOFF_REQUIRED") {
@@ -1291,14 +1336,15 @@ function LandingGeneratorWorkspace({
 	const selectedProductFallbackLabel = selectedProductKey
 		? tCreate(`products.${selectedProductKey}.label`)
 		: undefined;
-	const actionLabel =
-		stage === "checking"
+	const actionLabel = needsReferenceUpload
+		? composer("addReference")
+		: stage === "checking"
 			? t("states.checking")
 			: canRetryCapability
 				? t("actions.retryAvailability")
 				: stage === "failed" && selectedProduct
 					? t("actions.retry")
-					: (!file && !requireReference) || (regionRequiresAccount && !paidTemplate)
+					: ((!file && !requireReference) || regionRequiresAccount) && !paidTemplate
 						? studio("generation.signIn")
 						: paidTemplate
 							? composer("generate")
@@ -1309,8 +1355,9 @@ function LandingGeneratorWorkspace({
 		stage === "uploading"
 			? t("states.uploading", { percentage: uploadPercentage ?? 0 })
 			: t(`states.${stage === "verifying" ? "preparing" : stage}`);
-	const statusLabel =
-		submitError === "rateLimit"
+	const statusLabel = screenRatioUnavailable
+		? screenCopy("unsupportedRatio")
+		: submitError === "rateLimit"
 			? stageLabel
 			: !file && canSubmit
 				? studio("generation.textHint")
@@ -1321,7 +1368,7 @@ function LandingGeneratorWorkspace({
 	const maximumPromptLength = promptContract?.maximumPromptLength ?? 10_000;
 	const showCharacterCount = prompt.length >= maximumPromptLength * 0.9;
 	const unavailableHelp =
-		!hidePresetPrompt && !capabilityUsable && stage !== "checking" ? (
+		!toolComposer && !capabilityUsable && stage !== "checking" ? (
 			<div className="mt-3 gap-x-5 gap-y-2 text-sm text-violet-200 flex flex-wrap">
 				<a
 					href="/blog/ai-image-editing-prompts"
@@ -1479,7 +1526,7 @@ function LandingGeneratorWorkspace({
 				data-composer-kind="image-to-image"
 				className="[&_.composer-category]:min-h-11! mt-6 mx-auto max-w-[76rem]"
 			>
-				<ComposerHeader />
+				{!toolComposer && <ComposerHeader />}
 				<GuestTrialWorkspace
 					embedded
 					autoSubmit={inlineGuestTrial === "start"}
@@ -1491,7 +1538,7 @@ function LandingGeneratorWorkspace({
 								}
 							: undefined
 					}
-					effectReturnPath={effectEditor?.getReturnPath()}
+					effectReturnPath={effectEditor?.getReturnPath() ?? toolPrompt?.returnPath}
 				/>
 			</div>
 		);
@@ -1507,7 +1554,7 @@ function LandingGeneratorWorkspace({
 				className="mt-6 p-3 sm:p-4 relative isolate mx-auto max-w-[76rem] overflow-hidden rounded-[1.75rem] border border-[#b79cff]/20 bg-[#2b2137] shadow-[0_34px_100px_-48px_rgba(0,0,0,0.95),0_28px_70px_-50px_rgba(169,139,255,0.72),inset_0_1px_0_rgba(255,255,255,0.07)]"
 			>
 				<form className="relative" onSubmit={(event) => void submit(event)}>
-					<ComposerHeader />
+					{!toolComposer && <ComposerHeader />}
 					{effectSelectionUnavailable && (
 						<output className="mb-3 text-sm text-amber-200 block">
 							{effects("modelUnavailable")}
@@ -1528,17 +1575,18 @@ function LandingGeneratorWorkspace({
 							{studio("tools.modelUnavailable")}
 						</output>
 					)}
+					{toolComposer?.beforeReference}
 					<div
 						data-test="landing-composer-inputs"
 						className={
-							hidePresetPrompt
+							toolComposer
 								? "bg-black/10 p-1.5 rounded-[1.3rem]"
 								: "gap-1.5 sm:gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] md:grid-cols-[8.5rem_minmax(0,1fr)] bg-black/10 p-1.5 grid grid-cols-[4.75rem_minmax(0,1fr)] rounded-[1.3rem]"
 						}
 					>
 						{toolPrompt?.allowReference !== false && referencePanel}
 
-						{!hidePresetPrompt && (
+						{!toolComposer && (
 							<>
 								<PromptIdeas
 									disabled={isBusy}
@@ -1592,7 +1640,9 @@ function LandingGeneratorWorkspace({
 						)}
 					</div>
 
-					{!isEffectEditor && (
+					{toolComposer?.afterReference}
+					{toolComposer?.summary}
+					{!isEffectEditor && !rasterOnly && (
 						<ImagePurposeShortcuts
 							products={localizedProducts}
 							value={selectedProductKey}
@@ -1617,12 +1667,13 @@ function LandingGeneratorWorkspace({
 								value={selectedProductKey}
 								skuKey={selectedSkuKey}
 								valueLabel={selectedProductFallbackLabel}
-								disabled={paidTemplate || isBusy || !capabilityUsable}
+								disabled={isBusy || !capabilityUsable}
 								onChange={changeModel}
 							/>
 						</div>
 						<div className="image-edit-control-field composer-output-field">
 							<ImageOutputSettings
+								lockAspectRatio={lockAspectRatio}
 								idPrefix="landing"
 								presentation="composer"
 								aspectRatios={
@@ -1646,15 +1697,21 @@ function LandingGeneratorWorkspace({
 						</div>
 
 						<Button
-							type={canRetryCapability ? "button" : "submit"}
+							type={canRetryCapability || needsReferenceUpload ? "button" : "submit"}
 							variant="primary"
 							size="lg"
 							data-test="landing-generate"
 							className="h-11 min-h-11 gap-2 px-4 text-sm text-white focus-visible:outline-violet-200 ml-auto rounded-lg bg-[#6c4dff] hover:bg-[#7d63ff]"
-							disabled={canRetryCapability ? false : !canSubmit}
+							disabled={canRetryCapability || needsReferenceUpload ? false : !canSubmit}
 							loading={isBusy}
 							aria-describedby="landing-stage-status"
-							onClick={canRetryCapability ? retryCapability : undefined}
+							onClick={
+								canRetryCapability
+									? retryCapability
+									: needsReferenceUpload
+										? () => inputRef.current?.click()
+										: undefined
+							}
 						>
 							{actionLabel}
 							{selectedSku &&
@@ -1761,7 +1818,7 @@ function LandingGeneratorWorkspace({
 				)}
 			</div>
 
-			{!hidePresetPrompt && isDockVisible && (
+			{!toolComposer && isDockVisible && (
 				<aside
 					ref={floatingDockRef}
 					data-test="floating-editor-dock"
@@ -1858,12 +1915,13 @@ function LandingGeneratorWorkspace({
 										value={selectedProductKey}
 										skuKey={selectedSkuKey}
 										valueLabel={selectedProductFallbackLabel}
-										disabled={paidTemplate || isBusy || !capabilityUsable}
+										disabled={isBusy || !capabilityUsable}
 										onChange={changeModel}
 									/>
 
 									<div className="min-w-0 max-w-full">
 										<ImageOutputSettings
+											lockAspectRatio={lockAspectRatio}
 											idPrefix="floating"
 											aspectRatios={
 												controlValues.outputFormat === "gif"
@@ -1888,15 +1946,21 @@ function LandingGeneratorWorkspace({
 									</div>
 
 									<Button
-										type={canRetryCapability ? "button" : "submit"}
+										type={canRetryCapability || needsReferenceUpload ? "button" : "submit"}
 										variant="primary"
 										size="lg"
 										data-test="floating-generate"
 										className="h-11 min-h-11 gap-2 px-4 text-sm text-white ml-auto rounded-lg bg-[#6c4dff] hover:bg-[#7d63ff]"
-										disabled={canRetryCapability ? false : !canSubmit}
+										disabled={canRetryCapability || needsReferenceUpload ? false : !canSubmit}
 										loading={isBusy}
 										aria-describedby="floating-stage-status"
-										onClick={canRetryCapability ? retryCapability : undefined}
+										onClick={
+											canRetryCapability
+												? retryCapability
+												: needsReferenceUpload
+													? () => inputRef.current?.click()
+													: undefined
+										}
 									>
 										{actionLabel}
 										{selectedSku &&

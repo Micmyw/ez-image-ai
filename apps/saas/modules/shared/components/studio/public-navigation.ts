@@ -76,6 +76,18 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 				icon: "image",
 			},
 			{
+				href: "/gta-6-wallpaper",
+				labelKey: "gta.wallpaperName",
+				descriptionKey: "gta.wallpaperDescription",
+				icon: "image",
+			},
+			{
+				href: "/gta-loading-screen-generator",
+				labelKey: "gta.loadingName",
+				descriptionKey: "gta.loadingDescription",
+				icon: "image",
+			},
+			{
 				href: "/photo-to-coloring-page",
 				labelKey: "coloring.name",
 				descriptionKey: "coloring.navigationDescription",

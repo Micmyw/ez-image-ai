@@ -1,4 +1,10 @@
 {
+	"gta": {
+		"wallpaperName": "Générateur de fonds GTA 6",
+		"wallpaperDescription": "Illustrations côtières pour mobile et ordinateur",
+		"loadingName": "Générateur d’écrans de chargement GTA",
+		"loadingDescription": "Votre portrait, votre scène et votre nom modifiable"
+	},
 	"christmas": {
 		"entry": {
 			"quick": "Créez un fond d’écran de Noël avec votre photo",

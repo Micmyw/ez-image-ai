@@ -39,6 +39,11 @@ vi.mock("@shared/components/MainAccountBoundary", () => ({
 vi.mock("@media/components/editor/RegisteredEditor", () => ({
 	RegisteredEditor: () => <div data-test="registered-generator" />,
 }));
+// These contracts exercise the server-owned account gates. The real client
+// workbench waits for public preset restoration before mounting this child.
+vi.mock("../modules/gta/components/GtaWorkbench", () => ({
+	GtaWorkbench: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
 const { canonicalOrigin } = vi.hoisted(() => ({
 	canonicalOrigin: "https://www.ezpic.test",
 }));
@@ -198,6 +203,8 @@ vi.mock("../modules/payments/components/CreditPackCheckoutActions", () => ({
 }));
 
 import { config as authConfig } from "../../../packages/auth/config";
+import { GTA_PAGES } from "../modules/gta/lib/config";
+import { GTA_EXAMPLES } from "../modules/gta/lib/examples";
 import {
 	GPT_IMAGE_2_6_EXAMPLES,
 	type GptImageVariant,
@@ -276,6 +283,16 @@ const publicRoutes = [
 		path: "/christmas-wallpaper",
 		robots: "index",
 	},
+	{
+		modulePath: "./(public)/gta-6-wallpaper/page",
+		path: "/gta-6-wallpaper",
+		robots: "index",
+	},
+	{
+		modulePath: "./(public)/gta-loading-screen-generator/page",
+		path: "/gta-loading-screen-generator",
+		robots: "index",
+	},
 	{ modulePath: "./(public)/pricing/page", path: "/pricing", robots: "index" },
 	{ modulePath: "./(public)/privacy/page", path: "/privacy", robots: "index" },
 	{ modulePath: "./(public)/terms/page", path: "/terms", robots: "index" },
@@ -293,6 +310,59 @@ const legalFallbackCases = [
 ] as const;
 
 describe("consolidated public route contract", () => {
+	it.each(Object.entries(GTA_PAGES))(
+		"keeps the %s artwork task distinct with its own canonical and SSR content",
+		async (intent, content) => {
+			const pageModule = await loadOptionalModule<PublicPageModule>(
+				`./(public)${content.path}/page`,
+			);
+			expect(pageModule).not.toBeNull();
+			if (!pageModule) return;
+			const metadata = await resolveMetadata(pageModule);
+			expect(metadata?.title).toEqual({ absolute: content.title });
+			expectMetadata(metadata!, content.path, "index");
+			const markup = await renderToStaticMarkup(await pageModule.default({}));
+			expect(markup).toContain(content.h1);
+			expect(markup).toContain('data-test="landing-generator"');
+			expect(markup).toContain('id="gta-comparisons"');
+			expect(markup).toContain('id="gta-how-title"');
+			expect(markup).toContain('id="gta-faq-title"');
+			expect(markup).toContain("Style preview");
+			const other = GTA_PAGES[intent === "wallpaper" ? "loading-art" : "wallpaper"];
+			expect(markup).toContain(`href="${other.path}"`);
+			for (const example of GTA_EXAMPLES.filter(
+				(item) => item.intent === intent && item.sourceSrc,
+			)) {
+				expect(markup).toContain(`src="${example.sourceSrc}"`);
+				expect(markup).toContain(`src="${example.src}"`);
+			}
+			const privateMetadata = await resolveMetadata(pageModule, {
+				searchParams: Promise.resolve({ resume: "workspace", job: "private-job" }),
+			});
+			expect(privateMetadata?.robots).toEqual({ index: false, follow: false });
+			expect(privateMetadata?.alternates?.canonical).toBe(`${canonicalOrigin}${content.path}`);
+			const fallback = await resolveMetadata(pageModule, {
+				searchParams: Promise.resolve({ lang: "de" }),
+			});
+			expect(fallback?.robots).toEqual({ index: false, follow: true });
+			expect(fallback?.alternates?.canonical).toBe(`${canonicalOrigin}${content.path}`);
+		},
+	);
+
+	it.each(Object.values(GTA_PAGES))(
+		"retains the registered editor account gates at $path",
+		async ({ path }) => {
+			const pageModule = await loadOptionalModule<PublicPageModule>(`./(public)${path}/page`);
+			expect(pageModule).not.toBeNull();
+			if (!pageModule) return;
+			sessionMock.mockResolvedValueOnce({ user: { id: "registered", isAnonymous: false } });
+			const markup = await renderToStaticMarkup(await pageModule.default({}));
+			expect(markup).toContain('data-test="registered-generator"');
+			expect(markup).toContain("data-account-gates");
+			expect(markup).toContain("data-registered-boundary");
+			expect(markup).not.toContain('data-test="landing-generator"');
+		},
+	);
 	it("requires the image tool props object for Next production page validation", () => {
 		// Next accepts optional searchParams, but its production FirstArg check rejects undefined props.
 		expectTypeOf<Parameters<ImageToolPageModule["default"]>[0]>().toBeObject();
@@ -675,12 +745,16 @@ describe("consolidated public route contract", () => {
 		}
 	});
 
-	it.each(["docs", "examples", "image-to-image", "christmas-wallpaper"])(
-		"reserves %s from organization slugs",
-		(slug) => {
-			expect(authConfig.organizations.forbiddenOrganizationSlugs).toContain(slug);
-		},
-	);
+	it.each([
+		"docs",
+		"examples",
+		"image-to-image",
+		"christmas-wallpaper",
+		"gta-6-wallpaper",
+		"gta-loading-screen-generator",
+	])("reserves %s from organization slugs", (slug) => {
+		expect(authConfig.organizations.forbiddenOrganizationSlugs).toContain(slug);
+	});
 });
 
 async function resolveMetadata(

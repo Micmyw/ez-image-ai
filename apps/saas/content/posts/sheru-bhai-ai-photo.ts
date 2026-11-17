@@ -36,7 +36,7 @@ export const sheruBhaiPhotoDocuments: readonly BlogPost[] = [
 				accessedAt: "2026-11-13",
 			},
 		],
-		body: `Looking for a Sheru Bhai AI photo prompt? Choose one of two portrait presets and upload your own photo. **Photo with Sheru** places you beside the white-lion boss; **Turn me into Sheru** gives you a lion head while aiming to keep your outfit and pose. Both presets use Nano Banana 2, with no prompt writing required.
+		body: `Looking for a Sheru Bhai AI photo prompt? Choose one of two portrait presets and upload your own photo. **Photo with Sheru** places you beside the white-lion boss; **Turn me into Sheru** gives you a lion head while aiming to keep your outfit and pose. Both presets start with Nano Banana 2 and a ready-to-use prompt. You can edit the prompt or choose another image model.
 
 ## What is a Sheru Bhai AI photo?
 
@@ -56,7 +56,7 @@ The photo trend was covered by [Hindustan on November 12, 2026](https://www.live
 2. Upload a clear photo of one person that you have permission to edit.
 3. Review the price and click **Generate** to create your portrait.
 
-The editor uses Nano Banana 2 at 1K for both looks. Any image pack with remaining uses or an active paid subscription with enough credits is required; selecting a preset and uploading your photo does not start a generation or spend credits.
+The editor starts with Nano Banana 2 at 1K for both looks; you can change the model and output settings. Generate with subscription credits, a purchased credit pack, or an eligible Image Pass. Selecting a preset and uploading your photo does not start a generation or spend credits.
 
 ## Review and share your Sheru portrait
 
@@ -80,10 +80,10 @@ Choose **Turn me into Sheru** and upload a standing photo with your outfit visib
 
 ### Which model creates these Sheru Bhai photos?
 
-Both Sheru presets use Nano Banana 2 at 1K. Opening this guide from another model page does not change the model used for these presets.
+Both Sheru presets start with Nano Banana 2 at 1K. Use the model selector to choose another image model and adjust its available output settings. Your photo and edited prompt stay in place.
 
 ### Is the Sheru Bhai AI photo editor free?
 
-You can select a preset and upload your photo before buying. Generation requires any image pack with remaining uses or an active paid subscription with enough credits. Check the price shown in the editor before generating; free sign-in credits alone do not unlock these presets.`,
+You can select a preset and upload your photo before buying. Generation requires subscription credits, a purchased credit pack, or an eligible Image Pass. Check the price shown in the editor before generating; free sign-in credits alone do not unlock these presets.`,
 	},
 ];

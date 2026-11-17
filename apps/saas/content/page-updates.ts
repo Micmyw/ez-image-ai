@@ -5,6 +5,8 @@ export const publicPageUpdates = [
 	{ path: "/image-to-image", lastModified: "2026-09-21" },
 	{ path: "/photo-to-coloring-page", lastModified: "2026-10-04" },
 	{ path: "/christmas-wallpaper", lastModified: "2026-11-04" },
+	{ path: "/gta-6-wallpaper", lastModified: "2026-11-17" },
+	{ path: "/gta-loading-screen-generator", lastModified: "2026-11-17" },
 	{ path: "/gpt-image-2-6-flare", lastModified: "2026-11-14" },
 	{ path: "/gpt-image-2-6-sunburst", lastModified: "2026-11-14" },
 	{ path: "/minimax-h3-image", lastModified: "2026-11-14" },

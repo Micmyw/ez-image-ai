@@ -1,4 +1,10 @@
 {
+	"gta": {
+		"wallpaperName": "GTA 6 Wallpaper Generator",
+		"wallpaperDescription": "Coastal key art for your phone or desktop",
+		"loadingName": "GTA Loading Screen Generator",
+		"loadingDescription": "Your portrait, scene and editable name"
+	},
 	"christmas": {
 		"entry": {
 			"quick": "Make a Christmas wallpaper from your photo",

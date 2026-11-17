@@ -122,6 +122,21 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 describe("one-request generation", () => {
+	it("preserves paid template context in preparation and submission", async () => {
+		const generation = renderGeneration();
+		const paidSubmission = { ...submission, generationAccess: "paid" as const };
+		await generation.prepareGeneration(paidSubmission);
+		await generation.createGeneration.mutateAsync(paidSubmission);
+		expect(api.createQuote).toHaveBeenCalledWith(
+			expect.objectContaining({ generationAccess: "paid" }),
+		);
+		expect(api.submitGeneration).toHaveBeenCalledWith(
+			expect.objectContaining({
+				generationAccess: "paid",
+				idempotencyKey: api.createQuote.mock.calls[0]![0].preparation.idempotencyKey,
+			}),
+		);
+	});
 	it("shares pending preparation with Generate and preserves the server identity", async () => {
 		let approve!: (value: typeof response.quote) => void;
 		api.createQuote.mockReturnValueOnce(

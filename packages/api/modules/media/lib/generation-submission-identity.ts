@@ -7,6 +7,7 @@ export function generationSubmissionIdentity(
 		idempotencyKey: string;
 		productKey: string;
 		fundingSource?: string;
+		generationAccess?: "paid";
 		input: unknown;
 		expectedCredits: string;
 		parentJobId?: string;
@@ -18,6 +19,7 @@ export function generationSubmissionIdentity(
 		fingerprint: hash({
 			productKey: input.productKey,
 			...(input.fundingSource === "IMAGE_PASS" ? { fundingSource: "IMAGE_PASS" } : {}),
+			...(input.generationAccess === "paid" ? { generationAccess: "paid" } : {}),
 			input: input.input,
 			expectedCredits: input.expectedCredits,
 			parentJobId: input.parentJobId ?? null,

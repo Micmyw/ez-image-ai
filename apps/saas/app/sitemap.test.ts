@@ -36,6 +36,8 @@ describe("consolidated SaaS sitemap", () => {
 				"/image-to-image",
 				"/photo-to-coloring-page",
 				"/christmas-wallpaper",
+				"/gta-6-wallpaper",
+				"/gta-loading-screen-generator",
 				"/gpt-image-2-6-flare",
 				"/gpt-image-2-6-sunburst",
 				"/minimax-h3-image",
@@ -96,6 +98,8 @@ describe("consolidated SaaS sitemap", () => {
 			"/image-to-image": "2026-09-21",
 			"/photo-to-coloring-page": "2026-10-04",
 			"/christmas-wallpaper": "2026-11-04",
+			"/gta-6-wallpaper": "2026-11-17",
+			"/gta-loading-screen-generator": "2026-11-17",
 			"/gpt-image-2-6-flare": "2026-11-14",
 			"/gpt-image-2-6-sunburst": "2026-11-14",
 			"/minimax-h3-image": "2026-11-14",
@@ -129,6 +133,17 @@ describe("consolidated SaaS sitemap", () => {
 		expect(sitemap().some(({ url }) => new URL(url).pathname === "/blog/1980s-ai-photo")).toBe(
 			false,
 		);
+	});
+
+	it("lists only the two canonical GTA tools without preset variants or future task pages", () => {
+		const urls = sitemap()
+			.map(({ url }) => new URL(url))
+			.filter(({ pathname }) => pathname.startsWith("/gta"));
+		expect(urls.map(({ pathname }) => pathname).sort()).toEqual([
+			"/gta-6-wallpaper",
+			"/gta-loading-screen-generator",
+		]);
+		expect(urls.every(({ search, hash }) => !search && !hash)).toBe(true);
 	});
 
 	it("does not advance modification dates when rebuilding unchanged content", () => {

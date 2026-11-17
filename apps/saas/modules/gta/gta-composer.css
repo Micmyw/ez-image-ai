@@ -1,0 +1,267 @@
+/* Preset tools keep the existing form behavior with a single coastal surface. */
+.gta-editor [data-composer-design="compact"][data-composer-kind][data-test] {
+	margin: 0;
+	padding: 0;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+}
+.gta-editor
+	[data-composer-design="compact"][data-composer-kind][data-test]
+	:is(.studio-prompt, [data-test="landing-composer-inputs"]) {
+	display: block;
+	min-height: 0;
+}
+.gta-editor
+	[data-composer-design="compact"][data-composer-kind][data-test]
+	:is(.studio-upload:not([hidden]), [data-reference-upload]) {
+	min-height: 100px;
+	flex-direction: row;
+	gap: 14px;
+	border-color: #80bcb6;
+	background: #ffffff08;
+	color: #f5f1ea;
+	font-size: 14px;
+}
+.gta-editor
+	[data-composer-design="compact"][data-composer-kind][data-test]
+	:is(.studio-upload:not([hidden]), [data-reference-upload]):hover {
+	background: #ffffff12;
+}
+.gta-editor
+	[data-composer-design="compact"][data-composer-kind][data-test]
+	[data-reference-preview] {
+	max-width: 180px;
+	margin-inline: auto;
+}
+.gta-editor .gta-scenes {
+	padding-block: 20px 0;
+}
+.gta-editor .gta-section-heading {
+	margin-bottom: 10px;
+}
+.gta-editor .gta-section-heading h3 {
+	font-size: 13px;
+	font-weight: 600;
+}
+.gta-editor .gta-scene-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+	margin: 0;
+	padding: 0;
+	overflow: visible;
+}
+.gta-editor .gta-scene-grid article {
+	padding: 0;
+	border: 0;
+	background: none;
+	box-shadow: none;
+}
+.gta-editor .gta-scene-grid button {
+	display: block;
+	width: 100%;
+	margin: 0;
+	padding: 4px;
+	border: 1px solid #ffffff2b;
+	border-radius: 9px;
+	color: #e7eeeb;
+	text-align: left;
+	background: #ffffff04;
+	cursor: pointer;
+	touch-action: manipulation;
+}
+.gta-editor .gta-scene-grid button[aria-pressed="true"] {
+	border-color: var(--gta-coral);
+	background: #ef7b661a;
+	color: #ffc5b7;
+}
+.gta-editor .gta-scene-grid button:hover {
+	border-color: #ffb19f;
+}
+.gta-editor .gta-scene-image {
+	aspect-ratio: 2 / 1;
+	margin: 0;
+	border-radius: 5px;
+}
+.gta-editor .gta-scene-grid .is-selected .gta-scene-image {
+	outline: none;
+}
+.gta-editor .gta-scene-name {
+	display: block;
+	padding: 7px 3px 3px;
+	font-size: 11px;
+	line-height: 1.4;
+}
+.gta-editor .gta-extra-details {
+	border-block: 1px solid #ffffff25;
+	padding-block: 14px;
+	font-size: 13px;
+}
+.gta-extra-details summary {
+	cursor: pointer;
+}
+.gta-extra-details summary span {
+	color: #b5c6c9;
+}
+.gta-extra-details label {
+	display: block;
+	margin-block: 14px 8px;
+}
+.gta-editor .gta-extra-details textarea {
+	width: 100%;
+	min-height: 100px;
+	max-height: 220px;
+	padding: 12px;
+	border: 1px solid #70949b;
+	border-radius: 8px;
+	color: #f5f1ea;
+	background: #102c3a;
+	font-size: 16px;
+	resize: vertical;
+}
+.gta-editor .gta-draft-summary {
+	margin-block: 16px 10px;
+	font-size: 12px;
+	line-height: 1.7;
+	color: #c1d9d5;
+}
+.gta-editor
+	[data-composer-design="compact"][data-composer-kind][data-test]
+	:is(.studio-submit, [data-test="landing-generate"], [data-test="editor-model-upgrade"]) {
+	min-height: 44px;
+	background: var(--gta-coral);
+	color: #153947;
+	font-weight: 700;
+}
+.gta-editor
+	[data-composer-design="compact"][data-composer-kind][data-test]
+	:is(.studio-submit, [data-test="landing-generate"]):not(:disabled):hover {
+	background: #ffae98;
+}
+.gta-editor
+	[data-composer-design="compact"][data-composer-kind][data-test]
+	:is(.composer-model-field, .composer-output-field)
+	button {
+	color: #e1eeeb;
+	border-color: #ffffff30;
+	background: #ffffff08;
+}
+.gta-editor
+	[data-composer-design="compact"][data-composer-kind][data-test]
+	:is(button, a, textarea, input):focus-visible {
+	outline: 3px solid #ffb19f;
+	outline-offset: 3px;
+}
+.gta-editor .gta-share {
+	min-height: 44px;
+	font-size: 12px;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	color: #c1d9d5;
+}
+.gta-composition-guide {
+	margin-block: 18px;
+}
+.gta-composition-frame {
+	position: relative;
+	isolation: isolate;
+	overflow: hidden;
+	border-radius: 10px;
+	background: #153947;
+}
+.gta-composition-frame > img {
+	object-fit: cover;
+	opacity: 0.48;
+}
+.gta-composition-guide[data-format="phone"] .gta-composition-frame {
+	width: min(100%, 240px);
+	margin-inline: auto;
+}
+.gta-composition-person {
+	position: absolute;
+	inset: 26% 6% 0 54%;
+	border: 2px dashed #ffd6c6;
+	border-bottom: 0;
+	border-radius: 44% 44% 0 0;
+	background: #173744aa;
+	display: grid;
+	place-items: center;
+}
+.gta-composition-person span {
+	font-size: 12px;
+	color: #fff;
+	text-align: center;
+	padding: 10px;
+}
+.gta-composition-guide[data-portrait="left"] .gta-composition-person {
+	left: 6%;
+	right: 54%;
+}
+.gta-composition-guide[data-portrait="center"] .gta-composition-person {
+	left: 20%;
+	right: 20%;
+	top: 40%;
+}
+.gta-composition-space {
+	position: absolute;
+	left: 6%;
+	bottom: 12%;
+	width: 38%;
+	border: 1px dashed #b7e2df;
+	border-radius: 6px;
+	padding: 12px 5px;
+	text-align: center;
+	color: #fff;
+	font-size: 11px;
+	background: #102c3acc;
+}
+.gta-composition-guide[data-portrait="left"] .gta-composition-space {
+	left: auto;
+	right: 6%;
+}
+.gta-composition-guide[data-format="phone"] .gta-composition-space {
+	left: 8%;
+	right: 8%;
+	width: auto;
+	bottom: 8%;
+}
+.gta-composition-guide[data-format="phone"][data-intent="wallpaper"] .gta-composition-space {
+	top: 8%;
+	bottom: auto;
+}
+.gta-composition-guide p {
+	margin-top: 12px;
+	font-size: 12px;
+	line-height: 1.7;
+	text-align: center;
+}
+.gta-art-preview .gta-composition-guide p {
+	color: #b7cdd3;
+}
+.gta-art-preview .gta-art-name-controls > button {
+	min-height: 44px;
+	color: #153947;
+	background: #b7e2df;
+}
+@media (min-width: 761px) {
+	.gta-workbench > :is(.gta-art-preview, .christmas-preview) {
+		position: sticky;
+		top: 96px;
+	}
+}
+@media (max-width: 480px) {
+	.gta-editor .gta-scene-grid {
+		gap: 8px;
+	}
+	.gta-editor .gta-scene-name {
+		font-size: 10px;
+	}
+	.gta-editor
+		[data-composer-design="compact"][data-composer-kind][data-test]
+		:is(.studio-submit, [data-test="landing-generate"], [data-test="editor-model-upgrade"]) {
+		width: 100%;
+		margin-top: 6px;
+	}
+}

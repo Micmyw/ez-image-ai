@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+	clearGtaWorkspaceDraftsForOwner,
 	loadWorkspaceDraft,
 	saveWorkspaceDraft,
 	WORKSPACE_DRAFT_KEY,
@@ -28,6 +29,45 @@ const draft: WorkspaceDraft = {
 };
 
 describe("workspace continuity across account and checkout navigation", () => {
+	it("clears only the logging-out owner's GTA drafts and matching return pointer", () => {
+		const store = storage();
+		saveWorkspaceDraft(store, "owner-c", draft, 1000, "/christmas-wallpaper");
+		for (const owner of ["owner-a", "owner-b"]) {
+			for (const path of ["/gta-6-wallpaper", "/gta-loading-screen-generator"]) {
+				saveWorkspaceDraft(store, owner, draft, 1000, path);
+			}
+		}
+		clearGtaWorkspaceDraftsForOwner(store, "owner-a");
+		for (const path of ["/gta-6-wallpaper", "/gta-loading-screen-generator"]) {
+			expect(loadWorkspaceDraft(store, "owner-a", 2000, path)).toBeNull();
+			expect(loadWorkspaceDraft(store, "owner-b", 2000, path)).toEqual(draft);
+		}
+		expect(workspaceDraftReturnPath(store, "owner-b", 2000)).toBe(
+			"/gta-loading-screen-generator?resume=workspace",
+		);
+		expect(loadWorkspaceDraft(store, "owner-c", 2000, "/christmas-wallpaper")).toEqual(draft);
+		saveWorkspaceDraft(store, "owner-a", draft, 1000, "/gta-6-wallpaper");
+		clearGtaWorkspaceDraftsForOwner(store, "owner-a");
+		expect(store.getItem("ezpic.workspace-draft-return.v1")).toBeNull();
+		expect(loadWorkspaceDraft(store, "owner-b", 2000, "/gta-6-wallpaper")).toEqual(draft);
+	});
+	it("keeps both GTA tasks and the existing Christmas draft isolated across checkout", () => {
+		const store = storage();
+		const paths = ["/christmas-wallpaper", "/gta-6-wallpaper", "/gta-loading-screen-generator"];
+		for (const [index, path] of paths.entries()) {
+			const scopedDraft = { ...draft, values: { ...draft.values, prompt: path } };
+			expect(saveWorkspaceDraft(store, "owner-a", scopedDraft, 1000 + index, path)).toBe(true);
+			expect(workspaceDraftReturnPath(store, "owner-a", 2000)).toBe(`${path}?resume=workspace`);
+		}
+		for (const path of paths) {
+			expect(loadWorkspaceDraft(store, "owner-a", 2000, path)?.values.prompt).toBe(path);
+		}
+		expect(loadWorkspaceDraft(store, "owner-b", 2000, "/gta-6-wallpaper")).toBeNull();
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, "/gta-6-wallpaper")?.values.prompt).toBe(
+			"/gta-6-wallpaper",
+		);
+		expect(workspaceDraftReturnPath(store, "owner-b", 2000)).toBe("/create");
+	});
 	it.each([
 		["image-gpt-image-2-6-flare", "gpt-image-2-6-flare-1k", "/gpt-image-2-6-flare"],
 		["image-gpt-image-2-6-sunburst", "gpt-image-2-6-sunburst-1k", "/gpt-image-2-6-sunburst"],

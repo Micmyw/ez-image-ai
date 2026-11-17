@@ -35,6 +35,22 @@ async function mockCatalog(page: Page) {
 			],
 		},
 	};
+	const products = [
+		product,
+		{
+			...product,
+			key: "image-gpt-image-2-6-sunburst",
+			label: "GPT Image 2.6 Sunburst",
+			credits: "25",
+			skuMatrix: {
+				...product.skuMatrix,
+				defaultSkuKey: "gpt-image-2-6-sunburst-1k",
+				cells: [
+					{ ...product.skuMatrix.cells[0], skuKey: "gpt-image-2-6-sunburst-1k", credits: 25 },
+				],
+			},
+		},
+	];
 	await page.route("**/api/media/guest-capability", (route) =>
 		route.fulfill({
 			json: {
@@ -45,7 +61,7 @@ async function mockCatalog(page: Page) {
 					mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 					maximumBytes: 10 * 1024 * 1024,
 				},
-				products: [product],
+				products,
 				queueEstimate: { kind: "capacity" },
 			},
 		}),
@@ -56,7 +72,10 @@ async function mockCatalog(page: Page) {
 				json: {
 					catalogVersion: "sheru-local-fixture",
 					pricingVersion: "sheru-local-fixture",
-					products: [{ ...product, inputKinds: ["text-to-image", "image-to-image"] }],
+					products: products.map((product) => ({
+						...product,
+						inputKinds: ["text-to-image", "image-to-image"],
+					})),
 				},
 			},
 		}),
@@ -73,7 +92,8 @@ for (const width of [1440, 390, 320]) {
 		await mockCatalog(page);
 		const generationRequests: string[] = [];
 		await page.route("**/api/media/guest-*/**", (route) => {
-			generationRequests.push(route.request().url());
+			if (route.request().url().includes("/guest-generations"))
+				generationRequests.push(route.request().url());
 			return route.abort();
 		});
 		await page.goto("/");
@@ -123,10 +143,12 @@ for (const width of [1440, 390, 320]) {
 		const coStar = page.getByRole("button", { name: "Photo with Sheru", exact: true });
 		await expect(coStar).toHaveAttribute("aria-pressed", "true");
 		const generator = page.locator('[data-test="landing-generator"]');
-		await expect(generator.locator("textarea")).toHaveCount(0);
+		await expect(generator.locator("textarea")).toBeEditable();
 		await expect(page.getByRole("button", { name: /copy.*prompt/i })).toHaveCount(0);
 		await expect(page.locator(".illustrated-prompts")).toHaveCount(0);
-		await expect(page.locator("body")).not.toContainText("Keep the person entirely human");
+		const chooser = page.waitForEvent("filechooser");
+		await generator.locator('[data-test="landing-generate"]').click();
+		expect((await chooser).isMultiple()).toBe(false);
 		await page
 			.locator("#landing-source-image")
 			.setInputFiles(
@@ -134,8 +156,8 @@ for (const width of [1440, 390, 320]) {
 			);
 		await expect(page.locator('[data-test="landing-source-panel"] img')).toBeVisible();
 		await page.getByRole("button", { name: "Turn me into Sheru", exact: true }).click();
-		await expect(generator.locator("textarea")).toHaveCount(0);
-		await expect(page.locator("body")).not.toContainText("Replace only the person's head");
+		await expect(generator.locator("textarea")).toBeEditable();
+
 		await expect(page.locator('[data-test="landing-source-panel"] img')).toBeVisible();
 		await expect(page.locator('[data-test="paid-template-dialog"]')).toHaveCount(0);
 		await expect(page.locator(".effect-style-preview img")).toHaveAttribute("src", /become-sheru/);
@@ -159,6 +181,13 @@ for (const width of [1440, 390, 320]) {
 			fullPage: true,
 			animations: "disabled",
 		});
+		await generator.locator("textarea").fill("Keep my pose and add warm coastal lighting.");
+		await generator.locator('[data-test="landing-model-trigger"]').click();
+		await page.getByRole("button", { name: "GPT Image", exact: true }).click();
+		await page.locator('[data-test="landing-model-image-gpt-image-2-6-sunburst"]').click();
+		await expect(generator.locator("textarea")).toHaveValue(
+			"Keep my pose and add warm coastal lighting.",
+		);
 		await generator.locator('[data-test="landing-generate"]').click();
 		const dialog = page.locator('[data-test="paid-template-dialog"]');
 		await expect(dialog).toBeVisible();
@@ -174,8 +203,8 @@ for (const width of [1440, 390, 320]) {
 		});
 		await dialog.getByRole("button", { name: "Keep editing" }).click();
 		await expect(dialog).toHaveCount(0);
-		await expect(generator.locator("textarea")).toHaveCount(0);
-		await expect(page.locator("body")).not.toContainText("Replace only the person's head");
+		await expect(generator.locator("textarea")).toBeEditable();
+
 		await expect(page.locator('[data-test="landing-source-panel"] img')).toBeVisible();
 		expect(generationRequests).toEqual([]);
 	});

@@ -41,6 +41,8 @@ export type GuestJobStage =
 	| "EXPIRED";
 
 export interface GuestJobSnapshot {
+	/** Server-only frozen input, filtered to a public preset header by the status API. */
+	inputPrompt?: string;
 	/** Server-only evidence summary; the API maps this to public categories. */
 	outputSafety?: { status: string; reasonCode?: string };
 	jobId: string;
@@ -567,6 +569,12 @@ export async function getGuestJobSnapshot(
 		watermarked,
 		trialConsumed: trial.eligibility === "CONSUMED" || trial.consumedJobId !== null,
 		linkReady: trial.expiresAt > input.now && trial.linkIntents.length === 0,
+		...(job.inputSnapshot &&
+		typeof job.inputSnapshot === "object" &&
+		!Array.isArray(job.inputSnapshot) &&
+		typeof job.inputSnapshot.prompt === "string"
+			? { inputPrompt: job.inputSnapshot.prompt }
+			: {}),
 		...(job.status === "FAILED" &&
 		trial.expiresAt > input.now &&
 		output?.ownerType === "USER" &&

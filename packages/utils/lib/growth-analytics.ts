@@ -30,6 +30,7 @@ export {
 
 export const EZPIC_GROWTH_EVENT_NAMES = [
 	GENERATION_JOURNEY_OBSERVED,
+	"public_image_tool_observed",
 	"experiment_exposed",
 	"experiment_clicked",
 	"result_viewed",
@@ -134,6 +135,31 @@ export const growthContentAttributionSchema = contentAttributionBaseSchema.refin
 );
 export type GrowthContentAttribution = z.infer<typeof growthContentAttributionSchema>;
 
+export const publicImageToolObservationSchema = z
+	.object({
+		page: z.enum(["/gta-6-wallpaper", "/gta-loading-screen-generator"]),
+		theme: z.literal("gta-coastal"),
+		intent: z.enum(["wallpaper", "loading-art"]),
+		scene: z.enum([
+			"beach-sunset",
+			"neon-boulevard",
+			"sports-car",
+			"rooftop",
+			"marina",
+			"palm-road",
+		]),
+		sourceMode: z.enum(["photo", "scene"]),
+		ratio: z.enum(["9:16", "16:9"]),
+		promptVersion: z.literal("gta-coastal-v1"),
+		stage: z.enum(["tool_view", "scene_selected", "sample_download", "result_download_clicked"]),
+	})
+	.strict()
+	.refine((value) =>
+		value.intent === "wallpaper"
+			? value.page === "/gta-6-wallpaper"
+			: value.page === "/gta-loading-screen-generator" && value.sourceMode === "photo",
+	);
+
 export const growthAnalyticsPropertiesSchema = z
 	.object({
 		...contentAttributionShape,
@@ -152,6 +178,7 @@ export const growthAnalyticsPropertiesSchema = z
 			.optional(),
 		generation: generationDiagnosticsSchema.optional(),
 		journey: generationJourneyObservationSchema.optional(),
+		imageTool: publicImageToolObservationSchema.optional(),
 		productKind: z.enum(["PLAN", "CREDIT_PACK", "IMAGE_PASS"]).optional(),
 		errorCategory: z
 			.enum(["unavailable", "conflict", "unauthorized", "network", "unknown"])
@@ -218,6 +245,11 @@ export const growthAnalyticsEventSchema = z
 		["experiment_exposed", "experiment_clicked"].includes(event.name)
 			? Boolean(event.properties.experiment) && !event.properties.generation
 			: !event.properties.experiment,
+	)
+	.refine((event) =>
+		event.name === "public_image_tool_observed"
+			? Boolean(event.properties.imageTool) && !event.properties.generation
+			: !event.properties.imageTool,
 	);
 
 export type GrowthAnalyticsEventName = z.infer<typeof growthAnalyticsEventNameSchema>;
@@ -647,7 +679,11 @@ function taskKeyForGrowthEvent(
 	name: GrowthAnalyticsEventName,
 	options?: GrowthTrackOptions,
 ): string | undefined {
-	if (name === "editor_generation_confirmed" || name === GENERATION_JOURNEY_OBSERVED)
+	if (
+		name === "editor_generation_confirmed" ||
+		name === GENERATION_JOURNEY_OBSERVED ||
+		name === "public_image_tool_observed"
+	)
 		return options?.taskKey;
 	const prefixes: Partial<Record<GrowthAnalyticsEventName, string>> = {
 		editor_generation_succeeded: "editor-generation-succeeded:",

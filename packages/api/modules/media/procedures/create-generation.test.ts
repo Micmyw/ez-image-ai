@@ -46,6 +46,38 @@ const NANO_INPUT = {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("createGenerationForUser", () => {
+	it("rechecks the frozen paid-template restriction on an unused basic-model quote", async () => {
+		const priced = buildMediaQuote(
+			{ productKey: "image-nano-banana-2-lite", input: NANO_INPUT, generationAccess: "paid" },
+			KIE_ROUTE_OPTIONS,
+		);
+		const assertAllowed = vi.fn(async () => {
+			throw new Error("ENTITLEMENT_REQUIRED");
+		});
+		const createGenerationJob = vi.fn();
+		await expect(
+			createGenerationForUser(
+				"owner",
+				{ quoteId: "template-quote", idempotencyKey: "template-request" },
+				{
+					now: () => new Date("2026-11-17T00:00:00Z"),
+					findQuote: async () => ({
+						...priced,
+						id: "template-quote",
+						inputSnapshot: NANO_INPUT,
+						expiresAt: new Date("2026-11-17T00:10:00Z"),
+					}),
+					getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
+					assertAllowed,
+					createGenerationJob,
+				},
+			),
+		).rejects.toThrow("ENTITLEMENT_REQUIRED");
+		expect(assertAllowed).toHaveBeenCalledWith(
+			expect.objectContaining({ requiresPaidImageAccess: true }),
+		);
+		expect(createGenerationJob).not.toHaveBeenCalled();
+	});
 	it("passes a server-approved pending quote directly to atomic admission without another preflight", async () => {
 		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
 		const priced = buildMediaQuote(

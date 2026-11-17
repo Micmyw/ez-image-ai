@@ -11,6 +11,35 @@ vi.mock("@repo/ui/components/popover", () => ({
 import { ImageOutputSettings } from "./ImageOutputSettings";
 
 describe("ImageOutputSettings", () => {
+	it("leaves the screen ratio to the tool while retaining the model settings panel", () => {
+		const markup = renderToStaticMarkup(
+			<ImageOutputSettings
+				idPrefix="gta"
+				lockAspectRatio
+				aspectRatios={["9:16", "16:9"]}
+				value="16:9"
+				onChange={vi.fn()}
+				modeLabel="MiniMax H3"
+				labels={{
+					title: "Output settings",
+					trigger: "Open settings",
+					aspectRatio: "Aspect ratio",
+					automatic: "Automatic",
+					outputNumber: "Output number",
+					oneOutput: "One image",
+					resolution: "Resolution",
+					quality: "Quality",
+					outputFormat: "Output format",
+					background: "Background",
+					modeControlsQuality: "Model-specific",
+				}}
+			/>,
+		);
+		expect(markup).toContain("16:9");
+		expect(markup).toContain("Output settings");
+		expect(markup).not.toContain('type="radio"');
+		expect(markup).not.toContain("Aspect ratio</legend>");
+	});
 	it.each([
 		{ outputFormat: "gif" as const, credits: 80 },
 		{ outputFormat: "svg" as const, credits: 40 },

@@ -16,6 +16,11 @@ import { NextResponse } from "next/server";
 
 import { readEffectEditorReturnCookie } from "../../../modules/effects/lib/editor-return";
 import { resolvePublishedEffectReturnPath } from "../../../modules/effects/lib/editor-return.server";
+import { sanitizeToolReturnPath } from "../../../modules/media/lib/tool-return-path";
+
+function resolveDraftReturnPath(value: unknown) {
+	return sanitizeToolReturnPath(value) ?? resolvePublishedEffectReturnPath(value);
+}
 
 export async function POST(request: Request) {
 	const saasOrigin = process.env.NEXT_PUBLIC_SAAS_URL;
@@ -31,7 +36,7 @@ export async function POST(request: Request) {
 			secure: process.env.NODE_ENV === "production",
 			isRegistered: Boolean(session && !isAnonymousUser(session.user)),
 			hasSession: Boolean(session),
-			resolveEffectReturnPath: resolvePublishedEffectReturnPath,
+			resolveEffectReturnPath: resolveDraftReturnPath,
 		});
 	} catch {
 		return new Response(null, { status: 403 });
@@ -56,7 +61,7 @@ export async function GET(request: Request) {
 			return inlineResponse({ code: "ACCOUNT_HANDOFF_REQUIRED" }, 409);
 		}
 		stage = "return-path";
-		effectReturn = resolvePublishedEffectReturnPath(
+		effectReturn = resolveDraftReturnPath(
 			readEffectEditorReturnCookie(request.headers.get("cookie")),
 		);
 		stage = "claim";
@@ -102,7 +107,7 @@ export async function GET(request: Request) {
 			session && isAnonymousUser(session.user)
 				? "/try?draftError=unavailable"
 				: effectReturn
-					? `${effectReturn}&draftError=unavailable`
+					? `${effectReturn}${effectReturn.includes("?") ? "&" : "?"}draftError=unavailable`
 					: "/create?draftError=unavailable";
 		const response = draftRedirect(target, saasOrigin);
 		expireHandoffCookies(response);

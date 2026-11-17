@@ -1,5 +1,6 @@
 "use client";
 
+import { drawBrowserGuestWatermark, loadBrowserExportImage } from "@media/lib/browser-image-export";
 import { Button } from "@repo/ui/components/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@repo/ui/components/dialog";
 import { useTranslations } from "next-intl";
@@ -16,6 +17,9 @@ export function WallpaperCropDialog({
 	getImageUrl,
 	initialCrop,
 	onApply,
+	exportPrefix = "christmas-wallpaper",
+	watermarked = false,
+	onDownload,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
@@ -23,12 +27,22 @@ export function WallpaperCropDialog({
 	getImageUrl?: () => Promise<string>;
 	initialCrop?: WallpaperCropSettings;
 	onApply?: (settings: WallpaperCropSettings) => void;
+	exportPrefix?: string;
+	watermarked?: boolean;
+	onDownload?: () => void;
 }) {
 	const t = useTranslations("christmas.crop");
 	const id = useId();
 	const resolver = useRef(getImageUrl);
 	resolver.current = getImageUrl;
 	const canvas = useRef<HTMLCanvasElement>(null);
+	const drag = useRef<{
+		pointer: number;
+		x: number;
+		y: number;
+		startX: number;
+		startY: number;
+	} | null>(null);
 	const [picture, setPicture] = useState<HTMLImageElement | null>(null);
 	const [failed, setFailed] = useState(false);
 	const [saving, setSaving] = useState(false);
@@ -51,8 +65,7 @@ export function WallpaperCropDialog({
 	useEffect(() => {
 		if (!open) return;
 		const controller = new AbortController();
-		const timer = window.setTimeout(() => controller.abort(), 30_000);
-		let objectUrl: string | undefined;
+		let dispose: (() => void) | undefined;
 		let active = true;
 		setPicture(null);
 		setFailed(false);
@@ -60,53 +73,18 @@ export function WallpaperCropDialog({
 			try {
 				const url = resolver.current ? await resolver.current() : imageUrl;
 				if (!url || !active) throw new Error("Image unavailable");
-				const response = await fetch(url, {
-					signal: controller.signal,
-					cache: "no-store",
-					credentials: "omit",
-					referrerPolicy: "no-referrer",
-				});
-				const mime = response.headers.get("content-type")?.split(";")[0] ?? "";
-				if (
-					!response.ok ||
-					!["image/png", "image/jpeg", "image/webp"].includes(mime) ||
-					!response.body
-				)
-					throw new Error("Image unavailable");
-				const reader = response.body.getReader();
-				const chunks: Uint8Array<ArrayBuffer>[] = [];
-				let size = 0;
-				try {
-					while (true) {
-						const { done, value } = await reader.read();
-						if (done) break;
-						size += value.byteLength;
-						if (size > 25 * 1024 * 1024) throw new Error("Image too large");
-						chunks.push(new Uint8Array(value));
-					}
-				} finally {
-					await reader.cancel();
-					reader.releaseLock();
-				}
-				if (!active || !size) return;
-				objectUrl = URL.createObjectURL(new Blob(chunks, { type: mime }));
-				const image = new Image();
-				image.src = objectUrl;
-				await image.decode();
-				if (image.naturalWidth * image.naturalHeight > 64_000_000)
-					throw new Error("Image too large");
-				if (active) setPicture(image);
+				const loaded = await loadBrowserExportImage(url, controller.signal);
+				dispose = loaded.dispose;
+				if (active) setPicture(loaded.image);
+				else loaded.dispose();
 			} catch {
 				if (active) setFailed(true);
-			} finally {
-				window.clearTimeout(timer);
 			}
 		})();
 		return () => {
 			active = false;
 			controller.abort();
-			window.clearTimeout(timer);
-			if (objectUrl) URL.revokeObjectURL(objectUrl);
+			dispose?.();
 		};
 	}, [open, imageUrl, retry]);
 	const crop = picture
@@ -133,16 +111,50 @@ export function WallpaperCropDialog({
 		);
 		node.width = next.width;
 		node.height = next.height;
-		node
-			.getContext("2d")
-			?.drawImage(picture, next.sx, next.sy, next.sw, next.sh, 0, 0, next.width, next.height);
-	}, [picture, target, position]);
+		const context = node.getContext("2d");
+		if (!context) return;
+		context.drawImage(picture, next.sx, next.sy, next.sw, next.sh, 0, 0, next.width, next.height);
+		if (watermarked) drawBrowserGuestWatermark(context, next.width, next.height);
+	}, [picture, target, position, watermarked]);
 	async function download() {
 		if (!canvas.current || !picture || saving) return;
+		onDownload?.();
 		setSaving(true);
+		let dispose: (() => void) | undefined;
 		try {
+			let current = picture;
+			if (resolver.current) {
+				const loaded = await loadBrowserExportImage(await resolver.current());
+				current = loaded.image;
+				dispose = loaded.dispose;
+			}
+			const pixels = wallpaperCrop(
+				current.naturalWidth,
+				current.naturalHeight,
+				target,
+				position.x,
+				position.y,
+				position.zoom,
+			);
+			const output = document.createElement("canvas");
+			output.width = pixels.width;
+			output.height = pixels.height;
+			const context = output.getContext("2d");
+			if (!context) throw new Error("Export failed");
+			context.drawImage(
+				current,
+				pixels.sx,
+				pixels.sy,
+				pixels.sw,
+				pixels.sh,
+				0,
+				0,
+				pixels.width,
+				pixels.height,
+			);
+			if (watermarked) drawBrowserGuestWatermark(context, pixels.width, pixels.height);
 			const blob = await new Promise<Blob>((resolve, reject) =>
-				canvas.current!.toBlob(
+				output.toBlob(
 					(value) => (value ? resolve(value) : reject(new Error("Export failed"))),
 					"image/png",
 				),
@@ -152,7 +164,7 @@ export function WallpaperCropDialog({
 			const url = URL.createObjectURL(blob);
 			const link = document.createElement("a");
 			link.href = url;
-			link.download = `christmas-wallpaper-${crop!.width}x${crop!.height}.png`;
+			link.download = `${exportPrefix}-${pixels.width}x${pixels.height}.png`;
 			document.body.append(link);
 			link.click();
 			link.remove();
@@ -160,6 +172,7 @@ export function WallpaperCropDialog({
 		} catch {
 			if (mounted.current) setFailed(true);
 		} finally {
+			dispose?.();
 			if (mounted.current) setSaving(false);
 		}
 	}
@@ -191,6 +204,61 @@ export function WallpaperCropDialog({
 								className="wallpaper-crop-viewport"
 								style={{
 									aspectRatio: crop ? `${crop.width}/${crop.height}` : undefined,
+									touchAction: "none",
+									cursor: picture ? "grab" : undefined,
+								}}
+								onPointerDown={(event) => {
+									if (!picture) return;
+									event.currentTarget.setPointerCapture(event.pointerId);
+									drag.current = {
+										pointer: event.pointerId,
+										x: position.x,
+										y: position.y,
+										startX: event.clientX,
+										startY: event.clientY,
+									};
+								}}
+								onPointerMove={(event) => {
+									const start = drag.current;
+									if (!start || start.pointer !== event.pointerId || !picture || !crop) return;
+									const bounds = event.currentTarget.getBoundingClientRect();
+									const availableX = picture.naturalWidth - crop.sw;
+									const availableY = picture.naturalHeight - crop.sh;
+									setPosition((current) => ({
+										...current,
+										x:
+											availableX > 0
+												? Math.max(
+														0,
+														Math.min(
+															100,
+															start.x -
+																((((event.clientX - start.startX) / bounds.width) * crop.sw) /
+																	availableX) *
+																	100,
+														),
+													)
+												: 50,
+										y:
+											availableY > 0
+												? Math.max(
+														0,
+														Math.min(
+															100,
+															start.y -
+																((((event.clientY - start.startY) / bounds.height) * crop.sh) /
+																	availableY) *
+																	100,
+														),
+													)
+												: 50,
+									}));
+								}}
+								onPointerUp={() => {
+									drag.current = null;
+								}}
+								onPointerCancel={() => {
+									drag.current = null;
 								}}
 							>
 								<canvas ref={canvas} aria-label={t("preview")} />
@@ -225,6 +293,7 @@ export function WallpaperCropDialog({
 						<select
 							id={`${id}-screen`}
 							value={target}
+							disabled={saving}
 							onChange={(event) => {
 								setTarget(event.target.value as WallpaperTarget);
 								setPosition({ x: 50, y: 50, zoom: 1 });
@@ -245,7 +314,7 @@ export function WallpaperCropDialog({
 									max={key === "zoom" ? 3 : 100}
 									step={key === "zoom" ? 0.01 : 1}
 									value={position[key]}
-									disabled={!picture}
+									disabled={!picture || saving}
 									onChange={(event) =>
 										setPosition((current) => ({ ...current, [key]: Number(event.target.value) }))
 									}
@@ -256,6 +325,7 @@ export function WallpaperCropDialog({
 							<input
 								type="checkbox"
 								checked={overlay}
+								disabled={saving}
 								onChange={(event) => setOverlay(event.target.checked)}
 							/>
 							{t("overlay")}
@@ -264,7 +334,7 @@ export function WallpaperCropDialog({
 							<input
 								type="checkbox"
 								checked={darkClock}
-								disabled={!overlay || landscape}
+								disabled={!overlay || landscape || saving}
 								onChange={(event) => setDarkClock(event.target.checked)}
 							/>
 							{t("darkClock")}

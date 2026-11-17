@@ -19,6 +19,7 @@ import {
 
 import { sanitizeEffectEditorReturnPath } from "../../effects/lib/editor-selection";
 import type { PublicImageSpecControl } from "../../media/lib/image-sku-selection";
+import { sanitizeToolReturnPath } from "../../media/lib/tool-return-path";
 import { isProductAccessHintForKey } from "./guest-draft-shared";
 
 export const LANDING_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -240,7 +241,7 @@ export function submitGuestDraftHandoff(
 		),
 	);
 	form.append(hiddenField(documentRef, "claimToken", handoff.claimToken));
-	const effectReturn = sanitizeEffectEditorReturnPath(returnTo);
+	const effectReturn = sanitizeToolReturnPath(returnTo) ?? sanitizeEffectEditorReturnPath(returnTo);
 	if (effectReturn) form.append(hiddenField(documentRef, "returnTo", effectReturn));
 	const cookie = documentRef.cookie ?? "";
 	if (hasGrowthAnalyticsConsent(cookie)) {

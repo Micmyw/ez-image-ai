@@ -11,6 +11,8 @@ const publicPaths = new Set([
 	"/try",
 	"/image-to-image",
 	"/photo-to-coloring-page",
+	"/gta-6-wallpaper",
+	"/gta-loading-screen-generator",
 	"/models",
 	"/blog",
 	"/docs",

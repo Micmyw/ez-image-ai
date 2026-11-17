@@ -158,6 +158,7 @@ export async function createQuoteForUser(
 			userId,
 			fundingSource: input.fundingSource,
 			imagePassBenefitPolicy: quote.pricingSnapshot.imagePassBenefitPolicy,
+			requiresPaidImageAccess: quote.pricingSnapshot.requiresPaidImageAccess === true,
 			productKey: input.productKey,
 			credits: quote.credits,
 			costMicros: quote.costMicros,

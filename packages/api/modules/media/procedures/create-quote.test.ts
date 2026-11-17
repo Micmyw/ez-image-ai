@@ -1,4 +1,4 @@
-import { IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY } from "@repo/config/image-pass";
+import { IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY } from "@repo/config/image-pass";
 import { fingerprintGenerationQuoteSecurityPayload } from "@repo/database/media-quotes";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -31,6 +31,38 @@ const INPUT = {
 };
 
 describe("createQuoteForUser", () => {
+	it("freezes and authorizes a paid template with an editable prompt and basic model", async () => {
+		const assertAllowed = vi.fn(async () => undefined);
+		const persistApproved = vi.fn(async (quote) => ({ id: "paid-template-quote", ...quote }));
+		await createQuoteForUser(
+			"owner",
+			createQuoteInputSchema.parse({ ...INPUT, generationAccess: "paid" }),
+			{
+				now: () => new Date(),
+				assertAllowed,
+				persistApproved,
+				recordDenied: vi.fn(),
+				createAdapter: () => ({
+					provider: "waffo",
+					adapter: {
+						moderateText: async ({ ruleVersion }) => ({
+							decision: "ALLOW",
+							ruleVersion,
+							reasonCode: "NO_POLICY_MATCH",
+						}),
+					},
+				}),
+			},
+		);
+		expect(assertAllowed).toHaveBeenCalledWith(
+			expect.objectContaining({ requiresPaidImageAccess: true }),
+		);
+		expect(persistApproved).toHaveBeenCalledWith(
+			expect.objectContaining({
+				pricingSnapshot: expect.objectContaining({ requiresPaidImageAccess: true }),
+			}),
+		);
+	});
 	afterEach(() => vi.unstubAllEnvs());
 	it.each([true, false])(
 		"runs review and eligibility together, persisting only after both allow (%s)",
@@ -167,12 +199,12 @@ describe("createQuoteForUser", () => {
 		expect(assertAllowed).toHaveBeenCalledWith(
 			expect.objectContaining({
 				fundingSource: "IMAGE_PASS",
-				imagePassBenefitPolicy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+				imagePassBenefitPolicy: IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
 			}),
 		);
 		const frozen = persistApproved.mock.calls[0]![0];
 		expect(frozen.pricingSnapshot).toMatchObject({
-			imagePassBenefitPolicy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+			imagePassBenefitPolicy: IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
 			imagePassUnits: 1,
 		});
 		expect(frozen.moderation.inputFingerprint).toBe(
@@ -183,7 +215,7 @@ describe("createQuoteForUser", () => {
 				...frozen,
 				pricingSnapshot: {
 					...frozen.pricingSnapshot,
-					imagePassBenefitPolicy: { ...IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY, version: "forged" },
+					imagePassBenefitPolicy: { ...IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY, version: "forged" },
 				},
 			}),
 		);

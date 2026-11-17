@@ -193,7 +193,10 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 				<WallpaperResultPublisher
 					key={`${jobId}:${output.id}`}
 					assetId={output.id}
+					jobId={jobId!}
 					expiresAt={output.visibleUntil}
+					prompt={job.data.input?.prompt}
+					aspectRatio={job.data.aspectRatio}
 				/>
 			)}
 			{presentation.stage === "ready" && output && hasInlinePreview && (

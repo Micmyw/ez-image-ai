@@ -7,6 +7,7 @@ const production = vi.hoisted(() => ({
 	adminTestSkus: vi.fn(async () => [] as string[]),
 	rateLimit: vi.fn(),
 	db: {
+		$queryRaw: vi.fn(async () => []),
 		runtimeConfigOverride: { findFirst: vi.fn() },
 		creditAccount: { findUnique: vi.fn() },
 		creditLot: { aggregate: vi.fn() },
@@ -68,6 +69,103 @@ const BASE_SNAPSHOT = {
 } satisfies GenerationAccessSnapshot;
 
 describe("generation authorization", () => {
+	it.each(["gift", "subscription", "credit-pack", "image-pass"] as const)(
+		"requires paid access for an editable template on a basic SKU (%s)",
+		async (funding) => {
+			const ensureFreeCredits = vi.fn();
+			const result = assertGenerationAllowed(
+				{
+					userId: "owner",
+					productKey: FREE_IMAGE_PRODUCT,
+					credits: 5n,
+					costMicros: 1000n,
+					requiresPaidImageAccess: true,
+					fundingSource: funding === "image-pass" ? "IMAGE_PASS" : "CREDITS",
+					routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+					input: { ...IMAGE_EDIT_INPUT, skuKey: "nano-banana-2-lite-1k", aspectRatio: "auto" },
+				},
+				{
+					enforceRateLimit: async () => {},
+					isEnvironmentGenerationEnabled: () => true,
+					ensureFreeCredits,
+					loadAccess: async () => ({
+						...BASE_SNAPSHOT,
+						planId: funding === "subscription" ? "studio" : "free",
+						hasPaidImageAccess: funding === "subscription" || funding === "credit-pack",
+						imagePassAvailable: funding === "image-pass",
+						imagePassIncludesModelAccess: funding === "image-pass",
+					}),
+				},
+			);
+			if (funding === "gift") await expect(result).rejects.toThrow("ENTITLEMENT_REQUIRED");
+			else await expect(result).resolves.toBeUndefined();
+			expect(ensureFreeCredits).not.toHaveBeenCalled();
+		},
+	);
+	it.each(EZPIC_PRODUCT_KEYS)(
+		"accepts purchased shared credits for %s without a subscription",
+		async (productKey) => {
+			const input = {
+				kind: "text-to-image" as const,
+				prompt: "A coastal scene",
+				skuKey: IMAGE_SKU_KEYS_BY_PRODUCT[productKey][0],
+				aspectRatio: "1:1" as const,
+			};
+			const quote = buildMediaQuote({ productKey, input }, KIE_IMAGE_ROUTE_GRAPH);
+			await expect(
+				assertGenerationAllowed(
+					{
+						userId: "pack-owner",
+						productKey,
+						input,
+						credits: quote.credits,
+						costMicros: quote.costMicros,
+						routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+					},
+					{
+						enforceRateLimit: async () => {},
+						isEnvironmentGenerationEnabled: () => true,
+						loadAccess: async () => ({
+							...BASE_SNAPSHOT,
+							planId: "free",
+							hasPaidImageAccess: true,
+						}),
+					},
+				),
+			).resolves.toBeUndefined();
+		},
+	);
+	it.each([false, true])(
+		"GTA basic model still requires paid access (%s)",
+		async (hasPaidImageAccess) => {
+			const ensureFreeCredits = vi.fn();
+			const result = assertGenerationAllowed(
+				{
+					userId: "owner",
+					productKey: "image-minimax-h3",
+					credits: 5n,
+					costMicros: 1000n,
+					routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+					input: {
+						kind: "text-to-image",
+						skuKey: "minimax-h3-1k",
+						prompt:
+							"Coastal artwork preset gta-coastal-v1. Task wallpaper. Scene beach-sunset. Input scene. Format phone. Portrait left.",
+						aspectRatio: "9:16",
+					},
+				},
+				{
+					enforceRateLimit: async () => {},
+					isEnvironmentGenerationEnabled: () => true,
+					ensureFreeCredits,
+					loadAccess: async () => ({ ...BASE_SNAPSHOT, planId: "free", hasPaidImageAccess }),
+				},
+			);
+			if (hasPaidImageAccess) await expect(result).resolves.toBeUndefined();
+			else await expect(result).rejects.toThrow("ENTITLEMENT_REQUIRED");
+			expect(ensureFreeCredits).not.toHaveBeenCalled();
+		},
+	);
 	it.each([10_000_000n, 10_000_001n])(
 		"enforces Seedream's reference byte boundary at %s",
 		async (sourceAssetBytes) => {
@@ -241,12 +339,7 @@ describe("generation authorization", () => {
 			skuKey,
 			aspectRatio: skuKey === "gpt-image-2-4k" ? ("3:2" as const) : ("1:1" as const),
 		};
-		if (productKey === "image-minimax-h3" || productKey === "image-seedream-5-5") {
-			expect(() =>
-				buildMediaQuote({ productKey, input, fundingSource: "IMAGE_PASS" }, KIE_IMAGE_ROUTE_GRAPH),
-			).toThrow("IMAGE_PASS_SELECTION_INVALID");
-			return;
-		}
+
 		const quote = buildMediaQuote(
 			{ productKey, input, fundingSource: "IMAGE_PASS" },
 			KIE_IMAGE_ROUTE_GRAPH,

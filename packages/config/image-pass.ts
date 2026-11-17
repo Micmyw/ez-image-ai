@@ -142,12 +142,32 @@ export const IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY = /* @__PURE__ */ Object.fre
 	unitsPerSuccessfulOutput: 1,
 } as const);
 
-export function isImagePassBenefitPolicy(
-	value: unknown,
-): value is typeof IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY {
+/** Current additive benefit, authorized 2026-11-17. Keep prior policies readable. */
+export const IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY = /* @__PURE__ */ Object.freeze({
+	...IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+	version: "image-pass-all-image-models-2026-11-17-v1",
+	addedSkuKeys: /* @__PURE__ */ Object.freeze([
+		...IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY.addedSkuKeys,
+		"minimax-h3-1k",
+		"minimax-h3-2k",
+		"minimax-h3-4k",
+		"seedream-5-5-1k",
+		"seedream-5-5-1-5k",
+		"seedream-5-5-2k",
+	] as const satisfies readonly ImageSkuKey[]),
+} as const);
+
+type ImagePassBenefitPolicy =
+	| typeof IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY
+	| typeof IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY;
+
+export function isImagePassBenefitPolicy(value: unknown): value is ImagePassBenefitPolicy {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return false;
 	const policy = value as Record<string, unknown>;
-	const expected = IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY;
+	const expected =
+		policy.version === IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY.version
+			? IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY
+			: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY;
 	const addedSkuKeys = policy.addedSkuKeys;
 	const outputFormats = policy.outputFormats;
 	return (
@@ -174,8 +194,8 @@ export function imagePassEffectiveSkuKeys(
 		(benefitPolicy !== undefined && !isImagePassBenefitPolicy(benefitPolicy))
 	)
 		return [];
-	return benefitPolicy !== undefined && imagePassIncludesModelAccess(offerSnapshot)
-		? [...offerSnapshot.allowedSkuKeys, ...IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY.addedSkuKeys]
+	return isImagePassBenefitPolicy(benefitPolicy) && imagePassIncludesModelAccess(offerSnapshot)
+		? [...offerSnapshot.allowedSkuKeys, ...benefitPolicy.addedSkuKeys]
 		: [...offerSnapshot.allowedSkuKeys];
 }
 

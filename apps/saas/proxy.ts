@@ -50,6 +50,8 @@ export const config = {
 		"/image-pass",
 		"/photo-to-coloring-page",
 		"/christmas-wallpaper",
+		"/gta-6-wallpaper",
+		"/gta-loading-screen-generator",
 		"/gpt-image-2-6",
 		"/gpt-image-2-6-flare",
 		"/gpt-image-2-6-sunburst",

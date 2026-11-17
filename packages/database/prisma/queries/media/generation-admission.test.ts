@@ -16,7 +16,10 @@ import { loadCurrentGenerationAdmission } from "./generation-admission";
 
 function transaction(overrides: string[] = [], planId = "free") {
 	return {
-		$queryRaw: vi.fn(async () => [] as Array<{ id: string; offerSnapshot: unknown }>),
+		$queryRaw: vi.fn(
+			async (_query: TemplateStringsArray, ..._values: unknown[]) =>
+				[] as Array<{ id: string; offerSnapshot: unknown }>,
+		),
 		runtimeConfigOverride: {
 			findMany: vi.fn(async () => overrides.map((configKey) => ({ configKey }))),
 		},
@@ -39,6 +42,32 @@ function transaction(overrides: string[] = [], planId = "free") {
 }
 
 describe("transaction-current admission", () => {
+	it.each(EZPIC_PRODUCT_KEYS)(
+		"authorizes shared purchased credits for %s and rechecks revocation",
+		async (productKey) => {
+			const tx = transaction();
+			tx.$queryRaw.mockImplementation(async (query) =>
+				query.join("").includes('AS "hasPaidCredits"') ? ([{ hasPaidCredits: true }] as never) : [],
+			);
+			const input = {
+				ownerId: "owner",
+				productKey,
+				requiresPaidImageAccess: true,
+				costMicros: 1000n,
+				now: new Date(),
+			};
+			await expect(loadCurrentGenerationAdmission(input, tx as never)).resolves.toMatchObject({
+				hasEffectivePaidSubscription: false,
+			});
+			expect(tx.$queryRaw.mock.calls.some(([query]) => query.join("").includes("FOR UPDATE"))).toBe(
+				true,
+			);
+			tx.$queryRaw.mockResolvedValue([]);
+			await expect(loadCurrentGenerationAdmission(input, tx as never)).rejects.toThrow(
+				"ENTITLEMENT_REQUIRED",
+			);
+		},
+	);
 	it("rechecks administrator test access at admission and rejects a revoked grant", async () => {
 		const tx = transaction();
 		const now = new Date("2026-11-13T15:00:00Z");

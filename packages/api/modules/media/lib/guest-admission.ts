@@ -35,6 +35,7 @@ import {
 	requireGuestAbuseHmac,
 } from "./guest-capability";
 import { TextModerationError } from "./public-moderation-reason";
+import { publicToolPrompt } from "./public-tool-prompt";
 import { buildMediaQuote } from "./quote";
 import {
 	createTextModerationAdapter,
@@ -273,6 +274,8 @@ export async function submitGuestGenerationForGuest(
 	assertExactOrigin(boundary.origin, dependencies.saasOrigin);
 	const replay = await dependencies.findReplay?.(boundary, input);
 	if (replay) return replay;
+	// New GTA presets require paid account funding. Accepted historical trials still replay above.
+	if (publicToolPrompt(input.prompt)) throw new Error("GUEST_PRODUCT_UNAVAILABLE");
 	const identity = dependencies.resolveIdentity(boundary.headers);
 	if (!identity) throw new Error("GUEST_TRUSTED_CLIENT_REQUIRED");
 	if (!isRandomDeviceId(input.deviceId)) throw new Error("GUEST_DEVICE_INVALID");

@@ -126,7 +126,7 @@ export const sheruBhaiPhotoEffect: Effect = {
 		{
 			question: "Is this template free?",
 			answer:
-				"You can select a preset and upload your photo before buying. Generation requires any image pack with remaining uses or an active paid subscription with enough credits. When needed, Generate offers the $2.99 pack for three successful images, with no subscription, or other plans. Free sign-in credits alone do not unlock this template.",
+				"You can select a preset and upload your photo before buying. Generation requires subscription credits, a purchased credit pack, or an eligible Image Pass. When needed, Generate offers the $2.99 pack for three successful images, with no subscription, or other plans. Free sign-in credits alone do not unlock this template.",
 		},
 		{
 			question: "Do I need to write a Sheru Bhai AI photo editing prompt?",

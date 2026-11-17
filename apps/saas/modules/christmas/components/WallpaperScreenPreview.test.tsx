@@ -25,10 +25,14 @@ vi.mock("@tanstack/react-query", async (original) => ({
 import { DEFAULT_WALLPAPER_SETTINGS } from "../lib/wallpaper";
 import { WallpaperScreenPreview } from "./WallpaperScreenPreview";
 
-function render(locale: "en" | "de" = "en") {
+function render(locale: "en" | "de" = "en", compositionGuide = false) {
 	return renderToStaticMarkup(
 		<NextIntlClientProvider locale={locale} messages={locale === "en" ? en : de}>
-			<WallpaperScreenPreview settings={DEFAULT_WALLPAPER_SETTINGS} styleName="Cozy fireplace" />
+			<WallpaperScreenPreview
+				settings={DEFAULT_WALLPAPER_SETTINGS}
+				styleName="Cozy fireplace"
+				examplePlaceholder={compositionGuide ? <p>Composition guide</p> : undefined}
+			/>
 		</NextIntlClientProvider>,
 	);
 }
@@ -53,6 +57,21 @@ describe("generated wallpaper screen preview", () => {
 		expect(markup).toContain("Your Christmas wallpaper");
 		expect(markup).not.toContain("Cozy fireplace");
 		expect(markup).not.toContain("/images/christmas/");
+	});
+	it("keeps a tool's composition guide instead of substituting Christmas artwork", () => {
+		mocks.source = "example";
+		const markup = render("en", true);
+		expect(markup).toContain("Composition guide");
+		expect(markup).toContain("Your result");
+		expect(markup).not.toContain("/images/christmas/");
+		expect(markup).not.toContain("https://private.test/output");
+	});
+	it("labels a tool result without requiring a matching sample", () => {
+		const markup = render("en", true);
+		expect(markup).toContain("Your wallpaper");
+		expect(markup).toContain('src="https://private.test/output"');
+		expect(markup).not.toContain("Your Christmas wallpaper");
+		expect(markup).not.toContain("Composition guide");
 	});
 	it.each(["FORBIDDEN", "NOT_FOUND", "UNAUTHORIZED"])(
 		"hides stale private data after %s",

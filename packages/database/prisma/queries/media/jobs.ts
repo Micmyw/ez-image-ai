@@ -452,6 +452,9 @@ export async function createGenerationJobTransaction(
 							{
 								ownerId: input.ownerId,
 								fundingSource,
+								requiresPaidImageAccess:
+									isJsonObject(quote.pricingSnapshot) &&
+									quote.pricingSnapshot.requiresPaidImageAccess === true,
 								skuKey: isJsonObject(quote.pricingSnapshot)
 									? quote.pricingSnapshot.skuKey
 									: undefined,

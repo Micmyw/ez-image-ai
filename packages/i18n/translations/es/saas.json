@@ -2201,14 +2201,14 @@
 				"checking": "Comprobando…"
 			},
 			"restore": {
-				"qualityUpgradeRequired": "Se restauraron la imagen, la instrucción y el modelo seleccionado. Elige un pase apto o una suscripción Pro, Ultimate o Max para generar con créditos.",
+				"qualityUpgradeRequired": "Se restauraron la imagen, la instrucción y el modelo seleccionado. Continúa con créditos de suscripción, un paquete de créditos comprado o un Image Pass válido.",
 				"upgradeComplete": "Tu plan de pago está activo y se restauraron la imagen, la instrucción, los ajustes del modelo y la sesión de edición.",
 				"verifying": "Se restauró el borrador. La imagen privada aún está completando su revisión de seguridad; Revisar se activará cuando esté lista.",
 				"unavailable": "La edición guardada caducó o su imagen ya no está disponible. No se creó ningún trabajo ni reserva de créditos."
 			},
 			"errors": {
 				"insufficientCredits": "No tienes créditos suficientes para esta edición. No se creó ningún trabajo ni reserva.",
-				"qualityUnavailable": "Este modelo de imagen no está incluido en tu plan. Elige MiniMax H3 Image 1K o revisa tu plan.",
+				"qualityUnavailable": "Esta generación requiere créditos de suscripción, un paquete de créditos comprado o un Image Pass válido.",
 				"assetNotReady": "La imagen de origen no está lista. Espera la revisión privada o elige otra imagen.",
 				"quoteExpired": "Este precio ha caducado. Actualiza la instrucción o los ajustes para obtener un precio nuevo antes de generar.",
 				"contentNotAllowed": "No podemos utilizar esta instrucción según nuestra política de contenido. Modifícala. No se cobraron créditos.",
@@ -2243,8 +2243,8 @@
 				"paidPlan": "Plan de pago",
 				"viewPlans": "Ver planes",
 				"upToResolution": "Hasta {resolution}",
-				"minimaxUpgradeNotice": "MiniMax H3 Image en 2K y 4K requiere una suscripción de pago activa.",
-				"upgradeNotice": "{model} requiere Pro, Ultimate o Max al pagar con créditos. También puedes elegir un pase apto que incluya acceso al modelo."
+				"minimaxUpgradeNotice": "MiniMax H3 Image en 2K y 4K admite créditos de suscripción, paquetes de créditos comprados e Image Pass válidos.",
+				"upgradeNotice": "{model} admite créditos de suscripción, paquetes de créditos comprados e Image Passes válidos."
 			},
 			"moderationBillingPolicy": "Seguridad del contenido: los rechazos de contenido sensible del proveedor después del envío y las imágenes generadas bloqueadas por nuestra revisión consumen todos los créditos cotizados, incluido el primer rechazo. Las instrucciones o cargas detenidas antes del envío y los fallos técnicos de revisión no cuestan créditos.",
 			"generateWithCredits": "Generar imagen · {credits} créditos",
@@ -2376,7 +2376,7 @@
 				"quality": "Más modelos de imagen",
 				"qualityDescription": "Edición privada de imágenes con ajustes de salida específicos del modelo.",
 				"credits": "{credits} EzImageAI Credits",
-				"qualityUnavailable": "Mejora el plan para usar este modelo de imagen. La imagen, la instrucción y los ajustes de salida se conservarán.",
+				"qualityUnavailable": "Usa créditos de suscripción, un paquete de créditos comprado o un Image Pass válido. La imagen, la instrucción y los ajustes de salida se conservarán.",
 				"upgrade": "Ver opciones de mejora"
 			}
 		},
@@ -3045,8 +3045,8 @@
 	},
 	"imagePass": {
 		"paidTemplate": {
-			"title": "Crea tu foto de Sheru Bhai",
-			"description": "Esta plantilla requiere un paquete de imágenes de pago o una suscripción válida con suficientes créditos.",
+			"title": "Crea tu imagen",
+			"description": "Usa créditos de suscripción, un paquete de créditos o un Image Pass. Todos los modelos de imagen son compatibles.",
 			"images": "{count} imágenes generadas correctamente",
 			"oneTime": "Compra única en USD. No requiere suscripción.",
 			"storageUnavailable": "No pudimos guardar tu borrador. Activa el almacenamiento del navegador e inténtalo de nuevo. Tu foto y tu prompt siguen aquí.",

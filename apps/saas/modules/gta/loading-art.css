@@ -1,0 +1,87 @@
+.gta-art-preview {
+	align-self: start;
+	min-width: 0;
+	padding: clamp(16px, 2.5vw, 28px);
+	border: 1px solid #285967;
+	border-radius: 20px;
+	color: #f4f1e9;
+	background: #102c3a;
+}
+.gta-art-preview-heading,
+.gta-art-name-controls label {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 12px;
+}
+.gta-art-preview fieldset {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.gta-art-preview fieldset button {
+	min-height: 40px;
+	padding: 7px 11px;
+	border: 1px solid #5b8290;
+	border-radius: 8px;
+	font-size: 13px;
+}
+.gta-art-preview fieldset button[aria-pressed="true"] {
+	color: #102c3a;
+	background: #b7e2df;
+	border-color: #b7e2df;
+}
+.gta-art-preview button:disabled {
+	opacity: 0.55;
+}
+.gta-art-preview :focus-visible {
+	outline: 2px solid #ffc58b;
+	outline-offset: 4px;
+}
+.gta-art-stage {
+	position: relative;
+	display: grid;
+	place-items: center;
+	margin-block: 20px;
+	overflow: hidden;
+	border-radius: 10px;
+	background: #0c1d2a;
+}
+.gta-art-canvas[data-format="phone"] .gta-art-stage {
+	max-width: 330px;
+	margin-inline: auto;
+}
+.gta-art-stage img,
+.gta-art-stage canvas {
+	display: block;
+	width: 100%;
+	height: auto;
+}
+.gta-art-stage canvas[hidden] {
+	display: none;
+}
+.gta-art-name-controls {
+	display: grid;
+	gap: 12px;
+}
+.gta-art-name-controls input {
+	width: 100%;
+	min-height: 44px;
+	padding: 10px 12px;
+	border: 1px solid #6b8d9b;
+	border-radius: 8px;
+	color: #f4f1e9;
+	background: #173b4a;
+	font: inherit;
+}
+.gta-art-name-controls p,
+.gta-art-name-controls output,
+.gta-art-name-controls label span {
+	color: #b7cdd3;
+	font-size: 13px;
+	line-height: 1.6;
+}
+.gta-art-name-controls [role="alert"] p {
+	color: #ffc58b;
+}

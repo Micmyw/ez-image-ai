@@ -1,8 +1,8 @@
 {
 	"imagePass": {
 		"paidTemplate": {
-			"title": "Crea tu foto de Sheru Bhai",
-			"description": "Esta plantilla requiere un paquete de imágenes de pago o una suscripción válida con suficientes créditos.",
+			"title": "Crea tu imagen",
+			"description": "Usa créditos de suscripción, un paquete de créditos o un Image Pass. Todos los modelos de imagen son compatibles.",
 			"images": "{count} imágenes generadas correctamente",
 			"oneTime": "Compra única en USD. No requiere suscripción.",
 			"storageUnavailable": "No pudimos guardar tu borrador. Activa el almacenamiento del navegador e inténtalo de nuevo. Tu foto y tu prompt siguen aquí.",

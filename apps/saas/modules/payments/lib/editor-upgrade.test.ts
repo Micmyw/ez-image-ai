@@ -4,6 +4,7 @@ import {
 	activePlanChoosePlanDestination,
 	buildCheckoutReturnUrl,
 	checkoutReturnDestination,
+	clearGtaEditorUpgradeDraftsForOwner,
 	createChoosePlanPath,
 	readEditorUpgradeDraft,
 	sanitizeEditorReturnPath,
@@ -37,6 +38,40 @@ const draft = {
 };
 
 describe("editor upgrade navigation", () => {
+	it("clears only the current owner's two GTA upgrade drafts on logout", () => {
+		const store = memoryStorage();
+		writeEditorUpgradeDraft(store, draft, 1000);
+		for (const ownerId of ["owner-a", "owner-b"]) {
+			for (const returnPath of ["/gta-6-wallpaper", "/gta-loading-screen-generator"] as const) {
+				writeEditorUpgradeDraft(store, draft, 1000, { ownerId, returnPath });
+			}
+		}
+		clearGtaEditorUpgradeDraftsForOwner(store, "owner-a");
+		for (const returnPath of ["/gta-6-wallpaper", "/gta-loading-screen-generator"] as const) {
+			expect(readEditorUpgradeDraft(store, 2000, { ownerId: "owner-a", returnPath })).toBeNull();
+			expect(readEditorUpgradeDraft(store, 2000, { ownerId: "owner-b", returnPath })).toEqual(
+				draft,
+			);
+		}
+		expect(readEditorUpgradeDraft(store, 2000)).toEqual(draft);
+	});
+	it("isolates GTA purchase drafts by owner and task without consuming existing editor drafts", () => {
+		const store = memoryStorage();
+		const wallpaperScope = { ownerId: "owner-a", returnPath: "/gta-6-wallpaper" as const };
+		const loadingScope = {
+			ownerId: "owner-a",
+			returnPath: "/gta-loading-screen-generator" as const,
+		};
+		expect(writeEditorUpgradeDraft(store, draft, 1000)).toBe(true);
+		expect(writeEditorUpgradeDraft(store, draft, 1001, wallpaperScope)).toBe(true);
+		expect(writeEditorUpgradeDraft(store, draft, 1002, loadingScope)).toBe(true);
+		expect(
+			readEditorUpgradeDraft(store, 2000, { ...wallpaperScope, ownerId: "owner-b" }),
+		).toBeNull();
+		expect(readEditorUpgradeDraft(store, 2000, wallpaperScope)).toEqual(draft);
+		expect(readEditorUpgradeDraft(store, 2000, loadingScope)).toEqual(draft);
+		expect(readEditorUpgradeDraft(store, 2000)).toEqual(draft);
+	});
 	it("preserves the exact GIF format and timing across sign-in or upgrade", () => {
 		const store = memoryStorage();
 		const gifDraft = {
@@ -77,6 +112,11 @@ describe("editor upgrade navigation", () => {
 	it.each([
 		["/create", "/create"],
 		["/create?upgrade=complete", "/create?upgrade=complete"],
+		["/gta-6-wallpaper?upgrade=complete", "/gta-6-wallpaper?upgrade=complete"],
+		[
+			"/gta-loading-screen-generator?upgrade=complete",
+			"/gta-loading-screen-generator?upgrade=complete",
+		],
 		["/history", "/history"],
 		["/history/job_01J5ABCDEF", "/history/job_01J5ABCDEF"],
 		[
@@ -98,6 +138,8 @@ describe("editor upgrade navigation", () => {
 		"/create?redirect=https://attacker.example",
 		"/history/../../settings",
 		"/create\\@attacker.example",
+		"/gta-6-wallpaper?sourceAssetId=private",
+		"/gta-loading-screen-generator?upgrade=complete&prompt=private",
 		"/effects/1980s-ai-photo?preset=studio-portrait&sourceAssetId=private",
 		"/blog/1980s-ai-photo?preset=studio-portrait&sourceAssetId=private",
 		"/blog/1980s-ai-photo?preset=studio-portrait&preset=neon-street",

@@ -25,15 +25,22 @@ export function job(s) { return {
 }; }`,
 		"use-job": `import { useFixture, job } from "fixture-state"; export const useJob = () => { const s = useFixture(); return { data: s.owner ? job(s) : undefined, refetch: async () => ({ data: job(s) }) }; };`,
 		"@auth/hooks/use-session": `import { useFixture } from "fixture-state"; export const useSession = () => { const s = useFixture(); return { user: s.owner ? { id: s.owner } : null }; };`,
-		"@shared/lib/orpc-client": `import { read } from "fixture-state"; export const orpcClient = { media: { getAssetAccessUrl: async ({ assetId }) => { if (read().denied || read().owner !== "owner-1") throw Object.assign(new Error("Denied"), { code: "FORBIDDEN" }); return { url: "/images/christmas/" + assetId + ".webp", expiresAt: "2099-01-01T00:00:00Z" }; } } };`,
+		"@shared/lib/orpc-client": `import { read } from "fixture-state"; export const orpcClient = { media: { getGenerationDuration: async () => ({ kind: "processing" }), getAssetAccessUrl: async ({ assetId }) => { if (read().denied || read().owner !== "owner-1") throw Object.assign(new Error("Denied"), { code: "FORBIDDEN" }); return { url: "/images/christmas/" + assetId + ".webp", expiresAt: "2099-01-01T00:00:00Z" }; }, getGuestAssetAccessUrl: async ({ assetId }) => { if (read().denied || read().owner) throw Object.assign(new Error("Denied"), { code: "FORBIDDEN" }); return { url: "/images/christmas/" + assetId + ".webp", expiresAt: "2099-01-01T00:00:00Z" }; } } };`,
 		"@shared/lib/growth-analytics": `export const saasGrowthFunnel = new Proxy({}, { get: () => async () => {} });`,
-		"@repo/utils/lib/growth-analytics-browser": `export const trackBrowserGrowthEvent = async () => {};`,
+		"@repo/utils/lib/growth-analytics-browser": `
+let revision = 0;
+export const growthConsentRevision = () => revision;
+export const invalidatePendingBrowserGrowthAnalytics = () => { revision++; };
+export const registerBrowserGrowthAnalytics = () => {};
+export const trackBrowserGrowthEvent = async () => "blocked";`,
 		"@payments/components/ResultPurchaseGuide": `export const ResultPurchaseGuide = () => null;`,
 		"next/link": `export default function Link({ children, href, ...props }) { return <a href={href} {...props}>{children}</a>; }`,
 		"next/image": `export default function Image({ priority, ...props }) { return <img {...props} />; }`,
 		"next/navigation": `export const useRouter = () => ({ push() {}, replace() {}, prefetch() {} }); export const usePathname = () => "/christmas-wallpaper"; export const useSearchParams = () => new URLSearchParams();`,
 		"next/dynamic": `import { lazy, Suspense } from "react"; export default function dynamic(loader) { const C = lazy(async () => ({ default: await loader() })); return (props) => <Suspense fallback={null}><C {...props} /></Suspense>; }`,
 	};
+	// TanStack's real oRPC utilities import the same client through a relative path.
+	mocks["orpc-client"] = mocks["@shared/lib/orpc-client"];
 	try {
 		const result = await build({
 			stdin: {

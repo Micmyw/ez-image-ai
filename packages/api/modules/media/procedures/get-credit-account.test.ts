@@ -7,12 +7,16 @@ const database = vi.hoisted(() => ({
 	findSubscription: vi.fn(),
 	countActiveJobs: vi.fn(),
 	adminTestSkuKeys: vi.fn(),
+	hasPurchasedCredits: vi.fn(),
 }));
 const freeCredits = vi.hoisted(() => ({ ensure: vi.fn() }));
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database/media-image-admin-test-access", () => ({
 	loadImageAdminTestSkuKeys: database.adminTestSkuKeys,
+}));
+vi.mock("@repo/database/media-image-credit-access", () => ({
+	hasSpendablePurchasedImageCredits: database.hasPurchasedCredits,
 }));
 vi.mock("@repo/database/client", () => ({
 	db: {
@@ -54,6 +58,7 @@ describe("getCreditAccount", () => {
 			plan: { metadata: { planId: "creator" }, name: "ignored" },
 		});
 		database.countActiveJobs.mockResolvedValue(2);
+		database.hasPurchasedCredits.mockResolvedValue(false);
 		database.adminTestSkuKeys.mockResolvedValue(["gpt-image-2-6-sunburst-1k"]);
 		freeCredits.ensure.mockResolvedValue({ status: "GRANTED" });
 	});
@@ -62,6 +67,7 @@ describe("getCreditAccount", () => {
 		await expect(
 			call(getCreditAccount, undefined, { context: { headers: new Headers() } }),
 		).resolves.toEqual({
+			hasPaidImageAccess: true,
 			adminTestSkuKeys: [],
 			spendableCredits: "6",
 			reservedCredits: "4",
@@ -73,6 +79,17 @@ describe("getCreditAccount", () => {
 		expect(freeCredits.ensure).toHaveBeenCalledWith("user-1");
 		expect(database.adminTestSkuKeys).not.toHaveBeenCalled();
 	});
+	it.each([false, true])(
+		"exposes purchased-credit access independently of the free balance (%s)",
+		async (hasPaidImageAccess) => {
+			database.findSubscription.mockResolvedValue(null);
+			database.hasPurchasedCredits.mockResolvedValue(hasPaidImageAccess);
+			await expect(
+				call(getCreditAccount, undefined, { context: { headers: new Headers() } }),
+			).resolves.toMatchObject({ hasPaidImageAccess, spendableCredits: "6" });
+			expect(database.hasPurchasedCredits).toHaveBeenCalledWith("user-1", expect.anything());
+		},
+	);
 	it("returns only the current administrator's server-owned image test selections", async () => {
 		vi.mocked(auth.api.getSession).mockResolvedValue({
 			user: { id: "admin-1", role: "admin" },

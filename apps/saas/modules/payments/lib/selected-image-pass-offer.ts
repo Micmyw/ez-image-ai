@@ -1,6 +1,6 @@
 import { parseImageSelection } from "@repo/config/client";
 import {
-	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+	IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
 	IMAGE_PASS_PUBLIC_OFFER,
 	imagePassCoversSelection,
 } from "@repo/config/image-pass";
@@ -21,7 +21,7 @@ export function currentImagePassOfferCoversSelection(input: {
 		selection &&
 		imagePassCoversSelection({
 			offerSnapshot: IMAGE_PASS_PUBLIC_OFFER,
-			benefitPolicy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+			benefitPolicy: IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
 			skuKey: selection.skuKey,
 			outputFormat: selection.outputFormat,
 		}),

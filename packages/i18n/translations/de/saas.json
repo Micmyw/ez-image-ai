@@ -2201,14 +2201,14 @@
 				"checking": "Wird geprüft…"
 			},
 			"restore": {
-				"qualityUpgradeRequired": "Bild, Anweisung und gewähltes Modell wurden wiederhergestellt. Wähle einen geeigneten Bildpass oder ein Pro-, Ultimate- oder Max-Abo für die Generierung mit Credits.",
+				"qualityUpgradeRequired": "Bild, Anweisung und gewähltes Modell wurden wiederhergestellt. Fahre mit Abo-Credits, einem gekauften Credit-Paket oder einem gültigen Image Pass fort.",
 				"upgradeComplete": "Ihr bezahlter Tarif ist aktiv. Bild, Anweisung, Modelleinstellungen und Bearbeitungssitzung wurden wiederhergestellt.",
 				"verifying": "Der Entwurf wurde wiederhergestellt. Die private Sicherheitsprüfung des Quellbilds läuft noch; danach wird Prüfen freigeschaltet.",
 				"unavailable": "Diese gespeicherte Bearbeitung ist abgelaufen oder das Quellbild ist nicht mehr verfügbar. Es wurden weder Auftrag noch Credit-Reservierung erstellt."
 			},
 			"errors": {
 				"insufficientCredits": "Für diese Bearbeitung sind nicht genügend Credits vorhanden. Es wurden weder Auftrag noch Reservierung erstellt.",
-				"qualityUnavailable": "Dieses Bildmodell ist in Ihrem Tarif nicht enthalten. Wählen Sie MiniMax H3 Image 1K oder prüfen Sie Ihren Tarif.",
+				"qualityUnavailable": "Diese Generierung erfordert Abo-Credits, ein gekauftes Credit-Paket oder einen gültigen Image Pass.",
 				"assetNotReady": "Das Quellbild ist noch nicht bereit. Warten Sie auf die private Sicherheitsprüfung oder wählen Sie ein anderes Bild.",
 				"quoteExpired": "Dieser Preis ist abgelaufen. Ändere die Anweisung oder Einstellungen, um vor der Generierung einen aktuellen Preis anzufordern.",
 				"contentNotAllowed": "Diese Anweisung verstößt gegen unsere Inhaltsrichtlinie. Bitte überarbeite sie. Es wurden keine Credits berechnet.",
@@ -2243,8 +2243,8 @@
 				"paidPlan": "Bezahlter Tarif",
 				"viewPlans": "Tarife ansehen",
 				"upToResolution": "Bis zu {resolution}",
-				"minimaxUpgradeNotice": "MiniMax H3 Image in 2K und 4K erfordert ein aktives kostenpflichtiges Abo.",
-				"upgradeNotice": "{model} erfordert bei Zahlung mit Credits Pro, Ultimate oder Max. Alternativ kannst du einen geeigneten Bildpass mit enthaltenem Modellzugang auswählen."
+				"minimaxUpgradeNotice": "MiniMax H3 Image in 2K und 4K unterstützt Abo-Credits, gekaufte Credit-Pakete und gültige Image Passes.",
+				"upgradeNotice": "{model} unterstützt Abo-Guthaben, gekaufte Guthabenpakete und gültige Image Passes."
 			},
 			"moderationBillingPolicy": "Inhaltssicherheit: Ablehnungen sensibler Inhalte durch den Generierungsanbieter nach dem Absenden und generierte Bilder, die unsere Sicherheitsprüfung sperrt, kosten die gesamten angebotenen Credits, auch beim ersten Mal. Vor dem Absenden gestoppte Prompts oder Uploads und technische Fehler bei der Sicherheitsprüfung kosten keine Credits.",
 			"generateWithCredits": "Bild generieren · {credits} Credits",
@@ -2376,7 +2376,7 @@
 				"quality": "Weitere Bildmodelle",
 				"qualityDescription": "Private Bildbearbeitung mit modellspezifischen Ausgabeeinstellungen.",
 				"credits": "{credits} EzImageAI Credits",
-				"qualityUnavailable": "Für dieses Bildmodell ist ein Upgrade nötig. Bild, Anweisung und Ausgabeeinstellungen bleiben erhalten.",
+				"qualityUnavailable": "Nutze Abo-Credits, ein gekauftes Credit-Paket oder einen gültigen Image Pass. Bild, Anweisung und Ausgabeeinstellungen bleiben erhalten.",
 				"upgrade": "Upgrade-Optionen anzeigen"
 			}
 		},
@@ -3045,8 +3045,8 @@
 	},
 	"imagePass": {
 		"paidTemplate": {
-			"title": "Dein Sheru-Bhai-Foto erstellen",
-			"description": "Diese Vorlage erfordert ein kostenpflichtiges Bildpaket oder ein berechtigtes Abonnement mit ausreichend Credits.",
+			"title": "Erstelle dein Bild",
+			"description": "Nutze Abo-Guthaben, ein Guthabenpaket oder einen Image Pass. Alle Bildmodelle werden unterstützt.",
 			"images": "{count} erfolgreich erstellte Bilder",
 			"oneTime": "Einmaliger Kauf in USD. Kein Abonnement erforderlich.",
 			"storageUnavailable": "Dein Entwurf konnte nicht gespeichert werden. Aktiviere den Browserspeicher und versuche es erneut. Foto und Prompt bleiben hier.",

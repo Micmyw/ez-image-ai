@@ -1,0 +1,757 @@
+.gta-page {
+	--gta-coral: #ef7b66;
+	--gta-ink: #153947;
+	--gta-sand: #f4f1e9;
+	--gta-teal: #3cafa4;
+	--gta-dusk: #76516b;
+	--gta-muted: #52686e;
+	--gta-line: #15394724;
+	color: var(--gta-ink);
+	background: var(--gta-sand);
+	min-height: 100vh;
+	padding-top: 24px;
+}
+.gta-container {
+	width: min(1280px, calc(100% - 64px));
+	margin-inline: auto;
+}
+.gta-page :is(button, a, input, textarea, select):focus-visible {
+	outline: 3px solid var(--gta-teal);
+	outline-offset: 4px;
+}
+.gta-page :is(section, article, figure, fieldset, .gta-hero-copy) {
+	min-width: 0;
+}
+.gta-page :is(#gta-editor, #gta-scenes, #gta-gallery, #gta-comparisons) {
+	scroll-margin-top: 94px;
+}
+.gta-breadcrumb {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	font-size: 12px;
+	color: var(--gta-muted);
+	margin-bottom: 24px;
+}
+.gta-breadcrumb a:hover {
+	text-decoration: underline;
+}
+.gta-hero {
+	display: grid;
+	grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+	gap: 44px;
+	align-items: center;
+	margin-bottom: 40px;
+}
+.gta-eyebrow {
+	color: var(--gta-dusk);
+	font-size: 11px;
+	font-weight: 650;
+	letter-spacing: 0.09em;
+	text-transform: uppercase;
+}
+.gta-hero h1 {
+	font-size: clamp(36px, 4.8vw, 68px);
+	font-weight: 750;
+	line-height: 1.04;
+	letter-spacing: -0.055em;
+	max-width: 11em;
+	margin-block: 16px 22px;
+}
+.gta-hero-description {
+	font-size: clamp(15px, 1.4vw, 18px);
+	line-height: 1.7;
+	max-width: 32em;
+	color: var(--gta-muted);
+}
+.gta-hero-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 18px;
+	align-items: center;
+	margin-top: 28px;
+}
+.gta-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 20px;
+	min-height: 48px;
+	border-radius: 8px;
+	background: var(--gta-ink);
+	padding: 12px 18px;
+	color: #fff;
+	font-size: 13px;
+	font-weight: 600;
+}
+.gta-button:hover {
+	background: #235366;
+}
+.gta-text-link {
+	font-size: 13px;
+	font-weight: 550;
+	text-decoration: underline;
+	text-underline-offset: 4px;
+}
+.gta-hero-art {
+	position: relative;
+	margin: 0;
+	border-radius: 18px 18px 72px 18px;
+	overflow: hidden;
+	background: #cdded6;
+	aspect-ratio: 16 / 10;
+}
+.gta-hero-art img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+.gta-hero-art figcaption {
+	position: absolute;
+	bottom: 14px;
+	left: 16px;
+	font-size: 10px;
+	font-weight: 500;
+	padding: 5px 9px;
+	border-radius: 4px;
+	color: #fff;
+	background: #153947d9;
+}
+.gta-workbench {
+	display: grid;
+	grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.85fr);
+	align-items: start;
+	gap: 28px;
+}
+.gta-editor {
+	--background: #173744;
+	--foreground: #f5f1ea;
+	--card: #204451;
+	--muted: #2e5360;
+	--muted-foreground: #b5c6c9;
+	--border: #ffffff2b;
+	--primary: #ef7b66;
+	--primary-foreground: #153947;
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-card: var(--card);
+	--color-muted: var(--muted);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-border: var(--border);
+	--color-primary: var(--primary);
+	--color-primary-foreground: var(--primary-foreground);
+	padding: 24px;
+	border-radius: 18px;
+	color: var(--foreground);
+	background: var(--background);
+	min-width: 0;
+	color-scheme: dark;
+}
+.gta-editor h2 {
+	font-size: 22px;
+	font-weight: 600;
+	letter-spacing: -0.025em;
+	margin-bottom: 18px;
+}
+.gta-editor .gta-eyebrow {
+	color: #f4b9ac;
+}
+.gta-editor :is(.gta-options, .gta-controls) {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 18px 24px;
+	margin-block: 18px;
+}
+.gta-editor fieldset {
+	border: 0;
+}
+.gta-editor legend {
+	font-size: 11px;
+	color: #b5c6c9;
+	margin-bottom: 8px;
+}
+.gta-editor :is(.gta-mode, .gta-screen-options, .gta-choice-buttons, .gta-position-options) {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+}
+.gta-editor :is(.gta-mode, .gta-screen-options, .gta-choice-buttons, .gta-position-options) button {
+	display: inline-flex;
+	gap: 7px;
+	align-items: center;
+	min-height: 40px;
+	padding: 9px 12px;
+	border: 1px solid #ffffff36;
+	border-radius: 7px;
+	font-size: 12px;
+	color: #d2dfe0;
+	cursor: pointer;
+}
+.gta-editor button[aria-pressed="true"] {
+	border-color: var(--gta-coral);
+	background: #ef7b6621;
+	color: #ffb19f;
+}
+.gta-editor button:disabled {
+	opacity: 0.55;
+	cursor: default;
+}
+.gta-editor :is(.gta-mode, .gta-screen-options, .gta-choice-buttons, .gta-position-options) svg {
+	width: 15px;
+	height: 15px;
+}
+.gta-editor-hint,
+.gta-cost-note,
+.gta-loading,
+.gta-current-scene {
+	font-size: 12px;
+	line-height: 1.7;
+	color: #b5c6c9;
+}
+.gta-editor-hint {
+	margin-block: 14px;
+}
+.gta-cost-note {
+	margin-top: 14px;
+}
+.gta-current-scene {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 7px 12px;
+	align-items: center;
+	margin-bottom: 18px;
+}
+.gta-current-scene strong {
+	color: #f5f1ea;
+}
+.gta-current-scene a {
+	color: #f4b9ac;
+	margin-left: auto;
+}
+.gta-policy-reminder {
+	display: block;
+	width: fit-content;
+	margin-block: 12px;
+	color: #ffc8bd;
+	font-size: 12px;
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+.gta-share-link {
+	display: grid;
+	gap: 7px;
+	margin-top: 12px;
+	font-size: 12px;
+}
+.gta-share-link input {
+	min-width: 0;
+	width: 100%;
+	border: 1px solid #ffffff36;
+	border-radius: 6px;
+	padding: 10px;
+}
+.gta-scenes,
+.gta-gallery,
+.gta-comparisons,
+.gta-how,
+.gta-faq {
+	padding-block: 64px;
+}
+.gta-section-heading {
+	display: flex;
+	justify-content: space-between;
+	align-items: end;
+	gap: 24px;
+	margin-bottom: 26px;
+}
+.gta-page h2 {
+	font-size: clamp(25px, 3vw, 36px);
+	line-height: 1.16;
+	font-weight: 650;
+	letter-spacing: -0.04em;
+}
+.gta-section-heading h2 {
+	margin-top: 9px;
+}
+.gta-section-heading > p {
+	font-size: 13px;
+	line-height: 1.7;
+	max-width: 30em;
+	color: var(--gta-muted);
+}
+.gta-scene-grid {
+	display: grid;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	gap: 16px;
+}
+.gta-scene-grid article {
+	min-width: 0;
+}
+.gta-scene-image {
+	position: relative;
+	border-radius: 10px;
+	overflow: hidden;
+	aspect-ratio: 9 / 14;
+	outline: 2px solid transparent;
+	outline-offset: 3px;
+}
+.gta-scene-image img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+.gta-scene-grid .is-selected .gta-scene-image {
+	outline-color: var(--gta-dusk);
+}
+.gta-scene-grid h3 {
+	font-size: 14px;
+	font-weight: 650;
+	margin-top: 14px;
+}
+.gta-scene-grid p {
+	font-size: 11px;
+	line-height: 1.65;
+	margin-top: 6px;
+	color: var(--gta-muted);
+	min-height: 3.3em;
+}
+.gta-scene-grid button,
+.gta-gallery-grid button {
+	font-size: 11px;
+	font-weight: 650;
+	padding-block: 12px;
+	text-align: left;
+	cursor: pointer;
+}
+.gta-scene-grid button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+.gta-gallery {
+	border-block: 1px solid var(--gta-line);
+}
+.gta-gallery-filters {
+	display: flex;
+	gap: 8px;
+	margin-bottom: 24px;
+}
+.gta-gallery-filters button {
+	font-size: 12px;
+	padding: 9px 16px;
+	border: 1px solid var(--gta-line);
+	border-radius: 30px;
+	cursor: pointer;
+}
+.gta-gallery-filters button[aria-pressed="true"] {
+	color: #fff;
+	background: var(--gta-ink);
+}
+.gta-gallery-grid {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: 28px 20px;
+}
+.gta-gallery-grid article {
+	min-width: 0;
+}
+.gta-gallery-grid img {
+	width: 100%;
+	height: auto;
+	border-radius: 10px;
+}
+.gta-gallery-grid h3 {
+	margin-top: 12px;
+	font-size: 14px;
+	font-weight: 600;
+}
+.gta-gallery-grid :is(p, a) {
+	font-size: 11px;
+	line-height: 1.6;
+}
+.gta-gallery-grid p {
+	color: var(--gta-muted);
+	margin-block: 5px 9px;
+}
+.gta-gallery-grid a {
+	display: inline-block;
+	font-weight: 650;
+	text-decoration: underline;
+	text-underline-offset: 4px;
+}
+.gta-gallery-grid button {
+	display: block;
+	color: var(--gta-dusk);
+}
+.gta-comparison-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 28px;
+}
+.gta-comparison-images {
+	display: grid;
+	grid-template-columns: minmax(0, 0.5fr) minmax(0, 1.5fr);
+	gap: 8px;
+}
+.gta-comparison figure {
+	position: relative;
+	margin: 0;
+	border-radius: 10px;
+	background: #d9e1da;
+	overflow: hidden;
+	height: 265px;
+}
+.gta-comparison img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+.gta-comparison-source img {
+	object-position: center top;
+}
+.gta-comparison-result img {
+	object-fit: contain;
+}
+.gta-comparison figcaption {
+	position: absolute;
+	bottom: 8px;
+	left: 8px;
+	right: 8px;
+	font-size: 9px;
+	line-height: 1.4;
+	padding: 5px 7px;
+	border-radius: 3px;
+	color: white;
+	background: #153947d9;
+}
+.gta-comparison > p {
+	font-size: 12px;
+	font-weight: 600;
+	margin-top: 10px;
+}
+.gta-fit {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr);
+	gap: 70px;
+	padding: 42px;
+	border-radius: 18px;
+	background: #e3eae1;
+}
+.gta-fit h2 {
+	margin-block: 12px 20px;
+}
+.gta-fit p {
+	color: var(--gta-muted);
+	font-size: 14px;
+	line-height: 1.8;
+}
+.gta-fit-options {
+	display: grid;
+	gap: 20px;
+	align-content: center;
+}
+.gta-fit-options h3 {
+	font-size: 16px;
+	font-weight: 650;
+	margin-bottom: 6px;
+}
+.gta-fit-options > p {
+	font-size: 11px;
+}
+.gta-how ol {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 34px;
+	margin-top: 30px;
+	list-style: decimal;
+	list-style-position: inside;
+}
+.gta-how li::marker {
+	font-weight: 700;
+	color: var(--gta-dusk);
+}
+.gta-how h3 {
+	display: inline;
+	font-size: 16px;
+	font-weight: 650;
+}
+.gta-how p {
+	color: var(--gta-muted);
+	font-size: 13px;
+	line-height: 1.8;
+	margin-top: 12px;
+}
+.gta-faq {
+	border-top: 1px solid var(--gta-line);
+	display: grid;
+	grid-template-columns: minmax(0, 0.6fr) minmax(0, 1.4fr);
+	gap: 60px;
+}
+.gta-faq details {
+	border-bottom: 1px solid var(--gta-line);
+	padding-block: 18px;
+}
+.gta-faq details:first-child {
+	padding-top: 0;
+}
+.gta-faq summary {
+	font-size: 14px;
+	font-weight: 650;
+	line-height: 1.6;
+	cursor: pointer;
+}
+.gta-faq details p {
+	font-size: 13px;
+	line-height: 1.85;
+	color: var(--gta-muted);
+	margin-top: 12px;
+}
+.gta-related {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 18px 28px;
+	padding-block: 24px;
+	border-top: 1px solid var(--gta-line);
+	font-size: 12px;
+	font-weight: 550;
+}
+.gta-related a:hover {
+	text-decoration: underline;
+}
+.gta-trademark {
+	font-size: 10px;
+	line-height: 1.7;
+	color: var(--gta-muted);
+	padding-block: 12px 36px;
+}
+.gta-footer {
+	color: #cad8db;
+	background: var(--gta-ink);
+	padding: 36px 32px;
+}
+/* The shared screen renderer keeps its selectors so Christmas continues to use it. */
+.gta-page .christmas-preview,
+.gta-preview {
+	--xmas-ink: #153947;
+	--xmas-muted: #52686e;
+	--xmas-line: #15394724;
+	--xmas-accent: #76516b;
+	padding: 22px;
+	border: 1px solid var(--gta-line);
+	border-radius: 18px;
+	background: #fcfaf6;
+	text-align: center;
+}
+.gta-page .christmas-preview-heading {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 11px;
+	color: var(--gta-muted);
+	margin-bottom: 24px;
+}
+.gta-page .christmas-preview-sources {
+	display: flex;
+	gap: 4px;
+	padding: 3px;
+	border: 1px solid var(--gta-line);
+	border-radius: 6px;
+}
+.gta-page .christmas-preview-sources button {
+	padding: 6px 8px;
+	border-radius: 4px;
+	font-size: 10px;
+	cursor: pointer;
+}
+.gta-page .christmas-preview-sources button[aria-pressed="true"] {
+	background: var(--gta-ink);
+	color: white;
+}
+.gta-page .christmas-device {
+	position: relative;
+	overflow: hidden;
+	margin: auto;
+	background: #153947;
+	box-shadow: 0 15px 32px -18px #15394799;
+}
+.gta-page .christmas-device.phone {
+	border: 6px solid #153947;
+	border-radius: 28px;
+	width: min(100%, 220px);
+}
+.gta-page .christmas-device.desktop {
+	width: 100%;
+	border: 7px solid #153947;
+	border-bottom-width: 16px;
+	border-radius: 8px;
+	margin-block: 50px;
+}
+.gta-page .christmas-device-screen {
+	position: relative;
+	width: 100%;
+	overflow: hidden;
+	container-type: inline-size;
+}
+.gta-page .christmas-device img {
+	width: 100%;
+	height: 100%;
+	object-fit: cover;
+}
+.gta-page .christmas-desktop-icons {
+	position: absolute;
+	top: 12%;
+	left: 6%;
+	display: grid;
+	gap: 10px;
+}
+.gta-page .christmas-desktop-icons i {
+	display: block;
+	width: 15px;
+	height: 18px;
+	background: #fff9;
+	border-radius: 3px;
+}
+.gta-page .christmas-preview-name {
+	display: block;
+	font-size: 14px;
+	margin-top: 20px;
+}
+.gta-page .christmas-preview > p {
+	font-size: 11px;
+	line-height: 1.7;
+	color: var(--gta-muted);
+	margin-block: 8px 14px;
+}
+.gta-page .christmas-preview > button {
+	font-size: 12px;
+	color: var(--gta-ink);
+	background: transparent;
+	border: 1px solid #15394755;
+}
+@media (max-width: 1000px) {
+	.gta-hero {
+		gap: 26px;
+	}
+	.gta-workbench {
+		grid-template-columns: minmax(0, 1.3fr) minmax(240px, 0.7fr);
+		gap: 18px;
+	}
+	.gta-editor {
+		padding: 18px;
+	}
+	.gta-scene-grid {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+		gap: 24px 16px;
+	}
+	.gta-scene-image {
+		aspect-ratio: 9 / 11;
+	}
+	.gta-fit {
+		gap: 34px;
+		padding: 30px;
+	}
+}
+@media (max-width: 760px) {
+	.gta-container {
+		width: calc(100% - 32px);
+	}
+	.gta-page {
+		padding-top: 18px;
+	}
+	.gta-breadcrumb {
+		font-size: 10px;
+		margin-bottom: 18px;
+	}
+	.gta-hero {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 24px;
+		margin-bottom: 26px;
+	}
+	.gta-hero h1 {
+		font-size: clamp(36px, 10vw, 58px);
+		max-width: 12em;
+	}
+	.gta-hero-description {
+		font-size: 14px;
+	}
+	.gta-hero-actions {
+		gap: 16px;
+		margin-top: 22px;
+	}
+	.gta-hero-art {
+		aspect-ratio: 16 / 9;
+		border-bottom-right-radius: 42px;
+	}
+	.gta-workbench,
+	.gta-fit,
+	.gta-faq {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.gta-workbench {
+		gap: 22px;
+	}
+	.gta-page .christmas-device.phone {
+		width: 200px;
+	}
+	.gta-page .christmas-device.desktop {
+		margin-block: 20px;
+	}
+	.gta-section-heading {
+		display: block;
+	}
+	.gta-section-heading > p {
+		margin-top: 14px;
+		max-width: none;
+	}
+	.gta-scenes,
+	.gta-gallery,
+	.gta-comparisons,
+	.gta-how,
+	.gta-faq {
+		padding-block: 42px;
+	}
+	.gta-scene-grid {
+		grid-template-columns: repeat(6, minmax(144px, 40vw));
+		overflow-x: auto;
+		padding: 5px 4px 12px;
+		margin-inline: -4px;
+		scroll-snap-type: x proximity;
+	}
+	.gta-scene-grid article {
+		scroll-snap-align: start;
+	}
+	.gta-gallery-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 24px 14px;
+	}
+	.gta-comparison-grid {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 24px;
+	}
+	.gta-comparison figure {
+		height: 230px;
+	}
+	.gta-fit {
+		gap: 26px;
+		padding: 24px;
+	}
+	.gta-how ol {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 24px;
+	}
+	.gta-faq {
+		gap: 28px;
+	}
+	.gta-related {
+		gap: 16px 24px;
+	}
+	.gta-footer {
+		padding: 28px 16px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.gta-page * {
+		scroll-behavior: auto;
+	}
+}

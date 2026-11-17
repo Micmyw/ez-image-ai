@@ -94,6 +94,35 @@ function deferred() {
 	return { promise, resolve, reject };
 }
 describe("combined generation admission", () => {
+	it.each([undefined, "paid"] as const)(
+		"binds paid-template context to preparation (%s)",
+		async (generationAccess) => {
+			const f = fixture();
+			const preparedInput = {
+				...input,
+				generationAccess,
+				preparation: {
+					idempotencyKey: input.idempotencyKey,
+					expectedCredits: input.expectedCredits,
+				},
+			};
+			await prepareGenerationQuoteForUser("user", preparedInput, f.dependencies);
+			await expect(
+				submitGenerationForUser(
+					"user",
+					{
+						...input,
+						generationAccess: generationAccess ? undefined : "paid",
+					},
+					f.dependencies,
+				),
+			).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+			expect(f.dependencies.createJob).not.toHaveBeenCalled();
+			await expect(
+				submitGenerationForUser("user", { ...input, generationAccess }, f.dependencies),
+			).resolves.toMatchObject({ replayed: false });
+		},
+	);
 	it("prepares once without reserving credits and consumes the exact quote on click", async () => {
 		const f = fixture();
 		const preparedInput = {

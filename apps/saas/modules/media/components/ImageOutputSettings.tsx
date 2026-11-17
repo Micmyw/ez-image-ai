@@ -53,6 +53,7 @@ export function ImageOutputSettings({
 	disabled = false,
 	tone = "dark",
 	presentation = "compact",
+	lockAspectRatio = false,
 }: {
 	idPrefix: string;
 	aspectRatios: readonly ImageAspectRatio[];
@@ -69,6 +70,7 @@ export function ImageOutputSettings({
 	disabled?: boolean;
 	tone?: "dark" | "light";
 	presentation?: "compact" | "composer";
+	lockAspectRatio?: boolean;
 }) {
 	const generatedId = useId();
 	const [open, setOpen] = useState(false);
@@ -144,48 +146,50 @@ export function ImageOutputSettings({
 				className={`p-3 max-h-[var(--available-height)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl shadow-[0_24px_64px_-16px_rgba(0,0,0,0.65)] ${dark ? "border-white/10 bg-[#2a2037] text-[#f2ecfa]" : "border-foreground/10 bg-popover text-popover-foreground"}`}
 			>
 				<h3 className="sr-only">{labels.title}</h3>
-				<fieldset disabled={disabled}>
-					<legend className={`text-xs font-semibold ${muted}`}>{labels.aspectRatio}</legend>
-					<div className="mt-2 gap-1 sm:grid-cols-6 grid grid-cols-4">
-						{aspectRatios.map((aspectRatio) => {
-							const selected = aspectRatio === value;
-							const [width, height] =
-								aspectRatio === "auto" ? [1, 1] : aspectRatio.split(":").map(Number);
-							return (
-								<label
-									key={aspectRatio}
-									className={`${optionStyle(selected)} min-h-12 gap-1 focus-within:outline-violet-300 relative flex cursor-pointer flex-col items-center justify-center focus-within:outline-2`}
-								>
-									<input
-										type="radio"
-										name={`${idPrefix}-${generatedId}-aspect-ratio`}
-										value={aspectRatio}
-										checked={selected}
-										disabled={disabled}
-										className="sr-only"
-										onChange={() => onChange(aspectRatio)}
-									/>
-									<span className="h-6 grid place-items-center" aria-hidden="true">
-										{aspectRatio === "auto" ? (
-											<ScanIcon className="size-4" />
-										) : (
-											<span
-												className="block rounded-[3px] border-[1.5px] border-current opacity-70"
-												style={{
-													width: Math.min(22, (16 * width!) / height!),
-													height: Math.min(22, (16 * height!) / width!),
-												}}
-											/>
-										)}
-									</span>
-									<span className="text-[0.65rem]">
-										{aspectRatio === "auto" ? labels.automatic : aspectRatio}
-									</span>
-								</label>
-							);
-						})}
-					</div>
-				</fieldset>
+				{!lockAspectRatio && (
+					<fieldset disabled={disabled}>
+						<legend className={`text-xs font-semibold ${muted}`}>{labels.aspectRatio}</legend>
+						<div className="mt-2 gap-1 sm:grid-cols-6 grid grid-cols-4">
+							{aspectRatios.map((aspectRatio) => {
+								const selected = aspectRatio === value;
+								const [width, height] =
+									aspectRatio === "auto" ? [1, 1] : aspectRatio.split(":").map(Number);
+								return (
+									<label
+										key={aspectRatio}
+										className={`${optionStyle(selected)} min-h-12 gap-1 focus-within:outline-violet-300 relative flex cursor-pointer flex-col items-center justify-center focus-within:outline-2`}
+									>
+										<input
+											type="radio"
+											name={`${idPrefix}-${generatedId}-aspect-ratio`}
+											value={aspectRatio}
+											checked={selected}
+											disabled={disabled}
+											className="sr-only"
+											onChange={() => onChange(aspectRatio)}
+										/>
+										<span className="h-6 grid place-items-center" aria-hidden="true">
+											{aspectRatio === "auto" ? (
+												<ScanIcon className="size-4" />
+											) : (
+												<span
+													className="block rounded-[3px] border-[1.5px] border-current opacity-70"
+													style={{
+														width: Math.min(22, (16 * width!) / height!),
+														height: Math.min(22, (16 * height!) / width!),
+													}}
+												/>
+											)}
+										</span>
+										<span className="text-[0.65rem]">
+											{aspectRatio === "auto" ? labels.automatic : aspectRatio}
+										</span>
+									</label>
+								);
+							})}
+						</div>
+					</fieldset>
+				)}
 				{skuMatrix?.dimensions.map((dimension) => (
 					<fieldset key={dimension.key} className="mt-2">
 						<legend className={`text-xs font-semibold ${muted}`}>{labels[dimension.key]}</legend>

@@ -56,6 +56,8 @@ export const config = {
 			"pricing",
 			"photo-to-coloring-page",
 			"christmas-wallpaper",
+			"gta-6-wallpaper",
+			"gta-loading-screen-generator",
 			"privacy",
 			"reset-password",
 			"robots.txt",

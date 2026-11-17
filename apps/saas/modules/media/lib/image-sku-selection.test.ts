@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	constrainImageSpecMatrixToOutputFormat,
+	constrainImageSpecMatrixToRaster,
 	resolveImageSpecControlValues,
 	selectImageSkuForDimension,
 } from "./image-sku-selection";
@@ -47,6 +48,60 @@ const matrix = {
 } as const;
 
 describe("image SKU selection", () => {
+	it("limits GTA tools to catalog-supported static formats and never invents a PNG cell", () => {
+		const raster = constrainImageSpecMatrixToRaster({
+			...matrix,
+			cells: [
+				{
+					...matrix.cells[0]!,
+					controls: [
+						{
+							key: "outputFormat" as const,
+							label: "Format",
+							defaultValue: "gif",
+							options: [
+								{ key: "gif", label: "GIF" },
+								{ key: "png", label: "PNG" },
+								{ key: "jpeg", label: "JPEG" },
+							],
+						},
+					],
+				},
+				{
+					...matrix.cells[1]!,
+					controls: [
+						{
+							key: "outputFormat" as const,
+							label: "Format",
+							defaultValue: "jpeg",
+							options: [{ key: "jpeg", label: "JPEG" }],
+						},
+					],
+				},
+				{
+					...matrix.cells[0]!,
+					skuKey: "vector-only",
+					controls: [
+						{
+							key: "outputFormat" as const,
+							label: "Format",
+							defaultValue: "svg",
+							options: [{ key: "svg", label: "SVG" }],
+						},
+					],
+				},
+			],
+		});
+		expect(raster.cells.map((cell) => cell.skuKey)).toEqual(["seedream-basic", "seedream-high"]);
+		expect(raster.cells[0]!.controls[0]).toMatchObject({
+			defaultValue: "png",
+			options: [{ key: "png" }, { key: "jpeg" }],
+		});
+		expect(raster.cells[1]!.controls[0]).toMatchObject({
+			defaultValue: "jpeg",
+			options: [{ key: "jpeg" }],
+		});
+	});
 	it.each(["gif", "svg"] as const)(
 		"keeps the dedicated %s tool within supported format and size cells",
 		(outputFormat) => {

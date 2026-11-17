@@ -20,6 +20,7 @@ import {
 	resolveGuestTrialView,
 	type GuestTrialSnapshot,
 } from "../lib/guest-trial-state";
+import { sanitizeToolReturnPath } from "../lib/tool-return-path";
 
 type GuestDraft = {
 	sourceAssetId: string;
@@ -60,7 +61,10 @@ export function useGuestTrial({
 	registered = false,
 	effectReturnPath,
 }: { registered?: boolean; effectReturnPath?: string } = {}) {
-	const returnAfterDraftLink = sanitizeEffectEditorReturnPath(effectReturnPath) ?? "/create";
+	const returnAfterDraftLink =
+		sanitizeToolReturnPath(effectReturnPath) ??
+		sanitizeEffectEditorReturnPath(effectReturnPath) ??
+		"/create";
 	const [capabilityVersion, setCapabilityVersion] = useState<string>();
 	const [draft, setDraft] = useState<{
 		sourceAssetId: string;
@@ -370,6 +374,7 @@ export function useGuestTrial({
 
 	return {
 		view,
+		resultPrompt: snapshot?.toolPrompt,
 		trialAllowance,
 		draft,
 		prompt,

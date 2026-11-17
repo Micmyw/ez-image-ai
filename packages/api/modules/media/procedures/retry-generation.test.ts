@@ -1,6 +1,9 @@
 /* oxlint-disable typescript/unbound-method -- assertions target dependency-injected Vitest mocks */
 import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
-import { IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY } from "@repo/config/image-pass";
+import {
+	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+	IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
+} from "@repo/config/image-pass";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({
@@ -195,7 +198,43 @@ describe("retryGenerationForUser", () => {
 			}),
 		);
 	});
-	it.each([undefined, IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY])(
+	it("keeps the paid-template requirement when rebuilding a basic-model retry", async () => {
+		const deps = dependencies({
+			findSource: vi.fn(async () => ({
+				...source,
+				quote: { ...source.quote, pricingSnapshot: { requiresPaidImageAccess: true } },
+			})),
+			claimRequest: vi.fn(async ({ operation }) => ({
+				outcome: "CLAIMED" as const,
+				requestId: "paid-retry",
+				leaseToken: "lease",
+				operation,
+			})),
+			assertAllowed: vi.fn(async () => {
+				throw new Error("ENTITLEMENT_REQUIRED");
+			}),
+		});
+		await expect(
+			retryGenerationForUser("user-1", { jobId: source.id, idempotencyKey: "paid-retry" }, deps),
+		).rejects.toThrow("ENTITLEMENT_REQUIRED");
+		expect(deps.claimRequest).toHaveBeenCalledWith(
+			expect.objectContaining({
+				operation: expect.objectContaining({
+					pricingSnapshot: expect.objectContaining({ requiresPaidImageAccess: true }),
+				}),
+			}),
+		);
+		expect(deps.assertAllowed).toHaveBeenCalledWith(
+			expect.objectContaining({ requiresPaidImageAccess: true }),
+		);
+		expect(deps.persistApproved).not.toHaveBeenCalled();
+		expect(deps.createJob).not.toHaveBeenCalled();
+	});
+	it.each([
+		undefined,
+		IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+		IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
+	])(
 		"preserves the source pass benefit policy when rebuilding a retry %j",
 		async (imagePassBenefitPolicy) => {
 			vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");

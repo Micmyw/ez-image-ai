@@ -24,6 +24,21 @@ function inspect(path: string, query = "") {
 }
 
 describe("public HTML and HTTP indexing agree", () => {
+	it.each(["/gta-6-wallpaper", "/gta-loading-screen-generator"])(
+		"indexes the canonical English GTA task at %s and excludes its private views",
+		(path) => {
+			expect(proxyConfig.matcher).toContain(path);
+			const canonical = inspect(path);
+			expect(canonical.metadata.robots).toEqual({ index: true, follow: true });
+			expect(canonical.metadata.alternates?.canonical).toBe(`https://example.com${path}`);
+			expect(canonical.header).toBeNull();
+			const sceneQuery = inspect(path, "scene=neon-boulevard&format=desktop");
+			expect(sceneQuery.metadata.alternates?.canonical).toBe(`https://example.com${path}`);
+			const personal = inspect(path, "resume=workspace&job=private-job");
+			expect(personal.metadata.robots).toEqual({ index: false, follow: false });
+			expect(personal.header).toBe("noindex, nofollow");
+		},
+	);
 	it("keeps imported template discovery unindexed until target acceptance is reviewed", () => {
 		expect(proxyConfig.matcher).toContain("/video-templates/:path*");
 		for (const path of ["/video-templates", "/video-templates/bulin-47"]) {
@@ -72,6 +87,8 @@ describe("public HTML and HTTP indexing agree", () => {
 		"/changelog",
 		"/terms",
 		"/photo-to-coloring-page",
+		"/gta-6-wallpaper",
+		"/gta-loading-screen-generator",
 		"/gpt-image-2-6-flare",
 		"/gpt-image-2-6-sunburst",
 		"/minimax-h3-image",

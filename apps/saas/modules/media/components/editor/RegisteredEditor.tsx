@@ -13,12 +13,14 @@ import { getPublicProductCatalog } from "@repo/ai";
 import { publicAccountInputCopyStatus } from "@repo/api/modules/media/lib/account-input-copy-status";
 import { getCurrentExecutableRouteGraphOptions } from "@repo/api/modules/media/lib/executable-route-graph";
 import { materializeImageResultForEdit } from "@repo/api/modules/media/lib/image-result";
+import { EZPIC_PRODUCT_KEYS, IMAGE_SKU_KEYS } from "@repo/config/client";
 import {
 	findEffectivePaidSubscription,
 	findEligibleImageEditParentForOwner,
 	getClaimedGenerationDraft,
 } from "@repo/database";
 import { db } from "@repo/database/client";
+import { hasSpendablePurchasedImageCredits } from "@repo/database/media-image-credit-access";
 import { getServerQueryClient } from "@shared/lib/server";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { cookies } from "next/headers";
@@ -69,14 +71,15 @@ export async function RegisteredEditor({
 			staleTime: 5 * 60_000,
 		}),
 	]);
-	const allowedProductKeys = resolveEditorAllowedProductKeys(
-		subscription?.plan.metadata,
-		subscription?.plan.name,
-	);
-	const allowedImageSkuKeys = resolveEditorAllowedImageSkuKeys(
-		subscription?.plan.metadata,
-		subscription?.plan.name,
-	);
+	const hasPaidImageAccess =
+		Boolean(subscription) ||
+		Boolean(session && (await hasSpendablePurchasedImageCredits(session.user.id, db)));
+	const allowedProductKeys = hasPaidImageAccess
+		? [...EZPIC_PRODUCT_KEYS]
+		: resolveEditorAllowedProductKeys(subscription?.plan.metadata, subscription?.plan.name);
+	const allowedImageSkuKeys = hasPaidImageAccess
+		? [...IMAGE_SKU_KEYS]
+		: resolveEditorAllowedImageSkuKeys(subscription?.plan.metadata, subscription?.plan.name);
 
 	if (session && !filters.draftError) {
 		if (filters.asset) {

@@ -1,8 +1,8 @@
 {
 	"imagePass": {
 		"paidTemplate": {
-			"title": "Create your Sheru Bhai photo",
-			"description": "This template requires a paid image pack or an eligible subscription with enough credits.",
+			"title": "Create your image",
+			"description": "Use subscription credits, a credit pack, or an Image Pass. All image models are supported.",
 			"images": "{count} successful images",
 			"oneTime": "One-time purchase in USD. No subscription required.",
 			"storageUnavailable": "We could not save your draft in this browser. Enable browser storage and try again; your photo and prompt remain here.",

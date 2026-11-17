@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@auth/hooks/use-session";
+import { orpcClient } from "@shared/lib/orpc-client";
 import {
 	createContext,
 	useCallback,
@@ -13,8 +14,14 @@ import {
 
 export type WallpaperResult = {
 	assetId: string;
+	jobId?: string;
 	imageUrl?: string;
 	expiresAt?: string;
+	prompt?: string;
+	aspectRatio?: string;
+	watermarked?: boolean;
+	guest?: boolean;
+	getImageUrl?: () => Promise<string>;
 };
 
 type PreviewSource = "result" | "example";
@@ -74,13 +81,39 @@ export function useWallpaperPreview() {
 }
 
 /** The selected ready result owns the preview; changing jobs or losing access clears it. */
-export function WallpaperResultPublisher({ assetId, imageUrl, expiresAt }: WallpaperResult) {
+export function WallpaperResultPublisher({
+	assetId,
+	jobId,
+	imageUrl,
+	expiresAt,
+	prompt,
+	aspectRatio,
+	watermarked,
+	guest,
+}: WallpaperResult) {
 	const publish = useContext(WallpaperResultContext)?.publish;
 	useEffect(() => {
 		const deadline = expiresAt ? Date.parse(expiresAt) : null;
 		if (!publish || (deadline !== null && (!Number.isFinite(deadline) || deadline <= Date.now())))
 			return;
-		const clear = publish({ assetId, imageUrl, expiresAt });
+		const getImageUrl = async () => {
+			const access =
+				guest && jobId
+					? await orpcClient.media.getGuestAssetAccessUrl({ assetId, jobId, disposition: "inline" })
+					: await orpcClient.media.getAssetAccessUrl({ assetId, jobId, disposition: "inline" });
+			return access.url;
+		};
+		const clear = publish({
+			assetId,
+			jobId,
+			imageUrl,
+			expiresAt,
+			prompt,
+			aspectRatio,
+			watermarked,
+			guest,
+			getImageUrl,
+		});
 		let timer: ReturnType<typeof setTimeout> | undefined;
 		function checkExpiry() {
 			if (deadline === null) return;
@@ -93,6 +126,6 @@ export function WallpaperResultPublisher({ assetId, imageUrl, expiresAt }: Wallp
 			clearTimeout(timer);
 			clear();
 		};
-	}, [publish, assetId, imageUrl, expiresAt]);
+	}, [publish, assetId, jobId, imageUrl, expiresAt, prompt, aspectRatio, watermarked, guest]);
 	return null;
 }

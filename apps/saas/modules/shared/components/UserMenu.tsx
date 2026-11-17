@@ -2,7 +2,7 @@
 
 import { useSession } from "@auth/hooks/use-session";
 import { config } from "@config";
-import { WORKSPACE_DRAFT_KEY } from "@media/lib/workspace-draft";
+import { clearGtaWorkspaceDraftsForOwner, WORKSPACE_DRAFT_KEY } from "@media/lib/workspace-draft";
 import { authClient } from "@repo/auth/client";
 import {
 	cn,
@@ -78,8 +78,16 @@ export function UserMenu({
 						} catch {
 							/* Logout must still finish if local storage or its chunk is unavailable. */
 						}
+						try {
+							const { clearGtaEditorUpgradeDraftsForOwner } =
+								await import("@payments/lib/editor-upgrade");
+							clearGtaEditorUpgradeDraftsForOwner(window.sessionStorage, user.id);
+						} catch {
+							/* Expiring browser drafts cannot prevent logout. */
+						}
 					}
 					try {
+						if (user?.id) clearGtaWorkspaceDraftsForOwner(window.sessionStorage, user.id);
 						window.sessionStorage.removeItem(WORKSPACE_DRAFT_KEY);
 					} catch {
 						/* Storage may be disabled. */

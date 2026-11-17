@@ -10,6 +10,7 @@ import { guestMediaProcedure } from "../guest-procedure";
 import { toMediaOrpcError } from "../lib/errors";
 import { submitGuestGenerationForGuest } from "../lib/guest-admission";
 import { TextModerationError } from "../lib/public-moderation-reason";
+import { publicToolPrompt } from "../lib/public-tool-prompt";
 
 const guestJobSnapshotSchema = z
 	.object({
@@ -22,6 +23,7 @@ const guestJobSnapshotSchema = z
 		watermarked: z.boolean(),
 		trialConsumed: z.boolean(),
 		linkReady: z.boolean(),
+		toolPrompt: z.string().max(256).optional(),
 	})
 	.strict();
 
@@ -92,6 +94,7 @@ export const submitGuestGeneration = guestMediaProcedure
 				await confirmation.catch(() => false);
 			}
 		} else await confirmation;
+		const toolPrompt = publicToolPrompt(snapshot.inputPrompt ?? input.prompt);
 		return {
 			jobId: snapshot.jobId,
 			stage: snapshot.stage,
@@ -102,5 +105,6 @@ export const submitGuestGeneration = guestMediaProcedure
 			watermarked: snapshot.watermarked,
 			trialConsumed: snapshot.trialConsumed,
 			linkReady: snapshot.linkReady,
+			...(toolPrompt ? { toolPrompt } : {}),
 		};
 	});

@@ -2,6 +2,7 @@
 
 import { useSession } from "@auth/hooks/use-session";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useToolComposer } from "@media/lib/tool-composer-context";
 import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary";
 import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
 import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
@@ -77,6 +78,7 @@ import { useGenerationMode } from "../lib/generation-mode-context";
 import { imagePassCoversSku, imagePassIncludesSkuAccess } from "../lib/image-pass-eligibility";
 import {
 	constrainImageSpecMatrixToOutputFormat,
+	constrainImageSpecMatrixToRaster,
 	getDefaultImageSpecCell,
 	getImageSpecCell,
 	type ImageSpecControlChangeKey,
@@ -176,15 +178,24 @@ export function GenerationForm({
 	}, []);
 	const effectEditor = useEffectEditor();
 	const effectPreset = effectEditor?.selectedPreset;
-	const hidePresetPrompt = effectEditor?.effect.id === "sheru-bhai-ai-photo";
-	const paidTemplate = effectEditor?.effect.generationAccess === "paid";
+	const toolPrompt = useToolPrompt();
+	const paidTemplate =
+		effectEditor?.effect.generationAccess === "paid" || toolPrompt?.generationAccess === "paid";
+	const purchaseEffectId = effectEditor?.effect.id ?? toolPrompt?.returnPath;
+	const purchasePresetId = effectPreset?.id ?? "paid-tool-v1";
+	const toolComposer = useToolComposer();
+	const referenceSuspended = toolPrompt?.suspendReference === true;
+	const rasterOnly = toolPrompt?.rasterOnly === true;
+	const lockAspectRatio = toolPrompt?.lockAspectRatio === true;
+	const screenCopy = useTranslations("christmas");
 	// Restored local files use the ordinary upload path before they become usable inputs.
 	const requireReference =
-		referenceRequired ||
-		effectPreset?.inputRequirement === "required" ||
-		(initialDraft?.input.kind === "image-to-image" && !initialDraft.input.sourceAssetId);
+		!referenceSuspended &&
+		(referenceRequired ||
+			toolPrompt?.requireReference === true ||
+			effectPreset?.inputRequirement === "required" ||
+			(initialDraft?.input.kind === "image-to-image" && !initialDraft.input.sourceAssetId));
 	const effects = useTranslations("effects.editor");
-	const toolPrompt = useToolPrompt();
 	const t = useTranslations("media.create");
 	const pass = useTranslations("imagePass");
 	const [ownedFunding, setOwnedFunding] = useState<{
@@ -195,7 +206,8 @@ export function GenerationForm({
 	const studio = useTranslations("studio");
 	const composer = useTranslations("studio.composer");
 	const imageToImage = useTranslations("imageToImage");
-	const requestedOutputFormat = useRequestedImageOutputFormat();
+	const outputFormatFromUrl = useRequestedImageOutputFormat();
+	const requestedOutputFormat = rasterOnly ? undefined : outputFormatFromUrl;
 	const router = useRouter();
 	const [hasSource, setHasSource] = useState(Boolean(initialDraft?.input.sourceAssetId));
 	const [temporaryReference, setTemporaryReference] = useState<
@@ -206,7 +218,7 @@ export function GenerationForm({
 			: undefined,
 	);
 	const generation = useGeneration({
-		parentJobId: hasSource && !temporaryReference ? parentJobId : null,
+		parentJobId: !referenceSuspended && hasSource && !temporaryReference ? parentJobId : null,
 		ownerId,
 	});
 	// A sibling can populate the browser catalog before this streamed form hydrates.
@@ -214,18 +226,23 @@ export function GenerationForm({
 	const products = useMemo(
 		() =>
 			(ready ? (generation.catalog.data?.products ?? []) : [])
-				.filter((product) => !paidTemplate || product.key === effectPreset?.productKey)
 				.map((product) =>
-					paidTemplate && product.skuMatrix && effectPreset
+					rasterOnly && product.skuMatrix
+						? { ...product, skuMatrix: constrainImageSpecMatrixToRaster(product.skuMatrix) }
+						: product,
+				)
+				.filter(
+					(product) => !rasterOnly || !product.skuMatrix || product.skuMatrix.cells.length > 0,
+				)
+				.map((product) =>
+					paidTemplate && product.skuMatrix
 						? {
 								...product,
-								skuMatrix: paidTemplateSpecMatrix(
-									product.skuMatrix,
-									effectPreset.parameters.skuKey,
-								),
+								skuMatrix: paidTemplateSpecMatrix(product.skuMatrix, product.key),
 							}
 						: product,
 				)
+				.filter((product) => !paidTemplate || Boolean(product.skuMatrix?.cells.length))
 				.map((product) =>
 					requestedOutputFormat && product.skuMatrix
 						? {
@@ -268,14 +285,7 @@ export function GenerationForm({
 							}
 						: product,
 				),
-		[
-			ready,
-			generation.catalog.data?.products,
-			t,
-			requestedOutputFormat,
-			paidTemplate,
-			effectPreset,
-		],
+		[ready, generation.catalog.data?.products, t, requestedOutputFormat, paidTemplate, rasterOnly],
 	);
 	const [sourceReady, setSourceReady] = useState(initialSourceReady);
 	const [sourcePending, setSourcePending] = useState(false);
@@ -307,7 +317,19 @@ export function GenerationForm({
 	const requestedModel = useRequestedImageModel();
 	const examplePrompt = useShowcasePrompt();
 	const resolvedInitialProductKey =
-		(paidTemplate ? effectPreset?.productKey : undefined) ??
+		(paidTemplate &&
+		!isPaidTemplateSelection({
+			productKey: initialDraft?.productKey,
+			skuKey: initialDraft?.input.skuKey,
+		})
+			? (effectPreset?.productKey ??
+				(isEditorProductKey(requestedModel) &&
+				getImageProductSelectionContract(requestedModel)?.cells.some((cell) =>
+					isPaidTemplateSelection({ productKey: requestedModel, skuKey: cell.skuKey }),
+				)
+					? requestedModel
+					: "image-gpt-image-2-6-sunburst"))
+			: undefined) ??
 		initialProductKey ??
 		(effectPreset ? (initialDraft?.productKey ?? effectPreset.productKey) : undefined) ??
 		initialDraft?.productKey ??
@@ -315,9 +337,18 @@ export function GenerationForm({
 			? requestedModel
 			: DEFAULT_EDITOR_PRODUCT_KEY);
 	const initialContract = getImageProductSelectionContract(resolvedInitialProductKey)!;
+	const initialDefaultSkuKey = paidTemplate
+		? (initialContract.cells.find((cell) =>
+				isPaidTemplateSelection({ productKey: resolvedInitialProductKey, skuKey: cell.skuKey }),
+			)?.skuKey ?? initialContract.defaultSkuKey)
+		: initialContract.defaultSkuKey;
 	const initialSelection =
 		initialDraft?.productKey === resolvedInitialProductKey &&
-		(!paidTemplate || initialDraft.input.skuKey === effectPreset?.parameters.skuKey)
+		(!paidTemplate ||
+			isPaidTemplateSelection({
+				productKey: initialDraft.productKey,
+				skuKey: initialDraft.input.skuKey,
+			}))
 			? initialDraft.input
 			: effectPreset?.parameters;
 	const form = useForm<GenerationFormValues>({
@@ -325,9 +356,8 @@ export function GenerationForm({
 		mode: "onChange",
 		defaultValues: {
 			productKey: resolvedInitialProductKey,
-			skuKey: initialSelection?.skuKey ?? initialContract.defaultSkuKey,
+			skuKey: initialSelection?.skuKey ?? initialDefaultSkuKey,
 			prompt:
-				(hidePresetPrompt ? effectPreset?.prompt : undefined) ??
 				initialDraft?.input.prompt ??
 				effectPreset?.prompt ??
 				toolPrompt?.initialPrompt ??
@@ -352,7 +382,7 @@ export function GenerationForm({
 		assetId: values.sourceAssetId,
 		productKey: values.productKey,
 		prompt: values.prompt,
-		enabled: ready,
+		enabled: ready && !referenceSuspended,
 	});
 	const product = products.find((candidate) => candidate.key === values.productKey);
 	const passSelected = fundingSource === "IMAGE_PASS";
@@ -364,20 +394,23 @@ export function GenerationForm({
 	const passSkuAllowed = imagePassCoversSku(generation.imagePass?.data, values.skuKey);
 	const passReady =
 		passSelected && (passAccessUnknown || (passSkuAllowed && (passAvailable ?? 0) >= 1));
-	const paidSelectionValid = !paidTemplate || isPaidTemplateSelection(values, effectPreset);
+	const paidSelectionValid = !paidTemplate || isPaidTemplateSelection(values);
+	const hasPaidCreditAccess =
+		generation.creditAccount.data?.hasPaidImageAccess ??
+		allowedProductKeys.some((key) => !getPlanEntitlement("free").allowedProducts.includes(key));
 	function modelAccessAllowed(productKey: EditorProductKey, skuKey: unknown) {
 		if (
 			paidTemplate &&
-			!isPaidTemplateSelection(
-				{ productKey, skuKey: typeof skuKey === "string" ? skuKey : null },
-				effectPreset,
-			)
+			!isPaidTemplateSelection({ productKey, skuKey: typeof skuKey === "string" ? skuKey : null })
 		)
 			return false;
 		return (
-			(allowedProductKeys.includes(productKey) &&
+			hasPaidCreditAccess ||
+			(!paidTemplate &&
+				allowedProductKeys.includes(productKey) &&
 				allowedImageSkuKeys.includes(skuKey as ImageSkuKey)) ||
-			(!passSelected &&
+			(!paidTemplate &&
+				!passSelected &&
 				generation.creditAccount.data?.adminTestSkuKeys?.includes(skuKey as ImageSkuKey)) ||
 			(passSelected &&
 				(passAccessUnknown ||
@@ -389,16 +422,20 @@ export function GenerationForm({
 	const selectedCell = getImageSpecCell(product?.skuMatrix, values.skuKey);
 	const effectSelectionUnavailable = Boolean(
 		ready &&
-		effectEditor &&
+		(effectEditor || paidTemplate) &&
 		(!paidSelectionValid ||
 			generation.catalog.isError ||
 			(generation.catalog.data && !isEffectSelectionAvailable(values, products))),
 	);
 	const supportedAspectRatios = useMemo(
 		() =>
-			values.outputFormat === "gif" ? ["1:1" as const] : publicImageAspectRatios(selectedCell),
-		[values.outputFormat, selectedCell],
+			!rasterOnly && values.outputFormat === "gif"
+				? ["1:1" as const]
+				: publicImageAspectRatios(selectedCell),
+		[values.outputFormat, selectedCell, rasterOnly],
 	);
+	const screenRatioUnavailable =
+		lockAspectRatio && Boolean(selectedCell) && !supportedAspectRatios.includes(values.aspectRatio);
 	const controlValues = useMemo(
 		() =>
 			resolveImageSpecControlValues(selectedCell, {
@@ -422,7 +459,7 @@ export function GenerationForm({
 			effectSelectionUnavailable ||
 			sourcePending ||
 			!supportedAspectRatios.includes(values.aspectRatio) ||
-			(Boolean(values.sourceAssetId) && !sourceReady) ||
+			(!referenceSuspended && Boolean(values.sourceAssetId) && !sourceReady) ||
 			(requireReference && !values.sourceAssetId) ||
 			!values.prompt.trim()
 		) {
@@ -430,9 +467,11 @@ export function GenerationForm({
 		}
 		try {
 			return buildGenerationInput({
-				kind: values.sourceAssetId ? "image-to-image" : "text-to-image",
+				kind: !referenceSuspended && values.sourceAssetId ? "image-to-image" : "text-to-image",
 				prompt: values.prompt,
-				...(values.sourceAssetId ? { sourceAssetId: values.sourceAssetId } : {}),
+				...(!referenceSuspended && values.sourceAssetId
+					? { sourceAssetId: values.sourceAssetId }
+					: {}),
 				skuKey: values.skuKey,
 				aspectRatio: values.aspectRatio,
 				...controlValues,
@@ -448,6 +487,7 @@ export function GenerationForm({
 		sourceReady,
 		sourcePending,
 		requireReference,
+		referenceSuspended,
 		supportedAspectRatios,
 		values.aspectRatio,
 		values.prompt,
@@ -455,6 +495,7 @@ export function GenerationForm({
 		values.sourceAssetId,
 	]);
 	const error = generation.createGeneration.error ?? generation.createQuote.error;
+	const needsReferenceUpload = requireReference && !values.sourceAssetId && !sourcePending;
 	const errorKey = getEditorErrorKey(error);
 	useGenerationAnalytics(
 		{
@@ -462,7 +503,7 @@ export function GenerationForm({
 			phase: error ? "blocked" : sourcePending ? "uploading" : "editing",
 			publicModel: values.productKey,
 			textLength: textLengthBucket(values.prompt.trim().length),
-			inputCount: values.sourceAssetId ? 1 : 0,
+			inputCount: !referenceSuspended && values.sourceAssetId ? 1 : 0,
 			...(error ? { reason: generationErrorCategory(errorKey) } : {}),
 		},
 		active,
@@ -483,11 +524,12 @@ export function GenerationForm({
 	preparationActions.current = generation;
 	const preparationKey = JSON.stringify([
 		ownerId,
+		paidTemplate,
 		values.productKey,
 		input,
 		fundingSource,
-		temporaryReference?.token,
-		parentJobId,
+		referenceSuspended ? undefined : temporaryReference?.token,
+		referenceSuspended ? null : parentJobId,
 		displayedCredits,
 	]);
 	useEffect(() => {
@@ -517,10 +559,11 @@ export function GenerationForm({
 			void current
 				.prepareGeneration?.({
 					productKey: values.productKey,
+					...(paidTemplate ? { generationAccess: "paid" as const } : {}),
 					input,
 					expectedCredits: String(displayedCredits),
 					fundingSource,
-					temporaryReferenceToken: temporaryReference?.token,
+					temporaryReferenceToken: referenceSuspended ? undefined : temporaryReference?.token,
 				})
 				.catch(() => undefined);
 		}, 1_200);
@@ -533,6 +576,7 @@ export function GenerationForm({
 		sourcePending,
 		upgradeRequired,
 		paidSelectionValid,
+		paidTemplate,
 		displayedCredits,
 		passSelected,
 		passReady,
@@ -540,6 +584,7 @@ export function GenerationForm({
 		values.productKey,
 		fundingSource,
 		temporaryReference?.token,
+		referenceSuspended,
 		preparationKey,
 	]);
 	// Use an owned eligible pass when credits cannot access the model, including GIF/SVG pages.
@@ -551,8 +596,9 @@ export function GenerationForm({
 			!generation.imagePass?.isError &&
 			(passAvailable ?? 0) > 0 &&
 			imagePassIncludesSkuAccess(generation.imagePass?.data, values.skuKey) &&
-			((paidTemplate && paidCreditsInsufficient) ||
+			((paidTemplate && (paidCreditsInsufficient || !hasPaidCreditAccess)) ||
 				!(
+					hasPaidCreditAccess ||
 					(allowedProductKeys.includes(values.productKey) &&
 						allowedImageSkuKeys.includes(values.skuKey)) ||
 					generation.creditAccount.data?.adminTestSkuKeys?.includes(values.skuKey)
@@ -562,6 +608,7 @@ export function GenerationForm({
 		}
 	}, [
 		paidTemplate,
+		hasPaidCreditAccess,
 		ownerId,
 		ownedFunding,
 		generation.imagePass?.isError,
@@ -574,7 +621,8 @@ export function GenerationForm({
 		paidCreditsInsufficient,
 		generation.creditAccount.data?.adminTestSkuKeys,
 	]);
-	const isImageEdit = requireReference || sourcePending || Boolean(values.sourceAssetId);
+	const isImageEdit =
+		!referenceSuspended && (requireReference || sourcePending || Boolean(values.sourceAssetId));
 	const suggestionKeys = isImageEdit
 		? ["background", "object", "lighting", "style"]
 		: ["portrait", "product", "landscape", "illustration"];
@@ -637,7 +685,11 @@ export function GenerationForm({
 		prompt: values.prompt,
 		busy: !ready || generation.createGeneration.isPending || sourcePending,
 		applyPrompt: (prompt, options) => {
-			if (options?.aspectRatio && !supportedAspectRatios.includes(options.aspectRatio))
+			if (
+				options?.aspectRatio &&
+				(selectedCell || !lockAspectRatio) &&
+				!supportedAspectRatios.includes(options.aspectRatio)
+			)
 				return false;
 			updatePrompt(prompt);
 			if (options?.aspectRatio)
@@ -720,14 +772,6 @@ export function GenerationForm({
 	}
 
 	function updateProduct(productKey: EditorProductKey, skuKey?: string) {
-		if (
-			paidTemplate &&
-			!isPaidTemplateSelection(
-				{ productKey, skuKey: skuKey ?? effectPreset?.parameters.skuKey },
-				effectPreset,
-			)
-		)
-			return;
 		if (skuKey && productKey === values.productKey) {
 			updateSku(skuKey);
 			return;
@@ -737,6 +781,8 @@ export function GenerationForm({
 			(skuKey ? getImageSpecCell(nextProduct?.skuMatrix, skuKey) : undefined) ??
 			getDefaultImageSpecCell(nextProduct?.skuMatrix);
 		if (!defaultCell) return;
+		if (paidTemplate && !isPaidTemplateSelection({ productKey, skuKey: defaultCell.skuKey }))
+			return;
 		form.setValue("productKey", productKey, {
 			shouldDirty: true,
 			shouldValidate: true,
@@ -748,7 +794,7 @@ export function GenerationForm({
 		replaceControlValues(defaultCell);
 		const nextAspectRatio =
 			form.getValues("outputFormat") === "gif" ? "1:1" : publicImageAspectRatios(defaultCell)[0];
-		if (nextAspectRatio) {
+		if (nextAspectRatio && !lockAspectRatio) {
 			form.setValue("aspectRatio", nextAspectRatio, {
 				shouldDirty: true,
 				shouldValidate: true,
@@ -768,11 +814,7 @@ export function GenerationForm({
 	});
 
 	function updateSku(skuKey: string) {
-		if (
-			paidTemplate &&
-			!isPaidTemplateSelection({ productKey: values.productKey, skuKey }, effectPreset)
-		)
-			return;
+		if (paidTemplate && !isPaidTemplateSelection({ productKey: values.productKey, skuKey })) return;
 		const cell = getImageSpecCell(product?.skuMatrix, skuKey);
 		if (!cell) return;
 		form.setValue("skuKey", cell.skuKey as GenerationFormValues["skuKey"], {
@@ -781,7 +823,7 @@ export function GenerationForm({
 		});
 		replaceControlValues(cell);
 		const ratios = publicImageAspectRatios(cell);
-		if (!ratios.includes(values.aspectRatio) && ratios[0]) {
+		if (!lockAspectRatio && !ratios.includes(values.aspectRatio) && ratios[0]) {
 			form.setValue("aspectRatio", ratios[0], {
 				shouldDirty: true,
 				shouldValidate: true,
@@ -805,7 +847,7 @@ export function GenerationForm({
 		for (const field of ["outputFormat", "background", "frameCount", "frameDurationMs"] as const) {
 			form.setValue(field, next[field], { shouldDirty: true, shouldValidate: true });
 		}
-		if (next.outputFormat === "gif")
+		if (!lockAspectRatio && next.outputFormat === "gif")
 			form.setValue("aspectRatio", "1:1", { shouldDirty: true, shouldValidate: true });
 		beginNewAction();
 	}
@@ -820,28 +862,43 @@ export function GenerationForm({
 			frameCount: current.frameCount,
 			frameDurationMs: current.frameDurationMs,
 		});
-		const saved = writeEditorUpgradeDraft(window.sessionStorage, {
-			draft: {
-				productKey: current.productKey,
-				input: {
-					kind: current.sourceAssetId ? "image-to-image" : "text-to-image",
-					prompt: current.prompt,
-					...(current.sourceAssetId ? { sourceAssetId: current.sourceAssetId } : {}),
-					skuKey: current.skuKey,
-					aspectRatio: current.aspectRatio,
-					...currentControls,
+		const saved = writeEditorUpgradeDraft(
+			window.sessionStorage,
+			{
+				draft: {
+					productKey: current.productKey,
+					input: {
+						kind: current.sourceAssetId ? "image-to-image" : "text-to-image",
+						prompt: current.prompt,
+						...(current.sourceAssetId ? { sourceAssetId: current.sourceAssetId } : {}),
+						skuKey: current.skuKey,
+						aspectRatio: current.aspectRatio,
+						...currentControls,
+					},
 				},
+				parentJobId: current.sourceAssetId && !temporaryReference ? (parentJobId ?? null) : null,
+				temporaryReference,
+				sourceReady,
 			},
-			parentJobId: current.sourceAssetId && !temporaryReference ? (parentJobId ?? null) : null,
-			temporaryReference,
-			sourceReady,
-		});
+			Date.now(),
+			ownerId && toolPrompt?.returnPath
+				? { ownerId, returnPath: toolPrompt.returnPath }
+				: undefined,
+		);
 		if (!saved) {
 			setUpgradeStorageUnavailable(true);
 			setUpgradeOpen(true);
 		}
 		return saved;
-	}, [form, products, temporaryReference, parentJobId, sourceReady]);
+	}, [
+		form,
+		products,
+		temporaryReference,
+		parentJobId,
+		sourceReady,
+		ownerId,
+		toolPrompt?.returnPath,
+	]);
 
 	const continueToImagePass = useCallback(() => {
 		if (!ownerId || sourcePendingRef.current || submittingRef.current) return false;
@@ -887,10 +944,13 @@ export function GenerationForm({
 		void saasGrowthFunnel.upgradePromptViewed(values.productKey);
 		captureCheckoutTrigger();
 		router.push(
-			createChoosePlanPath(effectEditor?.getReturnPath("upgrade") ?? "/create?upgrade=complete"),
+			createChoosePlanPath(
+				effectEditor?.getReturnPath("upgrade") ??
+					`${toolPrompt?.returnPath ?? "/create"}?upgrade=complete`,
+			),
 		);
 		return true;
-	}, [saveDraftForPurchase, values.productKey, router, effectEditor]);
+	}, [saveDraftForPurchase, values.productKey, router, effectEditor, toolPrompt?.returnPath]);
 
 	async function confirmGeneration(confirmedWarning?: typeof duplicateWarning) {
 		if (
@@ -943,10 +1003,11 @@ export function GenerationForm({
 			setDuplicateWarning(null);
 			const result = await generation.createGeneration.mutateAsync({
 				productKey: values.productKey,
+				...(paidTemplate ? { generationAccess: "paid" as const } : {}),
 				input,
 				expectedCredits: String(displayedCredits),
 				fundingSource,
-				temporaryReferenceToken: temporaryReference?.token,
+				temporaryReferenceToken: referenceSuspended ? undefined : temporaryReference?.token,
 				...(actionRef ? { journey: { actionRef } } : {}),
 			});
 			if (
@@ -977,26 +1038,25 @@ export function GenerationForm({
 	useEffect(() => {
 		if (
 			!paidTemplate ||
-			!effectEditor ||
+			!purchaseEffectId ||
 			!ownerId ||
 			!ready ||
-			!sourceReady ||
-			!values.sourceAssetId ||
+			(!referenceSuspended &&
+				(requireReference || values.sourceAssetId) &&
+				(!sourceReady || !values.sourceAssetId)) ||
 			sourcePending ||
 			!paidSelectionValid
 		)
 			return;
 		try {
 			const pending = readPaidTemplatePurchase(window.sessionStorage, {
-				effectId: effectEditor.effect.id,
-				presetId: effectEditor.selectedPreset.id,
+				effectId: purchaseEffectId,
+				presetId: purchasePresetId,
 			});
 			if (!pending) return;
 			// Sign-in may reveal an existing purchase. Let that owner continue in the editor.
 			if (!generation.imagePass?.isError && passAvailable === undefined) return;
-			const subscriptionEligible =
-				allowedProductKeys.includes(values.productKey) &&
-				allowedImageSkuKeys.includes(values.skuKey);
+			const subscriptionEligible = hasPaidCreditAccess;
 			if (subscriptionEligible && paidCreditBalance === undefined) return;
 			if (
 				(subscriptionEligible && !paidCreditsInsufficient) ||
@@ -1014,7 +1074,11 @@ export function GenerationForm({
 		}
 	}, [
 		paidTemplate,
-		effectEditor,
+		purchaseEffectId,
+		hasPaidCreditAccess,
+		purchasePresetId,
+		referenceSuspended,
+		requireReference,
 		ownerId,
 		ready,
 		sourceReady,
@@ -1077,8 +1141,8 @@ export function GenerationForm({
 			{effectSelectionUnavailable && (
 				<output className="mb-3 text-sm text-amber-200 block">{effects("modelUnavailable")}</output>
 			)}
-			<ComposerHeader />
-			{!effectEditor && (
+			{!toolComposer && <ComposerHeader />}
+			{!effectEditor && !rasterOnly && (
 				<ImagePurposeShortcuts
 					products={products}
 					value={values.productKey}
@@ -1124,12 +1188,18 @@ export function GenerationForm({
 					{studio("tools.modelUnavailable")}
 				</output>
 			)}
+			{screenRatioUnavailable && (
+				<output className="mb-3 text-sm text-amber-200 block">
+					{screenCopy("unsupportedRatio")}
+				</output>
+			)}
 			{requireReference && !values.sourceAssetId && (
 				<p className="mb-3 text-sm text-violet-200">{imageToImage("referenceNotice")}</p>
 			)}
+			{toolComposer?.beforeReference}
 			<div className="studio-composer-inputs">
 				<PromptPanel
-					hidePrompt={hidePresetPrompt}
+					hidePrompt={Boolean(toolComposer)}
 					referenceFirst
 					disabled={generation.createGeneration.isPending}
 					referencePanel={
@@ -1170,6 +1240,8 @@ export function GenerationForm({
 					onChange={updatePrompt}
 				/>
 			</div>
+			{toolComposer?.afterReference}
+			{toolComposer?.summary}
 			<div className="studio-composer-controls">
 				<div className="image-edit-control-field composer-model-field">
 					<span className="image-edit-control-label" aria-hidden="true">
@@ -1212,11 +1284,12 @@ export function GenerationForm({
 								if (!effectEditor) replaceImageModelInUrl(key);
 							}
 						}}
-						disabled={paidTemplate || generation.createGeneration.isPending}
+						disabled={generation.createGeneration.isPending}
 					/>
 				</div>
 				<div className="image-edit-control-field composer-output-field">
 					<ImageOutputSettings
+						lockAspectRatio={lockAspectRatio}
 						idPrefix="editor"
 						fundingCostLabel={passSelected ? pass("onePass") : undefined}
 						presentation="composer"
@@ -1286,23 +1359,34 @@ export function GenerationForm({
 					</Button>
 				) : (
 					<Button
-						type="submit"
+						type={needsReferenceUpload ? "button" : "submit"}
 						data-test="generation-submit"
 						variant="primary"
 						className="studio-submit"
 						disabled={
 							checkingDuplicate ||
-							!input ||
+							(!input && !needsReferenceUpload) ||
 							(!paidTemplate && passSelected && !passReady) ||
 							generation.createQuote.isPending ||
 							generation.createGeneration.isPending
 						}
 						loading={generation.createGeneration.isPending}
+						onClick={
+							needsReferenceUpload
+								? (event) => {
+										event.currentTarget.form
+											?.querySelector<HTMLInputElement>('input[type="file"]')
+											?.click();
+									}
+								: undefined
+						}
 					>
 						{checkingDuplicate || generation.createQuote.isPending ? (
 							t("checking")
 						) : generation.createGeneration.isPending ? (
 							t("starting")
+						) : needsReferenceUpload ? (
+							composer("addReference")
 						) : (
 							<>
 								<span>{composer(isImageEdit ? "edit" : "generate")}</span>
@@ -1371,9 +1455,7 @@ export function GenerationForm({
 					data-test="editor-model-access-notice"
 					className="mt-3 text-xs leading-5 text-violet-200 block"
 				>
-					{product.key === "image-minimax-h3"
-						? t("modelMenu.minimaxUpgradeNotice")
-						: t("modelMenu.upgradeNotice", { model: product.label })}
+					{t("modelMenu.upgradeNotice", { model: product.label })}
 				</output>
 			)}
 			{!paidTemplate &&
@@ -1456,7 +1538,7 @@ export function GenerationForm({
 					storageUnavailable={upgradeStorageUnavailable}
 				/>
 			)}
-			{!hidePresetPrompt && <RegisteredEditorDock prompt={values.prompt} jobId={jobId} />}
+			{!toolComposer && <RegisteredEditorDock prompt={values.prompt} jobId={jobId} />}
 		</form>
 	);
 }

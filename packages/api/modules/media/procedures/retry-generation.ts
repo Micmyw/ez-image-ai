@@ -208,6 +208,9 @@ export async function retryGenerationForUser(
 			productKey,
 			input: normalizedInput,
 			fundingSource: input.fundingSource,
+			...(quoteRequiresPaidImageAccess(source.quote.pricingSnapshot)
+				? { generationAccess: "paid" as const }
+				: {}),
 			// Rebuilding prices must not silently upgrade an older pass quote's coverage.
 			...(source.fundingSource === "IMAGE_PASS"
 				? {
@@ -269,6 +272,7 @@ export async function retryGenerationForUser(
 			userId,
 			fundingSource,
 			imagePassBenefitPolicy: quoteImagePassBenefitPolicy(operation.pricingSnapshot),
+			requiresPaidImageAccess: quoteRequiresPaidImageAccess(operation.pricingSnapshot),
 			productKey,
 			credits: BigInt(operation.credits),
 			costMicros: BigInt(operation.costMicros),
@@ -545,6 +549,10 @@ function retryQuoteInputSnapshot(
 
 function quoteImagePassBenefitPolicy(snapshot: unknown): unknown {
 	return isRecord(snapshot) ? snapshot.imagePassBenefitPolicy : undefined;
+}
+
+function quoteRequiresPaidImageAccess(snapshot: unknown): boolean {
+	return isRecord(snapshot) && snapshot.requiresPaidImageAccess === true;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

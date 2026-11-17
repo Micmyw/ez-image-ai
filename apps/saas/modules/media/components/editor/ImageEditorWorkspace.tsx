@@ -35,6 +35,7 @@ import {
 } from "../../lib/editor-workspace-state";
 import type { GenerationFormValues } from "../../lib/form-schema";
 import type { TemporaryReferenceReceipt } from "../../lib/temporary-reference-upload";
+import { useToolPrompt } from "../../lib/tool-prompt-context";
 import { loadWorkspaceDraft, saveWorkspaceDraft } from "../../lib/workspace-draft";
 import { GenerationForm } from "../GenerationForm";
 import { RecentJobQueue } from "../RecentJobQueue";
@@ -60,6 +61,7 @@ export function ImageEditorWorkspace({
 	requireReference?: boolean;
 }) {
 	const effectEditor = useEffectEditor();
+	const toolPrompt = useToolPrompt();
 	const isEffectEditor = Boolean(effectEditor);
 	const t = useTranslations("media.create");
 	const studio = useTranslations("studio");
@@ -253,7 +255,13 @@ export function ImageEditorWorkspace({
 	useEffect(() => {
 		if (searchParams.has("authDraft")) return;
 		if (searchParams.get("upgrade") !== "complete" && searchParams.get("resume") !== "text") return;
-		const restored = readEditorUpgradeDraft(window.sessionStorage);
+		const restored = readEditorUpgradeDraft(
+			window.sessionStorage,
+			Date.now(),
+			user?.id && toolPrompt?.returnPath
+				? { ownerId: user.id, returnPath: toolPrompt.returnPath }
+				: undefined,
+		);
 		if (!restored) return;
 		setWorkspace((current) => ({
 			...current,
@@ -276,7 +284,15 @@ export function ImageEditorWorkspace({
 		router.replace(returnUrl.pathname + returnUrl.search + returnUrl.hash, {
 			scroll: false,
 		});
-	}, [allowedProductKeys, pathname, router, searchParams, isEffectEditor]);
+	}, [
+		allowedProductKeys,
+		pathname,
+		router,
+		searchParams,
+		isEffectEditor,
+		user?.id,
+		toolPrompt?.returnPath,
+	]);
 
 	const unlinkSource = useCallback(() => {
 		activeAuthDraftId.current = undefined;

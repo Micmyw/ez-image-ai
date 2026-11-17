@@ -911,10 +911,11 @@ test("Christmas wallpaper presets preserve photos and export clean crops at actu
 	await expect(snow).toHaveAttribute("aria-hidden", "true");
 	await expect(snow).toHaveCSS("pointer-events", "none");
 	await expect(snow).toHaveCSS("mask-image", "none");
-	expect(await snow.evaluate((node) => node.getBoundingClientRect().height)).toBeCloseTo(
-		await page.locator(".christmas-page").evaluate((node) => node.getBoundingClientRect().height),
-		0,
-	);
+	const snowHeightDifference = await snow.evaluate((node) => {
+		const page = node.closest(".christmas-page")!;
+		return node.getBoundingClientRect().height - page.getBoundingClientRect().height;
+	});
+	expect(snowHeightDifference).toBeCloseTo(0, 0);
 	const snowLayers = await snow.evaluate((node) =>
 		["::before", "::after"].map((pseudo) => {
 			const style = getComputedStyle(node, pseudo);

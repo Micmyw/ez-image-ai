@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 
 import { EFFECT_EDITOR_RETURN_COOKIE } from "../../../modules/effects/lib/editor-return";
 import { resolvePublishedEffectReturnPath } from "../../../modules/effects/lib/editor-return.server";
+import { sanitizeToolReturnPath } from "../../../modules/media/lib/tool-return-path";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -16,9 +17,9 @@ export default async function GuestTrialPage() {
 	if (!session) redirect("/login?redirectTo=%2Ftry");
 	const registered = !isAnonymousUser(session.user);
 	const cookieStore = await cookies();
-	const effectReturn = resolvePublishedEffectReturnPath(
-		cookieStore.get(EFFECT_EDITOR_RETURN_COOKIE)?.value,
-	);
+	const savedReturn = cookieStore.get(EFFECT_EDITOR_RETURN_COOKIE)?.value;
+	const effectReturn =
+		sanitizeToolReturnPath(savedReturn) ?? resolvePublishedEffectReturnPath(savedReturn);
 	if (registered && !cookieStore.has("media_guest_link_intent"))
 		redirect(effectReturn ?? "/create");
 	const t = await getTranslations("effects.editor");

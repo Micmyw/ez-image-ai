@@ -17,6 +17,7 @@ import {
 import { unexpiredStorageReservations } from "@repo/database";
 import { db } from "@repo/database/client";
 import { loadImageAdminTestSkuKeys } from "@repo/database/media-image-admin-test-access";
+import { hasSpendablePurchasedImageCredits } from "@repo/database/media-image-credit-access";
 import {
 	assertImagePassAvailable,
 	assertImagePassSelection,
@@ -27,6 +28,7 @@ import {
 
 import { ensureFreePlanCreditsForGeneration } from "./free-plan-credits";
 import { loadUserPlanAccess } from "./plan-entitlement";
+import { publicToolPrompt } from "./public-tool-prompt";
 import { enforceMediaRateLimit } from "./rate-limit";
 import { maximumMediaStorageBytes } from "./storage-limits";
 
@@ -52,6 +54,8 @@ export async function createGenerationRateLimitReceipt(
 }
 
 export interface GenerationAccessSnapshot {
+	/** Effective subscription or remaining purchased credits; never inferred from a bonus balance. */
+	hasPaidImageAccess?: boolean;
 	/** Current server-owned grant for this exact image SKU; credits are still charged. */
 	adminTestIncludesSelection?: boolean;
 	imagePassAvailable?: boolean;
@@ -71,6 +75,8 @@ export interface GenerationAccessSnapshot {
 
 export interface GenerationAuthorizationInput {
 	fundingSource?: GenerationFundingSource;
+	/** Restrictive paid-template context frozen in the server quote. */
+	requiresPaidImageAccess?: boolean;
 	/** Frozen server quote benefit policy; never read directly from the request. */
 	imagePassBenefitPolicy?: unknown;
 	/** Server-selected HTTP flood bucket; never a customer credit or trial counter. */
@@ -197,11 +203,23 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 			input.productKey,
 			skuKey,
 		);
+		const hasPaidImageAccess =
+			planAccess.hasEffectivePaidSubscription ||
+			(input.fundingSource !== "IMAGE_PASS" &&
+				(!planIncludesSelection ||
+					input.requiresPaidImageAccess ||
+					Boolean(publicToolPrompt(input.input.prompt))) &&
+				(await hasSpendablePurchasedImageCredits(input.userId, db)));
+		const requiresIndependentPassAccess =
+			(input.requiresPaidImageAccess || Boolean(publicToolPrompt(input.input.prompt))) &&
+			!hasPaidImageAccess;
 		const adminTestIncludesSelection =
 			input.fundingSource !== "IMAGE_PASS" &&
+			!hasPaidImageAccess &&
 			!planIncludesSelection &&
 			(await loadImageAdminTestSkuKeys(input.userId, db)).some((sku) => sku === skuKey);
 		return {
+			hasPaidImageAccess,
 			adminTestIncludesSelection,
 			...(input.fundingSource === "IMAGE_PASS"
 				? {
@@ -213,11 +231,11 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 								imagePassBenefitPolicy: input.imagePassBenefitPolicy,
 								outputFormat: "outputFormat" in input.input ? input.input.outputFormat : undefined,
 								requestedOutputCount: 1,
-								requireModelAccess: !planIncludesSelection,
+								requireModelAccess: !planIncludesSelection || requiresIndependentPassAccess,
 							},
 							db,
 						).then(() => true),
-						imagePassIncludesModelAccess: !planIncludesSelection,
+						imagePassIncludesModelAccess: !planIncludesSelection || requiresIndependentPassAccess,
 					}
 				: {}),
 			generationEnabled: !blocked,
@@ -275,11 +293,13 @@ export async function assertGenerationAllowed(
 	) {
 		throw new Error("PRICE_CHANGED");
 	}
+	const paidTool = input.requiresPaidImageAccess || Boolean(publicToolPrompt(input.input.prompt));
 	let access = await dependencies.loadAccess(input);
 	// Login and the editor's balance read already issue the lifetime allowance.
 	// Only an unfunded credit request needs the existing issuance-recovery path.
 	if (
 		fundingSource === "CREDITS" &&
+		!paidTool &&
 		access.spendableCredits < input.credits &&
 		dependencies.ensureFreeCredits
 	) {
@@ -294,6 +314,13 @@ export async function assertGenerationAllowed(
 		throw new Error("MODEL_DISABLED");
 	}
 	const entitlement = PLAN_ENTITLEMENTS.find((plan) => plan.id === access.planId);
+	const hasPaidImageAccess = access.hasPaidImageAccess ?? access.planId !== "free";
+	if (
+		paidTool &&
+		!hasPaidImageAccess &&
+		!(fundingSource === "IMAGE_PASS" && access.imagePassIncludesModelAccess)
+	)
+		throw new Error("ENTITLEMENT_REQUIRED");
 	if (fundingSource === "IMAGE_PASS" && !access.imagePassAvailable)
 		throw new Error("IMAGE_PASS_INSUFFICIENT");
 	// Only a verified new offer grants model access; historical passes retain
@@ -306,7 +333,7 @@ export async function assertGenerationAllowed(
 			"skuKey" in input.input ? input.input.skuKey : undefined,
 		) &&
 			!(fundingSource === "IMAGE_PASS" && access.imagePassIncludesModelAccess) &&
-			!(fundingSource === "CREDITS" && access.adminTestIncludesSelection))
+			!(fundingSource === "CREDITS" && (hasPaidImageAccess || access.adminTestIncludesSelection)))
 	) {
 		throw new Error("ENTITLEMENT_REQUIRED");
 	}

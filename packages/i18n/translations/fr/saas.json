@@ -2201,14 +2201,14 @@
 				"checking": "Vérification…"
 			},
 			"restore": {
-				"qualityUpgradeRequired": "L’image, l’instruction et le modèle choisi ont été restaurés. Choisissez un pass éligible ou un abonnement Pro, Ultimate ou Max pour générer avec des crédits.",
+				"qualityUpgradeRequired": "L’image, l’instruction et le modèle choisi ont été restaurés. Continuez avec des crédits d’abonnement, un pack de crédits acheté ou un Image Pass éligible.",
 				"upgradeComplete": "Votre forfait payant est actif. L’image, l’instruction, les réglages du modèle et la session de retouche ont été restaurés.",
 				"verifying": "Le brouillon a été restauré. L’image privée termine encore son contrôle de sécurité ; Vérifier sera activé ensuite.",
 				"unavailable": "Cette retouche enregistrée a expiré ou son image source n’est plus disponible. Aucune tâche ni réservation de crédits n’a été créée."
 			},
 			"errors": {
 				"insufficientCredits": "Vous n’avez pas assez de crédits pour cette retouche. Aucune tâche ni réservation n’a été créée.",
-				"qualityUnavailable": "Ce modèle d’image n’est pas inclus dans votre offre. Choisissez MiniMax H3 Image 1K ou consultez votre offre.",
+				"qualityUnavailable": "Cette génération nécessite des crédits d’abonnement, un pack de crédits acheté ou un Image Pass éligible.",
 				"assetNotReady": "L’image source n’est pas prête. Attendez son contrôle privé ou choisissez une autre image.",
 				"quoteExpired": "Ce prix a expiré. Modifiez l’instruction ou les réglages pour obtenir un nouveau prix avant de générer.",
 				"contentNotAllowed": "Cette instruction ne respecte pas notre politique de contenu. Veuillez la modifier. Aucun crédit n’a été facturé.",
@@ -2243,8 +2243,8 @@
 				"paidPlan": "Forfait payant",
 				"viewPlans": "Voir les forfaits",
 				"upToResolution": "Jusqu’à {resolution}",
-				"minimaxUpgradeNotice": "MiniMax H3 Image en 2K et 4K nécessite un abonnement payant actif.",
-				"upgradeNotice": "{model} nécessite Pro, Ultimate ou Max pour payer avec des crédits. Vous pouvez aussi choisir un pass éligible incluant l’accès au modèle."
+				"minimaxUpgradeNotice": "MiniMax H3 Image en 2K et 4K accepte les crédits d’abonnement, les packs de crédits achetés et les Image Pass éligibles.",
+				"upgradeNotice": "{model} prend en charge les crédits d’abonnement, les packs de crédits achetés et les Image Passes éligibles."
 			},
 			"moderationBillingPolicy": "Sécurité du contenu : les refus de contenu sensible du fournisseur après envoi et les images générées bloquées par notre contrôle utilisent tous les crédits du devis, dès le premier refus. Les instructions ou fichiers bloqués avant envoi et les échecs techniques du contrôle ne coûtent aucun crédit.",
 			"generateWithCredits": "Générer une image · {credits} crédits",
@@ -2376,7 +2376,7 @@
 				"quality": "Plus de modèles d’image",
 				"qualityDescription": "Retouche d’image privée avec des réglages de sortie propres au modèle.",
 				"credits": "{credits} EzImageAI Credits",
-				"qualityUnavailable": "Passez à une offre supérieure pour utiliser ce modèle d’image. L’image, l’instruction et les réglages de sortie seront conservés.",
+				"qualityUnavailable": "Utilisez des crédits d’abonnement, un pack de crédits acheté ou un Image Pass éligible. L’image, l’instruction et les réglages de sortie seront conservés.",
 				"upgrade": "Voir les options"
 			}
 		},
@@ -3045,8 +3045,8 @@
 	},
 	"imagePass": {
 		"paidTemplate": {
-			"title": "Créez votre photo Sheru Bhai",
-			"description": "Ce modèle nécessite un pack d’images payant ou un abonnement éligible avec suffisamment de crédits.",
+			"title": "Créez votre image",
+			"description": "Utilisez les crédits de votre abonnement, un pack de crédits ou un Image Pass. Tous les modèles d’image sont pris en charge.",
 			"images": "{count} images générées avec succès",
 			"oneTime": "Achat unique en USD. Aucun abonnement requis.",
 			"storageUnavailable": "Votre brouillon n’a pas pu être enregistré. Activez le stockage du navigateur et réessayez. Votre photo et votre prompt restent ici.",

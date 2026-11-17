@@ -4,6 +4,9 @@ import { currentImagePassOfferCoversSelection } from "./selected-image-pass-offe
 
 describe("new image pass offer coverage", () => {
 	it.each([
+		["image-minimax-h3", "minimax-h3-1k", undefined],
+		["image-seedream-5-5", "seedream-5-5-2k", undefined],
+
 		["image-nano-banana-pro", "nano-banana-pro-4k", undefined],
 		["image-gpt-image-2-6-flare", "gpt-image-2-6-flare-1k", "svg"],
 		["image-gpt-image-2-6-sunburst", "gpt-image-2-6-sunburst-1k", "gif"],
@@ -14,8 +17,6 @@ describe("new image pass offer coverage", () => {
 		},
 	);
 	it.each([
-		["image-minimax-h3", "minimax-h3-1k", undefined],
-		["image-seedream-5-5", "seedream-5-5-2k", undefined],
 		["image-minimax-h3", "nano-banana-pro-4k", undefined],
 		["image-gpt-image-2-6-flare", "gpt-image-2-6-flare-4k", "gif"],
 		["image-gpt-image-2-6-flare", "gpt-image-2-6-flare-1k", "webp"],

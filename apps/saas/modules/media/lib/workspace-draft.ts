@@ -7,6 +7,7 @@ import {
 	temporaryReferenceReceiptSchema,
 	type TemporaryReferenceReceipt,
 } from "./temporary-reference-upload";
+import { GTA_IMAGE_TOOL_PATHS, isGtaToolPath } from "./tool-return-path";
 
 export interface WorkspaceDraft {
 	/** Browser-local capsule ID only; never a media authorization token. */
@@ -22,6 +23,24 @@ export interface WorkspaceStorage {
 	removeItem(key: string): unknown;
 }
 export const WORKSPACE_DRAFT_KEY = "ezpic.workspace-draft.v1";
+const WORKSPACE_DRAFT_RETURN_KEY = "ezpic.workspace-draft-return.v1";
+
+function workspaceStorageKey(ownerId: string, pathname: string): string {
+	return isGtaToolPath(pathname)
+		? `${WORKSPACE_DRAFT_KEY}:${ownerId}:${pathname}`
+		: WORKSPACE_DRAFT_KEY;
+}
+
+export function clearGtaWorkspaceDraftsForOwner(
+	storage: Pick<WorkspaceStorage, "getItem" | "removeItem">,
+	ownerId: string,
+): void {
+	const keys = GTA_IMAGE_TOOL_PATHS.map((path) => workspaceStorageKey(ownerId, path));
+	for (const key of keys) storage.removeItem(key);
+	if (keys.includes(storage.getItem(WORKSPACE_DRAFT_RETURN_KEY) ?? "")) {
+		storage.removeItem(WORKSPACE_DRAFT_RETURN_KEY);
+	}
+}
 const storedDraftSchema = z
 	.object({
 		version: z.literal(1),
@@ -66,7 +85,9 @@ export function saveWorkspaceDraft(
 			authDraftId: draft.authDraftId,
 		});
 		if (!parsed.success) return false;
-		storage.setItem(WORKSPACE_DRAFT_KEY, JSON.stringify(parsed.data));
+		const key = workspaceStorageKey(ownerId, pathname);
+		storage.setItem(key, JSON.stringify(parsed.data));
+		storage.setItem(WORKSPACE_DRAFT_RETURN_KEY, key);
 		return true;
 	} catch {
 		return false;
@@ -80,7 +101,8 @@ export function loadWorkspaceDraft(
 	pathname = "/create",
 ): WorkspaceDraft | null {
 	try {
-		const serialized = storage.getItem(WORKSPACE_DRAFT_KEY);
+		const key = workspaceStorageKey(ownerId, pathname);
+		const serialized = storage.getItem(key);
 		if (!serialized || serialized.length > 65_000) return null;
 		const parsed = storedDraftSchema.safeParse(JSON.parse(serialized));
 		if (
@@ -89,7 +111,7 @@ export function loadWorkspaceDraft(
 			now - parsed.data.savedAt > 3_600_000 ||
 			parsed.data.savedAt > now + 300_000
 		) {
-			storage.removeItem(WORKSPACE_DRAFT_KEY);
+			storage.removeItem(key);
 			return null;
 		}
 		if (
@@ -123,7 +145,13 @@ export function workspaceDraftReturnPath(
 ): string {
 	if (!storage || !ownerId) return "/create";
 	try {
-		const serialized = storage.getItem(WORKSPACE_DRAFT_KEY);
+		const recentKey = storage.getItem(WORKSPACE_DRAFT_RETURN_KEY);
+		const key = GTA_IMAGE_TOOL_PATHS.some(
+			(path) => recentKey === workspaceStorageKey(ownerId, path),
+		)
+			? recentKey!
+			: WORKSPACE_DRAFT_KEY;
+		const serialized = storage.getItem(key);
 		if (!serialized || serialized.length > 65_000) return "/create";
 		const parsed = storedDraftSchema.safeParse(JSON.parse(serialized));
 		if (
@@ -159,6 +187,8 @@ function safeWorkspaceReturnPath(value: string): string | null {
 			"/image-to-image",
 			"/photo-to-coloring-page",
 			"/christmas-wallpaper",
+			"/gta-6-wallpaper",
+			"/gta-loading-screen-generator",
 			"/gpt-image-2-6",
 			"/gpt-image-2-6-flare",
 			"/gpt-image-2-6-sunburst",

@@ -1,9 +1,10 @@
 import { Button } from "@repo/ui/components/button";
 import { trackJourneyResultVisible } from "@shared/lib/generation-journey";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
+import { orpcClient } from "@shared/lib/orpc-client";
 import { DownloadIcon, ImageIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { WallpaperButton } from "../../../christmas/components/WallpaperButton";
 import { WallpaperResultPublisher } from "../../../christmas/lib/wallpaper-result-context";
@@ -14,12 +15,30 @@ export function GuestResultCard({
 	view,
 	resultUrl,
 	onDownload,
+	prompt,
+	aspectRatio,
+	registered = false,
 }: {
 	view: GuestTrialView;
 	resultUrl: string | null;
 	onDownload: () => void;
+	prompt?: string;
+	aspectRatio?: string;
+	registered?: boolean;
 }) {
 	const t = useTranslations("media.guest");
+	const getImageUrl = useCallback(async () => {
+		if (!view.jobId || !view.resultAssetId) throw new Error("Result unavailable");
+		const input = {
+			jobId: view.jobId,
+			assetId: view.resultAssetId,
+			disposition: "inline" as const,
+		};
+		const access = registered
+			? await orpcClient.media.getAssetAccessUrl(input)
+			: await orpcClient.media.getGuestAssetAccessUrl(input);
+		return access.url;
+	}, [registered, view.jobId, view.resultAssetId]);
 	const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
 	useEffect(() => {
 		if (
@@ -70,8 +89,13 @@ export function GuestResultCard({
 			{view.state === "ready" && resultUrl && view.resultAssetId && (
 				<WallpaperResultPublisher
 					assetId={view.resultAssetId}
+					jobId={view.jobId}
 					imageUrl={resultUrl}
 					expiresAt={view.resultExpiresAt ?? undefined}
+					prompt={prompt}
+					aspectRatio={aspectRatio}
+					watermarked
+					guest={!registered}
 				/>
 			)}
 			<div className="min-h-48 relative aspect-[4/3] max-h-[65vh] overflow-hidden bg-background">
@@ -119,7 +143,14 @@ export function GuestResultCard({
 								{view.resultAssetId && view.jobId && (
 									<ColoringPageLink assetId={view.resultAssetId} guestJobId={view.jobId} />
 								)}
-								{resultUrl && <WallpaperButton key={view.resultAssetId} imageUrl={resultUrl} />}
+								{resultUrl && (
+									<WallpaperButton
+										key={view.resultAssetId}
+										imageUrl={resultUrl}
+										getImageUrl={getImageUrl}
+										watermarked
+									/>
+								)}
 							</div>
 						</details>
 					</div>

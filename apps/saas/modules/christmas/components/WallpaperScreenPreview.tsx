@@ -8,6 +8,7 @@ import { useState, type ReactNode } from "react";
 import {
 	wallpaperCrop,
 	wallpaperImage,
+	CHRISTMAS_STYLES,
 	WALLPAPER_TARGETS,
 	type WallpaperCropSettings,
 	type WallpaperSettings,
@@ -20,9 +21,17 @@ import "../wallpaper-crop.css";
 export function WallpaperScreenPreview({
 	settings,
 	styleName,
+	example,
+	examplePlaceholder,
+	exportPrefix,
+	onDownload,
 }: {
-	settings: WallpaperSettings;
+	settings: Pick<WallpaperSettings, "screen"> & { style?: string };
 	styleName: string;
+	example?: { src: string; alt: string; width: number; height: number };
+	examplePlaceholder?: ReactNode;
+	exportPrefix?: string;
+	onDownload?: () => void;
 }) {
 	const t = useTranslations("christmas");
 	const { result, source, selectSource } = useWallpaperPreview();
@@ -44,16 +53,37 @@ export function WallpaperScreenPreview({
 	) : null;
 	const previewProps: PreviewControls = {
 		controls,
+		exportPrefix,
+		onDownload,
+		generic: Boolean(example || examplePlaceholder),
+		watermarked: generated && result?.watermarked,
 		initialCrop: generated && savedCrop?.key === resultKey ? savedCrop.crop : undefined,
 		onApplyCrop: generated ? (crop) => setSavedCrop({ key: resultKey, crop }) : undefined,
 	};
+	if (!generated && !example && examplePlaceholder) {
+		return (
+			<aside className="christmas-preview" aria-label={t("preview")}>
+				{controls}
+				{examplePlaceholder}
+			</aside>
+		);
+	}
 	if (generated && result && !result.imageUrl) {
 		return <AccountPreview key={resultKey} result={result} settings={settings} {...previewProps} />;
 	}
 	return (
 		<ScreenPreview
 			key={`${generated ? `result:${result?.assetId}` : `style:${settings.style}`}:${settings.screen}`}
-			imageUrl={generated && result?.imageUrl ? result.imageUrl : wallpaperImage(settings.style)}
+			imageUrl={
+				generated && result?.imageUrl
+					? result.imageUrl
+					: (example?.src ??
+						wallpaperImage(
+							CHRISTMAS_STYLES.find((style) => style.id === settings.style)?.id ?? "fireplace",
+						))
+			}
+			getImageUrl={generated ? result?.getImageUrl : undefined}
+			exampleAlt={example?.alt}
 			generated={generated}
 			settings={settings}
 			styleName={styleName}
@@ -63,7 +93,11 @@ export function WallpaperScreenPreview({
 }
 
 type PreviewControls = {
+	onDownload?: () => void;
 	controls?: ReactNode;
+	exportPrefix?: string;
+	generic?: boolean;
+	watermarked?: boolean;
 	initialCrop?: WallpaperCropSettings;
 	onApplyCrop?: (crop: WallpaperCropSettings) => void;
 };
@@ -74,15 +108,15 @@ function AccountPreview({
 	...previewProps
 }: {
 	result: WallpaperResult;
-	settings: WallpaperSettings;
+	settings: Pick<WallpaperSettings, "screen"> & { style?: string };
 } & PreviewControls) {
-	const preview = usePrivateAssetPreview(result.assetId);
+	const preview = usePrivateAssetPreview(result.assetId, result.jobId);
 	const t = useTranslations("christmas");
 	if (!preview.data) {
 		return (
 			<aside className="christmas-preview" aria-label={t("preview")}>
 				<div className="christmas-preview-heading">
-					<strong>{t("yourWallpaper")}</strong>
+					<strong>{previewProps.generic ? "Your wallpaper" : t("yourWallpaper")}</strong>
 					{previewProps.controls}
 				</div>
 				<p role={preview.isError ? "alert" : "status"}>
@@ -103,6 +137,7 @@ function AccountPreview({
 				(
 					await orpcClient.media.getAssetAccessUrl({
 						assetId: result.assetId,
+						jobId: result.jobId,
 						disposition: "inline",
 					})
 				).url
@@ -125,12 +160,18 @@ function ScreenPreview({
 	controls,
 	initialCrop,
 	onApplyCrop,
+	exportPrefix,
+	onDownload,
+	generic,
+	watermarked,
+	exampleAlt,
 }: {
 	imageUrl: string;
 	getImageUrl?: () => Promise<string>;
 	generated: boolean;
-	settings: WallpaperSettings;
+	settings: Pick<WallpaperSettings, "screen"> & { style?: string };
 	styleName?: string;
+	exampleAlt?: string;
 	onImageError?: () => Promise<unknown>;
 } & PreviewControls) {
 	const t = useTranslations("christmas");
@@ -148,6 +189,8 @@ function ScreenPreview({
 	const [failed, setFailed] = useState(false);
 	const [retried, setRetried] = useState(false);
 	const [attempt, setAttempt] = useState(0);
+	const [refreshedUrl, setRefreshedUrl] = useState<string>();
+	const wallpaperLabel = generic ? "Your wallpaper" : t("yourWallpaper");
 	const pixels = size
 		? wallpaperCrop(size.width, size.height, crop.target, crop.x, crop.y, crop.zoom)
 		: null;
@@ -186,8 +229,8 @@ function ScreenPreview({
 						<img
 							key={attempt}
 							data-clarity-mask={generated ? "true" : undefined}
-							src={imageUrl}
-							alt={generated ? t("yourWallpaper") : `${styleName} Christmas wallpaper`}
+							src={refreshedUrl ?? imageUrl}
+							alt={generated ? wallpaperLabel : (exampleAlt ?? `${styleName} Christmas wallpaper`)}
 							referrerPolicy="no-referrer"
 							onLoad={(event) => {
 								setSize({
@@ -197,10 +240,15 @@ function ScreenPreview({
 								setFailed(false);
 							}}
 							onError={async () => {
-								if (onImageError && !retried) {
+								if ((onImageError || getImageUrl) && !retried) {
 									setRetried(true);
-									await onImageError();
-									setAttempt((value) => value + 1);
+									try {
+										if (onImageError) await onImageError();
+										else if (getImageUrl) setRefreshedUrl(await getImageUrl());
+										setAttempt((value) => value + 1);
+									} catch {
+										setFailed(true);
+									}
 								} else setFailed(true);
 							}}
 							style={
@@ -240,9 +288,7 @@ function ScreenPreview({
 						))}
 				</div>
 			</div>
-			<strong className="christmas-preview-name">
-				{generated ? t("yourWallpaper") : styleName}
-			</strong>
+			<strong className="christmas-preview-name">{generated ? wallpaperLabel : styleName}</strong>
 			<p>{t(generated ? "resultPreviewNote" : "previewNote")}</p>
 			<WallpaperButton
 				imageUrl={imageUrl}
@@ -253,6 +299,9 @@ function ScreenPreview({
 					setCrop(next);
 					onApplyCrop?.(next);
 				}}
+				exportPrefix={exportPrefix}
+				onDownload={onDownload}
+				watermarked={watermarked}
 			/>
 		</aside>
 	);

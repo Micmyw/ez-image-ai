@@ -3,6 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
 	getImagePassOfferSnapshot,
 	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+	IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
 	imagePassEffectiveSkuKeys,
 	imagePassCoversSelection,
 	isImagePassBenefitPolicy,
@@ -26,6 +27,38 @@ import {
 import { IMAGE_SKU_KEYS } from "./product";
 
 const oldOffers = [IMAGE_PASS_LEGACY_OFFER, IMAGE_PASS_STANDARD_OFFER];
+
+describe("all-model paid image access", () => {
+	it("covers every current image SKU without mutating either previous benefit or purchase terms", () => {
+		const offer = getImagePassOfferSnapshot();
+		const before = JSON.stringify(offer);
+		expect(imagePassEffectiveSkuKeys(offer, IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY).sort()).toEqual(
+			[...IMAGE_SKU_KEYS].sort(),
+		);
+		for (const skuKey of IMAGE_SKU_KEYS)
+			expect(
+				imagePassCoversSelection({
+					offerSnapshot: offer,
+					skuKey,
+					benefitPolicy: IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
+				}),
+			).toBe(true);
+		expect(imagePassEffectiveSkuKeys(offer, IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY)).toHaveLength(
+			35,
+		);
+		expect(JSON.stringify(offer)).toBe(before);
+		for (const old of oldOffers)
+			expect(imagePassEffectiveSkuKeys(old, IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY)).toEqual(
+				old.allowedSkuKeys,
+			);
+		expect(
+			isImagePassBenefitPolicy({
+				...IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
+				addedSkuKeys: [...IMAGE_SKU_KEYS],
+			}),
+		).toBe(false);
+	});
+});
 const currentPlan = {
 	provider: "paypal",
 	providerPriceId: IMAGE_PASS_PAYPAL_SKU,

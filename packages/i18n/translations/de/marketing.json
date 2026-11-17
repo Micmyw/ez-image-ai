@@ -1,4 +1,10 @@
 {
+	"gta": {
+		"wallpaperName": "GTA-6-Wallpaper-Generator",
+		"wallpaperDescription": "Küstenillustrationen für Smartphone und Desktop",
+		"loadingName": "GTA-Ladebildschirm-Generator",
+		"loadingDescription": "Dein Porträt, deine Szene und dein bearbeitbarer Name"
+	},
 	"christmas": {
 		"entry": {
 			"quick": "Erstelle ein Weihnachts-Hintergrundbild aus deinem Foto",

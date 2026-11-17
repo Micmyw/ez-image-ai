@@ -18,12 +18,18 @@ export function WallpaperButton({
 	label,
 	initialCrop,
 	onApply,
+	exportPrefix,
+	watermarked,
+	onDownload,
 }: {
 	imageUrl?: string;
 	getImageUrl?: () => Promise<string>;
 	label?: string;
 	initialCrop?: WallpaperCropSettings;
 	onApply?: (settings: WallpaperCropSettings) => void;
+	exportPrefix?: string;
+	watermarked?: boolean;
+	onDownload?: () => void;
 }) {
 	const t = useTranslations("christmas");
 	const [open, setOpen] = useState(false);
@@ -41,6 +47,9 @@ export function WallpaperButton({
 					getImageUrl={getImageUrl}
 					initialCrop={initialCrop}
 					onApply={onApply}
+					exportPrefix={exportPrefix}
+					watermarked={watermarked}
+					onDownload={onDownload}
 				/>
 			)}
 		</>

@@ -1,7 +1,7 @@
 import { IMAGE_SKU_KEYS_BY_PRODUCT, resolvePlanEntitlement } from "@repo/config";
 import {
 	IMAGE_PASS_PUBLIC_OFFER,
-	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+	IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
 	imagePassCoversSelection,
 	imagePassEffectiveSkuKeys,
 	isImagePassBenefitPolicy,
@@ -65,8 +65,11 @@ export async function assertImagePassAvailable(
 ): Promise<void> {
 	assertImagePassSelection({ ...input, requestedOutputCount: input.requestedOutputCount ?? 1 });
 	assertImagePassBenefitSelection(input);
-	// Every image-pack cohort can use the 1K model behind the Sheru presets.
-	const requireModelAccess = input.requireModelAccess && input.skuKey !== "nano-banana-2-1k";
+	// Keep historical quote compatibility; all new quotes use the same model-access policy.
+	const legacySheruAccess =
+		record(input.imagePassBenefitPolicy)?.version !==
+			IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY.version && input.skuKey === "nano-banana-2-1k";
+	const requireModelAccess = input.requireModelAccess && !legacySheruAccess;
 	const expanded = isExpandedImagePassSelection(input.skuKey, input.imagePassBenefitPolicy);
 	const [unit] = await tx.$queryRaw<
 		Array<{ id: string; offerSnapshot: unknown }>
@@ -140,8 +143,12 @@ export async function reserveImagePassForJobInTransaction(
 	);
 	const entitlement = resolvePlanEntitlement(subscription?.plan.metadata, subscription?.plan.name);
 	const requireModelAccess =
-		snapshot?.skuKey !== "nano-banana-2-1k" &&
-		!entitlement.allowedProducts.some((key) => key === job.productKey);
+		!(
+			record(snapshot?.imagePassBenefitPolicy)?.version !==
+				IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY.version && snapshot?.skuKey === "nano-banana-2-1k"
+		) &&
+		(!entitlement.allowedProducts.some((key) => key === job.productKey) ||
+			(snapshot?.requiresPaidImageAccess === true && !subscription));
 	const [unit] = await tx.$queryRaw<
 		Array<{ id: string; grantId: string; offerSnapshot: unknown }>
 	>`SELECT unit."id",unit."grantId",g."offerSnapshot" FROM "image_pass_unit" unit JOIN "image_pass_grant" g ON g."id"=unit."grantId" WHERE g."ownerId"=${input.ownerId} AND g."status"='ACTIVE' AND unit."status"='AVAILABLE' AND ((g."offerSnapshot"->'allowedSkuKeys') ? ${String(snapshot?.skuKey)} OR (${expanded} AND g."offerSnapshot" @> ${JSON.stringify(IMAGE_PASS_PUBLIC_OFFER)}::jsonb AND g."offerSnapshot"->'allowedSkuKeys'=${JSON.stringify(IMAGE_PASS_PUBLIC_OFFER.allowedSkuKeys)}::jsonb)) AND (${!requireModelAccess} OR (g."offerSnapshot"->>'offerVersion'=${IMAGE_PASS_PUBLIC_OFFER.offerVersion} AND g."offerSnapshot"->>'subscriptionPolicy'='not-required')) ORDER BY g."paidAt",g."id",unit."ordinal" LIMIT 1 FOR UPDATE OF unit,g`;
@@ -479,7 +486,7 @@ export async function getImagePassAvailableSkuKeys(
 	return [
 		...new Set(
 			rows.flatMap(({ offerSnapshot }) =>
-				imagePassEffectiveSkuKeys(offerSnapshot, IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY),
+				imagePassEffectiveSkuKeys(offerSnapshot, IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY),
 			),
 		),
 	].sort();
@@ -499,7 +506,7 @@ async function getImagePassSubscriptionFreeSkuKeys(
 		...new Set(
 			rows.flatMap(({ offerSnapshot }) =>
 				imagePassIncludesModelAccess(offerSnapshot) && isImagePassOfferSnapshot(offerSnapshot)
-					? imagePassEffectiveSkuKeys(offerSnapshot, IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY)
+					? imagePassEffectiveSkuKeys(offerSnapshot, IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY)
 					: [],
 			),
 		),

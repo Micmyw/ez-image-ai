@@ -17,6 +17,12 @@ import {
 	temporaryReferenceReceiptSchema,
 	type TemporaryReferenceReceipt,
 } from "../../media/lib/temporary-reference-upload";
+import {
+	isGtaToolPath,
+	GTA_IMAGE_TOOL_PATHS,
+	sanitizeToolReturnPath,
+	type PublicImageToolPath,
+} from "../../media/lib/tool-return-path";
 import { sanitizeVideoEffectReturnPath } from "../../video-effects/lib/paths";
 import type { PlanId } from "../types";
 
@@ -68,13 +74,32 @@ export interface EditorUpgradeDraft {
 	sourceReady: boolean;
 }
 
+export type EditorUpgradeScope = { ownerId: string; returnPath: PublicImageToolPath };
+
+function upgradeStorageKey(scope?: EditorUpgradeScope): string {
+	return scope && isGtaToolPath(scope.returnPath)
+		? `${EDITOR_UPGRADE_STORAGE_KEY}:${scope.ownerId}:${scope.returnPath}`
+		: EDITOR_UPGRADE_STORAGE_KEY;
+}
+
 interface BrowserStorage {
 	getItem(key: string): string | null;
 	removeItem(key: string): unknown;
 	setItem(key: string, value: string): unknown;
 }
 
+export function clearGtaEditorUpgradeDraftsForOwner(
+	storage: Pick<BrowserStorage, "removeItem">,
+	ownerId: string,
+): void {
+	for (const returnPath of GTA_IMAGE_TOOL_PATHS) {
+		storage.removeItem(upgradeStorageKey({ ownerId, returnPath }));
+	}
+}
+
 export function sanitizeEditorReturnPath(value: string | null | undefined): string {
+	const toolPath = sanitizeToolReturnPath(value);
+	if (toolPath) return toolPath;
 	const effectPath = sanitizeEffectEditorReturnPath(value);
 	if (effectPath) return effectPath;
 	const videoEffectPath = sanitizeVideoEffectReturnPath(value);
@@ -139,6 +164,7 @@ export function writeEditorUpgradeDraft(
 	storage: BrowserStorage,
 	draft: EditorUpgradeDraft,
 	now = Date.now(),
+	scope?: EditorUpgradeScope,
 ): boolean {
 	const parsed = storedEditorUpgradeDraftSchema.safeParse({
 		version: 1,
@@ -151,7 +177,7 @@ export function writeEditorUpgradeDraft(
 	const serialized = JSON.stringify({ ...parsed.data, draft: normalizedDraft });
 	if (serialized.length > MAXIMUM_STORED_DRAFT_BYTES) return false;
 	try {
-		storage.setItem(EDITOR_UPGRADE_STORAGE_KEY, serialized);
+		storage.setItem(upgradeStorageKey(scope), serialized);
 		return true;
 	} catch {
 		return false;
@@ -161,11 +187,13 @@ export function writeEditorUpgradeDraft(
 export function readEditorUpgradeDraft(
 	storage: BrowserStorage,
 	now = Date.now(),
+	scope?: EditorUpgradeScope,
 ): EditorUpgradeDraft | null {
 	let serialized: string | null = null;
 	try {
-		serialized = storage.getItem(EDITOR_UPGRADE_STORAGE_KEY);
-		if (serialized !== null) storage.removeItem(EDITOR_UPGRADE_STORAGE_KEY);
+		const key = upgradeStorageKey(scope);
+		serialized = storage.getItem(key);
+		if (serialized !== null) storage.removeItem(key);
 	} catch {
 		return null;
 	}

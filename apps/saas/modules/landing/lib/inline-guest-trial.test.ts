@@ -11,6 +11,17 @@ const handoff = {
 };
 
 describe("inline guest preparation", () => {
+	it.each(["/gta-6-wallpaper", "/gta-loading-screen-generator"])(
+		"retains the original tool %s through the existing HttpOnly handoff",
+		async (path) => {
+			const fetcher = vi
+				.fn<typeof fetch>()
+				.mockResolvedValueOnce(Response.json({ status: "SESSION_READY" }))
+				.mockResolvedValueOnce(Response.json({ status: "READY" }));
+			await prepareInlineGuestTrial(handoff, fetcher, path);
+			expect((fetcher.mock.calls[0]![1]!.body as URLSearchParams).get("returnTo")).toBe(path);
+		},
+	);
 	it("keeps the same claim in the POST body, prepares the session and claims without navigation", async () => {
 		const fetcher = vi
 			.fn<typeof fetch>()

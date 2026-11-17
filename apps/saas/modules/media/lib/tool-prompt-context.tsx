@@ -12,6 +12,8 @@ import {
 	type ReactNode,
 } from "react";
 
+import type { PublicImageToolPath } from "./tool-return-path";
+
 export type ToolPromptOptions = { aspectRatio?: ImageAspectRatio; clearReference?: boolean };
 type Binding = {
 	prompt: string;
@@ -21,9 +23,14 @@ type Binding = {
 type ToolPrompt = {
 	initialPrompt: string;
 	initialAspectRatio?: ImageAspectRatio;
-	returnPath?: "/christmas-wallpaper";
+	returnPath?: PublicImageToolPath;
+	generationAccess?: "paid";
 	allowPrinting: boolean;
 	allowReference: boolean;
+	requireReference: boolean;
+	suspendReference: boolean;
+	rasterOnly: boolean;
+	lockAspectRatio: boolean;
 	prompt: string;
 	busy: boolean;
 	ready: boolean;
@@ -39,22 +46,33 @@ export function ToolPromptProvider({
 	initialPrompt,
 	initialAspectRatio,
 	returnPath,
+	generationAccess,
 	allowPrinting = false,
 	allowReference = true,
+	requireReference = false,
+	suspendReference = false,
+	rasterOnly = false,
+	lockAspectRatio = false,
 	children,
 }: {
 	initialPrompt: string;
 	initialAspectRatio?: ImageAspectRatio;
-	returnPath?: "/christmas-wallpaper";
+	returnPath?: PublicImageToolPath;
+	generationAccess?: "paid";
 	allowPrinting?: boolean;
 	allowReference?: boolean;
+	requireReference?: boolean;
+	/** Retain the selected upload while excluding it from this draft's request. */
+	suspendReference?: boolean;
+	rasterOnly?: boolean;
+	lockAspectRatio?: boolean;
 	children: ReactNode;
 }) {
 	const binding = useRef<React.RefObject<Binding> | null>(null);
 	const [state, setState] = useState({ prompt: initialPrompt, busy: false, ready: false });
 	const bind = useCallback((next: React.RefObject<Binding>) => {
 		binding.current = next;
-		setState((current) => ({ ...current, ready: true }));
+		setState({ prompt: next.current.prompt, busy: next.current.busy, ready: true });
 		return () => {
 			if (binding.current === next) {
 				binding.current = null;
@@ -70,15 +88,22 @@ export function ToolPromptProvider({
 	const apply = useCallback((prompt: string, options?: ToolPromptOptions) => {
 		const current = binding.current?.current;
 		if (!current || current.busy || !prompt.trim() || prompt.length > 10_000) return false;
-		return current.applyPrompt(prompt, options) !== false;
+		if (current.applyPrompt(prompt, options) === false) return false;
+		setState((value) => ({ ...value, prompt }));
+		return true;
 	}, []);
 	const value = useMemo(
 		() => ({
 			initialPrompt,
 			initialAspectRatio,
 			returnPath,
+			generationAccess,
 			allowPrinting,
 			allowReference,
+			requireReference,
+			suspendReference,
+			rasterOnly,
+			lockAspectRatio,
 			...state,
 			bind,
 			report,
@@ -88,8 +113,13 @@ export function ToolPromptProvider({
 			initialPrompt,
 			initialAspectRatio,
 			returnPath,
+			generationAccess,
 			allowPrinting,
 			allowReference,
+			requireReference,
+			suspendReference,
+			rasterOnly,
+			lockAspectRatio,
 			state,
 			bind,
 			report,

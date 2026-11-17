@@ -1,6 +1,6 @@
 import { parseRouteGraphSnapshot, type ExecutableRouteGraphOptions } from "@repo/ai";
 import {
-	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+	IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
 	IMAGE_PASS_LEGACY_OFFER,
 	IMAGE_PASS_PUBLIC_OFFER,
 	IMAGE_PASS_STANDARD_OFFER,
@@ -171,7 +171,7 @@ describe("GPT Image 2.6 preserves historical funding contracts", () => {
 			for (const size of ["2k", "4k"]) {
 				const result = quote(variant, { skuKey: `gpt-image-2-6-${variant}-${size}` }, "IMAGE_PASS");
 				expect(result.pricingSnapshot.imagePassBenefitPolicy).toEqual(
-					IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+					IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
 				);
 				expect(result.pricingSnapshot.imagePassUnits).toBe(1);
 			}
@@ -213,7 +213,7 @@ describe("GPT Image 2.6 preserves historical funding contracts", () => {
 			expect(quote(variant, { outputFormat }, "IMAGE_PASS").pricingSnapshot).toMatchObject({
 				fundingSource: "IMAGE_PASS",
 				imagePassUnits: 1,
-				imagePassBenefitPolicy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
+				imagePassBenefitPolicy: IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY,
 				settlementPolicy: { requestedOutputCount: 1 },
 			});
 		}

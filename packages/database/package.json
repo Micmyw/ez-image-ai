@@ -30,6 +30,7 @@
 		"./media-quotes": "./prisma/queries/media/quotes.ts",
 		"./media-image-passes": "./prisma/queries/media/image-passes.ts",
 		"./media-image-admin-test-access": "./prisma/queries/media/image-admin-test-access.ts",
+		"./media-image-credit-access": "./prisma/queries/media/image-credit-access.ts",
 		"./video-template": "./prisma/queries/media/video-template.ts",
 		"./video-template-admission": "./prisma/queries/media/video-template-admission.ts",
 		"./video-template-execution": "./prisma/queries/media/video-template-execution.ts",

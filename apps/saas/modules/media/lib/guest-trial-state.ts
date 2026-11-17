@@ -10,6 +10,7 @@ export type GuestTrialServerStage =
 	| "EXPIRED";
 
 export interface GuestTrialSnapshot {
+	toolPrompt?: string;
 	safety?: GuestSafetyFeedback;
 	jobId: string;
 	stage: GuestTrialServerStage;

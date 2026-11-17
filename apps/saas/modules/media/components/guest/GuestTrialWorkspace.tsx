@@ -325,6 +325,8 @@ export function GuestTrialWorkspace({
 
 				<div className="min-w-0 space-y-4">
 					<GuestResultCard
+						registered={registered}
+						prompt={trial.resultPrompt}
 						view={trial.view}
 						resultUrl={trial.resultUrl}
 						onDownload={() => void trial.actions.download()}

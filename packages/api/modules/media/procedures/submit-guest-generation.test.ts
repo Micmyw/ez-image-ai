@@ -17,6 +17,28 @@ import { TextModerationError } from "../lib/public-moderation-reason";
 import { submitGuestGeneration } from "./submit-guest-generation";
 
 describe("submitGuestGeneration", () => {
+	it("retains the accepted public header when an uncertain retry already completed", async () => {
+		const header =
+			"Coastal artwork preset gta-coastal-v1. Task loading-art. Scene marina. Input photo. Format desktop. Portrait left.";
+		vi.mocked(submitGuestGenerationForGuest).mockResolvedValueOnce({
+			trialId: "trial-1",
+			jobId: "job-1",
+			stage: "READY",
+			projectedDispatchAt: new Date("2035-01-01T00:00:00Z"),
+			estimateExpiresAt: new Date("2035-01-01T00:01:00Z"),
+			resultExpiresAt: new Date("2035-01-02T00:00:00Z"),
+			resultAssetId: "output",
+			watermarked: true,
+			trialConsumed: true,
+			linkReady: true,
+			inputPrompt: `${header}\n\nCustomer name and private supplemental prompt`,
+		});
+		const result = await call(submitGuestGeneration, validInput(), {
+			context: { headers: new Headers() },
+		});
+		expect(result.toolPrompt).toBe(header);
+		expect(JSON.stringify(result)).not.toMatch(/Customer name|private supplemental|inputPrompt/);
+	});
 	it("keeps an admitted response when optional defer registration throws", async () => {
 		const result = await call(
 			submitGuestGeneration,

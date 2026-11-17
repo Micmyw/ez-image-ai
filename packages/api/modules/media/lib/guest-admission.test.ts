@@ -33,6 +33,32 @@ function submitGuestGenerationForGuest(...args: Parameters<typeof submitActual>)
 afterEach(() => vi.unstubAllEnvs());
 
 describe("guest admission pre-transaction boundary", () => {
+	it("denies new GTA trials while preserving accepted request replay", async () => {
+		const dependencies = validDependencies();
+		const input = {
+			...validInput(),
+			prompt:
+				"Coastal artwork preset gta-coastal-v1. Task wallpaper. Scene beach-sunset. Input photo. Format phone. Portrait left.",
+		};
+		await expect(
+			submitGuestGenerationForGuest(validBoundary(), input, dependencies),
+		).rejects.toThrow("GUEST_PRODUCT_UNAVAILABLE");
+		expect(dependencies.moderatePrompt).not.toHaveBeenCalled();
+		expect(dependencies.createTransaction).not.toHaveBeenCalled();
+		const accepted = await submitGuestGenerationForGuest(
+			validBoundary(),
+			validInput(),
+			dependencies,
+		);
+		vi.clearAllMocks();
+		await expect(
+			submitGuestGenerationForGuest(validBoundary(), input, {
+				...dependencies,
+				findReplay: vi.fn(async () => accepted),
+			}),
+		).resolves.toEqual(accepted);
+		expect(dependencies.createTransaction).not.toHaveBeenCalled();
+	});
 	it.each(["IN", "CN", "BR", "MX", "JP", "AU", "TR", undefined])(
 		"passes %s to the single grant boundary without a second API country rejection",
 		async (country) => {

@@ -94,7 +94,7 @@ export function safeAuthDraftReturnPath(value: string): string | null {
 		const url = new URL(value, LOCAL_ORIGIN);
 		if (url.origin !== LOCAL_ORIGIN || url.pathname.startsWith("//")) return null;
 		if (
-			!/^\/(?:$|create$|image-to-image$|photo-to-coloring-page$|christmas-wallpaper$|gpt-image-2-6(?:-flare|-sunburst)?$|minimax-h3-image$|seedream-5-5$|ai-svg-generator$|ai-gif-generator$|models\/[a-z0-9-]+$|blog\/[a-z0-9-]+$|effects\/[a-z0-9-]+$)/.test(
+			!/^\/(?:$|create$|image-to-image$|photo-to-coloring-page$|christmas-wallpaper$|gta-6-wallpaper$|gta-loading-screen-generator$|gpt-image-2-6(?:-flare|-sunburst)?$|minimax-h3-image$|seedream-5-5$|ai-svg-generator$|ai-gif-generator$|models\/[a-z0-9-]+$|blog\/[a-z0-9-]+$|effects\/[a-z0-9-]+$)/.test(
 				url.pathname,
 			)
 		)

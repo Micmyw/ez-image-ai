@@ -40,27 +40,37 @@ export async function buildChristmasResultPreview(app) {
 	const mocks = {
 		"use-job": `export const useJob = () => ({ data: ${JSON.stringify(job)}, refetch: async () => {} });`,
 		"use-job-history": `export const useJobHistory = () => ({ data: { pages: [{ items: ${JSON.stringify(jobs)} }] } });`,
-		"@shared/lib/orpc-client": `export const orpcClient = { media: { cancelGeneration: async () => {} } };`,
+		"@shared/lib/orpc-client": `export const orpcClient = { media: { cancelGeneration: async () => {}, getGenerationDuration: async () => ({ kind: "processing" }) } };`,
 		"@shared/lib/growth-analytics": `export const saasGrowthFunnel = { generationSucceeded: async () => {}, generationFailed: async () => {} };`,
+		"@repo/utils/lib/growth-analytics-browser": `
+let revision = 0;
+export const growthConsentRevision = () => revision;
+export const invalidatePendingBrowserGrowthAnalytics = () => { revision++; };
+export const registerBrowserGrowthAnalytics = () => {};
+export const trackBrowserGrowthEvent = async () => "blocked";`,
 		"next/link": `export default function Link({ children, href, ...props }) { return <a href={href} {...props}>{children}</a>; }`,
 		"next/navigation": `export const useRouter = () => ({ push() {}, replace() {}, prefetch() {} }); export const usePathname = () => "/christmas-wallpaper"; export const useSearchParams = () => new URLSearchParams();`,
 		"next/dynamic": `export default function dynamic() { return () => null; }`,
 	};
+	// Keep duration-estimate queries on the same local client boundary.
+	mocks["orpc-client"] = mocks["@shared/lib/orpc-client"];
 	try {
 		const result = await build({
 			stdin: {
 				contents: `
 import { createRoot } from "react-dom/client";
 import { NextIntlClientProvider } from "next-intl";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { EditorResultPanel } from "./modules/media/components/editor/EditorResultPanel";
 import { RecentJobQueue } from "./modules/media/components/RecentJobQueue";
 import marketing from "../../packages/i18n/translations/en/marketing.json";
 import saas from "../../packages/i18n/translations/en/saas.json";
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
 createRoot(document.getElementById("christmas-account-fixture")).render(
-  <NextIntlClientProvider locale="en" timeZone="UTC" messages={{ ...marketing, ...saas }}>
+  <QueryClientProvider client={queryClient}><NextIntlClientProvider locale="en" timeZone="UTC" messages={{ ...marketing, ...saas }}>
     <div id="current-editor-result"><EditorResultPanel jobId="local-visual-check" onNew={() => {}} /></div>
     <div className="mt-5"><RecentJobQueue selectedJobId="local-visual-check" onSelect={() => {}} /></div>
-  </NextIntlClientProvider>
+  </NextIntlClientProvider></QueryClientProvider>
 );`,
 				loader: "tsx",
 				resolveDir: app,

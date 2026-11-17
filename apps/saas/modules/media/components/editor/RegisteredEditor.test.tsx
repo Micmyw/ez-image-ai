@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
 	workspace: vi.fn(),
 	preparation: vi.fn(),
 	materialize: vi.fn(async () => false),
+	paidImageAccess: vi.fn(async () => false),
 }));
 vi.mock("@auth/lib/server", () => ({ getSession: async () => ({ user: { id: "owner" } }) }));
 vi.mock("@media/components/CreatorWorkspace", () => ({
@@ -30,6 +31,9 @@ vi.mock("@repo/database", () => ({
 }));
 vi.mock("@repo/database/client", () => ({
 	db: { mediaAsset: { findFirst: mocks.asset }, generationJob: { findFirst: mocks.job } },
+}));
+vi.mock("@repo/database/media-image-credit-access", () => ({
+	hasSpendablePurchasedImageCredits: mocks.paidImageAccess,
 }));
 vi.mock("@repo/api/modules/media/lib/executable-route-graph", () => ({
 	getCurrentExecutableRouteGraphOptions: async () => ({}),
@@ -52,6 +56,7 @@ import { RegisteredEditor } from "./RegisteredEditor";
 describe("selected-image tool recovery", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		mocks.paidImageAccess.mockResolvedValue(false);
 		mocks.asset.mockResolvedValue({
 			id: "output",
 			status: "READY",
@@ -60,6 +65,24 @@ describe("selected-image tool recovery", () => {
 		});
 		mocks.cookies.mockResolvedValue({ get: () => undefined });
 		mocks.job.mockResolvedValue(null);
+	});
+	it("restores all models and tiers for an owner with purchased credits and no subscription", async () => {
+		mocks.paidImageAccess.mockResolvedValue(true);
+		renderToStaticMarkup(await RegisteredEditor({ searchParams: Promise.resolve({}) }));
+		expect(mocks.workspace).toHaveBeenCalledWith(
+			expect.objectContaining({
+				allowedProductKeys: expect.arrayContaining([
+					"image-minimax-h3",
+					"image-seedream-5-5",
+					"image-gpt-image-2-6-sunburst",
+				]),
+				allowedImageSkuKeys: expect.arrayContaining([
+					"minimax-h3-4k",
+					"seedream-5-5-2k",
+					"gpt-image-2-6-sunburst-4k",
+				]),
+			}),
+		);
 	});
 	it("continues a text result with its original model, size and controls from the owned output job", async () => {
 		mocks.job.mockResolvedValue({

@@ -15,6 +15,31 @@ import { auth } from "@repo/auth";
 import { getGuestJob } from "./get-guest-job";
 
 describe("getGuestJob", () => {
+	it("returns only the public preset header from this owner's frozen prompt", async () => {
+		const header =
+			"Coastal artwork preset gta-coastal-v1. Task wallpaper. Scene beach-sunset. Input photo. Format phone. Portrait right.";
+		databaseMocks.getGuestJobSnapshot.mockResolvedValue({
+			jobId: "job-1",
+			stage: "READY",
+			projectedDispatchAt: new Date("2035-01-01T00:00:00Z"),
+			estimateExpiresAt: new Date("2035-01-01T00:01:00Z"),
+			resultExpiresAt: new Date("2035-01-02T00:00:00Z"),
+			resultAssetId: "output",
+			watermarked: true,
+			trialConsumed: true,
+			linkReady: true,
+			inputPrompt: `${header}\n\nPrivate text and customer name and sourceAssetId`,
+		});
+		const result = await call(
+			getGuestJob,
+			{ jobId: "job-1" },
+			{ context: { headers: new Headers() } },
+		);
+		expect(result.toolPrompt).toBe(header);
+		expect(JSON.stringify(result)).not.toMatch(
+			/Private text|customer name|sourceAssetId|inputPrompt/,
+		);
+	});
 	it.each(["REJECTED", "REVIEW", "ERROR"])(
 		"explains a guest output %s without exposing diagnostics",
 		async (status) => {

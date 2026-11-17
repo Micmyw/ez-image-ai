@@ -10,6 +10,13 @@ import {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("image model URL selection", () => {
+	it.each(["/gta-6-wallpaper", "/gta-loading-screen-generator"])(
+		"defaults %s to Sunburst and preserves customer model changes",
+		(route) => {
+			expect(resolveRequestedImageModel(route, null)).toBe("image-gpt-image-2-6-sunburst");
+			expect(resolveRequestedImageModel(route, "image-minimax-h3")).toBe("image-minimax-h3");
+		},
+	);
 	it.each(["flare", "sunburst"] as const)(
 		"opens GPT Image 2.6 %s on its own model page",
 		(variant) => {

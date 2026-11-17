@@ -18,7 +18,7 @@ import {
 	isGptImage26Sku,
 	type ProductModelKey,
 } from "@repo/config";
-import { IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY } from "@repo/config/image-pass";
+import { IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY } from "@repo/config/image-pass";
 import type { Prisma } from "@repo/database";
 import {
 	assertImagePassSelection,
@@ -27,11 +27,14 @@ import {
 	type GenerationFundingSource,
 } from "@repo/database/media-image-passes";
 
+import { publicToolPrompt } from "./public-tool-prompt";
+
 export function buildMediaQuote(
 	input: {
 		productKey: ProductModelKey;
 		input: MediaModelInput;
 		fundingSource?: GenerationFundingSource;
+		generationAccess?: "paid";
 		/** Server-only retry input; an explicit undefined preserves an unmarked historical policy. */
 		imagePassBenefitPolicy?: unknown;
 	},
@@ -42,7 +45,7 @@ export function buildMediaQuote(
 	const fundingSource = generationFundingSource({ fundingSource: input.fundingSource });
 	const imagePassBenefitPolicy = Object.hasOwn(input, "imagePassBenefitPolicy")
 		? input.imagePassBenefitPolicy
-		: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY;
+		: IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY;
 	if (fundingSource === "IMAGE_PASS") {
 		assertImagePassBenefitSelection({
 			skuKey: quote.skuKey,
@@ -95,6 +98,9 @@ export function buildMediaQuote(
 		maximumRouteCostMicros: routeGraph.maximumRouteCostMicros,
 	};
 	const pricingSnapshot: Prisma.InputJsonObject = {
+		...(input.generationAccess === "paid" || publicToolPrompt(input.input.prompt)
+			? { requiresPaidImageAccess: true }
+			: {}),
 		...(quote.skuKey && isGptImage26Sku(quote.skuKey)
 			? {
 					providerCostBasis: GPT_IMAGE_26_COST_BASIS,

@@ -30,6 +30,7 @@ type GenerationSubmission = {
 	input: GenerationInput;
 	expectedCredits: string;
 	fundingSource?: "CREDITS" | "IMAGE_PASS";
+	generationAccess?: "paid";
 	temporaryReferenceToken?: string;
 };
 
@@ -151,6 +152,7 @@ export function useGeneration({
 			productKey: EditorProductKey;
 			input: GenerationInput;
 			fundingSource?: "CREDITS" | "IMAGE_PASS";
+			generationAccess?: "paid";
 			temporaryReferenceToken?: string;
 		}) => {
 			const attribution = captureBrowserGrowthAnalyticsAttribution();

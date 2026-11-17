@@ -6,6 +6,7 @@ const state = vi.hoisted(() => ({
 	ownerId: "owner-a",
 	mode: "image" as "image" | "video",
 	loaded: true,
+	catalogReady: true,
 	passAvailable: 3 as number | undefined,
 	passReserved: 0,
 	passFailed: false,
@@ -14,6 +15,7 @@ const state = vi.hoisted(() => ({
 		| undefined,
 	subscriptionFreeSkuKeys: undefined as string[] | undefined,
 	creditFailed: false,
+	hasPaidImageAccess: undefined as boolean | undefined,
 	spendableCredits: "100",
 	adminTestSkuKeys: [] as string[],
 	generationPending: false,
@@ -46,10 +48,24 @@ const state = vi.hoisted(() => ({
 	beginNewAction: vi.fn(),
 	visibility: vi.fn(),
 	toolBinding: vi.fn(),
+	toolComposer: null as null | {
+		beforeReference: React.ReactNode;
+		afterReference: React.ReactNode;
+		summary: React.ReactNode;
+	},
+	toolPrompt: null as null | {
+		requireReference?: boolean;
+		suspendReference?: boolean;
+		allowReference?: boolean;
+		lockAspectRatio?: boolean;
+		returnPath?: "/gta-6-wallpaper" | "/gta-loading-screen-generator";
+		generationAccess?: "paid";
+	},
 	requestedOutputFormat: undefined as "svg" | "gif" | undefined,
 	effectEditor: null as import("../../effects/lib/editor-context").EffectEditorContextValue | null,
 	push: vi.fn(),
 }));
+vi.mock("@media/lib/tool-composer-context", () => ({ useToolComposer: () => state.toolComposer }));
 vi.mock("react", async (importOriginal) => ({
 	...(await importOriginal<typeof import("react")>()),
 	useRef: (value: unknown) => (state.slots[state.cursor++] ??= { current: value }),
@@ -87,7 +103,7 @@ vi.mock("../../effects/lib/editor-context", () => ({
 	useEffectEditorBinding: () => {},
 }));
 vi.mock("../lib/tool-prompt-context", () => ({
-	useToolPrompt: () => null,
+	useToolPrompt: () => state.toolPrompt,
 	useToolPromptBinding: state.toolBinding,
 }));
 vi.mock("../../landing/lib/use-showcase-prompt", () => ({
@@ -108,97 +124,113 @@ vi.mock("../hooks/use-generation", () => ({
 		checkDuplicatePrompt: state.checkDuplicatePrompt,
 		prepareGeneration: state.prepareGeneration,
 		catalog: {
-			data: {
-				products: [
-					{
-						key: "image-nano-banana-2",
-						label: "Nano Banana 2",
-						credits: 9,
-						skuMatrix: {
-							defaultSkuKey: "nano-banana-2-1k",
-							dimensions: [],
-							cells: [
-								{ skuKey: "nano-banana-2-1k", credits: 9, aspectRatios: ["4:5"], controls: [] },
-								{ skuKey: "nano-banana-2-2k", credits: 13, aspectRatios: ["4:5"], controls: [] },
-							],
-						},
-					},
-					...(["flare", "sunburst"] as const).map((model) => ({
-						key: `image-gpt-image-2-6-${model}`,
-						label: `GPT Image 2.6 ${model}`,
-						credits: model === "flare" ? 20 : 25,
-						skuMatrix: {
-							defaultSkuKey: `gpt-image-2-6-${model}-1k`,
-							dimensions: [],
-							cells: ["1k", "2k", "4k"].map((size, index) => ({
-								skuKey: `gpt-image-2-6-${model}-${size}`,
-								credits: (model === "flare" ? 20 : 25) * 2 ** index,
-								aspectRatios: ["1:1"],
-								controls: [
-									{
-										key: "outputFormat",
-										label: "Format",
-										defaultValue: "png",
-										options: (size === "1k" ? ["png", "svg", "gif"] : ["png"]).map((key) => ({
-											key,
-											label: key,
-										})),
-									},
-								],
+			data: state.catalogReady
+				? {
+						products: [
+							{
+								key: "image-nano-banana-2",
+								label: "Nano Banana 2",
+								credits: 9,
+								skuMatrix: {
+									defaultSkuKey: "nano-banana-2-1k",
+									dimensions: [],
+									cells: [
+										{ skuKey: "nano-banana-2-1k", credits: 9, aspectRatios: ["4:5"], controls: [] },
+										{
+											skuKey: "nano-banana-2-2k",
+											credits: 13,
+											aspectRatios: ["4:5"],
+											controls: [],
+										},
+									],
+								},
+							},
+							...(["flare", "sunburst"] as const).map((model) => ({
+								key: `image-gpt-image-2-6-${model}`,
+								label: `GPT Image 2.6 ${model}`,
+								credits: model === "flare" ? 20 : 25,
+								skuMatrix: {
+									defaultSkuKey: `gpt-image-2-6-${model}-1k`,
+									dimensions: [],
+									cells: ["1k", "2k", "4k"].map((size, index) => ({
+										skuKey: `gpt-image-2-6-${model}-${size}`,
+										credits: (model === "flare" ? 20 : 25) * 2 ** index,
+										aspectRatios: ["1:1"],
+										controls: [
+											{
+												key: "outputFormat",
+												label: "Format",
+												defaultValue: "png",
+												options: (size === "1k" ? ["png", "svg", "gif"] : ["png"]).map((key) => ({
+													key,
+													label: key,
+												})),
+											},
+										],
+									})),
+								},
 							})),
-						},
-					})),
-					{
-						key: "image-nano-banana-2-lite",
-						label: "Nano",
-						credits: 5,
-						skuMatrix: {
-							defaultSkuKey: "nano-banana-2-lite-1k",
-							dimensions: [],
-							cells: [
-								{
-									skuKey: "nano-banana-2-lite-1k",
-									credits: 5,
-									aspectRatios: ["auto", "1:1"],
-									controls: [],
+							{
+								key: "image-nano-banana-2-lite",
+								label: "Nano",
+								credits: 5,
+								skuMatrix: {
+									defaultSkuKey: "nano-banana-2-lite-1k",
+									dimensions: [],
+									cells: [
+										{
+											skuKey: "nano-banana-2-lite-1k",
+											credits: 5,
+											aspectRatios: ["auto", "1:1"],
+											controls: [],
+										},
+									],
 								},
-							],
-						},
-					},
-					{
-						key: "image-nano-banana-pro",
-						label: "Nano Banana Pro",
-						credits: 40,
-						skuMatrix: {
-							defaultSkuKey: "nano-banana-pro-4k",
-							dimensions: [],
-							cells: [
-								{ skuKey: "nano-banana-pro-4k", credits: 40, aspectRatios: ["1:1"], controls: [] },
-							],
-						},
-					},
-					{
-						key: "image-gpt-image-2-5-sunburst",
-						label: "GPT Image 2.5 Sunburst",
-						credits: 7,
-						skuMatrix: {
-							defaultSkuKey: "gpt-image-2-5-sunburst-1k",
-							dimensions: [],
-							cells: [
-								{
-									skuKey: "gpt-image-2-5-sunburst-1k",
-									credits: 7,
-									aspectRatios: ["auto", "1:1"],
-									controls: [],
+							},
+							{
+								key: "image-nano-banana-pro",
+								label: "Nano Banana Pro",
+								credits: 40,
+								skuMatrix: {
+									defaultSkuKey: "nano-banana-pro-4k",
+									dimensions: [],
+									cells: [
+										{
+											skuKey: "nano-banana-pro-4k",
+											credits: 40,
+											aspectRatios: ["1:1"],
+											controls: [],
+										},
+									],
 								},
-							],
-						},
-					},
-				],
-			},
+							},
+							{
+								key: "image-gpt-image-2-5-sunburst",
+								label: "GPT Image 2.5 Sunburst",
+								credits: 7,
+								skuMatrix: {
+									defaultSkuKey: "gpt-image-2-5-sunburst-1k",
+									dimensions: [],
+									cells: [
+										{
+											skuKey: "gpt-image-2-5-sunburst-1k",
+											credits: 7,
+											aspectRatios: ["auto", "1:1"],
+											controls: [],
+										},
+									],
+								},
+							},
+						],
+					}
+				: undefined,
 		},
 		creditAccount: {
-			data: { spendableCredits: state.spendableCredits, adminTestSkuKeys: state.adminTestSkuKeys },
+			data: {
+				spendableCredits: state.spendableCredits,
+				adminTestSkuKeys: state.adminTestSkuKeys,
+				hasPaidImageAccess: state.hasPaidImageAccess,
+			},
 			isError: state.creditFailed,
 		},
 		imagePass: {
@@ -335,12 +367,14 @@ beforeEach(() => {
 	state.ownerId = "owner-a";
 	state.mode = "image";
 	state.loaded = true;
+	state.catalogReady = true;
 	state.passAvailable = 3;
 	state.passReserved = 0;
 	state.passFailed = false;
 	state.passSkuKeys = ["nano-banana-2-lite-1k", "gpt-image-2-5-sunburst-1k", "nano-banana-pro-4k"];
 	state.subscriptionFreeSkuKeys = undefined;
 	state.creditFailed = false;
+	state.hasPaidImageAccess = undefined;
 	state.spendableCredits = "100";
 	state.adminTestSkuKeys = [];
 	state.generationPending = false;
@@ -359,6 +393,8 @@ beforeEach(() => {
 	state.beginNewAction.mockClear();
 	state.visibility.mockReset();
 	state.toolBinding.mockReset();
+	state.toolPrompt = null;
+	state.toolComposer = null;
 	state.requestedOutputFormat = undefined;
 	state.effectEditor = null;
 	state.push.mockReset();
@@ -384,6 +420,133 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 describe("GenerationForm submission callbacks", () => {
+	it("hides raw preset editing while preserving the complete submission prompt", async () => {
+		state.toolComposer = {
+			beforeReference: "Upload first",
+			afterReference: "Choose scene",
+			summary: "Current composition",
+		};
+		state.values.prompt = "Coastal preset with fixed composition and optional details";
+		const tree = render();
+		expect(find(tree, PromptPanel).props.hidePrompt).toBe(true);
+		expect(find(tree, PromptPanel).props.value).toBe(state.values.prompt);
+		submit(tree);
+		await flush();
+		expect(state.mutateAsync).toHaveBeenCalledWith(
+			expect.objectContaining({ input: expect.objectContaining({ prompt: state.values.prompt }) }),
+		);
+	});
+	it("retains GTA draft changes while the catalog loads without preparing or submitting", async () => {
+		vi.useFakeTimers();
+		state.catalogReady = false;
+		state.toolPrompt = { lockAspectRatio: true, returnPath: "/gta-6-wallpaper" };
+		let tree = render();
+		const binding = state.toolBinding.mock.calls.at(-1)![0];
+		expect(binding.busy).toBe(false);
+		expect(binding.applyPrompt("Restored coastal scene", { aspectRatio: "16:9" })).toBe(true);
+		expect(state.values).toMatchObject({ prompt: "Restored coastal scene", aspectRatio: "16:9" });
+		tree = render();
+		await vi.advanceTimersByTimeAsync(1_200);
+		submit(tree);
+		await flush();
+		expect(state.prepareGeneration).not.toHaveBeenCalled();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+		state.catalogReady = true;
+		render();
+		expect(
+			state.toolBinding.mock.calls
+				.at(-1)![0]
+				.applyPrompt("Unsupported new scene", { aspectRatio: "16:9" }),
+		).toBe(false);
+		expect(state.values.prompt).toBe("Restored coastal scene");
+	});
+	it("keeps unknown-catalog ratio rejection for other tools", () => {
+		state.catalogReady = false;
+		render();
+		expect(
+			state.toolBinding.mock.calls.at(-1)![0].applyPrompt("Other tool", { aspectRatio: "16:9" }),
+		).toBe(false);
+		expect(state.values.prompt).toBe("A paper landscape");
+	});
+	it("keeps the GTA screen ratio when the model changes and blocks an unsupported ratio", async () => {
+		vi.useFakeTimers();
+		state.toolPrompt = { lockAspectRatio: true, returnPath: "/gta-6-wallpaper" };
+		state.values.aspectRatio = "1:1";
+		let tree = render();
+		expect(find(tree, ImageOutputSettings).props.lockAspectRatio).toBe(true);
+		(find(tree, ImageModelSelector).props.onChange as (key: string) => void)("image-nano-banana-2");
+		expect(state.values.aspectRatio).toBe("1:1");
+		tree = render();
+		expect(renderToStaticMarkup(find(tree, "output"))).toContain("unsupportedRatio");
+		await vi.advanceTimersByTimeAsync(1_200);
+		expect(state.prepareGeneration).not.toHaveBeenCalled();
+		submit(tree);
+		await flush();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("requires an uploaded reference for a GTA photo draft and never submits on restoration", async () => {
+		vi.useFakeTimers();
+		state.toolPrompt = { requireReference: true, returnPath: "/gta-loading-screen-generator" };
+		const tree = render();
+		await vi.advanceTimersByTimeAsync(1_200);
+		expect(state.prepareGeneration).not.toHaveBeenCalled();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+		submit(tree);
+		await flush();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
+	it("suspends the retained photo and receipt for a scene, then reuses them only on a manual photo generation", async () => {
+		vi.useFakeTimers();
+		const assetId = "10000000-0000-4000-8000-000000000001";
+		state.values.sourceAssetId = assetId;
+		state.toolPrompt = {
+			suspendReference: true,
+			allowReference: false,
+			returnPath: "/gta-6-wallpaper",
+		};
+		const options = {
+			initialSourceReady: true,
+			initialDraft: {
+				productKey: "image-nano-banana-2-lite" as const,
+				input: {
+					kind: "image-to-image" as const,
+					prompt: state.values.prompt,
+					sourceAssetId: assetId,
+					skuKey: "nano-banana-2-lite-1k" as const,
+					aspectRatio: "auto" as const,
+				},
+			},
+			initialTemporaryReference: {
+				assetId,
+				token: "private-receipt",
+				expiresAt: "2035-01-01T00:00:00.000Z",
+			},
+		};
+		let tree = render(vi.fn(), null, undefined, options);
+		await vi.advanceTimersByTimeAsync(1_200);
+		expect(state.prepareGeneration).toHaveBeenCalledWith(
+			expect.objectContaining({
+				input: expect.objectContaining({ kind: "text-to-image" }),
+				temporaryReferenceToken: undefined,
+			}),
+		);
+		expect(state.prepareGeneration.mock.calls[0]![0].input).not.toHaveProperty("sourceAssetId");
+		expect(state.values.sourceAssetId).toBe(assetId);
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+		submit(tree);
+		await flush();
+		expect(state.mutateAsync.mock.calls[0]![0].input).not.toHaveProperty("sourceAssetId");
+		expect(state.mutateAsync.mock.calls[0]![0].temporaryReferenceToken).toBeUndefined();
+		state.toolPrompt = { requireReference: true, returnPath: "/gta-6-wallpaper" };
+		tree = render(vi.fn(), null, undefined, options);
+		expect(state.mutateAsync).toHaveBeenCalledTimes(1);
+		submit(tree);
+		await flush();
+		expect(state.mutateAsync.mock.calls[1]![0]).toMatchObject({
+			input: { kind: "image-to-image", sourceAssetId: assetId },
+			temporaryReferenceToken: "private-receipt",
+		});
+	});
 	it("prepares a complete draft after a quiet period without creating a job", async () => {
 		vi.useFakeTimers();
 		render();
@@ -504,7 +667,7 @@ describe("GenerationForm submission callbacks", () => {
 		expect(state.push).not.toHaveBeenCalled();
 		expect(state.mutateAsync).not.toHaveBeenCalled();
 	});
-	it("hides Sheru prompt editing while retaining the existing prompt submission", async () => {
+	it("allows Sheru prompt editing and submits the customer's changed prompt", async () => {
 		paidTemplate();
 		const panel = find(renderPaid(), PromptPanel) as unknown as ReactElement<
 			React.ComponentProps<typeof PromptPanel>
@@ -515,19 +678,32 @@ describe("GenerationForm submission callbacks", () => {
 			}),
 		);
 		expect(markup).toContain("Photo upload");
-		expect(markup).not.toContain("textarea");
-		expect(markup).not.toContain("My custom lion selfie");
+		expect(markup).toContain("textarea");
+		expect(markup).toContain("My custom lion selfie");
+		panel.props.onChange("My edited lion portrait");
 		state.passAvailable = 1;
 		state.passSkuKeys = ["nano-banana-2-1k"];
-		state.subscriptionFreeSkuKeys = [];
+		state.subscriptionFreeSkuKeys = ["nano-banana-2-1k"];
 		renderPaid();
 		submit(renderPaid());
 		await flush();
 		expect(state.mutateAsync).toHaveBeenCalledWith(
 			expect.objectContaining({
-				input: expect.objectContaining({ prompt: "My custom lion selfie" }),
+				generationAccess: "paid",
+				input: expect.objectContaining({ prompt: "My edited lion portrait" }),
 			}),
 		);
+	});
+	it("keeps paid template access in quiet-period preparation", async () => {
+		vi.useFakeTimers();
+		paidTemplate();
+		state.hasPaidImageAccess = true;
+		renderPaid();
+		await vi.advanceTimersByTimeAsync(1_200);
+		expect(state.prepareGeneration).toHaveBeenCalledWith(
+			expect.objectContaining({ generationAccess: "paid" }),
+		);
+		expect(state.mutateAsync).not.toHaveBeenCalled();
 	});
 	it.each(["png", "svg", "gif"] as const)(
 		"defaults an owned subscription-free pass for GPT 2.6 %s without credits or a subscription",
@@ -607,11 +783,48 @@ describe("GenerationForm submission callbacks", () => {
 		expect(find(renderPaid(), PaidTemplateDialog).props.open).toBe(true);
 		expect(state.mutateAsync).not.toHaveBeenCalled();
 	});
+	it.each([false, true])(
+		"GTA basic model uses purchased access instead of gifted credit balance (%s)",
+		async (hasPaidImageAccess) => {
+			state.toolPrompt = { generationAccess: "paid", returnPath: "/gta-6-wallpaper" };
+			state.hasPaidImageAccess = hasPaidImageAccess;
+			state.passAvailable = 0;
+			submit(render(vi.fn(), null, ["image-nano-banana-2-lite"]));
+			await flush();
+			if (hasPaidImageAccess)
+				expect(state.mutateAsync).toHaveBeenCalledWith(
+					expect.objectContaining({ fundingSource: "CREDITS" }),
+				);
+			else {
+				expect(state.mutateAsync).not.toHaveBeenCalled();
+				expect(
+					find(render(vi.fn(), null, ["image-nano-banana-2-lite"]), PaidTemplateDialog).props.open,
+				).toBe(true);
+			}
+		},
+	);
+	it("lets the main action open the photo picker when Sheru has no reference", () => {
+		paidTemplate();
+		state.values.sourceAssetId = "";
+		const tree = renderPaid();
+		function action(node: React.ReactNode): ReactElement<Record<string, any>> | undefined {
+			if (!React.isValidElement<Record<string, any>>(node)) return;
+			if (node.props["data-test"] === "generation-submit") return node;
+			return React.Children.toArray(node.props.children).map(action).find(Boolean);
+		}
+		const button = action(tree)!;
+		expect(button.props.disabled).toBe(false);
+		expect(button.props.type).toBe("button");
+		const click = vi.fn();
+		button.props.onClick({ currentTarget: { form: { querySelector: () => ({ click }) } } });
+		expect(click).toHaveBeenCalledOnce();
+		expect(state.mutateAsync).not.toHaveBeenCalled();
+	});
 	it("uses a qualifying existing pass for the paid template without another purchase", async () => {
 		paidTemplate();
 		state.passAvailable = 3;
 		state.passSkuKeys = ["nano-banana-2-1k"];
-		state.subscriptionFreeSkuKeys = [];
+		state.subscriptionFreeSkuKeys = ["nano-banana-2-1k"];
 		renderPaid();
 		const tree = renderPaid();
 		expect(find(tree, ImageFundingSelector).props.value).toBe("IMAGE_PASS");
@@ -675,20 +888,26 @@ describe("GenerationForm submission callbacks", () => {
 		).toBe(true);
 		expect(state.mutateAsync).not.toHaveBeenCalled();
 	});
-	it("keeps the premium model and tier fixed and blocks a mismatched restored selection", () => {
+	it("allows every valid model and tier but still requires paid access", () => {
 		paidTemplate();
 		const tree = renderPaid();
 		const selector = find(tree, ImageModelSelector);
-		expect(selector.props.disabled).toBe(true);
+		expect(selector.props.disabled).toBe(false);
 		(selector.props.onChange as (key: string, sku: string) => void)(
 			"image-nano-banana-2-lite",
 			"nano-banana-2-lite-1k",
 		);
-		expect(state.values.productKey).toBe("image-nano-banana-2");
+		expect(state.values.productKey).toBe("image-nano-banana-2-lite");
+		state.values.productKey = "image-nano-banana-2";
 		(find(tree, ImageOutputSettings).props.onSkuChange as (sku: string) => void)(
 			"nano-banana-2-2k",
 		);
-		expect(state.values.skuKey).toBe("nano-banana-2-1k");
+		expect(state.values.skuKey).toBe("nano-banana-2-2k");
+		(selector.props.onChange as (key: string, sku: string) => void)(
+			"image-gpt-image-2-6-sunburst",
+			"gpt-image-2-6-sunburst-1k",
+		);
+		expect(state.values.productKey).toBe("image-gpt-image-2-6-sunburst");
 		state.values.productKey = "image-nano-banana-2-lite";
 		state.values.skuKey = "nano-banana-2-lite-1k";
 		submit(renderPaid());
@@ -881,7 +1100,7 @@ describe("GenerationForm submission callbacks", () => {
 			aspectRatio: "1:1",
 			outputFormat: "svg",
 		};
-		state.subscriptionFreeSkuKeys = [];
+		state.subscriptionFreeSkuKeys = ["nano-banana-2-1k"];
 		const allowed = resolveEditorAllowedProductKeys(undefined, undefined);
 		(
 			find(render(vi.fn(), null, allowed), ImageFundingSelector).props.onChange as (

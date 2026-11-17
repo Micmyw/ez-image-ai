@@ -6,6 +6,8 @@ import { useEffect, useRef } from "react";
 import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
 
 const imageToolModels: Record<string, EditorProductKey | undefined> = {
+	"/gta-6-wallpaper": "image-gpt-image-2-6-sunburst",
+	"/gta-loading-screen-generator": "image-gpt-image-2-6-sunburst",
 	"/minimax-h3-image": "image-minimax-h3",
 	"/seedream-5-5": "image-seedream-5-5",
 	"/gpt-image-2-6-flare": "image-gpt-image-2-6-flare",

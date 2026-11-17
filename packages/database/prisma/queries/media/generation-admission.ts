@@ -8,6 +8,7 @@ import {
 
 import { findEffectivePaidSubscription } from "./billing";
 import { loadImageAdminTestSkuKeys } from "./image-admin-test-access";
+import { hasSpendablePurchasedImageCredits } from "./image-credit-access";
 import { assertImagePassAvailable, type GenerationFundingSource } from "./image-passes";
 import type { MediaDatabaseClient } from "./types";
 
@@ -22,6 +23,7 @@ export async function loadCurrentGenerationAdmission(
 		skuKey?: unknown;
 		imagePassBenefitPolicy?: unknown;
 		outputFormat?: unknown;
+		requiresPaidImageAccess?: boolean;
 	},
 	tx: MediaDatabaseClient,
 ) {
@@ -42,7 +44,20 @@ export async function loadCurrentGenerationAdmission(
 	);
 	const entitlement = resolvePlanEntitlement(subscription?.plan.metadata, subscription?.plan.name);
 	const planIncludesProduct = planIncludesImageSelection(entitlement, productKey, input.skuKey);
-	if (!planIncludesProduct && input.fundingSource !== "IMAGE_PASS") {
+	const needsPurchasedCreditAccess =
+		!subscription &&
+		input.fundingSource !== "IMAGE_PASS" &&
+		(!planIncludesProduct || input.requiresPaidImageAccess);
+	if (needsPurchasedCreditAccess) {
+		// Serialize qualification with spending and refund projections, then read fresh eligibility.
+		await tx.$queryRaw`SELECT "id" FROM "credit_account" WHERE "ownerType" = 'USER' AND "ownerId" = ${input.ownerId} FOR UPDATE`;
+	}
+	const hasPaidImageAccess =
+		Boolean(subscription) ||
+		(needsPurchasedCreditAccess && (await hasSpendablePurchasedImageCredits(input.ownerId, tx)));
+	if (input.requiresPaidImageAccess && !hasPaidImageAccess && input.fundingSource !== "IMAGE_PASS")
+		throw new Error("ENTITLEMENT_REQUIRED");
+	if (!hasPaidImageAccess && !planIncludesProduct && input.fundingSource !== "IMAGE_PASS") {
 		const testSkus = await loadImageAdminTestSkuKeys(input.ownerId, tx);
 		if (!testSkus.some((sku) => sku === input.skuKey)) throw new Error("ENTITLEMENT_REQUIRED");
 	}
@@ -54,7 +69,8 @@ export async function loadCurrentGenerationAdmission(
 				skuKey: input.skuKey,
 				imagePassBenefitPolicy: input.imagePassBenefitPolicy,
 				outputFormat: input.outputFormat,
-				requireModelAccess: !planIncludesProduct,
+				requireModelAccess:
+					!planIncludesProduct || Boolean(input.requiresPaidImageAccess && !hasPaidImageAccess),
 			},
 			tx,
 		);

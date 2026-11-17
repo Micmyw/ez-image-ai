@@ -34,6 +34,20 @@ describe("draft continuation identity router", () => {
 	});
 
 	afterEach(() => vi.unstubAllEnvs());
+	it.each(["/gta-6-wallpaper", "/gta-loading-screen-generator"])(
+		"returns a registered claimed photo to its original GTA task %s",
+		async (path) => {
+			mocks.getSession.mockResolvedValue({ user: { id: "owner_1", isAnonymous: false } });
+			const response = await GET(
+				new Request("https://app.test/draft/continue", {
+					headers: { cookie: `media_effect_return=${encodeURIComponent(path)}` },
+				}),
+			);
+			expect(response.headers.get("location")).toBe(`https://app.test${path}`);
+			expect(response.headers.getSetCookie().join("\n")).toContain(`Path=${path}`);
+			expect(mocks.claimRegistered).toHaveBeenCalledOnce();
+		},
+	);
 	it("claims an inline guest with the same owner boundary and no navigation", async () => {
 		mocks.getSession.mockResolvedValue({ user: { id: "guest_1", isAnonymous: true } });
 		const response = await GET(

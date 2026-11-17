@@ -182,6 +182,13 @@ describe("local authentication draft capsules", () => {
 		).not.toBeNull();
 	});
 	it("retains safe model/preset destinations and removes arbitrary private URL state", () => {
+		for (const path of ["/gta-6-wallpaper", "/gta-loading-screen-generator"]) {
+			expect(
+				safeAuthDraftReturnPath(
+					`${path}?model=image-minimax-h3&name=private&sourceAssetId=secret#scene=marina`,
+				),
+			).toBe(`${path}?model=image-minimax-h3`);
+		}
 		expect(
 			safeAuthDraftReturnPath(
 				"/blog/sheru-bhai-ai-photo?preset=hero&resume=text&token=secret&authDraft=123",
