@@ -51,13 +51,15 @@ vi.mock("@repo/ui/components/button", () => ({
 		disabled,
 		type,
 		render,
+		"data-test": dataTest,
 	}: {
 		children: React.ReactNode;
 		disabled?: boolean;
 		type?: "button" | "submit" | "reset";
 		render?: (props: Record<string, unknown>) => React.ReactNode;
+		"data-test"?: string;
 	}) => {
-		const props = { children, disabled, type };
+		const props = { children, disabled, type, "data-test": dataTest };
 		return render ? render(props) : <button {...props}>{children}</button>;
 	},
 }));
@@ -804,27 +806,33 @@ describe("GenerationForm product copy", () => {
 		expect(prompt).toContain("items.mediterranean.prompt");
 	});
 
-	it.each([false, true])("requires a source only in reference mode (%s)", (requireReference) => {
-		const markup = renderToStaticMarkup(
-			<GenerationForm
-				onCreated={vi.fn()}
-				requireReference={requireReference}
-				initialDraft={{
-					productKey: "image-nano-banana-2-lite",
-					input: {
-						kind: "text-to-image",
-						prompt: "A product on a neutral background",
-						skuKey: "nano-banana-2-lite-1k",
-						aspectRatio: "1:1",
-					},
-				}}
-			/>,
-		);
-		const submit = markup.match(/<button(?=[^>]*type="submit")[^>]*>/)?.[0];
-		expect(submit).toBeDefined();
-		if (requireReference) expect(submit).toContain("disabled");
-		else expect(submit).not.toContain("disabled");
-	});
+	it.each([false, true])(
+		"offers upload before submission only in reference mode (%s)",
+		(requireReference) => {
+			const markup = renderToStaticMarkup(
+				<GenerationForm
+					onCreated={vi.fn()}
+					requireReference={requireReference}
+					initialDraft={{
+						productKey: "image-nano-banana-2-lite",
+						input: {
+							kind: "text-to-image",
+							prompt: "A product on a neutral background",
+							skuKey: "nano-banana-2-lite-1k",
+							aspectRatio: "1:1",
+						},
+					}}
+				/>,
+			);
+			const action = markup.match(
+				/<button[^>]*data-test="generation-submit"[^>]*>[\s\S]*?<\/button>/,
+			)?.[0];
+			expect(action).toBeDefined();
+			expect(action).not.toContain("disabled");
+			expect(action).toContain(requireReference ? 'type="button"' : 'type="submit"');
+			if (requireReference) expect(action).toContain("addReference");
+		},
+	);
 
 	it("requires reselecting a guest reference after sign-in instead of silently making a text image", () => {
 		const markup = renderToStaticMarkup(
@@ -842,7 +850,13 @@ describe("GenerationForm product copy", () => {
 				}}
 			/>,
 		);
-		expect(markup.match(/<button(?=[^>]*type="submit")[^>]*>/)?.[0]).toContain("disabled");
+		const action = markup.match(
+			/<button[^>]*data-test="generation-submit"[^>]*>[\s\S]*?<\/button>/,
+		)?.[0];
+		expect(action).toContain('type="button"');
+		expect(action).toContain("addReference");
+		expect(action).not.toContain("disabled");
+		expect(markup.match(/<button(?=[^>]*type="submit")[^>]*>/)).toBeNull();
 		expect(markup).toContain("Keep this subject");
 	});
 
@@ -895,7 +909,7 @@ describe("GenerationForm product copy", () => {
 
 			expect(markup).toContain('data-composer-kind="image-to-image"');
 			expect(markup).toMatch(
-				/<button type="submit"><span>Start edit<\/span><span[^>]*>5 credits<\/span><\/button>/,
+				/<button(?=[^>]*type="submit")[^>]*><span>Start edit<\/span><span[^>]*>5 credits<\/span><\/button>/,
 			);
 			expect(markup).toContain("promptSuggestions.object");
 			expect(markup).not.toContain("ideas.portrait.label");

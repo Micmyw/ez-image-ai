@@ -38,6 +38,14 @@ automatic-deployment settings.
   than a hard-coded count. The legacy offer and GPT 2.6 benefit snapshots retain
   their frozen coverage assertions, purchase terms and settlement tests.
 - Config tests copy a readonly SKU array before sorting it.
+- The follow-up full run exposed stale UI assertions for unsupported H3 passes
+  and disabled missing-photo buttons. Coverage now checks the current offer for
+  every image SKU and an enabled upload action before photo submission. The guest
+  snapshot allowlist includes the owner's restored `inputPrompt` and still
+  rejects another owner's reads; property insertion order is not a contract.
+- The all-SKU offer regression also found a real UI omission: the purchase helper
+  assumed a square aspect ratio even for GPT Image 2 4K, which has no square size.
+  It now validates against a supported ratio, retaining product/SKU/format checks.
 - Original run `44045039315` passed 77 authenticated and 47 guest browser cases;
   its only browser failure measured 563,864 gzip bytes against a 563,200-byte
   homepage aggregate ceiling (664 bytes / approximately 0.12% over).

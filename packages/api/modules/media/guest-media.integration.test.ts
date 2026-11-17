@@ -53,18 +53,22 @@ describe("guest media read and grant boundary", () => {
 			watermarked: true,
 			trialConsumed: true,
 			linkReady: false,
+			inputPrompt: "Violet",
 		});
-		expect(Object.keys(snapshot ?? {})).toEqual([
-			"jobId",
-			"stage",
-			"projectedDispatchAt",
-			"estimateExpiresAt",
-			"resultExpiresAt",
-			"resultAssetId",
-			"watermarked",
-			"trialConsumed",
-			"linkReady",
-		]);
+		expect(Object.keys(snapshot ?? {}).sort()).toEqual(
+			[
+				"jobId",
+				"stage",
+				"projectedDispatchAt",
+				"estimateExpiresAt",
+				"resultExpiresAt",
+				"resultAssetId",
+				"watermarked",
+				"trialConsumed",
+				"linkReady",
+				"inputPrompt",
+			].sort(),
+		);
 		await expect(
 			getGuestJobSnapshot(
 				{

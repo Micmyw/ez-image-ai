@@ -1,3 +1,4 @@
+import { EZPIC_PRODUCT_KEYS, IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -38,17 +39,17 @@ describe("SelectedImagePassOffer", () => {
 		mocks.purchase();
 		expect(onContinue).toHaveBeenCalledOnce();
 	});
-	it("does not advertise H3 as pass-covered", () => {
+	it.each(
+		EZPIC_PRODUCT_KEYS.flatMap((productKey) =>
+			IMAGE_SKU_KEYS_BY_PRODUCT[productKey].map((skuKey) => ({ productKey, skuKey })),
+		),
+	)("offers the same pass for $productKey / $skuKey", ({ productKey, skuKey }) => {
 		expect(
 			renderToStaticMarkup(
-				<SelectedImagePassOffer
-					productKey="image-minimax-h3"
-					skuKey="minimax-h3-1k"
-					onContinue={vi.fn()}
-				/>,
+				<SelectedImagePassOffer productKey={productKey} skuKey={skuKey} onContinue={vi.fn()} />,
 			),
-		).toBe("");
-		expect(mocks.query).not.toHaveBeenCalled();
+		).toContain("$2.99 for 3 successful images");
+		expect(mocks.query).toHaveBeenCalledOnce();
 	});
 	it.each([
 		{ data: { available: false }, isError: false },
