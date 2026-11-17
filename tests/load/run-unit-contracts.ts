@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 import { assertSafeDatabaseUrl } from "./assert-safe-target";
+import { selectUnitCommands } from "./unit-scope";
 
 const testDatabaseUrl = assertSafeDatabaseUrl(process.env.TEST_DATABASE_URL).toString();
 const commands: Array<{ args: string[]; database: boolean }> = [
@@ -74,7 +75,9 @@ const commands: Array<{ args: string[]; database: boolean }> = [
 	{ args: ["--filter", "saas", "test"], database: true },
 ];
 
-for (const command of commands) run(command.args, command.database);
+// Local/release commands remain full by default. CI supplies affected workspaces,
+// including reverse dependencies; null explicitly requests the complete suite.
+for (const command of selectUnitCommands(commands)) run(command.args, command.database);
 
 function run(args: string[], needsRuntimeDatabaseUrl: boolean): void {
 	const environment = { ...process.env };

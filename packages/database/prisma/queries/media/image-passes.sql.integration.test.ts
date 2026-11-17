@@ -1,4 +1,4 @@
-import { IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config";
+import { IMAGE_SKU_KEYS, IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config";
 import {
 	getImagePassOfferSnapshot,
 	IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
@@ -416,8 +416,10 @@ describe.skipIf(!enabled)("image-pass real PostgreSQL ledger", () => {
 			// Fulfillment creates the historical grant with its immutable payment timestamp.
 			expect(paidBefore.paidAt).toEqual(f.occurredAt);
 			const balance = await sqlTransaction((tx) => getImagePassBalance({ ownerId: f.ownerId }, tx));
-			expect(balance.availableSkuKeys).toHaveLength(35);
-			expect(balance.subscriptionFreeSkuKeys).toHaveLength(35);
+			// Today's balance covers the live catalog; the accepted job below still
+			// settles under its frozen GPT 2.6 benefit and original purchase terms.
+			expect([...balance.availableSkuKeys].sort()).toEqual([...IMAGE_SKU_KEYS].sort());
+			expect([...balance.subscriptionFreeSkuKeys].sort()).toEqual([...IMAGE_SKU_KEYS].sort());
 			const jobId = await jobFixture(f.ownerId, "RESERVED", skuKey, {
 				policy: IMAGE_PASS_GPT_IMAGE_26_BENEFIT_POLICY,
 				outputFormat,

@@ -8,6 +8,7 @@ import {
 	KIE_SENSITIVE_REJECTION_MESSAGE,
 	EZPIC_PRODUCT_KEYS,
 	IMAGE_SKU_KEYS_BY_PRODUCT,
+	IMAGE_SKU_KEYS,
 } from "@repo/config";
 import {
 	getImagePassOfferSnapshot,
@@ -393,7 +394,7 @@ describe("GPT Image 2.6 pass admission", () => {
 			expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
 		},
 	);
-	it("projects 41 effective SKUs only for current grants and never mutates a frozen grant", async () => {
+	it("projects the current catalog only for current grants and never mutates a frozen grant", async () => {
 		for (const offerSnapshot of [
 			getImagePassOfferSnapshot(),
 			IMAGE_PASS_LEGACY_OFFER,
@@ -408,10 +409,12 @@ describe("GPT Image 2.6 pass admission", () => {
 			};
 			const balance = await getImagePassBalance({ ownerId: "owner" }, tx as never);
 			const current = offerSnapshot.offerVersion === "2026-11-04.2";
-			expect(balance.availableSkuKeys).toHaveLength(
-				current ? 41 : offerSnapshot.allowedSkuKeys.length,
+			expect([...balance.availableSkuKeys].sort()).toEqual(
+				[...(current ? IMAGE_SKU_KEYS : offerSnapshot.allowedSkuKeys)].sort(),
 			);
-			expect(balance.subscriptionFreeSkuKeys).toHaveLength(current ? 41 : 0);
+			expect([...balance.subscriptionFreeSkuKeys].sort()).toEqual(
+				current ? [...IMAGE_SKU_KEYS].sort() : [],
+			);
 			expect(balance.available).toBe(2);
 			expect(JSON.stringify(offerSnapshot)).toBe(original);
 		}

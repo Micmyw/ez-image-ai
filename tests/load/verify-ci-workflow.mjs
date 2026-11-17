@@ -37,10 +37,11 @@ const gitleaksIgnorePath = resolve(process.cwd(), ".gitleaksignore");
 if (!existsSync(gitleaksIgnorePath))
 	throw new Error("exact Gitleaks fixture fingerprints are missing");
 const gitleaksIgnore = readFileSync(gitleaksIgnorePath, "utf8");
-const quality = jobBlock(workflow, "quality", "postgres");
-const postgres = jobBlock(workflow, "postgres", "builds");
-const builds = jobBlock(workflow, "builds", "mock-e2e");
-const mockE2e = jobBlock(workflow, "mock-e2e", "supply-chain");
+const quality = jobBlock(workflow, "quality");
+const runtime = jobBlock(workflow, "runtime");
+const postgres = jobBlock(workflow, "postgres");
+const builds = jobBlock(workflow, "builds");
+const mockE2e = jobBlock(workflow, "mock-e2e");
 
 for (const workflowFile of readdirSync(resolve(process.cwd(), ".github/workflows"))) {
 	if (!/\.ya?ml$/.test(workflowFile)) continue;
@@ -53,8 +54,8 @@ for (const workflowFile of readdirSync(resolve(process.cwd(), ".github/workflows
 		/^\s*(?:MEDIA_SAFETY_ADAPTER|VIDEO_V1_(?:TEXT|IMAGE|VIDEO)_SAFETY_ADAPTER):\s*["']?sightengine\b/im,
 	);
 }
-assertIncludes(quality, "          MEDIA_SAFETY_ADAPTER: configured");
-assertIncludes(quality, '          MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false"');
+assertIncludes(runtime, "          MEDIA_SAFETY_ADAPTER: configured");
+assertIncludes(runtime, '          MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false"');
 assertIncludes(builds, "      MEDIA_SAFETY_ADAPTER: configured");
 assertIncludes(builds, '      MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false"');
 
@@ -65,12 +66,33 @@ assertJobsDatabaseIntegrationCoverage(
 	integrationRunner,
 );
 assertSaasOnlyRepository(rootPackage.scripts, workflow, unitContracts);
-for (const command of ["workflows:type-check", "workflows:build:ci"]) {
+for (const command of ["workflows:build:ci"]) {
 	if (typeof rootPackage.scripts?.[command] !== "string") {
 		throw new Error(`Cloudflare orchestration command is missing: ${command}`);
 	}
-	assertUnconditionalStep(quality, `pnpm ${command}`);
+	assertUnconditionalStep(runtime, `pnpm ${command}`);
 }
+// Root Turbo type-check already covers these workspaces. Do not repeat them.
+assertIncludes(quality, "run: pnpm type-check");
+assertNotMatch(quality, /run: pnpm workflows:type-check/);
+assertIncludes(quality, "CI_UNIT_WORKSPACES: ${{ needs.changes.outputs.units }}");
+for (const [job, output] of [
+	["runtime", "runtime"],
+	["postgres", "postgres"],
+	["admin-capabilities", "admin"],
+	["mock-e2e", "media"],
+]) {
+	const block = jobBlock(workflow, job);
+	assertIncludes(block, "    needs: changes");
+	assertIncludes(block, `    if: needs.changes.outputs.${output} == 'true'`);
+}
+assertIncludes(jobBlock(workflow, "changes"), "fetch-depth: 0");
+assertIncludes(jobBlock(workflow, "changes"), "run: node --test tests/ci/change-scope.test.mjs");
+assertIncludes(jobBlock(workflow, "validation"), "    if: always()");
+assertIncludes(
+	jobBlock(workflow, "validation"),
+	"needs: [changes, quality, runtime, postgres, admin-capabilities, builds, mock-e2e, supply-chain]",
+);
 assertNotMatch(quality, /TRIGGER_|pnpm trigger:/);
 for (const workspace of ["@repo/workflows", "@repo/jobs-runtime", "@repo/auth", "@repo/logs"]) {
 	assertIncludes(unitContracts, `"--filter", "${workspace}", "test"`);
@@ -104,7 +126,10 @@ assertStepPrecedes(
 	"name: Apply migrations to the isolated guest database",
 	"run: pnpm test:integration",
 );
-assertUnconditionalStep(quality, "pnpm exec tsx --test tests/load/run-integration.test.ts");
+assertUnconditionalStep(
+	quality,
+	"pnpm exec tsx --test tests/load/run-integration.test.ts tests/load/unit-scope.test.ts",
+);
 assertUnconditionalStep(quality, "node --test tests/video-v1/local-command.test.mjs");
 assertIncludes(
 	integrationRunner,
@@ -257,13 +282,14 @@ function assertSaasOnlyRepository(scripts, workflowText, unitContractSource) {
 	}
 }
 
-function jobBlock(workflowText, jobName, nextJobName) {
+function jobBlock(workflowText, jobName) {
 	const start = workflowText.indexOf(`  ${jobName}:\n`);
-	const end = workflowText.indexOf(`\n  ${nextJobName}:\n`, start);
-	if (start === -1 || end === -1) {
+	if (start === -1) {
 		throw new Error(`Unable to locate ${jobName} workflow job`);
 	}
-	return workflowText.slice(start, end);
+	const remaining = workflowText.slice(start);
+	const end = /\n  [a-z][a-z-]*:\n/.exec(remaining)?.index;
+	return remaining.slice(0, end);
 }
 
 function assertIncludes(value, expected) {

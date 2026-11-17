@@ -17,7 +17,7 @@ Use for failures in `.github/workflows/validate-prs.yml`. Do not change tests, w
    gh run view <run-id>
    gh run view <run-id> --log-failed
    ```
-2. Confirm the failure belongs to the current commit and classify it by the actual jobs: `lint`, `type-check`, `unit`, or `e2e`.
+2. Confirm the failure belongs to the current commit and classify it by the actual selected job. `Select affected checks` records the scope; `Validation complete` aggregates it. Skipped unrelated jobs are intentional, not failures. The manual workflow dispatch runs full validation.
 3. Reproduce the failed workflow step from a clean install when dependency/cache state is suspect:
    ```bash
    pnpm install
@@ -45,7 +45,7 @@ Document the failing job and error, root cause, changed files, and successful lo
 ## Common mistakes
 
 - Debugging the latest run without checking its SHA.
-- Assuming CI runs root `pnpm test`; its unit job uses three explicit filters.
+- Assuming CI runs root `pnpm test`; `tests/load/run-unit-contracts.ts` owns the contract commands and CI filters them by affected workspaces and reverse dependencies.
 - Fixing a secondary timeout while ignoring an earlier server build error.
 - Logging or copying secret values into an issue or test fixture.
 - Looking for separate public-content or Docs reports; CI uploads the unified SaaS artifacts.

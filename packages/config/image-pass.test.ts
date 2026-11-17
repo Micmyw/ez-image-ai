@@ -32,9 +32,9 @@ describe("all-model paid image access", () => {
 	it("covers every current image SKU without mutating either previous benefit or purchase terms", () => {
 		const offer = getImagePassOfferSnapshot();
 		const before = JSON.stringify(offer);
-		expect(imagePassEffectiveSkuKeys(offer, IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY).sort()).toEqual(
-			[...IMAGE_SKU_KEYS].sort(),
-		);
+		expect(
+			[...imagePassEffectiveSkuKeys(offer, IMAGE_PASS_ALL_MODELS_BENEFIT_POLICY)].sort(),
+		).toEqual([...IMAGE_SKU_KEYS].sort());
 		for (const skuKey of IMAGE_SKU_KEYS)
 			expect(
 				imagePassCoversSelection({

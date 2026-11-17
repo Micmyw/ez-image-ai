@@ -26,8 +26,32 @@ env:
   MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true"
 
 jobs:
+  changes:
+    name: Select affected checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      code: ${{ steps.scope.outputs.code }}
+      builds: ${{ steps.scope.outputs.builds }}
+      postgres: ${{ steps.scope.outputs.postgres }}
+      admin: ${{ steps.scope.outputs.admin }}
+      media: ${{ steps.scope.outputs.media }}
+      runtime: ${{ steps.scope.outputs.runtime }}
+      full: ${{ steps.scope.outputs.full }}
+      units: ${{ steps.scope.outputs.units }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Test check selection
+        run: node --test tests/ci/change-scope.test.mjs
+      - name: Select checks from the complete change range
+        id: scope
+        run: node tests/ci/change-scope.mjs
+
   quality:
     name: Lint, format, type and contracts
+    needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -44,26 +68,52 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - name: Generate Prisma client
+        if: needs.changes.outputs.code == 'true'
         run: pnpm --filter @repo/database generate
       - name: Verify workflow infrastructure contract
         run: pnpm verify:ci-workflow
       - name: Verify isolated integration suite routing
-        run: pnpm exec tsx --test tests/load/run-integration.test.ts
+        run: pnpm exec tsx --test tests/load/run-integration.test.ts tests/load/unit-scope.test.ts
       - name: Verify local video production-build opt-in
         run: node --test tests/video-v1/local-command.test.mjs
       - name: Verify IndexNow submission and retry behavior
         run: node --test tooling/indexnow/sync.test.mjs
       - run: pnpm lint --deny-warnings
+        if: needs.changes.outputs.code == 'true'
       - run: pnpm format:check
       - run: pnpm type-check
+        if: needs.changes.outputs.code == 'true'
       - name: Unit and provider/moderation contracts
+        if: needs.changes.outputs.code == 'true'
+        env:
+          CI_UNIT_WORKSPACES: ${{ needs.changes.outputs.units }}
         run: pnpm test:unit:contracts
-      - name: Workflows and Node executor type gate
-        run: pnpm workflows:type-check
       - name: Load and invariant tool type/syntax gate
+        if: needs.changes.outputs.runtime == 'true' || needs.changes.outputs.postgres == 'true'
         run: pnpm load:type-check && pnpm load:syntax && pnpm load:ezpic:syntax
       - name: Validate the explicitly incomplete launch evidence templates
+        if: needs.changes.outputs.full == 'true'
         run: pnpm launch:evidence:validate
+
+  runtime:
+    name: Cloudflare and container artifacts
+    needs: changes
+    if: needs.changes.outputs.runtime == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build_only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Generate Prisma client
+        run: pnpm --filter @repo/database generate
       - name: Cloudflare Workflows and Node container artifact build
         run: pnpm workflows:build:ci
       - name: Verify Sharp and visible watermark lettering in the jobs image
@@ -90,6 +140,8 @@ jobs:
 
   postgres:
     name: Fresh PostgreSQL migrations and integration tests
+    needs: changes
+    if: needs.changes.outputs.postgres == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -199,6 +251,8 @@ jobs:
 
   admin-capabilities:
     name: Administrator and customer support browser flows
+    needs: changes
+    if: needs.changes.outputs.admin == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -251,6 +305,9 @@ jobs:
 
   builds:
     name: Production app builds
+    needs: changes
+    # The runtime job already builds and starts the production website artifact.
+    if: needs.changes.outputs.builds == 'true' && needs.changes.outputs.runtime != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
@@ -288,6 +345,8 @@ jobs:
 
   mock-e2e:
     name: Mock media E2E
+    needs: changes
+    if: needs.changes.outputs.media == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
     env:
@@ -442,6 +501,19 @@ jobs:
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 30
+
+  validation:
+    name: Validation complete
+    needs: [changes, quality, runtime, postgres, admin-capabilities, builds, mock-e2e, supply-chain]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require successful selected checks
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          node -e 'const jobs = JSON.parse(process.env.RESULTS); const failed = Object.entries(jobs).filter(([, job]) => !["success", "skipped"].includes(job.result)); if (failed.length) { console.error(failed); process.exit(1); }'
 
   supply-chain:
     name: Dependency and secret scan
