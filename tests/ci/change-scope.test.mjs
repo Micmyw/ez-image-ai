@@ -107,6 +107,14 @@ void test("mixed changes retain all requested gates", () => {
 	assert.equal(result.postgres, true);
 	assert.equal(result.media, true);
 });
+void test("machine-readable evidence and skill scripts are not treated as prose", () => {
+	for (const file of [
+		"docs/operations/evidence/gpt-image-2-6-page-materials-2026-11-14.json",
+		".agents/skills/example/scripts/verify.mjs",
+	]) {
+		assert.equal(scope(file).full, true, file);
+	}
+});
 void test("push uses the entire pushed range and PR uses the merge base, with rename sides preserved", () => {
 	const base = "a".repeat(40),
 		head = "b".repeat(40);

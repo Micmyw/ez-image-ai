@@ -41,7 +41,7 @@ export function affectedWorkspaces(names, workspaces) {
 }
 
 const documentation =
-	/^(?:docs\/|\.agents\/|\.github\/.*\.md$|(?:README|CHANGELOG|AGENTS|agents)\.md$)/;
+	/^(?:docs\/.*\.md$|\.agents\/.*\.md$|\.github\/.*\.md$|(?:README|CHANGELOG|AGENTS|agents)\.md$)/;
 const runtimeNames = new Set(["@repo/workflows", "@repo/jobs-runtime", "@repo/web-host"]);
 const backendNames = new Set([
 	"@repo/api",

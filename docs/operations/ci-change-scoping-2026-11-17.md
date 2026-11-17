@@ -5,6 +5,8 @@ the pull request merge-base diff. `workflow_dispatch` always runs the complete
 validation. Unknown paths, missing Git history, dependency manifests/lockfiles and
 CI/test-runner changes also select all checks. Renames classify both paths; the
 selection has no GitHub changed-file API pagination limit.
+Only Markdown is treated as internal prose; machine-readable evidence and skill
+scripts retain full checks because product tests can consume those files.
 
 | Change                                                                   | Selected checks                                                                                       |
 | ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
