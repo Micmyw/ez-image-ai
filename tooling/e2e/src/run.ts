@@ -132,6 +132,7 @@ async function main(): Promise<void> {
 							"tests/payment-checkout-returns.spec.ts",
 							"tests/billing-auth.spec.ts",
 							"tests/attribution.public-seo.spec.ts",
+							"tests/portrait-packs.public-routes.spec.ts",
 							// This fixture additionally requires the CI-owned database or a
 							// separately selected attribution test database; keep its guard.
 							...(process.env.CI === "true" ? ["tests/payment-attribution.spec.ts"] : []),

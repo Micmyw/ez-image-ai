@@ -36,6 +36,7 @@
 		"cloudflare:git:build": "tsx apps/web-host/src/git-build.ts build",
 		"cloudflare:git:deploy": "tsx apps/web-host/src/git-build.ts deploy",
 		"cloudflare:image-pass:migrate": "tsx apps/web-host/src/image-pass-migration.ts",
+		"cloudflare:portrait-pack:migrate": "tsx apps/web-host/src/portrait-pack-migration.ts",
 		"cloudflare:git:secrets": "tsx apps/web-host/src/prepare-build-secrets.ts",
 		"cloudflare:prepare:legacy": "tsx apps/web-host/src/prepare.ts",
 		"cloudflare:web:build": "pnpm --filter saas cloudflare:build",

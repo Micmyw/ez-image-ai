@@ -45,6 +45,9 @@ vi.mock("@repo/ui/components/turnstile", () => ({ Turnstile: testState.turnstile
 vi.mock("@repo/ui/components/alert", () => ({ Alert: () => null, AlertDescription: () => null }));
 vi.mock("@repo/ui/components/button", () => ({ Button: vi.fn(() => null) }));
 vi.mock("@repo/ui/components/textarea", () => ({ Textarea: vi.fn(() => null) }));
+vi.mock("../../lib/generation-mode-context", () => ({
+	useGenerationMode: () => ({ mode: "image" }),
+}));
 vi.mock("../../hooks/use-guest-trial", () => ({
 	useGuestTrial: () => ({
 		view: { state: "preparingSession" },

@@ -464,6 +464,10 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 					await expect(review).toBeEnabled();
 					await expect(preview).toHaveAttribute("src", localUrl!);
 				} else {
+					const invitation = page.getByRole("dialog", { name: "Want to open a portrait pack?" });
+					await expect(invitation).toBeVisible();
+					await invitation.getByRole("button", { name: "Maybe later" }).click();
+					await expect(invitation).toBeHidden();
 					const notice = page.locator('[data-test="content-safety-notice"]');
 					await expect(
 						notice.getByRole("heading", { name: "Please choose another image", exact: true }),

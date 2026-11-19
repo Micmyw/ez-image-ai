@@ -80,9 +80,6 @@ export function SeedreamDemo() {
 					<h3>One photo. A new look with every edit.</h3>
 					<p>Explore changes to eyewear, clothing, colors and details in this short demo.</p>
 				</div>
-				<a href="https://www.media.io/" target="_blank" rel="noreferrer">
-					Demo: Media.io ↗
-				</a>
 			</figcaption>
 		</figure>
 	);

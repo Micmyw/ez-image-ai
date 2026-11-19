@@ -16,6 +16,7 @@ import { CheckoutDiagnosticsPanel } from "./CheckoutDiagnosticsPanel";
 import { ConversionExperimentsPanel } from "./ConversionExperimentsPanel";
 import { GenerationJourneyPanel } from "./GenerationJourneyPanel";
 import { HomepageIdeaAnalytics } from "./HomepageIdeaAnalytics";
+import { PortraitPackAnalytics } from "./PortraitPackAnalytics";
 
 const steps = [
 	"signups",
@@ -95,6 +96,9 @@ export function ConversionFunnelPanel() {
 					</div>
 					<p className="text-sm">{t("traffic", data.traffic)}</p>
 					<HomepageIdeaAnalytics rows={data.homepageIdeas ?? []} />
+					{Boolean(data.portraitPacks?.length) && (
+						<PortraitPackAnalytics rows={data.portraitPacks} />
+					)}
 					<GenerationJourneyPanel data={data.generationJourney} />
 					<p className="text-sm">
 						{t("linkedVisitors", {

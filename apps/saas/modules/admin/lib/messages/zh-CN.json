@@ -179,6 +179,24 @@
 				"capture_request_failed": "浏览器未收到成功扣款响应，服务端结果可能不同"
 			}
 		},
+		"portraitPacks": {
+			"title": "肖像卡包点击率",
+			"basis": "只统计同意分析的浏览器。点击率 = 看见且点击同一按钮的浏览器数 ÷ 看见该按钮的浏览器数，按浏览器去重。",
+			"placement": "入口",
+			"cta": "操作",
+			"exposed": "看见按钮的浏览器",
+			"clicked": "点击按钮的浏览器",
+			"rate": "点击率",
+			"placements": {
+				"homepage": "首页弹窗",
+				"editor": "编辑器弹窗",
+				"public-page": "卡包独立页"
+			},
+			"ctas": {
+				"invitation": "试试卡包",
+				"draw": "打开卡包"
+			}
+		},
 		"homepageIdeas": {
 			"title": "首页玩法点击",
 			"basis": "分别统计选择预览和点击去创作。访客按所选时间内的浏览器去重，重复点击计入次数；沿用现有统计偏好，排除管理员等内部流量。",

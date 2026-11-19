@@ -67,6 +67,10 @@ describe("conversion panel evidence labels", () => {
 						createClicks: 2,
 					},
 				],
+				portraitPacks: [
+					{ placement: "editor", cta: "invitation", exposed: 4, clicked: 1 },
+					{ placement: "public-page", cta: "draw", exposed: 0, clicked: 0 },
+				],
 				experiments: [],
 				activity: [],
 				totals: {
@@ -152,6 +156,10 @@ describe("conversion panel evidence labels", () => {
 			expect(markup).toContain(labels.homepageIdeas.ideas.watercolor);
 			expect(markup).toContain(labels.homepageIdeas.placements.showcase);
 			expect(markup).toContain(labels.homepageIdeas.placements["quick-start"]);
+			expect(markup).toContain(labels.portraitPacks.title);
+			expect(markup).toContain(labels.portraitPacks.placements.editor);
+			expect(markup).toContain(labels.portraitPacks.ctas.invitation);
+			expect(markup).toContain("25%");
 			expect(markup).toContain(messages.admin.capabilities.analytics.ranges["30d"]);
 			expect(markup).toContain(`aria-label="${labels.paid}" min="0" max="2" value="0"`);
 			expect(state.selections.slice(1).every((s) => s.options[0]?.value === "__all__")).toBe(true);

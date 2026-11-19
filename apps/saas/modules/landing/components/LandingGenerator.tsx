@@ -1833,7 +1833,7 @@ function LandingGeneratorWorkspace({
 							</AlertDescription>
 							<FeedbackButton supportEmail={config.supportEmail} variant="report" kind="bug" />
 							{submitError === "contentRejected" && workspace?.mode !== "video" && (
-								<LazyPortraitPackInvitation />
+								<LazyPortraitPackInvitation placement="homepage" />
 							)}
 						</Alert>
 					)}

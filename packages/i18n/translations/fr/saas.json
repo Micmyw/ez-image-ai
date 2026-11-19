@@ -1236,6 +1236,24 @@
 					"capture_request_failed": "Le navigateur n’a pas reçu de réponse de capture réussie ; le résultat serveur peut différer"
 				}
 			},
+			"portraitPacks": {
+				"title": "Packs de portraits",
+				"basis": "Compte les navigateurs distincts ayant accepté les statistiques. Le taux de clics est la part des navigateurs qui ont vu et activé le même bouton.",
+				"placement": "Emplacement",
+				"cta": "Action",
+				"exposed": "Navigateurs exposés",
+				"clicked": "Navigateurs ayant cliqué",
+				"rate": "Taux de clics",
+				"placements": {
+					"homepage": "Fenêtre de l’accueil",
+					"editor": "Fenêtre de l’éditeur",
+					"public-page": "Page des packs"
+				},
+				"ctas": {
+					"invitation": "Essayer un pack",
+					"draw": "Ouvrir le pack"
+				}
+			},
 			"homepageIdeas": {
 				"title": "Clics sur les idées de l’accueil",
 				"basis": "Les clics d’aperçu et de création sont comptés séparément. Chaque navigateur est compté une fois sur la période choisie ; les clics répétés restent dans les totaux. Les préférences d’analyse existantes sont respectées et le trafic interne est exclu.",

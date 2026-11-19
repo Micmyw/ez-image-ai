@@ -3,6 +3,65 @@ import { expect, test } from "@playwright/test";
 const firstPack = ["red-carpet", "sunhat", "lobby", "surf-club", "disco-silver"];
 const nextPack = ["poolside", "cobalt-gallery", "raspberry-satin", "cyan-rain", "golden-coast"];
 
+test("standalone draw measures the visible CTA and activation with explicit consent", async ({
+	baseURL,
+	context,
+	page,
+}) => {
+	await context.addCookies([
+		{ name: "consent", value: "true", url: baseURL! },
+		{ name: "consent_version", value: "2", url: baseURL! },
+	]);
+	const observations: unknown[] = [];
+	await page.route("**/api/analytics/policy", (route) =>
+		route.fulfill({ json: { requiresOptIn: true, privacySignal: false } }),
+	);
+	await page.route("**/api/analytics/events", (route) => {
+		const body = route.request().postDataJSON();
+		if (body.event.name === "portrait_pack_observed") {
+			expect(body.path).toBe("/portrait-packs");
+			observations.push(body.event.properties.portraitPack);
+		}
+		return route.fulfill({ json: { accepted: true } });
+	});
+	let allowStatus!: () => void;
+	const statusGate = new Promise<void>((resolve) => {
+		allowStatus = resolve;
+	});
+	await page.route("**/api/rpc/portraitPacks/status", async (route) => {
+		await statusGate;
+		await route.fulfill({ json: { json: { state: "guestTrial", remaining: 2, cards: null } } });
+	});
+	await page.route("**/api/rpc/portraitPacks/open", (route) =>
+		route.fulfill({
+			json: {
+				json: { state: "guestTrial", remaining: 1, cards: firstPack, opened: true },
+			},
+		}),
+	);
+	await page.goto("/portrait-packs");
+	try {
+		await page.addStyleTag({
+			content: '[data-test="portrait-pack-experience"] {margin-top: 120vh}',
+		});
+	} finally {
+		allowStatus();
+	}
+	const pack = page.getByRole("button", { name: "Open pack", exact: true }).first();
+	await expect(pack).toBeEnabled();
+	expect(observations).toEqual([]);
+	await pack.scrollIntoViewIfNeeded();
+	const impression = { placement: "public-page", cta: "draw", stage: "impression" };
+	await expect.poll(() => observations).toEqual([impression]);
+	await pack.click();
+	await expect(page.locator('[data-test="portrait-pack-cards"]')).toBeVisible();
+	await expect.poll(() => observations).toEqual([impression, { ...impression, stage: "clicked" }]);
+	await page.getByRole("button", { name: "Open another pack" }).click();
+	await page.locator('[data-test="portrait-pack-open"]').click();
+	await expect(page.locator('[data-test="portrait-pack-cards"]')).toBeVisible();
+	expect(observations).toHaveLength(2);
+});
+
 test("guest opens two five-card packs and can sign in for two more", async ({ page }) => {
 	let opened = 0;
 	await page.route("**/api/rpc/portraitPacks/status", (route) =>

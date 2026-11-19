@@ -4,6 +4,7 @@ import {
 	HOMEPAGE_IDEA_KEYS,
 	HOMEPAGE_IDEA_PLACEMENTS,
 } from "@repo/config/homepage-ideas";
+import { PORTRAIT_PACK_CTAS, PORTRAIT_PACK_PLACEMENTS } from "@repo/config/portrait-packs";
 import { z } from "zod";
 
 export const conversionInputSchema = z
@@ -44,6 +45,16 @@ export const conversionOutputSchema = z.object({
 						}),
 					)
 					.optional(),
+			}),
+		)
+		.default([]),
+	portraitPacks: z
+		.array(
+			z.object({
+				placement: z.enum(PORTRAIT_PACK_PLACEMENTS),
+				cta: z.enum(PORTRAIT_PACK_CTAS),
+				exposed: count,
+				clicked: count,
 			}),
 		)
 		.default([]),

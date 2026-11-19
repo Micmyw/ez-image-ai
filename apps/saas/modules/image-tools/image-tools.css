@@ -929,17 +929,11 @@
 	font-size: clamp(1.1rem, 2vw, 1.5rem);
 }
 
-.seedream-demo p,
-.seedream-demo a {
+.seedream-demo p {
 	margin: 0;
 	color: var(--minimax-muted);
 	font-size: 0.8rem;
 	line-height: 1.7;
-}
-
-.seedream-demo a {
-	text-underline-offset: 0.3em;
-	text-decoration: underline;
 }
 
 .seedream-work {

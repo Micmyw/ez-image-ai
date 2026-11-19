@@ -29,6 +29,7 @@ describe("consolidated SaaS sitemap", () => {
 				"/",
 				"/create",
 				"/examples",
+				"/portrait-packs",
 				"/contact",
 				"/changelog",
 				"/video-effects/hotel-lobby-ai",
@@ -88,7 +89,9 @@ describe("consolidated SaaS sitemap", () => {
 		expect(
 			entries
 				.filter(({ lastModified }) => !lastModified)
-				.every(({ url }) => ["/create", "/examples", "/contact"].includes(new URL(url).pathname)),
+				.every(({ url }) =>
+					["/create", "/examples", "/portrait-packs", "/contact"].includes(new URL(url).pathname),
+				),
 		).toBe(true);
 		const dates = Object.fromEntries(
 			entries.map((entry) => [new URL(entry.url).pathname, entry.lastModified]),
@@ -108,7 +111,7 @@ describe("consolidated SaaS sitemap", () => {
 			"/ai-gif-generator": "2026-11-11",
 			"/pricing": "2026-09-16",
 			"/changelog": "2026-11-13",
-			"/privacy": "2026-11-02",
+			"/privacy": "2026-11-19",
 			"/terms": "2026-10-24",
 			"/blog": "2026-11-14",
 			"/blog/sheru-bhai-ai-photo": "2026-11-14",
