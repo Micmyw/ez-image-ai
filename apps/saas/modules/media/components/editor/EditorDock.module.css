@@ -1,0 +1,18 @@
+.position {
+	/* The one-rem gap also clears the guest dock's entrance animation. */
+	--editor-dock-bottom: calc(
+		max(var(--editor-dock-edge, 0.75rem), env(safe-area-inset-bottom)) +
+			var(--viewport-consent-height, -1rem) + 1rem
+	);
+	inset-block-end: var(--editor-dock-bottom);
+}
+
+.scrollPanel {
+	max-block-size: calc(
+		100dvh - var(--editor-dock-bottom) -
+			max(var(--studio-topbar-height, 0.75rem), env(safe-area-inset-top))
+	);
+	overflow-x: hidden;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+}

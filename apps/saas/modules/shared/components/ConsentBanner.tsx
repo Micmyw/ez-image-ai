@@ -6,7 +6,7 @@ import { useCookieConsent } from "@shared/hooks/cookie-consent";
 import { CookieIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
-import { type RefObject, useEffect, useRef } from "react";
+import { type RefObject, useEffect, useLayoutEffect, useRef } from "react";
 
 import styles from "./ConsentBanner.module.css";
 
@@ -30,6 +30,29 @@ export function ConsentBanner({
 	const automaticNoticeAllowed =
 		pathname !== null && publicAnalyticsPath(new URL(pathname, "https://consent.invalid")) !== null;
 	const matchesPlacement = Boolean(returnFocus) || checkout === (pathname === "/image-pass");
+	// Account pages retain explicit privacy choices without an automatic notice.
+	const visible = matchesPlacement && showBanner && (preferencesOpen || automaticNoticeAllowed);
+	const viewportNotice = visible && !returnFocus && !checkout;
+
+	useLayoutEffect(() => {
+		const notice = banner.current;
+		if (!viewportNotice || !notice) return;
+		const root = document.documentElement.style;
+		const property = "--viewport-consent-height";
+		const updateHeight = () => {
+			const height = notice.getBoundingClientRect().height;
+			if (height > 0) root.setProperty(property, `${height}px`);
+			else root.removeProperty(property);
+		};
+		updateHeight();
+		const observer =
+			typeof ResizeObserver === "undefined" ? null : new ResizeObserver(updateHeight);
+		observer?.observe(notice, { box: "border-box" });
+		return () => {
+			observer?.disconnect();
+			root.removeProperty(property);
+		};
+	}, [viewportNotice]);
 
 	useEffect(() => {
 		if (preferencesOpen && matchesPlacement && !returnFocus) {
@@ -37,10 +60,7 @@ export function ConsentBanner({
 		}
 	}, [checkout, matchesPlacement, preferencesOpen, returnFocus]);
 
-	// Account pages retain explicit privacy choices without an automatic notice.
-	if (!matchesPlacement || !showBanner || (!preferencesOpen && !automaticNoticeAllowed)) {
-		return null;
-	}
+	if (!visible) return null;
 
 	function choose(action: () => void) {
 		action();

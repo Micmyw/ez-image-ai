@@ -24,9 +24,9 @@ import {
 	type ImageSpecControlValues,
 	resolveImageSpecControlValues,
 } from "@media/lib/image-sku-selection";
+import { IMAGE_UPLOAD_ACCEPT } from "@media/lib/image-upload-formats";
 
 import "@media/components/editor/generation-composer.css";
-import { IMAGE_UPLOAD_ACCEPT } from "@media/lib/image-upload-formats";
 import {
 	isPaidTemplateSelection,
 	paidTemplateSpecMatrix,
@@ -129,6 +129,8 @@ import {
 } from "../lib/prompt-selection";
 import { useGuestUploadPreparation } from "../lib/use-guest-upload-preparation";
 import { useShowcasePrompt } from "../lib/use-showcase-prompt";
+
+import dockStyles from "@media/components/editor/EditorDock.module.css";
 
 const GUEST_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY ?? null;
 const LOCAL_TURNSTILE_EVIDENCE = "local-guest-upload";
@@ -604,7 +606,7 @@ function LandingGeneratorWorkspace({
 		if (!isDockExpanded) return;
 
 		const frame = requestAnimationFrame(() => {
-			floatingPromptRef.current?.focus({ preventScroll: true });
+			floatingPromptRef.current?.focus();
 		});
 		function collapseOnEscape(event: KeyboardEvent) {
 			if (event.key !== "Escape" || event.defaultPrevented) return;
@@ -1871,20 +1873,20 @@ function LandingGeneratorWorkspace({
 			{!toolComposer && isDockVisible && (
 				<aside
 					ref={floatingDockRef}
+					data-viewport-editor-dock=""
 					data-test="floating-editor-dock"
 					aria-label={t("floating.label")}
-					className="right-2 left-2 sm:right-4 sm:left-4 animate-in fade-in slide-in-from-bottom-4 pointer-events-none fixed z-[70] duration-300 motion-reduce:animate-none"
-					style={{ bottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+					className={`right-2 left-2 sm:right-4 sm:left-4 animate-in fade-in slide-in-from-bottom-4 pointer-events-none fixed z-[70] duration-300 motion-reduce:animate-none ${dockStyles.position}`}
 				>
 					<div
-						className={`backdrop-blur-2xl pointer-events-auto mx-auto overflow-hidden rounded-[1.45rem] border border-[#b79cff]/30 bg-[#2b2137]/96 shadow-[0_28px_90px_-28px_rgba(0,0,0,0.95),0_18px_54px_-28px_rgba(169,139,255,0.9)] transition-[max-width] duration-300 motion-reduce:transition-none ${isDockExpanded ? "max-w-[60rem]" : "max-w-[52rem]"}`}
+						className={`backdrop-blur-2xl pointer-events-auto mx-auto rounded-[1.45rem] border border-[#b79cff]/30 bg-[#2b2137]/96 shadow-[0_28px_90px_-28px_rgba(0,0,0,0.95),0_18px_54px_-28px_rgba(169,139,255,0.9)] transition-[max-width] duration-300 motion-reduce:transition-none ${dockStyles.scrollPanel} ${isDockExpanded ? "max-w-[60rem]" : "max-w-[52rem]"}`}
 					>
 						{isDockExpanded ? (
 							<form
 								id="floating-editor-panel"
 								data-test="floating-editor-expanded"
 								aria-label={t("floating.label")}
-								className="p-3 sm:p-4 max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain"
+								className="p-3 sm:p-4"
 								onSubmit={(event) => void submit(event)}
 							>
 								<div className="mb-3 flex items-center justify-between">

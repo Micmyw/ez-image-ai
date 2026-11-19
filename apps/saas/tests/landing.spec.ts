@@ -1122,54 +1122,84 @@ test("reference editing does not wait for the text catalog", async ({ page }) =>
 	}
 });
 
-test("a failed capability check can be retried without reloading the page", async ({ page }) => {
-	let attempts = 0;
-	let allowCapability = false;
-	await page.route("**/api/rpc/media/getPublicCatalog**", (route) =>
-		route.fulfill({
-			status: allowCapability ? 200 : 503,
-			contentType: "application/json",
-			body: JSON.stringify({
-				json: {
-					products: allowCapability
-						? capability.products.map((product) => ({
-								...product,
-								inputKinds: ["text-to-image", "image-to-image"],
-							}))
-						: [],
-				},
+for (const viewport of [
+	{ name: "desktop", width: 1280, height: 800 },
+	{ name: "short landscape", width: 844, height: 390 },
+]) {
+	test(`a failed capability check can be retried without reloading the page (${viewport.name})`, async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: viewport.width, height: viewport.height });
+		await page.route("**/api/analytics/policy", (route) =>
+			route.fulfill({ json: { requiresOptIn: true, privacySignal: false } }),
+		);
+		await page.route("**/api/analytics/traffic", (route) => route.fulfill({ status: 204 }));
+		let attempts = 0;
+		let allowCapability = false;
+		await page.route("**/api/rpc/media/getPublicCatalog**", (route) =>
+			route.fulfill({
+				status: allowCapability ? 200 : 503,
+				contentType: "application/json",
+				body: JSON.stringify({
+					json: {
+						products: allowCapability
+							? capability.products.map((product) => ({
+									...product,
+									inputKinds: ["text-to-image", "image-to-image"],
+								}))
+							: [],
+					},
+				}),
 			}),
-		}),
-	);
-	await page.route("**/api/media/guest-capability", async (route) => {
-		attempts += 1;
-		if (!allowCapability) {
-			await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
-			return;
+		);
+		await page.route("**/api/media/guest-capability", async (route) => {
+			attempts += 1;
+			if (!allowCapability) {
+				await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+				return;
+			}
+			await route.fulfill({ contentType: "application/json", body: JSON.stringify(capability) });
+		});
+
+		await page.goto("/");
+		if (viewport.name === "short landscape") {
+			await page.addStyleTag({ content: "html { font-size: 150%; }" });
 		}
-		await route.fulfill({ contentType: "application/json", body: JSON.stringify(capability) });
+		const privacy = page.getByRole("region", { name: "We value your privacy" });
+		await expect(privacy).toBeInViewport();
+		await expect(stage(page, "failed")).toBeVisible();
+		const retryName = /check availability/i;
+		await expect(
+			page.locator('[data-test="landing-generator"]').getByRole("button", { name: retryName }),
+		).toBeEnabled();
+
+		await page.locator("#examples").scrollIntoViewIfNeeded();
+		const dock = page.locator('[data-test="floating-editor-dock"]');
+		await expect(dock).toHaveCount(0);
+		await page.locator("#how-it-works").scrollIntoViewIfNeeded();
+		const panelsHaveRoom = async () => {
+			const [dockBox, privacyBox] = await Promise.all([dock.boundingBox(), privacy.boundingBox()]);
+			return !!dockBox && !!privacyBox && dockBox.y + dockBox.height <= privacyBox.y;
+		};
+		await expect.poll(panelsHaveRoom).toBe(true);
+		await dock.getByRole("button", { name: /open the quick editor/i }).click();
+		const floatingRetry = dock.getByRole("button", { name: retryName });
+		await expect(floatingRetry).toBeEnabled();
+		await expect.poll(panelsHaveRoom).toBe(true);
+		await privacy.getByRole("button", { name: "Accept all", exact: true }).click({ trial: true });
+		await privacy
+			.getByRole("button", { name: "Reject non-essential", exact: true })
+			.click({ trial: true });
+		const beforeRetry = attempts;
+		allowCapability = true;
+		await floatingRetry.click();
+		await expect(stage(page, "ready")).toBeVisible();
+		expect(attempts).toBe(beforeRetry + 1);
+		await expect(privacy).toBeInViewport();
+		await page.keyboard.press("Escape");
+		await expect(dock.getByRole("button", { name: /open the quick editor/i })).toBeFocused();
 	});
-
-	await page.goto("/");
-	await expect(stage(page, "failed")).toBeVisible();
-	const retryName = /check availability/i;
-	await expect(
-		page.locator('[data-test="landing-generator"]').getByRole("button", { name: retryName }),
-	).toBeEnabled();
-
-	await page.locator("#examples").scrollIntoViewIfNeeded();
-	const dock = page.locator('[data-test="floating-editor-dock"]');
-	await expect(dock).toHaveCount(0);
-	await page.locator("#how-it-works").scrollIntoViewIfNeeded();
-	await dock.getByRole("button", { name: /open the quick editor/i }).click();
-	const floatingRetry = dock.getByRole("button", { name: retryName });
-	await expect(floatingRetry).toBeEnabled();
-	const beforeRetry = attempts;
-	allowCapability = true;
-	await floatingRetry.click();
-	await expect(stage(page, "ready")).toBeVisible();
-	expect(attempts).toBe(beforeRetry + 1);
-});
+}
 
 test("an inconsistent enabled capability without products fails closed", async ({ page }) => {
 	await page.route("**/api/rpc/media/getPublicCatalog**", (route) =>

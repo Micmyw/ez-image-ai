@@ -19,6 +19,15 @@
 	box-shadow: 0 10px 36px #0005;
 }
 
+/* Keep both bottom panels independently scrollable when space is tight. */
+:global(body:has([data-viewport-editor-dock])) .viewport {
+	max-block-size: min(
+		45dvh,
+		calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom)))
+	);
+	scrollbar-width: thin;
+}
+
 /* The showcase carries its own copy inside the dialog's focus boundary. */
 :global(body:has([data-homepage-showcase])) .viewport {
 	display: none;

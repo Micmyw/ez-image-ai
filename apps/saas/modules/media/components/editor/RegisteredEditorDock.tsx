@@ -6,6 +6,8 @@ import { ArrowUpIcon, ImageIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useEffect, useState } from "react";
 
+import dockStyles from "./EditorDock.module.css";
+
 export function RegisteredEditorDock({ prompt, jobId }: { prompt: string; jobId: string | null }) {
 	const t = useTranslations("studio");
 	const stages = useTranslations("media.status.stages");
@@ -40,7 +42,12 @@ export function RegisteredEditorDock({ prompt, jobId }: { prompt: string; jobId:
 		if (element instanceof HTMLElement) element.focus({ preventScroll: true });
 	}
 	return (
-		<aside className="studio-dock" aria-label={t("dock.label")} data-test="registered-editor-dock">
+		<aside
+			className={`studio-dock ${dockStyles.position} ${dockStyles.scrollPanel}`}
+			aria-label={t("dock.label")}
+			data-viewport-editor-dock=""
+			data-test="registered-editor-dock"
+		>
 			<ImageIcon className="ml-2 size-5 text-violet-300 shrink-0" aria-hidden />
 			<button
 				type="button"

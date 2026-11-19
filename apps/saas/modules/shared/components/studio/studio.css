@@ -52,6 +52,7 @@ body:has(.studio-shell),
 
 .studio-shell {
 	--studio-sidebar-width: 0px;
+	--studio-topbar-height: 76px;
 	min-height: 100dvh;
 	background: #19131f;
 	color: var(--foreground);
@@ -190,7 +191,7 @@ body:has(.studio-shell[data-workspace="true"]),
 }
 .studio-topbar {
 	display: flex;
-	min-height: 76px;
+	min-height: var(--studio-topbar-height);
 	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: space-between;
@@ -362,6 +363,9 @@ body:has(.studio-shell[data-workspace="true"]),
 	opacity: 0.55;
 }
 @media (max-width: 1200px) {
+	.studio-shell {
+		--studio-topbar-height: 64px;
+	}
 	body:has(.studio-shell[data-workspace="true"]),
 	.studio-shell[data-workspace="true"] {
 		--studio-sidebar-width: 0px;
@@ -941,7 +945,7 @@ body:has(.studio-shell[data-workspace="true"]),
 }
 .studio-dock {
 	position: fixed;
-	bottom: max(18px, env(safe-area-inset-bottom));
+	--editor-dock-edge: 18px;
 	z-index: 35;
 	margin-inline: auto;
 	display: flex;
