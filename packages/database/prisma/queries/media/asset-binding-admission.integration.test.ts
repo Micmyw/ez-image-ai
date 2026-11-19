@@ -63,6 +63,7 @@ type Hook = {
 	beforeBinding?: ReturnType<typeof gate>;
 	beforeDelete?: ReturnType<typeof gate>;
 	afterQuote?: ReturnType<typeof gate>;
+	admissionNow?: () => Date | undefined;
 	pid?: (pid: number) => void;
 	serializationConflict?: () => void;
 };
@@ -92,6 +93,10 @@ function client(hook: Hook = {}) {
 
 function port(base: unknown, connection: PoolClient, hook: Hook) {
 	const tx = base as Record<string, unknown>;
+	const queryRaw = tx.$queryRaw as (
+		strings: TemplateStringsArray,
+		...values: unknown[]
+	) => Promise<unknown>;
 	const query = async (text: string, values: unknown[] = []) =>
 		(await connection.query(text, values)).rows;
 	const asset = async (id: string) => {
@@ -115,6 +120,16 @@ function port(base: unknown, connection: PoolClient, hook: Hook) {
 	};
 	return {
 		...tx,
+		$queryRaw: async (strings: TemplateStringsArray, ...values: unknown[]) => {
+			const rows = await queryRaw(strings, ...values);
+			// Preserve the actual statement and transaction snapshot. Only the first
+			// admission clock value may be pinned by a fixture, never the cleanup clock.
+			if (strings.length === 1 && strings[0]?.trim() === 'SELECT clock_timestamp() AS "now"') {
+				const now = hook.admissionNow?.();
+				if (now) return [{ now }];
+			}
+			return rows;
+		},
 		generationQuote: {
 			...(tx.generationQuote as object),
 			findUnique: async (args: unknown) => {
@@ -314,9 +329,12 @@ async function waitForLock(pid: number) {
 describe("input bindings and deletion preserve the original SSI protocol", () => {
 	it("rejects a stale input admission after guest cleanup wins the binding fence", async () => {
 		const input = await seed();
-		await fixture.rows(
-			`UPDATE ${fixture.table("media_asset")} SET "retentionClass"='GUEST_TRIAL',"deleteAfter"=clock_timestamp()+interval '200 milliseconds' WHERE id='asset'`,
+		const [deadline] = await fixture.rows<{ beforeExpiry: Date }>(
+			`UPDATE ${fixture.table("media_asset")}
+			 SET "retentionClass"='GUEST_TRIAL', "deleteAfter"=clock_timestamp()-interval '1 second'
+			 WHERE id='asset' RETURNING "deleteAfter"-interval '1 second' AS "beforeExpiry"`,
 		);
+		let admissionNow: Date | undefined = deadline!.beforeExpiry;
 		const snapshot = gate();
 		const cleanup = gate();
 		let creatingPid = 0;
@@ -325,21 +343,18 @@ describe("input bindings and deletion preserve the original SSI protocol", () =>
 			input,
 			client({
 				afterQuote: snapshot,
+				admissionNow: () => {
+					const now = admissionNow;
+					admissionNow = undefined;
+					return now;
+				},
 				pid: (pid) => (creatingPid ||= pid),
 				serializationConflict: () => serializationConflicts++,
 			}) as never,
 		);
 		await snapshot.entered;
-		// Establish the admission's snapshot before the real deadline, then let the
-		// actual cleanup consumer own the advisory and row locks before resuming it.
-		for (let attempt = 0; ; attempt++) {
-			const [clock] = await fixture.rows(
-				`SELECT clock_timestamp() >= "deleteAfter" AS expired FROM ${fixture.table("media_asset")} WHERE id='asset'`,
-			);
-			if (clock?.expired) break;
-			if (attempt >= 400) throw new Error("ASSET_EXPIRY_NOT_OBSERVED");
-			await new Promise((resolve) => setTimeout(resolve, 5));
-		}
+		// The admission started before the expiry on its fixture clock. The cleanup
+		// sees the due deadline on the real clock and takes the advisory/row locks.
 		const deleting = claimMediaStorageCleanupTransaction(
 			{ assetId: "asset", objectKeys: ["users/owner/input.png"] },
 			client({ beforeDelete: cleanup }) as never,
