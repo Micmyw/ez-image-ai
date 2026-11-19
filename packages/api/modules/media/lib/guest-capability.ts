@@ -6,7 +6,10 @@ import { getGuestMediaConfig, type GuestMediaConfig } from "@repo/config/server"
 import { resolveGuestRuntimeConfigOverride } from "@repo/database";
 import { db } from "@repo/database/client";
 
-import { getCurrentExecutableEzPicProducts } from "./executable-route-graph";
+import {
+	getCurrentPublicCatalogProjection,
+	type ExecutableEzPicProduct,
+} from "./executable-route-graph";
 
 export interface GuestCapabilityProduct {
 	key: (typeof EZPIC_PRODUCT_KEYS)[number];
@@ -15,7 +18,7 @@ export interface GuestCapabilityProduct {
 	credits: `${number}`;
 	accessHint: "guest-trial" | "paid-account";
 	aspectRatios: readonly ImageAspectRatio[];
-	skuMatrix: Awaited<ReturnType<typeof getCurrentExecutableEzPicProducts>>[number]["skuMatrix"];
+	skuMatrix: ExecutableEzPicProduct["skuMatrix"];
 }
 
 export interface GuestCapabilitySnapshot {
@@ -32,6 +35,7 @@ export interface GuestCapabilitySnapshot {
 export interface LoadedGuestCapability {
 	snapshot: GuestCapabilitySnapshot;
 	config: GuestMediaConfig;
+	catalogRevision?: string;
 }
 
 export async function loadGuestCapability(
@@ -46,15 +50,16 @@ export async function loadGuestCapability(
 	const config = getGuestMediaConfig(environment, runtimeOverride);
 	const runtimeVersion = runtimeOverride?.version ?? 0;
 	let products: readonly GuestCapabilityProduct[] = [];
+	let catalogRevision: string | undefined;
 	try {
-		products = Object.freeze(
-			(
-				await getCurrentExecutableEzPicProducts(
-					db,
-					environment as Record<string, string | undefined>,
-				)
-			).map((product) => toGuestCapabilityProduct(product, config)),
+		const projection = await getCurrentPublicCatalogProjection(
+			db,
+			environment as Record<string, string | undefined>,
 		);
+		products = Object.freeze(
+			projection.ezPicProducts.map((product) => toGuestCapabilityProduct(product, config)),
+		);
+		catalogRevision = projection.catalog.revision;
 	} catch {
 		// Catalog/runtime availability is part of the fail-closed public capability.
 	}
@@ -64,6 +69,7 @@ export async function loadGuestCapability(
 		config.enabled && !hasExecutableProducts ? "GUEST_PRODUCTS_UNAVAILABLE" : config.reason;
 	return {
 		config,
+		catalogRevision,
 		snapshot: Object.freeze({
 			version: createGuestCapabilityVersion(runtimeVersion, config, products),
 			enabled,
@@ -130,14 +136,7 @@ function createGuestCapabilityVersion(
 }
 
 function toGuestCapabilityProduct(
-	input: {
-		key: (typeof EZPIC_PRODUCT_KEYS)[number];
-		label: string;
-		description: string;
-		credits: number;
-		aspectRatios: readonly ImageAspectRatio[];
-		skuMatrix: GuestCapabilityProduct["skuMatrix"];
-	},
+	input: ExecutableEzPicProduct,
 	config: GuestMediaConfig,
 ): GuestCapabilityProduct {
 	const defaultCell = input.skuMatrix.cells.find(

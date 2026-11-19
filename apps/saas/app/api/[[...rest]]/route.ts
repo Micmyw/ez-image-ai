@@ -1,4 +1,4 @@
-import { app } from "@repo/api";
+import { app } from "@repo/api/app";
 import { runLocalMediaE2ERequest } from "@shared/lib/local-media-e2e-request";
 import { handle } from "hono/vercel";
 

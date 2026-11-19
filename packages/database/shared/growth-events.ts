@@ -16,33 +16,27 @@ export interface GrowthEventInput {
 	diagnostics?: Record<string, string | number | boolean> | null;
 }
 
-/** Run inside a transaction. Rate limits and idempotency are shared across Worker instances. */
+/** Admission and idempotent insertion are atomic across Worker instances. */
 export async function recordGrowthEventWithQuery(
 	query: AdminAnalyticsQuery,
 	event: GrowthEventInput,
 ) {
-	const [limit] = await query<{ allowed: boolean }>(
-		`
-		INSERT INTO "rate_limit_bucket" (id, action, "subjectHash", "windowStart", "windowEnd", count, "updatedAt")
-		VALUES (gen_random_uuid()::text, 'analytics:ingest', $1, date_trunc('minute', now()),
-			date_trunc('minute', now()) + interval '1 minute', 1, now())
-		ON CONFLICT (action, "subjectHash", "windowStart") DO UPDATE
-		SET count = rate_limit_bucket.count + 1, "updatedAt" = now()
-		RETURNING (count <= 90) AS allowed`,
-		[event.sessionHash],
-	);
-	if (!limit?.allowed) return { accepted: false };
-	// Bounded opportunistic retention. Idle sites purge on the next accepted observation.
-	await query(
-		`DELETE FROM growth_event WHERE id IN
-		(SELECT id FROM growth_event WHERE "createdAt" < now() - interval '90 days' ORDER BY "createdAt" LIMIT 100)
-		RETURNING id`,
-		[],
-	);
-	await query(
-		`INSERT INTO growth_event
-		(id, "sessionHash", "userId", internal, name, path, source, medium, campaign, device, "productKind", "errorCategory", diagnostics)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::jsonb) ON CONFLICT (id) DO NOTHING RETURNING id`,
+	const [result] = await query<{ accepted: boolean }>(
+		`WITH admission AS (
+			INSERT INTO rate_limit_bucket (id, action, "subjectHash", "windowStart", "windowEnd", count, "updatedAt")
+			VALUES (gen_random_uuid()::text, 'analytics:ingest', $2, date_trunc('minute', now()),
+				date_trunc('minute', now()) + interval '1 minute', 1, now())
+			ON CONFLICT (action, "subjectHash", "windowStart") DO UPDATE
+			SET count = rate_limit_bucket.count + 1, "updatedAt" = now()
+			RETURNING count <= 90 AS allowed
+		), recorded AS (
+			INSERT INTO growth_event
+				(id, "sessionHash", "userId", internal, name, path, source, medium, campaign, device, "productKind", "errorCategory", diagnostics)
+			SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13::jsonb
+			FROM admission WHERE allowed
+			ON CONFLICT (id) DO NOTHING
+		)
+		SELECT allowed AS accepted FROM admission`,
 		[
 			event.id,
 			event.sessionHash,
@@ -59,5 +53,5 @@ export async function recordGrowthEventWithQuery(
 			event.diagnostics ? JSON.stringify(event.diagnostics) : null,
 		],
 	);
-	return { accepted: true };
+	return { accepted: result?.accepted ?? false };
 }

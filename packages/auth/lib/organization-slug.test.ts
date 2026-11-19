@@ -15,6 +15,12 @@ describe("organization slug boundary", () => {
 		expect(isForbiddenOrganizationSlug(" DOCS ")).toBe(true);
 		expect(isForbiddenOrganizationSlug("admin")).toBe(true);
 		expect(isForbiddenOrganizationSlug("design-team")).toBe(false);
+		expect(isForbiddenOrganizationSlug("design.team")).toBe(false);
+		expect(isForbiddenOrganizationSlug("APPLE-TOUCH-ICON.PNG")).toBe(true);
+		expect(isForbiddenOrganizationSlug("favicon.ico")).toBe(true);
+		expect(isForbiddenOrganizationSlug("manifest.json")).toBe(true);
+		expect(isForbiddenOrganizationSlug("manifest.webmanifest")).toBe(true);
+		expect(isForbiddenOrganizationSlug("site.webmanifest")).toBe(true);
 	});
 
 	it.each(["docs", "models", "video"])(

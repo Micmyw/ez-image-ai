@@ -44,7 +44,11 @@ migration, external tracker or customer interaction. This implementation is loca
 
 ### Existing storage checks
 
-Apply `20261021100000_growth_event_funnel` followed by `20261021120000_anonymous_traffic_diagnostics` before deploying the consumers. Both tables use the existing private application-role/RLS boundary. Counters and detailed observations older than 90 days are removed in bounded batches on new activity; idle sites purge on subsequent activity. The aggregate endpoint has a global 12,000-request/minute ceiling; it is coarse protection, not a human-traffic guarantee. Client page deduplication is memory-only.
+Apply `20261021100000_growth_event_funnel` followed by `20261021120000_anonymous_traffic_diagnostics` before deploying the consumers. Both tables use the existing private application-role/RLS boundary. The aggregate endpoint has a global 12,000-request/minute ceiling. Client page deduplication is memory-only.
+
+The existing cleanup workflow's 15-minute upload maintenance also prunes analytics. Each sweep deletes up to 1,000 counters and 1,000 detailed observations older than 90 days, and up to 1,000 analytics rate-limit buckets whose windows ended more than one day ago. Oldest eligible rows go first. With a healthy scheduler and no backlog or locks, an eligible row is picked up at the next 15-minute slot. Successful sweeps can remove up to 96,000 rows per table each day. Backlogs, locks and failed runs can extend the delay.
+
+Deploy the updated maintenance receiver before the site writer so retention runs independently of site traffic. Both changes use the existing database schema. Ingestion uses one atomic statement to apply rate admission and write the observation.
 
 Focused tests cover region trust, explicit refusal/version renewal, source sanitization, anonymous credentials, immutable registration attribution, SDK start/revoke, generation payload limits and private Chinese labels. The migration and atomic SQL were exercised on an isolated local PGlite PostgreSQL engine. Browser tests intercept external vendors and business APIs; this validates local integration behavior, not actual Microsoft/Google ingestion, payment, generation or dashboard visibility. Production migration, deployment and authenticated vendor-dashboard verification are NOT_RUN.
 

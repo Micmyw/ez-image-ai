@@ -2,6 +2,10 @@ import path from "node:path";
 import { gzipSync } from "node:zlib";
 
 import { expect, type Locator, type Page, test } from "@playwright/test";
+import {
+	GUEST_CAPABILITY_CATALOG_PRESENTATION,
+	GUEST_CAPABILITY_PRESENTATION_HEADER,
+} from "@repo/config/guest-trial";
 
 import { expectNoAdvertising, watchAdFreeBrowsing } from "./helpers/ad-free-browsing";
 
@@ -950,10 +954,36 @@ test("the production homepage excludes account tools, charts, and documentation 
 	await page.screenshot({ path: testInfo.outputPath("documentation-desktop.png") });
 });
 
-test("the homepage shares one model catalog request between navigation and editor", async ({
+test("the homepage shares one model catalog request between navigation and both editor inputs", async ({
 	page,
 }) => {
 	let catalogRequests = 0;
+	let capabilityRequests = 0;
+	const revision = "a".repeat(64);
+	const { products, ...details } = capability;
+	await page.route("**/api/rpc/media/getPublicCatalog**", (route) =>
+		route.fulfill({
+			json: {
+				json: {
+					catalogVersion: "2026-09-14.1",
+					pricingVersion: "2026-09-13.2",
+					revision,
+					products: products.map((product) => ({
+						...product,
+						credits: Number(product.credits),
+						inputKinds: ["text-to-image", "image-to-image"],
+					})),
+				},
+			},
+		}),
+	);
+	await page.route("**/api/media/guest-capability", (route) => {
+		capabilityRequests += 1;
+		expect(route.request().headers()[GUEST_CAPABILITY_PRESENTATION_HEADER]).toBe(
+			GUEST_CAPABILITY_CATALOG_PRESENTATION,
+		);
+		return route.fulfill({ json: { ...details, catalogRevision: revision } });
+	});
 	page.on("request", (request) => {
 		if (request.url().includes("/api/rpc/media/getPublicCatalog")) catalogRequests += 1;
 	});
@@ -961,7 +991,12 @@ test("the homepage shares one model catalog request between navigation and edito
 	await expect(stage(page, "ready")).toBeVisible();
 	await page.locator('[data-test="studio-models-menu"]').click();
 	await expect(page.locator(".studio-navigation-popover")).toBeVisible();
+	await page.keyboard.press("Escape");
+	await page.locator("#landing-source-image").setInputFiles(pngFile("shared-catalog.png"));
+	await expect(stage(page, "ready")).toBeVisible();
+	await expect(page.locator('[data-test="landing-model-trigger"]')).toBeEnabled();
 	expect(catalogRequests).toBe(1);
+	expect(capabilityRequests).toBe(1);
 });
 
 test("a guest text prompt is saved before sign-in navigation", async ({ page }) => {
@@ -1059,6 +1094,16 @@ test("text editing does not wait for guest upload availability", async ({ page }
 
 test("reference editing does not wait for the text catalog", async ({ page }) => {
 	const catalogGate = deferred<void>();
+	const { products: _products, ...details } = capability;
+	let fallbackRequests = 0;
+	await page.route("**/api/media/guest-capability", (route) => {
+		const presentation = route.request().headers()[GUEST_CAPABILITY_PRESENTATION_HEADER];
+		if (presentation === GUEST_CAPABILITY_CATALOG_PRESENTATION) {
+			return route.fulfill({ json: { ...details, catalogRevision: "a".repeat(64) } });
+		}
+		fallbackRequests += 1;
+		return route.fulfill({ json: capability });
+	});
 	await page.route("**/api/rpc/media/getPublicCatalog**", async (route) => {
 		await catalogGate.promise;
 		await route.fulfill({
@@ -1071,6 +1116,7 @@ test("reference editing does not wait for the text catalog", async ({ page }) =>
 		await page.locator("#landing-source-image").setInputFiles(pngFile("reference-source.png"));
 		await expect(stage(page, "ready")).toBeVisible();
 		await expect(page.locator('[data-test="landing-model-trigger"]')).toBeEnabled();
+		expect(fallbackRequests).toBe(1);
 	} finally {
 		catalogGate.resolve();
 	}

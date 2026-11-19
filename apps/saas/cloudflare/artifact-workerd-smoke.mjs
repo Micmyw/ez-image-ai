@@ -8,18 +8,21 @@ import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 
 import { assertCompactWorker } from "./compact-worker.mjs";
+import { prerenderedMetadata, publicIcons, webManifestPaths } from "./public-metadata-paths.mjs";
 import { openWorkerMemoryProbe } from "./worker-memory.mjs";
 
 const app = fileURLToPath(new URL("../", import.meta.url));
 const output = path.join(app, "dist/worker");
 const assets = path.join(app, ".open-next/assets");
 const origin = "https://website-artifact-smoke.invalid";
+const paymentOrigin = "https://website-artifact-smoke.account.workers.dev";
 const callbackSecret = "artifact-callback-only-secret-00000000";
 const seeapiKey = "whsec_artifact_callback_only_signing_key";
 const wranglerRequire = createRequire(
 	realpathSync(path.join(app, "node_modules/wrangler/package.json")),
 );
 const { Miniflare, convertV4MiniflareOptions } = wranglerRequire("miniflare");
+const configuration = JSON.parse(await readFile(path.join(app, "wrangler.jsonc"), "utf8"));
 const checkDatabase = process.argv.includes("--database");
 const connectionString = process.env.TEST_DATABASE_URL;
 if (checkDatabase) {
@@ -85,6 +88,7 @@ const runtime = new Miniflare(
 			directory: assets,
 			binding: "ASSETS",
 			routerConfig: { has_user_worker: true },
+			run_worker_first: configuration.assets.run_worker_first,
 		},
 		images: { binding: "IMAGES" },
 		r2Buckets: ["NEXT_INC_CACHE_R2_BUCKET"],
@@ -102,7 +106,9 @@ const runtime = new Miniflare(
 		},
 		// Deliberately omit DATABASE_URL: deployed Workers only receive Hyperdrive.
 		bindings: {
-			CANONICAL_ORIGIN: "https://website-artifact-smoke.invalid",
+			CANONICAL_ORIGIN: origin,
+			PAYMENT_WEBHOOK_INGRESS_ORIGIN: paymentOrigin,
+			WEBSITE_VERSION: { id: "artifact-smoke-version" },
 			EZPIC_RUNTIME: "workers",
 			EZPIC_DATABASE_BINDING: "hyperdrive",
 			NODE_ENV: "production",
@@ -120,17 +126,226 @@ const runtime = new Miniflare(
 	}),
 );
 
-async function request(endpoint, { headers, status = 200, method, body: requestBody } = {}) {
-	const response = await runtime.dispatchFetch(`${origin}${endpoint}`, {
+function artifactFetch(endpoint, { headers, method, body, base = origin } = {}) {
+	return runtime.dispatchFetch(`${base}${endpoint}`, {
 		headers,
 		method,
-		body: requestBody,
+		body,
 		redirect: "manual",
 		signal: AbortSignal.timeout(30_000),
 	});
+}
+
+async function request(endpoint, { status = 200, ...options } = {}) {
+	const response = await artifactFetch(endpoint, options);
 	const body = await response.text();
 	assert.equal(response.status, status, `${endpoint}: ${body.slice(0, 300)}`);
 	return { response, body };
+}
+
+function assertDirectDataSecurity(response, endpoint) {
+	const headers = response.headers;
+	assert.match(headers.get("content-security-policy") ?? "", /default-src 'none'/, endpoint);
+	assert.match(headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/, endpoint);
+	assert.equal(headers.get("x-content-type-options"), "nosniff", endpoint);
+	assert.equal(headers.get("x-frame-options"), "DENY", endpoint);
+	assert.equal(headers.get("referrer-policy"), "strict-origin-when-cross-origin", endpoint);
+	assert.equal(
+		headers.get("permissions-policy"),
+		"camera=(), microphone=(), geolocation=(), payment=()",
+		endpoint,
+	);
+	assert.equal(
+		headers.get("strict-transport-security"),
+		"max-age=63072000; includeSubDomains; preload",
+		endpoint,
+	);
+}
+
+async function verifyPublicMetadata() {
+	const bodies = {};
+	for (const [endpoint, contentType] of Object.entries(prerenderedMetadata)) {
+		const expected = await readFile(path.join(app, `.next/server/app${endpoint}.body`));
+		const served = await artifactFetch(endpoint + "?v=artifact");
+		assert.equal(served.status, 200, endpoint);
+		assert.equal(served.headers.get("content-type"), contentType, endpoint);
+		assert.equal(
+			served.headers.get("cache-control"),
+			"public, max-age=0, must-revalidate",
+			endpoint,
+		);
+		assertDirectDataSecurity(served, endpoint);
+		const etag = served.headers.get("etag");
+		assert(etag, `${endpoint}: expected an asset ETag`);
+		bodies[endpoint] = Buffer.from(await served.arrayBuffer());
+		assert.deepEqual(bodies[endpoint], expected, endpoint);
+
+		const head = await request(endpoint, { method: "HEAD" });
+		assert.equal(head.body, "", endpoint);
+		assert.equal(head.response.headers.get("etag"), etag, endpoint);
+		assert.equal(head.response.headers.get("content-type"), contentType, endpoint);
+		assertDirectDataSecurity(head.response, endpoint);
+		const conditional = await request(endpoint, {
+			headers: { "if-none-match": etag },
+			status: 304,
+		});
+		assert.equal(conditional.body, "", endpoint);
+		assert.equal(conditional.response.headers.get("etag"), etag, endpoint);
+		assertDirectDataSecurity(conditional.response, endpoint);
+	}
+
+	const robots = bodies["/robots.txt"].toString("utf8");
+	const maps = [...robots.matchAll(/^Sitemap: (\S+)$/gm)].map((match) => new URL(match[1]));
+	assert.deepEqual(
+		maps.map((url) => url.pathname),
+		["/sitemap.xml", "/sitemap-images.xml"],
+	);
+	const builtOrigins = new Set(maps.map((url) => url.origin));
+	assert.equal(builtOrigins.size, 1);
+	for (const endpoint of ["/sitemap.xml", "/sitemap-images.xml"]) {
+		const xml = bodies[endpoint].toString("utf8");
+		assert.match(xml, /<urlset\b/);
+		assert.match(xml, /<loc>https?:\/\/[^<]+<\/loc>/);
+		for (const [, url] of xml.matchAll(/<(?:image:)?loc>([^<]+)<\/(?:image:)?loc>/g))
+			assert(builtOrigins.has(new URL(url).origin), endpoint);
+	}
+	assert.match(bodies["/sitemap.xml"].toString("utf8"), /hreflang="x-default"/);
+	assert.match(bodies["/sitemap.xml"].toString("utf8"), /<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/);
+	assert.match(
+		bodies["/sitemap-images.xml"].toString("utf8"),
+		/<image:loc>[^<]+\/images\/landing\/variants\//,
+	);
+	assert.deepEqual(bodies["/icon.png"], await readFile(path.join(app, "app/icon.png")));
+
+	const fileRequests = {
+		"/favicon.ico": { type: "image/x-icon", dest: "image" },
+		"/apple-touch-icon.png": { type: "image/png", dest: "image" },
+	};
+	for (const [endpoint, { type, dest }] of Object.entries(fileRequests)) {
+		const headers = {
+			"sec-fetch-dest": dest,
+			accept: "image/*,*/*;q=0.8",
+			cookie: "__Secure-better-auth.session_token=artifact-session-cookie",
+		};
+		const response = await artifactFetch(endpoint, { headers });
+		assert.equal(response.status, 200, endpoint);
+		assert.equal(response.headers.get("content-type"), type, endpoint);
+		assertDirectDataSecurity(response, endpoint);
+		const body = Buffer.from(await response.arrayBuffer());
+		assert.deepEqual(body, await readFile(path.join(assets, publicIcons[endpoint].slice(1))));
+		if (endpoint === "/favicon.ico") {
+			assert.deepEqual(body.subarray(0, 4), Buffer.from([0, 0, 1, 0]));
+			assert.equal(body.readUInt16LE(4), 3);
+		} else {
+			assert.deepEqual(body.subarray(0, 8), Buffer.from("89504e470d0a1a0a", "hex"));
+			assert.equal(body.readUInt32BE(16), 180);
+			assert.equal(body.readUInt32BE(20), 180);
+		}
+		const head = await request(endpoint, { method: "HEAD" });
+		assert.equal(head.body, "", endpoint);
+		assert.equal(head.response.headers.get("etag"), response.headers.get("etag"), endpoint);
+		assertDirectDataSecurity(head.response, endpoint);
+		const conditional = await request(endpoint, {
+			headers: { "if-none-match": response.headers.get("etag") },
+			status: 304,
+		});
+		assert.equal(conditional.body, "", endpoint);
+		assertDirectDataSecurity(conditional.response, endpoint);
+	}
+
+	for (const endpoint of [...webManifestPaths, "/manager/html", "/wp-admin/install.php"]) {
+		for (const method of ["GET", "HEAD"]) {
+			const missing = await request(endpoint + "?v=artifact", { method, status: 404 });
+			assert.equal(missing.response.headers.get("location"), null, endpoint);
+			assert.equal(
+				missing.response.headers.get("content-type"),
+				"text/plain; charset=utf-8",
+				endpoint,
+			);
+			assert.equal(missing.body, method === "GET" ? "Not found" : "", endpoint);
+			assertDirectDataSecurity(missing.response, endpoint);
+		}
+	}
+
+	for (const endpoint of [
+		...Object.keys(prerenderedMetadata),
+		...Object.keys(publicIcons),
+		...webManifestPaths,
+	]) {
+		const { response: slash } = await request(endpoint + "/?v=artifact", { status: 308 });
+		assert.equal(
+			new URL(slash.headers.get("location"), origin).href,
+			origin + endpoint + "?v=artifact",
+		);
+		assertDirectDataSecurity(slash, endpoint);
+		const { response: redirected } = await request(endpoint + "?v=artifact", {
+			base: origin.replace("https:", "http:"),
+			status: 308,
+		});
+		assert.equal(redirected.headers.get("location"), origin + endpoint + "?v=artifact");
+		await request(endpoint, { base: paymentOrigin, status: 421 });
+	}
+
+	const webhook = await request("/api/webhooks/payments", {
+		base: paymentOrigin,
+		method: "POST",
+		headers: { "stripe-signature": "t=0,v1=artifact-invalid-signature" },
+		body: "{}",
+		status: 400,
+	});
+	assert.equal(webhook.body, "Invalid request.");
+	const ordinary404 = await request("/missing-public-page/nested", { status: 404 });
+	assert.match(ordinary404.response.headers.get("content-type"), /text\/html/);
+	assert.match(ordinary404.body, /noindex/);
+	const organization = await request("/example.team", { status: 307 });
+	assert.equal(
+		new URL(organization.response.headers.get("location"), origin).href,
+		origin + "/login",
+	);
+}
+
+async function verifyAnalyticsPolicy() {
+	const path = "/api/analytics/policy";
+	for (const [headers, policy] of [
+		[{ "cf-ipcountry": "US" }, [false, false, true]],
+		[{ "cf-ipcountry": "DE" }, [true, false, false]],
+		[{}, [true, false, false]],
+		[{ "cf-ipcountry": "DE", cookie: "consent=true; consent_version=2" }, [true, false, true]],
+		[{ "cf-ipcountry": "DE", cookie: "consent=true; consent_version=1" }, [true, false, false]],
+		[{ "cf-ipcountry": "US", cookie: "consent=false" }, [false, false, false]],
+		[{ "cf-ipcountry": "US", "sec-gpc": "1" }, [false, true, false]],
+		[{ "cf-ipcountry": "US", dnt: "1" }, [false, true, false]],
+	]) {
+		const [requiresOptIn, privacySignal, analyticsAllowed] = policy;
+		const edge = await request(path, { headers });
+		const legacy = await request(path + "?contract=legacy", { headers });
+		assert.deepEqual(JSON.parse(edge.body), { requiresOptIn, privacySignal, analyticsAllowed });
+		assert.deepEqual(JSON.parse(edge.body), JSON.parse(legacy.body));
+		assertDirectDataSecurity(edge.response, path);
+		for (const { response } of [edge, legacy]) {
+			assert.equal(response.headers.get("cache-control"), "private, no-store");
+			assert.equal(response.headers.get("set-cookie"), null);
+			for (const key of [
+				"cookie",
+				"cf-ipcountry",
+				"x-vercel-ip-country",
+				"sec-gpc",
+				"dnt",
+				"origin",
+			])
+				assert(response.headers.get("vary")?.toLowerCase().split(/,\s*/).includes(key));
+		}
+	}
+	const sameOrigin = await request(path, { headers: { origin } });
+	assert.equal(sameOrigin.response.headers.get("access-control-allow-origin"), origin);
+	assert.equal(sameOrigin.response.headers.get("access-control-expose-headers"), "Content-Length");
+	assert.equal(sameOrigin.response.headers.get("access-control-allow-credentials"), null);
+	const foreignOrigin = await request(path, {
+		headers: { origin: "https://foreign.example.test" },
+	});
+	assert.equal(foreignOrigin.response.headers.get("access-control-allow-origin"), null);
+	await request(path, { method: "HEAD", status: 404 });
+	await request(path, { method: "OPTIONS", status: 204 });
 }
 
 let memoryProbe;
@@ -168,6 +383,7 @@ try {
 	assert.match(create.body, /<html\b[^>]*\blang="es"/);
 	for (const [endpoint, page] of Object.entries({ "/": home, "/create?lang=es": create })) {
 		assert.match(page.response.headers.get("content-type"), /text\/html/);
+		assert.match(page.response.headers.get("content-security-policy") ?? "", /default-src 'self'/);
 		assert.equal(page.response.headers.get("x-robots-tag"), null, endpoint);
 		assert.match(
 			page.body,
@@ -218,6 +434,8 @@ try {
 	for (const endpoint of ["/api/ai/stream", "/api/rpc/ai/stream"])
 		await request(endpoint, { method: "POST", body: "{}", status: 404 });
 	await memoryProbe.measure("website.public-retained", 112, { retained: true });
+	await verifyPublicMetadata();
+	await verifyAnalyticsPolicy();
 	if (checkDatabase) {
 		// The public catalog queries runtimeConfigOverride through the Next server
 		// bundle. Concurrent requests also exercise the outer database context.
@@ -284,6 +502,8 @@ try {
 			externalHttpRequests: blockedOutboundOrigins.length,
 			inlineThemeInitialization: true,
 			staticAssetCaching: true,
+			publicMetadataAndOriginChecks: true,
+			analyticsPolicyParity: true,
 			concurrentLocalPostgresQueries: checkDatabase,
 			imageCallbackSignatureRejection: true,
 			localIsolateMemoryBudget: true,

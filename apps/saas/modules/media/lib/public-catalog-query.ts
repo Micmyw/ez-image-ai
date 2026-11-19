@@ -1,6 +1,8 @@
 import { orpcClient } from "@shared/lib/orpc-client";
 import { queryOptions } from "@tanstack/react-query";
 
+export type PublicMediaCatalog = Awaited<ReturnType<typeof orpcClient.media.getPublicCatalog>>;
+
 export const publicCatalogQueryOptions = queryOptions({
 	queryKey: ["media-catalog"],
 	queryFn: ({ signal }) =>

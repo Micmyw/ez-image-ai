@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { publicProcedure } from "../../../orpc/procedures";
 import { loadGuestCapability } from "../lib/guest-capability";
-import { prepareGuestUpload } from "../lib/guest-upload-preparation";
+import { prepareGuestUpload, recordGuestUploadSealed } from "../lib/guest-upload-preparation";
 
 export const prepareGuestDraftUpload = publicProcedure
 	.route({
@@ -38,5 +38,8 @@ export const prepareGuestDraftUpload = publicProcedure
 	)
 	.handler(async ({ context, input }) => {
 		context.responseHeaders?.set("Cache-Control", "no-store");
-		return prepareGuestUpload(input, context.headers, await loadGuestCapability(), context.defer);
+		const result = await prepareGuestUpload(input, context.headers, await loadGuestCapability());
+		if (result.status === "PENDING") return result;
+		await recordGuestUploadSealed(result.assetId, context, input.journey);
+		return { status: "SEALED" as const };
 	});

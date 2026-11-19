@@ -1,4 +1,7 @@
-import { resolveAnalyticsPolicy } from "@repo/utils/lib/analytics-policy";
+import {
+	resolveAnalyticsPolicy,
+	setAnalyticsPolicyPrivacyHeaders,
+} from "@repo/utils/lib/analytics-policy";
 import { z } from "zod";
 
 import { publicProcedure } from "../../orpc/procedures";
@@ -19,7 +22,6 @@ export const getAnalyticsPolicy = publicProcedure
 		}),
 	)
 	.handler(({ context }) => {
-		context.responseHeaders?.set("Cache-Control", "private, no-store");
-		context.responseHeaders?.set("Vary", "Cookie, CF-IPCountry, X-Vercel-IP-Country, Sec-GPC, DNT");
+		if (context.responseHeaders) setAnalyticsPolicyPrivacyHeaders(context.responseHeaders);
 		return resolveAnalyticsPolicy(context.headers);
 	});

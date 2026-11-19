@@ -31,7 +31,10 @@ import {
 	isPaidTemplateSelection,
 	paidTemplateSpecMatrix,
 } from "@media/lib/paid-template-selection";
-import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
+import {
+	publicCatalogQueryOptions,
+	type PublicMediaCatalog,
+} from "@media/lib/public-catalog-query";
 import { useToolComposer } from "@media/lib/tool-composer-context";
 import { useToolPrompt, useToolPromptBinding } from "@media/lib/tool-prompt-context";
 import { PaidTemplateDialog } from "@payments/components/PaidTemplateDialog";
@@ -93,10 +96,13 @@ import {
 	useGenerationMode,
 	useGeneratorSignInDraft,
 } from "../../media/lib/generation-mode-context";
-import { guestCapabilityQueryOptions, refreshGuestCapability } from "../lib/guest-capability-query";
 import {
-	type GuestCapabilitySnapshot,
-	type GuestCapabilityProduct,
+	fullGuestCapabilityQueryOptions,
+	guestCapabilityQueryOptions,
+	refreshGuestCapability,
+} from "../lib/guest-capability-query";
+import {
+	type GuestCapabilityPresentation,
 	type GuestProductKey,
 	LANDING_IMAGE_CONTENT_TYPES,
 	submitGuestDraftHandoff,
@@ -109,6 +115,7 @@ import {
 	shouldRestoreInlineGuestTrial,
 } from "../lib/inline-guest-trial";
 import {
+	landingCatalogProducts,
 	localizeLandingProducts,
 	landingDisabledReason,
 	type LandingGeneratorStage,
@@ -125,6 +132,7 @@ import { useShowcasePrompt } from "../lib/use-showcase-prompt";
 
 const GUEST_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY ?? null;
 const LOCAL_TURNSTILE_EVIDENCE = "local-guest-upload";
+const UPLOAD_CATALOG_FALLBACK_DELAY_MS = 500;
 
 const loadGuestTrialWorkspace = () => import("@media/components/guest/GuestTrialWorkspace");
 const GuestTrialWorkspace = dynamic(() =>
@@ -239,9 +247,10 @@ function LandingGeneratorWorkspace({
 	const floatingPromptRef = useRef<HTMLTextAreaElement>(null);
 	const floatingExpandRef = useRef<HTMLButtonElement>(null);
 	const floatingDockRef = useRef<HTMLElement>(null);
-	const [capability, setCapability] = useState<GuestCapabilitySnapshot | null>(null);
+	const [capability, setCapability] = useState<GuestCapabilityPresentation | null>(null);
 	const [capabilityRequestKey, setCapabilityRequestKey] = useState(0);
-	const [textProducts, setTextProducts] = useState<GuestCapabilityProduct[]>([]);
+	const [catalog, setCatalog] = useState<PublicMediaCatalog | null>(null);
+	const [uploadFallbackFailed, setUploadFallbackFailed] = useState(false);
 	const [textDraftError, setTextDraftError] = useState(false);
 	const requestedModel = useRequestedImageModel();
 	const outputFormatFromUrl = useRequestedImageOutputFormat();
@@ -302,7 +311,24 @@ function LandingGeneratorWorkspace({
 	const [operationStage, setStage] = useState<LandingGeneratorStage>("ready");
 	const [guestStatus, setGuestStatus] = useState<"checking" | "ready" | "failed">("checking");
 	const [catalogStatus, setCatalogStatus] = useState<"checking" | "ready" | "failed">("checking");
-	const availabilityStatus = file || requireReference ? guestStatus : catalogStatus;
+	const usesUpload = Boolean(file) || requireReference;
+	const textProducts = useMemo(
+		() => landingCatalogProducts(catalog?.products ?? [], "text-to-image"),
+		[catalog],
+	);
+	const uploadProducts = useMemo(() => {
+		if (!capability) return null;
+		if ("products" in capability) return capability.products;
+		if (!catalog || catalog.revision !== capability.catalogRevision) return null;
+		return landingCatalogProducts(catalog.products, "image-to-image");
+	}, [catalog, capability]);
+	const uploadStatus =
+		guestStatus === "ready" && !uploadProducts
+			? uploadFallbackFailed
+				? "failed"
+				: "checking"
+			: guestStatus;
+	const availabilityStatus = usesUpload ? uploadStatus : catalogStatus;
 	const stage =
 		(operationStage === "ready" || operationStage === "failed") && availabilityStatus !== "ready"
 			? availabilityStatus
@@ -389,13 +415,14 @@ function LandingGeneratorWorkspace({
 		let active = true;
 		setGuestStatus("checking");
 		setCatalogStatus("checking");
+		setUploadFallbackFailed(false);
 		if (!isEffectEditor)
 			void trackBrowserGrowthEvent(
 				{ name: "landing_viewed", properties: { status: "viewed" } },
 				{ dedupeKey: "landing" },
 			);
-		// Each input mode waits only for its own capability. A slow upload check
-		// must not block text editing, and a late response must not reset a handoff.
+		// Start the private browser handshake and the public catalog in parallel.
+		// Text editing only needs the public response.
 		void (
 			capabilityRequestKey > 0
 				? refreshGuestCapability(queryClient)
@@ -421,29 +448,12 @@ function LandingGeneratorWorkspace({
 			.then(
 				(catalog) => {
 					if (!active) return;
-					const available: GuestCapabilityProduct[] = catalog.products.flatMap((product) =>
-						isEditorProductKey(product.key) &&
-						product.inputKinds.includes("text-to-image") &&
-						product.skuMatrix
-							? [
-									{
-										key: product.key,
-										label: product.label,
-										description: product.description,
-										credits: `${product.credits}` as `${number}`,
-										accessHint: "paid-account" as const,
-										aspectRatios: product.skuMatrix.cells.flatMap((cell) => cell.aspectRatios),
-										skuMatrix: product.skuMatrix,
-									},
-								]
-							: [],
-					);
-					setTextProducts(available);
+					setCatalog(catalog);
 					setCatalogStatus("ready");
 				},
 				() => {
 					if (!active) return;
-					setTextProducts([]);
+					setCatalog(null);
 					setCatalogStatus("failed");
 				},
 			);
@@ -451,6 +461,34 @@ function LandingGeneratorWorkspace({
 			active = false;
 		};
 	}, [capabilityRequestKey, queryClient, isEffectEditor]);
+
+	useEffect(() => {
+		if (!usesUpload || guestStatus !== "ready" || uploadProducts || uploadFallbackFailed) {
+			return;
+		}
+		let active = true;
+		function loadFullCapability() {
+			void queryClient.fetchQuery(fullGuestCapabilityQueryOptions).then(
+				(snapshot) => {
+					if (active) setCapability(snapshot);
+				},
+				() => {
+					if (active) setUploadFallbackFailed(true);
+				},
+			);
+		}
+		// A stale, failed or slow catalog may still be followed by an upload. Allow
+		// fast parallel reads to meet, and bound the wait for the standalone path.
+		const timer =
+			catalogStatus === "checking"
+				? setTimeout(loadFullCapability, UPLOAD_CATALOG_FALLBACK_DELAY_MS)
+				: undefined;
+		if (timer === undefined) loadFullCapability();
+		return () => {
+			active = false;
+			clearTimeout(timer);
+		};
+	}, [catalogStatus, guestStatus, queryClient, uploadFallbackFailed, uploadProducts, usesUpload]);
 
 	useEffect(() => {
 		if (!effectEditor || effectDraftInitialized.current) return;
@@ -630,7 +668,7 @@ function LandingGeneratorWorkspace({
 	const supportedMimeTypes = capability?.upload.mimeTypes ?? LANDING_IMAGE_CONTENT_TYPES;
 	const availableProducts = useMemo(
 		() =>
-			(file || requireReference ? (capability?.products ?? []) : textProducts)
+			(usesUpload ? (uploadProducts ?? []) : textProducts)
 				.map((product) =>
 					rasterOnly
 						? { ...product, skuMatrix: constrainImageSpecMatrixToRaster(product.skuMatrix) }
@@ -646,7 +684,7 @@ function LandingGeneratorWorkspace({
 						: product,
 				)
 				.filter((product) => !paidTemplate || product.skuMatrix.cells.length > 0),
-		[file, requireReference, capability?.products, textProducts, paidTemplate, rasterOnly],
+		[usesUpload, uploadProducts, textProducts, paidTemplate, rasterOnly],
 	);
 	useEffect(() => {
 		if (isEffectEditor) return;
@@ -724,14 +762,16 @@ function LandingGeneratorWorkspace({
 	const displayedCredits = selectedSku
 		? getImageGenerationCredits({ skuKey: selectedSku.skuKey, ...controlValues })
 		: undefined;
-	const capabilityUsable =
-		file || requireReference
-			? Boolean(capability?.enabled && capability.products.length > 0)
-			: textProducts.length > 0;
+	const capabilityUsable = usesUpload
+		? uploadStatus === "ready" && Boolean(capability?.enabled && uploadProducts?.length)
+		: textProducts.length > 0;
 	const guestPreparation = useGuestUploadPreparation({
 		file: retainedFile,
 		enabled: Boolean(
-			!referenceSuspended && capability?.enabled && (!regionRequiresAccount || paidTemplate),
+			!referenceSuspended &&
+			capabilityUsable &&
+			capability?.enabled &&
+			(!regionRequiresAccount || paidTemplate),
 		),
 		capabilityVersion: capability?.version,
 		productKey: selectedProduct?.key,

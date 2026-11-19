@@ -639,6 +639,10 @@ describe("anonymous Better Auth wildcard boundary", () => {
 		["POST", "/api/auth/phone-number/verify"],
 		["POST", "/api/auth/two-factor/verify-totp"],
 		["POST", "/api/auth/organization/create"],
+		["POST", "/api/auth/get-session"],
+		["HEAD", "/api/auth/get-session"],
+		["GET", "/api/auth/get-session/"],
+		["GET", "/api/auth/get-session/extra"],
 		["GET", "/api/auth/admin/list-users"],
 		["GET", "/api/auth/callback/attacker"],
 		["GET", "/api/auth/callback/google/extra"],
@@ -655,15 +659,18 @@ describe("anonymous Better Auth wildcard boundary", () => {
 		});
 
 		expect(response.status).toBe(403);
+		expect(auth.api.getSession).toHaveBeenCalledOnce();
 		expect(auth.handler).not.toHaveBeenCalled();
 	});
 
 	it.each([
-		["GET", "/api/auth/get-session"],
-		["POST", "/api/auth/sign-out"],
+		["GET", "/api/auth/get-session", 0],
+		["GET", "/api/auth/get-session?disableCookieCache=true", 0],
+		["GET", "/api/auth/%67et-session", 1],
+		["POST", "/api/auth/sign-out", 1],
 	] as const)(
 		"allows the minimal guest session route %s %s without link intent",
-		async (method, path) => {
+		async (method, path, outsideSessionReads) => {
 			vi.mocked(auth.api.getSession).mockResolvedValue({
 				user: { id: "guest", isAnonymous: true },
 				session: { id: "guest-session" },
@@ -674,9 +681,38 @@ describe("anonymous Better Auth wildcard boundary", () => {
 			const response = await createApiApp(dependencies).request(path, { method });
 
 			expect(response.status).toBe(200);
+			expect(auth.api.getSession).toHaveBeenCalledTimes(outsideSessionReads);
+			expect(auth.handler).toHaveBeenCalledOnce();
 			expect(dependencies.hasGuestLinkIntent).not.toHaveBeenCalled();
 		},
 	);
+
+	it("forwards the exact session request and preserves Better Auth's cookies and rate-limit response", async () => {
+		const request = new Request(
+			"https://example.com/api/auth/get-session?disableCookieCache=true",
+			{
+				headers: { Cookie: "better-auth.session_token=test-token" },
+			},
+		);
+		const expiredCookies = [
+			"session_token=; Max-Age=0; Path=/",
+			"session_data=; Max-Age=0; Path=/",
+		];
+		const headers = new Headers({ "Retry-After": "10" });
+		for (const cookie of expiredCookies) headers.append("Set-Cookie", cookie);
+		vi.mocked(auth.handler).mockResolvedValueOnce(
+			new Response("Too Many Requests", { status: 429, headers }),
+		);
+
+		const response = await app.request(request);
+
+		expect(auth.api.getSession).not.toHaveBeenCalled();
+		expect(auth.handler).toHaveBeenCalledExactlyOnceWith(request);
+		expect(response.status).toBe(429);
+		expect(response.headers.get("Retry-After")).toBe("10");
+		expect(response.headers.getSetCookie()).toEqual(expiredCookies);
+		expect(await response.text()).toBe("Too Many Requests");
+	});
 });
 
 function testGuestAbuseBinding(purpose: string, value: string): string {

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Public site and guest uploads
+
+- Reuse the model catalog that the editor already loads when checking guest upload availability.
+- Skip the offer lookup after a visitor dismisses the Image Pass banner for the session.
+- Let a guest upload continue with its original receipt when the database times out before starting the completion transaction.
+
 ## 2026-11-16 — Guest generation in place
 
 - Start an eligible guest edit with one click on the homepage or Create page, and show progress and the result in the same composer without a handoff page or second submission.

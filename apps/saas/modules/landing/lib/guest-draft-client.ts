@@ -13,6 +13,10 @@ import {
 	type ImageSkuKey,
 } from "@repo/config/client";
 import {
+	GUEST_CAPABILITY_CATALOG_PRESENTATION,
+	GUEST_CAPABILITY_PRESENTATION_HEADER,
+} from "@repo/config/guest-trial";
+import {
 	hasGrowthAnalyticsConsent,
 	readGrowthAnalyticsSessionHash,
 } from "@repo/utils/lib/growth-analytics-cookie";
@@ -56,16 +60,23 @@ export interface GuestCapabilityProduct {
 	skuMatrix: GuestCapabilitySkuMatrix;
 }
 
-export interface GuestCapabilitySnapshot {
+interface GuestCapabilityDetails {
 	version: string;
 	enabled: boolean;
 	reason: string | null;
 	upload: { mimeTypes: readonly string[]; maximumBytes: number };
-	products: readonly GuestCapabilityProduct[];
 	queueEstimate:
 		| { kind: "range"; minimumSeconds: number; maximumSeconds: number }
 		| { kind: "capacity" };
 }
+
+export interface GuestCapabilitySnapshot extends GuestCapabilityDetails {
+	products: readonly GuestCapabilityProduct[];
+}
+
+export type GuestCapabilityPresentation =
+	| GuestCapabilitySnapshot
+	| (GuestCapabilityDetails & { catalogRevision: string });
 
 export interface GuestUploadIntentInput {
 	requestId?: string;
@@ -159,14 +170,31 @@ export async function prepareGuestDraftUpload(
 export async function getGuestCapability(
 	fetcher: typeof fetch = fetch,
 ): Promise<GuestCapabilitySnapshot> {
+	return parseGuestCapability(await fetchGuestCapability(fetcher));
+}
+
+export async function getGuestCapabilityPresentation(
+	fetcher: typeof fetch = fetch,
+): Promise<GuestCapabilityPresentation> {
+	return parseGuestCapability(await fetchGuestCapability(fetcher, true), true);
+}
+
+async function fetchGuestCapability(
+	fetcher: typeof fetch,
+	acceptsCatalog = false,
+): Promise<unknown> {
+	const headers: Record<string, string> = { Accept: "application/json" };
+	if (acceptsCatalog) {
+		headers[GUEST_CAPABILITY_PRESENTATION_HEADER] = GUEST_CAPABILITY_CATALOG_PRESENTATION;
+	}
 	const response = await fetcher("/api/media/guest-capability", {
 		method: "GET",
 		credentials: "same-origin",
-		headers: { Accept: "application/json" },
+		headers,
 		signal: AbortSignal.timeout(12_000),
 	});
 	if (!response.ok) throw new Error("GUEST_CAPABILITY_UNAVAILABLE");
-	return parseGuestCapability(await response.json());
+	return response.json();
 }
 
 export async function createGuestDraftUploadIntent(
@@ -266,13 +294,17 @@ export function validateLandingImageFile(
 	if (file.size > maximumBytes) throw new Error("SOURCE_IMAGE_TOO_LARGE");
 }
 
-function parseGuestCapability(value: unknown): GuestCapabilitySnapshot {
-	if (!isRecord(value) || !hasExactKeys(value, CAPABILITY_KEYS)) {
+function parseGuestCapability(value: unknown): GuestCapabilitySnapshot;
+function parseGuestCapability(value: unknown, acceptsCatalog: true): GuestCapabilityPresentation;
+function parseGuestCapability(value: unknown, acceptsCatalog = false): GuestCapabilityPresentation {
+	if (!isRecord(value)) throw new Error("GUEST_CAPABILITY_INVALID");
+	const referencesCatalog = acceptsCatalog && Object.hasOwn(value, "catalogRevision");
+	if (
+		!hasExactKeys(value, [...CAPABILITY_KEYS, referencesCatalog ? "catalogRevision" : "products"])
+	) {
 		throw new Error("GUEST_CAPABILITY_INVALID");
 	}
 	const upload = value.upload;
-	const products = value.products;
-	const queueEstimate = value.queueEstimate;
 	if (
 		typeof value.version !== "string" ||
 		!value.version ||
@@ -283,22 +315,17 @@ function parseGuestCapability(value: unknown): GuestCapabilitySnapshot {
 		!hasExactGuestMimeTypes(upload.mimeTypes) ||
 		!Number.isSafeInteger(upload.maximumBytes) ||
 		Number(upload.maximumBytes) !== 10 * 1024 * 1024 ||
-		!validGuestProducts(products) ||
-		!validQueueEstimate(queueEstimate)
+		!validQueueEstimate(value.queueEstimate) ||
+		(referencesCatalog
+			? typeof value.catalogRevision !== "string" || !/^[a-f0-9]{64}$/.test(value.catalogRevision)
+			: !validGuestProducts(value.products))
 	) {
 		throw new Error("GUEST_CAPABILITY_INVALID");
 	}
-	return value as unknown as GuestCapabilitySnapshot;
+	return value as unknown as GuestCapabilityPresentation;
 }
 
-const CAPABILITY_KEYS = [
-	"version",
-	"enabled",
-	"reason",
-	"upload",
-	"products",
-	"queueEstimate",
-] as const;
+const CAPABILITY_KEYS = ["version", "enabled", "reason", "upload", "queueEstimate"] as const;
 
 function validGuestProducts(value: unknown): value is GuestCapabilityProduct[] {
 	if (!Array.isArray(value) || value.length > EZPIC_PRODUCT_KEYS.length) return false;

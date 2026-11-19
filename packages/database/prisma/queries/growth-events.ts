@@ -2,10 +2,8 @@ import { recordGrowthEventWithQuery, type GrowthEventInput } from "../../shared/
 import { db } from "../client";
 
 export function recordGrowthEvent(event: GrowthEventInput) {
-	return db.$transaction((tx) =>
-		recordGrowthEventWithQuery(
-			(statement, parameters) => tx.$queryRawUnsafe(statement, ...parameters),
-			event,
-		),
+	return recordGrowthEventWithQuery(
+		(statement, parameters) => db.$queryRawUnsafe(statement, ...parameters),
+		event,
 	);
 }

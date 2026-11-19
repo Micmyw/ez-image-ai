@@ -3,6 +3,7 @@
 import { DEFAULT_EDITOR_PRODUCT_KEY } from "@media/lib/editor-recovery";
 import { Logo } from "@repo/ui/components/logo";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@repo/ui/components/sheet";
+import { IntentPrefetchLink } from "@shared/components/IntentPrefetchLink";
 import { useMediaQuery } from "@shared/hooks/use-media-query";
 import { ArrowUpRightIcon, MenuIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -62,6 +63,7 @@ export function HeaderNavigationMenu({
 	const setOpen = onOpenChange ?? setLocalOpen;
 	const previousPathname = useRef(pathname);
 	const previouslyCompact = useRef(false);
+	const PricingLink = pricingHref === "/pricing" ? IntentPrefetchLink : Link;
 
 	useEffect(() => {
 		if (previousPathname.current !== pathname) setOpen(false);
@@ -137,7 +139,7 @@ export function HeaderNavigationMenu({
 					<StudioToolNavigation drawer />
 					{registered && <VideoNavigationLink onNavigate={() => setOpen(false)} />}
 					<div className="studio-drawer-link-group">
-						<Link href={pricingHref}>{common("pricing")}</Link>
+						<PricingLink href={pricingHref}>{common("pricing")}</PricingLink>
 					</div>
 					{registered && (
 						<div className="studio-drawer-link-group">

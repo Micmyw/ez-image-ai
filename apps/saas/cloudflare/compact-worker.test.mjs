@@ -55,10 +55,10 @@ await test("a raw Unicode tagged template is preserved or fails closed", async (
 	}
 });
 
-await test("the release build packs after clearing embedded environment", async () => {
+await test("the release build clears embedded environment and stages the current metadata before packing", async () => {
 	const source = await readFile(new URL("./build.mjs", import.meta.url), "utf8");
-	assert(
-		source.indexOf("await packWebsiteWorker") > source.indexOf("await clearEmbeddedEnvironment"),
+	assert.match(
+		source,
+		/await clearEmbeddedEnvironment[\s\S]+if \(result\.status === 0\) \{\s+await stageStaticMetadata\([^)]+\);\s+await packWebsiteWorker/,
 	);
-	assert.match(source, /if \(result\.status === 0\) await packWebsiteWorker/);
 });

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 
-async function fixtures(page: Page, requiresOptIn: boolean, privacySignal = false) {
+async function fixtures(page: Page, requiresOptIn: boolean | null, privacySignal = false) {
 	const vendors: string[] = [];
 	const traffic: { body: unknown; cookie: string | undefined }[] = [];
 	await page.route("**/*", async (route) => {
@@ -14,10 +14,12 @@ async function fixtures(page: Page, requiresOptIn: boolean, privacySignal = fals
 		}
 		if (!["localhost", "127.0.0.1"].includes(url.hostname)) return route.abort();
 		if (!url.pathname.startsWith("/api/")) return route.continue();
-		if (url.pathname === "/api/analytics/policy")
+		if (url.pathname === "/api/analytics/policy") {
+			if (requiresOptIn === null) return route.fulfill({ status: 503 });
 			return route.fulfill({
 				json: { requiresOptIn, privacySignal, analyticsAllowed: !requiresOptIn && !privacySignal },
 			});
+		}
 		if (url.pathname.endsWith("get-session")) return route.fulfill({ json: null });
 		if (url.pathname === "/api/analytics/traffic") {
 			traffic.push({
@@ -118,6 +120,20 @@ test("trusted opt-out region skips the banner while preserving a privacy choice"
 	await expect(
 		page.getByRole("button", { name: "Reject non-essential", exact: true }),
 	).toBeVisible();
+});
+
+test("unavailable policy requires opt-in and keeps only the credentialless counter", async ({
+	page,
+	context,
+}) => {
+	const observed = await fixtures(page, null);
+	await page.goto("/pricing");
+	await expect(page.getByRole("button", { name: "Accept all", exact: true })).toBeVisible();
+	await expect
+		.poll(() => observed.traffic)
+		.toEqual([{ body: { path: "/pricing", source: "direct" }, cookie: undefined }]);
+	expect(observed.vendors).toEqual([]);
+	expect((await context.cookies()).some((cookie) => cookie.name === "consent")).toBe(false);
 });
 
 test("privacy signal blocks aggregate traffic and recording even in opt-out regions", async ({

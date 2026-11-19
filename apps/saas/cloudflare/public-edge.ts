@@ -1,12 +1,14 @@
 import { config as i18nConfig, isLocale, type Locale } from "@repo/i18n/config";
+import { ANALYTICS_CONSENT_VERSION } from "@repo/utils/lib/analytics-policy";
+import { parseCookie } from "next/dist/compiled/@edge-runtime/cookies";
+import { getBotType } from "next/dist/shared/lib/router/utils/is-bot";
 
 import type { WorkerExecutionContext } from "./request-scope";
 
 /**
  * Anonymous homepage entries stay fresh for one minute, then refresh in the
  * background. A one-hour stale window keeps low-traffic colos from falling back
- * to a cold 1.3-2.4 s SSR render after five idle minutes (measured 2026-11-04);
- * a stale copy is replaced by the first background refresh.
+ * to a cold 1.3-2.4 s SSR render after five idle minutes (measured 2026-11-04).
  */
 export const homepageCachePolicy = {
 	freshSeconds: 60,
@@ -18,6 +20,10 @@ export const homepageCachePolicy = {
 const freshMs = homepageCachePolicy.freshSeconds * 1000;
 const retainMs =
 	(homepageCachePolicy.freshSeconds + homepageCachePolicy.staleWhileRevalidateSeconds) * 1000;
+const versionId = /^[\w-]{1,128}$/;
+const refreshLimitMs = 30_000;
+// Only deadlines cross request boundaries. Responses and refresh I/O stay in the owning request.
+const activeRefreshes = new Map<string, number>();
 const localeAlternates = Object.keys(i18nConfig.locales)
 	.map((locale) => locale.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
 	.join("|");
@@ -33,6 +39,7 @@ export interface EdgeCache {
 }
 
 export interface HomepageEdgeOptions {
+	cacheVersion?: string;
 	clock?: () => number;
 	timeoutMs?: number;
 }
@@ -94,13 +101,16 @@ export async function serveAnonymousHomepage(
 
 	const clock = options.clock ?? Date.now;
 	const timeoutMs = options.timeoutMs ?? homepageCachePolicy.ssrTimeoutMs;
-	const cacheKey = homepageCacheRequest(variant);
-	const cached = cache ? await matchCache(cache, cacheKey) : undefined;
+	const cacheVersion = options.cacheVersion;
+	const cacheKey =
+		cache && cacheVersion && versionId.test(cacheVersion)
+			? homepageCacheRequest(variant, cacheVersion)
+			: null;
+	const cached = cache && cacheKey ? await matchCache(cache, cacheKey) : undefined;
 	const age = cached ? cachedAgeMs(cached, clock()) : null;
-	if (cached && age !== null && age <= freshMs && !bypassCacheRead(request))
-		return present(cached, "HIT", age, request.method);
-	if (cached && age !== null && age <= retainMs && !bypassCacheRead(request)) {
-		executionContext.waitUntil(refresh(render, request, cache, cacheKey, clock));
+	if (cached && cache && cacheKey && age !== null && age <= retainMs && !bypassCacheRead(request)) {
+		if (age <= freshMs) return present(cached, "HIT", age, request.method);
+		refresh(render, request, executionContext, cache, cacheKey, clock);
 		return present(cached, "STALE", age, request.method);
 	}
 
@@ -118,49 +128,74 @@ export async function serveAnonymousHomepage(
 		executionContext.waitUntil(
 			pending
 				.then(async (result) => {
-					if (result.ok && cache) await store(cache, cacheKey, result.response, clock);
+					if (!result.ok) return;
+					if (cache && cacheKey && cacheableHomepage(result.response)) {
+						await store(cache, cacheKey, result.response, clock);
+					} else {
+						await result.response.body?.cancel();
+					}
 				})
 				.catch(() => undefined),
 		);
-		if (cached) return present(cached, "STALE", age ?? retainMs, request.method);
+		if (cached && age !== null && age <= retainMs)
+			return present(cached, "STALE", age, request.method);
 		return degradedHomepage(variant.lang, request.method);
 	}
 	if (!outcome.ok) throw outcome.error;
 	if (!cacheableHomepage(outcome.response)) return outcome.response;
-	let copy: Response | null = null;
-	try {
-		copy = outcome.response.clone();
-	} catch {
-		return outcome.response;
+	if (cache && cacheKey) {
+		try {
+			const copy = outcome.response.clone();
+			executionContext.waitUntil(store(cache, cacheKey, copy, clock).catch(() => undefined));
+		} catch {
+			return outcome.response;
+		}
 	}
-	if (cache) executionContext.waitUntil(store(cache, cacheKey, copy, clock).catch(() => undefined));
 	return present(outcome.response, "MISS", 0, request.method);
 }
 
-async function refresh(
+function refresh(
 	render: (request: Request) => Promise<Response>,
 	request: Request,
-	cache: EdgeCache | null,
+	executionContext: WorkerExecutionContext,
+	cache: EdgeCache,
 	cacheKey: Request,
 	clock: () => number,
 ) {
-	try {
-		const documentRequest =
-			request.method === "HEAD" ? new Request(request, { method: "GET" }) : request;
-		const response = await render(documentRequest);
-		if (cache && cacheableHomepage(response)) await store(cache, cacheKey, response, clock);
-	} catch {
-		// The visitor already received the previous homepage. Keep that entry.
-	}
+	const key = cacheKey.url;
+	const now = clock();
+	if ((activeRefreshes.get(key) ?? -Infinity) > now) return;
+	// The platform can cancel waitUntil work. Bound ownership even if its cleanup is interrupted.
+	const deadline = now + refreshLimitMs;
+	activeRefreshes.set(key, deadline);
+	const ownsRefresh = () => activeRefreshes.get(key) === deadline && clock() < deadline;
+	const update = async () => {
+		try {
+			const documentRequest =
+				request.method === "HEAD" ? new Request(request, { method: "GET" }) : request;
+			const response = await render(documentRequest);
+			if (ownsRefresh() && cacheableHomepage(response)) {
+				await store(cache, cacheKey, response, clock, ownsRefresh);
+			} else {
+				await response.body?.cancel();
+			}
+		} catch {
+			// Keep the previous homepage until another request can refresh it.
+		} finally {
+			if (activeRefreshes.get(key) === deadline) activeRefreshes.delete(key);
+		}
+	};
+	executionContext.waitUntil(update());
 }
 
-function anonymousHomepageVariant(request: Request): { lang: Locale; consent: string } | null {
+function anonymousHomepageVariant(request: Request) {
 	if (request.method !== "GET" && request.method !== "HEAD") return null;
 	const url = new URL(request.url);
 	if (normalizePath(url.pathname) !== "/") return null;
 	if (request.headers.has("authorization") || request.headers.has("range")) return null;
 	if (
 		request.headers.has("rsc") ||
+		request.headers.has("next-router-state-tree") ||
 		request.headers.has("next-router-prefetch") ||
 		request.headers.has("next-router-segment-prefetch") ||
 		request.headers.has("next-url") ||
@@ -183,13 +218,25 @@ function anonymousHomepageVariant(request: Request): { lang: Locale; consent: st
 	if (langValues.length > 1) return null;
 	const requested = langValues[0] ?? "en";
 	if (!isLocale(requested)) return null;
-	return { lang: requested, consent: consentVariant(cookie) };
+	return {
+		origin: url.origin,
+		lang: requested,
+		consent: consentVariant(cookie),
+		// Next.js serves blocking metadata to HTML-limited crawlers.
+		bot: getBotType(request.headers.get("user-agent") ?? "") ?? "browser",
+	};
 }
 
-function homepageCacheRequest(variant: { lang: Locale; consent: string }) {
+function homepageCacheRequest(
+	variant: NonNullable<ReturnType<typeof anonymousHomepageVariant>>,
+	version: string,
+) {
 	const url = new URL("https://homepage-cache.internal/");
+	url.searchParams.set("version", version);
+	url.searchParams.set("origin", variant.origin);
 	url.searchParams.set("lang", variant.lang);
 	url.searchParams.set("consent", variant.consent);
+	url.searchParams.set("bot", variant.bot);
 	return new Request(url, { method: "GET" });
 }
 
@@ -201,25 +248,18 @@ function bypassCacheRead(request: Request) {
 	);
 }
 
-function hasSessionCookie(cookie: string) {
-	return cookie.split(";").some((part) => sessionCookieNames.has(part.trim().split("=")[0] ?? ""));
+export function hasSessionCookie(cookie: string): boolean {
+	return cookie.split(";").some((part) => sessionCookieNames.has(part.split("=")[0]?.trim() ?? ""));
 }
 
 function consentVariant(cookie: string) {
-	const consent = readCookie(cookie, "consent");
-	const version = readCookie(cookie, "consent_version");
-	// Matches RootLayout: accepted requires the current consent version.
-	if (consent === "true" && version === "2") return "accepted";
+	// Use the same parser as RootLayout's cookies(), including repeated or malformed values.
+	const cookies = parseCookie(cookie);
+	const consent = cookies.get("consent");
+	const version = cookies.get("consent_version");
+	if (consent === "true" && version === ANALYTICS_CONSENT_VERSION) return "accepted";
 	if (consent === "false") return "declined";
 	return "undecided";
-}
-
-function readCookie(cookie: string, name: string) {
-	for (const part of cookie.split(";")) {
-		const [rawName, ...rest] = part.trim().split("=");
-		if (rawName === name) return decodeURIComponent(rest.join("="));
-	}
-	return undefined;
 }
 
 function cacheableHomepage(response: Response) {
@@ -241,10 +281,16 @@ async function matchCache(cache: EdgeCache, key: Request) {
 	}
 }
 
-async function store(cache: EdgeCache, key: Request, response: Response, clock: () => number) {
-	if (!cacheableHomepage(response)) return;
+async function store(
+	cache: EdgeCache,
+	key: Request,
+	response: Response,
+	clock: () => number,
+	ownsRefresh?: () => boolean,
+) {
 	const body = await response.arrayBuffer();
 	if (body.byteLength === 0 || body.byteLength > homepageCachePolicy.maxCachedBytes) return;
+	if (ownsRefresh && !ownsRefresh()) return;
 	const headers = new Headers(response.headers);
 	headers.set(
 		"cache-control",
@@ -261,8 +307,9 @@ async function store(cache: EdgeCache, key: Request, response: Response, clock: 
 }
 
 function cachedAgeMs(response: Response, now: number) {
-	const cachedAt = Number(response.headers.get("x-edge-cached-at"));
-	if (!Number.isFinite(cachedAt)) return null;
+	const header = response.headers.get("x-edge-cached-at");
+	const cachedAt = Number(header);
+	if (header === null || !Number.isSafeInteger(cachedAt) || cachedAt < 0) return null;
 	return Math.max(0, now - cachedAt);
 }
 

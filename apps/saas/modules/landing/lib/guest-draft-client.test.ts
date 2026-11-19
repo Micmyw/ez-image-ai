@@ -1,9 +1,14 @@
+import {
+	GUEST_CAPABILITY_CATALOG_PRESENTATION,
+	GUEST_CAPABILITY_PRESENTATION_HEADER,
+} from "@repo/config/guest-trial";
 import { describe, expect, it, vi } from "vitest";
 
 import {
 	completeGuestDraftUpload,
 	createGuestDraftUploadIntent,
 	getGuestCapability,
+	getGuestCapabilityPresentation,
 	submitGuestDraftHandoff,
 } from "./guest-draft-client";
 
@@ -88,6 +93,39 @@ describe("same-origin landing guest client", () => {
 			"/api/media/guest-capability",
 			expect.objectContaining({ credentials: "same-origin" }),
 		);
+	});
+
+	it("negotiates a catalog reference and accepts the full response from existing servers", async () => {
+		const details = {
+			version: "capability-v1",
+			enabled: true,
+			reason: null,
+			upload: {
+				mimeTypes: ["image/jpeg", "image/png", "image/webp"],
+				maximumBytes: 10 * 1024 * 1024,
+			},
+			queueEstimate: { kind: "capacity" },
+		};
+		const compact = { ...details, catalogRevision: "a".repeat(64) };
+		const full = { ...details, products: [nanoProduct()] };
+		const fetcher = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(Response.json(compact))
+			.mockResolvedValueOnce(Response.json(full))
+			.mockResolvedValueOnce(Response.json(compact));
+
+		await expect(getGuestCapabilityPresentation(fetcher)).resolves.toEqual(compact);
+		expect(fetcher).toHaveBeenCalledWith(
+			"/api/media/guest-capability",
+			expect.objectContaining({
+				credentials: "same-origin",
+				headers: expect.objectContaining({
+					[GUEST_CAPABILITY_PRESENTATION_HEADER]: GUEST_CAPABILITY_CATALOG_PRESENTATION,
+				}),
+			}),
+		);
+		await expect(getGuestCapabilityPresentation(fetcher)).resolves.toEqual(full);
+		await expect(getGuestCapability(fetcher)).rejects.toThrow("GUEST_CAPABILITY_INVALID");
 	});
 
 	it("rejects malformed or sensitive fields inside public cell controls", async () => {

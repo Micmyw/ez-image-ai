@@ -1,66 +1,37 @@
-import { onError } from "@orpc/client";
-import { SmartCoercionPlugin } from "@orpc/json-schema";
-import { OpenAPIHandler } from "@orpc/openapi/fetch";
-import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
-import { RPCHandler } from "@orpc/server/fetch";
-import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
-import { auth } from "@repo/auth";
-import { logger } from "@repo/logs";
+import type { FetchHandler } from "@orpc/server/fetch";
 
-import { getOpenApiTitle } from "./product-metadata";
-import { router } from "./router";
+import { apiDocsPath, apiSpecPath, initializeOnce } from "./handler-support";
+import type { ApiRequestContext } from "./procedures";
 
-export const rpcHandler = new RPCHandler(router, {
-	clientInterceptors: [
-		onError((error) => {
-			logger.error("oRPC request failed", safeRpcError(error));
-		}),
-	],
-});
+const getRpcHandler = initializeOnce(async () =>
+	(await import("./rpc-handler")).createRpcHandler(),
+);
+const getOpenApiHandler = initializeOnce(async () =>
+	(await import("./openapi-handler")).createOpenApiHandler(),
+);
+const getOpenApiReferenceHandler = initializeOnce(async () =>
+	(await import("./openapi-reference")).createOpenApiReferenceHandler(),
+);
 
-export const openApiHandler = new OpenAPIHandler(router, {
-	plugins: [
-		new SmartCoercionPlugin({
-			schemaConverters: [new ZodToJsonSchemaConverter()],
-		}),
-		new OpenAPIReferencePlugin({
-			schemaConverters: [new ZodToJsonSchemaConverter()],
-			specGenerateOptions: async () => {
-				const authSchema = await auth.api.generateOpenAPISchema();
+type ApiHandler = Pick<FetchHandler<ApiRequestContext>, "handle">;
 
-				authSchema.paths = Object.fromEntries(
-					Object.entries(authSchema.paths).map(([path, pathItem]) => [`/auth${path}`, pathItem]),
-				);
+export const rpcHandler: ApiHandler = {
+	async handle(request, options) {
+		return (await getRpcHandler()).handle(request, options);
+	},
+};
 
-				return {
-					...(authSchema as any),
-					info: {
-						title: getOpenApiTitle(),
-						version: "1.0.0",
-					},
-					servers: [
-						{
-							url: "/api",
-						},
-					],
-				};
-			},
-			docsPath: "/docs",
-		}),
-	],
-	clientInterceptors: [
-		onError((error) => {
-			logger.error("OpenAPI request failed", safeRpcError(error));
-		}),
-	],
-});
+export const openApiHandler: ApiHandler = {
+	async handle(request, options) {
+		const result = await (await getOpenApiHandler()).handle(request, options);
+		if (result.matched || request.method !== "GET") return result;
 
-function safeRpcError(error: unknown): Record<string, unknown> {
-	if (!(error instanceof Error)) return { kind: typeof error };
-	const code = "code" in error && typeof error.code === "string" ? error.code : undefined;
-	return {
-		name: error.name,
-		code,
-		message: error.message.slice(0, 200),
-	};
-}
+		const pathname = new URL(request.url).pathname.replace(/\/$/, "");
+		const prefix = options.prefix?.replace(/\/$/, "") ?? "";
+		if (pathname !== `${prefix}${apiDocsPath}` && pathname !== `${prefix}${apiSpecPath}`) {
+			return result;
+		}
+
+		return (await getOpenApiReferenceHandler()).handle(request, options);
+	},
+};

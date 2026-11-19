@@ -1,3 +1,4 @@
+import { IMAGE_PASS_OFFER_SUMMARY } from "@repo/config/image-pass-summary";
 import { NextIntlClientProvider } from "next-intl";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -8,10 +9,33 @@ const availability = vi.hoisted(() => ({
 	isError: false,
 	isPending: false,
 }));
+const runtime = vi.hoisted(() => ({
+	dismissed: false as boolean | null,
+	readDismissal: () => {},
+	useQuery: vi.fn(() => availability),
+}));
 vi.mock("@tanstack/react-query", async (original) => ({
 	...(await original<typeof import("@tanstack/react-query")>()),
-	useQuery: () => availability,
+	useQuery: runtime.useQuery,
 }));
+vi.mock("react", async (original) => {
+	const react = await original<typeof import("react")>();
+	return {
+		...react,
+		useState: (initial: unknown) =>
+			initial === null
+				? [
+						runtime.dismissed,
+						(value: boolean) => {
+							runtime.dismissed = value;
+						},
+					]
+				: react.useState(initial),
+		useEffect: (effect: () => void) => {
+			runtime.readDismissal = effect;
+		},
+	};
+});
 
 import de from "../../../../../packages/i18n/translations/de/saas.json";
 import en from "../../../../../packages/i18n/translations/en/saas.json";
@@ -24,6 +48,44 @@ describe("image pass offer banner", () => {
 		availability.data = { available: true };
 		availability.isError = false;
 		availability.isPending = false;
+		runtime.dismissed = false;
+		runtime.useQuery.mockClear();
+	});
+	it("skips the offer query before browser storage is read and after a stored dismissal", () => {
+		runtime.dismissed = null;
+		const render = () =>
+			renderToStaticMarkup(
+				<NextIntlClientProvider locale="en" messages={en}>
+					<ImagePassBanner />
+				</NextIntlClientProvider>,
+			);
+		expect(render()).toBe("");
+		expect(runtime.useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
+
+		const getItem = vi.fn(() => "1");
+		vi.stubGlobal("window", { sessionStorage: { getItem } });
+		try {
+			runtime.readDismissal();
+			expect(getItem).toHaveBeenCalledWith(
+				`ezpic:image-pass-banner:${IMAGE_PASS_OFFER_SUMMARY.offerVersion}`,
+			);
+			expect(render()).toBe("");
+			expect(runtime.useQuery).toHaveBeenLastCalledWith(
+				expect.objectContaining({ enabled: false }),
+			);
+		} finally {
+			vi.unstubAllGlobals();
+		}
+	});
+	it("still checks the authoritative offer with the banner open", () => {
+		const markup = renderToStaticMarkup(
+			<NextIntlClientProvider locale="en" messages={en}>
+				<ImagePassBanner />
+			</NextIntlClientProvider>,
+		);
+		expect(markup).toContain('href="/image-pass"');
+		expect(markup).not.toContain("/signup");
+		expect(runtime.useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: true }));
 	});
 	it.each(["unavailable", "loading", "error"])(
 		"hides checkout advertising when server availability is %s",
@@ -66,15 +128,6 @@ describe("image pass offer banner", () => {
 			expect(markup).not.toContain("75 credits");
 		},
 	);
-	it("lets visitors read the public offer before registration", () => {
-		const markup = renderToStaticMarkup(
-			<NextIntlClientProvider locale="en" messages={en}>
-				<ImagePassBanner />
-			</NextIntlClientProvider>,
-		);
-		expect(markup).toContain('href="/image-pass"');
-		expect(markup).not.toContain("/signup");
-	});
 	it("provides an accessible dismissal button beside the purchase link", () => {
 		const markup = renderToStaticMarkup(
 			<NextIntlClientProvider locale="en" messages={en}>

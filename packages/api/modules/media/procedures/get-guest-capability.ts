@@ -5,12 +5,16 @@ import {
 	imageOutputFormatSchema,
 	imageSkuKeySchema,
 } from "@repo/config";
+import {
+	GUEST_CAPABILITY_CATALOG_PRESENTATION,
+	GUEST_CAPABILITY_PRESENTATION_HEADER,
+} from "@repo/config/guest-trial";
 import { getRequestGuestTrialEligibility } from "@repo/utils/free-eligibility";
 import { z } from "zod";
 
 import { publicProcedure } from "../../../orpc/procedures";
 import { ensureGuestBrowserSubject } from "../lib/guest-browser";
-import { loadGuestCapabilitySnapshot } from "../lib/guest-capability";
+import { loadGuestCapability } from "../lib/guest-capability";
 
 const guestImageSpecControlSchema = z.discriminatedUnion("key", [
 	z
@@ -104,26 +108,46 @@ const guestCapabilitySnapshotSchema = z
 	})
 	.strict();
 
+const guestCapabilityCatalogSchema = guestCapabilitySnapshotSchema
+	.omit({ products: true })
+	.extend({ catalogRevision: z.string().regex(/^[a-f0-9]{64}$/) })
+	.strict();
+const guestCapabilityResponseSchema = z.union([
+	guestCapabilityCatalogSchema,
+	guestCapabilitySnapshotSchema,
+]);
+
 export const getGuestCapability = publicProcedure
 	.route({
 		method: "GET",
 		path: "/media/guest-capability",
 		tags: ["Media"],
 		summary: "Get the fail-closed public guest trial capability",
-		description: "Returns the versioned public image-editing tier envelope.",
+		description: "Returns a versioned guest image-editing capability with optional catalog reuse.",
 	})
-	.output(guestCapabilitySnapshotSchema)
+	.output(guestCapabilityResponseSchema)
 	.handler(async ({ context }) => {
 		context.responseHeaders?.set("Cache-Control", "no-store");
-		const snapshot = guestCapabilitySnapshotSchema.parse(await loadGuestCapabilitySnapshot());
+		const { snapshot, catalogRevision } = await loadGuestCapability();
 		const region = getRequestGuestTrialEligibility();
 		// Upload capability also serves account/purchase handoff. Only sponsorship is regional.
-		if (snapshot.enabled && region.status !== "eligible") {
-			snapshot.reason = region.status === "excluded" ? "REGION_EXCLUDED" : "REGION_UNVERIFIED";
-		}
+		const reason =
+			snapshot.enabled && region.status !== "eligible"
+				? region.status === "excluded"
+					? "REGION_EXCLUDED"
+					: "REGION_UNVERIFIED"
+				: snapshot.reason;
+		const { products, ...details } = snapshot;
+		const requestedCatalog =
+			context.headers.get(GUEST_CAPABILITY_PRESENTATION_HEADER) ===
+			GUEST_CAPABILITY_CATALOG_PRESENTATION;
+		const response =
+			requestedCatalog && catalogRevision
+				? guestCapabilityCatalogSchema.parse({ ...details, reason, catalogRevision })
+				: guestCapabilitySnapshotSchema.parse({ ...details, reason, products });
 		// Establish identity before any upload mutation. A lost handshake response
 		// has no business state, while upload retries must use the received cookie.
 		if (snapshot.enabled && context.responseHeaders)
 			ensureGuestBrowserSubject(context.headers, context.responseHeaders);
-		return snapshot;
+		return response;
 	});

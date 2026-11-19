@@ -142,7 +142,12 @@ export function createProfileArtifacts(options: {
 			{ type: "CompiledWasm", globs: ["**/*.wasm"], fallthrough: true },
 			{ type: "Data", globs: ["**/*.bin"], fallthrough: true },
 		],
-		assets: { directory: path.join(root, "apps/saas/.open-next/assets"), binding: "ASSETS" },
+		assets: {
+			...(options.websiteTemplate.assets as Record<string, unknown>),
+			directory: path.join(root, "apps/saas/.open-next/assets"),
+			binding: "ASSETS",
+		},
+		version_metadata: { binding: "WEBSITE_VERSION" },
 		vars: {
 			...videoVars,
 			CANONICAL_ORIGIN: canonicalOrigin,

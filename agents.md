@@ -78,6 +78,8 @@ The Playwright `public` project skips database auth setup. Run SaaS Vitest, Next
 
 ## Cloudflare execution and hosting
 
+The website checks the canonical origin before serving public metadata and the exact analytics policy GET. Keep the anonymous homepage cache scoped to the Cloudflare version, origin, locale, consent and crawler variant. The public model projection can be reused only after reading current runtime switches. Guest browser identity and eligibility stay request-specific. See `docs/operations/cloudflare-workers-profiles.md` and `docs/operations/website-analytics.md`.
+
 Administrator media diagnostics use exact REST GET and RPC GET/POST request-scoped pools of two connections. The runtime default is one. Keep `/admin/media` health, guest and resource queries independent, with failure/staleness feedback and 30/60/120-second polling. Preserve the full diagnostics API, administrator authorization and request-lifetime disposal.
 
 Default `workers` uses OpenNext for the site and Workflows with request-owned service entrypoints or guarded WorkerJobs for jobs. `hybrid` retains the private Node container for buffered and maintenance work; both profiles use the lightweight control and eligible streaming-transfer service entrypoints. `dispatchJob` from `@repo/jobs/orchestration/client` is the API submission path. Business transitions stay in `packages/jobs` and `packages/database`; preserve PostgreSQL leases, immutable ledger, Outbox recovery, and uncertainty gates. Never fail over runtimes automatically after uncertain/timed-out execution.

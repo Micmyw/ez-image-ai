@@ -116,7 +116,17 @@ Never copy the production origin password into a build environment or persisted 
 
 ## Runtime and security boundaries
 
-Each website request owns one database pool. It stays open until its response stream and
+The website checks the canonical hostname and HTTPS policy before serving its public metadata shortcuts.
+The build copies the two sitemaps, robots.txt and icon.png from the matching Next prerender output into Static Assets.
+Keep those paths Worker-first in both deployment profiles. The exact analytics policy GET uses the current
+request's privacy signals and retains private, no-store caching.
+
+The anonymous homepage uses the website's `WEBSITE_VERSION` version metadata binding in its Cache API key,
+along with origin, language, consent and crawler type. A missing version bypasses cache reuse. A stale entry
+can start one refresh per key in the same isolate while other visitors receive the cached page.
+Freshness is 60 seconds. A release or a new Cloudflare location can require a cold render.
+
+Each website request that reaches the application owns a lazy database pool. It stays open until its response stream and
 registered background work finish, then disconnects. Each jobs invocation owns its pool too.
 The shared AsyncLocalStorage context spans OpenNext bundle copies; an unscoped Workers query
 fails instead of opening a Node singleton. Local Node development retains the normal client.

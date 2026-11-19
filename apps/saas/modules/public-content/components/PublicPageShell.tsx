@@ -1,5 +1,6 @@
 import { getPublicConfig } from "@repo/config/client";
 import { Logo } from "@repo/ui/components/logo";
+import { IntentPrefetchLink } from "@shared/components/IntentPrefetchLink";
 import { PublicHeaderAccount } from "@shared/components/studio/PublicHeaderAccount";
 import { StudioToolNavigation } from "@shared/components/studio/StudioToolNavigation";
 import { useTranslations } from "next-intl";
@@ -42,9 +43,9 @@ export function PublicPageShell({
 					</Link>
 					<nav className="studio-public-toplinks" aria-label={t("studio.pageNavigation")}>
 						<StudioToolNavigation />
-						<Link className="px-3 py-2 hover:text-white" href="/pricing">
+						<IntentPrefetchLink className="px-3 py-2 hover:text-white" href="/pricing">
 							{t("common.menu.pricing")}
-						</Link>
+						</IntentPrefetchLink>
 					</nav>
 					<PublicHeaderAccount />
 				</div>

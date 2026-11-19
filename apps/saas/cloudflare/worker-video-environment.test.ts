@@ -86,6 +86,28 @@ describe("website video runtime environment", () => {
 		vi.unstubAllEnvs();
 	});
 
+	it("answers public shortcuts and origin redirects without initializing video or database bindings", async () => {
+		const bindings = environment();
+		const readPolicy = vi.fn(() => {
+			throw new Error("unexpected video configuration read");
+		});
+		Object.defineProperty(bindings, "VIDEO_RUNTIME_CONFIG", { get: readPolicy });
+		const context = { waitUntil: vi.fn(), passThroughOnException: vi.fn() };
+		for (const [url, status] of [
+			["https://ezpic.example/health", 200],
+			["https://ezpic.example/api/analytics/policy", 200],
+			["http://ezpic.example/icon.png", 308],
+			["https://wrong.example/favicon.ico", 421],
+		] as const) {
+			const response = await worker.fetch(new Request(url), bindings, context);
+			expect(response.status).toBe(status);
+			await response.text();
+		}
+		expect(readPolicy).not.toHaveBeenCalled();
+		expect(mocks.lazyDatabase).not.toHaveBeenCalled();
+		expect(mocks.fetch).not.toHaveBeenCalled();
+	});
+
 	it("selects the two-connection pool on the normal admin diagnostics RPC entry", async () => {
 		const pending: Promise<unknown>[] = [];
 		const response = await worker.fetch(
@@ -219,9 +241,9 @@ describe("website image callback ingress", () => {
 	});
 	afterEach(() => vi.unstubAllEnvs());
 
-	async function invoke(request: Request) {
+	async function invoke(request: Request, bindings = environment()) {
 		const pending: Promise<unknown>[] = [];
-		const response = await worker.fetch(request, environment(), {
+		const response = await worker.fetch(request, bindings, {
 			waitUntil: (task) => pending.push(task),
 			passThroughOnException: vi.fn(),
 		});
@@ -287,7 +309,7 @@ describe("website image callback ingress", () => {
 		expect(mocks.fetch).not.toHaveBeenCalled();
 	});
 
-	it("answers /health before OpenNext and keeps anonymous homepage HTML in the edge cache", async () => {
+	it("answers /health before OpenNext and matches the edge homepage to the installed Worker version", async () => {
 		const entries = new Map<string, Response>();
 		vi.stubGlobal("caches", {
 			default: {
@@ -311,27 +333,36 @@ describe("website image callback ingress", () => {
 			expect(head.body).toBe("");
 			expect(mocks.fetch).not.toHaveBeenCalled();
 
-			mocks.fetch.mockImplementation(
-				async () =>
-					new Response("<html>anonymous-home</html>", {
-						headers: { "content-type": "text/html; charset=utf-8" },
-					}),
-			);
-			const first = await invoke(new Request("https://ezpic.example/"));
+			mocks.fetch.mockImplementation(async (_request: Request, bindings: Environment) => {
+				const version = bindings.WEBSITE_VERSION as { id: string };
+				return new Response(`<html>anonymous-home-${version.id}</html>`, {
+					headers: { "content-type": "text/html; charset=utf-8" },
+				});
+			});
+			const releaseA = environment({ WEBSITE_VERSION: { id: "release-a" } });
+			const releaseB = environment({ WEBSITE_VERSION: { id: "release-b" } });
+			const first = await invoke(new Request("https://ezpic.example/"), releaseA);
 			expect(first.response.headers.get("x-edge-cache")).toBe("MISS");
 			expect(first.response.headers.get("cache-control")).toBe("private, no-store");
-			expect(first.body).toContain("anonymous-home");
-			const second = await invoke(new Request("https://ezpic.example/"));
+			expect(first.body).toContain("anonymous-home-release-a");
+			const second = await invoke(new Request("https://ezpic.example/"), releaseA);
 			expect(second.response.headers.get("x-edge-cache")).toBe("HIT");
-			expect(second.body).toContain("anonymous-home");
+			expect(second.body).toContain("anonymous-home-release-a");
+			const installed = await invoke(new Request("https://ezpic.example/"), releaseB);
+			expect(installed.response.headers.get("x-edge-cache")).toBe("MISS");
+			expect(installed.body).toContain("anonymous-home-release-b");
+			const rollback = await invoke(new Request("https://ezpic.example/"), releaseA);
+			expect(rollback.response.headers.get("x-edge-cache")).toBe("HIT");
+			expect(rollback.body).toContain("anonymous-home-release-a");
 			const signedIn = await invoke(
 				new Request("https://ezpic.example/", {
 					headers: { cookie: "better-auth.session_token=account" },
 				}),
+				releaseB,
 			);
 			expect(signedIn.response.headers.get("x-edge-cache")).toBeNull();
-			expect(signedIn.body).toContain("anonymous-home");
-			expect(mocks.fetch).toHaveBeenCalledTimes(2);
+			expect(signedIn.body).toContain("anonymous-home-release-b");
+			expect(mocks.fetch).toHaveBeenCalledTimes(3);
 		} finally {
 			vi.unstubAllGlobals();
 		}

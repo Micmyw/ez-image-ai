@@ -10,6 +10,7 @@ const databaseMocks = vi.hoisted(() => ({
 	finalizeDraft: vi.fn(),
 	findRuntimeOverrides: vi.fn(),
 	loadCompletion: vi.fn(),
+	recordGrowthEvent: vi.fn(),
 	resolveOverride: vi.fn(),
 }));
 const storageMocks = vi.hoisted(() => ({
@@ -28,7 +29,7 @@ vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
 	createGuestMediaUploadIntentTransaction: databaseMocks.createUpload,
 	getGuestUploadIntentReplay: databaseMocks.getUploadReplay,
-	recordGrowthEvent: vi.fn(),
+	recordGrowthEvent: databaseMocks.recordGrowthEvent,
 	finalizeGuestDraftFromReadyUploadTransaction: databaseMocks.finalizeDraft,
 	loadGuestUploadCompletion: databaseMocks.loadCompletion,
 	resolveGuestRuntimeConfigOverride: databaseMocks.resolveOverride,
@@ -55,6 +56,7 @@ vi.mock("./turnstile", () => ({
 
 import { completeGuestDraftUpload } from "../procedures/complete-guest-upload";
 import { createGuestDraftUploadIntent } from "../procedures/create-guest-upload-intent";
+import { prepareGuestDraftUpload } from "../procedures/prepare-guest-upload";
 import { assertGuestCapabilityVersion, loadGuestCapabilitySnapshot } from "./guest-capability";
 
 const enabledEnvironment = {
@@ -461,7 +463,7 @@ describe("guest private upload handoff", () => {
 		turnstileMocks.verifyGuestTurnstileToken.mockResolvedValue({ tokenHash: "f".repeat(64) });
 		storageMocks.createSignedUpload.mockResolvedValue("https://storage.test/private-signed-put");
 		databaseMocks.createUpload.mockResolvedValue(undefined);
-		databaseMocks.loadCompletion.mockResolvedValue({
+		databaseMocks.loadCompletion.mockReset().mockResolvedValue({
 			ownerId: "guest_owner",
 			assetId: "asset_1",
 			status: "PENDING",
@@ -483,10 +485,42 @@ describe("guest private upload handoff", () => {
 			mimeType: "image/png",
 			byteSize: 8n,
 		});
-		databaseMocks.finalizeDraft.mockResolvedValue({ claimToken: "c".repeat(43) });
+		databaseMocks.finalizeDraft.mockReset().mockResolvedValue({ claimToken: "c".repeat(43) });
 	});
 
 	afterEach(() => vi.unstubAllEnvs());
+
+	function uploadPreparationInput() {
+		return {
+			sessionId: "session_1",
+			completionToken: "b".repeat(43),
+			capabilityVersion,
+			sha256: "a".repeat(64),
+		};
+	}
+
+	function uploadCompletionInput() {
+		return {
+			...uploadPreparationInput(),
+			productKey: "image-nano-banana-2-lite" as const,
+			skuKey: "nano-banana-2-lite-1k" as const,
+			prompt: "Replace the background",
+		};
+	}
+
+	function prismaTransactionStartTimeout() {
+		return Object.assign(
+			new Error("Transaction API error: Unable to start a transaction in the given time."),
+			{ code: "P2028" },
+		);
+	}
+
+	function consentedUploadHeaders() {
+		return new Headers({
+			origin: "https://saas.test",
+			cookie: `consent=true; consent_version=2; ezpic_analytics_session=sha256:${"c".repeat(64)}`,
+		});
+	}
 
 	it("allocates only a private staging PUT and binds the separate completion credential", async () => {
 		const result = await call(
@@ -893,62 +927,158 @@ describe("guest private upload handoff", () => {
 		expect(result.claimToken).not.toBe("b".repeat(43));
 	});
 
-	it("keeps completion retryable without repeating upload finalization while moderation becomes READY", async () => {
-		databaseMocks.finalizeDraft
-			.mockRejectedValueOnce(new Error("GUEST_UPLOAD_NOT_READY"))
-			.mockResolvedValueOnce({ id: "draft_1", expiresAt: new Date() });
-		databaseMocks.loadCompletion
-			.mockResolvedValueOnce({
-				ownerId: "guest_owner",
-				assetId: "asset_1",
-				status: "PENDING",
-				stagingObjectKey: "users/guest_owner/staging/session_1/nonce.png",
-				contentType: "image/png",
-				expectedBytes: 8,
-				expectedSha256: "a".repeat(64),
-				capabilityVersion,
-			})
-			.mockResolvedValueOnce({
-				ownerId: "guest_owner",
-				assetId: "asset_1",
-				status: "COMPLETED",
-				stagingObjectKey: "users/guest_owner/staging/session_1/nonce.png",
-				contentType: "image/png",
-				expectedBytes: 8,
-				expectedSha256: "a".repeat(64),
-				capabilityVersion,
-			});
-		const request = {
-			sessionId: "session_1",
-			completionToken: "b".repeat(43),
-			capabilityVersion,
-			productKey: "image-nano-banana-2-lite" as const,
-			skuKey: "nano-banana-2-lite-1k" as const,
-			sha256: "a".repeat(64),
-			prompt: "Replace the background",
-		};
-		const context = {
-			context: {
-				headers: new Headers({ origin: "https://saas.test" }),
-				responseHeaders: new Headers(),
-			},
-		};
+	it.each([new Error("GUEST_UPLOAD_NOT_READY"), prismaTransactionStartTimeout()])(
+		"keeps the same upload retryable after %s",
+		async (failure) => {
+			databaseMocks.finalizeDraft
+				.mockRejectedValueOnce(failure)
+				.mockResolvedValueOnce({ id: "draft_1", expiresAt: new Date() });
+			databaseMocks.loadCompletion
+				.mockResolvedValueOnce({
+					ownerId: "guest_owner",
+					assetId: "asset_1",
+					status: "PENDING",
+					stagingObjectKey: "users/guest_owner/staging/session_1/nonce.png",
+					contentType: "image/png",
+					expectedBytes: 8,
+					expectedSha256: "a".repeat(64),
+					capabilityVersion,
+				})
+				.mockResolvedValueOnce({
+					ownerId: "guest_owner",
+					assetId: "asset_1",
+					status: "COMPLETED",
+					stagingObjectKey: "users/guest_owner/staging/session_1/nonce.png",
+					contentType: "image/png",
+					expectedBytes: 8,
+					expectedSha256: "a".repeat(64),
+					capabilityVersion,
+				});
+			const request = uploadCompletionInput();
+			const context = {
+				context: {
+					headers: new Headers({ origin: "https://saas.test" }),
+					responseHeaders: new Headers(),
+				},
+			};
 
-		await expect(call(completeGuestDraftUpload, request, context)).resolves.toEqual({
-			status: "PENDING",
-			retryAfterMs: expect.any(Number),
-		});
-		await expect(call(completeGuestDraftUpload, request, context)).resolves.toEqual({
-			status: "READY",
-			claimToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
-			continueUrl: "/draft/continue",
-			productKey: "image-nano-banana-2-lite",
-			skuKey: "nano-banana-2-lite-1k",
-			accessHint: "guest-trial",
-		});
+			await expect(call(completeGuestDraftUpload, request, context)).resolves.toEqual({
+				status: "PENDING",
+				retryAfterMs: expect.any(Number),
+			});
+			await expect(call(completeGuestDraftUpload, request, context)).resolves.toEqual({
+				status: "READY",
+				claimToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+				continueUrl: "/draft/continue",
+				productKey: "image-nano-banana-2-lite",
+				skuKey: "nano-banana-2-lite-1k",
+				accessHint: "guest-trial",
+			});
+			expect(uploadMocks.completeOwnedUploadSession).toHaveBeenCalledOnce();
+			expect(storageMocks.headObject).toHaveBeenCalledOnce();
+			expect(databaseMocks.finalizeDraft).toHaveBeenCalledTimes(2);
+			expect(databaseMocks.finalizeDraft.mock.calls[1]![0].completionTokenHash).toBe(
+				databaseMocks.finalizeDraft.mock.calls[0]![0].completionTokenHash,
+			);
+		},
+	);
+
+	it.each([
+		Object.assign(
+			new Error("Transaction API error: A query cannot be executed on an expired transaction."),
+			{
+				code: "P2028",
+			},
+		),
+		Object.assign(
+			new Error(
+				"Transaction API error: Transaction already closed: A commit cannot be executed on a committed transaction.",
+			),
+			{
+				code: "P2028",
+			},
+		),
+		Object.assign(new Error(prismaTransactionStartTimeout().message), { code: "P2010" }),
+		new Error("Unknown commit outcome", { cause: prismaTransactionStartTimeout() }),
+	])("does not retry another transaction error as a start timeout", async (failure) => {
+		databaseMocks.finalizeDraft.mockRejectedValueOnce(failure);
+
+		await expect(
+			call(completeGuestDraftUpload, uploadCompletionInput(), {
+				context: { headers: new Headers({ origin: "https://saas.test" }) },
+			}),
+		).rejects.toBe(failure);
+		expect(databaseMocks.finalizeDraft).toHaveBeenCalledOnce();
+	});
+
+	it("returns PENDING without issuing a claim when the sealing transaction cannot start", async () => {
+		uploadMocks.completeOwnedUploadSession.mockRejectedValueOnce(prismaTransactionStartTimeout());
+
+		await expect(
+			call(prepareGuestDraftUpload, uploadPreparationInput(), {
+				context: { headers: new Headers({ origin: "https://saas.test" }) },
+			}),
+		).resolves.toEqual({ status: "PENDING", retryAfterMs: 500 });
 		expect(uploadMocks.completeOwnedUploadSession).toHaveBeenCalledOnce();
-		expect(storageMocks.headObject).toHaveBeenCalledOnce();
-		expect(databaseMocks.finalizeDraft).toHaveBeenCalledTimes(2);
+		expect(databaseMocks.finalizeDraft).not.toHaveBeenCalled();
+	});
+
+	it("records a sealed upload with its journey refs and returns the existing public response", async () => {
+		const actionRef = "6d4d1ea9-00c7-41e9-891b-be44e97016e1";
+		await expect(
+			call(
+				prepareGuestDraftUpload,
+				{ ...uploadPreparationInput(), journey: { actionRef } },
+				{
+					context: { headers: consentedUploadHeaders() },
+				},
+			),
+		).resolves.toEqual({ status: "SEALED" });
+		expect(databaseMocks.recordGrowthEvent).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({
+				diagnostics: expect.objectContaining({ stage: "upload_sealed", actionRef }),
+			}),
+		);
+		expect(databaseMocks.finalizeDraft).not.toHaveBeenCalled();
+	});
+
+	it("queues the existing upload confirmation after the claim transaction settles", async () => {
+		const defer = vi.fn<(task: Promise<unknown>) => void>();
+		databaseMocks.finalizeDraft.mockImplementationOnce(async () => {
+			expect(defer).not.toHaveBeenCalled();
+			expect(databaseMocks.recordGrowthEvent).not.toHaveBeenCalled();
+			await Promise.resolve();
+			expect(defer).not.toHaveBeenCalled();
+			throw new Error("GUEST_UPLOAD_NOT_READY");
+		});
+
+		await expect(
+			call(completeGuestDraftUpload, uploadCompletionInput(), {
+				context: { headers: consentedUploadHeaders(), defer },
+			}),
+		).resolves.toEqual({ status: "PENDING", retryAfterMs: 500 });
+
+		expect(defer).toHaveBeenCalledOnce();
+		await defer.mock.calls[0]![0];
+		expect(databaseMocks.recordGrowthEvent).toHaveBeenCalledExactlyOnceWith(
+			expect.objectContaining({
+				name: "generation_journey_confirmed_v1",
+				diagnostics: expect.objectContaining({ stage: "upload_sealed" }),
+			}),
+		);
+	});
+
+	it("drains upload confirmation before issuing a claim when defer is unavailable", async () => {
+		databaseMocks.finalizeDraft.mockImplementationOnce(async () => {
+			expect(databaseMocks.recordGrowthEvent).toHaveBeenCalledOnce();
+			return { id: "draft_1", expiresAt: new Date() };
+		});
+
+		await expect(
+			call(completeGuestDraftUpload, uploadCompletionInput(), {
+				context: { headers: consentedUploadHeaders() },
+			}),
+		).resolves.toMatchObject({ status: "READY" });
 	});
 
 	it.each([

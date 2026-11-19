@@ -26,6 +26,11 @@ export function browserAnalyticsPrivacySignal(): boolean {
 	);
 }
 
+export function setAnalyticsPolicyPrivacyHeaders(headers: Headers): void {
+	headers.set("Cache-Control", "private, no-store");
+	headers.set("Vary", "Cookie, CF-IPCountry, X-Vercel-IP-Country, Sec-GPC, DNT");
+}
+
 export function resolveAnalyticsPolicy(
 	headers: Headers,
 	environment: Record<string, string | undefined> = process.env,

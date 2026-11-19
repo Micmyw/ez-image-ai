@@ -50,6 +50,22 @@ describe("deployment profiles", () => {
 				{ type: "CompiledWasm", globs: ["**/*.wasm"], fallthrough: true },
 				{ type: "Data", globs: ["**/*.bin"], fallthrough: true },
 			]);
+			expect(website.assets).toEqual({
+				directory: path.join(root, "apps/saas/.open-next/assets"),
+				binding: "ASSETS",
+				run_worker_first: [
+					"/sitemap.xml",
+					"/sitemap-images.xml",
+					"/robots.txt",
+					"/icon.png",
+					"/favicon.ico",
+					"/apple-touch-icon.png",
+					"/manifest.json",
+					"/manifest.webmanifest",
+					"/site.webmanifest",
+				],
+			});
+			expect(website.version_metadata).toEqual({ binding: "WEBSITE_VERSION" });
 		},
 	);
 	it("defaults to Workers and rejects unknown profiles", () => {

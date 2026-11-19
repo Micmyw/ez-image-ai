@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import {
 	getPublicProductCatalog,
 	executableRouteGraphOptionsFromEnvironment,
@@ -24,10 +26,18 @@ export interface ExecutableEzPicProduct {
 	skuMatrix: NonNullable<PublicCatalogEntry["skuMatrix"]>;
 }
 
+type PublicMediaCatalog = ReturnType<typeof getPublicProductCatalog> & { revision: string };
+
+interface PublicCatalogProjection {
+	catalog: PublicMediaCatalog;
+	ezPicProducts: readonly ExecutableEzPicProduct[];
+}
+
 const generationConfigKey = "media.generation.enabled";
 const productConfigKeys = DEFAULT_PRODUCT_CONFIG.productKeys.map(
 	(productKey) => `media.model.${productKey}.enabled`,
 );
+let lastPublicCatalog: { key: string; projection: PublicCatalogProjection } | undefined;
 
 /** Resolves the server-only graph shared by catalog display, quotes, and admission. */
 export async function getCurrentExecutableRouteGraphOptions(
@@ -58,15 +68,42 @@ export async function getCurrentExecutableRouteGraphOptions(
 	};
 }
 
+export async function getCurrentPublicCatalogProjection(
+	database: RuntimeConfigDatabase = db,
+	environment: Record<string, string | undefined> = process.env,
+): Promise<PublicCatalogProjection> {
+	// Read the current switches for every request. Only the synchronous public
+	// projection is reused. No database promise or guest state enters this cache.
+	const options = await getCurrentExecutableRouteGraphOptions(database, environment);
+	const key = JSON.stringify({
+		...options,
+		enabledProviders: [...options.enabledProviders].sort(),
+		disabledProductKeys: [...(options.disabledProductKeys ?? [])].sort(),
+	});
+	if (lastPublicCatalog?.key === key) return lastPublicCatalog.projection;
+
+	const catalog = getPublicProductCatalog(options);
+	const revision = createHash("sha256").update(JSON.stringify(catalog)).digest("hex");
+	const projection = Object.freeze({
+		catalog: freezeCatalogProjection({ ...catalog, revision }),
+		ezPicProducts: Object.freeze(executableEzPicProducts(catalog.products)),
+	});
+	lastPublicCatalog = { key, projection };
+	return projection;
+}
+
 /** Returns only the stable, browser-safe EzPic entries from the quote/admission route graph. */
 export async function getCurrentExecutableEzPicProducts(
 	database: RuntimeConfigDatabase = db,
 	environment: Record<string, string | undefined> = process.env,
-): Promise<ExecutableEzPicProduct[]> {
-	const catalog = getPublicProductCatalog(
-		await getCurrentExecutableRouteGraphOptions(database, environment),
-	);
-	return catalog.products.flatMap((product) => {
+): Promise<readonly ExecutableEzPicProduct[]> {
+	return (await getCurrentPublicCatalogProjection(database, environment)).ezPicProducts;
+}
+
+function executableEzPicProducts(
+	products: readonly PublicCatalogEntry[],
+): ExecutableEzPicProduct[] {
+	return products.flatMap((product) => {
 		if (!isEzPicProductKey(product.key) || !product.skuMatrix) return [];
 		const defaultCell = product.skuMatrix.cells.find(
 			(cell) => cell.skuKey === product.skuMatrix?.defaultSkuKey,
@@ -77,16 +114,24 @@ export async function getCurrentExecutableEzPicProducts(
 		);
 		if (aspectRatios.length !== defaultCell.aspectRatios.length) return [];
 		return [
-			{
+			Object.freeze({
 				key: product.key,
 				label: product.label,
 				description: product.description,
 				credits: product.credits,
 				aspectRatios: Object.freeze(aspectRatios),
 				skuMatrix: product.skuMatrix,
-			},
+			}),
 		];
 	});
+}
+
+function freezeCatalogProjection<T>(value: T): T {
+	if (value && typeof value === "object") {
+		for (const child of Object.values(value)) freezeCatalogProjection(child);
+		Object.freeze(value);
+	}
+	return value;
 }
 
 function isEzPicProductKey(value: string): value is (typeof EZPIC_PRODUCT_KEYS)[number] {

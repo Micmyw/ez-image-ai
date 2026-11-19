@@ -1,4 +1,5 @@
 import { IMAGE_PASS_OFFER_SUMMARY } from "@repo/config/image-pass-summary";
+import { IntentPrefetchLink } from "@shared/components/IntentPrefetchLink";
 import { ArrowRightIcon, ChevronDownIcon, SparklesIcon } from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
@@ -54,13 +55,13 @@ export default async function PricingPage({ searchParams }: PublicMetadataProps)
 						<p className="mt-2 text-sm leading-6 text-slate-300">{t("imagePass.bannerDetail")}</p>
 					</div>
 				</div>
-				<Link
+				<IntentPrefetchLink
 					href="/image-pass"
 					className="min-h-11 gap-2 bg-violet-500 px-5 text-sm font-semibold text-white hover:bg-violet-400 inline-flex items-center rounded-xl transition"
 				>
 					{t("imagePass.buy")}
 					<ArrowRightIcon className="size-4" aria-hidden />
-				</Link>
+				</IntentPrefetchLink>
 			</section>
 			<PublicPricingPlans
 				locale={locale}

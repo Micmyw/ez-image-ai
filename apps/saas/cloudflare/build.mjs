@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { clearEmbeddedEnvironment } from "./artifact-safety.mjs";
 import { packWebsiteWorker } from "./pack-worker.mjs";
+import { stageStaticMetadata } from "./static-metadata.mjs";
 
 // Native Windows OpenNext copies pnpm junctions into its bundle and treats
 // cloudflare:sockets as an invalid path. Build from clean Linux dependencies in
@@ -35,5 +36,8 @@ const result = spawnSync(
 );
 await clearEmbeddedEnvironment(appDirectory, { requireOutput: result.status === 0 });
 if (result.error) throw result.error;
-if (result.status === 0) await packWebsiteWorker(appDirectory, packageManager);
+if (result.status === 0) {
+	await stageStaticMetadata(appDirectory, process.env.NEXT_PUBLIC_SAAS_URL);
+	await packWebsiteWorker(appDirectory, packageManager);
+}
 process.exit(result.status ?? 1);

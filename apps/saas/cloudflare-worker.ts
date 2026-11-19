@@ -24,6 +24,10 @@ import { runWithRequestDefer } from "@repo/utils/request-lifecycle";
 import { forwardToWebsite } from "../web-host/src/forward";
 // @ts-ignore OpenNext generates this module after Next's application type check.
 import generatedWorker from "./.open-next/worker.js";
+import {
+	serveAnalyticsPolicy,
+	type AnalyticsPolicyEnvironment,
+} from "./cloudflare/analytics-policy";
 import { databasePoolSizeForRequest } from "./cloudflare/database-pool";
 import { createImageCallbackIngress } from "./cloudflare/image-callback";
 import {
@@ -31,9 +35,12 @@ import {
 	readDefaultCache,
 	serveAnonymousHomepage,
 } from "./cloudflare/public-edge";
+import { servePublicMetadata, type PublicMetadataAssets } from "./cloudflare/public-metadata";
 import { runScopedWorkerRequest, type WorkerExecutionContext } from "./cloudflare/request-scope";
 
-interface WebsiteWorkerEnvironment {
+interface WebsiteWorkerEnvironment extends AnalyticsPolicyEnvironment {
+	ASSETS?: PublicMetadataAssets;
+	WEBSITE_VERSION?: { id?: string };
 	VIDEO_RUNTIME_CONFIG?: string;
 	VIDEO_V1_ENABLED?: string;
 	CANONICAL_ORIGIN: string;
@@ -62,15 +69,26 @@ export default {
 		executionContext: WorkerExecutionContext,
 	): Promise<Response> {
 		const callbackIngress = createImageCallbackIngress(request);
-		const runtimeEnvironment = hydrateVideoRuntimeEnvironment(environment);
 		const forward = () =>
 			forwardToWebsite(
 				request,
-				runtimeEnvironment.CANONICAL_ORIGIN,
+				environment.CANONICAL_ORIGIN,
 				async (forwardedRequest) => {
 					const health = publicHealthResponse(forwardedRequest);
 					if (health) return health;
+					const policy = serveAnalyticsPolicy(
+						forwardedRequest,
+						environment,
+						environment.CANONICAL_ORIGIN,
+					);
+					if (policy) return policy;
+					const metadata = servePublicMetadata(forwardedRequest, environment.ASSETS);
+					if (metadata) {
+						const response = await metadata;
+						if (response) return response;
+					}
 					const renderWebsite = (documentRequest: Request) => {
+						const runtimeEnvironment = hydrateVideoRuntimeEnvironment(environment);
 						if (!runtimeEnvironment.HYPERDRIVE?.connectionString || !runtimeEnvironment.IMAGES) {
 							throw new Error("WEBSITE_WORKER_BINDINGS_REQUIRED");
 						}
@@ -144,9 +162,10 @@ export default {
 						executionContext,
 						readDefaultCache(),
 						renderWebsite,
+						{ cacheVersion: environment.WEBSITE_VERSION?.id },
 					);
 				},
-				runtimeEnvironment.PAYMENT_WEBHOOK_INGRESS_ORIGIN,
+				environment.PAYMENT_WEBHOOK_INGRESS_ORIGIN,
 			);
 		return runWithCloudflareFreeEligibility(
 			(request as Request & { cf?: { country?: unknown } }).cf?.country,

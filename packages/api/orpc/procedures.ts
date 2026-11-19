@@ -6,13 +6,15 @@ import type { RequestDefer } from "@repo/utils/request-lifecycle";
 
 import { createFlowTiming } from "../modules/media/lib/flow-timing";
 
-export const publicProcedure = os.$context<{
+export type ApiRequestContext = {
 	headers: Headers;
 	responseHeaders?: Headers;
 	requestId?: string;
 	traceId?: string;
 	defer?: RequestDefer;
-}>();
+};
+
+export const publicProcedure = os.$context<ApiRequestContext>();
 
 export const protectedProcedure = publicProcedure.use(async ({ context, next, path }) => {
 	// Template quotes, owned inputs and state must stay private even on auth or validation failures.

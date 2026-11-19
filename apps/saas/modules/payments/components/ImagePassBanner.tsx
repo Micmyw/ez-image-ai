@@ -1,10 +1,10 @@
 "use client";
 
 import { IMAGE_PASS_OFFER_SUMMARY } from "@repo/config/image-pass-summary";
+import { IntentPrefetchLink } from "@shared/components/IntentPrefetchLink";
 import { useQuery } from "@tanstack/react-query";
 import { XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { imagePassOfferQueryOptions } from "../lib/image-pass-offer-query";
@@ -16,13 +16,14 @@ const dismissalKey = `ezpic:image-pass-banner:${IMAGE_PASS_OFFER_SUMMARY.offerVe
 export function ImagePassBanner() {
 	const t = useTranslations("imagePass");
 	const offer = IMAGE_PASS_OFFER_SUMMARY;
-	const [dismissed, setDismissed] = useState(false);
-	const availability = useQuery(imagePassOfferQueryOptions());
+	const [dismissed, setDismissed] = useState<boolean | null>(null);
+	const availability = useQuery({ ...imagePassOfferQueryOptions(), enabled: dismissed === false });
 	useEffect(() => {
 		try {
-			if (window.sessionStorage.getItem(dismissalKey) === "1") setDismissed(true);
+			setDismissed(window.sessionStorage.getItem(dismissalKey) === "1");
 		} catch {
 			// Closing still works when optional browser storage is unavailable.
+			setDismissed(false);
 		}
 	}, []);
 	function dismissBanner() {
@@ -34,7 +35,7 @@ export function ImagePassBanner() {
 		}
 	}
 	if (
-		dismissed ||
+		dismissed !== false ||
 		availability.isError ||
 		availability.isPending ||
 		availability.data?.available !== true
@@ -52,10 +53,10 @@ export function ImagePassBanner() {
 					</strong>
 					<span className={styles.detail}>{t("bannerDetail")}</span>
 				</p>
-				<Link href="/image-pass" className={styles.cta}>
+				<IntentPrefetchLink href="/image-pass" className={styles.cta}>
 					{t("buy")}
 					<span aria-hidden="true">↗</span>
-				</Link>
+				</IntentPrefetchLink>
 			</div>
 			<button
 				type="button"

@@ -10,11 +10,13 @@ const harness = vi.hoisted(() => {
 		refCursor: 0,
 		refs: [] as Array<{ current: unknown }>,
 		capabilityEffect: undefined as (() => unknown) | undefined,
+		uploadFallbackEffect: undefined as (() => unknown) | undefined,
 		preparationEffect: undefined as (() => unknown) | undefined,
 		authRestoreEffect: undefined as (() => unknown) | undefined,
 		initialFileEffect: undefined as (() => unknown) | undefined,
 		queryClient: { fetchQuery: vi.fn() },
 		getCapability: vi.fn(),
+		getFullCapability: vi.fn(),
 		getCatalog: vi.fn(),
 		prepare: vi.fn(),
 		saveAuthDraft: vi.fn(),
@@ -53,7 +55,10 @@ vi.mock("react", async (importOriginal) => {
 		...actual,
 		// Run the availability effect explicitly; unrelated browser observers stay outside this harness.
 		useEffect: (effect: () => unknown, dependencies?: unknown[]) => {
-			if (dependencies?.includes(harness.queryClient)) harness.capabilityEffect = effect;
+			if (dependencies?.includes(harness.queryClient)) {
+				if (dependencies.length === 3) harness.capabilityEffect = effect;
+				else harness.uploadFallbackEffect = effect;
+			}
 			const first = dependencies?.[0];
 			if (first instanceof File && dependencies?.length === 2) harness.initialFileEffect = effect;
 			if (first && typeof first === "object" && "ensure" in first && "read" in first)
@@ -138,7 +143,8 @@ vi.mock("../lib/use-showcase-prompt", () => ({
 }));
 vi.mock("../lib/guest-draft-client", async (importOriginal) => ({
 	...(await importOriginal<typeof import("../lib/guest-draft-client")>()),
-	getGuestCapability: harness.getCapability,
+	getGuestCapability: harness.getFullCapability,
+	getGuestCapabilityPresentation: harness.getCapability,
 	prepareGuestDraftUpload: harness.prepare,
 	uploadGuestDraft: harness.upload,
 	submitGuestDraftHandoff: harness.handoff,
@@ -175,16 +181,35 @@ const product = {
 		],
 	},
 };
+const catalogRevision = "a".repeat(64);
+const compactCapability = {
+	version: "capability-v1",
+	enabled: true,
+	reason: null,
+	upload: { maximumBytes: 10 * 1024 * 1024, mimeTypes: ["image/png"] },
+	queueEstimate: { kind: "capacity" },
+	catalogRevision,
+};
+const commonImage = {
+	...product,
+	credits: 5,
+	inputKinds: ["text-to-image", "image-to-image"],
+};
 
 describe("LandingGenerator verification feedback", () => {
-	afterEach(() => vi.unstubAllGlobals());
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.useRealTimers();
+	});
 	beforeEach(() => {
 		vi.clearAllMocks();
 		harness.getCatalog.mockResolvedValue({ products: [] });
 		harness.queryClient.fetchQuery.mockImplementation(
 			(options?: { queryKey?: readonly unknown[] }) =>
 				options?.queryKey?.[0] === "guest-capability"
-					? harness.getCapability()
+					? options.queryKey[1] === "full"
+						? harness.getFullCapability()
+						: harness.getCapability()
 					: harness.getCatalog(),
 		);
 		harness.saveAuthDraft.mockResolvedValue({
@@ -221,6 +246,7 @@ describe("LandingGenerator verification feedback", () => {
 		harness.refCursor = 0;
 		harness.refs = [];
 		harness.capabilityEffect = undefined;
+		harness.uploadFallbackEffect = undefined;
 		harness.preparationEffect = undefined;
 		harness.authRestoreEffect = undefined;
 		harness.initialFileEffect = undefined;
@@ -611,17 +637,106 @@ describe("LandingGenerator verification feedback", () => {
 		);
 	});
 
-	it("makes text editing ready while the unrelated upload capability is still pending", async () => {
-		harness.getCapability.mockReturnValueOnce(new Promise(() => {}));
+	it("uses one public catalog for both inputs while the capability remains a parallel request", async () => {
+		let resolveCapability!: (value: unknown) => void;
+		harness.getCapability.mockReturnValueOnce(
+			new Promise((resolve) => {
+				resolveCapability = resolve;
+			}),
+		);
+		const textOnly = {
+			...commonImage,
+			key: "image-gpt-image-2",
+			inputKinds: ["text-to-image"],
+		};
+		const uploadOnly = {
+			...commonImage,
+			key: "image-nano-banana-2",
+			inputKinds: ["image-to-image"],
+		};
 		harness.getCatalog.mockResolvedValueOnce({
-			products: [{ ...product, inputKinds: ["text-to-image"] }],
-		} as never);
+			revision: catalogRevision,
+			products: [commonImage, textOnly, uploadOnly],
+		});
 		renderWorkspace(false);
 		harness.capabilityEffect?.();
+		expect(harness.getCapability).toHaveBeenCalledOnce();
+		expect(harness.getCatalog).toHaveBeenCalledOnce();
 		await vi.waitFor(() =>
-			expect(findElement(renderWorkspace(false), "output")?.props["data-stage"]).toBe("ready"),
+			expect(findElement(renderWorkspace(false), harness.modelSelector)?.props.products).toEqual([
+				expect.objectContaining({ key: product.key, accessHint: "paid-account" }),
+				expect.objectContaining({ key: textOnly.key }),
+			]),
 		);
+
+		resolveCapability(compactCapability);
+		renderWorkspace();
+		harness.initialFileEffect?.();
+		await vi.waitFor(() =>
+			expect(findElement(renderWorkspace(), harness.modelSelector)?.props.products).toEqual([
+				expect.objectContaining({ key: product.key, accessHint: "guest-trial" }),
+				expect.objectContaining({ key: uploadOnly.key, accessHint: "paid-account" }),
+			]),
+		);
+		harness.uploadFallbackEffect?.();
+		expect(findElement(renderWorkspace(), "output")?.props["data-stage"]).toBe("ready");
+		expect(harness.getFullCapability).not.toHaveBeenCalled();
+		expect(harness.getCatalog).toHaveBeenCalledOnce();
 	});
+
+	it.each(["stale", "failed", "slow"] as const)(
+		"uses the standalone handshake for an upload when the public catalog is %s",
+		async (catalogState) => {
+			vi.useFakeTimers();
+			harness.getCapability.mockResolvedValueOnce(compactCapability);
+			const { catalogRevision: _revision, ...details } = compactCapability;
+			harness.getFullCapability.mockResolvedValueOnce({ ...details, products: [product] });
+			if (catalogState === "stale")
+				harness.getCatalog.mockResolvedValueOnce({
+					revision: "b".repeat(64),
+					products: [commonImage],
+				});
+			else if (catalogState === "failed")
+				harness.getCatalog.mockRejectedValueOnce(new Error("catalog unavailable"));
+			else harness.getCatalog.mockReturnValueOnce(new Promise(() => {}));
+
+			renderWorkspace(false);
+			harness.capabilityEffect?.();
+			await vi.advanceTimersByTimeAsync(0);
+			renderWorkspace(false);
+			harness.uploadFallbackEffect?.();
+			expect(harness.getFullCapability).not.toHaveBeenCalled();
+
+			renderWorkspace();
+			harness.initialFileEffect?.();
+			await vi.advanceTimersByTimeAsync(0);
+			renderWorkspace();
+			harness.uploadFallbackEffect?.();
+			await vi.advanceTimersByTimeAsync(500);
+			expect(harness.getFullCapability).toHaveBeenCalledOnce();
+			expect(findElement(renderWorkspace(), "output")?.props["data-stage"]).toBe("ready");
+			expect(findElement(renderWorkspace(), harness.modelSelector)?.props.products).toEqual([
+				expect.objectContaining({ key: product.key, accessHint: "guest-trial" }),
+			]);
+		},
+	);
+
+	it.each(["pending", "failed"] as const)(
+		"makes text editing ready when the upload capability is %s",
+		async (capabilityStatus) => {
+			if (capabilityStatus === "pending")
+				harness.getCapability.mockReturnValueOnce(new Promise(() => {}));
+			else harness.getCapability.mockRejectedValueOnce(new Error("capability unavailable"));
+			harness.getCatalog.mockResolvedValueOnce({
+				products: [{ ...product, inputKinds: ["text-to-image"] }],
+			});
+			renderWorkspace(false);
+			harness.capabilityEffect?.();
+			await vi.waitFor(() =>
+				expect(findElement(renderWorkspace(false), "output")?.props["data-stage"]).toBe("ready"),
+			);
+		},
+	);
 
 	it("does not overwrite an active handoff when a late upload capability arrives", async () => {
 		let resolveCapability!: (value: unknown) => void;

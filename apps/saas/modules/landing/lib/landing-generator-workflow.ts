@@ -1,4 +1,7 @@
+import { isEditorProductKey } from "@media/lib/editor-recovery";
+import type { PublicCatalogEntry } from "@repo/ai";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
+import { isGuestTrialModel } from "@repo/config/guest-trial";
 
 import type { GuestCapabilityProduct, GuestProductKey } from "./guest-draft-client";
 
@@ -19,6 +22,41 @@ export type LandingDisabledReason =
 	| "prompt"
 	| "verification"
 	| "busy";
+
+export function landingCatalogProducts(
+	products: readonly PublicCatalogEntry[],
+	inputKind: "text-to-image" | "image-to-image",
+): GuestCapabilityProduct[] {
+	return products.flatMap((product) => {
+		if (
+			!isEditorProductKey(product.key) ||
+			!product.inputKinds.includes(inputKind) ||
+			!product.skuMatrix
+		) {
+			return [];
+		}
+		const skuMatrix = product.skuMatrix;
+		const defaultCell = skuMatrix.cells.find((cell) => cell.skuKey === skuMatrix.defaultSkuKey);
+		if (!defaultCell) return [];
+		const hasSource = inputKind === "image-to-image";
+		return [
+			{
+				key: product.key,
+				label: product.label,
+				description: product.description,
+				credits: `${product.credits}` as `${number}`,
+				accessHint:
+					hasSource && isGuestTrialModel(product.key, defaultCell.skuKey)
+						? "guest-trial"
+						: "paid-account",
+				aspectRatios: hasSource
+					? defaultCell.aspectRatios
+					: skuMatrix.cells.flatMap((cell) => cell.aspectRatios),
+				skuMatrix,
+			},
+		];
+	});
+}
 
 export function localizeLandingProducts(
 	products: readonly GuestCapabilityProduct[],

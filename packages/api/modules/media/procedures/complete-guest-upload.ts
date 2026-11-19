@@ -25,7 +25,11 @@ import {
 	hashGuestSecret,
 	loadGuestCapability,
 } from "../lib/guest-capability";
-import { prepareGuestUpload } from "../lib/guest-upload-preparation";
+import {
+	guestUploadPendingAfterStartTimeout,
+	prepareGuestUpload,
+	recordGuestUploadSealed,
+} from "../lib/guest-upload-preparation";
 
 export const completeGuestDraftUpload = publicProcedure
 	.route({
@@ -105,8 +109,9 @@ export const completeGuestDraftUpload = publicProcedure
 			throw new Error("GUEST_PRODUCT_UNAVAILABLE");
 		}
 		const completionTokenHash = hashGuestSecret(input.completionToken);
-		const preparation = await prepareGuestUpload(input, context.headers, loaded, context.defer);
+		const preparation = await prepareGuestUpload(input, context.headers, loaded);
 		if (preparation.status === "PENDING") return preparation;
+		if (!context.defer) await recordGuestUploadSealed(preparation.assetId, context);
 
 		const claimToken = createDraftClaimToken();
 		try {
@@ -137,6 +142,8 @@ export const completeGuestDraftUpload = publicProcedure
 				db,
 			);
 		} catch (error) {
+			const pending = guestUploadPendingAfterStartTimeout(error, "claim");
+			if (pending) return pending;
 			if (
 				error instanceof Error &&
 				[
@@ -160,6 +167,10 @@ export const completeGuestDraftUpload = publicProcedure
 				throw new Error("GUEST_CAPACITY_UNAVAILABLE");
 			}
 			throw error;
+		} finally {
+			// Start deferred confirmation after the claim attempt settles so
+			// it leaves the request's connection available to the claim.
+			if (context.defer) await recordGuestUploadSealed(preparation.assetId, context);
 		}
 		return {
 			status: "READY" as const,
