@@ -1,4 +1,5 @@
 import { config } from "@config";
+import type { UnifiedAppMessages } from "@repo/i18n";
 import { Toaster } from "@repo/ui/components/toast";
 import { cn } from "@repo/ui/lib";
 import { ApiClientProvider } from "@shared/components/ApiClientProvider";
@@ -58,10 +59,15 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 	// FAQ and contact copy is rendered only by Server Components from the full messages.
 	const {
 		admin: _admin,
+		blog: _blog,
+		changelog: _changelog,
+		contact: _contact,
 		support: _support,
 		faq: _faq,
 		publicContent: _publicContent,
+		guides,
 		home,
+		newsletter: _newsletter,
 		videoEffects,
 		videoTemplates: _videoTemplates,
 		imageToImage,
@@ -73,6 +79,8 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		settings,
 		...messages
 	} = await getMessages();
+	const { items: showcaseItems, ...showcaseCopy } =
+		home.showcase as UnifiedAppMessages["home"]["showcase"];
 	// Video workspaces supply their detailed copy locally; public navigation needs only its labels.
 	const clientMessages = {
 		...Object.fromEntries(Object.entries(messages).filter(([key]) => key !== "videoV1")),
@@ -117,8 +125,22 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		home: {
 			generator: home.generator,
 			beforeAfter: home.beforeAfter,
-			showcase: home.showcase,
+			showcase: {
+				...showcaseCopy,
+				// ShowcaseSection resolves image descriptions when it renders the artwork.
+				items: Object.fromEntries(
+					Object.entries(showcaseItems).map(([key, { alt: _alt, ...copy }]) => [key, copy]),
+				),
+			},
 			quickStartPrompts: home.quickStartPrompts,
+		},
+		// Guide pages render editorial copy on the server. PromptBlock owns the interactive labels.
+		guides: {
+			promptLabel: guides.promptLabel,
+			copied: guides.copied,
+			copyPrompt: guides.copyPrompt,
+			copyFailed: guides.copyFailed,
+			selectPrompt: guides.selectPrompt,
 		},
 		videoEffects: {
 			name: videoEffects.name,
@@ -193,11 +215,11 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 							>
 								<ApiClientProvider>
 									<ClientProviders>
-										<ConsentBanner />
 										{children}
 										<div className="px-4 py-3 text-center text-muted-foreground">
 											<PrivacySettings />
 										</div>
+										<ConsentBanner />
 										<Toaster position="top-right" />
 									</ClientProviders>
 								</ApiClientProvider>

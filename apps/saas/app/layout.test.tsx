@@ -75,11 +75,35 @@ vi.mock("next-intl/server", () => ({
 	getMessages: async () =>
 		mocks.serverMessages ?? {
 			common: { menu: { login: "Sign In" } },
-			home: { generator: { title: "Image editor" } },
+			home: {
+				generator: { title: "Image editor" },
+				showcase: {
+					items: {
+						citrus: {
+							alt: "Citrus still life",
+							tag: "Editorial",
+							title: "Citrus",
+							prompt: "Edit the photo",
+						},
+					},
+				},
+			},
 			admin: { title: "Administration" },
+			blog: { title: "Blog" },
+			changelog: { title: "Changelog" },
+			contact: { title: "Contact" },
+			newsletter: { title: "Newsletter" },
 			support: { title: "Private support tickets" },
 			faq: { items: { question: "Frequently asked question" } },
 			publicContent: { contact: { description: "Contact support" } },
+			guides: {
+				title: "Guides",
+				promptLabel: "Prompt",
+				copied: "Copied",
+				copyPrompt: "Copy prompt",
+				copyFailed: "Could not copy",
+				selectPrompt: "Select prompt",
+			},
 			videoV1: { title: "Create a short video" },
 			videoEffects: {
 				name: "Hotel Lobby AI",
@@ -139,7 +163,19 @@ describe("SaaS root layout", () => {
 
 		expect(mocks.clientMessages).toHaveBeenCalledWith({
 			common: { menu: { login: "Sign In" } },
-			home: { generator: { title: "Image editor" } },
+			home: {
+				generator: { title: "Image editor" },
+				showcase: {
+					items: { citrus: { tag: "Editorial", title: "Citrus", prompt: "Edit the photo" } },
+				},
+			},
+			guides: {
+				promptLabel: "Prompt",
+				copied: "Copied",
+				copyPrompt: "Copy prompt",
+				copyFailed: "Could not copy",
+				selectPrompt: "Select prompt",
+			},
 			videoEffects: {
 				name: "Hotel Lobby AI",
 				navigationDescription: "Create a video with two photos",
@@ -161,6 +197,12 @@ describe("SaaS root layout", () => {
 					<h2>{fullMessages.home.howItWorks.title}</h2>
 					<p>{fullMessages.home.faq.items.guestAvailability.answer}</p>
 					<p>{fullMessages.imageToImage.faq.definition.answer}</p>
+					<p>{fullMessages.guides.description}</p>
+					<img
+						src="/examples/case-birthday-portrait.webp"
+						alt={fullMessages.home.showcase.items.birthdayPortrait.alt}
+						loading="lazy"
+					/>
 					<a href="#image-editor">{fullMessages.home.finalCta.button}</a>
 					<a href="/contact#report-content">
 						{fullMessages.publicContent.contact.reporting.footerLabel}
@@ -178,6 +220,9 @@ describe("SaaS root layout", () => {
 			expect(clientMessages).not.toHaveProperty("publicContent");
 			expect(clientMessages).not.toHaveProperty("videoV1");
 			expect(clientMessages).not.toHaveProperty("videoTemplates");
+			for (const namespace of ["blog", "changelog", "contact", "newsletter"] as const) {
+				expect(clientMessages).not.toHaveProperty(namespace);
+			}
 			expect(clientMessages.imageToImage).toEqual({
 				name: fullMessages.imageToImage.name,
 				navigationDescription: fullMessages.imageToImage.navigationDescription,
@@ -190,26 +235,46 @@ describe("SaaS root layout", () => {
 				menu: fullMessages.settings.menu,
 				billing: { title: fullMessages.settings.billing.title },
 			});
+			const { items, ...showcaseCopy } = fullMessages.home.showcase;
 			expect(clientMessages.home).toEqual({
 				generator: fullMessages.home.generator,
 				beforeAfter: fullMessages.home.beforeAfter,
-				showcase: fullMessages.home.showcase,
+				showcase: {
+					...showcaseCopy,
+					items: Object.fromEntries(
+						Object.entries(items).map(([key, { prompt, tag, title }]) => [
+							key,
+							{ prompt, tag, title },
+						]),
+					),
+				},
 				quickStartPrompts: fullMessages.home.quickStartPrompts,
+			});
+			expect(clientMessages.guides).toEqual({
+				promptLabel: fullMessages.guides.promptLabel,
+				copied: fullMessages.guides.copied,
+				copyPrompt: fullMessages.guides.copyPrompt,
+				copyFailed: fullMessages.guides.copyFailed,
+				selectPrompt: fullMessages.guides.selectPrompt,
 			});
 			expect(clientMessages.home).not.toHaveProperty("creatorWorkflows");
 			// The removed module remains available to server rendering and isolated consumers.
 			expect(fullMessages.home.creatorWorkflows.title).not.toBe("");
-			const withRetiredSection = {
+			const withServerOnlyCopy = {
 				...clientMessages,
+				blog: fullMessages.blog,
+				changelog: fullMessages.changelog,
+				contact: fullMessages.contact,
+				newsletter: fullMessages.newsletter,
+				guides: fullMessages.guides,
 				home: {
 					generator: clientMessages.home.generator,
-					creatorWorkflows: fullMessages.home.creatorWorkflows,
 					beforeAfter: clientMessages.home.beforeAfter,
-					showcase: clientMessages.home.showcase,
+					showcase: fullMessages.home.showcase,
 					quickStartPrompts: clientMessages.home.quickStartPrompts,
 				},
 			};
-			const before = JSON.stringify(withRetiredSection);
+			const before = JSON.stringify(withServerOnlyCopy);
 			const after = JSON.stringify(clientMessages);
 			const beforeGzipBytes = gzipSync(before).byteLength;
 			const afterGzipBytes = gzipSync(after).byteLength;
@@ -282,10 +347,15 @@ describe("SaaS root layout", () => {
 				if (
 					![
 						"admin",
+						"blog",
+						"changelog",
+						"contact",
+						"newsletter",
 						"support",
 						"settings",
 						"faq",
 						"publicContent",
+						"guides",
 						"home",
 						"videoV1",
 						"videoTemplates",

@@ -1,4 +1,5 @@
 import { ImagePassPurchase } from "@payments/components/ImagePassPurchase";
+import { ConsentBanner } from "@shared/components/ConsentBanner";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations } from "next-intl/server";
 
@@ -17,13 +18,16 @@ export default async function ImagePassPage({
 	const { imagePass } = await getMessages();
 	const intentId = typeof params.intentId === "string" ? params.intentId.trim() : undefined;
 	return (
-		<main className="px-4 py-12 sm:py-20 min-h-screen bg-[#140e1d]">
-			<NextIntlClientProvider messages={{ imagePass }}>
-				<ImagePassPurchase
-					intentId={intentId && intentId.length <= 128 ? intentId : undefined}
-					canceled={params.canceled !== undefined}
-				/>
-			</NextIntlClientProvider>
-		</main>
+		<>
+			<ConsentBanner checkout />
+			<main className="px-4 py-12 sm:py-20 min-h-screen bg-[#140e1d]">
+				<NextIntlClientProvider messages={{ imagePass }}>
+					<ImagePassPurchase
+						intentId={intentId && intentId.length <= 128 ? intentId : undefined}
+						canceled={params.canceled !== undefined}
+					/>
+				</NextIntlClientProvider>
+			</main>
+		</>
 	);
 }

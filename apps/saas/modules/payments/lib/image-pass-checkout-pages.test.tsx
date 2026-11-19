@@ -1,3 +1,4 @@
+import { ConsentBanner } from "@shared/components/ConsentBanner";
 import { NextIntlClientProvider } from "next-intl";
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -28,11 +29,17 @@ function contentProps(element: ReactElement) {
 		? ((child.props as { children: ReactElement }).children.props as Record<string, unknown>)
 		: (child.props as Record<string, unknown>);
 }
+function purchasePageChildren(element: ReactElement) {
+	return (element.props as { children: [ReactElement, ReactElement] }).children;
+}
 beforeEach(() => vi.clearAllMocks());
 describe("image pass checkout query boundaries", () => {
 	it("provides complete purchase translations outside the registered workspace", async () => {
 		const page = await ImagePassPage({ searchParams: Promise.resolve({}) });
-		const provider = (page.props as { children: ReactElement }).children;
+		const [consent, main] = purchasePageChildren(page);
+		expect(consent.type).toBe(ConsentBanner);
+		expect(consent.props).toMatchObject({ checkout: true });
+		const provider = (main.props as { children: ReactElement }).children;
 		expect(provider.type).toBe(NextIntlClientProvider);
 		expect(provider.props).toMatchObject({ messages });
 	});
@@ -40,7 +47,8 @@ describe("image pass checkout query boundaries", () => {
 		const page = await ImagePassPage({
 			searchParams: Promise.resolve({ intentId: ["one", "two"] }),
 		});
-		expect(contentProps(page).intentId).toBeUndefined();
+		const [, main] = purchasePageChildren(page);
+		expect(contentProps(main).intentId).toBeUndefined();
 	});
 	it("redirects repeated return intent values to the purchase page", async () => {
 		await expect(

@@ -12,7 +12,8 @@ import styles from "./ConsentBanner.module.css";
 
 export function ConsentBanner({
 	returnFocus,
-}: { returnFocus?: RefObject<HTMLElement | null> } = {}) {
+	checkout = false,
+}: { returnFocus?: RefObject<HTMLElement | null>; checkout?: boolean } = {}) {
 	const t = useTranslations("common.consent");
 	const pathname = usePathname();
 	const banner = useRef<HTMLElement>(null);
@@ -28,24 +29,26 @@ export function ConsentBanner({
 	} = useCookieConsent();
 	const automaticNoticeAllowed =
 		pathname !== null && publicAnalyticsPath(new URL(pathname, "https://consent.invalid")) !== null;
-	const inCheckout = pathname === "/image-pass" && !returnFocus;
+	const matchesPlacement = Boolean(returnFocus) || checkout === (pathname === "/image-pass");
 
 	useEffect(() => {
-		if (preferencesOpen && !returnFocus) banner.current?.focus({ preventScroll: !inCheckout });
-	}, [inCheckout, preferencesOpen, returnFocus]);
+		if (preferencesOpen && matchesPlacement && !returnFocus) {
+			banner.current?.focus({ preventScroll: !checkout });
+		}
+	}, [checkout, matchesPlacement, preferencesOpen, returnFocus]);
 
 	// Account pages retain explicit privacy choices without an automatic notice.
-	if (!showBanner || (!preferencesOpen && !automaticNoticeAllowed)) {
+	if (!matchesPlacement || !showBanner || (!preferencesOpen && !automaticNoticeAllowed)) {
 		return null;
 	}
 
 	function choose(action: () => void) {
 		action();
 		if (returnFocus?.current) returnFocus.current.focus();
-		else preferencesTrigger?.focus({ preventScroll: !inCheckout });
+		else preferencesTrigger?.focus({ preventScroll: !checkout });
 	}
 
-	const placement = returnFocus ? styles.inDialog : inCheckout ? styles.checkout : styles.viewport;
+	const placement = returnFocus ? styles.inDialog : checkout ? styles.checkout : styles.viewport;
 	return (
 		<section
 			ref={banner}

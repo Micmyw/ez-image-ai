@@ -1,13 +1,17 @@
 .viewport {
-	position: fixed;
-	inset-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+	/* Its place after the footer lets the last page controls scroll above it. */
+	position: sticky;
 	inset-block-end: max(12px, env(safe-area-inset-bottom));
 	z-index: 45;
+	inline-size: calc(
+		100% - max(12px, env(safe-area-inset-left)) - max(12px, env(safe-area-inset-right))
+	);
 	max-inline-size: 29rem;
 	max-block-size: calc(
 		100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom))
 	);
-	margin-inline-start: auto;
+	margin-inline: auto max(12px, env(safe-area-inset-right));
+	margin-block-end: max(12px, env(safe-area-inset-bottom));
 	overflow: auto;
 	overscroll-behavior: contain;
 	border: 1px solid var(--border);
