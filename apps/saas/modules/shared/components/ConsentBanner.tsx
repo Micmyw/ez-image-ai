@@ -28,10 +28,11 @@ export function ConsentBanner({
 	} = useCookieConsent();
 	const automaticNoticeAllowed =
 		pathname !== null && publicAnalyticsPath(new URL(pathname, "https://consent.invalid")) !== null;
+	const inCheckout = pathname === "/image-pass" && !returnFocus;
 
 	useEffect(() => {
-		if (preferencesOpen && !returnFocus) banner.current?.focus({ preventScroll: true });
-	}, [preferencesOpen, returnFocus]);
+		if (preferencesOpen && !returnFocus) banner.current?.focus({ preventScroll: !inCheckout });
+	}, [inCheckout, preferencesOpen, returnFocus]);
 
 	// Account pages retain explicit privacy choices without an automatic notice.
 	if (!showBanner || (!preferencesOpen && !automaticNoticeAllowed)) {
@@ -41,16 +42,17 @@ export function ConsentBanner({
 	function choose(action: () => void) {
 		action();
 		if (returnFocus?.current) returnFocus.current.focus();
-		else preferencesTrigger?.focus({ preventScroll: true });
+		else preferencesTrigger?.focus({ preventScroll: !inCheckout });
 	}
 
+	const placement = returnFocus ? styles.inDialog : inCheckout ? styles.checkout : styles.viewport;
 	return (
 		<section
 			ref={banner}
 			data-consent-banner=""
 			aria-label={t("label")}
 			tabIndex={-1}
-			className={`bg-card text-card-foreground ${returnFocus ? styles.inDialog : styles.viewport}`}
+			className={`bg-card text-card-foreground ${placement}`}
 		>
 			<div className="gap-2 p-3 sm:p-4 flex items-start">
 				<CookieIcon className="mt-0.5 size-4 shrink-0 text-primary/60" aria-hidden="true" />

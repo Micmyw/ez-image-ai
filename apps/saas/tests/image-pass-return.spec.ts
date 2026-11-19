@@ -364,8 +364,16 @@ for (const viewport of [
 				await expect(buy).not.toContainText("Opening PayPal");
 				await expectNoHorizontalOverflow(page);
 				await status.screenshot({ path: testInfo.outputPath("browser-back-pending.png") });
+				await page.route("**/api/analytics/policy", (route) =>
+					route.fulfill({ json: { requiresOptIn: true, privacySignal: false } }),
+				);
 				await page.reload();
 				await expect(status).toHaveAttribute("data-status", "PENDING");
+				await expect(
+					page
+						.getByRole("region", { name: "We value your privacy" })
+						.getByRole("button", { name: "Accept all", exact: true }),
+				).toBeVisible();
 				await page.getByRole("link", { name: "Return to editor", exact: true }).click();
 				const expectedEditorUrl = new URL(editorPath, page.url());
 				await expect.poll(() => new URL(page.url()).pathname).toBe(expectedEditorUrl.pathname);

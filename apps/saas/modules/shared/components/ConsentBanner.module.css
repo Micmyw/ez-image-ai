@@ -23,3 +23,13 @@
 .inDialog {
 	border-block-start: 1px solid var(--border);
 }
+
+.checkout {
+	padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+	border-block-end: 1px solid var(--border);
+}
+
+.checkout > div {
+	max-inline-size: 36rem;
+	margin-inline: auto;
+}
