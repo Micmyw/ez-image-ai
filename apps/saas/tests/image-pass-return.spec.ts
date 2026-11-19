@@ -393,6 +393,13 @@ for (const viewport of [
 }
 
 async function openCreator(page: Page, path = "/create") {
+	if (path === "/") {
+		// The preview can open while Playwright is waiting to interact with the editor or after returning.
+		const preview = page.locator('[data-test="homepage-showcase"]');
+		await page.addLocatorHandler(preview, async (dialog) => {
+			await dialog.getByRole("button", { name: "Close previews", exact: true }).click();
+		});
+	}
 	await page.goto(path);
 	await expect(page.locator('[data-test="registered-generator"]')).toBeVisible({ timeout: 60_000 });
 	await expect(page.getByRole("button", { name: /^Model: / })).toBeEnabled({ timeout: 60_000 });
