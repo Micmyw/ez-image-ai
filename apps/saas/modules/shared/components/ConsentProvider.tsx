@@ -26,8 +26,9 @@ export const ConsentContext = createContext<{
 	policyReady: boolean;
 	showBanner: boolean;
 	preferencesOpen: boolean;
+	preferencesTrigger: HTMLElement | null;
 	privacySignal: boolean;
-	openPreferences: () => void;
+	openPreferences: (trigger: HTMLElement) => void;
 	closePreferences: () => void;
 	allowCookies: () => void;
 	declineCookies: () => void;
@@ -39,6 +40,7 @@ export const ConsentContext = createContext<{
 	policyReady: false,
 	showBanner: false,
 	preferencesOpen: false,
+	preferencesTrigger: null,
 	privacySignal: false,
 	openPreferences: () => {},
 	closePreferences: () => {},
@@ -57,7 +59,8 @@ export function ConsentProvider({
 	const [policy, setPolicy] = useState<{ requiresOptIn: boolean; privacySignal: boolean } | null>(
 		null,
 	);
-	const [preferencesOpen, setPreferencesOpen] = useState(false);
+	const [preferencesTrigger, setPreferencesTrigger] = useState<HTMLElement | null>(null);
+	const preferencesOpen = preferencesTrigger !== null;
 	const [dismissed, setDismissed] = useState(false);
 	const cookieOptions = {
 		expires: 30,
@@ -136,10 +139,11 @@ export function ConsentProvider({
 	}, []);
 
 	const allowCookies = () => {
+		if (!policy || policy.privacySignal) return;
 		Cookies.set("consent_version", ANALYTICS_CONSENT_VERSION, cookieOptions);
 		Cookies.set("consent", "true", cookieOptions);
 		setConsentStatus("accepted");
-		setPreferencesOpen(false);
+		setPreferencesTrigger(null);
 	};
 
 	const declineCookies = () => {
@@ -156,7 +160,7 @@ export function ConsentProvider({
 		invalidatePendingBrowserGrowthAnalytics();
 		clearPurchaseAttribution();
 		setConsentStatus("declined");
-		setPreferencesOpen(false);
+		setPreferencesTrigger(null);
 	};
 
 	return (
@@ -172,6 +176,7 @@ export function ConsentProvider({
 				aggregateAllowed: !!policy && !policy.privacySignal && consentStatus !== "declined",
 				policyReady: !!policy,
 				preferencesOpen,
+				preferencesTrigger,
 				showBanner:
 					preferencesOpen ||
 					(!dismissed &&
@@ -180,9 +185,9 @@ export function ConsentProvider({
 						policy.requiresOptIn &&
 						consentStatus === "undecided"),
 				privacySignal: policy?.privacySignal ?? false,
-				openPreferences: () => setPreferencesOpen(true),
+				openPreferences: setPreferencesTrigger,
 				closePreferences: () => {
-					setPreferencesOpen(false);
+					setPreferencesTrigger(null);
 					setDismissed(true);
 				},
 				allowCookies,

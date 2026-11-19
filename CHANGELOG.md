@@ -2,6 +2,9 @@
 
 ## Unreleased — Public site and guest uploads
 
+- Show the first homepage photo comparison as its images become ready, while the editor and other previews finish loading. Narrow screens download smaller comparison images.
+- Keep the editor in place when cookie choices or the Image Pass offer appear. Cookie choices are also available inside the homepage preview.
+- On narrow screens, swipe through the editing shortcuts in one row while keeping the Generate button in place as models load.
 - Reuse the model catalog that the editor already loads when checking guest upload availability.
 - Skip the offer lookup after a visitor dismisses the Image Pass banner for the session.
 - Let a guest upload continue with its original receipt when the database times out before starting the completion transaction.

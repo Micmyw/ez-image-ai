@@ -139,7 +139,13 @@ const GuestTrialWorkspace = dynamic(() =>
 	loadGuestTrialWorkspace().then((module) => module.GuestTrialWorkspace),
 );
 
-export function LandingGenerator(props: { requireReference?: boolean; initialFile?: File } = {}) {
+export function LandingGenerator(
+	props: {
+		requireReference?: boolean;
+		initialFile?: File;
+		responsivePurposeShortcuts?: boolean;
+	} = {},
+) {
 	const [reset, setReset] = useState<{ key: number; productKey?: GuestProductKey }>({ key: 0 });
 	useEffect(() => {
 		function resetWorkspace(event: Event) {
@@ -165,11 +171,13 @@ function LandingGeneratorWorkspace({
 	initialFile,
 	initialProductKey,
 	startEmpty = false,
+	responsivePurposeShortcuts = false,
 }: {
 	requireReference?: boolean;
 	initialFile?: File;
 	initialProductKey?: GuestProductKey;
 	startEmpty?: boolean;
+	responsivePurposeShortcuts?: boolean;
 }) {
 	const effectEditor = useEffectEditor();
 	const workspace = useGenerationMode();
@@ -1691,6 +1699,8 @@ function LandingGeneratorWorkspace({
 							frameCount={controlValues.frameCount}
 							onSelect={changeModel}
 							disabled={isBusy || !capabilityUsable}
+							compactOnNarrow={responsivePurposeShortcuts}
+							pending={availabilityStatus === "checking"}
 						/>
 					)}
 					<div

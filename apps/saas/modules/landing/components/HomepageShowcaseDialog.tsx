@@ -1,12 +1,5 @@
 "use client";
 
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogTitle,
-	DialogTrigger,
-} from "@repo/ui/components/dialog";
 import { trackBrowserGrowthEvent } from "@repo/utils/lib/growth-analytics-browser";
 import {
 	ArrowLeftRightIcon,
@@ -17,37 +10,30 @@ import {
 	PauseIcon,
 	PlayIcon,
 	RotateCcwIcon,
-	SparklesIcon,
 	Volume2Icon,
 	VolumeXIcon,
 } from "lucide-react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { type RefObject, useEffect, useRef, useState } from "react";
 
 import { type HomepageShowcaseCopy, type HomepageShowcaseSlide } from "../lib/homepage-showcase";
-import { useLandingPromptSelection } from "../lib/use-landing-prompt-selection";
 
-import "./homepage-showcase.css";
-
-export function HomepageShowcaseDialog({
+export function HomepageShowcaseDialogContent({
 	slides,
 	copy,
-	returnFocusTarget,
+	index,
+	setIndex,
+	open,
+	showPicker,
+	titleRef,
 }: {
 	slides: HomepageShowcaseSlide[];
 	copy: HomepageShowcaseCopy;
-	returnFocusTarget: HTMLElement | null;
+	index: number;
+	setIndex: (value: number) => void;
+	open: boolean;
+	showPicker: boolean;
+	titleRef: RefObject<HTMLHeadingElement | null>;
 }) {
-	const [open, setOpen] = useState(true);
-	const [index, setIndex] = useState(0);
-	const titleRef = useRef<HTMLHeadingElement>(null);
-	const triggerRef = useRef<HTMLButtonElement>(null);
-	const returnFocus = useRef<HTMLElement | null>(returnFocusTarget);
-	const navigating = useRef(false);
-	const pending = useRef<HomepageShowcaseSlide | null>(null);
-	const router = useRouter();
-	const applyPrompt = useLandingPromptSelection();
 	const slide = slides[index];
 
 	if (!slide) return null;
@@ -61,97 +47,53 @@ export function HomepageShowcaseDialog({
 		setIndex(nextIndex);
 	};
 	return (
-		<Dialog
-			open={open}
-			onOpenChange={(value) => {
-				if (value) {
-					navigating.current = false;
-					returnFocus.current = document.activeElement as HTMLElement | null;
-				}
-				setOpen(value);
-			}}
-			onOpenChangeComplete={(value) => {
-				if (value || !pending.current) return;
-				const choice = pending.current;
-				pending.current = null;
-				if (!choice.prompt || !applyPrompt(choice.prompt)) router.push(choice.href);
-			}}
-		>
-			<DialogTrigger ref={triggerRef} className="homepage-showcase-trigger">
-				<SparklesIcon size={15} aria-hidden="true" />
-				{copy.trigger}
-			</DialogTrigger>
-			<DialogContent
-				className="homepage-showcase"
-				closeLabel={copy.close}
-				initialFocus={titleRef}
-				finalFocus={() => {
-					if (!navigating.current) {
-						const target = returnFocus.current?.isConnected
-							? returnFocus.current
-							: triggerRef.current;
-						target?.focus({ preventScroll: true });
-					}
-					return false;
-				}}
-				overlayProps={{ className: "homepage-showcase-backdrop", "data-test": "showcase-backdrop" }}
-				data-test="homepage-showcase"
-			>
-				<div className="homepage-showcase-media" data-kind={slide.kind}>
-					<div className="homepage-showcase-scene" key={slide.key}>
-						{slide.kind === "video" ? (
-							<ShowcaseVideo slide={slide} copy={copy} active={open} />
-						) : (
-							<ShowcaseImage slide={slide} copy={copy} />
-						)}
-					</div>
-					<span className="homepage-showcase-sample">
-						{slide.kind === "video" ? (
-							<PlayIcon size={12} aria-hidden="true" />
-						) : (
-							<ImageIcon size={12} aria-hidden="true" />
-						)}
-						{slide.kind === "video" ? copy.video : copy.image}
-					</span>
+		<>
+			<div className="homepage-showcase-media" data-kind={slide.kind}>
+				<div className="homepage-showcase-scene" key={slide.key}>
+					{slide.kind === "video" ? (
+						open && <ShowcaseVideo slide={slide} copy={copy} />
+					) : (
+						<ShowcaseImage slide={slide} copy={copy} />
+					)}
 				</div>
-				<div className="homepage-showcase-body">
-					<div className="homepage-showcase-heading">
-						<div aria-live="polite" aria-atomic="true">
-							<p className="homepage-showcase-eyebrow">{copy.eyebrow}</p>
-							<DialogTitle ref={titleRef} tabIndex={-1} className="homepage-showcase-title">
-								{slide.title}
-							</DialogTitle>
-							<DialogDescription className="homepage-showcase-description">
-								{slide.description}
-							</DialogDescription>
-						</div>
-						<Link
-							href={slide.href}
-							prefetch={false}
-							className="homepage-showcase-cta"
-							data-test="showcase-create"
-							onClick={(event) => {
-								void trackBrowserGrowthEvent({
-									name: "homepage_idea_selected",
-									properties: {
-										homepageIdea: slide.key,
-										homepagePlacement: "showcase",
-										status: "selected",
-									},
-								});
-								if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-								navigating.current = true;
-								if (slide.prompt) {
-									event.preventDefault();
-									pending.current = slide;
-								}
-								setOpen(false);
-							}}
+				<span className="homepage-showcase-sample">
+					{slide.kind === "video" ? (
+						<PlayIcon size={12} aria-hidden="true" />
+					) : (
+						<ImageIcon size={12} aria-hidden="true" />
+					)}
+					{slide.kind === "video" ? copy.video : copy.image}
+				</span>
+			</div>
+			<div className="homepage-showcase-body">
+				<div className="homepage-showcase-heading">
+					<div aria-live="polite" aria-atomic="true">
+						<p className="homepage-showcase-eyebrow">{copy.eyebrow}</p>
+						<h2
+							ref={titleRef}
+							id="homepage-showcase-title"
+							tabIndex={-1}
+							className="homepage-showcase-title"
+							data-showcase-title=""
 						>
-							{slide.action}
-							<ArrowRightIcon size={17} aria-hidden="true" />
-						</Link>
+							{slide.title}
+						</h2>
+						<p id="homepage-showcase-description" className="homepage-showcase-description">
+							{slide.description}
+						</p>
 					</div>
+					<a
+						href={slide.href}
+						className="homepage-showcase-cta"
+						data-showcase-create=""
+						data-showcase-prompt={slide.prompt}
+						data-test="showcase-create"
+					>
+						{slide.action}
+						<ArrowRightIcon size={17} aria-hidden="true" />
+					</a>
+				</div>
+				{showPicker && (
 					<div className="homepage-showcase-navigation">
 						<button
 							type="button"
@@ -170,7 +112,7 @@ export function HomepageShowcaseDialog({
 									aria-pressed={index === itemIndex}
 									onClick={() => select(itemIndex)}
 								>
-									<img src={item.poster} alt="" width={56} height={40} loading="lazy" />
+									<img src={item.thumbnail} alt="" width={144} height={102} loading="lazy" />
 									<span>{item.label}</span>
 									{item.kind === "video" && <PlayIcon size={11} aria-hidden="true" />}
 								</button>
@@ -185,9 +127,9 @@ export function HomepageShowcaseDialog({
 							<ChevronRightIcon aria-hidden="true" />
 						</button>
 					</div>
-				</div>
-			</DialogContent>
-		</Dialog>
+				)}
+			</div>
+		</>
 	);
 }
 
@@ -198,8 +140,6 @@ function ShowcaseImage({
 	slide: Exclude<HomepageShowcaseSlide, { kind: "video" }>;
 	copy: HomepageShowcaseCopy;
 }) {
-	const [position, setPosition] = useState(50);
-	const [interacted, setInteracted] = useState(false);
 	const [ready, setReady] = useState(0);
 	const imageReady = () => setReady((value) => value + 1);
 	if (slide.kind === "gallery")
@@ -244,32 +184,24 @@ function ShowcaseImage({
 			</div>
 		);
 	return (
-		<div
-			className="homepage-showcase-comparison"
-			data-reveal={ready >= 2 && !interacted ? "intro" : "manual"}
-		>
+		<div className="homepage-showcase-comparison" data-reveal="intro" suppressHydrationWarning>
 			<img
-				src={slide.before}
+				data-showcase-source="before"
 				alt={copy.before}
+				fetchPriority="high"
 				draggable={false}
-				onLoad={() => setReady((value) => value + 1)}
+				suppressHydrationWarning
 			/>
-			<div
-				className="homepage-showcase-edited"
-				style={{ clipPath: `inset(0 ${100 - position}% 0 0)` }}
-			>
+			<div className="homepage-showcase-edited">
 				<img
-					src={slide.poster}
+					data-showcase-source="poster"
 					alt={slide.title}
+					fetchPriority="high"
 					draggable={false}
-					onLoad={() => setReady((value) => value + 1)}
+					suppressHydrationWarning
 				/>
 			</div>
-			<div
-				className="homepage-showcase-divider"
-				style={{ left: `${position}%` }}
-				aria-hidden="true"
-			>
+			<div className="homepage-showcase-divider" aria-hidden="true">
 				<span>
 					<ArrowLeftRightIcon size={19} />
 				</span>
@@ -280,15 +212,11 @@ function ShowcaseImage({
 				type="range"
 				min={0}
 				max={100}
-				value={position}
+				defaultValue={50}
 				aria-label={copy.compare}
-				aria-valuetext={`${copy.after} ${position}%`}
-				onPointerDown={() => setInteracted(true)}
-				onKeyDown={() => setInteracted(true)}
-				onChange={(event) => {
-					setInteracted(true);
-					setPosition(Number(event.target.value));
-				}}
+				aria-valuetext={`${copy.after} 50%`}
+				data-showcase-after={copy.after}
+				suppressHydrationWarning
 			/>
 			<span className="homepage-showcase-drag">
 				<ArrowLeftRightIcon size={13} aria-hidden="true" />
@@ -301,18 +229,11 @@ function ShowcaseImage({
 function ShowcaseVideo({
 	slide,
 	copy,
-	active,
 }: {
 	slide: Extract<HomepageShowcaseSlide, { kind: "video" }>;
-	active: boolean;
 	copy: HomepageShowcaseCopy;
 }) {
 	const videoRef = useRef<HTMLVideoElement>(null);
-	const activeRef = useRef(active);
-	activeRef.current = active;
-	useEffect(() => {
-		if (!active) videoRef.current?.pause();
-	}, [active]);
 	const userPaused = useRef(false);
 	const [playing, setPlaying] = useState(false);
 	const [muted, setMuted] = useState(true);
@@ -328,12 +249,7 @@ function ShowcaseVideo({
 		let active = true;
 		const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
 		const syncPlayback = () => {
-			if (
-				!activeRef.current ||
-				document.visibilityState !== "visible" ||
-				motion.matches ||
-				userPaused.current
-			)
+			if (document.visibilityState !== "visible" || motion.matches || userPaused.current)
 				video.pause();
 			else
 				void video.play().catch(() => {
@@ -396,7 +312,7 @@ function ShowcaseVideo({
 				}
 				onTimeUpdate={(event) => setTime(event.currentTarget.currentTime)}
 			/>
-			{!playing && active && (
+			{!playing && (
 				<button
 					type="button"
 					className="homepage-showcase-play"

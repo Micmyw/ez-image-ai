@@ -1,0 +1,43 @@
+.pending {
+	display: none;
+}
+
+@container (max-width: 600px) {
+	.responsive,
+	.pending {
+		display: block;
+		min-inline-size: 0;
+		block-size: 68px;
+		margin: 6px 0 0;
+	}
+
+	.responsive > .legend {
+		padding-inline: 5px;
+		color: var(--muted-foreground);
+		font-size: 11px;
+		line-height: 16px;
+	}
+
+	.responsive > .track {
+		display: flex;
+		flex-wrap: nowrap;
+		gap: 6px;
+		overflow-x: auto;
+		overflow-y: hidden;
+		margin: 0;
+		padding: 5px;
+		scrollbar-width: thin;
+		scrollbar-color: #927daa #382d45;
+	}
+
+	.responsive .choice {
+		min-block-size: 38px;
+		flex: none;
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 2px;
+		padding: 3px 9px;
+		line-height: 14px;
+		white-space: nowrap;
+	}
+}

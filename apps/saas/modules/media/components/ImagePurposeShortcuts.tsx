@@ -7,6 +7,8 @@ import { useTranslations } from "next-intl";
 import type { EditorProductKey } from "../lib/editor-recovery";
 import { getImagePurposeShortcuts, type ImagePurposeProduct } from "../lib/image-purpose-shortcuts";
 
+import styles from "./ImagePurposeShortcuts.module.css";
+
 export function ImagePurposeShortcuts({
 	products,
 	value,
@@ -15,6 +17,8 @@ export function ImagePurposeShortcuts({
 	frameCount,
 	onSelect,
 	disabled = false,
+	compactOnNarrow = false,
+	pending = false,
 }: {
 	products: readonly ImagePurposeProduct[];
 	value: string | null;
@@ -23,21 +27,27 @@ export function ImagePurposeShortcuts({
 	frameCount?: number;
 	onSelect: (productKey: EditorProductKey, skuKey: ImageSkuKey) => void;
 	disabled?: boolean;
+	compactOnNarrow?: boolean;
+	pending?: boolean;
 }) {
 	const t = useTranslations("media.purposeShortcuts");
 	const choices = getImagePurposeShortcuts(products, { outputFormat, frameCount });
-	if (!choices.length) return null;
+	if (!choices.length)
+		return compactOnNarrow && pending ? <div className={styles.pending} /> : null;
 	return (
-		<fieldset className="mb-3 space-y-2" disabled={disabled}>
-			<legend className="text-xs text-muted-foreground">{t("label")}</legend>
-			<div className="gap-2 flex flex-wrap" data-test="image-purpose-shortcuts">
+		<fieldset
+			className={`mb-3 space-y-2 ${compactOnNarrow ? styles.responsive : ""}`}
+			disabled={disabled}
+		>
+			<legend className={`text-xs text-muted-foreground ${styles.legend}`}>{t("label")}</legend>
+			<div className={`gap-2 flex flex-wrap ${styles.track}`} data-test="image-purpose-shortcuts">
 				{choices.map((choice) => (
 					<Button
 						key={choice.key}
 						type="button"
 						variant="secondary"
 						size="sm"
-						className="gap-0.5 py-2 h-auto flex-col items-start"
+						className={`gap-0.5 py-2 h-auto flex-col items-start ${styles.choice}`}
 						aria-pressed={value === choice.productKey && skuKey === choice.skuKey}
 						disabled={disabled}
 						onClick={() => onSelect(choice.productKey, choice.skuKey)}

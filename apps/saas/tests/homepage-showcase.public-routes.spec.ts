@@ -1,9 +1,32 @@
 import path from "node:path";
 
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-import { HOMEPAGE_SHOWCASE_SEEN_KEY } from "../modules/landing/lib/homepage-showcase";
+import {
+	HOMEPAGE_SHOWCASE_COMPACT_COMPARISON,
+	HOMEPAGE_SHOWCASE_DELAY_MS,
+	HOMEPAGE_SHOWCASE_KEYS,
+	HOMEPAGE_SHOWCASE_MEDIA,
+	HOMEPAGE_SHOWCASE_SEEN_KEY,
+} from "../modules/landing/lib/homepage-showcase";
 import { captureConsentedGrowthEvents, type CapturedGrowthEvent } from "./growth-events";
+
+const { before, poster } = HOMEPAGE_SHOWCASE_MEDIA[HOMEPAGE_SHOWCASE_KEYS[0]];
+const firstComparison: string[] = [before, poster].sort();
+const compactComparison: string[] = Object.values(HOMEPAGE_SHOWCASE_COMPACT_COMPARISON).sort();
+const allComparisonSources = [...firstComparison, ...compactComparison];
+const showcaseSelector = '[data-test="homepage-showcase"]';
+const enhancedShowcaseSelector = `${showcaseSelector}[data-showcase-enhanced]`;
+const nextChunks = /\/_next\/static\/[^?]+\.js(?:\?.*)?$/;
+
+async function holdRequests(page: Page, url: string | RegExp) {
+	const ready = Promise.withResolvers<void>();
+	await page.route(url, async (route) => {
+		await ready.promise;
+		await route.continue();
+	});
+	return ready.resolve;
+}
 
 test.use({
 	storageState: { cookies: [], origins: [] },
@@ -63,6 +86,288 @@ test.beforeEach(async ({ page }) => {
 	);
 });
 
+for (const { device, width, sources } of [
+	{ device: "desktop", width: 1440, sources: firstComparison },
+	{ device: "mobile", width: 390, sources: compactComparison },
+]) {
+	test(`paints the first ${device} showcase comparison before hydration and requests each photo once`, async ({
+		page,
+	}) => {
+		test.setTimeout(75_000);
+		await page.setViewportSize({ width, height: 900 });
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		const requests: string[] = [];
+		page.on("request", (request) => {
+			if (request.method() === "GET") requests.push(new URL(request.url()).pathname);
+		});
+		const comparisonRequests = () =>
+			requests.filter((url) => allComparisonSources.includes(url)).sort();
+		const releaseChunks = await holdRequests(page, nextChunks);
+		const dialog = page.locator(showcaseSelector);
+		const photos = dialog.locator(".homepage-showcase-comparison img");
+		const close = dialog.getByRole("button", { name: "Close previews", exact: true });
+
+		try {
+			await page.goto("/?utm_source=showcase-check", { waitUntil: "commit" });
+			await expect.poll(comparisonRequests).toEqual(sources);
+			await expect(dialog).toBeVisible();
+			await expect(page.locator(enhancedShowcaseSelector)).toHaveCount(0);
+			for (const href of sources) {
+				await expect(
+					page.locator(`link[rel="preload"][as="image"][href="${href}"]`),
+				).toHaveAttribute("fetchpriority", "high");
+			}
+			await expect(photos).toHaveCount(2);
+			for (const photo of await photos.all()) await expect(photo).toBeInViewport({ ratio: 0.4 });
+			await expect
+				.poll(() =>
+					photos.evaluateAll((images) =>
+						images
+							.filter(
+								(image): image is HTMLImageElement =>
+									image instanceof HTMLImageElement &&
+									image.complete &&
+									image.naturalWidth > 0 &&
+									image.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+							)
+							.map((image) => new URL(image.currentSrc).pathname)
+							.sort(),
+					),
+				)
+				.toEqual(sources);
+			await expect(dialog.getByRole("heading")).toHaveText("Your photo, painted differently.");
+			await close.focus();
+			await expect(close).toBeFocused();
+			const shownBeforeHydration = await dialog.elementHandle();
+
+			releaseChunks();
+			await expect(page.locator(enhancedShowcaseSelector)).toBeVisible();
+			expect(
+				await dialog.evaluate((node, previous) => node === previous, shownBeforeHydration),
+			).toBe(true);
+			await expect(close).toBeFocused();
+		} finally {
+			releaseChunks();
+		}
+
+		const images = dialog.locator(
+			".homepage-showcase-comparison img, .homepage-showcase-picker img",
+		);
+		await expect(images).toHaveCount(2 + HOMEPAGE_SHOWCASE_KEYS.length);
+		await expect
+			.poll(() =>
+				images.evaluateAll((items) =>
+					items.every((item) => item instanceof HTMLImageElement && item.naturalWidth > 0),
+				),
+			)
+			.toBe(true);
+		expect(comparisonRequests()).toEqual(sources);
+		for (const key of HOMEPAGE_SHOWCASE_KEYS.slice(1)) {
+			const media = HOMEPAGE_SHOWCASE_MEDIA[key];
+			expect(requests).toContain(media.thumbnail);
+			expect(requests).not.toContain(media.poster);
+			if ("before" in media) expect(requests).not.toContain(media.before);
+			if ("images" in media) {
+				for (const image of media.images) expect(requests).not.toContain(image);
+			}
+			if ("video" in media) expect(requests).not.toContain(media.video);
+		}
+		await dialog.getByRole("button", { name: "Vintage portrait", exact: true }).click();
+		await expect(dialog.locator('[data-test="showcase-create"]')).toHaveAttribute(
+			"href",
+			"/create?example=vintage-photo",
+		);
+	});
+}
+
+test("paints the original with the edited photo and Next.js still pending", async ({ page }) => {
+	test.setTimeout(75_000);
+	await page.setViewportSize({ width: 1440, height: 900 });
+	const requests: string[] = [];
+	page.on("request", (request) => {
+		const pathname = new URL(request.url()).pathname;
+		if (request.method() === "GET" && allComparisonSources.includes(pathname)) {
+			requests.push(pathname);
+		}
+	});
+	const releaseChunks = await holdRequests(page, nextChunks);
+	const releaseEdited = await holdRequests(page, `**${poster}`);
+	const dialog = page.locator(showcaseSelector);
+	const comparison = dialog.locator(".homepage-showcase-comparison");
+	const original = comparison.locator('img[data-showcase-source="before"]');
+	const edited = comparison.locator('img[data-showcase-source="poster"]');
+	const slider = dialog.getByRole("slider", { name: "Drag to compare" });
+	try {
+		await page.goto("/", { waitUntil: "commit" });
+		await expect.poll(() => [...requests].sort()).toEqual(firstComparison);
+		await expect(dialog).toBeVisible();
+		await expect(page.locator(enhancedShowcaseSelector)).toHaveCount(0);
+		await expect(original).toHaveAttribute("src", before);
+		await expect(original).toBeInViewport({ ratio: 0.9 });
+		await expect
+			.poll(() =>
+				original.evaluate(
+					(image: HTMLImageElement) =>
+						image.complete &&
+						image.naturalWidth > 0 &&
+						image.checkVisibility({ opacityProperty: true, visibilityProperty: true }),
+				),
+			)
+			.toBe(true);
+		await expect(edited).toBeHidden();
+		await expect(slider).toBeHidden();
+
+		releaseChunks();
+		await expect(page.locator(enhancedShowcaseSelector)).toBeVisible();
+		await expect(original).toBeInViewport({ ratio: 0.9 });
+		await expect(edited).toBeHidden();
+		await expect(slider).toBeHidden();
+
+		releaseEdited();
+		await expect(edited).toBeVisible();
+		await expect
+			.poll(() => edited.evaluate((image: HTMLImageElement) => image.naturalWidth))
+			.toBeGreaterThan(0);
+		await expect(slider).toBeVisible();
+		await slider.focus();
+		await page.keyboard.press("End");
+		await expect(slider).toHaveValue("100");
+		await expect(comparison).toHaveCSS("--showcase-position", "100%");
+		await page.keyboard.press("Home");
+		await expect(slider).toHaveValue("0");
+		await expect(comparison).toHaveCSS("--showcase-position", "0%");
+		expect([...requests].sort()).toEqual(firstComparison);
+	} finally {
+		releaseChunks();
+		releaseEdited();
+	}
+});
+
+for (const action of ["close button", "Escape"] as const) {
+	test(`dismisses the early showcase with ${action} and stays closed through hydration`, async ({
+		page,
+	}) => {
+		test.setTimeout(75_000);
+		await page.clock.install();
+		const releaseChunks = await holdRequests(page, nextChunks);
+		const dialog = page.locator(showcaseSelector);
+		const trigger = page.getByRole("button", { name: "Explore new ideas", exact: true });
+		try {
+			await page.goto("/", { waitUntil: "commit" });
+			await expect(dialog).toBeVisible();
+			await expect(page.locator(enhancedShowcaseSelector)).toHaveCount(0);
+			await expect(page.locator("button.homepage-showcase-trigger")).toBeAttached();
+			if (action === "Escape") await page.keyboard.press("Escape");
+			else await dialog.getByRole("button", { name: "Close previews", exact: true }).click();
+			await expect(dialog).toBeHidden();
+			await expect(trigger).toBeFocused();
+		} finally {
+			releaseChunks();
+		}
+
+		await expect(page.locator(enhancedShowcaseSelector)).toBeAttached();
+		await page.clock.runFor(HOMEPAGE_SHOWCASE_DELAY_MS + 500);
+		await expect(dialog).toBeHidden();
+		await expect(trigger).toBeFocused();
+		await trigger.click();
+		await expect(
+			dialog.getByRole("button", { name: "Vintage portrait", exact: true }),
+		).toBeVisible();
+	});
+}
+
+test("the automatic showcase waits while a privacy choice has focus", async ({ page, context }) => {
+	test.setTimeout(75_000);
+	await page.clock.install();
+	await page.route("**/api/analytics/policy", (route) =>
+		route.fulfill({ json: { requiresOptIn: true, privacySignal: false, analyticsAllowed: false } }),
+	);
+	const releaseOriginal = await holdRequests(page, `**${before}`);
+	const originalResponse = page.waitForResponse(`**${before}`);
+	const dialog = page.locator(showcaseSelector);
+	const banner = page.getByRole("region", { name: "We value your privacy", exact: true });
+	const reject = banner.getByRole("button", { name: "Reject non-essential", exact: true });
+	try {
+		await page.goto("/", { waitUntil: "domcontentloaded" });
+		await expect(reject).toBeVisible();
+		await reject.focus();
+		await expect(reject).toBeFocused();
+		releaseOriginal();
+		expect(await (await originalResponse).finished()).toBeNull();
+		await page.clock.runFor(HOMEPAGE_SHOWCASE_DELAY_MS + 500);
+		await expect(dialog).toBeHidden();
+		await expect(reject).toBeFocused();
+		await reject.click();
+		await expect(dialog).toBeVisible();
+		await expect(banner).toHaveCount(0);
+		expect((await context.cookies()).find((cookie) => cookie.name === "consent")?.value).toBe(
+			"false",
+		);
+	} finally {
+		releaseOriginal();
+	}
+});
+
+test("leaves workspace, recovery and anchor links free of automatic previews and image requests", async ({
+	page,
+}) => {
+	test.setTimeout(75_000);
+	await page.clock.install();
+	const requests: string[] = [];
+	page.on("request", (request) => requests.push(new URL(request.url()).pathname));
+	for (const href of [
+		"/create",
+		"/?job=example",
+		"/?videoJob=example",
+		"/?mode=video",
+		"/?reuseJob=example",
+		"/#image-editor",
+	]) {
+		await test.step(href, async () => {
+			await page.goto(href);
+			await page.clock.runFor(HOMEPAGE_SHOWCASE_DELAY_MS + 500);
+			await expect(page.locator(showcaseSelector)).toBeHidden();
+			for (const photo of allComparisonSources) {
+				await expect(page.locator(`link[rel="preload"][as="image"][href="${photo}"]`)).toHaveCount(
+					0,
+				);
+			}
+			expect(requests.filter((url) => allComparisonSources.includes(url))).toEqual([]);
+		});
+	}
+});
+
+for (const href of ["/#image-editor", "/?job=example", "/create"]) {
+	test(`rechecks ${href} before showing a scheduled homepage preview`, async ({ page }) => {
+		test.setTimeout(75_000);
+		const now = new Date();
+		await page.clock.install({ time: now });
+		await page.clock.pauseAt(new Date(now.getTime() + 60_000));
+		const photosRequested: string[] = [];
+		page.on("requestfinished", (request) => {
+			const pathname = new URL(request.url()).pathname;
+			if (firstComparison.includes(pathname)) photosRequested.push(pathname);
+		});
+		const releaseChunks = await holdRequests(page, nextChunks);
+		const dialog = page.locator(showcaseSelector);
+		try {
+			await page.goto("/", { waitUntil: "commit" });
+			await expect.poll(() => [...photosRequested].sort()).toEqual(firstComparison);
+			await expect(dialog.locator(`img[src="${poster}"]`)).toBeAttached();
+			await expect(dialog).toBeHidden();
+			await page.evaluate((path) => history.replaceState(history.state, "", path), href);
+			await page.clock.runFor(HOMEPAGE_SHOWCASE_DELAY_MS + 500);
+			await expect(dialog).toBeHidden();
+		} finally {
+			releaseChunks();
+			await page.clock.resume();
+		}
+		await page.waitForLoadState();
+		await page.clock.runFor(HOMEPAGE_SHOWCASE_DELAY_MS + 500);
+		await expect(dialog).toBeHidden();
+	});
+}
+
 for (const width of [1440, 390, 320]) {
 	test(`image-first showcase fills a wide stage at ${width}px`, async ({ page }) => {
 		test.setTimeout(75_000);
@@ -73,7 +378,7 @@ for (const width of [1440, 390, 320]) {
 		});
 		await page.goto("/");
 		const dialog = page.getByRole("dialog");
-		await expect(dialog).toBeVisible();
+		await expect(page.locator(enhancedShowcaseSelector)).toBeVisible();
 		await expect(dialog.getByRole("heading")).toHaveText("Your photo, painted differently.");
 		await expect(dialog.locator("video")).toHaveCount(0);
 		expect(mediaRequests).toHaveLength(0);
@@ -237,7 +542,7 @@ test("entrance stays centered and the picture survives the closing transition", 
 	page,
 }) => {
 	await page.goto("/");
-	await expect(page.getByRole("dialog")).toBeVisible();
+	await expect(page.locator(enhancedShowcaseSelector)).toBeVisible();
 	const originalScroll = await page.evaluate(() => window.scrollY);
 	await page.getByRole("button", { name: "Close previews" }).click();
 	await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -248,7 +553,7 @@ test("entrance stays centered and the picture survives the closing transition", 
 		const start = performance.now();
 		await new Promise<void>((resolve) => {
 			const step = () => {
-				const e = document.querySelector<HTMLElement>('[data-test="homepage-showcase"]');
+				const e = document.querySelector<HTMLElement>('[data-test="homepage-showcase"][open]');
 				if (e) {
 					const b = e.getBoundingClientRect();
 					frames.push({
@@ -280,7 +585,7 @@ test("entrance stays centered and the picture survives the closing transition", 
 		const start = performance.now();
 		await new Promise<void>((resolve) => {
 			const step = () => {
-				const e = document.querySelector<HTMLElement>('[data-test="homepage-showcase"]');
+				const e = document.querySelector<HTMLElement>('[data-test="homepage-showcase"][open]');
 				if (e)
 					frames.push({
 						opacity: Number(getComputedStyle(e).opacity),
@@ -493,7 +798,7 @@ test("homepage refresh reopens previews and translated photo presets retain thei
 		"href",
 		"/create?lang=de&example=watercolor",
 	);
-	await page.locator('[data-test="showcase-backdrop"]').click({ position: { x: 3, y: 3 } });
+	await page.mouse.click(3, 3);
 	await expect(dialog).toHaveCount(0);
 	await page.goto("/create?lang=de&example=watercolor");
 	await expect(page.locator('[data-test="landing-prompt-panel"] textarea')).toHaveValue(

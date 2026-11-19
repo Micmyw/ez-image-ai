@@ -59,7 +59,7 @@ describe("image pass offer banner", () => {
 					<ImagePassBanner />
 				</NextIntlClientProvider>,
 			);
-		expect(render()).toBe("");
+		expect(render()).toMatch(/^<div[^>]*data-image-pass-slot=""><\/div>$/);
 		expect(runtime.useQuery).toHaveBeenLastCalledWith(expect.objectContaining({ enabled: false }));
 
 		const getItem = vi.fn(() => "1");
@@ -69,7 +69,7 @@ describe("image pass offer banner", () => {
 			expect(getItem).toHaveBeenCalledWith(
 				`ezpic:image-pass-banner:${IMAGE_PASS_OFFER_SUMMARY.offerVersion}`,
 			);
-			expect(render()).toBe("");
+			expect(render()).toMatch(/^<div[^>]*data-image-pass-slot=""><\/div>$/);
 			expect(runtime.useQuery).toHaveBeenLastCalledWith(
 				expect.objectContaining({ enabled: false }),
 			);
@@ -99,7 +99,7 @@ describe("image pass offer banner", () => {
 						<ImagePassBanner />
 					</NextIntlClientProvider>,
 				),
-			).toBe("");
+			).toMatch(/^<div[^>]*data-image-pass-slot=""><\/div>$/);
 		},
 	);
 	it.each(Object.entries({ en, de, es, fr }))(

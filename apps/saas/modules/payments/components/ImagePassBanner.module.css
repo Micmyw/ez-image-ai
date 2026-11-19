@@ -1,6 +1,11 @@
+.slot {
+	block-size: 42px;
+	container: image-pass-banner / inline-size;
+}
+
 .banner {
 	position: relative;
-	container: image-pass-banner / inline-size;
+	block-size: 100%;
 	border-bottom: 1px solid #cdbde83d;
 	background:
 		radial-gradient(ellipse at 70% 0%, #c397ed26, transparent 58%),
@@ -11,12 +16,13 @@
 
 .content {
 	display: flex;
-	min-height: 40px;
+	block-size: 100%;
 	flex-wrap: wrap;
 	align-items: center;
+	align-content: center;
 	justify-content: center;
 	gap: 4px 14px;
-	padding: 6px 52px 6px 24px;
+	padding-inline: max(12px, env(safe-area-inset-left)) calc(46px + env(safe-area-inset-right));
 }
 
 .copy {
@@ -43,7 +49,7 @@
 
 .cta {
 	display: inline-flex;
-	min-height: 28px;
+	min-height: 30px;
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
@@ -67,10 +73,10 @@
 .close {
 	position: absolute;
 	top: 50%;
-	right: 12px;
+	right: max(3px, env(safe-area-inset-right));
 	display: inline-flex;
-	width: 28px;
-	height: 28px;
+	width: 38px;
+	height: 34px;
 	align-items: center;
 	justify-content: center;
 	transform: translateY(-50%);
@@ -98,6 +104,11 @@
 
 	.content {
 		gap: 4px 10px;
-		padding-left: 16px;
+	}
+}
+
+@media (max-width: 17rem) {
+	.slot {
+		block-size: 64px;
 	}
 }

@@ -5,7 +5,11 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { publicPagePath } from "../../public-content/lib/indexing";
-import { type HomepageShowcaseSlide } from "../lib/homepage-showcase";
+import {
+	HOMEPAGE_SHOWCASE_KEYS,
+	HOMEPAGE_SHOWCASE_MEDIA,
+	type HomepageShowcaseSlide,
+} from "../lib/homepage-showcase";
 import { HomepageShowcase } from "./HomepageShowcase";
 import { QuickStartAction } from "./QuickStartAction";
 import { QuickStartCard, type QuickStartCardData } from "./QuickStartCard";
@@ -19,49 +23,28 @@ export async function QuickStartIdeas() {
 	const examplePath = (key: string) =>
 		`${createPath}${createPath.includes("?") ? "&" : "?"}example=${key}`;
 	const pet = getVideoTemplate("kung-fu-cat")!;
-	const previewSlides: HomepageShowcaseSlide[] = (
-		[
-			{
-				key: "watercolor",
-				kind: "comparison",
-				before: "/images/image-to-image/style-before-960.03273c358179.webp",
-				poster: "/images/image-to-image/style-after-960.0e5ba95642bc.webp",
-				href: examplePath("watercolor"),
-				prompt: t("home.quickStartPrompts.watercolor"),
-			},
-			{
-				key: "vintage-photo",
-				kind: "portrait",
-				before: "/images/effects/1980s-ai-photo/input-adult-v1.webp",
-				poster: "/images/effects/1980s-ai-photo/family-snapshot-v3.webp",
-				href: examplePath("vintage-photo"),
-				prompt: t("home.quickStartPrompts.vintagePhoto"),
-			},
-			{
-				key: "christmas",
-				kind: "gallery",
-				poster: "/images/christmas/globe.webp",
-				images: [
-					"/images/christmas/street.webp",
-					"/images/christmas/globe.webp",
-					"/images/christmas/pet.webp",
-				],
-				href: publicPagePath("/christmas-wallpaper", locale),
-			},
-			{
-				key: "green-booth-freestyle",
-				kind: "video",
-				poster: "/videos/homepage-showcase/green-booth-freestyle.webp",
-				video: "/videos/homepage-showcase/green-booth-freestyle.mp4",
-				href: publicPagePath(getVideoTemplate("green-booth-freestyle")!.canonicalPath, locale),
-			},
-		] as const
-	).map((item) => ({
-		...item,
-		title: t(`home.showcasePopup.items.${item.key}.title`),
-		label: t(`home.showcasePopup.items.${item.key}.label`),
-		action: t(`home.showcasePopup.items.${item.key}.action`),
-		description: t(`home.showcasePopup.items.${item.key}.description`),
+	const previewActions = {
+		watercolor: {
+			href: examplePath("watercolor"),
+			prompt: t("home.quickStartPrompts.watercolor"),
+		},
+		"vintage-photo": {
+			href: examplePath("vintage-photo"),
+			prompt: t("home.quickStartPrompts.vintagePhoto"),
+		},
+		christmas: { href: publicPagePath("/christmas-wallpaper", locale) },
+		"green-booth-freestyle": {
+			href: publicPagePath(getVideoTemplate("green-booth-freestyle")!.canonicalPath, locale),
+		},
+	};
+	const previewSlides: HomepageShowcaseSlide[] = HOMEPAGE_SHOWCASE_KEYS.map((key) => ({
+		key,
+		...HOMEPAGE_SHOWCASE_MEDIA[key],
+		...previewActions[key],
+		title: t(`home.showcasePopup.items.${key}.title`),
+		label: t(`home.showcasePopup.items.${key}.label`),
+		action: t(`home.showcasePopup.items.${key}.action`),
+		description: t(`home.showcasePopup.items.${key}.description`),
 	}));
 	const previewCopy = {
 		trigger: t("home.showcasePopup.trigger"),

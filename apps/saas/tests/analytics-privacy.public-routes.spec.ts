@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
 
-async function fixtures(page: Page, requiresOptIn: boolean | null, privacySignal = false) {
+async function fixtures(
+	page: Page,
+	policy: boolean | null | Promise<boolean>,
+	privacySignal = false,
+) {
 	const vendors: string[] = [];
 	const traffic: { body: unknown; cookie: string | undefined }[] = [];
 	await page.route("**/*", async (route) => {
@@ -15,6 +19,7 @@ async function fixtures(page: Page, requiresOptIn: boolean | null, privacySignal
 		if (!["localhost", "127.0.0.1"].includes(url.hostname)) return route.abort();
 		if (!url.pathname.startsWith("/api/")) return route.continue();
 		if (url.pathname === "/api/analytics/policy") {
+			const requiresOptIn = await policy;
 			if (requiresOptIn === null) return route.fulfill({ status: 503 });
 			return route.fulfill({
 				json: { requiresOptIn, privacySignal, analyticsAllowed: !requiresOptIn && !privacySignal },
@@ -116,10 +121,20 @@ test("trusted opt-out region skips the banner while preserving a privacy choice"
 	await expect.poll(() => observed.vendors.length).toBe(2);
 	await expect(page.locator("[data-consent-banner]")).toHaveCount(0);
 	expect((await context.cookies()).find((c) => c.name === "consent")?.value).toBe("regional");
-	await page.getByRole("button", { name: "Privacy settings", exact: true }).click();
+	const settings = page.getByRole("button", { name: "Privacy settings", exact: true });
+	await settings.focus();
+	await page.keyboard.press("Enter");
+	const notice = page.getByRole("region", { name: "We value your privacy" });
+	await expect(notice).toBeFocused();
+	await page.keyboard.press("Tab");
+	await expect(notice.getByRole("link", { name: "Privacy Policy", exact: true })).toBeFocused();
 	await expect(
 		page.getByRole("button", { name: "Reject non-essential", exact: true }),
 	).toBeVisible();
+	await notice.getByRole("button", { name: "Close", exact: true }).click();
+	await expect(settings).toBeFocused();
+	await expect(notice).toHaveCount(0);
+	expect((await context.cookies()).find((c) => c.name === "consent")?.value).toBe("regional");
 });
 
 test("unavailable policy requires opt-in and keeps only the credentialless counter", async ({
@@ -149,4 +164,123 @@ test("privacy signal blocks aggregate traffic and recording even in opt-out regi
 	await expect(page.getByRole("button", { name: "Accept all", exact: true })).toBeDisabled();
 	expect(observed.vendors).toEqual([]);
 	expect(observed.traffic).toEqual([]);
+});
+
+for (const choice of [
+	{ button: "Accept all", cookie: "true", width: 320, height: 640 },
+	{ button: "Reject non-essential", cookie: "false", width: 844, height: 390 },
+]) {
+	test(`late privacy controls can ${choice.cookie === "true" ? "accept" : "reject"} inside the automatic preview`, async ({
+		page,
+		context,
+	}) => {
+		const policy = Promise.withResolvers<boolean>();
+		await fixtures(page, policy.promise);
+		await page.setViewportSize({ width: choice.width, height: choice.height });
+		await page.emulateMedia({ reducedMotion: "reduce" });
+		try {
+			await page.goto("/");
+			const preview = page.getByRole("dialog");
+			const title = preview.getByRole("heading");
+			const notice = preview.getByRole("region", { name: "We value your privacy" });
+			const choiceButton = notice.getByRole("button", { name: choice.button, exact: true });
+			await expect(title).toBeFocused();
+			await expect(notice).toHaveCount(0);
+			const initialTop = (await preview.boundingBox())!.y;
+			policy.resolve(true);
+			await expect(choiceButton).toBeEnabled();
+			await expect(page.getByRole("region", { name: "We value your privacy" })).toHaveCount(1);
+			expect((await preview.boundingBox())!.y).toBe(initialTop);
+			await expect(title).toBeFocused();
+			if (choice.cookie === "true") {
+				await choiceButton.click();
+			} else {
+				for (
+					let count = 0;
+					count < 12 &&
+					!(await choiceButton.evaluate((button) => button === document.activeElement));
+					count++
+				) {
+					await page.keyboard.press("Tab");
+				}
+				await expect(choiceButton).toBeFocused();
+				await page.keyboard.press("Enter");
+			}
+			await expect(title).toBeFocused();
+			await expect(notice).toHaveCount(0);
+			await expect
+				.poll(
+					async () => (await context.cookies()).find((cookie) => cookie.name === "consent")?.value,
+				)
+				.toBe(choice.cookie);
+			await page.keyboard.press("Escape");
+			await expect(preview).toHaveCount(0);
+			await expect(page.locator("button.homepage-showcase-trigger")).toBeFocused();
+		} finally {
+			policy.resolve(true);
+		}
+	});
+}
+
+test("late notices keep the translated editor in place at a narrow and a landscape viewport", async ({
+	page,
+	context,
+}) => {
+	const offer = Promise.withResolvers<boolean>();
+	const policy = Promise.withResolvers<boolean>();
+	await fixtures(page, policy.promise);
+	await page.route("**/api/rpc/payments/getImagePassOffer**", async (route) =>
+		route.fulfill({ json: { json: { available: await offer.promise } } }),
+	);
+	const banner = page.locator('[data-test="image-pass-banner"]');
+	const notice = page.locator("[data-consent-banner]");
+	const measure = () =>
+		page.evaluate(() =>
+			["[data-studio-shell]", ".studio-home", "#image-editor h1", "[data-generation-mode]"].map(
+				(selector) => {
+					const { x, y, width } = document.querySelector(selector)!.getBoundingClientRect();
+					return { x, y, width };
+				},
+			),
+		);
+	try {
+		await page.setViewportSize({ width: 320, height: 640 });
+		await page.goto("/create?lang=fr");
+		await expect(banner).toHaveCount(0);
+		await expect(notice).toHaveCount(0);
+		await page.evaluate(() => document.fonts.ready.then(() => undefined));
+		const initialLayout = await measure();
+		offer.resolve(true);
+		await expect(banner.getByRole("link", { name: "Acheter le pack" })).toHaveAttribute(
+			"href",
+			"/image-pass",
+		);
+		expect(await measure()).toEqual(initialLayout);
+		policy.resolve(true);
+		await expect(notice).toBeVisible();
+		expect(await measure()).toEqual(initialLayout);
+
+		for (const viewport of [
+			{ width: 320, height: 640 },
+			{ width: 844, height: 390 },
+		]) {
+			await page.setViewportSize(viewport);
+			const box = (await banner.boundingBox())!;
+			const link = (await banner.getByRole("link").boundingBox())!;
+			expect(link.y).toBeGreaterThanOrEqual(box.y);
+			expect(link.y + link.height).toBeLessThanOrEqual(box.y + box.height);
+			expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(viewport.width);
+		}
+		const landscapeLayout = await measure();
+		await banner.getByRole("button", { name: "Fermer l’offre du pack d’images" }).click();
+		await expect(banner).toHaveCount(0);
+		expect(await measure()).toEqual(landscapeLayout);
+		await page.reload();
+		await expect(notice).toBeVisible();
+		await expect(banner).toHaveCount(0);
+		expect((await context.cookies()).find((cookie) => cookie.name === "consent")).toBeUndefined();
+	} finally {
+		offer.resolve(false);
+		policy.resolve(true);
+	}
 });

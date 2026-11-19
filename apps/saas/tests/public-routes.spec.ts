@@ -839,6 +839,107 @@ async function mockPublicImageAvailability(
 	);
 }
 
+test("a late catalog keeps narrow composer controls still and offers all shortcuts", async ({
+	page,
+}) => {
+	await mockPublicImageAvailability(page);
+	await page.route("**/api/analytics/policy", (route) =>
+		route.fulfill({ json: { requiresOptIn: false, privacySignal: true } }),
+	);
+	const ready = Promise.withResolvers<void>();
+	const products = (
+		[
+			["image-nano-banana-2-lite", "nano-banana-2-lite-1k", 5],
+			["image-gpt-image-2-6-flare", "gpt-image-2-6-flare-1k", 23],
+			["image-gpt-image-2-6-sunburst", "gpt-image-2-6-sunburst-1k", 31],
+		] as const
+	).map(([key, skuKey, credits]) => ({
+		key,
+		label: key,
+		description: key,
+		credits,
+		inputKinds: ["text-to-image"],
+		skuMatrix: {
+			defaultSkuKey: skuKey,
+			dimensions: [
+				{ key: "resolution", label: "Resolution", options: [{ key: "1k", label: "1K" }] },
+			],
+			cells: [
+				{
+					skuKey,
+					label: "1K",
+					parameterValues: { resolution: "1k" },
+					credits,
+					aspectRatios: ["auto", "1:1"],
+					controls: [],
+				},
+			],
+		},
+	}));
+	let available = true;
+	await page.route("**/api/rpc/media/getPublicCatalog**", async (route) => {
+		await ready.promise;
+		return route.fulfill({
+			json: {
+				json: {
+					catalogVersion: "shortcuts",
+					pricingVersion: "shortcuts",
+					products: available ? products : [],
+				},
+			},
+		});
+	});
+	const editor = "/create?lang=fr";
+	const shortcuts = page.getByRole("group", { name: "Choisissez un usage" });
+	const track = shortcuts.locator('[data-test="image-purpose-shortcuts"]');
+	const controls = page.locator('[data-test="landing-controls-panel"]');
+	const top = () => controls.evaluate((node) => node.getBoundingClientRect().y + window.scrollY);
+	try {
+		await page.setViewportSize({ width: 320, height: 640 });
+		await page.goto(editor);
+		await page.evaluate(() => document.fonts.ready.then(() => undefined));
+		await expect(shortcuts).toHaveCount(0);
+		const pendingY = await top();
+		ready.resolve();
+		await expect(shortcuts.getByRole("button")).toHaveCount(3);
+		await expect(
+			shortcuts.getByRole("button", { name: /Texte et mise en page/ }),
+		).toHaveAccessibleName(/GPT Image 2.6 Flare · 23 crédits/);
+		expect(await top()).toBe(pendingY);
+		expect(await track.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeGreaterThan(0);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(320);
+
+		await shortcuts.getByRole("button", { name: /Images du quotidien/ }).focus();
+		await page.keyboard.press("Tab");
+		await page.keyboard.press("Tab");
+		const details = shortcuts.getByRole("button", { name: /Détails photo/ });
+		await expect(details).toBeFocused();
+		await expect.poll(() => track.evaluate((node) => node.scrollLeft)).toBeGreaterThan(0);
+		await page.keyboard.press("Enter");
+		await expect(details).toHaveAttribute("aria-pressed", "true");
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
+			"GPT Image 2.6 Sunburst",
+		);
+
+		await page.setViewportSize({ width: 1280, height: 960 });
+		await expect(shortcuts.getByRole("button")).toHaveCount(3);
+		await expect(track).toHaveCSS("flex-wrap", "wrap");
+		expect((await shortcuts.boundingBox())!.y).toBeLessThan((await controls.boundingBox())!.y);
+
+		available = false;
+		await page.setViewportSize({ width: 320, height: 640 });
+		await page.goto(editor);
+		await expect(page.locator('[data-test="landing-stage"]')).toHaveAttribute(
+			"data-stage",
+			"ready",
+		);
+		await expect(shortcuts).toHaveCount(0);
+		expect(await top()).toBeLessThan(pendingY);
+	} finally {
+		ready.resolve();
+	}
+});
+
 test("Christmas wallpaper homepage entry works on desktop and mobile", async ({
 	page,
 }, testInfo) => {

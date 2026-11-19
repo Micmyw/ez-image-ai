@@ -78,12 +78,6 @@ body:has(.studio-shell[data-workspace="true"]),
 .studio-create-link:hover {
 	background: #aa87ff15;
 }
-body:has(.studio-shell) [data-consent-banner] {
-	margin-left: var(--studio-sidebar-width);
-}
-body:has(.studio-shell) [data-consent-banner] button {
-	white-space: nowrap;
-}
 .studio-shell :is(button, a, input, textarea, select):focus-visible {
 	outline: 2px solid #c6b1ff;
 	outline-offset: 3px;
@@ -795,6 +789,9 @@ body:has(.studio-shell) [data-consent-banner] button {
 }
 .studio-hero {
 	padding-block: 32px 28px;
+}
+.studio-hero.studio-hero-with-image-pass {
+	padding-block-start: 8px;
 }
 .studio-title {
 	font-size: clamp(27px, 2.5vw, 40px);

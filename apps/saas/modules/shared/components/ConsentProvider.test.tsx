@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
 		userHasConsented: false,
 		showBanner: true,
 		preferencesOpen: false,
+		preferencesTrigger: null,
+		policyReady: true,
 		privacySignal: false,
 		closePreferences: vi.fn(),
 	},
@@ -44,6 +46,7 @@ describe("consent state", () => {
 		mocks.consent.userHasConsented = false;
 		mocks.consent.showBanner = true;
 		mocks.consent.preferencesOpen = false;
+		mocks.consent.policyReady = true;
 		mocks.consent.privacySignal = false;
 	});
 
@@ -117,6 +120,14 @@ describe("consent state", () => {
 		const markup = renderToStaticMarkup(<ConsentBanner />);
 		expect(markup).toContain("privacySignal");
 		expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>allow<\/button>/);
+	});
+
+	it("keeps acceptance disabled until the privacy policy is resolved", () => {
+		mocks.consent.preferencesOpen = true;
+		mocks.consent.policyReady = false;
+		expect(renderToStaticMarkup(<ConsentBanner />)).toMatch(
+			/<button[^>]*disabled=""[^>]*>allow<\/button>/,
+		);
 	});
 
 	it("updates automatic visibility across public and private navigation without recording a choice", () => {

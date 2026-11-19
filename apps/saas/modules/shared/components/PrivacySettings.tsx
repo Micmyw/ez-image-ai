@@ -10,10 +10,7 @@ export function PrivacySettings() {
 		<button
 			type="button"
 			className="text-xs underline underline-offset-4"
-			onClick={() => {
-				openPreferences();
-				window.scrollTo({ top: 0, behavior: "instant" });
-			}}
+			onClick={(event) => openPreferences(event.currentTarget)}
 		>
 			{t("settings")}
 		</button>

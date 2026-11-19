@@ -10,7 +10,9 @@ import { RegisteredWorkspaceBoundary } from "@shared/components/RegisteredWorksp
 import { getBaseUrl } from "@shared/lib/base-url";
 import { getLocale, getTranslations } from "next-intl/server";
 
+import { HomepageShowcaseStartup } from "../modules/landing/components/HomepageShowcaseStartup";
 import { LandingPage } from "../modules/landing/components/LandingPage";
+import { allowsHomepageShowcaseQuery } from "../modules/landing/lib/homepage-showcase";
 import { publicPagePath, type PublicMetadataProps } from "../modules/public-content/lib/indexing";
 import { createPublicPageMetadata } from "../modules/public-content/lib/metadata";
 
@@ -40,6 +42,7 @@ export default async function HomePage({
 	const registered = Boolean(session && !isAnonymousUser(session.user));
 	const locale = await getLocale();
 	const t = await getTranslations();
+	const preloadShowcase = allowsHomepageShowcaseQuery(Object.keys(await searchParams));
 	const homeUrl = new URL(publicPagePath("/", locale), getBaseUrl()).href;
 	const organizationUrl = new URL("/", getBaseUrl()).href;
 	const organizationId = `${organizationUrl}#organization`;
@@ -68,6 +71,7 @@ export default async function HomePage({
 
 	return (
 		<>
+			{preloadShowcase && <HomepageShowcaseStartup />}
 			<script
 				type="application/ld+json"
 				dangerouslySetInnerHTML={{

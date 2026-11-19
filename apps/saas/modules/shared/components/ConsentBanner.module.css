@@ -1,0 +1,25 @@
+.viewport {
+	position: fixed;
+	inset-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+	inset-block-end: max(12px, env(safe-area-inset-bottom));
+	z-index: 45;
+	max-inline-size: 29rem;
+	max-block-size: calc(
+		100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom))
+	);
+	margin-inline-start: auto;
+	overflow: auto;
+	overscroll-behavior: contain;
+	border: 1px solid var(--border);
+	border-radius: 16px;
+	box-shadow: 0 10px 36px #0005;
+}
+
+/* The showcase carries its own copy inside the dialog's focus boundary. */
+:global(body:has([data-homepage-showcase])) .viewport {
+	display: none;
+}
+
+.inDialog {
+	border-block-start: 1px solid var(--border);
+}

@@ -6,13 +6,21 @@ import { useCookieConsent } from "@shared/hooks/cookie-consent";
 import { CookieIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "next/navigation";
+import { type RefObject, useEffect, useRef } from "react";
 
-export function ConsentBanner() {
+import styles from "./ConsentBanner.module.css";
+
+export function ConsentBanner({
+	returnFocus,
+}: { returnFocus?: RefObject<HTMLElement | null> } = {}) {
 	const t = useTranslations("common.consent");
 	const pathname = usePathname();
+	const banner = useRef<HTMLElement>(null);
 	const {
 		showBanner,
 		preferencesOpen,
+		preferencesTrigger,
+		policyReady,
 		privacySignal,
 		allowCookies,
 		declineCookies,
@@ -21,22 +29,34 @@ export function ConsentBanner() {
 	const automaticNoticeAllowed =
 		pathname !== null && publicAnalyticsPath(new URL(pathname, "https://consent.invalid")) !== null;
 
+	useEffect(() => {
+		if (preferencesOpen && !returnFocus) banner.current?.focus({ preventScroll: true });
+	}, [preferencesOpen, returnFocus]);
+
 	// Account pages retain explicit privacy choices without an automatic notice.
 	if (!showBanner || (!preferencesOpen && !automaticNoticeAllowed)) {
 		return null;
 	}
 
+	function choose(action: () => void) {
+		action();
+		if (returnFocus?.current) returnFocus.current.focus();
+		else preferencesTrigger?.focus({ preventScroll: true });
+	}
+
 	return (
 		<section
+			ref={banner}
 			data-consent-banner=""
 			aria-label={t("label")}
-			className="border-b bg-card text-card-foreground"
+			tabIndex={-1}
+			className={`bg-card text-card-foreground ${returnFocus ? styles.inDialog : styles.viewport}`}
 		>
-			<div className="gap-2 py-2 container flex items-start">
+			<div className="gap-2 p-3 sm:p-4 flex items-start">
 				<CookieIcon className="mt-0.5 size-4 shrink-0 text-primary/60" aria-hidden="true" />
-				<div className="min-w-0 gap-2 sm:flex-row sm:items-center sm:gap-4 flex flex-1 flex-col">
-					<div className="text-xs leading-relaxed flex-1">
-						<h2 className="mb-1 text-sm font-semibold">{t("label")}</h2>
+				<div className="min-w-0 gap-2 flex flex-1 flex-col">
+					<div className="text-xs leading-relaxed">
+						<p className="mb-1 text-sm font-semibold">{t("label")}</p>
 						<p>
 							{t("message")}{" "}
 							<a href="/privacy" className="whitespace-nowrap underline underline-offset-2">
@@ -45,24 +65,32 @@ export function ConsentBanner() {
 						</p>
 						{privacySignal && <p>{t("privacySignal")}</p>}
 					</div>
-					<div className="gap-1.5 sm:shrink-0 flex flex-wrap">
+					<div className="gap-1.5 flex flex-wrap">
 						<Button
+							type="button"
 							size="sm"
 							variant="secondary"
-							className="h-8 sm:h-7 flex-1"
-							onClick={() => declineCookies()}
+							className="min-h-9 flex-1"
+							onClick={() => choose(declineCookies)}
 						>
 							{t("decline")}
 						</Button>
 						<Button
+							type="button"
 							size="sm"
-							className="h-8 sm:h-7 flex-1"
-							disabled={privacySignal}
-							onClick={() => allowCookies()}
+							className="min-h-9 flex-1"
+							disabled={!policyReady || privacySignal}
+							onClick={() => choose(allowCookies)}
 						>
 							{t("allow")}
 						</Button>
-						<Button size="sm" variant="ghost" className="h-8 sm:h-7" onClick={closePreferences}>
+						<Button
+							type="button"
+							size="sm"
+							variant="ghost"
+							className="min-h-9"
+							onClick={() => choose(closePreferences)}
+						>
 							{t("close")}
 						</Button>
 					</div>

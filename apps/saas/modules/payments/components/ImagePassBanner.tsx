@@ -34,38 +34,44 @@ export function ImagePassBanner() {
 			// Keep the in-memory choice for this mounted workspace.
 		}
 	}
-	if (
-		dismissed !== false ||
-		availability.isError ||
-		availability.isPending ||
-		availability.data?.available !== true
-	)
-		return null;
+	const showOffer =
+		dismissed === false &&
+		!availability.isError &&
+		!availability.isPending &&
+		availability.data?.available === true;
 	return (
-		<aside aria-label={t("bannerLabel")} className={styles.banner} data-test="image-pass-banner">
-			<div className={`container ${styles.content}`}>
-				<p className={styles.copy}>
-					<strong className={styles.title}>
-						{t("bannerTitle", {
-							units: offer.units,
-							amount: offer.amount,
-						})}
-					</strong>
-					<span className={styles.detail}>{t("bannerDetail")}</span>
-				</p>
-				<IntentPrefetchLink href="/image-pass" className={styles.cta}>
-					{t("buy")}
-					<span aria-hidden="true">↗</span>
-				</IntentPrefetchLink>
-			</div>
-			<button
-				type="button"
-				aria-label={t("dismissBanner")}
-				className={styles.close}
-				onClick={dismissBanner}
-			>
-				<XIcon size={14} strokeWidth={1.75} aria-hidden="true" />
-			</button>
-		</aside>
+		<div className={styles.slot} data-image-pass-slot="">
+			{showOffer && (
+				<aside
+					aria-label={t("bannerLabel")}
+					className={styles.banner}
+					data-test="image-pass-banner"
+				>
+					<div className={styles.content}>
+						<p className={styles.copy}>
+							<strong className={styles.title}>
+								{t("bannerTitle", {
+									units: offer.units,
+									amount: offer.amount,
+								})}
+							</strong>
+							<span className={styles.detail}>{t("bannerDetail")}</span>
+						</p>
+						<IntentPrefetchLink href="/image-pass" className={styles.cta}>
+							{t("buy")}
+							<span aria-hidden="true">↗</span>
+						</IntentPrefetchLink>
+					</div>
+					<button
+						type="button"
+						aria-label={t("dismissBanner")}
+						className={styles.close}
+						onClick={dismissBanner}
+					>
+						<XIcon size={14} strokeWidth={1.75} aria-hidden="true" />
+					</button>
+				</aside>
+			)}
+		</div>
 	);
 }
