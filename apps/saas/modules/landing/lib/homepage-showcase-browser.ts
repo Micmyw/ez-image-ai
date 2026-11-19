@@ -157,7 +157,11 @@ export function mountHomepageShowcase(
 			return;
 		}
 		const active = document.activeElement;
-		if (active?.closest("[data-consent-banner], #image-editor") || !canOpen()) {
+		// A lazy drawer's trigger is expanded before its dialog enters the document.
+		const openingDialog = document.querySelector(
+			'[aria-haspopup="dialog"]:is([aria-expanded="true"], :active)',
+		);
+		if (active?.closest("[data-consent-banner], #image-editor") || openingDialog || !canOpen()) {
 			timer = window.setTimeout(reveal, 500);
 			return;
 		}

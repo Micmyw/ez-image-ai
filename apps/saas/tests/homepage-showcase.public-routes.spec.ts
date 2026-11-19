@@ -335,6 +335,52 @@ test("the automatic showcase waits while a privacy choice has focus", async ({ p
 	}
 });
 
+test("the automatic showcase waits for the mobile navigation drawer to close", async ({ page }) => {
+	test.setTimeout(75_000);
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.clock.install();
+	const releaseOriginal = await holdRequests(
+		page,
+		`**${HOMEPAGE_SHOWCASE_COMPACT_COMPARISON.before}`,
+	);
+	const preview = page.locator(showcaseSelector);
+	const navigation = page.getByRole("button", { name: "Open navigation", exact: true });
+	const drawer = page.locator('[data-test="header-navigation-drawer"]');
+	try {
+		await page.goto("/", { waitUntil: "domcontentloaded" });
+		await expect(page.locator(enhancedShowcaseSelector)).toBeAttached();
+		// Hold the drawer bundle after the homepage controls have hydrated.
+		const releaseDrawer = await holdRequests(page, nextChunks);
+		try {
+			await navigation.click();
+			await expect(navigation).toHaveAttribute("aria-expanded", "true");
+			await expect(drawer).toBeHidden();
+			releaseOriginal();
+			await preview
+				.locator('img[data-showcase-source="before"]')
+				.evaluate((image: HTMLImageElement) => image.decode());
+			await page.clock.runFor(HOMEPAGE_SHOWCASE_DELAY_MS + 500);
+			await expect(preview).toBeHidden();
+			await expect(navigation).toHaveAttribute("aria-expanded", "true");
+		} finally {
+			releaseDrawer();
+		}
+
+		await expect(drawer).toBeVisible();
+		const images = drawer.locator("summary").filter({ hasText: "AI Image" });
+		await images.click();
+		await page.clock.runFor(500);
+		await expect(preview).toBeHidden();
+		await expect(images).toBeFocused();
+		await expect(drawer.locator('a[href="/image-to-image"]')).toBeVisible();
+		await drawer.getByRole("button", { name: "Close", exact: true }).click();
+		await expect(drawer).toBeHidden();
+		await expect(preview).toBeVisible();
+	} finally {
+		releaseOriginal();
+	}
+});
+
 test("leaves workspace, recovery and anchor links free of automatic previews and image requests", async ({
 	page,
 }) => {
